@@ -97,7 +97,8 @@ normalizes Cursor / Claude-Code payloads into
 Daemon prints a 6-character pairing code to stdout on boot. The web UI
 prompts for it the first time you open it. After one successful pair per
 `clientId`, the daemon stores a bearer token; the browser sends that
-token on subsequent connects. Codes expire after 10 minutes.
+token on subsequent connects. Codes expire after 24 hours by default
+(configurable via `BUDDY_PAIRING_TTL_S`).
 
 ## Quick start
 
