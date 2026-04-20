@@ -3,7 +3,7 @@
   "hooks": {
     "beforeShellExecution": [
       {
-        "command": "python3 mobile-mvp/hooks/buddy-approval.py --format cursor",
+        "command": "bun run src/src/cli/index.ts hook --format cursor",
         "matcher": "(?:^|[;&|\\s])(rm\\s+-[rRf]|sudo\\b|chmod\\s+[0-7]{3,4}|chown\\b|ssh\\b|scp\\b|curl\\s+[^|]*\\|\\s*(?:sh|bash)|wget\\s+[^|]*\\|\\s*(?:sh|bash)|git\\s+push\\s+(?:-f|--force)|npm\\s+publish|pip\\s+install|brew\\s+install|dd\\s+if=|mkfs\\.|:\\s*>\\s*/|HOOK_TEST)",
         "failClosed": false,
         "timeout": 60
@@ -11,7 +11,7 @@
     ],
     "preToolUse": [
       {
-        "command": "python3 mobile-mvp/hooks/buddy-approval.py --format cursor",
+        "command": "bun run src/src/cli/index.ts hook --format cursor",
         "matcher": "Write|Edit|StrReplace|Delete",
         "failClosed": false,
         "timeout": 60

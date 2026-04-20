@@ -1,56 +1,74 @@
 # Buddygotchi
 
-**Buddygotchi** is a local service plus web app that turns **Cursor** and **Claude Code** permission prompts into a small **pixel-style buddy** you can answer from a browser tab on your Mac—or from a phone on the same Wi‑Fi.
+A macOS menu bar companion for AI coding agents. Your buddy reacts to what your agent is doing — sleeping when idle, working when busy, alerting you when a tool call needs approval, and celebrating when a task completes.
 
-No Bluetooth and no gadget required for the main flow: a **Python daemon** receives hook events, pushes state over **WebSockets**, and your **PWA-style UI** shows approve/deny with animated ASCII species and overlay effects.
+Connects to **Claude Code**, **Cursor**, and **Codex** simultaneously. Optionally drives an M5Stack hardware display over Bluetooth.
 
-Repository: [github.com/chicco4life/buddygotchi](https://github.com/chicco4life/buddygotchi)
+## Getting Started
 
-## What it does
+### Build & Run
 
-1. **Hooks** run when the agent is about to execute something you care about (shell patterns and/or file tools, configured in `.cursor/hooks.json`).
-2. **`mobile-mvp/hooks/buddy-approval.py`** sends the tool name and hint to the daemon and waits for a decision.
-3. The **daemon** broadcasts a permission card to every **paired** web client.
-4. You tap **approve** or **deny**; the hook returns that choice to the host (or **`ask`** if the daemon is down or nothing decides in time—fail-open to the native UI).
-
-## Features
-
-- **Web UI:** pairing, live buddy state, source filter (e.g. Cursor vs Claude Code), species picker with persistence, canvas particles per mood state.
-- **Daemon:** HTTP + WebSocket API, strict reducer-driven state (`mobile-mvp/schema/`).
-- **Safety default:** if anything breaks, hooks fall back to the editor’s normal permission flow.
-
-## Quick start
-
-Full steps, env vars, and tests: **[`mobile-mvp/README.md`](mobile-mvp/README.md)**.
-
-```bash
-cd mobile-mvp/daemon
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-
-# from repo root
-PYTHONPATH=mobile-mvp/daemon python -m buddy_daemon
+```sh
+cd app
+swift build
+swift run Buddygotchi
 ```
 
-Open **http://127.0.0.1:8080/**, enter the pairing code from the terminal, then use Cursor with this folder as the workspace so **`python3 mobile-mvp/hooks/buddy-approval.py`** resolves.
+On first launch, the setup wizard walks you through:
 
-## Project layout
+1. **Detect agents** — finds which coding agents are installed on your machine
+2. **Install hooks** — one click to register Buddygotchi hooks for each agent
+3. **Test connection** — send any message in your agent to verify the link
+4. **Choose your buddy** — pick from 5 ASCII species (cat, axolotl, robot, capybara, dragon)
+5. **Pick an output** — menu bar popover (default) or M5Stack over Bluetooth
+
+After setup, Buddygotchi runs as a menu bar icon. Click it to see your pet, connection status, and any pending tool approval cards.
+
+### Testing
+
+Verify the server is running:
+
+```sh
+curl http://localhost:21321/healthz
+```
+
+Simulate a tool approval request:
+
+```sh
+curl -X POST http://localhost:21321/hook/event \
+  -H 'Content-Type: application/json' \
+  -d '{"session_id":"test","hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{"command":"ls"}}'
+```
+
+Send an activity signal:
+
+```sh
+curl -X POST http://localhost:21321/hook/signal \
+  -H 'Content-Type: application/json' \
+  -d '{"agent_id":"claude-code","signal":"start_working","session_id":"test"}'
+```
+
+### Reset Onboarding
+
+```sh
+defaults delete Buddygotchi setupCompleted
+```
+
+## Project Layout
 
 | Path | Purpose |
 |------|---------|
-| **`mobile-mvp/`** | **Main product:** daemon (`buddy_daemon`), web client (`web/`), Cursor/Claude hook script (`hooks/`), TypeScript schemas (`schema/`), harness and archived BLE experiments (`archive/`). |
-| **`src/`**, **`platformio.ini`**, **`characters/`**, **`tools/`** | **Reference firmware** inherited from [Anthropic’s Claude Desktop Buddy](https://github.com/anthropics/claude-desktop-buddy): ESP32 desk pet that talks to Claude desktop over **BLE** (optional; separate from Buddygotchi’s hook path). |
-| **`REFERENCE.md`** | Nordic UART / JSONL protocol for that **hardware** integration. |
-| **`docs/`** | Screenshots and manual for the original hardware workflow. |
+| `app/` | Native macOS menu bar app (Swift/SwiftUI) |
+| `app/Buddygotchi/Core/` | Pure business logic — engine, reducer, state model |
+| `app/Buddygotchi/Server/` | HTTP input (Hummingbird) |
+| `app/Buddygotchi/Views/` | SwiftUI popover, settings, setup wizard |
+| `app/Buddygotchi/Outputs/ESP32/` | BLE hardware output for M5Stack |
+| `app/BuddygotchiHook/` | Hook CLI — agent stdin to HTTP POST |
+| `app/BuddygotchiSignal/` | Signal CLI — lifecycle events to HTTP POST |
+| `src/outputs/esp32/` | ESP32 firmware (C++/PlatformIO) |
 
-## Relationship to Claude Desktop Buddy
-
-Buddygotchi’s **animations and “desk pet” idea** are inspired by the official buddy sample, but the **default integration here is hooks + localhost**, not the Claude desktop **Hardware Buddy** BLE window. If you flash the firmware in `src/`, you’re using Anthropic’s maker API; see **`REFERENCE.md`** and upstream **[claude-desktop-buddy](https://github.com/anthropics/claude-desktop-buddy)**.
-
-## Contributing
-
-See [`CONTRIBUTING.md`](CONTRIBUTING.md). Upstream firmware changes are best discussed against the Anthropic repo; Buddygotchi-specific work lives under **`mobile-mvp/`**.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full technical design.
 
 ## License
 
-See [`LICENSE`](LICENSE).
+See [`src/outputs/esp32/LICENSE`](src/outputs/esp32/LICENSE).

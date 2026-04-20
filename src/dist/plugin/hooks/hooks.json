@@ -1,0 +1,25 @@
+{
+  "description": "Buddygotchi: approve AI agent tool calls from your phone or browser",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/buddygotchi daemon --background --if-not-running"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/buddygotchi hook --format claude-code"
+          }
+        ]
+      }
+    ]
+  }
+}
