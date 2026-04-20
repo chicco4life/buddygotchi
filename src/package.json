@@ -1,0 +1,14 @@
+{
+  "name": "buddygotchi",
+  "version": "0.2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/cli/index.ts daemon",
+    "build": "bun build --compile src/cli/index.ts --outfile buddygotchi",
+    "test": "bun test",
+    "hook": "bun run src/cli/index.ts hook"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+dist-tsc/
+.venv/
+venv/
+.env
+daemon.log
+audit.log
+pairing-state.json
+node_modules/
+bun.lock
+dist-tsc/
