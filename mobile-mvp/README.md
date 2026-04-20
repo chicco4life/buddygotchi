@@ -168,19 +168,16 @@ mobile-mvp/
 | ---- | --------------------------------------------------- |
 | 8080 | HTTP `/`, `/healthz`, WebSocket `/ws`, `/hook/request` |
 
-## Pushing to a new remote
+## Pushing to your own GitHub remote
 
-From the **repository root** (parent of `mobile-mvp/`):
+Your `origin` may still point at [anthropics/claude-desktop-buddy](https://github.com/anthropics/claude-desktop-buddy).
+Create a new empty repo under your account, then from the **repository root**:
 
 ```bash
-git remote -v
-# add your GitHub remote if needed:
-# git remote add origin https://github.com/<you>/<repo>.git
-git add .gitignore README.md .cursor/hooks.json mobile-mvp
-git status
-git commit -m "Add mobile hook MVP (daemon, web UI, Cursor hooks)"
+git remote rename origin upstream   # optional: keep upstream for pulls
+git remote add origin https://github.com/<you>/<your-repo>.git
 git push -u origin main
 ```
 
 Project hooks use `python3 mobile-mvp/hooks/buddy-approval.py` relative to the
-repo root; open the folder as a Cursor workspace so that path resolves.
+repo root; open this folder as the Cursor workspace so that path resolves.
