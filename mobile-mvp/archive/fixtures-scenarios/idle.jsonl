@@ -1,0 +1,5 @@
+{"time":[1775731234,-25200]}
+{"cmd":"owner","name":"Felix"}
+{"total":0,"running":0,"waiting":0,"msg":"","entries":[],"tokens":0,"tokens_today":0}
+{"total":1,"running":0,"waiting":0,"msg":"idle","entries":["10:39 reading file..."],"tokens":12000,"tokens_today":3200}
+{"total":1,"running":0,"waiting":0,"msg":"idle","entries":["10:39 reading file..."],"tokens":12100,"tokens_today":3300}

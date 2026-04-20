@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#121418">
+<title>Claude Buddy</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <main id="root">
+    <section id="pair-view" class="view" hidden>
+      <h1>claude buddy</h1>
+      <p class="muted">enter the 6-character pairing code.</p>
+      <p id="local-code-hint" class="muted" hidden>
+        on this mac: <code id="local-code">······</code>
+        <button id="use-local-code" class="linkish" type="button" hidden>use this code</button>
+      </p>
+      <form id="pair-form" autocomplete="off">
+        <input
+          id="code"
+          name="code"
+          maxlength="6"
+          inputmode="latin"
+          autocapitalize="characters"
+          autocorrect="off"
+          spellcheck="false"
+          placeholder="ABC123"
+          required
+        >
+        <button type="submit" id="pair-submit">pair</button>
+      </form>
+      <p id="pair-error" class="error" hidden></p>
+    </section>
+
+    <section id="live-view" class="view" hidden>
+      <nav id="source-switch" class="source-switch" role="tablist" aria-label="source filter">
+        <button class="src-btn" data-src="cursor" type="button" role="tab" aria-selected="true">cursor</button>
+        <button class="src-btn" data-src="claude-code" type="button" role="tab" aria-selected="false">claude-code</button>
+        <button class="src-btn" data-src="all" type="button" role="tab" aria-selected="false">all</button>
+      </nav>
+
+      <section id="pet-stage" class="pet-stage" aria-live="polite">
+        <button id="pet-prev" class="pet-nav pet-nav-prev" type="button" aria-label="previous species">‹</button>
+        <button id="pet-next" class="pet-nav pet-nav-next" type="button" aria-label="next species">›</button>
+        <div class="pet-inner">
+          <pre id="pet-art" class="pet-art" aria-label="buddy"></pre>
+          <canvas id="pet-overlay" class="pet-overlay" width="280" height="160" aria-hidden="true"></canvas>
+        </div>
+        <div class="pet-meta">
+          <span id="pet-species" class="pet-species">cat</span>
+          <span class="pet-dot">·</span>
+          <span id="pet-label" class="pet-label" data-state="idle">idle</span>
+        </div>
+      </section>
+
+      <header id="hud">
+        <span id="link" class="link">offline</span>
+      </header>
+
+      <section id="idle-card" class="card" hidden>
+        <h2 id="idle-title">nothing pending</h2>
+        <p id="idle-sub" class="muted">your buddy is watching. you'll see approval requests here.</p>
+      </section>
+
+      <section id="prompt-card" class="card prompt" hidden>
+        <h2>
+          <span id="prompt-source" class="source-badge"></span>
+          permission request
+        </h2>
+        <p class="tool" id="prompt-tool">tool</p>
+        <pre class="hint" id="prompt-hint"></pre>
+        <div class="decided" id="decided-line" hidden></div>
+        <div class="actions">
+          <button id="deny" class="btn deny" type="button">deny</button>
+          <button id="approve" class="btn approve" type="button">approve</button>
+        </div>
+      </section>
+
+      <section id="muted-card" class="card muted-card" hidden>
+        <h2>request from <span id="muted-source"></span></h2>
+        <p class="muted" id="muted-tool"></p>
+        <p class="muted">switch to that source to decide.</p>
+      </section>
+
+      <footer class="muted">
+        <span id="status-line">connecting…</span>
+        <button id="unpair" class="linkish" type="button">unpair</button>
+      </footer>
+    </section>
+  </main>
+  <script src="/app.js" type="module"></script>
+</body>
+</html>

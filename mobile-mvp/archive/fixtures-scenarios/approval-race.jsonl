@@ -1,0 +1,5 @@
+{"time":[1775731234,-25200]}
+{"cmd":"owner","name":"Felix"}
+{"total":1,"running":1,"waiting":1,"msg":"approve: Write","entries":["10:50 editing main.py"],"tokens":50000,"tokens_today":20000,"prompt":{"id":"req_race_001","tool":"Write","hint":"overwrite main.py"}}
+{"total":1,"running":1,"waiting":1,"msg":"approve: Write","entries":["10:50 editing main.py"],"tokens":50050,"tokens_today":20050,"prompt":{"id":"req_race_001","tool":"Write","hint":"overwrite main.py"}}
+{"total":1,"running":1,"waiting":0,"msg":"approved","entries":["10:50 wrote main.py"],"tokens":50100,"tokens_today":20100}

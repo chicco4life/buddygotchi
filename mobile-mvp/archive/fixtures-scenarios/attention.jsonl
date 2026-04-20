@@ -1,0 +1,5 @@
+{"time":[1775731234,-25200]}
+{"cmd":"owner","name":"Felix"}
+{"total":1,"running":1,"waiting":0,"msg":"running","entries":["10:41 yarn test"],"tokens":40000,"tokens_today":15000}
+{"total":2,"running":1,"waiting":1,"msg":"approve: Bash","entries":["10:42 git push","10:41 yarn test"],"tokens":42000,"tokens_today":17000,"prompt":{"id":"req_abc123","tool":"Bash","hint":"rm -rf /tmp/foo"}}
+{"total":2,"running":1,"waiting":1,"msg":"approve: Bash","entries":["10:42 git push","10:41 yarn test"],"tokens":42100,"tokens_today":17100,"prompt":{"id":"req_abc123","tool":"Bash","hint":"rm -rf /tmp/foo"}}

@@ -170,3 +170,10 @@ tools/           — generators and converters
 The BLE API is only available when the desktop apps are in developer mode
 (**Help → Troubleshooting → Enable Developer Mode**). It's intended for
 makers and developers and isn't an officially supported product feature.
+
+## Experimental: hook + web UI MVP
+
+[`mobile-mvp/`](mobile-mvp/) adds a small local daemon plus a
+browser UI that mirrors the buddy experience using **Cursor hooks** (and an
+optional Claude Code hook) instead of BLE. See
+[`mobile-mvp/README.md`](mobile-mvp/README.md) for setup and pairing.

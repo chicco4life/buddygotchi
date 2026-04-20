@@ -2,3 +2,17 @@
 .vscode/
 .DS_Store
 data/
+
+# Cursor — track project hook config only
+.cursor/**
+!.cursor/hooks.json
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.venv/
+venv/
