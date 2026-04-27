@@ -45,6 +45,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationManager.shared.setup(engine: engine)
         NotificationManager.shared.requestPermission()
 
+        UserDefaults.standard.set(BuddyConfig.default.approvalMode, forKey: "approvalMode")
+
         engine.start()
 
         if UserDefaults.standard.string(forKey: "buddyOutput") == "m5stack" {
@@ -190,7 +192,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showPopover(dismissAfter seconds: TimeInterval) {
         guard let button = statusItem.button else { return }
         cancelAutoDismiss()
-        popover.behavior = .transient
+        // Approvals use .transient so the user can dismiss; regular attention pins open.
+        let isApproval = engine.state.prompt?.isApproval == true
+        popover.behavior = isApproval ? .transient : .applicationDefined
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
         autoDismissTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in

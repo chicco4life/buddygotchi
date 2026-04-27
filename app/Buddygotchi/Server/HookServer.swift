@@ -62,6 +62,34 @@ func buildHookServer(engine: BuddyEngine, config: BuddyConfig) -> Application<Ro
         return emptyOK()
     }
 
+    router.post("/hook/approve") { request, _ -> Response in
+        let source = request.uri.queryParameters["source"].map(String.init) ?? "claude-code"
+        let body = try await decodeBody(HookEventBody.self, from: request)
+        let sessionId = deriveSessionId(from: body, source: source)
+        let tool = body.tool_name ?? "Unknown"
+        let hint = extractHint(from: body)
+        let sessionLabel = cwdLabel(body.cwd)
+        let requestId = "\(sessionId)_\(shortUUID())"
+
+        await engine.sessionStarted(sessionId: sessionId, source: source, cwd: body.cwd)
+
+        if let autoDecision = shouldAutoApprove(tool: tool, hint: hint, source: source) {
+            await engine.activitySignal(sessionId: sessionId, source: source, signal: .keepWorking)
+            return approvalResponse(decision: autoDecision, source: source)
+        }
+
+        let decision = await engine.submitApproval(
+            sessionId: sessionId,
+            requestId: requestId,
+            tool: tool,
+            hint: hint,
+            sessionLabel: sessionLabel,
+            source: source
+        )
+
+        return approvalResponse(decision: decision, source: source)
+    }
+
     return Application(
         router: router,
         configuration: .init(address: .hostname("127.0.0.1", port: config.httpPort))
@@ -71,7 +99,7 @@ func buildHookServer(engine: BuddyEngine, config: BuddyConfig) -> Application<Ro
 // MARK: - Agent Event Handler
 
 private func handleAgentEvent(body: HookEventBody, source: String, hookPid: Int32?, engine: BuddyEngine) async {
-    let sessionId = body.session_id ?? "\(source)_\(hashCwd(body.cwd))"
+    let sessionId = deriveSessionId(from: body, source: source)
     let event = body.hook_event_name ?? ""
     let sessionLabel = cwdLabel(body.cwd)
 
@@ -107,11 +135,14 @@ private func handleAgentEvent(body: HookEventBody, source: String, hookPid: Int3
 
     case "Notification":
         switch body.notification_type {
-        case "permission_prompt", "elicitation_dialog":
-            let tool = body.notification_type ?? "Notification"
-            let hint = body.message ?? ""
+        case "permission_prompt":
+            // Skip when approval mode is on — the hook script routes these to /hook/approve instead.
+            if UserDefaults.standard.bool(forKey: "approvalMode") { break }
             let requestId = "\(sessionId)_\(shortUUID())"
-            await engine.submitRequest(sessionId: sessionId, requestId: requestId, tool: tool, hint: hint, sessionLabel: sessionLabel)
+            await engine.submitRequest(sessionId: sessionId, requestId: requestId, tool: body.notification_type ?? "Notification", hint: body.message ?? "", sessionLabel: sessionLabel)
+        case "elicitation_dialog":
+            let requestId = "\(sessionId)_\(shortUUID())"
+            await engine.submitRequest(sessionId: sessionId, requestId: requestId, tool: body.notification_type ?? "Notification", hint: body.message ?? "", sessionLabel: sessionLabel)
         case "idle_prompt":
             await engine.activitySignal(sessionId: sessionId, source: source, signal: .stopWorking)
         default:
@@ -129,6 +160,57 @@ private func handleAgentEvent(body: HookEventBody, source: String, hookPid: Int3
     default:
         break
     }
+}
+
+// MARK: - Approval Helpers
+
+private func approvalResponse(decision: ApprovalDecision, source: String) -> Response {
+    let payload: [String: Any]
+    if source == "cursor" {
+        switch decision {
+        case .allow:
+            payload = ["permission": "allow"]
+        case .deny:
+            payload = ["permission": "deny", "user_message": "Denied by Buddygotchi", "agent_message": "Tool call denied by Buddygotchi approval mode."]
+        }
+    } else {
+        var decisionDict: [String: Any] = ["behavior": decision.rawValue]
+        if decision == .deny {
+            decisionDict["message"] = "Denied by Buddygotchi"
+        }
+        payload = [
+            "hookSpecificOutput": [
+                "hookEventName": "PermissionRequest",
+                "decision": decisionDict,
+            ] as [String: Any],
+        ]
+    }
+    guard let data = try? JSONSerialization.data(withJSONObject: payload) else {
+        return Response(status: .internalServerError)
+    }
+    return Response(
+        status: .ok,
+        headers: [.contentType: "application/json"],
+        body: .init(byteBuffer: ByteBuffer(data: data))
+    )
+}
+
+private let cursorAutoApproveTools: Set<String> = ["Read", "Glob", "Grep", "LSP", "WebFetch"]
+
+private let cursorSafeShellPatterns: [String] = [
+    #"^(ls|cat|head|tail|wc|find|grep|rg|fd|which|echo|pwd|date|whoami|hostname|uname)\b"#,
+    #"^git (status|log|diff|show|branch|remote|tag)\b"#,
+]
+
+private func shouldAutoApprove(tool: String, hint: String, source: String) -> ApprovalDecision? {
+    guard source == "cursor" else { return nil }
+    if cursorAutoApproveTools.contains(tool) { return .allow }
+    for pattern in cursorSafeShellPatterns {
+        if hint.range(of: pattern, options: .regularExpression) != nil {
+            return .allow
+        }
+    }
+    return nil
 }
 
 // MARK: - Helpers
@@ -151,6 +233,10 @@ private func cwdLabel(_ cwd: String?) -> String? {
 private func hashCwd(_ cwd: String?) -> String {
     guard let cwd, !cwd.isEmpty else { return "unknown" }
     return String(cwd.hashValue, radix: 36)
+}
+
+private func deriveSessionId(from body: HookEventBody, source: String) -> String {
+    body.session_id ?? "\(source)_\(hashCwd(body.cwd))"
 }
 
 private func shortUUID() -> String {

@@ -13,6 +13,7 @@ Developers who use AI coding agents and want an ambient, glanceable way to monit
 - **Activity visualization** — your pet reflects agent state in real time across 7 animation states: sleep, idle, busy, attention, celebrate, dizzy, and heart
 - **Multi-agent support** — connects to Cursor, Claude Code, and Codex simultaneously, each through their native hook system
 - **Tool approval cards** — when an agent needs permission, a card appears showing the tool name, command hint, and source badge
+- **Local approval mode** — optionally route tool approvals through the Buddygotchi popover instead of the agent's built-in permission dialog, with approve/deny buttons and keyboard shortcuts
 - **Species picker** — choose from 5 hand-crafted ASCII species (cat, axolotl, robot, capybara, dragon), each with unique animations per state
 - **Hardware output** — optionally drive an M5Stack display over Bluetooth, showing pet state and approval prompts on a dedicated device
 - **Setup wizard** — first-run onboarding detects installed agents, installs hooks automatically, and lets you pick your buddy and output target
@@ -22,7 +23,7 @@ Developers who use AI coding agents and want an ambient, glanceable way to monit
 
 - **No cloud/internet** — everything is localhost only
 - **No persistent history** — activity log is in-memory and resets on restart
-- **No per-tool rules** — every tool call goes through the same approval flow
+- **No per-tool rules** — Claude Code/Codex approvals mirror the agent's own permission logic; Cursor has built-in regex auto-approve for safe read-only commands
 - **No authentication** — the app trusts any local process that can reach its HTTP port
 
 ---
@@ -49,7 +50,7 @@ The app follows a strict **inputs → core → outputs** pattern. Sources push e
 │  ┌────────────────────────────────────────────────────┐         │
 │  │              HTTP Server (Hummingbird)              │         │
 │  │  POST /hook/event       POST /hook/signal          │         │
-│  │  GET  /healthz                                     │         │
+│  │  POST /hook/approve     GET  /healthz              │         │
 │  └──────────┬─────────────────────────────────────────┘         │
 │             │                                                   │
 │             ▼                                                   │
@@ -164,8 +165,7 @@ Codex does not currently fire hooks on permission prompts. The `needs_user_confi
 
 ### Known Integration Gaps
 
-- Codex has no approval-time hook — `needs_user_confirmation` is unavailable
-- Cursor infers approval state from `before*` hooks rather than a dedicated permission event
+- Cursor infers approval state from `before*` hooks rather than a dedicated permission event; auto-approve regex handles the noise
 - All hooks are fail-open: if the app is down, the agent's native UI takes over
 
 ## Outputs
@@ -189,6 +189,8 @@ BuddyState
 ├── desktop: DesktopLink     Connection status + last heartbeat
 ├── sessions: SessionCounts  Total / running / waiting counts
 ├── prompt: Prompt?          Current tool approval request
+│   ├── isApproval: Bool     If true, popover shows Approve/Deny buttons and blocks the hook
+│   └── ...                  id, tool, hint, arrivedAt, sessionLabel, source
 ├── pet: Pet
 │   ├── state: PetState      sleep | idle | busy | attention | celebrate | dizzy | heart
 │   ├── oneShotUntil: Double? Epoch ms for temporary states (celebrate)
@@ -208,15 +210,46 @@ BuddyState
 
 ## Data Flow
 
-### Tool Approval (blocking)
+### Tool Approval — passive mode (default)
 
-1. Agent fires PreToolUse hook → spawns Hook CLI
+When local approval mode is off, tool approvals are read-only notifications:
+
+1. Agent fires PermissionRequest/Notification hook → spawns Hook CLI
 2. Hook CLI reads stdin JSON, POSTs to `http://localhost:21321/hook/event`
 3. HookServer creates `requestArrived` event
 4. Engine applies event through reducer → BuddyState updates (pet → attention)
 5. All registered outputs receive `stateDidChange`
-6. PopoverView shows tool card; ESP32Output sends heartbeat over BLE
-7. User approves/denies, or timeout falls back to "ask"
+6. PopoverView shows tool card (read-only); ESP32Output sends heartbeat over BLE
+7. Hook exits immediately — agent shows its own permission dialog
+
+### Tool Approval — local approval mode (blocking)
+
+When the "Local Approval Mode" toggle is on in Settings, the app becomes the approval UI:
+
+**Claude Code / Codex** — uses `PermissionRequest` hook (only fires when permission is needed):
+
+1. Agent fires `PermissionRequest` → spawns hook script
+2. Hook script reads `~/.buddygotchi/config.json`, sees `approvalMode: true`
+3. Hook script POSTs to `/hook/approve` and **blocks** waiting for response
+4. HookServer calls `engine.submitApproval()` → stores a `CheckedContinuation`, dispatches `approvalArrived` event
+5. BuddyState updates (pet → attention, prompt with `isApproval: true`)
+6. PopoverView auto-shows with Approve/Deny buttons
+7. User clicks Approve → `engine.resolveApproval()` resumes the continuation
+8. `/hook/approve` returns `{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}`
+9. Hook script echoes response to stdout, exits 0 → agent proceeds
+
+**Cursor** — uses `beforeShellExecution` / `beforeMCPExecution` (fires for all operations):
+
+1. Agent fires `beforeShellExecution` → spawns BuddygotchiSignal CLI
+2. CLI reads config, sees `approvalMode: true` and event is an approval event
+3. CLI POSTs to `/hook/approve` and blocks
+4. Server checks auto-approve regex — safe commands (`ls`, `cat`, `git status`, etc.) return `{"permission":"allow"}` immediately
+5. Dangerous commands go through the same UI flow as Claude Code
+6. Response: `{"permission":"allow|deny"}`
+
+**Toggle mechanics**: `approvalMode` lives in `~/.buddygotchi/config.json`. Hook scripts read it on every invocation — no reinstall needed to toggle. One initial reinstall bumps `PermissionRequest` timeout from 5s → 600s.
+
+**Fail-open safety**: If the app is not running, curl fails, the hook script exits 0 with no stdout, and the agent falls back to its built-in dialog. If the user doesn't respond within 5 minutes, curl times out with the same result. If the toggle is turned off while approvals are pending, all continuations resolve with `allow`.
 
 ### Activity Signals (non-blocking)
 
@@ -229,10 +262,11 @@ BuddyState
 ## Key Invariants
 
 1. **Monotonic version** — `BuddyState.version` increases by exactly 1 per state change
-2. **Pure reducer** — deterministic given the same event sequence
-3. **Fail-open** — if the app is down or nobody decides in time, hooks return "ask"
+2. **Pure reducer** — deterministic given the same event sequence; continuations live on the engine, not in the reducer
+3. **Fail-open** — if the app is down or nobody decides in time, hooks return empty stdout and agents fall back to their built-in dialog
 4. **Signals never block** — the signal endpoint fires-and-forgets
-5. **Stale cleanup** — process monitoring (via `DispatchSource`) reaps sessions instantly when the parent process exits; 10-minute timeout serves as fallback
+5. **Approvals block exactly once** — each `/hook/approve` request gets one `CheckedContinuation`, resumed by user action, toggle-off, or session cleanup
+6. **Stale cleanup** — process monitoring (via `DispatchSource`) reaps sessions instantly when the parent process exits; 10-minute timeout serves as fallback
 
 ## Technology
 

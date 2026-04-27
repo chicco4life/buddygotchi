@@ -12,6 +12,7 @@ final class BuddyEngine {
     private var config: BuddyConfig
     private var outputs: [any OutputProvider] = []
     private var processWatchers: [String: DispatchSourceProcess] = [:]
+    private var pendingApprovals: [String: CheckedContinuation<ApprovalDecision, Never>] = [:]
 
     init(config: BuddyConfig = .default) {
         self.config = config
@@ -68,6 +69,37 @@ final class BuddyEngine {
         apply(.activitySignal(at: Self.now(), sessionId: sessionId, source: source, signal: signal))
     }
 
+    // MARK: - Approval API
+
+    func submitApproval(sessionId: String, requestId: String, tool: String, hint: String, sessionLabel: String?, source: String?) async -> ApprovalDecision {
+        apply(.approvalArrived(at: Self.now(), sessionId: sessionId, requestId: requestId, tool: tool, hint: hint, sessionLabel: sessionLabel, source: source))
+        return await withCheckedContinuation { continuation in
+            pendingApprovals[requestId] = continuation
+        }
+    }
+
+    func resolveApproval(requestId: String, decision: ApprovalDecision) {
+        guard let continuation = pendingApprovals.removeValue(forKey: requestId) else { return }
+        if let sessionId = findSessionForApproval(requestId) {
+            apply(.approvalResolved(at: Self.now(), sessionId: sessionId, requestId: requestId, decision: decision))
+        }
+        continuation.resume(returning: decision)
+    }
+
+    func resolveAllPendingApprovals(decision: ApprovalDecision) {
+        for (requestId, continuation) in pendingApprovals {
+            if let sessionId = findSessionForApproval(requestId) {
+                apply(.approvalResolved(at: Self.now(), sessionId: sessionId, requestId: requestId, decision: decision))
+            }
+            continuation.resume(returning: decision)
+        }
+        pendingApprovals.removeAll()
+    }
+
+    private func findSessionForApproval(_ requestId: String) -> String? {
+        internalState.sessions.first(where: { $0.value.prompt?.id == requestId })?.key
+    }
+
     // MARK: - Process Monitoring
 
     private static func parentPID(of pid: pid_t) -> pid_t? {
@@ -106,12 +138,19 @@ final class BuddyEngine {
 
     private func apply(_ event: BuddyEvent) {
         let prev = state
+        let prevSessions = internalState.sessions
         let next = reduce(internalState, event)
         guard next != internalState else { return }
         let removedIds = Set(internalState.sessions.keys).subtracting(next.sessions.keys)
         internalState = next
         state = next.buddy
-        for id in removedIds { cancelWatcher(sessionId: id) }
+        for id in removedIds {
+            cancelWatcher(sessionId: id)
+            if let prompt = prevSessions[id]?.prompt, prompt.isApproval,
+               let continuation = pendingApprovals.removeValue(forKey: prompt.id) {
+                continuation.resume(returning: .allow)
+            }
+        }
         for output in outputs {
             output.stateDidChange(prev: prev, next: state)
         }

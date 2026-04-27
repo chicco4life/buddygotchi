@@ -59,11 +59,12 @@ final class HookInstaller {
 
         let scriptPath = "\(Self.stateDir)/\(Self.hookScriptName)"
         let cmdHook: [String: Any] = ["type": "command", "command": "\(scriptPath) claude-code", "timeout": 5]
+        let approvalHook: [String: Any] = ["type": "command", "command": "\(scriptPath) claude-code", "timeout": 600]
 
         let plainEvents = [
             "SessionStart", "UserPromptSubmit",
             "Stop", "StopFailure", "SessionEnd",
-            "PermissionRequest", "PostToolUse",
+            "PostToolUse",
             "Elicitation", "ElicitationResult",
         ]
         for event in plainEvents {
@@ -71,6 +72,10 @@ final class HookInstaller {
             eventHooks.append(["hooks": [cmdHook]])
             hooks[event] = eventHooks
         }
+
+        var permReqHooks = hooks["PermissionRequest"] as? [[String: Any]] ?? []
+        permReqHooks.append(["hooks": [approvalHook]])
+        hooks["PermissionRequest"] = permReqHooks
 
         let notificationMatchers = ["permission_prompt", "idle_prompt", "elicitation_dialog"]
         var notifHooks = hooks["Notification"] as? [[String: Any]] ?? []
@@ -263,18 +268,19 @@ final class HookInstaller {
 
             let scriptPath = "\(Self.stateDir)/\(Self.hookScriptName)"
             let cmdHook: [String: Any] = ["type": "command", "command": "\(scriptPath) codex"]
+            let approvalHook: [String: Any] = ["type": "command", "command": "\(scriptPath) codex", "timeout": 600]
 
-            let events: [(String, String?)] = [
-                ("SessionStart", "startup|resume"),
-                ("UserPromptSubmit", nil),
-                ("PermissionRequest", nil),
-                ("PreToolUse", nil),
-                ("PostToolUse", nil),
-                ("Stop", nil),
+            let events: [(String, String?, Bool)] = [
+                ("SessionStart", "startup|resume", false),
+                ("UserPromptSubmit", nil, false),
+                ("PermissionRequest", nil, true),
+                ("PreToolUse", nil, false),
+                ("PostToolUse", nil, false),
+                ("Stop", nil, false),
             ]
-            for (event, matcher) in events {
+            for (event, matcher, isApproval) in events {
                 var eventHooks = hooks[event] as? [[String: Any]] ?? []
-                var group: [String: Any] = ["hooks": [cmdHook]]
+                var group: [String: Any] = ["hooks": [isApproval ? approvalHook : cmdHook]]
                 if let matcher { group["matcher"] = matcher }
                 eventHooks.append(group)
                 hooks[event] = eventHooks
@@ -375,10 +381,25 @@ final class HookInstaller {
         SOURCE="${1:-claude-code}"
         CFG="$HOME/.buddygotchi/config.json"
         PORT=$(grep -o '"port" *: *[0-9]*' "$CFG" 2>/dev/null | grep -o '[0-9]*')
+        APPROVAL=$(grep -o '"approvalMode" *: *true' "$CFG" 2>/dev/null)
+        BODY="$(cat)"
+        EVENT=$(echo "$BODY" | grep -o '"hook_event_name" *: *"[^"]*"' | head -1 | grep -o '"[^"]*"$' | tr -d '"')
+        if [ -n "$APPROVAL" ] && [ "$EVENT" = "PermissionRequest" ]; then
+            RESPONSE=$(curl -s --noproxy '*' \\
+                -X POST "http://127.0.0.1:${PORT}/hook/approve?source=${SOURCE}&pid=$$" \\
+                -H "Content-Type: application/json" \\
+                -d "$BODY" \\
+                --connect-timeout 2 \\
+                --max-time 300 2>/dev/null)
+            if [ $? -eq 0 ] && [ -n "$RESPONSE" ]; then
+                echo "$RESPONSE"
+            fi
+            exit 0
+        fi
         curl -s -o /dev/null --noproxy '*' \\
           -X POST "http://127.0.0.1:${PORT}/hook/event?source=${SOURCE}&pid=$$" \\
           -H "Content-Type: application/json" \\
-          -d "$(cat)" \\
+          -d "$BODY" \\
           --connect-timeout 1 2>/dev/null || true
         exit 0
         """

@@ -7,6 +7,7 @@ struct SettingsView: View {
     @AppStorage("interactiveMode") private var interactiveMode = false
     @AppStorage("buddySpecies") private var species = "cat"
     @AppStorage("setupCompleted") private var setupCompleted = false
+    @AppStorage("approvalMode") private var approvalMode = false
     @State private var launchAtLogin = false
     @State private var agentInstalled: [AgentKind: Bool] = [:]
 
@@ -90,6 +91,24 @@ struct SettingsView: View {
                     Toggle("Interactive Mode", isOn: $interactiveMode)
                         .tint(BuddyTheme.accent)
                     Text("Auto-show when your buddy celebrates or needs attention.")
+                        .font(.system(.caption2, design: .rounded))
+                        .foregroundStyle(.tertiary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+
+                Divider().padding(.horizontal, 12)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Local Approval Mode", isOn: $approvalMode)
+                        .tint(BuddyTheme.accent)
+                        .onChange(of: approvalMode) { _, newValue in
+                            BuddyConfig.setApprovalMode(newValue)
+                            if !newValue {
+                                engine.resolveAllPendingApprovals(decision: .allow)
+                            }
+                        }
+                    Text("Route tool approvals through Buddygotchi instead of your agent's built-in dialog.")
                         .font(.system(.caption2, design: .rounded))
                         .foregroundStyle(.tertiary)
                 }

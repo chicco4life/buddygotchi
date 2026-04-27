@@ -50,7 +50,11 @@ struct PopoverView: View {
 
             if let prompt = engine.state.prompt {
                 Spacer().frame(height: 10)
-                ToolCardView(prompt: prompt)
+                ToolCardView(
+                    prompt: prompt,
+                    onApprove: prompt.isApproval ? { engine.resolveApproval(requestId: prompt.id, decision: .allow) } : nil,
+                    onDeny: prompt.isApproval ? { engine.resolveApproval(requestId: prompt.id, decision: .deny) } : nil
+                )
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
@@ -171,6 +175,8 @@ struct PopoverView: View {
 
 struct ToolCardView: View {
     let prompt: Prompt
+    var onApprove: (() -> Void)? = nil
+    var onDeny: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 0) {
@@ -205,6 +211,33 @@ struct ToolCardView: View {
                         .font(.system(.caption, design: .monospaced))
                         .foregroundStyle(.secondary)
                         .lineLimit(3)
+                }
+
+                if let onApprove, let onDeny {
+                    HStack(spacing: 8) {
+                        Button(action: onDeny) {
+                            Text("Deny")
+                                .font(.system(.caption, design: .rounded, weight: .medium))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 4)
+                                .background(BuddyTheme.destructive.opacity(0.15), in: Capsule())
+                                .foregroundStyle(BuddyTheme.destructive)
+                        }
+                        .buttonStyle(.plain)
+
+                        Button(action: onApprove) {
+                            Text("Approve")
+                                .font(.system(.caption, design: .rounded, weight: .medium))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 4)
+                                .background(BuddyTheme.accent.opacity(0.15), in: Capsule())
+                                .foregroundStyle(BuddyTheme.accent)
+                        }
+                        .buttonStyle(.plain)
+                        .keyboardShortcut(.return, modifiers: [])
+
+                        Spacer()
+                    }
                 }
             }
             .padding(.leading, 10)
