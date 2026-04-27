@@ -86,7 +86,10 @@ private func handleAgentEvent(body: HookEventBody, source: String, hookPid: Int3
     case "UserPromptSubmit":
         await engine.activitySignal(sessionId: sessionId, source: source, signal: .startWorking)
 
-    case "Stop", "StopFailure":
+    case "Stop":
+        await engine.activitySignal(sessionId: sessionId, source: source, signal: .celebrate)
+
+    case "StopFailure":
         await engine.activitySignal(sessionId: sessionId, source: source, signal: .stopWorking)
 
     case "PostToolUse":

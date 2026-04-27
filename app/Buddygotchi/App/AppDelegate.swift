@@ -17,6 +17,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var sigintSource: DispatchSourceSignal?
     private var sigtermSource: DispatchSourceSignal?
     private var esp32Output: ESP32Output?
+    private var autoDismissTimer: Timer?
+    private let celebrateSound = NSSound(named: "Funk")
+    private let attentionSound = NSSound(named: "Glass")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -78,6 +81,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func cleanup() {
         iconTimer?.invalidate()
+        cancelAutoDismiss()
         if let esp32 = esp32Output {
             Task { await esp32.stop() }
         }
@@ -113,8 +117,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func togglePopover() {
         guard let button = statusItem.button else { return }
         if popover.isShown {
+            cancelAutoDismiss()
             popover.performClose(nil)
-            popover.behavior = .transient
         } else {
             popover.behavior = .transient
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
@@ -126,7 +130,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let state = engine.state
         updateIcon(state)
         checkNotifications(state)
+        checkSounds(state)
         checkInteractiveMode(state)
+        previousPetState = state.pet.state
     }
 
     private func updateIcon(_ state: BuddyState) {
@@ -150,34 +156,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func checkInteractiveMode(_ state: BuddyState) {
-        let currentPetState = state.pet.state
-        defer { previousPetState = currentPetState }
-
-        guard UserDefaults.standard.bool(forKey: "interactiveMode") else {
-            if popover.behavior == .applicationDefined {
-                popover.behavior = .transient
-            }
-            return
-        }
-
-        guard currentPetState != previousPetState else { return }
-
-        let activeStates: Set<PetState> = [.attention]
-        let inactiveStates: Set<PetState> = [.idle, .sleep]
-
-        if activeStates.contains(currentPetState) && !popover.isShown {
-            showPopoverForInteractiveMode()
-        } else if inactiveStates.contains(currentPetState) && popover.isShown {
-            popover.performClose(nil)
-            popover.behavior = .transient
+    private func checkSounds(_ state: BuddyState) {
+        let current = state.pet.state
+        guard current != previousPetState else { return }
+        if current == .celebrate && (state.lastTaskDurationMs ?? 0) >= 30_000 {
+            celebrateSound?.play()
+        } else if current == .attention {
+            attentionSound?.play()
         }
     }
 
-    private func showPopoverForInteractiveMode() {
+    private func checkInteractiveMode(_ state: BuddyState) {
+        let current = state.pet.state
+        guard UserDefaults.standard.bool(forKey: "interactiveMode") else {
+            cancelAutoDismiss()
+            return
+        }
+        guard current != previousPetState else { return }
+
+        if current == .celebrate
+            && (state.lastTaskDurationMs ?? 0) >= 30_000
+            && !popover.isShown
+        {
+            showPopover(dismissAfter: 3.0)
+        } else if current == .attention && !popover.isShown {
+            showPopover(dismissAfter: 15.0)
+        } else if (current == .idle || current == .sleep) && popover.isShown {
+            cancelAutoDismiss()
+            popover.performClose(nil)
+        }
+    }
+
+    private func showPopover(dismissAfter seconds: TimeInterval) {
         guard let button = statusItem.button else { return }
-        popover.behavior = .applicationDefined
+        cancelAutoDismiss()
+        popover.behavior = .transient
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
+        autoDismissTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.autoDismissTimer = nil
+                self?.popover.performClose(nil)
+            }
+        }
+    }
+
+    private func cancelAutoDismiss() {
+        autoDismissTimer?.invalidate()
+        autoDismissTimer = nil
     }
 }

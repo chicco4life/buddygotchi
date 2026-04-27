@@ -3,12 +3,13 @@ import Foundation
 struct BuddyConfig: Sendable {
     var httpPort: Int
     var staleTimeoutMs: Double
+    var celebrateDurationMs: Double
     var stateDir: String
 
     static let `default`: BuddyConfig = {
         let stateDir = defaultStateDir()
         let port = readOrCreateConfigPort(stateDir: stateDir)
-        return BuddyConfig(httpPort: port, staleTimeoutMs: 600_000, stateDir: stateDir)
+        return BuddyConfig(httpPort: port, staleTimeoutMs: 600_000, celebrateDurationMs: 4000, stateDir: stateDir)
     }()
 
     private static let defaultPort = 21321

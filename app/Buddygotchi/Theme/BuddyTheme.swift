@@ -7,6 +7,7 @@ enum BuddyTheme {
     static let connected = accent
     static let disconnected = Color.secondary.opacity(0.5)
     static let attentionAmber = Color(hex: "#FFBB33")
+    static let celebrateGreen = Color(hex: "#4ADE80")
     static let destructive = Color(hex: "#FF6B6B")
 
     static let cardFill = Color.white.opacity(0.07)

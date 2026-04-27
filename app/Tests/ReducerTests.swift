@@ -11,7 +11,7 @@ func applyEvents(_ state: InternalState, _ events: BuddyEvent...) -> InternalSta
 }
 
 extension InternalState {
-    static func test() -> InternalState { .initial(staleMs: TEST_STALE_MS) }
+    static func test() -> InternalState { .initial(staleMs: TEST_STALE_MS, celebrateDurationMs: 4000) }
 }
 
 final class ReducerTests: XCTestCase {
@@ -118,5 +118,93 @@ final class ReducerTests: XCTestCase {
         s = applyEvents(s, .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .startWorking))
         s = applyEvents(s, .activitySignal(at: NOW + 2, sessionId: "s2", source: "cursor", signal: .stopWorking))
         XCTAssertEqual(s.buddy.pet.state, .busy, "Session 1 is still working")
+    }
+
+    // MARK: - Celebrate
+
+    func testCelebrateSignalSetsCelebrateState() {
+        var s = applyEvents(
+            .test(),
+            .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
+            .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .startWorking)
+        )
+        s = applyEvents(s, .activitySignal(at: NOW + 2, sessionId: "s1", source: "claude-code", signal: .celebrate))
+        XCTAssertEqual(s.buddy.pet.state, .celebrate)
+        XCTAssertNotNil(s.buddy.celebrateUntil)
+        XCTAssertEqual(s.buddy.lastTaskDurationMs, 1, "Duration = celebrate time - work start time")
+    }
+
+    func testCelebrateExpiresOnStaleTick() {
+        var s = applyEvents(
+            .test(),
+            .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
+            .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .celebrate)
+        )
+        XCTAssertEqual(s.buddy.pet.state, .celebrate)
+
+        s = applyEvents(s, .staleTick(at: NOW + 3000))
+        XCTAssertEqual(s.buddy.pet.state, .celebrate, "Should still be celebrating before 4s")
+
+        s = applyEvents(s, .staleTick(at: NOW + 5000))
+        XCTAssertEqual(s.buddy.pet.state, .idle)
+        XCTAssertNil(s.buddy.celebrateUntil)
+    }
+
+    func testAttentionOverridesCelebrate() {
+        var s = applyEvents(
+            .test(),
+            .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
+            .sessionStarted(at: NOW, sessionId: "s2", source: "claude-code", cwd: nil)
+        )
+        s = applyEvents(s, .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .celebrate))
+        XCTAssertEqual(s.buddy.pet.state, .celebrate)
+
+        s = applyEvents(s, .requestArrived(at: NOW + 2, sessionId: "s2", requestId: "r1", tool: "Bash", hint: "rm", sessionLabel: nil))
+        XCTAssertEqual(s.buddy.pet.state, .attention, "Attention takes priority over celebrate")
+    }
+
+    func testBusyOverridesCelebrate() {
+        var s = applyEvents(
+            .test(),
+            .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
+            .sessionStarted(at: NOW, sessionId: "s2", source: "claude-code", cwd: nil)
+        )
+        s = applyEvents(s, .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .celebrate))
+        XCTAssertEqual(s.buddy.pet.state, .celebrate)
+
+        s = applyEvents(s, .activitySignal(at: NOW + 2, sessionId: "s2", source: "claude-code", signal: .startWorking))
+        XCTAssertEqual(s.buddy.pet.state, .busy, "Busy takes priority over celebrate")
+    }
+
+    func testShortTaskDurationBelowThreshold() {
+        var s = applyEvents(
+            .test(),
+            .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
+            .activitySignal(at: NOW + 1000, sessionId: "s1", source: "claude-code", signal: .startWorking)
+        )
+        s = applyEvents(s, .activitySignal(at: NOW + 5000, sessionId: "s1", source: "claude-code", signal: .celebrate))
+        XCTAssertEqual(s.buddy.pet.state, .celebrate)
+        XCTAssertEqual(s.buddy.lastTaskDurationMs, 4000, "4s task is below 30s threshold")
+    }
+
+    func testLongTaskDurationAboveThreshold() {
+        var s = applyEvents(
+            .test(),
+            .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
+            .activitySignal(at: NOW + 1000, sessionId: "s1", source: "claude-code", signal: .startWorking)
+        )
+        s = applyEvents(s, .activitySignal(at: NOW + 45_000, sessionId: "s1", source: "claude-code", signal: .celebrate))
+        XCTAssertEqual(s.buddy.pet.state, .celebrate)
+        XCTAssertEqual(s.buddy.lastTaskDurationMs, 44_000, "44s task is above 30s threshold")
+    }
+
+    func testCelebrateWithoutWorkStartHasNilDuration() {
+        var s = applyEvents(
+            .test(),
+            .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil)
+        )
+        s = applyEvents(s, .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .celebrate))
+        XCTAssertEqual(s.buddy.pet.state, .celebrate)
+        XCTAssertNil(s.buddy.lastTaskDurationMs, "No workStartedAt means nil duration")
     }
 }

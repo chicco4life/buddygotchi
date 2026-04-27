@@ -7,6 +7,7 @@ enum PetState: String, Sendable, Equatable {
     case idle
     case busy
     case attention
+    case celebrate
 
     var sfSymbol: String {
         switch self {
@@ -14,6 +15,7 @@ enum PetState: String, Sendable, Equatable {
         case .idle: "circle"
         case .busy: "ellipsis.circle"
         case .attention: "exclamationmark.circle.fill"
+        case .celebrate: "sparkles"
         }
     }
 }
@@ -44,6 +46,7 @@ struct Session: Sendable, Equatable {
     var prompt: Prompt?
     var cwd: String?
     var lastActivityAt: Double
+    var workStartedAt: Double?
 }
 
 struct SessionCounts: Sendable, Equatable {
@@ -90,6 +93,8 @@ struct BuddyState: Sendable, Equatable {
     var prompt: Prompt?
     var pet: Pet
     var lastSignal: String?
+    var celebrateUntil: Double?
+    var lastTaskDurationMs: Double?
 
     static let initial = BuddyState(
         version: 0,
@@ -100,6 +105,8 @@ struct BuddyState: Sendable, Equatable {
         entries: [],
         prompt: nil,
         pet: .initial,
-        lastSignal: nil
+        lastSignal: nil,
+        celebrateUntil: nil,
+        lastTaskDurationMs: nil
     )
 }

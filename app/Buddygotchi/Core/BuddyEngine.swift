@@ -15,7 +15,7 @@ final class BuddyEngine {
 
     init(config: BuddyConfig = .default) {
         self.config = config
-        self.internalState = .initial(staleMs: config.staleTimeoutMs)
+        self.internalState = .initial(staleMs: config.staleTimeoutMs, celebrateDurationMs: config.celebrateDurationMs)
     }
 
     // MARK: - Lifecycle
@@ -23,7 +23,7 @@ final class BuddyEngine {
     func start() {
         staleTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, !self.internalState.sessions.isEmpty else { return }
+                guard let self, (!self.internalState.sessions.isEmpty || self.state.celebrateUntil != nil) else { return }
                 self.apply(.staleTick(at: Self.now()))
             }
         }

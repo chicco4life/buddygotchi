@@ -6,11 +6,12 @@ struct InternalState: Sendable, Equatable {
     var buddy: BuddyState
     var sessions: [String: Session]
     var staleMs: Double
+    var celebrateDurationMs: Double
 
     var version: Int { buddy.version }
 
-    static func initial(staleMs: Double) -> InternalState {
-        InternalState(buddy: .initial, sessions: [:], staleMs: staleMs)
+    static func initial(staleMs: Double, celebrateDurationMs: Double) -> InternalState {
+        InternalState(buddy: .initial, sessions: [:], staleMs: staleMs, celebrateDurationMs: celebrateDurationMs)
     }
 }
 
@@ -47,7 +48,7 @@ private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> Interna
 private func handleSessionStarted(_ state: InternalState, at: Double, sessionId: String, source: String, cwd: String?) -> InternalState {
     var s = state
     if s.sessions[sessionId] == nil {
-        s.sessions[sessionId] = Session(source: source, state: .idle, prompt: nil, cwd: cwd, lastActivityAt: at)
+        s.sessions[sessionId] = Session(source: source, state: .idle, prompt: nil, cwd: cwd, lastActivityAt: at, workStartedAt: nil)
     } else {
         let existingCwd = s.sessions[sessionId]?.cwd
         s.sessions[sessionId]?.lastActivityAt = at
@@ -96,13 +97,21 @@ private func handleActivitySignal(_ state: InternalState, at: Double, sessionId:
         if s.sessions[sessionId]?.state == .needsConfirmation {
             s.sessions[sessionId]?.prompt = nil
         }
+        if s.sessions[sessionId]?.state != .working {
+            s.sessions[sessionId]?.workStartedAt = at
+        }
         s.sessions[sessionId]?.state = .working
     case .stopWorking:
         s.sessions[sessionId]?.state = .idle
         s.sessions[sessionId]?.prompt = nil
+        s.sessions[sessionId]?.workStartedAt = nil
     case .celebrate:
+        let duration = s.sessions[sessionId]?.workStartedAt.map { at - $0 }
         s.sessions[sessionId]?.state = .idle
         s.sessions[sessionId]?.prompt = nil
+        s.sessions[sessionId]?.workStartedAt = nil
+        s.buddy.celebrateUntil = at + s.celebrateDurationMs
+        s.buddy.lastTaskDurationMs = duration
     }
 
     let msg = "[\(source)] \(signal.rawValue)"
@@ -113,6 +122,12 @@ private func handleActivitySignal(_ state: InternalState, at: Double, sessionId:
 private func handleStaleTick(_ state: InternalState, now: Double) -> InternalState {
     var changed = false
     var s = state
+
+    if let until = s.buddy.celebrateUntil, now >= until {
+        s.buddy.celebrateUntil = nil
+        s.buddy.lastTaskDurationMs = nil
+        changed = true
+    }
 
     let staleIds = s.sessions.filter { now - $0.value.lastActivityAt > s.staleMs }.map(\.key)
     for id in staleIds {
@@ -161,8 +176,12 @@ private func aggregate(_ state: InternalState) -> BuddyState {
     } else if !working.isEmpty {
         buddy.pet = Pet(state: .busy, species: buddy.pet.species)
         buddy.lastSignal = "busy"
+    } else if let until = buddy.celebrateUntil, buddy.updatedAt < until {
+        buddy.pet = Pet(state: .celebrate, species: buddy.pet.species)
+        buddy.lastSignal = "celebrate"
     } else {
         buddy.pet = Pet(state: .idle, species: buddy.pet.species)
+        buddy.celebrateUntil = nil
         buddy.lastSignal = "idle"
     }
 
@@ -182,7 +201,8 @@ private func touchSession(_ state: inout InternalState, sessionId: String, at: D
             state: .idle,
             prompt: nil,
             cwd: nil,
-            lastActivityAt: at
+            lastActivityAt: at,
+            workStartedAt: nil
         )
     }
 }

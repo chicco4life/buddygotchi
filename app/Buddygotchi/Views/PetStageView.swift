@@ -23,6 +23,7 @@ struct PetStageView: View {
         case .idle: 0.06
         case .busy: 0.10
         case .attention: 0.14
+        case .celebrate: 0.18
         }
     }
 
@@ -32,6 +33,7 @@ struct PetStageView: View {
         case .idle: 6
         case .busy: 8
         case .attention: 10
+        case .celebrate: 12
         }
     }
 
@@ -41,6 +43,7 @@ struct PetStageView: View {
         case .idle: 0.35
         case .busy: 0.45
         case .attention: 0.5
+        case .celebrate: 0.55
         }
     }
 

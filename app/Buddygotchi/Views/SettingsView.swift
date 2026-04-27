@@ -89,7 +89,7 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Toggle("Interactive Mode", isOn: $interactiveMode)
                         .tint(BuddyTheme.accent)
-                    Text("Auto-show when your buddy is working or needs attention. Auto-hide when idle.")
+                    Text("Auto-show when your buddy celebrates or needs attention.")
                         .font(.system(.caption2, design: .rounded))
                         .foregroundStyle(.tertiary)
                 }

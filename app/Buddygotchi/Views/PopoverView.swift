@@ -141,7 +141,9 @@ struct PopoverView: View {
     }
 
     private var liveViewHeight: CGFloat {
-        engine.state.prompt != nil ? BuddyTheme.liveViewExpandedHeight : BuddyTheme.liveViewHeight
+        engine.state.prompt != nil
+            ? BuddyTheme.liveViewExpandedHeight
+            : BuddyTheme.liveViewHeight
     }
 
     private var speciesColor: Color {
@@ -152,6 +154,7 @@ struct PopoverView: View {
         switch engine.state.pet.state {
         case .attention: BuddyTheme.attentionAmber
         case .busy: BuddyTheme.accent
+        case .celebrate: BuddyTheme.celebrateGreen
         default: .secondary
         }
     }
