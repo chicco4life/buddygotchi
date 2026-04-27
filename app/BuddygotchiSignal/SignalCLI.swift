@@ -2,15 +2,44 @@ import Foundation
 
 private let debug = ProcessInfo.processInfo.environment["BUDDYGOTCHI_DEBUG"] != nil
 
-private func readPort() -> Int {
-    let home = FileManager.default.homeDirectoryForCurrentUser.path
-    let configFile = "\(home)/.buddygotchi/config.json"
-    if let data = FileManager.default.contents(atPath: configFile),
-       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-       let port = json["port"] as? Int {
-        return port
+private struct SignalConfig {
+    var port: Int
+    var approvalMode: Bool
+
+    static func read() -> SignalConfig {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let configFile = "\(home)/.buddygotchi/config.json"
+        guard let data = FileManager.default.contents(atPath: configFile),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return SignalConfig(port: 21321, approvalMode: false)
+        }
+        return SignalConfig(
+            port: json["port"] as? Int ?? 21321,
+            approvalMode: json["approvalMode"] as? Bool ?? false
+        )
     }
-    return 21321
+}
+
+private func postApproval(port: Int, agentId: String, body: Data) -> String? {
+    let urlString = "http://127.0.0.1:\(port)/hook/approve?source=\(agentId)"
+    guard let url = URL(string: urlString) else { return nil }
+    var request = URLRequest(url: url)
+    request.httpMethod = "POST"
+    request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.httpBody = body
+    request.timeoutInterval = 300
+
+    var result: String?
+    let semaphore = DispatchSemaphore(value: 0)
+    let task = URLSession.shared.dataTask(with: request) { data, _, error in
+        if error == nil, let data, let str = String(data: data, encoding: .utf8) {
+            result = str
+        }
+        semaphore.signal()
+    }
+    task.resume()
+    _ = semaphore.wait(timeout: .now() + 300)
+    return result
 }
 
 private func log(_ msg: String) {
@@ -52,15 +81,9 @@ private func parseAgentFlag() -> String {
 @main
 struct SignalCLI {
     static func main() {
-        let port = readPort()
-        let url = "http://127.0.0.1:\(port)/hook/signal"
+        let config = SignalConfig.read()
+        let url = "http://127.0.0.1:\(config.port)/hook/signal"
         let agentId = parseAgentFlag()
-
-        defer {
-            if agentId == "cursor" {
-                print("{\"permission\":\"allow\"}")
-            }
-        }
 
         let data = FileHandle.standardInput.readDataToEndOfFile()
         let raw = String(data: data, encoding: .utf8) ?? ""
@@ -69,6 +92,7 @@ struct SignalCLI {
               let jsonData = raw.data(using: .utf8),
               let hookInput = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else {
             log("no valid stdin")
+            if agentId == "cursor" { print("{\"permission\":\"allow\"}") }
             return
         }
 
@@ -76,6 +100,22 @@ struct SignalCLI {
             ?? (hookInput["hookEventName"] as? String)
             ?? (hookInput["event_name"] as? String)
             ?? ""
+
+        let approvalEvents: Set<String> = ["beforeShellExecution", "beforeMCPExecution"]
+        if agentId == "cursor" && config.approvalMode && approvalEvents.contains(hookEvent) {
+            if let response = postApproval(port: config.port, agentId: agentId, body: jsonData) {
+                print(response)
+            } else {
+                print("{\"permission\":\"allow\"}")
+            }
+            return
+        }
+
+        defer {
+            if agentId == "cursor" {
+                print("{\"permission\":\"allow\"}")
+            }
+        }
 
         let mapFn: (String) -> String?
         switch agentId {

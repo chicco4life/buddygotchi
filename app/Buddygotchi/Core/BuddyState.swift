@@ -63,6 +63,12 @@ struct Prompt: Sendable, Equatable {
     var arrivedAt: Double
     var sessionLabel: String?
     var source: String?
+    var isApproval: Bool = false
+}
+
+enum ApprovalDecision: String, Sendable {
+    case allow
+    case deny
 }
 
 // MARK: - Pet

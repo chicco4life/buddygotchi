@@ -21,6 +21,9 @@ enum BuddyEvent: Sendable {
     case activitySignal(at: Double, sessionId: String, source: String, signal: ActivitySignalKind)
     case staleTick(at: Double)
 
+    case approvalArrived(at: Double, sessionId: String, requestId: String, tool: String, hint: String, sessionLabel: String?, source: String?)
+    case approvalResolved(at: Double, sessionId: String, requestId: String, decision: ApprovalDecision)
+
     var at: Double {
         switch self {
         case .sessionStarted(let at, _, _, _),
@@ -28,7 +31,9 @@ enum BuddyEvent: Sendable {
              .requestArrived(let at, _, _, _, _, _),
              .requestCleared(let at, _),
              .activitySignal(let at, _, _, _),
-             .staleTick(let at):
+             .staleTick(let at),
+             .approvalArrived(let at, _, _, _, _, _, _),
+             .approvalResolved(let at, _, _, _):
             return at
         }
     }

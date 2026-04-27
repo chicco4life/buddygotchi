@@ -39,6 +39,10 @@ private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> Interna
         return handleActivitySignal(state, at: at, sessionId: sessionId, source: source, signal: signal)
     case .staleTick(let at):
         return handleStaleTick(state, now: at)
+    case .approvalArrived(let at, let sessionId, let requestId, let tool, let hint, let sessionLabel, let source):
+        return handleApprovalArrived(state, at: at, sessionId: sessionId, requestId: requestId, tool: tool, hint: hint, sessionLabel: sessionLabel, source: source)
+    case .approvalResolved(let at, let sessionId, let requestId, let decision):
+        return handleApprovalResolved(state, at: at, sessionId: sessionId, requestId: requestId, decision: decision)
     }
 }
 
@@ -63,17 +67,7 @@ private func handleSessionEnded(_ state: InternalState, sessionId: String) -> In
 }
 
 private func handleRequestArrived(_ state: InternalState, at: Double, sessionId: String, requestId: String, tool: String, hint: String, sessionLabel: String?) -> InternalState {
-    var s = state
-    touchSession(&s, sessionId: sessionId, at: at)
-
-    let source = s.sessions[sessionId]?.source
-    let prompt = Prompt(id: requestId, tool: tool, hint: hint, arrivedAt: at, sessionLabel: sessionLabel, source: source)
-    s.sessions[sessionId]?.state = .needsConfirmation
-    s.sessions[sessionId]?.prompt = prompt
-
-    let msg = shortMsg(tool: tool, hint: hint, source: s.sessions[sessionId]?.source ?? "")
-    s.buddy.entries = Array(([msg] + s.buddy.entries).prefix(10))
-    return s
+    setPrompt(state, at: at, sessionId: sessionId, requestId: requestId, tool: tool, hint: hint, sessionLabel: sessionLabel, source: nil, isApproval: false)
 }
 
 private func handleRequestCleared(_ state: InternalState, at: Double, sessionId: String) -> InternalState {
@@ -124,6 +118,23 @@ private func handleStaleTick(_ state: InternalState, now: Double) -> InternalSta
     return s
 }
 
+private func handleApprovalArrived(_ state: InternalState, at: Double, sessionId: String, requestId: String, tool: String, hint: String, sessionLabel: String?, source: String?) -> InternalState {
+    setPrompt(state, at: at, sessionId: sessionId, requestId: requestId, tool: tool, hint: hint, sessionLabel: sessionLabel, source: source, isApproval: true)
+}
+
+private func handleApprovalResolved(_ state: InternalState, at: Double, sessionId: String, requestId: String, decision: ApprovalDecision) -> InternalState {
+    guard let session = state.sessions[sessionId],
+          session.state == .needsConfirmation,
+          session.prompt?.id == requestId else {
+        return state
+    }
+    var s = state
+    s.sessions[sessionId]?.prompt = nil
+    s.sessions[sessionId]?.state = decision == .allow ? .working : .idle
+    s.sessions[sessionId]?.lastActivityAt = at
+    return s
+}
+
 // MARK: - Aggregation
 
 private func aggregate(_ state: InternalState) -> BuddyState {
@@ -170,6 +181,20 @@ private func aggregate(_ state: InternalState) -> BuddyState {
 }
 
 // MARK: - Helpers
+
+private func setPrompt(_ state: InternalState, at: Double, sessionId: String, requestId: String, tool: String, hint: String, sessionLabel: String?, source: String?, isApproval: Bool) -> InternalState {
+    var s = state
+    touchSession(&s, sessionId: sessionId, at: at)
+
+    let effectiveSource = source ?? s.sessions[sessionId]?.source
+    let prompt = Prompt(id: requestId, tool: tool, hint: hint, arrivedAt: at, sessionLabel: sessionLabel, source: effectiveSource, isApproval: isApproval)
+    s.sessions[sessionId]?.state = .needsConfirmation
+    s.sessions[sessionId]?.prompt = prompt
+
+    let msg = shortMsg(tool: tool, hint: hint, source: effectiveSource ?? "")
+    s.buddy.entries = Array(([msg] + s.buddy.entries).prefix(10))
+    return s
+}
 
 private func touchSession(_ state: inout InternalState, sessionId: String, at: Double, source: String? = nil) {
     if var session = state.sessions[sessionId] {
