@@ -10,7 +10,7 @@ Developers who use AI coding agents and want an ambient, glanceable way to monit
 
 ## Key Features
 
-- **Activity visualization** — your pet reflects agent state in real time across 7 animation states: sleep, idle, busy, attention, celebrate, dizzy, and heart
+- **Activity visualization** — your pet reflects agent state in real time across 5 animation states: sleep, idle, busy, attention, and celebrate
 - **Multi-agent support** — connects to Cursor, Claude Code, and Codex simultaneously, each through their native hook system
 - **Tool approval cards** — when an agent needs permission, a card appears showing the tool name, command hint, and source badge
 - **Local approval mode** — optionally route tool approvals through the Buddygotchi popover instead of the agent's built-in permission dialog, with approve/deny buttons and keyboard shortcuts
@@ -82,6 +82,7 @@ app/Buddygotchi/
 │   ├── BuddyReducer.swift  Pure reducer: events → BuddyState
 │   ├── BuddyEvent.swift    Event type definitions
 │   ├── BuddyState.swift    State model (Pet, Prompt, Sessions, Desktop)
+│   ├── Clock.swift          Clock protocol + WallClock (injectable for tests)
 │   ├── Config.swift         Configuration
 │   └── Protocols.swift      OutputProvider contract
 │
@@ -192,9 +193,10 @@ BuddyState
 │   ├── isApproval: Bool     If true, popover shows Approve/Deny buttons and blocks the hook
 │   └── ...                  id, tool, hint, arrivedAt, sessionLabel, source
 ├── pet: Pet
-│   ├── state: PetState      sleep | idle | busy | attention | celebrate | dizzy | heart
-│   ├── oneShotUntil: Double? Epoch ms for temporary states (celebrate)
+│   ├── state: PetState      sleep | idle | busy | attention | celebrate
 │   └── species: String      "cat", "axolotl", "robot", "capybara", "dragon"
+├── celebrateUntil: Double?  Epoch ms — reverts to idle when expired
+├── lastTaskDurationMs: Double?  Ms between start_working and celebrate
 ├── msg: String              Latest formatted message
 ├── entries: [String]        Activity log (last 10)
 └── lastSignal: String?      Last activity signal kind
@@ -203,8 +205,8 @@ BuddyState
 ### Pet State Priority
 
 1. **attention** — prompt waiting for user approval (highest)
-2. **celebrate** — one-shot (2s), then reverts
-3. **busy** — start_working / keep_working signal
+2. **busy** — start_working / keep_working signal
+3. **celebrate** — time-limited (4s default), then reverts to idle
 4. **idle** — stop_working signal, or default when connected
 5. **sleep** — no agents connected (lowest)
 
@@ -268,7 +270,36 @@ When the "Local Approval Mode" toggle is on in Settings, the app becomes the app
 5. **Approvals block exactly once** — each `/hook/approve` request gets one `CheckedContinuation`, resumed by user action, toggle-off, or session cleanup
 6. **Stale cleanup** — process monitoring (via `DispatchSource`) reaps sessions instantly when the parent process exits; 10-minute timeout serves as fallback
 
-## Technology
+## Multi-Session Behavior
+
+When multiple agents are connected simultaneously, the engine aggregates across all sessions:
+
+- **Pet state** is the highest-priority state across all sessions (attention > busy > celebrate > idle)
+- **Prompt selection** shows the oldest pending request when multiple sessions need attention
+- **Session counts** track total, running (working + waiting), and waiting independently
+- **Celebrate** fires when any session sends a celebrate signal, but busy/attention from other sessions override it
+
+Edge cases the engine handles:
+
+- **Duplicate session start** — idempotent; updates timestamp without creating a second session
+- **End nonexistent session** — no-op; the reducer returns unchanged state, no output notification
+- **Clear request without pending** — no-op
+- **Session dies mid-approval** — process watcher detects exit, resumes the pending continuation with `allow`, cleans up the session
+- **Toggle off during pending approvals** — `resolveAllPendingApprovals(.allow)` resumes every waiting continuation so no hook hangs
+
+## Testing
+
+Two layers of tests, each with a clear boundary:
+
+**Reducer tests** (`Tests/ReducerTests.swift`) — test the pure `reduce()` function directly. Events carry explicit timestamps, so timing-sensitive behavior (celebrate expiry, stale timeout) is fully deterministic. No engine, no outputs, no I/O.
+
+**Integration tests** (`Tests/EngineIntegrationTests.swift`) — test the full path through the engine: call the same public methods the HTTP server calls, observe state changes via an `EchoRecorder` output. This verifies the wiring between inputs, reducer, and outputs without touching the network.
+
+The `EchoRecorder` is a minimal `OutputProvider` that records every `(prev, next)` state transition. Tests assert on the recorder's captured transitions — what pet state resulted, whether a prompt appeared, whether session counts changed. Because the recorder sits at the output boundary, tests are decoupled from internal state representation.
+
+A `Clock` protocol (with `WallClock` for production, `MockClock` for tests) lets integration tests control time — advancing the clock and triggering stale ticks to verify celebrate expiry and session cleanup without real-time delays.
+
+
 
 | Layer | Technology |
 |-------|-----------|

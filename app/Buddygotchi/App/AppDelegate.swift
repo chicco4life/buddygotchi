@@ -35,11 +35,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let popover = NSPopover()
-        popover.contentSize = NSSize(width: 320, height: 440)
         popover.behavior = .transient
-        popover.contentViewController = NSHostingController(
-            rootView: PopoverView(engine: engine)
-        )
+        let hostingController = NSHostingController(rootView: PopoverView(engine: engine))
+        hostingController.sizingOptions = .preferredContentSize
+        popover.contentViewController = hostingController
         self.popover = popover
 
         NotificationManager.shared.setup(engine: engine)

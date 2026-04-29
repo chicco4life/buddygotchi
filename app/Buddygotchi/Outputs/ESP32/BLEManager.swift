@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 @preconcurrency import CoreBluetooth
 
 enum BLEConnectionState: String, Sendable {
@@ -254,5 +255,41 @@ extension BLEManager: CBPeripheralDelegate {
         #if DEBUG
         print("[BLE RX] \(line)")
         #endif
+    }
+}
+
+// MARK: - BLE Scanner (shared scan state for views)
+
+@Observable
+@MainActor
+final class BLEScanner {
+    private(set) var devices: [BLEManager.DiscoveredPeripheral] = []
+    private(set) var isScanning = false
+
+    private var bleManager: BLEManager?
+    private var scanTask: Task<Void, Never>?
+
+    func start() {
+        stop()
+        isScanning = true
+        let manager = BLEManager()
+        bleManager = manager
+        devices = []
+        let stream = manager.startScan()
+        scanTask = Task {
+            for await device in stream {
+                if !devices.contains(where: { $0.identifier == device.identifier }) {
+                    devices.append(device)
+                }
+            }
+        }
+    }
+
+    func stop() {
+        isScanning = false
+        scanTask?.cancel()
+        scanTask = nil
+        bleManager?.stopScan()
+        bleManager = nil
     }
 }

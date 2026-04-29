@@ -5,11 +5,21 @@ import NIOCore
 private struct HookEventBody: Decodable, Sendable {
     var session_id: String?
     var hook_event_name: String?
+    var hookEventName: String?
     var cwd: String?
     var tool_name: String?
     var tool_input: ToolInput?
     var notification_type: String?
     var message: String?
+    var command: String?
+    var toolName: String?
+
+    var tool: CursorTool?
+    var input: ToolInput?
+
+    struct CursorTool: Decodable, Sendable {
+        var name: String?
+    }
 
     struct ToolInput: Decodable, Sendable {
         var command: String?
@@ -18,6 +28,18 @@ private struct HookEventBody: Decodable, Sendable {
         var url: String?
         var query: String?
         var description: String?
+    }
+
+    var effectiveEventName: String? {
+        hook_event_name ?? hookEventName
+    }
+
+    var effectiveToolName: String? {
+        tool_name ?? tool?.name ?? toolName ?? (command != nil ? "Shell" : nil)
+    }
+
+    var effectiveToolInput: ToolInput? {
+        tool_input ?? input
     }
 }
 
@@ -31,6 +53,7 @@ private struct SignalRequestBody: Decodable, Sendable {
 
 func buildHookServer(engine: BuddyEngine, config: BuddyConfig) -> Application<RouterResponder<BasicRequestContext>> {
     let router = Router()
+    let diagLog = engine.diagnosticLog
 
     router.get("/healthz") { _, _ -> Response in
         let state = await engine.state
@@ -43,18 +66,24 @@ func buildHookServer(engine: BuddyEngine, config: BuddyConfig) -> Application<Ro
 
     router.post("/hook/event") { request, _ -> Response in
         let source = request.uri.queryParameters["source"].map(String.init) ?? "claude-code"
-        let body = try await decodeBody(HookEventBody.self, from: request)
-        let hookPid: Int32? = (body.hook_event_name == "SessionStart")
+        let rawBuffer = try await request.body.collect(upTo: 1_048_576)
+        let rawJSON = String(buffer: rawBuffer)
+        let body = try sharedDecoder.decode(HookEventBody.self, from: rawBuffer)
+        let hookPid: Int32? = (body.effectiveEventName == "SessionStart")
             ? request.uri.queryParameters["pid"].flatMap({ Int32(String($0)) })
             : nil
+        await diagLog.log(category: "hook", source: source, event: body.effectiveEventName ?? "unknown", detail: "\(body.effectiveToolName ?? "") \(extractHint(from: body))".trimmingCharacters(in: .whitespaces), rawPayload: rawJSON)
         await handleAgentEvent(body: body, source: source, hookPid: hookPid, engine: engine)
         return emptyOK()
     }
 
     router.post("/hook/signal") { request, _ -> Response in
-        let body = try await decodeBody(SignalRequestBody.self, from: request)
+        let rawBuffer = try await request.body.collect(upTo: 1_048_576)
+        let rawJSON = String(buffer: rawBuffer)
+        let body = try sharedDecoder.decode(SignalRequestBody.self, from: rawBuffer)
         let source = body.agent_id ?? "claude-code"
         let sessionId = body.session_id ?? body.conversation_id ?? "\(source)_default"
+        await diagLog.log(category: "signal", source: source, event: body.signal ?? "unknown", detail: "session=\(sessionId)", rawPayload: rawJSON)
         await engine.sessionStarted(sessionId: sessionId, source: source, cwd: body.cwd)
         if let signalStr = body.signal, let signal = ActivitySignalKind(rawValue: signalStr) {
             await engine.activitySignal(sessionId: sessionId, source: source, signal: signal)
@@ -64,16 +93,21 @@ func buildHookServer(engine: BuddyEngine, config: BuddyConfig) -> Application<Ro
 
     router.post("/hook/approve") { request, _ -> Response in
         let source = request.uri.queryParameters["source"].map(String.init) ?? "claude-code"
-        let body = try await decodeBody(HookEventBody.self, from: request)
+        let rawBuffer = try await request.body.collect(upTo: 1_048_576)
+        let rawJSON = String(buffer: rawBuffer)
+        let body = try sharedDecoder.decode(HookEventBody.self, from: rawBuffer)
         let sessionId = deriveSessionId(from: body, source: source)
-        let tool = body.tool_name ?? "Unknown"
+        let tool = body.effectiveToolName ?? "Unknown"
         let hint = extractHint(from: body)
         let sessionLabel = cwdLabel(body.cwd)
         let requestId = "\(sessionId)_\(shortUUID())"
 
+        await diagLog.log(category: "approve", source: source, event: body.effectiveEventName ?? "approve", detail: "\(tool): \(hint)", rawPayload: rawJSON)
+
         await engine.sessionStarted(sessionId: sessionId, source: source, cwd: body.cwd)
 
         if let autoDecision = shouldAutoApprove(tool: tool, hint: hint, source: source) {
+            await diagLog.log(category: "approve", source: source, event: "auto-\(autoDecision.rawValue)", detail: tool)
             await engine.activitySignal(sessionId: sessionId, source: source, signal: .keepWorking)
             return approvalResponse(decision: autoDecision, source: source)
         }
@@ -100,7 +134,7 @@ func buildHookServer(engine: BuddyEngine, config: BuddyConfig) -> Application<Ro
 
 private func handleAgentEvent(body: HookEventBody, source: String, hookPid: Int32?, engine: BuddyEngine) async {
     let sessionId = deriveSessionId(from: body, source: source)
-    let event = body.hook_event_name ?? ""
+    let event = body.effectiveEventName ?? ""
     let sessionLabel = cwdLabel(body.cwd)
 
     if event != "SessionEnd" {
@@ -128,7 +162,7 @@ private func handleAgentEvent(body: HookEventBody, source: String, hookPid: Int3
         await engine.sessionEnded(sessionId: sessionId)
 
     case "PermissionRequest":
-        let tool = body.tool_name ?? "Permission"
+        let tool = body.effectiveToolName ?? "Permission"
         let hint = extractHint(from: body)
         let requestId = "\(sessionId)_\(shortUUID())"
         await engine.submitRequest(sessionId: sessionId, requestId: requestId, tool: tool, hint: hint, sessionLabel: sessionLabel)
@@ -216,7 +250,8 @@ private func shouldAutoApprove(tool: String, hint: String, source: String) -> Ap
 // MARK: - Helpers
 
 private func extractHint(from body: HookEventBody) -> String {
-    if let ti = body.tool_input {
+    if let cmd = body.command, !cmd.isEmpty { return String(cmd.prefix(200)) }
+    if let ti = body.effectiveToolInput {
         if let desc = ti.description, !desc.isEmpty { return String(desc.prefix(200)) }
         for v in [ti.command, ti.file_path, ti.path, ti.url, ti.query] {
             if let v, !v.isEmpty { return String(v.prefix(200)) }

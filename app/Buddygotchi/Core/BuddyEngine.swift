@@ -6,16 +6,20 @@ import Observation
 @MainActor
 final class BuddyEngine {
     private(set) var state: BuddyState = .initial
+    let diagnosticLog: DiagnosticLog
 
     private var internalState: InternalState
     private var staleTimer: Timer?
     private var config: BuddyConfig
+    private let clock: any Clock
     private var outputs: [any OutputProvider] = []
     private var processWatchers: [String: DispatchSourceProcess] = [:]
     private var pendingApprovals: [String: CheckedContinuation<ApprovalDecision, Never>] = [:]
 
-    init(config: BuddyConfig = .default) {
+    init(config: BuddyConfig = .default, clock: (any Clock)? = nil, diagnosticLog: DiagnosticLog? = nil) {
         self.config = config
+        self.clock = clock ?? WallClock()
+        self.diagnosticLog = diagnosticLog ?? DiagnosticLog()
         self.internalState = .initial(staleMs: config.staleTimeoutMs, celebrateDurationMs: config.celebrateDurationMs)
     }
 
@@ -25,7 +29,7 @@ final class BuddyEngine {
         staleTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, (!self.internalState.sessions.isEmpty || self.state.celebrateUntil != nil) else { return }
-                self.apply(.staleTick(at: Self.now()))
+                self.apply(.staleTick(at: self.clock.now()))
             }
         }
     }
@@ -37,6 +41,10 @@ final class BuddyEngine {
         processWatchers.removeAll()
     }
 
+    func triggerStaleTick() {
+        apply(.staleTick(at: clock.now()))
+    }
+
     // MARK: - Registration
 
     func register(output: any OutputProvider) {
@@ -46,7 +54,7 @@ final class BuddyEngine {
     // MARK: - Session API
 
     func sessionStarted(sessionId: String, source: String, cwd: String?, hookPid: Int32? = nil) {
-        apply(.sessionStarted(at: Self.now(), sessionId: sessionId, source: source, cwd: cwd))
+        apply(.sessionStarted(at: clock.now(), sessionId: sessionId, source: source, cwd: cwd))
         if let hookPid, processWatchers[sessionId] == nil,
            let appPid = Self.resolveAncestor(from: hookPid) {
             watchProcess(pid: appPid, sessionId: sessionId)
@@ -54,25 +62,25 @@ final class BuddyEngine {
     }
 
     func sessionEnded(sessionId: String) {
-        apply(.sessionEnded(at: Self.now(), sessionId: sessionId))
+        apply(.sessionEnded(at: clock.now(), sessionId: sessionId))
     }
 
     func submitRequest(sessionId: String, requestId: String, tool: String, hint: String, sessionLabel: String?) {
-        apply(.requestArrived(at: Self.now(), sessionId: sessionId, requestId: requestId, tool: tool, hint: hint, sessionLabel: sessionLabel))
+        apply(.requestArrived(at: clock.now(), sessionId: sessionId, requestId: requestId, tool: tool, hint: hint, sessionLabel: sessionLabel))
     }
 
     func clearRequest(sessionId: String) {
-        apply(.requestCleared(at: Self.now(), sessionId: sessionId))
+        apply(.requestCleared(at: clock.now(), sessionId: sessionId))
     }
 
     func activitySignal(sessionId: String, source: String, signal: ActivitySignalKind) {
-        apply(.activitySignal(at: Self.now(), sessionId: sessionId, source: source, signal: signal))
+        apply(.activitySignal(at: clock.now(), sessionId: sessionId, source: source, signal: signal))
     }
 
     // MARK: - Approval API
 
     func submitApproval(sessionId: String, requestId: String, tool: String, hint: String, sessionLabel: String?, source: String?) async -> ApprovalDecision {
-        apply(.approvalArrived(at: Self.now(), sessionId: sessionId, requestId: requestId, tool: tool, hint: hint, sessionLabel: sessionLabel, source: source))
+        apply(.approvalArrived(at: clock.now(), sessionId: sessionId, requestId: requestId, tool: tool, hint: hint, sessionLabel: sessionLabel, source: source))
         return await withCheckedContinuation { continuation in
             pendingApprovals[requestId] = continuation
         }
@@ -81,7 +89,7 @@ final class BuddyEngine {
     func resolveApproval(requestId: String, decision: ApprovalDecision) {
         guard let continuation = pendingApprovals.removeValue(forKey: requestId) else { return }
         if let sessionId = findSessionForApproval(requestId) {
-            apply(.approvalResolved(at: Self.now(), sessionId: sessionId, requestId: requestId, decision: decision))
+            apply(.approvalResolved(at: clock.now(), sessionId: sessionId, requestId: requestId, decision: decision))
         }
         continuation.resume(returning: decision)
     }
@@ -89,7 +97,7 @@ final class BuddyEngine {
     func resolveAllPendingApprovals(decision: ApprovalDecision) {
         for (requestId, continuation) in pendingApprovals {
             if let sessionId = findSessionForApproval(requestId) {
-                apply(.approvalResolved(at: Self.now(), sessionId: sessionId, requestId: requestId, decision: decision))
+                apply(.approvalResolved(at: clock.now(), sessionId: sessionId, requestId: requestId, decision: decision))
             }
             continuation.resume(returning: decision)
         }
@@ -123,7 +131,7 @@ final class BuddyEngine {
         source.setEventHandler { [weak self] in
             MainActor.assumeIsolated {
                 self?.cancelWatcher(sessionId: sessionId)
-                self?.apply(.sessionEnded(at: Self.now(), sessionId: sessionId))
+                self?.apply(.sessionEnded(at: self!.clock.now(), sessionId: sessionId))
             }
         }
         processWatchers[sessionId] = source
@@ -154,9 +162,6 @@ final class BuddyEngine {
         for output in outputs {
             output.stateDidChange(prev: prev, next: state)
         }
-    }
-
-    private static func now() -> Double {
-        Date.now.timeIntervalSince1970 * 1000
+        diagnosticLog.log(category: "engine", source: "system", event: event.name, detail: "pet=\(state.pet.state.rawValue) sessions=\(state.sessions.total)")
     }
 }

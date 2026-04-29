@@ -20,7 +20,7 @@ enum BuddyTheme {
     static let popoverWidth: CGFloat = 320
     static let liveViewHeight: CGFloat = 240
     static let liveViewExpandedHeight: CGFloat = 380
-    static let fullPanelHeight: CGFloat = 440
+    static let popoverHeight: CGFloat = 440
 }
 
 // MARK: - Card Modifiers
@@ -99,6 +99,27 @@ struct BuddySecondaryButtonStyle: ButtonStyle {
     }
 }
 
+struct BuddyPlainButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        BuddyPlainButtonBody(isPressed: configuration.isPressed) {
+            configuration.label
+        }
+    }
+}
+
+private struct BuddyPlainButtonBody<Label: View>: View {
+    let isPressed: Bool
+    @ViewBuilder let label: Label
+    @State private var isHovering = false
+
+    var body: some View {
+        label
+            .opacity(isPressed ? 0.5 : isHovering ? 0.8 : 1.0)
+            .onHover { isHovering = $0 }
+            .animation(.easeInOut(duration: 0.15), value: isHovering)
+    }
+}
+
 // MARK: - Section Header
 
 struct BuddySectionHeader: View {
@@ -113,6 +134,33 @@ struct BuddySectionHeader: View {
             .font(.system(.subheadline, design: .rounded, weight: .medium))
             .foregroundStyle(.secondary)
             .padding(.top, 4)
+    }
+}
+
+// MARK: - Setting Toggle Row
+
+struct BuddySettingToggle: View {
+    let title: String
+    let description: String
+    @Binding var isOn: Bool
+
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(.callout, design: .rounded))
+                Text(description)
+                    .font(.system(.caption2, design: .rounded))
+                    .foregroundStyle(.tertiary)
+            }
+            Spacer(minLength: 8)
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .tint(BuddyTheme.accent)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
     }
 }
 

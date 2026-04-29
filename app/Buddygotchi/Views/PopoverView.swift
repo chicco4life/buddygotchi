@@ -1,11 +1,11 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct PopoverView: View {
     let engine: BuddyEngine
     @AppStorage("setupCompleted") private var setupCompleted = false
     @AppStorage("buddySpecies") private var species = "cat"
     @State private var showingSettings = false
-    @State private var showingDebug = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -18,19 +18,12 @@ struct PopoverView: View {
                         insertion: .move(edge: .trailing).combined(with: .opacity),
                         removal: .move(edge: .trailing).combined(with: .opacity)
                     ))
-            } else if showingDebug {
-                DebugView(isPresented: $showingDebug, entries: engine.state.entries)
-                    .transition(reduceMotion ? .opacity : .asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .trailing).combined(with: .opacity)
-                    ))
             } else {
                 liveView
                     .transition(.opacity)
             }
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: showingSettings)
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: showingDebug)
     }
 
     // MARK: - Live View
@@ -114,34 +107,61 @@ struct PopoverView: View {
         .accessibilityLabel("Desktop \(engine.state.desktop.status.rawValue)\(engine.state.sessions.total > 0 ? ", \(engine.state.sessions.running) active sessions" : "")")
     }
 
+    @State private var isExporting = false
+
     private var footer: some View {
         HStack(spacing: 12) {
             Spacer()
 
-            Button(action: { showingDebug = true }) {
-                Image(systemName: "ladybug")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+            Button(action: { Task { await exportBugReport() } }) {
+                Group {
+                    if isExporting {
+                        ProgressView()
+                            .controlSize(.mini)
+                    } else {
+                        Image(systemName: "ladybug")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .frame(width: 14, height: 14)
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("Debug log")
+            .buttonStyle(BuddyPlainButtonStyle())
+            .disabled(isExporting)
+            .accessibilityLabel("Export bug report")
 
             Button(action: { showingSettings = true }) {
                 Image(systemName: "gearshape")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(BuddyPlainButtonStyle())
             .accessibilityLabel("Settings")
 
             Button("Quit") {
                 NSApplication.shared.terminate(nil)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(BuddyPlainButtonStyle())
             .font(.system(.caption2, design: .rounded))
             .foregroundStyle(.tertiary)
         }
-        .padding(.horizontal, 4)
+    }
+
+    private func exportBugReport() async {
+        isExporting = true
+        defer { isExporting = false }
+
+        guard let data = await engine.diagnosticLog.exportBundle(engine: engine) else { return }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        let filename = "buddygotchi-report-\(formatter.string(from: Date.now)).json"
+
+        let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first!
+        let url = desktop.appendingPathComponent(filename)
+        do {
+            try data.write(to: url)
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        } catch {}
     }
 
     private var liveViewHeight: CGFloat {
@@ -223,7 +243,7 @@ struct ToolCardView: View {
                                 .background(BuddyTheme.destructive.opacity(0.15), in: Capsule())
                                 .foregroundStyle(BuddyTheme.destructive)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(BuddyPlainButtonStyle())
 
                         Button(action: onApprove) {
                             Text("Approve")
@@ -233,7 +253,7 @@ struct ToolCardView: View {
                                 .background(BuddyTheme.accent.opacity(0.15), in: Capsule())
                                 .foregroundStyle(BuddyTheme.accent)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(BuddyPlainButtonStyle())
                         .keyboardShortcut(.return, modifiers: [])
 
                         Spacer()
@@ -259,61 +279,5 @@ struct ToolCardView: View {
 
     private func sourceName(_ source: String) -> String {
         AgentKind(rawValue: source)?.displayName ?? source
-    }
-}
-
-// MARK: - Debug Pane
-
-struct DebugView: View {
-    @Binding var isPresented: Bool
-    let entries: [String]
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Button(action: { isPresented = false }) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left")
-                        Text("Debug")
-                            .font(.system(.headline, design: .rounded))
-                    }
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Back to live view")
-                .keyboardShortcut(.escape, modifiers: [])
-                Spacer()
-            }
-            .padding(.horizontal)
-            .padding(.top)
-
-            Rectangle()
-                .fill(Color.white.opacity(0.06))
-                .frame(height: 0.5)
-                .padding(.horizontal)
-                .padding(.top, 8)
-
-            if entries.isEmpty {
-                Spacer()
-                Text("No recent events")
-                    .font(.system(.caption, design: .rounded))
-                    .foregroundStyle(.secondary)
-                Spacer()
-            } else {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
-                            Text(entry)
-                                .font(.system(.caption2, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(2)
-                        }
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-            }
-        }
-        .frame(width: BuddyTheme.popoverWidth, height: BuddyTheme.fullPanelHeight)
-        .preferredColorScheme(.dark)
     }
 }

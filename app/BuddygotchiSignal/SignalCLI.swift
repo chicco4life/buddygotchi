@@ -47,28 +47,26 @@ private func log(_ msg: String) {
     FileHandle.standardError.write(Data("[buddygotchi-signal] \(msg)\n".utf8))
 }
 
-private func mapClaudeCodeEvent(_ hookEvent: String) -> String? {
-    switch hookEvent {
-    case "UserPromptSubmit": return "start_working"
-    case "PostToolUse", "SubagentStart": return "keep_working"
-    case "Stop", "StopFailure": return "stop_working"
-    case "TaskCompleted": return "celebrate"
-    default: return nil
-    }
-}
-
-private func mapCursorEvent(_ hookEvent: String) -> String? {
-    switch hookEvent {
-    case "beforeSubmitPrompt", "sessionStart": return "start_working"
-    case "afterShellExecution", "afterMCPExecution", "beforeShellExecution", "beforeMCPExecution": return "keep_working"
-    case "stop", "sessionEnd": return "stop_working"
-    default: return nil
-    }
-}
-
-private func mapCodexEvent(_ hookEvent: String) -> String? {
-    nil
-}
+private let signalMap: [String: [String: String]] = [
+    "claude-code": [
+        "UserPromptSubmit": "start_working",
+        "PostToolUse": "keep_working",
+        "SubagentStart": "keep_working",
+        "Stop": "stop_working",
+        "StopFailure": "stop_working",
+        "TaskCompleted": "celebrate",
+    ],
+    "cursor": [
+        "beforeSubmitPrompt": "start_working",
+        "sessionStart": "start_working",
+        "afterShellExecution": "keep_working",
+        "afterMCPExecution": "keep_working",
+        "beforeShellExecution": "keep_working",
+        "beforeMCPExecution": "keep_working",
+        "stop": "stop_working",
+        "sessionEnd": "stop_working",
+    ],
+]
 
 private func parseAgentFlag() -> String {
     let args = CommandLine.arguments
@@ -117,14 +115,7 @@ struct SignalCLI {
             }
         }
 
-        let mapFn: (String) -> String?
-        switch agentId {
-        case "cursor": mapFn = mapCursorEvent
-        case "codex": mapFn = mapCodexEvent
-        default: mapFn = mapClaudeCodeEvent
-        }
-
-        guard let signal = mapFn(hookEvent) else {
+        guard let signal = signalMap[agentId]?[hookEvent] else {
             log("unmapped event: \(hookEvent)")
             return
         }

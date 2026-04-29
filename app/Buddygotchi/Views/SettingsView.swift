@@ -11,11 +11,8 @@ struct SettingsView: View {
     @State private var launchAtLogin = false
     @State private var agentInstalled: [AgentKind: Bool] = [:]
 
-    @State private var bleManager: BLEManager?
-    @State private var discoveredDevices: [BLEManager.DiscoveredPeripheral] = []
+    @State private var scanner = BLEScanner()
     @State private var selectedDeviceUUID: UUID?
-    @State private var bleScanTask: Task<Void, Never>?
-    @State private var isScanning = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -27,7 +24,7 @@ struct SettingsView: View {
                             .font(.system(.headline, design: .rounded))
                     }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(BuddyPlainButtonStyle())
                 .accessibilityLabel("Back to live view")
                 .keyboardShortcut(.escape, modifiers: [])
                 Spacer()
@@ -52,7 +49,7 @@ struct SettingsView: View {
                 .padding()
             }
         }
-        .frame(width: BuddyTheme.popoverWidth, height: BuddyTheme.fullPanelHeight)
+        .frame(width: BuddyTheme.popoverWidth, height: BuddyTheme.popoverHeight)
         .preferredColorScheme(.dark)
         .onAppear {
             launchAtLogin = LoginItemManager.shared.isEnabled
@@ -61,7 +58,7 @@ struct SettingsView: View {
             }
         }
         .onDisappear {
-            stopBLEScan()
+            scanner.stop()
         }
     }
 
@@ -72,45 +69,36 @@ struct SettingsView: View {
             BuddySectionHeader("General")
 
             VStack(spacing: 0) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Toggle("Launch at Login", isOn: $launchAtLogin)
-                        .tint(BuddyTheme.accent)
-                        .onChange(of: launchAtLogin) { _, newValue in
-                            LoginItemManager.shared.setEnabled(newValue)
-                        }
-                    Text("Start Buddygotchi when you log in to your Mac.")
-                        .font(.system(.caption2, design: .rounded))
-                        .foregroundStyle(.tertiary)
+                BuddySettingToggle(
+                    title: "Launch at Login",
+                    description: "Start Buddygotchi when you log in to your Mac.",
+                    isOn: $launchAtLogin
+                )
+                .onChange(of: launchAtLogin) { _, newValue in
+                    LoginItemManager.shared.setEnabled(newValue)
+                    launchAtLogin = LoginItemManager.shared.isEnabled
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
 
                 Divider().padding(.horizontal, 12)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Toggle("Interactive Mode", isOn: $interactiveMode)
-                        .tint(BuddyTheme.accent)
-                    Text("Auto-show when your buddy celebrates or needs attention.")
-                        .font(.system(.caption2, design: .rounded))
-                        .foregroundStyle(.tertiary)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                BuddySettingToggle(
+                    title: "Interactive Mode",
+                    description: "Auto-show when your buddy celebrates or needs attention.",
+                    isOn: $interactiveMode
+                )
 
                 Divider().padding(.horizontal, 12)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Toggle("Local Approval Mode", isOn: $approvalMode)
-                        .tint(BuddyTheme.accent)
-                        .onChange(of: approvalMode) { _, newValue in
-                            BuddyConfig.setApprovalMode(newValue)
-                            if !newValue {
-                                engine.resolveAllPendingApprovals(decision: .allow)
-                            }
-                        }
-                    Text("Route tool approvals through Buddygotchi instead of your agent's built-in dialog.")
-                        .font(.system(.caption2, design: .rounded))
-                        .foregroundStyle(.tertiary)
+                BuddySettingToggle(
+                    title: "Local Approval Mode",
+                    description: "Route tool approvals through Buddygotchi instead of your agent's built-in dialog.",
+                    isOn: $approvalMode
+                )
+                .onChange(of: approvalMode) { _, newValue in
+                    BuddyConfig.setApprovalMode(newValue)
+                    if !newValue {
+                        engine.resolveAllPendingApprovals(decision: .allow)
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
@@ -146,7 +134,7 @@ struct SettingsView: View {
                         .frame(width: 32, height: 32)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(BuddyPlainButtonStyle())
                 .accessibilityLabel("Previous species")
 
                 VStack(spacing: 8) {
@@ -174,7 +162,7 @@ struct SettingsView: View {
                         .frame(width: 32, height: 32)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(BuddyPlainButtonStyle())
                 .accessibilityLabel("Next species")
             }
             .frame(maxWidth: .infinity)
@@ -267,9 +255,9 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
-                    Button(isScanning ? "Scanning..." : "Scan") {
-                        if isScanning { stopBLEScan() }
-                        else { startBLEScan() }
+                    Button(scanner.isScanning ? "Scanning..." : "Scan") {
+                        if scanner.isScanning { scanner.stop() }
+                        else { scanner.start() }
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
@@ -280,12 +268,12 @@ struct SettingsView: View {
             }
             .buddyGroupedCard()
 
-            if isScanning && !discoveredDevices.isEmpty {
-                ForEach(discoveredDevices, id: \.identifier) { device in
+            if scanner.isScanning && !scanner.devices.isEmpty {
+                ForEach(scanner.devices, id: \.identifier) { device in
                     Button {
                         UserDefaults.standard.set(device.identifier.uuidString, forKey: "esp32PeripheralUUID")
                         selectedDeviceUUID = device.identifier
-                        stopBLEScan()
+                        scanner.stop()
                     } label: {
                         HStack {
                             Text(device.name).font(.system(.caption, design: .rounded))
@@ -295,7 +283,7 @@ struct SettingsView: View {
                                 .foregroundStyle(BuddyTheme.accent)
                         }
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(BuddyPlainButtonStyle())
                     .buddyCard()
                     .accessibilityLabel("Connect to \(device.name)")
                 }
@@ -366,31 +354,5 @@ struct SettingsView: View {
             return "Paired: \(uuid.prefix(8))..."
         }
         return "Not connected"
-    }
-
-    // MARK: - BLE Scan
-
-    private func startBLEScan() {
-        stopBLEScan()
-        isScanning = true
-        let manager = BLEManager()
-        bleManager = manager
-        discoveredDevices = []
-        let stream = manager.startScan()
-        bleScanTask = Task {
-            for await device in stream {
-                if !discoveredDevices.contains(where: { $0.identifier == device.identifier }) {
-                    discoveredDevices.append(device)
-                }
-            }
-        }
-    }
-
-    private func stopBLEScan() {
-        isScanning = false
-        bleScanTask?.cancel()
-        bleScanTask = nil
-        bleManager?.stopScan()
-        bleManager = nil
     }
 }

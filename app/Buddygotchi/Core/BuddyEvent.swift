@@ -37,4 +37,17 @@ enum BuddyEvent: Sendable {
             return at
         }
     }
+
+    var name: String {
+        switch self {
+        case .sessionStarted: "sessionStarted"
+        case .sessionEnded: "sessionEnded"
+        case .requestArrived: "requestArrived"
+        case .requestCleared: "requestCleared"
+        case .activitySignal(_, _, _, let signal): "activitySignal(\(signal.rawValue))"
+        case .staleTick: "staleTick"
+        case .approvalArrived: "approvalArrived"
+        case .approvalResolved(_, _, _, let decision): "approvalResolved(\(decision.rawValue))"
+        }
+    }
 }

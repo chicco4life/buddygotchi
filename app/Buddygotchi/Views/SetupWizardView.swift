@@ -47,10 +47,8 @@ struct SetupWizardView: View {
     @State private var agentInstalled: [AgentKind: Bool] = [:]
     @State private var connectionTestPassed = false
 
-    @State private var bleManager: BLEManager?
-    @State private var discoveredDevices: [BLEManager.DiscoveredPeripheral] = []
+    @State private var scanner = BLEScanner()
     @State private var selectedDeviceUUID: UUID?
-    @State private var bleScanTask: Task<Void, Never>?
 
     private let species = buddyOrder
 
@@ -81,7 +79,7 @@ struct SetupWizardView: View {
             .padding(.top, 20)
             .padding(.bottom, 16)
         }
-        .frame(width: BuddyTheme.popoverWidth, height: BuddyTheme.fullPanelHeight)
+        .frame(width: BuddyTheme.popoverWidth, height: BuddyTheme.popoverHeight)
         .preferredColorScheme(.dark)
     }
 
@@ -230,7 +228,7 @@ struct SetupWizardView: View {
                         .frame(width: 32, height: 32)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(BuddyPlainButtonStyle())
                 .accessibilityLabel("Previous species")
 
                 VStack(spacing: 8) {
@@ -248,7 +246,7 @@ struct SetupWizardView: View {
                         .frame(width: 32, height: 32)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(BuddyPlainButtonStyle())
                 .accessibilityLabel("Next species")
             }
 
@@ -291,7 +289,7 @@ struct SetupWizardView: View {
                     if selectedOutput == .m5stack, let uuid = selectedDeviceUUID {
                         UserDefaults.standard.set(uuid.uuidString, forKey: "esp32PeripheralUUID")
                     }
-                    stopBLEScan()
+                    scanner.stop()
                     navigatingForward = true
                     step = 5
                 },
@@ -299,8 +297,8 @@ struct SetupWizardView: View {
             )
         }
         .onChange(of: selectedOutput) { _, newValue in
-            if newValue == .m5stack { startBLEScan() }
-            else { stopBLEScan() }
+            if newValue == .m5stack { selectedDeviceUUID = nil; scanner.start() }
+            else { scanner.stop() }
         }
     }
 
@@ -331,11 +329,19 @@ struct SetupWizardView: View {
 
             Spacer().frame(height: 16)
 
-            Toggle("Launch at Login", isOn: $launchAtLogin)
-                .tint(BuddyTheme.accent)
-                .onChange(of: launchAtLogin) { _, newValue in
-                    LoginItemManager.shared.setEnabled(newValue)
-                }
+            HStack {
+                Text("Launch at Login")
+                    .font(.system(.callout, design: .rounded))
+                Spacer(minLength: 8)
+                Toggle("", isOn: $launchAtLogin)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .tint(BuddyTheme.accent)
+                    .onChange(of: launchAtLogin) { _, newValue in
+                        LoginItemManager.shared.setEnabled(newValue)
+                        launchAtLogin = LoginItemManager.shared.isEnabled
+                    }
+            }
 
             Spacer()
 
@@ -470,7 +476,7 @@ struct SetupWizardView: View {
 
     private var bleScanContent: some View {
         VStack(spacing: 6) {
-            if discoveredDevices.isEmpty {
+            if scanner.devices.isEmpty {
                 VStack(spacing: 8) {
                     ProgressView()
                         .tint(BuddyTheme.accent)
@@ -480,7 +486,7 @@ struct SetupWizardView: View {
                 }
                 .padding(.vertical, 12)
             } else {
-                ForEach(discoveredDevices, id: \.identifier) { device in
+                ForEach(scanner.devices, id: \.identifier) { device in
                     Button {
                         selectedDeviceUUID = device.identifier
                     } label: {
@@ -497,35 +503,12 @@ struct SetupWizardView: View {
                                 .foregroundStyle(selectedDeviceUUID == device.identifier ? BuddyTheme.accent : .secondary)
                         }
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(BuddyPlainButtonStyle())
                     .buddyCard()
                     .accessibilityLabel(device.name)
                     .accessibilityAddTraits(selectedDeviceUUID == device.identifier ? .isSelected : [])
                 }
             }
         }
-    }
-
-    private func startBLEScan() {
-        stopBLEScan()
-        let manager = BLEManager()
-        bleManager = manager
-        discoveredDevices = []
-        selectedDeviceUUID = nil
-        let stream = manager.startScan()
-        bleScanTask = Task {
-            for await device in stream {
-                if !discoveredDevices.contains(where: { $0.identifier == device.identifier }) {
-                    discoveredDevices.append(device)
-                }
-            }
-        }
-    }
-
-    private func stopBLEScan() {
-        bleScanTask?.cancel()
-        bleScanTask = nil
-        bleManager?.stopScan()
-        bleManager = nil
     }
 }
