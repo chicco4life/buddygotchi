@@ -3,6 +3,7 @@ import UniformTypeIdentifiers
 
 struct PopoverView: View {
     let engine: BuddyEngine
+    let esp32Output: ESP32Output
     @AppStorage("setupCompleted") private var setupCompleted = false
     @AppStorage("buddySpecies") private var species = "cat"
     @State private var showingSettings = false
@@ -11,9 +12,9 @@ struct PopoverView: View {
     var body: some View {
         Group {
             if !setupCompleted {
-                SetupWizardView(engine: engine) { setupCompleted = true }
+                SetupWizardView(engine: engine, esp32Output: esp32Output) { setupCompleted = true }
             } else if showingSettings {
-                SettingsView(isPresented: $showingSettings, engine: engine)
+                SettingsView(isPresented: $showingSettings, engine: engine, esp32Output: esp32Output)
                     .transition(reduceMotion ? .opacity : .asymmetric(
                         insertion: .move(edge: .trailing).combined(with: .opacity),
                         removal: .move(edge: .trailing).combined(with: .opacity)

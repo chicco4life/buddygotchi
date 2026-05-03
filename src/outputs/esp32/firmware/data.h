@@ -5,20 +5,25 @@
 #include "xfer.h"
 
 struct TamaState {
+  char     pet[12];           // "sleep","idle","busy","attention","celebrate"
+  char     species[16];
+  char     desktop[16];       // "connected" or "disconnected"
   uint8_t  sessionsTotal;
   uint8_t  sessionsRunning;
   uint8_t  sessionsWaiting;
-  bool     recentlyCompleted;
-  uint32_t tokensToday;
+  bool     celebrate;
   uint32_t lastUpdated;
   char     msg[24];
   bool     connected;
-  char     lines[8][92];
+  char     lines[6][81];
   uint8_t  nLines;
   uint16_t lineGen;          // bumps when lines change — lets UI reset scroll
   char     promptId[40];     // pending permission request ID; empty = no prompt
-  char     promptTool[20];
-  char     promptHint[44];
+  char     promptTool[24];
+  char     promptHint[64];
+  char     promptSource[16];
+  bool     promptApproval;
+  char     promptLabel[24];
 };
 
 // ---------------------------------------------------------------------------
@@ -34,11 +39,11 @@ static bool     _demoMode   = false;
 static uint8_t  _demoIdx    = 0;
 static uint32_t _demoNext   = 0;
 
-struct _Fake { const char* n; uint8_t t,r,w; bool c; uint32_t tok; };
+struct _Fake { const char* n; const char* pet; uint8_t t,r,w; };
 static const _Fake _FAKES[] = {
-  {"asleep",0,0,0,false,0}, {"one idle",1,0,0,false,12000},
-  {"busy",4,3,0,false,89000}, {"attention",2,1,1,false,45000},
-  {"completed",1,0,0,true,142000},
+  {"asleep","sleep",0,0,0}, {"one idle","idle",1,0,0},
+  {"busy","busy",4,3,0}, {"attention","attention",2,1,1},
+  {"completed","celebrate",1,0,0},
 };
 
 inline void dataSetDemo(bool on) {
@@ -95,19 +100,22 @@ static void _applyJson(const char* line, TamaState* out) {
   out->sessionsTotal     = doc["total"]     | out->sessionsTotal;
   out->sessionsRunning   = doc["running"]   | out->sessionsRunning;
   out->sessionsWaiting   = doc["waiting"]   | out->sessionsWaiting;
-  out->recentlyCompleted = doc["completed"] | false;
-  uint32_t bridgeTokens = doc["tokens"] | 0;
-  if (doc["tokens"].is<uint32_t>()) statsOnBridgeTokens(bridgeTokens);
-  out->tokensToday = doc["tokens_today"] | out->tokensToday;
+  const char* petStr = doc["pet"];
+  if (petStr) { strncpy(out->pet, petStr, sizeof(out->pet)-1); out->pet[sizeof(out->pet)-1]=0; }
+  const char* specStr = doc["species"];
+  if (specStr) { strncpy(out->species, specStr, sizeof(out->species)-1); out->species[sizeof(out->species)-1]=0; }
+  const char* deskStr = doc["desktop"];
+  if (deskStr) { strncpy(out->desktop, deskStr, sizeof(out->desktop)-1); out->desktop[sizeof(out->desktop)-1]=0; }
+  if (doc["celebrate"].is<bool>()) out->celebrate = doc["celebrate"] | false;
   const char* m = doc["msg"];
   if (m) { strncpy(out->msg, m, sizeof(out->msg)-1); out->msg[sizeof(out->msg)-1]=0; }
   JsonArray la = doc["entries"];
   if (!la.isNull()) {
     uint8_t n = 0;
     for (JsonVariant v : la) {
-      if (n >= 8) break;
+      if (n >= 6) break;
       const char* s = v.as<const char*>();
-      strncpy(out->lines[n], s ? s : "", 91); out->lines[n][91]=0;
+      strncpy(out->lines[n], s ? s : "", 80); out->lines[n][80]=0;
       n++;
     }
     if (n != out->nLines || (n > 0 && strcmp(out->lines[n-1], out->msg) != 0)) {
@@ -118,11 +126,16 @@ static void _applyJson(const char* line, TamaState* out) {
   JsonObject pr = doc["prompt"];
   if (!pr.isNull()) {
     const char* pid = pr["id"]; const char* pt = pr["tool"]; const char* ph = pr["hint"];
-    strncpy(out->promptId,   pid ? pid : "", sizeof(out->promptId)-1);   out->promptId[sizeof(out->promptId)-1]=0;
-    strncpy(out->promptTool, pt  ? pt  : "", sizeof(out->promptTool)-1); out->promptTool[sizeof(out->promptTool)-1]=0;
-    strncpy(out->promptHint, ph  ? ph  : "", sizeof(out->promptHint)-1); out->promptHint[sizeof(out->promptHint)-1]=0;
+    const char* psrc = pr["source"]; const char* plbl = pr["label"];
+    strncpy(out->promptId,     pid  ? pid  : "", sizeof(out->promptId)-1);     out->promptId[sizeof(out->promptId)-1]=0;
+    strncpy(out->promptTool,   pt   ? pt   : "", sizeof(out->promptTool)-1);   out->promptTool[sizeof(out->promptTool)-1]=0;
+    strncpy(out->promptHint,   ph   ? ph   : "", sizeof(out->promptHint)-1);   out->promptHint[sizeof(out->promptHint)-1]=0;
+    strncpy(out->promptSource, psrc ? psrc : "", sizeof(out->promptSource)-1); out->promptSource[sizeof(out->promptSource)-1]=0;
+    strncpy(out->promptLabel,  plbl ? plbl : "", sizeof(out->promptLabel)-1);  out->promptLabel[sizeof(out->promptLabel)-1]=0;
+    if (pr["approval"].is<bool>()) out->promptApproval = pr["approval"] | false;
   } else {
     out->promptId[0] = 0; out->promptTool[0] = 0; out->promptHint[0] = 0;
+    out->promptSource[0] = 0; out->promptLabel[0] = 0; out->promptApproval = false;
   }
   out->lastUpdated = millis();
   _lastLiveMs = millis();
@@ -153,7 +166,10 @@ inline void dataPoll(TamaState* out) {
     if (now >= _demoNext) { _demoIdx = (_demoIdx + 1) % 5; _demoNext = now + 8000; }
     const _Fake& s = _FAKES[_demoIdx];
     out->sessionsTotal=s.t; out->sessionsRunning=s.r; out->sessionsWaiting=s.w;
-    out->recentlyCompleted=s.c; out->tokensToday=s.tok; out->lastUpdated=now;
+    strncpy(out->pet, s.pet, sizeof(out->pet)-1); out->pet[sizeof(out->pet)-1]=0;
+    strncpy(out->desktop, "connected", sizeof(out->desktop)-1); out->desktop[sizeof(out->desktop)-1]=0;
+    out->celebrate = (strcmp(s.pet, "celebrate") == 0);
+    out->lastUpdated=now;
     out->connected = true;
     snprintf(out->msg, sizeof(out->msg), "demo: %s", s.n);
     return;
@@ -179,7 +195,9 @@ inline void dataPoll(TamaState* out) {
   out->connected = dataConnected();
   if (!out->connected) {
     out->sessionsTotal=0; out->sessionsRunning=0; out->sessionsWaiting=0;
-    out->recentlyCompleted=false; out->lastUpdated=now;
+    strncpy(out->pet, "sleep", sizeof(out->pet)-1); out->pet[sizeof(out->pet)-1]=0;
+    strncpy(out->desktop, "disconnected", sizeof(out->desktop)-1); out->desktop[sizeof(out->desktop)-1]=0;
+    out->lastUpdated=now;
     strncpy(out->msg, "No Claude connected", sizeof(out->msg)-1);
     out->msg[sizeof(out->msg)-1]=0;
   }

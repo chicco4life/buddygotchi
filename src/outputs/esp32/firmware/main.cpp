@@ -3,6 +3,7 @@
 #include <stdarg.h>
 #include "ble_bridge.h"
 #include "data.h"
+SET_LOOP_TASK_STACK_SIZE(16384);
 #include "buddy.h"
 
 M5Canvas spr(&StickCP2.Display);
@@ -70,10 +71,10 @@ static void nextPet() {
   if (!buddyMode) {                          // GIF → species 0
     buddyMode = true;
     buddySetSpeciesIdx(0);
-    speciesIdxSave(0);
+    // speciesIdxSave(0);
   } else if (buddySpeciesIdx() + 1 >= n && gifAvailable) {  // last species → GIF
     buddyMode = false;
-    speciesIdxSave(SPECIES_GIF);
+    // speciesIdxSave(SPECIES_GIF);
   } else {                                   // species i → species i+1
     buddyNextSpecies();
   }
@@ -477,11 +478,12 @@ static void drawClock() {
 }
 
 PersonaState derive(const TamaState& s) {
-  if (!s.connected)            return P_IDLE;
-  if (s.sessionsWaiting > 0)   return P_ATTENTION;
-  if (s.recentlyCompleted)     return P_CELEBRATE;
-  if (s.sessionsRunning >= 3)  return P_BUSY;
-  return P_IDLE;   // connected, 0+ sessions, nothing urgent — hang out
+  if (!s.connected) return P_SLEEP;
+  if (strcmp(s.pet, "sleep") == 0)     return P_SLEEP;
+  if (strcmp(s.pet, "busy") == 0)      return P_BUSY;
+  if (strcmp(s.pet, "attention") == 0) return P_ATTENTION;
+  if (strcmp(s.pet, "celebrate") == 0) return P_CELEBRATE;
+  return P_IDLE;
 }
 
 void triggerOneShot(PersonaState s, uint32_t durMs) {
@@ -588,7 +590,7 @@ void drawInfo() {
     ln("  ble       %s", !bleConnected() ? "-" : bleSecure() ? "encrypted" : "OPEN");
     uint32_t age = (millis() - tama.lastUpdated) / 1000;
     ln("  last msg  %lus", (unsigned long)age);
-    ln("  state     %s", stateNames[activeState]);
+    ln("  state     %s", tama.pet);
 
   } else if (infoPage == 3) {
     _infoHeader(p, y, "DEVICE", infoPage);
@@ -788,13 +790,13 @@ static void drawPetStats(const Palette& p) {
 
   spr.setTextColor(p.textDim, p.bg);
   spr.setCursor(6, y - 2); spr.print("mood");
-  uint8_t mood = statsMoodTier();
+  uint8_t mood = 2;
   uint16_t moodCol = (mood >= 3) ? RED : (mood >= 2) ? HOT : p.textDim;
   for (int i = 0; i < 4; i++) tinyHeart(54 + i * 16, y + 2, i < mood, moodCol);
 
   y += 20;
   spr.setCursor(6, y - 2); spr.print("fed");
-  uint8_t fed = statsFedProgress();
+  uint8_t fed = 0;
   for (int i = 0; i < 10; i++) {
     int px = 38 + i * 9;
     if (i < fed) spr.fillCircle(px, y + 1, 2, p.body);
@@ -803,7 +805,7 @@ static void drawPetStats(const Palette& p) {
 
   y += 20;
   spr.setCursor(6, y - 2); spr.print("energy");
-  uint8_t en = statsEnergyTier();
+  uint8_t en = 3;
   uint16_t enCol = (en >= 4) ? 0x07FF : (en >= 2) ? 0xFFE0 : HOT;
   for (int i = 0; i < 5; i++) {
     int px = 54 + i * 13;
@@ -814,7 +816,7 @@ static void drawPetStats(const Palette& p) {
   y += 24;
   spr.fillRoundRect(6, y - 2, 42, 14, 3, p.body);
   spr.setTextColor(p.bg, p.body);
-  spr.setCursor(11, y + 1); spr.printf("Lv %u", stats().level);
+  spr.setCursor(11, y + 1); spr.printf("Lv %u", 0);
 
   y += 20;
   spr.setTextColor(p.textDim, p.bg);
@@ -831,8 +833,8 @@ static void drawPetStats(const Palette& p) {
     else if (v >= 1000) spr.printf("%s%lu.%luK", label, v/1000, (v/100)%10);
     else                spr.printf("%s%lu", label, v);
   };
-  tokFmt("tokens   ", stats().tokens, y + 30);
-  tokFmt("today    ", tama.tokensToday, y + 40);
+  tokFmt("tokens   ", (uint32_t)0, y + 30);
+  tokFmt("today    ", (uint32_t)0, y + 40);
 }
 
 static void drawPetHowTo(const Palette& p) {
@@ -957,7 +959,7 @@ void setup() {
   // species NVS: 0..N-1 = ASCII species, 0xFF = use GIF (also the default,
   // so a fresh install lands on the GIF). With no GIF installed, 0xFF falls
   // through to buddyInit()'s clamped default.
-  buddyMode = !(gifAvailable && speciesIdxLoad() == SPECIES_GIF);
+  buddyMode = true;
   applyDisplayMode();
 
   {
@@ -987,279 +989,71 @@ void setup() {
 
 void loop() {
   StickCP2.update();
-  ;
   t++;
-  uint32_t now = millis();
 
   dataPoll(&tama);
-  if (statsPollLevelUp()) triggerOneShot(P_CELEBRATE, 3000);
+
+  {
+    static char lastSpecies[16] = "";
+    if (tama.species[0] && strcmp(tama.species, lastSpecies) != 0) {
+      strncpy(lastSpecies, tama.species, sizeof(lastSpecies)-1);
+      lastSpecies[sizeof(lastSpecies)-1] = 0;
+      buddySetSpecies(tama.species);
+      buddyInvalidate();
+    }
+  }
+
   baseState = derive(tama);
+  if ((int32_t)(millis() - oneShotUntil) >= 0) activeState = baseState;
 
-  // After waking the screen, hold sleep for 12s so users see the wake-up
-  // animation. Urgent states (attention, celebrate, busy) override this.
-  if (baseState == P_IDLE && (int32_t)(now - wakeTransitionUntil) < 0) baseState = P_SLEEP;
-
-  if ((int32_t)(now - oneShotUntil) >= 0) activeState = baseState;
-
-  // LED: pulse on attention, otherwise off
-  if (activeState == P_ATTENTION && settings().led) {
-    StickCP2.Power.setLed((now / 400) % 2);
-  } else {
-    StickCP2.Power.setLed(0);
-  }
-
-  // shake → dizzy + force scenario advance
-  if (now - lastShakeCheck > 50) {
-    lastShakeCheck = now;
-    if (!menuOpen && !screenOff && checkShake() && (int32_t)(now - oneShotUntil) >= 0) {
-      wake();
-      triggerOneShot(P_DIZZY, 2000);
-      Serial.println("shake: dizzy");
+  if (tama.promptId[0] && !responseSent) {
+    if (StickCP2.BtnA.wasReleased()) {
+      char cmd[96];
+      snprintf(cmd, sizeof(cmd), "{\"cmd\":\"permission\",\"id\":\"%s\",\"decision\":\"allow\"}", tama.promptId);
+      sendCmd(cmd);
+      responseSent = true;
     }
-  }
-
-  // BtnA: step through fake scenarios
-  // Prompt arrival: beep, reset response flag
-  if (strcmp(tama.promptId, lastPromptId) != 0) {
-    strncpy(lastPromptId, tama.promptId, sizeof(lastPromptId)-1);
-    lastPromptId[sizeof(lastPromptId)-1] = 0;
-    responseSent = false;
-    if (tama.promptId[0]) {
-      promptArrivedMs = millis();
-      wake();
-      beep(1200, 80);   // alert chirp
-      // Jump to the approval screen no matter what was open — drawApproval
-      // only runs from drawHUD which only runs in DISP_NORMAL.
-      displayMode = DISP_NORMAL;
-      menuOpen = settingsOpen = resetOpen = false;
-      applyDisplayMode();
-      characterInvalidate();
-      if (buddyMode) buddyInvalidate();
-    }
-  }
-
-  bool inPrompt = tama.promptId[0] && !responseSent;
-
-  // Button-press wake. Track which button woke the screen so its full
-  // press cycle (including long-press) is swallowed — you don't want
-  // BtnA-to-wake to also cycle displayMode or open the menu.
-  if (StickCP2.BtnA.isPressed() || StickCP2.BtnB.isPressed()) {
-    if (screenOff) {
-      if (StickCP2.BtnA.isPressed()) swallowBtnA = true;
-      if (StickCP2.BtnB.isPressed()) swallowBtnB = true;
-    }
-    wake();
-  }
-
-  // AXP power button (left side): short-press toggles screen off.
-  // Long-press (6s) still powers off the device via AXP hardware.
-  if (false /* Plus2: power button handled by hardware */) {
-    if (screenOff) {
-      wake();
-    } else {
-      StickCP2.Display.sleep();
-      screenOff = true;
-    }
-  }
-
-  if (StickCP2.BtnA.pressedFor(600) && !btnALong && !swallowBtnA) {
-    btnALong = true;
-    beep(800, 60);
-    if (resetOpen) { resetOpen = false; }
-    else if (settingsOpen) { settingsOpen = false; characterInvalidate(); }
-    else {
-      menuOpen = !menuOpen;
-      menuSel = 0;
-      if (!menuOpen) characterInvalidate();
-    }
-    Serial.println(menuOpen ? "menu open" : "menu close");
-  }
-  if (StickCP2.BtnA.wasReleased()) {
-    if (!btnALong && !swallowBtnA) {
-      if (inPrompt) {
-        char cmd[96];
-        snprintf(cmd, sizeof(cmd), "{\"cmd\":\"permission\",\"id\":\"%s\",\"decision\":\"once\"}", tama.promptId);
-        sendCmd(cmd);
-        responseSent = true;
-        uint32_t tookS = (millis() - promptArrivedMs) / 1000;
-        statsOnApproval(tookS);
-        beep(2400, 60);
-        if (tookS < 5) triggerOneShot(P_HEART, 2000);
-      } else if (resetOpen) {
-        beep(1800, 30);
-        resetSel = (resetSel + 1) % RESET_N;
-        resetConfirmIdx = 0xFF;
-      } else if (settingsOpen) {
-        beep(1800, 30);
-        settingsSel = (settingsSel + 1) % SETTINGS_N;
-      } else if (menuOpen) {
-        beep(1800, 30);
-        menuSel = (menuSel + 1) % MENU_N;
-      } else {
-        beep(1800, 30);
-        displayMode = (displayMode + 1) % DISP_COUNT;
-        applyDisplayMode();
-      }
-    }
-    btnALong = false;
-    swallowBtnA = false;
-  }
-
-  // BtnB: pet → heart
-  if (StickCP2.BtnB.wasPressed()) {
-    if (swallowBtnB) { swallowBtnB = false; }
-    else
-    if (inPrompt) {
+    if (StickCP2.BtnB.wasPressed()) {
       char cmd[96];
       snprintf(cmd, sizeof(cmd), "{\"cmd\":\"permission\",\"id\":\"%s\",\"decision\":\"deny\"}", tama.promptId);
       sendCmd(cmd);
       responseSent = true;
-      statsOnDenial();
-      beep(600, 60);
-    } else if (resetOpen) {
-      beep(2400, 30);
-      applyReset(resetSel);
-    } else if (settingsOpen) {
-      beep(2400, 30);
-      applySetting(settingsSel);
-    } else if (menuOpen) {
-      beep(2400, 30);
-      menuConfirm();
-    } else if (displayMode == DISP_INFO) {
-      beep(2400, 30);
-      infoPage = (infoPage + 1) % INFO_PAGES;
-    } else if (displayMode == DISP_PET) {
-      beep(2400, 30);
-      petPage = (petPage + 1) % PET_PAGES;
-      applyDisplayMode();
-    } else {
-      beep(2400, 30);
-      msgScroll = (msgScroll >= 30) ? 0 : msgScroll + 1;
     }
   }
-
-  // blink bookkeeping
-
-  // Charging clock: takes over the home screen when on USB power, no
-  // overlays, no prompt, no live Claude data, and the RTC has been set
-  // by the bridge. Pet sleeps underneath. Exit restores Y via
-  // applyDisplayMode() so the next mode-switch isn't visually offset.
-  clockRefreshRtc();   // 1Hz internal throttle; also caches _onUsb
-  // Show the clock when nothing is happening — bridge heartbeat alone
-  // doesn't count as activity (it's the only way to get the RTC synced).
-  bool clocking = displayMode == DISP_NORMAL
-               && !menuOpen && !settingsOpen && !resetOpen && !inPrompt
-               && tama.sessionsRunning == 0 && tama.sessionsWaiting == 0
-               && dataRtcValid() && _onUsb;
-  if (clocking) clockUpdateOrient();
-  else { clockOrient = 0; orientFrames = 0; paintedOrient = 0; }
-  bool landscapeClock = clocking && clockOrient != 0;
-
-  static bool wasClocking = false;
-  static bool wasLandscape = false;
-  if (clocking != wasClocking || landscapeClock != wasLandscape) {
-    if (clocking && !landscapeClock) characterSetPeek(true);
-    else applyDisplayMode();
-    characterInvalidate();
-    if (buddyMode) buddyInvalidate();
-    wasClocking = clocking;
-    wasLandscape = landscapeClock;
-  }
-  if (clocking) {
-    uint8_t dow = clockDow();
-    bool weekend = (dow == 0 || dow == 6);
-    bool friday  = (dow == 5);
-
-    uint8_t h = _clkTm.hours;
-    if (h >= 1 && h < 7)             activeState = P_SLEEP;
-    else if (weekend)                activeState = (now/8000 % 6 == 0) ? P_HEART : P_SLEEP;
-    else if (h < 9)                  activeState = (now/6000 % 4 == 0) ? P_IDLE  : P_SLEEP;
-    else if (h == 12)                activeState = (now/5000 % 3 == 0) ? P_HEART : P_IDLE;
-    else if (friday && h >= 15)      activeState = (now/4000 % 3 == 0) ? P_CELEBRATE : P_IDLE;
-    else if (h >= 22 || h == 0)      activeState = (now/7000 % 3 == 0) ? P_DIZZY : P_SLEEP;
-    else                             activeState = (now/10000 % 5 == 0) ? P_SLEEP : P_IDLE;
+  if (strcmp(tama.promptId, lastPromptId) != 0) {
+    strncpy(lastPromptId, tama.promptId, sizeof(lastPromptId)-1);
+    lastPromptId[sizeof(lastPromptId)-1] = 0;
+    responseSent = false;
   }
 
-  static uint32_t lastPasskey = 0;
-  uint32_t pk = blePasskey();
-  if (pk && !lastPasskey) { wake(); beep(1800, 60); }
-  lastPasskey = pk;
-
-  if (napping || screenOff || landscapeClock) {
-    // skip sprite render — face-down, powered off, or landscape clock
-    // (which draws direct-to-LCD below)
-  } else if (buddyMode) {
-    buddyTick(activeState);
-  } else if (characterLoaded()) {
-    characterSetState(activeState);
-    characterTick();
+  if (blePasskey()) {
+    drawPasskey();
   } else {
+    buddyTick(activeState);
     const Palette& p = characterPalette();
-    spr.fillSprite(p.bg);
-    spr.setTextColor(p.textDim, p.bg);
+    int y = 170;
+    spr.fillRect(0, y, W, H - y, p.bg);
     spr.setTextSize(1);
-    if (xferActive()) {
-      uint32_t done = xferProgress(), total = xferTotal();
-      spr.setCursor(8, 90);
-      spr.print("installing");
-      spr.setCursor(8, 102);
-      spr.printf("%luK / %luK", done/1024, total/1024);
-      int barW = W - 16;
-      spr.drawRect(8, 116, barW, 8, p.textDim);
-      if (total > 0) {
-        int fill = (int)((uint64_t)barW * done / total);
-        if (fill > 1) spr.fillRect(9, 117, fill - 1, 6, p.body);
-      }
-    } else {
-      spr.setCursor(8, 100);
-      spr.print("no character loaded");
+    spr.setTextColor(tama.connected ? p.text : p.textDim, p.bg);
+    spr.setCursor(4, y);
+    spr.print(tama.connected ? "connected" : "disconnected");
+    spr.setTextColor(p.body, p.bg);
+    spr.setCursor(4, y + 12);
+    spr.printf("%s | %s", tama.pet[0] ? tama.pet : "-", tama.species[0] ? tama.species : "-");
+    spr.setTextColor(p.textDim, p.bg);
+    spr.setCursor(4, y + 24);
+    spr.printf("sessions: %u r%u w%u", tama.sessionsTotal, tama.sessionsRunning, tama.sessionsWaiting);
+    if (tama.msg[0]) {
+      spr.setCursor(4, y + 36);
+      spr.print(tama.msg);
+    }
+    if (tama.promptId[0]) {
+      spr.setTextColor(HOT, p.bg);
+      spr.setCursor(4, y + 48);
+      spr.printf("? %s", tama.promptTool);
     }
   }
-  if (landscapeClock) {
-    drawClock();
-  } else if (!napping && !screenOff) {
-    if (blePasskey()) drawPasskey();
-    else if (clocking) drawClock();
-    else if (displayMode == DISP_INFO) drawInfo();
-    else if (displayMode == DISP_PET) drawPet();
-    else if (settings().hud) drawHUD();
-    if (resetOpen) drawReset();
-    else if (settingsOpen) drawSettings();
-    else if (menuOpen) drawMenu();
-    spr.pushSprite(0, 0);
-  }
+  spr.pushSprite(0, 0);
 
-  // Face-down nap: dim immediately, pause animations, accumulate sleep time.
-  // Skipped during approval — you're holding it to read, not sleeping it.
-  // Exit needs sustained not-down so IMU noise at the threshold doesn't
-  // bounce brightness between 8 and full every few frames.
-  static int8_t faceDownFrames = 0;
-  if (!inPrompt) {
-    bool down = isFaceDown();
-    if (down)       { if (faceDownFrames < 20) faceDownFrames++; }
-    else            { if (faceDownFrames > -10) faceDownFrames--; }
-  }
-
-  if (!napping && faceDownFrames >= 15) {
-    napping = true;
-    napStartMs = now;
-    StickCP2.Display.setBrightness(10);
-    dimmed = true;
-  } else if (napping && faceDownFrames <= -8) {
-    napping = false;
-    statsOnNapEnd((now - napStartMs) / 1000);
-    statsOnWake();
-    wake();
-  }
-
-  // millis() not the cached `now`: wake() runs after `now` is captured,
-  // so now - lastInteractMs underflows when a button is held → flicker.
-  // No auto-off on USB power — clock face wants to stay visible while charging.
-  if (!screenOff && !inPrompt && !_onUsb
-      && millis() - lastInteractMs > SCREEN_OFF_MS) {
-    StickCP2.Display.sleep();
-    screenOff = true;
-  }
-
-  delay(screenOff ? 100 : 16);
+  delay(16);
 }

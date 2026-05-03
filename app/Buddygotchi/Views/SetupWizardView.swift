@@ -33,6 +33,7 @@ enum BuddyOutputTarget: String, CaseIterable, Identifiable {
 
 struct SetupWizardView: View {
     let engine: BuddyEngine
+    let esp32Output: ESP32Output
     let onFinish: () -> Void
 
     @State private var step = 0
@@ -46,6 +47,7 @@ struct SetupWizardView: View {
     @State private var agentDetection: [AgentKind: Bool] = [:]
     @State private var agentInstalled: [AgentKind: Bool] = [:]
     @State private var connectionTestPassed = false
+    @State private var deviceConnectionVerified = false
 
     @State private var scanner = BLEScanner()
     @State private var selectedDeviceUUID: UUID?
@@ -278,7 +280,7 @@ struct SetupWizardView: View {
 
             if selectedOutput == .m5stack {
                 Spacer().frame(height: 12)
-                bleScanContent
+                bleConnectionWizard
             }
 
             Spacer()
@@ -286,19 +288,55 @@ struct SetupWizardView: View {
             wizardNavigation(
                 onBack: { navigatingForward = false; step = 3 },
                 onNext: {
-                    if selectedOutput == .m5stack, let uuid = selectedDeviceUUID {
-                        UserDefaults.standard.set(uuid.uuidString, forKey: "esp32PeripheralUUID")
-                    }
                     scanner.stop()
                     navigatingForward = true
                     step = 5
                 },
-                nextDisabled: selectedOutput == .m5stack && selectedDeviceUUID == nil
+                nextDisabled: selectedOutput == .m5stack && !deviceConnectionVerified
             )
         }
         .onChange(of: selectedOutput) { _, newValue in
-            if newValue == .m5stack { selectedDeviceUUID = nil; scanner.start() }
-            else { scanner.stop() }
+            if newValue == .m5stack {
+                selectedDeviceUUID = nil
+                deviceConnectionVerified = false
+                scanner.start()
+            } else {
+                scanner.stop()
+            }
+        }
+    }
+
+    private var bleConnectionWizard: some View {
+        VStack(spacing: 8) {
+            if deviceConnectionVerified {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(BuddyTheme.accent)
+                    Text("Connected! Your buddy just cheered.")
+                        .font(.system(.caption, design: .rounded))
+                }
+                .buddyCard(elevated: true)
+            } else if selectedDeviceUUID != nil {
+                VStack(spacing: 8) {
+                    ProgressView()
+                        .tint(BuddyTheme.accent)
+                    Text("Connecting...")
+                        .font(.system(.caption, design: .rounded, weight: .medium))
+                    Text("Check your device for a pairing code, then enter it on this Mac")
+                        .font(.system(.caption2, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .padding(.vertical, 8)
+            } else {
+                bleScanContent
+            }
+        }
+        .onChange(of: esp32Output.connectionState) { _, newValue in
+            if newValue == .connected && selectedDeviceUUID != nil && !deviceConnectionVerified {
+                esp32Output.sendTestCelebrate()
+                deviceConnectionVerified = true
+            }
         }
     }
 
@@ -489,6 +527,9 @@ struct SetupWizardView: View {
                 ForEach(scanner.devices, id: \.identifier) { device in
                     Button {
                         selectedDeviceUUID = device.identifier
+                        UserDefaults.standard.set(device.identifier.uuidString, forKey: esp32PeripheralUUIDKey)
+                        scanner.stop()
+                        esp32Output.connectToSavedDevice()
                     } label: {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {

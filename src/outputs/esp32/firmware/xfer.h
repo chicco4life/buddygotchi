@@ -89,7 +89,6 @@ inline bool xferCommand(JsonDocument& doc) {
     extern bool buddyMode, gifAvailable;
     extern void buddySetSpeciesIdx(uint8_t);
     uint8_t idx = doc["idx"] | 0xFF;
-    speciesIdxSave(idx);
     buddyMode = !(gifAvailable && idx == 0xFF);
     if (buddyMode) buddySetSpeciesIdx(idx);
     _xAck("species", true);
@@ -123,15 +122,15 @@ inline bool xferCommand(JsonDocument& doc) {
       "\"name\":\"%s\",\"owner\":\"%s\",\"sec\":%s,"
       "\"bat\":{\"pct\":%d,\"mV\":%d,\"mA\":%d,\"usb\":%s},"
       "\"sys\":{\"up\":%lu,\"heap\":%u,\"fsFree\":%lu,\"fsTotal\":%lu},"
-      "\"stats\":{\"appr\":%u,\"deny\":%u,\"vel\":%u,\"nap\":%lu,\"lvl\":%u}"
+      "\"stats\":{\"appr\":%u,\"deny\":%u,\"nap\":%lu}"
       "}}\n",
       petName(), ownerName(), bleSecure() ? "true" : "false",
       pct, vBat, iBat, (vBus > 4000) ? "true" : "false",
       millis() / 1000, ESP.getFreeHeap(),
       (unsigned long)(LittleFS.totalBytes() - LittleFS.usedBytes()),
       (unsigned long)LittleFS.totalBytes(),
-      stats().approvals, stats().denials, statsMedianVelocity(),
-      (unsigned long)stats().napSeconds, stats().level
+      stats().approvals, stats().denials,
+      (unsigned long)stats().napSeconds
     );
     Serial.write(b, len);
     bleWrite((const uint8_t*)b, len);
@@ -225,8 +224,7 @@ inline bool xferCommand(JsonDocument& doc) {
   if (strcmp(cmd, "char_end") == 0) {
     _xActive = false;
     bool ok = characterInit(_xCharName);
-    extern bool buddyMode, gifAvailable;
-    if (ok) { buddyMode = false; gifAvailable = true; speciesIdxSave(0xFF); }
+    (void)ok;
     _xAck("char_end", ok);
     return true;
   }

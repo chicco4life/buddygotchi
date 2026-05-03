@@ -16,7 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var previousPetState: PetState = .sleep
     private var sigintSource: DispatchSourceSignal?
     private var sigtermSource: DispatchSourceSignal?
-    private var esp32Output: ESP32Output?
+    private(set) var esp32Output: ESP32Output?
     private var autoDismissTimer: Timer?
     private let celebrateSound = NSSound(named: "Funk")
     private let attentionSound = NSSound(named: "Glass")
@@ -36,24 +36,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let popover = NSPopover()
         popover.behavior = .transient
-        let hostingController = NSHostingController(rootView: PopoverView(engine: engine))
-        hostingController.sizingOptions = .preferredContentSize
-        popover.contentViewController = hostingController
-        self.popover = popover
-
         NotificationManager.shared.setup(engine: engine)
         NotificationManager.shared.requestPermission()
 
         UserDefaults.standard.set(BuddyConfig.default.approvalMode, forKey: "approvalMode")
 
-        engine.start()
+        let output = ESP32Output()
+        esp32Output = output
+        engine.register(output: output)
 
-        if UserDefaults.standard.string(forKey: "buddyOutput") == "m5stack" {
-            let output = ESP32Output()
-            esp32Output = output
-            engine.register(output: output)
-            Task { await output.start(engine: engine) }
-        }
+        engine.start()
+        Task { await output.start(engine: engine) }
+
+        let hostingController = NSHostingController(rootView: PopoverView(engine: engine, esp32Output: output))
+        hostingController.sizingOptions = .preferredContentSize
+        popover.contentViewController = hostingController
+        self.popover = popover
 
         serverTask = Task {
             let config = BuddyConfig.default

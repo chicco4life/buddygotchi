@@ -3,11 +3,13 @@ import SwiftUI
 struct SettingsView: View {
     @Binding var isPresented: Bool
     let engine: BuddyEngine
+    let esp32Output: ESP32Output
 
     @AppStorage("interactiveMode") private var interactiveMode = false
     @AppStorage("buddySpecies") private var species = "cat"
     @AppStorage("setupCompleted") private var setupCompleted = false
     @AppStorage("approvalMode") private var approvalMode = false
+    @AppStorage(esp32PeripheralUUIDKey) private var esp32UUID: String?
     @State private var launchAtLogin = false
     @State private var agentInstalled: [AgentKind: Bool] = [:]
 
@@ -247,33 +249,59 @@ struct SettingsView: View {
 
                 Divider().padding(.horizontal, 12)
 
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("M5Stack").font(.system(.callout, design: .rounded))
-                        Text(esp32Status)
-                            .font(.system(.caption2, design: .rounded))
-                            .foregroundStyle(.secondary)
+                if esp32UUID != nil {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("M5Stack").font(.system(.callout, design: .rounded))
+                            HStack(spacing: 4) {
+                                Circle()
+                                    .fill(esp32Output.connectionState == .connected ? BuddyTheme.accent : Color.secondary.opacity(0.5))
+                                    .frame(width: 6, height: 6)
+                                Text(esp32Output.connectionState.rawValue)
+                                    .font(.system(.caption2, design: .rounded))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        Spacer()
+                        Button("Unpair") {
+                            esp32Output.unpair()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .tint(.red)
                     }
-                    Spacer()
-                    Button(scanner.isScanning ? "Scanning..." : "Scan") {
-                        if scanner.isScanning { scanner.stop() }
-                        else { scanner.start() }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                } else {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("M5Stack").font(.system(.callout, design: .rounded))
+                            Text("Not paired")
+                                .font(.system(.caption2, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Button(scanner.isScanning ? "Scanning..." : "Pair Device") {
+                            if scanner.isScanning { scanner.stop() }
+                            else { scanner.start() }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .tint(BuddyTheme.accent)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .tint(BuddyTheme.accent)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
             }
             .buddyGroupedCard()
 
             if scanner.isScanning && !scanner.devices.isEmpty {
                 ForEach(scanner.devices, id: \.identifier) { device in
                     Button {
-                        UserDefaults.standard.set(device.identifier.uuidString, forKey: "esp32PeripheralUUID")
+                        UserDefaults.standard.set(device.identifier.uuidString, forKey: esp32PeripheralUUIDKey)
                         selectedDeviceUUID = device.identifier
                         scanner.stop()
+                        esp32Output.connectToSavedDevice()
                     } label: {
                         HStack {
                             Text(device.name).font(.system(.caption, design: .rounded))
@@ -339,6 +367,7 @@ struct SettingsView: View {
         guard let idx = buddyOrder.firstIndex(of: species) else { return }
         let next = (idx + direction + buddyOrder.count) % buddyOrder.count
         species = buddyOrder[next]
+        esp32Output.sendNow()
     }
 
     private var currentSpeciesIndex: Int {
@@ -347,12 +376,5 @@ struct SettingsView: View {
 
     private var currentSpeciesColor: Color {
         buddySpeciesColor(for: species)
-    }
-
-    private var esp32Status: String {
-        if let uuid = UserDefaults.standard.string(forKey: "esp32PeripheralUUID") {
-            return "Paired: \(uuid.prefix(8))..."
-        }
-        return "Not connected"
     }
 }

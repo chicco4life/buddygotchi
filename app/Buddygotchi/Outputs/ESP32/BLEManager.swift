@@ -12,6 +12,7 @@ enum BLEConnectionState: String, Sendable {
 @MainActor
 protocol BLEManagerDelegate: AnyObject {
     func bleManager(_ manager: BLEManager, connectionStateChanged state: BLEConnectionState)
+    func bleManager(_ manager: BLEManager, didReceiveApproval requestId: String, decision: String)
 }
 
 // All mutable state is accessed on bleQueue; public API dispatches to it.
@@ -168,6 +169,11 @@ extension BLEManager: CBCentralManagerDelegate {
         if central.state == .poweredOn {
             if targetPeripheralIdentifier != nil {
                 startConnecting()
+            } else if scanContinuation != nil {
+                central.scanForPeripherals(
+                    withServices: [Self.nusServiceUUID],
+                    options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
+                )
             }
         }
     }
@@ -255,6 +261,17 @@ extension BLEManager: CBPeripheralDelegate {
         #if DEBUG
         print("[BLE RX] \(line)")
         #endif
+        guard let data = line.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let cmd = json["cmd"] as? String,
+              cmd == "permission",
+              let id = json["id"] as? String,
+              let decision = json["decision"] as? String
+        else { return }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.delegate?.bleManager(self, didReceiveApproval: id, decision: decision)
+        }
     }
 }
 

@@ -103,13 +103,9 @@ static uint32_t tickCount  = 0;
 static uint32_t nextTickAt = 0;
 static const uint32_t TICK_MS = 200;
 
-#include "stats.h"
-
 void buddyInit() {
   tickCount = 0;
   nextTickAt = 0;
-  uint8_t saved = speciesIdxLoad();
-  if (saved < N_SPECIES) currentSpeciesIdx = saved;
 }
 
 void buddySetSpeciesIdx(uint8_t idx) {
@@ -135,7 +131,6 @@ uint8_t buddySpeciesIdx() { return currentSpeciesIdx; }
 
 void buddyNextSpecies() {
   currentSpeciesIdx = (currentSpeciesIdx + 1) % N_SPECIES;
-  speciesIdxSave(currentSpeciesIdx);
 }
 
 // Only redraw when tickCount actually changes — animations run at TICK_MS
