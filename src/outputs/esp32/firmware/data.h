@@ -72,6 +72,18 @@ inline const char* dataScenarioName() {
 static bool _rtcValid = false;
 inline bool dataRtcValid() { return _rtcValid; }
 
+static void __attribute__((noinline)) _parsePrompt(JsonDocument& doc, TamaState* out) {
+  const char* pid = doc["promptId"];
+  const char* pt = doc["promptTool"];
+  if (pid) {
+    strncpy(out->promptId, pid, sizeof(out->promptId)-1); out->promptId[sizeof(out->promptId)-1]=0;
+    strncpy(out->promptTool, pt ? pt : "", sizeof(out->promptTool)-1); out->promptTool[sizeof(out->promptTool)-1]=0;
+    out->promptApproval = doc["promptApproval"] | false;
+  } else {
+    out->promptId[0] = 0; out->promptTool[0] = 0; out->promptApproval = false;
+  }
+}
+
 static void _applyJson(const char* line, TamaState* out) {
   JsonDocument doc;
   if (deserializeJson(doc, line)) return;
@@ -123,20 +135,7 @@ static void _applyJson(const char* line, TamaState* out) {
     }
     out->nLines = n;
   }
-  JsonObject pr = doc["prompt"];
-  if (!pr.isNull()) {
-    const char* pid = pr["id"]; const char* pt = pr["tool"]; const char* ph = pr["hint"];
-    const char* psrc = pr["source"]; const char* plbl = pr["label"];
-    strncpy(out->promptId,     pid  ? pid  : "", sizeof(out->promptId)-1);     out->promptId[sizeof(out->promptId)-1]=0;
-    strncpy(out->promptTool,   pt   ? pt   : "", sizeof(out->promptTool)-1);   out->promptTool[sizeof(out->promptTool)-1]=0;
-    strncpy(out->promptHint,   ph   ? ph   : "", sizeof(out->promptHint)-1);   out->promptHint[sizeof(out->promptHint)-1]=0;
-    strncpy(out->promptSource, psrc ? psrc : "", sizeof(out->promptSource)-1); out->promptSource[sizeof(out->promptSource)-1]=0;
-    strncpy(out->promptLabel,  plbl ? plbl : "", sizeof(out->promptLabel)-1);  out->promptLabel[sizeof(out->promptLabel)-1]=0;
-    if (pr["approval"].is<bool>()) out->promptApproval = pr["approval"] | false;
-  } else {
-    out->promptId[0] = 0; out->promptTool[0] = 0; out->promptHint[0] = 0;
-    out->promptSource[0] = 0; out->promptLabel[0] = 0; out->promptApproval = false;
-  }
+  _parsePrompt(doc, out);
   out->lastUpdated = millis();
   _lastLiveMs = millis();
 }

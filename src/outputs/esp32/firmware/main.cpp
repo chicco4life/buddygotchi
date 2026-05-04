@@ -491,6 +491,22 @@ void triggerOneShot(PersonaState s, uint32_t durMs) {
   oneShotUntil = millis() + durMs;
 }
 
+static void __attribute__((noinline)) handleApprovalButtons() {
+  static bool prevA = true, prevB = true;
+  bool a = digitalRead(37);
+  bool b = digitalRead(39);
+  bool approve = (prevA == LOW && a == HIGH);
+  bool deny = (prevB == HIGH && b == LOW);
+  prevA = a; prevB = b;
+  if (approve || deny) {
+    char cmd[96];
+    snprintf(cmd, sizeof(cmd), "{\"cmd\":\"permission\",\"id\":\"%s\",\"decision\":\"%s\"}",
+             tama.promptId, approve ? "allow" : "deny");
+    sendCmd(cmd);
+    responseSent = true;
+  }
+}
+
 bool checkShake() {
   float ax, ay, az;
   StickCP2.Imu.update(); auto _imu = StickCP2.Imu.getImuData(); ax = _imu.accel.x; ay = _imu.accel.y; az = _imu.accel.z;
@@ -1006,19 +1022,8 @@ void loop() {
   baseState = derive(tama);
   if ((int32_t)(millis() - oneShotUntil) >= 0) activeState = baseState;
 
-  if (tama.promptId[0] && !responseSent) {
-    if (StickCP2.BtnA.wasReleased()) {
-      char cmd[96];
-      snprintf(cmd, sizeof(cmd), "{\"cmd\":\"permission\",\"id\":\"%s\",\"decision\":\"allow\"}", tama.promptId);
-      sendCmd(cmd);
-      responseSent = true;
-    }
-    if (StickCP2.BtnB.wasPressed()) {
-      char cmd[96];
-      snprintf(cmd, sizeof(cmd), "{\"cmd\":\"permission\",\"id\":\"%s\",\"decision\":\"deny\"}", tama.promptId);
-      sendCmd(cmd);
-      responseSent = true;
-    }
+  if (tama.promptId[0] && tama.promptApproval && !responseSent) {
+    handleApprovalButtons();
   }
   if (strcmp(tama.promptId, lastPromptId) != 0) {
     strncpy(lastPromptId, tama.promptId, sizeof(lastPromptId)-1);
@@ -1043,14 +1048,10 @@ void loop() {
     spr.setTextColor(p.textDim, p.bg);
     spr.setCursor(4, y + 24);
     spr.printf("sessions: %u r%u w%u", tama.sessionsTotal, tama.sessionsRunning, tama.sessionsWaiting);
-    if (tama.msg[0]) {
-      spr.setCursor(4, y + 36);
-      spr.print(tama.msg);
-    }
-    if (tama.promptId[0]) {
+    if (tama.promptId[0] && tama.promptApproval) {
       spr.setTextColor(HOT, p.bg);
-      spr.setCursor(4, y + 48);
-      spr.printf("? %s", tama.promptTool);
+      spr.setCursor(4, y + 36);
+      spr.print("APPROVE?");
     }
   }
   spr.pushSprite(0, 0);
