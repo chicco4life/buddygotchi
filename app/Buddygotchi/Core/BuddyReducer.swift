@@ -181,17 +181,20 @@ private func aggregate(_ state: InternalState) -> BuddyState {
     } else if !waiting.isEmpty {
         buddy.pet = Pet(state: .attention, species: buddy.pet.species)
         if let p = highestPrompt {
-            buddy.msg = shortMsg(tool: p.tool, hint: p.hint, source: waiting.first?.source ?? "")
+            buddy.msg = shortMsg(tool: p.tool, hint: p.hint, source: p.source ?? "")
         }
         buddy.lastSignal = "attention"
     } else if !working.isEmpty {
         buddy.pet = Pet(state: .busy, species: buddy.pet.species)
+        buddy.msg = ""
         buddy.lastSignal = "busy"
     } else if let until = buddy.celebrateUntil, buddy.updatedAt < until {
         buddy.pet = Pet(state: .celebrate, species: buddy.pet.species)
+        buddy.msg = ""
         buddy.lastSignal = "celebrate"
     } else {
         buddy.pet = Pet(state: .idle, species: buddy.pet.species)
+        buddy.msg = ""
         buddy.celebrateUntil = nil
         buddy.lastSignal = "idle"
     }

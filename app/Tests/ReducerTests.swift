@@ -207,4 +207,46 @@ final class ReducerTests: XCTestCase {
         XCTAssertEqual(s.buddy.pet.state, .celebrate)
         XCTAssertNil(s.buddy.lastTaskDurationMs, "No workStartedAt means nil duration")
     }
+
+    // MARK: - Message (heartbeat) field
+
+    func testMsgUsesDisplayedPromptSourceNotArbitrarySession() {
+        // Two sessions from different agents both waiting. The oldest prompt
+        // (cursor's) is the one shown; msg must label it "cursor", not whatever
+        // session happens to come first in dictionary iteration order.
+        var s = applyEvents(
+            .test(),
+            .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
+            .sessionStarted(at: NOW, sessionId: "s2", source: "cursor", cwd: nil)
+        )
+        s = applyEvents(s, .approvalArrived(at: NOW + 1, sessionId: "s2", requestId: "r2", tool: "Bash", hint: "ls", sessionLabel: nil, source: "cursor"))
+        s = applyEvents(s, .approvalArrived(at: NOW + 2, sessionId: "s1", requestId: "r1", tool: "Write", hint: "file", sessionLabel: nil, source: "claude-code"))
+
+        XCTAssertEqual(s.buddy.prompt?.id, "r2", "Oldest request is shown")
+        XCTAssertTrue(s.buddy.msg.hasPrefix("[cursor]"), "msg labels the displayed prompt's source, got: \(s.buddy.msg)")
+    }
+
+    func testMsgClearsWhenPromptResolves() {
+        // After an approval is resolved the device should not keep showing the
+        // stale prompt text while the pet is busy/idle.
+        var s = applyEvents(
+            .test(),
+            .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
+            .approvalArrived(at: NOW + 1, sessionId: "s1", requestId: "r1", tool: "Bash", hint: "rm -rf", sessionLabel: nil, source: "claude-code")
+        )
+        XCTAssertFalse(s.buddy.msg.isEmpty, "Prompt sets a message")
+
+        s = applyEvents(s, .approvalResolved(at: NOW + 2, sessionId: "s1", requestId: "r1", decision: .allow))
+        XCTAssertEqual(s.buddy.pet.state, .busy)
+        XCTAssertEqual(s.buddy.msg, "", "msg is cleared once no prompt is pending")
+    }
+
+    // MARK: - Default species
+
+    func testDefaultSpeciesIsAKnownSpecies() {
+        // The engine's default species must exist in the rendered species set,
+        // otherwise outputs fall back to an arbitrary/stale species.
+        XCTAssertNotNil(allBuddies[Pet.defaultSpecies], "default species '\(Pet.defaultSpecies)' must be a real species")
+        XCTAssertTrue(buddyOrder.contains(Pet.defaultSpecies))
+    }
 }

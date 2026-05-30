@@ -102,8 +102,6 @@ struct SettingsView: View {
                         engine.resolveAllPendingApprovals(decision: .allow)
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
 
                 Divider().padding(.horizontal, 12)
 

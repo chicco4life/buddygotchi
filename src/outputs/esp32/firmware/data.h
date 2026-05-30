@@ -140,6 +140,11 @@ static void _applyJson(const char* line, TamaState* out) {
   _lastLiveMs = millis();
 }
 
+// Defined in main.cpp. Called for non-JSON lines so debug commands
+// ("screenshot") can co-exist on the same serial channel as the daemon's
+// JSON state pushes.
+extern void handleSerialCommand(const char* line);
+
 template<size_t N>
 struct _LineBuf {
   char buf[N];
@@ -148,7 +153,12 @@ struct _LineBuf {
     while (s.available()) {
       char c = s.read();
       if (c == '\n' || c == '\r') {
-        if (len > 0) { buf[len]=0; if (buf[0]=='{') _applyJson(buf, out); len=0; }
+        if (len > 0) {
+          buf[len]=0;
+          if (buf[0]=='{') _applyJson(buf, out);
+          else             handleSerialCommand(buf);
+          len=0;
+        }
       } else if (len < N-1) {
         buf[len++] = c;
       }

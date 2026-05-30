@@ -30,6 +30,23 @@ Reset onboarding:
 defaults delete Buddygotchi setupCompleted
 ```
 
+Capture the ESP32 display (for visually verifying firmware changes):
+
+```sh
+python3 src/outputs/esp32/tools/screenshot.py --out /tmp/buddy.png
+```
+
+Reads the panel via `M5.Display.readRect`, so direct-to-LCD draws (landscape clock) are captured too — not just sprite content.
+
+Press a device button (for verifying button input, e.g. approval flow):
+
+```sh
+python3 src/outputs/esp32/tools/button.py --mock a   # arm a fake prompt, press A (approve)
+python3 src/outputs/esp32/tools/button.py b          # press B (deny) against whatever's live
+```
+
+Injects a synthetic press through the firmware's real approval path. `--mock` arms a fake prompt so it works offline (no daemon). Self-verifies via the permission JSON echoed on serial; pair with a screenshot to confirm `APPROVE?` renders. Both `screenshot`/`btn`/`mockprompt` are non-JSON debug commands handled by `handleSerialCommand` in `main.cpp`.
+
 ## Key Files
 
 | File | Role |

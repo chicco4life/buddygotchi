@@ -182,6 +182,6 @@ extension Color {
 // MARK: - Species Color Helper
 
 func buddySpeciesColor(for species: String) -> Color {
-    let buddy = allBuddies[species] ?? allBuddies.values.first!
+    let buddy = allBuddies[species] ?? allBuddies[Pet.defaultSpecies] ?? allBuddies.values.first!
     return Color(hex: buddy.color)
 }
