@@ -80,7 +80,7 @@ struct Pet: Sendable, Equatable {
     var state: PetState
     var species: String
 
-    static let defaultSpecies = "bufo"
+    static let defaultSpecies = "cat"
     static let initial = Pet(state: .sleep, species: defaultSpecies)
 }
 

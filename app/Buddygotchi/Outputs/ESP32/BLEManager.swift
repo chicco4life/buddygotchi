@@ -15,7 +15,11 @@ protocol BLEManagerDelegate: AnyObject {
     func bleManager(_ manager: BLEManager, didReceiveApproval requestId: String, decision: String)
 }
 
-// All mutable state is accessed on bleQueue; public API dispatches to it.
+// Threading model: all BLE/peripheral state (target id, peripherals, characteristics,
+// reconnect bookkeeping, scan continuation, rx buffer) is touched ONLY on `bleQueue` —
+// both the public API and the CoreBluetooth delegate callbacks. `connectionState` is the
+// single published property and is only ever written on the main actor (delegate-driven
+// writes hop there via `Task { @MainActor }`).
 final class BLEManager: NSObject, @unchecked Sendable {
     weak var delegate: BLEManagerDelegate?
     private(set) var connectionState: BLEConnectionState = .disconnected {
@@ -60,14 +64,15 @@ final class BLEManager: NSObject, @unchecked Sendable {
 
     func startScan() -> AsyncStream<DiscoveredPeripheral> {
         AsyncStream { continuation in
-            self.scanContinuation = continuation
             let queue = self.bleQueue
             let central = self.central!
             continuation.onTermination = { _ in
                 queue.async { central.stopScan() }
             }
             bleQueue.async { [weak self] in
-                guard let self, self.central.state == .poweredOn else { return }
+                guard let self else { return }
+                self.scanContinuation = continuation
+                guard self.central.state == .poweredOn else { return }
                 self.central.scanForPeripherals(
                     withServices: [Self.nusServiceUUID],
                     options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
@@ -78,10 +83,11 @@ final class BLEManager: NSObject, @unchecked Sendable {
     }
 
     func stopScan() {
-        scanContinuation?.finish()
-        scanContinuation = nil
         bleQueue.async { [weak self] in
-            self?.central.stopScan()
+            guard let self else { return }
+            self.scanContinuation?.finish()
+            self.scanContinuation = nil
+            self.central.stopScan()
         }
         if connectionState == .scanning {
             connectionState = .disconnected
@@ -89,19 +95,20 @@ final class BLEManager: NSObject, @unchecked Sendable {
     }
 
     func connect(peripheralIdentifier: UUID) {
-        targetPeripheralIdentifier = peripheralIdentifier
-        reconnectDelay = 1.0
         bleQueue.async { [weak self] in
-            self?.startConnecting()
+            guard let self else { return }
+            self.targetPeripheralIdentifier = peripheralIdentifier
+            self.reconnectDelay = 1.0
+            self.startConnecting()
         }
     }
 
     func disconnect() {
-        targetPeripheralIdentifier = nil
-        reconnectWorkItem?.cancel()
-        reconnectWorkItem = nil
         bleQueue.async { [weak self] in
             guard let self else { return }
+            self.targetPeripheralIdentifier = nil
+            self.reconnectWorkItem?.cancel()
+            self.reconnectWorkItem = nil
             if let peripheral = self.connectedPeripheral {
                 self.central.cancelPeripheralConnection(peripheral)
                 self.connectedPeripheral = nil
@@ -111,11 +118,11 @@ final class BLEManager: NSObject, @unchecked Sendable {
     }
 
     func send(_ data: Data) {
-        guard let rx = rxCharacteristic, let peripheral = connectedPeripheral else { return }
-        let p = peripheral
-        let r = rx
-        bleQueue.async {
-            p.writeValue(data, for: r, type: .withResponse)
+        bleQueue.async { [weak self] in
+            guard let self,
+                  let rx = self.rxCharacteristic,
+                  let peripheral = self.connectedPeripheral else { return }
+            peripheral.writeValue(data, for: rx, type: .withResponse)
         }
     }
 

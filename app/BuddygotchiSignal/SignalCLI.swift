@@ -64,7 +64,7 @@ private let signalMap: [String: [String: String]] = [
         "beforeShellExecution": "keep_working",
         "beforeMCPExecution": "keep_working",
         "stop": "stop_working",
-        "sessionEnd": "stop_working",
+        "sessionEnd": "session_end",
     ],
 ]
 

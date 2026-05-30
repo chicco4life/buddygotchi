@@ -491,6 +491,17 @@ void triggerOneShot(PersonaState s, uint32_t durMs) {
   oneShotUntil = millis() + durMs;
 }
 
+// Emit the permission decision for the current prompt. Shared by the
+// physical buttons and the debug "btn" serial command so both produce the
+// exact same wire format and trip the same responseSent latch.
+static void sendApproval(bool approve) {
+  char cmd[96];
+  snprintf(cmd, sizeof(cmd), "{\"cmd\":\"permission\",\"id\":\"%s\",\"decision\":\"%s\"}",
+           tama.promptId, approve ? "allow" : "deny");
+  sendCmd(cmd);
+  responseSent = true;
+}
+
 static void __attribute__((noinline)) handleApprovalButtons() {
   static bool prevA = true, prevB = true;
   bool a = digitalRead(37);
@@ -498,13 +509,7 @@ static void __attribute__((noinline)) handleApprovalButtons() {
   bool approve = (prevA == LOW && a == HIGH);
   bool deny = (prevB == HIGH && b == LOW);
   prevA = a; prevB = b;
-  if (approve || deny) {
-    char cmd[96];
-    snprintf(cmd, sizeof(cmd), "{\"cmd\":\"permission\",\"id\":\"%s\",\"decision\":\"%s\"}",
-             tama.promptId, approve ? "allow" : "deny");
-    sendCmd(cmd);
-    responseSent = true;
-  }
+  if (approve || deny) sendApproval(approve);
 }
 
 bool checkShake() {
@@ -953,8 +958,97 @@ void drawHUD() {
   }
 }
 
+// Dump the LCD as base64 RGB565 over USB serial. Reads from panel RAM
+// (not the sprite) so direct-to-LCD draws — landscape clock, GIF frames,
+// boot screen — are captured exactly as the user sees them. Triggered by
+// sending the line "screenshot\n" on USB serial; framed with sentinels
+// so the host can ignore unrelated log lines on the same channel.
+//
+// Per-row read keeps RAM use to ~700 bytes (vs. 64KB for full-frame).
+// Each row is W*2 bytes; W=135 → 270 (90 b64 groups), W=240 → 480 (160
+// groups). Both are multiples of 3, so per-row b64 chunks have no mid-
+// stream padding — concatenated chunks form one valid base64 stream.
+static void dumpScreenshot() {
+  static const char b64[] =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+  int rot = StickCP2.Display.getRotation();
+  int w   = StickCP2.Display.width();
+  int h   = StickCP2.Display.height();
+  if (w <= 0 || w > 256 || h <= 0) {
+    Serial.println("<<SCR_ERR bad-dims>>");
+    return;
+  }
+
+  Serial.printf("\n<<SCR_BEGIN W=%d H=%d ROT=%d FMT=RGB565LE>>\n", w, h, rot);
+
+  uint16_t row[256];
+  char enc[((256 * 2 + 2) / 3) * 4 + 4];
+  for (int y = 0; y < h; y++) {
+    StickCP2.Display.readRect(0, y, w, 1, row);
+    const uint8_t* in = (const uint8_t*)row;
+    int n = w * 2;
+    int o = 0;
+    for (int i = 0; i + 2 < n; i += 3) {
+      uint32_t v = ((uint32_t)in[i] << 16) | ((uint32_t)in[i+1] << 8) | (uint32_t)in[i+2];
+      enc[o++] = b64[(v >> 18) & 0x3F];
+      enc[o++] = b64[(v >> 12) & 0x3F];
+      enc[o++] = b64[(v >>  6) & 0x3F];
+      enc[o++] = b64[ v        & 0x3F];
+    }
+    Serial.write((const uint8_t*)enc, o);
+  }
+  Serial.println();
+  Serial.println("<<SCR_END>>");
+}
+
+void handleSerialCommand(const char* line) {
+  if (!line || !*line) return;
+  if (strcmp(line, "screenshot") == 0) { dumpScreenshot(); return; }
+
+  // Debug: inject a synthetic button press through the same approval path
+  // as the physical buttons, so host dev tools can exercise A/B without
+  // touching the device. Always reports the outcome over serial so a press
+  // is observable even when nothing is armed. ("btn a" = A/approve,
+  // "btn b" = B/deny.)
+  if (strncmp(line, "btn ", 4) == 0) {
+    bool armed = tama.promptId[0] && tama.promptApproval && !responseSent;
+    char which = line[4];
+    if (which == 'a' || which == 'A') {
+      if (armed) { sendApproval(true);  Serial.println("<<BTN a approve sent>>"); }
+      else       { Serial.println("<<BTN a noop (no prompt)>>"); }
+    } else if (which == 'b' || which == 'B') {
+      if (armed) { sendApproval(false); Serial.println("<<BTN b deny sent>>"); }
+      else       { Serial.println("<<BTN b noop (no prompt)>>"); }
+    } else {
+      Serial.println("<<BTN err (use a|b)>>");
+    }
+    return;
+  }
+
+  // Debug: arm a fake approval prompt so the button path can be tested
+  // offline with no daemon connected. Renders "APPROVE?" on-screen and
+  // enables A/B until answered. A real daemon JSON push overwrites this.
+  if (strcmp(line, "mockprompt") == 0) {
+    strncpy(tama.promptId, "DEBUG", sizeof(tama.promptId)-1);
+    tama.promptId[sizeof(tama.promptId)-1] = 0;
+    tama.promptApproval = true;
+    responseSent = false;
+    Serial.println("<<BTN mockprompt armed>>");
+    return;
+  }
+  // Unknown commands are silently ignored — the daemon writes lots of
+  // non-JSON noise on this channel and we don't want to log-spam.
+}
+
 void setup() {
   auto _cfg = M5.config(); StickCP2.begin(_cfg);
+  // M5Unified leaves cfg.serial_baudrate=0, so StickCP2.begin() doesn't
+  // call Serial.begin(). Without it, the framework's own debug logs still
+  // reach the host (they go straight to UART), but Arduino-level reads
+  // (Serial.read in dataPoll) silently fail. Init explicitly so USB
+  // command channel — JSON daemon pushes, "screenshot" — actually works.
+  Serial.begin(115200);
   StickCP2.Display.setRotation(0);
   ;
   StickCP2.Speaker.begin();

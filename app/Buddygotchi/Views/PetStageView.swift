@@ -10,7 +10,7 @@ struct PetStageView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var buddy: BuddySpecies {
-        allBuddies[species] ?? allBuddies.values.first!
+        allBuddies[species] ?? allBuddies[Pet.defaultSpecies] ?? allBuddies.values.first!
     }
 
     private var speciesColor: Color {
