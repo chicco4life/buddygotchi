@@ -20,7 +20,7 @@ final class BuddyEngine {
         self.config = config
         self.clock = clock ?? WallClock()
         self.diagnosticLog = diagnosticLog ?? DiagnosticLog()
-        self.internalState = .initial(staleMs: config.staleTimeoutMs, celebrateDurationMs: config.celebrateDurationMs)
+        self.internalState = .initial(staleMs: config.staleTimeoutMs, celebrateDurationMs: config.celebrateDurationMs, workStallTimeoutMs: config.workStallTimeoutMs)
     }
 
     // MARK: - Lifecycle
@@ -73,8 +73,16 @@ final class BuddyEngine {
         apply(.requestCleared(at: clock.now(), sessionId: sessionId))
     }
 
-    func activitySignal(sessionId: String, source: String, signal: ActivitySignalKind) {
-        apply(.activitySignal(at: clock.now(), sessionId: sessionId, source: source, signal: signal))
+    func activitySignal(sessionId: String, source: String, signal: ActivitySignalKind, tool: String? = nil, hint: String? = nil) {
+        apply(.activitySignal(at: clock.now(), sessionId: sessionId, source: source, signal: signal, tool: tool, hint: hint))
+    }
+
+    func dismissReview() {
+        apply(.reviewDismissed(at: clock.now()))
+    }
+
+    func dismissError(sessionId: String) {
+        apply(.errorDismissed(at: clock.now(), sessionId: sessionId))
     }
 
     // MARK: - Approval API

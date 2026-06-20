@@ -4,13 +4,14 @@ struct BuddyConfig: Sendable {
     var httpPort: Int
     var staleTimeoutMs: Double
     var celebrateDurationMs: Double
+    var workStallTimeoutMs: Double
     var stateDir: String
     var approvalMode: Bool
 
     static let `default`: BuddyConfig = {
         let stateDir = defaultStateDir()
         let (port, approvalMode) = readOrCreateConfig(stateDir: stateDir)
-        return BuddyConfig(httpPort: port, staleTimeoutMs: 600_000, celebrateDurationMs: 4000, stateDir: stateDir, approvalMode: approvalMode)
+        return BuddyConfig(httpPort: port, staleTimeoutMs: 600_000, celebrateDurationMs: 4000, workStallTimeoutMs: 300_000, stateDir: stateDir, approvalMode: approvalMode)
     }()
 
     private static let defaultPort = 21321

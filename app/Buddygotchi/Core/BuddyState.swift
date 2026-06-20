@@ -8,6 +8,7 @@ enum PetState: String, Sendable, Equatable {
     case busy
     case attention
     case celebrate
+    case error
 
     var sfSymbol: String {
         switch self {
@@ -16,6 +17,7 @@ enum PetState: String, Sendable, Equatable {
         case .busy: "ellipsis.circle"
         case .attention: "exclamationmark.circle.fill"
         case .celebrate: "sparkles"
+        case .error: "exclamationmark.triangle.fill"
         }
     }
 }
@@ -38,6 +40,7 @@ enum SessionState: String, Sendable, Equatable {
     case working
     case idle
     case needsConfirmation
+    case errored
 }
 
 struct Session: Sendable, Equatable {
@@ -47,6 +50,12 @@ struct Session: Sendable, Equatable {
     var cwd: String?
     var lastActivityAt: Double
     var workStartedAt: Double?
+    var lastWorkSignalAt: Double?
+    var lastTool: String?
+    var lastHint: String?
+    var currentTool: String?
+    var currentHint: String?
+    var currentActivityKind: ActivityKind?
 }
 
 struct SessionCounts: Sendable, Equatable {
@@ -67,11 +76,46 @@ struct Prompt: Sendable, Equatable {
     var sessionLabel: String?
     var source: String?
     var isApproval: Bool = false
+    var activityKind: ActivityKind = .work
 }
 
 enum ApprovalDecision: String, Sendable {
     case allow
     case deny
+}
+
+// MARK: - Completed Task
+
+struct CompletedTask: Sendable, Equatable {
+    var id: String
+    var tool: String?
+    var hint: String?
+    var source: String?
+    var sessionLabel: String?
+    var durationMs: Double?
+    var completedAt: Double
+    var activityKind: ActivityKind = .work
+}
+
+// MARK: - Errored Session
+
+struct ErroredSession: Sendable, Equatable {
+    var id: String
+    var source: String
+    var sessionLabel: String?
+    var tool: String?
+    var hint: String?
+    var workStartedAt: Double?
+}
+
+// MARK: - Active Sessions (per-session breakdown for popover)
+
+struct SessionSnapshot: Sendable, Equatable, Identifiable {
+    var id: String
+    var source: String
+    var state: SessionState
+    var sessionLabel: String?
+    var currentTool: String?
 }
 
 // MARK: - Pet
@@ -101,6 +145,10 @@ struct BuddyState: Sendable, Equatable {
     var lastSignal: String?
     var celebrateUntil: Double?
     var lastTaskDurationMs: Double?
+    var lastCompleted: CompletedTask?
+    var firstErrored: ErroredSession?
+    var activeSessions: [SessionSnapshot]
+    var currentActivityKind: ActivityKind?
 
     static let initial = BuddyState(
         version: 0,
@@ -113,6 +161,10 @@ struct BuddyState: Sendable, Equatable {
         pet: .initial,
         lastSignal: nil,
         celebrateUntil: nil,
-        lastTaskDurationMs: nil
+        lastTaskDurationMs: nil,
+        lastCompleted: nil,
+        firstErrored: nil,
+        activeSessions: [],
+        currentActivityKind: nil
     )
 }

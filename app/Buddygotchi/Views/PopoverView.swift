@@ -42,12 +42,41 @@ struct PopoverView: View {
 
             connectionBar
 
+            if engine.state.activeSessions.count > 1 {
+                Spacer().frame(height: 6)
+                SessionListView(sessions: engine.state.activeSessions)
+                    .transition(.opacity)
+            }
+
+            if engine.state.pet.state == .busy && !engine.state.msg.isEmpty {
+                Spacer().frame(height: 8)
+                CurrentActivityRow(msg: engine.state.msg, kind: engine.state.currentActivityKind ?? .work)
+                    .transition(.opacity)
+            }
+
             if let prompt = engine.state.prompt {
                 Spacer().frame(height: 10)
                 ToolCardView(
                     prompt: prompt,
                     onApprove: prompt.isApproval ? { engine.resolveApproval(requestId: prompt.id, decision: .allow) } : nil,
                     onDeny: prompt.isApproval ? { engine.resolveApproval(requestId: prompt.id, decision: .deny) } : nil
+                )
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if let errored = engine.state.firstErrored {
+                Spacer().frame(height: 10)
+                ErrorCardView(
+                    source: errored.source,
+                    sessionLabel: errored.sessionLabel,
+                    tool: errored.tool,
+                    hint: errored.hint,
+                    onDismiss: { engine.dismissError(sessionId: errored.id) }
+                )
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else if let completed = engine.state.lastCompleted {
+                Spacer().frame(height: 10)
+                ReviewCardView(
+                    completed: completed,
+                    onDismiss: { engine.dismissReview() }
                 )
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -166,7 +195,7 @@ struct PopoverView: View {
     }
 
     private var liveViewHeight: CGFloat {
-        engine.state.prompt != nil
+        (engine.state.prompt != nil || engine.state.lastCompleted != nil || engine.state.firstErrored != nil)
             ? BuddyTheme.liveViewExpandedHeight
             : BuddyTheme.liveViewHeight
     }
@@ -180,6 +209,7 @@ struct PopoverView: View {
         case .attention: BuddyTheme.attentionAmber
         case .busy: BuddyTheme.accent
         case .celebrate: BuddyTheme.celebrateGreen
+        case .error: BuddyTheme.destructive
         default: .secondary
         }
     }
@@ -228,10 +258,16 @@ struct ToolCardView: View {
                     .font(.system(.callout, design: .monospaced, weight: .semibold))
 
                 if !prompt.hint.isEmpty {
-                    Text(prompt.hint)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(3)
+                    HStack(spacing: 6) {
+                        Image(systemName: prompt.activityKind.sfSymbol)
+                            .font(.system(.caption2))
+                            .foregroundStyle(.tertiary)
+                            .accessibilityHidden(true)
+                        Text(prompt.hint)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(3)
+                    }
                 }
 
                 if let onApprove, let onDeny {
@@ -280,5 +316,274 @@ struct ToolCardView: View {
 
     private func sourceName(_ source: String) -> String {
         AgentKind(rawValue: source)?.displayName ?? source
+    }
+}
+
+// MARK: - Current Activity Row
+
+struct CurrentActivityRow: View {
+    let msg: String
+    var kind: ActivityKind = .work
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: kind.sfSymbol)
+                .font(.system(.caption2))
+                .foregroundStyle(iconColor)
+                .accessibilityHidden(true)
+            Text(msg)
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Working: \(msg)")
+    }
+
+    private var iconColor: Color {
+        switch kind {
+        case .verify: BuddyTheme.celebrateGreen
+        case .read: .secondary
+        case .write: BuddyTheme.accent
+        case .shell: .secondary
+        case .web: BuddyTheme.accent
+        case .work: Color.secondary.opacity(0.6)
+        }
+    }
+}
+
+// MARK: - Review Card
+
+struct ReviewCardView: View {
+    let completed: CompletedTask
+    var onDismiss: (() -> Void)? = nil
+
+    var body: some View {
+        HStack(spacing: 0) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(BuddyTheme.celebrateGreen)
+                .frame(width: 3)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(.caption2))
+                        .foregroundStyle(BuddyTheme.celebrateGreen)
+                    Text(headlineLabel)
+                        .font(.system(.caption2, design: .rounded))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    if let durationMs = completed.durationMs {
+                        Text(formatDuration(durationMs))
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+
+                if let tool = completed.tool {
+                    HStack(spacing: 6) {
+                        Image(systemName: completed.activityKind.sfSymbol)
+                            .font(.system(.caption2))
+                            .foregroundStyle(BuddyTheme.celebrateGreen)
+                            .accessibilityHidden(true)
+                        Text(tool)
+                            .font(.system(.callout, design: .monospaced, weight: .semibold))
+                    }
+                }
+
+                if let hint = completed.hint, !hint.isEmpty {
+                    Text(hint)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+
+                if let onDismiss {
+                    HStack {
+                        Spacer()
+                        Button(action: onDismiss) {
+                            Text("Dismiss")
+                                .font(.system(.caption2, design: .rounded, weight: .medium))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 3)
+                                .background(BuddyTheme.celebrateGreen.opacity(0.12), in: Capsule())
+                                .foregroundStyle(BuddyTheme.celebrateGreen)
+                        }
+                        .buttonStyle(BuddyPlainButtonStyle())
+                    }
+                }
+            }
+            .padding(.leading, 10)
+            .padding(.trailing, 12)
+            .padding(.vertical, 10)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
+                .fill(BuddyTheme.cardFill)
+                .overlay(
+                    RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
+                        .strokeBorder(BuddyTheme.cardStroke, lineWidth: 0.5)
+                )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Completed: \(completed.tool ?? "task")\(completed.hint.map { ", \($0)" } ?? "")")
+    }
+
+    private var headlineLabel: String {
+        if let source = completed.source {
+            return "Done · \(AgentKind(rawValue: source)?.displayName ?? source)"
+        }
+        return "Done"
+    }
+}
+
+// MARK: - Error Card
+
+struct ErrorCardView: View {
+    let source: String
+    var sessionLabel: String? = nil
+    var tool: String? = nil
+    var hint: String? = nil
+    var onDismiss: (() -> Void)? = nil
+
+    var body: some View {
+        HStack(spacing: 0) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(BuddyTheme.destructive)
+                .frame(width: 3)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(.caption2))
+                        .foregroundStyle(BuddyTheme.destructive)
+                    Text(headlineLabel)
+                        .font(.system(.caption2, design: .rounded))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    if let sessionLabel {
+                        Text(sessionLabel)
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+
+                if let tool {
+                    Text(tool)
+                        .font(.system(.callout, design: .monospaced, weight: .semibold))
+                }
+
+                if let hint, !hint.isEmpty {
+                    Text(hint)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+
+                if let onDismiss {
+                    HStack {
+                        Spacer()
+                        Button(action: onDismiss) {
+                            Text("Dismiss")
+                                .font(.system(.caption2, design: .rounded, weight: .medium))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 3)
+                                .background(BuddyTheme.destructive.opacity(0.12), in: Capsule())
+                                .foregroundStyle(BuddyTheme.destructive)
+                        }
+                        .buttonStyle(BuddyPlainButtonStyle())
+                    }
+                }
+            }
+            .padding(.leading, 10)
+            .padding(.trailing, 12)
+            .padding(.vertical, 10)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
+                .fill(BuddyTheme.cardFillElevated)
+                .overlay(
+                    RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
+                        .strokeBorder(BuddyTheme.destructive.opacity(0.3), lineWidth: 0.5)
+                )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Error in \(source)\(tool.map { ": \($0)" } ?? "")\(hint.map { ", \($0)" } ?? "")")
+    }
+
+    private var headlineLabel: String {
+        let agentName = AgentKind(rawValue: source)?.displayName ?? source
+        return "Stalled · \(agentName)"
+    }
+}
+
+// MARK: - Session List
+
+struct SessionListView: View {
+    let sessions: [SessionSnapshot]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(sessions) { sess in
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(stateColor(for: sess.state))
+                        .frame(width: 5, height: 5)
+                        .accessibilityHidden(true)
+                    Text(displayName(for: sess.source))
+                        .font(.system(.caption2, design: .rounded, weight: .medium))
+                        .foregroundStyle(.primary)
+                    Text(stateLabel(for: sess.state))
+                        .font(.system(.caption2, design: .rounded))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    if let tool = sess.currentTool, !tool.isEmpty {
+                        Text(tool)
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
+                    if let label = sess.sessionLabel, !label.isEmpty {
+                        Text(label)
+                            .font(.system(.caption2, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(displayName(for: sess.source)) \(stateLabel(for: sess.state))\(sess.currentTool.map { ", \($0)" } ?? "")")
+            }
+        }
+    }
+
+    private func displayName(for source: String) -> String {
+        AgentKind(rawValue: source)?.displayName ?? source
+    }
+
+    private func stateLabel(for state: SessionState) -> String {
+        switch state {
+        case .working: return "busy"
+        case .idle: return "idle"
+        case .needsConfirmation: return "waiting"
+        case .errored: return "stalled"
+        }
+    }
+
+    private func stateColor(for state: SessionState) -> Color {
+        switch state {
+        case .working: return BuddyTheme.accent
+        case .idle: return Color.secondary.opacity(0.5)
+        case .needsConfirmation: return BuddyTheme.attentionAmber
+        case .errored: return BuddyTheme.destructive
+        }
     }
 }

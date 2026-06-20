@@ -29,13 +29,15 @@ final class EchoRecorder: OutputProvider {
 @MainActor
 private func makeTestEngine(
     staleMs: Double = 600_000,
-    celebrateMs: Double = 4_000
+    celebrateMs: Double = 4_000,
+    workStallMs: Double = 300_000
 ) -> (BuddyEngine, EchoRecorder, MockClock) {
     let clock = MockClock()
     let config = BuddyConfig(
         httpPort: 0,
         staleTimeoutMs: staleMs,
         celebrateDurationMs: celebrateMs,
+        workStallTimeoutMs: workStallMs,
         stateDir: "/tmp",
         approvalMode: false
     )
@@ -448,7 +450,7 @@ final class EngineIntegrationTests: XCTestCase {
     @MainActor
     func testMultipleOutputsAllReceiveChanges() {
         let clock = MockClock()
-        let config = BuddyConfig(httpPort: 0, staleTimeoutMs: 600_000, celebrateDurationMs: 4_000, stateDir: "/tmp", approvalMode: false)
+        let config = BuddyConfig(httpPort: 0, staleTimeoutMs: 600_000, celebrateDurationMs: 4_000, workStallTimeoutMs: 300_000, stateDir: "/tmp", approvalMode: false)
         let engine = BuddyEngine(config: config, clock: clock)
         let r1 = EchoRecorder()
         let r2 = EchoRecorder()
@@ -516,5 +518,155 @@ final class EngineIntegrationTests: XCTestCase {
 
         XCTAssertEqual(engine.state.desktop.status, .connected)
         XCTAssertEqual(engine.state.sessions.total, 1)
+    }
+
+    // MARK: - Gap A: Done / needs review
+
+    @MainActor
+    func testClaudePostToolUseThenStopRecordsLastCompletedToolName() {
+        let (engine, _, clock) = makeTestEngine()
+        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: "/tmp/my-app")
+        engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
+        clock.advance(by: 1_500)
+        engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Edit", hint: "BuddyState.swift")
+        clock.advance(by: 500)
+        engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .celebrate)
+
+        XCTAssertEqual(engine.state.pet.state, .celebrate)
+        XCTAssertNotNil(engine.state.lastCompleted)
+        XCTAssertEqual(engine.state.lastCompleted?.tool, "Edit")
+        XCTAssertEqual(engine.state.lastCompleted?.source, "claude-code")
+        XCTAssertEqual(engine.state.lastCompleted?.sessionLabel, "my-app")
+    }
+
+    @MainActor
+    func testReviewSurvivesCelebrateWindowIntoIdleAndDismissClears() {
+        let (engine, _, clock) = makeTestEngine(celebrateMs: 4_000)
+        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
+        engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
+        engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "swift test")
+        engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .celebrate)
+        XCTAssertEqual(engine.state.pet.state, .celebrate)
+        XCTAssertNotNil(engine.state.lastCompleted)
+
+        // Tick past celebrate window — pet drops to idle but review persists.
+        clock.advance(by: 5_000)
+        engine.triggerStaleTick()
+        XCTAssertEqual(engine.state.pet.state, .idle)
+        XCTAssertNotNil(engine.state.lastCompleted, "review survives into idle")
+
+        engine.dismissReview()
+        XCTAssertNil(engine.state.lastCompleted, "dismiss clears review")
+    }
+
+    @MainActor
+    func testMultipleSessionsReviewReflectsCelebratingSessionTool() {
+        let (engine, _, _) = makeTestEngine()
+        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
+        engine.sessionStarted(sessionId: "s2", source: "cursor", cwd: nil)
+        engine.activitySignal(sessionId: "s2", source: "cursor", signal: .startWorking)
+        engine.activitySignal(sessionId: "s2", source: "cursor", signal: .keepWorking, tool: "Bash", hint: "ls")
+        // s1 finishes; review should be from s1 (the celebrating session), not s2.
+        engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
+        engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Edit", hint: "Foo.swift")
+        engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .celebrate)
+        // Because s2 is still working, aggregate clears lastCompleted.
+        XCTAssertNil(engine.state.lastCompleted, "concurrent working session suppresses review")
+        XCTAssertEqual(engine.state.pet.state, .busy, "s2 working takes priority over s1 celebrate")
+
+        // Once s2 also stops, reviewing the celebrating session would only return if it celebrates again.
+        // This documents the priority: review never overrides live state.
+    }
+
+    @MainActor
+    func testCursorStopSignalGoesThroughCelebratePath() {
+        // Engine-level test. The HookServer's /hook/signal endpoint translates Cursor's
+        // "stop_working" signal to .celebrate; here we simulate the engine call after
+        // that translation.
+        let (engine, recorder, _) = makeTestEngine()
+        engine.sessionStarted(sessionId: "c1", source: "cursor", cwd: nil)
+        engine.activitySignal(sessionId: "c1", source: "cursor", signal: .startWorking)
+        engine.activitySignal(sessionId: "c1", source: "cursor", signal: .keepWorking, tool: "Bash", hint: "swift test")
+        engine.activitySignal(sessionId: "c1", source: "cursor", signal: .celebrate)
+        XCTAssertEqual(recorder.last?.pet.state, .celebrate)
+        XCTAssertNotNil(recorder.last?.lastCompleted)
+        XCTAssertEqual(recorder.last?.lastCompleted?.source, "cursor")
+        XCTAssertEqual(recorder.last?.lastCompleted?.tool, "Bash")
+    }
+
+    @MainActor
+    func testHeartbeatIncludesLastCompletedFields() throws {
+        // The wire format is the contract with the firmware (data.h::_applyJson).
+        // Sending these fields is what makes the device's "Done: …" line work.
+        let (engine, _, _) = makeTestEngine()
+        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: "/tmp/my-app")
+        engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
+        engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Edit", hint: "Foo.swift")
+        engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .celebrate)
+
+        let rs = renderState(from: engine.state)
+        XCTAssertEqual(rs.lastCompletedTool, "Edit")
+        XCTAssertEqual(rs.lastCompletedHint, "Foo.swift")
+        XCTAssertEqual(rs.lastCompletedSource, "claude-code")
+        XCTAssertNotNil(rs.lastCompletedDurationMs)
+        XCTAssertTrue(rs.msg.hasPrefix("Done: Edit"), "device msg line: \(rs.msg)")
+    }
+
+    // MARK: - Gap B: Working with confidence
+
+    @MainActor
+    func testHeartbeatIncludesEntriesArrayDuringBusy() throws {
+        let (engine, _, _) = makeTestEngine()
+        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
+        engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
+        engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "swift test")
+        engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Read", hint: "Package.swift")
+        engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Edit", hint: "BuddyState.swift")
+
+        let rs = renderState(from: engine.state)
+        XCTAssertNotNil(rs.entries, "wire format must include entries[] when work is happening")
+        XCTAssertGreaterThanOrEqual(rs.entries?.count ?? 0, 3)
+        // Newest-first ordering is the firmware's expectation for drawHUD's bright→dim.
+        XCTAssertTrue(rs.entries?.first?.contains("Edit") == true, "got entries[0]=\(rs.entries?.first ?? "nil")")
+        // Busy msg shows the current tool — no longer cleared in busy.
+        XCTAssertTrue(rs.msg.contains("Edit"), "busy msg shows current tool; got msg=\(rs.msg)")
+    }
+
+    @MainActor
+    func testBusyMsgRevertsToBlankWhenNoCurrentTool() throws {
+        // A keepWorking without a tool (e.g. a generic activity ping) leaves the previous
+        // currentTool in place, but a startWorking with no tool DOES clear since
+        // currentTool isn't bumped without one. Verify the no-tool-ever case clears.
+        let (engine, _, _) = makeTestEngine()
+        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
+        engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
+        let rs = renderState(from: engine.state)
+        XCTAssertEqual(rs.msg, "", "no current tool → msg blank")
+    }
+
+    @MainActor
+    func testBusyEntriesArrayCappedAt6OverWire() throws {
+        // BuddyState.entries holds up to 10. RenderState caps at 6 to match the
+        // firmware's tama.lines[6] capacity.
+        let (engine, _, _) = makeTestEngine()
+        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
+        for i in 1...10 {
+            engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Edit", hint: "file\(i).swift")
+        }
+        let rs = renderState(from: engine.state)
+        XCTAssertEqual(rs.entries?.count, 6, "wire-format cap matches firmware capacity")
+    }
+
+    @MainActor
+    func testHeartbeatActivityFieldReflectsCurrentToolKind() throws {
+        let (engine, _, _) = makeTestEngine()
+        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
+        engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "swift test")
+        let rs = renderState(from: engine.state)
+        XCTAssertEqual(rs.activity, "verify", "verify icon class for swift test")
+
+        engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Edit", hint: "Foo.swift")
+        let rs2 = renderState(from: engine.state)
+        XCTAssertEqual(rs2.activity, "write", "write icon class for Edit")
     }
 }

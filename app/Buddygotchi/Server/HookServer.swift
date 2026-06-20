@@ -92,7 +92,15 @@ func buildHookServer(engine: BuddyEngine, config: BuddyConfig) -> Application<Ro
             return emptyOK()
         }
         await engine.sessionStarted(sessionId: sessionId, source: source, cwd: body.cwd)
-        if let signalStr = body.signal, let signal = ActivitySignalKind(rawValue: signalStr) {
+        // Cursor's `stop` is a "task complete" event, equivalent to Claude Code's
+        // Stop and Codex's Stop — route it to celebrate so the review surface fires.
+        // The vestigial SignalCLI map says "stop_working" but we override server-side
+        // so existing installations get the fix without reinstalling hooks.
+        let effectiveSignal: String? = {
+            if source == "cursor", body.signal == "stop_working" { return "celebrate" }
+            return body.signal
+        }()
+        if let signalStr = effectiveSignal, let signal = ActivitySignalKind(rawValue: signalStr) {
             await engine.activitySignal(sessionId: sessionId, source: source, signal: signal)
         }
         return emptyOK()
@@ -115,7 +123,7 @@ func buildHookServer(engine: BuddyEngine, config: BuddyConfig) -> Application<Ro
 
         if let autoDecision = shouldAutoApprove(tool: tool, hint: hint, source: source) {
             await diagLog.log(category: "approve", source: source, event: "auto-\(autoDecision.rawValue)", detail: tool)
-            await engine.activitySignal(sessionId: sessionId, source: source, signal: .keepWorking)
+            await engine.activitySignal(sessionId: sessionId, source: source, signal: .keepWorking, tool: tool, hint: hint)
             return approvalResponse(decision: autoDecision, source: source)
         }
 
@@ -159,16 +167,16 @@ private func handleAgentEvent(body: HookEventBody, source: String, hookPid: Int3
         await engine.activitySignal(sessionId: sessionId, source: source, signal: .celebrate)
 
     case "StopFailure":
-        await engine.activitySignal(sessionId: sessionId, source: source, signal: .stopWorking)
+        await engine.activitySignal(sessionId: sessionId, source: source, signal: .error)
 
     case "PostToolUse":
         await engine.clearRequest(sessionId: sessionId)
-        await engine.activitySignal(sessionId: sessionId, source: source, signal: .keepWorking)
+        await engine.activitySignal(sessionId: sessionId, source: source, signal: .keepWorking, tool: body.effectiveToolName, hint: extractHint(from: body))
 
     case "PreToolUse":
         // Codex fires PreToolUse before running a tool. Keep the pet busy while the
         // tool runs (Codex has no separate "still working" signal between turns).
-        await engine.activitySignal(sessionId: sessionId, source: source, signal: .keepWorking)
+        await engine.activitySignal(sessionId: sessionId, source: source, signal: .keepWorking, tool: body.effectiveToolName, hint: extractHint(from: body))
 
     case "SessionEnd":
         await engine.sessionEnded(sessionId: sessionId)

@@ -483,6 +483,7 @@ PersonaState derive(const TamaState& s) {
   if (strcmp(s.pet, "busy") == 0)      return P_BUSY;
   if (strcmp(s.pet, "attention") == 0) return P_ATTENTION;
   if (strcmp(s.pet, "celebrate") == 0) return P_CELEBRATE;
+  if (strcmp(s.pet, "error") == 0)     return P_DIZZY;   // Gap C: stalled / failed sessions
   return P_IDLE;
 }
 
@@ -1143,9 +1144,27 @@ void loop() {
     spr.setCursor(4, y + 24);
     spr.printf("sessions: %u r%u w%u", tama.sessionsTotal, tama.sessionsRunning, tama.sessionsWaiting);
     if (tama.promptId[0] && tama.promptApproval) {
+      // BUGS.md N1: surface the tool + hint so the user can decide without alt-tabbing.
+      // The desktop popover is the primary approval UI; this mirrors enough to glance.
       spr.setTextColor(HOT, p.bg);
       spr.setCursor(4, y + 36);
       spr.print("APPROVE?");
+      if (tama.promptTool[0]) {
+        spr.setTextColor(p.text, p.bg);
+        spr.setCursor(60, y + 36);
+        spr.printf("%.10s", tama.promptTool);
+      }
+      if (tama.promptHint[0]) {
+        spr.setTextColor(p.textDim, p.bg);
+        spr.setCursor(4, y + 48);
+        spr.printf("%.21s", tama.promptHint);
+      }
+    } else if (tama.msg[0] && (strcmp(tama.pet, "celebrate") == 0 || strcmp(tama.pet, "idle") == 0)) {
+      // Surface the "Done: …" completion summary on the bottom line during
+      // celebrate/idle when the desktop has populated msg with a completion.
+      spr.setTextColor(GREEN, p.bg);
+      spr.setCursor(4, y + 36);
+      spr.printf("%.21s", tama.msg);
     }
   }
   spr.pushSprite(0, 0);

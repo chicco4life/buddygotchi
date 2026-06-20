@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var autoDismissTimer: Timer?
     private let celebrateSound = NSSound(named: "Funk")
     private let attentionSound = NSSound(named: "Glass")
+    private let errorSound = NSSound(named: "Sosumi")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -162,6 +163,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             celebrateSound?.play()
         } else if current == .attention {
             attentionSound?.play()
+        } else if current == .error {
+            errorSound?.play()
         }
     }
 

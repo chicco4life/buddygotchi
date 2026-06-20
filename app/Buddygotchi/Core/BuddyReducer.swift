@@ -7,11 +7,12 @@ struct InternalState: Sendable, Equatable {
     var sessions: [String: Session]
     var staleMs: Double
     var celebrateDurationMs: Double
+    var workStallTimeoutMs: Double
 
     var version: Int { buddy.version }
 
-    static func initial(staleMs: Double, celebrateDurationMs: Double) -> InternalState {
-        InternalState(buddy: .initial, sessions: [:], staleMs: staleMs, celebrateDurationMs: celebrateDurationMs)
+    static func initial(staleMs: Double, celebrateDurationMs: Double, workStallTimeoutMs: Double = 300_000) -> InternalState {
+        InternalState(buddy: .initial, sessions: [:], staleMs: staleMs, celebrateDurationMs: celebrateDurationMs, workStallTimeoutMs: workStallTimeoutMs)
     }
 }
 
@@ -36,14 +37,18 @@ private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> Interna
         return handleRequestArrived(state, at: at, sessionId: sessionId, requestId: requestId, tool: tool, hint: hint, sessionLabel: sessionLabel)
     case .requestCleared(let at, let sessionId):
         return handleRequestCleared(state, at: at, sessionId: sessionId)
-    case .activitySignal(let at, let sessionId, let source, let signal):
-        return handleActivitySignal(state, at: at, sessionId: sessionId, source: source, signal: signal)
+    case .activitySignal(let at, let sessionId, let source, let signal, let tool, let hint):
+        return handleActivitySignal(state, at: at, sessionId: sessionId, source: source, signal: signal, tool: tool, hint: hint)
     case .staleTick(let at):
         return handleStaleTick(state, now: at)
     case .approvalArrived(let at, let sessionId, let requestId, let tool, let hint, let sessionLabel, let source):
         return handleApprovalArrived(state, at: at, sessionId: sessionId, requestId: requestId, tool: tool, hint: hint, sessionLabel: sessionLabel, source: source)
     case .approvalResolved(let at, let sessionId, let requestId, let decision):
         return handleApprovalResolved(state, at: at, sessionId: sessionId, requestId: requestId, decision: decision)
+    case .reviewDismissed:
+        return handleReviewDismissed(state)
+    case .errorDismissed(let at, let sessionId):
+        return handleErrorDismissed(state, at: at, sessionId: sessionId)
     }
 }
 
@@ -82,7 +87,7 @@ private func handleRequestCleared(_ state: InternalState, at: Double, sessionId:
     return s
 }
 
-private func handleActivitySignal(_ state: InternalState, at: Double, sessionId: String, source: String, signal: ActivitySignalKind) -> InternalState {
+private func handleActivitySignal(_ state: InternalState, at: Double, sessionId: String, source: String, signal: ActivitySignalKind, tool: String?, hint: String?) -> InternalState {
     var s = state
     touchSession(&s, sessionId: sessionId, at: at, source: source)
 
@@ -95,21 +100,71 @@ private func handleActivitySignal(_ state: InternalState, at: Double, sessionId:
             s.sessions[sessionId]?.workStartedAt = at
         }
         s.sessions[sessionId]?.state = .working
+        s.sessions[sessionId]?.lastWorkSignalAt = at
+        if let tool, !tool.isEmpty {
+            s.sessions[sessionId]?.lastTool = tool
+            s.sessions[sessionId]?.lastHint = hint
+            s.sessions[sessionId]?.currentTool = tool
+            s.sessions[sessionId]?.currentHint = hint
+            s.sessions[sessionId]?.currentActivityKind = activityKind(tool: tool, hint: hint ?? "")
+        }
     case .stopWorking:
         s.sessions[sessionId]?.state = .idle
         s.sessions[sessionId]?.prompt = nil
         s.sessions[sessionId]?.workStartedAt = nil
+        s.sessions[sessionId]?.lastWorkSignalAt = nil
+        s.sessions[sessionId]?.currentTool = nil
+        s.sessions[sessionId]?.currentHint = nil
+        s.sessions[sessionId]?.currentActivityKind = nil
     case .celebrate:
-        let duration = s.sessions[sessionId]?.workStartedAt.map { at - $0 }
+        let session = s.sessions[sessionId]
+        let duration = session?.workStartedAt.map { at - $0 }
+        let completedTool = tool ?? session?.lastTool
+        let completedHint = hint ?? session?.lastHint
+        let completedKind: ActivityKind = {
+            if let t = completedTool { return activityKind(tool: t, hint: completedHint ?? "") }
+            return .work
+        }()
         s.sessions[sessionId]?.state = .idle
         s.sessions[sessionId]?.prompt = nil
         s.sessions[sessionId]?.workStartedAt = nil
+        s.sessions[sessionId]?.lastWorkSignalAt = nil
+        s.sessions[sessionId]?.currentTool = nil
+        s.sessions[sessionId]?.currentHint = nil
+        s.sessions[sessionId]?.currentActivityKind = nil
         s.buddy.celebrateUntil = at + s.celebrateDurationMs
         s.buddy.lastTaskDurationMs = duration
+        s.buddy.lastCompleted = CompletedTask(
+            id: "\(sessionId)_\(Int(at))",
+            tool: completedTool,
+            hint: completedHint,
+            source: source,
+            sessionLabel: session?.cwd.flatMap { ($0 as NSString).lastPathComponent },
+            durationMs: duration,
+            completedAt: at,
+            activityKind: completedKind
+        )
+    case .error:
+        // Preserve currentTool/currentHint and workStartedAt — we want the error
+        // card to show "what failed" and "for how long".
+        s.sessions[sessionId]?.state = .errored
+        s.sessions[sessionId]?.prompt = nil
+        if let tool, !tool.isEmpty {
+            s.sessions[sessionId]?.lastTool = tool
+            s.sessions[sessionId]?.lastHint = hint
+            s.sessions[sessionId]?.currentTool = tool
+            s.sessions[sessionId]?.currentHint = hint
+            s.sessions[sessionId]?.currentActivityKind = activityKind(tool: tool, hint: hint ?? "")
+        }
     }
 
-    let msg = "[\(source)] \(signal.rawValue)"
-    s.buddy.entries = Array(([msg] + s.buddy.entries).prefix(10))
+    let signalDetail: String = {
+        if let tool, !tool.isEmpty {
+            return shortMsg(tool: tool, hint: hint ?? "", source: source)
+        }
+        return "[\(source)] \(signal.rawValue)"
+    }()
+    s.buddy.entries = Array(([signalDetail] + s.buddy.entries).prefix(10))
     return s
 }
 
@@ -121,6 +176,19 @@ private func handleStaleTick(_ state: InternalState, now: Double) -> InternalSta
         s.buddy.celebrateUntil = nil
         s.buddy.lastTaskDurationMs = nil
         changed = true
+    }
+
+    // Stall detection: a session in .working that hasn't bumped lastWorkSignalAt
+    // for workStallTimeoutMs is treated as wedged. Run BEFORE the stale-session
+    // prune so a wedged session reports error before being reaped.
+    for (id, session) in s.sessions where session.state == .working {
+        if let lastSignal = session.lastWorkSignalAt,
+           now - lastSignal > s.workStallTimeoutMs,
+           let started = session.workStartedAt,
+           now - started > s.workStallTimeoutMs {
+            s.sessions[id]?.state = .errored
+            changed = true
+        }
     }
 
     let staleIds = s.sessions.filter { now - $0.value.lastActivityAt > s.staleMs }.map(\.key)
@@ -150,6 +218,25 @@ private func handleApprovalResolved(_ state: InternalState, at: Double, sessionI
     return s
 }
 
+private func handleReviewDismissed(_ state: InternalState) -> InternalState {
+    guard state.buddy.lastCompleted != nil else { return state }
+    var s = state
+    s.buddy.lastCompleted = nil
+    return s
+}
+
+private func handleErrorDismissed(_ state: InternalState, at: Double, sessionId: String) -> InternalState {
+    guard state.sessions[sessionId]?.state == .errored else { return state }
+    var s = state
+    s.sessions[sessionId]?.state = .idle
+    s.sessions[sessionId]?.workStartedAt = nil
+    s.sessions[sessionId]?.lastWorkSignalAt = nil
+    s.sessions[sessionId]?.currentTool = nil
+    s.sessions[sessionId]?.currentHint = nil
+    s.sessions[sessionId]?.lastActivityAt = at
+    return s
+}
+
 // MARK: - Aggregation
 
 private func aggregate(_ state: InternalState) -> BuddyState {
@@ -158,6 +245,7 @@ private func aggregate(_ state: InternalState) -> BuddyState {
 
     let waiting = allSessions.filter { $0.state == .needsConfirmation }
     let working = allSessions.filter { $0.state == .working }
+    let errored = allSessions.filter { $0.state == .errored }
 
     buddy.sessions = SessionCounts(
         total: allSessions.count,
@@ -167,6 +255,60 @@ private func aggregate(_ state: InternalState) -> BuddyState {
 
     let highestPrompt = waiting.min(by: { ($0.prompt?.arrivedAt ?? .infinity) < ($1.prompt?.arrivedAt ?? .infinity) })?.prompt
     buddy.prompt = highestPrompt
+
+    // Build per-session breakdown for the popover. Order: needsConfirmation
+    // (oldest prompt first) → errored (oldest workStartedAt) → working (oldest
+    // workStartedAt) → idle (most recent first). Cap at 6 to match firmware
+    // tama.lines[6] capacity.
+    let sessionsById = state.sessions
+    let waitingOrdered = waiting
+        .sorted { ($0.prompt?.arrivedAt ?? .infinity) < ($1.prompt?.arrivedAt ?? .infinity) }
+    let erroredOrdered = errored
+        .sorted { ($0.workStartedAt ?? .infinity) < ($1.workStartedAt ?? .infinity) }
+    let workingOrdered = working
+        .sorted { ($0.workStartedAt ?? .infinity) < ($1.workStartedAt ?? .infinity) }
+    let idleOrdered = allSessions
+        .filter { $0.state == .idle }
+        .sorted { $0.lastActivityAt > $1.lastActivityAt }
+    let combined = waitingOrdered + erroredOrdered + workingOrdered + idleOrdered
+    var activeSnapshots: [SessionSnapshot] = []
+    activeSnapshots.reserveCapacity(min(combined.count, 6))
+    for sess in combined.prefix(6) {
+        guard let id = sessionsById.first(where: { $0.value == sess })?.key else { continue }
+        activeSnapshots.append(SessionSnapshot(
+            id: id,
+            source: sess.source,
+            state: sess.state,
+            sessionLabel: sess.cwd.flatMap { ($0 as NSString).lastPathComponent },
+            currentTool: sess.currentTool
+        ))
+    }
+    buddy.activeSessions = activeSnapshots
+
+    // Project the oldest errored session for the popover Error card. Carries the
+    // session id so dismissError(sessionId:) can target a specific one.
+    let firstErroredSession = errored.min(by: { ($0.workStartedAt ?? .infinity) < ($1.workStartedAt ?? .infinity) })
+    buddy.firstErrored = firstErroredSession.flatMap { sess in
+        guard let id = state.sessions.first(where: { $0.value == sess })?.key else { return nil }
+        return ErroredSession(
+            id: id,
+            source: sess.source,
+            sessionLabel: sess.cwd.flatMap { ($0 as NSString).lastPathComponent },
+            tool: sess.currentTool,
+            hint: sess.currentHint,
+            workStartedAt: sess.workStartedAt
+        )
+    }
+
+    // The review surface clears as soon as a new prompt arrives (live state takes
+    // visual primacy) or work resumes (the user reset the loop). It survives the
+    // 4-second celebrate window into idle so the user can see what finished.
+    if !waiting.isEmpty || !working.isEmpty {
+        buddy.lastCompleted = nil
+    }
+
+    // Default — gets overwritten below in the busy branch when present.
+    buddy.currentActivityKind = nil
 
     let hasConnected = !allSessions.isEmpty
     buddy.desktop = DesktopLink(
@@ -184,17 +326,49 @@ private func aggregate(_ state: InternalState) -> BuddyState {
             buddy.msg = shortMsg(tool: p.tool, hint: p.hint, source: p.source ?? "")
         }
         buddy.lastSignal = "attention"
+    } else if !errored.isEmpty {
+        // Error sits between attention and busy. A live approval still wins (already
+        // handled above), but a stalled/failed session takes priority over busy peers.
+        buddy.pet = Pet(state: .error, species: buddy.pet.species)
+        let oldest = errored.min(by: { ($0.workStartedAt ?? .infinity) < ($1.workStartedAt ?? .infinity) })
+        if let tool = oldest?.currentTool, !tool.isEmpty {
+            buddy.msg = "Stalled: \(tool)"
+        } else {
+            buddy.msg = "Stalled"
+        }
+        buddy.lastSignal = "error"
     } else if !working.isEmpty {
         buddy.pet = Pet(state: .busy, species: buddy.pet.species)
-        buddy.msg = ""
+        // Primary working session = oldest workStartedAt (longest running). Surface its
+        // current tool/hint so the user can see what the agent is doing right now.
+        let primary = working.min(by: { ($0.workStartedAt ?? .infinity) < ($1.workStartedAt ?? .infinity) })
+        if let tool = primary?.currentTool, !tool.isEmpty {
+            buddy.msg = shortMsg(tool: tool, hint: primary?.currentHint ?? "", source: primary?.source ?? "")
+        } else {
+            buddy.msg = ""
+        }
+        buddy.currentActivityKind = primary?.currentActivityKind
         buddy.lastSignal = "busy"
     } else if let until = buddy.celebrateUntil, buddy.updatedAt < until {
         buddy.pet = Pet(state: .celebrate, species: buddy.pet.species)
-        buddy.msg = ""
+        // Show the just-completed task on the device's msg line during celebrate.
+        // The desktop popover ignores msg and renders ReviewCardView instead.
+        if let lc = buddy.lastCompleted, let tool = lc.tool {
+            buddy.msg = "Done: \(tool)\(lc.durationMs.map { " (\(formatDuration($0)))" } ?? "")"
+        } else {
+            buddy.msg = ""
+        }
         buddy.lastSignal = "celebrate"
     } else {
         buddy.pet = Pet(state: .idle, species: buddy.pet.species)
-        buddy.msg = ""
+        // Idle keeps the completion summary on the device's msg line until a new
+        // prompt or work signal arrives (handled by clearing lastCompleted above
+        // and by checking it here).
+        if let lc = buddy.lastCompleted, let tool = lc.tool {
+            buddy.msg = "Done: \(tool)\(lc.durationMs.map { " (\(formatDuration($0)))" } ?? "")"
+        } else {
+            buddy.msg = ""
+        }
         buddy.celebrateUntil = nil
         buddy.lastSignal = "idle"
     }
@@ -209,7 +383,8 @@ private func setPrompt(_ state: InternalState, at: Double, sessionId: String, re
     touchSession(&s, sessionId: sessionId, at: at)
 
     let effectiveSource = source ?? s.sessions[sessionId]?.source
-    let prompt = Prompt(id: requestId, tool: tool, hint: hint, arrivedAt: at, sessionLabel: sessionLabel, source: effectiveSource, isApproval: isApproval)
+    let kind = activityKind(tool: tool, hint: hint)
+    let prompt = Prompt(id: requestId, tool: tool, hint: hint, arrivedAt: at, sessionLabel: sessionLabel, source: effectiveSource, isApproval: isApproval, activityKind: kind)
     s.sessions[sessionId]?.state = .needsConfirmation
     s.sessions[sessionId]?.prompt = prompt
 
@@ -240,4 +415,12 @@ private func shortMsg(tool: String, hint: String, source: String) -> String {
     if hint.isEmpty { return base }
     let short = hint.count <= 60 ? hint : String(hint.prefix(57)) + "..."
     return "\(base): \(short)"
+}
+
+func formatDuration(_ ms: Double) -> String {
+    let seconds = Int(ms / 1000)
+    if seconds < 60 { return "\(seconds)s" }
+    let minutes = seconds / 60
+    let remSeconds = seconds % 60
+    return "\(minutes)m \(remSeconds)s"
 }

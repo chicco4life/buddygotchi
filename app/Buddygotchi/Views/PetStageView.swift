@@ -24,6 +24,7 @@ struct PetStageView: View {
         case .busy: 0.10
         case .attention: 0.14
         case .celebrate: 0.18
+        case .error: 0.14
         }
     }
 
@@ -34,6 +35,7 @@ struct PetStageView: View {
         case .busy: 8
         case .attention: 10
         case .celebrate: 12
+        case .error: 10
         }
     }
 
@@ -44,6 +46,7 @@ struct PetStageView: View {
         case .busy: 0.45
         case .attention: 0.5
         case .celebrate: 0.55
+        case .error: 0.5
         }
     }
 

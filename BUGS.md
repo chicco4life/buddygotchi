@@ -1,15 +1,133 @@
 # Bug Hunt — Findings & Fixes
 
-Date: 2026-05-30
+Last updated: 2026-06-20
 Scope: the active Swift app (`app/`), exercised against ARCHITECTURE.md's documented
 feature set and the ESP32 firmware (`src/outputs/esp32/firmware/`).
 
 Method: full static read of every source file in `app/Buddygotchi`, the two hook CLIs,
-and the tests; `swift build` + `swift test` (51 tests green at baseline, 54 green after);
-launched the real binary (HTTP server comes up on `127.0.0.1:21321`, no crash). The bash
-tool sandbox blocks outbound localhost sockets, so live HTTP probing wasn't possible —
-core behavior was instead pinned with new reducer unit tests and cross-checked against the
-firmware that consumes the heartbeat.
+and the tests; `swift build` + `swift test` (currently 66 tests across
+`ReducerTests`/`EngineIntegrationTests`/`AutoApproveTests` plus 6 disabled-by-default
+`SnapshotHarnessTests`); launched the real binary (HTTP server comes up on
+`127.0.0.1:21321`, no crash). The bash tool sandbox blocks outbound localhost sockets,
+so live HTTP probing isn't possible — core behavior is pinned with reducer unit tests and
+cross-checked against the firmware that consumes the heartbeat.
+
+## Re-verification (2026-06-20)
+
+All ten prior "Fixed" items below are still in place in `main`:
+
+| # | Pin | Status |
+|---|-----|--------|
+| 1 | `Pet.defaultSpecies = "cat"` (`Core/BuddyState.swift:83`) | ✓ holds |
+| 2 | `aggregate` builds `msg` from `p.source ?? ""` (`Core/BuddyReducer.swift:184`) | ✓ holds |
+| 3 | `buddy.msg = ""` cleared in busy/celebrate/idle branches (`Core/BuddyReducer.swift:189/193/198`) | ✓ holds |
+| 4 | Local Approval row uses `BuddySettingToggle` once (`Views/SettingsView.swift:94-104`) | ✓ holds |
+| 5 | Species fallback chains through `Pet.defaultSpecies` (`Theme/BuddyTheme.swift:185`, `Views/PetStageView.swift:13`) | ✓ holds |
+| 6 | Cursor `sessionEnd` → `"session_end"` → `engine.sessionEnded` (`SignalCLI.swift:67`, `Server/HookServer.swift:90-93`) | ✓ holds |
+| 7 | Auto-approve rejects shell control operators (`Server/HookServer.swift:255-260`) | ✓ holds |
+| 8 | `deriveSessionId` decodes `conversation_id` for both signal and approve (`Server/HookServer.swift:86,293`) | ✓ holds |
+| 9 | `BLEManager` shared state read/written only on `bleQueue` (`Outputs/ESP32/BLEManager.swift:36-127`) | ✓ holds |
+| 10 | Codex `PreToolUse` mapped to `keepWorking` (`Server/HookServer.swift:168-171`) | ✓ holds |
+
+The deterministic regression tests for #1, #2, #3 are still present in
+`Tests/ReducerTests.swift` (`testDefaultSpeciesIsAKnownSpecies`,
+`testMsgUsesDisplayedPromptSourceNotArbitrarySession`, `testMsgClearsWhenPromptResolves`).
+`Tests/AutoApproveTests.swift` covers #7. `swift build` is clean.
+
+## New Findings (2026-06-20)
+
+### N1. Approval card on the M5Stack shows tool name only — `promptHint` and source badge never reach the device
+**Files:** `app/Buddygotchi/Outputs/ESP32/Heartbeat.swift`, `src/outputs/esp32/firmware/data.h`
+**Severity:** Medium (user-facing on hardware: harder to make a safe approve/deny call)
+
+`Outputs/ESP32/ESP32Output.swift` ships a `RenderState` heartbeat to the firmware, but
+`RenderState` only encodes `promptId`, `promptTool`, `promptApproval` — not `promptHint`,
+`promptSource`, or `sessionLabel`. The firmware allocates and renders all three
+(`drawApproval` in `firmware/main.cpp` reads `tama.promptHint`, `tama.promptSource`,
+`tama.promptLabel`), and `_parsePrompt` in `firmware/data.h` only ever looks for
+`promptId`/`promptTool`/`promptApproval`. So even adding the fields to `RenderState`
+without updating the parser would have no effect. Result: when an approval lands on the
+device, the user sees `approve? Ns / Bash / [blank]` and has to context-switch back to the
+agent to read the command before deciding.
+
+**Suggested fix:** add `promptHint`, `promptSource`, `promptLabel` to
+`Heartbeat.RenderState`; extend `_parsePrompt` in `firmware/data.h` to copy them into
+`TamaState`. Both ends bound the strings, so the on-the-wire impact is small (~80 bytes per
+heartbeat when a prompt is active).
+
+### N2. `entries[]` activity log allocated on-device but never sent
+**Files:** `app/Buddygotchi/Outputs/ESP32/Heartbeat.swift`, `src/outputs/esp32/firmware/data.h`, `src/outputs/esp32/firmware/main.cpp`
+**Severity:** Low (dead UI code on hardware; no functional regression, falls back to single-line `msg`)
+
+`firmware/data.h` parses `doc["entries"]` into a 6-line ring (`tama.lines`), and
+`drawHUD` in `main.cpp` wraps and dim-renders the rolling transcript. The desktop never
+populates `entries` in its heartbeat — `RenderState` has no field for it — so `tama.nLines`
+stays 0 and the device falls through to printing `tama.msg` as a single line. The dim-old /
+bright-newest scroll path is effectively dead in the field.
+
+**Suggested fix:** either send the engine's `state.entries` (last 10 messages, already
+maintained by the reducer) inside the heartbeat, or remove the unused parser/UI in the
+firmware and the matching struct fields. The first option is small (the data already
+exists at the boundary).
+
+### N3. `BuddygotchiHook` Swift binary still ships, still POSTs to nonexistent `/hook/request`
+**File:** `app/BuddygotchiHook/HookCLI.swift`
+**Severity:** Low (dead executable, but still a build product)
+
+Carried over from the prior pass's "intentionally NOT changed" list. `Package.swift` still
+declares the `BuddygotchiHook` target; nothing in `HookInstaller` wires it — Claude Code
+and Codex are installed via the inline `buddygotchi-hook.sh` bash script
+(`HookInstaller.hookScriptContent`) hitting `/hook/event` and `/hook/approve`; Cursor uses
+the `BuddygotchiSignal` binary. `HookCLI` POSTs to `http://127.0.0.1:<port>/hook/request`,
+a route that does not exist on the server. If anyone wires it up by hand, every call is a
+silent 404.
+
+**Suggested fix:** delete the `BuddygotchiHook` target from `Package.swift` and the
+`BuddygotchiHook/` directory. Nothing references it.
+
+### N4. Doc lists `TaskCompleted` for Claude Code, but the installer doesn't register it and the server doesn't handle it
+**Files:** `app/Buddygotchi/Install/HookInstaller.swift`, `app/Buddygotchi/Server/HookServer.swift`, `ARCHITECTURE.md`
+**Severity:** Low (doc/impl drift)
+
+`ARCHITECTURE.md` historically advertised `TaskCompleted` → `celebrate` for Claude Code.
+The current `installClaudeCode` registers SessionStart, UserPromptSubmit, Stop, StopFailure,
+SessionEnd, PostToolUse, Elicitation, ElicitationResult, PermissionRequest, and three
+Notification matchers — `TaskCompleted` is not among them. `handleAgentEvent` in
+`HookServer.swift` has no `TaskCompleted` case either. In practice `Stop` → celebrate is the
+end-of-task signal. Stale `signalMap["claude-code"]` entries in `BuddygotchiSignal/SignalCLI.swift`
+(including `TaskCompleted` and `SubagentStart`) are vestigial — Claude Code's hooks no
+longer route through the signal binary at all.
+
+**Suggested fix:** drop `TaskCompleted`/`SubagentStart` from the Claude Code section of
+ARCHITECTURE.md. Optionally drop the `claude-code` entry from `signalMap` in
+`SignalCLI.swift` (Cursor is the only signal-CLI consumer now).
+
+### N5. Doc lists Codex as "experimental, 5 events" — installer registers 6 and adds a `[features] codex_hooks = true` flip in `~/.codex/config.toml`
+**Files:** `app/Buddygotchi/Install/HookInstaller.swift`, `ARCHITECTURE.md`
+**Severity:** Low (doc/impl drift)
+
+`installCodex` registers SessionStart, UserPromptSubmit, PermissionRequest, PreToolUse,
+PostToolUse, and Stop — six events — and ensures `codex_hooks = true` is present under a
+`[features]` section in the user's `config.toml` (Codex still gates hooks behind that flag).
+Codex *does* fire `PermissionRequest` in this build; ARCHITECTURE.md's "Codex does not
+currently fire hooks on permission prompts" line is out of date.
+
+**Suggested fix:** update ARCHITECTURE.md (covered in this pass).
+
+### N6. ESP32 → desktop approval channel isn't documented
+**Files:** `app/Buddygotchi/Outputs/ESP32/BLEManager.swift`, `src/outputs/esp32/firmware/main.cpp`, `ARCHITECTURE.md`
+**Severity:** Low (doc/impl drift, but it's a real shipped capability)
+
+The hardware path is bidirectional: pressing **A** (approve) or **B** (deny) on the device
+triggers `sendApproval` in `firmware/main.cpp`, which writes
+`{"cmd":"permission","id":"<requestId>","decision":"allow|deny"}\n` over Nordic UART TX.
+`BLEManager.handleIncomingLine` on the macOS side parses that and forwards it to
+`engine.resolveApproval`, completing the same `CheckedContinuation` the popover would have
+resumed. ARCHITECTURE.md describes the ESP32 only as a downstream renderer
+("Bridges heartbeat JSON to M5Stack"). The unpair path also flows desktop→device
+(`{"cmd":"unpair"}` in `ESP32Output.unpair()`).
+
+**Suggested fix:** update ARCHITECTURE.md (covered in this pass).
 
 ---
 

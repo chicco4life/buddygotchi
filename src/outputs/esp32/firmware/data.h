@@ -75,12 +75,19 @@ inline bool dataRtcValid() { return _rtcValid; }
 static void __attribute__((noinline)) _parsePrompt(JsonDocument& doc, TamaState* out) {
   const char* pid = doc["promptId"];
   const char* pt = doc["promptTool"];
+  const char* ph = doc["promptHint"];
+  const char* ps = doc["promptSource"];
+  const char* pl = doc["promptLabel"];
   if (pid) {
     strncpy(out->promptId, pid, sizeof(out->promptId)-1); out->promptId[sizeof(out->promptId)-1]=0;
     strncpy(out->promptTool, pt ? pt : "", sizeof(out->promptTool)-1); out->promptTool[sizeof(out->promptTool)-1]=0;
+    strncpy(out->promptHint, ph ? ph : "", sizeof(out->promptHint)-1); out->promptHint[sizeof(out->promptHint)-1]=0;
+    strncpy(out->promptSource, ps ? ps : "", sizeof(out->promptSource)-1); out->promptSource[sizeof(out->promptSource)-1]=0;
+    strncpy(out->promptLabel, pl ? pl : "", sizeof(out->promptLabel)-1); out->promptLabel[sizeof(out->promptLabel)-1]=0;
     out->promptApproval = doc["promptApproval"] | false;
   } else {
     out->promptId[0] = 0; out->promptTool[0] = 0; out->promptApproval = false;
+    out->promptHint[0] = 0; out->promptSource[0] = 0; out->promptLabel[0] = 0;
   }
 }
 
