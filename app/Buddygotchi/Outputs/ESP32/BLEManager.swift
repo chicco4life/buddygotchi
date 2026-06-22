@@ -9,6 +9,13 @@ enum BLEConnectionState: String, Sendable {
     case connected
 }
 
+enum BLEAckError: Error {
+    case notConnected
+    case timeout
+    case cancelled
+    case ackFailure(message: String)   // device returned ok:false
+}
+
 @MainActor
 protocol BLEManagerDelegate: AnyObject {
     func bleManager(_ manager: BLEManager, connectionStateChanged state: BLEConnectionState)
@@ -45,6 +52,13 @@ final class BLEManager: NSObject, @unchecked Sendable {
     private var reconnectDelay: TimeInterval = 1.0
 
     private var rxBuffer = Data()
+
+    // Outstanding ack waiters, keyed by the `ack` value the device echoes
+    // back. Touched only on bleQueue. The OTA flow is strictly synchronous
+    // (one outstanding "ota_chunk" at a time), so a single-slot-per-key
+    // map is sufficient — second writer would clobber the first, which is
+    // a programming error, not a runtime concern.
+    private var pendingAcks: [String: CheckedContinuation<[String: Any], Error>] = [:]
 
     struct DiscoveredPeripheral: Sendable {
         let identifier: UUID
@@ -134,6 +148,48 @@ final class BLEManager: NSObject, @unchecked Sendable {
         send(data)
     }
 
+    // Write a frame and suspend until the device echoes back a JSON line
+    // whose "ack" value equals `ackKey`. Used by the OTA flow as the
+    // back-pressure primitive — every chunk waits for confirmation
+    // before the next chunk goes out, mirroring xfer.h::_xAck.
+    func sendAwaitingAck(_ data: Data, ackKey: String, timeout: TimeInterval) async throws -> [String: Any] {
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<[String: Any], Error>) in
+            bleQueue.async { [weak self] in
+                guard let self else {
+                    cont.resume(throwing: BLEAckError.cancelled)
+                    return
+                }
+                guard let rx = self.rxCharacteristic, let peripheral = self.connectedPeripheral else {
+                    cont.resume(throwing: BLEAckError.notConnected)
+                    return
+                }
+                if let stale = self.pendingAcks.removeValue(forKey: ackKey) {
+                    // A previous waiter on this key is being abandoned. Don't
+                    // leak the continuation — it would never resume.
+                    stale.resume(throwing: BLEAckError.cancelled)
+                }
+                self.pendingAcks[ackKey] = cont
+                peripheral.writeValue(data, for: rx, type: .withResponse)
+                self.bleQueue.asyncAfter(deadline: .now() + timeout) { [weak self] in
+                    guard let self else { return }
+                    if let pending = self.pendingAcks.removeValue(forKey: ackKey) {
+                        pending.resume(throwing: BLEAckError.timeout)
+                    }
+                }
+            }
+        }
+    }
+
+    // Failing waiters on disconnect prevents UI states from hanging
+    // forever when the device drops mid-OTA.
+    private func failAllPendingAcks(with error: Error) {
+        let waiters = pendingAcks
+        pendingAcks.removeAll()
+        for (_, cont) in waiters {
+            cont.resume(throwing: error)
+        }
+    }
+
     // MARK: - Private
 
     private func startConnecting() {
@@ -216,6 +272,7 @@ extension BLEManager: CBCentralManagerDelegate {
         rxCharacteristic = nil
         txCharacteristic = nil
         rxBuffer.removeAll()
+        failAllPendingAcks(with: BLEAckError.notConnected)
         scheduleReconnect()
     }
 }
@@ -269,15 +326,32 @@ extension BLEManager: CBPeripheralDelegate {
         print("[BLE RX] \(line)")
         #endif
         guard let data = line.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let cmd = json["cmd"] as? String,
-              cmd == "permission",
-              let id = json["id"] as? String,
-              let decision = json["decision"] as? String
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return }
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            self.delegate?.bleManager(self, didReceiveApproval: id, decision: decision)
+
+        // Ack frames resolve any matching waiter. ok:false is surfaced as a
+        // throwing failure so the OTA flow can transition to .failed without
+        // having to inspect the payload itself.
+        if let ackKey = json["ack"] as? String,
+           let pending = pendingAcks.removeValue(forKey: ackKey) {
+            let ok = (json["ok"] as? Bool) ?? true
+            if ok {
+                pending.resume(returning: json)
+            } else {
+                let msg = (json["error"] as? String) ?? "device rejected \(ackKey)"
+                pending.resume(throwing: BLEAckError.ackFailure(message: msg))
+            }
+            return
+        }
+
+        if let cmd = json["cmd"] as? String,
+           cmd == "permission",
+           let id = json["id"] as? String,
+           let decision = json["decision"] as? String {
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.delegate?.bleManager(self, didReceiveApproval: id, decision: decision)
+            }
         }
     }
 }

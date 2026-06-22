@@ -483,7 +483,8 @@ PersonaState derive(const TamaState& s) {
   if (strcmp(s.pet, "busy") == 0)      return P_BUSY;
   if (strcmp(s.pet, "attention") == 0) return P_ATTENTION;
   if (strcmp(s.pet, "celebrate") == 0) return P_CELEBRATE;
-  if (strcmp(s.pet, "error") == 0)     return P_DIZZY;   // Gap C: stalled / failed sessions
+  if (strcmp(s.pet, "error") == 0)     return P_DIZZY;   // Gap C: explicit StopFailure
+  if (strcmp(s.pet, "thinking") == 0)  return P_HEART;   // calm "thinking hard" — silent past stall threshold but presumed alive
   return P_IDLE;
 }
 
@@ -1128,6 +1129,37 @@ void loop() {
 
   if (blePasskey()) {
     drawPasskey();
+  } else if (otaActive()) {
+    // Take over the screen during OTA — buddy redraws would race with
+    // ble_bridge writes anyway, and the user wants to see real progress.
+    spr.fillSprite(BLACK);
+    spr.setTextDatum(TC_DATUM);
+    spr.setTextSize(2);
+    spr.setTextColor(WHITE, BLACK);
+    spr.drawString("Updating", CX, 40);
+    spr.setTextSize(1);
+    spr.setTextColor(LIGHTGREY, BLACK);
+    spr.drawString("firmware…", CX, 70);
+
+    uint32_t total = otaTotal();
+    uint32_t done = otaProgress();
+    int pct = total > 0 ? (int)((done * 100) / total) : 0;
+    if (pct > 100) pct = 100;
+    int barX = 12, barY = 110, barW = W - 24, barH = 14;
+    spr.drawRoundRect(barX, barY, barW, barH, 3, WHITE);
+    int fillW = (barW - 4) * pct / 100;
+    if (fillW > 0) spr.fillRoundRect(barX + 2, barY + 2, fillW, barH - 4, 2, WHITE);
+
+    char pctBuf[8];
+    snprintf(pctBuf, sizeof(pctBuf), "%d%%", pct);
+    spr.setTextSize(2);
+    spr.setTextColor(WHITE, BLACK);
+    spr.drawString(pctBuf, CX, 140);
+
+    spr.setTextSize(1);
+    spr.setTextColor(LIGHTGREY, BLACK);
+    spr.drawString("keep nearby", CX, 180);
+    spr.drawString("device will restart", CX, 195);
   } else {
     buddyTick(activeState);
     const Palette& p = characterPalette();

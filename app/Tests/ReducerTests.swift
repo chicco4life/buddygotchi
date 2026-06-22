@@ -443,7 +443,7 @@ final class ReducerTests: XCTestCase {
         XCTAssertEqual(s.buddy.firstErrored?.tool, "Bash")
     }
 
-    func testStaleTickMarksSessionErroredAfterStallTimeoutNoWorkSignal() {
+    func testStaleTickMarksSessionThinkingAfterStallTimeoutNoWorkSignal() {
         // Use a small workStallTimeoutMs so we don't have to advance 5min.
         var initial = InternalState.test()
         initial.workStallTimeoutMs = 30_000
@@ -455,11 +455,14 @@ final class ReducerTests: XCTestCase {
         XCTAssertEqual(s.buddy.pet.state, .busy)
         // Advance past stall threshold without further keep_working signals.
         s = applyEvents(s, .staleTick(at: NOW + 35_000))
-        XCTAssertEqual(s.sessions["s1"]?.state, .errored)
-        XCTAssertEqual(s.buddy.pet.state, .error)
+        XCTAssertEqual(s.sessions["s1"]?.state, .thinking, "silent past stall → thinking, NOT errored")
+        XCTAssertEqual(s.buddy.pet.state, .thinking)
+        XCTAssertNotNil(s.buddy.firstThinking)
+        XCTAssertEqual(s.buddy.firstThinking?.tool, "Bash")
+        XCTAssertNil(s.buddy.firstErrored, "thinking is not an error")
     }
 
-    func testStaleTickDoesNotMarkErroredIfKeepWorkingWithinThreshold() {
+    func testStaleTickDoesNotMarkThinkingIfKeepWorkingWithinThreshold() {
         var initial = InternalState.test()
         initial.workStallTimeoutMs = 30_000
         var s = applyEvents(
@@ -473,6 +476,85 @@ final class ReducerTests: XCTestCase {
         s = applyEvents(s, .staleTick(at: NOW + 50_000))
         XCTAssertEqual(s.sessions["s1"]?.state, .working)
         XCTAssertEqual(s.buddy.pet.state, .busy)
+    }
+
+    func testThinkingSessionRecoversToWorkingOnKeepWorkingPreservingWorkStartedAt() {
+        var initial = InternalState.test()
+        initial.workStallTimeoutMs = 30_000
+        var s = applyEvents(
+            initial,
+            .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
+            .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .startWorking, tool: "Bash", hint: nil)
+        )
+        let originalStart = s.sessions["s1"]?.workStartedAt
+        s = applyEvents(s, .staleTick(at: NOW + 35_000))
+        XCTAssertEqual(s.buddy.pet.state, .thinking)
+        // Resume — the agent emitted output again
+        s = applyEvents(s, .activitySignal(at: NOW + 40_000, sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Edit", hint: "Foo.swift"))
+        XCTAssertEqual(s.sessions["s1"]?.state, .working)
+        XCTAssertEqual(s.buddy.pet.state, .busy)
+        XCTAssertEqual(s.sessions["s1"]?.workStartedAt, originalStart, "thinking → working preserves original start time (work paused, not restarted)")
+    }
+
+    func testErrorAndThinkingPriorityErrorWins() {
+        // Two sessions: one errored (StopFailure), one thinking (silent stall).
+        // Pet state should be .error — explicit failure outranks thinking.
+        var initial = InternalState.test()
+        initial.workStallTimeoutMs = 30_000
+        var s = applyEvents(
+            initial,
+            .sessionStarted(at: NOW, sessionId: "thinker", source: "claude-code", cwd: nil),
+            .sessionStarted(at: NOW, sessionId: "failed", source: "cursor", cwd: nil),
+            .activitySignal(at: NOW + 1, sessionId: "thinker", source: "claude-code", signal: .startWorking, tool: "Edit", hint: nil),
+            .activitySignal(at: NOW + 2, sessionId: "failed", source: "cursor", signal: .startWorking, tool: "Bash", hint: nil),
+            .activitySignal(at: NOW + 3, sessionId: "failed", source: "cursor", signal: .error, tool: nil, hint: nil)
+        )
+        // Now advance past stall — thinker session goes to thinking.
+        s = applyEvents(s, .staleTick(at: NOW + 35_000))
+        XCTAssertEqual(s.sessions["thinker"]?.state, .thinking)
+        XCTAssertEqual(s.sessions["failed"]?.state, .errored)
+        XCTAssertEqual(s.buddy.pet.state, .error, "error outranks thinking")
+        // Both projections populate; surfaces decide what to render.
+        XCTAssertNotNil(s.buddy.firstErrored)
+        XCTAssertNotNil(s.buddy.firstThinking)
+    }
+
+    func testBusyAndThinkingPriorityBusyWins() {
+        var initial = InternalState.test()
+        initial.workStallTimeoutMs = 30_000
+        var s = applyEvents(
+            initial,
+            .sessionStarted(at: NOW, sessionId: "thinker", source: "claude-code", cwd: nil),
+            .sessionStarted(at: NOW, sessionId: "active", source: "cursor", cwd: nil),
+            .activitySignal(at: NOW + 1, sessionId: "thinker", source: "claude-code", signal: .startWorking, tool: "Edit", hint: nil)
+        )
+        s = applyEvents(s, .staleTick(at: NOW + 35_000))
+        XCTAssertEqual(s.sessions["thinker"]?.state, .thinking)
+        // Now an unrelated session becomes busy — it should outrank thinking.
+        s = applyEvents(s, .activitySignal(at: NOW + 40_000, sessionId: "active", source: "cursor", signal: .keepWorking, tool: "Bash", hint: nil))
+        XCTAssertEqual(s.buddy.pet.state, .busy, "actively-working session outranks thinking peer")
+    }
+
+    func testThinkingMsgIncludesToolName() {
+        var initial = InternalState.test()
+        initial.workStallTimeoutMs = 30_000
+        var s = applyEvents(
+            initial,
+            .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
+            .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .startWorking, tool: "WebFetch", hint: "https://docs/")
+        )
+        s = applyEvents(s, .staleTick(at: NOW + 35_000))
+        XCTAssertTrue(s.buddy.msg.hasPrefix("Thinking: WebFetch"), "got msg=\(s.buddy.msg)")
+    }
+
+    func testErrorMsgUsesErrorPrefixNotStalled() {
+        let s = applyEvents(
+            .test(),
+            .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
+            .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .startWorking, tool: "Bash", hint: "swift test"),
+            .activitySignal(at: NOW + 2, sessionId: "s1", source: "claude-code", signal: .error, tool: nil, hint: nil)
+        )
+        XCTAssertTrue(s.buddy.msg.hasPrefix("Error: Bash"), "got msg=\(s.buddy.msg)")
     }
 
     func testErroredSessionRecoversToWorkingOnKeepWorking() {

@@ -9,6 +9,7 @@ enum PetState: String, Sendable, Equatable {
     case attention
     case celebrate
     case error
+    case thinking
 
     var sfSymbol: String {
         switch self {
@@ -18,6 +19,7 @@ enum PetState: String, Sendable, Equatable {
         case .attention: "exclamationmark.circle.fill"
         case .celebrate: "sparkles"
         case .error: "exclamationmark.triangle.fill"
+        case .thinking: "brain"
         }
     }
 }
@@ -41,6 +43,7 @@ enum SessionState: String, Sendable, Equatable {
     case idle
     case needsConfirmation
     case errored
+    case thinking
 }
 
 struct Session: Sendable, Equatable {
@@ -108,6 +111,21 @@ struct ErroredSession: Sendable, Equatable {
     var workStartedAt: Double?
 }
 
+// MARK: - Thinking Session
+
+/// A session that has been actively working but went silent past the work-stall
+/// threshold. Distinct from .errored: this is presumed-still-alive ("thinking
+/// hard"), not failed; no Dismiss button, no alert sound.
+struct ThinkingSession: Sendable, Equatable {
+    var id: String
+    var source: String
+    var sessionLabel: String?
+    var tool: String?
+    var hint: String?
+    var workStartedAt: Double?
+    var lastWorkSignalAt: Double?
+}
+
 // MARK: - Active Sessions (per-session breakdown for popover)
 
 struct SessionSnapshot: Sendable, Equatable, Identifiable {
@@ -147,6 +165,7 @@ struct BuddyState: Sendable, Equatable {
     var lastTaskDurationMs: Double?
     var lastCompleted: CompletedTask?
     var firstErrored: ErroredSession?
+    var firstThinking: ThinkingSession?
     var activeSessions: [SessionSnapshot]
     var currentActivityKind: ActivityKind?
 
@@ -164,6 +183,7 @@ struct BuddyState: Sendable, Equatable {
         lastTaskDurationMs: nil,
         lastCompleted: nil,
         firstErrored: nil,
+        firstThinking: nil,
         activeSessions: [],
         currentActivityKind: nil
     )

@@ -116,15 +116,17 @@ inline bool xferCommand(JsonDocument& doc) {
     int vBus = StickCP2.Power.isCharging() ? 5000 : 0;
     int pct = (vBat - 3200) / 10;
     if (pct < 0) pct = 0; if (pct > 100) pct = 100;
-    char b[320];
+    char b[400];
     int len = snprintf(b, sizeof(b),
       "{\"ack\":\"status\",\"ok\":true,\"n\":0,\"data\":{"
       "\"name\":\"%s\",\"owner\":\"%s\",\"sec\":%s,"
+      "\"firmware\":\"%s\",\"build\":\"%s %s\","
       "\"bat\":{\"pct\":%d,\"mV\":%d,\"mA\":%d,\"usb\":%s},"
       "\"sys\":{\"up\":%lu,\"heap\":%u,\"fsFree\":%lu,\"fsTotal\":%lu},"
       "\"stats\":{\"appr\":%u,\"deny\":%u,\"nap\":%lu}"
       "}}\n",
       petName(), ownerName(), bleSecure() ? "true" : "false",
+      FW_VERSION, __DATE__, __TIME__,
       pct, vBat, iBat, (vBus > 4000) ? "true" : "false",
       millis() / 1000, ESP.getFreeHeap(),
       (unsigned long)(LittleFS.totalBytes() - LittleFS.usedBytes()),

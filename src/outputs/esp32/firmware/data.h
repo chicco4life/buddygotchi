@@ -3,6 +3,7 @@
 #include <ArduinoJson.h>
 #include "ble_bridge.h"
 #include "xfer.h"
+#include "ota.h"
 
 struct TamaState {
   char     pet[12];           // "sleep","idle","busy","attention","celebrate"
@@ -94,6 +95,7 @@ static void __attribute__((noinline)) _parsePrompt(JsonDocument& doc, TamaState*
 static void _applyJson(const char* line, TamaState* out) {
   JsonDocument doc;
   if (deserializeJson(doc, line)) return;
+  if (otaCommand(doc)) { _lastLiveMs = millis(); return; }
   if (xferCommand(doc)) { _lastLiveMs = millis(); return; }
 
   // Bridge sends {"time":[epoch_sec, tz_offset_sec]}; gmtime_r on the

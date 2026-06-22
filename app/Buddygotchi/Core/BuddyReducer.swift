@@ -96,7 +96,11 @@ private func handleActivitySignal(_ state: InternalState, at: Double, sessionId:
         if s.sessions[sessionId]?.state == .needsConfirmation {
             s.sessions[sessionId]?.prompt = nil
         }
-        if s.sessions[sessionId]?.state != .working {
+        // Preserve workStartedAt when transitioning from .thinking → .working
+        // (the work paused, didn't restart). Only stamp a new start time when
+        // entering .working from a truly inactive state (.idle/.errored/etc).
+        let priorState = s.sessions[sessionId]?.state
+        if priorState != .working && priorState != .thinking {
             s.sessions[sessionId]?.workStartedAt = at
         }
         s.sessions[sessionId]?.state = .working
@@ -179,14 +183,16 @@ private func handleStaleTick(_ state: InternalState, now: Double) -> InternalSta
     }
 
     // Stall detection: a session in .working that hasn't bumped lastWorkSignalAt
-    // for workStallTimeoutMs is treated as wedged. Run BEFORE the stale-session
-    // prune so a wedged session reports error before being reaped.
+    // for workStallTimeoutMs is presumed "thinking hard" — not an error. Real
+    // errors only come from explicit .error signals (e.g. Claude Code StopFailure).
+    // Run BEFORE the stale-session prune so a quiet session reports thinking
+    // before being reaped.
     for (id, session) in s.sessions where session.state == .working {
         if let lastSignal = session.lastWorkSignalAt,
            now - lastSignal > s.workStallTimeoutMs,
            let started = session.workStartedAt,
            now - started > s.workStallTimeoutMs {
-            s.sessions[id]?.state = .errored
+            s.sessions[id]?.state = .thinking
             changed = true
         }
     }
@@ -246,10 +252,11 @@ private func aggregate(_ state: InternalState) -> BuddyState {
     let waiting = allSessions.filter { $0.state == .needsConfirmation }
     let working = allSessions.filter { $0.state == .working }
     let errored = allSessions.filter { $0.state == .errored }
+    let thinking = allSessions.filter { $0.state == .thinking }
 
     buddy.sessions = SessionCounts(
         total: allSessions.count,
-        running: working.count + waiting.count,
+        running: working.count + waiting.count + thinking.count,
         waiting: waiting.count
     )
 
@@ -300,10 +307,26 @@ private func aggregate(_ state: InternalState) -> BuddyState {
         )
     }
 
+    // Project the oldest thinking session — same shape, but for the calm
+    // "agent is thinking hard" surface (no Dismiss, no sound).
+    let firstThinkingSession = thinking.min(by: { ($0.workStartedAt ?? .infinity) < ($1.workStartedAt ?? .infinity) })
+    buddy.firstThinking = firstThinkingSession.flatMap { sess in
+        guard let id = state.sessions.first(where: { $0.value == sess })?.key else { return nil }
+        return ThinkingSession(
+            id: id,
+            source: sess.source,
+            sessionLabel: sess.cwd.flatMap { ($0 as NSString).lastPathComponent },
+            tool: sess.currentTool,
+            hint: sess.currentHint,
+            workStartedAt: sess.workStartedAt,
+            lastWorkSignalAt: sess.lastWorkSignalAt
+        )
+    }
+
     // The review surface clears as soon as a new prompt arrives (live state takes
     // visual primacy) or work resumes (the user reset the loop). It survives the
     // 4-second celebrate window into idle so the user can see what finished.
-    if !waiting.isEmpty || !working.isEmpty {
+    if !waiting.isEmpty || !working.isEmpty || !thinking.isEmpty {
         buddy.lastCompleted = nil
     }
 
@@ -328,13 +351,13 @@ private func aggregate(_ state: InternalState) -> BuddyState {
         buddy.lastSignal = "attention"
     } else if !errored.isEmpty {
         // Error sits between attention and busy. A live approval still wins (already
-        // handled above), but a stalled/failed session takes priority over busy peers.
+        // handled above), but a failed session takes priority over busy peers.
         buddy.pet = Pet(state: .error, species: buddy.pet.species)
         let oldest = errored.min(by: { ($0.workStartedAt ?? .infinity) < ($1.workStartedAt ?? .infinity) })
         if let tool = oldest?.currentTool, !tool.isEmpty {
-            buddy.msg = "Stalled: \(tool)"
+            buddy.msg = "Error: \(tool)"
         } else {
-            buddy.msg = "Stalled"
+            buddy.msg = "Error"
         }
         buddy.lastSignal = "error"
     } else if !working.isEmpty {
@@ -349,6 +372,18 @@ private func aggregate(_ state: InternalState) -> BuddyState {
         }
         buddy.currentActivityKind = primary?.currentActivityKind
         buddy.lastSignal = "busy"
+    } else if !thinking.isEmpty {
+        // Calm "the agent is thinking hard" state — silent past the work-stall
+        // threshold but presumed alive (e.g. an extended-thinking turn or a
+        // long-running model reply). No alert, no Dismiss.
+        buddy.pet = Pet(state: .thinking, species: buddy.pet.species)
+        let oldest = thinking.min(by: { ($0.workStartedAt ?? .infinity) < ($1.workStartedAt ?? .infinity) })
+        if let tool = oldest?.currentTool, !tool.isEmpty {
+            buddy.msg = "Thinking: \(tool)"
+        } else {
+            buddy.msg = "Thinking"
+        }
+        buddy.lastSignal = "thinking"
     } else if let until = buddy.celebrateUntil, buddy.updatedAt < until {
         buddy.pet = Pet(state: .celebrate, species: buddy.pet.species)
         // Show the just-completed task on the device's msg line during celebrate.

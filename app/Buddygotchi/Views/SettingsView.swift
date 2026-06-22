@@ -15,6 +15,7 @@ struct SettingsView: View {
 
     @State private var scanner = BLEScanner()
     @State private var selectedDeviceUUID: UUID?
+    @State private var showingFirmwareUpdate = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -58,9 +59,20 @@ struct SettingsView: View {
             for agent in AgentKind.allCases {
                 agentInstalled[agent] = HookInstaller.shared.isInstalled(agent: agent)
             }
+            // If an update is mid-flight (popover was closed mid-upload), bring
+            // the sheet back so the user can watch progress.
+            if esp32Output.firmwareUpdater.state.isMidFlight {
+                showingFirmwareUpdate = true
+            }
         }
         .onDisappear {
             scanner.stop()
+        }
+        .sheet(isPresented: $showingFirmwareUpdate) {
+            FirmwareUpdateView(
+                updater: esp32Output.firmwareUpdater,
+                isPresented: $showingFirmwareUpdate
+            )
         }
     }
 
@@ -270,6 +282,11 @@ struct SettingsView: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
+
+                    if esp32Output.connectionState == .connected {
+                        Divider().padding(.horizontal, 12)
+                        firmwareRow
+                    }
                 } else {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
@@ -314,6 +331,83 @@ struct SettingsView: View {
                     .accessibilityLabel("Connect to \(device.name)")
                 }
             }
+        }
+    }
+
+    // MARK: - Firmware row
+
+    private var firmwareRow: some View {
+        Button {
+            showingFirmwareUpdate = true
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Firmware").font(.system(.callout, design: .rounded))
+                    Text(esp32Output.firmwareUpdater.deviceVersion ?? "Unknown")
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                firmwareTrailingLabel
+                Image(systemName: "chevron.right")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(BuddyPlainButtonStyle())
+        .accessibilityLabel(firmwareAccessibilityLabel)
+    }
+
+    @ViewBuilder
+    private var firmwareTrailingLabel: some View {
+        switch esp32Output.firmwareUpdater.state {
+        case .available(let release, _):
+            HStack(spacing: 4) {
+                Circle().fill(BuddyTheme.accent).frame(width: 6, height: 6)
+                Text("Update · \(release.version)")
+                    .font(.system(.caption2, design: .rounded, weight: .medium))
+                    .foregroundStyle(BuddyTheme.accent)
+            }
+        case .upToDate:
+            Text("Up to date")
+                .font(.system(.caption2, design: .rounded))
+                .foregroundStyle(.secondary)
+        case .downloading(let p), .uploading(let p, _):
+            Text("\(Int(p * 100))%")
+                .font(.system(.caption2, design: .monospaced))
+                .foregroundStyle(BuddyTheme.accent)
+        case .verifying, .rebooting:
+            Text("Updating…")
+                .font(.system(.caption2, design: .rounded))
+                .foregroundStyle(BuddyTheme.accent)
+        case .success:
+            Text("Updated")
+                .font(.system(.caption2, design: .rounded))
+                .foregroundStyle(BuddyTheme.celebrateGreen)
+        case .failed:
+            Text("Failed")
+                .font(.system(.caption2, design: .rounded))
+                .foregroundStyle(BuddyTheme.destructive)
+        case .checking, .idle:
+            Text("Checking…")
+                .font(.system(.caption2, design: .rounded))
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private var firmwareAccessibilityLabel: String {
+        let v = esp32Output.firmwareUpdater.deviceVersion ?? "unknown"
+        switch esp32Output.firmwareUpdater.state {
+        case .available(let r, _): return "Firmware \(v), update available to \(r.version)"
+        case .upToDate:            return "Firmware \(v), up to date"
+        case .downloading, .uploading, .verifying, .rebooting:
+                                   return "Firmware update in progress"
+        case .success:             return "Firmware updated"
+        case .failed:              return "Firmware update failed"
+        case .checking, .idle:     return "Checking for firmware updates"
         }
     }
 

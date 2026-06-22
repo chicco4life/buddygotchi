@@ -52,6 +52,10 @@ struct PopoverView: View {
                 Spacer().frame(height: 8)
                 CurrentActivityRow(msg: engine.state.msg, kind: engine.state.currentActivityKind ?? .work)
                     .transition(.opacity)
+            } else if engine.state.pet.state == .thinking, let thinking = engine.state.firstThinking {
+                Spacer().frame(height: 8)
+                ThinkingRow(thinking: thinking, now: engine.state.updatedAt)
+                    .transition(.opacity)
             }
 
             if let prompt = engine.state.prompt {
@@ -210,6 +214,7 @@ struct PopoverView: View {
         case .busy: BuddyTheme.accent
         case .celebrate: BuddyTheme.celebrateGreen
         case .error: BuddyTheme.destructive
+        case .thinking: BuddyTheme.accent
         default: .secondary
         }
     }
@@ -521,7 +526,54 @@ struct ErrorCardView: View {
 
     private var headlineLabel: String {
         let agentName = AgentKind(rawValue: source)?.displayName ?? source
-        return "Stalled · \(agentName)"
+        return "Error · \(agentName)"
+    }
+}
+
+// MARK: - Thinking Row
+
+/// Calm "agent is thinking hard" surface. Shown when a working session has gone
+/// silent past the work-stall threshold (≥ 5 min default) but isn't errored.
+/// No Dismiss — the user doesn't need to act; the agent is presumed alive.
+struct ThinkingRow: View {
+    let thinking: ThinkingSession
+    let now: Double
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "brain")
+                .font(.system(.caption2))
+                .foregroundStyle(BuddyTheme.accent)
+                .accessibilityHidden(true)
+            Text("Thinking")
+                .font(.system(.caption, design: .rounded, weight: .medium))
+                .foregroundStyle(.secondary)
+            if let tool = thinking.tool, !tool.isEmpty {
+                Text("·")
+                    .foregroundStyle(.tertiary)
+                Text(tool)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            if let elapsed = elapsed {
+                Text(elapsed)
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Thinking · \(AgentKind(rawValue: thinking.source)?.displayName ?? thinking.source)\(thinking.tool.map { ", \($0)" } ?? "")")
+    }
+
+    private var elapsed: String? {
+        guard let start = thinking.workStartedAt else { return nil }
+        let secs = Int((now - start) / 1000)
+        if secs < 60 { return "\(secs)s" }
+        return "\(secs / 60)m \(secs % 60)s"
     }
 }
 
@@ -574,7 +626,8 @@ struct SessionListView: View {
         case .working: return "busy"
         case .idle: return "idle"
         case .needsConfirmation: return "waiting"
-        case .errored: return "stalled"
+        case .errored: return "error"
+        case .thinking: return "thinking"
         }
     }
 
@@ -584,6 +637,7 @@ struct SessionListView: View {
         case .idle: return Color.secondary.opacity(0.5)
         case .needsConfirmation: return BuddyTheme.attentionAmber
         case .errored: return BuddyTheme.destructive
+        case .thinking: return BuddyTheme.accent.opacity(0.6)
         }
     }
 }

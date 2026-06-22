@@ -13,10 +13,12 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
     private weak var engine: BuddyEngine?
 
     private(set) var connectionState: BLEConnectionState = .disconnected
+    let firmwareUpdater = FirmwareUpdater()
 
     func start(engine: BuddyEngine) async {
         self.engine = engine
         bleManager.delegate = self
+        firmwareUpdater.attach(bleManager: bleManager)
         connectToSavedDevice()
         keepaliveTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.sendNow() }
@@ -71,11 +73,35 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
 
     func bleManager(_ manager: BLEManager, connectionStateChanged state: BLEConnectionState) {
         connectionState = state
-        if state == .connected { sendNow() }
+        if state == .connected {
+            sendNow()
+            Task { await refreshDeviceFirmware() }
+        }
     }
 
     func bleManager(_ manager: BLEManager, didReceiveApproval requestId: String, decision: String) {
         let mapped: ApprovalDecision = (decision == "allow") ? .allow : .deny
         engine?.resolveApproval(requestId: requestId, decision: mapped)
+    }
+
+    // Round-trips a {"cmd":"status"} request and reads firmware/build out of
+    // the response so the updater can compare it against the latest manifest.
+    // Failures here are silent — without a version we just don't surface a
+    // badge. The next reconnect retries.
+    private func refreshDeviceFirmware() async {
+        let frame = "{\"cmd\":\"status\"}\n".data(using: .utf8) ?? Data()
+        do {
+            let reply = try await bleManager.sendAwaitingAck(frame, ackKey: "status", timeout: 3)
+            let data = reply["data"] as? [String: Any]
+            let version = data?["firmware"] as? String
+            firmwareUpdater.recordDeviceVersion(version)
+            firmwareUpdater.checkForUpdates()
+        } catch {
+            // Swallow — old firmware doesn't include the `firmware` field, and
+            // we don't want to spam the UI on a transient timeout.
+            #if DEBUG
+            print("[ESP32Output] firmware status query failed: \(error)")
+            #endif
+        }
     }
 }
