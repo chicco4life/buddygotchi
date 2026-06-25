@@ -71,7 +71,7 @@ final class DiagnosticLog {
 
         let formatter = ISO8601DateFormatter()
         bundle["exportedAt"] = formatter.string(from: Date.now)
-        bundle["appVersion"] = "v0.3.0"
+        bundle["appVersion"] = AppVersion.display
         bundle["macOSVersion"] = ProcessInfo.processInfo.operatingSystemVersionString
         bundle["uptimeMs"] = ProcessInfo.processInfo.systemUptime * 1000
 

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct SettingsView: View {
@@ -327,13 +328,31 @@ struct SettingsView: View {
                 HStack {
                     Text("Version").font(.system(.callout, design: .rounded))
                     Spacer()
-                    Text("v0.3.0")
+                    Text(AppVersion.display)
                         .font(.system(.callout, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
                 .accessibilityElement(children: .combine)
+
+                Divider().padding(.horizontal, 12)
+
+                Button {
+                    (NSApplication.shared.delegate as? AppDelegate)?.checkForUpdates()
+                } label: {
+                    HStack {
+                        Text("Check for Updates")
+                            .font(.system(.callout, design: .rounded))
+                        Spacer()
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(BuddyPlainButtonStyle())
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .accessibilityLabel("Check for updates")
             }
             .buddyGroupedCard()
 

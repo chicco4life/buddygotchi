@@ -69,6 +69,10 @@ defaults delete Buddygotchi setupCompleted
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the full technical design.
 
+## Releasing the Mac App
+
+Buddygotchi is distributed outside the Mac App Store as a signed and notarized DMG with Sparkle updates. See [docs/release.md](docs/release.md) for the release process and required GitHub Actions secrets.
+
 ## License
 
 See [`src/outputs/esp32/LICENSE`](src/outputs/esp32/LICENSE).

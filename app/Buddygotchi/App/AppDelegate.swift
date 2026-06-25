@@ -3,6 +3,10 @@ import Hummingbird
 import ServiceLifecycle
 import SwiftUI
 
+#if canImport(Sparkle)
+import Sparkle
+#endif
+
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
@@ -20,12 +24,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var autoDismissTimer: Timer?
     private let celebrateSound = NSSound(named: "Funk")
     private let attentionSound = NSSound(named: "Glass")
+#if canImport(Sparkle)
+    private var updaterController: SPUStandardUpdaterController?
+#endif
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         NSApp.windows.forEach { $0.close() }
 
         setupSignalHandlers()
+        configureUpdater()
+        HookInstaller.shared.syncBundledHelpers()
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
@@ -139,6 +148,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard symbolName != lastIconSymbol else { return }
         lastIconSymbol = symbolName
         statusItem.button?.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Buddygotchi")
+    }
+
+    func checkForUpdates() {
+#if canImport(Sparkle)
+        if let updaterController {
+            updaterController.checkForUpdates(nil)
+        } else {
+            NSSound.beep()
+        }
+#else
+        NSSound.beep()
+#endif
+    }
+
+    private func configureUpdater() {
+#if canImport(Sparkle)
+        guard Self.sparkleIsConfigured else { return }
+        updaterController = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: nil,
+            userDriverDelegate: nil
+        )
+#endif
+    }
+
+    private static var sparkleIsConfigured: Bool {
+        guard let feedURL = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String,
+              !feedURL.isEmpty,
+              let publicKey = Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") as? String,
+              !publicKey.isEmpty,
+              !publicKey.contains("REPLACE_WITH") else {
+            return false
+        }
+        return true
     }
 
     private func checkNotifications(_ state: BuddyState) {

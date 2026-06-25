@@ -31,7 +31,18 @@ final class HookInstaller {
     static let shared = HookInstaller()
 
     private static let stateDir = BuddyConfig.default.stateDir
+    private static let helperBinDir = "\(BuddyConfig.default.stateDir)/bin"
     private static let hookScriptName = "buddygotchi-hook.sh"
+
+    // MARK: - Packaged helper tools
+
+    @discardableResult
+    func syncBundledHelpers() -> Bool {
+        let helpers = ["BuddygotchiHook", "BuddygotchiSignal"]
+        return helpers.reduce(true) { ok, helper in
+            syncBundledHelper(named: helper) && ok
+        }
+    }
 
     // MARK: - Claude Code (command hooks — silent when daemon is not running)
 
@@ -421,10 +432,55 @@ final class HookInstaller {
     }
 
     private func signalCLIPath() -> String {
-        Bundle.main.executableURL?
-            .deletingLastPathComponent()
-            .appendingPathComponent("BuddygotchiSignal").path
-            ?? "buddygotchi-signal"
+        let stablePath = stableHelperPath("BuddygotchiSignal")
+        if syncBundledHelper(named: "BuddygotchiSignal") || FileManager.default.isExecutableFile(atPath: stablePath) {
+            return stablePath
+        }
+        return bundledHelperURL(named: "BuddygotchiSignal")?.path ?? "buddygotchi-signal"
+    }
+
+    private func stableHelperPath(_ name: String) -> String {
+        "\(Self.helperBinDir)/\(name)"
+    }
+
+    private func syncBundledHelper(named name: String) -> Bool {
+        let fm = FileManager.default
+        let destPath = stableHelperPath(name)
+        let destURL = URL(fileURLWithPath: destPath)
+
+        try? fm.createDirectory(atPath: Self.helperBinDir, withIntermediateDirectories: true)
+
+        guard let sourceURL = bundledHelperURL(named: name) else {
+            return fm.isExecutableFile(atPath: destPath)
+        }
+
+        guard sourceURL.path != destPath else { return true }
+
+        do {
+            if fm.fileExists(atPath: destPath) {
+                try fm.removeItem(atPath: destPath)
+            }
+            try fm.copyItem(at: sourceURL, to: destURL)
+            try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: destPath)
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func bundledHelperURL(named name: String) -> URL? {
+        let fm = FileManager.default
+        var candidates: [URL] = []
+
+        if Bundle.main.bundleURL.pathExtension == "app" {
+            candidates.append(Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/\(name)"))
+        }
+
+        if let executableURL = Bundle.main.executableURL {
+            candidates.append(executableURL.deletingLastPathComponent().appendingPathComponent(name))
+        }
+
+        return candidates.first { fm.isExecutableFile(atPath: $0.path) }
     }
 
     private func removeLegacyHooks(from hooks: [String: Any]) -> [String: Any] {
