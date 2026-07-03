@@ -6,7 +6,6 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .executable(name: "Buddygotchi", targets: ["Buddygotchi"]),
-        .executable(name: "BuddygotchiHook", targets: ["BuddygotchiHook"]),
         .executable(name: "BuddygotchiSignal", targets: ["BuddygotchiSignal"]),
     ],
     dependencies: [
@@ -28,10 +27,6 @@ let package = Package(
                               "-Xlinker", "__info_plist",
                               "-Xlinker", "Buddygotchi/Resources/Info.plist"]),
             ]
-        ),
-        .executableTarget(
-            name: "BuddygotchiHook",
-            path: "BuddygotchiHook"
         ),
         .executableTarget(
             name: "BuddygotchiSignal",
