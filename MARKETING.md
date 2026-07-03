@@ -210,3 +210,130 @@ The confirmation page is a marketing asset, not a receipt:
 | Weak everywhere, including organic engagement on the wobble video | Demand hypothesis in trouble | Do 10 customer interviews before touching the product; the issue is likelier framing than blob |
 
 One more honest note: with 100 units and a ~$54 batch-one contribution margin, the *entire batch* yields ~$5,400 — the test budget is a large fraction of that. You are not running this test to make batch one profitable; you are buying pricing data, channel data, and a waitlist for batch two. That's the correct way to account for it.
+
+---
+
+## Part 4: Channel Playbook — How Each One Actually Works
+
+For each channel: the mechanics in brief, the core intuition an experienced operator carries, and the tricks that separate people who make a channel work from people who burn money in it. Ranking and getting-started steps follow in §4.10–4.11.
+
+### 4.1 Hacker News (Show HN)
+
+**How it works.** No ads exist. You submit a "Show HN:" post; early upvotes (first ~hour) determine whether it reaches the front page; front page for a day ≈ 15–50k visits from the highest-density developer audience on the internet, plus downstream pickup (newsletters and journalists mine HN for stories).
+
+**Core intuition.** HN is an engineering culture that *rewards being taught something and punishes being marketed to* — often for the same product. The unit of value is not your product; it's the story of how you built it and what you learned. "I turned my agents' permission prompts into a creature you pet — here's the wobble physics and why I refused to design a custom PCB" can hit #1. "Meet Buddygotchi, the delightful desk companion!" gets flagged.
+
+**Operator tips.**
+- Post Tuesday–Thursday, 8–10am ET. Title format: `Show HN: I built a desk creature that approves my AI agents when I pet it` — first person, concrete, no adjectives.
+- The link should be the landing page, but drop a first comment *immediately* with the technical meat: the roly-poly center-of-mass math, the buy-not-build PCB decision, the hook-adapter architecture, honest BOM numbers. HN loves honest unit economics more than any other audience on earth.
+- Never ask anyone to upvote, and never share the direct comment link for votes — HN's voting-ring detection will bury you. Share only "we're on HN today."
+- Sit in the thread for 6 hours and answer everything, fast, dry, and technically. The founder-in-the-comments effect is half the conversion.
+- Expect and pre-accept the two guaranteed comments: "I could build this with an ESP32 in a weekend" (answer: "yes — here's our firmware, have fun" + link) and price complaints (answer with the BOM honesty). Defensiveness kills threads; openness gets upvoted.
+- If it flops on timing, email the mods — there's a second-chance pool that re-surfaces good posts.
+- **Strategic rule from §3.4 stands: you get one great Show HN. Spend it on the real launch with buyable inventory, not the waitlist.**
+
+### 4.2 Reddit (organic + ads)
+
+**How it works.** Two distinct channels. *Organic:* post in niche subreddits, live or die by each sub's self-promotion norms and early votes. *Ads:* an auction platform with the cheapest CPMs in social ($3–8) and the unique ability to target by specific subreddit — you can literally buy the attention of r/ClaudeAI readers.
+
+**Core intuition.** Redditors have the best ad-blindness and BS-detection of any audience, but they *adopt* makers who show up as humans. The winning posture is not "brand advertising on Reddit" — it's "a person who made a thing, showing the thing, answering questions in the comments." This applies to the paid ads too: the best-performing Reddit ads are indistinguishable from organic posts (casual phone-shot video, lowercase title, maker voice).
+
+**Operator tips.**
+- Organic first. Target subs in order of intent: r/ClaudeAI, r/cursor, r/ChatGPTCoding (they *have* the problem), then r/battlestations, r/desksetup, r/mechanicalkeyboards (they buy desk objects), then r/Tamagotchi, r/somethingimade (they love the fiction).
+- Respect the 9:1 rule (be a participant, not a billboard): comment genuinely in these subs for 1–2 weeks first; a zero-history account posting a product gets removed and worse, distrusted.
+- Post format that works: the wobble video + title like *"I got tired of missing my AI agents' permission prompts, so I built a little guy you pet to approve them."* Then live in the comments all day.
+- r/battlestations hack: don't post the product — post a genuinely great desk setup *that happens to contain the blob glowing amber*, and let the comments ask "what's that little glowing thing?" Pull demand; never push.
+- For paid: run the same creative as the organic winner, comments ON (turning them off signals fear), and reply to every comment on your own ad — an ad with a founder in the comments converts like a post.
+- Timing: weekday mornings US. One sub per day max — cross-posting everywhere simultaneously reads as a spray-and-pray campaign and subs talk to each other.
+
+### 4.3 X / Twitter (build-in-public + promoted posts)
+
+**How it works.** Organic reach is driven by native media (video uploaded directly, never links in the first tweet — links are algorithmically depressed), reply activity, and quote-tweets from larger accounts. Paid = promoting tweets to follower-lookalikes and interest targets.
+
+**Core intuition.** This is where your exact buyer already spends all day, and the culture *loves* watching things get built. Build-in-public is not content marketing — it's serialized entertainment where the product launch is the season finale. Every wobble-tuning failure, shell iteration, and BOM spreadsheet is an episode. By launch day you're not introducing a product; you're delivering a payoff to an audience that feels ownership.
+
+**Operator tips.**
+- Post the journey 2–3×/week: prototype fails are better content than successes (the blob face-planting during wobble tuning will outperform the polished demo).
+- Video native, vertical or square, captions burned in, first frame legible without sound.
+- The link goes in a reply, never the main tweet.
+- Borrow distribution: reply usefully (not promotionally) in threads from Anthropic/Cursor/dev-tool accounts and big agentic-coding posters; a single QT from a 100k-follower dev account beats a month of ads.
+- Only promote (pay to boost) tweets that already won organically — the ad auction rewards engagement, so boosting a proven tweet costs a fraction per view of boosting a dud.
+- DM-based creator seeding starts here too: the desk-setup and dev-tools posters you'd seed units to (§11.5) are reachable in DMs after they've seen two of your build posts.
+
+### 4.4 Instagram / Meta ads (includes Facebook)
+
+**How it works.** Meta's Advantage+ auction optimizes delivery against a conversion event your pixel fires (email signup = "Lead"). You feed it multiple creatives; it rapidly reallocates budget to whatever converts. CPMs $8–20 for this kind of targeting.
+
+**Core intuition.** On modern Meta, **the creative is the targeting.** Interest-stacking and narrow audiences are mostly obsolete — the algorithm reads who engages with your video in the first thousand impressions and finds more of them, better than your manual settings can. Your job is not media buying; it's shipping many small variations of genuinely thumb-stopping video and letting the machine kill the losers.
+
+**Operator tips.**
+- Reels placement, 9:16, 6–15 s, hook inside the first second (start on the boop, not on a logo).
+- Launch 4–6 creative variants (wobble, sleep-peek, amber→pet moment, unboxing) under broad targeting; kill nothing manually for 3–4 days; then feed winners.
+- Install the pixel + Conversions API on the landing page before spending a dollar; optimizing to link clicks instead of Leads is the classic beginner's money fire.
+- This is the only channel that reaches the **gift buyer** (partners/family of developers). Run a separate ad set with gift framing (*"for the person whose other coworker is an AI"*) — and note it in the calendar: this channel's real moment is November.
+- Retargeting (people who watched 75% of a video or visited the LP) is the cheapest conversion you'll ever buy — set it up even at tiny budget.
+
+### 4.5 Google Ads (Search / AdWords)
+
+**How it works.** Keyword auction; you pay per click on searches you bid for. Magnificent at *harvesting* existing intent; helpless at *creating* it.
+
+**Core intuition.** Nobody searches for a category that doesn't exist. There is no search volume for "AI agent desk pet," and adjacent dev keywords ("claude code," "cursor ide") carry expensive CPCs and wrong intent (people looking for the tools, not gifts for themselves). **Search is a later-stage channel for this product** — it turns on when the category exists in people's heads, which is what the other channels create.
+
+**Operator tips.**
+- Do now (cheap, defensive): brand campaign on "buddygotchi" and close misspellings — pennies per click, protects you once press/creators mention the name.
+- Do in Q4: gift long-tail ("gifts for programmers," "gift for software engineer who has everything") — real volume, moderate CPCs ($1–3), and your Instagram gift creative doubles as the landing story.
+- Don't: Performance Max at small budget (it's a black box that eats <$3k/mo budgets), broad dev keywords, or anything before the pixel has conversion history.
+
+### 4.6 Developer newsletters
+
+**How it works.** Fixed-price sponsorship slots (TLDR, Bytes, Console, Changelog News, Pointer): $500–2,000 depending on list and tier. You supply copy; they send it to 50k–500k developers in a high-trust context.
+
+**Core intuition.** You're renting *trust*, not reach — a newsletter reader in scan-mode grants sponsors roughly one sentence of attention, in the editorial voice they came for. The winning placements read like the curator found something neat, not like an ad insert.
+
+**Operator tips.** Write the copy in the newsletter's own voice (read five back issues first); one line + one link, e.g. *"Buddygotchi — a little desk creature that glows when your AI agent needs you, and approves tool calls when you pet it. First batch of 100."* Ask for the cheaper classified/one-liner tier first — it often converts nearly as well as the featured slot at a third of the price. Ask every newsletter for performance data from past dev-hardware sponsors before booking; the honest ones have it.
+
+### 4.7 Creator seeding (YouTube desk tours, dev streamers)
+
+**How it works.** Send a free unit, no payment, no script, no obligation. If the creator likes it, the blob appears on their desk — in a dedicated segment if you're lucky, in the background of everything if you're luckier.
+
+**Core intuition.** For a physical, cute, glowing object, *presence is the ad*. A blob quietly wobbling in the corner of a popular desk-tour or coding stream carries more purchase intent than any paid impression, because it's an implicit endorsement inside the exact aspirational context ("I want my desk to feel like that"). Background presence compounds; sponsored segments don't.
+
+**Operator tips.** Target mid-tier creators (10k–100k subs): they respond to DMs, actually feature things, and their audiences trust them more per viewer than mega-creators'. Seed 5–10 units from your 15-spare buffer with the adoption box experience intact (the unboxing IS the segment). Include a personal note and a per-creator link/code so you can attribute. Never ask for coverage — ask if they'd like one. The ask-free gift converts to coverage more often than the pitch.
+
+### 4.8 Product Hunt
+
+**How it works.** Launch-day leaderboard; top-5 for a day brings 3–10k visits, a badge, and some newsletter pickup.
+
+**Core intuition.** PH's audience is founders and marketers more than developers — softer purchase intent for this product than HN or Reddit, but the launch assets (badge, "Product of the Day") have durable social-proof value for the landing page and B2B-ish conversations. It's a nice-to-have amplifier, not a primary channel.
+
+**Operator tips.** Launch the same week as Show HN (separate days), recruit a hunter with followers or self-hunt with a strong gallery (the wobble GIF as the first gallery asset), and be present in comments. Effort cap: one day.
+
+### 4.9 TikTok (noted, deferred)
+
+Right energy (the wobble is native TikTok content), wrong purchase authority for $119 developer hardware bought at a desk. The organic clips you make for Reels should be cross-posted here for free (search/discovery value), but paid TikTok waits until the gift angle is proven on Meta.
+
+### 4.10 Ranking for our current situation
+
+Current situation: landing page in progress, prototypes not yet in hand, zero audience, smoke test upcoming, one shot at HN/PH launches, 100 units eventually.
+
+| Rank | Channel | Why now / why not yet |
+|---|---|---|
+| 1 | **X build-in-public** | Free, starts compounding today, needs nothing but the prototype photos you already have; becomes the distribution for everything below and the testing lab for creative |
+| 2 | **Reddit organic** | Free, highest-intent communities, doubles as demand validation before you spend a dollar; needs 1–2 weeks of account participation first — start that clock now |
+| 3 | **Reddit ads** | First paid dollars of the §3 smoke test: cheapest CPMs, subreddit targeting, native creative already proven by #2 |
+| 4 | **X promoted posts** | Second smoke-test cell: boost whichever build-in-public post already won organically |
+| 5 | **Newsletter sponsorship** | Third smoke-test cell if budget allows: fixed cost, clean copy test, alibi-receptive audience |
+| 6 | **Meta/Instagram** | Worth a small cell for the gift-buyer signal, but its real moment is Q4 and retargeting once traffic exists |
+| 7 | **Creator seeding** | Blocked on having units (needs the real adoption-box experience); queue the DM relationships now via #1 |
+| 8 | **Show HN + Product Hunt** | Highest single-day impact of everything here — which is exactly why they wait for the real launch with buyable inventory |
+| 9 | **Google Ads** | Brand-defensive campaign only (pennies); gift keywords in Q4; category keywords never (yet) |
+
+### 4.11 Explicit first steps (two weeks, in order)
+
+1. **Today:** register the X account. Post #1 is the current prototype state — honest, unpolished, "I'm building a desk creature that approves my AI agents when you pet it. Batch of 100. Building in public from here." Create the Reddit account, join the target subs, and start genuinely commenting (no product mentions).
+2. **Day 1–3:** instrument the landing page while building it: UTM discipline, email-submit event, Meta pixel + Reddit pixel (even before running ads — history helps), scroll-depth tracking, price-cohort query param per §3.3.
+3. **Day 2–5:** film the master creative on the current prototype — one good afternoon: the wobble loop, the sleep-peek, the amber→pet moment. Phone camera + window light is genuinely the right production value for Reddit/X; these cut into every format later.
+4. **Day 3–7:** post the wobble video on X (video native, link in reply). Post build-thread updates every 2–3 days. Watch which clip earns the most saves/shares — that's your smoke-test hero creative, chosen for free.
+5. **Day 7–10:** first Reddit organic post in ONE sub (r/ClaudeAI or r/cursor), maker-voice title, founder in comments all day. Read the comment section as free qualitative research on objections and price anchors.
+6. **Day 10–14:** launch the §3.3 smoke test: Reddit ads + X boosts (+ newsletter slot if budgeted), 2 creatives × 2 price cohorts, $150/cell minimum, kill rules armed. Post-signup page live with referral-position mechanic before the first dollar of spend.
+7. **Throughout:** every creator whose desk-tour or agent-workflow content you admire — follow, reply usefully twice, then note them in a seeding list for the day prototypes become units.

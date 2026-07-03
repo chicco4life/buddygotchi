@@ -1,0 +1,158 @@
+@import "tailwindcss";
+
+/*
+  Design tokens = the physical product's palette (cream shell, warm charcoal,
+  amber attention glow). See SPEC.md §4.1. No pure white, no pure black.
+*/
+@theme {
+  --color-cream: #f7f2e9;
+  --color-cream-deep: #efe7d8;
+  --color-charcoal: #2b2724;
+  --color-charcoal-soft: #6e675d;
+  --color-amber: #e8a33d;
+  --color-amber-deep: #c9862b;
+  --color-green: #7fa96b;
+  --color-night: #1b1714;
+  --color-night-text: #efe7d8;
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+
+  /* Motion: eased, damped, never bouncy. Same physics as the blob's wobble. */
+  --ease-buddy: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+:root {
+  color-scheme: light;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-cream);
+  color: var(--color-charcoal);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Focus ring: 2px amber, always visible, never removed. */
+:focus-visible {
+  outline: 2px solid var(--color-amber);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* Scroll reveal — fade up, no overshoot. Applied by the <Reveal> component. */
+.reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition:
+    opacity 0.7s var(--ease-buddy),
+    transform 0.7s var(--ease-buddy);
+  will-change: opacity, transform;
+}
+.reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* Slow "breathing" glow used on media placeholders and the light-language strip. */
+@keyframes buddy-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.04);
+  }
+}
+.buddy-breathe {
+  animation: buddy-breathe 4s var(--ease-buddy) infinite;
+}
+.buddy-amber {
+  animation: buddy-amber 2.4s var(--ease-buddy) infinite;
+}
+.buddy-heartbeat {
+  animation: buddy-heartbeat 2.6s var(--ease-buddy) infinite;
+}
+
+/* Amber attention pulse for the "needs you" state. */
+@keyframes buddy-amber {
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Red heartbeat for the "stuck" state — low duty cycle, concern not alarm. */
+@keyframes buddy-heartbeat {
+  0%,
+  60%,
+  100% {
+    opacity: 0.25;
+  }
+  15%,
+  30% {
+    opacity: 0.7;
+  }
+}
+
+/* Egg crack-and-peek on the /welcome page. */
+@keyframes egg-peek {
+  0%,
+  70% {
+    transform: translateY(0) rotate(0deg);
+  }
+  80% {
+    transform: translateY(-2px) rotate(-2deg);
+  }
+  90% {
+    transform: translateY(0) rotate(2deg);
+  }
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+}
+
+/* The <dialog> waitlist modal. */
+dialog::backdrop {
+  background: rgb(27 23 20 / 0.45);
+  backdrop-filter: blur(2px);
+}
+dialog[open] {
+  animation: dialog-in 0.4s var(--ease-buddy);
+}
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .buddy-breathe,
+  .buddy-amber,
+  .buddy-heartbeat,
+  dialog[open] {
+    animation: none;
+  }
+}

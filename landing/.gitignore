@@ -1,0 +1,28 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+
+# typescript
+next-env.d.ts
+*.tsbuildinfo
+
+# env
+.env
+.env*.local
+
+# vercel
+.vercel
+
+# playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
