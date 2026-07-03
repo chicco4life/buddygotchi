@@ -1,74 +1,110 @@
 # Buddygotchi
 
-A macOS menu bar companion for AI coding agents. Your buddy reacts to what your agent is doing — sleeping when idle, working when busy, alerting you when a tool call needs approval, and celebrating when a task completes.
+Buddygotchi is a native macOS menu bar companion for AI coding agents. It watches Claude Code, Cursor, and Codex through local hook integrations, turns their activity into an animated buddy state, surfaces approval prompts, and can mirror the same state to an M5StickC Plus 2 over Bluetooth.
 
-Connects to **Claude Code**, **Cursor**, and **Codex** simultaneously. Optionally drives an M5Stack hardware display over Bluetooth.
+The current production path is the Swift app in `app/`. The older Bun/TypeScript daemon under `src/src/` is retained as reference code; the active ESP32 firmware still lives under `src/outputs/esp32/`.
 
-## Getting Started
+## What It Does
 
-### Build & Run
+- Shows sleep, idle, busy, attention, celebrate, error, and thinking states in the macOS menu bar popover.
+- Tracks multiple concurrent agent sessions and shows a compact per-session breakdown.
+- Displays current tool activity, recent activity entries, completion review cards, and error/thinking cards.
+- Supports local approval mode for blocking tool calls, with approve/deny from the popover or the paired M5Stack.
+- Installs hooks for Claude Code, Cursor, and Codex, while failing open to the agent's native behavior when Buddygotchi is not running.
+- Streams heartbeat JSON to ESP32 firmware over Nordic UART BLE and supports firmware update checks/uploads from the app.
+
+## Requirements
+
+- macOS 14 or newer
+- Xcode with Swift 6 and XCTest for tests. Command Line Tools may be enough for `swift build`, but `swift test` needs XCTest available.
+- Optional: PlatformIO for ESP32 firmware work
+- Optional: Bun for the legacy TypeScript daemon/tests
+- Optional: `swift-format` for local lint checks
+
+## Build, Run, And Test
+
+From the repo root:
+
+```sh
+make build
+make test
+make run
+```
+
+Equivalent SwiftPM commands:
 
 ```sh
 cd app
 swift build
+swift test
 swift run Buddygotchi
 ```
 
-On first launch, the setup wizard walks you through:
-
-1. **Detect agents** — finds which coding agents are installed on your machine
-2. **Install hooks** — one click to register Buddygotchi hooks for each agent
-3. **Test connection** — send any message in your agent to verify the link
-4. **Choose your buddy** — pick from 5 ASCII species (cat, axolotl, robot, capybara, dragon)
-5. **Pick an output** — menu bar popover (default) or M5Stack over Bluetooth
-
-After setup, Buddygotchi runs as a menu bar icon. Click it to see your pet, connection status, and any pending tool approval cards.
-
-### Testing
-
-Verify the server is running:
+When the app is running, the local health endpoint is:
 
 ```sh
-curl http://localhost:21321/healthz
+curl http://127.0.0.1:21321/healthz
 ```
 
-Simulate a tool approval request:
-
-```sh
-curl -X POST http://localhost:21321/hook/event \
-  -H 'Content-Type: application/json' \
-  -d '{"session_id":"test","hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{"command":"ls"}}'
-```
-
-Send an activity signal:
-
-```sh
-curl -X POST http://localhost:21321/hook/signal \
-  -H 'Content-Type: application/json' \
-  -d '{"agent_id":"claude-code","signal":"start_working","session_id":"test"}'
-```
-
-### Reset Onboarding
+The first-run wizard walks through agent detection, hook installation, connection testing, buddy selection, and optional M5Stack pairing. To reset onboarding:
 
 ```sh
 defaults delete Buddygotchi setupCompleted
 ```
 
+## Useful Developer Commands
+
+```sh
+make lint              # requires swift-format
+make test-snapshots    # opt-in SwiftUI PNG snapshot harness
+make e2e               # HTTP smoke suite; requires the app already running
+make clean             # remove SwiftPM build output
+```
+
+The e2e smoke runner can also be invoked directly:
+
+```sh
+app/tools/e2e-smoke.sh
+app/tools/e2e/claude.sh
+app/tools/e2e/codex.sh
+app/tools/e2e/cursor.sh
+```
+
 ## Project Layout
 
 | Path | Purpose |
-|------|---------|
-| `app/` | Native macOS menu bar app (Swift/SwiftUI) |
-| `app/Buddygotchi/Core/` | Pure business logic — engine, reducer, state model |
-| `app/Buddygotchi/Server/` | HTTP input (Hummingbird) |
-| `app/Buddygotchi/Views/` | SwiftUI popover, settings, setup wizard |
-| `app/Buddygotchi/Outputs/ESP32/` | BLE hardware output for M5Stack |
-| `app/BuddygotchiHook/` | Hook CLI — agent stdin to HTTP POST |
-| `app/BuddygotchiSignal/` | Signal CLI — lifecycle events to HTTP POST |
-| `src/outputs/esp32/` | ESP32 firmware (C++/PlatformIO) |
+| --- | --- |
+| `app/` | Active macOS Swift app, hook CLIs, tests, and e2e scripts |
+| `app/Buddygotchi/Core/` | Pure reducer, state model, events, engine, config, diagnostics |
+| `app/Buddygotchi/Server/` | Hummingbird HTTP input for hook events, signals, approvals, and health |
+| `app/Buddygotchi/Views/` | SwiftUI popover, settings, setup wizard, activity cards |
+| `app/Buddygotchi/Outputs/ESP32/` | BLE output, heartbeat mapper, OTA update client |
+| `app/BuddygotchiSignal/` | Cursor hook CLI that bridges stdin payloads to HTTP |
+| `src/outputs/esp32/` | ESP32 firmware, PlatformIO config, character tools, device docs |
+| `src/src/` | Legacy Bun/TypeScript daemon and browser UI prototype |
+| `external_sites/` | Captured external hook docs used as implementation references |
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for the full technical design.
+## ESP32 Firmware
+
+```sh
+cd src/outputs/esp32
+pio run
+pio run -t upload
+pio run -t uploadfs
+```
+
+Hardware helper scripts:
+
+```sh
+python3 src/outputs/esp32/tools/screenshot.py --out /tmp/buddy.png
+python3 src/outputs/esp32/tools/button.py --mock a
+python3 src/outputs/esp32/tools/button.py b
+```
+
+## More Detail
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for how the app is pieced together, including hook routing, state aggregation, outputs, mocks, and test strategy. See [AGENTS.md](AGENTS.md) for repo-specific instructions for coding agents.
 
 ## License
 
-See [`src/outputs/esp32/LICENSE`](src/outputs/esp32/LICENSE).
+The ESP32 firmware license is in [src/outputs/esp32/LICENSE](src/outputs/esp32/LICENSE).

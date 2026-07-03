@@ -1,30 +1,30 @@
 # TODOs
 
-## Testing
+Last updated: 2026-07-03
 
-- [ ] Test Cursor `beforeMCPExecution` approval flow — verify tool name and hint show correctly, auto-approve works for safe MCP tools (Read, Glob, Grep)
-- [ ] Test Cursor `sessionStart` / `sessionEnd` — buddy should go sleep → idle → sleep
-- [ ] Test Cursor `beforeSubmitPrompt` → `afterShellExecution` — buddy should go idle → busy → busy (keep working)
-- [ ] Test Cursor `stop` — buddy should go busy → idle
-- [ ] Remove debug logging from `/hook/approve` in HookServer.swift after Cursor testing is complete
+## Production
 
-## Cursor Integration
+- [ ] Package, sign, and notarize the macOS app.
+- [ ] Verify Launch at Login from a packaged `.app`.
+- [ ] Install hook helper binaries into a stable path outside `.build`.
+- [ ] Exercise hook install/uninstall on a clean macOS user profile.
+- [ ] Add release notes and versioning for app builds.
 
-- [ ] HookInstaller uses `signalCLIPath()` which resolves relative to `Bundle.main.executableURL` — verify this resolves correctly for both development (`swift run`) and packaged (.app) builds
-- [ ] Test `beforeMCPExecution` payload shape — we added `toolName` field but haven't confirmed Cursor actually sends it (vs some other field name)
+## Agent Integrations
 
-## Packaging
-
-- [ ] Launch at Login (`SMAppService`) requires a proper .app bundle — currently fails silently during development via `swift run`
-- [ ] Cursor hooks hardcode the binary path — need a stable install location so hooks survive rebuilds
+- [ ] Re-verify Cursor `beforeMCPExecution` payload shape against current Cursor.
+- [ ] Re-verify Cursor `sessionStart` / `sessionEnd` on the packaged helper path.
+- [ ] Re-verify Codex hooks with `[features] codex_hooks = true` on a clean config.
+- [ ] Re-verify Claude Code `PermissionRequest` and `StopFailure` in approval mode.
 
 ## ESP32
 
-- [x] Firmware updater feature — let the app push new firmware to the M5StickC Plus 2 from inside Buddygotchi (no separate `pio run -t upload` step). Decide transport (BLE OTA vs USB serial) and where the firmware binary ships from.
-  - Implemented: BLE OTA via NUS, manifest at `BUDDY_FIRMWARE_MANIFEST_URL` (defaults to GitHub Pages).
-  - First-time bootstrap: existing devices need a one-time USB reflash to pick up the new dual-OTA `partitions.csv`.
-  - Open: host the actual `manifest.json` and bundle a release `.bin`.
+- [ ] Host the firmware `manifest.json` and release `.bin` files.
+- [ ] Run OTA update through BLE against a real device.
+- [ ] Re-run hardware screenshots for attention, busy, review, error, thinking, and multi-session states.
 
-## Onboarding
+## Repo
 
-- [ ] Better intro splash screen and intro view — first-run experience needs a real welcome moment (animated buddy, what Buddygotchi is, what permissions/hooks it'll install) rather than dropping straight into the wizard.
+- [ ] Decide whether to remove or archive the legacy Bun daemon under `src/src/`.
+- [ ] Decide whether to enforce `swift-format` in CI once the toolchain is pinned.
+- [ ] Add a release workflow after signing/notarization decisions are settled.
