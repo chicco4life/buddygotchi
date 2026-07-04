@@ -39,5 +39,21 @@ jobs:
           fi
         working-directory: app
 
+      - name: Generate UI snapshots
+        continue-on-error: true
+        run: |
+          mkdir -p /tmp/buddy-snapshots
+          touch /tmp/buddy-snapshots/.enable
+          swift test --disable-sandbox --filter SnapshotHarnessTests
+        working-directory: app
+
+      - name: Upload UI snapshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-snapshots
+          path: /tmp/buddy-snapshots/*.png
+          if-no-files-found: warn
+          retention-days: 14
+
       - name: Package app bundle
         run: make package
