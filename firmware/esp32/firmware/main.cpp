@@ -1,10 +1,20 @@
 #include <M5StickCPlus2.h>
 #include <LittleFS.h>
 #include <stdarg.h>
+#include <esp_log.h>
+#include <esp_system.h>
 #include "ble_bridge.h"
 #include "data.h"
 SET_LOOP_TASK_STACK_SIZE(16384);
 #include "buddy.h"
+
+#ifndef FW_VERSION
+#define FW_VERSION "dev"
+#endif
+
+#ifndef GIT_SHA
+#define GIT_SHA "unknown"
+#endif
 
 M5Canvas spr(&StickCP2.Display);
 
@@ -32,6 +42,7 @@ const uint16_t PANEL = 0x2104;   // overlay panel background
 
 enum PersonaState { P_SLEEP, P_IDLE, P_BUSY, P_ATTENTION, P_CELEBRATE, P_DIZZY, P_HEART };
 const char* stateNames[] = { "sleep", "idle", "busy", "attention", "celebrate", "dizzy", "heart" };
+const char* personaNames[] = { "P_SLEEP", "P_IDLE", "P_BUSY", "P_ATTENTION", "P_CELEBRATE", "P_DIZZY", "P_HEART" };
 
 TamaState    tama;
 PersonaState baseState   = P_SLEEP;
@@ -108,6 +119,14 @@ static void wake() {
   if (dimmed) { applyBrightness(); dimmed = false; }
 }
 bool     responseSent = false;
+
+struct SyntheticPress {
+  bool active = false;
+  uint32_t releaseAt = 0;
+};
+
+static SyntheticPress synthA;
+static SyntheticPress synthB;
 
 static void beep(uint16_t freq, uint16_t dur) {
   if (settings().sound) StickCP2.Speaker.tone(freq, dur);
@@ -493,6 +512,25 @@ void triggerOneShot(PersonaState s, uint32_t durMs) {
   oneShotUntil = millis() + durMs;
 }
 
+static void updateSyntheticPresses() {
+  uint32_t now = millis();
+  if (synthA.active && (int32_t)(now - synthA.releaseAt) >= 0) {
+    synthA.active = false;
+    Serial.println("<<PRESS a up>>");
+  }
+  if (synthB.active && (int32_t)(now - synthB.releaseAt) >= 0) {
+    synthB.active = false;
+    Serial.println("<<PRESS b up>>");
+  }
+}
+
+static bool readBtn(int pin) {
+  updateSyntheticPresses();
+  if (pin == 37 && synthA.active) return LOW;
+  if (pin == 39 && synthB.active) return LOW;
+  return digitalRead(pin);
+}
+
 // Emit the permission decision for the current prompt. Shared by the
 // physical buttons and the debug "btn" serial command so both produce the
 // exact same wire format and trip the same responseSent latch.
@@ -506,12 +544,12 @@ static void sendApproval(bool approve) {
 
 static void __attribute__((noinline)) handleApprovalButtons() {
   static bool prevA = true, prevB = true;
-  bool a = digitalRead(37);
-  bool b = digitalRead(39);
+  bool a = readBtn(37);
+  bool b = readBtn(39);
   bool approve = (prevA == LOW && a == HIGH);
   bool deny = (prevB == HIGH && b == LOW);
   prevA = a; prevB = b;
-  if (approve || deny) sendApproval(approve);
+  if ((approve || deny) && !responseSent) sendApproval(approve);
 }
 
 bool checkShake() {
@@ -960,6 +998,106 @@ void drawHUD() {
   }
 }
 
+static void restoreLogLevel() {
+#if defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL >= 5
+  esp_log_level_set("*", ESP_LOG_VERBOSE);
+#elif defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL == 4
+  esp_log_level_set("*", ESP_LOG_DEBUG);
+#elif defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL == 3
+  esp_log_level_set("*", ESP_LOG_INFO);
+#elif defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL == 2
+  esp_log_level_set("*", ESP_LOG_WARN);
+#elif defined(CORE_DEBUG_LEVEL) && CORE_DEBUG_LEVEL == 1
+  esp_log_level_set("*", ESP_LOG_ERROR);
+#else
+  esp_log_level_set("*", ESP_LOG_NONE);
+#endif
+}
+
+static uint32_t crc32Update(uint32_t crc, const uint8_t* data, size_t len) {
+  crc = ~crc;
+  for (size_t i = 0; i < len; i++) {
+    crc ^= data[i];
+    for (uint8_t bit = 0; bit < 8; bit++) {
+      crc = (crc >> 1) ^ (0xEDB88320UL & (-(int32_t)(crc & 1)));
+    }
+  }
+  return ~crc;
+}
+
+static const char* currentScreenName() {
+  if (screenOff) return "off";
+  if (blePasskey()) return "passkey";
+  if (otaActive()) return "ota";
+  if (resetOpen) return "reset";
+  if (settingsOpen) return "settings";
+  if (menuOpen) return "menu";
+  if (displayMode == DISP_INFO) return "info";
+  if (displayMode == DISP_PET) return "pet";
+  return "buddy";
+}
+
+static const char* currentDataMode() {
+  if (dataDemo()) return "demo";
+  if (dataConnected()) return "live";
+  return "asleep";
+}
+
+static void dumpPing() {
+  Serial.printf("<<PONG {\"fw\":\"%s\",\"git\":\"%s\",\"up\":%lu,\"heap\":%lu}>>\n",
+                FW_VERSION, GIT_SHA, (unsigned long)millis(), (unsigned long)ESP.getFreeHeap());
+}
+
+static void dumpState() {
+  JsonDocument doc;
+  doc["pet"] = tama.pet;
+  doc["species"] = tama.species;
+  doc["desktop"] = tama.desktop;
+  doc["connected"] = tama.connected;
+  doc["total"] = tama.sessionsTotal;
+  doc["running"] = tama.sessionsRunning;
+  doc["waiting"] = tama.sessionsWaiting;
+  doc["msg"] = tama.msg;
+  doc["promptId"] = tama.promptId;
+  doc["promptTool"] = tama.promptTool;
+  doc["promptHint"] = tama.promptHint;
+  doc["promptSource"] = tama.promptSource;
+  doc["promptApproval"] = tama.promptApproval;
+  doc["responseSent"] = responseSent;
+  doc["persona"] = personaNames[derive(tama)];
+  doc["activePersona"] = personaNames[activeState];
+  doc["screen"] = currentScreenName();
+  doc["rot"] = StickCP2.Display.getRotation();
+  doc["mode"] = currentDataMode();
+  doc["rtcValid"] = dataRtcValid();
+  doc["nLines"] = tama.nLines;
+  doc["btName"] = btName;
+  doc["bleConnected"] = bleConnected();
+  doc["bleSecure"] = bleSecure();
+  doc["lineGen"] = tama.lineGen;
+
+  Serial.print("<<STATE ");
+  serializeJson(doc, Serial);
+  Serial.println(">>");
+}
+
+static void schedulePress(char which, uint32_t ms) {
+  if (ms == 0) ms = 1;
+  if (ms > 5000) ms = 5000;
+  uint32_t releaseAt = millis() + ms;
+  if (which == 'a' || which == 'A') {
+    synthA.active = true;
+    synthA.releaseAt = releaseAt;
+    Serial.println("<<PRESS a down>>");
+  } else if (which == 'b' || which == 'B') {
+    synthB.active = true;
+    synthB.releaseAt = releaseAt;
+    Serial.println("<<PRESS b down>>");
+  } else {
+    Serial.println("<<PRESS err (use a|b)>>");
+  }
+}
+
 // Dump the LCD as base64 RGB565 over USB serial. Reads from panel RAM
 // (not the sprite) so direct-to-LCD draws — landscape clock, GIF frames,
 // boot screen — are captured exactly as the user sees them. Triggered by
@@ -974,11 +1112,14 @@ static void dumpScreenshot() {
   static const char b64[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
+  esp_log_level_set("*", ESP_LOG_NONE);
+
   int rot = StickCP2.Display.getRotation();
   int w   = StickCP2.Display.width();
   int h   = StickCP2.Display.height();
   if (w <= 0 || w > 256 || h <= 0) {
     Serial.println("<<SCR_ERR bad-dims>>");
+    restoreLogLevel();
     return;
   }
 
@@ -986,10 +1127,14 @@ static void dumpScreenshot() {
 
   uint16_t row[256];
   char enc[((256 * 2 + 2) / 3) * 4 + 4];
+  uint32_t crc = 0;
+  uint32_t rawLen = 0;
   for (int y = 0; y < h; y++) {
     StickCP2.Display.readRect(0, y, w, 1, row);
     const uint8_t* in = (const uint8_t*)row;
     int n = w * 2;
+    crc = crc32Update(crc, in, n);
+    rawLen += n;
     int o = 0;
     for (int i = 0; i + 2 < n; i += 3) {
       uint32_t v = ((uint32_t)in[i] << 16) | ((uint32_t)in[i+1] << 8) | (uint32_t)in[i+2];
@@ -1001,18 +1146,35 @@ static void dumpScreenshot() {
     Serial.write((const uint8_t*)enc, o);
   }
   Serial.println();
-  Serial.println("<<SCR_END>>");
+  Serial.printf("<<SCR_END LEN=%lu CRC32=%08lx>>\n", (unsigned long)rawLen, (unsigned long)crc);
+  restoreLogLevel();
 }
 
 void handleSerialCommand(const char* line) {
   if (!line || !*line) return;
-  if (strcmp(line, "screenshot") == 0) { dumpScreenshot(); return; }
+  if (strcmp(line, "ping") == 0) { dumpPing(); return; }
+  if (strcmp(line, "state") == 0) { dumpState(); return; }
+  if (strcmp(line, "reboot") == 0) {
+    Serial.println("<<REBOOT ok>>");
+    Serial.flush();
+    delay(50);
+    esp_restart();
+  }
+  if (strcmp(line, "screenshot") == 0 || strncmp(line, "screenshot ", 11) == 0) {
+    dumpScreenshot();
+    return;
+  }
 
-  // Debug: inject a synthetic button press through the same approval path
-  // as the physical buttons, so host dev tools can exercise A/B without
-  // touching the device. Always reports the outcome over serial so a press
-  // is observable even when nothing is armed. ("btn a" = A/approve,
-  // "btn b" = B/deny.)
+  if (strncmp(line, "press ", 6) == 0) {
+    const char* p = line + 7;
+    while (*p == ' ') p++;
+    uint32_t ms = *p ? (uint32_t)strtoul(p, nullptr, 10) : 150;
+    schedulePress(line[6], ms);
+    return;
+  }
+
+  // Debug: high-level approval shortcut. Use "press a|b [ms]" when a test
+  // needs to exercise the GPIO-level edge detector.
   if (strncmp(line, "btn ", 4) == 0) {
     bool armed = tama.promptId[0] && tama.promptApproval && !responseSent;
     char which = line[4];
@@ -1104,6 +1266,7 @@ void loop() {
   t++;
 
   dataPoll(&tama);
+  updateSyntheticPresses();
 
   {
     static char lastSpecies[16] = "";
@@ -1118,7 +1281,7 @@ void loop() {
   baseState = derive(tama);
   if ((int32_t)(millis() - oneShotUntil) >= 0) activeState = baseState;
 
-  if (tama.promptId[0] && tama.promptApproval && !responseSent) {
+  if (tama.promptId[0] && tama.promptApproval) {
     handleApprovalButtons();
   }
   if (strcmp(tama.promptId, lastPromptId) != 0) {

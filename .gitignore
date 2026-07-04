@@ -1,4 +1,5 @@
 .pio/
+.platformio-core/
 .vscode/
 .DS_Store
 data/
