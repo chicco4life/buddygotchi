@@ -44,4 +44,11 @@ final class AutoApproveTests: XCTestCase {
         XCTAssertNil(shouldAutoApprove(tool: "Shell", hint: "rm -rf /", source: "cursor"))
         XCTAssertNil(shouldAutoApprove(tool: "Shell", hint: "npm install", source: "cursor"))
     }
+
+    func testStableCwdHashDoesNotUseRandomizedStringHash() {
+        XCTAssertEqual(stableHashCwd("/tmp/buddygotchi"), stableHashCwd("/tmp/buddygotchi"))
+        XCTAssertEqual(stableHashCwd(nil), "unknown")
+        XCTAssertEqual(stableHashCwd(""), "unknown")
+        XCTAssertEqual(stableHashCwd("/tmp/buddygotchi").count, 8)
+    }
 }

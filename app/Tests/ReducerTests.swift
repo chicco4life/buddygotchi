@@ -241,6 +241,20 @@ final class ReducerTests: XCTestCase {
         XCTAssertEqual(s.buddy.msg, "", "msg is cleared once no prompt is pending")
     }
 
+    func testApprovalPassthroughClearsPromptAndGoesIdle() {
+        var s = applyEvents(
+            .test(),
+            .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
+            .approvalArrived(at: NOW + 1, sessionId: "s1", requestId: "r1", tool: "Bash", hint: "rm -rf", sessionLabel: nil, source: "claude-code")
+        )
+        XCTAssertEqual(s.buddy.pet.state, .attention)
+
+        s = applyEvents(s, .approvalResolved(at: NOW + 2, sessionId: "s1", requestId: "r1", decision: .passthrough))
+        XCTAssertEqual(s.sessions["s1"]?.state, .idle)
+        XCTAssertNil(s.buddy.prompt)
+        XCTAssertEqual(s.buddy.pet.state, .idle)
+    }
+
     // MARK: - Default species
 
     func testDefaultSpeciesIsAKnownSpecies() {
@@ -248,6 +262,14 @@ final class ReducerTests: XCTestCase {
         // otherwise outputs fall back to an arbitrary/stale species.
         XCTAssertNotNil(allBuddies[Pet.defaultSpecies], "default species '\(Pet.defaultSpecies)' must be a real species")
         XCTAssertTrue(buddyOrder.contains(Pet.defaultSpecies))
+    }
+
+    func testSpeciesChangedUpdatesBuddyState() {
+        let s = applyEvents(.test(), .speciesChanged(at: NOW, species: "duck"))
+        XCTAssertEqual(s.buddy.pet.species, "duck")
+
+        let ignored = applyEvents(s, .speciesChanged(at: NOW + 1, species: ""))
+        XCTAssertEqual(ignored.buddy.pet.species, "duck")
     }
 
     // MARK: - Gap A: Done / needs review
@@ -674,6 +696,16 @@ final class ReducerTests: XCTestCase {
     func testActiveSessionsEmptyWhenNoSessions() {
         let s = InternalState.test()
         XCTAssertTrue(s.buddy.activeSessions.isEmpty)
+    }
+
+    func testIdenticalIdleSessionsKeepDistinctSnapshotIds() {
+        let s = applyEvents(
+            .test(),
+            .sessionStarted(at: NOW, sessionId: "s1", source: "cursor", cwd: "/tmp/project"),
+            .sessionStarted(at: NOW, sessionId: "s2", source: "cursor", cwd: "/tmp/project")
+        )
+        XCTAssertEqual(s.buddy.activeSessions.count, 2)
+        XCTAssertEqual(Set(s.buddy.activeSessions.map(\.id)), Set(["s1", "s2"]))
     }
 
     // MARK: - Gap E: Tests / verify (activity classifier)

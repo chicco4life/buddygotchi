@@ -1,6 +1,7 @@
 import Foundation
 import Hummingbird
 import NIOCore
+import CryptoKit
 
 private struct HookEventBody: Decodable, Sendable {
     var session_id: String?
@@ -74,7 +75,7 @@ func buildHookServer(engine: BuddyEngine, config: BuddyConfig) -> Application<Ro
             ? request.uri.queryParameters["pid"].flatMap({ Int32(String($0)) })
             : nil
         await diagLog.log(category: "hook", source: source, event: body.effectiveEventName ?? "unknown", detail: "\(body.effectiveToolName ?? "") \(extractHint(from: body))".trimmingCharacters(in: .whitespaces), rawPayload: rawJSON)
-        await handleAgentEvent(body: body, source: source, hookPid: hookPid, engine: engine)
+        await handleAgentEvent(body: body, source: source, hookPid: hookPid, approvalMode: config.approvalMode, engine: engine)
         return emptyOK()
     }
 
@@ -147,7 +148,7 @@ func buildHookServer(engine: BuddyEngine, config: BuddyConfig) -> Application<Ro
 
 // MARK: - Agent Event Handler
 
-private func handleAgentEvent(body: HookEventBody, source: String, hookPid: Int32?, engine: BuddyEngine) async {
+private func handleAgentEvent(body: HookEventBody, source: String, hookPid: Int32?, approvalMode: Bool, engine: BuddyEngine) async {
     let sessionId = deriveSessionId(from: body, source: source)
     let event = body.effectiveEventName ?? ""
     let sessionLabel = cwdLabel(body.cwd)
@@ -191,7 +192,7 @@ private func handleAgentEvent(body: HookEventBody, source: String, hookPid: Int3
         switch body.notification_type {
         case "permission_prompt":
             // Skip when approval mode is on — the hook script routes these to /hook/approve instead.
-            if UserDefaults.standard.bool(forKey: "approvalMode") { break }
+            if approvalMode { break }
             let requestId = "\(sessionId)_\(shortUUID())"
             await engine.submitRequest(sessionId: sessionId, requestId: requestId, tool: body.notification_type ?? "Notification", hint: body.message ?? "", sessionLabel: sessionLabel)
         case "elicitation_dialog":
@@ -218,8 +219,11 @@ private func handleAgentEvent(body: HookEventBody, source: String, hookPid: Int3
 
 // MARK: - Approval Helpers
 
-private func approvalResponse(decision: ApprovalDecision, source: String) -> Response {
+func approvalResponse(decision: ApprovalDecision, source: String) -> Response {
     if decision == .passthrough {
+        if source == "cursor" {
+            return jsonResponse(["permission": "ask"])
+        }
         return emptyOK()
     }
 
@@ -231,7 +235,7 @@ private func approvalResponse(decision: ApprovalDecision, source: String) -> Res
         case .deny:
             payload = ["permission": "deny", "user_message": "Denied by Buddygotchi", "agent_message": "Tool call denied by Buddygotchi approval mode."]
         case .passthrough:
-            payload = [:]
+            payload = ["permission": "ask"]
         }
     } else {
         var decisionDict: [String: Any] = ["behavior": decision.rawValue]
@@ -298,13 +302,14 @@ private func cwdLabel(_ cwd: String?) -> String? {
     return (cwd as NSString).lastPathComponent
 }
 
-private func hashCwd(_ cwd: String?) -> String {
+func stableHashCwd(_ cwd: String?) -> String {
     guard let cwd, !cwd.isEmpty else { return "unknown" }
-    return String(cwd.hashValue, radix: 36)
+    let digest = SHA256.hash(data: Data(cwd.utf8))
+    return digest.prefix(4).map { String(format: "%02x", $0) }.joined()
 }
 
 private func deriveSessionId(from body: HookEventBody, source: String) -> String {
-    body.session_id ?? body.conversation_id ?? "\(source)_\(hashCwd(body.cwd))"
+    body.session_id ?? body.conversation_id ?? "\(source)_\(stableHashCwd(body.cwd))"
 }
 
 private func shortUUID() -> String {

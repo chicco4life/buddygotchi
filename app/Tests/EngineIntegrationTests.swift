@@ -1,4 +1,5 @@
 import XCTest
+import AppKit
 @testable import Buddygotchi
 
 // MARK: - Test Infrastructure
@@ -23,6 +24,43 @@ final class EchoRecorder: OutputProvider {
 
     func stateDidChange(prev: BuddyState, next: BuddyState) {
         transitions.append((prev: prev, next: next))
+    }
+}
+
+@MainActor
+private final class MockPopoverPresenter: PopoverPresenting {
+    var isPopoverShown = false
+    var isInteractiveModeEnabled = false
+    var showCalls: [(isApproval: Bool, dismissAfter: TimeInterval)] = []
+    var closeCount = 0
+    var cancelCount = 0
+
+    func showPopover(isApproval: Bool, dismissAfter seconds: TimeInterval) {
+        isPopoverShown = true
+        showCalls.append((isApproval: isApproval, dismissAfter: seconds))
+    }
+
+    func closePopover() {
+        isPopoverShown = false
+        closeCount += 1
+    }
+
+    func cancelPopoverAutoDismiss() {
+        cancelCount += 1
+    }
+}
+
+@MainActor
+private final class MockNotifier: DesktopNotificationPosting {
+    var postedIds: [String] = []
+    var clearedIds: [String] = []
+
+    func postToolNotification(prompt: Prompt) {
+        postedIds.append(prompt.id)
+    }
+
+    func clearNotification(promptId: String) {
+        clearedIds.append(promptId)
     }
 }
 
@@ -470,6 +508,39 @@ final class EngineIntegrationTests: XCTestCase {
         XCTAssertEqual(decision, .passthrough)
     }
 
+    @MainActor
+    func testStaleReapResolvesPendingApprovalAsPassthrough() async {
+        let (engine, _, clock) = makeTestEngine(staleMs: 1_000)
+        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
+
+        let approvalTask = Task { @MainActor in
+            await engine.submitApproval(
+                sessionId: "s1", requestId: "r1",
+                tool: "Bash", hint: "rm -rf",
+                sessionLabel: nil, source: "claude-code"
+            )
+        }
+        await Task.yield()
+        XCTAssertEqual(engine.state.pet.state, .attention)
+
+        clock.advance(by: 2_000)
+        engine.triggerStaleTick()
+        let decision = await approvalTask.value
+
+        XCTAssertEqual(decision, .passthrough)
+        XCTAssertEqual(engine.state.sessions.total, 0)
+        XCTAssertEqual(engine.state.pet.state, .sleep)
+    }
+
+    @MainActor
+    func testSetSpeciesUpdatesStateAndHeartbeat() {
+        let (engine, _, _) = makeTestEngine()
+        engine.setSpecies("duck")
+
+        XCTAssertEqual(engine.state.pet.species, "duck")
+        XCTAssertEqual(renderState(from: engine.state).species, "duck")
+    }
+
     // MARK: H. Output Contract
 
     @MainActor
@@ -510,6 +581,41 @@ final class EngineIntegrationTests: XCTestCase {
 
         XCTAssertEqual(r1.count, r2.count)
         XCTAssertEqual(r1.last, r2.last)
+    }
+
+    @MainActor
+    func testDesktopOutputPostsRapidAttentionTransitions() {
+        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        defer { NSStatusBar.system.removeStatusItem(statusItem) }
+        let presenter = MockPopoverPresenter()
+        let notifier = MockNotifier()
+        let output = DesktopOutput(
+            statusItem: statusItem,
+            presenter: presenter,
+            notifier: notifier,
+            playCelebrate: {},
+            playAttention: {},
+            playError: {}
+        )
+
+        var attentionOne = BuddyState.initial
+        attentionOne.pet = Pet(state: .attention, species: Pet.defaultSpecies)
+        attentionOne.prompt = Prompt(id: "p1", tool: "Bash", hint: "first", arrivedAt: NOW)
+
+        var busy = attentionOne
+        busy.pet = Pet(state: .busy, species: Pet.defaultSpecies)
+        busy.prompt = nil
+
+        var attentionTwo = busy
+        attentionTwo.pet = Pet(state: .attention, species: Pet.defaultSpecies)
+        attentionTwo.prompt = Prompt(id: "p2", tool: "Bash", hint: "second", arrivedAt: NOW + 1)
+
+        output.stateDidChange(prev: .initial, next: attentionOne)
+        output.stateDidChange(prev: attentionOne, next: busy)
+        output.stateDidChange(prev: busy, next: attentionTwo)
+
+        XCTAssertEqual(notifier.postedIds, ["p1", "p2"])
+        XCTAssertEqual(notifier.clearedIds, ["p1"])
     }
 
     // MARK: I. Edge Cases

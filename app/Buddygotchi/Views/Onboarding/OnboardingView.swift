@@ -431,6 +431,7 @@ struct OnboardingView: View {
                 Spacer()
                 Button(BuddyCopy.Onboarding.startWatching) {
                     model.complete()
+                    engine.setSpecies(model.selectedSpecies)
                     onFinish()
                 }
                 .buttonStyle(OnboardingPrimaryButtonStyle())
@@ -646,10 +647,12 @@ struct OnboardingView: View {
     private func cycleSpecies(_ direction: Int) {
         guard let index = buddyOrder.firstIndex(of: model.selectedSpecies) else {
             model.selectedSpecies = Pet.defaultSpecies
+            engine.setSpecies(model.selectedSpecies)
             return
         }
         let next = (index + direction + buddyOrder.count) % buddyOrder.count
         model.selectedSpecies = buddyOrder[next]
+        engine.setSpecies(model.selectedSpecies)
     }
 
     private func updateHeardAgent(from sessions: [SessionSnapshot]) {

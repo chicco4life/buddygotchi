@@ -85,6 +85,10 @@ final class BuddyEngine {
         apply(.errorDismissed(at: clock.now(), sessionId: sessionId))
     }
 
+    func setSpecies(_ species: String) {
+        apply(.speciesChanged(at: clock.now(), species: species))
+    }
+
     // MARK: - Approval API
 
     func submitApproval(sessionId: String, requestId: String, tool: String, hint: String, sessionLabel: String?, source: String?) async -> ApprovalDecision {

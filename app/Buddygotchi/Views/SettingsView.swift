@@ -545,6 +545,7 @@ struct SettingsView: View {
         guard let idx = buddyOrder.firstIndex(of: species) else { return }
         let next = (idx + direction + buddyOrder.count) % buddyOrder.count
         species = buddyOrder[next]
+        engine.setSpecies(species)
         esp32Output.sendNow()
     }
 

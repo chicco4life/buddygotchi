@@ -24,6 +24,7 @@ enum BuddyEvent: Sendable {
 
     case approvalArrived(at: Double, sessionId: String, requestId: String, tool: String, hint: String, sessionLabel: String?, source: String?)
     case approvalResolved(at: Double, sessionId: String, requestId: String, decision: ApprovalDecision)
+    case speciesChanged(at: Double, species: String)
 
     case reviewDismissed(at: Double)
     case errorDismissed(at: Double, sessionId: String)
@@ -38,6 +39,7 @@ enum BuddyEvent: Sendable {
              .staleTick(let at),
              .approvalArrived(let at, _, _, _, _, _, _),
              .approvalResolved(let at, _, _, _),
+             .speciesChanged(let at, _),
              .reviewDismissed(let at),
              .errorDismissed(let at, _):
             return at
@@ -54,6 +56,7 @@ enum BuddyEvent: Sendable {
         case .staleTick: "staleTick"
         case .approvalArrived: "approvalArrived"
         case .approvalResolved(_, _, _, let decision): "approvalResolved(\(decision.rawValue))"
+        case .speciesChanged: "speciesChanged"
         case .reviewDismissed: "reviewDismissed"
         case .errorDismissed: "errorDismissed"
         }

@@ -1,0 +1,117 @@
+import AppKit
+import Foundation
+
+@MainActor
+protocol PopoverPresenting: AnyObject {
+    var isPopoverShown: Bool { get }
+    var isInteractiveModeEnabled: Bool { get }
+    func showPopover(isApproval: Bool, dismissAfter seconds: TimeInterval)
+    func closePopover()
+    func cancelPopoverAutoDismiss()
+}
+
+@MainActor
+protocol DesktopNotificationPosting: AnyObject {
+    func postToolNotification(prompt: Prompt)
+    func clearNotification(promptId: String)
+}
+
+extension NotificationManager: DesktopNotificationPosting {}
+
+@MainActor
+final class DesktopOutput: OutputProvider {
+    let id = "desktop"
+
+    private weak var statusItem: NSStatusItem?
+    private weak var presenter: (any PopoverPresenting)?
+    private let notifier: any DesktopNotificationPosting
+    private let playCelebrate: () -> Void
+    private let playAttention: () -> Void
+    private let playError: () -> Void
+
+    private var lastIconSymbol: String?
+
+    init(
+        statusItem: NSStatusItem,
+        presenter: any PopoverPresenting,
+        notifier: any DesktopNotificationPosting = NotificationManager.shared,
+        playCelebrate: @escaping () -> Void = { NSSound(named: "Funk")?.play() },
+        playAttention: @escaping () -> Void = { NSSound(named: "Glass")?.play() },
+        playError: @escaping () -> Void = { NSSound(named: "Sosumi")?.play() }
+    ) {
+        self.statusItem = statusItem
+        self.presenter = presenter
+        self.notifier = notifier
+        self.playCelebrate = playCelebrate
+        self.playAttention = playAttention
+        self.playError = playError
+    }
+
+    func start(engine: BuddyEngine) async {}
+    func stop() async {}
+
+    func stateDidChange(prev: BuddyState, next: BuddyState) {
+        updateIcon(next)
+        let notificationPosted = updateNotifications(prev: prev, next: next)
+        playTransitionSounds(prev: prev, next: next, notificationPosted: notificationPosted)
+        updateInteractiveMode(prev: prev, next: next)
+    }
+
+    private func updateIcon(_ state: BuddyState) {
+        let symbolName = state.pet.state.sfSymbol
+        guard symbolName != lastIconSymbol else { return }
+        lastIconSymbol = symbolName
+        statusItem?.button?.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Buddygotchi")
+    }
+
+    private func updateNotifications(prev: BuddyState, next: BuddyState) -> Bool {
+        let previousPromptId = prev.prompt?.id
+        let nextPrompt = next.prompt
+        var posted = false
+
+        if let previousPromptId, previousPromptId != nextPrompt?.id {
+            notifier.clearNotification(promptId: previousPromptId)
+        }
+
+        guard let nextPrompt, nextPrompt.id != previousPromptId else { return false }
+        if presenter?.isPopoverShown != true {
+            notifier.postToolNotification(prompt: nextPrompt)
+            posted = true
+        }
+        return posted
+    }
+
+    private func playTransitionSounds(prev: BuddyState, next: BuddyState, notificationPosted: Bool) {
+        let soundsEnabled = UserDefaults.standard.object(forKey: "soundsEnabled") as? Bool ?? true
+        guard soundsEnabled, !notificationPosted else { return }
+        guard prev.pet.state != next.pet.state else { return }
+        if next.pet.state == .celebrate && (next.lastTaskDurationMs ?? 0) >= 30_000 {
+            playCelebrate()
+        } else if next.pet.state == .attention {
+            playAttention()
+        } else if next.pet.state == .error {
+            playError()
+        }
+    }
+
+    private func updateInteractiveMode(prev: BuddyState, next: BuddyState) {
+        guard let presenter else { return }
+        guard presenter.isInteractiveModeEnabled else {
+            presenter.cancelPopoverAutoDismiss()
+            return
+        }
+        guard prev.pet.state != next.pet.state else { return }
+
+        if next.pet.state == .celebrate
+            && (next.lastTaskDurationMs ?? 0) >= 30_000
+            && !presenter.isPopoverShown
+        {
+            presenter.showPopover(isApproval: next.prompt?.isApproval == true, dismissAfter: 3.0)
+        } else if next.pet.state == .attention && !presenter.isPopoverShown {
+            presenter.showPopover(isApproval: next.prompt?.isApproval == true, dismissAfter: 15.0)
+        } else if (next.pet.state == .idle || next.pet.state == .sleep) && presenter.isPopoverShown {
+            presenter.cancelPopoverAutoDismiss()
+            presenter.closePopover()
+        }
+    }
+}

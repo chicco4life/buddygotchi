@@ -45,6 +45,8 @@ private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> Interna
         return handleApprovalArrived(state, at: at, sessionId: sessionId, requestId: requestId, tool: tool, hint: hint, sessionLabel: sessionLabel, source: source)
     case .approvalResolved(let at, let sessionId, let requestId, let decision):
         return handleApprovalResolved(state, at: at, sessionId: sessionId, requestId: requestId, decision: decision)
+    case .speciesChanged(_, let species):
+        return handleSpeciesChanged(state, species: species)
     case .reviewDismissed:
         return handleReviewDismissed(state)
     case .errorDismissed(let at, let sessionId):
@@ -224,6 +226,13 @@ private func handleApprovalResolved(_ state: InternalState, at: Double, sessionI
     return s
 }
 
+private func handleSpeciesChanged(_ state: InternalState, species: String) -> InternalState {
+    guard !species.isEmpty, state.buddy.pet.species != species else { return state }
+    var s = state
+    s.buddy.pet = Pet(state: s.buddy.pet.state, species: species)
+    return s
+}
+
 private func handleReviewDismissed(_ state: InternalState) -> InternalState {
     guard state.buddy.lastCompleted != nil else { return state }
     var s = state
@@ -247,12 +256,12 @@ private func handleErrorDismissed(_ state: InternalState, at: Double, sessionId:
 
 private func aggregate(_ state: InternalState) -> BuddyState {
     var buddy = state.buddy
-    let allSessions = Array(state.sessions.values)
+    let allSessions = Array(state.sessions)
 
-    let waiting = allSessions.filter { $0.state == .needsConfirmation }
-    let working = allSessions.filter { $0.state == .working }
-    let errored = allSessions.filter { $0.state == .errored }
-    let thinking = allSessions.filter { $0.state == .thinking }
+    let waiting = allSessions.filter { $0.value.state == .needsConfirmation }
+    let working = allSessions.filter { $0.value.state == .working }
+    let errored = allSessions.filter { $0.value.state == .errored }
+    let thinking = allSessions.filter { $0.value.state == .thinking }
 
     buddy.sessions = SessionCounts(
         total: allSessions.count,
@@ -260,28 +269,26 @@ private func aggregate(_ state: InternalState) -> BuddyState {
         waiting: waiting.count
     )
 
-    let highestPrompt = waiting.min(by: { ($0.prompt?.arrivedAt ?? .infinity) < ($1.prompt?.arrivedAt ?? .infinity) })?.prompt
+    let highestPrompt = waiting.min(by: { ($0.value.prompt?.arrivedAt ?? .infinity) < ($1.value.prompt?.arrivedAt ?? .infinity) })?.value.prompt
     buddy.prompt = highestPrompt
 
     // Build per-session breakdown for the popover. Order: needsConfirmation
     // (oldest prompt first) → errored (oldest workStartedAt) → working (oldest
     // workStartedAt) → idle (most recent first). Cap at 6 to match firmware
     // tama.lines[6] capacity.
-    let sessionsById = state.sessions
     let waitingOrdered = waiting
-        .sorted { ($0.prompt?.arrivedAt ?? .infinity) < ($1.prompt?.arrivedAt ?? .infinity) }
+        .sorted { ($0.value.prompt?.arrivedAt ?? .infinity) < ($1.value.prompt?.arrivedAt ?? .infinity) }
     let erroredOrdered = errored
-        .sorted { ($0.workStartedAt ?? .infinity) < ($1.workStartedAt ?? .infinity) }
+        .sorted { ($0.value.workStartedAt ?? .infinity) < ($1.value.workStartedAt ?? .infinity) }
     let workingOrdered = working
-        .sorted { ($0.workStartedAt ?? .infinity) < ($1.workStartedAt ?? .infinity) }
+        .sorted { ($0.value.workStartedAt ?? .infinity) < ($1.value.workStartedAt ?? .infinity) }
     let idleOrdered = allSessions
-        .filter { $0.state == .idle }
-        .sorted { $0.lastActivityAt > $1.lastActivityAt }
+        .filter { $0.value.state == .idle }
+        .sorted { $0.value.lastActivityAt > $1.value.lastActivityAt }
     let combined = waitingOrdered + erroredOrdered + workingOrdered + idleOrdered
     var activeSnapshots: [SessionSnapshot] = []
     activeSnapshots.reserveCapacity(min(combined.count, 6))
-    for sess in combined.prefix(6) {
-        guard let id = sessionsById.first(where: { $0.value == sess })?.key else { continue }
+    for (id, sess) in combined.prefix(6) {
         activeSnapshots.append(SessionSnapshot(
             id: id,
             source: sess.source,
@@ -294,9 +301,8 @@ private func aggregate(_ state: InternalState) -> BuddyState {
 
     // Project the oldest errored session for the popover Error card. Carries the
     // session id so dismissError(sessionId:) can target a specific one.
-    let firstErroredSession = errored.min(by: { ($0.workStartedAt ?? .infinity) < ($1.workStartedAt ?? .infinity) })
-    buddy.firstErrored = firstErroredSession.flatMap { sess in
-        guard let id = state.sessions.first(where: { $0.value == sess })?.key else { return nil }
+    let firstErroredSession = errored.min(by: { ($0.value.workStartedAt ?? .infinity) < ($1.value.workStartedAt ?? .infinity) })
+    buddy.firstErrored = firstErroredSession.map { id, sess in
         return ErroredSession(
             id: id,
             source: sess.source,
@@ -309,9 +315,8 @@ private func aggregate(_ state: InternalState) -> BuddyState {
 
     // Project the oldest thinking session — same shape, but for the calm
     // "agent is thinking hard" surface (no Dismiss, no sound).
-    let firstThinkingSession = thinking.min(by: { ($0.workStartedAt ?? .infinity) < ($1.workStartedAt ?? .infinity) })
-    buddy.firstThinking = firstThinkingSession.flatMap { sess in
-        guard let id = state.sessions.first(where: { $0.value == sess })?.key else { return nil }
+    let firstThinkingSession = thinking.min(by: { ($0.value.workStartedAt ?? .infinity) < ($1.value.workStartedAt ?? .infinity) })
+    buddy.firstThinking = firstThinkingSession.map { id, sess in
         return ThinkingSession(
             id: id,
             source: sess.source,
@@ -336,7 +341,7 @@ private func aggregate(_ state: InternalState) -> BuddyState {
     let hasConnected = !allSessions.isEmpty
     buddy.desktop = DesktopLink(
         status: hasConnected ? .connected : .disconnected,
-        lastHeartbeatAt: allSessions.map(\.lastActivityAt).max()
+        lastHeartbeatAt: allSessions.map(\.value.lastActivityAt).max()
     )
 
     if !hasConnected {
@@ -353,7 +358,7 @@ private func aggregate(_ state: InternalState) -> BuddyState {
         // Error sits between attention and busy. A live approval still wins (already
         // handled above), but a failed session takes priority over busy peers.
         buddy.pet = Pet(state: .error, species: buddy.pet.species)
-        let oldest = errored.min(by: { ($0.workStartedAt ?? .infinity) < ($1.workStartedAt ?? .infinity) })
+        let oldest = errored.min(by: { ($0.value.workStartedAt ?? .infinity) < ($1.value.workStartedAt ?? .infinity) })?.value
         if let tool = oldest?.currentTool, !tool.isEmpty {
             buddy.msg = "Error: \(tool)"
         } else {
@@ -364,7 +369,7 @@ private func aggregate(_ state: InternalState) -> BuddyState {
         buddy.pet = Pet(state: .busy, species: buddy.pet.species)
         // Primary working session = oldest workStartedAt (longest running). Surface its
         // current tool/hint so the user can see what the agent is doing right now.
-        let primary = working.min(by: { ($0.workStartedAt ?? .infinity) < ($1.workStartedAt ?? .infinity) })
+        let primary = working.min(by: { ($0.value.workStartedAt ?? .infinity) < ($1.value.workStartedAt ?? .infinity) })?.value
         if let tool = primary?.currentTool, !tool.isEmpty {
             buddy.msg = shortMsg(tool: tool, hint: primary?.currentHint ?? "", source: primary?.source ?? "")
         } else {
@@ -377,7 +382,7 @@ private func aggregate(_ state: InternalState) -> BuddyState {
         // threshold but presumed alive (e.g. an extended-thinking turn or a
         // long-running model reply). No alert, no Dismiss.
         buddy.pet = Pet(state: .thinking, species: buddy.pet.species)
-        let oldest = thinking.min(by: { ($0.workStartedAt ?? .infinity) < ($1.workStartedAt ?? .infinity) })
+        let oldest = thinking.min(by: { ($0.value.workStartedAt ?? .infinity) < ($1.value.workStartedAt ?? .infinity) })?.value
         if let tool = oldest?.currentTool, !tool.isEmpty {
             buddy.msg = "Thinking: \(tool)"
         } else {

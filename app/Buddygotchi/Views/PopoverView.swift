@@ -8,7 +8,6 @@ struct PopoverView: View {
     var onUserInteraction: (() -> Void)? = nil
     var onOpenOnboarding: () -> Void = {}
     @AppStorage("setupCompleted") private var setupCompleted = false
-    @AppStorage("buddySpecies") private var species = Pet.defaultSpecies
     @AppStorage("buddyName") private var buddyName = ""
     @AppStorage("showMenuHint") private var showMenuHint = false
     @State private var showingSettings = false
@@ -60,7 +59,7 @@ struct PopoverView: View {
 
     private var unfinishedSetupView: some View {
         VStack(spacing: 16) {
-            PetStageView(petState: .sleep, species: species)
+            PetStageView(petState: .sleep, species: engine.state.pet.species)
                 .padding(.top, 8)
 
             VStack(spacing: 5) {
@@ -89,7 +88,7 @@ struct PopoverView: View {
 
     private var liveView: some View {
         VStack(spacing: 0) {
-            PetStageView(petState: engine.state.pet.state, species: species)
+            PetStageView(petState: engine.state.pet.state, species: engine.state.pet.species)
                 .padding(.top, 4)
 
             Spacer().frame(height: 6)
@@ -252,12 +251,12 @@ struct PopoverView: View {
     }
 
     private var speciesColor: Color {
-        buddySpeciesColor(for: species)
+        buddySpeciesColor(for: engine.state.pet.species)
     }
 
     private var statusName: String {
         let trimmed = buddyName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? species : trimmed
+        return trimmed.isEmpty ? engine.state.pet.species : trimmed
     }
 
     private var stateColor: Color {

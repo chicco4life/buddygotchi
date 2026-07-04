@@ -27,20 +27,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let engine = BuddyEngine()
     private var serverTask: Task<Void, Never>?
     private var serviceGroup: ServiceGroup?
-    private var iconTimer: Timer?
-    private var lastPromptId: String?
-    private var lastIconSymbol: String?
-    private var previousPetState: PetState = .sleep
     private var sigintSource: DispatchSourceSignal?
     private var sigtermSource: DispatchSourceSignal?
     private(set) var esp32Output: ESP32Output?
     private var autoDismissTimer: Timer?
     private var onboardingWindowController: OnboardingWindowController?
-    private let celebrateSound = NSSound(named: "Funk")
-    private let attentionSound = NSSound(named: "Glass")
-    private let errorSound = NSSound(named: "Sosumi")
     private let serverHealth = ServerHealth()
-    private var postedNotificationThisTick = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -63,7 +55,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         NotificationManager.shared.requestPermission()
 
-        UserDefaults.standard.set(BuddyConfig.default.approvalMode, forKey: "approvalMode")
+        let config = BuddyConfig.default
+        UserDefaults.standard.set(config.approvalMode, forKey: "approvalMode")
+        engine.setSpecies(UserDefaults.standard.string(forKey: "buddySpecies") ?? Pet.defaultSpecies)
 
         let output = ESP32Output()
         esp32Output = output
@@ -85,8 +79,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.contentViewController = hostingController
         self.popover = popover
 
+        engine.register(output: DesktopOutput(statusItem: statusItem, presenter: self))
+
         serverTask = Task {
-            let config = BuddyConfig.default
             let app = buildHookServer(engine: engine, config: config)
             await MainActor.run {
                 self.serverHealth.status = .listening(port: config.httpPort)
@@ -111,12 +106,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        iconTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.tick()
-            }
-        }
-
         if !UserDefaults.standard.bool(forKey: "setupCompleted") {
             showOnboardingWindow()
         }
@@ -136,7 +125,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func cleanup() {
-        iconTimer?.invalidate()
         cancelAutoDismiss()
         if let esp32 = esp32Output {
             Task { await esp32.stop() }
@@ -240,78 +228,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = nil
     }
 
-
-    private func tick() {
-        let state = engine.state
-        postedNotificationThisTick = false
-        updateIcon(state)
-        checkNotifications(state)
-        checkSounds(state)
-        checkInteractiveMode(state)
-        previousPetState = state.pet.state
-    }
-
-    private func updateIcon(_ state: BuddyState) {
-        let symbolName = state.pet.state.sfSymbol
-        guard symbolName != lastIconSymbol else { return }
-        lastIconSymbol = symbolName
-        statusItem.button?.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Buddygotchi")
-    }
-
-    private func checkNotifications(_ state: BuddyState) {
-        let prompt = state.prompt
-
-        if let prompt {
-            if lastPromptId != prompt.id && !popover.isShown {
-                NotificationManager.shared.postToolNotification(prompt: prompt)
-                postedNotificationThisTick = true
-            }
-            lastPromptId = prompt.id
-        } else if let old = lastPromptId {
-            NotificationManager.shared.clearNotification(promptId: old)
-            lastPromptId = nil
-        }
-    }
-
-    private func checkSounds(_ state: BuddyState) {
-        let soundsEnabled = UserDefaults.standard.object(forKey: "soundsEnabled") as? Bool ?? true
-        guard soundsEnabled, !postedNotificationThisTick else { return }
-        let current = state.pet.state
-        guard current != previousPetState else { return }
-        if current == .celebrate && (state.lastTaskDurationMs ?? 0) >= 30_000 {
-            celebrateSound?.play()
-        } else if current == .attention {
-            attentionSound?.play()
-        } else if current == .error {
-            errorSound?.play()
-        }
-    }
-
-    private func checkInteractiveMode(_ state: BuddyState) {
-        let current = state.pet.state
-        guard UserDefaults.standard.bool(forKey: "interactiveMode") else {
-            cancelAutoDismiss()
-            return
-        }
-        guard current != previousPetState else { return }
-
-        if current == .celebrate
-            && (state.lastTaskDurationMs ?? 0) >= 30_000
-            && !popover.isShown
-        {
-            showPopover(dismissAfter: 3.0)
-        } else if current == .attention && !popover.isShown {
-            showPopover(dismissAfter: 15.0)
-        } else if (current == .idle || current == .sleep) && popover.isShown {
-            cancelAutoDismiss()
-            popover.performClose(nil)
-        }
-    }
-
-    private func showPopover(dismissAfter seconds: TimeInterval) {
+    func showPopover(isApproval: Bool, dismissAfter seconds: TimeInterval) {
         guard let button = statusItem.button else { return }
         cancelAutoDismiss()
-        popover.behavior = .transient
+        popover.behavior = isApproval ? .transient : .applicationDefined
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
         autoDismissTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in
@@ -325,5 +245,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func cancelAutoDismiss() {
         autoDismissTimer?.invalidate()
         autoDismissTimer = nil
+    }
+}
+
+extension AppDelegate: PopoverPresenting {
+    var isPopoverShown: Bool {
+        popover?.isShown == true
+    }
+
+    var isInteractiveModeEnabled: Bool {
+        UserDefaults.standard.bool(forKey: "interactiveMode")
+    }
+
+    func closePopover() {
+        popover?.performClose(nil)
+    }
+
+    func cancelPopoverAutoDismiss() {
+        cancelAutoDismiss()
     }
 }
