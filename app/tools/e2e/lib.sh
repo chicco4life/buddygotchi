@@ -61,8 +61,7 @@ approve_allows() { # src body label
 
 # approval that must BLOCK (not auto-approved), then be resolved by $3 (a shell
 # function — typically ending the session), with the final response expected to
-# contain $4. Also verifies the fail-open invariant: a session dying mid-approval
-# resolves the hook to "allow".
+# contain $4. Pass __EMPTY__ as $4 to assert an empty response body.
 parked_approve() { # src body resolver_fn expect
   local src="$1" body="$2" resolver="$3" expect="$4" out cpid resp
   out="$(mktemp)"
@@ -75,10 +74,15 @@ parked_approve() { # src body resolver_fn expect
   "$resolver"
   wait "$cpid" 2>/dev/null
   resp="$(tr -d '\n' < "$out")"; rm -f "$out"
-  case "$resp" in
-    *"$expect"*) ok "blocked approval resolved (fail-open) with '$expect': $resp" ;;
-    *) bad "resolved response missing '$expect': '${resp:-<empty>}'" ;;
-  esac
+  if [ "$expect" = "__EMPTY__" ]; then
+    if [ -z "$resp" ]; then ok "blocked approval resolved with empty passthrough body"
+    else bad "resolved response expected empty body, got '$resp'"; fi
+  else
+    case "$resp" in
+      *"$expect"*) ok "blocked approval resolved with '$expect': $resp" ;;
+      *) bad "resolved response missing '$expect': '${resp:-<empty>}'" ;;
+    esac
+  fi
 }
 
 require_app() {

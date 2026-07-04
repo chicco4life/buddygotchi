@@ -21,11 +21,11 @@ ev codex "{\"hook_event_name\":\"PermissionRequest\",\"session_id\":\"$CX\",\"to
 ev codex "{\"hook_event_name\":\"PostToolUse\",\"session_id\":\"$CX\"}"                                                              "PostToolUse → clears card, busy"
 ev codex "{\"hook_event_name\":\"Stop\",\"session_id\":\"$CX\"}"                                                                     "Stop → celebrate"
 
-hdr "Codex  →  POST /hook/approve  (blocking; resolved by session death = fail-open allow)"
+hdr "Codex  →  POST /hook/approve  (blocking; resolved by session death = passthrough)"
 resolve_cx() { post_event codex "{\"hook_event_name\":\"SessionEnd\",\"session_id\":\"$CX\"}"; }   # cleanup; Codex normally relies on the process watcher
 parked_approve codex \
   "{\"hook_event_name\":\"PermissionRequest\",\"session_id\":\"$CX\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"rm -rf /\"}}" \
-  resolve_cx '"behavior":"allow"'
+  resolve_cx __EMPTY__
 settle
 baseline "Codex session reaped"
 

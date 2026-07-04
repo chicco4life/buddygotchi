@@ -23,10 +23,11 @@ mkdir -p "$MACOS" "$RESOURCES" "$FRAMEWORKS" "$ARTIFACTS"
 
 (
   cd "$APP_DIR"
-  swift build -c release
+  swift build -c release --product Buddygotchi
+  swift build -c release --product BuddygotchiSignal
 )
 
-BIN_DIR="$(cd "$APP_DIR" && swift build -c release --show-bin-path)"
+BIN_DIR="$(cd "$APP_DIR" && swift build -c release --product Buddygotchi --show-bin-path)"
 cp "$BIN_DIR/Buddygotchi" "$MACOS/Buddygotchi"
 cp "$BIN_DIR/BuddygotchiSignal" "$MACOS/BuddygotchiSignal"
 chmod 755 "$MACOS/Buddygotchi" "$MACOS/BuddygotchiSignal"
