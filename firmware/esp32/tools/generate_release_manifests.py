@@ -24,7 +24,7 @@ def copy_required(src: Path, dest: Path) -> Path:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate Buddygotchi firmware release manifests.")
+    parser = argparse.ArgumentParser(description="Generate Boop firmware release manifests.")
     parser.add_argument("--version", required=True)
     parser.add_argument("--base-url", required=True, help="Public URL prefix that will host the copied files.")
     parser.add_argument("--build-dir", required=True, type=Path)
@@ -38,9 +38,9 @@ def main() -> None:
     base_url = args.base_url.rstrip("/")
     published_at = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
-    app_name = f"buddygotchi-fw-{version}.bin"
-    bootloader_name = f"buddygotchi-bootloader-{version}.bin"
-    partitions_name = f"buddygotchi-partitions-{version}.bin"
+    app_name = f"boop-fw-{version}.bin"
+    bootloader_name = f"boop-bootloader-{version}.bin"
+    partitions_name = f"boop-partitions-{version}.bin"
 
     app_bin = copy_required(args.build_dir / "firmware.bin", out_dir / app_name)
     bootloader_bin = copy_required(args.build_dir / "bootloader.bin", out_dir / bootloader_name)
@@ -50,7 +50,7 @@ def main() -> None:
         "version": version,
         "url": f"{base_url}/{app_name}",
         "sha256": sha256(app_bin),
-        "notes": f"Buddygotchi firmware {version}.",
+        "notes": f"Boop firmware {version}.",
         "published_at": published_at,
         "minAppVersion": args.min_app_version,
         "board": args.board,
@@ -58,7 +58,7 @@ def main() -> None:
     (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
 
     web_tools_manifest = {
-        "name": "Buddygotchi",
+        "name": "Boop",
         "version": version,
         "new_install_prompt_erase": True,
         "builds": [

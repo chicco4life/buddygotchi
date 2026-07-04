@@ -17,7 +17,7 @@ C++ firmware, character assets, and tooling for the ESP32 hardware buddy display
 ## Modes
 
 1. **Direct mode** — Pairs with Claude Code over BLE using the NUS UART protocol. No daemon needed.
-2. **Buddygotchi mode** — Receives heartbeat JSON from the macOS app over BLE.
+2. **Boop mode** — Receives heartbeat JSON from the macOS app over BLE.
 
 ## Building
 

@@ -1,4 +1,4 @@
-# Buddygotchi ESP32 Protocol
+# Boop ESP32 Protocol
 
 The desktop app sends newline-delimited JSON heartbeat frames over USB serial or
 BLE Nordic UART RX. The device sends newline-delimited JSON replies over USB

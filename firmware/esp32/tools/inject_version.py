@@ -40,4 +40,4 @@ os.environ["BUDDY_FW_VERSION"] = version
 env.Replace(BUILD_FLAGS=without_defines(env.get("BUILD_FLAGS", []), {"FW_VERSION", "GIT_SHA"}))
 env.Append(BUILD_FLAGS=[f'-DFW_VERSION=\\"{version}\\"', f'-DGIT_SHA=\\"{sha}\\"'])
 
-print(f"Buddygotchi firmware version: {version} ({sha})")
+print(f"Boop firmware version: {version} ({sha})")

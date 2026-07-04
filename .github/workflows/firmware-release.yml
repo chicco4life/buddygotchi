@@ -40,7 +40,7 @@ jobs:
           VERSION="${GITHUB_REF_NAME#fw-v}"
           python3 firmware/esp32/tools/generate_release_manifests.py \
             --version "$VERSION" \
-            --base-url "https://buddygotchi.github.io/firmware" \
+            --base-url "https://adoptaboop.com/firmware" \
             --build-dir firmware/esp32/.pio/build/m5stickc-plus \
             --out-dir build/firmware
 
@@ -54,5 +54,5 @@ jobs:
             Manual gate before publishing to Pages:
             - OTA this binary on a real M5StickC Plus 2.
             - Confirm buddyctl.py ping --json reports fw == ${{ github.ref_name }} with the fw-v prefix stripped.
-            - Open a PR to publish manifest.json and esp-web-tools-manifest.json under /firmware.
+            - Open a PR to publish manifest.json and esp-web-tools-manifest.json under https://adoptaboop.com/firmware/.
           draft: true

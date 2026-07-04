@@ -1,4 +1,4 @@
-# Buddygotchi Agent Instructions
+# Boop Agent Instructions
 
 These instructions apply to the whole repo.
 
@@ -24,7 +24,7 @@ Direct SwiftPM equivalents:
 cd app
 swift build
 swift test
-swift run Buddygotchi
+swift run Boop
 ```
 
 `swift test` requires a developer directory with XCTest available, normally a full Xcode install.
@@ -80,11 +80,11 @@ after the one-time OS pairing step to exercise the production BLE transport.
 
 ## Architecture Rules
 
-- Keep `app/Buddygotchi/Core/` pure. The reducer must not perform I/O, read clocks, read user defaults, call UI, or touch BLE.
+- Keep `app/Boop/Core/` pure. The reducer must not perform I/O, read clocks, read user defaults, call UI, or touch BLE.
 - Model new behavior as `BuddyEvent` values and reducer transitions first.
 - Add agent-specific parsing in `HookServer` or hook installer code, not in output code.
 - Add displays by implementing `OutputProvider` and deriving everything from `BuddyState`.
-- Preserve fail-open hook behavior. If Buddygotchi is down, agent hooks should exit successfully and let the agent's native flow continue.
+- Preserve fail-open hook behavior. If Boop is down, agent hooks should exit successfully and let the agent's native flow continue.
 - Approval continuations belong in `BuddyEngine`, not in `BuddyState`.
 - Treat `RenderState` in `Outputs/ESP32/Heartbeat.swift` as the desktop-to-firmware wire contract.
 - Keep Cursor auto-approval conservative. Shell commands with control characters must require manual review.
@@ -93,14 +93,14 @@ after the one-time OS pairing step to exercise the production BLE transport.
 
 | File | Role |
 | --- | --- |
-| `app/Buddygotchi/Core/BuddyState.swift` | Public state projection and session models |
-| `app/Buddygotchi/Core/BuddyReducer.swift` | State transition authority |
-| `app/Buddygotchi/Core/BuddyEngine.swift` | Main orchestrator, outputs, approval continuations |
-| `app/Buddygotchi/Server/HookServer.swift` | HTTP input adapter and approval responses |
-| `app/Buddygotchi/Install/HookInstaller.swift` | Agent hook registration and generated bash script |
-| `app/Buddygotchi/Outputs/ESP32/Heartbeat.swift` | Hardware heartbeat mapper |
-| `app/Buddygotchi/Outputs/ESP32/BLEManager.swift` | BLE transport, inbound approvals, OTA acks |
-| `app/Buddygotchi/Views/PopoverView.swift` | Main user-visible UI |
+| `app/Boop/Core/BuddyState.swift` | Public state projection and session models |
+| `app/Boop/Core/BuddyReducer.swift` | State transition authority |
+| `app/Boop/Core/BuddyEngine.swift` | Main orchestrator, outputs, approval continuations |
+| `app/Boop/Server/HookServer.swift` | HTTP input adapter and approval responses |
+| `app/Boop/Install/HookInstaller.swift` | Agent hook registration and generated bash script |
+| `app/Boop/Outputs/ESP32/Heartbeat.swift` | Hardware heartbeat mapper |
+| `app/Boop/Outputs/ESP32/BLEManager.swift` | BLE transport, inbound approvals, OTA acks |
+| `app/Boop/Views/PopoverView.swift` | Main user-visible UI |
 
 ## Documentation Expectations
 

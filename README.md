@@ -1,6 +1,6 @@
-# Buddygotchi
+# Boop
 
-Buddygotchi is a native macOS menu bar companion for AI coding agents. It watches Claude Code, Cursor, and Codex through local hook integrations, turns their activity into an animated buddy state, surfaces approval prompts, and can mirror the same state to an M5StickC Plus 2 over Bluetooth.
+Boop is a native macOS menu bar companion for AI coding agents. It watches Claude Code, Cursor, and Codex through local hook integrations, turns their activity into an animated buddy state, surfaces approval prompts, and can mirror the same state to an M5StickC Plus 2 over Bluetooth.
 
 The current product lives in three top-level areas: the Swift macOS app in `app/`, the landing page in `landing/`, and the active ESP32 firmware in `firmware/esp32/`. Planning and reference material lives in `research/`; public release/support pages live in `docs/`.
 
@@ -10,7 +10,7 @@ The current product lives in three top-level areas: the Swift macOS app in `app/
 - Tracks multiple concurrent agent sessions and shows a compact per-session breakdown.
 - Displays current tool activity, recent activity entries, completion review cards, and error/thinking cards.
 - Supports local approval mode for blocking tool calls, with approve/deny from the popover or the paired hardware buddy.
-- Installs hooks for Claude Code, Cursor, and Codex, while failing open to the agent's native behavior when Buddygotchi is not running.
+- Installs hooks for Claude Code, Cursor, and Codex, while failing open to the agent's native behavior when Boop is not running.
 - Streams heartbeat JSON to ESP32 firmware over Nordic UART BLE and supports firmware update checks/uploads from the app.
 
 ## Requirements
@@ -36,7 +36,7 @@ Equivalent SwiftPM commands:
 cd app
 swift build
 swift test
-swift run Buddygotchi
+swift run Boop
 ```
 
 When the app is running, the local health endpoint is:
@@ -48,7 +48,7 @@ curl http://127.0.0.1:21321/healthz
 The first-run wizard walks through agent detection, hook installation, connection testing, buddy selection, and optional hardware buddy pairing. To reset onboarding:
 
 ```sh
-defaults delete Buddygotchi setupCompleted
+defaults delete Boop setupCompleted
 ```
 
 ## Useful Developer Commands
@@ -103,7 +103,7 @@ python3 firmware/esp32/tools/button.py b
 
 See [research/eng/ARCHITECTURE.md](research/eng/ARCHITECTURE.md) for how the app is pieced together, including hook routing, state aggregation, outputs, mocks, and test strategy. See [AGENTS.md](AGENTS.md) for repo-specific instructions for coding agents.
 
-Release and support details live in [docs/RELEASE.md](docs/RELEASE.md) and [docs/SUPPORT.md](docs/SUPPORT.md). To remove Buddygotchi, use Settings, About, Remove Buddygotchi, or follow the manual uninstall notes in the support doc.
+Release and support details live in [docs/RELEASE.md](docs/RELEASE.md) and [docs/SUPPORT.md](docs/SUPPORT.md). To remove Boop, use Settings, About, Remove Boop, or follow the manual uninstall notes in the support doc.
 
 ## License
 
