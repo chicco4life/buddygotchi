@@ -36,7 +36,7 @@ export function Footer() {
           <p className="max-w-md text-sm text-charcoal-soft">{copy.footer.signoff}</p>
 
           <p className="text-xs font-semibold uppercase tracking-[0.08em] text-charcoal-soft/70">
-            {copy.footer.wordmark} · © {new Date().getFullYear()}
+            {copy.footer.wordmark} · {copy.footer.copyright}
           </p>
         </div>
       </Reveal>

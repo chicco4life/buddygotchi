@@ -1,4 +1,4 @@
--- Buddygotchi waitlist. One table. Applied via `npm run db:push`.
+-- Boop waitlist. One table. Applied via `npm run db:push`.
 create table if not exists signups (
   id             bigint generated always as identity primary key,
   email          text not null unique,

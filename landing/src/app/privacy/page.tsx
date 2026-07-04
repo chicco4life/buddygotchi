@@ -3,7 +3,7 @@ import Link from "next/link";
 import { copy } from "@/lib/copy";
 
 export const metadata: Metadata = {
-  title: "Privacy — Buddygotchi",
+  title: "Privacy — Boop",
   robots: { index: true, follow: true },
 };
 

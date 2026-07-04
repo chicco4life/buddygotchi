@@ -10,9 +10,9 @@
 */
 export const copy = {
   meta: {
-    title: "Buddygotchi — a desk companion for AI agents",
+    title: "Boop — a desk companion for AI agents",
     description:
-      "A little creature that watches your AI coding agents — glows when one needs you, celebrates when work lands, and lets you approve with a pet. Founding Litter of 100.",
+      "Boop is a desk companion for AI agents that watches your AI coding agents — glows when one needs you, celebrates when work lands, and lets you approve with a pet. Founding Litter of 100.",
   },
 
   hero: {
@@ -130,8 +130,9 @@ export const copy = {
     signoff: "Made by people who also forgot a task finished 40 minutes ago.",
     privacy: "privacy",
     contact: "contact",
-    contactEmail: "hello@buddygotchi.com",
-    wordmark: "Buddygotchi",
+    contactEmail: "hello@adoptaboop.com",
+    wordmark: "Boop",
+    copyright: "© 2026 Boop Computer",
   },
 
   modal: {
