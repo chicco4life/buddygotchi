@@ -10,8 +10,6 @@ data/
 
 # Claude Code — ignore local settings
 .claude/*
-!.claude/settings.local.json
-!.claude/launch.json
 !.claude/skills/
 
 # Python
