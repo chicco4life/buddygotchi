@@ -20,6 +20,9 @@ var packageTargets: [Target] = [
         exclude: [
             "Resources/Info.plist",
         ],
+        // Without full Xcode the tests run as an executable that `@testable
+        // import`s this target, so it must be built with testability enabled.
+        swiftSettings: useXCTestShim ? [.unsafeFlags(["-enable-testing"])] : [],
         linkerSettings: [
             .unsafeFlags(["-Xlinker", "-sectcreate",
                           "-Xlinker", "__TEXT",
@@ -31,18 +34,33 @@ var packageTargets: [Target] = [
         name: "BuddygotchiSignal",
         path: "BuddygotchiSignal"
     ),
-    .testTarget(
-        name: "BuddygotchiTests",
-        dependencies: ["Buddygotchi"] + (useXCTestShim ? ["XCTest"] : []),
-        path: "Tests"
-    ),
 ]
 
 if useXCTestShim {
+    // No real XCTest here: SwiftPM's `swift test` would build these tests and
+    // run NONE of them (a false green). Instead build the Tests directory as an
+    // executable driven by the generated GeneratedTestRunner.swift, run via
+    // `make test` → `swift run BuddygotchiTests`. See tools/gen-test-runner.py.
+    packageTargets.append(
+        .executableTarget(
+            name: "BuddygotchiTests",
+            dependencies: ["Buddygotchi", "XCTest"],
+            path: "Tests",
+            swiftSettings: [.define("BUDDYGOTCHI_SHIM_RUNNER")]
+        )
+    )
     packageTargets.append(
         .target(
             name: "XCTest",
             path: "TestSupport/XCTestShim"
+        )
+    )
+} else {
+    packageTargets.append(
+        .testTarget(
+            name: "BuddygotchiTests",
+            dependencies: ["Buddygotchi"],
+            path: "Tests"
         )
     )
 }

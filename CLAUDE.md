@@ -29,6 +29,13 @@ swift run Buddygotchi
 
 `swift test` requires a developer directory with XCTest available, normally a full Xcode install.
 
+If `swift build` or `swift test` fails before compiling project sources with
+SwiftPM or Clang module-cache errors under `~/.cache/clang` or
+`~/Library/org.swift.swiftpm`, rerun the same command outside the restricted
+sandbox. In this environment the sandbox can block SwiftPM's user-level cache
+writes and surface misleading SDK/compiler mismatch errors. Only investigate
+source changes after the command also fails outside the sandbox.
+
 Useful targeted checks:
 
 ```sh

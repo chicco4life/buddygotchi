@@ -1,5 +1,7 @@
 # Buddygotchi Mac App Audit — Overview
 
+> **Status (pass 2, 2026-07-03):** most of this pass was implemented (commits `5c4ed48`…`4cc4a1a`). The follow-up audit — verification scoreboard, regressions in the new code, and the firmware deep dive — starts at [07-pass2-overview.md](07-pass2-overview.md). Treat docs 01–06 as historical context; current work items live in 07–11.
+
 Date: 2026-07-03
 Scope: `app/` (Swift macOS app), its integrations, and its alignment with the brand defined by `landing/` and `research/product/`.
 Audience: an implementing agent. Each numbered doc in this directory is a self-contained work package with file paths, code sketches, and acceptance criteria.
