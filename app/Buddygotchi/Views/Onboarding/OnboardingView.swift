@@ -15,6 +15,8 @@ struct OnboardingView: View {
     @State private var adoptionPickerIndex = 0
     @State private var didAutoConnect = false
     @State private var didHatch = false
+    @State private var copiedPrompt = false
+    @State private var copiedPromptResetTask: Task<Void, Never>?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -58,6 +60,7 @@ struct OnboardingView: View {
             scanner.stop()
             pairingTask?.cancel()
             adoptionPreviewResetTask?.cancel()
+            copiedPromptResetTask?.cancel()
             if model.step == .display && model.selectedOutput == .hardware && esp32Output.connectionState != .connected {
                 cleanupAbandonedPairing(forceUnpair: true)
             } else {
@@ -176,7 +179,7 @@ struct OnboardingView: View {
                         .replacingOccurrences(of: "{species}", with: adoptionSpeciesLabel)
                         .replacingOccurrences(of: "{state}", with: adoptionPreviewState.rawValue))
                     Text(adoptionSpeciesLabel)
-                        .font(.buddy(15, weight: .semibold))
+                        .font(.buddy(showingAdoptionTeaser ? 9.5 : 15, weight: .semibold))
                         .foregroundStyle(adoptionSpeciesColor)
                 }
 
@@ -235,7 +238,7 @@ struct OnboardingView: View {
             Spacer()
 
             HStack {
-                HStack(spacing: 18) {
+                HStack(spacing: 12) {
                     Button(BuddyCopy.shared.onboarding.back) { model.goBack() }
                         .buttonStyle(OnboardingSecondaryButtonStyle())
 
@@ -282,11 +285,18 @@ struct OnboardingView: View {
                 subtitle: model.heardFromAgent == nil ? BuddyCopy.Onboarding.firstContactWaiting : nil
             )
 
-            Button(BuddyCopy.Onboarding.copyPrompt) {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(BuddyCopy.Onboarding.testPrompt, forType: .string)
+            Button(action: copyTestPrompt) {
+                Text(copiedPrompt ? BuddyCopy.Onboarding.copied : BuddyCopy.Onboarding.copyPrompt)
+                    .font(.buddy(13, weight: .semibold))
+                    .foregroundStyle(BuddyTheme.textSecondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .overlay(
+                        Capsule()
+                            .stroke(BuddyTheme.textPrimary.opacity(0.15), lineWidth: 1)
+                    )
             }
-            .buttonStyle(OnboardingSecondaryButtonStyle())
+            .buttonStyle(.plain)
             .opacity(model.heardFromAgent == nil ? 1 : 0)
             .disabled(model.heardFromAgent != nil)
 
@@ -422,10 +432,11 @@ struct OnboardingView: View {
                         )
                     )
                         .labelsHidden()
-                        .toggleStyle(.switch)
+                        .toggleStyle(BuddySwitchToggleStyle())
                         .tint(BuddyTheme.amber)
                         .disabled(!model.isPackagedApp)
                 }
+                .tint(BuddyTheme.amber)
 
                 Divider().overlay(BuddyTheme.textPrimary.opacity(0.08))
 
@@ -503,9 +514,11 @@ struct OnboardingView: View {
             Text(title)
                 .font(.buddy(9.5, weight: .semibold))
                 .foregroundStyle(BuddyTheme.textTertiary)
+                .frame(width: 64, alignment: .trailing)
             Text(value)
                 .font(.buddy(11, weight: .semibold))
                 .foregroundStyle(BuddyTheme.textSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 
@@ -553,9 +566,7 @@ struct OnboardingView: View {
             model.selectedOutput = target
         } label: {
             HStack(spacing: 14) {
-                Image(systemName: model.selectedOutput == target ? "checkmark.circle.fill" : "circle")
-                    .font(.title3)
-                    .foregroundStyle(model.selectedOutput == target ? BuddyTheme.amber : BuddyTheme.textTertiary)
+                outputSelectionIndicator(selected: model.selectedOutput == target)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(target.displayName)
                         .font(.buddy(13, weight: .semibold))
@@ -570,6 +581,23 @@ struct OnboardingView: View {
             .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: 14))
         }
         .buttonStyle(.plain)
+    }
+
+    private func outputSelectionIndicator(selected: Bool) -> some View {
+        ZStack {
+            Circle()
+                .stroke(selected ? BuddyTheme.amber : BuddyTheme.textSecondary, lineWidth: selected ? 0 : 1.5)
+                .frame(width: 20, height: 20)
+            if selected {
+                Circle()
+                    .fill(BuddyTheme.amber)
+                    .frame(width: 20, height: 20)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(BuddyTheme.night)
+            }
+        }
+        .frame(width: 20, height: 20)
     }
 
     private var blePairingPanel: some View {
@@ -651,17 +679,9 @@ struct OnboardingView: View {
     @ViewBuilder
     private var adoptionPickerPreview: some View {
         if showingAdoptionTeaser {
-            ZStack(alignment: .bottom) {
+            ZStack {
                 BlobBuddyView(petState: .sleep, size: 170)
                     .opacity(0.4)
-                Text(BuddyCopy.shared.onboarding.moreBuddiesHatchingSoon)
-                    .font(.buddy(9.5, weight: .semibold))
-                    .foregroundStyle(BuddyTheme.textTertiary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 4)
             }
             .frame(width: 260, height: 190)
         } else {
@@ -800,6 +820,17 @@ struct OnboardingView: View {
             adoptionPreviewState = .idle
         }
     }
+
+    private func copyTestPrompt() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(BuddyCopy.Onboarding.testPrompt, forType: .string)
+        copiedPrompt = true
+        copiedPromptResetTask?.cancel()
+        copiedPromptResetTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            copiedPrompt = false
+        }
+    }
 }
 
 private struct CrackShape: Shape {
@@ -837,9 +868,23 @@ private struct OnboardingSecondaryButtonStyle: ButtonStyle {
 
 private struct OnboardingIconButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .foregroundStyle(configuration.isPressed ? BuddyTheme.textPrimary : BuddyTheme.textSecondary)
-            .background(BuddyTheme.nightRaised, in: Circle())
-            .animation(.buddyEase(0.15), value: configuration.isPressed)
+        OnboardingIconButtonBody(isPressed: configuration.isPressed) {
+            configuration.label
+        }
+    }
+}
+
+private struct OnboardingIconButtonBody<Label: View>: View {
+    let isPressed: Bool
+    @ViewBuilder let label: Label
+    @State private var isHovering = false
+
+    var body: some View {
+        label
+            .foregroundStyle(isPressed ? BuddyTheme.textPrimary : BuddyTheme.textSecondary)
+            .background(isHovering ? BuddyTheme.nightRaised2 : BuddyTheme.nightRaised, in: Circle())
+            .onHover { isHovering = $0 }
+            .animation(.buddyEase(0.15), value: isHovering)
+            .animation(.buddyEase(0.15), value: isPressed)
     }
 }

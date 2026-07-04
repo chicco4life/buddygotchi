@@ -161,7 +161,8 @@ struct BuddySectionHeader: View {
             .tracking(0.8)
             .textCase(.uppercase)
             .foregroundStyle(BuddyTheme.textTertiary)
-            .padding(.top, 4)
+            .padding(.top, 16)
+            .padding(.bottom, 6)
     }
 }
 
@@ -185,12 +186,39 @@ struct BuddySettingToggle: View {
             Spacer(minLength: 8)
             Toggle("", isOn: $isOn)
                 .labelsHidden()
-                .toggleStyle(.switch)
+                .toggleStyle(BuddySwitchToggleStyle())
                 .tint(BuddyTheme.amber)
                 .padding(.top, 1)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.vertical, 12)
+        .tint(BuddyTheme.amber)
+    }
+}
+
+struct BuddySwitchToggleStyle: ToggleStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        Button {
+            configuration.isOn.toggle()
+        } label: {
+            ZStack {
+                Capsule()
+                    .fill(configuration.isOn ? BuddyTheme.amber : BuddyTheme.textPrimary.opacity(0.16))
+                    .frame(width: 52, height: 28)
+                Circle()
+                    .fill(BuddyTheme.textPrimary)
+                    .frame(width: 22, height: 22)
+                    .shadow(color: BuddyTheme.night.opacity(0.22), radius: 3, y: 1)
+                    .offset(x: configuration.isOn ? 12 : -12)
+            }
+            .frame(width: 52, height: 28)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .opacity(isEnabled ? 1 : 0.45)
+        .animation(.buddyEase(0.15), value: configuration.isOn)
     }
 }
 

@@ -64,6 +64,7 @@ enum BuddyCopy {
         let firstContactWaiting = "Open an agent and send any message."
         let heardFromTemplate = "Heard from {agent}."
         let copyPrompt = "Copy a test prompt"
+        let copied = "Copied"
         let testPrompt = "say hi to my buddygotchi"
         let troubleshootingTitle = "Still listening."
         let troubleshooting = "agent restarted since connecting? server running? port busy?"
@@ -263,6 +264,7 @@ enum BuddyCopy {
         static var firstContactTitle: String { BuddyCopy.shared.onboarding.firstContactTitle }
         static var firstContactWaiting: String { BuddyCopy.shared.onboarding.firstContactWaiting }
         static var copyPrompt: String { BuddyCopy.shared.onboarding.copyPrompt }
+        static var copied: String { BuddyCopy.shared.onboarding.copied }
         static var testPrompt: String { BuddyCopy.shared.onboarding.testPrompt }
         static var troubleshootingTitle: String { BuddyCopy.shared.onboarding.troubleshootingTitle }
         static var troubleshooting: String { BuddyCopy.shared.onboarding.troubleshooting }

@@ -211,7 +211,7 @@ struct BlobBuddyView: View {
                     .frame(width: size * 0.12, height: size * 0.025)
             } else {
                 Capsule()
-                    .frame(width: petState == .busy ? size * 0.09 : size * 0.105,
+                    .frame(width: petState == .busy ? size * 0.085 : size * 0.105,
                            height: petState == .attention ? size * 0.14 : size * 0.105)
             }
         }
@@ -233,6 +233,10 @@ struct BlobBuddyView: View {
                 .font(.buddy(size * 0.09, weight: .semibold))
                 .foregroundStyle(BuddyTheme.night)
                 .opacity(reduceMotion ? 1 : pulseMultiplier(at: t, period: thinkingDotsPeriod, minimum: 0.28))
+        case .sleep:
+            SleepMouthShape()
+                .stroke(BuddyTheme.night.opacity(0.8), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+                .frame(width: size * 0.11, height: size * 0.035)
         default:
             Capsule()
                 .frame(width: size * 0.11, height: 2)
@@ -268,5 +272,17 @@ struct BlobBuddyView: View {
                     )
             }
         }
+    }
+}
+
+private struct SleepMouthShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.move(to: CGPoint(x: rect.minX, y: rect.minY + rect.height * 0.25))
+        path.addQuadCurve(
+            to: CGPoint(x: rect.maxX, y: rect.minY + rect.height * 0.25),
+            control: CGPoint(x: rect.midX, y: rect.maxY)
+        )
+        return path
     }
 }

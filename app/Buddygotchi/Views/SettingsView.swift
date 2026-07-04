@@ -32,13 +32,18 @@ struct SettingsView: View {
     @State private var previewState: PetState = .idle
     @State private var previewResetTask: Task<Void, Never>?
     @State private var buddyPickerIndex = 0
+    @State private var advancedExpanded = false
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
                 Button(action: { isPresented = false }) {
-                    HStack(spacing: 4) {
+                    HStack(alignment: .firstTextBaseline, spacing: 3) {
                         Image(systemName: "chevron.left")
+                            .font(.system(size: 12, weight: .semibold))
+                            .alignmentGuide(.firstTextBaseline) { context in
+                                context[VerticalAlignment.center] + 4
+                            }
                         Text(BuddyCopy.settings)
                             .font(.buddy(15, weight: .semibold))
                     }
@@ -58,7 +63,7 @@ struct SettingsView: View {
                 .padding(.top, 8)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 0) {
                     generalSection
                     buddySection
                     agentsSection
@@ -142,7 +147,7 @@ struct SettingsView: View {
     // MARK: - General
 
     private var generalSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 0) {
             BuddySectionHeader(BuddyCopy.shared.settingsCopy.general)
 
             VStack(spacing: 0) {
@@ -168,7 +173,7 @@ struct SettingsView: View {
                         Spacer()
                     }
                     .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 12)
 
                     Divider().padding(.horizontal, 12)
                 }
@@ -197,56 +202,78 @@ struct SettingsView: View {
 
                 Divider().padding(.horizontal, 12)
 
-                DisclosureGroup {
-                    VStack(spacing: 0) {
-                        Divider().padding(.leading, 12)
-                        HStack {
-                            Text(BuddyCopy.shared.settingsCopy.httpPort)
-                                .font(.buddy(13))
-                            Spacer()
-                            Text("\(BuddyConfig.default.httpPort)")
-                                .font(.buddy(13))
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
-                        .accessibilityElement(children: .combine)
-
-                        Divider().padding(.leading, 12)
-                        serverHealthRow
-
-                        Divider().padding(.leading, 12)
-                        Button {
-                            NSWorkspace.shared.open(URL(fileURLWithPath: BuddyConfig.default.stateDir))
-                        } label: {
-                            HStack {
-                                Text(BuddyCopy.shared.settingsCopy.openConfigFolder)
-                                    .font(.buddy(13))
-                                Spacer()
-                                Image(systemName: "arrow.up.forward.square")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
-                        }
-                        .buttonStyle(BuddyPlainButtonStyle())
+                Button {
+                    withAnimation(.buddyEase(0.25)) {
+                        advancedExpanded.toggle()
                     }
                 } label: {
-                    Text(BuddyCopy.shared.settingsCopy.advanced)
-                        .font(.buddy(13))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
+                    HStack {
+                        Text(BuddyCopy.shared.settingsCopy.advanced)
+                            .font(.buddy(13))
+                            .foregroundStyle(BuddyTheme.textPrimary)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .rotationEffect(.degrees(advancedExpanded ? 90 : 0))
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 12)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(BuddyPlainButtonStyle())
+
+                if advancedExpanded {
+                    advancedRows
+                        .transition(.opacity)
                 }
             }
             .buddyGroupedCard()
         }
     }
 
+    private var advancedRows: some View {
+        VStack(spacing: 0) {
+            Divider().padding(.horizontal, 12)
+            HStack {
+                Text(BuddyCopy.shared.settingsCopy.httpPort)
+                    .font(.buddy(13))
+                Spacer()
+                Text("\(BuddyConfig.default.httpPort)")
+                    .font(.buddy(13))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+            .accessibilityElement(children: .combine)
+
+            Divider().padding(.horizontal, 12)
+            serverHealthRow
+
+            Divider().padding(.horizontal, 12)
+            Button {
+                NSWorkspace.shared.open(URL(fileURLWithPath: BuddyConfig.default.stateDir))
+            } label: {
+                HStack {
+                    Text(BuddyCopy.shared.settingsCopy.openConfigFolder)
+                        .font(.buddy(13))
+                    Spacer()
+                    Image(systemName: "arrow.up.forward.square")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 12)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(BuddyPlainButtonStyle())
+        }
+    }
+
     // MARK: - Buddy
 
     private var buddySection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
             BuddySectionHeader(BuddyCopy.shared.settingsCopy.buddy)
 
             HStack(spacing: 12) {
@@ -256,7 +283,7 @@ struct SettingsView: View {
                         .frame(width: 32, height: 32)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(BuddyPlainButtonStyle())
+                .buttonStyle(SettingsSpeciesChevronButtonStyle())
                 .accessibilityLabel(BuddyCopy.shared.onboarding.previousSpecies)
 
                 VStack(spacing: 8) {
@@ -268,12 +295,14 @@ struct SettingsView: View {
                     .accessibilityLabel(buddyPreviewAccessibilityLabel)
 
                     HStack(spacing: 4) {
-                        Circle()
-                            .fill(currentSpeciesColor)
-                            .frame(width: 6, height: 6)
-                            .accessibilityHidden(true)
+                        if !showingBuddyTeaser {
+                            Circle()
+                                .fill(currentSpeciesColor)
+                                .frame(width: 6, height: 6)
+                                .accessibilityHidden(true)
+                        }
                         Text(currentSpeciesLabel)
-                            .font(.buddy(11, weight: .semibold))
+                            .font(.buddy(showingBuddyTeaser ? 9.5 : 11, weight: .semibold))
                             .foregroundStyle(currentSpeciesColor)
                     }
                 }
@@ -285,7 +314,7 @@ struct SettingsView: View {
                         .frame(width: 32, height: 32)
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(BuddyPlainButtonStyle())
+                .buttonStyle(SettingsSpeciesChevronButtonStyle())
                 .accessibilityLabel(BuddyCopy.shared.onboarding.nextSpecies)
             }
             .frame(maxWidth: .infinity)
@@ -301,7 +330,7 @@ struct SettingsView: View {
                 .foregroundStyle(BuddyTheme.textPrimary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 14)
-                .padding(.vertical, 10)
+                .padding(.vertical, 12)
                 .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: 14))
                 .overlay(alignment: .topLeading) {
                     Text(BuddyCopy.shared.settingsCopy.name)
@@ -316,7 +345,7 @@ struct SettingsView: View {
     // MARK: - Agents
 
     private var agentsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 0) {
             BuddySectionHeader(BuddyCopy.shared.settingsCopy.agents)
 
             VStack(spacing: 0) {
@@ -362,7 +391,7 @@ struct SettingsView: View {
                         }
                     }
                     .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 12)
                     .accessibilityElement(children: .combine)
 
                     if index < AgentKind.allCases.count - 1 {
@@ -406,7 +435,7 @@ struct SettingsView: View {
     // MARK: - Displays
 
     private var displaysSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 0) {
             BuddySectionHeader(BuddyCopy.shared.settingsCopy.displays)
 
             VStack(spacing: 0) {
@@ -422,7 +451,7 @@ struct SettingsView: View {
                     }
                 }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                .padding(.vertical, 12)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(BuddyCopy.shared.settingsCopy.thisMacActive)
 
@@ -450,7 +479,7 @@ struct SettingsView: View {
                         .tint(.red)
                     }
                     .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 12)
                     .confirmationDialog(BuddyCopy.shared.settingsCopy.forgetThisBuddyTitle, isPresented: $showingUnpairConfirmation) {
                         Button(BuddyCopy.shared.settingsCopy.forgetThisBuddy, role: .destructive) {
                             esp32Output.unpair()
@@ -482,7 +511,7 @@ struct SettingsView: View {
                         .tint(BuddyTheme.amber)
                     }
                     .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 12)
 
                     Divider().padding(.horizontal, 12)
 
@@ -500,7 +529,7 @@ struct SettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                         .padding(.horizontal, 12)
-                        .padding(.vertical, 10)
+                        .padding(.vertical, 12)
                     }
                     .buttonStyle(BuddyPlainButtonStyle())
                 }
@@ -551,7 +580,7 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(.vertical, 12)
             .contentShape(Rectangle())
         }
         .buttonStyle(BuddyPlainButtonStyle())
@@ -618,7 +647,7 @@ struct SettingsView: View {
     // MARK: - About
 
     private var aboutSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 0) {
             BuddySectionHeader(BuddyCopy.shared.settingsCopy.about)
 
             VStack(spacing: 0) {
@@ -630,7 +659,7 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                .padding(.vertical, 12)
                 .accessibilityElement(children: .combine)
 
                 Divider().padding(.horizontal, 12)
@@ -651,7 +680,7 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                     .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 12)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(BuddyPlainButtonStyle())
@@ -668,7 +697,7 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                     .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
+                    .padding(.vertical, 12)
                 }
                 .buttonStyle(BuddyPlainButtonStyle())
 
@@ -683,7 +712,7 @@ struct SettingsView: View {
                     Spacer()
                 }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                .padding(.vertical, 12)
             }
             .buddyGroupedCard()
 
@@ -704,7 +733,7 @@ struct SettingsView: View {
                     Spacer()
                 }
                 .padding(.horizontal, 12)
-                .padding(.vertical, 10)
+                .padding(.vertical, 12)
             }
             .buttonStyle(BuddyPlainButtonStyle())
             .buddyGroupedCard()
@@ -815,7 +844,7 @@ struct SettingsView: View {
                 .multilineTextAlignment(.trailing)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.vertical, 12)
         .accessibilityElement(children: .combine)
     }
 
@@ -892,17 +921,9 @@ struct SettingsView: View {
     @ViewBuilder
     private var buddyPickerPreview: some View {
         if showingBuddyTeaser {
-            ZStack(alignment: .bottom) {
+            ZStack {
                 BlobBuddyView(petState: .sleep, size: 110)
                     .opacity(0.4)
-                Text(BuddyCopy.shared.onboarding.moreBuddiesHatchingSoon)
-                    .font(.buddy(9.5, weight: .semibold))
-                    .foregroundStyle(BuddyTheme.textTertiary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 6)
-                    .padding(.bottom, 2)
             }
             .frame(width: 140, height: 124)
         } else {
@@ -944,6 +965,30 @@ struct SettingsView: View {
             engine.setSpecies(Pet.defaultSpecies)
             esp32Output.sendNow()
         }
+    }
+}
+
+private struct SettingsSpeciesChevronButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        SettingsSpeciesChevronButtonBody(isPressed: configuration.isPressed) {
+            configuration.label
+        }
+    }
+}
+
+private struct SettingsSpeciesChevronButtonBody<Label: View>: View {
+    let isPressed: Bool
+    @ViewBuilder let label: Label
+    @State private var isHovering = false
+
+    var body: some View {
+        label
+            .foregroundStyle(isPressed ? BuddyTheme.textPrimary : BuddyTheme.textSecondary)
+            .background(isHovering ? BuddyTheme.nightRaised2 : BuddyTheme.nightRaised, in: Circle())
+            .opacity(isPressed ? 0.65 : 1)
+            .onHover { isHovering = $0 }
+            .animation(.buddyEase(0.15), value: isHovering)
+            .animation(.buddyEase(0.15), value: isPressed)
     }
 }
 

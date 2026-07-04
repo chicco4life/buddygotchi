@@ -129,6 +129,7 @@ struct PopoverView: View {
             if engine.state.pet.state == .sleep && engine.state.sessions.total == 0 {
                 Spacer().frame(height: 10)
                 EmptyAgentsView()
+                    .padding(.bottom, 12)
                     .transition(.opacity)
             }
 
@@ -313,7 +314,8 @@ private struct EmptyAgentsView: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.top, 10)
+        .padding(.bottom, 14)
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(BuddyTheme.textPrimary.opacity(0.03))
@@ -362,6 +364,7 @@ private struct ErrorTrailerView: View {
         }
         .padding(.horizontal, 12)
         .padding(.top, 6)
+        .padding(.bottom, 8)
         .accessibilityElement(children: .combine)
     }
 }
@@ -383,7 +386,7 @@ struct ToolCardView: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 8) {
-                HStack {
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
                     if let source = prompt.source {
                         Text(sourceName(source))
                             .font(.buddy(11))
@@ -391,8 +394,11 @@ struct ToolCardView: View {
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(BuddyTheme.amber.opacity(0.15), in: Capsule())
+                            .alignmentGuide(.firstTextBaseline) { context in
+                                context[VerticalAlignment.center] + 4
+                            }
                     }
-                    Spacer()
+                    Spacer(minLength: 8)
                     if waitingCount > 1 {
                         Text(BuddyCopy.shared.popover.moreWaitingTemplate.replacingOccurrences(of: "{count}", with: "\(waitingCount - 1)"))
                             .font(.buddy(9.5, weight: .semibold))
@@ -659,6 +665,7 @@ struct ReviewCardView: View {
                         }
                         .buttonStyle(BuddyPlainButtonStyle())
                     }
+                    .padding(.top, 4)
                 }
             }
             .padding(.leading, 10)
@@ -749,6 +756,7 @@ struct ErrorCardView: View {
                         }
                         .buttonStyle(BuddyPlainButtonStyle())
                     }
+                    .padding(.top, 4)
                 }
             }
             .padding(.leading, 10)
@@ -851,8 +859,9 @@ struct SessionListView: View {
     let sessions: [SessionSnapshot]
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             ForEach(sessions) { sess in
+                let hasTool = sess.currentTool?.isEmpty == false
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Circle()
                         .fill(stateColor(for: sess.state))
@@ -888,6 +897,7 @@ struct SessionListView: View {
                     }
                 }
                 .padding(.horizontal, 12)
+                .padding(.bottom, hasTool ? 2 : 0)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("\(displayName(for: sess.source)) \(stateLabel(for: sess.state))\(sess.currentTool.map { ", \($0)" } ?? "")")
             }
