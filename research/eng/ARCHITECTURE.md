@@ -1,246 +1,264 @@
 # Architecture
 
-Buddygotchi is a local-first macOS companion for AI coding agents. The active product is a Swift menu bar app that receives agent hook events over localhost HTTP, reduces them into one `BuddyState`, renders that state in SwiftUI, and optionally mirrors it to ESP32 firmware over BLE.
+Buddygotchi is a local-first macOS companion for AI coding agents. The active
+product is the Swift app in `app/`: agent hooks send localhost events, the app
+reduces them into one `BuddyState`, desktop outputs render that state, and the
+ESP32 output mirrors it to firmware over BLE.
 
-The important architectural boundary is:
+The production boundary is:
 
 ```text
-agent hooks -> HTTP input adapters -> BuddyEngine -> pure reducer -> output providers
+agent hooks -> HookServer -> BuddyEngine -> pure reducer -> OutputProvider
 ```
 
-Inputs normalize external payloads. Core owns state transitions. Outputs render or relay state. That separation is what keeps agent-specific quirks, UI code, and hardware transport from leaking into the reducer.
+Inputs normalize external payloads. Core owns state transitions. Outputs render
+or relay state. Agent-specific parsing, UI, persistence, clocks, BLE, and HTTP
+do not belong in the reducer.
 
 ## Current Runtime
 
 | Area | Implementation |
 | --- | --- |
-| macOS app | Swift 6, SwiftUI, AppKit menu bar status item |
+| macOS app | Swift 6 package, SwiftUI/AppKit menu bar app, macOS 14 minimum |
 | HTTP server | Hummingbird on `127.0.0.1:21321` by default |
+| Local auth | `X-Buddygotchi-Token` header for hook routes; token lives in `~/.buddygotchi/config.json` |
 | State management | `@Observable` `BuddyEngine` plus pure `reduce(_:_:)` |
-| Agent hooks | Generated bash hook for Claude Code/Codex, Swift signal CLI for Cursor |
-| Desktop output | SwiftUI popover, AppKit status icon, macOS notifications and sounds |
-| Hardware output | CoreBluetooth central talking Nordic UART Service to M5StickC Plus 2 firmware |
-| Tests | XCTest unit/integration tests, opt-in SwiftUI snapshot harness, shell e2e smoke scripts |
-
-The legacy Bun/TypeScript daemon and browser prototype have been removed. The ESP32 firmware under `firmware/esp32/` is active.
+| Agent hooks | Generated bash hook for Claude Code/Codex; managed Swift `BuddygotchiSignal` helper for Cursor |
+| Desktop output | `DesktopOutput` updates status icon, notifications, sounds, and interactive popover behavior from state changes |
+| Hardware output | `ESP32Output` sends heartbeat JSON over CoreBluetooth Nordic UART Service |
+| Firmware | ESP32/M5StickC Plus 2 renderer and device I/O under `firmware/esp32/` |
+| Tests | XCTest in CI, local compile-only fallback when XCTest is unavailable, shell e2e, opt-in snapshots, HIL pytest |
 
 ## Repository Map
 
-```text
-app/
-  Package.swift
-  Buddygotchi/
-    App/                  app delegate, menu bar lifecycle, signal handling
-    Core/                 reducer, state, events, config, diagnostics, protocols
-    Server/               Hummingbird routes for hook input
-    Install/              agent hook installer and generated hook script
-    Views/                SwiftUI popover, settings, setup wizard, cards
-    Buddies/              ASCII sprite definitions
-    Theme/                shared SwiftUI styling
-    Notifications/        macOS notification output
-    Outputs/ESP32/        BLE output, heartbeat mapper, OTA updater
-  BuddygotchiSignal/      Cursor hook stdin -> localhost HTTP bridge
-  Tests/                  XCTest suites and snapshot harness
-  tools/                  e2e HTTP smoke tests
-
-landing/                    Next.js landing page and waitlist API
-
-firmware/esp32/             active ESP32 firmware, PlatformIO project, hardware tools
-
-docs/                       architecture, planning, product, marketing, and references
-```
+| Path | Role |
+| --- | --- |
+| `app/Buddygotchi/App/` | app delegate, menu bar lifecycle, Sparkle, uninstall |
+| `app/Buddygotchi/Core/` | reducer, state, events, config, diagnostics, protocols |
+| `app/Buddygotchi/Server/` | Hummingbird localhost input adapter |
+| `app/Buddygotchi/Install/` | agent hook installer and generated hook script |
+| `app/Buddygotchi/Views/` | popover, settings, onboarding, firmware update UI |
+| `app/Buddygotchi/Outputs/` | desktop and ESP32 output providers |
+| `app/BuddygotchiSignal/` | Cursor hook stdin -> localhost HTTP bridge |
+| `app/Tests/`, `app/tools/` | XCTest, snapshots, e2e, packaging, appcast |
+| `firmware/esp32/` | active ESP32 firmware, PlatformIO project, HIL tools |
+| `docs/`, `research/eng/`, `landing/` | release/support docs, engineering docs, product site |
 
 ## End-To-End Flow
 
 ```text
-Claude Code / Cursor / Codex
+Claude Code / Codex / Cursor
         |
-        | native hook payload on stdin
+        | hook payload on stdin
         v
-hook script or BuddygotchiSignal
+~/.buddygotchi/buddygotchi-hook.sh
+or ~/.buddygotchi/bin/buddygotchi-signal
         |
-        | localhost HTTP
+        | localhost HTTP + X-Buddygotchi-Token
         v
 HookServer
+  GET  /healthz
   POST /hook/event
   POST /hook/signal
   POST /hook/approve
-  GET  /healthz
         |
         v
 BuddyEngine
   - owns pending approval continuations
   - owns process watchers
   - owns output registrations
-  - applies BuddyEvent values
         |
         v
 BuddyReducer
   InternalState + BuddyEvent -> InternalState
         |
         v
-BuddyState projections
+BuddyState projection
         |
-        +--> SwiftUI popover and status icon
-        +--> macOS notifications and sounds
+        +--> SwiftUI popover
+        +--> DesktopOutput: status icon, notifications, sounds, auto-show/close
         +--> DiagnosticLog export bundle
-        +--> ESP32 heartbeat JSON over BLE
+        +--> ESP32Output: heartbeat JSON over BLE
 ```
+
+## Local API And Config
+
+`BuddyConfig.default` creates `~/.buddygotchi/config.json` with mode `0600`.
+The current keys are:
+
+| Key | Meaning |
+| --- | --- |
+| `port` | Localhost HTTP port. Default: `21321`. |
+| `approvalMode` | Optional boolean. Missing means `false`. |
+| `token` | 32 random bytes as 64 hex characters, generated with Security framework randomness when possible. |
+
+`GET /healthz` is unauthenticated and returns `ok`, `stateVersion`, and
+`desktop`. Every hook route requires `X-Buddygotchi-Token`; token comparison is
+constant-time. Hook bodies are collected up to `1_048_576` bytes.
+
+Settings keeps approval mode live in two places: `UserDefaults` key
+`approvalMode` drives the server's provider closure, and
+`BuddyConfig.setApprovalMode(_:)` writes `approvalMode` back to
+`config.json`. The server does not need a restart when approval mode changes.
+
+Default runtime timing comes from `Config.swift`:
+
+| Constant | Value | Use |
+| --- | ---: | --- |
+| `staleTimeoutMs` | `600_000` | stale session reap after 600 seconds |
+| `approvalTimeoutMs` | `300_000` | prompt/approval expiry after 300 seconds |
+| `workStallTimeoutMs` | `300_000` | quiet working session becomes `thinking` after 300 seconds |
+| `celebrateDurationMs` | `4_000` | celebrate window |
+| engine stale timer | `2.0` seconds | periodic `staleTick` |
 
 ## Agent Inputs
 
-All agent integrations are intentionally fail-open. If Buddygotchi is not running or localhost cannot be reached quickly, the hook exits successfully and the agent's native permission flow continues.
+All integrations are fail-open. If the app is down, the token is missing, or
+the localhost call fails, the hook exits successfully and lets the agent's
+native flow continue.
 
 ### Claude Code
 
-`HookInstaller.installClaudeCode()` writes nested command hooks into `~/.claude/settings.json`. The command points to `~/.buddygotchi/buddygotchi-hook.sh claude-code`.
+`HookInstaller` writes nested command hooks to `~/.claude/settings.json`.
+Plain hooks use timeout `5`; `PermissionRequest` uses timeout `310` so the
+generated script can wait up to `300` seconds for `/hook/approve`.
 
-Installed events:
+Installed plain events are `SessionStart`, `UserPromptSubmit`, `Stop`,
+`StopFailure`, `SessionEnd`, `PostToolUse`, `Elicitation`, and
+`ElicitationResult`. Notification matchers are `permission_prompt`,
+`idle_prompt`, and `elicitation_dialog`.
 
-- `SessionStart`
-- `UserPromptSubmit`
-- `Stop`
-- `StopFailure`
-- `SessionEnd`
-- `PostToolUse`
-- `Elicitation`
-- `ElicitationResult`
-- `PermissionRequest`
-- `Notification` matchers: `permission_prompt`, `idle_prompt`, `elicitation_dialog`
-
-The generated bash script reads `~/.buddygotchi/config.json` every time. If `approvalMode` is true and the hook is `PermissionRequest`, it calls `/hook/approve` with a long timeout and prints Buddygotchi's response to stdout. Otherwise it posts to `/hook/event` with a short timeout and returns no stdout.
-
-`SessionStart` includes a `pid` query parameter. `BuddyEngine` walks from hook PID to the agent process and creates a `DispatchSourceProcess` watcher so sessions are reaped when the parent exits.
+The generated script reads `port`, `token`, and `approvalMode` from
+`config.json` on every invocation. With approval mode on, Claude
+`PermissionRequest` events go to `/hook/approve?source=claude-code&pid=$$`;
+other events go to `/hook/event?source=claude-code&pid=$$`.
 
 ### Codex
 
-`HookInstaller.installCodex()` writes `~/.codex/hooks.json` and ensures this feature flag exists in `~/.codex/config.toml`:
+`HookInstaller` writes `~/.codex/hooks.json` and ensures
+`codex_hooks = true` under `[features]` in `~/.codex/config.toml`. Installed
+events are `SessionStart` with matcher `startup|resume`, `UserPromptSubmit`,
+`PermissionRequest`, `PreToolUse`, `PostToolUse`, and `Stop`.
 
-```toml
-[features]
-codex_hooks = true
-```
-
-Installed events:
-
-- `SessionStart` with matcher `startup|resume`
-- `UserPromptSubmit`
-- `PermissionRequest`
-- `PreToolUse`
-- `PostToolUse`
-- `Stop`
-
-Codex shares the same generated bash hook script as Claude Code, using `source=codex`.
+Codex uses the same bash hook as Claude, with `source=codex`.
 
 ### Cursor
 
-`HookInstaller.installCursor()` writes `~/.cursor/hooks.json` with commands that run `BuddygotchiSignal --agent cursor`.
+`HookInstaller` writes `~/.cursor/hooks.json` and runs the managed helper at
+`~/.buddygotchi/bin/buddygotchi-signal --agent cursor`. Installed events are
+`sessionStart`, `sessionEnd`, `beforeSubmitPrompt`, `stop`,
+`beforeShellExecution`, `beforeMCPExecution`, `afterShellExecution`, and
+`afterMCPExecution`.
 
-Installed events:
+`BuddygotchiSignal` maps Cursor payloads to `/hook/signal` or `/hook/approve`.
+The server still maps Cursor's legacy `stop_working` signal to `celebrate` so
+old installed helpers keep producing completion cards.
 
-- `sessionStart`
-- `sessionEnd`
-- `beforeSubmitPrompt`
-- `stop`
-- `beforeShellExecution`
-- `beforeMCPExecution`
-- `afterShellExecution`
-- `afterMCPExecution`
+Cursor auto-approval is intentionally conservative. `Read`, `Glob`, `Grep`,
+`LSP`, and `WebFetch` can auto-allow. Shell hints can auto-allow only for the
+small read-only command/pattern list, and any `;`, `&`, `|`, backtick, `$`,
+parentheses, redirection, or newline requires manual review.
 
-The signal CLI maps Cursor lifecycle events to `/hook/signal`. When local approval mode is on, `beforeShellExecution` and `beforeMCPExecution` are routed to `/hook/approve` and block for a decision. Cursor always receives `{"permission":"allow"}` for non-blocking signal hooks so its own flow can continue.
+## Hook Health
 
-Cursor does not provide a dedicated "permission prompt opened" event. In passive mode, before/after tool hooks only keep Buddygotchi busy. In approval mode, `/hook/approve` first runs the auto-approval allowlist.
+Hook installation is versioned by `HookInstaller.hookSchemaVersion == 3`.
+States are `notInstalled`, `installed`, `outdated(installed:current:)`, and
+`corrupted(reason:)`.
+
+Launch auto-repair runs in `AppDelegate.verifyManagedHooksAfterLaunch()`. It
+checks every previously installed or currently detected agent. Outdated hooks
+and repairable corruptions are reinstalled; non-repairable corruptions are
+logged to diagnostics. Non-repairable reasons are invalid Claude
+`settings.json`, invalid `hooks.json`, and unreadable hook script.
+
+Every config write backs up the old agent file under
+`~/.buddygotchi/backups`, keeping the latest 3 backups per agent/path prefix.
+Cursor's helper is copied from the packaged `BuddygotchiSignal` executable into
+`~/.buddygotchi/bin/buddygotchi-signal` and verified executable.
 
 ## HTTP Routes
 
-| Route | Purpose |
-| --- | --- |
-| `GET /healthz` | Returns `ok`, state version, and desktop status |
-| `POST /hook/event?source=...&pid=...` | Non-blocking hook events from Claude Code/Codex |
-| `POST /hook/signal` | Lightweight lifecycle/activity signals from Cursor |
-| `POST /hook/approve?source=...` | Blocking approval request path for Cursor, Claude Code, and Codex |
+| Route | Source | Purpose |
+| --- | --- | --- |
+| `GET /healthz` | any local caller | unauthenticated liveness: `ok`, `stateVersion`, `desktop` |
+| `POST /hook/event?source=...&pid=...` | Claude/Codex bash hook | non-blocking lifecycle and tool events |
+| `POST /hook/signal` | Cursor helper | lightweight Cursor lifecycle/activity signals |
+| `POST /hook/approve?source=...` | all agents | blocking approval request path |
 
-`HookServer` is an input adapter. It decodes payloads, derives session IDs, extracts tool hints, records diagnostics, and calls `BuddyEngine`. It should not own durable state.
+`HookServer` decodes payloads, derives session IDs, extracts tool/hint/cwd
+labels, records diagnostics, and calls `BuddyEngine`. It does not own durable
+state.
 
 ## Core State Model
 
-The reducer is pure. It receives all time as event `at` values and does not perform I/O, read clocks, touch user defaults, or call outputs.
+The reducer is pure. It receives time as `BuddyEvent.at` values and does not
+read clocks, user defaults, network, UI, or BLE.
 
-`InternalState` contains:
-
-- `buddy: BuddyState`
-- `sessions: [String: Session]`
-- stale session timeout
-- celebrate duration
-- work-stall timeout
-
-`BuddyState` is the output projection used by UI and hardware:
+`InternalState` contains `BuddyState`, sessions, `staleMs`,
+`celebrateDurationMs`, `workStallTimeoutMs`, and `approvalTimeoutMs`.
+`BuddyState` is the output projection:
 
 - `version`, `updatedAt`
-- `desktop` connection status and last heartbeat timestamp
-- aggregate `sessions` counts
-- `msg` current hardware-friendly line
-- `entries` recent activity log, newest first, capped at 10
-- `prompt` selected approval/passive request
-- `pet` state and species
-- `celebrateUntil` and `lastTaskDurationMs`
-- `lastCompleted` review-card projection
-- `firstErrored` error-card projection
-- `firstThinking` thinking-card projection
-- `activeSessions` compact per-session rows, capped at 6
+- `desktop` status and last heartbeat timestamp
+- aggregate `sessions`
+- hardware line `msg`
+- newest-first `entries`, capped at 10
+- selected `prompt`
+- `pet` state/species
+- celebrate and last-completed review fields
+- first errored/thinking projections
+- `activeSessions`, capped at 6 to match firmware capacity
 - `currentActivityKind`
 
-Session state is richer than the aggregate buddy state. A session tracks source, current state, prompt, working timestamps, last/current tool, hints, activity kind, and current working directory.
+Session state is richer than the projection: source, state, prompt, cwd,
+timestamps, last/current tool and hint, and activity kind.
 
 ## Pet State Priority
 
-Aggregation applies one visible pet state across all sessions:
+Aggregation chooses one visible pet state:
 
-1. disconnected -> `sleep`
+1. no sessions -> `sleep`
 2. any waiting prompt -> `attention`
 3. any explicit failed session -> `error`
-4. any actively working session -> `busy`
-5. any silent-but-not-stale working session -> `thinking`
+4. any working session -> `busy`
+5. any quiet working session past `workStallTimeoutMs` -> `thinking`
 6. active celebrate window -> `celebrate`
 7. otherwise connected -> `idle`
 
-Live prompts intentionally outrank errors because the user can act on them immediately. Explicit errors outrank ordinary work. Thinking is not an error; it means a working session has been silent past `workStallTimeoutMs` but has not hit the stale-session reap threshold.
-
-## Activity And Review Surfaces
-
-`ActivityKind.swift` classifies tool + hint pairs into:
-
-- `verify`
-- `read`
-- `write`
-- `shell`
-- `web`
-- `work`
-
-The classifier is stack-agnostic and pure. It powers popover icons, prompt metadata, completion review metadata, and the optional `activity` heartbeat field.
-
-When work completes, `.celebrate` records a `CompletedTask` from the session's last tool/hint/source. The UI shows it as a review card after the celebrate animation, and the ESP32 `msg` line carries a compact `Done: <tool>` summary until new work or a new prompt clears it.
+Live prompts outrank errors because the user can act on them. Errors outrank
+ordinary work. `thinking` is not an error; it is a quiet but not-yet-stale
+working session.
 
 ## Approval Model
 
-`BuddyEngine.submitApproval(...)` applies an `approvalArrived` event and suspends with a `CheckedContinuation`. The continuation is stored by request ID in `pendingApprovals`.
+`BuddyEngine.submitApproval(...)` applies `approvalArrived` and stores a
+`CheckedContinuation` in `pendingApprovals`. A resolution applies
+`approvalResolved`, resumes the continuation, and `HookServer.approvalResponse`
+formats the agent-specific body.
 
-Approvals can resolve from:
+Decision bodies:
 
-- SwiftUI popover approve/deny buttons
-- ESP32 hardware buttons over BLE
-- fail-open cleanup when a session disappears
+| Decision | Cursor response | Claude/Codex response |
+| --- | --- | --- |
+| `.allow` | `{"permission":"allow"}` | `hookSpecificOutput.decision.behavior == "allow"` |
+| `.deny` | `{"permission":"deny", ...}` | `hookSpecificOutput.decision.behavior == "deny"` with message |
+| `.passthrough` | `{"permission":"ask"}` | empty `200 OK` body |
 
-`resolveApproval(requestId:decision:)` applies `approvalResolved`, resumes the continuation, and returns an agent-specific response:
+`.passthrough` means "release Buddygotchi's local approval surface and hand the
+flow back to the agent." Cleanup paths that use it are:
 
-- Cursor: `{"permission":"allow"}` or `{"permission":"deny", ...}`
-- Claude Code/Codex: `hookSpecificOutput` with `PermissionRequest` decision behavior
+- explicit session removal (`SessionEnd`, Cursor `session_end`, process watcher)
+- stale session reap after `600_000` ms
+- prompt expiry after `300_000` ms
+- turning local approval mode off in Settings, which calls
+  `resolveAllPendingApprovals(decision: .passthrough)`
 
-Cursor has a conservative auto-approve path for read-only tools and simple read-only shell commands. Any shell control character such as `;`, `&`, `|`, backticks, `$`, parentheses, redirection, or newlines disables auto-approval.
+Approvals can be answered from the SwiftUI popover, actionable notifications,
+or ESP32 button messages over BLE.
 
 ## Outputs
 
-Outputs conform to `OutputProvider`:
+Outputs conform to:
 
 ```swift
 protocol OutputProvider {
@@ -249,147 +267,183 @@ protocol OutputProvider {
 }
 ```
 
-### Menu Bar UI
+`BuddyEngine.apply(_:)` is the only fan-out point. It computes removed sessions
+and disappeared prompt IDs, resumes disappeared pending approvals as
+`.passthrough`, then calls every output.
 
-`AppDelegate` owns the `BuddyEngine`, Hummingbird service group, status item, popover, ESP32 output, timers, and signal handlers.
+### DesktopOutput
 
-The popover renders:
+`DesktopOutput` is an `OutputProvider`, registered by `AppDelegate` after the
+popover is built. It has no polling timer. On state changes it:
 
-- animated ASCII buddy
-- connection and session counts
-- current activity row
-- approval/passive prompt card
-- thinking card
-- error card with dismiss
-- review card with dismiss
-- per-session rows when more than one session is active
-- settings and bug-report controls
+- updates the menu bar icon when `pet.state` changes
+- posts a notification for a new prompt if the popover is not open
+- clears the previous prompt notification when the prompt changes
+- plays bundled `celebrate`, `attention`, or `error` `.caf` sounds when enabled
+- auto-shows in interactive mode for attention (`15.0` seconds) and long
+  completions (`3.0` seconds when task duration is at least `30_000` ms)
+- closes the popover when returning to `idle` or `sleep` in interactive mode
 
-The status icon follows `PetState.sfSymbol`. Sounds are transition-based: attention uses `Glass`, long celebrates use `Funk`, and error uses `Sosumi`. Interactive mode can auto-show the popover for attention and long celebrate transitions.
+Notifications use categories `TOOL_CALL` and `TOOL_CALL_APPROVAL`. Approval
+notifications expose `APPROVE` and `DENY` actions, which call
+`engine.resolveApproval`.
 
-### Notifications
+### SwiftUI App Lifecycle
 
-`NotificationManager` posts a macOS notification for a new prompt when the popover is closed and clears it once the prompt resolves.
+`AppDelegate` enforces single-instance behavior by activating an existing app
+with the same bundle identifier. It starts Sparkle, registers bundled fonts,
+creates the status item and popover, registers `ESP32Output` and
+`DesktopOutput`, starts the Hummingbird `ServiceGroup`, and runs launch hook
+verification.
 
-### Diagnostic Log
+On first launch, when `setupCompleted` is false, the app opens
+`OnboardingWindowController`. The controller owns a non-restorable `NSWindow`
+backed by `OnboardingView`, reuses the same controller while visible, activates
+the app, and clears itself after finish. Onboarding persists step, species,
+name, output target, setup completion, and menu hint through `DefaultsKey`.
 
-`DiagnosticLog` is not a registered output, but the engine and server write structured diagnostic entries. Bug report export includes:
+### Resources And Copy
 
-- state snapshot
-- recent diagnostic entries
-- agent install status
-- recent OSLog entries when available
+`Package.swift` copies `Resources/Fonts` and `Resources/Sounds` into the SwiftPM
+resource bundle. `BuddyResources` first resolves through `Bundle.module`, then
+falls back to packaged locations including `Buddygotchi_Buddygotchi.bundle` next
+to the executable and in `Contents/Resources`.
 
-### ESP32 BLE Output
+`BuddyResources.registerFonts()` registers Geist fonts with CoreText; sounds are
+loaded as `.caf` or `.wav`. `ResourceTests` assert the module bundle contains a
+font and sound and that Geist SemiBold resolves.
 
-`ESP32Output` maps every `BuddyState` change to `RenderState` heartbeat JSON and writes it over Nordic UART RX. It also sends a 10 second keepalive of the last state.
+User-visible app copy lives in `BuddyCopy`. `CopyRulesTests` reflects through
+`BuddyCopy.shared` and rejects banned hype words, exclamation marks, ASCII
+ellipsis, and unexpected all-caps words. The inline-copy ratchet baseline is
+`0` for `Text("...")` literals in views plus notification/app delegate surfaces.
 
-Key outbound fields:
+## Hardware And Firmware
 
-- `pet`, `species`, `desktop`
-- `total`, `running`, `waiting`
-- `msg`
-- `promptId`, `promptTool`, `promptHint`, `promptSource`, `promptApproval`
-- `lastCompletedTool`, `lastCompletedHint`, `lastCompletedSource`, `lastCompletedDurationMs`
-- `errorTool`, `errorSource`
-- `activity`
-- `entries`
-- `sessions`
+`RenderState` in `Outputs/ESP32/Heartbeat.swift` is the desktop-to-firmware wire
+contract. The detailed field contract lives in `firmware/esp32/PROTOCOL.md`.
+The Mac app caps fields before encoding: `msg` 23 chars, prompt tool 20,
+prompt hint 60, entries 6 items of 48 chars, sessions 6 summaries, and an
+assertion guards the heartbeat at `1536` bytes plus newline.
 
-Inbound BLE lines handled by `BLEManager`:
+The ESP32 firmware is a renderer and device I/O endpoint. It parses heartbeat
+JSON into `TamaState`, derives a persona, draws the buddy, handles buttons,
+emits permission decisions, serves debug commands, and runs OTA/status/asset
+commands. It does not decide agent state.
 
-- `{"cmd":"permission","id":"...","decision":"allow|deny"}` resolves an approval
-- `{"ack":"...","ok":true|false}` resolves OTA/status back-pressure waiters
+Firmware-owned display behavior:
 
-On connect, the app sends time sync, sends the latest heartbeat, asks for firmware status, and checks for updates.
+| Constant | Value |
+| --- | ---: |
+| render tick | `200` ms |
+| sleep dim threshold | `60_000` ms |
+| sleep off threshold | `600_000` ms |
+| A-button long press | `1_500` ms |
+| brightness dim/medium/full | `40` / `120` / `220` |
 
-## Firmware OTA
+State-transition chirps play on attention, celebrate, and dizzy/error unless
+settings sound is off or the heartbeat carries `mute: true`. The Mac sends
+`mute: true` only when the desktop `soundsEnabled` default is false; omitting
+`mute` leaves the firmware's current value unchanged.
 
-`FirmwareUpdater` is owned by `ESP32Output` and survives popover presentation. The flow is:
+BLE uses Nordic UART Service:
 
-1. Fetch firmware manifest through `FirmwareReleaseService`.
-2. Download the binary and verify SHA-256.
-3. Send `ota_begin`.
-4. Stream chunks with one ack per chunk.
-5. Send `ota_end`.
-6. Treat disconnect/reboot as part of a successful update path when appropriate.
+| Item | Value |
+| --- | --- |
+| Service UUID | `6E400001-B5A3-F393-E0A9-E50E24DCCA9E` |
+| RX UUID | `6E400002-B5A3-F393-E0A9-E50E24DCCA9E` |
+| TX UUID | `6E400003-B5A3-F393-E0A9-E50E24DCCA9E` |
+| Firmware RX ring | `2048` bytes |
+| Firmware USB/BLE line buffers | `2048` bytes each |
+| Mac BLE RX line buffer guard | `4096` bytes |
+| Firmware requested MTU | `517` |
+| Firmware notify chunk cap | `180` bytes |
+| Mac ESP32 keepalive resend | `10` seconds |
 
-The manifest URL can come from `BUDDY_FIRMWARE_MANIFEST_URL` in the environment or Info.plist. Otherwise it falls back to the default GitHub Pages URL.
+The device requires LE Secure Connections with MITM/bonding and passkey display.
+BLE acks drive status and OTA. On connect, the Mac sends a time sync, then
+queries `{"cmd":"status"}` with a `3` second ack timeout to learn firmware
+version and check the manifest.
 
-## Config And Local Files
+## Transport Decision
 
-Buddygotchi writes user-local state under `~/.buddygotchi/`:
+BLE is the product transport. USB serial is the debug/factory/recovery
+transport for `buddyctl`, HIL, screenshots, first flash, and web-flasher flows.
+A Mac-app USB serial product fallback is explicitly deferred.
 
-- `config.json`: `port` and `approvalMode`
-- `buddygotchi-hook.sh`: generated bash hook for Claude Code/Codex
+The reason is pragmatic: the BLE pairing/reconnect/security path is already
+built and tested, while the firmware already accepts the same JSON protocol over
+USB. USB is therefore available for debug and recovery without replacing the
+wireless product story. A USB product path would require Mac-side serial device
+discovery and transport code, and it would tether the hardware buddy to a Mac
+port instead of letting it sit anywhere powered by USB. BLE failures degrade to
+"the hardware buddy sleeps"; hooks and the desktop app keep working.
 
-Agent hook config files live in the agent's own config directory:
+## Packaging And Release
 
-- `~/.claude/settings.json`
-- `~/.cursor/hooks.json`
-- `~/.codex/hooks.json`
-- `~/.codex/config.toml`
+`app/tools/package.sh` assembles `build/package/Buddygotchi.app` from SwiftPM
+release output, copies `Buddygotchi` and `BuddygotchiSignal`, copies the
+SwiftPM resource bundle into both `Contents/MacOS` and `Contents/Resources`,
+patches `Info.plist`, optionally copies Sparkle, signs nested items and the app
+when `DEVELOPER_ID_APPLICATION` is set, zips the app, optionally notarizes and
+staples, and creates a DMG when `create-dmg` exists.
 
-The app also uses `UserDefaults` for UI preferences such as setup completion, selected species, interactive mode, paired ESP32 UUID, and firmware manifest cache.
+App version injection comes from `VERSION`, or `BUDDY_VERSION`, with
+`BUDDY_BUILD_NUMBER` defaulting to the same value. `BUDDY_BUNDLE_ID` defaults to
+`com.buddygotchi.mac`. Sparkle keys in `Info.plist` are
+`SUFeedURL=https://buddygotchi.github.io/releases/appcast.xml`,
+`SUPublicEDKey`, `SUEnableSystemProfiling=false`, and
+`SUEnableInstallerLauncherService=false`.
+
+`SparkleUpdateManager` loads `Sparkle.framework` dynamically from
+`Contents/Frameworks` and disables app updates when it is absent. The release
+workflow downloads Sparkle `2.6.4`, verifies SHA-256
+`50612a06038abc931f16011d7903b8326a362c1074dabccb718404ce8e585f0b`, packages
+with tag/run-number version inputs, uploads artifacts to a draft GitHub Release,
+and leaves appcast publication as a manual gate using `app/tools/make-appcast.sh`.
+
+Firmware release tags are `fw-v*`. The workflow installs PlatformIO, builds
+with `BUDDY_FW_VERSION` stripped of `fw-v`, generates `manifest.json` and
+`esp-web-tools-manifest.json`, and creates a draft release. Firmware version
+injection is centralized in `tools/inject_version.py`: `BUDDY_FW_VERSION` and
+`BUDDY_GIT_SHA` become `FW_VERSION` and `GIT_SHA`, otherwise the version is
+`dev+<short sha>`.
 
 ## Testing Architecture
 
-The main test pyramid is in `app/Tests/`.
+The testing truth is split by environment. `research/eng/TESTING.md` is the
+canonical test matrix and command cookbook.
 
-| Suite | Scope |
-| --- | --- |
-| `ReducerTests` | Pure reducer behavior, state priority, review/error/thinking transitions, entries, activity classification |
-| `EngineIntegrationTests` | Public `BuddyEngine` API, output notification, `MockClock`, `EchoRecorder`, approval continuations, heartbeat render projection |
-| `AutoApproveTests` | Cursor auto-approve allowlist and shell-control rejection |
-| `SnapshotHarnessTests` | Opt-in real SwiftUI rendering to PNG files in `/tmp/buddy-snapshots` |
+| Layer | Where it runs | Command or entry point |
+| --- | --- | --- |
+| Swift build | local and CI | `make build` / `cd app && swift build` |
+| Real XCTest | CI or Macs with XCTest | `cd app && swift test`; CI fails if fewer than 100 tests execute |
+| Local no-XCTest fallback | CLT-only Macs | `make test` compiles tests, prints a loud warning, and exits nonzero unless `BUDDY_ALLOW_COMPILE_ONLY=1` |
+| Targeted Swift tests | Xcode/XCTest machines | `swift test --filter ReducerTests`, `EngineIntegrationTests`, `AutoApproveTests` |
+| HTTP e2e | app running in a real terminal | `app/tools/e2e-smoke.sh`, plus per-agent `claude.sh`, `codex.sh`, `cursor.sh` |
+| Snapshots | opt-in XCTest harness | create `/tmp/buddy-snapshots/.enable`, then `make test-snapshots` |
+| Packaging smoke | local/CI release path | `make package`, then clean-account Gatekeeper/onboarding/notification/login-item checks |
+| HIL over USB | real M5StickC Plus 2 | `make hil` and `firmware/esp32/tools/buddyctl.py` |
+| HIL over BLE | paired real device | `make hil-ble` |
+| Firmware release/OTA | real device | PlatformIO build, generated manifests, local/static manifest URL, Settings update flow, `buddyctl.py ping --json` |
 
-The test doubles are intentionally small:
-
-- `MockClock` supplies deterministic time to the engine.
-- `EchoRecorder` implements `OutputProvider` and captures state transitions.
-- Tests call public engine methods where possible and only use reducer internals for pure state-machine assertions.
-
-Run normal tests:
-
-```sh
-cd app
-swift test
-```
-
-Run one suite:
-
-```sh
-swift test --filter ReducerTests
-swift test --filter EngineIntegrationTests
-```
-
-Run the snapshot harness:
-
-```sh
-mkdir -p /tmp/buddy-snapshots
-touch /tmp/buddy-snapshots/.enable
-swift test --disable-sandbox --filter SnapshotHarnessTests
-```
-
-HTTP e2e tests live in `app/tools/e2e-smoke.sh` and `app/tools/e2e/*.sh`. They require a real running app because sandboxed test shells may not be able to reach localhost.
-
-```sh
-cd app
-swift run Buddygotchi
-```
-
-Then, from another terminal:
-
-```sh
-app/tools/e2e-smoke.sh
-```
+`make test` cannot be a false green without XCTest. HTTP e2e verifies the
+localhost contract but cannot observe full pet aggregation or BLE. Snapshot
+tests write PNGs under `/tmp/buddy-snapshots`; visual review is still required.
+HIL covers parser, buttons, screenshots, and BLE/USB command paths on hardware.
 
 ## Design Rules
 
-- Keep core pure. Do not add I/O, clocks, randomness, user defaults, or UI imports to the reducer.
-- Add new agent behavior in an input adapter or hook installer, then emit `BuddyEvent`.
-- Add new displays by implementing `OutputProvider`.
-- Keep approval fail-open unless the user explicitly chooses local approval and Buddygotchi returns a decision.
-- Treat `RenderState` as the desktop-to-firmware contract. Adding fields is safe only when old firmware can ignore them.
-- Preserve process/session cleanup paths. Cursor relies on explicit `session_end`; Claude Code/Codex additionally use process watchers.
-- Prefer tests that pin state transitions before changing UI or transport code.
+- Keep `app/Buddygotchi/Core/` pure.
+- Model new behavior as `BuddyEvent` plus reducer transitions before outputs.
+- Put agent-specific parsing in `HookServer`, `BuddygotchiSignal`, or hook
+  installer code.
+- Add displays by implementing `OutputProvider` and deriving from `BuddyState`.
+- Preserve fail-open hook behavior.
+- Keep approval continuations in `BuddyEngine`, not `BuddyState`.
+- Treat `RenderState` and `firmware/esp32/PROTOCOL.md` as the firmware contract.
+- Keep Cursor auto-approval conservative; shell control characters require
+  manual review.
+- Keep docs current but concise: README for overview/build, this file for
+  architecture, `research/eng/TESTING.md` for verification commands, and
+  status docs only for current work.
