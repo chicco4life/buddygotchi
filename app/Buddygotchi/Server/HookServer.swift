@@ -4,7 +4,7 @@ import HTTPTypes
 import NIOCore
 import CryptoKit
 
-private struct HookEventBody: Decodable, Sendable {
+struct HookEventBody: Decodable, Sendable {
     var session_id: String?
     var conversation_id: String?
     var hook_event_name: String?
@@ -55,7 +55,11 @@ private struct SignalRequestBody: Decodable, Sendable {
     var pid: Int32?
 }
 
-func buildHookServer(engine: BuddyEngine, config: BuddyConfig) -> Application<RouterResponder<BasicRequestContext>> {
+func buildHookServer(
+    engine: BuddyEngine,
+    config: BuddyConfig,
+    isApprovalModeEnabled: @escaping @Sendable () -> Bool
+) -> Application<RouterResponder<BasicRequestContext>> {
     let router = Router()
     let diagLog = engine.diagnosticLog
 
@@ -78,7 +82,13 @@ func buildHookServer(engine: BuddyEngine, config: BuddyConfig) -> Application<Ro
             ? request.uri.queryParameters["pid"].flatMap({ Int32(String($0)) })
             : nil
         await diagLog.log(category: "hook", source: source, event: body.effectiveEventName ?? "unknown", detail: "\(body.effectiveToolName ?? "") \(extractHint(from: body))".trimmingCharacters(in: .whitespaces), rawPayload: rawJSON)
-        await handleAgentEvent(body: body, source: source, hookPid: hookPid, approvalMode: config.approvalMode, engine: engine)
+        await handleAgentEvent(
+            body: body,
+            source: source,
+            hookPid: hookPid,
+            isApprovalModeEnabled: isApprovalModeEnabled,
+            engine: engine
+        )
         return emptyOK()
     }
 
@@ -96,7 +106,8 @@ func buildHookServer(engine: BuddyEngine, config: BuddyConfig) -> Application<Ro
             await engine.sessionEnded(sessionId: sessionId)
             return emptyOK()
         }
-        await engine.sessionStarted(sessionId: sessionId, source: source, cwd: body.cwd, hookPid: body.pid)
+        // Cursor's helper spawn chain hasn't been verified for the parent-walk; Cursor cleanup uses explicit `session_end` + stale reap.
+        await engine.sessionStarted(sessionId: sessionId, source: source, cwd: body.cwd, hookPid: nil)
         // Cursor's `stop` is a "task complete" event, equivalent to Claude Code's
         // Stop and Codex's Stop — route it to celebrate so the review surface fires.
         // The vestigial SignalCLI map says "stop_working" but we override server-side
@@ -153,7 +164,13 @@ func buildHookServer(engine: BuddyEngine, config: BuddyConfig) -> Application<Ro
 
 // MARK: - Agent Event Handler
 
-private func handleAgentEvent(body: HookEventBody, source: String, hookPid: Int32?, approvalMode: Bool, engine: BuddyEngine) async {
+func handleAgentEvent(
+    body: HookEventBody,
+    source: String,
+    hookPid: Int32?,
+    isApprovalModeEnabled: @escaping @Sendable () -> Bool,
+    engine: BuddyEngine
+) async {
     let sessionId = deriveSessionId(from: body, source: source)
     let event = body.effectiveEventName ?? ""
     let sessionLabel = cwdLabel(body.cwd)
@@ -197,7 +214,7 @@ private func handleAgentEvent(body: HookEventBody, source: String, hookPid: Int3
         switch body.notification_type {
         case "permission_prompt":
             // Skip when approval mode is on — the hook script routes these to /hook/approve instead.
-            if approvalMode { break }
+            if isApprovalModeEnabled() { break }
             let requestId = "\(sessionId)_\(shortUUID())"
             await engine.submitRequest(sessionId: sessionId, requestId: requestId, tool: body.notification_type ?? "Notification", hint: body.message ?? "", sessionLabel: sessionLabel)
         case "elicitation_dialog":
@@ -325,8 +342,22 @@ private let sharedDecoder = JSONDecoder()
 
 private func isAuthorized(_ request: Request, token: String) -> Bool {
     guard !token.isEmpty,
-          let headerName = HTTPField.Name("X-Buddygotchi-Token") else { return false }
-    return request.headers[headerName] == token
+          let headerName = HTTPField.Name("X-Buddygotchi-Token"),
+          let providedToken = request.headers[headerName] else { return false }
+    return constantTimeEquals(providedToken, token)
+}
+
+private func constantTimeEquals(_ lhs: String, _ rhs: String) -> Bool {
+    let lhsBytes = Array(lhs.utf8)
+    let rhsBytes = Array(rhs.utf8)
+    let count = max(lhsBytes.count, rhsBytes.count)
+    var diff = lhsBytes.count ^ rhsBytes.count
+    for index in 0..<count {
+        let lhsByte = index < lhsBytes.count ? lhsBytes[index] : 0
+        let rhsByte = index < rhsBytes.count ? rhsBytes[index] : 0
+        diff |= Int(lhsByte ^ rhsByte)
+    }
+    return diff == 0
 }
 
 private func unauthorized() -> Response {

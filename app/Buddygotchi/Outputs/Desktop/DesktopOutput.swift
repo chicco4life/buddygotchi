@@ -5,9 +5,13 @@ import Foundation
 protocol PopoverPresenting: AnyObject {
     var isPopoverShown: Bool { get }
     var isInteractiveModeEnabled: Bool { get }
-    func showPopover(isApproval: Bool, dismissAfter seconds: TimeInterval)
+    func showPopover(dismissAfter seconds: TimeInterval)
     func closePopover()
     func cancelPopoverAutoDismiss()
+}
+
+extension PopoverPresenting {
+    func showPopover(dismissAfter seconds: TimeInterval) {}
 }
 
 @MainActor
@@ -96,11 +100,11 @@ final class DesktopOutput: OutputProvider {
     private static func badgeColor(for state: PetState) -> NSColor? {
         switch state {
         case .attention:
-            return NSColor(srgbRed: 0.91, green: 0.64, blue: 0.24, alpha: 1)
+            return NSColor(buddyHex: "#E8A33D")
         case .celebrate:
-            return NSColor(srgbRed: 0.50, green: 0.66, blue: 0.42, alpha: 1)
+            return NSColor(buddyHex: "#7FA96B")
         case .error:
-            return NSColor(srgbRed: 0.79, green: 0.42, blue: 0.37, alpha: 1)
+            return NSColor(buddyHex: "#C96B5E")
         default:
             return nil
         }
@@ -160,12 +164,25 @@ final class DesktopOutput: OutputProvider {
             && (next.lastTaskDurationMs ?? 0) >= 30_000
             && !presenter.isPopoverShown
         {
-            presenter.showPopover(isApproval: next.prompt?.isApproval == true, dismissAfter: 3.0)
+            presenter.showPopover(dismissAfter: 3.0)
         } else if next.pet.state == .attention && !presenter.isPopoverShown {
-            presenter.showPopover(isApproval: next.prompt?.isApproval == true, dismissAfter: 15.0)
+            presenter.showPopover(dismissAfter: 15.0)
         } else if (next.pet.state == .idle || next.pet.state == .sleep) && presenter.isPopoverShown {
             presenter.cancelPopoverAutoDismiss()
             presenter.closePopover()
         }
+    }
+}
+
+private extension NSColor {
+    convenience init(buddyHex: String) {
+        var hex = buddyHex
+        if hex.hasPrefix("#") { hex.removeFirst() }
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let red = CGFloat((int >> 16) & 0xFF) / 255
+        let green = CGFloat((int >> 8) & 0xFF) / 255
+        let blue = CGFloat(int & 0xFF) / 255
+        self.init(srgbRed: red, green: green, blue: blue, alpha: 1)
     }
 }
