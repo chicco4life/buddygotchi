@@ -27,6 +27,8 @@ struct FirmwareUpdateView: View {
                     progressView(phase: BuddyCopy.shared.firmwareUpdate.restartingDevice, progress: 1.0, eta: nil, cancellable: false)
                 case .success(let v):
                     successView(version: v)
+                case .checkFailed:
+                    checkFailedView
                 case .failed(let reason, let recoverable):
                     failureView(reason: reason, recoverable: recoverable)
                 }
@@ -195,6 +197,29 @@ struct FirmwareUpdateView: View {
             .padding(.top, 4)
         }
         .padding(.vertical, 16)
+    }
+
+    private var checkFailedView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(BuddyCopy.shared.firmwareUpdate.updateServerUnavailable)
+                .font(.buddy(13))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack {
+                Spacer()
+                Button(BuddyCopy.close) {
+                    updater.dismissTerminal()
+                    isPresented = false
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                Button(BuddyCopy.tryAgain) {
+                    updater.checkForUpdates(forceRefresh: true)
+                }
+                .buttonStyle(BuddyPrimaryButtonStyle())
+            }
+        }
     }
 
     private func failureView(reason: String, recoverable: Bool) -> some View {

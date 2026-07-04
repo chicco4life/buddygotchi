@@ -17,6 +17,7 @@ final class FirmwareUpdater {
         case verifying
         case rebooting
         case success(version: String)
+        case checkFailed(reason: String)
         case failed(reason: String, recoverable: Bool)
 
         // Convenience for the SettingsView badge.
@@ -47,9 +48,11 @@ final class FirmwareUpdater {
     private weak var bleManager: BLEManager?
 
     private var updateTask: Task<Void, Never>?
+    private var lastAutoCheckAttemptAt: Date?
 
     // Per-chunk ack timeout. The device acks each chunk after a LittleFS
     // (now esp_ota) write — typically <100ms but flash erase can spike.
+    private let autoCheckCooldown: TimeInterval = 15 * 60
     private let chunkAckTimeout: TimeInterval = 5
     private let beginAckTimeout: TimeInterval = 10
     private let endAckTimeout: TimeInterval = 20
@@ -81,6 +84,13 @@ final class FirmwareUpdater {
 
     func checkForUpdates(forceRefresh: Bool = false) {
         guard !state.isMidFlight else { return }
+        if !forceRefresh {
+            if let lastAutoCheckAttemptAt,
+               Date().timeIntervalSince(lastAutoCheckAttemptAt) < autoCheckCooldown {
+                return
+            }
+            lastAutoCheckAttemptAt = Date()
+        }
         Task { [weak self] in
             guard let self else { return }
             self.state = .checking
@@ -93,7 +103,7 @@ final class FirmwareUpdater {
                     self.state = .upToDate(version: current)
                 }
             } catch {
-                self.state = .failed(reason: error.localizedDescription, recoverable: true)
+                self.state = .checkFailed(reason: error.localizedDescription)
             }
         }
     }
@@ -118,6 +128,12 @@ final class FirmwareUpdater {
         case .failed:
             // Re-evaluate against the cached device version so the row
             // doesn't get stuck showing "Failed" forever.
+            if let v = deviceVersion {
+                state = .upToDate(version: v)
+            } else {
+                state = .idle
+            }
+        case .checkFailed:
             if let v = deviceVersion {
                 state = .upToDate(version: v)
             } else {
