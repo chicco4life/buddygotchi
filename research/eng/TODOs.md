@@ -12,13 +12,7 @@ Last updated: 2026-07-03
 
 ## Agent Integrations
 
-- [ ] Before each release, smoke Claude Code CLI and Claude Desktop against the installed hook.
-- [ ] Before each release, smoke Codex CLI and Codex desktop with `codex_hooks = true`.
-- [ ] Before each release, smoke Cursor desktop and the VS Code extension on the managed helper path.
-- [ ] Re-verify Cursor `beforeMCPExecution` payload shape against current Cursor.
-- [ ] Re-verify Cursor `sessionStart` / `sessionEnd` on the packaged helper path.
-- [ ] Re-verify Codex hooks with `[features] codex_hooks = true` on a clean config.
-- [ ] Re-verify Claude Code `PermissionRequest` and `StopFailure` in approval mode.
+- [ ] Use `research/eng/RELEASE.md` for the per-release agent smoke matrix.
 
 ## ESP32
 

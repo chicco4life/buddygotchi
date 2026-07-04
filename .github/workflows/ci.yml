@@ -16,12 +16,27 @@ jobs:
       - name: Show toolchain
         run: swift --version
 
+      - name: Cache SwiftPM build
+        uses: actions/cache@v4
+        with:
+          path: app/.build
+          key: ${{ runner.os }}-swift-${{ hashFiles('app/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-swift-
+
       - name: Build
         run: swift build
         working-directory: app
 
       - name: Test
-        run: swift test
+        run: |
+          swift test 2>&1 | tee test-output.log
+          executed="$(grep -Eo 'Executed [0-9]+ tests?' test-output.log | awk '{sum += $2} END {print sum + 0}')"
+          echo "Executed test count: $executed"
+          if [ "$executed" -lt 100 ]; then
+            echo "Expected at least 100 executed tests; failing to catch silent test skips." >&2
+            exit 1
+          fi
         working-directory: app
 
       - name: Package app bundle

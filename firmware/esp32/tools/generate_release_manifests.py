@@ -60,7 +60,6 @@ def main() -> None:
     web_tools_manifest = {
         "name": "Buddygotchi",
         "version": version,
-        "home_assistant_domain": "esphome",
         "new_install_prompt_erase": True,
         "builds": [
             {
