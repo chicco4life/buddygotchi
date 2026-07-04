@@ -41,7 +41,7 @@ struct FirmwareUpdateView: View {
 
     private var header: some View {
         HStack {
-            Text("M5Stack Firmware")
+            Text("Hardware buddy firmware")
                 .font(.system(.title3, design: .rounded, weight: .semibold))
             Spacer()
             Button(action: { isPresented = false }) {
@@ -87,7 +87,7 @@ struct FirmwareUpdateView: View {
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.05)))
             }
 
-            Text("Keep your M5Stack near your Mac and powered on. The update takes a few minutes; the device will restart automatically when finished.")
+            Text("Keep your hardware buddy near your Mac and powered on. The update takes a few minutes; the device will restart automatically when finished.")
                 .font(.system(.caption2, design: .rounded))
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -189,7 +189,7 @@ struct FirmwareUpdateView: View {
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Your M5Stack still runs the previous firmware — failed updates don't get committed.")
+            Text("Your hardware buddy still runs the previous firmware — failed updates don't get committed.")
                 .font(.system(.caption2, design: .rounded))
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)

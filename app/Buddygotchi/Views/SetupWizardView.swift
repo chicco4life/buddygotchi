@@ -10,7 +10,7 @@ enum BuddyOutputTarget: String, CaseIterable, Identifiable {
     var displayName: String {
         switch self {
         case .thisMac: return "This Mac"
-        case .m5stack: return "M5Stack"
+        case .m5stack: return "Hardware buddy"
         case .buddygotchiDevice: return "Buddygotchi Device"
         }
     }
@@ -18,7 +18,7 @@ enum BuddyOutputTarget: String, CaseIterable, Identifiable {
     var description: String {
         switch self {
         case .thisMac: return "Your buddy lives in the menu bar popover"
-        case .m5stack: return "Your buddy lives on an M5Stack over Bluetooth"
+        case .m5stack: return "Your buddy lives on hardware over Bluetooth"
         case .buddygotchiDevice: return "A dedicated hardware buddy over Bluetooth"
         }
     }
@@ -41,7 +41,7 @@ struct SetupWizardView: View {
     @State private var selectedSpecies = "cat"
     @State private var selectedOutput: BuddyOutputTarget = .thisMac
     @State private var launchAtLogin = false
-    @AppStorage("setupCompleted") private var setupCompleted = false
+    @AppStorage(DefaultsKey.setupCompleted) private var setupCompleted = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var agentDetection: [AgentKind: Bool] = [:]
@@ -385,7 +385,7 @@ struct SetupWizardView: View {
 
             VStack(spacing: 6) {
                 Button("Done") {
-                    UserDefaults.standard.set(selectedSpecies, forKey: "buddySpecies")
+                    UserDefaults.standard.set(selectedSpecies, forKey: DefaultsKey.buddySpecies)
                     UserDefaults.standard.set(selectedOutput.rawValue, forKey: "buddyOutput")
                     setupCompleted = true
                     onFinish()

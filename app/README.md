@@ -10,6 +10,7 @@ For full architecture, see `../docs/ARCHITECTURE.md`.
 swift build
 swift test
 swift run Buddygotchi
+tools/package.sh
 ```
 
 The app listens on `127.0.0.1:21321` by default:

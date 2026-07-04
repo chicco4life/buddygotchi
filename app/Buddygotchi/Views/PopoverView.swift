@@ -4,8 +4,8 @@ import UniformTypeIdentifiers
 struct PopoverView: View {
     let engine: BuddyEngine
     let esp32Output: ESP32Output
-    @AppStorage("setupCompleted") private var setupCompleted = false
-    @AppStorage("buddySpecies") private var species = "cat"
+    @AppStorage(DefaultsKey.setupCompleted) private var setupCompleted = false
+    @AppStorage(DefaultsKey.buddySpecies) private var species = "cat"
     @State private var showingSettings = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 

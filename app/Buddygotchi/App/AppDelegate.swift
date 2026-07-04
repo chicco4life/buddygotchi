@@ -26,7 +26,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         NSApp.windows.forEach { $0.close() }
 
+        guard claimSingleInstance() else {
+            NSApp.terminate(nil)
+            return
+        }
+
         setupSignalHandlers()
+        SparkleUpdateManager.shared.start()
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
@@ -40,7 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationManager.shared.setup(engine: engine)
         NotificationManager.shared.requestPermission()
 
-        UserDefaults.standard.set(BuddyConfig.default.approvalMode, forKey: "approvalMode")
+        UserDefaults.standard.set(BuddyConfig.default.approvalMode, forKey: DefaultsKey.approvalMode)
 
         let output = ESP32Output()
         esp32Output = output
@@ -79,6 +85,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         cleanup()
     }
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showPopover()
+        return true
+    }
+
     private func cleanup() {
         iconTimer?.invalidate()
         cancelAutoDismiss()
@@ -114,16 +125,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sigtermSource = term
     }
 
+    private func claimSingleInstance() -> Bool {
+        guard let bundleIdentifier = AppMetadata.bundleIdentifier else { return true }
+        let currentPID = ProcessInfo.processInfo.processIdentifier
+        let matches = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+            .filter { $0.processIdentifier != currentPID && !$0.isTerminated }
+        guard let existing = matches.first else { return true }
+        existing.activate()
+        return false
+    }
+
     @objc private func togglePopover() {
-        guard let button = statusItem.button else { return }
         if popover.isShown {
             cancelAutoDismiss()
             popover.performClose(nil)
         } else {
-            popover.behavior = .transient
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            popover.contentViewController?.view.window?.makeKey()
+            showPopover()
         }
+    }
+
+    private func showPopover() {
+        guard let button = statusItem.button else { return }
+        cancelAutoDismiss()
+        popover.behavior = .transient
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.contentViewController?.view.window?.makeKey()
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     private func tick() {
@@ -170,7 +197,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func checkInteractiveMode(_ state: BuddyState) {
         let current = state.pet.state
-        guard UserDefaults.standard.bool(forKey: "interactiveMode") else {
+        guard UserDefaults.standard.bool(forKey: DefaultsKey.interactiveMode) else {
             cancelAutoDismiss()
             return
         }

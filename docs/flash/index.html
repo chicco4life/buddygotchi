@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Flash Buddygotchi</title>
+    <script type="module" src="https://unpkg.com/esp-web-tools@10/dist/web/install-button.js?module"></script>
+    <style>
+      :root {
+        color-scheme: dark;
+        --night: #1b1714;
+        --cream: #f6eddf;
+        --amber: #f0a82e;
+        --line: rgba(246, 237, 223, 0.18);
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: var(--night);
+        color: var(--cream);
+        font: 16px/1.45 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      main {
+        width: min(680px, calc(100vw - 40px));
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 40px;
+        line-height: 1.05;
+        letter-spacing: 0;
+      }
+      p {
+        max-width: 58ch;
+        color: rgba(246, 237, 223, 0.78);
+      }
+      .panel {
+        margin-top: 28px;
+        padding: 24px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: rgba(246, 237, 223, 0.04);
+      }
+      a {
+        color: var(--amber);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Flash Buddygotchi</h1>
+      <p>Use Chrome or Edge, connect the hardware buddy over USB, then choose install. This page writes the same firmware artifact that the Mac app uses for over-the-air updates.</p>
+      <div class="panel">
+        <esp-web-install-button manifest="/firmware/esp-web-tools-manifest.json"></esp-web-install-button>
+      </div>
+      <p>After flashing, unplug USB, open Buddygotchi on your Mac, and pair from Settings, Displays.</p>
+      <p><a href="/help/">Need help?</a></p>
+    </main>
+  </body>
+</html>

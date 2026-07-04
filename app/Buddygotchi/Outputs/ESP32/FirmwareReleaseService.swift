@@ -34,7 +34,7 @@ final class FirmwareReleaseService {
     // setting BUDDY_FIRMWARE_MANIFEST_URL in Info.plist or the environment;
     // falls back to the GitHub Pages location.
     private static let defaultManifestURL = URL(string: "https://buddygotchi.github.io/firmware/manifest.json")!
-    private static let cacheKey = "firmwareManifestCache"
+    private static let cacheKey = DefaultsKey.firmwareManifestCache
     private static let cacheTTL: TimeInterval = 60 * 60   // 1 hour
 
     private let session: URLSession

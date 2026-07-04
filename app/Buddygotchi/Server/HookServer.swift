@@ -191,7 +191,7 @@ private func handleAgentEvent(body: HookEventBody, source: String, hookPid: Int3
         switch body.notification_type {
         case "permission_prompt":
             // Skip when approval mode is on — the hook script routes these to /hook/approve instead.
-            if UserDefaults.standard.bool(forKey: "approvalMode") { break }
+            if UserDefaults.standard.bool(forKey: DefaultsKey.approvalMode) { break }
             let requestId = "\(sessionId)_\(shortUUID())"
             await engine.submitRequest(sessionId: sessionId, requestId: requestId, tool: body.notification_type ?? "Notification", hint: body.message ?? "", sessionLabel: sessionLabel)
         case "elicitation_dialog":
@@ -326,4 +326,3 @@ private func jsonResponse(_ dict: [String: Any]) -> Response {
         body: .init(byteBuffer: ByteBuffer(data: data))
     )
 }
-

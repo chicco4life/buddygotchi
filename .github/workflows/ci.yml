@@ -23,3 +23,6 @@ jobs:
       - name: Test
         run: swift test
         working-directory: app
+
+      - name: Package app bundle
+        run: make package

@@ -1,0 +1,49 @@
+name: Firmware Release
+
+on:
+  push:
+    tags:
+      - "fw-v*"
+
+jobs:
+  firmware:
+    name: Build firmware artifacts
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Build firmware
+        run: platformio run
+        working-directory: firmware/esp32
+
+      - name: Generate release manifests
+        run: |
+          VERSION="${GITHUB_REF_NAME#fw-v}"
+          python3 firmware/esp32/tools/generate_release_manifests.py \
+            --version "$VERSION" \
+            --base-url "https://buddygotchi.github.io/firmware" \
+            --build-dir firmware/esp32/.pio/build/m5stickc-plus \
+            --out-dir build/firmware
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/firmware/*
+          body: |
+            Firmware release ${{ github.ref_name }}.
+
+            Manual gate before publishing to Pages:
+            - OTA this binary on a real M5StickC Plus 2.
+            - Open a PR to publish manifest.json and esp-web-tools-manifest.json under /firmware.
+          draft: true

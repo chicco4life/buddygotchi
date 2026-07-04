@@ -5,17 +5,21 @@ struct SettingsView: View {
     let engine: BuddyEngine
     let esp32Output: ESP32Output
 
-    @AppStorage("interactiveMode") private var interactiveMode = false
-    @AppStorage("buddySpecies") private var species = "cat"
-    @AppStorage("setupCompleted") private var setupCompleted = false
-    @AppStorage("approvalMode") private var approvalMode = false
-    @AppStorage(esp32PeripheralUUIDKey) private var esp32UUID: String?
+    @AppStorage(DefaultsKey.interactiveMode) private var interactiveMode = false
+    @AppStorage(DefaultsKey.buddySpecies) private var species = "cat"
+    @AppStorage(DefaultsKey.setupCompleted) private var setupCompleted = false
+    @AppStorage(DefaultsKey.approvalMode) private var approvalMode = false
+    @AppStorage(DefaultsKey.esp32PeripheralUUID) private var esp32UUID: String?
     @State private var launchAtLogin = false
+    @State private var launchAtLoginStatus = LoginItemManager.Status.disabled
     @State private var agentInstalled: [AgentKind: Bool] = [:]
 
     @State private var scanner = BLEScanner()
     @State private var selectedDeviceUUID: UUID?
     @State private var showingFirmwareUpdate = false
+    @State private var showingRemoveConfirmation = false
+    @State private var showingUpdaterUnavailable = false
+    @State private var uninstallError: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -55,7 +59,7 @@ struct SettingsView: View {
         .frame(width: BuddyTheme.popoverWidth, height: BuddyTheme.popoverHeight)
         .preferredColorScheme(.dark)
         .onAppear {
-            launchAtLogin = LoginItemManager.shared.isEnabled
+            refreshLoginItemState()
             for agent in AgentKind.allCases {
                 agentInstalled[agent] = HookInstaller.shared.isInstalled(agent: agent)
             }
@@ -74,6 +78,27 @@ struct SettingsView: View {
                 isPresented: $showingFirmwareUpdate
             )
         }
+        .alert("Remove Buddygotchi?", isPresented: $showingRemoveConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Remove and quit", role: .destructive) {
+                removeBuddygotchi()
+            }
+        } message: {
+            Text("This removes Buddygotchi hook entries from Claude Code, Cursor, and Codex, deletes ~/.buddygotchi, unregisters launch at login, clears notifications, and quits. Your app stays wherever you put it.")
+        }
+        .alert("Updates unavailable", isPresented: $showingUpdaterUnavailable) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Automatic updates are available in the packaged app when Sparkle.framework is bundled.")
+        }
+        .alert("Could not remove Buddygotchi", isPresented: Binding(
+            get: { uninstallError != nil },
+            set: { if !$0 { uninstallError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(uninstallError ?? "Unknown error")
+        }
     }
 
     // MARK: - General
@@ -90,10 +115,25 @@ struct SettingsView: View {
                 )
                 .onChange(of: launchAtLogin) { _, newValue in
                     LoginItemManager.shared.setEnabled(newValue)
-                    launchAtLogin = LoginItemManager.shared.isEnabled
+                    refreshLoginItemState()
                 }
 
                 Divider().padding(.horizontal, 12)
+
+                if launchAtLoginStatus == .requiresApproval {
+                    HStack(alignment: .top, spacing: 8) {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(BuddyTheme.accent)
+                        Text("Approve Buddygotchi in System Settings, Login Items.")
+                            .font(.system(.caption2, design: .rounded))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+
+                    Divider().padding(.horizontal, 12)
+                }
 
                 BuddySettingToggle(
                     title: "Interactive Mode",
@@ -262,7 +302,7 @@ struct SettingsView: View {
                 if esp32UUID != nil {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("M5Stack").font(.system(.callout, design: .rounded))
+                            Text("Hardware buddy").font(.system(.callout, design: .rounded))
                             HStack(spacing: 4) {
                                 Circle()
                                     .fill(esp32Output.connectionState == .connected ? BuddyTheme.accent : Color.secondary.opacity(0.5))
@@ -290,7 +330,7 @@ struct SettingsView: View {
                 } else {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("M5Stack").font(.system(.callout, design: .rounded))
+                            Text("Hardware buddy").font(.system(.callout, design: .rounded))
                             Text("Not paired")
                                 .font(.system(.caption2, design: .rounded))
                                 .foregroundStyle(.secondary)
@@ -306,6 +346,26 @@ struct SettingsView: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
+
+                    Divider().padding(.horizontal, 12)
+
+                    Link(destination: AppMetadata.flashURL) {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Bare hardware buddy").font(.system(.callout, design: .rounded))
+                                Text("Flash it first in Chrome or Edge.")
+                                    .font(.system(.caption2, design: .rounded))
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "arrow.up.right")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                    }
+                    .buttonStyle(BuddyPlainButtonStyle())
                 }
             }
             .buddyGroupedCard()
@@ -421,13 +481,65 @@ struct SettingsView: View {
                 HStack {
                     Text("Version").font(.system(.callout, design: .rounded))
                     Spacer()
-                    Text("v0.3.0")
+                    Text(AppMetadata.displayVersion)
                         .font(.system(.callout, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
                 .accessibilityElement(children: .combine)
+
+                Divider().padding(.horizontal, 12)
+
+                Button {
+                    if SparkleUpdateManager.shared.isAvailable {
+                        SparkleUpdateManager.shared.checkForUpdates()
+                    } else {
+                        showingUpdaterUnavailable = true
+                    }
+                } label: {
+                    HStack {
+                        Text("Check for updates")
+                            .font(.system(.callout, design: .rounded))
+                        Spacer()
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(BuddyPlainButtonStyle())
+
+                Divider().padding(.horizontal, 12)
+
+                Link(destination: AppMetadata.supportURL) {
+                    HStack {
+                        Text("Help and support")
+                            .font(.system(.callout, design: .rounded))
+                        Spacer()
+                        Image(systemName: "arrow.up.right")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                }
+                .buttonStyle(BuddyPlainButtonStyle())
+
+                Divider().padding(.horizontal, 12)
+
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: "lock")
+                        .foregroundStyle(.secondary)
+                    Text("Update checks read a static appcast. No analytics or device identifiers are sent.")
+                        .font(.system(.caption2, design: .rounded))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
             }
             .buddyGroupedCard()
 
@@ -450,6 +562,13 @@ struct SettingsView: View {
                 .tint(BuddyTheme.destructive)
             }
             .padding(.top, 4)
+
+            Button("Remove Buddygotchi…") {
+                showingRemoveConfirmation = true
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .tint(BuddyTheme.destructive)
         }
     }
 
@@ -460,6 +579,20 @@ struct SettingsView: View {
         let next = (idx + direction + buddyOrder.count) % buddyOrder.count
         species = buddyOrder[next]
         esp32Output.sendNow()
+    }
+
+    private func refreshLoginItemState() {
+        launchAtLoginStatus = LoginItemManager.shared.status
+        launchAtLogin = launchAtLoginStatus == .enabled || launchAtLoginStatus == .requiresApproval
+    }
+
+    private func removeBuddygotchi() {
+        do {
+            try ConsumerUninstaller.removeInstalledState()
+            NSApplication.shared.terminate(nil)
+        } catch {
+            uninstallError = error.localizedDescription
+        }
     }
 
     private var currentSpeciesIndex: Int {

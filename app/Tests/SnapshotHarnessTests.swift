@@ -27,8 +27,8 @@ final class SnapshotHarnessTests: XCTestCase {
             "snapshot harness disabled — `touch /tmp/buddy-snapshots/.enable` to enable"
         )
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-        UserDefaults.standard.set(true, forKey: "setupCompleted")
-        UserDefaults.standard.set("cat", forKey: "buddySpecies")
+        UserDefaults.standard.set(true, forKey: DefaultsKey.setupCompleted)
+        UserDefaults.standard.set("cat", forKey: DefaultsKey.buddySpecies)
     }
 
     // MARK: Helpers

@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-let esp32PeripheralUUIDKey = "esp32PeripheralUUID"
+let esp32PeripheralUUIDKey = DefaultsKey.esp32PeripheralUUID
 
 @Observable
 @MainActor
@@ -32,7 +32,7 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
     }
 
     func connectToSavedDevice() {
-        guard let uuidStr = UserDefaults.standard.string(forKey: esp32PeripheralUUIDKey),
+        guard let uuidStr = UserDefaults.standard.string(forKey: DefaultsKey.esp32PeripheralUUID),
               let uuid = UUID(uuidString: uuidStr) else { return }
         bleManager.connect(peripheralIdentifier: uuid)
     }
@@ -45,7 +45,7 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
             }
         }
         bleManager.disconnect()
-        UserDefaults.standard.removeObject(forKey: esp32PeripheralUUIDKey)
+        UserDefaults.standard.removeObject(forKey: DefaultsKey.esp32PeripheralUUID)
         connectionState = .disconnected
     }
 
