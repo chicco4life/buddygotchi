@@ -25,8 +25,8 @@ export function WaitlistCTA({ source }: { source: Extract<SignupSource, "hero" |
   }, []);
 
   function open() {
-    track("cta_click", { source });
-    track("modal_open", { source });
+    track("cta_click", { source, price });
+    track("modal_open", { source, price });
     dialogRef.current?.showModal();
   }
 
