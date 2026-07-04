@@ -17,6 +17,7 @@ export type SubmitInput = {
 };
 
 export type SubmitResult = { position: number; referralCode: string };
+export type ExpectationInput = { code: string; answer: string };
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
@@ -50,6 +51,7 @@ type MemRow = {
   referral_code: string;
   referral_count: number;
   ref_code_used?: string;
+  price_expectation?: string;
   created_at: number;
 };
 
@@ -82,6 +84,11 @@ function submitInMemory(input: SubmitInput): SubmitResult {
 
   const rank = mem.filter((r) => r.created_at <= row.created_at).length;
   return { position: rank, referralCode: row.referral_code };
+}
+
+function saveExpectationInMemory(input: ExpectationInput): void {
+  const row = mem.find((r) => r.referral_code === input.code);
+  if (row) row.price_expectation = input.answer;
 }
 
 /* ---------------- Postgres backend ---------------- */
@@ -139,9 +146,27 @@ async function submitInPostgres(
   return { position: rank, referralCode: code };
 }
 
+async function saveExpectationInPostgres(
+  sql: NonNullable<ReturnType<typeof getSql>>,
+  input: ExpectationInput,
+): Promise<void> {
+  await sql`
+    update signups
+    set price_expectation = ${input.answer}
+    where referral_code = ${input.code}
+  `;
+}
+
 export async function submitSignup(input: SubmitInput): Promise<SubmitResult> {
   const sql = getSql();
   if (sql) return submitInPostgres(sql, input);
   if (allowInmem()) return submitInMemory(input);
+  throw new Error("waitlist backend not configured");
+}
+
+export async function saveExpectation(input: ExpectationInput): Promise<void> {
+  const sql = getSql();
+  if (sql) return saveExpectationInPostgres(sql, input);
+  if (allowInmem()) return saveExpectationInMemory(input);
   throw new Error("waitlist backend not configured");
 }

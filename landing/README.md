@@ -22,6 +22,8 @@ npm run dev                    # http://localhost:3000
 The app boots with **no** env vars: without `DATABASE_URL` the waitlist API returns
 503 and the page still renders (fail-open). To exercise the full flow locally
 without a database, run with `ALLOW_INMEM=1` (an in-memory store — testing only).
+Set `NEXT_PUBLIC_STRIPE_DEPOSIT_URL` only when the refundable $5 deposit Payment
+Link is ready; when unset, `/welcome` omits that step.
 
 ## Scripts
 

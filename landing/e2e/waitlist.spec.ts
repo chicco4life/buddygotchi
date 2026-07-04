@@ -18,4 +18,11 @@ test("price cohort shows and the waitlist flow lands on /welcome", async ({ page
 
   // A position and a copyable referral link are present.
   await expect(page.getByLabel("Your referral link")).toHaveValue(/\/\?ref=/);
+
+  // The optional price-expectation survey accepts an answer and swaps to thanks.
+  await page
+    .getByLabel("What would you honestly expect a buddy like this to cost?")
+    .fill("$119");
+  await page.getByRole("button", { name: "Send" }).click();
+  await expect(page.getByText("Noted. The litter thanks you.")).toBeVisible();
 });
