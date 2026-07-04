@@ -253,11 +253,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showStatusMenu() {
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "Open Buddygotchi", action: #selector(togglePopover), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettingsFromMenu), keyEquivalent: ","))
-        menu.addItem(NSMenuItem(title: "Check for updates…", action: #selector(checkForUpdatesFromMenu), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.openBuddygotchi, action: #selector(togglePopover), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.settings, action: #selector(openSettingsFromMenu), keyEquivalent: ","))
+        menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.checkForUpdates, action: #selector(checkForUpdatesFromMenu), keyEquivalent: ""))
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit", action: #selector(quitFromMenu), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.quit, action: #selector(quitFromMenu), keyEquivalent: "q"))
         for item in menu.items {
             item.target = self
         }

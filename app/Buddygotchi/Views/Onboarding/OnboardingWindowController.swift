@@ -13,7 +13,7 @@ final class OnboardingWindowController: NSWindowController {
             defer: false
         )
         window.contentViewController = controller
-        window.title = "Buddygotchi"
+        window.title = BuddyCopy.shared.common.appName
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
         window.isReleasedWhenClosed = false
