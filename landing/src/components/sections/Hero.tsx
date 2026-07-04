@@ -13,7 +13,7 @@ export function Hero() {
   return (
     <section
       data-section="S1"
-      aria-label="Buddygotchi — approve with a pet"
+      aria-label="Boop — approve with a pet"
       className="relative flex min-h-[100svh] flex-col justify-end overflow-hidden"
     >
       <div className="absolute inset-0">

@@ -8,7 +8,7 @@ import { WelcomeShare } from "@/components/WelcomeShare";
   asset, not a receipt. See SPEC.md §6.3.
 */
 export const metadata: Metadata = {
-  title: "You're in line — Buddygotchi",
+  title: "You're in line — Boop",
   robots: { index: false, follow: false },
 };
 

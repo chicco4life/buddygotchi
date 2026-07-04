@@ -1,6 +1,6 @@
-# Buddygotchi — Landing Page
+# Boop — Landing Page
 
-Waitlist / demand-test landing page for the Buddygotchi Founding Litter. Built to
+Waitlist / demand-test landing page for the Boop Founding Litter. Built to
 `SPEC.md` in this directory. Independent of the rest of the repo — nothing here
 imports from `../app` or `../src`.
 
@@ -44,7 +44,7 @@ art-directed placeholder and swaps in the real file automatically when dropped i
 
 ## Deploying to Vercel
 
-Import the `buddygotchi` repo, set **Root Directory = `landing`**, add a Neon
+Import the repo, set **Root Directory = `landing`**, add a Neon
 database from the Marketplace (injects `DATABASE_URL`), enable Analytics. Full
 steps in `SPEC.md §11`. `vercel.json`'s `ignoreCommand` skips deploys for pushes
 that don't touch `landing/`.

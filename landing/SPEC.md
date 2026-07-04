@@ -1,4 +1,4 @@
-# Buddygotchi Landing Page — Technical Specification
+# Boop Landing Page — Technical Specification
 
 Status: implemented; media strategy amended — see Amendment A (§14); section/copy revisions — see Amendment B (§15)
 Last updated: 2026-07-03
@@ -10,7 +10,7 @@ This document is self-contained: an implementing agent should be able to build t
 
 ## 1. What this is and why it exists
 
-A single-page marketing site for Buddygotchi — a physical desk companion (a wobbling, glowing blob) that surfaces AI coding-agent state and lets you approve tool calls by petting it. The page has exactly one job: convert a visitor into a **waitlist email signup** (optionally with UTM/price-cohort metadata) for the "Founding Litter" of 100 units, in support of a paid-traffic demand test.
+A single-page marketing site for Boop — a physical desk companion (a wobbling, glowing blob) that surfaces AI coding-agent state and lets you approve tool calls by petting it. The page has exactly one job: convert a visitor into a **waitlist email signup** (optionally with UTM/price-cohort metadata) for the "Founding Litter" of 100 units, in support of a paid-traffic demand test.
 
 Success criteria, in order:
 
@@ -25,7 +25,7 @@ Explicit non-goals: no blog, no CMS, no checkout/payments, no user accounts, no 
 
 ## 2. Repo placement and project layout
 
-The landing page lives in `landing/` at the top level of the `buddygotchi` repo, as a fully independent project. Nothing in `landing/` may import from or depend on the rest of the repo. The existing structure already isolates the other products — `app/` is the Swift macOS app, `firmware/esp32/` is firmware — so no existing directories move. Do not touch anything outside `landing/`.
+The landing page lives in `landing/` at the top level of the repo, as a fully independent project. Nothing in `landing/` may import from or depend on the rest of the repo. The existing structure already isolates the other products — `app/` is the Swift macOS app, `firmware/esp32/` is firmware — so no existing directories move. Do not touch anything outside `landing/`.
 
 ```
 buddygotchi/
@@ -150,7 +150,7 @@ One page, **no header, no nav** — nothing to do but scroll and one thing to cl
   - Subhead: *A little creature that watches your AI agents — and only bothers you when it matters.*
   - CTA button: **Adopt one — $119** (price is cohort-dependent, §7.2; clicking opens the waitlist modal, §6.1)
   - Small text under the button (tiny-label style): `Founding Litter · 100 numbered buddies · no subscription, ever`
-- No scroll-hint chevron, no header logo. The wordmark "Buddygotchi" appears only in the footer and metadata.
+- No scroll-hint chevron, no header logo. The wordmark "Boop" appears only in the footer and metadata.
 
 ### S2 — The moment (the alibi, shown not told)
 
@@ -214,7 +214,7 @@ Add FAQ JSON-LD (`FAQPage` schema) in this section — free SEO for the only str
 - Inline email capture: single email input + the amber CTA button labeled **Get in line** (same endpoint as the modal, source tagged `footer`).
 - Tiny links: `privacy` (route `/privacy` — a few plain paragraphs: we store your email and the campaign link you arrived from, we email you about the Founding Litter, unsubscribe anytime, nothing is sold) and `contact` (mailto).
 - Sign-off line, small, secondary: *Made by people who also forgot a task finished 40 minutes ago.*
-- Wordmark: `Buddygotchi` tiny-label style. Copyright line. That's all.
+- Wordmark: `Boop` tiny-label style. Copyright line: `© 2026 Boop Computer`. That's all.
 
 ### Deliberate omissions (do not add these)
 
@@ -326,8 +326,8 @@ Do **not** ship third-party logo image files without checking each vendor's bran
 
 ### 9.1 Metadata
 
-- `<title>`: `Buddygotchi — a desk companion for AI agents`
-- Meta description: `A little creature that watches your AI coding agents — glows when one needs you, celebrates when work lands, and lets you approve with a pet. Founding Litter of 100.`
+- `<title>`: `Boop — a desk companion for AI agents`
+- Meta description: `Boop is a desk companion for AI agents that watches your AI coding agents — glows when one needs you, celebrates when work lands, and lets you approve with a pet. Founding Litter of 100.`
 - The phrase **"desk companion for AI agents"** must appear in the title/description and once in body copy — we're naming the category (`../research/product/PRODUCT.md` §11.7).
 - OpenGraph + Twitter card (`summary_large_image`) with `og.jpg`; canonical URL; `robots: index, follow`; favicon: a tiny blob silhouette SVG (cream on charcoal).
 
@@ -362,13 +362,13 @@ These are enforced brand law from `../research/product/MARKETING.md` §1.3 — t
 
 ### 11.1 One-time project setup
 
-1. Push the repo to GitHub (it is the existing `buddygotchi` repo; `landing/` is a subdirectory of it).
-2. In Vercel dashboard: **Add New → Project → import the `buddygotchi` repo.**
+1. Push the repo to GitHub (`landing/` is a subdirectory of it).
+2. In Vercel dashboard: **Add New → Project → import the repo.**
 3. **Root Directory: `landing`** ← the critical monorepo setting. Framework preset auto-detects Next.js. Leave build/install commands default (`next build` / `npm install`).
 4. Storage → **Create Database → Neon (Postgres)** via the Vercel Marketplace, link it to the project. This injects `DATABASE_URL` automatically. Run `npm run db:push` once locally against it (pull env first, §11.3).
 5. Project → Analytics → **Enable Vercel Analytics**.
 6. Environment variables (Production; see `.env.example`): `NEXT_PUBLIC_SHOW_COUNTER` (unset = hidden), and the three pixel IDs when the ad accounts exist (unset until then).
-7. Domains: add `buddygotchi.com` (or chosen domain) + `www` redirect → apex. Vercel provisions TLS automatically.
+7. Domains: add `adoptaboop.com` + `www` redirect → apex. Vercel provisions TLS automatically.
 
 ### 11.2 Skip builds when only the Mac app changes
 

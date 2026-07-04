@@ -7,13 +7,13 @@ import { Pixels } from "@/components/Pixels";
 import { copy } from "@/lib/copy";
 import "@/styles/globals.css";
 
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://buddygotchi.com";
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://adoptaboop.com";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: copy.meta.title,
   description: copy.meta.description,
-  applicationName: "Buddygotchi",
+  applicationName: "Boop",
   keywords: ["desk companion for AI agents", "AI coding agents", "Claude Code", "Cursor", "Codex"],
   alternates: { canonical: "/" },
   robots: { index: true, follow: true },
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     url: "/",
     title: copy.meta.title,
     description: copy.meta.description,
-    siteName: "Buddygotchi",
+    siteName: "Boop",
     images: [{ url: "/og.jpg", width: 1200, height: 630, alt: copy.meta.title }],
   },
   twitter: {
