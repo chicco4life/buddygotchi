@@ -412,7 +412,7 @@ struct OnboardingView: View {
                     } else {
                         Button(BuddyCopy.Onboarding.enableNotifications) {
                             NotificationManager.shared.requestPermission()
-                            UserDefaults.standard.set(true, forKey: "notificationPermissionRequested")
+                            UserDefaults.standard.set(true, forKey: DefaultsKey.notificationPermissionRequested)
                             model.notificationRequested = true
                         }
                         .buttonStyle(OnboardingPrimaryButtonStyle())

@@ -4,8 +4,28 @@ import ServiceManagement
 final class LoginItemManager {
     static let shared = LoginItemManager()
 
+    enum Status: Equatable {
+        case enabled
+        case disabled
+        case requiresApproval
+        case unavailable
+    }
+
+    var status: Status {
+        switch SMAppService.mainApp.status {
+        case .enabled:
+            return .enabled
+        case .requiresApproval:
+            return .requiresApproval
+        case .notRegistered:
+            return .disabled
+        default:
+            return .unavailable
+        }
+    }
+
     var isEnabled: Bool {
-        SMAppService.mainApp.status == .enabled
+        status == .enabled
     }
 
     func setEnabled(_ enabled: Bool) {

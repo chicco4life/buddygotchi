@@ -49,6 +49,28 @@ app/tools/e2e/codex.sh
 app/tools/e2e/cursor.sh
 ```
 
+ESP32 hardware-in-the-loop checks require a plugged-in M5StickC Plus 2:
+
+```sh
+make hil
+make hil-ble
+```
+
+Verifying firmware on the real device:
+
+```sh
+cd firmware/esp32
+pio run -e m5stickc-plus -t upload
+tools/buddyctl.py ping --json
+tools/buddyctl.py set --pet attention --waiting 1 --prompt-id req_1 --prompt-tool Bash --prompt-hint "npm test"
+tools/buddyctl.py expect --pet attention --prompt-id req_1 --json
+tools/buddyctl.py screenshot --out approve.png --scale 2 --json
+tools/buddyctl.py press a --ms 150 --json
+```
+
+Use `tools/buddyctl.py ble status`, `ble set`, and `ble prompt --wait-decision`
+after the one-time OS pairing step to exercise the production BLE transport.
+
 ## Architecture Rules
 
 - Keep `app/Buddygotchi/Core/` pure. The reducer must not perform I/O, read clocks, read user defaults, call UI, or touch BLE.

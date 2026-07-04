@@ -36,25 +36,25 @@ enum OnboardingStep: Int, CaseIterable {
 final class OnboardingModel {
     var step: OnboardingStep {
         didSet {
-            UserDefaults.standard.set(step.rawValue, forKey: "onboardingStep")
+            UserDefaults.standard.set(step.rawValue, forKey: DefaultsKey.onboardingStep)
         }
     }
 
     var selectedSpecies: String {
         didSet {
-            UserDefaults.standard.set(selectedSpecies, forKey: "buddySpecies")
+            UserDefaults.standard.set(selectedSpecies, forKey: DefaultsKey.buddySpecies)
         }
     }
 
     var buddyName: String {
         didSet {
-            UserDefaults.standard.set(buddyName, forKey: "buddyName")
+            UserDefaults.standard.set(buddyName, forKey: DefaultsKey.buddyName)
         }
     }
 
     var selectedOutput: BuddyOutputTarget {
         didSet {
-            UserDefaults.standard.set(selectedOutput.rawValue, forKey: "buddyOutput")
+            UserDefaults.standard.set(selectedOutput.rawValue, forKey: DefaultsKey.buddyOutput)
         }
     }
 
@@ -69,15 +69,15 @@ final class OnboardingModel {
     var pairingTimedOut = false
 
     init() {
-        let rawStep = UserDefaults.standard.integer(forKey: "onboardingStep")
+        let rawStep = UserDefaults.standard.integer(forKey: DefaultsKey.onboardingStep)
         step = OnboardingStep(rawValue: rawStep) ?? .hatch
 
-        let storedSpecies = UserDefaults.standard.string(forKey: "buddySpecies")
+        let storedSpecies = UserDefaults.standard.string(forKey: DefaultsKey.buddySpecies)
         selectedSpecies = storedSpecies.flatMap { buddyOrder.contains($0) ? $0 : nil } ?? Pet.defaultSpecies
 
-        buddyName = UserDefaults.standard.string(forKey: "buddyName") ?? ""
+        buddyName = UserDefaults.standard.string(forKey: DefaultsKey.buddyName) ?? ""
 
-        let outputRaw = UserDefaults.standard.string(forKey: "buddyOutput") ?? BuddyOutputTarget.thisMac.rawValue
+        let outputRaw = UserDefaults.standard.string(forKey: DefaultsKey.buddyOutput) ?? BuddyOutputTarget.thisMac.rawValue
         selectedOutput = BuddyOutputTarget(rawValue: outputRaw) ?? .thisMac
 
         if Bundle.main.bundlePath.hasSuffix(".app") {
@@ -85,7 +85,7 @@ final class OnboardingModel {
         } else {
             launchAtLogin = true
         }
-        notificationRequested = UserDefaults.standard.bool(forKey: "notificationPermissionRequested")
+        notificationRequested = UserDefaults.standard.bool(forKey: DefaultsKey.notificationPermissionRequested)
     }
 
     var canFinishAgents: Bool {
@@ -149,13 +149,13 @@ final class OnboardingModel {
     }
 
     func complete() {
-        UserDefaults.standard.set(selectedSpecies, forKey: "buddySpecies")
-        UserDefaults.standard.set(selectedOutput.rawValue, forKey: "buddyOutput")
-        UserDefaults.standard.set(buddyName, forKey: "buddyName")
+        UserDefaults.standard.set(selectedSpecies, forKey: DefaultsKey.buddySpecies)
+        UserDefaults.standard.set(selectedOutput.rawValue, forKey: DefaultsKey.buddyOutput)
+        UserDefaults.standard.set(buddyName, forKey: DefaultsKey.buddyName)
         if isPackagedApp {
             LoginItemManager.shared.setEnabled(launchAtLogin)
         }
-        UserDefaults.standard.set(true, forKey: "setupCompleted")
-        UserDefaults.standard.removeObject(forKey: "onboardingStep")
+        UserDefaults.standard.set(true, forKey: DefaultsKey.setupCompleted)
+        UserDefaults.standard.removeObject(forKey: DefaultsKey.onboardingStep)
     }
 }

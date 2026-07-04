@@ -43,7 +43,7 @@ func renderState(from state: BuddyState) -> RenderState {
     let isError = state.pet.state == .error
     return RenderState(
         pet: state.pet.state.rawValue,
-        species: state.pet.species,
+        species: UserDefaults.standard.string(forKey: DefaultsKey.buddySpecies) ?? state.pet.species,
         desktop: state.desktop.status.rawValue,
         total: state.sessions.total,
         running: state.sessions.running,

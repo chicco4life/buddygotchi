@@ -51,11 +51,11 @@ final class DiagnosticLog {
         let state = engine.state
         let logSnapshot = entries.reversed()
         let settingsSnapshot: [String: Any] = [
-            "species": UserDefaults.standard.string(forKey: "buddySpecies") ?? "cat",
-            "interactiveMode": UserDefaults.standard.bool(forKey: "interactiveMode"),
-            "approvalMode": UserDefaults.standard.bool(forKey: "approvalMode"),
+            "species": UserDefaults.standard.string(forKey: DefaultsKey.buddySpecies) ?? "cat",
+            "interactiveMode": UserDefaults.standard.bool(forKey: DefaultsKey.interactiveMode),
+            "approvalMode": UserDefaults.standard.bool(forKey: DefaultsKey.approvalMode),
             "httpPort": BuddyConfig.default.httpPort,
-            "buddyOutput": UserDefaults.standard.string(forKey: "buddyOutput") ?? "this-mac",
+            "buddyOutput": UserDefaults.standard.string(forKey: DefaultsKey.buddyOutput) ?? "this-mac",
         ]
         var agents: [String: Any] = [:]
         for agent in AgentKind.allCases {
@@ -71,7 +71,7 @@ final class DiagnosticLog {
 
         let formatter = ISO8601DateFormatter()
         bundle["exportedAt"] = formatter.string(from: Date.now)
-        bundle["appVersion"] = "v0.3.0"
+        bundle["appVersion"] = AppMetadata.displayVersion
         bundle["macOSVersion"] = ProcessInfo.processInfo.operatingSystemVersionString
         bundle["uptimeMs"] = ProcessInfo.processInfo.systemUptime * 1000
 

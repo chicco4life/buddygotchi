@@ -60,7 +60,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
             case .notDetermined:
                 UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
                     if granted {
-                        UserDefaults.standard.set(true, forKey: "notificationPermissionRequested")
+                        UserDefaults.standard.set(true, forKey: DefaultsKey.notificationPermissionRequested)
                         Task { @MainActor in self?.deliverToolNotification(prompt: prompt) }
                     }
                 }

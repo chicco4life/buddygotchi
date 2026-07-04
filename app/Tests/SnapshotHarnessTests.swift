@@ -27,8 +27,8 @@ final class SnapshotHarnessTests: XCTestCase {
             "snapshot harness disabled — `touch /tmp/buddy-snapshots/.enable` to enable"
         )
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-        UserDefaults.standard.set(true, forKey: "setupCompleted")
-        UserDefaults.standard.set(Pet.defaultSpecies, forKey: "buddySpecies")
+        UserDefaults.standard.set(true, forKey: DefaultsKey.setupCompleted)
+        UserDefaults.standard.set(Pet.defaultSpecies, forKey: DefaultsKey.buddySpecies)
     }
 
     // MARK: Helpers
@@ -76,11 +76,11 @@ final class SnapshotHarnessTests: XCTestCase {
     }
 
     private func onboarding(step: OnboardingStep) -> some View {
-        UserDefaults.standard.set(false, forKey: "setupCompleted")
-        UserDefaults.standard.set(step.rawValue, forKey: "onboardingStep")
-        UserDefaults.standard.set("blob", forKey: "buddySpecies")
-        UserDefaults.standard.set("Mochi", forKey: "buddyName")
-        UserDefaults.standard.set(BuddyOutputTarget.thisMac.rawValue, forKey: "buddyOutput")
+        UserDefaults.standard.set(false, forKey: DefaultsKey.setupCompleted)
+        UserDefaults.standard.set(step.rawValue, forKey: DefaultsKey.onboardingStep)
+        UserDefaults.standard.set("blob", forKey: DefaultsKey.buddySpecies)
+        UserDefaults.standard.set("Mochi", forKey: DefaultsKey.buddyName)
+        UserDefaults.standard.set(BuddyOutputTarget.thisMac.rawValue, forKey: DefaultsKey.buddyOutput)
         return OnboardingView(engine: makeEngine(), esp32Output: ESP32Output(), onFinish: {})
     }
 

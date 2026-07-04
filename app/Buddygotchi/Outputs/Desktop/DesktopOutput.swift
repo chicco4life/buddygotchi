@@ -136,7 +136,7 @@ final class DesktopOutput: OutputProvider {
     }
 
     private func playTransitionSounds(prev: BuddyState, next: BuddyState, notificationPosted: Bool) {
-        let soundsEnabled = UserDefaults.standard.object(forKey: "soundsEnabled") as? Bool ?? true
+        let soundsEnabled = UserDefaults.standard.object(forKey: DefaultsKey.soundsEnabled) as? Bool ?? true
         guard soundsEnabled, !notificationPosted else { return }
         guard prev.pet.state != next.pet.state else { return }
         if next.pet.state == .celebrate && (next.lastTaskDurationMs ?? 0) >= 30_000 {

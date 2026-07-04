@@ -7,9 +7,9 @@ struct PopoverView: View {
     let serverHealth: ServerHealth?
     var onUserInteraction: (() -> Void)? = nil
     var onOpenOnboarding: () -> Void = {}
-    @AppStorage("setupCompleted") private var setupCompleted = false
-    @AppStorage("buddyName") private var buddyName = ""
-    @AppStorage("showMenuHint") private var showMenuHint = false
+    @AppStorage(DefaultsKey.setupCompleted) private var setupCompleted = false
+    @AppStorage(DefaultsKey.buddyName) private var buddyName = ""
+    @AppStorage(DefaultsKey.showMenuHint) private var showMenuHint = false
     @State private var showingSettings = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 

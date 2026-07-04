@@ -41,7 +41,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.windows.forEach { $0.close() }
         registerBundledFonts()
 
+        guard claimSingleInstance() else {
+            NSApp.terminate(nil)
+            return
+        }
+
         setupSignalHandlers()
+        SparkleUpdateManager.shared.start()
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
@@ -59,8 +65,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationManager.shared.requestPermission()
 
         let config = BuddyConfig.default
-        UserDefaults.standard.set(config.approvalMode, forKey: "approvalMode")
-        engine.setSpecies(UserDefaults.standard.string(forKey: "buddySpecies") ?? Pet.defaultSpecies)
+        UserDefaults.standard.set(config.approvalMode, forKey: DefaultsKey.approvalMode)
+        engine.setSpecies(UserDefaults.standard.string(forKey: DefaultsKey.buddySpecies) ?? Pet.defaultSpecies)
 
         let output = ESP32Output()
         esp32Output = output
@@ -110,13 +116,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        if !UserDefaults.standard.bool(forKey: "setupCompleted") {
+        if !UserDefaults.standard.bool(forKey: DefaultsKey.setupCompleted) {
             showOnboardingWindow()
         }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if !UserDefaults.standard.bool(forKey: "setupCompleted") {
+        if !UserDefaults.standard.bool(forKey: DefaultsKey.setupCompleted) {
             showOnboardingWindow()
         } else {
             showPopover()
@@ -162,6 +168,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sigtermSource = term
     }
 
+    private func claimSingleInstance() -> Bool {
+        guard let bundleIdentifier = AppMetadata.bundleIdentifier else { return true }
+        let currentPID = ProcessInfo.processInfo.processIdentifier
+        let matches = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+            .filter { $0.processIdentifier != currentPID && !$0.isTerminated }
+        guard let existing = matches.first else { return true }
+        existing.activate()
+        return false
+    }
+
     @objc private func statusItemClicked() {
         if NSApp.currentEvent?.type == .rightMouseUp {
             showStatusMenu()
@@ -188,7 +204,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 onFinish: { [weak self] in
                     self?.onboardingWindowController?.close()
                     self?.onboardingWindowController = nil
-                    UserDefaults.standard.set(true, forKey: "showMenuHint")
+                    UserDefaults.standard.set(true, forKey: DefaultsKey.showMenuHint)
                     self?.showPopover()
                 }
             )
@@ -303,7 +319,7 @@ extension AppDelegate: PopoverPresenting {
     }
 
     var isInteractiveModeEnabled: Bool {
-        UserDefaults.standard.bool(forKey: "interactiveMode")
+        UserDefaults.standard.bool(forKey: DefaultsKey.interactiveMode)
     }
 
     func closePopover() {

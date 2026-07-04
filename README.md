@@ -9,7 +9,7 @@ The current product lives in three top-level areas: the Swift macOS app in `app/
 - Shows sleep, idle, busy, attention, celebrate, error, and thinking states in the macOS menu bar popover.
 - Tracks multiple concurrent agent sessions and shows a compact per-session breakdown.
 - Displays current tool activity, recent activity entries, completion review cards, and error/thinking cards.
-- Supports local approval mode for blocking tool calls, with approve/deny from the popover or the paired M5Stack.
+- Supports local approval mode for blocking tool calls, with approve/deny from the popover or the paired hardware buddy.
 - Installs hooks for Claude Code, Cursor, and Codex, while failing open to the agent's native behavior when Buddygotchi is not running.
 - Streams heartbeat JSON to ESP32 firmware over Nordic UART BLE and supports firmware update checks/uploads from the app.
 
@@ -45,7 +45,7 @@ When the app is running, the local health endpoint is:
 curl http://127.0.0.1:21321/healthz
 ```
 
-The first-run wizard walks through agent detection, hook installation, connection testing, buddy selection, and optional M5Stack pairing. To reset onboarding:
+The first-run wizard walks through agent detection, hook installation, connection testing, buddy selection, and optional hardware buddy pairing. To reset onboarding:
 
 ```sh
 defaults delete Buddygotchi setupCompleted
@@ -55,6 +55,7 @@ defaults delete Buddygotchi setupCompleted
 
 ```sh
 make lint              # requires swift-format
+make package           # build an unsigned .app bundle and zip
 make test-snapshots    # opt-in SwiftUI PNG snapshot harness
 make e2e               # HTTP smoke suite; requires the app already running
 make clean             # remove SwiftPM build output
@@ -100,6 +101,8 @@ python3 firmware/esp32/tools/button.py b
 ## More Detail
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the app is pieced together, including hook routing, state aggregation, outputs, mocks, and test strategy. See [AGENTS.md](AGENTS.md) for repo-specific instructions for coding agents.
+
+Release and support details live in [docs/RELEASE.md](docs/RELEASE.md) and [docs/SUPPORT.md](docs/SUPPORT.md). To remove Buddygotchi, use Settings, About, Remove Buddygotchi, or follow the manual uninstall notes in the support doc.
 
 ## License
 
