@@ -73,10 +73,13 @@ enum SnapshotRenderer {
         review.activitySignal(sessionId: "c1", source: "claude-code", signal: .celebrate)
         render(popover(review), "popover-7-review", expanded, dir)
 
-        // 8. Settings
+        // 8. Settings (popover-height viewport + full-height capture of the whole scroll)
         let settingsEngine = makeEngine()
         let settings = SettingsView(isPresented: .constant(true), engine: settingsEngine, esp32Output: ESP32Output(), serverHealth: nil)
         render(settings, "settings", settingsSize, dir)
+        var settingsFull = SettingsView(isPresented: .constant(true), engine: makeEngine(), esp32Output: ESP32Output(), serverHealth: nil)
+        settingsFull.frameHeight = 1400
+        render(settingsFull, "settings-full", CGSize(width: BuddyTheme.popoverWidth, height: 1400), dir)
 
         // 9. Onboarding steps
         for step in OnboardingStep.allCases {

@@ -34,6 +34,9 @@ struct SettingsView: View {
     @State private var buddyPickerIndex = 0
     @State private var advancedExpanded = false
 
+    /// Overridable so the snapshot renderer can capture the full scroll content.
+    var frameHeight: CGFloat = BuddyTheme.popoverHeight
+
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -73,7 +76,7 @@ struct SettingsView: View {
                 .padding()
             }
         }
-        .frame(width: BuddyTheme.popoverWidth, height: BuddyTheme.popoverHeight)
+        .frame(width: BuddyTheme.popoverWidth, height: frameHeight)
         .preferredColorScheme(.dark)
         .onAppear {
             normalizeBuddySpecies()
@@ -321,24 +324,24 @@ struct SettingsView: View {
             .accessibilityElement(children: .contain)
             .accessibilityLabel(speciesPickerLabel)
 
-            TextField(
-                BuddyCopy.shared.settingsCopy.buddyName,
-                text: $buddyName
-            )
-                .textFieldStyle(.plain)
-                .font(.buddy(13))
-                .foregroundStyle(BuddyTheme.textPrimary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: 14))
-                .overlay(alignment: .topLeading) {
-                    Text(BuddyCopy.shared.settingsCopy.name)
-                        .font(.buddy(9.5, weight: .semibold))
-                        .foregroundStyle(BuddyTheme.textTertiary)
-                        .offset(x: 14, y: -18)
-                }
-                .padding(.top, 6)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(BuddyCopy.shared.settingsCopy.name)
+                    .font(.buddy(9.5, weight: .semibold))
+                    .foregroundStyle(BuddyTheme.textTertiary)
+                    .padding(.leading, 2)
+
+                TextField(
+                    BuddyCopy.shared.settingsCopy.buddyName,
+                    text: $buddyName
+                )
+                    .textFieldStyle(.plain)
+                    .font(.buddy(13))
+                    .foregroundStyle(BuddyTheme.textPrimary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: 14))
+            }
+            .padding(.top, 12)
         }
     }
 
@@ -738,40 +741,78 @@ struct SettingsView: View {
             .buttonStyle(BuddyPlainButtonStyle())
             .buddyGroupedCard()
             .disabled(isExportingBugReport)
+            .padding(.top, 10)
 
             Text(BuddyCopy.shared.settingsCopy.localPrivacy)
                 .font(.buddy(11))
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, 2)
+                .padding(.vertical, 12)
 
-            HStack(spacing: 12) {
-                Button(BuddyCopy.runSetupAgain) {
+            VStack(spacing: 0) {
+                settingsActionRow(
+                    BuddyCopy.runSetupAgain,
+                    systemImage: "arrow.counterclockwise",
+                    role: .normal
+                ) {
                     setupCompleted = false
                     isPresented = false
                     onOpenOnboarding()
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .tint(BuddyTheme.textSecondary)
 
-                Spacer()
+                Divider().padding(.horizontal, 12)
 
-                Button(BuddyCopy.quitBuddygotchi) {
+                settingsActionRow(BuddyCopy.quitBuddygotchi, systemImage: nil, role: .normal) {
                     NSApplication.shared.terminate(nil)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .tint(BuddyTheme.stuckRed)
             }
-            .padding(.top, 4)
+            .buddyGroupedCard()
 
-            Button(BuddyCopy.shared.settingsCopy.removeBuddygotchi) {
-                showingRemoveConfirmation = true
+            VStack(spacing: 0) {
+                settingsActionRow(
+                    BuddyCopy.shared.settingsCopy.removeBuddygotchi,
+                    systemImage: nil,
+                    role: .destructive
+                ) {
+                    showingRemoveConfirmation = true
+                }
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .tint(BuddyTheme.stuckRed)
+            .buddyGroupedCard()
+            .padding(.top, 10)
+            .padding(.bottom, 8)
         }
+    }
+
+    private enum SettingsActionRole {
+        case normal
+        case destructive
+    }
+
+    private func settingsActionRow(
+        _ title: String,
+        systemImage: String?,
+        role: SettingsActionRole,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(title)
+                    .font(.buddy(13))
+                    .foregroundStyle(role == .destructive ? BuddyTheme.stuckRed : BuddyTheme.textPrimary)
+                Spacer()
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(BuddyPlainButtonStyle())
+        .accessibilityLabel(title)
     }
 
     // MARK: - Helpers
