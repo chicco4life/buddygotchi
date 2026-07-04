@@ -10,6 +10,10 @@ SPARKLE_PLACEHOLDER="BUDDYGOTCHI_SPARKLE_PUBLIC_KEY_PLACEHOLDER"
 
 hard_failures=0
 warnings=0
+UNSIGNED_MODE=0
+if [[ "${BUDDY_ALLOW_UNSIGNED:-}" == "1" ]]; then
+  UNSIGNED_MODE=1
+fi
 
 pass() {
   printf '✅ PASS  %s\n' "$1"
@@ -27,6 +31,17 @@ warn_fail() {
   warnings=$((warnings + 1))
 }
 
+# Signing/notarization requirements: hard for a customer-facing release,
+# warn-only when the user explicitly opted into an unsigned build
+# (BUDDY_ALLOW_UNSIGNED=1 / make preflight-unsigned).
+sign_fail() {
+  if [[ "$UNSIGNED_MODE" -eq 1 ]]; then
+    warn_fail "$1" "$2"
+  else
+    hard_fail "$1" "$2"
+  fi
+}
+
 read_plist() {
   local key="$1"
   /usr/libexec/PlistBuddy -c "Print :$key" "$INFO_PLIST" 2>/dev/null
@@ -38,14 +53,20 @@ head_reachable() {
 }
 
 printf 'Buddygotchi release preflight\n'
-printf 'Root: %s\n\n' "$ROOT_DIR"
+printf 'Root: %s\n' "$ROOT_DIR"
+if [[ "$UNSIGNED_MODE" -eq 1 ]]; then
+  printf 'Mode: UNSIGNED build (signing and notarization checks are warnings; recipients will see the Gatekeeper "Open Anyway" flow)\n'
+else
+  printf 'Mode: signed release\n'
+fi
+printf '\n'
 
 if command -v security >/dev/null 2>&1; then
   identities="$(security find-identity -v -p codesigning 2>/dev/null || true)"
   if printf '%s\n' "$identities" | grep -F 'Developer ID Application' >/dev/null 2>&1; then
     pass "Developer ID Application certificate is installed in the keychain."
   else
-    hard_fail "Developer ID Application certificate was not found in the keychain." \
+    sign_fail "Developer ID Application certificate was not found in the keychain." \
       "Join the Apple Developer Program, install a Developer ID Application certificate, then confirm with security find-identity -v -p codesigning."
   fi
 
@@ -53,17 +74,17 @@ if command -v security >/dev/null 2>&1; then
     if printf '%s\n' "$identities" | grep -F -- "$DEVELOPER_ID_APPLICATION" >/dev/null 2>&1; then
       pass "DEVELOPER_ID_APPLICATION matches an installed signing identity."
     else
-      hard_fail "DEVELOPER_ID_APPLICATION is set but does not match an installed identity." \
+      sign_fail "DEVELOPER_ID_APPLICATION is set but does not match an installed identity." \
         "Set DEVELOPER_ID_APPLICATION exactly to the Developer ID Application identity shown by security find-identity -v -p codesigning."
     fi
   else
-    hard_fail "DEVELOPER_ID_APPLICATION is not set." \
+    sign_fail "DEVELOPER_ID_APPLICATION is not set." \
       "Export DEVELOPER_ID_APPLICATION with the exact Developer ID Application identity used by app/tools/package.sh."
   fi
 else
-  hard_fail "security tool is unavailable; signing identities cannot be checked." \
+  sign_fail "security tool is unavailable; signing identities cannot be checked." \
     "Run release preflight on macOS with Xcode command line tools installed."
-  hard_fail "DEVELOPER_ID_APPLICATION cannot be validated without the keychain identity list." \
+  sign_fail "DEVELOPER_ID_APPLICATION cannot be validated without the keychain identity list." \
     "Install the Developer ID Application certificate and set DEVELOPER_ID_APPLICATION to its exact identity."
 fi
 
@@ -72,11 +93,11 @@ if command -v xcrun >/dev/null 2>&1; then
   if xcrun -f notarytool >/dev/null 2>&1; then
     pass "notarytool is available through xcrun."
   else
-    hard_fail "notarytool is not available through xcrun." \
+    sign_fail "notarytool is not available through xcrun." \
       "Install current Xcode command line tools or full Xcode so xcrun -f notarytool succeeds."
   fi
 else
-  hard_fail "xcrun is not available." \
+  sign_fail "xcrun is not available." \
     "Install Xcode command line tools or full Xcode before cutting a release."
 fi
 
@@ -92,7 +113,7 @@ if [[ "$profile_ok" -eq 1 ]]; then
 elif [[ -n "${APPLE_ID:-}" && -n "${APPLE_TEAM_ID:-}" && -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ]]; then
   pass "Apple ID notarization env vars are set: APPLE_ID, APPLE_TEAM_ID, APPLE_APP_SPECIFIC_PASSWORD."
 else
-  hard_fail "Notarization credentials are missing or invalid." \
+  sign_fail "Notarization credentials are missing or invalid." \
     "Run xcrun notarytool store-credentials and set NOTARYTOOL_PROFILE, or export APPLE_ID, APPLE_TEAM_ID, and APPLE_APP_SPECIFIC_PASSWORD."
 fi
 
@@ -207,6 +228,10 @@ else
 fi
 
 printf '\nSummary: %d hard failure(s), %d warning(s)\n' "$hard_failures" "$warnings"
+if [[ "$UNSIGNED_MODE" -eq 1 && "$hard_failures" -eq 0 ]]; then
+  printf 'Ready for an UNSIGNED build: make package (no DEVELOPER_ID_APPLICATION set) produces an ad-hoc-signed zip.\n'
+  printf 'Do not ship unsigned builds to customers — macOS blocks first launch behind Privacy & Security > Open Anyway.\n'
+fi
 if [[ "$hard_failures" -gt 0 ]]; then
   exit 1
 fi

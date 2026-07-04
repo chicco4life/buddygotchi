@@ -1,4 +1,4 @@
-.PHONY: build run test test-snapshots e2e hil hil-ble preflight package lint clean
+.PHONY: build run test test-snapshots e2e hil hil-ble preflight preflight-unsigned package lint clean
 
 build:
 	cd app && swift build --product Buddygotchi && swift build --product BuddygotchiSignal
@@ -61,6 +61,9 @@ package:
 
 preflight:
 	app/tools/release-preflight.sh
+
+preflight-unsigned:
+	BUDDY_ALLOW_UNSIGNED=1 app/tools/release-preflight.sh
 
 lint:
 	@if command -v swift-format >/dev/null 2>&1; then \

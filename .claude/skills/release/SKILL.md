@@ -1,28 +1,53 @@
 ---
 name: release
-description: Cut a signed, notarized Buddygotchi release — preflight checks, package, verify, appcast, tag; use when the user wants to build/ship/release the Mac app.
+description: Cut a Buddygotchi release — signed and notarized when credentials exist, or an explicit unsigned build without them; preflight checks, package, verify, appcast, tag. Use when the user wants to build/ship/release the Mac app.
 ---
 
 # Buddygotchi Release
 
 Use this when the user says "/release", "cut a release", or otherwise asks to build, ship, or publish the Mac app.
 
+## Choose the Mode First
+
+Two supported modes — ask the user (or infer from what preflight finds) before packaging:
+
+- **Signed release** (default; required for anything customers download): Developer ID +
+  notarization. Run `make preflight`.
+- **Unsigned build** (no Apple Developer Program needed; for the user's own machines, and testers
+  who are told about the Gatekeeper "Open Anyway" step): run `make preflight-unsigned`. Signing
+  and notarization checks become warnings; version/git checks stay hard.
+
+If `make preflight` shows signing HARD failures and the user just wants a build now, offer the
+unsigned mode explicitly — never silently downgrade a release the user expected to be signed.
+
 ## Operating Procedure
 
-1. Start at the repo root and run:
+1. Start at the repo root and run the chosen mode's preflight (`make preflight` or
+   `make preflight-unsigned`).
 
-   ```sh
-   make preflight
-   ```
-
-2. Relay the checklist results. If any `❌ HARD` item appears, stop before packaging or tagging. Tell the user exactly which requirement is missing:
+2. Relay the checklist results. If any `❌ HARD` item appears, stop before packaging or tagging. For signed mode, the signing requirements are:
    - Apple Developer Program membership and an installed Developer ID Application certificate.
    - `DEVELOPER_ID_APPLICATION` set to the exact identity from `security find-identity -v -p codesigning`.
    - Notarization credentials: either `NOTARYTOOL_PROFILE` from `xcrun notarytool store-credentials`, or the `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD` trio.
-   - A valid semver `VERSION`, clean git tree, `main` checked out, and no existing `v$(cat VERSION)` tag.
-   - Sparkle readiness warnings: `SPARKLE_FRAMEWORK_PATH`, `SPARKLE_PUBLIC_ED_KEY`, and hosting from `docs/RELEASE.md` or `research/eng/RELEASE.md`.
+   - A valid semver `VERSION`, clean git tree, `main` checked out, and no existing `v$(cat VERSION)` tag (these stay hard in both modes).
+   - Sparkle readiness warnings: `SPARKLE_FRAMEWORK_PATH`, `SPARKLE_PUBLIC_ED_KEY`, and hosting from `research/eng/RELEASE.md`.
 
-3. Never fabricate or guess credentials, signing identities, Sparkle keys, app-specific passwords, team IDs, or hosting state. Degrade to unsigned development builds only when the user explicitly asks for that.
+3. Never fabricate or guess credentials, signing identities, Sparkle keys, app-specific passwords, team IDs, or hosting state.
+
+## Unsigned Build Path
+
+1. `make preflight-unsigned` — proceed only when hard failures are zero.
+2. Ensure `DEVELOPER_ID_APPLICATION` is **unset**, then `make package`. The script builds ad-hoc
+   and skips notarization automatically, producing `build/artifacts/Buddygotchi-<version>.zip`.
+3. Verify what can be verified: `codesign --verify build/package/Buddygotchi.app` (ad-hoc passes);
+   skip `spctl` and `stapler` — they are expected to fail without notarization, and that is fine
+   for this mode.
+4. Hand over the zip with the caveat, stated plainly to the user: on current macOS, recipients
+   must approve the app under System Settings → Privacy & Security → "Open Anyway" after the
+   first blocked launch. Do not distribute unsigned builds to customers.
+5. Sparkle auto-update still requires `SPARKLE_PUBLIC_ED_KEY` and a signed appcast even for
+   unsigned apps; without the keys, skip the appcast step and note that this build will not
+   self-update.
 
 ## Preferred Release Path: CI
 
