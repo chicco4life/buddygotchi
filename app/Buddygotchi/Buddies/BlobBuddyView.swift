@@ -4,7 +4,26 @@ struct BlobBuddyView: View {
     let petState: PetState
     var size: CGFloat = 150
 
+    @State private var stateEntryDate = Date.now
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private let breathePeriod: TimeInterval = 4.0
+    private let amberPeriod: TimeInterval = 2.4
+    private let heartbeatPeriod: TimeInterval = 2.6
+    private let sleepPeekPeriod: TimeInterval = 8.0
+    private let rippleDuration: TimeInterval = 0.9
+    private let twinkleDuration: TimeInterval = 3.2
+    private let thinkingDotsPeriod: TimeInterval = 2.0
+
+    private var stateTickInterval: TimeInterval {
+        guard !reduceMotion else { return 60 }
+        switch petState {
+        case .sleep, .idle:
+            return 0.5
+        case .busy, .thinking, .attention, .celebrate, .error:
+            return 1.0 / 12.0
+        }
+    }
 
     private var glowColor: Color {
         switch petState {
@@ -27,10 +46,13 @@ struct BlobBuddyView: View {
     }
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: reduceMotion ? 60 : 0.1)) { context in
+        TimelineView(.periodic(from: stateEntryDate, by: stateTickInterval)) { context in
             let t = context.date.timeIntervalSinceReferenceDate
+            let stateElapsed = max(0, context.date.timeIntervalSince(stateEntryDate))
             let bob = reduceMotion ? 0 : sin(t * 0.9) * 2
             let rock = reduceMotion ? 0 : sin(t * 0.7) * 1.3
+            let glowOpacity = animatedGlowOpacity(at: t)
+            let glowScale = animatedGlowScale(at: t)
 
             ZStack {
                 RadialGradient(
@@ -41,6 +63,11 @@ struct BlobBuddyView: View {
                 )
                 .frame(width: size * 1.24, height: size * 0.9)
                 .blur(radius: 16)
+                .scaleEffect(glowScale)
+
+                if petState == .celebrate && !reduceMotion && stateElapsed <= rippleDuration {
+                    celebrateRipple(elapsed: stateElapsed)
+                }
 
                 blobBody
                     .offset(y: CGFloat(bob))
@@ -50,13 +77,63 @@ struct BlobBuddyView: View {
                     .offset(y: CGFloat(bob) - size * 0.03)
                     .rotationEffect(.degrees(rock))
 
-                if petState == .celebrate {
-                    twinkles(t)
+                if petState == .celebrate && !reduceMotion && stateElapsed <= twinkleDuration {
+                    twinkles(elapsed: stateElapsed)
                 }
             }
             .frame(width: size * 1.35, height: size)
         }
+        .id("\(petState.rawValue)-\(stateTickInterval)")
+        .onChange(of: petState) {
+            stateEntryDate = Date.now
+        }
         .accessibilityLabel("blob buddy, \(petState.rawValue)")
+    }
+
+    private func animatedGlowOpacity(at t: TimeInterval) -> Double {
+        guard !reduceMotion else { return glowOpacity }
+
+        switch petState {
+        case .busy, .thinking:
+            return glowOpacity * pulseMultiplier(at: t, period: breathePeriod, minimum: 0.55)
+        case .attention:
+            return glowOpacity * pulseMultiplier(at: t, period: amberPeriod, minimum: 0.5)
+        case .error:
+            return heartbeatOpacity(at: t)
+        case .celebrate, .idle, .sleep:
+            return glowOpacity
+        }
+    }
+
+    private func animatedGlowScale(at t: TimeInterval) -> CGFloat {
+        guard !reduceMotion else { return 1 }
+        guard petState == .busy || petState == .thinking else { return 1 }
+
+        let phase = phase(at: t, period: breathePeriod)
+        let eased = (1 - cos(phase * 2 * .pi)) / 2
+        return 1 + CGFloat(eased) * 0.04
+    }
+
+    private func pulseMultiplier(at t: TimeInterval, period: TimeInterval, minimum: Double) -> Double {
+        let phase = phase(at: t, period: period)
+        let eased = (1 - cos(phase * 2 * .pi)) / 2
+        return minimum + (1 - minimum) * eased
+    }
+
+    private func heartbeatOpacity(at t: TimeInterval) -> Double {
+        let phase = phase(at: t, period: heartbeatPeriod)
+        let firstBeat = triangularPulse(phase: phase, center: 0.15, halfWidth: 0.055)
+        let secondBeat = triangularPulse(phase: phase, center: 0.30, halfWidth: 0.055)
+        return 0.25 + max(firstBeat, secondBeat) * 0.45
+    }
+
+    private func triangularPulse(phase: Double, center: Double, halfWidth: Double) -> Double {
+        max(0, 1 - abs(phase - center) / halfWidth)
+    }
+
+    private func phase(at t: TimeInterval, period: TimeInterval) -> Double {
+        let raw = t.truncatingRemainder(dividingBy: period)
+        return (raw >= 0 ? raw : raw + period) / period
     }
 
     private var blobBody: some View {
@@ -87,17 +164,18 @@ struct BlobBuddyView: View {
 
     @ViewBuilder
     private func face(at t: TimeInterval) -> some View {
-        let blink = petState == .idle && Int(t * 2.0) % 13 == 0
+        let blink = !reduceMotion && petState == .idle && Int(t * 2.0) % 13 == 0
+        let sleepPeek = !reduceMotion && petState == .sleep && sleepPeekIsOpen(at: t)
         let closed = petState == .sleep || blink
         let eyeColor = BuddyTheme.night
 
         HStack(spacing: size * 0.12) {
-            eye(closed: closed, error: petState == .error)
+            eye(closed: closed && !sleepPeek, error: petState == .error)
             eye(closed: closed, error: petState == .error)
         }
         .foregroundStyle(eyeColor)
         .overlay(alignment: .bottom) {
-            mouth
+            mouth(at: t)
                 .offset(y: size * 0.08)
         }
         .overlay {
@@ -112,6 +190,11 @@ struct BlobBuddyView: View {
             .offset(y: size * 0.08)
         }
         .offset(y: -size * 0.05)
+    }
+
+    private func sleepPeekIsOpen(at t: TimeInterval) -> Bool {
+        let phase = phase(at: t, period: sleepPeekPeriod)
+        return phase >= 0.76 && phase <= 0.94
     }
 
     private func eye(closed: Bool, error: Bool) -> some View {
@@ -135,7 +218,7 @@ struct BlobBuddyView: View {
     }
 
     @ViewBuilder
-    private var mouth: some View {
+    private func mouth(at t: TimeInterval) -> some View {
         switch petState {
         case .celebrate:
             Image(systemName: "chevron.down")
@@ -149,6 +232,7 @@ struct BlobBuddyView: View {
             Text("…")
                 .font(.buddy(size * 0.09, weight: .semibold))
                 .foregroundStyle(BuddyTheme.night)
+                .opacity(reduceMotion ? 1 : pulseMultiplier(at: t, period: thinkingDotsPeriod, minimum: 0.28))
         default:
             Capsule()
                 .frame(width: size * 0.11, height: 2)
@@ -156,16 +240,31 @@ struct BlobBuddyView: View {
         }
     }
 
-    private func twinkles(_ t: TimeInterval) -> some View {
+    private func celebrateRipple(elapsed: TimeInterval) -> some View {
+        let progress = min(max(elapsed / rippleDuration, 0), 1)
+        return Ellipse()
+            .stroke(BuddyTheme.green.opacity(1 - progress), lineWidth: 2)
+            .frame(
+                width: size * (0.9 + CGFloat(progress) * 0.24),
+                height: size * (0.72 + CGFloat(progress) * 0.24)
+            )
+            .blur(radius: CGFloat(progress) * 1.5)
+    }
+
+    private func twinkles(elapsed: TimeInterval) -> some View {
         ZStack {
             ForEach(0..<4, id: \.self) { idx in
+                let progress = min(max(elapsed / twinkleDuration, 0), 1)
+                let opacity = 0.15 + sin(progress * .pi) * 0.75
+                let lift = -4 * sin(progress * .pi)
+
                 Image(systemName: "sparkle")
                     .font(.system(size: 10 + CGFloat(idx % 2) * 3))
                     .foregroundStyle(BuddyTheme.green)
-                    .opacity(reduceMotion ? 0.9 : max(0.25, sin(t * 2.4 + Double(idx)) * 0.45 + 0.55))
+                    .opacity(opacity)
                     .offset(
                         x: [-58, 52, -36, 38][idx],
-                        y: [-28, -18, 32, 36][idx]
+                        y: [-28, -18, 32, 36][idx] + CGFloat(lift)
                     )
             }
         }

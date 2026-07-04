@@ -59,7 +59,7 @@ struct PetStageView: View {
 
     var body: some View {
         Group {
-            if species == "blob" {
+            if buddy.name == "blob" {
                 BlobBuddyView(petState: petState, size: fontSize > 18 ? 120 : 110)
                     .frame(maxWidth: .infinity)
             } else {

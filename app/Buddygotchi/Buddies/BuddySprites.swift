@@ -279,8 +279,16 @@ private let dragonStates: [String: BuddyStateAnim] = [
 
 // MARK: - Public API
 
+// Blob is rendered by BlobBuddyView. Keep a non-cat sentinel so direct
+// renderFrame calls for "blob" cannot accidentally draw another species.
+private let blobStates: [String: BuddyStateAnim] = [
+    "idle": BuddyStateAnim(beatMs: 1, poses: [
+        sprite([""]),
+    ], seq: [0], overlay: nil),
+]
+
 let allBuddies: [String: BuddySpecies] = [
-    "blob": BuddySpecies(name: "blob", color: "#EFE7D8", states: catStates),
+    "blob": BuddySpecies(name: "blob", color: "#EFE7D8", states: blobStates),
     "cat": BuddySpecies(name: "cat", color: "#CDB892", states: catStates),
     "axolotl": BuddySpecies(name: "axolotl", color: "#C98F83", states: axolotlStates),
     "robot": BuddySpecies(name: "robot", color: "#B9AE9C", states: robotStates),
