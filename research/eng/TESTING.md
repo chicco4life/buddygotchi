@@ -78,6 +78,13 @@ Build of product 'BuddygotchiSignal' complete!
 
 ## 2. HTTP E2E
 
+Note on launching the debug app: macOS TCC may kill the bare SwiftPM binary at
+startup (Bluetooth usage description requires a bundle identity). If
+`app/.build/debug/Buddygotchi` dies before `/healthz` answers, wrap it in a
+minimal `.app` (the binary plus `app/Buddygotchi/Resources/Info.plist` under
+`Something.app/Contents/`) and `open` that instead — or use the packaged app
+from `make package`.
+
 The HTTP e2e suite requires a live Buddygotchi app. It reads the auth token from
 `~/.buddygotchi/config.json`. The default port is `21321`; override it with
 `BUDDY_PORT` if the app is configured to listen elsewhere.
@@ -139,7 +146,29 @@ terminal or clean macOS user session, then rerun the smoke suite.
 
 ## 3. Snapshot And Visual Review
 
-Snapshots require XCTest, so run these on a full Xcode machine or in CI:
+### 3a. Local renderer (no XCTest required)
+
+The app renders every UI surface headlessly on any machine, including
+CommandLineTools-only hosts:
+
+```sh
+cd app
+swift build --product Buddygotchi
+.build/debug/Buddygotchi --render-snapshots /tmp/buddy-snapshots
+open /tmp/buddy-snapshots
+```
+
+This writes PNGs for all popover states (sleep, busy, passive prompt, approval
+with queue + error trailer, multi-session, error, review), settings, every
+onboarding step, and the species gallery. TimelineView animation is captured at
+a single frame. This is the fastest local answer to "does the UI still match
+the landing page" — use it before and after any view change.
+
+### 3b. XCTest snapshot harness (full Xcode or CI)
+
+The harness additionally exercises the approval button loop end to end and runs
+in CI, which uploads the PNGs as the `ui-snapshots` artifact on every run.
+Locally it requires XCTest:
 
 ```sh
 make test-snapshots
@@ -185,8 +214,9 @@ Created build/package/Buddygotchi.app
 Created build/artifacts/Buddygotchi-<version>.zip
 ```
 
-Current CommandLineTools-only limitation: on this machine, `make package`
-builds the release app binary and then fails linking `BuddygotchiTests` before
+Historical note (fixed): `make package` previously failed on CommandLineTools-only
+machines by linking `BuddygotchiTests`; it now builds only the shipped products
+and completes unsigned here. The old failure looked like: the release app binary built, then it failed linking `BuddygotchiTests` before
 assembling the `.app`. Treat that as a packaging-script/build-environment
 failure, not a packaged-app smoke pass.
 

@@ -1,7 +1,7 @@
 .PHONY: build run test test-snapshots e2e hil hil-ble package lint clean
 
 build:
-	cd app && swift build
+	cd app && swift build --product Buddygotchi && swift build --product BuddygotchiSignal
 
 run:
 	cd app && swift run Buddygotchi
