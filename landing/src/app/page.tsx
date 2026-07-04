@@ -3,7 +3,7 @@ import { Moment } from "@/components/sections/Moment";
 import { Alive } from "@/components/sections/Alive";
 import { LightLanguage } from "@/components/sections/LightLanguage";
 import { RationalFloor } from "@/components/sections/RationalFloor";
-import { Craft } from "@/components/sections/Craft";
+import { Adoption } from "@/components/sections/Adoption";
 import { Faq } from "@/components/sections/Faq";
 import { Footer } from "@/components/sections/Footer";
 
@@ -19,7 +19,7 @@ export default function Page() {
       <Alive />
       <LightLanguage />
       <RationalFloor />
-      <Craft />
+      <Adoption />
       <Faq />
       <Footer />
     </main>

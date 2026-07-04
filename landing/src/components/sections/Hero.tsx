@@ -1,7 +1,7 @@
 import { copy } from "@/lib/copy";
 import { tinyLabel } from "@/lib/ui";
 import { MediaImage } from "@/components/Media";
-import { HeroCTA } from "@/components/HeroCTA";
+import { WaitlistCTA } from "@/components/WaitlistCTA";
 
 /*
   S1 — Hero (100vh). One of the page's two media slots (SPEC.md Amendment A):
@@ -20,7 +20,6 @@ export function Hero() {
         <MediaImage
           src="/media/hero.jpg"
           alt="A small glowing creature sits on a desk in warm light; its glow has turned amber and a hand reaches in to pet it."
-          note={copy.hero.mediaNote}
           glow="amber"
           fill
           priority
@@ -38,7 +37,7 @@ export function Hero() {
           {copy.hero.subhead}
         </p>
         <div className="mt-8">
-          <HeroCTA />
+          <WaitlistCTA source="hero" />
         </div>
         <p className={`mt-5 ${tinyLabel}`}>{copy.hero.footnote}</p>
       </div>

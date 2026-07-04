@@ -13,6 +13,18 @@ export function Footer() {
           <FooterSignup />
 
           <nav className="flex items-center gap-6 text-sm text-charcoal-soft">
+            {/* escape valve for visitors not ready to hand over an email — renders
+                once the build-in-public account exists (research/TODOs.md) */}
+            {copy.footer.followBuild.url && (
+              <a
+                href={copy.footer.followBuild.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-charcoal"
+              >
+                {copy.footer.followBuild.label}
+              </a>
+            )}
             <Link href="/privacy" className="hover:text-charcoal">
               {copy.footer.privacy}
             </Link>

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { track } from "@vercel/analytics";
-import { submitEmail } from "@/lib/submit";
+import { submitEmail, type SignupSource } from "@/lib/submit";
 import { getPriceCohort } from "@/lib/attribution";
 import { copy } from "@/lib/copy";
 import { ctaClass } from "@/lib/ui";
@@ -19,7 +19,7 @@ export function EmailForm({
   autoFocus = false,
   layout = "stacked",
 }: {
-  source: "hero" | "footer";
+  source: SignupSource;
   buttonLabel: string;
   placeholder: string;
   autoFocus?: boolean;

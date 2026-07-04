@@ -11,7 +11,7 @@ declare global {
   }
 }
 
-export function fireLead(source: "hero" | "footer"): void {
+export function fireLead(source: "hero" | "adoption" | "footer"): void {
   if (typeof window === "undefined") return;
   try {
     window.rdt?.("track", "SignUp");

@@ -1,6 +1,6 @@
 /*
-  One button style, used exactly twice (hero CTA + footer submit) so the eye
-  always knows the one thing to click. See SPEC.md §4.5.
+  One button style, used exactly three times (hero CTA, adoption CTA, footer
+  submit) so the eye always knows the one thing to click. See SPEC.md §4.5.
 */
 export const ctaClass =
   "inline-flex items-center justify-center rounded-full bg-amber px-8 py-4 " +

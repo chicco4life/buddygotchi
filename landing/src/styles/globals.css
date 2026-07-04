@@ -163,6 +163,20 @@ body {
   animation: buddy-peek-out 8s linear infinite;
 }
 
+/* The pet: a hand strokes the crown — slow, damped, affectionate. */
+@keyframes buddy-pet {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(4px);
+  }
+}
+.buddy-pet {
+  animation: buddy-pet 2.8s var(--ease-buddy) infinite;
+}
+
 /* Gentle float/fade for confetti dots and sleep z's. Staggered via delay. */
 @keyframes buddy-twinkle {
   0%,
@@ -230,6 +244,7 @@ dialog[open] {
   .buddy-wobble,
   .buddy-peek-in,
   .buddy-peek-out,
+  .buddy-pet,
   .buddy-twinkle,
   dialog[open] {
     animation: none;

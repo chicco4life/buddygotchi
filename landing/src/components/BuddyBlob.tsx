@@ -146,9 +146,16 @@ export function BuddyBlob({
       </g>
 
       {petting && (
-        <g stroke="#6e675d" strokeWidth="3" strokeLinecap="round" fill="none" opacity="0.55" className="buddy-breathe" style={{ transformOrigin: "100px 48px" }}>
-          <path d="M76 42 q24 -14 48 0" />
-          <path d="M84 54 q16 -9 32 0" />
+        // a hand reaching in from above, resting on the crown — slow damped pet
+        <g className="buddy-pet">
+          <g fill="#eadcc3" stroke="#2b2724" strokeOpacity="0.08" strokeWidth="1.5">
+            {/* wrist, running off the top edge */}
+            <rect x="112" y="-14" width="32" height="52" rx="15" />
+            {/* palm over the crown */}
+            <ellipse cx="124" cy="46" rx="26" ry="18" />
+            {/* thumb */}
+            <ellipse cx="90" cy="55" rx="9" ry="6.5" transform="rotate(-18 90 55)" />
+          </g>
         </g>
       )}
 

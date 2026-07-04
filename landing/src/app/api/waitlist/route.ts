@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 const Body = z.object({
   email: z.string().email().max(320),
-  source: z.enum(["hero", "footer"]),
+  source: z.enum(["hero", "adoption", "footer"]),
 });
 
 // Naive per-IP limiter. Fine at demand-test traffic; resets on cold start and is

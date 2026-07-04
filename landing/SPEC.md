@@ -1,6 +1,6 @@
 # Buddygotchi Landing Page — Technical Specification
 
-Status: implemented; media strategy amended — see Amendment A (§14)
+Status: implemented; media strategy amended — see Amendment A (§14); section/copy revisions — see Amendment B (§15)
 Last updated: 2026-07-03
 Source documents: `../docs/MARKETING.md` (Part 2 is the marketing-side page spec; Part 3 is the demand test this page powers), `../docs/PRODUCT.md` (§9 form factor, §11 positioning, §12 agent-era value prop)
 
@@ -442,3 +442,17 @@ The product does not exist yet, so the photo/video slots specified in §5/§8 ca
 - The floating vignettes also remove the rounded media frames from S2/S3, which brings the page closer to the no-cards/no-borders rule (§4.3).
 
 `Media.tsx` is image-only now; the video-capable version lives in git history (pre-Amendment-A) for when real film exists. Honesty rationale: drawn art makes no claim to be a photograph of a product that doesn't exist, while a page of "placeholder" frames or AI-faked photos would. When the product is real, S1/S3 return to film per §5 and this amendment retires.
+
+---
+
+## 15. Amendment B (2026-07-03): section and copy revisions
+
+Business-review revisions. Where this conflicts with §5/§8 or `../research/product/MARKETING.md` §2.2, this amendment wins.
+
+1. **S6 is now The adoption, not The craft.** The exploded-view/component section is removed on purpose — the internals stay ambiguous while the hardware is still being finalized. The adoption section (MARKETING.md §2.2 S7) is restored in its place, **without the care card** (dropped from the box contents). It shows a drawn open box (swap target: `public/media/box.jpg`), the numbered-ID line, and the Founding Litter scarcity line. The adoption counter remains hidden until real.
+2. **Mid-page CTA.** The adoption section carries a second `WaitlistCTA` (source `adoption`, tracked separately end-to-end: analytics event, pixel, DB row). The one-button-style rule now covers three instances: hero, adoption, footer submit.
+3. **Shipping timeline stays unpromised, but addressed.** New FAQ entry ("When do they hatch?") answers the question honestly with no date — a season promise we might miss costs more trust than no date. Revisit when a manufacturing schedule exists.
+4. **Category phrase in body copy.** "desk companion for AI agents" now leads the "What does it actually do?" FAQ answer, satisfying §9.1's body-copy requirement.
+5. **Follow-the-build link.** The footer renders a `follow the build` link only when `copy.footer.followBuild.url` is non-empty; it ships empty until the account exists (`../research/TODOs.md`).
+6. **Placeholder polish.** The visible `placeholder · <note>` caption is removed from media stand-ins. The default drawn stand-in is now a desk-scale scene (blob small on a desk plane with contact shadow) instead of a full-frame portrait, so the hero reads as a physical object.
+7. **Less blob repetition.** The S4 light strip is faceless — shell silhouettes lit from within, "Needs you" rendered largest/brightest with an amber label. Faces appear only in S2/S3, and the S2 pet beat now shows an actual drawn hand (`petting` on `BuddyBlob`).

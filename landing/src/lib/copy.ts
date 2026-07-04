@@ -21,7 +21,6 @@ export const copy = {
       "A little creature that watches your AI agents — and only bothers you when it matters.",
     ctaLabel: "Adopt one",
     footnote: "Founding Litter · 100 numbered buddies · no subscription, ever",
-    mediaNote: "blob on a desk in warm light, amber glow, a hand mid-pet",
   },
 
   moment: {
@@ -92,15 +91,12 @@ export const copy = {
     ],
   },
 
-  craft: {
-    diagramAria:
-      "An exploded view, drawn: silicone crown, frosted shell, screen, steel heart, and base ring, floating apart",
-    parts: ["silicone crown", "frosted shell", "screen", "steel heart", "base ring"],
+  adoption: {
+    boxAria:
+      "An open adoption box, drawn: the buddy nested inside, a numbered tag on the lid, a coiled cream cable beside it",
     lines: [
-      "A frosted shell that glows from within.",
-      "A steel heart, so it always rights itself — 162 grams of calm.",
-      "A silicone crown that clicks like a marshmallow.",
-      "Two buttons. That's all it needs.",
+      "Every buddy ships in an adoption box with a numbered ID and a cable that deserves the name.",
+      "Founding Litter: 100 buddies. When they're gone, batch two begins.",
     ],
   },
 
@@ -108,7 +104,11 @@ export const copy = {
     { q: "Does it need a subscription?", a: "No. Never." },
     {
       q: "What does it actually do?",
-      a: "Shows what your agents are doing, glows when one needs you, lets you approve or deny with a press, celebrates when work lands.",
+      a: "It's a desk companion for AI agents: it shows what yours are doing, glows when one needs you, lets you approve or deny with a press, celebrates when work lands.",
+    },
+    {
+      q: "When do they hatch?",
+      a: "When they're ready. The Founding Litter is still being hand-assembled, and we won't promise a date we might miss. You'll get exactly one email when your number comes up.",
     },
     {
       q: "What if I auto-approve everything?",
@@ -124,6 +124,9 @@ export const copy = {
   footer: {
     ctaLabel: "Get in line",
     placeholder: "you@where-you-code.com",
+    // Rendered only when url is non-empty — set it once the build-in-public
+    // account exists (research/TODOs.md).
+    followBuild: { label: "follow the build", url: "" },
     signoff: "Made by people who also forgot a task finished 40 minutes ago.",
     privacy: "privacy",
     contact: "contact",

@@ -12,7 +12,7 @@ import type { Attribution } from "@/lib/attribution";
 
 export type SubmitInput = {
   email: string;
-  source: "hero" | "footer";
+  source: "hero" | "adoption" | "footer";
   attr: Attribution;
 };
 
