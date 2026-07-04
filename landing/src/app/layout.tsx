@@ -5,9 +5,29 @@ import { Attribution } from "@/components/Attribution";
 import { ScrollDepth } from "@/components/ScrollDepth";
 import { Pixels } from "@/components/Pixels";
 import { copy } from "@/lib/copy";
+import { serializeJsonLd } from "@/lib/jsonld";
 import "@/styles/globals.css";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://adoptaboop.com";
+
+const siteJsonLd = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      name: "Boop Computer",
+      url: siteUrl,
+      logo: `${siteUrl}/icon.svg`,
+      email: "hello@adoptaboop.com",
+    },
+    {
+      "@type": "WebSite",
+      name: "Boop",
+      alternateName: "Boop — desk companion for AI agents",
+      url: siteUrl,
+    },
+  ],
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -37,6 +57,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={GeistSans.variable}>
       <body>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: serializeJsonLd(siteJsonLd) }}
+        />
         <Attribution />
         {children}
         <ScrollDepth />
