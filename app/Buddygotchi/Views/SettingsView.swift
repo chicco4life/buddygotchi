@@ -4,9 +4,11 @@ struct SettingsView: View {
     @Binding var isPresented: Bool
     let engine: BuddyEngine
     let esp32Output: ESP32Output
+    let serverHealth: ServerHealth?
     var onOpenOnboarding: () -> Void = {}
 
     @AppStorage("interactiveMode") private var interactiveMode = false
+    @AppStorage("soundsEnabled") private var soundsEnabled = true
     @AppStorage("buddySpecies") private var species = Pet.defaultSpecies
     @AppStorage("setupCompleted") private var setupCompleted = false
     @AppStorage("approvalMode") private var approvalMode = false
@@ -17,6 +19,9 @@ struct SettingsView: View {
     @State private var scanner = BLEScanner()
     @State private var selectedDeviceUUID: UUID?
     @State private var showingFirmwareUpdate = false
+    @State private var showingUnpairConfirmation = false
+    @State private var isExportingBugReport = false
+    @State private var bugReportError: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -75,6 +80,11 @@ struct SettingsView: View {
                 isPresented: $showingFirmwareUpdate
             )
         }
+        .alert("Couldn't export bug report", isPresented: bugReportErrorBinding) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(bugReportError ?? "The report could not be written.")
+        }
     }
 
     // MARK: - General
@@ -105,6 +115,14 @@ struct SettingsView: View {
                 Divider().padding(.horizontal, 12)
 
                 BuddySettingToggle(
+                    title: "Sounds",
+                    description: "Play a short sound for attention, errors, and long completions.",
+                    isOn: $soundsEnabled
+                )
+
+                Divider().padding(.horizontal, 12)
+
+                BuddySettingToggle(
                     title: "Local Approval Mode",
                     description: "Route tool approvals through Buddygotchi instead of your agent's built-in dialog.",
                     isOn: $approvalMode
@@ -112,23 +130,53 @@ struct SettingsView: View {
                 .onChange(of: approvalMode) { _, newValue in
                     BuddyConfig.setApprovalMode(newValue)
                     if !newValue {
-                        engine.resolveAllPendingApprovals(decision: .allow)
+                        engine.resolveAllPendingApprovals(decision: .passthrough)
                     }
                 }
 
                 Divider().padding(.horizontal, 12)
 
-                HStack {
-                    Text("HTTP Port")
+                DisclosureGroup {
+                    VStack(spacing: 0) {
+                        Divider().padding(.leading, 12)
+                        HStack {
+                            Text("HTTP Port")
+                                .font(.system(.callout, design: .rounded))
+                            Spacer()
+                            Text("\(BuddyConfig.default.httpPort)")
+                                .font(.system(.callout, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                        .accessibilityElement(children: .combine)
+
+                        Divider().padding(.leading, 12)
+                        serverHealthRow
+
+                        Divider().padding(.leading, 12)
+                        Button {
+                            NSWorkspace.shared.open(URL(fileURLWithPath: BuddyConfig.default.stateDir))
+                        } label: {
+                            HStack {
+                                Text("Open config folder")
+                                    .font(.system(.callout, design: .rounded))
+                                Spacer()
+                                Image(systemName: "arrow.up.forward.square")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                        }
+                        .buttonStyle(BuddyPlainButtonStyle())
+                    }
+                } label: {
+                    Text("Advanced")
                         .font(.system(.callout, design: .rounded))
-                    Spacer()
-                    Text("\(BuddyConfig.default.httpPort)")
-                        .font(.system(.callout, design: .monospaced))
-                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .accessibilityElement(children: .combine)
             }
             .buddyGroupedCard()
         }
@@ -196,13 +244,13 @@ struct SettingsView: View {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(agent.displayName).font(.system(.callout, design: .rounded))
-                            Text(installed ? "Installed" : "Not Installed")
+                            Text(installed ? "Connected" : "Not connected")
                                 .font(.system(.caption2, design: .rounded))
                                 .foregroundStyle(installed ? BuddyTheme.accent : .secondary)
                         }
                         Spacer()
                         if installed {
-                            Button("Reinstall") {
+                            Button("Repair") {
                                 HookInstaller.shared.uninstall(agent: agent)
                                 if HookInstaller.shared.install(agent: agent) {
                                     agentInstalled[agent] = true
@@ -212,7 +260,7 @@ struct SettingsView: View {
                             .controlSize(.small)
                             .tint(BuddyTheme.accent)
                         } else {
-                            Button("Install") {
+                            Button("Connect") {
                                 if HookInstaller.shared.install(agent: agent) {
                                     agentInstalled[agent] = true
                                 }
@@ -263,7 +311,7 @@ struct SettingsView: View {
                 if esp32UUID != nil {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("M5Stack").font(.system(.callout, design: .rounded))
+                            Text("Hardware buddy").font(.system(.callout, design: .rounded))
                             HStack(spacing: 4) {
                                 Circle()
                                     .fill(esp32Output.connectionState == .connected ? BuddyTheme.accent : Color.secondary.opacity(0.5))
@@ -274,8 +322,8 @@ struct SettingsView: View {
                             }
                         }
                         Spacer()
-                        Button("Unpair") {
-                            esp32Output.unpair()
+                        Button("Forget") {
+                            showingUnpairConfirmation = true
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
@@ -283,6 +331,14 @@ struct SettingsView: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
+                    .confirmationDialog("Forget this buddy?", isPresented: $showingUnpairConfirmation) {
+                        Button("Forget this buddy", role: .destructive) {
+                            esp32Output.unpair()
+                        }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text("Your hardware buddy can be paired again later.")
+                    }
 
                     if esp32Output.connectionState == .connected {
                         Divider().padding(.horizontal, 12)
@@ -291,13 +347,13 @@ struct SettingsView: View {
                 } else {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("M5Stack").font(.system(.callout, design: .rounded))
+                            Text("Hardware buddy").font(.system(.callout, design: .rounded))
                             Text("Not paired")
                                 .font(.system(.caption2, design: .rounded))
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Button(scanner.isScanning ? "Scanning..." : "Pair Device") {
+                        Button(scanner.isScanning ? "Scanning…" : "Pair a buddy") {
                             if scanner.isScanning { scanner.stop() }
                             else { scanner.start() }
                         }
@@ -422,7 +478,7 @@ struct SettingsView: View {
                 HStack {
                     Text("Version").font(.system(.callout, design: .rounded))
                     Spacer()
-                    Text("v0.3.0")
+                    Text(bundleVersion)
                         .font(.system(.callout, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
@@ -431,6 +487,34 @@ struct SettingsView: View {
                 .accessibilityElement(children: .combine)
             }
             .buddyGroupedCard()
+
+            Button {
+                Task { await exportBugReport() }
+            } label: {
+                HStack {
+                    if isExportingBugReport {
+                        ProgressView()
+                            .controlSize(.mini)
+                    } else {
+                        Image(systemName: "ladybug")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Text("Export bug report")
+                        .font(.system(.callout, design: .rounded))
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+            }
+            .buttonStyle(BuddyPlainButtonStyle())
+            .buddyGroupedCard()
+            .disabled(isExportingBugReport)
+
+            Text("Buddygotchi keeps agent activity local to this Mac. Network access is limited to update checks and firmware downloads when those features are available.")
+                .font(.system(.caption2, design: .rounded))
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 12) {
                 Button("Run setup again") {
@@ -462,6 +546,93 @@ struct SettingsView: View {
         let next = (idx + direction + buddyOrder.count) % buddyOrder.count
         species = buddyOrder[next]
         esp32Output.sendNow()
+    }
+
+    private var serverHealthRow: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(serverHealthColor)
+                .frame(width: 6, height: 6)
+            Text("Server")
+                .font(.system(.callout, design: .rounded))
+            Spacer()
+            Text(serverHealthLabel)
+                .font(.system(.caption2, design: .rounded))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+                .multilineTextAlignment(.trailing)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var serverHealthLabel: String {
+        guard let serverHealth else { return "Unknown" }
+        switch serverHealth.status {
+        case .starting:
+            return "Starting"
+        case .listening(let port):
+            return "Listening on \(port)"
+        case .failed(let reason):
+            return "Failed — \(reason)"
+        }
+    }
+
+    private var serverHealthColor: Color {
+        guard let serverHealth else { return .secondary.opacity(0.5) }
+        switch serverHealth.status {
+        case .starting:
+            return BuddyTheme.attentionAmber
+        case .listening:
+            return BuddyTheme.celebrateGreen
+        case .failed:
+            return BuddyTheme.destructive
+        }
+    }
+
+    private var bundleVersion: String {
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String
+        if let version, let build, !build.isEmpty, build != version {
+            return "v\(version) (\(build))"
+        }
+        if let version {
+            return "v\(version)"
+        }
+        return "development"
+    }
+
+    private var bugReportErrorBinding: Binding<Bool> {
+        Binding(
+            get: { bugReportError != nil },
+            set: { if !$0 { bugReportError = nil } }
+        )
+    }
+
+    private func exportBugReport() async {
+        isExportingBugReport = true
+        defer { isExportingBugReport = false }
+
+        guard let data = await engine.diagnosticLog.exportBundle(engine: engine) else {
+            bugReportError = "No diagnostic data was available."
+            return
+        }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        let filename = "buddygotchi-report-\(formatter.string(from: Date.now)).json"
+
+        guard let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first else {
+            bugReportError = "The Desktop folder could not be found."
+            return
+        }
+        let url = desktop.appendingPathComponent(filename)
+        do {
+            try data.write(to: url)
+            NSWorkspace.shared.activateFileViewerSelecting([url])
+        } catch {
+            bugReportError = "Couldn't write to Desktop: \(error.localizedDescription)"
+        }
     }
 
     private var currentSpeciesIndex: Int {

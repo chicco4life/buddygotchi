@@ -159,7 +159,7 @@ final class SnapshotHarnessTests: XCTestCase {
 
     func testSettings() throws {
         let e = makeEngine()
-        let view = SettingsView(isPresented: .constant(true), engine: e, esp32Output: ESP32Output())
+        let view = SettingsView(isPresented: .constant(true), engine: e, esp32Output: ESP32Output(), serverHealth: nil)
         try snapshot(view, "settings", CGSize(width: BuddyTheme.popoverWidth, height: BuddyTheme.popoverHeight))
     }
 

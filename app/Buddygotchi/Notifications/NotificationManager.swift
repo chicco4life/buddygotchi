@@ -6,11 +6,14 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationManager()
 
     private var engine: BuddyEngine?
+    private var defaultAction: (() -> Void)?
     private var available = false
-    private let categoryId = "TOOL_CALL"
+    private let passiveCategoryId = "TOOL_CALL"
+    private let approvalCategoryId = "TOOL_CALL_APPROVAL"
 
-    func setup(engine: BuddyEngine) {
+    func setup(engine: BuddyEngine, defaultAction: (() -> Void)? = nil) {
         self.engine = engine
+        self.defaultAction = defaultAction
 
         guard Bundle.main.bundleIdentifier != nil else {
             return
@@ -20,12 +23,27 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         let center = UNUserNotificationCenter.current()
         center.delegate = self
 
-        let category = UNNotificationCategory(
-            identifier: categoryId,
+        let approve = UNNotificationAction(
+            identifier: "APPROVE",
+            title: "Approve",
+            options: [.authenticationRequired]
+        )
+        let deny = UNNotificationAction(
+            identifier: "DENY",
+            title: "Deny",
+            options: [.destructive]
+        )
+        let passiveCategory = UNNotificationCategory(
+            identifier: passiveCategoryId,
             actions: [],
             intentIdentifiers: []
         )
-        center.setNotificationCategories([category])
+        let approvalCategory = UNNotificationCategory(
+            identifier: approvalCategoryId,
+            actions: [approve, deny],
+            intentIdentifiers: []
+        )
+        center.setNotificationCategories([passiveCategory, approvalCategory])
     }
 
     func requestPermission() {
@@ -56,9 +74,10 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     private func deliverToolNotification(prompt: Prompt) {
         let content = UNMutableNotificationContent()
-        content.title = prompt.tool
-        content.body = prompt.hint
-        content.categoryIdentifier = categoryId
+        let agentName = prompt.source.flatMap { AgentKind(rawValue: $0)?.displayName } ?? prompt.source ?? "Buddygotchi"
+        content.title = "\(agentName) needs you"
+        content.body = prompt.hint.isEmpty ? prompt.tool : "\(prompt.tool): \(prompt.hint)"
+        content.categoryIdentifier = prompt.isApproval ? approvalCategoryId : passiveCategoryId
         content.sound = .default
 
         let request = UNNotificationRequest(
@@ -84,5 +103,26 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         completionHandler([.banner, .sound])
+    }
+
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let identifier = response.notification.request.identifier
+        let requestId = identifier.hasPrefix("tool-") ? String(identifier.dropFirst(5)) : identifier
+        let actionIdentifier = response.actionIdentifier
+        Task { @MainActor [requestId, actionIdentifier] in
+            switch actionIdentifier {
+            case "APPROVE":
+                self.engine?.resolveApproval(requestId: requestId, decision: .allow)
+            case "DENY":
+                self.engine?.resolveApproval(requestId: requestId, decision: .deny)
+            default:
+                self.defaultAction?()
+            }
+        }
+        completionHandler()
     }
 }

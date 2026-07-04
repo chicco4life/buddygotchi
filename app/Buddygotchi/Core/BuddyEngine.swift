@@ -164,7 +164,7 @@ final class BuddyEngine {
             cancelWatcher(sessionId: id)
             if let prompt = prevSessions[id]?.prompt, prompt.isApproval,
                let continuation = pendingApprovals.removeValue(forKey: prompt.id) {
-                continuation.resume(returning: .allow)
+                continuation.resume(returning: .passthrough)
             }
         }
         for output in outputs {

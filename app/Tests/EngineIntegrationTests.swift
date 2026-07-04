@@ -422,6 +422,54 @@ final class EngineIntegrationTests: XCTestCase {
         XCTAssertNil(engine.state.prompt)
     }
 
+    @MainActor
+    func testResolveAllPendingApprovalsCanPassthrough() async {
+        let (engine, _, _) = makeTestEngine()
+        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
+
+        let approvalTask = Task { @MainActor in
+            await engine.submitApproval(
+                sessionId: "s1",
+                requestId: "r1",
+                tool: "Bash",
+                hint: "cmd",
+                sessionLabel: nil,
+                source: "claude-code"
+            )
+        }
+        await Task.yield()
+
+        engine.resolveAllPendingApprovals(decision: .passthrough)
+
+        let decision = await approvalTask.value
+        XCTAssertEqual(decision, .passthrough)
+        XCTAssertNil(engine.state.prompt)
+        XCTAssertEqual(engine.state.pet.state, .idle)
+    }
+
+    @MainActor
+    func testRemovedSessionWithPendingApprovalPassthroughs() async {
+        let (engine, _, _) = makeTestEngine(staleMs: 100)
+        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
+
+        let approvalTask = Task { @MainActor in
+            await engine.submitApproval(
+                sessionId: "s1",
+                requestId: "r1",
+                tool: "Bash",
+                hint: "cmd",
+                sessionLabel: nil,
+                source: "claude-code"
+            )
+        }
+        await Task.yield()
+
+        engine.sessionEnded(sessionId: "s1")
+
+        let decision = await approvalTask.value
+        XCTAssertEqual(decision, .passthrough)
+    }
+
     // MARK: H. Output Contract
 
     @MainActor

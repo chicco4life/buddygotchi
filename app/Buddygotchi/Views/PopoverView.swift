@@ -4,6 +4,8 @@ import UniformTypeIdentifiers
 struct PopoverView: View {
     let engine: BuddyEngine
     let esp32Output: ESP32Output
+    let serverHealth: ServerHealth?
+    var onUserInteraction: (() -> Void)? = nil
     var onOpenOnboarding: () -> Void = {}
     @AppStorage("setupCompleted") private var setupCompleted = false
     @AppStorage("buddySpecies") private var species = Pet.defaultSpecies
@@ -11,6 +13,20 @@ struct PopoverView: View {
     @AppStorage("showMenuHint") private var showMenuHint = false
     @State private var showingSettings = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(
+        engine: BuddyEngine,
+        esp32Output: ESP32Output,
+        serverHealth: ServerHealth? = nil,
+        onUserInteraction: (() -> Void)? = nil,
+        onOpenOnboarding: @escaping () -> Void = {}
+    ) {
+        self.engine = engine
+        self.esp32Output = esp32Output
+        self.serverHealth = serverHealth
+        self.onUserInteraction = onUserInteraction
+        self.onOpenOnboarding = onOpenOnboarding
+    }
 
     var body: some View {
         Group {
@@ -21,6 +37,7 @@ struct PopoverView: View {
                     isPresented: $showingSettings,
                     engine: engine,
                     esp32Output: esp32Output,
+                    serverHealth: serverHealth,
                     onOpenOnboarding: onOpenOnboarding
                 )
                     .transition(reduceMotion ? .opacity : .asymmetric(
@@ -33,6 +50,12 @@ struct PopoverView: View {
             }
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: showingSettings)
+        .onReceive(NotificationCenter.default.publisher(for: .buddygotchiOpenSettings)) { _ in
+            showingSettings = true
+        }
+        .onHover { hovering in
+            if hovering { onUserInteraction?() }
+        }
     }
 
     private var unfinishedSetupView: some View {
@@ -89,9 +112,21 @@ struct PopoverView: View {
 
             connectionBar
 
+            if let serverWarning {
+                Spacer().frame(height: 6)
+                ServerWarningRow(message: serverWarning)
+                    .transition(.opacity)
+            }
+
             if engine.state.activeSessions.count > 1 {
                 Spacer().frame(height: 6)
                 SessionListView(sessions: engine.state.activeSessions)
+                    .transition(.opacity)
+            }
+
+            if engine.state.pet.state == .sleep && engine.state.sessions.total == 0 {
+                Spacer().frame(height: 10)
+                EmptyAgentsView()
                     .transition(.opacity)
             }
 
@@ -109,10 +144,15 @@ struct PopoverView: View {
                 Spacer().frame(height: 10)
                 ToolCardView(
                     prompt: prompt,
+                    waitingCount: engine.state.sessions.waiting,
                     onApprove: prompt.isApproval ? { engine.resolveApproval(requestId: prompt.id, decision: .allow) } : nil,
                     onDeny: prompt.isApproval ? { engine.resolveApproval(requestId: prompt.id, decision: .deny) } : nil
                 )
                     .transition(.move(edge: .bottom).combined(with: .opacity))
+                if let errored = engine.state.firstErrored {
+                    ErrorTrailerView(errored: errored)
+                        .transition(.opacity)
+                }
             } else if let errored = engine.state.firstErrored {
                 Spacer().frame(height: 10)
                 ErrorCardView(
@@ -137,7 +177,8 @@ struct PopoverView: View {
             footer
         }
         .padding(16)
-        .frame(width: BuddyTheme.popoverWidth, height: liveViewHeight)
+        .frame(width: BuddyTheme.popoverWidth)
+        .frame(minHeight: BuddyTheme.liveViewHeight)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: engine.state.prompt != nil)
         .preferredColorScheme(.dark)
     }
@@ -188,28 +229,9 @@ struct PopoverView: View {
         .accessibilityLabel("Desktop \(engine.state.desktop.status.rawValue)\(engine.state.sessions.total > 0 ? ", \(engine.state.sessions.running) active sessions" : "")")
     }
 
-    @State private var isExporting = false
-
     private var footer: some View {
         HStack(spacing: 12) {
             Spacer()
-
-            Button(action: { Task { await exportBugReport() } }) {
-                Group {
-                    if isExporting {
-                        ProgressView()
-                            .controlSize(.mini)
-                    } else {
-                        Image(systemName: "ladybug")
-                            .font(.caption2)
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-                .frame(width: 14, height: 14)
-            }
-            .buttonStyle(BuddyPlainButtonStyle())
-            .disabled(isExporting)
-            .accessibilityLabel("Export bug report")
 
             Button(action: { showingSettings = true }) {
                 Image(systemName: "gearshape")
@@ -218,37 +240,15 @@ struct PopoverView: View {
             }
             .buttonStyle(BuddyPlainButtonStyle())
             .accessibilityLabel("Settings")
-
-            Button("Quit") {
-                NSApplication.shared.terminate(nil)
-            }
-            .buttonStyle(BuddyPlainButtonStyle())
-            .font(.system(.caption2, design: .rounded))
-            .foregroundStyle(.tertiary)
         }
     }
 
-    private func exportBugReport() async {
-        isExporting = true
-        defer { isExporting = false }
-
-        guard let data = await engine.diagnosticLog.exportBundle(engine: engine) else { return }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMdd-HHmmss"
-        let filename = "buddygotchi-report-\(formatter.string(from: Date.now)).json"
-
-        let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first!
-        let url = desktop.appendingPathComponent(filename)
-        do {
-            try data.write(to: url)
-            NSWorkspace.shared.activateFileViewerSelecting([url])
-        } catch {}
-    }
-
-    private var liveViewHeight: CGFloat {
-        (engine.state.prompt != nil || engine.state.lastCompleted != nil || engine.state.firstErrored != nil)
-            ? BuddyTheme.liveViewExpandedHeight
-            : BuddyTheme.liveViewHeight
+    private var serverWarning: String? {
+        guard let serverHealth else { return nil }
+        if case .failed(let reason) = serverHealth.status {
+            return "Can't listen on port \(BuddyConfig.default.httpPort) — \(reason)"
+        }
+        return nil
     }
 
     private var speciesColor: Color {
@@ -279,12 +279,83 @@ struct PopoverView: View {
     }
 }
 
+// MARK: - Empty / Server Rows
+
+private struct EmptyAgentsView: View {
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "antenna.radiowaves.left.and.right")
+                .font(.system(.caption))
+                .foregroundStyle(.secondary)
+                .padding(.top, 1)
+            Text("No agents awake. Open Claude Code, Cursor, or Codex and send a message — your buddy will hear it.")
+                .font(.system(.caption, design: .rounded))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.white.opacity(0.03))
+        )
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct ServerWarningRow: View {
+    let message: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(BuddyTheme.destructive)
+                .frame(width: 5, height: 5)
+            Text(message)
+                .font(.system(.caption2, design: .rounded))
+                .foregroundStyle(BuddyTheme.destructive)
+                .lineLimit(2)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(BuddyTheme.destructive.opacity(0.08))
+        )
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct ErrorTrailerView: View {
+    let errored: ErroredSession
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(.caption2))
+                .foregroundStyle(BuddyTheme.destructive)
+            Text("Also: \(AgentKind(rawValue: errored.source)?.displayName ?? errored.source) hit an error")
+                .font(.system(.caption2, design: .rounded))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 6)
+        .accessibilityElement(children: .combine)
+    }
+}
+
 // MARK: - Tool Card
 
 struct ToolCardView: View {
     let prompt: Prompt
+    var waitingCount: Int = 1
     var onApprove: (() -> Void)? = nil
     var onDeny: (() -> Void)? = nil
+    @State private var isHoveringActions = false
 
     var body: some View {
         HStack(spacing: 0) {
@@ -304,6 +375,11 @@ struct ToolCardView: View {
                             .background(BuddyTheme.accentSubtle, in: Capsule())
                     }
                     Spacer()
+                    if waitingCount > 1 {
+                        Text("+\(waitingCount - 1) more waiting")
+                            .font(.system(.caption2, design: .rounded, weight: .medium))
+                            .foregroundStyle(BuddyTheme.attentionAmber)
+                    }
                     if let label = prompt.sessionLabel {
                         Text(label)
                             .font(.system(.caption2, design: .monospaced))
@@ -324,34 +400,52 @@ struct ToolCardView: View {
                             .font(.system(.caption, design: .monospaced))
                             .foregroundStyle(.secondary)
                             .lineLimit(3)
+                            .truncationMode(pathLikeHint ? .middle : .tail)
                     }
                 }
 
                 if let onApprove, let onDeny {
                     HStack(spacing: 8) {
                         Button(action: onDeny) {
-                            Text("Deny")
-                                .font(.system(.caption, design: .rounded, weight: .medium))
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 4)
-                                .background(BuddyTheme.destructive.opacity(0.15), in: Capsule())
-                                .foregroundStyle(BuddyTheme.destructive)
+                            HStack(spacing: 6) {
+                                Text("Deny")
+                                if isHoveringActions {
+                                    Text("⌫")
+                                        .font(.system(.caption2, design: .monospaced))
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                            .font(.system(.caption, design: .rounded, weight: .medium))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 4)
+                            .background(BuddyTheme.destructive.opacity(0.15), in: Capsule())
+                            .foregroundStyle(BuddyTheme.destructive)
                         }
                         .buttonStyle(BuddyPlainButtonStyle())
+                        .keyboardShortcut(.delete, modifiers: [])
+                        .keyboardShortcut("d", modifiers: [])
 
                         Button(action: onApprove) {
-                            Text("Approve")
-                                .font(.system(.caption, design: .rounded, weight: .medium))
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 4)
-                                .background(BuddyTheme.accent.opacity(0.15), in: Capsule())
-                                .foregroundStyle(BuddyTheme.accent)
+                            HStack(spacing: 6) {
+                                Text("Approve")
+                                if isHoveringActions {
+                                    Text("↵")
+                                        .font(.system(.caption2, design: .monospaced))
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                            .font(.system(.caption, design: .rounded, weight: .medium))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 4)
+                            .background(BuddyTheme.accent.opacity(0.15), in: Capsule())
+                            .foregroundStyle(BuddyTheme.accent)
                         }
                         .buttonStyle(BuddyPlainButtonStyle())
                         .keyboardShortcut(.return, modifiers: [])
 
                         Spacer()
                     }
+                    .onHover { isHoveringActions = $0 }
                 }
             }
             .padding(.leading, 10)
@@ -373,6 +467,10 @@ struct ToolCardView: View {
 
     private func sourceName(_ source: String) -> String {
         AgentKind(rawValue: source)?.displayName ?? source
+    }
+
+    private var pathLikeHint: Bool {
+        prompt.activityKind == .read || prompt.activityKind == .write
     }
 }
 
@@ -592,38 +690,41 @@ struct ThinkingRow: View {
     let now: Double
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "brain")
-                .font(.system(.caption2))
-                .foregroundStyle(BuddyTheme.accent)
-                .accessibilityHidden(true)
-            Text("Thinking")
-                .font(.system(.caption, design: .rounded, weight: .medium))
-                .foregroundStyle(.secondary)
-            if let tool = thinking.tool, !tool.isEmpty {
-                Text("·")
-                    .foregroundStyle(.tertiary)
-                Text(tool)
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
+        TimelineView(.periodic(from: .now, by: 1)) { timeline in
+            HStack(spacing: 6) {
+                Image(systemName: "brain")
+                    .font(.system(.caption2))
+                    .foregroundStyle(BuddyTheme.accent)
+                    .accessibilityHidden(true)
+                Text("Thinking")
+                    .font(.system(.caption, design: .rounded, weight: .medium))
+                    .foregroundStyle(.secondary)
+                if let tool = thinking.tool, !tool.isEmpty {
+                    Text("·")
+                        .foregroundStyle(.tertiary)
+                    Text(tool)
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                }
+                Spacer()
+                if let elapsed = elapsed(at: timeline.date.timeIntervalSince1970 * 1000) {
+                    Text(elapsed)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                }
             }
-            Spacer()
-            if let elapsed = elapsed {
-                Text(elapsed)
-                    .font(.system(.caption2, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("Thinking · \(AgentKind(rawValue: thinking.source)?.displayName ?? thinking.source)\(thinking.tool.map { ", \($0)" } ?? "")")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 4)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Thinking · \(AgentKind(rawValue: thinking.source)?.displayName ?? thinking.source)\(thinking.tool.map { ", \($0)" } ?? "")")
     }
 
-    private var elapsed: String? {
+    private func elapsed(at currentTime: Double) -> String? {
         guard let start = thinking.workStartedAt else { return nil }
-        let secs = Int((now - start) / 1000)
+        let base = max(now, currentTime)
+        let secs = Int((base - start) / 1000)
         if secs < 60 { return "\(secs)s" }
         return "\(secs / 60)m \(secs % 60)s"
     }
@@ -637,29 +738,36 @@ struct SessionListView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(sessions) { sess in
-                HStack(spacing: 6) {
+                HStack(alignment: .top, spacing: 6) {
                     Circle()
                         .fill(stateColor(for: sess.state))
                         .frame(width: 5, height: 5)
+                        .padding(.top, 5)
                         .accessibilityHidden(true)
-                    Text(displayName(for: sess.source))
-                        .font(.system(.caption2, design: .rounded, weight: .medium))
-                        .foregroundStyle(.primary)
-                    Text(stateLabel(for: sess.state))
-                        .font(.system(.caption2, design: .rounded))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    if let tool = sess.currentTool, !tool.isEmpty {
-                        Text(tool)
-                            .font(.system(.caption2, design: .monospaced))
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
+                    VStack(alignment: .leading, spacing: 1) {
+                        HStack(spacing: 4) {
+                            Text(displayName(for: sess.source))
+                                .font(.system(.caption2, design: .rounded, weight: .medium))
+                                .foregroundStyle(.primary)
+                            Text(stateLabel(for: sess.state))
+                                .font(.system(.caption2, design: .rounded))
+                                .foregroundStyle(.secondary)
+                        }
+                        if let tool = sess.currentTool, !tool.isEmpty {
+                            Text(tool)
+                                .font(.system(.caption2, design: .monospaced))
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
                     }
+                    Spacer()
                     if let label = sess.sessionLabel, !label.isEmpty {
                         Text(label)
                             .font(.system(.caption2, design: .monospaced))
                             .foregroundStyle(.tertiary)
                             .lineLimit(1)
+                            .layoutPriority(1)
                     }
                 }
                 .padding(.horizontal, 12)

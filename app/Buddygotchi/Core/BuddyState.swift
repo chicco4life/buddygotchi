@@ -85,6 +85,7 @@ struct Prompt: Sendable, Equatable {
 enum ApprovalDecision: String, Sendable {
     case allow
     case deny
+    case passthrough
 }
 
 // MARK: - Completed Task

@@ -219,6 +219,10 @@ private func handleAgentEvent(body: HookEventBody, source: String, hookPid: Int3
 // MARK: - Approval Helpers
 
 private func approvalResponse(decision: ApprovalDecision, source: String) -> Response {
+    if decision == .passthrough {
+        return emptyOK()
+    }
+
     let payload: [String: Any]
     if source == "cursor" {
         switch decision {
@@ -226,6 +230,8 @@ private func approvalResponse(decision: ApprovalDecision, source: String) -> Res
             payload = ["permission": "allow"]
         case .deny:
             payload = ["permission": "deny", "user_message": "Denied by Buddygotchi", "agent_message": "Tool call denied by Buddygotchi approval mode."]
+        case .passthrough:
+            payload = [:]
         }
     } else {
         var decisionDict: [String: Any] = ["behavior": decision.rawValue]
@@ -326,4 +332,3 @@ private func jsonResponse(_ dict: [String: Any]) -> Response {
         body: .init(byteBuffer: ByteBuffer(data: data))
     )
 }
-
