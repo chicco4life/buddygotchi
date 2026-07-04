@@ -3,6 +3,7 @@ import SwiftUI
 struct FirmwareUpdateView: View {
     @Bindable var updater: FirmwareUpdater
     @Binding var isPresented: Bool
+    @State private var showingCancelConfirmation = false
 
     var body: some View {
         VStack(spacing: 16) {
@@ -33,15 +34,23 @@ struct FirmwareUpdateView: View {
             .frame(maxWidth: .infinity)
         }
         .padding(20)
-        .frame(width: 360)
+        .frame(width: BuddyTheme.popoverWidth)
         .preferredColorScheme(.dark)
+        .confirmationDialog("Stop the update?", isPresented: $showingCancelConfirmation) {
+            Button("Stop update", role: .destructive) {
+                updater.cancel()
+            }
+            Button("Keep updating", role: .cancel) {}
+        } message: {
+            Text("Your buddy keeps its current firmware.")
+        }
     }
 
     // MARK: - Header
 
     private var header: some View {
         HStack {
-            Text("M5Stack Firmware")
+            Text("Buddy firmware")
                 .font(.system(.title3, design: .rounded, weight: .semibold))
             Spacer()
             Button(action: { isPresented = false }) {
@@ -70,15 +79,21 @@ struct FirmwareUpdateView: View {
 
     private func availableView(release: FirmwareRelease, current: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(current).font(.system(.callout, design: .monospaced)).foregroundStyle(.secondary)
                 Image(systemName: "arrow.right").font(.caption).foregroundStyle(.secondary)
                 Text(release.version).font(.system(.callout, design: .monospaced)).foregroundStyle(BuddyTheme.accent)
+                if let published = release.publishedAt {
+                    Text("released \(relativeDate(published))")
+                        .font(.system(.caption2, design: .rounded))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
             }
 
             if !release.releaseNotes.isEmpty {
                 ScrollView {
-                    Text(release.releaseNotes)
+                    Text(markdownText(release.releaseNotes))
                         .font(.system(.caption, design: .rounded))
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -87,7 +102,7 @@ struct FirmwareUpdateView: View {
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.05)))
             }
 
-            Text("Keep your M5Stack near your Mac and powered on. The update takes a few minutes; the device will restart automatically when finished.")
+            Text("Keep your buddy near your Mac and powered on. The update takes a few minutes; the device will restart automatically when finished.")
                 .font(.system(.caption2, design: .rounded))
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -145,7 +160,11 @@ struct FirmwareUpdateView: View {
             HStack {
                 Spacer()
                 Button("Cancel") {
-                    updater.cancel()
+                    if phase == "Uploading" {
+                        showingCancelConfirmation = true
+                    } else {
+                        updater.cancel()
+                    }
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
@@ -189,7 +208,7 @@ struct FirmwareUpdateView: View {
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Your M5Stack still runs the previous firmware — failed updates don't get committed.")
+            Text("Your buddy still runs the previous firmware — failed updates don't get committed.")
                 .font(.system(.caption2, design: .rounded))
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -216,5 +235,15 @@ struct FirmwareUpdateView: View {
         if seconds < 60 { return "about \(seconds)s remaining" }
         let m = seconds / 60
         return "about \(m) min remaining"
+    }
+
+    private func markdownText(_ markdown: String) -> AttributedString {
+        (try? AttributedString(markdown: markdown)) ?? AttributedString(markdown)
+    }
+
+    private func relativeDate(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .full
+        return formatter.localizedString(for: date, relativeTo: Date())
     }
 }

@@ -1,7 +1,24 @@
 import AppKit
 import Hummingbird
+import Observation
 import ServiceLifecycle
 import SwiftUI
+
+@Observable
+@MainActor
+final class ServerHealth {
+    enum Status: Equatable {
+        case starting
+        case listening(port: Int)
+        case failed(reason: String)
+    }
+
+    var status: Status = .starting
+}
+
+extension Notification.Name {
+    static let buddygotchiOpenSettings = Notification.Name("buddygotchiOpenSettings")
+}
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -21,6 +38,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let celebrateSound = NSSound(named: "Funk")
     private let attentionSound = NSSound(named: "Glass")
     private let errorSound = NSSound(named: "Sosumi")
+    private let serverHealth = ServerHealth()
+    private var postedNotificationThisTick = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -31,13 +50,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
             button.image = NSImage(systemSymbolName: "moon.zzz", accessibilityDescription: "Buddygotchi")
-            button.action = #selector(togglePopover)
+            button.action = #selector(statusItemClicked)
             button.target = self
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
 
         let popover = NSPopover()
         popover.behavior = .transient
-        NotificationManager.shared.setup(engine: engine)
+        NotificationManager.shared.setup(engine: engine) { [weak self] in
+            self?.openPopover()
+        }
         NotificationManager.shared.requestPermission()
 
         UserDefaults.standard.set(BuddyConfig.default.approvalMode, forKey: "approvalMode")
@@ -49,7 +71,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         engine.start()
         Task { await output.start(engine: engine) }
 
-        let hostingController = NSHostingController(rootView: PopoverView(engine: engine, esp32Output: output))
+        let hostingController = NSHostingController(rootView: PopoverView(
+            engine: engine,
+            esp32Output: output,
+            serverHealth: serverHealth,
+            onUserInteraction: { [weak self] in self?.cancelAutoDismiss() }
+        ))
         hostingController.sizingOptions = .preferredContentSize
         popover.contentViewController = hostingController
         self.popover = popover
@@ -57,6 +84,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         serverTask = Task {
             let config = BuddyConfig.default
             let app = buildHookServer(engine: engine, config: config)
+            await MainActor.run {
+                self.serverHealth.status = .listening(port: config.httpPort)
+            }
             let group = ServiceGroup(
                 configuration: .init(
                     services: [app],
@@ -65,7 +95,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 )
             )
             await MainActor.run { self.serviceGroup = group }
-            try? await group.run()
+            do {
+                try await group.run()
+                await MainActor.run {
+                    self.serverHealth.status = .failed(reason: "server stopped unexpectedly")
+                }
+            } catch {
+                await MainActor.run {
+                    self.serverHealth.status = .failed(reason: error.localizedDescription)
+                }
+            }
         }
 
         iconTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in
@@ -114,20 +153,62 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         sigtermSource = term
     }
 
+    @objc private func statusItemClicked() {
+        if NSApp.currentEvent?.type == .rightMouseUp {
+            showStatusMenu()
+        } else {
+            togglePopover()
+        }
+    }
+
     @objc private func togglePopover() {
-        guard let button = statusItem.button else { return }
+        guard statusItem.button != nil else { return }
         if popover.isShown {
             cancelAutoDismiss()
             popover.performClose(nil)
         } else {
-            popover.behavior = .transient
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            popover.contentViewController?.view.window?.makeKey()
+            openPopover()
         }
+    }
+
+    private func openPopover() {
+        guard let button = statusItem.button else { return }
+        popover.behavior = .transient
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.contentViewController?.view.window?.makeKey()
+    }
+
+    @objc private func openSettingsFromMenu() {
+        openPopover()
+        NotificationCenter.default.post(name: .buddygotchiOpenSettings, object: nil)
+    }
+
+    @objc private func checkForUpdatesFromMenu() {
+        openSettingsFromMenu()
+    }
+
+    @objc private func quitFromMenu() {
+        NSApplication.shared.terminate(nil)
+    }
+
+    private func showStatusMenu() {
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem(title: "Open Buddygotchi", action: #selector(togglePopover), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: "Settings…", action: #selector(openSettingsFromMenu), keyEquivalent: ","))
+        menu.addItem(NSMenuItem(title: "Check for updates…", action: #selector(checkForUpdatesFromMenu), keyEquivalent: ""))
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: "Quit", action: #selector(quitFromMenu), keyEquivalent: "q"))
+        for item in menu.items {
+            item.target = self
+        }
+        statusItem.menu = menu
+        statusItem.button?.performClick(nil)
+        statusItem.menu = nil
     }
 
     private func tick() {
         let state = engine.state
+        postedNotificationThisTick = false
         updateIcon(state)
         checkNotifications(state)
         checkSounds(state)
@@ -148,6 +229,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let prompt {
             if lastPromptId != prompt.id && !popover.isShown {
                 NotificationManager.shared.postToolNotification(prompt: prompt)
+                postedNotificationThisTick = true
             }
             lastPromptId = prompt.id
         } else if let old = lastPromptId {
@@ -157,6 +239,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func checkSounds(_ state: BuddyState) {
+        let soundsEnabled = UserDefaults.standard.object(forKey: "soundsEnabled") as? Bool ?? true
+        guard soundsEnabled, !postedNotificationThisTick else { return }
         let current = state.pet.state
         guard current != previousPetState else { return }
         if current == .celebrate && (state.lastTaskDurationMs ?? 0) >= 30_000 {
@@ -192,9 +276,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showPopover(dismissAfter seconds: TimeInterval) {
         guard let button = statusItem.button else { return }
         cancelAutoDismiss()
-        // Approvals use .transient so the user can dismiss; regular attention pins open.
-        let isApproval = engine.state.prompt?.isApproval == true
-        popover.behavior = isApproval ? .transient : .applicationDefined
+        popover.behavior = .transient
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
         autoDismissTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in
