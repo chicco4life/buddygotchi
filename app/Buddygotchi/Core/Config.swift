@@ -4,6 +4,7 @@ import Security
 struct BuddyConfig: Sendable {
     var httpPort: Int
     var staleTimeoutMs: Double
+    var approvalTimeoutMs: Double = 300_000
     var celebrateDurationMs: Double
     var workStallTimeoutMs: Double
     var stateDir: String
@@ -13,8 +14,10 @@ struct BuddyConfig: Sendable {
     static let `default`: BuddyConfig = {
         let stateDir = defaultStateDir()
         let (port, approvalMode, token) = readOrCreateConfig(stateDir: stateDir)
-        return BuddyConfig(httpPort: port, staleTimeoutMs: 600_000, celebrateDurationMs: 4000, workStallTimeoutMs: 300_000, stateDir: stateDir, approvalMode: approvalMode, token: token)
+        return BuddyConfig(httpPort: port, staleTimeoutMs: 600_000, approvalTimeoutMs: 300_000, celebrateDurationMs: 4000, workStallTimeoutMs: 300_000, stateDir: stateDir, approvalMode: approvalMode, token: token)
     }()
+
+    nonisolated(unsafe) private(set) static var recreatedCorruptConfig = false
 
     private static let defaultPort = 21321
 
@@ -33,16 +36,18 @@ struct BuddyConfig: Sendable {
 
         try? fm.createDirectory(atPath: stateDir, withIntermediateDirectories: true)
 
-        if let data = fm.contents(atPath: path),
-           var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            let port = json["port"] as? Int ?? defaultPort
-            let approval = json["approvalMode"] as? Bool ?? false
-            let token = (json["token"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? makeToken()
-            if json["token"] as? String != token {
-                json["token"] = token
-                writeConfigJSON(json, to: path)
+        if let data = fm.contents(atPath: path) {
+            if var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                let port = json["port"] as? Int ?? defaultPort
+                let approval = json["approvalMode"] as? Bool ?? false
+                let token = (json["token"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? makeToken()
+                if json["token"] as? String != token {
+                    json["token"] = token
+                    writeConfigJSON(json, to: path)
+                }
+                return (port, approval, token)
             }
-            return (port, approval, token)
+            recreatedCorruptConfig = true
         }
 
         let token = makeToken()
