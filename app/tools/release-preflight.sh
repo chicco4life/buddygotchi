@@ -2,11 +2,11 @@
 set -uo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-INFO_PLIST="$ROOT_DIR/app/Buddygotchi/Resources/Info.plist"
+INFO_PLIST="$ROOT_DIR/app/Boop/Resources/Info.plist"
 VERSION_FILE="$ROOT_DIR/VERSION"
 SPARKLE_VERSION="2.6.4"
 SPARKLE_SHA256="50612a06038abc931f16011d7903b8326a362c1074dabccb718404ce8e585f0b"
-SPARKLE_PLACEHOLDER="BUDDYGOTCHI_SPARKLE_PUBLIC_KEY_PLACEHOLDER"
+SPARKLE_PLACEHOLDER="BOOP_SPARKLE_PUBLIC_KEY_PLACEHOLDER"
 
 hard_failures=0
 warnings=0
@@ -52,7 +52,7 @@ head_reachable() {
   curl -fsSIL --max-time 10 "$url" >/dev/null 2>&1
 }
 
-printf 'Buddygotchi release preflight\n'
+printf 'Boop release preflight\n'
 printf 'Root: %s\n' "$ROOT_DIR"
 if [[ "$UNSIGNED_MODE" -eq 1 ]]; then
   printf 'Mode: UNSIGNED build (signing and notarization checks are warnings; recipients will see the Gatekeeper "Open Anyway" flow)\n'
@@ -180,7 +180,7 @@ if git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   fi
 else
   hard_fail "Repo is not a git work tree." \
-    "Run preflight from a Buddygotchi git checkout."
+    "Run preflight from a Boop git checkout."
 fi
 
 if command -v curl >/dev/null 2>&1; then

@@ -23,11 +23,11 @@ enum AppMetadata {
     }
 
     static var supportURL: URL {
-        URL(string: "https://buddygotchi.github.io/help/")!
+        URL(string: "https://adoptaboop.com/help/")!
     }
 
     static var flashURL: URL {
-        URL(string: "https://buddygotchi.github.io/flash/")!
+        URL(string: "https://adoptaboop.com/flash/")!
     }
 
     static var updateFeedURL: URL? {

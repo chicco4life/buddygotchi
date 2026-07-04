@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Shared helpers for the Buddygotchi e2e suites. Source this from each client
+# Shared helpers for the Boop e2e suites. Source this from each client
 # script; it provides the HTTP plumbing, assertions, and summary.
 #
 # What's observable over HTTP (and therefore assertable):
@@ -15,9 +15,9 @@
 PORT="${BUDDY_PORT:-21321}"
 BASE="http://127.0.0.1:${PORT}"
 CURL=(curl -s --noproxy '*' --connect-timeout 2)
-TOKEN="$(grep -o '"token" *: *"[^"]*"' "$HOME/.buddygotchi/config.json" 2>/dev/null | head -1 | sed 's/.*"token" *: *"//; s/".*//')"
+TOKEN="$(grep -o '"token" *: *"[^"]*"' "$HOME/.boop/config.json" 2>/dev/null | head -1 | sed 's/.*"token" *: *"//; s/".*//')"
 AUTH=()
-[ -n "$TOKEN" ] && AUTH=(-H "X-Buddygotchi-Token: $TOKEN")
+[ -n "$TOKEN" ] && AUTH=(-H "X-Boop-Token: $TOKEN")
 CWD="${BUDDY_E2E_CWD:-/tmp/buddy-e2e}"
 
 pass=0; fail=0
@@ -89,7 +89,7 @@ require_app() {
   local h; h="$(health)"
   if [ -z "$h" ]; then
     printf '\033[31m✗ no response from %s/healthz — is the app running?\033[0m\n' "$BASE"
-    printf '  Start it with:  (cd app && swift run Buddygotchi) &\n'
+    printf '  Start it with:  (cd app && swift run Boop) &\n'
     exit 1
   fi
   D0="$(desktop)"

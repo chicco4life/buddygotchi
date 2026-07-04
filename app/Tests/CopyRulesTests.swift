@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import Buddygotchi
+@testable import BoopCore
 
 final class CopyRulesTests: XCTestCase {
     func testBuddyCopyFollowsBrandLaw() throws {
@@ -44,9 +44,9 @@ final class CopyRulesTests: XCTestCase {
         let sourceRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
-        let viewsRoot = sourceRoot.appendingPathComponent("Buddygotchi/Views", isDirectory: true)
-        let notificationManager = sourceRoot.appendingPathComponent("Buddygotchi/Notifications/NotificationManager.swift")
-        let appDelegate = sourceRoot.appendingPathComponent("Buddygotchi/App/AppDelegate.swift")
+        let viewsRoot = sourceRoot.appendingPathComponent("Boop/Views", isDirectory: true)
+        let notificationManager = sourceRoot.appendingPathComponent("Boop/Notifications/NotificationManager.swift")
+        let appDelegate = sourceRoot.appendingPathComponent("Boop/App/AppDelegate.swift")
 
         try XCTSkipUnless(
             FileManager.default.fileExists(atPath: viewsRoot.path),

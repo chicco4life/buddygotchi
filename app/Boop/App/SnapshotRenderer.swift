@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-// Headless snapshot renderer: `Buddygotchi --render-snapshots <dir>` renders the
+// Headless snapshot renderer: `Boop --render-snapshots <dir>` renders the
 // real SwiftUI surfaces (popover states, settings, onboarding steps, species
 // gallery) to PNGs and exits. Mirrors Tests/SnapshotHarnessTests.swift but needs
 // no XCTest, so it works on CommandLineTools-only machines and inside scripts.
@@ -26,24 +26,24 @@ enum SnapshotRenderer {
 
         // 2. Popover: busy with activity row
         let busy = makeEngine()
-        busy.sessionStarted(sessionId: "s1", source: "claude-code", cwd: "/Users/dev/buddygotchi")
+        busy.sessionStarted(sessionId: "s1", source: "claude-code", cwd: "/Users/dev/boop")
         busy.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
-        busy.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "swift build --product Buddygotchi")
+        busy.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "swift build --product Boop")
         render(popover(busy), "popover-2-busy", idle, dir)
 
         // 3. Popover: passive prompt
         let passive = makeEngine()
-        passive.sessionStarted(sessionId: "s1", source: "cursor", cwd: "/Users/dev/buddygotchi")
-        passive.submitRequest(sessionId: "s1", requestId: "r1", tool: "Bash", hint: "git push origin main", sessionLabel: "buddygotchi")
+        passive.sessionStarted(sessionId: "s1", source: "cursor", cwd: "/Users/dev/boop")
+        passive.submitRequest(sessionId: "s1", requestId: "r1", tool: "Bash", hint: "git push origin main", sessionLabel: "boop")
         render(popover(passive), "popover-3-passive-prompt", expanded, dir)
 
         // 4. Popover: blocking approval with queue count + error trailer
         let approval = makeEngine()
-        approval.sessionStarted(sessionId: "s1", source: "claude-code", cwd: "/Users/dev/buddygotchi")
+        approval.sessionStarted(sessionId: "s1", source: "claude-code", cwd: "/Users/dev/boop")
         approval.sessionStarted(sessionId: "s2", source: "codex", cwd: "/Users/dev/landing")
         approval.sessionStarted(sessionId: "s3", source: "cursor", cwd: "/Users/dev/api")
         approval.activitySignal(sessionId: "s3", source: "cursor", signal: .error, tool: "Shell", hint: "npm test")
-        Task { _ = await approval.submitApproval(sessionId: "s1", requestId: "rq1", tool: "Bash", hint: "rm -rf build && npm ci", sessionLabel: "buddygotchi", source: "claude-code") }
+        Task { _ = await approval.submitApproval(sessionId: "s1", requestId: "rq1", tool: "Bash", hint: "rm -rf build && npm ci", sessionLabel: "boop", source: "claude-code") }
         Task { _ = await approval.submitApproval(sessionId: "s2", requestId: "rq2", tool: "Write", hint: "src/app/page.tsx", sessionLabel: "landing", source: "codex") }
         RunLoop.main.run(until: Date().addingTimeInterval(0.1))
         render(popover(approval), "popover-4-approval-queue-error", expanded, dir)
@@ -51,7 +51,7 @@ enum SnapshotRenderer {
 
         // 5. Popover: multi-session list
         let multi = makeEngine()
-        multi.sessionStarted(sessionId: "m1", source: "claude-code", cwd: "/Users/dev/buddygotchi")
+        multi.sessionStarted(sessionId: "m1", source: "claude-code", cwd: "/Users/dev/boop")
         multi.activitySignal(sessionId: "m1", source: "claude-code", signal: .keepWorking, tool: "Edit", hint: "PopoverView.swift")
         multi.sessionStarted(sessionId: "m2", source: "codex", cwd: "/Users/dev/landing")
         multi.activitySignal(sessionId: "m2", source: "codex", signal: .keepWorking, tool: "Bash", hint: "npm run build")
@@ -67,7 +67,7 @@ enum SnapshotRenderer {
 
         // 7. Popover: review card (completed)
         let review = makeEngine()
-        review.sessionStarted(sessionId: "c1", source: "claude-code", cwd: "/Users/dev/buddygotchi")
+        review.sessionStarted(sessionId: "c1", source: "claude-code", cwd: "/Users/dev/boop")
         review.activitySignal(sessionId: "c1", source: "claude-code", signal: .startWorking)
         review.activitySignal(sessionId: "c1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "swift test")
         review.activitySignal(sessionId: "c1", source: "claude-code", signal: .celebrate)

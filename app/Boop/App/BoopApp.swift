@@ -1,10 +1,10 @@
 import SwiftUI
 
-@main
-enum BuddygotchiMain {
-    static func main() {
+public enum BoopEntrypoint {
+    @MainActor
+    public static func main() {
         // Headless snapshot mode: render every UI surface to PNGs and exit.
-        // Usage: Buddygotchi --render-snapshots [output-dir]
+        // Usage: Boop --render-snapshots [output-dir]
         let args = CommandLine.arguments
         if let flagIndex = args.firstIndex(of: "--render-snapshots") {
             let dir = args.indices.contains(flagIndex + 1) ? args[flagIndex + 1] : "/tmp/buddy-snapshots"
@@ -13,11 +13,11 @@ enum BuddygotchiMain {
             }
             exit(0)
         }
-        BuddygotchiApp.main()
+        BoopApp.main()
     }
 }
 
-struct BuddygotchiApp: App {
+struct BoopApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {

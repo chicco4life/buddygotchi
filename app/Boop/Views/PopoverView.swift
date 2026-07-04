@@ -53,7 +53,7 @@ struct PopoverView: View {
             }
         }
         .animation(reduceMotion ? nil : .buddyEase(0.2), value: showingSettings)
-        .onReceive(NotificationCenter.default.publisher(for: .buddygotchiOpenSettings)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .boopOpenSettings)) { _ in
             showingSettings = true
         }
         .onHover { hovering in

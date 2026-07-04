@@ -1,5 +1,5 @@
 import XCTest
-@testable import Buddygotchi
+@testable import BoopCore
 
 /// Tests for the Cursor auto-approve allowlist (`shouldAutoApprove`).
 /// The allowlist must only ever auto-approve a single, simple, read-only
@@ -46,9 +46,9 @@ final class AutoApproveTests: XCTestCase {
     }
 
     func testStableCwdHashDoesNotUseRandomizedStringHash() {
-        XCTAssertEqual(stableHashCwd("/tmp/buddygotchi"), stableHashCwd("/tmp/buddygotchi"))
+        XCTAssertEqual(stableHashCwd("/tmp/boop"), stableHashCwd("/tmp/boop"))
         XCTAssertEqual(stableHashCwd(nil), "unknown")
         XCTAssertEqual(stableHashCwd(""), "unknown")
-        XCTAssertEqual(stableHashCwd("/tmp/buddygotchi").count, 8)
+        XCTAssertEqual(stableHashCwd("/tmp/boop").count, 8)
     }
 }

@@ -1,5 +1,5 @@
 import XCTest
-@testable import Buddygotchi
+@testable import BoopCore
 
 private let expiryNow: Double = 1_000_000
 

@@ -1,6 +1,6 @@
 import XCTest
 import AppKit
-@testable import Buddygotchi
+@testable import BoopCore
 
 // MARK: - Test Infrastructure
 

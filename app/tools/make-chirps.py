@@ -10,7 +10,7 @@ from pathlib import Path
 SAMPLE_RATE = 44100
 PEAK = int(32767 * 0.20)
 ROOT = Path(__file__).resolve().parents[1]
-SOUNDS_DIR = ROOT / "Buddygotchi" / "Resources" / "Sounds"
+SOUNDS_DIR = ROOT / "Boop" / "Resources" / "Sounds"
 
 
 def square_sample(frequency, t):

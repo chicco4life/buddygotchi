@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
 	<key>BUDDY_FIRMWARE_MANIFEST_URL</key>
-	<string>https://buddygotchi.github.io/firmware/manifest.json</string>
+	<string>https://adoptaboop.com/firmware/manifest.json</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleExecutable</key>
-	<string>Buddygotchi</string>
+	<string>Boop</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.buddygotchi.mac</string>
+	<string>com.boopcomputer.boop</string>
 	<key>CFBundleName</key>
-	<string>Buddygotchi</string>
+	<string>Boop</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -25,16 +25,16 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Buddygotchi connects to your hardware buddy over Bluetooth.</string>
+	<string>Boop connects to your hardware buddy over Bluetooth.</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright © 2026 Buddygotchi</string>
+	<string>Copyright © 2026 Boop Computer</string>
 	<key>SUEnableInstallerLauncherService</key>
 	<false/>
 	<key>SUEnableSystemProfiling</key>
 	<false/>
 	<key>SUFeedURL</key>
-	<string>https://buddygotchi.github.io/releases/appcast.xml</string>
+	<string>https://adoptaboop.com/releases/appcast.xml</string>
 	<key>SUPublicEDKey</key>
-	<string>BUDDYGOTCHI_SPARKLE_PUBLIC_KEY_PLACEHOLDER</string>
+	<string>BOOP_SPARKLE_PUBLIC_KEY_PLACEHOLDER</string>
 </dict>
 </plist>
