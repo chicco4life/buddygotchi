@@ -29,7 +29,7 @@ final class DesktopOutput: OutputProvider {
     private let playAttention: () -> Void
     private let playError: () -> Void
 
-    private var lastIconSymbol: String?
+    private var lastIconKey: String?
 
     init(
         statusItem: NSStatusItem,
@@ -58,10 +58,64 @@ final class DesktopOutput: OutputProvider {
     }
 
     private func updateIcon(_ state: BuddyState) {
-        let symbolName = state.pet.state.sfSymbol
-        guard symbolName != lastIconSymbol else { return }
-        lastIconSymbol = symbolName
-        statusItem?.button?.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Buddygotchi")
+        let iconKey = state.pet.state.rawValue
+        guard iconKey != lastIconKey else { return }
+        lastIconKey = iconKey
+        statusItem?.button?.image = Self.statusIcon(for: state.pet.state)
+    }
+
+    static func statusIcon(for state: PetState) -> NSImage {
+        let size = NSSize(width: 18, height: 18)
+        let badgeColor = badgeColor(for: state)
+        let image = NSImage(size: size, flipped: false) { rect in
+            let bodyRect = NSRect(x: rect.minX + 2.4, y: rect.minY + 4.2, width: 13.2, height: 9.6)
+            let body = NSBezierPath(ovalIn: bodyRect)
+            NSColor.labelColor.setFill()
+            body.fill()
+
+            NSColor.controlBackgroundColor.withAlphaComponent(0.92).setFill()
+            switch state {
+            case .sleep:
+                NSBezierPath(roundedRect: NSRect(x: 6.0, y: 8.6, width: 2.4, height: 0.9), xRadius: 0.5, yRadius: 0.5).fill()
+                NSBezierPath(roundedRect: NSRect(x: 9.8, y: 8.6, width: 2.4, height: 0.9), xRadius: 0.5, yRadius: 0.5).fill()
+            default:
+                NSBezierPath(ovalIn: NSRect(x: 6.4, y: 8.3, width: 1.7, height: 2.6)).fill()
+                NSBezierPath(ovalIn: NSRect(x: 10.0, y: 8.3, width: 1.7, height: 2.6)).fill()
+            }
+
+            if let badgeColor {
+                badgeColor.setFill()
+                NSBezierPath(ovalIn: NSRect(x: 12.8, y: 2.2, width: 4.0, height: 4.0)).fill()
+            }
+            return true
+        }
+        image.accessibilityDescription = accessibilityDescription(for: state)
+        return image
+    }
+
+    private static func badgeColor(for state: PetState) -> NSColor? {
+        switch state {
+        case .attention:
+            return NSColor(srgbRed: 0.91, green: 0.64, blue: 0.24, alpha: 1)
+        case .celebrate:
+            return NSColor(srgbRed: 0.50, green: 0.66, blue: 0.42, alpha: 1)
+        case .error:
+            return NSColor(srgbRed: 0.79, green: 0.42, blue: 0.37, alpha: 1)
+        default:
+            return nil
+        }
+    }
+
+    private static func accessibilityDescription(for state: PetState) -> String {
+        switch state {
+        case .attention: return "Buddygotchi — needs you"
+        case .celebrate: return "Buddygotchi — finished"
+        case .error: return "Buddygotchi — stuck"
+        case .busy: return "Buddygotchi — working"
+        case .thinking: return "Buddygotchi — thinking"
+        case .idle: return "Buddygotchi — idle"
+        case .sleep: return "Buddygotchi — asleep"
+        }
     }
 
     private func updateNotifications(prev: BuddyState, next: BuddyState) -> Bool {

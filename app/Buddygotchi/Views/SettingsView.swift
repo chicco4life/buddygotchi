@@ -30,7 +30,7 @@ struct SettingsView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "chevron.left")
                         Text("Settings")
-                            .font(.system(.headline, design: .rounded))
+                            .font(.buddy(15, weight: .semibold))
                     }
                 }
                 .buttonStyle(BuddyPlainButtonStyle())
@@ -42,7 +42,7 @@ struct SettingsView: View {
             .padding(.top)
 
             Rectangle()
-                .fill(Color.white.opacity(0.06))
+                .fill(BuddyTheme.textPrimary.opacity(0.06))
                 .frame(height: 0.5)
                 .padding(.horizontal)
                 .padding(.top, 8)
@@ -141,10 +141,10 @@ struct SettingsView: View {
                         Divider().padding(.leading, 12)
                         HStack {
                             Text("HTTP Port")
-                                .font(.system(.callout, design: .rounded))
+                                .font(.buddy(13))
                             Spacer()
                             Text("\(BuddyConfig.default.httpPort)")
-                                .font(.system(.callout, design: .monospaced))
+                                .font(.buddy(13))
                                 .foregroundStyle(.secondary)
                         }
                         .padding(.horizontal, 12)
@@ -160,7 +160,7 @@ struct SettingsView: View {
                         } label: {
                             HStack {
                                 Text("Open config folder")
-                                    .font(.system(.callout, design: .rounded))
+                                    .font(.buddy(13))
                                 Spacer()
                                 Image(systemName: "arrow.up.forward.square")
                                     .font(.caption)
@@ -173,7 +173,7 @@ struct SettingsView: View {
                     }
                 } label: {
                     Text("Advanced")
-                        .font(.system(.callout, design: .rounded))
+                        .font(.buddy(13))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
                 }
@@ -207,12 +207,12 @@ struct SettingsView: View {
                             .frame(width: 6, height: 6)
                             .accessibilityHidden(true)
                         Text(species)
-                            .font(.system(.caption, design: .rounded, weight: .medium))
+                            .font(.buddy(11, weight: .semibold))
                             .foregroundStyle(currentSpeciesColor)
                     }
 
                     Text("\(currentSpeciesIndex + 1) of \(buddyOrder.count)")
-                        .font(.system(.caption2, design: .rounded))
+                        .font(.buddy(11))
                         .foregroundStyle(.tertiary)
                 }
                 .frame(width: 140)
@@ -243,10 +243,10 @@ struct SettingsView: View {
                     let installed = agentInstalled[agent] ?? false
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(agent.displayName).font(.system(.callout, design: .rounded))
+                            Text(agent.displayName).font(.buddy(13))
                             Text(installed ? "Connected" : "Not connected")
-                                .font(.system(.caption2, design: .rounded))
-                                .foregroundStyle(installed ? BuddyTheme.accent : .secondary)
+                                .font(.buddy(11))
+                                .foregroundStyle(installed ? BuddyTheme.amber : .secondary)
                         }
                         Spacer()
                         if installed {
@@ -258,7 +258,7 @@ struct SettingsView: View {
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
-                            .tint(BuddyTheme.accent)
+                            .tint(BuddyTheme.amber)
                         } else {
                             Button("Connect") {
                                 if HookInstaller.shared.install(agent: agent) {
@@ -267,7 +267,7 @@ struct SettingsView: View {
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
-                            .tint(BuddyTheme.accent)
+                            .tint(BuddyTheme.amber)
                         }
                     }
                     .padding(.horizontal, 12)
@@ -291,14 +291,14 @@ struct SettingsView: View {
 
             VStack(spacing: 0) {
                 HStack {
-                    Text("This Mac").font(.system(.callout, design: .rounded))
+                    Text("This Mac").font(.buddy(13))
                     Spacer()
                     HStack(spacing: 4) {
                         Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(BuddyTheme.accent)
+                            .foregroundStyle(BuddyTheme.amber)
                         Text("Active")
-                            .font(.system(.caption2, design: .rounded))
-                            .foregroundStyle(BuddyTheme.accent)
+                            .font(.buddy(11))
+                            .foregroundStyle(BuddyTheme.amber)
                     }
                 }
                 .padding(.horizontal, 12)
@@ -311,13 +311,13 @@ struct SettingsView: View {
                 if esp32UUID != nil {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Hardware buddy").font(.system(.callout, design: .rounded))
+                            Text("Hardware buddy").font(.buddy(13))
                             HStack(spacing: 4) {
                                 Circle()
-                                    .fill(esp32Output.connectionState == .connected ? BuddyTheme.accent : Color.secondary.opacity(0.5))
+                                    .fill(esp32Output.connectionState == .connected ? BuddyTheme.amber : Color.secondary.opacity(0.5))
                                     .frame(width: 6, height: 6)
                                 Text(esp32Output.connectionState.rawValue)
-                                    .font(.system(.caption2, design: .rounded))
+                                    .font(.buddy(11))
                                     .foregroundStyle(.secondary)
                             }
                         }
@@ -347,9 +347,9 @@ struct SettingsView: View {
                 } else {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Hardware buddy").font(.system(.callout, design: .rounded))
+                            Text("Hardware buddy").font(.buddy(13))
                             Text("Not paired")
-                                .font(.system(.caption2, design: .rounded))
+                                .font(.buddy(11))
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
@@ -359,7 +359,7 @@ struct SettingsView: View {
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
-                        .tint(BuddyTheme.accent)
+                        .tint(BuddyTheme.amber)
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
@@ -376,11 +376,11 @@ struct SettingsView: View {
                         esp32Output.connectToSavedDevice()
                     } label: {
                         HStack {
-                            Text(device.name).font(.system(.caption, design: .rounded))
+                            Text(device.name).font(.buddy(11))
                             Spacer()
                             Text("Connect")
-                                .font(.system(.caption2, design: .rounded))
-                                .foregroundStyle(BuddyTheme.accent)
+                                .font(.buddy(11))
+                                .foregroundStyle(BuddyTheme.amber)
                         }
                     }
                     .buttonStyle(BuddyPlainButtonStyle())
@@ -399,9 +399,9 @@ struct SettingsView: View {
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Firmware").font(.system(.callout, design: .rounded))
+                    Text("Firmware").font(.buddy(13))
                     Text(esp32Output.firmwareUpdater.deviceVersion ?? "Unknown")
-                        .font(.system(.caption2, design: .monospaced))
+                        .font(.buddy(11))
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -423,34 +423,34 @@ struct SettingsView: View {
         switch esp32Output.firmwareUpdater.state {
         case .available(let release, _):
             HStack(spacing: 4) {
-                Circle().fill(BuddyTheme.accent).frame(width: 6, height: 6)
+                Circle().fill(BuddyTheme.amber).frame(width: 6, height: 6)
                 Text("Update · \(release.version)")
-                    .font(.system(.caption2, design: .rounded, weight: .medium))
-                    .foregroundStyle(BuddyTheme.accent)
+                    .font(.buddy(9.5, weight: .semibold))
+                    .foregroundStyle(BuddyTheme.amber)
             }
         case .upToDate:
             Text("Up to date")
-                .font(.system(.caption2, design: .rounded))
+                .font(.buddy(11))
                 .foregroundStyle(.secondary)
         case .downloading(let p), .uploading(let p, _):
             Text("\(Int(p * 100))%")
-                .font(.system(.caption2, design: .monospaced))
-                .foregroundStyle(BuddyTheme.accent)
+                .font(.buddy(11))
+                .foregroundStyle(BuddyTheme.amber)
         case .verifying, .rebooting:
             Text("Updating…")
-                .font(.system(.caption2, design: .rounded))
-                .foregroundStyle(BuddyTheme.accent)
+                .font(.buddy(11))
+                .foregroundStyle(BuddyTheme.amber)
         case .success:
             Text("Updated")
-                .font(.system(.caption2, design: .rounded))
-                .foregroundStyle(BuddyTheme.celebrateGreen)
+                .font(.buddy(11))
+                .foregroundStyle(BuddyTheme.green)
         case .failed:
             Text("Failed")
-                .font(.system(.caption2, design: .rounded))
-                .foregroundStyle(BuddyTheme.destructive)
+                .font(.buddy(11))
+                .foregroundStyle(BuddyTheme.stuckRed)
         case .checking, .idle:
             Text("Checking…")
-                .font(.system(.caption2, design: .rounded))
+                .font(.buddy(11))
                 .foregroundStyle(.tertiary)
         }
     }
@@ -476,10 +476,10 @@ struct SettingsView: View {
 
             VStack(spacing: 0) {
                 HStack {
-                    Text("Version").font(.system(.callout, design: .rounded))
+                    Text("Version").font(.buddy(13))
                     Spacer()
                     Text(bundleVersion)
-                        .font(.system(.callout, design: .monospaced))
+                        .font(.buddy(13))
                         .foregroundStyle(.secondary)
                 }
                 .padding(.horizontal, 12)
@@ -501,7 +501,7 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                     Text("Export bug report")
-                        .font(.system(.callout, design: .rounded))
+                        .font(.buddy(13))
                     Spacer()
                 }
                 .padding(.horizontal, 12)
@@ -512,7 +512,7 @@ struct SettingsView: View {
             .disabled(isExportingBugReport)
 
             Text("Buddygotchi keeps agent activity local to this Mac. Network access is limited to update checks and firmware downloads when those features are available.")
-                .font(.system(.caption2, design: .rounded))
+                .font(.buddy(11))
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -524,7 +524,7 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .tint(BuddyTheme.destructive)
+                .tint(BuddyTheme.stuckRed)
 
                 Spacer()
 
@@ -533,7 +533,7 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .tint(BuddyTheme.destructive)
+                .tint(BuddyTheme.stuckRed)
             }
             .padding(.top, 4)
         }
@@ -555,10 +555,10 @@ struct SettingsView: View {
                 .fill(serverHealthColor)
                 .frame(width: 6, height: 6)
             Text("Server")
-                .font(.system(.callout, design: .rounded))
+                .font(.buddy(13))
             Spacer()
             Text(serverHealthLabel)
-                .font(.system(.caption2, design: .rounded))
+                .font(.buddy(11))
                 .foregroundStyle(.secondary)
                 .lineLimit(2)
                 .multilineTextAlignment(.trailing)
@@ -584,11 +584,11 @@ struct SettingsView: View {
         guard let serverHealth else { return .secondary.opacity(0.5) }
         switch serverHealth.status {
         case .starting:
-            return BuddyTheme.attentionAmber
+            return BuddyTheme.amber
         case .listening:
-            return BuddyTheme.celebrateGreen
+            return BuddyTheme.green
         case .failed:
-            return BuddyTheme.destructive
+            return BuddyTheme.stuckRed
         }
     }
 

@@ -48,7 +48,7 @@ struct PopoverView: View {
                     .transition(.opacity)
             }
         }
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: showingSettings)
+        .animation(reduceMotion ? nil : .buddyEase(0.2), value: showingSettings)
         .onReceive(NotificationCenter.default.publisher(for: .buddygotchiOpenSettings)) { _ in
             showingSettings = true
         }
@@ -64,11 +64,11 @@ struct PopoverView: View {
 
             VStack(spacing: 5) {
                 Text(BuddyCopy.Onboarding.finishMeeting)
-                    .font(.system(.headline, design: .rounded, weight: .semibold))
+                    .font(.buddy(15, weight: .semibold))
                     .foregroundStyle(BuddyTheme.textPrimary)
                     .multilineTextAlignment(.center)
                 Text(BuddyCopy.Onboarding.finishMeetingSubtitle)
-                    .font(.system(.caption, design: .rounded))
+                    .font(.buddy(11))
                     .foregroundStyle(BuddyTheme.textSecondary)
                     .multilineTextAlignment(.center)
             }
@@ -98,7 +98,7 @@ struct PopoverView: View {
             if showMenuHint {
                 Spacer().frame(height: 6)
                 Text(BuddyCopy.Onboarding.menuHint)
-                    .font(.system(.caption2, design: .rounded, weight: .medium))
+                    .font(.buddy(9.5, weight: .semibold))
                     .foregroundStyle(BuddyTheme.amber)
                     .transition(.opacity)
                     .task {
@@ -178,18 +178,18 @@ struct PopoverView: View {
         .padding(16)
         .frame(width: BuddyTheme.popoverWidth)
         .frame(minHeight: BuddyTheme.liveViewHeight)
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: engine.state.prompt != nil)
+        .animation(reduceMotion ? nil : .buddyEase(0.25), value: engine.state.prompt != nil)
         .preferredColorScheme(.dark)
     }
 
     private var statusPill: some View {
         HStack(spacing: 6) {
             Text(statusName)
-                .font(.system(.caption, design: .rounded, weight: .medium))
+                .font(.buddy(11, weight: .semibold))
                 .foregroundStyle(speciesColor)
 
             Text(engine.state.pet.state.rawValue)
-                .font(.system(.caption2, design: .rounded, weight: .medium))
+                .font(.buddy(9.5, weight: .semibold))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 2)
                 .background(stateColor.opacity(0.15), in: Capsule())
@@ -207,14 +207,14 @@ struct PopoverView: View {
                 .accessibilityHidden(true)
 
             Text(engine.state.desktop.status.rawValue)
-                .font(.system(.caption2, design: .monospaced))
+                .font(.buddy(11))
                 .foregroundStyle(.tertiary)
 
             Spacer()
 
             if engine.state.sessions.total > 0 {
                 Text("\(engine.state.sessions.running) active")
-                    .font(.system(.caption2, design: .monospaced))
+                    .font(.buddy(11))
                     .foregroundStyle(.tertiary)
             }
         }
@@ -222,7 +222,7 @@ struct PopoverView: View {
         .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color.white.opacity(0.03))
+                .fill(BuddyTheme.textPrimary.opacity(0.03))
         )
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Desktop \(engine.state.desktop.status.rawValue)\(engine.state.sessions.total > 0 ? ", \(engine.state.sessions.running) active sessions" : "")")
@@ -261,19 +261,19 @@ struct PopoverView: View {
 
     private var stateColor: Color {
         switch engine.state.pet.state {
-        case .attention: BuddyTheme.attentionAmber
-        case .busy: BuddyTheme.accent
-        case .celebrate: BuddyTheme.celebrateGreen
-        case .error: BuddyTheme.destructive
-        case .thinking: BuddyTheme.accent
-        default: .secondary
+        case .attention: BuddyTheme.amber
+        case .busy: BuddyTheme.workGlow
+        case .celebrate: BuddyTheme.green
+        case .error: BuddyTheme.stuckRed
+        case .thinking: BuddyTheme.workGlow
+        default: BuddyTheme.textSecondary
         }
     }
 
     private var statusColor: Color {
         switch engine.state.desktop.status {
-        case .connected: BuddyTheme.connected
-        case .disconnected: BuddyTheme.disconnected
+        case .connected: BuddyTheme.green
+        case .disconnected: BuddyTheme.textTertiary
         }
     }
 }
@@ -288,7 +288,7 @@ private struct EmptyAgentsView: View {
                 .foregroundStyle(.secondary)
                 .padding(.top, 1)
             Text("No agents awake. Open Claude Code, Cursor, or Codex and send a message — your buddy will hear it.")
-                .font(.system(.caption, design: .rounded))
+                .font(.buddy(11))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
@@ -297,7 +297,7 @@ private struct EmptyAgentsView: View {
         .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color.white.opacity(0.03))
+                .fill(BuddyTheme.textPrimary.opacity(0.03))
         )
         .accessibilityElement(children: .combine)
     }
@@ -309,11 +309,11 @@ private struct ServerWarningRow: View {
     var body: some View {
         HStack(spacing: 6) {
             Circle()
-                .fill(BuddyTheme.destructive)
+                .fill(BuddyTheme.stuckRed)
                 .frame(width: 5, height: 5)
             Text(message)
-                .font(.system(.caption2, design: .rounded))
-                .foregroundStyle(BuddyTheme.destructive)
+                .font(.buddy(11))
+                .foregroundStyle(BuddyTheme.stuckRed)
                 .lineLimit(2)
             Spacer(minLength: 0)
         }
@@ -321,7 +321,7 @@ private struct ServerWarningRow: View {
         .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(BuddyTheme.destructive.opacity(0.08))
+                .fill(BuddyTheme.stuckRed.opacity(0.08))
         )
         .accessibilityElement(children: .combine)
     }
@@ -334,9 +334,9 @@ private struct ErrorTrailerView: View {
         HStack(spacing: 6) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(.caption2))
-                .foregroundStyle(BuddyTheme.destructive)
+                .foregroundStyle(BuddyTheme.stuckRed)
             Text("Also: \(AgentKind(rawValue: errored.source)?.displayName ?? errored.source) hit an error")
-                .font(.system(.caption2, design: .rounded))
+                .font(.buddy(11))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             Spacer(minLength: 0)
@@ -359,7 +359,7 @@ struct ToolCardView: View {
     var body: some View {
         HStack(spacing: 0) {
             RoundedRectangle(cornerRadius: 2)
-                .fill(BuddyTheme.attentionAmber)
+                .fill(BuddyTheme.amber)
                 .frame(width: 3)
                 .accessibilityHidden(true)
 
@@ -367,27 +367,27 @@ struct ToolCardView: View {
                 HStack {
                     if let source = prompt.source {
                         Text(sourceName(source))
-                            .font(.system(.caption2, design: .rounded))
-                            .foregroundStyle(BuddyTheme.accent)
+                            .font(.buddy(11))
+                            .foregroundStyle(BuddyTheme.amber)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(BuddyTheme.accentSubtle, in: Capsule())
+                            .background(BuddyTheme.amber.opacity(0.15), in: Capsule())
                     }
                     Spacer()
                     if waitingCount > 1 {
                         Text("+\(waitingCount - 1) more waiting")
-                            .font(.system(.caption2, design: .rounded, weight: .medium))
-                            .foregroundStyle(BuddyTheme.attentionAmber)
+                            .font(.buddy(9.5, weight: .semibold))
+                            .foregroundStyle(BuddyTheme.amber)
                     }
                     if let label = prompt.sessionLabel {
                         Text(label)
-                            .font(.system(.caption2, design: .monospaced))
+                            .font(.buddy(11))
                             .foregroundStyle(.tertiary)
                     }
                 }
 
                 Text(prompt.tool)
-                    .font(.system(.callout, design: .monospaced, weight: .semibold))
+                    .font(.buddy(13, weight: .semibold))
 
                 if !prompt.hint.isEmpty {
                     HStack(spacing: 6) {
@@ -396,7 +396,7 @@ struct ToolCardView: View {
                             .foregroundStyle(.tertiary)
                             .accessibilityHidden(true)
                         Text(prompt.hint)
-                            .font(.system(.caption, design: .monospaced))
+                            .font(.buddy(11))
                             .foregroundStyle(.secondary)
                             .lineLimit(3)
                             .truncationMode(pathLikeHint ? .middle : .tail)
@@ -410,15 +410,15 @@ struct ToolCardView: View {
                                 Text("Deny")
                                 if isHoveringActions {
                                     Text("⌫")
-                                        .font(.system(.caption2, design: .monospaced))
+                                        .font(.buddy(11))
                                         .foregroundStyle(.tertiary)
                                 }
                             }
-                            .font(.system(.caption, design: .rounded, weight: .medium))
+                            .font(.buddy(11, weight: .semibold))
                             .padding(.horizontal, 12)
                             .padding(.vertical, 4)
-                            .background(BuddyTheme.destructive.opacity(0.15), in: Capsule())
-                            .foregroundStyle(BuddyTheme.destructive)
+                            .background(BuddyTheme.stuckRed.opacity(0.15), in: Capsule())
+                            .foregroundStyle(BuddyTheme.stuckRed)
                         }
                         .buttonStyle(BuddyPlainButtonStyle())
                         .keyboardShortcut(.delete, modifiers: [])
@@ -429,15 +429,15 @@ struct ToolCardView: View {
                                 Text("Approve")
                                 if isHoveringActions {
                                     Text("↵")
-                                        .font(.system(.caption2, design: .monospaced))
+                                        .font(.buddy(11))
                                         .foregroundStyle(.tertiary)
                                 }
                             }
-                            .font(.system(.caption, design: .rounded, weight: .medium))
+                            .font(.buddy(11, weight: .semibold))
                             .padding(.horizontal, 12)
                             .padding(.vertical, 4)
-                            .background(BuddyTheme.accent.opacity(0.15), in: Capsule())
-                            .foregroundStyle(BuddyTheme.accent)
+                            .background(BuddyTheme.amber.opacity(0.15), in: Capsule())
+                            .foregroundStyle(BuddyTheme.amber)
                         }
                         .buttonStyle(BuddyPlainButtonStyle())
                         .keyboardShortcut(.return, modifiers: [])
@@ -453,11 +453,7 @@ struct ToolCardView: View {
         }
         .background(
             RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
-                .fill(BuddyTheme.cardFillElevated)
-                .overlay(
-                    RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
-                        .strokeBorder(BuddyTheme.cardStrokeElevated, lineWidth: 0.5)
-                )
+                .fill(BuddyTheme.nightRaised2)
         )
         .clipShape(RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius))
         .accessibilityElement(children: .combine)
@@ -486,7 +482,7 @@ struct CurrentActivityRow: View {
                 .foregroundStyle(iconColor)
                 .accessibilityHidden(true)
             Text(msg)
-                .font(.system(.caption, design: .monospaced))
+                .font(.buddy(11))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -500,11 +496,11 @@ struct CurrentActivityRow: View {
 
     private var iconColor: Color {
         switch kind {
-        case .verify: BuddyTheme.celebrateGreen
+        case .verify: BuddyTheme.green
         case .read: .secondary
-        case .write: BuddyTheme.accent
+        case .write: BuddyTheme.amber
         case .shell: .secondary
-        case .web: BuddyTheme.accent
+        case .web: BuddyTheme.amber
         case .work: Color.secondary.opacity(0.6)
         }
     }
@@ -519,7 +515,7 @@ struct ReviewCardView: View {
     var body: some View {
         HStack(spacing: 0) {
             RoundedRectangle(cornerRadius: 2)
-                .fill(BuddyTheme.celebrateGreen)
+                .fill(BuddyTheme.green)
                 .frame(width: 3)
                 .accessibilityHidden(true)
 
@@ -527,14 +523,14 @@ struct ReviewCardView: View {
                 HStack {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(.caption2))
-                        .foregroundStyle(BuddyTheme.celebrateGreen)
+                        .foregroundStyle(BuddyTheme.green)
                     Text(headlineLabel)
-                        .font(.system(.caption2, design: .rounded))
+                        .font(.buddy(11))
                         .foregroundStyle(.secondary)
                     Spacer()
                     if let durationMs = completed.durationMs {
                         Text(formatDuration(durationMs))
-                            .font(.system(.caption2, design: .monospaced))
+                            .font(.buddy(11))
                             .foregroundStyle(.tertiary)
                     }
                 }
@@ -543,16 +539,16 @@ struct ReviewCardView: View {
                     HStack(spacing: 6) {
                         Image(systemName: completed.activityKind.sfSymbol)
                             .font(.system(.caption2))
-                            .foregroundStyle(BuddyTheme.celebrateGreen)
+                            .foregroundStyle(BuddyTheme.green)
                             .accessibilityHidden(true)
                         Text(tool)
-                            .font(.system(.callout, design: .monospaced, weight: .semibold))
+                            .font(.buddy(13, weight: .semibold))
                     }
                 }
 
                 if let hint = completed.hint, !hint.isEmpty {
                     Text(hint)
-                        .font(.system(.caption, design: .monospaced))
+                        .font(.buddy(11))
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
@@ -562,11 +558,11 @@ struct ReviewCardView: View {
                         Spacer()
                         Button(action: onDismiss) {
                             Text("Dismiss")
-                                .font(.system(.caption2, design: .rounded, weight: .medium))
+                                .font(.buddy(9.5, weight: .semibold))
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 3)
-                                .background(BuddyTheme.celebrateGreen.opacity(0.12), in: Capsule())
-                                .foregroundStyle(BuddyTheme.celebrateGreen)
+                                .background(BuddyTheme.green.opacity(0.12), in: Capsule())
+                                .foregroundStyle(BuddyTheme.green)
                         }
                         .buttonStyle(BuddyPlainButtonStyle())
                     }
@@ -578,11 +574,7 @@ struct ReviewCardView: View {
         }
         .background(
             RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
-                .fill(BuddyTheme.cardFill)
-                .overlay(
-                    RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
-                        .strokeBorder(BuddyTheme.cardStroke, lineWidth: 0.5)
-                )
+                .fill(BuddyTheme.nightRaised)
         )
         .clipShape(RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius))
         .accessibilityElement(children: .combine)
@@ -609,7 +601,7 @@ struct ErrorCardView: View {
     var body: some View {
         HStack(spacing: 0) {
             RoundedRectangle(cornerRadius: 2)
-                .fill(BuddyTheme.destructive)
+                .fill(BuddyTheme.stuckRed)
                 .frame(width: 3)
                 .accessibilityHidden(true)
 
@@ -617,26 +609,26 @@ struct ErrorCardView: View {
                 HStack {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(.caption2))
-                        .foregroundStyle(BuddyTheme.destructive)
+                        .foregroundStyle(BuddyTheme.stuckRed)
                     Text(headlineLabel)
-                        .font(.system(.caption2, design: .rounded))
+                        .font(.buddy(11))
                         .foregroundStyle(.secondary)
                     Spacer()
                     if let sessionLabel {
                         Text(sessionLabel)
-                            .font(.system(.caption2, design: .monospaced))
+                            .font(.buddy(11))
                             .foregroundStyle(.tertiary)
                     }
                 }
 
                 if let tool {
                     Text(tool)
-                        .font(.system(.callout, design: .monospaced, weight: .semibold))
+                        .font(.buddy(13, weight: .semibold))
                 }
 
                 if let hint, !hint.isEmpty {
                     Text(hint)
-                        .font(.system(.caption, design: .monospaced))
+                        .font(.buddy(11))
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
@@ -646,11 +638,11 @@ struct ErrorCardView: View {
                         Spacer()
                         Button(action: onDismiss) {
                             Text("Dismiss")
-                                .font(.system(.caption2, design: .rounded, weight: .medium))
+                                .font(.buddy(9.5, weight: .semibold))
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 3)
-                                .background(BuddyTheme.destructive.opacity(0.12), in: Capsule())
-                                .foregroundStyle(BuddyTheme.destructive)
+                                .background(BuddyTheme.stuckRed.opacity(0.12), in: Capsule())
+                                .foregroundStyle(BuddyTheme.stuckRed)
                         }
                         .buttonStyle(BuddyPlainButtonStyle())
                     }
@@ -662,11 +654,7 @@ struct ErrorCardView: View {
         }
         .background(
             RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
-                .fill(BuddyTheme.cardFillElevated)
-                .overlay(
-                    RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
-                        .strokeBorder(BuddyTheme.destructive.opacity(0.3), lineWidth: 0.5)
-                )
+                .fill(BuddyTheme.nightRaised2)
         )
         .clipShape(RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius))
         .accessibilityElement(children: .combine)
@@ -693,23 +681,23 @@ struct ThinkingRow: View {
             HStack(spacing: 6) {
                 Image(systemName: "brain")
                     .font(.system(.caption2))
-                    .foregroundStyle(BuddyTheme.accent)
+                    .foregroundStyle(BuddyTheme.amber)
                     .accessibilityHidden(true)
                 Text("Thinking")
-                    .font(.system(.caption, design: .rounded, weight: .medium))
+                    .font(.buddy(11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 if let tool = thinking.tool, !tool.isEmpty {
                     Text("·")
                         .foregroundStyle(.tertiary)
                     Text(tool)
-                        .font(.system(.caption, design: .monospaced))
+                        .font(.buddy(11))
                         .foregroundStyle(.primary)
                         .lineLimit(1)
                 }
                 Spacer()
                 if let elapsed = elapsed(at: timeline.date.timeIntervalSince1970 * 1000) {
                     Text(elapsed)
-                        .font(.system(.caption2, design: .monospaced))
+                        .font(.buddy(11))
                         .foregroundStyle(.tertiary)
                 }
             }
@@ -746,15 +734,15 @@ struct SessionListView: View {
                     VStack(alignment: .leading, spacing: 1) {
                         HStack(spacing: 4) {
                             Text(displayName(for: sess.source))
-                                .font(.system(.caption2, design: .rounded, weight: .medium))
+                                .font(.buddy(9.5, weight: .semibold))
                                 .foregroundStyle(.primary)
                             Text(stateLabel(for: sess.state))
-                                .font(.system(.caption2, design: .rounded))
+                                .font(.buddy(11))
                                 .foregroundStyle(.secondary)
                         }
                         if let tool = sess.currentTool, !tool.isEmpty {
                             Text(tool)
-                                .font(.system(.caption2, design: .monospaced))
+                                .font(.buddy(11))
                                 .foregroundStyle(.tertiary)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
@@ -763,7 +751,7 @@ struct SessionListView: View {
                     Spacer()
                     if let label = sess.sessionLabel, !label.isEmpty {
                         Text(label)
-                            .font(.system(.caption2, design: .monospaced))
+                            .font(.buddy(11))
                             .foregroundStyle(.tertiary)
                             .lineLimit(1)
                             .layoutPriority(1)
@@ -792,11 +780,11 @@ struct SessionListView: View {
 
     private func stateColor(for state: SessionState) -> Color {
         switch state {
-        case .working: return BuddyTheme.accent
+        case .working: return BuddyTheme.workGlow
         case .idle: return Color.secondary.opacity(0.5)
-        case .needsConfirmation: return BuddyTheme.attentionAmber
-        case .errored: return BuddyTheme.destructive
-        case .thinking: return BuddyTheme.accent.opacity(0.6)
+        case .needsConfirmation: return BuddyTheme.amber
+        case .errored: return BuddyTheme.stuckRed
+        case .thinking: return BuddyTheme.workGlow.opacity(0.6)
         }
     }
 }

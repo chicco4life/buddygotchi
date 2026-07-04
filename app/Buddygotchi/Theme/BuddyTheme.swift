@@ -4,30 +4,21 @@ enum BuddyTheme {
     static let night = Color(hex: "#1B1714")
     static let nightRaised = Color(hex: "#27211B")
     static let nightRaised2 = Color(hex: "#312A22")
+
     static let textPrimary = Color(hex: "#EFE7D8")
     static let textSecondary = Color(hex: "#B9AE9C")
     static let textTertiary = Color(hex: "#877D6D")
+
     static let amber = Color(hex: "#E8A33D")
     static let amberDeep = Color(hex: "#C9862B")
     static let green = Color(hex: "#7FA96B")
     static let stuckRed = Color(hex: "#C96B5E")
     static let workGlow = Color(hex: "#EFE7D8")
 
-    static let accent = Color(hex: "#9B8AFF")
-    static let accentSubtle = Color(hex: "#9B8AFF").opacity(0.15)
+    static let divider = textPrimary.opacity(0.08)
 
-    static let connected = accent
-    static let disconnected = Color.secondary.opacity(0.5)
-    static let attentionAmber = Color(hex: "#FFBB33")
-    static let celebrateGreen = Color(hex: "#4ADE80")
-    static let destructive = Color(hex: "#FF6B6B")
-
-    static let cardFill = Color.white.opacity(0.07)
-    static let cardStroke = Color.white.opacity(0.12)
-    static let cardFillElevated = Color.white.opacity(0.09)
-    static let cardStrokeElevated = Color.white.opacity(0.14)
-
-    static let cardCornerRadius: CGFloat = 10
+    static let cardCornerRadius: CGFloat = 12
+    static let controlCornerRadius: CGFloat = 999
 
     static let popoverWidth: CGFloat = 320
     static let liveViewHeight: CGFloat = 240
@@ -35,6 +26,26 @@ enum BuddyTheme {
     static let popoverHeight: CGFloat = 440
     static let onboardingWidth: CGFloat = 760
     static let onboardingHeight: CGFloat = 560
+
+    static func stateColor(_ state: PetState) -> Color {
+        switch state {
+        case .sleep, .idle: textSecondary
+        case .busy, .thinking: workGlow
+        case .attention: amber
+        case .celebrate: green
+        case .error: stuckRed
+        }
+    }
+}
+
+extension Font {
+    static func buddy(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
+        .custom(weight == .semibold ? "Geist SemiBold" : "Geist", size: size)
+    }
+
+    static func buddyMono(_ size: CGFloat) -> Font {
+        .custom("Geist Mono", size: size)
+    }
 }
 
 extension Animation {
@@ -50,18 +61,10 @@ struct BuddyCardModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
+            .padding(14)
             .background(
                 RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
-                    .fill(elevated ? BuddyTheme.cardFillElevated : BuddyTheme.cardFill)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
-                            .strokeBorder(
-                                elevated ? BuddyTheme.cardStrokeElevated : BuddyTheme.cardStroke,
-                                lineWidth: 0.5
-                            )
-                    )
+                    .fill(elevated ? BuddyTheme.nightRaised2 : BuddyTheme.nightRaised)
             )
     }
 }
@@ -79,11 +82,7 @@ struct BuddyGroupedCardModifier: ViewModifier {
         content
             .background(
                 RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
-                    .fill(BuddyTheme.cardFill)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
-                            .strokeBorder(BuddyTheme.cardStroke, lineWidth: 0.5)
-                    )
+                    .fill(BuddyTheme.nightRaised)
             )
     }
 }
@@ -99,23 +98,23 @@ extension View {
 struct BuddyPrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(.callout, design: .rounded, weight: .semibold))
+            .font(.buddy(13, weight: .semibold))
             .padding(.horizontal, 20)
             .padding(.vertical, 8)
             .background(
-                BuddyTheme.accent.opacity(configuration.isPressed ? 0.7 : 1.0),
+                (configuration.isPressed ? BuddyTheme.amberDeep : BuddyTheme.amber),
                 in: Capsule()
             )
-            .foregroundStyle(.white)
-            .animation(.easeOut(duration: 0.1), value: configuration.isPressed)
+            .foregroundStyle(BuddyTheme.night)
+            .animation(.buddyEase(0.15), value: configuration.isPressed)
     }
 }
 
 struct BuddySecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(.callout, design: .rounded, weight: .medium))
-            .foregroundStyle(configuration.isPressed ? .primary : .secondary)
+            .font(.buddy(13, weight: .semibold))
+            .foregroundStyle(configuration.isPressed ? BuddyTheme.textPrimary : BuddyTheme.textSecondary)
     }
 }
 
@@ -136,7 +135,7 @@ private struct BuddyPlainButtonBody<Label: View>: View {
         label
             .opacity(isPressed ? 0.5 : isHovering ? 0.8 : 1.0)
             .onHover { isHovering = $0 }
-            .animation(.easeInOut(duration: 0.15), value: isHovering)
+            .animation(.buddyEase(0.15), value: isHovering)
     }
 }
 
@@ -151,8 +150,10 @@ struct BuddySectionHeader: View {
 
     var body: some View {
         Text(title)
-            .font(.system(.subheadline, design: .rounded, weight: .medium))
-            .foregroundStyle(.secondary)
+            .font(.buddy(9.5, weight: .semibold))
+            .tracking(0.8)
+            .textCase(.uppercase)
+            .foregroundStyle(BuddyTheme.textTertiary)
             .padding(.top, 4)
     }
 }
@@ -168,16 +169,17 @@ struct BuddySettingToggle: View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
-                    .font(.system(.callout, design: .rounded))
+                    .font(.buddy(13))
+                    .foregroundStyle(BuddyTheme.textPrimary)
                 Text(description)
-                    .font(.system(.caption2, design: .rounded))
-                    .foregroundStyle(.tertiary)
+                    .font(.buddy(11))
+                    .foregroundStyle(BuddyTheme.textTertiary)
             }
             Spacer(minLength: 8)
             Toggle("", isOn: $isOn)
                 .labelsHidden()
                 .toggleStyle(.switch)
-                .tint(BuddyTheme.accent)
+                .tint(BuddyTheme.amber)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -202,7 +204,7 @@ extension Color {
 // MARK: - Species Color Helper
 
 func buddySpeciesColor(for species: String) -> Color {
-    if species == "blob" { return BuddyTheme.textPrimary }
+    if species == Pet.defaultSpecies { return BuddyTheme.textPrimary }
     let buddy = allBuddies[species] ?? allBuddies[Pet.defaultSpecies] ?? allBuddies.values.first!
     return Color(hex: buddy.color)
 }

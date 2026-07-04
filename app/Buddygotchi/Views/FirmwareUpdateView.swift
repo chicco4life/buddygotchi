@@ -35,6 +35,8 @@ struct FirmwareUpdateView: View {
         }
         .padding(20)
         .frame(width: BuddyTheme.popoverWidth)
+        .background(BuddyTheme.night)
+        .foregroundStyle(BuddyTheme.textPrimary)
         .preferredColorScheme(.dark)
         .confirmationDialog("Stop the update?", isPresented: $showingCancelConfirmation) {
             Button("Stop update", role: .destructive) {
@@ -50,18 +52,18 @@ struct FirmwareUpdateView: View {
 
     private var header: some View {
         HStack {
-            Text("Buddy firmware")
-                .font(.system(.title3, design: .rounded, weight: .semibold))
+            Text(BuddyCopy.firmware)
+                .font(.buddy(15, weight: .semibold))
             Spacer()
             Button(action: { isPresented = false }) {
                 Image(systemName: "xmark")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .frame(width: 24, height: 24)
-                    .background(Circle().fill(Color.white.opacity(0.07)))
+                    .background(Circle().fill(BuddyTheme.nightRaised2))
             }
             .buttonStyle(BuddyPlainButtonStyle())
-            .accessibilityLabel("Close")
+            .accessibilityLabel(BuddyCopy.close)
         }
     }
 
@@ -70,8 +72,8 @@ struct FirmwareUpdateView: View {
     private var checkingView: some View {
         VStack(spacing: 12) {
             ProgressView()
-            Text("Checking for updates…")
-                .font(.system(.callout, design: .rounded))
+            Text(BuddyCopy.checkingForUpdates)
+                .font(.buddy(13))
                 .foregroundStyle(.secondary)
         }
         .padding(.vertical, 24)
@@ -80,12 +82,12 @@ struct FirmwareUpdateView: View {
     private func availableView(release: FirmwareRelease, current: String) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(current).font(.system(.callout, design: .monospaced)).foregroundStyle(.secondary)
+                Text(current).font(.buddyMono(13)).foregroundStyle(BuddyTheme.textSecondary)
                 Image(systemName: "arrow.right").font(.caption).foregroundStyle(.secondary)
-                Text(release.version).font(.system(.callout, design: .monospaced)).foregroundStyle(BuddyTheme.accent)
+                Text(release.version).font(.buddyMono(13)).foregroundStyle(BuddyTheme.amber)
                 if let published = release.publishedAt {
                     Text("released \(relativeDate(published))")
-                        .font(.system(.caption2, design: .rounded))
+                        .font(.buddy(11))
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
                 }
@@ -94,25 +96,25 @@ struct FirmwareUpdateView: View {
             if !release.releaseNotes.isEmpty {
                 ScrollView {
                     Text(markdownText(release.releaseNotes))
-                        .font(.system(.caption, design: .rounded))
+                        .font(.buddy(11))
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxHeight: 140)
                 .padding(10)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.05)))
+                .background(RoundedRectangle(cornerRadius: 8).fill(BuddyTheme.nightRaised))
             }
 
-            Text("Keep your buddy near your Mac and powered on. The update takes a few minutes; the device will restart automatically when finished.")
-                .font(.system(.caption2, design: .rounded))
+            Text(BuddyCopy.keepHardwareBuddyNear)
+                .font(.buddy(11))
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack {
                 Spacer()
-                Button("Cancel") { isPresented = false }
+                Button(BuddyCopy.cancel) { isPresented = false }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                Button("Update Now") {
+                Button(BuddyCopy.updateNow) {
                     updater.startUpdate()
                 }
                 .buttonStyle(BuddyPrimaryButtonStyle())
@@ -124,13 +126,13 @@ struct FirmwareUpdateView: View {
         VStack(spacing: 12) {
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 40))
-                .foregroundStyle(BuddyTheme.celebrateGreen)
+                .foregroundStyle(BuddyTheme.green)
             Text("Up to date")
-                .font(.system(.headline, design: .rounded))
+                .font(.buddy(15, weight: .semibold))
             Text(version)
-                .font(.system(.callout, design: .monospaced))
+                .font(.buddyMono(13))
                 .foregroundStyle(.secondary)
-            Button("Done") { isPresented = false }
+            Button(BuddyCopy.done) { isPresented = false }
                 .buttonStyle(BuddyPrimaryButtonStyle())
                 .padding(.top, 4)
         }
@@ -141,25 +143,25 @@ struct FirmwareUpdateView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text(phase + "…")
-                    .font(.system(.callout, design: .rounded, weight: .medium))
+                    .font(.buddy(13, weight: .semibold))
                 Spacer()
                 Text("\(Int(progress * 100))%")
-                    .font(.system(.callout, design: .monospaced))
+                    .font(.buddyMono(13))
                     .foregroundStyle(.secondary)
             }
             ProgressView(value: progress)
                 .progressViewStyle(.linear)
-                .tint(BuddyTheme.accent)
+                .tint(BuddyTheme.amber)
 
             if let eta, eta > 0 {
                 Text(formatETA(eta))
-                    .font(.system(.caption2, design: .rounded))
+                    .font(.buddy(11))
                     .foregroundStyle(.tertiary)
             }
 
             HStack {
                 Spacer()
-                Button("Cancel") {
+                Button(BuddyCopy.cancel) {
                     if phase == "Uploading" {
                         showingCancelConfirmation = true
                     } else {
@@ -169,7 +171,7 @@ struct FirmwareUpdateView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 .disabled(!cancellable)
-                Button("Hide") { isPresented = false }
+                Button(BuddyCopy.hide) { isPresented = false }
                     .buttonStyle(BuddySecondaryButtonStyle())
             }
         }
@@ -179,13 +181,13 @@ struct FirmwareUpdateView: View {
         VStack(spacing: 12) {
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 40))
-                .foregroundStyle(BuddyTheme.celebrateGreen)
-            Text("Update complete")
-                .font(.system(.headline, design: .rounded))
+                .foregroundStyle(BuddyTheme.green)
+            Text(BuddyCopy.updateComplete)
+                .font(.buddy(15, weight: .semibold))
             Text(version)
-                .font(.system(.callout, design: .monospaced))
+                .font(.buddyMono(13))
                 .foregroundStyle(.secondary)
-            Button("Done") {
+            Button(BuddyCopy.done) {
                 updater.dismissTerminal()
                 isPresented = false
             }
@@ -199,30 +201,30 @@ struct FirmwareUpdateView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(BuddyTheme.destructive)
-                Text("Update failed")
-                    .font(.system(.headline, design: .rounded))
+                    .foregroundStyle(BuddyTheme.stuckRed)
+                Text(BuddyCopy.updateFailed)
+                    .font(.buddy(15, weight: .semibold))
             }
             Text(reason)
-                .font(.system(.caption, design: .rounded))
+                .font(.buddy(11))
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Your buddy still runs the previous firmware — failed updates don't get committed.")
-                .font(.system(.caption2, design: .rounded))
+            Text(BuddyCopy.previousFirmwareKept)
+                .font(.buddy(11))
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack {
                 Spacer()
-                Button("Close") {
+                Button(BuddyCopy.close) {
                     updater.dismissTerminal()
                     isPresented = false
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
                 if recoverable {
-                    Button("Try Again") {
+                    Button(BuddyCopy.tryAgain) {
                         updater.checkForUpdates(forceRefresh: true)
                     }
                     .buttonStyle(BuddyPrimaryButtonStyle())

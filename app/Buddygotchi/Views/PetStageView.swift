@@ -17,6 +17,10 @@ struct PetStageView: View {
         Color(hex: buddy.color)
     }
 
+    private var glowColor: Color {
+        BuddyTheme.stateColor(petState)
+    }
+
     private var glowIntensity: CGFloat {
         switch petState {
         case .sleep: 0.03
@@ -61,7 +65,7 @@ struct PetStageView: View {
             } else {
                 ZStack {
                     RadialGradient(
-                        colors: [speciesColor.opacity(glowIntensity), .clear],
+                        colors: [glowColor.opacity(glowIntensity), .clear],
                         center: .center,
                         startRadius: 0,
                         endRadius: 60
@@ -69,14 +73,14 @@ struct PetStageView: View {
                     .frame(width: 140, height: 90)
                     .blur(radius: 15)
 
-                    TimelineView(.periodic(from: startDate, by: 0.2)) { context in
-                        let tickMs = Int(context.date.timeIntervalSince(startDate) * 1000)
+                    TimelineView(.periodic(from: startDate, by: reduceMotion ? 60 : 0.2)) { context in
+                        let tickMs = reduceMotion ? 0 : Int(context.date.timeIntervalSince(startDate) * 1000)
                         let frame = renderFrame(buddy: buddy, state: petState.rawValue, tickMs: tickMs)
 
                         Text(frame)
-                            .font(.system(size: fontSize, design: .monospaced))
+                            .font(.buddyMono(fontSize))
                             .foregroundStyle(speciesColor)
-                            .shadow(color: speciesColor.opacity(shadowOpacity), radius: shadowRadius)
+                            .shadow(color: glowColor.opacity(shadowOpacity), radius: shadowRadius)
                     }
                 }
             }
@@ -86,12 +90,12 @@ struct PetStageView: View {
         .padding(.vertical, 4)
         .onChange(of: petState) {
             guard !reduceMotion else { return }
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) {
+            withAnimation(.buddyEase(0.25)) {
                 petScale = 1.06
             }
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(150))
-                withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
+                withAnimation(.buddyEase(0.45)) {
                     petScale = 1.0
                 }
             }

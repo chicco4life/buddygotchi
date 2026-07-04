@@ -28,7 +28,7 @@ final class SnapshotHarnessTests: XCTestCase {
         )
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         UserDefaults.standard.set(true, forKey: "setupCompleted")
-        UserDefaults.standard.set("cat", forKey: "buddySpecies")
+        UserDefaults.standard.set(Pet.defaultSpecies, forKey: "buddySpecies")
     }
 
     // MARK: Helpers
@@ -45,7 +45,7 @@ final class SnapshotHarnessTests: XCTestCase {
         // views inside; the views themselves are transparent. This adds no view
         // content, just the container background.
         let root = ZStack {
-            Color(white: 0.11)
+            BuddyTheme.night
             view
         }
         .frame(width: size.width, height: size.height)
@@ -94,12 +94,12 @@ final class SnapshotHarnessTests: XCTestCase {
             ForEach(buddyOrder, id: \.self) { sp in
                 VStack(spacing: 4) {
                     PetStageView(petState: .idle, species: sp)
-                    Text(sp).font(.system(.caption2, design: .monospaced)).foregroundStyle(.white)
+                    Text(sp).font(.buddyMono(11)).foregroundStyle(BuddyTheme.textPrimary)
                 }
             }
         }
         .padding(20)
-        .background(Color(white: 0.07))
+        .background(BuddyTheme.night)
         try snapshot(gallery, "species-gallery", CGSize(width: 760, height: 170))
     }
 

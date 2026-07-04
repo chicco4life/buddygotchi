@@ -281,11 +281,11 @@ private let dragonStates: [String: BuddyStateAnim] = [
 
 let allBuddies: [String: BuddySpecies] = [
     "blob": BuddySpecies(name: "blob", color: "#EFE7D8", states: catStates),
-    "cat": BuddySpecies(name: "cat", color: "#c2a6ff", states: catStates),
-    "axolotl": BuddySpecies(name: "axolotl", color: "#ffabbb", states: axolotlStates),
-    "robot": BuddySpecies(name: "robot", color: "#c6c6d0", states: robotStates),
-    "capybara": BuddySpecies(name: "capybara", color: "#d4a07a", states: capybaraStates),
-    "dragon": BuddySpecies(name: "dragon", color: "#ff6b6b", states: dragonStates),
+    "cat": BuddySpecies(name: "cat", color: "#CDB892", states: catStates),
+    "axolotl": BuddySpecies(name: "axolotl", color: "#C98F83", states: axolotlStates),
+    "robot": BuddySpecies(name: "robot", color: "#B9AE9C", states: robotStates),
+    "capybara": BuddySpecies(name: "capybara", color: "#A67C52", states: capybaraStates),
+    "dragon": BuddySpecies(name: "dragon", color: "#B77A50", states: dragonStates),
 ]
 
 let buddyOrder = ["blob", "cat", "axolotl", "robot", "capybara", "dragon"]

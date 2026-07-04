@@ -54,4 +54,99 @@ enum BuddyCopy {
         static let finishMeeting = "Finish meeting your buddy."
         static let finishMeetingSubtitle = "The adoption window is ready when you are."
     }
+
+    static let settings = "Settings"
+    static let dismiss = "Dismiss"
+    static let deny = "Deny"
+    static let approve = "Approve"
+    static let thinking = "Thinking"
+    static let cancel = "Cancel"
+    static let hide = "Hide"
+    static let close = "Close"
+    static let done = "Done"
+    static let firmware = "Buddy firmware"
+    static let updateNow = "Update now"
+    static let updateComplete = "Update complete"
+    static let updateFailed = "Update failed"
+    static let tryAgain = "Try again"
+    static let checkingForUpdates = "Checking for updates…"
+    static let keepHardwareBuddyNear = "Keep your hardware buddy near your Mac and powered on. The update takes a few minutes; it will restart automatically when finished."
+    static let previousFirmwareKept = "Your hardware buddy still runs the previous firmware — failed updates are not committed."
+    static let runSetupAgain = "Run setup again"
+    static let quitBuddygotchi = "Quit Buddygotchi"
+
+    static let manifest: [String] = [
+        Onboarding.hatchTitle,
+        Onboarding.hatchSubtitle,
+        Onboarding.meetBuddy,
+        Onboarding.adoptTitle,
+        Onboarding.nameLabel,
+        Onboarding.namePlaceholder,
+        Onboarding.adopt,
+        Onboarding.agentsTitle,
+        Onboarding.agentsSubtitle,
+        Onboarding.skipForNow,
+        Onboarding.connect,
+        Onboarding.connected,
+        Onboarding.detected,
+        Onboarding.notDetected,
+        Onboarding.notDetectedHint,
+        Onboarding.hookInstallFailed,
+        Onboarding.firstContactTitle,
+        Onboarding.firstContactWaiting,
+        Onboarding.copyPrompt,
+        Onboarding.testPrompt,
+        Onboarding.troubleshootingTitle,
+        Onboarding.troubleshooting,
+        Onboarding.displayTitle,
+        Onboarding.displaySubtitle,
+        Onboarding.thisMac,
+        Onboarding.thisMacDescription,
+        Onboarding.hardware,
+        Onboarding.hardwareDescription,
+        Onboarding.hardwareFootnote,
+        Onboarding.scanning,
+        Onboarding.connecting,
+        Onboarding.pairingHelp,
+        Onboarding.pairingTimeout,
+        Onboarding.connectedCheered,
+        Onboarding.retry,
+        Onboarding.backToList,
+        Onboarding.doneTitle,
+        Onboarding.launchAtLogin,
+        Onboarding.launchAtLoginDescription,
+        Onboarding.launchAtLoginUnavailable,
+        Onboarding.notificationsTitle,
+        Onboarding.notificationsDescription,
+        Onboarding.enableNotifications,
+        Onboarding.notificationsEnabled,
+        Onboarding.startWatching,
+        Onboarding.menuHint,
+        Onboarding.finishMeeting,
+        Onboarding.finishMeetingSubtitle,
+        settings,
+        dismiss,
+        deny,
+        approve,
+        thinking,
+        cancel,
+        hide,
+        close,
+        done,
+        firmware,
+        updateNow,
+        updateComplete,
+        updateFailed,
+        tryAgain,
+        checkingForUpdates,
+        keepHardwareBuddyNear,
+        previousFirmwareKept,
+        runSetupAgain,
+        quitBuddygotchi,
+    ]
+
+    static let allowedUppercaseWords: Set<String> = [
+        "AI",
+        "HTTP",
+    ]
 }

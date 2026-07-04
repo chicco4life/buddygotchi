@@ -147,7 +147,7 @@ struct BlobBuddyView: View {
                 .frame(width: size * 0.05, height: size * 0.05)
         case .thinking:
             Text("…")
-                .font(.system(size: size * 0.09, weight: .semibold, design: .rounded))
+                .font(.buddy(size * 0.09, weight: .semibold))
                 .foregroundStyle(BuddyTheme.night)
         default:
             Capsule()

@@ -147,7 +147,7 @@ struct OnboardingView: View {
                     PetStageView(petState: .idle, species: model.selectedSpecies, fontSize: 24)
                         .frame(width: 260, height: 180)
                     Text(model.selectedSpecies.capitalized)
-                        .font(.system(.headline, design: .rounded, weight: .semibold))
+                        .font(.buddy(15, weight: .semibold))
                         .foregroundStyle(buddySpeciesColor(for: model.selectedSpecies))
                 }
 
@@ -168,7 +168,7 @@ struct OnboardingView: View {
                 )
             )
                 .textFieldStyle(.plain)
-                .font(.system(.title3, design: .rounded))
+                .font(.buddy(15))
                 .foregroundStyle(BuddyTheme.textPrimary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 18)
@@ -176,7 +176,7 @@ struct OnboardingView: View {
                 .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: 14))
                 .overlay(alignment: .topLeading) {
                     Text(BuddyCopy.Onboarding.nameLabel)
-                        .font(.system(.caption2, design: .rounded, weight: .medium))
+                        .font(.buddy(9.5, weight: .semibold))
                         .foregroundStyle(BuddyTheme.textTertiary)
                         .offset(x: 14, y: -18)
                 }
@@ -268,10 +268,10 @@ struct OnboardingView: View {
                         .padding(.top, 5)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(BuddyCopy.Onboarding.troubleshootingTitle)
-                            .font(.system(.callout, design: .rounded, weight: .semibold))
+                            .font(.buddy(13, weight: .semibold))
                             .foregroundStyle(BuddyTheme.textPrimary)
                         Text(BuddyCopy.Onboarding.troubleshooting)
-                            .font(.system(.caption, design: .rounded))
+                            .font(.buddy(11))
                             .foregroundStyle(BuddyTheme.textSecondary)
                     }
                     Spacer()
@@ -329,7 +329,7 @@ struct OnboardingView: View {
 
             if model.selectedOutput == .hardware {
                 Text(BuddyCopy.Onboarding.hardwareFootnote)
-                    .font(.system(.caption2, design: .rounded))
+                    .font(.buddy(11))
                     .foregroundStyle(BuddyTheme.textTertiary)
                     .multilineTextAlignment(.center)
                     .frame(width: 460)
@@ -373,10 +373,10 @@ struct OnboardingView: View {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(BuddyCopy.Onboarding.launchAtLogin)
-                            .font(.system(.callout, design: .rounded, weight: .semibold))
+                            .font(.buddy(13, weight: .semibold))
                             .foregroundStyle(BuddyTheme.textPrimary)
                         Text(model.isPackagedApp ? BuddyCopy.Onboarding.launchAtLoginDescription : BuddyCopy.Onboarding.launchAtLoginUnavailable)
-                            .font(.system(.caption2, design: .rounded))
+                            .font(.buddy(11))
                             .foregroundStyle(BuddyTheme.textTertiary)
                     }
                     Spacer()
@@ -398,10 +398,10 @@ struct OnboardingView: View {
                 HStack(spacing: 14) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(BuddyCopy.Onboarding.notificationsTitle)
-                            .font(.system(.callout, design: .rounded, weight: .semibold))
+                            .font(.buddy(13, weight: .semibold))
                             .foregroundStyle(BuddyTheme.textPrimary)
                         Text(BuddyCopy.Onboarding.notificationsDescription)
-                            .font(.system(.caption2, design: .rounded))
+                            .font(.buddy(11))
                             .foregroundStyle(BuddyTheme.textTertiary)
                     }
                     Spacer()
@@ -447,10 +447,10 @@ struct OnboardingView: View {
 
             VStack(alignment: .leading, spacing: 10) {
                 Text(BuddyCopy.Onboarding.doneTitle)
-                    .font(.system(.title2, design: .rounded, weight: .semibold))
+                    .font(.buddy(22, weight: .semibold))
                     .foregroundStyle(BuddyTheme.textPrimary)
                 Text(model.displayName)
-                    .font(.system(.largeTitle, design: .rounded, weight: .semibold))
+                    .font(.buddy(34, weight: .semibold))
                     .foregroundStyle(BuddyTheme.amber)
 
                 chipRow(title: "Species", value: model.selectedSpecies.capitalized)
@@ -467,10 +467,10 @@ struct OnboardingView: View {
     private func chipRow(title: String, value: String) -> some View {
         HStack(spacing: 8) {
             Text(title)
-                .font(.system(.caption2, design: .rounded, weight: .semibold))
+                .font(.buddy(9.5, weight: .semibold))
                 .foregroundStyle(BuddyTheme.textTertiary)
             Text(value)
-                .font(.system(.caption, design: .rounded, weight: .medium))
+                .font(.buddy(11, weight: .semibold))
                 .foregroundStyle(BuddyTheme.textSecondary)
         }
     }
@@ -488,10 +488,10 @@ struct OnboardingView: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(agent.displayName)
-                    .font(.system(.callout, design: .rounded, weight: .semibold))
+                    .font(.buddy(13, weight: .semibold))
                     .foregroundStyle(BuddyTheme.textPrimary)
                 Text(error ?? (detected ? BuddyCopy.Onboarding.detected : BuddyCopy.Onboarding.notDetectedHint))
-                    .font(.system(.caption2, design: .rounded))
+                    .font(.buddy(11))
                     .foregroundStyle(error == nil ? BuddyTheme.textTertiary : BuddyTheme.stuckRed)
             }
 
@@ -524,10 +524,10 @@ struct OnboardingView: View {
                     .foregroundStyle(model.selectedOutput == target ? BuddyTheme.amber : BuddyTheme.textTertiary)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(target.displayName)
-                        .font(.system(.callout, design: .rounded, weight: .semibold))
+                        .font(.buddy(13, weight: .semibold))
                         .foregroundStyle(BuddyTheme.textPrimary)
                     Text(target.description)
-                        .font(.system(.caption2, design: .rounded))
+                        .font(.buddy(11))
                         .foregroundStyle(BuddyTheme.textTertiary)
                 }
                 Spacer()
@@ -542,11 +542,11 @@ struct OnboardingView: View {
         VStack(spacing: 10) {
             if esp32Output.connectionState == .connected && selectedDeviceUUID != nil {
                 Label(BuddyCopy.Onboarding.connectedCheered, systemImage: "checkmark.circle.fill")
-                    .font(.system(.caption, design: .rounded, weight: .medium))
+                    .font(.buddy(11, weight: .semibold))
                     .foregroundStyle(BuddyTheme.green)
             } else if model.pairingTimedOut {
                 Text(BuddyCopy.Onboarding.pairingTimeout)
-                    .font(.system(.caption, design: .rounded, weight: .medium))
+                    .font(.buddy(11, weight: .semibold))
                     .foregroundStyle(BuddyTheme.stuckRed)
                 HStack {
                     Button(BuddyCopy.Onboarding.retry) {
@@ -564,10 +564,10 @@ struct OnboardingView: View {
                 ProgressView()
                     .tint(BuddyTheme.amber)
                 Text(BuddyCopy.Onboarding.connecting)
-                    .font(.system(.caption, design: .rounded, weight: .semibold))
+                    .font(.buddy(11, weight: .semibold))
                     .foregroundStyle(BuddyTheme.textPrimary)
                 Text(BuddyCopy.Onboarding.pairingHelp)
-                    .font(.system(.caption2, design: .rounded))
+                    .font(.buddy(11))
                     .foregroundStyle(BuddyTheme.textTertiary)
                     .multilineTextAlignment(.center)
             } else {
@@ -586,7 +586,7 @@ struct OnboardingView: View {
                 ProgressView()
                     .tint(BuddyTheme.amber)
                 Text(BuddyCopy.Onboarding.scanning)
-                    .font(.system(.caption, design: .rounded))
+                    .font(.buddy(11))
                     .foregroundStyle(BuddyTheme.textSecondary)
             } else {
                 ForEach(scanner.devices, id: \.identifier) { device in
@@ -596,10 +596,10 @@ struct OnboardingView: View {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(device.name)
-                                    .font(.system(.caption, design: .rounded, weight: .semibold))
+                                    .font(.buddy(11, weight: .semibold))
                                     .foregroundStyle(BuddyTheme.textPrimary)
                                 Text(String(device.identifier.uuidString.prefix(8)) + "…")
-                                    .font(.system(.caption2, design: .monospaced))
+                                    .font(.buddy(11))
                                     .foregroundStyle(BuddyTheme.textTertiary)
                             }
                             Spacer()
@@ -631,12 +631,12 @@ struct OnboardingView: View {
     private func stepHeader(title: String, subtitle: String? = nil) -> some View {
         VStack(spacing: 7) {
             Text(title)
-                .font(.system(.largeTitle, design: .rounded, weight: .semibold))
+                .font(.buddy(34, weight: .semibold))
                 .foregroundStyle(BuddyTheme.textPrimary)
                 .multilineTextAlignment(.center)
             if let subtitle {
                 Text(subtitle)
-                    .font(.system(.callout, design: .rounded))
+                    .font(.buddy(13))
                     .foregroundStyle(BuddyTheme.textSecondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 520)
@@ -718,7 +718,7 @@ private struct CrackShape: Shape {
 private struct OnboardingPrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(.callout, design: .rounded, weight: .semibold))
+            .font(.buddy(13, weight: .semibold))
             .foregroundStyle(BuddyTheme.night)
             .padding(.horizontal, 22)
             .padding(.vertical, 10)
@@ -730,7 +730,7 @@ private struct OnboardingPrimaryButtonStyle: ButtonStyle {
 private struct OnboardingSecondaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(.callout, design: .rounded, weight: .medium))
+            .font(.buddy(13, weight: .semibold))
             .foregroundStyle(configuration.isPressed ? BuddyTheme.textPrimary : BuddyTheme.textSecondary)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)

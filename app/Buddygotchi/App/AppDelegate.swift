@@ -1,4 +1,5 @@
 import AppKit
+import CoreText
 import Hummingbird
 import Observation
 import ServiceLifecycle
@@ -36,13 +37,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        NSApp.appearance = NSAppearance(named: .darkAqua)
         NSApp.windows.forEach { $0.close() }
+        registerBundledFonts()
 
         setupSignalHandlers()
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
-            button.image = NSImage(systemSymbolName: "moon.zzz", accessibilityDescription: "Buddygotchi")
+            button.image = DesktopOutput.statusIcon(for: .sleep)
             button.action = #selector(statusItemClicked)
             button.target = self
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -245,6 +248,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func cancelAutoDismiss() {
         autoDismissTimer?.invalidate()
         autoDismissTimer = nil
+    }
+
+    private func registerBundledFonts() {
+        guard let resourceURL = Bundle.main.resourceURL else { return }
+        let fontDirectory = resourceURL.appendingPathComponent("Fonts", isDirectory: true)
+        guard let urls = try? FileManager.default.contentsOfDirectory(
+            at: fontDirectory,
+            includingPropertiesForKeys: nil
+        ) else { return }
+
+        for url in urls where ["otf", "ttf"].contains(url.pathExtension.lowercased()) {
+            CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+        }
     }
 }
 
