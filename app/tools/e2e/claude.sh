@@ -31,11 +31,11 @@ ev claude-code "{\"hook_event_name\":\"Notification\",\"notification_type\":\"el
 ev claude-code "{\"hook_event_name\":\"Elicitation\",\"message\":\"Provide a value\",\"session_id\":\"$CC\"}"                                             "Elicitation → attention"
 ev claude-code "{\"hook_event_name\":\"ElicitationResult\",\"session_id\":\"$CC\"}"                                                                      "ElicitationResult → clears, busy"
 
-hdr "Claude Code  →  POST /hook/approve  (blocking; resolved by session death = fail-open allow)"
+hdr "Claude Code  →  POST /hook/approve  (blocking; resolved by session death = passthrough)"
 resolve_cc() { post_event claude-code "{\"hook_event_name\":\"SessionEnd\",\"session_id\":\"$CC\"}"; }
 parked_approve claude-code \
   "{\"hook_event_name\":\"PermissionRequest\",\"session_id\":\"$CC\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push --force\"}}" \
-  resolve_cc '"behavior":"allow"'
+  resolve_cc __EMPTY__
 settle
 baseline "Claude Code session reaped"
 
