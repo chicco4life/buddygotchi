@@ -286,16 +286,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func registerBundledFonts() {
-        guard let resourceURL = Bundle.main.resourceURL else { return }
-        let fontDirectory = resourceURL.appendingPathComponent("Fonts", isDirectory: true)
-        guard let urls = try? FileManager.default.contentsOfDirectory(
-            at: fontDirectory,
-            includingPropertiesForKeys: nil
-        ) else { return }
-
-        for url in urls where ["otf", "ttf"].contains(url.pathExtension.lowercased()) {
-            CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
-        }
+        BuddyResources.registerFonts()
     }
 
     private func verifyManagedHooksAfterLaunch() async {

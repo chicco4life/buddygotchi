@@ -39,9 +39,30 @@ final class DesktopOutput: OutputProvider {
         statusItem: NSStatusItem,
         presenter: any PopoverPresenting,
         notifier: any DesktopNotificationPosting = NotificationManager.shared,
-        playCelebrate: @escaping () -> Void = { NSSound(named: "Funk")?.play() },
-        playAttention: @escaping () -> Void = { NSSound(named: "Glass")?.play() },
-        playError: @escaping () -> Void = { NSSound(named: "Sosumi")?.play() }
+        playCelebrate: @escaping () -> Void = {
+            if let url = BuddyResources.soundURL("celebrate"),
+               let sound = NSSound(contentsOf: url, byReference: true) {
+                sound.play()
+            } else {
+                NSSound(named: "Funk")?.play()
+            }
+        },
+        playAttention: @escaping () -> Void = {
+            if let url = BuddyResources.soundURL("attention"),
+               let sound = NSSound(contentsOf: url, byReference: true) {
+                sound.play()
+            } else {
+                NSSound(named: "Glass")?.play()
+            }
+        },
+        playError: @escaping () -> Void = {
+            if let url = BuddyResources.soundURL("error"),
+               let sound = NSSound(contentsOf: url, byReference: true) {
+                sound.play()
+            } else {
+                NSSound(named: "Sosumi")?.play()
+            }
+        }
     ) {
         self.statusItem = statusItem
         self.presenter = presenter
