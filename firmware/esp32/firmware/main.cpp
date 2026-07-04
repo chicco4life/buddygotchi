@@ -59,6 +59,7 @@ const uint8_t BRIGHT_FULL = 220;
 const uint32_t SLEEP_DIM_MS = 60000;
 const uint32_t SLEEP_OFF_MS = 600000;
 const uint32_t BTN_A_LONG_MS = 1500;
+static uint8_t currentBrightness = 0xFF;
 
 struct SyntheticPress {
   bool active = false;
@@ -81,13 +82,16 @@ static void sendCmd(const char* json) {
 
 uint32_t _clkLastRead = 0;   // retained for data.h time-sync compatibility
 
+static void setDisplayBrightness(uint8_t brightness);
+
 static void wakeDisplay() {
   if (screenOff) {
     StickCP2.Display.wakeup();
     screenOff = false;
+    currentBrightness = 0xFF;
   }
   manualScreenOff = false;
-  StickCP2.Display.setBrightness(BRIGHT_MEDIUM);
+  setDisplayBrightness(BRIGHT_MEDIUM);
   buddyInvalidate();
   characterInvalidate();
 }
@@ -101,10 +105,9 @@ static void sleepDisplay(bool manual) {
 }
 
 static void setDisplayBrightness(uint8_t brightness) {
-  static uint8_t current = 0xFF;
-  if (screenOff || current == brightness) return;
+  if (screenOff || currentBrightness == brightness) return;
   StickCP2.Display.setBrightness(brightness);
-  current = brightness;
+  currentBrightness = brightness;
 }
 
 static void playStateChirp(PersonaState state) {
@@ -320,6 +323,9 @@ static void dumpState() {
   doc["promptSource"] = tama.promptSource;
   doc["promptApproval"] = tama.promptApproval;
   doc["responseSent"] = responseSent;
+  doc["muted"] = tama.muted;
+  doc["screenOff"] = screenOff;
+  doc["brightness"] = currentBrightness == 0xFF ? 0 : currentBrightness;
   doc["persona"] = personaNames[derive(tama)];
   doc["activePersona"] = personaNames[activeState];
   doc["screen"] = currentScreenName();
