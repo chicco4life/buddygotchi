@@ -91,6 +91,9 @@ enum SnapshotRenderer {
             render(view, "onboarding-\(step.rawValue)-\(String(describing: step))", onboardingSize, dir)
         }
         defaults.set(true, forKey: DefaultsKey.setupCompleted)
+        // Don't leave fixture state behind — a persisted step would make
+        // "Run setup again" resume mid-flow on the next real launch.
+        defaults.removeObject(forKey: DefaultsKey.onboardingStep)
 
         // 10. Species gallery
         let gallery = HStack(spacing: 10) {
