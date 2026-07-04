@@ -1,11 +1,11 @@
 import { copy } from "@/lib/copy";
 import { Section } from "@/components/Section";
 import { Reveal } from "@/components/Reveal";
+import { serializeJsonLd } from "@/lib/jsonld";
 
 /*
   S7 — FAQ. Plain stacked text, no accordion (collapsing five lines is
-  disfluency for no gain). Ships FAQPage JSON-LD — the only structured content
-  on the page, free SEO. See SPEC.md §5.
+  disfluency for no gain). Ships FAQPage JSON-LD for the rendered questions.
 */
 export function Faq() {
   const jsonLd = {
@@ -32,7 +32,7 @@ export function Faq() {
       </Reveal>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: serializeJsonLd(jsonLd) }}
       />
     </Section>
   );
