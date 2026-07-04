@@ -13,8 +13,11 @@ create table if not exists signups (
   ref_code_used  text,                       -- ?ref= code they arrived with
   referral_code  text not null unique,       -- their own share code
   referral_count integer not null default 0,
+  price_expectation text,
   created_at     timestamptz not null default now()
 );
 
 create index if not exists signups_created_at_idx on signups (created_at);
 create index if not exists signups_referral_code_idx on signups (referral_code);
+
+alter table signups add column if not exists price_expectation text;

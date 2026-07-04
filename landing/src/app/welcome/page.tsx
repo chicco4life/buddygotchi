@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { copy } from "@/lib/copy";
+import { WelcomeDeposit } from "@/components/WelcomeDeposit";
 import { WelcomeShare } from "@/components/WelcomeShare";
+import { WelcomeSurvey } from "@/components/WelcomeSurvey";
 
 /*
   The post-signup page — the funnel's "end" (peak–end rule). This is a marketing
@@ -43,6 +45,7 @@ export default async function WelcomePage({
   const pos = Number(params.pos);
   const hasPos = Number.isInteger(pos) && pos > 0;
   const code = typeof params.code === "string" ? params.code : "";
+  const depositUrl = process.env.NEXT_PUBLIC_STRIPE_DEPOSIT_URL ?? "";
 
   const subline = hasPos
     ? copy.welcome.sublineTemplate.replace("{n}", String(pos))
@@ -56,7 +59,13 @@ export default async function WelcomePage({
       </h1>
       <p className="mt-3 max-w-md text-lg text-charcoal-soft">{subline}</p>
 
-      {code && <WelcomeShare code={code} />}
+      {code && (
+        <>
+          <WelcomeShare code={code} />
+          <WelcomeDeposit code={code} depositUrl={depositUrl} />
+          <WelcomeSurvey code={code} />
+        </>
+      )}
 
       <Link
         href="/"
