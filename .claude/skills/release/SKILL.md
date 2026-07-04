@@ -1,9 +1,9 @@
 ---
 name: release
-description: Cut a Buddygotchi release — signed and notarized when credentials exist, or an explicit unsigned build without them; preflight checks, package, verify, appcast, tag. Use when the user wants to build/ship/release the Mac app.
+description: Cut a Boop release — signed and notarized when credentials exist, or an explicit unsigned build without them; preflight checks, package, verify, appcast, tag. Use when the user wants to build/ship/release the Mac app.
 ---
 
-# Buddygotchi Release
+# Boop Release
 
 Use this when the user says "/release", "cut a release", or otherwise asks to build, ship, or publish the Mac app.
 
@@ -38,8 +38,8 @@ unsigned mode explicitly — never silently downgrade a release the user expecte
 
 1. `make preflight-unsigned` — proceed only when hard failures are zero.
 2. Ensure `DEVELOPER_ID_APPLICATION` is **unset**, then `make package`. The script builds ad-hoc
-   and skips notarization automatically, producing `build/artifacts/Buddygotchi-<version>.zip`.
-3. Verify what can be verified: `codesign --verify build/package/Buddygotchi.app` (ad-hoc passes);
+   and skips notarization automatically, producing `build/artifacts/Boop-<version>.zip`.
+3. Verify what can be verified: `codesign --verify build/package/Boop.app` (ad-hoc passes);
    skip `spctl` and `stapler` — they are expected to fail without notarization, and that is fine
    for this mode.
 4. Hand over the zip with the caveat, stated plainly to the user: on current macOS, recipients
@@ -74,7 +74,7 @@ unsigned mode explicitly — never silently downgrade a release the user expecte
 5. Watch the workflow and inspect the draft GitHub release. The workflow summary includes the manual appcast gate:
    - Download the signed artifacts on a clean Mac and verify Gatekeeper launch.
    - Run `app/tools/make-appcast.sh "$SPARKLE_BIN_DIR" <downloads-dir>` with the Sparkle private EdDSA key available.
-   - Open a Pages PR updating `/releases/appcast.xml`.
+   - Open a Pages PR updating `https://adoptaboop.com/releases/appcast.xml`.
 
 ## Local Release Path
 
@@ -84,7 +84,7 @@ Use this only on a release-capable Mac with credentials present.
 
    ```sh
    export DEVELOPER_ID_APPLICATION="Developer ID Application: ..."
-   export NOTARYTOOL_PROFILE="buddygotchi-notary"
+   export NOTARYTOOL_PROFILE="boop-notary"
    export SPARKLE_FRAMEWORK_PATH="/path/to/Sparkle.framework"
    export SPARKLE_PUBLIC_ED_KEY="..."
    ```
@@ -100,9 +100,9 @@ Use this only on a release-capable Mac with credentials present.
 3. Verify the packaged app:
 
    ```sh
-   codesign --verify --deep --strict build/package/Buddygotchi.app
-   spctl -a -t exec -vv build/package/Buddygotchi.app
-   xcrun stapler validate build/package/Buddygotchi.app
+   codesign --verify --deep --strict build/package/Boop.app
+   spctl -a -t exec -vv build/package/Boop.app
+   xcrun stapler validate build/package/Boop.app
    ```
 
 4. Generate the appcast after downloading or staging the signed artifacts:
@@ -118,7 +118,7 @@ Use this only on a release-capable Mac with credentials present.
 Before publishing, verify:
 
 - Draft release artifacts launch on a clean Mac.
-- Appcast PR updates `/releases/appcast.xml`.
+- Appcast PR updates `https://adoptaboop.com/releases/appcast.xml`.
 - Firmware manifest hosting is reachable when included in the release.
 - `research/eng/RELEASE.md` gates are complete.
 - `research/eng/TESTING.md` section 4 packaged-app smoke passes.

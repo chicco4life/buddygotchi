@@ -1,10 +1,10 @@
 .PHONY: build run test test-snapshots e2e hil hil-ble preflight preflight-unsigned package lint clean
 
 build:
-	cd app && swift build --product Buddygotchi && swift build --product BuddygotchiSignal
+	cd app && swift build --product Boop && swift build --product BoopSignal
 
 run:
-	cd app && swift run Buddygotchi
+	cd app && swift run Boop
 
 test:
 	@set -e; \
@@ -22,15 +22,15 @@ test:
 		echo "Set BUDDY_ALLOW_COMPILE_ONLY=1 to allow this compile-only check." >&2; \
 		echo "============================================================" >&2; \
 		echo ""; \
-		BUILD_LOG="$$(mktemp -t buddygotchi-build-tests.XXXXXX)"; \
+		BUILD_LOG="$$(mktemp -t boop-build-tests.XXXXXX)"; \
 		set +e; \
 		(cd app && swift build --build-tests) > "$$BUILD_LOG" 2>&1; \
 		BUILD_STATUS="$$?"; \
 		set -e; \
 		cat "$$BUILD_LOG"; \
 		if [ "$$BUILD_STATUS" -ne 0 ]; then \
-			if grep -q "Linking BuddygotchiTests" "$$BUILD_LOG" && grep -q "link command failed" "$$BUILD_LOG"; then \
-				echo "WARNING: swift build --build-tests reached the BuddygotchiTests link step; treating this CommandLineTools shim limitation as compile-verified." >&2; \
+			if grep -q "Linking BoopTests" "$$BUILD_LOG" && grep -q "link command failed" "$$BUILD_LOG"; then \
+				echo "WARNING: swift build --build-tests reached the BoopTests link step; treating this CommandLineTools shim limitation as compile-verified." >&2; \
 			else \
 				rm -f "$$BUILD_LOG"; \
 				exit "$$BUILD_STATUS"; \
@@ -67,7 +67,7 @@ preflight-unsigned:
 
 lint:
 	@if command -v swift-format >/dev/null 2>&1; then \
-		cd app && swift-format lint -r Buddygotchi BuddygotchiSignal Tests; \
+		cd app && swift-format lint -r Boop BoopSignal Tests; \
 	else \
 		echo "swift-format is not installed. Install it or run swift test for the required check."; \
 		exit 1; \

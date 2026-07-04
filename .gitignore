@@ -46,7 +46,7 @@ dist-tsc/
 .env
 .env.*
 !landing/.env.example
-buddygotchi-bug-report-*.json
+boop-bug-report-*.json
 
 # Snapshot and temporary outputs
 snapshots/
