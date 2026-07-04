@@ -20,6 +20,10 @@ enum BuddyTheme {
     static let cardCornerRadius: CGFloat = 12
     static let controlCornerRadius: CGFloat = 999
 
+    static let geistRegularPostScriptName = "Geist-Regular"
+    static let geistSemiBoldPostScriptName = "Geist-SemiBold"
+    static let geistMonoRegularPostScriptName = "GeistMono-Regular"
+
     static let popoverWidth: CGFloat = 320
     static let liveViewHeight: CGFloat = 240
     static let liveViewExpandedHeight: CGFloat = 380
@@ -40,11 +44,14 @@ enum BuddyTheme {
 
 extension Font {
     static func buddy(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
-        .custom(weight == .semibold ? "Geist SemiBold" : "Geist", size: size)
+        .custom(
+            weight == .semibold ? BuddyTheme.geistSemiBoldPostScriptName : BuddyTheme.geistRegularPostScriptName,
+            size: size
+        )
     }
 
     static func buddyMono(_ size: CGFloat) -> Font {
-        .custom("Geist Mono", size: size)
+        .custom(BuddyTheme.geistMonoRegularPostScriptName, size: size)
     }
 }
 

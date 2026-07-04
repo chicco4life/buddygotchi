@@ -31,6 +31,14 @@ cp "$BIN_DIR/Buddygotchi" "$MACOS/Buddygotchi"
 cp "$BIN_DIR/BuddygotchiSignal" "$MACOS/BuddygotchiSignal"
 chmod 755 "$MACOS/Buddygotchi" "$MACOS/BuddygotchiSignal"
 
+RESOURCE_BUNDLE="$BIN_DIR/Buddygotchi_Buddygotchi.bundle"
+if [[ ! -d "$RESOURCE_BUNDLE" ]]; then
+  echo "error: SwiftPM resource bundle not found at $RESOURCE_BUNDLE" >&2
+  exit 1
+fi
+cp -R "$RESOURCE_BUNDLE" "$MACOS/"
+cp -R "$RESOURCE_BUNDLE" "$RESOURCES/"
+
 cp "$APP_DIR/Buddygotchi/Resources/Info.plist" "$PLIST"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$PLIST"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"

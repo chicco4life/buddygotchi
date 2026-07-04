@@ -20,6 +20,10 @@ var packageTargets: [Target] = [
         exclude: [
             "Resources/Info.plist",
         ],
+        resources: [
+            .copy("Resources/Fonts"),
+            .copy("Resources/Sounds"),
+        ],
         // Without full Xcode the tests run as an executable that `@testable
         // import`s this target, so it must be built with testability enabled.
         swiftSettings: useXCTestShim ? [.unsafeFlags(["-enable-testing"])] : [],
