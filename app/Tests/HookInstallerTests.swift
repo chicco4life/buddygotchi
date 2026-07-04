@@ -38,6 +38,32 @@ final class HookInstallerTests: XCTestCase {
         XCTAssertEqual(buddyCount, 1)
     }
 
+    func testUninstallUnreadableClaudeSettingsFailsWithoutChangingFile() throws {
+        let harness = try makeHarness()
+        defer { harness.cleanup() }
+        let claudeDir = harness.home.appendingPathComponent(".claude")
+        try FileManager.default.createDirectory(at: claudeDir, withIntermediateDirectories: true)
+        let settings = claudeDir.appendingPathComponent("settings.json")
+        let broken = Data("{broken".utf8)
+        try broken.write(to: settings)
+
+        let outcome = harness.installer.uninstall(agent: .claudeCode)
+
+        XCTAssertEqual(outcome, .failed(reason: "\(settings.path) is not valid JSON — Buddygotchi entries were not removed"))
+        try XCTAssertEqual(Data(contentsOf: settings), broken)
+    }
+
+    func testUninstallClearsInstalledAgentsEntry() throws {
+        let harness = try makeHarness()
+        defer { harness.cleanup() }
+        try harness.installer.installOrThrow(agent: .claudeCode)
+        XCTAssertEqual(harness.defaults.stringArray(forKey: DefaultsKey.installedAgents), [AgentKind.claudeCode.rawValue])
+
+        XCTAssertEqual(harness.installer.uninstall(agent: .claudeCode), .removed)
+
+        XCTAssertNil(harness.defaults.object(forKey: DefaultsKey.installedAgents))
+    }
+
     func testDeletedScriptCorruptsAndRepairRestores() throws {
         let harness = try makeHarness()
         defer { harness.cleanup() }
@@ -48,6 +74,18 @@ final class HookInstallerTests: XCTestCase {
         XCTAssertEqual(harness.installer.verify(agent: .claudeCode), .corrupted(reason: "hook script missing"))
         try harness.installer.repair(agent: .claudeCode)
         XCTAssertEqual(harness.installer.verify(agent: .claudeCode), .installed)
+    }
+
+    func testCorruptBuddyConfigJSONHealthIsRepairable() throws {
+        let harness = try makeHarness()
+        defer { harness.cleanup() }
+        try harness.installer.installOrThrow(agent: .claudeCode)
+        try Data("{broken".utf8).write(to: harness.state.appendingPathComponent("config.json"))
+
+        let health = harness.installer.verify(agent: .claudeCode)
+
+        XCTAssertEqual(health, .corrupted(reason: HookHealthReason.configNotJSON))
+        XCTAssertTrue(health.repairable)
     }
 
     func testOlderScriptVersionIsOutdatedAndRepairRestores() throws {

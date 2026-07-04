@@ -8,6 +8,7 @@ enum DefaultsKey {
     static let esp32PeripheralUUID = "esp32PeripheralUUID"
     static let firmwareManifestCache = "firmwareManifestCache"
     static let interactiveMode = "interactiveMode"
+    static let installedAgents = "installedAgents"
     static let notificationPermissionRequested = "notificationPermissionRequested"
     static let onboardingStep = "onboardingStep"
     static let showMenuHint = "showMenuHint"
