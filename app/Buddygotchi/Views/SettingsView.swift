@@ -616,6 +616,10 @@ struct SettingsView: View {
             Text(BuddyCopy.shared.settingsCopy.updated)
                 .font(.buddy(11))
                 .foregroundStyle(BuddyTheme.green)
+        case .checkFailed:
+            Text(BuddyCopy.shared.settingsCopy.cantCheckNow)
+                .font(.buddy(11))
+                .foregroundStyle(.tertiary)
         case .failed:
             Text(BuddyCopy.shared.settingsCopy.failed)
                 .font(.buddy(11))
@@ -640,6 +644,8 @@ struct SettingsView: View {
             return BuddyCopy.shared.settingsCopy.firmwareUpdateInProgress
         case .success:
             return BuddyCopy.shared.settingsCopy.firmwareUpdated
+        case .checkFailed:
+            return BuddyCopy.shared.settingsCopy.firmwareCheckUnavailable
         case .failed:
             return BuddyCopy.shared.settingsCopy.firmwareUpdateFailed
         case .checking, .idle:
@@ -756,6 +762,7 @@ struct SettingsView: View {
                     systemImage: "arrow.counterclockwise",
                     role: .normal
                 ) {
+                    UserDefaults.standard.removeObject(forKey: DefaultsKey.onboardingStep)
                     setupCompleted = false
                     isPresented = false
                     onOpenOnboarding()
