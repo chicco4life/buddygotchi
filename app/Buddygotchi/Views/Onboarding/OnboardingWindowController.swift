@@ -8,7 +8,7 @@ final class OnboardingWindowController: NSWindowController {
         let controller = NSHostingController(rootView: root)
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: BuddyTheme.onboardingWidth, height: BuddyTheme.onboardingHeight),
-            styleMask: [.titled, .fullSizeContentView],
+            styleMask: [.titled, .closable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
