@@ -3,9 +3,9 @@ import { Section } from "@/components/Section";
 import { Reveal } from "@/components/Reveal";
 
 /*
-  S8 — FAQ. Plain stacked text, no accordion (collapsing five lines is
+  S7 — FAQ. Plain stacked text, no accordion (collapsing five lines is
   disfluency for no gain). Ships FAQPage JSON-LD — the only structured content
-  on the page, free SEO. See SPEC.md §5 (S8).
+  on the page, free SEO. See SPEC.md §5.
 */
 export function Faq() {
   const jsonLd = {
@@ -19,7 +19,7 @@ export function Faq() {
   };
 
   return (
-    <Section id="S8" label="Questions">
+    <Section id="S7" label="Questions">
       <Reveal>
         <dl className="mx-auto flex max-w-2xl flex-col gap-8">
           {copy.faq.map((item) => (

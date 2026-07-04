@@ -4,7 +4,7 @@ import { useEffect } from "react";
 import { track } from "@vercel/analytics";
 
 /*
-  Fires a `scroll_depth` event once per section (S1…S9) so the demand test can
+  Fires a `scroll_depth` event once per section (S1…S8) so the demand test can
   see where interest dies. Observes any element with data-section. See SPEC §7.3.
 */
 export function ScrollDepth() {

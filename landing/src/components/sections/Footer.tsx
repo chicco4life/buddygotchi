@@ -4,10 +4,10 @@ import { Section } from "@/components/Section";
 import { Reveal } from "@/components/Reveal";
 import { FooterSignup } from "@/components/FooterSignup";
 
-/* S9 — Footer. Inline email capture, tiny links, sign-off, wordmark. */
+/* S8 — Footer. Inline email capture, tiny links, sign-off, wordmark. */
 export function Footer() {
   return (
-    <Section id="S9" label="Get in line" className="pb-24">
+    <Section id="S8" label="Get in line" className="pb-24">
       <Reveal>
         <div className="flex flex-col items-center gap-8 text-center">
           <FooterSignup />

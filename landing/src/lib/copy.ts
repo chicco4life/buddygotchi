@@ -21,24 +21,43 @@ export const copy = {
       "A little creature that watches your AI agents — and only bothers you when it matters.",
     ctaLabel: "Adopt one",
     footnote: "Founding Litter · 100 numbered buddies · no subscription, ever",
-    mediaNote: "Blob idling on a desk, glow shifts amber, a hand reaches in and pets it",
+    mediaNote: "blob on a desk in warm light, amber glow, a hand mid-pet",
   },
 
   moment: {
-    stills: [
-      { caption: "It asks.", screen: "▸ claude wants to run npm test", note: "Amber glow, blob looks up" },
-      { caption: "You pet.", note: "Hand mid-pet, blob squinting" },
-      { caption: "Everyone gets back to work.", note: "Wide shot, human back at work, blob content" },
+    beats: [
+      {
+        caption: "It asks.",
+        screen: "▸ claude wants to run npm test",
+        aria: "The buddy glows amber and looks up, asking",
+      },
+      {
+        caption: "You pet.",
+        aria: "A hand pets the buddy; it squints, happy",
+      },
+      {
+        caption: "Everyone gets back to work.",
+        aria: "The buddy settles back to a contented idle",
+      },
     ],
     line:
       "Permission prompts, completions, and failures — surfaced as a feeling in the corner of your eye, not another notification.",
   },
 
   alive: {
-    loops: [
-      { caption: "Boop it. It forgives you.", note: "Finger boops it, two or three damped rocks, giggle face" },
-      { caption: "It sleeps when your agents do.", note: "Dark desk, sleeping face, finger boop, one eye opens" },
-      { caption: "It's genuinely proud of your build passing.", note: "Green ripple, confetti face" },
+    vignettes: [
+      {
+        caption: "Boop it. It forgives you.",
+        aria: "Booped, the buddy rocks twice and settles, giggling",
+      },
+      {
+        caption: "It sleeps when your agents do.",
+        aria: "The buddy sleeps; one eye peeks open, then closes again",
+      },
+      {
+        caption: "It's genuinely proud of your build passing.",
+        aria: "Confetti and a green glow — the buddy celebrates",
+      },
     ],
   },
 
@@ -74,23 +93,15 @@ export const copy = {
   },
 
   craft: {
-    note: "Exploded view: shell, screen, silicone crown, steel disc, base ring, floating apart",
+    diagramAria:
+      "An exploded view, drawn: silicone crown, frosted shell, screen, steel heart, and base ring, floating apart",
+    parts: ["silicone crown", "frosted shell", "screen", "steel heart", "base ring"],
     lines: [
       "A frosted shell that glows from within.",
       "A steel heart, so it always rights itself — 162 grams of calm.",
       "A silicone crown that clicks like a marshmallow.",
       "Two buttons. That's all it needs.",
     ],
-  },
-
-  adoption: {
-    note: "The open adoption box: blob nested in the insert, care card, braided cream cable coiled",
-    lines: [
-      "Every buddy ships in an adoption box with a numbered ID, a care card, and a cable that deserves the name.",
-      "Founding Litter: 100 buddies. When they're gone, batch two begins.",
-    ],
-    // {n} is filled from real data only; the whole line is hidden until then.
-    counterTemplate: "Buddy #{n} of 100 was adopted yesterday",
   },
 
   faq: [

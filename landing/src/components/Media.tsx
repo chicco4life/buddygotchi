@@ -1,109 +1,60 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 /*
-  Media slot with an art-directed placeholder underneath. The real file (dropped
-  into public/media/ later, same filename) loads on top and covers the
-  placeholder; if it 404s, the placeholder stays. So real assets swap in with
-  zero code changes. See SPEC.md §8.1.
+  The page's two remaining media slots (hero + adoption box — SPEC.md
+  Amendment A). An art-directed placeholder renders underneath; the real file
+  (dropped into public/media/ later, same filename) loads on top and covers it.
+  If the file 404s, the placeholder stays — so generated mock images swap in
+  with zero code changes.
 
-  Plain <img>/<video> (not next/image) is used deliberately: the placeholder era
-  needs graceful 404 fallback, and the placeholders themselves are inline SVG —
-  no bytes to optimize. Swap to next/image once real stills exist if desired.
+  Plain <img> (not next/image) is deliberate: the placeholder era needs graceful
+  404 fallback. Swap to next/image once real files exist if desired.
 */
-type BaseProps = {
+type MediaProps = {
   src: string;
   alt: string;
   note: string;
   ratio?: number; // width / height
   className?: string;
-  screen?: string; // optional terminal line drawn into the placeholder
   glow?: "warm" | "amber" | "green" | "night";
   fill?: boolean; // fill the parent (hero) instead of using an aspect ratio
+  priority?: boolean; // eager-load (hero)
 };
 
-export function MediaImage(props: BaseProps) {
-  const [failed, setFailed] = useState(false);
-  const { src, alt } = props;
-  return (
-    <MediaFrame {...props}>
-      {!failed && (
-        <img
-          src={src}
-          alt={alt}
-          loading="lazy"
-          decoding="async"
-          onError={() => setFailed(true)}
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-      )}
-    </MediaFrame>
-  );
-}
-
-export function MediaVideo(props: BaseProps & { lazy?: boolean; priority?: boolean }) {
-  const { src, alt, lazy = false } = props;
-  const [failed, setFailed] = useState(false);
-  const [active, setActive] = useState(!lazy);
-  const holder = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!lazy || active) return;
-    const el = holder.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          setActive(true);
-          io.disconnect();
-        }
-      },
-      { rootMargin: "200px" },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [lazy, active]);
-
-  return (
-    <div ref={holder}>
-      <MediaFrame {...props}>
-        {active && !failed && (
-          <video
-            src={src}
-            autoPlay
-            muted
-            loop
-            playsInline
-            preload={lazy ? "none" : "metadata"}
-            aria-label={alt}
-            onError={() => setFailed(true)}
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-        )}
-      </MediaFrame>
-    </div>
-  );
-}
-
-function MediaFrame({
+export function MediaImage({
+  src,
+  alt,
+  note,
   ratio = 16 / 9,
   className = "",
-  note,
-  screen,
   glow = "warm",
   fill = false,
-  children,
-}: BaseProps & { children?: React.ReactNode }) {
+  priority = false,
+}: MediaProps) {
+  const [failed, setFailed] = useState(false);
+
   return (
     <div
       className={`relative overflow-hidden ${fill ? "h-full w-full" : "rounded-2xl"} ${className}`}
       style={fill ? undefined : { aspectRatio: String(ratio) }}
       role="img"
-      aria-label={note}
+      aria-label={alt}
     >
-      <BlobPlaceholder glow={glow} note={note} screen={screen} />
-      {children}
+      <BlobPlaceholder glow={glow} note={note} />
+      {!failed && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={src}
+          alt=""
+          loading={priority ? "eager" : "lazy"}
+          fetchPriority={priority ? "high" : undefined}
+          decoding="async"
+          onError={() => setFailed(true)}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      )}
     </div>
   );
 }
@@ -116,19 +67,11 @@ const GLOWS: Record<string, { bg: string; halo: string; face: string }> = {
 };
 
 /*
-  The placeholder itself: a warm field, a soft halo, and a squashed-sphere blob
-  with a screen-face slightly above the midline and two blush dots — matching
+  The placeholder: a warm field, a soft halo, and a squashed-sphere blob with a
+  screen-face slightly above the midline and two blush dots — matching
   PRODUCT.md §9.1. Reads as "tasteful pre-launch," not "broken image."
 */
-function BlobPlaceholder({
-  glow,
-  note,
-  screen,
-}: {
-  glow: "warm" | "amber" | "green" | "night";
-  note: string;
-  screen?: string;
-}) {
+function BlobPlaceholder({ glow, note }: { glow: keyof typeof GLOWS; note: string }) {
   const c = GLOWS[glow];
   const dark = glow === "night";
   return (
@@ -163,19 +106,6 @@ function BlobPlaceholder({
       {/* blush */}
       <circle cx="150" cy="150" r="8" fill="#e79aa0" opacity="0.5" />
       <circle cx="250" cy="150" r="8" fill="#e79aa0" opacity="0.5" />
-
-      {screen && (
-        <text
-          x="200"
-          y="240"
-          textAnchor="middle"
-          fontFamily="ui-monospace, monospace"
-          fontSize="11"
-          fill={dark ? "#efe7d8" : "#6e675d"}
-        >
-          {screen}
-        </text>
-      )}
 
       <text
         x="16"

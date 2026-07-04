@@ -1,29 +1,53 @@
 import { copy } from "@/lib/copy";
 import { Section } from "@/components/Section";
 import { Reveal } from "@/components/Reveal";
-import { MediaVideo } from "@/components/Media";
+import { BuddyBlob } from "@/components/BuddyBlob";
 
-/* S3 — It's alive. Three short loops, lazy-loaded. Carries the kindchenschema. */
+/*
+  S3 — It's alive. The three retellable delights, drawn and animated in CSS
+  (SPEC.md Amendment A): the damped wobble, the sleep peek, the celebration.
+  Real close-shot loops replace these when the product exists.
+*/
 export function Alive() {
-  const files = ["alive-wobble.mp4", "alive-sleep.mp4", "alive-celebrate.mp4"];
-  const glows = ["warm", "night", "green"] as const;
+  const v = copy.alive.vignettes;
   return (
     <Section id="S3" label="It's alive">
       <Reveal>
-        <div className="grid gap-10 md:grid-cols-3">
-          {copy.alive.loops.map((loop, i) => (
-            <figure key={i} className="flex flex-col gap-4">
-              <MediaVideo
-                src={`/media/${files[i]}`}
-                alt={loop.note}
-                note={loop.note}
-                ratio={4 / 5}
-                glow={glows[i]}
-                lazy
-              />
-              <figcaption className="text-charcoal-soft italic">{loop.caption}</figcaption>
-            </figure>
-          ))}
+        <div className="grid gap-14 md:grid-cols-3">
+          <figure className="flex flex-col items-center gap-4 text-center">
+            <BuddyBlob
+              expression="squint"
+              glow="warm"
+              wobble
+              label={v[0].aria}
+              className="h-48 w-48"
+            />
+            <figcaption className="italic text-charcoal-soft">{v[0].caption}</figcaption>
+          </figure>
+
+          <figure className="flex flex-col items-center gap-4 text-center">
+            <BuddyBlob
+              expression="sleep"
+              glow="warm"
+              glowAnim="none"
+              peek
+              zzz
+              label={v[1].aria}
+              className="h-48 w-48"
+            />
+            <figcaption className="italic text-charcoal-soft">{v[1].caption}</figcaption>
+          </figure>
+
+          <figure className="flex flex-col items-center gap-4 text-center">
+            <BuddyBlob
+              expression="celebrate"
+              glow="green"
+              confetti
+              label={v[2].aria}
+              className="h-48 w-48"
+            />
+            <figcaption className="italic text-charcoal-soft">{v[2].caption}</figcaption>
+          </figure>
         </div>
       </Reveal>
     </Section>

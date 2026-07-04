@@ -43,6 +43,7 @@ dist-tsc/
 *.log
 .env
 .env.*
+!landing/.env.example
 buddygotchi-bug-report-*.json
 
 # Snapshot and temporary outputs

@@ -42,7 +42,7 @@ export function HeroCTA() {
         ref={dialogRef}
         onClick={onDialogClick}
         aria-labelledby="waitlist-heading"
-        className="m-auto w-[min(30rem,92vw)] rounded-3xl bg-cream p-8 text-charcoal sm:p-10"
+        className="m-auto w-[min(30rem,92vw)] rounded-lg bg-cream p-8 text-charcoal sm:p-10"
       >
         <div className="flex flex-col gap-5">
           <h2 id="waitlist-heading" className="text-2xl font-semibold leading-snug">

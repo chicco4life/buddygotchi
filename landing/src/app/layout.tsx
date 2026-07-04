@@ -23,13 +23,13 @@ export const metadata: Metadata = {
     title: copy.meta.title,
     description: copy.meta.description,
     siteName: "Buddygotchi",
-    images: [{ url: "/og.svg", width: 1200, height: 630, alt: copy.meta.title }],
+    images: [{ url: "/og.jpg", width: 1200, height: 630, alt: copy.meta.title }],
   },
   twitter: {
     card: "summary_large_image",
     title: copy.meta.title,
     description: copy.meta.description,
-    images: ["/og.svg"],
+    images: ["/og.jpg"],
   },
 };
 

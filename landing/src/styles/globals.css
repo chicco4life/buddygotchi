@@ -104,6 +104,81 @@ body {
   }
 }
 
+/* The boop: 2–3 damped rocks, then a long stillness. Physical, never a metronome. */
+@keyframes buddy-wobble {
+  0%,
+  46%,
+  100% {
+    transform: rotate(0deg);
+  }
+  6% {
+    transform: rotate(8deg);
+  }
+  15% {
+    transform: rotate(-6deg);
+  }
+  24% {
+    transform: rotate(3.5deg);
+  }
+  32% {
+    transform: rotate(-1.5deg);
+  }
+  40% {
+    transform: rotate(0.5deg);
+  }
+}
+.buddy-wobble {
+  animation: buddy-wobble 5.5s var(--ease-buddy) infinite;
+}
+
+/* The sleep peek: one eye opens briefly, then dozes back off. */
+@keyframes buddy-peek-in {
+  0%,
+  70%,
+  94%,
+  100% {
+    opacity: 0;
+  }
+  76%,
+  88% {
+    opacity: 1;
+  }
+}
+@keyframes buddy-peek-out {
+  0%,
+  70%,
+  94%,
+  100% {
+    opacity: 1;
+  }
+  76%,
+  88% {
+    opacity: 0;
+  }
+}
+.buddy-peek-in {
+  animation: buddy-peek-in 8s linear infinite;
+}
+.buddy-peek-out {
+  animation: buddy-peek-out 8s linear infinite;
+}
+
+/* Gentle float/fade for confetti dots and sleep z's. Staggered via delay. */
+@keyframes buddy-twinkle {
+  0%,
+  100% {
+    opacity: 0.15;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateY(-4px);
+  }
+}
+.buddy-twinkle {
+  animation: buddy-twinkle 3.2s var(--ease-buddy) infinite;
+}
+
 /* Egg crack-and-peek on the /welcome page. */
 @keyframes egg-peek {
   0%,
@@ -152,6 +227,10 @@ dialog[open] {
   .buddy-breathe,
   .buddy-amber,
   .buddy-heartbeat,
+  .buddy-wobble,
+  .buddy-peek-in,
+  .buddy-peek-out,
+  .buddy-twinkle,
   dialog[open] {
     animation: none;
   }

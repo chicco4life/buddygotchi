@@ -1,6 +1,6 @@
 # Buddygotchi Landing Page — Technical Specification
 
-Status: ready for implementation
+Status: implemented; media strategy amended — see Amendment A (§14)
 Last updated: 2026-07-03
 Source documents: `../MARKETING.md` (Part 2 is the marketing-side page spec; Part 3 is the demand test this page powers), `../PRODUCT.md` (§9 form factor, §11 positioning, §12 agent-era value prop)
 
@@ -46,7 +46,7 @@ buddygotchi/
 │   └── src/
 │       ├── app/
 │       │   ├── layout.tsx        # fonts, metadata, analytics
-│       │   ├── page.tsx          # the landing page (sections S1–S9)
+│       │   ├── page.tsx          # the landing page (sections S1–S8)
 │       │   ├── welcome/page.tsx  # post-signup page (§6.3)
 │       │   ├── privacy/page.tsx  # short plain-language privacy note
 │       │   └── api/waitlist/route.ts
@@ -137,7 +137,7 @@ Pill-shaped, `--amber` background, `--charcoal` text, weight 600, generous paddi
 
 ---
 
-## 5. Page structure: sections S1–S9
+## 5. Page structure: sections S1–S8
 
 One page, **no header, no nav** — nothing to do but scroll and one thing to click. Copy below is final-draft quality from `MARKETING.md` §2.2; implement it verbatim (register: lowercase-hearted, dry, specific). Each section is its own component in `src/components/`.
 
@@ -196,16 +196,7 @@ Two-column (image left, copy right; stacked mobile). Image: exploded-view render
 > *A silicone crown that clicks like a marshmallow.*
 > *Two buttons. That's all it needs.*
 
-### S7 — The adoption
-
-Photo: the open adoption box — blob nested in the insert, care card visible, braided cream cable coiled (`public/media/box.jpg`). Copy:
-
-> *Every buddy ships in an adoption box with a numbered ID, a care card, and a cable that deserves the name.*
-> *Founding Litter: 100 buddies. When they're gone, batch two begins.*
-
-**Live counter — build it, ship it hidden.** Component `AdoptionCounter` renders e.g. `Buddy #38 of 100 was adopted yesterday`, gated behind `NEXT_PUBLIC_SHOW_COUNTER=true`. It must never show fabricated numbers — this brand cannot afford small lies. Until real, the section simply omits the counter line.
-
-### S8 — FAQ
+### S7 — FAQ
 
 Five questions, one-line answers, plain stacked text (question weight 600, answer weight 400 in `--charcoal-soft`). **No accordion** — collapsing five lines is disfluency for no gain.
 
@@ -217,7 +208,7 @@ Five questions, one-line answers, plain stacked text (question weight 600, answe
 
 Add FAQ JSON-LD (`FAQPage` schema) in this section — free SEO for the only structured content on the page.
 
-### S9 — Footer
+### S8 — Footer
 
 - Inline email capture: single email input + the amber CTA button labeled **Get in line** (same endpoint as the modal, source tagged `footer`).
 - Tiny links: `privacy` (route `/privacy` — a few plain paragraphs: we store your email and the campaign link you arrived from, we email you about the Founding Litter, unsubscribe anytime, nothing is sold) and `contact` (mailto).
@@ -299,7 +290,7 @@ Price cohort: `?p=99` or `?p=129` (the test skips $119 per `MARKETING.md` §3.3)
 
 - **Vercel Analytics** for page views and Web Vitals (cookieless — no consent banner needed).
 - Custom events via `track()`: `cta_click` (hero|footer), `modal_open`, `signup` (with source + cohort), `copy_referral`.
-- **Scroll depth**: fire `scroll_depth` events at each section boundary (S1…S9) using the existing `IntersectionObserver` hook — this is how the test finds where interest dies (`MARKETING.md` §3.3).
+- **Scroll depth**: fire `scroll_depth` events at each section boundary (S1…S8) using the existing `IntersectionObserver` hook — this is how the test finds where interest dies (`MARKETING.md` §3.3).
 - **Ad pixels**, env-gated and loaded only when the corresponding ID is set: `NEXT_PUBLIC_REDDIT_PIXEL_ID`, `NEXT_PUBLIC_TWITTER_PIXEL_ID`, `NEXT_PUBLIC_META_PIXEL_ID`. Each fires its standard PageView on load and a Lead/SignUp conversion on the `signup` event. Load via `next/script` `strategy="afterInteractive"`, wrapped in one `Pixels.tsx` component so it's removable in one place. With no IDs set (local dev, pre-test), zero third-party script bytes load.
 
 ---
@@ -320,7 +311,6 @@ Build a `Media` component: `<Media src="/media/hero-loop.mp4" poster="/media/her
 | `moment-asks.jpg`, `moment-pet.jpg`, `moment-work.jpg` | S2 | 4:3 stills, ≤ 300 KB each (serve via `next/image`) |
 | `alive-wobble.mp4`, `alive-sleep.mp4`, `alive-celebrate.mp4` + posters | S3 | 3–5s loops, ≤ 1.5 MB each, 1:1 or 4:5, lazy-loaded (`preload="none"`, IntersectionObserver-started) |
 | `exploded.jpg` | S6 | 4:5 render, ≤ 400 KB |
-| `box.jpg` | S7 | 4:3 still, ≤ 300 KB |
 | `og.jpg` | metadata | 1200×630 — night shot, amber glow, headline text baked in (placeholder version generated) |
 
 Photography direction (for whoever shoots; keep in this file): real desk, morning side-light, wood + one plant, shallow depth of field, slight grain; blob at eye level or slightly below — **never from above** (shrinks the face, kills the baby-schema effect); hands in ⅔ of shots; one night scene with amber as the only warm source.
@@ -431,3 +421,23 @@ One Playwright spec (`e2e/waitlist.spec.ts`) run against `next dev` with a stubb
 ### Explicitly deferred (do not build in v1)
 
 $5 deposit flow (needs Stripe — separate task after email capture is proven), the waitlist autoresponder email (needs provider decision), sound-on moment, real photography/video, CE/logo asset swaps, blog/build-in-public pages on the domain.
+
+---
+
+## 14. Amendment A (2026-07-03): asset-light redesign
+
+The product does not exist yet, so the photo/video slots specified in §5/§8 cannot be filled — and a demand-test page full of labeled placeholders undercuts the premium read. This amendment supersedes the media strategy in §5 and §8; everything else (copy, section order, flows, data, brand law) stands.
+
+**Media slot reduced to one**, intended for a generated mock image (manifest in `public/media/README.md`):
+
+1. `hero.jpg` — S1, full-bleed. The money shot: blob on a desk, amber glow, hand mid-pet.
+
+**Everything else is drawn, not photographed**, extending the built visual language S4 already used:
+
+- A shared illustrated buddy (`src/components/BuddyBlob.tsx`, server component, zero client JS) with the product's real proportions (PRODUCT.md §9.1) and expressions: content, alert, squint, sleep (with the one-eye peek), celebrate.
+- **S2** — three drawn beats (amber-alert blob + terminal chip → petted squinting blob → contented blob) with the original captions.
+- **S3** — three animated vignettes: the damped CSS wobble (`buddy-wobble`, 2–3 rocks then long stillness), the sleep peek (`buddy-peek-*`), and the confetti celebration (`buddy-twinkle`). All motion stays within §4.4's damped-physics rules and freezes under `prefers-reduced-motion`.
+- **S6** — a hairline-labeled exploded diagram (crown / shell / screen / steel heart / base ring) in place of the render.
+- The floating vignettes also remove the rounded media frames from S2/S3, which brings the page closer to the no-cards/no-borders rule (§4.3).
+
+`Media.tsx` is image-only now; the video-capable version lives in git history (pre-Amendment-A) for when real film exists. Honesty rationale: drawn art makes no claim to be a photograph of a product that doesn't exist, while a page of "placeholder" frames or AI-faked photos would. When the product is real, S1/S3 return to film per §5 and this amendment retires.

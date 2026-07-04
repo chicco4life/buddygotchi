@@ -87,7 +87,7 @@ function submitInMemory(input: SubmitInput): SubmitResult {
 /* ---------------- Postgres backend ---------------- */
 
 async function submitInPostgres(
-  sql: ReturnType<typeof neon>,
+  sql: NonNullable<ReturnType<typeof getSql>>,
   input: SubmitInput,
 ): Promise<SubmitResult> {
   const { email, source, attr } = input;

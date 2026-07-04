@@ -1,9 +1,14 @@
 import { copy } from "@/lib/copy";
 import { tinyLabel } from "@/lib/ui";
-import { MediaVideo } from "@/components/Media";
+import { MediaImage } from "@/components/Media";
 import { HeroCTA } from "@/components/HeroCTA";
 
-/* S1 — Hero (100vh). Full-bleed muted loop, text over the lower third. */
+/*
+  S1 — Hero (100vh). One of the page's two media slots (SPEC.md Amendment A):
+  a generated mock shot at public/media/hero.jpg. Until it exists, the
+  art-directed placeholder (breathing amber glow) carries the scene. Real film
+  replaces this when the product exists.
+*/
 export function Hero() {
   return (
     <section
@@ -12,9 +17,9 @@ export function Hero() {
       className="relative flex min-h-[100svh] flex-col justify-end overflow-hidden"
     >
       <div className="absolute inset-0">
-        <MediaVideo
-          src="/media/hero-loop.mp4"
-          alt="A small glowing creature sits on a desk; its glow turns amber, a hand reaches in and pets it, and a green ripple runs through it."
+        <MediaImage
+          src="/media/hero.jpg"
+          alt="A small glowing creature sits on a desk in warm light; its glow has turned amber and a hand reaches in to pet it."
           note={copy.hero.mediaNote}
           glow="amber"
           fill
@@ -22,7 +27,7 @@ export function Hero() {
         />
       </div>
 
-      {/* cream scrim so the copy stays legible over warm footage */}
+      {/* cream scrim so the copy stays legible over warm imagery */}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-cream via-cream/85 to-transparent" />
 
       <div className="relative mx-auto w-full max-w-[1100px] px-6 pb-16 md:pb-24">
