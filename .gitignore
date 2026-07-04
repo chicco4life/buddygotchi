@@ -9,7 +9,10 @@ data/
 !.cursor/hooks.json
 
 # Claude Code — ignore local settings
-.claude/
+.claude/*
+!.claude/settings.local.json
+!.claude/launch.json
+!.claude/skills/
 
 # Python
 __pycache__/
