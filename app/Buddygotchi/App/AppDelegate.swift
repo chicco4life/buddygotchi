@@ -62,7 +62,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationManager.shared.setup(engine: engine) { [weak self] in
             self?.showPopover()
         }
-        NotificationManager.shared.requestPermission()
 
         let config = BuddyConfig.default
         UserDefaults.standard.set(config.approvalMode, forKey: DefaultsKey.approvalMode)
@@ -92,10 +91,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         engine.register(output: DesktopOutput(statusItem: statusItem, presenter: self))
 
         serverTask = Task {
-            let app = buildHookServer(engine: engine, config: config)
-            await MainActor.run {
-                self.serverHealth.status = .listening(port: config.httpPort)
-            }
+            let app = buildHookServer(
+                engine: engine,
+                config: config,
+                isApprovalModeEnabled: {
+                    UserDefaults.standard.bool(forKey: DefaultsKey.approvalMode)
+                }
+            )
             let group = ServiceGroup(
                 configuration: .init(
                     services: [app],
@@ -104,12 +106,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 )
             )
             await MainActor.run { self.serviceGroup = group }
+            let listeningTask = Task {
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    self.serverHealth.status = .listening(port: config.httpPort)
+                }
+            }
             do {
                 try await group.run()
+                listeningTask.cancel()
                 await MainActor.run {
                     self.serverHealth.status = .failed(reason: "server stopped unexpectedly")
                 }
             } catch {
+                listeningTask.cancel()
                 await MainActor.run {
                     self.serverHealth.status = .failed(reason: error.localizedDescription)
                 }
@@ -197,10 +208,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showOnboardingWindow() {
+        guard let esp32Output else {
+            preconditionFailure("ESP32Output must be initialized before showing onboarding")
+        }
         if onboardingWindowController == nil || onboardingWindowController?.window?.isVisible != true {
             onboardingWindowController = OnboardingWindowController(
                 engine: engine,
-                esp32Output: esp32Output ?? ESP32Output(),
+                esp32Output: esp32Output,
                 onFinish: { [weak self] in
                     self?.onboardingWindowController?.close()
                     self?.onboardingWindowController = nil
@@ -226,7 +240,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func checkForUpdatesFromMenu() {
-        openSettingsFromMenu()
+        if SparkleUpdateManager.shared.isAvailable {
+            SparkleUpdateManager.shared.checkForUpdates()
+        } else {
+            openSettingsFromMenu()
+        }
     }
 
     @objc private func quitFromMenu() {
@@ -248,10 +266,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = nil
     }
 
-    func showPopover(isApproval: Bool, dismissAfter seconds: TimeInterval) {
+    func showPopover(dismissAfter seconds: TimeInterval) {
         guard let button = statusItem.button else { return }
         cancelAutoDismiss()
-        popover.behavior = isApproval ? .transient : .applicationDefined
+        popover.behavior = .transient
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
         autoDismissTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in
@@ -282,11 +300,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func verifyManagedHooksAfterLaunch() async {
         let tracked = Set(HookInstaller.shared.previouslyInstalledAgents())
+        let healthByAgent = Dictionary(
+            uniqueKeysWithValues: AgentKind.allCases.map { agent in
+                (agent, HookInstaller.shared.verify(agent: agent))
+            }
+        )
         let agents = AgentKind.allCases.filter { agent in
-            tracked.contains(agent) || HookInstaller.shared.verify(agent: agent) != .notInstalled
+            tracked.contains(agent) || healthByAgent[agent] != .notInstalled
         }
         for agent in agents {
-            let health = HookInstaller.shared.verify(agent: agent)
+            guard let health = healthByAgent[agent] else { continue }
             switch health {
             case .installed:
                 engine.diagnosticLog.log(category: "hooks", source: agent.rawValue, event: "verify", detail: "installed")
