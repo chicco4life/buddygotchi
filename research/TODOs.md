@@ -1,7 +1,15 @@
 # TODOs
 
 Current open items that need a human action (accounts, assets, decisions).
-Engineering TODOs live in `eng/TODOs.md`.
+Engineering release gates live in `eng/RELEASE.md`; verification commands live
+in `eng/TESTING.md`.
+
+## App and firmware release readiness
+
+- [ ] **Finish app signing, notarization, and release automation decisions.** Use `eng/RELEASE.md` for the per-release gate and `eng/TESTING.md` for packaged-app smoke coverage.
+- [ ] **Host firmware release files.** Publish the firmware `manifest.json`, ESP Web Tools manifest, and versioned `.bin` files before OTA or web-flasher release checks can pass.
+- [ ] **Publish public appcast and support paths.** Keep `/releases/appcast.xml`, `/firmware/`, `/flash/`, and `/help/` live for release builds.
+- [ ] **Decide whether to enforce `swift-format` in CI** once the toolchain is pinned.
 
 ## Landing page — links and accounts to create
 

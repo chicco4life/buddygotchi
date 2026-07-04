@@ -600,7 +600,7 @@ void loop() {
     spr.setCursor(4, y + 24);
     spr.printf("sessions: %u r%u w%u", tama.sessionsTotal, tama.sessionsRunning, tama.sessionsWaiting);
     if (tama.promptId[0] && tama.promptApproval) {
-      // docs/BUGS.md N1: surface the tool + hint so the user can decide without alt-tabbing.
+      // Surface the tool + hint so the user can decide without alt-tabbing.
       // The desktop popover is the primary approval UI; this mirrors enough to glance.
       uint32_t waited = (millis() - promptArrivedMs) / 1000;
       spr.setTextColor(waited >= 10 ? HOT : p.text, p.bg);

@@ -105,6 +105,8 @@ after the one-time OS pairing step to exercise the production BLE transport.
 ## Documentation Expectations
 
 - Keep `README.md` focused on overview and build/run/test instructions.
-- Keep `docs/ARCHITECTURE.md` focused on how pieces fit together, including test/mocking strategy.
+- Keep `research/eng/ARCHITECTURE.md` focused on how pieces fit together, including test/mocking strategy.
 - Keep this file mirrored in `CLAUDE.md`.
-- Use `docs/PLAN.md`, `docs/BUGS.md`, and `docs/TODOs.md` for current status only; do not let old completed task dumps become the source of truth.
+- Use `research/TODOs.md` for open cross-functional items.
+- Use `research/eng/TESTING.md` and `research/eng/RELEASE.md` for engineering verification and release gates.
+- Keep external agent reference captures under `research/eng/reference/`.

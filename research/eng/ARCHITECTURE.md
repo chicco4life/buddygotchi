@@ -42,7 +42,7 @@ do not belong in the reducer.
 | `app/BuddygotchiSignal/` | Cursor hook stdin -> localhost HTTP bridge |
 | `app/Tests/`, `app/tools/` | XCTest, snapshots, e2e, packaging, appcast |
 | `firmware/esp32/` | active ESP32 firmware, PlatformIO project, HIL tools |
-| `docs/`, `research/eng/`, `landing/` | release/support docs, engineering docs, product site |
+| `docs/`, `research/`, `landing/` | public release/support pages, planning/reference docs, product site |
 
 ## End-To-End Flow
 
@@ -445,5 +445,6 @@ HIL covers parser, buttons, screenshots, and BLE/USB command paths on hardware.
 - Keep Cursor auto-approval conservative; shell control characters require
   manual review.
 - Keep docs current but concise: README for overview/build, this file for
-  architecture, `research/eng/TESTING.md` for verification commands, and
-  status docs only for current work.
+  architecture, `research/eng/TESTING.md` for verification commands,
+  `research/eng/RELEASE.md` for release gates, and `research/TODOs.md` only
+  for current open work.
