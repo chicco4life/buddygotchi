@@ -16,14 +16,19 @@ enum AgentKind: String, CaseIterable, Identifiable {
         case .codex: return "Codex"
         }
     }
+}
 
-    var configDir: String {
-        switch self {
-        case .claudeCode: return "\(defaultHomeDir)/.claude"
-        case .cursor: return "\(defaultHomeDir)/.cursor"
-        case .codex: return "\(defaultHomeDir)/.codex"
-        }
-    }
+enum HookHealthReason {
+    static let settingsNotJSON = "settings.json is not valid JSON"
+    static let hooksNotJSON = "hooks.json is not valid JSON"
+    static let configNotJSON = "config.json is not valid JSON"
+    static let hookScriptNotReadable = "hook script not readable"
+
+    static let nonRepairableReasons: Set<String> = [
+        settingsNotJSON,
+        hooksNotJSON,
+        hookScriptNotReadable,
+    ]
 }
 
 enum HookHealth: Equatable {
@@ -42,11 +47,17 @@ enum HookHealth: Equatable {
         case .outdated:
             return true
         case .corrupted(let reason):
-            return !reason.contains("not valid JSON") && !reason.contains("not readable")
+            return !HookHealthReason.nonRepairableReasons.contains(reason)
         case .notInstalled, .installed:
             return false
         }
     }
+}
+
+enum UninstallOutcome: Equatable {
+    case removed
+    case nothingInstalled
+    case failed(reason: String)
 }
 
 enum HookInstallError: Error, LocalizedError {
@@ -82,7 +93,6 @@ final class HookInstaller {
     static let hookSchemaVersion = 3
 
     private static let hookScriptName = "buddygotchi-hook.sh"
-    private static let installedAgentsKey = "installedAgents"
 
     private let homeDir: String
     private let stateDir: String
@@ -182,13 +192,18 @@ final class HookInstaller {
         try installOrThrow(agent: agent)
     }
 
-    func uninstall(agent: AgentKind) {
-        switch agent {
+    @discardableResult
+    func uninstall(agent: AgentKind) -> UninstallOutcome {
+        let outcome: UninstallOutcome = switch agent {
         case .claudeCode: uninstallClaudeCode()
         case .cursor: uninstallCursor()
         case .codex: uninstallCodex()
         }
+        if case .failed = outcome {
+            return outcome
+        }
         forgetInstalled(agent)
+        return outcome
     }
 
     func detectInstalledAgents() -> [AgentKind: Bool] {
@@ -201,7 +216,7 @@ final class HookInstaller {
     }
 
     func previouslyInstalledAgents() -> [AgentKind] {
-        let stored = userDefaults.stringArray(forKey: Self.installedAgentsKey) ?? []
+        let stored = userDefaults.stringArray(forKey: DefaultsKey.installedAgents) ?? []
         return stored.compactMap(AgentKind.init(rawValue:))
     }
 
@@ -296,7 +311,7 @@ final class HookInstaller {
         do {
             root = try readJSONObject(at: settingsURL, agent: .claudeCode)
         } catch {
-            return .corrupted(reason: "settings.json is not valid JSON")
+            return .corrupted(reason: HookHealthReason.settingsNotJSON)
         }
         guard let hooks = root["hooks"] as? [String: Any] else { return .notInstalled }
         if !containsBuddygotchiNestedHooks(hooks) { return .notInstalled }
@@ -324,7 +339,7 @@ final class HookInstaller {
         do {
             root = try readJSONObject(at: hooksURL, agent: .cursor)
         } catch {
-            return .corrupted(reason: "hooks.json is not valid JSON")
+            return .corrupted(reason: HookHealthReason.hooksNotJSON)
         }
         guard let hooks = root["hooks"] as? [String: Any] else { return .notInstalled }
         if !isBuddygotchiInCursorHooks(root) { return .notInstalled }
@@ -358,7 +373,7 @@ final class HookInstaller {
         do {
             root = try readJSONObject(at: hooksURL, agent: .codex)
         } catch {
-            return .corrupted(reason: "hooks.json is not valid JSON")
+            return .corrupted(reason: HookHealthReason.hooksNotJSON)
         }
         guard let hooks = root["hooks"] as? [String: Any] else { return .notInstalled }
         if !containsBuddygotchiNestedHooks(hooks) { return .notInstalled }
@@ -381,7 +396,7 @@ final class HookInstaller {
         guard fm.fileExists(atPath: configURL.path),
               let data = fm.contents(atPath: configURL.path),
               (try? JSONSerialization.jsonObject(with: data)) != nil else {
-            return .corrupted(reason: "config.json is not valid JSON")
+            return .corrupted(reason: HookHealthReason.configNotJSON)
         }
 
         let scriptURL = hookScriptURL()
@@ -392,7 +407,7 @@ final class HookInstaller {
             return .corrupted(reason: "hook script is not executable")
         }
         guard let script = try? String(contentsOf: scriptURL, encoding: .utf8) else {
-            return .corrupted(reason: "hook script not readable")
+            return .corrupted(reason: HookHealthReason.hookScriptNotReadable)
         }
         if script != Self.hookScriptContent {
             if let installed = hookSchemaVersion(in: script), installed < Self.hookSchemaVersion {
@@ -440,43 +455,78 @@ final class HookInstaller {
 
     // MARK: - Uninstall
 
-    private func uninstallClaudeCode() {
+    private func uninstallClaudeCode() -> UninstallOutcome {
         let settingsURL = configDir(for: .claudeCode).appendingPathComponent("settings.json")
+        guard fm.fileExists(atPath: settingsURL.path) else { return .nothingInstalled }
         guard let data = fm.contents(atPath: settingsURL.path),
-              var settings = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+              var settings = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return .failed(reason: uninstallJSONFailureReason(path: settingsURL.path))
+        }
         var hooks = settings["hooks"] as? [String: Any] ?? [:]
+        let hadBuddyHooks = containsBuddygotchiNestedHooks(hooks)
         hooks = removeLegacyHooks(from: hooks)
         settings["hooks"] = hooks
-        try? writeJSONObject(settings, to: settingsURL, agent: .claudeCode)
+        do {
+            try writeJSONObject(settings, to: settingsURL, agent: .claudeCode)
+        } catch {
+            return .failed(reason: "Could not write \(settingsURL.path) after removing Buddygotchi entries")
+        }
+        return hadBuddyHooks ? .removed : .nothingInstalled
     }
 
-    private func uninstallCursor() {
+    private func uninstallCursor() -> UninstallOutcome {
         let hooksURL = configDir(for: .cursor).appendingPathComponent("hooks.json")
+        guard fm.fileExists(atPath: hooksURL.path) else { return .nothingInstalled }
         guard let data = fm.contents(atPath: hooksURL.path),
-              var root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+              var root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return .failed(reason: uninstallJSONFailureReason(path: hooksURL.path))
+        }
+        let hadBuddyHooks = isBuddygotchiInCursorHooks(root)
         root = removeBuddygotchiFromCursorHooks(root)
-        try? writeJSONObject(root, to: hooksURL, agent: .cursor)
+        do {
+            try writeJSONObject(root, to: hooksURL, agent: .cursor)
+        } catch {
+            return .failed(reason: "Could not write \(hooksURL.path) after removing Buddygotchi entries")
+        }
+        return hadBuddyHooks ? .removed : .nothingInstalled
     }
 
-    private func uninstallCodex() {
+    private func uninstallCodex() -> UninstallOutcome {
         let codexDir = configDir(for: .codex)
         let hooksURL = codexDir.appendingPathComponent("hooks.json")
         let tomlURL = codexDir.appendingPathComponent("config.toml")
+        var removedSomething = false
 
-        if let data = fm.contents(atPath: hooksURL.path),
-           var root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+        if fm.fileExists(atPath: hooksURL.path) {
+            guard let data = fm.contents(atPath: hooksURL.path),
+                  var root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                return .failed(reason: uninstallJSONFailureReason(path: hooksURL.path))
+            }
             var hooks = root["hooks"] as? [String: Any] ?? [:]
+            removedSomething = containsBuddygotchiNestedHooks(hooks)
             hooks = removeLegacyHooks(from: hooks)
             root["hooks"] = hooks
-            try? writeJSONObject(root, to: hooksURL, agent: .codex)
+            do {
+                try writeJSONObject(root, to: hooksURL, agent: .codex)
+            } catch {
+                return .failed(reason: "Could not write \(hooksURL.path) after removing Buddygotchi entries")
+            }
         }
 
         if var toml = try? String(contentsOf: tomlURL, encoding: .utf8) {
+            let originalToml = toml
             toml = toml
                 .replacingOccurrences(of: "codex_hooks = true\n", with: "")
                 .replacingOccurrences(of: "codex_hooks = true", with: "")
-            try? writeString(toml, to: tomlURL, agent: .codex)
+            removedSomething = removedSomething || toml != originalToml
+            do {
+                try writeString(toml, to: tomlURL, agent: .codex)
+            } catch {
+                return .failed(reason: "Could not write \(tomlURL.path) after removing Buddygotchi entries")
+            }
         }
+
+        return removedSomething ? .removed : .nothingInstalled
     }
 
     // MARK: - Script and helper
@@ -806,14 +856,22 @@ final class HookInstaller {
     }
 
     private func rememberInstalled(_ agent: AgentKind) {
-        var stored = Set(userDefaults.stringArray(forKey: Self.installedAgentsKey) ?? [])
+        var stored = Set(userDefaults.stringArray(forKey: DefaultsKey.installedAgents) ?? [])
         stored.insert(agent.rawValue)
-        userDefaults.set(Array(stored).sorted(), forKey: Self.installedAgentsKey)
+        userDefaults.set(Array(stored).sorted(), forKey: DefaultsKey.installedAgents)
     }
 
     private func forgetInstalled(_ agent: AgentKind) {
-        var stored = Set(userDefaults.stringArray(forKey: Self.installedAgentsKey) ?? [])
+        var stored = Set(userDefaults.stringArray(forKey: DefaultsKey.installedAgents) ?? [])
         stored.remove(agent.rawValue)
-        userDefaults.set(Array(stored).sorted(), forKey: Self.installedAgentsKey)
+        if stored.isEmpty {
+            userDefaults.removeObject(forKey: DefaultsKey.installedAgents)
+        } else {
+            userDefaults.set(Array(stored).sorted(), forKey: DefaultsKey.installedAgents)
+        }
+    }
+
+    private func uninstallJSONFailureReason(path: String) -> String {
+        "\(path) is not valid JSON — Buddygotchi entries were not removed"
     }
 }
