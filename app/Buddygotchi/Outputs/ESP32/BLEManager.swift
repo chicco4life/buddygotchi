@@ -16,6 +16,18 @@ enum BLEAckError: Error {
     case ackFailure(message: String)   // device returned ok:false
 }
 
+struct BLEAckReply: Sendable, Equatable {
+    struct StatusData: Sendable, Equatable {
+        let firmware: String?
+        let build: String?
+    }
+
+    let ack: String
+    let count: Int?
+    let errorMessage: String?
+    let status: StatusData?
+}
+
 @MainActor
 protocol BLEManagerDelegate: AnyObject {
     func bleManager(_ manager: BLEManager, connectionStateChanged state: BLEConnectionState)
@@ -58,7 +70,7 @@ final class BLEManager: NSObject, @unchecked Sendable {
     // (one outstanding "ota_chunk" at a time), so a single-slot-per-key
     // map is sufficient — second writer would clobber the first, which is
     // a programming error, not a runtime concern.
-    private var pendingAcks: [String: CheckedContinuation<[String: Any], Error>] = [:]
+    private var pendingAcks: [String: CheckedContinuation<BLEAckReply, Error>] = [:]
 
     struct DiscoveredPeripheral: Sendable {
         let identifier: UUID
@@ -151,8 +163,8 @@ final class BLEManager: NSObject, @unchecked Sendable {
     // whose "ack" value equals `ackKey`. Used by the OTA flow as the
     // back-pressure primitive — every chunk waits for confirmation
     // before the next chunk goes out, mirroring xfer.h::_xAck.
-    func sendAwaitingAck(_ data: Data, ackKey: String, timeout: TimeInterval) async throws -> [String: Any] {
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<[String: Any], Error>) in
+    func sendAwaitingAck(_ data: Data, ackKey: String, timeout: TimeInterval) async throws -> BLEAckReply {
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<BLEAckReply, Error>) in
             bleQueue.async { [weak self] in
                 guard let self else {
                     cont.resume(throwing: BLEAckError.cancelled)
@@ -177,6 +189,23 @@ final class BLEManager: NSObject, @unchecked Sendable {
                 }
             }
         }
+    }
+
+    private func ackReply(from json: [String: Any], ackKey: String) -> BLEAckReply {
+        let data = json["data"] as? [String: Any]
+        let count = (json["n"] as? Int) ?? (json["n"] as? NSNumber)?.intValue
+        let status = data.map {
+            BLEAckReply.StatusData(
+                firmware: $0["firmware"] as? String,
+                build: $0["build"] as? String
+            )
+        }
+        return BLEAckReply(
+            ack: ackKey,
+            count: count,
+            errorMessage: json["error"] as? String,
+            status: status
+        )
     }
 
     // Failing waiters on disconnect prevents UI states from hanging
@@ -343,7 +372,7 @@ extension BLEManager: CBPeripheralDelegate {
            let pending = pendingAcks.removeValue(forKey: ackKey) {
             let ok = (json["ok"] as? Bool) ?? true
             if ok {
-                pending.resume(returning: json)
+                pending.resume(returning: ackReply(from: json, ackKey: ackKey))
             } else {
                 let msg = (json["error"] as? String) ?? "device rejected \(ackKey)"
                 pending.resume(throwing: BLEAckError.ackFailure(message: msg))

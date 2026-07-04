@@ -96,8 +96,7 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
         let frame = "{\"cmd\":\"status\"}\n".data(using: .utf8) ?? Data()
         do {
             let reply = try await bleManager.sendAwaitingAck(frame, ackKey: "status", timeout: 3)
-            let data = reply["data"] as? [String: Any]
-            let version = data?["firmware"] as? String
+            let version = reply.status?.firmware
             firmwareUpdater.recordDeviceVersion(version)
             firmwareUpdater.checkForUpdates()
         } catch {
