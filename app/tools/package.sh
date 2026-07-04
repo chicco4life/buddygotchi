@@ -8,6 +8,7 @@ APP_NAME="Buddygotchi"
 BUNDLE_ID="${BUDDY_BUNDLE_ID:-com.buddygotchi.mac}"
 VERSION_FILE="$ROOT_DIR/VERSION"
 VERSION="${BUDDY_VERSION:-$(tr -d '[:space:]' < "$VERSION_FILE")}"
+VERSION="${VERSION#v}"
 BUILD_NUMBER="${BUDDY_BUILD_NUMBER:-$VERSION}"
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
 CONTENTS="$APP_BUNDLE/Contents"
@@ -59,9 +60,16 @@ sign_item() {
 
 if [[ -n "${DEVELOPER_ID_APPLICATION:-}" ]]; then
   if [[ -d "$FRAMEWORKS/Sparkle.framework" ]]; then
-    while IFS= read -r nested; do
-      sign_item "$nested"
-    done < <(find "$FRAMEWORKS/Sparkle.framework" -type f -perm -111)
+    sign_if_exists() {
+      local path="$1"
+      if [[ -e "$path" ]]; then
+        sign_item "$path"
+      fi
+    }
+    sign_if_exists "$FRAMEWORKS/Sparkle.framework/Versions/B/XPCServices/Installer.xpc"
+    sign_if_exists "$FRAMEWORKS/Sparkle.framework/Versions/B/XPCServices/Downloader.xpc"
+    sign_if_exists "$FRAMEWORKS/Sparkle.framework/Versions/B/Autoupdate"
+    sign_if_exists "$FRAMEWORKS/Sparkle.framework/Versions/B/Updater.app"
     sign_item "$FRAMEWORKS/Sparkle.framework"
   fi
   sign_item "$MACOS/BuddygotchiSignal"
