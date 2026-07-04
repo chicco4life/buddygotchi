@@ -35,7 +35,7 @@ final class SnapshotHarnessTests: XCTestCase {
 
     private func makeEngine() -> BuddyEngine {
         BuddyEngine(config: BuddyConfig(httpPort: 0, staleTimeoutMs: 600_000,
-                                        celebrateDurationMs: 4_000, workStallTimeoutMs: 300_000, stateDir: "/tmp", approvalMode: false))
+                                        celebrateDurationMs: 4_000, workStallTimeoutMs: 300_000, stateDir: "/tmp", approvalMode: false, token: "test-token"))
     }
 
     private func snapshot<V: View>(_ view: V, _ name: String, _ size: CGSize) throws {

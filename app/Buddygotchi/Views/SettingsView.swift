@@ -14,7 +14,7 @@ struct SettingsView: View {
     @AppStorage("approvalMode") private var approvalMode = false
     @AppStorage(esp32PeripheralUUIDKey) private var esp32UUID: String?
     @State private var launchAtLogin = false
-    @State private var agentInstalled: [AgentKind: Bool] = [:]
+    @State private var agentHealth: [AgentKind: HookHealth] = [:]
 
     @State private var scanner = BLEScanner()
     @State private var selectedDeviceUUID: UUID?
@@ -63,7 +63,7 @@ struct SettingsView: View {
         .onAppear {
             launchAtLogin = LoginItemManager.shared.isEnabled
             for agent in AgentKind.allCases {
-                agentInstalled[agent] = HookInstaller.shared.isInstalled(agent: agent)
+                agentHealth[agent] = HookInstaller.shared.verify(agent: agent)
             }
             // If an update is mid-flight (popover was closed mid-upload), bring
             // the sheet back so the user can watch progress.
@@ -240,34 +240,44 @@ struct SettingsView: View {
 
             VStack(spacing: 0) {
                 ForEach(Array(AgentKind.allCases.enumerated()), id: \.element) { index, agent in
-                    let installed = agentInstalled[agent] ?? false
+                    let health = agentHealth[agent] ?? .notInstalled
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(agent.displayName).font(.buddy(13))
-                            Text(installed ? "Connected" : "Not connected")
+                            Text(hookHealthLabel(health))
                                 .font(.buddy(11))
-                                .foregroundStyle(installed ? BuddyTheme.amber : .secondary)
+                                .foregroundStyle(hookHealthColor(health))
                         }
                         Spacer()
-                        if installed {
+                        if health == .installed {
                             Button("Repair") {
-                                HookInstaller.shared.uninstall(agent: agent)
-                                if HookInstaller.shared.install(agent: agent) {
-                                    agentInstalled[agent] = true
+                                do {
+                                    try HookInstaller.shared.repair(agent: agent)
+                                    agentHealth[agent] = HookInstaller.shared.verify(agent: agent)
+                                } catch {
+                                    agentHealth[agent] = .corrupted(reason: error.localizedDescription)
                                 }
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
                             .tint(BuddyTheme.amber)
                         } else {
-                            Button("Connect") {
-                                if HookInstaller.shared.install(agent: agent) {
-                                    agentInstalled[agent] = true
+                            Button(health.repairable ? "Repair" : "Connect") {
+                                do {
+                                    if health.repairable {
+                                        try HookInstaller.shared.repair(agent: agent)
+                                    } else {
+                                        try HookInstaller.shared.installOrThrow(agent: agent)
+                                    }
+                                    agentHealth[agent] = HookInstaller.shared.verify(agent: agent)
+                                } catch {
+                                    agentHealth[agent] = .corrupted(reason: error.localizedDescription)
                                 }
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
                             .tint(BuddyTheme.amber)
+                            .disabled(!health.repairable && !canInstall(health))
                         }
                     }
                     .padding(.horizontal, 12)
@@ -281,6 +291,35 @@ struct SettingsView: View {
             }
             .buddyGroupedCard()
         }
+    }
+
+    private func hookHealthLabel(_ health: HookHealth) -> String {
+        switch health {
+        case .installed:
+            return "Connected"
+        case .notInstalled:
+            return "Not connected"
+        case .outdated(let installed, let current):
+            return "Needs repair - v\(installed) to v\(current)"
+        case .corrupted(let reason):
+            return "Needs repair - \(reason)"
+        }
+    }
+
+    private func hookHealthColor(_ health: HookHealth) -> Color {
+        switch health {
+        case .installed:
+            return BuddyTheme.amber
+        case .outdated, .corrupted:
+            return .orange
+        case .notInstalled:
+            return .secondary
+        }
+    }
+
+    private func canInstall(_ health: HookHealth) -> Bool {
+        if case .notInstalled = health { return true }
+        return false
     }
 
     // MARK: - Displays

@@ -3,6 +3,8 @@ import Foundation
 open class XCTestCase {
     public required init() {}
     open func setUp() async throws {}
+    open func setUpWithError() throws {}
+    open func tearDownWithError() throws {}
 }
 
 public enum XCTestShimError: Error, CustomStringConvertible {
@@ -94,6 +96,29 @@ public func XCTAssertFalse(
 ) rethrows {
     if try expression() {
         fail(message().isEmpty ? "XCTAssertFalse failed" : message(), file: file, line: line)
+    }
+}
+
+public func XCTFail(
+    _ message: @autoclosure () -> String = "",
+    file: StaticString = #filePath,
+    line: UInt = #line
+) -> Never {
+    fail(message(), file: file, line: line)
+}
+
+public func XCTAssertThrowsError<T>(
+    _ expression: @autoclosure () throws -> T,
+    _ message: @autoclosure () -> String = "",
+    file: StaticString = #filePath,
+    line: UInt = #line,
+    _ errorHandler: (Error) throws -> Void = { _ in }
+) rethrows {
+    do {
+        _ = try expression()
+        fail(message().isEmpty ? "XCTAssertThrowsError failed: no error thrown" : message(), file: file, line: line)
+    } catch {
+        try errorHandler(error)
     }
 }
 

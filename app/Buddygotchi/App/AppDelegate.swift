@@ -68,6 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         engine.start()
         Task { await output.start(engine: engine) }
+        Task { await verifyManagedHooksAfterLaunch() }
 
         let hostingController = NSHostingController(
             rootView: PopoverView(
@@ -260,6 +261,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         for url in urls where ["otf", "ttf"].contains(url.pathExtension.lowercased()) {
             CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
+        }
+    }
+
+    private func verifyManagedHooksAfterLaunch() async {
+        let tracked = Set(HookInstaller.shared.previouslyInstalledAgents())
+        let agents = AgentKind.allCases.filter { agent in
+            tracked.contains(agent) || HookInstaller.shared.verify(agent: agent) != .notInstalled
+        }
+        for agent in agents {
+            let health = HookInstaller.shared.verify(agent: agent)
+            switch health {
+            case .installed:
+                engine.diagnosticLog.log(category: "hooks", source: agent.rawValue, event: "verify", detail: "installed")
+            case .outdated(let installed, let current):
+                do {
+                    try HookInstaller.shared.repair(agent: agent)
+                    engine.diagnosticLog.log(category: "hooks", source: agent.rawValue, event: "repair", detail: "updated hooks from v\(installed) to v\(current)")
+                } catch {
+                    engine.diagnosticLog.log(category: "hooks", source: agent.rawValue, event: "repair-failed", detail: error.localizedDescription)
+                }
+            case .corrupted(let reason) where health.repairable:
+                do {
+                    try HookInstaller.shared.repair(agent: agent)
+                    engine.diagnosticLog.log(category: "hooks", source: agent.rawValue, event: "repair", detail: reason)
+                } catch {
+                    engine.diagnosticLog.log(category: "hooks", source: agent.rawValue, event: "repair-failed", detail: error.localizedDescription)
+                }
+            case .corrupted(let reason):
+                engine.diagnosticLog.log(category: "hooks", source: agent.rawValue, event: "verify-failed", detail: reason)
+            case .notInstalled:
+                engine.diagnosticLog.log(category: "hooks", source: agent.rawValue, event: "verify", detail: "not installed")
+            }
         }
     }
 }

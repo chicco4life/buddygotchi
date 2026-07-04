@@ -1,5 +1,6 @@
 import Foundation
 import Hummingbird
+import HTTPTypes
 import NIOCore
 import CryptoKit
 
@@ -51,6 +52,7 @@ private struct SignalRequestBody: Decodable, Sendable {
     var conversation_id: String?
     var signal: String?
     var cwd: String?
+    var pid: Int32?
 }
 
 func buildHookServer(engine: BuddyEngine, config: BuddyConfig) -> Application<RouterResponder<BasicRequestContext>> {
@@ -67,6 +69,7 @@ func buildHookServer(engine: BuddyEngine, config: BuddyConfig) -> Application<Ro
     }
 
     router.post("/hook/event") { request, _ -> Response in
+        guard isAuthorized(request, token: config.token) else { return unauthorized() }
         let source = request.uri.queryParameters["source"].map(String.init) ?? "claude-code"
         let rawBuffer = try await request.body.collect(upTo: 1_048_576)
         let rawJSON = String(buffer: rawBuffer)
@@ -80,6 +83,7 @@ func buildHookServer(engine: BuddyEngine, config: BuddyConfig) -> Application<Ro
     }
 
     router.post("/hook/signal") { request, _ -> Response in
+        guard isAuthorized(request, token: config.token) else { return unauthorized() }
         let rawBuffer = try await request.body.collect(upTo: 1_048_576)
         let rawJSON = String(buffer: rawBuffer)
         let body = try sharedDecoder.decode(SignalRequestBody.self, from: rawBuffer)
@@ -92,7 +96,7 @@ func buildHookServer(engine: BuddyEngine, config: BuddyConfig) -> Application<Ro
             await engine.sessionEnded(sessionId: sessionId)
             return emptyOK()
         }
-        await engine.sessionStarted(sessionId: sessionId, source: source, cwd: body.cwd)
+        await engine.sessionStarted(sessionId: sessionId, source: source, cwd: body.cwd, hookPid: body.pid)
         // Cursor's `stop` is a "task complete" event, equivalent to Claude Code's
         // Stop and Codex's Stop — route it to celebrate so the review surface fires.
         // The vestigial SignalCLI map says "stop_working" but we override server-side
@@ -108,6 +112,7 @@ func buildHookServer(engine: BuddyEngine, config: BuddyConfig) -> Application<Ro
     }
 
     router.post("/hook/approve") { request, _ -> Response in
+        guard isAuthorized(request, token: config.token) else { return unauthorized() }
         let source = request.uri.queryParameters["source"].map(String.init) ?? "claude-code"
         let rawBuffer = try await request.body.collect(upTo: 1_048_576)
         let rawJSON = String(buffer: rawBuffer)
@@ -317,6 +322,16 @@ private func shortUUID() -> String {
 }
 
 private let sharedDecoder = JSONDecoder()
+
+private func isAuthorized(_ request: Request, token: String) -> Bool {
+    guard !token.isEmpty,
+          let headerName = HTTPField.Name("X-Buddygotchi-Token") else { return false }
+    return request.headers[headerName] == token
+}
+
+private func unauthorized() -> Response {
+    Response(status: .unauthorized, headers: [.contentLength: "0"])
+}
 
 private func decodeBody<T: Decodable>(_ type: T.Type, from request: Request) async throws -> T {
     let buffer = try await request.body.collect(upTo: 1_048_576)

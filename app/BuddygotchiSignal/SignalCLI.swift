@@ -5,17 +5,19 @@ private let debug = ProcessInfo.processInfo.environment["BUDDYGOTCHI_DEBUG"] != 
 private struct SignalConfig {
     var port: Int
     var approvalMode: Bool
+    var token: String?
 
     static func read() -> SignalConfig {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let configFile = "\(home)/.buddygotchi/config.json"
         guard let data = FileManager.default.contents(atPath: configFile),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return SignalConfig(port: 21321, approvalMode: false)
+            return SignalConfig(port: 21321, approvalMode: false, token: nil)
         }
         return SignalConfig(
             port: json["port"] as? Int ?? 21321,
-            approvalMode: json["approvalMode"] as? Bool ?? false
+            approvalMode: json["approvalMode"] as? Bool ?? false,
+            token: json["token"] as? String
         )
     }
 }
@@ -37,12 +39,14 @@ private final class LockedString: @unchecked Sendable {
     }
 }
 
-private func postApproval(port: Int, agentId: String, body: Data) -> String? {
-    let urlString = "http://127.0.0.1:\(port)/hook/approve?source=\(agentId)"
+private func postApproval(config: SignalConfig, agentId: String, body: Data) -> String? {
+    guard let token = config.token, !token.isEmpty else { return nil }
+    let urlString = "http://127.0.0.1:\(config.port)/hook/approve?source=\(agentId)"
     guard let url = URL(string: urlString) else { return nil }
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    request.setValue(token, forHTTPHeaderField: "X-Buddygotchi-Token")
     request.httpBody = body
     request.timeoutInterval = 300
 
@@ -71,7 +75,7 @@ private let cursorSignalMap: [String: String] = [
     "afterMCPExecution": "keep_working",
     "beforeShellExecution": "keep_working",
     "beforeMCPExecution": "keep_working",
-    "stop": "stop_working",
+    "stop": "celebrate",
     "sessionEnd": "session_end",
 ]
 
@@ -112,7 +116,7 @@ struct SignalCLI {
 
         let approvalEvents: Set<String> = ["beforeShellExecution", "beforeMCPExecution"]
         if config.approvalMode && approvalEvents.contains(hookEvent) {
-            if let response = postApproval(port: config.port, agentId: agentId, body: jsonData) {
+            if let response = postApproval(config: config, agentId: agentId, body: jsonData) {
                 print(response)
             } else {
                 print("{\"permission\":\"allow\"}")
@@ -121,6 +125,8 @@ struct SignalCLI {
         }
 
         defer {
+            // Cursor requires a permission response for non-blocking hooks; this
+            // is protocol plumbing, not an approval decision.
             print("{\"permission\":\"allow\"}")
         }
 
@@ -139,6 +145,7 @@ struct SignalCLI {
         var body: [String: Any] = ["agent_id": agentId, "signal": signal]
         if let sessionId { body["session_id"] = sessionId }
         if let cwd { body["cwd"] = cwd }
+        body["pid"] = Int32(ProcessInfo.processInfo.processIdentifier)
         guard let bodyData = try? JSONSerialization.data(withJSONObject: body),
               let requestURL = URL(string: url) else {
             return
@@ -147,6 +154,9 @@ struct SignalCLI {
         var request = URLRequest(url: requestURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let token = config.token, !token.isEmpty {
+            request.setValue(token, forHTTPHeaderField: "X-Buddygotchi-Token")
+        }
         request.httpBody = bodyData
         request.timeoutInterval = 3
 

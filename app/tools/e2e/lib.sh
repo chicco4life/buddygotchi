@@ -15,6 +15,9 @@
 PORT="${BUDDY_PORT:-21321}"
 BASE="http://127.0.0.1:${PORT}"
 CURL=(curl -s --noproxy '*' --connect-timeout 2)
+TOKEN="$(grep -o '"token" *: *"[^"]*"' "$HOME/.buddygotchi/config.json" 2>/dev/null | head -1 | sed 's/.*"token" *: *"//; s/".*//')"
+AUTH=()
+[ -n "$TOKEN" ] && AUTH=(-H "X-Buddygotchi-Token: $TOKEN")
 CWD="${BUDDY_E2E_CWD:-/tmp/buddy-e2e}"
 
 pass=0; fail=0
@@ -27,9 +30,9 @@ health()  { "${CURL[@]}" "${BASE}/healthz"; }
 version() { health | grep -o '"stateVersion":[0-9]*' | grep -o '[0-9]*'; }
 desktop() { health | grep -o '"desktop":"[a-z]*"' | sed 's/.*"desktop":"//; s/"//'; }
 
-post_signal() { "${CURL[@]}" -X POST "${BASE}/hook/signal" -H 'Content-Type: application/json' -d "$1" >/dev/null; }
-post_event()  { "${CURL[@]}" -X POST "${BASE}/hook/event?source=$1" -H 'Content-Type: application/json' -d "$2" >/dev/null; }
-approve()     { "${CURL[@]}" --max-time "${3:-5}" -X POST "${BASE}/hook/approve?source=$1" -H 'Content-Type: application/json' -d "$2"; }
+post_signal() { "${CURL[@]}" -X POST "${BASE}/hook/signal" "${AUTH[@]}" -H 'Content-Type: application/json' -d "$1" >/dev/null; }
+post_event()  { "${CURL[@]}" -X POST "${BASE}/hook/event?source=$1" "${AUTH[@]}" -H 'Content-Type: application/json' -d "$2" >/dev/null; }
+approve()     { "${CURL[@]}" --max-time "${3:-5}" -X POST "${BASE}/hook/approve?source=$1" "${AUTH[@]}" -H 'Content-Type: application/json' -d "$2"; }
 
 settle() { sleep 0.3; }
 
@@ -64,7 +67,7 @@ parked_approve() { # src body resolver_fn expect
   local src="$1" body="$2" resolver="$3" expect="$4" out cpid resp
   out="$(mktemp)"
   "${CURL[@]}" --max-time 20 -X POST "${BASE}/hook/approve?source=${src}" \
-    -H 'Content-Type: application/json' -d "$body" > "$out" 2>/dev/null &
+    "${AUTH[@]}" -H 'Content-Type: application/json' -d "$body" > "$out" 2>/dev/null &
   cpid=$!
   sleep 0.6
   if [ -s "$out" ]; then bad "approval returned immediately (should have blocked): $(tr -d '\n' < "$out")"

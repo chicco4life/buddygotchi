@@ -1,0 +1,141 @@
+import Foundation
+import XCTest
+@testable import Buddygotchi
+
+@MainActor
+final class HookInstallerTests: XCTestCase {
+    func testUnreadableClaudeSettingsIsNotOverwritten() throws {
+        let harness = try makeHarness()
+        defer { harness.cleanup() }
+        let claudeDir = harness.home.appendingPathComponent(".claude")
+        try FileManager.default.createDirectory(at: claudeDir, withIntermediateDirectories: true)
+        let settings = claudeDir.appendingPathComponent("settings.json")
+        let broken = Data("{broken".utf8)
+        try broken.write(to: settings)
+
+        try XCTAssertThrowsError(try harness.installer.installOrThrow(agent: .claudeCode)) { error in
+            guard case HookInstallError.configUnreadable(.claudeCode, _) = error else {
+                XCTFail("expected configUnreadable, got \(error)")
+            }
+        }
+        try XCTAssertEqual(Data(contentsOf: settings), broken)
+    }
+
+    func testClaudeInstallIsVerifiedAndIdempotent() throws {
+        let harness = try makeHarness()
+        defer { harness.cleanup() }
+        try harness.installer.installOrThrow(agent: .claudeCode)
+        try harness.installer.installOrThrow(agent: .claudeCode)
+
+        XCTAssertEqual(harness.installer.verify(agent: .claudeCode), .installed)
+
+        let settings = try readJSON(harness.home.appendingPathComponent(".claude/settings.json"))
+        let hooks = try XCTUnwrap(settings["hooks"] as? [String: Any])
+        let sessionGroups = try XCTUnwrap(hooks["SessionStart"] as? [[String: Any]])
+        let buddyCount = sessionGroups.flatMap { ($0["hooks"] as? [[String: Any]]) ?? [] }
+            .filter { ($0["command"] as? String)?.contains("buddygotchi-hook.sh claude-code") == true }
+            .count
+        XCTAssertEqual(buddyCount, 1)
+    }
+
+    func testDeletedScriptCorruptsAndRepairRestores() throws {
+        let harness = try makeHarness()
+        defer { harness.cleanup() }
+        try harness.installer.installOrThrow(agent: .claudeCode)
+        let script = harness.state.appendingPathComponent("buddygotchi-hook.sh")
+        try FileManager.default.removeItem(at: script)
+
+        XCTAssertEqual(harness.installer.verify(agent: .claudeCode), .corrupted(reason: "hook script missing"))
+        try harness.installer.repair(agent: .claudeCode)
+        XCTAssertEqual(harness.installer.verify(agent: .claudeCode), .installed)
+    }
+
+    func testOlderScriptVersionIsOutdatedAndRepairRestores() throws {
+        let harness = try makeHarness()
+        defer { harness.cleanup() }
+        try harness.installer.installOrThrow(agent: .claudeCode)
+        let script = harness.state.appendingPathComponent("buddygotchi-hook.sh")
+        var content = try String(contentsOf: script, encoding: .utf8)
+        content = content.replacingOccurrences(of: "buddygotchi-hook v\(HookInstaller.hookSchemaVersion)", with: "buddygotchi-hook v1")
+        try content.write(to: script, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
+
+        XCTAssertEqual(harness.installer.verify(agent: .claudeCode), .outdated(installed: 1, current: HookInstaller.hookSchemaVersion))
+        try harness.installer.repair(agent: .claudeCode)
+        XCTAssertEqual(harness.installer.verify(agent: .claudeCode), .installed)
+    }
+
+    func testCodexCommentedFeatureFlagDoesNotCountAsEnabled() throws {
+        let harness = try makeHarness()
+        defer { harness.cleanup() }
+        let codexDir = harness.home.appendingPathComponent(".codex")
+        try FileManager.default.createDirectory(at: codexDir, withIntermediateDirectories: true)
+        try "[features]\n# codex_hooks = true\n".write(to: codexDir.appendingPathComponent("config.toml"), atomically: true, encoding: .utf8)
+
+        try harness.installer.installOrThrow(agent: .codex)
+        let toml = try String(contentsOf: codexDir.appendingPathComponent("config.toml"), encoding: .utf8)
+        XCTAssertTrue(toml.contains("codex_hooks = true"))
+        XCTAssertEqual(harness.installer.verify(agent: .codex), .installed)
+    }
+
+    func testCursorUsesManagedHelperAndRepairsMissingHelper() throws {
+        let harness = try makeHarness()
+        defer { harness.cleanup() }
+        try harness.installer.installOrThrow(agent: .cursor)
+        let hooks = try readJSON(harness.home.appendingPathComponent(".cursor/hooks.json"))
+        let rootHooks = try XCTUnwrap(hooks["hooks"] as? [String: Any])
+        let sessionHooks = try XCTUnwrap(rootHooks["sessionStart"] as? [[String: Any]])
+        XCTAssertEqual(sessionHooks.first?["command"] as? String, "\(harness.state.path)/bin/buddygotchi-signal --agent cursor")
+
+        try FileManager.default.removeItem(at: harness.state.appendingPathComponent("bin/buddygotchi-signal"))
+        XCTAssertEqual(harness.installer.verify(agent: .cursor), .corrupted(reason: "Cursor helper binary missing"))
+        try harness.installer.repair(agent: .cursor)
+        XCTAssertEqual(harness.installer.verify(agent: .cursor), .installed)
+    }
+
+    private struct Harness {
+        let tempRoot: URL
+        let home: URL
+        let state: URL
+        let installer: HookInstaller
+        let defaults: UserDefaults
+        let defaultsSuiteName: String
+
+        func cleanup() {
+            try? FileManager.default.removeItem(at: tempRoot)
+            defaults.removePersistentDomain(forName: defaultsSuiteName)
+        }
+    }
+
+    private func makeHarness() throws -> Harness {
+        let tempRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent("buddygotchi-hook-tests-\(UUID().uuidString)")
+        let home = tempRoot.appendingPathComponent("home")
+        let state = tempRoot.appendingPathComponent("state")
+        let signal = tempRoot.appendingPathComponent("BuddygotchiSignal")
+        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: state, withIntermediateDirectories: true)
+        try Data("#!/bin/sh\nexit 0\n".utf8).write(to: signal)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: signal.path)
+        try writeConfig(state: state)
+        let defaultsSuiteName = "buddygotchi-hook-tests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsSuiteName))
+        defaults.removePersistentDomain(forName: defaultsSuiteName)
+        let installer = HookInstaller(homeDir: home.path, stateDir: state.path, bundledSignalURL: signal, userDefaults: defaults)
+        return Harness(tempRoot: tempRoot, home: home, state: state, installer: installer, defaults: defaults, defaultsSuiteName: defaultsSuiteName)
+    }
+
+    private func writeConfig(state: URL) throws {
+        let config: [String: Any] = [
+            "port": 21321,
+            "token": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        ]
+        let data = try JSONSerialization.data(withJSONObject: config, options: [.prettyPrinted, .sortedKeys])
+        try data.write(to: state.appendingPathComponent("config.json"), options: .atomic)
+    }
+
+    private func readJSON(_ url: URL) throws -> [String: Any] {
+        let data = try Data(contentsOf: url)
+        return try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+}

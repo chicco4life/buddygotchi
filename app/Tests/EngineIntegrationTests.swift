@@ -77,7 +77,8 @@ private func makeTestEngine(
         celebrateDurationMs: celebrateMs,
         workStallTimeoutMs: workStallMs,
         stateDir: "/tmp",
-        approvalMode: false
+        approvalMode: false,
+        token: "test-token"
     )
     let engine = BuddyEngine(config: config, clock: clock)
     let recorder = EchoRecorder()
@@ -569,7 +570,7 @@ final class EngineIntegrationTests: XCTestCase {
     @MainActor
     func testMultipleOutputsAllReceiveChanges() {
         let clock = MockClock()
-        let config = BuddyConfig(httpPort: 0, staleTimeoutMs: 600_000, celebrateDurationMs: 4_000, workStallTimeoutMs: 300_000, stateDir: "/tmp", approvalMode: false)
+        let config = BuddyConfig(httpPort: 0, staleTimeoutMs: 600_000, celebrateDurationMs: 4_000, workStallTimeoutMs: 300_000, stateDir: "/tmp", approvalMode: false, token: "test-token")
         let engine = BuddyEngine(config: config, clock: clock)
         let r1 = EchoRecorder()
         let r2 = EchoRecorder()
