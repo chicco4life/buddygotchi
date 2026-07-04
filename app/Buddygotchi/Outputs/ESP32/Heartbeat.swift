@@ -9,6 +9,7 @@ struct RenderState: Encodable {
     var waiting: Int
     var msg: String
     var celebrate: Bool
+    var mute: Bool?
     var promptId: String?
     var promptTool: String?
     var promptHint: String?
@@ -41,6 +42,7 @@ func renderState(from state: BuddyState) -> RenderState {
     // so device parity is preserved. errorTool/errorSource are populated lazily
     // from the lastCompleted/prompt fields when relevant.
     let isError = state.pet.state == .error
+    let soundsEnabled = UserDefaults.standard.object(forKey: DefaultsKey.soundsEnabled) as? Bool ?? true
     return RenderState(
         pet: state.pet.state.rawValue,
         species: UserDefaults.standard.string(forKey: DefaultsKey.buddySpecies) ?? state.pet.species,
@@ -50,6 +52,7 @@ func renderState(from state: BuddyState) -> RenderState {
         waiting: state.sessions.waiting,
         msg: String(state.msg.prefix(23)),
         celebrate: state.celebrateUntil != nil,
+        mute: soundsEnabled ? nil : true,
         promptId: state.prompt?.id,
         promptTool: state.prompt.map { String($0.tool.prefix(20)) },
         promptHint: state.prompt.map { String($0.hint.prefix(60)) },
@@ -64,14 +67,14 @@ func renderState(from state: BuddyState) -> RenderState {
         activity: state.currentActivityKind?.rawValue
             ?? state.prompt?.activityKind.rawValue
             ?? state.lastCompleted?.activityKind.rawValue,
-        entries: state.entries.isEmpty ? nil : Array(state.entries.prefix(6)),
+        entries: state.entries.isEmpty ? nil : state.entries.prefix(6).map { String($0.prefix(48)) },
         sessions: state.activeSessions.count > 1
-            ? state.activeSessions.map { snap in
+            ? state.activeSessions.prefix(6).map { snap in
                 RenderState.SessionSummary(
                     src: snap.source,
                     st: snap.state.rawValue,
-                    tool: snap.currentTool,
-                    lbl: snap.sessionLabel
+                    tool: snap.currentTool.map { String($0.prefix(16)) },
+                    lbl: snap.sessionLabel.map { String($0.prefix(16)) }
                 )
             }
             : nil
@@ -87,5 +90,10 @@ private func extractTool(fromMsg msg: String) -> String? {
 func renderStateData(from state: BuddyState) -> Data? {
     guard var data = try? encoder.encode(renderState(from: state)) else { return nil }
     data.append(0x0A)
+    assertionFailureIfOversize(data)
     return data
+}
+
+private func assertionFailureIfOversize(_ data: Data) {
+    assert(data.count <= 1536, "ESP32 heartbeat exceeded 1.5 KB: \(data.count) bytes")
 }
