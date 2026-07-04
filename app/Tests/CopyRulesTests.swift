@@ -12,10 +12,19 @@ final class CopyRulesTests: XCTestCase {
             "game-changer",
             "premium",
         ]
+        let asciiApostropheBetweenLetters = try NSRegularExpression(pattern: #"[A-Za-z]'[A-Za-z]"#)
 
         for copy in reflectedCopyStrings(in: BuddyCopy.shared) {
             XCTAssertFalse(copy.contains("!"), "Exclamation mark in copy: \(copy)")
             XCTAssertFalse(copy.contains("..."), "Use a real ellipsis in copy: \(copy)")
+            XCTAssertEqual(
+                asciiApostropheBetweenLetters.numberOfMatches(
+                    in: copy,
+                    range: NSRange(copy.startIndex..<copy.endIndex, in: copy)
+                ),
+                0,
+                "Use a typographic apostrophe in copy: \(copy)"
+            )
 
             let lowercased = copy.lowercased()
             for word in bannedWords {

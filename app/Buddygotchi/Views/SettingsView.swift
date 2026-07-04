@@ -31,6 +31,7 @@ struct SettingsView: View {
     @State private var showingApprovalModeExplainer = false
     @State private var previewState: PetState = .idle
     @State private var previewResetTask: Task<Void, Never>?
+    @State private var buddyPickerIndex = 0
 
     var body: some View {
         VStack(spacing: 0) {
@@ -70,6 +71,7 @@ struct SettingsView: View {
         .frame(width: BuddyTheme.popoverWidth, height: BuddyTheme.popoverHeight)
         .preferredColorScheme(.dark)
         .onAppear {
+            normalizeBuddySpecies()
             refreshLoginItemState()
             for agent in AgentKind.allCases {
                 agentHealth[agent] = HookInstaller.shared.verify(agent: agent)
@@ -259,24 +261,21 @@ struct SettingsView: View {
 
                 VStack(spacing: 8) {
                     Button(action: cyclePreviewState) {
-                        PetStageView(petState: previewState, species: species)
+                        buddyPickerPreview
                     }
                     .buttonStyle(BuddyPlainButtonStyle())
-                    .accessibilityLabel("\(species) buddy preview, \(previewState.rawValue)")
+                    .disabled(showingBuddyTeaser)
+                    .accessibilityLabel(buddyPreviewAccessibilityLabel)
 
                     HStack(spacing: 4) {
                         Circle()
                             .fill(currentSpeciesColor)
                             .frame(width: 6, height: 6)
                             .accessibilityHidden(true)
-                        Text(species)
+                        Text(currentSpeciesLabel)
                             .font(.buddy(11, weight: .semibold))
                             .foregroundStyle(currentSpeciesColor)
                     }
-
-                    Text("\(currentSpeciesIndex + 1) of \(buddyOrder.count)")
-                        .font(.buddy(11))
-                        .foregroundStyle(.tertiary)
                 }
                 .frame(width: 140)
 
@@ -749,11 +748,8 @@ struct SettingsView: View {
     // MARK: - Helpers
 
     private func cycleSpecies(_ direction: Int) {
-        guard let idx = buddyOrder.firstIndex(of: species) else { return }
-        let next = (idx + direction + buddyOrder.count) % buddyOrder.count
-        species = buddyOrder[next]
-        engine.setSpecies(species)
-        esp32Output.sendNow()
+        buddyPickerIndex = (buddyPickerIndex + direction + 2) % 2
+        normalizeBuddySpecies(sendHeartbeat: !showingBuddyTeaser)
         previewResetTask?.cancel()
         previewState = .idle
     }
@@ -893,19 +889,61 @@ struct SettingsView: View {
         }
     }
 
-    private var currentSpeciesIndex: Int {
-        buddyOrder.firstIndex(of: species) ?? 0
+    @ViewBuilder
+    private var buddyPickerPreview: some View {
+        if showingBuddyTeaser {
+            ZStack(alignment: .bottom) {
+                BlobBuddyView(petState: .sleep, size: 110)
+                    .opacity(0.4)
+                Text(BuddyCopy.shared.onboarding.moreBuddiesHatchingSoon)
+                    .font(.buddy(9.5, weight: .semibold))
+                    .foregroundStyle(BuddyTheme.textTertiary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 6)
+                    .padding(.bottom, 2)
+            }
+            .frame(width: 140, height: 124)
+        } else {
+            PetStageView(petState: previewState, species: Pet.defaultSpecies)
+        }
     }
 
     private var speciesPickerLabel: String {
         BuddyCopy.shared.settingsCopy.speciesPickerTemplate
-            .replacingOccurrences(of: "{species}", with: species)
-            .replacingOccurrences(of: "{current}", with: "\(currentSpeciesIndex + 1)")
-            .replacingOccurrences(of: "{total}", with: "\(buddyOrder.count)")
+            .replacingOccurrences(of: "{species}", with: currentSpeciesLabel)
+    }
+
+    private var buddyPreviewAccessibilityLabel: String {
+        showingBuddyTeaser
+            ? BuddyCopy.shared.onboarding.moreBuddiesHatchingSoon
+            : "\(Pet.defaultSpecies) buddy preview, \(previewState.rawValue)"
+    }
+
+    private var showingBuddyTeaser: Bool {
+        buddyPickerIndex == 1
+    }
+
+    private var currentSpeciesLabel: String {
+        showingBuddyTeaser ? BuddyCopy.shared.onboarding.moreBuddiesHatchingSoon : Pet.defaultSpecies
     }
 
     private var currentSpeciesColor: Color {
-        buddySpeciesColor(for: species)
+        showingBuddyTeaser ? BuddyTheme.textTertiary : buddySpeciesColor(for: Pet.defaultSpecies)
+    }
+
+    private func normalizeBuddySpecies(sendHeartbeat: Bool = false) {
+        if species != Pet.defaultSpecies {
+            species = Pet.defaultSpecies
+            engine.setSpecies(Pet.defaultSpecies)
+            if sendHeartbeat {
+                esp32Output.sendNow()
+            }
+        } else if sendHeartbeat {
+            engine.setSpecies(Pet.defaultSpecies)
+            esp32Output.sendNow()
+        }
     }
 }
 

@@ -173,7 +173,7 @@ struct BuddySettingToggle: View {
     @Binding var isOn: Bool
 
     var body: some View {
-        HStack {
+        HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.buddy(13))
@@ -187,6 +187,7 @@ struct BuddySettingToggle: View {
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .tint(BuddyTheme.amber)
+                .padding(.top, 1)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
