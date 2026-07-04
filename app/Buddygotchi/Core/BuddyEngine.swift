@@ -20,7 +20,10 @@ final class BuddyEngine {
         self.config = config
         self.clock = clock ?? WallClock()
         self.diagnosticLog = diagnosticLog ?? DiagnosticLog()
-        self.internalState = .initial(staleMs: config.staleTimeoutMs, celebrateDurationMs: config.celebrateDurationMs, workStallTimeoutMs: config.workStallTimeoutMs)
+        self.internalState = .initial(staleMs: config.staleTimeoutMs, celebrateDurationMs: config.celebrateDurationMs, workStallTimeoutMs: config.workStallTimeoutMs, approvalTimeoutMs: config.approvalTimeoutMs)
+        if BuddyConfig.recreatedCorruptConfig {
+            self.diagnosticLog.log(category: "engine", source: "system", event: "config", detail: "config.json was unreadable; recreated with defaults")
+        }
     }
 
     // MARK: - Lifecycle
@@ -57,7 +60,17 @@ final class BuddyEngine {
         apply(.sessionStarted(at: clock.now(), sessionId: sessionId, source: source, cwd: cwd))
         if let hookPid, processWatchers[sessionId] == nil,
            let appPid = Self.resolveAncestor(from: hookPid) {
-            watchProcess(pid: appPid, sessionId: sessionId)
+            let name = Self.processName(of: appPid) ?? "unknown"
+            let shouldWatch = Self.isPlausibleAgentHost(name)
+            diagnosticLog.log(
+                category: "engine",
+                source: source,
+                event: "watcher",
+                detail: "session=\(sessionId) pid=\(appPid) name=\(name) decision=\(shouldWatch ? "watch" : "skip")"
+            )
+            if shouldWatch {
+                watchProcess(pid: appPid, sessionId: sessionId)
+            }
         }
     }
 
@@ -107,13 +120,14 @@ final class BuddyEngine {
     }
 
     func resolveAllPendingApprovals(decision: ApprovalDecision) {
-        for (requestId, continuation) in pendingApprovals {
+        let approvals = pendingApprovals
+        pendingApprovals.removeAll()
+        for (requestId, continuation) in approvals {
             if let sessionId = findSessionForApproval(requestId) {
                 apply(.approvalResolved(at: clock.now(), sessionId: sessionId, requestId: requestId, decision: decision))
             }
             continuation.resume(returning: decision)
         }
-        pendingApprovals.removeAll()
     }
 
     private func findSessionForApproval(_ requestId: String) -> String? {
@@ -129,6 +143,33 @@ final class BuddyEngine {
         let ppid = pid_t(info.pbi_ppid)
         guard ppid > 1 else { return nil }
         return ppid
+    }
+
+    private static func processName(of pid: pid_t) -> String? {
+        var nameBuffer = [CChar](repeating: 0, count: Int(MAXCOMLEN))
+        if proc_name(pid, &nameBuffer, UInt32(nameBuffer.count)) > 0 {
+            let name = stringFromNullTerminatedCString(nameBuffer)
+            if !name.isEmpty { return name }
+        }
+
+        var pathBuffer = [CChar](repeating: 0, count: 4096)
+        if proc_pidpath(pid, &pathBuffer, UInt32(pathBuffer.count)) > 0 {
+            let path = stringFromNullTerminatedCString(pathBuffer)
+            let name = (path as NSString).lastPathComponent
+            if !name.isEmpty { return name }
+        }
+
+        return nil
+    }
+
+    private static func stringFromNullTerminatedCString(_ buffer: [CChar]) -> String {
+        let end = buffer.firstIndex(of: 0) ?? buffer.endIndex
+        return String(decoding: buffer[..<end].map { UInt8(bitPattern: $0) }, as: UTF8.self)
+    }
+
+    private static func isPlausibleAgentHost(_ processName: String) -> Bool {
+        let lowered = processName.lowercased()
+        return ["claude", "node", "cursor", "codex", "bun", "electron"].contains { lowered.contains($0) }
     }
 
     /// Walk up from hook script PID → intermediate shell → app (grandparent).
@@ -158,16 +199,18 @@ final class BuddyEngine {
 
     private func apply(_ event: BuddyEvent) {
         let prev = state
-        let prevSessions = internalState.sessions
+        let previousPromptIds = Self.promptIds(in: internalState)
         let next = reduce(internalState, event)
         guard next != internalState else { return }
         let removedIds = Set(internalState.sessions.keys).subtracting(next.sessions.keys)
+        let disappearedPromptIds = previousPromptIds.subtracting(Self.promptIds(in: next))
         internalState = next
         state = next.buddy
         for id in removedIds {
             cancelWatcher(sessionId: id)
-            if let prompt = prevSessions[id]?.prompt, prompt.isApproval,
-               let continuation = pendingApprovals.removeValue(forKey: prompt.id) {
+        }
+        for requestId in disappearedPromptIds {
+            if let continuation = pendingApprovals.removeValue(forKey: requestId) {
                 continuation.resume(returning: .passthrough)
             }
         }
@@ -175,5 +218,9 @@ final class BuddyEngine {
             output.stateDidChange(prev: prev, next: state)
         }
         diagnosticLog.log(category: "engine", source: "system", event: event.name, detail: "pet=\(state.pet.state.rawValue) sessions=\(state.sessions.total)")
+    }
+
+    private static func promptIds(in state: InternalState) -> Set<String> {
+        Set(state.sessions.values.compactMap { $0.prompt?.id })
     }
 }

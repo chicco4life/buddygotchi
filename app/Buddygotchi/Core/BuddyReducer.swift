@@ -8,11 +8,12 @@ struct InternalState: Sendable, Equatable {
     var staleMs: Double
     var celebrateDurationMs: Double
     var workStallTimeoutMs: Double
+    var approvalTimeoutMs: Double
 
     var version: Int { buddy.version }
 
-    static func initial(staleMs: Double, celebrateDurationMs: Double, workStallTimeoutMs: Double = 300_000) -> InternalState {
-        InternalState(buddy: .initial, sessions: [:], staleMs: staleMs, celebrateDurationMs: celebrateDurationMs, workStallTimeoutMs: workStallTimeoutMs)
+    static func initial(staleMs: Double, celebrateDurationMs: Double, workStallTimeoutMs: Double = 300_000, approvalTimeoutMs: Double = 300_000) -> InternalState {
+        InternalState(buddy: .initial, sessions: [:], staleMs: staleMs, celebrateDurationMs: celebrateDurationMs, workStallTimeoutMs: workStallTimeoutMs, approvalTimeoutMs: approvalTimeoutMs)
     }
 }
 
@@ -197,6 +198,14 @@ private func handleStaleTick(_ state: InternalState, now: Double) -> InternalSta
             s.sessions[id]?.state = .thinking
             changed = true
         }
+    }
+
+    for (id, session) in s.sessions {
+        guard let prompt = session.prompt, now - prompt.arrivedAt > s.approvalTimeoutMs else { continue }
+        s.sessions[id]?.prompt = nil
+        s.sessions[id]?.state = .idle
+        s.sessions[id]?.lastActivityAt = now
+        changed = true
     }
 
     let staleIds = s.sessions.filter { now - $0.value.lastActivityAt > s.staleMs }.map(\.key)
