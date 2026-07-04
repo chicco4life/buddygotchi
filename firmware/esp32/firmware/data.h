@@ -15,6 +15,7 @@ struct TamaState {
   bool     celebrate;
   uint32_t lastUpdated;
   char     msg[24];
+  bool     muted;
   bool     connected;
   char     lines[6][81];
   uint8_t  nLines;
@@ -31,7 +32,7 @@ struct TamaState {
 // Three modes, checked in priority order:
 //   demo   → auto-cycle fake scenarios every 8s, ignore live data
 //   live   → JSON arrived in the last 10s over USB or BT
-//   asleep → no data, all zeros, "No Claude connected"
+//   asleep → no data, all zeros, "no agents awake"
 // ---------------------------------------------------------------------------
 
 static uint32_t _lastLiveMs = 0;
@@ -128,6 +129,7 @@ static void _applyJson(const char* line, TamaState* out) {
   const char* deskStr = doc["desktop"];
   if (deskStr) { strncpy(out->desktop, deskStr, sizeof(out->desktop)-1); out->desktop[sizeof(out->desktop)-1]=0; }
   if (doc["celebrate"].is<bool>()) out->celebrate = doc["celebrate"] | false;
+  if (doc["mute"].is<bool>()) out->muted = doc["mute"] | false;
   const char* m = doc["msg"];
   if (m) { strncpy(out->msg, m, sizeof(out->msg)-1); out->msg[sizeof(out->msg)-1]=0; }
   JsonArray la = doc["entries"];
@@ -175,7 +177,7 @@ struct _LineBuf {
   }
 };
 
-static _LineBuf<1024> _usbLine, _btLine;
+static _LineBuf<2048> _usbLine, _btLine;
 
 inline void dataPoll(TamaState* out) {
   uint32_t now = millis();
@@ -216,7 +218,7 @@ inline void dataPoll(TamaState* out) {
     strncpy(out->pet, "sleep", sizeof(out->pet)-1); out->pet[sizeof(out->pet)-1]=0;
     strncpy(out->desktop, "disconnected", sizeof(out->desktop)-1); out->desktop[sizeof(out->desktop)-1]=0;
     out->lastUpdated=now;
-    strncpy(out->msg, "No Claude connected", sizeof(out->msg)-1);
+    strncpy(out->msg, "no agents awake", sizeof(out->msg)-1);
     out->msg[sizeof(out->msg)-1]=0;
   }
 }
