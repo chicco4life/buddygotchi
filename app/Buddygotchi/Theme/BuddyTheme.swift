@@ -1,6 +1,18 @@
 import SwiftUI
 
 enum BuddyTheme {
+    static let night = Color(hex: "#1B1714")
+    static let nightRaised = Color(hex: "#27211B")
+    static let nightRaised2 = Color(hex: "#312A22")
+    static let textPrimary = Color(hex: "#EFE7D8")
+    static let textSecondary = Color(hex: "#B9AE9C")
+    static let textTertiary = Color(hex: "#877D6D")
+    static let amber = Color(hex: "#E8A33D")
+    static let amberDeep = Color(hex: "#C9862B")
+    static let green = Color(hex: "#7FA96B")
+    static let stuckRed = Color(hex: "#C96B5E")
+    static let workGlow = Color(hex: "#EFE7D8")
+
     static let accent = Color(hex: "#9B8AFF")
     static let accentSubtle = Color(hex: "#9B8AFF").opacity(0.15)
 
@@ -21,6 +33,14 @@ enum BuddyTheme {
     static let liveViewHeight: CGFloat = 240
     static let liveViewExpandedHeight: CGFloat = 380
     static let popoverHeight: CGFloat = 440
+    static let onboardingWidth: CGFloat = 760
+    static let onboardingHeight: CGFloat = 560
+}
+
+extension Animation {
+    static func buddyEase(_ duration: Double = 0.5) -> Animation {
+        .timingCurve(0.22, 1, 0.36, 1, duration: duration)
+    }
 }
 
 // MARK: - Card Modifiers
@@ -182,6 +202,7 @@ extension Color {
 // MARK: - Species Color Helper
 
 func buddySpeciesColor(for species: String) -> Color {
+    if species == "blob" { return BuddyTheme.textPrimary }
     let buddy = allBuddies[species] ?? allBuddies[Pet.defaultSpecies] ?? allBuddies.values.first!
     return Color(hex: buddy.color)
 }

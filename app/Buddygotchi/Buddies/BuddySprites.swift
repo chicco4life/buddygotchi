@@ -280,6 +280,7 @@ private let dragonStates: [String: BuddyStateAnim] = [
 // MARK: - Public API
 
 let allBuddies: [String: BuddySpecies] = [
+    "blob": BuddySpecies(name: "blob", color: "#EFE7D8", states: catStates),
     "cat": BuddySpecies(name: "cat", color: "#c2a6ff", states: catStates),
     "axolotl": BuddySpecies(name: "axolotl", color: "#ffabbb", states: axolotlStates),
     "robot": BuddySpecies(name: "robot", color: "#c6c6d0", states: robotStates),
@@ -287,7 +288,7 @@ let allBuddies: [String: BuddySpecies] = [
     "dragon": BuddySpecies(name: "dragon", color: "#ff6b6b", states: dragonStates),
 ]
 
-let buddyOrder = ["cat", "axolotl", "robot", "capybara", "dragon"]
+let buddyOrder = ["blob", "cat", "axolotl", "robot", "capybara", "dragon"]
 
 func renderFrame(buddy: BuddySpecies, state: String, tickMs: Int) -> String {
     let anim = buddy[state] ?? buddy["idle"]!

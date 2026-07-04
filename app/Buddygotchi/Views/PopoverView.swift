@@ -4,17 +4,25 @@ import UniformTypeIdentifiers
 struct PopoverView: View {
     let engine: BuddyEngine
     let esp32Output: ESP32Output
+    var onOpenOnboarding: () -> Void = {}
     @AppStorage("setupCompleted") private var setupCompleted = false
-    @AppStorage("buddySpecies") private var species = "cat"
+    @AppStorage("buddySpecies") private var species = Pet.defaultSpecies
+    @AppStorage("buddyName") private var buddyName = ""
+    @AppStorage("showMenuHint") private var showMenuHint = false
     @State private var showingSettings = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Group {
             if !setupCompleted {
-                SetupWizardView(engine: engine, esp32Output: esp32Output) { setupCompleted = true }
+                unfinishedSetupView
             } else if showingSettings {
-                SettingsView(isPresented: $showingSettings, engine: engine, esp32Output: esp32Output)
+                SettingsView(
+                    isPresented: $showingSettings,
+                    engine: engine,
+                    esp32Output: esp32Output,
+                    onOpenOnboarding: onOpenOnboarding
+                )
                     .transition(reduceMotion ? .opacity : .asymmetric(
                         insertion: .move(edge: .trailing).combined(with: .opacity),
                         removal: .move(edge: .trailing).combined(with: .opacity)
@@ -27,6 +35,33 @@ struct PopoverView: View {
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: showingSettings)
     }
 
+    private var unfinishedSetupView: some View {
+        VStack(spacing: 16) {
+            PetStageView(petState: .sleep, species: species)
+                .padding(.top, 8)
+
+            VStack(spacing: 5) {
+                Text(BuddyCopy.Onboarding.finishMeeting)
+                    .font(.system(.headline, design: .rounded, weight: .semibold))
+                    .foregroundStyle(BuddyTheme.textPrimary)
+                    .multilineTextAlignment(.center)
+                Text(BuddyCopy.Onboarding.finishMeetingSubtitle)
+                    .font(.system(.caption, design: .rounded))
+                    .foregroundStyle(BuddyTheme.textSecondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            Button(BuddyCopy.Onboarding.meetBuddy, action: onOpenOnboarding)
+                .buttonStyle(BuddyPrimaryButtonStyle())
+
+            Spacer()
+        }
+        .padding(18)
+        .frame(width: BuddyTheme.popoverWidth, height: 260)
+        .background(BuddyTheme.night)
+        .preferredColorScheme(.dark)
+    }
+
     // MARK: - Live View
 
     private var liveView: some View {
@@ -37,6 +72,18 @@ struct PopoverView: View {
             Spacer().frame(height: 6)
 
             statusPill
+
+            if showMenuHint {
+                Spacer().frame(height: 6)
+                Text(BuddyCopy.Onboarding.menuHint)
+                    .font(.system(.caption2, design: .rounded, weight: .medium))
+                    .foregroundStyle(BuddyTheme.amber)
+                    .transition(.opacity)
+                    .task {
+                        try? await Task.sleep(for: .seconds(4))
+                        showMenuHint = false
+                    }
+            }
 
             Spacer().frame(height: 10)
 
@@ -97,7 +144,7 @@ struct PopoverView: View {
 
     private var statusPill: some View {
         HStack(spacing: 6) {
-            Text(species)
+            Text(statusName)
                 .font(.system(.caption, design: .rounded, weight: .medium))
                 .foregroundStyle(speciesColor)
 
@@ -109,7 +156,7 @@ struct PopoverView: View {
                 .foregroundStyle(stateColor)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(species), \(engine.state.pet.state.rawValue)")
+        .accessibilityLabel("\(statusName), \(engine.state.pet.state.rawValue)")
     }
 
     private var connectionBar: some View {
@@ -206,6 +253,11 @@ struct PopoverView: View {
 
     private var speciesColor: Color {
         buddySpeciesColor(for: species)
+    }
+
+    private var statusName: String {
+        let trimmed = buddyName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? species : trimmed
     }
 
     private var stateColor: Color {

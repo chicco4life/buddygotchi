@@ -18,6 +18,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var sigtermSource: DispatchSourceSignal?
     private(set) var esp32Output: ESP32Output?
     private var autoDismissTimer: Timer?
+    private var onboardingWindowController: OnboardingWindowController?
     private let celebrateSound = NSSound(named: "Funk")
     private let attentionSound = NSSound(named: "Glass")
     private let errorSound = NSSound(named: "Sosumi")
@@ -38,7 +39,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let popover = NSPopover()
         popover.behavior = .transient
         NotificationManager.shared.setup(engine: engine)
-        NotificationManager.shared.requestPermission()
 
         UserDefaults.standard.set(BuddyConfig.default.approvalMode, forKey: "approvalMode")
 
@@ -49,7 +49,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         engine.start()
         Task { await output.start(engine: engine) }
 
-        let hostingController = NSHostingController(rootView: PopoverView(engine: engine, esp32Output: output))
+        let hostingController = NSHostingController(
+            rootView: PopoverView(
+                engine: engine,
+                esp32Output: output,
+                onOpenOnboarding: { [weak self] in self?.showOnboardingWindow() }
+            )
+        )
         hostingController.sizingOptions = .preferredContentSize
         popover.contentViewController = hostingController
         self.popover = popover
@@ -73,6 +79,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.tick()
             }
         }
+
+        if !UserDefaults.standard.bool(forKey: "setupCompleted") {
+            showOnboardingWindow()
+        }
+    }
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !UserDefaults.standard.bool(forKey: "setupCompleted") {
+            showOnboardingWindow()
+        } else {
+            showPopover()
+        }
+        return true
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -124,6 +143,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
         }
+    }
+
+    private func showOnboardingWindow() {
+        if onboardingWindowController == nil || onboardingWindowController?.window?.isVisible != true {
+            onboardingWindowController = OnboardingWindowController(
+                engine: engine,
+                esp32Output: esp32Output ?? ESP32Output(),
+                onFinish: { [weak self] in
+                    self?.onboardingWindowController?.close()
+                    self?.onboardingWindowController = nil
+                    UserDefaults.standard.set(true, forKey: "showMenuHint")
+                    self?.showPopover()
+                }
+            )
+        }
+        onboardingWindowController?.show()
+    }
+
+    private func showPopover() {
+        guard let button = statusItem.button else { return }
+        cancelAutoDismiss()
+        popover.behavior = .transient
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.contentViewController?.view.window?.makeKey()
     }
 
     private func tick() {

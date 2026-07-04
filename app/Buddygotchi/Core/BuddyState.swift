@@ -142,7 +142,7 @@ struct Pet: Sendable, Equatable {
     var state: PetState
     var species: String
 
-    static let defaultSpecies = "cat"
+    static let defaultSpecies = "blob"
     static let initial = Pet(state: .sleep, species: defaultSpecies)
 }
 

@@ -4,9 +4,10 @@ struct SettingsView: View {
     @Binding var isPresented: Bool
     let engine: BuddyEngine
     let esp32Output: ESP32Output
+    var onOpenOnboarding: () -> Void = {}
 
     @AppStorage("interactiveMode") private var interactiveMode = false
-    @AppStorage("buddySpecies") private var species = "cat"
+    @AppStorage("buddySpecies") private var species = Pet.defaultSpecies
     @AppStorage("setupCompleted") private var setupCompleted = false
     @AppStorage("approvalMode") private var approvalMode = false
     @AppStorage(esp32PeripheralUUIDKey) private var esp32UUID: String?
@@ -432,9 +433,10 @@ struct SettingsView: View {
             .buddyGroupedCard()
 
             HStack(spacing: 12) {
-                Button("Reset Setup") {
+                Button("Run setup again") {
                     setupCompleted = false
                     isPresented = false
+                    onOpenOnboarding()
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)

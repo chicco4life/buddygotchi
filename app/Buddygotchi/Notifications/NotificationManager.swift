@@ -35,6 +35,26 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     func postToolNotification(prompt: Prompt) {
         guard available else { return }
+        UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
+            switch settings.authorizationStatus {
+            case .authorized, .provisional, .ephemeral:
+                Task { @MainActor in self?.deliverToolNotification(prompt: prompt) }
+            case .notDetermined:
+                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
+                    if granted {
+                        UserDefaults.standard.set(true, forKey: "notificationPermissionRequested")
+                        Task { @MainActor in self?.deliverToolNotification(prompt: prompt) }
+                    }
+                }
+            case .denied:
+                return
+            @unknown default:
+                return
+            }
+        }
+    }
+
+    private func deliverToolNotification(prompt: Prompt) {
         let content = UNMutableNotificationContent()
         content.title = prompt.tool
         content.body = prompt.hint

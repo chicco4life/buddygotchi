@@ -39,7 +39,7 @@ final class BLEManager: NSObject, @unchecked Sendable {
         }
     }
 
-    private var central: CBCentralManager!
+    private var central: CBCentralManager?
     private let bleQueue = DispatchQueue(label: "buddygotchi.ble", qos: .userInitiated)
 
     private var targetPeripheralIdentifier: UUID?
@@ -71,7 +71,6 @@ final class BLEManager: NSObject, @unchecked Sendable {
 
     override init() {
         super.init()
-        central = CBCentralManager(delegate: self, queue: bleQueue)
     }
 
     // MARK: - Public API
@@ -79,15 +78,15 @@ final class BLEManager: NSObject, @unchecked Sendable {
     func startScan() -> AsyncStream<DiscoveredPeripheral> {
         AsyncStream { continuation in
             let queue = self.bleQueue
-            let central = self.central!
             continuation.onTermination = { _ in
-                queue.async { central.stopScan() }
+                queue.async { [weak self] in self?.central?.stopScan() }
             }
             bleQueue.async { [weak self] in
                 guard let self else { return }
+                let central = self.ensureCentral()
                 self.scanContinuation = continuation
-                guard self.central.state == .poweredOn else { return }
-                self.central.scanForPeripherals(
+                guard central.state == .poweredOn else { return }
+                central.scanForPeripherals(
                     withServices: [Self.nusServiceUUID],
                     options: [CBCentralManagerScanOptionAllowDuplicatesKey: false]
                 )
@@ -101,7 +100,7 @@ final class BLEManager: NSObject, @unchecked Sendable {
             guard let self else { return }
             self.scanContinuation?.finish()
             self.scanContinuation = nil
-            self.central.stopScan()
+            self.central?.stopScan()
         }
         if connectionState == .scanning {
             connectionState = .disconnected
@@ -124,7 +123,7 @@ final class BLEManager: NSObject, @unchecked Sendable {
             self.reconnectWorkItem?.cancel()
             self.reconnectWorkItem = nil
             if let peripheral = self.connectedPeripheral {
-                self.central.cancelPeripheralConnection(peripheral)
+                self.central?.cancelPeripheralConnection(peripheral)
                 self.connectedPeripheral = nil
             }
         }
@@ -194,6 +193,7 @@ final class BLEManager: NSObject, @unchecked Sendable {
 
     private func startConnecting() {
         guard let targetId = targetPeripheralIdentifier else { return }
+        let central = ensureCentral()
         guard central.state == .poweredOn else { return }
 
         let known = central.retrievePeripherals(withIdentifiers: [targetId])
@@ -222,6 +222,13 @@ final class BLEManager: NSObject, @unchecked Sendable {
         reconnectWorkItem = work
         bleQueue.asyncAfter(deadline: .now() + delay, execute: work)
         Task { @MainActor [weak self] in self?.connectionState = .disconnected }
+    }
+
+    private func ensureCentral() -> CBCentralManager {
+        if let central { return central }
+        let manager = CBCentralManager(delegate: self, queue: bleQueue)
+        central = manager
+        return manager
     }
 }
 

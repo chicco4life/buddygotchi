@@ -75,6 +75,15 @@ final class SnapshotHarnessTests: XCTestCase {
         PopoverView(engine: engine, esp32Output: ESP32Output())
     }
 
+    private func onboarding(step: OnboardingStep) -> some View {
+        UserDefaults.standard.set(false, forKey: "setupCompleted")
+        UserDefaults.standard.set(step.rawValue, forKey: "onboardingStep")
+        UserDefaults.standard.set("blob", forKey: "buddySpecies")
+        UserDefaults.standard.set("Mochi", forKey: "buddyName")
+        UserDefaults.standard.set(BuddyOutputTarget.thisMac.rawValue, forKey: "buddyOutput")
+        return OnboardingView(engine: makeEngine(), esp32Output: ESP32Output(), onFinish: {})
+    }
+
     private var popoverIdle: CGSize { CGSize(width: BuddyTheme.popoverWidth, height: BuddyTheme.liveViewHeight) }
     private var popoverPrompt: CGSize { CGSize(width: BuddyTheme.popoverWidth, height: BuddyTheme.liveViewExpandedHeight) }
 
@@ -152,5 +161,17 @@ final class SnapshotHarnessTests: XCTestCase {
         let e = makeEngine()
         let view = SettingsView(isPresented: .constant(true), engine: e, esp32Output: ESP32Output())
         try snapshot(view, "settings", CGSize(width: BuddyTheme.popoverWidth, height: BuddyTheme.popoverHeight))
+    }
+
+    // MARK: 5. Onboarding window steps
+
+    func testOnboardingSteps() throws {
+        for step in OnboardingStep.allCases {
+            try snapshot(
+                onboarding(step: step),
+                "onboarding-\(step.rawValue)-\(String(describing: step))",
+                CGSize(width: BuddyTheme.onboardingWidth, height: BuddyTheme.onboardingHeight)
+            )
+        }
     }
 }

@@ -54,24 +54,31 @@ struct PetStageView: View {
     }
 
     var body: some View {
-        ZStack {
-            RadialGradient(
-                colors: [speciesColor.opacity(glowIntensity), .clear],
-                center: .center,
-                startRadius: 0,
-                endRadius: 60
-            )
-            .frame(width: 140, height: 90)
-            .blur(radius: 15)
+        Group {
+            if species == "blob" {
+                BlobBuddyView(petState: petState, size: fontSize > 18 ? 120 : 110)
+                    .frame(maxWidth: .infinity)
+            } else {
+                ZStack {
+                    RadialGradient(
+                        colors: [speciesColor.opacity(glowIntensity), .clear],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: 60
+                    )
+                    .frame(width: 140, height: 90)
+                    .blur(radius: 15)
 
-            TimelineView(.periodic(from: startDate, by: 0.2)) { context in
-                let tickMs = Int(context.date.timeIntervalSince(startDate) * 1000)
-                let frame = renderFrame(buddy: buddy, state: petState.rawValue, tickMs: tickMs)
+                    TimelineView(.periodic(from: startDate, by: 0.2)) { context in
+                        let tickMs = Int(context.date.timeIntervalSince(startDate) * 1000)
+                        let frame = renderFrame(buddy: buddy, state: petState.rawValue, tickMs: tickMs)
 
-                Text(frame)
-                    .font(.system(size: fontSize, design: .monospaced))
-                    .foregroundStyle(speciesColor)
-                    .shadow(color: speciesColor.opacity(shadowOpacity), radius: shadowRadius)
+                        Text(frame)
+                            .font(.system(size: fontSize, design: .monospaced))
+                            .foregroundStyle(speciesColor)
+                            .shadow(color: speciesColor.opacity(shadowOpacity), radius: shadowRadius)
+                    }
+                }
             }
         }
         .scaleEffect(petScale)
