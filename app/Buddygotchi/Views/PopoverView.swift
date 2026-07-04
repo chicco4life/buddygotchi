@@ -134,7 +134,7 @@ struct PopoverView: View {
 
             if engine.state.pet.state == .busy && !engine.state.msg.isEmpty {
                 Spacer().frame(height: 8)
-                CurrentActivityRow(msg: engine.state.msg, kind: engine.state.currentActivityKind ?? .work)
+                CurrentActivityRow(state: engine.state)
                     .transition(.opacity)
             } else if engine.state.pet.state == .thinking, let thinking = engine.state.firstThinking {
                 Spacer().frame(height: 8)
@@ -144,17 +144,19 @@ struct PopoverView: View {
 
             if let prompt = engine.state.prompt {
                 Spacer().frame(height: 10)
-                ToolCardView(
-                    prompt: prompt,
-                    waitingCount: engine.state.sessions.waiting,
-                    onApprove: prompt.isApproval ? { engine.resolveApproval(requestId: prompt.id, decision: .allow) } : nil,
-                    onDeny: prompt.isApproval ? { engine.resolveApproval(requestId: prompt.id, decision: .deny) } : nil
-                )
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                if let errored = engine.state.firstErrored {
-                    ErrorTrailerView(errored: errored)
-                        .transition(.opacity)
+                VStack(spacing: 0) {
+                    ToolCardView(
+                        prompt: prompt,
+                        waitingCount: engine.state.sessions.waiting,
+                        onApprove: prompt.isApproval ? { engine.resolveApproval(requestId: prompt.id, decision: .allow) } : nil,
+                        onDeny: prompt.isApproval ? { engine.resolveApproval(requestId: prompt.id, decision: .deny) } : nil
+                    )
+                    if let errored = engine.state.firstErrored {
+                        ErrorTrailerView(errored: errored)
+                            .transition(.opacity)
+                    }
                 }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             } else if let errored = engine.state.firstErrored {
                 Spacer().frame(height: 10)
                 ErrorCardView(
@@ -243,6 +245,7 @@ struct PopoverView: View {
             .buttonStyle(BuddyPlainButtonStyle())
             .accessibilityLabel(BuddyCopy.settings)
         }
+        .padding(.top, 10)
     }
 
     private var serverWarning: String? {
@@ -496,8 +499,11 @@ struct ToolCardView: View {
 // MARK: - Current Activity Row
 
 struct CurrentActivityRow: View {
-    let msg: String
-    var kind: ActivityKind = .work
+    let state: BuddyState
+
+    private var kind: ActivityKind {
+        state.currentActivityKind ?? .work
+    }
 
     var body: some View {
         HStack(spacing: 6) {
@@ -505,17 +511,80 @@ struct CurrentActivityRow: View {
                 .font(.system(.caption2))
                 .foregroundStyle(iconColor)
                 .accessibilityHidden(true)
-            Text(msg)
+            Text(displayLine)
                 .font(.buddy(11))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
-                .truncationMode(.middle)
+                .truncationMode(pathLikeHint ? .middle : .tail)
             Spacer()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(BuddyCopy.shared.popover.workingTemplate.replacingOccurrences(of: "{message}", with: msg))
+        .accessibilityLabel(BuddyCopy.shared.popover.workingTemplate.replacingOccurrences(of: "{message}", with: displayLine))
+    }
+
+    private var displayLine: String {
+        let session = primaryWorkingSession
+        let agent = session.map { AgentKind(rawValue: $0.source)?.displayName ?? $0.source }
+        let parsed = parsedMessage
+        let tool = nonEmpty(session?.currentTool) ?? parsed.tool
+        let hint = parsed.hint
+
+        switch (agent, tool, hint) {
+        case let (.some(agent), .some(tool), .some(hint)):
+            return "\(agent) · \(tool) — \(hint)"
+        case let (.some(agent), .some(tool), .none):
+            return "\(agent) · \(tool)"
+        case let (.some(agent), .none, .some(hint)):
+            return "\(agent) · \(hint)"
+        case let (.none, .some(tool), .some(hint)):
+            return "\(tool) — \(hint)"
+        case let (.none, .some(tool), .none):
+            return tool
+        case let (.none, .none, .some(hint)):
+            return hint
+        default:
+            return sanitizedMessage
+        }
+    }
+
+    private var primaryWorkingSession: SessionSnapshot? {
+        state.activeSessions.first { $0.state == .working } ?? state.activeSessions.first
+    }
+
+    private var parsedMessage: (tool: String?, hint: String?) {
+        let message = sanitizedMessage
+        guard let separator = message.firstIndex(of: ":") else {
+            return (nonEmpty(message), nil)
+        }
+        let tool = String(message[..<separator]).trimmingCharacters(in: .whitespacesAndNewlines)
+        let hintStart = message.index(after: separator)
+        let hint = String(message[hintStart...])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "...", with: "…")
+        return (nonEmpty(tool), nonEmpty(hint))
+    }
+
+    private var sanitizedMessage: String {
+        var message = state.msg
+        if message.first == "[", let close = message.firstIndex(of: "]") {
+            let afterClose = message.index(after: close)
+            if afterClose < message.endIndex, message[afterClose] == " " {
+                message = String(message[message.index(after: afterClose)...])
+            }
+        }
+        return message
+    }
+
+    private var pathLikeHint: Bool {
+        kind == .read || kind == .write
+    }
+
+    private func nonEmpty(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private var iconColor: Color {
@@ -552,7 +621,7 @@ struct ReviewCardView: View {
                         .font(.buddy(11))
                         .foregroundStyle(.secondary)
                     Spacer()
-                    if let durationMs = completed.durationMs {
+                    if let durationMs = completed.durationMs, durationMs >= 1000 {
                         Text(formatDuration(durationMs))
                             .font(.buddy(11))
                             .foregroundStyle(.tertiary)
@@ -563,7 +632,7 @@ struct ReviewCardView: View {
                     HStack(spacing: 6) {
                         Image(systemName: completed.activityKind.sfSymbol)
                             .font(.system(.caption2))
-                            .foregroundStyle(BuddyTheme.green)
+                            .foregroundStyle(.secondary)
                             .accessibilityHidden(true)
                         Text(tool)
                             .font(.buddy(13, weight: .semibold))
@@ -784,16 +853,18 @@ struct SessionListView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             ForEach(sessions) { sess in
-                HStack(alignment: .top, spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Circle()
                         .fill(stateColor(for: sess.state))
                         .frame(width: 5, height: 5)
-                        .padding(.top, 5)
+                        .alignmentGuide(.firstTextBaseline) { context in
+                            context[VerticalAlignment.center]
+                        }
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 1) {
                         HStack(spacing: 4) {
                             Text(displayName(for: sess.source))
-                                .font(.buddy(9.5, weight: .semibold))
+                                .font(.buddy(11, weight: .semibold))
                                 .foregroundStyle(.primary)
                             Text(stateLabel(for: sess.state))
                                 .font(.buddy(11))

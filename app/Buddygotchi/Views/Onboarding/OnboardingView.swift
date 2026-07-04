@@ -12,6 +12,7 @@ struct OnboardingView: View {
     @State private var pairingTask: Task<Void, Never>?
     @State private var adoptionPreviewState: PetState = .idle
     @State private var adoptionPreviewResetTask: Task<Void, Never>?
+    @State private var adoptionPickerIndex = 0
     @State private var didAutoConnect = false
     @State private var didHatch = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -47,6 +48,9 @@ struct OnboardingView: View {
         }
         .frame(width: BuddyTheme.onboardingWidth, height: BuddyTheme.onboardingHeight)
         .preferredColorScheme(.dark)
+        .onAppear {
+            normalizeSelectedSpecies()
+        }
         .onExitCommand {
             model.goBack()
         }
@@ -164,16 +168,16 @@ struct OnboardingView: View {
 
                 VStack(spacing: 12) {
                     Button(action: cycleAdoptionPreviewState) {
-                        PetStageView(petState: adoptionPreviewState, species: model.selectedSpecies, fontSize: 24)
-                            .frame(width: 260, height: 180)
+                        adoptionPickerPreview
                     }
                     .buttonStyle(.plain)
+                    .disabled(showingAdoptionTeaser)
                     .accessibilityLabel(BuddyCopy.shared.onboarding.buddyPreviewTemplate
-                        .replacingOccurrences(of: "{species}", with: model.selectedSpecies)
+                        .replacingOccurrences(of: "{species}", with: adoptionSpeciesLabel)
                         .replacingOccurrences(of: "{state}", with: adoptionPreviewState.rawValue))
-                    Text(model.selectedSpecies.capitalized)
+                    Text(adoptionSpeciesLabel)
                         .font(.buddy(15, weight: .semibold))
-                        .foregroundStyle(buddySpeciesColor(for: model.selectedSpecies))
+                        .foregroundStyle(adoptionSpeciesColor)
                 }
 
                 Button(action: { cycleSpecies(1) }) {
@@ -185,28 +189,27 @@ struct OnboardingView: View {
                 .accessibilityLabel(BuddyCopy.shared.onboarding.nextSpecies)
             }
 
-            TextField(
-                BuddyCopy.Onboarding.namePlaceholder,
-                text: Binding(
-                    get: { model.buddyName },
-                    set: { model.buddyName = $0 }
+            VStack(alignment: .leading, spacing: 6) {
+                Text(BuddyCopy.Onboarding.nameLabel)
+                    .font(.buddy(9.5, weight: .semibold))
+                    .foregroundStyle(BuddyTheme.textTertiary)
+
+                TextField(
+                    BuddyCopy.Onboarding.namePlaceholder,
+                    text: Binding(
+                        get: { model.buddyName },
+                        set: { model.buddyName = $0 }
+                    )
                 )
-            )
                 .textFieldStyle(.plain)
                 .font(.buddy(15))
                 .foregroundStyle(BuddyTheme.textPrimary)
-                .multilineTextAlignment(.center)
+                .multilineTextAlignment(.leading)
                 .padding(.horizontal, 18)
                 .padding(.vertical, 12)
                 .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: 14))
-                .overlay(alignment: .topLeading) {
-                    Text(BuddyCopy.Onboarding.nameLabel)
-                        .font(.buddy(9.5, weight: .semibold))
-                        .foregroundStyle(BuddyTheme.textTertiary)
-                        .offset(x: 14, y: -18)
-                }
-                .frame(width: 320)
-                .padding(.top, 6)
+            }
+            .frame(width: 320)
 
             Spacer()
 
@@ -232,13 +235,15 @@ struct OnboardingView: View {
             Spacer()
 
             HStack {
-                Button(BuddyCopy.shared.onboarding.back) { model.goBack() }
-                    .buttonStyle(OnboardingSecondaryButtonStyle())
+                HStack(spacing: 18) {
+                    Button(BuddyCopy.shared.onboarding.back) { model.goBack() }
+                        .buttonStyle(OnboardingSecondaryButtonStyle())
 
-                Button(BuddyCopy.Onboarding.skipForNow) {
-                    model.advance()
+                    Button(BuddyCopy.Onboarding.skipForNow) {
+                        model.advance()
+                    }
+                    .buttonStyle(OnboardingSecondaryButtonStyle())
                 }
-                .buttonStyle(OnboardingSecondaryButtonStyle())
 
                 Spacer()
 
@@ -643,6 +648,28 @@ struct OnboardingView: View {
         }
     }
 
+    @ViewBuilder
+    private var adoptionPickerPreview: some View {
+        if showingAdoptionTeaser {
+            ZStack(alignment: .bottom) {
+                BlobBuddyView(petState: .sleep, size: 170)
+                    .opacity(0.4)
+                Text(BuddyCopy.shared.onboarding.moreBuddiesHatchingSoon)
+                    .font(.buddy(9.5, weight: .semibold))
+                    .foregroundStyle(BuddyTheme.textTertiary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 4)
+            }
+            .frame(width: 260, height: 190)
+        } else {
+            BlobBuddyView(petState: adoptionPreviewState, size: 170)
+                .frame(width: 260, height: 190)
+        }
+    }
+
     private func navigationBar(nextTitle: String = BuddyCopy.shared.onboarding.next, nextDisabled: Bool = false) -> some View {
         HStack {
             Button(BuddyCopy.shared.onboarding.back) { model.goBack() }
@@ -673,16 +700,29 @@ struct OnboardingView: View {
     }
 
     private func cycleSpecies(_ direction: Int) {
-        guard let index = buddyOrder.firstIndex(of: model.selectedSpecies) else {
-            model.selectedSpecies = Pet.defaultSpecies
-            engine.setSpecies(model.selectedSpecies)
-            return
-        }
-        let next = (index + direction + buddyOrder.count) % buddyOrder.count
-        model.selectedSpecies = buddyOrder[next]
-        engine.setSpecies(model.selectedSpecies)
+        adoptionPickerIndex = (adoptionPickerIndex + direction + 2) % 2
+        normalizeSelectedSpecies()
         adoptionPreviewResetTask?.cancel()
         adoptionPreviewState = .idle
+    }
+
+    private var showingAdoptionTeaser: Bool {
+        adoptionPickerIndex == 1
+    }
+
+    private var adoptionSpeciesLabel: String {
+        showingAdoptionTeaser ? BuddyCopy.shared.onboarding.moreBuddiesHatchingSoon : Pet.defaultSpecies.capitalized
+    }
+
+    private var adoptionSpeciesColor: Color {
+        showingAdoptionTeaser ? BuddyTheme.textTertiary : buddySpeciesColor(for: Pet.defaultSpecies)
+    }
+
+    private func normalizeSelectedSpecies() {
+        if model.selectedSpecies != Pet.defaultSpecies {
+            model.selectedSpecies = Pet.defaultSpecies
+        }
+        engine.setSpecies(Pet.defaultSpecies)
     }
 
     private func updateHeardAgent(from sessions: [SessionSnapshot]) {

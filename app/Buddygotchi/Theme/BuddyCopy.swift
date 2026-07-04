@@ -40,7 +40,7 @@ enum BuddyCopy {
     }
 
     struct OnboardingCopy {
-        let hatchTitle = "Someone's been waiting for you."
+        let hatchTitle = "Someone’s been waiting for you."
         let hatchSubtitle = "A little creature that watches your AI agents — and only bothers you when it matters."
         let meetBuddy = "Meet your buddy"
 
@@ -48,6 +48,7 @@ enum BuddyCopy {
         let nameLabel = "Name your buddy — optional"
         let namePlaceholder = "Mochi"
         let adopt = "Adopt"
+        let moreBuddiesHatchingSoon = "More buddies — hatching soon"
 
         let agentsTitle = "Connect your agents."
         let agentsSubtitle = "Choose at least one agent so your buddy can hear it working."
@@ -56,8 +57,8 @@ enum BuddyCopy {
         let connected = "Connected"
         let detected = "Detected"
         let notDetected = "Not detected"
-        let notDetectedHint = "haven't seen this agent on your Mac yet"
-        let hookInstallFailed = "couldn't write the hook — check permissions"
+        let notDetectedHint = "haven’t seen this agent on your Mac yet"
+        let hookInstallFailed = "couldn’t write the hook — check permissions"
 
         let firstContactTitle = "Wake it up."
         let firstContactWaiting = "Open an agent and send any message."
@@ -77,7 +78,7 @@ enum BuddyCopy {
         let scanning = "Scanning for buddies…"
         let connecting = "Connecting…"
         let pairingHelp = "Check your buddy for a pairing code, then enter it on this Mac."
-        let pairingTimeout = "couldn't pair — hold the buddy closer and try again"
+        let pairingTimeout = "couldn’t pair — hold the buddy closer and try again"
         let connectedCheered = "Connected — your buddy just cheered."
         let retry = "Try again"
         let backToList = "Back to list"
@@ -110,23 +111,23 @@ enum BuddyCopy {
     struct Settings {
         let backToLiveView = "Back to live view"
         let general = "General"
-        let launchAtLogin = "Launch at Login"
+        let launchAtLogin = "Launch at login"
         let launchAtLoginDescription = "Start Buddygotchi when you log in to your Mac."
         let launchAtLoginApproval = "Approve Buddygotchi in System Settings, Login Items."
-        let interactiveMode = "Interactive Mode"
+        let interactiveMode = "Interactive mode"
         let interactiveModeDescription = "Auto-show when your buddy celebrates or needs attention."
         let sounds = "Sounds"
         let soundsDescription = "Play a short sound for attention, errors, and long completions."
-        let localApprovalMode = "Local Approval Mode"
+        let localApprovalMode = "Local approval mode"
         let localApprovalModeSentence = "Local approval mode"
-        let localApprovalModeDescription = "Route tool approvals through Buddygotchi instead of your agent's built-in dialog."
+        let localApprovalModeDescription = "Route tool approvals through Buddygotchi instead of your agent’s built-in dialog."
         let httpPort = "HTTP Port"
         let openConfigFolder = "Open config folder"
         let advanced = "Advanced"
         let buddy = "Buddy"
         let buddyName = "Buddy name"
         let name = "Name"
-        let speciesPickerTemplate = "Species picker, {species}, {current} of {total}"
+        let speciesPickerTemplate = "Species picker, {species}"
         let agents = "Agents"
         let notConnected = "Not connected"
         let needsRepairReasonTemplate = "Needs repair — {reason}"
@@ -165,7 +166,7 @@ enum BuddyCopy {
         let exportBugReport = "Export bug report"
         let localPrivacy = "Buddygotchi keeps agent activity local to this Mac. Network access is limited to update checks and firmware downloads when those features are available."
         let removeBuddygotchi = "Remove Buddygotchi…"
-        let exportBugReportFailed = "Couldn't export bug report"
+        let exportBugReportFailed = "Couldn’t export bug report"
         let bugReportFallback = "The report could not be written."
         let removeBuddygotchiTitle = "Remove Buddygotchi?"
         let removeAndQuit = "Remove and quit"
@@ -175,7 +176,7 @@ enum BuddyCopy {
         let removeFailed = "Could not remove Buddygotchi"
         let noDiagnosticData = "No diagnostic data was available."
         let desktopNotFound = "The Desktop folder could not be found."
-        let desktopWriteFailedTemplate = "Couldn't write to Desktop: {reason}"
+        let desktopWriteFailedTemplate = "Couldn’t write to Desktop: {reason}"
         let server = "Server"
         let starting = "Starting"
         let listeningTemplate = "Listening on {port}"
@@ -191,7 +192,7 @@ enum BuddyCopy {
         let activeSessionsTemplate = "{count} active sessions"
         let desktopStatusTemplate = "Desktop {status}"
         let desktopStatusWithSessionsTemplate = "Desktop {status}, {sessions}"
-        let serverWarningTemplate = "Can't listen on port {port} — {reason}"
+        let serverWarningTemplate = "Can’t listen on port {port} — {reason}"
         let emptyAgents = "No agents awake. Open Claude Code, Cursor, or Codex and send a message — your buddy will hear it."
         let errorTrailerTemplate = "Also: {agent} hit an error"
         let moreWaitingTemplate = "+{count} more waiting"
@@ -249,6 +250,7 @@ enum BuddyCopy {
         static var nameLabel: String { BuddyCopy.shared.onboarding.nameLabel }
         static var namePlaceholder: String { BuddyCopy.shared.onboarding.namePlaceholder }
         static var adopt: String { BuddyCopy.shared.onboarding.adopt }
+        static var moreBuddiesHatchingSoon: String { BuddyCopy.shared.onboarding.moreBuddiesHatchingSoon }
         static var agentsTitle: String { BuddyCopy.shared.onboarding.agentsTitle }
         static var agentsSubtitle: String { BuddyCopy.shared.onboarding.agentsSubtitle }
         static var skipForNow: String { BuddyCopy.shared.onboarding.skipForNow }
