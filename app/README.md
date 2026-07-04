@@ -1,6 +1,6 @@
-# Buddygotchi macOS App
+# Boop macOS App
 
-This is the active Buddygotchi runtime: a Swift macOS menu bar app that receives AI agent hook events over localhost, reduces them into one state model, renders the menu bar popover, and optionally mirrors state to an M5StickC Plus 2 over BLE.
+This is the active Boop runtime: a Swift macOS menu bar app that receives AI agent hook events over localhost, reduces them into one state model, renders the menu bar popover, and optionally mirrors state to an M5StickC Plus 2 over BLE.
 
 For full architecture, see `../docs/ARCHITECTURE.md`.
 
@@ -9,7 +9,7 @@ For full architecture, see `../docs/ARCHITECTURE.md`.
 ```sh
 swift build
 swift test
-swift run Buddygotchi
+swift run Boop
 tools/package.sh
 ```
 
@@ -48,18 +48,18 @@ HTTP smoke tests require the app running in a real terminal:
 
 | Path | Purpose |
 | --- | --- |
-| `Buddygotchi/App/` | App delegate, menu bar lifecycle, login item helper |
-| `Buddygotchi/Core/` | Pure state model, reducer, events, engine, config, diagnostics |
-| `Buddygotchi/Server/` | Hummingbird hook routes |
-| `Buddygotchi/Install/` | Agent hook installers and generated bash script |
-| `Buddygotchi/Views/` | SwiftUI popover, settings, setup wizard |
-| `Buddygotchi/Outputs/ESP32/` | BLE heartbeat output and firmware updater |
-| `BuddygotchiSignal/` | Cursor hook bridge binary |
+| `Boop/App/` | App delegate, menu bar lifecycle, login item helper |
+| `Boop/Core/` | Pure state model, reducer, events, engine, config, diagnostics |
+| `Boop/Server/` | Hummingbird hook routes |
+| `Boop/Install/` | Agent hook installers and generated bash script |
+| `Boop/Views/` | SwiftUI popover, settings, setup wizard |
+| `Boop/Outputs/ESP32/` | BLE heartbeat output and firmware updater |
+| `BoopSignal/` | Cursor hook bridge binary |
 | `Tests/` | XCTest unit, integration, auto-approval, and snapshot harness tests |
 | `tools/` | Shell e2e smoke scripts |
 
 ## Reset Onboarding
 
 ```sh
-defaults delete Buddygotchi setupCompleted
+defaults delete Boop setupCompleted
 ```

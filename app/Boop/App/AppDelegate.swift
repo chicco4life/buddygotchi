@@ -18,7 +18,7 @@ final class ServerHealth {
 }
 
 extension Notification.Name {
-    static let buddygotchiOpenSettings = Notification.Name("buddygotchiOpenSettings")
+    static let boopOpenSettings = Notification.Name("boopOpenSettings")
 }
 
 @MainActor
@@ -236,7 +236,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func openSettingsFromMenu() {
         showPopover()
-        NotificationCenter.default.post(name: .buddygotchiOpenSettings, object: nil)
+        NotificationCenter.default.post(name: .boopOpenSettings, object: nil)
     }
 
     @objc private func checkForUpdatesFromMenu() {
@@ -253,7 +253,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showStatusMenu() {
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.openBuddygotchi, action: #selector(togglePopover), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.openBoop, action: #selector(togglePopover), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.settings, action: #selector(openSettingsFromMenu), keyEquivalent: ","))
         menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.checkForUpdates, action: #selector(checkForUpdatesFromMenu), keyEquivalent: ""))
         menu.addItem(.separator())

@@ -1,6 +1,6 @@
 import Foundation
 
-private let debug = ProcessInfo.processInfo.environment["BUDDYGOTCHI_DEBUG"] != nil
+private let debug = ProcessInfo.processInfo.environment["BOOP_DEBUG"] != nil
 
 private struct SignalConfig {
     var port: Int
@@ -9,7 +9,7 @@ private struct SignalConfig {
 
     static func read() -> SignalConfig {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        let configFile = "\(home)/.buddygotchi/config.json"
+        let configFile = "\(home)/.boop/config.json"
         guard let data = FileManager.default.contents(atPath: configFile),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return SignalConfig(port: 21321, approvalMode: false, token: nil)
@@ -46,7 +46,7 @@ private func postApproval(config: SignalConfig, agentId: String, body: Data) -> 
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-    request.setValue(token, forHTTPHeaderField: "X-Buddygotchi-Token")
+    request.setValue(token, forHTTPHeaderField: "X-Boop-Token")
     request.httpBody = body
     request.timeoutInterval = 300
 
@@ -65,7 +65,7 @@ private func postApproval(config: SignalConfig, agentId: String, body: Data) -> 
 
 private func log(_ msg: String) {
     guard debug else { return }
-    FileHandle.standardError.write(Data("[buddygotchi-signal] \(msg)\n".utf8))
+    FileHandle.standardError.write(Data("[boop-signal] \(msg)\n".utf8))
 }
 
 private let cursorSignalMap: [String: String] = [
@@ -155,7 +155,7 @@ struct SignalCLI {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if let token = config.token, !token.isEmpty {
-            request.setValue(token, forHTTPHeaderField: "X-Buddygotchi-Token")
+            request.setValue(token, forHTTPHeaderField: "X-Boop-Token")
         }
         request.httpBody = bodyData
         request.timeoutInterval = 3

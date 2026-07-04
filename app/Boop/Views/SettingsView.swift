@@ -124,13 +124,13 @@ struct SettingsView: View {
         } message: {
             Text(bugReportError ?? BuddyCopy.shared.settingsCopy.bugReportFallback)
         }
-        .alert(BuddyCopy.shared.settingsCopy.removeBuddygotchiTitle, isPresented: $showingRemoveConfirmation) {
+        .alert(BuddyCopy.shared.settingsCopy.removeBoopTitle, isPresented: $showingRemoveConfirmation) {
             Button(BuddyCopy.cancel, role: .cancel) {}
             Button(BuddyCopy.shared.settingsCopy.removeAndQuit, role: .destructive) {
-                removeBuddygotchi()
+                removeBoop()
             }
         } message: {
-            Text(BuddyCopy.shared.settingsCopy.removeBuddygotchiMessage)
+            Text(BuddyCopy.shared.settingsCopy.removeBoopMessage)
         }
         .alert(BuddyCopy.shared.settingsCopy.updatesUnavailable, isPresented: $showingUpdaterUnavailable) {
             Button(BuddyCopy.shared.common.ok, role: .cancel) {}
@@ -770,7 +770,7 @@ struct SettingsView: View {
 
                 Divider().padding(.horizontal, 12)
 
-                settingsActionRow(BuddyCopy.quitBuddygotchi, systemImage: nil, role: .normal) {
+                settingsActionRow(BuddyCopy.quitBoop, systemImage: nil, role: .normal) {
                     NSApplication.shared.terminate(nil)
                 }
             }
@@ -778,7 +778,7 @@ struct SettingsView: View {
 
             VStack(spacing: 0) {
                 settingsActionRow(
-                    BuddyCopy.shared.settingsCopy.removeBuddygotchi,
+                    BuddyCopy.shared.settingsCopy.removeBoop,
                     systemImage: nil,
                     role: .destructive
                 ) {
@@ -937,7 +937,7 @@ struct SettingsView: View {
         }
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd-HHmmss"
-        let filename = "buddygotchi-report-\(formatter.string(from: Date.now)).json"
+        let filename = "boop-report-\(formatter.string(from: Date.now)).json"
 
         guard let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first else {
             bugReportError = BuddyCopy.shared.settingsCopy.desktopNotFound
@@ -957,7 +957,7 @@ struct SettingsView: View {
         launchAtLogin = launchAtLoginStatus == .enabled || launchAtLoginStatus == .requiresApproval
     }
 
-    private func removeBuddygotchi() {
+    private func removeBoop() {
         do {
             try ConsumerUninstaller.removeInstalledState()
             NSApplication.shared.terminate(nil)

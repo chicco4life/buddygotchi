@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Generate Buddygotchi's Sparkle appcast from a downloads directory.
+# Generate Boop's Sparkle appcast from a downloads directory.
 # Usage: make-appcast.sh <sparkle-bin-dir> <downloads-dir>
 # Example: app/tools/make-appcast.sh ./sparkle/bin ./downloads
 

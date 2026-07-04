@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import Buddygotchi
+@testable import BoopCore
 
 @MainActor
 final class HookInstallerTests: XCTestCase {
@@ -33,7 +33,7 @@ final class HookInstallerTests: XCTestCase {
         let hooks = try XCTUnwrap(settings["hooks"] as? [String: Any])
         let sessionGroups = try XCTUnwrap(hooks["SessionStart"] as? [[String: Any]])
         let buddyCount = sessionGroups.flatMap { ($0["hooks"] as? [[String: Any]]) ?? [] }
-            .filter { ($0["command"] as? String)?.contains("buddygotchi-hook.sh claude-code") == true }
+            .filter { ($0["command"] as? String)?.contains("boop-hook.sh claude-code") == true }
             .count
         XCTAssertEqual(buddyCount, 1)
     }
@@ -49,7 +49,7 @@ final class HookInstallerTests: XCTestCase {
 
         let outcome = harness.installer.uninstall(agent: .claudeCode)
 
-        XCTAssertEqual(outcome, .failed(reason: "\(settings.path) is not valid JSON — Buddygotchi entries were not removed"))
+        XCTAssertEqual(outcome, .failed(reason: "\(settings.path) is not valid JSON — Boop entries were not removed"))
         try XCTAssertEqual(Data(contentsOf: settings), broken)
     }
 
@@ -68,7 +68,7 @@ final class HookInstallerTests: XCTestCase {
         let harness = try makeHarness()
         defer { harness.cleanup() }
         try harness.installer.installOrThrow(agent: .claudeCode)
-        let script = harness.state.appendingPathComponent("buddygotchi-hook.sh")
+        let script = harness.state.appendingPathComponent("boop-hook.sh")
         try FileManager.default.removeItem(at: script)
 
         XCTAssertEqual(harness.installer.verify(agent: .claudeCode), .corrupted(reason: "hook script missing"))
@@ -92,9 +92,9 @@ final class HookInstallerTests: XCTestCase {
         let harness = try makeHarness()
         defer { harness.cleanup() }
         try harness.installer.installOrThrow(agent: .claudeCode)
-        let script = harness.state.appendingPathComponent("buddygotchi-hook.sh")
+        let script = harness.state.appendingPathComponent("boop-hook.sh")
         var content = try String(contentsOf: script, encoding: .utf8)
-        content = content.replacingOccurrences(of: "buddygotchi-hook v\(HookInstaller.hookSchemaVersion)", with: "buddygotchi-hook v1")
+        content = content.replacingOccurrences(of: "boop-hook v\(HookInstaller.hookSchemaVersion)", with: "boop-hook v1")
         try content.write(to: script, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
 
@@ -123,9 +123,9 @@ final class HookInstallerTests: XCTestCase {
         let hooks = try readJSON(harness.home.appendingPathComponent(".cursor/hooks.json"))
         let rootHooks = try XCTUnwrap(hooks["hooks"] as? [String: Any])
         let sessionHooks = try XCTUnwrap(rootHooks["sessionStart"] as? [[String: Any]])
-        XCTAssertEqual(sessionHooks.first?["command"] as? String, "\(harness.state.path)/bin/buddygotchi-signal --agent cursor")
+        XCTAssertEqual(sessionHooks.first?["command"] as? String, "\(harness.state.path)/bin/boop-signal --agent cursor")
 
-        try FileManager.default.removeItem(at: harness.state.appendingPathComponent("bin/buddygotchi-signal"))
+        try FileManager.default.removeItem(at: harness.state.appendingPathComponent("bin/boop-signal"))
         XCTAssertEqual(harness.installer.verify(agent: .cursor), .corrupted(reason: "Cursor helper binary missing"))
         try harness.installer.repair(agent: .cursor)
         XCTAssertEqual(harness.installer.verify(agent: .cursor), .installed)
@@ -147,16 +147,16 @@ final class HookInstallerTests: XCTestCase {
 
     private func makeHarness() throws -> Harness {
         let tempRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("buddygotchi-hook-tests-\(UUID().uuidString)")
+            .appendingPathComponent("boop-hook-tests-\(UUID().uuidString)")
         let home = tempRoot.appendingPathComponent("home")
         let state = tempRoot.appendingPathComponent("state")
-        let signal = tempRoot.appendingPathComponent("BuddygotchiSignal")
+        let signal = tempRoot.appendingPathComponent("BoopSignal")
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: state, withIntermediateDirectories: true)
         try Data("#!/bin/sh\nexit 0\n".utf8).write(to: signal)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: signal.path)
         try writeConfig(state: state)
-        let defaultsSuiteName = "buddygotchi-hook-tests-\(UUID().uuidString)"
+        let defaultsSuiteName = "boop-hook-tests-\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: defaultsSuiteName))
         defaults.removePersistentDomain(forName: defaultsSuiteName)
         let installer = HookInstaller(homeDir: home.path, stateDir: state.path, bundledSignalURL: signal, userDefaults: defaults)

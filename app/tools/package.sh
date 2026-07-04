@@ -4,8 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 APP_DIR="$ROOT_DIR/app"
 BUILD_DIR="$ROOT_DIR/build/package"
-APP_NAME="Buddygotchi"
-BUNDLE_ID="${BUDDY_BUNDLE_ID:-com.buddygotchi.mac}"
+APP_NAME="Boop"
+BUNDLE_ID="${BUDDY_BUNDLE_ID:-com.boopcomputer.boop}"
 VERSION_FILE="$ROOT_DIR/VERSION"
 VERSION="${BUDDY_VERSION:-$(tr -d '[:space:]' < "$VERSION_FILE")}"
 VERSION="${VERSION#v}"
@@ -23,16 +23,16 @@ mkdir -p "$MACOS" "$RESOURCES" "$FRAMEWORKS" "$ARTIFACTS"
 
 (
   cd "$APP_DIR"
-  swift build -c release --product Buddygotchi
-  swift build -c release --product BuddygotchiSignal
+  swift build -c release --product Boop
+  swift build -c release --product BoopSignal
 )
 
-BIN_DIR="$(cd "$APP_DIR" && swift build -c release --product Buddygotchi --show-bin-path)"
-cp "$BIN_DIR/Buddygotchi" "$MACOS/Buddygotchi"
-cp "$BIN_DIR/BuddygotchiSignal" "$MACOS/BuddygotchiSignal"
-chmod 755 "$MACOS/Buddygotchi" "$MACOS/BuddygotchiSignal"
+BIN_DIR="$(cd "$APP_DIR" && swift build -c release --product Boop --show-bin-path)"
+cp "$BIN_DIR/Boop" "$MACOS/Boop"
+cp "$BIN_DIR/BoopSignal" "$MACOS/BoopSignal"
+chmod 755 "$MACOS/Boop" "$MACOS/BoopSignal"
 
-RESOURCE_BUNDLE="$BIN_DIR/Buddygotchi_Buddygotchi.bundle"
+RESOURCE_BUNDLE="$BIN_DIR/Boop_BoopCore.bundle"
 if [[ ! -d "$RESOURCE_BUNDLE" ]]; then
   echo "error: SwiftPM resource bundle not found at $RESOURCE_BUNDLE" >&2
   exit 1
@@ -40,13 +40,13 @@ fi
 cp -R "$RESOURCE_BUNDLE" "$MACOS/"
 cp -R "$RESOURCE_BUNDLE" "$RESOURCES/"
 
-cp "$APP_DIR/Buddygotchi/Resources/Info.plist" "$PLIST"
+cp "$APP_DIR/Boop/Resources/Info.plist" "$PLIST"
 /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$PLIST"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD_NUMBER" "$PLIST"
 
-if [[ -f "$APP_DIR/Buddygotchi/Resources/AppIcon.icns" ]]; then
-  cp "$APP_DIR/Buddygotchi/Resources/AppIcon.icns" "$RESOURCES/AppIcon.icns"
+if [[ -f "$APP_DIR/Boop/Resources/AppIcon.icns" ]]; then
+  cp "$APP_DIR/Boop/Resources/AppIcon.icns" "$RESOURCES/AppIcon.icns"
 else
   echo "warning: AppIcon.icns not found; package will use the default app icon" >&2
 fi
@@ -81,14 +81,14 @@ if [[ -n "${DEVELOPER_ID_APPLICATION:-}" ]]; then
     sign_if_exists "$FRAMEWORKS/Sparkle.framework/Versions/B/Updater.app"
     sign_item "$FRAMEWORKS/Sparkle.framework"
   fi
-  sign_item "$MACOS/BuddygotchiSignal"
-  sign_item "$MACOS/Buddygotchi"
+  sign_item "$MACOS/BoopSignal"
+  sign_item "$MACOS/Boop"
   codesign --force --options runtime --timestamp --sign "$DEVELOPER_ID_APPLICATION" "$APP_BUNDLE"
 else
   echo "Built unsigned app bundle. Set DEVELOPER_ID_APPLICATION to sign." >&2
 fi
 
-ZIP_PATH="$ARTIFACTS/Buddygotchi-$VERSION.zip"
+ZIP_PATH="$ARTIFACTS/Boop-$VERSION.zip"
 ditto -c -k --keepParent "$APP_BUNDLE" "$ZIP_PATH"
 
 if [[ -n "${NOTARYTOOL_PROFILE:-}" && -n "${DEVELOPER_ID_APPLICATION:-}" ]]; then
@@ -108,9 +108,9 @@ else
 fi
 
 if command -v create-dmg >/dev/null 2>&1; then
-  DMG_PATH="$ARTIFACTS/Buddygotchi-$VERSION.dmg"
+  DMG_PATH="$ARTIFACTS/Boop-$VERSION.dmg"
   create-dmg \
-    --volname "Buddygotchi" \
+    --volname "Boop" \
     --window-pos 200 120 \
     --window-size 640 420 \
     --icon-size 96 \

@@ -2,7 +2,7 @@ import AppKit
 import CoreText
 import Foundation
 import XCTest
-@testable import Buddygotchi
+@testable import BoopCore
 
 final class ResourceTests: XCTestCase {
     func testModuleBundleContainsFontAndSoundResources() {

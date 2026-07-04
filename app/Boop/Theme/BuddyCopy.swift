@@ -12,7 +12,7 @@ enum BuddyCopy {
     }
 
     struct Common {
-        let appName = "Buddygotchi"
+        let appName = "Boop"
         let settings = "Settings"
         let dismiss = "Dismiss"
         let deny = "Deny"
@@ -36,7 +36,7 @@ enum BuddyCopy {
         let keepHardwareBuddyNear = "Keep your hardware buddy near your Mac and powered on. The update takes a few minutes; it will restart automatically when finished."
         let previousFirmwareKept = "Your hardware buddy still runs the previous firmware — failed updates are not committed."
         let runSetupAgain = "Run setup again"
-        let quitBuddygotchi = "Quit Buddygotchi"
+        let quitBoop = "Quit Boop"
     }
 
     struct OnboardingCopy {
@@ -65,7 +65,7 @@ enum BuddyCopy {
         let heardFromTemplate = "Heard from {agent}."
         let copyPrompt = "Copy a test prompt"
         let copied = "Copied"
-        let testPrompt = "say hi to my buddygotchi"
+        let testPrompt = "say hi to my boop"
         let troubleshootingTitle = "Still listening."
         let troubleshooting = "agent restarted since connecting? server running? port busy?"
 
@@ -75,7 +75,7 @@ enum BuddyCopy {
         let thisMacDescription = "Your buddy lives in the menu bar."
         let hardware = "Hardware buddy"
         let hardwareDescription = "Pair over Bluetooth."
-        let hardwareFootnote = "works with an M5StickC Plus 2 today; the Buddygotchi hardware buddy hatches later this year."
+        let hardwareFootnote = "works with an M5StickC Plus 2 today; the Boop hardware buddy hatches later this year."
         let scanning = "Scanning for buddies…"
         let connecting = "Connecting…"
         let pairingHelp = "Check your buddy for a pairing code, then enter it on this Mac."
@@ -113,15 +113,15 @@ enum BuddyCopy {
         let backToLiveView = "Back to live view"
         let general = "General"
         let launchAtLogin = "Launch at login"
-        let launchAtLoginDescription = "Start Buddygotchi when you log in to your Mac."
-        let launchAtLoginApproval = "Approve Buddygotchi in System Settings, Login Items."
+        let launchAtLoginDescription = "Start Boop when you log in to your Mac."
+        let launchAtLoginApproval = "Approve Boop in System Settings, Login Items."
         let interactiveMode = "Interactive mode"
         let interactiveModeDescription = "Auto-show when your buddy celebrates or needs attention."
         let sounds = "Sounds"
         let soundsDescription = "Play a short sound for attention, errors, and long completions."
         let localApprovalMode = "Local approval mode"
         let localApprovalModeSentence = "Local approval mode"
-        let localApprovalModeDescription = "Route tool approvals through Buddygotchi instead of your agent’s built-in dialog."
+        let localApprovalModeDescription = "Route tool approvals through Boop instead of your agent’s built-in dialog."
         let httpPort = "HTTP Port"
         let openConfigFolder = "Open config folder"
         let advanced = "Advanced"
@@ -167,16 +167,16 @@ enum BuddyCopy {
         let helpAndSupport = "Help and support"
         let updatePrivacy = "Update checks read a static appcast. No analytics or device identifiers are sent."
         let exportBugReport = "Export bug report"
-        let localPrivacy = "Buddygotchi keeps agent activity local to this Mac. Network access is limited to update checks and firmware downloads when those features are available."
-        let removeBuddygotchi = "Remove Buddygotchi…"
+        let localPrivacy = "Boop keeps agent activity local to this Mac. Network access is limited to update checks and firmware downloads when those features are available."
+        let removeBoop = "Remove Boop…"
         let exportBugReportFailed = "Couldn’t export bug report"
         let bugReportFallback = "The report could not be written."
-        let removeBuddygotchiTitle = "Remove Buddygotchi?"
+        let removeBoopTitle = "Remove Boop?"
         let removeAndQuit = "Remove and quit"
-        let removeBuddygotchiMessage = "This removes Buddygotchi hook entries from Claude Code, Cursor, and Codex, deletes ~/.buddygotchi, unregisters launch at login, clears notifications, and quits. Your app stays wherever you put it."
+        let removeBoopMessage = "This removes Boop hook entries from Claude Code, Cursor, and Codex, deletes ~/.boop, unregisters launch at login, clears notifications, and quits. Your app stays wherever you put it."
         let updatesUnavailable = "Updates unavailable"
         let updatesUnavailableMessage = "Automatic updates are available in the packaged app when Sparkle.framework is bundled."
-        let removeFailed = "Could not remove Buddygotchi"
+        let removeFailed = "Could not remove Boop"
         let noDiagnosticData = "No diagnostic data was available."
         let desktopNotFound = "The Desktop folder could not be found."
         let desktopWriteFailedTemplate = "Couldn’t write to Desktop: {reason}"
@@ -184,9 +184,9 @@ enum BuddyCopy {
         let starting = "Starting"
         let listeningTemplate = "Listening on {port}"
         let failedReasonTemplate = "Failed — {reason}"
-        let approvalExplainerRow1 = "Buddygotchi becomes the approval surface for supported hooks."
+        let approvalExplainerRow1 = "Boop becomes the approval surface for supported hooks."
         let approvalExplainerRow2 = "Cursor read-only checks can be approved automatically. Shell commands and writes still ask first."
-        let approvalExplainerRow3 = "If Buddygotchi is closed or unreachable, hooks fail open and the agent keeps its native flow."
+        let approvalExplainerRow3 = "If Boop is closed or unreachable, hooks fail open and the agent keeps its native flow."
         let turnOn = "Turn on"
     }
 
@@ -240,7 +240,7 @@ enum BuddyCopy {
     }
 
     struct AppMenu {
-        let openBuddygotchi = "Open Buddygotchi"
+        let openBoop = "Open Boop"
         let settings = "Settings…"
         let checkForUpdates = "Check for updates…"
         let quit = "Quit"
@@ -317,7 +317,7 @@ enum BuddyCopy {
     static var keepHardwareBuddyNear: String { shared.common.keepHardwareBuddyNear }
     static var previousFirmwareKept: String { shared.common.previousFirmwareKept }
     static var runSetupAgain: String { shared.common.runSetupAgain }
-    static var quitBuddygotchi: String { shared.common.quitBuddygotchi }
+    static var quitBoop: String { shared.common.quitBoop }
 
     static func heardFrom(_ agentName: String) -> String {
         shared.onboarding.heardFromTemplate.replacingOccurrences(of: "{agent}", with: agentName)

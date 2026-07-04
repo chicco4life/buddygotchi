@@ -255,14 +255,14 @@ func approvalResponse(decision: ApprovalDecision, source: String) -> Response {
         case .allow:
             payload = ["permission": "allow"]
         case .deny:
-            payload = ["permission": "deny", "user_message": "Denied by Buddygotchi", "agent_message": "Tool call denied by Buddygotchi approval mode."]
+            payload = ["permission": "deny", "user_message": "Denied by Boop", "agent_message": "Tool call denied by Boop approval mode."]
         case .passthrough:
             payload = ["permission": "ask"]
         }
     } else {
         var decisionDict: [String: Any] = ["behavior": decision.rawValue]
         if decision == .deny {
-            decisionDict["message"] = "Denied by Buddygotchi"
+            decisionDict["message"] = "Denied by Boop"
         }
         payload = [
             "hookSpecificOutput": [
@@ -342,7 +342,7 @@ private let sharedDecoder = JSONDecoder()
 
 private func isAuthorized(_ request: Request, token: String) -> Bool {
     guard !token.isEmpty,
-          let headerName = HTTPField.Name("X-Buddygotchi-Token"),
+          let headerName = HTTPField.Name("X-Boop-Token"),
           let providedToken = request.headers[headerName] else { return false }
     return constantTimeEquals(providedToken, token)
 }

@@ -23,7 +23,7 @@ struct BuddyConfig: Sendable {
 
     private static func defaultStateDir() -> String {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        return "\(home)/.buddygotchi"
+        return "\(home)/.boop"
     }
 
     private static var configPath: String {

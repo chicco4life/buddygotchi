@@ -1,6 +1,6 @@
 import Foundation
 import XCTest
-@testable import Buddygotchi
+@testable import BoopCore
 
 final class HookServerBehaviorTests: XCTestCase {
     func testApprovalResponsePassthroughEncodings() {

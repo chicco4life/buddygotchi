@@ -79,7 +79,7 @@ enum HookInstallError: Error, LocalizedError {
         case .configUnreadable(let agent, let path):
             return "\(agent.displayName) config is not valid JSON: \(path)."
         case .helperMissing(let path):
-            return "BuddygotchiSignal was not found at \(path)."
+            return "BoopSignal was not found at \(path)."
         case .serializationFailed(let agent):
             return "Could not serialize \(agent.displayName) hook configuration."
         }
@@ -92,7 +92,7 @@ final class HookInstaller {
 
     static let hookSchemaVersion = 3
 
-    private static let hookScriptName = "buddygotchi-hook.sh"
+    private static let hookScriptName = "boop-hook.sh"
 
     private let homeDir: String
     private let stateDir: String
@@ -252,7 +252,7 @@ final class HookInstaller {
         try fm.createDirectory(at: cursorDir, withIntermediateDirectories: true)
 
         var root = try readJSONObject(at: hooksURL, agent: .cursor)
-        root = removeBuddygotchiFromCursorHooks(root)
+        root = removeBoopFromCursorHooks(root)
         root["version"] = 1
 
         var hooks = root["hooks"] as? [String: Any] ?? [:]
@@ -314,7 +314,7 @@ final class HookInstaller {
             return .corrupted(reason: HookHealthReason.settingsNotJSON)
         }
         guard let hooks = root["hooks"] as? [String: Any] else { return .notInstalled }
-        if !containsBuddygotchiNestedHooks(hooks) { return .notInstalled }
+        if !containsBoopNestedHooks(hooks) { return .notInstalled }
 
         for event in Self.claudePlainEvents {
             if let health = verifyNestedHook(event: event, matcher: nil, hooks: hooks, command: scriptCommand(for: .claudeCode)) {
@@ -342,7 +342,7 @@ final class HookInstaller {
             return .corrupted(reason: HookHealthReason.hooksNotJSON)
         }
         guard let hooks = root["hooks"] as? [String: Any] else { return .notInstalled }
-        if !isBuddygotchiInCursorHooks(root) { return .notInstalled }
+        if !isBoopInCursorHooks(root) { return .notInstalled }
 
         for event in Self.cursorEvents {
             guard let entries = hooks[event] as? [[String: Any]] else {
@@ -376,7 +376,7 @@ final class HookInstaller {
             return .corrupted(reason: HookHealthReason.hooksNotJSON)
         }
         guard let hooks = root["hooks"] as? [String: Any] else { return .notInstalled }
-        if !containsBuddygotchiNestedHooks(hooks) { return .notInstalled }
+        if !containsBoopNestedHooks(hooks) { return .notInstalled }
 
         for spec in Self.codexEvents {
             if let health = verifyNestedHook(event: spec.event, matcher: spec.matcher, hooks: hooks, command: scriptCommand(for: .codex)) {
@@ -413,7 +413,7 @@ final class HookInstaller {
             if let installed = hookSchemaVersion(in: script), installed < Self.hookSchemaVersion {
                 return .outdated(installed: installed, current: Self.hookSchemaVersion)
             }
-            return .corrupted(reason: "hook script does not match Buddygotchi")
+            return .corrupted(reason: "hook script does not match Boop")
         }
         if agent == .cursor, !isExecutable(managedSignalURL()) {
             return .corrupted(reason: "Cursor helper binary missing")
@@ -463,13 +463,13 @@ final class HookInstaller {
             return .failed(reason: uninstallJSONFailureReason(path: settingsURL.path))
         }
         var hooks = settings["hooks"] as? [String: Any] ?? [:]
-        let hadBuddyHooks = containsBuddygotchiNestedHooks(hooks)
+        let hadBuddyHooks = containsBoopNestedHooks(hooks)
         hooks = removeLegacyHooks(from: hooks)
         settings["hooks"] = hooks
         do {
             try writeJSONObject(settings, to: settingsURL, agent: .claudeCode)
         } catch {
-            return .failed(reason: "Could not write \(settingsURL.path) after removing Buddygotchi entries")
+            return .failed(reason: "Could not write \(settingsURL.path) after removing Boop entries")
         }
         return hadBuddyHooks ? .removed : .nothingInstalled
     }
@@ -481,12 +481,12 @@ final class HookInstaller {
               var root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return .failed(reason: uninstallJSONFailureReason(path: hooksURL.path))
         }
-        let hadBuddyHooks = isBuddygotchiInCursorHooks(root)
-        root = removeBuddygotchiFromCursorHooks(root)
+        let hadBuddyHooks = isBoopInCursorHooks(root)
+        root = removeBoopFromCursorHooks(root)
         do {
             try writeJSONObject(root, to: hooksURL, agent: .cursor)
         } catch {
-            return .failed(reason: "Could not write \(hooksURL.path) after removing Buddygotchi entries")
+            return .failed(reason: "Could not write \(hooksURL.path) after removing Boop entries")
         }
         return hadBuddyHooks ? .removed : .nothingInstalled
     }
@@ -503,13 +503,13 @@ final class HookInstaller {
                 return .failed(reason: uninstallJSONFailureReason(path: hooksURL.path))
             }
             var hooks = root["hooks"] as? [String: Any] ?? [:]
-            removedSomething = containsBuddygotchiNestedHooks(hooks)
+            removedSomething = containsBoopNestedHooks(hooks)
             hooks = removeLegacyHooks(from: hooks)
             root["hooks"] = hooks
             do {
                 try writeJSONObject(root, to: hooksURL, agent: .codex)
             } catch {
-                return .failed(reason: "Could not write \(hooksURL.path) after removing Buddygotchi entries")
+                return .failed(reason: "Could not write \(hooksURL.path) after removing Boop entries")
             }
         }
 
@@ -522,7 +522,7 @@ final class HookInstaller {
             do {
                 try writeString(toml, to: tomlURL, agent: .codex)
             } catch {
-                return .failed(reason: "Could not write \(tomlURL.path) after removing Buddygotchi entries")
+                return .failed(reason: "Could not write \(tomlURL.path) after removing Boop entries")
             }
         }
 
@@ -533,9 +533,9 @@ final class HookInstaller {
 
     private static let hookScriptContent = """
         #!/bin/bash
-        # buddygotchi-hook v\(hookSchemaVersion) - managed by Buddygotchi.app; edits are overwritten on repair
+        # boop-hook v\(hookSchemaVersion) - managed by Boop.app; edits are overwritten on repair
         SOURCE="${1:-claude-code}"
-        CFG="$HOME/.buddygotchi/config.json"
+        CFG="$HOME/.boop/config.json"
         PORT=$(grep -o '"port" *: *[0-9]*' "$CFG" 2>/dev/null | grep -o '[0-9]*')
         TOKEN=$(grep -o '"token" *: *"[^"]*"' "$CFG" 2>/dev/null | head -1 | sed 's/.*"token" *: *"//; s/".*//')
         [ -z "$PORT" ] && exit 0
@@ -547,7 +547,7 @@ final class HookInstaller {
             RESPONSE=$(curl -s --noproxy '*' \\
                 -X POST "http://127.0.0.1:${PORT}/hook/approve?source=${SOURCE}&pid=$$" \\
                 -H "Content-Type: application/json" \\
-                -H "X-Buddygotchi-Token: ${TOKEN}" \\
+                -H "X-Boop-Token: ${TOKEN}" \\
                 -d "$BODY" \\
                 --connect-timeout 2 \\
                 --max-time 300 2>/dev/null)
@@ -559,7 +559,7 @@ final class HookInstaller {
         curl -s -o /dev/null --noproxy '*' \\
           -X POST "http://127.0.0.1:${PORT}/hook/event?source=${SOURCE}&pid=$$" \\
           -H "Content-Type: application/json" \\
-          -H "X-Buddygotchi-Token: ${TOKEN}" \\
+          -H "X-Boop-Token: ${TOKEN}" \\
           -d "$BODY" \\
           --connect-timeout 1 \\
           --max-time 5 2>/dev/null || true
@@ -602,11 +602,11 @@ final class HookInstaller {
         if let bundledSignalURL, fm.fileExists(atPath: bundledSignalURL.path) {
             return bundledSignalURL
         }
-        if let sibling = Bundle.main.executableURL?.deletingLastPathComponent().appendingPathComponent("BuddygotchiSignal"),
+        if let sibling = Bundle.main.executableURL?.deletingLastPathComponent().appendingPathComponent("BoopSignal"),
            fm.fileExists(atPath: sibling.path) {
             return sibling
         }
-        let expected = Bundle.main.executableURL?.deletingLastPathComponent().appendingPathComponent("BuddygotchiSignal").path ?? "BuddygotchiSignal"
+        let expected = Bundle.main.executableURL?.deletingLastPathComponent().appendingPathComponent("BoopSignal").path ?? "BoopSignal"
         throw HookInstallError.helperMissing(path: expected)
     }
 
@@ -720,7 +720,7 @@ final class HookInstaller {
         return eventHooks
     }
 
-    private func containsBuddygotchiNestedHooks(_ hooks: [String: Any]) -> Bool {
+    private func containsBoopNestedHooks(_ hooks: [String: Any]) -> Bool {
         for (_, value) in hooks {
             guard let groups = value as? [[String: Any]] else { continue }
             for group in groups {
@@ -736,7 +736,7 @@ final class HookInstaller {
         return false
     }
 
-    private func isBuddygotchiInCursorHooks(_ root: [String: Any]) -> Bool {
+    private func isBoopInCursorHooks(_ root: [String: Any]) -> Bool {
         guard let hooks = root["hooks"] as? [String: Any] else { return false }
         for (_, value) in hooks {
             guard let entries = value as? [[String: Any]] else { continue }
@@ -749,7 +749,7 @@ final class HookInstaller {
         return false
     }
 
-    private func removeBuddygotchiFromCursorHooks(_ root: [String: Any]) -> [String: Any] {
+    private func removeBoopFromCursorHooks(_ root: [String: Any]) -> [String: Any] {
         var cleaned = root
         guard var hooks = root["hooks"] as? [String: Any] else { return root }
         for (event, value) in hooks {
@@ -815,7 +815,7 @@ final class HookInstaller {
 
     private func hookSchemaVersion(in script: String) -> Int? {
         guard let header = script.split(separator: "\n").dropFirst().first else { return nil }
-        guard let range = header.range(of: "buddygotchi-hook v") else { return nil }
+        guard let range = header.range(of: "boop-hook v") else { return nil }
         let suffix = header[range.upperBound...]
         let digits = suffix.prefix { $0.isNumber }
         return Int(digits)
@@ -828,7 +828,7 @@ final class HookInstaller {
     }
 
     private func isBuddyCommand(_ cmd: String) -> Bool {
-        cmd.contains("buddygotchi") || cmd.contains("BuddygotchiSignal")
+        cmd.contains("boop") || cmd.contains("BoopSignal")
     }
 
     private func configDir(for agent: AgentKind) -> URL {
@@ -844,7 +844,7 @@ final class HookInstaller {
     }
 
     private func managedSignalURL() -> URL {
-        URL(fileURLWithPath: stateDir).appendingPathComponent("bin/buddygotchi-signal")
+        URL(fileURLWithPath: stateDir).appendingPathComponent("bin/boop-signal")
     }
 
     private func scriptCommand(for agent: AgentKind) -> String {
@@ -872,6 +872,6 @@ final class HookInstaller {
     }
 
     private func uninstallJSONFailureReason(path: String) -> String {
-        "\(path) is not valid JSON — Buddygotchi entries were not removed"
+        "\(path) is not valid JSON — Boop entries were not removed"
     }
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Buddygotchi end-to-end smoke test — MASTER runner.
+# Boop end-to-end smoke test — MASTER runner.
 #
 # Runs the core HTTP contract checks, then each per-agent suite
 # (app/tools/e2e/{claude,codex,cursor}.sh) and reports a combined result.
@@ -10,7 +10,7 @@
 #
 # Start the app first if it isn't already running:
 #
-#     (cd app && swift run Buddygotchi) &
+#     (cd app && swift run Boop) &
 #
 # Run a single agent's suite directly, e.g.:
 #
@@ -29,7 +29,7 @@ E2E="$DIR/e2e"
 # shellcheck source=e2e/lib.sh
 source "$E2E/lib.sh"
 
-printf '\033[1m═══ Buddygotchi E2E smoke ═══\033[0m\n'
+printf '\033[1m═══ Boop E2E smoke ═══\033[0m\n'
 require_app
 
 # ── Core HTTP contract ───────────────────────────────────────────────────────

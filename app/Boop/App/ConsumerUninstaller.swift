@@ -54,7 +54,7 @@ enum ConsumerUninstallError: LocalizedError {
         switch self {
         case .leftoverHookFiles(let failures):
             return """
-                Buddygotchi was removed, but some agent hook files still need manual cleanup:
+                Boop was removed, but some agent hook files still need manual cleanup:
                 \(failures.joined(separator: "\n"))
                 """
         }

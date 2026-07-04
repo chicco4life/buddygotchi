@@ -52,7 +52,7 @@ final class BLEManager: NSObject, @unchecked Sendable {
     }
 
     private var central: CBCentralManager?
-    private let bleQueue = DispatchQueue(label: "buddygotchi.ble", qos: .userInitiated)
+    private let bleQueue = DispatchQueue(label: "boop.ble", qos: .userInitiated)
 
     private var targetPeripheralIdentifier: UUID?
     private var connectedPeripheral: CBPeripheral?

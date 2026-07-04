@@ -1,5 +1,5 @@
 import XCTest
-@testable import Buddygotchi
+@testable import BoopCore
 
 let NOW: Double = 1_000_000
 let TEST_STALE_MS: Double = 600_000

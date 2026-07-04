@@ -133,13 +133,13 @@ final class DesktopOutput: OutputProvider {
 
     private static func accessibilityDescription(for state: PetState) -> String {
         switch state {
-        case .attention: return "Buddygotchi — needs you"
-        case .celebrate: return "Buddygotchi — finished"
-        case .error: return "Buddygotchi — stuck"
-        case .busy: return "Buddygotchi — working"
-        case .thinking: return "Buddygotchi — thinking"
-        case .idle: return "Buddygotchi — idle"
-        case .sleep: return "Buddygotchi — asleep"
+        case .attention: return "Boop — needs you"
+        case .celebrate: return "Boop — finished"
+        case .error: return "Boop — stuck"
+        case .busy: return "Boop — working"
+        case .thinking: return "Boop — thinking"
+        case .idle: return "Boop — idle"
+        case .sleep: return "Boop — asleep"
         }
     }
 

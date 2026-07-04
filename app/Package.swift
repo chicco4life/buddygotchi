@@ -8,15 +8,15 @@ let hasAppleXCTest = FileManager.default.fileExists(
 ) || FileManager.default.fileExists(
     atPath: "\(developerDir)/Library/Developer/Frameworks/XCTest.framework/Modules/XCTest.swiftmodule"
 )
-let useXCTestShim = ProcessInfo.processInfo.environment["BUDDYGOTCHI_USE_XCTEST_SHIM"] == "1" || !hasAppleXCTest
+let useXCTestShim = ProcessInfo.processInfo.environment["BOOP_USE_XCTEST_SHIM"] == "1" || !hasAppleXCTest
 
 var packageTargets: [Target] = [
-    .executableTarget(
-        name: "Buddygotchi",
+    .target(
+        name: "BoopCore",
         dependencies: [
             .product(name: "Hummingbird", package: "hummingbird"),
         ],
-        path: "Buddygotchi",
+        path: "Boop",
         exclude: [
             "Resources/Info.plist",
         ],
@@ -26,17 +26,22 @@ var packageTargets: [Target] = [
         ],
         // Without full Xcode the tests run as an executable that `@testable
         // import`s this target, so it must be built with testability enabled.
-        swiftSettings: useXCTestShim ? [.unsafeFlags(["-enable-testing"])] : [],
+        swiftSettings: useXCTestShim ? [.unsafeFlags(["-enable-testing"])] : []
+    ),
+    .executableTarget(
+        name: "Boop",
+        dependencies: ["BoopCore"],
+        path: "BoopLauncher",
         linkerSettings: [
             .unsafeFlags(["-Xlinker", "-sectcreate",
                           "-Xlinker", "__TEXT",
                           "-Xlinker", "__info_plist",
-                          "-Xlinker", "Buddygotchi/Resources/Info.plist"]),
+                          "-Xlinker", "Boop/Resources/Info.plist"]),
         ]
     ),
     .executableTarget(
-        name: "BuddygotchiSignal",
-        path: "BuddygotchiSignal"
+        name: "BoopSignal",
+        path: "BoopSignal"
     ),
 ]
 
@@ -44,13 +49,13 @@ if useXCTestShim {
     // No real XCTest here: SwiftPM's `swift test` would build these tests and
     // run NONE of them (a false green). Instead build the Tests directory as an
     // executable driven by the generated GeneratedTestRunner.swift, run via
-    // `make test` → `swift run BuddygotchiTests`. See tools/gen-test-runner.py.
+    // `make test` → `swift run BoopTests`. See tools/gen-test-runner.py.
     packageTargets.append(
         .executableTarget(
-            name: "BuddygotchiTests",
-            dependencies: ["Buddygotchi", "XCTest"],
+            name: "BoopTests",
+            dependencies: ["BoopCore", "XCTest"],
             path: "Tests",
-            swiftSettings: [.define("BUDDYGOTCHI_SHIM_RUNNER")]
+            swiftSettings: [.define("BOOP_SHIM_RUNNER")]
         )
     )
     packageTargets.append(
@@ -62,19 +67,19 @@ if useXCTestShim {
 } else {
     packageTargets.append(
         .testTarget(
-            name: "BuddygotchiTests",
-            dependencies: ["Buddygotchi"],
+            name: "BoopTests",
+            dependencies: ["BoopCore"],
             path: "Tests"
         )
     )
 }
 
 let package = Package(
-    name: "Buddygotchi",
+    name: "Boop",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "Buddygotchi", targets: ["Buddygotchi"]),
-        .executable(name: "BuddygotchiSignal", targets: ["BuddygotchiSignal"]),
+        .executable(name: "Boop", targets: ["Boop"]),
+        .executable(name: "BoopSignal", targets: ["BoopSignal"]),
     ],
     dependencies: [
         .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.0.0"),

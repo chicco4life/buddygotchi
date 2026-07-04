@@ -3,7 +3,7 @@ import CoreText
 import Foundation
 
 enum BuddyResources {
-    private static let moduleBundleName = "Buddygotchi_Buddygotchi.bundle"
+    private static let moduleBundleName = "Boop_BoopCore.bundle"
 
     static func registerFonts() {
         for url in fontURLs() {
@@ -12,7 +12,7 @@ enum BuddyResources {
 
         #if DEBUG
         if NSFont(name: BuddyTheme.geistSemiBoldPostScriptName, size: 12) == nil {
-            print("BUDDYGOTCHI WARNING: Geist SemiBold did not register; app typography is falling back.")
+            print("BOOP WARNING: Geist SemiBold did not register; app typography is falling back.")
         }
         #endif
     }

@@ -1,6 +1,6 @@
 import XCTest
 import SwiftUI
-@testable import Buddygotchi
+@testable import BoopCore
 
 // MARK: - Snapshot / self-verification harness
 //
@@ -112,7 +112,7 @@ final class SnapshotHarnessTests: XCTestCase {
 
     func testPopoverBusy() throws {
         let e = makeEngine()
-        e.sessionStarted(sessionId: "s1", source: "claude-code", cwd: "/Users/dev/buddygotchi")
+        e.sessionStarted(sessionId: "s1", source: "claude-code", cwd: "/Users/dev/boop")
         e.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
         XCTAssertEqual(e.state.pet.state, .busy)
         try snapshot(popover(e), "popover-2-busy", popoverIdle)
@@ -121,9 +121,9 @@ final class SnapshotHarnessTests: XCTestCase {
     func testPopoverPassivePrompt() throws {
         // Read-only tool card (no Approve/Deny buttons).
         let e = makeEngine()
-        e.sessionStarted(sessionId: "s1", source: "cursor", cwd: "/Users/dev/buddygotchi")
+        e.sessionStarted(sessionId: "s1", source: "cursor", cwd: "/Users/dev/boop")
         e.submitRequest(sessionId: "s1", requestId: "r1", tool: "Bash",
-                        hint: "git push origin main", sessionLabel: "buddygotchi")
+                        hint: "git push origin main", sessionLabel: "boop")
         XCTAssertEqual(e.state.pet.state, .attention)
         XCTAssertEqual(e.state.prompt?.isApproval, false)
         try snapshot(popover(e), "popover-3-passive-prompt", popoverPrompt)
@@ -133,10 +133,10 @@ final class SnapshotHarnessTests: XCTestCase {
 
     func testApprovalButtonLoop() async throws {
         let e = makeEngine()
-        e.sessionStarted(sessionId: "s1", source: "claude-code", cwd: "/Users/dev/buddygotchi")
+        e.sessionStarted(sessionId: "s1", source: "claude-code", cwd: "/Users/dev/boop")
         let reqId = "s1_req"
         let task = Task { await e.submitApproval(sessionId: "s1", requestId: reqId, tool: "Bash",
-                                                 hint: "rm -rf build && npm ci", sessionLabel: "buddygotchi",
+                                                 hint: "rm -rf build && npm ci", sessionLabel: "boop",
                                                  source: "claude-code") }
         await Task.yield()
 

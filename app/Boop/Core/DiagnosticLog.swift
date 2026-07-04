@@ -20,8 +20,8 @@ final class DiagnosticLog {
     private let capacity: Int
     private let rawPayloadRetention = 20
 
-    private let hooksLogger = Logger(subsystem: "com.buddygotchi", category: "hooks")
-    private let engineLogger = Logger(subsystem: "com.buddygotchi", category: "engine")
+    private let hooksLogger = Logger(subsystem: "com.boopcomputer.boop", category: "hooks")
+    private let engineLogger = Logger(subsystem: "com.boopcomputer.boop", category: "engine")
 
     init(capacity: Int = 200) {
         self.capacity = capacity
@@ -143,7 +143,7 @@ final class DiagnosticLog {
     private nonisolated static func collectSystemLogJSON() -> Data {
         guard let store = try? OSLogStore(scope: .currentProcessIdentifier) else { return Data("[]".utf8) }
         let tenMinutesAgo = store.position(date: Date.now.addingTimeInterval(-600))
-        guard let logEntries = try? store.getEntries(at: tenMinutesAgo, matching: NSPredicate(format: "subsystem == %@", "com.buddygotchi")) else { return Data("[]".utf8) }
+        guard let logEntries = try? store.getEntries(at: tenMinutesAgo, matching: NSPredicate(format: "subsystem == %@", "com.boopcomputer.boop")) else { return Data("[]".utf8) }
 
         let entries = logEntries.compactMap { entry -> [String: Any]? in
             guard let logEntry = entry as? OSLogEntryLog else { return nil }
