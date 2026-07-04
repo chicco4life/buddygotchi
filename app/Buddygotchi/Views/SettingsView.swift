@@ -12,6 +12,8 @@ struct SettingsView: View {
     @AppStorage(DefaultsKey.buddySpecies) private var species = Pet.defaultSpecies
     @AppStorage(DefaultsKey.setupCompleted) private var setupCompleted = false
     @AppStorage(DefaultsKey.approvalMode) private var approvalMode = false
+    @AppStorage("approvalModeExplained") private var approvalModeExplained = false
+    @AppStorage(DefaultsKey.buddyName) private var buddyName = ""
     @AppStorage(DefaultsKey.esp32PeripheralUUID) private var esp32UUID: String?
     @State private var launchAtLogin = false
     @State private var launchAtLoginStatus = LoginItemManager.Status.disabled
@@ -26,6 +28,9 @@ struct SettingsView: View {
     @State private var showingRemoveConfirmation = false
     @State private var showingUpdaterUnavailable = false
     @State private var uninstallError: String?
+    @State private var showingApprovalModeExplainer = false
+    @State private var previewState: PetState = .idle
+    @State private var previewResetTask: Task<Void, Never>?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -77,6 +82,26 @@ struct SettingsView: View {
         }
         .onDisappear {
             scanner.stop()
+            cleanupAbandonedPairing()
+            previewResetTask?.cancel()
+        }
+        .onChange(of: esp32Output.connectionState) { _, state in
+            if state == .connected, let selectedDeviceUUID {
+                UserDefaults.standard.set(selectedDeviceUUID.uuidString, forKey: esp32PeripheralUUIDKey)
+                self.selectedDeviceUUID = nil
+            }
+        }
+        .sheet(isPresented: $showingApprovalModeExplainer) {
+            ApprovalModeExplainerSheet(
+                onCancel: {
+                    showingApprovalModeExplainer = false
+                },
+                onConfirm: {
+                    approvalModeExplained = true
+                    setApprovalMode(true)
+                    showingApprovalModeExplainer = false
+                }
+            )
         }
         .sheet(isPresented: $showingFirmwareUpdate) {
             FirmwareUpdateView(
@@ -165,14 +190,8 @@ struct SettingsView: View {
                 BuddySettingToggle(
                     title: "Local Approval Mode",
                     description: "Route tool approvals through Buddygotchi instead of your agent's built-in dialog.",
-                    isOn: $approvalMode
+                    isOn: approvalModeBinding
                 )
-                .onChange(of: approvalMode) { _, newValue in
-                    BuddyConfig.setApprovalMode(newValue)
-                    if !newValue {
-                        engine.resolveAllPendingApprovals(decision: .passthrough)
-                    }
-                }
 
                 Divider().padding(.horizontal, 12)
 
@@ -239,7 +258,11 @@ struct SettingsView: View {
                 .accessibilityLabel("Previous species")
 
                 VStack(spacing: 8) {
-                    PetStageView(petState: .idle, species: species)
+                    Button(action: cyclePreviewState) {
+                        PetStageView(petState: previewState, species: species)
+                    }
+                    .buttonStyle(BuddyPlainButtonStyle())
+                    .accessibilityLabel("\(species) buddy preview, \(previewState.rawValue)")
 
                     HStack(spacing: 4) {
                         Circle()
@@ -269,6 +292,25 @@ struct SettingsView: View {
             .frame(maxWidth: .infinity)
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Species picker, \(species), \(currentSpeciesIndex + 1) of \(buddyOrder.count)")
+
+            TextField(
+                "Buddy name",
+                text: $buddyName
+            )
+                .textFieldStyle(.plain)
+                .font(.buddy(13))
+                .foregroundStyle(BuddyTheme.textPrimary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: 14))
+                .overlay(alignment: .topLeading) {
+                    Text("Name")
+                        .font(.buddy(9.5, weight: .semibold))
+                        .foregroundStyle(BuddyTheme.textTertiary)
+                        .offset(x: 14, y: -18)
+                }
+                .padding(.top, 6)
         }
     }
 
@@ -340,9 +382,9 @@ struct SettingsView: View {
         case .notInstalled:
             return "Not connected"
         case .outdated(let installed, let current):
-            return "Needs repair - v\(installed) to v\(current)"
+            return "Needs repair — v\(installed) to v\(current)"
         case .corrupted(let reason):
-            return "Needs repair - \(reason)"
+            return "Needs repair — \(reason)"
         }
     }
 
@@ -351,7 +393,7 @@ struct SettingsView: View {
         case .installed:
             return BuddyTheme.amber
         case .outdated, .corrupted:
-            return .orange
+            return BuddyTheme.amber
         case .notInstalled:
             return .secondary
         }
@@ -469,10 +511,10 @@ struct SettingsView: View {
             if scanner.isScanning && !scanner.devices.isEmpty {
                 ForEach(scanner.devices, id: \.identifier) { device in
                     Button {
-                        UserDefaults.standard.set(device.identifier.uuidString, forKey: esp32PeripheralUUIDKey)
+                        cleanupAbandonedPairing()
                         selectedDeviceUUID = device.identifier
                         scanner.stop()
-                        esp32Output.connectToSavedDevice()
+                        esp32Output.connect(to: device.identifier)
                     } label: {
                         HStack {
                             Text(device.name).font(.buddy(11))
@@ -675,7 +717,7 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .tint(BuddyTheme.stuckRed)
+                .tint(BuddyTheme.textSecondary)
 
                 Spacer()
 
@@ -705,6 +747,54 @@ struct SettingsView: View {
         species = buddyOrder[next]
         engine.setSpecies(species)
         esp32Output.sendNow()
+        previewResetTask?.cancel()
+        previewState = .idle
+    }
+
+    private var approvalModeBinding: Binding<Bool> {
+        Binding(
+            get: { approvalMode },
+            set: { newValue in
+                if newValue && !approvalModeExplained {
+                    showingApprovalModeExplainer = true
+                } else {
+                    setApprovalMode(newValue)
+                }
+            }
+        )
+    }
+
+    private func setApprovalMode(_ enabled: Bool) {
+        approvalMode = enabled
+        BuddyConfig.setApprovalMode(enabled)
+        if !enabled {
+            engine.resolveAllPendingApprovals(decision: .passthrough)
+        }
+    }
+
+    private func cleanupAbandonedPairing() {
+        guard selectedDeviceUUID != nil && esp32Output.connectionState != .connected else { return }
+        selectedDeviceUUID = nil
+        UserDefaults.standard.removeObject(forKey: esp32PeripheralUUIDKey)
+        esp32Output.unpair()
+    }
+
+    private func cyclePreviewState() {
+        previewResetTask?.cancel()
+        switch previewState {
+        case .idle:
+            previewState = .attention
+        case .attention:
+            previewState = .celebrate
+            previewResetTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(1400))
+                if previewState == .celebrate {
+                    previewState = .idle
+                }
+            }
+        default:
+            previewState = .idle
+        }
     }
 
     private var serverHealthRow: some View {
@@ -802,5 +892,49 @@ struct SettingsView: View {
 
     private var currentSpeciesColor: Color {
         buddySpeciesColor(for: species)
+    }
+}
+
+private struct ApprovalModeExplainerSheet: View {
+    let onCancel: () -> Void
+    let onConfirm: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Local approval mode")
+                .font(.buddy(18, weight: .semibold))
+                .foregroundStyle(BuddyTheme.textPrimary)
+
+            VStack(alignment: .leading, spacing: 10) {
+                explainerRow("Buddygotchi becomes the approval surface for supported hooks.")
+                explainerRow("Cursor read-only checks can be approved automatically. Shell commands and writes still ask first.")
+                explainerRow("If Buddygotchi is closed or unreachable, hooks fail open and the agent keeps its native flow.")
+            }
+
+            HStack {
+                Spacer()
+                Button("Cancel", action: onCancel)
+                    .buttonStyle(BuddyPlainButtonStyle())
+                Button("Turn on", action: onConfirm)
+                    .buttonStyle(BuddyPrimaryButtonStyle())
+            }
+        }
+        .padding(22)
+        .frame(width: 380)
+        .background(BuddyTheme.night)
+        .preferredColorScheme(.dark)
+    }
+
+    private func explainerRow(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Circle()
+                .fill(BuddyTheme.amber)
+                .frame(width: 5, height: 5)
+                .padding(.top, 6)
+            Text(text)
+                .font(.buddy(12))
+                .foregroundStyle(BuddyTheme.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }

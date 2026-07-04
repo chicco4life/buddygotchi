@@ -28,24 +28,28 @@ struct PopoverView: View {
     }
 
     var body: some View {
-        Group {
-            if !setupCompleted {
-                unfinishedSetupView
-            } else if showingSettings {
-                SettingsView(
-                    isPresented: $showingSettings,
-                    engine: engine,
-                    esp32Output: esp32Output,
-                    serverHealth: serverHealth,
-                    onOpenOnboarding: onOpenOnboarding
-                )
-                    .transition(reduceMotion ? .opacity : .asymmetric(
-                        insertion: .move(edge: .trailing).combined(with: .opacity),
-                        removal: .move(edge: .trailing).combined(with: .opacity)
-                    ))
-            } else {
-                liveView
-                    .transition(.opacity)
+        ZStack {
+            BuddyTheme.night.ignoresSafeArea()
+
+            Group {
+                if !setupCompleted {
+                    unfinishedSetupView
+                } else if showingSettings {
+                    SettingsView(
+                        isPresented: $showingSettings,
+                        engine: engine,
+                        esp32Output: esp32Output,
+                        serverHealth: serverHealth,
+                        onOpenOnboarding: onOpenOnboarding
+                    )
+                        .transition(reduceMotion ? .opacity : .asymmetric(
+                            insertion: .move(edge: .trailing).combined(with: .opacity),
+                            removal: .move(edge: .trailing).combined(with: .opacity)
+                        ))
+                } else {
+                    liveView
+                        .transition(.opacity)
+                }
             }
         }
         .animation(reduceMotion ? nil : .buddyEase(0.2), value: showingSettings)
@@ -80,7 +84,6 @@ struct PopoverView: View {
         }
         .padding(18)
         .frame(width: BuddyTheme.popoverWidth, height: 260)
-        .background(BuddyTheme.night)
         .preferredColorScheme(.dark)
     }
 
@@ -422,7 +425,6 @@ struct ToolCardView: View {
                         }
                         .buttonStyle(BuddyPlainButtonStyle())
                         .keyboardShortcut(.delete, modifiers: [])
-                        .keyboardShortcut("d", modifiers: [])
 
                         Button(action: onApprove) {
                             HStack(spacing: 6) {

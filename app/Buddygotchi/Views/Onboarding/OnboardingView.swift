@@ -10,6 +10,8 @@ struct OnboardingView: View {
     @State private var scanner = BLEScanner()
     @State private var selectedDeviceUUID: UUID?
     @State private var pairingTask: Task<Void, Never>?
+    @State private var adoptionPreviewState: PetState = .idle
+    @State private var adoptionPreviewResetTask: Task<Void, Never>?
     @State private var didAutoConnect = false
     @State private var didHatch = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -51,6 +53,12 @@ struct OnboardingView: View {
         .onDisappear {
             scanner.stop()
             pairingTask?.cancel()
+            adoptionPreviewResetTask?.cancel()
+            if model.step == .display && model.selectedOutput == .hardware && esp32Output.connectionState != .connected {
+                cleanupAbandonedPairing(forceUnpair: true)
+            } else {
+                cleanupAbandonedPairing()
+            }
         }
     }
 
@@ -104,24 +112,29 @@ struct OnboardingView: View {
                 BlobBuddyView(petState: .idle, size: 220)
                     .transition(.scale(scale: 0.8).combined(with: .opacity))
             } else {
-                ZStack {
-                    Ellipse()
-                        .fill(
-                            RadialGradient(
-                                colors: [Color(hex: "#F7F2E9"), BuddyTheme.textPrimary, Color(hex: "#D8CCB9")],
-                                center: .topLeading,
-                                startRadius: 12,
-                                endRadius: 120
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+                    let phase = timeline.date.timeIntervalSinceReferenceDate * .pi
+                    let wobble = sin(phase) * 2
+
+                    ZStack {
+                        Ellipse()
+                            .fill(
+                                RadialGradient(
+                                    colors: [Color(hex: "#F7F2E9"), BuddyTheme.textPrimary, Color(hex: "#D8CCB9")],
+                                    center: .topLeading,
+                                    startRadius: 12,
+                                    endRadius: 120
+                                )
                             )
-                        )
-                        .frame(width: 150, height: 194)
-                        .shadow(color: BuddyTheme.amber.opacity(0.22), radius: 24, y: 10)
-                    CrackShape()
-                        .stroke(BuddyTheme.night.opacity(0.45), lineWidth: 3)
-                        .frame(width: 54, height: 72)
-                        .offset(y: -10)
+                            .frame(width: 150, height: 194)
+                            .shadow(color: BuddyTheme.amber.opacity(0.22), radius: 24, y: 10)
+                        CrackShape()
+                            .stroke(BuddyTheme.night.opacity(0.45), lineWidth: 3)
+                            .frame(width: 54, height: 72)
+                            .offset(y: -10)
+                    }
+                    .rotationEffect(.degrees(wobble))
                 }
-                .rotationEffect(.degrees(reduceMotion ? 0 : -2))
                 .transition(.opacity)
             }
         }
@@ -144,8 +157,12 @@ struct OnboardingView: View {
                 .accessibilityLabel("Previous species")
 
                 VStack(spacing: 12) {
-                    PetStageView(petState: .idle, species: model.selectedSpecies, fontSize: 24)
-                        .frame(width: 260, height: 180)
+                    Button(action: cycleAdoptionPreviewState) {
+                        PetStageView(petState: adoptionPreviewState, species: model.selectedSpecies, fontSize: 24)
+                            .frame(width: 260, height: 180)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(model.selectedSpecies) buddy preview, \(adoptionPreviewState.rawValue)")
                     Text(model.selectedSpecies.capitalized)
                         .font(.buddy(15, weight: .semibold))
                         .foregroundStyle(buddySpeciesColor(for: model.selectedSpecies))
@@ -350,16 +367,20 @@ struct OnboardingView: View {
                 startScanning()
             } else {
                 scanner.stop()
-                pairingTask?.cancel()
-                selectedDeviceUUID = nil
-                model.pairingTimedOut = false
+                cleanupAbandonedPairing(forceUnpair: true)
             }
         }
         .onChange(of: esp32Output.connectionState) { _, state in
-            if state == .connected && selectedDeviceUUID != nil {
+            if state == .connected, let selectedDeviceUUID {
+                UserDefaults.standard.set(selectedDeviceUUID.uuidString, forKey: esp32PeripheralUUIDKey)
                 pairingTask?.cancel()
                 model.pairingTimedOut = false
                 esp32Output.sendTestCelebrate()
+            }
+        }
+        .onChange(of: model.step) { oldStep, _ in
+            if oldStep == .display && esp32Output.connectionState != .connected {
+                cleanupAbandonedPairing(forceUnpair: true)
             }
         }
     }
@@ -554,8 +575,7 @@ struct OnboardingView: View {
                     }
                     .buttonStyle(OnboardingPrimaryButtonStyle())
                     Button(BuddyCopy.Onboarding.backToList) {
-                        selectedDeviceUUID = nil
-                        model.pairingTimedOut = false
+                        cleanupAbandonedPairing()
                         startScanning()
                     }
                     .buttonStyle(OnboardingSecondaryButtonStyle())
@@ -653,6 +673,8 @@ struct OnboardingView: View {
         let next = (index + direction + buddyOrder.count) % buddyOrder.count
         model.selectedSpecies = buddyOrder[next]
         engine.setSpecies(model.selectedSpecies)
+        adoptionPreviewResetTask?.cancel()
+        adoptionPreviewState = .idle
     }
 
     private func updateHeardAgent(from sessions: [SessionSnapshot]) {
@@ -677,8 +699,7 @@ struct OnboardingView: View {
         selectedDeviceUUID = uuid
         model.pairingTimedOut = false
         scanner.stop()
-        UserDefaults.standard.set(uuid.uuidString, forKey: esp32PeripheralUUIDKey)
-        esp32Output.connectToSavedDevice()
+        esp32Output.connect(to: uuid)
         startPairingTimeout()
     }
 
@@ -688,8 +709,7 @@ struct OnboardingView: View {
             return
         }
         model.pairingTimedOut = false
-        UserDefaults.standard.set(uuid.uuidString, forKey: esp32PeripheralUUIDKey)
-        esp32Output.connectToSavedDevice()
+        esp32Output.connect(to: uuid)
         startPairingTimeout()
     }
 
@@ -700,6 +720,36 @@ struct OnboardingView: View {
             if model.step == .display && model.selectedOutput == .hardware && esp32Output.connectionState != .connected {
                 model.pairingTimedOut = true
             }
+        }
+    }
+
+    private func cleanupAbandonedPairing(forceUnpair: Bool = false) {
+        guard forceUnpair || selectedDeviceUUID != nil || model.pairingTimedOut else { return }
+        pairingTask?.cancel()
+        pairingTask = nil
+        selectedDeviceUUID = nil
+        model.pairingTimedOut = false
+        if forceUnpair || esp32Output.connectionState != .connected {
+            UserDefaults.standard.removeObject(forKey: esp32PeripheralUUIDKey)
+            esp32Output.unpair()
+        }
+    }
+
+    private func cycleAdoptionPreviewState() {
+        adoptionPreviewResetTask?.cancel()
+        switch adoptionPreviewState {
+        case .idle:
+            adoptionPreviewState = .attention
+        case .attention:
+            adoptionPreviewState = .celebrate
+            adoptionPreviewResetTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(1400))
+                if adoptionPreviewState == .celebrate {
+                    adoptionPreviewState = .idle
+                }
+            }
+        default:
+            adoptionPreviewState = .idle
         }
     }
 }
