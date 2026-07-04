@@ -6,8 +6,7 @@ These instructions apply to the whole repo.
 
 - The active app is the Swift macOS project in `app/`.
 - The production data path is `agent hooks -> HookServer -> BuddyEngine -> pure reducer -> OutputProvider`.
-- The older Bun/TypeScript daemon in `src/src/` is legacy/reference code unless a task explicitly targets it.
-- The ESP32 firmware in `src/outputs/esp32/` is active and consumes the Swift app's heartbeat JSON.
+- The ESP32 firmware in `firmware/esp32/` is active and consumes the Swift app's heartbeat JSON.
 
 ## Build And Test
 
@@ -77,6 +76,6 @@ app/tools/e2e/cursor.sh
 ## Documentation Expectations
 
 - Keep `README.md` focused on overview and build/run/test instructions.
-- Keep `ARCHITECTURE.md` focused on how pieces fit together, including test/mocking strategy.
+- Keep `docs/ARCHITECTURE.md` focused on how pieces fit together, including test/mocking strategy.
 - Keep this file mirrored in `CLAUDE.md`.
-- Use `PLAN.md`, `BUGS.md`, and `TODOs.md` for current status only; do not let old completed task dumps become the source of truth.
+- Use `docs/PLAN.md`, `docs/BUGS.md`, and `docs/TODOs.md` for current status only; do not let old completed task dumps become the source of truth.

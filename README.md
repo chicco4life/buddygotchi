@@ -2,7 +2,7 @@
 
 Buddygotchi is a native macOS menu bar companion for AI coding agents. It watches Claude Code, Cursor, and Codex through local hook integrations, turns their activity into an animated buddy state, surfaces approval prompts, and can mirror the same state to an M5StickC Plus 2 over Bluetooth.
 
-The current production path is the Swift app in `app/`. The older Bun/TypeScript daemon under `src/src/` is retained as reference code; the active ESP32 firmware still lives under `src/outputs/esp32/`.
+The current product lives in three top-level areas: the Swift macOS app in `app/`, the landing page in `landing/`, and the active ESP32 firmware in `firmware/esp32/`. Planning and reference material lives in `docs/`.
 
 ## What It Does
 
@@ -18,7 +18,6 @@ The current production path is the Swift app in `app/`. The older Bun/TypeScript
 - macOS 14 or newer
 - Xcode with Swift 6 and XCTest for tests. Command Line Tools may be enough for `swift build`, but `swift test` needs XCTest available.
 - Optional: PlatformIO for ESP32 firmware work
-- Optional: Bun for the legacy TypeScript daemon/tests
 - Optional: `swift-format` for local lint checks
 
 ## Build, Run, And Test
@@ -75,19 +74,16 @@ app/tools/e2e/cursor.sh
 | Path | Purpose |
 | --- | --- |
 | `app/` | Active macOS Swift app, hook CLIs, tests, and e2e scripts |
-| `app/Buddygotchi/Core/` | Pure reducer, state model, events, engine, config, diagnostics |
-| `app/Buddygotchi/Server/` | Hummingbird HTTP input for hook events, signals, approvals, and health |
-| `app/Buddygotchi/Views/` | SwiftUI popover, settings, setup wizard, activity cards |
-| `app/Buddygotchi/Outputs/ESP32/` | BLE output, heartbeat mapper, OTA update client |
-| `app/BuddygotchiSignal/` | Cursor hook CLI that bridges stdin payloads to HTTP |
-| `src/outputs/esp32/` | ESP32 firmware, PlatformIO config, character tools, device docs |
-| `src/src/` | Legacy Bun/TypeScript daemon and browser UI prototype |
-| `external_sites/` | Captured external hook docs used as implementation references |
+| `landing/` | Next.js landing page and waitlist API |
+| `firmware/esp32/` | ESP32 firmware, PlatformIO config, character tools, and device docs |
+| `docs/` | Architecture, product planning, marketing notes, bugs, TODOs, and captured external references |
+| `README.md` | Overview and build/run/test instructions |
+| `AGENTS.md`, `CLAUDE.md` | Repo instructions for coding agents |
 
 ## ESP32 Firmware
 
 ```sh
-cd src/outputs/esp32
+cd firmware/esp32
 pio run
 pio run -t upload
 pio run -t uploadfs
@@ -96,15 +92,15 @@ pio run -t uploadfs
 Hardware helper scripts:
 
 ```sh
-python3 src/outputs/esp32/tools/screenshot.py --out /tmp/buddy.png
-python3 src/outputs/esp32/tools/button.py --mock a
-python3 src/outputs/esp32/tools/button.py b
+python3 firmware/esp32/tools/screenshot.py --out /tmp/buddy.png
+python3 firmware/esp32/tools/button.py --mock a
+python3 firmware/esp32/tools/button.py b
 ```
 
 ## More Detail
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for how the app is pieced together, including hook routing, state aggregation, outputs, mocks, and test strategy. See [AGENTS.md](AGENTS.md) for repo-specific instructions for coding agents.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the app is pieced together, including hook routing, state aggregation, outputs, mocks, and test strategy. See [AGENTS.md](AGENTS.md) for repo-specific instructions for coding agents.
 
 ## License
 
-The ESP32 firmware license is in [src/outputs/esp32/LICENSE](src/outputs/esp32/LICENSE).
+The ESP32 firmware license is in [firmware/esp32/LICENSE](firmware/esp32/LICENSE).

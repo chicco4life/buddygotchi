@@ -2,7 +2,7 @@
 
 This is the active Buddygotchi runtime: a Swift macOS menu bar app that receives AI agent hook events over localhost, reduces them into one state model, renders the menu bar popover, and optionally mirrors state to an M5StickC Plus 2 over BLE.
 
-For full architecture, see the repo root `ARCHITECTURE.md`.
+For full architecture, see `../docs/ARCHITECTURE.md`.
 
 ## Quick Start
 
