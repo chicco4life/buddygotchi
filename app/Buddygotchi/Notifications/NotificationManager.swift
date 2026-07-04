@@ -25,12 +25,12 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
         let approve = UNNotificationAction(
             identifier: "APPROVE",
-            title: "Approve",
+            title: BuddyCopy.approve,
             options: [.authenticationRequired]
         )
         let deny = UNNotificationAction(
             identifier: "DENY",
-            title: "Deny",
+            title: BuddyCopy.deny,
             options: [.destructive]
         )
         let passiveCategory = UNNotificationCategory(
@@ -74,8 +74,8 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
 
     private func deliverToolNotification(prompt: Prompt) {
         let content = UNMutableNotificationContent()
-        let agentName = prompt.source.flatMap { AgentKind(rawValue: $0)?.displayName } ?? prompt.source ?? "Buddygotchi"
-        content.title = "\(agentName) needs you"
+        let agentName = prompt.source.flatMap { AgentKind(rawValue: $0)?.displayName } ?? prompt.source ?? BuddyCopy.shared.common.appName
+        content.title = BuddyCopy.notificationTitle(agentName: agentName)
         content.body = prompt.hint.isEmpty ? prompt.tool : "\(prompt.tool): \(prompt.hint)"
         content.categoryIdentifier = prompt.isApproval ? approvalCategoryId : passiveCategoryId
         content.sound = .default

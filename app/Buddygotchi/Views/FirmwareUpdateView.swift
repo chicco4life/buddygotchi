@@ -18,13 +18,13 @@ struct FirmwareUpdateView: View {
                 case .upToDate(let v):
                     upToDateView(version: v)
                 case .downloading(let p):
-                    progressView(phase: "Downloading", progress: p, eta: nil, cancellable: true)
+                    progressView(phase: BuddyCopy.shared.firmwareUpdate.downloading, progress: p, eta: nil, cancellable: true)
                 case .uploading(let p, let eta):
-                    progressView(phase: "Uploading", progress: p, eta: eta, cancellable: true)
+                    progressView(phase: BuddyCopy.shared.firmwareUpdate.uploading, progress: p, eta: eta, cancellable: true)
                 case .verifying:
-                    progressView(phase: "Verifying", progress: 1.0, eta: nil, cancellable: false)
+                    progressView(phase: BuddyCopy.shared.firmwareUpdate.verifying, progress: 1.0, eta: nil, cancellable: false)
                 case .rebooting:
-                    progressView(phase: "Restarting device", progress: 1.0, eta: nil, cancellable: false)
+                    progressView(phase: BuddyCopy.shared.firmwareUpdate.restartingDevice, progress: 1.0, eta: nil, cancellable: false)
                 case .success(let v):
                     successView(version: v)
                 case .failed(let reason, let recoverable):
@@ -38,13 +38,13 @@ struct FirmwareUpdateView: View {
         .background(BuddyTheme.night)
         .foregroundStyle(BuddyTheme.textPrimary)
         .preferredColorScheme(.dark)
-        .confirmationDialog("Stop the update?", isPresented: $showingCancelConfirmation) {
-            Button("Stop update", role: .destructive) {
+        .confirmationDialog(BuddyCopy.shared.firmwareUpdate.stopUpdateTitle, isPresented: $showingCancelConfirmation) {
+            Button(BuddyCopy.shared.firmwareUpdate.stopUpdate, role: .destructive) {
                 updater.cancel()
             }
-            Button("Keep updating", role: .cancel) {}
+            Button(BuddyCopy.shared.firmwareUpdate.keepUpdating, role: .cancel) {}
         } message: {
-            Text("Your buddy keeps its current firmware.")
+            Text(BuddyCopy.shared.firmwareUpdate.keepCurrentFirmware)
         }
     }
 
@@ -86,7 +86,7 @@ struct FirmwareUpdateView: View {
                 Image(systemName: "arrow.right").font(.caption).foregroundStyle(.secondary)
                 Text(release.version).font(.buddyMono(13)).foregroundStyle(BuddyTheme.amber)
                 if let published = release.publishedAt {
-                    Text("released \(relativeDate(published))")
+                    Text(BuddyCopy.shared.firmwareUpdate.releasedTemplate.replacingOccurrences(of: "{date}", with: relativeDate(published)))
                         .font(.buddy(11))
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
@@ -127,7 +127,7 @@ struct FirmwareUpdateView: View {
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 40))
                 .foregroundStyle(BuddyTheme.green)
-            Text("Up to date")
+            Text(BuddyCopy.shared.settingsCopy.upToDate)
                 .font(.buddy(15, weight: .semibold))
             Text(version)
                 .font(.buddyMono(13))
@@ -142,7 +142,7 @@ struct FirmwareUpdateView: View {
     private func progressView(phase: String, progress: Double, eta: Int?, cancellable: Bool) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text(phase + "…")
+                Text(BuddyCopy.shared.firmwareUpdate.phaseTemplate.replacingOccurrences(of: "{phase}", with: phase))
                     .font(.buddy(13, weight: .semibold))
                 Spacer()
                 Text("\(Int(progress * 100))%")
@@ -162,7 +162,7 @@ struct FirmwareUpdateView: View {
             HStack {
                 Spacer()
                 Button(BuddyCopy.cancel) {
-                    if phase == "Uploading" {
+                    if phase == BuddyCopy.shared.firmwareUpdate.uploading {
                         showingCancelConfirmation = true
                     } else {
                         updater.cancel()
@@ -234,9 +234,11 @@ struct FirmwareUpdateView: View {
     }
 
     private func formatETA(_ seconds: Int) -> String {
-        if seconds < 60 { return "about \(seconds)s remaining" }
+        if seconds < 60 {
+            return BuddyCopy.shared.firmwareUpdate.aboutSecondsRemainingTemplate.replacingOccurrences(of: "{seconds}", with: "\(seconds)")
+        }
         let m = seconds / 60
-        return "about \(m) min remaining"
+        return BuddyCopy.shared.firmwareUpdate.aboutMinutesRemainingTemplate.replacingOccurrences(of: "{minutes}", with: "\(m)")
     }
 
     private func markdownText(_ markdown: String) -> AttributedString {

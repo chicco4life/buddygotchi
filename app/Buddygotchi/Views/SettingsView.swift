@@ -38,12 +38,12 @@ struct SettingsView: View {
                 Button(action: { isPresented = false }) {
                     HStack(spacing: 4) {
                         Image(systemName: "chevron.left")
-                        Text("Settings")
+                        Text(BuddyCopy.settings)
                             .font(.buddy(15, weight: .semibold))
                     }
                 }
                 .buttonStyle(BuddyPlainButtonStyle())
-                .accessibilityLabel("Back to live view")
+                .accessibilityLabel(BuddyCopy.shared.settingsCopy.backToLiveView)
                 .keyboardShortcut(.escape, modifiers: [])
                 Spacer()
             }
@@ -109,31 +109,31 @@ struct SettingsView: View {
                 isPresented: $showingFirmwareUpdate
             )
         }
-        .alert("Couldn't export bug report", isPresented: bugReportErrorBinding) {
-            Button("OK", role: .cancel) {}
+        .alert(BuddyCopy.shared.settingsCopy.exportBugReportFailed, isPresented: bugReportErrorBinding) {
+            Button(BuddyCopy.shared.common.ok, role: .cancel) {}
         } message: {
-            Text(bugReportError ?? "The report could not be written.")
+            Text(bugReportError ?? BuddyCopy.shared.settingsCopy.bugReportFallback)
         }
-        .alert("Remove Buddygotchi?", isPresented: $showingRemoveConfirmation) {
-            Button("Cancel", role: .cancel) {}
-            Button("Remove and quit", role: .destructive) {
+        .alert(BuddyCopy.shared.settingsCopy.removeBuddygotchiTitle, isPresented: $showingRemoveConfirmation) {
+            Button(BuddyCopy.cancel, role: .cancel) {}
+            Button(BuddyCopy.shared.settingsCopy.removeAndQuit, role: .destructive) {
                 removeBuddygotchi()
             }
         } message: {
-            Text("This removes Buddygotchi hook entries from Claude Code, Cursor, and Codex, deletes ~/.buddygotchi, unregisters launch at login, clears notifications, and quits. Your app stays wherever you put it.")
+            Text(BuddyCopy.shared.settingsCopy.removeBuddygotchiMessage)
         }
-        .alert("Updates unavailable", isPresented: $showingUpdaterUnavailable) {
-            Button("OK", role: .cancel) {}
+        .alert(BuddyCopy.shared.settingsCopy.updatesUnavailable, isPresented: $showingUpdaterUnavailable) {
+            Button(BuddyCopy.shared.common.ok, role: .cancel) {}
         } message: {
-            Text("Automatic updates are available in the packaged app when Sparkle.framework is bundled.")
+            Text(BuddyCopy.shared.settingsCopy.updatesUnavailableMessage)
         }
-        .alert("Could not remove Buddygotchi", isPresented: Binding(
+        .alert(BuddyCopy.shared.settingsCopy.removeFailed, isPresented: Binding(
             get: { uninstallError != nil },
             set: { if !$0 { uninstallError = nil } }
         )) {
-            Button("OK", role: .cancel) {}
+            Button(BuddyCopy.shared.common.ok, role: .cancel) {}
         } message: {
-            Text(uninstallError ?? "Unknown error")
+            Text(uninstallError ?? BuddyCopy.shared.common.unknown)
         }
     }
 
@@ -141,12 +141,12 @@ struct SettingsView: View {
 
     private var generalSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            BuddySectionHeader("General")
+            BuddySectionHeader(BuddyCopy.shared.settingsCopy.general)
 
             VStack(spacing: 0) {
                 BuddySettingToggle(
-                    title: "Launch at Login",
-                    description: "Start Buddygotchi when you log in to your Mac.",
+                    title: BuddyCopy.shared.settingsCopy.launchAtLogin,
+                    description: BuddyCopy.shared.settingsCopy.launchAtLoginDescription,
                     isOn: $launchAtLogin
                 )
                 .onChange(of: launchAtLogin) { _, newValue in
@@ -160,7 +160,7 @@ struct SettingsView: View {
                     HStack(alignment: .top, spacing: 8) {
                         Image(systemName: "info.circle")
                             .foregroundStyle(BuddyTheme.amber)
-                        Text("Approve Buddygotchi in System Settings, Login Items.")
+                        Text(BuddyCopy.shared.settingsCopy.launchAtLoginApproval)
                             .font(.buddy(11))
                             .foregroundStyle(.secondary)
                         Spacer()
@@ -172,24 +172,24 @@ struct SettingsView: View {
                 }
 
                 BuddySettingToggle(
-                    title: "Interactive Mode",
-                    description: "Auto-show when your buddy celebrates or needs attention.",
+                    title: BuddyCopy.shared.settingsCopy.interactiveMode,
+                    description: BuddyCopy.shared.settingsCopy.interactiveModeDescription,
                     isOn: $interactiveMode
                 )
 
                 Divider().padding(.horizontal, 12)
 
                 BuddySettingToggle(
-                    title: "Sounds",
-                    description: "Play a short sound for attention, errors, and long completions.",
+                    title: BuddyCopy.shared.settingsCopy.sounds,
+                    description: BuddyCopy.shared.settingsCopy.soundsDescription,
                     isOn: $soundsEnabled
                 )
 
                 Divider().padding(.horizontal, 12)
 
                 BuddySettingToggle(
-                    title: "Local Approval Mode",
-                    description: "Route tool approvals through Buddygotchi instead of your agent's built-in dialog.",
+                    title: BuddyCopy.shared.settingsCopy.localApprovalMode,
+                    description: BuddyCopy.shared.settingsCopy.localApprovalModeDescription,
                     isOn: approvalModeBinding
                 )
 
@@ -199,7 +199,7 @@ struct SettingsView: View {
                     VStack(spacing: 0) {
                         Divider().padding(.leading, 12)
                         HStack {
-                            Text("HTTP Port")
+                            Text(BuddyCopy.shared.settingsCopy.httpPort)
                                 .font(.buddy(13))
                             Spacer()
                             Text("\(BuddyConfig.default.httpPort)")
@@ -218,7 +218,7 @@ struct SettingsView: View {
                             NSWorkspace.shared.open(URL(fileURLWithPath: BuddyConfig.default.stateDir))
                         } label: {
                             HStack {
-                                Text("Open config folder")
+                                Text(BuddyCopy.shared.settingsCopy.openConfigFolder)
                                     .font(.buddy(13))
                                 Spacer()
                                 Image(systemName: "arrow.up.forward.square")
@@ -231,7 +231,7 @@ struct SettingsView: View {
                         .buttonStyle(BuddyPlainButtonStyle())
                     }
                 } label: {
-                    Text("Advanced")
+                    Text(BuddyCopy.shared.settingsCopy.advanced)
                         .font(.buddy(13))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
@@ -245,7 +245,7 @@ struct SettingsView: View {
 
     private var buddySection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            BuddySectionHeader("Buddy")
+            BuddySectionHeader(BuddyCopy.shared.settingsCopy.buddy)
 
             HStack(spacing: 12) {
                 Button(action: { cycleSpecies(-1) }) {
@@ -255,7 +255,7 @@ struct SettingsView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(BuddyPlainButtonStyle())
-                .accessibilityLabel("Previous species")
+                .accessibilityLabel(BuddyCopy.shared.onboarding.previousSpecies)
 
                 VStack(spacing: 8) {
                     Button(action: cyclePreviewState) {
@@ -287,14 +287,14 @@ struct SettingsView: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(BuddyPlainButtonStyle())
-                .accessibilityLabel("Next species")
+                .accessibilityLabel(BuddyCopy.shared.onboarding.nextSpecies)
             }
             .frame(maxWidth: .infinity)
             .accessibilityElement(children: .contain)
-            .accessibilityLabel("Species picker, \(species), \(currentSpeciesIndex + 1) of \(buddyOrder.count)")
+            .accessibilityLabel(speciesPickerLabel)
 
             TextField(
-                "Buddy name",
+                BuddyCopy.shared.settingsCopy.buddyName,
                 text: $buddyName
             )
                 .textFieldStyle(.plain)
@@ -305,7 +305,7 @@ struct SettingsView: View {
                 .padding(.vertical, 10)
                 .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: 14))
                 .overlay(alignment: .topLeading) {
-                    Text("Name")
+                    Text(BuddyCopy.shared.settingsCopy.name)
                         .font(.buddy(9.5, weight: .semibold))
                         .foregroundStyle(BuddyTheme.textTertiary)
                         .offset(x: 14, y: -18)
@@ -318,7 +318,7 @@ struct SettingsView: View {
 
     private var agentsSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            BuddySectionHeader("Agents")
+            BuddySectionHeader(BuddyCopy.shared.settingsCopy.agents)
 
             VStack(spacing: 0) {
                 ForEach(Array(AgentKind.allCases.enumerated()), id: \.element) { index, agent in
@@ -332,7 +332,7 @@ struct SettingsView: View {
                         }
                         Spacer()
                         if health == .installed {
-                            Button("Repair") {
+                            Button(BuddyCopy.shared.common.repair) {
                                 do {
                                     try HookInstaller.shared.repair(agent: agent)
                                     agentHealth[agent] = HookInstaller.shared.verify(agent: agent)
@@ -344,7 +344,7 @@ struct SettingsView: View {
                             .controlSize(.small)
                             .tint(BuddyTheme.amber)
                         } else {
-                            Button(health.repairable ? "Repair" : "Connect") {
+                            Button(health.repairable ? BuddyCopy.shared.common.repair : BuddyCopy.shared.common.connect) {
                                 do {
                                     if health.repairable {
                                         try HookInstaller.shared.repair(agent: agent)
@@ -378,13 +378,13 @@ struct SettingsView: View {
     private func hookHealthLabel(_ health: HookHealth) -> String {
         switch health {
         case .installed:
-            return "Connected"
+            return BuddyCopy.shared.common.connected
         case .notInstalled:
-            return "Not connected"
+            return BuddyCopy.shared.settingsCopy.notConnected
         case .outdated(let installed, let current):
-            return "Needs repair — v\(installed) to v\(current)"
+            return BuddyCopy.hookNeedsRepair(installed: installed, current: current)
         case .corrupted(let reason):
-            return "Needs repair — \(reason)"
+            return BuddyCopy.hookNeedsRepair(reason: reason)
         }
     }
 
@@ -408,16 +408,16 @@ struct SettingsView: View {
 
     private var displaysSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            BuddySectionHeader("Displays")
+            BuddySectionHeader(BuddyCopy.shared.settingsCopy.displays)
 
             VStack(spacing: 0) {
                 HStack {
-                    Text("This Mac").font(.buddy(13))
+                    Text(BuddyCopy.Onboarding.thisMac).font(.buddy(13))
                     Spacer()
                     HStack(spacing: 4) {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundStyle(BuddyTheme.amber)
-                        Text("Active")
+                        Text(BuddyCopy.shared.settingsCopy.active)
                             .font(.buddy(11))
                             .foregroundStyle(BuddyTheme.amber)
                     }
@@ -425,14 +425,14 @@ struct SettingsView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("This Mac, active")
+                .accessibilityLabel(BuddyCopy.shared.settingsCopy.thisMacActive)
 
                 Divider().padding(.horizontal, 12)
 
                 if esp32UUID != nil {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Hardware buddy").font(.buddy(13))
+                            Text(BuddyCopy.Onboarding.hardware).font(.buddy(13))
                             HStack(spacing: 4) {
                                 Circle()
                                     .fill(esp32Output.connectionState == .connected ? BuddyTheme.amber : Color.secondary.opacity(0.5))
@@ -443,7 +443,7 @@ struct SettingsView: View {
                             }
                         }
                         Spacer()
-                        Button("Forget") {
+                        Button(BuddyCopy.shared.settingsCopy.forget) {
                             showingUnpairConfirmation = true
                         }
                         .buttonStyle(.bordered)
@@ -452,13 +452,13 @@ struct SettingsView: View {
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
-                    .confirmationDialog("Forget this buddy?", isPresented: $showingUnpairConfirmation) {
-                        Button("Forget this buddy", role: .destructive) {
+                    .confirmationDialog(BuddyCopy.shared.settingsCopy.forgetThisBuddyTitle, isPresented: $showingUnpairConfirmation) {
+                        Button(BuddyCopy.shared.settingsCopy.forgetThisBuddy, role: .destructive) {
                             esp32Output.unpair()
                         }
-                        Button("Cancel", role: .cancel) {}
+                        Button(BuddyCopy.cancel, role: .cancel) {}
                     } message: {
-                        Text("Your hardware buddy can be paired again later.")
+                        Text(BuddyCopy.shared.settingsCopy.forgetBuddyMessage)
                     }
 
                     if esp32Output.connectionState == .connected {
@@ -468,13 +468,13 @@ struct SettingsView: View {
                 } else {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Hardware buddy").font(.buddy(13))
-                            Text("Not paired")
+                            Text(BuddyCopy.Onboarding.hardware).font(.buddy(13))
+                            Text(BuddyCopy.shared.settingsCopy.notPaired)
                                 .font(.buddy(11))
                                 .foregroundStyle(.secondary)
                         }
                         Spacer()
-                        Button(scanner.isScanning ? "Scanning…" : "Pair a buddy") {
+                        Button(scanner.isScanning ? BuddyCopy.Onboarding.scanning : BuddyCopy.shared.settingsCopy.pairABuddy) {
                             if scanner.isScanning { scanner.stop() }
                             else { scanner.start() }
                         }
@@ -490,8 +490,8 @@ struct SettingsView: View {
                     Link(destination: AppMetadata.flashURL) {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Bare hardware buddy").font(.buddy(13))
-                                Text("Flash it first in Chrome or Edge.")
+                                Text(BuddyCopy.shared.settingsCopy.bareHardwareBuddy).font(.buddy(13))
+                                Text(BuddyCopy.shared.settingsCopy.flashItFirst)
                                     .font(.buddy(11))
                                     .foregroundStyle(.secondary)
                             }
@@ -519,14 +519,14 @@ struct SettingsView: View {
                         HStack {
                             Text(device.name).font(.buddy(11))
                             Spacer()
-                            Text("Connect")
+                            Text(BuddyCopy.shared.common.connect)
                                 .font(.buddy(11))
                                 .foregroundStyle(BuddyTheme.amber)
                         }
                     }
                     .buttonStyle(BuddyPlainButtonStyle())
                     .buddyCard()
-                    .accessibilityLabel("Connect to \(device.name)")
+                    .accessibilityLabel(BuddyCopy.shared.settingsCopy.connectToDeviceTemplate.replacingOccurrences(of: "{device}", with: device.name))
                 }
             }
         }
@@ -540,8 +540,8 @@ struct SettingsView: View {
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Firmware").font(.buddy(13))
-                    Text(esp32Output.firmwareUpdater.deviceVersion ?? "Unknown")
+                    Text(BuddyCopy.shared.settingsCopy.firmware).font(.buddy(13))
+                    Text(esp32Output.firmwareUpdater.deviceVersion ?? BuddyCopy.shared.settingsCopy.firmwareUnknown)
                         .font(.buddy(11))
                         .foregroundStyle(.secondary)
                 }
@@ -565,12 +565,12 @@ struct SettingsView: View {
         case .available(let release, _):
             HStack(spacing: 4) {
                 Circle().fill(BuddyTheme.amber).frame(width: 6, height: 6)
-                Text("Update · \(release.version)")
+                Text(BuddyCopy.shared.settingsCopy.firmwareUpdateTemplate.replacingOccurrences(of: "{version}", with: release.version))
                     .font(.buddy(9.5, weight: .semibold))
                     .foregroundStyle(BuddyTheme.amber)
             }
         case .upToDate:
-            Text("Up to date")
+            Text(BuddyCopy.shared.settingsCopy.upToDate)
                 .font(.buddy(11))
                 .foregroundStyle(.secondary)
         case .downloading(let p), .uploading(let p, _):
@@ -578,34 +578,41 @@ struct SettingsView: View {
                 .font(.buddy(11))
                 .foregroundStyle(BuddyTheme.amber)
         case .verifying, .rebooting:
-            Text("Updating…")
+            Text(BuddyCopy.shared.settingsCopy.updating)
                 .font(.buddy(11))
                 .foregroundStyle(BuddyTheme.amber)
         case .success:
-            Text("Updated")
+            Text(BuddyCopy.shared.settingsCopy.updated)
                 .font(.buddy(11))
                 .foregroundStyle(BuddyTheme.green)
         case .failed:
-            Text("Failed")
+            Text(BuddyCopy.shared.settingsCopy.failed)
                 .font(.buddy(11))
                 .foregroundStyle(BuddyTheme.stuckRed)
         case .checking, .idle:
-            Text("Checking…")
+            Text(BuddyCopy.shared.settingsCopy.checking)
                 .font(.buddy(11))
                 .foregroundStyle(.tertiary)
         }
     }
 
     private var firmwareAccessibilityLabel: String {
-        let v = esp32Output.firmwareUpdater.deviceVersion ?? "unknown"
+        let v = esp32Output.firmwareUpdater.deviceVersion ?? BuddyCopy.shared.settingsCopy.firmwareUnknown.lowercased()
         switch esp32Output.firmwareUpdater.state {
-        case .available(let r, _): return "Firmware \(v), update available to \(r.version)"
-        case .upToDate:            return "Firmware \(v), up to date"
+        case .available(let r, _):
+            return BuddyCopy.shared.settingsCopy.firmwareAvailableTemplate
+                .replacingOccurrences(of: "{current}", with: v)
+                .replacingOccurrences(of: "{next}", with: r.version)
+        case .upToDate:
+            return BuddyCopy.shared.settingsCopy.firmwareUpToDateTemplate.replacingOccurrences(of: "{current}", with: v)
         case .downloading, .uploading, .verifying, .rebooting:
-                                   return "Firmware update in progress"
-        case .success:             return "Firmware updated"
-        case .failed:              return "Firmware update failed"
-        case .checking, .idle:     return "Checking for firmware updates"
+            return BuddyCopy.shared.settingsCopy.firmwareUpdateInProgress
+        case .success:
+            return BuddyCopy.shared.settingsCopy.firmwareUpdated
+        case .failed:
+            return BuddyCopy.shared.settingsCopy.firmwareUpdateFailed
+        case .checking, .idle:
+            return BuddyCopy.shared.settingsCopy.checkingFirmwareUpdates
         }
     }
 
@@ -613,11 +620,11 @@ struct SettingsView: View {
 
     private var aboutSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            BuddySectionHeader("About")
+            BuddySectionHeader(BuddyCopy.shared.settingsCopy.about)
 
             VStack(spacing: 0) {
                 HStack {
-                    Text("Version").font(.buddy(13))
+                    Text(BuddyCopy.shared.settingsCopy.version).font(.buddy(13))
                     Spacer()
                     Text(AppMetadata.displayVersion)
                         .font(.buddy(13))
@@ -637,7 +644,7 @@ struct SettingsView: View {
                     }
                 } label: {
                     HStack {
-                        Text("Check for updates")
+                        Text(BuddyCopy.shared.settingsCopy.checkForUpdates)
                             .font(.buddy(13))
                         Spacer()
                         Image(systemName: "arrow.triangle.2.circlepath")
@@ -654,7 +661,7 @@ struct SettingsView: View {
 
                 Link(destination: AppMetadata.supportURL) {
                     HStack {
-                        Text("Help and support")
+                        Text(BuddyCopy.shared.settingsCopy.helpAndSupport)
                             .font(.buddy(13))
                         Spacer()
                         Image(systemName: "arrow.up.right")
@@ -671,7 +678,7 @@ struct SettingsView: View {
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "lock")
                         .foregroundStyle(.secondary)
-                    Text("Update checks read a static appcast. No analytics or device identifiers are sent.")
+                    Text(BuddyCopy.shared.settingsCopy.updatePrivacy)
                         .font(.buddy(11))
                         .foregroundStyle(.secondary)
                     Spacer()
@@ -693,7 +700,7 @@ struct SettingsView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    Text("Export bug report")
+                    Text(BuddyCopy.shared.settingsCopy.exportBugReport)
                         .font(.buddy(13))
                     Spacer()
                 }
@@ -704,13 +711,13 @@ struct SettingsView: View {
             .buddyGroupedCard()
             .disabled(isExportingBugReport)
 
-            Text("Buddygotchi keeps agent activity local to this Mac. Network access is limited to update checks and firmware downloads when those features are available.")
+            Text(BuddyCopy.shared.settingsCopy.localPrivacy)
                 .font(.buddy(11))
                 .foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 12) {
-                Button("Run setup again") {
+                Button(BuddyCopy.runSetupAgain) {
                     setupCompleted = false
                     isPresented = false
                     onOpenOnboarding()
@@ -721,7 +728,7 @@ struct SettingsView: View {
 
                 Spacer()
 
-                Button("Quit Buddygotchi") {
+                Button(BuddyCopy.quitBuddygotchi) {
                     NSApplication.shared.terminate(nil)
                 }
                 .buttonStyle(.bordered)
@@ -730,7 +737,7 @@ struct SettingsView: View {
             }
             .padding(.top, 4)
 
-            Button("Remove Buddygotchi…") {
+            Button(BuddyCopy.shared.settingsCopy.removeBuddygotchi) {
                 showingRemoveConfirmation = true
             }
             .buttonStyle(.bordered)
@@ -802,7 +809,7 @@ struct SettingsView: View {
             Circle()
                 .fill(serverHealthColor)
                 .frame(width: 6, height: 6)
-            Text("Server")
+            Text(BuddyCopy.shared.settingsCopy.server)
                 .font(.buddy(13))
             Spacer()
             Text(serverHealthLabel)
@@ -817,14 +824,14 @@ struct SettingsView: View {
     }
 
     private var serverHealthLabel: String {
-        guard let serverHealth else { return "Unknown" }
+        guard let serverHealth else { return BuddyCopy.shared.common.unknown }
         switch serverHealth.status {
         case .starting:
-            return "Starting"
+            return BuddyCopy.shared.settingsCopy.starting
         case .listening(let port):
-            return "Listening on \(port)"
+            return BuddyCopy.shared.settingsCopy.listeningTemplate.replacingOccurrences(of: "{port}", with: "\(port)")
         case .failed(let reason):
-            return "Failed — \(reason)"
+            return BuddyCopy.shared.settingsCopy.failedReasonTemplate.replacingOccurrences(of: "{reason}", with: reason)
         }
     }
 
@@ -852,7 +859,7 @@ struct SettingsView: View {
         defer { isExportingBugReport = false }
 
         guard let data = await engine.diagnosticLog.exportBundle(engine: engine) else {
-            bugReportError = "No diagnostic data was available."
+            bugReportError = BuddyCopy.shared.settingsCopy.noDiagnosticData
             return
         }
         let formatter = DateFormatter()
@@ -860,7 +867,7 @@ struct SettingsView: View {
         let filename = "buddygotchi-report-\(formatter.string(from: Date.now)).json"
 
         guard let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first else {
-            bugReportError = "The Desktop folder could not be found."
+            bugReportError = BuddyCopy.shared.settingsCopy.desktopNotFound
             return
         }
         let url = desktop.appendingPathComponent(filename)
@@ -868,7 +875,7 @@ struct SettingsView: View {
             try data.write(to: url)
             NSWorkspace.shared.activateFileViewerSelecting([url])
         } catch {
-            bugReportError = "Couldn't write to Desktop: \(error.localizedDescription)"
+            bugReportError = BuddyCopy.shared.settingsCopy.desktopWriteFailedTemplate.replacingOccurrences(of: "{reason}", with: error.localizedDescription)
         }
     }
 
@@ -890,6 +897,13 @@ struct SettingsView: View {
         buddyOrder.firstIndex(of: species) ?? 0
     }
 
+    private var speciesPickerLabel: String {
+        BuddyCopy.shared.settingsCopy.speciesPickerTemplate
+            .replacingOccurrences(of: "{species}", with: species)
+            .replacingOccurrences(of: "{current}", with: "\(currentSpeciesIndex + 1)")
+            .replacingOccurrences(of: "{total}", with: "\(buddyOrder.count)")
+    }
+
     private var currentSpeciesColor: Color {
         buddySpeciesColor(for: species)
     }
@@ -901,21 +915,21 @@ private struct ApprovalModeExplainerSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Local approval mode")
+            Text(BuddyCopy.shared.settingsCopy.localApprovalModeSentence)
                 .font(.buddy(18, weight: .semibold))
                 .foregroundStyle(BuddyTheme.textPrimary)
 
             VStack(alignment: .leading, spacing: 10) {
-                explainerRow("Buddygotchi becomes the approval surface for supported hooks.")
-                explainerRow("Cursor read-only checks can be approved automatically. Shell commands and writes still ask first.")
-                explainerRow("If Buddygotchi is closed or unreachable, hooks fail open and the agent keeps its native flow.")
+                explainerRow(BuddyCopy.shared.settingsCopy.approvalExplainerRow1)
+                explainerRow(BuddyCopy.shared.settingsCopy.approvalExplainerRow2)
+                explainerRow(BuddyCopy.shared.settingsCopy.approvalExplainerRow3)
             }
 
             HStack {
                 Spacer()
-                Button("Cancel", action: onCancel)
+                Button(BuddyCopy.cancel, action: onCancel)
                     .buttonStyle(BuddyPlainButtonStyle())
-                Button("Turn on", action: onConfirm)
+                Button(BuddyCopy.shared.settingsCopy.turnOn, action: onConfirm)
                     .buttonStyle(BuddyPrimaryButtonStyle())
             }
         }

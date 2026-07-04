@@ -216,7 +216,7 @@ struct PopoverView: View {
             Spacer()
 
             if engine.state.sessions.total > 0 {
-                Text("\(engine.state.sessions.running) active")
+                Text(BuddyCopy.shared.popover.activeTemplate.replacingOccurrences(of: "{count}", with: "\(engine.state.sessions.running)"))
                     .font(.buddy(11))
                     .foregroundStyle(.tertiary)
             }
@@ -228,7 +228,7 @@ struct PopoverView: View {
                 .fill(BuddyTheme.textPrimary.opacity(0.03))
         )
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Desktop \(engine.state.desktop.status.rawValue)\(engine.state.sessions.total > 0 ? ", \(engine.state.sessions.running) active sessions" : "")")
+        .accessibilityLabel(connectionAccessibilityLabel)
     }
 
     private var footer: some View {
@@ -241,14 +241,16 @@ struct PopoverView: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(BuddyPlainButtonStyle())
-            .accessibilityLabel("Settings")
+            .accessibilityLabel(BuddyCopy.settings)
         }
     }
 
     private var serverWarning: String? {
         guard let serverHealth else { return nil }
         if case .failed(let reason) = serverHealth.status {
-            return "Can't listen on port \(BuddyConfig.default.httpPort) — \(reason)"
+            return BuddyCopy.shared.popover.serverWarningTemplate
+                .replacingOccurrences(of: "{port}", with: "\(BuddyConfig.default.httpPort)")
+                .replacingOccurrences(of: "{reason}", with: reason)
         }
         return nil
     }
@@ -260,6 +262,17 @@ struct PopoverView: View {
     private var statusName: String {
         let trimmed = buddyName.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? engine.state.pet.species : trimmed
+    }
+
+    private var connectionAccessibilityLabel: String {
+        let status = engine.state.desktop.status.rawValue
+        guard engine.state.sessions.total > 0 else {
+            return BuddyCopy.shared.popover.desktopStatusTemplate.replacingOccurrences(of: "{status}", with: status)
+        }
+        let sessions = BuddyCopy.shared.popover.activeSessionsTemplate.replacingOccurrences(of: "{count}", with: "\(engine.state.sessions.running)")
+        return BuddyCopy.shared.popover.desktopStatusWithSessionsTemplate
+            .replacingOccurrences(of: "{status}", with: status)
+            .replacingOccurrences(of: "{sessions}", with: sessions)
     }
 
     private var stateColor: Color {
@@ -290,7 +303,7 @@ private struct EmptyAgentsView: View {
                 .font(.system(.caption))
                 .foregroundStyle(.secondary)
                 .padding(.top, 1)
-            Text("No agents awake. Open Claude Code, Cursor, or Codex and send a message — your buddy will hear it.")
+            Text(BuddyCopy.shared.popover.emptyAgents)
                 .font(.buddy(11))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -338,7 +351,7 @@ private struct ErrorTrailerView: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(.caption2))
                 .foregroundStyle(BuddyTheme.stuckRed)
-            Text("Also: \(AgentKind(rawValue: errored.source)?.displayName ?? errored.source) hit an error")
+            Text(BuddyCopy.shared.popover.errorTrailerTemplate.replacingOccurrences(of: "{agent}", with: AgentKind(rawValue: errored.source)?.displayName ?? errored.source))
                 .font(.buddy(11))
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
@@ -378,7 +391,7 @@ struct ToolCardView: View {
                     }
                     Spacer()
                     if waitingCount > 1 {
-                        Text("+\(waitingCount - 1) more waiting")
+                        Text(BuddyCopy.shared.popover.moreWaitingTemplate.replacingOccurrences(of: "{count}", with: "\(waitingCount - 1)"))
                             .font(.buddy(9.5, weight: .semibold))
                             .foregroundStyle(BuddyTheme.amber)
                     }
@@ -410,7 +423,7 @@ struct ToolCardView: View {
                     HStack(spacing: 8) {
                         Button(action: onDeny) {
                             HStack(spacing: 6) {
-                                Text("Deny")
+                                Text(BuddyCopy.deny)
                                 if isHoveringActions {
                                     Text("⌫")
                                         .font(.buddy(11))
@@ -428,7 +441,7 @@ struct ToolCardView: View {
 
                         Button(action: onApprove) {
                             HStack(spacing: 6) {
-                                Text("Approve")
+                                Text(BuddyCopy.approve)
                                 if isHoveringActions {
                                     Text("↵")
                                         .font(.buddy(11))
@@ -459,11 +472,20 @@ struct ToolCardView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Tool request: \(prompt.tool)\(prompt.hint.isEmpty ? "" : ", \(prompt.hint)")")
+        .accessibilityLabel(toolAccessibilityLabel)
     }
 
     private func sourceName(_ source: String) -> String {
         AgentKind(rawValue: source)?.displayName ?? source
+    }
+
+    private var toolAccessibilityLabel: String {
+        let template = prompt.hint.isEmpty
+            ? BuddyCopy.shared.popover.toolRequestTemplate
+            : BuddyCopy.shared.popover.toolRequestWithHintTemplate
+        return template
+            .replacingOccurrences(of: "{tool}", with: prompt.tool)
+            .replacingOccurrences(of: "{hint}", with: prompt.hint)
     }
 
     private var pathLikeHint: Bool {
@@ -493,7 +515,7 @@ struct CurrentActivityRow: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Working: \(msg)")
+        .accessibilityLabel(BuddyCopy.shared.popover.workingTemplate.replacingOccurrences(of: "{message}", with: msg))
     }
 
     private var iconColor: Color {
@@ -559,7 +581,7 @@ struct ReviewCardView: View {
                     HStack {
                         Spacer()
                         Button(action: onDismiss) {
-                            Text("Dismiss")
+                            Text(BuddyCopy.dismiss)
                                 .font(.buddy(9.5, weight: .semibold))
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 3)
@@ -580,14 +602,24 @@ struct ReviewCardView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Completed: \(completed.tool ?? "task")\(completed.hint.map { ", \($0)" } ?? "")")
+        .accessibilityLabel(completedAccessibilityLabel)
     }
 
     private var headlineLabel: String {
         if let source = completed.source {
-            return "Done · \(AgentKind(rawValue: source)?.displayName ?? source)"
+            return BuddyCopy.shared.popover.doneWithAgentTemplate.replacingOccurrences(of: "{agent}", with: AgentKind(rawValue: source)?.displayName ?? source)
         }
-        return "Done"
+        return BuddyCopy.done
+    }
+
+    private var completedAccessibilityLabel: String {
+        let task = completed.tool ?? BuddyCopy.shared.popover.task
+        if let hint = completed.hint {
+            return BuddyCopy.shared.popover.completedWithHintTemplate
+                .replacingOccurrences(of: "{task}", with: task)
+                .replacingOccurrences(of: "{hint}", with: hint)
+        }
+        return BuddyCopy.shared.popover.completedTemplate.replacingOccurrences(of: "{task}", with: task)
     }
 }
 
@@ -639,7 +671,7 @@ struct ErrorCardView: View {
                     HStack {
                         Spacer()
                         Button(action: onDismiss) {
-                            Text("Dismiss")
+                            Text(BuddyCopy.dismiss)
                                 .font(.buddy(9.5, weight: .semibold))
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 3)
@@ -660,12 +692,27 @@ struct ErrorCardView: View {
         )
         .clipShape(RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius))
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Error in \(source)\(tool.map { ": \($0)" } ?? "")\(hint.map { ", \($0)" } ?? "")")
+        .accessibilityLabel(errorAccessibilityLabel)
     }
 
     private var headlineLabel: String {
         let agentName = AgentKind(rawValue: source)?.displayName ?? source
-        return "Error · \(agentName)"
+        return BuddyCopy.shared.popover.errorWithAgentTemplate.replacingOccurrences(of: "{agent}", with: agentName)
+    }
+
+    private var errorAccessibilityLabel: String {
+        if let tool, let hint {
+            return BuddyCopy.shared.popover.errorAccessibilityWithHintTemplate
+                .replacingOccurrences(of: "{agent}", with: source)
+                .replacingOccurrences(of: "{tool}", with: tool)
+                .replacingOccurrences(of: "{hint}", with: hint)
+        }
+        if let tool {
+            return BuddyCopy.shared.popover.errorAccessibilityWithToolTemplate
+                .replacingOccurrences(of: "{agent}", with: source)
+                .replacingOccurrences(of: "{tool}", with: tool)
+        }
+        return BuddyCopy.shared.popover.errorAccessibilityTemplate.replacingOccurrences(of: "{agent}", with: source)
     }
 }
 
@@ -685,7 +732,7 @@ struct ThinkingRow: View {
                     .font(.system(.caption2))
                     .foregroundStyle(BuddyTheme.amber)
                     .accessibilityHidden(true)
-                Text("Thinking")
+                Text(BuddyCopy.thinking)
                     .font(.buddy(11, weight: .semibold))
                     .foregroundStyle(.secondary)
                 if let tool = thinking.tool, !tool.isEmpty {
@@ -706,7 +753,7 @@ struct ThinkingRow: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 4)
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Thinking · \(AgentKind(rawValue: thinking.source)?.displayName ?? thinking.source)\(thinking.tool.map { ", \($0)" } ?? "")")
+            .accessibilityLabel(thinkingAccessibilityLabel)
         }
     }
 
@@ -716,6 +763,16 @@ struct ThinkingRow: View {
         let secs = Int((base - start) / 1000)
         if secs < 60 { return "\(secs)s" }
         return "\(secs / 60)m \(secs % 60)s"
+    }
+
+    private var thinkingAccessibilityLabel: String {
+        let agent = AgentKind(rawValue: thinking.source)?.displayName ?? thinking.source
+        guard let tool = thinking.tool else {
+            return BuddyCopy.shared.popover.thinkingWithAgentTemplate.replacingOccurrences(of: "{agent}", with: agent)
+        }
+        return BuddyCopy.shared.popover.thinkingWithToolTemplate
+            .replacingOccurrences(of: "{agent}", with: agent)
+            .replacingOccurrences(of: "{tool}", with: tool)
     }
 }
 
@@ -772,11 +829,11 @@ struct SessionListView: View {
 
     private func stateLabel(for state: SessionState) -> String {
         switch state {
-        case .working: return "busy"
-        case .idle: return "idle"
-        case .needsConfirmation: return "waiting"
-        case .errored: return "error"
-        case .thinking: return "thinking"
+        case .working: return BuddyCopy.shared.popover.busy
+        case .idle: return BuddyCopy.shared.popover.idle
+        case .needsConfirmation: return BuddyCopy.shared.popover.waiting
+        case .errored: return BuddyCopy.shared.popover.error
+        case .thinking: return BuddyCopy.shared.popover.thinking
         }
     }
 

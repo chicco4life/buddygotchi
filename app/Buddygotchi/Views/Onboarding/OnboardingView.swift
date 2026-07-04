@@ -72,7 +72,13 @@ struct OnboardingView: View {
         }
         .animation(reduceMotion ? nil : .buddyEase(0.3), value: model.step.rawValue)
         .accessibilityElement()
-        .accessibilityLabel("Onboarding progress, step \(model.step.rawValue + 1) of \(OnboardingStep.allCases.count)")
+        .accessibilityLabel(onboardingProgressLabel)
+    }
+
+    private var onboardingProgressLabel: String {
+        BuddyCopy.shared.onboarding.progressTemplate
+            .replacingOccurrences(of: "{current}", with: "\(model.step.rawValue + 1)")
+            .replacingOccurrences(of: "{total}", with: "\(OnboardingStep.allCases.count)")
     }
 
     private var hatchStep: some View {
@@ -154,7 +160,7 @@ struct OnboardingView: View {
                         .frame(width: 42, height: 42)
                 }
                 .buttonStyle(OnboardingIconButtonStyle())
-                .accessibilityLabel("Previous species")
+                .accessibilityLabel(BuddyCopy.shared.onboarding.previousSpecies)
 
                 VStack(spacing: 12) {
                     Button(action: cycleAdoptionPreviewState) {
@@ -162,7 +168,9 @@ struct OnboardingView: View {
                             .frame(width: 260, height: 180)
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("\(model.selectedSpecies) buddy preview, \(adoptionPreviewState.rawValue)")
+                    .accessibilityLabel(BuddyCopy.shared.onboarding.buddyPreviewTemplate
+                        .replacingOccurrences(of: "{species}", with: model.selectedSpecies)
+                        .replacingOccurrences(of: "{state}", with: adoptionPreviewState.rawValue))
                     Text(model.selectedSpecies.capitalized)
                         .font(.buddy(15, weight: .semibold))
                         .foregroundStyle(buddySpeciesColor(for: model.selectedSpecies))
@@ -174,7 +182,7 @@ struct OnboardingView: View {
                         .frame(width: 42, height: 42)
                 }
                 .buttonStyle(OnboardingIconButtonStyle())
-                .accessibilityLabel("Next species")
+                .accessibilityLabel(BuddyCopy.shared.onboarding.nextSpecies)
             }
 
             TextField(
@@ -224,7 +232,7 @@ struct OnboardingView: View {
             Spacer()
 
             HStack {
-                Button("Back") { model.goBack() }
+                Button(BuddyCopy.shared.onboarding.back) { model.goBack() }
                     .buttonStyle(OnboardingSecondaryButtonStyle())
 
                 Button(BuddyCopy.Onboarding.skipForNow) {
@@ -234,7 +242,7 @@ struct OnboardingView: View {
 
                 Spacer()
 
-                Button("Next") { model.advance() }
+                Button(BuddyCopy.shared.onboarding.next) { model.advance() }
                     .buttonStyle(OnboardingPrimaryButtonStyle())
                     .disabled(!model.canFinishAgents)
                     .opacity(model.canFinishAgents ? 1 : 0.45)
@@ -265,7 +273,7 @@ struct OnboardingView: View {
             .frame(height: 180)
 
             stepHeader(
-                title: model.heardFromAgent.map { "Heard from \($0.displayName)." } ?? BuddyCopy.Onboarding.firstContactTitle,
+                title: model.heardFromAgent.map { BuddyCopy.heardFrom($0.displayName) } ?? BuddyCopy.Onboarding.firstContactTitle,
                 subtitle: model.heardFromAgent == nil ? BuddyCopy.Onboarding.firstContactWaiting : nil
             )
 
@@ -301,15 +309,15 @@ struct OnboardingView: View {
             Spacer()
 
             HStack {
-                Button("Back") { model.goBack() }
+                Button(BuddyCopy.shared.onboarding.back) { model.goBack() }
                     .buttonStyle(OnboardingSecondaryButtonStyle())
                 Spacer()
                 if model.heardFromAgent == nil {
-                    Button("Skip") { model.advance() }
+                    Button(BuddyCopy.shared.onboarding.skip) { model.advance() }
                         .buttonStyle(OnboardingSecondaryButtonStyle())
                         .keyboardShortcut(.return, modifiers: [])
                 } else {
-                    Button("Next") { model.advance() }
+                    Button(BuddyCopy.shared.onboarding.next) { model.advance() }
                         .buttonStyle(OnboardingPrimaryButtonStyle())
                         .keyboardShortcut(.return, modifiers: [])
                 }
@@ -447,7 +455,7 @@ struct OnboardingView: View {
             Spacer()
 
             HStack {
-                Button("Back") { model.goBack() }
+                Button(BuddyCopy.shared.onboarding.back) { model.goBack() }
                     .buttonStyle(OnboardingSecondaryButtonStyle())
                 Spacer()
                 Button(BuddyCopy.Onboarding.startWatching) {
@@ -474,9 +482,9 @@ struct OnboardingView: View {
                     .font(.buddy(34, weight: .semibold))
                     .foregroundStyle(BuddyTheme.amber)
 
-                chipRow(title: "Species", value: model.selectedSpecies.capitalized)
-                chipRow(title: "Agents", value: model.installedAgents.isEmpty ? "Skipped" : model.installedAgents.map(\.displayName).joined(separator: ", "))
-                chipRow(title: "Display", value: model.selectedOutput.displayName)
+                chipRow(title: BuddyCopy.shared.onboarding.species, value: model.selectedSpecies.capitalized)
+                chipRow(title: BuddyCopy.shared.onboarding.agents, value: model.installedAgents.isEmpty ? BuddyCopy.shared.onboarding.skipped : model.installedAgents.map(\.displayName).joined(separator: ", "))
+                chipRow(title: BuddyCopy.shared.onboarding.display, value: model.selectedOutput.displayName)
             }
             Spacer()
         }
@@ -635,9 +643,9 @@ struct OnboardingView: View {
         }
     }
 
-    private func navigationBar(nextTitle: String = "Next", nextDisabled: Bool = false) -> some View {
+    private func navigationBar(nextTitle: String = BuddyCopy.shared.onboarding.next, nextDisabled: Bool = false) -> some View {
         HStack {
-            Button("Back") { model.goBack() }
+            Button(BuddyCopy.shared.onboarding.back) { model.goBack() }
                 .buttonStyle(OnboardingSecondaryButtonStyle())
             Spacer()
             Button(nextTitle) { model.advance() }
