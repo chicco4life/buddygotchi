@@ -74,7 +74,7 @@ available for hardware-in-the-loop tests.
 | Command | Reply / effect |
 | --- | --- |
 | `ping` | Prints `<<PONG {"fw":...,"git":...,"up":...,"heap":...}>>`. |
-| `state` | Prints `<<STATE {...}>>` with current parser, display, BLE, and prompt state. |
+| `state` | Prints `<<STATE {...}>>` with current parser, display, BLE, and prompt state. Includes `muted`, `screenOff`, and numeric `brightness` fields for HIL assertions. |
 | `reboot` | Prints `<<REBOOT ok>>`, flushes, and restarts. |
 | `screenshot` | Prints `<<SCR_BEGIN ...>>`, base64 RGB565 LCD data, then `<<SCR_END LEN=... CRC32=...>>`. |
 | `press a [ms]` / `press b [ms]` | Synthesizes GPIO-level button down/up edges and prints `<<PRESS ...>>` markers. |
