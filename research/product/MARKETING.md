@@ -1,7 +1,7 @@
-# Buddygotchi Marketing Plan
+# Boop Marketing Plan
 
 Status: draft — pre-launch demand test
-Last updated: 2026-07-03
+Last updated: 2026-07-04
 Companion to: `PRODUCT.md` (positioning fundamentals in §11, agent-era value prop in §12)
 
 This document has three parts: the psychological fundamentals of why anyone buys this, a concrete landing page specification (design, copy, imagery — ready to hand to an implementing agent), and a plan for the paid-traffic demand test.
@@ -12,7 +12,7 @@ This document has three parts: the psychological fundamentals of why anyone buys
 
 ### 1.1 What we are actually selling
 
-The functional story: Buddygotchi turns invisible AI-agent work into a physical creature on your desk — it glows when an agent needs you, celebrates when work finishes, and lets you approve tool calls by petting it.
+The functional story: Boop turns invisible AI-agent work into a physical creature on your desk — it glows when an agent needs you, celebrates when work finishes, and lets you approve tool calls by petting it.
 
 But nobody buys that sentence. What they buy, in order of real motivational weight:
 
@@ -67,6 +67,18 @@ Concrete rules that make everything *feel* expensive without saying "premium" (s
 5. The craft: materials, weight, the box.
 
 Ads carry only #1–2. The landing page carries all five, in order.
+
+### 1.5 Name and brand architecture
+
+Decided 2026-07-04:
+
+- **Product / creature:** Boop. Lowercase in running copy when referring to the animal ("a boop"); the Founding Litter is "100 boops." The generic in-universe noun stays "buddy" ("adopt a buddy").
+- **Company:** Boop Computer — the deadpan-formal register (a wobbling blob, by a computer company) is the TE-adjacent joke and the canonical SEO lockup.
+- **Domain:** adoptaboop.com — the CTA is the URL; it reads as in-universe copy on the box and in ads. Contact: hello@adoptaboop.com.
+- **Gesture vocabulary:** *pet = approve* (unchanged — "Approve with a pet." stays the brand), *boop = say hi / dismiss*. The creature is named after the gesture it loves most: **"Boop it to say hi. Pet it to say yes."**
+- **Findability rules:** never market the bare word. The raw "boop" SERP belongs to Betty Boop (BOOP!® The Musical, 2025–) and a decade of nose-boop memes — unwinnable on Google, but the meme is our audience's own vocabulary on X/Reddit/TikTok, where discovery actually happens. Every title, bio, and caption carries a lockup: "Boop Computer" or "Boop — desk companion for AI agents." Qualified queries to own from day one (zero competition): "boop pet," "boop desk pet," "boop computer." Handles carry the qualifier (@boopcomputer, @adoptaboop). Brand-defensive search spend goes to the lockups, never the bare word (see §4.5).
+- **Trademark caution:** Fleischer Studios registered BOOP!® and is actively extending it (Broadway 2025, tour through 2027). Clearance screening (classes 9/28) is a launch gate; our styling is lowercase "boop," no exclamation mark (§1.3 bans "!" anyway), which keeps visual distance.
+- "Buddygotchi" survives only as the repo codename; it must not appear on any customer-facing surface.
 
 ---
 
@@ -221,7 +233,7 @@ For each channel: the mechanics in brief, the core intuition an experienced oper
 
 **How it works.** No ads exist. You submit a "Show HN:" post; early upvotes (first ~hour) determine whether it reaches the front page; front page for a day ≈ 15–50k visits from the highest-density developer audience on the internet, plus downstream pickup (newsletters and journalists mine HN for stories).
 
-**Core intuition.** HN is an engineering culture that *rewards being taught something and punishes being marketed to* — often for the same product. The unit of value is not your product; it's the story of how you built it and what you learned. "I turned my agents' permission prompts into a creature you pet — here's the wobble physics and why I refused to design a custom PCB" can hit #1. "Meet Buddygotchi, the delightful desk companion!" gets flagged.
+**Core intuition.** HN is an engineering culture that *rewards being taught something and punishes being marketed to* — often for the same product. The unit of value is not your product; it's the story of how you built it and what you learned. "I turned my agents' permission prompts into a creature you pet — here's the wobble physics and why I refused to design a custom PCB" can hit #1. "Meet Boop, the delightful desk companion!" gets flagged.
 
 **Operator tips.**
 - Post Tuesday–Thursday, 8–10am ET. Title format: `Show HN: I built a desk creature that approves my AI agents when I pet it` — first person, concrete, no adjectives.
@@ -280,7 +292,7 @@ For each channel: the mechanics in brief, the core intuition an experienced oper
 **Core intuition.** Nobody searches for a category that doesn't exist. There is no search volume for "AI agent desk pet," and adjacent dev keywords ("claude code," "cursor ide") carry expensive CPCs and wrong intent (people looking for the tools, not gifts for themselves). **Search is a later-stage channel for this product** — it turns on when the category exists in people's heads, which is what the other channels create.
 
 **Operator tips.**
-- Do now (cheap, defensive): brand campaign on "buddygotchi" and close misspellings — pennies per click, protects you once press/creators mention the name.
+- Do now (cheap, defensive): brand campaign on the lockups — "boop pet," "boop desk pet," "boop computer," "adopt a boop" — pennies per click, protects us once press/creators mention the name. Never bid on bare "boop": that auction belongs to Betty Boop and the meme, and the intent is wrong (§1.5).
 - Do in Q4: gift long-tail ("gifts for programmers," "gift for software engineer who has everything") — real volume, moderate CPCs ($1–3), and your Instagram gift creative doubles as the landing story.
 - Don't: Performance Max at small budget (it's a black box that eats <$3k/mo budgets), broad dev keywords, or anything before the pixel has conversion history.
 
@@ -290,7 +302,7 @@ For each channel: the mechanics in brief, the core intuition an experienced oper
 
 **Core intuition.** You're renting *trust*, not reach — a newsletter reader in scan-mode grants sponsors roughly one sentence of attention, in the editorial voice they came for. The winning placements read like the curator found something neat, not like an ad insert.
 
-**Operator tips.** Write the copy in the newsletter's own voice (read five back issues first); one line + one link, e.g. *"Buddygotchi — a little desk creature that glows when your AI agent needs you, and approves tool calls when you pet it. First batch of 100."* Ask for the cheaper classified/one-liner tier first — it often converts nearly as well as the featured slot at a third of the price. Ask every newsletter for performance data from past dev-hardware sponsors before booking; the honest ones have it.
+**Operator tips.** Write the copy in the newsletter's own voice (read five back issues first); one line + one link, e.g. *"Boop — a little desk creature that glows when your AI agent needs you, and approves tool calls when you pet it. First batch of 100."* Ask for the cheaper classified/one-liner tier first — it often converts nearly as well as the featured slot at a third of the price. Ask every newsletter for performance data from past dev-hardware sponsors before booking; the honest ones have it.
 
 ### 4.7 Creator seeding (YouTube desk tours, dev streamers)
 

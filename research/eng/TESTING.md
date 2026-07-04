@@ -1,4 +1,4 @@
-# Testing Buddygotchi
+# Testing Boop
 
 This is the canonical test matrix for the macOS app, agent hooks, ESP32
 firmware, packaged assets, OTA, hardware HIL, and the web flasher.
@@ -9,7 +9,7 @@ Run commands from the repo root unless a section says otherwise.
 
 **Full unit-test execution requires XCTest from a full Xcode install or CI.**
 On CommandLineTools-only hosts, the local shim can compile test sources but it
-does not execute the XCTest suite. On this machine, `BuddygotchiTests` reaches
+does not execute the XCTest suite. On this machine, `BoopTests` reaches
 the link step and cannot link against the app target; `swift test` does not
 produce a valid local test run. Do not count raw `swift test` here as unit-test
 execution; depending on shim state it either fails at link or reports no useful
@@ -55,7 +55,7 @@ Expected local output includes:
 
 ```text
 WARNING: XCTest unavailable - tests COMPILED but DID NOT RUN.
-WARNING: swift build --build-tests reached the BuddygotchiTests link step; treating this CommandLineTools shim limitation as compile-verified.
+WARNING: swift build --build-tests reached the BoopTests link step; treating this CommandLineTools shim limitation as compile-verified.
 ```
 
 Use product-scoped builds when you only need to prove the shipping binaries
@@ -63,30 +63,30 @@ compile on a CommandLineTools-only machine:
 
 ```sh
 cd app
-swift build --product Buddygotchi
-swift build --product BuddygotchiSignal
-swift build -c release --product Buddygotchi
-swift build -c release --product BuddygotchiSignal
+swift build --product Boop
+swift build --product BoopSignal
+swift build -c release --product Boop
+swift build -c release --product BoopSignal
 ```
 
 Expected success:
 
 ```text
-Build of product 'Buddygotchi' complete!
-Build of product 'BuddygotchiSignal' complete!
+Build of product 'Boop' complete!
+Build of product 'BoopSignal' complete!
 ```
 
 ## 2. HTTP E2E
 
 Note on launching the debug app: macOS TCC may kill the bare SwiftPM binary at
 startup (Bluetooth usage description requires a bundle identity). If
-`app/.build/debug/Buddygotchi` dies before `/healthz` answers, wrap it in a
-minimal `.app` (the binary plus `app/Buddygotchi/Resources/Info.plist` under
+`app/.build/debug/Boop` dies before `/healthz` answers, wrap it in a
+minimal `.app` (the binary plus `app/Boop/Resources/Info.plist` under
 `Something.app/Contents/`) and `open` that instead — or use the packaged app
 from `make package`.
 
-The HTTP e2e suite requires a live Buddygotchi app. It reads the auth token from
-`~/.buddygotchi/config.json`. The default port is `21321`; override it with
+The HTTP e2e suite requires a live Boop app. It reads the auth token from
+`~/.boop/config.json`. The default port is `21321`; override it with
 `BUDDY_PORT` if the app is configured to listen elsewhere.
 
 Confirm the app is up:
@@ -140,7 +140,7 @@ If the app uses a non-default port:
 BUDDY_PORT=21322 app/tools/e2e-smoke.sh
 ```
 
-If another Buddygotchi process owns the single-instance lock but `/healthz`
+If another Boop process owns the single-instance lock but `/healthz`
 does not answer, do not kill unrelated processes. Start a clean app in a real
 terminal or clean macOS user session, then rerun the smoke suite.
 
@@ -153,8 +153,8 @@ CommandLineTools-only hosts:
 
 ```sh
 cd app
-swift build --product Buddygotchi
-.build/debug/Buddygotchi --render-snapshots /tmp/buddy-snapshots
+swift build --product Boop
+.build/debug/Boop --render-snapshots /tmp/buddy-snapshots
 open /tmp/buddy-snapshots
 ```
 
@@ -210,20 +210,20 @@ make package
 Expected success:
 
 ```text
-Created build/package/Buddygotchi.app
-Created build/artifacts/Buddygotchi-<version>.zip
+Created build/package/Boop.app
+Created build/artifacts/Boop-<version>.zip
 ```
 
 Historical note (fixed): `make package` previously failed on CommandLineTools-only
-machines by linking `BuddygotchiTests`; it now builds only the shipped products
-and completes unsigned here. The old failure looked like: the release app binary built, then it failed linking `BuddygotchiTests` before
+machines by linking `BoopTests`; it now builds only the shipped products
+and completes unsigned here. The old failure looked like: the release app binary built, then it failed linking `BoopTests` before
 assembling the `.app`. Treat that as a packaging-script/build-environment
 failure, not a packaged-app smoke pass.
 
 On a clean macOS account or VM, verify:
 
 ```sh
-open build/package/Buddygotchi.app
+open build/package/Boop.app
 ```
 
 Expected manual results:
@@ -256,33 +256,33 @@ BUDDY_FW_VERSION=0.3.1 pio run -e m5stickc-plus
 Expected success:
 
 ```text
-Buddygotchi firmware version: 0.3.1 (...)
+Boop firmware version: 0.3.1 (...)
 [SUCCESS]
 ```
 
 Generate OTA and ESP Web Tools manifests:
 
 ```sh
-rm -rf /tmp/buddygotchi-fw
-mkdir -p /tmp/buddygotchi-fw
+rm -rf /tmp/boop-fw
+mkdir -p /tmp/boop-fw
 python3 tools/generate_release_manifests.py \
   --version 0.3.1 \
   --base-url http://127.0.0.1:8000 \
   --build-dir .pio/build/m5stickc-plus \
-  --out-dir /tmp/buddygotchi-fw
+  --out-dir /tmp/boop-fw
 ```
 
 Expected success:
 
 ```text
-Wrote /tmp/buddygotchi-fw/manifest.json
-Wrote /tmp/buddygotchi-fw/esp-web-tools-manifest.json
+Wrote /tmp/boop-fw/manifest.json
+Wrote /tmp/boop-fw/esp-web-tools-manifest.json
 ```
 
 Serve the manifest and binary locally:
 
 ```sh
-cd /tmp/buddygotchi-fw
+cd /tmp/boop-fw
 python3 -m http.server 8000 --bind 127.0.0.1
 ```
 
@@ -290,7 +290,7 @@ In another terminal:
 
 ```sh
 curl -sS --noproxy '*' http://127.0.0.1:8000/manifest.json
-curl -sS --noproxy '*' -I http://127.0.0.1:8000/buddygotchi-fw-0.3.1.bin
+curl -sS --noproxy '*' -I http://127.0.0.1:8000/boop-fw-0.3.1.bin
 ```
 
 Expected success:
@@ -300,11 +300,11 @@ Expected success:
 HTTP/1.0 200 OK
 ```
 
-Start Buddygotchi pointed at the local manifest:
+Start Boop pointed at the local manifest:
 
 ```sh
 BUDDY_FIRMWARE_MANIFEST_URL=http://127.0.0.1:8000/manifest.json \
-  app/.build/debug/Buddygotchi
+  app/.build/debug/Boop
 ```
 
 If port `21321` is owned by another app instance, use that instance only if it
@@ -340,10 +340,10 @@ runtime lookup and packaged execution can use.
 After a successful `make package`:
 
 ```sh
-APP=build/package/Buddygotchi.app
-test -d "$APP/Contents/MacOS/Buddygotchi_Buddygotchi.bundle"
-test -d "$APP/Contents/Resources/Buddygotchi_Buddygotchi.bundle"
-find "$APP/Contents/Resources/Buddygotchi_Buddygotchi.bundle" -maxdepth 3 -type f | sort
+APP=build/package/Boop.app
+test -d "$APP/Contents/MacOS/Boop_Boop.bundle"
+test -d "$APP/Contents/Resources/Boop_Boop.bundle"
+find "$APP/Contents/Resources/Boop_Boop.bundle" -maxdepth 3 -type f | sort
 ```
 
 Expected files include:
@@ -360,8 +360,8 @@ Sounds/error.caf
 Verify packaged font registration and `NSFont` resolution:
 
 ```sh
-APP=build/package/Buddygotchi.app
-BUNDLE="$APP/Contents/Resources/Buddygotchi_Buddygotchi.bundle" swift -e '
+APP=build/package/Boop.app
+BUNDLE="$APP/Contents/Resources/Boop_Boop.bundle" swift -e '
 import AppKit
 import CoreText
 import Foundation
@@ -441,21 +441,21 @@ page expects the ESP Web Tools manifest at `/firmware/esp-web-tools-manifest.jso
 Prepare a local site root:
 
 ```sh
-rm -rf /tmp/buddygotchi-webflash
-mkdir -p /tmp/buddygotchi-webflash/flash /tmp/buddygotchi-webflash/firmware
-cp docs/flash/index.html /tmp/buddygotchi-webflash/flash/index.html
+rm -rf /tmp/boop-webflash
+mkdir -p /tmp/boop-webflash/flash /tmp/boop-webflash/firmware
+cp docs/flash/index.html /tmp/boop-webflash/flash/index.html
 cd firmware/esp32
 python3 tools/generate_release_manifests.py \
   --version 0.3.1 \
   --base-url http://127.0.0.1:8001/firmware \
   --build-dir .pio/build/m5stickc-plus \
-  --out-dir /tmp/buddygotchi-webflash/firmware
+  --out-dir /tmp/boop-webflash/firmware
 ```
 
 Serve it:
 
 ```sh
-cd /tmp/buddygotchi-webflash
+cd /tmp/boop-webflash
 python3 -m http.server 8001 --bind 127.0.0.1
 ```
 
@@ -464,7 +464,7 @@ Dry-run checks:
 ```sh
 curl -sS --noproxy '*' http://127.0.0.1:8001/flash/ | rg 'esp-web-install-button|/firmware/esp-web-tools-manifest.json'
 curl -sS --noproxy '*' http://127.0.0.1:8001/firmware/esp-web-tools-manifest.json
-curl -sS --noproxy '*' -I http://127.0.0.1:8001/firmware/buddygotchi-fw-0.3.1.bin
+curl -sS --noproxy '*' -I http://127.0.0.1:8001/firmware/boop-fw-0.3.1.bin
 ```
 
 Expected success:

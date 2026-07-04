@@ -15,7 +15,7 @@ Use this as the ordered release gate for app and firmware releases.
 6. Verify manual approval behavior for each agent:
    - Allow a command.
    - Deny a command.
-   - Stop Buddygotchi and confirm hooks fail open.
+   - Stop Boop and confirm hooks fail open.
 7. Package the app through the release workflow and download the draft release artifacts.
 8. On a clean Mac, verify the packaged app using [TESTING.md section 4](TESTING.md#4-packaged-app-smoke).
 9. Verify packaged fonts and sounds using [TESTING.md section 6](TESTING.md#6-asset-deployment).

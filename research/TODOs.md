@@ -14,8 +14,8 @@ in `eng/TESTING.md`.
 ## Landing page — links and accounts to create
 
 - [ ] **Build-in-public account (X/Twitter).** Create the account (MARKETING.md §4.11 step 1), then set `copy.footer.followBuild.url` in `landing/src/lib/copy.ts` — the footer "follow the build" link renders only once that string is non-empty.
-- [ ] **Verify `hello@buddygotchi.com` works** (or update `copy.footer.contactEmail`) before any traffic — it's the footer contact link.
-- [ ] **Domain + brand-defensive Google campaign** on "buddygotchi" once the domain is live (MARKETING.md §4.5).
+- [ ] **Verify `hello@adoptaboop.com` works** (or update `copy.footer.contactEmail`) before any traffic — it's the footer contact link.
+- [ ] **Brand-defensive Google campaign** on the lockups — "boop pet," "boop desk pet," "boop computer," "adopt a boop" — now that adoptaboop.com is live; never bid on bare "boop" (MARKETING.md §1.5, §4.5).
 
 ## Landing page — assets
 

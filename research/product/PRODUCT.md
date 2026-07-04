@@ -1,15 +1,15 @@
-# Buddygotchi Product Plan (Hardware + Form Factor)
+# Boop Product Plan (Hardware + Form Factor)
 
 Status: draft for initial 100-unit production run
-Last updated: 2026-07-03
+Last updated: 2026-07-04
 
-This document captures the plan for turning the Buddygotchi hardware companion (currently prototyped on an M5StickC Plus 2) into a sellable product. Sections 1–8 cover sourcing strategy, board options, and manufacturing. Sections 9–10 cover the chosen form factor (the Blob) and its interaction design. Section 11 covers positioning, marketing, and launch. Section 12 covers how the value prop survives the shift to autonomous agents. Section 13 tracks open questions.
+This document captures the plan for turning the Boop hardware companion (currently prototyped on an M5StickC Plus 2) into a sellable product. Sections 1–8 cover sourcing strategy, board options, and manufacturing. Sections 9–10 cover the chosen form factor (the Blob) and its interaction design. Section 11 covers positioning, marketing, and launch. Section 12 covers how the value prop survives the shift to autonomous agents. Section 13 tracks open questions.
 
 ---
 
 ## 1. Product Context
 
-Buddygotchi is a macOS menu bar companion for AI coding agents. The optional hardware device is an ambient desk companion that:
+Boop is a macOS menu bar companion for AI coding agents. The optional hardware device is an ambient desk companion that:
 
 - Displays pet state, species, session counts, and activity over BLE (Nordic UART Service)
 - Shows approval prompts and sends approve/deny decisions back via physical buttons
@@ -369,7 +369,7 @@ The other principles doing work here:
 
 ### 11.2 Positioning statement
 
-**For developers who run AI coding agents, Buddygotchi is a desk companion that turns invisible agent work into a creature you can see, hear, and pet — so the moments that need you feel like caring for a pet, not clearing notifications.** Unlike menu bar utilities and dashboards, it lives in physical space; unlike desk toys, it does real work (approve/deny, status, completion). Category label to own: **desk companion for AI agents** — we should name the category before someone else does.
+**For developers who run AI coding agents, Boop is a desk companion that turns invisible agent work into a creature you can see, hear, and pet — so the moments that need you feel like caring for a pet, not clearing notifications.** Unlike menu bar utilities and dashboards, it lives in physical space; unlike desk toys, it does real work (approve/deny, status, completion). Category label to own: **desk companion for AI agents** — we should name the category before someone else does.
 
 Tone: warm, wry, understated, in-universe where possible. Banned vocabulary: "revolutionary," "AI-powered," "productivity," "supercharge." The product is confident enough to undersell.
 
@@ -404,7 +404,11 @@ Video-first and interaction-led: the 6-second pet-to-approve loop is the entire 
 
 ### 11.7 SEO, honestly scoped
 
-At 100 units, SEO is a batch-three concern; search compounds too slowly to sell a founding run. What's worth doing now because it's nearly free: own the brand terms (domain, "Buddygotchi" pages indexable), make the build-in-public posts live on our own domain (they become the long-tail corpus), and hold the category phrase "desk companion for AI agents" in page titles so we're the definitional result when the category query starts existing. Later, the two real query spaces are gift-intent ("gift for programmer who has everything") and category-intent ("AI agent desk toy/companion") — both currently weak-competition. Skip keyword-stuffed blog content entirely; it would poison the premium brand for pennies.
+At 100 units, SEO is a batch-three concern; search compounds too slowly to sell a founding run. What's worth doing now because it's nearly free: own the brand terms — adoptaboop.com is registered; the indexable brand term is the *lockup* ("Boop Computer," "boop pet"), never bare "boop," which belongs to Betty Boop and the memes (MARKETING.md §1.5) — make the build-in-public posts live on our own domain (they become the long-tail corpus), and hold the category phrase "desk companion for AI agents" in page titles so we're the definitional result when the category query starts existing. Later, the two real query spaces are gift-intent ("gift for programmer who has everything") and category-intent ("AI agent desk toy/companion") — both currently weak-competition. Skip keyword-stuffed blog content entirely; it would poison the premium brand for pennies.
+
+### 11.8 Name decision (2026-07-04)
+
+The product is **Boop**; the company is **Boop Computer**; the site is **adoptaboop.com** (contact: hello@adoptaboop.com). The creature is "a boop" (plural "boops"); "buddy" remains the in-universe common noun ("adopt a buddy"). The gesture vocabulary (§10.1) is unchanged — pet = approve, boop = hello/dismiss — and resolves into the naming line: **"Boop it to say hi. Pet it to say yes."** Rationale, findability rules, and the Betty Boop trademark caution live in MARKETING.md §1.5. "Buddygotchi" persists only as the internal repo codename and must not appear on customer-facing surfaces.
 
 ---
 
@@ -416,7 +420,7 @@ The agent landscape is shifting under us in two ways: people code across a growi
 
 Checked against the mid-2026 landscape, the hook story is better than feared: the industry has converged on Claude-Code-style lifecycle hooks. Claude Code, Codex, Cursor, and VS Code Copilot all expose them now. The real dividing line is not "CLI vs app" — it's **local agent runtimes vs chat-style and cloud surfaces.**
 
-| Surface | Signal available | Buddygotchi status |
+| Surface | Signal available | Boop status |
 |---|---|---|
 | Claude Code CLI | Full hooks (`~/.claude/settings.json`) | **Works today** — current integration |
 | Claude Code desktop app | Same settings.json tree as CLI; hooks apply uniformly | **Works with existing install** — verify on macOS (a Windows-specific no-fire bug is reported) |
@@ -473,6 +477,8 @@ The honest risk to monitor: a world where agents run entirely in the cloud, deta
 
 ## 13. Open Questions
 
+- Trademark clearance for "Boop" (classes 9/28) against Fleischer Studios' BOOP!® registrations — a launch gate; engage counsel before announcing the name publicly.
+- Hosting for the Sparkle appcast and firmware manifest at adoptaboop.com (`/releases/appcast.xml`, `/firmware/manifest.json`) plus hello@ email forwarding — the Mac app now points at these URLs.
 - Exact current certification marks on the shipping M5StickC Plus 2 revision (verify against FCC ID database and M5Stack docs).
 - M5Stack bulk pricing, lifecycle commitment, and ODM MOQ/NRE/lead-time (blocked on sending the inquiry).
 - EU shipping in v1, or US-only first batch.

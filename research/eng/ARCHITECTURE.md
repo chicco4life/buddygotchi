@@ -1,6 +1,6 @@
 # Architecture
 
-Buddygotchi is a local-first macOS companion for AI coding agents. The active
+Boop is a local-first macOS companion for AI coding agents. The active
 product is the Swift app in `app/`: agent hooks send localhost events, the app
 reduces them into one `BuddyState`, desktop outputs render that state, and the
 ESP32 output mirrors it to firmware over BLE.
@@ -21,9 +21,9 @@ do not belong in the reducer.
 | --- | --- |
 | macOS app | Swift 6 package, SwiftUI/AppKit menu bar app, macOS 14 minimum |
 | HTTP server | Hummingbird on `127.0.0.1:21321` by default |
-| Local auth | `X-Buddygotchi-Token` header for hook routes; token lives in `~/.buddygotchi/config.json` |
+| Local auth | `X-Boop-Token` header for hook routes; token lives in `~/.boop/config.json` |
 | State management | `@Observable` `BuddyEngine` plus pure `reduce(_:_:)` |
-| Agent hooks | Generated bash hook for Claude Code/Codex; managed Swift `BuddygotchiSignal` helper for Cursor |
+| Agent hooks | Generated bash hook for Claude Code/Codex; managed Swift `BoopSignal` helper for Cursor |
 | Desktop output | `DesktopOutput` updates status icon, notifications, sounds, and interactive popover behavior from state changes |
 | Hardware output | `ESP32Output` sends heartbeat JSON over CoreBluetooth Nordic UART Service |
 | Firmware | ESP32/M5StickC Plus 2 renderer and device I/O under `firmware/esp32/` |
@@ -33,13 +33,13 @@ do not belong in the reducer.
 
 | Path | Role |
 | --- | --- |
-| `app/Buddygotchi/App/` | app delegate, menu bar lifecycle, Sparkle, uninstall |
-| `app/Buddygotchi/Core/` | reducer, state, events, config, diagnostics, protocols |
-| `app/Buddygotchi/Server/` | Hummingbird localhost input adapter |
-| `app/Buddygotchi/Install/` | agent hook installer and generated hook script |
-| `app/Buddygotchi/Views/` | popover, settings, onboarding, firmware update UI |
-| `app/Buddygotchi/Outputs/` | desktop and ESP32 output providers |
-| `app/BuddygotchiSignal/` | Cursor hook stdin -> localhost HTTP bridge |
+| `app/Boop/App/` | app delegate, menu bar lifecycle, Sparkle, uninstall |
+| `app/Boop/Core/` | reducer, state, events, config, diagnostics, protocols |
+| `app/Boop/Server/` | Hummingbird localhost input adapter |
+| `app/Boop/Install/` | agent hook installer and generated hook script |
+| `app/Boop/Views/` | popover, settings, onboarding, firmware update UI |
+| `app/Boop/Outputs/` | desktop and ESP32 output providers |
+| `app/BoopSignal/` | Cursor hook stdin -> localhost HTTP bridge |
 | `app/Tests/`, `app/tools/` | XCTest, snapshots, e2e, packaging, appcast |
 | `firmware/esp32/` | active ESP32 firmware, PlatformIO project, HIL tools |
 | `docs/`, `research/`, `landing/` | public release/support pages, planning/reference docs, product site |
@@ -51,10 +51,10 @@ Claude Code / Codex / Cursor
         |
         | hook payload on stdin
         v
-~/.buddygotchi/buddygotchi-hook.sh
-or ~/.buddygotchi/bin/buddygotchi-signal
+~/.boop/boop-hook.sh
+or ~/.boop/bin/boop-signal
         |
-        | localhost HTTP + X-Buddygotchi-Token
+        | localhost HTTP + X-Boop-Token
         v
 HookServer
   GET  /healthz
@@ -83,7 +83,7 @@ BuddyState projection
 
 ## Local API And Config
 
-`BuddyConfig.default` creates `~/.buddygotchi/config.json` with mode `0600`.
+`BuddyConfig.default` creates `~/.boop/config.json` with mode `0600`.
 The current keys are:
 
 | Key | Meaning |
@@ -93,7 +93,7 @@ The current keys are:
 | `token` | 32 random bytes as 64 hex characters, generated with Security framework randomness when possible. |
 
 `GET /healthz` is unauthenticated and returns `ok`, `stateVersion`, and
-`desktop`. Every hook route requires `X-Buddygotchi-Token`; token comparison is
+`desktop`. Every hook route requires `X-Boop-Token`; token comparison is
 constant-time. Hook bodies are collected up to `1_048_576` bytes.
 
 Settings keeps approval mode live in two places: `UserDefaults` key
@@ -145,12 +145,12 @@ Codex uses the same bash hook as Claude, with `source=codex`.
 ### Cursor
 
 `HookInstaller` writes `~/.cursor/hooks.json` and runs the managed helper at
-`~/.buddygotchi/bin/buddygotchi-signal --agent cursor`. Installed events are
+`~/.boop/bin/boop-signal --agent cursor`. Installed events are
 `sessionStart`, `sessionEnd`, `beforeSubmitPrompt`, `stop`,
 `beforeShellExecution`, `beforeMCPExecution`, `afterShellExecution`, and
 `afterMCPExecution`.
 
-`BuddygotchiSignal` maps Cursor payloads to `/hook/signal` or `/hook/approve`.
+`BoopSignal` maps Cursor payloads to `/hook/signal` or `/hook/approve`.
 The server still maps Cursor's legacy `stop_working` signal to `celebrate` so
 old installed helpers keep producing completion cards.
 
@@ -172,9 +172,9 @@ logged to diagnostics. Non-repairable reasons are invalid Claude
 `settings.json`, invalid `hooks.json`, and unreadable hook script.
 
 Every config write backs up the old agent file under
-`~/.buddygotchi/backups`, keeping the latest 3 backups per agent/path prefix.
-Cursor's helper is copied from the packaged `BuddygotchiSignal` executable into
-`~/.buddygotchi/bin/buddygotchi-signal` and verified executable.
+`~/.boop/backups`, keeping the latest 3 backups per agent/path prefix.
+Cursor's helper is copied from the packaged `BoopSignal` executable into
+`~/.boop/bin/boop-signal` and verified executable.
 
 ## HTTP Routes
 
@@ -244,7 +244,7 @@ Decision bodies:
 | `.deny` | `{"permission":"deny", ...}` | `hookSpecificOutput.decision.behavior == "deny"` with message |
 | `.passthrough` | `{"permission":"ask"}` | empty `200 OK` body |
 
-`.passthrough` means "release Buddygotchi's local approval surface and hand the
+`.passthrough` means "release Boop's local approval surface and hand the
 flow back to the agent." Cleanup paths that use it are:
 
 - explicit session removal (`SessionEnd`, Cursor `session_end`, process watcher)
@@ -306,7 +306,7 @@ name, output target, setup completion, and menu hint through `DefaultsKey`.
 
 `Package.swift` copies `Resources/Fonts` and `Resources/Sounds` into the SwiftPM
 resource bundle. `BuddyResources` first resolves through `Bundle.module`, then
-falls back to packaged locations including `Buddygotchi_Buddygotchi.bundle` next
+falls back to packaged locations including `Boop_Boop.bundle` next
 to the executable and in `Contents/Resources`.
 
 `BuddyResources.registerFonts()` registers Geist fonts with CoreText; sounds are
@@ -381,8 +381,8 @@ port instead of letting it sit anywhere powered by USB. BLE failures degrade to
 
 ## Packaging And Release
 
-`app/tools/package.sh` assembles `build/package/Buddygotchi.app` from SwiftPM
-release output, copies `Buddygotchi` and `BuddygotchiSignal`, copies the
+`app/tools/package.sh` assembles `build/package/Boop.app` from SwiftPM
+release output, copies `Boop` and `BoopSignal`, copies the
 SwiftPM resource bundle into both `Contents/MacOS` and `Contents/Resources`,
 patches `Info.plist`, optionally copies Sparkle, signs nested items and the app
 when `DEVELOPER_ID_APPLICATION` is set, zips the app, optionally notarizes and
@@ -390,8 +390,8 @@ staples, and creates a DMG when `create-dmg` exists.
 
 App version injection comes from `VERSION`, or `BUDDY_VERSION`, with
 `BUDDY_BUILD_NUMBER` defaulting to the same value. `BUDDY_BUNDLE_ID` defaults to
-`com.buddygotchi.mac`. Sparkle keys in `Info.plist` are
-`SUFeedURL=https://buddygotchi.github.io/releases/appcast.xml`,
+`com.boopcomputer.boop`. Sparkle keys in `Info.plist` are
+`SUFeedURL=https://adoptaboop.com/releases/appcast.xml`,
 `SUPublicEDKey`, `SUEnableSystemProfiling=false`, and
 `SUEnableInstallerLauncherService=false`.
 
@@ -434,9 +434,9 @@ HIL covers parser, buttons, screenshots, and BLE/USB command paths on hardware.
 
 ## Design Rules
 
-- Keep `app/Buddygotchi/Core/` pure.
+- Keep `app/Boop/Core/` pure.
 - Model new behavior as `BuddyEvent` plus reducer transitions before outputs.
-- Put agent-specific parsing in `HookServer`, `BuddygotchiSignal`, or hook
+- Put agent-specific parsing in `HookServer`, `BoopSignal`, or hook
   installer code.
 - Add displays by implementing `OutputProvider` and deriving from `BuddyState`.
 - Preserve fail-open hook behavior.
