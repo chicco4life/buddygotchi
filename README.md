@@ -2,7 +2,7 @@
 
 Buddygotchi is a native macOS menu bar companion for AI coding agents. It watches Claude Code, Cursor, and Codex through local hook integrations, turns their activity into an animated buddy state, surfaces approval prompts, and can mirror the same state to an M5StickC Plus 2 over Bluetooth.
 
-The current product lives in three top-level areas: the Swift macOS app in `app/`, the landing page in `landing/`, and the active ESP32 firmware in `firmware/esp32/`. Planning and reference material lives in `docs/`.
+The current product lives in three top-level areas: the Swift macOS app in `app/`, the landing page in `landing/`, and the active ESP32 firmware in `firmware/esp32/`. Planning and reference material lives in `research/`; public release/support pages live in `docs/`.
 
 ## What It Does
 
@@ -77,7 +77,8 @@ app/tools/e2e/cursor.sh
 | `app/` | Active macOS Swift app, hook CLIs, tests, and e2e scripts |
 | `landing/` | Next.js landing page and waitlist API |
 | `firmware/esp32/` | ESP32 firmware, PlatformIO config, character tools, and device docs |
-| `docs/` | Architecture, product planning, marketing notes, bugs, TODOs, and captured external references |
+| `research/` | Product notes, engineering architecture/testing/release docs, TODOs, and captured external references |
+| `docs/` | Public release/support pages and web flasher assets |
 | `README.md` | Overview and build/run/test instructions |
 | `AGENTS.md`, `CLAUDE.md` | Repo instructions for coding agents |
 
@@ -100,7 +101,7 @@ python3 firmware/esp32/tools/button.py b
 
 ## More Detail
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the app is pieced together, including hook routing, state aggregation, outputs, mocks, and test strategy. See [AGENTS.md](AGENTS.md) for repo-specific instructions for coding agents.
+See [research/eng/ARCHITECTURE.md](research/eng/ARCHITECTURE.md) for how the app is pieced together, including hook routing, state aggregation, outputs, mocks, and test strategy. See [AGENTS.md](AGENTS.md) for repo-specific instructions for coding agents.
 
 Release and support details live in [docs/RELEASE.md](docs/RELEASE.md) and [docs/SUPPORT.md](docs/SUPPORT.md). To remove Buddygotchi, use Settings, About, Remove Buddygotchi, or follow the manual uninstall notes in the support doc.
 
