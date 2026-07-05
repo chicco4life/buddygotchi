@@ -153,12 +153,6 @@ export const copy = {
     share: "Want to skip ahead? Every friend who joins moves you up 10 places.",
     copyLabel: "Copy link",
     copiedLabel: "Copied",
-    deposit: {
-      heading: "Hold your number",
-      body: "A $5 deposit locks your adoption number in the Founding Litter. Fully refundable, anytime, no questions.",
-      ctaLabel: "Hold my number — $5",
-      small: "Handled by Stripe. Refunded the moment you ask.",
-    },
     survey: {
       label: "one question, optional",
       question: "What would you honestly expect a buddy like this to cost?",
@@ -166,13 +160,6 @@ export const copy = {
       submitLabel: "Send",
       thanks: "Noted. The litter thanks you.",
     },
-    backHome: "back to the litter",
-  },
-
-  held: {
-    heading: "Your number is held.",
-    body: "Your deposit is in, and your place in the Founding Litter is locked. When your buddy hatches, it's yours.",
-    reassurance: "Changed your mind? Reply to any email from us and we'll refund it in full, no questions.",
     backHome: "back to the litter",
   },
 

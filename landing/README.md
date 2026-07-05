@@ -22,12 +22,7 @@ npm run dev                    # http://localhost:3000
 The app boots with **no** env vars: without `DATABASE_URL` the waitlist API returns
 503 and the page still renders (fail-open). To exercise the full flow locally
 without a database, run with `ALLOW_INMEM=1` (an in-memory store — testing only).
-Set `NEXT_PUBLIC_STRIPE_DEPOSIT_URL` only when the refundable $5 deposit Payment
-Link is ready; when unset, `/welcome` omits that step. Point the Payment Link's
-"after payment" redirect at `/held` and its webhook at `/api/stripe/webhook`
-(event `checkout.session.completed`), then set `STRIPE_WEBHOOK_SECRET` so paid
-deposits are recorded onto the signup row; when unset, the webhook no-ops and you
-reconcile deposits by hand in the Stripe dashboard. Set `RESEND_API_KEY` to
+Set `RESEND_API_KEY` to
 send the first-signup confirmation email through Resend; when unset, signup still
 works and email sending is skipped.
 
