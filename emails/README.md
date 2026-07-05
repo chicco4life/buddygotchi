@@ -26,17 +26,20 @@ subline: Supporting line under the heading (optional)
 
 body paragraphs with {{placeholders}}, ending with the sign-off:
 
-— Boop Computer
+Boop Computer
 adoptaboop.com
 ```
 
 The plain-text version is `heading + subline + body`; the HTML version sets
-the heading large, highlights `#{{position}}` in amber, and styles the
-sign-off paragraph (starts with `—`) as a quiet footer.
+the heading large, highlights `#{{position}}` in amber, and styles the last
+paragraph (the sign-off) as a quiet footer.
 
 Brand law applies to subject and body exactly as it does to site copy
 (`landing/tests/copy-rules.test.mjs`): no exclamation marks, no hype words
 (revolutionary, supercharge, AI-powered, game-changer, productivity, premium).
+Emails additionally ban em-dashes (—) everywhere, including the subject —
+use periods, commas, or colons instead (enforced by
+`landing/tests/email-rules.test.mjs`).
 Sentence case, matching the site's copy register — warm, dry, specific.
 Sender is always "Boop Computer" (the lockup, per MARKETING.md §1.5); the
 in-universe vocabulary (Founding Litter, hatches, buddy) lives in the words,

@@ -32,6 +32,7 @@ test("email templates follow brand law", () => {
   for (const file of files) {
     const text = parseEmail(readFileSync(new URL(file, emailsDir), "utf8"));
     assert.ok(!text.includes("!"), `exclamation mark found in ${file}`);
+    assert.ok(!text.includes("—"), `em-dash found in ${file} (banned in emails)`);
 
     for (const word of banned) {
       const re = new RegExp(word.replace(/[-]/g, "\\-"), "i");

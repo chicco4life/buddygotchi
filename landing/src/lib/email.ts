@@ -45,10 +45,10 @@ function linkifySite(escaped: string): string {
   );
 }
 
-function renderBodyParagraph(paragraph: string): string {
+function renderBodyParagraph(paragraph: string, isSignoff: boolean): string {
   const escaped = linkifySite(escapeHtml(paragraph).replaceAll("\n", "<br>"));
-  // The sign-off paragraph (starts with "—") becomes the quiet footer.
-  if (paragraph.startsWith("—")) {
+  // The last paragraph is the sign-off; it becomes the quiet footer.
+  if (isSignoff) {
     return `<p style="margin:36px 0 0;font-size:14px;line-height:1.7;color:#6e675d;">${escaped}</p>`;
   }
   return `<p style="margin:0 0 20px;font-size:16px;line-height:1.7;color:#2b2724;">${escaped}</p>`;
@@ -61,10 +61,9 @@ function renderHtml(input: RenderInput): string {
     `#${input.position}`,
     `<span style="color:#c9862b;font-weight:600;">#${input.position}</span>`,
   );
-  const paragraphs = substitute(template.body, input)
-    .trimEnd()
-    .split(/\n{2,}/)
-    .map(renderBodyParagraph)
+  const parts = substitute(template.body, input).trimEnd().split(/\n{2,}/);
+  const paragraphs = parts
+    .map((paragraph, i) => renderBodyParagraph(paragraph, i === parts.length - 1))
     .join("");
 
   return `<!doctype html>
