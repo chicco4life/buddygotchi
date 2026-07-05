@@ -813,6 +813,34 @@ final class EngineIntegrationTests: XCTestCase {
     }
 
     @MainActor
+    func testHeartbeatPopulatesErrorToolFromErrorMsg() throws {
+        // Regression: the reducer encodes the failing tool as "Error: <tool>", so the
+        // wire's errorTool must carry that tool name. A stale extractor keyed on a
+        // "Stalled: " prefix that the reducer never emits left errorTool always nil.
+        let (engine, _, _) = makeTestEngine()
+        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
+        engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "npm test")
+        engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .error)
+
+        let rs = renderState(from: engine.state)
+        XCTAssertEqual(rs.pet, "error")
+        XCTAssertTrue(rs.msg.hasPrefix("Error: Bash"), "device msg line: \(rs.msg)")
+        XCTAssertEqual(rs.errorTool, "Bash", "errorTool must name the failing tool on the wire")
+    }
+
+    @MainActor
+    func testHeartbeatErrorToolNilWhenNoTool() throws {
+        // A bare "Error" (no known tool) must leave errorTool nil, not "".
+        let (engine, _, _) = makeTestEngine()
+        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
+        engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .error)
+
+        let rs = renderState(from: engine.state)
+        XCTAssertEqual(rs.pet, "error")
+        XCTAssertNil(rs.errorTool, "no tool → errorTool nil; got \(String(describing: rs.errorTool))")
+    }
+
+    @MainActor
     func testHeartbeatActivityFieldReflectsCurrentToolKind() throws {
         let (engine, _, _) = makeTestEngine()
         engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)

@@ -545,11 +545,12 @@ completed tool 20, last completed hint 40, entries 6 items of 48, session
 summaries 6 items, summary tool 16, and summary label 16. An assertion guards
 heartbeat frames at 1536 bytes plus newline.
 
-One current code discrepancy matters: `Heartbeat.extractTool(fromMsg:)` only
-extracts `errorTool` from messages prefixed `Stalled: `, while the reducer now
-emits `Error` or `Error: <tool>`. As a result the firmware receives the error
-state through `pet` and `msg`, but `errorTool` is not populated for current
-explicit errors.
+In the error state the reducer encodes the failing tool into `msg` as
+`Error: <tool>` (or a bare `Error` when no tool is known).
+`Heartbeat.extractTool(fromMsg:)` parses that prefix so `errorTool` names the
+failing tool on the wire, capped at 20 characters; a bare `Error` yields a nil
+`errorTool`. The firmware currently ignores `errorTool` and shows the error
+through `pet` and `msg`, but the field is populated correctly for future use.
 
 `ESP32Output` connects to the saved `esp32PeripheralUUID`, sends on every state
 change, and also sends a keepalive every 10 seconds. On connect it sends the

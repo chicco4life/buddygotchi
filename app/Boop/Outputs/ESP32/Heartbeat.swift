@@ -36,11 +36,10 @@ struct RenderState: Encodable {
 private let encoder = JSONEncoder()
 
 func renderState(from state: BuddyState) -> RenderState {
-    // Pull error-context fields from the (currently-stale) prompt source if the
-    // pet is showing error; the actual session-level errored fields would require
-    // exposing more of internal state, but the msg already encodes "Stalled: <tool>"
-    // so device parity is preserved. errorTool/errorSource are populated lazily
-    // from the lastCompleted/prompt fields when relevant.
+    // In the error state the reducer encodes the failing tool into msg as
+    // "Error: <tool>" (or a bare "Error" when no tool is known). errorTool is
+    // extracted from that msg so the device can name what failed; errorSource
+    // rides along on the last signal.
     let isError = state.pet.state == .error
     let soundsEnabled = UserDefaults.standard.object(forKey: DefaultsKey.soundsEnabled) as? Bool ?? true
     return RenderState(
@@ -62,7 +61,7 @@ func renderState(from state: BuddyState) -> RenderState {
         lastCompletedHint: state.lastCompleted?.hint.map { String($0.prefix(40)) },
         lastCompletedSource: state.lastCompleted?.source,
         lastCompletedDurationMs: state.lastCompleted?.durationMs.map { Int($0) },
-        errorTool: isError ? extractTool(fromMsg: state.msg) : nil,
+        errorTool: isError ? extractTool(fromMsg: state.msg).map { String($0.prefix(20)) } : nil,
         errorSource: isError ? state.lastSignal : nil,
         activity: state.currentActivityKind?.rawValue
             ?? state.prompt?.activityKind.rawValue
@@ -82,9 +81,12 @@ func renderState(from state: BuddyState) -> RenderState {
 }
 
 private func extractTool(fromMsg msg: String) -> String? {
-    // Reducer encodes "Stalled: <tool>" — extract the tool half for the wire.
-    guard msg.hasPrefix("Stalled: ") else { return nil }
-    return String(msg.dropFirst("Stalled: ".count))
+    // Reducer encodes the error line as "Error: <tool>" (BuddyReducer.swift);
+    // a bare "Error" carries no tool. Extract the tool half for the wire.
+    let prefix = "Error: "
+    guard msg.hasPrefix(prefix) else { return nil }
+    let tool = String(msg.dropFirst(prefix.count))
+    return tool.isEmpty ? nil : tool
 }
 
 func renderStateData(from state: BuddyState) -> Data? {
