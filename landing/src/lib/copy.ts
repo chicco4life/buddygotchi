@@ -169,6 +169,13 @@ export const copy = {
     backHome: "back to the litter",
   },
 
+  held: {
+    heading: "Your number is held.",
+    body: "Your deposit is in, and your place in the Founding Litter is locked. When your buddy hatches, it's yours.",
+    reassurance: "Changed your mind? Reply to any email from us and we'll refund it in full, no questions.",
+    backHome: "back to the litter",
+  },
+
   privacy: {
     heading: "The short, honest version.",
     paragraphs: [

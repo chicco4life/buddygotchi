@@ -52,6 +52,7 @@ type MemRow = {
   referral_count: number;
   ref_code_used?: string;
   price_expectation?: string;
+  deposit_paid?: boolean;
   created_at: number;
 };
 
@@ -90,6 +91,11 @@ function submitInMemory(input: SubmitInput): SubmitResult {
 function saveExpectationInMemory(input: ExpectationInput): void {
   const row = mem.find((r) => r.referral_code === input.code);
   if (row) row.price_expectation = input.answer;
+}
+
+function markDepositPaidInMemory(code: string): void {
+  const row = mem.find((r) => r.referral_code === code);
+  if (row) row.deposit_paid = true;
 }
 
 /* ---------------- Postgres backend ---------------- */
@@ -159,6 +165,17 @@ async function saveExpectationInPostgres(
   `;
 }
 
+async function markDepositPaidInPostgres(
+  sql: NonNullable<ReturnType<typeof getSql>>,
+  code: string,
+): Promise<void> {
+  await sql`
+    update signups
+    set deposit_paid = true, deposit_paid_at = now()
+    where referral_code = ${code}
+  `;
+}
+
 export async function submitSignup(input: SubmitInput): Promise<SubmitResult> {
   const sql = getSql();
   if (sql) return submitInPostgres(sql, input);
@@ -170,5 +187,14 @@ export async function saveExpectation(input: ExpectationInput): Promise<void> {
   const sql = getSql();
   if (sql) return saveExpectationInPostgres(sql, input);
   if (allowInmem()) return saveExpectationInMemory(input);
+  throw new Error("waitlist backend not configured");
+}
+
+/** Flag a signup's $5 deposit as paid, keyed by their referral code (the
+    client_reference_id passed to Stripe). Idempotent. */
+export async function markDepositPaid(code: string): Promise<void> {
+  const sql = getSql();
+  if (sql) return markDepositPaidInPostgres(sql, code);
+  if (allowInmem()) return markDepositPaidInMemory(code);
   throw new Error("waitlist backend not configured");
 }

@@ -294,7 +294,7 @@ Price cohort: `?p=99` or `?p=129` (the test skips $119 per `../research/product/
 - Custom events via `track()`: `cta_click` (hero|footer), `modal_open`, `signup` (with source + cohort), `copy_referral`, `deposit_click`, `price_expectation`.
 - **Scroll depth**: fire `scroll_depth` events at each section boundary (S1…S8) using the existing `IntersectionObserver` hook — this is how the test finds where interest dies (`../research/product/MARKETING.md` §3.3).
 - **Ad pixels**, env-gated and loaded only when the corresponding ID is set: `NEXT_PUBLIC_REDDIT_PIXEL_ID`, `NEXT_PUBLIC_TWITTER_PIXEL_ID`, `NEXT_PUBLIC_META_PIXEL_ID`. Each fires its standard PageView on load and a Lead/SignUp conversion on the `signup` event. Load via `next/script` `strategy="afterInteractive"`, wrapped in one `Pixels.tsx` component so it's removable in one place. With no IDs set (local dev, pre-test), zero third-party script bytes load.
-- **Deposit Payment Link**, env-gated and loaded only when `NEXT_PUBLIC_STRIPE_DEPOSIT_URL` is set. With no URL set (local dev, pre-test), `/welcome` skips the deposit block.
+- **Deposit Payment Link**, env-gated and loaded only when `NEXT_PUBLIC_STRIPE_DEPOSIT_URL` is set. With no URL set (local dev, pre-test), `/welcome` skips the deposit block. On completed payment Stripe redirects to `/held` (a warm confirmation page) and, independently, POSTs `checkout.session.completed` to `/api/stripe/webhook`; that route verifies the signature with `STRIPE_WEBHOOK_SECRET` and sets `deposit_paid`/`deposit_paid_at` on the signup row matched by `client_reference_id` (the referral code). The webhook is the source of truth (fires even if the browser never reaches `/held`); with no secret set it no-ops fail-safe.
 
 ---
 
