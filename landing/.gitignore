@@ -26,3 +26,9 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 /playwright/.cache/
+
+# stray package-manager artifacts (this project uses npm + package-lock.json;
+# a committed pnpm-lock.yaml would flip Vercel to pnpm and drift dependencies)
+pnpm-lock.yaml
+pnpm-workspace.yaml
+yarn.lock
