@@ -51,17 +51,20 @@ test("generated email templates are in sync", () => {
 
 test("waitlist confirmation renders clean text and minimal html", async () => {
   const { renderWaitlistConfirmation } = await import("../src/lib/email.ts");
-  const referralUrl = "https://adoptaboop.com/?ref=A&B=<C>";
-  const rendered = renderWaitlistConfirmation({ position: 42, price: 119, referralUrl });
+  const rendered = renderWaitlistConfirmation({ position: 42, price: 119 });
 
   assert.ok(!rendered.subject.includes("{{"), "subject has leftover placeholder");
   assert.ok(!rendered.text.includes("{{"), "text has leftover placeholder");
   assert.ok(!rendered.html.includes("{{"), "html has leftover placeholder");
   assert.ok(!/<img\b/i.test(rendered.html), "html must not include images");
+  assert.ok(rendered.text.startsWith("You're in line."), "text opens with the heading");
+  assert.ok(/<h1[^>]*>You're in line\.<\/h1>/.test(rendered.html), "html has the heading");
   assert.ok(
-    rendered.html.includes(
-      '<a href="https://adoptaboop.com/?ref=A&amp;B=&lt;C&gt;" style="color:#c9862b;',
-    ),
-    "html must include the escaped referral anchor",
+    rendered.html.includes('<span style="color:#c9862b;font-weight:600;">#42</span>'),
+    "html highlights the buddy number in amber",
+  );
+  assert.ok(
+    rendered.html.includes('<a href="https://adoptaboop.com" style="color:#c9862b;'),
+    "html links the sign-off domain in amber",
   );
 });

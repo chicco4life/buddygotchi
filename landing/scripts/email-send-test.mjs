@@ -40,7 +40,6 @@ const result = await sendWaitlistConfirmation({
   to,
   position: 42,
   price: 119,
-  referralUrl: "https://adoptaboop.com/?ref=SAMPLE42",
 });
 
 if (result.status === "sent") {

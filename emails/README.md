@@ -1,11 +1,12 @@
 # Emails
 
 The canonical home of every email Boop sends. One markdown file per email;
-the plain-text body in the file **is** the template — by design there is no
-rich-HTML layer to maintain (MARKETING.md §3.6: in-universe, one paragraph,
-zero images; trust compounds from the first touch). At send time the landing
-app wraps the same text in a minimal HTML shell (cream background, charcoal
-text, no images) purely so it renders comfortably in HTML-first clients.
+the plain-text body in the file **is** the template (MARKETING.md §3.6: short,
+honest, zero images; trust compounds from the first touch). At send time the
+landing app renders the same content into an HTML version styled like the
+landing page — cream `#f7f2e9`, charcoal `#2b2724`, one amber accent, big
+sentence-case heading, still zero images and no tracking pixel (deliberate:
+deliverability and the privacy promise).
 
 ## Format
 
@@ -15,19 +16,31 @@ Each email is a single `.md` file:
 ---
 id: kebab-case-identifier
 subject: Subject line, may use {{placeholders}}
-from: The Litter <hello@adoptaboop.com>
+from: Boop Computer <hello@adoptaboop.com>
 replyTo: hello@adoptaboop.com
 trigger: what causes this send, and from where in the code
 placeholders: comma, separated, list
+heading: Large headline in the HTML version; first line of the text version
+subline: Supporting line under the heading (optional)
 ---
 
-plain-text body with {{placeholders}}
+body paragraphs with {{placeholders}}, ending with the sign-off:
+
+— Boop Computer
+adoptaboop.com
 ```
+
+The plain-text version is `heading + subline + body`; the HTML version sets
+the heading large, highlights `#{{position}}` in amber, and styles the
+sign-off paragraph (starts with `—`) as a quiet footer.
 
 Brand law applies to subject and body exactly as it does to site copy
 (`landing/tests/copy-rules.test.mjs`): no exclamation marks, no hype words
-(revolutionary, supercharge, AI-powered, game-changer, productivity, premium),
-lowercase-hearted, dry, in-universe. Every email is signed "— The Litter".
+(revolutionary, supercharge, AI-powered, game-changer, productivity, premium).
+Sentence case, matching the site's copy register — warm, dry, specific.
+Sender is always "Boop Computer" (the lockup, per MARKETING.md §1.5); the
+in-universe vocabulary (Founding Litter, hatches, buddy) lives in the words,
+not the sender name.
 
 ## Workflow
 

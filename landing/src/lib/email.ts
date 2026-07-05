@@ -3,7 +3,6 @@ import { WAITLIST_CONFIRMATION_TEMPLATE } from "./email-templates.ts";
 type RenderInput = {
   position: number;
   price: number;
-  referralUrl: string;
 };
 
 type SendInput = RenderInput & {
@@ -17,11 +16,18 @@ export type SendWaitlistConfirmationResult =
 
 const template = WAITLIST_CONFIRMATION_TEMPLATE;
 
+/*
+  The HTML version mirrors the landing page's design tokens (globals.css):
+  cream #f7f2e9, charcoal #2b2724, charcoal-soft #6e675d, amber #e8a33d /
+  amber-deep #c9862b. Zero images and no tracking pixel — deliverability and
+  the privacy promise both depend on that staying true.
+*/
+const SITE_URL = "https://adoptaboop.com";
+
 function substitute(value: string, input: RenderInput): string {
   return value
     .replaceAll("{{position}}", String(input.position))
-    .replaceAll("{{price}}", String(input.price))
-    .replaceAll("{{referralUrl}}", input.referralUrl);
+    .replaceAll("{{price}}", String(input.price));
 }
 
 function escapeHtml(value: string): string {
@@ -32,30 +38,45 @@ function escapeHtml(value: string): string {
     .replaceAll('"', "&quot;");
 }
 
-function renderParagraph(paragraph: string, referralUrl: string): string {
-  const escapedUrl = escapeHtml(referralUrl);
-  const escaped = escapeHtml(paragraph)
-    .replaceAll("\n", "<br>")
-    .replaceAll(
-      escapedUrl,
-      `<a href="${escapedUrl}" style="color:#c9862b;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px;">${escapedUrl}</a>`,
-    );
-  return `<p style="margin:0 0 18px;">${escaped}</p>`;
+function linkifySite(escaped: string): string {
+  return escaped.replaceAll(
+    "adoptaboop.com",
+    `<a href="${SITE_URL}" style="color:#c9862b;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px;">adoptaboop.com</a>`,
+  );
 }
 
-function renderHtml(text: string, referralUrl: string): string {
-  const paragraphs = text
+function renderBodyParagraph(paragraph: string): string {
+  const escaped = linkifySite(escapeHtml(paragraph).replaceAll("\n", "<br>"));
+  // The sign-off paragraph (starts with "—") becomes the quiet footer.
+  if (paragraph.startsWith("—")) {
+    return `<p style="margin:36px 0 0;font-size:14px;line-height:1.7;color:#6e675d;">${escaped}</p>`;
+  }
+  return `<p style="margin:0 0 20px;font-size:16px;line-height:1.7;color:#2b2724;">${escaped}</p>`;
+}
+
+function renderHtml(input: RenderInput): string {
+  const heading = escapeHtml(substitute(template.heading, input));
+  // The buddy number is the one amber moment in the email.
+  const subline = escapeHtml(substitute(template.subline, input)).replace(
+    `#${input.position}`,
+    `<span style="color:#c9862b;font-weight:600;">#${input.position}</span>`,
+  );
+  const paragraphs = substitute(template.body, input)
     .trimEnd()
     .split(/\n{2,}/)
-    .map((paragraph) => renderParagraph(paragraph, referralUrl))
+    .map(renderBodyParagraph)
     .join("");
 
   return `<!doctype html>
 <html>
-  <body style="margin:0;background:#F7F2E9;color:#2b2724;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.6;">
-    <main style="max-width:480px;margin:0 auto;padding:40px 24px;">
+  <body style="margin:0;padding:0;background:#f7f2e9;">
+    <div style="max-width:520px;margin:0 auto;padding:56px 28px 48px;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#2b2724;">
+      <p style="margin:0 0 32px;font-size:11px;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:#6e675d;">Boop Computer &middot; Founding Litter</p>
+      <h1 style="margin:0 0 14px;font-size:34px;line-height:1.1;letter-spacing:-0.02em;font-weight:600;color:#2b2724;">${heading}</h1>
+      <p style="margin:0 0 28px;font-size:17px;line-height:1.6;color:#6e675d;">${subline}</p>
+      <div style="height:3px;width:44px;border-radius:2px;background:#e8a33d;margin:0 0 28px;"></div>
       ${paragraphs}
-    </main>
+    </div>
   </body>
 </html>`;
 }
@@ -66,12 +87,15 @@ export function renderWaitlistConfirmation(input: RenderInput): {
   html: string;
 } {
   const subject = substitute(template.subject, input);
-  const text = substitute(template.body, input);
+  const text = [template.heading, template.subline, template.body.trimEnd()]
+    .filter(Boolean)
+    .map((part) => substitute(part, input))
+    .join("\n\n");
 
   return {
     subject,
     text,
-    html: renderHtml(text, input.referralUrl),
+    html: renderHtml(input),
   };
 }
 

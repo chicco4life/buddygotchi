@@ -61,13 +61,11 @@ export async function POST(req: Request) {
   try {
     const result = await submitSignup({ email, source: parsed.data.source, attr });
     if (result.created) {
-      const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://adoptaboop.com").replace(/\/$/, "");
       after(() =>
         sendWaitlistConfirmation({
           to: email,
           position: result.position,
           price: attr.priceCohort ?? DEFAULT_PRICE,
-          referralUrl: `${siteUrl}/?ref=${result.referralCode}`,
         }),
       );
     }

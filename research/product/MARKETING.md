@@ -210,7 +210,7 @@ The confirmation page is a marketing asset, not a receipt:
 - Copy: **"You're in line. Buddy #— will be yours when batch two hatches."** with a small hatching-egg animation.
 - One share hook: *"Want to skip ahead? Every friend who joins moves you up 10 places."* (referral position mechanics — the single cheapest viral loop that exists, and this audience shares links for sport).
 - Optional second ask, only here: the $5 refundable deposit to lock an adoption number (§3.1's strong signal).
-- The email autoresponder is in-universe (from "The Litter"), one paragraph, zero images, sets expectations honestly (timeline, price, refund-anytime) — trust compounds from the first touch.
+- The email autoresponder is styled like the site (cream/charcoal/amber, sentence case) and sent from "Boop Computer <hello@adoptaboop.com>" — decided 2026-07-04: "The Litter" as an inbox sender name reads confusing/spammy; the in-universe vocabulary lives in the words ("Founding Litter," "hatches"), not the sender. Zero images, no tracking pixel, sets expectations honestly (timeline, price, leave-anytime) — trust compounds from the first touch. The referral hook lives on the /welcome page only, not in the email (kept simple on purpose, same decision). Canonical templates: repo `emails/` directory.
 
 ### 3.7 Decision framework after the test
 

@@ -38,6 +38,8 @@ function parseTemplate(fileUrl) {
       .split(",")
       .map((placeholder) => placeholder.trim())
       .filter(Boolean),
+    heading: frontmatter.heading ?? "",
+    subline: frontmatter.subline ?? "",
     body: match[2],
   };
 }
