@@ -16,7 +16,7 @@ export type SubmitInput = {
   attr: Attribution;
 };
 
-export type SubmitResult = { position: number; referralCode: string };
+export type SubmitResult = { position: number; referralCode: string; created: boolean };
 export type ExpectationInput = { code: string; answer: string };
 
 const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
@@ -65,6 +65,7 @@ function submitInMemory(input: SubmitInput): SubmitResult {
     return {
       position: positionFrom(rank, existing.referral_count),
       referralCode: existing.referral_code,
+      created: false,
     };
   }
 
@@ -83,7 +84,7 @@ function submitInMemory(input: SubmitInput): SubmitResult {
   }
 
   const rank = mem.filter((r) => r.created_at <= row.created_at).length;
-  return { position: rank, referralCode: row.referral_code };
+  return { position: rank, referralCode: row.referral_code, created: true };
 }
 
 function saveExpectationInMemory(input: ExpectationInput): void {
@@ -114,6 +115,7 @@ async function submitInPostgres(
     return {
       position: positionFrom(rank, row.referral_count),
       referralCode: row.referral_code,
+      created: false,
     };
   }
 
@@ -143,7 +145,7 @@ async function submitInPostgres(
     }[]
   )[0].r;
 
-  return { position: rank, referralCode: code };
+  return { position: rank, referralCode: code, created: true };
 }
 
 async function saveExpectationInPostgres(
