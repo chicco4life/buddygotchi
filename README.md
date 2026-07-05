@@ -101,7 +101,7 @@ python3 firmware/esp32/tools/button.py b
 
 ## More Detail
 
-See [research/eng/ARCHITECTURE.md](research/eng/ARCHITECTURE.md) for how the app is pieced together, including hook routing, state aggregation, outputs, mocks, and test strategy. See [AGENTS.md](AGENTS.md) for repo-specific instructions for coding agents.
+See [research/eng/ARCHITECTURE.md](research/eng/ARCHITECTURE.md) for the architecture index, including links to the app/firmware and landing page architecture docs. See [AGENTS.md](AGENTS.md) for repo-specific instructions for coding agents.
 
 Release and support details live in [docs/RELEASE.md](docs/RELEASE.md) and [docs/SUPPORT.md](docs/SUPPORT.md). To remove Boop, use Settings, About, Remove Boop, or follow the manual uninstall notes in the support doc.
 

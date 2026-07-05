@@ -105,7 +105,9 @@ after the one-time OS pairing step to exercise the production BLE transport.
 ## Documentation Expectations
 
 - Keep `README.md` focused on overview and build/run/test instructions.
-- Keep `research/eng/ARCHITECTURE.md` focused on how pieces fit together, including test/mocking strategy.
+- Keep `research/eng/ARCHITECTURE.md` as a short index pointing at the split architecture docs.
+- Keep `research/eng/ARCHITECTURE-APP.md` focused on the Swift macOS app and ESP32 firmware, including test/mocking strategy.
+- Keep `research/eng/ARCHITECTURE-LANDING.md` focused on the landing page architecture.
 - Keep this file mirrored in `CLAUDE.md`.
 - Use `research/TODOs.md` for open cross-functional items.
 - Use `research/eng/TESTING.md` and `research/eng/RELEASE.md` for engineering verification and release gates.
