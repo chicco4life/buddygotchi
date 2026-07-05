@@ -85,7 +85,7 @@ function submitInMemory(input: SubmitInput): SubmitResult {
   }
 
   const rank = mem.filter((r) => r.created_at <= row.created_at).length;
-  return { position: rank, referralCode: row.referral_code, created: true };
+  return { position: Math.max(1, rank), referralCode: row.referral_code, created: true };
 }
 
 function saveExpectationInMemory(input: ExpectationInput): void {
@@ -107,14 +107,17 @@ async function submitInPostgres(
   const { email, source, attr } = input;
 
   const existing = (await sql`
-    select referral_code, referral_count, created_at
+    select id, referral_code, referral_count
     from signups where email = ${email}
-  `) as unknown as { referral_code: string; referral_count: number; created_at: string }[];
+  `) as unknown as { id: number; referral_code: string; referral_count: number }[];
 
   if (existing.length) {
     const row = existing[0];
+    // Rank by the monotonic identity id, not created_at: a timestamptz has
+    // microsecond precision that the JS-serialized string truncates to
+    // milliseconds, so `created_at <= <string>` can miss the row itself.
     const rank = (
-      (await sql`select count(*)::int as r from signups where created_at <= ${row.created_at}`) as unknown as {
+      (await sql`select count(*)::int as r from signups where id <= ${row.id}`) as unknown as {
         r: number;
       }[]
     )[0].r;
@@ -135,8 +138,8 @@ async function submitInPostgres(
        ${attr.utm_source ?? null}, ${attr.utm_medium ?? null}, ${attr.utm_campaign ?? null},
        ${attr.utm_content ?? null}, ${attr.utm_term ?? null},
        ${attr.referrer ?? null}, ${attr.ref_code_used ?? null}, ${code})
-    returning created_at
-  `) as unknown as { created_at: string }[];
+    returning id
+  `) as unknown as { id: number }[];
 
   if (attr.ref_code_used) {
     await sql`
@@ -146,12 +149,12 @@ async function submitInPostgres(
   }
 
   const rank = (
-    (await sql`select count(*)::int as r from signups where created_at <= ${inserted[0].created_at}`) as unknown as {
+    (await sql`select count(*)::int as r from signups where id <= ${inserted[0].id}`) as unknown as {
       r: number;
     }[]
   )[0].r;
 
-  return { position: rank, referralCode: code, created: true };
+  return { position: Math.max(1, rank), referralCode: code, created: true };
 }
 
 async function saveExpectationInPostgres(
