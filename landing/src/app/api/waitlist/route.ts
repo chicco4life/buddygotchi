@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
-import { ATTR_COOKIE, type Attribution } from "@/lib/attribution";
+import { ATTR_COOKIE, DEFAULT_PRICE, type Attribution } from "@/lib/attribution";
+import { sendWaitlistConfirmation } from "@/lib/email";
 import { isBackendReady, submitSignup } from "@/lib/waitlist";
 
 export const runtime = "nodejs";
@@ -59,6 +60,17 @@ export async function POST(req: Request) {
 
   try {
     const result = await submitSignup({ email, source: parsed.data.source, attr });
+    if (result.created) {
+      const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://adoptaboop.com").replace(/\/$/, "");
+      after(() =>
+        sendWaitlistConfirmation({
+          to: email,
+          position: result.position,
+          price: attr.priceCohort ?? DEFAULT_PRICE,
+          referralUrl: `${siteUrl}/?ref=${result.referralCode}`,
+        }),
+      );
+    }
     return NextResponse.json(result);
   } catch (err) {
     console.error("waitlist submit failed", err);

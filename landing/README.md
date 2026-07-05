@@ -23,7 +23,9 @@ The app boots with **no** env vars: without `DATABASE_URL` the waitlist API retu
 503 and the page still renders (fail-open). To exercise the full flow locally
 without a database, run with `ALLOW_INMEM=1` (an in-memory store — testing only).
 Set `NEXT_PUBLIC_STRIPE_DEPOSIT_URL` only when the refundable $5 deposit Payment
-Link is ready; when unset, `/welcome` omits that step.
+Link is ready; when unset, `/welcome` omits that step. Set `RESEND_API_KEY` to
+send the first-signup confirmation email through Resend; when unset, signup still
+works and email sending is skipped.
 
 ## Scripts
 
@@ -36,6 +38,8 @@ Link is ready; when unset, `/welcome` omits that step.
 | `npm test` | Copy brand-law unit test (`tests/`) |
 | `npm run test:e2e` | Playwright waitlist flow (`e2e/`) |
 | `npm run db:push` | Apply `db/schema.sql` to `DATABASE_URL` |
+| `npm run emails:build` | Embed canonical templates from `../emails/` |
+| `npm run email:test -- you@example.com` | Send a rendered sample through Resend |
 
 ## Assets
 
@@ -48,5 +52,6 @@ art-directed placeholder and swaps in the real file automatically when dropped i
 
 Import the repo, set **Root Directory = `landing`**, add a Neon
 database from the Marketplace (injects `DATABASE_URL`), enable Analytics. Full
-steps in `SPEC.md §11`. `vercel.json`'s `ignoreCommand` skips deploys for pushes
-that don't touch `landing/`.
+steps in `SPEC.md §11`. Add `RESEND_API_KEY` in Vercel when transactional email
+is ready. `vercel.json`'s `ignoreCommand` skips deploys for pushes that don't
+touch `landing/`.

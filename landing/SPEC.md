@@ -369,7 +369,7 @@ These are enforced brand law from `../research/product/MARKETING.md` §1.3 — t
 3. **Root Directory: `landing`** ← the critical monorepo setting. Framework preset auto-detects Next.js. Leave build/install commands default (`next build` / `npm install`).
 4. Storage → **Create Database → Neon (Postgres)** via the Vercel Marketplace, link it to the project. This injects `DATABASE_URL` automatically. Run `npm run db:push` once locally against it (pull env first, §11.3).
 5. Project → Analytics → **Enable Vercel Analytics**.
-6. Environment variables (Production; see `.env.example`): `NEXT_PUBLIC_SHOW_COUNTER` (unset = hidden), `NEXT_PUBLIC_STRIPE_DEPOSIT_URL` when the Stripe Payment Link exists, and the three pixel IDs when the ad accounts exist (unset until then).
+6. Environment variables (Production; see `.env.example`): `RESEND_API_KEY` when transactional email is ready, `NEXT_PUBLIC_SHOW_COUNTER` (unset = hidden), `NEXT_PUBLIC_STRIPE_DEPOSIT_URL` when the Stripe Payment Link exists, and the three pixel IDs when the ad accounts exist (unset until then).
 7. Domains: add `adoptaboop.com` + `www` redirect → apex. Vercel provisions TLS automatically.
 
 ### 11.2 Skip builds when only the Mac app changes
@@ -394,7 +394,7 @@ npm run db:push                # apply schema once
 npm run dev                    # http://localhost:3000
 ```
 
-`.env.example` documents every variable with a one-line comment. The app must boot with **no** env vars set: without `DATABASE_URL` the waitlist API returns a clear 503 and the page still renders (fail-open, like everything else in this project).
+`.env.example` documents every variable with a one-line comment. The app must boot with **no** env vars set: without `DATABASE_URL` the waitlist API returns a clear 503 and the page still renders (fail-open, like everything else in this project). Without `RESEND_API_KEY`, signup confirmation email sending is skipped fail-open.
 
 ### 11.4 Deploy flow
 
@@ -404,7 +404,7 @@ Git-push deploys: every push to `main` touching `landing/` → production; PRs �
 
 ## 12. Scripts, testing, acceptance
 
-`package.json` scripts: `dev`, `build`, `start`, `lint`, `typecheck` (`tsc --noEmit`), `test` (the copy-rules unit test, §10.7), `test:e2e` (Playwright), `db:push`.
+`package.json` scripts: `dev`, `build`, `start`, `lint`, `typecheck` (`tsc --noEmit`), `test` (the copy-rules unit test, §10.7), `test:e2e` (Playwright), `db:push`, `emails:build` (embed canonical email templates), `email:test` (send a rendered sample through Resend).
 
 One Playwright spec (`e2e/waitlist.spec.ts`) run against `next dev` with a stubbed DB (in-memory fallback when `DATABASE_URL` is unset in test mode): loads `/?p=99&utm_source=test`, asserts the CTA shows `$99`, opens the modal, submits an email, lands on `/welcome`, sees a position and a copyable referral link.
 

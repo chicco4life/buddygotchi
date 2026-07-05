@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/*.mjs",
     "test:e2e": "playwright test",
-    "db:push": "node scripts/db-push.mjs"
+    "db:push": "node scripts/db-push.mjs",
+    "emails:build": "node scripts/emails-build.mjs",
+    "email:test": "node scripts/email-send-test.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
