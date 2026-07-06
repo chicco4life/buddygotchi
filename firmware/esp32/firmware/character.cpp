@@ -139,8 +139,11 @@ static void gifDrawCb(GIFDRAW* d) {
 
 bool characterInit(const char* name) {
   if (!LittleFS.begin(false)) {
-    // begin() fails if already mounted — that's fine on reload
-    if (!LittleFS.open("/")) {
+    // begin() fails if already mounted — that's fine on reload. If it's
+    // genuinely unmounted the partition is blank or corrupted; format it so
+    // the device comes back empty (reinstallable over BLE/serial) instead of
+    // staying stuck in ASCII fallback until someone reflashes the FS.
+    if (!LittleFS.open("/") && !LittleFS.begin(true)) {
       Serial.println("[char] LittleFS mount failed");
       return false;
     }
