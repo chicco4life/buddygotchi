@@ -293,7 +293,7 @@ Price cohort: `?p=99` or `?p=129` (the test skips $119 per `../research/product/
 - **Vercel Analytics** for page views and Web Vitals (cookieless — no consent banner needed).
 - Custom events via `track()`: `cta_click` (hero|footer), `modal_open`, `signup` (with source + cohort), `copy_referral`, `price_expectation`.
 - **Scroll depth**: fire `scroll_depth` events at each section boundary (S1…S8) using the existing `IntersectionObserver` hook — this is how the test finds where interest dies (`../research/product/MARKETING.md` §3.3).
-- **Ad pixels**, env-gated and loaded only when the corresponding ID is set: `NEXT_PUBLIC_REDDIT_PIXEL_ID`, `NEXT_PUBLIC_TWITTER_PIXEL_ID`, `NEXT_PUBLIC_META_PIXEL_ID`. Each fires its standard PageView on load and a Lead/SignUp conversion on the `signup` event. Load via `next/script` `strategy="afterInteractive"`, wrapped in one `Pixels.tsx` component so it's removable in one place. With no IDs set (local dev, pre-test), zero third-party script bytes load.
+- **Ad pixels** — _deferred (removed 2026-07-05), rebuild when a paid ad campaign is actually planned._ The design: env-gated pixels loaded only when the corresponding ID is set (`NEXT_PUBLIC_REDDIT_PIXEL_ID`, `NEXT_PUBLIC_TWITTER_PIXEL_ID`, `NEXT_PUBLIC_META_PIXEL_ID`), each firing its standard PageView on load and a Lead/SignUp conversion on the `signup` event, loaded via `next/script` `strategy="afterInteractive"` and wrapped in one `Pixels.tsx` component (with the conversion call in `lib/pixels.ts`, fired from `lib/submit.ts`). The original code did exactly this — recover it from git history rather than rewriting.
 
 ---
 

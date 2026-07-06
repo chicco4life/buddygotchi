@@ -22,13 +22,12 @@ Use this as the ordered release gate for app and firmware releases.
 10. Generate the appcast:
    - Put the signed app download artifacts in a downloads directory.
    - Run `app/tools/make-appcast.sh <sparkle-bin-dir> <downloads-dir>`.
-   - Open a Pages PR updating `/releases/appcast.xml`.
+   - Open a landing PR updating `landing/public/releases/appcast.xml` (served at `/releases/appcast.xml`).
 11. Build firmware through the firmware release workflow and download the draft artifacts.
 12. Verify firmware OTA on a real M5StickC Plus 2 using [TESTING.md section 5](TESTING.md#5-firmware-update-ota).
 13. Run hardware HIL using [TESTING.md section 7](TESTING.md#7-hardware-hil).
 14. Publish firmware hosting:
-    - Open a Pages PR for `/firmware/manifest.json`.
-    - Open a Pages PR for `/firmware/esp-web-tools-manifest.json`.
+    - Open a landing PR updating `landing/public/firmware/` (served at `/firmware/`): `manifest.json`, `esp-web-tools-manifest.json`, and the versioned `.bin` files.
     - Confirm the flash page installs without Home Assistant prompts using [TESTING.md section 8](TESTING.md#8-web-flasher).
 15. Re-run hardware screenshots for attention, busy, review, error, thinking, and multi-session states after firmware wire-format changes using [TESTING.md section 7](TESTING.md#7-hardware-hil).
 16. Publish the draft GitHub releases after appcast and firmware hosting are live.

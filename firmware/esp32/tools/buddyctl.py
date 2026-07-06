@@ -247,7 +247,7 @@ def parse_screenshot(buf: bytes) -> Any:
     end = re.search(rb"<<SCR_END(?:\s+LEN=(\d+)\s+CRC32=([0-9a-fA-F]{8}))?>>", buf[begin.end() :])
     if not end:
         return None
-    return begin, begin.end() + end.start(), begin.end() + end.end(), end
+    return begin, begin.end(), begin.end() + end.start(), end
 
 
 def capture_screenshot(args: argparse.Namespace) -> dict[str, Any]:
@@ -645,6 +645,9 @@ def build_parser() -> argparse.ArgumentParser:
         p.set_defaults(func=fn)
     p = sub.add_parser("screenshot")
     add_common(p)
+    # ~86 KB base64 dump takes ~8 s at 115200 baud; the shared 5 s default
+    # times out mid-transfer.
+    p.set_defaults(timeout=15.0)
     p.add_argument("--out", default="screenshot.png")
     p.add_argument("--scale", type=int, default=1)
     p.add_argument("--retry", type=int, default=3)

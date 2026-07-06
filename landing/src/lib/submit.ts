@@ -1,5 +1,3 @@
-import { fireLead } from "@/lib/pixels";
-
 export type SignupResult = { position: number; referralCode: string };
 
 /** Where on the page a signup came from — stored on the row for the demand test. */
@@ -21,6 +19,5 @@ export async function submitEmail(
   }
 
   const data = (await res.json()) as SignupResult;
-  fireLead(source);
   return data;
 }

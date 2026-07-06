@@ -173,6 +173,79 @@ export const copy = {
     ],
     backHome: "back to the litter",
   },
+
+  help: {
+    heading: "When something's off.",
+    intro:
+      "Boop runs locally. Agent hooks post activity to your Mac, the app turns it into buddy state, and approval mode — if you turn it on — waits for your allow or deny before answering the agent.",
+    hooks: {
+      heading: "What the hooks do",
+      items: [
+        "Claude Code, Cursor, and Codex hooks tell Boop when sessions start, prompts submit, tools run, and work finishes.",
+        "Hooks fail open. If Boop isn't running, your agent keeps its native behavior.",
+        "Approval mode is opt-in. When it's off, Boop watches without deciding anything.",
+      ],
+    },
+    troubleshooting: {
+      heading: "Troubleshooting",
+      rows: [
+        {
+          symptom: "Nothing connects",
+          check:
+            "Open Boop, then run curl http://127.0.0.1:21321/healthz in a terminal. If the endpoint responds, reinstall hooks from Settings.",
+        },
+        {
+          symptom: "Port busy",
+          check:
+            "Quit other Boop copies. The packaged app enforces a single instance, but development runs can leave old processes around.",
+        },
+        {
+          symptom: "Notifications don't appear",
+          check:
+            "Use the packaged app, then allow notifications in macOS System Settings. Bare development builds have limited notification identity.",
+        },
+        {
+          symptom: "Launch at login needs approval",
+          check:
+            "macOS may want a nod in System Settings, Login Items. Boop's Settings shows this state after the packaged app requests registration.",
+        },
+        {
+          symptom: "Hardware buddy is not found",
+          check:
+            "Pair from Settings, Displays. If the device is blank or running other firmware, use the web flasher first.",
+        },
+      ],
+    },
+    updates: {
+      heading: "Updates and privacy",
+      body:
+        "App updates read a static appcast at adoptaboop.com/releases/appcast.xml. Firmware updates read a static manifest at adoptaboop.com/firmware/manifest.json. No analytics, no crash reporting, no device identifiers.",
+    },
+    uninstall: {
+      heading: "Manual uninstall",
+      intro: "The kind way is Settings, About, Remove Boop. By hand:",
+      command: "rm -rf ~/.boop",
+      outro: "Then remove Boop hook entries from:",
+      files: [
+        "~/.claude/settings.json",
+        "~/.cursor/hooks.json",
+        "~/.codex/hooks.json",
+        "~/.codex/config.toml (codex_hooks = true, if Boop was the only hook user)",
+      ],
+    },
+    contact: "Still stuck? Write to",
+    backHome: "back to the litter",
+  },
+
+  flash: {
+    heading: "Flash the hardware buddy.",
+    intro:
+      "Use Chrome or Edge on desktop, connect the buddy over USB, then choose install. This page writes the same firmware the Mac app ships over the air.",
+    warning: "Installing erases the device, including any characters already living on it.",
+    after: "After flashing, unplug USB, open Boop on your Mac, and pair from Settings, Displays.",
+    helpLink: "need help?",
+    backHome: "back to the litter",
+  },
 } as const;
 
 export type Copy = typeof copy;

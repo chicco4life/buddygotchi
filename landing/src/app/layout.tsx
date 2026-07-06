@@ -3,7 +3,6 @@ import { GeistSans } from "geist/font/sans";
 import { Analytics } from "@vercel/analytics/next";
 import { Attribution } from "@/components/Attribution";
 import { ScrollDepth } from "@/components/ScrollDepth";
-import { Pixels } from "@/components/Pixels";
 import { copy } from "@/lib/copy";
 import { serializeJsonLd } from "@/lib/jsonld";
 import "@/styles/globals.css";
@@ -64,7 +63,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Attribution />
         {children}
         <ScrollDepth />
-        <Pixels />
         <Analytics />
       </body>
     </html>
