@@ -30,7 +30,7 @@ export function Moment() {
               {/* fixed-height chip row keeps the three captions on one line */}
               <div className="flex h-8 items-center">
                 {"screen" in beat && (
-                  <code className="rounded-lg bg-night px-3 py-1.5 font-mono text-xs text-night-text/90">
+                  <code className="whitespace-nowrap rounded-lg bg-night px-3 py-1.5 font-mono text-xs text-night-text/90">
                     {beat.screen}
                   </code>
                 )}

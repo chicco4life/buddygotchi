@@ -147,7 +147,7 @@ One page, **no header, no nav** — nothing to do but scroll and one thing to cl
 - Full-bleed, full-viewport-height. Media: autoplaying muted loop (~12s) — blob idling on a real desk in warm light, glow shifts amber, a hand enters and *pets* it, happy squint, green ripple, hand returns to keyboard. Asset: `public/media/hero-loop.mp4` (placeholder until shoot; see §8).
 - Text block over the **lower third**, left-aligned within the 1100px column, with a subtle cream scrim behind it for legibility (`linear-gradient(transparent, rgb(247 242 233 / 0.9))` bottom third — over the placeholder this reads as part of the design).
   - Headline: **Approve with a pet.**
-  - Subhead: *A little creature that watches your AI agents — and only bothers you when it matters.*
+  - Subhead: *A little creature that watches your AI agents, and only bothers you when it matters.*
   - CTA button: **Adopt one — $119** (price is cohort-dependent, §7.2; clicking opens the waitlist modal, §6.1)
   - Small text under the button (tiny-label style): `Founding Litter · 100 numbered buddies · no subscription, ever`
 - No scroll-hint chevron, no header logo. The wordmark "Boop" appears only in the footer and metadata.
@@ -160,7 +160,7 @@ Three stills in a row (stack on mobile), minimal captions beneath each:
 2. Hand mid-pet, blob squinting — caption: **You pet.**
 3. Wide shot, human back at work, blob content — caption: **Everyone gets back to work.**
 
-One line below the row, centered, secondary color: *Permission prompts, completions, and failures — surfaced as a feeling in the corner of your eye, not another notification.*
+One line below the row, centered, secondary color: *Permission prompts, completions, and failures. Surfaced as a feeling in the corner of your eye, not another notification.*
 
 ### S3 — It's alive
 
@@ -182,9 +182,9 @@ Restrained, small type. Two rows:
 
 - Compatibility row: **Claude Code · Codex · Cursor · VS Code** — rendered as text wordmarks in `--charcoal-soft` (see §8.3 on logos), with caption: *Speaks fluent agent. One-click setup from the Mac app.*
 - Three trust lines (three columns desktop, stacked mobile), each a bold lead-in + one sentence:
-  - **Local-first** — *everything runs on your Mac; the buddy talks to it over Bluetooth. No cloud, no account.*
-  - **No subscription** — *buy it once. When agents change, it learns new tricks in free updates.*
-  - **USB-C powered** — *lives on your desk, plugged in, always on.*
+  - **Local-first** — *Everything runs on your Mac; the buddy talks to it over Bluetooth. No cloud, no account.*
+  - **No subscription** — *Buy it once. When agents change, it learns new tricks in free updates.*
+  - **USB-C powered** — *Lives on your desk, plugged in, always on.*
 
 No icons unless truly tiny and monochrome; text alone is acceptable and safer.
 

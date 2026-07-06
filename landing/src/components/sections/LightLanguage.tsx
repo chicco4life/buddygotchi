@@ -29,11 +29,14 @@ function LightBlob({ label, desc }: { label: string; desc: string }) {
   const v = VARIANTS[label];
   const gid = `glow-${label.replace(/\s/g, "")}`;
   const emphasized = label === "Needs you";
+  // Emphasis is drawn as bigger shapes inside a uniform box — a taller box
+  // would lift this blob's center above its bottom-aligned neighbors.
+  const s = emphasized ? 1.13 : 1;
   return (
     <div className="flex flex-col items-center gap-4 text-center">
       <svg
         viewBox="0 0 140 140"
-        className={emphasized ? "h-32 w-32" : "h-28 w-28"}
+        className="h-28 w-28"
         role="img"
         aria-label={`${label}: ${desc}`}
       >
@@ -57,9 +60,9 @@ function LightBlob({ label, desc }: { label: string; desc: string }) {
           />
         )}
         {/* the shell silhouette, lit from within */}
-        <ellipse cx="70" cy="72" rx="38" ry="33" fill={v.shell} />
+        <ellipse cx="70" cy="72" rx={38 * s} ry={33 * s} fill={v.shell} />
         {v.shellLit > 0 && (
-          <ellipse cx="70" cy="64" rx="26" ry="18" fill={v.glow} opacity={v.shellLit} />
+          <ellipse cx="70" cy={72 - 8 * s} rx={26 * s} ry={18 * s} fill={v.glow} opacity={v.shellLit} />
         )}
         {/* asleep: the faintest outline so the dark shape still reads as the buddy */}
         {label === "Asleep" && (
@@ -86,7 +89,7 @@ export function LightLanguage() {
     >
       <div className="mx-auto max-w-[1100px]">
         <Reveal>
-          <div className="flex flex-wrap items-end justify-center gap-x-10 gap-y-12 sm:gap-x-14">
+          <div className="flex flex-wrap items-end justify-center gap-x-10 gap-y-12 lg:gap-x-14">
             {copy.light.states.map((s) => (
               <LightBlob key={s.label} label={s.label} desc={s.desc} />
             ))}

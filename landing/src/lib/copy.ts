@@ -18,7 +18,7 @@ export const copy = {
   hero: {
     headline: "Approve with a pet.",
     subhead:
-      "A little creature that watches your AI agents — and only bothers you when it matters.",
+      "A little creature that watches your AI agents, and only bothers you when it matters.",
     ctaLabel: "Adopt one",
     footnote: "Founding Litter · 100 numbered buddies · no subscription, ever",
   },
@@ -40,7 +40,7 @@ export const copy = {
       },
     ],
     line:
-      "Permission prompts, completions, and failures — surfaced as a feeling in the corner of your eye, not another notification.",
+      "Permission prompts, completions, and failures. Surfaced as a feeling in the corner of your eye, not another notification.",
   },
 
   alive: {
@@ -78,15 +78,15 @@ export const copy = {
     trust: [
       {
         title: "Local-first",
-        body: "everything runs on your Mac; the buddy talks to it over Bluetooth. No cloud, no account.",
+        body: "Everything runs on your Mac; the buddy talks to it over Bluetooth. No cloud, no account.",
       },
       {
         title: "No subscription",
-        body: "buy it once. When agents change, it learns new tricks in free updates.",
+        body: "Buy it once. When agents change, it learns new tricks in free updates.",
       },
       {
         title: "USB-C powered",
-        body: "lives on your desk, plugged in, always on.",
+        body: "Lives on your desk, plugged in, always on.",
       },
     ],
   },
@@ -95,7 +95,7 @@ export const copy = {
     boxAria:
       "An open adoption box, drawn: the buddy nested inside, a numbered tag on the lid, a coiled cream cable beside it",
     lines: [
-      "Every buddy ships in an adoption box with a numbered ID and a cable that deserves the name.",
+      "Every buddy ships in an adoption box with a numbered ID.",
       "Founding Litter: 100 buddies. When they're gone, batch two begins.",
     ],
   },
