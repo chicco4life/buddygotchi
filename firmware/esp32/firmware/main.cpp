@@ -1,6 +1,7 @@
 #include <M5StickCPlus2.h>
 #include <esp_log.h>
 #include <esp_system.h>
+#include "guard.h"
 #include "ble_bridge.h"
 #include "data.h"
 SET_LOOP_TASK_STACK_SIZE(16384);
@@ -306,9 +307,12 @@ static void dumpPing() {
   // heapMin/heapBig: low-water mark and largest free block. A BLE connect
   // needs several contiguous KB; if heapBig is small the Bluedroid connect
   // path OOMs and asserts (fixed_queue_new → vQueueDelete(NULL)).
-  Serial.printf("<<PONG {\"fw\":\"%s\",\"git\":\"%s\",\"up\":%lu,\"heap\":%lu,\"heapMin\":%lu,\"heapBig\":%lu}>>\n",
+  Serial.printf("<<PONG {\"fw\":\"%s\",\"git\":\"%s\",\"up\":%lu,\"heap\":%lu,\"heapMin\":%lu,\"heapBig\":%lu,"
+                "\"reset\":\"%s\",\"panics\":%lu,\"early\":%lu,\"safe\":%d}>>\n",
                 FW_VERSION, GIT_SHA, (unsigned long)millis(), (unsigned long)ESP.getFreeHeap(),
-                (unsigned long)ESP.getMinFreeHeap(), (unsigned long)ESP.getMaxAllocHeap());
+                (unsigned long)ESP.getMinFreeHeap(), (unsigned long)ESP.getMaxAllocHeap(),
+                guardResetReason(), (unsigned long)guardPanicsTotal(),
+                (unsigned long)guardEarlyCrashes(), guardSafeTier());
 }
 
 static void dumpState() {
@@ -341,6 +345,10 @@ static void dumpState() {
   doc["bleConnected"] = bleConnected();
   doc["bleSecure"] = bleSecure();
   doc["lineGen"] = tama.lineGen;
+  doc["reset"] = guardResetReason();
+  doc["panics"] = guardPanicsTotal();
+  doc["earlyCrashes"] = guardEarlyCrashes();
+  doc["safeTier"] = guardSafeTier();
 
   Serial.print("<<STATE ");
   serializeJson(doc, Serial);
@@ -396,6 +404,7 @@ static void dumpScreenshot() {
   uint32_t crc = 0;
   uint32_t rawLen = 0;
   for (int y = 0; y < h; y++) {
+    guardFeed();   // full dump takes ~8s of loop() time at 115200 baud
     StickCP2.Display.readRect(0, y, w, 1, row);
     const uint8_t* in = (const uint8_t*)row;
     int n = w * 2;
@@ -436,6 +445,21 @@ void handleSerialCommand(const char* line) {
     bleClearBonds();
     Serial.println("<<CLEARBONDS ok>>");
     return;
+  }
+  // Debug: reset crash-loop bookkeeping. HIL tests trigger deliberate
+  // watchdog resets and use this so repeated runs don't drift into safe
+  // mode.
+  if (strcmp(line, "guardclear") == 0) {
+    guardClear();
+    Serial.println("<<GUARDCLEAR {\"ok\":true}>>");
+    return;
+  }
+  // Debug: wedge loop() on purpose so tests can prove the task watchdog
+  // reboots a hung device. ~GUARD_WDT_TIMEOUT_S until recovery.
+  if (strcmp(line, "hang") == 0) {
+    Serial.println("<<HANG ok — task WDT should reboot in ~30s>>");
+    Serial.flush();
+    for (;;) delay(100);
   }
 
   if (strncmp(line, "press ", 6) == 0) {
@@ -496,10 +520,16 @@ void setup() {
   // command channel — JSON daemon pushes, "screenshot" — actually works.
   Serial.begin(115200);
   logHeap("after M5.begin");
+  guardInit();   // WDT + crash-loop breaker; decides safeTier for the rest of setup
+  const int safeTier = guardSafeTier();
   StickCP2.Display.setRotation(0);
   StickCP2.Speaker.begin();
-  startBt();
-  logHeap("after BLE init");
+  if (safeTier < 2) {
+    startBt();
+    logHeap("after BLE init");
+  } else {
+    Serial.println("[guard] safe mode tier 2 — BLE disabled, USB rescue only");
+  }
 
   StickCP2.Power.setLed(0);   // off
   setDisplayBrightness(BRIGHT_MEDIUM);
@@ -520,8 +550,14 @@ void setup() {
   spr.setColorDepth(8);
   spr.createSprite(W, H);
   logHeap("after sprite");
-  characterInit(nullptr);  // scan /characters/ for whatever is installed
-  logHeap("after characterInit");
+  if (safeTier == 0) {
+    characterInit(nullptr);  // scan /characters/ for whatever is installed
+    logHeap("after characterInit");
+  } else {
+    // Safe mode: a poisoned character asset is a plausible boot-crash
+    // culprit, and the procedural blob buddy renders without it.
+    Serial.println("[guard] safe mode — skipping character assets");
+  }
   gifAvailable = characterLoaded();
   buddyMode = true;
   characterSetPeek(false);
@@ -544,6 +580,13 @@ void setup() {
       spr.setTextColor(p.textDim, p.bg);
       spr.drawString("a buddy appears", W/2, H/2 + 12);
     }
+    if (safeTier > 0) {
+      spr.setTextSize(1);
+      spr.setTextColor(HOT, p.bg);
+      spr.drawString("safe mode", W/2, H - 28);
+      spr.setTextColor(p.textDim, p.bg);
+      spr.drawString(safeTier >= 2 ? "connect via USB" : "buddy needs help", W/2, H - 16);
+    }
     spr.setTextDatum(TL_DATUM); spr.setTextSize(1);
     spr.pushSprite(0, 0);
     delay(1800);
@@ -553,6 +596,7 @@ void setup() {
 }
 
 void loop() {
+  guardLoop();   // feed the task WDT; mark boot healthy after stable uptime
   StickCP2.update();
   t++;
 

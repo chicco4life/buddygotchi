@@ -416,6 +416,22 @@ tests/hil/test_ble.py ... passed
 button edges, screenshot integrity, and timeout behavior. `make hil-ble`
 covers the production BLE heartbeat/status/prompt transport after pairing.
 
+`tests/hil/test_hardening.py` (part of `make hil`) is the reliability gate:
+
+- heap headroom floors (`heap` ≥ 40KB, `heapBig` ≥ 28KB at idle) — catches
+  silent RAM regressions before they OOM the BLE connect path
+- reboot soak — commanded reboots must come back clean with no panics;
+  crank with `BUDDY_SOAK_CYCLES=200` for a pre-ship soak
+- serial fuzz — seeded garbage on the command channel must never panic,
+  reboot, or wedge the device; reproduce with `BUDDY_FUZZ_SEED=<seed>`
+- watchdog recovery (slow, ~70s) — a deliberately hung `loop()` must
+  self-reboot via the task WDT and land in crash telemetry
+
+Crash telemetry lives in `ping`: `reset` (last reset reason), `panics`
+(lifetime), `early` (consecutive crashes before stable uptime), `safe`
+(safe-mode tier). Recovery serial commands: `clearbonds`, `guardclear`;
+debug: `hang`.
+
 Buddyctl cookbook:
 
 ```sh

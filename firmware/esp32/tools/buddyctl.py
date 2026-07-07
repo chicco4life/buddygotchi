@@ -104,7 +104,16 @@ class SerialBuddy:
 
     def write_line(self, line: str) -> None:
         assert self.fd is not None
-        os.write(self.fd, line.encode("utf-8") + b"\n")
+        # The fd is non-blocking; at 115200 baud a burst of large lines
+        # fills the kernel TX buffer and os.write raises EAGAIN (and may
+        # write partially). Spin until the whole line is out.
+        data = line.encode("utf-8") + b"\n"
+        while data:
+            try:
+                n = os.write(self.fd, data)
+                data = data[n:]
+            except BlockingIOError:
+                time.sleep(0.005)
 
     def drain_until_quiet(self, quiet: float = 0.2, max_wait: float = 2.0) -> bytes:
         out = bytearray()

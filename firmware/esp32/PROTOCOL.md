@@ -73,10 +73,13 @@ available for hardware-in-the-loop tests.
 
 | Command | Reply / effect |
 | --- | --- |
-| `ping` | Prints `<<PONG {"fw":...,"git":...,"up":...,"heap":...}>>`. |
-| `state` | Prints `<<STATE {...}>>` with current parser, display, BLE, and prompt state. Includes `muted`, `screenOff`, and numeric `brightness` fields for HIL assertions. |
+| `ping` | Prints `<<PONG {"fw":...,"git":...,"up":...,"heap":...,"heapMin":...,"heapBig":...,"reset":...,"panics":...,"early":...,"safe":...}>>`. `heapMin`/`heapBig` are the free-heap low-water mark and largest free block; `reset` is the last reset reason; `panics` is the lifetime abnormal-reset count; `early` counts consecutive crashes before stable uptime; `safe` is the current safe-mode tier (0 normal, 1 no character assets, 2 no BLE). |
+| `state` | Prints `<<STATE {...}>>` with current parser, display, BLE, and prompt state. Includes `muted`, `screenOff`, numeric `brightness`, and the crash-telemetry fields (`reset`, `panics`, `earlyCrashes`, `safeTier`) for HIL assertions. |
 | `reboot` | Prints `<<REBOOT ok>>`, flushes, and restarts. |
 | `screenshot` | Prints `<<SCR_BEGIN ...>>`, base64 RGB565 LCD data, then `<<SCR_END LEN=... CRC32=...>>`. |
 | `press a [ms]` / `press b [ms]` | Synthesizes GPIO-level button down/up edges and prints `<<PRESS ...>>` markers. |
 | `btn a` / `btn b` | Sends an approval/denial for the current prompt without GPIO edge simulation. |
 | `mockprompt` | Arms a fake `DEBUG` approval prompt for offline button-path testing. |
+| `clearbonds` | Erases all stored BLE bonds (recovery from stale host pairing state). Prints `<<CLEARBONDS ok>>`. |
+| `guardclear` | Resets crash-loop bookkeeping (HIL tests use this after deliberate watchdog resets). Prints `<<GUARDCLEAR {"ok":true}>>`. |
+| `hang` | Debug: wedges `loop()` so tests can prove the task watchdog reboots a hung device (~30s). |

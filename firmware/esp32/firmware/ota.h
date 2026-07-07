@@ -6,6 +6,7 @@
 #include <mbedtls/sha256.h>
 #include <M5StickCPlus2.h>
 #include "ble_bridge.h"
+#include "guard.h"
 
 // Companion to xfer.h. Same envelope shape (ack/ok/n/error), same
 // per-frame ack discipline — the Mac side gets back-pressure for free.
@@ -16,7 +17,9 @@
 //   ota_end   {sha256}                → esp_ota_end → set_boot_partition → reboot
 //
 // Anything that fails before set_boot_partition leaves the device booting
-// the previous image on next reset. That's the safety story.
+// the previous image on next reset. After set_boot_partition, guard.h's
+// crash-loop breaker reverts to this slot if the new image never reaches
+// stable uptime. That's the safety story.
 
 static esp_ota_handle_t _otaHandle = 0;
 static const esp_partition_t* _otaPartition = nullptr;
@@ -171,6 +174,10 @@ inline bool otaCommand(JsonDocument& doc) {
       _otaCleanup(true);
       return true;
     }
+
+    // Mark the new image "pending verification": if it crash-loops before
+    // its first stable mark, guard.h's breaker reverts to this slot.
+    guardNoteOtaPending();
 
     _otaAck("ota_end", true, _otaWritten);
     _otaCleanup(false);
