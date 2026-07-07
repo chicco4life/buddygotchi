@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import os
 @preconcurrency import CoreBluetooth
 
 enum BLEConnectionState: String, Sendable {
@@ -69,6 +70,18 @@ final class BLEManager: NSObject, @unchecked Sendable {
     private var reconnectWorkItem: DispatchWorkItem?
     private var reconnectDelay: TimeInterval = 1.0
 
+    // Backoff only resets after a connection *survives* this long. Resetting
+    // on didConnect (the old behavior) meant a device that crashed right
+    // after connecting got re-hammered at 1s forever — the app amplified the
+    // 2026-07 firmware bootloop instead of backing off.
+    private static let stableConnectionSeconds: TimeInterval = 30
+    private var connectedAt: Date?
+    private var shortConnectionStreak = 0
+
+    // Landing in the bug-report export is the point: DiagnosticLog collects
+    // OSLog entries for this subsystem.
+    private let log = Logger(subsystem: "com.boopcomputer.boop", category: "ble")
+
     private var rxBuffer = Data()
 
     // Outstanding ack waiters, keyed by the `ack` value the device echoes
@@ -128,8 +141,10 @@ final class BLEManager: NSObject, @unchecked Sendable {
     func connect(peripheralIdentifier: UUID) {
         bleQueue.async { [weak self] in
             guard let self else { return }
+            self.log.info("connect requested: \(peripheralIdentifier, privacy: .public)")
             self.targetPeripheralIdentifier = peripheralIdentifier
             self.reconnectDelay = 1.0
+            self.shortConnectionStreak = 0
             self.startConnecting()
         }
     }
@@ -250,6 +265,7 @@ final class BLEManager: NSObject, @unchecked Sendable {
         guard targetPeripheralIdentifier != nil else { return }
         let delay = min(reconnectDelay, 30.0)
         reconnectDelay = min(reconnectDelay * 2, 30.0)
+        log.info("reconnect scheduled in \(delay, format: .fixed(precision: 1))s")
 
         let work = DispatchWorkItem { [weak self] in
             self?.startConnecting()
@@ -271,6 +287,7 @@ final class BLEManager: NSObject, @unchecked Sendable {
 
 extension BLEManager: CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        log.info("central state: \(central.state.rawValue)")
         // Only report definitive states; .unknown/.resetting are transient
         // and shouldn't flap the UI.
         switch central.state {
@@ -311,15 +328,33 @@ extension BLEManager: CBCentralManagerDelegate {
     }
 
     func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        reconnectDelay = 1.0
+        // Deliberately NOT resetting reconnectDelay here — the connection
+        // hasn't proven itself yet. See stableConnectionSeconds.
+        connectedAt = Date()
+        log.info("connected to \(peripheral.identifier, privacy: .public)")
         peripheral.discoverServices([Self.nusServiceUUID])
     }
 
     func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
+        log.warning("connect failed: \(error?.localizedDescription ?? "unknown", privacy: .public)")
         scheduleReconnect()
     }
 
     func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        let lifetime = connectedAt.map { Date().timeIntervalSince($0) }
+        connectedAt = nil
+        if let lifetime, lifetime >= Self.stableConnectionSeconds {
+            reconnectDelay = 1.0
+            shortConnectionStreak = 0
+        } else if lifetime != nil {
+            // Connection died young: keep the backoff growing so a device
+            // that crashes on connect isn't hammered into a crash loop.
+            shortConnectionStreak += 1
+            if shortConnectionStreak >= 3 {
+                log.error("connection flapping: \(self.shortConnectionStreak) short-lived connections in a row — device may be crashing on connect")
+            }
+        }
+        log.info("disconnected after \(lifetime.map { String(format: "%.1fs", $0) } ?? "n/a", privacy: .public): \(error?.localizedDescription ?? "clean", privacy: .public)")
         connectedPeripheral = nil
         rxCharacteristic = nil
         txCharacteristic = nil
@@ -374,12 +409,18 @@ extension BLEManager: CBPeripheralDelegate {
     }
 
     private func handleIncomingLine(_ line: String) {
-        #if DEBUG
-        print("[BLE RX] \(line)")
-        #endif
+        log.debug("rx: \(line, privacy: .public)")
         guard let data = line.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return }
+
+        // The status ack carries the device's crash telemetry (reset reason,
+        // panic count, safe-mode tier). Log it at info so it lands in the
+        // OSLog window the bug-report export collects — the device's crash
+        // history rides along without a serial cable.
+        if (json["ack"] as? String) == "status" {
+            log.info("device status: \(line, privacy: .public)")
+        }
 
         // Ack frames resolve any matching waiter. ok:false is surfaced as a
         // throwing failure so the OTA flow can transition to .failed without
