@@ -51,6 +51,12 @@ final class BLEManager: NSObject, @unchecked Sendable {
         }
     }
 
+    // Reports whether the radio can scan (false for poweredOff/unauthorized/
+    // unsupported). Called on bleQueue; set this before the first startScan()
+    // and don't mutate it afterwards — the dispatch into bleQueue is what
+    // makes the initial write visible there.
+    var onBluetoothAvailabilityChange: (@Sendable (Bool) -> Void)?
+
     private var central: CBCentralManager?
     private let bleQueue = DispatchQueue(label: "boop.ble", qos: .userInitiated)
 
@@ -265,6 +271,16 @@ final class BLEManager: NSObject, @unchecked Sendable {
 
 extension BLEManager: CBCentralManagerDelegate {
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
+        // Only report definitive states; .unknown/.resetting are transient
+        // and shouldn't flap the UI.
+        switch central.state {
+        case .poweredOn:
+            onBluetoothAvailabilityChange?(true)
+        case .poweredOff, .unauthorized, .unsupported:
+            onBluetoothAvailabilityChange?(false)
+        default:
+            break
+        }
         if central.state == .poweredOn {
             if targetPeripheralIdentifier != nil {
                 startConnecting()
@@ -399,6 +415,8 @@ extension BLEManager: CBPeripheralDelegate {
 final class BLEScanner {
     private(set) var devices: [BLEManager.DiscoveredPeripheral] = []
     private(set) var isScanning = false
+    /// True while the radio can't scan (Bluetooth off, or access denied).
+    private(set) var bluetoothUnavailable = false
 
     private var bleManager: BLEManager?
     private var scanTask: Task<Void, Never>?
@@ -406,7 +424,11 @@ final class BLEScanner {
     func start() {
         stop()
         isScanning = true
+        bluetoothUnavailable = false
         let manager = BLEManager()
+        manager.onBluetoothAvailabilityChange = { [weak self] available in
+            Task { @MainActor [weak self] in self?.bluetoothUnavailable = !available }
+        }
         bleManager = manager
         devices = []
         let stream = manager.startScan()
@@ -421,6 +443,7 @@ final class BLEScanner {
 
     func stop() {
         isScanning = false
+        bluetoothUnavailable = false
         scanTask?.cancel()
         scanTask = nil
         bleManager?.stopScan()

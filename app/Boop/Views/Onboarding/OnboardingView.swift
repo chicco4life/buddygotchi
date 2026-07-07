@@ -643,7 +643,16 @@ struct OnboardingView: View {
 
     private var bleDeviceList: some View {
         VStack(spacing: 8) {
-            if scanner.devices.isEmpty {
+            if scanner.bluetoothUnavailable {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(BuddyTheme.amber)
+                Text(BuddyCopy.Onboarding.bluetoothOff)
+                    .font(.buddy(11, weight: .semibold))
+                    .foregroundStyle(BuddyTheme.textPrimary)
+                Text(BuddyCopy.Onboarding.bluetoothOffHint)
+                    .font(.buddy(11))
+                    .foregroundStyle(BuddyTheme.textTertiary)
+            } else if scanner.devices.isEmpty {
                 ProgressView()
                     .tint(BuddyTheme.amber)
                 Text(BuddyCopy.Onboarding.scanning)

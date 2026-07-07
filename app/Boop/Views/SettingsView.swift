@@ -539,26 +539,43 @@ struct SettingsView: View {
             }
             .buddyGroupedCard()
 
-            if scanner.isScanning && !scanner.devices.isEmpty {
-                ForEach(scanner.devices, id: \.identifier) { device in
-                    Button {
-                        cleanupAbandonedPairing()
-                        selectedDeviceUUID = device.identifier
-                        scanner.stop()
-                        esp32Output.connect(to: device.identifier)
-                    } label: {
-                        HStack {
-                            Text(device.name).font(.buddy(11))
-                            Spacer()
-                            Text(BuddyCopy.shared.common.connect)
-                                .font(.buddy(11))
-                                .foregroundStyle(BuddyTheme.amber)
-                        }
+            if scanner.isScanning && scanner.bluetoothUnavailable {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(BuddyTheme.amber)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(BuddyCopy.Onboarding.bluetoothOff).font(.buddy(11))
+                        Text(BuddyCopy.Onboarding.bluetoothOffHint)
+                            .font(.buddy(11))
+                            .foregroundStyle(.secondary)
                     }
-                    .buttonStyle(BuddyPlainButtonStyle())
-                    .buddyCard()
-                    .accessibilityLabel(BuddyCopy.shared.settingsCopy.connectToDeviceTemplate.replacingOccurrences(of: "{device}", with: device.name))
+                    Spacer()
                 }
+                .buddyCard()
+                .padding(.top, 8)
+            } else if scanner.isScanning && !scanner.devices.isEmpty {
+                VStack(spacing: 8) {
+                    ForEach(scanner.devices, id: \.identifier) { device in
+                        Button {
+                            cleanupAbandonedPairing()
+                            selectedDeviceUUID = device.identifier
+                            scanner.stop()
+                            esp32Output.connect(to: device.identifier)
+                        } label: {
+                            HStack {
+                                Text(device.name).font(.buddy(11))
+                                Spacer()
+                                Text(BuddyCopy.shared.common.connect)
+                                    .font(.buddy(11))
+                                    .foregroundStyle(BuddyTheme.amber)
+                            }
+                        }
+                        .buttonStyle(BuddyPlainButtonStyle())
+                        .buddyCard()
+                        .accessibilityLabel(BuddyCopy.shared.settingsCopy.connectToDeviceTemplate.replacingOccurrences(of: "{device}", with: device.name))
+                    }
+                }
+                .padding(.top, 8)
             }
         }
     }

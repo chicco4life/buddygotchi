@@ -77,6 +77,8 @@ enum BuddyCopy {
         let hardwareDescription = "Pair over Bluetooth."
         let hardwareFootnote = "works with an M5StickC Plus 2 today; the Boop hardware buddy hatches later this year."
         let scanning = "Scanning for buddies…"
+        let bluetoothOff = "Bluetooth is off"
+        let bluetoothOffHint = "Turn on Bluetooth to find your buddy."
         let connecting = "Connecting…"
         let pairingHelp = "Check your buddy for a pairing code, then enter it on this Mac."
         let pairingTimeout = "couldn’t pair — hold the buddy closer and try again"
@@ -279,6 +281,8 @@ enum BuddyCopy {
         static var hardwareDescription: String { BuddyCopy.shared.onboarding.hardwareDescription }
         static var hardwareFootnote: String { BuddyCopy.shared.onboarding.hardwareFootnote }
         static var scanning: String { BuddyCopy.shared.onboarding.scanning }
+        static var bluetoothOff: String { BuddyCopy.shared.onboarding.bluetoothOff }
+        static var bluetoothOffHint: String { BuddyCopy.shared.onboarding.bluetoothOffHint }
         static var connecting: String { BuddyCopy.shared.onboarding.connecting }
         static var pairingHelp: String { BuddyCopy.shared.onboarding.pairingHelp }
         static var pairingTimeout: String { BuddyCopy.shared.onboarding.pairingTimeout }
