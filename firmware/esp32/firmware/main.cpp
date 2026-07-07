@@ -303,8 +303,12 @@ static const char* currentDataMode() {
 }
 
 static void dumpPing() {
-  Serial.printf("<<PONG {\"fw\":\"%s\",\"git\":\"%s\",\"up\":%lu,\"heap\":%lu}>>\n",
-                FW_VERSION, GIT_SHA, (unsigned long)millis(), (unsigned long)ESP.getFreeHeap());
+  // heapMin/heapBig: low-water mark and largest free block. A BLE connect
+  // needs several contiguous KB; if heapBig is small the Bluedroid connect
+  // path OOMs and asserts (fixed_queue_new → vQueueDelete(NULL)).
+  Serial.printf("<<PONG {\"fw\":\"%s\",\"git\":\"%s\",\"up\":%lu,\"heap\":%lu,\"heapMin\":%lu,\"heapBig\":%lu}>>\n",
+                FW_VERSION, GIT_SHA, (unsigned long)millis(), (unsigned long)ESP.getFreeHeap(),
+                (unsigned long)ESP.getMinFreeHeap(), (unsigned long)ESP.getMaxAllocHeap());
 }
 
 static void dumpState() {
@@ -426,6 +430,13 @@ void handleSerialCommand(const char* line) {
     dumpScreenshot();
     return;
   }
+  // Recovery: drop all BLE bonds so a host with stale/broken pairing state
+  // can start fresh without reflashing NVS.
+  if (strcmp(line, "clearbonds") == 0) {
+    bleClearBonds();
+    Serial.println("<<CLEARBONDS ok>>");
+    return;
+  }
 
   if (strncmp(line, "press ", 6) == 0) {
     const char* p = line + 7;
@@ -468,6 +479,14 @@ void handleSerialCommand(const char* line) {
   // non-JSON noise on this channel and we don't want to log-spam.
 }
 
+// Boot-stage heap breadcrumb: free + largest contiguous block. The BLE
+// connect path needs several contiguous KB at runtime; these lines make
+// regressions in headroom visible in any captured boot log.
+static void logHeap(const char* stage) {
+  Serial.printf("[heap] %s: free=%lu big=%lu\n", stage,
+                (unsigned long)ESP.getFreeHeap(), (unsigned long)ESP.getMaxAllocHeap());
+}
+
 void setup() {
   auto _cfg = M5.config(); StickCP2.begin(_cfg);
   // M5Unified leaves cfg.serial_baudrate=0, so StickCP2.begin() doesn't
@@ -476,10 +495,12 @@ void setup() {
   // (Serial.read in dataPoll) silently fail. Init explicitly so USB
   // command channel — JSON daemon pushes, "screenshot" — actually works.
   Serial.begin(115200);
+  logHeap("after M5.begin");
   StickCP2.Display.setRotation(0);
   StickCP2.Speaker.begin();
   startBt();
-  
+  logHeap("after BLE init");
+
   StickCP2.Power.setLed(0);   // off
   setDisplayBrightness(BRIGHT_MEDIUM);
   statsLoad();
@@ -488,8 +509,19 @@ void setup() {
   buddyInit();
 
   // BLE stays always-on; settings().bt is stored as a preference only.
+  //
+  // 8-bit sprite, not 16: full-screen 135x240 at 16bpp costs 64.8KB of
+  // heap, which starved Bluedroid so badly that a bonded BLE reconnect
+  // OOMed inside GATT setup and panicked (fixed_queue_new →
+  // vQueueDelete(NULL) assert → bootloop). At 8bpp the sprite costs
+  // 32.4KB; LGFX converts RGB565 pushImage sources and the final
+  // pushSprite automatically. The buddy art is flat-color, so RGB332 is
+  // visually indistinguishable here.
+  spr.setColorDepth(8);
   spr.createSprite(W, H);
+  logHeap("after sprite");
   characterInit(nullptr);  // scan /characters/ for whatever is installed
+  logHeap("after characterInit");
   gifAvailable = characterLoaded();
   buddyMode = true;
   characterSetPeek(false);
