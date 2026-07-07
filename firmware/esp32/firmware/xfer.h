@@ -72,6 +72,7 @@ const char* petName();
 void ownerSet(const char* name);
 const char* ownerName();
 #include "stats.h"
+#include "guard.h"
 #include <M5StickCPlus2.h>
 
 inline bool xferCommand(JsonDocument& doc) {
@@ -116,13 +117,16 @@ inline bool xferCommand(JsonDocument& doc) {
     int vBus = StickCP2.Power.isCharging() ? 5000 : 0;
     int pct = (vBat - 3200) / 10;
     if (pct < 0) pct = 0; if (pct > 100) pct = 100;
-    char b[400];
+    char b[512];
     int len = snprintf(b, sizeof(b),
       "{\"ack\":\"status\",\"ok\":true,\"n\":0,\"data\":{"
       "\"name\":\"%s\",\"owner\":\"%s\",\"sec\":%s,"
       "\"firmware\":\"%s\",\"build\":\"%s %s\","
       "\"bat\":{\"pct\":%d,\"mV\":%d,\"mA\":%d,\"usb\":%s},"
       "\"sys\":{\"up\":%lu,\"heap\":%u,\"fsFree\":%lu,\"fsTotal\":%lu},"
+      // Crash telemetry so the desktop's bug-report export carries the
+      // device's crash history without needing a serial cable.
+      "\"crash\":{\"reset\":\"%s\",\"panics\":%lu,\"safe\":%d},"
       "\"stats\":{\"appr\":%u,\"deny\":%u,\"nap\":%lu}"
       "}}\n",
       petName(), ownerName(), bleSecure() ? "true" : "false",
@@ -131,6 +135,7 @@ inline bool xferCommand(JsonDocument& doc) {
       millis() / 1000, ESP.getFreeHeap(),
       (unsigned long)(LittleFS.totalBytes() - LittleFS.usedBytes()),
       (unsigned long)LittleFS.totalBytes(),
+      guardResetReason(), (unsigned long)guardPanicsTotal(), guardSafeTier(),
       stats().approvals, stats().denials,
       (unsigned long)stats().napSeconds
     );

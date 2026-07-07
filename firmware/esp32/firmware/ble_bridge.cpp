@@ -17,10 +17,19 @@
 // Incoming bytes are buffered in a simple ring for bleRead()/bleAvailable().
 // Sized to hold a transcript snapshot JSON plus headroom; the GATT layer
 // will flow-control if we fall behind.
+//
+// The ring is produced on the Bluetooth host task and consumed on the
+// Arduino loop task — two different cores. volatile alone gives no
+// ordering guarantee there, so every access goes through rxMux. Overflow
+// drops are counted (not silent): a dropped byte truncates a JSON line
+// into a parse failure, and the counter in `state` is the only way to
+// see that happened.
 static const size_t RX_CAP = 2048;
 static uint8_t  rxBuf[RX_CAP];
-static volatile size_t rxHead = 0;
-static volatile size_t rxTail = 0;
+static size_t   rxHead = 0;
+static size_t   rxTail = 0;
+static uint32_t rxDropped = 0;
+static portMUX_TYPE rxMux = portMUX_INITIALIZER_UNLOCKED;
 
 static BLEServer*         server = nullptr;
 static BLECharacteristic* txChar = nullptr;
@@ -31,12 +40,17 @@ static volatile uint32_t  passkey = 0;
 static volatile uint16_t  mtu = 23;
 
 static void rxPush(const uint8_t* p, size_t n) {
+  portENTER_CRITICAL(&rxMux);
   for (size_t i = 0; i < n; i++) {
     size_t next = (rxHead + 1) % RX_CAP;
-    if (next == rxTail) return;  // full — drop (upstream should keep up)
+    if (next == rxTail) {        // full — count the loss, drop the rest
+      rxDropped += (uint32_t)(n - i);
+      break;
+    }
     rxBuf[rxHead] = p[i];
     rxHead = next;
   }
+  portEXIT_CRITICAL(&rxMux);
 }
 
 class RxCallbacks : public BLECharacteristicCallbacks {
@@ -149,14 +163,28 @@ void bleClearBonds() {
 }
 
 size_t bleAvailable() {
-  return (rxHead + RX_CAP - rxTail) % RX_CAP;
+  portENTER_CRITICAL(&rxMux);
+  size_t n = (rxHead + RX_CAP - rxTail) % RX_CAP;
+  portEXIT_CRITICAL(&rxMux);
+  return n;
 }
 
 int bleRead() {
-  if (rxHead == rxTail) return -1;
-  int b = rxBuf[rxTail];
-  rxTail = (rxTail + 1) % RX_CAP;
+  portENTER_CRITICAL(&rxMux);
+  int b = -1;
+  if (rxHead != rxTail) {
+    b = rxBuf[rxTail];
+    rxTail = (rxTail + 1) % RX_CAP;
+  }
+  portEXIT_CRITICAL(&rxMux);
   return b;
+}
+
+uint32_t bleRxDropped() {
+  portENTER_CRITICAL(&rxMux);
+  uint32_t n = rxDropped;
+  portEXIT_CRITICAL(&rxMux);
+  return n;
 }
 
 size_t bleWrite(const uint8_t* data, size_t len) {

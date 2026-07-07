@@ -349,6 +349,7 @@ static void dumpState() {
   doc["panics"] = guardPanicsTotal();
   doc["earlyCrashes"] = guardEarlyCrashes();
   doc["safeTier"] = guardSafeTier();
+  doc["bleDrops"] = bleRxDropped();
 
   Serial.print("<<STATE ");
   serializeJson(doc, Serial);

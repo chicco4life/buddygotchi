@@ -30,3 +30,6 @@ void bleClearBonds();
 size_t bleAvailable();
 int bleRead();
 size_t bleWrite(const uint8_t* data, size_t len);
+// Bytes dropped because the RX ring was full. Nonzero means at least one
+// inbound JSON line was truncated; exposed in the `state` dump.
+uint32_t bleRxDropped();

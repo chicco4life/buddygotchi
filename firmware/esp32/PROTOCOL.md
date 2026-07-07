@@ -74,7 +74,7 @@ available for hardware-in-the-loop tests.
 | Command | Reply / effect |
 | --- | --- |
 | `ping` | Prints `<<PONG {"fw":...,"git":...,"up":...,"heap":...,"heapMin":...,"heapBig":...,"reset":...,"panics":...,"early":...,"safe":...}>>`. `heapMin`/`heapBig` are the free-heap low-water mark and largest free block; `reset` is the last reset reason; `panics` is the lifetime abnormal-reset count; `early` counts consecutive crashes before stable uptime; `safe` is the current safe-mode tier (0 normal, 1 no character assets, 2 no BLE). |
-| `state` | Prints `<<STATE {...}>>` with current parser, display, BLE, and prompt state. Includes `muted`, `screenOff`, numeric `brightness`, and the crash-telemetry fields (`reset`, `panics`, `earlyCrashes`, `safeTier`) for HIL assertions. |
+| `state` | Prints `<<STATE {...}>>` with current parser, display, BLE, and prompt state. Includes `muted`, `screenOff`, numeric `brightness`, the crash-telemetry fields (`reset`, `panics`, `earlyCrashes`, `safeTier`), and `bleDrops` (bytes dropped from the BLE RX ring — nonzero means an inbound line was truncated) for HIL assertions. |
 | `reboot` | Prints `<<REBOOT ok>>`, flushes, and restarts. |
 | `screenshot` | Prints `<<SCR_BEGIN ...>>`, base64 RGB565 LCD data, then `<<SCR_END LEN=... CRC32=...>>`. |
 | `press a [ms]` / `press b [ms]` | Synthesizes GPIO-level button down/up edges and prints `<<PRESS ...>>` markers. |

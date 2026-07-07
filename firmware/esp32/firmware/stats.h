@@ -92,8 +92,11 @@ static char _ownerName[32] = "";
 
 inline void petNameLoad() {
   _prefs.begin("buddy", true);
-  _prefs.getString("petname", _petName, sizeof(_petName));
-  _prefs.getString("owner", _ownerName, sizeof(_ownerName));
+  // isKey guards: Preferences logs a red NOT_FOUND error for missing
+  // keys, which is the *normal* first-boot state and buries real errors
+  // in captured boot logs.
+  if (_prefs.isKey("petname")) _prefs.getString("petname", _petName, sizeof(_petName));
+  if (_prefs.isKey("owner"))   _prefs.getString("owner", _ownerName, sizeof(_ownerName));
   _prefs.end();
 }
 

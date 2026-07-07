@@ -26,6 +26,12 @@ Use this as the ordered release gate for app and firmware releases.
 11. Build firmware through the firmware release workflow and download the draft artifacts.
 12. Verify firmware OTA on a real M5StickC Plus 2 using [TESTING.md section 5](TESTING.md#5-firmware-update-ota).
 13. Run hardware HIL using [TESTING.md section 7](TESTING.md#7-hardware-hil).
+    - Firmware releases additionally require the reliability gates:
+      `BUDDY_SOAK_CYCLES=200 python3 -m pytest tests/hil/test_hardening.py`
+      (extended reboot soak, heap floors, serial fuzz, watchdog recovery),
+      plus a multi-hour powered soak with the desktop app connected —
+      `ping` at the start and end; `heapMin` must not decline steadily
+      (leak check) and `panics` must not increase.
 14. Publish firmware hosting:
     - Open a landing PR updating `landing/public/firmware/` (served at `/firmware/`): `manifest.json`, `esp-web-tools-manifest.json`, and the versioned `.bin` files.
     - Confirm the flash page installs without Home Assistant prompts using [TESTING.md section 8](TESTING.md#8-web-flasher).
