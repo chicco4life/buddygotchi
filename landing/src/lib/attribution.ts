@@ -61,7 +61,10 @@ export function captureAttribution(): void {
   writeCookie(ATTR_COOKIE, JSON.stringify(attr), 30);
 }
 
-/** Displayed CTA price. Reads the cookie, falls back to a live ?p= param, then $119. */
+/**
+  Price cohort for analytics only — never shown on the page. Reads the cookie,
+  falls back to a live ?p= param, then $119.
+*/
 export function getPriceCohort(): number {
   const stored = parseCohort(
     (() => {

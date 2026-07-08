@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { track } from "@vercel/analytics";
-import { DEFAULT_PRICE, getPriceCohort } from "@/lib/attribution";
 import type { SignupSource } from "@/lib/submit";
 import { copy } from "@/lib/copy";
 import { ctaClass } from "@/lib/ui";
@@ -15,18 +14,12 @@ import { EmailForm } from "@/components/EmailForm";
   us focus-trap, Esc-to-close, and focus return for free.
 */
 export function WaitlistCTA({ source }: { source: Extract<SignupSource, "hero" | "adoption"> }) {
-  const [price, setPrice] = useState(DEFAULT_PRICE);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const headingId = `waitlist-heading-${source}`;
 
-  // Price hydrates from the cookie/param after mount so the page stays static.
-  useEffect(() => {
-    setPrice(getPriceCohort());
-  }, []);
-
   function open() {
-    track("cta_click", { source, price });
-    track("modal_open", { source, price });
+    track("cta_click", { source });
+    track("modal_open", { source });
     dialogRef.current?.showModal();
   }
 
@@ -38,7 +31,7 @@ export function WaitlistCTA({ source }: { source: Extract<SignupSource, "hero" |
   return (
     <>
       <button type="button" onClick={open} className={ctaClass} data-testid={`${source}-cta`}>
-        {copy.hero.ctaLabel} — ${price}
+        {copy.hero.ctaLabel}
       </button>
 
       <dialog

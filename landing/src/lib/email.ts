@@ -2,7 +2,6 @@ import { WAITLIST_CONFIRMATION_TEMPLATE } from "./email-templates.ts";
 
 type RenderInput = {
   position: number;
-  price: number;
 };
 
 type SendInput = RenderInput & {
@@ -25,9 +24,7 @@ const template = WAITLIST_CONFIRMATION_TEMPLATE;
 const SITE_URL = "https://adoptaboop.com";
 
 function substitute(value: string, input: RenderInput): string {
-  return value
-    .replaceAll("{{position}}", String(input.position))
-    .replaceAll("{{price}}", String(input.price));
+  return value.replaceAll("{{position}}", String(input.position));
 }
 
 function escapeHtml(value: string): string {

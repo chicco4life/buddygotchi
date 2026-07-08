@@ -1,7 +1,7 @@
 import { after, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { z } from "zod";
-import { ATTR_COOKIE, DEFAULT_PRICE, type Attribution } from "@/lib/attribution";
+import { ATTR_COOKIE, type Attribution } from "@/lib/attribution";
 import { sendWaitlistConfirmation } from "@/lib/email";
 import { isBackendReady, submitSignup } from "@/lib/waitlist";
 
@@ -65,7 +65,6 @@ export async function POST(req: Request) {
         sendWaitlistConfirmation({
           to: email,
           position: result.position,
-          price: attr.priceCohort ?? DEFAULT_PRICE,
         }),
       );
     }

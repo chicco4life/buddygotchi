@@ -1,11 +1,11 @@
 import { test, expect } from "@playwright/test";
 
-test("price cohort shows and the waitlist flow lands on /welcome", async ({ page }) => {
-  await page.goto("/?p=99&utm_source=test&utm_campaign=e2e");
+test("the waitlist flow lands on /welcome", async ({ page }) => {
+  await page.goto("/?utm_source=test&utm_campaign=e2e");
 
-  // Cohort price is reflected in the hero CTA.
+  // The hero CTA carries no price — just the adopt label.
   const cta = page.getByTestId("hero-cta");
-  await expect(cta).toContainText("$99");
+  await expect(cta).not.toContainText("$");
 
   // Opening the modal and submitting an email navigates to the welcome page.
   await cta.click();

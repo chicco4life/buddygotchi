@@ -52,7 +52,7 @@ test("generated email templates are in sync", () => {
 
 test("waitlist confirmation renders clean text and minimal html", async () => {
   const { renderWaitlistConfirmation } = await import("../src/lib/email.ts");
-  const rendered = renderWaitlistConfirmation({ position: 42, price: 119 });
+  const rendered = renderWaitlistConfirmation({ position: 42 });
 
   assert.ok(!rendered.subject.includes("{{"), "subject has leftover placeholder");
   assert.ok(!rendered.text.includes("{{"), "text has leftover placeholder");
