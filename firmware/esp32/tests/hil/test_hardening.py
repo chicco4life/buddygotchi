@@ -34,10 +34,12 @@ import buddyctl  # noqa: E402
 
 # Boot-time floors, in bytes. The 2026-07 OOM happened at heap=17K /
 # heapBig=12K; a BLE connect burst needs several contiguous KB. Current
-# firmware boots around heap=49K / heapBig=35K, so these floors leave
+# M5 firmware boots around heap=49K / heapBig=35K, so these floors leave
 # room for growth while still catching a sprite-sized (32K) regression.
-HEAP_FLOOR = 40_000
-HEAP_BIG_FLOOR = 28_000
+# The env overrides exist for other boards (the S3 AMOLED board has far
+# more headroom and gets its own baselines once measured on hardware).
+HEAP_FLOOR = int(os.environ.get("BUDDY_HEAP_FLOOR", "40000"))
+HEAP_BIG_FLOOR = int(os.environ.get("BUDDY_HEAP_BIG_FLOOR", "28000"))
 
 FUZZ_SEED = int(os.environ.get("BUDDY_FUZZ_SEED", "1337"))
 FUZZ_LINES = int(os.environ.get("BUDDY_FUZZ_LINES", "200"))

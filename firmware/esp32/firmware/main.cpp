@@ -1,6 +1,9 @@
-#include <M5StickCPlus2.h>
+#include "hal/hal.h"
 #include <esp_log.h>
 #include <esp_system.h>
+#if __has_include(<esp_mac.h>)
+#include <esp_mac.h>   // esp_read_mac moved here in IDF5 (Arduino core 3.x)
+#endif
 #include "guard.h"
 #include "ble_bridge.h"
 #include "data.h"
@@ -15,7 +18,7 @@ SET_LOOP_TASK_STACK_SIZE(16384);
 #define GIT_SHA "unknown"
 #endif
 
-M5Canvas spr(&StickCP2.Display);
+BuddyCanvas spr(HAL_CANVAS_PARENT);
 
 // Advertise as "Buddy-XXXX" (last two BT MAC bytes) so multiple sticks
 // in one room are distinguishable in the desktop picker. Name persists in
@@ -30,10 +33,9 @@ static void startBt() {
 
 #include "character.h"
 #include "stats.h"
-const int W = 135, H = 240;
+const int W = HAL_W, H = HAL_H;
 const int CX = W / 2;
-const int CY_BASE = 120;
-          // red LED, active-low
+const int CY_BASE = H / 2;
 
 // Colors used across multiple UI surfaces.
 const uint16_t HOT   = 0xFA20;   // red-orange: warnings, impatience, deny
@@ -60,18 +62,21 @@ const uint8_t BRIGHT_FULL = 220;
 const uint32_t SLEEP_DIM_MS = 60000;
 const uint32_t SLEEP_OFF_MS = 600000;
 const uint32_t BTN_A_LONG_MS = 1500;
+const uint32_t BOOP_REACT_MS = 2500;
 static uint8_t currentBrightness = 0xFF;
+static uint32_t boopUntil = 0;
 
 struct SyntheticPress {
   bool active = false;
   uint32_t releaseAt = 0;
 };
 
-static SyntheticPress synthA;
-static SyntheticPress synthB;
+// Indexed by HalButton; names match the serial "press a|b|m" protocol.
+static SyntheticPress synth[HAL_BTN_COUNT];
+static const char SYNTH_NAMES[HAL_BTN_COUNT] = { 'a', 'b', 'm' };
 
 static void beep(uint16_t freq, uint16_t dur) {
-  if (settings().sound && !tama.muted) StickCP2.Speaker.tone(freq, dur);
+  if (settings().sound && !tama.muted) halTone(freq, dur);
 }
 
 static void sendCmd(const char* json) {
@@ -87,7 +92,7 @@ static void setDisplayBrightness(uint8_t brightness);
 
 static void wakeDisplay() {
   if (screenOff) {
-    StickCP2.Display.wakeup();
+    halDisplayWake();
     screenOff = false;
     currentBrightness = 0xFF;
   }
@@ -99,7 +104,7 @@ static void wakeDisplay() {
 
 static void sleepDisplay(bool manual) {
   if (!screenOff) {
-    StickCP2.Display.sleep();
+    halDisplaySleep();
     screenOff = true;
   }
   manualScreenOff = manual;
@@ -107,7 +112,7 @@ static void sleepDisplay(bool manual) {
 
 static void setDisplayBrightness(uint8_t brightness) {
   if (screenOff || currentBrightness == brightness) return;
-  StickCP2.Display.setBrightness(brightness);
+  halSetBrightness(brightness);
   currentBrightness = brightness;
 }
 
@@ -170,11 +175,11 @@ void drawPasskey() {
   spr.setTextSize(1);
   spr.setTextColor(p.textDim, p.bg);
   spr.setCursor(8, 56);  spr.print("BLUETOOTH PAIRING");
-  spr.setCursor(8, 184); spr.print("enter on desktop:");
+  spr.setCursor(8, H - 56); spr.print("enter on desktop:");
   spr.setTextSize(3);
   spr.setTextColor(p.text, p.bg);
   char b[8]; snprintf(b, sizeof(b), "%06lu", (unsigned long)blePasskey());
-  spr.setCursor((W - 18 * 6) / 2, 110);
+  spr.setCursor((W - 18 * 6) / 2, CY_BASE - 10);
   spr.print(b);
 }
 
@@ -191,21 +196,20 @@ PersonaState derive(const TamaState& s) {
 
 static void updateSyntheticPresses() {
   uint32_t now = millis();
-  if (synthA.active && (int32_t)(now - synthA.releaseAt) >= 0) {
-    synthA.active = false;
-    Serial.println("<<PRESS a up>>");
-  }
-  if (synthB.active && (int32_t)(now - synthB.releaseAt) >= 0) {
-    synthB.active = false;
-    Serial.println("<<PRESS b up>>");
+  for (int i = 0; i < HAL_BTN_COUNT; i++) {
+    if (synth[i].active && (int32_t)(now - synth[i].releaseAt) >= 0) {
+      synth[i].active = false;
+      Serial.printf("<<PRESS %c up>>\n", SYNTH_NAMES[i]);
+    }
   }
 }
 
-static bool readBtn(int pin) {
+// true = held. Synthetic (serial-injected) presses overlay the physical
+// state so HIL tests exercise the same edge detector as real fingers.
+static bool readBtn(HalButton b) {
   updateSyntheticPresses();
-  if (pin == 37 && synthA.active) return LOW;
-  if (pin == 39 && synthB.active) return LOW;
-  return digitalRead(pin);
+  if (synth[b].active) return true;
+  return halButtonDown(b);
 }
 
 // Emit the permission decision for the current prompt. Shared by the
@@ -221,46 +225,73 @@ static void sendApproval(bool approve) {
   responseSent = true;
 }
 
-static void __attribute__((noinline)) handleButtons() {
-  static bool prevA = HIGH, prevB = HIGH;
-  static uint32_t aDownAt = 0;
-  static bool suppressARelease = false;
-  static bool aLongHandled = false;
+// Pet-affection reaction: a short heart-face flash when the BOOP button is
+// pressed outside of a pending approval. Device-local for now — the desktop
+// doesn't hear about boops yet.
+static void boopPet() {
+  boopUntil = millis() + BOOP_REACT_MS;
+  beep(1245, 60);
+  buddyInvalidate();
+}
 
-  bool a = readBtn(37);
-  bool b = readBtn(39);
+// Three logical buttons (see hal.h for the physical mapping):
+//   BOOP   — approve when a prompt is armed; boop the pet otherwise.
+//            Long-press (outside a prompt) toggles screen sleep.
+//   REJECT — deny on press when a prompt is armed.
+//   MENU   — cycle to the next species (absent on M5; synthetic "press m"
+//            still exercises it there).
+// Any press wakes the screen; a wake-press never doubles as an action.
+static void __attribute__((noinline)) handleButtons() {
+  static bool prevBoop = false, prevRej = false, prevMenu = false;
+  static uint32_t boopDownAt = 0;
+  static bool suppressBoopRelease = false;
+  static bool boopLongHandled = false;
+
+  bool boop = readBtn(HAL_BTN_BOOP);
+  bool rej  = readBtn(HAL_BTN_REJECT);
+  bool menu = readBtn(HAL_BTN_MENU);
   bool armed = tama.promptId[0] && tama.promptApproval && !responseSent;
   uint32_t now = millis();
+  bool wasOff = screenOff;
 
-  if ((prevA == HIGH && a == LOW) || (prevB == HIGH && b == LOW)) {
-    bool wasOff = screenOff;
+  if ((!prevBoop && boop) || (!prevRej && rej) || (!prevMenu && menu)) {
     wakeDisplay();
-    if (prevA == HIGH && a == LOW) {
-      aDownAt = now;
-      suppressARelease = wasOff;
-      aLongHandled = false;
+    if (!prevBoop && boop) {
+      boopDownAt = now;
+      suppressBoopRelease = wasOff;
+      boopLongHandled = false;
     }
   }
 
-  if (prevA == LOW && a == LOW && !armed && !aLongHandled && !suppressARelease &&
-      now - aDownAt >= BTN_A_LONG_MS) {
+  if (prevBoop && boop && !armed && !boopLongHandled && !suppressBoopRelease &&
+      now - boopDownAt >= BTN_A_LONG_MS) {
     sleepDisplay(true);
-    suppressARelease = true;
-    aLongHandled = true;
+    suppressBoopRelease = true;
+    boopLongHandled = true;
   }
 
-  bool approve = prevA == LOW && a == HIGH;
-  bool deny = prevB == HIGH && b == LOW;
-  if (approve) {
-    if (now - aDownAt >= BTN_A_LONG_MS) suppressARelease = true;
-    if (armed && !suppressARelease) sendApproval(true);
-    suppressARelease = false;
-    aLongHandled = false;
+  bool boopRelease = prevBoop && !boop;
+  bool rejPress = !prevRej && rej;
+  bool menuPress = !prevMenu && menu;
+  if (boopRelease) {
+    if (now - boopDownAt >= BTN_A_LONG_MS) suppressBoopRelease = true;
+    if (!suppressBoopRelease) {
+      if (armed) sendApproval(true);
+      else boopPet();
+    }
+    suppressBoopRelease = false;
+    boopLongHandled = false;
   }
-  if (deny && armed) sendApproval(false);
+  if (rejPress && armed) sendApproval(false);
+  if (menuPress && !wasOff) {
+    buddyNextSpecies();
+    buddyInvalidate();
+    Serial.printf("<<MENU species=%s>>\n", buddySpeciesName());
+  }
 
-  prevA = a;
-  prevB = b;
+  prevBoop = boop;
+  prevRej = rej;
+  prevMenu = menu;
 }
 
 static void restoreLogLevel() {
@@ -307,7 +338,8 @@ static void dumpPing() {
   // heapMin/heapBig: low-water mark and largest free block. A BLE connect
   // needs several contiguous KB; if heapBig is small the Bluedroid connect
   // path OOMs and asserts (fixed_queue_new → vQueueDelete(NULL)).
-  Serial.printf("<<PONG {\"fw\":\"%s\",\"git\":\"%s\",\"up\":%lu,\"heap\":%lu,\"heapMin\":%lu,\"heapBig\":%lu,"
+  Serial.printf("<<PONG {\"fw\":\"%s\",\"git\":\"%s\",\"board\":\"" HAL_BOARD_NAME "\","
+                "\"up\":%lu,\"heap\":%lu,\"heapMin\":%lu,\"heapBig\":%lu,"
                 "\"reset\":\"%s\",\"panics\":%lu,\"early\":%lu,\"safe\":%d}>>\n",
                 FW_VERSION, GIT_SHA, (unsigned long)millis(), (unsigned long)ESP.getFreeHeap(),
                 (unsigned long)ESP.getMinFreeHeap(), (unsigned long)ESP.getMaxAllocHeap(),
@@ -337,7 +369,9 @@ static void dumpState() {
   doc["persona"] = personaNames[derive(tama)];
   doc["activePersona"] = personaNames[activeState];
   doc["screen"] = currentScreenName();
-  doc["rot"] = StickCP2.Display.getRotation();
+  doc["rot"] = halDisplayRotation();
+  doc["board"] = HAL_BOARD_NAME;
+  doc["speciesLocal"] = buddySpeciesName();
   doc["mode"] = currentDataMode();
   doc["rtcValid"] = dataRtcValid();
   doc["nLines"] = tama.nLines;
@@ -360,38 +394,47 @@ static void schedulePress(char which, uint32_t ms) {
   if (ms == 0) ms = 1;
   if (ms > 5000) ms = 5000;
   uint32_t releaseAt = millis() + ms;
-  if (which == 'a' || which == 'A') {
-    synthA.active = true;
-    synthA.releaseAt = releaseAt;
-    Serial.println("<<PRESS a down>>");
-  } else if (which == 'b' || which == 'B') {
-    synthB.active = true;
-    synthB.releaseAt = releaseAt;
-    Serial.println("<<PRESS b down>>");
-  } else {
-    Serial.println("<<PRESS err (use a|b)>>");
+  int idx = -1;
+  if (which == 'a' || which == 'A') idx = HAL_BTN_BOOP;
+  else if (which == 'b' || which == 'B') idx = HAL_BTN_REJECT;
+  else if (which == 'm' || which == 'M') idx = HAL_BTN_MENU;
+  if (idx < 0) {
+    Serial.println("<<PRESS err (use a|b|m)>>");
+    return;
   }
+  synth[idx].active = true;
+  synth[idx].releaseAt = releaseAt;
+  Serial.printf("<<PRESS %c down>>\n", SYNTH_NAMES[idx]);
 }
 
-// Dump the LCD as base64 RGB565 over USB serial. Reads from panel RAM
-// (not the sprite) so direct-to-LCD draws — landscape clock, GIF frames,
-// boot screen — are captured exactly as the user sees them. Triggered by
-// sending the line "screenshot\n" on USB serial; framed with sentinels
-// so the host can ignore unrelated log lines on the same channel.
+// Dump the logical canvas as base64 RGB565 over USB serial. Reads from
+// the sprite, not panel RAM: everything the firmware draws goes through
+// the sprite on every board, and the AMOLED board's QSPI panel has no
+// readback path at all. Triggered by sending the line "screenshot\n" on
+// USB serial; framed with sentinels so the host can ignore unrelated log
+// lines on the same channel.
 //
-// Per-row read keeps RAM use to ~700 bytes (vs. 64KB for full-frame).
-// Each row is W*2 bytes; W=135 → 270 (90 b64 groups), W=240 → 480 (160
-// groups). Both are multiples of 3, so per-row b64 chunks have no mid-
-// stream padding — concatenated chunks form one valid base64 stream.
+// The sprite is 8bpp RGB332; pixels are widened to RGB565LE to keep the
+// wire format the host tooling already speaks. Up to two leftover bytes
+// carry across rows so the row width doesn't have to be a multiple of 3
+// (135*2=270 is, 140*2=280 isn't) — concatenated chunks still form one
+// valid base64 stream, padded only at the very end.
+static inline uint16_t rgb332to565(uint8_t c) {
+  uint16_t r5 = (((c >> 5) & 7) * 31 + 3) / 7;
+  uint16_t g6 = (((c >> 2) & 7) * 63 + 3) / 7;
+  uint16_t b5 = ((c & 3) * 31 + 1) / 3;
+  return (uint16_t)((r5 << 11) | (g6 << 5) | b5);
+}
+
 static void dumpScreenshot() {
   static const char b64[] =
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
   esp_log_level_set("*", ESP_LOG_NONE);
 
-  int rot = StickCP2.Display.getRotation();
-  int w   = StickCP2.Display.width();
-  int h   = StickCP2.Display.height();
+  int rot = halDisplayRotation();
+  int w   = spr.width();
+  int h   = spr.height();
   if (w <= 0 || w > 256 || h <= 0) {
     Serial.println("<<SCR_ERR bad-dims>>");
     restoreLogLevel();
@@ -400,26 +443,42 @@ static void dumpScreenshot() {
 
   Serial.printf("\n<<SCR_BEGIN W=%d H=%d ROT=%d FMT=RGB565LE>>\n", w, h, rot);
 
-  uint16_t row[256];
-  char enc[((256 * 2 + 2) / 3) * 4 + 4];
+  uint8_t bytes[2 + 256 * 2];   // carried remainder + one row
+  char enc[((sizeof(bytes) / 3) + 1) * 4];
+  int nc = 0;                   // bytes carried from the previous row
   uint32_t crc = 0;
   uint32_t rawLen = 0;
   for (int y = 0; y < h; y++) {
-    guardFeed();   // full dump takes ~8s of loop() time at 115200 baud
-    StickCP2.Display.readRect(0, y, w, 1, row);
-    const uint8_t* in = (const uint8_t*)row;
-    int n = w * 2;
-    crc = crc32Update(crc, in, n);
-    rawLen += n;
+    guardFeed();   // full dump takes several seconds of loop() time
+    int n = nc;
+    for (int x = 0; x < w; x++) {
+      uint16_t px = rgb332to565((uint8_t)spr.readPixelValue(x, y));
+      bytes[n++] = (uint8_t)(px & 0xFF);
+      bytes[n++] = (uint8_t)(px >> 8);
+    }
+    crc = crc32Update(crc, bytes + nc, n - nc);
+    rawLen += n - nc;
+    int usable = (n / 3) * 3;
     int o = 0;
-    for (int i = 0; i + 2 < n; i += 3) {
-      uint32_t v = ((uint32_t)in[i] << 16) | ((uint32_t)in[i+1] << 8) | (uint32_t)in[i+2];
+    for (int i = 0; i < usable; i += 3) {
+      uint32_t v = ((uint32_t)bytes[i] << 16) | ((uint32_t)bytes[i+1] << 8) | (uint32_t)bytes[i+2];
       enc[o++] = b64[(v >> 18) & 0x3F];
       enc[o++] = b64[(v >> 12) & 0x3F];
       enc[o++] = b64[(v >>  6) & 0x3F];
       enc[o++] = b64[ v        & 0x3F];
     }
     Serial.write((const uint8_t*)enc, o);
+    nc = n - usable;
+    if (nc) memmove(bytes, bytes + usable, nc);
+  }
+  if (nc) {
+    uint32_t v = ((uint32_t)bytes[0] << 16) | (nc > 1 ? ((uint32_t)bytes[1] << 8) : 0);
+    char tail[4];
+    tail[0] = b64[(v >> 18) & 0x3F];
+    tail[1] = b64[(v >> 12) & 0x3F];
+    tail[2] = nc > 1 ? b64[(v >> 6) & 0x3F] : '=';
+    tail[3] = '=';
+    Serial.write((const uint8_t*)tail, 4);
   }
   Serial.println();
   Serial.printf("<<SCR_END LEN=%lu CRC32=%08lx>>\n", (unsigned long)rawLen, (unsigned long)crc);
@@ -513,18 +572,16 @@ static void logHeap(const char* stage) {
 }
 
 void setup() {
-  auto _cfg = M5.config(); StickCP2.begin(_cfg);
-  // M5Unified leaves cfg.serial_baudrate=0, so StickCP2.begin() doesn't
-  // call Serial.begin(). Without it, the framework's own debug logs still
-  // reach the host (they go straight to UART), but Arduino-level reads
-  // (Serial.read in dataPoll) silently fail. Init explicitly so USB
-  // command channel — JSON daemon pushes, "screenshot" — actually works.
+  halInit();   // board + display + input bring-up (rotation, speaker, LED)
+  // On M5, M5Unified leaves cfg.serial_baudrate=0, so begin() doesn't call
+  // Serial.begin() — without it Arduino-level reads (Serial.read in
+  // dataPoll) silently fail. On the S3 board this maps to native USB CDC
+  // and the baud rate is cosmetic. Init explicitly so the USB command
+  // channel — JSON daemon pushes, "screenshot" — actually works.
   Serial.begin(115200);
-  logHeap("after M5.begin");
+  logHeap("after halInit");
   guardInit();   // WDT + crash-loop breaker; decides safeTier for the rest of setup
   const int safeTier = guardSafeTier();
-  StickCP2.Display.setRotation(0);
-  StickCP2.Speaker.begin();
   if (safeTier < 2) {
     startBt();
     logHeap("after BLE init");
@@ -532,7 +589,6 @@ void setup() {
     Serial.println("[guard] safe mode tier 2 — BLE disabled, USB rescue only");
   }
 
-  StickCP2.Power.setLed(0);   // off
   setDisplayBrightness(BRIGHT_MEDIUM);
   statsLoad();
   settingsLoad();
@@ -542,12 +598,13 @@ void setup() {
   // BLE stays always-on; settings().bt is stored as a preference only.
   //
   // 8-bit sprite, not 16: full-screen 135x240 at 16bpp costs 64.8KB of
-  // heap, which starved Bluedroid so badly that a bonded BLE reconnect
-  // OOMed inside GATT setup and panicked (fixed_queue_new →
+  // heap, which starved Bluedroid on the M5 so badly that a bonded BLE
+  // reconnect OOMed inside GATT setup and panicked (fixed_queue_new →
   // vQueueDelete(NULL) assert → bootloop). At 8bpp the sprite costs
-  // 32.4KB; LGFX converts RGB565 pushImage sources and the final
-  // pushSprite automatically. The buddy art is flat-color, so RGB332 is
-  // visually indistinguishable here.
+  // ~32KB; LGFX converts RGB565 draw sources automatically, and the buddy
+  // art is flat-color so RGB332 is visually indistinguishable. The S3
+  // board has headroom to spare but keeps 8bpp so both boards render the
+  // exact same bytes (halPresent widens to RGB565 on the way out).
   spr.setColorDepth(8);
   spr.createSprite(W, H);
   logHeap("after sprite");
@@ -589,7 +646,7 @@ void setup() {
       spr.drawString(safeTier >= 2 ? "connect via USB" : "buddy needs help", W/2, H - 16);
     }
     spr.setTextDatum(TL_DATUM); spr.setTextSize(1);
-    spr.pushSprite(0, 0);
+    halPresent(spr);
     delay(1800);
   }
 
@@ -598,7 +655,7 @@ void setup() {
 
 void loop() {
   guardLoop();   // feed the task WDT; mark boot healthy after stable uptime
-  StickCP2.update();
+  halUpdate();
   t++;
 
   dataPoll(&tama);
@@ -616,6 +673,10 @@ void loop() {
 
   baseState = derive(tama);
   activeState = baseState;
+  // Recent boop: flash the heart face unless something urgent is on screen.
+  if ((int32_t)(boopUntil - millis()) > 0 && baseState != P_ATTENTION && baseState != P_DIZZY) {
+    activeState = P_HEART;
+  }
   updateDisplayPower(activeState);
 
   if (strcmp(tama.promptId, lastPromptId) != 0) {
@@ -664,7 +725,7 @@ void loop() {
   } else {
     buddyTick(activeState);
     const Palette& p = characterPalette();
-    int y = 170;
+    int y = H - 70;   // HUD block: status + sessions + prompt lines
     spr.fillRect(0, y, W, H - y, p.bg);
     spr.setTextSize(1);
     spr.setTextColor(tama.connected ? p.text : p.textDim, p.bg);
@@ -701,7 +762,7 @@ void loop() {
       spr.printf("%.21s", tama.msg);
     }
   }
-  if (!screenOff) spr.pushSprite(0, 0);
+  if (!screenOff) halPresent(spr);
 
   delay(16);
 }

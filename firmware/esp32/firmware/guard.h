@@ -140,7 +140,19 @@ inline void guardInit() {
 
   // Watchdog on loopTask (setup()/loop() run on it). panic=true so a hang
   // both reboots and lands in the abnormal-reset telemetry above.
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+  // IDF5 (Arduino core 3.x): the framework already initialized the task
+  // WDT at boot; reconfigure to our timeout instead of re-initializing.
+  {
+    esp_task_wdt_config_t cfg = {};
+    cfg.timeout_ms = GUARD_WDT_TIMEOUT_S * 1000;
+    cfg.idle_core_mask = 0;
+    cfg.trigger_panic = true;
+    if (esp_task_wdt_reconfigure(&cfg) != ESP_OK) esp_task_wdt_init(&cfg);
+  }
+#else
   esp_task_wdt_init(GUARD_WDT_TIMEOUT_S, true);
+#endif
   esp_task_wdt_add(NULL);
 }
 

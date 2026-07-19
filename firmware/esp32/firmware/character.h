@@ -1,6 +1,6 @@
 #pragma once
 #include <stdint.h>
-#include <M5StickCPlus2.h>
+#include "hal/hal.h"
 
 struct Palette {
   uint16_t body, bg, text, textDim, ink;

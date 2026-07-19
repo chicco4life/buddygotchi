@@ -663,7 +663,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=command_screenshot)
     p = sub.add_parser("press")
     add_common(p)
-    p.add_argument("button", choices=["a", "b", "A", "B"])
+    p.add_argument("button", choices=["a", "b", "m", "A", "B", "M"])
     p.add_argument("--ms", type=int, default=150)
     p.set_defaults(func=command_press)
     p = sub.add_parser("btn")

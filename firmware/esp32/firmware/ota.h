@@ -4,7 +4,7 @@
 #include <esp_ota_ops.h>
 #include <mbedtls/base64.h>
 #include <mbedtls/sha256.h>
-#include <M5StickCPlus2.h>
+#include "hal/hal.h"
 #include "ble_bridge.h"
 #include "guard.h"
 
@@ -50,8 +50,8 @@ static void _otaAck(const char* what, bool ok, uint32_t n = 0, const char* err =
 // mid-write doesn't brick the device (boot-partition-switch hasn't
 // happened yet) but it does waste bandwidth and frustrate the user.
 static bool _otaBatteryOK() {
-  if (StickCP2.Power.isCharging()) return true;
-  int vBat = StickCP2.Power.getBatteryVoltage();
+  if (halIsCharging()) return true;
+  int vBat = halBatteryVoltage_mV();
   int pct = (vBat - 3200) / 10;
   if (pct < 0) pct = 0;
   if (pct > 100) pct = 100;

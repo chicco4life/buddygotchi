@@ -6,6 +6,13 @@
 #include <BLE2902.h>
 #include <Arduino.h>
 #include <string.h>
+// Arduino core 2.x (M5 board) backs this library with Bluedroid; core 3.x
+// (S3 board) backs it with NimBLE behind the same classes. The few places
+// the backends genuinely diverge — auth-complete callback shape, encryption
+// enforcement, bond clearing — are #if'd on CONFIG_BLUEDROID_ENABLED below.
+#if defined(CONFIG_NIMBLE_ENABLED)
+#include <host/ble_store.h>
+#endif
 
 // Nordic UART Service UUIDs — every BLE serial example uses these, so
 // existing tools (nRF Connect, bluefy, Web Bluetooth examples) can talk to
@@ -55,8 +62,10 @@ static void rxPush(const uint8_t* p, size_t n) {
 
 class RxCallbacks : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic* c) override {
-    std::string v = c->getValue();
-    if (!v.empty()) rxPush((const uint8_t*)v.data(), v.size());
+    // getValue() returns std::string on core 2.x, Arduino String on 3.x;
+    // c_str()/length() are the common surface.
+    auto v = c->getValue();
+    if (v.length()) rxPush((const uint8_t*)v.c_str(), v.length());
   }
 };
 
@@ -74,10 +83,17 @@ class ServerCallbacks : public BLEServerCallbacks {
     // Restart advertising so the next client can find us.
     BLEDevice::startAdvertising();
   }
+#if defined(CONFIG_BLUEDROID_ENABLED)
   void onMtuChanged(BLEServer*, esp_ble_gatts_cb_param_t* param) override {
     mtu = param->mtu.mtu;
     Serial.printf("[ble] mtu=%u\n", mtu);
   }
+#else
+  void onMtuChanged(BLEServer*, ble_gap_conn_desc*, uint16_t newMtu) override {
+    mtu = newMtu;
+    Serial.printf("[ble] mtu=%u\n", mtu);
+  }
+#endif
 };
 
 // LE Secure Connections, passkey-entry: we are DisplayOnly, the central
@@ -92,12 +108,22 @@ class SecCallbacks : public BLESecurityCallbacks {
     passkey = pk;
     Serial.printf("[ble] passkey %06lu\n", (unsigned long)pk);
   }
+#if defined(CONFIG_BLUEDROID_ENABLED)
   void onAuthenticationComplete(esp_ble_auth_cmpl_t cmpl) override {
     passkey = 0;
     secure = cmpl.success;
     Serial.printf("[ble] auth %s\n", cmpl.success ? "ok" : "FAIL");
     if (!cmpl.success && server) server->disconnect(server->getConnId());
   }
+#else
+  void onAuthenticationComplete(ble_gap_conn_desc* desc) override {
+    passkey = 0;
+    bool ok = desc && desc->sec_state.encrypted && desc->sec_state.authenticated;
+    secure = ok;
+    Serial.printf("[ble] auth %s\n", ok ? "ok" : "FAIL");
+    if (!ok && server) server->disconnect(server->getConnId());
+  }
+#endif
 };
 
 void bleInit(const char* deviceName) {
@@ -105,7 +131,14 @@ void bleInit(const char* deviceName) {
   // Request the biggest MTU we can get. macOS negotiates to 185 typically.
   BLEDevice::setMTU(517);
 
+#if defined(CONFIG_BLUEDROID_ENABLED)
   BLEDevice::setEncryptionLevel(ESP_BLE_SEC_ENCRYPT_MITM);
+#else
+  // NimBLE path: characteristic-level encrypted-access permissions plus
+  // forced authentication play the same role as Bluedroid's link-level
+  // encryption requirement.
+  BLESecurity::setForceAuthentication(true);
+#endif
   BLEDevice::setSecurityCallbacks(new SecCallbacks());
 
   server = BLEDevice::createServer();
@@ -152,6 +185,8 @@ bool bleSecure()    { return secure; }
 uint32_t blePasskey() { return passkey; }
 
 void bleClearBonds() {
+#if defined(CONFIG_BLUEDROID_ENABLED)
+  // Arduino core 2.x (M5 board): Bluedroid host, per-device bond removal.
   int n = esp_ble_get_bond_device_num();
   if (n <= 0) return;
   esp_ble_bond_dev_t* list = (esp_ble_bond_dev_t*)malloc(n * sizeof(esp_ble_bond_dev_t));
@@ -160,6 +195,12 @@ void bleClearBonds() {
   for (int i = 0; i < n; i++) esp_ble_remove_bond_device(list[i].bd_addr);
   free(list);
   Serial.printf("[ble] cleared %d bond(s)\n", n);
+#else
+  // Arduino core 3.x (S3 board): the BLE library is NimBLE-backed; the
+  // store API wipes bonds, CCCDs, and peer records in one call.
+  ble_store_clear();
+  Serial.println("[ble] cleared bond store");
+#endif
 }
 
 size_t bleAvailable() {

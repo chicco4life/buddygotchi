@@ -1,10 +1,10 @@
 #include "character.h"
-#include <M5StickCPlus2.h>
+#include "hal/hal.h"
 #include <LittleFS.h>
 #include <AnimatedGIF.h>
 #include <ArduinoJson.h>
 
-extern M5Canvas spr;
+extern BuddyCanvas spr;
 
 static const char* STATE_NAMES[] = {
   "sleep", "idle", "busy", "attention", "celebrate", "dizzy", "heart"

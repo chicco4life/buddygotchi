@@ -1,9 +1,9 @@
 #include "../buddy.h"
 #include "../buddy_common.h"
-#include <M5StickCPlus2.h>
+#include "../hal/hal.h"
 #include <string.h>
 
-extern M5Canvas spr;
+extern BuddyCanvas spr;
 
 namespace penguin {
 

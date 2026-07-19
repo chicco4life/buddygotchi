@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include "hal/hal.h"
 #include "ble_bridge.h"
 #include "xfer.h"
 #include "ota.h"
@@ -105,13 +106,7 @@ static void _applyJson(const char* line, TamaState* out) {
   if (!t.isNull() && t.size() == 2) {
     time_t local = (time_t)t[0].as<uint32_t>() + (int32_t)t[1];
     struct tm lt; gmtime_r(&local, &lt);
-    m5::rtc_time_t tm;
-    tm.hours = lt.tm_hour; tm.minutes = lt.tm_min; tm.seconds = lt.tm_sec;
-    m5::rtc_date_t dt;
-    dt.weekDay = lt.tm_wday; dt.month = lt.tm_mon + 1;
-    dt.date = lt.tm_mday; dt.year = lt.tm_year + 1900;
-    StickCP2.Rtc.setTime(&tm);
-    StickCP2.Rtc.setDate(&dt);
+    halSetLocalTime(lt);
     extern uint32_t _clkLastRead;
     _clkLastRead = 0;   // force re-read so _clkDt and _rtcValid agree
     _rtcValid = true;

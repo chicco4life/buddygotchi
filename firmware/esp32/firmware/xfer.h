@@ -73,7 +73,7 @@ void ownerSet(const char* name);
 const char* ownerName();
 #include "stats.h"
 #include "guard.h"
-#include <M5StickCPlus2.h>
+#include "hal/hal.h"
 
 inline bool xferCommand(JsonDocument& doc) {
   const char* cmd = doc["cmd"];
@@ -112,16 +112,16 @@ inline bool xferCommand(JsonDocument& doc) {
   if (strcmp(cmd, "status") == 0) {
     // Dump everything the info screens show. Manual printf rather than
     // ArduinoJson serialize — less heap churn, and the shape is fixed.
-    int vBat = StickCP2.Power.getBatteryVoltage();
-    int iBat = (int)StickCP2.Power.getBatteryCurrent();
-    int vBus = StickCP2.Power.isCharging() ? 5000 : 0;
+    int vBat = halBatteryVoltage_mV();
+    int iBat = halBatteryCurrent_mA();
+    int vBus = halIsCharging() ? 5000 : 0;
     int pct = (vBat - 3200) / 10;
     if (pct < 0) pct = 0; if (pct > 100) pct = 100;
     char b[512];
     int len = snprintf(b, sizeof(b),
       "{\"ack\":\"status\",\"ok\":true,\"n\":0,\"data\":{"
       "\"name\":\"%s\",\"owner\":\"%s\",\"sec\":%s,"
-      "\"firmware\":\"%s\",\"build\":\"%s %s\","
+      "\"firmware\":\"%s\",\"board\":\"" HAL_BOARD_NAME "\",\"build\":\"%s %s\","
       "\"bat\":{\"pct\":%d,\"mV\":%d,\"mA\":%d,\"usb\":%s},"
       "\"sys\":{\"up\":%lu,\"heap\":%u,\"fsFree\":%lu,\"fsTotal\":%lu},"
       // Crash telemetry so the desktop's bug-report export carries the

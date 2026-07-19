@@ -1,6 +1,6 @@
 #pragma once
 #include <stdint.h>
-#include <M5StickCPlus2.h>
+#include "hal/hal.h"
 
 void buddyInit();
 void buddyTick(uint8_t personaState);
