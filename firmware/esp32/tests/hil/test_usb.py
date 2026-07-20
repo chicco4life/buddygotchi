@@ -153,6 +153,101 @@ def test_button_edges(stick):
     assert b"<<PRESS b down>>" in buf
 
 
+# Press once and wait for BOTH the expected marker and the synthetic
+# release. Sending the next `press` for the same button before the previous
+# one releases just extends the still-held press (schedulePress overwrites
+# releaseAt), so no new edge fires — the up-marker join makes each press a
+# complete, observable click before the test moves on.
+def press_expect(stick, which, marker, timeout=2):
+    stick.write_line(f"press {which} 120")
+    up = f"<<PRESS {which} up>>".encode()
+    buf, _ = stick.read_until(lambda b: marker in b and up in b, timeout)
+    return buf
+
+
+# Recover from a previous test that died with the menu open — REJECT walks
+# any screen back to closed.
+def ensure_menu_closed(stick):
+    for _ in range(3):
+        if state(stick).get("menu") == "closed":
+            return
+        stick.write_line("press b 120")
+        stick.read_until(lambda b: b"<<PRESS b up>>" in b, 2)
+    wait_state(stick, menu="closed")
+
+
+def test_menu_open_navigate_close(stick):
+    send_json(stick, {"total": 1, "running": 0, "waiting": 0, "pet": "idle"})
+    ensure_menu_closed(stick)
+    wait_state(stick, pet="idle", promptId="", menu="closed")
+    stick.drain_until_quiet(max_wait=0.2)
+
+    press_expect(stick, "m", b"<<MENU screen=root item=character>>")
+    press_expect(stick, "m", b"<<MENU screen=root item=sound>>")
+    wait_state(stick, menu="root")
+    press_expect(stick, "b", b"<<MENU close>>")
+    tail = stick.drain_until_quiet(max_wait=0.3)
+    assert b'"cmd":"permission"' not in tail
+    wait_state(stick, menu="closed")
+
+
+def test_menu_character_preview_reverts_on_back(stick):
+    send_json(stick, {"total": 1, "running": 0, "waiting": 0, "pet": "idle"})
+    ensure_menu_closed(stick)
+    wait_state(stick, pet="idle", promptId="", menu="closed")
+    before = state(stick)["speciesLocal"]
+    stick.drain_until_quiet(max_wait=0.2)
+
+    press_expect(stick, "m", b"<<MENU screen=root item=character>>")
+    press_expect(stick, "a", b"<<MENU screen=character>>")
+    press_expect(stick, "m", b"<<MENU species=")
+    got = wait_state(stick, menu="character")
+    assert got["speciesLocal"] != before
+    press_expect(stick, "b", b"<<MENU screen=root item=character>>")
+    wait_state(stick, menu="root", speciesLocal=before)
+    press_expect(stick, "b", b"<<MENU close>>")
+
+
+def test_prompt_takes_over_menu(stick):
+    send_json(stick, {"total": 1, "running": 0, "waiting": 0, "pet": "idle"})
+    ensure_menu_closed(stick)
+    wait_state(stick, pet="idle", promptId="", menu="closed")
+    stick.drain_until_quiet(max_wait=0.2)
+
+    press_expect(stick, "m", b"<<MENU screen=root item=character>>")
+    stick.write_line("mockprompt")
+    stick.read_until(
+        lambda b: b"<<MENU close>>" in b and b"<<BTN mockprompt armed>>" in b, 2
+    )
+    wait_state(stick, menu="closed", promptId="DEBUG")
+    stick.write_line("press a 120")
+    buf, _ = stick.read_until(lambda b: b'"decision":"allow"' in b, 3)
+    assert b'"cmd":"permission"' in buf
+
+
+def test_fresh_prompt_arming_delay_swallows_early_press(stick):
+    send_json(stick, {"total": 1, "running": 0, "waiting": 0, "pet": "idle"})
+    ensure_menu_closed(stick)
+    wait_state(stick, pet="idle", promptId="", menu="closed")
+    stick.drain_until_quiet(max_wait=0.2)
+
+    # "fresh" keeps the real arrival time, so this press lands inside the
+    # 600ms arming window and must be swallowed (no permission, no boop-
+    # approval confusion), leaving the prompt still answerable.
+    stick.write_line("mockprompt fresh")
+    stick.read_until(lambda b: b"<<BTN mockprompt armed>>" in b, 2)
+    stick.write_line("press a 120")
+    buf, _ = stick.read_until(lambda b: b"<<PRESS a up>>" in b, 2)
+    tail = stick.drain_until_quiet(max_wait=0.3)
+    assert b'"cmd":"permission"' not in buf + tail
+    wait_state(stick, promptId="DEBUG", responseSent=False)
+
+    time.sleep(0.5)  # comfortably past the arming window by now
+    stick.write_line("press a 120")
+    buf, _ = stick.read_until(lambda b: b'"decision":"allow"' in b, 3)
+    assert b'"cmd":"permission"' in buf
+
+
 def test_long_press_without_prompt_toggles_screen_without_permission(stick):
     send_json(stick, {"total": 1, "running": 0, "waiting": 1, "pet": "attention"})
     wait_state(stick, pet="attention", screenOff=False)

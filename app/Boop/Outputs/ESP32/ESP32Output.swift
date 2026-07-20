@@ -88,6 +88,17 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
         engine?.resolveApproval(requestId: requestId, decision: mapped)
     }
 
+    // The device menu adopted a character. Mirror it into the desktop
+    // preference and the engine so the next heartbeat carries the same
+    // species instead of stomping the on-device choice on reconnect.
+    func bleManager(_ manager: BLEManager, didAdoptSpecies species: String) {
+        let name = species.lowercased()
+        guard !name.isEmpty, name.count <= 16,
+              name.allSatisfy({ $0.isLetter || $0.isNumber }) else { return }
+        UserDefaults.standard.set(name, forKey: DefaultsKey.buddySpecies)
+        engine?.setSpecies(name)
+    }
+
     // Round-trips a {"cmd":"status"} request and reads firmware/build out of
     // the response so the updater can compare it against the latest manifest.
     // Failures here are silent — without a version we just don't surface a

@@ -33,6 +33,7 @@ struct BLEAckReply: Sendable, Equatable {
 protocol BLEManagerDelegate: AnyObject {
     func bleManager(_ manager: BLEManager, connectionStateChanged state: BLEConnectionState)
     func bleManager(_ manager: BLEManager, didReceiveApproval requestId: String, decision: String)
+    func bleManager(_ manager: BLEManager, didAdoptSpecies species: String)
 }
 
 // Threading model: all BLE/peripheral state (target id, peripherals, characteristics,
@@ -444,6 +445,17 @@ extension BLEManager: CBPeripheralDelegate {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.delegate?.bleManager(self, didReceiveApproval: id, decision: decision)
+            }
+        }
+
+        // Device-menu character adoption — mirrored into the desktop species
+        // preference so heartbeats stop overriding the on-device choice.
+        if let cmd = json["cmd"] as? String,
+           cmd == "species",
+           let name = json["name"] as? String {
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.delegate?.bleManager(self, didAdoptSpecies: name)
             }
         }
     }

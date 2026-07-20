@@ -64,6 +64,7 @@ These are newline-delimited JSON commands sent over USB or BLE RX.
 | Message | Fields | Meaning |
 | --- | --- | --- |
 | Permission decision | `{"cmd":"permission","id":promptId,"decision":"allow"|"deny"}` | Sent when physical/debug approval buttons answer an armed prompt. |
+| Species adoption | `{"cmd":"species","name":speciesName}` | Sent when the on-device menu adopts a character. The desktop mirrors it into its species preference so heartbeats stop overriding the device's choice. |
 | Ack | `{"ack":name,"ok":bool,"n":number,"error":...?}` | Reply for status, character transfer, and OTA commands. `error` is present on some failures. |
 
 ## USB Serial Debug Commands

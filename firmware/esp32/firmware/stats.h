@@ -60,9 +60,11 @@ struct Settings {
   bool led;
   bool hud;
   uint8_t clockRot;  // 0=auto 1=portrait 2=landscape
+  char species[16];  // buddy picked on-device via the menu; empty = default.
+                     // A desktop heartbeat species change still overrides.
 };
 
-static Settings _settings = { true, true, false, true, true, 0 };
+static Settings _settings = { true, true, false, true, true, 0, "" };
 
 inline void settingsLoad() {
   _prefs.begin("buddy", true);
@@ -73,6 +75,7 @@ inline void settingsLoad() {
   _settings.hud      = _prefs.getBool("s_hud", true);
   _settings.clockRot = _prefs.getUChar("s_crot", 0);
   if (_settings.clockRot > 2) _settings.clockRot = 0;
+  if (_prefs.isKey("s_spec")) _prefs.getString("s_spec", _settings.species, sizeof(_settings.species));
   _prefs.end();
 }
 
@@ -84,6 +87,7 @@ inline void settingsSave() {
   _prefs.putBool("s_led", _settings.led);
   _prefs.putBool("s_hud", _settings.hud);
   _prefs.putUChar("s_crot", _settings.clockRot);
+  _prefs.putString("s_spec", _settings.species);
   _prefs.end();
 }
 

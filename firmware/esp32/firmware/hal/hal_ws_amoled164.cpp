@@ -85,7 +85,9 @@ void halInit() {
   _gfx->setBrightness(0);   // panel powers up dark; main sets the real level
 
   // FT3168 touch — probe so a flaky/absent panel degrades to buttons-only.
-  Wire.begin(PIN_TP_SDA, PIN_TP_SCL, 400000);
+  // 300kHz: the chip tops out at 400k and the Waveshare demo runs 300k;
+  // at 400k the core-3 i2c-ng driver throws sporadic ESP_ERR_INVALID_STATE.
+  Wire.begin(PIN_TP_SDA, PIN_TP_SCL, 300000);
   Wire.beginTransmission(TP_ADDR);
   _touchOk = (Wire.endTransmission() == 0);
   if (!_touchOk) Serial.println("[hal] FT3168 not responding — touch disabled");
@@ -94,15 +96,33 @@ void halInit() {
 void halUpdate() {
   // Poll touch at ~30ms. Register 0x02 = active touch count (FocalTech
   // standard map). Treated as a held BOOP button.
+  //
+  // Full-stop write-then-read: the core-3 driver's repeated-start path
+  // (endTransmission(false) + requestFrom) fails sporadically with
+  // ESP_ERR_INVALID_STATE and logs an error each time; FocalTech register
+  // reads are fine with a stop in between. On failure, back off so a bad
+  // patch doesn't log at 30ms cadence, and re-init the bus after repeated
+  // failures in case it's wedged.
   static uint32_t nextPoll = 0;
+  static uint8_t fails = 0;
   if (!_touchOk) return;
   uint32_t now = millis();
-  if (now < nextPoll) return;
+  if ((int32_t)(now - nextPoll) < 0) return;
   nextPoll = now + 30;
   Wire.beginTransmission(TP_ADDR);
   Wire.write(0x02);
-  if (Wire.endTransmission(false) != 0) { _touchDown = false; return; }
-  if (Wire.requestFrom(TP_ADDR, 1) != 1) { _touchDown = false; return; }
+  bool ok = Wire.endTransmission(true) == 0 && Wire.requestFrom(TP_ADDR, 1) == 1;
+  if (!ok) {
+    _touchDown = false;
+    nextPoll = now + 250;
+    if (++fails >= 8) {
+      fails = 0;
+      Wire.end();
+      Wire.begin(PIN_TP_SDA, PIN_TP_SCL, 300000);
+    }
+    return;
+  }
+  fails = 0;
   uint8_t n = Wire.read() & 0x0F;
   _touchDown = (n > 0 && n <= 5);
 }
@@ -125,15 +145,36 @@ void halPresent(BuddyCanvas& spr) {
   size_t stride = (h > 0 && spr.bufferLength() >= (size_t)w * h)
                     ? spr.bufferLength() / h : (size_t)w;
 
+  // AMOLED burn-in guard: drift the whole image by one physical pixel
+  // through a 4-phase cycle (~45s per step) so no static UI edge parks on
+  // a single OLED cell. Invisible at desk distance. The framebuffer is
+  // cleared once per phase change; the shifted-in border rows stay black.
+  // Phase 0 (ox=oy=0) covers every panel pixel, so the first frame fully
+  // initializes the fresh ps_malloc buffer.
+  static uint8_t drift = 0;
+  static uint32_t nextDriftAt = 45000;
+  if ((int32_t)(now - nextDriftAt) >= 0) {
+    nextDriftAt = now + 45000;
+    drift = (uint8_t)((drift + 1) & 3);
+    memset(_fb, 0, (size_t)PANEL_W * PANEL_H * 2);
+  }
+  int ox = drift & 1, oy = (drift >> 1) & 1;
+  // When shifted right, the last doubled column's second pixel would land
+  // at PANEL_W — handle that one pixel outside the hot loop.
+  int wFull = (ox && 2 * w == PANEL_W) ? w - 1 : w;
+
   for (int y = 0; y < h; y++) {
     const uint8_t* s = src + (size_t)y * stride;
-    uint16_t* d = _fb + (size_t)(y * 2) * PANEL_W;
-    for (int x = 0; x < w; x++) {
+    int dy = y * 2 + oy;
+    uint16_t* row = _fb + (size_t)dy * PANEL_W;
+    uint16_t* d = row + ox;
+    for (int x = 0; x < wFull; x++) {
       uint16_t c = _lut565[s[x]];
       d[2 * x]     = c;
       d[2 * x + 1] = c;
     }
-    memcpy(d + PANEL_W, d, (size_t)PANEL_W * 2);
+    if (wFull < w) d[2 * (w - 1)] = _lut565[s[w - 1]];
+    if (dy + 1 < PANEL_H) memcpy(row + PANEL_W, row, (size_t)PANEL_W * 2);
   }
   _gfx->draw16bitRGBBitmap(0, 0, _fb, PANEL_W, PANEL_H);
 }

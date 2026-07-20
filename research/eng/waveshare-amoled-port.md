@@ -13,6 +13,52 @@
 > the pioarduino package tree from the M5 envs' espressif32 one. Not yet
 > done (needs hardware): every Phase B item; also un-run: `make hil` on the
 > M5 to on-device-regression-test the refactor.
+>
+> **UX pass 1 (2026-07-19, same day, both envs compiling):** on-device
+> menu (`firmware/menu.h`: root carousel → character/sound/stats; grammar
+> MENU=next / BOOP=pick / REJECT=back with hints drawn at the edge nearest
+> each physical button; 10s auto-close; armed prompt closes it; timeout and
+> prompt-takeover both *revert* an unconfirmed character preview — only an
+> explicit pick adopts + persists), approval card redesign (pulsing
+> "boop = yes" band at the top edge, "no >" chip at bottom-right, source +
+> tool + two-line hint, hot at 10s, "link lost" line when the bridge drops
+> mid-prompt), 600ms prompt-arming delay (a press only approves if it
+> *started* after the prompt was armed; an early press is swallowed, not
+> turned into a boop; `mockprompt` backdates so HIL is unaffected,
+> `mockprompt fresh` keeps real arrival for the arming test; `btn a|b`
+> bypasses), wake-press guard now also covers REJECT (a tap that wakes the
+> screen never denies an unseen prompt), post-decision feedback ("yes!" /
+> neutral "okay" until the desktop clears the prompt) + approve/deny
+> chirps, menu-adopted species persisted to NVS (`s_spec`, restored at
+> boot) and reported upstream as `{"cmd":"species","name":…}` — the Mac
+> mirrors it into its `buddySpecies` preference + engine so reconnect
+> heartbeats no longer stomp the on-device choice (adopting while
+> disconnected still loses to the desktop on reconnect), idle auto-dim after 5min
+> (never while a prompt is pending), and a 1px 4-phase pixel drift in the
+> WS present path as the first AMOLED burn-in guard. New HIL coverage in
+> `tests/hil/test_usb.py` (menu navigate/preview-revert,
+> prompt-takes-over-menu, fresh-prompt arming window); `state` now reports
+> `menu` and `armed`.
+>
+> **Hardware bring-up (2026-07-19, board on desk):** flashed over native
+> USB CDC with no BOOT dance (`tools/pio_ws.sh run -e ws-amoled164 -t
+> upload`, enumerates `/dev/cu.usbmodem*`; buddyctl's raw-termios open
+> does not reset the board). Verified on the device: `ping` (board
+> `ws-amoled164`, ~151KB free heap), `state`, sprite screenshot at
+> 140x228, approval card + arming window + "yes!" feedback via `press a`,
+> menu open/navigate/close, character preview/revert, adopt → `<<MENU
+> species=duck kept=1>>` → upstream `{"cmd":"species"}` frame → NVS
+> persist across reboot. **Full USB HIL suite: 27 passed** (incl.
+> hardening/WDT hang-recovery on this board). Fixed during bring-up: the
+> FT3168 poll's repeated-start read hit sporadic i2c-ng
+> ESP_ERR_INVALID_STATE error spam — now a full-stop write-then-read at
+> 300kHz with error backoff + bus re-init; and the new menu HIL tests
+> raced the 120ms synthetic release (back-to-back `press` of the same
+> button merges into one hold) — tests now join the `<<PRESS x up>>`
+> marker per press. Still open from Phase B: eyeball the glass (sprite
+> screenshots can't prove the panel), physical-button approve, OS BLE
+> pairing + `make hil-ble`, Mac-app e2e, OTA-over-BLE, character
+> transfer.
 
 Target board for the production "Boop Pebble" device. Goal for night one: full e2e
 (agent hook → Mac app → BLE → device render → physical approve/reject) working on
@@ -182,7 +228,7 @@ gate passes when voltage reads as USB-powered/unknown. Keep the ≥30% rule othe
 ### Phase C — soon after (not tonight)
 - Solder the 3 pebble buttons to IO1/IO2/IO5.
 - OTA release channel: add a `board` field to PONG/`status` so the Mac app's FirmwareReleaseService serves per-board binaries (two firmwares exist now).
-- Menu-button UX (species/state cycling is stubbed minimal tonight).
+- ~~Menu-button UX~~ done in UX pass 1 (see status block).
 - Touch as real "petting", QMI8658 IMU (shake/face-down → nap stat), native-res 280×456 layout, GIF character render wiring, deep-sleep power management (no PMIC → "off" = deep sleep, BOOT/GPIO0 is an RTC wake source).
 
 ## 5. Risks / watch-outs

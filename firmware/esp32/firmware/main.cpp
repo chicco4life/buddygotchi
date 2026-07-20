@@ -33,6 +33,7 @@ static void startBt() {
 
 #include "character.h"
 #include "stats.h"
+#include "menu.h"
 const int W = HAL_W, H = HAL_H;
 const int CX = W / 2;
 const int CY_BASE = H / 2;
@@ -63,8 +64,27 @@ const uint32_t SLEEP_DIM_MS = 60000;
 const uint32_t SLEEP_OFF_MS = 600000;
 const uint32_t BTN_A_LONG_MS = 1500;
 const uint32_t BOOP_REACT_MS = 2500;
+// A press only counts as an approval if it *started* after the prompt had
+// been on screen this long — otherwise a tickle already in flight could
+// approve a prompt the user never saw. The "btn a|b" debug shortcut and
+// mockprompt (which backdates its arrival) bypass this on purpose.
+const uint32_t PROMPT_ARM_MS = 600;
+// AMOLED kindness: a long-idle pet dims until the next state change or
+// button press. Attention still forces full brightness.
+const uint32_t IDLE_DIM_MS = 300000;
 static uint8_t currentBrightness = 0xFF;
 static uint32_t boopUntil = 0;
+static uint32_t lastInputMs = 0;      // last physical/synthetic button edge
+static bool lastDecisionApprove = false;
+
+// Single source of truth for the prompt predicates — the button handler,
+// dumpState, and the draw path must never disagree on these.
+static bool promptPending() {
+  return tama.promptId[0] && tama.promptApproval && !responseSent;
+}
+static bool promptArmed(uint32_t now) {
+  return promptPending() && (int32_t)(now - (promptArrivedMs + PROMPT_ARM_MS)) >= 0;
+}
 
 struct SyntheticPress {
   bool active = false;
@@ -140,11 +160,13 @@ static void playStateChirp(PersonaState state) {
 static void updateDisplayPower(PersonaState state) {
   static PersonaState prevState = P_SLEEP;
   static uint32_t sleepSince = 0;
+  static uint32_t stateSince = 0;
   uint32_t now = millis();
   bool changed = state != prevState;
 
   if (changed) {
     prevState = state;
+    stateSince = now;
     playStateChirp(state);
     if (state == P_SLEEP) {
       sleepSince = now;
@@ -166,7 +188,19 @@ static void updateDisplayPower(PersonaState state) {
     return;
   }
 
-  setDisplayBrightness((state == P_ATTENTION || state == P_DIZZY) ? BRIGHT_FULL : BRIGHT_MEDIUM);
+  if (state == P_ATTENTION || state == P_DIZZY) {
+    setDisplayBrightness(BRIGHT_FULL);
+    return;
+  }
+  // Long-idle dim (burn-in kindness on the AMOLED board; harmless on LCD).
+  // Never while a prompt is pending — the approval card must stay readable
+  // even if the persona has settled to idle.
+  if (state == P_IDLE && now - stateSince >= IDLE_DIM_MS &&
+      now - lastInputMs >= IDLE_DIM_MS && !menuActive() && !promptPending()) {
+    setDisplayBrightness(BRIGHT_DIM);
+    return;
+  }
+  setDisplayBrightness(BRIGHT_MEDIUM);
 }
 
 void drawPasskey() {
@@ -223,6 +257,12 @@ static void sendApproval(bool approve) {
   if (approve) statsOnApproval();
   else statsOnDenial();
   responseSent = true;
+  lastDecisionApprove = approve;
+  // Approve gets a bright "mm-hm!"; deny a single neutral note. Deny must
+  // never sound (or look) sad — guilt-tripping users into approving is a
+  // product bug, not a personality.
+  if (approve) { beep(988, 60); delay(70); beep(1319, 90); }
+  else         { beep(523, 80); }
 }
 
 // Pet-affection reaction: a short heart-face flash when the BOOP button is
@@ -235,12 +275,17 @@ static void boopPet() {
 }
 
 // Three logical buttons (see hal.h for the physical mapping):
-//   BOOP   — approve when a prompt is armed; boop the pet otherwise.
-//            Long-press (outside a prompt) toggles screen sleep.
-//   REJECT — deny on press when a prompt is armed.
-//   MENU   — cycle to the next species (absent on M5; synthetic "press m"
-//            still exercises it there).
+//   BOOP   — approve when a prompt is armed; pick when the menu is open;
+//            boop the pet otherwise. Long-press (outside a prompt)
+//            toggles screen sleep.
+//   REJECT — deny on press when a prompt is armed; back when the menu is
+//            open.
+//   MENU   — open the on-device menu; next item once it's open. (Absent
+//            on M5; synthetic "press m" still exercises it there.)
 // Any press wakes the screen; a wake-press never doubles as an action.
+// Approvals additionally require the press to have STARTED after the
+// prompt was armed (PROMPT_ARM_MS) so a tickle in flight can't approve a
+// prompt that appeared under the user's finger.
 static void __attribute__((noinline)) handleButtons() {
   static bool prevBoop = false, prevRej = false, prevMenu = false;
   static uint32_t boopDownAt = 0;
@@ -250,12 +295,15 @@ static void __attribute__((noinline)) handleButtons() {
   bool boop = readBtn(HAL_BTN_BOOP);
   bool rej  = readBtn(HAL_BTN_REJECT);
   bool menu = readBtn(HAL_BTN_MENU);
-  bool armed = tama.promptId[0] && tama.promptApproval && !responseSent;
   uint32_t now = millis();
+  bool pending = promptPending();
+  uint32_t armedAt = promptArrivedMs + PROMPT_ARM_MS;
+  bool armed = promptArmed(now);
   bool wasOff = screenOff;
 
   if ((!prevBoop && boop) || (!prevRej && rej) || (!prevMenu && menu)) {
     wakeDisplay();
+    lastInputMs = now;
     if (!prevBoop && boop) {
       boopDownAt = now;
       suppressBoopRelease = wasOff;
@@ -265,6 +313,7 @@ static void __attribute__((noinline)) handleButtons() {
 
   if (prevBoop && boop && !armed && !boopLongHandled && !suppressBoopRelease &&
       now - boopDownAt >= BTN_A_LONG_MS) {
+    menuClose(false);
     sleepDisplay(true);
     suppressBoopRelease = true;
     boopLongHandled = true;
@@ -276,17 +325,27 @@ static void __attribute__((noinline)) handleButtons() {
   if (boopRelease) {
     if (now - boopDownAt >= BTN_A_LONG_MS) suppressBoopRelease = true;
     if (!suppressBoopRelease) {
-      if (armed) sendApproval(true);
+      if (armed && (int32_t)(boopDownAt - armedAt) >= 0) sendApproval(true);
+      else if (pending) {
+        // Press raced the arming window of a fresh prompt: swallow it.
+        // A boop reaction here would read as "approved" — worse than
+        // nothing. The card stays up; the next press counts.
+      }
+      else if (menuActive()) menuSelect(now);
       else boopPet();
     }
     suppressBoopRelease = false;
     boopLongHandled = false;
   }
-  if (rejPress && armed) sendApproval(false);
-  if (menuPress && !wasOff) {
-    buddyNextSpecies();
-    buddyInvalidate();
-    Serial.printf("<<MENU species=%s>>\n", buddySpeciesName());
+  // !wasOff on both: a tap that wakes the screen must never also act —
+  // especially not deny a prompt the user hasn't seen yet.
+  if (rejPress && !wasOff) {
+    if (armed) sendApproval(false);
+    else if (menuActive()) menuBack(now);
+  }
+  if (menuPress && !wasOff && !pending) {
+    if (menuActive()) menuNext(now);
+    else menuOpen(now);
   }
 
   prevBoop = boop;
@@ -363,6 +422,8 @@ static void dumpState() {
   doc["promptSource"] = tama.promptSource;
   doc["promptApproval"] = tama.promptApproval;
   doc["responseSent"] = responseSent;
+  doc["armed"] = promptArmed(millis());
+  doc["menu"] = menuScreenName();
   doc["muted"] = tama.muted;
   doc["screenOff"] = screenOff;
   doc["brightness"] = currentBrightness == 0xFF ? 0 : currentBrightness;
@@ -531,9 +592,10 @@ void handleSerialCommand(const char* line) {
   }
 
   // Debug: high-level approval shortcut. Use "press a|b [ms]" when a test
-  // needs to exercise the GPIO-level edge detector.
+  // needs to exercise the GPIO-level edge detector. Deliberately skips the
+  // arming delay — that guards human fingers, not scripts.
   if (strncmp(line, "btn ", 4) == 0) {
-    bool armed = tama.promptId[0] && tama.promptApproval && !responseSent;
+    bool armed = promptPending();
     char which = line[4];
     if (which == 'a' || which == 'A') {
       if (armed) { sendApproval(true);  Serial.println("<<BTN a approve sent>>"); }
@@ -550,12 +612,21 @@ void handleSerialCommand(const char* line) {
   // Debug: arm a fake approval prompt so the button path can be tested
   // offline with no daemon connected. Renders "APPROVE?" on-screen and
   // enables A/B until answered. A real daemon JSON push overwrites this.
-  if (strcmp(line, "mockprompt") == 0) {
+  if (strcmp(line, "mockprompt") == 0 || strcmp(line, "mockprompt fresh") == 0) {
     strncpy(tama.promptId, "DEBUG", sizeof(tama.promptId)-1);
     tama.promptId[sizeof(tama.promptId)-1] = 0;
     tama.promptApproval = true;
     responseSent = false;
-    promptArrivedMs = millis();
+    // Plain mockprompt backdates past the arming delay: the delay guards
+    // humans racing a real prompt's arrival; tests want "press a" to work
+    // immediately. "mockprompt fresh" keeps the real arrival time so HIL
+    // can prove the arming window actually swallows early presses.
+    promptArrivedMs = millis() - (line[10] ? 0 : PROMPT_ARM_MS);
+    // Pre-empt loop()'s promptId-change detector — it runs later this same
+    // iteration and would otherwise stamp promptArrivedMs = now, silently
+    // undoing the backdate above.
+    strncpy(lastPromptId, tama.promptId, sizeof(lastPromptId)-1);
+    lastPromptId[sizeof(lastPromptId)-1] = 0;
     Serial.println("<<BTN mockprompt armed>>");
     return;
   }
@@ -594,6 +665,9 @@ void setup() {
   settingsLoad();
   petNameLoad();
   buddyInit();
+  // Restore the buddy adopted via the on-device menu. A desktop heartbeat
+  // species *change* still overrides it (loop's lastSpecies tracker).
+  if (settings().species[0]) buddySetSpecies(settings().species);
 
   // BLE stays always-on; settings().bt is stored as a preference only.
   //
@@ -685,7 +759,14 @@ void loop() {
     responseSent = false;
     promptArrivedMs = millis();
   }
+  // A pending approval owns the buttons — close the menu before the button
+  // handler can route a press to it. keep=false: an interrupt the user
+  // didn't ask for must not adopt a character they never picked.
+  if (promptPending() && menuActive()) {
+    menuClose(false);
+  }
   handleButtons();
+  menuTick(millis());
 
   if (blePasskey()) {
     wakeDisplay();
@@ -725,41 +806,93 @@ void loop() {
   } else {
     buddyTick(activeState);
     const Palette& p = characterPalette();
-    int y = H - 70;   // HUD block: status + sessions + prompt lines
-    spr.fillRect(0, y, W, H - y, p.bg);
-    spr.setTextSize(1);
-    spr.setTextColor(tama.connected ? p.text : p.textDim, p.bg);
-    spr.setCursor(4, y);
-    spr.print(tama.connected ? "connected" : "disconnected");
-    spr.setTextColor(p.body, p.bg);
-    spr.setCursor(4, y + 12);
-    spr.printf("%s | %s", tama.pet[0] ? tama.pet : "-", tama.species[0] ? tama.species : "-");
-    spr.setTextColor(p.textDim, p.bg);
-    spr.setCursor(4, y + 24);
-    spr.printf("sessions: %u r%u w%u", tama.sessionsTotal, tama.sessionsRunning, tama.sessionsWaiting);
-    if (tama.promptId[0] && tama.promptApproval) {
-      // Surface the tool + hint so the user can decide without alt-tabbing.
-      // The desktop popover is the primary approval UI; this mirrors enough to glance.
-      uint32_t waited = (millis() - promptArrivedMs) / 1000;
-      spr.setTextColor(waited >= 10 ? HOT : p.text, p.bg);
-      spr.setCursor(4, y + 36);
-      spr.printf("APPROVE? %lus", (unsigned long)waited);
-      if (tama.promptTool[0]) {
-        spr.setTextColor(p.text, p.bg);
-        spr.setCursor(4, y + 48);
-        spr.printf("%.18s", tama.promptTool);
-      }
-      if (tama.promptHint[0]) {
+    uint32_t nowMs = millis();
+    if (menuActive()) {
+      menuDraw(spr, nowMs);
+    } else {
+      int y = H - 70;   // HUD block: status + sessions + prompt lines
+      spr.fillRect(0, y, W, H - y, p.bg);
+      spr.setTextSize(1);
+      if (promptPending()) {
+        // Approval card. Each affordance is drawn at the screen edge
+        // nearest its physical button so the hardware is the legend: the
+        // pulsing "boop = yes" band sits under the top crown button, the
+        // "no >" chip sits over the bottom-right reject button.
+        uint32_t waited = (nowMs - promptArrivedMs) / 1000;
+        bool hot = waited >= 10;
+        uint16_t pulse = ((nowMs / 500) & 1) ? (hot ? HOT : p.text) : p.textDim;
+        spr.fillRect(0, 0, W, 20, p.bg);
+        spr.setTextDatum(TC_DATUM);
+        spr.setTextColor(pulse, p.bg);
+        spr.drawString("^ ^ ^", W / 2, 1);
+        spr.drawString("boop = yes", W / 2, 10);
+        spr.setTextDatum(TL_DATUM);
+
         spr.setTextColor(p.textDim, p.bg);
-        spr.setCursor(4, y + 60);
-        spr.printf("%.21s", tama.promptHint);
+        spr.setCursor(4, y);
+        spr.printf("%.16s asks:", tama.promptSource[0] ? tama.promptSource : "agent");
+        spr.setTextColor(p.text, p.bg);
+        spr.setCursor(4, y + 12);
+        spr.printf("%.23s", tama.promptTool[0] ? tama.promptTool : "approve?");
+        if (tama.promptHint[0]) {
+          spr.setTextColor(p.textDim, p.bg);
+          spr.setCursor(4, y + 24);
+          spr.printf("%.23s", tama.promptHint);
+          if (tama.promptHint[23]) {
+            spr.setCursor(4, y + 36);
+            spr.printf("%.23s", tama.promptHint + 23);
+          }
+        }
+        if (!tama.connected) {
+          // Link dropped with the card up: a boop can't be delivered.
+          // Say so instead of pretending to count. (Short: the "no >"
+          // chip shares this row from x~114.)
+          spr.setTextColor(HOT, p.bg);
+          spr.setCursor(4, H - 10);
+          spr.print("link lost!");
+        } else {
+          spr.setTextColor(hot ? HOT : p.textDim, p.bg);
+          spr.setCursor(4, H - 10);
+          spr.printf("waiting %lus", (unsigned long)waited);
+        }
+        spr.setTextDatum(BR_DATUM);
+        spr.setTextColor(hot ? HOT : p.text, p.bg);
+        spr.drawString("no >", W - 2, H - 2);
+        spr.setTextDatum(TL_DATUM);
+      } else if (tama.promptId[0] && tama.promptApproval && responseSent) {
+        // Decision feedback until the desktop clears the prompt. Deny is
+        // deliberately neutral — the pet approves of good catches too.
+        spr.setTextDatum(MC_DATUM);
+        spr.setTextSize(2);
+        if (lastDecisionApprove) {
+          spr.setTextColor(GREEN, p.bg);
+          spr.drawString("yes!", W / 2, y + 24);
+        } else {
+          spr.setTextColor(p.text, p.bg);
+          spr.drawString("okay", W / 2, y + 24);
+        }
+        spr.setTextSize(1);
+        spr.setTextColor(p.textDim, p.bg);
+        spr.drawString("sent", W / 2, y + 48);
+        spr.setTextDatum(TL_DATUM);
+      } else {
+        spr.setTextColor(tama.connected ? p.text : p.textDim, p.bg);
+        spr.setCursor(4, y);
+        spr.print(tama.connected ? "connected" : "disconnected");
+        spr.setTextColor(p.body, p.bg);
+        spr.setCursor(4, y + 12);
+        spr.printf("%s | %s", tama.pet[0] ? tama.pet : "-", tama.species[0] ? tama.species : "-");
+        spr.setTextColor(p.textDim, p.bg);
+        spr.setCursor(4, y + 24);
+        spr.printf("sessions: %u r%u w%u", tama.sessionsTotal, tama.sessionsRunning, tama.sessionsWaiting);
+        if (tama.msg[0] && (strcmp(tama.pet, "celebrate") == 0 || strcmp(tama.pet, "idle") == 0)) {
+          // Surface the "Done: …" completion summary on the bottom line during
+          // celebrate/idle when the desktop has populated msg with a completion.
+          spr.setTextColor(GREEN, p.bg);
+          spr.setCursor(4, y + 36);
+          spr.printf("%.21s", tama.msg);
+        }
       }
-    } else if (tama.msg[0] && (strcmp(tama.pet, "celebrate") == 0 || strcmp(tama.pet, "idle") == 0)) {
-      // Surface the "Done: …" completion summary on the bottom line during
-      // celebrate/idle when the desktop has populated msg with a completion.
-      spr.setTextColor(GREEN, p.bg);
-      spr.setCursor(4, y + 36);
-      spr.printf("%.21s", tama.msg);
     }
   }
   if (!screenOff) halPresent(spr);
