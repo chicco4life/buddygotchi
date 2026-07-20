@@ -40,6 +40,25 @@
 > prompt-takes-over-menu, fresh-prompt arming window); `state` now reports
 > `menu` and `armed`.
 >
+> **UX pass 2 — landscape face (2026-07-19, verified on device):** the
+> Pebble screen is now LANDSCAPE and IS the character's face. WS logical
+> canvas flipped to 228x140; `halPresent` pixel-doubles AND rotates into
+> the portrait panel (logical columns become contiguous panel row pairs;
+> `WS_USB_LEFT` in `hal_ws_amoled164.cpp` picks the mounting direction —
+> flip it if the glass renders upside down). New `firmware/face.h`
+> renders glow-on-black eyes+mouth with per-state expressions (sleep
+> lids+z's, idle blink/glance/bob, busy half-lids+working dots, attention
+> wide-eyes-raised toward the crown, celebrate arc-eyes+confetti, dizzy
+> X-eyes, heart eyes+blush), tinted by `buddySpeciesColor()` — species
+> now differ by accent color on the face board; ASCII bodies remain the
+> M5/portrait renderer, and GIF character packs are portrait-only (not
+> yet supported on the landscape board). HUD block is 52px in landscape
+> (`HAL_HUD_H`/`HAL_LANDSCAPE` in hal.h), approval card uses wide rows
+> ("source: tool" + 36-char hint wrap), menu/stats/passkey/OTA layouts
+> are orientation-aware/proportional. `halDisplayRotation()`=1 =
+> landscape metadata for screenshots (228x140). Full USB HIL suite
+> re-run on device after the change: 27/27.
+>
 > **Hardware bring-up (2026-07-19, board on desk):** flashed over native
 > USB CDC with no BOOT dance (`tools/pio_ws.sh run -e ws-amoled164 -t
 > upload`, enumerates `/dev/cu.usbmodem*`; buddyctl's raw-termios open

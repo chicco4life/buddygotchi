@@ -170,7 +170,10 @@ inline void menuTick(uint32_t now) {
 inline void menuDraw(BuddyCanvas& spr, uint32_t now) {
   const Palette& p = characterPalette();
   const int W = HAL_W, H = HAL_H;
-  const int y = H - 70;
+  const int y = H - HAL_HUD_H;
+  // Landscape has a shorter HUD block, so the footer row sits tighter
+  // under the size-2 value row.
+  const int footY = y + (HAL_LANDSCAPE ? 34 : 38);
 
   spr.setTextSize(1);
 
@@ -188,7 +191,7 @@ inline void menuDraw(BuddyCanvas& spr, uint32_t now) {
       spr.drawString("menu", W / 2, y + 2);
       spr.setTextSize(2);
       spr.setTextColor(p.text, p.bg);
-      spr.drawString(MENU_ROOT_ITEMS[_menuIdx], W / 2, y + 16);
+      spr.drawString(MENU_ROOT_ITEMS[_menuIdx], W / 2, y + 14);
       spr.setTextSize(1);
       char dots[2 * MENU_ROOT_N];
       for (int i = 0; i < MENU_ROOT_N; i++) {
@@ -197,7 +200,7 @@ inline void menuDraw(BuddyCanvas& spr, uint32_t now) {
       }
       dots[2 * MENU_ROOT_N - 1] = 0;
       spr.setTextColor(p.textDim, p.bg);
-      spr.drawString(dots, W / 2, y + 38);
+      spr.drawString(dots, W / 2, footY);
       break;
     }
     case MENU_CHARACTER: {
@@ -205,13 +208,14 @@ inline void menuDraw(BuddyCanvas& spr, uint32_t now) {
       spr.setTextColor(p.textDim, p.bg);
       spr.drawString("character", W / 2, y + 2);
       spr.setTextSize(2);
-      spr.setTextColor(p.body, p.bg);
-      spr.drawString(buddySpeciesName(), W / 2, y + 16);
+      // The live preview above shows the accent color; name it here.
+      spr.setTextColor(HAL_LANDSCAPE ? buddySpeciesColor() : p.body, p.bg);
+      spr.drawString(buddySpeciesName(), W / 2, y + 14);
       spr.setTextSize(1);
       char pos[12];
       snprintf(pos, sizeof(pos), "%u/%u", buddySpeciesIdx() + 1, buddySpeciesCount());
       spr.setTextColor(p.textDim, p.bg);
-      spr.drawString(pos, W / 2, y + 38);
+      spr.drawString(pos, W / 2, footY);
       break;
     }
     case MENU_SOUND: {
@@ -220,28 +224,38 @@ inline void menuDraw(BuddyCanvas& spr, uint32_t now) {
       spr.drawString("sound", W / 2, y + 2);
       spr.setTextSize(2);
       spr.setTextColor(p.text, p.bg);
-      spr.drawString(settings().sound ? "on" : "off", W / 2, y + 16);
+      spr.drawString(settings().sound ? "on" : "off", W / 2, y + 14);
       spr.setTextSize(1);
       spr.setTextColor(p.textDim, p.bg);
-      spr.drawString("pick = toggle", W / 2, y + 38);
+      spr.drawString("pick = toggle", W / 2, footY);
       break;
     }
     case MENU_STATS: {
-      // One stat per line — "approved 65535" is 14 chars, well inside the
-      // 23-char row; a combined line clips off the 140px canvas.
       spr.setTextDatum(TL_DATUM);
       spr.setTextColor(p.text, p.bg);
-      spr.setCursor(4, y + 2);
-      spr.printf("approved %u", stats().approvals);
-      spr.setCursor(4, y + 14);
-      spr.printf("denied %u", stats().denials);
-      spr.setCursor(4, y + 26);
-      spr.printf("naps %lum", (unsigned long)(stats().napSeconds / 60));
-      spr.setTextColor(p.textDim, p.bg);
-      spr.setCursor(4, y + 38);
-      spr.printf("fw %.20s", FW_VERSION);
-      spr.setCursor(4, y + 50);
-      spr.print(HAL_BOARD_NAME);
+      if (HAL_LANDSCAPE) {
+        // Wide rows: three lines fit the 52px block.
+        spr.setCursor(4, y + 2);
+        spr.printf("approved %u   denied %u", stats().approvals, stats().denials);
+        spr.setCursor(4, y + 14);
+        spr.printf("naps %lum", (unsigned long)(stats().napSeconds / 60));
+        spr.setTextColor(p.textDim, p.bg);
+        spr.setCursor(4, y + 26);
+        spr.printf("fw %.18s %.12s", FW_VERSION, HAL_BOARD_NAME);
+      } else {
+        // One stat per line — a combined line clips off the 140px canvas.
+        spr.setCursor(4, y + 2);
+        spr.printf("approved %u", stats().approvals);
+        spr.setCursor(4, y + 14);
+        spr.printf("denied %u", stats().denials);
+        spr.setCursor(4, y + 26);
+        spr.printf("naps %lum", (unsigned long)(stats().napSeconds / 60));
+        spr.setTextColor(p.textDim, p.bg);
+        spr.setCursor(4, y + 38);
+        spr.printf("fw %.20s", FW_VERSION);
+        spr.setCursor(4, y + 50);
+        spr.print(HAL_BOARD_NAME);
+      }
       break;
     }
     default:

@@ -13,6 +13,7 @@ void buddySetPeek(bool peek);
 uint8_t buddySpeciesIdx();
 uint8_t buddySpeciesCount();
 const char* buddySpeciesName();
+uint16_t buddySpeciesColor();   // body/accent color of the current species
 
 // Per-species state function: takes the global tickCount and renders
 // the buddy + any overlays for the current state into the shared sprite.

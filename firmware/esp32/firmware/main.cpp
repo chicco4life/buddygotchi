@@ -34,6 +34,7 @@ static void startBt() {
 #include "character.h"
 #include "stats.h"
 #include "menu.h"
+#include "face.h"
 const int W = HAL_W, H = HAL_H;
 const int CX = W / 2;
 const int CY_BASE = H / 2;
@@ -203,18 +204,23 @@ static void updateDisplayPower(PersonaState state) {
   setDisplayBrightness(BRIGHT_MEDIUM);
 }
 
+// Proportional layout so the same code fits both the portrait M5 and the
+// landscape Pebble canvas.
 void drawPasskey() {
   const Palette& p = characterPalette();
   spr.fillSprite(p.bg);
+  spr.setTextDatum(TC_DATUM);
   spr.setTextSize(1);
   spr.setTextColor(p.textDim, p.bg);
-  spr.setCursor(8, 56);  spr.print("BLUETOOTH PAIRING");
-  spr.setCursor(8, H - 56); spr.print("enter on desktop:");
+  spr.drawString("BLUETOOTH PAIRING", W / 2, 8);
   spr.setTextSize(3);
   spr.setTextColor(p.text, p.bg);
   char b[8]; snprintf(b, sizeof(b), "%06lu", (unsigned long)blePasskey());
-  spr.setCursor((W - 18 * 6) / 2, CY_BASE - 10);
-  spr.print(b);
+  spr.drawString(b, W / 2, CY_BASE - 12);
+  spr.setTextSize(1);
+  spr.setTextColor(p.textDim, p.bg);
+  spr.drawString("enter on desktop", W / 2, H - 16);
+  spr.setTextDatum(TL_DATUM);
 }
 
 PersonaState derive(const TamaState& s) {
@@ -779,16 +785,16 @@ void loop() {
     spr.setTextDatum(TC_DATUM);
     spr.setTextSize(2);
     spr.setTextColor(WHITE, BLACK);
-    spr.drawString("Updating", CX, 40);
+    spr.drawString("Updating", CX, H / 6);
     spr.setTextSize(1);
     spr.setTextColor(LIGHTGREY, BLACK);
-    spr.drawString("firmware…", CX, 70);
+    spr.drawString("firmware…", CX, H / 6 + 18);
 
     uint32_t total = otaTotal();
     uint32_t done = otaProgress();
     int pct = total > 0 ? (int)((done * 100) / total) : 0;
     if (pct > 100) pct = 100;
-    int barX = 12, barY = 110, barW = W - 24, barH = 14;
+    int barX = W / 8, barY = CY_BASE - 7, barW = W - W / 4, barH = 14;
     spr.drawRoundRect(barX, barY, barW, barH, 3, WHITE);
     int fillW = (barW - 4) * pct / 100;
     if (fillW > 0) spr.fillRoundRect(barX + 2, barY + 2, fillW, barH - 4, 2, WHITE);
@@ -797,20 +803,25 @@ void loop() {
     snprintf(pctBuf, sizeof(pctBuf), "%d%%", pct);
     spr.setTextSize(2);
     spr.setTextColor(WHITE, BLACK);
-    spr.drawString(pctBuf, CX, 140);
+    spr.drawString(pctBuf, CX, CY_BASE + 12);
 
     spr.setTextSize(1);
     spr.setTextColor(LIGHTGREY, BLACK);
-    spr.drawString("keep nearby", CX, 180);
-    spr.drawString("device will restart", CX, 195);
+    spr.drawString("keep nearby", CX, H - 26);
+    spr.drawString("device will restart", CX, H - 14);
   } else {
-    buddyTick(activeState);
+    // Landscape board: the screen is the character's face. Portrait M5
+    // keeps the ASCII species art (and GIF character packs, which are
+    // portrait-sized — not yet supported on the landscape board).
+    if (HAL_LANDSCAPE) faceTick(activeState);
+    else buddyTick(activeState);
     const Palette& p = characterPalette();
     uint32_t nowMs = millis();
     if (menuActive()) {
       menuDraw(spr, nowMs);
     } else {
-      int y = H - 70;   // HUD block: status + sessions + prompt lines
+      int y = H - HAL_HUD_H;   // HUD block: status + sessions + prompt lines
+      const int CPL = (W - 8) / 6;   // chars per HUD row at text size 1
       spr.fillRect(0, y, W, H - y, p.bg);
       spr.setTextSize(1);
       if (promptPending()) {
@@ -828,25 +839,43 @@ void loop() {
         spr.drawString("boop = yes", W / 2, 10);
         spr.setTextDatum(TL_DATUM);
 
-        spr.setTextColor(p.textDim, p.bg);
-        spr.setCursor(4, y);
-        spr.printf("%.16s asks:", tama.promptSource[0] ? tama.promptSource : "agent");
-        spr.setTextColor(p.text, p.bg);
-        spr.setCursor(4, y + 12);
-        spr.printf("%.23s", tama.promptTool[0] ? tama.promptTool : "approve?");
-        if (tama.promptHint[0]) {
+        const char* tool = tama.promptTool[0] ? tama.promptTool : "approve?";
+        if (HAL_LANDSCAPE) {
+          // Wide rows: "source: tool" on one line, hint wrapped below.
+          spr.setTextColor(p.text, p.bg);
+          spr.setCursor(4, y + 2);
+          if (tama.promptSource[0]) spr.printf("%.10s: %.24s", tama.promptSource, tool);
+          else spr.printf("%.*s", CPL, tool);
+          if (tama.promptHint[0]) {
+            spr.setTextColor(p.textDim, p.bg);
+            spr.setCursor(4, y + 14);
+            spr.printf("%.*s", CPL, tama.promptHint);
+            if (tama.promptHint[CPL]) {
+              spr.setCursor(4, y + 26);
+              spr.printf("%.*s", CPL, tama.promptHint + CPL);
+            }
+          }
+        } else {
           spr.setTextColor(p.textDim, p.bg);
-          spr.setCursor(4, y + 24);
-          spr.printf("%.23s", tama.promptHint);
-          if (tama.promptHint[23]) {
-            spr.setCursor(4, y + 36);
-            spr.printf("%.23s", tama.promptHint + 23);
+          spr.setCursor(4, y);
+          spr.printf("%.16s asks:", tama.promptSource[0] ? tama.promptSource : "agent");
+          spr.setTextColor(p.text, p.bg);
+          spr.setCursor(4, y + 12);
+          spr.printf("%.*s", CPL, tool);
+          if (tama.promptHint[0]) {
+            spr.setTextColor(p.textDim, p.bg);
+            spr.setCursor(4, y + 24);
+            spr.printf("%.*s", CPL, tama.promptHint);
+            if (tama.promptHint[CPL]) {
+              spr.setCursor(4, y + 36);
+              spr.printf("%.*s", CPL, tama.promptHint + CPL);
+            }
           }
         }
         if (!tama.connected) {
           // Link dropped with the card up: a boop can't be delivered.
           // Say so instead of pretending to count. (Short: the "no >"
-          // chip shares this row from x~114.)
+          // chip shares this row.)
           spr.setTextColor(HOT, p.bg);
           spr.setCursor(4, H - 10);
           spr.print("link lost!");
@@ -862,18 +891,20 @@ void loop() {
       } else if (tama.promptId[0] && tama.promptApproval && responseSent) {
         // Decision feedback until the desktop clears the prompt. Deny is
         // deliberately neutral — the pet approves of good catches too.
+        int yesY = y + (HAL_LANDSCAPE ? 14 : 24);
+        int sentY = y + (HAL_LANDSCAPE ? 38 : 48);
         spr.setTextDatum(MC_DATUM);
         spr.setTextSize(2);
         if (lastDecisionApprove) {
           spr.setTextColor(GREEN, p.bg);
-          spr.drawString("yes!", W / 2, y + 24);
+          spr.drawString("yes!", W / 2, yesY);
         } else {
           spr.setTextColor(p.text, p.bg);
-          spr.drawString("okay", W / 2, y + 24);
+          spr.drawString("okay", W / 2, yesY);
         }
         spr.setTextSize(1);
         spr.setTextColor(p.textDim, p.bg);
-        spr.drawString("sent", W / 2, y + 48);
+        spr.drawString("sent", W / 2, sentY);
         spr.setTextDatum(TL_DATUM);
       } else {
         spr.setTextColor(tama.connected ? p.text : p.textDim, p.bg);
@@ -890,7 +921,7 @@ void loop() {
           // celebrate/idle when the desktop has populated msg with a completion.
           spr.setTextColor(GREEN, p.bg);
           spr.setCursor(4, y + 36);
-          spr.printf("%.21s", tama.msg);
+          spr.printf("%.*s", CPL, tama.msg);
         }
       }
     }

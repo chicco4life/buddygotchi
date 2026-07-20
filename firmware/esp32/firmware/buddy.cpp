@@ -127,6 +127,10 @@ const char* buddySpeciesName() {
   return SPECIES_TABLE[currentSpeciesIdx]->name;
 }
 
+uint16_t buddySpeciesColor() {
+  return SPECIES_TABLE[currentSpeciesIdx]->bodyColor;
+}
+
 uint8_t buddySpeciesCount() { return N_SPECIES; }
 
 uint8_t buddySpeciesIdx() { return currentSpeciesIdx; }

@@ -23,6 +23,10 @@
 static const int PANEL_W = 280;
 static const int PANEL_H = 456;
 
+// Landscape mounting direction: true = USB-C points left when you face
+// the landscape screen (board rotated 90° clockwise into the enclosure).
+static const bool WS_USB_LEFT = true;
+
 // Display pins (Waveshare schematic / official arduino-esp32 variant)
 static const int PIN_OLED_CS  = 9;
 static const int PIN_OLED_CLK = 10;
@@ -159,22 +163,24 @@ void halPresent(BuddyCanvas& spr) {
     memset(_fb, 0, (size_t)PANEL_W * PANEL_H * 2);
   }
   int ox = drift & 1, oy = (drift >> 1) & 1;
-  // When shifted right, the last doubled column's second pixel would land
-  // at PANEL_W — handle that one pixel outside the hot loop.
-  int wFull = (ox && 2 * w == PANEL_W) ? w - 1 : w;
 
-  for (int y = 0; y < h; y++) {
-    const uint8_t* s = src + (size_t)y * stride;
-    int dy = y * 2 + oy;
-    uint16_t* row = _fb + (size_t)dy * PANEL_W;
-    uint16_t* d = row + ox;
-    for (int x = 0; x < wFull; x++) {
-      uint16_t c = _lut565[s[x]];
-      d[2 * x]     = c;
-      d[2 * x + 1] = c;
+  // Rotate the 228x140 landscape logical canvas into the portrait panel
+  // while pixel-doubling. Each logical COLUMN becomes two contiguous
+  // panel ROWS, so the inner loop writes sequentially and the row can be
+  // duplicated with one memcpy. With WS_USB_LEFT the USB-C connector
+  // points left when facing the landscape screen; flip it if the
+  // enclosure mounts the board the other way (image rotates 180°).
+  for (int lx = 0; lx < w; lx++) {
+    const uint8_t* s = src + lx;
+    int py = (WS_USB_LEFT ? (PANEL_H - 2 - 2 * lx) : (2 * lx)) + oy;
+    uint16_t* row = _fb + (size_t)py * PANEL_W;
+    for (int ly = 0; ly < h; ly++) {
+      uint16_t c = _lut565[s[(size_t)ly * stride]];
+      int px = (WS_USB_LEFT ? (2 * ly) : (PANEL_W - 2 - 2 * ly)) + ox;
+      row[px] = c;
+      if (px + 1 < PANEL_W) row[px + 1] = c;
     }
-    if (wFull < w) d[2 * (w - 1)] = _lut565[s[w - 1]];
-    if (dy + 1 < PANEL_H) memcpy(row + PANEL_W, row, (size_t)PANEL_W * 2);
+    if (py + 1 < PANEL_H) memcpy(row + PANEL_W, row, (size_t)PANEL_W * 2);
   }
   _gfx->draw16bitRGBBitmap(0, 0, _fb, PANEL_W, PANEL_H);
 }
@@ -198,7 +204,9 @@ void halSetBrightness(uint8_t b) {
   if (_gfx && _displayOn) _gfx->setBrightness(b);
 }
 
-int halDisplayRotation() { return 0; }
+// 1 = landscape logical canvas (the panel itself is portrait; the rotate
+// happens in halPresent). Host tooling only uses this as metadata.
+int halDisplayRotation() { return 1; }
 
 bool halButtonDown(HalButton b) {
   switch (b) {

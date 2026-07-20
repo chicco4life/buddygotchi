@@ -29,8 +29,12 @@
   using BuddyCanvas = lgfx::v1::LGFX_Sprite;
   #define HAL_CANVAS_PARENT nullptr
   #define HAL_BOARD_NAME "ws-amoled164"
-  const int HAL_W = 140;   // logical canvas; presented 2x -> 280x456
-  const int HAL_H = 228;
+  // The Pebble mounts the portrait 280x456 panel sideways: the product
+  // screen is LANDSCAPE. Logical canvas is 228x140; halPresent doubles
+  // and rotates it into the panel's portrait framebuffer (the CO5300 has
+  // no hardware rotation).
+  const int HAL_W = 228;
+  const int HAL_H = 140;
   // TFT_eSPI-style color names come from M5GFX on the M5 build; LovyanGFX
   // standalone doesn't define them.
   #ifndef BLACK
@@ -47,6 +51,12 @@
   const int HAL_W = 135;
   const int HAL_H = 240;
 #endif
+
+// Orientation-derived layout facts shared by every draw surface. The
+// landscape board runs the face-first layout with a shorter HUD strip;
+// the portrait M5 keeps the original 70px block.
+const bool HAL_LANDSCAPE = HAL_W > HAL_H;
+const int  HAL_HUD_H = HAL_LANDSCAPE ? 52 : 70;
 
 // Logical buttons. Physical mapping per board:
 //   M5:  BOOP = BtnA (GPIO37), REJECT = BtnB (GPIO39), MENU absent
