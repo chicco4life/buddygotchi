@@ -34,6 +34,7 @@ bool halHasButton(HalButton b) { return b != HAL_BTN_MENU; }
 
 int  halBatteryVoltage_mV() { return StickCP2.Power.getBatteryVoltage(); }
 int  halBatteryCurrent_mA() { return (int)StickCP2.Power.getBatteryCurrent(); }
+bool halTouchDown()         { return false; }   // no touchscreen on M5
 bool halIsCharging()        { return StickCP2.Power.isCharging(); }
 void halSetLed(bool on)     { StickCP2.Power.setLed(on ? 1 : 0); }
 void halTone(uint16_t freq, uint16_t ms) { StickCP2.Speaker.tone(freq, ms); }

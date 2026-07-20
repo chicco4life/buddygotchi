@@ -16,6 +16,7 @@ struct TamaState {
   bool     celebrate;
   uint32_t lastUpdated;
   char     msg[24];
+  char     activity[10];      // what the agent is doing: verify/read/write/shell/web/work
   bool     muted;
   bool     connected;
   char     lines[6][81];
@@ -127,6 +128,10 @@ static void _applyJson(const char* line, TamaState* out) {
   if (doc["mute"].is<bool>()) out->muted = doc["mute"] | false;
   const char* m = doc["msg"];
   if (m) { strncpy(out->msg, m, sizeof(out->msg)-1); out->msg[sizeof(out->msg)-1]=0; }
+  // Omitted means unchanged (the desktop only sends it while working);
+  // stale values are harmless — the face only shows it in the busy state.
+  const char* act = doc["activity"];
+  if (act) { strncpy(out->activity, act, sizeof(out->activity)-1); out->activity[sizeof(out->activity)-1]=0; }
   JsonArray la = doc["entries"];
   if (!la.isNull()) {
     uint8_t n = 0;

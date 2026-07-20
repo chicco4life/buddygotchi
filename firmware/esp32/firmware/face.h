@@ -53,7 +53,18 @@ static void _faceEyeHeart(int cx, int cy, uint16_t c) {
   spr.fillTriangle(cx - 10, cy, cx + 10, cy, cx, cy + 11, c);
 }
 
-inline void faceTick(uint8_t persona) {
+// Map the wire activity kind to the verb the busy face wears.
+static const char* _faceActivityVerb(const char* activity) {
+  if (!activity || !activity[0]) return "working";
+  if (strcmp(activity, "verify") == 0) return "testing";
+  if (strcmp(activity, "read") == 0)   return "reading";
+  if (strcmp(activity, "write") == 0)  return "writing";
+  if (strcmp(activity, "shell") == 0)  return "running";
+  if (strcmp(activity, "web") == 0)    return "browsing";
+  return "working";
+}
+
+inline void faceTick(uint8_t persona, const char* activity) {
   uint32_t now = millis();
   static uint32_t nextFrameAt = 0;
   static uint8_t lastPersona = 0xFF;
@@ -123,6 +134,13 @@ inline void faceTick(uint8_t persona) {
         uint16_t c = (i == active) ? accent : (uint16_t)((accent >> 2) & 0x39E7);
         spr.fillCircle(cx + 20 + i * 9, mouthY + 2, 2, c);
       }
+      // What the agent is actually doing, small and dim above the eyes —
+      // the `activity` wire field finally rendered somewhere.
+      spr.setTextSize(1);
+      spr.setTextDatum(TC_DATUM);
+      spr.setTextColor((uint16_t)((accent >> 1) & 0x7BEF), BLACK);
+      spr.drawString(_faceActivityVerb(activity), cx, 12);
+      spr.setTextDatum(TL_DATUM);
       break;
     }
     case 3: {  // attention — wide eyes raised toward the boop button

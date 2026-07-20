@@ -252,6 +252,27 @@ static bool readBtn(HalButton b) {
   return halButtonDown(b);
 }
 
+// Two-row text with a word-aware break: split at the last space within
+// reach of the row width instead of mid-word. Rows are capped at cpl
+// chars; anything past two rows is dropped.
+static void drawWrapped2(const char* s, int x, int y1, int y2, int cpl) {
+  int len = (int)strlen(s);
+  if (len <= cpl) {
+    spr.setCursor(x, y1);
+    spr.print(s);
+    return;
+  }
+  int brk = cpl;
+  for (int i = cpl; i > cpl - 12 && i > 0; i--) {
+    if (s[i] == ' ') { brk = i; break; }
+  }
+  spr.setCursor(x, y1);
+  spr.printf("%.*s", brk, s);
+  const char* rest = s + brk + (s[brk] == ' ' ? 1 : 0);
+  spr.setCursor(x, y2);
+  spr.printf("%.*s", cpl, rest);
+}
+
 // Emit the permission decision for the current prompt. Shared by the
 // physical buttons and the debug "btn" serial command so both produce the
 // exact same wire format and trip the same responseSent latch.
@@ -288,6 +309,9 @@ static void boopPet() {
 //            open.
 //   MENU   — open the on-device menu; next item once it's open. (Absent
 //            on M5; synthetic "press m" still exercises it there.)
+// Panel touch is affection-only: it wakes the screen and boops the pet,
+// and is deliberately powerless while a prompt is pending or the menu is
+// open — only physical buttons may act on those.
 // Any press wakes the screen; a wake-press never doubles as an action.
 // Approvals additionally require the press to have STARTED after the
 // prompt was armed (PROMPT_ARM_MS) so a tickle in flight can't approve a
@@ -353,6 +377,15 @@ static void __attribute__((noinline)) handleButtons() {
     if (menuActive()) menuNext(now);
     else menuOpen(now);
   }
+
+  static bool prevTouch = false;
+  bool touch = halTouchDown();
+  if (!prevTouch && touch) {
+    wakeDisplay();
+    lastInputMs = now;
+    if (!wasOff && !pending && !menuActive()) boopPet();
+  }
+  prevTouch = touch;
 
   prevBoop = boop;
   prevRej = rej;
@@ -422,6 +455,7 @@ static void dumpState() {
   doc["running"] = tama.sessionsRunning;
   doc["waiting"] = tama.sessionsWaiting;
   doc["msg"] = tama.msg;
+  doc["activity"] = tama.activity;
   doc["promptId"] = tama.promptId;
   doc["promptTool"] = tama.promptTool;
   doc["promptHint"] = tama.promptHint;
@@ -813,7 +847,7 @@ void loop() {
     // Landscape board: the screen is the character's face. Portrait M5
     // keeps the ASCII species art (and GIF character packs, which are
     // portrait-sized — not yet supported on the landscape board).
-    if (HAL_LANDSCAPE) faceTick(activeState);
+    if (HAL_LANDSCAPE) faceTick(activeState, tama.activity);
     else buddyTick(activeState);
     const Palette& p = characterPalette();
     uint32_t nowMs = millis();
@@ -848,12 +882,7 @@ void loop() {
           else spr.printf("%.*s", CPL, tool);
           if (tama.promptHint[0]) {
             spr.setTextColor(p.textDim, p.bg);
-            spr.setCursor(4, y + 14);
-            spr.printf("%.*s", CPL, tama.promptHint);
-            if (tama.promptHint[CPL]) {
-              spr.setCursor(4, y + 26);
-              spr.printf("%.*s", CPL, tama.promptHint + CPL);
-            }
+            drawWrapped2(tama.promptHint, 4, y + 14, y + 26, CPL);
           }
         } else {
           spr.setTextColor(p.textDim, p.bg);
@@ -864,12 +893,7 @@ void loop() {
           spr.printf("%.*s", CPL, tool);
           if (tama.promptHint[0]) {
             spr.setTextColor(p.textDim, p.bg);
-            spr.setCursor(4, y + 24);
-            spr.printf("%.*s", CPL, tama.promptHint);
-            if (tama.promptHint[CPL]) {
-              spr.setCursor(4, y + 36);
-              spr.printf("%.*s", CPL, tama.promptHint + CPL);
-            }
+            drawWrapped2(tama.promptHint, 4, y + 24, y + 36, CPL);
           }
         }
         if (!tama.connected) {
@@ -916,9 +940,11 @@ void loop() {
         spr.setTextColor(p.textDim, p.bg);
         spr.setCursor(4, y + 24);
         spr.printf("sessions: %u r%u w%u", tama.sessionsTotal, tama.sessionsRunning, tama.sessionsWaiting);
-        if (tama.msg[0] && (strcmp(tama.pet, "celebrate") == 0 || strcmp(tama.pet, "idle") == 0)) {
-          // Surface the "Done: …" completion summary on the bottom line during
-          // celebrate/idle when the desktop has populated msg with a completion.
+        // Surface the "Done: …" completion summary on the bottom line during
+        // celebrate/idle. Gated on the prefix so status chatter (e.g. "no
+        // agents awake") doesn't wear the completion green.
+        if (strncmp(tama.msg, "Done", 4) == 0 &&
+            (strcmp(tama.pet, "celebrate") == 0 || strcmp(tama.pet, "idle") == 0)) {
           spr.setTextColor(GREEN, p.bg);
           spr.setCursor(4, y + 36);
           spr.printf("%.*s", CPL, tama.msg);

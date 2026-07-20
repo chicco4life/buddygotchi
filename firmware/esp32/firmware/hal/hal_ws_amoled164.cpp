@@ -14,7 +14,8 @@
 //   - hardware rotation is broken on this controller; portrait only
 //
 // Touch: FT3168 @ I2C 0x38, SDA=47 SCL=48. INT/RST are not routed on this
-// board, so we poll. Any touch counts as the BOOP button for now.
+// board, so we poll. Touch is surfaced via halTouchDown() only — never as
+// the BOOP button, so a screen tap can't answer a permission prompt.
 // Battery: no PMIC — voltage only, via a /3 divider on GPIO4 (ADC1_CH3).
 #include "hal.h"
 #include <Arduino_GFX_Library.h>
@@ -211,8 +212,10 @@ int halDisplayRotation() { return 1; }
 bool halButtonDown(HalButton b) {
   switch (b) {
     case HAL_BTN_BOOP:
+      // Touch is deliberately excluded: only a physical press may
+      // approve. See halTouchDown().
       return digitalRead(PIN_BTN_BOOP) == LOW ||
-             digitalRead(PIN_BTN_BOOT) == LOW || _touchDown;
+             digitalRead(PIN_BTN_BOOT) == LOW;
     case HAL_BTN_REJECT: return digitalRead(PIN_BTN_REJECT) == LOW;
     case HAL_BTN_MENU:   return digitalRead(PIN_BTN_MENU) == LOW;
     default:             return false;
@@ -220,6 +223,8 @@ bool halButtonDown(HalButton b) {
 }
 
 bool halHasButton(HalButton b) { (void)b; return true; }
+
+bool halTouchDown() { return _touchDown; }
 
 int halBatteryVoltage_mV() {
   // 200K/100K divider -> ADC sees vbat/3. Average a few reads; the S3 ADC

@@ -60,8 +60,9 @@ const int  HAL_HUD_H = HAL_LANDSCAPE ? 52 : 70;
 
 // Logical buttons. Physical mapping per board:
 //   M5:  BOOP = BtnA (GPIO37), REJECT = BtnB (GPIO39), MENU absent
-//   WS:  BOOP = header IO1 + on-board BOOT (IO0) + any touch on the panel
+//   WS:  BOOP = header IO1 + on-board BOOT (IO0)
 //        REJECT = header IO2, MENU = header IO5
+// Panel touch is intentionally NOT part of BOOP — see halTouchDown().
 enum HalButton : uint8_t { HAL_BTN_BOOP = 0, HAL_BTN_REJECT = 1, HAL_BTN_MENU = 2 };
 const int HAL_BTN_COUNT = 3;
 
@@ -86,6 +87,12 @@ int  halDisplayRotation();
 
 bool halButtonDown(HalButton b);    // raw debounce-free physical state, true = held
 bool halHasButton(HalButton b);     // MENU is absent on M5
+
+// Touchscreen contact (WS only; always false on M5). Deliberately NOT a
+// button: per the product doctrine only physical buttons may approve or
+// deny — touch and IMU are affection/display-only, so a cat on the desk
+// can never answer a permission prompt.
+bool halTouchDown();
 
 int  halBatteryVoltage_mV();
 int  halBatteryCurrent_mA();        // 0 where unmeasurable (WS has no coulomb counter)

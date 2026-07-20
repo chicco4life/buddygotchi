@@ -212,7 +212,7 @@ def write_png(path: Path, w: int, h: int, rgb: bytes) -> None:
 
 def heartbeat_from_args(args: argparse.Namespace) -> dict[str, Any]:
     payload: dict[str, Any] = {}
-    for key in ("pet", "species", "desktop", "msg"):
+    for key in ("pet", "species", "desktop", "msg", "activity"):
         value = getattr(args, key, None)
         if value is not None:
             payload[key] = value
@@ -615,6 +615,7 @@ def add_heartbeat_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--running", type=int)
     p.add_argument("--waiting", type=int)
     p.add_argument("--msg")
+    p.add_argument("--activity")
     p.add_argument("--entries", action="append")
     p.add_argument("--prompt-id")
     p.add_argument("--prompt-tool")
