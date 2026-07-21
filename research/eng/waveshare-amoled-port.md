@@ -59,6 +59,18 @@
 > landscape metadata for screenshots (228x140). Full USB HIL suite
 > re-run on device after the change: 27/27.
 >
+> **UX pass 3 (2026-07-21, verified on device):** fixed the one-frame
+> wake bug (screen-off after 10min asleep relapsed immediately on
+> tap/press — the dim/off ladder now restarts from the last user input);
+> touch is affection-only via `halTouchDown()` (can never approve/deny —
+> product doctrine); booping a sleeping face does the sleep-peek (one
+> eye cracks open) instead of heart-eyes; per-species eye geometry table
+> in face.h (owl enormous, cat almonds, robot square...); busy face
+> shows the heartbeat `activity` verb ("testing"/"reading"/...); green
+> completion row gated on "Done" prefix; word-aware hint wrap.
+> Verified: 27/27 HIL, species/peek/busy screenshots, 13-min screen-off
+> soak (tap after auto-off stays awake and re-dims on schedule).
+>
 > **Hardware bring-up (2026-07-19, board on desk):** flashed over native
 > USB CDC with no BOOT dance (`tools/pio_ws.sh run -e ws-amoled164 -t
 > upload`, enumerates `/dev/cu.usbmodem*`; buddyctl's raw-termios open
