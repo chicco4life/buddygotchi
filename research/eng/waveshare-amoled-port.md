@@ -73,6 +73,13 @@
 > Verified: 27/27 HIL, species/peek/busy screenshots, 13-min screen-off
 > soak (tap after auto-off stays awake and re-dims on schedule).
 >
+> **Burn-in (2026-07-21, `tools/soak.py --minutes 120`, build 78217a5):**
+> 1140 randomized cycles over 2h01m continuous uptime — 285 prompts
+> answered, 190 menu round-trips, 114 screenshot-integrity checks — with
+> zero reboots, zero panics, and no heap erosion (151448 → 151292 free,
+> low-water 149608, floor 60000). Post-review adversarial pass over the
+> landscape/face/touch/sleep commits found zero correctness bugs.
+>
 > **Hardware bring-up (2026-07-19, board on desk):** flashed over native
 > USB CDC with no BOOT dance (`tools/pio_ws.sh run -e ws-amoled164 -t
 > upload`, enumerates `/dev/cu.usbmodem*`; buddyctl's raw-termios open
