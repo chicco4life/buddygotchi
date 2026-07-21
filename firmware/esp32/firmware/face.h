@@ -26,12 +26,47 @@ static inline uint32_t _faceHash(uint32_t x) {
   return x ^ (x >> 16);
 }
 
-static void _faceEye(int cx, int cy, int w, int h, uint16_t c) {
+// Per-species eye geometry — the accent color plus these shapes are what
+// make each character read as itself on the face board. Indexed by
+// buddySpeciesIdx(); MUST stay in SPECIES_TABLE registry order
+// (buddy.cpp): capybara, duck, goose, blob, cat, dragon, octopus, owl,
+// penguin, turtle, snail, ghost, axolotl, cactus, robot, rabbit,
+// mushroom, chonk.
+struct FaceEyes { uint8_t w, h, r; };
+static const FaceEyes FACE_EYES[] = {
+  { 24, 18,  6 },   // capybara — chill half-lids
+  { 22, 26,  8 },   // duck — round and eager
+  { 18, 30,  7 },   // goose — tall and alert
+  { 24, 28,  9 },   // blob — big and soft
+  { 16, 28,  8 },   // cat — vertical almonds
+  { 22, 22,  4 },   // dragon — fierce squint
+  { 22, 26, 11 },   // octopus — very round
+  { 28, 30, 13 },   // owl — enormous
+  { 18, 22,  9 },   // penguin — small and neat
+  { 22, 16,  6 },   // turtle — sleepy
+  { 16, 20,  8 },   // snail — small, high
+  { 20, 26, 10 },   // ghost — hollow ovals
+  { 22, 24, 10 },   // axolotl — happy rounds
+  { 14, 18,  6 },   // cactus — tiny
+  { 22, 22,  2 },   // robot — square
+  { 16, 28,  7 },   // rabbit — tall
+  { 12, 16,  6 },   // mushroom — dots
+  { 28, 18,  8 },   // chonk — wide and squished
+};
+static const uint8_t FACE_EYES_N = sizeof(FACE_EYES) / sizeof(FACE_EYES[0]);
+
+static FaceEyes _faceEyes() {
+  uint8_t i = buddySpeciesIdx();
+  if (i >= FACE_EYES_N) return FaceEyes{ 22, 26, 8 };
+  return FACE_EYES[i];
+}
+
+static void _faceEye(int cx, int cy, int w, int h, int r, uint16_t c) {
   if (h <= 5) {
     spr.fillRoundRect(cx - w / 2, cy - 2, w, 4, 2, c);   // closed lid
   } else {
-    int r = w / 3;
     if (r > h / 2) r = h / 2;
+    if (r > w / 2) r = w / 2;
     spr.fillRoundRect(cx - w / 2, cy - h / 2, w, h, r, c);
   }
 }
@@ -64,7 +99,7 @@ static const char* _faceActivityVerb(const char* activity) {
   return "working";
 }
 
-inline void faceTick(uint8_t persona, const char* activity) {
+inline void faceTick(uint8_t persona, const char* activity, bool boopActive) {
   uint32_t now = millis();
   static uint32_t nextFrameAt = 0;
   static uint8_t lastPersona = 0xFF;
@@ -77,6 +112,7 @@ inline void faceTick(uint8_t persona, const char* activity) {
   if (persona == lastPersona && (int32_t)(now - nextFrameAt) < 0) return;
   lastPersona = persona;
   nextFrameAt = now + 100;
+  FaceEyes e = _faceEyes();
 
   // Blink / glance scheduling (idle life). Runs off wall time so state
   // changes don't reset the rhythm.
@@ -113,8 +149,15 @@ inline void faceTick(uint8_t persona, const char* activity) {
   switch (persona) {
     case 0: {  // sleep — closed lids, drifting z's, slow breath
       int breathe = ((now / 1400) & 1) ? 1 : 0;
-      _faceEye(cx - eyeDX, eyeY + breathe, 24, 4, accent);
-      _faceEye(cx + eyeDX, eyeY + breathe, 24, 4, accent);
+      if (boopActive) {
+        // Sleep-peek: a boop cracks one eye open to see who's there,
+        // then it drifts shut again. The signature move.
+        _faceEye(cx - eyeDX, eyeY + breathe, e.w, 4, e.r, accent);
+        _faceEye(cx + eyeDX, eyeY + breathe, e.w, e.h - 6, e.r, accent);
+      } else {
+        _faceEye(cx - eyeDX, eyeY + breathe, e.w, 4, e.r, accent);
+        _faceEye(cx + eyeDX, eyeY + breathe, e.w, 4, e.r, accent);
+      }
       spr.setTextSize(1);
       spr.setTextColor(accent, BLACK);
       uint32_t ph = now / 600;
@@ -126,8 +169,9 @@ inline void faceTick(uint8_t persona, const char* activity) {
       break;
     }
     case 2: {  // busy — half-lidded focus, flat mouth, working dots
-      _faceEye(cx - eyeDX + gaze, eyeY, 22, 16, accent);
-      _faceEye(cx + eyeDX + gaze, eyeY, 22, 16, accent);
+      int bh = (e.h * 3) / 5;
+      _faceEye(cx - eyeDX + gaze, eyeY, e.w, bh, e.r, accent);
+      _faceEye(cx + eyeDX + gaze, eyeY, e.w, bh, e.r, accent);
       spr.fillRect(cx - 8, mouthY, 16, 3, accent);
       int active = (now / 350) % 3;
       for (int i = 0; i < 3; i++) {
@@ -144,8 +188,8 @@ inline void faceTick(uint8_t persona, const char* activity) {
       break;
     }
     case 3: {  // attention — wide eyes raised toward the boop button
-      _faceEye(cx - eyeDX, eyeY - 6, 24, 34, accent);
-      _faceEye(cx + eyeDX, eyeY - 6, 24, 34, accent);
+      _faceEye(cx - eyeDX, eyeY - 6, e.w + 2, e.h + 8, e.r, accent);
+      _faceEye(cx + eyeDX, eyeY - 6, e.w + 2, e.h + 8, e.r, accent);
       spr.fillArc(cx, mouthY, 4, 7, 0, 360, accent);   // small "o"
       break;
     }
@@ -180,9 +224,9 @@ inline void faceTick(uint8_t persona, const char* activity) {
       break;
     }
     default: {  // idle — open eyes, blinks, glances, soft smile
-      int h = blinking ? 4 : 26;
-      _faceEye(cx - eyeDX + gaze, eyeY, 22, h, accent);
-      _faceEye(cx + eyeDX + gaze, eyeY, 22, h, accent);
+      int h = blinking ? 4 : e.h;
+      _faceEye(cx - eyeDX + gaze, eyeY, e.w, h, e.r, accent);
+      _faceEye(cx + eyeDX + gaze, eyeY, e.w, h, e.r, accent);
       spr.fillArc(cx, mouthY - 5, 8, 11, 30, 150, accent);
       break;
     }

@@ -178,7 +178,13 @@ static void updateDisplayPower(PersonaState state) {
 
   if (state == P_SLEEP) {
     if (sleepSince == 0) sleepSince = now;
-    uint32_t asleepFor = now - sleepSince;
+    // Measure from the LAST user input, not just the state change — a
+    // button press or screen tap restarts the dim/off ladder. Without
+    // this, waking a long-asleep pet relapsed to screen-off on the very
+    // next frame (asleepFor was still past SLEEP_OFF_MS), so a tap lit
+    // the screen for a single frame.
+    uint32_t ref = ((int32_t)(lastInputMs - sleepSince) > 0) ? lastInputMs : sleepSince;
+    uint32_t asleepFor = now - ref;
     if (!manualScreenOff && asleepFor >= SLEEP_OFF_MS) {
       sleepDisplay(false);
     } else if (!screenOff && asleepFor >= SLEEP_DIM_MS) {
@@ -787,8 +793,12 @@ void loop() {
 
   baseState = derive(tama);
   activeState = baseState;
-  // Recent boop: flash the heart face unless something urgent is on screen.
-  if ((int32_t)(boopUntil - millis()) > 0 && baseState != P_ATTENTION && baseState != P_DIZZY) {
+  // Recent boop: flash the heart face unless something urgent is on
+  // screen. A sleeping face board does a sleep-peek instead (one eye
+  // cracks open — handled inside faceTick), so sleep stays sleep there.
+  bool boopActive = (int32_t)(boopUntil - millis()) > 0;
+  if (boopActive && baseState != P_ATTENTION && baseState != P_DIZZY &&
+      !(HAL_LANDSCAPE && baseState == P_SLEEP)) {
     activeState = P_HEART;
   }
   updateDisplayPower(activeState);
@@ -847,7 +857,7 @@ void loop() {
     // Landscape board: the screen is the character's face. Portrait M5
     // keeps the ASCII species art (and GIF character packs, which are
     // portrait-sized — not yet supported on the landscape board).
-    if (HAL_LANDSCAPE) faceTick(activeState, tama.activity);
+    if (HAL_LANDSCAPE) faceTick(activeState, tama.activity, boopActive);
     else buddyTick(activeState);
     const Palette& p = characterPalette();
     uint32_t nowMs = millis();
