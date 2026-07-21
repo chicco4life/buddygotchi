@@ -188,6 +188,9 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive) {
       break;
     }
     case 3: {  // attention — wide eyes raised toward the boop button
+      // The tallest species (h=30) grown by +8 and raised by 6 tops out at
+      // exactly y=20 — flush under the armed-prompt band (rows 0..19).
+      // Keep the -6/+8 pair in sync with the band height if either moves.
       _faceEye(cx - eyeDX, eyeY - 6, e.w + 2, e.h + 8, e.r, accent);
       _faceEye(cx + eyeDX, eyeY - 6, e.w + 2, e.h + 8, e.r, accent);
       spr.fillArc(cx, mouthY, 4, 7, 0, 360, accent);   // small "o"
@@ -200,8 +203,8 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive) {
       static const uint16_t CONF[5] = { 0xF800, 0x07E0, 0x001F, 0xFFE0, 0xF81F };
       for (int i = 0; i < 12; i++) {
         uint32_t h = _faceHash(i * 7919u);
-        int px = (int)(h % HAL_W);
-        int py = (int)((h / 331 + now / 90) % (HAL_H - HAL_HUD_H));
+        int px = (int)(h % (HAL_W - 1));
+        int py = (int)((h / 331 + now / 90) % (HAL_H - HAL_HUD_H - 1));
         spr.fillRect(px, py, 2, 2, CONF[i % 5]);
       }
       break;

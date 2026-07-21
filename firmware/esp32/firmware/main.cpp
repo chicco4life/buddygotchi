@@ -524,7 +524,7 @@ static void schedulePress(char which, uint32_t ms) {
 // The sprite is 8bpp RGB332; pixels are widened to RGB565LE to keep the
 // wire format the host tooling already speaks. Up to two leftover bytes
 // carry across rows so the row width doesn't have to be a multiple of 3
-// (135*2=270 is, 140*2=280 isn't) — concatenated chunks still form one
+// (e.g. 228*2=456 is, 140*2=280 isn't) — concatenated chunks still form one
 // valid base64 stream, padded only at the very end.
 static inline uint16_t rgb332to565(uint8_t c) {
   uint16_t r5 = (((c >> 5) & 7) * 31 + 3) / 7;

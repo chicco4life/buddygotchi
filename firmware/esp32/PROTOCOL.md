@@ -30,7 +30,7 @@ buffer per transport.
 | `lastCompletedDurationMs` | number/null | integer | ignored | Duration of the last completed task in milliseconds. |
 | `errorTool` | string/null | extracted from `msg` | ignored | Tool associated with an error state. |
 | `errorSource` | string/null | uncapped by Mac | ignored | Agent/source associated with an error state. |
-| `activity` | string/null | enum value | ignored | Activity kind: `verify`, `read`, `write`, `shell`, `web`, or `work`. |
+| `activity` | string/null | enum value | `TamaState.activity`, 9 chars | Activity kind: `verify`, `read`, `write`, `shell`, `web`, or `work`. Drives the busy-face verb on the landscape board. |
 | `entries` | array<string>/null | max 6 items, 48 chars each | `lines[6][81]`, 80 chars each | Recent activity entries. Parsed for wire compatibility; no transcript UI currently consumes them. |
 | `sessions` | array<object>/null | max 6 items | ignored | Multi-session summaries for richer clients. |
 | `sessions[].src` | string | uncapped by Mac | ignored | Agent/source name. |

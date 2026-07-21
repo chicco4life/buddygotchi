@@ -6,9 +6,11 @@
 > (`firmware/hal/`), 16MB dual-OTA partition table, CO5300/QSPI display path
 > via Arduino_GFX on the pioarduino platform (Arduino core 3.3 — its BLE
 > library is NimBLE-backed; `ble_bridge.cpp` has small backend conditionals),
-> 140x228 logical canvas with 2x present, three-button semantics + boop
+> 140x228 logical canvas with 2x present (superseded by the landscape
+> 228x140 canvas in UX pass 2), three-button semantics + boop
 > reaction, `press a|b|m`, sprite-based screenshot with streaming base64,
-> FT3168 touch-as-boop, battery ADC. Build the WS envs via
+> FT3168 touch-as-boop (superseded in UX pass 3: touch is affection-only,
+> never a button), battery ADC. Build the WS envs via
 > `tools/pio_ws.sh run -e ws-amoled164 [-t upload]` — the wrapper isolates
 > the pioarduino package tree from the M5 envs' espressif32 one. Not yet
 > done (needs hardware): every Phase B item; also un-run: `make hil` on the
@@ -192,7 +194,7 @@ Product mapping (Pebble):
 
 Fallbacks so e2e works before any soldering:
 1. **BOOT (GPIO0)** doubles as BOOP.
-2. **FT3168 touch tap** (polled I2C) anywhere on screen = BOOP.
+2. ~~**FT3168 touch tap** (polled I2C) anywhere on screen = BOOP.~~ Superseded (UX pass 3): touch is affection-only via `halTouchDown()` and never acts as a button.
 3. Serial/BLE `press a|b|m` synthetic injection (generalize from raw pins 37/39 to logical buttons — also what HIL uses).
 
 Approve/deny wire format (`{"cmd":"permission","id":…,"decision":…}`) unchanged.
