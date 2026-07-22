@@ -88,6 +88,10 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
         engine?.resolveApproval(requestId: requestId, decision: mapped)
     }
 
+    func bleManagerDidReceiveBoop(_ manager: BLEManager) {
+        engine?.boop()
+    }
+
     // The device menu adopted a character. Mirror it into the desktop
     // preference and the engine so the next heartbeat carries the same
     // species instead of stomping the on-device choice on reconnect.

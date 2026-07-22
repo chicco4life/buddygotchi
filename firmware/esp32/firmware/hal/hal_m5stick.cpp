@@ -3,6 +3,7 @@
 // StickCP2 calls that used to live inline in main.cpp/data.h/xfer.h/ota.h.
 // Behavior is intentionally identical to the pre-HAL firmware.
 #include "hal.h"
+#include <esp_sleep.h>
 
 void halInit() {
   auto cfg = M5.config();
@@ -40,6 +41,24 @@ void halFrameStats(uint32_t* avgUs, uint32_t* maxUs) { *avgUs = 0; *maxUs = 0; }
 bool halIsCharging()        { return StickCP2.Power.isCharging(); }
 void halSetLed(bool on)     { StickCP2.Power.setLed(on ? 1 : 0); }
 void halTone(uint16_t freq, uint16_t ms) { StickCP2.Speaker.tone(freq, ms); }
+
+// The Plus2's MPU6886 isn't wired up here yet — the Pebble is the board
+// that carries motion features; the M5 stays the pre-HAL regression rig.
+bool halImuRead(float* ax, float* ay, float* az) {
+  (void)ax; (void)ay; (void)az;
+  return false;
+}
+
+void halDeepSleep(uint32_t timerWakeMs) {
+  StickCP2.Display.sleep();
+  Serial.flush();
+  // BtnA (GPIO37, RTC-capable, external pull-up, NOT a strapping pin) can
+  // wake a true deep sleep safely. Original-ESP32 EXT1 has no ANY_LOW
+  // mode; ALL_LOW on a single pin is the same thing.
+  esp_sleep_enable_ext1_wakeup(1ULL << 37, ESP_EXT1_WAKEUP_ALL_LOW);
+  if (timerWakeMs > 0) esp_sleep_enable_timer_wakeup((uint64_t)timerWakeMs * 1000ULL);
+  esp_deep_sleep_start();
+}
 
 void halSetLocalTime(const struct tm& lt) {
   m5::rtc_time_t tm;

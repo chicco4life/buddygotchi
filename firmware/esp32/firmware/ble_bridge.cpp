@@ -180,6 +180,18 @@ void bleInit(const char* deviceName) {
   Serial.printf("[ble] advertising as '%s'\n", deviceName);
 }
 
+void bleStop() {
+  // Pre-sleep quiesce only: stop advertising so no new central starts a
+  // connect/auth dance while we're going down. Deliberately NOT
+  // BLEDevice::deinit — freeing host structures under a live link
+  // corrupts the heap on the NimBLE-backed core-3 wrapper (proven on
+  // hardware: the Mac re-authed mid-teardown and the next free()
+  // panicked). The HAL disables the BT *controller* right before sleep,
+  // and the caller esp_restart()s on wake, so nothing here leaks.
+  BLEAdvertising* adv = BLEDevice::getAdvertising();
+  if (adv) adv->stop();
+}
+
 bool bleConnected() { return connected; }
 bool bleSecure()    { return secure; }
 uint32_t blePasskey() { return passkey; }

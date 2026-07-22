@@ -48,6 +48,8 @@ private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> Interna
         return handleApprovalResolved(state, at: at, sessionId: sessionId, requestId: requestId, decision: decision)
     case .speciesChanged(_, let species):
         return handleSpeciesChanged(state, species: species)
+    case .boopArrived(let at):
+        return handleBoopArrived(state, at: at)
     case .reviewDismissed:
         return handleReviewDismissed(state)
     case .errorDismissed(let at, let sessionId):
@@ -185,6 +187,11 @@ private func handleStaleTick(_ state: InternalState, now: Double) -> InternalSta
         changed = true
     }
 
+    if let until = s.buddy.affectionUntil, now >= until {
+        s.buddy.affectionUntil = nil
+        changed = true
+    }
+
     // Stall detection: a session in .working that hasn't bumped lastWorkSignalAt
     // for workStallTimeoutMs is presumed "thinking hard" — not an error. Real
     // errors only come from explicit .error signals (e.g. Claude Code StopFailure).
@@ -232,6 +239,17 @@ private func handleApprovalResolved(_ state: InternalState, at: Double, sessionI
     s.sessions[sessionId]?.prompt = nil
     s.sessions[sessionId]?.state = decision == .allow ? .working : .idle
     s.sessions[sessionId]?.lastActivityAt = at
+    return s
+}
+
+/// How long a device boop keeps the desktop pet in heart-eyes. Mirrors the
+/// firmware's BOOP_REACT_MS; sustained petting re-sends boops (rate-limited to
+/// ~1.5s) so the window keeps sliding for the whole stroke.
+let boopAffectionMs: Double = 2500
+
+private func handleBoopArrived(_ state: InternalState, at: Double) -> InternalState {
+    var s = state
+    s.buddy.affectionUntil = at + boopAffectionMs
     return s
 }
 
@@ -420,6 +438,20 @@ private func aggregate(_ state: InternalState) -> BuddyState {
         }
         buddy.celebrateUntil = nil
         buddy.lastSignal = "idle"
+    }
+
+    // Boop overlay: a recent device boop puts calm states in heart-eyes.
+    // Mirrors the firmware — attention/error always win (urgency over
+    // affection), and a sleeping pet does its sleep-peek on device instead,
+    // so sleep stays sleep here too. msg/lastSignal keep the base state's
+    // values so the underlying activity context survives the flash.
+    if let until = buddy.affectionUntil, buddy.updatedAt < until {
+        switch buddy.pet.state {
+        case .idle, .busy, .thinking, .celebrate:
+            buddy.pet = Pet(state: .heart, species: buddy.pet.species)
+        case .sleep, .attention, .error, .heart:
+            break
+        }
     }
 
     return buddy

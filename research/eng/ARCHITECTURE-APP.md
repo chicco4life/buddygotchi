@@ -227,6 +227,12 @@ Pet aggregation priority is:
 6. active celebrate window gives `celebrate`
 7. otherwise connected gives `idle`
 
+A device boop (`{"cmd":"boop"}` over BLE) sets a ~2.5s `affectionUntil`
+window that overlays `heart` onto the calm states (`idle`, `busy`,
+`thinking`, `celebrate`) — mirroring the firmware, `attention`/`error`
+always win and `sleep` stays asleep (the device does its sleep-peek
+locally). The base state's `msg`/`lastSignal` survive the flash.
+
 The app intentionally treats `thinking` as quiet work, not failure. A session
 becomes thinking only after both `lastWorkSignalAt` and `workStartedAt` are
 older than `workStallTimeoutMs`.

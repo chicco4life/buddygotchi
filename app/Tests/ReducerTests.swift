@@ -776,4 +776,79 @@ final class ReducerTests: XCTestCase {
         )
         XCTAssertEqual(s.buddy.lastCompleted?.activityKind, .verify)
     }
+
+    // MARK: - Boop / heart
+
+    func testBoopPutsIdlePetInHeart() {
+        var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
+        XCTAssertEqual(s.buddy.pet.state, .idle)
+        s = applyEvents(s, .boopArrived(at: NOW + 1))
+        XCTAssertEqual(s.buddy.pet.state, .heart)
+        XCTAssertEqual(s.buddy.affectionUntil, NOW + 1 + boopAffectionMs)
+    }
+
+    func testBoopOverlaysBusyButKeepsMsg() {
+        var s = applyEvents(
+            .test(),
+            .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
+            .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .startWorking, tool: "Bash", hint: "swift test")
+        )
+        let busyMsg = s.buddy.msg
+        s = applyEvents(s, .boopArrived(at: NOW + 2))
+        XCTAssertEqual(s.buddy.pet.state, .heart)
+        XCTAssertEqual(s.buddy.msg, busyMsg, "The working context survives the heart flash")
+        XCTAssertEqual(s.buddy.lastSignal, "busy")
+    }
+
+    func testBoopExpiresOnStaleTick() {
+        var s = applyEvents(
+            .test(),
+            .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
+            .boopArrived(at: NOW + 1)
+        )
+        XCTAssertEqual(s.buddy.pet.state, .heart)
+
+        s = applyEvents(s, .staleTick(at: NOW + 2))
+        XCTAssertEqual(s.buddy.pet.state, .heart, "Still in the affection window")
+
+        s = applyEvents(s, .staleTick(at: NOW + 1 + boopAffectionMs))
+        XCTAssertEqual(s.buddy.pet.state, .idle)
+        XCTAssertNil(s.buddy.affectionUntil)
+    }
+
+    func testBoopNeverOverridesAttention() {
+        var s = applyEvents(
+            .test(),
+            .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
+            .approvalArrived(at: NOW + 1, sessionId: "s1", requestId: "r1", tool: "Bash", hint: "rm -rf", sessionLabel: nil, source: "claude-code")
+        )
+        s = applyEvents(s, .boopArrived(at: NOW + 2))
+        XCTAssertEqual(s.buddy.pet.state, .attention, "Urgency beats affection")
+    }
+
+    func testBoopNeverOverridesError() {
+        var s = applyEvents(
+            .test(),
+            .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
+            .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .error, tool: "Bash", hint: nil)
+        )
+        s = applyEvents(s, .boopArrived(at: NOW + 2))
+        XCTAssertEqual(s.buddy.pet.state, .error)
+    }
+
+    func testBoopWhileAsleepStaysAsleep() {
+        let s = applyEvents(.test(), .boopArrived(at: NOW))
+        XCTAssertEqual(s.buddy.pet.state, .sleep, "The device does its sleep-peek; the desktop stays asleep")
+    }
+
+    func testAttentionArrivingDuringHeartWinsImmediately() {
+        var s = applyEvents(
+            .test(),
+            .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
+            .boopArrived(at: NOW + 1)
+        )
+        XCTAssertEqual(s.buddy.pet.state, .heart)
+        s = applyEvents(s, .approvalArrived(at: NOW + 2, sessionId: "s1", requestId: "r1", tool: "Bash", hint: "ls", sessionLabel: nil, source: nil))
+        XCTAssertEqual(s.buddy.pet.state, .attention)
+    }
 }

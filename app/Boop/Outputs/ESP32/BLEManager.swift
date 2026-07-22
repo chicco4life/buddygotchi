@@ -34,6 +34,7 @@ protocol BLEManagerDelegate: AnyObject {
     func bleManager(_ manager: BLEManager, connectionStateChanged state: BLEConnectionState)
     func bleManager(_ manager: BLEManager, didReceiveApproval requestId: String, decision: String)
     func bleManager(_ manager: BLEManager, didAdoptSpecies species: String)
+    func bleManagerDidReceiveBoop(_ manager: BLEManager)
 }
 
 // Threading model: all BLE/peripheral state (target id, peripherals, characteristics,
@@ -470,6 +471,15 @@ extension BLEManager: CBPeripheralDelegate {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.delegate?.bleManager(self, didAdoptSpecies: name)
+            }
+        }
+
+        // The pet was booped (button or petting stroke) — mirror the
+        // affection into the desktop blob.
+        if let cmd = json["cmd"] as? String, cmd == "boop" {
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                self.delegate?.bleManagerDidReceiveBoop(self)
             }
         }
     }

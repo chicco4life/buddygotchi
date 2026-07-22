@@ -20,7 +20,7 @@ struct BlobBuddyView: View {
         switch petState {
         case .sleep, .idle:
             return 0.5
-        case .busy, .thinking, .attention, .celebrate, .error:
+        case .busy, .thinking, .attention, .celebrate, .error, .heart:
             return 1.0 / 12.0
         }
     }
@@ -32,6 +32,7 @@ struct BlobBuddyView: View {
         case .error: BuddyTheme.stuckRed
         case .busy, .thinking: BuddyTheme.workGlow
         case .idle, .sleep: BuddyTheme.textSecondary
+        case .heart: BuddyTheme.boopPink
         }
     }
 
@@ -42,6 +43,7 @@ struct BlobBuddyView: View {
         case .busy, .thinking: 0.28
         case .attention, .error: 0.38
         case .celebrate: 0.42
+        case .heart: 0.4
         }
     }
 
@@ -100,6 +102,9 @@ struct BlobBuddyView: View {
             return glowOpacity * pulseMultiplier(at: t, period: amberPeriod, minimum: 0.5)
         case .error:
             return heartbeatOpacity(at: t)
+        case .heart:
+            // Quick warm flutter — affection is livelier than the work breathe.
+            return glowOpacity * pulseMultiplier(at: t, period: 1.4, minimum: 0.6)
         case .celebrate, .idle, .sleep:
             return glowOpacity
         }
@@ -179,12 +184,15 @@ struct BlobBuddyView: View {
                 .offset(y: size * 0.08)
         }
         .overlay {
+            let blushColor = petState == .heart
+                ? BuddyTheme.boopPink.opacity(0.55)
+                : BuddyTheme.amber.opacity(0.24)
             HStack(spacing: size * 0.38) {
                 Circle()
-                    .fill(BuddyTheme.amber.opacity(0.24))
+                    .fill(blushColor)
                     .frame(width: size * 0.09, height: size * 0.06)
                 Circle()
-                    .fill(BuddyTheme.amber.opacity(0.24))
+                    .fill(blushColor)
                     .frame(width: size * 0.09, height: size * 0.06)
             }
             .offset(y: size * 0.08)
@@ -202,6 +210,10 @@ struct BlobBuddyView: View {
             if error {
                 Image(systemName: "xmark")
                     .font(.system(size: size * 0.13, weight: .semibold))
+            } else if petState == .heart {
+                Image(systemName: "heart.fill")
+                    .font(.system(size: size * 0.13, weight: .semibold))
+                    .foregroundStyle(BuddyTheme.boopPink)
             } else if petState == .celebrate {
                 Capsule()
                     .frame(width: size * 0.12, height: size * 0.035)
@@ -220,7 +232,7 @@ struct BlobBuddyView: View {
     @ViewBuilder
     private func mouth(at t: TimeInterval) -> some View {
         switch petState {
-        case .celebrate:
+        case .celebrate, .heart:
             Image(systemName: "chevron.down")
                 .font(.system(size: size * 0.11, weight: .semibold))
                 .foregroundStyle(BuddyTheme.night)

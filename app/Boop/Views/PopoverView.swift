@@ -286,6 +286,7 @@ struct PopoverView: View {
         case .celebrate: BuddyTheme.green
         case .error: BuddyTheme.stuckRed
         case .thinking: BuddyTheme.workGlow
+        case .heart: BuddyTheme.boopPink
         default: BuddyTheme.textSecondary
         }
     }

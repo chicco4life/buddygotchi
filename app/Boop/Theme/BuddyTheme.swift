@@ -14,6 +14,7 @@ enum BuddyTheme {
     static let green = Color(hex: "#7FA96B")
     static let stuckRed = Color(hex: "#C96B5E")
     static let workGlow = Color(hex: "#EFE7D8")
+    static let boopPink = Color(hex: "#D98BA4")
 
     static let divider = textPrimary.opacity(0.08)
 
@@ -38,6 +39,7 @@ enum BuddyTheme {
         case .attention: amber
         case .celebrate: green
         case .error: stuckRed
+        case .heart: boopPink
         }
     }
 }

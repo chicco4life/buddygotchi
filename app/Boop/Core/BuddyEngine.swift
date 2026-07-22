@@ -31,7 +31,7 @@ final class BuddyEngine {
     func start() {
         staleTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, (!self.internalState.sessions.isEmpty || self.state.celebrateUntil != nil) else { return }
+                guard let self, (!self.internalState.sessions.isEmpty || self.state.celebrateUntil != nil || self.state.affectionUntil != nil) else { return }
                 self.apply(.staleTick(at: self.clock.now()))
             }
         }
@@ -100,6 +100,17 @@ final class BuddyEngine {
 
     func setSpecies(_ species: String) {
         apply(.speciesChanged(at: clock.now(), species: species))
+    }
+
+    /// Physical affection from the device (button boop or a petting stroke).
+    /// The follow-up tick is what flips the pet back out of heart-eyes right
+    /// when the affection window lapses — the 2s stale timer alone would let
+    /// the heart linger up to 2s past it.
+    func boop() {
+        apply(.boopArrived(at: clock.now()))
+        Timer.scheduledTimer(withTimeInterval: boopAffectionMs / 1000 + 0.1, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.triggerStaleTick() }
+        }
     }
 
     // MARK: - Approval API

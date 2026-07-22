@@ -30,6 +30,7 @@ struct PetStageView: View {
         case .celebrate: 0.18
         case .error: 0.14
         case .thinking: 0.08
+        case .heart: 0.16
         }
     }
 
@@ -42,6 +43,7 @@ struct PetStageView: View {
         case .celebrate: 12
         case .error: 10
         case .thinking: 7
+        case .heart: 10
         }
     }
 
@@ -54,6 +56,7 @@ struct PetStageView: View {
         case .celebrate: 0.55
         case .error: 0.5
         case .thinking: 0.4
+        case .heart: 0.5
         }
     }
 

@@ -68,6 +68,9 @@ const uint8_t BRIGHT_FULL = 220;
 const uint32_t SLEEP_DIM_MS = 60000;
 const uint32_t SLEEP_OFF_MS = 600000;
 const uint32_t BTN_A_LONG_MS = 1500;
+// Keep holding BOOP past the screen-sleep threshold and the pet powers
+// all the way down (halDeepSleep). Physical presses only.
+const uint32_t BTN_A_DEEPSLEEP_MS = 4000;
 const uint32_t BOOP_REACT_MS = 2500;
 // A press only counts as an approval if it *started* after the prompt had
 // been on screen this long — otherwise a tickle already in flight could
@@ -183,6 +186,75 @@ static void brightnessTick() {
   halSetBrightness(currentBrightness);
 }
 
+// --- Motion (IMU) -----------------------------------------------------
+// Display-only, same doctrine as touch: motion can change what the pet
+// shows (nap, dizzy) but can never answer a prompt.
+//   Face-down ≥2s  → nap: screen off, napSeconds accrues until face-up.
+//   Shake          → brief dizzy wobble (suppressed while a prompt is up).
+// Synthetic injection ("imu set x y z" over serial) overlays the sensor
+// so HIL can exercise both detectors without a hand on the board.
+static bool     napping = false;
+static uint32_t napStartMs = 0;
+static uint32_t dizzyUntil = 0;
+static bool     imuInjected = false;
+static float    injAx = 0, injAy = 0, injAz = 0;
+static float    imuAx = 0, imuAy = 0, imuAz = 0;
+static bool     imuSeen = false;      // at least one good read (or injection)
+static float    shakeEnergy = 0.0f;
+
+// Sign convention verified on hardware: resting panel-up reads az ≈ +1g.
+static const float FACE_DOWN_G = -0.75f;
+
+static void motionTick(uint32_t now) {
+  static uint32_t nextPoll = 0;
+  static uint32_t faceDownSince = 0;
+  static uint32_t faceUpSince = 0;
+  if ((int32_t)(now - nextPoll) < 0) return;
+  nextPoll = now + 50;
+
+  float ax, ay, az;
+  if (imuInjected) {
+    ax = injAx; ay = injAy; az = injAz;
+  } else if (!halImuRead(&ax, &ay, &az)) {
+    return;
+  }
+  imuAx = ax; imuAy = ay; imuAz = az;
+  imuSeen = true;
+
+  // Shake: leaky accumulator over the high-passed magnitude. Rest noise
+  // (~0.02g/sample) stays near zero; a real shake (>1g deviations) crosses
+  // the threshold within a few samples.
+  float mag = sqrtf(ax * ax + ay * ay + az * az);
+  shakeEnergy = shakeEnergy * 0.8f + fabsf(mag - 1.0f);
+  if (shakeEnergy > 2.5f && !promptPending() && !napping) {
+    shakeEnergy = 0.0f;
+    dizzyUntil = now + 3000;
+  }
+
+  // Face-down nap. Entry is debounced 2s so a wobbly pickup doesn't nap;
+  // exit needs 700ms face-up so one bounce doesn't end it. Entry is
+  // blocked while a prompt is pending (mirrors the no-dim rule).
+  bool faceDown = az < FACE_DOWN_G;
+  if (faceDown) {
+    faceUpSince = 0;
+    if (faceDownSince == 0) faceDownSince = now;
+    if (!napping && !promptPending() && now - faceDownSince >= 2000) {
+      napping = true;
+      napStartMs = now;
+      sleepDisplay(false);
+    }
+  } else {
+    faceDownSince = 0;
+    if (faceUpSince == 0) faceUpSince = now;
+    if (napping && now - faceUpSince >= 700) {
+      napping = false;
+      statsOnNapEnd((now - napStartMs) / 1000);
+      lastInputMs = now;
+      wakeDisplay();
+    }
+  }
+}
+
 static void playStateChirp(PersonaState state) {
   if (tama.muted || !settings().sound) return;
   static const TuneNote ATTN[] = { {880, 90, 0}, {1245, 90, 110} };
@@ -209,9 +281,16 @@ static void updateDisplayPower(PersonaState state) {
     playStateChirp(state);
     if (state == P_SLEEP) {
       sleepSince = now;
-    } else {
+    } else if (!napping) {
       wakeDisplay();
     }
+  }
+
+  // Face-down nap owns the screen: state changes still chirp (above) but
+  // never light a panel that's pressed against the desk.
+  if (napping) {
+    sleepDisplay(false);
+    return;
   }
 
   if (state == P_SLEEP) {
@@ -275,6 +354,7 @@ PersonaState derive(const TamaState& s) {
   if (strcmp(s.pet, "celebrate") == 0) return P_CELEBRATE;
   if (strcmp(s.pet, "error") == 0)     return P_DIZZY;   // Gap C: explicit StopFailure
   if (strcmp(s.pet, "thinking") == 0)  return P_BUSY;    // calm working face; avoids heart-eyes for thought.
+  if (strcmp(s.pet, "heart") == 0)     return P_HEART;   // desktop mirrors a boop back
   return P_IDLE;
 }
 
@@ -338,13 +418,56 @@ static void sendApproval(bool approve) {
   else         playTune(NO, 1);
 }
 
+// Tell the desktop the pet was booped so the Mac blob reacts in kind.
+// Rate-limited: sustained petting refreshes the local heart every loop but
+// only needs a wire frame every ~1.5s to keep the desktop's affection
+// window alive (its window is 2.5s, matching BOOP_REACT_MS).
+static uint32_t lastBoopSentMs = 0;
+static void sendBoopUpstream() {
+  uint32_t now = millis();
+  if (lastBoopSentMs != 0 && now - lastBoopSentMs < 1500) return;
+  lastBoopSentMs = now;
+  sendCmd("{\"cmd\":\"boop\"}");
+}
+
 // Pet-affection reaction: a short heart-face flash when the BOOP button is
-// pressed outside of a pending approval. Device-local for now — the desktop
-// doesn't hear about boops yet.
+// pressed outside of a pending approval, mirrored to the desktop pet.
 static void boopPet() {
   boopUntil = millis() + BOOP_REACT_MS;
   beep(1245, 60);
   buddyInvalidate();
+  sendBoopUpstream();
+}
+
+// Power the pet all the way down. Never returns — halDeepSleep restarts
+// the firmware on wake (BOOP button; timerWakeMs lets HIL prove the
+// round-trip without a finger on the board).
+static void goodNight(uint32_t timerWakeMs) {
+  Serial.println("<<DEEPSLEEP entering>>");
+  statsSave();
+  // The 1.5s hold already blanked the panel — light it for one beat so
+  // "night night" reads as an acknowledgment, then sleep for real.
+  wakeDisplay();
+  const Palette& p = characterPalette();
+  spr.fillSprite(BLACK);
+  spr.setTextDatum(MC_DATUM);
+  spr.setTextSize(2 * S);
+  spr.setTextColor(p.body, BLACK);
+  spr.drawString("night night", CX, CY_BASE);
+  spr.setTextDatum(TL_DATUM);
+  spr.setTextSize(S);
+  delay(30);   // clear the present throttle so this frame reaches glass
+  halPresent(spr);
+  delay(900);
+  // The 4s hold that got us here is still down — entering sleep now would
+  // wake (WS: level trigger) or bounce straight back (M5: EXT1) on the
+  // same press. Sleep only once the finger lifts.
+  while (halButtonDown(HAL_BTN_BOOP)) {
+    guardFeed();
+    delay(10);
+  }
+  bleStop();
+  halDeepSleep(timerWakeMs);
 }
 
 // Three logical buttons (see hal.h for the physical mapping):
@@ -395,6 +518,14 @@ static void __attribute__((noinline)) handleButtons() {
     boopLongHandled = true;
   }
 
+  // Keep holding: at 4s the pet powers down entirely. Physical fingers
+  // only — a scripted "press a --ms 5000" must never be able to strand
+  // the device asleep mid-HIL (use "deepsleep <ms>" to test this path).
+  if (prevBoop && boop && boopLongHandled && !synth[HAL_BTN_BOOP].active &&
+      now - boopDownAt >= BTN_A_DEEPSLEEP_MS) {
+    goodNight(0);   // never returns
+  }
+
   bool boopRelease = prevBoop && !boop;
   bool rejPress = !prevRej && rej;
   bool menuPress = !prevMenu && menu;
@@ -425,11 +556,21 @@ static void __attribute__((noinline)) handleButtons() {
   }
 
   static bool prevTouch = false;
-  bool touch = halTouchDown();
+  // A face-down panel can press its own touchscreen against the surface —
+  // ignore contact entirely while napping so the couch can't boop the pet
+  // into a wake/chirp loop.
+  bool touch = !napping && halTouchDown();
   if (!prevTouch && touch) {
     wakeDisplay();
     lastInputMs = now;
     if (!wasOff && !pending && !menuActive()) boopPet();
+  } else if (prevTouch && touch && !screenOff && !pending && !menuActive()) {
+    // Petting: sustained contact keeps the heart (or the sleep-peek) alive
+    // for the whole stroke, and keeps the desktop's affection window
+    // refreshed. No chirp — the boop edge already played it.
+    boopUntil = now + BOOP_REACT_MS;
+    lastInputMs = now;
+    sendBoopUpstream();
   }
   prevTouch = touch;
 
@@ -521,6 +662,9 @@ static void dumpState() {
   doc["brightness"] = currentBrightness == 0xFF ? 0 : currentBrightness;
   doc["persona"] = personaNames[derive(tama)];
   doc["activePersona"] = personaNames[activeState];
+  doc["boop"] = (int32_t)(boopUntil - millis()) > 0;
+  doc["napping"] = napping;
+  doc["dizzy"] = (int32_t)(dizzyUntil - millis()) > 0;
   doc["screen"] = currentScreenName();
   doc["rot"] = halDisplayRotation();
   doc["board"] = HAL_BOARD_NAME;
@@ -683,6 +827,45 @@ void handleSerialCommand(const char* line) {
     return;
   }
 
+  // Debug/HIL: motion. "imu" dumps the live sample and detector state;
+  // "imu set x y z" (g, floats) overlays a synthetic sample so tests can
+  // drive face-down/shake without touching the board; "imu clear" reverts.
+  if (strcmp(line, "imu") == 0) {
+    Serial.printf("<<IMU {\"present\":%s,\"injected\":%s,\"ax\":%.3f,\"ay\":%.3f,\"az\":%.3f,"
+                  "\"shake\":%.2f,\"napping\":%s,\"dizzy\":%s}>>\n",
+                  imuSeen ? "true" : "false", imuInjected ? "true" : "false",
+                  imuAx, imuAy, imuAz, shakeEnergy,
+                  napping ? "true" : "false",
+                  ((int32_t)(dizzyUntil - millis()) > 0) ? "true" : "false");
+    return;
+  }
+  if (strncmp(line, "imu set ", 8) == 0) {
+    char* end = nullptr;
+    float x = strtof(line + 8, &end);
+    float y = strtof(end, &end);
+    float z = strtof(end, &end);
+    injAx = x; injAy = y; injAz = z;
+    imuInjected = true;
+    Serial.printf("<<IMU inject %.3f %.3f %.3f>>\n", x, y, z);
+    return;
+  }
+  if (strcmp(line, "imu clear") == 0) {
+    imuInjected = false;
+    shakeEnergy = 0.0f;
+    Serial.println("<<IMU inject cleared>>");
+    return;
+  }
+
+  // Debug/HIL: enter the power-down path with a timer wake so the
+  // round-trip is provable without a finger on the button. Bare
+  // "deepsleep" defaults to a 5s wake; "deepsleep 0" is button-only —
+  // exactly what the 4s physical hold does.
+  if (strcmp(line, "deepsleep") == 0 || strncmp(line, "deepsleep ", 10) == 0) {
+    uint32_t ms = line[9] ? (uint32_t)strtoul(line + 10, nullptr, 10) : 5000;
+    Serial.printf("<<DEEPSLEEP ok wake=%lums>>\n", (unsigned long)ms);
+    goodNight(ms);   // never returns
+  }
+
   // Debug: high-level approval shortcut. Use "press a|b [ms]" when a test
   // needs to exercise the GPIO-level edge detector. Deliberately skips the
   // arming delay — that guards human fingers, not scripts.
@@ -838,6 +1021,8 @@ void loop() {
     }
   }
 
+  motionTick(millis());
+
   baseState = derive(tama);
   activeState = baseState;
   // Recent boop: flash the heart face unless something urgent is on
@@ -847,6 +1032,11 @@ void loop() {
   if (boopActive && baseState != P_ATTENTION && baseState != P_DIZZY &&
       !(HAL_LANDSCAPE && baseState == P_SLEEP)) {
     activeState = P_HEART;
+  }
+  // Being shaken beats being petted; attention still wins (the card and
+  // its full brightness must survive a bumpy desk).
+  if ((int32_t)(dizzyUntil - millis()) > 0 && baseState != P_ATTENTION) {
+    activeState = P_DIZZY;
   }
   updateDisplayPower(activeState);
 

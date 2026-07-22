@@ -30,6 +30,7 @@ struct GeneratedTestRunner {
         await run("AutoApproveTests.testUnsafeCommandIsNotAutoApproved") { let t = AutoApproveTests(); try t.setUpWithError(); try await t.setUp(); t.testUnsafeCommandIsNotAutoApproved() }
         await run("AutoApproveTests.testStableCwdHashDoesNotUseRandomizedStringHash") { let t = AutoApproveTests(); try t.setUpWithError(); try await t.setUp(); t.testStableCwdHashDoesNotUseRandomizedStringHash() }
         await run("CopyRulesTests.testBuddyCopyFollowsBrandLaw") { let t = CopyRulesTests(); try t.setUpWithError(); try await t.setUp(); try t.testBuddyCopyFollowsBrandLaw() }
+        await run("CopyRulesTests.testInlineViewTextLiteralRatchet") { let t = CopyRulesTests(); try t.setUpWithError(); try await t.setUp(); try t.testInlineViewTextLiteralRatchet() }
         await run("EngineIntegrationTests.testInitialStateIsDisconnectedSleeping") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); t.testInitialStateIsDisconnectedSleeping() }
         await run("EngineIntegrationTests.testSessionStartConnects") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); t.testSessionStartConnects() }
         await run("EngineIntegrationTests.testSessionEndDisconnects") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); t.testSessionEndDisconnects() }
@@ -77,13 +78,25 @@ struct GeneratedTestRunner {
         await run("EngineIntegrationTests.testHeartbeatIncludesEntriesArrayDuringBusy") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); try t.testHeartbeatIncludesEntriesArrayDuringBusy() }
         await run("EngineIntegrationTests.testBusyMsgRevertsToBlankWhenNoCurrentTool") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); try t.testBusyMsgRevertsToBlankWhenNoCurrentTool() }
         await run("EngineIntegrationTests.testBusyEntriesArrayCappedAt6OverWire") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); try t.testBusyEntriesArrayCappedAt6OverWire() }
+        await run("EngineIntegrationTests.testHeartbeatPopulatesErrorToolFromErrorMsg") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); try t.testHeartbeatPopulatesErrorToolFromErrorMsg() }
+        await run("EngineIntegrationTests.testHeartbeatErrorToolNilWhenNoTool") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); try t.testHeartbeatErrorToolNilWhenNoTool() }
         await run("EngineIntegrationTests.testHeartbeatActivityFieldReflectsCurrentToolKind") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); try t.testHeartbeatActivityFieldReflectsCurrentToolKind() }
         await run("HookInstallerTests.testUnreadableClaudeSettingsIsNotOverwritten") { let t = HookInstallerTests(); try t.setUpWithError(); try await t.setUp(); try t.testUnreadableClaudeSettingsIsNotOverwritten() }
         await run("HookInstallerTests.testClaudeInstallIsVerifiedAndIdempotent") { let t = HookInstallerTests(); try t.setUpWithError(); try await t.setUp(); try t.testClaudeInstallIsVerifiedAndIdempotent() }
+        await run("HookInstallerTests.testUninstallUnreadableClaudeSettingsFailsWithoutChangingFile") { let t = HookInstallerTests(); try t.setUpWithError(); try await t.setUp(); try t.testUninstallUnreadableClaudeSettingsFailsWithoutChangingFile() }
+        await run("HookInstallerTests.testUninstallClearsInstalledAgentsEntry") { let t = HookInstallerTests(); try t.setUpWithError(); try await t.setUp(); try t.testUninstallClearsInstalledAgentsEntry() }
         await run("HookInstallerTests.testDeletedScriptCorruptsAndRepairRestores") { let t = HookInstallerTests(); try t.setUpWithError(); try await t.setUp(); try t.testDeletedScriptCorruptsAndRepairRestores() }
+        await run("HookInstallerTests.testCorruptBuddyConfigJSONHealthIsRepairable") { let t = HookInstallerTests(); try t.setUpWithError(); try await t.setUp(); try t.testCorruptBuddyConfigJSONHealthIsRepairable() }
         await run("HookInstallerTests.testOlderScriptVersionIsOutdatedAndRepairRestores") { let t = HookInstallerTests(); try t.setUpWithError(); try await t.setUp(); try t.testOlderScriptVersionIsOutdatedAndRepairRestores() }
         await run("HookInstallerTests.testCodexCommentedFeatureFlagDoesNotCountAsEnabled") { let t = HookInstallerTests(); try t.setUpWithError(); try await t.setUp(); try t.testCodexCommentedFeatureFlagDoesNotCountAsEnabled() }
         await run("HookInstallerTests.testCursorUsesManagedHelperAndRepairsMissingHelper") { let t = HookInstallerTests(); try t.setUpWithError(); try await t.setUp(); try t.testCursorUsesManagedHelperAndRepairsMissingHelper() }
+        await run("HookServerBehaviorTests.testApprovalResponsePassthroughEncodings") { let t = HookServerBehaviorTests(); try t.setUpWithError(); try await t.setUp(); t.testApprovalResponsePassthroughEncodings() }
+        await run("HookServerBehaviorTests.testApprovalResponseDecisionEncodings") { let t = HookServerBehaviorTests(); try t.setUpWithError(); try await t.setUp(); t.testApprovalResponseDecisionEncodings() }
+        await run("HookServerBehaviorTests.testShouldAutoApproveBehavior") { let t = HookServerBehaviorTests(); try t.setUpWithError(); try await t.setUp(); t.testShouldAutoApproveBehavior() }
+        await run("HookServerBehaviorTests.testPermissionPromptUsesLiveApprovalModeProvider") { let t = HookServerBehaviorTests(); try t.setUpWithError(); try await t.setUp(); try await t.testPermissionPromptUsesLiveApprovalModeProvider() }
+        await run("PromptExpiryTests.testReducerClearsPromptOlderThanApprovalTimeout") { let t = PromptExpiryTests(); try t.setUpWithError(); try await t.setUp(); t.testReducerClearsPromptOlderThanApprovalTimeout() }
+        await run("PromptExpiryTests.testReducerKeepsFreshPromptBeforeApprovalTimeout") { let t = PromptExpiryTests(); try t.setUpWithError(); try await t.setUp(); t.testReducerKeepsFreshPromptBeforeApprovalTimeout() }
+        await run("PromptExpiryTests.testEngineResolvesPendingApprovalAsPassthroughWhenPromptExpires") { let t = PromptExpiryTests(); try t.setUpWithError(); try await t.setUp(); await t.testEngineResolvesPendingApprovalAsPassthroughWhenPromptExpires() }
         await run("ReducerTests.testInitialStateIsDisconnectedWithNoPrompt") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testInitialStateIsDisconnectedWithNoPrompt() }
         await run("ReducerTests.testSessionStartedBumpsVersion") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testSessionStartedBumpsVersion() }
         await run("ReducerTests.testRequestArrivedSetsPromptAndAttention") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testRequestArrivedSetsPromptAndAttention() }
@@ -145,6 +158,15 @@ struct GeneratedTestRunner {
         await run("ReducerTests.testPromptActivityKindSetAfterRequestArrived") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testPromptActivityKindSetAfterRequestArrived() }
         await run("ReducerTests.testSessionCurrentActivityKindSetAfterKeepWorking") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testSessionCurrentActivityKindSetAfterKeepWorking() }
         await run("ReducerTests.testCompletedTaskActivityKindCarriedOnCelebrate") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testCompletedTaskActivityKindCarriedOnCelebrate() }
+        await run("ReducerTests.testBoopPutsIdlePetInHeart") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testBoopPutsIdlePetInHeart() }
+        await run("ReducerTests.testBoopOverlaysBusyButKeepsMsg") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testBoopOverlaysBusyButKeepsMsg() }
+        await run("ReducerTests.testBoopExpiresOnStaleTick") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testBoopExpiresOnStaleTick() }
+        await run("ReducerTests.testBoopNeverOverridesAttention") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testBoopNeverOverridesAttention() }
+        await run("ReducerTests.testBoopNeverOverridesError") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testBoopNeverOverridesError() }
+        await run("ReducerTests.testBoopWhileAsleepStaysAsleep") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testBoopWhileAsleepStaysAsleep() }
+        await run("ReducerTests.testAttentionArrivingDuringHeartWinsImmediately") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testAttentionArrivingDuringHeartWinsImmediately() }
+        await run("ResourceTests.testModuleBundleContainsFontAndSoundResources") { let t = ResourceTests(); try t.setUpWithError(); try await t.setUp(); t.testModuleBundleContainsFontAndSoundResources() }
+        await run("ResourceTests.testGeistSemiBoldRegistersAndResolves") { let t = ResourceTests(); try t.setUpWithError(); try await t.setUp(); t.testGeistSemiBoldRegistersAndResolves() }
         await run("SnapshotHarnessTests.testSpeciesGallery") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testSpeciesGallery() }
         await run("SnapshotHarnessTests.testPopoverSleep") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testPopoverSleep() }
         await run("SnapshotHarnessTests.testPopoverBusy") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testPopoverBusy() }
@@ -153,7 +175,7 @@ struct GeneratedTestRunner {
         await run("SnapshotHarnessTests.testSettings") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testSettings() }
         await run("SnapshotHarnessTests.testOnboardingSteps") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testOnboardingSteps() }
 
-        let total = 129
+        let total = 151
         print("\n\u{2713} \(passed) passed, \(skipped) skipped of \(total) tests")
     }
 }

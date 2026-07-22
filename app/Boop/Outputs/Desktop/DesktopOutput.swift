@@ -140,6 +140,7 @@ final class DesktopOutput: OutputProvider {
         case .thinking: return "Boop — thinking"
         case .idle: return "Boop — idle"
         case .sleep: return "Boop — asleep"
+        case .heart: return "Boop — loved"
         }
     }
 

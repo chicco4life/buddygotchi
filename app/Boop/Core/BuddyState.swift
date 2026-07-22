@@ -10,6 +10,7 @@ enum PetState: String, Sendable, Equatable {
     case celebrate
     case error
     case thinking
+    case heart
 
     var sfSymbol: String {
         switch self {
@@ -20,6 +21,7 @@ enum PetState: String, Sendable, Equatable {
         case .celebrate: "sparkles"
         case .error: "exclamationmark.triangle.fill"
         case .thinking: "brain"
+        case .heart: "heart.fill"
         }
     }
 }
@@ -163,6 +165,9 @@ struct BuddyState: Sendable, Equatable {
     var pet: Pet
     var lastSignal: String?
     var celebrateUntil: Double?
+    /// Device boop mirror: while set and in the future, calm pet states show
+    /// heart-eyes so the desktop blob reacts to physical affection.
+    var affectionUntil: Double?
     var lastTaskDurationMs: Double?
     var lastCompleted: CompletedTask?
     var firstErrored: ErroredSession?
@@ -181,6 +186,7 @@ struct BuddyState: Sendable, Equatable {
         pet: .initial,
         lastSignal: nil,
         celebrateUntil: nil,
+        affectionUntil: nil,
         lastTaskDurationMs: nil,
         lastCompleted: nil,
         firstErrored: nil,

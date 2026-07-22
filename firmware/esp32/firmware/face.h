@@ -258,12 +258,27 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive) {
       }
       break;
     }
-    case 6: {  // heart — heart eyes, blush, smile
+    case 6: {  // heart — heart eyes, blush, smile, drifting mini-hearts
       _faceEyeHeart(cx - eyeDX, eyeY, PINK);
       _faceEyeHeart(cx + eyeDX, eyeY, PINK);
       spr.fillArc(cx, mouthY - 10, 20, 26, 25, 155, accent);
       spr.fillSmoothRoundRect(cx - eyeDX - 44, eyeY + 32, 26, 10, 5, PINK);
       spr.fillSmoothRoundRect(cx + eyeDX + 18, eyeY + 32, 26, 10, 5, PINK);
+      // Little hearts rise past the cheeks while affection lasts — the
+      // sustained-petting payoff. Deterministic per-slot phase (no rand).
+      for (int i = 0; i < 4; i++) {
+        uint32_t h = _faceHash(0xB005u + i * 7919u);
+        float ph = fmodf((float)now / 1500.0f + (float)(h % 997) / 997.0f, 1.0f);
+        int hx = ((i & 1) ? cx + eyeDX + 58 : cx - eyeDX - 58) +
+                 (int)((h >> 8) % 28) - 14;
+        int hy = eyeY + 64 - _px(ph * 120.0f);
+        int r = 4 + (int)(i >> 1);
+        if (hy < 8 || hy > HAL_H - HAL_HUD_H - 8) continue;
+        spr.fillSmoothCircle(hx - r + 1, hy - r / 2, r, PINK);
+        spr.fillSmoothCircle(hx + r - 1, hy - r / 2, r, PINK);
+        spr.fillTriangle(hx - 2 * r + 1, hy, hx + 2 * r - 1, hy,
+                         hx, hy + 2 * r - 1, PINK);
+      }
       break;
     }
     default: {  // idle — open eyes, blinks, glances, soft smile

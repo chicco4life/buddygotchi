@@ -150,6 +150,39 @@
 > pairing + `make hil-ble`, Mac-app e2e, OTA-over-BLE, character
 > transfer.
 
+> **UX pass 4 — one creature (2026-07-22, verified on device):** boops now
+> bridge to the desktop: `{"cmd":"boop"}` upstream (rate-limited 1.5s) →
+> new app `PetState.heart` (2.5s `affectionUntil` overlay in the reducer,
+> mirroring device semantics: attention/error/sleep always win) → BlobBuddyView
+> heart-eyes/pink blush/flutter glow → heartbeat `pet:"heart"` flows back
+> and the face board honors it (`derive` heart→P_HEART). Touch is now real
+> petting: sustained contact keeps the heart (or sleep-peek) alive and
+> re-sends boops; the heart face grew drifting mini-hearts. QMI8658 wired
+> (probe 0x6A/0x6B on the touch bus, ±4g @125Hz, polled 20Hz,
+> display-only per doctrine): face-down 2s → nap (screen off, napSeconds
+> stat — the menu's "naps" line is finally real; entry blocked while a
+> prompt pends; touch ignored while napping so a couch can't boop it) and
+> shake → 3s dizzy wobble (suppressed during prompts). Power-down: hold
+> BOOP 4s (physical only — synthetic presses can't strand HIL) → "night
+> night" → `halDeepSleep`. On WS that's **light sleep + esp_restart**, not
+> deep sleep: GPIO0 is the boot strap and a wake press held through a
+> reset would drop the ROM into the serial downloader (GPIO46, the other
+> strap half, floats on the IMU INT line); the wake path also waits out
+> the press before restarting. M5 gets true deep sleep via EXT1 on GPIO37.
+> Hard-won: `BLEDevice::deinit` under a live link corrupts the heap on the
+> NimBLE core-3 wrapper (Mac re-authed mid-teardown → panic, caught by the
+> new HIL round-trip test) — bleStop() only stops advertising and the HAL
+> disables the BT controller right before sleep. Serial debug grew
+> `imu` / `imu set x y z` / `imu clear` / `deepsleep [ms]`; `state` grew
+> `boop`/`napping`/`dizzy`. **USB HIL: 32/32** (27 usb + 5 hardening; 5
+> new: boop-upstream, nap, shake, shake-vs-prompt doctrine, deepsleep
+> round-trip); full BLE
+> e2e re-proven: device boop → app heart → heartbeat mirrors `heart` back
+> for exactly the 2.5s window; HTTP e2e 40/40 on the new app build.
+> Latent fix: the committed shim-runner was stale, silently skipping newer
+> tests — regenerated (151 tests) and repaired HookServerBehaviorTests'
+> case-sensitive header asserts.
+
 Target board for the production "Boop Pebble" device. Goal for night one: full e2e
 (agent hook → Mac app → BLE → device render → physical approve/reject) working on
 the new board, no UX polish.

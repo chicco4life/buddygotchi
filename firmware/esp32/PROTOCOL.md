@@ -9,7 +9,7 @@ buffer per transport.
 
 | Field | JSON type | Mac wire max | Firmware destination / max | Meaning |
 | --- | --- | ---: | --- | --- |
-| `pet` | string | enum value | `TamaState.pet`, 11 chars | Overall pet state: `sleep`, `idle`, `busy`, `attention`, `celebrate`, `error`, or `thinking`. `thinking` renders as the busy/calm face. |
+| `pet` | string | enum value | `TamaState.pet`, 11 chars | Overall pet state: `sleep`, `idle`, `busy`, `attention`, `celebrate`, `error`, `thinking`, or `heart`. `thinking` renders as the busy/calm face; `heart` is the desktop mirroring a device boop back (heart-eyes). |
 | `species` | string | current species name | `TamaState.species`, 15 chars | ASCII buddy species name. |
 | `desktop` | string | enum value | `TamaState.desktop`, 15 chars | Desktop link state: `connected` or `disconnected`. |
 | `total` | number | integer | `sessionsTotal`, uint8 | Total sessions known to the Mac app. |
@@ -65,6 +65,7 @@ These are newline-delimited JSON commands sent over USB or BLE RX.
 | --- | --- | --- |
 | Permission decision | `{"cmd":"permission","id":promptId,"decision":"allow"|"deny"}` | Sent when physical/debug approval buttons answer an armed prompt. |
 | Species adoption | `{"cmd":"species","name":speciesName}` | Sent when the on-device menu adopts a character. The desktop mirrors it into its species preference so heartbeats stop overriding the device's choice. |
+| Boop | `{"cmd":"boop"}` | Sent when the pet is booped (BOOP button outside a prompt, or a touchscreen pet/stroke). Rate-limited to one frame per ~1.5s during sustained petting. The desktop mirrors it into a ~2.5s `heart` pet state, which flows back in the next heartbeat. |
 | Ack | `{"ack":name,"ok":bool,"n":number,"error":...?}` | Reply for status, character transfer, and OTA commands. `error` is present on some failures. |
 
 ## USB Serial Debug Commands
@@ -78,7 +79,10 @@ available for hardware-in-the-loop tests.
 | `state` | Prints `<<STATE {...}>>` with current parser, display, BLE, and prompt state. Includes `muted`, `screenOff`, numeric `brightness`, the crash-telemetry fields (`reset`, `panics`, `earlyCrashes`, `safeTier`), and `bleDrops` (bytes dropped from the BLE RX ring — nonzero means an inbound line was truncated) for HIL assertions. |
 | `reboot` | Prints `<<REBOOT ok>>`, flushes, and restarts. |
 | `screenshot` | Prints `<<SCR_BEGIN ...>>`, base64 RGB565 LCD data, then `<<SCR_END LEN=... CRC32=...>>`. |
-| `press a [ms]` / `press b [ms]` | Synthesizes GPIO-level button down/up edges and prints `<<PRESS ...>>` markers. |
+| `press a [ms]` / `press b [ms]` / `press m [ms]` | Synthesizes GPIO-level button down/up edges and prints `<<PRESS ...>>` markers. |
+| `imu` | Prints `<<IMU {"present":...,"injected":...,"ax":...,"ay":...,"az":...,"shake":...,"napping":...,"dizzy":...}>>` — the live accelerometer sample (g) and motion-detector state. |
+| `imu set x y z` / `imu clear` | Overlays a synthetic accelerometer sample (g, floats) so HIL can drive the face-down-nap and shake-dizzy detectors without touching the board; `clear` reverts to the hardware sensor and zeroes the shake accumulator. |
+| `deepsleep [ms]` | Enters the power-down path (same as the 4s physical BOOP hold, which uses button-only wake). Bare `deepsleep` adds a 5s timer wake so tests can prove the round-trip; `deepsleep 0` is button-only. Prints `<<DEEPSLEEP ok wake=...>>` then `<<DEEPSLEEP entering>>`. |
 | `btn a` / `btn b` | Sends an approval/denial for the current prompt without GPIO edge simulation. |
 | `mockprompt` | Arms a fake `DEBUG` approval prompt for offline button-path testing. |
 | `clearbonds` | Erases all stored BLE bonds (recovery from stale host pairing state). Prints `<<CLEARBONDS ok>>`. |

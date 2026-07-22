@@ -316,6 +316,74 @@ def test_screenshot_integrity(stick):
     assert int(end.group(2), 16) == (zlib.crc32(raw) & 0xFFFFFFFF)
 
 
+def test_boop_emits_upstream_frame(stick):
+    """A boop outside a prompt must flash the heart locally AND tell the
+    desktop ({"cmd":"boop"}), so the Mac blob reacts in kind."""
+    send_json(stick, {"total": 1, "running": 0, "waiting": 0, "pet": "idle", "promptId": ""})
+    if state(stick).get("screenOff"):
+        # A wake-press never doubles as an action — burn one.
+        stick.write_line("press a 120")
+        stick.read_until(lambda b: b"<<PRESS a up>>" in b, 2)
+    stick.write_line("press a 120")
+    buf, _ = stick.read_until(lambda b: b'"cmd":"boop"' in b and b"<<PRESS a up>>" in b, 3)
+    assert find_json_line(buf, cmd="boop")
+    # Both together: a state dump issued the same loop iteration as the
+    # release can still carry the previous iteration's persona.
+    wait_state(stick, boop=True, activePersona="P_HEART")
+
+
+def test_imu_face_down_naps_and_face_up_wakes(stick):
+    """Face-down 2s → nap (screen off); face-up 700ms → wake. Injection
+    drives the same detector the real accelerometer feeds."""
+    send_json(stick, {"total": 1, "running": 0, "waiting": 0, "pet": "idle", "promptId": ""})
+    stick.write_line("imu set 0 0 -1.0")
+    stick.read_until(lambda b: b"<<IMU inject" in b, 2)
+    time.sleep(2.3)   # entry debounce is 2s
+    wait_state(stick, napping=True, screenOff=True)
+
+    stick.write_line("imu set 0 0 1.0")
+    stick.read_until(lambda b: b"<<IMU inject" in b, 2)
+    time.sleep(0.9)   # exit debounce is 700ms
+    wait_state(stick, napping=False, screenOff=False)
+    stick.write_line("imu clear")
+    stick.read_until(lambda b: b"<<IMU inject cleared>>" in b, 2)
+
+
+def test_imu_shake_goes_dizzy_and_recovers(stick):
+    """A sustained >1g deviation must cross the shake threshold within a
+    few 50ms samples and wear the dizzy face for ~3s."""
+    send_json(stick, {"total": 1, "running": 0, "waiting": 0, "pet": "idle", "promptId": ""})
+    stick.write_line("imu set 0 0 3.0")
+    stick.read_until(lambda b: b"<<IMU inject" in b, 2)
+    st = wait_state(stick, dizzy=True)
+    assert st["activePersona"] == "P_DIZZY"
+
+    stick.write_line("imu set 0 0 1.0")   # back to rest — stop re-triggering
+    stick.read_until(lambda b: b"<<IMU inject" in b, 2)
+    time.sleep(3.2)   # dizzy window is 3s
+    wait_state(stick, dizzy=False)
+    stick.write_line("imu clear")
+    stick.read_until(lambda b: b"<<IMU inject cleared>>" in b, 2)
+
+
+def test_imu_shake_never_interrupts_prompt(stick):
+    """Doctrine: motion is display-only. While a prompt is pending the
+    shake detector must not fire — the approval card owns the screen."""
+    stick.write_line("mockprompt")
+    stick.read_until(lambda b: b"<<BTN mockprompt armed>>" in b, 2)
+    stick.write_line("imu set 0 0 3.0")
+    stick.read_until(lambda b: b"<<IMU inject" in b, 2)
+    time.sleep(0.6)
+    st = state(stick)
+    assert st["dizzy"] is False
+    assert st["activePersona"] != "P_DIZZY"
+    stick.write_line("imu clear")
+    stick.read_until(lambda b: b"<<IMU inject cleared>>" in b, 2)
+    # Answer the mock prompt so later tests start clean.
+    stick.write_line("btn b")
+    stick.read_until(lambda b: b"<<BTN b deny sent>>" in b, 2)
+
+
 @pytest.mark.slow
 def test_connection_timeout(stick):
     send_json(stick, {"total": 1, "running": 1, "waiting": 0, "pet": "busy"})
@@ -328,3 +396,33 @@ def test_connection_timeout(stick):
             return
         time.sleep(1)
     pytest.fail(f"device did not return to sleep after heartbeat timeout; last={last}")
+
+
+def ping_retry(stick, deadline_s: float) -> dict:
+    """Ping until the device answers (used across the sleep/restart gap)."""
+    deadline = time.monotonic() + deadline_s
+    last_exc: Exception | None = None
+    while time.monotonic() < deadline:
+        try:
+            return stick.framed_json("ping", "PONG", 2)
+        except Exception as exc:
+            last_exc = exc
+            time.sleep(0.5)
+    pytest.fail(f"device did not answer ping within {deadline_s}s: {last_exc}")
+
+
+# Deliberately the last test in the file: the device disappears off the
+# bus for several seconds and other tests shouldn't race the re-enumeration.
+@pytest.mark.slow
+def test_deepsleep_roundtrip(stick):
+    """'deepsleep 4000' must power down and come back on the timer wake
+    with a clean boot — same code path as the 4s physical BOOP hold
+    (which wakes on the button instead). No panic, no safe mode."""
+    baseline = stick.framed_json("ping", "PONG", 3)
+    stick.write_line("deepsleep 4000")
+    stick.read_until(lambda b: b"<<DEEPSLEEP ok" in b, 3)
+    time.sleep(9.0)   # night-night beat + 4s sleep + boot splash
+    pong = ping_retry(stick, 30)
+    assert pong["up"] < 60_000, "device did not actually restart"
+    assert pong["panics"] == baseline["panics"], "sleep path panicked"
+    assert pong["safe"] == 0

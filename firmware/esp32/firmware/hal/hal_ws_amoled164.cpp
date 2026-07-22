@@ -20,6 +20,9 @@
 #include "hal.h"
 #include <Arduino_GFX_Library.h>
 #include <Wire.h>
+#include <esp_sleep.h>
+#include <esp_bt.h>
+#include <driver/gpio.h>
 
 static const int PANEL_W = 280;
 static const int PANEL_H = 456;
@@ -50,13 +53,37 @@ static const int PIN_TP_SCL  = 48;
 static const int TP_ADDR     = 0x38;
 static const int PIN_BAT_ADC = 4;
 
+// QMI8658C IMU, same I2C bus as the touch panel. INT1 (GPIO46) is not
+// used — we poll, like touch. Address depends on the SA0 strap; probe
+// both (0x6A first — the Waveshare schematic's nominal wiring).
+static int IMU_ADDR = 0x6A;
+
 static Arduino_DataBus* _bus = nullptr;
 static Arduino_CO5300*  _gfx = nullptr;
 static uint16_t  _lut565[256];         // sprite RGB332 -> panel RGB565
 static bool      _touchOk = false;
 static bool      _touchDown = false;
+static bool      _imuOk = false;
 static uint8_t   _brightness = 0;
 static bool      _displayOn = true;
+
+// Full-stop register write (the repeated-start path is what made the
+// touch poll flaky on the core-3 i2c-ng driver; see halUpdate).
+static bool _i2cWriteReg(int addr, uint8_t reg, uint8_t val) {
+  Wire.beginTransmission(addr);
+  Wire.write(reg);
+  Wire.write(val);
+  return Wire.endTransmission(true) == 0;
+}
+
+static bool _i2cReadRegs(int addr, uint8_t reg, uint8_t* buf, size_t n) {
+  Wire.beginTransmission(addr);
+  Wire.write(reg);
+  if (Wire.endTransmission(true) != 0) return false;
+  if (Wire.requestFrom(addr, (int)n) != (int)n) return false;
+  for (size_t i = 0; i < n; i++) buf[i] = (uint8_t)Wire.read();
+  return true;
+}
 
 static void _buildLut() {
   for (int c = 0; c < 256; c++) {
@@ -98,6 +125,25 @@ void halInit() {
   Wire.beginTransmission(TP_ADDR);
   _touchOk = (Wire.endTransmission() == 0);
   if (!_touchOk) Serial.println("[hal] FT3168 not responding — touch disabled");
+
+  // QMI8658 accel bring-up: find the chip (SA0 strap picks 0x6A/0x6B),
+  // verify WHO_AM_I (0x05), then address auto-increment (CTRL1), ±4g @
+  // 125Hz (CTRL2), accel enable (CTRL7). A flaky/absent chip degrades to
+  // no motion features, like touch.
+  for (int addr : { 0x6A, 0x6B }) {
+    uint8_t who = 0;
+    bool seen = _i2cReadRegs(addr, 0x00, &who, 1);
+    Serial.printf("[hal] QMI8658 probe 0x%02X: %s who=0x%02X\n",
+                  addr, seen ? "ack" : "nack", who);
+    if (seen && who == 0x05) {
+      IMU_ADDR = addr;
+      _imuOk = _i2cWriteReg(addr, 0x02, 0x40) &&
+               _i2cWriteReg(addr, 0x03, 0x16) &&
+               _i2cWriteReg(addr, 0x08, 0x01);
+      break;
+    }
+  }
+  if (!_imuOk) Serial.println("[hal] QMI8658 not responding — motion disabled");
 }
 
 void halUpdate() {
@@ -283,6 +329,46 @@ bool halIsCharging() {
 
 void halSetLed(bool on) { (void)on; }
 void halTone(uint16_t freq, uint16_t ms) { (void)freq; (void)ms; }
+
+bool halImuRead(float* ax, float* ay, float* az) {
+  if (!_imuOk) return false;
+  uint8_t raw[6];
+  if (!_i2cReadRegs(IMU_ADDR, 0x35, raw, 6)) return false;   // AX_L..AZ_H
+  const float LSB_PER_G = 8192.0f;   // ±4g full scale
+  *ax = (int16_t)(raw[0] | (raw[1] << 8)) / LSB_PER_G;
+  *ay = (int16_t)(raw[2] | (raw[3] << 8)) / LSB_PER_G;
+  *az = (int16_t)(raw[4] | (raw[5] << 8)) / LSB_PER_G;
+  return true;
+}
+
+void halDeepSleep(uint32_t timerWakeMs) {
+  halDisplaySleep();
+  Serial.flush();
+  // Light sleep, not deep: the only wake button is BOOT (GPIO0), a
+  // strapping pin — a deep-sleep wake samples the straps while the finger
+  // is still down and can drop the ROM into download mode (GPIO46, the
+  // other strap half, floats on the IMU INT line). Light sleep resumes
+  // without a strap sample; we esp_restart() after it for a clean stack
+  // (the BLE link is long dead by then anyway).
+  gpio_wakeup_enable((gpio_num_t)PIN_BTN_BOOT, GPIO_INTR_LOW_LEVEL);
+  esp_sleep_enable_gpio_wakeup();
+  if (timerWakeMs > 0) esp_sleep_enable_timer_wakeup((uint64_t)timerWakeMs * 1000ULL);
+  // Kill the radio at the controller level (no host-structure frees — see
+  // bleStop) so light sleep isn't blocked by the BT power-management lock.
+  // The narrow window before sleep entry is safe: tasks freeze in light
+  // sleep and we esp_restart() on wake before the host notices.
+  if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_ENABLED) {
+    esp_bt_controller_disable();
+  }
+  esp_light_sleep_start();
+  // Wait out the wake press before restarting: the ROM re-reads the GPIO0
+  // strap on any reset, and restarting under a still-held finger would
+  // boot the serial downloader instead of the app.
+  uint32_t t0 = millis();
+  while (digitalRead(PIN_BTN_BOOT) == LOW && millis() - t0 < 5000) delay(10);
+  delay(50);
+  esp_restart();
+}
 
 void halSetLocalTime(const struct tm& lt) {
   // No RTC chip: hold the bridge's local time in the system clock. TZ is

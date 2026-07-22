@@ -119,6 +119,21 @@ bool halHasButton(HalButton b);     // MENU is absent on M5
 // can never answer a permission prompt.
 bool halTouchDown();
 
+// Accelerometer sample in g (WS: QMI8658 on the touch I2C bus; M5: none —
+// always false). Axes are the chip's own; motion logic in main.cpp only
+// uses the vector magnitude and the panel-normal (z) axis, and is
+// display-only per the same doctrine as touch.
+bool halImuRead(float* ax, float* ay, float* az);
+
+// Lowest safe sleep the board supports; never returns (the device restarts
+// on wake). Wake = the BOOP button; timerWakeMs adds a timer wake so HIL
+// can prove the round-trip without a human finger (0 = button only).
+// WS: light sleep + esp_restart — GPIO0 is a strapping pin, so a true
+// deep-sleep wake with the button still held would strap the ROM into
+// download mode; light sleep wakes without a strap sample. M5: true deep
+// sleep with EXT1 on BtnA (GPIO37, not a strapping pin).
+void halDeepSleep(uint32_t timerWakeMs);
+
 int  halBatteryVoltage_mV();
 int  halBatteryCurrent_mA();        // 0 where unmeasurable (WS has no coulomb counter)
 // WS has no charge-status GPIO: heuristic (vbat at charger CV level). The
