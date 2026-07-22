@@ -164,12 +164,26 @@ final class BLEManager: NSObject, @unchecked Sendable {
         connectionState = .disconnected
     }
 
+    // One ATT write must fit the negotiated MTU (~185 on macOS) minus the
+    // 3-byte ATT header. Anything larger becomes a CoreBluetooth "long
+    // write" (prepare/execute), which the NimBLE-backed Arduino stack on
+    // the ws-amoled164 board never delivers — heartbeats silently vanish
+    // while small frames (time sync, acks) arrive. Chunk exactly like
+    // buddyctl does; .withResponse writes are serialized by CoreBluetooth,
+    // and the firmware's line buffer reassembles on the trailing newline.
+    private static let writeChunkSize = 180
+
     func send(_ data: Data) {
         bleQueue.async { [weak self] in
             guard let self,
                   let rx = self.rxCharacteristic,
                   let peripheral = self.connectedPeripheral else { return }
-            peripheral.writeValue(data, for: rx, type: .withResponse)
+            var offset = data.startIndex
+            while offset < data.endIndex {
+                let end = data.index(offset, offsetBy: Self.writeChunkSize, limitedBy: data.endIndex) ?? data.endIndex
+                peripheral.writeValue(data.subdata(in: offset..<end), for: rx, type: .withResponse)
+                offset = end
+            }
         }
     }
 
