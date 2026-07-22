@@ -1009,5 +1009,5 @@ void loop() {
   }
   if (!screenOff) halPresent(spr);
 
-  delay(16);
+  delay(HAL_LOOP_MS);
 }

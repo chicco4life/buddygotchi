@@ -58,6 +58,16 @@
 const bool HAL_LANDSCAPE = HAL_W > HAL_H;
 const int  HAL_HUD_H = HAL_LANDSCAPE ? 52 : 70;
 
+// Main-loop tick. The WS board runs an 8ms tick so its 24ms present
+// throttle isn't quantized up to 32ms (measured present cost ~13ms →
+// ~42fps at ~56% of the core). The M5 presents unthrottled every loop,
+// so its tick stays 16ms to keep the ST7789 push off the critical path.
+#ifdef BOARD_WS_AMOLED_164
+const uint32_t HAL_LOOP_MS = 8;
+#else
+const uint32_t HAL_LOOP_MS = 16;
+#endif
+
 // Logical buttons. Physical mapping per board:
 //   M5:  BOOP = BtnA (GPIO37), REJECT = BtnB (GPIO39), MENU absent
 //   WS:  BOOP = header IO1 + on-board BOOT (IO0)

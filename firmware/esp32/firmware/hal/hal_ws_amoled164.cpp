@@ -52,7 +52,6 @@ static const int PIN_BAT_ADC = 4;
 
 static Arduino_DataBus* _bus = nullptr;
 static Arduino_CO5300*  _gfx = nullptr;
-static uint16_t* _fb = nullptr;        // 280x456 RGB565 in PSRAM
 static uint16_t  _lut565[256];         // sprite RGB332 -> panel RGB565
 static bool      _touchOk = false;
 static bool      _touchDown = false;
@@ -65,7 +64,11 @@ static void _buildLut() {
     uint16_t r5 = (r3 * 31 + 3) / 7;
     uint16_t g6 = (g3 * 63 + 3) / 7;
     uint16_t b5 = (b2 * 31 + 1) / 3;
-    _lut565[c] = (r5 << 11) | (g6 << 5) | b5;
+    // Stored BYTE-SWAPPED (big-endian): the panel wants MSB first, and
+    // pre-swapping here lets halPresent use draw16bitBeRGBBitmap, which
+    // skips Arduino_GFX's per-pixel CPU swap pass on every push.
+    uint16_t v = (uint16_t)((r5 << 11) | (g6 << 5) | b5);
+    _lut565[c] = (uint16_t)((v << 8) | (v >> 8));
   }
 }
 
@@ -78,7 +81,6 @@ void halInit() {
   analogReadResolution(12);
 
   _buildLut();
-  _fb = (uint16_t*)ps_malloc((size_t)PANEL_W * PANEL_H * 2);
 
   _bus = new Arduino_ESP32QSPI(PIN_OLED_CS, PIN_OLED_CLK,
                                PIN_OLED_D0, PIN_OLED_D1, PIN_OLED_D2, PIN_OLED_D3);
@@ -141,18 +143,19 @@ void halFrameStats(uint32_t* avgUs, uint32_t* maxUs) {
 }
 
 void halPresent(BuddyCanvas& spr) {
-  // Throttled to ~33fps: the face animates with per-frame easing, so the
-  // present cadence is the visible frame rate. One present (expand +
-  // rotate + QSPI flush) costs ~10ms measured — see halFrameStats — so
-  // 30ms leaves the loop most of its time for input/BLE/parse work.
+  // Throttled to ~42fps: the face animates with per-frame easing, so the
+  // present cadence is the visible frame rate. One present (rotate +
+  // expand + streamed QSPI flush) costs ~13.4ms measured — see
+  // halFrameStats — so a 24ms period leaves the loop ~45% of the core
+  // for input/BLE/parse work.
   static uint32_t lastPush = 0;
   uint32_t now = millis();
-  if (now - lastPush < 30) return;
+  if (now - lastPush < 24) return;
   lastPush = now;
   uint32_t t0 = micros();
 
   const uint8_t* src = (const uint8_t*)spr.getBuffer();
-  if (!src || !_fb || !_gfx) return;
+  if (!src || !_gfx) return;
   int w = spr.width(), h = spr.height();
   if (w > HAL_W) w = HAL_W;
   if (h > HAL_H) h = HAL_H;
@@ -162,38 +165,59 @@ void halPresent(BuddyCanvas& spr) {
 
   // AMOLED burn-in guard: drift the whole image by one physical pixel
   // through a 4-phase cycle (~45s per step) so no static UI edge parks on
-  // a single OLED cell. Invisible at desk distance. The framebuffer is
-  // cleared once per phase change; the shifted-in border rows stay black.
-  // Phase 0 (ox=oy=0) covers every panel pixel, so the first frame fully
-  // initializes the fresh ps_malloc buffer.
+  // a single OLED cell. Invisible at desk distance. Shifted-in border
+  // cells are blanked explicitly each frame (there is no persistent
+  // framebuffer to memset anymore).
   static uint8_t drift = 0;
   static uint32_t nextDriftAt = 45000;
   if ((int32_t)(now - nextDriftAt) >= 0) {
     nextDriftAt = now + 45000;
     drift = (uint8_t)((drift + 1) & 3);
-    memset(_fb, 0, (size_t)PANEL_W * PANEL_H * 2);
   }
   int ox = drift & 1, oy = (drift >> 1) & 1;
 
   // Rotate the 228x140 landscape logical canvas into the portrait panel
-  // while pixel-doubling. Each logical COLUMN becomes two contiguous
-  // panel ROWS, so the inner loop writes sequentially and the row can be
-  // duplicated with one memcpy. With WS_USB_LEFT the USB-C connector
-  // points left when facing the landscape screen; flip it if the
-  // enclosure mounts the board the other way (image rotates 180°).
-  for (int lx = 0; lx < w; lx++) {
-    const uint8_t* s = src + lx;
-    int py = (WS_USB_LEFT ? (PANEL_H - 2 - 2 * lx) : (2 * lx)) + oy;
-    uint16_t* row = _fb + (size_t)py * PANEL_W;
-    for (int ly = 0; ly < h; ly++) {
-      uint16_t c = _lut565[s[(size_t)ly * stride]];
-      int px = (WS_USB_LEFT ? (2 * ly) : (PANEL_W - 2 - 2 * ly)) + ox;
-      row[px] = c;
-      if (px + 1 < PANEL_W) row[px + 1] = c;
-    }
-    if (py + 1 < PANEL_H) memcpy(row + PANEL_W, row, (size_t)PANEL_W * 2);
+  // while pixel-doubling, streamed through a small INTERNAL-RAM batch
+  // buffer straight to the controller. The previous PSRAM framebuffer
+  // cost a full 255KB write + 255KB read-back per frame (~34ms measured);
+  // streaming cuts the frame to sprite-reads + one 255KB QSPI push.
+  // Each logical COLUMN becomes two contiguous panel ROWS; iterating
+  // columns in panel order makes every batch a contiguous ascending
+  // window. With WS_USB_LEFT the USB-C connector points left when facing
+  // the landscape screen; flip it if the enclosure mounts the board the
+  // other way (image rotates 180°).
+  const int BP = 8;                              // column-pairs per push
+  static uint16_t batch[BP * 2 * PANEL_W];       // 8.75KB, internal RAM
+
+  if (oy) {
+    // Row 0 is shifted out this phase — blank it so no stale line parks.
+    memset(batch, 0, (size_t)PANEL_W * 2);
+    _gfx->draw16bitBeRGBBitmap(0, 0, batch, PANEL_W, 1);
   }
-  _gfx->draw16bitRGBBitmap(0, 0, _fb, PANEL_W, PANEL_H);
+
+  for (int b = 0; b < w; b += BP) {
+    int n = (w - b < BP) ? (w - b) : BP;
+    int yStart = 0;
+    for (int j = 0; j < n; j++) {
+      int i = b + j;
+      int lx = WS_USB_LEFT ? (w - 1 - i) : i;   // ascending panel rows
+      int base = (WS_USB_LEFT ? (PANEL_H - 2 - 2 * lx) : (2 * lx)) + oy;
+      if (j == 0) yStart = base;
+      uint16_t* row = batch + (size_t)j * 2 * PANEL_W;
+      if (ox) row[0] = 0;                        // shifted-in left column
+      const uint8_t* s = src + lx;
+      for (int ly = 0; ly < h; ly++) {
+        uint16_t c = _lut565[s[(size_t)ly * stride]];
+        int px = (WS_USB_LEFT ? (2 * ly) : (PANEL_W - 2 - 2 * ly)) + ox;
+        row[px] = c;
+        if (px + 1 < PANEL_W) row[px + 1] = c;
+      }
+      memcpy(row + PANEL_W, row, (size_t)PANEL_W * 2);
+    }
+    int rows = n * 2;
+    if (yStart + rows > PANEL_H) rows = PANEL_H - yStart;
+    if (rows > 0) _gfx->draw16bitBeRGBBitmap(0, yStart, batch, PANEL_W, rows);
+  }
 
   uint32_t total = micros() - t0;
   _frameAvgUs += ((int32_t)(total - _frameAvgUs)) >> 3;

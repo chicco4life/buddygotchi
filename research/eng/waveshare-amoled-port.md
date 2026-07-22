@@ -80,6 +80,23 @@
 > low-water 149608, floor 60000). Post-review adversarial pass over the
 > landscape/face/touch/sleep commits found zero correctness bugs.
 >
+> **Fluidity pass (2026-07-21, measured on device):** animation went from
+> triple-capped (faceTick 10fps gate, present 25fps throttle, keyframe
+> steps) to per-frame damped-exponential easing at a **24ms present
+> cadence (~42fps)**. Present cost measured via new `frameUs`/
+> `frameMaxUs` PONG fields: 33.8ms originally → 29.4ms after dropping
+> the PSRAM framebuffer (rotate+expand now streams through an 8.75KB
+> internal batch buffer in ascending panel-row windows) → **13.3ms**
+> after pre-swapping the RGB332→RGB565 LUT to big-endian and pushing via
+> `draw16bitBeRGBBitmap` (skips Arduino_GFX's per-pixel CPU swap — the
+> single biggest cost). WS loop tick is now 8ms (`HAL_LOOP_MS`; M5 stays
+> 16ms). Chirps are a non-blocking note scheduler (the old delay()-spaced
+> jingles froze the loop up to 200ms), and brightness dims/undims fade
+> (~8/step per tick) instead of snapping — wake still snaps. NOTE for
+> HIL: with the app connected its BLE keepalives race serial `set`
+> heartbeats — pause or quit the app for `make hil` (suite re-verified
+> 27/27 with the app SIGSTOPped).
+>
 > **BLE + full production e2e (2026-07-21, PROVEN on device):** found and
 > fixed the board's one real BLE bug — the Mac app wrote each heartbeat
 > as a single `writeValue`, and anything over one ATT MTU (~182B) became
