@@ -100,6 +100,29 @@ static void beep(uint16_t freq, uint16_t dur) {
   if (settings().sound && !tama.muted) halTone(freq, dur);
 }
 
+// Non-blocking chirp scheduler. halTone starts a note and returns; the
+// old delay()-spaced jingles froze the loop (and the animation) for up
+// to ~200ms right at the emotional beats. Notes fire from tuneTick.
+struct TuneNote { uint16_t freq; uint16_t ms; uint16_t at; };   // at = offset from start
+static TuneNote _tune[4];
+static uint8_t  _tuneN = 0, _tuneI = 0;
+static uint32_t _tuneT0 = 0;
+
+static void playTune(const TuneNote* notes, uint8_t count) {
+  if (count > 4) count = 4;
+  memcpy(_tune, notes, count * sizeof(TuneNote));
+  _tuneN = count;
+  _tuneI = 0;
+  _tuneT0 = millis();
+}
+
+static void tuneTick(uint32_t now) {
+  while (_tuneI < _tuneN && (int32_t)(now - (_tuneT0 + _tune[_tuneI].at)) >= 0) {
+    beep(_tune[_tuneI].freq, _tune[_tuneI].ms);
+    _tuneI++;
+  }
+}
+
 static void sendCmd(const char* json) {
   Serial.println(json);
   size_t n = strlen(json);
@@ -131,30 +154,41 @@ static void sleepDisplay(bool manual) {
   manualScreenOff = manual;
 }
 
+static uint8_t targetBrightness = BRIGHT_MEDIUM;
+
 static void setDisplayBrightness(uint8_t brightness) {
-  if (screenOff || currentBrightness == brightness) return;
-  halSetBrightness(brightness);
-  currentBrightness = brightness;
+  if (screenOff) return;
+  targetBrightness = brightness;
+  // Fresh wake (0xFF sentinel): snap — the panel just restored its own
+  // level in halDisplayWake, and fading from a stale value reads as a
+  // flicker rather than a glow.
+  if (currentBrightness == 0xFF) {
+    currentBrightness = brightness;
+    halSetBrightness(brightness);
+  }
+}
+
+// Runs every loop (~16ms): steps toward the target so dim/undim glides
+// instead of snapping. Full range ≈ 440ms; the common medium<->full hop
+// ≈ 200ms.
+static void brightnessTick() {
+  if (screenOff || currentBrightness == 0xFF || currentBrightness == targetBrightness) return;
+  int delta = (int)targetBrightness - (int)currentBrightness;
+  int step = delta > 0 ? (delta > 8 ? 8 : delta) : (delta < -8 ? -8 : delta);
+  currentBrightness = (uint8_t)((int)currentBrightness + step);
+  halSetBrightness(currentBrightness);
 }
 
 static void playStateChirp(PersonaState state) {
   if (tama.muted || !settings().sound) return;
+  static const TuneNote ATTN[] = { {880, 90, 0}, {1245, 90, 110} };
+  static const TuneNote CELE[] = { {988, 70, 0}, {1175, 70, 85}, {1397, 80, 170} };
+  static const TuneNote DIZZ[] = { {330, 180, 0} };
   switch (state) {
-    case P_ATTENTION:
-      beep(880, 90); delay(110);
-      beep(1245, 90);
-      break;
-    case P_CELEBRATE:
-      if (!tama.celebrate) break;
-      beep(988, 70); delay(85);
-      beep(1175, 70); delay(85);
-      beep(1397, 80);
-      break;
-    case P_DIZZY:
-      beep(330, 180);
-      break;
-    default:
-      break;
+    case P_ATTENTION: playTune(ATTN, 2); break;
+    case P_CELEBRATE: if (tama.celebrate) playTune(CELE, 3); break;
+    case P_DIZZY:     playTune(DIZZ, 1); break;
+    default: break;
   }
 }
 
@@ -294,8 +328,10 @@ static void sendApproval(bool approve) {
   // Approve gets a bright "mm-hm!"; deny a single neutral note. Deny must
   // never sound (or look) sad — guilt-tripping users into approving is a
   // product bug, not a personality.
-  if (approve) { beep(988, 60); delay(70); beep(1319, 90); }
-  else         { beep(523, 80); }
+  static const TuneNote YES[] = { {988, 60, 0}, {1319, 90, 70} };
+  static const TuneNote NO[]  = { {523, 80, 0} };
+  if (approve) playTune(YES, 2);
+  else         playTune(NO, 1);
 }
 
 // Pet-affection reaction: a short heart-face flash when the BOOP button is
@@ -442,11 +478,17 @@ static void dumpPing() {
   // heapMin/heapBig: low-water mark and largest free block. A BLE connect
   // needs several contiguous KB; if heapBig is small the Bluedroid connect
   // path OOMs and asserts (fixed_queue_new → vQueueDelete(NULL)).
+  // frameUs/frameMaxUs: measured cost of one present (0 on M5) — the
+  // ground truth for animation cadence tuning.
+  uint32_t fAvg = 0, fMax = 0;
+  halFrameStats(&fAvg, &fMax);
   Serial.printf("<<PONG {\"fw\":\"%s\",\"git\":\"%s\",\"board\":\"" HAL_BOARD_NAME "\","
                 "\"up\":%lu,\"heap\":%lu,\"heapMin\":%lu,\"heapBig\":%lu,"
+                "\"frameUs\":%lu,\"frameMaxUs\":%lu,"
                 "\"reset\":\"%s\",\"panics\":%lu,\"early\":%lu,\"safe\":%d}>>\n",
                 FW_VERSION, GIT_SHA, (unsigned long)millis(), (unsigned long)ESP.getFreeHeap(),
                 (unsigned long)ESP.getMinFreeHeap(), (unsigned long)ESP.getMaxAllocHeap(),
+                (unsigned long)fAvg, (unsigned long)fMax,
                 guardResetReason(), (unsigned long)guardPanicsTotal(),
                 (unsigned long)guardEarlyCrashes(), guardSafeTier());
 }
@@ -817,6 +859,8 @@ void loop() {
   }
   handleButtons();
   menuTick(millis());
+  tuneTick(millis());
+  brightnessTick();
 
   if (blePasskey()) {
     wakeDisplay();

@@ -132,14 +132,24 @@ void halUpdate() {
   _touchDown = (n > 0 && n <= 5);
 }
 
+static uint32_t _frameAvgUs = 0;
+static uint32_t _frameMaxUs = 0;
+
+void halFrameStats(uint32_t* avgUs, uint32_t* maxUs) {
+  *avgUs = _frameAvgUs;
+  *maxUs = _frameMaxUs;
+}
+
 void halPresent(BuddyCanvas& spr) {
-  // Throttled: loop() calls this every ~16ms but a full frame is 255KB;
-  // buddy animation ticks at 5fps and the fastest UI element (approval
-  // wait counter) updates at 1Hz, so 25fps is plenty.
+  // Throttled to ~33fps: the face animates with per-frame easing, so the
+  // present cadence is the visible frame rate. One present (expand +
+  // rotate + QSPI flush) costs ~10ms measured — see halFrameStats — so
+  // 30ms leaves the loop most of its time for input/BLE/parse work.
   static uint32_t lastPush = 0;
   uint32_t now = millis();
-  if (now - lastPush < 40) return;
+  if (now - lastPush < 30) return;
   lastPush = now;
+  uint32_t t0 = micros();
 
   const uint8_t* src = (const uint8_t*)spr.getBuffer();
   if (!src || !_fb || !_gfx) return;
@@ -184,6 +194,10 @@ void halPresent(BuddyCanvas& spr) {
     if (py + 1 < PANEL_H) memcpy(row + PANEL_W, row, (size_t)PANEL_W * 2);
   }
   _gfx->draw16bitRGBBitmap(0, 0, _fb, PANEL_W, PANEL_H);
+
+  uint32_t total = micros() - t0;
+  _frameAvgUs += ((int32_t)(total - _frameAvgUs)) >> 3;
+  if (total > _frameMaxUs) _frameMaxUs = total;
 }
 
 void halDisplaySleep() {

@@ -99,25 +99,40 @@ static const char* _faceActivityVerb(const char* activity) {
   return "working";
 }
 
+// Damped exponential approach — eases toward the target with no
+// overshoot, matching the product's "physical, never bouncy" motion
+// language. rate is 1/s: higher = snappier.
+static float _easeToward(float cur, float target, float rate, float dt) {
+  return cur + (target - cur) * (1.0f - expf(-rate * dt));
+}
+
+static int _px(float v) { return (int)floorf(v + 0.5f); }
+
 inline void faceTick(uint8_t persona, const char* activity, bool boopActive) {
   uint32_t now = millis();
-  static uint32_t nextFrameAt = 0;
-  static uint8_t lastPersona = 0xFF;
+  static uint32_t lastMs = 0;
   static uint32_t nextBlinkAt = 2800;
   static uint32_t blinkUntil = 0;
   static uint32_t nextGlanceAt = 6500;
   static uint32_t glanceUntil = 0;
   static int glanceDir = 1;
+  // Eased face parameters — updated every frame, drawn every frame. The
+  // present throttle in halPresent decides what reaches glass.
+  static float lidL = 1.0f, lidR = 1.0f;   // eye openness, 1 = full state height
+  static float lift = 0.0f;                // eye raise px (attention looks up)
+  static float boost = 0.0f;               // extra eye height px (attention pop)
+  static float gaze = 0.0f;                // horizontal glance px
 
-  if (persona == lastPersona && (int32_t)(now - nextFrameAt) < 0) return;
-  lastPersona = persona;
-  nextFrameAt = now + 100;
+  float dt = (now - lastMs) / 1000.0f;
+  lastMs = now;
+  if (dt <= 0.0f || dt > 0.05f) dt = 0.016f;   // first frame / hiccup clamp
+
   FaceEyes e = _faceEyes();
 
   // Blink / glance scheduling (idle life). Runs off wall time so state
   // changes don't reset the rhythm.
   if ((int32_t)(now - nextBlinkAt) >= 0) {
-    blinkUntil = now + 130;
+    blinkUntil = now + 140;
     uint32_t h = _faceHash(now);
     nextBlinkAt = now + 2600 + (h % 2200);
     if ((h & 7) == 0) nextBlinkAt = now + 420;   // occasional double-blink
@@ -130,48 +145,66 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive) {
   bool blinking = (int32_t)(blinkUntil - now) > 0;
   bool glancing = (int32_t)(glanceUntil - now) > 0;
 
+  // Per-state targets; easing morphs between them (state changes glide
+  // in over ~100-200ms instead of popping).
+  float lidTargetL = 1.0f, lidTargetR = 1.0f;
+  float liftTarget = 0.0f, boostTarget = 0.0f;
+  switch (persona) {
+    case 0:   // sleep (peek: a boop cracks the right eye open)
+      lidTargetL = 0.10f;
+      lidTargetR = boopActive ? 0.75f : 0.10f;
+      break;
+    case 2: lidTargetL = lidTargetR = 0.62f; break;             // busy focus
+    case 3: liftTarget = -6.0f; boostTarget = 8.0f; break;      // attention
+    default: break;
+  }
+  if (blinking && (persona == 1 || persona == 2)) lidTargetL = lidTargetR = 0.08f;
+  float gazeTarget = (glancing && (persona == 1 || persona == 2)) ? glanceDir * 4.0f : 0.0f;
+
+  // Lids close fast, open slower — the asymmetry is what reads as alive.
+  lidL = _easeToward(lidL, lidTargetL, lidTargetL < lidL ? 26.0f : 11.0f, dt);
+  lidR = _easeToward(lidR, lidTargetR, lidTargetR < lidR ? 26.0f : 11.0f, dt);
+  lift = _easeToward(lift, liftTarget, 14.0f, dt);
+  boost = _easeToward(boost, boostTarget, 18.0f, dt);
+  gaze = _easeToward(gaze, gazeTarget, 8.0f, dt);
+
   uint16_t accent = buddySpeciesColor();
   const uint16_t PINK = 0xFB56;
 
-  // Slow whole-face bob: life at a glance and continuous sub-pixel-ish
-  // motion for the AMOLED. ~6s cycle, ±2px.
-  static const int8_t BOB[8] = { 0, 1, 2, 2, 1, 0, -1, -1 };
-  int bob = BOB[(now / 750) & 7];
+  // Slow continuous whole-face bob: life at a glance plus constant
+  // micro-motion for the AMOLED. Sleep breathes slower and deeper.
+  float bobF = (persona == 0)
+      ? 2.5f * sinf((float)now * (6.2832f / 4500.0f))
+      : 2.0f * sinf((float)now * (6.2832f / 6000.0f));
+  int bob = _px(bobF);
 
   const int cx = HAL_W / 2;
-  int eyeY = 46 + bob;
+  int eyeY = 46 + bob + _px(lift);
   int eyeDX = 38;
   int mouthY = 72 + bob;
-  int gaze = glancing ? glanceDir * 4 : 0;
+  int gazeI = _px(gaze);
+  int eyeHL = _px(e.h * lidL + boost);
+  int eyeHR = _px(e.h * lidR + boost);
+  int eyeW = _px(e.w + (boost > 1.0f ? 2.0f : 0.0f));
 
   spr.fillSprite(BLACK);
 
   switch (persona) {
-    case 0: {  // sleep — closed lids, drifting z's, slow breath
-      int breathe = ((now / 1400) & 1) ? 1 : 0;
-      if (boopActive) {
-        // Sleep-peek: a boop cracks one eye open to see who's there,
-        // then it drifts shut again. The signature move.
-        _faceEye(cx - eyeDX, eyeY + breathe, e.w, 4, e.r, accent);
-        _faceEye(cx + eyeDX, eyeY + breathe, e.w, e.h - 6, e.r, accent);
-      } else {
-        _faceEye(cx - eyeDX, eyeY + breathe, e.w, 4, e.r, accent);
-        _faceEye(cx + eyeDX, eyeY + breathe, e.w, 4, e.r, accent);
-      }
+    case 0: {  // sleep — lids (peek eased via lidR), drifting z's
+      _faceEye(cx - eyeDX, eyeY, e.w, eyeHL, e.r, accent);
+      _faceEye(cx + eyeDX, eyeY, e.w, eyeHR, e.r, accent);
       spr.setTextSize(1);
       spr.setTextColor(accent, BLACK);
-      uint32_t ph = now / 600;
       for (int i = 0; i < 3; i++) {
-        int step = (int)((ph + i * 2) % 6);
-        spr.setCursor(cx + 52 + i * 10 + step, eyeY - 18 - step * 4);
+        float ph = fmodf((float)now / 600.0f + i * 2.0f, 6.0f);
+        spr.setCursor(cx + 52 + i * 10 + _px(ph), eyeY - 18 - _px(ph * 4.0f));
         spr.print(i == 1 ? "Z" : "z");
       }
       break;
     }
     case 2: {  // busy — half-lidded focus, flat mouth, working dots
-      int bh = (e.h * 3) / 5;
-      _faceEye(cx - eyeDX + gaze, eyeY, e.w, bh, e.r, accent);
-      _faceEye(cx + eyeDX + gaze, eyeY, e.w, bh, e.r, accent);
+      _faceEye(cx - eyeDX + gazeI, eyeY, eyeW, eyeHL, e.r, accent);
+      _faceEye(cx + eyeDX + gazeI, eyeY, eyeW, eyeHR, e.r, accent);
       spr.fillRect(cx - 8, mouthY, 16, 3, accent);
       int active = (now / 350) % 3;
       for (int i = 0; i < 3; i++) {
@@ -188,29 +221,32 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive) {
       break;
     }
     case 3: {  // attention — wide eyes raised toward the boop button
-      // The tallest species (h=30) grown by +8 and raised by 6 tops out at
-      // exactly y=20 — flush under the armed-prompt band (rows 0..19).
-      // Keep the -6/+8 pair in sync with the band height if either moves.
-      _faceEye(cx - eyeDX, eyeY - 6, e.w + 2, e.h + 8, e.r, accent);
-      _faceEye(cx + eyeDX, eyeY - 6, e.w + 2, e.h + 8, e.r, accent);
+      // The tallest species (h=30) with the full +8 boost and -6 lift
+      // tops out at exactly y=20 — flush under the armed-prompt band
+      // (rows 0..19). Keep the lift/boost targets in sync with the band
+      // height if either moves.
+      _faceEye(cx - eyeDX, eyeY, eyeW, eyeHL, e.r, accent);
+      _faceEye(cx + eyeDX, eyeY, eyeW, eyeHR, e.r, accent);
       spr.fillArc(cx, mouthY, 4, 7, 0, 360, accent);   // small "o"
       break;
     }
-    case 4: {  // celebrate — happy arcs, big smile, confetti
+    case 4: {  // celebrate — happy arcs, big smile, falling confetti
       _faceEyeHappy(cx - eyeDX, eyeY, accent);
       _faceEyeHappy(cx + eyeDX, eyeY, accent);
       spr.fillArc(cx, mouthY - 6, 12, 16, 25, 155, accent);
       static const uint16_t CONF[5] = { 0xF800, 0x07E0, 0x001F, 0xFFE0, 0xF81F };
       for (int i = 0; i < 12; i++) {
         uint32_t h = _faceHash(i * 7919u);
+        // Per-particle fall speed (60-110 px/s) so the rain has depth.
+        float speed = 0.060f + (h % 50) * 0.001f;
         int px = (int)(h % (HAL_W - 1));
-        int py = (int)((h / 331 + now / 90) % (HAL_H - HAL_HUD_H - 1));
+        int py = _px(fmodf(h / 331.0f + (float)now * speed, (float)(HAL_H - HAL_HUD_H - 1)));
         spr.fillRect(px, py, 2, 2, CONF[i % 5]);
       }
       break;
     }
-    case 5: {  // dizzy — X eyes, wobbly mouth
-      int tilt = ((now / 400) & 1) ? 2 : -2;
+    case 5: {  // dizzy — X eyes, continuous wobble
+      int tilt = _px(2.5f * sinf((float)now * (6.2832f / 800.0f)));
       _faceEyeX(cx - eyeDX, eyeY + tilt, accent);
       _faceEyeX(cx + eyeDX, eyeY - tilt, accent);
       for (int i = 0; i < 4; i++) {
@@ -227,9 +263,8 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive) {
       break;
     }
     default: {  // idle — open eyes, blinks, glances, soft smile
-      int h = blinking ? 4 : e.h;
-      _faceEye(cx - eyeDX + gaze, eyeY, e.w, h, e.r, accent);
-      _faceEye(cx + eyeDX + gaze, eyeY, e.w, h, e.r, accent);
+      _faceEye(cx - eyeDX + gazeI, eyeY, eyeW, eyeHL, e.r, accent);
+      _faceEye(cx + eyeDX + gazeI, eyeY, eyeW, eyeHR, e.r, accent);
       spr.fillArc(cx, mouthY - 5, 8, 11, 30, 150, accent);
       break;
     }

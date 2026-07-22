@@ -80,6 +80,11 @@ void halUpdate();
 // throttled on WS; safe to call every loop iteration.
 void halPresent(BuddyCanvas& spr);
 
+// Rolling cost of one present (rotate+expand+flush), microseconds: EMA
+// (alpha 1/8) and lifetime max. Zeros on M5 (pushSprite isn't measured).
+// Surfaces in PONG so animation cadence is tuned against measured numbers.
+void halFrameStats(uint32_t* avgUs, uint32_t* maxUs);
+
 void halDisplaySleep();
 void halDisplayWake();
 void halSetBrightness(uint8_t b);   // 0-255. WS: DCS 0x51 over QSPI (no backlight pin)
