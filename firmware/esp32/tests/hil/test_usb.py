@@ -304,7 +304,7 @@ def test_ota_rejects_invalid_begin_and_chunk_without_session(stick):
 
 def test_screenshot_integrity(stick):
     stick.write_line("screenshot")
-    buf, parsed = stick.read_until(buddyctl.parse_screenshot, 15)
+    buf, parsed = stick.read_until(buddyctl.parse_screenshot, 45)
     begin, body_start, _body_end, end = parsed
     w = int(begin.group(1))
     h = int(begin.group(2))

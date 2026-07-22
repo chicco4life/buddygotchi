@@ -38,6 +38,10 @@ static void startBt() {
 const int W = HAL_W, H = HAL_H;
 const int CX = W / 2;
 const int CY_BASE = H / 2;
+// UI scale: text sizes and row offsets multiply by S so the same layout
+// code renders 1:1 on the M5 and at matching physical size on the
+// native-resolution Pebble panel.
+const int S = HAL_UI_SCALE;
 
 // Colors used across multiple UI surfaces.
 const uint16_t HOT   = 0xFA20;   // red-orange: warnings, impatience, deny
@@ -250,16 +254,16 @@ void drawPasskey() {
   const Palette& p = characterPalette();
   spr.fillSprite(p.bg);
   spr.setTextDatum(TC_DATUM);
-  spr.setTextSize(1);
+  spr.setTextSize(S);
   spr.setTextColor(p.textDim, p.bg);
-  spr.drawString("BLUETOOTH PAIRING", W / 2, 8);
-  spr.setTextSize(3);
+  spr.drawString("BLUETOOTH PAIRING", W / 2, 8 * S);
+  spr.setTextSize(3 * S);
   spr.setTextColor(p.text, p.bg);
   char b[8]; snprintf(b, sizeof(b), "%06lu", (unsigned long)blePasskey());
-  spr.drawString(b, W / 2, CY_BASE - 12);
-  spr.setTextSize(1);
+  spr.drawString(b, W / 2, CY_BASE - 12 * S);
+  spr.setTextSize(S);
   spr.setTextColor(p.textDim, p.bg);
-  spr.drawString("enter on desktop", W / 2, H - 16);
+  spr.drawString("enter on desktop", W / 2, H - 16 * S);
   spr.setTextDatum(TL_DATUM);
 }
 
@@ -584,7 +588,7 @@ static void dumpScreenshot() {
   int rot = halDisplayRotation();
   int w   = spr.width();
   int h   = spr.height();
-  if (w <= 0 || w > 256 || h <= 0) {
+  if (w <= 0 || w > 512 || h <= 0) {
     Serial.println("<<SCR_ERR bad-dims>>");
     restoreLogLevel();
     return;
@@ -592,7 +596,7 @@ static void dumpScreenshot() {
 
   Serial.printf("\n<<SCR_BEGIN W=%d H=%d ROT=%d FMT=RGB565LE>>\n", w, h, rot);
 
-  uint8_t bytes[2 + 256 * 2];   // carried remainder + one row
+  uint8_t bytes[2 + 512 * 2];   // carried remainder + one row
   char enc[((sizeof(bytes) / 3) + 1) * 4];
   int nc = 0;                   // bytes carried from the previous row
   uint32_t crc = 0;
@@ -764,10 +768,11 @@ void setup() {
   // reconnect OOMed inside GATT setup and panicked (fixed_queue_new →
   // vQueueDelete(NULL) assert → bootloop). At 8bpp the sprite costs
   // ~32KB; LGFX converts RGB565 draw sources automatically, and the buddy
-  // art is flat-color so RGB332 is visually indistinguishable. The S3
-  // board has headroom to spare but keeps 8bpp so both boards render the
-  // exact same bytes (halPresent widens to RGB565 on the way out).
+  // art is flat-color so RGB332 is visually indistinguishable. The
+  // native-res Pebble canvas (456x280 = 128KB at 8bpp) lives in PSRAM —
+  // internal heap stays reserved for Bluedroid.
   spr.setColorDepth(8);
+  if (HAL_LANDSCAPE) spr.setPsram(true);
   spr.createSprite(W, H);
   logHeap("after sprite");
   if (safeTier == 0) {
@@ -787,27 +792,27 @@ void setup() {
     const Palette& p = characterPalette();
     spr.fillSprite(p.bg);
     spr.setTextDatum(MC_DATUM);
-    spr.setTextSize(2);
+    spr.setTextSize(2 * S);
     if (ownerName()[0]) {
       char line[40];
       snprintf(line, sizeof(line), "%s's", ownerName());
-      spr.setTextColor(p.text, p.bg);   spr.drawString(line, W/2, H/2 - 12);
-      spr.setTextColor(p.body, p.bg);   spr.drawString(petName(), W/2, H/2 + 12);
+      spr.setTextColor(p.text, p.bg);   spr.drawString(line, W/2, H/2 - 12 * S);
+      spr.setTextColor(p.body, p.bg);   spr.drawString(petName(), W/2, H/2 + 12 * S);
     } else {
       // First boot, no owner pushed yet — say hi.
-      spr.setTextColor(p.body, p.bg);   spr.drawString("Hello!", W/2, H/2 - 12);
-      spr.setTextSize(1);
+      spr.setTextColor(p.body, p.bg);   spr.drawString("Hello!", W/2, H/2 - 12 * S);
+      spr.setTextSize(S);
       spr.setTextColor(p.textDim, p.bg);
-      spr.drawString("a buddy appears", W/2, H/2 + 12);
+      spr.drawString("a buddy appears", W/2, H/2 + 12 * S);
     }
     if (safeTier > 0) {
-      spr.setTextSize(1);
+      spr.setTextSize(S);
       spr.setTextColor(HOT, p.bg);
-      spr.drawString("safe mode", W/2, H - 28);
+      spr.drawString("safe mode", W/2, H - 28 * S);
       spr.setTextColor(p.textDim, p.bg);
-      spr.drawString(safeTier >= 2 ? "connect via USB" : "buddy needs help", W/2, H - 16);
+      spr.drawString(safeTier >= 2 ? "connect via USB" : "buddy needs help", W/2, H - 16 * S);
     }
-    spr.setTextDatum(TL_DATUM); spr.setTextSize(1);
+    spr.setTextDatum(TL_DATUM); spr.setTextSize(S);
     halPresent(spr);
     delay(1800);
   }
@@ -862,6 +867,15 @@ void loop() {
   tuneTick(millis());
   brightnessTick();
 
+  // Skip the paint when the present throttle would drop the frame anyway
+  // — repainting the PSRAM canvas costs a few ms per pass. Input, data,
+  // menu, and tune handling above still ran this iteration. (Always due
+  // on M5, which presents every loop.)
+  if (!halPresentDue()) {
+    delay(HAL_LOOP_MS);
+    return;
+  }
+
   if (blePasskey()) {
     wakeDisplay();
     drawPasskey();
@@ -871,32 +885,32 @@ void loop() {
     // ble_bridge writes anyway, and the user wants to see real progress.
     spr.fillSprite(BLACK);
     spr.setTextDatum(TC_DATUM);
-    spr.setTextSize(2);
+    spr.setTextSize(2 * S);
     spr.setTextColor(WHITE, BLACK);
     spr.drawString("Updating", CX, H / 6);
-    spr.setTextSize(1);
+    spr.setTextSize(S);
     spr.setTextColor(LIGHTGREY, BLACK);
-    spr.drawString("firmware…", CX, H / 6 + 18);
+    spr.drawString("firmware…", CX, H / 6 + 18 * S);
 
     uint32_t total = otaTotal();
     uint32_t done = otaProgress();
     int pct = total > 0 ? (int)((done * 100) / total) : 0;
     if (pct > 100) pct = 100;
-    int barX = W / 8, barY = CY_BASE - 7, barW = W - W / 4, barH = 14;
-    spr.drawRoundRect(barX, barY, barW, barH, 3, WHITE);
-    int fillW = (barW - 4) * pct / 100;
-    if (fillW > 0) spr.fillRoundRect(barX + 2, barY + 2, fillW, barH - 4, 2, WHITE);
+    int barX = W / 8, barY = CY_BASE - 7 * S, barW = W - W / 4, barH = 14 * S;
+    spr.drawRoundRect(barX, barY, barW, barH, 3 * S, WHITE);
+    int fillW = (barW - 4 * S) * pct / 100;
+    if (fillW > 0) spr.fillRoundRect(barX + 2 * S, barY + 2 * S, fillW, barH - 4 * S, 2 * S, WHITE);
 
     char pctBuf[8];
     snprintf(pctBuf, sizeof(pctBuf), "%d%%", pct);
-    spr.setTextSize(2);
+    spr.setTextSize(2 * S);
     spr.setTextColor(WHITE, BLACK);
-    spr.drawString(pctBuf, CX, CY_BASE + 12);
+    spr.drawString(pctBuf, CX, CY_BASE + 12 * S);
 
-    spr.setTextSize(1);
+    spr.setTextSize(S);
     spr.setTextColor(LIGHTGREY, BLACK);
-    spr.drawString("keep nearby", CX, H - 26);
-    spr.drawString("device will restart", CX, H - 14);
+    spr.drawString("keep nearby", CX, H - 26 * S);
+    spr.drawString("device will restart", CX, H - 14 * S);
   } else {
     // Landscape board: the screen is the character's face. Portrait M5
     // keeps the ASCII species art (and GIF character packs, which are
@@ -909,9 +923,9 @@ void loop() {
       menuDraw(spr, nowMs);
     } else {
       int y = H - HAL_HUD_H;   // HUD block: status + sessions + prompt lines
-      const int CPL = (W - 8) / 6;   // chars per HUD row at text size 1
+      const int CPL = (W - 8 * S) / (6 * S);   // chars per HUD row
       spr.fillRect(0, y, W, H - y, p.bg);
-      spr.setTextSize(1);
+      spr.setTextSize(S);
       if (promptPending()) {
         // Approval card. Each affordance is drawn at the screen edge
         // nearest its physical button so the hardware is the legend: the
@@ -920,24 +934,24 @@ void loop() {
         uint32_t waited = (nowMs - promptArrivedMs) / 1000;
         bool hot = waited >= 10;
         uint16_t pulse = ((nowMs / 500) & 1) ? (hot ? HOT : p.text) : p.textDim;
-        spr.fillRect(0, 0, W, 20, p.bg);
+        spr.fillRect(0, 0, W, 20 * S, p.bg);
         spr.setTextDatum(TC_DATUM);
         spr.setTextColor(pulse, p.bg);
-        spr.drawString("^ ^ ^", W / 2, 1);
-        spr.drawString("boop = yes", W / 2, 10);
+        spr.drawString("^ ^ ^", W / 2, S);
+        spr.drawString("boop = yes", W / 2, 10 * S);
         spr.setTextDatum(TL_DATUM);
 
         const char* tool = tama.promptTool[0] ? tama.promptTool : "approve?";
         if (HAL_LANDSCAPE) {
           // Wide rows: "source: tool" on one line, hint wrapped below.
           spr.setTextColor(p.text, p.bg);
-          spr.setCursor(4, y + 2);
-          // 11+2+23 = exactly the 36-char landscape row ("claude-code" is 11).
+          spr.setCursor(4 * S, y + 2 * S);
+          // 11+2+23 = the 36-char landscape row ("claude-code" is 11).
           if (tama.promptSource[0]) spr.printf("%.11s: %.23s", tama.promptSource, tool);
           else spr.printf("%.*s", CPL, tool);
           if (tama.promptHint[0]) {
             spr.setTextColor(p.textDim, p.bg);
-            drawWrapped2(tama.promptHint, 4, y + 14, y + 26, CPL);
+            drawWrapped2(tama.promptHint, 4 * S, y + 14 * S, y + 26 * S, CPL);
           }
         } else {
           spr.setTextColor(p.textDim, p.bg);
@@ -956,24 +970,24 @@ void loop() {
           // Say so instead of pretending to count. (Short: the "no >"
           // chip shares this row.)
           spr.setTextColor(HOT, p.bg);
-          spr.setCursor(4, H - 10);
+          spr.setCursor(4 * S, H - 10 * S);
           spr.print("link lost!");
         } else {
           spr.setTextColor(hot ? HOT : p.textDim, p.bg);
-          spr.setCursor(4, H - 10);
+          spr.setCursor(4 * S, H - 10 * S);
           spr.printf("waiting %lus", (unsigned long)waited);
         }
         spr.setTextDatum(BR_DATUM);
         spr.setTextColor(hot ? HOT : p.text, p.bg);
-        spr.drawString("no >", W - 2, H - 2);
+        spr.drawString("no >", W - 2 * S, H - 2 * S);
         spr.setTextDatum(TL_DATUM);
       } else if (tama.promptId[0] && tama.promptApproval && responseSent) {
         // Decision feedback until the desktop clears the prompt. Deny is
         // deliberately neutral — the pet approves of good catches too.
-        int yesY = y + (HAL_LANDSCAPE ? 14 : 24);
-        int sentY = y + (HAL_LANDSCAPE ? 38 : 48);
+        int yesY = y + (HAL_LANDSCAPE ? 14 : 24) * S;
+        int sentY = y + (HAL_LANDSCAPE ? 38 : 48) * S;
         spr.setTextDatum(MC_DATUM);
-        spr.setTextSize(2);
+        spr.setTextSize(2 * S);
         if (lastDecisionApprove) {
           spr.setTextColor(GREEN, p.bg);
           spr.drawString("yes!", W / 2, yesY);
@@ -981,19 +995,19 @@ void loop() {
           spr.setTextColor(p.text, p.bg);
           spr.drawString("okay", W / 2, yesY);
         }
-        spr.setTextSize(1);
+        spr.setTextSize(S);
         spr.setTextColor(p.textDim, p.bg);
         spr.drawString("sent", W / 2, sentY);
         spr.setTextDatum(TL_DATUM);
       } else {
         spr.setTextColor(tama.connected ? p.text : p.textDim, p.bg);
-        spr.setCursor(4, y);
+        spr.setCursor(4 * S, y);
         spr.print(tama.connected ? "connected" : "disconnected");
         spr.setTextColor(p.body, p.bg);
-        spr.setCursor(4, y + 12);
+        spr.setCursor(4 * S, y + 12 * S);
         spr.printf("%s | %s", tama.pet[0] ? tama.pet : "-", tama.species[0] ? tama.species : "-");
         spr.setTextColor(p.textDim, p.bg);
-        spr.setCursor(4, y + 24);
+        spr.setCursor(4 * S, y + 24 * S);
         spr.printf("sessions: %u r%u w%u", tama.sessionsTotal, tama.sessionsRunning, tama.sessionsWaiting);
         // Surface the "Done: …" completion summary on the bottom line during
         // celebrate/idle. Gated on the prefix so status chatter (e.g. "no
@@ -1001,7 +1015,7 @@ void loop() {
         if (strncmp(tama.msg, "Done", 4) == 0 &&
             (strcmp(tama.pet, "celebrate") == 0 || strcmp(tama.pet, "idle") == 0)) {
           spr.setTextColor(GREEN, p.bg);
-          spr.setCursor(4, y + 36);
+          spr.setCursor(4 * S, y + 36 * S);
           spr.printf("%.*s", CPL, tama.msg);
         }
       }

@@ -30,11 +30,13 @@
   #define HAL_CANVAS_PARENT nullptr
   #define HAL_BOARD_NAME "ws-amoled164"
   // The Pebble mounts the portrait 280x456 panel sideways: the product
-  // screen is LANDSCAPE. Logical canvas is 228x140; halPresent doubles
-  // and rotates it into the panel's portrait framebuffer (the CO5300 has
-  // no hardware rotation).
-  const int HAL_W = 228;
-  const int HAL_H = 140;
+  // screen is LANDSCAPE at NATIVE resolution (456x280, ~340 PPI). The
+  // sprite lives in PSRAM; halPresent rotates it 1:1 into the panel's
+  // portrait scan order (the CO5300 has no hardware rotation). UI text
+  // draws at 2x scale (HAL_UI_SCALE) to keep the chunky pixel-font
+  // identity; the face draws anti-aliased at native resolution.
+  const int HAL_W = 456;
+  const int HAL_H = 280;
   // TFT_eSPI-style color names come from M5GFX on the M5 build; LovyanGFX
   // standalone doesn't define them.
   #ifndef BLACK
@@ -54,9 +56,17 @@
 
 // Orientation-derived layout facts shared by every draw surface. The
 // landscape board runs the face-first layout with a shorter HUD strip;
-// the portrait M5 keeps the original 70px block.
+// the portrait M5 keeps the original 70px block. HAL_UI_SCALE multiplies
+// text sizes and row offsets so shared UI code renders identically on
+// the M5 (1x) and at matching physical size on the native-res WS (2x).
 const bool HAL_LANDSCAPE = HAL_W > HAL_H;
-const int  HAL_HUD_H = HAL_LANDSCAPE ? 52 : 70;
+const int  HAL_UI_SCALE = HAL_LANDSCAPE ? 2 : 1;
+const int  HAL_HUD_H = HAL_LANDSCAPE ? 104 : 70;
+
+// True when the present throttle would accept a frame now — the draw
+// pass is gated on this so the (PSRAM) canvas isn't repainted on loop
+// iterations whose frame would be dropped anyway. Always true on M5.
+bool halPresentDue();
 
 // Main-loop tick. The WS board runs an 8ms tick so its 24ms present
 // throttle isn't quantized up to 32ms (measured present cost ~13ms →

@@ -67,7 +67,7 @@ def press(s: buddyctl.SerialBuddy, which: str, ms: int = 120) -> bytes:
 
 def screenshot_ok(s: buddyctl.SerialBuddy) -> None:
     s.write_line("screenshot")
-    buf, parsed = s.read_until(buddyctl.parse_screenshot, 25)
+    buf, parsed = s.read_until(buddyctl.parse_screenshot, 60)
     begin, body_start, _body_end, end = parsed
     w, h = int(begin.group(1)), int(begin.group(2))
     body = re.sub(rb"\s+", b"", buf[body_start : body_start + end.start()])

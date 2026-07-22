@@ -97,6 +97,20 @@
 > heartbeats — pause or quit the app for `make hil` (suite re-verified
 > 27/27 with the app SIGSTOPped).
 >
+> **Native-resolution pass (2026-07-21, verified on device):** the
+> canvas is now the panel's true 456x280 (~340 PPI) — the previous
+> 228x140 + 2x doubling (and its EPX upscale) is gone. The 8bpp sprite
+> lives in PSRAM (`spr.setPsram(true)`; internal heap ROSE to ~174KB);
+> halPresent is a rotate-only 1:1 stream (22.6ms measured, ~32fps
+> effective at the 24ms throttle); the draw pass is gated on
+> `halPresentDue()` so loop iterations whose frame would be dropped
+> don't repaint the PSRAM canvas. The face draws anti-aliased
+> (`fillSmoothRoundRect`/`fillSmoothCircle`) at native res; shared UI
+> text/layout scales by `HAL_UI_SCALE` (2 on WS, 1 on M5) so the chunky
+> pixel-font identity is preserved and the M5 renders byte-identically.
+> Screenshot dumps are native 456x280 (cap raised to 512; HIL/soak
+> screenshot timeouts raised for the 4x payload).
+>
 > **BLE + full production e2e (2026-07-21, PROVEN on device):** found and
 > fixed the board's one real BLE bug — the Mac app wrote each heartbeat
 > as a single `writeValue`, and anything over one ATT MTU (~182B) became
