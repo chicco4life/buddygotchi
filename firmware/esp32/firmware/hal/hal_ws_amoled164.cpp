@@ -195,6 +195,14 @@ void halPresent(BuddyCanvas& spr) {
     _gfx->draw16bitBeRGBBitmap(0, 0, batch, PANEL_W, 1);
   }
 
+  // The 2x expand is EPX (Scale2x): each 2x2 output block is chosen from
+  // the pixel's view-space neighbors, turning diagonal staircases into
+  // smooth steps. EPX only ever copies existing colors — no blending —
+  // so it can't band on the RGB332 palette and preserves the flat
+  // glow-on-black art. Quadrant naming is in VIEW (landscape) space:
+  // e0=top-left e1=top-right e2=bottom-left e3=bottom-right, with
+  // A=up B=right C=left D=down; the rotation decides which panel
+  // row/column each quadrant lands in (derived per orientation below).
   for (int b = 0; b < w; b += BP) {
     int n = (w - b < BP) ? (w - b) : BP;
     int yStart = 0;
@@ -203,16 +211,44 @@ void halPresent(BuddyCanvas& spr) {
       int lx = WS_USB_LEFT ? (w - 1 - i) : i;   // ascending panel rows
       int base = (WS_USB_LEFT ? (PANEL_H - 2 - 2 * lx) : (2 * lx)) + oy;
       if (j == 0) yStart = base;
-      uint16_t* row = batch + (size_t)j * 2 * PANEL_W;
-      if (ox) row[0] = 0;                        // shifted-in left column
+      uint16_t* rowF = batch + (size_t)j * 2 * PANEL_W;
+      uint16_t* rowS = rowF + PANEL_W;
+      if (ox) { rowF[0] = 0; rowS[0] = 0; }      // shifted-in left column
       const uint8_t* s = src + lx;
+      bool hasL = lx > 0, hasR = lx < w - 1;
       for (int ly = 0; ly < h; ly++) {
-        uint16_t c = _lut565[s[(size_t)ly * stride]];
+        size_t o = (size_t)ly * stride;
+        uint8_t P = s[o];
+        uint8_t A = (ly > 0)     ? s[o - stride] : P;   // up (view)
+        uint8_t D = (ly < h - 1) ? s[o + stride] : P;   // down
         int px = (WS_USB_LEFT ? (2 * ly) : (PANEL_W - 2 - 2 * ly)) + ox;
-        row[px] = c;
-        if (px + 1 < PANEL_W) row[px + 1] = c;
+        bool p1 = px + 1 < PANEL_W;
+        // Scale2x early-out: no rule can fire when up==down or
+        // left==right, which covers flat runs and straight-edge
+        // interiors — the vast majority of a glow-on-black frame. The
+        // full neighbor read + rules only run near corners/diagonals.
+        uint8_t C, B;
+        if (A == D || (C = hasL ? s[o - 1] : P) == (B = hasR ? s[o + 1] : P)) {
+          uint16_t c = _lut565[P];
+          rowF[px] = c; rowS[px] = c;
+          if (p1) { rowF[px + 1] = c; rowS[px + 1] = c; }
+        } else {
+          uint8_t e0 = P, e1 = P, e2 = P, e3 = P;
+          if (C == A && A != B) e0 = A;
+          if (A == B && B != D) e1 = B;
+          if (D == C && C != A) e2 = C;
+          if (B == D && D != C) e3 = D;
+          if (WS_USB_LEFT) {
+            // first panel row of the pair = view x-offset 1, px = view y
+            rowF[px] = _lut565[e1]; if (p1) rowF[px + 1] = _lut565[e3];
+            rowS[px] = _lut565[e0]; if (p1) rowS[px + 1] = _lut565[e2];
+          } else {
+            // first row = view x-offset 0, px order = view y reversed
+            rowF[px] = _lut565[e2]; if (p1) rowF[px + 1] = _lut565[e0];
+            rowS[px] = _lut565[e3]; if (p1) rowS[px + 1] = _lut565[e1];
+          }
+        }
       }
-      memcpy(row + PANEL_W, row, (size_t)PANEL_W * 2);
     }
     int rows = n * 2;
     if (yStart + rows > PANEL_H) rows = PANEL_H - yStart;

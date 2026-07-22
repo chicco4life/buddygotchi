@@ -176,6 +176,34 @@ def rgb565le_to_rgb888(buf: bytes, w: int, h: int) -> bytes:
     return bytes(out)
 
 
+def epx2x_rgb(rgb: bytes, w: int, h: int) -> tuple[bytes, int, int]:
+    """EPX/Scale2x upscale, matching the firmware's halPresent expand —
+    previews what the panel shows (device screenshots dump the pre-upscale
+    sprite). Copies neighbor colors, never blends."""
+    out = bytearray(w * h * 12)
+    ow = w * 2
+    def px(x: int, y: int) -> bytes:
+        o = (y * w + x) * 3
+        return rgb[o : o + 3]
+    for y in range(h):
+        up, dn = max(y - 1, 0), min(y + 1, h - 1)
+        for x in range(w):
+            lt, rt = max(x - 1, 0), min(x + 1, w - 1)
+            P = px(x, y)
+            A, B, C, D = px(x, up), px(rt, y), px(lt, y), px(x, dn)
+            e0 = A if (C == A and C != D and A != B) else P
+            e1 = B if (A == B and A != C and B != D) else P
+            e2 = C if (D == C and D != B and C != A) else P
+            e3 = D if (B == D and B != A and D != C) else P
+            o0 = (y * 2 * ow + x * 2) * 3
+            o1 = ((y * 2 + 1) * ow + x * 2) * 3
+            out[o0 : o0 + 3] = e0
+            out[o0 + 3 : o0 + 6] = e1
+            out[o1 : o1 + 3] = e2
+            out[o1 + 3 : o1 + 6] = e3
+    return bytes(out), ow, h * 2
+
+
 def scale_rgb(rgb: bytes, w: int, h: int, scale: int) -> tuple[bytes, int, int]:
     if scale <= 1:
         return rgb, w, h
@@ -291,7 +319,13 @@ def capture_screenshot(args: argparse.Namespace) -> dict[str, Any]:
             last_error = f"decoded {len(raw)} bytes, expected {expected}"
             continue
         rgb = rgb565le_to_rgb888(raw, w, h)
-        out_rgb, out_w, out_h = scale_rgb(rgb, w, h, args.scale)
+        scale = args.scale
+        if getattr(args, "epx", False):
+            rgb, w2, h2 = epx2x_rgb(rgb, w, h)
+            scale = max(1, scale // 2)
+            out_rgb, out_w, out_h = scale_rgb(rgb, w2, h2, scale)
+        else:
+            out_rgb, out_w, out_h = scale_rgb(rgb, w, h, scale)
         out = Path(args.out)
         write_png(out, out_w, out_h, out_rgb)
         return {"ok": True, "out": str(out), "w": w, "h": h, "rot": rot, "scale": args.scale, "attempt": attempt}
@@ -654,6 +688,7 @@ def build_parser() -> argparse.ArgumentParser:
         add_common(p)
         p.set_defaults(func=fn)
     p = sub.add_parser("screenshot")
+    p.add_argument("--epx", action="store_true")
     add_common(p)
     # ~86 KB base64 dump takes ~8 s at 115200 baud; the shared 5 s default
     # times out mid-transfer.
