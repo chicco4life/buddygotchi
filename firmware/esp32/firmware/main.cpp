@@ -888,7 +888,8 @@ void loop() {
           // Wide rows: "source: tool" on one line, hint wrapped below.
           spr.setTextColor(p.text, p.bg);
           spr.setCursor(4, y + 2);
-          if (tama.promptSource[0]) spr.printf("%.10s: %.24s", tama.promptSource, tool);
+          // 11+2+23 = exactly the 36-char landscape row ("claude-code" is 11).
+          if (tama.promptSource[0]) spr.printf("%.11s: %.23s", tama.promptSource, tool);
           else spr.printf("%.*s", CPL, tool);
           if (tama.promptHint[0]) {
             spr.setTextColor(p.textDim, p.bg);

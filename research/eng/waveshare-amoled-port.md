@@ -80,6 +80,25 @@
 > low-water 149608, floor 60000). Post-review adversarial pass over the
 > landscape/face/touch/sleep commits found zero correctness bugs.
 >
+> **BLE + full production e2e (2026-07-21, PROVEN on device):** found and
+> fixed the board's one real BLE bug — the Mac app wrote each heartbeat
+> as a single `writeValue`, and anything over one ATT MTU (~182B) became
+> a CoreBluetooth long write that the NimBLE-backed core-3 stack never
+> delivers. Symptom: device connected+bonded but permanently asleep
+> (small frames like time-sync arrived; every RenderState vanished;
+> `make hil-ble` skipped with "no BLE Buddy advertising" because a
+> connected peripheral stops advertising). Fix: `BLEManager.send` chunks
+> to 180B like buddyctl (`app: chunk BLE heartbeat writes`). With that,
+> the complete production chain is verified end-to-end on hardware:
+> POST /hook/approve (blocking) → engine parks → BLE heartbeat →
+> landscape approval card ("claude-code: Bash · git push --force") →
+> 600ms arming → button press → decision over BLE → hook returns
+> `{"behavior":"allow"}` in ~4s. Note for future debugging: `mode:live`
+> can be fed by the tiny time-sync frame alone — check `pet`/`species`
+> are non-empty before trusting that heartbeats flow. BLE HIL tests
+> require the Mac app to be quit first (device only advertises when
+> unconnected).
+>
 > **Hardware bring-up (2026-07-19, board on desk):** flashed over native
 > USB CDC with no BOOT dance (`tools/pio_ws.sh run -e ws-amoled164 -t
 > upload`, enumerates `/dev/cu.usbmodem*`; buddyctl's raw-termios open
