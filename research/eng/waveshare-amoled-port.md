@@ -182,6 +182,20 @@
 > Latent fix: the committed shim-runner was stale, silently skipping newer
 > tests — regenerated (151 tests) and repaired HookServerBehaviorTests'
 > case-sensitive header asserts.
+>
+> **Field fixes (2026-07-22 same day, after human testing):** the 4s
+> power-down hold was a no-op whenever the hold BEGAN on a dark screen
+> (the exact overnight case) — the wake-press guard suppressed the whole
+> long-press ladder, and the device read as hung. Now a held wake-press
+> skips the 1.5s screen-off step but still arms the 4s stage; `state`
+> reports `ladder` so HIL can prove it mid-hold. Also hardened the
+> nap/motion path against the "frozen pet" failure shape: IMU reads got
+> the same 500ms error backoff touch has (a flaky bus hammered at 20Hz
+> spams driver-error serial writes — that alone reads as glitchy), a
+> napping pet fails open after 5s of sensor silence, any physical press
+> ends a nap immediately, and napEnd restarts the 2s face-down debounce
+> so the escape actually buys lit-screen time. USB HIL now **34/34**
+> (2 more: hold-from-dark-screen ladder, button-ends-nap).
 
 Target board for the production "Boop Pebble" device. Goal for night one: full e2e
 (agent hook → Mac app → BLE → device render → physical approve/reject) working on

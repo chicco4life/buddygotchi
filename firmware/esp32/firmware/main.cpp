@@ -200,15 +200,29 @@ static bool     imuInjected = false;
 static float    injAx = 0, injAy = 0, injAz = 0;
 static float    imuAx = 0, imuAy = 0, imuAz = 0;
 static bool     imuSeen = false;      // at least one good read (or injection)
+static uint32_t imuSampleMs = 0;      // when the last good sample landed
 static float    shakeEnergy = 0.0f;
 
 // Sign convention verified on hardware: resting panel-up reads az ≈ +1g.
 static const float FACE_DOWN_G = -0.75f;
 
+static uint32_t faceDownSince = 0;
+static uint32_t faceUpSince = 0;
+
+static void napEnd(uint32_t now) {
+  if (!napping) return;
+  napping = false;
+  statsOnNapEnd((now - napStartMs) / 1000);
+  lastInputMs = now;
+  // Restart the face-down debounce: a button-press escape must buy a
+  // fresh 2s of lit screen even if the device (or a stuck sensor) still
+  // reads face-down — otherwise the very next 50ms poll re-naps.
+  faceDownSince = 0;
+  wakeDisplay();
+}
+
 static void motionTick(uint32_t now) {
   static uint32_t nextPoll = 0;
-  static uint32_t faceDownSince = 0;
-  static uint32_t faceUpSince = 0;
   if ((int32_t)(now - nextPoll) < 0) return;
   nextPoll = now + 50;
 
@@ -216,10 +230,15 @@ static void motionTick(uint32_t now) {
   if (imuInjected) {
     ax = injAx; ay = injAy; az = injAz;
   } else if (!halImuRead(&ax, &ay, &az)) {
+    // Fail open: a sensor that goes silent must never trap the pet in a
+    // nap — the nap gate forces the screen off and ignores touch, which
+    // reads as a bricked device. 5s without a sample ends the nap.
+    if (napping && imuSeen && now - imuSampleMs > 5000) napEnd(now);
     return;
   }
   imuAx = ax; imuAy = ay; imuAz = az;
   imuSeen = true;
+  imuSampleMs = now;
 
   // Shake: leaky accumulator over the high-passed magnitude. Rest noise
   // (~0.02g/sample) stays near zero; a real shake (>1g deviations) crosses
@@ -246,12 +265,7 @@ static void motionTick(uint32_t now) {
   } else {
     faceDownSince = 0;
     if (faceUpSince == 0) faceUpSince = now;
-    if (napping && now - faceUpSince >= 700) {
-      napping = false;
-      statsOnNapEnd((now - napStartMs) / 1000);
-      lastInputMs = now;
-      wakeDisplay();
-    }
+    if (napping && now - faceUpSince >= 700) napEnd(now);
   }
 }
 
@@ -485,11 +499,14 @@ static void goodNight(uint32_t timerWakeMs) {
 // Approvals additionally require the press to have STARTED after the
 // prompt was armed (PROMPT_ARM_MS) so a tickle in flight can't approve a
 // prompt that appeared under the user's finger.
+// Long-press ladder stage flag. File-scope so `state` can report it —
+// HIL proves the ladder arms even when the hold began on a dark screen.
+static bool boopLongHandled = false;
+
 static void __attribute__((noinline)) handleButtons() {
   static bool prevBoop = false, prevRej = false, prevMenu = false;
   static uint32_t boopDownAt = 0;
   static bool suppressBoopRelease = false;
-  static bool boopLongHandled = false;
 
   bool boop = readBtn(HAL_BTN_BOOP);
   bool rej  = readBtn(HAL_BTN_REJECT);
@@ -503,6 +520,9 @@ static void __attribute__((noinline)) handleButtons() {
   if ((!prevBoop && boop) || (!prevRej && rej) || (!prevMenu && menu)) {
     wakeDisplay();
     lastInputMs = now;
+    // A physical press always ends a nap — the escape hatch if the
+    // accelerometer wedges while the nap gate holds the screen dark.
+    napEnd(now);
     if (!prevBoop && boop) {
       boopDownAt = now;
       suppressBoopRelease = wasOff;
@@ -510,10 +530,17 @@ static void __attribute__((noinline)) handleButtons() {
     }
   }
 
-  if (prevBoop && boop && !armed && !boopLongHandled && !suppressBoopRelease &&
+  // 1.5s stage. A hold that began as a wake-press skips the screen-off
+  // step (it just lit the panel) but still arms the 4s power-down stage:
+  // holding from a dark screen is exactly how a sleeping pet gets powered
+  // down, so the wake-press guard must only eat taps, never holds.
+  // (Found on hardware: overnight screen-off made the 4s hold a no-op.)
+  if (prevBoop && boop && !armed && !boopLongHandled &&
       now - boopDownAt >= BTN_A_LONG_MS) {
-    menuClose(false);
-    sleepDisplay(true);
+    if (!suppressBoopRelease) {
+      menuClose(false);
+      sleepDisplay(true);
+    }
     suppressBoopRelease = true;
     boopLongHandled = true;
   }
@@ -665,6 +692,7 @@ static void dumpState() {
   doc["boop"] = (int32_t)(boopUntil - millis()) > 0;
   doc["napping"] = napping;
   doc["dizzy"] = (int32_t)(dizzyUntil - millis()) > 0;
+  doc["ladder"] = boopLongHandled;
   doc["screen"] = currentScreenName();
   doc["rot"] = halDisplayRotation();
   doc["board"] = HAL_BOARD_NAME;

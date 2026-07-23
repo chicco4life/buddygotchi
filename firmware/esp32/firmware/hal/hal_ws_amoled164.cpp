@@ -331,9 +331,19 @@ void halSetLed(bool on) { (void)on; }
 void halTone(uint16_t freq, uint16_t ms) { (void)freq; (void)ms; }
 
 bool halImuRead(float* ax, float* ay, float* az) {
+  static uint32_t backoffUntil = 0;
   if (!_imuOk) return false;
+  uint32_t now = millis();
+  if ((int32_t)(now - backoffUntil) < 0) return false;
   uint8_t raw[6];
-  if (!_i2cReadRegs(IMU_ADDR, 0x35, raw, 6)) return false;   // AX_L..AZ_H
+  if (!_i2cReadRegs(IMU_ADDR, 0x35, raw, 6)) {   // AX_L..AZ_H
+    // The shared bus throws sporadic i2c-ng INVALID_STATE (see the touch
+    // poll, which owns bus re-init). Back off so a bad patch isn't
+    // hammered at 20Hz — each failure logs a driver error line, and that
+    // serial spam alone makes the whole device feel glitchy.
+    backoffUntil = now + 500;
+    return false;
+  }
   const float LSB_PER_G = 8192.0f;   // ±4g full scale
   *ax = (int16_t)(raw[0] | (raw[1] << 8)) / LSB_PER_G;
   *ay = (int16_t)(raw[2] | (raw[3] << 8)) / LSB_PER_G;

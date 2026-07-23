@@ -366,6 +366,47 @@ def test_imu_shake_goes_dizzy_and_recovers(stick):
     stick.read_until(lambda b: b"<<IMU inject cleared>>" in b, 2)
 
 
+def test_hold_from_dark_screen_arms_power_down_ladder(stick):
+    """Regression (found on hardware): a long hold that STARTS on a dark
+    screen must still arm the power-down ladder. The wake-press guard may
+    only eat taps — an overnight pet's screen is off, and that's exactly
+    when you want the 4s hold to work."""
+    send_json(stick, {"total": 1, "running": 0, "waiting": 0, "pet": "idle", "promptId": ""})
+    wait_state(stick, screenOff=False)
+    # Stage 1 from a lit screen: sleeps the panel (existing behavior).
+    stick.write_line("press a 1600")
+    stick.read_until(lambda b: b"<<PRESS a up>>" in b, 3)
+    wait_state(stick, screenOff=True, ladder=False)   # flag resets on release
+    # Hold starting from OFF: wakes the panel, does NOT re-sleep it, but
+    # the ladder must arm mid-hold so 4s would power down.
+    stick.write_line("press a 2500")
+    stick.read_until(lambda b: b"<<PRESS a down>>" in b, 2)
+    time.sleep(2.0)
+    st = state(stick)
+    assert st["screenOff"] is False, "hold-from-off should leave the panel lit"
+    assert st["ladder"] is True, "ladder must arm even when the hold began as a wake-press"
+    stick.read_until(lambda b: b"<<PRESS a up>>" in b, 2)
+    wait_state(stick, ladder=False)
+
+
+def test_button_press_ends_nap(stick):
+    """A physical press must end a nap immediately — it's the escape hatch
+    if the accelerometer wedges while the nap gate holds the screen dark
+    and touch is ignored."""
+    send_json(stick, {"total": 1, "running": 0, "waiting": 0, "pet": "idle", "promptId": ""})
+    stick.write_line("imu set 0 0 -1.0")
+    stick.read_until(lambda b: b"<<IMU inject" in b, 2)
+    time.sleep(2.3)
+    wait_state(stick, napping=True, screenOff=True)
+    # Sensor still says face-down; the press must win anyway.
+    stick.write_line("press a 120")
+    stick.read_until(lambda b: b"<<PRESS a up>>" in b, 2)
+    wait_state(stick, napping=False, screenOff=False)
+    stick.write_line("imu clear")   # before the 2s debounce re-naps
+    stick.read_until(lambda b: b"<<IMU inject cleared>>" in b, 2)
+    wait_state(stick, napping=False)
+
+
 def test_imu_shake_never_interrupts_prompt(stick):
     """Doctrine: motion is display-only. While a prompt is pending the
     shake detector must not fire — the approval card owns the screen."""
