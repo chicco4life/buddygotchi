@@ -136,18 +136,32 @@ static void tuneTick(uint32_t now) {
   }
 }
 
-// Rolling cost of one upstream send (serial + BLE notify), EMA + lifetime
-// max. Diagnostic for animation hiccups: a boop is sent on the touch/press
-// edge, so a blocking transmit shows up as a freeze exactly on release.
+// Rolling cost of one upstream send, split serial vs BLE (EMA + lifetime
+// max each). Diagnostic for animation hiccups: a boop is sent on the
+// touch/press edge, so a blocking transmit shows up as a freeze exactly on
+// release — the split says which channel to blame. A 4-second single-send
+// stall was caught in the field with only the combined number; never again.
 static uint32_t txUs = 0, txMaxUs = 0;
+static uint32_t txSerMaxUs = 0, txBleMaxUs = 0;
 
 static void sendCmd(const char* json) {
+  size_t n = strlen(json);
   uint32_t t0 = micros();
   Serial.println(json);
-  size_t n = strlen(json);
-  bleWrite((const uint8_t*)json, n);
-  bleWrite((const uint8_t*)"\n", 1);
-  uint32_t d = micros() - t0;
+  uint32_t t1 = micros();
+  // Skip the radio until the link is fully authed: a notify fired while
+  // LE Secure Connections is still handshaking can block for seconds on
+  // the NimBLE-backed core-3 stack. Boops are decorative and permissions
+  // only exist once a prompt has already arrived over a settled link, so
+  // nothing of value is lost by staying quiet mid-handshake.
+  if (bleConnected() && bleSecure()) {
+    bleWrite((const uint8_t*)json, n);
+    bleWrite((const uint8_t*)"\n", 1);
+  }
+  uint32_t t2 = micros();
+  if (t1 - t0 > txSerMaxUs) txSerMaxUs = t1 - t0;
+  if (t2 - t1 > txBleMaxUs) txBleMaxUs = t2 - t1;
+  uint32_t d = t2 - t0;
   txUs += (int32_t)(d - txUs) >> 3;
   if (d > txMaxUs) txMaxUs = d;
 }
@@ -715,6 +729,8 @@ static void dumpState() {
   doc["draws"] = drawCount;
   doc["txUs"] = txUs;
   doc["txMaxUs"] = txMaxUs;
+  doc["txSerMaxUs"] = txSerMaxUs;
+  doc["txBleMaxUs"] = txBleMaxUs;
   {
     uint32_t tpAvg = 0, tpMax = 0;
     halTouchStats(&tpAvg, &tpMax);
@@ -784,6 +800,12 @@ static void dumpScreenshot() {
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
   esp_log_level_set("*", ESP_LOG_NONE);
+#ifdef BOARD_WS_AMOLED_164
+  // The dump streams ~450KB and the host is actively reading it — restore
+  // back-pressure for its duration, else the 0-timeout policy (which keeps
+  // taps from freezing the pet) silently drops rows mid-stream.
+  Serial.setTxTimeoutMs(250);
+#endif
 
   int rot = halDisplayRotation();
   int w   = spr.width();
@@ -835,6 +857,9 @@ static void dumpScreenshot() {
   }
   Serial.println();
   Serial.printf("<<SCR_END LEN=%lu CRC32=%08lx>>\n", (unsigned long)rawLen, (unsigned long)crc);
+#ifdef BOARD_WS_AMOLED_164
+  Serial.setTxTimeoutMs(0);
+#endif
   restoreLogLevel();
 }
 
@@ -995,6 +1020,14 @@ void setup() {
   // dataPoll) silently fail. On the S3 board this maps to native USB CDC
   // and the baud rate is cosmetic.
   Serial.begin(115200);
+#ifdef BOARD_WS_AMOLED_164
+  // Native USB CDC: never let a write block the loop. If the host has the
+  // port open but stops draining it (or a stale session lingers), a
+  // buffered write can otherwise stall for its full timeout — mid-tap,
+  // that reads as the pet freezing. Dropped debug bytes are the right
+  // trade; the protocol host reads greedily.
+  Serial.setTxTimeoutMs(0);
+#endif
   halInit();   // board + display + input bring-up (rotation, speaker, LED)
   logHeap("after halInit");
   guardInit();   // WDT + crash-loop breaker; decides safeTier for the rest of setup
