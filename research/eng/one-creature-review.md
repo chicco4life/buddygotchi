@@ -151,7 +151,14 @@ since the HAL landed — zero firmware changes needed. Then:
 | Tests | `app/Tests/ReducerTests.swift` (7 boop tests), `firmware/esp32/tests/hil/test_usb.py` (7 new HIL tests) |
 
 Debug/serial additions: `imu`, `imu set x y z`, `imu clear`,
-`deepsleep [ms]`; `state` grew `boop` / `napping` / `dizzy` / `ladder`.
+`deepsleep [ms]`; `state` grew `boop` / `napping` / `dizzy` / `ladder` /
+`touchOk` / `imuOk`.
+
+**If touch or motion ever "just stops":** check `state` → `touchOk`/`imuOk`.
+The FT3168/QMI8658 probes used to be one-shot at boot (a miss = dead sensor
+until reboot, with the log line dropped because it printed before
+Serial.begin); they now log visibly and re-probe every 2s/5s until the chip
+answers, so a wedged sensor self-heals.
 
 ## 7. Known gaps / deliberate cuts
 

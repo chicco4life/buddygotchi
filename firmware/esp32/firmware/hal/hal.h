@@ -119,6 +119,12 @@ bool halHasButton(HalButton b);     // MENU is absent on M5
 // can never answer a permission prompt.
 bool halTouchDown();
 
+// Sensor health for the `state` dump — true once the FT3168 / QMI8658
+// answered a probe. Probes retry in the background, so false is
+// "currently unavailable", not "gone forever". Always false on M5.
+bool halTouchReady();
+bool halImuReady();
+
 // Accelerometer sample in g (WS: QMI8658 on the touch I2C bus; M5: none —
 // always false). Axes are the chip's own; motion logic in main.cpp only
 // uses the vector magnitude and the panel-normal (z) axis, and is

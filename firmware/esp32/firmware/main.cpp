@@ -693,6 +693,8 @@ static void dumpState() {
   doc["napping"] = napping;
   doc["dizzy"] = (int32_t)(dizzyUntil - millis()) > 0;
   doc["ladder"] = boopLongHandled;
+  doc["touchOk"] = halTouchReady();
+  doc["imuOk"] = halImuReady();
   doc["screen"] = currentScreenName();
   doc["rot"] = halDisplayRotation();
   doc["board"] = HAL_BOARD_NAME;
@@ -946,13 +948,15 @@ static void logHeap(const char* stage) {
 }
 
 void setup() {
-  halInit();   // board + display + input bring-up (rotation, speaker, LED)
+  // Serial FIRST: halInit logs its touch/IMU probe results, and prints
+  // before Serial.begin are dropped on native USB CDC — that hid a failed
+  // FT3168 probe (dead touch, no evidence) for a whole debugging session.
   // On M5, M5Unified leaves cfg.serial_baudrate=0, so begin() doesn't call
   // Serial.begin() — without it Arduino-level reads (Serial.read in
   // dataPoll) silently fail. On the S3 board this maps to native USB CDC
-  // and the baud rate is cosmetic. Init explicitly so the USB command
-  // channel — JSON daemon pushes, "screenshot" — actually works.
+  // and the baud rate is cosmetic.
   Serial.begin(115200);
+  halInit();   // board + display + input bring-up (rotation, speaker, LED)
   logHeap("after halInit");
   guardInit();   // WDT + crash-loop breaker; decides safeTier for the rest of setup
   const int safeTier = guardSafeTier();

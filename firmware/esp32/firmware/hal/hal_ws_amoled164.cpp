@@ -85,6 +85,49 @@ static bool _i2cReadRegs(int addr, uint8_t reg, uint8_t* buf, size_t n) {
   return true;
 }
 
+// Sensor probes. Called at halInit AND retried in the background whenever
+// a sensor is down — a chip that misses its one early-boot window (seen
+// after a light-sleep wake: dead touch for the whole boot, no recovery)
+// must be able to come back on its own.
+static void _touchProbe() {
+  static bool first = true;
+  Wire.beginTransmission(TP_ADDR);
+  bool was = _touchOk;
+  _touchOk = (Wire.endTransmission(true) == 0);
+  if (_touchOk != was || first) {
+    Serial.println(_touchOk ? "[hal] FT3168 online"
+                            : "[hal] FT3168 not responding — touch disabled");
+    first = false;
+  }
+}
+
+// QMI8658 accel bring-up: find the chip (SA0 strap picks 0x6A/0x6B),
+// verify WHO_AM_I (0x05), then address auto-increment (CTRL1), ±4g @
+// 125Hz (CTRL2), accel enable (CTRL7). A flaky/absent chip degrades to
+// no motion features, like touch.
+static void _imuProbe() {
+  static bool warned = false;
+  for (int addr : { 0x6A, 0x6B }) {
+    uint8_t who = 0;
+    if (_i2cReadRegs(addr, 0x00, &who, 1) && who == 0x05) {
+      IMU_ADDR = addr;
+      _imuOk = _i2cWriteReg(addr, 0x02, 0x40) &&
+               _i2cWriteReg(addr, 0x03, 0x16) &&
+               _i2cWriteReg(addr, 0x08, 0x01);
+      if (_imuOk) {
+        Serial.printf("[hal] QMI8658 online at 0x%02X\n", addr);
+        warned = false;
+        return;
+      }
+    }
+  }
+  _imuOk = false;
+  if (!warned) {
+    Serial.println("[hal] QMI8658 not responding — motion disabled");
+    warned = true;
+  }
+}
+
 static void _buildLut() {
   for (int c = 0; c < 256; c++) {
     uint8_t r3 = (c >> 5) & 7, g3 = (c >> 2) & 7, b2 = c & 3;
@@ -122,28 +165,8 @@ void halInit() {
   // 300kHz: the chip tops out at 400k and the Waveshare demo runs 300k;
   // at 400k the core-3 i2c-ng driver throws sporadic ESP_ERR_INVALID_STATE.
   Wire.begin(PIN_TP_SDA, PIN_TP_SCL, 300000);
-  Wire.beginTransmission(TP_ADDR);
-  _touchOk = (Wire.endTransmission() == 0);
-  if (!_touchOk) Serial.println("[hal] FT3168 not responding — touch disabled");
-
-  // QMI8658 accel bring-up: find the chip (SA0 strap picks 0x6A/0x6B),
-  // verify WHO_AM_I (0x05), then address auto-increment (CTRL1), ±4g @
-  // 125Hz (CTRL2), accel enable (CTRL7). A flaky/absent chip degrades to
-  // no motion features, like touch.
-  for (int addr : { 0x6A, 0x6B }) {
-    uint8_t who = 0;
-    bool seen = _i2cReadRegs(addr, 0x00, &who, 1);
-    Serial.printf("[hal] QMI8658 probe 0x%02X: %s who=0x%02X\n",
-                  addr, seen ? "ack" : "nack", who);
-    if (seen && who == 0x05) {
-      IMU_ADDR = addr;
-      _imuOk = _i2cWriteReg(addr, 0x02, 0x40) &&
-               _i2cWriteReg(addr, 0x03, 0x16) &&
-               _i2cWriteReg(addr, 0x08, 0x01);
-      break;
-    }
-  }
-  if (!_imuOk) Serial.println("[hal] QMI8658 not responding — motion disabled");
+  _touchProbe();
+  _imuProbe();
 }
 
 void halUpdate() {
@@ -158,8 +181,17 @@ void halUpdate() {
   // failures in case it's wedged.
   static uint32_t nextPoll = 0;
   static uint8_t fails = 0;
-  if (!_touchOk) return;
   uint32_t now = millis();
+  if (!_touchOk) {
+    // Keep trying to bring the panel back — a probe missed at boot (or a
+    // chip that wedged) must not mean dead touch until the next reboot.
+    static uint32_t nextProbe = 0;
+    if ((int32_t)(now - nextProbe) >= 0) {
+      nextProbe = now + 2000;
+      _touchProbe();
+    }
+    if (!_touchOk) return;
+  }
   if ((int32_t)(now - nextPoll) < 0) return;
   nextPoll = now + 30;
   Wire.beginTransmission(TP_ADDR);
@@ -330,10 +362,22 @@ bool halIsCharging() {
 void halSetLed(bool on) { (void)on; }
 void halTone(uint16_t freq, uint16_t ms) { (void)freq; (void)ms; }
 
+bool halTouchReady() { return _touchOk; }
+bool halImuReady()   { return _imuOk; }
+
 bool halImuRead(float* ax, float* ay, float* az) {
   static uint32_t backoffUntil = 0;
-  if (!_imuOk) return false;
   uint32_t now = millis();
+  if (!_imuOk) {
+    // Same self-heal as touch: re-probe every few seconds instead of
+    // staying dead until reboot.
+    static uint32_t nextProbe = 0;
+    if ((int32_t)(now - nextProbe) >= 0) {
+      nextProbe = now + 5000;
+      _imuProbe();
+    }
+    if (!_imuOk) return false;
+  }
   if ((int32_t)(now - backoffUntil) < 0) return false;
   uint8_t raw[6];
   if (!_i2cReadRegs(IMU_ADDR, 0x35, raw, 6)) {   // AX_L..AZ_H
