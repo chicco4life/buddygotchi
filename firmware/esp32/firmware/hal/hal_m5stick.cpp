@@ -38,6 +38,7 @@ int  halBatteryCurrent_mA() { return (int)StickCP2.Power.getBatteryCurrent(); }
 bool halTouchDown()         { return false; }   // no touchscreen on M5
 bool halTouchReady()        { return false; }
 bool halImuReady()          { return false; }
+void halTouchStats(uint32_t* avgUs, uint32_t* maxUs) { *avgUs = 0; *maxUs = 0; }
 bool halPresentDue()        { return true; }    // M5 presents every loop
 void halFrameStats(uint32_t* avgUs, uint32_t* maxUs) { *avgUs = 0; *maxUs = 0; }
 bool halIsCharging()        { return StickCP2.Power.isCharging(); }

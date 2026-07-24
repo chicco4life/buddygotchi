@@ -125,6 +125,11 @@ bool halTouchDown();
 bool halTouchReady();
 bool halImuReady();
 
+// Rolling cost of one touch-poll I2C exchange, microseconds (EMA + max;
+// zeros on M5). A max in the tens of ms means the bus is stalling the
+// loop under a finger — the "animation freezes when I tap" signature.
+void halTouchStats(uint32_t* avgUs, uint32_t* maxUs);
+
 // Accelerometer sample in g (WS: QMI8658 on the touch I2C bus; M5: none —
 // always false). Axes are the chip's own; motion logic in main.cpp only
 // uses the vector magnitude and the panel-normal (z) axis, and is

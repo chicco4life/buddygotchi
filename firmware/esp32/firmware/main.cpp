@@ -77,6 +77,12 @@ const uint32_t BOOP_REACT_MS = 2500;
 // approve a prompt the user never saw. The "btn a|b" debug shortcut and
 // mockprompt (which backdates its arrival) bypass this on purpose.
 const uint32_t PROMPT_ARM_MS = 600;
+// Synthetic touchscreen contact ("touch down|up" serial cmds) — lets HIL
+// exercise the tap/boop/petting paths without a finger on the glass.
+static bool synthTouch = false;
+// Draw-pass counter, exposed in `state`: two samples a second apart give
+// frames-per-second; a stalled loop or draw gate shows as a collapse.
+static uint32_t drawCount = 0;
 // AMOLED kindness: a long-idle pet dims until the next state change or
 // button press. Attention still forces full brightness.
 const uint32_t IDLE_DIM_MS = 300000;
@@ -130,11 +136,20 @@ static void tuneTick(uint32_t now) {
   }
 }
 
+// Rolling cost of one upstream send (serial + BLE notify), EMA + lifetime
+// max. Diagnostic for animation hiccups: a boop is sent on the touch/press
+// edge, so a blocking transmit shows up as a freeze exactly on release.
+static uint32_t txUs = 0, txMaxUs = 0;
+
 static void sendCmd(const char* json) {
+  uint32_t t0 = micros();
   Serial.println(json);
   size_t n = strlen(json);
   bleWrite((const uint8_t*)json, n);
   bleWrite((const uint8_t*)"\n", 1);
+  uint32_t d = micros() - t0;
+  txUs += (int32_t)(d - txUs) >> 3;
+  if (d > txMaxUs) txMaxUs = d;
 }
 
 uint32_t _clkLastRead = 0;   // retained for data.h time-sync compatibility
@@ -585,8 +600,9 @@ static void __attribute__((noinline)) handleButtons() {
   static bool prevTouch = false;
   // A face-down panel can press its own touchscreen against the surface —
   // ignore contact entirely while napping so the couch can't boop the pet
-  // into a wake/chirp loop.
-  bool touch = !napping && halTouchDown();
+  // into a wake/chirp loop. synthTouch ("touch down|up" over serial)
+  // overlays the panel so HIL can drive the tap/pet paths.
+  bool touch = !napping && (halTouchDown() || synthTouch);
   if (!prevTouch && touch) {
     wakeDisplay();
     lastInputMs = now;
@@ -695,6 +711,16 @@ static void dumpState() {
   doc["ladder"] = boopLongHandled;
   doc["touchOk"] = halTouchReady();
   doc["imuOk"] = halImuReady();
+  doc["tick"] = (uint32_t)t;
+  doc["draws"] = drawCount;
+  doc["txUs"] = txUs;
+  doc["txMaxUs"] = txMaxUs;
+  {
+    uint32_t tpAvg = 0, tpMax = 0;
+    halTouchStats(&tpAvg, &tpMax);
+    doc["tpUs"] = tpAvg;
+    doc["tpMaxUs"] = tpMax;
+  }
   doc["screen"] = currentScreenName();
   doc["rot"] = halDisplayRotation();
   doc["board"] = HAL_BOARD_NAME;
@@ -883,6 +909,19 @@ void handleSerialCommand(const char* line) {
     imuInjected = false;
     shakeEnergy = 0.0f;
     Serial.println("<<IMU inject cleared>>");
+    return;
+  }
+
+  // Debug/HIL: synthetic touchscreen contact. Drives the same edge/hold
+  // logic as a real finger on the glass (tap = boop, hold = petting).
+  if (strcmp(line, "touch down") == 0) {
+    synthTouch = true;
+    Serial.println("<<TOUCH down>>");
+    return;
+  }
+  if (strcmp(line, "touch up") == 0) {
+    synthTouch = false;
+    Serial.println("<<TOUCH up>>");
     return;
   }
 
@@ -1137,6 +1176,7 @@ void loop() {
     // Landscape board: the screen is the character's face. Portrait M5
     // keeps the ASCII species art (and GIF character packs, which are
     // portrait-sized — not yet supported on the landscape board).
+    drawCount++;
     if (HAL_LANDSCAPE) faceTick(activeState, tama.activity, boopActive);
     else buddyTick(activeState);
     const Palette& p = characterPalette();

@@ -64,6 +64,8 @@ static uint16_t  _lut565[256];         // sprite RGB332 -> panel RGB565
 static bool      _touchOk = false;
 static bool      _touchDown = false;
 static bool      _imuOk = false;
+static uint32_t  _tpAvgUs = 0;      // touch-poll I2C cost, EMA + max —
+static uint32_t  _tpMaxUs = 0;      // convicts/acquits the bus on "freezes"
 static uint8_t   _brightness = 0;
 static bool      _displayOn = true;
 
@@ -165,6 +167,11 @@ void halInit() {
   // 300kHz: the chip tops out at 400k and the Waveshare demo runs 300k;
   // at 400k the core-3 i2c-ng driver throws sporadic ESP_ERR_INVALID_STATE.
   Wire.begin(PIN_TP_SDA, PIN_TP_SCL, 300000);
+  // Hard budget per transaction: the default (~50ms) lets one sick
+  // FT3168/QMI8658 exchange stall two whole frames — polled at 30ms in a
+  // ~26fps loop, that reads as the animation freezing under a finger. A
+  // failed fast poll just retries; the backoffs handle persistent illness.
+  Wire.setTimeOut(5);
   _touchProbe();
   _imuProbe();
 }
@@ -194,9 +201,13 @@ void halUpdate() {
   }
   if ((int32_t)(now - nextPoll) < 0) return;
   nextPoll = now + 30;
+  uint32_t t0 = micros();
   Wire.beginTransmission(TP_ADDR);
   Wire.write(0x02);
   bool ok = Wire.endTransmission(true) == 0 && Wire.requestFrom(TP_ADDR, 1) == 1;
+  uint32_t cost = micros() - t0;
+  _tpAvgUs += (int32_t)(cost - _tpAvgUs) >> 3;
+  if (cost > _tpMaxUs) _tpMaxUs = cost;
   if (!ok) {
     _touchDown = false;
     nextPoll = now + 250;
@@ -364,6 +375,10 @@ void halTone(uint16_t freq, uint16_t ms) { (void)freq; (void)ms; }
 
 bool halTouchReady() { return _touchOk; }
 bool halImuReady()   { return _imuOk; }
+void halTouchStats(uint32_t* avgUs, uint32_t* maxUs) {
+  *avgUs = _tpAvgUs;
+  *maxUs = _tpMaxUs;
+}
 
 bool halImuRead(float* ax, float* ay, float* az) {
   static uint32_t backoffUntil = 0;
