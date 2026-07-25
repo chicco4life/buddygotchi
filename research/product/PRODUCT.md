@@ -305,6 +305,11 @@ At 1,000 units (injection tooling + M5Stack ODM board per §4 Option 2): **~$25�
 
 ## 10. Interactions and User Flows
 
+> Note (2026-07-25): this section describes the Blob (M5StickC) concept. The
+> production Pebble's detailed end-state UX — face-first screen, halo light
+> language, three-button grammar, IMU gestures — is specified in `PEBBLE-UX.md`,
+> which supersedes this section where they differ.
+
 Design principles: **two buttons, ever.** Every input maps to a caretaking gesture, not a UI action. The device is a pet you tend, and tending your pet happens to run your agents. Fun is carried by small details — animation timing, sound character, damped physics — not by feature count.
 
 ### 10.1 The input vocabulary
