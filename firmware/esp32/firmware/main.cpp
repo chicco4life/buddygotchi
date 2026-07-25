@@ -38,6 +38,7 @@ static void startBt() {
 #include "mood.h"
 #include "halo.h"
 #include "orbs.h"
+#include "bubble.h"
 #include "face.h"
 #include "glance.h"
 const int W = HAL_W, H = HAL_H;
@@ -49,7 +50,7 @@ const int CY_BASE = H / 2;
 const int S = HAL_UI_SCALE;
 
 // Colors used across multiple UI surfaces.
-const uint16_t HOT   = 0xFA20;   // red-orange: warnings, impatience, deny
+const uint16_t HOT   = MOOD_HOT;   // red-orange: warnings, impatience, deny
 
 enum PersonaState { P_SLEEP, P_IDLE, P_BUSY, P_ATTENTION, P_CELEBRATE, P_DIZZY, P_HEART };
 const char* personaNames[] = { "P_SLEEP", "P_IDLE", "P_BUSY", "P_ATTENTION", "P_CELEBRATE", "P_DIZZY", "P_HEART" };
@@ -494,8 +495,8 @@ static void sendApproval(bool approve) {
   // black: neutral and unhurried. Denial is responsible, not punished, so
   // it gets no ripple and no contraction.
   if (HAL_LANDSCAPE) {
-    if (approve) moodSnuff();
-    else         moodFade();
+    if (approve) { cardPop(); moodSnuff(); }
+    else         { cardDismiss(); moodFade(); }
   }
   // Approve gets a bright "mm-hm!"; deny a single neutral note. Deny must
   // never sound (or look) sad — guilt-tripping users into approving is a
@@ -812,6 +813,7 @@ static void dumpState() {
   doc["glance"] = glanceStateName();
   doc["bonded"] = bleBonded();
   doc["mood"] = moodName();
+  doc["card"] = cardVisible();
   doc["orbs"] = orbsAlive();
   doc["orbsOverflow"] = orbsOverflow();
   // Field luminance 0..1 — the screenshot oracle asserts on the corner
@@ -1372,6 +1374,8 @@ void loop() {
       }
       glanceTick(nowMs, dt);
       haloTick(activeState, dt);
+      cardTick(nowMs, dt, promptPending());
+      bubbleTick(nowMs, dt);
       // Sleep shows no sky: a sleeping buddy isn't watching anything.
       bool orbsVisible = (activeState != P_SLEEP);
       orbsTick(nowMs, dt,
@@ -1409,35 +1413,10 @@ void loop() {
       if (promptPending()) {
         const char* tool = tama.promptTool[0] ? tama.promptTool : "approve?";
         if (HAL_LANDSCAPE) {
-          // Ink on the lantern field. No panel fills — the field IS the
-          // card's background, and a dark rect here would punch a hole in
-          // the alert channel. No "waiting Ns" counter either: urgency is
-          // carried by the field warming and its quickening breath (§7),
-          // which read peripherally far better than a stopwatch.
-          uint16_t bg   = moodBackdrop(nowMs);
-          uint16_t ink  = _moodMix(p.text, MOOD_INK, moodInkBlend());
-          uint16_t dim  = _moodMix(p.textDim, MOOD_INK_DIM, moodInkBlend());
-          spr.setTextColor(ink, bg);
-          spr.setCursor(4 * S, y + 2 * S);
-          // 11+2+23 = the 36-char landscape row ("claude-code" is 11).
-          if (tama.promptSource[0]) spr.printf("%.11s: %.23s", tama.promptSource, tool);
-          else spr.printf("%.*s", CPL, tool);
-          if (tama.promptHint[0]) {
-            spr.setTextColor(dim, bg);
-            drawWrapped2(tama.promptHint, 4 * S, y + 14 * S, y + 26 * S, CPL);
-          }
-          if (!tama.connected) {
-            // Link dropped with the card up: a boop can't be delivered, so
-            // say so. The field stays lantern — the human is still needed,
-            // just not answerable from here.
-            spr.setTextColor(HOT, bg);
-            spr.setCursor(4 * S, H - 10 * S);
-            spr.print("link lost!");
-          }
-          spr.setTextDatum(BR_DATUM);
-          spr.setTextColor(ink, bg);
-          spr.drawString("no >", W - 2 * S, H - 2 * S);
-          spr.setTextDatum(TL_DATUM);
+          // §7: a rounded panel of ink on the lantern field, drawn in
+          // bubble.h. Everything about urgency is carried by the field
+          // (warming, quickening breath) rather than by a counter.
+          cardDraw(spr, nowMs, tama);
         } else {
           // Portrait M5 keeps the original card verbatim — it has no mood
           // system, and it is the regression rig.
@@ -1478,25 +1457,28 @@ void loop() {
       } else if (tama.promptId[0] && tama.promptApproval && responseSent) {
         // Decision feedback until the desktop clears the prompt. Deny is
         // deliberately neutral — the pet approves of good catches too.
-        // On landscape this rides on whatever the field is doing (a snuff
-        // contracting, a fade going dark), so it must not fill over it.
-        uint16_t fb = HAL_LANDSCAPE ? moodBackdrop(nowMs) : p.bg;
-        if (!HAL_LANDSCAPE) spr.fillRect(0, y, W, H - y, p.bg);
-        int yesY = y + (HAL_LANDSCAPE ? 14 : 24) * S;
-        int sentY = y + (HAL_LANDSCAPE ? 38 : 48) * S;
-        spr.setTextDatum(MC_DATUM);
-        spr.setTextSize(2 * S);
-        if (lastDecisionApprove) {
-          spr.setTextColor(GREEN, fb);
-          spr.drawString("yes!", W / 2, yesY);
+        if (HAL_LANDSCAPE) {
+          // A small bubble in Night mode, refreshed each frame so it lasts
+          // exactly as long as the prompt does (§7). The field is busy
+          // snuffing or fading underneath; the bubble rides on top of it.
+          bubbleShow(lastDecisionApprove ? "yes!" : "okay", nowMs, 400,
+                     lastDecisionApprove ? GREEN : 0);
         } else {
-          spr.setTextColor(HAL_LANDSCAPE ? _moodMix(p.text, MOOD_INK, moodInkBlend()) : p.text, fb);
-          spr.drawString("okay", W / 2, yesY);
+          spr.fillRect(0, y, W, H - y, p.bg);
+          spr.setTextDatum(MC_DATUM);
+          spr.setTextSize(2 * S);
+          if (lastDecisionApprove) {
+            spr.setTextColor(GREEN, p.bg);
+            spr.drawString("yes!", W / 2, y + 24 * S);
+          } else {
+            spr.setTextColor(p.text, p.bg);
+            spr.drawString("okay", W / 2, y + 24 * S);
+          }
+          spr.setTextSize(S);
+          spr.setTextColor(p.textDim, p.bg);
+          spr.drawString("sent", W / 2, y + 48 * S);
+          spr.setTextDatum(TL_DATUM);
         }
-        spr.setTextSize(S);
-        spr.setTextColor(HAL_LANDSCAPE ? _moodMix(p.textDim, MOOD_INK_DIM, moodInkBlend()) : p.textDim, fb);
-        spr.drawString("sent", W / 2, sentY);
-        spr.setTextDatum(TL_DATUM);
       } else if (HAL_LANDSCAPE) {
         // Face-first resting screen (§3, §14): no HUD, no status text, no
         // counters — the face is the whole product. Everything the old
@@ -1524,6 +1506,9 @@ void loop() {
         }
       }
     }
+    // Speech sits above everything on the buddy screen — it is the buddy
+    // answering, so nothing it says should end up behind a card.
+    if (HAL_LANDSCAPE) bubbleDraw(spr, nowMs, faceLift);
   }
   if (!screenOff) halPresent(spr);
 

@@ -513,6 +513,64 @@ def test_mood_returns_to_night_after_a_decision(stick, landscape):
     clear_prompt(stick)
 
 
+def test_approval_card_rises_and_leaves_with_the_decision(stick, landscape):
+    """The card is up exactly while the decision is owed (§7).
+
+    The face never leaves the screen — the card rises alongside it rather
+    than replacing it — and both the card and the lantern must clear once
+    the human has answered, or the device keeps shouting about a question
+    that's already been settled.
+    """
+    clear_prompt(stick)
+    send_json(stick, {"total": 2, "running": 1, "waiting": 1, "pet": "attention",
+                      "promptId": "req_card", "promptTool": "Bash",
+                      "promptHint": "git push --force origin main",
+                      "promptSource": "claude-code", "promptApproval": True})
+    wait_state(stick, promptId="req_card", card=True, mood="lantern")
+
+    # The bloom finishes (~350ms) before the 600ms arming window does, so
+    # wait_state can return while a press would still — correctly — be
+    # swallowed. Wait the window out rather than racing it.
+    time.sleep(0.8)
+    stick.write_line("press a 120")
+    stick.read_until(lambda b: b'"decision":"allow"' in b, 3)
+    # Card pops (~150ms) ahead of the field's snuff (~250ms).
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        snap = state(stick)
+        if not snap["card"] and snap["mood"] == "night":
+            break
+        time.sleep(0.2)
+    else:
+        pytest.fail(f"card/field never cleared after approve; last={snap}")
+    clear_prompt(stick)
+
+
+def test_approval_card_has_no_wait_counter(stick, landscape):
+    """§14: the numeric "waiting Ns" counter is gone from this board.
+
+    Urgency is the field warming and its breath quickening (§7) — light and
+    motion, which read peripherally far better than a stopwatch nobody is
+    looking at. This asserts the seconds text never appears on the panel.
+    """
+    clear_prompt(stick)
+    send_json(stick, {"total": 1, "running": 0, "waiting": 1, "pet": "attention",
+                      "promptId": "req_nc", "promptTool": "Bash",
+                      "promptHint": "sleep 30", "promptSource": "claude-code",
+                      "promptApproval": True})
+    wait_state(stick, promptId="req_nc", card=True)
+    time.sleep(12)          # well past the 10s escalation threshold
+    got = state(stick)
+    assert got["mood"] == "lantern"
+    # The field escalated instead of counting.
+    r, g, b = corner_pixel(stick)
+    assert (r, g, b) != (255, 219, 173), "field never warmed past base lantern"
+    assert r == 255 and g < 219, (r, g, b)
+    stick.write_line("press b 120")
+    stick.read_until(lambda b: b'"decision":"deny"' in b, 3)
+    clear_prompt(stick)
+
+
 def wait_orbs(stick, want, timeout=8):
     """Orb counts settle over time — spawns stagger ~150ms apart and each
     one grows in over ~400ms, so the sky never flickers when several

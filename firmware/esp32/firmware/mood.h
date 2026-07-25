@@ -45,6 +45,9 @@ static const uint16_t MOOD_INK          = animRGB( 33,   0,   0);  // #210000
 static const uint16_t MOOD_INK_DIM      = animRGB(107,  36,   0);  // #6B2400
 static const uint16_t MOOD_EMBER_FACE   = animRGB(219,  36,   0);  // dim red heartbeat
 static const uint16_t MOOD_RIPPLE       = animRGB( 36, 219,  82);  // approve green
+// Red-orange: warnings, impatience, deny. Lives here rather than in main.cpp
+// so the card and bubble surfaces can reach it too.
+static const uint16_t MOOD_HOT          = 0xFA20;
 
 enum MoodKind : uint8_t { MOOD_NIGHT = 0, MOOD_EMBER_K = 1, MOOD_LANTERN = 2 };
 
