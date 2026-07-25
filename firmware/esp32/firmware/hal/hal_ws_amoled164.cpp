@@ -63,6 +63,9 @@ static Arduino_CO5300*  _gfx = nullptr;
 static uint16_t  _lut565[256];         // sprite RGB332 -> panel RGB565
 static bool      _touchOk = false;
 static bool      _touchDown = false;
+static int       _touchRawX = 0;       // last contact, PANEL coordinates
+static int       _touchRawY = 0;
+static bool      _touchHavePoint = false;
 static bool      _imuOk = false;
 static uint32_t  _tpAvgUs = 0;      // touch-poll I2C cost, EMA + max —
 static uint32_t  _tpMaxUs = 0;      // convicts/acquits the bus on "freezes"
@@ -221,6 +224,43 @@ void halUpdate() {
   fails = 0;
   uint8_t n = Wire.read() & 0x0F;
   _touchDown = (n > 0 && n <= 5);
+  if (_touchDown) {
+    // Contact point, FocalTech standard map: 0x03..0x06 are TOUCH1
+    // XH/XL/YH/YL, with the high nibble of each H byte carrying the top 4
+    // coordinate bits (the top two bits of XH are an event flag).
+    // Read separately from the status byte so a coordinate read that fails
+    // only costs us the gaze target, not the contact itself.
+    uint8_t p[4];
+    if (_i2cReadRegs(TP_ADDR, 0x03, p, 4)) {
+      int rawX = ((p[0] & 0x0F) << 8) | p[1];
+      int rawY = ((p[2] & 0x0F) << 8) | p[3];
+      if (rawX >= 0 && rawX < PANEL_W && rawY >= 0 && rawY < PANEL_H) {
+        _touchRawX = rawX;
+        _touchRawY = rawY;
+        _touchHavePoint = true;
+      }
+    }
+  } else {
+    _touchHavePoint = false;
+  }
+}
+
+bool halTouchPoint(int* x, int* y) {
+  if (!_touchDown || !_touchHavePoint) return false;
+  // Inverse of halPresent's rotate. Forward, with WS_USB_LEFT, a sprite
+  // pixel (sx, sy) lands at panel (px, py) = (sy, HAL_W-1-sx). So:
+  //     sx = (PANEL_H-1) - py
+  //     sy = px
+  // Flipping the mount flips both axes with it, exactly as the present
+  // path does — keeping the two transforms adjacent is the only way this
+  // stays correct when the enclosure changes.
+  int sx = WS_USB_LEFT ? (PANEL_H - 1 - _touchRawY) : _touchRawY;
+  int sy = WS_USB_LEFT ? _touchRawX : (PANEL_W - 1 - _touchRawX);
+  if (sx < 0) sx = 0; else if (sx >= HAL_W) sx = HAL_W - 1;
+  if (sy < 0) sy = 0; else if (sy >= HAL_H) sy = HAL_H - 1;
+  if (x) *x = sx;
+  if (y) *y = sy;
+  return true;
 }
 
 static uint32_t _frameAvgUs = 0;

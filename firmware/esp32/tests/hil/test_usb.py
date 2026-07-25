@@ -571,6 +571,48 @@ def test_approval_card_has_no_wait_counter(stick, landscape):
     clear_prompt(stick)
 
 
+def test_touch_reports_a_contact_point(stick, landscape):
+    """Touch now carries coordinates, which is what gaze tracking needs.
+
+    Synthetic contact drives the same path a finger does, so this covers
+    the plumbing (command -> point -> sprite coordinates). It deliberately
+    does NOT cover the FT3168's own coordinate mapping: that inverts the
+    panel rotation and can only be confirmed by touching a known spot on
+    real glass.
+    """
+    clear_prompt(stick)
+    stick.write_line("touch up")
+    stick.read_until(lambda b: b"<<TOUCH up>>" in b, 2)
+    got = stick.framed_json("touch", "TOUCH", 3)
+    assert got["point"] is False, got
+
+    stick.write_line("touch down 30 140")
+    stick.read_until(lambda b: b"<<TOUCH down 30 140>>" in b, 2)
+    got = stick.framed_json("touch", "TOUCH", 3)
+    assert got["point"] is True and got["x"] == 30 and got["y"] == 140, got
+
+    stick.write_line("touch down 426 140")
+    stick.read_until(lambda b: b"<<TOUCH down 426 140>>" in b, 2)
+    got = stick.framed_json("touch", "TOUCH", 3)
+    assert got["x"] == 426, got
+
+    stick.write_line("touch up")
+    stick.read_until(lambda b: b"<<TOUCH up>>" in b, 2)
+    assert stick.framed_json("touch", "TOUCH", 3)["point"] is False
+
+
+def test_touch_point_is_clamped_to_the_panel(stick, landscape):
+    """Out-of-range injections clamp rather than deflecting the gaze past
+    its limits or indexing off the sprite."""
+    clear_prompt(stick)
+    stick.write_line("touch down 9999 9999")
+    stick.read_until(lambda b: b"<<TOUCH down " in b, 2)
+    got = stick.framed_json("touch", "TOUCH", 3)
+    assert got["x"] == 455 and got["y"] == 279, got
+    stick.write_line("touch up")
+    stick.read_until(lambda b: b"<<TOUCH up>>" in b, 2)
+
+
 def wait_orbs(stick, want, timeout=8):
     """Orb counts settle over time — spawns stagger ~150ms apart and each
     one grows in over ~400ms, so the sky never flickers when several

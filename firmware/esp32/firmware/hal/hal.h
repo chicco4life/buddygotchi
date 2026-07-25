@@ -119,6 +119,12 @@ bool halHasButton(HalButton b);     // MENU is absent on M5
 // can never answer a permission prompt.
 bool halTouchDown();
 
+// Contact point in SPRITE coordinates (0..HAL_W-1, 0..HAL_H-1), i.e. the
+// same space the face is drawn in — callers should never have to know how
+// the panel is mounted. False when there's no contact (and always on M5).
+// Used for touch-tracked gaze: the eyes follow the finger.
+bool halTouchPoint(int* x, int* y);
+
 // Sensor health for the `state` dump — true once the FT3168 / QMI8658
 // answered a probe. Probes retry in the background, so false is
 // "currently unavailable", not "gone forever". Always false on M5.

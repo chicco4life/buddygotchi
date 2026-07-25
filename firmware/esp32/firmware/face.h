@@ -62,6 +62,15 @@ static FaceEyes _faceEyes() {
   return FACE_EYES[i];
 }
 
+// Motion primitives live in anim.h now — every surface shares them so the
+// card, the field, and the face all ease with the same curve. Declared
+// above the draw helpers because those round with _px.
+static inline float _easeToward(float cur, float target, float rate, float dt) {
+  return animEase(cur, target, rate, dt);
+}
+
+static inline int _px(float v) { return animPx(v); }
+
 // Native-resolution, anti-aliased face parts (the face only runs on the
 // landscape board — coordinates here are panel pixels, 2x the logical
 // units in FACE_EYES).
@@ -86,10 +95,17 @@ static void _faceEyeX(int cx, int cy, uint16_t c) {
   }
 }
 
-static void _faceEyeHeart(int cx, int cy, uint16_t c) {
-  spr.fillSmoothCircle(cx - 10, cy - 6, 12, c);
-  spr.fillSmoothCircle(cx + 10, cy - 6, 12, c);
-  spr.fillTriangle(cx - 20, cy, cx + 20, cy, cx, cy + 22, c);
+// k scales the heart with the squish spring so a boop deforms the affection
+// face too — otherwise booping a buddy that's already showing hearts
+// produces no visible reaction at all, which is exactly when you'd expect
+// the biggest one.
+static void _faceEyeHeart(int cx, int cy, uint16_t c, float kw = 1.0f, float kh = 1.0f) {
+  int rx = _px(10 * kw), ry = _px(6 * kh);
+  int r  = _px(12 * (kw + kh) * 0.5f);
+  spr.fillSmoothCircle(cx - rx, cy - ry, r, c);
+  spr.fillSmoothCircle(cx + rx, cy - ry, r, c);
+  spr.fillTriangle(cx - _px(20 * kw), cy, cx + _px(20 * kw), cy,
+                   cx, cy + _px(22 * kh), c);
 }
 
 // Map the wire activity kind to the verb the busy face wears.
@@ -102,14 +118,6 @@ static const char* _faceActivityVerb(const char* activity) {
   if (strcmp(activity, "web") == 0)    return "browsing";
   return "working";
 }
-
-// Motion primitives live in anim.h now — every surface shares them so the
-// card, the field, and the face all ease with the same curve.
-static inline float _easeToward(float cur, float target, float rate, float dt) {
-  return animEase(cur, target, rate, dt);
-}
-
-static inline int _px(float v) { return animPx(v); }
 
 // How the face should render this frame. The face no longer owns the
 // background — mood.h paints the field first (§2.1) and the face draws on
@@ -125,7 +133,23 @@ struct FaceOpts {
   // ambient glance drift, because the buddy noticing something specific is
   // more legible than the buddy looking around.
   float    gazeBias = 0.0f;
+  // A finger is resting on the glass. The eyes settle into a contented
+  // half-blink rather than staying wide — being petted should look like
+  // being petted, not like being startled.
+  bool     petting = false;
 };
+
+// Boop squish (§10.1, doctrine #10: physics over keyframes). A boop kicks
+// the spring with an impulse and it rings down on its own, so every squish
+// is slightly different depending on when the last one landed — which is
+// what a sprite sequence can never do.
+static AnimSpring _faceSquish;
+inline void faceBoopSquish() {
+  // Add to the velocity rather than setting position: booping an
+  // already-wobbling face should compound, not restart.
+  _faceSquish.vel += 7.5f;
+  if (_faceSquish.vel > 16.0f) _faceSquish.vel = 16.0f;
+}
 
 inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
                      const FaceOpts& opt) {
@@ -179,6 +203,12 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
     case 3: liftTarget = -12.0f; boostTarget = 16.0f; break;    // attention
     default: break;
   }
+  // Being petted settles the lids into a contented half-blink. Sleep keeps
+  // its own peek behaviour, and attention must stay wide — a decision is
+  // owed and the buddy is not relaxing about it (doctrine #12).
+  if (opt.petting && persona != 0 && persona != 3) {
+    lidTargetL = lidTargetR = 0.66f;
+  }
   if (blinking && (persona == 1 || persona == 2)) lidTargetL = lidTargetR = 0.08f;
   float gazeTarget = (glancing && (persona == 1 || persona == 2)) ? glanceDir * 8.0f : 0.0f;
   // An explicit target wins over the ambient drift, and reaches further —
@@ -203,19 +233,27 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
       : 4.0f * sinf((float)now * (6.2832f / 6000.0f));
   int bob = _px(bobF);
 
+  // Ring the squish spring down toward rest. Higher frequency than the
+  // card springs — a squish is a quick physical wobble, not a slide.
+  _faceSquish.step(0.0f, 5.2f, 0.30f, dt);
+  float sq = animClamp(_faceSquish.pos, -0.9f, 0.9f);
+
   const int cx = HAL_W / 2;
-  int eyeY = 92 + bob + _px(lift) - opt.lift;
-  int eyeDX = 76;
-  int mouthY = 144 + bob - opt.lift;
+  // Squish conserves rough area: the face flattens and widens, then rings
+  // back through the other side. Everything shifts down slightly with it,
+  // as if the boop pressed it into the desk.
+  int eyeY = 92 + bob + _px(lift) - opt.lift + _px(sq * 7.0f);
+  int eyeDX = _px(76 * (1.0f + sq * 0.10f));
+  int mouthY = 144 + bob - opt.lift + _px(sq * 4.0f);
   int gazeI = _px(gaze);
   // Stroke weight (§2.1.2): light shapes on a dark field optically expand
   // (halation), dark shapes on a light field don't. Reusing the glow
   // geometry unchanged makes the ink face read heavy and clumsy, so every
   // filled dimension thins with the mood.
   const float wt = opt.weight;
-  int eyeHL = _px((e.h * 2.0f * lidL + boost) * wt);
-  int eyeHR = _px((e.h * 2.0f * lidR + boost) * wt);
-  int eyeW = _px((e.w * 2.0f + (boost > 2.0f ? 4.0f : 0.0f)) * wt);
+  int eyeHL = _px((e.h * 2.0f * lidL + boost) * wt * (1.0f - sq * 0.30f));
+  int eyeHR = _px((e.h * 2.0f * lidR + boost) * wt * (1.0f - sq * 0.30f));
+  int eyeW = _px((e.w * 2.0f + (boost > 2.0f ? 4.0f : 0.0f)) * wt * (1.0f + sq * 0.22f));
   int eyeR = _px(e.r * 2 * wt);
 
   // The field is already painted (moodDrawField) — the face draws onto it.
@@ -287,11 +325,14 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
       break;
     }
     case 6: {  // heart — heart eyes, blush, smile, drifting mini-hearts
-      _faceEyeHeart(cx - eyeDX, eyeY, PINK);
-      _faceEyeHeart(cx + eyeDX, eyeY, PINK);
+      // Hearts track the finger too. Touch is what produces this face in
+      // the first place, so not following the hand that's petting it would
+      // be the one place the gaze conspicuously fails to work.
+      _faceEyeHeart(cx - eyeDX + gazeI, eyeY, PINK, 1.0f + sq * 0.22f, 1.0f - sq * 0.30f);
+      _faceEyeHeart(cx + eyeDX + gazeI, eyeY, PINK, 1.0f + sq * 0.22f, 1.0f - sq * 0.30f);
       spr.fillArc(cx, mouthY - 10, 20, 26, 25, 155, accent);
-      spr.fillSmoothRoundRect(cx - eyeDX - 44, eyeY + 32, 26, 10, 5, PINK);
-      spr.fillSmoothRoundRect(cx + eyeDX + 18, eyeY + 32, 26, 10, 5, PINK);
+      spr.fillSmoothRoundRect(cx - eyeDX - 44 + gazeI, eyeY + 32, 26, 10, 5, PINK);
+      spr.fillSmoothRoundRect(cx + eyeDX + 18 + gazeI, eyeY + 32, 26, 10, 5, PINK);
       // Little hearts rise past the cheeks while affection lasts — the
       // sustained-petting payoff. Deterministic per-slot phase (no rand).
       // Sizing note: this is a ~340 PPI panel — anything under ~25px reads

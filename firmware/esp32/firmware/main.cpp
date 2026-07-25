@@ -97,6 +97,18 @@ const uint32_t PROMPT_ARM_MS = 600;
 // Synthetic touchscreen contact ("touch down|up" serial cmds) — lets HIL
 // exercise the tap/boop/petting paths without a finger on the glass.
 static bool synthTouch = false;
+// Synthetic contact point in sprite coordinates, so HIL can drive the
+// touch-tracked gaze without a finger on the glass ("touch down X Y").
+// Defaults to screen centre, which produces no gaze deflection.
+static int  synthTouchX = HAL_W / 2;
+static int  synthTouchY = HAL_H / 2;
+
+// The live contact point, real or injected. Returns false when nothing is
+// touching. Sprite coordinates — the HAL already undoes the panel rotation.
+static bool touchPoint(int* x, int* y) {
+  if (synthTouch) { *x = synthTouchX; *y = synthTouchY; return true; }
+  return halTouchPoint(x, y);
+}
 // Draw-pass counter, exposed in `state`: two samples a second apart give
 // frames-per-second; a stalled loop or draw gate shows as a collapse.
 static uint32_t drawCount = 0;
@@ -525,6 +537,10 @@ static void boopPet() {
   boopUntil = millis() + BOOP_REACT_MS;
   beep(1245, 60);
   buddyInvalidate();
+  // Physical reaction to being booped (§10.1). The spring rings down on
+  // its own, so repeated boops compound into a bigger wobble instead of
+  // restarting the same canned animation.
+  if (HAL_LANDSCAPE) faceBoopSquish();
   sendBoopUpstream();
 }
 
@@ -1048,9 +1064,35 @@ void handleSerialCommand(const char* line) {
 
   // Debug/HIL: synthetic touchscreen contact. Drives the same edge/hold
   // logic as a real finger on the glass (tap = boop, hold = petting).
-  if (strcmp(line, "touch down") == 0) {
+  // "touch" with no argument reports the live contact — raw panel
+  // coordinates and the sprite coordinates they map to. This is the tool
+  // for confirming the rotation inverse by hand: touch a known corner and
+  // check the sprite coordinate matches what's drawn there.
+  if (strcmp(line, "touch") == 0) {
+    int tx = -1, ty = -1;
+    bool have = touchPoint(&tx, &ty);
+    Serial.printf("<<TOUCH {\"down\":%s,\"synth\":%s,\"point\":%s,\"x\":%d,\"y\":%d,"
+                  "\"edges\":%lu,\"maxContactMs\":%lu,\"ok\":%s}>>\n",
+                  halTouchDown() ? "true" : "false",
+                  synthTouch ? "true" : "false",
+                  have ? "true" : "false", tx, ty,
+                  (unsigned long)touchEdges, (unsigned long)touchContactMaxMs,
+                  halTouchReady() ? "true" : "false");
+    return;
+  }
+  if (strcmp(line, "touch down") == 0 || strncmp(line, "touch down ", 11) == 0) {
     synthTouch = true;
-    Serial.println("<<TOUCH down>>");
+    if (line[10]) {
+      char* end = nullptr;
+      long x = strtol(line + 11, &end, 10);
+      long y = strtol(end, nullptr, 10);
+      synthTouchX = (int)(x < 0 ? 0 : (x >= HAL_W ? HAL_W - 1 : x));
+      synthTouchY = (int)(y < 0 ? 0 : (y >= HAL_H ? HAL_H - 1 : y));
+    } else {
+      synthTouchX = HAL_W / 2;
+      synthTouchY = HAL_H / 2;
+    }
+    Serial.printf("<<TOUCH down %d %d>>\n", synthTouchX, synthTouchY);
     return;
   }
   if (strcmp(line, "touch up") == 0) {
@@ -1399,7 +1441,16 @@ void loop() {
       fo.color = moodFaceColor(accent);
       fo.bg = moodBackdrop(nowMs);
       fo.weight = moodStrokeWeight();
-      fo.gazeBias = orbsGazeNudge(nowMs);
+      // Gaze priority (§3.3): the finger on the glass outranks a newly
+      // spawned orb, which outranks the ambient glance drift. Something
+      // touching the buddy is the most specific thing in its world.
+      int tx = 0, ty = 0;
+      if (touchPoint(&tx, &ty)) {
+        fo.petting = true;
+        fo.gazeBias = animClamp((float)(tx - W / 2) / (float)(W / 2), -1.0f, 1.0f);
+      } else {
+        fo.gazeBias = orbsGazeNudge(nowMs);
+      }
       faceTick(activeState, tama.activity, boopActive, fo);
     } else {
       buddyTick(activeState);

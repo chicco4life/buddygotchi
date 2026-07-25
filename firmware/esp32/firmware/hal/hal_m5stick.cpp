@@ -36,6 +36,7 @@ bool halHasButton(HalButton b) { return b != HAL_BTN_MENU; }
 int  halBatteryVoltage_mV() { return StickCP2.Power.getBatteryVoltage(); }
 int  halBatteryCurrent_mA() { return (int)StickCP2.Power.getBatteryCurrent(); }
 bool halTouchDown()         { return false; }   // no touchscreen on M5
+bool halTouchPoint(int* x, int* y) { (void)x; (void)y; return false; }
 bool halTouchReady()        { return false; }
 bool halImuReady()          { return false; }
 void halTouchStats(uint32_t* avgUs, uint32_t* maxUs) { *avgUs = 0; *maxUs = 0; }
