@@ -65,6 +65,53 @@ static uint32_t _haloCelebrateAt = 0;  // one-shot ripple start
 
 inline void haloCelebrate(uint32_t now) { _haloCelebrateAt = now; }
 
+// One horizontal span, clipped. drawFastHLine is a memset-shaped fill.
+static inline void _haloSpan(BuddyCanvas& spr, int x0, int x1, int y, uint16_t c) {
+  if (x1 < x0) return;
+  if (x0 < 0) x0 = 0;
+  if (x1 > HAL_W - 1) x1 = HAL_W - 1;
+  if (x1 < x0) return;
+  spr.drawFastHLine(x0, y, x1 - x0 + 1, c);
+}
+
+// Two concentric bands, rendered as scanline spans rather than fillArc.
+//
+// fillArc does per-pixel angle math for every pixel it touches, and this
+// halo is ~60k pixels a frame: measured at 8.8ms, which was more than
+// DOUBLE the cost of the entire rest of the draw pass (4.1ms for field +
+// face) and dragged the board from 28fps to 22fps. A full ring needs no
+// angle test at all — the row's half-width is just sqrt(r^2 - dy^2), and
+// each band becomes at most two horizontal fills per row.
+static void _haloRing(BuddyCanvas& spr, int rIn, int rMid, int rOut,
+                      uint16_t cIn, uint16_t cOut) {
+  if (rOut <= rIn) return;
+  int y0 = HALO_CY - rOut, y1 = HALO_CY + rOut;
+  if (y0 < 0) y0 = 0;
+  if (y1 > HAL_H - 1) y1 = HAL_H - 1;
+  int rIn2 = rIn * rIn, rMid2 = rMid * rMid, rOut2 = rOut * rOut;
+  for (int y = y0; y <= y1; y++) {
+    int dy = y - HALO_CY;
+    int dy2 = dy * dy;
+    if (dy2 >= rOut2) continue;
+    int wOut = (int)sqrtf((float)(rOut2 - dy2));
+    int wMid = (dy2 < rMid2) ? (int)sqrtf((float)(rMid2 - dy2)) : -1;
+    int wIn  = (dy2 < rIn2)  ? (int)sqrtf((float)(rIn2 - dy2))  : -1;
+    if (wMid < 0) {
+      // Past the inner bands entirely: one solid outer span.
+      _haloSpan(spr, HALO_CX - wOut, HALO_CX + wOut, y, cOut);
+      continue;
+    }
+    _haloSpan(spr, HALO_CX - wOut, HALO_CX - wMid, y, cOut);
+    _haloSpan(spr, HALO_CX + wMid, HALO_CX + wOut, y, cOut);
+    if (wIn < 0) {
+      _haloSpan(spr, HALO_CX - wMid, HALO_CX + wMid, y, cIn);
+    } else {
+      _haloSpan(spr, HALO_CX - wMid, HALO_CX - wIn, y, cIn);
+      _haloSpan(spr, HALO_CX + wIn, HALO_CX + wMid, y, cIn);
+    }
+  }
+}
+
 // persona uses the same 0..6 indices as faceTick.
 inline void haloTick(uint8_t persona, float dt) {
   // Sleep has no halo at all; everything else breathes. Easing the gain
@@ -96,8 +143,8 @@ inline void haloDraw(BuddyCanvas& spr, uint32_t now, uint8_t persona, uint16_t a
   int rIn  = animPx(HALO_R_IN * scale);
   int rMid = animPx(HALO_R_MID * scale);
   int rOut = animPx(HALO_R_OUT * scale);
-  spr.fillArc(HALO_CX, HALO_CY, rMid, rOut, 0, 360, _moodMix(BLACK, tint, ampOut));
-  spr.fillArc(HALO_CX, HALO_CY, rIn, rMid, 0, 360, _moodMix(BLACK, tint, ampIn));
+  _haloRing(spr, rIn, rMid, rOut,
+            _moodMix(BLACK, tint, ampIn), _moodMix(BLACK, tint, ampOut));
 
   // Celebrate: one green front races outward through the ring and past it,
   // fading as it goes. Night mood throughout — spending the lantern on a

@@ -588,6 +588,27 @@ a real interaction (the real interaction *was* the moment).
 Approved sequence (2026-07-25). Each step ships independently; HIL stays green
 throughout (M5 suite untouched, WS suite updated per step).
 
+> **All ten steps shipped 2026-07-25** and are hardware-verified on the WS
+> board. USB HIL is **66/66** (was 34/34); both boards build. New files:
+> `anim.h`, `mood.h`, `halo.h`, `orbs.h`, `glance.h`, `bubble.h`, `ritual.h`,
+> `presence.h`, `tools/shot.py`. Three things came out different from the
+> plan, each recorded where it lives:
+>
+> - **§3.1 halo is a ring, not a soft radial glow.** LGFX truncates rather
+>   than rounds when narrowing RGB565→RGB332, so a "barely-there" glow
+>   quantizes to literally nothing (verified: an all-black frame). Bright
+>   enough to exist reads as a flat plate behind the face, breaking doctrine
+>   #1. Reasoning is in `halo.h`.
+> - **§10.1 touch-tracked gaze works, but the FT3168 coordinate mapping is
+>   unverified.** Everything was exercised with synthetic contact, which by
+>   construction skips the panel-rotation inverse. Needs a finger on real
+>   glass — use the new `touch` command. The stationary-finger dropout in
+>   §16 is likewise still open.
+> - **Frame rate is ~25fps, not the ~42fps §0 assumes.** That figure predates
+>   the native-resolution sprite: present alone costs 22.4ms of the 24ms
+>   cadence. The draw pass adds 4.1ms (field + face), 3.4ms (halo), 0.9ms
+>   (orbs) — all now visible as `drawUs`/`drawMaxUs` in `state`.
+
 | # | Deliverable | Spec | Touches |
 |---|---|---|---|
 | 1 | Kill resting HUD; full-bleed face; glance card on look-tap | §3, §6, §14 | `main.cpp` render branch, new `glance.h`; `menu.h` hold-to-open |

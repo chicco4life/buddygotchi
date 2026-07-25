@@ -114,6 +114,12 @@ static bool touchPoint(int* x, int* y) {
 // Draw-pass counter, exposed in `state`: two samples a second apart give
 // frames-per-second; a stalled loop or draw gate shows as a collapse.
 static uint32_t drawCount = 0;
+// Cost of one draw pass (field + halo + orbs + face + overlays), EMA and
+// lifetime max, microseconds. The present cost has its own counters in the
+// HAL; this is the other half of the frame budget, and without it a frame
+// rate drop can't be attributed to either side. Every surface the
+// face-first redesign added lands here.
+static uint32_t drawUs = 0, drawMaxUs = 0;
 // Latched raw-touch telemetry (see handleButtons): edge count + longest
 // continuous contact ms since boot.
 static uint32_t touchEdges = 0;
@@ -980,6 +986,8 @@ static void dumpState() {
   doc["imuOk"] = halImuReady();
   doc["tick"] = (uint32_t)t;
   doc["draws"] = drawCount;
+  doc["drawUs"] = drawUs;
+  doc["drawMaxUs"] = drawMaxUs;
   doc["txUs"] = txUs;
   doc["txMaxUs"] = txMaxUs;
   doc["txSerMaxUs"] = txSerMaxUs;
@@ -1648,6 +1656,7 @@ void loop() {
     // keeps the ASCII species art (and GIF character packs, which are
     // portrait-sized — not yet supported on the landscape board).
     drawCount++;
+    uint32_t drawT0 = micros();
     const Palette& p = characterPalette();
     uint32_t nowMs = frameMs;
 
@@ -1878,6 +1887,9 @@ void loop() {
     // Speech sits above everything on the buddy screen — it is the buddy
     // answering, so nothing it says should end up behind a card.
     if (HAL_LANDSCAPE) bubbleDraw(spr, nowMs, faceLift);
+    uint32_t dcost = micros() - drawT0;
+    drawUs += (int32_t)(dcost - drawUs) >> 3;
+    if (dcost > drawMaxUs) drawMaxUs = dcost;
   }
   if (!screenOff) halPresent(spr);
 
