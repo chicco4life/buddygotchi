@@ -68,6 +68,14 @@ struct AnimSpring {
   }
 };
 
+// Small deterministic hash. Every surface that wants organic-feeling
+// variation uses this rather than rand(), so HIL screenshots of the same
+// millisecond are always identical.
+static inline uint32_t animHash(uint32_t x) {
+  x *= 2654435761u;
+  return x ^ (x >> 16);
+}
+
 // RGB565 from 8-bit components. The sprite quantizes to RGB332 on the WS
 // board (blue keeps only 4 levels), so prefer values that already sit on
 // the RGB332 lattice — R/G in {0,36,73,109,146,182,219,255} and B in

@@ -51,11 +51,14 @@ static const int HALO_R_OUT = 190;
 // Amber, not warm white — see note 2 above.
 static const uint16_t HALO_TINT_IDLE = animRGB(255, 150, 40);
 // Inner band is brighter than the outer, which is the whole falloff the
-// palette can afford. Busy runs hotter so "working" reads across a desk.
-static const float HALO_OUT_AMP_IDLE = 0.18f;
-static const float HALO_IN_AMP_IDLE  = 0.32f;
-static const float HALO_OUT_AMP_BUSY = 0.26f;
-static const float HALO_IN_AMP_BUSY  = 0.44f;
+// palette can afford. Busy runs slightly hotter so "working" reads across a
+// desk — but only slightly: the species accents are saturated, and matching
+// the amber's amplitude with a pure green made the ring the loudest thing
+// on the panel, drowning both the face and the orbs.
+static const float HALO_OUT_AMP_IDLE = 0.15f;
+static const float HALO_IN_AMP_IDLE  = 0.27f;
+static const float HALO_OUT_AMP_BUSY = 0.11f;
+static const float HALO_IN_AMP_BUSY  = 0.19f;
 
 static float    _haloGain = 0.0f;      // eased presence, kills pop on state change
 static uint32_t _haloCelebrateAt = 0;  // one-shot ripple start

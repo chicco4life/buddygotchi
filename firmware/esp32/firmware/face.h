@@ -120,6 +120,11 @@ struct FaceOpts {
   uint16_t color  = 0;        // mood-resolved face colour; 0 = species accent
   uint16_t bg     = BLACK;    // field colour under the face, for text runs
   float    weight = 1.0f;     // stroke weight; ink-on-light thins ~10% (§2.1.2)
+  // -1..1 horizontal gaze override (§3.3). Idle gaze is not random noise:
+  // a target here (a newly spawned orb, a finger on the glass) outranks the
+  // ambient glance drift, because the buddy noticing something specific is
+  // more legible than the buddy looking around.
+  float    gazeBias = 0.0f;
 };
 
 inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
@@ -176,6 +181,9 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   }
   if (blinking && (persona == 1 || persona == 2)) lidTargetL = lidTargetR = 0.08f;
   float gazeTarget = (glancing && (persona == 1 || persona == 2)) ? glanceDir * 8.0f : 0.0f;
+  // An explicit target wins over the ambient drift, and reaches further —
+  // a deliberate look should be visibly bigger than idle wandering.
+  if (opt.gazeBias != 0.0f) gazeTarget = opt.gazeBias * 18.0f;
 
   // Lids close fast, open slower — the asymmetry is what reads as alive.
   lidL = _easeToward(lidL, lidTargetL, lidTargetL < lidL ? 26.0f : 11.0f, dt);

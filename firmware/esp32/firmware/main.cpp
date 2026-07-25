@@ -37,6 +37,7 @@ static void startBt() {
 #include "anim.h"
 #include "mood.h"
 #include "halo.h"
+#include "orbs.h"
 #include "face.h"
 #include "glance.h"
 const int W = HAL_W, H = HAL_H;
@@ -811,6 +812,8 @@ static void dumpState() {
   doc["glance"] = glanceStateName();
   doc["bonded"] = bleBonded();
   doc["mood"] = moodName();
+  doc["orbs"] = orbsAlive();
+  doc["orbsOverflow"] = orbsOverflow();
   // Field luminance 0..1 — the screenshot oracle asserts on the corner
   // pixel, this is the same fact for a cheap non-visual assertion.
   doc["moodLit"] = (int)(moodLit() * 100.0f + 0.5f);
@@ -1369,19 +1372,30 @@ void loop() {
       }
       glanceTick(nowMs, dt);
       haloTick(activeState, dt);
+      // Sleep shows no sky: a sleeping buddy isn't watching anything.
+      bool orbsVisible = (activeState != P_SLEEP);
+      orbsTick(nowMs, dt,
+               orbsVisible ? tama.sessionsRunning : 0,
+               orbsVisible ? tama.sessionsWaiting : 0,
+               0);
       faceLift = animPx(glanceCover() * (float)FACE_GLANCE_LIFT);
 
       // Draw order is the priority stack from the bottom up: the field
-      // carries the alert channel, the halo is ambient light behind the
-      // face, the face is the product. Overlays land after this block.
+      // carries the alert channel, the halo is ambient light around the
+      // face, the orbs are the session sky, the face is the product.
+      // Overlays land after this block.
       uint16_t accent = buddySpeciesColor();
       moodDrawField(spr, nowMs);
       haloDraw(spr, nowMs, activeState, accent);
+      // Orbs yield to a lit field exactly as the halo does — under a
+      // lantern the only thing that matters is the decision.
+      orbsDraw(spr, nowMs, accent, moodHaloGain() * (1.0f - glanceCover()));
       FaceOpts fo;
       fo.lift = faceLift;
       fo.color = moodFaceColor(accent);
       fo.bg = moodBackdrop(nowMs);
       fo.weight = moodStrokeWeight();
+      fo.gazeBias = orbsGazeNudge(nowMs);
       faceTick(activeState, tama.activity, boopActive, fo);
     } else {
       buddyTick(activeState);

@@ -513,6 +513,54 @@ def test_mood_returns_to_night_after_a_decision(stick, landscape):
     clear_prompt(stick)
 
 
+def wait_orbs(stick, want, timeout=8):
+    """Orb counts settle over time — spawns stagger ~150ms apart and each
+    one grows in over ~400ms, so the sky never flickers when several
+    sessions start at once (§3.2)."""
+    deadline = time.monotonic() + timeout
+    last = {}
+    while time.monotonic() < deadline:
+        last = state(stick)
+        if last.get("orbs") == want:
+            return last
+        time.sleep(0.2)
+    pytest.fail(f"orbs never reached {want}; last orbs={last.get('orbs')}")
+
+
+def test_orbs_track_session_counts(stick, landscape):
+    """One orb per session, driven by counts already on the wire (§3.2)."""
+    clear_prompt(stick)
+    send_json(stick, {"total": 3, "running": 2, "waiting": 1, "pet": "busy"})
+    got = wait_orbs(stick, 3)
+    assert got["orbsOverflow"] == 0
+    send_json(stick, {"total": 1, "running": 1, "waiting": 0, "pet": "busy"})
+    wait_orbs(stick, 1)
+
+
+def test_orbs_cap_at_six_and_report_overflow(stick, landscape):
+    """Beyond six the sky stops growing and the excess becomes 'many'.
+
+    Exact numbers are the glance card's job; the resting screen only carries
+    how much is going on.
+    """
+    clear_prompt(stick)
+    send_json(stick, {"total": 9, "running": 8, "waiting": 1, "pet": "busy"})
+    got = wait_orbs(stick, 6)
+    assert got["orbsOverflow"] == 3, got["orbsOverflow"]
+    send_json(stick, {"total": 1, "running": 1, "waiting": 0, "pet": "busy"})
+    got = wait_orbs(stick, 1)
+    assert got["orbsOverflow"] == 0
+
+
+def test_orbs_clear_when_asleep(stick, landscape):
+    """A sleeping buddy isn't watching anything, so the sky goes out."""
+    clear_prompt(stick)
+    send_json(stick, {"total": 2, "running": 2, "waiting": 0, "pet": "busy"})
+    wait_orbs(stick, 2)
+    send_json(stick, {"total": 2, "running": 2, "waiting": 0, "pet": "sleep"})
+    wait_orbs(stick, 0)
+
+
 def test_boop_emits_upstream_frame(stick):
     """A boop outside a prompt must flash the heart locally AND tell the
     desktop ({"cmd":"boop"}), so the Mac blob reacts in kind."""
