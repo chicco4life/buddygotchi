@@ -42,6 +42,7 @@ static void startBt() {
 #include "ritual.h"
 #include "face.h"
 #include "glance.h"
+#include "presence.h"
 const int W = HAL_W, H = HAL_H;
 const int CX = W / 2;
 const int CY_BASE = H / 2;
@@ -722,6 +723,7 @@ static void __attribute__((noinline)) handleButtons() {
     napEnd(now);
     // ...and skips a ritual. A ritual is a gift, not a toll.
     ritualSkip();
+    presenceEngaged(now);
     if (!prevBoop && boop) {
       boopDownAt = now;
       suppressBoopRelease = wasOff;
@@ -954,6 +956,7 @@ static void dumpState() {
   doc["gift"] = giftPending;
   doc["ritual"] = ritualName();
   doc["microIdle"] = faceMicroIdleName();
+  doc["presence"] = presenceName();
   doc["orbs"] = orbsAlive();
   doc["orbsOverflow"] = orbsOverflow();
   // Field luminance 0..1 — the screenshot oracle asserts on the corner
@@ -1205,6 +1208,20 @@ void handleSerialCommand(const char* line) {
       return;
     }
     Serial.printf("<<RITUAL now=%s>>\n", ritualName());
+    return;
+  }
+
+  // Debug/HIL: force a presence state. Pair-me is otherwise only
+  // reachable by having no bond at all, and producing that on a working
+  // device means erasing its real pairing.
+  if (strncmp(line, "presence", 8) == 0) {
+    const char* a = line[8] ? line + 9 : "";
+    if (strcmp(a, "pairme") == 0)     presenceForce(PRESENCE_PAIRME);
+    else if (strcmp(a, "nap") == 0)   presenceForce(PRESENCE_NAP);
+    else if (strcmp(a, "live") == 0)  presenceForce(PRESENCE_LIVE);
+    else if (strcmp(a, "auto") == 0)  presenceForce(-1);
+    Serial.printf("<<PRESENCE %s forced=%s>>\n", presenceName(),
+                  presenceForced() ? "true" : "false");
     return;
   }
 
@@ -1470,6 +1487,8 @@ void loop() {
     prevConn = conn;
   }
 
+  presenceTick(millis());
+
   motionTick(millis());
 
   // A completion becomes a gift the buddy holds for you (§8). Gated on the
@@ -1499,6 +1518,14 @@ void loop() {
   if (boopActive && baseState != P_ATTENTION && baseState != P_DIZZY &&
       !(HAL_LANDSCAPE && baseState == P_SLEEP)) {
     activeState = P_HEART;
+  }
+  // Link-loss grace (§9.1): derive() sleeps the moment data stops, but a
+  // radio hiccup shouldn't be visible at all. For the first 10s the face
+  // carries on as if nothing happened; only then does it get drowsy.
+  if (HAL_LANDSCAPE && baseState == P_SLEEP && strcmp(tama.pet, "sleep") != 0 &&
+      presenceGraced(millis())) {
+    baseState = P_IDLE;
+    activeState = P_IDLE;
   }
   // Being shaken beats being petted; attention still wins (the card and
   // its full brightness must survive a bumpy desk).
@@ -1535,6 +1562,12 @@ void loop() {
       // than a stopwatch nobody is looking at.
       float waited = (float)(nowM - promptArrivedMs) / 1000.0f;
       moodEscalation((waited - 10.0f) / 2.0f, (waited - 120.0f) / 3.0f);
+    } else if (presenceNow() == PRESENCE_PAIRME && presencePairBlooming(nowM)) {
+      // Someone is standing here engaging with an unadopted device — show
+      // the instruction loudly for a moment. It settles back to Night on
+      // its own: pair-me can persist for hours, and a permanent cream field
+      // would burn power and panel for a message nobody is reading.
+      moodSet(MOOD_LANTERN, screenWasOff);
     } else if (activeState == P_DIZZY) {
       moodSet(MOOD_EMBER_K, screenWasOff);
     } else {
@@ -1626,8 +1659,17 @@ void loop() {
           (int32_t)(dizzyUntil - nowMs) > 0) {
         glanceClose();
       }
+      PresenceKind pres = presenceNow();
+      // An unadopted buddy is awake and curious rather than asleep: it is
+      // waiting to be adopted, and a sleeping face would read as broken.
+      // Resolved BEFORE haloTick, which eases its gain off the state it is
+      // given — feeding it the sleeping state faded the pair-me halo out
+      // entirely, so the one screen whose halo carries meaning had none.
+      uint8_t drawState = activeState;
+      if (pres == PRESENCE_PAIRME && !ritualActive()) drawState = P_IDLE;
+
       glanceTick(nowMs, dt);
-      haloTick(activeState, dt);
+      haloTick(drawState, dt);
       cardTick(nowMs, dt, promptPending());
       bubbleTick(nowMs, dt);
       // Advance the ritual clock exactly once per frame — ritualProgress
@@ -1638,7 +1680,7 @@ void loop() {
       // halo, no orbs, no face until the shell breaks.
       bool eggPhase = ritualIsHatch() && rt < 0.78f;
       // Sleep shows no sky: a sleeping buddy isn't watching anything.
-      bool orbsVisible = (activeState != P_SLEEP) && !eggPhase;
+      bool orbsVisible = (drawState != P_SLEEP) && !eggPhase;
       // A waiting gift is SUPPRESSED, not cleared, while a prompt or error
       // owns the screen — it's still yours, it just isn't the thing that
       // matters this second.
@@ -1656,7 +1698,10 @@ void loop() {
       // Overlays land after this block.
       uint16_t accent = buddySpeciesColor();
       moodDrawField(spr, nowMs);
-      if (!eggPhase) haloDraw(spr, nowMs, activeState, accent);
+      // Pair-me wears Bluetooth blue, the one state where the halo's colour
+      // is the message rather than decoration.
+      uint16_t haloTint = (pres == PRESENCE_PAIRME) ? PAIRME_BLUE : 0;
+      if (!eggPhase) haloDraw(spr, nowMs, drawState, accent, haloTint);
       // Orbs yield to a lit field exactly as the halo does — under a
       // lantern the only thing that matters is the decision.
       orbsDraw(spr, nowMs, accent, moodHaloGain() * (1.0f - glanceCover()));
@@ -1705,7 +1750,7 @@ void loop() {
       if (eggPhase) {
         ritualDrawHatch(spr, nowMs, rt);   // egg only, nothing hatched yet
       } else {
-        faceTick(activeState, tama.activity, boopActive, fo);
+        faceTick(drawState, tama.activity, boopActive, fo);
       }
     } else {
       buddyTick(activeState);
@@ -1813,6 +1858,23 @@ void loop() {
         }
       }
     }
+    if (HAL_LANDSCAPE && !ritualActive()) {
+      PresenceKind pres2 = presenceNow();
+      if (pres2 == PRESENCE_PAIRME && !promptPending() && !menuActive() && !blePasskey()) {
+        // Loud and in-universe: the buddy asks to be adopted, and names
+        // itself so you know which one to pick in the desktop list.
+        char line[40];
+        presencePairText(line, sizeof(line), btName, nowMs);
+        bubbleShow(line, nowMs, 400, PAIRME_BLUE);
+      } else if (pres2 == PRESENCE_NAP && !presenceGraced(nowMs) &&
+                 activeState == P_SLEEP && !promptPending() && !menuActive()) {
+        // The honest whisper: a crossed-out radio drifting up in a dream.
+        // This is what distinguishes link-down sleep from commanded sleep
+        // or a face-down nap, for whoever looks closely.
+        presenceDrawDreamGlyph(spr, nowMs, buddySpeciesColor());
+      }
+    }
+
     // Speech sits above everything on the buddy screen — it is the buddy
     // answering, so nothing it says should end up behind a card.
     if (HAL_LANDSCAPE) bubbleDraw(spr, nowMs, faceLift);

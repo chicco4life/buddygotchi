@@ -571,6 +571,71 @@ def test_approval_card_has_no_wait_counter(stick, landscape):
     clear_prompt(stick)
 
 
+def test_presence_pairme_is_awake_not_asleep(stick, landscape):
+    """An unadopted buddy waits to be adopted; it does not sleep (§9.1).
+
+    A sleeping face on a device that has never been paired reads as broken,
+    and the whole point of the loud state is that a new owner learns what to
+    do. Forced through the debug override — the only other way to reach
+    pair-me is erasing a real bond.
+    """
+    clear_prompt(stick)
+    stick.write_line("presence pairme")
+    stick.read_until(lambda b: b"<<PRESENCE pair-me" in b, 3)
+    assert state(stick)["presence"] == "pair-me"
+    # Pair-me settles into Night: it can persist for hours, and a permanent
+    # cream field would burn power and panel for a message nobody reads.
+    # Polled rather than sampled — a field left fading by an earlier test
+    # reports "lantern-out" for a few hundred ms, which says nothing about
+    # what pair-me does once it owns the screen.
+    deadline = time.monotonic() + 6
+    while time.monotonic() < deadline:
+        got = state(stick)
+        if got["mood"] == "night":
+            break
+        time.sleep(0.2)
+    else:
+        pytest.fail(f"pair-me never settled to night; mood={got['mood']}")
+    assert got["presence"] == "pair-me"
+    stick.write_line("presence auto")
+    stick.read_until(lambda b: b"<<PRESENCE " in b, 3)
+
+
+def test_presence_pairme_blooms_on_engagement(stick, landscape):
+    """Someone engaging with an unadopted device gets the loud version."""
+    clear_prompt(stick)
+    stick.write_line("presence pairme")
+    stick.read_until(lambda b: b"<<PRESENCE pair-me" in b, 3)
+    time.sleep(0.3)
+    stick.write_line("press a 120")
+    stick.read_until(lambda b: b"<<PRESS a up>>" in b, 3)
+    got = wait_state(stick, mood="lantern")
+    assert got["presence"] == "pair-me"
+    # ...and settles back on its own.
+    deadline = time.monotonic() + 8
+    while time.monotonic() < deadline:
+        if state(stick)["mood"] == "night":
+            break
+        time.sleep(0.3)
+    else:
+        pytest.fail("pair-me bloom never settled back to night")
+    stick.write_line("presence auto")
+    stick.read_until(lambda b: b"<<PRESENCE " in b, 3)
+
+
+def test_presence_reports_nap_when_link_is_down(stick, landscape):
+    """A paired device whose desktop went away naps rather than erroring."""
+    clear_prompt(stick)
+    stick.write_line("presence auto")
+    stick.read_until(lambda b: b"<<PRESENCE " in b, 3)
+    # The HIL harness itself is the data source, so drive it explicitly.
+    stick.write_line("presence nap")
+    stick.read_until(lambda b: b"<<PRESENCE nap" in b, 3)
+    assert state(stick)["presence"] == "nap"
+    stick.write_line("presence auto")
+    stick.read_until(lambda b: b"<<PRESENCE " in b, 3)
+
+
 @pytest.mark.parametrize("kind", ["yawn", "orb", "wiggle", "look", "tilt"])
 def test_micro_idles_run_and_expire(stick, landscape, kind):
     """Each micro-idle plays and gets out of the way (§12).

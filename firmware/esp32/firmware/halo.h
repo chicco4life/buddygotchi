@@ -73,7 +73,11 @@ inline void haloTick(uint8_t persona, float dt) {
   _haloGain = animEase(_haloGain, target, 5.0f, dt);
 }
 
-inline void haloDraw(BuddyCanvas& spr, uint32_t now, uint8_t persona, uint16_t accent) {
+// tintOverride != 0 replaces the state-derived colour. Pair-me uses it to
+// wear Bluetooth blue — the one state where the halo's colour is itself the
+// message ("this is about the radio"), rather than ambient decoration.
+inline void haloDraw(BuddyCanvas& spr, uint32_t now, uint8_t persona, uint16_t accent,
+                     uint16_t tintOverride = 0) {
   float gain = _haloGain * moodHaloGain();
   if (gain <= 0.06f) return;
 
@@ -81,7 +85,7 @@ inline void haloDraw(BuddyCanvas& spr, uint32_t now, uint8_t persona, uint16_t a
   // Idle wears the amber so the resting screen reads as ambient rather than
   // branded; working wears the species accent, which is what makes "my
   // buddy is doing something" legible from across a desk.
-  uint16_t tint = busy ? accent : HALO_TINT_IDLE;
+  uint16_t tint = tintOverride ? tintOverride : (busy ? accent : HALO_TINT_IDLE);
   float ampOut = busy ? HALO_OUT_AMP_BUSY : HALO_OUT_AMP_IDLE;
   float ampIn  = busy ? HALO_IN_AMP_BUSY  : HALO_IN_AMP_IDLE;
 
