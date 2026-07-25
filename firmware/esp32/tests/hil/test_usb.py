@@ -571,6 +571,78 @@ def test_approval_card_has_no_wait_counter(stick, landscape):
     clear_prompt(stick)
 
 
+def drain_gift(stick):
+    """Leave no gift pending — one slot, and it survives state changes."""
+    for _ in range(3):
+        if not state(stick).get("gift"):
+            return
+        stick.write_line("press a 120")
+        stick.read_until(lambda b: b"<<PRESS a up>>" in b, 2)
+        time.sleep(0.3)
+
+
+def test_completion_becomes_a_collectable_gift(stick, landscape):
+    """A finished task is held for you rather than flashed and lost (§8).
+
+    The gift outlives the celebrate state — you shouldn't have to be looking
+    at the device at the moment something finishes to find out that it did.
+    """
+    clear_prompt(stick)
+    drain_gift(stick)
+    send_json(stick, {"total": 1, "running": 0, "waiting": 0, "pet": "celebrate",
+                      "msg": "Done: 14 tests pass"})
+    wait_state(stick, gift=True)
+    # Back to idle: the gift must persist across the pet-state change.
+    send_json(stick, {"total": 1, "running": 0, "waiting": 0, "pet": "idle",
+                      "msg": "Done: 14 tests pass"})
+    got = wait_state(stick, pet="idle", gift=True)
+    assert got["orbs"] >= 1, got     # the gold orb is up
+
+    # Crown collects it.
+    stick.write_line("press a 120")
+    stick.read_until(lambda b: b"<<GIFT collect" in b, 3)
+    wait_state(stick, gift=False)
+
+
+def test_gift_is_one_slot_and_newest_wins(stick, landscape):
+    """A newer completion replaces the pending one rather than queueing."""
+    clear_prompt(stick)
+    drain_gift(stick)
+    send_json(stick, {"total": 1, "running": 0, "waiting": 0, "pet": "celebrate",
+                      "msg": "Done: first"})
+    wait_state(stick, gift=True)
+    send_json(stick, {"total": 1, "running": 0, "waiting": 0, "pet": "celebrate",
+                      "msg": "Done: second"})
+    time.sleep(0.5)
+    stick.write_line("press a 120")
+    buf, _ = stick.read_until(lambda b: b"<<GIFT collect" in b, 3)
+    assert b"second" in buf, buf[-160:]
+    # One slot: after collecting once there is nothing left to collect.
+    assert state(stick)["gift"] is False
+
+
+def test_gift_is_suppressed_by_a_prompt_not_cleared(stick, landscape):
+    """A decision outranks a present, but doesn't throw it away (§8)."""
+    clear_prompt(stick)
+    drain_gift(stick)
+    send_json(stick, {"total": 1, "running": 0, "waiting": 0, "pet": "celebrate",
+                      "msg": "Done: kept"})
+    wait_state(stick, gift=True)
+
+    stick.write_line("mockprompt")
+    stick.read_until(lambda b: b"<<BTN mockprompt armed>>" in b, 2)
+    time.sleep(0.6)
+    got = state(stick)
+    assert got["gift"] is True, "prompt must suppress the gift, not clear it"
+    # The crown belongs to the decision while one is owed.
+    stick.write_line("press a 120")
+    buf, _ = stick.read_until(lambda b: b'"decision":"allow"' in b, 3)
+    assert b"<<GIFT collect" not in buf, "crown collected a gift instead of approving"
+    clear_prompt(stick)
+    assert state(stick)["gift"] is True
+    drain_gift(stick)
+
+
 def imu(stick):
     return stick.framed_json("imu", "IMU", 4)
 

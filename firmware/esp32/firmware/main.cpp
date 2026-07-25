@@ -271,6 +271,20 @@ static const float FACE_DOWN_G = -0.75f;
 static uint32_t faceDownSince = 0;
 static uint32_t faceUpSince = 0;
 
+// --- Gift loop (§8) --------------------------------------------------------
+// A completed task is a gift the buddy is holding for you. It waits as a gold
+// twinkling orb until you tap the crown to collect it, then it hands over the
+// summary. Device-local state, deliberately: uncollected gifts survive
+// dim/off and sleep but NOT a reboot — the desktop remains the source of
+// truth for history, and a pet that hoards stale news is worse than one that
+// forgets.
+//
+// Exactly one slot. A newer completion REPLACES the pending one rather than
+// queueing: the device only ever promises to hand you the latest thing, and
+// the glance card reports whatever the desktop says is really outstanding.
+static bool giftPending = false;
+static char giftMsg[40] = "";
+
 // --- Pick-up / dangle mode (§10.2) -----------------------------------------
 // A lift and the start of a shake look nearly identical to an accelerometer:
 // both are "the vector moved". What separates them is persistence without
@@ -617,6 +631,21 @@ static void boopPet() {
   sendBoopUpstream();
 }
 
+// Collect the pending gift: the orb pops, the buddy giggles, and the
+// completion summary appears in a bubble for 4s. Nothing goes upstream in
+// v1 — that's a deliberate choice rather than a limit, since boops already
+// round-trip, so a {"cmd":"collect"} is a small addition whenever the
+// desktop wants to mirror it.
+static void collectGift(uint32_t now) {
+  if (!giftPending) return;
+  giftPending = false;
+  bubbleShow(giftMsg[0] ? giftMsg : "all done!", now, 4000, GREEN);
+  faceBoopSquish();          // the giggle
+  haloCelebrate(now);        // sparkle burst, reusing the celebrate ripple
+  beep(1319, 70);
+  Serial.printf("<<GIFT collect %.30s>>\n", giftMsg);
+}
+
 // Power the pet all the way down. Never returns — halDeepSleep restarts
 // the firmware on wake (BOOP button; timerWakeMs lets HIL prove the
 // round-trip without a finger on the board).
@@ -753,6 +782,16 @@ static void __attribute__((noinline)) handleButtons() {
         // nothing. The card stays up; the next press counts.
       }
       else if (menuActive()) menuSelect(now);
+      // Pending gift outranks a plain boop: the buddy is holding something
+      // out for you and the crown is how you take it.
+      else if (giftPending && HAL_LANDSCAPE) collectGift(now);
+      // A displayed error is a demanded-tier fact — the crown acknowledges
+      // it (the buddy shakes it off) rather than booping past it. Nothing
+      // goes upstream; this only clears the display.
+      else if (HAL_LANDSCAPE && (int32_t)(dizzyUntil - now) > 0) {
+        dizzyUntil = now;
+        faceBoopSquish();
+      }
       else if (glanceActive()) {
         // Dismiss the card with a giggle rather than in silence — the
         // crown is affirmative even when there's nothing to affirm.
@@ -903,6 +942,7 @@ static void dumpState() {
   doc["bonded"] = bleBonded();
   doc["mood"] = moodName();
   doc["card"] = cardVisible();
+  doc["gift"] = giftPending;
   doc["orbs"] = orbsAlive();
   doc["orbsOverflow"] = orbsOverflow();
   // Field luminance 0..1 — the screenshot oracle asserts on the corner
@@ -1354,6 +1394,24 @@ void loop() {
 
   motionTick(millis());
 
+  // A completion becomes a gift the buddy holds for you (§8). Gated on the
+  // same "Done"-prefixed msg the old HUD line used, so ordinary status
+  // chatter ("no agents awake") never counts as a completion. Keyed on the
+  // message text so a celebrate state that lingers across heartbeats arms
+  // exactly one gift.
+  if (HAL_LANDSCAPE) {
+    static char lastDone[40] = "";
+    if (strcmp(tama.pet, "celebrate") == 0 && strncmp(tama.msg, "Done", 4) == 0 &&
+        strcmp(tama.msg, lastDone) != 0) {
+      strncpy(lastDone, tama.msg, sizeof(lastDone) - 1);
+      lastDone[sizeof(lastDone) - 1] = 0;
+      strncpy(giftMsg, tama.msg, sizeof(giftMsg) - 1);
+      giftMsg[sizeof(giftMsg) - 1] = 0;
+      giftPending = true;
+      Serial.printf("<<GIFT pending %.30s>>\n", giftMsg);
+    }
+  }
+
   baseState = derive(tama);
   activeState = baseState;
   // Recent boop: flash the heart face unless something urgent is on
@@ -1496,10 +1554,15 @@ void loop() {
       bubbleTick(nowMs, dt);
       // Sleep shows no sky: a sleeping buddy isn't watching anything.
       bool orbsVisible = (activeState != P_SLEEP);
+      // A waiting gift is SUPPRESSED, not cleared, while a prompt or error
+      // owns the screen — it's still yours, it just isn't the thing that
+      // matters this second.
+      bool giftShown = giftPending && !promptPending() &&
+                       (int32_t)(dizzyUntil - nowMs) <= 0;
       orbsTick(nowMs, dt,
                orbsVisible ? tama.sessionsRunning : 0,
                orbsVisible ? tama.sessionsWaiting : 0,
-               0);
+               (orbsVisible && giftShown) ? 1 : 0);
       faceLift = animPx(glanceCover() * (float)FACE_GLANCE_LIFT);
 
       // Draw order is the priority stack from the bottom up: the field
@@ -1517,6 +1580,7 @@ void loop() {
       fo.color = moodFaceColor(accent);
       fo.bg = moodBackdrop(nowMs);
       fo.weight = moodStrokeWeight();
+      fo.expectant = giftShown;
       // Gaze priority (§3.3): the finger on the glass outranks a newly
       // spawned orb, which outranks the ambient glance drift. Something
       // touching the buddy is the most specific thing in its world.
@@ -1630,7 +1694,8 @@ void loop() {
         // Face-first resting screen (§3, §14): no HUD, no status text, no
         // counters — the face is the whole product. Everything the old
         // 104px block used to say now lives one "look" tap away.
-        glanceDraw(spr, nowMs, tama, bleBonded(), dataLastLiveMs(), 0);
+        glanceDraw(spr, nowMs, tama, bleBonded(), dataLastLiveMs(),
+                   giftPending ? 1 : 0);
       } else {
         spr.fillRect(0, y, W, H - y, p.bg);
         spr.setTextColor(tama.connected ? p.text : p.textDim, p.bg);

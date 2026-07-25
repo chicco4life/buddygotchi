@@ -142,6 +142,9 @@ struct FaceOpts {
   // weight rather than as a wobble animation.
   int      dangleX = 0;
   int      dangleY = 0;
+  // A gift is waiting to be collected (§8). The idle face carries a subtly
+  // expectant look — it's holding something out for you.
+  bool     expectant = false;
 };
 
 // Boop squish (§10.1, doctrine #10: physics over keyframes). A boop kicks
@@ -213,6 +216,13 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   // owed and the buddy is not relaxing about it (doctrine #12).
   if (opt.petting && persona != 0 && persona != 3) {
     lidTargetL = lidTargetR = 0.66f;
+  }
+  // Holding a gift out for you: eyes open a little wider and lift, the
+  // face-first equivalent of raised brows. Deliberately small — the gold
+  // orb is the signal, this is the tell you notice second.
+  if (opt.expectant && (persona == 1 || persona == 2)) {
+    liftTarget -= 4.0f;
+    boostTarget += 5.0f;
   }
   if (blinking && (persona == 1 || persona == 2)) lidTargetL = lidTargetR = 0.08f;
   float gazeTarget = (glancing && (persona == 1 || persona == 2)) ? glanceDir * 8.0f : 0.0f;
