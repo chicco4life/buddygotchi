@@ -39,6 +39,7 @@ static void startBt() {
 #include "halo.h"
 #include "orbs.h"
 #include "bubble.h"
+#include "ritual.h"
 #include "face.h"
 #include "glance.h"
 const int W = HAL_W, H = HAL_H;
@@ -719,6 +720,8 @@ static void __attribute__((noinline)) handleButtons() {
     // A physical press always ends a nap — the escape hatch if the
     // accelerometer wedges while the nap gate holds the screen dark.
     napEnd(now);
+    // ...and skips a ritual. A ritual is a gift, not a toll.
+    ritualSkip();
     if (!prevBoop && boop) {
       boopDownAt = now;
       suppressBoopRelease = wasOff;
@@ -781,7 +784,13 @@ static void __attribute__((noinline)) handleButtons() {
         // A boop reaction here would read as "approved" — worse than
         // nothing. The card stays up; the next press counts.
       }
-      else if (menuActive()) menuSelect(now);
+      else if (menuActive()) {
+        // Adopting a character earns a small celebration — it's the one
+        // menu action that changes who the buddy IS.
+        bool adopting = HAL_LANDSCAPE && strcmp(menuScreenName(), "character") == 0;
+        menuSelect(now);
+        if (adopting) { faceBoopSquish(); haloCelebrate(now); }
+      }
       // Pending gift outranks a plain boop: the buddy is holding something
       // out for you and the crown is how you take it.
       else if (giftPending && HAL_LANDSCAPE) collectGift(now);
@@ -943,6 +952,7 @@ static void dumpState() {
   doc["mood"] = moodName();
   doc["card"] = cardVisible();
   doc["gift"] = giftPending;
+  doc["ritual"] = ritualName();
   doc["orbs"] = orbsAlive();
   doc["orbsOverflow"] = orbsOverflow();
   // Field luminance 0..1 — the screenshot oracle asserts on the corner
@@ -1178,6 +1188,25 @@ void handleSerialCommand(const char* line) {
     return;
   }
 
+  // Debug/HIL: replay a ritual. Hatching is a once-per-device one-shot
+  // (NVS), so without this it becomes untestable the moment a board has
+  // booted once. "ritual clear" un-hatches for a full unboxing rehearsal.
+  if (strncmp(line, "ritual", 6) == 0) {
+    const char* a = line[6] ? line + 7 : "";
+    if (strcmp(a, "hatch") == 0)        ritualStart(RITUAL_HATCH, millis());
+    else if (strcmp(a, "stretch") == 0) ritualStart(RITUAL_STRETCH, millis());
+    else if (strcmp(a, "skip") == 0)    ritualSkip();
+    else if (strcmp(a, "clear") == 0) {
+      _prefs.begin("buddy", false);
+      _prefs.remove("hatched");
+      _prefs.end();
+      Serial.println("<<RITUAL unhatched>>");
+      return;
+    }
+    Serial.printf("<<RITUAL now=%s>>\n", ritualName());
+    return;
+  }
+
   // Debug/HIL: synthetic touchscreen contact. Drives the same edge/hold
   // logic as a real finger on the glass (tap = boop, hold = petting).
   // "touch" with no argument reports the live contact — raw panel
@@ -1371,6 +1400,14 @@ void setup() {
     delay(1800);
   }
 
+  // First-ever boot: hatch (§13). One-shot per device, flagged in NVS
+  // before the sequence runs — a crash mid-hatch must not re-run the
+  // unboxing moment on every subsequent boot.
+  if (HAL_LANDSCAPE && !statsHatched()) {
+    statsSetHatched();
+    ritualStart(RITUAL_HATCH, millis());
+  }
+
   Serial.println("buddy: ASCII mode");
 }
 
@@ -1390,6 +1427,29 @@ void loop() {
       buddySetSpecies(tama.species);
       buddyInvalidate();
     }
+  }
+
+  // Morning stretch (§13): the first link-up after a long absence. There is
+  // no RTC on this board, so "long" is measured with millis while powered,
+  // and after a reboot that history is gone entirely. The spec's call: show
+  // the stretch on the first connect after boot anyway, because a fresh
+  // boot feels like waking up regardless.
+  if (HAL_LANDSCAPE) {
+    static bool prevConn = false;
+    static bool everConn = false;
+    static uint32_t droppedAt = 0;
+    const uint32_t SIX_HOURS_MS = 6UL * 3600UL * 1000UL;
+    bool conn = dataConnected();
+    uint32_t nowM = millis();
+    if (conn && !prevConn) {
+      bool longAbsence = !everConn ||
+                         (droppedAt != 0 && (nowM - droppedAt) >= SIX_HOURS_MS);
+      if (longAbsence && !ritualActive()) ritualStart(RITUAL_STRETCH, nowM);
+      everConn = true;
+    } else if (!conn && prevConn) {
+      droppedAt = nowM;
+    }
+    prevConn = conn;
   }
 
   motionTick(millis());
@@ -1552,8 +1612,15 @@ void loop() {
       haloTick(activeState, dt);
       cardTick(nowMs, dt, promptPending());
       bubbleTick(nowMs, dt);
+      // Advance the ritual clock exactly once per frame — ritualProgress
+      // ends the ritual when it reaches 1, so calling it twice would drop
+      // a frame of the sequence.
+      float rt = ritualProgress(nowMs);
+      // Nothing has hatched yet, so nothing else is on screen either: no
+      // halo, no orbs, no face until the shell breaks.
+      bool eggPhase = ritualIsHatch() && rt < 0.78f;
       // Sleep shows no sky: a sleeping buddy isn't watching anything.
-      bool orbsVisible = (activeState != P_SLEEP);
+      bool orbsVisible = (activeState != P_SLEEP) && !eggPhase;
       // A waiting gift is SUPPRESSED, not cleared, while a prompt or error
       // owns the screen — it's still yours, it just isn't the thing that
       // matters this second.
@@ -1571,7 +1638,7 @@ void loop() {
       // Overlays land after this block.
       uint16_t accent = buddySpeciesColor();
       moodDrawField(spr, nowMs);
-      haloDraw(spr, nowMs, activeState, accent);
+      if (!eggPhase) haloDraw(spr, nowMs, activeState, accent);
       // Orbs yield to a lit field exactly as the halo does — under a
       // lantern the only thing that matters is the decision.
       orbsDraw(spr, nowMs, accent, moodHaloGain() * (1.0f - glanceCover()));
@@ -1581,6 +1648,8 @@ void loop() {
       fo.bg = moodBackdrop(nowMs);
       fo.weight = moodStrokeWeight();
       fo.expectant = giftShown;
+      fo.scale = ritualStretchScale(rt);
+      fo.yawn = ritualYawning(rt);
       // Gaze priority (§3.3): the finger on the glass outranks a newly
       // spawned orb, which outranks the ambient glance drift. Something
       // touching the buddy is the most specific thing in its world.
@@ -1611,7 +1680,14 @@ void loop() {
       }
       fo.dangleX = animPx(dangleSprX.pos * 22.0f);
       fo.dangleY = animPx(dangleSprY.pos * 15.0f);
-      faceTick(activeState, tama.activity, boopActive, fo);
+      // The hatch owns the whole screen until the shell breaks; after that
+      // the newborn face takes over mid-ritual, which is the point of the
+      // sequence — you watch it become the thing you'll live with.
+      if (eggPhase) {
+        ritualDrawHatch(spr, nowMs, rt);   // egg only, nothing hatched yet
+      } else {
+        faceTick(activeState, tama.activity, boopActive, fo);
+      }
     } else {
       buddyTick(activeState);
     }

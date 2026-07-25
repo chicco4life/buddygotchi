@@ -571,6 +571,43 @@ def test_approval_card_has_no_wait_counter(stick, landscape):
     clear_prompt(stick)
 
 
+def test_hatch_ritual_runs_and_completes(stick, landscape):
+    """The unboxing moment (§13): egg, cracks, burst, newborn face.
+
+    It's a once-per-device NVS one-shot, so it's driven here through the
+    debug replay — without that it becomes untestable the moment a board
+    has booted once.
+    """
+    clear_prompt(stick)
+    stick.write_line("ritual hatch")
+    stick.read_until(lambda b: b"<<RITUAL hatch>>" in b, 3)
+    assert state(stick)["ritual"] == "hatch"
+    # ~6s total; it must end on its own, not wait for input.
+    stick.read_until(lambda b: b"<<RITUAL hatch done>>" in b, 12)
+    assert state(stick)["ritual"] == "none"
+
+
+def test_any_button_skips_a_ritual(stick, landscape):
+    """A ritual is a gift, not a toll — you can always get past it."""
+    clear_prompt(stick)
+    stick.write_line("ritual hatch")
+    stick.read_until(lambda b: b"<<RITUAL hatch>>" in b, 3)
+    time.sleep(0.4)
+    stick.write_line("press a 120")
+    stick.read_until(lambda b: b"<<RITUAL hatch skipped>>" in b, 3)
+    assert state(stick)["ritual"] == "none"
+
+
+def test_morning_stretch_runs_and_completes(stick, landscape):
+    """First link-up after a long absence gets a stretch and a yawn."""
+    clear_prompt(stick)
+    stick.write_line("ritual stretch")
+    stick.read_until(lambda b: b"<<RITUAL stretch>>" in b, 3)
+    assert state(stick)["ritual"] == "stretch"
+    stick.read_until(lambda b: b"<<RITUAL stretch done>>" in b, 6)
+    assert state(stick)["ritual"] == "none"
+
+
 def drain_gift(stick):
     """Leave no gift pending — one slot, and it survives state changes."""
     for _ in range(3):

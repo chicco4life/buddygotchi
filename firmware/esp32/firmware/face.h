@@ -145,6 +145,11 @@ struct FaceOpts {
   // A gift is waiting to be collected (§8). The idle face carries a subtly
   // expectant look — it's holding something out for you.
   bool     expectant = false;
+  // Whole-face scale, driven by the morning stretch ritual (§13).
+  float    scale = 1.0f;
+  // Big open yawn — the stretch's other half, and a micro-idle in its own
+  // right (§12).
+  bool     yawn = false;
 };
 
 // Boop squish (§10.1, doctrine #10: physics over keyframes). A boop kicks
@@ -265,7 +270,7 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   // (halation), dark shapes on a light field don't. Reusing the glow
   // geometry unchanged makes the ink face read heavy and clumsy, so every
   // filled dimension thins with the mood.
-  const float wt = opt.weight;
+  const float wt = opt.weight * opt.scale;
   int eyeHL = _px((e.h * 2.0f * lidL + boost) * wt * (1.0f - sq * 0.30f));
   int eyeHR = _px((e.h * 2.0f * lidR + boost) * wt * (1.0f - sq * 0.30f));
   int eyeW = _px((e.w * 2.0f + (boost > 2.0f ? 4.0f : 0.0f)) * wt * (1.0f + sq * 0.22f));
@@ -371,7 +376,14 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
     default: {  // idle — open eyes, blinks, glances, soft smile
       _faceEye(cx - eyeDX + gazeI, eyeY, eyeW, eyeHL, eyeR, accent);
       _faceEye(cx + eyeDX + gazeI, eyeY, eyeW, eyeHR, eyeR, accent);
-      spr.fillArc(cx, mouthY - 10, 16, 22, 30, 150, accent);
+      if (opt.yawn) {
+        // A yawn is a big open O, not a wider smile. Squashed slightly so
+        // it reads as a mouth rather than a hole.
+        spr.fillEllipse(cx, mouthY + 6, 20, 26, accent);
+        spr.fillEllipse(cx, mouthY + 8, 13, 18, BG);
+      } else {
+        spr.fillArc(cx, mouthY - 10, 16, 22, 30, 150, accent);
+      }
       break;
     }
   }

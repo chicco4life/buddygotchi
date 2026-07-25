@@ -46,6 +46,24 @@ inline void statsOnDenial() { _stats.denials++; _dirty = true; statsSave(); }
 
 inline void statsMarkDirty() { _dirty = true; }
 
+// Has this device ever hatched? A one-shot NVS flag: the hatching ritual
+// (§13) is the unboxing moment and must happen exactly once per device, not
+// once per boot. Kept here rather than in Settings because a factory reset
+// should be able to clear settings without un-hatching a buddy that has
+// demonstrably already been alive.
+inline bool statsHatched() {
+  _prefs.begin("buddy", true);
+  bool h = _prefs.getBool("hatched", false);
+  _prefs.end();
+  return h;
+}
+
+inline void statsSetHatched() {
+  _prefs.begin("buddy", false);
+  _prefs.putBool("hatched", true);
+  _prefs.end();
+}
+
 inline void statsOnNapEnd(uint32_t seconds) {
   _stats.napSeconds += seconds;
   _dirty = true; statsSave();
