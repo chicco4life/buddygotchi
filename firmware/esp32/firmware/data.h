@@ -60,6 +60,11 @@ inline bool dataConnected() {
   return _lastLiveMs != 0 && (millis() - _lastLiveMs) <= 30000;
 }
 
+// millis() of the last live frame, 0 if none since boot. The glance card
+// turns this into "link lost - 12m"; the resting screen never says it out
+// loud (link loss shows as a nap — PEBBLE-UX §9.1).
+inline uint32_t dataLastLiveMs() { return _lastLiveMs; }
+
 inline bool dataBtActive() {
   // Desktop's idle keepalive is ~10s; give it 1.5x headroom.
   return _lastBtByteMs != 0 && (millis() - _lastBtByteMs) <= 15000;

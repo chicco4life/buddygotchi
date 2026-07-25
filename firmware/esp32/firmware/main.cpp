@@ -34,7 +34,9 @@ static void startBt() {
 #include "character.h"
 #include "stats.h"
 #include "menu.h"
+#include "anim.h"
 #include "face.h"
+#include "glance.h"
 const int W = HAL_W, H = HAL_H;
 const int CX = W / 2;
 const int CY_BASE = H / 2;
@@ -71,6 +73,13 @@ const uint32_t BTN_A_LONG_MS = 1500;
 // Keep holding BOOP past the screen-sleep threshold and the pet powers
 // all the way down (halDeepSleep). Physical presses only.
 const uint32_t BTN_A_DEEPSLEEP_MS = 4000;
+// "Look" (MENU) is now two verbs: a tap summons the glance card, a hold
+// opens the menu carousel. Short enough that the menu still feels reachable,
+// long enough that a glance never opens the menu by accident.
+const uint32_t BTN_M_LONG_MS = 500;
+// How far the face rides up to present the glance card (§6) — enough to
+// clear the mouth above the card's top edge without shoving the eyes off.
+const int FACE_GLANCE_LIFT = 30;
 const uint32_t BOOP_REACT_MS = 2500;
 // A press only counts as an approval if it *started* after the prompt had
 // been on screen this long — otherwise a tickle already in flight could
@@ -540,6 +549,9 @@ static void __attribute__((noinline)) handleButtons() {
   static bool prevBoop = false, prevRej = false, prevMenu = false;
   static uint32_t boopDownAt = 0;
   static bool suppressBoopRelease = false;
+  static uint32_t menuDownAt = 0;
+  static bool menuLongHandled = false;
+  static bool suppressMenuRelease = false;
 
   bool boop = readBtn(HAL_BTN_BOOP);
   bool rej  = readBtn(HAL_BTN_REJECT);
@@ -560,6 +572,11 @@ static void __attribute__((noinline)) handleButtons() {
       boopDownAt = now;
       suppressBoopRelease = wasOff;
       boopLongHandled = false;
+    }
+    if (!prevMenu && menu) {
+      menuDownAt = now;
+      suppressMenuRelease = wasOff;
+      menuLongHandled = false;
     }
   }
 
@@ -586,12 +603,27 @@ static void __attribute__((noinline)) handleButtons() {
     goodNight(0);   // never returns
   }
 
+  // "Look" hold opens the menu carousel. Like the crown ladder, the hold
+  // survives a wake-press (only taps are eaten) — reaching for the menu on
+  // a dark screen should just work.
+  if (prevMenu && menu && !menuLongHandled && !pending &&
+      now - menuDownAt >= BTN_M_LONG_MS) {
+    menuLongHandled = true;
+    suppressMenuRelease = true;
+    if (!menuActive()) {
+      glanceClose();   // the card is the tap verb; the hold supersedes it
+      menuOpen(now);
+    }
+  }
+
   bool boopRelease = prevBoop && !boop;
   bool rejPress = !prevRej && rej;
-  bool menuPress = !prevMenu && menu;
+  bool menuRelease = prevMenu && !menu;
   if (boopRelease) {
     if (now - boopDownAt >= BTN_A_LONG_MS) suppressBoopRelease = true;
     if (!suppressBoopRelease) {
+      // Crown tap resolution order (§5), first match wins. Keeping this a
+      // single ordered chain is what makes "crown = yes" one reliable verb.
       if (armed && (int32_t)(boopDownAt - armedAt) >= 0) sendApproval(true);
       else if (pending) {
         // Press raced the arming window of a fresh prompt: swallow it.
@@ -599,6 +631,12 @@ static void __attribute__((noinline)) handleButtons() {
         // nothing. The card stays up; the next press counts.
       }
       else if (menuActive()) menuSelect(now);
+      else if (glanceActive()) {
+        // Dismiss the card with a giggle rather than in silence — the
+        // crown is affirmative even when there's nothing to affirm.
+        glanceClose();
+        boopPet();
+      }
       else boopPet();
     }
     suppressBoopRelease = false;
@@ -608,11 +646,19 @@ static void __attribute__((noinline)) handleButtons() {
   // especially not deny a prompt the user hasn't seen yet.
   if (rejPress && !wasOff) {
     if (armed) sendApproval(false);
+    else if (glanceActive()) glanceClose();
     else if (menuActive()) menuBack(now);
   }
-  if (menuPress && !wasOff && !pending) {
-    if (menuActive()) menuNext(now);
-    else menuOpen(now);
+  // "Look" tap: summon the glance card, or turn its pages. Once the menu is
+  // open the tap keeps its existing meaning (next item).
+  if (menuRelease) {
+    if (!suppressMenuRelease && !pending) {
+      if (menuActive()) menuNext(now);
+      else if (HAL_LANDSCAPE) glanceOpen(now);
+      else menuOpen(now);   // portrait M5 has no glance card — tap still opens
+    }
+    suppressMenuRelease = false;
+    menuLongHandled = false;
   }
 
   static bool prevTouch = false;
@@ -731,6 +777,8 @@ static void dumpState() {
   doc["responseSent"] = responseSent;
   doc["armed"] = promptArmed(millis());
   doc["menu"] = menuScreenName();
+  doc["glance"] = glanceStateName();
+  doc["bonded"] = bleBonded();
   doc["muted"] = tama.muted;
   doc["screenOff"] = screenOff;
   doc["brightness"] = currentBrightness == 0xFF ? 0 : currentBrightness;
@@ -1230,18 +1278,38 @@ void loop() {
     // keeps the ASCII species art (and GIF character packs, which are
     // portrait-sized — not yet supported on the landscape board).
     drawCount++;
-    if (HAL_LANDSCAPE) faceTick(activeState, tama.activity, boopActive);
-    else buddyTick(activeState);
     const Palette& p = characterPalette();
     uint32_t nowMs = millis();
+    // Frame delta for every eased surface in the draw path. Measured here
+    // rather than per-file so the card, the face, and (later) the field all
+    // integrate against the same clock.
+    static uint32_t lastDrawMs = 0;
+    float dt = (nowMs - lastDrawMs) / 1000.0f;
+    lastDrawMs = nowMs;
+    if (dt <= 0.0f || dt > 0.05f) dt = 0.024f;
+
+    int faceLift = 0;
+    if (HAL_LANDSCAPE) {
+      // Demanded-tier events take the screen, so a summoned card gets out
+      // of the way instantly (§6) — no fade, it was never the priority.
+      if (promptPending() || otaActive() || blePasskey() ||
+          (int32_t)(dizzyUntil - nowMs) > 0) {
+        glanceClose();
+      }
+      glanceTick(nowMs, dt);
+      faceLift = animPx(glanceCover() * (float)FACE_GLANCE_LIFT);
+      faceTick(activeState, tama.activity, boopActive, faceLift);
+    } else {
+      buddyTick(activeState);
+    }
     if (menuActive()) {
       menuDraw(spr, nowMs);
     } else {
       int y = H - HAL_HUD_H;   // HUD block: status + sessions + prompt lines
       const int CPL = (W - 8 * S) / (6 * S);   // chars per HUD row
-      spr.fillRect(0, y, W, H - y, p.bg);
       spr.setTextSize(S);
       if (promptPending()) {
+        spr.fillRect(0, y, W, H - y, p.bg);
         // Approval card. Each affordance is drawn at the screen edge
         // nearest its physical button so the hardware is the legend: the
         // pulsing "boop = yes" band sits under the top crown button, the
@@ -1299,6 +1367,7 @@ void loop() {
       } else if (tama.promptId[0] && tama.promptApproval && responseSent) {
         // Decision feedback until the desktop clears the prompt. Deny is
         // deliberately neutral — the pet approves of good catches too.
+        spr.fillRect(0, y, W, H - y, p.bg);
         int yesY = y + (HAL_LANDSCAPE ? 14 : 24) * S;
         int sentY = y + (HAL_LANDSCAPE ? 38 : 48) * S;
         spr.setTextDatum(MC_DATUM);
@@ -1314,7 +1383,13 @@ void loop() {
         spr.setTextColor(p.textDim, p.bg);
         spr.drawString("sent", W / 2, sentY);
         spr.setTextDatum(TL_DATUM);
+      } else if (HAL_LANDSCAPE) {
+        // Face-first resting screen (§3, §14): no HUD, no status text, no
+        // counters — the face is the whole product. Everything the old
+        // 104px block used to say now lives one "look" tap away.
+        glanceDraw(spr, nowMs, tama, bleBonded(), dataLastLiveMs(), 0);
       } else {
+        spr.fillRect(0, y, W, H - y, p.bg);
         spr.setTextColor(tama.connected ? p.text : p.textDim, p.bg);
         spr.setCursor(4 * S, y);
         spr.print(tama.connected ? "connected" : "disconnected");

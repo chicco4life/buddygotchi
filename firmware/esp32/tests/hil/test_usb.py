@@ -32,6 +32,20 @@ def stick():
         serial.__exit__(None, None, None)
 
 
+@pytest.fixture(scope="session")
+def landscape(stick):
+    """Skip on the portrait M5.
+
+    The face-first redesign (PEBBLE-UX) is guarded on HAL_LANDSCAPE — the M5
+    keeps its permanent HUD and stays the regression rig, so glance cards,
+    moods, and orbs simply don't exist there.
+    """
+    board = stick.framed_json("state", "STATE", 3).get("board", "?")
+    if board != "ws-amoled164":
+        pytest.skip(f"landscape-only behavior; attached board is {board}")
+    return board
+
+
 def local_git_sha() -> str:
     try:
         return subprocess.check_output(
@@ -158,22 +172,97 @@ def test_button_edges(stick):
 # one releases just extends the still-held press (schedulePress overwrites
 # releaseAt), so no new edge fires — the up-marker join makes each press a
 # complete, observable click before the test moves on.
-def press_expect(stick, which, marker, timeout=2):
-    stick.write_line(f"press {which} 120")
+def press_expect(stick, which, marker, timeout=2, ms=120):
+    stick.write_line(f"press {which} {ms}")
     up = f"<<PRESS {which} up>>".encode()
-    buf, _ = stick.read_until(lambda b: marker in b and up in b, timeout)
+    buf, _ = stick.read_until(lambda b: marker in b and up in b, max(timeout, ms / 1000 + 1.5))
     return buf
 
 
+# "Look" is two verbs on the landscape board (PEBBLE-UX §5): a tap summons
+# the glance card, a hold opens the menu carousel. Opening the menu
+# therefore needs a press past BTN_M_LONG_MS (500ms); once it's open, MENU
+# reverts to its old meaning (next item) and plain taps are correct again.
+MENU_HOLD_MS = 700
+
+
+def menu_open_expect(stick, marker, timeout=3):
+    return press_expect(stick, "m", marker, timeout=timeout, ms=MENU_HOLD_MS)
+
+
 # Recover from a previous test that died with the menu open — REJECT walks
-# any screen back to closed.
+# any screen back to closed. It also dismisses a stray glance card, which
+# is the other thing "look" can leave on screen.
 def ensure_menu_closed(stick):
-    for _ in range(3):
-        if state(stick).get("menu") == "closed":
+    for _ in range(4):
+        snap = state(stick)
+        if snap.get("menu") == "closed" and snap.get("glance") in ("closed", "closing"):
             return
         stick.write_line("press b 120")
         stick.read_until(lambda b: b"<<PRESS b up>>" in b, 2)
     wait_state(stick, menu="closed")
+
+
+def test_glance_card_tap_pages_and_dismisses(stick, landscape):
+    """A look-tap summons the glance card; tapping pages through it.
+
+    This is the summoned tier (PEBBLE-UX §6): the resting screen carries no
+    status text at all, so the card is the only place the literal facts
+    live. Paging past the last page puts it away, which is how you dismiss
+    without reaching for the other button.
+    """
+    send_json(stick, {"total": 1, "running": 0, "waiting": 0, "pet": "idle"})
+    ensure_menu_closed(stick)
+    wait_state(stick, pet="idle", promptId="", menu="closed")
+    stick.drain_until_quiet(max_wait=0.2)
+
+    press_expect(stick, "m", b"<<GLANCE open page=1>>")
+    assert state(stick)["glance"] == "page1"
+    press_expect(stick, "m", b"<<GLANCE page=2>>")
+    assert state(stick)["glance"] == "page2"
+    # Past the last page the card closes rather than wrapping.
+    press_expect(stick, "m", b"<<GLANCE close (paged past end)>>")
+    assert state(stick)["glance"] in ("closed", "closing")
+    # The card must never have spoken for the user.
+    assert b'"cmd":"permission"' not in stick.drain_until_quiet(max_wait=0.3)
+
+
+def test_glance_card_dismissed_by_reject_and_by_prompt(stick, landscape):
+    """REJECT puts the card away, and a prompt takes the screen instantly.
+
+    Doctrine #3: the demanded tier outranks the summoned tier. A card still
+    on screen when an approval arrives would be covering the one thing the
+    human has to answer.
+    """
+    send_json(stick, {"total": 1, "running": 0, "waiting": 0, "pet": "idle"})
+    ensure_menu_closed(stick)
+    wait_state(stick, pet="idle", promptId="", menu="closed")
+    stick.drain_until_quiet(max_wait=0.2)
+
+    press_expect(stick, "m", b"<<GLANCE open page=1>>")
+    press_expect(stick, "b", b"<<GLANCE close>>")
+    assert state(stick)["glance"] in ("closed", "closing")
+
+    press_expect(stick, "m", b"<<GLANCE open page=1>>")
+    stick.write_line("mockprompt")
+    stick.read_until(lambda b: b"<<BTN mockprompt armed>>" in b, 2)
+    got = wait_state(stick, promptId="DEBUG")
+    assert got["glance"] in ("closed", "closing"), got["glance"]
+    # Leave the prompt answered so the next test starts clean.
+    stick.write_line("press a 120")
+    stick.read_until(lambda b: b'"decision":"allow"' in b, 3)
+
+
+def test_glance_card_auto_dismisses(stick, landscape):
+    """The card is summoned, not sticky: 4s of no input and it slides away."""
+    send_json(stick, {"total": 1, "running": 0, "waiting": 0, "pet": "idle"})
+    ensure_menu_closed(stick)
+    wait_state(stick, pet="idle", promptId="", menu="closed")
+    stick.drain_until_quiet(max_wait=0.2)
+
+    press_expect(stick, "m", b"<<GLANCE open page=1>>")
+    stick.read_until(lambda b: b"<<GLANCE close (timeout)>>" in b, 8)
+    assert state(stick)["glance"] in ("closed", "closing")
 
 
 def test_menu_open_navigate_close(stick):
@@ -182,7 +271,7 @@ def test_menu_open_navigate_close(stick):
     wait_state(stick, pet="idle", promptId="", menu="closed")
     stick.drain_until_quiet(max_wait=0.2)
 
-    press_expect(stick, "m", b"<<MENU screen=root item=character>>")
+    menu_open_expect(stick, b"<<MENU screen=root item=character>>")
     press_expect(stick, "m", b"<<MENU screen=root item=sound>>")
     wait_state(stick, menu="root")
     press_expect(stick, "b", b"<<MENU close>>")
@@ -198,7 +287,7 @@ def test_menu_character_preview_reverts_on_back(stick):
     before = state(stick)["speciesLocal"]
     stick.drain_until_quiet(max_wait=0.2)
 
-    press_expect(stick, "m", b"<<MENU screen=root item=character>>")
+    menu_open_expect(stick, b"<<MENU screen=root item=character>>")
     press_expect(stick, "a", b"<<MENU screen=character>>")
     press_expect(stick, "m", b"<<MENU species=")
     got = wait_state(stick, menu="character")
@@ -214,7 +303,7 @@ def test_prompt_takes_over_menu(stick):
     wait_state(stick, pet="idle", promptId="", menu="closed")
     stick.drain_until_quiet(max_wait=0.2)
 
-    press_expect(stick, "m", b"<<MENU screen=root item=character>>")
+    menu_open_expect(stick, b"<<MENU screen=root item=character>>")
     stick.write_line("mockprompt")
     stick.read_until(
         lambda b: b"<<MENU close>>" in b and b"<<BTN mockprompt armed>>" in b, 2

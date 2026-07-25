@@ -30,6 +30,12 @@ uint32_t blePasskey();
 // Erase all stored bonds (LTKs) from NVS. Called from the "unpair" cmd
 // and from factory reset.
 void bleClearBonds();
+// True if this device has ever been adopted — at least one bond sits in the
+// NVS store. This is what separates "never paired, needs instruction" (the
+// loud pair-me screen) from "paired, laptop went away" (a quiet nap): the
+// first is a state a customer sees exactly once, the second is routine.
+// Internally cached, so it's cheap to call from the draw path.
+bool bleBonded();
 size_t bleAvailable();
 int bleRead();
 size_t bleWrite(const uint8_t* data, size_t len);

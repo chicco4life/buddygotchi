@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include "hal/hal.h"
+#include "anim.h"
 #include "buddy.h"
 
 // Header-only with file-static state: include from exactly one translation
@@ -102,16 +103,18 @@ static const char* _faceActivityVerb(const char* activity) {
   return "working";
 }
 
-// Damped exponential approach — eases toward the target with no
-// overshoot, matching the product's "physical, never bouncy" motion
-// language. rate is 1/s: higher = snappier.
-static float _easeToward(float cur, float target, float rate, float dt) {
-  return cur + (target - cur) * (1.0f - expf(-rate * dt));
+// Motion primitives live in anim.h now — every surface shares them so the
+// card, the field, and the face all ease with the same curve.
+static inline float _easeToward(float cur, float target, float rate, float dt) {
+  return animEase(cur, target, rate, dt);
 }
 
-static int _px(float v) { return (int)floorf(v + 0.5f); }
+static inline int _px(float v) { return animPx(v); }
 
-inline void faceTick(uint8_t persona, const char* activity, bool boopActive) {
+// liftPx raises the whole face: the glance card doesn't cover the buddy,
+// the buddy squishes up to present it (§6). Eased by the caller so this is
+// a plain offset here.
+inline void faceTick(uint8_t persona, const char* activity, bool boopActive, int liftPx) {
   uint32_t now = millis();
   static uint32_t lastMs = 0;
   static uint32_t nextBlinkAt = 2800;
@@ -183,9 +186,9 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive) {
   int bob = _px(bobF);
 
   const int cx = HAL_W / 2;
-  int eyeY = 92 + bob + _px(lift);
+  int eyeY = 92 + bob + _px(lift) - liftPx;
   int eyeDX = 76;
-  int mouthY = 144 + bob;
+  int mouthY = 144 + bob - liftPx;
   int gazeI = _px(gaze);
   int eyeHL = _px(e.h * 2.0f * lidL + boost);
   int eyeHR = _px(e.h * 2.0f * lidR + boost);
@@ -244,7 +247,9 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive) {
         // Per-particle fall speed (120-220 px/s) so the rain has depth.
         float speed = 0.120f + (h % 50) * 0.002f;
         int px = (int)(h % (HAL_W - 3));
-        int py = _px(fmodf(h / 331.0f + (float)now * speed, (float)(HAL_H - HAL_HUD_H - 3)));
+        // Full-height fall: the resting HUD is gone on this board, so
+        // there's no longer a strip at the bottom to stop short of.
+        int py = _px(fmodf(h / 331.0f + (float)now * speed, (float)(HAL_H - 3)));
         spr.fillRect(px, py, 3, 3, CONF[i % 5]);
       }
       break;

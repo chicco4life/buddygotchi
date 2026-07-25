@@ -196,7 +196,14 @@ bool bleConnected() { return connected; }
 bool bleSecure()    { return secure; }
 uint32_t blePasskey() { return passkey; }
 
+// bleBonded()'s cache. File-scope so bleClearBonds can invalidate it —
+// otherwise an "unpair" would keep reporting adopted for up to 2s and the
+// pair-me screen would arrive late.
+static bool     _bondCached = false;
+static uint32_t _bondCheckedAt = 0;
+
 void bleClearBonds() {
+  _bondCheckedAt = 0;
 #if defined(CONFIG_BLUEDROID_ENABLED)
   // Arduino core 2.x (M5 board): Bluedroid host, per-device bond removal.
   int n = esp_ble_get_bond_device_num();
@@ -213,6 +220,28 @@ void bleClearBonds() {
   ble_store_clear();
   Serial.println("[ble] cleared bond store");
 #endif
+}
+
+// Counting bonds walks the NVS-backed store, so the answer is cached and
+// refreshed at most every 2s. The draw path asks every frame (it routes
+// pair-me vs nap), and a bond only ever appears at pairing time or vanishes
+// on an explicit clear — both far slower than the refresh interval.
+bool bleBonded() {
+  uint32_t now = millis();
+  if (_bondCheckedAt != 0 && (now - _bondCheckedAt) < 2000) return _bondCached;
+  _bondCheckedAt = now == 0 ? 1 : now;
+  bool& cached = _bondCached;
+#if defined(CONFIG_BLUEDROID_ENABLED)
+  cached = esp_ble_get_bond_device_num() > 0;
+#elif defined(CONFIG_NIMBLE_ENABLED)
+  int count = 0;
+  cached = (ble_store_util_count(BLE_STORE_OBJ_TYPE_PEER_SEC, &count) == 0) && count > 0;
+#else
+  // Unknown host stack: claim adopted. Failing this way keeps a working
+  // device quiet (nap) rather than nagging a paired user to pair again.
+  cached = true;
+#endif
+  return cached;
 }
 
 size_t bleAvailable() {
