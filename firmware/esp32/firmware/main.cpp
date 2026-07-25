@@ -271,6 +271,30 @@ static const float FACE_DOWN_G = -0.75f;
 static uint32_t faceDownSince = 0;
 static uint32_t faceUpSince = 0;
 
+// --- Pick-up / dangle mode (§10.2) -----------------------------------------
+// A lift and the start of a shake look nearly identical to an accelerometer:
+// both are "the vector moved". What separates them is persistence without
+// energy — a lift changes the orientation and KEEPS it changed, while a
+// shake is high-frequency and returns to where it started. So dangle is
+// gated on a sustained tilt away from a slow reference orientation, with the
+// shake accumulator explicitly below its threshold.
+static bool     dangling = false;
+static uint32_t dangleTiltSince = 0;
+static uint32_t dangleStillSince = 0;
+static float    gRefX = 0.0f, gRefY = 0.0f, gRefZ = 1.0f;   // resting orientation
+static bool     gRefInit = false;
+static float    motionEnergy = 0.0f;     // slower cousin of shakeEnergy
+static float    dangleTilt = 0.0f;       // radians from the reference, for `imu`
+// Springs so the eyes jiggle with real motion rather than snapping to the
+// raw sample (doctrine #10).
+static AnimSpring dangleSprX, dangleSprY;
+
+static const float DANGLE_TILT_RAD   = 0.38f;   // ~22 degrees
+static const uint32_t DANGLE_HOLD_MS = 400;     // sustained before it counts
+static const float DANGLE_SHAKE_MAX  = 1.2f;    // must be calm to be a lift
+static const float DANGLE_STILL_MAX  = 0.30f;
+static const uint32_t DANGLE_END_MS  = 1000;    // ~1s of stillness ends it
+
 static void napEnd(uint32_t now) {
   if (!napping) return;
   napping = false;
@@ -310,6 +334,55 @@ static void motionTick(uint32_t now) {
   if (shakeEnergy > 2.5f && !promptPending() && !napping) {
     shakeEnergy = 0.0f;
     dizzyUntil = now + 3000;
+  }
+
+  // Pick-up / dangle. The reference orientation tracks slowly (~2s) so a
+  // deliberate lift registers as tilt, and freezes entirely while airborne
+  // so it can't creep up to meet the new pose and cancel the state.
+  if (!gRefInit) { gRefX = ax; gRefY = ay; gRefZ = az; gRefInit = true; }
+  if (!dangling) {
+    const float k = 0.03f;
+    gRefX += (ax - gRefX) * k;
+    gRefY += (ay - gRefY) * k;
+    gRefZ += (az - gRefZ) * k;
+  }
+  {
+    float mRef = sqrtf(gRefX * gRefX + gRefY * gRefY + gRefZ * gRefZ);
+    float c = (mag > 0.01f && mRef > 0.01f)
+                ? (ax * gRefX + ay * gRefY + az * gRefZ) / (mag * mRef) : 1.0f;
+    if (c > 1.0f) c = 1.0f; else if (c < -1.0f) c = -1.0f;
+    dangleTilt = acosf(c);
+  }
+  motionEnergy = motionEnergy * 0.90f + fabsf(mag - 1.0f);
+
+  if (!dangling) {
+    // Suppressed while a prompt pends, exactly as shake is: affection and
+    // play may never delay a decision the human owes (doctrine #12).
+    bool calm = shakeEnergy < DANGLE_SHAKE_MAX;
+    if (dangleTilt > DANGLE_TILT_RAD && calm && !promptPending() && !napping) {
+      if (dangleTiltSince == 0) dangleTiltSince = now;
+      if (now - dangleTiltSince >= DANGLE_HOLD_MS) {
+        dangling = true;
+        dangleStillSince = 0;
+        Serial.println("<<DANGLE start>>");
+      }
+    } else {
+      dangleTiltSince = 0;
+    }
+  } else {
+    // Ends after ~1s of stillness — being set down, or simply held steady.
+    if (motionEnergy < DANGLE_STILL_MAX) {
+      if (dangleStillSince == 0) dangleStillSince = now;
+      if (now - dangleStillSince >= DANGLE_END_MS) {
+        dangling = false;
+        dangleTiltSince = 0;
+        Serial.println("<<DANGLE end>>");
+      }
+    } else {
+      dangleStillSince = 0;
+    }
+    // A prompt arriving mid-air takes the screen back immediately.
+    if (promptPending()) { dangling = false; dangleTiltSince = 0; }
   }
 
   // Face-down nap. Entry is debounced 2s so a wobbly pickup doesn't nap;
@@ -844,6 +917,7 @@ static void dumpState() {
   doc["boop"] = (int32_t)(boopUntil - millis()) > 0;
   doc["napping"] = napping;
   doc["dizzy"] = (int32_t)(dizzyUntil - millis()) > 0;
+  doc["dangling"] = dangling;
   doc["ladder"] = boopLongHandled;
   doc["touchOk"] = halTouchReady();
   doc["touchDown"] = halTouchDown();
@@ -1038,11 +1112,13 @@ void handleSerialCommand(const char* line) {
   // drive face-down/shake without touching the board; "imu clear" reverts.
   if (strcmp(line, "imu") == 0) {
     Serial.printf("<<IMU {\"present\":%s,\"injected\":%s,\"ax\":%.3f,\"ay\":%.3f,\"az\":%.3f,"
-                  "\"shake\":%.2f,\"napping\":%s,\"dizzy\":%s}>>\n",
+                  "\"shake\":%.2f,\"napping\":%s,\"dizzy\":%s,"
+                  "\"tilt\":%.2f,\"energy\":%.2f,\"dangling\":%s}>>\n",
                   imuSeen ? "true" : "false", imuInjected ? "true" : "false",
                   imuAx, imuAy, imuAz, shakeEnergy,
                   napping ? "true" : "false",
-                  ((int32_t)(dizzyUntil - millis()) > 0) ? "true" : "false");
+                  ((int32_t)(dizzyUntil - millis()) > 0) ? "true" : "false",
+                  dangleTilt, motionEnergy, dangling ? "true" : "false");
     return;
   }
   if (strncmp(line, "imu set ", 8) == 0) {
@@ -1451,6 +1527,26 @@ void loop() {
       } else {
         fo.gazeBias = orbsGazeNudge(nowMs);
       }
+
+      // Dangle (§10.2): while held, the eyes swing with the accelerometer
+      // through a spring, so the face reads as having weight. Off the
+      // sample directly rather than through a canned wobble — the whole
+      // point is that it moves with YOUR hand.
+      if (dangling) {
+        dangleSprX.step(animClamp(imuAx, -1.0f, 1.0f), 2.2f, 0.45f, dt);
+        dangleSprY.step(animClamp(imuAy, -1.0f, 1.0f), 2.2f, 0.45f, dt);
+        // Mini summary floats up while airborne — picking the buddy up is
+        // a question ("what's going on?") and this is the answer.
+        char sum[40];
+        snprintf(sum, sizeof(sum), "%u tasks - %u waiting",
+                 tama.sessionsTotal, tama.sessionsWaiting);
+        bubbleShow(sum, nowMs, 400, 0);
+      } else {
+        dangleSprX.step(0.0f, 3.0f, 0.75f, dt);
+        dangleSprY.step(0.0f, 3.0f, 0.75f, dt);
+      }
+      fo.dangleX = animPx(dangleSprX.pos * 22.0f);
+      fo.dangleY = animPx(dangleSprY.pos * 15.0f);
       faceTick(activeState, tama.activity, boopActive, fo);
     } else {
       buddyTick(activeState);

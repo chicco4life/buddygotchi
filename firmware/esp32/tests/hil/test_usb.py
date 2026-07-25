@@ -571,6 +571,84 @@ def test_approval_card_has_no_wait_counter(stick, landscape):
     clear_prompt(stick)
 
 
+def imu(stick):
+    return stick.framed_json("imu", "IMU", 4)
+
+
+def test_pickup_starts_dangle_mode(stick, landscape):
+    """A sustained calm tilt reads as being picked up (§10.2).
+
+    A unit-magnitude rotation leaves the shake accumulator at rest, which is
+    exactly what separates a lift from a shake: both move the vector, but
+    only a lift moves it and KEEPS it moved without energy.
+    """
+    clear_prompt(stick)
+    stick.write_line("imu clear")
+    time.sleep(0.6)
+    assert imu(stick)["dangling"] is False
+
+    stick.write_line("imu set 0.70 0.10 0.70")
+    deadline = time.monotonic() + 3
+    while time.monotonic() < deadline:
+        got = imu(stick)
+        if got["dangling"]:
+            break
+        time.sleep(0.15)
+    else:
+        pytest.fail(f"never entered dangle; last={got}")
+    assert got["tilt"] > 0.38, got
+    assert got["shake"] < 1.2, got     # calm, not a shake
+
+    # Holding steady ends it after ~1s — the injected sample stops changing,
+    # which is the same signal as a hand going still.
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        if not imu(stick)["dangling"]:
+            break
+        time.sleep(0.2)
+    else:
+        pytest.fail("dangle never ended on stillness")
+    stick.write_line("imu clear")
+
+
+def test_shake_does_not_start_dangle(stick, landscape):
+    """A shake must read as dizzy, never as a pick-up.
+
+    They share a sample stream and a lift is easy to confuse with the start
+    of a shake, so dangle is explicitly gated on the shake accumulator being
+    below threshold.
+    """
+    clear_prompt(stick)
+    stick.write_line("imu clear")
+    time.sleep(0.6)
+    # Alternating large magnitudes: high energy, no sustained orientation.
+    for _ in range(8):
+        stick.write_line("imu set 2.5 0 0")
+        time.sleep(0.08)
+        stick.write_line("imu set -2.5 0 0")
+        time.sleep(0.08)
+    got = imu(stick)
+    assert got["dangling"] is False, got
+    stick.write_line("imu clear")
+    time.sleep(0.5)
+
+
+def test_prompt_suppresses_dangle(stick, landscape):
+    """Affection and play may never delay a decision the human owes."""
+    clear_prompt(stick)
+    stick.write_line("imu clear")
+    time.sleep(0.6)
+    stick.write_line("mockprompt")
+    stick.read_until(lambda b: b"<<BTN mockprompt armed>>" in b, 2)
+    stick.write_line("imu set 0.70 0.10 0.70")
+    time.sleep(1.2)
+    assert imu(stick)["dangling"] is False
+    stick.write_line("imu clear")
+    stick.write_line("press a 120")
+    stick.read_until(lambda b: b'"decision":"allow"' in b, 3)
+    clear_prompt(stick)
+
+
 def test_touch_reports_a_contact_point(stick, landscape):
     """Touch now carries coordinates, which is what gaze tracking needs.
 

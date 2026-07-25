@@ -137,6 +137,11 @@ struct FaceOpts {
   // half-blink rather than staying wide — being petted should look like
   // being petted, not like being startled.
   bool     petting = false;
+  // Dangle offsets in panel px (§10.2): while the buddy is being held, the
+  // eyes swing with the accelerometer through a spring, so it reads as
+  // weight rather than as a wobble animation.
+  int      dangleX = 0;
+  int      dangleY = 0;
 };
 
 // Boop squish (§10.1, doctrine #10: physics over keyframes). A boop kicks
@@ -242,10 +247,10 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   // Squish conserves rough area: the face flattens and widens, then rings
   // back through the other side. Everything shifts down slightly with it,
   // as if the boop pressed it into the desk.
-  int eyeY = 92 + bob + _px(lift) - opt.lift + _px(sq * 7.0f);
+  int eyeY = 92 + bob + _px(lift) - opt.lift + _px(sq * 7.0f) + opt.dangleY;
   int eyeDX = _px(76 * (1.0f + sq * 0.10f));
-  int mouthY = 144 + bob - opt.lift + _px(sq * 4.0f);
-  int gazeI = _px(gaze);
+  int mouthY = 144 + bob - opt.lift + _px(sq * 4.0f) + opt.dangleY;
+  int gazeI = _px(gaze) + opt.dangleX;
   // Stroke weight (§2.1.2): light shapes on a dark field optically expand
   // (halation), dark shapes on a light field don't. Reusing the glow
   // geometry unchanged makes the ink face read heavy and clumsy, so every
