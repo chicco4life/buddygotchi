@@ -571,6 +571,40 @@ def test_approval_card_has_no_wait_counter(stick, landscape):
     clear_prompt(stick)
 
 
+@pytest.mark.parametrize("kind", ["yawn", "orb", "wiggle", "look", "tilt"])
+def test_micro_idles_run_and_expire(stick, landscape, kind):
+    """Each micro-idle plays and gets out of the way (§12).
+
+    They're deliberately rare — >=90s apart and never within 10s of an
+    interaction — so waiting for one organically would take minutes. The
+    debug trigger bypasses the gate; what's asserted here is that each one
+    starts, is short, and ends on its own.
+    """
+    clear_prompt(stick)
+    send_json(stick, {"total": 1, "running": 0, "waiting": 0, "pet": "idle"})
+    stick.write_line(f"idle {kind}")
+    stick.read_until(lambda b: b"<<IDLE " in b, 3)
+    assert state(stick)["microIdle"] != "none"
+    # Each is <=2s; give it room but require it to actually end.
+    deadline = time.monotonic() + 6
+    while time.monotonic() < deadline:
+        if state(stick)["microIdle"] == "none":
+            break
+        time.sleep(0.2)
+    else:
+        pytest.fail(f"micro-idle {kind} never ended")
+
+
+def test_micro_idles_never_fire_while_busy(stick, landscape):
+    """Never during busy/attention/error — the buddy is working."""
+    clear_prompt(stick)
+    send_json(stick, {"total": 2, "running": 2, "waiting": 0, "pet": "busy",
+                      "activity": "verify"})
+    wait_state(stick, pet="busy")
+    time.sleep(1.0)
+    assert state(stick)["microIdle"] == "none"
+
+
 def test_hatch_ritual_runs_and_completes(stick, landscape):
     """The unboxing moment (§13): egg, cracks, burst, newborn face.
 

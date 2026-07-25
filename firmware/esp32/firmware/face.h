@@ -150,7 +150,53 @@ struct FaceOpts {
   // Big open yawn — the stretch's other half, and a micro-idle in its own
   // right (§12).
   bool     yawn = false;
+  // ms since the last real interaction. Micro-idles never fire within 10s
+  // of one: the interaction WAS the moment, and following it with a
+  // scripted charming beat cheapens both.
+  uint32_t sinceInteractionMs = 0;
 };
+
+// --- Micro-idles (§12) -----------------------------------------------------
+// Rare randomized moments while idle. Global minimum spacing >=90s, uniform
+// selection, each <=2s. Rarity is the entire charm: something that happens
+// every ten seconds is a screensaver, something that happens twice an hour
+// is a personality.
+enum MicroIdle : uint8_t {
+  MI_NONE = 0, MI_YAWN, MI_ORB_CHASE, MI_WIGGLE, MI_LOOK_AT_YOU, MI_HEAD_TILT,
+  MI_COUNT
+};
+static const uint32_t MI_SPACING_MS = 90000;
+static const uint32_t MI_QUIET_MS   = 10000;   // after a real interaction
+
+static uint8_t  _miKind = MI_NONE;
+static uint32_t _miStart = 0;
+static uint32_t _miEnd = 0;
+static uint32_t _miNextAt = 0;
+// A debug-forced micro-idle ignores the idle/quiet gate. Without this a
+// test that presses a button (most of them do) can never see one, because
+// the gate cancels it on the very next frame.
+static bool     _miForced = false;
+
+inline const char* faceMicroIdleName() {
+  switch (_miKind) {
+    case MI_YAWN:        return "yawn";
+    case MI_ORB_CHASE:   return "orb-chase";
+    case MI_WIGGLE:      return "wiggle";
+    case MI_LOOK_AT_YOU: return "look";
+    case MI_HEAD_TILT:   return "tilt";
+    default:             return "none";
+  }
+}
+
+// Debug/HIL: force one now. Micro-idles are deliberately rare enough that
+// waiting for one in a test would take minutes.
+inline void faceForceMicroIdle(uint8_t kind, uint32_t now) {
+  if (kind == MI_NONE || kind >= MI_COUNT) return;
+  _miKind = kind;
+  _miStart = now;
+  _miEnd = now + 1800;
+  _miForced = true;
+}
 
 // Boop squish (§10.1, doctrine #10: physics over keyframes). A boop kicks
 // the spring with an impulse and it rings down on its own, so every squish
@@ -202,6 +248,30 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   bool blinking = (int32_t)(blinkUntil - now) > 0;
   bool glancing = (int32_t)(glanceUntil - now) > 0;
 
+  // Micro-idle scheduling. Only while genuinely idle, and only once the
+  // human has left it alone for a while.
+  bool miAllowed = (persona == 1) && opt.sinceInteractionMs > MI_QUIET_MS;
+  if (_miKind == MI_NONE) {
+    if (_miNextAt == 0) _miNextAt = now + MI_SPACING_MS;
+    if (miAllowed && (int32_t)(now - _miNextAt) >= 0) {
+      uint32_t h = _faceHash(now ^ 0x1D1Eu);
+      _miKind = (uint8_t)(MI_YAWN + (h % (MI_COUNT - 1)));
+      _miStart = now;
+      _miEnd = now + 1200 + (h % 800);      // each <= 2s
+    }
+  }
+  if (_miKind != MI_NONE && ((int32_t)(now - _miEnd) >= 0 || (!miAllowed && !_miForced))) {
+    _miKind = MI_NONE;
+    _miForced = false;
+    _miNextAt = now + MI_SPACING_MS + (_faceHash(now) % 45000);
+  }
+  // 0..1 through the current micro-idle, and a 0->1->0 envelope so every
+  // one of them eases in and out instead of snapping.
+  float miT = (_miKind != MI_NONE && _miEnd > _miStart)
+                ? animClamp((float)(now - _miStart) / (float)(_miEnd - _miStart), 0.0f, 1.0f)
+                : 0.0f;
+  float miEnv = sinf(miT * 3.14159265f);
+
   // Per-state targets; easing morphs between them (state changes glide
   // in over ~100-200ms instead of popping). lift/boost/gaze are native
   // panel pixels.
@@ -229,8 +299,54 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
     liftTarget -= 4.0f;
     boostTarget += 5.0f;
   }
+  // Busy theater (§11): the activity verb selects HOW the buddy works, not
+  // just what it says it's doing. Someone glancing over should be able to
+  // tell reading from testing without reading the word.
+  float busyNod = 0.0f;
+  float busySaccade = 0.0f;
+  if (persona == 2) {
+    const char* a = activity ? activity : "";
+    if (strcmp(a, "read") == 0 || strcmp(a, "web") == 0) {
+      // Line-by-line saccades: hold, jump, hold — reading is not a smooth
+      // sweep, and the discreteness is what makes it read as reading.
+      float ph = fmodf((float)now / 1900.0f, 1.0f);
+      int step = (int)(ph * 4.0f);
+      busySaccade = -9.0f + (float)step * 6.0f;
+      if (ph > 0.93f) busySaccade = -9.0f;      // carriage return
+    } else if (strcmp(a, "verify") == 0) {
+      lidTargetL = lidTargetR = 0.46f;          // squinted concentration
+      // ...with an occasional determined blink.
+      if (((now / 2600) & 3) == 0 && (now % 2600) < 130) lidTargetL = lidTargetR = 0.08f;
+    } else if (strcmp(a, "write") == 0) {
+      lidTargetL = lidTargetR = 0.58f;
+      busyNod = 2.2f * sinf((float)now * (6.2831853f / 1500.0f));   // tiny nods
+    }
+  }
+
+  // Micro-idle effects. Each is small and each is over in under two
+  // seconds; the point is that you catch them out of the corner of an eye.
+  float miTilt = 0.0f, miWiggle = 0.0f, miGaze = 0.0f;
+  bool  miYawn = false;
+  if (_miKind == MI_YAWN) {
+    miYawn = miT > 0.2f && miT < 0.8f;
+    if (miYawn) lidTargetL = lidTargetR = 0.30f;
+  } else if (_miKind == MI_ORB_CHASE) {
+    // Eyes follow something all the way around, once.
+    miGaze = 17.0f * sinf(miT * 6.2831853f);
+  } else if (_miKind == MI_WIGGLE) {
+    miWiggle = 9.0f * miEnv * sinf(miT * 6.2831853f * 2.5f);
+  } else if (_miKind == MI_LOOK_AT_YOU) {
+    // Dead centre, one slow deliberate blink. The stillness is the effect.
+    miGaze = 0.0f;
+    if (miT > 0.45f && miT < 0.62f) lidTargetL = lidTargetR = 0.06f;
+  } else if (_miKind == MI_HEAD_TILT) {
+    miTilt = miEnv;     // applied as opposed vertical eye offsets below
+  }
+
   if (blinking && (persona == 1 || persona == 2)) lidTargetL = lidTargetR = 0.08f;
   float gazeTarget = (glancing && (persona == 1 || persona == 2)) ? glanceDir * 8.0f : 0.0f;
+  if (persona == 2) gazeTarget = busySaccade;
+  if (_miKind == MI_ORB_CHASE || _miKind == MI_LOOK_AT_YOU) gazeTarget = miGaze;
   // An explicit target wins over the ambient drift, and reaches further —
   // a deliberate look should be visibly bigger than idle wandering.
   if (opt.gazeBias != 0.0f) gazeTarget = opt.gazeBias * 18.0f;
@@ -262,10 +378,15 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   // Squish conserves rough area: the face flattens and widens, then rings
   // back through the other side. Everything shifts down slightly with it,
   // as if the boop pressed it into the desk.
-  int eyeY = 92 + bob + _px(lift) - opt.lift + _px(sq * 7.0f) + opt.dangleY;
+  int eyeY = 92 + bob + _px(lift) - opt.lift + _px(sq * 7.0f) + opt.dangleY
+             + _px(busyNod);
   int eyeDX = _px(76 * (1.0f + sq * 0.10f));
-  int mouthY = 144 + bob - opt.lift + _px(sq * 4.0f) + opt.dangleY;
-  int gazeI = _px(gaze) + opt.dangleX;
+  int mouthY = 144 + bob - opt.lift + _px(sq * 4.0f) + opt.dangleY + _px(busyNod);
+  int gazeI = _px(gaze) + opt.dangleX + _px(miWiggle);
+  // Head tilt as opposed vertical eye offsets: rotating the whole sprite
+  // would cost a resample every frame, and at this geometry the eyes going
+  // opposite ways reads as a tilt anyway.
+  int tiltL = _px(miTilt * 7.0f), tiltR = _px(miTilt * -7.0f);
   // Stroke weight (§2.1.2): light shapes on a dark field optically expand
   // (halation), dark shapes on a light field don't. Reusing the glow
   // geometry unchanged makes the ink face read heavy and clumsy, so every
@@ -374,9 +495,9 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
       break;
     }
     default: {  // idle — open eyes, blinks, glances, soft smile
-      _faceEye(cx - eyeDX + gazeI, eyeY, eyeW, eyeHL, eyeR, accent);
-      _faceEye(cx + eyeDX + gazeI, eyeY, eyeW, eyeHR, eyeR, accent);
-      if (opt.yawn) {
+      _faceEye(cx - eyeDX + gazeI, eyeY + tiltL, eyeW, eyeHL, eyeR, accent);
+      _faceEye(cx + eyeDX + gazeI, eyeY + tiltR, eyeW, eyeHR, eyeR, accent);
+      if (opt.yawn || miYawn) {
         // A yawn is a big open O, not a wider smile. Squashed slightly so
         // it reads as a mouth rather than a hole.
         spr.fillEllipse(cx, mouthY + 6, 20, 26, accent);

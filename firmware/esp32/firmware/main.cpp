@@ -953,6 +953,7 @@ static void dumpState() {
   doc["card"] = cardVisible();
   doc["gift"] = giftPending;
   doc["ritual"] = ritualName();
+  doc["microIdle"] = faceMicroIdleName();
   doc["orbs"] = orbsAlive();
   doc["orbsOverflow"] = orbsOverflow();
   // Field luminance 0..1 — the screenshot oracle asserts on the corner
@@ -1204,6 +1205,23 @@ void handleSerialCommand(const char* line) {
       return;
     }
     Serial.printf("<<RITUAL now=%s>>\n", ritualName());
+    return;
+  }
+
+  // Debug/HIL: force a micro-idle. They are deliberately rare (>=90s
+  // apart, and never within 10s of an interaction), so waiting for one in
+  // a test would take minutes.
+  if (strncmp(line, "idle ", 5) == 0) {
+    const char* a = line + 5;
+    uint8_t k = MI_NONE;
+    if (strcmp(a, "yawn") == 0) k = MI_YAWN;
+    else if (strcmp(a, "orb") == 0) k = MI_ORB_CHASE;
+    else if (strcmp(a, "wiggle") == 0) k = MI_WIGGLE;
+    else if (strcmp(a, "look") == 0) k = MI_LOOK_AT_YOU;
+    else if (strcmp(a, "tilt") == 0) k = MI_HEAD_TILT;
+    if (k == MI_NONE) { Serial.println("<<IDLE err (yawn|orb|wiggle|look|tilt)>>"); return; }
+    faceForceMicroIdle(k, millis());
+    Serial.printf("<<IDLE %s>>\n", faceMicroIdleName());
     return;
   }
 
@@ -1648,6 +1666,7 @@ void loop() {
       fo.bg = moodBackdrop(nowMs);
       fo.weight = moodStrokeWeight();
       fo.expectant = giftShown;
+      fo.sinceInteractionMs = nowMs - lastInputMs;
       fo.scale = ritualStretchScale(rt);
       fo.yawn = ritualYawning(rt);
       // Gaze priority (§3.3): the finger on the glass outranks a newly
