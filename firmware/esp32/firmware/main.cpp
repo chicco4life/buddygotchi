@@ -1741,12 +1741,6 @@ void loop() {
       if (dangling) {
         dangleSprX.step(animClamp(imuAx, -1.0f, 1.0f), 2.2f, 0.45f, dt);
         dangleSprY.step(animClamp(imuAy, -1.0f, 1.0f), 2.2f, 0.45f, dt);
-        // Mini summary floats up while airborne — picking the buddy up is
-        // a question ("what's going on?") and this is the answer.
-        char sum[40];
-        snprintf(sum, sizeof(sum), "%u tasks - %u waiting",
-                 tama.sessionsTotal, tama.sessionsWaiting);
-        bubbleShow(sum, nowMs, 400, 0);
       } else {
         dangleSprX.step(0.0f, 3.0f, 0.75f, dt);
         dangleSprY.step(0.0f, 3.0f, 0.75f, dt);
@@ -1886,7 +1880,16 @@ void loop() {
 
     // Speech sits above everything on the buddy screen — it is the buddy
     // answering, so nothing it says should end up behind a card.
-    if (HAL_LANDSCAPE) bubbleDraw(spr, nowMs, faceLift);
+    if (HAL_LANDSCAPE) {
+      // Pinned to the bottom corners rather than bubbled over the face:
+      // while the buddy is in your hand the face is what you're looking at.
+      // Suppressed under the menu and the approval card, which own the
+      // bottom edge themselves.
+      dangleSummaryDraw(spr, nowMs,
+                        dangling && !menuActive() && !promptPending(), dt,
+                        tama.sessionsTotal, tama.sessionsWaiting);
+      bubbleDraw(spr, nowMs, faceLift);
+    }
     uint32_t dcost = micros() - drawT0;
     drawUs += (int32_t)(dcost - drawUs) >> 3;
     if (dcost > drawMaxUs) drawMaxUs = dcost;

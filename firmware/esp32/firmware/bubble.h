@@ -153,6 +153,41 @@ inline void cardDraw(BuddyCanvas& spr, uint32_t now, const TamaState& s) {
 }
 
 // ---------------------------------------------------------------------------
+// Dangle readout
+// ---------------------------------------------------------------------------
+
+// The airborne summary (§10.2). Deliberately NOT a bubble: while the buddy
+// is in your hand the face is the thing you're looking at, and a bordered
+// panel across the middle of it is chrome competing with the pet. Two short
+// facts pinned to the bottom corners answer the question ("what's going
+// on?") without taking the screen away from the thing you picked up.
+static float _dangleTextGain = 0.0f;
+
+inline void dangleSummaryDraw(BuddyCanvas& spr, uint32_t now, bool active, float dt,
+                              uint8_t total, uint8_t waiting) {
+  _dangleTextGain = animEase(_dangleTextGain, active ? 1.0f : 0.0f, 9.0f, dt);
+  if (_dangleTextGain <= 0.03f) return;
+
+  const int S = HAL_UI_SCALE;
+  // Muted rather than bright: this is a caption, not an announcement.
+  uint16_t bg = moodBackdrop(now);
+  uint16_t c  = _moodMix(bg, moodIsInk() ? MOOD_INK_DIM : animRGB(182, 182, 173),
+                         _dangleTextGain);
+
+  char l[20], r[20];
+  snprintf(l, sizeof(l), "%u task%s", (unsigned)total, total == 1 ? "" : "s");
+  snprintf(r, sizeof(r), "%u waiting", (unsigned)waiting);
+
+  spr.setTextSize(S);
+  spr.setTextColor(c, bg);
+  spr.setTextDatum(BL_DATUM);
+  spr.drawString(l, 4 * S, HAL_H - 2 * S);
+  spr.setTextDatum(BR_DATUM);
+  spr.drawString(r, HAL_W - 4 * S, HAL_H - 2 * S);
+  spr.setTextDatum(TL_DATUM);
+}
+
+// ---------------------------------------------------------------------------
 // Speech bubble
 // ---------------------------------------------------------------------------
 
