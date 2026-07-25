@@ -32,6 +32,15 @@ static const int   CARD_H_PCT = 40;        // §7: ~40% of screen height
 static const int   CARD_MARGIN = 5 * HAL_UI_SCALE;
 static const int   CARD_RULE_INSET = 3 * HAL_UI_SCALE;   // cream margin outside the rule
 
+// The panel's glass is ROUNDED, so the extreme corners physically are not
+// there. Anything anchored to a corner needs this much clearance or it gets
+// its outermost characters shaved off — first caught with "3 tasks" losing
+// its 3 and "waiting" losing its g. Lifting off the bottom edge buys most
+// of it, since the corner radius eats far less horizontally once you are a
+// couple of text-heights up.
+static const int CORNER_SAFE_X = 13 * HAL_UI_SCALE;
+static const int CORNER_SAFE_Y = 9 * HAL_UI_SCALE;
+
 static AnimSpring _cardSpring;
 static bool  _cardWanted = false;
 static float _cardPop = 0.0f;      // >0 while the approve scale-out runs
@@ -138,7 +147,7 @@ inline void cardDraw(BuddyCanvas& spr, uint32_t now, const TamaState& s) {
   // stays lantern — the human is still needed, just not answerable here.
   if (!s.connected) {
     spr.setTextColor(MOOD_HOT, bg);
-    spr.setCursor(x, H - 11 * S);
+    spr.setCursor(CORNER_SAFE_X, H - CORNER_SAFE_Y - 9 * S);
     spr.print("link lost!");
   }
 
@@ -148,7 +157,7 @@ inline void cardDraw(BuddyCanvas& spr, uint32_t now, const TamaState& s) {
   // here would imply it isn't.
   spr.setTextDatum(BR_DATUM);
   spr.setTextColor(ink, bg);
-  spr.drawString("no >", W - rx - 4 * S, H - 4 * S);
+  spr.drawString("no >", W - CORNER_SAFE_X, H - CORNER_SAFE_Y);
   spr.setTextDatum(TL_DATUM);
 }
 
@@ -181,9 +190,9 @@ inline void dangleSummaryDraw(BuddyCanvas& spr, uint32_t now, bool active, float
   spr.setTextSize(S);
   spr.setTextColor(c, bg);
   spr.setTextDatum(BL_DATUM);
-  spr.drawString(l, 4 * S, HAL_H - 2 * S);
+  spr.drawString(l, CORNER_SAFE_X, HAL_H - CORNER_SAFE_Y);
   spr.setTextDatum(BR_DATUM);
-  spr.drawString(r, HAL_W - 4 * S, HAL_H - 2 * S);
+  spr.drawString(r, HAL_W - CORNER_SAFE_X, HAL_H - CORNER_SAFE_Y);
   spr.setTextDatum(TL_DATUM);
 }
 

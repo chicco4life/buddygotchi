@@ -36,7 +36,6 @@ static void startBt() {
 #include "menu.h"
 #include "anim.h"
 #include "mood.h"
-#include "halo.h"
 #include "orbs.h"
 #include "bubble.h"
 #include "ritual.h"
@@ -114,7 +113,7 @@ static bool touchPoint(int* x, int* y) {
 // Draw-pass counter, exposed in `state`: two samples a second apart give
 // frames-per-second; a stalled loop or draw gate shows as a collapse.
 static uint32_t drawCount = 0;
-// Cost of one draw pass (field + halo + orbs + face + overlays), EMA and
+// Cost of one draw pass (field + orbs + face + overlays), EMA and
 // lifetime max, microseconds. The present cost has its own counters in the
 // HAL; this is the other half of the frame budget, and without it a frame
 // rate drop can't be attributed to either side. Every surface the
@@ -450,10 +449,8 @@ static void updateDisplayPower(PersonaState state) {
     prevState = state;
     stateSince = now;
     playStateChirp(state);
-    // Celebrate fires the halo's one-shot green->warm ripple. It stays in
-    // Night mood on purpose: spending the lantern on a happy state would
-    // cost the lantern its meaning (§2.1).
-    if (state == P_CELEBRATE) haloCelebrate(now);
+    // Celebrate stays in Night mood on purpose: spending the lantern on a
+    // happy state would cost the lantern its meaning (§2.1).
     if (state == P_SLEEP) {
       sleepSince = now;
     } else if (!napping) {
@@ -649,7 +646,6 @@ static void collectGift(uint32_t now) {
   giftPending = false;
   bubbleShow(giftMsg[0] ? giftMsg : "all done!", now, 4000, GREEN);
   faceBoopSquish();          // the giggle
-  haloCelebrate(now);        // sparkle burst, reusing the celebrate ripple
   beep(1319, 70);
   Serial.printf("<<GIFT collect %.30s>>\n", giftMsg);
 }
@@ -797,7 +793,7 @@ static void __attribute__((noinline)) handleButtons() {
         // menu action that changes who the buddy IS.
         bool adopting = HAL_LANDSCAPE && strcmp(menuScreenName(), "character") == 0;
         menuSelect(now);
-        if (adopting) { faceBoopSquish(); haloCelebrate(now); }
+        if (adopting) faceBoopSquish();
       }
       // Pending gift outranks a plain boop: the buddy is holding something
       // out for you and the crown is how you take it.
@@ -1671,14 +1667,10 @@ void loop() {
       PresenceKind pres = presenceNow();
       // An unadopted buddy is awake and curious rather than asleep: it is
       // waiting to be adopted, and a sleeping face would read as broken.
-      // Resolved BEFORE haloTick, which eases its gain off the state it is
-      // given — feeding it the sleeping state faded the pair-me halo out
-      // entirely, so the one screen whose halo carries meaning had none.
       uint8_t drawState = activeState;
       if (pres == PRESENCE_PAIRME && !ritualActive()) drawState = P_IDLE;
 
       glanceTick(nowMs, dt);
-      haloTick(drawState, dt);
       cardTick(nowMs, dt, promptPending());
       bubbleTick(nowMs, dt);
       // Advance the ritual clock exactly once per frame — ritualProgress
@@ -1686,7 +1678,7 @@ void loop() {
       // a frame of the sequence.
       float rt = ritualProgress(nowMs);
       // Nothing has hatched yet, so nothing else is on screen either: no
-      // halo, no orbs, no face until the shell breaks.
+      // orbs, no face until the shell breaks.
       bool eggPhase = ritualIsHatch() && rt < 0.78f;
       // Sleep shows no sky: a sleeping buddy isn't watching anything.
       bool orbsVisible = (drawState != P_SLEEP) && !eggPhase;
@@ -1702,18 +1694,16 @@ void loop() {
       faceLift = animPx(glanceCover() * (float)FACE_GLANCE_LIFT);
 
       // Draw order is the priority stack from the bottom up: the field
-      // carries the alert channel, the halo is ambient light around the
-      // face, the orbs are the session sky, the face is the product.
-      // Overlays land after this block.
+      // carries the alert channel, then the face. Overlays land after this.
+      //
+      // Session orbs are deliberately NOT drawn. Once the halo came out and
+      // the face grew to fill the panel, a handful of 5px dots orbiting it
+      // stopped reading as fireflies and started reading as dust on the
+      // glass. The counts still track — they feed `state`, the glance
+      // card's exact numbers, and the gaze flick when a session starts — so
+      // putting the sky back is one call to orbsDraw() here.
       uint16_t accent = buddySpeciesColor();
       moodDrawField(spr, nowMs);
-      // Pair-me wears Bluetooth blue, the one state where the halo's colour
-      // is the message rather than decoration.
-      uint16_t haloTint = (pres == PRESENCE_PAIRME) ? PAIRME_BLUE : 0;
-      if (!eggPhase) haloDraw(spr, nowMs, drawState, accent, haloTint);
-      // Orbs yield to a lit field exactly as the halo does — under a
-      // lantern the only thing that matters is the decision.
-      orbsDraw(spr, nowMs, accent, moodHaloGain() * (1.0f - glanceCover()));
       FaceOpts fo;
       fo.lift = faceLift;
       fo.color = moodFaceColor(accent);

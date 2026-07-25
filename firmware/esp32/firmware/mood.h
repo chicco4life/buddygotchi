@@ -40,10 +40,17 @@
 // into the sprite, so they render with essentially no quantization error.
 static const uint16_t FIELD_LANTERN     = animRGB(255, 219, 173);  // #FFDBAD
 static const uint16_t FIELD_LANTERN_HOT = animRGB(255, 182,  82);  // #FFB652
-static const uint16_t FIELD_EMBER       = animRGB( 73,  36,   0);  // #492400
+// Error field. The spec called for a deep ember brown, but on glass that
+// rendered as a loud saturated orange that shouted as hard as the lantern —
+// and the lantern is supposed to be the only thing that shouts. Softened to
+// a muted clay: still unmistakably not-black, still warm, but quiet enough
+// that "something's off" doesn't read as "act now". The face inverts to ink
+// over it for the same reason it does under the lantern — dim red on a lit
+// field is unreadable.
+static const uint16_t FIELD_EMBER       = animRGB(219, 182, 170);  // soft clay
 static const uint16_t MOOD_INK          = animRGB( 33,   0,   0);  // #210000
 static const uint16_t MOOD_INK_DIM      = animRGB(107,  36,   0);  // #6B2400
-static const uint16_t MOOD_EMBER_FACE   = animRGB(219,  36,   0);  // dim red heartbeat
+static const uint16_t MOOD_EMBER_FACE   = animRGB( 73,  36,   0);  // dark ink-brown on clay
 static const uint16_t MOOD_RIPPLE       = animRGB( 36, 219,  82);  // approve green
 // Red-orange: warnings, impatience, deny. Lives here rather than in main.cpp
 // so the card and bubble surfaces can reach it too.
@@ -152,7 +159,11 @@ inline void moodTick(uint32_t now, float dt) {
 
   if (wantLantern) {
     _moodReach = animEase(_moodReach, 1.0f, MOOD_BLOOM_RATE, dt);
-    _moodLevel = animEase(_moodLevel, _moodPeak, MOOD_BLOOM_RATE, dt);
+    // Level leads reach deliberately. §2.1.3 asks for a light front that
+    // fills FIELD_LANTERN *as it goes* — ramping both together instead
+    // makes the early bloom a dark disc sitting in the middle of the face,
+    // which reads as a hole rather than as a lamp warming.
+    _moodLevel = animEase(_moodLevel, _moodPeak, MOOD_BLOOM_RATE * 3.0f, dt);
   } else if (_moodSnuffing) {
     // Contract the front back into the face; level rides along at the end
     // so the last sliver doesn't linger as a bright dot.
@@ -268,7 +279,10 @@ inline uint16_t moodBackdrop(uint32_t now) {
 // near-black ink; under ember it wears the dim red heartbeat; otherwise
 // it keeps its species glow.
 inline uint16_t moodFaceColor(uint16_t accent) {
-  uint16_t base = (_moodEmber > 0.5f && _moodInk < 0.5f)
+  // Ember is a LIT field now, so the face has to darken into it exactly the
+  // way it does under the lantern — a glowing accent on soft clay has almost
+  // no contrast and the X-eyes disappear.
+  uint16_t base = (_moodInk < 0.5f)
                     ? _moodMix(accent, MOOD_EMBER_FACE, _moodEmber)
                     : accent;
   return _moodMix(base, MOOD_INK, _moodInk);

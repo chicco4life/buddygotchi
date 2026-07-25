@@ -62,6 +62,17 @@ static FaceEyes _faceEyes() {
   return FACE_EYES[i];
 }
 
+// Face geometry. The product idea is that this screen IS the face of a
+// creature with a body somewhere behind it, so the face wants to fill the
+// panel rather than float in the middle of it. FACE_K scales the per-species
+// eye table (which is in the original 135x240-era logical units) up to
+// native panel pixels; the first native-res cut used a flat 2.0 and left the
+// face reading as a small mask on a large black field.
+static const float FACE_K = 3.10f;
+static const int   FACE_EYE_Y   = 108;   // eye centre line
+static const int   FACE_EYE_DX  = 106;   // eye separation from centre
+static const int   FACE_MOUTH_Y = 202;
+
 // Motion primitives live in anim.h now — every surface shares them so the
 // card, the field, and the face all ease with the same curve. Declared
 // above the draw helpers because those round with _px.
@@ -85,13 +96,13 @@ static void _faceEye(int cx, int cy, int w, int h, int r, uint16_t c) {
 }
 
 static void _faceEyeHappy(int cx, int cy, uint16_t c) {
-  spr.fillArc(cx, cy + 10, 16, 22, 180, 360, c);         // ∩ arc
+  spr.fillArc(cx, cy + 16, 27, 37, 180, 360, c);         // ∩ arc
 }
 
 static void _faceEyeX(int cx, int cy, uint16_t c) {
-  for (int t = -2; t <= 2; t++) {
-    spr.drawLine(cx - 14, cy - 14 + t, cx + 14, cy + 14 + t, c);
-    spr.drawLine(cx - 14, cy + 14 + t, cx + 14, cy - 14 + t, c);
+  for (int t = -4; t <= 4; t++) {
+    spr.drawLine(cx - 34, cy - 34 + t, cx + 34, cy + 34 + t, c);
+    spr.drawLine(cx - 34, cy + 34 + t, cx + 34, cy - 34 + t, c);
   }
 }
 
@@ -100,23 +111,12 @@ static void _faceEyeX(int cx, int cy, uint16_t c) {
 // produces no visible reaction at all, which is exactly when you'd expect
 // the biggest one.
 static void _faceEyeHeart(int cx, int cy, uint16_t c, float kw = 1.0f, float kh = 1.0f) {
-  int rx = _px(10 * kw), ry = _px(6 * kh);
-  int r  = _px(12 * (kw + kh) * 0.5f);
+  int rx = _px(16 * kw), ry = _px(10 * kh);
+  int r  = _px(19 * (kw + kh) * 0.5f);
   spr.fillSmoothCircle(cx - rx, cy - ry, r, c);
   spr.fillSmoothCircle(cx + rx, cy - ry, r, c);
-  spr.fillTriangle(cx - _px(20 * kw), cy, cx + _px(20 * kw), cy,
-                   cx, cy + _px(22 * kh), c);
-}
-
-// Map the wire activity kind to the verb the busy face wears.
-static const char* _faceActivityVerb(const char* activity) {
-  if (!activity || !activity[0]) return "working";
-  if (strcmp(activity, "verify") == 0) return "testing";
-  if (strcmp(activity, "read") == 0)   return "reading";
-  if (strcmp(activity, "write") == 0)  return "writing";
-  if (strcmp(activity, "shell") == 0)  return "running";
-  if (strcmp(activity, "web") == 0)    return "browsing";
-  return "working";
+  spr.fillTriangle(cx - _px(33 * kw), cy, cx + _px(33 * kw), cy,
+                   cx, cy + _px(35 * kh), c);
 }
 
 // How the face should render this frame. The face no longer owns the
@@ -320,6 +320,35 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
     } else if (strcmp(a, "write") == 0) {
       lidTargetL = lidTargetR = 0.58f;
       busyNod = 2.2f * sinf((float)now * (6.2831853f / 1500.0f));   // tiny nods
+    } else {
+      // Generic "working": cycle through thinking beats. This replaces the
+      // animated "..." dots — a row of blinking dots is a progress
+      // indicator borrowed from software, and the whole product thesis is
+      // that the FACE carries the state. Four beats, ~2.4s each, so you
+      // read "it's chewing on something" rather than "three dots".
+      uint32_t beat = (now / 2400) % 4;
+      float bp = (float)(now % 2400) / 2400.0f;          // 0..1 within a beat
+      switch (beat) {
+        case 0:   // pondering: eyes up and off to one side, lids relaxed
+          busyNod = -3.0f;
+          busySaccade = 11.0f;
+          lidTargetL = lidTargetR = 0.86f;
+          break;
+        case 1:   // concentrating: squint down at the work
+          lidTargetL = lidTargetR = 0.42f;
+          busyNod = 2.5f;
+          break;
+        case 2:   // turning it over: slow sweep the other way
+          busySaccade = -13.0f + 6.0f * sinf(bp * 6.2831853f);
+          lidTargetL = lidTargetR = 0.72f;
+          break;
+        default: {  // got it: one deliberate blink, then back to centre
+          busySaccade = 0.0f;
+          if (bp > 0.30f && bp < 0.44f) lidTargetL = lidTargetR = 0.08f;
+          else lidTargetL = lidTargetR = 0.78f;
+          break;
+        }
+      }
     }
   }
 
@@ -378,10 +407,10 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   // Squish conserves rough area: the face flattens and widens, then rings
   // back through the other side. Everything shifts down slightly with it,
   // as if the boop pressed it into the desk.
-  int eyeY = 92 + bob + _px(lift) - opt.lift + _px(sq * 7.0f) + opt.dangleY
+  int eyeY = FACE_EYE_Y + bob + _px(lift) - opt.lift + _px(sq * 7.0f) + opt.dangleY
              + _px(busyNod);
-  int eyeDX = _px(76 * (1.0f + sq * 0.10f));
-  int mouthY = 144 + bob - opt.lift + _px(sq * 4.0f) + opt.dangleY + _px(busyNod);
+  int eyeDX = _px(FACE_EYE_DX * (1.0f + sq * 0.10f));
+  int mouthY = FACE_MOUTH_Y + bob - opt.lift + _px(sq * 4.0f) + opt.dangleY + _px(busyNod);
   int gazeI = _px(gaze) + opt.dangleX + _px(miWiggle);
   // Head tilt as opposed vertical eye offsets: rotating the whole sprite
   // would cost a resample every frame, and at this geometry the eyes going
@@ -392,10 +421,10 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   // geometry unchanged makes the ink face read heavy and clumsy, so every
   // filled dimension thins with the mood.
   const float wt = opt.weight * opt.scale;
-  int eyeHL = _px((e.h * 2.0f * lidL + boost) * wt * (1.0f - sq * 0.30f));
-  int eyeHR = _px((e.h * 2.0f * lidR + boost) * wt * (1.0f - sq * 0.30f));
-  int eyeW = _px((e.w * 2.0f + (boost > 2.0f ? 4.0f : 0.0f)) * wt * (1.0f + sq * 0.22f));
-  int eyeR = _px(e.r * 2 * wt);
+  int eyeHL = _px((e.h * FACE_K * lidL + boost) * wt * (1.0f - sq * 0.30f));
+  int eyeHR = _px((e.h * FACE_K * lidR + boost) * wt * (1.0f - sq * 0.30f));
+  int eyeW = _px((e.w * FACE_K + (boost > 2.0f ? 5.0f : 0.0f)) * wt * (1.0f + sq * 0.22f));
+  int eyeR = _px(e.r * FACE_K * wt);
 
   // The field is already painted (moodDrawField) — the face draws onto it.
 
@@ -412,22 +441,12 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
       }
       break;
     }
-    case 2: {  // busy — half-lidded focus, flat mouth, working dots
+    case 2: {  // busy — the thinking beats drive the eyes; no dots
       _faceEye(cx - eyeDX + gazeI, eyeY, eyeW, eyeHL, eyeR, accent);
       _faceEye(cx + eyeDX + gazeI, eyeY, eyeW, eyeHR, eyeR, accent);
-      spr.fillSmoothRoundRect(cx - 16, mouthY, 32, 6, 3, accent);
-      int active = (now / 350) % 3;
-      for (int i = 0; i < 3; i++) {
-        uint16_t c = (i == active) ? accent : (uint16_t)((accent >> 2) & 0x39E7);
-        spr.fillSmoothCircle(cx + 40 + i * 18, mouthY + 3, 4, c);
-      }
-      // What the agent is actually doing, small and dim above the eyes —
-      // the `activity` wire field finally rendered somewhere.
-      spr.setTextSize(2);
-      spr.setTextDatum(TC_DATUM);
-      spr.setTextColor((uint16_t)((accent >> 1) & 0x7BEF), BG);
-      spr.drawString(_faceActivityVerb(activity), cx, 24);
-      spr.setTextDatum(TL_DATUM);
+      // A small flat mouth, set slightly off-centre with the gaze — the
+      // face is concentrating, not talking.
+      spr.fillSmoothRoundRect(cx - 28 + gazeI / 2, mouthY, 56, 11, 5, accent);
       break;
     }
     case 3: {  // attention — wide eyes raised toward the boop button
@@ -436,24 +455,13 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
       // draws after the face, so it wins any overlap.
       _faceEye(cx - eyeDX, eyeY, eyeW, eyeHL, eyeR, accent);
       _faceEye(cx + eyeDX, eyeY, eyeW, eyeHR, eyeR, accent);
-      spr.fillArc(cx, mouthY, 8, 14, 0, 360, accent);   // small "o"
+      spr.fillArc(cx, mouthY, 14, 25, 0, 360, accent);   // small "o"
       break;
     }
-    case 4: {  // celebrate — happy arcs, big smile, falling confetti
+    case 4: {  // celebrate — happy arcs and a big smile, nothing thrown
       _faceEyeHappy(cx - eyeDX, eyeY, accent);
       _faceEyeHappy(cx + eyeDX, eyeY, accent);
-      spr.fillArc(cx, mouthY - 12, 24, 32, 25, 155, accent);
-      static const uint16_t CONF[5] = { 0xF800, 0x07E0, 0x001F, 0xFFE0, 0xF81F };
-      for (int i = 0; i < 12; i++) {
-        uint32_t h = _faceHash(i * 7919u);
-        // Per-particle fall speed (120-220 px/s) so the rain has depth.
-        float speed = 0.120f + (h % 50) * 0.002f;
-        int px = (int)(h % (HAL_W - 3));
-        // Full-height fall: the resting HUD is gone on this board, so
-        // there's no longer a strip at the bottom to stop short of.
-        int py = _px(fmodf(h / 331.0f + (float)now * speed, (float)(HAL_H - 3)));
-        spr.fillRect(px, py, 3, 3, CONF[i % 5]);
-      }
+      spr.fillArc(cx, mouthY - 20, 40, 54, 25, 155, accent);
       break;
     }
     case 5: {  // dizzy — X eyes, continuous wobble
@@ -461,37 +469,19 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
       _faceEyeX(cx - eyeDX, eyeY + tilt, accent);
       _faceEyeX(cx + eyeDX, eyeY - tilt, accent);
       for (int i = 0; i < 4; i++) {
-        spr.fillRect(cx - 24 + i * 12, mouthY + ((i & 1) ? 4 : 0), 12, 4, accent);
+        spr.fillRect(cx - 44 + i * 22, mouthY + ((i & 1) ? 7 : 0), 22, 7, accent);
       }
       break;
     }
-    case 6: {  // heart — heart eyes, blush, smile, drifting mini-hearts
+    case 6: {  // heart — heart eyes, blush, smile
       // Hearts track the finger too. Touch is what produces this face in
       // the first place, so not following the hand that's petting it would
       // be the one place the gaze conspicuously fails to work.
       _faceEyeHeart(cx - eyeDX + gazeI, eyeY, PINK, 1.0f + sq * 0.22f, 1.0f - sq * 0.30f);
       _faceEyeHeart(cx + eyeDX + gazeI, eyeY, PINK, 1.0f + sq * 0.22f, 1.0f - sq * 0.30f);
-      spr.fillArc(cx, mouthY - 10, 20, 26, 25, 155, accent);
-      spr.fillSmoothRoundRect(cx - eyeDX - 44 + gazeI, eyeY + 32, 26, 10, 5, PINK);
-      spr.fillSmoothRoundRect(cx + eyeDX + 18 + gazeI, eyeY + 32, 26, 10, 5, PINK);
-      // Little hearts rise past the cheeks while affection lasts — the
-      // sustained-petting payoff. Deterministic per-slot phase (no rand).
-      // Sizing note: this is a ~340 PPI panel — anything under ~25px reads
-      // as a speck from arm's length (the first cut used r=4..6 and was
-      // physically invisible). r=9..12 makes each heart ~3-4mm on glass.
-      for (int i = 0; i < 4; i++) {
-        uint32_t h = _faceHash(0xB005u + i * 7919u);
-        float ph = fmodf((float)now / 1600.0f + (float)(h % 997) / 997.0f, 1.0f);
-        int hx = ((i & 1) ? cx + eyeDX + 70 : cx - eyeDX - 70) +
-                 (int)((h >> 8) % 20) - 10;
-        int hy = eyeY + 64 - _px(ph * 140.0f);
-        int r = 9 + i;
-        if (hy < 20) continue;
-        spr.fillSmoothCircle(hx - r + 1, hy - r / 2, r, PINK);
-        spr.fillSmoothCircle(hx + r - 1, hy - r / 2, r, PINK);
-        spr.fillTriangle(hx - 2 * r + 1, hy, hx + 2 * r - 1, hy,
-                         hx, hy + 2 * r - 1, PINK);
-      }
+      spr.fillArc(cx, mouthY - 18, 34, 45, 25, 155, accent);
+      spr.fillSmoothRoundRect(cx - eyeDX - 54 + gazeI, eyeY + 40, 32, 12, 6, PINK);
+      spr.fillSmoothRoundRect(cx + eyeDX + 22 + gazeI, eyeY + 40, 32, 12, 6, PINK);
       break;
     }
     default: {  // idle — open eyes, blinks, glances, soft smile
@@ -500,10 +490,10 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
       if (opt.yawn || miYawn) {
         // A yawn is a big open O, not a wider smile. Squashed slightly so
         // it reads as a mouth rather than a hole.
-        spr.fillEllipse(cx, mouthY + 6, 20, 26, accent);
-        spr.fillEllipse(cx, mouthY + 8, 13, 18, BG);
+        spr.fillEllipse(cx, mouthY + 10, 32, 42, accent);
+        spr.fillEllipse(cx, mouthY + 12, 21, 30, BG);
       } else {
-        spr.fillArc(cx, mouthY - 10, 16, 22, 30, 150, accent);
+        spr.fillArc(cx, mouthY - 18, 32, 43, 28, 152, accent);
       }
       break;
     }
