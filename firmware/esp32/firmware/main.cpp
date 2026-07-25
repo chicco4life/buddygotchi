@@ -35,6 +35,8 @@ static void startBt() {
 #include "stats.h"
 #include "menu.h"
 #include "anim.h"
+#include "mood.h"
+#include "halo.h"
 #include "face.h"
 #include "glance.h"
 const int W = HAL_W, H = HAL_H;
@@ -62,6 +64,10 @@ bool     manualScreenOff = false;
 bool     buddyMode = true;
 bool     gifAvailable = false;
 uint32_t promptArrivedMs = 0;
+// Was the panel dark when this prompt landed? Drives the lantern's
+// night-aware entry (§2.1.4) — waking a dark room with a full-brightness
+// cream field is the one way the mood system turns hostile.
+bool     promptArrivedDark = false;
 bool     responseSent = false;
 
 const uint8_t BRIGHT_DIM = 40;
@@ -335,6 +341,10 @@ static void updateDisplayPower(PersonaState state) {
     prevState = state;
     stateSince = now;
     playStateChirp(state);
+    // Celebrate fires the halo's one-shot green->warm ripple. It stays in
+    // Night mood on purpose: spending the lantern on a happy state would
+    // cost the lantern its meaning (§2.1).
+    if (state == P_CELEBRATE) haloCelebrate(now);
     if (state == P_SLEEP) {
       sleepSince = now;
     } else if (!napping) {
@@ -387,17 +397,29 @@ static void updateDisplayPower(PersonaState state) {
 // landscape Pebble canvas.
 void drawPasskey() {
   const Palette& p = characterPalette();
-  spr.fillSprite(p.bg);
+  // Landscape wears the Lantern mood (§2 priority 2): a passkey is the
+  // purest "a human must act right now" state in the product — the code has
+  // to be read off the glass and typed before anything else can happen.
+  uint16_t bg = p.bg, primary = p.text, secondary = p.textDim;
+  if (HAL_LANDSCAPE) {
+    uint32_t nowMs = millis();
+    moodDrawField(spr, nowMs);
+    bg = moodBackdrop(nowMs);
+    primary = _moodMix(p.text, MOOD_INK, moodInkBlend());
+    secondary = _moodMix(p.textDim, MOOD_INK_DIM, moodInkBlend());
+  } else {
+    spr.fillSprite(p.bg);
+  }
   spr.setTextDatum(TC_DATUM);
   spr.setTextSize(S);
-  spr.setTextColor(p.textDim, p.bg);
+  spr.setTextColor(secondary, bg);
   spr.drawString("BLUETOOTH PAIRING", W / 2, 8 * S);
   spr.setTextSize(3 * S);
-  spr.setTextColor(p.text, p.bg);
+  spr.setTextColor(primary, bg);
   char b[8]; snprintf(b, sizeof(b), "%06lu", (unsigned long)blePasskey());
   spr.drawString(b, W / 2, CY_BASE - 12 * S);
   spr.setTextSize(S);
-  spr.setTextColor(p.textDim, p.bg);
+  spr.setTextColor(secondary, bg);
   spr.drawString("enter on desktop", W / 2, H - 16 * S);
   spr.setTextDatum(TL_DATUM);
 }
@@ -465,6 +487,15 @@ static void sendApproval(bool approve) {
   else statsOnDenial();
   responseSent = true;
   lastDecisionApprove = approve;
+  // Resolve the field (§2.1.3). Approve snuffs — the light contracts back
+  // into the face behind a green ripple, deliberately faster than the
+  // bloom, because resolution should feel decisive. Deny fades evenly to
+  // black: neutral and unhurried. Denial is responsible, not punished, so
+  // it gets no ripple and no contraction.
+  if (HAL_LANDSCAPE) {
+    if (approve) moodSnuff();
+    else         moodFade();
+  }
   // Approve gets a bright "mm-hm!"; deny a single neutral note. Deny must
   // never sound (or look) sad — guilt-tripping users into approving is a
   // product bug, not a personality.
@@ -779,6 +810,11 @@ static void dumpState() {
   doc["menu"] = menuScreenName();
   doc["glance"] = glanceStateName();
   doc["bonded"] = bleBonded();
+  doc["mood"] = moodName();
+  // Field luminance 0..1 — the screenshot oracle asserts on the corner
+  // pixel, this is the same fact for a cheap non-visual assertion.
+  doc["moodLit"] = (int)(moodLit() * 100.0f + 0.5f);
+  doc["moodInk"] = (int)(moodInkBlend() * 100.0f + 0.5f);
   doc["muted"] = tama.muted;
   doc["screenOff"] = screenOff;
   doc["brightness"] = currentBrightness == 0xFF ? 0 : currentBrightness;
@@ -1210,6 +1246,11 @@ void loop() {
   if ((int32_t)(dizzyUntil - millis()) > 0 && baseState != P_ATTENTION) {
     activeState = P_DIZZY;
   }
+  // Captured before updateDisplayPower, which wakes the panel on any state
+  // change: by the time the prompt-arrival branch below runs, screenOff has
+  // already been cleared. The lantern's night-aware entry needs to know how
+  // dark the room was when the prompt landed, not after we lit it.
+  bool screenWasOff = screenOff;
   updateDisplayPower(activeState);
 
   if (strcmp(tama.promptId, lastPromptId) != 0) {
@@ -1217,6 +1258,32 @@ void loop() {
     lastPromptId[sizeof(lastPromptId)-1] = 0;
     responseSent = false;
     promptArrivedMs = millis();
+    promptArrivedDark = screenWasOff;
+  }
+
+  // Route the screen mood (§2.1). Field brightness encodes how much the
+  // buddy needs you, so the lantern is spent ONLY where a human is
+  // blocking something — a passkey that must be typed, or a decision that
+  // must be made. Everything else, however visually eventful, stays Night.
+  if (HAL_LANDSCAPE) {
+    uint32_t nowM = millis();
+    if (blePasskey()) {
+      moodSet(MOOD_LANTERN, screenWasOff);
+    } else if (promptPending()) {
+      moodSet(MOOD_LANTERN, promptArrivedDark);
+      // Escalation replaces the numeric "waiting Ns" counter entirely:
+      // urgency is light and motion, which read peripherally far better
+      // than a stopwatch nobody is looking at.
+      float waited = (float)(nowM - promptArrivedMs) / 1000.0f;
+      moodEscalation((waited - 10.0f) / 2.0f, (waited - 120.0f) / 3.0f);
+    } else if (activeState == P_DIZZY) {
+      moodSet(MOOD_EMBER_K, screenWasOff);
+    } else {
+      // moodSet no-ops when the target already matches, so an in-flight
+      // snuff or fade (which both retarget to Night themselves) keeps
+      // running rather than being restarted every loop.
+      moodSet(MOOD_NIGHT, screenWasOff);
+    }
   }
   // A pending approval owns the buttons — close the menu before the button
   // handler can route a press to it. keep=false: an interrupt the user
@@ -1237,6 +1304,17 @@ void loop() {
     delay(HAL_LOOP_MS);
     return;
   }
+
+  // Frame delta for every eased surface in the draw path, measured once
+  // above the screen-priority chain so the mood keeps blooming under the
+  // passkey and OTA takeovers too — those are moods in their own right
+  // (§2 priorities 1-2), not a pause in the animation.
+  uint32_t frameMs = millis();
+  static uint32_t lastDrawMs = 0;
+  float dt = (frameMs - lastDrawMs) / 1000.0f;
+  lastDrawMs = frameMs;
+  if (dt <= 0.0f || dt > 0.05f) dt = 0.024f;
+  if (HAL_LANDSCAPE) moodTick(frameMs, dt);
 
   if (blePasskey()) {
     wakeDisplay();
@@ -1279,14 +1357,7 @@ void loop() {
     // portrait-sized — not yet supported on the landscape board).
     drawCount++;
     const Palette& p = characterPalette();
-    uint32_t nowMs = millis();
-    // Frame delta for every eased surface in the draw path. Measured here
-    // rather than per-file so the card, the face, and (later) the field all
-    // integrate against the same clock.
-    static uint32_t lastDrawMs = 0;
-    float dt = (nowMs - lastDrawMs) / 1000.0f;
-    lastDrawMs = nowMs;
-    if (dt <= 0.0f || dt > 0.05f) dt = 0.024f;
+    uint32_t nowMs = frameMs;
 
     int faceLift = 0;
     if (HAL_LANDSCAPE) {
@@ -1297,8 +1368,21 @@ void loop() {
         glanceClose();
       }
       glanceTick(nowMs, dt);
+      haloTick(activeState, dt);
       faceLift = animPx(glanceCover() * (float)FACE_GLANCE_LIFT);
-      faceTick(activeState, tama.activity, boopActive, faceLift);
+
+      // Draw order is the priority stack from the bottom up: the field
+      // carries the alert channel, the halo is ambient light behind the
+      // face, the face is the product. Overlays land after this block.
+      uint16_t accent = buddySpeciesColor();
+      moodDrawField(spr, nowMs);
+      haloDraw(spr, nowMs, activeState, accent);
+      FaceOpts fo;
+      fo.lift = faceLift;
+      fo.color = moodFaceColor(accent);
+      fo.bg = moodBackdrop(nowMs);
+      fo.weight = moodStrokeWeight();
+      faceTick(activeState, tama.activity, boopActive, fo);
     } else {
       buddyTick(activeState);
     }
@@ -1309,34 +1393,50 @@ void loop() {
       const int CPL = (W - 8 * S) / (6 * S);   // chars per HUD row
       spr.setTextSize(S);
       if (promptPending()) {
-        spr.fillRect(0, y, W, H - y, p.bg);
-        // Approval card. Each affordance is drawn at the screen edge
-        // nearest its physical button so the hardware is the legend: the
-        // pulsing "boop = yes" band sits under the top crown button, the
-        // "no >" chip sits over the bottom-right reject button.
-        uint32_t waited = (nowMs - promptArrivedMs) / 1000;
-        bool hot = waited >= 10;
-        uint16_t pulse = ((nowMs / 500) & 1) ? (hot ? HOT : p.text) : p.textDim;
-        spr.fillRect(0, 0, W, 20 * S, p.bg);
-        spr.setTextDatum(TC_DATUM);
-        spr.setTextColor(pulse, p.bg);
-        spr.drawString("^ ^ ^", W / 2, S);
-        spr.drawString("boop = yes", W / 2, 10 * S);
-        spr.setTextDatum(TL_DATUM);
-
         const char* tool = tama.promptTool[0] ? tama.promptTool : "approve?";
         if (HAL_LANDSCAPE) {
-          // Wide rows: "source: tool" on one line, hint wrapped below.
-          spr.setTextColor(p.text, p.bg);
+          // Ink on the lantern field. No panel fills — the field IS the
+          // card's background, and a dark rect here would punch a hole in
+          // the alert channel. No "waiting Ns" counter either: urgency is
+          // carried by the field warming and its quickening breath (§7),
+          // which read peripherally far better than a stopwatch.
+          uint16_t bg   = moodBackdrop(nowMs);
+          uint16_t ink  = _moodMix(p.text, MOOD_INK, moodInkBlend());
+          uint16_t dim  = _moodMix(p.textDim, MOOD_INK_DIM, moodInkBlend());
+          spr.setTextColor(ink, bg);
           spr.setCursor(4 * S, y + 2 * S);
           // 11+2+23 = the 36-char landscape row ("claude-code" is 11).
           if (tama.promptSource[0]) spr.printf("%.11s: %.23s", tama.promptSource, tool);
           else spr.printf("%.*s", CPL, tool);
           if (tama.promptHint[0]) {
-            spr.setTextColor(p.textDim, p.bg);
+            spr.setTextColor(dim, bg);
             drawWrapped2(tama.promptHint, 4 * S, y + 14 * S, y + 26 * S, CPL);
           }
+          if (!tama.connected) {
+            // Link dropped with the card up: a boop can't be delivered, so
+            // say so. The field stays lantern — the human is still needed,
+            // just not answerable from here.
+            spr.setTextColor(HOT, bg);
+            spr.setCursor(4 * S, H - 10 * S);
+            spr.print("link lost!");
+          }
+          spr.setTextDatum(BR_DATUM);
+          spr.setTextColor(ink, bg);
+          spr.drawString("no >", W - 2 * S, H - 2 * S);
+          spr.setTextDatum(TL_DATUM);
         } else {
+          // Portrait M5 keeps the original card verbatim — it has no mood
+          // system, and it is the regression rig.
+          spr.fillRect(0, y, W, H - y, p.bg);
+          uint32_t waited = (nowMs - promptArrivedMs) / 1000;
+          bool hot = waited >= 10;
+          uint16_t pulse = ((nowMs / 500) & 1) ? (hot ? HOT : p.text) : p.textDim;
+          spr.fillRect(0, 0, W, 20 * S, p.bg);
+          spr.setTextDatum(TC_DATUM);
+          spr.setTextColor(pulse, p.bg);
+          spr.drawString("^ ^ ^", W / 2, S);
+          spr.drawString("boop = yes", W / 2, 10 * S);
+          spr.setTextDatum(TL_DATUM);
           spr.setTextColor(p.textDim, p.bg);
           spr.setCursor(4, y);
           spr.printf("%.16s asks:", tama.promptSource[0] ? tama.promptSource : "agent");
@@ -1347,40 +1447,40 @@ void loop() {
             spr.setTextColor(p.textDim, p.bg);
             drawWrapped2(tama.promptHint, 4, y + 24, y + 36, CPL);
           }
+          if (!tama.connected) {
+            spr.setTextColor(HOT, p.bg);
+            spr.setCursor(4 * S, H - 10 * S);
+            spr.print("link lost!");
+          } else {
+            spr.setTextColor(hot ? HOT : p.textDim, p.bg);
+            spr.setCursor(4 * S, H - 10 * S);
+            spr.printf("waiting %lus", (unsigned long)waited);
+          }
+          spr.setTextDatum(BR_DATUM);
+          spr.setTextColor(hot ? HOT : p.text, p.bg);
+          spr.drawString("no >", W - 2 * S, H - 2 * S);
+          spr.setTextDatum(TL_DATUM);
         }
-        if (!tama.connected) {
-          // Link dropped with the card up: a boop can't be delivered.
-          // Say so instead of pretending to count. (Short: the "no >"
-          // chip shares this row.)
-          spr.setTextColor(HOT, p.bg);
-          spr.setCursor(4 * S, H - 10 * S);
-          spr.print("link lost!");
-        } else {
-          spr.setTextColor(hot ? HOT : p.textDim, p.bg);
-          spr.setCursor(4 * S, H - 10 * S);
-          spr.printf("waiting %lus", (unsigned long)waited);
-        }
-        spr.setTextDatum(BR_DATUM);
-        spr.setTextColor(hot ? HOT : p.text, p.bg);
-        spr.drawString("no >", W - 2 * S, H - 2 * S);
-        spr.setTextDatum(TL_DATUM);
       } else if (tama.promptId[0] && tama.promptApproval && responseSent) {
         // Decision feedback until the desktop clears the prompt. Deny is
         // deliberately neutral — the pet approves of good catches too.
-        spr.fillRect(0, y, W, H - y, p.bg);
+        // On landscape this rides on whatever the field is doing (a snuff
+        // contracting, a fade going dark), so it must not fill over it.
+        uint16_t fb = HAL_LANDSCAPE ? moodBackdrop(nowMs) : p.bg;
+        if (!HAL_LANDSCAPE) spr.fillRect(0, y, W, H - y, p.bg);
         int yesY = y + (HAL_LANDSCAPE ? 14 : 24) * S;
         int sentY = y + (HAL_LANDSCAPE ? 38 : 48) * S;
         spr.setTextDatum(MC_DATUM);
         spr.setTextSize(2 * S);
         if (lastDecisionApprove) {
-          spr.setTextColor(GREEN, p.bg);
+          spr.setTextColor(GREEN, fb);
           spr.drawString("yes!", W / 2, yesY);
         } else {
-          spr.setTextColor(p.text, p.bg);
+          spr.setTextColor(HAL_LANDSCAPE ? _moodMix(p.text, MOOD_INK, moodInkBlend()) : p.text, fb);
           spr.drawString("okay", W / 2, yesY);
         }
         spr.setTextSize(S);
-        spr.setTextColor(p.textDim, p.bg);
+        spr.setTextColor(HAL_LANDSCAPE ? _moodMix(p.textDim, MOOD_INK_DIM, moodInkBlend()) : p.textDim, fb);
         spr.drawString("sent", W / 2, sentY);
         spr.setTextDatum(TL_DATUM);
       } else if (HAL_LANDSCAPE) {

@@ -405,6 +405,114 @@ def test_screenshot_integrity(stick):
     assert int(end.group(2), 16) == (zlib.crc32(raw) & 0xFFFFFFFF)
 
 
+def corner_pixel(stick, timeout=45):
+    """Top-left pixel of the sprite, as RGB888.
+
+    The mood system's whole job is the overall luminance of the field, so a
+    single corner pixel is a precise and very cheap oracle for it: black in
+    Night, the exact cream in Lantern, mid-transition during a bloom.
+    """
+    stick.write_line("screenshot")
+    buf, parsed = stick.read_until(buddyctl.parse_screenshot, timeout)
+    begin, body_start, _body_end, end = parsed
+    body = re.sub(rb"\s+", b"", buf[body_start : body_start + end.start()])
+    raw = base64.b64decode(body, validate=True)
+    # Reuse the tool's own converter rather than rounding by hand: a
+    # different rounding rule here reports 172 where buddyctl reports 173,
+    # and then the test and every screenshot on disk disagree about what
+    # the panel showed.
+    return tuple(buddyctl.rgb565le_to_rgb888(raw[:2], 1, 1)[:3])
+
+
+def clear_prompt(stick):
+    send_json(stick, {"total": 1, "running": 0, "waiting": 0, "pet": "idle",
+                      "promptId": "", "promptApproval": False})
+    wait_state(stick, promptId="")
+
+
+def test_mood_night_field_is_true_black(stick, landscape):
+    """At rest the field is pure black — doctrine #1 and #2.
+
+    Black pixels are off on this AMOLED, so this is simultaneously the look,
+    the burn-in strategy, and the baseline the alert channel is measured
+    against.
+    """
+    clear_prompt(stick)
+    ensure_menu_closed(stick)
+    wait_state(stick, pet="idle", mood="night")
+    assert corner_pixel(stick) == (0, 0, 0)
+
+
+def test_mood_lantern_inverts_the_field_for_approvals(stick, landscape):
+    """A pending approval flips the whole panel dark->light (§2.1).
+
+    This is the one genuine luminance inversion in the product, which is
+    what makes it unmissable in peripheral vision. The exact tone matters:
+    FIELD_LANTERN is an RGB332 lattice point, so it must land with zero
+    quantization error rather than drifting to a neighbouring cream.
+    """
+    clear_prompt(stick)
+    send_json(stick, {"total": 2, "running": 1, "waiting": 1, "pet": "attention",
+                      "promptId": "req_mood", "promptTool": "Bash",
+                      "promptHint": "git push --force", "promptSource": "claude-code",
+                      "promptApproval": True})
+    wait_state(stick, promptId="req_mood", mood="lantern")
+    # `mood` flips when the bloom starts; the light front needs ~350ms to
+    # pass the screen corners, and moodLit only reports once it has.
+    time.sleep(1.2)
+    got = state(stick)
+    assert got["moodLit"] == 100, got["moodLit"]
+    assert got["moodInk"] == 100, got["moodInk"]
+    # The field breathes +-6%, but RGB332 is coarse enough to absorb that:
+    # the whole breath cycle quantizes to the same lattice point, which is
+    # what makes an exact-tone assertion stable here.
+    assert corner_pixel(stick) == (255, 219, 173)   # #FFDBAD
+    # Answer it so the next test doesn't inherit a lit field.
+    stick.write_line("press a 120")
+    stick.read_until(lambda b: b'"decision":"allow"' in b, 3)
+    clear_prompt(stick)
+
+
+def test_mood_ember_for_error(stick, landscape):
+    """Errors get a dim warm field, not a bright one.
+
+    Ember says "something's off"; the lantern is reserved for "act now".
+    Spending light on a state the human can't immediately resolve would
+    cost the lantern its meaning (§2.1).
+    """
+    clear_prompt(stick)
+    send_json(stick, {"total": 1, "running": 0, "waiting": 0, "pet": "error"})
+    wait_state(stick, pet="error", mood="ember")
+    # `mood` flips as soon as the crossfade starts; ember takes ~500ms to
+    # reach full (errors are not startling). Sampling early caught it at
+    # (32,0,0) — one lattice level in, not the settled tone.
+    time.sleep(1.2)
+    r, g, b = corner_pixel(stick)
+    assert r > 0 and g > 0, (r, g, b)          # lifted off black
+    assert r < 140 and b < 60, (r, g, b)       # but nowhere near lantern
+    clear_prompt(stick)
+
+
+def test_mood_returns_to_night_after_a_decision(stick, landscape):
+    """Approving snuffs the field back out — the light must not linger."""
+    clear_prompt(stick)
+    stick.write_line("mockprompt")
+    stick.read_until(lambda b: b"<<BTN mockprompt armed>>" in b, 2)
+    wait_state(stick, mood="lantern")
+    stick.write_line("press a 120")
+    stick.read_until(lambda b: b'"decision":"allow"' in b, 3)
+    # Snuff is ~250ms; give it room but require it to actually finish.
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        if state(stick)["mood"] == "night":
+            break
+        time.sleep(0.2)
+    else:
+        pytest.fail("field never snuffed back to night")
+    assert corner_pixel(stick) == (0, 0, 0)
+    clear_prompt(stick)
+
+
 def test_boop_emits_upstream_frame(stick):
     """A boop outside a prompt must flash the heart locally AND tell the
     desktop ({"cmd":"boop"}), so the Mac blob reacts in kind."""

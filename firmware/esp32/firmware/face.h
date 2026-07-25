@@ -111,10 +111,19 @@ static inline float _easeToward(float cur, float target, float rate, float dt) {
 
 static inline int _px(float v) { return animPx(v); }
 
-// liftPx raises the whole face: the glance card doesn't cover the buddy,
-// the buddy squishes up to present it (§6). Eased by the caller so this is
-// a plain offset here.
-inline void faceTick(uint8_t persona, const char* activity, bool boopActive, int liftPx) {
+// How the face should render this frame. The face no longer owns the
+// background — mood.h paints the field first (§2.1) and the face draws on
+// top of whatever mood is current, which is what lets the same geometry
+// serve both glow-on-black and ink-on-cream.
+struct FaceOpts {
+  int      lift   = 0;        // px the whole face rides up (glance card, §6)
+  uint16_t color  = 0;        // mood-resolved face colour; 0 = species accent
+  uint16_t bg     = BLACK;    // field colour under the face, for text runs
+  float    weight = 1.0f;     // stroke weight; ink-on-light thins ~10% (§2.1.2)
+};
+
+inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
+                     const FaceOpts& opt) {
   uint32_t now = millis();
   static uint32_t lastMs = 0;
   static uint32_t nextBlinkAt = 2800;
@@ -175,7 +184,8 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive, int
   boost = _easeToward(boost, boostTarget, 18.0f, dt);
   gaze = _easeToward(gaze, gazeTarget, 8.0f, dt);
 
-  uint16_t accent = buddySpeciesColor();
+  uint16_t accent = opt.color ? opt.color : buddySpeciesColor();
+  const uint16_t BG = opt.bg;
   const uint16_t PINK = 0xFB56;
 
   // Slow continuous whole-face bob: life at a glance plus constant
@@ -186,23 +196,28 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive, int
   int bob = _px(bobF);
 
   const int cx = HAL_W / 2;
-  int eyeY = 92 + bob + _px(lift) - liftPx;
+  int eyeY = 92 + bob + _px(lift) - opt.lift;
   int eyeDX = 76;
-  int mouthY = 144 + bob - liftPx;
+  int mouthY = 144 + bob - opt.lift;
   int gazeI = _px(gaze);
-  int eyeHL = _px(e.h * 2.0f * lidL + boost);
-  int eyeHR = _px(e.h * 2.0f * lidR + boost);
-  int eyeW = _px(e.w * 2.0f + (boost > 2.0f ? 4.0f : 0.0f));
-  int eyeR = e.r * 2;
+  // Stroke weight (§2.1.2): light shapes on a dark field optically expand
+  // (halation), dark shapes on a light field don't. Reusing the glow
+  // geometry unchanged makes the ink face read heavy and clumsy, so every
+  // filled dimension thins with the mood.
+  const float wt = opt.weight;
+  int eyeHL = _px((e.h * 2.0f * lidL + boost) * wt);
+  int eyeHR = _px((e.h * 2.0f * lidR + boost) * wt);
+  int eyeW = _px((e.w * 2.0f + (boost > 2.0f ? 4.0f : 0.0f)) * wt);
+  int eyeR = _px(e.r * 2 * wt);
 
-  spr.fillSprite(BLACK);
+  // The field is already painted (moodDrawField) — the face draws onto it.
 
   switch (persona) {
     case 0: {  // sleep — lids (peek eased via lidR), drifting z's
       _faceEye(cx - eyeDX, eyeY, eyeW, eyeHL, eyeR, accent);
       _faceEye(cx + eyeDX, eyeY, eyeW, eyeHR, eyeR, accent);
       spr.setTextSize(2);
-      spr.setTextColor(accent, BLACK);
+      spr.setTextColor(accent, BG);
       for (int i = 0; i < 3; i++) {
         float ph = fmodf((float)now / 600.0f + i * 2.0f, 6.0f);
         spr.setCursor(cx + 104 + i * 20 + _px(ph * 2.0f), eyeY - 36 - _px(ph * 8.0f));
@@ -223,7 +238,7 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive, int
       // the `activity` wire field finally rendered somewhere.
       spr.setTextSize(2);
       spr.setTextDatum(TC_DATUM);
-      spr.setTextColor((uint16_t)((accent >> 1) & 0x7BEF), BLACK);
+      spr.setTextColor((uint16_t)((accent >> 1) & 0x7BEF), BG);
       spr.drawString(_faceActivityVerb(activity), cx, 24);
       spr.setTextDatum(TL_DATUM);
       break;
