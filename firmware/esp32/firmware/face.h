@@ -266,14 +266,17 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive) {
       spr.fillSmoothRoundRect(cx + eyeDX + 18, eyeY + 32, 26, 10, 5, PINK);
       // Little hearts rise past the cheeks while affection lasts — the
       // sustained-petting payoff. Deterministic per-slot phase (no rand).
+      // Sizing note: this is a ~340 PPI panel — anything under ~25px reads
+      // as a speck from arm's length (the first cut used r=4..6 and was
+      // physically invisible). r=9..12 makes each heart ~3-4mm on glass.
       for (int i = 0; i < 4; i++) {
         uint32_t h = _faceHash(0xB005u + i * 7919u);
-        float ph = fmodf((float)now / 1500.0f + (float)(h % 997) / 997.0f, 1.0f);
-        int hx = ((i & 1) ? cx + eyeDX + 58 : cx - eyeDX - 58) +
-                 (int)((h >> 8) % 28) - 14;
-        int hy = eyeY + 64 - _px(ph * 120.0f);
-        int r = 4 + (int)(i >> 1);
-        if (hy < 8 || hy > HAL_H - HAL_HUD_H - 8) continue;
+        float ph = fmodf((float)now / 1600.0f + (float)(h % 997) / 997.0f, 1.0f);
+        int hx = ((i & 1) ? cx + eyeDX + 70 : cx - eyeDX - 70) +
+                 (int)((h >> 8) % 20) - 10;
+        int hy = eyeY + 64 - _px(ph * 140.0f);
+        int r = 9 + i;
+        if (hy < 20) continue;
         spr.fillSmoothCircle(hx - r + 1, hy - r / 2, r, PINK);
         spr.fillSmoothCircle(hx + r - 1, hy - r / 2, r, PINK);
         spr.fillTriangle(hx - 2 * r + 1, hy, hx + 2 * r - 1, hy,
