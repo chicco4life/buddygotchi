@@ -83,6 +83,10 @@ static bool synthTouch = false;
 // Draw-pass counter, exposed in `state`: two samples a second apart give
 // frames-per-second; a stalled loop or draw gate shows as a collapse.
 static uint32_t drawCount = 0;
+// Latched raw-touch telemetry (see handleButtons): edge count + longest
+// continuous contact ms since boot.
+static uint32_t touchEdges = 0;
+static uint32_t touchContactMaxMs = 0;
 // AMOLED kindness: a long-idle pet dims until the next state change or
 // button press. Attention still forces full brightness.
 const uint32_t IDLE_DIM_MS = 300000;
@@ -612,6 +616,19 @@ static void __attribute__((noinline)) handleButtons() {
   }
 
   static bool prevTouch = false;
+  // Raw-contact telemetry, latched for post-hoc reading over serial: how
+  // many touch-down edges the FT3168 has reported and the longest single
+  // continuous contact. Diagnoses the chip's stationary-finger behavior
+  // (suspected monitor-mode dropout) without live coordination — the
+  // user gestures whenever, the evidence waits in `state`.
+  {
+    static bool prevRaw = false;
+    static uint32_t rawDownAt = 0;
+    bool raw = halTouchDown();
+    if (!prevRaw && raw) { touchEdges++; rawDownAt = now; }
+    if (raw && now - rawDownAt > touchContactMaxMs) touchContactMaxMs = now - rawDownAt;
+    prevRaw = raw;
+  }
   // A face-down panel can press its own touchscreen against the surface —
   // ignore contact entirely while napping so the couch can't boop the pet
   // into a wake/chirp loop. synthTouch ("touch down|up" over serial)
@@ -724,6 +741,9 @@ static void dumpState() {
   doc["dizzy"] = (int32_t)(dizzyUntil - millis()) > 0;
   doc["ladder"] = boopLongHandled;
   doc["touchOk"] = halTouchReady();
+  doc["touchDown"] = halTouchDown();
+  doc["touchEdges"] = touchEdges;
+  doc["touchContactMaxMs"] = touchContactMaxMs;
   doc["imuOk"] = halImuReady();
   doc["tick"] = (uint32_t)t;
   doc["draws"] = drawCount;
