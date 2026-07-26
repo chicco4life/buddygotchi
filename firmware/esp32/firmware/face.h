@@ -418,6 +418,10 @@ struct FacePose {
   float    sleepy = 0.0f;             // z fade-in
   float    dizzyAmt = 0.0f, spiralRot = 0.0f;
   float    happyAmt = 0.0f;
+  // Effort tell (busy only): 0 = no bead, else 0..1 through one bead's
+  // swell-and-slide. sweatSide picks which temple it runs down.
+  float    sweat01 = 0.0f;
+  int      sweatSide = 1;
 };
 
 static void _faceComputePose(uint8_t persona, const char* activity, bool boopActive,
@@ -559,8 +563,10 @@ static void _faceComputePose(uint8_t persona, const char* activity, bool boopAct
         busyNod = -7.0f;
         lidL_b.bid(LR_BUSY, 0.90f - squint); lidR_b.bid(LR_BUSY, 0.90f - squint);
         break;
-      case 2:     // focused — dead centre, narrowed, with a faint tremor
-        busySaccade = 1.4f * sinf((float)now * (ANIM_TAU / 260.0f));
+      case 2:     // focused — dead centre, narrowed, with a strained tremor
+        // Faster and slightly wider than a drift: at this frequency it
+        // reads as effort rather than as wandering.
+        busySaccade = 2.1f * sinf((float)now * (ANIM_TAU / 190.0f));
         lidL_b.bid(LR_BUSY, 0.44f - squint * 0.5f); lidR_b.bid(LR_BUSY, 0.44f - squint * 0.5f);
         break;
       case 3: {   // checking — glances down, holds, comes back up
@@ -575,6 +581,27 @@ static void _faceComputePose(uint8_t persona, const char* activity, bool boopAct
         busySaccade = 13.0f * sinf(bp * ANIM_TAU);
         lidL_b.bid(LR_BUSY, 0.86f - squint); lidR_b.bid(LR_BUSY, 0.86f - squint);
         break;
+    }
+  }
+
+  // Effort tell. A working face reads as "eyes doing something"; one bead of
+  // sweat reads as "this is hard". Deliberately rare and singular — the
+  // decorative particle systems (confetti, drifting hearts) came out of this
+  // renderer on purpose, and a constant drip would be one of those. This is
+  // an expression element attached to the face, like a blush.
+  //
+  // Deterministic off `now`, so a HIL screenshot of a given millisecond is
+  // reproducible.
+  float sweat01 = 0.0f;
+  int   sweatSide = 1;
+  if (persona == 2) {
+    // 5s apart rather than 7: at a 21% duty cycle the bead was easy to
+    // miss entirely, which makes it decoration rather than a signal.
+    const uint32_t SWEAT_CYCLE = 5000, SWEAT_LEN = 1800;
+    uint32_t sph = now % SWEAT_CYCLE;
+    if (sph < SWEAT_LEN) {
+      sweat01 = (float)sph / (float)SWEAT_LEN;
+      sweatSide = ((now / SWEAT_CYCLE) & 1) ? 1 : -1;
     }
   }
 
@@ -736,6 +763,7 @@ static void _faceComputePose(uint8_t persona, const char* activity, bool boopAct
   P.accent = accent;  P.bg = BG;
   P.sq = sq;          P.sleepy = sleepy;
   P.dizzyAmt = dizzyAmt;  P.spiralRot = spiralRot;  P.happyAmt = happyAmt;
+  P.sweat01 = sweat01;    P.sweatSide = sweatSide;
 }
 
 // The field is already painted (moodDrawField) — the face draws onto it.
@@ -762,6 +790,24 @@ static void _faceDrawPose(const FacePose& P) {
     case 2: {  // busy — the thinking beats drive the eyes; no dots
       _faceEye(P.cx - P.eyeDX + P.gazeI, P.eyeY, P.eyeW, P.eyeHL, P.eyeR, P.accent);
       _faceEye(P.cx + P.eyeDX + P.gazeI, P.eyeY, P.eyeW, P.eyeHR, P.eyeR, P.accent);
+      if (P.sweat01 > 0.0f) {
+        // Swells at the temple for the first third, then runs down and
+        // shrinks out. Teardrop-shaped (bead plus a point) because a plain
+        // circle beside the eye reads as a stray dot.
+        float t = P.sweat01;
+        float grow  = t < 0.30f ? (t / 0.30f) : 1.0f;
+        float slide = t < 0.30f ? 0.0f : (t - 0.30f) / 0.70f;
+        int r = animPx((3.0f + 4.5f * grow) * (1.0f - slide * 0.55f));
+        if (r > 0) {
+          int bx = P.cx + P.sweatSide * (P.eyeDX + P.eyeW / 2 + 14);
+          int by = P.eyeY - P.eyeHL / 2 + animPx(slide * 58.0f);
+          spr.fillSmoothCircle(bx, by, r, P.accent);
+          if (r >= 3) {
+            spr.fillTriangle(bx - r + 1, by - r + 1, bx + r - 1, by - r + 1,
+                             bx, by - r - r, P.accent);
+          }
+        }
+      }
       break;
     }
     case 3: {  // attention — wide eyes raised toward the boop button
