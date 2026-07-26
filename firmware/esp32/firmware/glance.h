@@ -32,7 +32,6 @@ static uint32_t _glLastInput = 0;
 static AnimSpring _glSpring;    // 0 = fully below the bottom edge, 1 = out
 
 inline bool  glanceActive() { return _glOpen; }
-inline uint8_t glancePage() { return _glPage; }
 // How much of the card is on screen (0..1). Drives both the draw and the
 // face lift, and stays non-zero through the slide-out so the dismissal
 // animates instead of popping.
@@ -80,11 +79,7 @@ inline void glanceTick(uint32_t now, float dt) {
   // Out springs (playful); back down is a plain ease — a card leaving
   // shouldn't bounce, it should just go.
   if (_glOpen) _glSpring.step(1.0f, 3.9f, 0.65f, dt);
-  else {
-    _glSpring.pos = animEase(_glSpring.pos, 0.0f, 14.0f, dt);
-    _glSpring.vel = 0.0f;
-    if (_glSpring.pos < 0.004f) _glSpring.pos = 0.0f;
-  }
+  else _glSpring.retract(14.0f, dt);
 }
 
 // The Bluetooth rune, drawn from lines so it scales with the panel. Also
@@ -156,9 +151,15 @@ inline void glanceDraw(BuddyCanvas& spr, uint32_t now, const TamaState& s,
   // only the top corners rounded. The border is an accent fill with a black
   // inset rather than a stroke — LovyanGFX has no anti-aliased round-rect
   // outline, and two smooth fills give a cleaner edge than a jaggy one.
+  // Only the top cap and two side rails of the accent fill ever survive the
+  // black inset, so draw just those. Filling the whole card in accent first
+  // threw away ~77k pixel writes per frame for a 2px border.
   const int bw = 2;
-  spr.fillSmoothRoundRect(margin, top, W - 2 * margin, cardH + 2 * radius, radius, accent);
-  spr.fillSmoothRoundRect(margin + bw, top + bw, W - 2 * margin - 2 * bw,
+  const int cw = W - 2 * margin;
+  spr.fillSmoothRoundRect(margin, top, cw, 2 * radius, radius, accent);
+  spr.fillRect(margin, top + radius, bw, cardH + radius, accent);
+  spr.fillRect(margin + cw - bw, top + radius, bw, cardH + radius, accent);
+  spr.fillSmoothRoundRect(margin + bw, top + bw, cw - 2 * bw,
                           cardH + 2 * radius - 2 * bw, radius - bw, BLACK);
 
   const int x = margin + 7 * S;

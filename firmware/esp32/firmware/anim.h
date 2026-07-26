@@ -13,6 +13,8 @@
 // Damped exponential approach — eases toward the target with no overshoot.
 // rate is 1/s: higher = snappier. This is the default for anything that
 // should feel settled rather than playful (lids, brightness, gaze).
+static const float ANIM_TAU = 6.2831853f;
+
 static inline float animEase(float cur, float target, float rate, float dt) {
   return cur + (target - cur) * (1.0f - expf(-rate * dt));
 }
@@ -38,13 +40,11 @@ struct AnimSpring {
   float pos = 0.0f;
   float vel = 0.0f;
 
-  void reset(float p) { pos = p; vel = 0.0f; }
-
   void step(float target, float freqHz, float zeta, float dt) {
     // Clamp dt the same way faceTick does: a long stall (screenshot dump,
     // OTA chunk) must not launch the spring across the screen.
     if (dt <= 0.0f || dt > 0.05f) dt = 0.016f;
-    float omega = 6.2831853f * freqHz;
+    float omega = ANIM_TAU * freqHz;
     // Sub-step so the integrator stays accurate at the board's ~24ms
     // present cadence. Explicit Euler on a 4Hz spring at 24ms has
     // omega*dt ~= 0.6, which overshoots far past the analytic response —
@@ -61,10 +61,22 @@ struct AnimSpring {
     }
   }
 
-  // True once the spring has effectively arrived — lets callers skip work
-  // for an off-screen surface instead of simulating it forever.
-  bool settled(float target, float eps = 0.002f) const {
-    return fabsf(pos - target) < eps && fabsf(vel) < eps * 20.0f;
+// Small deterministic hash. Every surface that wants organic-feeling
+// variation uses this rather than rand(), so HIL screenshots of the same
+// millisecond are always identical.
+static inline uint32_t animHash(uint32_t x) {
+  x *= 2654435761u;
+  return x ^ (x >> 16);
+}
+
+  // Retract to rest without bouncing. Springing out and easing back is the
+  // product's motion rule — a card arriving is playful, a card leaving
+  // should just go — and it was written out longhand at three call sites
+  // before living here.
+  void retract(float rate, float dt, float eps = 0.004f) {
+    pos = animEase(pos, 0.0f, rate, dt);
+    vel = 0.0f;
+    if (pos < eps) pos = 0.0f;
   }
 };
 
@@ -74,6 +86,24 @@ struct AnimSpring {
 static inline uint32_t animHash(uint32_t x) {
   x *= 2654435761u;
   return x ^ (x >> 16);
+}
+
+// Channel-wise RGB565 blend, t in 0..1. Lives here rather than in mood.h
+// because it knows nothing about moods — six files reach for it.
+static inline uint16_t animMix(uint16_t a, uint16_t b, float t) {
+  t = animClamp(t, 0.0f, 1.0f);
+  int ar = (a >> 11) & 0x1F, ag = (a >> 5) & 0x3F, ab = a & 0x1F;
+  int br = (b >> 11) & 0x1F, bg = (b >> 5) & 0x3F, bb = b & 0x1F;
+  int r = ar + (int)((br - ar) * t + 0.5f);
+  int g = ag + (int)((bg - ag) * t + 0.5f);
+  int bl = ab + (int)((bb - ab) * t + 0.5f);
+  return (uint16_t)((r << 11) | (g << 5) | bl);
+}
+
+// 0..1 breath. Doctrine #8 says everything breathes, and every surface was
+// spelling out the same sin() by hand.
+static inline float animPulse01(uint32_t now, float periodMs) {
+  return 0.5f + 0.5f * sinf((float)now * (ANIM_TAU / periodMs));
 }
 
 // RGB565 from 8-bit components. The sprite quantizes to RGB332 on the WS

@@ -8,24 +8,18 @@
 // unit (main.cpp).
 //
 // Face-first renderer for the landscape board: the screen IS the
-// character's face — big glowing eyes and a mouth on pure black (black
-// pixels are off on the AMOLED, which is both the product look and the
-// burn-in strategy). Species differ by accent color (their procedural
-// bodyColor); the ASCII body art stays the M5/portrait renderer.
+// character's face — big glowing eyes on pure black (black pixels are off
+// on the AMOLED, which is both the product look and the burn-in strategy).
+// There is deliberately no mouth: the eyes carry every state. Species
+// differ by accent color (their procedural bodyColor); the ASCII body art
+// stays the M5/portrait renderer.
 //
 // faceTick(persona) uses the same 0..6 persona indices as the Species
 // state table: 0=sleep 1=idle 2=busy 3=attention 4=celebrate 5=dizzy
-// 6=heart. It redraws the whole sprite at ~10fps (or on state change);
-// the HUD/band overlays draw after it every loop.
+// 6=affection. It redraws every frame; the present throttle in halPresent
+// decides what reaches glass.
 
 extern BuddyCanvas spr;
-
-// Small deterministic hash for organic-feeling timing without rand()
-// (keeps behavior reproducible in HIL screenshots).
-static inline uint32_t _faceHash(uint32_t x) {
-  x *= 2654435761u;
-  return x ^ (x >> 16);
-}
 
 // Per-species eye geometry — the accent color plus these shapes are what
 // make each character read as itself on the face board. Indexed by
@@ -75,15 +69,6 @@ static const float FACE_K = 3.10f;
 static const int   FACE_EYE_Y   = 126;
 static const int   FACE_EYE_DX  = 106;   // eye separation from centre
 
-// Motion primitives live in anim.h now — every surface shares them so the
-// card, the field, and the face all ease with the same curve. Declared
-// above the draw helpers because those round with _px.
-static inline float _easeToward(float cur, float target, float rate, float dt) {
-  return animEase(cur, target, rate, dt);
-}
-
-static inline int _px(float v) { return animPx(v); }
-
 // Native-resolution, anti-aliased face parts (the face only runs on the
 // landscape board — coordinates here are panel pixels, 2x the logical
 // units in FACE_EYES).
@@ -112,11 +97,11 @@ static void _faceEyeSpiral(int cx, int cy, float grow, float rot, uint16_t c) {
   // reads as a dotted line rather than a spiral. 104 closes the gap.
   const int N = 104;
   const float TURNS = 4.2f * 3.14159265f;
-  int thick = _px(2.5f + 1.5f * grow);
+  int thick = animPx(2.5f + 1.5f * grow);
   for (int i = 0; i <= N; i++) {
     float t = TURNS * (float)i / (float)N;
     float r = 44.0f * grow * (t / TURNS);
-    spr.fillSmoothCircle(cx + _px(cosf(t + rot) * r), cy + _px(sinf(t + rot) * r),
+    spr.fillSmoothCircle(cx + animPx(cosf(t + rot) * r), cy + animPx(sinf(t + rot) * r),
                          thick, c);
   }
 }
@@ -131,8 +116,8 @@ static void _faceEyeArch(int cx, int cy, int w, float rise, int thick, uint16_t 
   const int N = 16;
   for (int i = 0; i <= N; i++) {
     float u = (float)i / (float)N * 2.0f - 1.0f;      // -1..1
-    spr.fillSmoothCircle(cx + _px(u * (float)w * 0.5f),
-                         cy - _px(rise * (1.0f - u * u)),
+    spr.fillSmoothCircle(cx + animPx(u * (float)w * 0.5f),
+                         cy - animPx(rise * (1.0f - u * u)),
                          thick, c);
   }
 }
@@ -338,14 +323,14 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   // changes don't reset the rhythm.
   if ((int32_t)(now - nextBlinkAt) >= 0) {
     blinkUntil = now + 140;
-    uint32_t h = _faceHash(now);
+    uint32_t h = animHash(now);
     nextBlinkAt = now + 2600 + (h % 2200);
     if ((h & 7) == 0) nextBlinkAt = now + 420;   // occasional double-blink
   }
   if ((int32_t)(now - nextGlanceAt) >= 0) {
     glanceUntil = now + 900;
-    glanceDir = (_faceHash(now) & 1) ? 1 : -1;
-    nextGlanceAt = now + 5500 + (_faceHash(now ^ 0x9E37) % 4500);
+    glanceDir = (animHash(now) & 1) ? 1 : -1;
+    nextGlanceAt = now + 5500 + (animHash(now ^ 0x9E37) % 4500);
   }
   bool blinking = (int32_t)(blinkUntil - now) > 0;
   bool glancing = (int32_t)(glanceUntil - now) > 0;
@@ -356,7 +341,7 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   if (_miKind == MI_NONE) {
     if (_miNextAt == 0) _miNextAt = now + MI_SPACING_MS;
     if (miAllowed && (int32_t)(now - _miNextAt) >= 0) {
-      uint32_t h = _faceHash(now ^ 0x1D1Eu);
+      uint32_t h = animHash(now ^ 0x1D1Eu);
       _miKind = (uint8_t)(MI_YAWN + (h % (MI_COUNT - 1)));
       _miStart = now;
       _miEnd = now + 1200 + (h % 800);      // each <= 2s
@@ -365,7 +350,7 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   if (_miKind != MI_NONE && ((int32_t)(now - _miEnd) >= 0 || (!miAllowed && !_miForced))) {
     _miKind = MI_NONE;
     _miForced = false;
-    _miNextAt = now + MI_SPACING_MS + (_faceHash(now) % 45000);
+    _miNextAt = now + MI_SPACING_MS + (animHash(now) % 45000);
   }
   // 0..1 through the current micro-idle, and a 0->1->0 envelope so every
   // one of them eases in and out instead of snapping.
@@ -396,7 +381,6 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
         }
       }
       break;
-    case 2: lidTargetL = lidTargetR = 0.62f; break;             // busy focus
     case 3: liftTarget = -12.0f; boostTarget = 16.0f; break;    // attention
     default: break;
   }
@@ -451,7 +435,7 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
         lidTargetL = lidTargetR = 0.90f - squint;
         break;
       case 2:     // focused — dead centre, narrowed, with a faint tremor
-        busySaccade = 1.4f * sinf((float)now * (6.2831853f / 260.0f));
+        busySaccade = 1.4f * sinf((float)now * (ANIM_TAU / 260.0f));
         lidTargetL = lidTargetR = 0.44f - squint * 0.5f;
         break;
       case 3: {   // checking — glances down, holds, comes back up
@@ -463,7 +447,7 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
         break;
       }
       default:    // sweeping — one slow continuous pass across
-        busySaccade = 13.0f * sinf(bp * 6.2831853f);
+        busySaccade = 13.0f * sinf(bp * ANIM_TAU);
         lidTargetL = lidTargetR = 0.86f - squint;
         break;
     }
@@ -478,9 +462,9 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
     if (miYawn) lidTargetL = lidTargetR = 0.30f;
   } else if (_miKind == MI_ORB_CHASE) {
     // Eyes follow something all the way around, once.
-    miGaze = 17.0f * sinf(miT * 6.2831853f);
+    miGaze = 17.0f * sinf(miT * ANIM_TAU);
   } else if (_miKind == MI_WIGGLE) {
-    miWiggle = 9.0f * miEnv * sinf(miT * 6.2831853f * 2.5f);
+    miWiggle = 9.0f * miEnv * sinf(miT * ANIM_TAU * 2.5f);
   } else if (_miKind == MI_LOOK_AT_YOU) {
     // Dead centre, one slow deliberate blink. The stillness is the effect.
     miGaze = 0.0f;
@@ -496,7 +480,7 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   if (boopActive && _boopReactAt != 0 && (now - _boopReactAt) < BOOP_REACT_LEN_MS) {
     float rp = (float)(now - _boopReactAt) / (float)BOOP_REACT_LEN_MS;
     float env = sinf(rp * 3.14159265f);
-    if (_boopReact == BR_SHAKE) brShake = 13.0f * env * sinf(rp * 6.2831853f * 3.0f);
+    if (_boopReact == BR_SHAKE) brShake = 13.0f * env * sinf(rp * ANIM_TAU * 3.0f);
   }
 
   // Drifting back to sleep. Runs on the IDLE face (main.cpp keeps the buddy
@@ -541,11 +525,11 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   if (dwGaze != 0.0f) gazeTarget = dwGaze;
 
   // Lids close fast, open slower — the asymmetry is what reads as alive.
-  lidL = _easeToward(lidL, lidTargetL, lidTargetL < lidL ? 26.0f : 11.0f, dt);
-  lidR = _easeToward(lidR, lidTargetR, lidTargetR < lidR ? 26.0f : 11.0f, dt);
-  lift = _easeToward(lift, liftTarget, 14.0f, dt);
-  boost = _easeToward(boost, boostTarget, 18.0f, dt);
-  gaze = _easeToward(gaze, gazeTarget, 8.0f, dt);
+  lidL = animEase(lidL, lidTargetL, lidTargetL < lidL ? 26.0f : 11.0f, dt);
+  lidR = animEase(lidR, lidTargetR, lidTargetR < lidR ? 26.0f : 11.0f, dt);
+  lift = animEase(lift, liftTarget, 14.0f, dt);
+  boost = animEase(boost, boostTarget, 18.0f, dt);
+  gaze = animEase(gaze, gazeTarget, 8.0f, dt);
 
   uint16_t accent = opt.color ? opt.color : buddySpeciesColor();
   const uint16_t BG = opt.bg;
@@ -562,26 +546,26 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   static float bobPhase = 0.0f;
   static float bobAmp = 4.0f;
   static float bobPeriod = 6.0f;          // seconds
-  bobAmp = _easeToward(bobAmp, (persona == 0) ? 5.0f : 4.0f, 2.5f, dt);
-  bobPeriod = _easeToward(bobPeriod, (persona == 0) ? 4.5f : 6.0f, 2.5f, dt);
-  bobPhase += dt * 6.2831853f / bobPeriod;
-  if (bobPhase > 6.2831853f) bobPhase -= 6.2831853f;
-  int bob = _px(bobAmp * sinf(bobPhase));
+  bobAmp = animEase(bobAmp, (persona == 0) ? 5.0f : 4.0f, 2.5f, dt);
+  bobPeriod = animEase(bobPeriod, (persona == 0) ? 4.5f : 6.0f, 2.5f, dt);
+  bobPhase += dt * ANIM_TAU / bobPeriod;
+  if (bobPhase > ANIM_TAU) bobPhase -= ANIM_TAU;
+  int bob = animPx(bobAmp * sinf(bobPhase));
 
   // How asleep the face is, eased. The z's fade in with it instead of
   // popping on at full brightness the moment the persona changes.
   static float sleepy = 0.0f;
-  sleepy = _easeToward(sleepy, (persona == 0) ? 1.0f : 0.0f, 4.0f, dt);
+  sleepy = animEase(sleepy, (persona == 0) ? 1.0f : 0.0f, 4.0f, dt);
 
   // Two eased morphs so dizzy and happy arrive and leave gracefully rather
   // than the renderer cutting between eye drawings. Both are driven purely
   // by easing the SHAPE, which is why they need no keyframes: the normal eye
   // shrinks out as the new shape grows in, over the same window.
   static float dizzyAmt = 0.0f, happyAmt = 0.0f, spiralRot = 0.0f;
-  dizzyAmt = _easeToward(dizzyAmt, (persona == 5) ? 1.0f : 0.0f, 5.0f, dt);
-  happyAmt = _easeToward(happyAmt, (persona == 6) ? 1.0f : 0.0f, 6.5f, dt);
+  dizzyAmt = animEase(dizzyAmt, (persona == 5) ? 1.0f : 0.0f, 5.0f, dt);
+  happyAmt = animEase(happyAmt, (persona == 6) ? 1.0f : 0.0f, 6.5f, dt);
   spiralRot += dt * 2.6f;                       // the spin is what sells dizzy
-  if (spiralRot > 6.2831853f) spiralRot -= 6.2831853f;
+  if (spiralRot > ANIM_TAU) spiralRot -= ANIM_TAU;
 
   // Ring the squish spring down toward rest. Higher frequency than the
   // card springs — a squish is a quick physical wobble, not a slide.
@@ -592,24 +576,24 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   // Squish conserves rough area: the face flattens and widens, then rings
   // back through the other side. Everything shifts down slightly with it,
   // as if the boop pressed it into the desk.
-  int eyeY = FACE_EYE_Y + bob + _px(lift) - opt.lift + _px(sq * 7.0f) + opt.dangleY
-             + _px(busyNod) + _px(dwNod);
-  int eyeDX = _px(FACE_EYE_DX * (1.0f + sq * 0.10f));
-  int headX = _px(brShake);
-  int gazeI = _px(gaze) + opt.dangleX + _px(miWiggle) + headX;
+  int eyeY = FACE_EYE_Y + bob + animPx(lift) - opt.lift + animPx(sq * 7.0f) + opt.dangleY
+             + animPx(busyNod) + animPx(dwNod);
+  int eyeDX = animPx(FACE_EYE_DX * (1.0f + sq * 0.10f));
+  int headX = animPx(brShake);
+  int gazeI = animPx(gaze) + opt.dangleX + animPx(miWiggle) + headX;
   // Head tilt as opposed vertical eye offsets: rotating the whole sprite
   // would cost a resample every frame, and at this geometry the eyes going
   // opposite ways reads as a tilt anyway.
-  int tiltL = _px(miTilt * 7.0f), tiltR = _px(miTilt * -7.0f);
+  int tiltL = animPx(miTilt * 7.0f), tiltR = animPx(miTilt * -7.0f);
   // Stroke weight (§2.1.2): light shapes on a dark field optically expand
   // (halation), dark shapes on a light field don't. Reusing the glow
   // geometry unchanged makes the ink face read heavy and clumsy, so every
   // filled dimension thins with the mood.
   const float wt = opt.weight * opt.scale;
-  int eyeHL = _px((e.h * FACE_K * lidL + boost) * wt * (1.0f - sq * 0.30f));
-  int eyeHR = _px((e.h * FACE_K * lidR + boost) * wt * (1.0f - sq * 0.30f));
-  int eyeW = _px((e.w * FACE_K + (boost > 2.0f ? 5.0f : 0.0f)) * wt * (1.0f + sq * 0.22f));
-  int eyeR = _px(e.r * FACE_K * wt);
+  int eyeHL = animPx((e.h * FACE_K * lidL + boost) * wt * (1.0f - sq * 0.30f));
+  int eyeHR = animPx((e.h * FACE_K * lidR + boost) * wt * (1.0f - sq * 0.30f));
+  int eyeW = animPx((e.w * FACE_K + (boost > 2.0f ? 5.0f : 0.0f)) * wt * (1.0f + sq * 0.22f));
+  int eyeR = animPx(e.r * FACE_K * wt);
 
   // The field is already painted (moodDrawField) — the face draws onto it.
 
@@ -623,10 +607,10 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
       _faceEye(cx + eyeDX + gazeI, eyeY, eyeW, eyeHR, eyeR, accent);
       if (sleepy > 0.05f) {
         spr.setTextSize(2);
-        spr.setTextColor(_moodMix(BG, accent, sleepy), BG);
+        spr.setTextColor(animMix(BG, accent, sleepy), BG);
         for (int i = 0; i < 3; i++) {
           float ph = fmodf((float)now / 600.0f + i * 2.0f, 6.0f);
-          spr.setCursor(cx + 104 + i * 20 + _px(ph * 2.0f), eyeY - 36 - _px(ph * 8.0f));
+          spr.setCursor(cx + 104 + i * 20 + animPx(ph * 2.0f), eyeY - 36 - animPx(ph * 8.0f));
           spr.print(i == 1 ? "Z" : "z");
         }
       }
@@ -638,26 +622,27 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
       break;
     }
     case 3: {  // attention — wide eyes raised toward the boop button
-      // Tallest species (h=30*2) with full boost (+16) and lift (-12)
-      // tops out just under the armed-prompt band (rows 0..39); the band
-      // draws after the face, so it wins any overlap.
+      // Raised toward the crown button, which is the affordance being
+      // asked for. The approval card rises from the BOTTOM edge (§7), so
+      // there is nothing above to collide with — the old comment here
+      // still described a top band that only the M5 portrait path draws.
       _faceEye(cx - eyeDX, eyeY, eyeW, eyeHL, eyeR, accent);
       _faceEye(cx + eyeDX, eyeY, eyeW, eyeHR, eyeR, accent);
       break;
     }
-    case 4: {  // celebrate — happy arcs and a big smile, nothing thrown
+    case 4: {  // celebrate — happy arc eyes, nothing thrown
       _faceEyeHappy(cx - eyeDX, eyeY, accent);
       _faceEyeHappy(cx + eyeDX, eyeY, accent);
       break;
     }
     case 5: {  // dizzy — spiral eyes, counter-rotating, on a black field
-      int tilt = _px(7.0f * dizzyAmt * sinf((float)now * (6.2832f / 800.0f)));
+      int tilt = animPx(7.0f * dizzyAmt * sinf((float)now * (ANIM_TAU / 800.0f)));
       // The normal eye shrinks away as the spiral winds in, so entering and
       // leaving dizzy is a morph rather than a swap.
       // Threshold above _faceEye's closed-lid cutoff (h<=10 draws a fixed
       // 8px bar): a shrinking eye must vanish, not collapse into a lid, or
       // the spiral ends up with a stripe through it.
-      int fadeH = _px(eyeHL * (1.0f - dizzyAmt));
+      int fadeH = animPx(eyeHL * (1.0f - dizzyAmt));
       if (fadeH > 11) {
         _faceEye(cx - eyeDX, eyeY + tilt, eyeW, fadeH, eyeR, accent);
         _faceEye(cx + eyeDX, eyeY - tilt, eyeW, fadeH, eyeR, accent);
@@ -672,21 +657,21 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
       // The arch IS the closed lid with a rise on it, so the transition is
       // the lid easing shut plus the rise growing. Hearts were a separate
       // drawing that had to be cut to; this one arrives.
-      int openH = _px(eyeHL * (1.0f - happyAmt));
+      int openH = animPx(eyeHL * (1.0f - happyAmt));
       if (openH > 11) {          // same closed-lid cutoff as above
         _faceEye(cx - eyeDX + gazeI, eyeY, eyeW, openH, eyeR, accent);
         _faceEye(cx + eyeDX + gazeI, eyeY, eyeW, openH, eyeR, accent);
       }
       if (happyAmt > 0.02f) {
-        int w = _px(eyeW * (0.86f + 0.14f * happyAmt) * (1.0f + sq * 0.22f));
+        int w = animPx(eyeW * (0.86f + 0.14f * happyAmt) * (1.0f + sq * 0.22f));
         float rise = 26.0f * happyAmt * (1.0f - sq * 0.30f);
-        int thick = _px(5.0f + 2.0f * happyAmt);
-        _faceEyeArch(cx - eyeDX + gazeI, eyeY + _px(rise * 0.5f), w, rise, thick, accent);
-        _faceEyeArch(cx + eyeDX + gazeI, eyeY + _px(rise * 0.5f), w, rise, thick, accent);
+        int thick = animPx(5.0f + 2.0f * happyAmt);
+        _faceEyeArch(cx - eyeDX + gazeI, eyeY + animPx(rise * 0.5f), w, rise, thick, accent);
+        _faceEyeArch(cx + eyeDX + gazeI, eyeY + animPx(rise * 0.5f), w, rise, thick, accent);
       }
       break;
     }
-    default: {  // idle — open eyes, blinks, glances, soft smile
+    default: {  // idle — open eyes, blinks, glances
       _faceEye(cx - eyeDX + gazeI, eyeY + tiltL, eyeW, eyeHL, eyeR, accent);
       _faceEye(cx + eyeDX + gazeI, eyeY + tiltR, eyeW, eyeHR, eyeR, accent);
       break;

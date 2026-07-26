@@ -24,7 +24,7 @@
 // interruption presents as rest.
 //
 //   never adopted           PAIR-ME  loud, in-universe, asks to be adopted
-//   adopted, link down      NAP      quiet, honest, with a dream glyph
+//   adopted, link down      NAP      quiet, honest, with a link glyph
 //   adopted, link up, no data  NAP    same; the glance card carries the tell
 //
 // All three signals are local to the device. No wire change.
@@ -82,11 +82,6 @@ inline bool presenceGraced(uint32_t now) {
   return _presLinkLostAt != 0 && (now - _presLinkLostAt) < PRESENCE_GRACE_MS;
 }
 
-// ms since the link went away, 0 if it's up.
-inline uint32_t presenceLinkDownMs(uint32_t now) {
-  return _presLinkLostAt == 0 ? 0 : (now - _presLinkLostAt);
-}
-
 // Someone pressed a button or touched the glass on an unadopted device:
 // bloom the instruction loudly for a few seconds, then settle back.
 inline void presenceEngaged(uint32_t now) {
@@ -122,8 +117,11 @@ inline void presencePairText(char* out, size_t n, const char* btName, uint32_t n
 inline void presenceDrawLinkGlyph(BuddyCanvas& spr, uint32_t now, uint16_t tint) {
   const int S = HAL_UI_SCALE;
   int cx = HAL_W / 2;
-  int cy = HAL_H - 13 * S;
+  // Genuinely the corner readouts' baseline, not an approximation of it —
+  // this used to be a hand-picked 13*S against their 9*S, so the glyph sat
+  // 8px below the text its own comment said it lined up with.
+  int cy = HAL_H - CORNER_SAFE_Y - 3 * S;
   // Slow fade in and out, ~5s cycle, never fully gone.
-  float a = 0.72f + 0.28f * (0.5f + 0.5f * sinf((float)now * (6.2831853f / 5000.0f)));
-  glanceBtGlyph(spr, cx, cy, 5 * S, _moodMix(BLACK, tint, 0.95f * a), true);
+  float a = 0.72f + 0.28f * animPulse01(now, 5000.0f);
+  glanceBtGlyph(spr, cx, cy, 5 * S, animMix(BLACK, tint, 0.95f * a), true);
 }

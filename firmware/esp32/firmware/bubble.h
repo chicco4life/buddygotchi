@@ -12,8 +12,8 @@
 //
 //   the CARD    the approval request (PEBBLE-UX §7) — a rounded panel that
 //               rises from the bottom edge while the field is lantern-lit
-//   the BUBBLE  short-lived speech ("yes!", "okay", a gift summary, the
-//               dangle readout) — small, centred, auto-expiring
+//   the BUBBLE  short-lived speech ("yes!", "okay", a gift summary) —
+//               small, centred, auto-expiring
 //
 // The card is drawn as ink on the lantern field rather than as a filled
 // panel. The field IS its background (§2.1), so a fill here would punch a
@@ -68,13 +68,10 @@ inline void cardTick(uint32_t now, float dt, bool wanted) {
     _cardSpring.step(1.0f, 3.6f, 0.68f, dt);
   } else if (_cardPop > 0.0f) {
     _cardPop = animEase(_cardPop, 0.0f, 16.0f, dt);
-    _cardSpring.pos = animEase(_cardSpring.pos, 0.0f, 20.0f, dt);
-    _cardSpring.vel = 0.0f;
-    if (_cardSpring.pos < 0.01f) { _cardSpring.pos = 0.0f; _cardPop = 0.0f; }
+    _cardSpring.retract(20.0f, dt, 0.01f);
+    if (_cardSpring.pos == 0.0f) _cardPop = 0.0f;
   } else {
-    _cardSpring.pos = animEase(_cardSpring.pos, 0.0f, 12.0f, dt);
-    _cardSpring.vel = 0.0f;
-    if (_cardSpring.pos < 0.004f) _cardSpring.pos = 0.0f;
+    _cardSpring.retract(12.0f, dt);
   }
   (void)now;
 }
@@ -110,8 +107,8 @@ inline void cardDraw(BuddyCanvas& spr, uint32_t now, const TamaState& s) {
   int top = H - animPx(cardH * cover);
 
   uint16_t bg  = moodBackdrop(now);
-  uint16_t ink = _moodMix(WHITE, MOOD_INK, moodInkBlend());
-  uint16_t dim = _moodMix(LIGHTGREY, MOOD_INK_DIM, moodInkBlend());
+  uint16_t ink = animMix(WHITE, MOOD_INK, moodInkBlend());
+  uint16_t dim = animMix(LIGHTGREY, MOOD_INK_DIM, moodInkBlend());
 
   // The rule, inset so cream shows outside it. Two nested rects give a
   // 2px stroke without an anti-aliased round-rect outline (LGFX has none).
@@ -180,7 +177,7 @@ inline void dangleSummaryDraw(BuddyCanvas& spr, uint32_t now, bool active, float
   const int S = HAL_UI_SCALE;
   // Muted rather than bright: this is a caption, not an announcement.
   uint16_t bg = moodBackdrop(now);
-  uint16_t c  = _moodMix(bg, moodIsInk() ? MOOD_INK_DIM : animRGB(182, 182, 173),
+  uint16_t c  = animMix(bg, moodIsInk() ? MOOD_INK_DIM : animRGB(182, 182, 173),
                          _dangleTextGain);
 
   // Only say a thing when there is a thing to say. "0 tasks - 0 waiting" is
@@ -220,16 +217,13 @@ inline void bubbleShow(const char* text, uint32_t now, uint32_t ms, uint16_t tin
   _bubTint = tint;
 }
 
-inline void bubbleClear() { _bubUntil = 0; }
-inline bool bubbleActive() { return _bubText[0] && _bubSpring.pos > 0.01f; }
 
 inline void bubbleTick(uint32_t now, float dt) {
   bool up = _bubText[0] && (int32_t)(_bubUntil - now) > 0;
   if (up) _bubSpring.step(1.0f, 4.4f, 0.6f, dt);
   else {
-    _bubSpring.pos = animEase(_bubSpring.pos, 0.0f, 14.0f, dt);
-    _bubSpring.vel = 0.0f;
-    if (_bubSpring.pos < 0.01f) { _bubSpring.pos = 0.0f; _bubText[0] = 0; }
+    _bubSpring.retract(14.0f, dt, 0.01f);
+    if (_bubSpring.pos == 0.0f) _bubText[0] = 0;
   }
 }
 
@@ -246,9 +240,9 @@ inline void bubbleDraw(BuddyCanvas& spr, uint32_t now, int liftY) {
   int bh = animPx(20 * S * g);
   if (bw < 8 || bh < 6) return;
   int cx = HAL_W / 2;
-  // Below the mouth, not over it. The face never leaves the screen and it
-  // must stay readable while it's talking — a bubble centred on the mouth
-  // reads as the buddy being covered up rather than speaking.
+  // Low on the panel, clear of the eyes. The face never leaves the screen
+  // and must stay readable while it's talking — speech centred over the
+  // face reads as the buddy being covered up rather than speaking.
   int by = HAL_H - 44 * S - liftY;
 
   uint16_t fill = moodIsInk() ? MOOD_INK : BLACK;

@@ -204,10 +204,15 @@ void halUpdate() {
   }
   if ((int32_t)(now - nextPoll) < 0) return;
   nextPoll = now + 30;
+  // One transaction, not two. 0x02..0x06 are contiguous (status byte then
+  // TOUCH1 XH/XL/YH/YL), so the coordinate read that used to follow this
+  // one is folded in: it halves bus time while a finger is down, which is
+  // exactly the petting path. It also brings the coordinate cost INSIDE the
+  // measurement window below — as a separate read it was invisible to
+  // _tpAvgUs/_tpMaxUs, so the touch-poll telemetry under-reported itself.
+  uint8_t tp[5];
   uint32_t t0 = micros();
-  Wire.beginTransmission(TP_ADDR);
-  Wire.write(0x02);
-  bool ok = Wire.endTransmission(true) == 0 && Wire.requestFrom(TP_ADDR, 1) == 1;
+  bool ok = _i2cReadRegs(TP_ADDR, 0x02, tp, sizeof(tp));
   uint32_t cost = micros() - t0;
   _tpAvgUs += (int32_t)(cost - _tpAvgUs) >> 3;
   if (cost > _tpMaxUs) _tpMaxUs = cost;
@@ -222,23 +227,18 @@ void halUpdate() {
     return;
   }
   fails = 0;
-  uint8_t n = Wire.read() & 0x0F;
+  uint8_t n = tp[0] & 0x0F;
   _touchDown = (n > 0 && n <= 5);
   if (_touchDown) {
-    // Contact point, FocalTech standard map: 0x03..0x06 are TOUCH1
-    // XH/XL/YH/YL, with the high nibble of each H byte carrying the top 4
-    // coordinate bits (the top two bits of XH are an event flag).
-    // Read separately from the status byte so a coordinate read that fails
-    // only costs us the gaze target, not the contact itself.
-    uint8_t p[4];
-    if (_i2cReadRegs(TP_ADDR, 0x03, p, 4)) {
-      int rawX = ((p[0] & 0x0F) << 8) | p[1];
-      int rawY = ((p[2] & 0x0F) << 8) | p[3];
-      if (rawX >= 0 && rawX < PANEL_W && rawY >= 0 && rawY < PANEL_H) {
-        _touchRawX = rawX;
-        _touchRawY = rawY;
-        _touchHavePoint = true;
-      }
+    // FocalTech standard map: tp[1..4] are TOUCH1 XH/XL/YH/YL, with the
+    // high nibble of each H byte carrying the top 4 coordinate bits (the
+    // top two bits of XH are an event flag).
+    int rawX = ((tp[1] & 0x0F) << 8) | tp[2];
+    int rawY = ((tp[3] & 0x0F) << 8) | tp[4];
+    if (rawX >= 0 && rawX < PANEL_W && rawY >= 0 && rawY < PANEL_H) {
+      _touchRawX = rawX;
+      _touchRawY = rawY;
+      _touchHavePoint = true;
     }
   } else {
     _touchHavePoint = false;

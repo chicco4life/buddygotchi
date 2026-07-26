@@ -85,8 +85,6 @@ static bool  _moodFading = false;
 static const int MOOD_CX = HAL_W / 2;
 static const int MOOD_CY = 100;
 
-inline MoodKind moodTarget() { return _moodTarget; }
-
 inline const char* moodName() {
   // Report what's on glass, not what was asked for — a mood mid-bloom is
   // the interesting case for both HIL and debugging.
@@ -185,34 +183,22 @@ inline void moodTick(uint32_t now, float dt) {
   (void)now;
 }
 
-// RGB565 channel-wise blend. Cheap enough per-frame (a handful of calls);
-// the per-pixel work stays inside LGFX's fills.
-static inline uint16_t _moodMix(uint16_t a, uint16_t b, float t) {
-  t = animClamp(t, 0.0f, 1.0f);
-  int ar = (a >> 11) & 0x1F, ag = (a >> 5) & 0x3F, ab = a & 0x1F;
-  int br = (b >> 11) & 0x1F, bg = (b >> 5) & 0x3F, bb = b & 0x1F;
-  int r = ar + (int)((br - ar) * t + 0.5f);
-  int g = ag + (int)((bg - ag) * t + 0.5f);
-  int bl = ab + (int)((bb - ab) * t + 0.5f);
-  return (uint16_t)((r << 11) | (g << 5) | bl);
-}
-
 // The lit field's colour this frame: lantern warmed toward HOT by
 // escalation, then decayed back toward ember if it's gone unanswered for
 // two minutes, then scaled by level (night-aware peak + fade) and
 // modulated by the luminance breath.
 inline uint16_t moodFieldColor(uint32_t now) {
-  uint16_t c = _moodMix(FIELD_LANTERN, FIELD_LANTERN_HOT, _moodHot);
+  uint16_t c = animMix(FIELD_LANTERN, FIELD_LANTERN_HOT, _moodHot);
   // Breath: +-6%, 4s at rest, quickening to 1.2s when hot. Field MOTION is
   // detected peripherally even better than hue, which is why escalation
   // spends its budget here rather than on a counter.
   float periodMs = 4000.0f - 2800.0f * _moodHot;
-  float breath = 1.0f + 0.06f * sinf((float)now * (6.2831853f / periodMs));
+  float breath = 0.94f + 0.12f * animPulse01(now, periodMs);
   // The long-unanswered decay dims the field rather than recolouring it:
   // with Ember gone there is nowhere warm to decay TO, and dimming is what
   // the rule was actually for.
   float lvl = _moodLevel * breath * (1.0f - 0.65f * _moodDecay);
-  return _moodMix(BLACK, c, animClamp(lvl, 0.0f, 1.0f));
+  return animMix(BLACK, c, animClamp(lvl, 0.0f, 1.0f));
 }
 
 // Paint the field for this frame. Replaces the face renderer's old
@@ -220,20 +206,23 @@ inline uint16_t moodFieldColor(uint32_t now) {
 // down. Nothing snaps (doctrine #6): a mood change is always a front
 // expanding, a level fading, or a slow crossfade.
 inline void moodDrawField(BuddyCanvas& spr, uint32_t now) {
-  spr.fillSprite(BLACK);
-
-  if (_moodLevel <= 0.01f || _moodReach <= 0.001f) return;
-
-  uint16_t field = moodFieldColor(now);
+  // One clear, not two. This used to fillSprite(BLACK) unconditionally and
+  // then fillSprite(field) over the top whenever the bloom had reached the
+  // corners — i.e. for the whole time an approval is on screen, the single
+  // most latency-sensitive state in the product, it painted all 127KB of
+  // the PSRAM canvas twice per frame.
+  bool lit = (_moodLevel > 0.01f && _moodReach > 0.001f);
+  uint16_t field = lit ? moodFieldColor(now) : BLACK;
+  spr.fillSprite((lit && _moodReach >= 0.995f) ? field : BLACK);
+  if (!lit) return;
   // Furthest screen corner from the bloom centre — the front has to pass it
   // before the field counts as full.
   static const float MAX_R = sqrtf((float)(MOOD_CX * MOOD_CX) +
                                    (float)((HAL_H - MOOD_CY) * (HAL_H - MOOD_CY))) + 8.0f;
-  if (_moodReach >= 0.995f) {
-    spr.fillSprite(field);
-  } else {
-    // The light front expands from behind the face outward past the screen
-    // corners — a lamp warming, not a fade-in.
+  if (_moodReach < 0.995f) {
+    // Mid-bloom: the light front expands from behind the face outward past
+    // the screen corners — a lamp warming, not a fade-in. (At full reach
+    // the fillSprite above already laid the field down.)
     spr.fillSmoothCircle(MOOD_CX, MOOD_CY, animPx(_moodReach * MAX_R), field);
   }
 
@@ -243,7 +232,7 @@ inline void moodDrawField(BuddyCanvas& spr, uint32_t now) {
     int w = 6 + animPx(10.0f * (1.0f - _moodRipple));
     if (r > w) {
       spr.fillArc(MOOD_CX, MOOD_CY, r - w, r, 0, 360,
-                  _moodMix(field, MOOD_RIPPLE, 1.0f - _moodRipple * 0.6f));
+                  animMix(field, MOOD_RIPPLE, 1.0f - _moodRipple * 0.6f));
     }
   }
 
@@ -251,9 +240,9 @@ inline void moodDrawField(BuddyCanvas& spr, uint32_t now) {
   // prompt is still pending and the device stays honest about it without
   // lighting the whole room.
   if (_moodDecay > 0.3f) {
-    float pulse = 0.5f + 0.5f * sinf((float)now * (6.2831853f / 2200.0f));
+    float pulse = animPulse01(now, 2200.0f);
     spr.fillRect(0, 0, HAL_W, 3 * HAL_UI_SCALE,
-                 _moodMix(field, FIELD_LANTERN_HOT, pulse * _moodDecay));
+                 animMix(field, FIELD_LANTERN_HOT, pulse * _moodDecay));
   }
 }
 
@@ -268,15 +257,10 @@ inline uint16_t moodBackdrop(uint32_t now) {
   return moodFieldColor(now);
 }
 
-// What colour the face draws in. Under a lit field it crossfades to warm
-// near-black ink; under ember it wears the dim red heartbeat; otherwise
-// it keeps its species glow.
+// What colour the face draws in: it crossfades toward warm near-black ink
+// as the field lights up, and otherwise keeps its species glow.
 inline uint16_t moodFaceColor(uint16_t accent) {
-  return _moodMix(accent, MOOD_INK, _moodInk);
-}
-
-inline uint16_t moodDimColor(uint16_t accent) {
-  return _moodMix(_moodMix(accent, animRGB(146, 146, 173), 0.5f), MOOD_INK_DIM, _moodInk);
+  return animMix(accent, MOOD_INK, _moodInk);
 }
 
 // Stroke weight for the face (§2.1.2). Light shapes on dark fields
@@ -285,16 +269,3 @@ inline uint16_t moodDimColor(uint16_t accent) {
 // it thins by ~10% as the field lights up.
 inline float moodStrokeWeight() { return 1.0f - 0.10f * _moodInk; }
 
-// How much the halo should show. It is the ambient channel *within* Night,
-// and yields to the field when the mood changes — during a bloom the halo
-// fades out as the light front passes it, so the two never fight for the
-// same pixels.
-inline float moodHaloGain() {
-  // Gate on LEVEL, not reach*level. During a snuff the front contracts
-  // (reach -> 0) while the field is still bright, so a reach-based gain
-  // brings the halo back mid-animation and you get a dark ring sitting on
-  // top of the collapsing light — caught on hardware, looked like a bug.
-  // Level stays high until the very last of the snuff, which is exactly
-  // when the halo should return.
-  return animClamp(1.0f - _moodLevel, 0.0f, 1.0f);
-}

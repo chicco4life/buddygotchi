@@ -87,7 +87,7 @@ const uint32_t BTN_A_DEEPSLEEP_MS = 4000;
 // long enough that a glance never opens the menu by accident.
 const uint32_t BTN_M_LONG_MS = 500;
 // How far the face rides up to present the glance card (§6) — enough to
-// clear the mouth above the card's top edge without shoving the eyes off.
+// keep the eyes clear of the card's top edge.
 const int FACE_GLANCE_LIFT = 30;
 const uint32_t BOOP_REACT_MS = 2500;
 // A boop wakes the buddy PROPERLY, not for a single blink: it stays awake
@@ -523,8 +523,8 @@ void drawPasskey() {
     uint32_t nowMs = millis();
     moodDrawField(spr, nowMs);
     bg = moodBackdrop(nowMs);
-    primary = _moodMix(p.text, MOOD_INK, moodInkBlend());
-    secondary = _moodMix(p.textDim, MOOD_INK_DIM, moodInkBlend());
+    primary = animMix(p.text, MOOD_INK, moodInkBlend());
+    secondary = animMix(p.textDim, MOOD_INK_DIM, moodInkBlend());
   } else {
     spr.fillSprite(p.bg);
   }
@@ -570,27 +570,6 @@ static bool readBtn(HalButton b) {
   updateSyntheticPresses();
   if (synth[b].active) return true;
   return halButtonDown(b);
-}
-
-// Two-row text with a word-aware break: split at the last space within
-// reach of the row width instead of mid-word. Rows are capped at cpl
-// chars; anything past two rows is dropped.
-static void drawWrapped2(const char* s, int x, int y1, int y2, int cpl) {
-  int len = (int)strlen(s);
-  if (len <= cpl) {
-    spr.setCursor(x, y1);
-    spr.print(s);
-    return;
-  }
-  int brk = cpl;
-  for (int i = cpl; i > cpl - 12 && i > 0; i--) {
-    if (s[i] == ' ') { brk = i; break; }
-  }
-  spr.setCursor(x, y1);
-  spr.printf("%.*s", brk, s);
-  const char* rest = s + brk + (s[brk] == ' ' ? 1 : 0);
-  spr.setCursor(x, y2);
-  spr.printf("%.*s", cpl, rest);
 }
 
 // Emit the permission decision for the current prompt. Shared by the
@@ -1847,7 +1826,7 @@ void loop() {
           spr.printf("%.*s", CPL, tool);
           if (tama.promptHint[0]) {
             spr.setTextColor(p.textDim, p.bg);
-            drawWrapped2(tama.promptHint, 4, y + 24, y + 36, CPL);
+            _cardWrap(spr, tama.promptHint, 4, y + 24, y + 36, CPL);
           }
           if (!tama.connected) {
             spr.setTextColor(HOT, p.bg);
