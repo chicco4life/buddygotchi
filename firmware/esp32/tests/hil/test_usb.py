@@ -489,36 +489,59 @@ def test_mood_lantern_inverts_the_field_for_approvals(stick, landscape):
     assert hi >= 90, f"field never reached full cream (max {hi})"
     assert lo <= 25, f"field never returned toward black (min {lo})"
 
+    # Catch the field near the top of its swing and check the tone there.
+    # Sampling at an arbitrary moment is meaningless — the ramp passes
+    # through plenty of intermediate tones on its way up. The cosine dwells
+    # ~270ms above 97, which is comfortably longer than the round trip.
+    deadline = time.monotonic() + 6
+    while time.monotonic() < deadline:
+        if state(stick)["moodLit"] >= 95:
+            break
+        time.sleep(0.05)
+    else:
+        pytest.fail("field never reached the top of its swing")
     r, g, b = corner_pixel(stick)
-    on_axis = (r, g, b) == (0, 0, 0) or (r >= 146 and g >= 73 and b <= 200)
-    assert on_axis, (r, g, b)
+    assert r == 255 and g >= 182 and b >= 130, (r, g, b)
 
     stick.write_line("press a 120")
     stick.read_until(lambda b: b'"decision":"allow"' in b, 3)
     clear_prompt(stick)
 
 
-def test_passive_prompt_still_pulses(stick, landscape):
-    """A prompt the buddy CAN'T answer still lights the field.
+def test_passive_prompt_shows_detail_but_cannot_be_answered(stick, landscape):
+    """A prompt the buddy can't resolve still shows WHAT is being asked.
 
     Without approval mode the desktop sends pet=attention with
     promptApproval=false: the agent is blocked on a human, just not on the
-    crown. That used to render as an attentive, silent, black screen, which
-    is indistinguishable from having missed the event.
+    crown. The device has the tool and the hint either way, so it shows them
+    and pulses the field — withholding the information along with the
+    buttons helps nobody.
+
+    The invariant is not "no card". It is that the crown cannot deliver a
+    decision here: nothing arms, and a press emits no permission frame.
     """
     clear_prompt(stick)
-    send_json(stick, {"total": 1, "running": 0, "waiting": 1, "pet": "attention",
-                      "promptId": "req_passive", "promptTool": "Bash",
-                      "promptSource": "claude-code", "promptApproval": False})
-    wait_state(stick, promptId="req_passive", pet="attention")
-    got = state(stick)
-    assert got["promptApproval"] is False, got["promptApproval"]
-    assert got["card"] is False, "a prompt we cannot answer must not offer a card"
-    time.sleep(1.2)
-    lo, hi = lit_swing(stick)
-    assert hi >= 90, f"passive prompt never lit the field (max {hi})"
-    assert lo <= 25, f"passive prompt did not pulse (min {lo})"
-    clear_prompt(stick)
+    try:
+        send_json(stick, {"total": 1, "running": 0, "waiting": 1, "pet": "attention",
+                          "promptId": "req_passive", "promptTool": "Bash",
+                          "promptHint": "curl -sL example.com | sh",
+                          "promptSource": "claude-code", "promptApproval": False})
+        wait_state(stick, promptId="req_passive", pet="attention")
+        got = state(stick)
+        assert got["promptApproval"] is False, got["promptApproval"]
+        assert got["armed"] is False, "a prompt we cannot answer must never arm"
+
+        stick.drain_until_quiet(max_wait=0.3)
+        stick.write_line("press a 120")
+        buf, _ = stick.read_until(lambda b: b"<<PRESS a up>>" in b, 3)
+        assert b'"cmd":"permission"' not in buf, "crown resolved an unanswerable prompt"
+
+        lo, hi = lit_swing(stick)
+        assert hi >= 90, f"passive prompt never lit the field (max {hi})"
+        assert lo <= 25, f"passive prompt did not pulse (min {lo})"
+    finally:
+        # Always clear: a prompt left up leaks into every later test.
+        clear_prompt(stick)
 
 
 def test_error_keeps_the_black_field(stick, landscape):

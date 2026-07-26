@@ -97,7 +97,15 @@ static void _cardWrap(BuddyCanvas& spr, const char* s, int x, int y1, int y2, in
   spr.printf("%.*s", cpl, rest);
 }
 
-inline void cardDraw(BuddyCanvas& spr, uint32_t now, const TamaState& s) {
+// `answerable` is whether the crown can actually resolve this. When it
+// can't (the desktop is running without approval mode, so the agent is
+// blocked on the Mac rather than on us) the card still shows WHAT is being
+// asked — the device has the tool and the hint either way, and withholding
+// them just to withhold the buttons helps nobody. Only the affordance
+// changes: no "no >" chip to press, and a line saying where the answer
+// actually has to happen.
+inline void cardDraw(BuddyCanvas& spr, uint32_t now, const TamaState& s,
+                     bool answerable) {
   float cover = cardCover();
   if (cover <= 0.01f) return;
 
@@ -148,13 +156,21 @@ inline void cardDraw(BuddyCanvas& spr, uint32_t now, const TamaState& s) {
     spr.print("link lost!");
   }
 
-  // The "no" chip sits over its physical button, so the hardware is the
-  // legend. There is deliberately no matching "yes" affordance: the crown
-  // is the affirmative verb everywhere in the product, and labelling it
-  // here would imply it isn't.
-  spr.setTextDatum(BR_DATUM);
-  spr.setTextColor(ink, bg);
-  spr.drawString("no >", W - CORNER_SAFE_X, H - CORNER_SAFE_Y);
+  if (answerable) {
+    // The "no" chip sits over its physical button, so the hardware is the
+    // legend. There is deliberately no matching "yes" affordance: the crown
+    // is the affirmative verb everywhere in the product, and labelling it
+    // here would imply it isn't.
+    spr.setTextDatum(BR_DATUM);
+    spr.setTextColor(ink, bg);
+    spr.drawString("no >", W - CORNER_SAFE_X, H - CORNER_SAFE_Y);
+  } else {
+    // No chip — there is no button to press. Say where to go instead, or
+    // the card reads as an unresponsive control.
+    spr.setTextDatum(BR_DATUM);
+    spr.setTextColor(dim, bg);
+    spr.drawString("answer on your mac", W - CORNER_SAFE_X, H - CORNER_SAFE_Y);
+  }
   spr.setTextDatum(TL_DATUM);
 }
 

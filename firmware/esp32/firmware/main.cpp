@@ -136,6 +136,12 @@ static bool lastDecisionApprove = false;
 static bool promptPending() {
   return tama.promptId[0] && tama.promptApproval && !responseSent;
 }
+// Any prompt worth SHOWING, whether or not we can answer it. promptPending
+// is the stricter question — "can the crown resolve this" — and still gates
+// arming, the decision path and the escalation.
+static bool promptVisible() {
+  return tama.promptId[0] && !responseSent;
+}
 static bool promptArmed(uint32_t now) {
   return promptPending() && (int32_t)(now - (promptArrivedMs + PROMPT_ARM_MS)) >= 0;
 }
@@ -1707,7 +1713,7 @@ void loop() {
     if (HAL_LANDSCAPE) {
       // Demanded-tier events take the screen, so a summoned card gets out
       // of the way instantly (§6) — no fade, it was never the priority.
-      if (promptPending() || otaActive() || blePasskey() ||
+      if (promptVisible() || otaActive() || blePasskey() ||
           (int32_t)(dizzyUntil - nowMs) > 0) {
         glanceClose();
       }
@@ -1718,7 +1724,7 @@ void loop() {
       if (pres == PRESENCE_PAIRME && !ritualActive()) drawState = P_IDLE;
 
       glanceTick(nowMs, dt);
-      cardTick(nowMs, dt, promptPending());
+      cardTick(nowMs, dt, promptVisible());
       bubbleTick(nowMs, dt);
       // Advance the ritual clock exactly once per frame — ritualProgress
       // ends the ritual when it reaches 1, so calling it twice would drop
@@ -1812,14 +1818,14 @@ void loop() {
       int y = H - HAL_HUD_H;   // HUD block: status + sessions + prompt lines
       const int CPL = (W - 8 * S) / (6 * S);   // chars per HUD row
       spr.setTextSize(S);
-      if (promptPending()) {
+      if (promptVisible()) {
         const char* tool = tama.promptTool[0] ? tama.promptTool : "approve?";
         if (HAL_LANDSCAPE) {
           // §7: a rounded panel of ink on the lantern field, drawn in
           // bubble.h. Everything about urgency is carried by the field
           // (warming, quickening breath) rather than by a counter.
-          cardDraw(spr, nowMs, tama);
-        } else {
+          cardDraw(spr, nowMs, tama, tama.promptApproval);
+        } else if (promptPending()) {
           // Portrait M5 keeps the original card verbatim — it has no mood
           // system, and it is the regression rig.
           spr.fillRect(0, y, W, H - y, p.bg);
@@ -1929,7 +1935,7 @@ void loop() {
         // distinguishes link-down sleep from commanded sleep or a
         // face-down nap, for whoever looks closely.
         presenceDrawLinkGlyph(spr, nowMs, buddySpeciesColor());
-      } else if (!promptPending() && !menuActive() && glanceCover() <= 0.01f) {
+      } else if (!promptVisible() && !menuActive() && glanceCover() <= 0.01f) {
         // Suppressed under anything that owns the bottom edge — the approval
         // card, the menu, and the glance card all cover this row.
         statusWordDraw(spr, nowMs, statusWordFor(activeState, faceRoused(nowMs)),
