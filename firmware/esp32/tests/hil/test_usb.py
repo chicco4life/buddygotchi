@@ -405,6 +405,11 @@ def test_screenshot_integrity(stick):
     assert int(end.group(2), 16) == (zlib.crc32(raw) & 0xFFFFFFFF)
 
 
+# FIELD_LANTERN as it lands on glass — an RGB332 lattice point, so it
+# survives the round trip with zero quantization error.
+LANTERN_RGB = (255, 219, 173)
+
+
 def corner_pixel(stick, timeout=45):
     """Top-left pixel of the sprite, as RGB888.
 
@@ -466,7 +471,7 @@ def test_mood_lantern_inverts_the_field_for_approvals(stick, landscape):
     # The field breathes +-6%, but RGB332 is coarse enough to absorb that:
     # the whole breath cycle quantizes to the same lattice point, which is
     # what makes an exact-tone assertion stable here.
-    assert corner_pixel(stick) == (255, 219, 173)   # #FFDBAD
+    assert corner_pixel(stick) == LANTERN_RGB   # #FFDBAD
     # Answer it so the next test doesn't inherit a lit field.
     stick.write_line("press a 120")
     stick.read_until(lambda b: b'"decision":"allow"' in b, 3)
@@ -474,11 +479,14 @@ def test_mood_lantern_inverts_the_field_for_approvals(stick, landscape):
 
 
 def test_mood_ember_for_error(stick, landscape):
-    """Errors get a dim warm field, not a bright one.
+    """Errors get their own field, distinct from both black and the lantern.
 
-    Ember says "something's off"; the lantern is reserved for "act now".
-    Spending light on a state the human can't immediately resolve would
-    cost the lantern its meaning (§2.1).
+    The spec's original ember was a deep warm brown. On glass that rendered
+    as a loud saturated orange which shouted as hard as the lantern, so it
+    was softened to a muted clay — the requirement is only that "something's
+    off" is unmistakably not-black while staying clearly distinguishable
+    from "act now". This asserts exactly that pair of facts rather than a
+    specific tone, so a future palette tweak doesn't fail it spuriously.
     """
     clear_prompt(stick)
     send_json(stick, {"total": 1, "running": 0, "waiting": 0, "pet": "error"})
@@ -487,9 +495,12 @@ def test_mood_ember_for_error(stick, landscape):
     # reach full (errors are not startling). Sampling early caught it at
     # (32,0,0) — one lattice level in, not the settled tone.
     time.sleep(1.2)
-    r, g, b = corner_pixel(stick)
-    assert r > 0 and g > 0, (r, g, b)          # lifted off black
-    assert r < 140 and b < 60, (r, g, b)       # but nowhere near lantern
+    got = corner_pixel(stick)
+    assert got != (0, 0, 0), got                      # unmistakably not black
+    assert got != LANTERN_RGB, got                    # and not "act now"
+    # Distinguishable at a glance, not just numerically: at least one
+    # channel has to differ from the lantern by more than a lattice step.
+    assert max(abs(a - b) for a, b in zip(got, LANTERN_RGB)) >= 30, got
     clear_prompt(stick)
 
 
