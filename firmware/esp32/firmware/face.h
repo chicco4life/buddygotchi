@@ -69,12 +69,11 @@ static FaceEyes _faceEyes() {
 // native panel pixels; the first native-res cut used a flat 2.0 and left the
 // face reading as a small mask on a large black field.
 static const float FACE_K = 3.10f;
-static const int   FACE_EYE_Y   = 108;   // eye centre line
+// Eye centre line. With no mouth the eyes ARE the composition, so they sit
+// centred in the panel above the bottom status strip rather than in the
+// upper third where the mouth used to balance them.
+static const int   FACE_EYE_Y   = 126;
 static const int   FACE_EYE_DX  = 106;   // eye separation from centre
-// Kept clear of the bottom status strip: the widest mouth (celebrate)
-// used to reach y=236 with the link glyph starting at ~244, which read
-// as the face resting on top of it.
-static const int   FACE_MOUTH_Y = 190;
 
 // Motion primitives live in anim.h now — every surface shares them so the
 // card, the field, and the face all ease with the same curve. Declared
@@ -473,14 +472,12 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
 
   // Boop reaction clock. BR_SHAKE is the only one that moves the whole head
   // rather than just the lids — a shake is a body motion, so it offsets the
-  // mouth with the eyes instead of sliding the gaze inside a still face.
+  // whole face instead of sliding the gaze inside a still one.
   float brShake = 0.0f;
-  bool  brYawn = false;
   if (boopActive && _boopReactAt != 0 && (now - _boopReactAt) < BOOP_REACT_LEN_MS) {
     float rp = (float)(now - _boopReactAt) / (float)BOOP_REACT_LEN_MS;
     float env = sinf(rp * 3.14159265f);
-    if (_boopReact == BR_SHAKE)      brShake = 13.0f * env * sinf(rp * 6.2831853f * 3.0f);
-    else if (_boopReact == BR_YAWN)  brYawn = rp > 0.25f && rp < 0.80f;
+    if (_boopReact == BR_SHAKE) brShake = 13.0f * env * sinf(rp * 6.2831853f * 3.0f);
   }
 
   // Drifting back to sleep. Runs on the IDLE face (main.cpp keeps the buddy
@@ -488,6 +485,9 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   // rather than the face cutting to a sleeping one.
   float dwGaze = 0.0f, dwNod = 0.0f;
   bool  dwYawn = false;
+  // With no mouth on the face, a yawn is entirely an eye gesture: the lids
+  // squeeze most of the way shut and open again.
+  if (opt.yawn) lidTargetL = lidTargetR = 0.24f;
   if (opt.drowse > 0.0f) {
     float d = animClamp(opt.drowse, 0.0f, 1.0f);
     float shut = 1.0f - d;                       // 1 awake -> 0 shut
@@ -534,10 +534,26 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
 
   // Slow continuous whole-face bob: life at a glance plus constant
   // micro-motion for the AMOLED. Sleep breathes slower and deeper.
-  float bobF = (persona == 0)
-      ? 5.0f * sinf((float)now * (6.2832f / 4500.0f))
-      : 4.0f * sinf((float)now * (6.2832f / 6000.0f));
-  int bob = _px(bobF);
+  //
+  // The PHASE is integrated rather than derived from `now`, and the
+  // amplitude and period are eased. Computing sin(now * 2pi/T) directly
+  // means changing T also teleports the phase, so falling asleep (T 6000 ->
+  // 4500, amp 4 -> 5) snapped the whole face vertically at the instant the
+  // persona flipped — the visible hitch between "closing eyes" and
+  // "asleep". Integrating dt keeps the wave continuous across the change.
+  static float bobPhase = 0.0f;
+  static float bobAmp = 4.0f;
+  static float bobPeriod = 6.0f;          // seconds
+  bobAmp = _easeToward(bobAmp, (persona == 0) ? 5.0f : 4.0f, 2.5f, dt);
+  bobPeriod = _easeToward(bobPeriod, (persona == 0) ? 4.5f : 6.0f, 2.5f, dt);
+  bobPhase += dt * 6.2831853f / bobPeriod;
+  if (bobPhase > 6.2831853f) bobPhase -= 6.2831853f;
+  int bob = _px(bobAmp * sinf(bobPhase));
+
+  // How asleep the face is, eased. The z's fade in with it instead of
+  // popping on at full brightness the moment the persona changes.
+  static float sleepy = 0.0f;
+  sleepy = _easeToward(sleepy, (persona == 0) ? 1.0f : 0.0f, 4.0f, dt);
 
   // Ring the squish spring down toward rest. Higher frequency than the
   // card springs — a squish is a quick physical wobble, not a slide.
@@ -551,8 +567,6 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   int eyeY = FACE_EYE_Y + bob + _px(lift) - opt.lift + _px(sq * 7.0f) + opt.dangleY
              + _px(busyNod) + _px(dwNod);
   int eyeDX = _px(FACE_EYE_DX * (1.0f + sq * 0.10f));
-  int mouthY = FACE_MOUTH_Y + bob - opt.lift + _px(sq * 4.0f) + opt.dangleY
-             + _px(busyNod) + _px(dwNod);
   int headX = _px(brShake);
   int gazeI = _px(gaze) + opt.dangleX + _px(miWiggle) + headX;
   // Head tilt as opposed vertical eye offsets: rotating the whole sprite
@@ -573,31 +587,26 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
 
   switch (persona) {
     case 0: {  // sleep — lids, drifting z's, and the boop reactions
-      _faceEye(cx - eyeDX + headX, eyeY, eyeW, eyeHL, eyeR, accent);
-      _faceEye(cx + eyeDX + headX, eyeY, eyeW, eyeHR, eyeR, accent);
-      if (brYawn) {
-        // The yawn reaction is the only one that needs a mouth; a
-        // sleeping face otherwise has none.
-        spr.fillSmoothRoundRect(cx + headX - 26, mouthY - 6, 52, 40, 19, accent);
-      } else if (_boopReact == BR_SQUINT && boopActive) {
-        // ...and the happy squint gets a little smile to sell it.
-        spr.fillArc(cx + headX, mouthY - 16, 28, 38, 30, 150, accent);
-      }
-      spr.setTextSize(2);
-      spr.setTextColor(accent, BG);
-      for (int i = 0; i < 3; i++) {
-        float ph = fmodf((float)now / 600.0f + i * 2.0f, 6.0f);
-        spr.setCursor(cx + 104 + i * 20 + _px(ph * 2.0f), eyeY - 36 - _px(ph * 8.0f));
-        spr.print(i == 1 ? "Z" : "z");
+      // gazeI, not headX: every other state draws with the full horizontal
+      // offset, so using a different one here snapped the eyes sideways
+      // whenever the gaze hadn't finished easing back to centre — which is
+      // exactly the case at the end of the look-away descent.
+      _faceEye(cx - eyeDX + gazeI, eyeY, eyeW, eyeHL, eyeR, accent);
+      _faceEye(cx + eyeDX + gazeI, eyeY, eyeW, eyeHR, eyeR, accent);
+      if (sleepy > 0.05f) {
+        spr.setTextSize(2);
+        spr.setTextColor(_moodMix(BG, accent, sleepy), BG);
+        for (int i = 0; i < 3; i++) {
+          float ph = fmodf((float)now / 600.0f + i * 2.0f, 6.0f);
+          spr.setCursor(cx + 104 + i * 20 + _px(ph * 2.0f), eyeY - 36 - _px(ph * 8.0f));
+          spr.print(i == 1 ? "Z" : "z");
+        }
       }
       break;
     }
     case 2: {  // busy — the thinking beats drive the eyes; no dots
       _faceEye(cx - eyeDX + gazeI, eyeY, eyeW, eyeHL, eyeR, accent);
       _faceEye(cx + eyeDX + gazeI, eyeY, eyeW, eyeHR, eyeR, accent);
-      // A small flat mouth, set slightly off-centre with the gaze — the
-      // face is concentrating, not talking.
-      spr.fillSmoothRoundRect(cx - 28 + gazeI / 2, mouthY, 56, 11, 5, accent);
       break;
     }
     case 3: {  // attention — wide eyes raised toward the boop button
@@ -606,22 +615,17 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
       // draws after the face, so it wins any overlap.
       _faceEye(cx - eyeDX, eyeY, eyeW, eyeHL, eyeR, accent);
       _faceEye(cx + eyeDX, eyeY, eyeW, eyeHR, eyeR, accent);
-      spr.fillArc(cx, mouthY, 14, 25, 0, 360, accent);   // small "o"
       break;
     }
     case 4: {  // celebrate — happy arcs and a big smile, nothing thrown
       _faceEyeHappy(cx - eyeDX, eyeY, accent);
       _faceEyeHappy(cx + eyeDX, eyeY, accent);
-      spr.fillArc(cx, mouthY - 20, 40, 54, 25, 155, accent);
       break;
     }
     case 5: {  // dizzy — X eyes, continuous wobble
       int tilt = _px(5.0f * sinf((float)now * (6.2832f / 800.0f)));
       _faceEyeX(cx - eyeDX, eyeY + tilt, accent);
       _faceEyeX(cx + eyeDX, eyeY - tilt, accent);
-      for (int i = 0; i < 4; i++) {
-        spr.fillRect(cx - 44 + i * 22, mouthY + ((i & 1) ? 7 : 0), 22, 7, accent);
-      }
       break;
     }
     case 6: {  // heart — heart eyes, blush, smile
@@ -630,7 +634,6 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
       // be the one place the gaze conspicuously fails to work.
       _faceEyeHeart(cx - eyeDX + gazeI, eyeY, PINK, 1.0f + sq * 0.22f, 1.0f - sq * 0.30f);
       _faceEyeHeart(cx + eyeDX + gazeI, eyeY, PINK, 1.0f + sq * 0.22f, 1.0f - sq * 0.30f);
-      spr.fillArc(cx, mouthY - 18, 34, 45, 25, 155, accent);
       spr.fillSmoothRoundRect(cx - eyeDX - 54 + gazeI, eyeY + 40, 32, 12, 6, PINK);
       spr.fillSmoothRoundRect(cx + eyeDX + 22 + gazeI, eyeY + 40, 32, 12, 6, PINK);
       break;
@@ -638,13 +641,6 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
     default: {  // idle — open eyes, blinks, glances, soft smile
       _faceEye(cx - eyeDX + gazeI, eyeY + tiltL, eyeW, eyeHL, eyeR, accent);
       _faceEye(cx + eyeDX + gazeI, eyeY + tiltR, eyeW, eyeHR, eyeR, accent);
-      if (opt.yawn || miYawn || dwYawn) {
-        // A soft filled shape, not a ring. The ring version read as a
-        // floating "O" sitting on the face rather than as an open mouth.
-        spr.fillSmoothRoundRect(cx - 26, mouthY - 6, 52, 40, 19, accent);
-      } else {
-        spr.fillArc(cx, mouthY - 18, 32, 43, 28, 152, accent);
-      }
       break;
     }
   }
