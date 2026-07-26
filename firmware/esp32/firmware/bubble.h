@@ -156,20 +156,38 @@ inline void cardDraw(BuddyCanvas& spr, uint32_t now, const TamaState& s,
     spr.print("link lost!");
   }
 
+  // Button legends live at the SCREEN edges, not inside the card, because
+  // they point at physical hardware: the crown is on the top edge and the
+  // reject button is at the lower right. Putting them where the buttons are
+  // is the whole idea — the device becomes its own legend.
+  //
+  // They also have to sit outside the card, which occupies the bottom 40%:
+  // the previous bottom-right label crowded the wrapped hint line.
   if (answerable) {
-    // The "no" chip sits over its physical button, so the hardware is the
-    // legend. There is deliberately no matching "yes" affordance: the crown
-    // is the affirmative verb everywhere in the product, and labelling it
-    // here would imply it isn't.
-    spr.setTextDatum(BR_DATUM);
+    spr.setTextDatum(TC_DATUM);
     spr.setTextColor(ink, bg);
-    spr.drawString("no >", W - CORNER_SAFE_X, H - CORNER_SAFE_Y);
-  } else {
-    // No chip — there is no button to press. Say where to go instead, or
-    // the card reads as an unresponsive control.
+    spr.drawString("boop to approve", W / 2, 9 * S);
+    // Up arrow above the words, aimed at the crown.
+    int ax = W / 2, ay = 3 * S;
+    spr.fillTriangle(ax, ay, ax - 5 * S, ay + 5 * S, ax + 5 * S, ay + 5 * S, ink);
+
+    // "reject" low and right, with an arrow aimed at its button — shallower
+    // than 45 degrees, because the button sits low on the right side rather
+    // than in the corner itself.
+    int rx = W - CORNER_SAFE_X - 11 * S;
+    int ry = H - CORNER_SAFE_Y - 5 * S;
     spr.setTextDatum(BR_DATUM);
+    spr.drawString("reject", rx, ry);
+    // Kept inside CORNER_SAFE_X: aimed at the corner, not drawn into it,
+    // where the rounded glass would shave the tip off.
+    int tx = W - CORNER_SAFE_X - 2 * S, ty = ry + 5 * S;
+    spr.fillTriangle(tx, ty, tx - 9 * S, ty - 4 * S, tx - 5 * S, ty - 9 * S, ink);
+  } else {
+    // Nothing to press. Say where the answer has to happen, up top where
+    // the approve legend would be, clear of the hint.
+    spr.setTextDatum(TC_DATUM);
     spr.setTextColor(dim, bg);
-    spr.drawString("answer on your mac", W - CORNER_SAFE_X, H - CORNER_SAFE_Y);
+    spr.drawString("answer on your mac", W / 2, 6 * S);
   }
   spr.setTextDatum(TL_DATUM);
 }
