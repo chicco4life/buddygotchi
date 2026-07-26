@@ -90,13 +90,6 @@ const uint32_t BTN_M_LONG_MS = 500;
 // keep the eyes clear of the card's top edge.
 const int FACE_GLANCE_LIFT = 30;
 const uint32_t BOOP_REACT_MS = 2500;
-// A boop wakes the buddy PROPERLY, not for a single blink: it stays awake
-// for this long after the last attention, then drifts back down. Being
-// poked and immediately re-shutting your eyes reads as a screensaver
-// dismissing an event; staying up for a few seconds reads as a creature
-// that noticed you.
-const uint32_t ROUSE_MS  = 5000;
-const uint32_t DROWSE_MS = 1600;   // the descent itself
 // A press only counts as an approval if it *started* after the prompt had
 // been on screen this long — otherwise a tickle already in flight could
 // approve a prompt the user never saw. The "btn a|b" debug shortcut and
@@ -135,11 +128,6 @@ static uint32_t touchContactMaxMs = 0;
 const uint32_t IDLE_DIM_MS = 300000;
 static uint8_t currentBrightness = 0xFF;
 static uint32_t boopUntil = 0;
-// Rouse/drowse (see ROUSE_MS). rousedUntil is refreshed by every boop and
-// every stroke; when it lapses, drowseUntil runs the chosen descent.
-static uint32_t rousedUntil = 0;
-static uint32_t drowseUntil = 0;
-static uint8_t  drowseKind = 0;
 static uint32_t lastInputMs = 0;      // last physical/synthetic button edge
 static bool lastDecisionApprove = false;
 
@@ -618,7 +606,7 @@ static void sendBoopUpstream() {
 // pressed outside of a pending approval, mirrored to the desktop pet.
 static void boopPet() {
   boopUntil = millis() + BOOP_REACT_MS;
-  rousedUntil = millis() + ROUSE_MS;
+  if (HAL_LANDSCAPE) faceRouse(millis());
   beep(1245, 60);
   buddyInvalidate();
   // Physical reaction to being booped (§10.1). The spring rings down on
@@ -855,7 +843,7 @@ static void __attribute__((noinline)) handleButtons() {
     // for the whole stroke, and keeps the desktop's affection window
     // refreshed. No chirp — the boop edge already played it.
     boopUntil = now + BOOP_REACT_MS;
-    rousedUntil = now + ROUSE_MS;   // sustained petting keeps it up
+    if (HAL_LANDSCAPE) faceRouse(now);   // sustained petting keeps it up
     lastInputMs = now;
     sendBoopUpstream();
   }
@@ -952,10 +940,8 @@ static void dumpState() {
   doc["ritual"] = ritualName();
   doc["microIdle"] = faceMicroIdleName();
   doc["boopReact"] = faceBoopReactName();
-  doc["roused"] = (int32_t)(rousedUntil - millis()) > 0;
-  doc["drowse"] = faceDrowseName(
-      ((int32_t)(rousedUntil - millis()) <= 0 &&
-       (int32_t)(drowseUntil - millis()) > 0) ? drowseKind : 0xFF);
+  doc["roused"] = faceRoused(millis());
+  doc["drowse"] = faceDrowseNow(millis());
   doc["presence"] = presenceName();
   doc["orbs"] = orbsAlive();
   doc["orbsOverflow"] = orbsOverflow();
@@ -1517,7 +1503,7 @@ void loop() {
   // exactly one gift.
   if (HAL_LANDSCAPE) {
     static char lastDone[40] = "";
-    if (strcmp(tama.pet, "celebrate") == 0 && strncmp(tama.msg, "Done", 4) == 0 &&
+    if (dataHasDoneSummary(tama) && strcmp(tama.pet, "celebrate") == 0 &&
         strcmp(tama.msg, lastDone) != 0) {
       strncpy(lastDone, tama.msg, sizeof(lastDone) - 1);
       lastDone[sizeof(lastDone) - 1] = 0;
@@ -1539,30 +1525,15 @@ void loop() {
     activeState = P_HEART;
   }
 
-  // Rouse / drowse. A booped buddy stays properly awake for ROUSE_MS, then
-  // takes DROWSE_MS to drift back down through one of several transitions
-  // (face.h owns which). The awake face is the IDLE one, so the descent
-  // closes the lids from wherever they actually were rather than the
-  // renderer cutting between two personas.
+  // Rouse / drowse (§10.1). face.h owns the timers, the descent choice and
+  // the progress curve; loop() only asks whether the buddy should render
+  // awake despite a sleeping heartbeat. That predicate used to be spelled
+  // out here, in the draw path and again in dumpState.
   if (HAL_LANDSCAPE && baseState == P_SLEEP) {
-    static bool wasRoused = false;
-    uint32_t nowR = millis();
-    bool roused = (int32_t)(rousedUntil - nowR) > 0;
-    if (roused) {
-      drowseUntil = rousedUntil + DROWSE_MS;
-    } else if (wasRoused) {
-      // Choose the descent EXACTLY ONCE, on the edge where the rouse
-      // lapses. Re-picking every frame while roused (the first cut) made
-      // the no-repeat rule compare against the value from one frame ago
-      // instead of the previous descent, so the same transition came up
-      // back to back — caught by sampling five wakes in a row.
-      drowseKind = facePickDrowse(nowR, drowseKind);
-    }
-    wasRoused = roused;
-    if (roused || (int32_t)(drowseUntil - nowR) > 0) activeState = P_IDLE;
+    faceRouseTick(millis());
+    if (faceAwake(millis())) activeState = P_IDLE;
   } else {
-    rousedUntil = 0;
-    drowseUntil = 0;
+    faceRouseClear();
   }
   // Link-loss grace (§9.1): derive() sleeps the moment data stops, but a
   // radio hiccup shouldn't be visible at all. For the first 10s the face
@@ -1750,11 +1721,8 @@ void loop() {
       fo.weight = moodStrokeWeight();
       fo.expectant = giftShown;
       fo.sinceInteractionMs = nowMs - lastInputMs;
-      // 0 while awake, ramping to 1 across the descent.
-      if ((int32_t)(rousedUntil - nowMs) <= 0 && (int32_t)(drowseUntil - nowMs) > 0) {
-        fo.drowse = 1.0f - (float)(drowseUntil - nowMs) / (float)DROWSE_MS;
-        fo.drowseKind = drowseKind;
-      }
+      fo.drowse = faceDrowse01(nowMs);
+      fo.drowseKind = faceDrowseKind();
       fo.scale = ritualStretchScale(rt);
       fo.yawn = ritualYawning(rt);
       // Gaze priority (§3.3): the finger on the glass outranks a newly
@@ -1764,8 +1732,12 @@ void loop() {
       if (touchPoint(&tx, &ty)) {
         fo.petting = true;
         fo.gazeBias = animClamp((float)(tx - W / 2) / (float)(W / 2), -1.0f, 1.0f);
+        fo.hasGazeTarget = true;
       } else {
+        // orbsGazeNudge returns 0 both for "no new session" and for "the
+        // new one is dead ahead", so it carries its own activation.
         fo.gazeBias = orbsGazeNudge(nowMs);
+        fo.hasGazeTarget = (fo.gazeBias != 0.0f);
       }
 
       // Dangle (§10.2): while held, the eyes swing with the accelerometer
@@ -1887,7 +1859,7 @@ void loop() {
         // Surface the "Done: …" completion summary on the bottom line during
         // celebrate/idle. Gated on the prefix so status chatter (e.g. "no
         // agents awake") doesn't wear the completion green.
-        if (strncmp(tama.msg, "Done", 4) == 0 &&
+        if (dataHasDoneSummary(tama) &&
             (strcmp(tama.pet, "celebrate") == 0 || strcmp(tama.pet, "idle") == 0)) {
           spr.setTextColor(GREEN, p.bg);
           spr.setCursor(4 * S, y + 36 * S);

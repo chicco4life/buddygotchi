@@ -98,16 +98,6 @@ inline void glanceBtGlyph(BuddyCanvas& spr, int x, int y, int h, uint16_t c, boo
   }
 }
 
-// Rough Li-ion state of charge from resting voltage. Deliberately coarse —
-// this board has no coulomb counter and the ADC is noisy, so a percentage
-// with one significant figure is the honest resolution.
-inline int glanceBatteryPct() {
-  int mv = halBatteryVoltage_mV();
-  if (mv <= 0) return -1;
-  int pct = (mv - 3300) * 100 / (4200 - 3300);
-  return pct < 0 ? 0 : (pct > 100 ? 100 : pct);
-}
-
 // Link state as a sentence. The resting screen never says "disconnected"
 // (that shows as behavior — §9.1); this is where the fact lives.
 //   linked               data flowing
@@ -202,7 +192,7 @@ inline void glanceDraw(BuddyCanvas& spr, uint32_t now, const TamaState& s,
     y += rowH;
 
     // Row 4 — battery.
-    int pct = glanceBatteryPct();
+    int pct = halBatteryPct();
     spr.setTextColor(DIM, BLACK);
     spr.setCursor(x, y);
     if (pct < 0) spr.print("battery: --");

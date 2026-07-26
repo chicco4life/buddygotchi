@@ -51,10 +51,8 @@ static void _otaAck(const char* what, bool ok, uint32_t n = 0, const char* err =
 // happened yet) but it does waste bandwidth and frustrate the user.
 static bool _otaBatteryOK() {
   if (halIsCharging()) return true;
-  int vBat = halBatteryVoltage_mV();
-  int pct = (vBat - 3200) / 10;
-  if (pct < 0) pct = 0;
-  if (pct > 100) pct = 100;
+  int pct = halBatteryPct();
+  if (pct < 0) pct = 0;          // unreadable ADC counts as empty, not full
   return pct >= 30;
 }
 

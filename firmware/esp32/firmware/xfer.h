@@ -115,8 +115,8 @@ inline bool xferCommand(JsonDocument& doc) {
     int vBat = halBatteryVoltage_mV();
     int iBat = halBatteryCurrent_mA();
     int vBus = halIsCharging() ? 5000 : 0;
-    int pct = (vBat - 3200) / 10;
-    if (pct < 0) pct = 0; if (pct > 100) pct = 100;
+    int pct = halBatteryPct();
+    if (pct < 0) pct = 0;
     char b[512];
     int len = snprintf(b, sizeof(b),
       "{\"ack\":\"status\",\"ok\":true,\"n\":0,\"data\":{"

@@ -92,14 +92,20 @@ static void _faceEyeHappy(int cx, int cy, uint16_t c) {
 // dizzy, so it keeps turning for as long as the state lasts.
 static void _faceEyeSpiral(int cx, int cy, float grow, float rot, uint16_t c) {
   if (grow <= 0.02f) return;
-  // Sample count is set by the OUTER arc length: at r=44 over 4.2 turns,
-  // 44 samples leave ~11px between dots against a ~7px dot, so the stroke
-  // reads as a dotted line rather than a spiral. 104 closes the gap.
-  const int N = 104;
+  // Sampled uniformly in ARC LENGTH, not in angle. An Archimedean spiral's
+  // radius grows with t, so a uniform-t sweep bunches samples near the
+  // centre (the innermost were spaced well under a pixel and just redrew
+  // the same disc) and spreads them at the rim, where the gaps actually
+  // show. Because arc length grows as t^2, t = TURNS*sqrt(u) spaces the
+  // dots evenly. Total arc is ~290px, so N sets the gap directly: 52 gives
+  // 5.6px against an 8px dot and the stroke visibly scallops; 68 gives
+  // 4.3px and reads smooth, still a third fewer fills than the uniform-t
+  // 104 it replaces.
+  const int N = 68;
   const float TURNS = 4.2f * 3.14159265f;
   int thick = animPx(2.5f + 1.5f * grow);
   for (int i = 0; i <= N; i++) {
-    float t = TURNS * (float)i / (float)N;
+    float t = TURNS * sqrtf((float)i / (float)N);
     float r = 44.0f * grow * (t / TURNS);
     spr.fillSmoothCircle(cx + animPx(cosf(t + rot) * r), cy + animPx(sinf(t + rot) * r),
                          thick, c);
@@ -113,6 +119,10 @@ static void _faceEyeSpiral(int cx, int cy, float grow, float rot, uint16_t c) {
 // the same way waking from sleep does, instead of cutting between two
 // different eye drawings.
 static void _faceEyeArch(int cx, int cy, int w, float rise, int thick, uint16_t c) {
+  // 16, not fewer. Sampling is uniform in X but the parabola's arc length
+  // exceeds its chord, so the dots spread out toward the ends where the
+  // curve is steepest — dropping to 8 left the arch visibly beaded. At 34
+  // fills a frame this is not worth trading appearance for.
   const int N = 16;
   for (int i = 0; i <= N; i++) {
     float u = (float)i / (float)N * 2.0f - 1.0f;      // -1..1
@@ -121,6 +131,47 @@ static void _faceEyeArch(int cx, int cy, int w, float rise, int thick, uint16_t 
                          thick, c);
   }
 }
+
+// Exclusive expression channels — the lids and the horizontal gaze — resolve
+// by DECLARED RANK rather than by which line happens to run last.
+//
+// Both used to be plain locals assigned from a dozen places, so "which
+// expression outranks which" lived entirely in statement order. Every new
+// channel then had to hand-code guards restating its neighbours' business
+// (`persona != 0 && persona != 3`, `opt.drowse <= 0.0f`, `!= 0.0f` used as
+// an activation test), and one channel had already been silently dead for
+// it: a `case 2` busy-focus lid value that every busy beat overwrote.
+//
+// A bid keeps the winner explicit. Adding an expression now means choosing
+// its rank, not finding the right line to sit on.
+struct FaceBid {
+  float value = 0.0f;
+  int   rank = -1;
+  void bid(int r, float v) { if (r >= rank) { rank = r; value = v; } }
+  float get(float fallback) const { return rank >= 0 ? value : fallback; }
+};
+
+// Low to high. Blink beats a micro-idle (you can blink mid-yawn) but loses
+// to the drift back to sleep, which owns the lids all the way down.
+enum FaceLidRank : int {
+  LR_BASE = 0,   // the persona's own resting lids
+  LR_PET,        // a finger on the glass
+  LR_BUSY,       // working beats
+  LR_MICRO,      // micro-idles
+  LR_YAWN,       // the morning stretch's yawn
+  LR_BLINK,      // ordinary blinking
+  LR_DROWSE      // falling asleep
+};
+
+// Low to high. A finger outranks anything ambient; the descent outranks
+// even that, because the eyes are closing.
+enum FaceGazeRank : int {
+  GR_DRIFT = 0,  // ambient idle glancing
+  GR_BUSY,       // saccades / sweeps
+  GR_MICRO,      // orb-chase, look-at-you
+  GR_TOUCH,      // finger on the glass, or a newly spawned session
+  GR_DROWSE      // the look-away descent
+};
 
 // How the face should render this frame. The face no longer owns the
 // background — mood.h paints the field first (§2.1) and the face draws on
@@ -136,6 +187,9 @@ struct FaceOpts {
   // ambient glance drift, because the buddy noticing something specific is
   // more legible than the buddy looking around.
   float    gazeBias = 0.0f;
+  // Whether gazeBias means anything this frame. Without it, "look dead
+  // centre" and "nothing to look at" are the same value.
+  bool     hasGazeTarget = false;
   // A finger is resting on the glass. The eyes settle into a contented
   // half-blink rather than staying wide — being petted should look like
   // being petted, not like being startled.
@@ -188,11 +242,59 @@ inline const char* faceDrowseName(uint8_t k) {
   }
 }
 
-// Same no-immediate-repeat rule as the boop reactions, for the same reason.
-inline uint8_t facePickDrowse(uint32_t now, uint8_t prev) {
-  uint8_t pick = (uint8_t)(animHash(now ^ 0x51EED0u) % DK_COUNT);
-  if (pick == prev) pick = (uint8_t)((pick + 1u) % DK_COUNT);
-  return pick;
+// A boop wakes the buddy PROPERLY, not for a single blink: it stays awake
+// for this long after the last attention, then drifts back down. Being
+// poked and immediately re-shutting your eyes reads as a screensaver
+// dismissing an event; staying up for a few seconds reads as a creature
+// that noticed you.
+static const uint32_t FACE_ROUSE_MS  = 5000;
+static const uint32_t FACE_DROWSE_MS = 1600;   // the descent itself
+
+static uint32_t _rousedUntil = 0;
+static uint32_t _drowseUntil = 0;
+static uint8_t  _drowseKind = 0;
+
+// Any affection: restart the clock.
+inline void faceRouse(uint32_t now) {
+  _rousedUntil = now + FACE_ROUSE_MS;
+  _drowseUntil = _rousedUntil + FACE_DROWSE_MS;
+}
+
+inline void faceRouseClear() { _rousedUntil = 0; _drowseUntil = 0; }
+inline bool faceRoused(uint32_t now) { return (int32_t)(_rousedUntil - now) > 0; }
+
+// Advance the descent. Called once per frame while the buddy would
+// otherwise be asleep; picks how it goes down on the edge where the rouse
+// lapses — exactly once, so the no-immediate-repeat rule compares against
+// the PREVIOUS DESCENT rather than against the previous frame.
+inline void faceRouseTick(uint32_t now) {
+  static bool wasRoused = false;
+  bool roused = faceRoused(now);
+  if (!roused && wasRoused) {
+    uint8_t pick = (uint8_t)(animHash(now ^ 0x51EED0u) % DK_COUNT);
+    if (pick == _drowseKind) pick = (uint8_t)((pick + 1u) % DK_COUNT);
+    _drowseKind = pick;
+  }
+  wasRoused = roused;
+}
+
+// True while the buddy should render awake despite a sleeping heartbeat —
+// covers both the rouse and the descent that follows it.
+inline bool faceAwake(uint32_t now) {
+  return faceRoused(now) || (int32_t)(_drowseUntil - now) > 0;
+}
+
+// 0 while awake, ramping to 1 across the descent.
+inline float faceDrowse01(uint32_t now) {
+  if (faceRoused(now) || (int32_t)(_drowseUntil - now) <= 0) return 0.0f;
+  return 1.0f - (float)(_drowseUntil - now) / (float)FACE_DROWSE_MS;
+}
+
+inline uint8_t faceDrowseKind() { return _drowseKind; }
+
+// The descent currently running, or "none". For `state`.
+inline const char* faceDrowseNow(uint32_t now) {
+  return faceDrowse01(now) > 0.0f ? faceDrowseName(_drowseKind) : "none";
 }
 
 // --- Micro-idles (§12) -----------------------------------------------------
@@ -297,8 +399,29 @@ inline void faceForceBoopReact(uint8_t kind, uint32_t now) {
   _boopReactAt = now;
 }
 
-inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
-                     const FaceOpts& opt) {
+// Everything the draw half of the face needs, and nothing else.
+//
+// faceTick had grown to ~380 lines in which a dozen independent expression
+// channels all funnelled into a handful of shared locals, and the draw
+// switch at the bottom silently depended on whichever of them happened to
+// be in scope. Naming that contract is the point: the compute half now has
+// to say what it produces, and the draw half cannot reach for anything it
+// wasn't given.
+struct FacePose {
+  uint8_t  persona = 1;
+  uint32_t now = 0;
+  int      cx = 0, eyeY = 0, eyeDX = 0, gazeI = 0;
+  int      eyeW = 0, eyeHL = 0, eyeHR = 0, eyeR = 0;
+  int      tiltL = 0, tiltR = 0;      // head tilt, as opposed eye offsets
+  uint16_t accent = 0, bg = 0;
+  float    sq = 0.0f;                 // boop squish, drives the arch scaling
+  float    sleepy = 0.0f;             // z fade-in
+  float    dizzyAmt = 0.0f, spiralRot = 0.0f;
+  float    happyAmt = 0.0f;
+};
+
+static void _faceComputePose(uint8_t persona, const char* activity, bool boopActive,
+                             const FaceOpts& opt, FacePose& P) {
   uint32_t now = millis();
   static uint32_t lastMs = 0;
   static uint32_t nextBlinkAt = 2800;
@@ -362,33 +485,35 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   // Per-state targets; easing morphs between them (state changes glide
   // in over ~100-200ms instead of popping). lift/boost/gaze are native
   // panel pixels.
-  float lidTargetL = 1.0f, lidTargetR = 1.0f;
+  FaceBid lidL_b, lidR_b;
   float liftTarget = 0.0f, boostTarget = 0.0f;
   switch (persona) {
-    case 0:   // sleep — a boop wakes it, differently each time
-      lidTargetL = 0.10f;
-      lidTargetR = 0.10f;
+    case 0: {  // sleep — a boop wakes it, differently each time
+      float l = 0.10f, r = 0.10f;
       if (boopActive) {
         switch (_boopReact) {
-          case BR_SHAKE:   lidTargetL = lidTargetR = 0.88f; break;
-          case BR_STARTLE:
-            lidTargetL = lidTargetR = 1.0f;
-            boostTarget = 12.0f;
-            break;
-          case BR_YAWN:    lidTargetL = lidTargetR = 0.52f; break;
-          case BR_SQUINT:  lidTargetL = lidTargetR = 0.34f; break;
-          default:         lidTargetR = 0.75f; break;   // BR_PEEK
+          case BR_SHAKE:   l = r = 0.88f; break;
+          case BR_STARTLE: l = r = 1.0f; boostTarget = 12.0f; break;
+          case BR_YAWN:    l = r = 0.52f; break;
+          case BR_SQUINT:  l = r = 0.34f; break;
+          default:         r = 0.75f; break;   // BR_PEEK cracks one eye
         }
       }
+      lidL_b.bid(LR_BASE, l);
+      lidR_b.bid(LR_BASE, r);
       break;
+    }
     case 3: liftTarget = -12.0f; boostTarget = 16.0f; break;    // attention
     default: break;
   }
   // Being petted settles the lids into a contented half-blink. Sleep keeps
   // its own peek behaviour, and attention must stay wide — a decision is
   // owed and the buddy is not relaxing about it (doctrine #12).
+  // The persona test is a real rule, not a priority artifact: sleep keeps
+  // its own peek and attention stays wide regardless of who is touching it.
   if (opt.petting && persona != 0 && persona != 3) {
-    lidTargetL = lidTargetR = 0.66f;
+    lidL_b.bid(LR_PET, 0.66f);
+    lidR_b.bid(LR_PET, 0.66f);
   }
   // Holding a gift out for you: eyes open a little wider and lift, the
   // face-first equivalent of raised brows. Deliberately small — the gold
@@ -426,29 +551,29 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
         int step = (int)(bp * 4.0f);
         busySaccade = -14.0f + (float)step * 9.0f;
         if (bp > 0.92f) busySaccade = -14.0f;
-        lidTargetL = lidTargetR = 0.82f - squint;
+        lidL_b.bid(LR_BUSY, 0.82f - squint); lidR_b.bid(LR_BUSY, 0.82f - squint);
         break;
       }
       case 1:     // pondering — drifts up and away, holds there
         busySaccade = -11.0f;
         busyNod = -7.0f;
-        lidTargetL = lidTargetR = 0.90f - squint;
+        lidL_b.bid(LR_BUSY, 0.90f - squint); lidR_b.bid(LR_BUSY, 0.90f - squint);
         break;
       case 2:     // focused — dead centre, narrowed, with a faint tremor
         busySaccade = 1.4f * sinf((float)now * (ANIM_TAU / 260.0f));
-        lidTargetL = lidTargetR = 0.44f - squint * 0.5f;
+        lidL_b.bid(LR_BUSY, 0.44f - squint * 0.5f); lidR_b.bid(LR_BUSY, 0.44f - squint * 0.5f);
         break;
       case 3: {   // checking — glances down, holds, comes back up
         float d = (bp < 0.25f) ? (bp / 0.25f)
                 : (bp < 0.70f) ? 1.0f
                 : (1.0f - (bp - 0.70f) / 0.30f);
         busyNod = 9.0f * animClamp(d, 0.0f, 1.0f);
-        lidTargetL = lidTargetR = 0.74f - squint;
+        lidL_b.bid(LR_BUSY, 0.74f - squint); lidR_b.bid(LR_BUSY, 0.74f - squint);
         break;
       }
       default:    // sweeping — one slow continuous pass across
         busySaccade = 13.0f * sinf(bp * ANIM_TAU);
-        lidTargetL = lidTargetR = 0.86f - squint;
+        lidL_b.bid(LR_BUSY, 0.86f - squint); lidR_b.bid(LR_BUSY, 0.86f - squint);
         break;
     }
   }
@@ -459,7 +584,7 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   bool  miYawn = false;
   if (_miKind == MI_YAWN) {
     miYawn = miT > 0.2f && miT < 0.8f;
-    if (miYawn) lidTargetL = lidTargetR = 0.30f;
+    if (miYawn) { lidL_b.bid(LR_MICRO, 0.30f); lidR_b.bid(LR_MICRO, 0.30f); }
   } else if (_miKind == MI_ORB_CHASE) {
     // Eyes follow something all the way around, once.
     miGaze = 17.0f * sinf(miT * ANIM_TAU);
@@ -468,7 +593,7 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   } else if (_miKind == MI_LOOK_AT_YOU) {
     // Dead centre, one slow deliberate blink. The stillness is the effect.
     miGaze = 0.0f;
-    if (miT > 0.45f && miT < 0.62f) lidTargetL = lidTargetR = 0.06f;
+    if (miT > 0.45f && miT < 0.62f) { lidL_b.bid(LR_MICRO, 0.06f); lidR_b.bid(LR_MICRO, 0.06f); }
   } else if (_miKind == MI_HEAD_TILT) {
     miTilt = miEnv;     // applied as opposed vertical eye offsets below
   }
@@ -490,7 +615,7 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   bool  dwYawn = false;
   // With no mouth on the face, a yawn is entirely an eye gesture: the lids
   // squeeze most of the way shut and open again.
-  if (opt.yawn) lidTargetL = lidTargetR = 0.24f;
+  if (opt.yawn) { lidL_b.bid(LR_YAWN, 0.24f); lidR_b.bid(LR_YAWN, 0.24f); }
   if (opt.drowse > 0.0f) {
     float d = animClamp(opt.drowse, 0.0f, 1.0f);
     float shut = 1.0f - d;                       // 1 awake -> 0 shut
@@ -511,18 +636,26 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
         break;                                   // DK_SLOW_BLINK: just shut
     }
     float target = 0.10f + 0.90f * animClamp(shut, 0.0f, 1.0f);
-    lidTargetL = lidTargetR = target;
+    lidL_b.bid(LR_DROWSE, target);
+    lidR_b.bid(LR_DROWSE, target);
   }
 
-  if (blinking && (persona == 1 || persona == 2) && opt.drowse <= 0.0f)
-    lidTargetL = lidTargetR = 0.08f;
-  float gazeTarget = (glancing && (persona == 1 || persona == 2)) ? glanceDir * 8.0f : 0.0f;
-  if (persona == 2) gazeTarget = busySaccade;
-  if (_miKind == MI_ORB_CHASE || _miKind == MI_LOOK_AT_YOU) gazeTarget = miGaze;
+  if (blinking && (persona == 1 || persona == 2)) {
+    lidL_b.bid(LR_BLINK, 0.08f);
+    lidR_b.bid(LR_BLINK, 0.08f);
+  }
+  float lidTargetL = lidL_b.get(1.0f);
+  float lidTargetR = lidR_b.get(1.0f);
+
+  FaceBid gaze_b;
+  if (glancing && (persona == 1 || persona == 2)) gaze_b.bid(GR_DRIFT, glanceDir * 8.0f);
+  if (persona == 2) gaze_b.bid(GR_BUSY, busySaccade);
+  if (_miKind == MI_ORB_CHASE || _miKind == MI_LOOK_AT_YOU) gaze_b.bid(GR_MICRO, miGaze);
   // An explicit target wins over the ambient drift, and reaches further —
   // a deliberate look should be visibly bigger than idle wandering.
-  if (opt.gazeBias != 0.0f) gazeTarget = opt.gazeBias * 18.0f;
-  if (dwGaze != 0.0f) gazeTarget = dwGaze;
+  if (opt.hasGazeTarget) gaze_b.bid(GR_TOUCH, opt.gazeBias * 18.0f);
+  if (opt.drowseKind == DK_LOOK_AWAY && opt.drowse > 0.0f) gaze_b.bid(GR_DROWSE, dwGaze);
+  float gazeTarget = gaze_b.get(0.0f);
 
   // Lids close fast, open slower — the asymmetry is what reads as alive.
   lidL = animEase(lidL, lidTargetL, lidTargetL < lidL ? 26.0f : 11.0f, dt);
@@ -595,30 +728,40 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   int eyeW = animPx((e.w * FACE_K + (boost > 2.0f ? 5.0f : 0.0f)) * wt * (1.0f + sq * 0.22f));
   int eyeR = animPx(e.r * FACE_K * wt);
 
-  // The field is already painted (moodDrawField) — the face draws onto it.
+  P.persona = persona;
+  P.now = now;
+  P.cx = cx;          P.eyeY = eyeY;    P.eyeDX = eyeDX;  P.gazeI = gazeI;
+  P.eyeW = eyeW;      P.eyeHL = eyeHL;  P.eyeHR = eyeHR;  P.eyeR = eyeR;
+  P.tiltL = tiltL;    P.tiltR = tiltR;
+  P.accent = accent;  P.bg = BG;
+  P.sq = sq;          P.sleepy = sleepy;
+  P.dizzyAmt = dizzyAmt;  P.spiralRot = spiralRot;  P.happyAmt = happyAmt;
+}
 
-  switch (persona) {
+// The field is already painted (moodDrawField) — the face draws onto it.
+static void _faceDrawPose(const FacePose& P) {
+  switch (P.persona) {
     case 0: {  // sleep — lids, drifting z's, and the boop reactions
-      // gazeI, not headX: every other state draws with the full horizontal
+      // P.gazeI, not headX: every other state draws with the full horizontal
       // offset, so using a different one here snapped the eyes sideways
       // whenever the gaze hadn't finished easing back to centre — which is
       // exactly the case at the end of the look-away descent.
-      _faceEye(cx - eyeDX + gazeI, eyeY, eyeW, eyeHL, eyeR, accent);
-      _faceEye(cx + eyeDX + gazeI, eyeY, eyeW, eyeHR, eyeR, accent);
-      if (sleepy > 0.05f) {
+      _faceEye(P.cx - P.eyeDX + P.gazeI, P.eyeY, P.eyeW, P.eyeHL, P.eyeR, P.accent);
+      _faceEye(P.cx + P.eyeDX + P.gazeI, P.eyeY, P.eyeW, P.eyeHR, P.eyeR, P.accent);
+      if (P.sleepy > 0.05f) {
         spr.setTextSize(2);
-        spr.setTextColor(animMix(BG, accent, sleepy), BG);
+        spr.setTextColor(animMix(P.bg, P.accent, P.sleepy), P.bg);
         for (int i = 0; i < 3; i++) {
-          float ph = fmodf((float)now / 600.0f + i * 2.0f, 6.0f);
-          spr.setCursor(cx + 104 + i * 20 + animPx(ph * 2.0f), eyeY - 36 - animPx(ph * 8.0f));
+          float ph = fmodf((float)P.now / 600.0f + i * 2.0f, 6.0f);
+          spr.setCursor(P.cx + 104 + i * 20 + animPx(ph * 2.0f), P.eyeY - 36 - animPx(ph * 8.0f));
           spr.print(i == 1 ? "Z" : "z");
         }
       }
       break;
     }
     case 2: {  // busy — the thinking beats drive the eyes; no dots
-      _faceEye(cx - eyeDX + gazeI, eyeY, eyeW, eyeHL, eyeR, accent);
-      _faceEye(cx + eyeDX + gazeI, eyeY, eyeW, eyeHR, eyeR, accent);
+      _faceEye(P.cx - P.eyeDX + P.gazeI, P.eyeY, P.eyeW, P.eyeHL, P.eyeR, P.accent);
+      _faceEye(P.cx + P.eyeDX + P.gazeI, P.eyeY, P.eyeW, P.eyeHR, P.eyeR, P.accent);
       break;
     }
     case 3: {  // attention — wide eyes raised toward the boop button
@@ -626,55 +769,63 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
       // asked for. The approval card rises from the BOTTOM edge (§7), so
       // there is nothing above to collide with — the old comment here
       // still described a top band that only the M5 portrait path draws.
-      _faceEye(cx - eyeDX, eyeY, eyeW, eyeHL, eyeR, accent);
-      _faceEye(cx + eyeDX, eyeY, eyeW, eyeHR, eyeR, accent);
+      _faceEye(P.cx - P.eyeDX, P.eyeY, P.eyeW, P.eyeHL, P.eyeR, P.accent);
+      _faceEye(P.cx + P.eyeDX, P.eyeY, P.eyeW, P.eyeHR, P.eyeR, P.accent);
       break;
     }
     case 4: {  // celebrate — happy arc eyes, nothing thrown
-      _faceEyeHappy(cx - eyeDX, eyeY, accent);
-      _faceEyeHappy(cx + eyeDX, eyeY, accent);
+      _faceEyeHappy(P.cx - P.eyeDX, P.eyeY, P.accent);
+      _faceEyeHappy(P.cx + P.eyeDX, P.eyeY, P.accent);
       break;
     }
     case 5: {  // dizzy — spiral eyes, counter-rotating, on a black field
-      int tilt = animPx(7.0f * dizzyAmt * sinf((float)now * (ANIM_TAU / 800.0f)));
+      int tilt = animPx(7.0f * P.dizzyAmt * sinf((float)P.now * (ANIM_TAU / 800.0f)));
       // The normal eye shrinks away as the spiral winds in, so entering and
       // leaving dizzy is a morph rather than a swap.
       // Threshold above _faceEye's closed-lid cutoff (h<=10 draws a fixed
       // 8px bar): a shrinking eye must vanish, not collapse into a lid, or
       // the spiral ends up with a stripe through it.
-      int fadeH = animPx(eyeHL * (1.0f - dizzyAmt));
+      int fadeH = animPx(P.eyeHL * (1.0f - P.dizzyAmt));
       if (fadeH > 11) {
-        _faceEye(cx - eyeDX, eyeY + tilt, eyeW, fadeH, eyeR, accent);
-        _faceEye(cx + eyeDX, eyeY - tilt, eyeW, fadeH, eyeR, accent);
+        _faceEye(P.cx - P.eyeDX, P.eyeY + tilt, P.eyeW, fadeH, P.eyeR, P.accent);
+        _faceEye(P.cx + P.eyeDX, P.eyeY - tilt, P.eyeW, fadeH, P.eyeR, P.accent);
       }
       // Opposite spin per eye: same-direction spirals read as a pattern,
       // counter-rotating ones read as not being able to focus.
-      _faceEyeSpiral(cx - eyeDX, eyeY + tilt, dizzyAmt,  spiralRot, accent);
-      _faceEyeSpiral(cx + eyeDX, eyeY - tilt, dizzyAmt, -spiralRot, accent);
+      _faceEyeSpiral(P.cx - P.eyeDX, P.eyeY + tilt, P.dizzyAmt,  P.spiralRot, P.accent);
+      _faceEyeSpiral(P.cx + P.eyeDX, P.eyeY - tilt, P.dizzyAmt, -P.spiralRot, P.accent);
       break;
     }
     case 6: {  // affection — a happy "^ ^", morphed in from the open eye
       // The arch IS the closed lid with a rise on it, so the transition is
       // the lid easing shut plus the rise growing. Hearts were a separate
       // drawing that had to be cut to; this one arrives.
-      int openH = animPx(eyeHL * (1.0f - happyAmt));
+      int openH = animPx(P.eyeHL * (1.0f - P.happyAmt));
       if (openH > 11) {          // same closed-lid cutoff as above
-        _faceEye(cx - eyeDX + gazeI, eyeY, eyeW, openH, eyeR, accent);
-        _faceEye(cx + eyeDX + gazeI, eyeY, eyeW, openH, eyeR, accent);
+        _faceEye(P.cx - P.eyeDX + P.gazeI, P.eyeY, P.eyeW, openH, P.eyeR, P.accent);
+        _faceEye(P.cx + P.eyeDX + P.gazeI, P.eyeY, P.eyeW, openH, P.eyeR, P.accent);
       }
-      if (happyAmt > 0.02f) {
-        int w = animPx(eyeW * (0.86f + 0.14f * happyAmt) * (1.0f + sq * 0.22f));
-        float rise = 26.0f * happyAmt * (1.0f - sq * 0.30f);
-        int thick = animPx(5.0f + 2.0f * happyAmt);
-        _faceEyeArch(cx - eyeDX + gazeI, eyeY + animPx(rise * 0.5f), w, rise, thick, accent);
-        _faceEyeArch(cx + eyeDX + gazeI, eyeY + animPx(rise * 0.5f), w, rise, thick, accent);
+      if (P.happyAmt > 0.02f) {
+        int w = animPx(P.eyeW * (0.86f + 0.14f * P.happyAmt) * (1.0f + P.sq * 0.22f));
+        float rise = 26.0f * P.happyAmt * (1.0f - P.sq * 0.30f);
+        int thick = animPx(5.0f + 2.0f * P.happyAmt);
+        _faceEyeArch(P.cx - P.eyeDX + P.gazeI, P.eyeY + animPx(rise * 0.5f), w, rise, thick, P.accent);
+        _faceEyeArch(P.cx + P.eyeDX + P.gazeI, P.eyeY + animPx(rise * 0.5f), w, rise, thick, P.accent);
       }
       break;
     }
     default: {  // idle — open eyes, blinks, glances
-      _faceEye(cx - eyeDX + gazeI, eyeY + tiltL, eyeW, eyeHL, eyeR, accent);
-      _faceEye(cx + eyeDX + gazeI, eyeY + tiltR, eyeW, eyeHR, eyeR, accent);
+      _faceEye(P.cx - P.eyeDX + P.gazeI, P.eyeY + P.tiltL, P.eyeW, P.eyeHL, P.eyeR, P.accent);
+      _faceEye(P.cx + P.eyeDX + P.gazeI, P.eyeY + P.tiltR, P.eyeW, P.eyeHR, P.eyeR, P.accent);
       break;
     }
   }
+}
+
+// Compute this frame's pose, then draw it.
+inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
+                     const FaceOpts& opt) {
+  FacePose P;
+  _faceComputePose(persona, activity, boopActive, opt, P);
+  _faceDrawPose(P);
 }

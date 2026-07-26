@@ -65,6 +65,20 @@ inline bool dataConnected() {
 // loud (link loss shows as a nap — PEBBLE-UX §9.1).
 inline uint32_t dataLastLiveMs() { return _lastLiveMs; }
 
+// Is msg a completion summary rather than status chatter? Knowing that the
+// bridge marks completions with a "Done" prefix is wire-format knowledge,
+// which is data.h's job — loop() and the portrait HUD were each matching
+// the string themselves.
+//
+// Deliberately only the PREFIX test. Callers pair it with their own pet
+// gate, because they are asking different questions: arming a gift keys on
+// the celebrate *transition*, while the HUD line lingers through idle too.
+// Folding both into one predicate quietly let a plain idle heartbeat arm a
+// gift.
+inline bool dataHasDoneSummary(const TamaState& s) {
+  return strncmp(s.msg, "Done", 4) == 0;
+}
+
 inline bool dataBtActive() {
   // Desktop's idle keepalive is ~10s; give it 1.5x headroom.
   return _lastBtByteMs != 0 && (millis() - _lastBtByteMs) <= 15000;

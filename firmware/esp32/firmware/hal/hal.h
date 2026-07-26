@@ -152,6 +152,24 @@ bool halImuRead(float* ax, float* ay, float* az);
 void halDeepSleep(uint32_t timerWakeMs);
 
 int  halBatteryVoltage_mV();
+
+// Rough Li-ion state of charge from resting voltage, 0..100, or -1 if the
+// ADC gave nothing. Deliberately coarse — neither board has a coulomb
+// counter and the S3's ADC is noisy, so one significant figure is the
+// honest resolution.
+//
+// ONE curve for the whole firmware. The glance card, the OTA "safe to
+// flash" gate and the desktop status payload each carried their own, and
+// two of them disagreed about where empty is. This keeps the established
+// 3.2V-empty curve that the OTA gate has been shipping with rather than
+// the newer 3.3V one, so a safety threshold doesn't move as a side effect
+// of tidying a readout.
+inline int halBatteryPct() {
+  int mv = halBatteryVoltage_mV();
+  if (mv <= 0) return -1;
+  int pct = (mv - 3200) / 10;          // 3.2V empty, 4.2V full
+  return pct < 0 ? 0 : (pct > 100 ? 100 : pct);
+}
 int  halBatteryCurrent_mA();        // 0 where unmeasurable (WS has no coulomb counter)
 // WS has no charge-status GPIO: heuristic (vbat at charger CV level). The
 // OTA gate wants "safe to flash", and USB-present is what it really asks.
