@@ -680,16 +680,23 @@ static void goodNight(uint32_t timerWakeMs) {
 // HIL proves the ladder arms even when the hold began on a dark screen.
 static bool boopLongHandled = false;
 
-// One word for the bottom strip. Attention deliberately has none: the
-// approval card owns the bottom edge then, and the lantern field has already
-// said far more loudly than a caption could that a decision is owed.
+// One word for the bottom strip.
+//
+// Attention appears here ONLY in the passive case. The caller gates this
+// whole branch on !promptPending(), so when the buddy can actually answer,
+// the card owns the bottom edge and the lantern has already said it far
+// louder than a caption could. When the desktop is running WITHOUT approval
+// mode, though, a permission request still arrives as pet=attention with
+// promptApproval=false — the agent is waiting on the Mac, not on the crown.
+// That used to render as an attentive but completely silent face, which
+// reads as the device having missed the event entirely.
 static const char* statusWordFor(PersonaState st, bool roused) {
   switch (st) {
     case P_SLEEP:     return roused ? "awake" : "sleeping";
     case P_BUSY:      return "working";
     case P_CELEBRATE: return "all done";
     case P_DIZZY:     return "dizzy";
-    case P_ATTENTION: return "";
+    case P_ATTENTION: return "needs you";
     case P_HEART:     return "";     // the face is saying it
     default:          return "awake";
   }
