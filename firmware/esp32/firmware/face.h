@@ -112,6 +112,28 @@ static void _faceEyeSpiral(int cx, int cy, float grow, float rot, uint16_t c) {
   }
 }
 
+// A furrowed brow: one short angled stroke above an eye, inner end dragged
+// down. Only ever drawn while actually furrowing — the face has no brows at
+// rest, so this appears with the effort and leaves with it rather than being
+// a permanent feature that flattens.
+//
+// `side` is the direction from the OUTER end toward the inner one in x: +1
+// for the left eye, -1 for the right. Same overlapping-dots stroke as the
+// arch and the spiral, so it inherits their anti-aliasing.
+static void _faceBrow(int cx, int cy, int w, int side, float amt, uint16_t c) {
+  if (amt <= 0.02f) return;
+  // 13 samples across ~63px is ~5px apart against a dot up to 10px wide, so
+  // the stroke is solid. At 7 it came out visibly beaded.
+  const int N = 13;
+  int thick = animPx(3.0f + 2.0f * amt);
+  float drop = 16.0f * amt;
+  for (int i = 0; i <= N; i++) {
+    float u = (float)i / (float)N;                 // 0 = outer, 1 = inner
+    spr.fillSmoothCircle(cx + side * animPx((u - 0.5f) * (float)w),
+                         cy + animPx(u * drop), thick, c);
+  }
+}
+
 // The happy "^" eye. A parabolic arch drawn as overlapping dots, where
 // `rise` is the whole morph: 0 is a flat closed lid, and raising it arches
 // the same stroke upward. That means going happy is just the existing lid
@@ -422,6 +444,7 @@ struct FacePose {
   // swell-and-slide. sweatSide picks which temple it runs down.
   float    sweat01 = 0.0f;
   int      sweatSide = 1;
+  float    brow = 0.0f;               // 0..1 furrow, eased
 };
 
 static void _faceComputePose(uint8_t persona, const char* activity, bool boopActive,
@@ -526,6 +549,12 @@ static void _faceComputePose(uint8_t persona, const char* activity, bool boopAct
     liftTarget -= 4.0f;
     boostTarget += 5.0f;
   }
+  // The brow furrows on the beats that are meant to be hard and relaxes on
+  // the ones that aren't, eased so it never snaps. Held slightly while a
+  // bead is out, so the two tells reinforce rather than fight.
+  static float brow = 0.0f;
+  float browTarget = 0.0f;
+
   // Busy theater (§11). Five working beats on a ~2.8s clock.
   //
   // The first cut varied mostly LID HEIGHT between beats, which is exactly
@@ -564,12 +593,14 @@ static void _faceComputePose(uint8_t persona, const char* activity, bool boopAct
         lidL_b.bid(LR_BUSY, 0.90f - squint); lidR_b.bid(LR_BUSY, 0.90f - squint);
         break;
       case 2:     // focused — dead centre, narrowed, with a strained tremor
+        browTarget = 1.0f;
         // Faster and slightly wider than a drift: at this frequency it
         // reads as effort rather than as wandering.
         busySaccade = 2.1f * sinf((float)now * (ANIM_TAU / 190.0f));
         lidL_b.bid(LR_BUSY, 0.44f - squint * 0.5f); lidR_b.bid(LR_BUSY, 0.44f - squint * 0.5f);
         break;
       case 3: {   // checking — glances down, holds, comes back up
+        browTarget = 0.6f;
         float d = (bp < 0.25f) ? (bp / 0.25f)
                 : (bp < 0.70f) ? 1.0f
                 : (1.0f - (bp - 0.70f) / 0.30f);
@@ -604,6 +635,9 @@ static void _faceComputePose(uint8_t persona, const char* activity, bool boopAct
       sweatSide = ((now / SWEAT_CYCLE) & 1) ? 1 : -1;
     }
   }
+  if (sweat01 > 0.0f && browTarget < 0.55f) browTarget = 0.55f;
+
+  brow = animEase(brow, (persona == 2) ? browTarget : 0.0f, 4.0f, dt);
 
   // Micro-idle effects. Each is small and each is over in under two
   // seconds; the point is that you catch them out of the corner of an eye.
@@ -764,6 +798,7 @@ static void _faceComputePose(uint8_t persona, const char* activity, bool boopAct
   P.sq = sq;          P.sleepy = sleepy;
   P.dizzyAmt = dizzyAmt;  P.spiralRot = spiralRot;  P.happyAmt = happyAmt;
   P.sweat01 = sweat01;    P.sweatSide = sweatSide;
+  P.brow = brow;
 }
 
 // The field is already painted (moodDrawField) — the face draws onto it.
@@ -790,6 +825,14 @@ static void _faceDrawPose(const FacePose& P) {
     case 2: {  // busy — the thinking beats drive the eyes; no dots
       _faceEye(P.cx - P.eyeDX + P.gazeI, P.eyeY, P.eyeW, P.eyeHL, P.eyeR, P.accent);
       _faceEye(P.cx + P.eyeDX + P.gazeI, P.eyeY, P.eyeW, P.eyeHR, P.eyeR, P.accent);
+      if (P.brow > 0.02f) {
+        // Sits clear of the eye: during the focused beat the lids are a flat
+        // squint, and a brow tight against them reads as one thick shape.
+        int browY = P.eyeY - P.eyeHL / 2 - animPx(28.0f - 5.0f * P.brow);
+        int bw = animPx(P.eyeW * 0.92f);
+        _faceBrow(P.cx - P.eyeDX + P.gazeI, browY, bw, +1, P.brow, P.accent);
+        _faceBrow(P.cx + P.eyeDX + P.gazeI, browY, bw, -1, P.brow, P.accent);
+      }
       if (P.sweat01 > 0.0f) {
         // Swells at the temple for the first third, then runs down and
         // shrinks out. Teardrop-shaped (bead plus a point) because a plain
@@ -797,9 +840,9 @@ static void _faceDrawPose(const FacePose& P) {
         float t = P.sweat01;
         float grow  = t < 0.30f ? (t / 0.30f) : 1.0f;
         float slide = t < 0.30f ? 0.0f : (t - 0.30f) / 0.70f;
-        int r = animPx((3.0f + 4.5f * grow) * (1.0f - slide * 0.55f));
+        int r = animPx((3.4f + 5.2f * grow) * (1.0f - slide * 0.55f));
         if (r > 0) {
-          int bx = P.cx + P.sweatSide * (P.eyeDX + P.eyeW / 2 + 14);
+          int bx = P.cx + P.sweatSide * (P.eyeDX + P.eyeW / 2 + 21);
           int by = P.eyeY - P.eyeHL / 2 + animPx(slide * 58.0f);
           spr.fillSmoothCircle(bx, by, r, P.accent);
           if (r >= 3) {

@@ -167,6 +167,13 @@ inline void cardDraw(BuddyCanvas& spr, uint32_t now, const TamaState& s) {
 // panel across the middle of it is chrome competing with the pet. Two short
 // facts pinned to the bottom corners answer the question ("what's going
 // on?") without taking the screen away from the thing you picked up.
+// The bottom strip's text colour. Muted: it is a caption, not an
+// announcement, and unlike the dangle readout the state word is always up.
+static inline uint16_t _stripInk(uint32_t now) {
+  return animMix(moodBackdrop(now),
+                 moodIsInk() ? MOOD_INK_DIM : animRGB(182, 182, 173), 0.82f);
+}
+
 static float _dangleTextGain = 0.0f;
 
 inline void dangleSummaryDraw(BuddyCanvas& spr, uint32_t now, bool active, float dt,
@@ -177,8 +184,7 @@ inline void dangleSummaryDraw(BuddyCanvas& spr, uint32_t now, bool active, float
   const int S = HAL_UI_SCALE;
   // Muted rather than bright: this is a caption, not an announcement.
   uint16_t bg = moodBackdrop(now);
-  uint16_t c  = animMix(bg, moodIsInk() ? MOOD_INK_DIM : animRGB(182, 182, 173),
-                         _dangleTextGain);
+  uint16_t c  = animMix(bg, _stripInk(now), _dangleTextGain);
 
   // Only say a thing when there is a thing to say. "0 tasks - 0 waiting" is
   // noise pretending to be information: it takes up the strip, reads as a
@@ -197,6 +203,40 @@ inline void dangleSummaryDraw(BuddyCanvas& spr, uint32_t now, bool active, float
     snprintf(r, sizeof(r), "%u waiting", (unsigned)waiting);
     spr.setTextDatum(BR_DATUM);
     spr.drawString(r, HAL_W - CORNER_SAFE_X, HAL_H - CORNER_SAFE_Y);
+  }
+  spr.setTextDatum(TL_DATUM);
+}
+
+// ---------------------------------------------------------------------------
+// State word
+// ---------------------------------------------------------------------------
+
+// One quiet word at the bottom centre saying what the buddy is doing.
+//
+// This shares its slot with the link glyph (presence.h), which outranks it —
+// and that costs nothing, because a buddy with no link cannot be "working"
+// anyway. The word sits on the same baseline as the corner readouts, so the
+// whole strip reads as one line of status.
+//
+// `dots` animates a trailing ellipsis. They are drawn to the RIGHT of the
+// centred word rather than appended to it: appending would re-centre the
+// string every time a dot appeared, so the word itself would jiggle.
+inline void statusWordDraw(BuddyCanvas& spr, uint32_t now, const char* word, bool dots) {
+  if (!word || !word[0]) return;
+  const int S = HAL_UI_SCALE;
+  const int y = HAL_H - CORNER_SAFE_Y;
+  uint16_t bg = moodBackdrop(now);
+  spr.setTextSize(S);
+  spr.setTextColor(_stripInk(now), bg);
+  spr.setTextDatum(BC_DATUM);
+  spr.drawString(word, HAL_W / 2, y);
+  if (dots) {
+    char d[4] = "...";
+    d[(now / 420) % 4] = 0;
+    if (d[0]) {
+      spr.setTextDatum(BL_DATUM);
+      spr.drawString(d, HAL_W / 2 + (int)strlen(word) * 3 * S + 2 * S, y);
+    }
   }
   spr.setTextDatum(TL_DATUM);
 }

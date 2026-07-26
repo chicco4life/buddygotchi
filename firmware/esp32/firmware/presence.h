@@ -123,5 +123,5 @@ inline void presenceDrawLinkGlyph(BuddyCanvas& spr, uint32_t now, uint16_t tint)
   int cy = HAL_H - CORNER_SAFE_Y - 3 * S;
   // Slow fade in and out, ~5s cycle, never fully gone.
   float a = 0.72f + 0.28f * animPulse01(now, 5000.0f);
-  glanceBtGlyph(spr, cx, cy, 5 * S, animMix(BLACK, tint, 0.95f * a), true);
+  glanceBtGlyph(spr, cx, cy, 7 * S, animMix(BLACK, tint, 0.95f * a), true);
 }

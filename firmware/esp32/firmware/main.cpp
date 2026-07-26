@@ -680,6 +680,21 @@ static void goodNight(uint32_t timerWakeMs) {
 // HIL proves the ladder arms even when the hold began on a dark screen.
 static bool boopLongHandled = false;
 
+// One word for the bottom strip. Attention deliberately has none: the
+// approval card owns the bottom edge then, and the lantern field has already
+// said far more loudly than a caption could that a decision is owed.
+static const char* statusWordFor(PersonaState st, bool roused) {
+  switch (st) {
+    case P_SLEEP:     return roused ? "awake" : "sleeping";
+    case P_BUSY:      return "working";
+    case P_CELEBRATE: return "all done";
+    case P_DIZZY:     return "dizzy";
+    case P_ATTENTION: return "";
+    case P_HEART:     return "";     // the face is saying it
+    default:          return "awake";
+  }
+}
+
 static void __attribute__((noinline)) handleButtons() {
   static bool prevBoop = false, prevRej = false, prevMenu = false;
   static uint32_t boopDownAt = 0;
@@ -1877,6 +1892,8 @@ void loop() {
         bubbleShow(line, nowMs, 400, PAIRME_BLUE);
       } else if (pres2 == PRESENCE_NAP && !presenceGraced(nowMs) &&
                  !promptPending() && !menuActive()) {
+        // The link glyph outranks the state word below and shares its slot.
+        // Nothing is lost: a buddy with no link cannot be working.
         // Not gated on the sleeping face: booping a link-down buddy wakes
         // it, and "why isn't it doing anything?" is exactly the moment you
         // want the answer. Hiding the tell the instant someone engages had
@@ -1885,6 +1902,11 @@ void loop() {
         // distinguishes link-down sleep from commanded sleep or a
         // face-down nap, for whoever looks closely.
         presenceDrawLinkGlyph(spr, nowMs, buddySpeciesColor());
+      } else if (!promptPending() && !menuActive() && glanceCover() <= 0.01f) {
+        // Suppressed under anything that owns the bottom edge — the approval
+        // card, the menu, and the glance card all cover this row.
+        statusWordDraw(spr, nowMs, statusWordFor(activeState, faceRoused(nowMs)),
+                       activeState == P_BUSY);
       }
     }
 
