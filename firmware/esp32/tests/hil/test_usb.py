@@ -647,6 +647,47 @@ def test_presence_reports_nap_when_link_is_down(stick, landscape):
     stick.read_until(lambda b: b"<<PRESENCE " in b, 3)
 
 
+@pytest.mark.parametrize("kind", ["peek", "shake", "startle", "yawn", "squint"])
+def test_boop_reactions_can_all_be_selected(stick, landscape, kind):
+    """Being booped awake has more than one answer.
+
+    One canned response to the product's most-repeated interaction is the
+    fastest way to make a pet feel like a device, so a boop picks one of
+    five at random. Driven here through the debug selector — waiting for
+    chance to produce a specific one would make the test flaky by design.
+    """
+    clear_prompt(stick)
+    stick.write_line(f"boopreact {kind}")
+    stick.read_until(lambda b: f"<<BOOPREACT {kind}>>".encode() in b, 3)
+    assert state(stick)["boopReact"] == kind
+
+
+def test_boop_reaction_varies_between_boops(stick, landscape):
+    """Consecutive boops must not keep producing the same reaction.
+
+    With only five options a plain uniform draw repeats often enough to read
+    as "it's stuck" rather than "it varies", so the picker refuses to repeat
+    the previous one. This asserts that directly: no two boops in a row
+    agree, and across a handful of boops we see more than one kind.
+    """
+    clear_prompt(stick)
+    send_json(stick, {"total": 0, "running": 0, "waiting": 0, "pet": "sleep"})
+    seen, prev = set(), None
+    for _ in range(6):
+        # A wake-press never acts, so make sure the screen is already up.
+        if state(stick).get("screenOff"):
+            stick.write_line("press a 120")
+            stick.read_until(lambda b: b"<<PRESS a up>>" in b, 2)
+        stick.write_line("press a 120")
+        stick.read_until(lambda b: b"<<PRESS a up>>" in b, 2)
+        got = state(stick)["boopReact"]
+        assert got != prev, f"boop repeated {got} back to back"
+        seen.add(got)
+        prev = got
+        time.sleep(0.4)
+    assert len(seen) >= 2, seen
+
+
 @pytest.mark.parametrize("kind", ["yawn", "orb", "wiggle", "look", "tilt"])
 def test_micro_idles_run_and_expire(stick, landscape, kind):
     """Each micro-idle plays and gets out of the way (§12).

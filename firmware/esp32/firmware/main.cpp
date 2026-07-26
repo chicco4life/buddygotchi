@@ -632,7 +632,7 @@ static void boopPet() {
   // Physical reaction to being booped (§10.1). The spring rings down on
   // its own, so repeated boops compound into a bigger wobble instead of
   // restarting the same canned animation.
-  if (HAL_LANDSCAPE) faceBoopSquish();
+  if (HAL_LANDSCAPE) { faceBoopSquish(); faceBoopReact(millis()); }
   sendBoopUpstream();
 }
 
@@ -958,6 +958,7 @@ static void dumpState() {
   doc["gift"] = giftPending;
   doc["ritual"] = ritualName();
   doc["microIdle"] = faceMicroIdleName();
+  doc["boopReact"] = faceBoopReactName();
   doc["presence"] = presenceName();
   doc["orbs"] = orbsAlive();
   doc["orbsOverflow"] = orbsOverflow();
@@ -1226,6 +1227,23 @@ void handleSerialCommand(const char* line) {
     else if (strcmp(a, "auto") == 0)  presenceForce(-1);
     Serial.printf("<<PRESENCE %s forced=%s>>\n", presenceName(),
                   presenceForced() ? "true" : "false");
+    return;
+  }
+
+  // Debug/HIL: force a boop reaction, so a test doesn't have to boop
+  // repeatedly until chance produces the one it wants to look at.
+  if (strncmp(line, "boopreact ", 10) == 0) {
+    const char* a = line + 10;
+    int k = -1;
+    if (strcmp(a, "peek") == 0) k = BR_PEEK;
+    else if (strcmp(a, "shake") == 0) k = BR_SHAKE;
+    else if (strcmp(a, "startle") == 0) k = BR_STARTLE;
+    else if (strcmp(a, "yawn") == 0) k = BR_YAWN;
+    else if (strcmp(a, "squint") == 0) k = BR_SQUINT;
+    if (k < 0) { Serial.println("<<BOOPREACT err (peek|shake|startle|yawn|squint)>>"); return; }
+    faceForceBoopReact((uint8_t)k, millis());
+    boopUntil = millis() + BOOP_REACT_MS;
+    Serial.printf("<<BOOPREACT %s>>\n", faceBoopReactName());
     return;
   }
 
@@ -1861,10 +1879,10 @@ void loop() {
         bubbleShow(line, nowMs, 400, PAIRME_BLUE);
       } else if (pres2 == PRESENCE_NAP && !presenceGraced(nowMs) &&
                  activeState == P_SLEEP && !promptPending() && !menuActive()) {
-        // The honest whisper: a crossed-out radio drifting up in a dream.
-        // This is what distinguishes link-down sleep from commanded sleep
-        // or a face-down nap, for whoever looks closely.
-        presenceDrawDreamGlyph(spr, nowMs, buddySpeciesColor());
+        // Bottom-centre, between the two corner readouts: this is what
+        // distinguishes link-down sleep from commanded sleep or a
+        // face-down nap, for whoever looks closely.
+        presenceDrawLinkGlyph(spr, nowMs, buddySpeciesColor());
       }
     }
 

@@ -210,6 +210,54 @@ inline void faceBoopSquish() {
   if (_faceSquish.vel > 16.0f) _faceSquish.vel = 16.0f;
 }
 
+// --- Boop reactions --------------------------------------------------------
+// Being booped awake used to have exactly one answer: crack the right eye
+// open. One canned response to the product's most-repeated interaction is
+// the fastest way to make a pet feel like a device, so a boop now picks one
+// of several at random. They're all the same shape — a ~1.4s beat layered
+// over whatever the face was doing — and they differ in personality, not in
+// mechanism.
+enum BoopReact : uint8_t {
+  BR_PEEK = 0,     // one eye cracks open, unimpressed
+  BR_SHAKE,        // shakes itself awake and looks alert
+  BR_STARTLE,      // both eyes snap wide, then settle
+  BR_YAWN,         // opens slowly with a big yawn
+  BR_SQUINT,       // opens straight into a happy squint
+  BR_COUNT
+};
+static const uint32_t BOOP_REACT_LEN_MS = 1400;
+static uint8_t  _boopReact = BR_PEEK;
+static uint32_t _boopReactAt = 0;
+
+inline const char* faceBoopReactName() {
+  switch (_boopReact) {
+    case BR_PEEK:    return "peek";
+    case BR_SHAKE:   return "shake";
+    case BR_STARTLE: return "startle";
+    case BR_YAWN:    return "yawn";
+    case BR_SQUINT:  return "squint";
+    default:         return "none";
+  }
+}
+
+// Pick a fresh reaction. Avoids repeating the previous one — with only five
+// options a plain uniform draw repeats often enough to read as "it's stuck"
+// rather than "it varies".
+inline void faceBoopReact(uint32_t now) {
+  uint8_t prev = _boopReact;
+  uint8_t pick = (uint8_t)(animHash(now ^ 0xB00Fu) % BR_COUNT);
+  if (pick == prev) pick = (uint8_t)((pick + 1u) % BR_COUNT);
+  _boopReact = pick;
+  _boopReactAt = now;
+}
+
+// Debug/HIL: force one, so a test doesn't have to boop until chance obliges.
+inline void faceForceBoopReact(uint8_t kind, uint32_t now) {
+  if (kind >= BR_COUNT) return;
+  _boopReact = kind;
+  _boopReactAt = now;
+}
+
 inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
                      const FaceOpts& opt) {
   uint32_t now = millis();
@@ -278,9 +326,21 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   float lidTargetL = 1.0f, lidTargetR = 1.0f;
   float liftTarget = 0.0f, boostTarget = 0.0f;
   switch (persona) {
-    case 0:   // sleep (peek: a boop cracks the right eye open)
+    case 0:   // sleep — a boop wakes it, differently each time
       lidTargetL = 0.10f;
-      lidTargetR = boopActive ? 0.75f : 0.10f;
+      lidTargetR = 0.10f;
+      if (boopActive) {
+        switch (_boopReact) {
+          case BR_SHAKE:   lidTargetL = lidTargetR = 0.88f; break;
+          case BR_STARTLE:
+            lidTargetL = lidTargetR = 1.0f;
+            boostTarget = 12.0f;
+            break;
+          case BR_YAWN:    lidTargetL = lidTargetR = 0.52f; break;
+          case BR_SQUINT:  lidTargetL = lidTargetR = 0.34f; break;
+          default:         lidTargetR = 0.75f; break;   // BR_PEEK
+        }
+      }
       break;
     case 2: lidTargetL = lidTargetR = 0.62f; break;             // busy focus
     case 3: liftTarget = -12.0f; boostTarget = 16.0f; break;    // attention
@@ -372,6 +432,18 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
     miTilt = miEnv;     // applied as opposed vertical eye offsets below
   }
 
+  // Boop reaction clock. BR_SHAKE is the only one that moves the whole head
+  // rather than just the lids — a shake is a body motion, so it offsets the
+  // mouth with the eyes instead of sliding the gaze inside a still face.
+  float brShake = 0.0f;
+  bool  brYawn = false;
+  if (boopActive && _boopReactAt != 0 && (now - _boopReactAt) < BOOP_REACT_LEN_MS) {
+    float rp = (float)(now - _boopReactAt) / (float)BOOP_REACT_LEN_MS;
+    float env = sinf(rp * 3.14159265f);
+    if (_boopReact == BR_SHAKE)      brShake = 13.0f * env * sinf(rp * 6.2831853f * 3.0f);
+    else if (_boopReact == BR_YAWN)  brYawn = rp > 0.25f && rp < 0.80f;
+  }
+
   if (blinking && (persona == 1 || persona == 2)) lidTargetL = lidTargetR = 0.08f;
   float gazeTarget = (glancing && (persona == 1 || persona == 2)) ? glanceDir * 8.0f : 0.0f;
   if (persona == 2) gazeTarget = busySaccade;
@@ -411,7 +483,8 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
              + _px(busyNod);
   int eyeDX = _px(FACE_EYE_DX * (1.0f + sq * 0.10f));
   int mouthY = FACE_MOUTH_Y + bob - opt.lift + _px(sq * 4.0f) + opt.dangleY + _px(busyNod);
-  int gazeI = _px(gaze) + opt.dangleX + _px(miWiggle);
+  int headX = _px(brShake);
+  int gazeI = _px(gaze) + opt.dangleX + _px(miWiggle) + headX;
   // Head tilt as opposed vertical eye offsets: rotating the whole sprite
   // would cost a resample every frame, and at this geometry the eyes going
   // opposite ways reads as a tilt anyway.
@@ -429,9 +502,18 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   // The field is already painted (moodDrawField) — the face draws onto it.
 
   switch (persona) {
-    case 0: {  // sleep — lids (peek eased via lidR), drifting z's
-      _faceEye(cx - eyeDX, eyeY, eyeW, eyeHL, eyeR, accent);
-      _faceEye(cx + eyeDX, eyeY, eyeW, eyeHR, eyeR, accent);
+    case 0: {  // sleep — lids, drifting z's, and the boop reactions
+      _faceEye(cx - eyeDX + headX, eyeY, eyeW, eyeHL, eyeR, accent);
+      _faceEye(cx + eyeDX + headX, eyeY, eyeW, eyeHR, eyeR, accent);
+      if (brYawn) {
+        // The yawn reaction is the only one that needs a mouth; a
+        // sleeping face otherwise has none.
+        spr.fillEllipse(cx + headX, mouthY + 10, 30, 40, accent);
+        spr.fillEllipse(cx + headX, mouthY + 12, 20, 28, BG);
+      } else if (_boopReact == BR_SQUINT && boopActive) {
+        // ...and the happy squint gets a little smile to sell it.
+        spr.fillArc(cx + headX, mouthY - 16, 28, 38, 30, 150, accent);
+      }
       spr.setTextSize(2);
       spr.setTextColor(accent, BG);
       for (int i = 0; i < 3; i++) {

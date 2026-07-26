@@ -106,35 +106,24 @@ inline void presencePairText(char* out, size_t n, const char* btName, uint32_t n
   else                         snprintf(out, n, "I'm %s", btName && btName[0] ? btName : "Boop");
 }
 
-// The dream bubble that distinguishes link-down sleep from commanded sleep
-// or a face-down nap: a tiny crossed-out Bluetooth glyph drifting up. The
-// honest whisper for whoever looks closely — the buddy isn't just asleep,
-// its brain is gone.
+// The link-down marker: a small crossed-out Bluetooth rune centred on the
+// bottom edge, on the same baseline as the corner readouts, so it sits
+// between them rather than floating over the face.
 //
-// Drifts on a slow cycle rather than showing constantly: a permanent
-// disconnected marker on the resting screen is exactly the status text §14
+// It was originally a dream bubble drifting up beside the head, which put a
+// second moving object on a screen whose whole point is the face — and it
+// collided with the sleep z's. Down here it reads as what it is: a status
+// tell, in the strip where status lives, small enough to ignore and specific
+// enough to answer "why is it asleep?" when you look.
+//
+// Still breathes rather than sitting perfectly static, because a hard-edged
+// permanent icon on the resting screen is exactly the status text §14
 // deleted.
-inline void presenceDrawDreamGlyph(BuddyCanvas& spr, uint32_t now, uint16_t tint) {
+inline void presenceDrawLinkGlyph(BuddyCanvas& spr, uint32_t now, uint16_t tint) {
   const int S = HAL_UI_SCALE;
-  // One drift every ~7s, lasting ~2.6s of it.
-  float ph = fmodf((float)now / 7000.0f, 1.0f);
-  if (ph > 0.37f) return;
-  float t = ph / 0.37f;
-  // Left of the face: the sleep z's drift up the RIGHT side, and the two
-  // stacked on top of each other read as one cluttered smudge rather than
-  // as two separate thoughts.
-  int cx = HAL_W / 2 - 112 * S / 2;
-  int cy = animPx(96 - t * 52.0f);
-  // Fade in and out so it never pops.
-  float a = sinf(t * 3.14159265f);
-  if (a < 0.25f) return;
-
-  int r = 9 * S / 2;
-  spr.fillSmoothCircle(cx, cy, r + 2, _moodMix(BLACK, tint, 0.30f * a));
-  glanceBtGlyph(spr, cx, cy, 4 * S, _moodMix(BLACK, tint, 0.95f * a), true);
-  // Two little thought-bubble dots trailing back toward the face.
-  spr.fillSmoothCircle(cx + 10 * S / 2, cy + 13 * S / 2, 2 * S / 2,
-                       _moodMix(BLACK, tint, 0.6f * a));
-  spr.fillSmoothCircle(cx + 16 * S / 2, cy + 20 * S / 2, 1 * S,
-                       _moodMix(BLACK, tint, 0.4f * a));
+  int cx = HAL_W / 2;
+  int cy = HAL_H - 13 * S;
+  // Slow fade in and out, ~5s cycle, never fully gone.
+  float a = 0.72f + 0.28f * (0.5f + 0.5f * sinf((float)now * (6.2831853f / 5000.0f)));
+  glanceBtGlyph(spr, cx, cy, 5 * S, _moodMix(BLACK, tint, 0.95f * a), true);
 }
