@@ -647,6 +647,61 @@ def test_presence_reports_nap_when_link_is_down(stick, landscape):
     stick.read_until(lambda b: b"<<PRESENCE " in b, 3)
 
 
+def test_boop_rouses_then_drifts_back_to_sleep(stick, landscape):
+    """A boop wakes the buddy properly, then it goes back down on its own.
+
+    Being poked and immediately re-shutting your eyes reads as a screensaver
+    dismissing an event. It stays awake ~5s after the last attention, then
+    takes ~1.6s to drift back through one of several transitions.
+    """
+    clear_prompt(stick)
+    send_json(stick, {"total": 0, "running": 0, "waiting": 0, "pet": "sleep"})
+    wait_state(stick, pet="sleep")
+    if state(stick)["screenOff"]:
+        stick.write_line("press a 120")          # a wake-press never acts
+        stick.read_until(lambda b: b"<<PRESS a up>>" in b, 2)
+
+    stick.write_line("press a 120")
+    stick.read_until(lambda b: b"<<PRESS a up>>" in b, 2)
+    time.sleep(0.6)
+    got = state(stick)
+    assert got["roused"] is True, got
+    assert got["activePersona"] == "P_IDLE", got["activePersona"]
+
+    # Still awake well into the rouse window.
+    time.sleep(2.0)
+    assert state(stick)["activePersona"] == "P_IDLE"
+
+    # Rouse lapses -> a named descent runs -> asleep again.
+    deadline = time.monotonic() + 6
+    saw_descent = False
+    while time.monotonic() < deadline:
+        snap = state(stick)
+        if not snap["roused"] and snap["drowse"] != "none":
+            saw_descent = True
+        if snap["activePersona"] == "P_SLEEP":
+            break
+        time.sleep(0.25)
+    else:
+        pytest.fail("never went back to sleep after the rouse window")
+    assert saw_descent, "went straight to sleep without a transition"
+
+
+def test_petting_keeps_the_buddy_awake(stick, landscape):
+    """Sustained attention refreshes the rouse rather than letting it lapse."""
+    clear_prompt(stick)
+    send_json(stick, {"total": 0, "running": 0, "waiting": 0, "pet": "sleep"})
+    wait_state(stick, pet="sleep")
+    stick.write_line("touch down 228 140")
+    stick.read_until(lambda b: b"<<TOUCH down" in b, 2)
+    # Well past ROUSE_MS: a held finger must keep it up the whole time.
+    time.sleep(6.5)
+    got = state(stick)
+    stick.write_line("touch up")
+    stick.read_until(lambda b: b"<<TOUCH up>>" in b, 2)
+    assert got["roused"] is True, got
+
+
 @pytest.mark.parametrize("kind", ["peek", "shake", "startle", "yawn", "squint"])
 def test_boop_reactions_can_all_be_selected(stick, landscape, kind):
     """Being booped awake has more than one answer.

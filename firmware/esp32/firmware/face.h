@@ -71,7 +71,10 @@ static FaceEyes _faceEyes() {
 static const float FACE_K = 3.10f;
 static const int   FACE_EYE_Y   = 108;   // eye centre line
 static const int   FACE_EYE_DX  = 106;   // eye separation from centre
-static const int   FACE_MOUTH_Y = 202;
+// Kept clear of the bottom status strip: the widest mouth (celebrate)
+// used to reach y=236 with the link glyph starting at ~244, which read
+// as the face resting on top of it.
+static const int   FACE_MOUTH_Y = 190;
 
 // Motion primitives live in anim.h now — every surface shares them so the
 // card, the field, and the face all ease with the same curve. Declared
@@ -154,7 +157,43 @@ struct FaceOpts {
   // of one: the interaction WAS the moment, and following it with a
   // scripted charming beat cheapens both.
   uint32_t sinceInteractionMs = 0;
+  // 0..1 through the drift back to sleep. A boop wakes the buddy properly
+  // rather than for a single blink, so it needs a way back DOWN — this is
+  // that descent, and drowseKind picks how it does it.
+  float    drowse = 0.0f;
+  uint8_t  drowseKind = 0;
 };
+
+// --- Going back to sleep ---------------------------------------------------
+// Waking up used to be the only half of the transaction: a boop cracked an
+// eye, then the face snapped back to sleeping lids the instant the reaction
+// timer expired. Falling asleep is at least as expressive as waking up, so
+// the descent gets the same treatment the boop reactions got — several
+// variants, chosen at random, all ~1.6s.
+enum DrowseKind : uint8_t {
+  DK_SLOW_BLINK = 0,   // lids just drift shut
+  DK_NOD_OFF,          // head dips, catches itself once, then goes
+  DK_YAWN_OFF,         // one last yawn on the way down
+  DK_LOOK_AWAY,        // glances off to one side, then settles
+  DK_COUNT
+};
+
+inline const char* faceDrowseName(uint8_t k) {
+  switch (k) {
+    case DK_SLOW_BLINK: return "slow-blink";
+    case DK_NOD_OFF:    return "nod-off";
+    case DK_YAWN_OFF:   return "yawn-off";
+    case DK_LOOK_AWAY:  return "look-away";
+    default:            return "none";
+  }
+}
+
+// Same no-immediate-repeat rule as the boop reactions, for the same reason.
+inline uint8_t facePickDrowse(uint32_t now, uint8_t prev) {
+  uint8_t pick = (uint8_t)(animHash(now ^ 0x51EED0u) % DK_COUNT);
+  if (pick == prev) pick = (uint8_t)((pick + 1u) % DK_COUNT);
+  return pick;
+}
 
 // --- Micro-idles (§12) -----------------------------------------------------
 // Rare randomized moments while idle. Global minimum spacing >=90s, uniform
@@ -444,13 +483,43 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
     else if (_boopReact == BR_YAWN)  brYawn = rp > 0.25f && rp < 0.80f;
   }
 
-  if (blinking && (persona == 1 || persona == 2)) lidTargetL = lidTargetR = 0.08f;
+  // Drifting back to sleep. Runs on the IDLE face (main.cpp keeps the buddy
+  // awake through the descent), so the lids close from wherever they were
+  // rather than the face cutting to a sleeping one.
+  float dwGaze = 0.0f, dwNod = 0.0f;
+  bool  dwYawn = false;
+  if (opt.drowse > 0.0f) {
+    float d = animClamp(opt.drowse, 0.0f, 1.0f);
+    float shut = 1.0f - d;                       // 1 awake -> 0 shut
+    switch (opt.drowseKind) {
+      case DK_NOD_OFF:
+        // Dips, jerks back up once as if catching itself, then goes.
+        dwNod = 16.0f * d * d;
+        if (d > 0.45f && d < 0.62f) { dwNod *= 0.35f; shut = 0.55f; }
+        break;
+      case DK_YAWN_OFF:
+        dwYawn = d > 0.10f && d < 0.55f;
+        if (dwYawn) shut = 0.45f;                // eyes squeeze during a yawn
+        break;
+      case DK_LOOK_AWAY:
+        dwGaze = 15.0f * sinf(d * 3.14159265f);
+        break;
+      default:
+        break;                                   // DK_SLOW_BLINK: just shut
+    }
+    float target = 0.10f + 0.90f * animClamp(shut, 0.0f, 1.0f);
+    lidTargetL = lidTargetR = target;
+  }
+
+  if (blinking && (persona == 1 || persona == 2) && opt.drowse <= 0.0f)
+    lidTargetL = lidTargetR = 0.08f;
   float gazeTarget = (glancing && (persona == 1 || persona == 2)) ? glanceDir * 8.0f : 0.0f;
   if (persona == 2) gazeTarget = busySaccade;
   if (_miKind == MI_ORB_CHASE || _miKind == MI_LOOK_AT_YOU) gazeTarget = miGaze;
   // An explicit target wins over the ambient drift, and reaches further —
   // a deliberate look should be visibly bigger than idle wandering.
   if (opt.gazeBias != 0.0f) gazeTarget = opt.gazeBias * 18.0f;
+  if (dwGaze != 0.0f) gazeTarget = dwGaze;
 
   // Lids close fast, open slower — the asymmetry is what reads as alive.
   lidL = _easeToward(lidL, lidTargetL, lidTargetL < lidL ? 26.0f : 11.0f, dt);
@@ -480,9 +549,10 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   // back through the other side. Everything shifts down slightly with it,
   // as if the boop pressed it into the desk.
   int eyeY = FACE_EYE_Y + bob + _px(lift) - opt.lift + _px(sq * 7.0f) + opt.dangleY
-             + _px(busyNod);
+             + _px(busyNod) + _px(dwNod);
   int eyeDX = _px(FACE_EYE_DX * (1.0f + sq * 0.10f));
-  int mouthY = FACE_MOUTH_Y + bob - opt.lift + _px(sq * 4.0f) + opt.dangleY + _px(busyNod);
+  int mouthY = FACE_MOUTH_Y + bob - opt.lift + _px(sq * 4.0f) + opt.dangleY
+             + _px(busyNod) + _px(dwNod);
   int headX = _px(brShake);
   int gazeI = _px(gaze) + opt.dangleX + _px(miWiggle) + headX;
   // Head tilt as opposed vertical eye offsets: rotating the whole sprite
@@ -508,8 +578,7 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
       if (brYawn) {
         // The yawn reaction is the only one that needs a mouth; a
         // sleeping face otherwise has none.
-        spr.fillEllipse(cx + headX, mouthY + 10, 30, 40, accent);
-        spr.fillEllipse(cx + headX, mouthY + 12, 20, 28, BG);
+        spr.fillSmoothRoundRect(cx + headX - 26, mouthY - 6, 52, 40, 19, accent);
       } else if (_boopReact == BR_SQUINT && boopActive) {
         // ...and the happy squint gets a little smile to sell it.
         spr.fillArc(cx + headX, mouthY - 16, 28, 38, 30, 150, accent);
@@ -569,11 +638,10 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
     default: {  // idle — open eyes, blinks, glances, soft smile
       _faceEye(cx - eyeDX + gazeI, eyeY + tiltL, eyeW, eyeHL, eyeR, accent);
       _faceEye(cx + eyeDX + gazeI, eyeY + tiltR, eyeW, eyeHR, eyeR, accent);
-      if (opt.yawn || miYawn) {
-        // A yawn is a big open O, not a wider smile. Squashed slightly so
-        // it reads as a mouth rather than a hole.
-        spr.fillEllipse(cx, mouthY + 10, 32, 42, accent);
-        spr.fillEllipse(cx, mouthY + 12, 21, 30, BG);
+      if (opt.yawn || miYawn || dwYawn) {
+        // A soft filled shape, not a ring. The ring version read as a
+        // floating "O" sitting on the face rather than as an open mouth.
+        spr.fillSmoothRoundRect(cx - 26, mouthY - 6, 52, 40, 19, accent);
       } else {
         spr.fillArc(cx, mouthY - 18, 32, 43, 28, 152, accent);
       }

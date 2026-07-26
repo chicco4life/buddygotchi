@@ -90,6 +90,13 @@ const uint32_t BTN_M_LONG_MS = 500;
 // clear the mouth above the card's top edge without shoving the eyes off.
 const int FACE_GLANCE_LIFT = 30;
 const uint32_t BOOP_REACT_MS = 2500;
+// A boop wakes the buddy PROPERLY, not for a single blink: it stays awake
+// for this long after the last attention, then drifts back down. Being
+// poked and immediately re-shutting your eyes reads as a screensaver
+// dismissing an event; staying up for a few seconds reads as a creature
+// that noticed you.
+const uint32_t ROUSE_MS  = 5000;
+const uint32_t DROWSE_MS = 1600;   // the descent itself
 // A press only counts as an approval if it *started* after the prompt had
 // been on screen this long — otherwise a tickle already in flight could
 // approve a prompt the user never saw. The "btn a|b" debug shortcut and
@@ -128,6 +135,11 @@ static uint32_t touchContactMaxMs = 0;
 const uint32_t IDLE_DIM_MS = 300000;
 static uint8_t currentBrightness = 0xFF;
 static uint32_t boopUntil = 0;
+// Rouse/drowse (see ROUSE_MS). rousedUntil is refreshed by every boop and
+// every stroke; when it lapses, drowseUntil runs the chosen descent.
+static uint32_t rousedUntil = 0;
+static uint32_t drowseUntil = 0;
+static uint8_t  drowseKind = 0;
 static uint32_t lastInputMs = 0;      // last physical/synthetic button edge
 static bool lastDecisionApprove = false;
 
@@ -627,6 +639,7 @@ static void sendBoopUpstream() {
 // pressed outside of a pending approval, mirrored to the desktop pet.
 static void boopPet() {
   boopUntil = millis() + BOOP_REACT_MS;
+  rousedUntil = millis() + ROUSE_MS;
   beep(1245, 60);
   buddyInvalidate();
   // Physical reaction to being booped (§10.1). The spring rings down on
@@ -863,6 +876,7 @@ static void __attribute__((noinline)) handleButtons() {
     // for the whole stroke, and keeps the desktop's affection window
     // refreshed. No chirp — the boop edge already played it.
     boopUntil = now + BOOP_REACT_MS;
+    rousedUntil = now + ROUSE_MS;   // sustained petting keeps it up
     lastInputMs = now;
     sendBoopUpstream();
   }
@@ -959,6 +973,10 @@ static void dumpState() {
   doc["ritual"] = ritualName();
   doc["microIdle"] = faceMicroIdleName();
   doc["boopReact"] = faceBoopReactName();
+  doc["roused"] = (int32_t)(rousedUntil - millis()) > 0;
+  doc["drowse"] = faceDrowseName(
+      ((int32_t)(rousedUntil - millis()) <= 0 &&
+       (int32_t)(drowseUntil - millis()) > 0) ? drowseKind : 0xFF);
   doc["presence"] = presenceName();
   doc["orbs"] = orbsAlive();
   doc["orbsOverflow"] = orbsOverflow();
@@ -1541,6 +1559,32 @@ void loop() {
       !(HAL_LANDSCAPE && baseState == P_SLEEP)) {
     activeState = P_HEART;
   }
+
+  // Rouse / drowse. A booped buddy stays properly awake for ROUSE_MS, then
+  // takes DROWSE_MS to drift back down through one of several transitions
+  // (face.h owns which). The awake face is the IDLE one, so the descent
+  // closes the lids from wherever they actually were rather than the
+  // renderer cutting between two personas.
+  if (HAL_LANDSCAPE && baseState == P_SLEEP) {
+    static bool wasRoused = false;
+    uint32_t nowR = millis();
+    bool roused = (int32_t)(rousedUntil - nowR) > 0;
+    if (roused) {
+      drowseUntil = rousedUntil + DROWSE_MS;
+    } else if (wasRoused) {
+      // Choose the descent EXACTLY ONCE, on the edge where the rouse
+      // lapses. Re-picking every frame while roused (the first cut) made
+      // the no-repeat rule compare against the value from one frame ago
+      // instead of the previous descent, so the same transition came up
+      // back to back — caught by sampling five wakes in a row.
+      drowseKind = facePickDrowse(nowR, drowseKind);
+    }
+    wasRoused = roused;
+    if (roused || (int32_t)(drowseUntil - nowR) > 0) activeState = P_IDLE;
+  } else {
+    rousedUntil = 0;
+    drowseUntil = 0;
+  }
   // Link-loss grace (§9.1): derive() sleeps the moment data stops, but a
   // radio hiccup shouldn't be visible at all. For the first 10s the face
   // carries on as if nothing happened; only then does it get drowsy.
@@ -1729,6 +1773,11 @@ void loop() {
       fo.weight = moodStrokeWeight();
       fo.expectant = giftShown;
       fo.sinceInteractionMs = nowMs - lastInputMs;
+      // 0 while awake, ramping to 1 across the descent.
+      if ((int32_t)(rousedUntil - nowMs) <= 0 && (int32_t)(drowseUntil - nowMs) > 0) {
+        fo.drowse = 1.0f - (float)(drowseUntil - nowMs) / (float)DROWSE_MS;
+        fo.drowseKind = drowseKind;
+      }
       fo.scale = ritualStretchScale(rt);
       fo.yawn = ritualYawning(rt);
       // Gaze priority (§3.3): the finger on the glass outranks a newly
@@ -1878,7 +1927,11 @@ void loop() {
         presencePairText(line, sizeof(line), btName, nowMs);
         bubbleShow(line, nowMs, 400, PAIRME_BLUE);
       } else if (pres2 == PRESENCE_NAP && !presenceGraced(nowMs) &&
-                 activeState == P_SLEEP && !promptPending() && !menuActive()) {
+                 !promptPending() && !menuActive()) {
+        // Not gated on the sleeping face: booping a link-down buddy wakes
+        // it, and "why isn't it doing anything?" is exactly the moment you
+        // want the answer. Hiding the tell the instant someone engages had
+        // it backwards.
         // Bottom-centre, between the two corner readouts: this is what
         // distinguishes link-down sleep from commanded sleep or a
         // face-down nap, for whoever looks closely.
