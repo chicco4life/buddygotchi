@@ -478,29 +478,23 @@ def test_mood_lantern_inverts_the_field_for_approvals(stick, landscape):
     clear_prompt(stick)
 
 
-def test_mood_ember_for_error(stick, landscape):
-    """Errors get their own field, distinct from both black and the lantern.
+def test_error_keeps_the_black_field(stick, landscape):
+    """Errors do NOT light the field — the dizzy face carries it alone.
 
-    The spec's original ember was a deep warm brown. On glass that rendered
-    as a loud saturated orange which shouted as hard as the lantern, so it
-    was softened to a muted clay — the requirement is only that "something's
-    off" is unmistakably not-black while staying clearly distinguishable
-    from "act now". This asserts exactly that pair of facts rather than a
-    specific tone, so a future palette tweak doesn't fail it spuriously.
+    The spec's Ember mood (a lifted warm field for errors) went through a
+    loud orange and a soft clay before being dropped: lifting the field for
+    a state the human usually can't act on spent the product's scarcest
+    signal, luminance, and eroded the one thing the lantern means. Black is
+    reserved for "nothing needed" and light for "act now", with nothing in
+    between.
     """
     clear_prompt(stick)
     send_json(stick, {"total": 1, "running": 0, "waiting": 0, "pet": "error"})
-    wait_state(stick, pet="error", mood="ember")
-    # `mood` flips as soon as the crossfade starts; ember takes ~500ms to
-    # reach full (errors are not startling). Sampling early caught it at
-    # (32,0,0) — one lattice level in, not the settled tone.
-    time.sleep(1.2)
-    got = corner_pixel(stick)
-    assert got != (0, 0, 0), got                      # unmistakably not black
-    assert got != LANTERN_RGB, got                    # and not "act now"
-    # Distinguishable at a glance, not just numerically: at least one
-    # channel has to differ from the lantern by more than a lattice step.
-    assert max(abs(a - b) for a, b in zip(got, LANTERN_RGB)) >= 30, got
+    wait_state(stick, pet="error")
+    time.sleep(1.2)                      # past any transition
+    got = state(stick)
+    assert got["mood"] == "night", got["mood"]
+    assert corner_pixel(stick) == (0, 0, 0)
     clear_prompt(stick)
 
 

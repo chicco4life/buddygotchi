@@ -12,14 +12,16 @@
 // promoted from a constant to a carrier of meaning, with one rule:
 //
 //     Field brightness encodes how much the buddy needs you.
-//     Black = nothing needed. Dim warm = something's off. Light = act now.
+//     Black = nothing needed. Light = act now.
 //
-// Three moods, pre-attentively distinguishable with zero reading:
+// Two moods, pre-attentively distinguishable with zero reading:
 //
-//   Night    true black field, glow-on-black face   (the default; almost
-//                                                    everything)
-//   Ember    deep warm brown, dim red heartbeat     (error / dizzy)
+//   Night    true black field, glow-on-black face   (the default; everything
+//                                                    except the one below)
 //   Lantern  warm cream field, DARK INK face        (approval, passkey)
+//
+// The spec's third mood (Ember, a lifted warm field for errors) is gone —
+// see the note on MoodKind.
 //
 // Lantern is a genuine luminance inversion — the whole panel flips
 // dark->light. Nothing else in the product does this, which is what makes
@@ -40,30 +42,26 @@
 // into the sprite, so they render with essentially no quantization error.
 static const uint16_t FIELD_LANTERN     = animRGB(255, 219, 173);  // #FFDBAD
 static const uint16_t FIELD_LANTERN_HOT = animRGB(255, 182,  82);  // #FFB652
-// Error field. The spec called for a deep ember brown, but on glass that
-// rendered as a loud saturated orange that shouted as hard as the lantern —
-// and the lantern is supposed to be the only thing that shouts. Softened to
-// a muted clay: still unmistakably not-black, still warm, but quiet enough
-// that "something's off" doesn't read as "act now". The face inverts to ink
-// over it for the same reason it does under the lantern — dim red on a lit
-// field is unreadable.
-static const uint16_t FIELD_EMBER       = animRGB(219, 182, 170);  // soft clay
 static const uint16_t MOOD_INK          = animRGB( 33,   0,   0);  // #210000
 static const uint16_t MOOD_INK_DIM      = animRGB(107,  36,   0);  // #6B2400
-static const uint16_t MOOD_EMBER_FACE   = animRGB( 73,  36,   0);  // dark ink-brown on clay
 static const uint16_t MOOD_RIPPLE       = animRGB( 36, 219,  82);  // approve green
 // Red-orange: warnings, impatience, deny. Lives here rather than in main.cpp
 // so the card and bubble surfaces can reach it too.
 static const uint16_t MOOD_HOT          = 0xFA20;
 
-enum MoodKind : uint8_t { MOOD_NIGHT = 0, MOOD_EMBER_K = 1, MOOD_LANTERN = 2 };
+// Two moods, not the spec's three. §2.1's Ember (a lifted warm field for
+// errors) went through a loud orange and then a soft clay before landing on
+// the answer that was there all along: the dizzy face is expressive enough
+// on its own, and lifting the field for it spent the product's scarcest
+// signal — luminance — on a state the human usually can't act on. Black is
+// now genuinely reserved for "nothing needed", and light for "act now".
+enum MoodKind : uint8_t { MOOD_NIGHT = 0, MOOD_LANTERN = 2 };
 
 // Transition timings (§2.1.3). Bloom is slower than snuff on purpose:
 // arriving is a lamp warming, resolving should feel decisive.
 static const float MOOD_BLOOM_RATE = 9.0f;    // ~350ms to full reach
 static const float MOOD_SNUFF_RATE = 13.0f;   // ~250ms to contract away
 static const float MOOD_FADE_RATE  = 9.0f;    // ~350ms even fade (deny)
-static const float MOOD_EMBER_RATE = 6.0f;    // ~500ms both ways
 static const float MOOD_INK_RATE   = 9.0f;    // face crossfade, tracks bloom
 
 static MoodKind _moodTarget = MOOD_NIGHT;
@@ -74,9 +72,8 @@ static MoodKind _moodTarget = MOOD_NIGHT;
 // back. They never fight because each transition only drives one.
 static float _moodReach = 0.0f;
 static float _moodLevel = 0.0f;
-static float _moodEmber = 0.0f;
 static float _moodHot   = 0.0f;    // 0..1 blend toward FIELD_LANTERN_HOT
-static float _moodDecay = 0.0f;    // 0..1 blend back toward ember (2min rule)
+static float _moodDecay = 0.0f;    // 0..1 dim-down after 2min unanswered
 static float _moodInk   = 0.0f;    // 0..1 face crossfade glow -> ink
 static float _moodPeak  = 1.0f;    // night-aware entry cap
 static float _moodRipple = -1.0f;  // >=0 while the approve ripple runs
@@ -94,7 +91,6 @@ inline const char* moodName() {
   // Report what's on glass, not what was asked for — a mood mid-bloom is
   // the interesting case for both HIL and debugging.
   if (_moodReach * _moodLevel > 0.02f) return _moodTarget == MOOD_LANTERN ? "lantern" : "lantern-out";
-  if (_moodEmber > 0.02f) return "ember";
   return "night";
 }
 
@@ -119,7 +115,7 @@ inline void moodSet(MoodKind k, bool screenWasDark) {
     _moodRipple = -1.0f;
   }
   _moodTarget = k;
-  Serial.printf("<<MOOD %s>>\n", k == MOOD_LANTERN ? "lantern" : (k == MOOD_EMBER_K ? "ember" : "night"));
+  Serial.printf("<<MOOD %s>>\n", k == MOOD_LANTERN ? "lantern" : "night");
 }
 
 // Approve: the light contracts back INTO the face and goes out, with a
@@ -143,8 +139,9 @@ inline void moodFade() {
 
 // Escalation (§7): unanswered >=10s warms the field and quickens its
 // breath. This IS the urgency signal — it replaces the numeric counter.
-// After 2 minutes the field decays toward ember with a top-edge pulse,
-// which protects the panel and avoids lighting an empty room all night.
+// After 2 minutes the field dims down with a top-edge pulse, which protects
+// the panel and avoids lighting an empty room all night while staying
+// honest that the prompt is still pending.
 inline void moodEscalation(float hot01, float decay01) {
   _moodHot = animClamp(hot01, 0.0f, 1.0f);
   _moodDecay = animClamp(decay01, 0.0f, 1.0f);
@@ -155,7 +152,6 @@ inline void moodEscalation(float hot01, float decay01) {
 
 inline void moodTick(uint32_t now, float dt) {
   bool wantLantern = (_moodTarget == MOOD_LANTERN);
-  bool wantEmber   = (_moodTarget == MOOD_EMBER_K);
 
   if (wantLantern) {
     _moodReach = animEase(_moodReach, 1.0f, MOOD_BLOOM_RATE, dt);
@@ -178,7 +174,6 @@ inline void moodTick(uint32_t now, float dt) {
     _moodLevel = animEase(_moodLevel, 0.0f, MOOD_FADE_RATE, dt);
   }
 
-  _moodEmber = animEase(_moodEmber, wantEmber ? 1.0f : 0.0f, MOOD_EMBER_RATE, dt);
   // The face inverts to ink only under a genuinely lit field, so a snuff
   // hands the glow back as the light leaves.
   _moodInk = animEase(_moodInk, wantLantern ? 1.0f : 0.0f, MOOD_INK_RATE, dt);
@@ -208,13 +203,16 @@ static inline uint16_t _moodMix(uint16_t a, uint16_t b, float t) {
 // modulated by the luminance breath.
 inline uint16_t moodFieldColor(uint32_t now) {
   uint16_t c = _moodMix(FIELD_LANTERN, FIELD_LANTERN_HOT, _moodHot);
-  c = _moodMix(c, FIELD_EMBER, _moodDecay);
   // Breath: +-6%, 4s at rest, quickening to 1.2s when hot. Field MOTION is
   // detected peripherally even better than hue, which is why escalation
   // spends its budget here rather than on a counter.
   float periodMs = 4000.0f - 2800.0f * _moodHot;
   float breath = 1.0f + 0.06f * sinf((float)now * (6.2831853f / periodMs));
-  return _moodMix(BLACK, c, animClamp(_moodLevel * breath, 0.0f, 1.0f));
+  // The long-unanswered decay dims the field rather than recolouring it:
+  // with Ember gone there is nowhere warm to decay TO, and dimming is what
+  // the rule was actually for.
+  float lvl = _moodLevel * breath * (1.0f - 0.65f * _moodDecay);
+  return _moodMix(BLACK, c, animClamp(lvl, 0.0f, 1.0f));
 }
 
 // Paint the field for this frame. Replaces the face renderer's old
@@ -222,12 +220,7 @@ inline uint16_t moodFieldColor(uint32_t now) {
 // down. Nothing snaps (doctrine #6): a mood change is always a front
 // expanding, a level fading, or a slow crossfade.
 inline void moodDrawField(BuddyCanvas& spr, uint32_t now) {
-  // Ember first so a lantern (higher priority) paints over it.
-  if (_moodEmber > 0.01f) {
-    spr.fillSprite(_moodMix(BLACK, FIELD_EMBER, _moodEmber));
-  } else {
-    spr.fillSprite(BLACK);
-  }
+  spr.fillSprite(BLACK);
 
   if (_moodLevel <= 0.01f || _moodReach <= 0.001f) return;
 
@@ -270,7 +263,7 @@ inline void moodDrawField(BuddyCanvas& spr, uint32_t now) {
 // already lit.
 inline uint16_t moodBackdrop(uint32_t now) {
   if (_moodLevel <= 0.01f || _moodReach <= 0.001f) {
-    return _moodEmber > 0.01f ? _moodMix(BLACK, FIELD_EMBER, _moodEmber) : BLACK;
+    return BLACK;
   }
   return moodFieldColor(now);
 }
@@ -279,13 +272,7 @@ inline uint16_t moodBackdrop(uint32_t now) {
 // near-black ink; under ember it wears the dim red heartbeat; otherwise
 // it keeps its species glow.
 inline uint16_t moodFaceColor(uint16_t accent) {
-  // Ember is a LIT field now, so the face has to darken into it exactly the
-  // way it does under the lantern — a glowing accent on soft clay has almost
-  // no contrast and the X-eyes disappear.
-  uint16_t base = (_moodInk < 0.5f)
-                    ? _moodMix(accent, MOOD_EMBER_FACE, _moodEmber)
-                    : accent;
-  return _moodMix(base, MOOD_INK, _moodInk);
+  return _moodMix(accent, MOOD_INK, _moodInk);
 }
 
 inline uint16_t moodDimColor(uint16_t accent) {
@@ -309,6 +296,5 @@ inline float moodHaloGain() {
   // top of the collapsing light — caught on hardware, looked like a bug.
   // Level stays high until the very last of the snuff, which is exactly
   // when the halo should return.
-  float lit = _moodLevel > _moodEmber ? _moodLevel : _moodEmber;
-  return animClamp(1.0f - lit, 0.0f, 1.0f);
+  return animClamp(1.0f - _moodLevel, 0.0f, 1.0f);
 }

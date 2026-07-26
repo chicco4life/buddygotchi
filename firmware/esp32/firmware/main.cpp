@@ -1634,8 +1634,6 @@ void loop() {
       // its own: pair-me can persist for hours, and a permanent cream field
       // would burn power and panel for a message nobody is reading.
       moodSet(MOOD_LANTERN, screenWasOff);
-    } else if (activeState == P_DIZZY) {
-      moodSet(MOOD_EMBER_K, screenWasOff);
     } else {
       // moodSet no-ops when the target already matches, so an in-flight
       // snuff or fade (which both retarget to Night themselves) keeps

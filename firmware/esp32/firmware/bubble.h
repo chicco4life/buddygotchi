@@ -183,16 +183,24 @@ inline void dangleSummaryDraw(BuddyCanvas& spr, uint32_t now, bool active, float
   uint16_t c  = _moodMix(bg, moodIsInk() ? MOOD_INK_DIM : animRGB(182, 182, 173),
                          _dangleTextGain);
 
-  char l[20], r[20];
-  snprintf(l, sizeof(l), "%u task%s", (unsigned)total, total == 1 ? "" : "s");
-  snprintf(r, sizeof(r), "%u waiting", (unsigned)waiting);
-
+  // Only say a thing when there is a thing to say. "0 tasks - 0 waiting" is
+  // noise pretending to be information: it takes up the strip, reads as a
+  // readout worth checking, and tells you exactly nothing. Each side appears
+  // independently, so a buddy with work but no approvals shows one item.
   spr.setTextSize(S);
   spr.setTextColor(c, bg);
-  spr.setTextDatum(BL_DATUM);
-  spr.drawString(l, CORNER_SAFE_X, HAL_H - CORNER_SAFE_Y);
-  spr.setTextDatum(BR_DATUM);
-  spr.drawString(r, HAL_W - CORNER_SAFE_X, HAL_H - CORNER_SAFE_Y);
+  if (total > 0) {
+    char l[20];
+    snprintf(l, sizeof(l), "%u task%s", (unsigned)total, total == 1 ? "" : "s");
+    spr.setTextDatum(BL_DATUM);
+    spr.drawString(l, CORNER_SAFE_X, HAL_H - CORNER_SAFE_Y);
+  }
+  if (waiting > 0) {
+    char r[20];
+    snprintf(r, sizeof(r), "%u waiting", (unsigned)waiting);
+    spr.setTextDatum(BR_DATUM);
+    spr.drawString(r, HAL_W - CORNER_SAFE_X, HAL_H - CORNER_SAFE_Y);
+  }
   spr.setTextDatum(TL_DATUM);
 }
 

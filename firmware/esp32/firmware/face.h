@@ -101,24 +101,40 @@ static void _faceEyeHappy(int cx, int cy, uint16_t c) {
   spr.fillArc(cx, cy + 16, 27, 37, 180, 360, c);         // ∩ arc
 }
 
-static void _faceEyeX(int cx, int cy, uint16_t c) {
-  for (int t = -4; t <= 4; t++) {
-    spr.drawLine(cx - 34, cy - 34 + t, cx + 34, cy + 34 + t, c);
-    spr.drawLine(cx - 34, cy + 34 + t, cx + 34, cy - 34 + t, c);
+// Dizzy eyes: an Archimedean spiral, drawn as overlapping dots so it reads
+// as a stroke without needing a polyline primitive. `grow` 0..1 morphs it in
+// from nothing (radius scales), and `rot` spins it — the spin is what sells
+// dizzy, so it keeps turning for as long as the state lasts.
+static void _faceEyeSpiral(int cx, int cy, float grow, float rot, uint16_t c) {
+  if (grow <= 0.02f) return;
+  // Sample count is set by the OUTER arc length: at r=44 over 4.2 turns,
+  // 44 samples leave ~11px between dots against a ~7px dot, so the stroke
+  // reads as a dotted line rather than a spiral. 104 closes the gap.
+  const int N = 104;
+  const float TURNS = 4.2f * 3.14159265f;
+  int thick = _px(2.5f + 1.5f * grow);
+  for (int i = 0; i <= N; i++) {
+    float t = TURNS * (float)i / (float)N;
+    float r = 44.0f * grow * (t / TURNS);
+    spr.fillSmoothCircle(cx + _px(cosf(t + rot) * r), cy + _px(sinf(t + rot) * r),
+                         thick, c);
   }
 }
 
-// k scales the heart with the squish spring so a boop deforms the affection
-// face too — otherwise booping a buddy that's already showing hearts
-// produces no visible reaction at all, which is exactly when you'd expect
-// the biggest one.
-static void _faceEyeHeart(int cx, int cy, uint16_t c, float kw = 1.0f, float kh = 1.0f) {
-  int rx = _px(16 * kw), ry = _px(10 * kh);
-  int r  = _px(19 * (kw + kh) * 0.5f);
-  spr.fillSmoothCircle(cx - rx, cy - ry, r, c);
-  spr.fillSmoothCircle(cx + rx, cy - ry, r, c);
-  spr.fillTriangle(cx - _px(33 * kw), cy, cx + _px(33 * kw), cy,
-                   cx, cy + _px(35 * kh), c);
+// The happy "^" eye. A parabolic arch drawn as overlapping dots, where
+// `rise` is the whole morph: 0 is a flat closed lid, and raising it arches
+// the same stroke upward. That means going happy is just the existing lid
+// animation plus a rising arch — the transition eases in and out for free,
+// the same way waking from sleep does, instead of cutting between two
+// different eye drawings.
+static void _faceEyeArch(int cx, int cy, int w, float rise, int thick, uint16_t c) {
+  const int N = 16;
+  for (int i = 0; i <= N; i++) {
+    float u = (float)i / (float)N * 2.0f - 1.0f;      // -1..1
+    spr.fillSmoothCircle(cx + _px(u * (float)w * 0.5f),
+                         cy - _px(rise * (1.0f - u * u)),
+                         thick, c);
+  }
 }
 
 // How the face should render this frame. The face no longer owns the
@@ -397,56 +413,59 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
     liftTarget -= 4.0f;
     boostTarget += 5.0f;
   }
-  // Busy theater (§11): the activity verb selects HOW the buddy works, not
-  // just what it says it's doing. Someone glancing over should be able to
-  // tell reading from testing without reading the word.
-  float busyNod = 0.0f;
-  float busySaccade = 0.0f;
+  // Busy theater (§11). Five working beats on a ~2.8s clock.
+  //
+  // The first cut varied mostly LID HEIGHT between beats, which is exactly
+  // what blinking is — so a working buddy read as a buddy blinking rather
+  // than a buddy working. Motion is the dominant channel now: where the
+  // eyes GO distinguishes the beats, and lids only move where narrowing is
+  // part of the character (focus, effort). The activity verb offsets the
+  // sequence rather than branching it, so reading and testing run the same
+  // vocabulary in a different order and still feel unalike.
+  float busyNod = 0.0f;       // vertical gaze, px
+  float busySaccade = 0.0f;   // horizontal gaze, px
   if (persona == 2) {
     const char* a = activity ? activity : "";
-    if (strcmp(a, "read") == 0 || strcmp(a, "web") == 0) {
-      // Line-by-line saccades: hold, jump, hold — reading is not a smooth
-      // sweep, and the discreteness is what makes it read as reading.
-      float ph = fmodf((float)now / 1900.0f, 1.0f);
-      int step = (int)(ph * 4.0f);
-      busySaccade = -9.0f + (float)step * 6.0f;
-      if (ph > 0.93f) busySaccade = -9.0f;      // carriage return
-    } else if (strcmp(a, "verify") == 0) {
-      lidTargetL = lidTargetR = 0.46f;          // squinted concentration
-      // ...with an occasional determined blink.
-      if (((now / 2600) & 3) == 0 && (now % 2600) < 130) lidTargetL = lidTargetR = 0.08f;
-    } else if (strcmp(a, "write") == 0) {
-      lidTargetL = lidTargetR = 0.58f;
-      busyNod = 2.2f * sinf((float)now * (6.2831853f / 1500.0f));   // tiny nods
-    } else {
-      // Generic "working": cycle through thinking beats. This replaces the
-      // animated "..." dots — a row of blinking dots is a progress
-      // indicator borrowed from software, and the whole product thesis is
-      // that the FACE carries the state. Four beats, ~2.4s each, so you
-      // read "it's chewing on something" rather than "three dots".
-      uint32_t beat = (now / 2400) % 4;
-      float bp = (float)(now % 2400) / 2400.0f;          // 0..1 within a beat
-      switch (beat) {
-        case 0:   // pondering: eyes up and off to one side, lids relaxed
-          busyNod = -3.0f;
-          busySaccade = 11.0f;
-          lidTargetL = lidTargetR = 0.86f;
-          break;
-        case 1:   // concentrating: squint down at the work
-          lidTargetL = lidTargetR = 0.42f;
-          busyNod = 2.5f;
-          break;
-        case 2:   // turning it over: slow sweep the other way
-          busySaccade = -13.0f + 6.0f * sinf(bp * 6.2831853f);
-          lidTargetL = lidTargetR = 0.72f;
-          break;
-        default: {  // got it: one deliberate blink, then back to centre
-          busySaccade = 0.0f;
-          if (bp > 0.30f && bp < 0.44f) lidTargetL = lidTargetR = 0.08f;
-          else lidTargetL = lidTargetR = 0.78f;
-          break;
-        }
+    uint32_t off = 0;
+    float squint = 0.0f;
+    float rate = 2800.0f;
+    if (strcmp(a, "read") == 0 || strcmp(a, "web") == 0) { off = 0; rate = 2200.0f; }
+    else if (strcmp(a, "verify") == 0) { off = 2; squint = 0.16f; }
+    else if (strcmp(a, "write") == 0)  { off = 3; }
+    else if (strcmp(a, "shell") == 0)  { off = 1; }
+    else                               { off = 4; }
+
+    uint32_t beat = ((uint32_t)(now / (uint32_t)rate) + off) % 5;
+    float bp = fmodf((float)now / rate, 1.0f);      // 0..1 within the beat
+    switch (beat) {
+      case 0: {   // scanning — discrete left-to-right saccades, then reset
+        int step = (int)(bp * 4.0f);
+        busySaccade = -14.0f + (float)step * 9.0f;
+        if (bp > 0.92f) busySaccade = -14.0f;
+        lidTargetL = lidTargetR = 0.82f - squint;
+        break;
       }
+      case 1:     // pondering — drifts up and away, holds there
+        busySaccade = -11.0f;
+        busyNod = -7.0f;
+        lidTargetL = lidTargetR = 0.90f - squint;
+        break;
+      case 2:     // focused — dead centre, narrowed, with a faint tremor
+        busySaccade = 1.4f * sinf((float)now * (6.2831853f / 260.0f));
+        lidTargetL = lidTargetR = 0.44f - squint * 0.5f;
+        break;
+      case 3: {   // checking — glances down, holds, comes back up
+        float d = (bp < 0.25f) ? (bp / 0.25f)
+                : (bp < 0.70f) ? 1.0f
+                : (1.0f - (bp - 0.70f) / 0.30f);
+        busyNod = 9.0f * animClamp(d, 0.0f, 1.0f);
+        lidTargetL = lidTargetR = 0.74f - squint;
+        break;
+      }
+      default:    // sweeping — one slow continuous pass across
+        busySaccade = 13.0f * sinf(bp * 6.2831853f);
+        lidTargetL = lidTargetR = 0.86f - squint;
+        break;
     }
   }
 
@@ -530,7 +549,6 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
 
   uint16_t accent = opt.color ? opt.color : buddySpeciesColor();
   const uint16_t BG = opt.bg;
-  const uint16_t PINK = 0xFB56;
 
   // Slow continuous whole-face bob: life at a glance plus constant
   // micro-motion for the AMOLED. Sleep breathes slower and deeper.
@@ -554,6 +572,16 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
   // popping on at full brightness the moment the persona changes.
   static float sleepy = 0.0f;
   sleepy = _easeToward(sleepy, (persona == 0) ? 1.0f : 0.0f, 4.0f, dt);
+
+  // Two eased morphs so dizzy and happy arrive and leave gracefully rather
+  // than the renderer cutting between eye drawings. Both are driven purely
+  // by easing the SHAPE, which is why they need no keyframes: the normal eye
+  // shrinks out as the new shape grows in, over the same window.
+  static float dizzyAmt = 0.0f, happyAmt = 0.0f, spiralRot = 0.0f;
+  dizzyAmt = _easeToward(dizzyAmt, (persona == 5) ? 1.0f : 0.0f, 5.0f, dt);
+  happyAmt = _easeToward(happyAmt, (persona == 6) ? 1.0f : 0.0f, 6.5f, dt);
+  spiralRot += dt * 2.6f;                       // the spin is what sells dizzy
+  if (spiralRot > 6.2831853f) spiralRot -= 6.2831853f;
 
   // Ring the squish spring down toward rest. Higher frequency than the
   // card springs — a squish is a quick physical wobble, not a slide.
@@ -622,20 +650,40 @@ inline void faceTick(uint8_t persona, const char* activity, bool boopActive,
       _faceEyeHappy(cx + eyeDX, eyeY, accent);
       break;
     }
-    case 5: {  // dizzy — X eyes, continuous wobble
-      int tilt = _px(5.0f * sinf((float)now * (6.2832f / 800.0f)));
-      _faceEyeX(cx - eyeDX, eyeY + tilt, accent);
-      _faceEyeX(cx + eyeDX, eyeY - tilt, accent);
+    case 5: {  // dizzy — spiral eyes, counter-rotating, on a black field
+      int tilt = _px(7.0f * dizzyAmt * sinf((float)now * (6.2832f / 800.0f)));
+      // The normal eye shrinks away as the spiral winds in, so entering and
+      // leaving dizzy is a morph rather than a swap.
+      // Threshold above _faceEye's closed-lid cutoff (h<=10 draws a fixed
+      // 8px bar): a shrinking eye must vanish, not collapse into a lid, or
+      // the spiral ends up with a stripe through it.
+      int fadeH = _px(eyeHL * (1.0f - dizzyAmt));
+      if (fadeH > 11) {
+        _faceEye(cx - eyeDX, eyeY + tilt, eyeW, fadeH, eyeR, accent);
+        _faceEye(cx + eyeDX, eyeY - tilt, eyeW, fadeH, eyeR, accent);
+      }
+      // Opposite spin per eye: same-direction spirals read as a pattern,
+      // counter-rotating ones read as not being able to focus.
+      _faceEyeSpiral(cx - eyeDX, eyeY + tilt, dizzyAmt,  spiralRot, accent);
+      _faceEyeSpiral(cx + eyeDX, eyeY - tilt, dizzyAmt, -spiralRot, accent);
       break;
     }
-    case 6: {  // heart — heart eyes, blush, smile
-      // Hearts track the finger too. Touch is what produces this face in
-      // the first place, so not following the hand that's petting it would
-      // be the one place the gaze conspicuously fails to work.
-      _faceEyeHeart(cx - eyeDX + gazeI, eyeY, PINK, 1.0f + sq * 0.22f, 1.0f - sq * 0.30f);
-      _faceEyeHeart(cx + eyeDX + gazeI, eyeY, PINK, 1.0f + sq * 0.22f, 1.0f - sq * 0.30f);
-      spr.fillSmoothRoundRect(cx - eyeDX - 54 + gazeI, eyeY + 40, 32, 12, 6, PINK);
-      spr.fillSmoothRoundRect(cx + eyeDX + 22 + gazeI, eyeY + 40, 32, 12, 6, PINK);
+    case 6: {  // affection — a happy "^ ^", morphed in from the open eye
+      // The arch IS the closed lid with a rise on it, so the transition is
+      // the lid easing shut plus the rise growing. Hearts were a separate
+      // drawing that had to be cut to; this one arrives.
+      int openH = _px(eyeHL * (1.0f - happyAmt));
+      if (openH > 11) {          // same closed-lid cutoff as above
+        _faceEye(cx - eyeDX + gazeI, eyeY, eyeW, openH, eyeR, accent);
+        _faceEye(cx + eyeDX + gazeI, eyeY, eyeW, openH, eyeR, accent);
+      }
+      if (happyAmt > 0.02f) {
+        int w = _px(eyeW * (0.86f + 0.14f * happyAmt) * (1.0f + sq * 0.22f));
+        float rise = 26.0f * happyAmt * (1.0f - sq * 0.30f);
+        int thick = _px(5.0f + 2.0f * happyAmt);
+        _faceEyeArch(cx - eyeDX + gazeI, eyeY + _px(rise * 0.5f), w, rise, thick, accent);
+        _faceEyeArch(cx + eyeDX + gazeI, eyeY + _px(rise * 0.5f), w, rise, thick, accent);
+      }
       break;
     }
     default: {  // idle — open eyes, blinks, glances, soft smile
