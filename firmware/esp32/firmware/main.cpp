@@ -1593,7 +1593,9 @@ void loop() {
     uint32_t nowM = millis();
     if (blePasskey()) {
       moodSet(MOOD_LANTERN, screenWasOff);
+      moodPulse(false);          // the digits have to stay readable
     } else if (promptPending()) {
+      moodPulse(true);
       moodSet(MOOD_LANTERN, promptArrivedDark);
       // Escalation replaces the numeric "waiting Ns" counter entirely:
       // urgency is light and motion, which read peripherally far better
@@ -1606,11 +1608,24 @@ void loop() {
       // its own: pair-me can persist for hours, and a permanent cream field
       // would burn power and panel for a message nobody is reading.
       moodSet(MOOD_LANTERN, screenWasOff);
+    } else if (activeState == P_ATTENTION && !responseSent) {
+      // A prompt the buddy CAN'T answer (no approval mode) still deserves
+      // the field: the agent is blocked on a human either way, and this is
+      // the state the desktop most needs help being noticed in. No
+      // escalation and no card — just the pulse and the word.
+      //
+      // !responseSent matters. pet stays "attention" until the desktop
+      // clears the prompt, so without it an approval we just answered would
+      // fall out of promptPending() into THIS branch and instantly re-light
+      // the field — the snuff would never finish.
+      moodSet(MOOD_LANTERN, screenWasOff);
+      moodPulse(true);
     } else {
       // moodSet no-ops when the target already matches, so an in-flight
       // snuff or fade (which both retarget to Night themselves) keeps
       // running rather than being restarted every loop.
       moodSet(MOOD_NIGHT, screenWasOff);
+      moodPulse(false);
     }
   }
   // A pending approval owns the buttons — close the menu before the button

@@ -429,6 +429,22 @@ def corner_pixel(stick, timeout=45):
     return tuple(buddyctl.rgb565le_to_rgb888(raw[:2], 1, 1)[:3])
 
 
+def lit_swing(stick, seconds=3.2):
+    """min/max of the field's luminance over a window.
+
+    Attention pulses the field between black and full cream, so a single
+    sample says nothing — the same prompt reads 0 or 100 depending on when
+    you looked.
+    """
+    lo, hi = 101, -1
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        v = state(stick)["moodLit"]
+        lo, hi = min(lo, v), max(hi, v)
+        time.sleep(0.12)
+    return lo, hi
+
+
 def clear_prompt(stick):
     send_json(stick, {"total": 1, "running": 0, "waiting": 0, "pet": "idle",
                       "promptId": "", "promptApproval": False})
@@ -449,12 +465,17 @@ def test_mood_night_field_is_true_black(stick, landscape):
 
 
 def test_mood_lantern_inverts_the_field_for_approvals(stick, landscape):
-    """A pending approval flips the whole panel dark->light (§2.1).
+    """A pending approval flips the panel dark->light, and PULSES (§2.1).
 
-    This is the one genuine luminance inversion in the product, which is
-    what makes it unmissable in peripheral vision. The exact tone matters:
-    FIELD_LANTERN is an RGB332 lattice point, so it must land with zero
-    quantization error rather than drifting to a neighbouring cream.
+    The inversion is the product's one genuine luminance flip, and it swings
+    rather than holding: a steady field is easy to stop seeing, a moving one
+    is not. So the assertion is on the swing, not on a single sample — the
+    same prompt reads 0 or 100 depending purely on when you looked.
+
+    The exact tone still matters. FIELD_LANTERN is an RGB332 lattice point,
+    so the field has to sit on the black->cream axis rather than drifting to
+    a neighbouring hue: either near-black at the trough, or up the cream ramp
+    with red already saturated.
     """
     clear_prompt(stick)
     send_json(stick, {"total": 2, "running": 1, "waiting": 1, "pet": "attention",
@@ -462,19 +483,41 @@ def test_mood_lantern_inverts_the_field_for_approvals(stick, landscape):
                       "promptHint": "git push --force", "promptSource": "claude-code",
                       "promptApproval": True})
     wait_state(stick, promptId="req_mood", mood="lantern")
-    # `mood` flips when the bloom starts; the light front needs ~350ms to
-    # pass the screen corners, and moodLit only reports once it has.
-    time.sleep(1.2)
-    got = state(stick)
-    assert got["moodLit"] == 100, got["moodLit"]
-    assert got["moodInk"] == 100, got["moodInk"]
-    # The field breathes +-6%, but RGB332 is coarse enough to absorb that:
-    # the whole breath cycle quantizes to the same lattice point, which is
-    # what makes an exact-tone assertion stable here.
-    assert corner_pixel(stick) == LANTERN_RGB   # #FFDBAD
-    # Answer it so the next test doesn't inherit a lit field.
+    time.sleep(1.2)                       # let the bloom finish
+
+    lo, hi = lit_swing(stick)
+    assert hi >= 90, f"field never reached full cream (max {hi})"
+    assert lo <= 25, f"field never returned toward black (min {lo})"
+
+    r, g, b = corner_pixel(stick)
+    on_axis = (r, g, b) == (0, 0, 0) or (r >= 146 and g >= 73 and b <= 200)
+    assert on_axis, (r, g, b)
+
     stick.write_line("press a 120")
     stick.read_until(lambda b: b'"decision":"allow"' in b, 3)
+    clear_prompt(stick)
+
+
+def test_passive_prompt_still_pulses(stick, landscape):
+    """A prompt the buddy CAN'T answer still lights the field.
+
+    Without approval mode the desktop sends pet=attention with
+    promptApproval=false: the agent is blocked on a human, just not on the
+    crown. That used to render as an attentive, silent, black screen, which
+    is indistinguishable from having missed the event.
+    """
+    clear_prompt(stick)
+    send_json(stick, {"total": 1, "running": 0, "waiting": 1, "pet": "attention",
+                      "promptId": "req_passive", "promptTool": "Bash",
+                      "promptSource": "claude-code", "promptApproval": False})
+    wait_state(stick, promptId="req_passive", pet="attention")
+    got = state(stick)
+    assert got["promptApproval"] is False, got["promptApproval"]
+    assert got["card"] is False, "a prompt we cannot answer must not offer a card"
+    time.sleep(1.2)
+    lo, hi = lit_swing(stick)
+    assert hi >= 90, f"passive prompt never lit the field (max {hi})"
+    assert lo <= 25, f"passive prompt did not pulse (min {lo})"
     clear_prompt(stick)
 
 
@@ -567,10 +610,10 @@ def test_approval_card_has_no_wait_counter(stick, landscape):
     time.sleep(12)          # well past the 10s escalation threshold
     got = state(stick)
     assert got["mood"] == "lantern"
-    # The field escalated instead of counting.
-    r, g, b = corner_pixel(stick)
-    assert (r, g, b) != (255, 219, 173), "field never warmed past base lantern"
-    assert r == 255 and g < 219, (r, g, b)
+    # Escalation shows up as a FASTER pulse, not a counter. Asserting a
+    # single corner pixel here is meaningless now that the field swings.
+    lo, hi = lit_swing(stick, 2.0)
+    assert hi >= 90 and lo <= 25, f"escalated field not pulsing ({lo}..{hi})"
     stick.write_line("press b 120")
     stick.read_until(lambda b: b'"decision":"deny"' in b, 3)
     clear_prompt(stick)

@@ -557,7 +557,7 @@ static void _faceComputePose(uint8_t persona, const char* activity, bool boopAct
       lidR_b.bid(LR_BASE, r);
       break;
     }
-    case 3: liftTarget = -12.0f; boostTarget = 16.0f; break;    // attention
+    case 3: liftTarget = -14.0f; boostTarget = 24.0f; break;    // attention/surprise
     default: break;
   }
   // Being petted settles the lids into a contented half-blink. Sleep keeps
@@ -903,13 +903,24 @@ static void _faceDrawPose(const FacePose& P) {
       }
       break;
     }
-    case 3: {  // attention — wide eyes raised toward the boop button
+    case 3: {  // attention — surprised: wide raised eyes and an alert mark
       // Raised toward the crown button, which is the affordance being
       // asked for. The approval card rises from the BOTTOM edge (§7), so
       // there is nothing above to collide with — the old comment here
       // still described a top band that only the M5 portrait path draws.
       _faceEye(P.cx - P.eyeDX, P.eyeY, P.eyeW, P.eyeHL, P.eyeR, P.accent);
       _faceEye(P.cx + P.eyeDX, P.eyeY, P.eyeW, P.eyeHR, P.eyeR, P.accent);
+      // An exclamation mark beside the head. Off to one side rather than
+      // between the eyes, where a vertical bar reads as a nose.
+      {
+        float b = 1.0f + 0.09f * sinf((float)P.now * (ANIM_TAU / 520.0f));
+        int ex = P.cx + 156;
+        int barH = animPx(38.0f * b);
+        int barW = animPx(12.0f);
+        int top  = P.eyeY - animPx(62.0f * b);
+        spr.fillSmoothRoundRect(ex - barW / 2, top, barW, barH, barW / 2, P.accent);
+        spr.fillSmoothCircle(ex, top + barH + animPx(15.0f), animPx(7.0f), P.accent);
+      }
       break;
     }
     case 4: {  // celebrate — confetti behind a hopping, wagging happy face
