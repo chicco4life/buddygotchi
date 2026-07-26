@@ -189,13 +189,24 @@ enum FaceLidRank : int {
   LR_DROWSE      // falling asleep
 };
 
-// How far a deliberate look reaches, in panel px. 18 was too restrained to
-// read as following: at +-106 eye separation and ~74px wide eyes, the swing
-// was under a quarter of an eye's width. 38 still leaves ~45px of margin
-// outside the eye at full deflection, and 22 vertical clears the status
-// strip.
-static const float FACE_GAZE_REACH_X = 38.0f;
-static const float FACE_GAZE_REACH_Y = 22.0f;
+// How far a deliberate look reaches, in panel px, and how fast it gets
+// there.
+//
+// Reach: 48 horizontal still leaves ~37px of margin outside the eye at full
+// deflection, even for the widest species (owl, 87px eyes) — beyond about
+// 55 the eyes start crowding the bezel. 30 vertical stays clear of the
+// bottom status strip.
+//
+// Rate matters as much as reach. Following used to ease at 8/s, the same
+// rate as the ambient idle drift, which is a ~125ms lag — at 26fps the eyes
+// only covered a quarter of the gap per frame, so they trailed the finger
+// instead of tracking it. A deliberate target now eases at 20/s (~half the
+// remaining gap per frame) while ambient glancing keeps the slow rate,
+// because idle wandering is supposed to look unhurried.
+static const float FACE_GAZE_REACH_X = 48.0f;
+static const float FACE_GAZE_REACH_Y = 30.0f;
+static const float FACE_GAZE_RATE_TRACK = 20.0f;
+static const float FACE_GAZE_RATE_DRIFT = 8.0f;
 
 // Low to high. A finger outranks anything ambient; the descent outranks
 // even that, because the eyes are closing.
@@ -757,10 +768,11 @@ static void _faceComputePose(uint8_t persona, const char* activity, bool boopAct
   lidR = animEase(lidR, lidTargetR, lidTargetR < lidR ? 26.0f : 11.0f, dt);
   lift = animEase(lift, liftTarget, 14.0f, dt);
   boost = animEase(boost, boostTarget, 18.0f, dt);
-  gaze = animEase(gaze, gazeTarget, 8.0f, dt);
+  float gazeRate = opt.hasGazeTarget ? FACE_GAZE_RATE_TRACK : FACE_GAZE_RATE_DRIFT;
+  gaze = animEase(gaze, gazeTarget, gazeRate, dt);
   static float gazeY = 0.0f;
   gazeY = animEase(gazeY, opt.hasGazeTarget ? opt.gazeBiasY * FACE_GAZE_REACH_Y : 0.0f,
-                   8.0f, dt);
+                   gazeRate, dt);
 
   uint16_t accent = opt.color ? opt.color : buddySpeciesColor();
   const uint16_t BG = opt.bg;
