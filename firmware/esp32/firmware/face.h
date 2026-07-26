@@ -189,6 +189,14 @@ enum FaceLidRank : int {
   LR_DROWSE      // falling asleep
 };
 
+// How far a deliberate look reaches, in panel px. 18 was too restrained to
+// read as following: at +-106 eye separation and ~74px wide eyes, the swing
+// was under a quarter of an eye's width. 38 still leaves ~45px of margin
+// outside the eye at full deflection, and 22 vertical clears the status
+// strip.
+static const float FACE_GAZE_REACH_X = 38.0f;
+static const float FACE_GAZE_REACH_Y = 22.0f;
+
 // Low to high. A finger outranks anything ambient; the descent outranks
 // even that, because the eyes are closing.
 enum FaceGazeRank : int {
@@ -213,6 +221,9 @@ struct FaceOpts {
   // ambient glance drift, because the buddy noticing something specific is
   // more legible than the buddy looking around.
   float    gazeBias = 0.0f;
+  // Same, vertically. The eyes track a finger in both axes — following only
+  // in x reads as a cardboard cutout swivelling rather than as looking.
+  float    gazeBiasY = 0.0f;
   // Whether gazeBias means anything this frame. Without it, "look dead
   // centre" and "nothing to look at" are the same value.
   bool     hasGazeTarget = false;
@@ -737,7 +748,7 @@ static void _faceComputePose(uint8_t persona, const char* activity, bool boopAct
   if (_miKind == MI_ORB_CHASE || _miKind == MI_LOOK_AT_YOU) gaze_b.bid(GR_MICRO, miGaze);
   // An explicit target wins over the ambient drift, and reaches further —
   // a deliberate look should be visibly bigger than idle wandering.
-  if (opt.hasGazeTarget) gaze_b.bid(GR_TOUCH, opt.gazeBias * 18.0f);
+  if (opt.hasGazeTarget) gaze_b.bid(GR_TOUCH, opt.gazeBias * FACE_GAZE_REACH_X);
   if (opt.drowseKind == DK_LOOK_AWAY && opt.drowse > 0.0f) gaze_b.bid(GR_DROWSE, dwGaze);
   float gazeTarget = gaze_b.get(0.0f);
 
@@ -747,6 +758,9 @@ static void _faceComputePose(uint8_t persona, const char* activity, bool boopAct
   lift = animEase(lift, liftTarget, 14.0f, dt);
   boost = animEase(boost, boostTarget, 18.0f, dt);
   gaze = animEase(gaze, gazeTarget, 8.0f, dt);
+  static float gazeY = 0.0f;
+  gazeY = animEase(gazeY, opt.hasGazeTarget ? opt.gazeBiasY * FACE_GAZE_REACH_Y : 0.0f,
+                   8.0f, dt);
 
   uint16_t accent = opt.color ? opt.color : buddySpeciesColor();
   const uint16_t BG = opt.bg;
@@ -794,7 +808,7 @@ static void _faceComputePose(uint8_t persona, const char* activity, bool boopAct
   // back through the other side. Everything shifts down slightly with it,
   // as if the boop pressed it into the desk.
   int eyeY = FACE_EYE_Y + bob + animPx(lift) - opt.lift + animPx(sq * 7.0f) + opt.dangleY
-             + animPx(busyNod) + animPx(dwNod) + animPx(celebHop);
+             + animPx(busyNod) + animPx(dwNod) + animPx(celebHop) + animPx(gazeY);
   int eyeDX = animPx(FACE_EYE_DX * (1.0f + sq * 0.10f));
   int headX = animPx(brShake + celebWig);
   int gazeI = animPx(gaze) + opt.dangleX + animPx(miWiggle) + headX;

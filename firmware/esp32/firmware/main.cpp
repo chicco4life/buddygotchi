@@ -1746,13 +1746,18 @@ void loop() {
       int tx = 0, ty = 0;
       if (touchPoint(&tx, &ty)) {
         fo.petting = true;
-        fo.gazeBias = animClamp((float)(tx - W / 2) / (float)(W / 2), -1.0f, 1.0f);
+        fo.gazeBias  = animClamp((float)(tx - W / 2) / (float)(W / 2), -1.0f, 1.0f);
+        fo.gazeBiasY = animClamp((float)(ty - H / 2) / (float)(H / 2), -1.0f, 1.0f);
         fo.hasGazeTarget = true;
       } else {
         // orbsGazeNudge returns 0 both for "no new session" and for "the
-        // new one is dead ahead", so it carries its own activation.
-        fo.gazeBias = orbsGazeNudge(nowMs);
-        fo.hasGazeTarget = (fo.gazeBias != 0.0f);
+        // new one is dead ahead", so it carries its own activation. Scaled
+        // down because it shares the touch channel: a finger should get the
+        // full swing, but a session starting is a glance, not a stare.
+        float nudge = orbsGazeNudge(nowMs);
+        fo.gazeBias  = nudge * 0.45f;
+        fo.gazeBiasY = 0.0f;
+        fo.hasGazeTarget = (nudge != 0.0f);
       }
 
       // Dangle (§10.2): while held, the eyes swing with the accelerometer
