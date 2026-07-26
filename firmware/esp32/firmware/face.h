@@ -125,8 +125,12 @@ static void _faceBrow(int cx, int cy, int w, int side, float amt, uint16_t c) {
   // 13 samples across ~63px is ~5px apart against a dot up to 10px wide, so
   // the stroke is solid. At 7 it came out visibly beaded.
   const int N = 13;
-  int thick = animPx(3.0f + 2.0f * amt);
-  float drop = 16.0f * amt;
+  int thick = animPx(2.6f + 1.4f * amt);
+  // A shallow slant, not a V. Inner-ends-down is the same shape anger uses,
+  // and at 16px of drop that is exactly what it read as; 7px keeps the
+  // "leaning into it" tilt without the scowl. Effort is meant to look
+  // strained, not annoyed.
+  float drop = 7.0f * amt;
   for (int i = 0; i <= N; i++) {
     float u = (float)i / (float)N;                 // 0 = outer, 1 = inner
     spr.fillSmoothCircle(cx + side * animPx((u - 0.5f) * (float)w),
@@ -445,6 +449,7 @@ struct FacePose {
   float    sweat01 = 0.0f;
   int      sweatSide = 1;
   float    brow = 0.0f;               // 0..1 furrow, eased
+  float    celebT = -1.0f;            // seconds into a celebration, <0 = none
 };
 
 static void _faceComputePose(uint8_t persona, const char* activity, bool boopActive,
@@ -593,14 +598,14 @@ static void _faceComputePose(uint8_t persona, const char* activity, bool boopAct
         lidL_b.bid(LR_BUSY, 0.90f - squint); lidR_b.bid(LR_BUSY, 0.90f - squint);
         break;
       case 2:     // focused — dead centre, narrowed, with a strained tremor
-        browTarget = 1.0f;
+        browTarget = 0.72f;
         // Faster and slightly wider than a drift: at this frequency it
         // reads as effort rather than as wandering.
         busySaccade = 2.1f * sinf((float)now * (ANIM_TAU / 190.0f));
         lidL_b.bid(LR_BUSY, 0.44f - squint * 0.5f); lidR_b.bid(LR_BUSY, 0.44f - squint * 0.5f);
         break;
       case 3: {   // checking — glances down, holds, comes back up
-        browTarget = 0.6f;
+        browTarget = 0.45f;
         float d = (bp < 0.25f) ? (bp / 0.25f)
                 : (bp < 0.70f) ? 1.0f
                 : (1.0f - (bp - 0.70f) / 0.30f);
@@ -613,6 +618,24 @@ static void _faceComputePose(uint8_t persona, const char* activity, bool boopAct
         lidL_b.bid(LR_BUSY, 0.86f - squint); lidR_b.bid(LR_BUSY, 0.86f - squint);
         break;
     }
+  }
+
+  // Celebration motion. Finishing something should look like something
+  // happened, so the whole face hops and wags — decaying, so it settles into
+  // the happy arcs rather than bouncing forever while the heartbeat holds
+  // celebrate.
+  static uint32_t celebAt = 0;
+  static uint8_t  prevCelebPersona = 255;
+  if (persona != prevCelebPersona) {
+    if (persona == 4) celebAt = now;
+    prevCelebPersona = persona;
+  }
+  float celebT = (persona == 4 && celebAt != 0) ? (float)(now - celebAt) / 1000.0f : -1.0f;
+  float celebHop = 0.0f, celebWig = 0.0f;
+  if (celebT >= 0.0f) {
+    float decay = expf(-celebT * 0.55f);
+    celebHop = -24.0f * fabsf(sinf(celebT * 6.6f)) * decay;   // bounces up
+    celebWig = 13.0f * sinf(celebT * 9.4f) * decay;           // wags
   }
 
   // Effort tell. A working face reads as "eyes doing something"; one bead of
@@ -635,7 +658,7 @@ static void _faceComputePose(uint8_t persona, const char* activity, bool boopAct
       sweatSide = ((now / SWEAT_CYCLE) & 1) ? 1 : -1;
     }
   }
-  if (sweat01 > 0.0f && browTarget < 0.55f) browTarget = 0.55f;
+  if (sweat01 > 0.0f && browTarget < 0.42f) browTarget = 0.42f;
 
   brow = animEase(brow, (persona == 2) ? browTarget : 0.0f, 4.0f, dt);
 
@@ -771,9 +794,9 @@ static void _faceComputePose(uint8_t persona, const char* activity, bool boopAct
   // back through the other side. Everything shifts down slightly with it,
   // as if the boop pressed it into the desk.
   int eyeY = FACE_EYE_Y + bob + animPx(lift) - opt.lift + animPx(sq * 7.0f) + opt.dangleY
-             + animPx(busyNod) + animPx(dwNod);
+             + animPx(busyNod) + animPx(dwNod) + animPx(celebHop);
   int eyeDX = animPx(FACE_EYE_DX * (1.0f + sq * 0.10f));
-  int headX = animPx(brShake);
+  int headX = animPx(brShake + celebWig);
   int gazeI = animPx(gaze) + opt.dangleX + animPx(miWiggle) + headX;
   // Head tilt as opposed vertical eye offsets: rotating the whole sprite
   // would cost a resample every frame, and at this geometry the eyes going
@@ -799,6 +822,7 @@ static void _faceComputePose(uint8_t persona, const char* activity, bool boopAct
   P.dizzyAmt = dizzyAmt;  P.spiralRot = spiralRot;  P.happyAmt = happyAmt;
   P.sweat01 = sweat01;    P.sweatSide = sweatSide;
   P.brow = brow;
+  P.celebT = celebT;
 }
 
 // The field is already painted (moodDrawField) — the face draws onto it.
@@ -862,9 +886,26 @@ static void _faceDrawPose(const FacePose& P) {
       _faceEye(P.cx + P.eyeDX, P.eyeY, P.eyeW, P.eyeHR, P.eyeR, P.accent);
       break;
     }
-    case 4: {  // celebrate — happy arc eyes, nothing thrown
-      _faceEyeHappy(P.cx - P.eyeDX, P.eyeY, P.accent);
-      _faceEyeHappy(P.cx + P.eyeDX, P.eyeY, P.accent);
+    case 4: {  // celebrate — confetti behind a hopping, wagging happy face
+      // The one place particles earn their keep. They were stripped from the
+      // resting and affection faces because ambient drifting specks read as
+      // dust on the glass; here they are a one-off burst tied to an event,
+      // they sit BEHIND the face, and they stop.
+      if (P.celebT >= 0.0f && P.celebT < 3.6f) {
+        static const uint16_t CONF[5] = { 0xF800, 0x07E0, 0x051F, 0xFFE0, 0xF81F };
+        float fade = P.celebT < 3.0f ? 1.0f : (3.6f - P.celebT) / 0.6f;
+        for (int i = 0; i < 28; i++) {
+          uint32_t h = animHash(0xC0FFEEu + (uint32_t)i * 7919u);
+          float speed = 95.0f + (float)(h % 130);          // px/s, per piece
+          float ph = (float)((h >> 9) % 1000) / 1000.0f;   // staggered start
+          int px = (int)(h % (uint32_t)(HAL_W - 8));
+          int py = animPx(fmodf(ph * (float)HAL_H + P.celebT * speed, (float)HAL_H));
+          int w = 4 + (int)((h >> 4) % 4);
+          spr.fillRect(px, py, w, w, animMix(P.bg, CONF[(h >> 13) % 5], fade));
+        }
+      }
+      _faceEyeHappy(P.cx - P.eyeDX + P.gazeI, P.eyeY, P.accent);
+      _faceEyeHappy(P.cx + P.eyeDX + P.gazeI, P.eyeY, P.accent);
       break;
     }
     case 5: {  // dizzy — spiral eyes, counter-rotating, on a black field
