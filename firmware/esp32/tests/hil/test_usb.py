@@ -845,6 +845,12 @@ def test_hatch_ritual_runs_and_completes(stick, landscape):
     has booted once.
     """
     clear_prompt(stick)
+    # ritualStart early-returns if that ritual is ALREADY running, so it
+    # prints nothing and the read below times out. The auto morning-stretch
+    # fires on first link-up, which is exactly the sort of thing that can be
+    # in flight here — clear before starting rather than inheriting.
+    stick.write_line("ritual skip")
+    stick.drain_until_quiet(max_wait=0.3)
     stick.write_line("ritual hatch")
     stick.read_until(lambda b: b"<<RITUAL hatch>>" in b, 3)
     assert state(stick)["ritual"] == "hatch"
@@ -856,6 +862,8 @@ def test_hatch_ritual_runs_and_completes(stick, landscape):
 def test_any_button_skips_a_ritual(stick, landscape):
     """A ritual is a gift, not a toll — you can always get past it."""
     clear_prompt(stick)
+    stick.write_line("ritual skip")
+    stick.drain_until_quiet(max_wait=0.3)
     stick.write_line("ritual hatch")
     stick.read_until(lambda b: b"<<RITUAL hatch>>" in b, 3)
     time.sleep(0.4)
@@ -867,6 +875,8 @@ def test_any_button_skips_a_ritual(stick, landscape):
 def test_morning_stretch_runs_and_completes(stick, landscape):
     """First link-up after a long absence gets a stretch and a yawn."""
     clear_prompt(stick)
+    stick.write_line("ritual skip")          # see the note in the hatch test
+    stick.drain_until_quiet(max_wait=0.3)
     stick.write_line("ritual stretch")
     stick.read_until(lambda b: b"<<RITUAL stretch>>" in b, 3)
     assert state(stick)["ritual"] == "stretch"

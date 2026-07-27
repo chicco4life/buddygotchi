@@ -142,10 +142,16 @@ inline void cardDraw(BuddyCanvas& spr, uint32_t now, const TamaState& s,
   else spr.printf("%.*s", cpl, tool);
   y += 13 * S;
 
-  // Lines 2-3: the hint, which is usually the actual command.
+  // Line 2: the hint, which is usually the actual command. ONE line,
+  // truncated — it used to wrap to two, and the second row landed on
+  // exactly the rows the "reject" legend occupies. A hint long enough to
+  // need two lines is not something you read off a desk pet anyway; the
+  // ellipsis says "there's more" and the Mac has the full text.
   if (s.promptHint[0]) {
     spr.setTextColor(dim, bg);
-    _cardWrap(spr, s.promptHint, x, y, y + 12 * S, cpl);
+    spr.setCursor(x, y);
+    if ((int)strlen(s.promptHint) > cpl) spr.printf("%.*s...", cpl - 3, s.promptHint);
+    else                                 spr.print(s.promptHint);
   }
 
   // Link lost mid-prompt: a boop can't be delivered, so say so. The field
