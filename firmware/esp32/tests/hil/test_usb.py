@@ -1275,3 +1275,73 @@ def test_deepsleep_roundtrip(stick):
     assert pong["up"] < 60_000, "device did not actually restart"
     assert pong["panics"] == baseline["panics"], "sleep path panicked"
     assert pong["safe"] == 0
+
+
+def test_unacknowledged_decision_is_offered_again(stick):
+    """A decision the desktop never acknowledged must not latch forever.
+
+    The desktop drops promptId the instant it acts on a decision. So the same
+    prompt still arriving long after we answered proves the answer was lost —
+    the link was down or mid-handshake when sendCmd skipped the radio, the
+    frame was malformed, the id matched nothing desk-side. All identical from
+    the device's side, so one rule covers them.
+
+    Found on hardware: with BLE pulled, the crown still armed, chirped,
+    celebrated and latched "yes!" with nothing listening, and reconnecting
+    re-sent the SAME id so the change-detector never fired. The pet sat on
+    "yes!" forever while the agent waited out its timeout.
+    """
+    send_json(stick, {"total": 1, "running": 0, "waiting": 1, "pet": "attention",
+                      "promptId": "stuck_1", "promptTool": "Bash",
+                      "promptHint": "echo hi", "promptApproval": True})
+    wait_state(stick, promptId="stuck_1", responseSent=False)
+
+    stick.write_line("btn a")
+    buf, _ = stick.read_until(lambda b: b'"decision":"allow"' in b, 3)
+    assert b'"cmd":"permission"' in buf
+    wait_state(stick, responseSent=True)   # latched, as before
+
+    # Play the desktop that never heard it: keep re-sending the same prompt.
+    deadline = time.monotonic() + 16
+    reoffered = False
+    while time.monotonic() < deadline:
+        send_json(stick, {"total": 1, "running": 0, "waiting": 1, "pet": "attention",
+                          "promptId": "stuck_1", "promptTool": "Bash",
+                          "promptHint": "echo hi", "promptApproval": True})
+        if state(stick).get("responseSent") is False:
+            reoffered = True
+            break
+        time.sleep(0.5)
+    assert reoffered, "device latched a lost decision forever"
+
+    # ...and it is genuinely answerable again, not just visually reset.
+    got = wait_state(stick, promptId="stuck_1", responseSent=False)
+    assert got["promptApproval"] is True
+    time.sleep(0.8)   # clear the re-armed 600ms window
+    stick.write_line("btn a")
+    buf, _ = stick.read_until(lambda b: b'"decision":"allow"' in b, 3)
+    assert b'"cmd":"permission"' in buf
+
+    clear_prompt(stick)
+
+
+def test_acknowledged_decision_does_not_re_offer(stick):
+    """The converse: a decision the desktop DID act on must stay answered.
+
+    Guards against the re-offer turning into a loop that re-asks the user
+    about something already approved — which would be worse than the bug.
+    """
+    send_json(stick, {"total": 1, "running": 0, "waiting": 1, "pet": "attention",
+                      "promptId": "acked_1", "promptTool": "Bash",
+                      "promptHint": "echo hi", "promptApproval": True})
+    wait_state(stick, promptId="acked_1", responseSent=False)
+
+    stick.write_line("btn a")
+    stick.read_until(lambda b: b'"decision":"allow"' in b, 3)
+
+    # A real desktop clears the prompt here. Nothing should re-offer.
+    clear_prompt(stick)
+    time.sleep(12)   # well past PROMPT_RETRY_MS
+    got = state(stick)
+    assert got["promptId"] == ""
+    assert got["card"] is False, "re-offered a prompt the desktop had cleared"

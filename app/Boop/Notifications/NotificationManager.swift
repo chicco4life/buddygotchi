@@ -115,10 +115,15 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         let actionIdentifier = response.actionIdentifier
         Task { @MainActor [requestId, actionIdentifier] in
             switch actionIdentifier {
-            case "APPROVE":
-                self.engine?.resolveApproval(requestId: requestId, decision: .allow)
-            case "DENY":
-                self.engine?.resolveApproval(requestId: requestId, decision: .deny)
+            case "APPROVE", "DENY":
+                // macOS keeps delivered banners in Notification Center across
+                // an app restart, so this id may be long gone — the click
+                // dismisses the banner either way and looks like it worked.
+                // Say when it didn't land; the ESP32 path reports the same.
+                let decision: ApprovalDecision = (actionIdentifier == "APPROVE") ? .allow : .deny
+                if self.engine?.resolveApproval(requestId: requestId, decision: decision) != true {
+                    print("[NotificationManager] \(actionIdentifier) for unknown id \(requestId) — dropped")
+                }
             default:
                 self.defaultAction?()
             }

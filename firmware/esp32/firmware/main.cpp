@@ -61,7 +61,13 @@ PersonaState baseState   = P_SLEEP;
 PersonaState activeState = P_SLEEP;
 unsigned long t = 0;
 
-char     lastPromptId[40] = "";
+// Sized FROM the field it shadows, never hardcoded. This is the edge-detector
+// for "a new prompt arrived"; if it is shorter than TamaState::promptId, a
+// long id makes strcmp permanently unequal, so promptArrivedMs restarts every
+// single frame and promptArmed() (which needs now >= arrived + PROMPT_ARM_MS)
+// can never come true — the crown goes dead with the card still on screen.
+// The two buffers were [40] and [64] for exactly one commit; keep them welded.
+char     lastPromptId[sizeof(TamaState::promptId)] = "";
 bool     screenOff = false;
 bool     manualScreenOff = false;
 bool     buddyMode = true;
@@ -72,6 +78,10 @@ uint32_t promptArrivedMs = 0;
 // cream field is the one way the mood system turns hostile.
 bool     promptArrivedDark = false;
 bool     responseSent = false;
+// When we latched responseSent. The desktop clears promptId the moment it
+// acts on a decision, so a prompt that is STILL arriving well after we
+// answered it means our answer never got there — see the re-offer below.
+uint32_t responseSentMs = 0;
 
 const uint8_t BRIGHT_DIM = 40;
 const uint8_t BRIGHT_MEDIUM = 120;
@@ -95,6 +105,9 @@ const uint32_t BOOP_REACT_MS = 2500;
 // approve a prompt the user never saw. The "btn a|b" debug shortcut and
 // mockprompt (which backdates its arrival) bypass this on purpose.
 const uint32_t PROMPT_ARM_MS = 600;
+// How long we wait for the desktop to acknowledge a decision (by dropping
+// the prompt) before assuming it was lost and offering the card again.
+const uint32_t PROMPT_RETRY_MS = 10000;
 // Synthetic touchscreen contact ("touch down|up" serial cmds) — lets HIL
 // exercise the tap/boop/petting paths without a finger on the glass.
 static bool synthTouch = false;
@@ -570,13 +583,19 @@ static bool readBtn(HalButton b) {
 // physical buttons and the debug "btn" serial command so both produce the
 // exact same wire format and trip the same responseSent latch.
 static void sendApproval(bool approve) {
-  char cmd[96];
+  // Sized from the id it carries, not a round number. The envelope is 42
+  // bytes plus "allow"/"deny", and a truncated frame here loses its closing
+  // brace — the Mac's JSONSerialization returns nil and the whole decision
+  // is dropped without a word. [96] held only a 48-char id while promptId
+  // permits 63, so widening that buffer had quietly armed this one.
+  char cmd[sizeof(TamaState::promptId) + 64];
   snprintf(cmd, sizeof(cmd), "{\"cmd\":\"permission\",\"id\":\"%s\",\"decision\":\"%s\"}",
            tama.promptId, approve ? "allow" : "deny");
   sendCmd(cmd);
   if (approve) statsOnApproval();
   else statsOnDenial();
   responseSent = true;
+  responseSentMs = millis();
   lastDecisionApprove = approve;
   // Resolve the field (§2.1.3). Approve snuffs — the light contracts back
   // into the face behind a green ripple, deliberately faster than the
@@ -1587,8 +1606,36 @@ void loop() {
     strncpy(lastPromptId, tama.promptId, sizeof(lastPromptId)-1);
     lastPromptId[sizeof(lastPromptId)-1] = 0;
     responseSent = false;
+    responseSentMs = 0;
     promptArrivedMs = millis();
     promptArrivedDark = screenWasOff;
+  }
+  // Our answer never arrived — offer the card again.
+  //
+  // The desktop drops promptId as soon as it acts on a decision, so the same
+  // prompt still being re-sent this long after we answered proves the answer
+  // was lost. Deliberately keyed on that rather than on "is the radio up",
+  // because every way of losing it looks identical from here: the link was
+  // down or mid-handshake when sendCmd skipped the radio, the frame was
+  // malformed, the id didn't match anything desk-side, a notify was dropped.
+  // One rule covers them all, and it needs no new failure detection.
+  //
+  // Without this the latch is permanent: reconnecting re-sends the SAME id,
+  // so the change-detector above never fires, and the pet sits on "yes!"
+  // forever while the agent waits out its timeout. Found on hardware by
+  // pulling the link and pressing the crown — the device chirps, celebrates,
+  // and reports success with nothing listening.
+  //
+  // 10s is far longer than a healthy desktop needs to clear a prompt (it is
+  // immediate) and far longer than any HIL test holds one, so a normal
+  // approve never re-offers. A duplicate decision, if one does slip out, is
+  // harmless: the desktop has no such id pending and logs it as unknown.
+  if (responseSent && tama.promptId[0] && responseSentMs != 0 &&
+      (int32_t)(millis() - responseSentMs) >= (int32_t)PROMPT_RETRY_MS) {
+    responseSent = false;
+    responseSentMs = 0;
+    promptArrivedMs = millis();   // re-arm, so a resting finger can't auto-answer
+    Serial.println("<<PROMPT re-offer (decision was not acknowledged)>>");
   }
 
   // Route the screen mood (§2.1). Field brightness encodes how much the
