@@ -85,7 +85,12 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
 
     func bleManager(_ manager: BLEManager, didReceiveApproval requestId: String, decision: String) {
         let mapped: ApprovalDecision = (decision == "allow") ? .allow : .deny
-        engine?.resolveApproval(requestId: requestId, decision: mapped)
+        // A decision for an id nothing is waiting on is a real fault, not a
+        // race: the device only answers prompts we sent it. Say so, because
+        // dropping it in silence is indistinguishable from a dead button.
+        if engine?.resolveApproval(requestId: requestId, decision: mapped) == false {
+            print("[ESP32Output] approval for unknown id \(requestId) (\(requestId.count) chars) — dropped")
+        }
     }
 
     func bleManagerDidReceiveBoop(_ manager: BLEManager) {

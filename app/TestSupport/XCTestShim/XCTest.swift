@@ -150,6 +150,48 @@ public func XCTAssertGreaterThanOrEqual<T: Comparable>(
     }
 }
 
+public func XCTAssertLessThan<T: Comparable>(
+    _ expression1: @autoclosure () throws -> T,
+    _ expression2: @autoclosure () throws -> T,
+    _ message: @autoclosure () -> String = "",
+    file: StaticString = #filePath,
+    line: UInt = #line
+) rethrows {
+    let lhs = try expression1()
+    let rhs = try expression2()
+    if lhs >= rhs {
+        fail(message().isEmpty ? "XCTAssertLessThan failed: \(lhs) is not less than \(rhs)" : message(), file: file, line: line)
+    }
+}
+
+public func XCTAssertLessThanOrEqual<T: Comparable>(
+    _ expression1: @autoclosure () throws -> T,
+    _ expression2: @autoclosure () throws -> T,
+    _ message: @autoclosure () -> String = "",
+    file: StaticString = #filePath,
+    line: UInt = #line
+) rethrows {
+    let lhs = try expression1()
+    let rhs = try expression2()
+    if lhs > rhs {
+        fail(message().isEmpty ? "XCTAssertLessThanOrEqual failed: \(lhs) is greater than \(rhs)" : message(), file: file, line: line)
+    }
+}
+
+public func XCTAssertNotEqual<T: Equatable>(
+    _ expression1: @autoclosure () throws -> T,
+    _ expression2: @autoclosure () throws -> T,
+    _ message: @autoclosure () -> String = "",
+    file: StaticString = #filePath,
+    line: UInt = #line
+) rethrows {
+    let lhs = try expression1()
+    let rhs = try expression2()
+    if lhs == rhs {
+        fail(message().isEmpty ? "XCTAssertNotEqual failed: both values are \(lhs)" : message(), file: file, line: line)
+    }
+}
+
 public func XCTUnwrap<T>(
     _ expression: @autoclosure () throws -> T?,
     _ message: @autoclosure () -> String = "",

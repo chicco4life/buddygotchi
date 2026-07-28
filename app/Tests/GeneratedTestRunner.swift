@@ -165,6 +165,10 @@ struct GeneratedTestRunner {
         await run("ReducerTests.testBoopNeverOverridesError") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testBoopNeverOverridesError() }
         await run("ReducerTests.testBoopWhileAsleepStaysAsleep") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testBoopWhileAsleepStaysAsleep() }
         await run("ReducerTests.testAttentionArrivingDuringHeartWinsImmediately") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testAttentionArrivingDuringHeartWinsImmediately() }
+        await run("RequestIdTests.testFitsLegacyDeviceBufferForUUIDSession") { let t = RequestIdTests(); try t.setUpWithError(); try await t.setUp(); t.testFitsLegacyDeviceBufferForUUIDSession() }
+        await run("RequestIdTests.testFitsForEveryPlausibleSessionShape") { let t = RequestIdTests(); try t.setUpWithError(); try await t.setUp(); t.testFitsForEveryPlausibleSessionShape() }
+        await run("RequestIdTests.testIdsAreUniqueWithinOneSession") { let t = RequestIdTests(); try t.setUpWithError(); try await t.setUp(); t.testIdsAreUniqueWithinOneSession() }
+        await run("RequestIdTests.testIdsStayDistinctAcrossSessionsAfterTruncation") { let t = RequestIdTests(); try t.setUpWithError(); try await t.setUp(); t.testIdsStayDistinctAcrossSessionsAfterTruncation() }
         await run("ResourceTests.testModuleBundleContainsFontAndSoundResources") { let t = ResourceTests(); try t.setUpWithError(); try await t.setUp(); t.testModuleBundleContainsFontAndSoundResources() }
         await run("ResourceTests.testGeistSemiBoldRegistersAndResolves") { let t = ResourceTests(); try t.setUpWithError(); try await t.setUp(); t.testGeistSemiBoldRegistersAndResolves() }
         await run("SnapshotHarnessTests.testSpeciesGallery") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testSpeciesGallery() }
@@ -175,7 +179,7 @@ struct GeneratedTestRunner {
         await run("SnapshotHarnessTests.testSettings") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testSettings() }
         await run("SnapshotHarnessTests.testOnboardingSteps") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testOnboardingSteps() }
 
-        let total = 151
+        let total = 155
         print("\n\u{2713} \(passed) passed, \(skipped) skipped of \(total) tests")
     }
 }

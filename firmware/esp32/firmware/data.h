@@ -22,7 +22,13 @@ struct TamaState {
   char     lines[6][81];
   uint8_t  nLines;
   uint16_t lineGen;          // bumps when lines change — lets UI reset scroll
-  char     promptId[40];     // pending permission request ID; empty = no prompt
+  // Pending permission request ID; empty = no prompt. Echoed back verbatim
+  // with the decision, and the desktop matches it by exact equality — so a
+  // silent truncation here is a decision the Mac will never recognise. It
+  // used to be [40], which a "<36-char session uuid>_<12>" id overran by 9
+  // chars: the crown worked, the card latched "yes!", and the reply was
+  // dropped desk-side. The desktop now sends ~21, so this is pure headroom.
+  char     promptId[64];
   char     promptTool[24];
   char     promptHint[64];
   char     promptSource[16];

@@ -122,12 +122,19 @@ final class BuddyEngine {
         }
     }
 
-    func resolveApproval(requestId: String, decision: ApprovalDecision) {
-        guard let continuation = pendingApprovals.removeValue(forKey: requestId) else { return }
+    /// Returns false when nothing was waiting on this id, so the caller can
+    /// surface the mismatch. A decision for an unknown id used to vanish here
+    /// without a trace, which is how a device-truncated id (see makeRequestId
+    /// in HookServer) presented as a dead button instead of an id mismatch:
+    /// the card sat on "yes!" forever and the hook stayed blocked.
+    @discardableResult
+    func resolveApproval(requestId: String, decision: ApprovalDecision) -> Bool {
+        guard let continuation = pendingApprovals.removeValue(forKey: requestId) else { return false }
         if let sessionId = findSessionForApproval(requestId) {
             apply(.approvalResolved(at: clock.now(), sessionId: sessionId, requestId: requestId, decision: decision))
         }
         continuation.resume(returning: decision)
+        return true
     }
 
     func resolveAllPendingApprovals(decision: ApprovalDecision) {

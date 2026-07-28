@@ -132,7 +132,7 @@ func buildHookServer(
         let tool = body.effectiveToolName ?? "Unknown"
         let hint = extractHint(from: body)
         let sessionLabel = cwdLabel(body.cwd)
-        let requestId = "\(sessionId)_\(shortUUID())"
+        let requestId = makeRequestId(sessionId: sessionId)
 
         await diagLog.log(category: "approve", source: source, event: body.effectiveEventName ?? "approve", detail: "\(tool): \(hint)", rawPayload: rawJSON)
 
@@ -207,7 +207,7 @@ func handleAgentEvent(
     case "PermissionRequest":
         let tool = body.effectiveToolName ?? "Permission"
         let hint = extractHint(from: body)
-        let requestId = "\(sessionId)_\(shortUUID())"
+        let requestId = makeRequestId(sessionId: sessionId)
         await engine.submitRequest(sessionId: sessionId, requestId: requestId, tool: tool, hint: hint, sessionLabel: sessionLabel)
 
     case "Notification":
@@ -215,10 +215,10 @@ func handleAgentEvent(
         case "permission_prompt":
             // Skip when approval mode is on — the hook script routes these to /hook/approve instead.
             if isApprovalModeEnabled() { break }
-            let requestId = "\(sessionId)_\(shortUUID())"
+            let requestId = makeRequestId(sessionId: sessionId)
             await engine.submitRequest(sessionId: sessionId, requestId: requestId, tool: body.notification_type ?? "Notification", hint: body.message ?? "", sessionLabel: sessionLabel)
         case "elicitation_dialog":
-            let requestId = "\(sessionId)_\(shortUUID())"
+            let requestId = makeRequestId(sessionId: sessionId)
             await engine.submitRequest(sessionId: sessionId, requestId: requestId, tool: body.notification_type ?? "Notification", hint: body.message ?? "", sessionLabel: sessionLabel)
         case "idle_prompt":
             await engine.activitySignal(sessionId: sessionId, source: source, signal: .stopWorking)
@@ -227,7 +227,7 @@ func handleAgentEvent(
         }
 
     case "Elicitation":
-        let requestId = "\(sessionId)_\(shortUUID())"
+        let requestId = makeRequestId(sessionId: sessionId)
         await engine.submitRequest(sessionId: sessionId, requestId: requestId, tool: "Elicitation", hint: body.message ?? "", sessionLabel: sessionLabel)
 
     case "ElicitationResult":
@@ -336,6 +336,23 @@ private func deriveSessionId(from body: HookEventBody, source: String) -> String
 
 private func shortUUID() -> String {
     String(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(12))
+}
+
+/// Opaque key for one pending approval, deliberately kept short.
+///
+/// The firmware stores this in `char promptId[40]` and echoes it back with
+/// its decision, and the engine matches the reply by exact string equality.
+/// A full session id in here overruns that buffer: Claude Code's session_id
+/// is a 36-char UUID, so "<uuid>_<12>" is 49 chars, the device silently
+/// truncates to 39, and the decision it sends back matches nothing. That
+/// looked exactly like a dead button — the card sat on "yes!" forever while
+/// the hook stayed blocked, because the reply was dropped on the desk side.
+///
+/// Eight chars of session is plenty to eyeball which session a request came
+/// from in the logs; the 12-char random suffix is what actually makes it
+/// unique. 21 chars total leaves real headroom under the device's 39.
+func makeRequestId(sessionId: String) -> String {
+    "\(sessionId.prefix(8))_\(shortUUID())"
 }
 
 private let sharedDecoder = JSONDecoder()
