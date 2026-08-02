@@ -527,6 +527,8 @@ def test_passive_prompt_shows_detail_but_cannot_be_answered(stick, landscape):
         buf, _ = stick.read_until(lambda b: b"<<PRESS a up>>" in b, 3)
         assert b'"cmd":"permission"' not in buf, "crown resolved an unanswerable prompt"
 
+        wait_state(stick, mood="lantern")
+        time.sleep(1.2)                   # let the bloom finish
         lo, hi = lit_range(stick)
         assert hi >= 90, f"passive prompt never lit the field (max {hi})"
         assert lo >= 90, f"passive prompt's field dipped instead of holding (min {lo})"
