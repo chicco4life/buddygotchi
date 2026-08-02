@@ -83,11 +83,13 @@ final class CodexTomlTests: XCTestCase {
     /// Enabling twice must not produce a duplicate key — this is the exact
     /// loop that left Codex permanently unable to read its config.
     func testEnablingIsIdempotentAcrossSpellings() {
-        for start in ["[features]\ncodex_hooks=true\n",
+        for start in ["[features]\ncodex_hooks = true\n",
+                      "[features]\ncodex_hooks=true\n",
                       "[features]\ncodex_hooks = true # note\n"] {
             XCTAssertTrue(isEnabled(start), "should already read as enabled: \(start)")
-            let occurrences = start.components(separatedBy: "codex_hooks").count - 1
-            XCTAssertEqual(occurrences, 1)
+            let out = HookInstaller.enablingCodexHooks(in: start)
+            let occurrences = out.components(separatedBy: "codex_hooks").count - 1
+            XCTAssertEqual(occurrences, 1, "enabling an already-enabled config duplicated the key")
         }
     }
 

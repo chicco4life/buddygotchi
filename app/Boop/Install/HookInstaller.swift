@@ -327,6 +327,10 @@ final class HookInstaller {
     /// comment merely mentioning `[features]` hijacked the insertion point so
     /// the key landed in whatever table happened to precede it.
     nonisolated static func enablingCodexHooks(in toml: String) -> String {
+        // Idempotent in its own right. The caller checks first, but a helper
+        // whose whole purpose is avoiding a duplicate key must not be able to
+        // create one if someone calls it unconditionally later.
+        guard !codexHooksEnabled(in: toml) else { return toml }
         var lines = toml.isEmpty ? [] : toml.components(separatedBy: "\n")
         // A real table header, not a mention inside a comment or a string.
         let headerIndex = lines.firstIndex { line in
@@ -857,6 +861,10 @@ final class HookInstaller {
     /// reported it repairable, and every launch repaired it the same broken
     /// way, forever.
     private func codexHooksEnabled(in toml: String) -> Bool {
+        Self.codexHooksEnabled(in: toml)
+    }
+
+    nonisolated static func codexHooksEnabled(in toml: String) -> Bool {
         var inFeatures = false
         for rawLine in toml.split(separator: "\n", omittingEmptySubsequences: false) {
             let line = String(rawLine).trimmingCharacters(in: .whitespaces)
@@ -865,7 +873,7 @@ final class HookInstaller {
                 inFeatures = (line == "[features]")
                 continue
             }
-            guard inFeatures, let (key, value) = Self.tomlKeyValue(line) else { continue }
+            guard inFeatures, let (key, value) = tomlKeyValue(line) else { continue }
             if key == "codex_hooks" && value == "true" { return true }
         }
         return false
