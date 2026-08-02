@@ -40,6 +40,22 @@ struct GeneratedTestRunner {
         await run("AutoApproveTests.testControlCharactersAreNotAutoApproved") { let t = AutoApproveTests(); try t.setUpWithError(); try await t.setUp(); t.testControlCharactersAreNotAutoApproved() }
         await run("AutoApproveTests.testLongButSafeCommandStillAutoApproves") { let t = AutoApproveTests(); try t.setUpWithError(); try await t.setUp(); t.testLongButSafeCommandStillAutoApproves() }
         await run("AutoApproveTests.testStableCwdHashDoesNotUseRandomizedStringHash") { let t = AutoApproveTests(); try t.setUpWithError(); try await t.setUp(); t.testStableCwdHashDoesNotUseRandomizedStringHash() }
+        await run("CelebrateOnceTests.testNewWorkConsumesTheCelebrationSoItCannotReplay") { let t = CelebrateOnceTests(); try t.setUpWithError(); try await t.setUp(); t.testNewWorkConsumesTheCelebrationSoItCannotReplay() }
+        await run("CelebrateOnceTests.testAnOrdinaryCelebrationStillHappens") { let t = CelebrateOnceTests(); try t.setUpWithError(); try await t.setUp(); t.testAnOrdinaryCelebrationStillHappens() }
+        await run("CelebrateOnceTests.testApprovalAllowStampsAStartTime") { let t = CelebrateOnceTests(); try t.setUpWithError(); try await t.setUp(); t.testApprovalAllowStampsAStartTime() }
+        await run("ToolInputDecodingTests.testToolInputAsJSONStringIsAccepted") { let t = ToolInputDecodingTests(); try t.setUpWithError(); try await t.setUp(); t.testToolInputAsJSONStringIsAccepted() }
+        await run("ToolInputDecodingTests.testToolInputAsNonJSONStringBecomesADescription") { let t = ToolInputDecodingTests(); try t.setUpWithError(); try await t.setUp(); t.testToolInputAsNonJSONStringBecomesADescription() }
+        await run("ToolInputDecodingTests.testNonStringFieldDoesNotFailTheWholePayload") { let t = ToolInputDecodingTests(); try t.setUpWithError(); try await t.setUp(); t.testNonStringFieldDoesNotFailTheWholePayload() }
+        await run("ToolInputDecodingTests.testOrdinaryObjectStillDecodes") { let t = ToolInputDecodingTests(); try t.setUpWithError(); try await t.setUp(); t.testOrdinaryObjectStillDecodes() }
+        await run("CodexTomlTests.testTolerantDetectionOfExistingKey") { let t = CodexTomlTests(); try t.setUpWithError(); try await t.setUp(); t.testTolerantDetectionOfExistingKey() }
+        await run("CodexTomlTests.testKeyOutsideFeaturesDoesNotCount") { let t = CodexTomlTests(); try t.setUpWithError(); try await t.setUp(); t.testKeyOutsideFeaturesDoesNotCount() }
+        await run("CodexTomlTests.testHeaderWithoutTrailingNewlineStaysValid") { let t = CodexTomlTests(); try t.setUpWithError(); try await t.setUp(); t.testHeaderWithoutTrailingNewlineStaysValid() }
+        await run("CodexTomlTests.testCommentMentioningFeaturesDoesNotHijackTheInsertPoint") { let t = CodexTomlTests(); try t.setUpWithError(); try await t.setUp(); t.testCommentMentioningFeaturesDoesNotHijackTheInsertPoint() }
+        await run("CodexTomlTests.testAddsFeaturesTableWhenAbsent") { let t = CodexTomlTests(); try t.setUpWithError(); try await t.setUp(); t.testAddsFeaturesTableWhenAbsent() }
+        await run("CodexTomlTests.testEnablingAnEmptyFileProducesValidToml") { let t = CodexTomlTests(); try t.setUpWithError(); try await t.setUp(); t.testEnablingAnEmptyFileProducesValidToml() }
+        await run("CodexTomlTests.testEnablingIsIdempotentAcrossSpellings") { let t = CodexTomlTests(); try t.setUpWithError(); try await t.setUp(); t.testEnablingIsIdempotentAcrossSpellings() }
+        await run("CodexTomlTests.testRemovalTakesOnlyOurKey") { let t = CodexTomlTests(); try t.setUpWithError(); try await t.setUp(); t.testRemovalTakesOnlyOurKey() }
+        await run("CodexTomlTests.testRemovalLeavesAnIdenticallyNamedKeyInAnotherTable") { let t = CodexTomlTests(); try t.setUpWithError(); try await t.setUp(); t.testRemovalLeavesAnIdenticallyNamedKeyInAnotherTable() }
         await run("CopyRulesTests.testBuddyCopyFollowsBrandLaw") { let t = CopyRulesTests(); try t.setUpWithError(); try await t.setUp(); try t.testBuddyCopyFollowsBrandLaw() }
         await run("CopyRulesTests.testInlineViewTextLiteralRatchet") { let t = CopyRulesTests(); try t.setUpWithError(); try await t.setUp(); try t.testInlineViewTextLiteralRatchet() }
         await run("EngineIntegrationTests.testInitialStateIsDisconnectedSleeping") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); t.testInitialStateIsDisconnectedSleeping() }
@@ -200,7 +216,7 @@ struct GeneratedTestRunner {
         await run("SnapshotHarnessTests.testSettings") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testSettings() }
         await run("SnapshotHarnessTests.testOnboardingSteps") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testOnboardingSteps() }
 
-        let total = 176
+        let total = 192
         print("\n\u{2713} \(passed) passed, \(skipped) skipped of \(total) tests")
     }
 }

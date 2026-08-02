@@ -31,6 +31,47 @@ struct HookEventBody: Decodable, Sendable {
         var url: String?
         var query: String?
         var description: String?
+
+        private enum CodingKeys: String, CodingKey {
+            case command, file_path, path, url, query, description
+        }
+
+        /// Tolerant on purpose.
+        ///
+        /// Cursor sends `beforeMCPExecution.tool_input` as a JSON *string*,
+        /// not an object, and any agent may put a non-string under a name we
+        /// read (`{"query": {"q": "x"}}`). The synthesized decoder threw on
+        /// both, which failed the whole route with a 500 — and a 500 on
+        /// /hook/approve means the card never reaches the user and the tool
+        /// proceeds unreviewed. A field we can't read should cost us that
+        /// field, never the prompt.
+        init(from decoder: Decoder) throws {
+            if let single = try? decoder.singleValueContainer(),
+               let raw = try? single.decode(String.self) {
+                if let data = raw.data(using: .utf8),
+                   let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+                    command = obj["command"] as? String
+                    file_path = obj["file_path"] as? String
+                    path = obj["path"] as? String
+                    url = obj["url"] as? String
+                    query = obj["query"] as? String
+                    description = obj["description"] as? String
+                } else {
+                    description = raw
+                }
+                return
+            }
+            guard let c = try? decoder.container(keyedBy: CodingKeys.self) else { return }
+            func str(_ key: CodingKeys) -> String? {
+                (try? c.decodeIfPresent(String.self, forKey: key)) ?? nil
+            }
+            command = str(.command)
+            file_path = str(.file_path)
+            path = str(.path)
+            url = str(.url)
+            query = str(.query)
+            description = str(.description)
+        }
     }
 
     var effectiveEventName: String? {

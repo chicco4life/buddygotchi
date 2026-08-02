@@ -441,6 +441,13 @@ private func aggregate(_ state: InternalState) -> BuddyState {
         }
         buddy.lastSignal = "error"
     } else if !working.isEmpty {
+        // New work consumes the celebration. Leaving celebrateUntil set meant
+        // that when this work finished inside the original 4s window, the
+        // aggregate fell back into the celebrate branch and threw a SECOND
+        // party for a completion already shown — replaying the sound and
+        // re-opening the popover, with msg empty and lastCompleted wiped, so
+        // it was a celebration with nothing to show.
+        buddy.celebrateUntil = nil
         buddy.pet = Pet(state: .busy, species: buddy.pet.species)
         // Primary working session = oldest workStartedAt (longest running). Surface its
         // current tool/hint so the user can see what the agent is doing right now.

@@ -90,7 +90,7 @@ enum HookInstallError: Error, LocalizedError {
 final class HookInstaller {
     static let shared = HookInstaller()
 
-    static let hookSchemaVersion = 3
+    static let hookSchemaVersion = 4
 
     private static let hookScriptName = "boop-hook.sh"
 
@@ -289,17 +289,59 @@ final class HookInstaller {
         root["hooks"] = hooks
         try writeJSONObject(root, to: hooksURL, agent: .codex)
 
-        var toml = (try? String(contentsOf: tomlURL, encoding: .utf8)) ?? ""
+        let toml = (try? String(contentsOf: tomlURL, encoding: .utf8)) ?? ""
         if !codexHooksEnabled(in: toml) {
-            if let range = toml.range(of: "[features]") {
-                let insertPos = toml[range.upperBound...].firstIndex(of: "\n").map { toml.index(after: $0) } ?? toml.endIndex
-                toml.insert(contentsOf: "codex_hooks = true\n", at: insertPos)
-            } else {
-                if !toml.isEmpty && !toml.hasSuffix("\n") { toml += "\n" }
-                toml += "\n[features]\ncodex_hooks = true\n"
-            }
-            try writeString(toml, to: tomlURL, agent: .codex)
+            try writeString(Self.enablingCodexHooks(in: toml), to: tomlURL, agent: .codex)
+            userDefaults.set(true, forKey: Self.codexHooksAddedKey)
         }
+    }
+
+    /// Marks that WE turned `codex_hooks` on, so uninstall only takes it back
+    /// out if the user hadn't set it themselves.
+    static let codexHooksAddedKey = "codexHooksAddedByBoop"
+
+    /// Return `toml` with our `codex_hooks` line removed, leaving the rest of
+    /// the file (including an empty `[features]` table) untouched.
+    nonisolated static func removingCodexHooks(from toml: String) -> String {
+        var lines = toml.components(separatedBy: "\n")
+        var inFeatures = false
+        lines.removeAll { line in
+            let t = line.trimmingCharacters(in: .whitespaces)
+            if t.hasPrefix("#") { return false }
+            if t.hasPrefix("[") && t.hasSuffix("]") {
+                inFeatures = (t == "[features]")
+                return false
+            }
+            guard inFeatures, let (key, value) = tomlKeyValue(t) else { return false }
+            return key == "codex_hooks" && value == "true"
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// Return `toml` with `codex_hooks = true` added under `[features]`.
+    ///
+    /// Line-based on purpose. The old version searched for the substring
+    /// "[features]" and inserted after the next newline, which broke two ways:
+    /// a file ENDING in `[features]` with no trailing newline produced
+    /// `[features]codex_hooks = true` on one line (invalid TOML), and a
+    /// comment merely mentioning `[features]` hijacked the insertion point so
+    /// the key landed in whatever table happened to precede it.
+    nonisolated static func enablingCodexHooks(in toml: String) -> String {
+        var lines = toml.isEmpty ? [] : toml.components(separatedBy: "\n")
+        // A real table header, not a mention inside a comment or a string.
+        let headerIndex = lines.firstIndex { line in
+            let t = line.trimmingCharacters(in: .whitespaces)
+            return t == "[features]"
+        }
+        if let i = headerIndex {
+            lines.insert("codex_hooks = true", at: i + 1)
+            return lines.joined(separator: "\n")
+        }
+        var out = toml
+        if !out.isEmpty && !out.hasSuffix("\n") { out += "\n" }
+        if !out.isEmpty { out += "\n" }
+        out += "[features]\ncodex_hooks = true\n"
+        return out
     }
 
     // MARK: - Verification
@@ -513,17 +555,22 @@ final class HookInstaller {
             }
         }
 
-        if var toml = try? String(contentsOf: tomlURL, encoding: .utf8) {
-            let originalToml = toml
-            toml = toml
-                .replacingOccurrences(of: "codex_hooks = true\n", with: "")
-                .replacingOccurrences(of: "codex_hooks = true", with: "")
-            removedSomething = removedSomething || toml != originalToml
-            do {
-                try writeString(toml, to: tomlURL, agent: .codex)
-            } catch {
-                return .failed(reason: "Could not write \(tomlURL.path) after removing Boop entries")
+        // Only take `codex_hooks` back out if we were the ones who set it.
+        // Install deliberately skips writing the key when it's already on, so
+        // stripping it unconditionally meant uninstalling Boop switched off a
+        // feature the user had enabled for their own hooks.
+        if userDefaults.bool(forKey: Self.codexHooksAddedKey),
+           let toml = try? String(contentsOf: tomlURL, encoding: .utf8) {
+            let stripped = Self.removingCodexHooks(from: toml)
+            if stripped != toml {
+                removedSomething = true
+                do {
+                    try writeString(stripped, to: tomlURL, agent: .codex)
+                } catch {
+                    return .failed(reason: "Could not write \(tomlURL.path) after removing Boop entries")
+                }
             }
+            userDefaults.removeObject(forKey: Self.codexHooksAddedKey)
         }
 
         return removedSomething ? .removed : .nothingInstalled
@@ -536,12 +583,15 @@ final class HookInstaller {
         # boop-hook v\(hookSchemaVersion) - managed by Boop.app; edits are overwritten on repair
         SOURCE="${1:-claude-code}"
         CFG="$HOME/.boop/config.json"
-        PORT=$(grep -o '"port" *: *[0-9]*' "$CFG" 2>/dev/null | grep -o '[0-9]*')
+        PORT=$(grep -o '"port" *: *[0-9]*' "$CFG" 2>/dev/null | head -1 | grep -o '[0-9]*')
         TOKEN=$(grep -o '"token" *: *"[^"]*"' "$CFG" 2>/dev/null | head -1 | sed 's/.*"token" *: *"//; s/".*//')
+        APPROVAL=$(grep -o '"approvalMode" *: *true' "$CFG" 2>/dev/null)
+        # Always drain stdin, even when we're about to bail. The agent is
+        # already writing the payload; exiting first hands it EPIPE/SIGPIPE
+        # instead of a clean read.
+        BODY="$(cat)"
         [ -z "$PORT" ] && exit 0
         [ -z "$TOKEN" ] && exit 0
-        APPROVAL=$(grep -o '"approvalMode" *: *true' "$CFG" 2>/dev/null)
-        BODY="$(cat)"
         EVENT=$(echo "$BODY" | grep -o '"hook_event_name" *: *"[^"]*"' | head -1 | grep -o '"[^"]*"$' | tr -d '"')
         if [ -n "$APPROVAL" ] && [ "$EVENT" = "PermissionRequest" ]; then
             RESPONSE=$(curl -s --noproxy '*' \\
@@ -797,20 +847,45 @@ final class HookInstaller {
         return cleaned
     }
 
+    /// Is `codex_hooks` already switched on under `[features]`?
+    ///
+    /// Deliberately tolerant about spacing and trailing comments. Demanding
+    /// the exact text `codex_hooks = true` meant a user who had written
+    /// `codex_hooks=true` (or added a `# note`) read as "not enabled", so we
+    /// inserted a SECOND copy of the key into the same table — which is
+    /// invalid TOML, so Codex then refused to load its config at all. Verify
+    /// reported it repairable, and every launch repaired it the same broken
+    /// way, forever.
     private func codexHooksEnabled(in toml: String) -> Bool {
         var inFeatures = false
         for rawLine in toml.split(separator: "\n", omittingEmptySubsequences: false) {
-            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            let line = String(rawLine).trimmingCharacters(in: .whitespaces)
             if line.hasPrefix("#") { continue }
             if line.hasPrefix("[") && line.hasSuffix("]") {
-                inFeatures = line == "[features]"
+                inFeatures = (line == "[features]")
                 continue
             }
-            if inFeatures, line == "codex_hooks = true" {
-                return true
-            }
+            guard inFeatures, let (key, value) = Self.tomlKeyValue(line) else { continue }
+            if key == "codex_hooks" && value == "true" { return true }
         }
         return false
+    }
+
+    /// Split a TOML `key = value` line, dropping any trailing `# comment`.
+    /// Returns nil for anything that isn't an assignment.
+    nonisolated static func tomlKeyValue(_ line: String) -> (String, String)? {
+        guard let eq = line.firstIndex(of: "=") else { return nil }
+        let key = line[..<eq].trimmingCharacters(in: .whitespaces)
+        var value = String(line[line.index(after: eq)...])
+        // Only strip a comment that isn't inside a quoted value; our keys are
+        // bare booleans, so a quote before the # means leave it alone.
+        if let hash = value.firstIndex(of: "#"),
+           !value[..<hash].contains("\"") {
+            value = String(value[..<hash])
+        }
+        let trimmedValue = value.trimmingCharacters(in: .whitespaces)
+        guard !key.isEmpty, !key.contains(" ") else { return nil }
+        return (key, trimmedValue)
     }
 
     private func hookSchemaVersion(in script: String) -> Int? {
@@ -827,8 +902,23 @@ final class HookInstaller {
         return (perms.intValue & 0o100) != 0
     }
 
+    /// Is this hook entry one WE installed?
+    ///
+    /// Ownership means "it runs a binary we put there", i.e. the command names
+    /// one of our own installed files. This used to be `cmd.contains("boop")`,
+    /// which claimed any user hook whose path merely contained the word — a
+    /// `~/.claude/hooks/reboop.sh`, or anything under a directory named after
+    /// the pet — and then deleted the entire matcher group it belonged to,
+    /// taking unrelated sibling hooks with it, on every install, repair and
+    /// uninstall.
     private func isBuddyCommand(_ cmd: String) -> Bool {
-        cmd.contains("boop") || cmd.contains("BoopSignal")
+        if cmd.contains(hookScriptURL().path) || cmd.contains(managedSignalURL().path) {
+            return true
+        }
+        // Installs from an earlier layout may point somewhere else, so also
+        // accept our binaries by exact filename — still a path component
+        // match, never a bare substring of the whole command.
+        return cmd.contains("/\(Self.hookScriptName)") || cmd.contains("/boop-signal")
     }
 
     private func configDir(for agent: AgentKind) -> URL {

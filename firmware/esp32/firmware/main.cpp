@@ -755,7 +755,12 @@ static void __attribute__((noinline)) handleButtons() {
   uint32_t now = millis();
   bool pending = promptPending();
   uint32_t armedAt = promptArrivedMs + PROMPT_ARM_MS;
-  bool armed = promptArmed(now);
+  // An update takes the whole screen, so the card isn't drawn — but the
+  // prompt fields are frozen at whatever was pending when the OTA started,
+  // and the crown stayed live. A press during a firmware update answered a
+  // question that wasn't on screen. Nothing is answerable while we're
+  // updating; the prompt is still there when it's over.
+  bool armed = promptArmed(now) && !otaActive();
   bool wasOff = screenOff;
 
   if ((!prevBoop && boop) || (!prevRej && rej) || (!prevMenu && menu)) {

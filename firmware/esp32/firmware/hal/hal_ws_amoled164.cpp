@@ -459,7 +459,13 @@ void halDeepSleep(uint32_t timerWakeMs) {
   // other strap half, floats on the IMU INT line). Light sleep resumes
   // without a strap sample; we esp_restart() after it for a clean stack
   // (the BLE link is long dead by then anyway).
+  // Both halves of the crown wake it. Only BOOT was enabled here, but the
+  // power-down gesture is a 4s hold on the SOLDERED crown (IO1) — so the
+  // documented gesture put the device into a state its own button could not
+  // undo, and an enclosure that doesn't expose BOOT made it a USB-power-cycle
+  // to recover.
   gpio_wakeup_enable((gpio_num_t)PIN_BTN_BOOT, GPIO_INTR_LOW_LEVEL);
+  gpio_wakeup_enable((gpio_num_t)PIN_BTN_BOOP, GPIO_INTR_LOW_LEVEL);
   esp_sleep_enable_gpio_wakeup();
   if (timerWakeMs > 0) esp_sleep_enable_timer_wakeup((uint64_t)timerWakeMs * 1000ULL);
   // Kill the radio at the controller level (no host-structure frees — see
@@ -474,7 +480,8 @@ void halDeepSleep(uint32_t timerWakeMs) {
   // strap on any reset, and restarting under a still-held finger would
   // boot the serial downloader instead of the app.
   uint32_t t0 = millis();
-  while (digitalRead(PIN_BTN_BOOT) == LOW && millis() - t0 < 5000) delay(10);
+  while ((digitalRead(PIN_BTN_BOOT) == LOW || digitalRead(PIN_BTN_BOOP) == LOW) &&
+         millis() - t0 < 5000) delay(10);
   delay(50);
   esp_restart();
 }

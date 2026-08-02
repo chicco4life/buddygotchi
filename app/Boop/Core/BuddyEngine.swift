@@ -201,8 +201,11 @@ final class BuddyEngine {
         let source = DispatchSource.makeProcessSource(identifier: pid, eventMask: .exit, queue: .main)
         source.setEventHandler { [weak self] in
             MainActor.assumeIsolated {
-                self?.cancelWatcher(sessionId: sessionId)
-                self?.apply(.sessionEnded(at: self!.clock.now(), sessionId: sessionId))
+                // `self!` here would trap: the line above already concedes it
+                // can be nil, and a resumed DispatchSource outlives us.
+                guard let self else { return }
+                self.cancelWatcher(sessionId: sessionId)
+                self.apply(.sessionEnded(at: self.clock.now(), sessionId: sessionId))
             }
         }
         processWatchers[sessionId] = source
