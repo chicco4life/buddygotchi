@@ -77,15 +77,11 @@ static float _moodDecay = 0.0f;    // 0..1 dim-down after 2min unanswered
 static float _moodInk   = 0.0f;    // 0..1 face crossfade glow -> ink
 static float _moodPeak  = 1.0f;    // night-aware entry cap
 static float _moodRipple = -1.0f;  // >=0 while the approve ripple runs
-// Attention PULSES the field between black and full cream rather than
-// holding it lit. A steady field is easy to stop seeing; a slow swing in
-// overall luminance is the one thing peripheral vision cannot ignore. The
-// passkey screen deliberately does NOT pulse — you have to read digits off
-// it, and a moving background makes that harder.
-static bool  _moodPulseOn = false;
-static float _moodSwing = 1.0f;   // this frame's pulse position, 0..1
-static const float MOOD_PULSE_MS      = 2400.0f;
-static const float MOOD_PULSE_HOT_MS  = 1200.0f;   // escalation quickens it
+// The lit field HOLDS steady. An earlier build swung it black<->cream on a
+// 2.4s cosine to fight banner blindness, but on the real panel a full-field
+// luminance strobe reads as an alarm, not an ask (field-tested 2026-08-02).
+// The dark->light inversion itself is the attention grab; the ±6% breath in
+// moodFieldColor() keeps it alive without flashing.
 static bool  _moodSnuffing = false;
 static bool  _moodFading = false;
 
@@ -103,10 +99,8 @@ inline const char* moodName() {
 
 // 0..1 how lit the field is right now. The screenshot oracle asserts on the
 // corner pixel; this is the same number in float form for `state`.
-inline float moodLit() { return _moodReach >= 0.999f ? _moodLevel * _moodSwing : 0.0f; }
-inline float moodInkBlend() { return _moodInk * _moodSwing; }
-// Follows the pulse deliberately: when the field swings back to black the
-// text on it has to swing back to light, or it vanishes.
+inline float moodLit() { return _moodReach >= 0.999f ? _moodLevel : 0.0f; }
+inline float moodInkBlend() { return _moodInk; }
 inline bool  moodIsInk() { return moodInkBlend() > 0.5f; }
 
 // Ask for a mood. Night-aware entry: if the screen was dark when a prompt
@@ -151,16 +145,6 @@ inline void moodFade() {
 // After 2 minutes the field dims down with a top-edge pulse, which protects
 // the panel and avoids lighting an empty room all night while staying
 // honest that the prompt is still pending.
-inline void moodPulse(bool on) { _moodPulseOn = on; }
-
-// 0..1 swing when pulsing, else a flat 1. Cosine so it eases at both ends —
-// a linear ramp reads as a strobe.
-inline float moodPulse01(uint32_t now) {
-  if (!_moodPulseOn) return 1.0f;
-  float periodMs = MOOD_PULSE_MS - (MOOD_PULSE_MS - MOOD_PULSE_HOT_MS) * _moodHot;
-  return 0.5f - 0.5f * cosf((float)now * (ANIM_TAU / periodMs));
-}
-
 inline void moodEscalation(float hot01, float decay01) {
   _moodHot = animClamp(hot01, 0.0f, 1.0f);
   _moodDecay = animClamp(decay01, 0.0f, 1.0f);
@@ -196,12 +180,6 @@ inline void moodTick(uint32_t now, float dt) {
   // The face inverts to ink only under a genuinely lit field, so a snuff
   // hands the glow back as the light leaves.
   _moodInk = animEase(_moodInk, wantLantern ? 1.0f : 0.0f, MOOD_INK_RATE, dt);
-  // Sampled once per frame and applied at RENDER time, not eased toward.
-  // Easing toward a moving cosine compresses it — measured on hardware, the
-  // field only covered ~0.15..0.8 instead of black..cream, so the "pulse"
-  // was a murky olive breathing into a dusty pink. The ease still owns the
-  // bloom and the snuff; the swing just scales what they produce.
-  _moodSwing = moodPulse01(now);
 
   if (_moodRipple >= 0.0f) {
     _moodRipple += dt * 3.6f;          // ~280ms sweep to the corners
@@ -224,7 +202,7 @@ inline uint16_t moodFieldColor(uint32_t now) {
   // The long-unanswered decay dims the field rather than recolouring it:
   // with Ember gone there is nowhere warm to decay TO, and dimming is what
   // the rule was actually for.
-  float lvl = _moodLevel * _moodSwing * breath * (1.0f - 0.65f * _moodDecay);
+  float lvl = _moodLevel * breath * (1.0f - 0.65f * _moodDecay);
   return animMix(BLACK, c, animClamp(lvl, 0.0f, 1.0f));
 }
 
@@ -238,7 +216,7 @@ inline void moodDrawField(BuddyCanvas& spr, uint32_t now) {
   // corners — i.e. for the whole time an approval is on screen, the single
   // most latency-sensitive state in the product, it painted all 127KB of
   // the PSRAM canvas twice per frame.
-  bool lit = (_moodLevel * _moodSwing > 0.01f && _moodReach > 0.001f);
+  bool lit = (_moodLevel > 0.01f && _moodReach > 0.001f);
   uint16_t field = lit ? moodFieldColor(now) : BLACK;
   spr.fillSprite((lit && _moodReach >= 0.995f) ? field : BLACK);
   if (!lit) return;
@@ -278,7 +256,7 @@ inline void moodDrawField(BuddyCanvas& spr, uint32_t now) {
 // starts behind the face, so once any light exists the face's own area is
 // already lit.
 inline uint16_t moodBackdrop(uint32_t now) {
-  if (_moodLevel * _moodSwing <= 0.01f || _moodReach <= 0.001f) {
+  if (_moodLevel <= 0.01f || _moodReach <= 0.001f) {
     return BLACK;
   }
   return moodFieldColor(now);

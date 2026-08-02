@@ -429,12 +429,13 @@ def corner_pixel(stick, timeout=45):
     return tuple(buddyctl.rgb565le_to_rgb888(raw[:2], 1, 1)[:3])
 
 
-def lit_swing(stick, seconds=3.2):
+def lit_range(stick, seconds=2.0):
     """min/max of the field's luminance over a window.
 
-    Attention pulses the field between black and full cream, so a single
-    sample says nothing — the same prompt reads 0 or 100 depending on when
-    you looked.
+    The lit field holds steady (the black<->cream pulse was dropped
+    2026-08-02 — on glass it read as an alarm, not an ask), so the min over
+    a multi-second window is what proves it: a single sample can't tell a
+    steady field from one caught at the top of a swing.
     """
     lo, hi = 101, -1
     deadline = time.monotonic() + seconds
@@ -465,17 +466,18 @@ def test_mood_night_field_is_true_black(stick, landscape):
 
 
 def test_mood_lantern_inverts_the_field_for_approvals(stick, landscape):
-    """A pending approval flips the panel dark->light, and PULSES (§2.1).
+    """A pending approval flips the panel dark->light and HOLDS it (§2.1).
 
-    The inversion is the product's one genuine luminance flip, and it swings
-    rather than holding: a steady field is easy to stop seeing, a moving one
-    is not. So the assertion is on the swing, not on a single sample — the
-    same prompt reads 0 or 100 depending purely on when you looked.
+    The inversion is the product's one genuine luminance flip, and it holds
+    steady: the dark->light switch itself is the attention grab, and a field
+    that keeps swinging back to black reads as an alarm rather than an ask
+    (which is why the earlier black<->cream pulse was dropped). The
+    assertion is on the whole window, not a single sample — a steady field
+    must never dip.
 
     The exact tone still matters. FIELD_LANTERN is an RGB332 lattice point,
-    so the field has to sit on the black->cream axis rather than drifting to
-    a neighbouring hue: either near-black at the trough, or up the cream ramp
-    with red already saturated.
+    so the field has to sit at the top of the cream ramp with red already
+    saturated, not drift to a neighbouring hue.
     """
     clear_prompt(stick)
     send_json(stick, {"total": 2, "running": 1, "waiting": 1, "pet": "attention",
@@ -485,21 +487,10 @@ def test_mood_lantern_inverts_the_field_for_approvals(stick, landscape):
     wait_state(stick, promptId="req_mood", mood="lantern")
     time.sleep(1.2)                       # let the bloom finish
 
-    lo, hi = lit_swing(stick)
+    lo, hi = lit_range(stick)
     assert hi >= 90, f"field never reached full cream (max {hi})"
-    assert lo <= 25, f"field never returned toward black (min {lo})"
+    assert lo >= 90, f"lit field dipped instead of holding steady (min {lo})"
 
-    # Catch the field near the top of its swing and check the tone there.
-    # Sampling at an arbitrary moment is meaningless — the ramp passes
-    # through plenty of intermediate tones on its way up. The cosine dwells
-    # ~270ms above 97, which is comfortably longer than the round trip.
-    deadline = time.monotonic() + 6
-    while time.monotonic() < deadline:
-        if state(stick)["moodLit"] >= 95:
-            break
-        time.sleep(0.05)
-    else:
-        pytest.fail("field never reached the top of its swing")
     r, g, b = corner_pixel(stick)
     assert r == 255 and g >= 182 and b >= 130, (r, g, b)
 
@@ -514,7 +505,7 @@ def test_passive_prompt_shows_detail_but_cannot_be_answered(stick, landscape):
     Without approval mode the desktop sends pet=attention with
     promptApproval=false: the agent is blocked on a human, just not on the
     crown. The device has the tool and the hint either way, so it shows them
-    and pulses the field — withholding the information along with the
+    and lights the field — withholding the information along with the
     buttons helps nobody.
 
     The invariant is not "no card". It is that the crown cannot deliver a
@@ -536,9 +527,9 @@ def test_passive_prompt_shows_detail_but_cannot_be_answered(stick, landscape):
         buf, _ = stick.read_until(lambda b: b"<<PRESS a up>>" in b, 3)
         assert b'"cmd":"permission"' not in buf, "crown resolved an unanswerable prompt"
 
-        lo, hi = lit_swing(stick)
+        lo, hi = lit_range(stick)
         assert hi >= 90, f"passive prompt never lit the field (max {hi})"
-        assert lo <= 25, f"passive prompt did not pulse (min {lo})"
+        assert lo >= 90, f"passive prompt's field dipped instead of holding (min {lo})"
     finally:
         # Always clear: a prompt left up leaks into every later test.
         clear_prompt(stick)
@@ -620,9 +611,10 @@ def test_approval_card_rises_and_leaves_with_the_decision(stick, landscape):
 def test_approval_card_has_no_wait_counter(stick, landscape):
     """§14: the numeric "waiting Ns" counter is gone from this board.
 
-    Urgency is the field warming and its breath quickening (§7) — light and
-    motion, which read peripherally far better than a stopwatch nobody is
-    looking at. This asserts the seconds text never appears on the panel.
+    Urgency is the field warming toward amber (§7) — colour reads
+    peripherally far better than a stopwatch nobody is looking at. This
+    asserts escalation shows up as tone on a steadily lit field, not as a
+    counter (and not as the old black<->cream pulse).
     """
     clear_prompt(stick)
     send_json(stick, {"total": 1, "running": 0, "waiting": 1, "pet": "attention",
@@ -633,10 +625,12 @@ def test_approval_card_has_no_wait_counter(stick, landscape):
     time.sleep(12)          # well past the 10s escalation threshold
     got = state(stick)
     assert got["mood"] == "lantern"
-    # Escalation shows up as a FASTER pulse, not a counter. Asserting a
-    # single corner pixel here is meaningless now that the field swings.
-    lo, hi = lit_swing(stick, 2.0)
-    assert hi >= 90 and lo <= 25, f"escalated field not pulsing ({lo}..{hi})"
+    lo, hi = lit_range(stick, 2.0)
+    assert lo >= 90, f"escalated field did not hold steady ({lo}..{hi})"
+    # Fully hot, the field sits at FIELD_LANTERN_HOT: green drops off the
+    # resting cream (219) toward the amber lattice point (182).
+    r, g, b = corner_pixel(stick)
+    assert r == 255 and g <= 200, (r, g, b)
     stick.write_line("press b 120")
     stick.read_until(lambda b: b'"decision":"deny"' in b, 3)
     clear_prompt(stick)
