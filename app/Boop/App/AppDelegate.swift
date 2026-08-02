@@ -34,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var autoDismissTimer: Timer?
     private var onboardingWindowController: OnboardingWindowController?
     private let serverHealth = ServerHealth()
+    private let instanceLock = InstanceLock()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -180,13 +181,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func claimSingleInstance() -> Bool {
-        guard let bundleIdentifier = AppMetadata.bundleIdentifier else { return true }
-        let currentPID = ProcessInfo.processInfo.processIdentifier
-        let matches = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
-            .filter { $0.processIdentifier != currentPID && !$0.isTerminated }
-        guard let existing = matches.first else { return true }
-        existing.activate()
-        return false
+        if let bundleIdentifier = AppMetadata.bundleIdentifier {
+            let currentPID = ProcessInfo.processInfo.processIdentifier
+            let matches = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+                .filter { $0.processIdentifier != currentPID && !$0.isTerminated }
+            if let existing = matches.first {
+                existing.activate()
+                return false
+            }
+        }
+        // The bundle check can't see a `swift run` debug binary (no bundle),
+        // and that binary can't see the app — the flock is the arbiter that
+        // works across both, so a forgotten debug instance can't keep
+        // feeding the device empty heartbeats. Escape hatch for anyone who
+        // genuinely needs two: BOOP_ALLOW_SECOND_INSTANCE=1.
+        if ProcessInfo.processInfo.environment["BOOP_ALLOW_SECOND_INSTANCE"] == "1" {
+            return true
+        }
+        return instanceLock.tryClaim()
     }
 
     @objc private func statusItemClicked() {

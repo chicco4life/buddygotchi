@@ -94,6 +94,10 @@ struct GeneratedTestRunner {
         await run("HookServerBehaviorTests.testApprovalResponseDecisionEncodings") { let t = HookServerBehaviorTests(); try t.setUpWithError(); try await t.setUp(); t.testApprovalResponseDecisionEncodings() }
         await run("HookServerBehaviorTests.testShouldAutoApproveBehavior") { let t = HookServerBehaviorTests(); try t.setUpWithError(); try await t.setUp(); t.testShouldAutoApproveBehavior() }
         await run("HookServerBehaviorTests.testPermissionPromptUsesLiveApprovalModeProvider") { let t = HookServerBehaviorTests(); try t.setUpWithError(); try await t.setUp(); try await t.testPermissionPromptUsesLiveApprovalModeProvider() }
+        await run("InstanceLockTests.testSecondClaimOnSamePathLoses") { let t = InstanceLockTests(); try t.setUpWithError(); try await t.setUp(); t.testSecondClaimOnSamePathLoses() }
+        await run("InstanceLockTests.testClaimIsIdempotentForTheHolder") { let t = InstanceLockTests(); try t.setUpWithError(); try await t.setUp(); t.testClaimIsIdempotentForTheHolder() }
+        await run("InstanceLockTests.testReleaseHandsTheClaimToTheNextComer") { let t = InstanceLockTests(); try t.setUpWithError(); try await t.setUp(); t.testReleaseHandsTheClaimToTheNextComer() }
+        await run("InstanceLockTests.testDistinctPathsDoNotContend") { let t = InstanceLockTests(); try t.setUpWithError(); try await t.setUp(); t.testDistinctPathsDoNotContend() }
         await run("PromptExpiryTests.testReducerClearsPromptOlderThanApprovalTimeout") { let t = PromptExpiryTests(); try t.setUpWithError(); try await t.setUp(); t.testReducerClearsPromptOlderThanApprovalTimeout() }
         await run("PromptExpiryTests.testReducerKeepsFreshPromptBeforeApprovalTimeout") { let t = PromptExpiryTests(); try t.setUpWithError(); try await t.setUp(); t.testReducerKeepsFreshPromptBeforeApprovalTimeout() }
         await run("PromptExpiryTests.testEngineResolvesPendingApprovalAsPassthroughWhenPromptExpires") { let t = PromptExpiryTests(); try t.setUpWithError(); try await t.setUp(); await t.testEngineResolvesPendingApprovalAsPassthroughWhenPromptExpires() }
@@ -179,7 +183,7 @@ struct GeneratedTestRunner {
         await run("SnapshotHarnessTests.testSettings") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testSettings() }
         await run("SnapshotHarnessTests.testOnboardingSteps") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testOnboardingSteps() }
 
-        let total = 155
+        let total = 159
         print("\n\u{2713} \(passed) passed, \(skipped) skipped of \(total) tests")
     }
 }
