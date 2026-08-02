@@ -41,6 +41,9 @@ static portMUX_TYPE rxMux = portMUX_INITIALIZER_UNLOCKED;
 static BLEServer*         server = nullptr;
 static BLECharacteristic* txChar = nullptr;
 static BLECharacteristic* rxChar = nullptr;
+// Bumped on every disconnect. Consumers that assemble bytes into lines watch
+// this so a fragment from a dead link can't be glued onto the next one.
+static volatile uint32_t  linkGen = 0;
 static volatile bool      connected = false;
 static volatile bool      secure = false;
 static volatile uint32_t  passkey = 0;
@@ -79,6 +82,17 @@ class ServerCallbacks : public BLEServerCallbacks {
     secure = false;
     passkey = 0;
     mtu = 23;
+    // Drop whatever was mid-flight. A link that dies partway through a
+    // chunked heartbeat leaves a headless fragment in the ring; the next
+    // connection's first frame (the one-shot time sync) would be appended to
+    // it, fail to parse, and be lost — taking the clock with it, since
+    // nothing re-sends it. The desktop clears its own RX buffer on
+    // disconnect for the same reason.
+    portENTER_CRITICAL(&rxMux);
+    rxHead = 0;
+    rxTail = 0;
+    portEXIT_CRITICAL(&rxMux);
+    linkGen++;   // tells the line assembler in data.h to drop its fragment
     Serial.println("[ble] disconnected");
     // Restart advertising so the next client can find us.
     BLEDevice::startAdvertising();
@@ -268,6 +282,8 @@ uint32_t bleRxDropped() {
   portEXIT_CRITICAL(&rxMux);
   return n;
 }
+
+uint32_t bleLinkGeneration() { return linkGen; }
 
 size_t bleWrite(const uint8_t* data, size_t len) {
   if (!connected || !txChar) return 0;

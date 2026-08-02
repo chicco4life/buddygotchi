@@ -42,3 +42,9 @@ size_t bleWrite(const uint8_t* data, size_t len);
 // Bytes dropped because the RX ring was full. Nonzero means at least one
 // inbound JSON line was truncated; exposed in the `state` dump.
 uint32_t bleRxDropped();
+
+// Increments on every disconnect. Anything assembling received bytes into
+// newline-delimited frames must drop its partial line when this changes —
+// otherwise the tail of a heartbeat cut off by a dropped link gets glued to
+// the first frame of the next one, and both are lost to a parse failure.
+uint32_t bleLinkGeneration();

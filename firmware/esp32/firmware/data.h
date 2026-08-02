@@ -221,6 +221,14 @@ inline void dataPoll(TamaState* out) {
   }
 
   _usbLine.feed(Serial, out);
+  // A dropped link leaves whatever arrived after the last newline sitting in
+  // _btLine. Discard it rather than letting the next connection's first frame
+  // be appended to a headless fragment — that costs BOTH frames, and the
+  // first one after a reconnect is the one-shot time sync, which nothing
+  // resends.
+  static uint32_t _btLinkGen = 0;
+  uint32_t gen = bleLinkGeneration();
+  if (gen != _btLinkGen) { _btLinkGen = gen; _btLine.len = 0; }
   // BLE ring buffer is drained manually since it's not a Stream.
   while (bleAvailable()) {
     int c = bleRead();

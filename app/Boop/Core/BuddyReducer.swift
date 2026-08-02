@@ -107,6 +107,12 @@ private func handleRequestCleared(_ state: InternalState, at: Double, sessionId:
     s.sessions[sessionId]?.state = .working
     s.sessions[sessionId]?.prompt = nil
     s.sessions[sessionId]?.lastActivityAt = at
+    // Same gap as handleApprovalResolved: entering .working without a start
+    // time is permanent, because keepWorking only stamps it on the way IN.
+    if s.sessions[sessionId]?.workStartedAt == nil {
+        s.sessions[sessionId]?.workStartedAt = at
+    }
+    s.sessions[sessionId]?.lastWorkSignalAt = at
     return s
 }
 
@@ -268,6 +274,19 @@ private func handleApprovalResolved(_ state: InternalState, at: Double, sessionI
     s.sessions[sessionId]?.prompt = nil
     s.sessions[sessionId]?.state = decision == .allow ? .working : .idle
     s.sessions[sessionId]?.lastActivityAt = at
+    if decision == .allow {
+        // Entering .working here without a start time was permanent: the
+        // keepWorking branch only stamps workStartedAt when the prior state
+        // ISN'T .working, so it never filled it in later. That left the
+        // session unable to ever look stalled (stall detection needs both
+        // timestamps) and made its eventual completion durationless — no
+        // celebrate sound, no elapsed time on the review card. It bites any
+        // session Boop first meets at an approval.
+        if s.sessions[sessionId]?.workStartedAt == nil {
+            s.sessions[sessionId]?.workStartedAt = at
+        }
+        s.sessions[sessionId]?.lastWorkSignalAt = at
+    }
     return s
 }
 
