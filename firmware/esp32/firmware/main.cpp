@@ -77,6 +77,10 @@ uint32_t promptArrivedMs = 0;
 // night-aware entry (§2.1.4) — waking a dark room with a full-brightness
 // cream field is the one way the mood system turns hostile.
 bool     promptArrivedDark = false;
+// Set when a prompt lands on a dark panel, cleared the moment the panel is
+// lit. Distinct from promptArrivedDark, which the lantern consumes for its
+// night-aware entry and which must survive being read later in the frame.
+bool     promptUnseen = false;
 bool     responseSent = false;
 // When we latched responseSent. The desktop clears promptId the moment it
 // acts on a decision, so a prompt that is STILL arriving well after we
@@ -479,9 +483,19 @@ static void updateDisplayPower(PersonaState state) {
 
   // Face-down nap owns the screen: state changes still chirp (above) but
   // never light a panel that's pressed against the desk.
+  //
+  // A pending approval is the one thing that outranks the nap. Nap ENTRY was
+  // already blocked while a prompt pends, but nothing ended a nap a prompt
+  // arrived DURING — so the card sat invisible against the desk while its
+  // 600ms arming window elapsed, and the first crown press after the device
+  // was picked up instantly approved something the human had never seen.
   if (napping) {
-    sleepDisplay(false);
-    return;
+    if (promptPending()) {
+      napEnd(now);
+    } else {
+      sleepDisplay(false);
+      return;
+    }
   }
 
   if (state == P_SLEEP) {
@@ -772,7 +786,13 @@ static void __attribute__((noinline)) handleButtons() {
   // (Found on hardware: overnight screen-off made the 4s hold a no-op.)
   if (prevBoop && boop && !armed && !boopLongHandled &&
       now - boopDownAt >= BTN_A_LONG_MS) {
-    if (!suppressBoopRelease) {
+    // Never black out a card that's on screen. `armed` alone wasn't enough:
+    // arming lags arrival by PROMPT_ARM_MS, and a prompt we can't answer
+    // (promptApproval false) never arms at all — so a 1.5s hold could blank a
+    // live approval and nothing would relight it, because updateDisplayPower
+    // only reacts to persona CHANGES and the persona was already P_ATTENTION.
+    // The 4s power-down below still works: that hold is unambiguous intent.
+    if (!suppressBoopRelease && !promptVisible()) {
       menuClose(false);
       sleepDisplay(true);
     }
@@ -1609,6 +1629,18 @@ void loop() {
     responseSentMs = 0;
     promptArrivedMs = millis();
     promptArrivedDark = screenWasOff;
+    promptUnseen = screenWasOff || napping;
+  }
+
+  // The arming window measures how long the card has been IN FRONT of the
+  // human, not how long ago the desktop sent it. A prompt that landed on a
+  // dark panel (idle screen-off, or face-down nap) isn't seen until the panel
+  // lights, so restart the clock at that moment — otherwise the 600ms elapses
+  // in the dark and the first press after waking answers a card that has only
+  // just appeared.
+  if (promptUnseen && !screenOff && !napping) {
+    promptUnseen = false;
+    promptArrivedMs = millis();
   }
   // Our answer never arrived — offer the card again.
   //
@@ -1630,7 +1662,17 @@ void loop() {
   // immediate) and far longer than any HIL test holds one, so a normal
   // approve never re-offers. A duplicate decision, if one does slip out, is
   // harmless: the desktop has no such id pending and logs it as unknown.
+  //
+  // The "still being re-sent" half has to be checked, not assumed: promptId is
+  // a CACHED copy that nothing cleared on link loss, so the old condition read
+  // "our stale copy is still non-empty" and fired even when the desktop had
+  // long since acted on the decision and gone away. That resurrected an
+  // already-executed command every 10s forever, and each re-answer sent a
+  // second allow. Requiring a frame received AFTER we answered restores the
+  // intended meaning — if the desktop is genuinely still asking, its
+  // heartbeats are still arriving.
   if (responseSent && tama.promptId[0] && responseSentMs != 0 &&
+      (int32_t)(dataLastLiveMs() - responseSentMs) > 0 &&
       (int32_t)(millis() - responseSentMs) >= (int32_t)PROMPT_RETRY_MS) {
     responseSent = false;
     responseSentMs = 0;

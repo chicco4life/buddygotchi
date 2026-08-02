@@ -23,11 +23,22 @@ struct GeneratedTestRunner {
             catch { print("FAIL \(name) — \(error)"); exit(1) }
         }
 
+        await run("ApprovalSurvivalTests.testParallelToolActivityDoesNotCancelABlockingApproval") { let t = ApprovalSurvivalTests(); try t.setUpWithError(); try await t.setUp(); t.testParallelToolActivityDoesNotCancelABlockingApproval() }
+        await run("ApprovalSurvivalTests.testStartWorkingDoesNotCancelABlockingApproval") { let t = ApprovalSurvivalTests(); try t.setUpWithError(); try await t.setUp(); t.testStartWorkingDoesNotCancelABlockingApproval() }
+        await run("ApprovalSurvivalTests.testRequestClearedDoesNotCancelABlockingApproval") { let t = ApprovalSurvivalTests(); try t.setUpWithError(); try await t.setUp(); t.testRequestClearedDoesNotCancelABlockingApproval() }
+        await run("ApprovalSurvivalTests.testActivityStillDismissesAPassiveNotificationCard") { let t = ApprovalSurvivalTests(); try t.setUpWithError(); try await t.setUp(); t.testActivityStillDismissesAPassiveNotificationCard() }
+        await run("ApprovalSurvivalTests.testResolvingTheApprovalStillClearsIt") { let t = ApprovalSurvivalTests(); try t.setUpWithError(); try await t.setUp(); t.testResolvingTheApprovalStillClearsIt() }
+        await run("ApprovalSurvivalTests.testSessionEndStillClearsAParkedApproval") { let t = ApprovalSurvivalTests(); try t.setUpWithError(); try await t.setUp(); t.testSessionEndStillClearsAParkedApproval() }
+        await run("ApprovalSurvivalTests.testApprovalStillExpires") { let t = ApprovalSurvivalTests(); try t.setUpWithError(); try await t.setUp(); t.testApprovalStillExpires() }
         await run("AutoApproveTests.testReadOnlyToolsAutoApprove") { let t = AutoApproveTests(); try t.setUpWithError(); try await t.setUp(); t.testReadOnlyToolsAutoApprove() }
         await run("AutoApproveTests.testNonCursorNeverAutoApproves") { let t = AutoApproveTests(); try t.setUpWithError(); try await t.setUp(); t.testNonCursorNeverAutoApproves() }
         await run("AutoApproveTests.testSafeSingleCommandsAutoApprove") { let t = AutoApproveTests(); try t.setUpWithError(); try await t.setUp(); t.testSafeSingleCommandsAutoApprove() }
         await run("AutoApproveTests.testChainedCommandIsNotAutoApproved") { let t = AutoApproveTests(); try t.setUpWithError(); try await t.setUp(); t.testChainedCommandIsNotAutoApproved() }
         await run("AutoApproveTests.testUnsafeCommandIsNotAutoApproved") { let t = AutoApproveTests(); try t.setUpWithError(); try await t.setUp(); t.testUnsafeCommandIsNotAutoApproved() }
+        await run("AutoApproveTests.testChainHiddenPastDisplayTruncationIsNotAutoApproved") { let t = AutoApproveTests(); try t.setUpWithError(); try await t.setUp(); t.testChainHiddenPastDisplayTruncationIsNotAutoApproved() }
+        await run("AutoApproveTests.testArgumentDrivenExecAndDeleteAreNotAutoApproved") { let t = AutoApproveTests(); try t.setUpWithError(); try await t.setUp(); t.testArgumentDrivenExecAndDeleteAreNotAutoApproved() }
+        await run("AutoApproveTests.testControlCharactersAreNotAutoApproved") { let t = AutoApproveTests(); try t.setUpWithError(); try await t.setUp(); t.testControlCharactersAreNotAutoApproved() }
+        await run("AutoApproveTests.testLongButSafeCommandStillAutoApproves") { let t = AutoApproveTests(); try t.setUpWithError(); try await t.setUp(); t.testLongButSafeCommandStillAutoApproves() }
         await run("AutoApproveTests.testStableCwdHashDoesNotUseRandomizedStringHash") { let t = AutoApproveTests(); try t.setUpWithError(); try await t.setUp(); t.testStableCwdHashDoesNotUseRandomizedStringHash() }
         await run("CopyRulesTests.testBuddyCopyFollowsBrandLaw") { let t = CopyRulesTests(); try t.setUpWithError(); try await t.setUp(); try t.testBuddyCopyFollowsBrandLaw() }
         await run("CopyRulesTests.testInlineViewTextLiteralRatchet") { let t = CopyRulesTests(); try t.setUpWithError(); try await t.setUp(); try t.testInlineViewTextLiteralRatchet() }
@@ -81,6 +92,12 @@ struct GeneratedTestRunner {
         await run("EngineIntegrationTests.testHeartbeatPopulatesErrorToolFromErrorMsg") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); try t.testHeartbeatPopulatesErrorToolFromErrorMsg() }
         await run("EngineIntegrationTests.testHeartbeatErrorToolNilWhenNoTool") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); try t.testHeartbeatErrorToolNilWhenNoTool() }
         await run("EngineIntegrationTests.testHeartbeatActivityFieldReflectsCurrentToolKind") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); try t.testHeartbeatActivityFieldReflectsCurrentToolKind() }
+        await run("HeartbeatTruncationTests.testPrefixByBytesNeverSplitsACharacter") { let t = HeartbeatTruncationTests(); try t.setUpWithError(); try await t.setUp(); t.testPrefixByBytesNeverSplitsACharacter() }
+        await run("HeartbeatTruncationTests.testPrefixByBytesKeepsWholeCharactersForCJK") { let t = HeartbeatTruncationTests(); try t.setUpWithError(); try await t.setUp(); t.testPrefixByBytesKeepsWholeCharactersForCJK() }
+        await run("HeartbeatTruncationTests.testPrefixByBytesLeavesShortAsciiUntouched") { let t = HeartbeatTruncationTests(); try t.setUpWithError(); try await t.setUp(); t.testPrefixByBytesLeavesShortAsciiUntouched() }
+        await run("HeartbeatTruncationTests.testPrefixByBytesHandlesAGraphemeWiderThanTheBudget") { let t = HeartbeatTruncationTests(); try t.setUpWithError(); try await t.setUp(); t.testPrefixByBytesHandlesAGraphemeWiderThanTheBudget() }
+        await run("HeartbeatTruncationTests.testEmojiHintProducesValidUTF8OnTheWire") { let t = HeartbeatTruncationTests(); try t.setUpWithError(); try await t.setUp(); t.testEmojiHintProducesValidUTF8OnTheWire() }
+        await run("HeartbeatTruncationTests.testOversizeStateShedsExtrasRatherThanBlowingTheFrame") { let t = HeartbeatTruncationTests(); try t.setUpWithError(); try await t.setUp(); t.testOversizeStateShedsExtrasRatherThanBlowingTheFrame() }
         await run("HookInstallerTests.testUnreadableClaudeSettingsIsNotOverwritten") { let t = HookInstallerTests(); try t.setUpWithError(); try await t.setUp(); try t.testUnreadableClaudeSettingsIsNotOverwritten() }
         await run("HookInstallerTests.testClaudeInstallIsVerifiedAndIdempotent") { let t = HookInstallerTests(); try t.setUpWithError(); try await t.setUp(); try t.testClaudeInstallIsVerifiedAndIdempotent() }
         await run("HookInstallerTests.testUninstallUnreadableClaudeSettingsFailsWithoutChangingFile") { let t = HookInstallerTests(); try t.setUpWithError(); try await t.setUp(); try t.testUninstallUnreadableClaudeSettingsFailsWithoutChangingFile() }
@@ -183,7 +200,7 @@ struct GeneratedTestRunner {
         await run("SnapshotHarnessTests.testSettings") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testSettings() }
         await run("SnapshotHarnessTests.testOnboardingSteps") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testOnboardingSteps() }
 
-        let total = 159
+        let total = 176
         print("\n\u{2713} \(passed) passed, \(skipped) skipped of \(total) tests")
     }
 }

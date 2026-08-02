@@ -245,5 +245,12 @@ inline void dataPoll(TamaState* out) {
     out->lastUpdated=now;
     strncpy(out->msg, "no agents awake", sizeof(out->msg)-1);
     out->msg[sizeof(out->msg)-1]=0;
+    // Drop the prompt too. It used to survive here, so a card for a request
+    // nobody is waiting on any more stayed on glass (and answerable) after the
+    // link died — PEBBLE-UX §9.1 says link loss reads as a nap, not as a
+    // pending decision. Reconnecting re-sends the id, which the change
+    // detector then treats as a fresh arrival and re-arms.
+    out->promptId[0]=0; out->promptTool[0]=0; out->promptHint[0]=0;
+    out->promptSource[0]=0; out->promptLabel[0]=0; out->promptApproval=false;
   }
 }

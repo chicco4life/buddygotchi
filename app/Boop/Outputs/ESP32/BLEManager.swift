@@ -91,7 +91,20 @@ final class BLEManager: NSObject, @unchecked Sendable {
     // (one outstanding "ota_chunk" at a time), so a single-slot-per-key
     // map is sufficient — second writer would clobber the first, which is
     // a programming error, not a runtime concern.
-    private var pendingAcks: [String: CheckedContinuation<BLEAckReply, Error>] = [:]
+    /// A waiter plus the token identifying *which* wait it is.
+    ///
+    /// The timeout timer can't be cancelled once scheduled, so it must be able
+    /// to tell whether the waiter it finds is still its own. Without the token
+    /// every OTA died: each chunk reuses the key "ota_chunk", so chunk 0's 5s
+    /// timer fired long after chunk 0 was acked and failed whichever chunk
+    /// happened to be in flight at t+5s — no update could get past the first
+    /// five seconds.
+    private struct PendingAck {
+        let token: UInt64
+        let continuation: CheckedContinuation<BLEAckReply, Error>
+    }
+    private var pendingAcks: [String: PendingAck] = [:]
+    private var nextAckToken: UInt64 = 0
 
     struct DiscoveredPeripheral: Sendable {
         let identifier: UUID
@@ -214,14 +227,19 @@ final class BLEManager: NSObject, @unchecked Sendable {
                 if let stale = self.pendingAcks.removeValue(forKey: ackKey) {
                     // A previous waiter on this key is being abandoned. Don't
                     // leak the continuation — it would never resume.
-                    stale.resume(throwing: BLEAckError.cancelled)
+                    stale.continuation.resume(throwing: BLEAckError.cancelled)
                 }
-                self.pendingAcks[ackKey] = cont
+                self.nextAckToken &+= 1
+                let token = self.nextAckToken
+                self.pendingAcks[ackKey] = PendingAck(token: token, continuation: cont)
                 peripheral.writeValue(data, for: rx, type: .withResponse)
                 self.bleQueue.asyncAfter(deadline: .now() + timeout) { [weak self] in
                     guard let self else { return }
+                    // Only time out the wait this timer was armed for; a later
+                    // wait on the same key has its own timer already running.
+                    guard self.pendingAcks[ackKey]?.token == token else { return }
                     if let pending = self.pendingAcks.removeValue(forKey: ackKey) {
-                        pending.resume(throwing: BLEAckError.timeout)
+                        pending.continuation.resume(throwing: BLEAckError.timeout)
                     }
                 }
             }
@@ -250,8 +268,8 @@ final class BLEManager: NSObject, @unchecked Sendable {
     private func failAllPendingAcks(with error: Error) {
         let waiters = pendingAcks
         pendingAcks.removeAll()
-        for (_, cont) in waiters {
-            cont.resume(throwing: error)
+        for (_, pending) in waiters {
+            pending.continuation.resume(throwing: error)
         }
     }
 
@@ -445,10 +463,10 @@ extension BLEManager: CBPeripheralDelegate {
            let pending = pendingAcks.removeValue(forKey: ackKey) {
             let ok = (json["ok"] as? Bool) ?? true
             if ok {
-                pending.resume(returning: ackReply(from: json, ackKey: ackKey))
+                pending.continuation.resume(returning: ackReply(from: json, ackKey: ackKey))
             } else {
                 let msg = (json["error"] as? String) ?? "device rejected \(ackKey)"
-                pending.resume(throwing: BLEAckError.ackFailure(message: msg))
+                pending.continuation.resume(throwing: BLEAckError.ackFailure(message: msg))
             }
             return
         }

@@ -81,9 +81,27 @@ private func handleRequestArrived(_ state: InternalState, at: Double, sessionId:
     setPrompt(state, at: at, sessionId: sessionId, requestId: requestId, tool: tool, hint: hint, sessionLabel: sessionLabel, source: nil, isApproval: false)
 }
 
+/// A blocking approval is owed an answer, so ordinary work activity must not
+/// silently withdraw it.
+///
+/// The agent runs tools in parallel: a `Read` finishing sends PostToolUse for
+/// the same session while a `Bash` PermissionRequest is still parked. That
+/// used to wipe the prompt — the card vanished from popover and device
+/// mid-glance and the blocked hook returned passthrough, so approval mode was
+/// unreliable in any session doing more than one thing at a time. A passive
+/// notification card carries no blocked caller and is still dismissed here.
+private func hasBlockingApproval(_ session: Session?) -> Bool {
+    session?.prompt?.isApproval == true
+}
+
 private func handleRequestCleared(_ state: InternalState, at: Double, sessionId: String) -> InternalState {
     guard let session = state.sessions[sessionId], session.state == .needsConfirmation else {
         return state
+    }
+    if hasBlockingApproval(session) {
+        var s = state
+        s.sessions[sessionId]?.lastActivityAt = at
+        return s
     }
     var s = state
     s.sessions[sessionId]?.state = .working
@@ -98,6 +116,17 @@ private func handleActivitySignal(_ state: InternalState, at: Double, sessionId:
 
     switch signal {
     case .startWorking, .keepWorking:
+        // A parked approval outranks a work signal: the hook is still blocked
+        // on an answer, so leave the prompt (and .needsConfirmation) alone and
+        // only refresh liveness.
+        if hasBlockingApproval(s.sessions[sessionId]) {
+            s.sessions[sessionId]?.lastWorkSignalAt = at
+            if let tool, !tool.isEmpty {
+                s.sessions[sessionId]?.lastTool = tool
+                s.sessions[sessionId]?.lastHint = hint
+            }
+            return s
+        }
         if s.sessions[sessionId]?.state == .needsConfirmation {
             s.sessions[sessionId]?.prompt = nil
         }

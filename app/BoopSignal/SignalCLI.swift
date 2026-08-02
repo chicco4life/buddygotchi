@@ -52,8 +52,14 @@ private func postApproval(config: SignalConfig, agentId: String, body: Data) -> 
 
     let result = LockedString()
     let semaphore = DispatchSemaphore(value: 0)
-    let task = URLSession.shared.dataTask(with: request) { data, _, error in
-        if error == nil, let data, let str = String(data: data, encoding: .utf8) {
+    let task = URLSession.shared.dataTask(with: request) { data, response, error in
+        // A 401 or a 500 carries an empty body. Treating "no error" as
+        // "a decision" printed a blank line, which is not valid hook output —
+        // require a 2xx AND something to actually say.
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if error == nil, (200..<300).contains(status), let data,
+           let str = String(data: data, encoding: .utf8),
+           !str.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             result.set(str)
         }
         semaphore.signal()
@@ -67,6 +73,9 @@ private func log(_ msg: String) {
     guard debug else { return }
     FileHandle.standardError.write(Data("[boop-signal] \(msg)\n".utf8))
 }
+
+/// The two Cursor events that gate an action on a permission answer.
+let approvalEvents: Set<String> = ["beforeShellExecution", "beforeMCPExecution"]
 
 private let cursorSignalMap: [String: String] = [
     "beforeSubmitPrompt": "start_working",
@@ -105,7 +114,9 @@ struct SignalCLI {
               let jsonData = raw.data(using: .utf8),
               let hookInput = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else {
             log("no valid stdin")
-            print("{\"permission\":\"allow\"}")
+            // Unparseable input means we can't tell which event this was, so
+            // assume it might be a gating one and defer to Cursor's own prompt.
+            print("{\"permission\":\"ask\"}")
             return
         }
 
@@ -114,19 +125,28 @@ struct SignalCLI {
             ?? (hookInput["event_name"] as? String)
             ?? ""
 
-        let approvalEvents: Set<String> = ["beforeShellExecution", "beforeMCPExecution"]
-        if config.approvalMode && approvalEvents.contains(hookEvent) {
-            if let response = postApproval(config: config, agentId: agentId, body: jsonData) {
+        if approvalEvents.contains(hookEvent) {
+            // Boop only ever ADDS a way to say yes. When it has no answer of
+            // its own — approval mode off, Boop down, an error response — the
+            // neutral reply is "ask", which hands the decision back to
+            // Cursor's own confirmation dialog. Replying "allow" here (as this
+            // did) told Cursor to run the command with nobody having approved
+            // it: with approval mode off, installing Boop silently disabled
+            // Cursor's shell prompt entirely.
+            if config.approvalMode,
+               let response = postApproval(config: config, agentId: agentId, body: jsonData) {
                 print(response)
             } else {
-                print("{\"permission\":\"allow\"}")
+                print("{\"permission\":\"ask\"}")
             }
             return
         }
 
         defer {
             // Cursor requires a permission response for non-blocking hooks; this
-            // is protocol plumbing, not an approval decision.
+            // is protocol plumbing, not an approval decision. Safe as "allow"
+            // only because these events fire after the fact (afterShellExecution,
+            // stop, sessionEnd) and gate nothing.
             print("{\"permission\":\"allow\"}")
         }
 
