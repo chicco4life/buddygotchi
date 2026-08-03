@@ -10,6 +10,11 @@ import SwiftUI
 enum SnapshotRenderer {
     static func renderAll(to dir: String) {
         _ = NSApplication.shared
+        // --render-snapshots returns before BoopApp.main(), so AppDelegate's
+        // applicationDidFinishLaunching never runs and Geist never registers.
+        // Without this every PNG is drawn in the system fallback face and the
+        // text metrics do not match the shipping app.
+        BuddyResources.registerFonts()
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
 
         let defaults = UserDefaults.standard
