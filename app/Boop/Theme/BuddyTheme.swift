@@ -84,9 +84,14 @@ enum BuddyTheme {
     static let geistMonoRegularPostScriptName = "GeistMono-Regular"
 
     static let popoverWidth: CGFloat = 320
-    static let liveViewHeight: CGFloat = 240
-    static let liveViewExpandedHeight: CGFloat = 380
-    static let popoverHeight: CGFloat = 440
+    /// Resting minimum: header, one activity line, footer, and air. The popover
+    /// auto-sizes past this (AppDelegate sets .preferredContentSize).
+    static let liveViewHeight: CGFloat = 132
+    /// Snapshot canvas for the approval states; not used for layout.
+    static let liveViewExpandedHeight: CGFloat = 300
+    static let popoverHeight: CGFloat = 460
+    /// The "finish setup" stub, which has no live content to size against.
+    static let unfinishedSetupHeight: CGFloat = 220
     static let onboardingWidth: CGFloat = 760
     static let onboardingHeight: CGFloat = 560
 
@@ -132,6 +137,12 @@ extension Animation {
     static func buddyEase(_ duration: Double = 0.5) -> Animation {
         .timingCurve(0.22, 1, 0.36, 1, duration: duration)
     }
+
+    // The firmware calls these "bloom" and "snuff" — a surface arriving takes
+    // longer than a surface resolving. Same durations, so the Mac and the device
+    // answer a prompt at the same speed.
+    static func buddyBloom() -> Animation { buddyEase(0.35) }
+    static func buddySnuff() -> Animation { buddyEase(0.25) }
 }
 
 // MARK: - Card Modifiers

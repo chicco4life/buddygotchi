@@ -80,15 +80,17 @@ struct PopoverView: View {
             Spacer()
         }
         .padding(18)
-        .frame(width: BuddyTheme.popoverWidth, height: 260)
+        .frame(width: BuddyTheme.popoverWidth, height: BuddyTheme.unfinishedSetupHeight)
         .preferredColorScheme(.light)
     }
 
     // MARK: - Live View
 
+    // The popover is the approve/deny surface plus a health readout. Anything the
+    // device says better does not belong here.
     private var liveView: some View {
         VStack(spacing: 0) {
-            statusPill
+            headerRow
 
             if showMenuHint {
                 Spacer().frame(height: 6)
@@ -102,56 +104,17 @@ struct PopoverView: View {
                     }
             }
 
-            Spacer().frame(height: 10)
-
-            connectionBar
-
-            if let serverWarning {
-                Spacer().frame(height: 6)
-                ServerWarningRow(message: serverWarning)
-                    .transition(.opacity)
-            }
-
-            if engine.state.activeSessions.count > 1 {
-                Spacer().frame(height: 6)
-                SessionListView(sessions: engine.state.activeSessions)
-                    .transition(.opacity)
-            }
-
-            if engine.state.pet.state == .sleep && engine.state.sessions.total == 0 {
-                Spacer().frame(height: 10)
-                EmptyAgentsView()
-                    .padding(.bottom, 12)
-                    .transition(.opacity)
-            }
-
-            if engine.state.pet.state == .busy && !engine.state.msg.isEmpty {
-                Spacer().frame(height: 8)
-                CurrentActivityRow(state: engine.state)
-                    .transition(.opacity)
-            } else if engine.state.pet.state == .thinking, let thinking = engine.state.firstThinking {
-                Spacer().frame(height: 8)
-                ThinkingRow(thinking: thinking, now: engine.state.updatedAt)
-                    .transition(.opacity)
-            }
-
             if let prompt = engine.state.prompt {
-                Spacer().frame(height: 10)
-                VStack(spacing: 0) {
-                    ToolCardView(
-                        prompt: prompt,
-                        waitingCount: engine.state.sessions.waiting,
-                        onApprove: prompt.isApproval ? { engine.resolveApproval(requestId: prompt.id, decision: .allow) } : nil,
-                        onDeny: prompt.isApproval ? { engine.resolveApproval(requestId: prompt.id, decision: .deny) } : nil
-                    )
-                    if let errored = engine.state.firstErrored {
-                        ErrorTrailerView(errored: errored)
-                            .transition(.opacity)
-                    }
-                }
+                Spacer().frame(height: 12)
+                ToolCardView(
+                    prompt: prompt,
+                    waitingCount: engine.state.sessions.waiting,
+                    onApprove: prompt.isApproval ? { engine.resolveApproval(requestId: prompt.id, decision: .allow) } : nil,
+                    onDeny: prompt.isApproval ? { engine.resolveApproval(requestId: prompt.id, decision: .deny) } : nil
+                )
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             } else if let errored = engine.state.firstErrored {
-                Spacer().frame(height: 10)
+                Spacer().frame(height: 12)
                 ErrorCardView(
                     source: errored.source,
                     sessionLabel: errored.sessionLabel,
@@ -159,31 +122,36 @@ struct PopoverView: View {
                     hint: errored.hint,
                     onDismiss: { engine.dismissError(sessionId: errored.id) }
                 )
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            } else if let completed = engine.state.lastCompleted {
-                Spacer().frame(height: 10)
-                ReviewCardView(
-                    completed: completed,
-                    onDismiss: { engine.dismissReview() }
-                )
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
-            Spacer(minLength: 0)
+            let rows = activityRows
+            if !rows.isEmpty {
+                Spacer().frame(height: 12)
+                ActivityList(rows: rows)
+                    .transition(.opacity)
+            } else if engine.state.sessions.total == 0 {
+                Spacer().frame(height: 12)
+                EmptyAgentsView()
+                    .transition(.opacity)
+            }
 
-            footer
+            Spacer(minLength: 12)
+
+            footerRow
         }
-        .padding(16)
+        .padding(18)
         .frame(width: BuddyTheme.popoverWidth)
         .frame(minHeight: BuddyTheme.liveViewHeight)
-        .animation(reduceMotion ? nil : .buddyEase(0.25), value: engine.state.prompt != nil)
+        .animation(reduceMotion ? nil : Animation.buddyBloom(), value: engine.state.prompt != nil)
         .preferredColorScheme(.light)
     }
 
-    private var statusPill: some View {
+    /// Name, state, and the way out. One row instead of a pill and a footer.
+    private var headerRow: some View {
         HStack(spacing: 6) {
             Text(statusName)
-                .font(.buddy(11, weight: .semibold))
+                .font(.buddy(13, weight: .semibold))
                 .foregroundStyle(BuddyTheme.ink)
 
             Text(engine.state.pet.state.rawValue)
@@ -193,43 +161,9 @@ struct PopoverView: View {
                 .background(stateFill.opacity(0.18), in: Capsule())
                 .overlay(Capsule().strokeBorder(stateFill.opacity(0.35), lineWidth: BuddyTheme.hairlineWidth))
                 .foregroundStyle(stateInk)
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(statusName), \(engine.state.pet.state.rawValue)")
-    }
+                .accessibilityLabel("\(statusName), \(engine.state.pet.state.rawValue)")
 
-    private var connectionBar: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(statusColor)
-                .frame(width: 5, height: 5)
-                .accessibilityHidden(true)
-
-            Text(engine.state.desktop.status.rawValue)
-                .font(.buddy(11))
-                .foregroundStyle(BuddyTheme.inkFaint)
-
-            Spacer()
-
-            if engine.state.sessions.total > 0 {
-                Text(BuddyCopy.shared.popover.activeTemplate.replacingOccurrences(of: "{count}", with: "\(engine.state.sessions.running)"))
-                    .font(.buddy(11))
-                    .foregroundStyle(BuddyTheme.inkFaint)
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: BuddyTheme.wellCornerRadius)
-                .fill(BuddyTheme.ink.opacity(0.03))
-        )
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(connectionAccessibilityLabel)
-    }
-
-    private var footer: some View {
-        HStack(spacing: 12) {
-            Spacer()
+            Spacer(minLength: 8)
 
             Button(action: { showingSettings = true }) {
                 Image(systemName: "gearshape")
@@ -239,7 +173,54 @@ struct PopoverView: View {
             .buttonStyle(BuddyPlainButtonStyle())
             .accessibilityLabel(BuddyCopy.settings)
         }
-        .padding(.top, 10)
+    }
+
+    /// Connection health, and the server warning when there is one — the warning
+    /// replaces the status rather than stacking another row on top of it.
+    private var footerRow: some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(serverWarning == nil ? statusColor : BuddyTheme.clayInk)
+                .frame(width: 5, height: 5)
+                .accessibilityHidden(true)
+
+            Text(serverWarning ?? engine.state.desktop.status.rawValue)
+                .font(.buddy(11))
+                .foregroundStyle(serverWarning == nil ? BuddyTheme.inkFaint : BuddyTheme.clayInk)
+                .lineLimit(2)
+
+            Spacer(minLength: 8)
+
+            if engine.state.sessions.total > 0 {
+                Text(BuddyCopy.shared.popover.activeTemplate.replacingOccurrences(of: "{count}", with: "\(engine.state.sessions.running)"))
+                    .font(.buddy(11))
+                    .foregroundStyle(BuddyTheme.inkFaint)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(connectionAccessibilityLabel)
+    }
+
+    /// One line per active session, plus a line for a just-finished task. The
+    /// reducer clears `lastCompleted` on the next prompt or work signal, so the
+    /// done line ages out on its own.
+    private var activityRows: [ActivityRow] {
+        let completed = engine.state.lastCompleted
+        var claimed = false
+        var rows = engine.state.activeSessions.map { session -> ActivityRow in
+            // The session that just finished is still listed, as idle. Say what it
+            // finished instead of saying nothing — that is the whole of what the
+            // review card was for.
+            if !claimed, let completed, session.state == .idle, completed.source == session.source {
+                claimed = true
+                return ActivityRow(completed: completed, id: session.id)
+            }
+            return ActivityRow(session: session, state: engine.state)
+        }
+        if !claimed, let completed, rows.isEmpty {
+            rows.append(ActivityRow(completed: completed))
+        }
+        return rows
     }
 
     private var serverWarning: String? {
@@ -305,50 +286,6 @@ private struct EmptyAgentsView: View {
     }
 }
 
-private struct ServerWarningRow: View {
-    let message: String
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(BuddyTheme.clayInk)
-                .frame(width: 5, height: 5)
-            Text(message)
-                .font(.buddy(11))
-                .foregroundStyle(BuddyTheme.clayInk)
-                .lineLimit(2)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: BuddyTheme.wellCornerRadius)
-                .fill(BuddyTheme.clay.opacity(0.08))
-        )
-        .accessibilityElement(children: .combine)
-    }
-}
-
-private struct ErrorTrailerView: View {
-    let errored: ErroredSession
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(.caption2))
-                .foregroundStyle(BuddyTheme.clayInk)
-            Text(BuddyCopy.shared.popover.errorTrailerTemplate.replacingOccurrences(of: "{agent}", with: AgentKind(rawValue: errored.source)?.displayName ?? errored.source))
-                .font(.buddy(11))
-                .foregroundStyle(BuddyTheme.inkSoft)
-                .lineLimit(1)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 12)
-        .padding(.top, 6)
-        .padding(.bottom, 8)
-        .accessibilityElement(children: .combine)
-    }
-}
 
 // MARK: - Tool Card
 
@@ -374,7 +311,7 @@ struct ToolCardView: View {
                             .foregroundStyle(BuddyTheme.amberInk)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(BuddyTheme.amber.opacity(0.15), in: Capsule())
+                            .background(BuddyTheme.ink.opacity(0.07), in: Capsule())
                             .alignmentGuide(.firstTextBaseline) { context in
                                 context[VerticalAlignment.center] + 4
                             }
@@ -388,7 +325,7 @@ struct ToolCardView: View {
                     if let label = prompt.sessionLabel {
                         Text(label)
                             .font(.buddy(11))
-                            .foregroundStyle(BuddyTheme.inkFaint)
+                            .foregroundStyle(BuddyTheme.ink.opacity(0.55))
                     }
                 }
 
@@ -399,11 +336,11 @@ struct ToolCardView: View {
                     HStack(spacing: 6) {
                         Image(systemName: prompt.activityKind.sfSymbol)
                             .font(.system(.caption2))
-                            .foregroundStyle(BuddyTheme.inkFaint)
+                            .foregroundStyle(BuddyTheme.ink.opacity(0.55))
                             .accessibilityHidden(true)
                         Text(prompt.hint)
                             .font(.buddy(11))
-                            .foregroundStyle(BuddyTheme.inkSoft)
+                            .foregroundStyle(BuddyTheme.ink.opacity(0.70))
                             .lineLimit(3)
                             .truncationMode(pathLikeHint ? .middle : .tail)
                     }
@@ -423,7 +360,8 @@ struct ToolCardView: View {
                             .font(.buddy(11, weight: .semibold))
                             .padding(.horizontal, 12)
                             .padding(.vertical, 4)
-                            .background(BuddyTheme.clay.opacity(0.15), in: Capsule())
+                            .background(BuddyTheme.paperRaised, in: Capsule())
+                            .overlay(Capsule().strokeBorder(BuddyTheme.clayInk.opacity(0.35), lineWidth: BuddyTheme.hairlineWidth))
                             .foregroundStyle(BuddyTheme.clayInk)
                         }
                         .buttonStyle(BuddyPlainButtonStyle())
@@ -441,7 +379,8 @@ struct ToolCardView: View {
                             .font(.buddy(11, weight: .semibold))
                             .padding(.horizontal, 12)
                             .padding(.vertical, 4)
-                            .background(BuddyTheme.amber.opacity(0.15), in: Capsule())
+                            .background(BuddyTheme.paperRaised, in: Capsule())
+                            .overlay(Capsule().strokeBorder(BuddyTheme.amberInk.opacity(0.45), lineWidth: BuddyTheme.hairlineWidth))
                             .foregroundStyle(BuddyTheme.amberInk)
                         }
                         .buttonStyle(BuddyPlainButtonStyle())
@@ -458,9 +397,13 @@ struct ToolCardView: View {
         }
         .background(
             RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
-                .fill(BuddyTheme.lantern)
+                .fill(waitingCount > 1 ? BuddyTheme.lanternHot : BuddyTheme.lantern)
         )
         .clipShape(RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius))
+        .overlay(
+            RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
+                .strokeBorder(BuddyTheme.hairlineStrong, lineWidth: BuddyTheme.hairlineWidth)
+        )
         .accessibilityElement(children: .combine)
         .accessibilityLabel(toolAccessibilityLabel)
     }
@@ -483,202 +426,7 @@ struct ToolCardView: View {
     }
 }
 
-// MARK: - Current Activity Row
 
-struct CurrentActivityRow: View {
-    let state: BuddyState
-
-    private var kind: ActivityKind {
-        state.currentActivityKind ?? .work
-    }
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: kind.sfSymbol)
-                .font(.system(.caption2))
-                .foregroundStyle(iconColor)
-                .accessibilityHidden(true)
-            Text(displayLine)
-                .font(.buddy(11))
-                .foregroundStyle(BuddyTheme.inkSoft)
-                .lineLimit(1)
-                .truncationMode(pathLikeHint ? .middle : .tail)
-            Spacer()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 4)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(BuddyCopy.shared.popover.workingTemplate.replacingOccurrences(of: "{message}", with: displayLine))
-    }
-
-    private var displayLine: String {
-        let session = primaryWorkingSession
-        let agent = session.map { AgentKind(rawValue: $0.source)?.displayName ?? $0.source }
-        let parsed = parsedMessage
-        let tool = nonEmpty(session?.currentTool) ?? parsed.tool
-        let hint = parsed.hint
-
-        switch (agent, tool, hint) {
-        case let (.some(agent), .some(tool), .some(hint)):
-            return "\(agent) · \(tool) — \(hint)"
-        case let (.some(agent), .some(tool), .none):
-            return "\(agent) · \(tool)"
-        case let (.some(agent), .none, .some(hint)):
-            return "\(agent) · \(hint)"
-        case let (.none, .some(tool), .some(hint)):
-            return "\(tool) — \(hint)"
-        case let (.none, .some(tool), .none):
-            return tool
-        case let (.none, .none, .some(hint)):
-            return hint
-        default:
-            return sanitizedMessage
-        }
-    }
-
-    private var primaryWorkingSession: SessionSnapshot? {
-        state.activeSessions.first { $0.state == .working } ?? state.activeSessions.first
-    }
-
-    private var parsedMessage: (tool: String?, hint: String?) {
-        let message = sanitizedMessage
-        guard let separator = message.firstIndex(of: ":") else {
-            return (nonEmpty(message), nil)
-        }
-        let tool = String(message[..<separator]).trimmingCharacters(in: .whitespacesAndNewlines)
-        let hintStart = message.index(after: separator)
-        let hint = String(message[hintStart...])
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .replacingOccurrences(of: "...", with: "…")
-        return (nonEmpty(tool), nonEmpty(hint))
-    }
-
-    private var sanitizedMessage: String {
-        var message = state.msg
-        if message.first == "[", let close = message.firstIndex(of: "]") {
-            let afterClose = message.index(after: close)
-            if afterClose < message.endIndex, message[afterClose] == " " {
-                message = String(message[message.index(after: afterClose)...])
-            }
-        }
-        return message
-    }
-
-    private var pathLikeHint: Bool {
-        kind == .read || kind == .write
-    }
-
-    private func nonEmpty(_ value: String?) -> String? {
-        guard let value else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
-    }
-
-    private var iconColor: Color {
-        switch kind {
-        case .verify: BuddyTheme.green
-        case .read: BuddyTheme.inkSoft
-        case .write: BuddyTheme.amber
-        case .shell: BuddyTheme.inkSoft
-        case .web: BuddyTheme.amber
-        case .work: BuddyTheme.inkFaint
-        }
-    }
-}
-
-// MARK: - Review Card
-
-struct ReviewCardView: View {
-    let completed: CompletedTask
-    var onDismiss: (() -> Void)? = nil
-
-    var body: some View {
-        HStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: BuddyTheme.accentBarRadius)
-                .fill(BuddyTheme.greenInk)
-                .frame(width: 3)
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(.caption2))
-                        .foregroundStyle(BuddyTheme.greenInk)
-                    Text(headlineLabel)
-                        .font(.buddy(11))
-                        .foregroundStyle(BuddyTheme.inkSoft)
-                    Spacer()
-                    if let durationMs = completed.durationMs, durationMs >= 1000 {
-                        Text(formatDuration(durationMs))
-                            .font(.buddy(11))
-                            .foregroundStyle(BuddyTheme.inkFaint)
-                    }
-                }
-
-                if let tool = completed.tool {
-                    HStack(spacing: 6) {
-                        Image(systemName: completed.activityKind.sfSymbol)
-                            .font(.system(.caption2))
-                            .foregroundStyle(BuddyTheme.inkSoft)
-                            .accessibilityHidden(true)
-                        Text(tool)
-                            .font(.buddy(13, weight: .semibold))
-                    }
-                }
-
-                if let hint = completed.hint, !hint.isEmpty {
-                    Text(hint)
-                        .font(.buddy(11))
-                        .foregroundStyle(BuddyTheme.inkSoft)
-                        .lineLimit(2)
-                }
-
-                if let onDismiss {
-                    HStack {
-                        Spacer()
-                        Button(action: onDismiss) {
-                            Text(BuddyCopy.dismiss)
-                                .font(.buddy(9.5, weight: .semibold))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 3)
-                                .background(BuddyTheme.green.opacity(0.12), in: Capsule())
-                                .foregroundStyle(BuddyTheme.greenInk)
-                        }
-                        .buttonStyle(BuddyPlainButtonStyle())
-                    }
-                    .padding(.top, 4)
-                }
-            }
-            .padding(.leading, 10)
-            .padding(.trailing, 12)
-            .padding(.vertical, 10)
-        }
-        .background(
-            RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
-                .fill(BuddyTheme.paperRaised)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius))
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(completedAccessibilityLabel)
-    }
-
-    private var headlineLabel: String {
-        if let source = completed.source {
-            return BuddyCopy.shared.popover.doneWithAgentTemplate.replacingOccurrences(of: "{agent}", with: AgentKind(rawValue: source)?.displayName ?? source)
-        }
-        return BuddyCopy.done
-    }
-
-    private var completedAccessibilityLabel: String {
-        let task = completed.tool ?? BuddyCopy.shared.popover.task
-        if let hint = completed.hint {
-            return BuddyCopy.shared.popover.completedWithHintTemplate
-                .replacingOccurrences(of: "{task}", with: task)
-                .replacingOccurrences(of: "{hint}", with: hint)
-        }
-        return BuddyCopy.shared.popover.completedTemplate.replacingOccurrences(of: "{task}", with: task)
-    }
-}
 
 // MARK: - Error Card
 
@@ -732,7 +480,8 @@ struct ErrorCardView: View {
                                 .font(.buddy(9.5, weight: .semibold))
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 3)
-                                .background(BuddyTheme.clay.opacity(0.12), in: Capsule())
+                                .background(BuddyTheme.paper, in: Capsule())
+                                .overlay(Capsule().strokeBorder(BuddyTheme.clayInk.opacity(0.30), lineWidth: BuddyTheme.hairlineWidth))
                                 .foregroundStyle(BuddyTheme.clayInk)
                         }
                         .buttonStyle(BuddyPlainButtonStyle())
@@ -746,9 +495,13 @@ struct ErrorCardView: View {
         }
         .background(
             RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
-                .fill(BuddyTheme.lantern)
+                .fill(BuddyTheme.paperRaised)
         )
         .clipShape(RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius))
+        .overlay(
+            RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
+                .strokeBorder(BuddyTheme.hairline, lineWidth: BuddyTheme.hairlineWidth)
+        )
         .accessibilityElement(children: .combine)
         .accessibilityLabel(errorAccessibilityLabel)
     }
@@ -774,138 +527,170 @@ struct ErrorCardView: View {
     }
 }
 
-// MARK: - Thinking Row
+// MARK: - Activity List
 
-/// Calm "agent is thinking hard" surface. Shown when a working session has gone
-/// silent past the work-stall threshold (≥ 5 min default) but isn't errored.
-/// No Dismiss — the user doesn't need to act; the agent is presumed alive.
-struct ThinkingRow: View {
-    let thinking: ThinkingSession
-    let now: Double
+/// One line of "who is doing what". Replaces the separate current-activity,
+/// thinking, review, and session-list surfaces, which between them showed four
+/// variations on the same sentence.
+struct ActivityRow: Identifiable {
+    let id: String
+    let tone: Color
+    let agent: String
+    let status: String
+    let detail: String?
+    let trailing: String?
 
-    var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { timeline in
-            HStack(spacing: 6) {
-                Image(systemName: "brain")
-                    .font(.system(.caption2))
-                    .foregroundStyle(BuddyTheme.amberInk)
-                    .accessibilityHidden(true)
-                Text(BuddyCopy.thinking)
-                    .font(.buddy(11, weight: .semibold))
-                    .foregroundStyle(BuddyTheme.inkSoft)
-                if let tool = thinking.tool, !tool.isEmpty {
-                    Text("·")
-                        .foregroundStyle(BuddyTheme.inkFaint)
-                    Text(tool)
-                        .font(.buddy(11))
-                        .foregroundStyle(BuddyTheme.ink)
-                        .lineLimit(1)
-                }
-                Spacer()
-                if let elapsed = elapsed(at: timeline.date.timeIntervalSince1970 * 1000) {
-                    Text(elapsed)
-                        .font(.buddy(11))
-                        .foregroundStyle(BuddyTheme.inkFaint)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 4)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(thinkingAccessibilityLabel)
+    init(session: SessionSnapshot, state: BuddyState) {
+        id = session.id
+        tone = ActivityRow.tone(for: session.state)
+        agent = AgentKind(rawValue: session.source)?.displayName ?? session.source
+        status = ActivityRow.label(for: session.state)
+        detail = activityDetail(for: session, in: state)
+        // Elapsed is derived from the state's own timestamp rather than a live
+        // clock: the popover redraws on every state change, and a ticking second
+        // counter is exactly the restlessness this surface is meant to lose.
+        trailing = ActivityRow.elapsed(session: session, in: state)
+            ?? session.sessionLabel.flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// A task that just finished, once nothing is running. The reducer clears
+    /// `lastCompleted` on the next prompt or work signal, so this ages out.
+    init(completed: CompletedTask, id: String = "completed") {
+        self.id = id
+        tone = BuddyTheme.greenInk
+        agent = AgentKind(rawValue: completed.source ?? "")?.displayName ?? (completed.source ?? BuddyCopy.shared.popover.task)
+        status = BuddyCopy.shared.popover.doneLabel
+        detail = [completed.tool, completed.hint].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " — ")
+        trailing = completed.durationMs.map { formatElapsed(ms: $0) }
+    }
+
+    private static func tone(for state: SessionState) -> Color {
+        switch state {
+        case .working: BuddyTheme.work
+        case .idle: BuddyTheme.inkFaint
+        case .needsConfirmation: BuddyTheme.amberInk
+        case .errored: BuddyTheme.clayInk
+        case .thinking: BuddyTheme.work
         }
     }
 
-    private func elapsed(at currentTime: Double) -> String? {
-        guard let start = thinking.workStartedAt else { return nil }
-        let base = max(now, currentTime)
-        let secs = Int((base - start) / 1000)
-        if secs < 60 { return "\(secs)s" }
-        return "\(secs / 60)m \(secs % 60)s"
+    private static func label(for state: SessionState) -> String {
+        switch state {
+        case .working: BuddyCopy.shared.popover.busy
+        case .idle: BuddyCopy.shared.popover.idle
+        case .needsConfirmation: BuddyCopy.shared.popover.waiting
+        case .errored: BuddyCopy.shared.popover.error
+        case .thinking: BuddyCopy.shared.popover.thinking
+        }
     }
 
-    private var thinkingAccessibilityLabel: String {
-        let agent = AgentKind(rawValue: thinking.source)?.displayName ?? thinking.source
-        guard let tool = thinking.tool else {
-            return BuddyCopy.shared.popover.thinkingWithAgentTemplate.replacingOccurrences(of: "{agent}", with: agent)
-        }
-        return BuddyCopy.shared.popover.thinkingWithToolTemplate
-            .replacingOccurrences(of: "{agent}", with: agent)
-            .replacingOccurrences(of: "{tool}", with: tool)
+    /// Only the thinking session carries a start time; SessionSnapshot does not.
+    private static func elapsed(session: SessionSnapshot, in state: BuddyState) -> String? {
+        guard let thinking = state.firstThinking, thinking.id == session.id,
+              let start = thinking.workStartedAt, state.updatedAt > start else { return nil }
+        return formatElapsed(ms: state.updatedAt - start)
     }
 }
 
-// MARK: - Session List
+private func formatElapsed(ms: Double) -> String {
+    let secs = Int(ms / 1000)
+    return secs < 60 ? "\(secs)s" : "\(secs / 60)m \(secs % 60)s"
+}
 
-struct SessionListView: View {
-    let sessions: [SessionSnapshot]
+/// The detail line for a session. For whichever session is currently working,
+/// `state.msg` carries a richer "Tool: hint" string than the session snapshot
+/// does, so prefer that and fall back to the snapshot's tool.
+private func activityDetail(for session: SessionSnapshot, in state: BuddyState) -> String? {
+    let tool = nonEmpty(session.currentTool)
+    guard session.state == .working, session.id == state.activeSessions.first(where: { $0.state == .working })?.id else {
+        return tool
+    }
+    let parsed = parseActivityMessage(state.msg)
+    switch (tool ?? parsed.tool, parsed.hint) {
+    case let (.some(tool), .some(hint)): return "\(tool) — \(hint)"
+    case let (.some(tool), .none): return tool
+    case let (.none, .some(hint)): return hint
+    default: return nil
+    }
+}
+
+/// Agent messages arrive as an optional "[prefix] " followed by "Tool: hint".
+private func parseActivityMessage(_ raw: String) -> (tool: String?, hint: String?) {
+    var message = raw
+    if message.first == "[", let close = message.firstIndex(of: "]") {
+        let afterClose = message.index(after: close)
+        if afterClose < message.endIndex, message[afterClose] == " " {
+            message = String(message[message.index(after: afterClose)...])
+        }
+    }
+    guard let separator = message.firstIndex(of: ":") else {
+        return (nonEmpty(message), nil)
+    }
+    let tool = String(message[..<separator]).trimmingCharacters(in: .whitespacesAndNewlines)
+    let hint = String(message[message.index(after: separator)...])
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+        .replacingOccurrences(of: "...", with: "…")
+    return (nonEmpty(tool), nonEmpty(hint))
+}
+
+private func nonEmpty(_ value: String?) -> String? {
+    guard let value else { return nil }
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
+}
+
+struct ActivityList: View {
+    let rows: [ActivityRow]
+    var maxRows = 3
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            ForEach(sessions) { sess in
-                let hasTool = sess.currentTool?.isEmpty == false
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(rows.prefix(maxRows)) { row in
+                HStack(alignment: .firstTextBaseline, spacing: 7) {
                     Circle()
-                        .fill(stateColor(for: sess.state))
+                        .fill(row.tone)
                         .frame(width: 5, height: 5)
-                        .alignmentGuide(.firstTextBaseline) { context in
-                            context[VerticalAlignment.center]
-                        }
+                        .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] }
                         .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 1) {
-                        HStack(spacing: 4) {
-                            Text(displayName(for: sess.source))
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 5) {
+                            Text(row.agent)
                                 .font(.buddy(11, weight: .semibold))
                                 .foregroundStyle(BuddyTheme.ink)
-                            Text(stateLabel(for: sess.state))
+                            Text(row.status)
                                 .font(.buddy(11))
                                 .foregroundStyle(BuddyTheme.inkSoft)
                         }
-                        if let tool = sess.currentTool, !tool.isEmpty {
-                            Text(tool)
+                        if let detail = row.detail {
+                            Text(detail)
                                 .font(.buddy(11))
                                 .foregroundStyle(BuddyTheme.inkFaint)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
                         }
                     }
-                    Spacer()
-                    if let label = sess.sessionLabel, !label.isEmpty {
-                        Text(label)
+
+                    Spacer(minLength: 8)
+
+                    if let trailing = row.trailing {
+                        Text(trailing)
                             .font(.buddy(11))
                             .foregroundStyle(BuddyTheme.inkFaint)
                             .lineLimit(1)
                             .layoutPriority(1)
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.bottom, hasTool ? 2 : 0)
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("\(displayName(for: sess.source)) \(stateLabel(for: sess.state))\(sess.currentTool.map { ", \($0)" } ?? "")")
+                .accessibilityLabel("\(row.agent) \(row.status)\(row.detail.map { ", \($0)" } ?? "")")
             }
-        }
-    }
 
-    private func displayName(for source: String) -> String {
-        AgentKind(rawValue: source)?.displayName ?? source
-    }
-
-    private func stateLabel(for state: SessionState) -> String {
-        switch state {
-        case .working: return BuddyCopy.shared.popover.busy
-        case .idle: return BuddyCopy.shared.popover.idle
-        case .needsConfirmation: return BuddyCopy.shared.popover.waiting
-        case .errored: return BuddyCopy.shared.popover.error
-        case .thinking: return BuddyCopy.shared.popover.thinking
-        }
-    }
-
-    private func stateColor(for state: SessionState) -> Color {
-        switch state {
-        case .working: return BuddyTheme.work
-        case .idle: return BuddyTheme.inkFaint
-        case .needsConfirmation: return BuddyTheme.amber
-        case .errored: return BuddyTheme.clay
-        case .thinking: return BuddyTheme.work.opacity(0.6)
+            if rows.count > maxRows {
+                Text(BuddyCopy.shared.popover.moreSessionsTemplate.replacingOccurrences(of: "{count}", with: "\(rows.count - maxRows)"))
+                    .font(.buddy(11))
+                    .foregroundStyle(BuddyTheme.inkFaint)
+                    .padding(.leading, 12)
+            }
         }
     }
 }

@@ -201,6 +201,8 @@ enum BuddyCopy {
         let emptyAgents = "No agents awake. Open Claude Code, Cursor, or Codex and send a message — your buddy will hear it."
         let errorTrailerTemplate = "Also: {agent} hit an error"
         let moreWaitingTemplate = "+{count} more waiting"
+        let moreSessionsTemplate = "+{count} more"
+        let doneLabel = "done"
         let toolRequestTemplate = "Tool request: {tool}"
         let toolRequestWithHintTemplate = "Tool request: {tool}, {hint}"
         let workingTemplate = "Working: {message}"
