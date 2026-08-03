@@ -153,6 +153,9 @@ struct PopoverView: View {
             Text(statusName)
                 .font(.buddy(13, weight: .semibold))
                 .foregroundStyle(BuddyTheme.ink)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .layoutPriority(0)
 
             Text(engine.state.pet.state.rawValue)
                 .font(.buddy(9.5, weight: .semibold))
@@ -161,6 +164,7 @@ struct PopoverView: View {
                 .background(stateFill.opacity(0.18), in: Capsule())
                 .overlay(Capsule().strokeBorder(stateFill.opacity(0.35), lineWidth: BuddyTheme.hairlineWidth))
                 .foregroundStyle(stateInk)
+                .fixedSize()
                 .accessibilityLabel("\(statusName), \(engine.state.pet.state.rawValue)")
 
             Spacer(minLength: 8)
@@ -297,13 +301,7 @@ struct ToolCardView: View {
     @State private var isHoveringActions = false
 
     var body: some View {
-        HStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: BuddyTheme.accentBarRadius)
-                .fill(BuddyTheme.amberInk)
-                .frame(width: 3)
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     if let source = prompt.source {
                         Text(sourceName(source))
@@ -331,12 +329,15 @@ struct ToolCardView: View {
 
                 Text(prompt.tool)
                     .font(.buddy(13, weight: .semibold))
+                    .lineLimit(1)
+                    .truncationMode(buddyTruncationMode(for: prompt.tool))
 
                 if !prompt.hint.isEmpty {
-                    HStack(spacing: 6) {
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Image(systemName: prompt.activityKind.sfSymbol)
                             .font(.system(.caption2))
                             .foregroundStyle(BuddyTheme.ink.opacity(0.55))
+                            .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 3 }
                             .accessibilityHidden(true)
                         Text(prompt.hint)
                             .font(.buddy(11))
@@ -390,15 +391,24 @@ struct ToolCardView: View {
                     }
                     .onHover { isHoveringActions = $0 }
                 }
-            }
-            .padding(.leading, 10)
-            .padding(.trailing, 12)
-            .padding(.vertical, 10)
         }
+        .padding(.leading, 13)
+        .padding(.trailing, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
                 .fill(waitingCount > 1 ? BuddyTheme.lanternHot : BuddyTheme.lantern)
         )
+        // The accent bar is an overlay, not an HStack sibling: a Shape with only
+        // its width constrained is greedy vertically, and it was stretching the
+        // whole card to fill the popover.
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(BuddyTheme.amberInk)
+                .frame(width: 3)
+                .accessibilityHidden(true)
+        }
         .clipShape(RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius))
         .overlay(
             RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
@@ -438,13 +448,7 @@ struct ErrorCardView: View {
     var onDismiss: (() -> Void)? = nil
 
     var body: some View {
-        HStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: BuddyTheme.accentBarRadius)
-                .fill(BuddyTheme.clayInk)
-                .frame(width: 3)
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(.caption2))
@@ -463,13 +467,16 @@ struct ErrorCardView: View {
                 if let tool {
                     Text(tool)
                         .font(.buddy(13, weight: .semibold))
+                        .lineLimit(1)
+                        .truncationMode(buddyTruncationMode(for: tool))
                 }
 
                 if let hint, !hint.isEmpty {
                     Text(hint)
                         .font(.buddy(11))
                         .foregroundStyle(BuddyTheme.inkSoft)
-                        .lineLimit(2)
+                        .lineLimit(3)
+                        .truncationMode(buddyTruncationMode(for: hint))
                 }
 
                 if let onDismiss {
@@ -488,15 +495,21 @@ struct ErrorCardView: View {
                     }
                     .padding(.top, 4)
                 }
-            }
-            .padding(.leading, 10)
-            .padding(.trailing, 12)
-            .padding(.vertical, 10)
         }
+        .padding(.leading, 13)
+        .padding(.trailing, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
                 .fill(BuddyTheme.paperRaised)
         )
+        .overlay(alignment: .leading) {
+            Rectangle()
+                .fill(BuddyTheme.clayInk)
+                .frame(width: 3)
+                .accessibilityHidden(true)
+        }
         .clipShape(RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius))
         .overlay(
             RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
@@ -633,6 +646,14 @@ private func parseActivityMessage(_ raw: String) -> (tool: String?, hint: String
     return (nonEmpty(tool), nonEmpty(hint))
 }
 
+/// A single token — an identifier like `mcp__filesystem__read_text_file` or a
+/// path like `.../oauth2/strategies/Foo.ts` — carries meaning at both ends, so
+/// it loses its middle. Anything with spaces is a command or a sentence, which
+/// reads front to back and loses its tail.
+func buddyTruncationMode(for text: String) -> Text.TruncationMode {
+    text.contains(" ") ? .tail : .middle
+}
+
 private func nonEmpty(_ value: String?) -> String? {
     guard let value else { return nil }
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -658,16 +679,19 @@ struct ActivityList: View {
                             Text(row.agent)
                                 .font(.buddy(11, weight: .semibold))
                                 .foregroundStyle(BuddyTheme.ink)
+                                .lineLimit(1)
                             Text(row.status)
                                 .font(.buddy(11))
                                 .foregroundStyle(BuddyTheme.inkSoft)
+                                .lineLimit(1)
+                                .fixedSize()
                         }
                         if let detail = row.detail {
                             Text(detail)
                                 .font(.buddy(11))
                                 .foregroundStyle(BuddyTheme.inkFaint)
                                 .lineLimit(1)
-                                .truncationMode(.middle)
+                                .truncationMode(buddyTruncationMode(for: detail))
                         }
                     }
 
@@ -678,7 +702,7 @@ struct ActivityList: View {
                             .font(.buddy(11))
                             .foregroundStyle(BuddyTheme.inkFaint)
                             .lineLimit(1)
-                            .layoutPriority(1)
+                            .truncationMode(buddyTruncationMode(for: trailing))
                     }
                 }
                 .accessibilityElement(children: .combine)

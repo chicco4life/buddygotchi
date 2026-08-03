@@ -20,6 +20,11 @@ enum SnapshotRenderer {
         let defaults = UserDefaults.standard
         defaults.set(true, forKey: DefaultsKey.setupCompleted)
         defaults.set("blob", forKey: DefaultsKey.buddySpecies)
+        // Every fixture that reads a default must find a known value, not
+        // whatever a previous run left behind. The onboarding and stress sections
+        // both write buddyName, so settings rendered differently depending on
+        // which of them ran last.
+        defaults.set("Mochi", forKey: DefaultsKey.buddyName)
 
         let idle = CGSize(width: BuddyTheme.popoverWidth, height: BuddyTheme.liveViewHeight)
         let expanded = CGSize(width: BuddyTheme.popoverWidth, height: BuddyTheme.liveViewExpandedHeight)
@@ -117,6 +122,58 @@ enum SnapshotRenderer {
         // system appearance rather than Boop's, so it is the one surface that has
         // to survive a light menu bar and a dark one.
         renderStatusIcons(dir)
+
+        // 12. Stress: pathological text in a 320pt panel. Agents really do send
+        // 300-character shell commands and 12-segment paths, and a repo checked
+        // out under a long directory name gives every row a long session label.
+        // These are the fixtures that catch overflow, so they render at a tall
+        // canvas — anything that clips or pushes a control off the edge is a bug.
+        let stressSize = CGSize(width: BuddyTheme.popoverWidth, height: 420)
+        defaults.set("Bartholomew Fitzgerald-Wellington III", forKey: DefaultsKey.buddyName)
+
+        let longHint = makeEngine()
+        longHint.sessionStarted(sessionId: "s1", source: "claude-code", cwd: "/Users/dev/very-long-monorepo-name")
+        Task {
+            _ = await longHint.submitApproval(
+                sessionId: "s1", requestId: "rq1",
+                tool: "mcp__filesystem__read_text_file_with_a_long_name",
+                hint: "find . -type f -name '*.swift' -not -path './.build/*' -exec sed -i '' 's/BuddyTheme.textPrimary/BuddyTheme.ink/g' {} + && swift build --product Boop 2>&1 | grep -c 'error:'",
+                sessionLabel: "very-long-monorepo-name", source: "claude-code"
+            )
+        }
+        RunLoop.main.run(until: Date().addingTimeInterval(0.1))
+        render(popover(longHint), "stress-1-long-approval", stressSize, dir)
+        longHint.resolveAllPendingApprovals(decision: .passthrough)
+
+        let longPath = makeEngine()
+        longPath.sessionStarted(sessionId: "s1", source: "cursor", cwd: "/Users/dev/api")
+        longPath.submitRequest(
+            sessionId: "s1", requestId: "r1", tool: "Write",
+            hint: "/Users/dev/api/packages/backend/src/modules/authentication/providers/oauth2/strategies/GoogleWorkspaceStrategy.ts",
+            sessionLabel: "backend-authentication-service"
+        )
+        render(popover(longPath), "stress-2-long-path", stressSize, dir)
+
+        let longError = makeEngine()
+        longError.sessionStarted(sessionId: "e1", source: "codex", cwd: "/Users/dev/landing")
+        longError.activitySignal(sessionId: "e1", source: "codex", signal: .startWorking)
+        longError.activitySignal(
+            sessionId: "e1", source: "codex", signal: .error,
+            tool: "npm run build --workspace=@boop/landing",
+            hint: "Type error: Property 'buddySpecies' does not exist on type 'RenderState'. Did you mean 'species'? at src/lib/heartbeat.ts:42:17"
+        )
+        render(popover(longError), "stress-3-long-error", stressSize, dir)
+
+        let manySessions = makeEngine()
+        for (i, src) in ["claude-code", "codex", "cursor", "claude-code", "codex"].enumerated() {
+            manySessions.sessionStarted(sessionId: "x\(i)", source: src, cwd: "/Users/dev/service-\(i)")
+            manySessions.activitySignal(
+                sessionId: "x\(i)", source: src, signal: .keepWorking,
+                tool: "Bash", hint: "pnpm --filter @acme/service-\(i) test --coverage"
+            )
+        }
+        render(popover(manySessions), "stress-4-many-sessions", stressSize, dir)
+        defaults.set("Mochi", forKey: DefaultsKey.buddyName)
 
         print("SNAPSHOTS WRITTEN to \(dir)")
     }
