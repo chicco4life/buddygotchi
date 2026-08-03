@@ -100,7 +100,58 @@ enum SnapshotRenderer {
         // still ships to the device over the heartbeat; `allBuddies` is covered by
         // ReducerTests instead.
 
+        // 10. Firmware sheet. It is presented with .sheet, so it never appeared in
+        // any harness, and it is the densest surface after settings.
+        for (name, state) in FirmwareUpdater.snapshotStates {
+            let updater = FirmwareUpdater.preview(state: state)
+            let view = FirmwareUpdateView(updater: updater, isPresented: .constant(true))
+            render(view, "firmware-\(name)", CGSize(width: BuddyTheme.popoverWidth, height: 320), dir)
+        }
+
+        // 11. Menu bar icon, on both appearances. The status item inherits the
+        // system appearance rather than Boop's, so it is the one surface that has
+        // to survive a light menu bar and a dark one.
+        renderStatusIcons(dir)
+
         print("SNAPSHOTS WRITTEN to \(dir)")
+    }
+
+    /// Draws every pet state's status icon twice — once over a light menu bar and
+    /// once over a dark one — at 4x so the badge ring is inspectable.
+    private static func renderStatusIcons(_ dir: String) {
+        let scale: CGFloat = 4
+        let cell: CGFloat = 18 * scale
+        let states = PetState.allCases
+        let size = NSSize(width: cell * CGFloat(states.count), height: cell * 2)
+
+        let sheet = NSImage(size: size, flipped: false) { _ in
+            for (row, appearance) in [NSAppearance(named: .aqua), NSAppearance(named: .darkAqua)].enumerated() {
+                let backdrop: NSColor = row == 0 ? .white : NSColor(white: 0.13, alpha: 1)
+                backdrop.setFill()
+                NSRect(x: 0, y: CGFloat(1 - row) * cell, width: size.width, height: cell).fill()
+
+                for (col, state) in states.enumerated() {
+                    // statusIcon reads labelColor, so it has to be drawn inside the
+                    // appearance it will live in.
+                    appearance?.performAsCurrentDrawingAppearance {
+                        let icon = DesktopOutput.statusIcon(for: state)
+                        icon.draw(
+                            in: NSRect(x: CGFloat(col) * cell, y: CGFloat(1 - row) * cell, width: cell, height: cell),
+                            from: .zero,
+                            operation: .sourceOver,
+                            fraction: 1
+                        )
+                    }
+                }
+            }
+            return true
+        }
+
+        guard let tiff = sheet.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let png = rep.representation(using: NSBitmapImageRep.FileType.png, properties: [:]) else { return }
+        try? png.write(to: URL(fileURLWithPath: "\(dir)/menubar-icons.png"))
+        print("SNAPSHOT menubar-icons.png \(png.count)B \(Int(size.width))x\(Int(size.height))")
     }
 
     private static func makeEngine() -> BuddyEngine {

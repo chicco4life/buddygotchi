@@ -34,8 +34,6 @@ final class DesktopOutput: OutputProvider {
     private let playAttention: () -> Void
     private let playError: () -> Void
 
-    private var lastIconKey: String?
-
     init(
         statusItem: NSStatusItem,
         presenter: any PopoverPresenting,
@@ -88,9 +86,9 @@ final class DesktopOutput: OutputProvider {
     }
 
     private func updateIcon(_ state: BuddyState) {
-        let iconKey = state.pet.state.rawValue
-        guard iconKey != lastIconKey else { return }
-        lastIconKey = iconKey
+        // No memo on pet state alone: the icon now also depends on the system
+        // appearance, since the app inherits it rather than pinning darkAqua.
+        // An 18x18 draw on a state change is not a hot path.
         statusItem?.button?.image = Self.statusIcon(for: state.pet.state)
     }
 
@@ -98,6 +96,9 @@ final class DesktopOutput: OutputProvider {
         let size = NSSize(width: 18, height: 18)
         let badgeColor = badgeColor(for: state)
         let image = NSImage(size: size, flipped: false) { rect in
+            // labelColor and controlBackgroundColor are deliberately semantic
+            // rather than BuddyTheme tokens: the menu bar is not a Boop surface,
+            // and these are the only values that track a light or dark menu bar.
             let bodyRect = NSRect(x: rect.minX + 2.4, y: rect.minY + 4.2, width: 13.2, height: 9.6)
             let body = NSBezierPath(ovalIn: bodyRect)
             NSColor.labelColor.setFill()
@@ -114,8 +115,15 @@ final class DesktopOutput: OutputProvider {
             }
 
             if let badgeColor {
+                // Amber on a white menu bar is 2.0:1, so the badge is ringed in
+                // labelColor to hold its edge on either appearance.
+                let badge = NSRect(x: 12.8, y: 2.2, width: 4.0, height: 4.0)
                 badgeColor.setFill()
-                NSBezierPath(ovalIn: NSRect(x: 12.8, y: 2.2, width: 4.0, height: 4.0)).fill()
+                NSBezierPath(ovalIn: badge.insetBy(dx: 0.25, dy: 0.25)).fill()
+                NSColor.labelColor.withAlphaComponent(0.55).setStroke()
+                let ring = NSBezierPath(ovalIn: badge.insetBy(dx: 0.25, dy: 0.25))
+                ring.lineWidth = 0.5
+                ring.stroke()
             }
             return true
         }

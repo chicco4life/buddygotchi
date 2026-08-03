@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Pet State
 
-enum PetState: String, Sendable, Equatable {
+enum PetState: String, Sendable, Equatable, CaseIterable {
     case sleep
     case idle
     case busy

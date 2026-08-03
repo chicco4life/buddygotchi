@@ -151,9 +151,20 @@ struct FirmwareUpdateView: View {
                     .font(.buddyMono(13))
                     .foregroundStyle(BuddyTheme.inkSoft)
             }
-            ProgressView(value: progress)
-                .progressViewStyle(.linear)
-                .tint(BuddyTheme.amber)
+            // Drawn rather than a linear ProgressView: on macOS that control takes
+            // the system accent and ignores .tint, which is the last place a
+            // system colour was leaking into a Boop surface.
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(BuddyTheme.ink.opacity(0.10))
+                    Capsule()
+                        .fill(BuddyTheme.amber)
+                        .frame(width: max(0, min(1, progress)) * geo.size.width)
+                }
+            }
+            .frame(height: 6)
+            .accessibilityElement()
+            .accessibilityValue(Text("\(Int(progress * 100))%"))
 
             if let eta, eta > 0 {
                 Text(formatETA(eta))

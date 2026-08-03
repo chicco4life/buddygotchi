@@ -40,6 +40,26 @@ final class FirmwareUpdater {
 
     private(set) var state: UpdateState = .idle
 
+    /// Snapshot harness only. FirmwareUpdateView is presented with `.sheet`, so it
+    /// is the one dense surface no harness could reach; this parks an updater in a
+    /// given state so the renderer can photograph it. Never called by the app.
+    static func preview(state: UpdateState) -> FirmwareUpdater {
+        let updater = FirmwareUpdater()
+        updater.state = state
+        return updater
+    }
+
+    /// The visually distinct OTA states, minus the ones that need a live release.
+    static var snapshotStates: [(String, UpdateState)] {
+        [
+            ("checking", .checking),
+            ("uploading", .uploading(progress: 0.42, etaSeconds: 95)),
+            ("verifying", .verifying),
+            ("success", .success(version: "0.4.1")),
+            ("failed", .failed(reason: "the device stopped acknowledging chunks", recoverable: true)),
+        ]
+    }
+
     // Last known firmware version reported by the device's status reply.
     // Stays nil until the first successful status round-trip after connect.
     private(set) var deviceVersion: String?
