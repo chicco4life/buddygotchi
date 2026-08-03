@@ -25,8 +25,7 @@ struct OnboardingView: View {
 
                 Group {
                     switch model.step {
-                    case .hatch: hatchStep
-                    case .adopt: adoptStep
+                    case .welcome: welcomeStep
                     case .agents: agentsStep
                     case .firstContact: firstContactStep
                     case .display: displayStep
@@ -83,29 +82,16 @@ struct OnboardingView: View {
             .replacingOccurrences(of: "{total}", with: "\(OnboardingStep.allCases.count)")
     }
 
-    private var hatchStep: some View {
-        VStack(spacing: 18) {
+    /// Was two steps: a hatching egg with no information in it, and a step whose
+    /// only live control was this text field.
+    private var welcomeStep: some View {
+        VStack(spacing: 24) {
             Spacer(minLength: 18)
 
             stepHeader(
-                title: BuddyCopy.Onboarding.hatchTitle,
-                subtitle: BuddyCopy.Onboarding.hatchSubtitle
+                title: BuddyCopy.Onboarding.welcomeTitle,
+                subtitle: BuddyCopy.Onboarding.welcomeSubtitle
             )
-
-            Spacer()
-
-            Button(BuddyCopy.Onboarding.meetBuddy) {
-                model.advance()
-            }
-            .buttonStyle(BuddyPrimaryButtonStyle(size: .large))
-            .keyboardShortcut(.return, modifiers: [])
-        }
-    }
-
-    private var adoptStep: some View {
-        VStack(spacing: 20) {
-            Spacer(minLength: 10)
-            stepHeader(title: BuddyCopy.Onboarding.adoptTitle)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(BuddyCopy.Onboarding.nameLabel)
@@ -131,7 +117,11 @@ struct OnboardingView: View {
 
             Spacer()
 
-            navigationBar(nextTitle: BuddyCopy.Onboarding.adopt)
+            Button(BuddyCopy.Onboarding.meetBuddy) {
+                model.advance()
+            }
+            .buttonStyle(BuddyPrimaryButtonStyle(size: .large))
+            .keyboardShortcut(.return, modifiers: [])
         }
     }
 
@@ -419,7 +409,6 @@ struct OnboardingView: View {
                     .font(.buddy(34, weight: .semibold))
                     .foregroundStyle(BuddyTheme.amberInk)
 
-                chipRow(title: BuddyCopy.shared.onboarding.species, value: model.selectedSpecies.capitalized)
                 chipRow(title: BuddyCopy.shared.onboarding.agents, value: model.installedAgents.isEmpty ? BuddyCopy.shared.onboarding.skipped : model.installedAgents.map(\.displayName).joined(separator: ", "))
                 chipRow(title: BuddyCopy.shared.onboarding.display, value: model.selectedOutput.displayName)
             }

@@ -3,6 +3,10 @@ import Observation
 
 enum BuddyOutputTarget: String, CaseIterable, Identifiable {
     case thisMac = "this-mac"
+    // "m5stack" is a legacy raw value and is deliberately frozen. It is persisted
+    // in UserDefaults and never rendered — displayName returns "Hardware buddy" —
+    // so renaming it buys no neutrality and would silently reset every paired
+    // user to This Mac, because nothing else reads the preference at runtime.
     case hardware = "m5stack"
 
     var id: String { rawValue }
@@ -23,8 +27,7 @@ enum BuddyOutputTarget: String, CaseIterable, Identifiable {
 }
 
 enum OnboardingStep: Int, CaseIterable {
-    case hatch
-    case adopt
+    case welcome
     case agents
     case firstContact
     case display
@@ -70,7 +73,7 @@ final class OnboardingModel {
 
     init() {
         let rawStep = UserDefaults.standard.integer(forKey: DefaultsKey.onboardingStep)
-        step = OnboardingStep(rawValue: rawStep) ?? .hatch
+        step = OnboardingStep(rawValue: rawStep) ?? .welcome
 
         let storedSpecies = UserDefaults.standard.string(forKey: DefaultsKey.buddySpecies)
         selectedSpecies = storedSpecies.flatMap { buddyOrder.contains($0) ? $0 : nil } ?? Pet.defaultSpecies

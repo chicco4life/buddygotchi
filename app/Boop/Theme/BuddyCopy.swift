@@ -40,15 +40,14 @@ enum BuddyCopy {
     }
 
     struct OnboardingCopy {
-        let hatchTitle = "Someone’s been waiting for you."
-        let hatchSubtitle = "A little creature that watches your AI agents — and only bothers you when it matters."
+        let welcomeTitle = "Someone’s been waiting for you."
+        // Retired "a little creature", which implied one particular shape. The
+        // form belongs to the device now.
+        let welcomeSubtitle = "It watches your agents and speaks up only when one needs you."
         let meetBuddy = "Meet your buddy"
 
-        let adoptTitle = "Adopt your buddy."
         let nameLabel = "Name your buddy — optional"
         let namePlaceholder = "Mochi"
-        let adopt = "Adopt"
-        let moreBuddiesHatchingSoon = "More buddies — hatching soon"
 
         let agentsTitle = "Connect your agents."
         let agentsSubtitle = "Choose at least one agent so your buddy can hear it working."
@@ -75,7 +74,7 @@ enum BuddyCopy {
         let thisMacDescription = "Your buddy lives in the menu bar."
         let hardware = "Hardware buddy"
         let hardwareDescription = "Pair over Bluetooth."
-        let hardwareFootnote = "works with an M5StickC Plus 2 today; the Boop hardware buddy hatches later this year."
+        let hardwareFootnote = "Works with any device running Boop firmware. Flash it first, then pair it here."
         let scanning = "Scanning for buddies…"
         let bluetoothOff = "Bluetooth is off"
         let bluetoothOffHint = "Turn on Bluetooth to find your buddy."
@@ -101,14 +100,10 @@ enum BuddyCopy {
         let back = "Back"
         let next = "Next"
         let skip = "Skip"
-        let species = "Species"
         let agents = "Agents"
         let display = "Display"
         let skipped = "Skipped"
-        let previousSpecies = "Previous species"
-        let nextSpecies = "Next species"
         let progressTemplate = "Onboarding progress, step {current} of {total}"
-        let buddyPreviewTemplate = "{species} buddy preview, {state}"
     }
 
     struct Settings {
@@ -130,7 +125,6 @@ enum BuddyCopy {
         let buddy = "Buddy"
         let buddyName = "Buddy name"
         let name = "Name"
-        let speciesPickerTemplate = "Species picker, {species}"
         let agents = "Agents"
         let notConnected = "Not connected"
         let needsRepairReasonTemplate = "Needs repair — {reason}"
@@ -251,14 +245,11 @@ enum BuddyCopy {
     }
 
     enum Onboarding {
-        static var hatchTitle: String { BuddyCopy.shared.onboarding.hatchTitle }
-        static var hatchSubtitle: String { BuddyCopy.shared.onboarding.hatchSubtitle }
+        static var welcomeTitle: String { BuddyCopy.shared.onboarding.welcomeTitle }
+        static var welcomeSubtitle: String { BuddyCopy.shared.onboarding.welcomeSubtitle }
         static var meetBuddy: String { BuddyCopy.shared.onboarding.meetBuddy }
-        static var adoptTitle: String { BuddyCopy.shared.onboarding.adoptTitle }
         static var nameLabel: String { BuddyCopy.shared.onboarding.nameLabel }
         static var namePlaceholder: String { BuddyCopy.shared.onboarding.namePlaceholder }
-        static var adopt: String { BuddyCopy.shared.onboarding.adopt }
-        static var moreBuddiesHatchingSoon: String { BuddyCopy.shared.onboarding.moreBuddiesHatchingSoon }
         static var agentsTitle: String { BuddyCopy.shared.onboarding.agentsTitle }
         static var agentsSubtitle: String { BuddyCopy.shared.onboarding.agentsSubtitle }
         static var skipForNow: String { BuddyCopy.shared.onboarding.skipForNow }
