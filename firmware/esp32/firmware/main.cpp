@@ -450,12 +450,14 @@ static void motionTick(uint32_t now) {
 
 static void playStateChirp(PersonaState state) {
   if (tama.muted || !settings().sound) return;
+  // Kept in step with CHIRPS in app/tools/make-chirps.py — the desktop plays
+  // the same motifs, and on the Pebble (no buzzer) it plays them alone.
   static const TuneNote ATTN[] = { {880, 90, 0}, {1245, 90, 110} };
-  static const TuneNote CELE[] = { {988, 70, 0}, {1175, 70, 85}, {1397, 80, 170} };
+  static const TuneNote CELE[] = { {1319, 110, 0} };
   static const TuneNote DIZZ[] = { {330, 180, 0} };
   switch (state) {
     case P_ATTENTION: playTune(ATTN, 2); break;
-    case P_CELEBRATE: if (tama.celebrate) playTune(CELE, 3); break;
+    case P_CELEBRATE: if (tama.celebrate) playTune(CELE, 1); break;
     case P_DIZZY:     playTune(DIZZ, 1); break;
     default: break;
   }

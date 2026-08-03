@@ -169,6 +169,12 @@ struct BuddyState: Sendable, Equatable {
     /// heart-eyes so the desktop blob reacts to physical affection.
     var affectionUntil: Double?
     var lastTaskDurationMs: Double?
+    /// When the most recent task finished, as a strictly-increasing marker.
+    /// `lastCompleted` can't answer "did something just finish?" — aggregation
+    /// nulls it whenever any *other* session is still busy, so on a multi-agent
+    /// desk one agent finishing leaves no trace in the projection at all. This
+    /// survives that, which is what the completion chirp edges on.
+    var lastCompletionAt: Double?
     var lastCompleted: CompletedTask?
     var firstErrored: ErroredSession?
     var firstThinking: ThinkingSession?
@@ -188,6 +194,7 @@ struct BuddyState: Sendable, Equatable {
         celebrateUntil: nil,
         affectionUntil: nil,
         lastTaskDurationMs: nil,
+        lastCompletionAt: nil,
         lastCompleted: nil,
         firstErrored: nil,
         firstThinking: nil,

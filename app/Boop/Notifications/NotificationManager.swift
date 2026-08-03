@@ -78,7 +78,11 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         content.title = BuddyCopy.notificationTitle(agentName: agentName)
         content.body = prompt.hint.isEmpty ? prompt.tool : "\(prompt.tool): \(prompt.hint)"
         content.categoryIdentifier = prompt.isApproval ? approvalCategoryId : passiveCategoryId
-        content.sound = .default
+        // Silent on purpose: Boop plays its own attention chirp for this same
+        // prompt (ChirpDecision). Letting the banner ding too would either
+        // double up or — as it did before — mask the chirp entirely behind the
+        // generic system alert, so the pet never got to make its own noise.
+        content.sound = nil
 
         let request = UNNotificationRequest(
             identifier: "tool-\(prompt.id)",
@@ -102,7 +106,8 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         willPresent notification: UNNotification,
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
-        completionHandler([.banner, .sound])
+        // No .sound — the chirp is ours to play. See deliverToolNotification.
+        completionHandler([.banner])
     }
 
     nonisolated func userNotificationCenter(

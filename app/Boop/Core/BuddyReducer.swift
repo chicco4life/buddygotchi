@@ -178,6 +178,7 @@ private func handleActivitySignal(_ state: InternalState, at: Double, sessionId:
         s.sessions[sessionId]?.currentActivityKind = nil
         s.buddy.celebrateUntil = at + s.celebrateDurationMs
         s.buddy.lastTaskDurationMs = duration
+        s.buddy.lastCompletionAt = at
         s.buddy.lastCompleted = CompletedTask(
             id: "\(sessionId)_\(Int(at))",
             tool: completedTool,

@@ -1,4 +1,11 @@
 #!/usr/bin/env python3
+"""Render Boop's chirps to the app's bundled .caf sounds.
+
+Square-wave chiptune, deliberately crude — it should read as "creature," not
+"notification." Run with no arguments to regenerate the shipped assets; pass
+--out to render a candidate somewhere else and audition it with afplay first.
+"""
+import argparse
 import math
 import shutil
 import struct
@@ -55,24 +62,45 @@ def convert_to_caf(wav_path, caf_path):
     )
 
 
+# One motif per event, and each has to be tellable from the others across a
+# room (PRODUCT.md §10.3). Kept in step with playStateChirp in
+# firmware/esp32/firmware/main.cpp so the desktop and the device speak the
+# same language — the Pebble has no buzzer yet, so today only the Mac is
+# audible, but the grammar carries over unchanged when one lands.
+CHIRPS = {
+    # Rising two-note "meep?" — a question, because it wants an answer.
+    "attention": [(880.0, 0.09, 0.015), (1245.0, 0.09, 0.0)],
+    # One bright blip. Finishing is a full stop, not a fanfare; a trill here
+    # got tiring at the rate an agent actually completes work.
+    "celebrate": [(1318.51, 0.11, 0.0)],
+    "error": [(330.0, 0.18, 0.0)],
+}
+
+
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--out",
+        type=Path,
+        default=SOUNDS_DIR,
+        help="directory to write the .caf files into (default: the app's Sounds resources). "
+        "Point it at /tmp to audition a candidate without dirtying the tree.",
+    )
+    args = parser.parse_args()
+
     if shutil.which("afconvert") is None:
         raise SystemExit("afconvert is required to generate CAF chirps on macOS")
 
-    SOUNDS_DIR.mkdir(parents=True, exist_ok=True)
-    chirps = {
-        "attention": [(880.0, 0.09, 0.015), (1245.0, 0.09, 0.0)],
-        "celebrate": [(880.0, 0.065, 0.01), (1108.73, 0.065, 0.01), (1318.51, 0.085, 0.0)],
-        "error": [(330.0, 0.18, 0.0)],
-    }
+    args.out.mkdir(parents=True, exist_ok=True)
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp_dir = Path(tmp)
-        for name, notes in chirps.items():
+        for name, notes in CHIRPS.items():
             wav_path = tmp_dir / f"{name}.wav"
-            caf_path = SOUNDS_DIR / f"{name}.caf"
+            caf_path = args.out / f"{name}.caf"
             write_wav(wav_path, render_notes(notes))
             convert_to_caf(wav_path, caf_path)
+            print(caf_path)
 
 
 if __name__ == "__main__":

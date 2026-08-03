@@ -29,6 +29,7 @@ final class DesktopOutput: OutputProvider {
     private weak var statusItem: NSStatusItem?
     private weak var presenter: (any PopoverPresenting)?
     private let notifier: any DesktopNotificationPosting
+    private let soundsEnabled: () -> Bool
     private let playCelebrate: () -> Void
     private let playAttention: () -> Void
     private let playError: () -> Void
@@ -39,6 +40,9 @@ final class DesktopOutput: OutputProvider {
         statusItem: NSStatusItem,
         presenter: any PopoverPresenting,
         notifier: any DesktopNotificationPosting = NotificationManager.shared,
+        soundsEnabled: @escaping () -> Bool = {
+            UserDefaults.standard.object(forKey: DefaultsKey.soundsEnabled) as? Bool ?? true
+        },
         playCelebrate: @escaping () -> Void = {
             if let url = BuddyResources.soundURL("celebrate"),
                let sound = NSSound(contentsOf: url, byReference: true) {
@@ -67,6 +71,7 @@ final class DesktopOutput: OutputProvider {
         self.statusItem = statusItem
         self.presenter = presenter
         self.notifier = notifier
+        self.soundsEnabled = soundsEnabled
         self.playCelebrate = playCelebrate
         self.playAttention = playAttention
         self.playError = playError
@@ -77,8 +82,8 @@ final class DesktopOutput: OutputProvider {
 
     func stateDidChange(prev: BuddyState, next: BuddyState) {
         updateIcon(next)
-        let notificationPosted = updateNotifications(prev: prev, next: next)
-        playTransitionSounds(prev: prev, next: next, notificationPosted: notificationPosted)
+        updateNotifications(prev: prev, next: next)
+        playTransitionSounds(prev: prev, next: next)
         updateInteractiveMode(prev: prev, next: next)
     }
 
@@ -144,33 +149,26 @@ final class DesktopOutput: OutputProvider {
         }
     }
 
-    private func updateNotifications(prev: BuddyState, next: BuddyState) -> Bool {
+    private func updateNotifications(prev: BuddyState, next: BuddyState) {
         let previousPromptId = prev.prompt?.id
         let nextPrompt = next.prompt
-        var posted = false
 
         if let previousPromptId, previousPromptId != nextPrompt?.id {
             notifier.clearNotification(promptId: previousPromptId)
         }
 
-        guard let nextPrompt, nextPrompt.id != previousPromptId else { return false }
+        guard let nextPrompt, nextPrompt.id != previousPromptId else { return }
         if presenter?.isPopoverShown != true {
             notifier.postToolNotification(prompt: nextPrompt)
-            posted = true
         }
-        return posted
     }
 
-    private func playTransitionSounds(prev: BuddyState, next: BuddyState, notificationPosted: Bool) {
-        let soundsEnabled = UserDefaults.standard.object(forKey: DefaultsKey.soundsEnabled) as? Bool ?? true
-        guard soundsEnabled, !notificationPosted else { return }
-        guard prev.pet.state != next.pet.state else { return }
-        if next.pet.state == .celebrate && (next.lastTaskDurationMs ?? 0) >= 30_000 {
-            playCelebrate()
-        } else if next.pet.state == .attention {
-            playAttention()
-        } else if next.pet.state == .error {
-            playError()
+    private func playTransitionSounds(prev: BuddyState, next: BuddyState) {
+        switch ChirpDecision.chirp(prev: prev, next: next, soundsEnabled: soundsEnabled()) {
+        case .complete:   playCelebrate()
+        case .attention:  playAttention()
+        case .error:      playError()
+        case nil:         break
         }
     }
 

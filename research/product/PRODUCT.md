@@ -342,7 +342,11 @@ Why not more buttons: every additional control turns the pet back into a device.
 
 ### 10.3 Sound character
 
-The buzzer (already on the board) is the right instrument: chiptune chirps read as "creature," not "appliance." Rules: nothing longer than 3 notes except celebrate; every event has a distinct motif (attention = rising "meep?", approve = two-note "mm-hm!", celebrate = 5-note trill, error = single low "oof"); hard volume cap; global mute honored everywhere; auto-quiet during sleep hours. A real speaker stays a v2 Grove add-on — better sounds are not what v1 needs.
+A buzzer is the right instrument: chiptune chirps read as "creature," not "appliance." Rules: nothing longer than 3 notes; every event has a distinct motif (attention = rising two-note "meep?", complete = single bright blip, approve = two-note "mm-hm!", error = single low "oof"); hard volume cap; global mute honored everywhere; auto-quiet during sleep hours. A real speaker stays a v2 Grove add-on — better sounds are not what v1 needs.
+
+**Who plays it today.** The 1.64 board has no buzzer (the M5StickC did — §4.4 of HARDWARE.md adds one back), so on the Pebble the *desktop* is the instrument: the Mac app plays these same motifs through the laptop speakers. The grammar lives in two places kept deliberately in step — `CHIRPS` in `app/tools/make-chirps.py` and `playStateChirp` in `firmware/esp32/firmware/main.cpp` — so a v1.x hardware rev with a buzzer inherits it unchanged.
+
+**Completion is one note, not a trill.** An agent finishes many times an hour; a five-note fanfare at that rate is what sends people to the mute switch. The single blip is the version you can live with all day.
 
 ### 10.4 Premium in the details (cheap where it counts)
 

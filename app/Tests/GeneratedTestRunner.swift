@@ -47,6 +47,22 @@ struct GeneratedTestRunner {
         await run("ToolInputDecodingTests.testToolInputAsNonJSONStringBecomesADescription") { let t = ToolInputDecodingTests(); try t.setUpWithError(); try await t.setUp(); t.testToolInputAsNonJSONStringBecomesADescription() }
         await run("ToolInputDecodingTests.testNonStringFieldDoesNotFailTheWholePayload") { let t = ToolInputDecodingTests(); try t.setUpWithError(); try await t.setUp(); t.testNonStringFieldDoesNotFailTheWholePayload() }
         await run("ToolInputDecodingTests.testOrdinaryObjectStillDecodes") { let t = ToolInputDecodingTests(); try t.setUpWithError(); try await t.setUp(); t.testOrdinaryObjectStillDecodes() }
+        await run("ChirpDecisionTests.testCompletedTaskChirpsOnce") { let t = ChirpDecisionTests(); try t.setUpWithError(); try await t.setUp(); t.testCompletedTaskChirpsOnce() }
+        await run("ChirpDecisionTests.testShortTaskIsSilent") { let t = ChirpDecisionTests(); try t.setUpWithError(); try await t.setUp(); t.testShortTaskIsSilent() }
+        await run("ChirpDecisionTests.testTaskAtThresholdChirps") { let t = ChirpDecisionTests(); try t.setUpWithError(); try await t.setUp(); t.testTaskAtThresholdChirps() }
+        await run("ChirpDecisionTests.testCompletionChirpsWhileAnotherAgentKeepsWorking") { let t = ChirpDecisionTests(); try t.setUpWithError(); try await t.setUp(); t.testCompletionChirpsWhileAnotherAgentKeepsWorking() }
+        await run("ChirpDecisionTests.testConsecutiveCompletionsEachChirpWithNoPetStateEdge") { let t = ChirpDecisionTests(); try t.setUpWithError(); try await t.setUp(); t.testConsecutiveCompletionsEachChirpWithNoPetStateEdge() }
+        await run("ChirpDecisionTests.testApprovalChirpsAttention") { let t = ChirpDecisionTests(); try t.setUpWithError(); try await t.setUp(); t.testApprovalChirpsAttention() }
+        await run("ChirpDecisionTests.testSecondApprovalDuringAttentionChirpsAgain") { let t = ChirpDecisionTests(); try t.setUpWithError(); try await t.setUp(); t.testSecondApprovalDuringAttentionChirpsAgain() }
+        await run("ChirpDecisionTests.testResolvingOneOfTwoApprovalsIsSilentDespitePromptIdChange") { let t = ChirpDecisionTests(); try t.setUpWithError(); try await t.setUp(); t.testResolvingOneOfTwoApprovalsIsSilentDespitePromptIdChange() }
+        await run("ChirpDecisionTests.testResolvingApprovalIsSilent") { let t = ChirpDecisionTests(); try t.setUpWithError(); try await t.setUp(); t.testResolvingApprovalIsSilent() }
+        await run("ChirpDecisionTests.testErrorChirpsOnce") { let t = ChirpDecisionTests(); try t.setUpWithError(); try await t.setUp(); t.testErrorChirpsOnce() }
+        await run("ChirpDecisionTests.testAttentionWinsOverCompletion") { let t = ChirpDecisionTests(); try t.setUpWithError(); try await t.setUp(); t.testAttentionWinsOverCompletion() }
+        await run("ChirpDecisionTests.testSoundsDisabledSilencesEverything") { let t = ChirpDecisionTests(); try t.setUpWithError(); try await t.setUp(); t.testSoundsDisabledSilencesEverything() }
+        await run("ChirpDecisionTests.testInitialStateIsSilent") { let t = ChirpDecisionTests(); try t.setUpWithError(); try await t.setUp(); t.testInitialStateIsSilent() }
+        await run("DesktopOutputSoundTests.testCompletionReachesThePlaybackClosure") { let t = DesktopOutputSoundTests(); try t.setUpWithError(); try await t.setUp(); t.testCompletionReachesThePlaybackClosure() }
+        await run("DesktopOutputSoundTests.testMutedOutputPlaysNothing") { let t = DesktopOutputSoundTests(); try t.setUpWithError(); try await t.setUp(); t.testMutedOutputPlaysNothing() }
+        await run("DesktopOutputSoundTests.testApprovalReachesThePlaybackClosure") { let t = DesktopOutputSoundTests(); try t.setUpWithError(); try await t.setUp(); t.testApprovalReachesThePlaybackClosure() }
         await run("CodexTomlTests.testTolerantDetectionOfExistingKey") { let t = CodexTomlTests(); try t.setUpWithError(); try await t.setUp(); t.testTolerantDetectionOfExistingKey() }
         await run("CodexTomlTests.testKeyOutsideFeaturesDoesNotCount") { let t = CodexTomlTests(); try t.setUpWithError(); try await t.setUp(); t.testKeyOutsideFeaturesDoesNotCount() }
         await run("CodexTomlTests.testHeaderWithoutTrailingNewlineStaysValid") { let t = CodexTomlTests(); try t.setUpWithError(); try await t.setUp(); t.testHeaderWithoutTrailingNewlineStaysValid() }
@@ -207,6 +223,7 @@ struct GeneratedTestRunner {
         await run("RequestIdTests.testIdsAreUniqueWithinOneSession") { let t = RequestIdTests(); try t.setUpWithError(); try await t.setUp(); t.testIdsAreUniqueWithinOneSession() }
         await run("RequestIdTests.testIdsStayDistinctAcrossSessionsAfterTruncation") { let t = RequestIdTests(); try t.setUpWithError(); try await t.setUp(); t.testIdsStayDistinctAcrossSessionsAfterTruncation() }
         await run("ResourceTests.testModuleBundleContainsFontAndSoundResources") { let t = ResourceTests(); try t.setUpWithError(); try await t.setUp(); t.testModuleBundleContainsFontAndSoundResources() }
+        await run("ResourceTests.testCompletionChirpIsShorterThanAttentionChirp") { let t = ResourceTests(); try t.setUpWithError(); try await t.setUp(); try t.testCompletionChirpIsShorterThanAttentionChirp() }
         await run("ResourceTests.testGeistSemiBoldRegistersAndResolves") { let t = ResourceTests(); try t.setUpWithError(); try await t.setUp(); t.testGeistSemiBoldRegistersAndResolves() }
         await run("SnapshotHarnessTests.testSpeciesGallery") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testSpeciesGallery() }
         await run("SnapshotHarnessTests.testPopoverSleep") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testPopoverSleep() }
@@ -216,7 +233,7 @@ struct GeneratedTestRunner {
         await run("SnapshotHarnessTests.testSettings") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testSettings() }
         await run("SnapshotHarnessTests.testOnboardingSteps") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testOnboardingSteps() }
 
-        let total = 192
+        let total = 209
         print("\n\u{2713} \(passed) passed, \(skipped) skipped of \(total) tests")
     }
 }

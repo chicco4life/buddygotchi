@@ -23,11 +23,15 @@ everything here lives behind `HAL_LANDSCAPE` / board guards.
 ## 0. Hardware facts that shape the design
 
 - **No speaker, no LED.** `halTone`/`halSetLed` are no-ops on this board. **The screen
-  carries the entire ambient/emotional channel.** Sound is explicitly out of scope for
-  v1 (decision 2026-07-25): all feedback is visual. A future speaker is a hardware
-  question tracked in PRODUCT.md; nothing in this spec depends on audio. (Chirp calls
-  elsewhere in the firmware — the dizzy chirp, approve/deny chirps — are live on the
+  carries the entire ambient/emotional channel *on the device*.** A future speaker is a
+  hardware question tracked in PRODUCT.md; nothing in this spec depends on audio. (Chirp
+  calls elsewhere in the firmware — the dizzy chirp, approve/deny chirps — are live on the
   M5 and silently no-op here; that's fine, leave them.)
+  Amended 2026-08-02: sound is out of scope for the *board*, not for the product. The Mac
+  app plays the chirp grammar (PRODUCT.md §10.3) through the laptop speakers — a single
+  bright blip when an agent finishes, a rising two-note "meep?" when one needs you. That
+  changes nothing on this screen; it just means "all feedback is visual" describes the
+  Pebble, not the desk.
 - **Three buttons:** top crown ("boop", IO1), bottom-left ("look", IO5),
   bottom-right ("no", IO2). BOOT doubles as boop until soldering. Pins are live in the
   HAL already — soldering needs zero firmware change. Power-down wake is BOOT-only
@@ -71,7 +75,8 @@ everything here lives behind `HAL_LANDSCAPE` / board guards.
 9. **Text is a last resort** — only inside bubbles/cards, never bare on the face.
 10. **Physics over keyframes** for touch/motion-driven motion (squish, dangle, wobble):
     spring simulations, not sprite sequences.
-11. **Visual-only.** No chirps/beeps on this board in v1.
+11. **Visual-only.** No chirps/beeps on this board in v1 — the desktop app carries the
+    audio channel instead (§0).
 12. **Urgency beats affection.** **[shipped]** — the `heart` state overlays calm states
     only; attention, error, and sleep always win. Booping during a pending prompt does
     not produce hearts, and motion gestures (shake, nap) are suppressed while a prompt
