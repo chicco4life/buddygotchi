@@ -349,7 +349,7 @@ struct OnboardingView: View {
                 }
                 .tint(BuddyTheme.amber)
 
-                Divider().overlay(BuddyTheme.textPrimary.opacity(0.08))
+                BuddyDivider()
 
                 HStack(spacing: 14) {
                     VStack(alignment: .leading, spacing: 3) {

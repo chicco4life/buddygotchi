@@ -206,14 +206,14 @@ struct PopoverView: View {
 
             Text(engine.state.desktop.status.rawValue)
                 .font(.buddy(11))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(BuddyTheme.textTertiary)
 
             Spacer()
 
             if engine.state.sessions.total > 0 {
                 Text(BuddyCopy.shared.popover.activeTemplate.replacingOccurrences(of: "{count}", with: "\(engine.state.sessions.running)"))
                     .font(.buddy(11))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(BuddyTheme.textTertiary)
             }
         }
         .padding(.horizontal, 12)
@@ -233,7 +233,7 @@ struct PopoverView: View {
             Button(action: { showingSettings = true }) {
                 Image(systemName: "gearshape")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(BuddyTheme.textSecondary)
             }
             .buttonStyle(BuddyPlainButtonStyle())
             .accessibilityLabel(BuddyCopy.settings)
@@ -294,11 +294,11 @@ private struct EmptyAgentsView: View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "antenna.radiowaves.left.and.right")
                 .font(.system(.caption))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(BuddyTheme.textSecondary)
                 .padding(.top, 1)
             Text(BuddyCopy.shared.popover.emptyAgents)
                 .font(.buddy(11))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(BuddyTheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
@@ -347,7 +347,7 @@ private struct ErrorTrailerView: View {
                 .foregroundStyle(BuddyTheme.stuckRed)
             Text(BuddyCopy.shared.popover.errorTrailerTemplate.replacingOccurrences(of: "{agent}", with: AgentKind(rawValue: errored.source)?.displayName ?? errored.source))
                 .font(.buddy(11))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(BuddyTheme.textSecondary)
                 .lineLimit(1)
             Spacer(minLength: 0)
         }
@@ -396,7 +396,7 @@ struct ToolCardView: View {
                     if let label = prompt.sessionLabel {
                         Text(label)
                             .font(.buddy(11))
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(BuddyTheme.textTertiary)
                     }
                 }
 
@@ -407,11 +407,11 @@ struct ToolCardView: View {
                     HStack(spacing: 6) {
                         Image(systemName: prompt.activityKind.sfSymbol)
                             .font(.system(.caption2))
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(BuddyTheme.textTertiary)
                             .accessibilityHidden(true)
                         Text(prompt.hint)
                             .font(.buddy(11))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(BuddyTheme.textSecondary)
                             .lineLimit(3)
                             .truncationMode(pathLikeHint ? .middle : .tail)
                     }
@@ -425,7 +425,7 @@ struct ToolCardView: View {
                                 if isHoveringActions {
                                     Text("⌫")
                                         .font(.buddy(11))
-                                        .foregroundStyle(.tertiary)
+                                        .foregroundStyle(BuddyTheme.textTertiary)
                                 }
                             }
                             .font(.buddy(11, weight: .semibold))
@@ -443,7 +443,7 @@ struct ToolCardView: View {
                                 if isHoveringActions {
                                     Text("↵")
                                         .font(.buddy(11))
-                                        .foregroundStyle(.tertiary)
+                                        .foregroundStyle(BuddyTheme.textTertiary)
                                 }
                             }
                             .font(.buddy(11, weight: .semibold))
@@ -508,7 +508,7 @@ struct CurrentActivityRow: View {
                 .accessibilityHidden(true)
             Text(displayLine)
                 .font(.buddy(11))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(BuddyTheme.textSecondary)
                 .lineLimit(1)
                 .truncationMode(pathLikeHint ? .middle : .tail)
             Spacer()
@@ -585,11 +585,11 @@ struct CurrentActivityRow: View {
     private var iconColor: Color {
         switch kind {
         case .verify: BuddyTheme.green
-        case .read: .secondary
+        case .read: BuddyTheme.textSecondary
         case .write: BuddyTheme.amber
-        case .shell: .secondary
+        case .shell: BuddyTheme.textSecondary
         case .web: BuddyTheme.amber
-        case .work: Color.secondary.opacity(0.6)
+        case .work: BuddyTheme.textTertiary
         }
     }
 }
@@ -614,12 +614,12 @@ struct ReviewCardView: View {
                         .foregroundStyle(BuddyTheme.green)
                     Text(headlineLabel)
                         .font(.buddy(11))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(BuddyTheme.textSecondary)
                     Spacer()
                     if let durationMs = completed.durationMs, durationMs >= 1000 {
                         Text(formatDuration(durationMs))
                             .font(.buddy(11))
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(BuddyTheme.textTertiary)
                     }
                 }
 
@@ -627,7 +627,7 @@ struct ReviewCardView: View {
                     HStack(spacing: 6) {
                         Image(systemName: completed.activityKind.sfSymbol)
                             .font(.system(.caption2))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(BuddyTheme.textSecondary)
                             .accessibilityHidden(true)
                         Text(tool)
                             .font(.buddy(13, weight: .semibold))
@@ -637,7 +637,7 @@ struct ReviewCardView: View {
                 if let hint = completed.hint, !hint.isEmpty {
                     Text(hint)
                         .font(.buddy(11))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(BuddyTheme.textSecondary)
                         .lineLimit(2)
                 }
 
@@ -711,12 +711,12 @@ struct ErrorCardView: View {
                         .foregroundStyle(BuddyTheme.stuckRed)
                     Text(headlineLabel)
                         .font(.buddy(11))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(BuddyTheme.textSecondary)
                     Spacer()
                     if let sessionLabel {
                         Text(sessionLabel)
                             .font(.buddy(11))
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(BuddyTheme.textTertiary)
                     }
                 }
 
@@ -728,7 +728,7 @@ struct ErrorCardView: View {
                 if let hint, !hint.isEmpty {
                     Text(hint)
                         .font(.buddy(11))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(BuddyTheme.textSecondary)
                         .lineLimit(2)
                 }
 
@@ -800,20 +800,20 @@ struct ThinkingRow: View {
                     .accessibilityHidden(true)
                 Text(BuddyCopy.thinking)
                     .font(.buddy(11, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(BuddyTheme.textSecondary)
                 if let tool = thinking.tool, !tool.isEmpty {
                     Text("·")
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(BuddyTheme.textTertiary)
                     Text(tool)
                         .font(.buddy(11))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(BuddyTheme.textPrimary)
                         .lineLimit(1)
                 }
                 Spacer()
                 if let elapsed = elapsed(at: timeline.date.timeIntervalSince1970 * 1000) {
                     Text(elapsed)
                         .font(.buddy(11))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(BuddyTheme.textTertiary)
                 }
             }
             .padding(.horizontal, 12)
@@ -863,15 +863,15 @@ struct SessionListView: View {
                         HStack(spacing: 4) {
                             Text(displayName(for: sess.source))
                                 .font(.buddy(11, weight: .semibold))
-                                .foregroundStyle(.primary)
+                                .foregroundStyle(BuddyTheme.textPrimary)
                             Text(stateLabel(for: sess.state))
                                 .font(.buddy(11))
-                                .foregroundStyle(.secondary)
+                                .foregroundStyle(BuddyTheme.textSecondary)
                         }
                         if let tool = sess.currentTool, !tool.isEmpty {
                             Text(tool)
                                 .font(.buddy(11))
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(BuddyTheme.textTertiary)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
                         }
@@ -880,7 +880,7 @@ struct SessionListView: View {
                     if let label = sess.sessionLabel, !label.isEmpty {
                         Text(label)
                             .font(.buddy(11))
-                            .foregroundStyle(.tertiary)
+                            .foregroundStyle(BuddyTheme.textTertiary)
                             .lineLimit(1)
                             .layoutPriority(1)
                     }
@@ -910,7 +910,7 @@ struct SessionListView: View {
     private func stateColor(for state: SessionState) -> Color {
         switch state {
         case .working: return BuddyTheme.workGlow
-        case .idle: return Color.secondary.opacity(0.5)
+        case .idle: return BuddyTheme.textTertiary
         case .needsConfirmation: return BuddyTheme.amber
         case .errored: return BuddyTheme.stuckRed
         case .thinking: return BuddyTheme.workGlow.opacity(0.6)

@@ -60,7 +60,7 @@ struct FirmwareUpdateView: View {
             Button(action: { isPresented = false }) {
                 Image(systemName: "xmark")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(BuddyTheme.textSecondary)
                     .frame(width: 24, height: 24)
                     .background(Circle().fill(BuddyTheme.nightRaised2))
             }
@@ -76,7 +76,7 @@ struct FirmwareUpdateView: View {
             ProgressView()
             Text(BuddyCopy.checkingForUpdates)
                 .font(.buddy(13))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(BuddyTheme.textSecondary)
         }
         .padding(.vertical, 24)
     }
@@ -85,12 +85,12 @@ struct FirmwareUpdateView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(current).font(.buddyMono(13)).foregroundStyle(BuddyTheme.textSecondary)
-                Image(systemName: "arrow.right").font(.caption).foregroundStyle(.secondary)
+                Image(systemName: "arrow.right").font(.caption).foregroundStyle(BuddyTheme.textSecondary)
                 Text(release.version).font(.buddyMono(13)).foregroundStyle(BuddyTheme.amber)
                 if let published = release.publishedAt {
                     Text(BuddyCopy.shared.firmwareUpdate.releasedTemplate.replacingOccurrences(of: "{date}", with: relativeDate(published)))
                         .font(.buddy(11))
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(BuddyTheme.textTertiary)
                         .lineLimit(1)
                 }
             }
@@ -108,7 +108,7 @@ struct FirmwareUpdateView: View {
 
             Text(BuddyCopy.keepHardwareBuddyNear)
                 .font(.buddy(11))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(BuddyTheme.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack {
@@ -133,7 +133,7 @@ struct FirmwareUpdateView: View {
                 .font(.buddy(15, weight: .semibold))
             Text(version)
                 .font(.buddyMono(13))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(BuddyTheme.textSecondary)
             Button(BuddyCopy.done) { isPresented = false }
                 .buttonStyle(BuddyPrimaryButtonStyle())
                 .padding(.top, 4)
@@ -149,7 +149,7 @@ struct FirmwareUpdateView: View {
                 Spacer()
                 Text("\(Int(progress * 100))%")
                     .font(.buddyMono(13))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(BuddyTheme.textSecondary)
             }
             ProgressView(value: progress)
                 .progressViewStyle(.linear)
@@ -158,7 +158,7 @@ struct FirmwareUpdateView: View {
             if let eta, eta > 0 {
                 Text(formatETA(eta))
                     .font(.buddy(11))
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(BuddyTheme.textTertiary)
             }
 
             HStack {
@@ -188,7 +188,7 @@ struct FirmwareUpdateView: View {
                 .font(.buddy(15, weight: .semibold))
             Text(version)
                 .font(.buddyMono(13))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(BuddyTheme.textSecondary)
             Button(BuddyCopy.done) {
                 updater.dismissTerminal()
                 isPresented = false
@@ -203,7 +203,7 @@ struct FirmwareUpdateView: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(BuddyCopy.shared.firmwareUpdate.updateServerUnavailable)
                 .font(.buddy(13))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(BuddyTheme.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack {
@@ -232,12 +232,12 @@ struct FirmwareUpdateView: View {
             }
             Text(reason)
                 .font(.buddy(11))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(BuddyTheme.textSecondary)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
             Text(BuddyCopy.previousFirmwareKept)
                 .font(.buddy(11))
-                .foregroundStyle(.tertiary)
+                .foregroundStyle(BuddyTheme.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack {

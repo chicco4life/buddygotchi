@@ -200,6 +200,21 @@ private struct BuddyPlainButtonBody<Label: View>: View {
     }
 }
 
+// MARK: - Divider
+
+/// The one rule in the app. A bare `Divider()` resolves from the system
+/// appearance, which is a cool grey that reads wrong against a warm palette.
+struct BuddyDivider: View {
+    var inset: CGFloat = 0
+
+    var body: some View {
+        Rectangle()
+            .fill(BuddyTheme.divider)
+            .frame(height: 1)
+            .padding(.horizontal, inset)
+    }
+}
+
 // MARK: - Section Header
 
 struct BuddySectionHeader: View {
