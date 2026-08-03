@@ -103,7 +103,7 @@ struct FirmwareUpdateView: View {
                 }
                 .frame(maxHeight: 140)
                 .padding(10)
-                .background(RoundedRectangle(cornerRadius: 8).fill(BuddyTheme.nightRaised))
+                .background(RoundedRectangle(cornerRadius: BuddyTheme.wellCornerRadius).fill(BuddyTheme.nightRaised))
             }
 
             Text(BuddyCopy.keepHardwareBuddyNear)

@@ -126,11 +126,11 @@ final class DesktopOutput: OutputProvider {
     private static func badgeColor(for state: PetState) -> NSColor? {
         switch state {
         case .attention:
-            return NSColor(buddyHex: "#E8A33D")
+            return NSColor(buddyHex: BuddyPalette.amber)
         case .celebrate:
-            return NSColor(buddyHex: "#7FA96B")
+            return NSColor(buddyHex: BuddyPalette.green)
         case .error:
-            return NSColor(buddyHex: "#C96B5E")
+            return NSColor(buddyHex: BuddyPalette.stuckRed)
         default:
             return nil
         }
@@ -191,18 +191,5 @@ final class DesktopOutput: OutputProvider {
             presenter.cancelPopoverAutoDismiss()
             presenter.closePopover()
         }
-    }
-}
-
-private extension NSColor {
-    convenience init(buddyHex: String) {
-        var hex = buddyHex
-        if hex.hasPrefix("#") { hex.removeFirst() }
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let red = CGFloat((int >> 16) & 0xFF) / 255
-        let green = CGFloat((int >> 8) & 0xFF) / 255
-        let blue = CGFloat(int & 0xFF) / 255
-        self.init(srgbRed: red, green: green, blue: blue, alpha: 1)
     }
 }

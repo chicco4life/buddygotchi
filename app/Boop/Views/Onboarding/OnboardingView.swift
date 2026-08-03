@@ -114,7 +114,7 @@ struct OnboardingView: View {
             Button(BuddyCopy.Onboarding.meetBuddy) {
                 model.advance()
             }
-            .buttonStyle(OnboardingPrimaryButtonStyle())
+            .buttonStyle(BuddyPrimaryButtonStyle(size: .large))
             .keyboardShortcut(.return, modifiers: [])
         }
     }
@@ -210,7 +210,7 @@ struct OnboardingView: View {
                 .multilineTextAlignment(.leading)
                 .padding(.horizontal, 18)
                 .padding(.vertical, 12)
-                .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: 14))
+                .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: BuddyTheme.panelCornerRadius))
             }
             .frame(width: 320)
 
@@ -240,18 +240,18 @@ struct OnboardingView: View {
             HStack {
                 HStack(spacing: 12) {
                     Button(BuddyCopy.shared.onboarding.back) { model.goBack() }
-                        .buttonStyle(OnboardingSecondaryButtonStyle())
+                        .buttonStyle(BuddySecondaryButtonStyle(size: .large))
 
                     Button(BuddyCopy.Onboarding.skipForNow) {
                         model.advance()
                     }
-                    .buttonStyle(OnboardingSecondaryButtonStyle())
+                    .buttonStyle(BuddySecondaryButtonStyle(size: .large))
                 }
 
                 Spacer()
 
                 Button(BuddyCopy.shared.onboarding.next) { model.advance() }
-                    .buttonStyle(OnboardingPrimaryButtonStyle())
+                    .buttonStyle(BuddyPrimaryButtonStyle(size: .large))
                     .disabled(!model.canFinishAgents)
                     .opacity(model.canFinishAgents ? 1 : 0.45)
                     .keyboardShortcut(.return, modifiers: [])
@@ -318,22 +318,22 @@ struct OnboardingView: View {
                 }
                 .padding(14)
                 .frame(width: 440)
-                .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: 14))
+                .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: BuddyTheme.panelCornerRadius))
             }
 
             Spacer()
 
             HStack {
                 Button(BuddyCopy.shared.onboarding.back) { model.goBack() }
-                    .buttonStyle(OnboardingSecondaryButtonStyle())
+                    .buttonStyle(BuddySecondaryButtonStyle(size: .large))
                 Spacer()
                 if model.heardFromAgent == nil {
                     Button(BuddyCopy.shared.onboarding.skip) { model.advance() }
-                        .buttonStyle(OnboardingSecondaryButtonStyle())
+                        .buttonStyle(BuddySecondaryButtonStyle(size: .large))
                         .keyboardShortcut(.return, modifiers: [])
                 } else {
                     Button(BuddyCopy.shared.onboarding.next) { model.advance() }
-                        .buttonStyle(OnboardingPrimaryButtonStyle())
+                        .buttonStyle(BuddyPrimaryButtonStyle(size: .large))
                         .keyboardShortcut(.return, modifiers: [])
                 }
             }
@@ -452,7 +452,7 @@ struct OnboardingView: View {
                     Spacer()
                     if model.notificationRequested {
                         Button(BuddyCopy.Onboarding.notificationsEnabled) {}
-                            .buttonStyle(OnboardingSecondaryButtonStyle())
+                            .buttonStyle(BuddySecondaryButtonStyle(size: .large))
                             .disabled(true)
                     } else {
                         Button(BuddyCopy.Onboarding.enableNotifications) {
@@ -460,7 +460,7 @@ struct OnboardingView: View {
                             UserDefaults.standard.set(true, forKey: DefaultsKey.notificationPermissionRequested)
                             model.notificationRequested = true
                         }
-                        .buttonStyle(OnboardingPrimaryButtonStyle())
+                        .buttonStyle(BuddyPrimaryButtonStyle(size: .large))
                     }
                 }
             }
@@ -472,14 +472,14 @@ struct OnboardingView: View {
 
             HStack {
                 Button(BuddyCopy.shared.onboarding.back) { model.goBack() }
-                    .buttonStyle(OnboardingSecondaryButtonStyle())
+                    .buttonStyle(BuddySecondaryButtonStyle(size: .large))
                 Spacer()
                 Button(BuddyCopy.Onboarding.startWatching) {
                     model.complete()
                     engine.setSpecies(model.selectedSpecies)
                     onFinish()
                 }
-                .buttonStyle(OnboardingPrimaryButtonStyle())
+                .buttonStyle(BuddyPrimaryButtonStyle(size: .large))
                 .keyboardShortcut(.return, modifiers: [])
             }
         }
@@ -546,17 +546,17 @@ struct OnboardingView: View {
 
             if installed {
                 Button(BuddyCopy.Onboarding.connected) {}
-                    .buttonStyle(OnboardingSecondaryButtonStyle())
+                    .buttonStyle(BuddySecondaryButtonStyle(size: .large))
                     .disabled(true)
             } else {
                 Button(BuddyCopy.Onboarding.connect) {
                     model.connect(agent: agent, diagnosticLog: engine.diagnosticLog)
                 }
-                .buttonStyle(OnboardingPrimaryButtonStyle())
+                .buttonStyle(BuddyPrimaryButtonStyle(size: .large))
             }
         }
         .padding(14)
-        .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: 14))
+        .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: BuddyTheme.panelCornerRadius))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(agent.displayName), \(installed ? BuddyCopy.Onboarding.connected : detected ? BuddyCopy.Onboarding.detected : BuddyCopy.Onboarding.notDetected)")
     }
@@ -578,7 +578,7 @@ struct OnboardingView: View {
                 Spacer()
             }
             .padding(14)
-            .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: 14))
+            .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: BuddyTheme.panelCornerRadius))
         }
         .buttonStyle(.plain)
     }
@@ -614,12 +614,12 @@ struct OnboardingView: View {
                     Button(BuddyCopy.Onboarding.retry) {
                         retryPairing()
                     }
-                    .buttonStyle(OnboardingPrimaryButtonStyle())
+                    .buttonStyle(BuddyPrimaryButtonStyle(size: .large))
                     Button(BuddyCopy.Onboarding.backToList) {
                         cleanupAbandonedPairing()
                         startScanning()
                     }
-                    .buttonStyle(OnboardingSecondaryButtonStyle())
+                    .buttonStyle(BuddySecondaryButtonStyle(size: .large))
                 }
             } else if selectedDeviceUUID != nil {
                 ProgressView()
@@ -638,7 +638,7 @@ struct OnboardingView: View {
         .padding(14)
         .frame(width: 480)
         .frame(minHeight: 96)
-        .background(BuddyTheme.nightRaised.opacity(0.7), in: RoundedRectangle(cornerRadius: 14))
+        .background(BuddyTheme.nightRaised.opacity(0.7), in: RoundedRectangle(cornerRadius: BuddyTheme.panelCornerRadius))
     }
 
     private var bleDeviceList: some View {
@@ -702,10 +702,10 @@ struct OnboardingView: View {
     private func navigationBar(nextTitle: String = BuddyCopy.shared.onboarding.next, nextDisabled: Bool = false) -> some View {
         HStack {
             Button(BuddyCopy.shared.onboarding.back) { model.goBack() }
-                .buttonStyle(OnboardingSecondaryButtonStyle())
+                .buttonStyle(BuddySecondaryButtonStyle(size: .large))
             Spacer()
             Button(nextTitle) { model.advance() }
-                .buttonStyle(OnboardingPrimaryButtonStyle())
+                .buttonStyle(BuddyPrimaryButtonStyle(size: .large))
                 .disabled(nextDisabled)
                 .opacity(nextDisabled ? 0.45 : 1)
                 .keyboardShortcut(.return, modifiers: [])
@@ -850,28 +850,6 @@ private struct CrackShape: Shape {
         path.addLine(to: CGPoint(x: rect.midX - 6, y: rect.minY + 40))
         path.addLine(to: CGPoint(x: rect.midX + 14, y: rect.minY + 62))
         return path
-    }
-}
-
-private struct OnboardingPrimaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.buddy(13, weight: .semibold))
-            .foregroundStyle(BuddyTheme.night)
-            .padding(.horizontal, 22)
-            .padding(.vertical, 10)
-            .background(configuration.isPressed ? BuddyTheme.amberDeep : BuddyTheme.amber, in: Capsule())
-            .animation(.buddyEase(0.15), value: configuration.isPressed)
-    }
-}
-
-private struct OnboardingSecondaryButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.buddy(13, weight: .semibold))
-            .foregroundStyle(configuration.isPressed ? BuddyTheme.textPrimary : BuddyTheme.textSecondary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
     }
 }
 

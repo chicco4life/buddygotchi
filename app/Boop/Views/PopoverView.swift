@@ -227,7 +227,7 @@ struct PopoverView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: BuddyTheme.wellCornerRadius)
                 .fill(BuddyTheme.textPrimary.opacity(0.03))
         )
         .accessibilityElement(children: .combine)
@@ -318,7 +318,7 @@ private struct EmptyAgentsView: View {
         .padding(.top, 10)
         .padding(.bottom, 14)
         .background(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: BuddyTheme.wellCornerRadius)
                 .fill(BuddyTheme.textPrimary.opacity(0.03))
         )
         .accessibilityElement(children: .combine)
@@ -342,7 +342,7 @@ private struct ServerWarningRow: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: BuddyTheme.wellCornerRadius)
                 .fill(BuddyTheme.stuckRed.opacity(0.08))
         )
         .accessibilityElement(children: .combine)
@@ -381,7 +381,7 @@ struct ToolCardView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: 2)
+            RoundedRectangle(cornerRadius: BuddyTheme.accentBarRadius)
                 .fill(BuddyTheme.amber)
                 .frame(width: 3)
                 .accessibilityHidden(true)
@@ -614,7 +614,7 @@ struct ReviewCardView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: 2)
+            RoundedRectangle(cornerRadius: BuddyTheme.accentBarRadius)
                 .fill(BuddyTheme.green)
                 .frame(width: 3)
                 .accessibilityHidden(true)
@@ -711,7 +711,7 @@ struct ErrorCardView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: 2)
+            RoundedRectangle(cornerRadius: BuddyTheme.accentBarRadius)
                 .fill(BuddyTheme.stuckRed)
                 .frame(width: 3)
                 .accessibilityHidden(true)

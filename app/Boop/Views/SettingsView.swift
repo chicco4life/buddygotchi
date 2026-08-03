@@ -339,7 +339,7 @@ struct SettingsView: View {
                     .foregroundStyle(BuddyTheme.textPrimary)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 12)
-                    .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: 14))
+                    .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: BuddyTheme.panelCornerRadius))
             }
             .padding(.top, 12)
         }

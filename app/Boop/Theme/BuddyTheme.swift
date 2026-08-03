@@ -1,25 +1,47 @@
+import AppKit
 import SwiftUI
 
+/// Raw hex strings for the palette, with no framework dependency, so that both
+/// SwiftUI (`Color`) and AppKit (`NSColor`) read one set of constants. Prefer the
+/// `BuddyTheme` tokens; reach for these only where a `Color` will not do.
+enum BuddyPalette {
+    static let night = "#1B1714"
+    static let nightRaised = "#27211B"
+    static let nightRaised2 = "#312A22"
+
+    static let textPrimary = "#EFE7D8"
+    static let textSecondary = "#B9AE9C"
+    static let textTertiary = "#877D6D"
+
+    static let amber = "#E8A33D"
+    static let amberDeep = "#C9862B"
+    static let green = "#7FA96B"
+    static let stuckRed = "#C96B5E"
+    static let boopPink = "#D98BA4"
+}
+
 enum BuddyTheme {
-    static let night = Color(hex: "#1B1714")
-    static let nightRaised = Color(hex: "#27211B")
-    static let nightRaised2 = Color(hex: "#312A22")
+    static let night = Color(hex: BuddyPalette.night)
+    static let nightRaised = Color(hex: BuddyPalette.nightRaised)
+    static let nightRaised2 = Color(hex: BuddyPalette.nightRaised2)
 
-    static let textPrimary = Color(hex: "#EFE7D8")
-    static let textSecondary = Color(hex: "#B9AE9C")
-    static let textTertiary = Color(hex: "#877D6D")
+    static let textPrimary = Color(hex: BuddyPalette.textPrimary)
+    static let textSecondary = Color(hex: BuddyPalette.textSecondary)
+    static let textTertiary = Color(hex: BuddyPalette.textTertiary)
 
-    static let amber = Color(hex: "#E8A33D")
-    static let amberDeep = Color(hex: "#C9862B")
-    static let green = Color(hex: "#7FA96B")
-    static let stuckRed = Color(hex: "#C96B5E")
-    static let workGlow = Color(hex: "#EFE7D8")
-    static let boopPink = Color(hex: "#D98BA4")
+    static let amber = Color(hex: BuddyPalette.amber)
+    static let amberDeep = Color(hex: BuddyPalette.amberDeep)
+    static let green = Color(hex: BuddyPalette.green)
+    static let stuckRed = Color(hex: BuddyPalette.stuckRed)
+    static let workGlow = Color(hex: BuddyPalette.textPrimary)
+    static let boopPink = Color(hex: BuddyPalette.boopPink)
 
     static let divider = textPrimary.opacity(0.08)
 
     static let cardCornerRadius: CGFloat = 12
-    static let controlCornerRadius: CGFloat = 999
+    static let panelCornerRadius: CGFloat = 14
+    static let wellCornerRadius: CGFloat = 8
+    static let accentBarRadius: CGFloat = 2
 
     static let geistRegularPostScriptName = "Geist-Regular"
     static let geistSemiBoldPostScriptName = "Geist-SemiBold"
@@ -104,12 +126,38 @@ extension View {
 
 // MARK: - Button Styles
 
+/// Controls sit at two scales: `.compact` inside the 320pt popover and settings
+/// rows, `.large` in the roomier onboarding window.
+enum BuddyControlSize {
+    case compact
+    case large
+
+    /// Padding for filled buttons.
+    var filledPadding: (h: CGFloat, v: CGFloat) {
+        switch self {
+        case .compact: (20, 8)
+        case .large: (22, 10)
+        }
+    }
+
+    /// Padding for plain-label buttons. Compact carries none — it sits inline in a
+    /// row that already has padding of its own.
+    var plainPadding: (h: CGFloat, v: CGFloat) {
+        switch self {
+        case .compact: (0, 0)
+        case .large: (14, 8)
+        }
+    }
+}
+
 struct BuddyPrimaryButtonStyle: ButtonStyle {
+    var size: BuddyControlSize = .compact
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.buddy(13, weight: .semibold))
-            .padding(.horizontal, 20)
-            .padding(.vertical, 8)
+            .padding(.horizontal, size.filledPadding.h)
+            .padding(.vertical, size.filledPadding.v)
             .background(
                 (configuration.isPressed ? BuddyTheme.amberDeep : BuddyTheme.amber),
                 in: Capsule()
@@ -120,9 +168,13 @@ struct BuddyPrimaryButtonStyle: ButtonStyle {
 }
 
 struct BuddySecondaryButtonStyle: ButtonStyle {
+    var size: BuddyControlSize = .compact
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.buddy(13, weight: .semibold))
+            .padding(.horizontal, size.plainPadding.h)
+            .padding(.vertical, size.plainPadding.v)
             .foregroundStyle(configuration.isPressed ? BuddyTheme.textPrimary : BuddyTheme.textSecondary)
     }
 }
@@ -226,6 +278,8 @@ struct BuddySwitchToggleStyle: ToggleStyle {
 
 // MARK: - Color Hex Init
 
+// Both initializers read `BuddyPalette`; keep them side by side so they cannot drift.
+
 extension Color {
     init(hex: String) {
         var hex = hex
@@ -236,6 +290,19 @@ extension Color {
         let g = Double((int >> 8) & 0xFF) / 255
         let b = Double(int & 0xFF) / 255
         self.init(red: r, green: g, blue: b)
+    }
+}
+
+extension NSColor {
+    convenience init(buddyHex: String) {
+        var hex = buddyHex
+        if hex.hasPrefix("#") { hex.removeFirst() }
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let red = CGFloat((int >> 16) & 0xFF) / 255
+        let green = CGFloat((int >> 8) & 0xFF) / 255
+        let blue = CGFloat(int & 0xFF) / 255
+        self.init(srgbRed: red, green: green, blue: blue, alpha: 1)
     }
 }
 
