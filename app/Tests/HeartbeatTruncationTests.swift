@@ -45,18 +45,17 @@ final class HeartbeatTruncationTests: XCTestCase {
 
     // MARK: Whole-frame invariants
 
-    private func heartbeat(_ mutate: (inout BuddyState) -> Void) -> Data {
+    // Throws rather than returning a placeholder: the shim's XCTFail is
+    // `Never` while real XCTest's is `Void`, so a `return` after it is
+    // unreachable under one toolchain and required by the other.
+    private func heartbeat(_ mutate: (inout BuddyState) -> Void) throws -> Data {
         var state = BuddyState.initial
         mutate(&state)
-        guard let data = renderStateData(from: state) else {
-            XCTFail("heartbeat failed to encode")
-            return Data()
-        }
-        return data
+        return try XCTUnwrap(renderStateData(from: state), "heartbeat failed to encode")
     }
 
-    func testEmojiHintProducesValidUTF8OnTheWire() {
-        let data = heartbeat { state in
+    func testEmojiHintProducesValidUTF8OnTheWire() throws {
+        let data = try heartbeat { state in
             state.pet = Pet(state: .attention, species: "blob")
             state.prompt = Prompt(
                 id: "req_1",
@@ -80,8 +79,8 @@ final class HeartbeatTruncationTests: XCTestCase {
     /// An oversize frame is not truncated by the firmware — it is dropped
     /// whole, and the 10s keepalive re-sends the same oversize state, so the
     /// device stops hearing from a working Mac and naps after 30s.
-    func testOversizeStateShedsExtrasRatherThanBlowingTheFrame() {
-        let data = heartbeat { state in
+    func testOversizeStateShedsExtrasRatherThanBlowingTheFrame() throws {
+        let data = try heartbeat { state in
             state.pet = Pet(state: .busy, species: "blob")
             state.msg = String(repeating: "修", count: 40)
             state.entries = (0..<6).map { _ in String(repeating: "修", count: 200) }

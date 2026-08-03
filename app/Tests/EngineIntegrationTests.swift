@@ -535,6 +535,19 @@ final class EngineIntegrationTests: XCTestCase {
 
     @MainActor
     func testSetSpeciesUpdatesStateAndHeartbeat() {
+        // renderState prefers the persisted buddySpecies preference over the
+        // state it is handed, so this test is only meaningful with that
+        // preference out of the way. Without this it passes on a clean machine
+        // and fails on a developer's — the running app writes the key when the
+        // device announces its species on connect.
+        let key = DefaultsKey.buddySpecies
+        let saved = UserDefaults.standard.string(forKey: key)
+        UserDefaults.standard.removeObject(forKey: key)
+        defer {
+            if let saved { UserDefaults.standard.set(saved, forKey: key) }
+            else { UserDefaults.standard.removeObject(forKey: key) }
+        }
+
         let (engine, _, _) = makeTestEngine()
         engine.setSpecies("duck")
 
