@@ -87,23 +87,7 @@ final class SnapshotHarnessTests: XCTestCase {
     private var popoverIdle: CGSize { CGSize(width: BuddyTheme.popoverWidth, height: BuddyTheme.liveViewHeight) }
     private var popoverPrompt: CGSize { CGSize(width: BuddyTheme.popoverWidth, height: BuddyTheme.liveViewExpandedHeight) }
 
-    // MARK: 1. Every species renders (regression for the bufo→cat default + fallback)
-
-    func testSpeciesGallery() throws {
-        let gallery = HStack(spacing: 10) {
-            ForEach(buddyOrder, id: \.self) { sp in
-                VStack(spacing: 4) {
-                    PetStageView(petState: .idle, species: sp)
-                    Text(sp).font(.buddyMono(11)).foregroundStyle(BuddyTheme.textPrimary)
-                }
-            }
-        }
-        .padding(20)
-        .background(BuddyTheme.night)
-        try snapshot(gallery, "species-gallery", CGSize(width: 760, height: 170))
-    }
-
-    // MARK: 2. Popover in each ambient state
+    // MARK: 1. Popover in each ambient state
 
     func testPopoverSleep() throws {
         // No sessions → disconnected / sleeping.

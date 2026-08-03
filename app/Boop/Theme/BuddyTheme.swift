@@ -306,10 +306,3 @@ extension NSColor {
     }
 }
 
-// MARK: - Species Color Helper
-
-func buddySpeciesColor(for species: String) -> Color {
-    if species == Pet.defaultSpecies { return BuddyTheme.textPrimary }
-    let buddy = allBuddies[species] ?? allBuddies[Pet.defaultSpecies] ?? allBuddies.values.first!
-    return Color(hex: buddy.color)
-}

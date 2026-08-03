@@ -95,17 +95,10 @@ enum SnapshotRenderer {
         // "Run setup again" resume mid-flow on the next real launch.
         defaults.removeObject(forKey: DefaultsKey.onboardingStep)
 
-        // 10. Species gallery
-        let gallery = HStack(spacing: 10) {
-            ForEach(buddyOrder, id: \.self) { sp in
-                VStack(spacing: 4) {
-                    PetStageView(petState: .idle, species: sp)
-                    Text(sp).font(.buddyMono(11)).foregroundStyle(BuddyTheme.textPrimary)
-                }
-            }
-        }
-        .padding(20)
-        render(gallery, "species-gallery", CGSize(width: 800, height: 180), dir)
+        // The species gallery is gone with the creature renderer — the Mac app no
+        // longer draws the buddy, so there is nothing here to regress. Species
+        // still ships to the device over the heartbeat; `allBuddies` is covered by
+        // ReducerTests instead.
 
         print("SNAPSHOTS WRITTEN to \(dir)")
     }

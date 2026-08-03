@@ -29,9 +29,6 @@ struct SettingsView: View {
     @State private var showingUpdaterUnavailable = false
     @State private var uninstallError: String?
     @State private var showingApprovalModeExplainer = false
-    @State private var previewState: PetState = .idle
-    @State private var previewResetTask: Task<Void, Never>?
-    @State private var buddyPickerIndex = 0
     @State private var advancedExpanded = false
 
     /// Overridable so the snapshot renderer can capture the full scroll content.
@@ -93,7 +90,6 @@ struct SettingsView: View {
         .onDisappear {
             scanner.stop()
             cleanupAbandonedPairing()
-            previewResetTask?.cancel()
         }
         .onChange(of: esp32Output.connectionState) { _, state in
             if state == .connected, let selectedDeviceUUID {
@@ -278,51 +274,6 @@ struct SettingsView: View {
     private var buddySection: some View {
         VStack(alignment: .leading, spacing: 0) {
             BuddySectionHeader(BuddyCopy.shared.settingsCopy.buddy)
-
-            HStack(spacing: 12) {
-                Button(action: { cycleSpecies(-1) }) {
-                    Image(systemName: "chevron.left")
-                        .foregroundStyle(.secondary)
-                        .frame(width: 32, height: 32)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(SettingsSpeciesChevronButtonStyle())
-                .accessibilityLabel(BuddyCopy.shared.onboarding.previousSpecies)
-
-                VStack(spacing: 8) {
-                    Button(action: cyclePreviewState) {
-                        buddyPickerPreview
-                    }
-                    .buttonStyle(BuddyPlainButtonStyle())
-                    .disabled(showingBuddyTeaser)
-                    .accessibilityLabel(buddyPreviewAccessibilityLabel)
-
-                    HStack(spacing: 4) {
-                        if !showingBuddyTeaser {
-                            Circle()
-                                .fill(currentSpeciesColor)
-                                .frame(width: 6, height: 6)
-                                .accessibilityHidden(true)
-                        }
-                        Text(currentSpeciesLabel)
-                            .font(.buddy(showingBuddyTeaser ? 9.5 : 11, weight: .semibold))
-                            .foregroundStyle(currentSpeciesColor)
-                    }
-                }
-                .frame(width: 140)
-
-                Button(action: { cycleSpecies(1) }) {
-                    Image(systemName: "chevron.right")
-                        .foregroundStyle(.secondary)
-                        .frame(width: 32, height: 32)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(SettingsSpeciesChevronButtonStyle())
-                .accessibilityLabel(BuddyCopy.shared.onboarding.nextSpecies)
-            }
-            .frame(maxWidth: .infinity)
-            .accessibilityElement(children: .contain)
-            .accessibilityLabel(speciesPickerLabel)
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(BuddyCopy.shared.settingsCopy.name)
@@ -841,13 +792,6 @@ struct SettingsView: View {
 
     // MARK: - Helpers
 
-    private func cycleSpecies(_ direction: Int) {
-        buddyPickerIndex = (buddyPickerIndex + direction + 2) % 2
-        normalizeBuddySpecies(sendHeartbeat: !showingBuddyTeaser)
-        previewResetTask?.cancel()
-        previewState = .idle
-    }
-
     private var approvalModeBinding: Binding<Bool> {
         Binding(
             get: { approvalMode },
@@ -874,24 +818,6 @@ struct SettingsView: View {
         selectedDeviceUUID = nil
         UserDefaults.standard.removeObject(forKey: esp32PeripheralUUIDKey)
         esp32Output.unpair()
-    }
-
-    private func cyclePreviewState() {
-        previewResetTask?.cancel()
-        switch previewState {
-        case .idle:
-            previewState = .attention
-        case .attention:
-            previewState = .celebrate
-            previewResetTask = Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(1400))
-                if previewState == .celebrate {
-                    previewState = .idle
-                }
-            }
-        default:
-            previewState = .idle
-        }
     }
 
     private var serverHealthRow: some View {
@@ -983,42 +909,6 @@ struct SettingsView: View {
         }
     }
 
-    @ViewBuilder
-    private var buddyPickerPreview: some View {
-        if showingBuddyTeaser {
-            ZStack {
-                BlobBuddyView(petState: .sleep, size: 110)
-                    .opacity(0.4)
-            }
-            .frame(width: 140, height: 124)
-        } else {
-            PetStageView(petState: previewState, species: Pet.defaultSpecies)
-        }
-    }
-
-    private var speciesPickerLabel: String {
-        BuddyCopy.shared.settingsCopy.speciesPickerTemplate
-            .replacingOccurrences(of: "{species}", with: currentSpeciesLabel)
-    }
-
-    private var buddyPreviewAccessibilityLabel: String {
-        showingBuddyTeaser
-            ? BuddyCopy.shared.onboarding.moreBuddiesHatchingSoon
-            : "\(Pet.defaultSpecies) buddy preview, \(previewState.rawValue)"
-    }
-
-    private var showingBuddyTeaser: Bool {
-        buddyPickerIndex == 1
-    }
-
-    private var currentSpeciesLabel: String {
-        showingBuddyTeaser ? BuddyCopy.shared.onboarding.moreBuddiesHatchingSoon : Pet.defaultSpecies
-    }
-
-    private var currentSpeciesColor: Color {
-        showingBuddyTeaser ? BuddyTheme.textTertiary : buddySpeciesColor(for: Pet.defaultSpecies)
-    }
-
     private func normalizeBuddySpecies(sendHeartbeat: Bool = false) {
         if species != Pet.defaultSpecies {
             species = Pet.defaultSpecies
@@ -1030,30 +920,6 @@ struct SettingsView: View {
             engine.setSpecies(Pet.defaultSpecies)
             esp32Output.sendNow()
         }
-    }
-}
-
-private struct SettingsSpeciesChevronButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        SettingsSpeciesChevronButtonBody(isPressed: configuration.isPressed) {
-            configuration.label
-        }
-    }
-}
-
-private struct SettingsSpeciesChevronButtonBody<Label: View>: View {
-    let isPressed: Bool
-    @ViewBuilder let label: Label
-    @State private var isHovering = false
-
-    var body: some View {
-        label
-            .foregroundStyle(isPressed ? BuddyTheme.textPrimary : BuddyTheme.textSecondary)
-            .background(isHovering ? BuddyTheme.nightRaised2 : BuddyTheme.nightRaised, in: Circle())
-            .opacity(isPressed ? 0.65 : 1)
-            .onHover { isHovering = $0 }
-            .animation(.buddyEase(0.15), value: isHovering)
-            .animation(.buddyEase(0.15), value: isPressed)
     }
 }
 

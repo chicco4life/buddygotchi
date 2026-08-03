@@ -279,7 +279,12 @@ private let dragonStates: [String: BuddyStateAnim] = [
 
 // MARK: - Public API
 
-// Blob is rendered by BlobBuddyView. Keep a non-cat sentinel so direct
+// The Mac app no longer draws the buddy — the creature's form belongs to the
+// device. This table stays as the species registry: it backs the `species` field
+// of the desktop-to-firmware heartbeat, and ReducerTests asserts the default
+// species resolves here. Do not delete it along with the render code.
+//
+// Blob has no sprite of its own. Keep a non-cat sentinel so direct
 // renderFrame calls for "blob" cannot accidentally draw another species.
 private let blobStates: [String: BuddyStateAnim] = [
     "idle": BuddyStateAnim(beatMs: 1, poses: [

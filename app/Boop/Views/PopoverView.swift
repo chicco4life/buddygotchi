@@ -63,9 +63,6 @@ struct PopoverView: View {
 
     private var unfinishedSetupView: some View {
         VStack(spacing: 16) {
-            PetStageView(petState: .sleep, species: engine.state.pet.species)
-                .padding(.top, 8)
-
             VStack(spacing: 5) {
                 Text(BuddyCopy.Onboarding.finishMeeting)
                     .font(.buddy(15, weight: .semibold))
@@ -91,11 +88,6 @@ struct PopoverView: View {
 
     private var liveView: some View {
         VStack(spacing: 0) {
-            PetStageView(petState: engine.state.pet.state, species: engine.state.pet.species)
-                .padding(.top, 4)
-
-            Spacer().frame(height: 6)
-
             statusPill
 
             if showMenuHint {
@@ -192,7 +184,7 @@ struct PopoverView: View {
         HStack(spacing: 6) {
             Text(statusName)
                 .font(.buddy(11, weight: .semibold))
-                .foregroundStyle(speciesColor)
+                .foregroundStyle(BuddyTheme.textPrimary)
 
             Text(engine.state.pet.state.rawValue)
                 .font(.buddy(9.5, weight: .semibold))
@@ -257,10 +249,6 @@ struct PopoverView: View {
                 .replacingOccurrences(of: "{reason}", with: reason)
         }
         return nil
-    }
-
-    private var speciesColor: Color {
-        buddySpeciesColor(for: engine.state.pet.species)
     }
 
     private var statusName: String {

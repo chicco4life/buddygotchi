@@ -225,7 +225,6 @@ struct GeneratedTestRunner {
         await run("ResourceTests.testModuleBundleContainsFontAndSoundResources") { let t = ResourceTests(); try t.setUpWithError(); try await t.setUp(); t.testModuleBundleContainsFontAndSoundResources() }
         await run("ResourceTests.testCompletionChirpIsShorterThanAttentionChirp") { let t = ResourceTests(); try t.setUpWithError(); try await t.setUp(); try t.testCompletionChirpIsShorterThanAttentionChirp() }
         await run("ResourceTests.testGeistSemiBoldRegistersAndResolves") { let t = ResourceTests(); try t.setUpWithError(); try await t.setUp(); t.testGeistSemiBoldRegistersAndResolves() }
-        await run("SnapshotHarnessTests.testSpeciesGallery") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testSpeciesGallery() }
         await run("SnapshotHarnessTests.testPopoverSleep") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testPopoverSleep() }
         await run("SnapshotHarnessTests.testPopoverBusy") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testPopoverBusy() }
         await run("SnapshotHarnessTests.testPopoverPassivePrompt") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testPopoverPassivePrompt() }
@@ -233,7 +232,7 @@ struct GeneratedTestRunner {
         await run("SnapshotHarnessTests.testSettings") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testSettings() }
         await run("SnapshotHarnessTests.testOnboardingSteps") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testOnboardingSteps() }
 
-        let total = 209
+        let total = 208
         print("\n\u{2713} \(passed) passed, \(skipped) skipped of \(total) tests")
     }
 }

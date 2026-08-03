@@ -10,11 +10,7 @@ struct OnboardingView: View {
     @State private var scanner = BLEScanner()
     @State private var selectedDeviceUUID: UUID?
     @State private var pairingTask: Task<Void, Never>?
-    @State private var adoptionPreviewState: PetState = .idle
-    @State private var adoptionPreviewResetTask: Task<Void, Never>?
-    @State private var adoptionPickerIndex = 0
     @State private var didAutoConnect = false
-    @State private var didHatch = false
     @State private var copiedPrompt = false
     @State private var copiedPromptResetTask: Task<Void, Never>?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -59,7 +55,6 @@ struct OnboardingView: View {
         .onDisappear {
             scanner.stop()
             pairingTask?.cancel()
-            adoptionPreviewResetTask?.cancel()
             copiedPromptResetTask?.cancel()
             if model.step == .display && model.selectedOutput == .hardware && esp32Output.connectionState != .connected {
                 cleanupAbandonedPairing(forceUnpair: true)
@@ -91,18 +86,6 @@ struct OnboardingView: View {
     private var hatchStep: some View {
         VStack(spacing: 18) {
             Spacer(minLength: 18)
-            hatchStage
-                .onAppear {
-                    guard !reduceMotion else {
-                        didHatch = true
-                        return
-                    }
-                    Task { @MainActor in
-                        try? await Task.sleep(for: .milliseconds(1300))
-                        didHatch = true
-                    }
-                }
-                .onTapGesture { didHatch = true }
 
             stepHeader(
                 title: BuddyCopy.Onboarding.hatchTitle,
@@ -119,78 +102,10 @@ struct OnboardingView: View {
         }
     }
 
-    private var hatchStage: some View {
-        ZStack {
-            if didHatch || reduceMotion {
-                BlobBuddyView(petState: .idle, size: 220)
-                    .transition(.scale(scale: 0.8).combined(with: .opacity))
-            } else {
-                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
-                    let phase = timeline.date.timeIntervalSinceReferenceDate * .pi
-                    let wobble = sin(phase) * 2
-
-                    ZStack {
-                        Ellipse()
-                            .fill(
-                                RadialGradient(
-                                    colors: [Color(hex: "#F7F2E9"), BuddyTheme.textPrimary, Color(hex: "#D8CCB9")],
-                                    center: .topLeading,
-                                    startRadius: 12,
-                                    endRadius: 120
-                                )
-                            )
-                            .frame(width: 150, height: 194)
-                            .shadow(color: BuddyTheme.amber.opacity(0.22), radius: 24, y: 10)
-                        CrackShape()
-                            .stroke(BuddyTheme.night.opacity(0.45), lineWidth: 3)
-                            .frame(width: 54, height: 72)
-                            .offset(y: -10)
-                    }
-                    .rotationEffect(.degrees(wobble))
-                }
-                .transition(.opacity)
-            }
-        }
-        .frame(height: 230)
-        .animation(reduceMotion ? nil : .buddyEase(0.55), value: didHatch)
-    }
-
     private var adoptStep: some View {
         VStack(spacing: 20) {
             Spacer(minLength: 10)
             stepHeader(title: BuddyCopy.Onboarding.adoptTitle)
-
-            HStack(spacing: 26) {
-                Button(action: { cycleSpecies(-1) }) {
-                    Image(systemName: "chevron.left")
-                        .font(.title2)
-                        .frame(width: 42, height: 42)
-                }
-                .buttonStyle(OnboardingIconButtonStyle())
-                .accessibilityLabel(BuddyCopy.shared.onboarding.previousSpecies)
-
-                VStack(spacing: 12) {
-                    Button(action: cycleAdoptionPreviewState) {
-                        adoptionPickerPreview
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(showingAdoptionTeaser)
-                    .accessibilityLabel(BuddyCopy.shared.onboarding.buddyPreviewTemplate
-                        .replacingOccurrences(of: "{species}", with: adoptionSpeciesLabel)
-                        .replacingOccurrences(of: "{state}", with: adoptionPreviewState.rawValue))
-                    Text(adoptionSpeciesLabel)
-                        .font(.buddy(showingAdoptionTeaser ? 9.5 : 15, weight: .semibold))
-                        .foregroundStyle(adoptionSpeciesColor)
-                }
-
-                Button(action: { cycleSpecies(1) }) {
-                    Image(systemName: "chevron.right")
-                        .font(.title2)
-                        .frame(width: 42, height: 42)
-                }
-                .buttonStyle(OnboardingIconButtonStyle())
-                .accessibilityLabel(BuddyCopy.shared.onboarding.nextSpecies)
-            }
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(BuddyCopy.Onboarding.nameLabel)
@@ -273,12 +188,8 @@ struct OnboardingView: View {
         VStack(spacing: 18) {
             Spacer(minLength: 18)
 
-            PetStageView(
-                petState: model.heardFromAgent == nil ? .sleep : .celebrate,
-                species: model.selectedSpecies,
-                fontSize: 24
-            )
-            .frame(height: 180)
+            listeningIndicator
+                .frame(height: 180)
 
             stepHeader(
                 title: model.heardFromAgent.map { BuddyCopy.heardFrom($0.displayName) } ?? BuddyCopy.Onboarding.firstContactTitle,
@@ -485,11 +396,21 @@ struct OnboardingView: View {
         }
     }
 
+    /// The first-contact step used to watch a sleeping pet wake up. The creature
+    /// belongs to the device now, so the step reports the same thing in the
+    /// abstract: listening, then heard. The heading carries the words.
+    private var listeningIndicator: some View {
+        let heard = model.heardFromAgent != nil
+        return Image(systemName: heard ? "checkmark.circle.fill" : "antenna.radiowaves.left.and.right")
+            .font(.system(size: 44, weight: .light))
+            .foregroundStyle(heard ? BuddyTheme.green : BuddyTheme.textTertiary)
+            .frame(maxWidth: .infinity)
+            .animation(reduceMotion ? nil : .buddyEase(0.35), value: heard)
+            .accessibilityHidden(true)
+    }
+
     private var adoptionCard: some View {
         HStack(spacing: 22) {
-            PetStageView(petState: .idle, species: model.selectedSpecies, fontSize: 20)
-                .frame(width: 160, height: 130)
-
             VStack(alignment: .leading, spacing: 10) {
                 Text(BuddyCopy.Onboarding.doneTitle)
                     .font(.buddy(22, weight: .semibold))
@@ -685,20 +606,6 @@ struct OnboardingView: View {
         }
     }
 
-    @ViewBuilder
-    private var adoptionPickerPreview: some View {
-        if showingAdoptionTeaser {
-            ZStack {
-                BlobBuddyView(petState: .sleep, size: 170)
-                    .opacity(0.4)
-            }
-            .frame(width: 260, height: 190)
-        } else {
-            BlobBuddyView(petState: adoptionPreviewState, size: 170)
-                .frame(width: 260, height: 190)
-        }
-    }
-
     private func navigationBar(nextTitle: String = BuddyCopy.shared.onboarding.next, nextDisabled: Bool = false) -> some View {
         HStack {
             Button(BuddyCopy.shared.onboarding.back) { model.goBack() }
@@ -726,25 +633,6 @@ struct OnboardingView: View {
                     .frame(maxWidth: 520)
             }
         }
-    }
-
-    private func cycleSpecies(_ direction: Int) {
-        adoptionPickerIndex = (adoptionPickerIndex + direction + 2) % 2
-        normalizeSelectedSpecies()
-        adoptionPreviewResetTask?.cancel()
-        adoptionPreviewState = .idle
-    }
-
-    private var showingAdoptionTeaser: Bool {
-        adoptionPickerIndex == 1
-    }
-
-    private var adoptionSpeciesLabel: String {
-        showingAdoptionTeaser ? BuddyCopy.shared.onboarding.moreBuddiesHatchingSoon : Pet.defaultSpecies.capitalized
-    }
-
-    private var adoptionSpeciesColor: Color {
-        showingAdoptionTeaser ? BuddyTheme.textTertiary : buddySpeciesColor(for: Pet.defaultSpecies)
     }
 
     private func normalizeSelectedSpecies() {
@@ -812,24 +700,6 @@ struct OnboardingView: View {
         }
     }
 
-    private func cycleAdoptionPreviewState() {
-        adoptionPreviewResetTask?.cancel()
-        switch adoptionPreviewState {
-        case .idle:
-            adoptionPreviewState = .attention
-        case .attention:
-            adoptionPreviewState = .celebrate
-            adoptionPreviewResetTask = Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(1400))
-                if adoptionPreviewState == .celebrate {
-                    adoptionPreviewState = .idle
-                }
-            }
-        default:
-            adoptionPreviewState = .idle
-        }
-    }
-
     private func copyTestPrompt() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(BuddyCopy.Onboarding.testPrompt, forType: .string)
@@ -839,39 +709,5 @@ struct OnboardingView: View {
             try? await Task.sleep(for: .seconds(2))
             copiedPrompt = false
         }
-    }
-}
-
-private struct CrackShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        path.move(to: CGPoint(x: rect.midX - 12, y: rect.minY + 8))
-        path.addLine(to: CGPoint(x: rect.midX + 3, y: rect.minY + 24))
-        path.addLine(to: CGPoint(x: rect.midX - 6, y: rect.minY + 40))
-        path.addLine(to: CGPoint(x: rect.midX + 14, y: rect.minY + 62))
-        return path
-    }
-}
-
-private struct OnboardingIconButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        OnboardingIconButtonBody(isPressed: configuration.isPressed) {
-            configuration.label
-        }
-    }
-}
-
-private struct OnboardingIconButtonBody<Label: View>: View {
-    let isPressed: Bool
-    @ViewBuilder let label: Label
-    @State private var isHovering = false
-
-    var body: some View {
-        label
-            .foregroundStyle(isPressed ? BuddyTheme.textPrimary : BuddyTheme.textSecondary)
-            .background(isHovering ? BuddyTheme.nightRaised2 : BuddyTheme.nightRaised, in: Circle())
-            .onHover { isHovering = $0 }
-            .animation(.buddyEase(0.15), value: isHovering)
-            .animation(.buddyEase(0.15), value: isPressed)
     }
 }
