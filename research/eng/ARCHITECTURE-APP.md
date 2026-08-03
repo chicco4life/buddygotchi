@@ -23,7 +23,7 @@ and firmware I/O stay out of the reducer.
 | Agents | Claude Code and Codex bash hook, Cursor `BoopSignal` helper |
 | Desktop output | Status item icon, notifications, sounds, interactive popover |
 | Hardware output | CoreBluetooth Nordic UART Service heartbeat JSON to ESP32 |
-| Firmware | M5StickC Plus 2 renderer, buttons, BLE, USB debug, OTA |
+| Firmware | Device renderer, buttons, BLE, USB debug, OTA |
 | Tests | Swift tests, generated local fallback, snapshots, HTTP e2e, firmware HIL |
 
 ```mermaid
@@ -380,7 +380,7 @@ flowchart TD
 
 ## App Lifecycle And Onboarding
 
-`AppDelegate` sets accessory activation, dark appearance, registers fonts,
+`AppDelegate` sets accessory activation, registers fonts,
 claims a single instance by bundle identifier, installs SIGINT and SIGTERM
 handlers, starts Sparkle, creates the status item and popover, creates
 `BuddyEngine`, registers `ESP32Output` and `DesktopOutput`, starts the engine,
@@ -389,13 +389,14 @@ starts BLE output, verifies hooks after launch, and starts the Hummingbird
 the service fails.
 
 First launch opens `OnboardingWindowController` when `setupCompleted` is false.
-Onboarding steps are `hatch`, `adopt`, `agents`, `firstContact`, `display`,
-and `done`. Defaults persist onboarding step, species, buddy name, output
+Onboarding steps are `welcome`, `agents`, `firstContact`, `display`, and
+`done`. Defaults persist onboarding step, species, buddy name, output
 target, notification permission request, launch-at-login choice, setup
 completion, and menu hint.
 
-The only selectable species in current code is `blob`; the UI has a teaser
-slot for future buddies. Agent onboarding detects config directories, refreshes
+Species is fixed at `blob` and is no longer user-selectable or drawn — it
+exists only as the `species` field of the heartbeat, so the device decides what
+the creature looks like. Agent onboarding detects config directories, refreshes
 installation health, and auto-connects if exactly one agent config is detected
 and not already installed. First contact watches `engine.state.activeSessions`
 and advances 2.5 seconds after hearing from an agent. It shows troubleshooting
@@ -405,9 +406,8 @@ connects to the selected UUID, times out after 30 seconds, stores
 
 ```mermaid
 flowchart TD
-    FirstLaunch[First launch] --> Hatch[Hatch step]
-    Hatch --> Adopt[Adopt blob and name]
-    Adopt --> Agents[Choose agent hooks]
+    FirstLaunch[First launch] --> Welcome[Welcome and name]
+    Welcome --> Agents[Choose agent hooks]
     Agents --> DetectAgents[Detect agent config folders]
     DetectAgents --> AutoInstall{Exactly one detected}
     AutoInstall --> InstallOne[Install that agent]
@@ -737,3 +737,37 @@ switch to a generated executable and shim when Apple XCTest is missing.
 - Keep approval continuations in `BuddyEngine`.
 - Treat `RenderState` as the desktop-to-firmware wire contract.
 - Keep Cursor auto-approval conservative.
+
+### Visual Rules
+
+The app is warm paper, light only. Every token lives in
+`app/Boop/Theme/BuddyTheme.swift`; `BuddyPalette` holds the raw hex so AppKit
+and SwiftUI cannot drift.
+
+- **No system colours on a Boop surface.** No `.primary`/`.secondary`/
+  `.tertiary`, no bare `Divider()`, no `.buttonStyle(.bordered)`, no linear
+  `ProgressView` — each resolves from the system appearance and reads cool grey
+  against a warm palette. Use the ink tokens, `BuddyDivider`, and
+  `BuddyChipButtonStyle`. The menu bar icon is the sole exception, and
+  deliberately so: it is not a Boop surface, so `DesktopOutput.statusIcon` uses
+  `labelColor` and the app leaves `NSApp.appearance` unset to track the system.
+- **The accent has a fill form and an ink form.** `amber` (#E8A33D) is 1.93:1 on
+  paper — backgrounds only. Anything a reader resolves uses `amberInk` (5.2:1).
+  Same for `green`/`greenInk`, `clay`/`clayInk`, `pink`/`pinkInk`. `stateFill`
+  is never a foreground; `stateInk` is never a background.
+- **A card is a fill and a hairline.** Raised fills alone separated surfaces on
+  the dark theme; two percent of luminance cannot. Use `buddySurface()`,
+  `.buddyCard()`, or `.buddyGroupedCard()` — all three carry the hairline.
+- **`lantern` (#FFDBAD) is the approval field and nothing else.** It is the
+  firmware's `FIELD_LANTERN`, so the one moment the Mac lights up is the one
+  moment the device does. On lantern, secondary text is `ink.opacity(0.70)` —
+  `inkSoft` is only 4.25:1 there.
+- **The app never draws the creature.** Its form belongs to the device, which
+  may not be blob-shaped. The app shows the buddy's name and state. `species`
+  survives only as a heartbeat field and the `allBuddies` registry.
+- Motion is `buddyEase`, or `buddyBloom`/`buddySnuff` (350ms in, 250ms out —
+  the firmware's own numbers). No springs, no bounce.
+
+`Boop --render-snapshots <dir>` photographs every surface, including the menu
+bar icon on both appearances and the OTA sheet. The output is deterministic, so
+`cmp` against a previous run is a valid regression gate.

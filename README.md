@@ -1,6 +1,6 @@
 # Boop
 
-Boop is a native macOS menu bar companion for AI coding agents. It watches Claude Code, Cursor, and Codex through local hook integrations, turns their activity into an animated buddy state, surfaces approval prompts, and can mirror the same state to an M5StickC Plus 2 over Bluetooth.
+Boop is a native macOS menu bar companion for AI coding agents. It watches Claude Code, Cursor, and Codex through local hook integrations, turns their activity into buddy state, surfaces approval prompts, and can mirror the same state to a Boop hardware buddy over Bluetooth.
 
 The current product lives in three top-level areas: the Swift macOS app in `app/`, the landing page in `landing/`, and the active ESP32 firmware in `firmware/esp32/`. Planning and reference material lives in `research/`; public release/support pages live in `docs/`.
 
