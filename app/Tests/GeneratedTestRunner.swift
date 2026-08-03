@@ -147,6 +147,9 @@ struct GeneratedTestRunner {
         await run("InstanceLockTests.testClaimIsIdempotentForTheHolder") { let t = InstanceLockTests(); try t.setUpWithError(); try await t.setUp(); t.testClaimIsIdempotentForTheHolder() }
         await run("InstanceLockTests.testReleaseHandsTheClaimToTheNextComer") { let t = InstanceLockTests(); try t.setUpWithError(); try await t.setUp(); t.testReleaseHandsTheClaimToTheNextComer() }
         await run("InstanceLockTests.testDistinctPathsDoNotContend") { let t = InstanceLockTests(); try t.setUpWithError(); try await t.setUp(); t.testDistinctPathsDoNotContend() }
+        await run("OrphanedPromptTests.testDeviceDecisionClearsAPromptWhoseWaiterIsGone") { let t = OrphanedPromptTests(); try t.setUpWithError(); try await t.setUp(); await t.testDeviceDecisionClearsAPromptWhoseWaiterIsGone() }
+        await run("OrphanedPromptTests.testNormalApprovalStillUnblocksItsCaller") { let t = OrphanedPromptTests(); try t.setUpWithError(); try await t.setUp(); await t.testNormalApprovalStillUnblocksItsCaller() }
+        await run("OrphanedPromptTests.testDecisionForAnIdWeNeverHadIsStillReportedAsUnknown") { let t = OrphanedPromptTests(); try t.setUpWithError(); try await t.setUp(); t.testDecisionForAnIdWeNeverHadIsStillReportedAsUnknown() }
         await run("PromptExpiryTests.testReducerClearsPromptOlderThanApprovalTimeout") { let t = PromptExpiryTests(); try t.setUpWithError(); try await t.setUp(); t.testReducerClearsPromptOlderThanApprovalTimeout() }
         await run("PromptExpiryTests.testReducerKeepsFreshPromptBeforeApprovalTimeout") { let t = PromptExpiryTests(); try t.setUpWithError(); try await t.setUp(); t.testReducerKeepsFreshPromptBeforeApprovalTimeout() }
         await run("PromptExpiryTests.testEngineResolvesPendingApprovalAsPassthroughWhenPromptExpires") { let t = PromptExpiryTests(); try t.setUpWithError(); try await t.setUp(); await t.testEngineResolvesPendingApprovalAsPassthroughWhenPromptExpires() }
@@ -232,7 +235,7 @@ struct GeneratedTestRunner {
         await run("SnapshotHarnessTests.testSettings") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testSettings() }
         await run("SnapshotHarnessTests.testOnboardingSteps") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testOnboardingSteps() }
 
-        let total = 208
+        let total = 211
         print("\n\u{2713} \(passed) passed, \(skipped) skipped of \(total) tests")
     }
 }

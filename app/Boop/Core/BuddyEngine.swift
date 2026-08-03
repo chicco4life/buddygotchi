@@ -129,12 +129,21 @@ final class BuddyEngine {
     /// the card sat on "yes!" forever and the hook stayed blocked.
     @discardableResult
     func resolveApproval(requestId: String, decision: ApprovalDecision) -> Bool {
-        guard let continuation = pendingApprovals.removeValue(forKey: requestId) else { return false }
+        let continuation = pendingApprovals.removeValue(forKey: requestId)
+        // Clear the card even when nobody is waiting on it any more.
+        //
+        // This used to return early when the continuation was gone, which left
+        // the prompt sitting in state with no way to dismiss it: the device
+        // showed the card, the crown sent a decision, the decision resolved
+        // nothing, and ten seconds later the firmware re-offered the very same
+        // request — forever. Answering something must always make it go away,
+        // whether or not a hook is still listening. The return value still
+        // reports whether a caller was actually unblocked.
         if let sessionId = findSessionForApproval(requestId) {
             apply(.approvalResolved(at: clock.now(), sessionId: sessionId, requestId: requestId, decision: decision))
         }
-        continuation.resume(returning: decision)
-        return true
+        continuation?.resume(returning: decision)
+        return continuation != nil
     }
 
     func resolveAllPendingApprovals(decision: ApprovalDecision) {
