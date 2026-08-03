@@ -14,6 +14,7 @@ struct RenderState: Encodable {
     var promptTool: String?
     var promptHint: String?
     var promptSource: String?
+    var promptLabel: String?
     var promptApproval: Bool?
     var lastCompletedTool: String?
     var lastCompletedHint: String?
@@ -59,6 +60,10 @@ func renderState(from state: BuddyState) -> RenderState {
         promptTool: state.prompt.map { $0.tool.prefix(utf8Bytes: 23) },
         promptHint: state.prompt.map { $0.hint.prefix(utf8Bytes: 63) },
         promptSource: state.prompt?.source,
+        // Which project is asking. With several agent sessions sharing one
+        // buddy, source+tool alone ("claude-code: Bash") cannot tell you
+        // whose request you are approving.
+        promptLabel: state.prompt?.sessionLabel.map { $0.prefix(utf8Bytes: 23) },
         promptApproval: state.prompt?.isApproval,
         lastCompletedTool: state.lastCompleted?.tool.map { $0.prefix(utf8Bytes: 20) },
         lastCompletedHint: state.lastCompleted?.hint.map { $0.prefix(utf8Bytes: 40) },

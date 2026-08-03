@@ -135,11 +135,24 @@ inline void cardDraw(BuddyCanvas& spr, uint32_t now, const TamaState& s,
   // Line 1: who is asking and for what. The full source name matters — a
   // decision you make on behalf of "claude-code" is not the same decision
   // you make on behalf of something you don't recognise.
+  //
+  // The project rides along when we know it. Several agent sessions can share
+  // one buddy, and "claude-code: Bash" alone cannot say WHICH of them is
+  // asking — a card raised by work in another checkout reads as a request you
+  // never made, which is exactly how a stray approval becomes alarming.
   const char* tool = s.promptTool[0] ? s.promptTool : "approve?";
   spr.setTextColor(ink, bg);
   spr.setCursor(x, y);
-  if (s.promptSource[0]) spr.printf("%.11s: %.23s", s.promptSource, tool);
-  else spr.printf("%.*s", cpl, tool);
+  if (s.promptSource[0] && s.promptLabel[0]) {
+    spr.printf("%.11s @ %.10s", s.promptSource, s.promptLabel);
+    y += 13 * S;
+    spr.setCursor(x, y);          // tool moves to its own line
+    spr.printf("%.*s", cpl, tool);
+  } else if (s.promptSource[0]) {
+    spr.printf("%.11s: %.23s", s.promptSource, tool);
+  } else {
+    spr.printf("%.*s", cpl, tool);
+  }
   y += 13 * S;
 
   // Line 2: the hint, which is usually the actual command. ONE line,
