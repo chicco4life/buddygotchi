@@ -17,7 +17,7 @@ struct OnboardingView: View {
 
     var body: some View {
         ZStack {
-            BuddyTheme.night.ignoresSafeArea()
+            BuddyTheme.paper.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 progressBar
@@ -45,7 +45,7 @@ struct OnboardingView: View {
             .padding(.bottom, 34)
         }
         .frame(width: BuddyTheme.onboardingWidth, height: BuddyTheme.onboardingHeight)
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
         .onAppear {
             normalizeSelectedSpecies()
         }
@@ -68,7 +68,7 @@ struct OnboardingView: View {
         HStack(spacing: 5) {
             ForEach(0..<OnboardingStep.allCases.count, id: \.self) { index in
                 Capsule()
-                    .fill(index <= model.step.rawValue ? BuddyTheme.amber : BuddyTheme.textPrimary.opacity(0.12))
+                    .fill(index <= model.step.rawValue ? BuddyTheme.amber : BuddyTheme.ink.opacity(0.12))
                     .frame(width: index == model.step.rawValue ? 54 : 34, height: 5)
             }
         }
@@ -110,7 +110,7 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(BuddyCopy.Onboarding.nameLabel)
                     .font(.buddy(9.5, weight: .semibold))
-                    .foregroundStyle(BuddyTheme.textTertiary)
+                    .foregroundStyle(BuddyTheme.inkFaint)
 
                 TextField(
                     BuddyCopy.Onboarding.namePlaceholder,
@@ -121,11 +121,11 @@ struct OnboardingView: View {
                 )
                 .textFieldStyle(.plain)
                 .font(.buddy(15))
-                .foregroundStyle(BuddyTheme.textPrimary)
+                .foregroundStyle(BuddyTheme.ink)
                 .multilineTextAlignment(.leading)
                 .padding(.horizontal, 18)
                 .padding(.vertical, 12)
-                .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: BuddyTheme.panelCornerRadius))
+                .buddySurface(BuddyTheme.paperSunken)
             }
             .frame(width: 320)
 
@@ -199,12 +199,12 @@ struct OnboardingView: View {
             Button(action: copyTestPrompt) {
                 Text(copiedPrompt ? BuddyCopy.Onboarding.copied : BuddyCopy.Onboarding.copyPrompt)
                     .font(.buddy(13, weight: .semibold))
-                    .foregroundStyle(BuddyTheme.textSecondary)
+                    .foregroundStyle(BuddyTheme.inkSoft)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .overlay(
                         Capsule()
-                            .stroke(BuddyTheme.textPrimary.opacity(0.15), lineWidth: 1)
+                            .stroke(BuddyTheme.ink.opacity(0.15), lineWidth: 1)
                     )
             }
             .buttonStyle(.plain)
@@ -214,22 +214,22 @@ struct OnboardingView: View {
             if model.showingTroubleshooting {
                 HStack(alignment: .top, spacing: 10) {
                     Circle()
-                        .fill(engine.state.desktop.status == .connected ? BuddyTheme.green : BuddyTheme.stuckRed)
+                        .fill(engine.state.desktop.status == .connected ? BuddyTheme.green : BuddyTheme.clay)
                         .frame(width: 9, height: 9)
                         .padding(.top, 5)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(BuddyCopy.Onboarding.troubleshootingTitle)
                             .font(.buddy(13, weight: .semibold))
-                            .foregroundStyle(BuddyTheme.textPrimary)
+                            .foregroundStyle(BuddyTheme.ink)
                         Text(BuddyCopy.Onboarding.troubleshooting)
                             .font(.buddy(11))
-                            .foregroundStyle(BuddyTheme.textSecondary)
+                            .foregroundStyle(BuddyTheme.inkSoft)
                     }
                     Spacer()
                 }
                 .padding(14)
                 .frame(width: 440)
-                .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: BuddyTheme.panelCornerRadius))
+                .buddySurface()
             }
 
             Spacer()
@@ -281,7 +281,7 @@ struct OnboardingView: View {
             if model.selectedOutput == .hardware {
                 Text(BuddyCopy.Onboarding.hardwareFootnote)
                     .font(.buddy(11))
-                    .foregroundStyle(BuddyTheme.textTertiary)
+                    .foregroundStyle(BuddyTheme.inkFaint)
                     .multilineTextAlignment(.center)
                     .frame(width: 460)
                 blePairingPanel
@@ -329,10 +329,10 @@ struct OnboardingView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(BuddyCopy.Onboarding.launchAtLogin)
                             .font(.buddy(13, weight: .semibold))
-                            .foregroundStyle(BuddyTheme.textPrimary)
+                            .foregroundStyle(BuddyTheme.ink)
                         Text(model.isPackagedApp ? BuddyCopy.Onboarding.launchAtLoginDescription : BuddyCopy.Onboarding.launchAtLoginUnavailable)
                             .font(.buddy(11))
-                            .foregroundStyle(BuddyTheme.textTertiary)
+                            .foregroundStyle(BuddyTheme.inkFaint)
                     }
                     Spacer()
                     Toggle(
@@ -344,10 +344,10 @@ struct OnboardingView: View {
                     )
                         .labelsHidden()
                         .toggleStyle(BuddySwitchToggleStyle())
-                        .tint(BuddyTheme.amber)
+                        .tint(BuddyTheme.amberInk)
                         .disabled(!model.isPackagedApp)
                 }
-                .tint(BuddyTheme.amber)
+                .tint(BuddyTheme.amberInk)
 
                 BuddyDivider()
 
@@ -355,10 +355,10 @@ struct OnboardingView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(BuddyCopy.Onboarding.notificationsTitle)
                             .font(.buddy(13, weight: .semibold))
-                            .foregroundStyle(BuddyTheme.textPrimary)
+                            .foregroundStyle(BuddyTheme.ink)
                         Text(BuddyCopy.Onboarding.notificationsDescription)
                             .font(.buddy(11))
-                            .foregroundStyle(BuddyTheme.textTertiary)
+                            .foregroundStyle(BuddyTheme.inkFaint)
                     }
                     Spacer()
                     if model.notificationRequested {
@@ -377,7 +377,7 @@ struct OnboardingView: View {
             }
             .padding(16)
             .frame(width: 520)
-            .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: 16))
+            .buddySurface()
 
             Spacer()
 
@@ -403,7 +403,7 @@ struct OnboardingView: View {
         let heard = model.heardFromAgent != nil
         return Image(systemName: heard ? "checkmark.circle.fill" : "antenna.radiowaves.left.and.right")
             .font(.system(size: 44, weight: .light))
-            .foregroundStyle(heard ? BuddyTheme.green : BuddyTheme.textTertiary)
+            .foregroundStyle(heard ? BuddyTheme.green : BuddyTheme.inkFaint)
             .frame(maxWidth: .infinity)
             .animation(reduceMotion ? nil : .buddyEase(0.35), value: heard)
             .accessibilityHidden(true)
@@ -414,10 +414,10 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 10) {
                 Text(BuddyCopy.Onboarding.doneTitle)
                     .font(.buddy(22, weight: .semibold))
-                    .foregroundStyle(BuddyTheme.textPrimary)
+                    .foregroundStyle(BuddyTheme.ink)
                 Text(model.displayName)
                     .font(.buddy(34, weight: .semibold))
-                    .foregroundStyle(BuddyTheme.amber)
+                    .foregroundStyle(BuddyTheme.amberInk)
 
                 chipRow(title: BuddyCopy.shared.onboarding.species, value: model.selectedSpecies.capitalized)
                 chipRow(title: BuddyCopy.shared.onboarding.agents, value: model.installedAgents.isEmpty ? BuddyCopy.shared.onboarding.skipped : model.installedAgents.map(\.displayName).joined(separator: ", "))
@@ -427,18 +427,18 @@ struct OnboardingView: View {
         }
         .padding(20)
         .frame(width: 560)
-        .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: 18))
+        .buddySurface()
     }
 
     private func chipRow(title: String, value: String) -> some View {
         HStack(spacing: 8) {
             Text(title)
                 .font(.buddy(9.5, weight: .semibold))
-                .foregroundStyle(BuddyTheme.textTertiary)
+                .foregroundStyle(BuddyTheme.inkFaint)
                 .frame(width: 64, alignment: .trailing)
             Text(value)
                 .font(.buddy(11, weight: .semibold))
-                .foregroundStyle(BuddyTheme.textSecondary)
+                .foregroundStyle(BuddyTheme.inkSoft)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
@@ -450,17 +450,17 @@ struct OnboardingView: View {
 
         return HStack(spacing: 14) {
             Circle()
-                .fill(installed ? BuddyTheme.green : detected ? BuddyTheme.amber : BuddyTheme.textTertiary)
+                .fill(installed ? BuddyTheme.green : detected ? BuddyTheme.amber : BuddyTheme.inkFaint)
                 .frame(width: 10, height: 10)
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(agent.displayName)
                     .font(.buddy(13, weight: .semibold))
-                    .foregroundStyle(BuddyTheme.textPrimary)
+                    .foregroundStyle(BuddyTheme.ink)
                 Text(error ?? (detected ? BuddyCopy.Onboarding.detected : BuddyCopy.Onboarding.notDetectedHint))
                     .font(.buddy(11))
-                    .foregroundStyle(error == nil ? BuddyTheme.textTertiary : BuddyTheme.stuckRed)
+                    .foregroundStyle(error == nil ? BuddyTheme.inkFaint : BuddyTheme.clay)
             }
 
             Spacer()
@@ -477,7 +477,7 @@ struct OnboardingView: View {
             }
         }
         .padding(14)
-        .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: BuddyTheme.panelCornerRadius))
+        .buddySurface()
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(agent.displayName), \(installed ? BuddyCopy.Onboarding.connected : detected ? BuddyCopy.Onboarding.detected : BuddyCopy.Onboarding.notDetected)")
     }
@@ -491,15 +491,15 @@ struct OnboardingView: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(target.displayName)
                         .font(.buddy(13, weight: .semibold))
-                        .foregroundStyle(BuddyTheme.textPrimary)
+                        .foregroundStyle(BuddyTheme.ink)
                     Text(target.description)
                         .font(.buddy(11))
-                        .foregroundStyle(BuddyTheme.textTertiary)
+                        .foregroundStyle(BuddyTheme.inkFaint)
                 }
                 Spacer()
             }
             .padding(14)
-            .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: BuddyTheme.panelCornerRadius))
+            .buddySurface()
         }
         .buttonStyle(.plain)
     }
@@ -507,7 +507,7 @@ struct OnboardingView: View {
     private func outputSelectionIndicator(selected: Bool) -> some View {
         ZStack {
             Circle()
-                .stroke(selected ? BuddyTheme.amber : BuddyTheme.textSecondary, lineWidth: selected ? 0 : 1.5)
+                .stroke(selected ? BuddyTheme.amber : BuddyTheme.inkSoft, lineWidth: selected ? 0 : 1.5)
                 .frame(width: 20, height: 20)
             if selected {
                 Circle()
@@ -515,7 +515,7 @@ struct OnboardingView: View {
                     .frame(width: 20, height: 20)
                 Image(systemName: "checkmark")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(BuddyTheme.night)
+                    .foregroundStyle(BuddyTheme.ink)
             }
         }
         .frame(width: 20, height: 20)
@@ -526,11 +526,11 @@ struct OnboardingView: View {
             if esp32Output.connectionState == .connected && selectedDeviceUUID != nil {
                 Label(BuddyCopy.Onboarding.connectedCheered, systemImage: "checkmark.circle.fill")
                     .font(.buddy(11, weight: .semibold))
-                    .foregroundStyle(BuddyTheme.green)
+                    .foregroundStyle(BuddyTheme.greenInk)
             } else if model.pairingTimedOut {
                 Text(BuddyCopy.Onboarding.pairingTimeout)
                     .font(.buddy(11, weight: .semibold))
-                    .foregroundStyle(BuddyTheme.stuckRed)
+                    .foregroundStyle(BuddyTheme.clayInk)
                 HStack {
                     Button(BuddyCopy.Onboarding.retry) {
                         retryPairing()
@@ -544,13 +544,13 @@ struct OnboardingView: View {
                 }
             } else if selectedDeviceUUID != nil {
                 ProgressView()
-                    .tint(BuddyTheme.amber)
+                    .tint(BuddyTheme.amberInk)
                 Text(BuddyCopy.Onboarding.connecting)
                     .font(.buddy(11, weight: .semibold))
-                    .foregroundStyle(BuddyTheme.textPrimary)
+                    .foregroundStyle(BuddyTheme.ink)
                 Text(BuddyCopy.Onboarding.pairingHelp)
                     .font(.buddy(11))
-                    .foregroundStyle(BuddyTheme.textTertiary)
+                    .foregroundStyle(BuddyTheme.inkFaint)
                     .multilineTextAlignment(.center)
             } else {
                 bleDeviceList
@@ -559,26 +559,26 @@ struct OnboardingView: View {
         .padding(14)
         .frame(width: 480)
         .frame(minHeight: 96)
-        .background(BuddyTheme.nightRaised.opacity(0.7), in: RoundedRectangle(cornerRadius: BuddyTheme.panelCornerRadius))
+        .buddySurface(BuddyTheme.paperSunken)
     }
 
     private var bleDeviceList: some View {
         VStack(spacing: 8) {
             if scanner.bluetoothUnavailable {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(BuddyTheme.amber)
+                    .foregroundStyle(BuddyTheme.amberInk)
                 Text(BuddyCopy.Onboarding.bluetoothOff)
                     .font(.buddy(11, weight: .semibold))
-                    .foregroundStyle(BuddyTheme.textPrimary)
+                    .foregroundStyle(BuddyTheme.ink)
                 Text(BuddyCopy.Onboarding.bluetoothOffHint)
                     .font(.buddy(11))
-                    .foregroundStyle(BuddyTheme.textTertiary)
+                    .foregroundStyle(BuddyTheme.inkFaint)
             } else if scanner.devices.isEmpty {
                 ProgressView()
-                    .tint(BuddyTheme.amber)
+                    .tint(BuddyTheme.amberInk)
                 Text(BuddyCopy.Onboarding.scanning)
                     .font(.buddy(11))
-                    .foregroundStyle(BuddyTheme.textSecondary)
+                    .foregroundStyle(BuddyTheme.inkSoft)
             } else {
                 ForEach(scanner.devices, id: \.identifier) { device in
                     Button {
@@ -588,17 +588,17 @@ struct OnboardingView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(device.name)
                                     .font(.buddy(11, weight: .semibold))
-                                    .foregroundStyle(BuddyTheme.textPrimary)
+                                    .foregroundStyle(BuddyTheme.ink)
                                 Text(String(device.identifier.uuidString.prefix(8)) + "…")
                                     .font(.buddy(11))
-                                    .foregroundStyle(BuddyTheme.textTertiary)
+                                    .foregroundStyle(BuddyTheme.inkFaint)
                             }
                             Spacer()
                             Image(systemName: "chevron.right")
-                                .foregroundStyle(BuddyTheme.textTertiary)
+                                .foregroundStyle(BuddyTheme.inkFaint)
                         }
                         .padding(10)
-                        .background(BuddyTheme.nightRaised2, in: RoundedRectangle(cornerRadius: 10))
+                        .buddySurface(radius: BuddyTheme.wellCornerRadius)
                     }
                     .buttonStyle(.plain)
                 }
@@ -623,12 +623,12 @@ struct OnboardingView: View {
         VStack(spacing: 7) {
             Text(title)
                 .font(.buddy(34, weight: .semibold))
-                .foregroundStyle(BuddyTheme.textPrimary)
+                .foregroundStyle(BuddyTheme.ink)
                 .multilineTextAlignment(.center)
             if let subtitle {
                 Text(subtitle)
                     .font(.buddy(13))
-                    .foregroundStyle(BuddyTheme.textSecondary)
+                    .foregroundStyle(BuddyTheme.inkSoft)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 520)
             }

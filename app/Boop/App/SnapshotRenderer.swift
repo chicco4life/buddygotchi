@@ -116,16 +116,16 @@ enum SnapshotRenderer {
     }
 
     private static func render<V: View>(_ view: V, _ name: String, _ size: CGSize, _ dir: String) {
-        let root = ZStack { BuddyTheme.night; view }
+        let root = ZStack { BuddyTheme.paper; view }
             .frame(width: size.width, height: size.height)
-            .environment(\.colorScheme, .dark)
+            .environment(\.colorScheme, .light)
 
         let host = NSHostingView(rootView: AnyView(root))
-        host.appearance = NSAppearance(named: .darkAqua)
+        host.appearance = NSAppearance(named: .aqua)
         host.frame = CGRect(origin: .zero, size: size)
 
         let window = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
-        window.appearance = NSAppearance(named: .darkAqua)
+        window.appearance = NSAppearance(named: .aqua)
         window.contentView = host
         host.layoutSubtreeIfNeeded()
         RunLoop.main.run(until: Date().addingTimeInterval(0.15))

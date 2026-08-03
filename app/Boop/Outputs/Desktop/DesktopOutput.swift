@@ -130,7 +130,7 @@ final class DesktopOutput: OutputProvider {
         case .celebrate:
             return NSColor(buddyHex: BuddyPalette.green)
         case .error:
-            return NSColor(buddyHex: BuddyPalette.stuckRed)
+            return NSColor(buddyHex: BuddyPalette.clay)
         default:
             return nil
         }

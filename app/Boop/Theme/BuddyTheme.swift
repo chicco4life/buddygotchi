@@ -5,38 +5,74 @@ import SwiftUI
 /// SwiftUI (`Color`) and AppKit (`NSColor`) read one set of constants. Prefer the
 /// `BuddyTheme` tokens; reach for these only where a `Color` will not do.
 enum BuddyPalette {
+    // Surfaces. `paper` is the landing page's cream; `lantern` is the firmware's
+    // FIELD_LANTERN, the warm field the device lights up with to ask a question.
+    static let paper = "#F7F2E9"
+    static let paperRaised = "#FDFAF4"
+    static let paperSunken = "#EFE7D8"
+    static let lantern = "#FFDBAD"
+    static let lanternHot = "#FFB652"
     static let night = "#1B1714"
-    static let nightRaised = "#27211B"
-    static let nightRaised2 = "#312A22"
 
-    static let textPrimary = "#EFE7D8"
-    static let textSecondary = "#B9AE9C"
-    static let textTertiary = "#877D6D"
+    // Ink. Warm, never pure black.
+    static let ink = "#2B2724"
+    static let inkSoft = "#6E675D"
+    static let inkFaint = "#7A7369"
 
+    // One accent, in a fill form and an ink form. See the note on BuddyTheme.amber.
     static let amber = "#E8A33D"
-    static let amberDeep = "#C9862B"
+    static let amberPressed = "#C9862B"
+    static let amberInk = "#8A5A16"
+
     static let green = "#7FA96B"
-    static let stuckRed = "#C96B5E"
-    static let boopPink = "#D98BA4"
+    static let greenInk = "#456B36"
+    static let clay = "#C96B5E"
+    static let clayInk = "#9C4436"
+    static let pink = "#D98BA4"
+    static let pinkInk = "#A35270"
 }
 
 enum BuddyTheme {
+    static let paper = Color(hex: BuddyPalette.paper)
+    static let paperRaised = Color(hex: BuddyPalette.paperRaised)
+    static let paperSunken = Color(hex: BuddyPalette.paperSunken)
     static let night = Color(hex: BuddyPalette.night)
-    static let nightRaised = Color(hex: BuddyPalette.nightRaised)
-    static let nightRaised2 = Color(hex: BuddyPalette.nightRaised2)
 
-    static let textPrimary = Color(hex: BuddyPalette.textPrimary)
-    static let textSecondary = Color(hex: BuddyPalette.textSecondary)
-    static let textTertiary = Color(hex: BuddyPalette.textTertiary)
+    /// The approval field, and nothing else. Reserved so that the one moment the
+    /// Mac lights up matches the one moment the device does.
+    static let lantern = Color(hex: BuddyPalette.lantern)
+    static let lanternHot = Color(hex: BuddyPalette.lanternHot)
 
+    static let ink = Color(hex: BuddyPalette.ink)
+    static let inkSoft = Color(hex: BuddyPalette.inkSoft)
+    /// 4.1:1 on paper — captions and meta. Still short of AA for body copy, so
+    /// never let it be the only thing carrying a meaning.
+    static let inkFaint = Color(hex: BuddyPalette.inkFaint)
+
+    // The accent is split because #E8A33D is 1.93:1 on paper: fine as a fill,
+    // illegible as text. Use `amber` for backgrounds and `amberInk` (5.2:1) for
+    // anything a reader has to resolve — labels, icons, hairlines.
     static let amber = Color(hex: BuddyPalette.amber)
-    static let amberDeep = Color(hex: BuddyPalette.amberDeep)
-    static let green = Color(hex: BuddyPalette.green)
-    static let stuckRed = Color(hex: BuddyPalette.stuckRed)
-    static let workGlow = Color(hex: BuddyPalette.textPrimary)
-    static let boopPink = Color(hex: BuddyPalette.boopPink)
+    static let amberPressed = Color(hex: BuddyPalette.amberPressed)
+    static let amberInk = Color(hex: BuddyPalette.amberInk)
+    static let amberWash = Color(hex: BuddyPalette.amber).opacity(0.18)
 
-    static let divider = textPrimary.opacity(0.08)
+    static let green = Color(hex: BuddyPalette.green)
+    static let greenInk = Color(hex: BuddyPalette.greenInk)
+    static let clay = Color(hex: BuddyPalette.clay)
+    static let clayInk = Color(hex: BuddyPalette.clayInk)
+    static let pink = Color(hex: BuddyPalette.pink)
+    static let pinkInk = Color(hex: BuddyPalette.pinkInk)
+
+    /// Working quietly reads as ink on paper, not as glow.
+    static let work = inkSoft
+
+    // The dark theme separated surfaces by raising their fill. Two percent of
+    // luminance cannot do that, so on paper a card is a fill *and* a hairline.
+    static let hairline = ink.opacity(0.10)
+    static let hairlineStrong = ink.opacity(0.16)
+    static let hairlineWidth: CGFloat = 1
+    static let divider = hairline
 
     static let cardCornerRadius: CGFloat = 12
     static let panelCornerRadius: CGFloat = 14
@@ -54,14 +90,27 @@ enum BuddyTheme {
     static let onboardingWidth: CGFloat = 760
     static let onboardingHeight: CGFloat = 560
 
-    static func stateColor(_ state: PetState) -> Color {
+    /// Text, icons, and status dots. Always legible on paper.
+    static func stateInk(_ state: PetState) -> Color {
         switch state {
-        case .sleep, .idle: textSecondary
-        case .busy, .thinking: workGlow
+        case .sleep, .idle: inkFaint
+        case .busy, .thinking: work
+        case .attention: amberInk
+        case .celebrate: greenInk
+        case .error: clayInk
+        case .heart: pinkInk
+        }
+    }
+
+    /// Chips, bars, and washes behind `stateInk`. Never used as a foreground.
+    static func stateFill(_ state: PetState) -> Color {
+        switch state {
+        case .sleep, .idle: inkFaint
+        case .busy, .thinking: inkSoft
         case .attention: amber
         case .celebrate: green
-        case .error: stuckRed
-        case .heart: boopPink
+        case .error: clay
+        case .heart: pink
         }
     }
 }
@@ -92,10 +141,14 @@ struct BuddyCardModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .padding(14)
+            .padding(16)
             .background(
                 RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
-                    .fill(elevated ? BuddyTheme.nightRaised2 : BuddyTheme.nightRaised)
+                    .fill(elevated ? BuddyTheme.paperRaised : BuddyTheme.paperSunken)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
+                    .strokeBorder(BuddyTheme.hairline, lineWidth: BuddyTheme.hairlineWidth)
             )
     }
 }
@@ -113,7 +166,11 @@ struct BuddyGroupedCardModifier: ViewModifier {
         content
             .background(
                 RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
-                    .fill(BuddyTheme.nightRaised)
+                    .fill(BuddyTheme.paperRaised)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
+                    .strokeBorder(BuddyTheme.hairline, lineWidth: BuddyTheme.hairlineWidth)
             )
     }
 }
@@ -121,6 +178,20 @@ struct BuddyGroupedCardModifier: ViewModifier {
 extension View {
     func buddyGroupedCard() -> some View {
         modifier(BuddyGroupedCardModifier())
+    }
+
+    /// A filled surface plus the hairline that separates it. Use for anything that
+    /// used to lean on a raised fill alone — on paper that reads as nothing.
+    /// `paperRaised` lifts (cards, rows); `paperSunken` recesses (fields, wells).
+    func buddySurface(
+        _ fill: Color = BuddyTheme.paperRaised,
+        radius: CGFloat = BuddyTheme.panelCornerRadius
+    ) -> some View {
+        background(fill, in: RoundedRectangle(cornerRadius: radius))
+            .overlay(
+                RoundedRectangle(cornerRadius: radius)
+                    .strokeBorder(BuddyTheme.hairline, lineWidth: BuddyTheme.hairlineWidth)
+            )
     }
 }
 
@@ -159,10 +230,11 @@ struct BuddyPrimaryButtonStyle: ButtonStyle {
             .padding(.horizontal, size.filledPadding.h)
             .padding(.vertical, size.filledPadding.v)
             .background(
-                (configuration.isPressed ? BuddyTheme.amberDeep : BuddyTheme.amber),
+                (configuration.isPressed ? BuddyTheme.amberPressed : BuddyTheme.amber),
                 in: Capsule()
             )
-            .foregroundStyle(BuddyTheme.night)
+            // Ink on amber is 6.9:1, and still 4.9:1 when pressed.
+            .foregroundStyle(BuddyTheme.ink)
             .animation(.buddyEase(0.15), value: configuration.isPressed)
     }
 }
@@ -175,7 +247,28 @@ struct BuddySecondaryButtonStyle: ButtonStyle {
             .font(.buddy(13, weight: .semibold))
             .padding(.horizontal, size.plainPadding.h)
             .padding(.vertical, size.plainPadding.v)
-            .foregroundStyle(configuration.isPressed ? BuddyTheme.textPrimary : BuddyTheme.textSecondary)
+            .foregroundStyle(configuration.isPressed ? BuddyTheme.ink : BuddyTheme.inkSoft)
+    }
+}
+
+/// Row-level secondary actions — Repair, Forget, Close. Replaces
+/// `.buttonStyle(.bordered)`, whose fill comes from the system appearance and
+/// reads as cool grey against warm paper.
+struct BuddyChipButtonStyle: ButtonStyle {
+    var tone: Color = BuddyTheme.ink
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.buddy(11, weight: .semibold))
+            .foregroundStyle(tone)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                configuration.isPressed ? BuddyTheme.ink.opacity(0.08) : BuddyTheme.paperRaised,
+                in: Capsule()
+            )
+            .overlay(Capsule().strokeBorder(BuddyTheme.hairlineStrong, lineWidth: BuddyTheme.hairlineWidth))
+            .animation(.buddyEase(0.15), value: configuration.isPressed)
     }
 }
 
@@ -229,7 +322,8 @@ struct BuddySectionHeader: View {
             .font(.buddy(9.5, weight: .semibold))
             .tracking(0.8)
             .textCase(.uppercase)
-            .foregroundStyle(BuddyTheme.textTertiary)
+            // inkSoft, not inkFaint — 9.5pt needs the contrast.
+            .foregroundStyle(BuddyTheme.inkSoft)
             .padding(.top, 16)
             .padding(.bottom, 6)
     }
@@ -247,10 +341,10 @@ struct BuddySettingToggle: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.buddy(13))
-                    .foregroundStyle(BuddyTheme.textPrimary)
+                    .foregroundStyle(BuddyTheme.ink)
                 Text(description)
                     .font(.buddy(11))
-                    .foregroundStyle(BuddyTheme.textTertiary)
+                    .foregroundStyle(BuddyTheme.inkSoft)
             }
             Spacer(minLength: 8)
             Toggle("", isOn: $isOn)
@@ -273,13 +367,17 @@ struct BuddySwitchToggleStyle: ToggleStyle {
             configuration.isOn.toggle()
         } label: {
             ZStack {
+                // The off track was a light wash on a dark field; on paper it
+                // inverts to an ink wash, and the knob needs a hairline or it
+                // vanishes into the track.
                 Capsule()
-                    .fill(configuration.isOn ? BuddyTheme.amber : BuddyTheme.textPrimary.opacity(0.16))
+                    .fill(configuration.isOn ? BuddyTheme.amber : BuddyTheme.ink.opacity(0.14))
                     .frame(width: 52, height: 28)
                 Circle()
-                    .fill(BuddyTheme.textPrimary)
+                    .fill(BuddyTheme.paperRaised)
                     .frame(width: 22, height: 22)
-                    .shadow(color: BuddyTheme.night.opacity(0.22), radius: 3, y: 1)
+                    .overlay(Circle().strokeBorder(BuddyTheme.hairline, lineWidth: BuddyTheme.hairlineWidth))
+                    .shadow(color: BuddyTheme.ink.opacity(0.18), radius: 3, y: 1)
                     .offset(x: configuration.isOn ? 12 : -12)
             }
             .frame(width: 52, height: 28)

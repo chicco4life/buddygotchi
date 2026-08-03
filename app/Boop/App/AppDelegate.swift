@@ -38,7 +38,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        NSApp.appearance = NSAppearance(named: .darkAqua)
+        // Deliberately left unset. Boop's own surfaces pin themselves to .aqua,
+        // but the status item is not a Boop surface -- it belongs to the menu bar,
+        // and NSColor.labelColor inside DesktopOutput.statusIcon can only resolve
+        // correctly on both light and dark menu bars if the app inherits the
+        // system appearance. Pinning it here made the icon near-invisible on a
+        // light menu bar.
         NSApp.windows.forEach { $0.close() }
         registerBundledFonts()
 
@@ -60,6 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let popover = NSPopover()
         popover.behavior = .transient
+        popover.appearance = NSAppearance(named: .aqua)
         NotificationManager.shared.setup(engine: engine) { [weak self] in
             self?.showPopover()
         }

@@ -71,7 +71,7 @@ struct SettingsView: View {
             }
         }
         .frame(width: BuddyTheme.popoverWidth, height: frameHeight)
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
         .onAppear {
             normalizeBuddySpecies()
             refreshLoginItemState()
@@ -162,10 +162,10 @@ struct SettingsView: View {
                 if launchAtLoginStatus == .requiresApproval {
                     HStack(alignment: .top, spacing: 8) {
                         Image(systemName: "info.circle")
-                            .foregroundStyle(BuddyTheme.amber)
+                            .foregroundStyle(BuddyTheme.amberInk)
                         Text(BuddyCopy.shared.settingsCopy.launchAtLoginApproval)
                             .font(.buddy(11))
-                            .foregroundStyle(BuddyTheme.textSecondary)
+                            .foregroundStyle(BuddyTheme.inkSoft)
                         Spacer()
                     }
                     .padding(.horizontal, 12)
@@ -206,11 +206,11 @@ struct SettingsView: View {
                     HStack {
                         Text(BuddyCopy.shared.settingsCopy.advanced)
                             .font(.buddy(13))
-                            .foregroundStyle(BuddyTheme.textPrimary)
+                            .foregroundStyle(BuddyTheme.ink)
                         Spacer()
                         Image(systemName: "chevron.right")
                             .font(.caption2)
-                            .foregroundStyle(BuddyTheme.textSecondary)
+                            .foregroundStyle(BuddyTheme.inkSoft)
                             .rotationEffect(.degrees(advancedExpanded ? 90 : 0))
                     }
                     .padding(.horizontal, 12)
@@ -237,7 +237,7 @@ struct SettingsView: View {
                 Spacer()
                 Text("\(BuddyConfig.default.httpPort)")
                     .font(.buddy(13))
-                    .foregroundStyle(BuddyTheme.textSecondary)
+                    .foregroundStyle(BuddyTheme.inkSoft)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 12)
@@ -256,7 +256,7 @@ struct SettingsView: View {
                     Spacer()
                     Image(systemName: "arrow.up.forward.square")
                         .font(.caption)
-                        .foregroundStyle(BuddyTheme.textSecondary)
+                        .foregroundStyle(BuddyTheme.inkSoft)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 12)
@@ -275,7 +275,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text(BuddyCopy.shared.settingsCopy.name)
                     .font(.buddy(9.5, weight: .semibold))
-                    .foregroundStyle(BuddyTheme.textTertiary)
+                    .foregroundStyle(BuddyTheme.inkFaint)
                     .padding(.leading, 2)
 
                 TextField(
@@ -284,10 +284,10 @@ struct SettingsView: View {
                 )
                     .textFieldStyle(.plain)
                     .font(.buddy(13))
-                    .foregroundStyle(BuddyTheme.textPrimary)
+                    .foregroundStyle(BuddyTheme.ink)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 12)
-                    .background(BuddyTheme.nightRaised, in: RoundedRectangle(cornerRadius: BuddyTheme.panelCornerRadius))
+                    .buddySurface(BuddyTheme.paperSunken)
             }
             .padding(.top, 12)
         }
@@ -319,9 +319,7 @@ struct SettingsView: View {
                                     agentHealth[agent] = .corrupted(reason: error.localizedDescription)
                                 }
                             }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .tint(BuddyTheme.amber)
+                            .buttonStyle(BuddyChipButtonStyle(tone: BuddyTheme.amberInk))
                         } else {
                             Button(health.repairable ? BuddyCopy.shared.common.repair : BuddyCopy.shared.common.connect) {
                                 do {
@@ -335,9 +333,7 @@ struct SettingsView: View {
                                     agentHealth[agent] = .corrupted(reason: error.localizedDescription)
                                 }
                             }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .tint(BuddyTheme.amber)
+                            .buttonStyle(BuddyChipButtonStyle(tone: BuddyTheme.amberInk))
                             .disabled(!health.repairable && !canInstall(health))
                         }
                     }
@@ -395,10 +391,10 @@ struct SettingsView: View {
                     Spacer()
                     HStack(spacing: 4) {
                         Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(BuddyTheme.amber)
+                            .foregroundStyle(BuddyTheme.amberInk)
                         Text(BuddyCopy.shared.settingsCopy.active)
                             .font(.buddy(11))
-                            .foregroundStyle(BuddyTheme.amber)
+                            .foregroundStyle(BuddyTheme.amberInk)
                     }
                 }
                 .padding(.horizontal, 12)
@@ -414,20 +410,18 @@ struct SettingsView: View {
                             Text(BuddyCopy.Onboarding.hardware).font(.buddy(13))
                             HStack(spacing: 4) {
                                 Circle()
-                                    .fill(esp32Output.connectionState == .connected ? BuddyTheme.amber : BuddyTheme.textTertiary)
+                                    .fill(esp32Output.connectionState == .connected ? BuddyTheme.amber : BuddyTheme.inkFaint)
                                     .frame(width: 6, height: 6)
                                 Text(esp32Output.connectionState.rawValue)
                                     .font(.buddy(11))
-                                    .foregroundStyle(BuddyTheme.textSecondary)
+                                    .foregroundStyle(BuddyTheme.inkSoft)
                             }
                         }
                         Spacer()
                         Button(BuddyCopy.shared.settingsCopy.forget) {
                             showingUnpairConfirmation = true
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .tint(BuddyTheme.stuckRed)
+                        .buttonStyle(BuddyChipButtonStyle(tone: BuddyTheme.clayInk))
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 12)
@@ -450,16 +444,14 @@ struct SettingsView: View {
                             Text(BuddyCopy.Onboarding.hardware).font(.buddy(13))
                             Text(BuddyCopy.shared.settingsCopy.notPaired)
                                 .font(.buddy(11))
-                                .foregroundStyle(BuddyTheme.textSecondary)
+                                .foregroundStyle(BuddyTheme.inkSoft)
                         }
                         Spacer()
                         Button(scanner.isScanning ? BuddyCopy.Onboarding.scanning : BuddyCopy.shared.settingsCopy.pairABuddy) {
                             if scanner.isScanning { scanner.stop() }
                             else { scanner.start() }
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .tint(BuddyTheme.amber)
+                        .buttonStyle(BuddyChipButtonStyle(tone: BuddyTheme.amberInk))
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 12)
@@ -472,12 +464,12 @@ struct SettingsView: View {
                                 Text(BuddyCopy.shared.settingsCopy.bareHardwareBuddy).font(.buddy(13))
                                 Text(BuddyCopy.shared.settingsCopy.flashItFirst)
                                     .font(.buddy(11))
-                                    .foregroundStyle(BuddyTheme.textSecondary)
+                                    .foregroundStyle(BuddyTheme.inkSoft)
                             }
                             Spacer()
                             Image(systemName: "arrow.up.right")
                                 .font(.caption2)
-                                .foregroundStyle(BuddyTheme.textSecondary)
+                                .foregroundStyle(BuddyTheme.inkSoft)
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 12)
@@ -490,12 +482,12 @@ struct SettingsView: View {
             if scanner.isScanning && scanner.bluetoothUnavailable {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(BuddyTheme.amber)
+                        .foregroundStyle(BuddyTheme.amberInk)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(BuddyCopy.Onboarding.bluetoothOff).font(.buddy(11))
                         Text(BuddyCopy.Onboarding.bluetoothOffHint)
                             .font(.buddy(11))
-                            .foregroundStyle(BuddyTheme.textSecondary)
+                            .foregroundStyle(BuddyTheme.inkSoft)
                     }
                     Spacer()
                 }
@@ -515,7 +507,7 @@ struct SettingsView: View {
                                 Spacer()
                                 Text(BuddyCopy.shared.common.connect)
                                     .font(.buddy(11))
-                                    .foregroundStyle(BuddyTheme.amber)
+                                    .foregroundStyle(BuddyTheme.amberInk)
                             }
                         }
                         .buttonStyle(BuddyPlainButtonStyle())
@@ -539,13 +531,13 @@ struct SettingsView: View {
                     Text(BuddyCopy.shared.settingsCopy.firmware).font(.buddy(13))
                     Text(esp32Output.firmwareUpdater.deviceVersion ?? BuddyCopy.shared.settingsCopy.firmwareUnknown)
                         .font(.buddy(11))
-                        .foregroundStyle(BuddyTheme.textSecondary)
+                        .foregroundStyle(BuddyTheme.inkSoft)
                 }
                 Spacer()
                 firmwareTrailingLabel
                 Image(systemName: "chevron.right")
                     .font(.caption2)
-                    .foregroundStyle(BuddyTheme.textSecondary)
+                    .foregroundStyle(BuddyTheme.inkSoft)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 12)
@@ -560,39 +552,39 @@ struct SettingsView: View {
         switch esp32Output.firmwareUpdater.state {
         case .available(let release, _):
             HStack(spacing: 4) {
-                Circle().fill(BuddyTheme.amber).frame(width: 6, height: 6)
+                Circle().fill(BuddyTheme.amberInk).frame(width: 6, height: 6)
                 Text(BuddyCopy.shared.settingsCopy.firmwareUpdateTemplate.replacingOccurrences(of: "{version}", with: release.version))
                     .font(.buddy(9.5, weight: .semibold))
-                    .foregroundStyle(BuddyTheme.amber)
+                    .foregroundStyle(BuddyTheme.amberInk)
             }
         case .upToDate:
             Text(BuddyCopy.shared.settingsCopy.upToDate)
                 .font(.buddy(11))
-                .foregroundStyle(BuddyTheme.textSecondary)
+                .foregroundStyle(BuddyTheme.inkSoft)
         case .downloading(let p), .uploading(let p, _):
             Text("\(Int(p * 100))%")
                 .font(.buddy(11))
-                .foregroundStyle(BuddyTheme.amber)
+                .foregroundStyle(BuddyTheme.amberInk)
         case .verifying, .rebooting:
             Text(BuddyCopy.shared.settingsCopy.updating)
                 .font(.buddy(11))
-                .foregroundStyle(BuddyTheme.amber)
+                .foregroundStyle(BuddyTheme.amberInk)
         case .success:
             Text(BuddyCopy.shared.settingsCopy.updated)
                 .font(.buddy(11))
-                .foregroundStyle(BuddyTheme.green)
+                .foregroundStyle(BuddyTheme.greenInk)
         case .checkFailed:
             Text(BuddyCopy.shared.settingsCopy.cantCheckNow)
                 .font(.buddy(11))
-                .foregroundStyle(BuddyTheme.textTertiary)
+                .foregroundStyle(BuddyTheme.inkFaint)
         case .failed:
             Text(BuddyCopy.shared.settingsCopy.failed)
                 .font(.buddy(11))
-                .foregroundStyle(BuddyTheme.stuckRed)
+                .foregroundStyle(BuddyTheme.clayInk)
         case .checking, .idle:
             Text(BuddyCopy.shared.settingsCopy.checking)
                 .font(.buddy(11))
-                .foregroundStyle(BuddyTheme.textTertiary)
+                .foregroundStyle(BuddyTheme.inkFaint)
         }
     }
 
@@ -630,7 +622,7 @@ struct SettingsView: View {
                     Spacer()
                     Text(AppMetadata.displayVersion)
                         .font(.buddy(13))
-                        .foregroundStyle(BuddyTheme.textSecondary)
+                        .foregroundStyle(BuddyTheme.inkSoft)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 12)
@@ -651,7 +643,7 @@ struct SettingsView: View {
                         Spacer()
                         Image(systemName: "arrow.triangle.2.circlepath")
                             .font(.caption)
-                            .foregroundStyle(BuddyTheme.textSecondary)
+                            .foregroundStyle(BuddyTheme.inkSoft)
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 12)
@@ -668,7 +660,7 @@ struct SettingsView: View {
                         Spacer()
                         Image(systemName: "arrow.up.right")
                             .font(.caption2)
-                            .foregroundStyle(BuddyTheme.textSecondary)
+                            .foregroundStyle(BuddyTheme.inkSoft)
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 12)
@@ -679,10 +671,10 @@ struct SettingsView: View {
 
                 HStack(alignment: .top, spacing: 8) {
                     Image(systemName: "lock")
-                        .foregroundStyle(BuddyTheme.textSecondary)
+                        .foregroundStyle(BuddyTheme.inkSoft)
                     Text(BuddyCopy.shared.settingsCopy.updatePrivacy)
                         .font(.buddy(11))
-                        .foregroundStyle(BuddyTheme.textSecondary)
+                        .foregroundStyle(BuddyTheme.inkSoft)
                     Spacer()
                 }
                 .padding(.horizontal, 12)
@@ -697,10 +689,11 @@ struct SettingsView: View {
                     if isExportingBugReport {
                         ProgressView()
                             .controlSize(.mini)
+                            .tint(BuddyTheme.inkSoft)
                     } else {
                         Image(systemName: "ladybug")
                             .font(.caption)
-                            .foregroundStyle(BuddyTheme.textSecondary)
+                            .foregroundStyle(BuddyTheme.inkSoft)
                     }
                     Text(BuddyCopy.shared.settingsCopy.exportBugReport)
                         .font(.buddy(13))
@@ -716,7 +709,7 @@ struct SettingsView: View {
 
             Text(BuddyCopy.shared.settingsCopy.localPrivacy)
                 .font(.buddy(11))
-                .foregroundStyle(BuddyTheme.textTertiary)
+                .foregroundStyle(BuddyTheme.inkFaint)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 2)
                 .padding(.vertical, 12)
@@ -771,12 +764,12 @@ struct SettingsView: View {
             HStack {
                 Text(title)
                     .font(.buddy(13))
-                    .foregroundStyle(role == .destructive ? BuddyTheme.stuckRed : BuddyTheme.textPrimary)
+                    .foregroundStyle(role == .destructive ? BuddyTheme.clay : BuddyTheme.ink)
                 Spacer()
                 if let systemImage {
                     Image(systemName: systemImage)
                         .font(.caption)
-                        .foregroundStyle(BuddyTheme.textSecondary)
+                        .foregroundStyle(BuddyTheme.inkSoft)
                 }
             }
             .padding(.horizontal, 12)
@@ -827,7 +820,7 @@ struct SettingsView: View {
             Spacer()
             Text(serverHealthLabel)
                 .font(.buddy(11))
-                .foregroundStyle(BuddyTheme.textSecondary)
+                .foregroundStyle(BuddyTheme.inkSoft)
                 .lineLimit(2)
                 .multilineTextAlignment(.trailing)
         }
@@ -856,7 +849,7 @@ struct SettingsView: View {
         case .listening:
             return BuddyTheme.green
         case .failed:
-            return BuddyTheme.stuckRed
+            return BuddyTheme.clay
         }
     }
 
@@ -928,7 +921,7 @@ private struct ApprovalModeExplainerSheet: View {
         VStack(alignment: .leading, spacing: 16) {
             Text(BuddyCopy.shared.settingsCopy.localApprovalModeSentence)
                 .font(.buddy(18, weight: .semibold))
-                .foregroundStyle(BuddyTheme.textPrimary)
+                .foregroundStyle(BuddyTheme.ink)
 
             VStack(alignment: .leading, spacing: 10) {
                 explainerRow(BuddyCopy.shared.settingsCopy.approvalExplainerRow1)
@@ -946,19 +939,19 @@ private struct ApprovalModeExplainerSheet: View {
         }
         .padding(22)
         .frame(width: 380)
-        .background(BuddyTheme.night)
-        .preferredColorScheme(.dark)
+        .background(BuddyTheme.paper)
+        .preferredColorScheme(.light)
     }
 
     private func explainerRow(_ text: String) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Circle()
-                .fill(BuddyTheme.amber)
+                .fill(BuddyTheme.amberInk)
                 .frame(width: 5, height: 5)
                 .padding(.top, 6)
             Text(text)
                 .font(.buddy(12))
-                .foregroundStyle(BuddyTheme.textSecondary)
+                .foregroundStyle(BuddyTheme.inkSoft)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }

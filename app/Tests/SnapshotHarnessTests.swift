@@ -4,7 +4,7 @@ import SwiftUI
 
 // MARK: - Snapshot / self-verification harness
 //
-// Renders the REAL SwiftUI views (PopoverView, SettingsView, PetStageView — no
+// Renders the REAL SwiftUI views (PopoverView, SettingsView, OnboardingView — no
 // reconstructions) in driven engine states to PNGs under /tmp/buddy-snapshots,
 // via NSHostingView, which lays out ScrollView content and draws live controls.
 // Also exercises the approval "button press" loop end to end. Disabled by
@@ -41,23 +41,23 @@ final class SnapshotHarnessTests: XCTestCase {
     private func snapshot<V: View>(_ view: V, _ name: String, _ size: CGSize) throws {
         // Render the REAL view hierarchy via NSHostingView (unlike ImageRenderer,
         // this lays out ScrollView content and draws live controls like switches).
-        // Composite over a dark backdrop — the popover chrome the app shows these
-        // views inside; the views themselves are transparent. This adds no view
-        // content, just the container background.
+        // Composite over paper — the popover chrome the app shows these views
+        // inside; the views themselves are transparent. This adds no view content,
+        // just the container background.
         let root = ZStack {
-            BuddyTheme.night
+            BuddyTheme.paper
             view
         }
         .frame(width: size.width, height: size.height)
-        .environment(\.colorScheme, .dark)
+        .environment(\.colorScheme, .light)
 
         let host = NSHostingView(rootView: AnyView(root))
-        host.appearance = NSAppearance(named: .darkAqua)
+        host.appearance = NSAppearance(named: .aqua)
         host.frame = CGRect(origin: .zero, size: size)
 
         let window = NSWindow(contentRect: host.frame, styleMask: [.borderless],
                               backing: .buffered, defer: false)
-        window.appearance = NSAppearance(named: .darkAqua)
+        window.appearance = NSAppearance(named: .aqua)
         window.contentView = host
         host.layoutSubtreeIfNeeded()
         RunLoop.main.run(until: Date().addingTimeInterval(0.15))   // let SwiftUI draw

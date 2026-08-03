@@ -29,7 +29,7 @@ struct PopoverView: View {
 
     var body: some View {
         ZStack {
-            BuddyTheme.night.ignoresSafeArea()
+            BuddyTheme.paper.ignoresSafeArea()
 
             Group {
                 if !setupCompleted {
@@ -66,11 +66,11 @@ struct PopoverView: View {
             VStack(spacing: 5) {
                 Text(BuddyCopy.Onboarding.finishMeeting)
                     .font(.buddy(15, weight: .semibold))
-                    .foregroundStyle(BuddyTheme.textPrimary)
+                    .foregroundStyle(BuddyTheme.ink)
                     .multilineTextAlignment(.center)
                 Text(BuddyCopy.Onboarding.finishMeetingSubtitle)
                     .font(.buddy(11))
-                    .foregroundStyle(BuddyTheme.textSecondary)
+                    .foregroundStyle(BuddyTheme.inkSoft)
                     .multilineTextAlignment(.center)
             }
 
@@ -81,7 +81,7 @@ struct PopoverView: View {
         }
         .padding(18)
         .frame(width: BuddyTheme.popoverWidth, height: 260)
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
     }
 
     // MARK: - Live View
@@ -94,7 +94,7 @@ struct PopoverView: View {
                 Spacer().frame(height: 6)
                 Text(BuddyCopy.Onboarding.menuHint)
                     .font(.buddy(9.5, weight: .semibold))
-                    .foregroundStyle(BuddyTheme.amber)
+                    .foregroundStyle(BuddyTheme.amberInk)
                     .transition(.opacity)
                     .task {
                         try? await Task.sleep(for: .seconds(4))
@@ -177,21 +177,22 @@ struct PopoverView: View {
         .frame(width: BuddyTheme.popoverWidth)
         .frame(minHeight: BuddyTheme.liveViewHeight)
         .animation(reduceMotion ? nil : .buddyEase(0.25), value: engine.state.prompt != nil)
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
     }
 
     private var statusPill: some View {
         HStack(spacing: 6) {
             Text(statusName)
                 .font(.buddy(11, weight: .semibold))
-                .foregroundStyle(BuddyTheme.textPrimary)
+                .foregroundStyle(BuddyTheme.ink)
 
             Text(engine.state.pet.state.rawValue)
                 .font(.buddy(9.5, weight: .semibold))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 2)
-                .background(stateColor.opacity(0.15), in: Capsule())
-                .foregroundStyle(stateColor)
+                .background(stateFill.opacity(0.18), in: Capsule())
+                .overlay(Capsule().strokeBorder(stateFill.opacity(0.35), lineWidth: BuddyTheme.hairlineWidth))
+                .foregroundStyle(stateInk)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(statusName), \(engine.state.pet.state.rawValue)")
@@ -206,21 +207,21 @@ struct PopoverView: View {
 
             Text(engine.state.desktop.status.rawValue)
                 .font(.buddy(11))
-                .foregroundStyle(BuddyTheme.textTertiary)
+                .foregroundStyle(BuddyTheme.inkFaint)
 
             Spacer()
 
             if engine.state.sessions.total > 0 {
                 Text(BuddyCopy.shared.popover.activeTemplate.replacingOccurrences(of: "{count}", with: "\(engine.state.sessions.running)"))
                     .font(.buddy(11))
-                    .foregroundStyle(BuddyTheme.textTertiary)
+                    .foregroundStyle(BuddyTheme.inkFaint)
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: BuddyTheme.wellCornerRadius)
-                .fill(BuddyTheme.textPrimary.opacity(0.03))
+                .fill(BuddyTheme.ink.opacity(0.03))
         )
         .accessibilityElement(children: .combine)
         .accessibilityLabel(connectionAccessibilityLabel)
@@ -233,7 +234,7 @@ struct PopoverView: View {
             Button(action: { showingSettings = true }) {
                 Image(systemName: "gearshape")
                     .font(.caption)
-                    .foregroundStyle(BuddyTheme.textSecondary)
+                    .foregroundStyle(BuddyTheme.inkSoft)
             }
             .buttonStyle(BuddyPlainButtonStyle())
             .accessibilityLabel(BuddyCopy.settings)
@@ -267,22 +268,13 @@ struct PopoverView: View {
             .replacingOccurrences(of: "{sessions}", with: sessions)
     }
 
-    private var stateColor: Color {
-        switch engine.state.pet.state {
-        case .attention: BuddyTheme.amber
-        case .busy: BuddyTheme.workGlow
-        case .celebrate: BuddyTheme.green
-        case .error: BuddyTheme.stuckRed
-        case .thinking: BuddyTheme.workGlow
-        case .heart: BuddyTheme.boopPink
-        default: BuddyTheme.textSecondary
-        }
-    }
+    private var stateInk: Color { BuddyTheme.stateInk(engine.state.pet.state) }
+    private var stateFill: Color { BuddyTheme.stateFill(engine.state.pet.state) }
 
     private var statusColor: Color {
         switch engine.state.desktop.status {
         case .connected: BuddyTheme.green
-        case .disconnected: BuddyTheme.textTertiary
+        case .disconnected: BuddyTheme.inkFaint
         }
     }
 }
@@ -294,11 +286,11 @@ private struct EmptyAgentsView: View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: "antenna.radiowaves.left.and.right")
                 .font(.system(.caption))
-                .foregroundStyle(BuddyTheme.textSecondary)
+                .foregroundStyle(BuddyTheme.inkSoft)
                 .padding(.top, 1)
             Text(BuddyCopy.shared.popover.emptyAgents)
                 .font(.buddy(11))
-                .foregroundStyle(BuddyTheme.textSecondary)
+                .foregroundStyle(BuddyTheme.inkSoft)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
@@ -307,7 +299,7 @@ private struct EmptyAgentsView: View {
         .padding(.bottom, 14)
         .background(
             RoundedRectangle(cornerRadius: BuddyTheme.wellCornerRadius)
-                .fill(BuddyTheme.textPrimary.opacity(0.03))
+                .fill(BuddyTheme.ink.opacity(0.03))
         )
         .accessibilityElement(children: .combine)
     }
@@ -319,11 +311,11 @@ private struct ServerWarningRow: View {
     var body: some View {
         HStack(spacing: 6) {
             Circle()
-                .fill(BuddyTheme.stuckRed)
+                .fill(BuddyTheme.clayInk)
                 .frame(width: 5, height: 5)
             Text(message)
                 .font(.buddy(11))
-                .foregroundStyle(BuddyTheme.stuckRed)
+                .foregroundStyle(BuddyTheme.clayInk)
                 .lineLimit(2)
             Spacer(minLength: 0)
         }
@@ -331,7 +323,7 @@ private struct ServerWarningRow: View {
         .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: BuddyTheme.wellCornerRadius)
-                .fill(BuddyTheme.stuckRed.opacity(0.08))
+                .fill(BuddyTheme.clay.opacity(0.08))
         )
         .accessibilityElement(children: .combine)
     }
@@ -344,10 +336,10 @@ private struct ErrorTrailerView: View {
         HStack(spacing: 6) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(.caption2))
-                .foregroundStyle(BuddyTheme.stuckRed)
+                .foregroundStyle(BuddyTheme.clayInk)
             Text(BuddyCopy.shared.popover.errorTrailerTemplate.replacingOccurrences(of: "{agent}", with: AgentKind(rawValue: errored.source)?.displayName ?? errored.source))
                 .font(.buddy(11))
-                .foregroundStyle(BuddyTheme.textSecondary)
+                .foregroundStyle(BuddyTheme.inkSoft)
                 .lineLimit(1)
             Spacer(minLength: 0)
         }
@@ -370,7 +362,7 @@ struct ToolCardView: View {
     var body: some View {
         HStack(spacing: 0) {
             RoundedRectangle(cornerRadius: BuddyTheme.accentBarRadius)
-                .fill(BuddyTheme.amber)
+                .fill(BuddyTheme.amberInk)
                 .frame(width: 3)
                 .accessibilityHidden(true)
 
@@ -379,7 +371,7 @@ struct ToolCardView: View {
                     if let source = prompt.source {
                         Text(sourceName(source))
                             .font(.buddy(11))
-                            .foregroundStyle(BuddyTheme.amber)
+                            .foregroundStyle(BuddyTheme.amberInk)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(BuddyTheme.amber.opacity(0.15), in: Capsule())
@@ -391,12 +383,12 @@ struct ToolCardView: View {
                     if waitingCount > 1 {
                         Text(BuddyCopy.shared.popover.moreWaitingTemplate.replacingOccurrences(of: "{count}", with: "\(waitingCount - 1)"))
                             .font(.buddy(9.5, weight: .semibold))
-                            .foregroundStyle(BuddyTheme.amber)
+                            .foregroundStyle(BuddyTheme.amberInk)
                     }
                     if let label = prompt.sessionLabel {
                         Text(label)
                             .font(.buddy(11))
-                            .foregroundStyle(BuddyTheme.textTertiary)
+                            .foregroundStyle(BuddyTheme.inkFaint)
                     }
                 }
 
@@ -407,11 +399,11 @@ struct ToolCardView: View {
                     HStack(spacing: 6) {
                         Image(systemName: prompt.activityKind.sfSymbol)
                             .font(.system(.caption2))
-                            .foregroundStyle(BuddyTheme.textTertiary)
+                            .foregroundStyle(BuddyTheme.inkFaint)
                             .accessibilityHidden(true)
                         Text(prompt.hint)
                             .font(.buddy(11))
-                            .foregroundStyle(BuddyTheme.textSecondary)
+                            .foregroundStyle(BuddyTheme.inkSoft)
                             .lineLimit(3)
                             .truncationMode(pathLikeHint ? .middle : .tail)
                     }
@@ -425,14 +417,14 @@ struct ToolCardView: View {
                                 if isHoveringActions {
                                     Text("⌫")
                                         .font(.buddy(11))
-                                        .foregroundStyle(BuddyTheme.textTertiary)
+                                        .foregroundStyle(BuddyTheme.inkFaint)
                                 }
                             }
                             .font(.buddy(11, weight: .semibold))
                             .padding(.horizontal, 12)
                             .padding(.vertical, 4)
-                            .background(BuddyTheme.stuckRed.opacity(0.15), in: Capsule())
-                            .foregroundStyle(BuddyTheme.stuckRed)
+                            .background(BuddyTheme.clay.opacity(0.15), in: Capsule())
+                            .foregroundStyle(BuddyTheme.clayInk)
                         }
                         .buttonStyle(BuddyPlainButtonStyle())
                         .keyboardShortcut(.delete, modifiers: [])
@@ -443,14 +435,14 @@ struct ToolCardView: View {
                                 if isHoveringActions {
                                     Text("↵")
                                         .font(.buddy(11))
-                                        .foregroundStyle(BuddyTheme.textTertiary)
+                                        .foregroundStyle(BuddyTheme.inkFaint)
                                 }
                             }
                             .font(.buddy(11, weight: .semibold))
                             .padding(.horizontal, 12)
                             .padding(.vertical, 4)
                             .background(BuddyTheme.amber.opacity(0.15), in: Capsule())
-                            .foregroundStyle(BuddyTheme.amber)
+                            .foregroundStyle(BuddyTheme.amberInk)
                         }
                         .buttonStyle(BuddyPlainButtonStyle())
                         .keyboardShortcut(.return, modifiers: [])
@@ -466,7 +458,7 @@ struct ToolCardView: View {
         }
         .background(
             RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
-                .fill(BuddyTheme.nightRaised2)
+                .fill(BuddyTheme.lantern)
         )
         .clipShape(RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius))
         .accessibilityElement(children: .combine)
@@ -508,7 +500,7 @@ struct CurrentActivityRow: View {
                 .accessibilityHidden(true)
             Text(displayLine)
                 .font(.buddy(11))
-                .foregroundStyle(BuddyTheme.textSecondary)
+                .foregroundStyle(BuddyTheme.inkSoft)
                 .lineLimit(1)
                 .truncationMode(pathLikeHint ? .middle : .tail)
             Spacer()
@@ -585,11 +577,11 @@ struct CurrentActivityRow: View {
     private var iconColor: Color {
         switch kind {
         case .verify: BuddyTheme.green
-        case .read: BuddyTheme.textSecondary
+        case .read: BuddyTheme.inkSoft
         case .write: BuddyTheme.amber
-        case .shell: BuddyTheme.textSecondary
+        case .shell: BuddyTheme.inkSoft
         case .web: BuddyTheme.amber
-        case .work: BuddyTheme.textTertiary
+        case .work: BuddyTheme.inkFaint
         }
     }
 }
@@ -603,7 +595,7 @@ struct ReviewCardView: View {
     var body: some View {
         HStack(spacing: 0) {
             RoundedRectangle(cornerRadius: BuddyTheme.accentBarRadius)
-                .fill(BuddyTheme.green)
+                .fill(BuddyTheme.greenInk)
                 .frame(width: 3)
                 .accessibilityHidden(true)
 
@@ -611,15 +603,15 @@ struct ReviewCardView: View {
                 HStack {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(.caption2))
-                        .foregroundStyle(BuddyTheme.green)
+                        .foregroundStyle(BuddyTheme.greenInk)
                     Text(headlineLabel)
                         .font(.buddy(11))
-                        .foregroundStyle(BuddyTheme.textSecondary)
+                        .foregroundStyle(BuddyTheme.inkSoft)
                     Spacer()
                     if let durationMs = completed.durationMs, durationMs >= 1000 {
                         Text(formatDuration(durationMs))
                             .font(.buddy(11))
-                            .foregroundStyle(BuddyTheme.textTertiary)
+                            .foregroundStyle(BuddyTheme.inkFaint)
                     }
                 }
 
@@ -627,7 +619,7 @@ struct ReviewCardView: View {
                     HStack(spacing: 6) {
                         Image(systemName: completed.activityKind.sfSymbol)
                             .font(.system(.caption2))
-                            .foregroundStyle(BuddyTheme.textSecondary)
+                            .foregroundStyle(BuddyTheme.inkSoft)
                             .accessibilityHidden(true)
                         Text(tool)
                             .font(.buddy(13, weight: .semibold))
@@ -637,7 +629,7 @@ struct ReviewCardView: View {
                 if let hint = completed.hint, !hint.isEmpty {
                     Text(hint)
                         .font(.buddy(11))
-                        .foregroundStyle(BuddyTheme.textSecondary)
+                        .foregroundStyle(BuddyTheme.inkSoft)
                         .lineLimit(2)
                 }
 
@@ -650,7 +642,7 @@ struct ReviewCardView: View {
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 3)
                                 .background(BuddyTheme.green.opacity(0.12), in: Capsule())
-                                .foregroundStyle(BuddyTheme.green)
+                                .foregroundStyle(BuddyTheme.greenInk)
                         }
                         .buttonStyle(BuddyPlainButtonStyle())
                     }
@@ -663,7 +655,7 @@ struct ReviewCardView: View {
         }
         .background(
             RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
-                .fill(BuddyTheme.nightRaised)
+                .fill(BuddyTheme.paperRaised)
         )
         .clipShape(RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius))
         .accessibilityElement(children: .combine)
@@ -700,7 +692,7 @@ struct ErrorCardView: View {
     var body: some View {
         HStack(spacing: 0) {
             RoundedRectangle(cornerRadius: BuddyTheme.accentBarRadius)
-                .fill(BuddyTheme.stuckRed)
+                .fill(BuddyTheme.clayInk)
                 .frame(width: 3)
                 .accessibilityHidden(true)
 
@@ -708,15 +700,15 @@ struct ErrorCardView: View {
                 HStack {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.system(.caption2))
-                        .foregroundStyle(BuddyTheme.stuckRed)
+                        .foregroundStyle(BuddyTheme.clayInk)
                     Text(headlineLabel)
                         .font(.buddy(11))
-                        .foregroundStyle(BuddyTheme.textSecondary)
+                        .foregroundStyle(BuddyTheme.inkSoft)
                     Spacer()
                     if let sessionLabel {
                         Text(sessionLabel)
                             .font(.buddy(11))
-                            .foregroundStyle(BuddyTheme.textTertiary)
+                            .foregroundStyle(BuddyTheme.inkFaint)
                     }
                 }
 
@@ -728,7 +720,7 @@ struct ErrorCardView: View {
                 if let hint, !hint.isEmpty {
                     Text(hint)
                         .font(.buddy(11))
-                        .foregroundStyle(BuddyTheme.textSecondary)
+                        .foregroundStyle(BuddyTheme.inkSoft)
                         .lineLimit(2)
                 }
 
@@ -740,8 +732,8 @@ struct ErrorCardView: View {
                                 .font(.buddy(9.5, weight: .semibold))
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 3)
-                                .background(BuddyTheme.stuckRed.opacity(0.12), in: Capsule())
-                                .foregroundStyle(BuddyTheme.stuckRed)
+                                .background(BuddyTheme.clay.opacity(0.12), in: Capsule())
+                                .foregroundStyle(BuddyTheme.clayInk)
                         }
                         .buttonStyle(BuddyPlainButtonStyle())
                     }
@@ -754,7 +746,7 @@ struct ErrorCardView: View {
         }
         .background(
             RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
-                .fill(BuddyTheme.nightRaised2)
+                .fill(BuddyTheme.lantern)
         )
         .clipShape(RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius))
         .accessibilityElement(children: .combine)
@@ -796,24 +788,24 @@ struct ThinkingRow: View {
             HStack(spacing: 6) {
                 Image(systemName: "brain")
                     .font(.system(.caption2))
-                    .foregroundStyle(BuddyTheme.amber)
+                    .foregroundStyle(BuddyTheme.amberInk)
                     .accessibilityHidden(true)
                 Text(BuddyCopy.thinking)
                     .font(.buddy(11, weight: .semibold))
-                    .foregroundStyle(BuddyTheme.textSecondary)
+                    .foregroundStyle(BuddyTheme.inkSoft)
                 if let tool = thinking.tool, !tool.isEmpty {
                     Text("·")
-                        .foregroundStyle(BuddyTheme.textTertiary)
+                        .foregroundStyle(BuddyTheme.inkFaint)
                     Text(tool)
                         .font(.buddy(11))
-                        .foregroundStyle(BuddyTheme.textPrimary)
+                        .foregroundStyle(BuddyTheme.ink)
                         .lineLimit(1)
                 }
                 Spacer()
                 if let elapsed = elapsed(at: timeline.date.timeIntervalSince1970 * 1000) {
                     Text(elapsed)
                         .font(.buddy(11))
-                        .foregroundStyle(BuddyTheme.textTertiary)
+                        .foregroundStyle(BuddyTheme.inkFaint)
                 }
             }
             .padding(.horizontal, 12)
@@ -863,15 +855,15 @@ struct SessionListView: View {
                         HStack(spacing: 4) {
                             Text(displayName(for: sess.source))
                                 .font(.buddy(11, weight: .semibold))
-                                .foregroundStyle(BuddyTheme.textPrimary)
+                                .foregroundStyle(BuddyTheme.ink)
                             Text(stateLabel(for: sess.state))
                                 .font(.buddy(11))
-                                .foregroundStyle(BuddyTheme.textSecondary)
+                                .foregroundStyle(BuddyTheme.inkSoft)
                         }
                         if let tool = sess.currentTool, !tool.isEmpty {
                             Text(tool)
                                 .font(.buddy(11))
-                                .foregroundStyle(BuddyTheme.textTertiary)
+                                .foregroundStyle(BuddyTheme.inkFaint)
                                 .lineLimit(1)
                                 .truncationMode(.middle)
                         }
@@ -880,7 +872,7 @@ struct SessionListView: View {
                     if let label = sess.sessionLabel, !label.isEmpty {
                         Text(label)
                             .font(.buddy(11))
-                            .foregroundStyle(BuddyTheme.textTertiary)
+                            .foregroundStyle(BuddyTheme.inkFaint)
                             .lineLimit(1)
                             .layoutPriority(1)
                     }
@@ -909,11 +901,11 @@ struct SessionListView: View {
 
     private func stateColor(for state: SessionState) -> Color {
         switch state {
-        case .working: return BuddyTheme.workGlow
-        case .idle: return BuddyTheme.textTertiary
+        case .working: return BuddyTheme.work
+        case .idle: return BuddyTheme.inkFaint
         case .needsConfirmation: return BuddyTheme.amber
-        case .errored: return BuddyTheme.stuckRed
-        case .thinking: return BuddyTheme.workGlow.opacity(0.6)
+        case .errored: return BuddyTheme.clay
+        case .thinking: return BuddyTheme.work.opacity(0.6)
         }
     }
 }
