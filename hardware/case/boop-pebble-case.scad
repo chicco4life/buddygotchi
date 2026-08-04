@@ -1,14 +1,17 @@
-// Boop Pebble case — Waveshare ESP32-S3-Touch-AMOLED-1.64
+// Boop Pebble case v2 — Waveshare ESP32-S3-Touch-AMOLED-1.64
 //
-// Round "pebble" enclosure: flat face + domed back, boop button on top,
-// screen window, menu/reject buttons below the screen.
+// Sitting-blob enclosure: the buddy rests on a flat bottom and its flat
+// face (screen + two buttons) tilts back so the screen looks up at you.
+// Big boop dome on the crown, soft domed back.
 //
 // Board facts (research/eng/waveshare-amoled-port.md):
 //   PCB 28.6 x 43.5 mm, 4x M2 holes at 22.86 x 38.50 mm spacing,
-//   display active area 22.3 x 36.1 mm. Board mounts LANDSCAPE
-//   (43.5 mm along X). USB-C exits on the LEFT (-X) side.
+//   display active area 22.3 x 36.1 mm. Board mounts LANDSCAPE.
+//   USB-C exits on the buddy's right (your left as you face it).
 //
-// Coordinates: face plane is z=0, interior is -z. +Y is up (boop side).
+// World coordinates: buddy sits on z=0, +z up, face toward +y (viewer).
+// Face-local coordinates (inside in_face()): face plane is z=0, +z out
+// of the screen toward the viewer, +y up the face; interior is -z.
 //
 // Select what to generate:
 //   part = "assembly" | "exploded" | "section" |
@@ -21,21 +24,29 @@ $fn = 96;
 display_stack = 2.5;  // glass+panel height above PCB front face
 standoff_h    = 2.7;  // display_stack + 0.2 breathing room
 board_thick   = 1.6;  // bare PCB thickness
-usb_w         = 11.5; // USB-C slot width (Y) — generous until measured
-usb_h         = 6.5;  // USB-C slot height (Z) — generous until measured
+usb_w         = 11.5; // USB-C slot width — generous until measured
+usb_h         = 6.5;  // USB-C slot height — generous until measured
 usb_z         = -7.75;// slot center depth — straddles PCB back face
-screen_dx     = 0;    // active-area offset along board long axis (X, toward
-                      // +X = away from USB). Likely NONZERO (FPC chin) — measure!
+screen_dx     = 0;    // active-area offset along board long axis. Likely
+                      // NONZERO (FPC chin) — measure!
+
+/* ---------- posture ---------- */
+tilt   = 25;                // face tilt back from vertical, degrees
+face_c = [0, 14, 30.5];     // world position of the face-disc center
 
 /* ---------- body ---------- */
-body_r   = 32;    // outer radius (64 mm wide)
-rim_r    = 8;     // rim roundover
-back_rxy = 29;    // back dome half-widths
-back_rz  = 11;    // back dome half-depth
-dome_cz  = -12;   // back dome center depth
+body_r   = 32;    // face-disc outer radius
+rim_r    = 8;     // face rim roundover
 face_t   = 2.6;   // front wall thickness
-cavity_r = 27.5;  // main cavity radius (board diagonal is 26.05)
-z_split  = -15;   // shell parting plane
+cavity_r = 27.5;  // front cavity radius (board diagonal is 26.05)
+z_split  = -15;   // shell parting plane (face-local)
+bot_ring = 17;    // flat bottom: torus ring radius (front edge must stay
+                  // behind the tilted face plane — bulges into it if bigger)
+bot_tube = 7;     //             torus tube radius
+back_c   = [0, -16, 22];  // back bulge sphere center
+back_r   = 16;            // back bulge sphere radius
+head_c   = [0, -10, 45];  // head sphere center (rounds the crown)
+head_r   = 15;            // head sphere radius
 
 /* ---------- board ---------- */
 board_w   = 43.5;
@@ -44,10 +55,10 @@ hole_dx   = 38.50 / 2;
 hole_dy   = 22.86 / 2;
 screen_w  = 36.1 + 1.4;  // window opening = active area + margin
 screen_h  = 22.3 + 1.4;
-board_z   = -face_t - standoff_h;  // PCB front face
+board_z   = -face_t - standoff_h;  // PCB front face (face-local)
 
 /* ---------- buttons ---------- */
-btn_x       = 8;      // face buttons at (+-btn_x, btn_y)
+btn_x       = 8;      // face buttons at (+-btn_x, btn_y), face-local
 btn_y       = -19;
 btn_hole_d  = 8.6;
 btn_head_d  = 8.2;
@@ -65,34 +76,49 @@ boss_r      = 25.2;   // boss centers; merges into cavity wall
 boss_d      = 6;
 pilot_d     = 1.7;    // M2 self-tapping pilot
 
-module ellipsoid(rxy, rz) { scale([1, 1, rz / rxy]) sphere(r = rxy); }
+// face-local -> world (also mirrors X: buddy's right = world +X)
+module in_face() {
+    translate(face_c) rotate([-(90 - tilt), 0, 0]) rotate([0, 0, 180])
+        children();
+}
+// world -> face-local, for print orientation
+module deface() {
+    rotate([0, 0, -180]) rotate([90 - tilt, 0, 0])
+        translate([-face_c[0], -face_c[1], -face_c[2]]) children();
+}
 
 module rim_torus(ring, tube)
     rotate_extrude() translate([ring, 0]) circle(r = tube);
 
-// flat face at z=0, rounded rim, domed back
+// flat tilted face, flat bottom, soft back bulge
 module body() {
     hull() {
-        translate([0, 0, -rim_r]) rim_torus(body_r - rim_r, rim_r);
-        translate([0, 0, dome_cz]) ellipsoid(back_rxy, back_rz);
+        in_face() translate([0, 0, -rim_r]) rim_torus(body_r - rim_r, rim_r);
+        translate([0, 0, bot_tube]) rim_torus(bot_ring, bot_tube);
+        translate(back_c) sphere(r = back_r);
+        translate(head_c) sphere(r = head_r);
     }
 }
 
-// cavity: cylinder under the face blending into a smaller back dome
+// cavity: known cylinder behind the face (board fit + lip registration)
+// blending into a hollow belly
 module interior() {
     hull() {
-        translate([0, 0, -face_t]) cylinder(r = cavity_r, h = 0.1);
-        translate([0, 0, z_split]) cylinder(r = cavity_r, h = 0.1);
-        translate([0, 0, dome_cz]) ellipsoid(25.5, 7);
+        in_face() translate([0, 0, -face_t]) cylinder(r = cavity_r, h = 0.1);
+        in_face() translate([0, 0, -16]) cylinder(r = cavity_r, h = 0.1);
+        translate([0, 0, face_t + bot_tube - 2.6])
+            rim_torus(bot_ring, bot_tube - 2.6);
+        translate(back_c) sphere(r = back_r - 2.6);
+        translate(head_c) sphere(r = head_r - 2.6);
     }
 }
 
-module slab(z0, z1) translate([-60, -60, z0]) cube([120, 120, z1 - z0]);
+module slab(z0, z1) translate([-70, -70, z0]) cube([140, 140, z1 - z0]);
 
 module rounded_rect(w, h, r)
     offset(r = r) square([w - 2 * r, h - 2 * r], center = true);
 
-// window with an outward chamfer for looks
+// window with an outward chamfer for looks (face-local)
 module screen_window() translate([screen_dx, 0, 0]) {
     hull() {
         translate([0, 0, 0.5]) linear_extrude(0.1)
@@ -111,60 +137,64 @@ module usb_slot() {
 
 module boop_axis() { translate([0, 0, -rim_r]) rotate([-90, 0, 0]) children(); }
 
-/* ================= front shell ================= */
+/* ================= front shell (faceplate) ================= */
 module front_shell() {
     difference() {
         union() {
             intersection() {
                 difference() { body(); interior(); }
-                slab(z_split, 1);
+                in_face() slab(z_split, 5);
             }
-            // board standoffs (M2 self-tap from the back of the PCB)
-            for (sx = [-1, 1], sy = [-1, 1])
-                translate([sx * hole_dx, sy * hole_dy, -face_t - standoff_h])
-                    cylinder(d = 4.2, h = standoff_h + 0.1);
-            // screw bosses, ribs merged into the cavity wall
-            for (a = boss_angles) rotate([0, 0, a])
-                translate([boss_r, 0, z_split]) cylinder(d = boss_d, h = 7);
+            in_face() {
+                // board standoffs (M2 self-tap from the back of the PCB)
+                for (sx = [-1, 1], sy = [-1, 1])
+                    translate([sx * hole_dx, sy * hole_dy, -face_t - standoff_h])
+                        cylinder(d = 4.2, h = standoff_h + 0.1);
+                // screw bosses, ribs merged into the cavity wall
+                for (a = boss_angles) rotate([0, 0, a])
+                    translate([boss_r, 0, z_split]) cylinder(d = boss_d, h = 7);
+                // pad to glue the boop tact switch onto (switch faces +Y)
+                translate([-5, 15.5, -13]) cube([10, 4, 10]);
+            }
             // boop guide tube with flange shoulder, trimmed to the body
             intersection() {
                 body();
-                boop_axis() difference() {
+                in_face() boop_axis() difference() {
                     translate([0, 0, 20]) cylinder(d = 18.5, h = 13);
                     translate([0, 0, 19.9]) cylinder(d = boop_flange_d + 0.6, h = 7.1);
                 }
             }
-            // pad to glue the boop tact switch onto (switch faces +Y)
-            translate([-5, 15.5, -13]) cube([10, 4, 10]);
         }
-        screen_window();
-        usb_slot();
-        // face button holes
-        for (s = [-1, 1])
-            translate([s * btn_x, btn_y, -face_t - 1])
-                cylinder(d = btn_hole_d, h = face_t + 2);
-        // boop bore through the rim
-        boop_axis() translate([0, 0, 18]) cylinder(d = boop_hole_d, h = 17);
-        // pilot holes for the shell screws
-        for (a = boss_angles) rotate([0, 0, a])
-            translate([boss_r, 0, z_split - 0.1]) cylinder(d = pilot_d, h = 7.6);
-        // pilot holes in the standoffs
-        for (sx = [-1, 1], sy = [-1, 1])
-            translate([sx * hole_dx, sy * hole_dy, -face_t - standoff_h - 0.1])
-                cylinder(d = pilot_d, h = standoff_h + 1.6);
+        in_face() {
+            screen_window();
+            usb_slot();
+            // face button holes
+            for (s = [-1, 1])
+                translate([s * btn_x, btn_y, -face_t - 1])
+                    cylinder(d = btn_hole_d, h = face_t + 2);
+            // boop bore through the rim/crown
+            boop_axis() translate([0, 0, 18]) cylinder(d = boop_hole_d, h = 25);
+            // pilot holes for the shell screws
+            for (a = boss_angles) rotate([0, 0, a])
+                translate([boss_r, 0, z_split - 0.1]) cylinder(d = pilot_d, h = 7.6);
+            // pilot holes in the standoffs
+            for (sx = [-1, 1], sy = [-1, 1])
+                translate([sx * hole_dx, sy * hole_dy, -face_t - standoff_h - 0.1])
+                    cylinder(d = pilot_d, h = standoff_h + 1.6);
+        }
     }
 }
 
-/* ================= back shell ================= */
+/* ================= back shell (body bowl) ================= */
 module back_shell() {
     difference() {
         union() {
             intersection() {
                 difference() { body(); interior(); }
-                slab(-30, z_split);
+                in_face() slab(-100, z_split);
             }
-            // registration lip, notched around the bosses
-            difference() {
+            // registration lip, notched around the front bosses
+            in_face() difference() {
                 translate([0, 0, z_split])
                     linear_extrude(2.4) difference() {
                         circle(r = cavity_r - 0.2);
@@ -173,53 +203,64 @@ module back_shell() {
                 for (a = boss_angles) rotate([0, 0, a])
                     translate([boss_r, 0, z_split - 1]) cylinder(d = boss_d + 1, h = 4.5);
             }
-            // pads to glue the face-button tact switches onto
-            for (s = [-1, 1])
-                translate([s * btn_x, btn_y, -17.5]) cylinder(d = 9, h = 4.5);
+            // screw towers from the back wall up to the parting plane
+            for (a = boss_angles) intersection() {
+                body();
+                in_face() rotate([0, 0, a])
+                    translate([boss_r, 0, -60]) cylinder(d = 6.5, h = 60 + z_split);
+            }
+            // columns to glue the face-button tact switches onto
+            for (s = [-1, 1]) intersection() {
+                body();
+                in_face() translate([s * btn_x, btn_y, -60]) cylinder(d = 9, h = 47);
+            }
         }
-        // shell screw through-holes + head counterbores
-        for (a = boss_angles) rotate([0, 0, a]) translate([boss_r, 0, 0]) {
-            translate([0, 0, -22]) cylinder(d = 2.4, h = 8);
-            translate([0, 0, -22]) cylinder(d = 4.6, h = 5.6);
+        // screw channels: driver reaches through the back of the blob
+        in_face() for (a = boss_angles) rotate([0, 0, a]) translate([boss_r, 0, 0]) {
+            translate([0, 0, -70]) cylinder(d = 2.4, h = 55.2);   // to -14.8
+            translate([0, 0, -70]) cylinder(d = 4.6, h = 53.5);   // head seat -16.5
         }
     }
 }
 
 /* ================= button caps ================= */
 // face cap: head rides in the face hole, flange retains it behind the wall,
-// stem reaches down to a tact switch glued on the back-shell pad
+// stem reaches down to a tact switch glued on the back-shell column (top -13)
 module face_cap() {
     cylinder(d = btn_head_d, h = face_t + 1.0);                    // head, ~1 mm proud
     translate([0, 0, -1.2]) cylinder(d = btn_flange_d, h = 1.3);   // flange
-    stem_tip = -13 + switch_body + switch_plunger + 0.3;           // pad top is z=-13
+    stem_tip = -13 + switch_body + switch_plunger + 0.3;
     translate([0, 0, stem_tip + face_t + 1.2])
         cylinder(d = 3.6, h = -stem_tip - face_t - 1.2 + 0.1);
 }
 
 // boop cap along its own +Z axis; shoulder in the guide tube retains it
 module boop_cap() {
-    translate([0, 0, 27]) cylinder(d = boop_head_d, h = 5.5);       // head
-    translate([0, 0, 32.5]) sphere(d = boop_head_d);                // big dome top
+    translate([0, 0, 27]) cylinder(d = boop_head_d, h = 9);         // head
+    translate([0, 0, 36]) sphere(d = boop_head_d);                  // big dome top
     translate([0, 0, 27 - 1.3]) cylinder(d = boop_flange_d, h = 1.4);
     translate([0, 0, 20.2]) cylinder(d = 5.5, h = 7);               // switch pusher
 }
 
 /* ================= dummy board (visualization only) ================= */
-module board_dummy() {
-    translate([0, 0, board_z]) {
-        color("darkgreen") translate([0, 0, -board_thick])
-            linear_extrude(board_thick) rounded_rect(board_w, board_h, 2);
-        color("black") linear_extrude(display_stack - 0.1)
-            rounded_rect(screen_w + 1, screen_h + 1, 1.5);
-    }
+module board_dummy() in_face() translate([0, 0, board_z]) {
+    color("darkgreen") translate([0, 0, -board_thick])
+        linear_extrude(board_thick) rounded_rect(board_w, board_h, 2);
+    color("black") linear_extrude(display_stack - 0.1)
+        rounded_rect(screen_w + 1, screen_h + 1, 1.5);
 }
 
 /* ================= scenes ================= */
 module caps_in_place() {
-    color("HotPink") boop_axis() boop_cap();
-    color("LightSkyBlue") translate([btn_x, btn_y, -face_t - 1.0 + cap_travel]) face_cap();
-    color("Salmon") translate([-btn_x, btn_y, -face_t - 1.0 + cap_travel]) face_cap();
+    color("HotPink") in_face() boop_axis() boop_cap();
+    color("LightSkyBlue") in_face()
+        translate([btn_x, btn_y, -face_t - 1.0 + cap_travel]) face_cap();
+    color("Salmon") in_face()
+        translate([-btn_x, btn_y, -face_t - 1.0 + cap_travel]) face_cap();
 }
+
+// face normal, for exploded views
+nrm = [0, cos(tilt), sin(tilt)];
 
 if (part == "assembly") {
     color("MediumPurple") front_shell();
@@ -227,12 +268,14 @@ if (part == "assembly") {
     caps_in_place();
     board_dummy();
 } else if (part == "exploded") {
-    color("MediumPurple") front_shell();
-    color("RebeccaPurple") translate([0, 0, -28]) back_shell();
-    color("HotPink") boop_axis() translate([0, 0, 18]) boop_cap();
-    color("LightSkyBlue") translate([btn_x, btn_y, 14]) face_cap();
-    color("Salmon") translate([-btn_x, btn_y, 14]) face_cap();
-    translate([0, 0, -14]) board_dummy();
+    translate(28 * nrm) { color("MediumPurple") front_shell(); }
+    color("RebeccaPurple") back_shell();
+    translate(50 * nrm) {
+        color("HotPink") in_face() boop_axis() translate([0, 0, 10]) boop_cap();
+        color("LightSkyBlue") in_face() translate([btn_x, btn_y, 12]) face_cap();
+        color("Salmon") in_face() translate([-btn_x, btn_y, 12]) face_cap();
+    }
+    translate(14 * nrm) board_dummy();
 } else if (part == "section") {
     difference() {
         union() {
@@ -241,14 +284,15 @@ if (part == "assembly") {
             caps_in_place();
             board_dummy();
         }
-        translate([0, -60, -35]) cube([70, 120, 45]);  // cut away +X half
+        translate([0, -70, -10]) cube([80, 140, 90]);  // cut away +X half
     }
 } else if (part == "front_shell") {
-    rotate([180, 0, 0]) front_shell();       // face down on the bed
+    rotate([180, 0, 0]) deface() front_shell();          // face down on the bed
 } else if (part == "back_shell") {
-    translate([0, 0, -z_split]) back_shell(); // parting plane on the bed
+    rotate([180, 0, 0]) translate([0, 0, -z_split])
+        deface() back_shell();                           // parting plane on the bed
 } else if (part == "boop_cap") {
-    translate([0, 0, -20.2]) boop_cap();       // pusher down — print WITH supports
+    translate([0, 0, -20.2]) boop_cap();                 // print WITH supports
 } else if (part == "face_cap") {
     translate([0, 0, face_t + 1.0]) rotate([180, 0, 0]) face_cap(); // head down
 }
