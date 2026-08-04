@@ -1,10 +1,18 @@
-# Boop Pebble Case v2 — sitting blob (form prototype)
+# Boop Pebble Case v3 — bao zi (form prototype)
 
 Desk-buddy enclosure for the Waveshare ESP32-S3-Touch-AMOLED-1.64
-("Boop Pebble"). The buddy sits on a flat bottom; the whole face —
-screen window, menu/reject caps below it, and the board behind — tilts
-back 25° from vertical so the screen looks up at you. Big boop dome on
-the crown, soft domed back. Roughly 64 mm wide × 62 mm tall × 58 mm deep.
+("Boop Pebble"). The body is a plump steamed-bun ellipsoid on a flat
+bottom, with the face — screen window, menu/reject caps below it, and
+the board behind — inset as a small pillowed facet that tilts back 25°
+from vertical so the screen looks up at you. A brow rolls over the top
+of the window, and the boop dome nestles in a dimple on the crown.
+Roughly 72 mm wide × 62 mm tall × 76 mm deep.
+
+Geometry gotcha for future edits: the brow sphere sits proud of the
+face plane, so the body hull "tents" the whole facet forward ~1.5 mm —
+face cuts (window, button holes) must punch well past local z=0, and
+anything added near the face plane should be checked with
+`part="section"` and the `shell_dbg` part.
 
 Everything is generated from `boop-pebble-case.scad` (OpenSCAD). Compiled
 STLs are in `stl/` (gitignored, regenerate below), renders in `renders/`.
@@ -73,7 +81,8 @@ openscad -q -D 'part="assembly"' --imgsize=1200,1000 --camera=0,0,26,72,0,180,21
   -o renders/assembly-face.png boop-pebble-case.scad
 ```
 
-`part` also accepts `assembly`, `exploded`, and `section`. The section
-view is the quickest sanity check on walls and button/switch geometry
-after changing parameters; the face plane is world-tilted, so eyeball new
+`part` also accepts `assembly`, `exploded`, `section`, and `shell_dbg`
+(hollow body only, face-on — for debugging the hull). The section view
+is the quickest sanity check on walls and button/switch geometry after
+changing parameters; the face plane is world-tilted, so eyeball new
 features there before printing.

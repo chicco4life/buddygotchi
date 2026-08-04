@@ -32,21 +32,22 @@ screen_dx     = 0;    // active-area offset along board long axis. Likely
 
 /* ---------- posture ---------- */
 tilt   = 25;                // face tilt back from vertical, degrees
-face_c = [0, 14, 30.5];     // world position of the face-disc center
+face_c = [0, 28, 30];       // world position of the face-facet center
 
-/* ---------- body ---------- */
-body_r   = 32;    // face-disc outer radius
-rim_r    = 8;     // face rim roundover
+/* ---------- body: a bao zi with a small face facet ---------- */
+body_r   = 31;    // face-facet outer radius (small — the bun dominates)
+rim_r    = 9;     // facet rim roundover
 face_t   = 2.6;   // front wall thickness
-cavity_r = 27.5;  // front cavity radius (board diagonal is 26.05)
+cavity_r = 26.6;  // front cavity radius (board diagonal is 26.05)
 z_split  = -15;   // shell parting plane (face-local)
-bot_ring = 17;    // flat bottom: torus ring radius (front edge must stay
-                  // behind the tilted face plane — bulges into it if bigger)
-bot_tube = 7;     //             torus tube radius
-back_c   = [0, -16, 22];  // back bulge sphere center
-back_r   = 16;            // back bulge sphere radius
-head_c   = [0, -10, 45];  // head sphere center (rounds the crown)
-head_r   = 15;            // head sphere radius
+bot_ring = 22;    // flat bottom: torus ring radius
+bot_tube = 8;     //             torus tube radius
+bun_c    = [0, -6, 34];        // bun ellipsoid center
+bun_s    = [36, 29, 28];       // bun semi-axes (the whole body)
+                  // bun front must stay behind the tilted face plane
+                  // (grazes at -0.3 mm near z=45) or it bulges into the window
+brow_c   = [0, 11.4, 45.4];    // brow sphere: the bao lip above the window
+brow_r   = 10;                 // pokes ~1.5 mm past the face plane, local y 21
 
 /* ---------- board ---------- */
 board_w   = 43.5;
@@ -59,7 +60,7 @@ board_z   = -face_t - standoff_h;  // PCB front face (face-local)
 
 /* ---------- buttons ---------- */
 btn_x       = 8;      // face buttons at (+-btn_x, btn_y), face-local
-btn_y       = -19;
+btn_y       = -18.5;
 btn_hole_d  = 8.6;
 btn_head_d  = 8.2;
 btn_flange_d= 11;
@@ -95,8 +96,8 @@ module body() {
     hull() {
         in_face() translate([0, 0, -rim_r]) rim_torus(body_r - rim_r, rim_r);
         translate([0, 0, bot_tube]) rim_torus(bot_ring, bot_tube);
-        translate(back_c) sphere(r = back_r);
-        translate(head_c) sphere(r = head_r);
+        translate(bun_c) scale([bun_s[0] / 29, 1, bun_s[2] / 29]) sphere(r = 29);
+        translate(brow_c) sphere(r = brow_r);  // solid brow; no inner shell
     }
 }
 
@@ -108,8 +109,7 @@ module interior() {
         in_face() translate([0, 0, -16]) cylinder(r = cavity_r, h = 0.1);
         translate([0, 0, face_t + bot_tube - 2.6])
             rim_torus(bot_ring, bot_tube - 2.6);
-        translate(back_c) sphere(r = back_r - 2.6);
-        translate(head_c) sphere(r = head_r - 2.6);
+        translate(bun_c) scale([bun_s[0] / 29, 1, bun_s[2] / 29]) sphere(r = 26.4);
     }
 }
 
@@ -118,21 +118,23 @@ module slab(z0, z1) translate([-70, -70, z0]) cube([140, 140, z1 - z0]);
 module rounded_rect(w, h, r)
     offset(r = r) square([w - 2 * r, h - 2 * r], center = true);
 
-// window with an outward chamfer for looks (face-local)
+// window with an outward chamfer for looks (face-local). The brow tents
+// the hull ~1.5 mm proud of the facet plane, so the cuts reach well past
+// z=0 to punch through the pillowed face cleanly.
 module screen_window() translate([screen_dx, 0, 0]) {
     hull() {
-        translate([0, 0, 0.5]) linear_extrude(0.1)
-            offset(delta = 1.4) rounded_rect(screen_w, screen_h, 2.5);
+        translate([0, 0, 2.5]) linear_extrude(0.1)
+            offset(delta = 3.9) rounded_rect(screen_w, screen_h, 2.5);
         translate([0, 0, -1.4]) linear_extrude(0.1)
             rounded_rect(screen_w, screen_h, 2.5);
     }
-    translate([0, 0, -face_t - 1]) linear_extrude(face_t + 1.5)
+    translate([0, 0, -face_t - 1]) linear_extrude(face_t + 6.5)
         rounded_rect(screen_w, screen_h, 2.5);
 }
 
 module usb_slot() {
-    translate([-33, 0, usb_z]) rotate([0, 90, 0])
-        linear_extrude(9) rounded_rect(usb_h, usb_w, 2);
+    translate([-36, 0, usb_z]) rotate([0, 90, 0])
+        linear_extrude(13) rounded_rect(usb_h, usb_w, 2);
 }
 
 module boop_axis() { translate([0, 0, -rim_r]) rotate([-90, 0, 0]) children(); }
@@ -171,7 +173,7 @@ module front_shell() {
             // face button holes
             for (s = [-1, 1])
                 translate([s * btn_x, btn_y, -face_t - 1])
-                    cylinder(d = btn_hole_d, h = face_t + 2);
+                    cylinder(d = btn_hole_d, h = face_t + 6);
             // boop bore through the rim/crown
             boop_axis() translate([0, 0, 18]) cylinder(d = boop_hole_d, h = 25);
             // pilot holes for the shell screws
@@ -285,6 +287,11 @@ if (part == "assembly") {
             board_dummy();
         }
         translate([0, -70, -10]) cube([80, 140, 90]);  // cut away +X half
+    }
+} else if (part == "shell_dbg") {
+    // hollow body only, no unions/cuts except the window — for debugging
+    rotate([180, 0, 0]) deface() difference() {
+        body(); interior(); in_face() screen_window();
     }
 } else if (part == "front_shell") {
     rotate([180, 0, 0]) deface() front_shell();          // face down on the bed
