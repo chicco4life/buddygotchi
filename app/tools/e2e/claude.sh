@@ -26,7 +26,7 @@ ev claude-code "{\"hook_event_name\":\"Notification\",\"notification_type\":\"id
 ev claude-code "{\"hook_event_name\":\"UserPromptSubmit\",\"session_id\":\"$CC\"}"                                                                       "UserPromptSubmit → busy"
 ev claude-code "{\"hook_event_name\":\"PermissionRequest\",\"session_id\":\"$CC\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"rm -rf build\"}}" "PermissionRequest → attention (passive tool card)"
 ev claude-code "{\"hook_event_name\":\"PostToolUse\",\"session_id\":\"$CC\"}"                                                                            "PostToolUse → clears card, busy"
-ev claude-code "{\"hook_event_name\":\"Notification\",\"notification_type\":\"permission_prompt\",\"message\":\"Allow?\",\"session_id\":\"$CC\"}"          "Notification:permission_prompt → attention (skipped if Local Approval Mode on)"
+V="$(version)"; post_event claude-code "{\"hook_event_name\":\"Notification\",\"notification_type\":\"permission_prompt\",\"message\":\"Allow?\",\"session_id\":\"$CC\"}"; settle; noadv "$V" "Notification:permission_prompt → ignored (PermissionRequest is authoritative)"
 ev claude-code "{\"hook_event_name\":\"Notification\",\"notification_type\":\"elicitation_dialog\",\"message\":\"Pick one\",\"session_id\":\"$CC\"}"       "Notification:elicitation_dialog → attention"
 ev claude-code "{\"hook_event_name\":\"Elicitation\",\"message\":\"Provide a value\",\"session_id\":\"$CC\"}"                                             "Elicitation → attention"
 ev claude-code "{\"hook_event_name\":\"ElicitationResult\",\"session_id\":\"$CC\"}"                                                                      "ElicitationResult → clears, busy"

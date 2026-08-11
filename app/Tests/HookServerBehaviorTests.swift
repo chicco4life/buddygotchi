@@ -34,37 +34,41 @@ final class HookServerBehaviorTests: XCTestCase {
         XCTAssertNil(shouldAutoApprove(tool: "Read", command: "", source: "claude-code"))
     }
 
+    /// PermissionRequest is the single source of truth for permission cards.
+    /// A permission_prompt Notification must NOT also raise one, or the same
+    /// permission shows up twice — the second card overwriting the first with a
+    /// poorer "permission_prompt"/message label.
     @MainActor
-    func testPermissionPromptUsesLiveApprovalModeProvider() async throws {
+    func testPermissionRequestCardWinsOverPermissionPromptNotification() async throws {
         let engine = BuddyEngine(config: testConfig())
-        let body = try decodeHookEvent("""
+
+        let permissionRequest = try decodeHookEvent("""
+        {
+          "session_id": "session-1",
+          "hook_event_name": "PermissionRequest",
+          "tool_name": "Bash",
+          "tool_input": { "command": "rm -rf build" },
+          "cwd": "/tmp/project"
+        }
+        """)
+        await handleAgentEvent(body: permissionRequest, source: "claude-code", hookPid: nil, engine: engine)
+        XCTAssertEqual(engine.state.prompt?.tool, "Bash")
+        XCTAssertEqual(engine.state.prompt?.hint, "rm -rf build")
+
+        // The redundant notification for the same dialog is ignored, so the
+        // richer PermissionRequest card is left intact.
+        let permissionPrompt = try decodeHookEvent("""
         {
           "session_id": "session-1",
           "hook_event_name": "Notification",
           "notification_type": "permission_prompt",
-          "message": "run shell command",
+          "message": "Allow?",
           "cwd": "/tmp/project"
         }
         """)
-
-        await handleAgentEvent(
-            body: body,
-            source: "claude-code",
-            hookPid: nil,
-            isApprovalModeEnabled: { true },
-            engine: engine
-        )
-        XCTAssertNil(engine.state.prompt)
-
-        await handleAgentEvent(
-            body: body,
-            source: "claude-code",
-            hookPid: nil,
-            isApprovalModeEnabled: { false },
-            engine: engine
-        )
-        XCTAssertEqual(engine.state.prompt?.tool, "permission_prompt")
-        XCTAssertEqual(engine.state.prompt?.hint, "run shell command")
+        await handleAgentEvent(body: permissionPrompt, source: "claude-code", hookPid: nil, engine: engine)
+        XCTAssertEqual(engine.state.prompt?.tool, "Bash")
+        XCTAssertEqual(engine.state.prompt?.hint, "rm -rf build")
     }
 
     private func decodeHookEvent(_ json: String) throws -> HookEventBody {

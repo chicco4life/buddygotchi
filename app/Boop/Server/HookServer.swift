@@ -98,8 +98,7 @@ private struct SignalRequestBody: Decodable, Sendable {
 
 func buildHookServer(
     engine: BuddyEngine,
-    config: BuddyConfig,
-    isApprovalModeEnabled: @escaping @Sendable () -> Bool
+    config: BuddyConfig
 ) -> Application<RouterResponder<BasicRequestContext>> {
     let router = Router()
     let diagLog = engine.diagnosticLog
@@ -127,7 +126,6 @@ func buildHookServer(
             body: body,
             source: source,
             hookPid: hookPid,
-            isApprovalModeEnabled: isApprovalModeEnabled,
             engine: engine
         )
         return emptyOK()
@@ -210,7 +208,6 @@ func handleAgentEvent(
     body: HookEventBody,
     source: String,
     hookPid: Int32?,
-    isApprovalModeEnabled: @escaping @Sendable () -> Bool,
     engine: BuddyEngine
 ) async {
     let sessionId = deriveSessionId(from: body, source: source)
@@ -255,10 +252,15 @@ func handleAgentEvent(
     case "Notification":
         switch body.notification_type {
         case "permission_prompt":
-            // Skip when approval mode is on — the hook script routes these to /hook/approve instead.
-            if isApprovalModeEnabled() { break }
-            let requestId = makeRequestId(sessionId: sessionId)
-            await engine.submitRequest(sessionId: sessionId, requestId: requestId, tool: body.notification_type ?? "Notification", hint: body.message ?? "", sessionLabel: sessionLabel)
+            // Intentionally ignored: PermissionRequest is authoritative for
+            // permission cards in both modes (it routes to /hook/approve when
+            // approval mode is on, and shows a passive card via /hook/event when
+            // off), and its payload carries the tool + command. The
+            // permission_prompt notification only duplicates that with a poorer
+            // label ("permission_prompt" / a generic message), so we no longer
+            // register or handle it. Left as an explicit no-op in case an older
+            // or hand-edited config still emits it.
+            break
         case "elicitation_dialog":
             let requestId = makeRequestId(sessionId: sessionId)
             await engine.submitRequest(sessionId: sessionId, requestId: requestId, tool: body.notification_type ?? "Notification", hint: body.message ?? "", sessionLabel: sessionLabel)

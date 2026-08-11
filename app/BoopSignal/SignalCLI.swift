@@ -84,9 +84,25 @@ private let cursorSignalMap: [String: String] = [
     "afterMCPExecution": "keep_working",
     "beforeShellExecution": "keep_working",
     "beforeMCPExecution": "keep_working",
-    "stop": "celebrate",
+    "afterFileEdit": "keep_working",
+    // `stop` is handled separately so its `status` field can steer the signal
+    // (see stopSignal). It is intentionally absent from this map.
     "sessionEnd": "session_end",
 ]
+
+/// Pick the signal for a Cursor `stop` event from its `status`.
+///
+/// Cursor's stop payload reports `"completed" | "aborted" | "error"`. Mapping
+/// every stop to `celebrate` (the old behavior) made the pet throw up the
+/// review/celebration surface even when the run actually failed. Only a real
+/// completion should celebrate; an errored turn goes to the error state.
+///
+/// `error` is used (not `stop_working`) on purpose: the server force-rewrites a
+/// cursor `stop_working` back to `celebrate` for backward compatibility with
+/// older helpers, so it is not a usable "quietly stop" channel here.
+private func stopSignal(status: String?) -> String {
+    status == "error" ? "error" : "celebrate"
+}
 
 private func parseAgentFlag() -> String {
     let args = CommandLine.arguments
@@ -150,7 +166,12 @@ struct SignalCLI {
             print("{\"permission\":\"allow\"}")
         }
 
-        guard let signal = cursorSignalMap[hookEvent] else {
+        let signal: String
+        if hookEvent == "stop" {
+            signal = stopSignal(status: hookInput["status"] as? String)
+        } else if let mapped = cursorSignalMap[hookEvent] {
+            signal = mapped
+        } else {
             log("unmapped event: \(hookEvent)")
             return
         }

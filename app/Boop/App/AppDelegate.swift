@@ -100,10 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         serverTask = Task {
             let app = buildHookServer(
                 engine: engine,
-                config: config,
-                isApprovalModeEnabled: {
-                    UserDefaults.standard.bool(forKey: DefaultsKey.approvalMode)
-                }
+                config: config
             )
             let group = ServiceGroup(
                 configuration: .init(

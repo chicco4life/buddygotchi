@@ -142,7 +142,7 @@ struct GeneratedTestRunner {
         await run("HookServerBehaviorTests.testApprovalResponsePassthroughEncodings") { let t = HookServerBehaviorTests(); try t.setUpWithError(); try await t.setUp(); t.testApprovalResponsePassthroughEncodings() }
         await run("HookServerBehaviorTests.testApprovalResponseDecisionEncodings") { let t = HookServerBehaviorTests(); try t.setUpWithError(); try await t.setUp(); t.testApprovalResponseDecisionEncodings() }
         await run("HookServerBehaviorTests.testShouldAutoApproveBehavior") { let t = HookServerBehaviorTests(); try t.setUpWithError(); try await t.setUp(); t.testShouldAutoApproveBehavior() }
-        await run("HookServerBehaviorTests.testPermissionPromptUsesLiveApprovalModeProvider") { let t = HookServerBehaviorTests(); try t.setUpWithError(); try await t.setUp(); try await t.testPermissionPromptUsesLiveApprovalModeProvider() }
+        await run("HookServerBehaviorTests.testPermissionRequestCardWinsOverPermissionPromptNotification") { let t = HookServerBehaviorTests(); try t.setUpWithError(); try await t.setUp(); try await t.testPermissionRequestCardWinsOverPermissionPromptNotification() }
         await run("InstanceLockTests.testSecondClaimOnSamePathLoses") { let t = InstanceLockTests(); try t.setUpWithError(); try await t.setUp(); t.testSecondClaimOnSamePathLoses() }
         await run("InstanceLockTests.testClaimIsIdempotentForTheHolder") { let t = InstanceLockTests(); try t.setUpWithError(); try await t.setUp(); t.testClaimIsIdempotentForTheHolder() }
         await run("InstanceLockTests.testReleaseHandsTheClaimToTheNextComer") { let t = InstanceLockTests(); try t.setUpWithError(); try await t.setUp(); t.testReleaseHandsTheClaimToTheNextComer() }

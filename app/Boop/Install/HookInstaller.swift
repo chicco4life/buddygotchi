@@ -743,18 +743,26 @@ final class HookInstaller {
         "Elicitation", "ElicitationResult",
     ]
 
+    // `permission_prompt` is deliberately absent: the dedicated PermissionRequest
+    // hook already covers permission cards in both modes with a richer payload,
+    // so registering the notification too only produced a duplicate, worse-labeled
+    // card. We still watch idle_prompt (idle nudge) and elicitation_dialog.
     private static let claudeNotificationMatchers = [
-        "permission_prompt", "idle_prompt", "elicitation_dialog",
+        "idle_prompt", "elicitation_dialog",
     ]
 
     private static let cursorEvents = [
         "sessionStart", "sessionEnd", "beforeSubmitPrompt", "stop",
         "beforeShellExecution", "beforeMCPExecution",
         "afterShellExecution", "afterMCPExecution",
+        // Without this, a turn that is mostly file edits (no shell, no MCP)
+        // sends nothing between beforeSubmitPrompt and stop, so the pet
+        // drifts toward the work-stall state while Cursor is busily editing.
+        "afterFileEdit",
     ]
 
     private static let codexEvents: [(event: String, matcher: String?, isApproval: Bool)] = [
-        ("SessionStart", "startup|resume", false),
+        ("SessionStart", "startup|resume|clear", false),
         ("UserPromptSubmit", nil, false),
         ("PermissionRequest", nil, true),
         ("PreToolUse", nil, false),
