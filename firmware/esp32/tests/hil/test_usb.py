@@ -151,6 +151,75 @@ def test_approval_usb(stick):
     assert '"decision":"allow"' in text
 
 
+def test_decision_confirmation_is_ack_driven(stick):
+    """"sent" must be earned, not assumed (resilience audit 2026-08).
+
+    A press latches responseSent but must NOT show the confirmation until a
+    live frame arrives WITHOUT the prompt id — the desktop clearing the id is
+    the acknowledgement. Before the ack the UI says "sending..."; after it,
+    confirmShowing flips on for a short beat.
+    """
+    send_json(stick, {"total": 1, "running": 0, "waiting": 1, "pet": "attention",
+                      "promptId": "ACK1", "promptTool": "Bash",
+                      "promptHint": "npm test", "promptApproval": True})
+    wait_state(stick, promptId="ACK1")
+    time.sleep(1.0)  # let the 600ms arming window pass
+    stick.write_line("press a 120")
+    stick.read_until(lambda b: b'"decision":"allow"' in b, 3)
+
+    # Decision latched, but no frame has cleared the prompt yet: in flight,
+    # no confirmation claimed.
+    got = wait_state(stick, responseSent=True)
+    assert got.get("confirmShowing") is not True
+
+    # The desktop acts on the decision: the next heartbeat carries no promptId.
+    send_json(stick, {"total": 1, "running": 1, "waiting": 0, "pet": "busy",
+                      "promptId": "", "promptApproval": False})
+    wait_state(stick, promptId="", confirmShowing=True)
+
+
+def test_stale_link_mid_prompt_drops_card_without_claiming_sent(stick):
+    """Kill the desktop mid-prompt: the card must clear within the 15s
+    staleness window and the pet must nap — and a decision pressed into the
+    dead link must NEVER show the post-ack confirmation (the old behavior
+    latched "yes! sent" while the frame went nowhere).
+
+    Slow by design (~16s): the staleness window itself is under test. The
+    `state` polls are plain serial commands, which deliberately do not count
+    as live frames.
+    """
+    send_json(stick, {"total": 1, "running": 0, "waiting": 1, "pet": "attention",
+                      "promptId": "STALE1", "promptTool": "Bash",
+                      "promptHint": "rm -rf build", "promptApproval": True})
+    wait_state(stick, promptId="STALE1")
+    time.sleep(1.0)
+    stick.write_line("press a 120")
+    stick.read_until(lambda b: b'"decision":"allow"' in b, 3)
+
+    # No further frames — the desktop is gone.
+    try:
+        s = {}
+        cleared = False
+        deadline = time.monotonic() + 22
+        while time.monotonic() < deadline:
+            s = state(stick)
+            assert s.get("confirmShowing") is not True, \
+                "confirmation claimed with no live frame after the decision"
+            if s.get("promptId") == "" and s.get("pet") == "sleep":
+                cleared = True
+                break
+            time.sleep(1.0)
+        if not cleared:
+            pytest.fail(f"prompt did not clear within the staleness window; last={s}")
+    finally:
+        # Restore a live link for whatever runs next: mockprompt-based tests
+        # cannot survive a stale link (dataPoll wipes the mock prompt as part
+        # of the disconnect cleanup this test just proved works).
+        send_json(stick, {"total": 0, "running": 0, "waiting": 0, "pet": "sleep",
+                          "promptId": "", "promptApproval": False})
+        wait_state(stick, connected=True)
+
+
 def test_button_edges(stick):
     stick.write_line("mockprompt")
     stick.read_until(lambda b: b"<<BTN mockprompt armed>>" in b, 2)
@@ -625,6 +694,14 @@ def test_approval_card_has_no_wait_counter(stick, landscape):
                       "promptApproval": True})
     wait_state(stick, promptId="req_nc", card=True)
     time.sleep(12)          # well past the 10s escalation threshold
+    # Keepalive, as a real desktop sends every 10s. Same id, so the change
+    # detector doesn't fire and the escalation clock keeps running — but the
+    # 15s link-staleness window (which would drop the card mid-assertion
+    # during the screenshot below) is refreshed.
+    send_json(stick, {"total": 1, "running": 0, "waiting": 1, "pet": "attention",
+                      "promptId": "req_nc", "promptTool": "Bash",
+                      "promptHint": "sleep 30", "promptSource": "claude-code",
+                      "promptApproval": True})
     got = state(stick)
     assert got["mood"] == "lantern"
     lo, hi = lit_range(stick, 2.0)

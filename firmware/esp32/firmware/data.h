@@ -39,7 +39,7 @@ struct TamaState {
 // ---------------------------------------------------------------------------
 // Three modes, checked in priority order:
 //   demo   → auto-cycle fake scenarios every 8s, ignore live data
-//   live   → JSON arrived in the last 10s over USB or BT
+//   live   → JSON arrived in the last 15s over USB or BT
 //   asleep → no data, all zeros, "no agents awake"
 // ---------------------------------------------------------------------------
 
@@ -62,8 +62,12 @@ inline void dataSetDemo(bool on) {
 }
 inline bool dataDemo() { return _demoMode; }
 
+// The desktop keepalive is 10s; 1.5x headroom, same rationale as
+// dataBtActive(). This used to be 30s, which left a dead desktop's approval
+// card on glass and ANSWERABLE for up to 30s — a press in that window
+// latched "yes!" while the decision went nowhere.
 inline bool dataConnected() {
-  return _lastLiveMs != 0 && (millis() - _lastLiveMs) <= 30000;
+  return _lastLiveMs != 0 && (millis() - _lastLiveMs) <= 15000;
 }
 
 // millis() of the last live frame, 0 if none since boot. The glance card
@@ -101,6 +105,15 @@ inline const char* dataScenarioName() {
 static bool _rtcValid = false;
 inline bool dataRtcValid() { return _rtcValid; }
 
+// Frame-loss telemetry, surfaced in the `state` reply alongside bleDrops.
+// A healthy link shows both at 0 forever; a climbing parseFails with a
+// napping pet is the "desktop sends frames the device can't read" failure
+// the Swift-side size cap exists to prevent.
+static uint32_t _parseFailCount = 0;     // deserializeJson rejected a line
+static uint32_t _lineOverflowCount = 0;  // line outgrew its buffer, discarded
+inline uint32_t dataParseFails() { return _parseFailCount; }
+inline uint32_t dataLineOverflows() { return _lineOverflowCount; }
+
 static void __attribute__((noinline)) _parsePrompt(JsonDocument& doc, TamaState* out) {
   const char* pid = doc["promptId"];
   const char* pt = doc["promptTool"];
@@ -122,7 +135,7 @@ static void __attribute__((noinline)) _parsePrompt(JsonDocument& doc, TamaState*
 
 static void _applyJson(const char* line, TamaState* out) {
   JsonDocument doc;
-  if (deserializeJson(doc, line)) return;
+  if (deserializeJson(doc, line)) { _parseFailCount++; return; }
   if (otaCommand(doc)) { _lastLiveMs = millis(); return; }
   if (xferCommand(doc)) { _lastLiveMs = millis(); return; }
 
@@ -185,11 +198,28 @@ template<size_t N>
 struct _LineBuf {
   char buf[N];
   uint16_t len = 0;
+  bool overflowed = false;
+  uint32_t lastByteMs = 0;
   void feed(Stream& s, TamaState* out) {
+    // A host killed mid-line (session ended, cable replugged) leaves a
+    // fragment here that would be glued onto the next session's first line,
+    // costing both. Bytes within one line arrive in milliseconds, so a long
+    // silent gap over a partial line means the line is never finishing.
+    if (len > 0 && lastByteMs != 0 && millis() - lastByteMs > 2000) {
+      len = 0;
+      overflowed = false;
+    }
     while (s.available()) {
       char c = s.read();
+      lastByteMs = millis();
       if (c == '\n' || c == '\r') {
-        if (len > 0) {
+        if (overflowed) {
+          // Never parse the truncated prefix of an oversize line — count it
+          // so the failure is visible in `state`, and resync on this newline.
+          _lineOverflowCount++;
+          overflowed = false;
+          len = 0;
+        } else if (len > 0) {
           buf[len]=0;
           if (buf[0]=='{') _applyJson(buf, out);
           else             handleSerialCommand(buf);
@@ -197,6 +227,8 @@ struct _LineBuf {
         }
       } else if (len < N-1) {
         buf[len++] = c;
+      } else {
+        overflowed = true;
       }
     }
   }
@@ -228,20 +260,27 @@ inline void dataPoll(TamaState* out) {
   // resends.
   static uint32_t _btLinkGen = 0;
   uint32_t gen = bleLinkGeneration();
-  if (gen != _btLinkGen) { _btLinkGen = gen; _btLine.len = 0; }
+  if (gen != _btLinkGen) { _btLinkGen = gen; _btLine.len = 0; _btLine.overflowed = false; }
   // BLE ring buffer is drained manually since it's not a Stream.
   while (bleAvailable()) {
     int c = bleRead();
     if (c < 0) break;
     _lastBtByteMs = millis();
     if (c == '\n' || c == '\r') {
-      if (_btLine.len > 0) {
+      if (_btLine.overflowed) {
+        // Same rule as _LineBuf::feed — a truncated prefix is not a frame.
+        _lineOverflowCount++;
+        _btLine.overflowed = false;
+        _btLine.len = 0;
+      } else if (_btLine.len > 0) {
         _btLine.buf[_btLine.len] = 0;
         if (_btLine.buf[0] == '{') _applyJson(_btLine.buf, out);
         _btLine.len = 0;
       }
     } else if (_btLine.len < sizeof(_btLine.buf) - 1) {
       _btLine.buf[_btLine.len++] = (char)c;
+    } else {
+      _btLine.overflowed = true;
     }
   }
 

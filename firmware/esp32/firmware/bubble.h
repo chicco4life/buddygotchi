@@ -167,12 +167,18 @@ inline void cardDraw(BuddyCanvas& spr, uint32_t now, const TamaState& s,
     else                                 spr.print(s.promptHint);
   }
 
-  // Link lost mid-prompt: a boop can't be delivered, so say so. The field
-  // stays lantern — the human is still needed, just not answerable here.
-  if (!s.connected) {
+  // Link aging mid-prompt: a decision pressed now may never be delivered,
+  // so say so. Age-keyed, not `!s.connected` — by the time connected flips
+  // false, dataPoll has already dropped the prompt and this card isn't
+  // drawn at all, so that branch could never render. Past 10s without a
+  // frame (the desktop keepalive interval) the link is genuinely late;
+  // staleness clears the card entirely at 15s. The field stays lantern —
+  // the human is still needed, just maybe not answerable here.
+  uint32_t lastLive = dataLastLiveMs();
+  if (lastLive != 0 && (int32_t)(now - lastLive) > 10000) {
     spr.setTextColor(MOOD_HOT, bg);
     spr.setCursor(CORNER_SAFE_X, H - CORNER_SAFE_Y - 9 * S);
-    spr.print("link lost!");
+    spr.print("link lost?");
   }
 
   // Button legends live at the SCREEN edges, not inside the card, because

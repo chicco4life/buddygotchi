@@ -86,6 +86,15 @@ bool     responseSent = false;
 // acts on a decision, so a prompt that is STILL arriving well after we
 // answered it means our answer never got there — see the re-offer below.
 uint32_t responseSentMs = 0;
+// Ack-driven decision feedback. "sent" used to be claimed on the press edge,
+// which was a lie whenever the link was down at press time — the frame was
+// never transmitted, yet the last thing the user saw was "yes! sent". Now the
+// press shows "sending...", and the confirmation ("yes!"/"okay") appears only
+// when a LIVE frame arrives without the prompt id — the desktop clearing the
+// id IS the acknowledgement. Set in the prompt change detector, shown by the
+// render path for a short beat.
+const uint32_t DECISION_CONFIRM_SHOW_MS = 1500;
+uint32_t decisionConfirmedUntil = 0;
 
 const uint8_t BRIGHT_DIM = 40;
 const uint8_t BRIGHT_MEDIUM = 120;
@@ -1068,6 +1077,10 @@ static void dumpState() {
   doc["earlyCrashes"] = guardEarlyCrashes();
   doc["safeTier"] = guardSafeTier();
   doc["bleDrops"] = bleRxDropped();
+  doc["parseFails"] = dataParseFails();
+  doc["lineOverflows"] = dataLineOverflows();
+  // For HIL: is the post-ack "yes!/okay sent" confirmation currently showing?
+  doc["confirmShowing"] = (int32_t)(decisionConfirmedUntil - millis()) > 0;
 
   Serial.print("<<STATE ");
   serializeJson(doc, Serial);
@@ -1630,6 +1643,17 @@ void loop() {
   updateDisplayPower(activeState);
 
   if (strcmp(tama.promptId, lastPromptId) != 0) {
+    // The id vanishing in a LIVE frame after our decision is the desktop's
+    // acknowledgement — only now may the UI claim "sent". The id also
+    // vanishes when link staleness drops the prompt (dataPoll), but then no
+    // frame has arrived since the press, dataLastLiveMs predates
+    // responseSentMs, and this stays quiet — that path must NOT read as
+    // delivered.
+    if (!tama.promptId[0] && responseSent && responseSentMs != 0 &&
+        (int32_t)(dataLastLiveMs() - responseSentMs) > 0) {
+      decisionConfirmedUntil = millis() + DECISION_CONFIRM_SHOW_MS;
+      Serial.println("<<PROMPT decision acknowledged>>");
+    }
     strncpy(lastPromptId, tama.promptId, sizeof(lastPromptId)-1);
     lastPromptId[sizeof(lastPromptId)-1] = 0;
     responseSent = false;
@@ -1940,10 +1964,15 @@ void loop() {
             spr.setTextColor(p.textDim, p.bg);
             _cardWrap(spr, tama.promptHint, 4, y + 24, y + 36, CPL);
           }
-          if (!tama.connected) {
+          // Age-keyed, not `!tama.connected`: by the time connected flips
+          // false dataPoll has already dropped the prompt, so that branch
+          // could never render. Past 10s without a frame (keepalive is 10s)
+          // the link is genuinely late; staleness clears the card at 15s.
+          uint32_t lastLive = dataLastLiveMs();
+          if (lastLive != 0 && (int32_t)(nowMs - lastLive) > 10000) {
             spr.setTextColor(HOT, p.bg);
             spr.setCursor(4 * S, H - 10 * S);
-            spr.print("link lost!");
+            spr.print("link lost?");
           } else {
             spr.setTextColor(hot ? HOT : p.textDim, p.bg);
             spr.setCursor(4 * S, H - 10 * S);
@@ -1955,12 +1984,33 @@ void loop() {
           spr.setTextDatum(TL_DATUM);
         }
       } else if (tama.promptId[0] && tama.promptApproval && responseSent) {
-        // Decision feedback until the desktop clears the prompt. Deny is
-        // deliberately neutral — the pet approves of good catches too.
+        // Decision in flight: the desktop hasn't cleared the prompt yet, so
+        // we do NOT know it heard us — claiming "sent" here was how a press
+        // with the link down ended on a false success. Neutral "sending...",
+        // turning hot once the frame that should have cleared it is overdue.
+        // Exits happen for us: the ack flips this to the confirmation branch
+        // below, the 10s re-offer brings the card back, and 15s staleness
+        // drops the whole thing to the nap + link glyph.
+        bool overdue = (int32_t)(nowMs - responseSentMs) > 3000;
         if (HAL_LANDSCAPE) {
-          // A small bubble in Night mode, refreshed each frame so it lasts
-          // exactly as long as the prompt does (§7). The field is busy
-          // snuffing or fading underneath; the bubble rides on top of it.
+          bubbleShow(overdue ? "no link?" : "sending...", nowMs, 400,
+                     overdue ? HOT : 0);
+        } else {
+          spr.fillRect(0, y, W, H - y, p.bg);
+          spr.setTextDatum(MC_DATUM);
+          spr.setTextSize(2 * S);
+          spr.setTextColor(overdue ? HOT : p.text, p.bg);
+          spr.drawString(lastDecisionApprove ? "yes?" : "okay?", W / 2, y + 24 * S);
+          spr.setTextSize(S);
+          spr.setTextColor(overdue ? HOT : p.textDim, p.bg);
+          spr.drawString(overdue ? "no link?" : "sending...", W / 2, y + 48 * S);
+          spr.setTextDatum(TL_DATUM);
+        }
+      } else if ((int32_t)(decisionConfirmedUntil - nowMs) > 0) {
+        // The desktop acknowledged the decision (a live frame arrived with
+        // the prompt gone) — NOW "sent" is true. Deny is deliberately
+        // neutral: the pet approves of good catches too.
+        if (HAL_LANDSCAPE) {
           bubbleShow(lastDecisionApprove ? "yes!" : "okay", nowMs, 400,
                      lastDecisionApprove ? GREEN : 0);
         } else {
