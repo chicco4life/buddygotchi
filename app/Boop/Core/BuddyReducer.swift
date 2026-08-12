@@ -9,10 +9,14 @@ struct InternalState: Sendable, Equatable {
     var celebrateDurationMs: Double
     var workStallTimeoutMs: Double
     var approvalTimeoutMs: Double
+    /// Sessions whose agent host process has a live exit watcher. Fed by
+    /// `.processWatchChanged`; exempt from the stale-activity reap because the
+    /// watcher reports death definitively — silence is not evidence.
+    var watchedSessionIds: Set<String> = []
 
     var version: Int { buddy.version }
 
-    static func initial(staleMs: Double, celebrateDurationMs: Double, workStallTimeoutMs: Double = 300_000, approvalTimeoutMs: Double = 300_000) -> InternalState {
+    static func initial(staleMs: Double, celebrateDurationMs: Double, workStallTimeoutMs: Double = 300_000, approvalTimeoutMs: Double = 290_000) -> InternalState {
         InternalState(buddy: .initial, sessions: [:], staleMs: staleMs, celebrateDurationMs: celebrateDurationMs, workStallTimeoutMs: workStallTimeoutMs, approvalTimeoutMs: approvalTimeoutMs)
     }
 }
@@ -46,6 +50,12 @@ private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> Interna
         return handleApprovalArrived(state, at: at, sessionId: sessionId, requestId: requestId, tool: tool, hint: hint, sessionLabel: sessionLabel, source: source)
     case .approvalResolved(let at, let sessionId, let requestId, let decision):
         return handleApprovalResolved(state, at: at, sessionId: sessionId, requestId: requestId, decision: decision)
+    case .approvalAbandoned(let at, let sessionId, let requestId):
+        return handleApprovalAbandoned(state, at: at, sessionId: sessionId, requestId: requestId)
+    case .processWatchChanged(_, let watchedSessionIds):
+        var s = state
+        s.watchedSessionIds = watchedSessionIds
+        return s
     case .speciesChanged(_, let species):
         return handleSpeciesChanged(state, species: species)
     case .boopArrived(let at):
@@ -153,6 +163,13 @@ private func handleActivitySignal(_ state: InternalState, at: Double, sessionId:
             s.sessions[sessionId]?.currentActivityKind = activityKind(tool: tool, hint: hint ?? "")
         }
     case .stopWorking:
+        // Same rule as start/keepWorking above: a parked approval still has a
+        // hook blocked on it, so an idle notification (e.g. Claude Code's
+        // idle_prompt firing mid-wait) must not withdraw the card — that would
+        // silently passthrough the blocked caller.
+        if hasBlockingApproval(s.sessions[sessionId]) {
+            return s
+        }
         s.sessions[sessionId]?.state = .idle
         s.sessions[sessionId]?.prompt = nil
         s.sessions[sessionId]?.workStartedAt = nil
@@ -251,7 +268,12 @@ private func handleStaleTick(_ state: InternalState, now: Double) -> InternalSta
         changed = true
     }
 
-    let staleIds = s.sessions.filter { now - $0.value.lastActivityAt > s.staleMs }.map(\.key)
+    // Supervised sessions (live process watcher) are exempt: the watcher
+    // delivers sessionEnded the instant the agent host exits, so a quiet
+    // 15-minute build shouldn't make the pet give up and sleep.
+    let staleIds = s.sessions.filter {
+        now - $0.value.lastActivityAt > s.staleMs && !s.watchedSessionIds.contains($0.key)
+    }.map(\.key)
     for id in staleIds {
         s.sessions.removeValue(forKey: id)
         changed = true
@@ -288,6 +310,25 @@ private func handleApprovalResolved(_ state: InternalState, at: Double, sessionI
         }
         s.sessions[sessionId]?.lastWorkSignalAt = at
     }
+    return s
+}
+
+/// The hook that was waiting on this approval is gone — its HTTP request was
+/// cancelled (agent killed, curl timed out, or the agent's own hook timeout
+/// fired and it fell back to its native prompt). The card must come down NOW:
+/// leaving it up invites the user to "approve" something nobody can act on,
+/// while the terminal is already showing the real prompt.
+private func handleApprovalAbandoned(_ state: InternalState, at: Double, sessionId: String, requestId: String) -> InternalState {
+    guard let session = state.sessions[sessionId],
+          session.state == .needsConfirmation,
+          session.prompt?.id == requestId else {
+        // Already superseded, resolved, or expired — nothing to withdraw.
+        return state
+    }
+    var s = state
+    s.sessions[sessionId]?.prompt = nil
+    s.sessions[sessionId]?.state = .idle
+    s.sessions[sessionId]?.lastActivityAt = at
     return s
 }
 

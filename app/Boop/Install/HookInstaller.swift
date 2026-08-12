@@ -90,7 +90,15 @@ enum HookInstallError: Error, LocalizedError {
 final class HookInstaller {
     static let shared = HookInstaller()
 
-    static let hookSchemaVersion = 4
+    static let hookSchemaVersion = 5
+
+    /// The approval timeout chain, outermost first:
+    ///   registered hook timeout (310s) > curl --max-time (300s) > reducer
+    ///   approvalTimeoutMs (290s, Config.swift).
+    /// Each layer must outlive the one below it so the card always dies
+    /// before its caller does — see ResilienceTests.testApprovalTimeoutChain.
+    static let registeredApprovalHookTimeoutSeconds = 310
+    static let approvalCurlMaxTimeSeconds = 300
 
     private static let hookScriptName = "boop-hook.sh"
 
@@ -232,7 +240,7 @@ final class HookInstaller {
         hooks = removeLegacyHooks(from: hooks)
 
         let cmdHook = commandHook(command: scriptCommand(for: .claudeCode), timeout: 5)
-        let approvalHook = commandHook(command: scriptCommand(for: .claudeCode), timeout: 310)
+        let approvalHook = commandHook(command: scriptCommand(for: .claudeCode), timeout: Self.registeredApprovalHookTimeoutSeconds)
 
         for event in Self.claudePlainEvents {
             hooks[event] = addingNestedHook(to: hooks[event], matcher: nil, hook: cmdHook)
@@ -278,7 +286,7 @@ final class HookInstaller {
         hooks = removeLegacyHooks(from: hooks)
 
         let cmdHook = commandHook(command: scriptCommand(for: .codex), timeout: 5)
-        let approvalHook = commandHook(command: scriptCommand(for: .codex), timeout: 310)
+        let approvalHook = commandHook(command: scriptCommand(for: .codex), timeout: Self.registeredApprovalHookTimeoutSeconds)
         for spec in Self.codexEvents {
             hooks[spec.event] = addingNestedHook(
                 to: hooks[spec.event],
@@ -582,7 +590,7 @@ final class HookInstaller {
 
     // MARK: - Script and helper
 
-    private static let hookScriptContent = """
+    static let hookScriptContent = """
         #!/bin/bash
         # boop-hook v\(hookSchemaVersion) - managed by Boop.app; edits are overwritten on repair
         SOURCE="${1:-claude-code}"
@@ -598,13 +606,22 @@ final class HookInstaller {
         [ -z "$TOKEN" ] && exit 0
         EVENT=$(echo "$BODY" | grep -o '"hook_event_name" *: *"[^"]*"' | head -1 | grep -o '"[^"]*"$' | tr -d '"')
         if [ -n "$APPROVAL" ] && [ "$EVENT" = "PermissionRequest" ]; then
-            RESPONSE=$(curl -s --noproxy '*' \\
+            # Prove the server is actually answering before committing to the
+            # 300s wait below. A crashed app refuses connections in
+            # milliseconds, but a hung app still holding the listener would
+            # otherwise block the agent for the full five minutes with no card
+            # ever shown. Can't answer /healthz in 2s -> fail open now.
+            curl -sf -o /dev/null --noproxy '*' \\
+                "http://127.0.0.1:${PORT}/healthz" \\
+                --connect-timeout 2 --max-time 2 2>/dev/null || exit 0
+            # -f: a non-2xx must never have its body relayed as hook output.
+            RESPONSE=$(curl -sf --noproxy '*' \\
                 -X POST "http://127.0.0.1:${PORT}/hook/approve?source=${SOURCE}&pid=$$" \\
                 -H "Content-Type: application/json" \\
                 -H "X-Boop-Token: ${TOKEN}" \\
                 -d "$BODY" \\
                 --connect-timeout 2 \\
-                --max-time 300 2>/dev/null)
+                --max-time \(approvalCurlMaxTimeSeconds) 2>/dev/null)
             if [ $? -eq 0 ] && [ -n "$RESPONSE" ]; then
                 echo "$RESPONSE"
             fi

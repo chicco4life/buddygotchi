@@ -4,7 +4,12 @@ import Security
 struct BuddyConfig: Sendable {
     var httpPort: Int
     var staleTimeoutMs: Double
-    var approvalTimeoutMs: Double = 300_000
+    /// Deliberately BELOW the hook script's curl `--max-time 300` (which is in
+    /// turn below the registered hook timeout of 310s): each layer's wait must
+    /// outlive the layer below so the card always dies before its caller does.
+    /// At 300==300 the server resolved expired prompts into an already-closed
+    /// socket and a button press in the final seconds was silently lost.
+    var approvalTimeoutMs: Double = 290_000
     var celebrateDurationMs: Double
     var workStallTimeoutMs: Double
     var stateDir: String
@@ -14,7 +19,7 @@ struct BuddyConfig: Sendable {
     static let `default`: BuddyConfig = {
         let stateDir = defaultStateDir()
         let (port, approvalMode, token) = readOrCreateConfig(stateDir: stateDir)
-        return BuddyConfig(httpPort: port, staleTimeoutMs: 600_000, approvalTimeoutMs: 300_000, celebrateDurationMs: 4000, workStallTimeoutMs: 300_000, stateDir: stateDir, approvalMode: approvalMode, token: token)
+        return BuddyConfig(httpPort: port, staleTimeoutMs: 600_000, approvalTimeoutMs: 290_000, celebrateDurationMs: 4000, workStallTimeoutMs: 300_000, stateDir: stateDir, approvalMode: approvalMode, token: token)
     }()
 
     nonisolated(unsafe) private(set) static var recreatedCorruptConfig = false

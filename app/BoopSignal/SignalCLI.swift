@@ -39,8 +39,30 @@ private final class LockedString: @unchecked Sendable {
     }
 }
 
+/// A 2s proof-of-life before committing to the 300s approval wait. A crashed
+/// app refuses connections instantly, but a hung app still holding the
+/// listener would block Cursor for the full five minutes with no card shown.
+private func serverIsResponding(config: SignalConfig) -> Bool {
+    guard let url = URL(string: "http://127.0.0.1:\(config.port)/healthz") else { return false }
+    var request = URLRequest(url: url)
+    request.timeoutInterval = 2
+    let ok = LockedString()
+    let semaphore = DispatchSemaphore(value: 0)
+    let task = URLSession.shared.dataTask(with: request) { _, response, error in
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        if error == nil, (200..<300).contains(status) {
+            ok.set("ok")
+        }
+        semaphore.signal()
+    }
+    task.resume()
+    _ = semaphore.wait(timeout: .now() + 2)
+    return ok.get() != nil
+}
+
 private func postApproval(config: SignalConfig, agentId: String, body: Data) -> String? {
     guard let token = config.token, !token.isEmpty else { return nil }
+    guard serverIsResponding(config: config) else { return nil }
     let urlString = "http://127.0.0.1:\(config.port)/hook/approve?source=\(agentId)"
     guard let url = URL(string: urlString) else { return nil }
     var request = URLRequest(url: url)
@@ -158,14 +180,6 @@ struct SignalCLI {
             return
         }
 
-        defer {
-            // Cursor requires a permission response for non-blocking hooks; this
-            // is protocol plumbing, not an approval decision. Safe as "allow"
-            // only because these events fire after the fact (afterShellExecution,
-            // stop, sessionEnd) and gate nothing.
-            print("{\"permission\":\"allow\"}")
-        }
-
         let signal: String
         if hookEvent == "stop" {
             signal = stopSignal(status: hookInput["status"] as? String)
@@ -173,7 +187,24 @@ struct SignalCLI {
             signal = mapped
         } else {
             log("unmapped event: \(hookEvent)")
+            // An event this build doesn't know could gate anything — Cursor
+            // may have added it after we shipped. "ask" is the only answer
+            // that can't approve an action unseen; events that gate nothing
+            // ignore the field. (The old default-"allow" defer fired here
+            // too, which was one registry edit away from silently approving
+            // a new gating event.)
+            print("{\"permission\":\"ask\"}")
             return
+        }
+
+        defer {
+            // Cursor requires a permission response for non-blocking hooks; this
+            // is protocol plumbing, not an approval decision. Safe as "allow"
+            // only because every event that reaches here fires after the fact
+            // (afterShellExecution, afterFileEdit, stop, sessionEnd) and gates
+            // nothing — the gating ones were handled above, unmapped ones
+            // answered "ask".
+            print("{\"permission\":\"allow\"}")
         }
 
         log("\(hookEvent) -> \(signal)")

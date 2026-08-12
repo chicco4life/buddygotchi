@@ -120,6 +120,29 @@ parked_approve() { # src body resolver_fn expect
   fi
 }
 
+# A hook whose curl dies mid-wait (agent killed, hook timeout fired) must
+# have its card withdrawn: HookServer watches the connection's closeFuture
+# and applies the abandonment as a reducer event. Observable over HTTP as
+# stateVersion advancing again after the client hangs up, with no new input.
+# This is the one approval path unit tests cannot reach — it needs a real
+# TCP close against the real server.
+abandoned_approve() { # src body
+  local src="$1" body="$2" v1 v2 cpid
+  "${CURL[@]}" --max-time 1 -X POST "${BASE}/hook/approve?source=${src}" \
+    "${AUTH[@]}" -H 'Content-Type: application/json' -d "$body" >/dev/null 2>&1 &
+  cpid=$!
+  sleep 0.5
+  v1="$(version)"           # approvalArrived applied; curl still parked
+  wait "$cpid" 2>/dev/null  # curl gives up at 1s — this is the hang-up
+  sleep 0.7                 # let the close propagate and the abandon apply
+  v2="$(version)"
+  if [ -n "$v1" ] && [ -n "$v2" ] && [ "$v2" -gt "$v1" ]; then
+    ok "client hang-up withdrew the parked approval  (v${v1}→v${v2})"
+  else
+    bad "client hang-up did not change state — card stays up until timeout (v${v1:-?}→v${v2:-?})"
+  fi
+}
+
 require_app() {
   local h; h="$(health)"
   if [ -z "$h" ]; then

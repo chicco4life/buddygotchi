@@ -24,6 +24,15 @@ enum BuddyEvent: Sendable {
 
     case approvalArrived(at: Double, sessionId: String, requestId: String, tool: String, hint: String, sessionLabel: String?, source: String?)
     case approvalResolved(at: Double, sessionId: String, requestId: String, decision: ApprovalDecision)
+    /// The hook that was blocked on this approval is gone (its HTTP request was
+    /// cancelled). Nobody can receive an answer any more, so the card must not
+    /// keep asking for one.
+    case approvalAbandoned(at: Double, sessionId: String, requestId: String)
+    /// Which sessions currently have a live process watcher on their agent
+    /// host. Supervised sessions are exempt from the stale-activity reap: the
+    /// watcher delivers a definitive `sessionEnded` the moment the process
+    /// exits, so silence alone is not evidence of death.
+    case processWatchChanged(at: Double, watchedSessionIds: Set<String>)
     case speciesChanged(at: Double, species: String)
     case boopArrived(at: Double)
 
@@ -40,6 +49,8 @@ enum BuddyEvent: Sendable {
              .staleTick(let at),
              .approvalArrived(let at, _, _, _, _, _, _),
              .approvalResolved(let at, _, _, _),
+             .approvalAbandoned(let at, _, _),
+             .processWatchChanged(let at, _),
              .speciesChanged(let at, _),
              .boopArrived(let at),
              .reviewDismissed(let at),
@@ -58,6 +69,8 @@ enum BuddyEvent: Sendable {
         case .staleTick: "staleTick"
         case .approvalArrived: "approvalArrived"
         case .approvalResolved(_, _, _, let decision): "approvalResolved(\(decision.rawValue))"
+        case .approvalAbandoned: "approvalAbandoned"
+        case .processWatchChanged: "processWatchChanged"
         case .speciesChanged: "speciesChanged"
         case .boopArrived: "boopArrived"
         case .reviewDismissed: "reviewDismissed"

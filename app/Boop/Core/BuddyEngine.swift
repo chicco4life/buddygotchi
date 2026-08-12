@@ -32,7 +32,7 @@ final class BuddyEngine {
         staleTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, (!self.internalState.sessions.isEmpty || self.state.celebrateUntil != nil || self.state.affectionUntil != nil) else { return }
-                self.apply(.staleTick(at: self.clock.now()))
+                self.triggerStaleTick()
             }
         }
     }
@@ -45,6 +45,12 @@ final class BuddyEngine {
     }
 
     func triggerStaleTick() {
+        // The reducer exempts supervised sessions from the stale reap, so it
+        // must see the current watcher truth before every tick.
+        let watched = Set(processWatchers.keys)
+        if watched != internalState.watchedSessionIds {
+            apply(.processWatchChanged(at: clock.now(), watchedSessionIds: watched))
+        }
         apply(.staleTick(at: clock.now()))
     }
 
@@ -144,6 +150,19 @@ final class BuddyEngine {
         }
         continuation?.resume(returning: decision)
         return continuation != nil
+    }
+
+    /// The hook blocked on this approval is gone — its HTTP request was
+    /// cancelled out from under us (client hung up, task cancelled). Withdraw
+    /// the card and unblock the (dead) waiter so the request task can unwind.
+    func abandonApproval(sessionId: String, requestId: String) {
+        apply(.approvalAbandoned(at: clock.now(), sessionId: sessionId, requestId: requestId))
+        // The prompt's disappearance above normally resumes the waiter via the
+        // disappeared-prompt sweep in apply(). Belt and braces: a cancelled
+        // request must always finish, even if its prompt was already gone.
+        if let continuation = pendingApprovals.removeValue(forKey: requestId) {
+            continuation.resume(returning: .passthrough)
+        }
     }
 
     func resolveAllPendingApprovals(decision: ApprovalDecision) {

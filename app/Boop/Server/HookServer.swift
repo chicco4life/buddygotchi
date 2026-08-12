@@ -2,6 +2,7 @@ import Foundation
 import Hummingbird
 import HTTPTypes
 import NIOCore
+import NIOHTTPTypes
 import CryptoKit
 
 struct HookEventBody: Decodable, Sendable {
@@ -96,12 +97,78 @@ private struct SignalRequestBody: Decodable, Sendable {
     var pid: Int32?
 }
 
+/// Promote a client's FIN to a full connection close.
+///
+/// Hummingbird's server enables `allowRemoteHalfClosure`, so when the blocked
+/// hook's curl dies (agent killed, --max-time expired) the server receives
+/// only an `inputClosed` event: the channel stays open, `closeFuture` never
+/// fires, and the approve route's disconnect watcher would be blind — proven
+/// by ResilienceTests.testClientHangUpAbandonsParkedApprovalAgainstRealServer
+/// failing without this. None of the hook clients legitimately half-close
+/// mid-request, so a FIN from them means the asker is gone.
+final class CloseOnInputClosedHandler: ChannelInboundHandler, RemovableChannelHandler {
+    typealias InboundIn = HTTPRequestPart
+    typealias InboundOut = HTTPRequestPart
+
+    func userInboundEventTriggered(context: ChannelHandlerContext, event: Any) {
+        if let event = event as? ChannelEvent, event == .inputClosed {
+            context.close(promise: nil)
+            return
+        }
+        context.fireUserInboundEventTriggered(event)
+    }
+}
+
+/// Request context that keeps a handle on the NIO channel. Hummingbird does
+/// NOT cancel a route handler when the client hangs up (the responder runs
+/// inline in the connection loop; cancellation only fires on graceful
+/// shutdown), so the approve route watches `channel.closeFuture` itself —
+/// a blocked hook disconnecting is the one reliable signal that nobody is
+/// waiting for the answer any more.
+struct HookRequestContext: RequestContext {
+    var coreContext: CoreRequestContextStorage
+    let channel: any Channel
+
+    init(source: ApplicationRequestContextSource) {
+        self.coreContext = .init(source: source)
+        self.channel = source.channel
+    }
+}
+
+/// One log line per interval, not one per rejected request: a stale token
+/// means EVERY hook call 401s, and the point is a diagnosable breadcrumb in
+/// the bug-report export, not a flooded log.
+private actor UnauthorizedLogThrottle {
+    private var lastLoggedAt: Double = -.infinity
+
+    func shouldLog(intervalSeconds: Double = 30) -> Bool {
+        let now = Date().timeIntervalSince1970
+        guard now - lastLoggedAt >= intervalSeconds else { return false }
+        lastLoggedAt = now
+        return true
+    }
+}
+
+private let unauthorizedLogThrottle = UnauthorizedLogThrottle()
+
 func buildHookServer(
     engine: BuddyEngine,
     config: BuddyConfig
-) -> Application<RouterResponder<BasicRequestContext>> {
-    let router = Router()
+) -> Application<RouterResponder<HookRequestContext>> {
+    let router = Router(context: HookRequestContext.self)
     let diagLog = engine.diagnosticLog
+
+    @Sendable func rejectUnauthorized(_ request: Request) async -> Response {
+        if await unauthorizedLogThrottle.shouldLog() {
+            await diagLog.log(
+                category: "auth",
+                source: "unknown",
+                event: "unauthorized",
+                detail: "rejected \(request.uri.path) — missing or stale X-Boop-Token; if this persists, repair hooks from Settings"
+            )
+        }
+        return unauthorized()
+    }
 
     router.get("/healthz") { _, _ -> Response in
         let state = await engine.state
@@ -113,7 +180,7 @@ func buildHookServer(
     }
 
     router.post("/hook/event") { request, _ -> Response in
-        guard isAuthorized(request, token: config.token) else { return unauthorized() }
+        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
         let source = request.uri.queryParameters["source"].map(String.init) ?? "claude-code"
         let rawBuffer = try await request.body.collect(upTo: 1_048_576)
         let rawJSON = String(buffer: rawBuffer)
@@ -132,7 +199,7 @@ func buildHookServer(
     }
 
     router.post("/hook/signal") { request, _ -> Response in
-        guard isAuthorized(request, token: config.token) else { return unauthorized() }
+        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
         let rawBuffer = try await request.body.collect(upTo: 1_048_576)
         let rawJSON = String(buffer: rawBuffer)
         let body = try sharedDecoder.decode(SignalRequestBody.self, from: rawBuffer)
@@ -161,9 +228,14 @@ func buildHookServer(
         return emptyOK()
     }
 
-    router.post("/hook/approve") { request, _ -> Response in
-        guard isAuthorized(request, token: config.token) else { return unauthorized() }
+    router.post("/hook/approve") { request, context -> Response in
+        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
         let source = request.uri.queryParameters["source"].map(String.init) ?? "claude-code"
+        // The script sends its own pid on every call. Arming the process
+        // watcher here — not just on SessionStart — is what clears the card
+        // instantly when the agent is force-quit mid-approval, even when Boop
+        // launched after the session began and never saw a SessionStart.
+        let hookPid = request.uri.queryParameters["pid"].flatMap { Int32(String($0)) }
         let rawBuffer = try await request.body.collect(upTo: 1_048_576)
         let rawJSON = String(buffer: rawBuffer)
         let body = try sharedDecoder.decode(HookEventBody.self, from: rawBuffer)
@@ -175,7 +247,7 @@ func buildHookServer(
 
         await diagLog.log(category: "approve", source: source, event: body.effectiveEventName ?? "approve", detail: "\(tool): \(hint)", rawPayload: rawJSON)
 
-        await engine.sessionStarted(sessionId: sessionId, source: source, cwd: body.cwd)
+        await engine.sessionStarted(sessionId: sessionId, source: source, cwd: body.cwd, hookPid: hookPid)
 
         // The safety check reads the FULL command; `hint` is display-truncated.
         if let autoDecision = shouldAutoApprove(tool: tool, command: extractHint(from: body, limit: .max), source: source) {
@@ -184,6 +256,16 @@ func buildHookServer(
             return approvalResponse(decision: autoDecision, source: source)
         }
 
+        // The blocked hook holds this connection open for as long as it wants
+        // the answer. If it closes early — agent killed, curl gave up, or the
+        // agent's own hook timeout fired and it fell back to its native
+        // prompt — the card must come down: the user would otherwise "approve"
+        // into a closed socket while the terminal shows the real prompt.
+        let channel = context.channel
+        let disconnectWatcher = Task {
+            try? await channel.closeFuture.get()
+            await engine.abandonApproval(sessionId: sessionId, requestId: requestId)
+        }
         let decision = await engine.submitApproval(
             sessionId: sessionId,
             requestId: requestId,
@@ -192,12 +274,17 @@ func buildHookServer(
             sessionLabel: sessionLabel,
             source: source
         )
+        // cancel() can't interrupt closeFuture.get(); when the connection
+        // eventually closes after a normal decision, the late abandon is a
+        // guarded no-op (the prompt id no longer matches anything).
+        disconnectWatcher.cancel()
 
         return approvalResponse(decision: decision, source: source)
     }
 
     return Application(
         router: router,
+        server: .http1(configuration: .init(additionalChannelHandlers: [CloseOnInputClosedHandler()])),
         configuration: .init(address: .hostname("127.0.0.1", port: config.httpPort))
     )
 }

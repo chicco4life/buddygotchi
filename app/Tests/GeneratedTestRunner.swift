@@ -225,6 +225,18 @@ struct GeneratedTestRunner {
         await run("RequestIdTests.testFitsForEveryPlausibleSessionShape") { let t = RequestIdTests(); try t.setUpWithError(); try await t.setUp(); t.testFitsForEveryPlausibleSessionShape() }
         await run("RequestIdTests.testIdsAreUniqueWithinOneSession") { let t = RequestIdTests(); try t.setUpWithError(); try await t.setUp(); t.testIdsAreUniqueWithinOneSession() }
         await run("RequestIdTests.testIdsStayDistinctAcrossSessionsAfterTruncation") { let t = RequestIdTests(); try t.setUpWithError(); try await t.setUp(); t.testIdsStayDistinctAcrossSessionsAfterTruncation() }
+        await run("ResilienceTests.testStopWorkingDoesNotWithdrawBlockingApproval") { let t = ResilienceTests(); try t.setUpWithError(); try await t.setUp(); t.testStopWorkingDoesNotWithdrawBlockingApproval() }
+        await run("ResilienceTests.testStopWorkingStillClearsPassiveNotificationPrompt") { let t = ResilienceTests(); try t.setUpWithError(); try await t.setUp(); t.testStopWorkingStillClearsPassiveNotificationPrompt() }
+        await run("ResilienceTests.testIdleSignalMidApprovalThenDecisionStillDelivered") { let t = ResilienceTests(); try t.setUpWithError(); try await t.setUp(); await t.testIdleSignalMidApprovalThenDecisionStillDelivered() }
+        await run("ResilienceTests.testAbandonApprovalClearsCardAndUnblocksWaiter") { let t = ResilienceTests(); try t.setUpWithError(); try await t.setUp(); await t.testAbandonApprovalClearsCardAndUnblocksWaiter() }
+        await run("ResilienceTests.testAbandonAfterResolutionIsNoop") { let t = ResilienceTests(); try t.setUpWithError(); try await t.setUp(); await t.testAbandonAfterResolutionIsNoop() }
+        await run("ResilienceTests.testAbandonForSupersededPromptLeavesNewPromptAlone") { let t = ResilienceTests(); try t.setUpWithError(); try await t.setUp(); t.testAbandonForSupersededPromptLeavesNewPromptAlone() }
+        await run("ResilienceTests.testWatchedSessionSurvivesStaleReap") { let t = ResilienceTests(); try t.setUpWithError(); try await t.setUp(); t.testWatchedSessionSurvivesStaleReap() }
+        await run("ResilienceTests.testUnwatchedSessionStillReaped") { let t = ResilienceTests(); try t.setUpWithError(); try await t.setUp(); t.testUnwatchedSessionStillReaped() }
+        await run("ResilienceTests.testWatchedSessionPromptStillExpires") { let t = ResilienceTests(); try t.setUpWithError(); try await t.setUp(); t.testWatchedSessionPromptStillExpires() }
+        await run("ResilienceTests.testApprovalTimeoutChain") { let t = ResilienceTests(); try t.setUpWithError(); try await t.setUp(); t.testApprovalTimeoutChain() }
+        await run("ResilienceTests.testClientHangUpAbandonsParkedApprovalAgainstRealServer") { let t = ResilienceTests(); try t.setUpWithError(); try await t.setUp(); try await t.testClientHangUpAbandonsParkedApprovalAgainstRealServer() }
+        await run("ResilienceTests.testHookScriptProvesServerAliveBeforeLongWait") { let t = ResilienceTests(); try t.setUpWithError(); try await t.setUp(); t.testHookScriptProvesServerAliveBeforeLongWait() }
         await run("ResourceTests.testModuleBundleContainsFontAndSoundResources") { let t = ResourceTests(); try t.setUpWithError(); try await t.setUp(); t.testModuleBundleContainsFontAndSoundResources() }
         await run("ResourceTests.testCompletionChirpIsShorterThanAttentionChirp") { let t = ResourceTests(); try t.setUpWithError(); try await t.setUp(); try t.testCompletionChirpIsShorterThanAttentionChirp() }
         await run("ResourceTests.testGeistSemiBoldRegistersAndResolves") { let t = ResourceTests(); try t.setUpWithError(); try await t.setUp(); t.testGeistSemiBoldRegistersAndResolves() }
@@ -235,7 +247,7 @@ struct GeneratedTestRunner {
         await run("SnapshotHarnessTests.testSettings") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testSettings() }
         await run("SnapshotHarnessTests.testOnboardingSteps") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testOnboardingSteps() }
 
-        let total = 211
+        let total = 223
         print("\n\u{2713} \(passed) passed, \(skipped) skipped of \(total) tests")
     }
 }
