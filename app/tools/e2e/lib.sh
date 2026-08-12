@@ -77,9 +77,12 @@ ev_by() { # source body delta label
   for i in 1 2 3; do
     quiesce
     b="$(version)"; post_event "$1" "$2"; settle; a="$(version)"
-    if [ "$a" = "$(( b + $3 ))" ]; then ok "$4  (v$b→v$a, +$3)"; return 0; fi
+    # ${b} braced before the arrow: macOS bash 3.2 parses the multibyte →
+    # into an unbraced variable name, so "$b→" looks up a variable literally
+    # named "b→" (an unbound-variable error under set -u).
+    if [ "$a" = "$(( b + $3 ))" ]; then ok "$4  (v${b}→v$a, +$3)"; return 0; fi
   done
-  bad "$4 — expected +$3, got v$b→v${a:-?} on all 3 attempts"
+  bad "$4 — expected +$3, got v${b}→v${a:-?} on all 3 attempts"
 }
 # post an event that must not change state at all (no session touch: the
 # session named in it must not exist).
