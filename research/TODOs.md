@@ -7,8 +7,7 @@ in `eng/TESTING.md`.
 ## Personality & agent embodiment
 
 - [ ] **Review the shipped personality/embodiment implementation (2026-08-12)** — plan in `eng/personality-and-embodiment.md`, build-order table records what landed. App side is live: PetMemory + greet + circadian + effort/payoff in the reducer, MCP server at `/mcp` with report_effort/introduce/express/say, installer registration for claude-code (`~/.claude.json`) and cursor (`~/.cursor/mcp.json`), heartbeat fields, popover surfaces. Try it: reinstall hooks from Settings so the MCP entry lands, then ask an agent to introduce itself.
-- [ ] **Firmware rendering for personality fields** — greet animation, mood/effort flavor, agent overlay with pulsing identity border + corner pet-peek, and S2 input inertness (buttons boop-only outside a real approval) + S3 chrome mask. The heartbeat already carries `greet/mood/effort/celebrateLevel/agent*`; current firmware ignores them, so this is additive.
-- [ ] **Codex MCP registration** — left hooks-only; wire once its HTTP MCP config shape is confirmed.
+- [ ] **Flash + HIL the personality firmware (built 2026-08-12, device was unplugged).** Both envs compile (`pio run -e m5stickc-plus`, `tools/pio_ws.sh run -e ws-amoled164`) and carry: greet squish + "missed you!!" bubble, circadian expectant eyes / "oh! hi!" surprise, effort-driven sweat cadence + brow floor, payoff-scaled celebrate, and the agent overlay (breathing identity border + name chip, S1-evicted by any prompt). New HIL coverage is in `tests/hil/test_usb.py` (`test_personality_fields_roundtrip`, `test_agent_overlay_shows_and_prompt_evicts`); next time the Pebble is plugged in: flash both… then `make hil`. S2 was already satisfied (buttons/touch are boop-only outside an armed approval); S3 by construction (overlay styling shares nothing with the card chrome and is suppressed under it).
 
 ## App and firmware release readiness
 

@@ -691,19 +691,19 @@ final class HookInstaller {
     /// the identity wire (S7): set here at registration time, so it is not
     /// reachable from the model — unlike anything in a request body.
     private func mcpEntry(for agent: AgentKind) -> [String: Any] {
-        let config = BuddyConfig.default
         return [
             "type": "http",
-            "url": "http://127.0.0.1:\(config.httpPort)/mcp",
+            "url": mcpURLString,
             "headers": [
-                "X-Boop-Token": config.token,
+                "X-Boop-Token": BuddyConfig.default.token,
                 "X-Boop-Agent": agent.rawValue,
             ],
         ]
     }
 
     /// Where this agent's CLI reads user-scope MCP servers from. Codex is nil
-    /// on purpose: its HTTP MCP support isn't wired yet, so it stays hooks-only.
+    /// here because its registry is TOML (`config.toml [mcp_servers.boop]`),
+    /// handled by the string helpers below rather than the JSON path.
     private func mcpConfigURL(for agent: AgentKind) -> URL? {
         switch agent {
         case .claudeCode:
@@ -715,7 +715,15 @@ final class HookInstaller {
         }
     }
 
+    private var mcpURLString: String {
+        "http://127.0.0.1:\(BuddyConfig.default.httpPort)/mcp"
+    }
+
     private func registerMCP(for agent: AgentKind) throws {
+        if agent == .codex {
+            try registerCodexMCP()
+            return
+        }
         guard let url = mcpConfigURL(for: agent) else { return }
         var root = try readJSONObject(at: url, agent: agent)
         var servers = root["mcpServers"] as? [String: Any] ?? [:]
@@ -725,6 +733,10 @@ final class HookInstaller {
     }
 
     private func unregisterMCP(for agent: AgentKind) {
+        if agent == .codex {
+            unregisterCodexMCP()
+            return
+        }
         guard let url = mcpConfigURL(for: agent),
               var root = try? readJSONObject(at: url, agent: agent),
               var servers = root["mcpServers"] as? [String: Any],
@@ -732,6 +744,70 @@ final class HookInstaller {
         servers.removeValue(forKey: "boop")
         root["mcpServers"] = servers
         try? writeJSONObject(root, to: url, agent: agent)
+    }
+
+    private func registerCodexMCP() throws {
+        let tomlURL = configDir(for: .codex).appendingPathComponent("config.toml")
+        let toml = (try? String(contentsOf: tomlURL, encoding: .utf8)) ?? ""
+        let updated = Self.addingBoopMCP(to: toml, url: mcpURLString, token: BuddyConfig.default.token)
+        if updated != toml {
+            try writeString(updated, to: tomlURL, agent: .codex)
+        }
+    }
+
+    private func unregisterCodexMCP() {
+        let tomlURL = configDir(for: .codex).appendingPathComponent("config.toml")
+        guard let toml = try? String(contentsOf: tomlURL, encoding: .utf8) else { return }
+        let updated = Self.removingBoopMCP(from: toml)
+        if updated != toml {
+            try? writeString(updated, to: tomlURL, agent: .codex)
+        }
+    }
+
+    /// Return `toml` with our `[mcp_servers.boop]` tables (and only those)
+    /// removed. Same rules as the codex_hooks helpers: never produce a file
+    /// Codex can't parse, never remove something we didn't add. Line-based:
+    /// a table is skipped from its header until the next header.
+    nonisolated static func removingBoopMCP(from toml: String) -> String {
+        var out: [String] = []
+        var skipping = false
+        for line in toml.components(separatedBy: "\n") {
+            let t = line.trimmingCharacters(in: .whitespaces)
+            if t.hasPrefix("[") && t.hasSuffix("]") {
+                // Both bare and quoted spellings, and any of our subtables
+                // ([mcp_servers.boop.http_headers]).
+                let ours = t == "[mcp_servers.boop]"
+                    || t == "[mcp_servers.\"boop\"]"
+                    || t.hasPrefix("[mcp_servers.boop.")
+                    || t.hasPrefix("[mcp_servers.\"boop\".")
+                skipping = ours
+                if ours { continue }
+            }
+            if skipping { continue }
+            out.append(line)
+        }
+        return out.joined(separator: "\n")
+    }
+
+    /// Return `toml` with the managed `[mcp_servers.boop]` table (re)written.
+    /// Removes any previous copy first, so re-install after a token rotation
+    /// replaces rather than duplicates — a duplicate table is invalid TOML
+    /// and would stop Codex loading its config entirely.
+    nonisolated static func addingBoopMCP(to toml: String, url: String, token: String) -> String {
+        var out = removingBoopMCP(from: toml)
+        while out.hasSuffix("\n\n") { out = String(out.dropLast()) }
+        if !out.isEmpty && !out.hasSuffix("\n") { out += "\n" }
+        if !out.isEmpty { out += "\n" }
+        out += """
+        [mcp_servers.boop]
+        url = "\(url)"
+
+        [mcp_servers.boop.http_headers]
+        X-Boop-Token = "\(token)"
+        X-Boop-Agent = "codex"
+
+        """
+        return out
     }
 
     // MARK: - File helpers

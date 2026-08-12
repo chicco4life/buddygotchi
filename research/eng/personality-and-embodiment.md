@@ -292,15 +292,16 @@ different.
 | 3 | P3 difficulty heuristics + payoff-scaled celebrate | M | shipped 2026-08-12 |
 | 4 | E1 MCP server + `report_effort` (adapter proven end-to-end) | M | shipped 2026-08-12 |
 | 5 | E2 `introduce`/`express`/`say` + S1–S9 enforcement + result feedback | M–L | shipped 2026-08-12 (S2/S3 are firmware-side, land with step 6) |
-| 6 | Firmware provenance rendering (border, peek, transition) + desktop parity | M | desktop parity shipped; firmware pending (wire fields flow, old firmware ignores them) |
+| 6 | Firmware provenance rendering (border, peek, transition) + desktop parity | M | shipped 2026-08-12 (compile-verified both envs; HIL pending a plugged-in Pebble) |
 | 7 | E3 `choreo`; per-agent memory greetings | S | — |
 | 8 | E4 `draw` + chunked transfer + P5 keepsakes/gallery | L | — |
 | 9 | P4 growth stages | M | — |
 
 Steps 1–2 are pure reducer work and immediately make the pet feel alive;
 everything E-side lands behind the enforcement layer built in step 5.
-Codex MCP registration is deferred alongside step 6: its HTTP MCP support
-isn't wired in `HookInstaller`, so Codex stays hooks-only for now.
+Codex MCP registration shipped 2026-08-12: `HookInstaller` writes a managed
+`[mcp_servers.boop]` streamable-HTTP table (with `http_headers` identity)
+into `~/.codex/config.toml`, verified against codex-cli 0.142.5.
 
 ## Testing
 

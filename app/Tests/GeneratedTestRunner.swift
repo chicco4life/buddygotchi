@@ -72,6 +72,11 @@ struct GeneratedTestRunner {
         await run("CodexTomlTests.testEnablingIsIdempotentAcrossSpellings") { let t = CodexTomlTests(); try t.setUpWithError(); try await t.setUp(); t.testEnablingIsIdempotentAcrossSpellings() }
         await run("CodexTomlTests.testRemovalTakesOnlyOurKey") { let t = CodexTomlTests(); try t.setUpWithError(); try await t.setUp(); t.testRemovalTakesOnlyOurKey() }
         await run("CodexTomlTests.testRemovalLeavesAnIdenticallyNamedKeyInAnotherTable") { let t = CodexTomlTests(); try t.setUpWithError(); try await t.setUp(); t.testRemovalLeavesAnIdenticallyNamedKeyInAnotherTable() }
+        await run("CodexTomlTests.testAddingBoopMCPWritesTableAndHeaders") { let t = CodexTomlTests(); try t.setUpWithError(); try await t.setUp(); t.testAddingBoopMCPWritesTableAndHeaders() }
+        await run("CodexTomlTests.testAddingBoopMCPPreservesExistingConfig") { let t = CodexTomlTests(); try t.setUpWithError(); try await t.setUp(); t.testAddingBoopMCPPreservesExistingConfig() }
+        await run("CodexTomlTests.testReAddingReplacesRatherThanDuplicates") { let t = CodexTomlTests(); try t.setUpWithError(); try await t.setUp(); t.testReAddingReplacesRatherThanDuplicates() }
+        await run("CodexTomlTests.testRemovingBoopMCPTakesOnlyOurTables") { let t = CodexTomlTests(); try t.setUpWithError(); try await t.setUp(); t.testRemovingBoopMCPTakesOnlyOurTables() }
+        await run("CodexTomlTests.testRemovingBoopMCPWhenAbsentIsIdentity") { let t = CodexTomlTests(); try t.setUpWithError(); try await t.setUp(); t.testRemovingBoopMCPWhenAbsentIsIdentity() }
         await run("CopyRulesTests.testBuddyCopyFollowsBrandLaw") { let t = CopyRulesTests(); try t.setUpWithError(); try await t.setUp(); try t.testBuddyCopyFollowsBrandLaw() }
         await run("CopyRulesTests.testInlineViewTextLiteralRatchet") { let t = CopyRulesTests(); try t.setUpWithError(); try await t.setUp(); try t.testInlineViewTextLiteralRatchet() }
         await run("EngineIntegrationTests.testInitialStateIsDisconnectedSleeping") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); t.testInitialStateIsDisconnectedSleeping() }
@@ -292,7 +297,7 @@ struct GeneratedTestRunner {
         await run("SnapshotHarnessTests.testSettings") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testSettings() }
         await run("SnapshotHarnessTests.testOnboardingSteps") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testOnboardingSteps() }
 
-        let total = 268
+        let total = 273
         print("\n\u{2713} \(passed) passed, \(skipped) skipped of \(total) tests")
     }
 }
