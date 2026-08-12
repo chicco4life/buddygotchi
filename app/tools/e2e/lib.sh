@@ -40,6 +40,24 @@ settle() { sleep 0.3; }
 adv()   { local a; a="$(version)"; if [ -n "$a" ] && [ "$a" -gt "${1:-0}" ]; then ok "$2  (v$1→v$a)"; else bad "$2 — state did not change (v$1→v${a:-?})"; fi; }
 # stateVersion unchanged since $1 (no-op assertion)
 noadv() { local a; a="$(version)"; if [ "$a" = "$1" ]; then ok "$2  (v$1 unchanged)"; else bad "$2 — version changed unexpectedly (v$1→v$a)"; fi; }
+# stateVersion advanced by EXACTLY $2 since $1. Use for events on a live
+# session that must do nothing beyond the session-liveness touch (every
+# /hook/event stamps lastActivityAt, which is one bump on its own) — a plain
+# noadv can never pass there, and a plain adv can't tell "touch only" from
+# "touch plus an unwanted card".
+adv_by() { local a; a="$(version)"; if [ "$a" = "$(( $1 + $2 ))" ]; then ok "$3  (v$1→v$a, +$2)"; else bad "$3 — expected v$(( $1 + $2 )), got v${a:-?} (from v$1)"; fi; }
+# Wait until stateVersion stops moving. Call before capturing the baseline for
+# an adv_by: the 2s stale timer bumps the version on its own when a celebrate
+# or affection window expires, and an exact-delta assertion can't tell that
+# background bump from the event under test.
+quiesce() {
+  local a b i
+  for i in 1 2 3 4 5 6 7 8; do
+    a="$(version)"; sleep 1; b="$(version)"
+    [ "$a" = "$b" ] && return 0
+  done
+  info "state still moving after ${i}s; exact-delta assertion may flake"
+}
 connected() { [ "$(desktop)" = "connected" ] && ok "${1:-desktop connected}" || bad "${2:-desktop is not connected}"; }
 baseline()  { # label
   if [ "${D0:-}" = "disconnected" ]; then
