@@ -34,6 +34,23 @@ struct TamaState {
   char     promptSource[16];
   bool     promptApproval;
   char     promptLabel[24];
+  // Personality (desktop System P). All optional on the wire — absent keys
+  // mean the state is over, so each parse clears what it doesn't see.
+  bool     greet;             // return-greeting window is live
+  uint8_t  greetLevel;        // 1 = glad, 2 = the big missed-you
+  char     moodStr[12];       // "expectant" / "surprised" / ""
+  char     effort[10];        // light/normal/hard/grinding, busy only
+  uint8_t  celebrateLevel;    // 1..3 payoff size, 0 = not celebrating
+  // Agent embodiment overlay (desktop System E). agentEmotion[0] == 0 means
+  // no overlay. The desktop guarantees these never ride a frame that also
+  // carries a prompt (S1); the renderer still re-checks before drawing.
+  char     agentSrc[16];
+  char     agentColor[12];
+  char     agentEmotion[20];
+  char     agentIntensity[8];
+  char     agentMotion[16];
+  char     agentSay[44];
+  char     agentDelivery[10];
 };
 
 // ---------------------------------------------------------------------------
@@ -133,6 +150,34 @@ static void __attribute__((noinline)) _parsePrompt(JsonDocument& doc, TamaState*
   }
 }
 
+static void __attribute__((noinline)) _parsePersonality(JsonDocument& doc, TamaState* out) {
+  // Unlike `activity` (omitted-means-unchanged), every field here is
+  // omitted-means-over: the desktop sends full state each frame with nils
+  // dropped, so a key's absence IS the expiry signal (greet window closed,
+  // agent lease lapsed).
+  out->greet = doc["greet"] | false;
+  out->greetLevel = out->greet ? (uint8_t)(doc["greetLevel"] | 1) : 0;
+  auto cpy = [](char* dst, size_t n, const char* src) {
+    strncpy(dst, src ? src : "", n - 1);
+    dst[n - 1] = 0;
+  };
+  cpy(out->moodStr, sizeof(out->moodStr), doc["mood"]);
+  cpy(out->effort, sizeof(out->effort), doc["effort"]);
+  out->celebrateLevel = doc["celebrateLevel"] | 0;
+  cpy(out->agentEmotion, sizeof(out->agentEmotion), doc["agentEmotion"]);
+  if (out->agentEmotion[0]) {
+    cpy(out->agentSrc, sizeof(out->agentSrc), doc["agentSrc"]);
+    cpy(out->agentColor, sizeof(out->agentColor), doc["agentColor"]);
+    cpy(out->agentIntensity, sizeof(out->agentIntensity), doc["agentIntensity"]);
+    cpy(out->agentMotion, sizeof(out->agentMotion), doc["agentMotion"]);
+    cpy(out->agentSay, sizeof(out->agentSay), doc["agentSay"]);
+    cpy(out->agentDelivery, sizeof(out->agentDelivery), doc["agentDelivery"]);
+  } else {
+    out->agentSrc[0] = 0; out->agentColor[0] = 0; out->agentIntensity[0] = 0;
+    out->agentMotion[0] = 0; out->agentSay[0] = 0; out->agentDelivery[0] = 0;
+  }
+}
+
 static void _applyJson(const char* line, TamaState* out) {
   JsonDocument doc;
   if (deserializeJson(doc, line)) { _parseFailCount++; return; }
@@ -185,6 +230,7 @@ static void _applyJson(const char* line, TamaState* out) {
     out->nLines = n;
   }
   _parsePrompt(doc, out);
+  _parsePersonality(doc, out);
   out->lastUpdated = millis();
   _lastLiveMs = millis();
 }
@@ -299,5 +345,11 @@ inline void dataPoll(TamaState* out) {
     // detector then treats as a fresh arrival and re-arms.
     out->promptId[0]=0; out->promptTool[0]=0; out->promptHint[0]=0;
     out->promptSource[0]=0; out->promptLabel[0]=0; out->promptApproval=false;
+    // Personality and agent overlay die with the link for the same reason:
+    // a stale "missed you" or a dead agent's speech is a lie on glass.
+    out->greet=false; out->greetLevel=0; out->moodStr[0]=0; out->effort[0]=0;
+    out->celebrateLevel=0; out->agentSrc[0]=0; out->agentColor[0]=0;
+    out->agentEmotion[0]=0; out->agentIntensity[0]=0; out->agentMotion[0]=0;
+    out->agentSay[0]=0; out->agentDelivery[0]=0;
   }
 }

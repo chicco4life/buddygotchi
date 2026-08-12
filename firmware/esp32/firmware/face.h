@@ -248,8 +248,17 @@ struct FaceOpts {
   int      dangleX = 0;
   int      dangleY = 0;
   // A gift is waiting to be collected (§8). The idle face carries a subtly
-  // expectant look — it's holding something out for you.
+  // expectant look — it's holding something out for you. The circadian
+  // "expectant" mood (desktop learned the usual start hour) rides the same
+  // flag: both mean "watching for you".
   bool     expectant = false;
+  // Effort tier from the desktop (busy only): 0=light 1=normal 2=hard
+  // 3=grinding. Modulates the existing sweat-bead cadence and brow floor —
+  // expression, never judgment: the face strains WITH the task.
+  uint8_t  strain = 1;
+  // Celebration payoff 1..3 (desktop scales it by the struggle). 1 is a
+  // modest hop, 3 is the hard-won party.
+  uint8_t  celebLevel = 1;
   // Whole-face scale, driven by the morning stretch ritual (§13).
   float    scale = 1.0f;
   // Big open yawn — the stretch's other half, and a micro-idle in its own
@@ -655,9 +664,12 @@ static void _faceComputePose(uint8_t persona, const char* activity, bool boopAct
   float celebT = (persona == 4 && celebAt != 0) ? (float)(now - celebAt) / 1000.0f : -1.0f;
   float celebHop = 0.0f, celebWig = 0.0f;
   if (celebT >= 0.0f) {
-    float decay = expf(-celebT * 0.55f);
-    celebHop = -24.0f * fabsf(sinf(celebT * 6.6f)) * decay;   // bounces up
-    celebWig = 13.0f * sinf(celebT * 9.4f) * decay;           // wags
+    // Payoff scaling: the desktop sizes the party by the struggle. Level 3
+    // bounces bigger AND rings down slower — a hard-won win gets to last.
+    float amp = (opt.celebLevel >= 3) ? 1.3f : (opt.celebLevel <= 1 ? 0.75f : 1.0f);
+    float decay = expf(-celebT * (opt.celebLevel >= 3 ? 0.42f : 0.55f));
+    celebHop = -24.0f * amp * fabsf(sinf(celebT * 6.6f)) * decay;   // bounces up
+    celebWig = 13.0f * amp * sinf(celebT * 9.4f) * decay;           // wags
   }
 
   // Effort tell. A working face reads as "eyes doing something"; one bead of
@@ -670,17 +682,29 @@ static void _faceComputePose(uint8_t persona, const char* activity, bool boopAct
   // reproducible.
   float sweat01 = 0.0f;
   int   sweatSide = 1;
-  if (persona == 2) {
+  if (persona == 2 && opt.strain >= 1) {
     // 5s apart rather than 7: at a 21% duty cycle the bead was easy to
     // miss entirely, which makes it decoration rather than a signal.
-    const uint32_t SWEAT_CYCLE = 5000, SWEAT_LEN = 1800;
-    uint32_t sph = now % SWEAT_CYCLE;
+    // The desktop's effort tier shortens the cycle — a grind sweats more
+    // often, a light task (strain 0) not at all. Still one bead at a time:
+    // cadence carries the tier, a drip would be decoration.
+    const uint32_t SWEAT_LEN = 1800;
+    const uint32_t cycle = (opt.strain >= 3) ? 2300
+                         : (opt.strain == 2) ? 3200
+                                             : 5000;
+    uint32_t sph = now % cycle;
     if (sph < SWEAT_LEN) {
       sweat01 = (float)sph / (float)SWEAT_LEN;
-      sweatSide = ((now / SWEAT_CYCLE) & 1) ? 1 : -1;
+      sweatSide = ((now / cycle) & 1) ? 1 : -1;
     }
   }
   if (sweat01 > 0.0f && browTarget < 0.42f) browTarget = 0.42f;
+  // Sustained-effort brow floor, independent of the bead phase: a grinding
+  // face stays visibly furrowed between beads.
+  if (persona == 2) {
+    if (opt.strain >= 3 && browTarget < 0.62f) browTarget = 0.62f;
+    else if (opt.strain == 2 && browTarget < 0.50f) browTarget = 0.50f;
+  }
 
   brow = animEase(brow, (persona == 2) ? browTarget : 0.0f, 4.0f, dt);
 

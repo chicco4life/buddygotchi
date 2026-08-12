@@ -1418,3 +1418,46 @@ def test_acknowledged_decision_does_not_re_offer(stick):
     got = state(stick)
     assert got["promptId"] == ""
     assert got["card"] is False, "re-offered a prompt the desktop had cleared"
+
+
+def test_personality_fields_roundtrip(stick):
+    """Greet/mood/effort ride the heartbeat and surface in `state` —
+    and absent keys mean OVER: the next frame without them clears all of it
+    (a stale "missed you" is a lie on glass).
+    """
+    send_json(stick, {"pet": "busy", "desktop": "connected", "total": 1,
+                      "running": 1, "waiting": 0, "msg": "working",
+                      "effort": "grinding", "greet": True, "greetLevel": 2,
+                      "mood": "surprised", "celebrateLevel": 3})
+    wait_state(stick, effort="grinding", greet=True, greetLevel=2,
+               petMood="surprised", celebrateLevel=3)
+
+    send_json(stick, {"pet": "idle", "desktop": "connected", "total": 1,
+                      "running": 0, "waiting": 0, "msg": ""})
+    wait_state(stick, effort="", greet=False, petMood="", celebrateLevel=0)
+
+
+def test_agent_overlay_shows_and_prompt_evicts(stick, landscape):
+    """The agent channel lights while a lease is live, and a prompt evicts
+    it instantly (S1) — even from a frame that (against the desktop's own
+    rules) carries both. The device-side re-check is the belt and braces.
+    """
+    send_json(stick, {"pet": "idle", "desktop": "connected", "total": 1,
+                      "running": 0, "waiting": 0, "msg": "",
+                      "agentSrc": "claude-code", "agentColor": "sky",
+                      "agentEmotion": "triumphant", "agentSay": "nailed it"})
+    wait_state(stick, agentEmotion="triumphant", agentSay="nailed it",
+               agentOverlay=True)
+
+    send_json(stick, {"pet": "attention", "desktop": "connected", "total": 1,
+                      "running": 0, "waiting": 1, "msg": "Bash",
+                      "promptId": "req_hil_agent", "promptTool": "Bash",
+                      "promptHint": "ls", "promptApproval": True,
+                      "agentSrc": "claude-code", "agentColor": "sky",
+                      "agentEmotion": "triumphant", "agentSay": "nailed it"})
+    wait_state(stick, promptId="req_hil_agent", agentOverlay=False)
+
+    clear_prompt(stick)
+    send_json(stick, {"pet": "idle", "desktop": "connected", "total": 1,
+                      "running": 0, "waiting": 0, "msg": ""})
+    wait_state(stick, agentEmotion="", agentOverlay=False)

@@ -38,6 +38,7 @@ static void startBt() {
 #include "mood.h"
 #include "orbs.h"
 #include "bubble.h"
+#include "agent.h"
 #include "ritual.h"
 #include "face.h"
 #include "glance.h"
@@ -1020,6 +1021,17 @@ static void dumpState() {
   doc["mood"] = moodName();
   doc["card"] = cardVisible();
   doc["gift"] = giftPending;
+  // Personality + agent overlay (System P/E). "mood" above is the FIELD
+  // mood (night/lantern); the circadian pet mood gets its own key.
+  doc["greet"] = tama.greet;
+  doc["greetLevel"] = tama.greetLevel;
+  doc["petMood"] = tama.moodStr;
+  doc["effort"] = tama.effort;
+  doc["celebrateLevel"] = tama.celebrateLevel;
+  doc["agentSrc"] = tama.agentSrc;
+  doc["agentEmotion"] = tama.agentEmotion;
+  doc["agentSay"] = tama.agentSay;
+  doc["agentOverlay"] = agentOverlayVisible();
   doc["ritual"] = ritualName();
   doc["microIdle"] = faceMicroIdleName();
   doc["boopReact"] = faceBoopReactName();
@@ -1601,6 +1613,28 @@ void loop() {
     }
   }
 
+  // Personality edges (System P). The desktop computes the states — greet
+  // windows, circadian surprise — and the device supplies the body language
+  // on the transition.
+  if (HAL_LANDSCAPE) {
+    static bool prevGreet = false;
+    static bool prevSurprised = false;
+    bool surprised = strcmp(tama.moodStr, "surprised") == 0;
+    if (tama.greet && !prevGreet) {
+      // Return-greeting: a real physical wobble plus a word. Level 2 is the
+      // week-plus missed-you; a month away reads the same on purpose.
+      faceBoopSquish();
+      bubbleShow(tama.greetLevel >= 2 ? "missed you!!" : "hi again!",
+                 millis(), 3500, GREEN);
+    } else if (surprised && !prevSurprised && !tama.greet) {
+      // Odd-hours arrival: startled, then pleased. The greet bubble wins
+      // when both fire in the same frame.
+      bubbleShow("oh! hi!", millis(), 2500, 0);
+    }
+    prevGreet = tama.greet;
+    prevSurprised = surprised;
+  }
+
   baseState = derive(tama);
   activeState = baseState;
   // Recent boop: flash the heart face unless something urgent is on
@@ -1842,6 +1876,20 @@ void loop() {
       glanceTick(nowMs, dt);
       cardTick(nowMs, dt, promptVisible());
       bubbleTick(nowMs, dt);
+      // Agent expression overlay (System E). Suppression is an eviction, not
+      // a pause: a prompt or any screen-owning surface retracts the border
+      // instantly (S1), and the lease usually lapses before it comes back.
+      bool agSuppressed = promptVisible() || cardVisible() || menuActive() ||
+                          ritualActive() || glanceCover() > 0.01f;
+      if (agentTick(nowMs, dt, tama, agSuppressed)) {
+        // A bouncy motion lands as a real squish — the agent nudging the
+        // body it's borrowing.
+        if (strcmp(tama.agentMotion, "bounce") == 0 ||
+            strcmp(tama.agentMotion, "wiggle") == 0 ||
+            strcmp(tama.agentMotion, "spin") == 0) {
+          faceBoopSquish();
+        }
+      }
       // Advance the ritual clock exactly once per frame — ritualProgress
       // ends the ritual when it reaches 1, so calling it twice would drop
       // a frame of the sequence.
@@ -1878,7 +1926,15 @@ void loop() {
       fo.color = moodFaceColor(accent);
       fo.bg = moodBackdrop(nowMs);
       fo.weight = moodStrokeWeight();
-      fo.expectant = giftShown;
+      // Both gift-waiting and the circadian expectant mood mean "watching
+      // for you" — same look, different reasons to be hopeful.
+      fo.expectant = giftShown || strcmp(tama.moodStr, "expectant") == 0;
+      if (strcmp(tama.effort, "light") == 0)         fo.strain = 0;
+      else if (strcmp(tama.effort, "hard") == 0)     fo.strain = 2;
+      else if (strcmp(tama.effort, "grinding") == 0) fo.strain = 3;
+      if (tama.celebrateLevel) {
+        fo.celebLevel = tama.celebrateLevel > 3 ? 3 : tama.celebrateLevel;
+      }
       fo.sinceInteractionMs = nowMs - lastInputMs;
       fo.drowse = faceDrowse01(nowMs);
       fo.drowseKind = faceDrowseKind();
@@ -2077,9 +2133,11 @@ void loop() {
         // distinguishes link-down sleep from commanded sleep or a
         // face-down nap, for whoever looks closely.
         presenceDrawLinkGlyph(spr, nowMs, buddySpeciesColor());
-      } else if (!promptVisible() && !menuActive() && glanceCover() <= 0.01f) {
+      } else if (!promptVisible() && !menuActive() && glanceCover() <= 0.01f &&
+                 !agentOverlayVisible()) {
         // Suppressed under anything that owns the bottom edge — the approval
-        // card, the menu, and the glance card all cover this row.
+        // card, the menu, the glance card, and the agent chip all cover
+        // this row.
         statusWordDraw(spr, nowMs, statusWordFor(activeState, faceRoused(nowMs)),
                        activeState == P_BUSY);
       }
@@ -2095,6 +2153,9 @@ void loop() {
       dangleSummaryDraw(spr, nowMs,
                         dangling && !menuActive() && !promptPending(), dt,
                         tama.sessionsTotal, tama.sessionsWaiting);
+      // Under speech, above everything else: the border frames the face,
+      // and the buddy's own words still outrank a visiting agent's.
+      agentDraw(spr, nowMs, tama);
       bubbleDraw(spr, nowMs, faceLift);
     }
     uint32_t dcost = micros() - drawT0;
