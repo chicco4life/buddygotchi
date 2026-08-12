@@ -38,9 +38,7 @@ H="$(health)"
 case "$H" in *'"ok":true'*)        ok "/healthz reports ok:true" ;;        *) bad "/healthz missing ok:true ($H)" ;; esac
 case "$H" in *'"stateVersion"'*)   ok "/healthz exposes stateVersion" ;;   *) bad "/healthz missing stateVersion ($H)" ;; esac
 case "$H" in *'"desktop"'*)        ok "/healthz exposes desktop status" ;; *) bad "/healthz missing desktop ($H)" ;; esac
-GB="$(version)"
-post_event claude-code "{\"hook_event_name\":\"SessionEnd\",\"session_id\":\"ghost-$$\"}"; settle
-noadv "$GB" "SessionEnd for a nonexistent session is a no-op"
+noop_ev claude-code "{\"hook_event_name\":\"SessionEnd\",\"session_id\":\"ghost-$$\"}" "SessionEnd for a nonexistent session is a no-op"
 
 core_pass=$pass; core_fail=$fail
 total_pass=$pass; total_fail=$fail

@@ -28,9 +28,7 @@ ev claude-code "{\"hook_event_name\":\"PermissionRequest\",\"session_id\":\"$CC\
 ev claude-code "{\"hook_event_name\":\"PostToolUse\",\"session_id\":\"$CC\"}"                                                                            "PostToolUse → clears card, busy"
 # +1 is the session-liveness touch every /hook/event performs; a raised card
 # would add a second bump (requestArrived). PermissionRequest is authoritative.
-# quiesce first: the stale timer's celebrate-expiry bump would break the exact delta.
-quiesce
-V="$(version)"; post_event claude-code "{\"hook_event_name\":\"Notification\",\"notification_type\":\"permission_prompt\",\"message\":\"Allow?\",\"session_id\":\"$CC\"}"; settle; adv_by "$V" 1 "Notification:permission_prompt → ignored beyond liveness touch (PermissionRequest is authoritative)"
+ev_by claude-code "{\"hook_event_name\":\"Notification\",\"notification_type\":\"permission_prompt\",\"message\":\"Allow?\",\"session_id\":\"$CC\"}" 1 "Notification:permission_prompt → ignored beyond liveness touch (PermissionRequest is authoritative)"
 ev claude-code "{\"hook_event_name\":\"Notification\",\"notification_type\":\"elicitation_dialog\",\"message\":\"Pick one\",\"session_id\":\"$CC\"}"       "Notification:elicitation_dialog → attention"
 ev claude-code "{\"hook_event_name\":\"Elicitation\",\"message\":\"Provide a value\",\"session_id\":\"$CC\"}"                                             "Elicitation → attention"
 ev claude-code "{\"hook_event_name\":\"ElicitationResult\",\"session_id\":\"$CC\"}"                                                                      "ElicitationResult → clears, busy"

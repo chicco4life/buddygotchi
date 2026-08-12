@@ -38,18 +38,10 @@ settle() { sleep 0.3; }
 
 # stateVersion advanced since $1, with label $2
 adv()   { local a; a="$(version)"; if [ -n "$a" ] && [ "$a" -gt "${1:-0}" ]; then ok "$2  (v$1→v$a)"; else bad "$2 — state did not change (v$1→v${a:-?})"; fi; }
-# stateVersion unchanged since $1 (no-op assertion)
-noadv() { local a; a="$(version)"; if [ "$a" = "$1" ]; then ok "$2  (v$1 unchanged)"; else bad "$2 — version changed unexpectedly (v$1→v$a)"; fi; }
-# stateVersion advanced by EXACTLY $2 since $1. Use for events on a live
-# session that must do nothing beyond the session-liveness touch (every
-# /hook/event stamps lastActivityAt, which is one bump on its own) — a plain
-# noadv can never pass there, and a plain adv can't tell "touch only" from
-# "touch plus an unwanted card".
-adv_by() { local a; a="$(version)"; if [ "$a" = "$(( $1 + $2 ))" ]; then ok "$3  (v$1→v$a, +$2)"; else bad "$3 — expected v$(( $1 + $2 )), got v${a:-?} (from v$1)"; fi; }
-# Wait until stateVersion stops moving. Call before capturing the baseline for
-# an adv_by: the 2s stale timer bumps the version on its own when a celebrate
-# or affection window expires, and an exact-delta assertion can't tell that
-# background bump from the event under test.
+# Wait until stateVersion stops moving. Call before capturing the baseline
+# for an exact-delta assertion (ev_by): the 2s stale timer bumps the version
+# on its own when a celebrate or affection window expires, and an exact-delta
+# check can't tell that background bump from the event under test.
 quiesce() {
   local a b i
   for i in 1 2 3 4 5 6 7 8; do
@@ -70,6 +62,28 @@ baseline()  { # label
 # post an event / signal and assert stateVersion advanced
 ev()  { local b; b="$(version)"; post_event "$1" "$2"; settle; adv "$b" "$3"; }   # source body label
 sig() { local b; b="$(version)"; post_signal "$1"; settle; adv "$b" "$2"; }       # body label
+
+# post an event and assert stateVersion advanced by EXACTLY $3, with
+# quiesce + retry. Exact deltas are how a check tells "did only what it
+# should" from "did one thing too many" (e.g. the session-liveness touch every
+# /hook/event performs is +1; an unwanted card on top would be +2). But
+# stateVersion is global: another connected agent's hook traffic or a
+# stale-timer expiry can bump it inside the settle window, which on a single
+# sample looks exactly like a regression. A real regression is off by the same
+# amount on every attempt, so three clean-baseline tries separate signal from
+# noise.
+ev_by() { # source body delta label
+  local i b a
+  for i in 1 2 3; do
+    quiesce
+    b="$(version)"; post_event "$1" "$2"; settle; a="$(version)"
+    if [ "$a" = "$(( b + $3 ))" ]; then ok "$4  (v$b→v$a, +$3)"; return 0; fi
+  done
+  bad "$4 — expected +$3, got v$b→v${a:-?} on all 3 attempts"
+}
+# post an event that must not change state at all (no session touch: the
+# session named in it must not exist).
+noop_ev() { ev_by "$1" "$2" 0 "$3"; } # source body label
 
 # immediate approval that should return an allow decision quickly
 approve_allows() { # src body label
