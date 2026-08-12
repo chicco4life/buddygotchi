@@ -85,8 +85,8 @@ Default timings:
 
 | Constant | Value | Source behavior |
 | --- | ---: | --- |
-| `staleTimeoutMs` | `600_000` | Reap sessions with no activity after 10 minutes |
-| `approvalTimeoutMs` | `300_000` | Clear prompts and approval waits after 5 minutes |
+| `staleTimeoutMs` | `600_000` | Reap sessions with no activity after 10 minutes (sessions with a live process watcher are exempt) |
+| `approvalTimeoutMs` | `290_000` | Clear prompts and approval waits; deliberately below the hook script's 300 s curl `--max-time`, which is below the registered 310 s hook timeout, so each layer's card dies before its caller gives up |
 | `workStallTimeoutMs` | `300_000` | Move silent working sessions to `thinking` after 5 minutes |
 | `celebrateDurationMs` | `4_000` | Keep celebrate state active for 4 seconds |
 | stale timer | `2.0` seconds | Engine periodic `staleTick` interval |
@@ -122,10 +122,13 @@ Installed plain events are `SessionStart`, `UserPromptSubmit`, `Stop`,
 `ElicitationResult`. Notification matchers are `permission_prompt`,
 `idle_prompt`, and `elicitation_dialog`.
 
-When approval mode is on, the generated script routes `PermissionRequest` to
-`/hook/approve?source=claude-code&pid=$$` with connect timeout `2` and max time
-`300`. Other events route to `/hook/event?source=claude-code&pid=$$` with
-connect timeout `1` and max time `5`.
+When approval mode is on, the generated script first proves the server is
+answering with a 2 second `/healthz` probe (a hung-but-listening app must not
+hold the agent for the full wait), then routes `PermissionRequest` to
+`/hook/approve?source=claude-code&pid=$$` with connect timeout `2`, max time
+`300`, and `-f` so a non-2xx body is never relayed as hook output. Other
+events route to `/hook/event?source=claude-code&pid=$$` with connect timeout
+`1` and max time `5`.
 
 ### Codex
 
@@ -143,10 +146,13 @@ same generated `~/.boop/boop-hook.sh` with `source=codex`.
 `beforeMCPExecution`, `afterShellExecution`, and `afterMCPExecution`.
 
 `BoopSignal` maps Cursor events to `/hook/signal`. In approval mode,
-`beforeShellExecution` and `beforeMCPExecution` go to `/hook/approve` with a
-300 second URLSession timeout and semaphore wait. Non-blocking Cursor hooks
-always print `{"permission":"allow"}` as protocol plumbing. If approval
-forwarding fails, Cursor receives `{"permission":"allow"}`.
+`beforeShellExecution` and `beforeMCPExecution` go to `/hook/approve` after a
+2 second `/healthz` liveness probe, with a 300 second URLSession timeout and
+semaphore wait. Mapped non-blocking Cursor hooks print
+`{"permission":"allow"}` as protocol plumbing; events the helper does not
+recognize answer `{"permission":"ask"}` so an unknown future gating event can
+never be approved unseen. If approval forwarding fails, Cursor receives
+`{"permission":"ask"}`.
 
 Cursor auto-approval is server-side and conservative. `Read`, `Glob`, `Grep`,
 `LSP`, and `WebFetch` auto-allow. Shell hints auto-allow only for read-only
@@ -489,8 +495,23 @@ can dismiss an errored session, which returns it to idle.
 
 Stale ticks clear expired celebrate windows, move quiet work to `thinking`,
 expire prompts after `approvalTimeoutMs`, and remove sessions after
-`staleTimeoutMs`. Any pending approval whose prompt disappears resumes as
-`passthrough`.
+`staleTimeoutMs`. Sessions with a live process watcher are exempt from the
+stale reap — the watcher reports agent death definitively, so a quiet
+15-minute build no longer puts the pet to sleep. Any pending approval whose
+prompt disappears resumes as `passthrough`.
+
+Approval prompt lifetime is tied to asker liveness, not just timers:
+
+- `/hook/approve` reads the hook script's `pid` query parameter and arms the
+  same process watcher as `SessionStart`, so force-quitting the agent clears
+  the card immediately even when Boop launched mid-session.
+- The approve route watches the request connection's `closeFuture`; a client
+  hang-up (killed agent, expired hook timeout, dead curl) applies
+  `.approvalAbandoned`, which withdraws the card and resumes the waiter as
+  `passthrough`. Hummingbird enables `allowRemoteHalfClosure`, so a
+  `CloseOnInputClosedHandler` in the channel pipeline promotes the client's
+  FIN to a full close — without it `closeFuture` never fires.
+- The 290 s reducer timeout remains as the backstop.
 
 ```mermaid
 flowchart TD

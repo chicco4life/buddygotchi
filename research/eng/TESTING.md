@@ -388,6 +388,14 @@ system fallback and that attention/celebrate/error chirps play.
 These checks require a plugged-in M5StickC Plus 2. USB HIL does not require
 BLE pairing; BLE HIL requires the one-time OS pairing step first.
 
+**Quit the Boop desktop app before running USB HIL.** The firmware has no
+serial-vs-BLE arbitration (last frame wins), so a running app's 10s BLE
+keepalives overwrite the serial-injected test state mid-test: prompts vanish
+under desktop frames, `test_connection_timeout` can never see the link go
+stale, and roughly a dozen prompt/glance/mood tests fail spuriously. The
+failure signature is prompt-display tests timing out while `bleConnected`
+stays true in `state`.
+
 USB HIL:
 
 ```sh

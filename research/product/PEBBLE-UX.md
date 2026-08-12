@@ -94,7 +94,7 @@ snaps when an overlay clears.
 | 1 | OTA progress | Full takeover (unchanged); Night mood |
 | 2 | BLE passkey | Full takeover (unchanged); **Lantern** mood — the code must be read and typed now |
 | 3 | Approval card | Face persists, **Lantern** mood + card overlay (§7) |
-| 4 | Decision feedback | "yes!" / "okay" until desktop clears prompt (unchanged behavior, restyled as bubble) |
+| 4 | Decision feedback | "sending..." on press; "yes!" / "okay" only once a live frame arrives without the prompt id (the desktop's ack). "no link?" in HOT past 3s without one — a press must never claim a delivery that did not happen |
 | 5 | Menu carousel | Unchanged grammar (look-hold opens; MENU=next / BOOP=pick / REJECT=back) |
 | 6 | Glance card | §6; dismissed by any higher layer |
 | 7 | Heart / affection overlay | **[shipped]** §4; overlays calm states only — never outranks 1–4 (doctrine #12) |
@@ -383,13 +383,18 @@ minutes unanswered the field decays toward ember with a top-edge pulse (§2.1.4)
 Outcomes:
 - **Approve (crown):** card pops (scale-out, 150ms), green ripple, then the **snuff** —
   light contracts back into the face and goes out over ~250ms, face crossfading ink →
-  glow. Happy-squint, small `yes!` bubble in Night mode until the desktop clears the
-  prompt (existing clear semantics).
+  glow. Happy-squint, small `sending...` bubble until a live frame arrives without the
+  prompt id (the desktop's ack), then `yes!` for a short beat. Past 3s without the ack
+  the bubble turns `no link?` in HOT — the resilience audit found the old press-time
+  "yes! sent" lied whenever the link was down at press time.
 - **Deny (right):** solemn nod (existing), field **fades** evenly to black over ~350ms,
   neutral `okay` bubble. No guilt animation.
-- **Link lost mid-prompt:** the card's bottom line becomes `link lost!` in `HOT`
-  (existing honesty rule — a boop can't be delivered, say so). The field stays lantern:
-  the human is still needed, just not answerable from here.
+- **Link lost mid-prompt:** past 10s without a frame (the desktop keepalive interval)
+  the card shows `link lost?` in `HOT` — keyed on frame AGE, not on `connected`, which
+  only flips after staleness has already dropped the card. Staleness itself is 15s
+  (1.5x the keepalive; was 30s, which left a dead desktop's card answerable for half a
+  minute). The field stays lantern: the human is still needed, just maybe not
+  answerable from here.
 
 Unchanged invariants: arming delay, wake-press guard on both buttons, prompt takes
 over menu/glance and reverts unconfirmed menu previews, `{"cmd":"permission",…}` wire
