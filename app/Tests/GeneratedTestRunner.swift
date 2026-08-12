@@ -130,6 +130,7 @@ struct GeneratedTestRunner {
         await run("HeartbeatTruncationTests.testPrefixByBytesHandlesAGraphemeWiderThanTheBudget") { let t = HeartbeatTruncationTests(); try t.setUpWithError(); try await t.setUp(); t.testPrefixByBytesHandlesAGraphemeWiderThanTheBudget() }
         await run("HeartbeatTruncationTests.testEmojiHintProducesValidUTF8OnTheWire") { let t = HeartbeatTruncationTests(); try t.setUpWithError(); try await t.setUp(); try t.testEmojiHintProducesValidUTF8OnTheWire() }
         await run("HeartbeatTruncationTests.testOversizeStateShedsExtrasRatherThanBlowingTheFrame") { let t = HeartbeatTruncationTests(); try t.setUpWithError(); try await t.setUp(); try t.testOversizeStateShedsExtrasRatherThanBlowingTheFrame() }
+        await run("HeartbeatTruncationTests.testPersonalityFieldsFitTheFrame") { let t = HeartbeatTruncationTests(); try t.setUpWithError(); try await t.setUp(); try t.testPersonalityFieldsFitTheFrame() }
         await run("HookInstallerTests.testUnreadableClaudeSettingsIsNotOverwritten") { let t = HookInstallerTests(); try t.setUpWithError(); try await t.setUp(); try t.testUnreadableClaudeSettingsIsNotOverwritten() }
         await run("HookInstallerTests.testClaudeInstallIsVerifiedAndIdempotent") { let t = HookInstallerTests(); try t.setUpWithError(); try await t.setUp(); try t.testClaudeInstallIsVerifiedAndIdempotent() }
         await run("HookInstallerTests.testUninstallUnreadableClaudeSettingsFailsWithoutChangingFile") { let t = HookInstallerTests(); try t.setUpWithError(); try await t.setUp(); try t.testUninstallUnreadableClaudeSettingsFailsWithoutChangingFile() }
@@ -147,9 +148,53 @@ struct GeneratedTestRunner {
         await run("InstanceLockTests.testClaimIsIdempotentForTheHolder") { let t = InstanceLockTests(); try t.setUpWithError(); try await t.setUp(); t.testClaimIsIdempotentForTheHolder() }
         await run("InstanceLockTests.testReleaseHandsTheClaimToTheNextComer") { let t = InstanceLockTests(); try t.setUpWithError(); try await t.setUp(); t.testReleaseHandsTheClaimToTheNextComer() }
         await run("InstanceLockTests.testDistinctPathsDoNotContend") { let t = InstanceLockTests(); try t.setUpWithError(); try await t.setUp(); t.testDistinctPathsDoNotContend() }
+        await run("MCPServerTests.testInitializeHandshake") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testInitializeHandshake() }
+        await run("MCPServerTests.testToolsListExposesTheFullSurface") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testToolsListExposesTheFullSurface() }
+        await run("MCPServerTests.testNotificationGetsNoResponse") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testNotificationGetsNoResponse() }
+        await run("MCPServerTests.testUnknownMethodErrors") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testUnknownMethodErrors() }
+        await run("MCPServerTests.testReportEffortWithoutSessionSaysSo") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testReportEffortWithoutSessionSaysSo() }
+        await run("MCPServerTests.testReportEffortReachesTheSession") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testReportEffortReachesTheSession() }
+        await run("MCPServerTests.testReportEffortRejectsUnknownLevel") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testReportEffortRejectsUnknownLevel() }
+        await run("MCPServerTests.testExpressShowsOverlay") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testExpressShowsOverlay() }
+        await run("MCPServerTests.testExpressRejectsOffVocabularyEmotion") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testExpressRejectsOffVocabularyEmotion() }
+        await run("MCPServerTests.testExpressSuppressedWhileApprovalPending") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testExpressSuppressedWhileApprovalPending() }
+        await run("MCPServerTests.testExpressRateFloorBetweenExpressions") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testExpressRateFloorBetweenExpressions() }
+        await run("MCPServerTests.testSaySanitizesAndCaps") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testSaySanitizesAndCaps() }
+        await run("MCPServerTests.testSayRejectsAllControlText") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testSayRejectsAllControlText() }
+        await run("MCPServerTests.testIntroduceRemembersReturningAgents") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testIntroduceRemembersReturningAgents() }
+        await run("MCPServerTests.testIntroduceRejectsOffPaletteColor") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testIntroduceRejectsOffPaletteColor() }
+        await run("MCPServerTests.testMCPOverRealHTTP") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); try await t.testMCPOverRealHTTP() }
+        await run("MCPServerTests.testMemoryStoreSeedsAndSaves") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); t.testMemoryStoreSeedsAndSaves() }
+        await run("MCPServerTests.testFilePetMemoryStoreRoundTrips") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testFilePetMemoryStoreRoundTrips() }
         await run("OrphanedPromptTests.testDeviceDecisionClearsAPromptWhoseWaiterIsGone") { let t = OrphanedPromptTests(); try t.setUpWithError(); try await t.setUp(); await t.testDeviceDecisionClearsAPromptWhoseWaiterIsGone() }
         await run("OrphanedPromptTests.testNormalApprovalStillUnblocksItsCaller") { let t = OrphanedPromptTests(); try t.setUpWithError(); try await t.setUp(); await t.testNormalApprovalStillUnblocksItsCaller() }
         await run("OrphanedPromptTests.testDecisionForAnIdWeNeverHadIsStillReportedAsUnknown") { let t = OrphanedPromptTests(); try t.setUpWithError(); try await t.setUp(); t.testDecisionForAnIdWeNeverHadIsStillReportedAsUnknown() }
+        await run("PersonalityReducerTests.testFirstEverSessionDoesNotGreet") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testFirstEverSessionDoesNotGreet() }
+        await run("PersonalityReducerTests.testShortGapDoesNotGreet") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testShortGapDoesNotGreet() }
+        await run("PersonalityReducerTests.testReturnAfterAbsenceGreets") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testReturnAfterAbsenceGreets() }
+        await run("PersonalityReducerTests.testWeekAwayEarnsTheBigGreeting") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testWeekAwayEarnsTheBigGreeting() }
+        await run("PersonalityReducerTests.testGreetExpiresViaStaleTick") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testGreetExpiresViaStaleTick() }
+        await run("PersonalityReducerTests.testGreetNeverOutranksAttention") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testGreetNeverOutranksAttention() }
+        await run("PersonalityReducerTests.testCircadianColdStartStaysNeutral") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testCircadianColdStartStaysNeutral() }
+        await run("PersonalityReducerTests.testSessionAtUnusualHourSurprises") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testSessionAtUnusualHourSurprises() }
+        await run("PersonalityReducerTests.testSessionAtTypicalHourDoesNotSurprise") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testSessionAtTypicalHourDoesNotSurprise() }
+        await run("PersonalityReducerTests.testExpectantAtTypicalHourWhileDisconnected") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testExpectantAtTypicalHourWhileDisconnected() }
+        await run("PersonalityReducerTests.testSessionStartClearsExpectant") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testSessionStartClearsExpectant() }
+        await run("PersonalityReducerTests.testHistogramSamplesAtMostEveryHalfHour") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testHistogramSamplesAtMostEveryHalfHour() }
+        await run("PersonalityReducerTests.testLifetimeSessionsCountsNewSessionsOnly") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testLifetimeSessionsCountsNewSessionsOnly() }
+        await run("PersonalityReducerTests.testFreshWorkIsLightEffort") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testFreshWorkIsLightEffort() }
+        await run("PersonalityReducerTests.testLongWorkEscalatesToHardThenGrinding") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testLongWorkEscalatesToHardThenGrinding() }
+        await run("PersonalityReducerTests.testErrorsEscalateEffort") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testErrorsEscalateEffort() }
+        await run("PersonalityReducerTests.testReportedEffortOverridesHeuristic") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testReportedEffortOverridesHeuristic() }
+        await run("PersonalityReducerTests.testQuickCleanTaskGetsModestCelebration") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testQuickCleanTaskGetsModestCelebration() }
+        await run("PersonalityReducerTests.testLongStruggleEarnsTheBigCelebration") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testLongStruggleEarnsTheBigCelebration() }
+        await run("PersonalityReducerTests.testCelebrateIntensityClearsWithTheWindow") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testCelebrateIntensityClearsWithTheWindow() }
+        await run("PersonalityReducerTests.testAgentExpressionSetsOverlayWithLease") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testAgentExpressionSetsOverlayWithLease() }
+        await run("PersonalityReducerTests.testS1ExpressionRefusedWhilePromptPending") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testS1ExpressionRefusedWhilePromptPending() }
+        await run("PersonalityReducerTests.testS1PromptArrivingMidLeaseEvictsOverlay") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testS1PromptArrivingMidLeaseEvictsOverlay() }
+        await run("PersonalityReducerTests.testIntroduceRecordsIdentityAndColorsExpressions") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testIntroduceRecordsIdentityAndColorsExpressions() }
+        await run("PersonalityReducerTests.testApprovalResolutionLeavesMemoryAndJoyUntouched") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testApprovalResolutionLeavesMemoryAndJoyUntouched() }
+        await run("PersonalityReducerTests.testMemoryLoadedSeedsWithoutCountingAsPresence") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testMemoryLoadedSeedsWithoutCountingAsPresence() }
         await run("PromptExpiryTests.testReducerClearsPromptOlderThanApprovalTimeout") { let t = PromptExpiryTests(); try t.setUpWithError(); try await t.setUp(); t.testReducerClearsPromptOlderThanApprovalTimeout() }
         await run("PromptExpiryTests.testReducerKeepsFreshPromptBeforeApprovalTimeout") { let t = PromptExpiryTests(); try t.setUpWithError(); try await t.setUp(); t.testReducerKeepsFreshPromptBeforeApprovalTimeout() }
         await run("PromptExpiryTests.testEngineResolvesPendingApprovalAsPassthroughWhenPromptExpires") { let t = PromptExpiryTests(); try t.setUpWithError(); try await t.setUp(); await t.testEngineResolvesPendingApprovalAsPassthroughWhenPromptExpires() }
@@ -247,7 +292,7 @@ struct GeneratedTestRunner {
         await run("SnapshotHarnessTests.testSettings") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testSettings() }
         await run("SnapshotHarnessTests.testOnboardingSteps") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testOnboardingSteps() }
 
-        let total = 223
+        let total = 268
         print("\n\u{2713} \(passed) passed, \(skipped) skipped of \(total) tests")
     }
 }

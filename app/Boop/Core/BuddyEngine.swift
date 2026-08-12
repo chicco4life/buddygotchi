@@ -15,9 +15,14 @@ final class BuddyEngine {
     private var outputs: [any OutputProvider] = []
     private var processWatchers: [String: DispatchSourceProcess] = [:]
     private var pendingApprovals: [String: CheckedContinuation<ApprovalDecision, Never>] = [:]
+    private let memoryStore: (any PetMemoryStoring)?
+    /// Per-agent floor between expressions (S6). Engine-side, not reducer:
+    /// rate limiting is wall-clock policy, not state semantics.
+    private var lastExpressAt: [String: Double] = [:]
 
-    init(config: BuddyConfig = .default, clock: (any Clock)? = nil, diagnosticLog: DiagnosticLog? = nil) {
+    init(config: BuddyConfig = .default, clock: (any Clock)? = nil, diagnosticLog: DiagnosticLog? = nil, memoryStore: (any PetMemoryStoring)? = nil) {
         self.config = config
+        self.memoryStore = memoryStore
         self.clock = clock ?? WallClock()
         self.diagnosticLog = diagnosticLog ?? DiagnosticLog()
         self.internalState = .initial(staleMs: config.staleTimeoutMs, celebrateDurationMs: config.celebrateDurationMs, workStallTimeoutMs: config.workStallTimeoutMs, approvalTimeoutMs: config.approvalTimeoutMs)
@@ -29,12 +34,30 @@ final class BuddyEngine {
     // MARK: - Lifecycle
 
     func start() {
+        if let memory = memoryStore?.load() {
+            apply(.memoryLoaded(at: clock.now(), memory: memory))
+        }
         staleTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
-                guard let self, (!self.internalState.sessions.isEmpty || self.state.celebrateUntil != nil || self.state.affectionUntil != nil) else { return }
+                guard let self, self.needsStaleTicks() else { return }
                 self.triggerStaleTick()
             }
         }
+    }
+
+    /// Whether the 2s tick has anything to expire or recompute. Personality
+    /// widens this beyond sessions: transient windows (greet, mood, agent
+    /// lease) need their expiry tick, and a circadian-ready memory needs
+    /// ticks even while asleep so "expectant" can come and go with the hour.
+    private func needsStaleTicks() -> Bool {
+        !internalState.sessions.isEmpty
+            || state.celebrateUntil != nil
+            || state.affectionUntil != nil
+            || state.greetUntil != nil
+            || state.moodUntil != nil
+            || state.mood != nil
+            || state.agentOverlay != nil
+            || internalState.memory.circadianReady(at: clock.now())
     }
 
     func stop() {
@@ -117,6 +140,61 @@ final class BuddyEngine {
         Timer.scheduledTimer(withTimeInterval: boopAffectionMs / 1000 + 0.1, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated { self?.triggerStaleTick() }
         }
+    }
+
+    // MARK: - Agent Expression API (System E)
+
+    /// What happened to an agent's expression attempt — also the source of the
+    /// tool-result feedback strings, which teach pacing better than any
+    /// upfront instruction.
+    enum AgentExpressOutcome: Equatable {
+        case shown
+        /// An approval/prompt is pending somewhere (S1). Deferred, not queued.
+        case suppressed
+        case rateLimited(retryAfterMs: Double)
+    }
+
+    var petMemory: PetMemory { internalState.memory }
+
+    /// Resolve which session an MCP call belongs to: the most recently active
+    /// session from that agent. Static per-agent MCP configs can't carry a
+    /// per-session id, and a self-reported session parameter would be
+    /// spoofable (S7) — so identity comes from the connection and the mapping
+    /// stays server-side.
+    private func mostRecentSession(source: String) -> String? {
+        internalState.sessions
+            .filter { $0.value.source == source }
+            .max(by: { $0.value.lastActivityAt < $1.value.lastActivityAt })?
+            .key
+    }
+
+    /// Agent difficulty self-report. Returns false when the agent has no live
+    /// session to attach it to.
+    @discardableResult
+    func reportEffort(agentId: String, level: EffortTier) -> Bool {
+        guard let sessionId = mostRecentSession(source: agentId) else { return false }
+        apply(.effortReported(at: clock.now(), sessionId: sessionId, level: level))
+        return true
+    }
+
+    func agentIntroduce(agentId: String, color: String?, signatureEmote: String?, greeting: String?) {
+        apply(.agentIntroduced(at: clock.now(), agentId: agentId, color: color, signatureEmote: signatureEmote, greeting: greeting))
+    }
+
+    /// Validation of enums/caps happened at the MCP layer (S4/S5); this
+    /// enforces suppression (S1) and the per-agent rate floor (S6). The
+    /// reducer re-checks S1 — a prompt can land between check and apply.
+    func agentExpress(agentId: String, emotion: String, intensity: String, motion: String?, say: String?, delivery: String?) -> AgentExpressOutcome {
+        let now = clock.now()
+        if internalState.sessions.values.contains(where: { $0.prompt != nil }) {
+            return .suppressed
+        }
+        if let last = lastExpressAt[agentId], now - last < PetTuning.agentExpressMinGapMs {
+            return .rateLimited(retryAfterMs: PetTuning.agentExpressMinGapMs - (now - last))
+        }
+        lastExpressAt[agentId] = now
+        apply(.agentExpressed(at: now, agentId: agentId, emotion: emotion, intensity: intensity, motion: motion, say: say, delivery: delivery))
+        return .shown
     }
 
     // MARK: - Approval API
@@ -253,8 +331,14 @@ final class BuddyEngine {
         guard next != internalState else { return }
         let removedIds = Set(internalState.sessions.keys).subtracting(next.sessions.keys)
         let disappearedPromptIds = previousPromptIds.subtracting(Self.promptIds(in: next))
+        let memoryChanged = next.memory != internalState.memory
         internalState = next
         state = next.buddy
+        if memoryChanged {
+            // Memory mutates at most every ~30 min (histogram sampling) plus
+            // session/celebration edges — cheap enough to write through.
+            memoryStore?.save(next.memory)
+        }
         for id in removedIds {
             cancelWatcher(sessionId: id)
         }

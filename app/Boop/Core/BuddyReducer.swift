@@ -13,6 +13,9 @@ struct InternalState: Sendable, Equatable {
     /// `.processWatchChanged`; exempt from the stale-activity reap because the
     /// watcher reports death definitively — silence is not evidence.
     var watchedSessionIds: Set<String> = []
+    /// The pet's persisted inner life (System P). Seeded via `.memoryLoaded`,
+    /// mutated only here, written back by the engine when it changes.
+    var memory: PetMemory = .empty
 
     var version: Int { buddy.version }
 
@@ -64,6 +67,19 @@ private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> Interna
         return handleReviewDismissed(state)
     case .errorDismissed(let at, let sessionId):
         return handleErrorDismissed(state, at: at, sessionId: sessionId)
+    case .memoryLoaded(_, let memory):
+        var s = state
+        s.memory = memory
+        return s
+    case .effortReported(_, let sessionId, let level):
+        guard state.sessions[sessionId] != nil else { return state }
+        var s = state
+        s.sessions[sessionId]?.reportedEffort = level
+        return s
+    case .agentIntroduced(let at, let agentId, let color, let signatureEmote, let greeting):
+        return handleAgentIntroduced(state, at: at, agentId: agentId, color: color, signatureEmote: signatureEmote, greeting: greeting)
+    case .agentExpressed(let at, let agentId, let emotion, let intensity, let motion, let say, let delivery):
+        return handleAgentExpressed(state, at: at, agentId: agentId, emotion: emotion, intensity: intensity, motion: motion, say: say, delivery: delivery)
     }
 }
 
@@ -71,12 +87,29 @@ private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> Interna
 
 private func handleSessionStarted(_ state: InternalState, at: Double, sessionId: String, source: String, cwd: String?) -> InternalState {
     var s = state
-    if s.sessions[sessionId] == nil {
+    let isNewSession = s.sessions[sessionId] == nil
+    // Judge the hour against history BEFORE this arrival samples into it —
+    // otherwise the session's own sample dilutes "have I ever worked now?".
+    let atUnusualHour = s.memory.circadianReady(at: at) && s.memory.isUnusualHour(PetMemory.utcHour(ofMs: at))
+    observePresence(&s, at: at)
+    if isNewSession {
         s.sessions[sessionId] = Session(source: source, state: .idle, prompt: nil, cwd: cwd, lastActivityAt: at, workStartedAt: nil)
+        s.memory.lifetimeSessions += 1
+        // Surprised-then-cozy: a session at an hour this user never works.
+        // Only on a genuinely new session, so per-event sessionStarted
+        // re-sends don't retrigger it.
+        if atUnusualHour {
+            s.buddy.mood = .surprised
+            s.buddy.moodUntil = at + PetTuning.surpriseMoodMs
+        }
     } else {
         let existingCwd = s.sessions[sessionId]?.cwd
         s.sessions[sessionId]?.lastActivityAt = at
         s.sessions[sessionId]?.cwd = cwd ?? existingCwd
+    }
+    // Anticipation is for before you arrive; a live session ends it.
+    if s.buddy.mood == .expectant {
+        s.buddy.mood = nil
     }
     return s
 }
@@ -128,6 +161,7 @@ private func handleRequestCleared(_ state: InternalState, at: Double, sessionId:
 
 private func handleActivitySignal(_ state: InternalState, at: Double, sessionId: String, source: String, signal: ActivitySignalKind, tool: String?, hint: String?) -> InternalState {
     var s = state
+    observePresence(&s, at: at)
     touchSession(&s, sessionId: sessionId, at: at, source: source)
 
     switch signal {
@@ -193,6 +227,18 @@ private func handleActivitySignal(_ state: InternalState, at: Double, sessionId:
         s.sessions[sessionId]?.currentTool = nil
         s.sessions[sessionId]?.currentHint = nil
         s.sessions[sessionId]?.currentActivityKind = nil
+        // Payoff scaling: joy proportional to the struggle. A long or
+        // error-pocked stretch earns the big celebration; a 30-second task a
+        // modest hop. Never scaled by approvals (S9).
+        let errors = session?.errorCount ?? 0
+        s.buddy.celebrateIntensity = {
+            if (duration ?? 0) >= PetTuning.celebrateHugeMinMs || errors >= 2 { return 3 }
+            if (duration ?? 0) >= PetTuning.celebrateBigMinMs || errors >= 1 { return 2 }
+            return 1
+        }()
+        s.memory.lifetimeCelebrations += 1
+        s.sessions[sessionId]?.errorCount = 0
+        s.sessions[sessionId]?.reportedEffort = nil
         s.buddy.celebrateUntil = at + s.celebrateDurationMs
         s.buddy.lastTaskDurationMs = duration
         s.buddy.lastCompletionAt = at
@@ -210,6 +256,7 @@ private func handleActivitySignal(_ state: InternalState, at: Double, sessionId:
         // Preserve currentTool/currentHint and workStartedAt — we want the error
         // card to show "what failed" and "for how long".
         s.sessions[sessionId]?.state = .errored
+        s.sessions[sessionId]?.errorCount += 1
         s.sessions[sessionId]?.prompt = nil
         if let tool, !tool.isEmpty {
             s.sessions[sessionId]?.lastTool = tool
@@ -236,6 +283,7 @@ private func handleStaleTick(_ state: InternalState, now: Double) -> InternalSta
 
     if let until = s.buddy.celebrateUntil, now >= until {
         s.buddy.celebrateUntil = nil
+        s.buddy.celebrateIntensity = nil
         s.buddy.lastTaskDurationMs = nil
         changed = true
     }
@@ -243,6 +291,38 @@ private func handleStaleTick(_ state: InternalState, now: Double) -> InternalSta
     if let until = s.buddy.affectionUntil, now >= until {
         s.buddy.affectionUntil = nil
         changed = true
+    }
+
+    if let until = s.buddy.greetUntil, now >= until {
+        s.buddy.greetUntil = nil
+        s.buddy.greetLevel = nil
+        changed = true
+    }
+
+    // Possession lease (S8): the agent's expression expires; the pet is
+    // itself again.
+    if let overlay = s.buddy.agentOverlay, now >= overlay.until {
+        s.buddy.agentOverlay = nil
+        changed = true
+    }
+
+    if let until = s.buddy.moodUntil, now >= until {
+        s.buddy.moodUntil = nil
+        if s.buddy.mood == .surprised { s.buddy.mood = nil }
+        changed = true
+    }
+
+    // Expectant: awake-with-anticipation around the user's usual start hour,
+    // before any session shows up. Never overrides an active surprised window.
+    if s.buddy.moodUntil == nil {
+        let expectant = s.sessions.isEmpty
+            && s.memory.circadianReady(at: now)
+            && s.memory.isTypicalHour(PetMemory.utcHour(ofMs: now))
+        let newMood: PetMood? = expectant ? .expectant : (s.buddy.mood == .expectant ? nil : s.buddy.mood)
+        if newMood != s.buddy.mood {
+            s.buddy.mood = newMood
+            changed = true
+        }
     }
 
     // Stall detection: a session in .working that hasn't bumped lastWorkSignalAt
@@ -339,7 +419,63 @@ let boopAffectionMs: Double = 2500
 
 private func handleBoopArrived(_ state: InternalState, at: Double) -> InternalState {
     var s = state
+    observePresence(&s, at: at)
     s.buddy.affectionUntil = at + boopAffectionMs
+    return s
+}
+
+// MARK: - Personality Handlers
+
+/// Every user-adjacent event passes through here: it stamps `lastSeenAt`,
+/// triggers the return-greeting when a real absence just ended, and samples
+/// the circadian histogram (at most one sample per ~30 min so activity volume
+/// doesn't skew the shape). Absence is a ratchet — a gap earns warmth on
+/// return, never a penalty.
+private func observePresence(_ s: inout InternalState, at: Double) {
+    if let last = s.memory.lastSeenAt, at - last >= PetTuning.greetGapMs {
+        let big = at - last >= PetTuning.greetBigGapMs
+        s.buddy.greetUntil = at + (big ? PetTuning.greetBigMs : PetTuning.greetShortMs)
+        s.buddy.greetLevel = big ? 2 : 1
+    }
+    if s.memory.lastSampleAt.map({ at - $0 >= PetTuning.circadianSampleGapMs }) ?? true {
+        let hour = PetMemory.utcHour(ofMs: at)
+        s.memory.hourHistogram[hour] += 1
+        s.memory.histogramSamples += 1
+        if s.memory.firstSampleAt == nil { s.memory.firstSampleAt = at }
+        s.memory.lastSampleAt = at
+    }
+    s.memory.lastSeenAt = at
+}
+
+private func handleAgentIntroduced(_ state: InternalState, at: Double, agentId: String, color: String?, signatureEmote: String?, greeting: String?) -> InternalState {
+    var s = state
+    var identity = s.memory.agents[agentId] ?? AgentIdentity()
+    if let color { identity.color = color }
+    if let signatureEmote { identity.signatureEmote = signatureEmote }
+    if let greeting { identity.greeting = greeting }
+    identity.visits += 1
+    identity.lastSeenAt = at
+    s.memory.agents[agentId] = identity
+    return s
+}
+
+private func handleAgentExpressed(_ state: InternalState, at: Double, agentId: String, emotion: String, intensity: String, motion: String?, say: String?, delivery: String?) -> InternalState {
+    // S1: while ANY prompt is pending — any session, approval or notification —
+    // agent expression is refused outright. The screen belongs to the trust
+    // decision; the engine reports "deferred" back to the agent.
+    guard !state.sessions.values.contains(where: { $0.prompt != nil }) else { return state }
+    var s = state
+    let lease = say != nil ? PetTuning.agentSayLeaseMs : PetTuning.agentExpressLeaseMs
+    s.buddy.agentOverlay = AgentOverlay(
+        agentId: agentId,
+        color: s.memory.agents[agentId]?.color,
+        emotion: emotion,
+        intensity: intensity,
+        motion: motion,
+        say: say,
+        delivery: delivery,
+        until: at + lease
+    )
     return s
 }
 
@@ -454,6 +590,14 @@ private func aggregate(_ state: InternalState) -> BuddyState {
 
     // Default — gets overwritten below in the busy branch when present.
     buddy.currentActivityKind = nil
+    buddy.effortTier = nil
+
+    // S1 belt and braces: the reducer already refuses agentExpressed while a
+    // prompt is pending, but a prompt arriving mid-lease must also evict the
+    // overlay — agent content and trust decisions never share the screen.
+    if !waiting.isEmpty {
+        buddy.agentOverlay = nil
+    }
 
     let hasConnected = !allSessions.isEmpty
     buddy.desktop = DesktopLink(
@@ -462,7 +606,10 @@ private func aggregate(_ state: InternalState) -> BuddyState {
     )
 
     if !hasConnected {
-        buddy.pet = Pet(state: .sleep, species: buddy.pet.species)
+        // Expectant is the one thing that wakes the pet without a session:
+        // around the user's usual start hour it sits up and watches the door.
+        let state: PetState = buddy.mood == .expectant ? .idle : .sleep
+        buddy.pet = Pet(state: state, species: buddy.pet.species)
         buddy.msg = ""
         buddy.lastSignal = nil
     } else if !waiting.isEmpty {
@@ -490,6 +637,7 @@ private func aggregate(_ state: InternalState) -> BuddyState {
         // re-opening the popover, with msg empty and lastCompleted wiped, so
         // it was a celebration with nothing to show.
         buddy.celebrateUntil = nil
+        buddy.celebrateIntensity = nil
         buddy.pet = Pet(state: .busy, species: buddy.pet.species)
         // Primary working session = oldest workStartedAt (longest running). Surface its
         // current tool/hint so the user can see what the agent is doing right now.
@@ -500,6 +648,12 @@ private func aggregate(_ state: InternalState) -> BuddyState {
             buddy.msg = ""
         }
         buddy.currentActivityKind = primary?.currentActivityKind
+        // Effort shows in *expression*, not judgment: the pet strains
+        // alongside a hard task; it is never disappointed at anyone.
+        if let primary {
+            let elapsed = primary.workStartedAt.map { buddy.updatedAt - $0 } ?? 0
+            buddy.effortTier = effortTier(for: primary, elapsedMs: elapsed)
+        }
         buddy.lastSignal = "busy"
     } else if !thinking.isEmpty {
         // Calm "the agent is thinking hard" state — silent past the work-stall
@@ -534,6 +688,7 @@ private func aggregate(_ state: InternalState) -> BuddyState {
             buddy.msg = ""
         }
         buddy.celebrateUntil = nil
+        buddy.celebrateIntensity = nil
         buddy.lastSignal = "idle"
     }
 
@@ -551,13 +706,38 @@ private func aggregate(_ state: InternalState) -> BuddyState {
         }
     }
 
+    // Return-greeting overlay: same shape as the boop overlay above. Reusing
+    // .heart keeps the wire compatible with already-flashed firmware (an
+    // unknown pet string would fall to its default); the separate greet flag
+    // in the heartbeat lets newer firmware do a dedicated animation.
+    if let until = buddy.greetUntil, buddy.updatedAt < until {
+        switch buddy.pet.state {
+        case .idle, .busy, .thinking, .celebrate:
+            buddy.pet = Pet(state: .heart, species: buddy.pet.species)
+        case .sleep, .attention, .error, .heart:
+            break
+        }
+    }
+
     return buddy
+}
+
+/// The agent's own report wins; otherwise elapsed span and error count set
+/// the tier. Errors escalate faster than time — three failures IS a grind,
+/// however short.
+private func effortTier(for session: Session, elapsedMs: Double) -> EffortTier {
+    if let reported = session.reportedEffort { return reported }
+    if elapsedMs >= PetTuning.effortGrindingMinMs || session.errorCount >= 3 { return .grinding }
+    if elapsedMs >= PetTuning.effortHardMinMs || session.errorCount >= 2 { return .hard }
+    if elapsedMs < PetTuning.effortLightMaxMs && session.errorCount == 0 { return .light }
+    return .normal
 }
 
 // MARK: - Helpers
 
 private func setPrompt(_ state: InternalState, at: Double, sessionId: String, requestId: String, tool: String, hint: String, sessionLabel: String?, source: String?, isApproval: Bool) -> InternalState {
     var s = state
+    observePresence(&s, at: at)
     touchSession(&s, sessionId: sessionId, at: at)
 
     let effectiveSource = source ?? s.sessions[sessionId]?.source

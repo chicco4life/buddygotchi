@@ -88,4 +88,38 @@ final class HeartbeatTruncationTests: XCTestCase {
         XCTAssertLessThanOrEqual(data.count, 1536, "frame exceeds the firmware's line buffer budget")
         XCTAssertNotNil(String(data: data, encoding: .utf8))
     }
+
+    /// Personality and agent-overlay fields ride the same frame; worst-case
+    /// (all present at max width, on top of unbounded entries) must still
+    /// shed down under the budget, and the overlay must survive the shed.
+    func testPersonalityFieldsFitTheFrame() throws {
+        let data = try heartbeat { state in
+            state.pet = Pet(state: .busy, species: "blob")
+            state.msg = String(repeating: "修", count: 40)
+            state.entries = (0..<6).map { _ in String(repeating: "修", count: 200) }
+            state.greetUntil = 1
+            state.greetLevel = 2
+            state.mood = .surprised
+            state.effortTier = .grinding
+            state.agentOverlay = AgentOverlay(
+                agentId: "claude-code",
+                color: "lavender",
+                emotion: "dramatic-collapse",
+                intensity: "medium",
+                motion: "look-at-user",
+                say: String(repeating: "x", count: 38) + "🐛",
+                delivery: "deadpan",
+                until: 2
+            )
+        }
+        XCTAssertLessThanOrEqual(data.count, 1536, "frame exceeds the firmware's line buffer budget")
+        XCTAssertNotNil(String(data: data, encoding: .utf8))
+
+        let obj = (try? JSONSerialization.jsonObject(with: data.dropLast())) as? [String: Any]
+        XCTAssertEqual(obj?["agentEmotion"] as? String, "dramatic-collapse")
+        XCTAssertEqual(obj?["effort"] as? String, "grinding")
+        XCTAssertEqual(obj?["greet"] as? Bool, true)
+        let say = (obj?["agentSay"] as? String) ?? ""
+        XCTAssertLessThanOrEqual(say.utf8.count, 40)
+    }
 }

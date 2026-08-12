@@ -282,6 +282,8 @@ func buildHookServer(
         return approvalResponse(decision: decision, source: source)
     }
 
+    addMCPRoutes(to: router, engine: engine, config: config)
+
     return Application(
         router: router,
         server: .http1(configuration: .init(additionalChannelHandlers: [CloseOnInputClosedHandler()])),
@@ -527,7 +529,7 @@ func makeRequestId(sessionId: String) -> String {
 
 private let sharedDecoder = JSONDecoder()
 
-private func isAuthorized(_ request: Request, token: String) -> Bool {
+func isAuthorized(_ request: Request, token: String) -> Bool {
     guard !token.isEmpty,
           let headerName = HTTPField.Name("X-Boop-Token"),
           let providedToken = request.headers[headerName] else { return false }

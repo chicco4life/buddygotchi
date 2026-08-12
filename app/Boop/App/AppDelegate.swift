@@ -25,7 +25,7 @@ extension Notification.Name {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
-    private let engine = BuddyEngine()
+    private let engine = BuddyEngine(memoryStore: FilePetMemoryStore(stateDir: BuddyConfig.default.stateDir))
     private var serverTask: Task<Void, Never>?
     private var serviceGroup: ServiceGroup?
     private var sigintSource: DispatchSourceSignal?

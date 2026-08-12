@@ -173,6 +173,9 @@ final class HookInstaller {
         case .codex:
             try installCodexOrThrow()
         }
+        // Best-effort on purpose: MCP is the expression channel, hooks are the
+        // product. An unreadable agent MCP config must never fail hook install.
+        try? registerMCP(for: agent)
         rememberInstalled(agent)
     }
 
@@ -210,6 +213,7 @@ final class HookInstaller {
         if case .failed = outcome {
             return outcome
         }
+        unregisterMCP(for: agent)
         forgetInstalled(agent)
         return outcome
     }
@@ -679,6 +683,55 @@ final class HookInstaller {
         }
         let expected = Bundle.main.executableURL?.deletingLastPathComponent().appendingPathComponent("BoopSignal").path ?? "BoopSignal"
         throw HookInstallError.helperMissing(path: expected)
+    }
+
+    // MARK: - MCP registration (System E)
+
+    /// Streamable-HTTP MCP entry for one agent. The X-Boop-Agent header is
+    /// the identity wire (S7): set here at registration time, so it is not
+    /// reachable from the model — unlike anything in a request body.
+    private func mcpEntry(for agent: AgentKind) -> [String: Any] {
+        let config = BuddyConfig.default
+        return [
+            "type": "http",
+            "url": "http://127.0.0.1:\(config.httpPort)/mcp",
+            "headers": [
+                "X-Boop-Token": config.token,
+                "X-Boop-Agent": agent.rawValue,
+            ],
+        ]
+    }
+
+    /// Where this agent's CLI reads user-scope MCP servers from. Codex is nil
+    /// on purpose: its HTTP MCP support isn't wired yet, so it stays hooks-only.
+    private func mcpConfigURL(for agent: AgentKind) -> URL? {
+        switch agent {
+        case .claudeCode:
+            return URL(fileURLWithPath: homeDir).appendingPathComponent(".claude.json")
+        case .cursor:
+            return URL(fileURLWithPath: homeDir).appendingPathComponent(".cursor/mcp.json")
+        case .codex:
+            return nil
+        }
+    }
+
+    private func registerMCP(for agent: AgentKind) throws {
+        guard let url = mcpConfigURL(for: agent) else { return }
+        var root = try readJSONObject(at: url, agent: agent)
+        var servers = root["mcpServers"] as? [String: Any] ?? [:]
+        servers["boop"] = mcpEntry(for: agent)
+        root["mcpServers"] = servers
+        try writeJSONObject(root, to: url, agent: agent)
+    }
+
+    private func unregisterMCP(for agent: AgentKind) {
+        guard let url = mcpConfigURL(for: agent),
+              var root = try? readJSONObject(at: url, agent: agent),
+              var servers = root["mcpServers"] as? [String: Any],
+              servers["boop"] != nil else { return }
+        servers.removeValue(forKey: "boop")
+        root["mcpServers"] = servers
+        try? writeJSONObject(root, to: url, agent: agent)
     }
 
     // MARK: - File helpers

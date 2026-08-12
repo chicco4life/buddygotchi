@@ -61,6 +61,11 @@ struct Session: Sendable, Equatable {
     var currentTool: String?
     var currentHint: String?
     var currentActivityKind: ActivityKind?
+    /// Errors seen since the last completion — feeds the effort tier and the
+    /// payoff-scaled celebration. Cleared on celebrate.
+    var errorCount: Int = 0
+    /// Agent's own difficulty report (MCP report_effort); beats the heuristic.
+    var reportedEffort: EffortTier?
 }
 
 struct SessionCounts: Sendable, Equatable {
@@ -181,6 +186,29 @@ struct BuddyState: Sendable, Equatable {
     var activeSessions: [SessionSnapshot]
     var currentActivityKind: ActivityKind?
 
+    // MARK: Personality (System P)
+
+    /// While set and in the future, the pet greets a returning user — shown as
+    /// heart-eyes over calm states (wire-compatible with existing firmware).
+    var greetUntil: Double?
+    /// 1 = glad to see you, 2 = the big missed-you (a week or more away).
+    var greetLevel: Int?
+    /// Circadian flavor: expectant near the usual start hour, surprised at an
+    /// hour this user never works.
+    var mood: PetMood?
+    /// Expiry for the surprised mood; expectant clears by conditions instead.
+    var moodUntil: Double?
+    /// How hard the current work looks (busy state only).
+    var effortTier: EffortTier?
+    /// 1..3, struggle-proportional celebration size. Rides with celebrateUntil.
+    var celebrateIntensity: Int?
+
+    // MARK: Agent embodiment (System E)
+
+    /// The agent expression currently coloring the pet, if any. Never present
+    /// while a prompt is pending (S1).
+    var agentOverlay: AgentOverlay?
+
     static let initial = BuddyState(
         version: 0,
         updatedAt: 0,
@@ -199,6 +227,13 @@ struct BuddyState: Sendable, Equatable {
         firstErrored: nil,
         firstThinking: nil,
         activeSessions: [],
-        currentActivityKind: nil
+        currentActivityKind: nil,
+        greetUntil: nil,
+        greetLevel: nil,
+        mood: nil,
+        moodUntil: nil,
+        effortTier: nil,
+        celebrateIntensity: nil,
+        agentOverlay: nil
     )
 }

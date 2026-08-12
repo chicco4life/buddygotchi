@@ -39,6 +39,19 @@ enum BuddyEvent: Sendable {
     case reviewDismissed(at: Double)
     case errorDismissed(at: Double, sessionId: String)
 
+    /// Persisted pet memory arriving from disk at startup. Seeds the reducer's
+    /// memory without counting as presence (no greet, no histogram sample).
+    case memoryLoaded(at: Double, memory: PetMemory)
+    /// An agent's own difficulty self-report via MCP. Overrides the effort
+    /// heuristic for its session.
+    case effortReported(at: Double, sessionId: String, level: EffortTier)
+    /// An agent claimed identity markers for this session (MCP `introduce`).
+    case agentIntroduced(at: Double, agentId: String, color: String?, signatureEmote: String?, greeting: String?)
+    /// An agent expression (MCP `express`/`say`). The reducer refuses it while
+    /// any prompt is pending (S1); caps and enum validation happened at the
+    /// MCP layer (S4/S5), rate limiting in the engine (S6).
+    case agentExpressed(at: Double, agentId: String, emotion: String, intensity: String, motion: String?, say: String?, delivery: String?)
+
     var at: Double {
         switch self {
         case .sessionStarted(let at, _, _, _),
@@ -54,7 +67,11 @@ enum BuddyEvent: Sendable {
              .speciesChanged(let at, _),
              .boopArrived(let at),
              .reviewDismissed(let at),
-             .errorDismissed(let at, _):
+             .errorDismissed(let at, _),
+             .memoryLoaded(let at, _),
+             .effortReported(let at, _, _),
+             .agentIntroduced(let at, _, _, _, _),
+             .agentExpressed(let at, _, _, _, _, _, _):
             return at
         }
     }
@@ -75,6 +92,10 @@ enum BuddyEvent: Sendable {
         case .boopArrived: "boopArrived"
         case .reviewDismissed: "reviewDismissed"
         case .errorDismissed: "errorDismissed"
+        case .memoryLoaded: "memoryLoaded"
+        case .effortReported(_, _, let level): "effortReported(\(level.rawValue))"
+        case .agentIntroduced: "agentIntroduced"
+        case .agentExpressed(_, _, let emotion, _, _, _, _): "agentExpressed(\(emotion))"
         }
     }
 }

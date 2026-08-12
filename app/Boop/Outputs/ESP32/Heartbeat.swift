@@ -26,6 +26,24 @@ struct RenderState: Encodable {
     var entries: [String]?
     var sessions: [SessionSummary]?
 
+    // Personality (System P). All optional and short — absent keys cost no
+    // budget, and old firmware ignores unknown keys.
+    var greet: Bool?
+    var greetLevel: Int?
+    var mood: String?
+    var effort: String?
+    var celebrateLevel: Int?
+
+    // Agent embodiment overlay (System E). Only present while an expression
+    // lease is live; never present while a prompt is pending (S1, upstream).
+    var agentSrc: String?
+    var agentColor: String?
+    var agentEmotion: String?
+    var agentIntensity: String?
+    var agentMotion: String?
+    var agentSay: String?
+    var agentDelivery: String?
+
     struct SessionSummary: Encodable {
         var src: String
         var st: String
@@ -84,7 +102,21 @@ func renderState(from state: BuddyState) -> RenderState {
                     lbl: snap.sessionLabel.map { $0.prefix(utf8Bytes: 16) }
                 )
             }
-            : nil
+            : nil,
+        greet: state.greetUntil != nil ? true : nil,
+        greetLevel: state.greetUntil != nil ? state.greetLevel : nil,
+        mood: state.mood?.rawValue,
+        effort: state.effortTier?.rawValue,
+        celebrateLevel: state.celebrateUntil != nil ? state.celebrateIntensity : nil,
+        agentSrc: state.agentOverlay?.agentId,
+        agentColor: state.agentOverlay?.color,
+        agentEmotion: state.agentOverlay?.emotion,
+        agentIntensity: state.agentOverlay?.intensity,
+        agentMotion: state.agentOverlay?.motion,
+        // say/greeting were byte-capped at the MCP boundary (S5); the prefix
+        // here is the same defense the other free-text fields get.
+        agentSay: state.agentOverlay?.say.map { $0.prefix(utf8Bytes: 40) },
+        agentDelivery: state.agentOverlay?.delivery
     )
 }
 

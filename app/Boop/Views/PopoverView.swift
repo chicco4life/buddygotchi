@@ -104,6 +104,15 @@ struct PopoverView: View {
                     }
             }
 
+            // Agent expression (System E). Never rendered while a prompt is
+            // pending — the reducer guarantees the overlay is gone by then —
+            // and always labeled with who is speaking.
+            if let overlay = engine.state.agentOverlay {
+                Spacer().frame(height: 8)
+                AgentExpressionRow(overlay: overlay)
+                    .transition(.opacity)
+            }
+
             if let prompt = engine.state.prompt {
                 Spacer().frame(height: 12)
                 ToolCardView(
@@ -157,7 +166,7 @@ struct PopoverView: View {
                 .truncationMode(.tail)
                 .layoutPriority(0)
 
-            Text(engine.state.pet.state.rawValue)
+            Text(stateLabel)
                 .font(.buddy(9.5, weight: .semibold))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 2)
@@ -165,7 +174,7 @@ struct PopoverView: View {
                 .overlay(Capsule().strokeBorder(stateFill.opacity(0.35), lineWidth: BuddyTheme.hairlineWidth))
                 .foregroundStyle(stateInk)
                 .fixedSize()
-                .accessibilityLabel("\(statusName), \(engine.state.pet.state.rawValue)")
+                .accessibilityLabel("\(statusName), \(stateLabel)")
 
             Spacer(minLength: 8)
 
@@ -256,10 +265,72 @@ struct PopoverView: View {
     private var stateInk: Color { BuddyTheme.stateInk(engine.state.pet.state) }
     private var stateFill: Color { BuddyTheme.stateFill(engine.state.pet.state) }
 
+    /// The state capsule, flavored by personality: effort while busy
+    /// ("busy · grinding"), mood otherwise ("idle · expectant").
+    private var stateLabel: String {
+        let base = engine.state.pet.state.rawValue
+        if engine.state.pet.state == .busy, let effort = engine.state.effortTier, effort != .normal {
+            return "\(base) · \(effort.rawValue)"
+        }
+        if let mood = engine.state.mood {
+            return "\(base) · \(mood.rawValue)"
+        }
+        return base
+    }
+
     private var statusColor: Color {
         switch engine.state.desktop.status {
         case .connected: BuddyTheme.green
         case .disconnected: BuddyTheme.inkFaint
+        }
+    }
+}
+
+// MARK: - Agent Expression (System E)
+
+/// The agent-channel surface: always carried in the agent's identity color,
+/// always labeled with who is speaking, styled like nothing the system uses.
+private struct AgentExpressionRow: View {
+    let overlay: AgentOverlay
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(identityColor)
+                .frame(width: 8, height: 8)
+                .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(overlay.agentId)
+                    .font(.buddy(9, weight: .semibold))
+                    .foregroundStyle(BuddyTheme.inkFaint)
+                Text(overlay.say ?? "feels \(overlay.emotion)")
+                    .font(.buddy(12, weight: overlay.say == nil ? .regular : .medium))
+                    .foregroundStyle(BuddyTheme.ink)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(identityColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(identityColor.opacity(0.45), lineWidth: 1))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(overlay.agentId) \(overlay.say ?? "feels \(overlay.emotion)")")
+    }
+
+    private var identityColor: Color {
+        switch overlay.color {
+        case "coral": Color(red: 0.94, green: 0.50, blue: 0.42)
+        case "amber": Color(red: 0.95, green: 0.69, blue: 0.28)
+        case "mint": Color(red: 0.38, green: 0.78, blue: 0.60)
+        case "sky": Color(red: 0.36, green: 0.66, blue: 0.92)
+        case "lavender": Color(red: 0.65, green: 0.58, blue: 0.90)
+        case "rose": Color(red: 0.92, green: 0.50, blue: 0.68)
+        case "sand": Color(red: 0.82, green: 0.70, blue: 0.50)
+        case "teal": Color(red: 0.26, green: 0.70, blue: 0.72)
+        default: BuddyTheme.inkSoft
         }
     }
 }
