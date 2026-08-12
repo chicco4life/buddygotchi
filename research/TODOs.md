@@ -4,6 +4,10 @@ Current open items that need a human action (accounts, assets, decisions).
 Engineering release gates live in `eng/RELEASE.md`; verification commands live
 in `eng/TESTING.md`.
 
+## Personality & agent embodiment
+
+- [ ] **Review the personality/embodiment plan** in `eng/personality-and-embodiment.md` (pet fondness + circadian learning, and the agent-expression MCP server with its security invariants S1–S9). Open decisions listed at the bottom of that doc: FT3168 touch verification before touch-based input rules, per-agent-CLI MCP identity wiring, `greet` state naming, heartbeat byte budget.
+
 ## App and firmware release readiness
 
 - [ ] **Finish app signing, notarization, and release automation decisions.** Use `eng/RELEASE.md` for the per-release gate and `eng/TESTING.md` for packaged-app smoke coverage.
