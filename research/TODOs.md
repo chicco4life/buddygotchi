@@ -6,7 +6,9 @@ in `eng/TESTING.md`.
 
 ## Personality & agent embodiment
 
-- [ ] **Review the personality/embodiment plan** in `eng/personality-and-embodiment.md` (pet fondness + circadian learning, and the agent-expression MCP server with its security invariants S1–S9). Open decisions listed at the bottom of that doc: FT3168 touch verification before touch-based input rules, per-agent-CLI MCP identity wiring, `greet` state naming, heartbeat byte budget.
+- [ ] **Review the shipped personality/embodiment implementation (2026-08-12)** — plan in `eng/personality-and-embodiment.md`, build-order table records what landed. App side is live: PetMemory + greet + circadian + effort/payoff in the reducer, MCP server at `/mcp` with report_effort/introduce/express/say, installer registration for claude-code (`~/.claude.json`) and cursor (`~/.cursor/mcp.json`), heartbeat fields, popover surfaces. Try it: reinstall hooks from Settings so the MCP entry lands, then ask an agent to introduce itself.
+- [ ] **Firmware rendering for personality fields** — greet animation, mood/effort flavor, agent overlay with pulsing identity border + corner pet-peek, and S2 input inertness (buttons boop-only outside a real approval) + S3 chrome mask. The heartbeat already carries `greet/mood/effort/celebrateLevel/agent*`; current firmware ignores them, so this is additive.
+- [ ] **Codex MCP registration** — left hooks-only; wire once its HTTP MCP config shape is confirmed.
 
 ## App and firmware release readiness
 

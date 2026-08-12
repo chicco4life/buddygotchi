@@ -88,6 +88,7 @@ after the one-time OS pairing step to exercise the production BLE transport.
 - Approval continuations belong in `BuddyEngine`, not in `BuddyState`.
 - Treat `RenderState` in `Outputs/ESP32/Heartbeat.swift` as the desktop-to-firmware wire contract.
 - Keep Cursor auto-approval conservative. Shell commands with control characters must require manual review.
+- Keep agent expression (MCP) inside the enforced sandbox: suppressed while any prompt is pending, enum-only vocabulary, byte-capped text, engine-side rate limits. Never award pet joy or memory for approval decisions. See `research/eng/personality-and-embodiment.md`.
 
 ## Files To Know
 
@@ -101,6 +102,8 @@ after the one-time OS pairing step to exercise the production BLE transport.
 | `app/Boop/Outputs/ESP32/Heartbeat.swift` | Hardware heartbeat mapper |
 | `app/Boop/Outputs/ESP32/BLEManager.swift` | BLE transport, inbound approvals, OTA acks |
 | `app/Boop/Views/PopoverView.swift` | Main user-visible UI |
+| `app/Boop/Core/PetMemory.swift` | Pet personality memory, effort/mood types, agent vocabulary |
+| `app/Boop/Server/MCPServer.swift` | Agent-embodiment MCP input adapter (express/say/introduce/report_effort) |
 
 ## Documentation Expectations
 

@@ -247,6 +247,36 @@ Activity kind is pure classification from tool and hint: read tools, web
 tools, write tools, shell tools, test-like shell commands as `verify`, and
 everything else as `work`.
 
+## Personality And Agent Embodiment
+
+Design and invariants: `research/eng/personality-and-embodiment.md`.
+
+`PetMemory` (in `InternalState`, persisted via `PetMemoryStoring` to
+`~/.boop/pet-memory.json`) holds `lastSeenAt`, a UTC hour-of-day activity
+histogram (one sample per ~30 min of presence), lifetime counters, and
+per-agent identities. The reducer owns every mutation; `BuddyEngine` loads it
+at startup (`.memoryLoaded`) and writes it back when it changes. Derived
+behavior, all reducer-side:
+
+- return greeting after an 18h+ gap (`greetUntil`/`greetLevel`, rendered as
+  `.heart` over calm states plus a `greet` heartbeat flag)
+- circadian mood: `expectant` (awake at the usual start hour with no
+  sessions), `surprised` (new session at an hour the user never works);
+  neutral until the histogram has 20+ samples over 14+ days
+- effort tier for the busy state from work span and per-session error count,
+  overridden by an agent's own `report_effort`
+- celebration intensity 1–3 scaled by duration and errors (never approvals)
+
+The MCP server (`Server/MCPServer.swift`) is an input adapter mounted at
+`/mcp` on the hook server port, registered per agent by `HookInstaller`
+(claude-code `~/.claude.json`, cursor `~/.cursor/mcp.json`; identity rides
+the installer-set `X-Boop-Agent` header). Tools: `report_effort`,
+`introduce`, `express`, `say`. Enforcement is layered: enum vocabulary and
+byte caps at the MCP boundary, rate floor and suppression in the engine, and
+S1 re-checked in the reducer (no agent overlay while any prompt is pending;
+a prompt arriving mid-lease evicts it). The overlay expires on a lease
+(`AgentOverlay.until`) via stale ticks.
+
 ## BuddyEngine
 
 `BuddyEngine` is the app orchestrator on the main actor. It owns the current
