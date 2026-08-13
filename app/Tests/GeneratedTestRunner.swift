@@ -175,6 +175,7 @@ struct GeneratedTestRunner {
         await run("MCPServerTests.testIntroduceRejectsOffPaletteColor") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testIntroduceRejectsOffPaletteColor() }
         await run("MCPServerTests.testMCPOverRealHTTP") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); try await t.testMCPOverRealHTTP() }
         await run("MCPServerTests.testMemoryStoreSeedsAndSaves") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); t.testMemoryStoreSeedsAndSaves() }
+        await run("MCPServerTests.testOldSchemaMemoryFileStillLoads") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); try t.testOldSchemaMemoryFileStillLoads() }
         await run("MCPServerTests.testFilePetMemoryStoreRoundTrips") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testFilePetMemoryStoreRoundTrips() }
         await run("OrphanedPromptTests.testDeviceDecisionClearsAPromptWhoseWaiterIsGone") { let t = OrphanedPromptTests(); try t.setUpWithError(); try await t.setUp(); await t.testDeviceDecisionClearsAPromptWhoseWaiterIsGone() }
         await run("OrphanedPromptTests.testNormalApprovalStillUnblocksItsCaller") { let t = OrphanedPromptTests(); try t.setUpWithError(); try await t.setUp(); await t.testNormalApprovalStillUnblocksItsCaller() }
@@ -309,7 +310,7 @@ struct GeneratedTestRunner {
         await run("SnapshotHarnessTests.testSettings") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testSettings() }
         await run("SnapshotHarnessTests.testOnboardingSteps") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testOnboardingSteps() }
 
-        let total = 285
+        let total = 286
         print("\n\u{2713} \(passed) passed, \(skipped) skipped of \(total) tests")
     }
 }

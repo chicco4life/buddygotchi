@@ -381,6 +381,31 @@ final class MCPServerTests: XCTestCase {
         XCTAssertGreaterThan(store.saveCount, 0)
     }
 
+    /// Fondness is a ratchet — a schema bump must never reset the pet.
+    /// Synthesized Codable fails the whole decode on a missing key, which is
+    /// exactly how the first agent identities were wiped when `keepsakes`
+    /// was added: the pre-keepsakes file stopped decoding, memory started
+    /// empty, and the next save overwrote history. An old-schema file must
+    /// load with defaults for whatever it predates.
+    func testOldSchemaMemoryFileStillLoads() throws {
+        let preKeepsakesFile = """
+        {"lastSeenAt":123,"hourHistogram":[9,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+         "histogramSamples":9,"firstSampleAt":1,"lastSampleAt":100,
+         "lifetimeSessions":7,"lifetimeCelebrations":3,
+         "agents":{"claude-code":{"color":"teal","visits":2}}}
+        """
+        let memory = try JSONDecoder().decode(PetMemory.self, from: Data(preKeepsakesFile.utf8))
+        XCTAssertEqual(memory.lifetimeSessions, 7)
+        XCTAssertEqual(memory.agents["claude-code"]?.color, "teal")
+        XCTAssertEqual(memory.agents["claude-code"]?.visits, 2)
+        XCTAssertEqual(memory.keepsakes, [])
+        XCTAssertNil(memory.lastResurfacedAt)
+
+        // The degenerate case: an empty object is a fresh pet, not a crash.
+        let empty = try JSONDecoder().decode(PetMemory.self, from: Data("{}".utf8))
+        XCTAssertEqual(empty, .empty)
+    }
+
     func testFilePetMemoryStoreRoundTrips() async {
         let dir = NSTemporaryDirectory() + "boop-test-\(UUID().uuidString)"
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)

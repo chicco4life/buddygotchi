@@ -47,6 +47,25 @@ struct AgentIdentity: Sendable, Equatable, Codable {
     var greeting: String?
     var visits: Int = 0
     var lastSeenAt: Double?
+
+    init(color: String? = nil, signatureEmote: String? = nil, greeting: String? = nil, visits: Int = 0, lastSeenAt: Double? = nil) {
+        self.color = color
+        self.signatureEmote = signatureEmote
+        self.greeting = greeting
+        self.visits = visits
+        self.lastSeenAt = lastSeenAt
+    }
+
+    /// Same schema-evolution rule as PetMemory: a missing key is a default,
+    /// never a decode failure.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        color = try c.decodeIfPresent(String.self, forKey: .color)
+        signatureEmote = try c.decodeIfPresent(String.self, forKey: .signatureEmote)
+        greeting = try c.decodeIfPresent(String.self, forKey: .greeting)
+        visits = try c.decodeIfPresent(Int.self, forKey: .visits) ?? 0
+        lastSeenAt = try c.decodeIfPresent(Double.self, forKey: .lastSeenAt)
+    }
 }
 
 // MARK: - Agent Drawings (E4)
@@ -64,6 +83,25 @@ struct AgentDrawing: Sendable, Equatable, Codable {
 
     var width: Int { rows.first?.count ?? 0 }
     var height: Int { rows.count }
+
+    init(agentId: String, color: String? = nil, rows: [String], caption: String? = nil, at: Double) {
+        self.agentId = agentId
+        self.color = color
+        self.rows = rows
+        self.caption = caption
+        self.at = at
+    }
+
+    /// Schema-evolution rule (see PetMemory): only the fields a drawing
+    /// cannot exist without are allowed to fail the decode.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        agentId = try c.decode(String.self, forKey: .agentId)
+        color = try c.decodeIfPresent(String.self, forKey: .color)
+        rows = try c.decode([String].self, forKey: .rows)
+        caption = try c.decodeIfPresent(String.self, forKey: .caption)
+        at = try c.decodeIfPresent(Double.self, forKey: .at) ?? 0
+    }
 }
 
 // MARK: - Pet Memory
@@ -92,6 +130,29 @@ struct PetMemory: Sendable, Equatable, Codable {
     var lastResurfacedAt: Double?
 
     static let empty = PetMemory()
+
+    init() {}
+
+    /// Forward-compatible on purpose: synthesized Codable fails the WHOLE
+    /// decode when a key is missing, so adding any field would make older
+    /// memory files unreadable and silently reset the pet — "fondness is a
+    /// ratchet, never resets" lost to a schema bump. (Exactly that wiped the
+    /// first agent identities when `keepsakes` landed.) Every field decodes
+    /// as if-present with its default instead.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        lastSeenAt = try c.decodeIfPresent(Double.self, forKey: .lastSeenAt)
+        let histogram = try c.decodeIfPresent([Int].self, forKey: .hourHistogram) ?? []
+        hourHistogram = histogram.count == 24 ? histogram : Array(repeating: 0, count: 24)
+        histogramSamples = try c.decodeIfPresent(Int.self, forKey: .histogramSamples) ?? 0
+        firstSampleAt = try c.decodeIfPresent(Double.self, forKey: .firstSampleAt)
+        lastSampleAt = try c.decodeIfPresent(Double.self, forKey: .lastSampleAt)
+        lifetimeSessions = try c.decodeIfPresent(Int.self, forKey: .lifetimeSessions) ?? 0
+        lifetimeCelebrations = try c.decodeIfPresent(Int.self, forKey: .lifetimeCelebrations) ?? 0
+        agents = try c.decodeIfPresent([String: AgentIdentity].self, forKey: .agents) ?? [:]
+        keepsakes = try c.decodeIfPresent([AgentDrawing].self, forKey: .keepsakes) ?? []
+        lastResurfacedAt = try c.decodeIfPresent(Double.self, forKey: .lastResurfacedAt)
+    }
 
     // MARK: Circadian derivations
 
