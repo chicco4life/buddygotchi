@@ -172,16 +172,44 @@ say(text ≤40, delivery: whisper|plain|excited|deadpan)
 **E3 — `choreo(steps: [{motion, emotion?}], max 5)`** — tiny sequenced
 dances from the same atoms.
 
-**E4 — `draw(grid, palette, caption?≤30)`** — the diegetic canvas.
+**E4 — `draw(rows, caption?≤30)`** — the diegetic canvas.
 
-- Grid max **32×32**, palette-indexed, ≤ 16 colors from a fixed set.
-  Resolution is a *security parameter*: ~4 legible characters fits "HI!",
-  not a convincing instruction. Do not raise it without redoing the spoofing
-  analysis.
-- Rendered inside a pet-held frame ("the pet shows you a drawing"), scaled
-  chunky. Hard rate limit (e.g. one per session). Parting doodles at session
-  end feed the keepsake shelf (P5).
-- User toggle to disable drawings entirely.
+- `rows`: up to **32 strings of up to 32 hex digits** (`0`–`f`), all rows the
+  same width, each digit an index into the fixed palette below. ~1KB per
+  call. Resolution is a *security parameter*: ~4 legible characters fits
+  "HI!", not a convincing instruction. Do not raise it without redoing the
+  spoofing analysis.
+- **Fixed 16-color palette is the art direction.** The agent picks indices;
+  the product picks the vibe — every drawing by every model automatically
+  looks like it belongs to Boop. Index 0 is transparent (the field shows
+  through); 1–15: ink `#1A1A1A`, cream `#FFF6E5`, warm gray `#8A8578`,
+  coral `#F47159`, amber `#F5B042`, sunshine `#FFD94A`, mint `#6DDB92`,
+  leaf `#3E9B5C`, sky `#4992E8`, teal `#24B6B0`, lavender `#B692FF`,
+  rose `#EB80AD`, sand `#DBB66D`, cocoa `#7A4E2E`, cherry `#E0393E`.
+- **Content guidance is occasion-only, never subject.** In-prompt example
+  drawings anchor models brutally (name a car once, receive only cars), so
+  the description says when and in what spirit — "when you're wrapping up,
+  you may leave one small drawing behind — of today's work, or of anything
+  at all; the pet will keep it" — and nothing about what to draw.
+- **Parting-gift flow:** the agent draws at its own judgment near the end of
+  its work (MCP has no session-end signal to prompt it). One drawing per
+  visit: engine-enforced 30-minute floor per agent. Every accepted drawing
+  is ALWAYS stored as a keepsake; display is separate:
+  - no prompt pending → the pet holds it up for ~12s ("The pet is holding
+    your drawing up.")
+  - prompt pending (S1) → stored, not shown ("An approval is pending — the
+    pet tucked your drawing away to look at later."). A gift is never lost
+    to timing, and never shares the screen with a trust decision.
+- **Keepsakes (P5, v1):** drawings persist in `PetMemory.keepsakes`
+  (agent, identity color, caption, timestamp), capped at 48 FIFO. This is
+  the seed of the shelf: per-agent recurring motifs become accrued
+  personality, and the pet can resurface an old drawing when that agent
+  returns (follow-up).
+- Rendered inside the same agent-channel chrome as speech (identity border +
+  "from <agent>" label) — provenance stays unmistakable. Desktop popover
+  first; the Pebble needs the chunked transfer path (heartbeat can't carry
+  a bitmap), which is the remaining glass work.
+- User toggle to disable drawings entirely (follow-up alongside glass).
 
 ### Guidelines given to agents
 
@@ -294,7 +322,7 @@ different.
 | 5 | E2 `introduce`/`express`/`say` + S1–S9 enforcement + result feedback | M–L | shipped 2026-08-12 (S2/S3 are firmware-side, land with step 6) |
 | 6 | Firmware provenance rendering (border, peek, transition) + desktop parity | M | shipped 2026-08-12 (compile-verified both envs; HIL pending a plugged-in Pebble) |
 | 7 | E3 `choreo`; per-agent memory greetings | S | — |
-| 8 | E4 `draw` + chunked transfer + P5 keepsakes/gallery | L | — |
+| 8 | E4 `draw` + chunked transfer + P5 keepsakes/gallery | L | draw tool + keepsake store + popover display shipped 2026-08-13; Pebble chunked transfer and shelf/gallery UI pending |
 | 9 | P4 growth stages | M | — |
 
 Steps 1–2 are pure reducer work and immediately make the pet feel alive;

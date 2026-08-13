@@ -197,6 +197,25 @@ func mcpToolDefinitions() -> [[String: Any]] {
                 "required": ["text"],
             ] as [String: Any],
         ],
+        [
+            // Content guidance is occasion-only, on purpose: an example
+            // subject named here would anchor every model to it forever.
+            "name": "draw",
+            "description": "When you're wrapping up, you may leave one small pixel drawing behind — of today's work, or of anything at all. The pet will keep it. Canvas: up to 32 rows of up to 32 hex digits (all rows the same width). Each digit is a palette index: 0=transparent 1=ink 2=cream 3=warm-gray 4=coral 5=amber 6=sunshine 7=mint 8=leaf 9=sky a=teal b=lavender c=rose d=sand e=cocoa f=cherry.",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "rows": [
+                        "type": "array",
+                        "items": ["type": "string", "maxLength": PetTuning.drawMaxSide, "pattern": "^[0-9a-f]+$"],
+                        "maxItems": PetTuning.drawMaxSide,
+                        "minItems": 1,
+                    ] as [String: Any],
+                    "caption": ["type": "string", "maxLength": PetTuning.drawCaptionMaxBytes],
+                ],
+                "required": ["rows"],
+            ] as [String: Any],
+        ],
     ]
 }
 
@@ -261,6 +280,37 @@ private func callMCPTool(name: String, args: [String: Any], agentId: String, eng
         }
         let outcome = engine.agentExpress(agentId: agentId, emotion: emotion, intensity: "medium", motion: nil, say: text, delivery: delivery)
         return mcpToolText(feedback(for: outcome, verb: "message"))
+
+    case "draw":
+        guard let rawRows = args["rows"] as? [String], !rawRows.isEmpty else {
+            return mcpToolError("rows is required: up to 32 strings of hex palette digits")
+        }
+        guard rawRows.count <= PetTuning.drawMaxSide else {
+            return mcpToolError("too many rows — the canvas is at most \(PetTuning.drawMaxSide) tall")
+        }
+        let width = rawRows[0].count
+        guard width >= 1, width <= PetTuning.drawMaxSide else {
+            return mcpToolError("rows must be 1–\(PetTuning.drawMaxSide) digits wide")
+        }
+        let hexDigits = Set("0123456789abcdef")
+        for row in rawRows {
+            guard row.count == width else {
+                return mcpToolError("all rows must be the same width (first row is \(width))")
+            }
+            guard row.allSatisfy({ hexDigits.contains($0) }) else {
+                return mcpToolError("rows may only contain hex palette digits 0-f")
+            }
+        }
+        let caption = (args["caption"] as? String).map { sanitizeAgentText($0, maxBytes: PetTuning.drawCaptionMaxBytes) }
+        let outcome = engine.agentDraw(agentId: agentId, rows: rawRows, caption: caption)
+        switch outcome {
+        case .shown:
+            return mcpToolText("The pet is holding your drawing up.")
+        case .kept:
+            return mcpToolText("An approval is pending — the pet tucked your drawing away to look at later. No action needed.")
+        case .rateLimited:
+            return mcpToolText("The pet is still treasuring your last drawing — one per visit. No action needed.")
+        }
 
     default:
         return mcpToolError("unknown tool: \(name)")

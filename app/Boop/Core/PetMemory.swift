@@ -49,6 +49,23 @@ struct AgentIdentity: Sendable, Equatable, Codable {
     var lastSeenAt: Double?
 }
 
+// MARK: - Agent Drawings (E4)
+
+/// One agent drawing: palette-indexed pixel rows, at most 32×32. Stored as
+/// hex-digit strings (one digit per pixel, index into `AgentVocabulary.palette`)
+/// so a full drawing costs ~1KB in memory JSON and travels as plain text.
+struct AgentDrawing: Sendable, Equatable, Codable {
+    var agentId: String
+    /// The agent's identity color at draw time — frames the drawing.
+    var color: String?
+    var rows: [String]
+    var caption: String?
+    var at: Double
+
+    var width: Int { rows.first?.count ?? 0 }
+    var height: Int { rows.count }
+}
+
 // MARK: - Pet Memory
 
 /// The pet's persisted inner life. Owned by the reducer (it lives in
@@ -68,6 +85,9 @@ struct PetMemory: Sendable, Equatable, Codable {
     var lifetimeSessions: Int = 0
     var lifetimeCelebrations: Int = 0
     var agents: [String: AgentIdentity] = [:]
+    /// Drawings agents left behind — the seed of the keepsake shelf. FIFO
+    /// capped so memory JSON stays bounded (~48KB of drawings at worst).
+    var keepsakes: [AgentDrawing] = []
 
     static let empty = PetMemory()
 
@@ -140,6 +160,17 @@ enum PetTuning {
 
     static let sayMaxBytes = 40
     static let greetingMaxBytes = 30
+
+    /// Drawing canvas cap — a security parameter, not just an aesthetic one:
+    /// ~4 legible characters fits at 32px, a convincing instruction does not.
+    /// Do not raise without redoing the spoofing analysis (plan doc, E4).
+    static let drawMaxSide = 32
+    static let drawCaptionMaxBytes = 30
+    /// One drawing per visit: engine-enforced floor per agent (S6).
+    static let agentDrawMinGapMs: Double = 30 * 60_000
+    /// How long the pet holds a fresh drawing up before shelving it.
+    static let drawShowMs: Double = 12_000
+    static let keepsakeCap = 48
 }
 
 // MARK: - Agent expression vocabulary (S4)
@@ -163,5 +194,29 @@ enum AgentVocabulary {
     /// Identity colors an agent may claim in `introduce`.
     static let colors: Set<String> = [
         "coral", "amber", "mint", "sky", "lavender", "rose", "sand", "teal",
+    ]
+
+    /// The drawing palette (E4). Fixed on purpose: the agent picks indices,
+    /// the product picks the vibe, so every drawing by every model looks
+    /// like it belongs to Boop. Index 0 is transparent; hex digit in a
+    /// drawing row = index here. Mirror any change into the firmware
+    /// renderer when the glass path lands.
+    static let palette: [String] = [
+        "transparent",
+        "#1A1A1A",  // 1 ink
+        "#FFF6E5",  // 2 cream
+        "#8A8578",  // 3 warm gray
+        "#F47159",  // 4 coral
+        "#F5B042",  // 5 amber
+        "#FFD94A",  // 6 sunshine
+        "#6DDB92",  // 7 mint
+        "#3E9B5C",  // 8 leaf
+        "#4992E8",  // 9 sky
+        "#24B6B0",  // a teal
+        "#B692FF",  // b lavender
+        "#EB80AD",  // c rose
+        "#DBB66D",  // d sand
+        "#7A4E2E",  // e cocoa
+        "#E0393E",  // f cherry
     ]
 }

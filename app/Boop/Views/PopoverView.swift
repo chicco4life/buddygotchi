@@ -113,6 +113,13 @@ struct PopoverView: View {
                     .transition(.opacity)
             }
 
+            // A drawing the pet is holding up (E4) — same S1 guarantee.
+            if let drawing = engine.state.agentDrawing {
+                Spacer().frame(height: 8)
+                AgentDrawingCard(drawing: drawing)
+                    .transition(.opacity)
+            }
+
             if let prompt = engine.state.prompt {
                 Spacer().frame(height: 12)
                 ToolCardView(
@@ -320,18 +327,101 @@ private struct AgentExpressionRow: View {
         .accessibilityLabel("\(overlay.agentId) \(overlay.say ?? "feels \(overlay.emotion)")")
     }
 
-    private var identityColor: Color {
-        switch overlay.color {
-        case "coral": Color(red: 0.94, green: 0.50, blue: 0.42)
-        case "amber": Color(red: 0.95, green: 0.69, blue: 0.28)
-        case "mint": Color(red: 0.38, green: 0.78, blue: 0.60)
-        case "sky": Color(red: 0.36, green: 0.66, blue: 0.92)
-        case "lavender": Color(red: 0.65, green: 0.58, blue: 0.90)
-        case "rose": Color(red: 0.92, green: 0.50, blue: 0.68)
-        case "sand": Color(red: 0.82, green: 0.70, blue: 0.50)
-        case "teal": Color(red: 0.26, green: 0.70, blue: 0.72)
-        default: BuddyTheme.inkSoft
+    private var identityColor: Color { agentIdentityColor(overlay.color) }
+}
+
+/// The agent identity palette, shared by the expression row and the drawing
+/// card so an agent's channel is one color everywhere.
+private func agentIdentityColor(_ name: String?) -> Color {
+    switch name {
+    case "coral": Color(red: 0.94, green: 0.50, blue: 0.42)
+    case "amber": Color(red: 0.95, green: 0.69, blue: 0.28)
+    case "mint": Color(red: 0.38, green: 0.78, blue: 0.60)
+    case "sky": Color(red: 0.36, green: 0.66, blue: 0.92)
+    case "lavender": Color(red: 0.65, green: 0.58, blue: 0.90)
+    case "rose": Color(red: 0.92, green: 0.50, blue: 0.68)
+    case "sand": Color(red: 0.82, green: 0.70, blue: 0.50)
+    case "teal": Color(red: 0.26, green: 0.70, blue: 0.72)
+    default: BuddyTheme.inkSoft
+    }
+}
+
+/// A drawing the pet is holding up (E4). Rendered chunky from the fixed
+/// 16-color palette; framed in the agent's identity color like every other
+/// agent-channel surface.
+private struct AgentDrawingCard: View {
+    let drawing: AgentDrawing
+
+    var body: some View {
+        VStack(spacing: 5) {
+            DrawingGrid(drawing: drawing)
+                .frame(width: gridSize.width, height: gridSize.height)
+                .background(Color.black.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
+
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(identityColor)
+                    .frame(width: 7, height: 7)
+                    .accessibilityHidden(true)
+                Text(caption)
+                    .font(.buddy(10))
+                    .foregroundStyle(BuddyTheme.inkSoft)
+                    .lineLimit(1)
+            }
         }
+        .padding(10)
+        .frame(maxWidth: .infinity)
+        .background(identityColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(identityColor.opacity(0.45), lineWidth: 1))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Drawing from \(drawing.agentId)\(drawing.caption.map { ": \($0)" } ?? "")")
+    }
+
+    private var caption: String {
+        if let c = drawing.caption, !c.isEmpty { return "\(drawing.agentId): \(c)" }
+        return "from \(drawing.agentId)"
+    }
+
+    private var identityColor: Color { agentIdentityColor(drawing.color) }
+
+    private var gridSize: CGSize {
+        let w = max(drawing.width, 1), h = max(drawing.height, 1)
+        let cell = (128.0 / CGFloat(max(w, h))).rounded(.down)
+        return CGSize(width: cell * CGFloat(w), height: cell * CGFloat(h))
+    }
+}
+
+private struct DrawingGrid: View {
+    let drawing: AgentDrawing
+
+    var body: some View {
+        Canvas { context, size in
+            let w = max(drawing.width, 1), h = max(drawing.height, 1)
+            let cell = min(size.width / CGFloat(w), size.height / CGFloat(h))
+            for (y, row) in drawing.rows.enumerated() {
+                for (x, digit) in row.enumerated() {
+                    guard let color = Self.paletteColor(digit) else { continue }
+                    // Overdraw by a hair so cells butt cleanly at non-integer scales.
+                    let rect = CGRect(x: CGFloat(x) * cell, y: CGFloat(y) * cell,
+                                      width: cell + 0.5, height: cell + 0.5)
+                    context.fill(Path(rect), with: .color(color))
+                }
+            }
+        }
+    }
+
+    /// Hex digit → the fixed drawing palette (AgentVocabulary.palette).
+    /// nil for index 0 (transparent) and anything unparseable.
+    static func paletteColor(_ digit: Character) -> Color? {
+        guard let index = digit.hexDigitValue, index > 0,
+              index < AgentVocabulary.palette.count else { return nil }
+        let hex = AgentVocabulary.palette[index]
+        guard hex.hasPrefix("#"), let value = UInt32(hex.dropFirst(), radix: 16) else { return nil }
+        return Color(
+            red: Double((value >> 16) & 0xFF) / 255.0,
+            green: Double((value >> 8) & 0xFF) / 255.0,
+            blue: Double(value & 0xFF) / 255.0
+        )
     }
 }
 

@@ -51,6 +51,10 @@ enum BuddyEvent: Sendable {
     /// any prompt is pending (S1); caps and enum validation happened at the
     /// MCP layer (S4/S5), rate limiting in the engine (S6).
     case agentExpressed(at: Double, agentId: String, emotion: String, intensity: String, motion: String?, say: String?, delivery: String?)
+    /// An agent left a drawing (MCP `draw`). ALWAYS kept as a keepsake; the
+    /// held-up display is separate and S1-suppressed — a gift is never lost
+    /// to timing, and never shares the screen with a trust decision.
+    case agentDrew(at: Double, agentId: String, rows: [String], caption: String?)
 
     var at: Double {
         switch self {
@@ -71,7 +75,8 @@ enum BuddyEvent: Sendable {
              .memoryLoaded(let at, _),
              .effortReported(let at, _, _),
              .agentIntroduced(let at, _, _, _, _),
-             .agentExpressed(let at, _, _, _, _, _, _):
+             .agentExpressed(let at, _, _, _, _, _, _),
+             .agentDrew(let at, _, _, _):
             return at
         }
     }
@@ -96,6 +101,7 @@ enum BuddyEvent: Sendable {
         case .effortReported(_, _, let level): "effortReported(\(level.rawValue))"
         case .agentIntroduced: "agentIntroduced"
         case .agentExpressed(_, _, let emotion, _, _, _, _): "agentExpressed(\(emotion))"
+        case .agentDrew(_, let agentId, _, _): "agentDrew(\(agentId))"
         }
     }
 }

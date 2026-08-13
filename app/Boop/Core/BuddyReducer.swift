@@ -80,6 +80,8 @@ private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> Interna
         return handleAgentIntroduced(state, at: at, agentId: agentId, color: color, signatureEmote: signatureEmote, greeting: greeting)
     case .agentExpressed(let at, let agentId, let emotion, let intensity, let motion, let say, let delivery):
         return handleAgentExpressed(state, at: at, agentId: agentId, emotion: emotion, intensity: intensity, motion: motion, say: say, delivery: delivery)
+    case .agentDrew(let at, let agentId, let rows, let caption):
+        return handleAgentDrew(state, at: at, agentId: agentId, rows: rows, caption: caption)
     }
 }
 
@@ -306,6 +308,14 @@ private func handleStaleTick(_ state: InternalState, now: Double) -> InternalSta
         changed = true
     }
 
+    // The pet finishes admiring a fresh drawing and shelves it (the
+    // keepsake persists in memory; only the held-up display ends).
+    if let until = s.buddy.agentDrawingUntil, now >= until {
+        s.buddy.agentDrawing = nil
+        s.buddy.agentDrawingUntil = nil
+        changed = true
+    }
+
     if let until = s.buddy.moodUntil, now >= until {
         s.buddy.moodUntil = nil
         if s.buddy.mood == .surprised { s.buddy.mood = nil }
@@ -459,6 +469,28 @@ private func handleAgentIntroduced(_ state: InternalState, at: Double, agentId: 
     return s
 }
 
+private func handleAgentDrew(_ state: InternalState, at: Double, agentId: String, rows: [String], caption: String?) -> InternalState {
+    var s = state
+    let drawing = AgentDrawing(
+        agentId: agentId,
+        color: s.memory.agents[agentId]?.color,
+        rows: rows,
+        caption: caption,
+        at: at
+    )
+    // The keepsake is unconditional — a parting gift is never lost to
+    // timing. Only the held-up DISPLAY defers to a pending prompt (S1).
+    s.memory.keepsakes.append(drawing)
+    if s.memory.keepsakes.count > PetTuning.keepsakeCap {
+        s.memory.keepsakes.removeFirst(s.memory.keepsakes.count - PetTuning.keepsakeCap)
+    }
+    if !s.sessions.values.contains(where: { $0.prompt != nil }) {
+        s.buddy.agentDrawing = drawing
+        s.buddy.agentDrawingUntil = at + PetTuning.drawShowMs
+    }
+    return s
+}
+
 private func handleAgentExpressed(_ state: InternalState, at: Double, agentId: String, emotion: String, intensity: String, motion: String?, say: String?, delivery: String?) -> InternalState {
     // S1: while ANY prompt is pending — any session, approval or notification —
     // agent expression is refused outright. The screen belongs to the trust
@@ -594,9 +626,12 @@ private func aggregate(_ state: InternalState) -> BuddyState {
 
     // S1 belt and braces: the reducer already refuses agentExpressed while a
     // prompt is pending, but a prompt arriving mid-lease must also evict the
-    // overlay — agent content and trust decisions never share the screen.
+    // overlay and any held-up drawing — agent content and trust decisions
+    // never share the screen. (The drawing's keepsake survives in memory.)
     if !waiting.isEmpty {
         buddy.agentOverlay = nil
+        buddy.agentDrawing = nil
+        buddy.agentDrawingUntil = nil
     }
 
     let hasConnected = !allSessions.isEmpty

@@ -208,6 +208,11 @@ struct BuddyState: Sendable, Equatable {
     /// The agent expression currently coloring the pet, if any. Never present
     /// while a prompt is pending (S1).
     var agentOverlay: AgentOverlay?
+    /// A drawing the pet is currently holding up. Same S1 rule as the
+    /// overlay — evicted the instant a prompt lands. The keepsake itself
+    /// lives in PetMemory regardless of whether this display ever ran.
+    var agentDrawing: AgentDrawing?
+    var agentDrawingUntil: Double?
 
     static let initial = BuddyState(
         version: 0,
@@ -234,6 +239,8 @@ struct BuddyState: Sendable, Equatable {
         moodUntil: nil,
         effortTier: nil,
         celebrateIntensity: nil,
-        agentOverlay: nil
+        agentOverlay: nil,
+        agentDrawing: nil,
+        agentDrawingUntil: nil
     )
 }

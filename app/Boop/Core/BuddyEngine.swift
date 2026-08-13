@@ -19,6 +19,8 @@ final class BuddyEngine {
     /// Per-agent floor between expressions (S6). Engine-side, not reducer:
     /// rate limiting is wall-clock policy, not state semantics.
     private var lastExpressAt: [String: Double] = [:]
+    /// One drawing per visit (E4): 30-minute floor per agent.
+    private var lastDrewAt: [String: Double] = [:]
 
     init(config: BuddyConfig = .default, clock: (any Clock)? = nil, diagnosticLog: DiagnosticLog? = nil, memoryStore: (any PetMemoryStoring)? = nil) {
         self.config = config
@@ -57,6 +59,7 @@ final class BuddyEngine {
             || state.moodUntil != nil
             || state.mood != nil
             || state.agentOverlay != nil
+            || state.agentDrawingUntil != nil
             || internalState.memory.circadianReady(at: clock.now())
     }
 
@@ -195,6 +198,29 @@ final class BuddyEngine {
         lastExpressAt[agentId] = now
         apply(.agentExpressed(at: now, agentId: agentId, emotion: emotion, intensity: intensity, motion: motion, say: say, delivery: delivery))
         return .shown
+    }
+
+    enum AgentDrawOutcome: Equatable {
+        /// The pet is holding the drawing up now.
+        case shown
+        /// Kept as a keepsake but not displayed — an approval is pending
+        /// (S1). A parting gift is never lost to timing.
+        case kept
+        case rateLimited(retryAfterMs: Double)
+    }
+
+    /// Row shape and palette digits were validated at the MCP layer; this
+    /// enforces the one-per-visit floor and reports whether the drawing was
+    /// displayed or quietly shelved.
+    func agentDraw(agentId: String, rows: [String], caption: String?) -> AgentDrawOutcome {
+        let now = clock.now()
+        if let last = lastDrewAt[agentId], now - last < PetTuning.agentDrawMinGapMs {
+            return .rateLimited(retryAfterMs: PetTuning.agentDrawMinGapMs - (now - last))
+        }
+        lastDrewAt[agentId] = now
+        let promptPending = internalState.sessions.values.contains { $0.prompt != nil }
+        apply(.agentDrew(at: now, agentId: agentId, rows: rows, caption: caption))
+        return promptPending ? .kept : .shown
     }
 
     // MARK: - Approval API

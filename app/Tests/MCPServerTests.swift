@@ -83,7 +83,7 @@ final class MCPServerTests: XCTestCase {
         )
         let tools = ((response?["result"] as? [String: Any])?["tools"] as? [[String: Any]]) ?? []
         XCTAssertEqual(Set(tools.compactMap { $0["name"] as? String }),
-                       ["report_effort", "introduce", "express", "say"])
+                       ["report_effort", "introduce", "express", "say", "draw"])
     }
 
     @MainActor
@@ -202,6 +202,62 @@ final class MCPServerTests: XCTestCase {
         let response = await call(engine, tool: "say", args: ["text": "\u{07}\u{1B}\u{00}"])
         XCTAssertTrue(isToolError(response))
         XCTAssertNil(engine.state.agentOverlay)
+    }
+
+    // MARK: - draw (E4)
+
+    @MainActor
+    func testDrawShowsAndStoresKeepsake() async {
+        let (engine, _) = makeEngine()
+        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
+        let response = await call(engine, tool: "draw", args: ["rows": ["4ff4", "f44f"], "caption": "a gift"])
+        XCTAssertEqual(toolText(response), "The pet is holding your drawing up.")
+        XCTAssertEqual(engine.state.agentDrawing?.rows, ["4ff4", "f44f"])
+        XCTAssertEqual(engine.petMemory.keepsakes.count, 1)
+        XCTAssertEqual(engine.petMemory.keepsakes.first?.caption, "a gift")
+    }
+
+    @MainActor
+    func testDrawDuringApprovalIsTuckedAway() async {
+        let (engine, _) = makeEngine()
+        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
+        engine.submitRequest(sessionId: "s1", requestId: "r1", tool: "Bash", hint: "rm", sessionLabel: nil)
+        let response = await call(engine, tool: "draw", args: ["rows": ["1"]])
+        XCTAssertTrue(toolText(response).contains("tucked your drawing away"))
+        XCTAssertNil(engine.state.agentDrawing)
+        XCTAssertEqual(engine.petMemory.keepsakes.count, 1)
+    }
+
+    @MainActor
+    func testDrawOnePerVisit() async {
+        let (engine, clock) = makeEngine()
+        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
+        _ = await call(engine, tool: "draw", args: ["rows": ["1"]])
+        clock.advance(by: 60_000)
+        let second = await call(engine, tool: "draw", args: ["rows": ["2"]])
+        XCTAssertTrue(toolText(second).contains("one per visit"))
+        XCTAssertEqual(engine.petMemory.keepsakes.count, 1)
+
+        clock.advance(by: PetTuning.agentDrawMinGapMs)
+        let third = await call(engine, tool: "draw", args: ["rows": ["2"]])
+        XCTAssertEqual(toolText(third), "The pet is holding your drawing up.")
+        XCTAssertEqual(engine.petMemory.keepsakes.count, 2)
+    }
+
+    @MainActor
+    func testDrawValidatesShapeAndDigits() async {
+        let (engine, _) = makeEngine()
+        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
+        let ragged = await call(engine, tool: "draw", args: ["rows": ["12", "345"]])
+        XCTAssertTrue(isToolError(ragged))
+        let offPalette = await call(engine, tool: "draw", args: ["rows": ["1g"]])
+        XCTAssertTrue(isToolError(offPalette))
+        let tooTall = await call(engine, tool: "draw", args: ["rows": Array(repeating: "1", count: 33)])
+        XCTAssertTrue(isToolError(tooTall))
+        let tooWide = await call(engine, tool: "draw", args: ["rows": [String(repeating: "1", count: 33)]])
+        XCTAssertTrue(isToolError(tooWide))
+        XCTAssertEqual(engine.petMemory.keepsakes.count, 0)
+        XCTAssertNil(engine.state.agentDrawing)
     }
 
     // MARK: - introduce

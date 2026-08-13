@@ -280,6 +280,55 @@ final class PersonalityReducerTests: XCTestCase {
         XCTAssertEqual(s.buddy.agentOverlay?.color, "sky")
     }
 
+    // MARK: - E4 drawings
+
+    func testDrawingIsKeptAndHeldUp() {
+        var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
+        s = applyEvents(s, .agentIntroduced(at: NOW + 1, agentId: "claude-code", color: "teal", signatureEmote: nil, greeting: nil))
+        s = applyEvents(s, .agentDrew(at: NOW + 2, agentId: "claude-code", rows: ["4f", "f4"], caption: "us"))
+        XCTAssertEqual(s.memory.keepsakes.count, 1)
+        XCTAssertEqual(s.memory.keepsakes.first?.color, "teal")
+        XCTAssertEqual(s.buddy.agentDrawing?.rows, ["4f", "f4"])
+        XCTAssertEqual(s.buddy.agentDrawingUntil, NOW + 2 + PetTuning.drawShowMs)
+
+        // The pet shelves it after the show window; the keepsake survives.
+        s = applyEvents(s, .staleTick(at: NOW + 2 + PetTuning.drawShowMs + 100))
+        XCTAssertNil(s.buddy.agentDrawing)
+        XCTAssertEqual(s.memory.keepsakes.count, 1)
+    }
+
+    func testDrawingDuringApprovalIsKeptButNotShown() {
+        var s = applyEvents(
+            .test(),
+            .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
+            .approvalArrived(at: NOW + 1, sessionId: "s1", requestId: "r1", tool: "Bash", hint: "ls", sessionLabel: nil, source: "claude-code")
+        )
+        s = applyEvents(s, .agentDrew(at: NOW + 2, agentId: "claude-code", rows: ["1"], caption: nil))
+        // S1: never next to a trust decision — but the gift is not lost.
+        XCTAssertNil(s.buddy.agentDrawing)
+        XCTAssertEqual(s.memory.keepsakes.count, 1)
+        XCTAssertEqual(s.buddy.pet.state, .attention)
+    }
+
+    func testPromptArrivingMidShowEvictsDrawingDisplayOnly() {
+        var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
+        s = applyEvents(s, .agentDrew(at: NOW + 1, agentId: "claude-code", rows: ["1"], caption: nil))
+        XCTAssertNotNil(s.buddy.agentDrawing)
+        s = applyEvents(s, .approvalArrived(at: NOW + 2, sessionId: "s1", requestId: "r1", tool: "Bash", hint: "ls", sessionLabel: nil, source: "claude-code"))
+        XCTAssertNil(s.buddy.agentDrawing)
+        XCTAssertEqual(s.memory.keepsakes.count, 1)
+    }
+
+    func testKeepsakesAreCappedFIFO() {
+        var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
+        for i in 0..<(PetTuning.keepsakeCap + 5) {
+            s = applyEvents(s, .agentDrew(at: NOW + Double(i) + 1, agentId: "claude-code", rows: ["1"], caption: "d\(i)"))
+        }
+        XCTAssertEqual(s.memory.keepsakes.count, PetTuning.keepsakeCap)
+        XCTAssertEqual(s.memory.keepsakes.first?.caption, "d5")
+        XCTAssertEqual(s.memory.keepsakes.last?.caption, "d\(PetTuning.keepsakeCap + 4)")
+    }
+
     // MARK: - S9: approvals never feed the bond
 
     func testApprovalResolutionLeavesMemoryAndJoyUntouched() {
