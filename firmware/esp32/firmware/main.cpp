@@ -1454,6 +1454,15 @@ void setup() {
   // Serial.begin() — without it Arduino-level reads (Serial.read in
   // dataPoll) silently fail. On the S3 board this maps to native USB CDC
   // and the baud rate is cosmetic.
+  //
+  // RX ring BEFORE begin(): heartbeat lines run up to 1536 bytes and land in
+  // well under a millisecond at USB speeds, while dataPoll drains at most
+  // once per ~24ms frame. The stack's default 256-byte ring silently drops
+  // the overflow, which shears the line mid-byte and glues its tail onto the
+  // next command — observed as any >256-byte USB frame vanishing without
+  // even a parseFails tick. Match the 2048-byte _LineBuf so every line the
+  // parser is willing to accept also fits in transit.
+  Serial.setRxBufferSize(2048);
   Serial.begin(115200);
 #ifdef BOARD_WS_AMOLED_164
   // Native USB CDC: never let a write block the loop. If the host has the
