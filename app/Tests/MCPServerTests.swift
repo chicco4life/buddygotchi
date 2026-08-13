@@ -260,6 +260,21 @@ final class MCPServerTests: XCTestCase {
         XCTAssertNil(engine.state.agentDrawing)
     }
 
+    @MainActor
+    func testDrawRespectsTheSettingsToggle() async {
+        UserDefaults.standard.set(false, forKey: DefaultsKey.agentDrawingsEnabled)
+        defer { UserDefaults.standard.removeObject(forKey: DefaultsKey.agentDrawingsEnabled) }
+        let (engine, _) = makeEngine()
+        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
+        let response = await call(engine, tool: "draw", args: ["rows": ["1"]])
+        // A statement, not an error — an agent must not retry its way
+        // around a user preference.
+        XCTAssertFalse(isToolError(response))
+        XCTAssertTrue(toolText(response).contains("turned off"))
+        XCTAssertEqual(engine.petMemory.keepsakes.count, 0)
+        XCTAssertNil(engine.state.agentDrawing)
+    }
+
     // MARK: - introduce
 
     @MainActor

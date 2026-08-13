@@ -9,6 +9,7 @@ struct SettingsView: View {
 
     @AppStorage(DefaultsKey.interactiveMode) private var interactiveMode = false
     @AppStorage(DefaultsKey.soundsEnabled) private var soundsEnabled = true
+    @AppStorage(DefaultsKey.agentDrawingsEnabled) private var agentDrawingsEnabled = true
     @AppStorage(DefaultsKey.buddySpecies) private var species = Pet.defaultSpecies
     @AppStorage(DefaultsKey.setupCompleted) private var setupCompleted = false
     @AppStorage(DefaultsKey.approvalMode) private var approvalMode = false
@@ -186,6 +187,14 @@ struct SettingsView: View {
                     title: BuddyCopy.shared.settingsCopy.sounds,
                     description: BuddyCopy.shared.settingsCopy.soundsDescription,
                     isOn: $soundsEnabled
+                )
+
+                BuddyDivider(inset: 12)
+
+                BuddySettingToggle(
+                    title: BuddyCopy.shared.settingsCopy.agentDrawings,
+                    description: BuddyCopy.shared.settingsCopy.agentDrawingsDescription,
+                    isOn: $agentDrawingsEnabled
                 )
 
                 BuddyDivider(inset: 12)

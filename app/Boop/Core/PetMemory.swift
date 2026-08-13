@@ -88,6 +88,8 @@ struct PetMemory: Sendable, Equatable, Codable {
     /// Drawings agents left behind — the seed of the keepsake shelf. FIFO
     /// capped so memory JSON stays bounded (~48KB of drawings at worst).
     var keepsakes: [AgentDrawing] = []
+    /// When the pet last dug out an old drawing for a returning agent.
+    var lastResurfacedAt: Double?
 
     static let empty = PetMemory()
 
@@ -166,11 +168,19 @@ enum PetTuning {
     /// Do not raise without redoing the spoofing analysis (plan doc, E4).
     static let drawMaxSide = 32
     static let drawCaptionMaxBytes = 30
-    /// One drawing per visit: engine-enforced floor per agent (S6).
-    static let agentDrawMinGapMs: Double = 30 * 60_000
+    /// Floor between drawings per agent (S6). Ten minutes: enough to draw at
+    /// natural moments through a session (a finish, a milestone, a whim), not
+    /// just at parting — while staying an event rather than wallpaper.
+    static let agentDrawMinGapMs: Double = 10 * 60_000
     /// How long the pet holds a fresh drawing up before shelving it.
     static let drawShowMs: Double = 12_000
     static let keepsakeCap = 48
+    /// Resurfacing ("remember this?"): a returning agent's old drawing comes
+    /// back out. The drawing must be at least this old to count as a memory…
+    static let resurfaceMinAgeMs: Double = 24 * 3_600_000
+    /// …and the pet does this at most once a day, so it stays a small
+    /// surprise instead of a ritual.
+    static let resurfaceMinGapMs: Double = 24 * 3_600_000
 }
 
 // MARK: - Agent expression vocabulary (S4)

@@ -73,6 +73,36 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
     func stateDidChange(prev: BuddyState, next: BuddyState) {
         lastState = next
         sendNow()
+        sendDrawingIfNew(prev: prev, next: next)
+    }
+
+    /// A fresh held-up drawing goes to the device as its own command line —
+    /// the heartbeat can't carry a bitmap (1536-byte frame cap), but the
+    /// firmware's line buffer is 2048 and a full 32×32 drawing serializes to
+    /// ~1.3KB, so one dedicated line over the same transport does it. The
+    /// firmware runs its own 12s show window and suppresses under prompts
+    /// (S1), so no clear message is needed.
+    private func sendDrawingIfNew(prev: BuddyState, next: BuddyState) {
+        guard bleManager.connectionState == .connected,
+              let drawing = next.agentDrawing,
+              drawing != prev.agentDrawing else { return }
+        guard UserDefaults.standard.object(forKey: DefaultsKey.agentDrawingsEnabled) as? Bool ?? true else { return }
+        let caption = next.agentDrawingIsMemory == true
+            ? BuddyCopy.shared.popover.rememberThis
+            : (drawing.caption ?? "")
+        let payload: [String: Any] = [
+            "cmd": "drawing",
+            "src": drawing.agentId,
+            "color": drawing.color ?? "",
+            "cap": caption.prefix(utf8Bytes: 40),
+            "rows": drawing.rows,
+        ]
+        guard var data = try? JSONSerialization.data(withJSONObject: payload) else { return }
+        data.append(0x0A)
+        // Guard the firmware's 2048-byte line buffer — an oversize line is
+        // dropped whole there, so better not to send than to poison the pipe.
+        guard data.count <= 2000 else { return }
+        bleManager.send(data)
     }
 
     func bleManager(_ manager: BLEManager, connectionStateChanged state: BLEConnectionState) {

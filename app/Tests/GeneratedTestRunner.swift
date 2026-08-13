@@ -170,6 +170,7 @@ struct GeneratedTestRunner {
         await run("MCPServerTests.testDrawDuringApprovalIsTuckedAway") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testDrawDuringApprovalIsTuckedAway() }
         await run("MCPServerTests.testDrawOnePerVisit") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testDrawOnePerVisit() }
         await run("MCPServerTests.testDrawValidatesShapeAndDigits") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testDrawValidatesShapeAndDigits() }
+        await run("MCPServerTests.testDrawRespectsTheSettingsToggle") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testDrawRespectsTheSettingsToggle() }
         await run("MCPServerTests.testIntroduceRemembersReturningAgents") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testIntroduceRemembersReturningAgents() }
         await run("MCPServerTests.testIntroduceRejectsOffPaletteColor") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); await t.testIntroduceRejectsOffPaletteColor() }
         await run("MCPServerTests.testMCPOverRealHTTP") { let t = MCPServerTests(); try t.setUpWithError(); try await t.setUp(); try await t.testMCPOverRealHTTP() }
@@ -206,6 +207,9 @@ struct GeneratedTestRunner {
         await run("PersonalityReducerTests.testDrawingDuringApprovalIsKeptButNotShown") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testDrawingDuringApprovalIsKeptButNotShown() }
         await run("PersonalityReducerTests.testPromptArrivingMidShowEvictsDrawingDisplayOnly") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testPromptArrivingMidShowEvictsDrawingDisplayOnly() }
         await run("PersonalityReducerTests.testKeepsakesAreCappedFIFO") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testKeepsakesAreCappedFIFO() }
+        await run("PersonalityReducerTests.testReturningAgentGetsAnOldDrawingResurfaced") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testReturningAgentGetsAnOldDrawingResurfaced() }
+        await run("PersonalityReducerTests.testResurfacingIsAtMostDailyAndNeedsOldDrawings") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testResurfacingIsAtMostDailyAndNeedsOldDrawings() }
+        await run("PersonalityReducerTests.testResurfacingDefersToPendingPrompt") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testResurfacingDefersToPendingPrompt() }
         await run("PersonalityReducerTests.testApprovalResolutionLeavesMemoryAndJoyUntouched") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testApprovalResolutionLeavesMemoryAndJoyUntouched() }
         await run("PersonalityReducerTests.testMemoryLoadedSeedsWithoutCountingAsPresence") { let t = PersonalityReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testMemoryLoadedSeedsWithoutCountingAsPresence() }
         await run("PromptExpiryTests.testReducerClearsPromptOlderThanApprovalTimeout") { let t = PromptExpiryTests(); try t.setUpWithError(); try await t.setUp(); t.testReducerClearsPromptOlderThanApprovalTimeout() }
@@ -305,7 +309,7 @@ struct GeneratedTestRunner {
         await run("SnapshotHarnessTests.testSettings") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testSettings() }
         await run("SnapshotHarnessTests.testOnboardingSteps") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testOnboardingSteps() }
 
-        let total = 281
+        let total = 285
         print("\n\u{2713} \(passed) passed, \(skipped) skipped of \(total) tests")
     }
 }

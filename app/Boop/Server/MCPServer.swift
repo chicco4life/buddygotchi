@@ -201,7 +201,7 @@ func mcpToolDefinitions() -> [[String: Any]] {
             // Content guidance is occasion-only, on purpose: an example
             // subject named here would anchor every model to it forever.
             "name": "draw",
-            "description": "When you're wrapping up, you may leave one small pixel drawing behind — of today's work, or of anything at all. The pet will keep it. Canvas: up to 32 rows of up to 32 hex digits (all rows the same width). Each digit is a palette index: 0=transparent 1=ink 2=cream 3=warm-gray 4=coral 5=amber 6=sunshine 7=mint 8=leaf 9=sky a=teal b=lavender c=rose d=sand e=cocoa f=cherry.",
+            "description": "Leave the pet a small pixel drawing — of what you're working on, of a moment worth marking, or of anything at all. Natural moments: finishing something, a milestone, wrapping up, or just because. The pet keeps every drawing. A couple per session is plenty. Canvas: up to 32 rows of up to 32 hex digits (all rows the same width). Each digit is a palette index: 0=transparent 1=ink 2=cream 3=warm-gray 4=coral 5=amber 6=sunshine 7=mint 8=leaf 9=sky a=teal b=lavender c=rose d=sand e=cocoa f=cherry.",
             "inputSchema": [
                 "type": "object",
                 "properties": [
@@ -282,6 +282,12 @@ private func callMCPTool(name: String, args: [String: Any], agentId: String, eng
         return mcpToolText(feedback(for: outcome, verb: "message"))
 
     case "draw":
+        // User off-switch. A plain statement, not an error — an agent must
+        // not retry its way around a preference.
+        let drawingsEnabled = UserDefaults.standard.object(forKey: DefaultsKey.agentDrawingsEnabled) as? Bool ?? true
+        guard drawingsEnabled else {
+            return mcpToolText("Drawings are turned off in Boop's settings. No action needed.")
+        }
         guard let rawRows = args["rows"] as? [String], !rawRows.isEmpty else {
             return mcpToolError("rows is required: up to 32 strings of hex palette digits")
         }

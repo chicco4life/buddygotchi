@@ -1032,6 +1032,8 @@ static void dumpState() {
   doc["agentEmotion"] = tama.agentEmotion;
   doc["agentSay"] = tama.agentSay;
   doc["agentOverlay"] = agentOverlayVisible();
+  doc["drawSrc"] = _agDrawSrc;
+  doc["drawShowing"] = agentDrawingActive(millis()) && !promptPending();
   doc["ritual"] = ritualName();
   doc["microIdle"] = faceMicroIdleName();
   doc["boopReact"] = faceBoopReactName();
@@ -2143,7 +2145,7 @@ void loop() {
         // face-down nap, for whoever looks closely.
         presenceDrawLinkGlyph(spr, nowMs, buddySpeciesColor());
       } else if (!promptVisible() && !menuActive() && glanceCover() <= 0.01f &&
-                 !agentOverlayVisible()) {
+                 !agentOverlayVisible() && !agentDrawingActive(nowMs)) {
         // Suppressed under anything that owns the bottom edge — the approval
         // card, the menu, the glance card, and the agent chip all cover
         // this row.
@@ -2163,8 +2165,17 @@ void loop() {
                         dangling && !menuActive() && !promptPending(), dt,
                         tama.sessionsTotal, tama.sessionsWaiting);
       // Under speech, above everything else: the border frames the face,
-      // and the buddy's own words still outrank a visiting agent's.
-      agentDraw(spr, nowMs, tama);
+      // and the buddy's own words still outrank a visiting agent's. A
+      // held-up drawing is the bigger moment and takes the slot from the
+      // expression overlay; both stay suppressed under anything that owns
+      // the screen (S1 — same predicate the tick used).
+      bool agDrawSup = promptVisible() || cardVisible() || menuActive() ||
+                       ritualActive() || glanceCover() > 0.01f;
+      if (agentDrawingActive(nowMs) && !agDrawSup) {
+        agentDrawingDraw(spr, nowMs);
+      } else {
+        agentDraw(spr, nowMs, tama);
+      }
       bubbleDraw(spr, nowMs, faceLift);
     }
     uint32_t dcost = micros() - drawT0;

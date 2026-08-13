@@ -116,6 +116,8 @@ enum BuddyCopy {
         let interactiveModeDescription = "Auto-show when your buddy celebrates or needs attention."
         let sounds = "Sounds"
         let soundsDescription = "Play a short sound for attention, errors, and long completions."
+        let agentDrawings = "Agent drawings"
+        let agentDrawingsDescription = "Let agents leave small pixel drawings for your buddy to keep."
         let localApprovalMode = "Local approval mode"
         let localApprovalModeSentence = "Local approval mode"
         let localApprovalModeDescription = "Route tool approvals through Boop instead of your agent’s built-in dialog."
@@ -187,6 +189,9 @@ enum BuddyCopy {
     }
 
     struct Popover {
+        let keepsakeShelf = "Keepsakes"
+        let keepsakeShelfEmpty = "Nothing on the shelf yet."
+        let rememberThis = "remember this?"
         let activeTemplate = "{count} active"
         let activeSessionsTemplate = "{count} active sessions"
         let desktopStatusTemplate = "Desktop {status}"

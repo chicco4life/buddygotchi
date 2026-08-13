@@ -329,6 +329,56 @@ final class PersonalityReducerTests: XCTestCase {
         XCTAssertEqual(s.memory.keepsakes.last?.caption, "d\(PetTuning.keepsakeCap + 4)")
     }
 
+    // MARK: - E4.1 resurfacing ("remember this?")
+
+    func testReturningAgentGetsAnOldDrawingResurfaced() {
+        var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
+        s = applyEvents(s, .agentIntroduced(at: NOW + 1, agentId: "claude-code", color: "teal", signatureEmote: nil, greeting: nil))
+        s = applyEvents(s, .agentDrew(at: NOW + 2, agentId: "claude-code", rows: ["1"], caption: "old times"))
+        s = applyEvents(s, .staleTick(at: NOW + 2 + PetTuning.drawShowMs + 100))
+        XCTAssertNil(s.buddy.agentDrawing)
+
+        // Two days later the agent returns: the pet digs the drawing out.
+        let back = NOW + 2 * dayMs
+        s = applyEvents(s, .agentIntroduced(at: back, agentId: "claude-code", color: nil, signatureEmote: nil, greeting: nil))
+        XCTAssertEqual(s.buddy.agentDrawing?.caption, "old times")
+        XCTAssertEqual(s.buddy.agentDrawingIsMemory, true)
+        XCTAssertEqual(s.memory.lastResurfacedAt, back)
+    }
+
+    func testResurfacingIsAtMostDailyAndNeedsOldDrawings() {
+        var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
+        s = applyEvents(s, .agentIntroduced(at: NOW + 1, agentId: "claude-code", color: nil, signatureEmote: nil, greeting: nil))
+        s = applyEvents(s, .agentDrew(at: NOW + 2, agentId: "claude-code", rows: ["1"], caption: "fresh"))
+        // A fresh drawing is not yet a memory: same-day reintroduce shows nothing.
+        s = applyEvents(s, .staleTick(at: NOW + 2 + PetTuning.drawShowMs + 100))
+        s = applyEvents(s, .agentIntroduced(at: NOW + 3 * 3_600_000, agentId: "claude-code", color: nil, signatureEmote: nil, greeting: nil))
+        XCTAssertNil(s.buddy.agentDrawing)
+
+        // Old enough two days later — resurfaces once…
+        let day2 = NOW + 2 * dayMs
+        s = applyEvents(s, .agentIntroduced(at: day2, agentId: "claude-code", color: nil, signatureEmote: nil, greeting: nil))
+        XCTAssertEqual(s.buddy.agentDrawingIsMemory, true)
+        s = applyEvents(s, .staleTick(at: day2 + PetTuning.drawShowMs + 100))
+
+        // …but not again an hour later: at most one memory a day.
+        s = applyEvents(s, .agentIntroduced(at: day2 + 3_600_000, agentId: "claude-code", color: nil, signatureEmote: nil, greeting: nil))
+        XCTAssertNil(s.buddy.agentDrawing)
+    }
+
+    func testResurfacingDefersToPendingPrompt() {
+        var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
+        s = applyEvents(s, .agentIntroduced(at: NOW + 1, agentId: "claude-code", color: nil, signatureEmote: nil, greeting: nil))
+        s = applyEvents(s, .agentDrew(at: NOW + 2, agentId: "claude-code", rows: ["1"], caption: nil))
+        s = applyEvents(s, .staleTick(at: NOW + 2 + PetTuning.drawShowMs + 100))
+        let back = NOW + 2 * dayMs
+        s = applyEvents(s, .approvalArrived(at: back - 1, sessionId: "s1", requestId: "r1", tool: "Bash", hint: "ls", sessionLabel: nil, source: "claude-code"))
+        s = applyEvents(s, .agentIntroduced(at: back, agentId: "claude-code", color: nil, signatureEmote: nil, greeting: nil))
+        // S1: no memory next to a trust decision — and no daily slot burned.
+        XCTAssertNil(s.buddy.agentDrawing)
+        XCTAssertNil(s.memory.lastResurfacedAt)
+    }
+
     // MARK: - S9: approvals never feed the bond
 
     func testApprovalResolutionLeavesMemoryAndJoyUntouched() {

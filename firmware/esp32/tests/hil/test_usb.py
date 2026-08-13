@@ -1461,3 +1461,35 @@ def test_agent_overlay_shows_and_prompt_evicts(stick, landscape):
     send_json(stick, {"pet": "idle", "desktop": "connected", "total": 1,
                       "running": 0, "waiting": 0, "msg": ""})
     wait_state(stick, agentEmotion="", agentOverlay=False)
+
+
+def test_agent_drawing_command_shows_and_prompt_suppresses(stick, landscape):
+    """A drawing arrives as its own command line, shows for its window, and
+    is render-suppressed under a prompt (S1). Device-side suppression is a
+    gate, not an eviction: if the prompt resolves inside the 12s window the
+    tail of the gift may return, which is deliberate — the desktop's own
+    display eviction is authoritative only for the popover.
+    """
+    send_json(stick, {"cmd": "drawing", "src": "claude-code", "color": "sky",
+                      "cap": "hi", "rows": ["4f4f", "f4f4", "4f4f", "f4f4"]})
+    wait_state(stick, drawSrc="claude-code", drawShowing=True)
+
+    send_json(stick, {"pet": "attention", "desktop": "connected", "total": 1,
+                      "running": 0, "waiting": 1, "msg": "Bash",
+                      "promptId": "req_draw_s1", "promptTool": "Bash",
+                      "promptHint": "ls", "promptApproval": True})
+    wait_state(stick, promptId="req_draw_s1", drawShowing=False)
+
+    clear_prompt(stick)
+    send_json(stick, {"pet": "idle", "desktop": "connected", "total": 1,
+                      "running": 0, "waiting": 0, "msg": ""})
+
+
+def test_malformed_drawing_is_dropped_whole(stick):
+    """Ragged or off-palette rows are claimed and dropped — never half-drawn,
+    never leaked into the state parser."""
+    before = state(stick).get("drawSrc", "")
+    send_json(stick, {"cmd": "drawing", "src": "evil", "rows": ["12", "345"]})
+    send_json(stick, {"cmd": "drawing", "src": "evil", "rows": ["1g"]})
+    got = state(stick)
+    assert got.get("drawSrc", "") == before, "malformed drawing replaced state"

@@ -11,6 +11,8 @@ struct PopoverView: View {
     @AppStorage(DefaultsKey.buddyName) private var buddyName = ""
     @AppStorage(DefaultsKey.showMenuHint) private var showMenuHint = false
     @State private var showingSettings = false
+    @State private var showingShelf = false
+    @AppStorage(DefaultsKey.agentDrawingsEnabled) private var agentDrawingsEnabled = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(
@@ -46,6 +48,12 @@ struct PopoverView: View {
                             insertion: .move(edge: .trailing).combined(with: .opacity),
                             removal: .move(edge: .trailing).combined(with: .opacity)
                         ))
+                } else if showingShelf {
+                    KeepsakeShelfView(engine: engine, isPresented: $showingShelf)
+                        .transition(reduceMotion ? .opacity : .asymmetric(
+                            insertion: .move(edge: .trailing).combined(with: .opacity),
+                            removal: .move(edge: .trailing).combined(with: .opacity)
+                        ))
                 } else {
                     liveView
                         .transition(.opacity)
@@ -53,6 +61,7 @@ struct PopoverView: View {
             }
         }
         .animation(reduceMotion ? nil : .buddyEase(0.2), value: showingSettings)
+        .animation(reduceMotion ? nil : .buddyEase(0.2), value: showingShelf)
         .onReceive(NotificationCenter.default.publisher(for: .boopOpenSettings)) { _ in
             showingSettings = true
         }
@@ -114,9 +123,10 @@ struct PopoverView: View {
             }
 
             // A drawing the pet is holding up (E4) — same S1 guarantee.
-            if let drawing = engine.state.agentDrawing {
+            // The settings toggle also silences resurfaced memories here.
+            if let drawing = engine.state.agentDrawing, agentDrawingsEnabled {
                 Spacer().frame(height: 8)
-                AgentDrawingCard(drawing: drawing)
+                AgentDrawingCard(drawing: drawing, isMemory: engine.state.agentDrawingIsMemory == true)
                     .transition(.opacity)
             }
 
@@ -184,6 +194,18 @@ struct PopoverView: View {
                 .accessibilityLabel("\(statusName), \(stateLabel)")
 
             Spacer(minLength: 8)
+
+            // The museum door: only appears once there's something on the
+            // shelf — a discovered surface, not an announced feature.
+            if !engine.petMemory.keepsakes.isEmpty {
+                Button(action: { showingShelf = true }) {
+                    Image(systemName: "photo.on.rectangle.angled")
+                        .font(.caption)
+                        .foregroundStyle(BuddyTheme.inkSoft)
+                }
+                .buttonStyle(BuddyPlainButtonStyle())
+                .accessibilityLabel(BuddyCopy.shared.popover.keepsakeShelf)
+            }
 
             Button(action: { showingSettings = true }) {
                 Image(systemName: "gearshape")
@@ -351,6 +373,8 @@ private func agentIdentityColor(_ name: String?) -> Color {
 /// agent-channel surface.
 private struct AgentDrawingCard: View {
     let drawing: AgentDrawing
+    /// The pet dug this one out for a returning agent — "remember this?".
+    var isMemory: Bool = false
 
     var body: some View {
         VStack(spacing: 5) {
@@ -378,6 +402,10 @@ private struct AgentDrawingCard: View {
     }
 
     private var caption: String {
+        if isMemory {
+            let original = drawing.caption.map { " · \($0)" } ?? ""
+            return "\(BuddyCopy.shared.popover.rememberThis)\(original)"
+        }
         if let c = drawing.caption, !c.isEmpty { return "\(drawing.agentId): \(c)" }
         return "from \(drawing.agentId)"
     }
@@ -400,7 +428,7 @@ private struct DrawingGrid: View {
             let cell = min(size.width / CGFloat(w), size.height / CGFloat(h))
             for (y, row) in drawing.rows.enumerated() {
                 for (x, digit) in row.enumerated() {
-                    guard let color = Self.paletteColor(digit) else { continue }
+                    guard let color = drawingPaletteColor(digit) else { continue }
                     // Overdraw by a hair so cells butt cleanly at non-integer scales.
                     let rect = CGRect(x: CGFloat(x) * cell, y: CGFloat(y) * cell,
                                       width: cell + 0.5, height: cell + 0.5)
@@ -408,20 +436,6 @@ private struct DrawingGrid: View {
                 }
             }
         }
-    }
-
-    /// Hex digit → the fixed drawing palette (AgentVocabulary.palette).
-    /// nil for index 0 (transparent) and anything unparseable.
-    static func paletteColor(_ digit: Character) -> Color? {
-        guard let index = digit.hexDigitValue, index > 0,
-              index < AgentVocabulary.palette.count else { return nil }
-        let hex = AgentVocabulary.palette[index]
-        guard hex.hasPrefix("#"), let value = UInt32(hex.dropFirst(), radix: 16) else { return nil }
-        return Color(
-            red: Double((value >> 16) & 0xFF) / 255.0,
-            green: Double((value >> 8) & 0xFF) / 255.0,
-            blue: Double(value & 0xFF) / 255.0
-        )
     }
 }
 

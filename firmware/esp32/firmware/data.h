@@ -178,11 +178,16 @@ static void __attribute__((noinline)) _parsePersonality(JsonDocument& doc, TamaS
   }
 }
 
+// Defined in agent.h — these single-TU headers are all included from
+// main.cpp, agent.h after this one, so only the declaration lives here.
+bool agentDrawingCommand(JsonDocument& doc);
+
 static void _applyJson(const char* line, TamaState* out) {
   JsonDocument doc;
   if (deserializeJson(doc, line)) { _parseFailCount++; return; }
   if (otaCommand(doc)) { _lastLiveMs = millis(); return; }
   if (xferCommand(doc)) { _lastLiveMs = millis(); return; }
+  if (agentDrawingCommand(doc)) { _lastLiveMs = millis(); return; }
 
   // Bridge sends {"time":[epoch_sec, tz_offset_sec]}; gmtime_r on the
   // adjusted epoch yields local components including weekday.

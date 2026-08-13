@@ -313,6 +313,7 @@ private func handleStaleTick(_ state: InternalState, now: Double) -> InternalSta
     if let until = s.buddy.agentDrawingUntil, now >= until {
         s.buddy.agentDrawing = nil
         s.buddy.agentDrawingUntil = nil
+        s.buddy.agentDrawingIsMemory = nil
         changed = true
     }
 
@@ -459,6 +460,7 @@ private func observePresence(_ s: inout InternalState, at: Double) {
 
 private func handleAgentIntroduced(_ state: InternalState, at: Double, agentId: String, color: String?, signatureEmote: String?, greeting: String?) -> InternalState {
     var s = state
+    let isReturning = s.memory.agents[agentId] != nil
     var identity = s.memory.agents[agentId] ?? AgentIdentity()
     if let color { identity.color = color }
     if let signatureEmote { identity.signatureEmote = signatureEmote }
@@ -466,6 +468,25 @@ private func handleAgentIntroduced(_ state: InternalState, at: Double, agentId: 
     identity.visits += 1
     identity.lastSeenAt = at
     s.memory.agents[agentId] = identity
+
+    // "Remember this?" — a returning agent's old drawing comes back out.
+    // At most once a day, only drawings old enough to be memories, never
+    // while a prompt is pending (S1), and deterministic off the event
+    // timestamp so the choice is reproducible.
+    if isReturning,
+       at - (s.memory.lastResurfacedAt ?? -.infinity) >= PetTuning.resurfaceMinGapMs,
+       !s.sessions.values.contains(where: { $0.prompt != nil }) {
+        let memories = s.memory.keepsakes.filter {
+            $0.agentId == agentId && at - $0.at >= PetTuning.resurfaceMinAgeMs
+        }
+        if !memories.isEmpty {
+            let pick = memories[Int(at) % memories.count]
+            s.buddy.agentDrawing = pick
+            s.buddy.agentDrawingUntil = at + PetTuning.drawShowMs
+            s.buddy.agentDrawingIsMemory = true
+            s.memory.lastResurfacedAt = at
+        }
+    }
     return s
 }
 
@@ -487,6 +508,7 @@ private func handleAgentDrew(_ state: InternalState, at: Double, agentId: String
     if !s.sessions.values.contains(where: { $0.prompt != nil }) {
         s.buddy.agentDrawing = drawing
         s.buddy.agentDrawingUntil = at + PetTuning.drawShowMs
+        s.buddy.agentDrawingIsMemory = nil
     }
     return s
 }
@@ -632,6 +654,7 @@ private func aggregate(_ state: InternalState) -> BuddyState {
         buddy.agentOverlay = nil
         buddy.agentDrawing = nil
         buddy.agentDrawingUntil = nil
+        buddy.agentDrawingIsMemory = nil
     }
 
     let hasConnected = !allSessions.isEmpty

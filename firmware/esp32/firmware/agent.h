@@ -61,6 +61,130 @@ inline uint16_t agentColor565(const char* name) {
 
 inline bool agentOverlayVisible() { return _agSpring.pos > 0.02f; }
 
+// ---------------------------------------------------------------------------
+// Agent drawings (E4)
+//
+// The desktop sends a fresh held-up drawing as one dedicated JSON line
+// ({"cmd":"drawing","src":…,"color":…,"cap":…,"rows":[…]}) over the same
+// transport as heartbeats — a full 32×32 drawing is ~1.3KB, inside the
+// 2048-byte line buffer. The device runs its own 12s show window and the
+// render is suppressed under anything that owns the screen (S1); no clear
+// message exists or is needed.
+// ---------------------------------------------------------------------------
+
+static uint8_t  _agDrawW = 0, _agDrawH = 0;
+static uint8_t  _agDrawPix[32][32];
+static char     _agDrawSrc[16] = "";
+static char     _agDrawCap[44] = "";
+static char     _agDrawColorName[12] = "";
+static uint32_t _agDrawUntil = 0;
+
+// The fixed drawing palette — MUST mirror AgentVocabulary.palette on the
+// desktop (index 0 = transparent, never drawn).
+static const uint16_t AG_DRAW_PALETTE[16] = {
+  0,
+  animRGB(0x1A, 0x1A, 0x1A), animRGB(0xFF, 0xF6, 0xE5), animRGB(0x8A, 0x85, 0x78),
+  animRGB(0xF4, 0x71, 0x59), animRGB(0xF5, 0xB0, 0x42), animRGB(0xFF, 0xD9, 0x4A),
+  animRGB(0x6D, 0xDB, 0x92), animRGB(0x3E, 0x9B, 0x5C), animRGB(0x49, 0x92, 0xE8),
+  animRGB(0x24, 0xB6, 0xB0), animRGB(0xB6, 0x92, 0xFF), animRGB(0xEB, 0x80, 0xAD),
+  animRGB(0xDB, 0xB6, 0x6D), animRGB(0x7A, 0x4E, 0x2E), animRGB(0xE0, 0x39, 0x3E),
+};
+
+// Claims any {"cmd":"drawing"} line. A malformed one is claimed AND dropped:
+// it must not fall through to the state parser, and half a drawing is worse
+// than none.
+bool agentDrawingCommand(JsonDocument& doc) {
+  const char* cmd = doc["cmd"];
+  if (!cmd || strcmp(cmd, "drawing") != 0) return false;
+  JsonArray rows = doc["rows"];
+  if (rows.isNull()) return true;
+
+  uint8_t pix[32][32];
+  uint8_t h = 0, w = 0;
+  for (JsonVariant v : rows) {
+    if (h >= 32) return true;
+    const char* row = v.as<const char*>();
+    if (!row) return true;
+    size_t len = strnlen(row, 33);
+    if (len == 0 || len > 32) return true;
+    if (h == 0) w = (uint8_t)len;
+    else if (len != w) return true;
+    for (uint8_t x = 0; x < w; x++) {
+      char c = row[x];
+      int idx = (c >= '0' && c <= '9') ? c - '0'
+              : (c >= 'a' && c <= 'f') ? c - 'a' + 10 : -1;
+      if (idx < 0) return true;
+      pix[h][x] = (uint8_t)idx;
+    }
+    h++;
+  }
+  if (h == 0) return true;
+
+  memcpy(_agDrawPix, pix, sizeof(pix));
+  _agDrawW = w;
+  _agDrawH = h;
+  auto cpy = [](char* d, size_t n, const char* s) {
+    strncpy(d, s ? s : "", n - 1);
+    d[n - 1] = 0;
+  };
+  cpy(_agDrawSrc, sizeof(_agDrawSrc), doc["src"]);
+  cpy(_agDrawCap, sizeof(_agDrawCap), doc["cap"]);
+  cpy(_agDrawColorName, sizeof(_agDrawColorName), doc["color"]);
+  _agDrawUntil = millis() + 12000;
+  return true;
+}
+
+inline bool agentDrawingActive(uint32_t now) {
+  return _agDrawW > 0 && (int32_t)(_agDrawUntil - now) > 0;
+}
+
+// The pet holds the drawing up: chunky pixels on a dark panel, framed in the
+// agent's identity color, name chip below. Same channel styling as speech —
+// nothing the system draws looks like this (S3).
+inline void agentDrawingDraw(BuddyCanvas& spr, uint32_t now) {
+  if (!agentDrawingActive(now)) return;
+  const int S = HAL_UI_SCALE;
+  const int W = HAL_W, H = HAL_H;
+  uint16_t c = agentColor565(_agDrawColorName);
+
+  int cell = (H - 76 * S) / _agDrawH;
+  int cellW = (W - 40 * S) / _agDrawW;
+  if (cellW < cell) cell = cellW;
+  if (cell < 1) cell = 1;
+  int gw = cell * _agDrawW, gh = cell * _agDrawH;
+  int gx = (W - gw) / 2, gy = (H - 30 * S - gh) / 2;
+
+  float breathe = 0.45f + 0.55f * animPulse01(now, 2100.0f);
+  uint16_t edge = animMix(BLACK, c, breathe);
+  spr.fillSmoothRoundRect(gx - 6 * S, gy - 6 * S, gw + 12 * S, gh + 12 * S, 6 * S, BLACK);
+  spr.drawRoundRect(gx - 6 * S, gy - 6 * S, gw + 12 * S, gh + 12 * S, 6 * S, edge);
+  spr.drawRoundRect(gx - 6 * S + 1, gy - 6 * S + 1, gw + 12 * S - 2, gh + 12 * S - 2, 6 * S - 1, edge);
+
+  for (uint8_t y = 0; y < _agDrawH; y++) {
+    for (uint8_t x = 0; x < _agDrawW; x++) {
+      uint8_t idx = _agDrawPix[y][x];
+      if (idx == 0 || idx > 15) continue;
+      spr.fillRect(gx + x * cell, gy + y * cell, cell, cell, AG_DRAW_PALETTE[idx]);
+    }
+  }
+
+  char line[64];
+  if (_agDrawCap[0]) snprintf(line, sizeof(line), "%.15s: %.40s", _agDrawSrc, _agDrawCap);
+  else               snprintf(line, sizeof(line), "%.15s", _agDrawSrc);
+  int tw = (int)strlen(line) * 6 * S;
+  int chipW = tw + 22 * S, chipH = 16 * S;
+  int cx = W / 2, cy = H - 14 * S;
+  spr.fillSmoothRoundRect(cx - chipW / 2, cy - chipH / 2, chipW, chipH, 6 * S, BLACK);
+  spr.drawRoundRect(cx - chipW / 2, cy - chipH / 2, chipW, chipH, 6 * S, edge);
+  int dotX = cx - chipW / 2 + 8 * S;
+  spr.fillSmoothCircle(dotX, cy, 3 * S, c);
+  spr.setTextDatum(ML_DATUM);
+  spr.setTextSize(S);
+  spr.setTextColor(c, BLACK);
+  spr.drawString(line, dotX + 6 * S, cy);
+  spr.setTextDatum(TL_DATUM);
+}
+
 // Advance the entry/exit spring and detect a fresh expression. Returns true
 // exactly once per new expression so the caller can hang a physical
 // reaction on it (a bounce/wiggle motion squishes the face).

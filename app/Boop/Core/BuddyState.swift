@@ -213,6 +213,9 @@ struct BuddyState: Sendable, Equatable {
     /// lives in PetMemory regardless of whether this display ever ran.
     var agentDrawing: AgentDrawing?
     var agentDrawingUntil: Double?
+    /// True when the held-up drawing is an OLD one the pet dug out for a
+    /// returning agent — rendered with "remember this?".
+    var agentDrawingIsMemory: Bool?
 
     static let initial = BuddyState(
         version: 0,
@@ -241,6 +244,7 @@ struct BuddyState: Sendable, Equatable {
         celebrateIntensity: nil,
         agentOverlay: nil,
         agentDrawing: nil,
-        agentDrawingUntil: nil
+        agentDrawingUntil: nil,
+        agentDrawingIsMemory: nil
     )
 }
