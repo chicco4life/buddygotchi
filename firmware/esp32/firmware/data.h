@@ -186,8 +186,11 @@ static void _applyJson(const char* line, TamaState* out) {
   JsonDocument doc;
   if (deserializeJson(doc, line)) { _parseFailCount++; return; }
   if (otaCommand(doc)) { _lastLiveMs = millis(); return; }
-  if (xferCommand(doc)) { _lastLiveMs = millis(); return; }
+  // BEFORE xferCommand: its idle-state fallback claims every cmd except
+  // "permission" as a swallow-unknowns backstop, so any new command must be
+  // dispatched ahead of it or it never runs.
   if (agentDrawingCommand(doc)) { _lastLiveMs = millis(); return; }
+  if (xferCommand(doc)) { _lastLiveMs = millis(); return; }
 
   // Bridge sends {"time":[epoch_sec, tz_offset_sec]}; gmtime_r on the
   // adjusted epoch yields local components including weekday.
