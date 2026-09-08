@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-"""Long-run hardware soak: randomized state/prompt/menu cycling with heap,
-crash, and reboot monitoring over USB serial.
+"""Long-run hardware soak on the RenderState v2 wire: randomized state,
+card, boop, and screenshot cycling with heap, panic, and reboot monitoring
+over USB serial. Quit the Boop app first (two writers confuse the parser).
 
-Exercises the paths a desk pet actually lives through — heartbeat state
-changes, armed prompts answered both ways, menu open/navigate/close,
-boops, screenshots — for hours, and fails loudly on any reboot, panic,
-heap erosion, or wedged state. Deterministic (seeded) so a failing cycle
-number reproduces.
+Exercises what a desk pet lives through — state changes with effort and
+cheer, cards answered both ways once armed, held boops, screenshots — for
+as long as asked, and fails loudly on any reboot, panic, heap erosion, or
+wedged state. Deterministic (seeded) so a failing cycle reproduces.
 
     tools/soak.py --minutes 120
 """
-
 from __future__ import annotations
 
 import argparse
@@ -26,18 +25,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import buddyctl  # noqa: E402
 
-PETS = ["idle", "busy", "thinking", "attention", "celebrate", "error", "sleep"]
-SPECIES = ["blob", "cat", "duck", "owl", "robot", "capybara"]
-ACTIVITIES = ["verify", "read", "write", "shell", "web", "work"]
-
-# Heap can legitimately sink a little as BLE/NVS settle; below this floor
-# something is leaking. Matches the hardening-test philosophy: generous,
-# but a real leak crosses it within an hours-long run.
+STATES = ["asleep", "idle", "working", "done", "uhoh"]
+EFFORTS = ["light", "hard", "grinding"]
+CHEERS = ["hop", "cheer", "dance"]
+OVERLAYS = ["greet", "boop"]
+STAKES = ["fine", "checkIt", "careful"]
 HEAP_MIN_FLOOR = 60_000
-
-
-def send_json(s: buddyctl.SerialBuddy, payload: dict) -> None:
-    s.write_line(json.dumps(payload, separators=(",", ":")))
 
 
 def state(s: buddyctl.SerialBuddy) -> dict:
@@ -48,6 +41,10 @@ def ping(s: buddyctl.SerialBuddy) -> dict:
     return s.framed_json("ping", "PONG", 5)
 
 
+def frame(s: buddyctl.SerialBuddy, **fields) -> None:
+    s.write_line(json.dumps({"v": 2, "state": "idle", **fields}, ensure_ascii=False, separators=(",", ":")))
+
+
 def wait_state(s: buddyctl.SerialBuddy, timeout: float = 5.0, **want) -> dict:
     deadline = time.monotonic() + timeout
     last: dict = {}
@@ -55,14 +52,25 @@ def wait_state(s: buddyctl.SerialBuddy, timeout: float = 5.0, **want) -> dict:
         last = state(s)
         if all(last.get(k) == v for k, v in want.items()):
             return last
-        time.sleep(0.2)
-    raise RuntimeError(f"state never matched {want}; last pet={last.get('pet')} menu={last.get('menu')}")
+        time.sleep(0.1)
+    raise RuntimeError(f"state never matched {want}; last creature={last.get('creature')} card={last.get('card')} armed={last.get('armed')}")
 
 
 def press(s: buddyctl.SerialBuddy, which: str, ms: int = 120) -> bytes:
     s.write_line(f"press {which} {ms}")
-    buf, _ = s.read_until(lambda b: f"<<PRESS {which} up>>".encode() in b, 4)
+    buf, _ = s.read_until(lambda b: f"<<PRESS {which} up>>".encode() in b, ms / 1000 + 4)
     return buf
+
+
+def has_command(buf: bytes, **want) -> bool:
+    for line in buf.splitlines():
+        try:
+            obj = json.loads(line)
+        except (ValueError, UnicodeDecodeError):
+            continue
+        if isinstance(obj, dict) and all(obj.get(k) == v for k, v in want.items()):
+            return True
+    return False
 
 
 def screenshot_ok(s: buddyctl.SerialBuddy) -> None:
@@ -82,66 +90,52 @@ def main() -> int:
     ap.add_argument("--port", default=None)
     ap.add_argument("--seed", type=int, default=1)
     args = ap.parse_args()
-
     rng = random.Random(args.seed)
     deadline = time.monotonic() + args.minutes * 60
     failures: list[str] = []
-    cycles = 0
-    approvals = 0
-    menus = 0
-    shots = 0
-
+    cycles = approvals = boops = shots = 0
     with buddyctl.SerialBuddy(args.port or buddyctl.find_port(), timeout=8) as s:
         base = ping(s)
-        base_panics = base["panics"]
-        last_up = base["up"]
-        heap_first = base["heap"]
-        heap_min_seen = base["heapMin"]
+        if base.get("contract") != 2:
+            print(f"firmware speaks contract {base.get('contract')}, this soak needs 2", file=sys.stderr)
+            return 1
+        base_panics, last_up, heap_first, heap_min_seen = base["panics"], base["up"], base["heap"], base["heapMin"]
+        s.write_line("imu set 0 0 1")  # face up: never nap during the run
         print(f"soak start: fw={base['fw']} board={base['board']} heap={heap_first}", flush=True)
-
         while time.monotonic() < deadline and not failures:
             cycles += 1
             try:
-                pet = rng.choice(PETS)
-                payload = {
-                    "pet": pet,
-                    "species": rng.choice(SPECIES),
-                    "total": rng.randint(1, 4),
-                    "running": rng.randint(0, 2),
-                    "waiting": 1 if pet == "attention" else 0,
-                    "activity": rng.choice(ACTIVITIES),
-                }
-                send_json(s, payload)
-                wait_state(s, pet=pet)
-
+                st = rng.choice(STATES)
+                fields = {"state": st, "effort": rng.choice(EFFORTS), "dots": rng.randint(0, 4)}
+                if st == "done":
+                    fields["cheer"] = rng.choice(CHEERS)
+                if st == "idle" and rng.random() < 0.3:
+                    fields["overlay"] = rng.choice(OVERLAYS)
+                frame(s, **fields)
+                wait_state(s, creature=st)
                 if cycles % 4 == 0:
-                    s.write_line("mockprompt")
-                    s.read_until(lambda b: b"<<BTN mockprompt armed>>" in b, 4)
+                    card_id = f"soak{cycles}"
+                    stakes = rng.choice(STAKES)
+                    frame(s, state="needsYou", card={"id": card_id, "tool": "Bash", "gloss": "runs tests",
+                                                     "stakes": stakes, "approval": True, "n": 1, "of": 1})
+                    wait_state(s, card=True, armed=True)
+                    # Tap primary = allow (careful stakes need a 2 s hold); secondary = deny.
                     which = "a" if (cycles // 4) % 2 == 0 else "b"
-                    buf = press(s, which)
-                    if b'"cmd":"permission"' not in buf:
+                    buf = press(s, which, 2100 if which == "a" and stakes == "careful" else 120)
+                    if not has_command(buf, cmd="decision", id=card_id):
                         buf += s.drain_until_quiet(max_wait=0.5)
-                    if b'"cmd":"permission"' not in buf:
-                        raise RuntimeError(f"press {which} produced no decision")
+                    if not has_command(buf, cmd="decision", id=card_id):
+                        raise RuntimeError(f"press {which} produced no decision for {card_id}")
                     approvals += 1
-                    send_json(s, {"pet": "idle", "total": 1, "running": 0, "waiting": 0})
-                    wait_state(s, promptId="")
-
-                if cycles % 6 == 0:
-                    press(s, "m")
-                    wait_state(s, menu="root")
-                    press(s, "m")
-                    press(s, "b")
-                    wait_state(s, menu="closed")
-                    menus += 1
-
-                if cycles % 5 == 0:
-                    press(s, "a")   # boop
-
+                    frame(s, state="working")
+                    wait_state(s, card=False, creature="working")
+                    time.sleep(1.6)  # decision feedback clears
+                if cycles % 5 == 0 and st not in ("asleep", "uhoh"):
+                    press(s, "a", 1100)  # held primary with no card = local boop
+                    boops += 1
                 if cycles % 10 == 0:
                     screenshot_ok(s)
                     shots += 1
-
                 if cycles % 5 == 0:
                     p = ping(s)
                     if p["up"] < last_up:
@@ -152,25 +146,20 @@ def main() -> int:
                     heap_min_seen = min(heap_min_seen, p["heapMin"])
                     if p["heapMin"] < HEAP_MIN_FLOOR:
                         raise RuntimeError(f"heapMin {p['heapMin']} below floor {HEAP_MIN_FLOOR}")
-
-                time.sleep(6)
+                if cycles % 20 == 0:
+                    print(f"cycle {cycles}: heap={p['heap']} heapMin={heap_min_seen} approvals={approvals}", flush=True)
+                time.sleep(rng.uniform(1.0, 4.0))
             except Exception as exc:  # noqa: BLE001 — record and stop
                 failures.append(f"cycle {cycles}: {exc}")
-
-        final = ping(s)
-
+        try:
+            s.write_line("imu clear")
+            final = ping(s)
+        except Exception:  # noqa: BLE001 — the board may be wedged; report what we have
+            final = {"heap": -1, "panics": base_panics, "up": last_up}
     summary = {
-        "ok": not failures,
-        "cycles": cycles,
-        "approvals": approvals,
-        "menus": menus,
-        "screenshots": shots,
-        "heap_first": heap_first,
-        "heap_last": final["heap"],
-        "heap_min_seen": heap_min_seen,
-        "panics_delta": final["panics"] - base_panics,
-        "uptime_s": final["up"] // 1000,
-        "failures": failures,
+        "ok": not failures, "cycles": cycles, "approvals": approvals, "boops": boops, "screenshots": shots,
+        "heap_first": heap_first, "heap_last": final["heap"], "heap_min_seen": heap_min_seen,
+        "panics_delta": final["panics"] - base_panics, "uptime_s": final["up"] // 1000, "failures": failures,
     }
     print("SOAK " + json.dumps(summary), flush=True)
     return 0 if not failures else 1

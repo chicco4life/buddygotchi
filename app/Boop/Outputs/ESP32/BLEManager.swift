@@ -253,14 +253,18 @@ final class BLEManager: NSObject, @unchecked Sendable {
     }
 
     private func ackReply(from json: [String: Any], ackKey: String) -> BLEAckReply {
-        let data = json["data"] as? [String: Any]
         let count = (json["n"] as? Int) ?? (json["n"] as? NSNumber)?.intValue
-        let status = data.map {
+        // PROTOCOL.md: the status ack carries telemetry flat (`fw`, `git`,
+        // `board`, `contract`). Pre-v2 firmware nested it under `data` with
+        // `firmware`/`build`; keep reading that so an old buddy still updates.
+        let flat = ackKey == "status" && json["fw"] != nil ? json : nil
+        let legacy = json["data"] as? [String: Any]
+        let status = (flat ?? legacy).map {
             BLEAckReply.StatusData(
-                firmware: $0["firmware"] as? String,
-                build: $0["build"] as? String,
+                firmware: ($0["fw"] ?? $0["firmware"]) as? String,
+                build: ($0["git"] ?? $0["build"]) as? String,
                 board: $0["board"] as? String,
-                contract: $0["contract"] as? Int
+                contract: ($0["contract"] as? Int) ?? ($0["contract"] as? NSNumber)?.intValue
             )
         }
         return BLEAckReply(

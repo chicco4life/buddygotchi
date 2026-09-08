@@ -63,7 +63,8 @@ def test_ble_status_ack_schema(paired_ble_address):
     status = next((line for line in lines if line.get("ack") == "status"), None)
     assert status is not None
     assert status.get("ok") is True
-    assert isinstance(status.get("data"), dict)
+    # PROTOCOL.md: telemetry is flat on the status ack.
+    assert status.get("contract") == 2 and status.get("board") and status.get("fw") and status.get("git")
 
 
 def test_ble_timesync_sets_rtc(paired_ble_address):
