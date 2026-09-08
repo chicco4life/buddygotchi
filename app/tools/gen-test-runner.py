@@ -92,8 +92,9 @@ def main() -> None:
         name = f"{cls}.{method}"
         lines.append(
             f'        await run("{name}") {{ '
-            f"let t = {cls}(); try t.setUpWithError(); try await t.setUp(); "
-            f"{prefix}t.{method}() }}"
+            f"let t = {cls}(); do {{ try t.setUpWithError(); try await t.setUp(); "
+            f"{prefix}t.{method}() }} catch {{ try await t.tearDown(); try t.tearDownWithError(); throw error }}; "
+            f"try await t.tearDown(); try t.tearDownWithError() }}"
         )
 
     lines += [

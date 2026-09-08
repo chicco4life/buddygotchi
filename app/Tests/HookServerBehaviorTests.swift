@@ -99,6 +99,86 @@ final class HookServerBehaviorTests: XCTestCase {
         }
     }
 
+    // MARK: - Diagnostic HTTP contract
+
+    @MainActor
+    func testDiagnosticEndpointsOverHTTP() async throws {
+        try requireLocalNetworking()
+        var config = testConfig()
+        config.httpPort = Int.random(in: 33000..<59000)
+        config.headless = true
+        let engine = BuddyEngine(config: config)
+        let app = buildHookServer(engine: engine, config: config)
+        let server = Task { try await app.runService() }
+        defer { server.cancel() }
+        let base = "http://127.0.0.1:\(config.httpPort)"
+        try await waitForServer(base)
+
+        for path in ["/state", "/diag/recent"] {
+            for token in [nil, "wrong"] as [String?] {
+                let (status, _) = try await get(base + path, token: token)
+                XCTAssertEqual(status, 401)
+            }
+        }
+        // More than the default limit verifies newest-first ordering and redaction.
+        for index in 0..<70 {
+            engine.diagnosticLog.log(category: "hook", source: "codex", event: "event-\(index)", detail: "test", rawPayload: "secret")
+        }
+        for (query, expectedCount) in [("", 50), ("?n=2", 2), ("?n=0", 0), ("?n=-1", 0), ("?n=invalid", 50), ("?n=999", engine.diagnosticLog.entries.count)] {
+            let (status, data) = try await get(base + "/diag/recent" + query, token: config.token)
+            XCTAssertEqual(status, 200)
+            let body = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let entries = try XCTUnwrap(body["entries"] as? [[String: Any]])
+            XCTAssertEqual(entries.count, expectedCount)
+            if expectedCount > 0 { XCTAssertEqual(entries.first?["event"] as? String, "event-69") }
+            for entry in entries { XCTAssertNil(entry["rawPayload"]) }
+        }
+        engine.sessionStarted(sessionId: "s1", source: "codex", cwd: "/tmp/project")
+        engine.submitRequest(sessionId: "s1", requestId: "r1", tool: "Bash", hint: "swift build", sessionLabel: "project")
+        let (status, data) = try await get(base + "/state", token: config.token)
+        XCTAssertEqual(status, 200)
+        let actual = try JSONSerialization.jsonObject(with: data) as? NSDictionary
+        let expected = try JSONSerialization.jsonObject(with: JSONEncoder().encode(engine.state)) as? NSDictionary
+        XCTAssertEqual(actual, expected)
+        XCTAssertEqual(engine.state.creature.state, .needsYou)
+    }
+
+    @MainActor
+    func testStateEndpointDisabledOutsideHeadless() async throws {
+        try requireLocalNetworking()
+        var config = testConfig()
+        config.httpPort = Int.random(in: 33000..<59000)
+        let engine = BuddyEngine(config: config)
+        let app = buildHookServer(engine: engine, config: config)
+        let server = Task { try await app.runService() }
+        defer { server.cancel() }
+        let base = "http://127.0.0.1:\(config.httpPort)"
+        try await waitForServer(base)
+        let (stateStatus, _) = try await get(base + "/state", token: config.token)
+        let (recentStatus, _) = try await get(base + "/diag/recent", token: config.token)
+        XCTAssertEqual(stateStatus, 404)
+        XCTAssertEqual(recentStatus, 200)
+    }
+
+    @MainActor
+    private func waitForServer(_ base: String) async throws {
+        let deadline = Date().addingTimeInterval(5)
+        while Date() < deadline {
+            if let (status, _) = try? await get(base + "/healthz", token: nil), status == 200 { return }
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+        XCTFail("Server did not become ready")
+    }
+
+    @MainActor
+    private func get(_ url: String, token: String?) async throws -> (Int, Data) {
+        var request = URLRequest(url: URL(string: url)!)
+        request.timeoutInterval = 2
+        if let token { request.setValue(token, forHTTPHeaderField: "X-Boop-Token") }
+        let (data, response) = try await URLSession.shared.data(for: request)
+        return ((response as? HTTPURLResponse)?.statusCode ?? 0, data)
+    }
+
     private func decodeHookEvent(_ json: String) throws -> HookEventBody {
         let data = try XCTUnwrap(json.data(using: .utf8))
         return try JSONDecoder().decode(HookEventBody.self, from: data)

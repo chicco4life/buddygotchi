@@ -15,11 +15,12 @@ struct BuddyConfig: Sendable {
     var stateDir: String
     var approvalMode: Bool
     var token: String
+    var headless: Bool = false
 
     static let `default`: BuddyConfig = {
         let stateDir = defaultStateDir()
         let (port, approvalMode, token) = readOrCreateConfig(stateDir: stateDir)
-        return BuddyConfig(httpPort: port, staleTimeoutMs: 600_000, approvalTimeoutMs: 290_000, celebrateDurationMs: 4000, workStallTimeoutMs: 300_000, stateDir: stateDir, approvalMode: approvalMode, token: token)
+        return BuddyConfig(httpPort: port, staleTimeoutMs: 600_000, approvalTimeoutMs: 290_000, celebrateDurationMs: 4000, workStallTimeoutMs: 300_000, stateDir: stateDir, approvalMode: approvalMode, token: token, headless: CommandLine.arguments.contains("--headless") || ProcessInfo.processInfo.environment["BOOP_HEADLESS"] == "1")
     }()
 
     nonisolated(unsafe) private(set) static var recreatedCorruptConfig = false

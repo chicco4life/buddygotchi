@@ -54,16 +54,16 @@ struct RenderState: Encodable {
 
 private let encoder = JSONEncoder()
 
-func renderState(from state: BuddyState) -> RenderState {
+func renderState(from state: BuddyState, defaults: UserDefaults = .standard) -> RenderState {
     // In the error state the reducer encodes the failing tool into msg as
     // "Error: <tool>" (or a bare "Error" when no tool is known). errorTool is
     // extracted from that msg so the device can name what failed; errorSource
     // rides along on the last signal.
     let isError = state.pet.state == .error
-    let soundsEnabled = UserDefaults.standard.object(forKey: DefaultsKey.soundsEnabled) as? Bool ?? true
+    let soundsEnabled = defaults.object(forKey: DefaultsKey.soundsEnabled) as? Bool ?? true
     return RenderState(
         pet: state.pet.state.rawValue,
-        species: UserDefaults.standard.string(forKey: DefaultsKey.buddySpecies) ?? state.pet.species,
+        species: defaults.string(forKey: DefaultsKey.buddySpecies) ?? state.pet.species,
         desktop: state.desktop.status.rawValue,
         total: state.sessions.total,
         running: state.sessions.running,

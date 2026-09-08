@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Activity Kind
 
-enum ActivityKind: String, Sendable, Equatable {
+enum ActivityKind: String, Encodable, Sendable, Equatable {
     case verify
     case read
     case write

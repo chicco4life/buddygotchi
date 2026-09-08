@@ -51,6 +51,12 @@ private final class MockPopoverPresenter: PopoverPresenting {
 }
 
 @MainActor
+final class StatusItemSpy: StatusItemPresenting {
+    var image: NSImage?
+    var toolTip: String?
+}
+
+@MainActor
 private final class MockNotifier: DesktopNotificationPosting {
     var postedIds: [String] = []
     var clearedIds: [String] = []
@@ -599,7 +605,7 @@ final class EngineIntegrationTests: XCTestCase {
 
     @MainActor
     func testDesktopOutputPostsRapidAttentionTransitions() {
-        let statusItem: NSStatusItem? = nil // No WindowServer connection is needed for output behavior tests.
+        let statusItem = StatusItemSpy()
         let presenter = MockPopoverPresenter()
         let notifier = MockNotifier()
         let output = DesktopOutput(
@@ -620,6 +626,7 @@ final class EngineIntegrationTests: XCTestCase {
         busy.prompt = nil
 
         var attentionTwo = busy
+        attentionTwo.creature.state = .needsYou
         attentionTwo.pet = Pet(state: .attention, species: Pet.defaultSpecies)
         attentionTwo.prompt = Prompt(id: "p2", tool: "Bash", hint: "second", arrivedAt: NOW + 1)
 
@@ -627,6 +634,9 @@ final class EngineIntegrationTests: XCTestCase {
         output.stateDidChange(prev: attentionOne, next: busy)
         output.stateDidChange(prev: busy, next: attentionTwo)
 
+        XCTAssertEqual(statusItem.toolTip, "needsYou")
+        XCTAssertEqual(statusItem.image?.accessibilityDescription, DesktopOutput.statusIcon(for: .attention).accessibilityDescription)
+        XCTAssertEqual(statusItem.image?.size, NSSize(width: 18, height: 18))
         XCTAssertEqual(notifier.postedIds, ["p1", "p2"])
         XCTAssertEqual(notifier.clearedIds, ["p1"])
     }

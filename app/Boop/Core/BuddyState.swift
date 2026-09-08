@@ -2,17 +2,17 @@ import Foundation
 
 // MARK: - Creature
 
-enum CreatureState: String, Sendable, Equatable, CaseIterable { case asleep, idle, working, needsYou, done, uhoh }
-enum CreatureEffort: String, Sendable, Equatable { case light, hard, grinding }
-enum CheerSize: String, Sendable, Equatable {
+enum CreatureState: String, Encodable, Sendable, Equatable, CaseIterable { case asleep, idle, working, needsYou, done, uhoh }
+enum CreatureEffort: String, Encodable, Sendable, Equatable { case light, hard, grinding }
+enum CheerSize: String, Encodable, Sendable, Equatable {
     case hop, cheer, dance
     var intensity: Int { switch self { case .hop: 1; case .cheer: 2; case .dance: 3 } }
 }
-enum UhohKind: String, Sendable, Equatable { case error, stuck, hungry }
-enum CreatureOverlay: String, Sendable, Equatable { case greet, boop }
-enum Stakes: String, Sendable, Equatable { case fine, checkIt, careful }
+enum UhohKind: String, Encodable, Sendable, Equatable { case error, stuck, hungry }
+enum CreatureOverlay: String, Encodable, Sendable, Equatable { case greet, boop }
+enum Stakes: String, Encodable, Sendable, Equatable { case fine, checkIt, careful }
 
-struct CreatureCard: Sendable, Equatable {
+struct CreatureCard: Encodable, Sendable, Equatable {
     var id: String
     var tool: String
     var gloss: String
@@ -22,7 +22,7 @@ struct CreatureCard: Sendable, Equatable {
     var isApproval: Bool
 }
 
-struct Creature: Sendable, Equatable {
+struct Creature: Encodable, Sendable, Equatable {
     var state: CreatureState
     var effort: CreatureEffort?
     var cheer: CheerSize?
@@ -61,7 +61,7 @@ func legacyPetState(from creature: Creature, includingOverlay: Bool = true) -> P
 
 // MARK: - Pet State
 
-enum PetState: String, Sendable, Equatable, CaseIterable {
+enum PetState: String, Encodable, Sendable, Equatable, CaseIterable {
     case sleep
     case idle
     case busy
@@ -87,19 +87,19 @@ enum PetState: String, Sendable, Equatable, CaseIterable {
 
 // MARK: - Desktop
 
-enum DesktopStatus: String, Sendable, Equatable {
+enum DesktopStatus: String, Encodable, Sendable, Equatable {
     case disconnected
     case connected
 }
 
-struct DesktopLink: Sendable, Equatable {
+struct DesktopLink: Encodable, Sendable, Equatable {
     var status: DesktopStatus
     var lastHeartbeatAt: Double?
 }
 
 // MARK: - Sessions
 
-enum SessionState: String, Sendable, Equatable {
+enum SessionState: String, Encodable, Sendable, Equatable {
     case working
     case idle
     case needsConfirmation
@@ -107,7 +107,7 @@ enum SessionState: String, Sendable, Equatable {
     case thinking
 }
 
-struct Session: Sendable, Equatable {
+struct Session: Encodable, Sendable, Equatable {
     var source: String
     var state: SessionState
     var prompt: Prompt?
@@ -129,7 +129,7 @@ struct Session: Sendable, Equatable {
     var repeatedToolCount: Int = 0
 }
 
-struct SessionCounts: Sendable, Equatable {
+struct SessionCounts: Encodable, Sendable, Equatable {
     var total: Int
     var running: Int
     var waiting: Int
@@ -139,7 +139,7 @@ struct SessionCounts: Sendable, Equatable {
 
 // MARK: - Prompt
 
-struct Prompt: Sendable, Equatable {
+struct Prompt: Encodable, Sendable, Equatable {
     var id: String
     var tool: String
     var hint: String
@@ -150,7 +150,7 @@ struct Prompt: Sendable, Equatable {
     var activityKind: ActivityKind = .work
 }
 
-enum ApprovalDecision: String, Sendable {
+enum ApprovalDecision: String, Encodable, Sendable {
     case allow
     case deny
     case passthrough
@@ -158,7 +158,7 @@ enum ApprovalDecision: String, Sendable {
 
 // MARK: - Completed Task
 
-struct CompletedTask: Sendable, Equatable {
+struct CompletedTask: Encodable, Sendable, Equatable {
     var id: String
     var tool: String?
     var hint: String?
@@ -171,7 +171,7 @@ struct CompletedTask: Sendable, Equatable {
 
 // MARK: - Errored Session
 
-struct ErroredSession: Sendable, Equatable {
+struct ErroredSession: Encodable, Sendable, Equatable {
     var id: String
     var source: String
     var sessionLabel: String?
@@ -185,7 +185,7 @@ struct ErroredSession: Sendable, Equatable {
 /// A session that has been actively working but went silent past the work-stall
 /// threshold. Distinct from .errored: this is presumed-still-alive ("thinking
 /// hard"), not failed; no Dismiss button, no alert sound.
-struct ThinkingSession: Sendable, Equatable {
+struct ThinkingSession: Encodable, Sendable, Equatable {
     var id: String
     var source: String
     var sessionLabel: String?
@@ -197,7 +197,7 @@ struct ThinkingSession: Sendable, Equatable {
 
 // MARK: - Active Sessions (per-session breakdown for popover)
 
-struct SessionSnapshot: Sendable, Equatable, Identifiable {
+struct SessionSnapshot: Encodable, Sendable, Equatable, Identifiable {
     var id: String
     var source: String
     var state: SessionState
@@ -207,7 +207,7 @@ struct SessionSnapshot: Sendable, Equatable, Identifiable {
 
 // MARK: - Pet
 
-struct Pet: Sendable, Equatable {
+struct Pet: Encodable, Sendable, Equatable {
     var state: PetState
     var species: String
 
@@ -217,7 +217,7 @@ struct Pet: Sendable, Equatable {
 
 // MARK: - BuddyState
 
-struct BuddyState: Sendable, Equatable {
+struct BuddyState: Encodable, Sendable, Equatable {
     var version: Int
     var updatedAt: Double
 

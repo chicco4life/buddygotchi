@@ -7,7 +7,7 @@
 # waiting for the confirm step (see --confirm).
 #
 # Usage:
-#   skills/doctor/doctor.sh [--agent claude-code|codex|cursor] [--device] [--json]
+#   skills/doctor/doctor.sh [--agent claude-code|codex|cursor] [--device] [--json] [--headless]
 #   skills/doctor/doctor.sh --confirm      # after the harness fired a tool call
 #
 # Two-step live check. Step 1 (default run) verifies config, hooks, the app,
@@ -15,14 +15,15 @@
 # version. The agent then runs one harmless tool call in its own harness
 # (e.g. `echo BOOP_DOCTOR_PING`). Step 2 (--confirm) checks that the app's
 # state moved, which proves the harness's own hooks fire.
-set -u
+set -uo pipefail
 
-AGENT=""; DEVICE=0; JSON=0; CONFIRM=0
+AGENT=""; DEVICE=0; JSON=0; CONFIRM=0; HEADLESS=0; STARTED=0; KEEP_RUNNING=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --agent) AGENT="$2"; shift 2 ;;
     --device) DEVICE=1; shift ;;
     --json) JSON=1; shift ;;
+    --headless) HEADLESS=1; shift ;;
     --confirm) CONFIRM=1; shift ;;
     -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
     *) echo "unknown arg: $1" >&2; exit 1 ;;
@@ -55,21 +56,53 @@ BASE="http://127.0.0.1:${PORT}"
 CURL=(curl -s --noproxy '*' --connect-timeout 2 --max-time 5)
 version() { "${CURL[@]}" "$BASE/healthz" 2>/dev/null | grep -o '"stateVersion":[0-9]*' | grep -o '[0-9]*'; }
 
+# Keep a doctor-owned app alive between arm and confirm; cleanup on failure or confirm.
+cleanup_headless() {
+  if [ "$STARTED" = 1 ] && [ "$KEEP_RUNNING" = 0 ]; then
+    "$REPO/app/tools/headless.sh" --stop >&2
+  fi
+}
+trap cleanup_headless EXIT
+if [ "$HEADLESS" = 1 ] && [ "$CONFIRM" = 0 ] && [ -z "$(version)" ]; then
+  "$REPO/app/tools/headless.sh" >&2 || exit 1
+  STARTED=1
+  PORT=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("port",21321))' "$CFG")
+  TOKEN=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["token"])' "$CFG")
+  BASE="http://127.0.0.1:${PORT}"
+fi
+
 # --- confirm step ---------------------------------------------------------
 if [ $CONFIRM -eq 1 ]; then
   hdr "Boop doctor: confirm"
   if [ ! -f "$ARM" ]; then bad "not armed; run skills/doctor/doctor.sh first"; exit 1; fi
-  ARMED_V=$(cut -d' ' -f1 "$ARM"); ARMED_AGENT=$(cut -d' ' -f2 "$ARM")
-  NOW_V=$(version)
-  if [ -z "$NOW_V" ]; then bad "Boop app is not reachable at $BASE"; exit 1; fi
-  if [ "$NOW_V" -gt "$ARMED_V" ]; then
-    ok "harness '$ARMED_AGENT' hooks fired (state v$ARMED_V -> v$NOW_V)"; rm -f "$ARM"; exit 0
+  read -r ARMED_V ARMED_AGENT ARMED_AT OWNED_PID < "$ARM"
+  # Only stop the same process this doctor started, never a replacement instance.
+  if [ -n "${OWNED_PID:-}" ] && [ "$OWNED_PID" != 0 ] &&
+      [ "$(cat /tmp/boop-headless.pid 2>/dev/null)" = "$OWNED_PID" ]; then STARTED=1; fi
+  RECENT=$(mktemp) || exit 1
+  CODE=$("${CURL[@]}" -H "X-Boop-Token: $TOKEN" -o "$RECENT" -w '%{http_code}' "$BASE/diag/recent?n=500")
+  MATCH=0
+  if [ "$CODE" = 200 ]; then
+    if python3 - "$RECENT" "$ARMED_AGENT" "${ARMED_AT:-0}" <<'PYCODE'
+import json,sys
+entries=json.load(open(sys.argv[1]))["entries"]
+sys.exit(0 if any(e["source"]==sys.argv[2] and e["timestamp"]>float(sys.argv[3]) for e in entries) else 1)
+PYCODE
+    then MATCH=1; fi
+  elif [ "$CODE" = 404 ]; then
+    NOW_V=$(version)
+    info '/diag/recent unavailable; falling back to version delta'
+    if [ -n "$NOW_V" ] && [ "$NOW_V" -gt "$ARMED_V" ]; then MATCH=1; fi
   else
-    bad "no hook reached Boop from '$ARMED_AGENT' since arming (still v$NOW_V)"
-    info "did the tool call actually run in the harness? Claude Code and Codex fire on PostToolUse; Cursor fires on afterShellExecution"
-    info "if it ran: open Boop > Settings > reinstall hooks, then restart the harness so it reloads hook config"
-    exit 1
+    bad "diagnostics request failed (HTTP $CODE); cannot confirm hooks"
   fi
+  rm -f "$RECENT" "$ARM"
+  if [ "$MATCH" = 1 ]; then
+    ok "harness '$ARMED_AGENT' hooks fired since arming"; exit 0
+  fi
+  bad "no hook reached Boop from '$ARMED_AGENT' since arming"
+  info "run a tool call after arming; if hooks are stale, reinstall them and restart the harness"
+  exit 1
 fi
 
 # --- 1. config --------------------------------------------------------------
@@ -109,7 +142,7 @@ hdr "4. App"
 V0=$(version)
 if [ -n "$V0" ]; then ok "Boop app reachable at $BASE (state v$V0)"; else
   bad "Boop app not reachable at $BASE"
-  info "launch it from your own terminal (not from the agent): cd app && swift run Boop  — an agent-launched Boop aborts on Bluetooth permission"
+  info "retry with --headless to start Boop without GUI or Bluetooth"
   hdr "Summary"; info "$pass ok, $fail failed, $warn warnings"; exit 1
 fi
 CODE=$("${CURL[@]}" -o /dev/null -w '%{http_code}' -X POST "$BASE/hook/event?source=doctor" -H 'Content-Type: application/json' -d '{"hook_event_name":"Noop"}')
@@ -141,7 +174,14 @@ fi
 hdr "7. Live harness check (armed)"
 # settle so a background tick does not fake a confirm
 for i in 1 2 3 4 5; do a=$(version); sleep 1; b=$(version); [ "$a" = "$b" ] && break; done
-echo "$b $AGENT" > "$ARM"
+ARMED_AT=$(python3 -c 'import time; print(time.time()*1000)')
+OWNED_PID=0
+if [ "$STARTED" = 1 ] && [ "$fail" = 0 ]; then
+  OWNED_PID=$(cat /tmp/boop-headless.pid)
+  KEEP_RUNNING=1
+fi
+umask 077
+printf '%s %s %s %s\n' "$b" "$AGENT" "$ARMED_AT" "$OWNED_PID" > "$ARM"
 info "armed at state v$b for harness '$AGENT'"
 info "NEXT: run one harmless tool call in this harness, e.g.:  echo BOOP_DOCTOR_PING"
 info "THEN: skills/doctor/doctor.sh --confirm"

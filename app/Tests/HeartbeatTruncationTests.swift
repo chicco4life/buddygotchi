@@ -13,6 +13,21 @@ import XCTest
 /// suite could not even read the device while such a prompt was up.
 final class HeartbeatTruncationTests: XCTestCase {
 
+    func testRenderStateUsesIsolatedDefaults() throws {
+        let suiteName = "BoopTests.heartbeat.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        defaults.set("cat", forKey: DefaultsKey.buddySpecies)
+        defaults.set(false, forKey: DefaultsKey.soundsEnabled)
+        let frame = renderState(from: .initial, defaults: defaults)
+        XCTAssertEqual(frame.species, "cat")
+        XCTAssertEqual(frame.mute, true)
+        let data = try JSONEncoder().encode(BuddyState.initial)
+        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual((body["creature"] as? [String: Any])?["state"] as? String, "asleep")
+        XCTAssertNotNil(body["activeSessions"])
+    }
+
     func testPrefixByBytesNeverSplitsACharacter() {
         let s = String(repeating: "x", count: 18) + String(repeating: "🐛", count: 12)
         let cut = s.prefix(utf8Bytes: 63)

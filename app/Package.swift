@@ -55,6 +55,7 @@ if useXCTestShim {
             name: "BoopTests",
             dependencies: ["BoopCore", "XCTest"],
             path: "Tests",
+            exclude: ["Fixtures"],
             swiftSettings: [.define("BOOP_SHIM_RUNNER")]
         )
     )
@@ -69,7 +70,8 @@ if useXCTestShim {
         .testTarget(
             name: "BoopTests",
             dependencies: ["BoopCore"],
-            path: "Tests"
+            path: "Tests",
+            exclude: ["Fixtures"]
         )
     )
 }

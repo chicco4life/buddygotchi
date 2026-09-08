@@ -8,7 +8,10 @@ import SwiftUI
 // TimelineView-driven animation is captured at a single frame.
 @MainActor
 enum SnapshotRenderer {
-    static func renderAll(to dir: String) {
+    static func renderAll(to dir: String, defaults: UserDefaults) {
+        func render<V: View>(_ view: V, _ name: String, _ size: CGSize, _ dir: String) {
+            Self.render(view, name, size, dir, defaults: defaults)
+        }
         _ = NSApplication.shared
         // --render-snapshots returns before BoopApp.main(), so AppDelegate's
         // applicationDidFinishLaunching never runs and Geist never registers.
@@ -17,7 +20,6 @@ enum SnapshotRenderer {
         BuddyResources.registerFonts()
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
 
-        let defaults = UserDefaults.standard
         defaults.set(true, forKey: DefaultsKey.setupCompleted)
         defaults.set("blob", forKey: DefaultsKey.buddySpecies)
         // Every fixture that reads a default must find a known value, not
@@ -97,7 +99,7 @@ enum SnapshotRenderer {
             defaults.set(step.rawValue, forKey: DefaultsKey.onboardingStep)
             defaults.set("Mochi", forKey: DefaultsKey.buddyName)
             defaults.set(BuddyOutputTarget.thisMac.rawValue, forKey: DefaultsKey.buddyOutput)
-            let view = OnboardingView(engine: makeEngine(), esp32Output: ESP32Output(), onFinish: {})
+            let view = OnboardingView(defaults: defaults, engine: makeEngine(), esp32Output: ESP32Output(), onFinish: {})
             render(view, "onboarding-\(step.rawValue)-\(String(describing: step))", onboardingSize, dir)
         }
         defaults.set(true, forKey: DefaultsKey.setupCompleted)
@@ -228,10 +230,11 @@ enum SnapshotRenderer {
         PopoverView(engine: engine, esp32Output: ESP32Output())
     }
 
-    private static func render<V: View>(_ view: V, _ name: String, _ size: CGSize, _ dir: String) {
+    private static func render<V: View>(_ view: V, _ name: String, _ size: CGSize, _ dir: String, defaults: UserDefaults) {
         let root = ZStack { BuddyTheme.paper; view }
             .frame(width: size.width, height: size.height)
             .environment(\.colorScheme, .light)
+            .defaultAppStorage(defaults)
 
         let host = NSHostingView(rootView: AnyView(root))
         host.appearance = NSAppearance(named: .aqua)

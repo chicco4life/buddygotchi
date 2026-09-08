@@ -9,7 +9,10 @@ public enum BoopEntrypoint {
         if let flagIndex = args.firstIndex(of: "--render-snapshots") {
             let dir = args.indices.contains(flagIndex + 1) ? args[flagIndex + 1] : "/tmp/buddy-snapshots"
             MainActor.assumeIsolated {
-                SnapshotRenderer.renderAll(to: dir)
+                let suiteName = "Boop.snapshots.\(UUID().uuidString)"
+                let defaults = UserDefaults(suiteName: suiteName)!
+                defer { defaults.removePersistentDomain(forName: suiteName) }
+                SnapshotRenderer.renderAll(to: dir, defaults: defaults)
             }
             exit(0)
         }

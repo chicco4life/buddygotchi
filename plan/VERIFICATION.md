@@ -203,9 +203,10 @@ path and the skill says so.
 harness's source name instead of a version delta, which removes the one
 flake (a background tick moving the version).
 
-Verified today: the static checks run and report correctly with the app
-down. The live round trip and confirm were not exercised in this session
-because the app was not running.
+Verified 2026-09-08 with Phase 0 landed: static checks, the synthetic
+round trip, and the live arm-and-confirm all pass from inside Claude Code
+against a headless app, with the confirm reading the harness's own
+PostToolUse entry from `/diag/recent`.
 
 ---
 

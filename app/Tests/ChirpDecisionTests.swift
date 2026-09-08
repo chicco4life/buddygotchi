@@ -227,7 +227,7 @@ final class DesktopOutputSoundTests: XCTestCase {
 
     private func makeOutput(soundsEnabled: Bool = true) -> (DesktopOutput, () -> [String]) {
         var played: [String] = []
-        let statusItem: NSStatusItem? = nil // No WindowServer connection is needed for output behavior tests.
+        let statusItem = StatusItemSpy()
         let output = DesktopOutput(
             statusItem: statusItem,
             presenter: StubPresenter(),

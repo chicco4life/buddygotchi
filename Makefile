@@ -1,4 +1,4 @@
-.PHONY: build run test test-snapshots e2e hil hil-ble preflight preflight-unsigned package lint clean
+.PHONY: headless doctor build run test test-snapshots e2e hil hil-ble preflight preflight-unsigned package lint clean
 
 build:
 	cd app && swift build --product Boop && swift build --product BoopSignal
@@ -47,8 +47,14 @@ test-snapshots:
 	touch /tmp/buddy-snapshots/.enable
 	cd app && swift test --disable-sandbox --filter SnapshotHarnessTests
 
+headless:
+	app/tools/headless.sh
+
+doctor:
+	skills/doctor/doctor.sh --headless
+
 e2e:
-	app/tools/e2e-smoke.sh
+	@bash app/tools/e2e-headless.sh
 
 hil:
 	cd archived/firmware/esp32 && python3 -m pytest tests/hil -m "not ble"

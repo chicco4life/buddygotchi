@@ -154,7 +154,8 @@ private let unauthorizedLogThrottle = UnauthorizedLogThrottle()
 
 func buildHookServer(
     engine: BuddyEngine,
-    config: BuddyConfig
+    config: BuddyConfig,
+    onListening: @escaping @Sendable () async -> Void = {}
 ) -> Application<RouterResponder<HookRequestContext>> {
     let router = Router(context: HookRequestContext.self)
     let diagLog = engine.diagnosticLog
@@ -178,6 +179,22 @@ func buildHookServer(
             "stateVersion": state.version,
             "desktop": state.desktop.status.rawValue,
         ] as [String: Any])
+    }
+
+    router.get("/diag/recent") { request, _ -> Response in
+        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
+        let count = min(500, max(0, request.uri.queryParameters["n"].flatMap { Int($0) } ?? 50))
+        let entries = await diagLog.entries.reversed().prefix(count).map {
+            DiagnosticEntry(timestamp: $0.timestamp, category: $0.category, source: $0.source,
+                            event: $0.event, detail: $0.detail, rawPayload: nil)
+        }
+        return try encodedResponse(["entries": entries])
+    }
+
+    router.get("/state") { request, _ -> Response in
+        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
+        guard config.headless else { return Response(status: .notFound) }
+        return try encodedResponse(await engine.state)
     }
 
     router.post("/hook/event") { request, _ -> Response in
@@ -288,7 +305,14 @@ func buildHookServer(
     return Application(
         router: router,
         server: .http1(configuration: .init(additionalChannelHandlers: [CloseOnInputClosedHandler()])),
-        configuration: .init(address: .hostname("127.0.0.1", port: config.httpPort))
+        configuration: .init(address: .hostname("127.0.0.1", port: config.httpPort)),
+        onServerRunning: { _ in
+            if config.headless {
+                let line = "boop: listening on 127.0.0.1:\(config.httpPort) (headless)\n"
+                FileHandle.standardOutput.write(Data(line.utf8))
+            }
+            await onListening()
+        }
     )
 }
 
@@ -569,4 +593,9 @@ private func jsonResponse(_ dict: [String: Any]) -> Response {
         headers: [.contentType: "application/json"],
         body: .init(byteBuffer: ByteBuffer(data: data))
     )
+}
+
+private func encodedResponse<T: Encodable>(_ value: T) throws -> Response {
+    Response(status: .ok, headers: [.contentType: "application/json"],
+             body: .init(byteBuffer: ByteBuffer(data: try JSONEncoder().encode(value))))
 }

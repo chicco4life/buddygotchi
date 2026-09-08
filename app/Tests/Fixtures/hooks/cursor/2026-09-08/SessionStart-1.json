@@ -1,0 +1,7 @@
+{
+    "session_id": "example-session",
+    "conversation_id": "example-session",
+    "hook_event_name": "sessionStart",
+    "is_background_agent": false,
+    "composer_mode": "agent"
+}

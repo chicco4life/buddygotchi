@@ -5,6 +5,9 @@ on:
     branches: [main]
   pull_request:
 
+env:
+  DEVELOPER_DIR: /Applications/Xcode_16.2.app/Contents/Developer
+
 jobs:
   swift:
     name: Swift build and tests
@@ -19,14 +22,30 @@ jobs:
       - name: Cache SwiftPM build
         uses: actions/cache@v4
         with:
-          path: archived/app/.build
-          key: ${{ runner.os }}-swift-${{ hashFiles('archived/app/Package.resolved') }}
+          path: app/.build
+          key: ${{ runner.os }}-${{ env.DEVELOPER_DIR }}-swift-${{ hashFiles('app/Package.resolved') }}
           restore-keys: |
-            ${{ runner.os }}-swift-
+            ${{ runner.os }}-${{ env.DEVELOPER_DIR }}-swift-
 
       - name: Build
         run: swift build
-        working-directory: archived/app
+        working-directory: app
+
+      - name: Lint Swift
+        run: |
+          if command -v swift-format >/dev/null 2>&1; then
+            swift-format lint -r Boop BoopSignal Tests
+          else
+            echo "swift-format unavailable; skipping lint"
+          fi
+        working-directory: app
+
+      - name: Headless HTTP smoke
+        run: |
+          set -uo pipefail
+          trap 'app/tools/headless.sh --stop' EXIT
+          app/tools/headless.sh || exit 1
+          app/tools/e2e-smoke.sh
 
       - name: Test
         run: |
@@ -37,7 +56,7 @@ jobs:
             echo "Expected at least 100 executed tests; failing to catch silent test skips." >&2
             exit 1
           fi
-        working-directory: archived/app
+        working-directory: app
 
       - name: Generate UI snapshots
         continue-on-error: true
@@ -45,7 +64,7 @@ jobs:
           mkdir -p /tmp/buddy-snapshots
           touch /tmp/buddy-snapshots/.enable
           swift test --disable-sandbox --filter SnapshotHarnessTests
-        working-directory: archived/app
+        working-directory: app
 
       - name: Upload UI snapshots
         uses: actions/upload-artifact@v4

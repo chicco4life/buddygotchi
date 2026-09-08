@@ -18,8 +18,8 @@
 #
 # For the cleanest disconnect assertions, run with no other agents connected.
 #
-# Not observable over HTTP (covered by the Swift unit tests instead): pet-state
-# priority/aggregation across sessions, session counts, the DENY decision format
+# Additional coverage in Swift unit tests: priority/aggregation across sessions,
+# session counts, the DENY decision format
 # (needs the popover/BLE), the SessionStart process-watcher reap, and the BLE
 # output path.
 
@@ -55,6 +55,7 @@ for entry in "${SUITES[@]}"; do
   rc=$?
   sp=0; sf=0; read -r sp sf < "$rf" 2>/dev/null || true
   rm -f "$rf"
+  if [ "$rc" -ne 0 ] && [ "$sf" -eq 0 ]; then sf=1; fi
   total_pass=$((total_pass + sp)); total_fail=$((total_fail + sf))
   if [ "$rc" -eq 0 ]; then STATUS+=("\033[32m✓\033[0m ${name}: ${sp} passed")
   else STATUS+=("\033[31m✗\033[0m ${name}: ${sf} failed, ${sp} passed"); fi

@@ -19,6 +19,12 @@ import SwiftUI
 @MainActor
 final class SnapshotHarnessTests: XCTestCase {
 
+    private let defaults = UserDefaults(suiteName: "BoopTests.snapshots")!
+
+    override func tearDown() async throws {
+        defaults.removePersistentDomain(forName: "BoopTests.snapshots")
+    }
+
     private let dir = "/tmp/buddy-snapshots"
 
     override func setUp() async throws {
@@ -27,8 +33,13 @@ final class SnapshotHarnessTests: XCTestCase {
             "snapshot harness disabled — `touch /tmp/buddy-snapshots/.enable` to enable"
         )
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-        UserDefaults.standard.set(true, forKey: DefaultsKey.setupCompleted)
-        UserDefaults.standard.set(Pet.defaultSpecies, forKey: DefaultsKey.buddySpecies)
+        defaults.set(true, forKey: DefaultsKey.setupCompleted)
+        defaults.set(Pet.defaultSpecies, forKey: DefaultsKey.buddySpecies)
+    }
+
+    func testRenderAll() throws {
+        SnapshotRenderer.renderAll(to: dir, defaults: defaults)
+        XCTAssertEqual(renderState(from: .initial, defaults: defaults).species, "blob")
     }
 
     // MARK: Helpers
@@ -50,6 +61,7 @@ final class SnapshotHarnessTests: XCTestCase {
         }
         .frame(width: size.width, height: size.height)
         .environment(\.colorScheme, .light)
+        .defaultAppStorage(defaults)
 
         let host = NSHostingView(rootView: AnyView(root))
         host.appearance = NSAppearance(named: .aqua)
@@ -76,12 +88,12 @@ final class SnapshotHarnessTests: XCTestCase {
     }
 
     private func onboarding(step: OnboardingStep) -> some View {
-        UserDefaults.standard.set(false, forKey: DefaultsKey.setupCompleted)
-        UserDefaults.standard.set(step.rawValue, forKey: DefaultsKey.onboardingStep)
-        UserDefaults.standard.set("blob", forKey: DefaultsKey.buddySpecies)
-        UserDefaults.standard.set("Mochi", forKey: DefaultsKey.buddyName)
-        UserDefaults.standard.set(BuddyOutputTarget.thisMac.rawValue, forKey: DefaultsKey.buddyOutput)
-        return OnboardingView(engine: makeEngine(), esp32Output: ESP32Output(), onFinish: {})
+        defaults.set(false, forKey: DefaultsKey.setupCompleted)
+        defaults.set(step.rawValue, forKey: DefaultsKey.onboardingStep)
+        defaults.set("blob", forKey: DefaultsKey.buddySpecies)
+        defaults.set("Mochi", forKey: DefaultsKey.buddyName)
+        defaults.set(BuddyOutputTarget.thisMac.rawValue, forKey: DefaultsKey.buddyOutput)
+        return OnboardingView(defaults: defaults, engine: makeEngine(), esp32Output: ESP32Output(), onFinish: {})
     }
 
     private var popoverIdle: CGSize { CGSize(width: BuddyTheme.popoverWidth, height: BuddyTheme.liveViewHeight) }

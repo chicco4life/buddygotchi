@@ -27,7 +27,7 @@ enum PetMood: String, Sendable, Equatable, Codable {
 /// One agent expression currently inhabiting the pet. The pet's body stays
 /// system-rendered; this only colors it (identity border, emote, speech
 /// bubble). Expires via `until` — the possession lease (S8).
-struct AgentOverlay: Sendable, Equatable {
+struct AgentOverlay: Encodable, Sendable, Equatable {
     var agentId: String
     var color: String?
     var emotion: String

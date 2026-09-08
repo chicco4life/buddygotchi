@@ -1,6 +1,24 @@
 import AppKit
 import Foundation
 
+/// Allows verification of the menu bar projection without creating a status item.
+@MainActor
+protocol StatusItemPresenting: AnyObject, Sendable {
+    var image: NSImage? { get set }
+    var toolTip: String? { get set }
+}
+
+extension NSStatusItem: StatusItemPresenting {
+    var image: NSImage? {
+        get { button?.image }
+        set { button?.image = newValue }
+    }
+    var toolTip: String? {
+        get { button?.toolTip }
+        set { button?.toolTip = newValue }
+    }
+}
+
 @MainActor
 protocol PopoverPresenting: AnyObject {
     var isPopoverShown: Bool { get }
@@ -26,7 +44,7 @@ extension NotificationManager: DesktopNotificationPosting {}
 final class DesktopOutput: OutputProvider {
     let id = "desktop"
 
-    private weak var statusItem: NSStatusItem?
+    private weak var statusItem: (any StatusItemPresenting)?
     private weak var presenter: (any PopoverPresenting)?
     private let notifier: any DesktopNotificationPosting
     private let soundsEnabled: () -> Bool
@@ -35,7 +53,7 @@ final class DesktopOutput: OutputProvider {
     private let playError: () -> Void
 
     init(
-        statusItem: NSStatusItem?,
+        statusItem: (any StatusItemPresenting)?,
         presenter: any PopoverPresenting,
         notifier: any DesktopNotificationPosting = NotificationManager.shared,
         soundsEnabled: @escaping () -> Bool = {
@@ -89,8 +107,9 @@ final class DesktopOutput: OutputProvider {
         // No memo on pet state alone: the icon now also depends on the system
         // appearance, since the app inherits it rather than pinning darkAqua.
         // An 18x18 draw on a state change is not a hot path.
-        statusItem?.button?.image = Self.statusIcon(for: state.pet.state)
-        statusItem?.button?.toolTip = state.creature.statusLabel
+        let image = Self.statusIcon(for: state.pet.state)
+        statusItem?.image = image
+        statusItem?.toolTip = state.creature.statusLabel
     }
 
     static func statusIcon(for state: PetState) -> NSImage {

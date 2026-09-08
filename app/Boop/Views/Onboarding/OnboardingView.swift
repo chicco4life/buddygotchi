@@ -6,7 +6,7 @@ struct OnboardingView: View {
     let esp32Output: ESP32Output
     let onFinish: () -> Void
 
-    @State private var model = OnboardingModel()
+    @State private var model: OnboardingModel
     @State private var scanner = BLEScanner()
     @State private var selectedDeviceUUID: UUID?
     @State private var pairingTask: Task<Void, Never>?
@@ -14,6 +14,13 @@ struct OnboardingView: View {
     @State private var copiedPrompt = false
     @State private var copiedPromptResetTask: Task<Void, Never>?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(defaults: UserDefaults = .standard, engine: BuddyEngine, esp32Output: ESP32Output, onFinish: @escaping () -> Void) {
+        self.engine = engine
+        self.esp32Output = esp32Output
+        self.onFinish = onFinish
+        _model = State(initialValue: OnboardingModel(defaults: defaults))
+    }
 
     var body: some View {
         ZStack {

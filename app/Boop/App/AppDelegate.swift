@@ -53,54 +53,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         setupSignalHandlers()
-        SparkleUpdateManager.shared.start()
-
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        if let button = statusItem.button {
-            button.image = DesktopOutput.statusIcon(for: .sleep)
-            button.action = #selector(statusItemClicked)
-            button.target = self
-            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-        }
-
-        let popover = NSPopover()
-        popover.behavior = .transient
-        popover.appearance = NSAppearance(named: .aqua)
-        NotificationManager.shared.setup(engine: engine) { [weak self] in
-            self?.showPopover()
-        }
-
         let config = BuddyConfig.default
         UserDefaults.standard.set(config.approvalMode, forKey: DefaultsKey.approvalMode)
         engine.setSpecies(UserDefaults.standard.string(forKey: DefaultsKey.buddySpecies) ?? Pet.defaultSpecies)
 
-        let output = ESP32Output()
-        esp32Output = output
-        engine.register(output: output)
+        if config.headless {
+            engine.register(output: DesktopOutput(statusItem: nil, presenter: self, soundsEnabled: { false }))
+        } else {
+            SparkleUpdateManager.shared.start()
+            statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+            if let button = statusItem?.button {
+                button.image = DesktopOutput.statusIcon(for: .sleep)
+                button.action = #selector(statusItemClicked)
+                button.target = self
+                button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+            }
 
-        engine.start()
-        Task { await output.start(engine: engine) }
-        Task { await verifyManagedHooksAfterLaunch() }
+            let output = ESP32Output()
+            esp32Output = output
+            engine.register(output: output)
+            Task { await output.start(engine: engine) }
+            Task { await verifyManagedHooksAfterLaunch() }
 
-        let hostingController = NSHostingController(
-            rootView: PopoverView(
-                engine: engine,
-                esp32Output: output,
-                serverHealth: serverHealth,
-                onUserInteraction: { [weak self] in self?.cancelAutoDismiss() },
-                onOpenOnboarding: { [weak self] in self?.showOnboardingWindow() }
+            let popover = NSPopover()
+            popover.behavior = .transient
+            popover.appearance = NSAppearance(named: .aqua)
+            NotificationManager.shared.setup(engine: engine) { [weak self] in
+                self?.showPopover()
+            }
+            let hostingController = NSHostingController(
+                rootView: PopoverView(
+                    engine: engine,
+                    esp32Output: output,
+                    serverHealth: serverHealth,
+                    onUserInteraction: { [weak self] in self?.cancelAutoDismiss() },
+                    onOpenOnboarding: { [weak self] in self?.showOnboardingWindow() }
+                )
             )
-        )
-        hostingController.sizingOptions = .preferredContentSize
-        popover.contentViewController = hostingController
-        self.popover = popover
-
-        engine.register(output: DesktopOutput(statusItem: statusItem, presenter: self))
+            hostingController.sizingOptions = .preferredContentSize
+            popover.contentViewController = hostingController
+            self.popover = popover
+            engine.register(output: DesktopOutput(statusItem: statusItem, presenter: self))
+        }
+        engine.start()
 
         serverTask = Task {
             let app = buildHookServer(
                 engine: engine,
-                config: config
+                config: config,
+                onListening: { @MainActor [weak self] in
+                    self?.serverHealth.status = .listening(port: config.httpPort)
+                }
             )
             let group = ServiceGroup(
                 configuration: .init(
@@ -110,33 +113,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 )
             )
             await MainActor.run { self.serviceGroup = group }
-            let listeningTask = Task {
-                try? await Task.sleep(nanoseconds: 300_000_000)
-                guard !Task.isCancelled else { return }
-                await MainActor.run {
-                    self.serverHealth.status = .listening(port: config.httpPort)
-                }
-            }
             do {
                 try await group.run()
-                listeningTask.cancel()
                 await MainActor.run {
                     self.serverHealth.status = .failed(reason: "server stopped unexpectedly")
                 }
             } catch {
-                listeningTask.cancel()
                 await MainActor.run {
                     self.serverHealth.status = .failed(reason: error.localizedDescription)
                 }
             }
         }
 
-        if !UserDefaults.standard.bool(forKey: DefaultsKey.setupCompleted) {
+        if !config.headless && !UserDefaults.standard.bool(forKey: DefaultsKey.setupCompleted) {
             showOnboardingWindow()
         }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        guard !BuddyConfig.default.headless else { return false }
         if !UserDefaults.standard.bool(forKey: DefaultsKey.setupCompleted) {
             showOnboardingWindow()
         } else {
@@ -194,7 +189,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let matches = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
                 .filter { $0.processIdentifier != currentPID && !$0.isTerminated }
             if let existing = matches.first {
-                existing.activate()
+                if !BuddyConfig.default.headless { existing.activate() }
                 return false
             }
         }
@@ -218,7 +213,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func togglePopover() {
-        guard statusItem.button != nil else { return }
+        guard statusItem?.button != nil else { return }
         if popover.isShown {
             cancelAutoDismiss()
             popover.performClose(nil)
@@ -247,7 +242,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showPopover() {
-        guard let button = statusItem.button else { return }
+        guard let button = statusItem?.button else { return }
         cancelAutoDismiss()
         popover.behavior = .transient
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
@@ -282,12 +277,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             item.target = self
         }
         statusItem.menu = menu
-        statusItem.button?.performClick(nil)
+        statusItem?.button?.performClick(nil)
         statusItem.menu = nil
     }
 
     func showPopover(dismissAfter seconds: TimeInterval) {
-        guard let button = statusItem.button else { return }
+        guard let button = statusItem?.button else { return }
         cancelAutoDismiss()
         popover.behavior = .transient
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)

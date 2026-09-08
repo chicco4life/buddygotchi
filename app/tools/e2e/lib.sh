@@ -3,16 +3,8 @@
 # Shared helpers for the Boop e2e suites. Source this from each client
 # script; it provides the HTTP plumbing, assertions, and summary.
 #
-# What's observable over HTTP (and therefore assertable):
-#   • GET /healthz          → { ok, stateVersion, desktop }   (no pet/prompt/counts)
-#   • POST /hook/event      → 200, advances stateVersion
-#   • POST /hook/signal     → 200, advances stateVersion
-#   • POST /hook/approve     → returns the decision JSON (richly assertable)
-# Pet state (busy/attention/celebrate) is NOT exposed, so those steps assert
-# "the event was accepted and changed state" (stateVersion advanced) and print
-# the expected pet state as info.
-
-PORT="${BUDDY_PORT:-21321}"
+PORT="${BUDDY_PORT:-$(python3 -c 'import json,os; print(json.load(open(os.path.expanduser("~/.boop/config.json"))).get("port",21321))' 2>/dev/null)}"
+PORT="${PORT:-21321}"
 BASE="http://127.0.0.1:${PORT}"
 CURL=(curl -s --noproxy '*' --connect-timeout 2)
 TOKEN="$(grep -o '"token" *: *"[^"]*"' "$HOME/.boop/config.json" 2>/dev/null | head -1 | sed 's/.*"token" *: *"//; s/".*//')"
@@ -30,6 +22,93 @@ health()  { "${CURL[@]}" "${BASE}/healthz"; }
 version() { health | grep -o '"stateVersion":[0-9]*' | grep -o '[0-9]*'; }
 desktop() { health | grep -o '"desktop":"[a-z]*"' | sed 's/.*"desktop":"//; s/"//'; }
 
+# Return 4 only for a production app with the debug route disabled.
+state_field() {
+  local response code
+  response="$("${CURL[@]}" --max-time 5 "${AUTH[@]}" -w '\n%{http_code}' "$BASE/state")" || return 1
+  code="${response##*$'\n'}"
+  [ "$code" != 404 ] || return 4
+  [ "$code" = 200 ] || return 1
+  printf '%s' "${response%$'\n'*}" | python3 -c '
+import json,re,sys
+v=json.load(sys.stdin)
+for key in re.findall(r"[^.\[\]]+", sys.argv[1]):
+    v=v[int(key)] if isinstance(v,list) else v[key]
+print(v if isinstance(v,str) else json.dumps(v,separators=(",",":")))' "$1"
+}
+# Assert the creature state after a step. Global by default; when another
+# agent was already connected at baseline (D0 != disconnected), the reducer
+# collapses across sessions and a foreign working session correctly outranks
+# our idle/done, so assert OUR session's state instead ($2 = session id).
+#   creature idle → session idle · working → working · needsYou →
+#   needsConfirmation · uhoh → errored|thinking · done → session idle AND
+#   lastCompletionAt advanced since the step began (LAST_DONE_MARK).
+session_state() { # id → state of that session in activeSessions, or ""
+  state_field .activeSessions | python3 -c '
+import json,sys
+for s in json.load(sys.stdin):
+    if s.get("id")==sys.argv[1]: print(s.get("state","")); break' "$1" 2>/dev/null
+}
+scoped_mode() { [ "${D0:-disconnected}" != disconnected ]; }
+note_scoped_once() {
+  if [ -z "${SCOPED_NOTED:-}" ] && scoped_mode; then
+    info "another agent is connected: creature assertions are scoped to this suite's session"; SCOPED_NOTED=1
+  fi
+}
+mark_done() { LAST_DONE_MARK="$(state_field .lastCompletionAt 2>/dev/null || echo null)"; }
+assert_state() { # expected [session-id]
+  local actual status deadline want
+  if scoped_mode && [ -n "${2:-}" ]; then
+    note_scoped_once
+    case "$1" in
+      idle) want=idle ;; working) want=working ;; needsYou) want=needsConfirmation ;;
+      uhoh) want="errored|thinking" ;; done) want=idle ;;
+      *) want="$1" ;;
+    esac
+    deadline=$((SECONDS + 6))
+    actual="$(session_state "$2")"; status=$?
+    while [ "$status" = 0 ] && [ -n "$actual" ] && ! printf '%s' "$actual" | grep -qE "^(${want})$" && [ "$SECONDS" -lt "$deadline" ]; do
+      sleep 0.2; actual="$(session_state "$2")"; status=$?
+    done
+    if state_field .creature.state >/dev/null 2>&1; then :; elif [ "$?" = 4 ]; then
+      info '/state returned 404; skipping creature assertion (non-headless app)'; return; fi
+    if [ -n "$actual" ] && printf '%s' "$actual" | grep -qE "^(${want})$"; then
+      if [ "$1" = done ]; then
+        local now; now="$(state_field .lastCompletionAt 2>/dev/null || echo null)"
+        [ "$now" != "${LAST_DONE_MARK:-null}" ] && ok "session $2 done (lastCompletionAt advanced)" || bad "session $2 idle but lastCompletionAt did not advance"
+      else ok "session $2 state=$actual"; fi
+    else bad "expected session $2 state=$want, got ${actual:-<absent>}"; fi
+    return
+  fi
+  deadline=$((SECONDS + 6))
+  actual="$(state_field .creature.state)"; status=$?
+  # Phase 1 intentionally lets a short cheer outrank resumed work or idle.
+  while [ "$status" = 0 ] && [ "$actual" = done ] &&
+      { [ "$1" = working ] || [ "$1" = idle ]; } && [ "$SECONDS" -lt "$deadline" ]; do
+    sleep 0.2
+    actual="$(state_field .creature.state)"; status=$?
+  done
+  if [ "$status" = 4 ]; then info '/state returned 404; skipping creature assertion (non-headless app)'
+  elif [ "$status" = 0 ] && [ "$actual" = "$1" ]; then ok "creature=$1"
+  elif [ "$status" = 0 ] && [ "$1" = done ] && [ "$(state_field .lastCompletionAt 2>/dev/null || echo null)" != "${LAST_DONE_MARK:-null}" ]; then
+    # Two completions within the fold window share one cheer (Phase 1 rule);
+    # the completion still happened, which lastCompletionAt proves.
+    ok "creature=$actual (completion folded into a cheer still playing)"
+  else bad "expected creature=$1, got ${actual:-<unavailable>}"; fi
+}
+recent_has() {
+  "${CURL[@]}" --fail --max-time 5 "${AUTH[@]}" "$BASE/diag/recent?n=500" | python3 -c '
+import json,sys
+entries=json.load(sys.stdin)["entries"]
+sys.exit(0 if any(e["source"]==sys.argv[1] and e["event"]==sys.argv[2] and e["timestamp"]>=float(sys.argv[3]) for e in entries) else 1)
+' "$1" "$2" "${RECENT_SINCE:-0}"
+}
+mark_recent() { RECENT_SINCE="$(python3 -c 'import time; print(time.time()*1000)')"; }
+assert_recent() {
+  if recent_has "$1" "$2"; then ok "received $1/$2"; else bad "missing $1/$2 in recent diagnostics"; fi
+}
+body_field() { printf '%s' "$1" | python3 -c 'import json,sys; print(json.load(sys.stdin).get(sys.argv[1],sys.argv[2]))' "$2" "${3:-}"; }
+
 post_signal() { "${CURL[@]}" -X POST "${BASE}/hook/signal" "${AUTH[@]}" -H 'Content-Type: application/json' -d "$1" >/dev/null; }
 post_event()  { "${CURL[@]}" -X POST "${BASE}/hook/event?source=$1" "${AUTH[@]}" -H 'Content-Type: application/json' -d "$2" >/dev/null; }
 approve()     { "${CURL[@]}" --max-time "${3:-5}" -X POST "${BASE}/hook/approve?source=$1" "${AUTH[@]}" -H 'Content-Type: application/json' -d "$2"; }
@@ -37,7 +116,7 @@ approve()     { "${CURL[@]}" --max-time "${3:-5}" -X POST "${BASE}/hook/approve?
 settle() { sleep 0.3; }
 
 # stateVersion advanced since $1, with label $2
-adv()   { local a; a="$(version)"; if [ -n "$a" ] && [ "$a" -gt "${1:-0}" ]; then ok "$2  (v$1→v$a)"; else bad "$2 — state did not change (v$1→v${a:-?})"; fi; }
+adv()   { local a; a="$(version)"; if [ -n "$a" ] && [ "$a" -gt "${1:-0}" ]; then ok "$2  (v${1}→v${a})"; else bad "$2 — state did not change (v$1→v${a:-?})"; fi; }
 # Wait until stateVersion stops moving. Call before capturing the baseline
 # for an exact-delta assertion (ev_by): the 2s stale timer bumps the version
 # on its own when a celebrate or affection window expires, and an exact-delta
@@ -51,7 +130,18 @@ quiesce() {
   info "state still moving after ${i}s; exact-delta assertion may flake"
 }
 connected() { [ "$(desktop)" = "connected" ] && ok "${1:-desktop connected}" || bad "${2:-desktop is not connected}"; }
-baseline()  { # label
+baseline()  { # label [session-id]
+  # With /state available, the exact check is "our session is gone"; another
+  # agent's live session (e.g. the harness running this script) is not ours.
+  local sid="${2:-}" present
+  if [ -n "$sid" ] && present="$(state_field .activeSessions 2>/dev/null)"; then
+    if printf '%s' "$present" | python3 -c 'import json,sys; sys.exit(0 if any(x.get("id")==sys.argv[1] for x in json.load(sys.stdin)) else 1)' "$sid"; then
+      bad "$1 — session $sid still present"
+    else
+      ok "$1 (session $sid gone)"; info "desktop=$(desktop)"
+    fi
+    return
+  fi
   if [ "${D0:-}" = "disconnected" ]; then
     [ "$(desktop)" = "disconnected" ] && ok "$1" || bad "$1 — desktop still connected (session lingered)"
   else
@@ -60,8 +150,8 @@ baseline()  { # label
 }
 
 # post an event / signal and assert stateVersion advanced
-ev()  { local b; b="$(version)"; post_event "$1" "$2"; settle; adv "$b" "$3"; }   # source body label
-sig() { local b; b="$(version)"; post_signal "$1"; settle; adv "$b" "$2"; }       # body label
+ev()  { local b sid; b="$(version)"; sid="$(body_field "$2" session_id)"; mark_recent; mark_done; post_event "$1" "$2"; settle; adv "$b" "$3"; assert_state "$4" "$sid"; assert_recent "$1" "$(body_field "$2" hook_event_name)"; }   # source body label
+sig() { local b sid; b="$(version)"; sid="$(body_field "$1" session_id)"; mark_recent; mark_done; post_signal "$1"; settle; adv "$b" "$2"; assert_state "$3" "$sid"; assert_recent "$(body_field "$1" agent_id)" "$(body_field "$1" signal)"; }       # body label
 
 # post an event and assert stateVersion advanced by EXACTLY $3, with
 # quiesce + retry. Exact deltas are how a check tells "did only what it
@@ -76,11 +166,11 @@ ev_by() { # source body delta label
   local i b a
   for i in 1 2 3; do
     quiesce
-    b="$(version)"; post_event "$1" "$2"; settle; a="$(version)"
+    b="$(version)"; mark_recent; post_event "$1" "$2"; settle; a="$(version)"
     # ${b} braced before the arrow: macOS bash 3.2 parses the multibyte →
     # into an unbraced variable name, so "$b→" looks up a variable literally
     # named "b→" (an unbound-variable error under set -u).
-    if [ "$a" = "$(( b + $3 ))" ]; then ok "$4  (v${b}→v$a, +$3)"; return 0; fi
+    if [ "$a" = "$(( b + $3 ))" ]; then ok "$4  (v${b}→v$a, +$3)"; if [ -n "${5:-}" ]; then assert_state "$5" "$(body_field "$2" session_id)"; fi; assert_recent "$1" "$(body_field "$2" hook_event_name)"; return 0; fi
   done
   bad "$4 — expected +$3, got v${b}→v${a:-?} on all 3 attempts"
 }
@@ -90,7 +180,10 @@ noop_ev() { ev_by "$1" "$2" 0 "$3"; } # source body label
 
 # immediate approval that should return an allow decision quickly
 approve_allows() { # src body label
+  mark_recent
   local r; r="$(approve "$1" "$2" 5)"
+  assert_state working
+  assert_recent "$1" auto-allow
   case "$r" in *'"allow"'*) ok "$3: $r" ;; *) bad "$3 — expected an immediate allow, got '${r:-<empty>}'" ;; esac
 }
 
@@ -99,6 +192,7 @@ approve_allows() { # src body label
 # contain $4. Pass __EMPTY__ as $4 to assert an empty response body.
 parked_approve() { # src body resolver_fn expect
   local src="$1" body="$2" resolver="$3" expect="$4" out cpid resp
+  mark_recent
   out="$(mktemp)"
   "${CURL[@]}" --max-time 20 -X POST "${BASE}/hook/approve?source=${src}" \
     "${AUTH[@]}" -H 'Content-Type: application/json' -d "$body" > "$out" 2>/dev/null &
@@ -106,6 +200,8 @@ parked_approve() { # src body resolver_fn expect
   sleep 0.6
   if [ -s "$out" ]; then bad "approval returned immediately (should have blocked): $(tr -d '\n' < "$out")"
   else ok "approval blocked pending a decision (not auto-approved)"; fi
+  assert_state needsYou
+  assert_recent "$src" "$(body_field "$body" hook_event_name approve)"
   "$resolver"
   wait "$cpid" 2>/dev/null
   resp="$(tr -d '\n' < "$out")"; rm -f "$out"
@@ -128,15 +224,19 @@ parked_approve() { # src body resolver_fn expect
 # TCP close against the real server.
 abandoned_approve() { # src body
   local src="$1" body="$2" v1 v2 cpid
-  "${CURL[@]}" --max-time 1 -X POST "${BASE}/hook/approve?source=${src}" \
+  mark_recent
+  "${CURL[@]}" --max-time 3 -X POST "${BASE}/hook/approve?source=${src}" \
     "${AUTH[@]}" -H 'Content-Type: application/json' -d "$body" >/dev/null 2>&1 &
   cpid=$!
   sleep 0.5
+  assert_state needsYou
+  assert_recent "$src" "$(body_field "$body" hook_event_name approve)"
   v1="$(version)"           # approvalArrived applied; curl still parked
-  wait "$cpid" 2>/dev/null  # curl gives up at 1s — this is the hang-up
+  wait "$cpid" 2>/dev/null  # curl gives up at 3s — this is the hang-up
   sleep 0.7                 # let the close propagate and the abandon apply
   v2="$(version)"
   if [ -n "$v1" ] && [ -n "$v2" ] && [ "$v2" -gt "$v1" ]; then
+    assert_state working
     ok "client hang-up withdrew the parked approval  (v${v1}→v${v2})"
   else
     bad "client hang-up did not change state — card stays up until timeout (v${v1:-?}→v${v2:-?})"

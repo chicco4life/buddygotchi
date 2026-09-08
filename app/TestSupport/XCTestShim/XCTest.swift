@@ -1,8 +1,11 @@
 import Foundation
 
+// The local runner executes test instances serially on the main actor.
+@MainActor
 open class XCTestCase {
     public required init() {}
     open func setUp() async throws {}
+    open func tearDown() async throws {}
     open func setUpWithError() throws {}
     open func tearDownWithError() throws {}
 }
