@@ -417,3 +417,22 @@ streak), 300 ms (pickup), 600 ms (perch dance), and 2500 ms (remaining cells).
 The host-only animation clock guard checks the new presentation paths.
 Hardware flash, USB/BLE HIL, golden recording/review, idle heap floors,
 retire frame latency and overnight battery verification remain unexecuted.
+
+
+**Phase 8 firmware notes (2026-09-09).** The firmware half implements per-unit
+NVS identity, `unit`/`sign`, real-clock rate limiting, retire key clearing,
+identity-preserving `firstwake reset`, and USB debug regeneration via reboot.
+The bundled ESP-IDF 5.5.4 / mbedTLS 3.6.5 lacks an Ed25519 pk type, so the
+algorithm is P-256 ECDSA with SHA-256 (SEC1 public key, DER signature; details
+in WIRE-V2). Keys are generated only in setup, using hardware-entropy-seeded
+CTR-DRBG before HAL/RF initialization; a retired device needs reboot before
+signing with a new identity. Offline `tools/pio_ws.sh run -e ws-amoled164`
+passed: RAM 48,100 / 327,680 bytes (14.7%), Flash 1,269,531 / 6,291,456 bytes
+(20.2%). The requested three-file Python compile check and four host-only
+verification/CLI tests passed using the available Python with cryptography 50.0.1.
+USB/BLE HIL, flashing, on-device signature interoperability, reboot/retire
+persistence, keygenMs measurements, and idle heap ≥40,000 / heapBig ≥28,000
+checks remain unexecuted; their USB tests are added. `/tmp/hilvenv` lacks
+cryptography: install it with `/tmp/hilvenv/bin/python -m pip install cryptography`
+before HIL (not installed during this offline task). No app, HAL, archived
+implementation, leaderboard or share-card work is included.

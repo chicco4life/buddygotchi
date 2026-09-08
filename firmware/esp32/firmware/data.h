@@ -135,6 +135,7 @@ extern bool isRetiring();
 extern void onFrame(const TamaState& next, bool skinSupplied);
 extern void handleSerialCommand(const char* line);
 extern void sendStatus();
+extern void sendSigning(JsonDocument& request);
 void sendUnpairAck();
 
 inline bool validate(JsonDocument& d, const TamaState& old, TamaState& s) {
@@ -205,6 +206,10 @@ inline void applyJson(const char* line, TamaState& out) {
   JsonDocument d;
   if (deserializeJson(d, line)) { ++badFrames; ++_parseFailCount; return; }
   if (d["cmd"] == "retire") { beginRetire(); return; }
+  if (d["cmd"] == "unit" || d["cmd"] == "sign") {
+    if (isRetiring()) return;
+    sendSigning(d); return;
+  }
   if (isRetiring()) return;
   if (otaCommand(d)) return;
   if (d["cmd"] == "status") { sendStatus(); return; }

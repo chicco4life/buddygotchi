@@ -14,6 +14,7 @@ import glob
 import json
 import os
 import re
+import secrets
 import struct
 import subprocess
 import sys
@@ -268,6 +269,34 @@ def heartbeat_from_args(args: argparse.Namespace) -> dict[str, Any]:
     if getattr(args, "msg", None) is not None:
         payload.setdefault("bubble", args.msg)
     return payload
+
+
+def json_reply(buf: bytes, ack: str) -> dict[str, Any] | None:
+    # Ignore unsolicited telemetry and incomplete final lines.
+    for line in buf.split(b"\n")[:-1]:
+        try:
+            obj = json.loads(line)
+        except (ValueError, UnicodeDecodeError):
+            continue
+        if isinstance(obj, dict) and obj.get("ack") == ack:
+            return obj
+    return None
+
+
+def signing_request(serial: SerialBuddy, request: dict[str, Any], timeout: float = 5) -> dict[str, Any]:
+    serial.write_line(json.dumps(request, separators=(",", ":")))
+    _, reply = serial.read_until(lambda buf: json_reply(buf, request["cmd"]), timeout)
+    return reply
+
+
+def command_signing(args: argparse.Namespace) -> int:
+    request = {"cmd": args.cmd}
+    if args.cmd == "sign":
+        request.update(day=args.day, xp=args.xp, nonce=args.nonce or secrets.token_hex(16))
+    with SerialBuddy(args.port, args.timeout) as serial:
+        reply = signing_request(serial, request, args.timeout)
+    emit(reply, args.json)
+    return 0 if reply.get("ok") is True else 1
 
 
 def command_ping(args: argparse.Namespace) -> int:
@@ -735,6 +764,14 @@ def build_parser() -> argparse.ArgumentParser:
         p = sub.add_parser(name)
         add_common(p)
         p.set_defaults(func=fn)
+    for name in ("unit", "sign"):
+        p = sub.add_parser(name)
+        add_common(p)
+        p.set_defaults(func=command_signing)
+        if name == "sign":
+            p.add_argument("--day", required=True)
+            p.add_argument("--xp", type=int, required=True)
+            p.add_argument("--nonce", help="hex nonce; defaults to 16 random bytes")
     p = sub.add_parser("screenshot")
     p.add_argument("--epx", action="store_true")
     add_common(p)

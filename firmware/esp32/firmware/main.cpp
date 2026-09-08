@@ -5,6 +5,7 @@
 #include "guard.h"
 #include "ble_bridge.h"
 #include "data.h"
+#include "unit.h"
 #include "anim.h"
 #include "presence.h"
 #include "agent.h"
@@ -73,6 +74,11 @@ static void sendCmd(const char* json) {
 }
 static void sendDoc(JsonDocument& d) { char buf[512]; serializeJson(d, buf, sizeof(buf)); sendCmd(buf); }
 static void telemetry(JsonDocument& d);
+void sendSigning(JsonDocument& request) {
+  JsonDocument d;
+  if (request["cmd"] == "unit") unitReply(d); else unitSign(request, d);
+  sendDoc(d);
+}
 void sendStatus() {
   JsonDocument d; telemetry(d); d["ack"] = "status"; d["ok"] = true;
   d["name"] = btName; d["secure"] = bleSecure(); sendDoc(d);
@@ -100,6 +106,10 @@ static void ritualTick() {
     case R_RETIRE:
       if (now-ritualAt<ritualDuration[ritual]) break;
       {
+        if (!unitClear()) {
+          sendCmd("{\"ack\":\"retire\",\"ok\":false,\"error\":\"key_clear_failed\"}");
+          ritual=R_NONE; break;
+        }
         Preferences p;
         if (p.begin("creature-v2",false)) { p.clear(); p.end(); }
         tama=TamaState{}; firstWake=true; haveFrame=false; _rtcValid=false;
@@ -483,6 +493,7 @@ static void render() {
 }
 static void telemetry(JsonDocument& d) {
   d["contract"]=WIRE_CONTRACT; d["board"]=HAL_BOARD_NAME; d["fw"]=FW_VERSION; d["git"]=GIT_SHA;
+  d["unit"]=unitId(); d["alg"]="p256"; d["keygenMs"]=unitKeygenMs(); d["unitErr"]=unitFailStage();
   d["up"]=millis(); d["heap"]=ESP.getFreeHeap(); d["heapMin"]=ESP.getMinFreeHeap(); d["heapBig"]=ESP.getMaxAllocHeap();
   d["reset"]=guardResetReason(); d["panics"]=guardPanicsTotal(); d["early"]=guardEarlyCrashes(); d["safe"]=guardSafeTier();
   uint32_t avg,max; halFrameStats(&avg,&max); d["frameUs"]=avg; d["frameMaxUs"]=max;
@@ -616,6 +627,12 @@ static void dumpScreenshot() {
 }
 
 void handleSerialCommand(const char* line) {
+  if (!strcmp(line,"unit")) { JsonDocument d; unitReply(d); sendDoc(d); return; }
+  if (!strcmp(line,"unit regen")) {
+    Serial.println("WARNING: debug unit regen destroys identity and reboots for key generation");
+    if (!unitClear()) { Serial.println("<<UNIT error key_clear_failed>>"); return; }
+    Serial.flush(); esp_restart(); return;
+  }
   if (!strcmp(line,"firstwake reset")) { resetFirstWake(); Serial.println("<<FIRSTWAKE reset>>"); return; }
   if (!strcmp(line,"ping")) { JsonDocument d; telemetry(d); framed("PONG",d); return; }
   if (!strcmp(line,"state")) { dumpState(); return; }
@@ -675,6 +692,7 @@ void setup() {
 #ifdef BOARD_WS_AMOLED_164
   Serial.setTxTimeoutMs(0);
 #endif
+  unitSetup();
   halInit(); guardInit(); loadPersistent(tama);
   if(guardSafeTier()<2) {
     uint8_t mac[6]={0}; esp_read_mac(mac,ESP_MAC_BT);

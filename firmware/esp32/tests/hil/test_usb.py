@@ -561,3 +561,87 @@ def test_perch_report_matches_rendered_row(stick, cell_name, pose):
         expected.extend(px.to_bytes(2, "little"))
     assert len(raw) == w*h*2
     assert raw == expected, f"{pose} did not render the {cell_name} row"
+
+
+# Requires cryptography: /tmp/hilvenv/bin/python -m pip install cryptography
+# These tests deliberately retire a test creature; use a bench unit.
+def unit_info(stick):
+    reply = buddyctl.signing_request(stick, {"cmd": "unit"})
+    assert reply["ok"], reply
+    assert re.fullmatch(r"[0-9a-f]{16}", reply["unit"])
+    assert reply["alg"] in ("p256", "ed25519")
+    return reply
+
+
+def test_unit_stable_across_reboot_and_debug_wake(stick):
+    before = unit_info(stick)
+    stick.write_line("firstwake reset")
+    assert unit_info(stick) == before
+    stick.write_line("unit")
+    _, debug = stick.read_until(lambda b: buddyctl.json_reply(b, "unit"), 3)
+    assert debug == before
+    stick.write_line("reboot")
+    time.sleep(3)
+    wait_state(stick, timeout=20, unit=before["unit"])
+    assert unit_info(stick) == before
+    pong = stick.framed_json("ping", "PONG", 3)
+    assert pong["keygenMs"] == 0  # loaded key, no regeneration
+    status = buddyctl.signing_request(stick, {"cmd": "status"})
+    assert status["unit"] == before["unit"] and status["alg"] == before["alg"]
+
+
+def test_growth_signature_tampering_and_rate_limit(stick):
+    from verify_sig import verify_reply
+    unit = unit_info(stick)
+    request = {"cmd": "sign", "day": "2026-09-09", "xp": 1234, "nonce": "0123ABCDef"}
+    time.sleep(1.05)
+    clock(stick, "freeze")
+    try:
+        reply = buddyctl.signing_request(stick, request)
+        blocked = buddyctl.signing_request(stick, request)
+        assert blocked == {"ack": "sign", "ok": False, "error": "rate_limited"}
+        assert verify_reply(reply, unit), reply
+        for key, value in (("xp", 1235), ("day", "2026-09-10"), ("nonce", "0123abcdef"), ("unit", "0"*16)):
+            assert not verify_reply({**reply, key: value}, unit)
+        time.sleep(1.05)
+        assert verify_reply(buddyctl.signing_request(stick, {**request, "xp": 2**63-1}), unit)
+    finally:
+        clock(stick, "clear")
+    got = state(stick)
+    assert got["heap"] >= 40000 and got["heapBig"] >= 28000
+
+
+@pytest.mark.parametrize("field,value,error", [
+    ("xp", -1, "invalid_xp"), ("xp", 1.5, "invalid_xp"),
+    ("xp", True, "invalid_xp"), ("xp", "1", "invalid_xp"),
+    ("xp", 2**63, "invalid_xp"), ("xp", None, "invalid_xp"),
+    ("day", "2026-9-09", "invalid_day"), ("day", "abcd-ef-gh", "invalid_day"),
+    ("day", "2026-09-09\x00", "invalid_day"), ("day", 20260909, "invalid_day"),
+    ("nonce", "", "invalid_nonce"), ("nonce", "a", "invalid_nonce"),
+    ("nonce", "aa|bb", "invalid_nonce"), ("nonce", "ab"*33, "invalid_nonce"),
+    ("nonce", "aa\x00b", "invalid_nonce"),
+])
+def test_sign_validation(stick, field, value, error):
+    request = {"cmd": "sign", "day": "2026-09-09", "xp": 0, "nonce": "aa", field: value}
+    assert buddyctl.signing_request(stick, request) == {"ack": "sign", "ok": False, "error": error}
+
+
+def test_retire_clears_identity_until_setup(stick):
+    from verify_sig import verify_reply
+    old = unit_info(stick)
+    stick.write_line('{"cmd":"retire"}')
+    stick.write_line("clock settle 2500")
+    stick.read_until(lambda b: buddyctl.json_reply(b, "retire"), 5)
+    assert buddyctl.signing_request(stick, {"cmd": "unit"})["ok"] is False
+    request = {"cmd": "sign", "day": "2026-09-09", "xp": 0, "nonce": "aa"}
+    assert buddyctl.signing_request(stick, request)["error"] == "key_unavailable_reboot"
+    stick.write_line("reboot")
+    time.sleep(3)
+    wait_state(stick, timeout=20, firstWake=True)
+    new = unit_info(stick)
+    assert new["unit"] != old["unit"] and new["pub"] != old["pub"]
+    reply = buddyctl.signing_request(stick, request)
+    assert verify_reply(reply, new) and not verify_reply(reply, old)
+    assert stick.framed_json("ping", "PONG", 3)["keygenMs"] > 0
+    got = state(stick)
+    assert got["heap"] >= 40000 and got["heapBig"] >= 28000
