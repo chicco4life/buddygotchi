@@ -24,11 +24,7 @@ struct RawHookPayload: Sendable {
     var cumulativeTokens = false
 
     static func parse(_ data: Data, source: String, at: Double) throws -> Self? {
-        let json = try JSONDecoder().decode(HookJSON.self, from: data).object ?? [:]
-        var lifecycle = json
-        // Transcript message objects carry usage, not the notification string.
-        if lifecycle["message"]?.object != nil { lifecycle.removeValue(forKey: "message") }
-        let body = try JSONDecoder().decode(HookEventBody.self, from: JSONEncoder().encode(lifecycle))
+        let body = try JSONDecoder().decode(HookEventBody.self, from: data)
         let event = body.effectiveEventName ?? ""
         let kind: Kind
         switch event {
@@ -49,10 +45,10 @@ struct RawHookPayload: Sendable {
         let tool = body.effectiveToolName ?? (event == "afterShellExecution" ? "Shell" : event == "afterFileEdit" ? "Edit" : "")
         let input = body.effectiveInputText ?? (event == "afterFileEdit" ? HookJSON.object(["file_path": .string(body.file_path ?? body.path ?? "")]).text : nil)
         let error = body.error_class ?? body.error ?? object["error_class"]?.text ?? (body.status == "error" ? "tool_error" : nil)
-        let usage = json["usage"]?.object ?? json["message"]?.object?["usage"]?.object
-        let info = json["info"]?.object ?? json["payload"]?.object?["info"]?.object
+        let usage = body.usage?.object ?? body.message?.object?["usage"]?.object
+        let info = body.info?.object ?? body.payload?.object?["info"]?.object
         let total = info?["total_token_usage"]?.object?["output_tokens"]?.integer
-        let outputTokens = !["claude-code", "codex"].contains(source) ? nil : (usage?["output_tokens"]?.integer ?? json["output_tokens"]?.integer ?? total)
+        let outputTokens = !["claude-code", "codex"].contains(source) ? nil : (usage?["output_tokens"]?.integer ?? body.output_tokens ?? total)
         return Self(source: source, sessionId: body.effectiveSessionId ?? "\(source)_\(stableHashCwd(body.effectiveCwd))", kind: kind, toolName: tool, toolInput: input,
                     exitStatus: body.exit_status ?? body.exit_code ?? object["exit_code"]?.integer ?? object["exit_status"]?.integer ?? cappedExitStatus(head: body.output_head, tail: body.output_tail),
                     errorClass: error ?? (event.lowercased().contains("failure") ? "tool_error" : nil),
@@ -95,6 +91,7 @@ indirect enum HookJSON: Codable, Sendable {
         case .null: try c.encodeNil()
         }
     }
+    var string: String? { if case .string(let value) = self { return value }; return nil }
     var text: String? {
         if case .null = self { return nil }
         if case .string(let v) = self { return v }

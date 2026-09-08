@@ -9,35 +9,34 @@ final class BuddyEngine {
     let diagnosticLog: DiagnosticLog
     let extractor = Extractor()
     private var extractionTail: Task<Void, Never>?
-    let factRing = FactRing()
-    private var store: Store?
+    private var store: (any EngineStore)?
     private var storeTail: Task<Void, Never>?
     private var bootstrap: Task<Void, Never>?
     private var loadingStore = false
     private var deferredEvents: [BuddyEvent] = []
     private var lastSessionActivity: Double?
-    private var completedSessions: Set<String> = []
-    private var sessionTasks: Set<String> = []
     var stateDir: String { config.stateDir }
 
     private var internalState: InternalState
     private var staleTimer: Timer?
     private var config: BuddyConfig
     private let clock: any Clock
+    private let dayCalendar: any DayCalendar
+    private let onACPower: @Sendable () -> Bool
     private var outputs: [any OutputProvider] = []
     private var processWatchers: [String: DispatchSourceProcess] = [:]
     private var pendingApprovals: [String: CheckedContinuation<ApprovalDecision, Never>] = [:]
-    private let memoryStore: (any PetMemoryStoring)?
     /// Per-agent floor between expressions (S6). Engine-side, not reducer:
     /// rate limiting is wall-clock policy, not state semantics.
     private var lastExpressAt: [String: Double] = [:]
     /// One drawing per visit (E4): 30-minute floor per agent.
     private var lastDrewAt: [String: Double] = [:]
 
-    init(config: BuddyConfig = .default, clock: (any Clock)? = nil, diagnosticLog: DiagnosticLog? = nil, memoryStore: (any PetMemoryStoring)? = nil, store: Store? = nil) {
+    init(config: BuddyConfig = .default, clock: (any Clock)? = nil, diagnosticLog: DiagnosticLog? = nil, store: (any EngineStore)? = nil, dayCalendar: any DayCalendar = LocalDayCalendar(), onACPower: @escaping @Sendable () -> Bool = { PowerObserver.onACPower() }) {
         self.store = store
         self.config = config
-        self.memoryStore = memoryStore
+        self.dayCalendar = dayCalendar
+        self.onACPower = onACPower
         self.clock = clock ?? WallClock()
         self.diagnosticLog = diagnosticLog ?? DiagnosticLog()
         self.internalState = .initial(staleMs: config.staleTimeoutMs, celebrateDurationMs: config.celebrateDurationMs, workStallTimeoutMs: config.workStallTimeoutMs, approvalTimeoutMs: config.approvalTimeoutMs)
@@ -50,25 +49,24 @@ final class BuddyEngine {
 
     func start() {
         lastSessionActivity = clock.now()
-        if memoryStore == nil {
+        loadingStore = true
+        let stateDir = config.stateDir, now = clock.now(), existing = store
+        bootstrap = Task { @MainActor in
             do {
-                if store == nil { store = try Store(stateDir: config.stateDir, now: clock.now()) }
-                loadingStore = true
-                bootstrap = Task { @MainActor in
-                    do {
-                        if let memory = try await self.store?.loadMemory() {
-                            self.apply(.memoryLoaded(at: self.clock.now(), memory: memory), persistenceResult: true)
-                        }
-                        try await self.refreshGrowth(loaded: true)
-                    } catch { self.storeFailure(error) }
-                    self.loadingStore = false
-                    let pending = self.deferredEvents; self.deferredEvents.removeAll()
-                    for event in pending { self.apply(event) }
+                // Detached startup keeps directory, schema, prune and migration I/O off MainActor.
+                self.store = try await Task.detached {
+                    let store: any EngineStore = try existing ?? Store(stateDir: stateDir, now: now)
+                    try await store.migrate()
+                    return store
+                }.value
+                if let memory = try await self.store?.loadMemory() {
+                    self.apply(.memoryLoaded(at: self.clock.now(), memory: memory), persistenceResult: true)
                 }
-            } catch { storeFailure(error) }
-        }
-        if let memory = memoryStore?.load() {
-            apply(.memoryLoaded(at: clock.now(), memory: memory))
+                try await self.refreshGrowth()
+            } catch { self.storeFailure(error) }
+            self.loadingStore = false
+            let pending = self.deferredEvents; self.deferredEvents.removeAll()
+            for event in pending { self.apply(event) }
         }
         staleTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -173,7 +171,7 @@ final class BuddyEngine {
         var payload = input
         payload.timestamp = clock.now()
         lastSessionActivity = payload.timestamp
-        let hour = Calendar.current.component(.hour, from: Date(timeIntervalSince1970: payload.timestamp / 1000))
+        let hour = dayCalendar.localHour(at: payload.timestamp)
         let extraction = await extractor.ingest(payload, localHour: hour)
         for event in extraction.events {
             if case .adapterDegraded(_, let source) = event { diagnosticLog.log(category: "hook", source: source, event: "adapterDegraded", detail: "lifecycle-only") }
@@ -186,8 +184,7 @@ final class BuddyEngine {
                 }
             }
         }
-        factRing.receive(extraction.facts)
-        let facts = factRing.drain()
+        let facts = extraction.facts
         let project = internalState.sessions[payload.sessionId]?.project ?? ThemeReader.project(cwd: payload.cwd)
         let day = localDay(at: payload.timestamp)
         enqueue { store in
@@ -196,9 +193,8 @@ final class BuddyEngine {
                 if case .tokens(let output) = fact { return LedgerRow(at: payload.timestamp, source: .tokens, amount: output, sessionId: payload.sessionId, day: day) }
                 return nil
             }
-            if !tokens.isEmpty { _ = try await store.award(tokens, active: false, at: payload.timestamp, localDay: day) }
+            if !tokens.isEmpty { let snapshot = try await store.award(tokens, active: false, at: payload.timestamp, localDay: day); if let snapshot { try await self.refreshGrowth(snapshot: snapshot) } }
         }
-        await flushStore()
         let runner = extraction.goalRunner ?? ""
         diagnosticLog.log(category: "hook", source: payload.source, event: payload.eventName.isEmpty ? payload.kind.rawValue : payload.eventName, detail: payload.toolName + (runner.isEmpty ? "" : " " + runner))
     }
@@ -504,15 +500,13 @@ final class BuddyEngine {
 
     private func apply(_ event: BuddyEvent, persistenceResult: Bool = false) {
         if loadingStore && !persistenceResult { deferredEvents.append(event); return }
-        let before = internalState
         let prev = state
         let previousPromptIds = Self.promptIds(in: internalState)
-        let next = reduce(internalState, event)
-        guard next != internalState else {
-            if case .collectArrived = event { persistTransition(event, before: before, after: next) }
-            if case .boopArrived = event { persistTransition(event, before: before, after: next) }
-            return
-        }
+        var next = reduce(internalState, event, localHour: dayCalendar.localHour(at: event.at))
+        let awards = next.pendingAwards, facts = next.pendingFacts
+        next.pendingAwards = []; next.pendingFacts = []
+        if !persistenceResult { persist(awards: awards, facts: facts) }
+        guard next != internalState else { return }
         let removedIds = Set(internalState.sessions.keys).subtracting(next.sessions.keys)
         let disappearedPromptIds = previousPromptIds.subtracting(Self.promptIds(in: next))
         let memoryChanged = next.memory != internalState.memory
@@ -520,13 +514,11 @@ final class BuddyEngine {
         state = next.buddy
         if memoryChanged {
             if !persistenceResult {
-                memoryStore?.save(next.memory)
+                // SQLite is the sole persistence path; an unstarted engine without a store is memory-only.
                 enqueue { try await $0.saveMemory(next.memory) }
             }
         }
-        if !persistenceResult { persistTransition(event, before: before, after: next) }
         for id in removedIds {
-            completedSessions.remove(id); sessionTasks.remove(id)
             Task { await extractor.drop(sessionId: id) }
             cancelWatcher(sessionId: id)
         }
@@ -543,12 +535,12 @@ final class BuddyEngine {
 
 
     // All database operations share one queue, including HTTP reads and startup.
-    private func enqueue(_ work: @escaping @MainActor @Sendable (Store) async throws -> Void) {
+    private func enqueue(_ work: @escaping @MainActor @Sendable (any EngineStore) async throws -> Void) {
         guard let store else { return }
         let previous = storeTail
         storeTail = Task { @MainActor in
             await previous?.value
-            do { try await work(store); try await self.refreshGrowth() }
+            do { try await work(store) }
             catch { self.storeFailure(error) }
         }
     }
@@ -557,85 +549,44 @@ final class BuddyEngine {
     private func storeFailure(_ error: Error) {
         diagnosticLog.log(category: "store", source: "system", event: "error", detail: String(describing: error))
     }
-    private func localDay(at: Double) -> String {
-        let c = Calendar.current.dateComponents([.year,.month,.day], from: Date(timeIntervalSince1970: at / 1000))
-        return String(format: "%04d-%02d-%02d", c.year!, c.month!, c.day!)
-    }
-    private func refreshGrowth(loaded: Bool = false) async throws {
+    private func localDay(at: Double) -> String { dayCalendar.localDay(at: at) }
+    private func refreshGrowth(snapshot: GrowthSnapshot? = nil) async throws {
         guard let store else { return }
         let at = clock.now()
-        let growth = try await store.growth(localDay: localDay(at: at), at: at)
+        let growth: GrowthSnapshot
+        if let snapshot { growth = snapshot }
+        else { growth = try await store.growth(localDay: localDay(at: at), at: at) }
         let cosmetic = try await store.cosmetic()
-        apply(loaded ? .growthLoaded(at: at, growth: growth, cosmetic: cosmetic) : .growthChanged(at: at, growth: growth, cosmetic: cosmetic), persistenceResult: true)
+        apply(.growthUpdated(at: at, growth: growth, cosmetic: cosmetic), persistenceResult: true)
     }
-    private func persistTransition(_ event: BuddyEvent, before: InternalState, after: InternalState) {
-        let at = event.at, day = localDay(at: event.at)
-        let hour = Calendar.current.component(.hour, from: Date(timeIntervalSince1970: at / 1000))
-        var id = "", active = false, rows: [LedgerRow] = [], facts: [Fact] = []
-        var collected = false, greet = false
-        func award(_ source: XPSource) { rows.append(LedgerRow(at: at, source: source, sessionId: id, day: day)) }
-        switch event {
-        case .sessionStarted(_, let sid, _, _, _):
-            id = sid; active = true
-            if before.sessions[sid] == nil { award(.session); facts.append(.activity(hour: hour, tool: nil, firstGoal: nil)) }
-        case .turnStarted(_, let sid, _): id = sid; active = true
-        case .localTurnHour(_, let sid, _), .fileEdited(_, let sid, _, _): id = sid
-        case .toolCalled(_, let sid, _, _, _, _):
-            id = sid; active = true
-        case .toolResulted(_, let sid, _, _, _, _, _): id = sid; active = true
-        case .goalRead(_, let sid, _, _, let outcome, _):
-            id = sid; active = true
-            if outcome == .pass && after.closedTasks > before.closedTasks { award(.task); sessionTasks.insert(sid) }
-        case .turnEnded(_, let sid, _, .completed):
-            id = sid; active = true
-            if after.memory.completedTurns > before.memory.completedTurns {
-                award(.turn); completedSessions.insert(sid)
-            }
-        case .sessionEnded(_, let sid):
-            id = sid
-            if completedSessions.contains(sid) && !sessionTasks.contains(sid) { award(.task) }
-            sessionTasks.remove(sid); completedSessions.remove(sid)
-        case .boopArrived: active = true; award(.checkIn); facts.append(.checkIn(collected: false))
-        case .collectArrived:
-            active = true; award(.checkIn); collected = before.buddy.creature.gift
-            facts.append(.checkIn(collected: collected))
-        case .approvalResolved(_, let sid, _, let decision):
-            id = sid
-            if decision == .deny { facts.append(.denial) }
-        default: break
-        }
-        if active && !id.isEmpty { lastSessionActivity = at }
-        if active || facts.contains(where: { if case .checkIn = $0 { return true }; return false }) {
-            greet = after.buddy.greetUntil != before.buddy.greetUntil && (before.memory.lastSeenAt.map { at - $0 >= 86_400_000 } ?? false)
-            if greet { facts.append(.greet) }
-        }
-        let project = after.sessions[id]?.project ?? before.sessions[id]?.project ?? "unknown"
-        if let moment = after.pendingMoments[id], moment != before.pendingMoments[id] {
-            facts.append(.moment(moment.kind))
-            if moment.kind == .hardWonPass { award(.hardWonPass) }
-        }
-        if let moment = after.buddy.creature.moment, moment != before.buddy.creature.moment,
-           !facts.contains(.moment(moment.kind)), before.pendingMoments[id] != moment { facts.append(.moment(moment.kind)) }
-        let cheer = after.sessions[id]?.lastDone?.size
-        guard active || !rows.isEmpty || !facts.isEmpty || collected || greet else { return }
+    private func persist(awards: [XPAward], facts: [PendingFact]) {
+        guard !awards.isEmpty || !facts.isEmpty else { return }
+        let storedFacts = facts.map { StoredFact(fact: $0.fact, sessionId: $0.sessionId, project: $0.project, at: $0.at, day: localDay(at: $0.at)) }
+        for award in awards where award.active && !award.sessionId.isEmpty { lastSessionActivity = award.at }
         enqueue { store in
-            try await store.appendFacts(facts.map { StoredFact(fact: $0, sessionId: id, project: project, at: at, day: day) })
-            if let cheer { try await store.recordCheer(cheer) }
-            try await store.bond(collected: collected, greetAfterAbsence: greet, localDay: day)
-            _ = try await store.award(rows, active: active, at: at, localDay: day)
+            if !storedFacts.isEmpty { try await store.appendFacts(storedFacts) }
+            for award in awards {
+                let day = self.localDay(at: award.at)
+                if let cheer = award.cheer { try await store.recordCheer(cheer) }
+                if award.collected || award.greet { try await store.bond(collected: award.collected, greetAfterAbsence: award.greet, localDay: day) }
+                let rows = award.sources.map { LedgerRow(at: award.at, source: $0, sessionId: award.sessionId, day: day) }
+                if award.active || !rows.isEmpty {
+                    let snapshot = try await store.award(rows, active: award.active, at: award.at, localDay: day)
+                    if let snapshot { try await self.refreshGrowth(snapshot: snapshot) }
+                }
+            }
         }
     }
     private var reflectedDays: Set<String> = []
     private var maintenanceDay: String?
-    private func maintenance() {
+    func maintenance() {
         let now = clock.now(), day = localDay(at: clock.now())
         if maintenanceDay != day {
             maintenanceDay = day
             enqueue { try await $0.prune(now: now, localDay: day) }
         }
-        if now - (lastSessionActivity ?? now) >= 1_200_000 && PowerObserver.onACPower() {
-            let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date(timeIntervalSince1970: now / 1000))!
-            let target = localDay(at: yesterday.timeIntervalSince1970 * 1000)
+        if now - (lastSessionActivity ?? now) >= 1_200_000 && onACPower() {
+            let target = dayCalendar.previousDay(at: now)
             if reflectedDays.insert(target).inserted {
                 enqueue {
                     do { _ = try await $0.reflect(localDay: target, at: now); await self.extractor.clearClosingLines() }
@@ -645,11 +596,11 @@ final class BuddyEngine {
         }
     }
     func storedFacts() async throws -> [StoredFact] { await flushStore(); return try await store?.facts() ?? [] }
+    func inventory() async throws -> [InventoryItem] { await flushStore(); return try await store?.inventory() ?? [] }
     func profileLines() async throws -> [ProfileLine] { await flushStore(); return try await store?.profile() ?? [] }
     func clearProfile(id: Int? = nil) async throws {
         await flushStore()
         if let id { try await store?.deleteProfileLine(id) } else { try await store?.clearProfile() }
-        apply(.profileCleared(at: clock.now()))
     }
     func reflect() async throws -> [ProfileLine] {
         await flushStore()

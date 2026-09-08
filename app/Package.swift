@@ -54,7 +54,7 @@ if useXCTestShim {
     packageTargets.append(
         .executableTarget(
             name: "BoopTests",
-            dependencies: ["BoopCore", "XCTest"],
+            dependencies: ["BoopCore", "XCTest", .product(name: "HummingbirdTesting", package: "hummingbird")],
             path: "Tests",
             exclude: ["Fixtures"],
             swiftSettings: [.define("BOOP_SHIM_RUNNER")]
@@ -70,7 +70,7 @@ if useXCTestShim {
     packageTargets.append(
         .testTarget(
             name: "BoopTests",
-            dependencies: ["BoopCore"],
+            dependencies: ["BoopCore", .product(name: "HummingbirdTesting", package: "hummingbird")],
             path: "Tests",
             exclude: ["Fixtures"]
         )

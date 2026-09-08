@@ -35,7 +35,11 @@ struct HookEventBody: Decodable, Sendable {
     var tool_name: String?
     var tool_input: ToolInput?
     var notification_type: String?
-    var message: String?
+    var message: HookJSON?
+    var usage: HookJSON?
+    var info: HookJSON?
+    var payload: HookJSON?
+    var output_tokens: Int?
     var error: String?
     var command: String?
     var toolName: String?
@@ -230,7 +234,7 @@ func buildHookServer(
         guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
         guard config.headless else { return Response(status: .notFound) }
         await engine.flushStore()
-        return try encodedResponse(await engine.state)
+        return try encodedResponse(StateResponse(state: await engine.state, inventory: try await engine.inventory()))
     }
 
     router.get("/state/profile") { request, _ -> Response in
@@ -442,7 +446,7 @@ func handleAgentEvent(
             break
         case "elicitation_dialog":
             let requestId = makeRequestId(sessionId: sessionId)
-            await engine.submitRequest(sessionId: sessionId, requestId: requestId, tool: body.notification_type ?? "Notification", hint: body.message ?? "", sessionLabel: sessionLabel)
+            await engine.submitRequest(sessionId: sessionId, requestId: requestId, tool: body.notification_type ?? "Notification", hint: body.message?.string ?? "", sessionLabel: sessionLabel)
         case "idle_prompt":
             await engine.activitySignal(sessionId: sessionId, source: source, signal: .stopWorking)
         default:
@@ -451,7 +455,7 @@ func handleAgentEvent(
 
     case "Elicitation":
         let requestId = makeRequestId(sessionId: sessionId)
-        await engine.submitRequest(sessionId: sessionId, requestId: requestId, tool: "Elicitation", hint: body.message ?? "", sessionLabel: sessionLabel)
+        await engine.submitRequest(sessionId: sessionId, requestId: requestId, tool: "Elicitation", hint: body.message?.string ?? "", sessionLabel: sessionLabel)
 
     case "ElicitationResult":
         await engine.clearRequest(sessionId: sessionId)
@@ -578,7 +582,7 @@ func extractHint(from body: HookEventBody, limit: Int = 200) -> String {
             if let v, !v.isEmpty { return cap(v) }
         }
     }
-    return body.message ?? ""
+    return body.message?.string ?? ""
 }
 
 private func deriveSessionId(from body: HookEventBody, source: String) -> String {
@@ -655,4 +659,15 @@ private func jsonResponse(_ dict: [String: Any]) -> Response {
 private func encodedResponse<T: Encodable>(_ value: T) throws -> Response {
     Response(status: .ok, headers: [.contentType: "application/json"],
              body: .init(byteBuffer: ByteBuffer(data: try JSONEncoder().encode(value))))
+}
+
+private struct StateResponse: Encodable {
+    var state: BuddyState
+    var inventory: [InventoryItem]
+    private enum Keys: String, CodingKey { case inventory }
+    func encode(to encoder: Encoder) throws {
+        try state.encode(to: encoder)
+        var c = encoder.container(keyedBy: Keys.self)
+        try c.encode(inventory, forKey: .inventory)
+    }
 }

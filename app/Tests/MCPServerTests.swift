@@ -8,32 +8,6 @@ import XCTest
 final class MCPServerTests: XCTestCase {
 
     @MainActor
-    private final class RecordingMemoryStore: PetMemoryStoring {
-        var stored: PetMemory?
-        var saveCount = 0
-        func load() -> PetMemory? { stored }
-        func save(_ memory: PetMemory) {
-            stored = memory
-            saveCount += 1
-        }
-    }
-
-    @MainActor
-    private func makeEngine(store: (any PetMemoryStoring)? = nil) -> (BuddyEngine, MockClock) {
-        let clock = MockClock()
-        let config = BuddyConfig(
-            httpPort: 0,
-            staleTimeoutMs: 600_000,
-            celebrateDurationMs: 4_000,
-            workStallTimeoutMs: 300_000,
-            stateDir: "/tmp",
-            approvalMode: false,
-            token: "test-token"
-        )
-        return (BuddyEngine(config: config, clock: clock, memoryStore: store), clock)
-    }
-
-    @MainActor
     private func call(_ engine: BuddyEngine, tool: String, args: [String: Any], agentId: String = "claude-code") async -> [String: Any]? {
         await handleMCPMessage(
             ["jsonrpc": "2.0", "id": 1, "method": "tools/call",
@@ -365,21 +339,24 @@ final class MCPServerTests: XCTestCase {
     // MARK: - Persistence
 
     @MainActor
-    func testMemoryStoreSeedsAndSaves() {
-        let store = RecordingMemoryStore()
+    func testMemoryStoreSeedsAndSaves() async throws {
+        let (store, _, cleanup) = try makeStore()
+        defer { cleanup() }
         var seeded = PetMemory.empty
         seeded.lifetimeSessions = 7
         seeded.lastSeenAt = 500_000
-        store.stored = seeded
+        try await store.saveMemory(seeded)
 
         let (engine, _) = makeEngine(store: store)
         engine.start()
+        await engine.flushStore()
         defer { engine.stop() }
         XCTAssertEqual(engine.petMemory.lifetimeSessions, 7)
 
         engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
-        XCTAssertEqual(store.stored?.lifetimeSessions, 8)
-        XCTAssertGreaterThan(store.saveCount, 0)
+        await engine.flushStore()
+        let saved = try await store.loadMemory()
+        XCTAssertEqual(saved?.lifetimeSessions, 8)
     }
 
     /// Fondness is a ratchet — a schema bump must never reset the pet.

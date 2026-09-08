@@ -11,13 +11,15 @@ final class ExtractorPrivacyTests: XCTestCase {
         config.stateDir = dir.path
         let store = try Store(stateDir: dir.path, now: Date.now.timeIntervalSince1970 * 1000)
         let engine = BuddyEngine(config: config, store: store)
+        let privacyExtractor = Extractor()
         for url in hookFixtureURLs() {
             let source = url.deletingLastPathComponent().deletingLastPathComponent().lastPathComponent
             for line in try String(contentsOf: url, encoding: .utf8).split(separator: "\n") {
                 let p = try XCTUnwrap(RawHookPayload.parse(Data(line.utf8), source: source, at: 0))
                 await engine.ingest(p)
+                let extraction = await privacyExtractor.ingest(p)
                 let surfaces = String(decoding: try JSONEncoder().encode(engine.state), as: UTF8.self)
-                    + String(decoding: try JSONEncoder().encode(engine.factRing.facts), as: UTF8.self)
+                    + String(decoding: try JSONEncoder().encode(extraction.facts), as: UTF8.self)
                     + String(decoding: try JSONEncoder().encode(engine.diagnosticLog.entries), as: UTF8.self)
                 for marker in ["swift test", "npm test", "/private/project", "PRIVATE_PROMPT_8431", "PRIVATE_OUTPUT_9823", "PRIVATE_CLOSING_7182"] {
                     XCTAssertFalse(surfaces.contains(marker), marker)
@@ -27,7 +29,7 @@ final class ExtractorPrivacyTests: XCTestCase {
         await engine.flushStore()
         XCTAssertTrue(FileManager.default.fileExists(atPath: dir.appendingPathComponent("boop.sqlite").path))
         var content = String(decoding: try JSONEncoder().encode(engine.diagnosticLog.entries), as: UTF8.self)
-        content += String(decoding: try JSONEncoder().encode(engine.factRing.facts), as: UTF8.self)
+        content += String(decoding: try JSONEncoder().encode(try await engine.storedFacts()), as: UTF8.self)
         let files = FileManager.default.enumerator(atPath: engine.stateDir)?.allObjects as? [String] ?? []
         XCTAssertFalse(files.isEmpty, "Exercise real memory persistence, not an empty directory")
         for file in files {
@@ -87,12 +89,6 @@ final class ExtractorPrivacyTests: XCTestCase {
 }
 
 extension ExtractorPrivacyTests {
-    @MainActor func testFactRingEvictsAtFiveHundred() {
-        let ring = FactRing()
-        ring.receive((0..<1000).map { .project(id: String($0)) })
-        XCTAssertEqual(ring.facts.count, 500)
-        XCTAssertEqual(ring.facts.first, .project(id: "500"))
-    }
     func testInterleavedResultsUseCallIds() async throws {
         let extractor = Extractor()
         let bodies = [
@@ -211,16 +207,19 @@ extension ExtractorPrivacyTests {
 extension ExtractorPrivacyTests {
     @MainActor func testCommandsAndPathsNeverBecomeHintsOrFacts() async throws {
         let engine = BuddyEngine(config: .default)
+        let privacyExtractor = Extractor()
         for command in ["swift test --filter /private/SECRET.swift", "npm test -- /tmp/private-test.js"] {
             let data = try JSONSerialization.data(withJSONObject: ["hook_event_name": "PreToolUse", "session_id": "privacy", "tool_name": "Bash", "tool_input": ["command": command]])
             let p = try XCTUnwrap(RawHookPayload.parse(data, source: "codex", at: 0))
             await engine.ingest(p)
             let result = try XCTUnwrap(RawHookPayload.parse(Data(#"{"hook_event_name":"PostToolUse","session_id":"privacy","tool_name":"Bash","exit_code":0}"#.utf8), source: "codex", at: 1))
             await engine.ingest(result)
+            let callFacts = await privacyExtractor.ingest(p).facts
+            let resultFacts = await privacyExtractor.ingest(result).facts
             engine.turnEnded(sessionId: "privacy", source: "codex", outcome: .completed)
             let surfaces = String(decoding: try JSONEncoder().encode(engine.state), as: UTF8.self)
                 + String(decoding: try JSONEncoder().encode(engine.diagnosticLog.entries), as: UTF8.self)
-                + String(decoding: try JSONEncoder().encode(engine.factRing.facts), as: UTF8.self)
+                + String(decoding: try JSONEncoder().encode(callFacts + resultFacts), as: UTF8.self)
             for marker in [command, "swift test", "npm test", "/private/SECRET.swift", "/tmp/private-test.js"] {
                 XCTAssertFalse(surfaces.contains(marker), marker)
             }

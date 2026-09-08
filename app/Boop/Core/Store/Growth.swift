@@ -16,7 +16,7 @@ struct GrowthSnapshot: Codable, Sendable, Equatable {
     var daysTogether = 0, tasks = 0, today = 0
     var biggest: CheerSize = .hop
 }
-struct GrowthFormula: Sendable {
+struct GrowthFormula: Sendable, Codable, Equatable {
     var turn = 3, task = 8, hardWonPass = 12, activeDay = 10, session = 2, checkIn = 1, tokens = 1
     static func threshold(_ level: Int) -> Int { let l = max(1, level); return 100 * (l - 1) * l / 2 + 50 * (l - 1) }
     func level(for xp: Int) -> Int {
@@ -26,9 +26,11 @@ struct GrowthFormula: Sendable {
         return low
     }
     func xpToNext(for xp: Int) -> Int { Self.threshold(level(for: xp) + 1) - max(0, xp) }
-    func awards(_ rows: [LedgerRow]) -> [(LedgerRow, Int)] {
+    func awards(_ rows: [LedgerRow], activeDays: [String] = []) -> [(LedgerRow, Int)] {
         var checks: [String: Int] = [:], tokenCounts: [String: Int] = [:], turns: [String: [Double]] = [:]
         var active: Set<String> = [], bonuses: Set<String> = []
+        let days = Set(activeDays + rows.filter { $0.source == .activeDay }.map(\.day))
+        let explicitBonuses = Set(rows.filter { $0.source == .streakBonus }.map(\.day))
         return rows.sorted { $0.at < $1.at }.map { row in
             let units = max(0, row.amount)
             var xp = 0
@@ -40,7 +42,7 @@ struct GrowthFormula: Sendable {
             case .task: xp = units * task
             case .hardWonPass: xp = units * hardWonPass
             case .session: xp = units * session
-            case .activeDay: if active.insert(row.day).inserted { xp = activeDay }
+            case .activeDay: if active.insert(row.day).inserted { xp = activeDay + (explicitBonuses.contains(row.day) ? 0 : min(10, Streak.calculate(days: Array(days), through: row.day).current)) }
             case .streakBonus: if bonuses.insert(row.day).inserted { xp = min(10, units) }
             case .checkIn:
                 let count = min(units, max(0, 20 - checks[row.day, default: 0]))
@@ -103,4 +105,42 @@ struct CosmeticUnlock: Sendable {
         .init(level: 15, kind: "skin", name: "ember"), .init(level: 15, kind: "animation", name: "big-dance"),
         .init(level: 20, kind: "accessory", name: "scarf"), .init(level: 20, kind: "silhouette", name: "tall"),
         .init(level: 30, kind: "skin", name: "midnight"), .init(level: 30, kind: "accessory", name: "crown")]
+}
+
+protocol DayCalendar: Sendable {
+    func localDay(at: Double) -> String
+    func localHour(at: Double) -> Int
+    func previousDay(at: Double) -> String
+}
+struct LocalDayCalendar: DayCalendar {
+    var calendar: Calendar = .current
+    func localDay(at: Double) -> String { CivilDay.localDay(at: at, calendar: calendar) }
+    func localHour(at: Double) -> Int { CivilDay.localHour(at: at, calendar: calendar) }
+    func previousDay(at: Double) -> String { CivilDay.previousDay(at: at, calendar: calendar) }
+}
+extension CivilDay {
+    static func localDay(at: Double, calendar: Calendar) -> String {
+        let c = calendar.dateComponents([.year, .month, .day], from: Date(timeIntervalSince1970: at / 1000))
+        return String(format: "%04d-%02d-%02d", c.year!, c.month!, c.day!)
+    }
+    static func localHour(at: Double, calendar: Calendar) -> Int {
+        calendar.component(.hour, from: Date(timeIntervalSince1970: at / 1000))
+    }
+    static func previousDay(at: Double, calendar: Calendar) -> String {
+        let date = calendar.date(byAdding: .day, value: -1, to: Date(timeIntervalSince1970: at / 1000))!
+        return localDay(at: date.timeIntervalSince1970 * 1000, calendar: calendar)
+    }
+}
+/// Reducer effects carry event time; the engine supplies civil dates at the I/O boundary.
+struct XPAward: Sendable, Equatable {
+    var at: Double
+    var sessionId: String = ""
+    var sources: [XPSource] = []
+    var active = true
+    var collected = false
+    var greet = false
+    var cheer: CheerSize?
+}
+struct PendingFact: Sendable, Equatable {
+    var fact: Fact, sessionId: String, project: String, at: Double
 }

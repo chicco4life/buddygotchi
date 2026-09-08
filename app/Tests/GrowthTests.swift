@@ -52,11 +52,10 @@ final class GrowthTests: XCTestCase {
         XCTAssertEqual(Streak.calculate(days:["2026-03-07","2026-03-08","2026-03-09"], through:"2026-03-09").current, 3)
     }
     @MainActor func testEngineAwardsOnlyRealCompletionsAndNoApprovals() async throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: dir) }
-        let store = try Store(stateDir: dir.path, now: 0)
-        let clock = MockClock(); clock.time = 1_000
-        let engine = BuddyEngine(clock: clock, store: store)
+        let (store, _, cleanup) = try makeStore()
+        defer { cleanup() }
+        let (engine, clock) = makeEngine(store: store)
+        clock.time = 1_000
         engine.sessionStarted(sessionId:"s", source:"codex", cwd:nil)
         engine.turnStarted(sessionId:"s", source:"codex")
         clock.time += 100
@@ -81,11 +80,9 @@ final class GrowthTests: XCTestCase {
 extension GrowthTests {
     @MainActor func testTenthTryFixturesAwardExactXPAndPersistSnapshot() async throws {
         for source in ["claude-code","codex","cursor"] {
-            let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-            defer { try? FileManager.default.removeItem(at:dir) }
-            let store = try Store(stateDir:dir.path,now:0)
-            let clock = MockClock()
-            let engine = BuddyEngine(clock:clock,store:store)
+            let (store, _, cleanup) = try makeStore()
+            defer { cleanup() }
+            let (engine, clock) = makeEngine(store: store)
             let fixtureSource = source == "codex" ? "claude-code" : source
             let url = try XCTUnwrap(hookFixtureURLs().first { $0.path.contains("/\(fixtureSource)/") && $0.lastPathComponent == "tenth-try.jsonl" })
             for line in try String(contentsOf:url,encoding:.utf8).split(separator:"\n") {
@@ -98,8 +95,8 @@ extension GrowthTests {
             XCTAssertEqual(engine.state.growth.tasks,1,source)
             XCTAssertEqual(engine.state.growth.biggest,.dance)
             let frame = renderState(from:engine.state,now:clock.now())
-            XCTAssertEqual(frame.snap?.xp,36)
-            XCTAssertEqual(frame.snap?.level,1)
+            XCTAssertEqual(frame.snap?.growth.xp,36)
+            XCTAssertEqual(frame.snap?.growth.level,1)
             let restarted = BuddyEngine(clock:clock,store:store)
             restarted.start(); await restarted.flushStore(); restarted.stop()
             XCTAssertEqual(restarted.state.growth,engine.state.growth)
@@ -121,5 +118,22 @@ extension GrowthTests {
             let tokens = result.facts.compactMap { f -> Int? in if case .tokens(let n) = f { return n }; return nil }
             XCTAssertEqual(tokens.reduce(0,+),expected)
         }
+    }
+}
+
+extension GrowthTests {
+    @MainActor func testUnchangedCollectProjectionStillDrainsEachAward() async throws {
+        let (store, _, cleanup) = try makeStore()
+        defer { cleanup() }
+        let (engine, _) = makeEngine(store: store)
+        engine.collectArrived()
+        await engine.flushStore()
+        engine.collectArrived()
+        await engine.flushStore()
+        let rows = try await store.ledger()
+        XCTAssertEqual(rows.filter { $0.source == .checkIn }.count, 2)
+        XCTAssertEqual(engine.state.growth.xp, 13)
+        let facts = try await store.facts()
+        XCTAssertEqual(facts.filter { $0.fact == .checkIn(collected: false) }.count, 2)
     }
 }

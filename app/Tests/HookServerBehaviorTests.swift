@@ -1,5 +1,10 @@
 import Foundation
 import XCTest
+import Hummingbird
+import HummingbirdTesting
+import NIOCore
+import NIOEmbedded
+import Logging
 @testable import BoopCore
 
 final class HookServerBehaviorTests: XCTestCase {
@@ -137,9 +142,12 @@ final class HookServerBehaviorTests: XCTestCase {
         engine.submitRequest(sessionId: "s1", requestId: "r1", tool: "Bash", hint: "swift build", sessionLabel: "project")
         let (status, data) = try await get(base + "/state", token: config.token)
         XCTAssertEqual(status, 200)
+        // /state is the BuddyState plus the cosmetics inventory the store holds.
         let actual = try JSONSerialization.jsonObject(with: data) as? NSDictionary
         let expected = try JSONSerialization.jsonObject(with: JSONEncoder().encode(engine.state)) as? NSDictionary
-        XCTAssertEqual(actual, expected)
+        let actualState = (actual as? [String: Any])?.filter { $0.key != "inventory" } as NSDictionary?
+        XCTAssertEqual(actualState, expected)
+        XCTAssertNotNil(actual?["inventory"] as? [Any], "state route carries the inventory list")
         XCTAssertEqual(engine.state.creature.state, .needsYou)
     }
 
@@ -194,5 +202,34 @@ final class HookServerBehaviorTests: XCTestCase {
             approvalMode: false,
             token: "test-token"
         )
+    }
+}
+
+extension HookServerBehaviorTests {
+    @MainActor func testHookRespondsWhileFactWriteNeverResumes() async throws {
+        let (base, _, cleanup) = try makeStore()
+        defer { cleanup() }
+        let store = SuspendedFactStore(base: base)
+        let (engine, _) = makeEngine(store: store)
+        let app = buildHookServer(engine: engine, config: testConfig())
+        let context = HookRequestContext(source: .init(channel: EmbeddedChannel(), logger: Logger(label: "latency-test")))
+        let request = Request(head: .init(method: .post, scheme: "http", authority: "localhost", path: "/hook/event?source=codex", headerFields: [.init("X-Boop-Token")!: "test-token"]),
+            body: .init(buffer: ByteBuffer(string: #"{"hook_event_name":"SessionStart","session_id":"latency"}"#)))
+        var responded = false
+        let route = Task { @MainActor in
+            let response = try await app.responder.respond(to: request, context: context)
+            XCTAssertEqual(response.status.code, 200)
+            responded = true
+        }
+        // Unstructured task: a regression must fail within the deadline, not await a stuck child.
+        for _ in 0..<100 {
+            let started = await store.appendStarted
+            if responded && started { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        let appendStarted = await store.appendStarted
+        XCTAssertTrue(appendStarted, "The store must actually be blocked during the route test")
+        XCTAssertTrue(responded, "Hook waited for the store queue")
+        if responded { try await route.value } else { route.cancel() }
     }
 }

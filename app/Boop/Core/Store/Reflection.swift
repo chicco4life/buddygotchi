@@ -20,8 +20,9 @@ enum Reflection {
         for f in day { if case .goalOutcome(_, let runner, _, _, _) = f.fact { runners[runner,default:0] += 1 } }
         if let dominant = runners.sorted(by: { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }).first,
            dominant.value * 2 > runners.values.reduce(0,+) { lines.append("reaches for \(dominant.key)") }
+        let byProject = Dictionary(grouping: history, by: \.project)
         for project in Set(day.map(\.project)).sorted() where project != "unknown" {
-            if Set(history.filter { $0.project == project }.map(\.day)).count >= 5 { lines.append("keeps coming back to \(project)") }
+            if Set((byProject[project] ?? []).map(\.day)).count >= 5 { lines.append("keeps coming back to \(project)") }
         }
         return Array(lines.prefix(5))
     }

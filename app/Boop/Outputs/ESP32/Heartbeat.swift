@@ -18,7 +18,7 @@ struct RenderState: Encodable, Sendable {
     var focus: Bool = false
     var mute: Int = 1
     var posture: DevicePosture?
-    var cosmetic: Cosmetic?
+    var cosmetic: EquippedCosmetic?
     var snap: Snapshot?
     var agent: Agent?
     var t: Int
@@ -46,30 +46,19 @@ struct RenderState: Encodable, Sendable {
         }
     }
     // Free text is capped at encoding on a character boundary, like Card.
-    struct Cosmetic: Encodable, Sendable {
-        var skin: String, accessory: String, silhouette: String
-        func encode(to encoder: any Encoder) throws {
-            var c = encoder.container(keyedBy: Keys.self)
-            try c.encode(skin.prefix(utf8Bytes: 15), forKey: .skin)
-            try c.encode(accessory.prefix(utf8Bytes: 15), forKey: .accessory)
-            try c.encode(silhouette.prefix(utf8Bytes: 15), forKey: .silhouette)
-        }
-        private enum Keys: String, CodingKey { case skin, accessory, silhouette }
-    }
     struct Snapshot: Encodable, Sendable {
         var name: String
-        var level = 0, xp = 0, xpNext = 0, streak = 0, best = 0, rest = 0
-        var days = 0, tasks = 0, today = 0
-        var biggest: CheerSize = .hop
+        var growth = GrowthSnapshot()
         func encode(to encoder: any Encoder) throws {
             var c = encoder.container(keyedBy: Keys.self)
             try c.encode(name.prefix(utf8Bytes: 23), forKey: .name)
-            try c.encode(level, forKey: .level); try c.encode(xp, forKey: .xp); try c.encode(xpNext, forKey: .xpNext)
-            try c.encode(streak, forKey: .streak); try c.encode(best, forKey: .best); try c.encode(rest, forKey: .rest)
-            try c.encode(days, forKey: .days); try c.encode(tasks, forKey: .tasks); try c.encode(today, forKey: .today)
-            try c.encode(biggest, forKey: .biggest)
+            try c.encode(growth.level, forKey: .level); try c.encode(growth.xp, forKey: .xp); try c.encode(growth.xpNext, forKey: .xpNext)
+            try c.encode(growth.streak, forKey: .streak); try c.encode(growth.bestStreak, forKey: .bestStreak); try c.encode(growth.restDays, forKey: .restDays)
+            try c.encode(growth.daysTogether, forKey: .daysTogether); try c.encode(growth.tasks, forKey: .tasks); try c.encode(growth.today, forKey: .today)
+            try c.encode(growth.biggest, forKey: .biggest)
         }
-        private enum Keys: String, CodingKey { case name, level, xp, xpNext, streak, best, rest, days, tasks, today, biggest }
+        private enum Keys: String, CodingKey { case name, level, xp, xpNext, streak, tasks, today, biggest
+            case bestStreak = "best", restDays = "rest", daysTogether = "days" }
     }
     struct Agent: Encodable, Sendable {
         var name: String, color: String, emotion: String, say: String
@@ -123,9 +112,8 @@ func renderState(from state: BuddyState, defaults: UserDefaults = .standard, now
         frame.card = .needsYou(id: card.id, tool: card.tool, gloss: card.gloss,
             stakes: card.stakes, n: card.index, of: card.count, approval: card.isApproval)
     }
-    let g = state.growth
-    frame.snap = .init(name: defaults.string(forKey: DefaultsKey.buddyName) ?? "Boop", level: g.level, xp: g.xp, xpNext: g.xpNext, streak: g.streak, best: g.bestStreak, rest: g.restDays, days: g.daysTogether, tasks: g.tasks, today: g.today, biggest: g.biggest)
-    frame.cosmetic = .init(skin: state.cosmetic.skin, accessory: state.cosmetic.accessory, silhouette: state.cosmetic.silhouette)
+    frame.snap = .init(name: defaults.string(forKey: DefaultsKey.buddyName) ?? "Boop", growth: state.growth)
+    frame.cosmetic = state.cosmetic
     if frame.card == nil, state.prompt == nil, let a = state.agentOverlay {
         frame.agent = .init(name: a.agentId, color: a.color ?? "", emotion: a.emotion, say: a.say ?? "")
     }
@@ -201,4 +189,14 @@ extension String {
         }
         return out
     }
+}
+
+extension EquippedCosmetic {
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Keys.self)
+        try c.encode(skin.prefix(utf8Bytes: 15), forKey: .skin)
+        try c.encode(accessory.prefix(utf8Bytes: 15), forKey: .accessory)
+        try c.encode(silhouette.prefix(utf8Bytes: 15), forKey: .silhouette)
+    }
+    private enum Keys: String, CodingKey { case skin, accessory, silhouette }
 }

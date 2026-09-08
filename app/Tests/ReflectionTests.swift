@@ -4,9 +4,8 @@ import XCTest
 
 final class ReflectionTests: XCTestCase {
     func testRulesFromDayMaxFiveAndIdempotentRerun() async throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at:dir) }
-        let store = try Store(stateDir:dir.path,now:0)
+        let (store, _, cleanup) = try makeStore()
+        defer { cleanup() }
         var facts: [StoredFact] = []
         for d in 1...5 {
             let day = String(format:"2026-01-%02d",d)
@@ -43,5 +42,33 @@ final class ReflectionTests: XCTestCase {
         let inputs: [Fact] = [.activity(hour:8,tool:nil,firstGoal:nil),.sessionSummary(turns:20,tasks:1,elapsedMs:100),.moment(.lateNight),.denial,.moment(.nthRateLimit),.checkIn(collected:false),.greet,.project(id:"new")]
         let facts = inputs.map { StoredFact(fact:$0,sessionId:"s",project:"new",at:0,day:"2026-01-01") }
         XCTAssertEqual(DailyDrift.calculate(facts,history:facts),["energy":1,"cheek":2,"warmth":2,"curiosity":1])
+    }
+}
+
+extension ReflectionTests {
+    @MainActor func testMaintenanceUsesInjectedCalendarAndPower() async throws {
+        let (store, _, cleanup) = try makeStore()
+        defer { cleanup() }
+        struct CalendarStub: DayCalendar {
+            func localDay(at: Double) -> String { "2026-01-02" }
+            func localHour(at: Double) -> Int { 8 }
+            func previousDay(at: Double) -> String { "2026-01-01" }
+        }
+        try await store.appendFacts([StoredFact(fact: .activity(hour: 8, tool: "Bash", firstGoal: "swift-test"), sessionId: "yesterday", project: "p", at: 0, day: "2026-01-01")])
+        let clock = MockClock()
+        let battery = BuddyEngine(clock: clock, store: store, dayCalendar: CalendarStub(), onACPower: { false })
+        battery.sessionStarted(sessionId: "battery", source: "codex", cwd: nil)
+        clock.advance(by: 1_200_000)
+        battery.maintenance(); await battery.flushStore()
+        let empty = try await store.profile()
+        XCTAssertTrue(empty.isEmpty)
+        let powered = BuddyEngine(clock: clock, store: store, dayCalendar: CalendarStub(), onACPower: { true })
+        powered.sessionStarted(sessionId: "powered", source: "codex", cwd: nil)
+        clock.advance(by: 1_200_000)
+        powered.maintenance(); await powered.flushStore()
+        let lines = try await store.profile()
+        XCTAssertEqual(lines.map(\.line), ["tests first, usually"])
+        let facts = try await store.facts()
+        XCTAssertTrue(facts.contains { $0.sessionId == "powered" && $0.day == "2026-01-02" && $0.fact == .activity(hour: 8, tool: nil, firstGoal: nil) })
     }
 }

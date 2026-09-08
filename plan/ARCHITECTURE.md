@@ -225,7 +225,18 @@ interaction path.
 **Leaderboard sync.** Opt-in. Sends buddy name, silhouette, XP total, and
 the device signatures. The only network call in the app.
 
-Clearing the profile emits `profileCleared`; name, level, and bond stay.
+Clearing the profile deletes its lines; name, level, and bond stay. Profile
+reads come from Store and do not emit a reducer event.
+
+Phase 4 implementation: `growth_totals` caches daily source XP and units in
+the same transaction as ledger awards. Formula changes rebuild this derived
+cache from the append-only ledger; normal snapshots read the rollup, including
+today. Accepted turn units retain the rolling-hour cap across midnight.
+`memory` holds one Codable `PetMemory` JSON row. Engine bootstrap constructs
+Store and runs legacy migration off the main thread; unreadable legacy files
+are preserved with an `.unreadable` suffix. Reducer transitions emit pending
+awards and facts, which the engine drains onto its asynchronous store queue.
+Hook responses do not flush that queue; shutdown and diagnostic reads do.
 
 ---
 

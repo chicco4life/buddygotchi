@@ -9,7 +9,7 @@ struct ProfileLine: Codable, Sendable, Equatable {
 }
 struct StoreError: Error, Sendable { var message: String }
 /// Owned exclusively by Store. Statements never escape the actor.
-private final class Database: @unchecked Sendable {
+final class Database: @unchecked Sendable {
     private var handle: OpaquePointer?
     init(path: String) throws {
         guard sqlite3_open_v2(path, &handle, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK else {
@@ -18,11 +18,17 @@ private final class Database: @unchecked Sendable {
         }
         sqlite3_busy_timeout(handle, 5000)
     }
-    deinit { sqlite3_close(handle) }
+    private var statements: [String: OpaquePointer] = [:]
+    deinit { for statement in statements.values { sqlite3_finalize(statement) }; sqlite3_close(handle) }
     @discardableResult func run(_ sql: String, _ values: [String] = []) throws -> [[String]] {
-        var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(handle, sql, -1, &statement, nil) == SQLITE_OK else { throw failure() }
-        defer { sqlite3_finalize(statement) }
+        let statement: OpaquePointer
+        if let cached = statements[sql] { statement = cached }
+        else {
+            var prepared: OpaquePointer?
+            guard sqlite3_prepare_v2(handle, sql, -1, &prepared, nil) == SQLITE_OK, let prepared else { throw failure() }
+            statement = prepared; statements[sql] = prepared
+        }
+        defer { sqlite3_reset(statement); sqlite3_clear_bindings(statement) }
         for (index, value) in values.enumerated() {
             let rc = value.withCString { sqlite3_bind_text(statement, Int32(index + 1), $0, -1, unsafeBitCast(-1, to: sqlite3_destructor_type.self)) }
             guard rc == SQLITE_OK else { throw failure() }
@@ -47,16 +53,21 @@ private final class Database: @unchecked Sendable {
     }
 }
 
-actor Store {
+actor Store: EngineStore {
+    static let factRetentionMs: Double = 30 * 86_400_000
     private let db: Database
+    private let stateDir: String
+    private var lastSnapshot: GrowthSnapshot?
+    private var rollupFormula: GrowthFormula?
     init(stateDir: String, now: Double, temperament: String? = nil) throws {
+        self.stateDir = stateDir
         try FileManager.default.createDirectory(atPath: stateDir, withIntermediateDirectories: true)
         db = try Database(path: stateDir + "/boop.sqlite")
         try db.run("PRAGMA journal_mode=WAL")
         try db.run("PRAGMA secure_delete=ON")
         try db.run("CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
         let version = Int(try db.run("SELECT value FROM meta WHERE key='schema_version'").first?.first ?? "0") ?? 0
-        guard version <= 1 else { throw StoreError(message: "Unsupported store schema \(version)") }
+        guard version <= 2 else { throw StoreError(message: "Unsupported store schema \(version)") }
         if version == 0 {
             try db.transaction {
                 for sql in [
@@ -75,53 +86,40 @@ actor Store {
                 for axis in ["energy", "cheek", "warmth", "curiosity", "bond"] { try db.run("INSERT INTO traits VALUES(?,?)", [axis, axis == "bond" ? "0" : axis == "cheek" && temperament == "earnest" ? "64" : axis == "cheek" && temperament == "cheeky" ? "192" : "128"]) }
             }
         }
-        try db.run("DELETE FROM facts WHERE at < ?", [String(now - 30 * 86_400_000)])
-        let legacy = URL(fileURLWithPath: stateDir + "/pet-memory.json")
-        if FileManager.default.fileExists(atPath: legacy.path) {
-            // Commit before rename. A crash between them retries only the rename.
-            if try db.run("SELECT key FROM meta WHERE key='memory_migrated'").isEmpty {
-                // Leave an unreadable legacy file for recovery without disabling SQLite.
-                guard let data = try? Data(contentsOf: legacy), let memory = try? JSONDecoder().decode(PetMemory.self, from: data) else { return }
-                let object = try JSONDecoder().decode([String: HookJSON].self, from: JSONEncoder().encode(memory))
-                try db.transaction {
-                    for (key, value) in object { try db.run("INSERT OR REPLACE INTO memory VALUES(?,?)", [key, String(decoding: try JSONEncoder().encode(value), as: UTF8.self)]) }
-                    try db.run("INSERT INTO meta VALUES('memory_migrated','1')")
-                }
-            }
-            if !FileManager.default.fileExists(atPath: legacy.path + ".migrated") { try FileManager.default.moveItem(atPath: legacy.path, toPath: legacy.path + ".migrated") }
-        }
+        try db.run("DELETE FROM facts WHERE at < ?", [String(now - Self.factRetentionMs)])
+        try db.run("CREATE TABLE IF NOT EXISTS growth_totals(day TEXT NOT NULL, source TEXT NOT NULL, xp INTEGER NOT NULL, units INTEGER NOT NULL, PRIMARY KEY(day,source))")
+        try db.run("CREATE TABLE IF NOT EXISTS growth_turns(at REAL NOT NULL, session_id TEXT NOT NULL, units INTEGER NOT NULL)")
+        try db.run("CREATE INDEX IF NOT EXISTS growth_turns_session_at ON growth_turns(session_id,at)")
+        try db.run("CREATE INDEX IF NOT EXISTS ledger_at ON ledger(at)")
+        try db.run("INSERT OR REPLACE INTO meta VALUES('schema_version','2')")
     }
+    func migrate() throws { try StoreMigrator.run(db: db, stateDir: stateDir) }
     func loadMemory() throws -> PetMemory? {
-        let rows = try db.run("SELECT key,json FROM memory")
-        guard !rows.isEmpty else { return nil }
-        let object = try Dictionary(uniqueKeysWithValues: rows.map { ($0[0], try JSONDecoder().decode(HookJSON.self, from: Data($0[1].utf8))) })
-        return try JSONDecoder().decode(PetMemory.self, from: JSONEncoder().encode(object))
+        guard let json = try db.run("SELECT json FROM memory WHERE key='memory'").first?.first else { return nil }
+        return try JSONDecoder().decode(PetMemory.self, from: Data(json.utf8))
     }
     func saveMemory(_ memory: PetMemory) throws {
-        let object = try JSONDecoder().decode([String: HookJSON].self, from: JSONEncoder().encode(memory))
-        try db.transaction {
-            try db.run("DELETE FROM memory")
-            for (key, value) in object { try db.run("INSERT OR REPLACE INTO memory VALUES(?,?)", [key, String(decoding: try JSONEncoder().encode(value), as: UTF8.self)]) }
-        }
+        try db.run("INSERT OR REPLACE INTO memory(key,json) VALUES('memory', ?)", [String(decoding: JSONEncoder().encode(memory), as: UTF8.self)])
     }
     func appendFacts(_ facts: [StoredFact]) throws {
         try db.transaction {
             for f in facts {
                 let json = try JSONEncoder().encode(f.fact)
-                let kind = try JSONDecoder().decode([String: HookJSON].self, from: json).keys.first ?? "unknown"
-                try db.run("INSERT INTO facts(kind,session_id,project,at,day,payload_json) VALUES(?,?,?,?,?,?)", [kind, f.sessionId, f.project, String(f.at), f.day, String(decoding: json, as: UTF8.self)])
+                try db.run("INSERT INTO facts(kind,session_id,project,at,day,payload_json) VALUES(?,?,?,?,?,?)", [f.fact.kind, f.sessionId, f.project, String(f.at), f.day, String(decoding: json, as: UTF8.self)])
             }
         }
     }
-    func facts(limit: Int = 500) throws -> [StoredFact] {
+    func facts() throws -> [StoredFact] { try facts(limit: 500) }
+    func facts(limit: Int) throws -> [StoredFact] {
         try decodeFacts(db.run("SELECT payload_json,session_id,project,at,day FROM facts ORDER BY at DESC,id DESC LIMIT ?", [String(max(0, limit))]))
     }
     private func decodeFacts(_ rows: [[String]]) throws -> [StoredFact] {
-        try rows.map { StoredFact(fact: try JSONDecoder().decode(Fact.self, from: Data($0[0].utf8)), sessionId: $0[1], project: $0[2], at: Double($0[3])!, day: $0[4]) }
+        let decoder = JSONDecoder()
+        return try rows.map { StoredFact(fact: try decoder.decode(Fact.self, from: Data($0[0].utf8)), sessionId: $0[1], project: $0[2], at: Double($0[3])!, day: $0[4]) }
     }
     func prune(now: Double, localDay: String) throws {
         guard try meta("pruned_day") != localDay else { return }
-        try db.run("DELETE FROM facts WHERE at < ?", [String(now - 30 * 86_400_000)])
+        try db.run("DELETE FROM facts WHERE at < ?", [String(now - Self.factRetentionMs)])
         try setMeta("pruned_day", localDay)
     }
     func ledger() throws -> [LedgerRow] {
@@ -130,31 +128,99 @@ actor Store {
             return LedgerRow(at: Double($0[0])!, source: source, amount: Int($0[2])!, sessionId: $0[3], day: $0[4])
         }
     }
-    func award(_ rows: [LedgerRow], active: Bool, at: Double, localDay: String) throws -> GrowthSnapshot {
+    func award(_ rows: [LedgerRow], active: Bool, at: Double, localDay: String) throws -> GrowthSnapshot? {
+        let formula = GrowthFormula()
+        try ensureRollup(formula)
+        var awarded = !rows.isEmpty
         try db.transaction {
-            if active, try db.run("SELECT id FROM ledger WHERE source='activeDay' AND day=? LIMIT 1", [localDay]).isEmpty {
-                try append(LedgerRow(at: at, source: .activeDay, day: localDay))
-                let days = try db.run("SELECT day FROM ledger WHERE source='activeDay'").map { $0[0] }
-                try append(LedgerRow(at: at, source: .streakBonus, amount: Streak.calculate(days: days, through: localDay).current, day: localDay))
+            if active, try db.run("SELECT day FROM growth_totals WHERE source='activeDay' AND day=?", [localDay]).isEmpty {
+                awarded = true
+                try append(LedgerRow(at: at, source: .activeDay, day: localDay), formula: formula)
                 try incrementBond(1)
             }
-            for row in rows { try append(row) }
+            for row in rows { try append(row, formula: formula) }
+            // Older accepted turns cannot affect the next rolling-hour limit.
+            try db.run("DELETE FROM growth_turns WHERE at <= (SELECT max(at)-3600000 FROM ledger)")
         }
-        return try growth(localDay: localDay, at: at)
+        return awarded ? try growth(localDay: localDay, at: at) : nil
     }
-    private func append(_ row: LedgerRow) throws {
-        try db.run("INSERT INTO ledger(at,source,amount,session_id,day) VALUES(?,?,?,?,?)", [String(row.at), row.source.rawValue, String(max(0,row.amount)), row.sessionId, row.day])
+    private func ensureRollup(_ formula: GrowthFormula) throws {
+        guard rollupFormula != formula else { return }
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+        let signature = String(decoding: try encoder.encode(formula), as: UTF8.self)
+        if try meta("growth_formula") != signature {
+            try db.transaction { try rebuildRollup(formula) }
+        }
+        rollupFormula = formula
     }
-    func growth(localDay: String, at: Double, formula: GrowthFormula = GrowthFormula()) throws -> GrowthSnapshot {
+    /// Replays only for a formula/schema change or a backdated import, never a normal read.
+    private func rebuildRollup(_ formula: GrowthFormula) throws {
+        let rows = try ledger()
+        try db.run("DELETE FROM growth_totals"); try db.run("DELETE FROM growth_turns")
+        var unitFormula = formula; unitFormula.turn = 1
+        for (row, units) in unitFormula.awards(rows) where row.source == .turn && units > 0 {
+            try db.run("INSERT INTO growth_turns VALUES(?,?,?)", [String(row.at), row.sessionId, String(units)])
+        }
+        for (row, xp) in formula.awards(rows) { try addTotal(row, xp: xp) }
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys]
+        try setMeta("growth_formula", String(decoding: encoder.encode(formula), as: UTF8.self))
+    }
+    private func addTotal(_ row: LedgerRow, xp: Int) throws {
+        try db.run("INSERT INTO growth_totals VALUES(?,?,?,?) ON CONFLICT(day,source) DO UPDATE SET xp=xp+excluded.xp,units=units+excluded.units", [row.day, row.source.rawValue, String(xp), String(row.amount)])
+    }
+    private func append(_ input: LedgerRow, formula: GrowthFormula) throws {
+        var row = input; row.amount = max(0, row.amount)
+        let latest = Double(try db.run("SELECT max(at) FROM ledger").first?.first ?? "")
+        if row.source == .streakBonus || latest.map({ row.at < $0 }) == true {
+            try db.run("INSERT INTO ledger(at,source,amount,session_id,day) VALUES(?,?,?,?,?)", [String(row.at), row.source.rawValue, String(row.amount), row.sessionId, row.day])
+            try rebuildRollup(formula)
+            return
+        }
+        var context: [LedgerRow] = []
+        if row.source == .turn {
+            let turns = try db.run("SELECT at,session_id,units FROM growth_turns WHERE at>? AND at<=? AND session_id=?", [String(row.at - 3_600_000), String(row.at), row.sessionId])
+            context = turns.map { LedgerRow(at: Double($0[0])!, source: .turn, amount: Int($0[2])!, sessionId: $0[1], day: row.day) }
+        } else if [.checkIn, .tokens, .activeDay, .streakBonus].contains(row.source),
+                  let prior = try db.run("SELECT units FROM growth_totals WHERE day=? AND source=?", [row.day, row.source.rawValue]).first?.first {
+            // Daily caps need only prior source units, not the day's individual hooks.
+            context = [LedgerRow(at: row.at, source: row.source, amount: Int(prior)!, day: row.day)]
+        }
+        let days = row.source == .activeDay ? try db.run("SELECT day FROM growth_totals WHERE source='activeDay'").map { $0[0] } : []
+        context.append(row)
+        let xp = formula.awards(context, activeDays: days).last!.1
+        var unitFormula = formula; unitFormula.turn = 1
+        if row.source == .turn {
+            let units = unitFormula.awards(context, activeDays: days).last!.1
+            if units > 0 { try db.run("INSERT INTO growth_turns VALUES(?,?,?)", [String(row.at), row.sessionId, String(units)]) }
+        }
+        try db.run("INSERT INTO ledger(at,source,amount,session_id,day) VALUES(?,?,?,?,?)", [String(row.at), row.source.rawValue, String(row.amount), row.sessionId, row.day])
+        try addTotal(row, xp: xp)
+    }
+    func growth(localDay: String, at: Double) throws -> GrowthSnapshot { try growth(localDay: localDay, at: at, formula: GrowthFormula()) }
+    func growth(localDay: String, at: Double, formula: GrowthFormula) throws -> GrowthSnapshot {
+        try ensureRollup(formula)
+        let totals = try db.run("SELECT day,source,xp,units FROM growth_totals")
+        let xp = totals.reduce(0) { $0 + Int($1[2])! }
+        let days = totals.filter { $0[1] == "activeDay" }.map { $0[0] }
+        let streak = Streak.calculate(days: days, through: localDay)
         let biggest = CheerSize(rawValue: try meta("biggest") ?? "hop") ?? .hop
-        let result = formula.snapshot(try ledger(), localDay: localDay, biggest: biggest)
-        for unlock in CosmeticUnlock.schedule where unlock.level <= result.level {
-            try db.run("INSERT OR IGNORE INTO inventory VALUES(?,?,?)", [unlock.kind, unlock.name, String(at)])
+        let result = GrowthSnapshot(level: formula.level(for: xp), xp: xp, xpNext: formula.xpToNext(for: xp), streak: streak.current,
+            bestStreak: streak.best, restDays: streak.rest, daysTogether: days.count,
+            tasks: totals.filter { $0[1] == "task" }.reduce(0) { $0 + Int($1[3])! },
+            today: totals.filter { $0[0] == localDay }.reduce(0) { $0 + Int($1[2])! }, biggest: biggest)
+        if lastSnapshot?.level != result.level {
+            for unlock in CosmeticUnlock.schedule where unlock.level <= result.level {
+                try db.run("INSERT OR IGNORE INTO inventory VALUES(?,?,?)", [unlock.kind, unlock.name, String(at)])
+            }
         }
-        for (met, name) in [(biggest == .dance, "first-dance"), (result.tasks >= 100, "100th-task"), (result.bestStreak >= 30, "30-day-streak")] where met {
+        for (met, wasMet, name) in [(biggest == .dance, lastSnapshot?.biggest == .dance, "first-dance"), (result.tasks >= 100, (lastSnapshot?.tasks ?? 0) >= 100, "100th-task"), (result.bestStreak >= 30, (lastSnapshot?.bestStreak ?? 0) >= 30, "30-day-streak")] where met && !wasMet {
             try db.run("INSERT OR IGNORE INTO inventory VALUES('keepsake',?,?)", [name, String(at)])
         }
+        lastSnapshot = result
         return result
+    }
+    func inventory() throws -> [InventoryItem] {
+        try db.run("SELECT kind,name,unlocked_at FROM inventory ORDER BY kind,name").map { InventoryItem(kind: $0[0], name: $0[1], unlockedAt: Double($0[2])!) }
     }
     func recordCheer(_ size: CheerSize) throws {
         let old = CheerSize(rawValue: try meta("biggest") ?? "hop") ?? .hop
@@ -217,4 +283,59 @@ actor Store {
     }
     private func meta(_ key: String) throws -> String? { try db.run("SELECT value FROM meta WHERE key=?", [key]).first?.first }
     private func setMeta(_ key: String, _ value: String) throws { try db.run("INSERT OR REPLACE INTO meta VALUES(?,?)", [key,value]) }
+}
+
+struct InventoryItem: Codable, Sendable, Equatable {
+    var kind: String, name: String, unlockedAt: Double
+}
+
+enum StoreMigrator {
+    static func run(db: Database, stateDir: String) throws {
+        // Upgrade Phase 4's per-key memory without changing its Codable representation.
+        let rows = try db.run("SELECT key,json FROM memory WHERE key != 'memory'")
+        if !rows.isEmpty {
+            let json = "{" + rows.map { "\"" + $0[0] + "\":" + $0[1] }.joined(separator: ",") + "}"
+            let memory = try JSONDecoder().decode(PetMemory.self, from: Data(json.utf8))
+            try db.transaction {
+                try db.run("INSERT OR IGNORE INTO memory VALUES('memory',?)", [String(decoding: JSONEncoder().encode(memory), as: UTF8.self)])
+                try db.run("DELETE FROM memory WHERE key != 'memory'")
+            }
+        }
+        let legacy = stateDir + "/pet-memory.json"
+        if FileManager.default.fileExists(atPath: legacy) {
+            var suffix = ".migrated"
+            if try db.run("SELECT key FROM meta WHERE key='memory_migrated'").isEmpty {
+                if let data = try? Data(contentsOf: URL(fileURLWithPath: legacy)), let memory = try? JSONDecoder().decode(PetMemory.self, from: data) {
+                    try db.transaction {
+                        try db.run("INSERT OR IGNORE INTO memory VALUES('memory',?)", [String(decoding: JSONEncoder().encode(memory), as: UTF8.self)])
+                        try db.run("INSERT INTO meta VALUES('memory_migrated','1')")
+                    }
+                } else { suffix = ".unreadable" }
+            }
+            var destination = legacy + suffix
+            if FileManager.default.fileExists(atPath: destination) { destination += "." + UUID().uuidString }
+            try FileManager.default.moveItem(atPath: legacy, toPath: destination)
+        }
+    }
+}
+
+/// Engine persistence seam. Production uses SQLite; tests can suspend individual operations.
+protocol EngineStore: Sendable {
+    func migrate() async throws
+    func loadMemory() async throws -> PetMemory?
+    func saveMemory(_ memory: PetMemory) async throws
+    func appendFacts(_ facts: [StoredFact]) async throws
+    func facts() async throws -> [StoredFact]
+    func award(_ rows: [LedgerRow], active: Bool, at: Double, localDay: String) async throws -> GrowthSnapshot?
+    func growth(localDay: String, at: Double) async throws -> GrowthSnapshot
+    func cosmetic() async throws -> EquippedCosmetic
+    func recordCheer(_ size: CheerSize) async throws
+    func bond(collected: Bool, greetAfterAbsence: Bool, localDay: String) async throws
+    func prune(now: Double, localDay: String) async throws
+    func reflect(localDay: String, at: Double) async throws -> [ProfileLine]
+    func profile() async throws -> [ProfileLine]
+    func inventory() async throws -> [InventoryItem]
+    func deleteProfileLine(_ id: Int) async throws
+    func clearProfile() async throws
+    func equip(_ cosmetic: EquippedCosmetic) async throws
 }

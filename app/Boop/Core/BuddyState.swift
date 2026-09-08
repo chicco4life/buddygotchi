@@ -111,6 +111,8 @@ enum SessionState: String, Encodable, Sendable, Equatable {
 struct Session: Encodable, Sendable, Equatable {
     /// What this session last finished with, so the per-session breakdown can
     /// show its own cheer and moment even after another session completes.
+    var hasCompletedTurn = false
+    var hasAwardedTask = false
     var lastDone: DoneRecord?
     var project: String = "unknown"
     var source: String

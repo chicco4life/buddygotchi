@@ -47,9 +47,20 @@ enum Fact: Codable, Sendable, Equatable {
     case tone(ToneClass)
     case errorClass(String)
     case sessionSummary(turns: Int, tasks: Int, elapsedMs: Double)
-}
-@MainActor final class FactRing {
-    private(set) var facts: [Fact] = []
-    func drain() -> [Fact] { let batch = facts; facts.removeAll(keepingCapacity: true); return batch }
-    func receive(_ incoming: [Fact]) { facts.append(contentsOf: incoming); if facts.count > 500 { facts.removeFirst(facts.count - 500) } }
+    var kind: String {
+        switch self {
+        case .goalOutcome: "goalOutcome"
+        case .tokens: "tokens"
+        case .moment: "moment"
+        case .activity: "activity"
+        case .checkIn: "checkIn"
+        case .greet: "greet"
+        case .denial: "denial"
+        case .project: "project"
+        case .topics: "topics"
+        case .tone: "tone"
+        case .errorClass: "errorClass"
+        case .sessionSummary: "sessionSummary"
+        }
+    }
 }

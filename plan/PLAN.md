@@ -269,7 +269,7 @@ and clearable.
    streak with one banked rest day per week; cosmetics inventory.
 4. Traits with capped daily drift from the defined inputs; hidden bond.
 5. Profile lines with source and confidence; clear line and clear all;
-   `profileCleared` keeps name, level, bond.
+   clearing keeps name, level, bond.
 6. Nightly job skeleton: rules-only profile candidates (rituals from
    facts), no model yet.
 7. `PetMemory` migrated in; old persistence removed.
