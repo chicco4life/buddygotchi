@@ -140,12 +140,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
-    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+    /// Flush in-flight store work, then terminate. Never `.terminateLater`:
+    /// AppKit waits for that reply in a modal run-loop mode where main-actor
+    /// tasks do not run, so the reply never comes and SIGTERM becomes a no-op.
+    private var terminating = false
+    func requestTerminate() {
+        guard !terminating else { return }
+        terminating = true
         Task { @MainActor in
-            await engine.finishPendingWork()
-            sender.reply(toApplicationShouldTerminate: true)
+            let flush = Task { @MainActor in await self.engine.finishPendingWork() }
+            // First to finish wins: the flush, or a two-second deadline.
+            await withTaskGroup(of: Void.self) { group in
+                group.addTask { await flush.value }
+                group.addTask { try? await Task.sleep(nanoseconds: 2_000_000_000) }
+                await group.next()
+                group.cancelAll()
+            }
+            NSApp.terminate(nil)
         }
-        return .terminateLater
+    }
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if !terminating { requestTerminate(); return .terminateCancel }
+        return .terminateNow
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -175,17 +191,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func setupSignalHandlers() {
         let src = DispatchSource.makeSignalSource(signal: SIGINT, queue: .main)
-        src.setEventHandler {
-            NSApp.terminate(nil)
-        }
+        src.setEventHandler { [weak self] in self?.requestTerminate() }
         src.resume()
         signal(SIGINT, SIG_IGN)
         sigintSource = src
 
         let term = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
-        term.setEventHandler {
-            NSApp.terminate(nil)
-        }
+        term.setEventHandler { [weak self] in self?.requestTerminate() }
         term.resume()
         signal(SIGTERM, SIG_IGN)
         sigtermSource = term
