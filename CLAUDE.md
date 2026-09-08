@@ -14,8 +14,8 @@ These instructions apply to the whole repo.
   builds and runs, and `plan/ARCHITECTURE.md` §10 says which parts carry
   forward. Do not extend it except to keep it building; new work lands
   outside `archived/` per the plan.
-- `tools/doctor.sh` and `skills/doctor/` are the agent-agnostic harness
-  self-check and live at the root.
+- `skills/doctor/` is the agent-agnostic harness self-check: `SKILL.md` plus
+  the `doctor.sh` it drives, symlinked into `.claude`, `.codex`, and `.cursor`.
 
 ## Current Product Shape
 
@@ -100,10 +100,10 @@ after the one-time OS pairing step to exercise the production BLE transport.
 
 ## Self-Diagnosis
 
-Before relying on hooks, run `tools/doctor.sh` from the repo root (skill:
+Before relying on hooks, run `skills/doctor/doctor.sh` from the repo root (skill:
 `doctor`). It checks config, the hook script, registration for the current
 harness, the running app, auth, and a synthetic round trip, then arms a live
-check: run `echo BOOP_DOCTOR_PING` as a tool call and `tools/doctor.sh
+check: run `echo BOOP_DOCTOR_PING` as a tool call and `skills/doctor/doctor.sh
 --confirm`. Exit 0 healthy, 1 broken, 2 armed. Do not launch the Boop app
 yourself; ask the user to (an agent-launched Boop aborts on Bluetooth).
 

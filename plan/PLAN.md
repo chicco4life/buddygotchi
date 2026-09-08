@@ -79,7 +79,7 @@ hardware test with a device plugged in, and can prove what it saw.
 - [ ] From a fresh shell: `swift run Boop --headless &`, then
       `archived/app/tools/e2e-smoke.sh` green, then `/diag/recent` shows every
       posted event by source, then quit. No human step.
-- [ ] `tools/doctor.sh` from Claude Code and from Codex passes the static
+- [ ] `skills/doctor/doctor.sh` from Claude Code and from Codex passes the static
       checks and the live confirm against the headless app.
 - [ ] `tools/record-hooks.sh` produces a redacted fixture for one real
       Claude Code session.

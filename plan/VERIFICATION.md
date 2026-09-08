@@ -36,7 +36,7 @@ Two constraints shape everything:
 | **Integration** | Server plus engine in-process: real HTTP routes, auth, approval continuations, MCP; engine plus outputs with a fake transport | `swift test --filter EngineIntegrationTests,HookServerBehaviorTests,MCPServerTests` | Xcode toolchain | seconds |
 | **Visual, app** | Every state of the menu bar creature and popover as PNG | snapshot harness | opt-in flag | seconds |
 | **End to end, hooks** | The installed script, the running app, and every event per agent, with synthetic payloads | `archived/app/tools/e2e-smoke.sh` and `archived/app/tools/e2e/<agent>.sh` | app running | a minute |
-| **Live harness** | This harness's own hooks reach Boop | `tools/doctor.sh` and `--confirm` | app running, agent in a harness | seconds |
+| **Live harness** | This harness's own hooks reach Boop | `skills/doctor/doctor.sh` and `--confirm` | app running, agent in a harness | seconds |
 | **Device, USB** | Firmware parse, model, render, buttons, timing, hardening | `make hil` | device on USB, app quit | minutes |
 | **Visual, device** | The real screen, state by state and posture by posture | `buddyctl screenshot` and the contact sheet (§2.1) | device on USB | seconds each |
 | **Device, BLE** | The production transport, bonding, prompt round trip | `make hil-ble` | paired device | minutes |
@@ -173,7 +173,7 @@ agent how to drive it.
 
 | Path | Role |
 | --- | --- |
-| `tools/doctor.sh` | The truth. Bash, no dependencies beyond curl and python3. |
+| `skills/doctor/doctor.sh` | The truth. Bash, no dependencies beyond curl and python3. Lives inside the skill so the skill is self-contained. |
 | `skills/doctor/SKILL.md` | The canonical skill: procedure, exit codes, fixes. |
 | `.claude/skills/doctor`, `.codex/skills/doctor`, `.cursor/skills/doctor` | Symlinks to the canonical skill so each harness discovers it by its own convention. |
 | `AGENTS.md` and `CLAUDE.md` | One line pointing at the script, for harnesses that read instructions but not skills. |
@@ -187,7 +187,7 @@ script, asserting the state version moved; optionally a device ping.
 **The live step.** Nothing a script does can make the harness fire its own
 hooks. So the doctor arms: it waits for the state version to settle and
 records it. The agent then runs one harmless tool call in its own harness
-(`echo BOOP_DOCTOR_PING`), and `tools/doctor.sh --confirm` checks that the
+(`echo BOOP_DOCTOR_PING`), and `skills/doctor/doctor.sh --confirm` checks that the
 version moved. Exit 0 means the harness is wired. Exit 1 with the static
 checks green means the harness's hook config is stale or the harness was
 started before hooks were installed, and the skill says what to do.
@@ -241,7 +241,7 @@ counts and the end-to-end latency scenario, with numbers posted to a sheet.
 
 The operating procedure, so autonomous work has a definition of done.
 
-1. Run `tools/doctor.sh` at the start if the task touches hooks, the
+1. Run `skills/doctor/doctor.sh` at the start if the task touches hooks, the
    server, or anything that needs the app. Fix or report before continuing.
 2. Make the change at the lowest layer it belongs to. Write or update the
    test at that layer first.

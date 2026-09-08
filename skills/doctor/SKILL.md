@@ -6,14 +6,14 @@ description: Self-diagnose whether the current agent harness (Claude Code, Codex
 # Boop doctor
 
 Works the same in every harness because the truth is a shell script,
-`tools/doctor.sh`, and this file only tells you how to drive it.
+`skills/doctor/doctor.sh`, and this file only tells you how to drive it.
 
 ## Procedure
 
 1. From the repo root run:
 
    ```sh
-   tools/doctor.sh
+   skills/doctor/doctor.sh
    ```
 
    Pass `--agent claude-code|codex|cursor` if it prints `harness: unknown`.
@@ -35,7 +35,7 @@ Works the same in every harness because the truth is a shell script,
 4. Then confirm:
 
    ```sh
-   tools/doctor.sh --confirm
+   skills/doctor/doctor.sh --confirm
    ```
 
    Exit `0` means this harness's hooks reached Boop. Exit `1` means they did

@@ -7,8 +7,8 @@
 # waiting for the confirm step (see --confirm).
 #
 # Usage:
-#   tools/doctor.sh [--agent claude-code|codex|cursor] [--device] [--json]
-#   tools/doctor.sh --confirm      # after the harness fired a tool call
+#   skills/doctor/doctor.sh [--agent claude-code|codex|cursor] [--device] [--json]
+#   skills/doctor/doctor.sh --confirm      # after the harness fired a tool call
 #
 # Two-step live check. Step 1 (default run) verifies config, hooks, the app,
 # auth, and a synthetic round trip, then ARMS by recording the app's state
@@ -32,7 +32,7 @@ done
 CFG="$HOME/.boop/config.json"
 HOOK="$HOME/.boop/boop-hook.sh"
 ARM="/tmp/boop-doctor.arm"
-REPO="$(cd "$(dirname "$0")/.." && pwd)"
+REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 pass=0; fail=0; warn=0; results=()
 ok()   { pass=$((pass+1)); results+=("ok|$1"); [ $JSON -eq 1 ] || printf '  \033[32m✓\033[0m %s\n' "$1"; }
 bad()  { fail=$((fail+1)); results+=("fail|$1"); [ $JSON -eq 1 ] || printf '  \033[31m✗\033[0m %s\n' "$1"; }
@@ -58,7 +58,7 @@ version() { "${CURL[@]}" "$BASE/healthz" 2>/dev/null | grep -o '"stateVersion":[
 # --- confirm step ---------------------------------------------------------
 if [ $CONFIRM -eq 1 ]; then
   hdr "Boop doctor: confirm"
-  if [ ! -f "$ARM" ]; then bad "not armed; run tools/doctor.sh first"; exit 1; fi
+  if [ ! -f "$ARM" ]; then bad "not armed; run skills/doctor/doctor.sh first"; exit 1; fi
   ARMED_V=$(cut -d' ' -f1 "$ARM"); ARMED_AGENT=$(cut -d' ' -f2 "$ARM")
   NOW_V=$(version)
   if [ -z "$NOW_V" ]; then bad "Boop app is not reachable at $BASE"; exit 1; fi
@@ -144,7 +144,7 @@ for i in 1 2 3 4 5; do a=$(version); sleep 1; b=$(version); [ "$a" = "$b" ] && b
 echo "$b $AGENT" > "$ARM"
 info "armed at state v$b for harness '$AGENT'"
 info "NEXT: run one harmless tool call in this harness, e.g.:  echo BOOP_DOCTOR_PING"
-info "THEN: tools/doctor.sh --confirm"
+info "THEN: skills/doctor/doctor.sh --confirm"
 
 hdr "Summary"
 info "$pass ok, $fail failed, $warn warnings"

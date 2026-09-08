@@ -4,9 +4,10 @@
 .DS_Store
 data/
 
-# Cursor — track project hook config only
+# Cursor — track only the shared skills
 .cursor/**
-!.cursor/hooks.json
+!.cursor/skills/
+!.cursor/skills/**
 
 # Claude Code — ignore local settings
 .claude/*
