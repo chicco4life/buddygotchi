@@ -1,0 +1,50 @@
+#pragma once
+#include <stdint.h>
+#include <stddef.h>
+
+// Nordic UART Service-compatible BLE bridge. Clients (browser Web
+// Bluetooth, noble, etc.) subscribe to NUS to talk to the Stick exactly
+// like a serial port.
+//
+// Service UUID  6e400001-b5a3-f393-e0a9-e50e24dcca9e
+// RX char       6e400002-b5a3-f393-e0a9-e50e24dcca9e   (client → stick, WRITE)
+// TX char       6e400003-b5a3-f393-e0a9-e50e24dcca9e   (stick → client, NOTIFY)
+//
+// Writes from the client are line-buffered and dispatched through the
+// same _applyJson path that USB/BT-Classic use. Replies (acks, status
+// snapshots) are written via bleWrite() and chunked to the negotiated MTU.
+
+void bleInit(const char* deviceName);
+// Tear the whole stack down. Only used on the way into a sleep that ends
+// in esp_restart() — nothing revives BLE in-process after this.
+void bleStop();
+bool bleConnected();
+// True once LE Secure Connections bonding has completed for the current
+// link. The NUS characteristics are encrypted-only, so in practice this
+// is always true by the time any data flows; exposed so the status ack
+// can report it to the desktop.
+bool bleSecure();
+// Non-zero while a 6-digit pairing passkey should be on screen. main.cpp
+// renders it; cleared automatically on auth complete or disconnect.
+uint32_t blePasskey();
+// Erase all stored bonds (LTKs) from NVS. Called from the "unpair" cmd
+// and from factory reset.
+void bleClearBonds();
+// True if this device has ever been adopted — at least one bond sits in the
+// NVS store. This is what separates "never paired, needs instruction" (the
+// loud pair-me screen) from "paired, laptop went away" (a quiet nap): the
+// first is a state a customer sees exactly once, the second is routine.
+// Internally cached, so it's cheap to call from the draw path.
+bool bleBonded();
+size_t bleAvailable();
+int bleRead();
+size_t bleWrite(const uint8_t* data, size_t len);
+// Bytes dropped because the RX ring was full. Nonzero means at least one
+// inbound JSON line was truncated; exposed in the `state` dump.
+uint32_t bleRxDropped();
+
+// Increments on every disconnect. Anything assembling received bytes into
+// newline-delimited frames must drop its partial line when this changes —
+// otherwise the tail of a heartbeat cut off by a dropped link gets glued to
+// the first frame of the next one, and both are lost to a parse failure.
+uint32_t bleLinkGeneration();

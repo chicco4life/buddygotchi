@@ -1,0 +1,360 @@
+#pragma once
+#include <Arduino.h>
+#include "hal/hal.h"
+#include "anim.h"
+#include "mood.h"
+#include "data.h"
+
+// Header-only with file-static state: include from exactly one translation
+// unit (main.cpp), after mood.h and data.h.
+//
+// Two surfaces that both sit above the face:
+//
+//   the CARD    the approval request (PEBBLE-UX §7) — a rounded panel that
+//               rises from the bottom edge while the field is lantern-lit
+//   the BUBBLE  short-lived speech ("yes!", "okay", a gift summary) —
+//               small, centred, auto-expiring
+//
+// The card is drawn as ink on the lantern field rather than as a filled
+// panel. The field IS its background (§2.1), so a fill here would punch a
+// hole in the product's alert channel. What gives it card-ness instead is a
+// thin INK_DIM rule inset from the screen edge, leaving a cream margin
+// outside it — the matted-print quality §2.1.2 asks for.
+//
+// The face never leaves the screen while either is up. That is the whole
+// point of the redesign: you are answering your buddy, not a dialog box.
+
+// ---------------------------------------------------------------------------
+// Approval card
+// ---------------------------------------------------------------------------
+
+static const int   CARD_H_PCT = 40;        // §7: ~40% of screen height
+static const int   CARD_MARGIN = 5 * HAL_UI_SCALE;
+static const int   CARD_RULE_INSET = 3 * HAL_UI_SCALE;   // cream margin outside the rule
+
+// The panel's glass is ROUNDED, so the extreme corners physically are not
+// there. Anything anchored to a corner needs this much clearance or it gets
+// its outermost characters shaved off — first caught with "3 tasks" losing
+// its 3 and "waiting" losing its g. Lifting off the bottom edge buys most
+// of it, since the corner radius eats far less horizontally once you are a
+// couple of text-heights up.
+static const int CORNER_SAFE_X = 13 * HAL_UI_SCALE;
+static const int CORNER_SAFE_Y = 9 * HAL_UI_SCALE;
+
+static AnimSpring _cardSpring;
+static bool  _cardWanted = false;
+static float _cardPop = 0.0f;      // >0 while the approve scale-out runs
+
+inline float cardCover() { return animClamp(_cardSpring.pos, 0.0f, 1.3f); }
+inline bool  cardVisible() { return _cardSpring.pos > 0.01f; }
+
+// Approve: the card pops (scale-out, ~150ms) ahead of the field's snuff, so
+// the panel leaves before the light does and the answer feels like it
+// landed rather than faded.
+inline void cardPop() {
+  if (!_cardWanted) return;
+  _cardWanted = false;
+  _cardPop = 1.0f;
+}
+
+// Deny: no pop. The card simply slides back down while the field fades
+// evenly — denial is responsible, not punished, so it gets no flourish.
+inline void cardDismiss() { _cardWanted = false; _cardPop = 0.0f; }
+
+inline void cardTick(uint32_t now, float dt, bool wanted) {
+  if (wanted && !_cardWanted) { _cardWanted = true; _cardPop = 0.0f; }
+  else if (!wanted && _cardWanted) { _cardWanted = false; }
+  if (_cardWanted) {
+    _cardSpring.step(1.0f, 3.6f, 0.68f, dt);
+  } else if (_cardPop > 0.0f) {
+    _cardPop = animEase(_cardPop, 0.0f, 16.0f, dt);
+    _cardSpring.retract(20.0f, dt, 0.01f);
+    if (_cardSpring.pos == 0.0f) _cardPop = 0.0f;
+  } else {
+    _cardSpring.retract(12.0f, dt);
+  }
+  (void)now;
+}
+
+// Word-aware wrap into up to two rows, capped at cpl chars each. Anything
+// past two rows is dropped — a hint long enough to need three lines is one
+// nobody is reading off a desk pet anyway.
+static void _cardWrap(BuddyCanvas& spr, const char* s, int x, int y1, int y2, int cpl) {
+  int len = (int)strlen(s);
+  if (len <= cpl) {
+    spr.setCursor(x, y1);
+    spr.print(s);
+    return;
+  }
+  int brk = cpl;
+  for (int i = cpl; i > cpl - 12 && i > 0; i--) {
+    if (s[i] == ' ') { brk = i; break; }
+  }
+  spr.setCursor(x, y1);
+  spr.printf("%.*s", brk, s);
+  const char* rest = s + brk + (s[brk] == ' ' ? 1 : 0);
+  spr.setCursor(x, y2);
+  spr.printf("%.*s", cpl, rest);
+}
+
+// `answerable` is whether the crown can actually resolve this. When it
+// can't (the desktop is running without approval mode, so the agent is
+// blocked on the Mac rather than on us) the card still shows WHAT is being
+// asked — the device has the tool and the hint either way, and withholding
+// them just to withhold the buttons helps nobody. Only the affordance
+// changes: no "no >" chip to press, and a line saying where the answer
+// actually has to happen.
+inline void cardDraw(BuddyCanvas& spr, uint32_t now, const TamaState& s,
+                     bool answerable) {
+  float cover = cardCover();
+  if (cover <= 0.01f) return;
+
+  const int W = HAL_W, H = HAL_H;
+  const int S = HAL_UI_SCALE;
+  const int cardH = (H * CARD_H_PCT) / 100;
+  int top = H - animPx(cardH * cover);
+
+  uint16_t bg  = moodBackdrop(now);
+  uint16_t ink = animMix(WHITE, MOOD_INK, moodInkBlend());
+  uint16_t dim = animMix(LIGHTGREY, MOOD_INK_DIM, moodInkBlend());
+
+  // The rule, inset so cream shows outside it. Two nested rects give a
+  // 2px stroke without an anti-aliased round-rect outline (LGFX has none).
+  int rx = CARD_MARGIN + CARD_RULE_INSET;
+  int rw = W - 2 * rx;
+  int rh = cardH + 40;                     // bottom rounding falls off-screen
+  spr.drawRoundRect(rx, top + CARD_RULE_INSET, rw, rh, 6 * S, dim);
+  spr.drawRoundRect(rx + 1, top + CARD_RULE_INSET + 1, rw - 2, rh - 2, 6 * S - 1, dim);
+
+  const int x = rx + 5 * S;
+  const int cpl = (W - 2 * rx - 10 * S) / (6 * S);
+  int y = top + CARD_RULE_INSET + 6 * S;
+  spr.setTextSize(S);
+  spr.setTextDatum(TL_DATUM);
+
+  // Line 1: who is asking and for what. The full source name matters — a
+  // decision you make on behalf of "claude-code" is not the same decision
+  // you make on behalf of something you don't recognise.
+  //
+  // The project rides along when we know it. Several agent sessions can share
+  // one buddy, and "claude-code: Bash" alone cannot say WHICH of them is
+  // asking — a card raised by work in another checkout reads as a request you
+  // never made, which is exactly how a stray approval becomes alarming.
+  const char* tool = s.promptTool[0] ? s.promptTool : "approve?";
+  spr.setTextColor(ink, bg);
+  spr.setCursor(x, y);
+  if (s.promptSource[0] && s.promptLabel[0]) {
+    spr.printf("%.11s @ %.10s", s.promptSource, s.promptLabel);
+    y += 13 * S;
+    spr.setCursor(x, y);          // tool moves to its own line
+    spr.printf("%.*s", cpl, tool);
+  } else if (s.promptSource[0]) {
+    spr.printf("%.11s: %.23s", s.promptSource, tool);
+  } else {
+    spr.printf("%.*s", cpl, tool);
+  }
+  y += 13 * S;
+
+  // Line 2: the hint, which is usually the actual command. ONE line,
+  // truncated — it used to wrap to two, and the second row landed on
+  // exactly the rows the "reject" legend occupies. A hint long enough to
+  // need two lines is not something you read off a desk pet anyway; the
+  // ellipsis says "there's more" and the Mac has the full text.
+  if (s.promptHint[0]) {
+    spr.setTextColor(dim, bg);
+    spr.setCursor(x, y);
+    if ((int)strlen(s.promptHint) > cpl) spr.printf("%.*s...", cpl - 3, s.promptHint);
+    else                                 spr.print(s.promptHint);
+  }
+
+  // Link aging mid-prompt: a decision pressed now may never be delivered,
+  // so say so. Age-keyed, not `!s.connected` — by the time connected flips
+  // false, dataPoll has already dropped the prompt and this card isn't
+  // drawn at all, so that branch could never render. Past 10s without a
+  // frame (the desktop keepalive interval) the link is genuinely late;
+  // staleness clears the card entirely at 15s. The field stays lantern —
+  // the human is still needed, just maybe not answerable here.
+  uint32_t lastLive = dataLastLiveMs();
+  if (lastLive != 0 && (int32_t)(now - lastLive) > 10000) {
+    spr.setTextColor(MOOD_HOT, bg);
+    spr.setCursor(CORNER_SAFE_X, H - CORNER_SAFE_Y - 9 * S);
+    spr.print("link lost?");
+  }
+
+  // Button legends live at the SCREEN edges, not inside the card, because
+  // they point at physical hardware: the crown is on the top edge and the
+  // reject button is at the lower right. Putting them where the buttons are
+  // is the whole idea — the device becomes its own legend.
+  //
+  // They also have to sit outside the card, which occupies the bottom 40%:
+  // the previous bottom-right label crowded the wrapped hint line.
+  if (answerable) {
+    spr.setTextDatum(TC_DATUM);
+    spr.setTextColor(ink, bg);
+    spr.drawString("boop to approve", W / 2, 9 * S);
+    // Up arrow above the words, aimed at the crown.
+    int ax = W / 2, ay = 3 * S;
+    spr.fillTriangle(ax, ay, ax - 5 * S, ay + 5 * S, ax + 5 * S, ay + 5 * S, ink);
+
+    // "reject" low and right, with an arrow aimed at its button — shallower
+    // than 45 degrees, because the button sits low on the right side rather
+    // than in the corner itself.
+    int rx = W - CORNER_SAFE_X - 11 * S;
+    int ry = H - CORNER_SAFE_Y - 5 * S;
+    spr.setTextDatum(BR_DATUM);
+    spr.drawString("reject", rx, ry);
+    // Kept inside CORNER_SAFE_X: aimed at the corner, not drawn into it,
+    // where the rounded glass would shave the tip off.
+    int tx = W - CORNER_SAFE_X - 2 * S, ty = ry + 5 * S;
+    spr.fillTriangle(tx, ty, tx - 9 * S, ty - 4 * S, tx - 5 * S, ty - 9 * S, ink);
+  } else {
+    // Nothing to press. Say where the answer has to happen, up top where
+    // the approve legend would be, clear of the hint.
+    spr.setTextDatum(TC_DATUM);
+    spr.setTextColor(dim, bg);
+    spr.drawString("answer on your mac", W / 2, 6 * S);
+  }
+  spr.setTextDatum(TL_DATUM);
+}
+
+// ---------------------------------------------------------------------------
+// Dangle readout
+// ---------------------------------------------------------------------------
+
+// The airborne summary (§10.2). Deliberately NOT a bubble: while the buddy
+// is in your hand the face is the thing you're looking at, and a bordered
+// panel across the middle of it is chrome competing with the pet. Two short
+// facts pinned to the bottom corners answer the question ("what's going
+// on?") without taking the screen away from the thing you picked up.
+// The bottom strip's text colour. Muted: it is a caption, not an
+// announcement, and unlike the dangle readout the state word is always up.
+static inline uint16_t _stripInk(uint32_t now) {
+  return animMix(moodBackdrop(now),
+                 moodIsInk() ? MOOD_INK_DIM : animRGB(182, 182, 173), 0.82f);
+}
+
+static float _dangleTextGain = 0.0f;
+
+inline void dangleSummaryDraw(BuddyCanvas& spr, uint32_t now, bool active, float dt,
+                              uint8_t total, uint8_t waiting) {
+  _dangleTextGain = animEase(_dangleTextGain, active ? 1.0f : 0.0f, 9.0f, dt);
+  if (_dangleTextGain <= 0.03f) return;
+
+  const int S = HAL_UI_SCALE;
+  // Muted rather than bright: this is a caption, not an announcement.
+  uint16_t bg = moodBackdrop(now);
+  uint16_t c  = animMix(bg, _stripInk(now), _dangleTextGain);
+
+  // Only say a thing when there is a thing to say. "0 tasks - 0 waiting" is
+  // noise pretending to be information: it takes up the strip, reads as a
+  // readout worth checking, and tells you exactly nothing. Each side appears
+  // independently, so a buddy with work but no approvals shows one item.
+  spr.setTextSize(S);
+  spr.setTextColor(c, bg);
+  if (total > 0) {
+    char l[20];
+    snprintf(l, sizeof(l), "%u task%s", (unsigned)total, total == 1 ? "" : "s");
+    spr.setTextDatum(BL_DATUM);
+    spr.drawString(l, CORNER_SAFE_X, HAL_H - CORNER_SAFE_Y);
+  }
+  if (waiting > 0) {
+    char r[20];
+    snprintf(r, sizeof(r), "%u waiting", (unsigned)waiting);
+    spr.setTextDatum(BR_DATUM);
+    spr.drawString(r, HAL_W - CORNER_SAFE_X, HAL_H - CORNER_SAFE_Y);
+  }
+  spr.setTextDatum(TL_DATUM);
+}
+
+// ---------------------------------------------------------------------------
+// State word
+// ---------------------------------------------------------------------------
+
+// One quiet word at the bottom centre saying what the buddy is doing.
+//
+// This shares its slot with the link glyph (presence.h), which outranks it —
+// and that costs nothing, because a buddy with no link cannot be "working"
+// anyway. The word sits on the same baseline as the corner readouts, so the
+// whole strip reads as one line of status.
+//
+// `dots` animates a trailing ellipsis. They are drawn to the RIGHT of the
+// centred word rather than appended to it: appending would re-centre the
+// string every time a dot appeared, so the word itself would jiggle.
+inline void statusWordDraw(BuddyCanvas& spr, uint32_t now, const char* word, bool dots) {
+  if (!word || !word[0]) return;
+  const int S = HAL_UI_SCALE;
+  const int y = HAL_H - CORNER_SAFE_Y;
+  uint16_t bg = moodBackdrop(now);
+  spr.setTextSize(S);
+  spr.setTextColor(_stripInk(now), bg);
+  spr.setTextDatum(BC_DATUM);
+  spr.drawString(word, HAL_W / 2, y);
+  if (dots) {
+    char d[4] = "...";
+    d[(now / 420) % 4] = 0;
+    if (d[0]) {
+      spr.setTextDatum(BL_DATUM);
+      spr.drawString(d, HAL_W / 2 + (int)strlen(word) * 3 * S + 2 * S, y);
+    }
+  }
+  spr.setTextDatum(TL_DATUM);
+}
+
+// ---------------------------------------------------------------------------
+// Speech bubble
+// ---------------------------------------------------------------------------
+
+static char     _bubText[40] = "";
+static uint32_t _bubUntil = 0;
+static uint16_t _bubTint = 0;
+static AnimSpring _bubSpring;
+
+inline void bubbleShow(const char* text, uint32_t now, uint32_t ms, uint16_t tint) {
+  strncpy(_bubText, text ? text : "", sizeof(_bubText) - 1);
+  _bubText[sizeof(_bubText) - 1] = 0;
+  _bubUntil = now + ms;
+  _bubTint = tint;
+}
+
+
+inline void bubbleTick(uint32_t now, float dt) {
+  bool up = _bubText[0] && (int32_t)(_bubUntil - now) > 0;
+  if (up) _bubSpring.step(1.0f, 4.4f, 0.6f, dt);
+  else {
+    _bubSpring.retract(14.0f, dt, 0.01f);
+    if (_bubSpring.pos == 0.0f) _bubText[0] = 0;
+  }
+}
+
+// Centred under the face. Drawn as a filled rounded panel because a bubble
+// can appear over ANY mood — unlike the card, it can't assume the field
+// behind it is the colour it wants to write on.
+inline void bubbleDraw(BuddyCanvas& spr, uint32_t now, int liftY) {
+  if (!_bubText[0] || _bubSpring.pos <= 0.01f) return;
+  const int S = HAL_UI_SCALE;
+  float g = animClamp(_bubSpring.pos, 0.0f, 1.2f);
+
+  int tw = (int)strlen(_bubText) * 6 * S;
+  int bw = animPx((tw + 16 * S) * g);
+  int bh = animPx(20 * S * g);
+  if (bw < 8 || bh < 6) return;
+  int cx = HAL_W / 2;
+  // Low on the panel, clear of the eyes. The face never leaves the screen
+  // and must stay readable while it's talking — speech centred over the
+  // face reads as the buddy being covered up rather than speaking.
+  int by = HAL_H - 44 * S - liftY;
+
+  uint16_t fill = moodIsInk() ? MOOD_INK : BLACK;
+  uint16_t edge = _bubTint ? _bubTint : (moodIsInk() ? MOOD_INK_DIM : LIGHTGREY);
+  spr.fillSmoothRoundRect(cx - bw / 2, by - bh / 2, bw, bh, 5 * S, edge);
+  spr.fillSmoothRoundRect(cx - bw / 2 + 2, by - bh / 2 + 2, bw - 4, bh - 4, 5 * S - 2, fill);
+
+  if (g > 0.7f) {
+    spr.setTextDatum(MC_DATUM);
+    spr.setTextSize(S);
+    spr.setTextColor(edge, fill);
+    spr.drawString(_bubText, cx, by);
+    spr.setTextDatum(TL_DATUM);
+  }
+  (void)now;
+}
