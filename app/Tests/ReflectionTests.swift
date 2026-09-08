@@ -72,3 +72,15 @@ extension ReflectionTests {
         XCTAssertTrue(facts.contains { $0.sessionId == "powered" && $0.day == "2026-01-02" && $0.fact == .activity(hour: 8, tool: nil, firstGoal: nil) })
     }
 }
+
+extension ReflectionTests {
+    func testVoiceRephrasesAuthoritativeCandidateAndRejectKeepsRule() async throws {
+        for (text, expected, source) in [("tests tend to open the day", "tests tend to open the day", "model"), ("you always break things", "tests first, usually", "rules")] {
+            let (store, _, cleanup) = try makeStore(); defer { cleanup() }
+            try await store.appendFacts([StoredFact(fact: .activity(hour: 8, tool: "Bash", firstGoal: "swift-test"), sessionId: "s", project: "p", at: 0, day: "2026-01-01")])
+            await store.configureVoice(Voice(runtime: VoiceStubRuntime(text: text)), language: "en")
+            let lines = try await store.reflect(localDay: "2026-01-01", at: 1)
+            XCTAssertEqual(lines.map(\.line), [expected]); XCTAssertEqual(lines.first?.source, source)
+        }
+    }
+}

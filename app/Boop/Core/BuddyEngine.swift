@@ -11,6 +11,14 @@ final class BuddyEngine {
     private var extractionTail: Task<Void, Never>?
     private var store: (any EngineStore)?
     private var storeTail: Task<Void, Never>?
+    private var voice: Voice
+    private let voiceRuntime: any VoiceRuntime
+    private var giftVoiceTask: Task<Void, Never>?
+    private var bubbleVoiceTask: Task<Void, Never>?
+    private var giftVoiceRevision = 0
+    private var bubbleVoiceRevision = 0
+    private var recapTask: Task<Void, Never>?
+    private var recappedDays: Set<String> = []
     private var bootstrap: Task<Void, Never>?
     private var loadingStore = false
     private var deferredEvents: [BuddyEvent] = []
@@ -32,14 +40,20 @@ final class BuddyEngine {
     /// One drawing per visit (E4): 30-minute floor per agent.
     private var lastDrewAt: [String: Double] = [:]
 
-    init(config: BuddyConfig = .default, clock: (any Clock)? = nil, diagnosticLog: DiagnosticLog? = nil, store: (any EngineStore)? = nil, dayCalendar: any DayCalendar = LocalDayCalendar(), onACPower: @escaping @Sendable () -> Bool = { PowerObserver.onACPower() }) {
+    init(config: BuddyConfig = .default, clock: (any Clock)? = nil, diagnosticLog: DiagnosticLog? = nil, store: (any EngineStore)? = nil, dayCalendar: any DayCalendar = LocalDayCalendar(), onACPower: @escaping @Sendable () -> Bool = { PowerObserver.onACPower() }, voiceRuntime: (any VoiceRuntime)? = nil, defaults: UserDefaults = .standard) {
         self.store = store
+        let runtime = voiceRuntime ?? VoiceRuntimes.make(setting: defaults.string(forKey: DefaultsKey.voiceRuntime) ?? "auto")
+        self.voiceRuntime = runtime
+        self.voice = Voice(runtime: runtime, store: store, localDay: { await MainActor.run { dayCalendar.localDay(at: (clock ?? WallClock()).now()) } })
         self.config = config
         self.dayCalendar = dayCalendar
         self.onACPower = onACPower
         self.clock = clock ?? WallClock()
         self.diagnosticLog = diagnosticLog ?? DiagnosticLog()
         self.internalState = .initial(staleMs: config.staleTimeoutMs, celebrateDurationMs: config.celebrateDurationMs, workStallTimeoutMs: config.workStallTimeoutMs, approvalTimeoutMs: config.approvalTimeoutMs)
+        let language = defaults.string(forKey: DefaultsKey.language) == "ko" ? "ko" : "en"
+        self.internalState.buddy.language = language
+        self.state = self.internalState.buddy
         if BuddyConfig.recreatedCorruptConfig {
             self.diagnosticLog.log(category: "engine", source: "system", event: "config", detail: "config.json was unreadable; recreated with defaults")
         }
@@ -62,6 +76,9 @@ final class BuddyEngine {
                 if let memory = try await self.store?.loadMemory() {
                     self.apply(.memoryLoaded(at: self.clock.now(), memory: memory), persistenceResult: true)
                 }
+                let calendar = self.dayCalendar, clock = self.clock
+                self.voice = Voice(runtime: self.voiceRuntime, store: self.store, localDay: { await MainActor.run { calendar.localDay(at: clock.now()) } })
+                await self.store?.configureVoice(self.voice, language: self.state.language)
                 try await self.refreshGrowth()
             } catch { self.storeFailure(error) }
             self.loadingStore = false
@@ -86,6 +103,7 @@ final class BuddyEngine {
             || state.celebrateUntil != nil
             || state.affectionUntil != nil
             || state.greetUntil != nil
+            || internalState.bubbleUntil != nil
             || state.moodUntil != nil
             || state.mood != nil
             || state.agentOverlay != nil
@@ -94,6 +112,8 @@ final class BuddyEngine {
     }
 
     func stop() {
+        giftVoiceRevision += 1; bubbleVoiceRevision += 1
+        giftVoiceTask?.cancel(); bubbleVoiceTask?.cancel(); recapTask?.cancel()
         Task { await extractor.reset() }
         staleTimer?.invalidate()
         staleTimer = nil
@@ -530,6 +550,7 @@ final class BuddyEngine {
         for output in outputs {
             output.stateDidChange(prev: prev, next: state)
         }
+        scheduleVoice(previous: prev, event: event)
         diagnosticLog.log(category: "engine", source: "system", event: event.name, detail: "pet=\(state.pet.state.rawValue) sessions=\(state.sessions.total)")
     }
 
@@ -544,7 +565,7 @@ final class BuddyEngine {
             catch { self.storeFailure(error) }
         }
     }
-    func finishPendingWork() async { await extractionTail?.value; await flushStore() }
+    func finishPendingWork() async { await extractionTail?.value; await flushStore(); await giftVoiceTask?.value; await bubbleVoiceTask?.value }
     func flushStore() async { await bootstrap?.value; await storeTail?.value }
     private func storeFailure(_ error: Error) {
         diagnosticLog.log(category: "store", source: "system", event: "error", detail: String(describing: error))
@@ -585,11 +606,19 @@ final class BuddyEngine {
             maintenanceDay = day
             enqueue { try await $0.prune(now: now, localDay: day) }
         }
+        if dayCalendar.localHour(at: now) >= usualStopHour(at: now),
+           [.idle, .asleep].contains(state.creature.state), !recappedDays.contains(day), recapTask == nil {
+            recapTask = Task { [weak self] in
+                guard let self else { return }
+                defer { self.recapTask = nil }
+                do { _ = try await self.makeRecap(force: false) } catch { self.storeFailure(error) }
+            }
+        }
         if now - (lastSessionActivity ?? now) >= 1_200_000 && onACPower() {
             let target = dayCalendar.previousDay(at: now)
             if reflectedDays.insert(target).inserted {
                 enqueue {
-                    do { _ = try await $0.reflect(localDay: target, at: now); await self.extractor.clearClosingLines() }
+                    do { await $0.configureVoice(self.voice, language: self.state.language); _ = try await $0.reflect(localDay: target, at: now); await self.extractor.clearClosingLines() }
                     catch { self.reflectedDays.remove(target); throw error }
                 }
             }
@@ -604,12 +633,94 @@ final class BuddyEngine {
     }
     func reflect() async throws -> [ProfileLine] {
         await flushStore()
+        await store?.configureVoice(voice, language: state.language)
         let lines = try await store?.reflect(localDay: localDay(at: clock.now()), at: clock.now()) ?? []
         await extractor.clearClosingLines()
         return lines
     }
     func equip(_ cosmetic: EquippedCosmetic) async throws {
         await flushStore(); try await store?.equip(cosmetic); try await refreshGrowth()
+    }
+
+    private func voiceRequest(_ occasion: Occasion, cap: Int) async -> VoiceRequest {
+        let profile = (try? await store?.profile()) ?? []
+        let traits = (try? await store?.traits()) ?? [:]
+        let source = state.lastCompleted?.source
+        let agent = source.flatMap { ["codex", "claude-code", "cursor"].contains($0) ? $0 : nil }
+        return VoiceRequest(occasion: occasion, profile: Array(profile.prefix(3).map(\.line)), traits: traits,
+            agent: agent, timeOfDay: TimeOfDay(hour: dayCalendar.localHour(at: clock.now())), language: state.language, byteCap: cap)
+    }
+    private func scheduleVoice(previous: BuddyState, event: BuddyEvent) {
+        switch event { case .voiceLine, .recapReady, .growthUpdated, .languageChanged: return; default: break }
+        // Invalidate transient text on a new interaction; an old model reply must not cover a card.
+        if previous.creature.state != state.creature.state || previous.creature.card?.id != state.creature.card?.id {
+            bubbleVoiceRevision += 1; bubbleVoiceTask?.cancel()
+        }
+        if previous.creature.gift && !state.creature.gift { giftVoiceRevision += 1; giftVoiceTask?.cancel() }
+        if state.lastCompletionAt != previous.lastCompletionAt, state.lastCompletionAt != nil {
+            requestVoice(.cheer(state.creature.moment, internalState.doneSize ?? .hop, state.creature.moment?.facts["runner"]), kind: .gift)
+        }
+        if let kind = state.creature.uhoh, kind != previous.creature.uhoh || state.creature.moment != previous.creature.moment {
+            requestVoice(.uhoh(kind, kind == .hungry && state.creature.moment?.kind == .nthRateLimit ? state.creature.moment : nil), kind: .bubble)
+        } else if state.greetUntil != previous.greetUntil, state.greetUntil != nil, state.creature.card == nil {
+            requestVoice(.greet(state.greetLevel ?? 1), kind: .bubble)
+        }
+    }
+    private func requestVoice(_ occasion: Occasion, kind: VoiceLineKind) {
+        if kind == .gift { giftVoiceRevision += 1; giftVoiceTask?.cancel() }
+        else { bubbleVoiceRevision += 1; bubbleVoiceTask?.cancel() }
+        let revision = kind == .gift ? giftVoiceRevision : bubbleVoiceRevision
+        let task = Task { [weak self] in
+            guard let self else { return }
+            let request = await self.voiceRequest(occasion, cap: kind == .gift ? 40 : 63)
+            guard !Task.isCancelled else { return }
+            let line = await self.voice.line(for: request)
+            guard !Task.isCancelled, !line.text.isEmpty,
+                  revision == (kind == .gift ? self.giftVoiceRevision : self.bubbleVoiceRevision),
+                  kind == .gift || self.state.creature.card == nil else { return }
+            self.apply(.voiceLine(at: self.clock.now(), kind: kind, text: line.text))
+        }
+        if kind == .gift { giftVoiceTask = task } else { bubbleVoiceTask = task }
+    }
+    /// The legacy histogram is UTC. Convert bins before finding the end of the
+    /// owner's evening activity; sparse/unknown histories use 18:00 local.
+    func usualStopHour(at: Double) -> Int {
+        let memory = internalState.memory
+        guard memory.circadianReady(at: at) else { return 18 }
+        let utcHour = PetMemory.utcHour(ofMs: at)
+        let offset = dayCalendar.localHour(at: at) - utcHour
+        let active = Set((0..<24).filter { memory.isTypicalHour($0) }.map { ($0 + offset + 24) % 24 })
+        // Find the end of the longest typical activity block, including one
+        // crossing midnight. A histogram has no explicit sign-off event.
+        let stops = (0..<24).filter { !active.contains($0) && active.contains(($0 + 23) % 24) }
+        func runLength(endingAt hour: Int) -> Int {
+            var length = 0
+            while length < 24 && active.contains((hour - length - 1 + 48) % 24) { length += 1 }
+            return length
+        }
+        return stops.sorted {
+            let a = runLength(endingAt: $0), b = runLength(endingAt: $1)
+            return a == b ? abs($0 - 18) < abs($1 - 18) : a > b
+        }.first ?? 18
+    }
+    func makeRecap(force: Bool = true) async throws -> Recap? {
+        await flushStore()
+        let day = localDay(at: clock.now())
+        let savedDay = try await store?.recapDay()
+        if !force, recappedDays.contains(day) || savedDay == day { return state.recap }
+        let facts = try await store?.facts(localDay: day) ?? []
+        guard force || !facts.isEmpty else { return nil }
+        let recapFacts = RecapFacts.build(facts)
+        let request = await voiceRequest(.recap(recapFacts), cap: 63)
+        let device = await voice.line(for: request)
+        var appRequest = request; appRequest.byteCap = 1024
+        let paragraph = await voice.line(for: appRequest).text
+        let recap = Recap(line: device.text, paragraph: paragraph)
+        guard !Task.isCancelled else { return nil }
+        recappedDays.insert(day); try await store?.markRecapDay(day)
+        // A request may arrive during generation: retain the app recap, but do not cover it.
+        apply(.recapReady(at: clock.now(), recap: recap))
+        return recap
     }
 
     private static func promptIds(in state: InternalState) -> Set<String> {

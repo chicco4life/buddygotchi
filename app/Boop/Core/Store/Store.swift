@@ -67,7 +67,7 @@ actor Store: EngineStore {
         try db.run("PRAGMA secure_delete=ON")
         try db.run("CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
         let version = Int(try db.run("SELECT value FROM meta WHERE key='schema_version'").first?.first ?? "0") ?? 0
-        guard version <= 2 else { throw StoreError(message: "Unsupported store schema \(version)") }
+        guard version <= 3 else { throw StoreError(message: "Unsupported store schema \(version)") }
         if version == 0 {
             try db.transaction {
                 for sql in [
@@ -91,7 +91,9 @@ actor Store: EngineStore {
         try db.run("CREATE TABLE IF NOT EXISTS growth_turns(at REAL NOT NULL, session_id TEXT NOT NULL, units INTEGER NOT NULL)")
         try db.run("CREATE INDEX IF NOT EXISTS growth_turns_session_at ON growth_turns(session_id,at)")
         try db.run("CREATE INDEX IF NOT EXISTS ledger_at ON ledger(at)")
-        try db.run("INSERT OR REPLACE INTO meta VALUES('schema_version','2')")
+        try db.run("CREATE TABLE IF NOT EXISTS voice_recent(id INTEGER PRIMARY KEY, day TEXT NOT NULL, line TEXT NOT NULL)")
+        try db.run("CREATE TABLE IF NOT EXISTS voice_day(day TEXT NOT NULL, line TEXT NOT NULL, PRIMARY KEY(day,line))")
+        try db.run("INSERT OR REPLACE INTO meta VALUES('schema_version','3')")
     }
     func migrate() throws { try StoreMigrator.run(db: db, stateDir: stateDir) }
     func loadMemory() throws -> PetMemory? {
@@ -246,7 +248,7 @@ actor Store: EngineStore {
     func addProfileLine(_ line: String, source: String, at: Double) throws {
         try db.run("INSERT INTO profile(line,source,confidence,created_at) VALUES(?,?,0.6,?) ON CONFLICT(line) DO UPDATE SET confidence=min(1.0,confidence+0.1)", [line,source,String(at)])
     }
-    func traits() throws -> [String: Int] { Dictionary(uniqueKeysWithValues: try db.run("SELECT axis,value FROM traits").map { ($0[0], Int($0[1])!) }) }
+    func traits() async throws -> [String: Int] { Dictionary(uniqueKeysWithValues: try db.run("SELECT axis,value FROM traits").map { ($0[0], Int($0[1])!) }) }
     func applyDrift(_ deltas: [String: Int], localDay: String) throws {
         try db.transaction { try drift(deltas, localDay: localDay) }
     }
@@ -268,13 +270,44 @@ actor Store: EngineStore {
             if greetAfterAbsence { try incrementBond(2) }
         }
     }
-    func reflect(localDay: String, at: Double) throws -> [ProfileLine] {
-        guard try meta("reflected_" + localDay) == nil else { return try profile() }
+    private var reflectionVoice: Voice?
+    private var voiceLanguage = "en"
+    private var reflecting: Set<String> = []
+    func configureVoice(_ voice: Voice, language: String) async {
+        reflectionVoice = voice; voiceLanguage = language
+    }
+    func facts(localDay: String) async throws -> [StoredFact] {
+        try decodeFacts(db.run("SELECT payload_json,session_id,project,at,day FROM facts WHERE day=? ORDER BY at,id", [localDay]))
+    }
+    func voiceExclusions(localDay: String) async throws -> [String] {
+        try db.run("SELECT line FROM voice_day WHERE day=? UNION SELECT line FROM voice_recent", [localDay]).map { $0[0] }
+    }
+    func rememberVoice(_ line: String, localDay: String) async throws {
+        try db.transaction {
+            try db.run("INSERT INTO voice_recent(day,line) VALUES(?,?)", [localDay,line])
+            try db.run("DELETE FROM voice_recent WHERE id NOT IN (SELECT id FROM voice_recent ORDER BY id DESC LIMIT 20)")
+            try db.run("DELETE FROM voice_day WHERE day<>?", [localDay])
+            try db.run("INSERT OR IGNORE INTO voice_day VALUES(?,?)", [localDay,line])
+        }
+    }
+    func recapDay() async throws -> String? { try meta("recap_day") }
+    func markRecapDay(_ day: String) async throws { try setMeta("recap_day", day) }
+    func reflect(localDay: String, at: Double) async throws -> [ProfileLine] {
+        guard try meta("reflected_" + localDay) == nil, reflecting.insert(localDay).inserted else { return try profile() }
+        defer { reflecting.remove(localDay) }
         let history = try decodeFacts(db.run("SELECT payload_json,session_id,project,at,day FROM facts WHERE day<=? ORDER BY at,id", [localDay]))
         let daily = history.filter { $0.day == localDay }
         let candidates = Reflection.candidates(day: daily, history: history, localDay: localDay)
+        let context = try profile().prefix(3).map(\.line), axes = try await traits()
+        var lines: [(String, String)] = []
+        for candidate in candidates.prefix(5) {
+            if let voice = reflectionVoice {
+                let line = await voice.line(for: VoiceRequest(occasion: .profileLine(candidate), profile: context, traits: axes, language: voiceLanguage, byteCap: 240))
+                lines.append((line.source == .model ? line.text : candidate, line.source == .model ? "model" : "rules"))
+            } else { lines.append((candidate, "rules")) }
+        }
         try db.transaction {
-            for line in candidates.prefix(5) { try addProfileLine(line, source: "rules", at: at) }
+            for (line, source) in lines { try addProfileLine(line, source: source, at: at) }
             try drift(DailyDrift.calculate(daily, history: history), localDay: localDay)
             if daily.contains(where: { $0.fact == .moment(.lateNight) }) { try db.run("INSERT OR IGNORE INTO inventory VALUES('keepsake','first-late-night',?)", [String(at)]) }
             try setMeta("reflected_" + localDay, "1")
@@ -320,7 +353,14 @@ enum StoreMigrator {
 }
 
 /// Engine persistence seam. Production uses SQLite; tests can suspend individual operations.
-protocol EngineStore: Sendable {
+protocol EngineStore: AnyObject, Sendable {
+    func traits() async throws -> Traits
+    func configureVoice(_ voice: Voice, language: String) async
+    func facts(localDay: String) async throws -> [StoredFact]
+    func voiceExclusions(localDay: String) async throws -> [String]
+    func rememberVoice(_ line: String, localDay: String) async throws
+    func recapDay() async throws -> String?
+    func markRecapDay(_ day: String) async throws
     func migrate() async throws
     func loadMemory() async throws -> PetMemory?
     func saveMemory(_ memory: PetMemory) async throws
@@ -338,4 +378,15 @@ protocol EngineStore: Sendable {
     func deleteProfileLine(_ id: Int) async throws
     func clearProfile() async throws
     func equip(_ cosmetic: EquippedCosmetic) async throws
+}
+
+// Memory-only test stores can opt into voice persistence independently.
+extension EngineStore {
+    func traits() async throws -> Traits { [:] }
+    func configureVoice(_ voice: Voice, language: String) async {}
+    func facts(localDay: String) async throws -> [StoredFact] { try await facts().filter { $0.day == localDay } }
+    func voiceExclusions(localDay: String) async throws -> [String] { [] }
+    func rememberVoice(_ line: String, localDay: String) async throws {}
+    func recapDay() async throws -> String? { nil }
+    func markRecapDay(_ day: String) async throws {}
 }

@@ -27,6 +27,7 @@ struct InternalState: Sendable, Equatable {
     var nudges: [String: CardNudge] = [:]
     var snoozedTools: [String: Set<String>] = [:]
     var bubbleUntil: Double?
+    var recapSleep = false
     /// Size of the cheer currently playing; `celebrateUntil` is its timer.
     var doneSize: CheerSize?
 
@@ -43,6 +44,7 @@ func reduce(_ state: InternalState, _ event: BuddyEvent, localHour: Int = 0) -> 
     var input = state
     input.pendingAwards = []; input.pendingFacts = []
     var next = reduceInner(input, event)
+    if next.pendingAwards.contains(where: { $0.active }) { next.recapSleep = false }
     for (id, moment) in next.pendingMoments where moment != state.pendingMoments[id] {
         appendFact(&next, .moment(moment.kind), id: id, at: event.at)
         if moment.kind == .hardWonPass { next.pendingAwards.append(XPAward(at: event.at, sessionId: id, sources: [.hardWonPass])) }
@@ -75,6 +77,20 @@ func reduce(_ state: InternalState, _ event: BuddyEvent, localHour: Int = 0) -> 
 
 private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> InternalState {
     switch event {
+    case .languageChanged(_, let language):
+        var s = state; s.buddy.language = language == "ko" ? "ko" : "en"; return s
+    case .voiceLine(let at, let kind, let text):
+        var s = state
+        if kind == .gift { s.buddy.creature.giftLine = text.prefix(utf8Bytes: 40) }
+        else { setBubble(&s, text.prefix(utf8Bytes: 63), at: at) }
+        return s
+    case .recapReady(let at, let recap):
+        var s = state; s.buddy.recap = recap
+        if [.idle, .asleep].contains(s.buddy.creature.state) {
+            setBubble(&s, recap.line.prefix(utf8Bytes: 63), at: at)
+            s.recapSleep = true
+        }
+        return s
     case .growthUpdated(_, let growth, let cosmetic):
         var s = state; s.buddy.growth = growth; s.buddy.cosmetic = cosmetic; return s
     case .requestDescribed(_, let id, let stakes, let gloss):
@@ -373,7 +389,7 @@ private func handleTurnEnded(_ state: InternalState, at: Double, sessionId: Stri
         enterUhoh(&s, sessionId: sessionId, kind: errorClass == "rate_limit" ? .hungry : .error, at: at)
         if let moment = s.pendingMoments[sessionId], CheerSize.for(moment: moment, thresholds: s.cheerThresholds, errors: 0, span: 0, effort: .light) == nil {
             s.buddy.creature.moment = s.pendingMoments.removeValue(forKey: sessionId)
-            setBubble(&s, MomentLines.line(moment), at: at)
+            s.buddy.creature.bubble = nil
         }
     case .completed:
         s.sessions[sessionId]?.uhoh = nil
@@ -394,6 +410,7 @@ private func handleTurnEnded(_ state: InternalState, at: Double, sessionId: Stri
         s.memory.projects[session.project] = at
         let moment = s.pendingMoments.removeValue(forKey: sessionId)
         let duration = max(0, at - start)
+        appendFact(&s, .turnCompleted(elapsedMs: duration), id: sessionId, at: at)
         let size = CheerSize.for(moment: moment, thresholds: s.cheerThresholds, errors: session.errorCount, span: duration, effort: effortTier(for: session, elapsedMs: duration, thresholds: s.momentThresholds)) ?? .hop
         s.pendingAwards[s.pendingAwards.count - 1].cheer = size
         // A smaller nearby completion cannot truncate or restart the larger cheer.
@@ -403,9 +420,8 @@ private func handleTurnEnded(_ state: InternalState, at: Double, sessionId: Stri
             s.doneSize = size
             s.buddy.celebrateUntil = at + s.cheerThresholds.duration(size)
         }
-        if let moment { s.buddy.creature.moment = moment; s.buddy.creature.giftLine = MomentLines.line(moment) }
-        // A pending orb always carries the newest story line.
-        if s.buddy.creature.gift { s.buddy.creature.giftLine = moment.map(MomentLines.line) ?? giftLine(forHint: session.lastHint) }
+        s.buddy.creature.moment = moment
+        s.buddy.creature.giftLine = nil
         s.memory.lifetimeCelebrations += 1
         s.sessions[sessionId]?.errorCount = 0
         s.sessions[sessionId]?.reportedEffort = nil
@@ -427,7 +443,6 @@ private func handleStaleTick(_ state: InternalState, now: Double) -> InternalSta
 
     if let until = s.buddy.celebrateUntil, now >= until {
         s.buddy.creature.gift = true
-        s.buddy.creature.giftLine = s.buddy.creature.moment.flatMap { $0.kind == .nthRateLimit ? nil : MomentLines.line($0) } ?? giftLine(forHint: s.buddy.lastCompleted?.hint)
         s.buddy.creature.moment = nil
         s.buddy.celebrateUntil = nil
         s.buddy.lastTaskDurationMs = nil
@@ -866,6 +881,7 @@ private func aggregate(_ state: InternalState, now: Double) -> BuddyState {
             creature.greetLevel = buddy.greetLevel == 2 ? 3 : 1
         }
     }
+    if state.recapSleep && creature.state == .idle && state.bubbleUntil == nil { creature.state = .asleep }
     buddy.creature = creature
     // Legacy fields are projections of the creature; nothing else writes them.
     buddy.pet.state = legacyPetState(from: creature)
@@ -997,27 +1013,12 @@ func cardStakes(tool: String, hint: String) -> Stakes {
     return .checkIt
 }
 
-/// The orb's story line (Phase 1: the last hint; Phase 3 replaces it with a
-/// moment). Capped for the device bubble.
-private func giftLine(forHint hint: String?) -> String {
-    ("done: " + (hint ?? "")).prefix(utf8Bytes: 40)
-}
-
 private func setBubble(_ s: inout InternalState, _ line: String, at: Double) {
     s.buddy.creature.bubble = line
     s.bubbleUntil = at + 4000
 }
 
 private func enterUhoh(_ s: inout InternalState, sessionId: String, kind: UhohKind, at: Double) {
-    if s.sessions[sessionId]?.uhoh != kind {
-        let line: String
-        switch kind {
-        case .error: line = s.sessions[sessionId]?.currentHint?.contains("build") == true ? "build failed" : "something broke"
-        case .stuck: line = "might be going in circles"
-        case .hungry: line = "hungry"
-        }
-        setBubble(&s, line, at: at)
-    }
     s.sessions[sessionId]?.uhoh = kind
     if !hasBlockingApproval(s.sessions[sessionId]) {
         s.sessions[sessionId]?.state = kind == .stuck ? .thinking : .errored

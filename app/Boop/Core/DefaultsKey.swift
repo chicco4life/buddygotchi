@@ -1,6 +1,8 @@
 import Foundation
 
 enum DefaultsKey {
+    static let language = "language"
+    static let voiceRuntime = "voiceRuntime"
     static let agentDrawingsEnabled = "agentDrawingsEnabled"
     static let approvalMode = "approvalMode"
     static let buddyName = "buddyName"

@@ -35,6 +35,7 @@ struct SessionWindow: Sendable {
 }
 enum ToneClass: String, Codable, Sendable { case question, negative, positive, neutral }
 enum Fact: Codable, Sendable, Equatable {
+    case turnCompleted(elapsedMs: Double)
     case goalOutcome(goalKey: String, runner: String, outcome: GoalOutcome, attempts: Int, elapsedMs: Double)
     case tokens(output: Int)
     case moment(Moment.Kind)
@@ -49,6 +50,7 @@ enum Fact: Codable, Sendable, Equatable {
     case sessionSummary(turns: Int, tasks: Int, elapsedMs: Double)
     var kind: String {
         switch self {
+        case .turnCompleted: "turnCompleted"
         case .goalOutcome: "goalOutcome"
         case .tokens: "tokens"
         case .moment: "moment"

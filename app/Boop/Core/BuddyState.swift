@@ -238,6 +238,8 @@ struct Pet: Encodable, Sendable, Equatable {
 // MARK: - BuddyState
 
 struct BuddyState: Encodable, Sendable, Equatable {
+    var language = "en"
+    var recap: Recap?
     var growth = GrowthSnapshot()
     var cosmetic = EquippedCosmetic()
     var version: Int

@@ -1,7 +1,7 @@
 import Foundation
 
 @MainActor
-protocol Clock {
+protocol Clock: Sendable {
     func now() -> Double
 }
 

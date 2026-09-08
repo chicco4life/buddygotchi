@@ -21,22 +21,6 @@ struct MomentThresholds: Sendable, Equatable {
     var effortGrindingErrors = 3
     static let defaults = Self()
 }
-enum MomentLines {
-    static func line(_ m: Moment) -> String {
-        switch m.kind {
-        case .hardWonPass:
-            let label = RunnerLabel.subject(m.facts["runner"] ?? "")
-            return "\(m.facts["attempts"] ?? "0") tries. nice job" + (label.map { " on the " + $0 } ?? "") + "."
-        case .redStreakEnded: return "green at last."
-        case .backAfterAbsence: return "back at it: \(m.facts["project"] ?? "project")"
-        case .sameFileAgain: return "\(m.facts["path"] ?? "file") again."
-        case .lateNight: return "late one."
-        case .nthRateLimit: return "hungry again (\(m.facts["n"] ?? "3"))."
-        case .firstEver: return "first one!"
-        }
-    }
-}
-
 extension CheerSize {
     static func `for`(moment: Moment?, thresholds: CheerThresholds, errors: Int, span: Double, effort: EffortTier) -> CheerSize? {
         switch moment?.kind {

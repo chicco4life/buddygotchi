@@ -313,6 +313,20 @@ PY
     got="$(session_field "$sid" cheer) $(session_field "$sid" moment.kind)"
   else got="$(state_field .creature.cheer) $(state_field .creature.moment.kind)"; fi
   [ "$got" = 'dance hardWonPass' ] && ok 'tenth-try: dance + hardWonPass' || bad "tenth-try payoff: $got"
+  local voice_line="" voice_tries=0
+  while [ -z "$voice_line" ] && [ "$voice_tries" -lt 15 ]; do
+    voice_line="$(state_field .creature.giftLine)"
+    voice_tries=$((voice_tries+1))
+    [ -n "$voice_line" ] || sleep 0.1
+  done
+  if python3 - "$voice_line" <<'PYVOICE'
+import sys
+line=sys.argv[1]
+sys.exit(0 if line and len(line.encode('utf-8')) <= 40 else 1)
+PYVOICE
+  then ok 'tenth-try: voice gift fits device'; else bad 'tenth-try: missing or oversized voice gift'; fi
+  recap_check
+
   post_event "$agent" "{\"hook_event_name\":\"SessionEnd\",\"session_id\":\"$sid\"}"
 }
 
@@ -329,4 +343,13 @@ print(level)
 PYCODE
   )"
   [ "$level" = "$expected" ] && ok "growth level matches curve ($level)" || bad "growth level $level != $expected"
+}
+
+recap_check() {
+  local response
+  response="$("${CURL[@]}" --max-time 5 "${AUTH[@]}" -X POST "$BASE/diag/recap")" || { bad 'recap generation failed'; return; }
+  response="$("${CURL[@]}" --max-time 5 "${AUTH[@]}" "$BASE/state/recap")" || { bad 'recap read failed'; return; }
+  if printf '%s' "$response" | python3 -c 'import json,sys; r=json.load(sys.stdin); assert r["line"] and len(r["line"].encode("utf-8")) <= 63; assert r["paragraph"]'; then
+    ok 'recap: device line and app paragraph'
+  else bad 'recap: missing or oversized text'; fi
 }

@@ -45,7 +45,10 @@ extension HookFixtureTests {
             XCTAssertEqual(state.buddy.creature.moment?.kind, .hardWonPass)
             XCTAssertEqual(state.buddy.creature.moment?.facts["attempts"], "10")
             XCTAssertEqual(state.buddy.creature.cheer, .dance)
-            XCTAssertEqual(state.buddy.creature.giftLine, "10 tries. nice job on the tests.")
+            let voiceLine = await Voice().line(for: VoiceRequest(occasion: .cheer(state.buddy.creature.moment, .dance, "swift-test")))
+            state = reduce(state, .voiceLine(at: state.buddy.updatedAt, kind: .gift, text: voiceLine.text))
+            XCTAssertFalse(state.buddy.creature.giftLine?.isEmpty ?? true)
+            XCTAssertLessThanOrEqual(state.buddy.creature.giftLine?.utf8.count ?? 999, 40)
             state = reduce(state, .staleTick(at: 100_000))
             XCTAssertNil(state.buddy.creature.moment)
             }
@@ -62,7 +65,7 @@ extension HookFixtureTests {
                 if payload.errorClass == "rate_limit" { XCTAssertEqual(state.buddy.creature.uhoh, .hungry) }
             }
             if url.lastPathComponent == "stuck.jsonl" { XCTAssertEqual(state.buddy.creature.uhoh, .stuck) }
-            else { XCTAssertEqual(state.buddy.creature.moment?.kind, .nthRateLimit); XCTAssertEqual(state.buddy.creature.bubble, "hungry again (3).") }
+            else { XCTAssertEqual(state.buddy.creature.moment?.kind, .nthRateLimit); XCTAssertNil(state.buddy.creature.bubble) }
         }
     }
 }

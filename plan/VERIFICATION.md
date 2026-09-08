@@ -304,3 +304,109 @@ Definition of done by area:
   `archived/research/TODOs.md`).
 
 **Phase 4 notes (2026-09-09).** SQLite schema 1 uses WAL: `facts` (typed payload JSON plus kind/session/project/epoch-ms/local-day), `profile`, `traits` (including bond), append-only `ledger` (source quantities; weights and caps applied when read), `inventory`, `meta`, SQL-readable per-key `memory`, and daily `drift`. Legacy memory is committed before `.migrated` renaming; an unreadable legacy file remains recoverable and does not disable SQLite. Numerical choices beyond UX-GROWTH: profile confidence starts at 0.6, rises by 0.1 per subsequent reflected day, and caps at 1.0; a dominant runner needs a strict majority (>50%, at least one observation), with lexical tie ordering; morning is 05:00–11:59, “many turns” is >=20 per session, “long quiet” is <=1 turn over >=60 minutes, and “many distinct tools” is >=5 per day. Each qualifying morning start/many-turn session adds 1 energy, each late-night moment subtracts 1; each denial/survived rate-limit moment adds 1 cheek and each long quiet session subtracts 1; each check-in/greet adds 1 warmth; each previously unseen project and a day with >=5 tools adds 1 curiosity, before the documented +/-3 caps. SQLite busy timeout is 5,000 ms and cosmetic POST bodies are capped at 1,024 bytes. Level-one defaults are skin `default`, accessory `none`, silhouette `default`; unlocks do not automatically replace equipped cosmetics. `xpNext` is remaining XP, `today` is today's XP, `daysTogether` counts active days, and rest days preserve but do not increment the active-day streak; rest accrual uses lifetime active-day count, and today is not a miss until tomorrow. Agent work and physical check-ins qualify for an active day; approvals never do. Nightly reflection processes the preceding local calendar day once, while the diagnostic trigger processes today once; repeat evidence on later days raises confidence. Project recurrence uses retained 30-day history. A session-end task is a fallback only when that session completed work but had no goal-pass task award. No token count is inferred from a transcript path alone; hook-carried per-message counts and Codex cumulative usage are supported, and missing counts/ Cursor token usage are skipped. The hook transport version is 7 to retain only numeric usage metadata. The existing 2-second maintenance timer checks idle/AC; reflection discards ephemeral closing lines after success. XP weights, level thresholds, streak/rest limits, bond increments, and unlock levels are unchanged from UX-GROWTH. Unknown local hour is represented internally by -1. Verification: clean HEAD baseline 352 passed / 4 socket-denied skips / 356 total; Phase 4 370 passed / the same 4 skips / 374 total, zero failures. `swift build --disable-sandbox --product Boop`, `swift build --disable-sandbox --product BoopSignal`, `python3 tools/gen-test-runner.py`, and `swift run --disable-sandbox BoopTests` each exited 0. Swift commands used `CLANG_MODULE_CACHE_PATH=/tmp/boop-p4-clang` and `SWIFTPM_MODULECACHE_OVERRIDE=/tmp/boop-p4-swift` because default cache writes and SwiftPM nested sandbox execution are denied by this host; the host sandbox remained enforced. `bash -n` on e2e/lib.sh plus claude.sh, codex.sh, and cursor.sh, and `git diff --check`, exited 0. All three tenth-try fixture replays award 36 XP with one task; persisted growth/memory survive restart. SQLite/WAL/shared-memory bytes passed the raw-text marker checks. Real HTTP e2e and the four localhost-dependent tests remain unexecuted here; no hardware or live nightly AC/idle run was performed. No frozen directories changed and no commit/push was made.
+
+## Phase 5 notes
+
+Implemented 2026-09-09 in `app/` only (plus this note).
+
+- `Boop/Core/Voice/`: `Voice.swift` owns seeded bank selection, daily and
+  last-20 exclusions, the one-second model race, and late-result rejection.
+  `VoiceRuntime.swift` provides Null and conditionally compiled Foundation
+  Models runtimes and structured prompt assembly. `VoiceFilter.swift` checks
+  both authored and model lines before character-safe byte truncation.
+  `VoiceBanks.swift` loads resources and substitutes bounded labels.
+  `Recap.swift` assembles fact-only summaries.
+- `Boop/Resources/voice/{en,ko}/`: 16 occasion files per language, each with
+  earnest/wry/cheeky banks of 42 entries: **2,016 entries per language**.
+  Each register has six core lines with seven short spoken lead-in variants.
+  Banks cover seven moments, three cheer sizes, three uh-oh kinds, greeting,
+  recap, and profile-line vocabulary.
+- `BuddyEngine`, `BuddyEvent`, `BuddyReducer`, `BuddyState`, `DefaultsKey`, and
+  `Clock`: asynchronous gift/bubble wiring, stale-response guards, recap
+  delivery then sleep, and Sendable clock capture. `MomentLines` is deleted;
+  the reducer no longer composes gift text from raw hints.
+- `Store/Store.swift`: schema 3 adds `voice_recent` (last 20 returned lines)
+  and `voice_day` (all returned lines today), a persisted recap-day marker,
+  and Voice-assisted reflection. Rules still select facts, cap nights at five
+  candidates, and supply the exact stored fallback on any failed rephrase.
+- `Extractor/SessionWindow.swift` adds the structured `turnCompleted` fact;
+  the reducer emits it. Recap counts completed turns and successful goal
+  outcomes, uses the latest result per session/goal to count open goals, and
+  sums completed-turn durations for hours. Legacy session summaries are used
+  only when a session has no completed-turn facts, preventing double counts.
+  The dominant project and biggest moment come from stored facts. Today's
+  query is not limited to the diagnostic route's last 500 facts.
+- `Server/HookServer.swift`: authenticated, headless-only `GET /state/recap`
+  and `POST /diag/recap`. `Views/PopoverView.swift` displays the app paragraph.
+  `tools/e2e/lib.sh` checks a nonempty <=40-byte tenth-try gift and forces/reads
+  a recap with a nonempty <=63-byte device line and app paragraph.
+- Tests: four new Voice/Recap test files, reflection rephrase/fallback tests,
+  and adjusted reducer/engine/fixture assertions for asynchronous Voice.
+  Generated runner updated.
+
+Settings are read when constructing the engine: defaults `language` is `en`
+(or `ko`); `voiceRuntime` is `auto` (or `off`). Auto uses the system model only
+when the framework, OS version, and model availability permit it. No download
+or new package dependency is needed.
+
+Style/behavior decisions beyond UX-VOICE.md:
+
+- Short, optional spoken lead-ins provide variation without changing facts
+  or the selected register. Korean uses native polite-casual lines. Historical
+  `first one!` loses its exclamation mark because first-ever is not necessarily
+  a dance; the old two-sentence hard-won line becomes a single sentence.
+- Generic error banks avoid claiming a build failed without build facts.
+  Long project/file/agent labels are bounded; unsafe labels use neutral nouns.
+- Emoji are rejected for app lines too (stricter than the allowed one).
+  Sentence counts are capped at one for device lines and three for app text.
+  Validation sees the entire bounded response before truncation, so a banned
+  suffix cannot be hidden behind the byte cap. English single-word bans use
+  word boundaries ("rent" must not reject "different"); negative phrases also
+  resist spacing and punctuation changes.
+- An exhausted finite bank is silent instead of repeating a line that day.
+  Profile candidates are exempt from novelty selection: facts must retain
+  their meaning, and reflection retains the original rule text on failure.
+- The stop hour is inferred from the end of the longest typical activity
+  block in the UTC histogram after conversion to local hours, including
+  blocks crossing midnight; unknown histories use 18:00. Active work/cards
+  keep priority if a recap finishes while a new interaction is arriving.
+- There is at most one outstanding model generation per Voice actor,
+  including when a runtime ignores cancellation. A late result is discarded;
+  other calls use the authored floor while that generation is outstanding.
+
+Verification (macOS CommandLineTools, Swift 6):
+
+The initial unmodified `swift run BoopTests` exited 1 before project sources:
+blocked user module-cache writes. Redirecting caches exposed SwiftPM's nested
+`sandbox-exec` denial. Successful commands below use
+`CLANG_MODULE_CACHE_PATH=/tmp/boop-clang` and
+`SWIFTPM_MODULECACHE_OVERRIDE=/tmp/boop-modules`, plus `--disable-sandbox` to
+turn off SwiftPM's nested sandbox; the agent filesystem sandbox remains on.
+No permission escalation was used.
+
+| Command (from `app/`) | Exit | Result |
+| --- | --- | --- |
+| `swift build --disable-sandbox --product Boop` | 0 | Build passes, including FoundationModels conditional branch on this SDK |
+| `swift build --disable-sandbox --product BoopSignal` | 0 | Build passes |
+| `python3 tools/gen-test-runner.py` | 0 | 398 tests registered |
+| `swift run --disable-sandbox BoopTests` | 0 | 394 passed, 4 skipped, 0 failures |
+| `bash -n tools/e2e/lib.sh` | 0 | Shell syntax passes |
+| `git diff --check` (repo root) | 0 | Clean |
+
+The isolated HEAD baseline (archived with `git archive` into `/tmp`, using an
+independent scratch build and the same cache/sandbox flags) exited 0 with
+**375 passed, 4 skipped of 379**. After: **394 passed, 4 skipped of 398**
+(+19 tests). The four skips in both runs are existing real-HTTP tests denied
+localhost sockets. Bank tests validate all files and substituted device
+lines, and draw 40 distinct lines for every device occasion/register/language.
+Timing tests cover a three-second runtime and a cancellation-ignoring runtime;
+both return the authored floor within 1.1 seconds. Fixture recap, Korean byte
+caps, model rejection, profile fallback, persisted exclusions, stale prompt
+suppression, repeat-model fallback, and midnight stop inference are covered.
+
+Unexecuted here: shell HTTP e2e (including the new recap routes), the four
+socket-dependent tests, real system-model inference/latency across Macs, and
+physical Korean device rendering. No app or firmware was launched or flashed;
+no hook-dependent claim is made. Model rephrases are stylistically filtered
+and instructed to preserve facts; semantic fidelity of unconstrained model
+text still needs the planned human/model-quality evaluation.

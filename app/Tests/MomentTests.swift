@@ -33,7 +33,7 @@ final class MomentTests: XCTestCase {
         let finished = complete(ready, at: 600_001)
         XCTAssertEqual(finished.buddy.creature.moment?.kind, .redStreakEnded)
         XCTAssertEqual(finished.buddy.creature.cheer, .dance)
-        XCTAssertEqual(finished.buddy.creature.giftLine, "green at last.")
+        XCTAssertNil(finished.buddy.creature.giftLine) // Voice is an engine concern.
     }
     func testAbsenceBoundary() {
         var s = working(); s.memory.projects["project"] = 0
@@ -46,10 +46,10 @@ final class MomentTests: XCTestCase {
         let early = reduce(working(), .fileEdited(at: 1, sessionId: "s", path: "file.swift", count: 19))
         XCTAssertNil(complete(early).buddy.creature.moment)
         let ready = reduce(working(), .fileEdited(at: 1, sessionId: "s", path: "file.swift", count: 20))
-        XCTAssertEqual(complete(ready).buddy.creature.giftLine, "file.swift again.")
+        XCTAssertEqual(complete(ready).buddy.creature.moment?.kind, .sameFileAgain)
         for hour in [0, 4] {
             let night = reduce(working(), .localTurnHour(at: 1, sessionId: "s", hour: hour))
-            XCTAssertEqual(complete(night).buddy.creature.giftLine, "late one.")
+            XCTAssertEqual(complete(night).buddy.creature.moment?.kind, .lateNight)
         }
         for hour in [5, 23] {
             let day = reduce(working(), .localTurnHour(at: 1, sessionId: "s", hour: hour))
@@ -84,14 +84,14 @@ final class MomentTests: XCTestCase {
 
 extension MomentTests {
     func testRunnerLinesAndRateLimitNeverCheers() {
-        for (runner, suffix) in [("pytest", " on the tests"), ("swift-build", " on the build"), ("eslint", " on the lint"), ("tsc", "")] {
+        for (runner, subject) in [("pytest", "tests"), ("swift-build", "build"), ("eslint", "lint"), ("tsc", nil)] {
             let moment = Moment(kind: .hardWonPass, facts: ["attempts": "10", "runner": runner])
-            XCTAssertEqual(MomentLines.line(moment), "10 tries. nice job\(suffix).")
+            XCTAssertEqual(RunnerLabel.subject(runner), subject)
             XCTAssertEqual(CheerSize.for(moment: moment, thresholds: .defaults, errors: 0, span: 0, effort: .light), .dance)
         }
         var s = working()
         for i in 1...3 { s = reduce(s, .turnEnded(at: Double(i), sessionId: "s", source: "codex", outcome: .failed(errorClass: "rate_limit"))) }
-        XCTAssertEqual(s.buddy.creature.bubble, "hungry again (3).")
+        XCTAssertEqual(s.buddy.creature.moment?.kind, .nthRateLimit)
         XCTAssertNil(s.buddy.creature.cheer)
         XCTAssertNil(s.buddy.celebrateUntil)
         XCTAssertFalse(s.buddy.creature.gift)

@@ -237,6 +237,17 @@ func buildHookServer(
         return try encodedResponse(StateResponse(state: await engine.state, inventory: try await engine.inventory()))
     }
 
+    router.get("/state/recap") { request, _ -> Response in
+        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
+        guard config.headless else { return Response(status: .notFound) }
+        return try encodedResponse(await engine.state.recap)
+    }
+    router.post("/diag/recap") { request, _ -> Response in
+        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
+        guard config.headless else { return Response(status: .notFound) }
+        return try encodedResponse(try await engine.makeRecap())
+    }
+
     router.get("/state/profile") { request, _ -> Response in
         guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
         guard config.headless else { return Response(status: .notFound) }

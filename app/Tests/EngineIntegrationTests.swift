@@ -902,7 +902,7 @@ extension EngineIntegrationTests {
     }
 
     @MainActor
-    func testCollectArrivedReachesCreature() {
+    func testCollectArrivedReachesCreature() async {
         let (engine, recorder, clock) = makeTestEngine()
         engine.turnStarted(sessionId: "new", source: "codex")
         clock.advance(by: 100)
@@ -910,9 +910,12 @@ extension EngineIntegrationTests {
         clock.advance(by: 1500)
         engine.triggerStaleTick()
         XCTAssertTrue(engine.state.creature.gift)
+        await engine.finishPendingWork()
+        let line = engine.state.creature.giftLine
+        XCTAssertFalse(line?.isEmpty ?? true)
         engine.collectArrived()
         XCTAssertEqual(recorder.last?.creature.gift, false)
-        XCTAssertEqual(recorder.last?.creature.bubble, "first one!")
+        XCTAssertEqual(recorder.last?.creature.bubble, line)
     }
 
     @MainActor

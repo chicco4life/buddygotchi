@@ -104,12 +104,13 @@ final class CreatureReducerTests: XCTestCase {
 
     func testDoneGiftCollectAndUTF8Cap() {
         var s = start(fresh())
-        s.memory.completedTurns = 1 // Exercise generic gift truncation after firstEver.
+        s.memory.completedTurns = 1 // The voice event owns device truncation.
         s = reduce(s, .toolCalled(at: 1, sessionId: "a", source: "codex", tool: "Bash", hint: String(repeating: "한", count: 30)))
         s = finish(s)
         s = reduce(s, .staleTick(at: 1600))
         XCTAssertEqual(s.buddy.creature.state, .idle)
         XCTAssertTrue(s.buddy.creature.gift)
+        s = reduce(s, .voiceLine(at: 1601, kind: .gift, text: String(repeating: "한", count: 30)))
         XCTAssertEqual(s.buddy.creature.giftLine?.utf8.count, 39)
         let line = s.buddy.creature.giftLine
         s = reduce(s, .collectArrived(at: 1700))
@@ -123,9 +124,10 @@ final class CreatureReducerTests: XCTestCase {
     func testBoopCollectsGift() {
         var s = finish(start(fresh()))
         s = reduce(s, .staleTick(at: 1600))
+        s = reduce(s, .voiceLine(at: 1600, kind: .gift, text: "first one"))
         s = reduce(s, .boopArrived(at: 1601))
         XCTAssertFalse(s.buddy.creature.gift)
-        XCTAssertEqual(s.buddy.creature.bubble, "first one!")
+        XCTAssertEqual(s.buddy.creature.bubble, "first one")
         XCTAssertEqual(s.buddy.creature.overlay, .boop)
     }
 
@@ -135,7 +137,7 @@ final class CreatureReducerTests: XCTestCase {
             s = reduce(s, .toolCalled(at: 1, sessionId: "a", source: "codex", tool: "Bash", hint: "swift build"))
             s = reduce(s, .turnEnded(at: 2, sessionId: "a", source: "codex", outcome: .failed(errorClass: errorClass)))
             XCTAssertEqual(s.buddy.creature.uhoh, errorClass == nil ? .error : .hungry)
-            XCTAssertEqual(s.buddy.creature.bubble, errorClass == nil ? "build failed" : "hungry")
+            XCTAssertNil(s.buddy.creature.bubble) // Engine supplies the authored remark.
             XCTAssertEqual(start(s, 3).buddy.creature.state, .working)
             XCTAssertEqual(finish(s, 3).buddy.creature.state, .done)
             XCTAssertEqual(reduce(s, .errorDismissed(at: 3, sessionId: "a")).buddy.creature.state, .idle)
@@ -145,8 +147,10 @@ final class CreatureReducerTests: XCTestCase {
 
     func testGenericErrorBubbleAndReplacementExpiry() {
         var s = reduce(start(fresh()), .turnEnded(at: 2, sessionId: "a", source: "codex", outcome: .failed(errorClass: nil)))
+        s = reduce(s, .voiceLine(at: 2, kind: .bubble, text: "something broke"))
         XCTAssertEqual(s.buddy.creature.bubble, "something broke")
         s = reduce(s, .turnEnded(at: 100, sessionId: "a", source: "codex", outcome: .failed(errorClass: "rate_limit")))
+        s = reduce(s, .voiceLine(at: 100, kind: .bubble, text: "hungry"))
         s = reduce(s, .staleTick(at: 4002))
         XCTAssertEqual(s.buddy.creature.bubble, "hungry")
         s = reduce(s, .staleTick(at: 4100))
@@ -156,7 +160,7 @@ final class CreatureReducerTests: XCTestCase {
     func testStuckBySilenceAndSuccessClears() {
         var s = reduce(start(fresh()), .staleTick(at: 300_001))
         XCTAssertEqual(s.buddy.creature.uhoh, .stuck)
-        XCTAssertEqual(s.buddy.creature.bubble, "might be going in circles")
+        XCTAssertNil(s.buddy.creature.bubble)
         s = reduce(s, .toolResulted(at: 300_002, sessionId: "a", source: "codex", tool: "Bash", ok: true, durationMs: nil))
         XCTAssertEqual(s.buddy.creature.state, .working)
     }

@@ -151,6 +151,14 @@ struct PopoverView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
+            if let recap = engine.state.recap, engine.state.prompt == nil {
+                Text(recap.paragraph)
+                    .font(.buddy(11))
+                    .foregroundStyle(BuddyTheme.inkSoft)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 12)
+            }
+
             let rows = activityRows
             if !rows.isEmpty {
                 Spacer().frame(height: 12)
