@@ -159,7 +159,7 @@ final class EngineIntegrationTests: XCTestCase {
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .stopWorking)
 
-        XCTAssertEqual(recorder.last?.pet.state, .idle)
+        XCTAssertEqual(recorder.last?.pet.state, .celebrate)
     }
 
     @MainActor
@@ -318,7 +318,7 @@ final class EngineIntegrationTests: XCTestCase {
     }
 
     @MainActor
-    func testBusyOverridesCelebrate() {
+    func testDoneOverridesBusy() {
         let (engine, _, _) = makeTestEngine()
         engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
         engine.sessionStarted(sessionId: "s2", source: "cursor", cwd: nil)
@@ -328,7 +328,7 @@ final class EngineIntegrationTests: XCTestCase {
         XCTAssertEqual(engine.state.pet.state, .celebrate)
 
         engine.activitySignal(sessionId: "s2", source: "cursor", signal: .startWorking)
-        XCTAssertEqual(engine.state.pet.state, .busy)
+        XCTAssertEqual(engine.state.pet.state, .celebrate)
     }
 
     // MARK: F. Celebrate Behavior
@@ -355,7 +355,7 @@ final class EngineIntegrationTests: XCTestCase {
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .celebrate)
 
-        clock.advance(by: 2_000)
+        clock.advance(by: 1_000)
         engine.triggerStaleTick()
 
         XCTAssertEqual(engine.state.pet.state, .celebrate)
@@ -599,8 +599,7 @@ final class EngineIntegrationTests: XCTestCase {
 
     @MainActor
     func testDesktopOutputPostsRapidAttentionTransitions() {
-        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        defer { NSStatusBar.system.removeStatusItem(statusItem) }
+        let statusItem: NSStatusItem? = nil // No WindowServer connection is needed for output behavior tests.
         let presenter = MockPopoverPresenter()
         let notifier = MockNotifier()
         let output = DesktopOutput(
@@ -740,7 +739,7 @@ final class EngineIntegrationTests: XCTestCase {
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .celebrate)
         // Because s2 is still working, aggregate clears lastCompleted.
         XCTAssertNil(engine.state.lastCompleted, "concurrent working session suppresses review")
-        XCTAssertEqual(engine.state.pet.state, .busy, "s2 working takes priority over s1 celebrate")
+        XCTAssertEqual(engine.state.pet.state, .celebrate, "s1 done takes priority over s2 working")
 
         // Once s2 also stops, reviewing the celebrating session would only return if it celebrates again.
         // This documents the priority: review never overrides live state.
@@ -864,5 +863,75 @@ final class EngineIntegrationTests: XCTestCase {
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Edit", hint: "Foo.swift")
         let rs2 = renderState(from: engine.state)
         XCTAssertEqual(rs2.activity, "write", "write icon class for Edit")
+    }
+}
+
+extension EngineIntegrationTests {
+    @MainActor
+    func testTurnStartedReachesCreature() {
+        let (engine, recorder, _) = makeTestEngine()
+        engine.turnStarted(sessionId: "new", source: "codex")
+        XCTAssertEqual(recorder.last?.creature.state, .working)
+    }
+
+    @MainActor
+    func testToolCalledReachesCreature() {
+        let (engine, recorder, clock) = makeTestEngine()
+        for _ in 0..<6 {
+            clock.advance(by: 1)
+            engine.toolCalled(sessionId: "new", source: "codex", tool: "Bash", hint: "test")
+        }
+        XCTAssertEqual(recorder.last?.creature.uhoh, .stuck)
+    }
+
+    @MainActor
+    func testToolResultedReachesCreature() {
+        let (engine, recorder, clock) = makeTestEngine()
+        engine.turnEnded(sessionId: "new", source: "codex", outcome: .failed(errorClass: "rate_limit"))
+        clock.advance(by: 1)
+        engine.toolResulted(sessionId: "new", source: "codex", tool: "Bash", ok: true)
+        XCTAssertEqual(recorder.last?.creature.state, .working)
+        XCTAssertNil(recorder.last?.creature.uhoh)
+    }
+
+    @MainActor
+    func testTurnEndedReachesCreature() {
+        let (engine, recorder, clock) = makeTestEngine()
+        engine.turnStarted(sessionId: "new", source: "codex")
+        clock.advance(by: 100)
+        engine.turnEnded(sessionId: "new", source: "codex", outcome: .completed)
+        XCTAssertEqual(recorder.last?.creature.cheer, .hop)
+    }
+
+    @MainActor
+    func testFocusToggledReachesCreature() {
+        let (engine, recorder, _) = makeTestEngine()
+        engine.focusToggled(on: true)
+        XCTAssertEqual(recorder.last?.creature.focus, true)
+    }
+
+    @MainActor
+    func testCollectArrivedReachesCreature() {
+        let (engine, recorder, clock) = makeTestEngine()
+        engine.turnStarted(sessionId: "new", source: "codex")
+        clock.advance(by: 100)
+        engine.turnEnded(sessionId: "new", source: "codex", outcome: .completed)
+        clock.advance(by: 1500)
+        engine.triggerStaleTick()
+        XCTAssertTrue(engine.state.creature.gift)
+        engine.collectArrived()
+        XCTAssertEqual(recorder.last?.creature.gift, false)
+        XCTAssertEqual(recorder.last?.creature.bubble, "done: ")
+    }
+
+    @MainActor
+    func testNudgeDismissedReachesCreature() {
+        let (engine, recorder, clock) = makeTestEngine()
+        engine.submitRequest(sessionId: "new", requestId: "p", tool: "Bash", hint: "build", sessionLabel: nil)
+        for _ in 0..<3 {
+            clock.advance(by: 1)
+            engine.nudgeDismissed()
+        }
+        XCTAssertEqual(recorder.last?.creature.bubble, "okay, I'll hush about that")
     }
 }

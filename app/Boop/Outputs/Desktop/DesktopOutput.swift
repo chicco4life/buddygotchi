@@ -35,7 +35,7 @@ final class DesktopOutput: OutputProvider {
     private let playError: () -> Void
 
     init(
-        statusItem: NSStatusItem,
+        statusItem: NSStatusItem?,
         presenter: any PopoverPresenting,
         notifier: any DesktopNotificationPosting = NotificationManager.shared,
         soundsEnabled: @escaping () -> Bool = {
@@ -89,7 +89,8 @@ final class DesktopOutput: OutputProvider {
         // No memo on pet state alone: the icon now also depends on the system
         // appearance, since the app inherits it rather than pinning darkAqua.
         // An 18x18 draw on a state change is not a hot path.
-        statusItem?.button?.image = Self.statusIcon(for: state.pet.state)
+        statusItem?.button?.image = Self.statusIcon(for: legacyPetState(from: state.creature))
+        statusItem?.button?.toolTip = state.creature.statusLabel
     }
 
     static func statusIcon(for state: PetState) -> NSImage {
@@ -186,16 +187,16 @@ final class DesktopOutput: OutputProvider {
             presenter.cancelPopoverAutoDismiss()
             return
         }
-        guard prev.pet.state != next.pet.state else { return }
+        guard prev.creature.state != next.creature.state else { return }
 
-        if next.pet.state == .celebrate
+        if next.creature.state == .done
             && (next.lastTaskDurationMs ?? 0) >= 30_000
             && !presenter.isPopoverShown
         {
             presenter.showPopover(dismissAfter: 3.0)
-        } else if next.pet.state == .attention && !presenter.isPopoverShown {
+        } else if next.creature.state == .needsYou && !presenter.isPopoverShown {
             presenter.showPopover(dismissAfter: 15.0)
-        } else if (next.pet.state == .idle || next.pet.state == .sleep) && presenter.isPopoverShown {
+        } else if (next.creature.state == .idle || next.creature.state == .asleep) && presenter.isPopoverShown {
             presenter.cancelPopoverAutoDismiss()
             presenter.closePopover()
         }

@@ -302,7 +302,8 @@ silhouette changes at level milestones but the eye anchor never moves.
 | **Done** (size: hop / cheer / dance) | Arc | Hop → spin → dance | Green ripple | blip → chirp → fanfare |
 | **Uh-oh** | Half, down | Slump | Dim red, breathing | one low note |
 
-Overlays, calm states only:
+Overlays, on idle, working, and done only. Never on asleep (a booped
+sleeper gets the one-eye peek, not hearts), never on needs you or uh-oh:
 
 | Overlay | Trigger | Look |
 | --- | --- | --- |

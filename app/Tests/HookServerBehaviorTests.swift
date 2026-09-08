@@ -71,6 +71,34 @@ final class HookServerBehaviorTests: XCTestCase {
         XCTAssertEqual(engine.state.prompt?.hint, "rm -rf build")
     }
 
+    @MainActor
+    func testTurnAndToolHookEventsForClaudeAndCodex() async throws {
+        for source in ["claude-code", "codex"] {
+            let clock = MockClock()
+            let engine = BuddyEngine(config: testConfig(), clock: clock)
+            let cases: [(String, String, CreatureState)] = [
+                ("UserPromptSubmit", "turnStarted", .working),
+                ("PreToolUse", "toolCalled", .working),
+                ("PostToolUseFailure", "toolResulted", .working),
+                ("PostToolUse", "toolResulted", .working),
+                ("Stop", "turnEnded", .done),
+                ("StopFailure", "turnEnded", .uhoh),
+            ]
+            for (hook, event, expected) in cases {
+                clock.advance(by: 10)
+                let body = try decodeHookEvent("""
+                {"session_id":"new","hook_event_name":"\(hook)","tool_name":"Bash",
+                 "tool_input":{"command":"swift build"},"error":"rate_limit"}
+                """)
+                await handleAgentEvent(body: body, source: source, hookPid: nil, engine: engine)
+                XCTAssertEqual(engine.diagnosticLog.entries.last?.event, event)
+                XCTAssertEqual(engine.state.creature.state, expected)
+                XCTAssertEqual(engine.state.activeSessions.first?.source, source)
+            }
+            XCTAssertEqual(engine.state.creature.uhoh, .hungry)
+        }
+    }
+
     private func decodeHookEvent(_ json: String) throws -> HookEventBody {
         let data = try XCTUnwrap(json.data(using: .utf8))
         return try JSONDecoder().decode(HookEventBody.self, from: data)

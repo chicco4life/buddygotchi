@@ -302,6 +302,7 @@ final class MCPServerTests: XCTestCase {
     /// headless run gets to a live agent connection.
     @MainActor
     func testMCPOverRealHTTP() async throws {
+        try requireLocalNetworking()
         let (engine, _) = makeEngine()
         let port = Int.random(in: 33000..<59000)
         let config = BuddyConfig(

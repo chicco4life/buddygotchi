@@ -17,6 +17,15 @@ struct InternalState: Sendable, Equatable {
     /// mutated only here, written back by the engine when it changes.
     var memory: PetMemory = .empty
 
+    var cheerThresholds: CheerThresholds = .defaults
+    var nudgeTiming: NudgeTiming = .defaults
+    var nudges: [String: CardNudge] = [:]
+    var snoozedTools: [String: Set<String>] = [:]
+    var bubbleUntil: Double?
+    var doneSize: CheerSize?
+    var doneStartedAt: Double?
+    var completionLine: String?
+
     var version: Int { buddy.version }
 
     static func initial(staleMs: Double, celebrateDurationMs: Double, workStallTimeoutMs: Double = 300_000, approvalTimeoutMs: Double = 290_000) -> InternalState {
@@ -28,15 +37,54 @@ struct InternalState: Sendable, Equatable {
 
 func reduce(_ state: InternalState, _ event: BuddyEvent) -> InternalState {
     var next = reduceInner(state, event)
+    updateCreatureTimers(&next, event: event)
+    next.buddy.updatedAt = event.at
+    next.buddy = aggregate(next)
+    // Recompute even on a quiet tick so effort and timed projections advance.
+    // A timestamp alone is not a state change worth notifying outputs about.
+    next.buddy.updatedAt = state.buddy.updatedAt
     guard next != state else { return state }
     next.buddy.version = state.buddy.version + 1
     next.buddy.updatedAt = event.at
-    next.buddy = aggregate(next)
     return next
 }
 
 private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> InternalState {
     switch event {
+    case .turnStarted(let at, let id, let source):
+        return handleTurnStarted(state, at: at, sessionId: id, source: source)
+    case .toolCalled(let at, let id, let source, let tool, let hint):
+        return handleToolCalled(state, at: at, sessionId: id, source: source, tool: tool, hint: hint)
+    case .toolResulted(let at, let id, let source, let tool, let ok, _):
+        var s = state
+        observePresence(&s, at: at)
+        touchSession(&s, sessionId: id, at: at, source: source)
+        s.sessions[id]?.lastWorkSignalAt = at
+        if ok == true {
+            s.sessions[id]?.uhoh = nil
+            s.sessions[id]?.repeatedToolCount = 0
+            if !hasBlockingApproval(s.sessions[id]) {
+                s.sessions[id]?.state = .working
+                s.sessions[id]?.prompt = nil
+            }
+            if s.sessions[id]?.workStartedAt == nil { s.sessions[id]?.workStartedAt = at }
+        } else if ok == false {
+            s.sessions[id]?.errorCount += 1
+        }
+        if !tool.isEmpty { s.sessions[id]?.currentTool = tool }
+        return s
+    case .turnEnded(let at, let id, let source, let outcome):
+        return handleTurnEnded(state, at: at, sessionId: id, source: source, outcome: outcome)
+    case .focusToggled(_, let on):
+        var s = state
+        s.buddy.creature.focus = on
+        return s
+    case .collectArrived(let at):
+        var s = state
+        collectGift(&s, at: at)
+        return s
+    case .nudgeDismissed(let at):
+        return dismissNudge(state, at: at)
     case .sessionStarted(let at, let sessionId, let source, let cwd):
         return handleSessionStarted(state, at: at, sessionId: sessionId, source: source, cwd: cwd)
     case .sessionEnded(_, let sessionId):
@@ -46,7 +94,26 @@ private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> Interna
     case .requestCleared(let at, let sessionId):
         return handleRequestCleared(state, at: at, sessionId: sessionId)
     case .activitySignal(let at, let sessionId, let source, let signal, let tool, let hint):
-        return handleActivitySignal(state, at: at, sessionId: sessionId, source: source, signal: signal, tool: tool, hint: hint)
+        var s = state
+        touchSession(&s, sessionId: sessionId, at: at, source: source)
+        // Compatibility input delegates to the same turn/tool handlers.
+        if signal != .keepWorking, let tool, !tool.isEmpty {
+            s.sessions[sessionId]?.lastTool = tool
+            s.sessions[sessionId]?.lastHint = hint
+            s.sessions[sessionId]?.currentTool = tool
+            s.sessions[sessionId]?.currentHint = hint
+            s.sessions[sessionId]?.currentActivityKind = activityKind(tool: tool, hint: hint ?? "")
+        }
+        switch signal {
+        case .startWorking:
+            return handleTurnStarted(s, at: at, sessionId: sessionId, source: source)
+        case .keepWorking:
+            return handleToolCalled(s, at: at, sessionId: sessionId, source: source, tool: tool ?? "", hint: hint ?? "")
+        case .stopWorking, .celebrate:
+            return handleTurnEnded(s, at: at, sessionId: sessionId, source: source, outcome: .completed)
+        case .error:
+            return handleTurnEnded(s, at: at, sessionId: sessionId, source: source, outcome: .failed(errorClass: nil))
+        }
     case .staleTick(let at):
         return handleStaleTick(state, now: at)
     case .approvalArrived(let at, let sessionId, let requestId, let tool, let hint, let sessionLabel, let source):
@@ -161,51 +228,59 @@ private func handleRequestCleared(_ state: InternalState, at: Double, sessionId:
     return s
 }
 
-private func handleActivitySignal(_ state: InternalState, at: Double, sessionId: String, source: String, signal: ActivitySignalKind, tool: String?, hint: String?) -> InternalState {
+private func handleTurnStarted(_ state: InternalState, at: Double, sessionId: String, source: String) -> InternalState {
     var s = state
     observePresence(&s, at: at)
     touchSession(&s, sessionId: sessionId, at: at, source: source)
-
-    switch signal {
-    case .startWorking, .keepWorking:
-        // A parked approval outranks a work signal: the hook is still blocked
-        // on an answer, so leave the prompt (and .needsConfirmation) alone and
-        // only refresh liveness.
-        if hasBlockingApproval(s.sessions[sessionId]) {
-            s.sessions[sessionId]?.lastWorkSignalAt = at
-            if let tool, !tool.isEmpty {
-                s.sessions[sessionId]?.lastTool = tool
-                s.sessions[sessionId]?.lastHint = hint
-            }
-            return s
-        }
-        if s.sessions[sessionId]?.state == .needsConfirmation {
-            s.sessions[sessionId]?.prompt = nil
-        }
-        // Preserve workStartedAt when transitioning from .thinking → .working
-        // (the work paused, didn't restart). Only stamp a new start time when
-        // entering .working from a truly inactive state (.idle/.errored/etc).
-        let priorState = s.sessions[sessionId]?.state
-        if priorState != .working && priorState != .thinking {
-            s.sessions[sessionId]?.workStartedAt = at
-        }
+    s.sessions[sessionId]?.uhoh = nil
+    s.sessions[sessionId]?.repeatedToolCount = 0
+    s.sessions[sessionId]?.lastWorkSignalAt = at
+    if s.sessions[sessionId]?.workStartedAt == nil { s.sessions[sessionId]?.workStartedAt = at }
+    if !hasBlockingApproval(s.sessions[sessionId]) {
         s.sessions[sessionId]?.state = .working
-        s.sessions[sessionId]?.lastWorkSignalAt = at
-        if let tool, !tool.isEmpty {
-            s.sessions[sessionId]?.lastTool = tool
-            s.sessions[sessionId]?.lastHint = hint
-            s.sessions[sessionId]?.currentTool = tool
-            s.sessions[sessionId]?.currentHint = hint
-            s.sessions[sessionId]?.currentActivityKind = activityKind(tool: tool, hint: hint ?? "")
-        }
-    case .stopWorking:
-        // Same rule as start/keepWorking above: a parked approval still has a
-        // hook blocked on it, so an idle notification (e.g. Claude Code's
-        // idle_prompt firing mid-wait) must not withdraw the card — that would
-        // silently passthrough the blocked caller.
-        if hasBlockingApproval(s.sessions[sessionId]) {
-            return s
-        }
+        s.sessions[sessionId]?.prompt = nil
+    }
+    return s
+}
+
+private func handleToolCalled(_ state: InternalState, at: Double, sessionId: String, source: String, tool: String, hint: String) -> InternalState {
+    var s = state
+    observePresence(&s, at: at)
+    touchSession(&s, sessionId: sessionId, at: at, source: source)
+    let previous = s.sessions[sessionId]!
+    s.sessions[sessionId]?.repeatedToolCount = previous.lastTool == tool && previous.lastHint == hint ? previous.repeatedToolCount + 1 : 1
+    s.sessions[sessionId]?.lastWorkSignalAt = at
+    if previous.workStartedAt == nil { s.sessions[sessionId]?.workStartedAt = at }
+    if !tool.isEmpty {
+        s.sessions[sessionId]?.lastTool = tool
+        s.sessions[sessionId]?.lastHint = hint
+        s.sessions[sessionId]?.currentTool = tool
+        s.sessions[sessionId]?.currentHint = hint
+        s.sessions[sessionId]?.currentActivityKind = activityKind(tool: tool, hint: hint)
+    }
+    if !hasBlockingApproval(previous) {
+        s.sessions[sessionId]?.prompt = nil
+        s.sessions[sessionId]?.state = previous.uhoh == nil ? .working : previous.state
+    }
+    if s.sessions[sessionId]!.repeatedToolCount >= 6 {
+        enterUhoh(&s, sessionId: sessionId, kind: .stuck, at: at)
+    }
+    s.buddy.entries = Array(([shortMsg(tool: tool, hint: hint, source: source)] + s.buddy.entries).prefix(10))
+    return s
+}
+
+private func handleTurnEnded(_ state: InternalState, at: Double, sessionId: String, source: String, outcome: TurnOutcome) -> InternalState {
+    var s = state
+    observePresence(&s, at: at)
+    touchSession(&s, sessionId: sessionId, at: at, source: source)
+    let session = s.sessions[sessionId]!
+    switch outcome {
+    case .failed(let errorClass):
+        s.sessions[sessionId]?.errorCount += 1
+        enterUhoh(&s, sessionId: sessionId, kind: errorClass == "rate_limit" ? .hungry : .error, at: at)
+    case .completed:
+        s.sessions[sessionId]?.uhoh = nil
+        guard !hasBlockingApproval(session) else { return s }
         s.sessions[sessionId]?.state = .idle
         s.sessions[sessionId]?.prompt = nil
         s.sessions[sessionId]?.workStartedAt = nil
@@ -213,69 +288,31 @@ private func handleActivitySignal(_ state: InternalState, at: Double, sessionId:
         s.sessions[sessionId]?.currentTool = nil
         s.sessions[sessionId]?.currentHint = nil
         s.sessions[sessionId]?.currentActivityKind = nil
-    case .celebrate:
-        let session = s.sessions[sessionId]
-        let duration = session?.workStartedAt.map { at - $0 }
-        let completedTool = tool ?? session?.lastTool
-        let completedHint = hint ?? session?.lastHint
-        let completedKind: ActivityKind = {
-            if let t = completedTool { return activityKind(tool: t, hint: completedHint ?? "") }
-            return .work
-        }()
-        s.sessions[sessionId]?.state = .idle
-        s.sessions[sessionId]?.prompt = nil
-        s.sessions[sessionId]?.workStartedAt = nil
-        s.sessions[sessionId]?.lastWorkSignalAt = nil
-        s.sessions[sessionId]?.currentTool = nil
-        s.sessions[sessionId]?.currentHint = nil
-        s.sessions[sessionId]?.currentActivityKind = nil
-        // Payoff scaling: joy proportional to the struggle. A long or
-        // error-pocked stretch earns the big celebration; a 30-second task a
-        // modest hop. Never scaled by approvals (S9).
-        let errors = session?.errorCount ?? 0
-        s.buddy.celebrateIntensity = {
-            if (duration ?? 0) >= PetTuning.celebrateHugeMinMs || errors >= 2 { return 3 }
-            if (duration ?? 0) >= PetTuning.celebrateBigMinMs || errors >= 1 { return 2 }
-            return 1
-        }()
+        s.sessions[sessionId]?.repeatedToolCount = 0
+        guard let start = session.workStartedAt else { return s }
+        let duration = max(0, at - start)
+        let size = s.cheerThresholds.size(errors: session.errorCount, span: duration, effort: effortTier(for: session, elapsedMs: duration))
+        // A smaller nearby completion cannot truncate or restart the larger cheer.
+        let folded = s.buddy.lastCompletionAt.map { at - $0 <= s.cheerThresholds.foldMs } ?? false
+        if !folded || size.intensity > (s.doneSize?.intensity ?? 0) {
+            s.doneSize = size
+            s.doneStartedAt = at
+            s.buddy.celebrateUntil = at + s.cheerThresholds.duration(size)
+            s.buddy.celebrateIntensity = size.intensity
+        }
+        s.completionLine = ("done: " + (session.lastHint ?? "")).prefix(utf8Bytes: 40)
+        if s.buddy.creature.gift { s.buddy.creature.giftLine = s.completionLine }
         s.memory.lifetimeCelebrations += 1
         s.sessions[sessionId]?.errorCount = 0
         s.sessions[sessionId]?.reportedEffort = nil
-        s.buddy.celebrateUntil = at + s.celebrateDurationMs
         s.buddy.lastTaskDurationMs = duration
         s.buddy.lastCompletionAt = at
         s.buddy.lastCompleted = CompletedTask(
-            id: "\(sessionId)_\(Int(at))",
-            tool: completedTool,
-            hint: completedHint,
-            source: source,
-            sessionLabel: session?.cwd.flatMap { ($0 as NSString).lastPathComponent },
-            durationMs: duration,
-            completedAt: at,
-            activityKind: completedKind
-        )
-    case .error:
-        // Preserve currentTool/currentHint and workStartedAt — we want the error
-        // card to show "what failed" and "for how long".
-        s.sessions[sessionId]?.state = .errored
-        s.sessions[sessionId]?.errorCount += 1
-        s.sessions[sessionId]?.prompt = nil
-        if let tool, !tool.isEmpty {
-            s.sessions[sessionId]?.lastTool = tool
-            s.sessions[sessionId]?.lastHint = hint
-            s.sessions[sessionId]?.currentTool = tool
-            s.sessions[sessionId]?.currentHint = hint
-            s.sessions[sessionId]?.currentActivityKind = activityKind(tool: tool, hint: hint ?? "")
-        }
+            id: "\(sessionId)_\(Int(at))", tool: session.lastTool, hint: session.lastHint,
+            source: source, sessionLabel: session.cwd.flatMap { ($0 as NSString).lastPathComponent },
+            durationMs: duration, completedAt: at,
+            activityKind: session.currentActivityKind ?? .work)
     }
-
-    let signalDetail: String = {
-        if let tool, !tool.isEmpty {
-            return shortMsg(tool: tool, hint: hint ?? "", source: source)
-        }
-        return "[\(source)] \(signal.rawValue)"
-    }()
-    s.buddy.entries = Array(([signalDetail] + s.buddy.entries).prefix(10))
     return s
 }
 
@@ -284,6 +321,8 @@ private func handleStaleTick(_ state: InternalState, now: Double) -> InternalSta
     var s = state
 
     if let until = s.buddy.celebrateUntil, now >= until {
+        s.buddy.creature.gift = true
+        s.buddy.creature.giftLine = s.completionLine
         s.buddy.celebrateUntil = nil
         s.buddy.celebrateIntensity = nil
         s.buddy.lastTaskDurationMs = nil
@@ -346,7 +385,7 @@ private func handleStaleTick(_ state: InternalState, now: Double) -> InternalSta
            now - lastSignal > s.workStallTimeoutMs,
            let started = session.workStartedAt,
            now - started > s.workStallTimeoutMs {
-            s.sessions[id]?.state = .thinking
+            enterUhoh(&s, sessionId: id, kind: .stuck, at: now)
             changed = true
         }
     }
@@ -431,6 +470,7 @@ let boopAffectionMs: Double = 2500
 private func handleBoopArrived(_ state: InternalState, at: Double) -> InternalState {
     var s = state
     observePresence(&s, at: at)
+    collectGift(&s, at: at)
     s.buddy.affectionUntil = at + boopAffectionMs
     return s
 }
@@ -536,7 +576,7 @@ private func handleAgentExpressed(_ state: InternalState, at: Double, agentId: S
 private func handleSpeciesChanged(_ state: InternalState, species: String) -> InternalState {
     guard !species.isEmpty, state.buddy.pet.species != species else { return state }
     var s = state
-    s.buddy.pet = Pet(state: s.buddy.pet.state, species: species)
+    s.buddy.pet.species = species
     return s
 }
 
@@ -548,9 +588,10 @@ private func handleReviewDismissed(_ state: InternalState) -> InternalState {
 }
 
 private func handleErrorDismissed(_ state: InternalState, at: Double, sessionId: String) -> InternalState {
-    guard state.sessions[sessionId]?.state == .errored else { return state }
+    guard state.sessions[sessionId]?.uhoh != nil || state.sessions[sessionId]?.state == .errored else { return state }
     var s = state
-    s.sessions[sessionId]?.state = .idle
+    s.sessions[sessionId]?.uhoh = nil
+    s.sessions[sessionId]?.state = hasBlockingApproval(state.sessions[sessionId]) ? .needsConfirmation : .idle
     s.sessions[sessionId]?.workStartedAt = nil
     s.sessions[sessionId]?.lastWorkSignalAt = nil
     s.sessions[sessionId]?.currentTool = nil
@@ -563,12 +604,12 @@ private func handleErrorDismissed(_ state: InternalState, at: Double, sessionId:
 
 private func aggregate(_ state: InternalState) -> BuddyState {
     var buddy = state.buddy
-    let allSessions = Array(state.sessions)
+    let allSessions = state.sessions.sorted { $0.key < $1.key }
 
     let waiting = allSessions.filter { $0.value.state == .needsConfirmation }
-    let working = allSessions.filter { $0.value.state == .working }
-    let errored = allSessions.filter { $0.value.state == .errored }
-    let thinking = allSessions.filter { $0.value.state == .thinking }
+    let working = allSessions.filter { $0.value.state == .working && $0.value.uhoh == nil }
+    let errored = allSessions.filter { $0.value.state != .needsConfirmation && ($0.value.state == .errored || $0.value.uhoh == .error || $0.value.uhoh == .hungry) }
+    let thinking = allSessions.filter { $0.value.state != .needsConfirmation && ($0.value.state == .thinking || $0.value.uhoh == .stuck) }
 
     buddy.sessions = SessionCounts(
         total: allSessions.count,
@@ -590,16 +631,17 @@ private func aggregate(_ state: InternalState) -> BuddyState {
     let workingOrdered = working
         .sorted { ($0.value.workStartedAt ?? .infinity) < ($1.value.workStartedAt ?? .infinity) }
     let idleOrdered = allSessions
-        .filter { $0.value.state == .idle }
+        .filter { $0.value.state == .idle && $0.value.uhoh == nil }
         .sorted { $0.value.lastActivityAt > $1.value.lastActivityAt }
-    let combined = waitingOrdered + erroredOrdered + workingOrdered + idleOrdered
+    let thinkingOrdered = thinking.sorted { $0.key < $1.key }
+    let combined = waitingOrdered + erroredOrdered + thinkingOrdered + workingOrdered + idleOrdered
     var activeSnapshots: [SessionSnapshot] = []
     activeSnapshots.reserveCapacity(min(combined.count, 6))
     for (id, sess) in combined.prefix(6) {
         activeSnapshots.append(SessionSnapshot(
             id: id,
             source: sess.source,
-            state: sess.state,
+            state: sess.uhoh == nil || sess.state == .needsConfirmation ? sess.state : (sess.uhoh == .stuck ? .thinking : .errored),
             sessionLabel: sess.cwd.flatMap { ($0 as NSString).lastPathComponent },
             currentTool: sess.currentTool
         ))
@@ -663,119 +705,60 @@ private func aggregate(_ state: InternalState) -> BuddyState {
         lastHeartbeatAt: allSessions.map(\.value.lastActivityAt).max()
     )
 
-    if !hasConnected {
-        // Expectant is the one thing that wakes the pet without a session:
-        // around the user's usual start hour it sits up and watches the door.
-        let state: PetState = buddy.mood == .expectant ? .idle : .sleep
-        buddy.pet = Pet(state: state, species: buddy.pet.species)
-        buddy.msg = ""
-        buddy.lastSignal = nil
-    } else if !waiting.isEmpty {
-        buddy.pet = Pet(state: .attention, species: buddy.pet.species)
-        if let p = highestPrompt {
-            buddy.msg = shortMsg(tool: p.tool, hint: p.hint, source: p.source ?? "")
-        }
-        buddy.lastSignal = "attention"
-    } else if !errored.isEmpty {
-        // Error sits between attention and busy. A live approval still wins (already
-        // handled above), but a failed session takes priority over busy peers.
-        buddy.pet = Pet(state: .error, species: buddy.pet.species)
-        let oldest = errored.min(by: { ($0.value.workStartedAt ?? .infinity) < ($1.value.workStartedAt ?? .infinity) })?.value
-        if let tool = oldest?.currentTool, !tool.isEmpty {
-            buddy.msg = "Error: \(tool)"
-        } else {
-            buddy.msg = "Error"
-        }
-        buddy.lastSignal = "error"
-    } else if !working.isEmpty {
-        // New work consumes the celebration. Leaving celebrateUntil set meant
-        // that when this work finished inside the original 4s window, the
-        // aggregate fell back into the celebrate branch and threw a SECOND
-        // party for a completion already shown — replaying the sound and
-        // re-opening the popover, with msg empty and lastCompleted wiped, so
-        // it was a celebration with nothing to show.
-        buddy.celebrateUntil = nil
-        buddy.celebrateIntensity = nil
-        buddy.pet = Pet(state: .busy, species: buddy.pet.species)
-        // Primary working session = oldest workStartedAt (longest running). Surface its
-        // current tool/hint so the user can see what the agent is doing right now.
-        let primary = working.min(by: { ($0.value.workStartedAt ?? .infinity) < ($1.value.workStartedAt ?? .infinity) })?.value
-        if let tool = primary?.currentTool, !tool.isEmpty {
-            buddy.msg = shortMsg(tool: tool, hint: primary?.currentHint ?? "", source: primary?.source ?? "")
-        } else {
-            buddy.msg = ""
-        }
-        buddy.currentActivityKind = primary?.currentActivityKind
-        // Effort shows in *expression*, not judgment: the pet strains
-        // alongside a hard task; it is never disappointed at anyone.
-        if let primary {
-            let elapsed = primary.workStartedAt.map { buddy.updatedAt - $0 } ?? 0
-            buddy.effortTier = effortTier(for: primary, elapsedMs: elapsed)
-        }
-        buddy.lastSignal = "busy"
-    } else if !thinking.isEmpty {
-        // Calm "the agent is thinking hard" state — silent past the work-stall
-        // threshold but presumed alive (e.g. an extended-thinking turn or a
-        // long-running model reply). No alert, no Dismiss.
-        buddy.pet = Pet(state: .thinking, species: buddy.pet.species)
-        let oldest = thinking.min(by: { ($0.value.workStartedAt ?? .infinity) < ($1.value.workStartedAt ?? .infinity) })?.value
-        if let tool = oldest?.currentTool, !tool.isEmpty {
-            buddy.msg = "Thinking: \(tool)"
-        } else {
-            buddy.msg = "Thinking"
-        }
-        buddy.lastSignal = "thinking"
+    var creature = buddy.creature
+    creature.effort = nil
+    creature.cheer = nil
+    creature.uhoh = nil
+    creature.card = nil
+    creature.overlay = nil
+    creature.greetLevel = nil
+    creature.nudgeRung = 0
+    creature.dots = min(buddy.activeSessions.count, 5)
+    creature.dotAlert = buddy.activeSessions.prefix(5).firstIndex { $0.state == .errored }
+    if let prompt = highestPrompt {
+        creature.state = .needsYou
+        let stakes = cardStakes(tool: prompt.tool, hint: prompt.hint)
+        creature.card = CreatureCard(id: prompt.id, tool: prompt.tool, gloss: prompt.hint,
+                                     stakes: stakes, index: 0, count: waiting.count, isApproval: prompt.isApproval)
+        creature.nudgeRung = state.nudges[prompt.id]?.rung ?? 0
+        if creature.focus && stakes != .careful { creature.nudgeRung = 0 }
+        buddy.msg = shortMsg(tool: prompt.tool, hint: prompt.hint, source: prompt.source ?? "")
+    } else if !errored.isEmpty || !thinking.isEmpty {
+        creature.state = .uhoh
+        let primary = firstErroredSession?.value ?? firstThinkingSession?.value
+        creature.uhoh = primary?.uhoh ?? (errored.isEmpty ? .stuck : .error)
+        let label = creature.uhoh == .stuck ? "Thinking" : "Error"
+        buddy.msg = primary?.currentTool.flatMap { $0.isEmpty ? nil : "\(label): \($0)" } ?? label
     } else if let until = buddy.celebrateUntil, buddy.updatedAt < until {
-        buddy.pet = Pet(state: .celebrate, species: buddy.pet.species)
-        // Show the just-completed task on the device's msg line during celebrate.
-        // The desktop popover ignores msg and renders ReviewCardView instead.
-        if let lc = buddy.lastCompleted, let tool = lc.tool {
-            buddy.msg = "Done: \(tool)\(lc.durationMs.map { " (\(formatDuration($0)))" } ?? "")"
-        } else {
-            buddy.msg = ""
-        }
-        buddy.lastSignal = "celebrate"
+        creature.state = .done
+        creature.cheer = state.doneSize ?? .hop
+        buddy.msg = buddy.lastCompleted?.tool.map { "Done: \($0)" } ?? ""
+    } else if let primary = workingOrdered.first?.value {
+        creature.state = .working
+        let tier = effortTier(for: primary, elapsedMs: primary.workStartedAt.map { buddy.updatedAt - $0 } ?? 0)
+        buddy.effortTier = tier
+        creature.effort = tier == .grinding ? .grinding : tier == .hard ? .hard : .light
+        buddy.currentActivityKind = primary.currentActivityKind
+        buddy.msg = primary.currentTool.map { shortMsg(tool: $0, hint: primary.currentHint ?? "", source: primary.source) } ?? ""
     } else {
-        buddy.pet = Pet(state: .idle, species: buddy.pet.species)
-        // Idle keeps the completion summary on the device's msg line until a new
-        // prompt or work signal arrives (handled by clearing lastCompleted above
-        // and by checking it here).
-        if let lc = buddy.lastCompleted, let tool = lc.tool {
-            buddy.msg = "Done: \(tool)\(lc.durationMs.map { " (\(formatDuration($0)))" } ?? "")"
-        } else {
-            buddy.msg = ""
-        }
-        buddy.celebrateUntil = nil
-        buddy.celebrateIntensity = nil
-        buddy.lastSignal = "idle"
+        creature.state = hasConnected || buddy.mood == .expectant ? .idle : .asleep
+        buddy.msg = buddy.lastCompleted?.tool.map { "Done: \($0)" } ?? ""
     }
-
-    // Boop overlay: a recent device boop puts calm states in heart-eyes.
-    // Mirrors the firmware — attention/error always win (urgency over
-    // affection), and a sleeping pet does its sleep-peek on device instead,
-    // so sleep stays sleep here too. msg/lastSignal keep the base state's
-    // values so the underlying activity context survives the flash.
-    if let until = buddy.affectionUntil, buddy.updatedAt < until {
-        switch buddy.pet.state {
-        case .idle, .busy, .thinking, .celebrate:
-            buddy.pet = Pet(state: .heart, species: buddy.pet.species)
-        case .sleep, .attention, .error, .heart:
-            break
+    // Sleep wins over affection, like urgency does: a booped sleeper gets the
+    // device's one-eye peek, not heart-eyes, and the desktop mirrors that.
+    if creature.state == .idle || creature.state == .working || creature.state == .done {
+        if let until = buddy.affectionUntil, buddy.updatedAt < until {
+            creature.overlay = .boop
+        } else if let until = buddy.greetUntil, buddy.updatedAt < until {
+            creature.overlay = .greet
+            creature.greetLevel = buddy.greetLevel == 2 ? 3 : 1
         }
     }
-
-    // Return-greeting overlay: same shape as the boop overlay above. Reusing
-    // .heart keeps the wire compatible with already-flashed firmware (an
-    // unknown pet string would fall to its default); the separate greet flag
-    // in the heartbeat lets newer firmware do a dedicated animation.
-    if let until = buddy.greetUntil, buddy.updatedAt < until {
-        switch buddy.pet.state {
-        case .idle, .busy, .thinking, .celebrate:
-            buddy.pet = Pet(state: .heart, species: buddy.pet.species)
-        case .sleep, .attention, .error, .heart:
-            break
-        }
-    }
+    buddy.creature = creature
+    buddy.pet.state = legacyPetState(from: creature)
+    var baseCreature = creature
+    baseCreature.overlay = nil
+    buddy.lastSignal = creature.state == .asleep ? nil : legacyPetState(from: baseCreature).rawValue
 
     return buddy
 }
@@ -839,4 +822,138 @@ func formatDuration(_ ms: Double) -> String {
     let minutes = seconds / 60
     let remSeconds = seconds % 60
     return "\(minutes)m \(remSeconds)s"
+}
+
+// MARK: - Creature Policy
+
+struct CheerThresholds: Sendable, Equatable {
+    var danceErrors = 3
+    var danceSpanMs: Double = 1_200_000
+    var cheerErrors = 1
+    var cheerSpanMs: Double = 300_000
+    var hopMs: Double = 1500
+    var cheerMs: Double = 2500
+    var danceMs: Double = 4000
+    var foldMs: Double = 3000
+    static let defaults = CheerThresholds()
+
+    func size(errors: Int, span: Double, effort: EffortTier) -> CheerSize {
+        if errors >= danceErrors || (span >= danceSpanMs && errors >= 1) || effort == .grinding { return .dance }
+        if errors >= cheerErrors || span >= cheerSpanMs || effort == .hard { return .cheer }
+        return .hop
+    }
+
+    func duration(_ size: CheerSize) -> Double {
+        switch size { case .hop: hopMs; case .cheer: cheerMs; case .dance: danceMs }
+    }
+}
+
+struct NudgeTiming: Sendable, Equatable {
+    var t1: Double = 180_000
+    var t2: Double = 300_000
+    var rung2RateLimit: Double = 600_000
+    static let defaults = NudgeTiming()
+}
+
+struct CardNudge: Sendable, Equatable {
+    var rung = 0
+    var nextAt: Double
+    var dismissals = 0
+    var snoozed = false
+    var lastRung2At: Double?
+}
+
+/// One classifier table keeps destructive shell hints consistent across tools.
+private enum CardStakesPolicy {
+    static let carefulPatterns = [
+        "rm -rf", "rm -r ", "sudo ", "git push --force", "git push -f",
+        #"curl\b[^\n]*\|\s*sh\b"#, #"wget\b[^\n]*\|\s*sh\b"#,
+        "mkfs", "dd if=", "chmod 777",
+    ]
+}
+
+func cardStakes(tool: String, hint: String) -> Stakes {
+    if hint.unicodeScalars.contains(where: { $0.value < 0x20 && $0.value != 9 }) ||
+        CardStakesPolicy.carefulPatterns.contains(where: { hint.range(of: $0, options: .regularExpression) != nil }) {
+        return .careful
+    }
+    let readOnly = ["read", "glob", "grep", "ls", "lsp", "read_file", "list_dir", "list_directory", "file_search", "grep_search", "codebase_search", "search"]
+    return readOnly.contains(tool.lowercased()) ? .fine : .checkIt
+}
+
+private func setBubble(_ s: inout InternalState, _ line: String, at: Double) {
+    s.buddy.creature.bubble = line
+    s.bubbleUntil = at + 4000
+}
+
+private func enterUhoh(_ s: inout InternalState, sessionId: String, kind: UhohKind, at: Double) {
+    if s.sessions[sessionId]?.uhoh != kind {
+        let line: String
+        switch kind {
+        case .error: line = s.sessions[sessionId]?.currentHint?.contains("build") == true ? "build failed" : "something broke"
+        case .stuck: line = "might be going in circles"
+        case .hungry: line = "hungry"
+        }
+        setBubble(&s, line, at: at)
+    }
+    s.sessions[sessionId]?.uhoh = kind
+    if !hasBlockingApproval(s.sessions[sessionId]) {
+        s.sessions[sessionId]?.state = kind == .stuck ? .thinking : .errored
+        s.sessions[sessionId]?.prompt = nil
+    }
+}
+
+private func collectGift(_ s: inout InternalState, at: Double) {
+    if s.buddy.creature.gift, let line = s.buddy.creature.giftLine { setBubble(&s, line, at: at) }
+    s.buddy.creature.gift = false
+    s.buddy.creature.giftLine = nil
+}
+
+private func dismissNudge(_ state: InternalState, at: Double) -> InternalState {
+    var s = state
+    guard let card = s.buddy.creature.card,
+          let id = s.sessions.first(where: { $0.value.prompt?.id == card.id })?.key,
+          var nudge = s.nudges[card.id] else { return s }
+    nudge.dismissals += 1
+    nudge.rung = 0
+    nudge.nextAt = at + s.nudgeTiming.t1 / pow(2, Double(nudge.dismissals))
+    if nudge.dismissals >= 3 {
+        nudge.snoozed = true
+        s.snoozedTools[id, default: []].insert(card.tool)
+        setBubble(&s, "okay, I'll hush about that", at: at)
+    }
+    s.nudges[card.id] = nudge
+    return s
+}
+
+/// Timers use only supplied event time. Each card owns its ladder even when
+/// another session's older card is currently on top.
+private func updateCreatureTimers(_ s: inout InternalState, event: BuddyEvent) {
+    let liveIds = Set(s.sessions.values.compactMap { $0.prompt?.id })
+    s.nudges = s.nudges.filter { liveIds.contains($0.key) }
+    s.snoozedTools = s.snoozedTools.filter { s.sessions[$0.key] != nil }
+    for (id, session) in s.sessions {
+        guard let prompt = session.prompt else { continue }
+        let stakes = cardStakes(tool: prompt.tool, hint: prompt.hint)
+        var nudge = s.nudges[prompt.id] ?? CardNudge(nextAt: prompt.arrivedAt + s.nudgeTiming.t1)
+        nudge.snoozed = s.snoozedTools[id]?.contains(prompt.tool) == true
+        if nudge.snoozed || (s.buddy.creature.focus && stakes != .careful) {
+            nudge.rung = 0
+        } else if case .staleTick = event, event.at >= nudge.nextAt {
+            if nudge.rung == 0 {
+                nudge.rung = 1
+                nudge.nextAt = event.at + s.nudgeTiming.t2 / pow(2, Double(nudge.dismissals))
+            } else if stakes == .careful && nudge.rung == 1 &&
+                        event.at - (nudge.lastRung2At ?? -.infinity) >= s.nudgeTiming.rung2RateLimit {
+                nudge.rung = 2
+                nudge.lastRung2At = event.at
+                nudge.nextAt = event.at + s.nudgeTiming.rung2RateLimit
+            }
+        }
+        s.nudges[prompt.id] = nudge
+    }
+    if case .staleTick = event, let until = s.bubbleUntil, event.at >= until {
+        s.buddy.creature.bubble = nil
+        s.bubbleUntil = nil
+    }
 }

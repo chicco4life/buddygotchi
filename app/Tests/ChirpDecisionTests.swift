@@ -50,9 +50,8 @@ final class ChirpDecisionTests: XCTestCase {
         XCTAssertEqual(chirp(working, finished), .complete)
     }
 
-    /// The regression that motivated `lastCompletionAt`: aggregation nulls
-    /// `lastCompleted` while any other session is busy, and the pet never
-    /// leaves .busy — so this completion left no trace to chirp on.
+    /// The completion marker survives legacy review-card suppression while
+    /// another session is working, even though done now wins the projection.
     func testCompletionChirpsWhileAnotherAgentKeepsWorking() {
         let both = applyEvents(
             .test(),
@@ -61,14 +60,14 @@ final class ChirpDecisionTests: XCTestCase {
         )
         let oneDone = applyEvents(both, done("s1", at: NOW + 10_000))
 
-        XCTAssertEqual(oneDone.buddy.pet.state, .busy, "s2 still working, so no celebrate state")
+        XCTAssertEqual(oneDone.buddy.pet.state, .celebrate, "done outranks the working peer")
         XCTAssertNil(oneDone.buddy.lastCompleted, "aggregation clears the review card while busy")
         XCTAssertEqual(chirp(both, oneDone), .complete)
     }
 
-    /// Three agents, two finishing back to back while the third works on. The
-    /// pet sits at .busy across both completions, so a pet-state guard hears
-    /// neither; each finish still deserves its own chirp.
+    /// Three agents, two finishing back to back while the third works on.
+    /// The folded done state has no second edge; the completion marker still
+    /// carries each finish to the existing sound policy.
     func testConsecutiveCompletionsEachChirpWithNoPetStateEdge() {
         let all = applyEvents(
             .test(),
@@ -79,8 +78,8 @@ final class ChirpDecisionTests: XCTestCase {
         let second = applyEvents(first, done("s2", at: NOW + 11_000, source: "cursor"))
 
         XCTAssertEqual(all.buddy.pet.state, .busy)
-        XCTAssertEqual(first.buddy.pet.state, .busy)
-        XCTAssertEqual(second.buddy.pet.state, .busy, "s3 works on — no pet-state edge anywhere here")
+        XCTAssertEqual(first.buddy.pet.state, .celebrate)
+        XCTAssertEqual(second.buddy.pet.state, .celebrate, "the folded done state has no second state edge")
         XCTAssertEqual(chirp(all, first), .complete)
         XCTAssertEqual(chirp(first, second), .complete)
     }
@@ -228,7 +227,7 @@ final class DesktopOutputSoundTests: XCTestCase {
 
     private func makeOutput(soundsEnabled: Bool = true) -> (DesktopOutput, () -> [String]) {
         var played: [String] = []
-        let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        let statusItem: NSStatusItem? = nil // No WindowServer connection is needed for output behavior tests.
         let output = DesktopOutput(
             statusItem: statusItem,
             presenter: StubPresenter(),

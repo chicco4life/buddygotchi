@@ -40,7 +40,7 @@ struct GeneratedTestRunner {
         await run("AutoApproveTests.testControlCharactersAreNotAutoApproved") { let t = AutoApproveTests(); try t.setUpWithError(); try await t.setUp(); t.testControlCharactersAreNotAutoApproved() }
         await run("AutoApproveTests.testLongButSafeCommandStillAutoApproves") { let t = AutoApproveTests(); try t.setUpWithError(); try await t.setUp(); t.testLongButSafeCommandStillAutoApproves() }
         await run("AutoApproveTests.testStableCwdHashDoesNotUseRandomizedStringHash") { let t = AutoApproveTests(); try t.setUpWithError(); try await t.setUp(); t.testStableCwdHashDoesNotUseRandomizedStringHash() }
-        await run("CelebrateOnceTests.testNewWorkConsumesTheCelebrationSoItCannotReplay") { let t = CelebrateOnceTests(); try t.setUpWithError(); try await t.setUp(); t.testNewWorkConsumesTheCelebrationSoItCannotReplay() }
+        await run("CelebrateOnceTests.testNewWorkPreservesDoneWithoutReplayingIt") { let t = CelebrateOnceTests(); try t.setUpWithError(); try await t.setUp(); t.testNewWorkPreservesDoneWithoutReplayingIt() }
         await run("CelebrateOnceTests.testAnOrdinaryCelebrationStillHappens") { let t = CelebrateOnceTests(); try t.setUpWithError(); try await t.setUp(); t.testAnOrdinaryCelebrationStillHappens() }
         await run("CelebrateOnceTests.testApprovalAllowStampsAStartTime") { let t = CelebrateOnceTests(); try t.setUpWithError(); try await t.setUp(); t.testApprovalAllowStampsAStartTime() }
         await run("ToolInputDecodingTests.testToolInputAsJSONStringIsAccepted") { let t = ToolInputDecodingTests(); try t.setUpWithError(); try await t.setUp(); t.testToolInputAsJSONStringIsAccepted() }
@@ -79,6 +79,30 @@ struct GeneratedTestRunner {
         await run("CodexTomlTests.testRemovingBoopMCPWhenAbsentIsIdentity") { let t = CodexTomlTests(); try t.setUpWithError(); try await t.setUp(); t.testRemovingBoopMCPWhenAbsentIsIdentity() }
         await run("CopyRulesTests.testBuddyCopyFollowsBrandLaw") { let t = CopyRulesTests(); try t.setUpWithError(); try await t.setUp(); try t.testBuddyCopyFollowsBrandLaw() }
         await run("CopyRulesTests.testInlineViewTextLiteralRatchet") { let t = CopyRulesTests(); try t.setUpWithError(); try await t.setUp(); try t.testInlineViewTextLiteralRatchet() }
+        await run("CreatureReducerTests.testLegacyProjectionEveryStateAndOverlay") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testLegacyProjectionEveryStateAndOverlay() }
+        await run("CreatureReducerTests.testCollapseThreeSessionsAndDoneAboveWorking") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testCollapseThreeSessionsAndDoneAboveWorking() }
+        await run("CreatureReducerTests.testAllCheerThresholdBranches") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testAllCheerThresholdBranches() }
+        await run("CreatureReducerTests.testCheerThresholdInjection") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testCheerThresholdInjection() }
+        await run("CreatureReducerTests.testFoldKeepsLargerTimerAndUpgradesSmaller") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testFoldKeepsLargerTimerAndUpgradesSmaller() }
+        await run("CreatureReducerTests.testDoneGiftCollectAndUTF8Cap") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testDoneGiftCollectAndUTF8Cap() }
+        await run("CreatureReducerTests.testBoopCollectsGift") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testBoopCollectsGift() }
+        await run("CreatureReducerTests.testErrorHungryAndClearing") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testErrorHungryAndClearing() }
+        await run("CreatureReducerTests.testGenericErrorBubbleAndReplacementExpiry") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testGenericErrorBubbleAndReplacementExpiry() }
+        await run("CreatureReducerTests.testStuckBySilenceAndSuccessClears") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testStuckBySilenceAndSuccessClears() }
+        await run("CreatureReducerTests.testSixIdenticalCallsAndReset") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testSixIdenticalCallsAndReset() }
+        await run("CreatureReducerTests.testEffortReportedOverridesHeuristic") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testEffortReportedOverridesHeuristic() }
+        await run("CreatureReducerTests.testEveryStakesPatternAndReadOnlyTools") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testEveryStakesPatternAndReadOnlyTools() }
+        await run("CreatureReducerTests.testCardQueueOldestFirst") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testCardQueueOldestFirst() }
+        await run("CreatureReducerTests.testCarefulNudgeRungsAndCheckItCap") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testCarefulNudgeRungsAndCheckItCap() }
+        await run("CreatureReducerTests.testDismissHalvesAndThreeDismissalsSnoozeToolForSession") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testDismissHalvesAndThreeDismissalsSnoozeToolForSession() }
+        await run("CreatureReducerTests.testFocusGatesOnlyNonCareful") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testFocusGatesOnlyNonCareful() }
+        await run("CreatureReducerTests.testDotsCappedAndThinkingIncluded") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testDotsCappedAndThinkingIncluded() }
+        await run("CreatureReducerTests.testOverlaysOnlyOnIdleWorkingDone") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testOverlaysOnlyOnIdleWorkingDone() }
+        await run("CreatureReducerTests.testNudgeRungTwoRateLimitSurvivesDismissal") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testNudgeRungTwoRateLimitSurvivesDismissal() }
+        await run("CreatureReducerTests.testGreetingLevelProjectionAndExpiry") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testGreetingLevelProjectionAndExpiry() }
+        await run("CreatureReducerTests.testFailureUnderApprovalSurvivesResolutionAndDismissKeepsCard") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testFailureUnderApprovalSurvivesResolutionAndDismissKeepsCard() }
+        await run("CreatureReducerTests.testRepeatedCallsStayStuckUntilExplicitRecovery") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testRepeatedCallsStayStuckUntilExplicitRecovery() }
+        await run("CreatureReducerTests.testLegacySignalsDelegateToTurnAndToolPaths") { let t = CreatureReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testLegacySignalsDelegateToTurnAndToolPaths() }
         await run("EngineIntegrationTests.testInitialStateIsDisconnectedSleeping") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); t.testInitialStateIsDisconnectedSleeping() }
         await run("EngineIntegrationTests.testSessionStartConnects") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); t.testSessionStartConnects() }
         await run("EngineIntegrationTests.testSessionEndDisconnects") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); t.testSessionEndDisconnects() }
@@ -97,7 +121,7 @@ struct GeneratedTestRunner {
         await run("EngineIntegrationTests.testPromptShowsApprovalFields") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); await t.testPromptShowsApprovalFields() }
         await run("EngineIntegrationTests.testAttentionOverridesBusy") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); t.testAttentionOverridesBusy() }
         await run("EngineIntegrationTests.testAttentionOverridesCelebrate") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); t.testAttentionOverridesCelebrate() }
-        await run("EngineIntegrationTests.testBusyOverridesCelebrate") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); t.testBusyOverridesCelebrate() }
+        await run("EngineIntegrationTests.testDoneOverridesBusy") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); t.testDoneOverridesBusy() }
         await run("EngineIntegrationTests.testCelebrateExpiresAfterDuration") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); t.testCelebrateExpiresAfterDuration() }
         await run("EngineIntegrationTests.testCelebrateStillActiveBeforeDuration") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); t.testCelebrateStillActiveBeforeDuration() }
         await run("EngineIntegrationTests.testCelebrateRecordsTaskDuration") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); t.testCelebrateRecordsTaskDuration() }
@@ -129,6 +153,13 @@ struct GeneratedTestRunner {
         await run("EngineIntegrationTests.testHeartbeatPopulatesErrorToolFromErrorMsg") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); try t.testHeartbeatPopulatesErrorToolFromErrorMsg() }
         await run("EngineIntegrationTests.testHeartbeatErrorToolNilWhenNoTool") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); try t.testHeartbeatErrorToolNilWhenNoTool() }
         await run("EngineIntegrationTests.testHeartbeatActivityFieldReflectsCurrentToolKind") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); try t.testHeartbeatActivityFieldReflectsCurrentToolKind() }
+        await run("EngineIntegrationTests.testTurnStartedReachesCreature") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); t.testTurnStartedReachesCreature() }
+        await run("EngineIntegrationTests.testToolCalledReachesCreature") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); t.testToolCalledReachesCreature() }
+        await run("EngineIntegrationTests.testToolResultedReachesCreature") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); t.testToolResultedReachesCreature() }
+        await run("EngineIntegrationTests.testTurnEndedReachesCreature") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); t.testTurnEndedReachesCreature() }
+        await run("EngineIntegrationTests.testFocusToggledReachesCreature") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); t.testFocusToggledReachesCreature() }
+        await run("EngineIntegrationTests.testCollectArrivedReachesCreature") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); t.testCollectArrivedReachesCreature() }
+        await run("EngineIntegrationTests.testNudgeDismissedReachesCreature") { let t = EngineIntegrationTests(); try t.setUpWithError(); try await t.setUp(); t.testNudgeDismissedReachesCreature() }
         await run("HeartbeatTruncationTests.testPrefixByBytesNeverSplitsACharacter") { let t = HeartbeatTruncationTests(); try t.setUpWithError(); try await t.setUp(); t.testPrefixByBytesNeverSplitsACharacter() }
         await run("HeartbeatTruncationTests.testPrefixByBytesKeepsWholeCharactersForCJK") { let t = HeartbeatTruncationTests(); try t.setUpWithError(); try await t.setUp(); t.testPrefixByBytesKeepsWholeCharactersForCJK() }
         await run("HeartbeatTruncationTests.testPrefixByBytesLeavesShortAsciiUntouched") { let t = HeartbeatTruncationTests(); try t.setUpWithError(); try await t.setUp(); t.testPrefixByBytesLeavesShortAsciiUntouched() }
@@ -149,6 +180,7 @@ struct GeneratedTestRunner {
         await run("HookServerBehaviorTests.testApprovalResponseDecisionEncodings") { let t = HookServerBehaviorTests(); try t.setUpWithError(); try await t.setUp(); t.testApprovalResponseDecisionEncodings() }
         await run("HookServerBehaviorTests.testShouldAutoApproveBehavior") { let t = HookServerBehaviorTests(); try t.setUpWithError(); try await t.setUp(); t.testShouldAutoApproveBehavior() }
         await run("HookServerBehaviorTests.testPermissionRequestCardWinsOverPermissionPromptNotification") { let t = HookServerBehaviorTests(); try t.setUpWithError(); try await t.setUp(); try await t.testPermissionRequestCardWinsOverPermissionPromptNotification() }
+        await run("HookServerBehaviorTests.testTurnAndToolHookEventsForClaudeAndCodex") { let t = HookServerBehaviorTests(); try t.setUpWithError(); try await t.setUp(); try await t.testTurnAndToolHookEventsForClaudeAndCodex() }
         await run("InstanceLockTests.testSecondClaimOnSamePathLoses") { let t = InstanceLockTests(); try t.setUpWithError(); try await t.setUp(); t.testSecondClaimOnSamePathLoses() }
         await run("InstanceLockTests.testClaimIsIdempotentForTheHolder") { let t = InstanceLockTests(); try t.setUpWithError(); try await t.setUp(); t.testClaimIsIdempotentForTheHolder() }
         await run("InstanceLockTests.testReleaseHandsTheClaimToTheNextComer") { let t = InstanceLockTests(); try t.setUpWithError(); try await t.setUp(); t.testReleaseHandsTheClaimToTheNextComer() }
@@ -229,7 +261,7 @@ struct GeneratedTestRunner {
         await run("ReducerTests.testCelebrateSignalSetsCelebrateState") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testCelebrateSignalSetsCelebrateState() }
         await run("ReducerTests.testCelebrateExpiresOnStaleTick") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testCelebrateExpiresOnStaleTick() }
         await run("ReducerTests.testAttentionOverridesCelebrate") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testAttentionOverridesCelebrate() }
-        await run("ReducerTests.testBusyOverridesCelebrate") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testBusyOverridesCelebrate() }
+        await run("ReducerTests.testDoneOverridesBusy") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testDoneOverridesBusy() }
         await run("ReducerTests.testShortTaskDurationBelowThreshold") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testShortTaskDurationBelowThreshold() }
         await run("ReducerTests.testLongTaskDurationAboveThreshold") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testLongTaskDurationAboveThreshold() }
         await run("ReducerTests.testCelebrateWithoutWorkStartHasNilDuration") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testCelebrateWithoutWorkStartHasNilDuration() }
@@ -254,12 +286,12 @@ struct GeneratedTestRunner {
         await run("ReducerTests.testErrorSignalSetsPetToErrorNotIdle") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testErrorSignalSetsPetToErrorNotIdle() }
         await run("ReducerTests.testStaleTickMarksSessionThinkingAfterStallTimeoutNoWorkSignal") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testStaleTickMarksSessionThinkingAfterStallTimeoutNoWorkSignal() }
         await run("ReducerTests.testStaleTickDoesNotMarkThinkingIfKeepWorkingWithinThreshold") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testStaleTickDoesNotMarkThinkingIfKeepWorkingWithinThreshold() }
-        await run("ReducerTests.testThinkingSessionRecoversToWorkingOnKeepWorkingPreservingWorkStartedAt") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testThinkingSessionRecoversToWorkingOnKeepWorkingPreservingWorkStartedAt() }
+        await run("ReducerTests.testThinkingSessionRecoversOnSuccessfulResultPreservingWorkStartedAt") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testThinkingSessionRecoversOnSuccessfulResultPreservingWorkStartedAt() }
         await run("ReducerTests.testErrorAndThinkingPriorityErrorWins") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testErrorAndThinkingPriorityErrorWins() }
         await run("ReducerTests.testBusyAndThinkingPriorityBusyWins") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testBusyAndThinkingPriorityBusyWins() }
         await run("ReducerTests.testThinkingMsgIncludesToolName") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testThinkingMsgIncludesToolName() }
         await run("ReducerTests.testErrorMsgUsesErrorPrefixNotStalled") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testErrorMsgUsesErrorPrefixNotStalled() }
-        await run("ReducerTests.testErroredSessionRecoversToWorkingOnKeepWorking") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testErroredSessionRecoversToWorkingOnKeepWorking() }
+        await run("ReducerTests.testErroredSessionRecoversToWorkingOnTurnStarted") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testErroredSessionRecoversToWorkingOnTurnStarted() }
         await run("ReducerTests.testErroredSessionWithActivePromptElsewherePetRemainsAttention") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testErroredSessionWithActivePromptElsewherePetRemainsAttention() }
         await run("ReducerTests.testDismissErrorClearsErroredStateForSession") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testDismissErrorClearsErroredStateForSession() }
         await run("ReducerTests.testFirstErroredHasOldestWorkStartedAtAcrossMultipleErrored") { let t = ReducerTests(); try t.setUpWithError(); try await t.setUp(); t.testFirstErroredHasOldestWorkStartedAtAcrossMultipleErrored() }
@@ -310,7 +342,7 @@ struct GeneratedTestRunner {
         await run("SnapshotHarnessTests.testSettings") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testSettings() }
         await run("SnapshotHarnessTests.testOnboardingSteps") { let t = SnapshotHarnessTests(); try t.setUpWithError(); try await t.setUp(); try t.testOnboardingSteps() }
 
-        let total = 286
+        let total = 318
         print("\n\u{2713} \(passed) passed, \(skipped) skipped of \(total) tests")
     }
 }

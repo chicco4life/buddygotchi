@@ -1,5 +1,64 @@
 import Foundation
 
+// MARK: - Creature
+
+enum CreatureState: String, Sendable, Equatable, CaseIterable { case asleep, idle, working, needsYou, done, uhoh }
+enum CreatureEffort: String, Sendable, Equatable { case light, hard, grinding }
+enum CheerSize: String, Sendable, Equatable {
+    case hop, cheer, dance
+    var intensity: Int { switch self { case .hop: 1; case .cheer: 2; case .dance: 3 } }
+}
+enum UhohKind: String, Sendable, Equatable { case error, stuck, hungry }
+enum CreatureOverlay: String, Sendable, Equatable { case greet, boop }
+enum Stakes: String, Sendable, Equatable { case fine, checkIt, careful }
+
+struct CreatureCard: Sendable, Equatable {
+    var id: String
+    var tool: String
+    var gloss: String
+    var stakes: Stakes
+    var index: Int
+    var count: Int
+    var isApproval: Bool
+}
+
+struct Creature: Sendable, Equatable {
+    var state: CreatureState
+    var effort: CreatureEffort?
+    var cheer: CheerSize?
+    var uhoh: UhohKind?
+    var overlay: CreatureOverlay?
+    var greetLevel: Int?
+    var dots: Int
+    var dotAlert: Int?
+    var card: CreatureCard?
+    var bubble: String?
+    var gift: Bool
+    var giftLine: String?
+    var focus: Bool
+    var nudgeRung: Int
+
+    static let initial = Creature(state: .asleep, dots: 0, gift: false, focus: false, nudgeRung: 0)
+
+    var statusLabel: String {
+        let parameter = cheer?.rawValue ?? effort?.rawValue ?? uhoh?.rawValue
+        return state.rawValue + (parameter.map { " · \($0)" } ?? "")
+    }
+}
+
+/// The old firmware vocabulary is only a rendering projection.
+func legacyPetState(from creature: Creature) -> PetState {
+    if creature.overlay != nil, [.idle, .working, .done].contains(creature.state) { return .heart }
+    switch creature.state {
+    case .asleep: return .sleep
+    case .idle: return .idle
+    case .working: return .busy
+    case .needsYou: return .attention
+    case .done: return .celebrate
+    case .uhoh: return creature.uhoh == .stuck ? .thinking : .error
+    }
+}
+
 // MARK: - Pet State
 
 enum PetState: String, Sendable, Equatable, CaseIterable {
@@ -66,6 +125,8 @@ struct Session: Sendable, Equatable {
     var errorCount: Int = 0
     /// Agent's own difficulty report (MCP report_effort); beats the heuristic.
     var reportedEffort: EffortTier?
+    var uhoh: UhohKind?
+    var repeatedToolCount: Int = 0
 }
 
 struct SessionCounts: Sendable, Equatable {
@@ -167,6 +228,7 @@ struct BuddyState: Sendable, Equatable {
     var entries: [String]
 
     var prompt: Prompt?
+    var creature: Creature = .initial
     var pet: Pet
     var lastSignal: String?
     var celebrateUntil: Double?
@@ -225,6 +287,7 @@ struct BuddyState: Sendable, Equatable {
         msg: "",
         entries: [],
         prompt: nil,
+        creature: .initial,
         pet: .initial,
         lastSignal: nil,
         celebrateUntil: nil,

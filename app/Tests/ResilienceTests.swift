@@ -223,6 +223,7 @@ final class ResilienceTests: XCTestCase {
     /// actual socket close can prove that.
     @MainActor
     func testClientHangUpAbandonsParkedApprovalAgainstRealServer() async throws {
+        try requireLocalNetworking()
         let (engine, _, _) = makeResilienceEngine()
         let port = Int.random(in: 33000..<59000)
         let config = BuddyConfig(

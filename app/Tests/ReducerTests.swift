@@ -138,12 +138,13 @@ final class ReducerTests: XCTestCase {
         var s = applyEvents(
             .test(),
             .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
+            .turnStarted(at: NOW, sessionId: "s1", source: "claude-code"),
             .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: nil, hint: nil)
         )
         XCTAssertEqual(s.buddy.pet.state, .celebrate)
 
-        s = applyEvents(s, .staleTick(at: NOW + 3000))
-        XCTAssertEqual(s.buddy.pet.state, .celebrate, "Should still be celebrating before 4s")
+        s = applyEvents(s, .staleTick(at: NOW + 1000))
+        XCTAssertEqual(s.buddy.pet.state, .celebrate, "Should still be celebrating before 1.5s")
 
         s = applyEvents(s, .staleTick(at: NOW + 5000))
         XCTAssertEqual(s.buddy.pet.state, .idle)
@@ -156,6 +157,7 @@ final class ReducerTests: XCTestCase {
             .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
             .sessionStarted(at: NOW, sessionId: "s2", source: "claude-code", cwd: nil)
         )
+        s = reduce(s, .turnStarted(at: NOW, sessionId: "s1", source: "claude-code"))
         s = applyEvents(s, .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: nil, hint: nil))
         XCTAssertEqual(s.buddy.pet.state, .celebrate)
 
@@ -163,17 +165,18 @@ final class ReducerTests: XCTestCase {
         XCTAssertEqual(s.buddy.pet.state, .attention, "Attention takes priority over celebrate")
     }
 
-    func testBusyOverridesCelebrate() {
+    func testDoneOverridesBusy() {
         var s = applyEvents(
             .test(),
             .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
             .sessionStarted(at: NOW, sessionId: "s2", source: "claude-code", cwd: nil)
         )
+        s = reduce(s, .turnStarted(at: NOW, sessionId: "s1", source: "claude-code"))
         s = applyEvents(s, .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: nil, hint: nil))
         XCTAssertEqual(s.buddy.pet.state, .celebrate)
 
         s = applyEvents(s, .activitySignal(at: NOW + 2, sessionId: "s2", source: "claude-code", signal: .startWorking, tool: nil, hint: nil))
-        XCTAssertEqual(s.buddy.pet.state, .busy, "Busy takes priority over celebrate")
+        XCTAssertEqual(s.buddy.pet.state, .celebrate, "Done takes priority over working")
     }
 
     func testShortTaskDurationBelowThreshold() {
@@ -204,7 +207,7 @@ final class ReducerTests: XCTestCase {
             .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil)
         )
         s = applyEvents(s, .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: nil, hint: nil))
-        XCTAssertEqual(s.buddy.pet.state, .celebrate)
+        XCTAssertEqual(s.buddy.pet.state, .idle)
         XCTAssertNil(s.buddy.lastTaskDurationMs, "No workStartedAt means nil duration")
     }
 
@@ -500,7 +503,7 @@ final class ReducerTests: XCTestCase {
         XCTAssertEqual(s.buddy.pet.state, .busy)
     }
 
-    func testThinkingSessionRecoversToWorkingOnKeepWorkingPreservingWorkStartedAt() {
+    func testThinkingSessionRecoversOnSuccessfulResultPreservingWorkStartedAt() {
         var initial = InternalState.test()
         initial.workStallTimeoutMs = 30_000
         var s = applyEvents(
@@ -512,7 +515,7 @@ final class ReducerTests: XCTestCase {
         s = applyEvents(s, .staleTick(at: NOW + 35_000))
         XCTAssertEqual(s.buddy.pet.state, .thinking)
         // Resume — the agent emitted output again
-        s = applyEvents(s, .activitySignal(at: NOW + 40_000, sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Edit", hint: "Foo.swift"))
+        s = applyEvents(s, .toolResulted(at: NOW + 40_000, sessionId: "s1", source: "claude-code", tool: "Edit", ok: true, durationMs: nil))
         XCTAssertEqual(s.sessions["s1"]?.state, .working)
         XCTAssertEqual(s.buddy.pet.state, .busy)
         XCTAssertEqual(s.sessions["s1"]?.workStartedAt, originalStart, "thinking → working preserves original start time (work paused, not restarted)")
@@ -552,9 +555,9 @@ final class ReducerTests: XCTestCase {
         )
         s = applyEvents(s, .staleTick(at: NOW + 35_000))
         XCTAssertEqual(s.sessions["thinker"]?.state, .thinking)
-        // Now an unrelated session becomes busy — it should outrank thinking.
+        // An unrelated working session cannot hide the stuck peer.
         s = applyEvents(s, .activitySignal(at: NOW + 40_000, sessionId: "active", source: "cursor", signal: .keepWorking, tool: "Bash", hint: nil))
-        XCTAssertEqual(s.buddy.pet.state, .busy, "actively-working session outranks thinking peer")
+        XCTAssertEqual(s.buddy.pet.state, .thinking, "stuck uh-oh outranks a working peer")
     }
 
     func testThinkingMsgIncludesToolName() {
@@ -579,7 +582,7 @@ final class ReducerTests: XCTestCase {
         XCTAssertTrue(s.buddy.msg.hasPrefix("Error: Bash"), "got msg=\(s.buddy.msg)")
     }
 
-    func testErroredSessionRecoversToWorkingOnKeepWorking() {
+    func testErroredSessionRecoversToWorkingOnTurnStarted() {
         var s = applyEvents(
             .test(),
             .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
@@ -587,8 +590,8 @@ final class ReducerTests: XCTestCase {
             .activitySignal(at: NOW + 2, sessionId: "s1", source: "claude-code", signal: .error, tool: nil, hint: nil)
         )
         XCTAssertEqual(s.buddy.pet.state, .error)
-        // New keep_working signal should flip back to working.
-        s = applyEvents(s, .activitySignal(at: NOW + 100, sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Edit", hint: "Foo.swift"))
+        // A new turn explicitly clears the failed outcome.
+        s = applyEvents(s, .turnStarted(at: NOW + 100, sessionId: "s1", source: "claude-code"))
         XCTAssertEqual(s.sessions["s1"]?.state, .working)
         XCTAssertEqual(s.buddy.pet.state, .busy)
     }
@@ -839,6 +842,7 @@ final class ReducerTests: XCTestCase {
     func testBoopWhileAsleepStaysAsleep() {
         let s = applyEvents(.test(), .boopArrived(at: NOW))
         XCTAssertEqual(s.buddy.pet.state, .sleep, "The device does its sleep-peek; the desktop stays asleep")
+        XCTAssertNil(s.buddy.creature.overlay)
     }
 
     func testAttentionArrivingDuringHeartWinsImmediately() {

@@ -118,6 +118,34 @@ final class BuddyEngine {
         apply(.requestCleared(at: clock.now(), sessionId: sessionId))
     }
 
+    func turnStarted(sessionId: String, source: String) {
+        apply(.turnStarted(at: clock.now(), sessionId: sessionId, source: source))
+    }
+
+    func toolCalled(sessionId: String, source: String, tool: String, hint: String) {
+        apply(.toolCalled(at: clock.now(), sessionId: sessionId, source: source, tool: tool, hint: hint))
+    }
+
+    func toolResulted(sessionId: String, source: String, tool: String, ok: Bool?, durationMs: Double? = nil) {
+        apply(.toolResulted(at: clock.now(), sessionId: sessionId, source: source, tool: tool, ok: ok, durationMs: durationMs))
+    }
+
+    func turnEnded(sessionId: String, source: String, outcome: TurnOutcome) {
+        apply(.turnEnded(at: clock.now(), sessionId: sessionId, source: source, outcome: outcome))
+    }
+
+    func focusToggled(on: Bool) {
+        apply(.focusToggled(at: clock.now(), on: on))
+    }
+
+    func collectArrived() {
+        apply(.collectArrived(at: clock.now()))
+    }
+
+    func nudgeDismissed() {
+        apply(.nudgeDismissed(at: clock.now()))
+    }
+
     func activitySignal(sessionId: String, source: String, signal: ActivitySignalKind, tool: String? = nil, hint: String? = nil) {
         apply(.activitySignal(at: clock.now(), sessionId: sessionId, source: source, signal: signal, tool: tool, hint: hint))
     }

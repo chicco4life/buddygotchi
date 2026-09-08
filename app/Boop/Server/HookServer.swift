@@ -15,6 +15,7 @@ struct HookEventBody: Decodable, Sendable {
     var tool_input: ToolInput?
     var notification_type: String?
     var message: String?
+    var error: String?
     var command: String?
     var toolName: String?
 
@@ -312,22 +313,19 @@ func handleAgentEvent(
         break
 
     case "UserPromptSubmit":
-        await engine.activitySignal(sessionId: sessionId, source: source, signal: .startWorking)
+        await engine.turnStarted(sessionId: sessionId, source: source)
 
     case "Stop":
-        await engine.activitySignal(sessionId: sessionId, source: source, signal: .celebrate)
+        await engine.turnEnded(sessionId: sessionId, source: source, outcome: .completed)
 
     case "StopFailure":
-        await engine.activitySignal(sessionId: sessionId, source: source, signal: .error)
+        await engine.turnEnded(sessionId: sessionId, source: source, outcome: .failed(errorClass: body.error))
 
-    case "PostToolUse":
-        await engine.clearRequest(sessionId: sessionId)
-        await engine.activitySignal(sessionId: sessionId, source: source, signal: .keepWorking, tool: body.effectiveToolName, hint: extractHint(from: body))
+    case "PostToolUse", "PostToolUseFailure":
+        await engine.toolResulted(sessionId: sessionId, source: source, tool: body.effectiveToolName ?? "", ok: event == "PostToolUse")
 
     case "PreToolUse":
-        // Codex fires PreToolUse before running a tool. Keep the pet busy while the
-        // tool runs (Codex has no separate "still working" signal between turns).
-        await engine.activitySignal(sessionId: sessionId, source: source, signal: .keepWorking, tool: body.effectiveToolName, hint: extractHint(from: body))
+        await engine.toolCalled(sessionId: sessionId, source: source, tool: body.effectiveToolName ?? "", hint: extractHint(from: body))
 
     case "SessionEnd":
         await engine.sessionEnded(sessionId: sessionId)

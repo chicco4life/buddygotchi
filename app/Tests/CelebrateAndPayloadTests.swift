@@ -5,7 +5,7 @@ import XCTest
 /// A completion is celebrated once.
 final class CelebrateOnceTests: XCTestCase {
 
-    func testNewWorkConsumesTheCelebrationSoItCannotReplay() {
+    func testNewWorkPreservesDoneWithoutReplayingIt() {
         var s = InternalState.initial(staleMs: 600_000, celebrateDurationMs: 4_000)
         s = reduce(s, .sessionStarted(at: 0, sessionId: "s1", source: "claude-code", cwd: "/tmp"))
         s = reduce(s, .activitySignal(at: 0, sessionId: "s1", source: "claude-code",
@@ -14,11 +14,11 @@ final class CelebrateOnceTests: XCTestCase {
                                       signal: .celebrate, tool: "Bash", hint: "build"))
         XCTAssertEqual(s.buddy.pet.state, .celebrate)
 
-        // A second session starts and finishes INSIDE the 4s celebrate window.
+        // A second session starts and finishes inside the hop window.
         s = reduce(s, .sessionStarted(at: 40_500, sessionId: "s2", source: "claude-code", cwd: "/tmp"))
         s = reduce(s, .activitySignal(at: 40_500, sessionId: "s2", source: "claude-code",
                                       signal: .startWorking, tool: "Read", hint: "/tmp/a"))
-        XCTAssertEqual(s.buddy.pet.state, .busy)
+        XCTAssertEqual(s.buddy.pet.state, .celebrate)
 
         s = reduce(s, .sessionEnded(at: 42_000, sessionId: "s2"))
         XCTAssertNotEqual(s.buddy.pet.state, .celebrate,

@@ -10,9 +10,19 @@ enum ActivitySignalKind: String, Sendable, Equatable {
     case error = "error"
 }
 
+enum TurnOutcome: Sendable, Equatable { case completed; case failed(errorClass: String?) }
+
 // MARK: - Events
 
 enum BuddyEvent: Sendable {
+    case turnStarted(at: Double, sessionId: String, source: String)
+    case toolCalled(at: Double, sessionId: String, source: String, tool: String, hint: String)
+    case toolResulted(at: Double, sessionId: String, source: String, tool: String, ok: Bool?, durationMs: Double?)
+    case turnEnded(at: Double, sessionId: String, source: String, outcome: TurnOutcome)
+    case focusToggled(at: Double, on: Bool)
+    case collectArrived(at: Double)
+    case nudgeDismissed(at: Double)
+
     case sessionStarted(at: Double, sessionId: String, source: String, cwd: String?)
     case sessionEnded(at: Double, sessionId: String)
 
@@ -58,7 +68,14 @@ enum BuddyEvent: Sendable {
 
     var at: Double {
         switch self {
-        case .sessionStarted(let at, _, _, _),
+        case .turnStarted(let at, _, _),
+             .toolCalled(let at, _, _, _, _),
+             .toolResulted(let at, _, _, _, _, _),
+             .turnEnded(let at, _, _, _),
+             .focusToggled(let at, _),
+             .collectArrived(let at),
+             .nudgeDismissed(let at),
+             .sessionStarted(let at, _, _, _),
              .sessionEnded(let at, _),
              .requestArrived(let at, _, _, _, _, _),
              .requestCleared(let at, _),
@@ -83,6 +100,13 @@ enum BuddyEvent: Sendable {
 
     var name: String {
         switch self {
+        case .turnStarted: "turnStarted"
+        case .toolCalled: "toolCalled"
+        case .toolResulted: "toolResulted"
+        case .turnEnded: "turnEnded"
+        case .focusToggled: "focusToggled"
+        case .collectArrived: "collectArrived"
+        case .nudgeDismissed: "nudgeDismissed"
         case .sessionStarted: "sessionStarted"
         case .sessionEnded: "sessionEnded"
         case .requestArrived: "requestArrived"

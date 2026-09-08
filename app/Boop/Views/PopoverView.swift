@@ -291,21 +291,10 @@ struct PopoverView: View {
             .replacingOccurrences(of: "{sessions}", with: sessions)
     }
 
-    private var stateInk: Color { BuddyTheme.stateInk(engine.state.pet.state) }
-    private var stateFill: Color { BuddyTheme.stateFill(engine.state.pet.state) }
+    private var stateInk: Color { BuddyTheme.stateInk(legacyPetState(from: engine.state.creature)) }
+    private var stateFill: Color { BuddyTheme.stateFill(legacyPetState(from: engine.state.creature)) }
 
-    /// The state capsule, flavored by personality: effort while busy
-    /// ("busy · grinding"), mood otherwise ("idle · expectant").
-    private var stateLabel: String {
-        let base = engine.state.pet.state.rawValue
-        if engine.state.pet.state == .busy, let effort = engine.state.effortTier, effort != .normal {
-            return "\(base) · \(effort.rawValue)"
-        }
-        if let mood = engine.state.mood {
-            return "\(base) · \(mood.rawValue)"
-        }
-        return base
-    }
+    private var stateLabel: String { engine.state.creature.statusLabel }
 
     private var statusColor: Color {
         switch engine.state.desktop.status {

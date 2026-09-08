@@ -56,7 +56,9 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
     func sendTestCelebrate() {
         guard bleManager.connectionState == .connected else { return }
         var celebrateState = lastState ?? .initial
-        celebrateState.pet = Pet(state: .celebrate, species: celebrateState.pet.species)
+        celebrateState.creature.state = .done
+        celebrateState.creature.overlay = nil
+        celebrateState.pet.state = legacyPetState(from: celebrateState.creature)
         celebrateState.celebrateUntil = Date().timeIntervalSince1970 + 5
         if let data = renderStateData(from: celebrateState) {
             bleManager.send(data)

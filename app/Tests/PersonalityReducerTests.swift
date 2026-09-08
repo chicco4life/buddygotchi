@@ -180,9 +180,9 @@ final class PersonalityReducerTests: XCTestCase {
             s,
             .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .startWorking, tool: "Bash", hint: "x"),
             .activitySignal(at: NOW + 2, sessionId: "s1", source: "claude-code", signal: .error, tool: "Bash", hint: "x"),
-            .activitySignal(at: NOW + 3, sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "x"),
+            .activitySignal(at: NOW + 3, sessionId: "s1", source: "claude-code", signal: .startWorking, tool: "Bash", hint: "x"),
             .activitySignal(at: NOW + 4, sessionId: "s1", source: "claude-code", signal: .error, tool: "Bash", hint: "x"),
-            .activitySignal(at: NOW + 5, sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "x")
+            .activitySignal(at: NOW + 5, sessionId: "s1", source: "claude-code", signal: .startWorking, tool: "Bash", hint: "x")
         )
         XCTAssertEqual(s.buddy.effortTier, .hard)
     }
@@ -216,7 +216,7 @@ final class PersonalityReducerTests: XCTestCase {
             .activitySignal(at: NOW + 5, sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "x"),
             .activitySignal(at: NOW + 6, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: "Bash", hint: "x")
         )
-        XCTAssertEqual(s.buddy.celebrateIntensity, 3)
+        XCTAssertEqual(s.buddy.celebrateIntensity, 2)
         XCTAssertEqual(s.memory.lifetimeCelebrations, 1)
         // The struggle is spent: the next task starts clean.
         XCTAssertEqual(s.sessions["s1"]?.errorCount, 0)
