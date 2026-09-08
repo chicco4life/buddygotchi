@@ -74,11 +74,20 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
         }
     }
 
+    private var lastCardSent = ""
     func sendNow() {
         guard bleManager.connectionState == .connected,
               let s = lastState,
               let data = renderStateData(from: s, now: engine?.deviceFrameTime ?? 0) else { return }
         bleManager.send(data)
+        // One diagnostic per card so the latency scenario can place the
+        // "frame left the app" hop; plain state frames stay unlogged.
+        let cardId = s.creature.state == .needsYou ? s.creature.card?.id ?? "" : ""
+        if !cardId.isEmpty, cardId != lastCardSent {
+            lastCardSent = cardId
+            let bytes = data.count
+            Task { await engine?.diagnosticLog.log(category: "device", source: "ble", event: "cardSent", detail: "\(cardId) \(bytes)B") }
+        }
     }
 
     func stateDidChange(prev: BuddyState, next: BuddyState) {

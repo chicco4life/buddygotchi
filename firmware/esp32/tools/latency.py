@@ -55,6 +55,23 @@ def poll(buddy: buddyctl.SerialBuddy, ok, timeout: float) -> tuple[float, dict]:
     raise buddyctl.BuddyError(f"device never reached the expected state within {timeout}s")
 
 
+def app_hops(base: str, token: str, wall0: float) -> dict[str, float]:
+    """App-internal hops from its diagnostics, relative to the hook POST (wall clock)."""
+    req = urllib.request.Request(base + "/diag/recent", headers={"X-Boop-Token": token})
+    with urllib.request.urlopen(req, timeout=5) as resp:  # noqa: S310
+        entries = json.load(resp)["entries"]
+    recent = [e for e in entries if e["timestamp"] >= wall0 - 5]
+    def first(event: str) -> float | None:
+        ts = [e["timestamp"] for e in recent if e["event"] == event]
+        return (min(ts) - wall0) if ts else None
+    out = {}
+    for label, event in (("  app: route entry", "PermissionRequest"), ("  app: approvalArrived", "approvalArrived"), ("  app: cardSent", "cardSent")):
+        v = first(event)
+        if v is not None:
+            out[label] = v
+    return out
+
+
 def one_round(buddy: buddyctl.SerialBuddy, base: str, token: str) -> dict[str, float]:
     session = "latency-" + uuid.uuid4().hex[:8]
     # Start from idle: end any previous turn and wait for the creature to settle.
@@ -70,9 +87,10 @@ def one_round(buddy: buddyctl.SerialBuddy, base: str, token: str) -> dict[str, f
             "tool_name": "Bash", "tool_input": {"command": "npm test"}}, timeout=60)
         held["returned"] = time.monotonic()
 
-    t0 = time.monotonic()
+    t0 = time.monotonic(); wall0 = time.time() * 1000
     thread = threading.Thread(target=hold, daemon=True); thread.start()
     t1, _ = poll(buddy, lambda s: s["card"], 10)
+    hops = app_hops(base, token, wall0)
     # The firmware ignores presses until the card arms (in-flight press guard).
     poll(buddy, lambda s: s["armed"], 10)
     hold_ms = 150
@@ -91,7 +109,7 @@ def one_round(buddy: buddyctl.SerialBuddy, base: str, token: str) -> dict[str, f
         "hook_event_name": "PreToolUse", "session_id": session, "tool_name": "Bash", "tool_input": {"command": "ls"}})
     t5, _ = poll(buddy, lambda s: s["creature"] == "working", 10)
     post(base, token, "/hook/event?source=claude-code", {"hook_event_name": "Stop", "session_id": session})
-    return {"hook -> card": (t1 - t0) * 1000,
+    return {**hops, "hook -> card": (t1 - t0) * 1000,
             "button -> decision": (t3 - t2) * 1000 - hold_ms,  # the press is held 150 ms; the tap lands on release
             "state -> frame": (t5 - t4) * 1000}
 

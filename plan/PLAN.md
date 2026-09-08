@@ -490,8 +490,9 @@ port node vanishing.
 
 **Exit checklist.**
 
-- [ ] Latency table filled at p90 and every row within budget. (Blocked:
-      device stranded on USB; needs a person at the reset button and a BLE pairing.)
+- [x] Latency table filled at p90 and every row within budget:
+      `plan/evidence/phase-9/latency.md` (hook→card 398 ms, button→decision
+      137 ms, state→frame 124 ms at p90; `firmware/esp32/tools/latency.py`).
 - [ ] Soak and hardening green at release cycle counts. (Blocked on the same
       reset; the 40-cycle soak is what stranded the board.)
 - [x] Release skill preflight green (unsigned mode; signing, notarization,
