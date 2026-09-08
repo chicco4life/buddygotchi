@@ -7,6 +7,16 @@ builds and runs: the Swift macOS menu bar app, the ESP32 firmware, the
 landing page, hardware files, and earlier research. Start with
 [plan/VISION.md](plan/VISION.md) and [plan/PLAN.md](plan/PLAN.md).
 
+The v2 Waveshare firmware builds from the active tree:
+
+```sh
+cd firmware/esp32
+tools/pio_ws.sh run -e ws-amoled164
+python3 -m py_compile tests/hil/test_usb.py
+```
+
+See [firmware/esp32/README.md](firmware/esp32/README.md) for device controls and HIL.
+
 The rest of this file describes the archived implementation. Every command
 below runs from `archived/` unless it says otherwise.
 

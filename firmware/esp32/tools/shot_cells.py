@@ -11,6 +11,6 @@ def cells():
     for stakes in ("fine", "checkIt", "careful"):
         result[f"card-{stakes}"] = {**base, "state": "needsYou", "card": {"id": "shot", "tool": "Bash", "gloss": "Run tests", "stakes": stakes, "n": 1, "of": 1, "approval": True}}
     result["bubble-ko"] = {**base, "state": "idle", "bubble": "테스트 통과"}
-    result["gift"] = {**base, "state": "done", "cheer": "cheer", "gift": True, "giftLine": "Tests passed"}
+    result["gift"] = {**base, "state": "idle", "gift": True, "giftLine": "Tests passed"}
     result["travel-snap"] = {**base, "state": "idle", "posture": "travel", "snap": {"name": "Boop", "level": 4, "xp": 120, "xpNext": 200, "streak": 3, "best": 7, "rest": 1, "days": 12, "tasks": 45, "today": 6, "biggest": "dance"}}
     return result

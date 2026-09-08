@@ -1,90 +1,107 @@
-# Boop ESP32 Protocol
+# Boop device protocol — RenderState v2
 
-The desktop app sends newline-delimited JSON heartbeat frames over USB serial or
-BLE Nordic UART RX. The device sends newline-delimited JSON replies over USB
-serial and BLE Nordic UART TX. Heartbeat receivers keep one 2048-byte line
-buffer per transport.
+The shared host contract is [plan/WIRE-V2.md](../../plan/WIRE-V2.md).
+This document describes the firmware receiver and USB diagnostics.
 
-## Heartbeat Fields
+USB serial and encrypted BLE Nordic UART carry one JSON object per line.
+Maximum frame size: **1536 bytes excluding newline**. Each transport has its
+own fixed buffer, discarded whole on overflow and reset after a two-second
+partial-line gap. A BLE disconnect also clears its partial line. Input drains
+are bounded per loop so a flooded port cannot monopolize rendering.
 
-| Field | JSON type | Mac wire max | Firmware destination / max | Meaning |
-| --- | --- | ---: | --- | --- |
-| `pet` | string | enum value | `TamaState.pet`, 11 chars | Overall pet state: `sleep`, `idle`, `busy`, `attention`, `celebrate`, `error`, `thinking`, or `heart`. `thinking` renders as the busy/calm face; `heart` is the desktop mirroring a device boop back (heart-eyes). |
-| `species` | string | current species name | `TamaState.species`, 15 chars | ASCII buddy species name. |
-| `desktop` | string | enum value | `TamaState.desktop`, 15 chars | Desktop link state: `connected` or `disconnected`. |
-| `total` | number | integer | `sessionsTotal`, uint8 | Total sessions known to the Mac app. |
-| `running` | number | integer | `sessionsRunning`, uint8 | Sessions currently doing work. |
-| `waiting` | number | integer | `sessionsWaiting`, uint8 | Sessions waiting for user approval. |
-| `msg` | string | 23 chars | `TamaState.msg`, 23 chars | Short status/completion message. When disconnected, firmware sets `no agents awake`. |
-| `celebrate` | boolean | boolean | `TamaState.celebrate` | Enables the celebrate state and the celebrate chirp when `pet == "celebrate"`. |
-| `mute` | boolean | optional boolean | `TamaState.muted` | Suppresses state-transition chirps when true. Omitted means leave the current mute value unchanged. |
-| `promptId` | string/null | uncapped by Mac | `promptId`, 39 chars | Pending permission request id. Non-empty arms approval buttons when `promptApproval` is true. |
-| `promptTool` | string/null | 20 chars | `promptTool`, 23 chars | Tool name shown in the live approval strip. |
-| `promptHint` | string/null | 60 chars | `promptHint`, 63 chars | Command/hint shown in the live approval strip. |
-| `promptSource` | string/null | uncapped by Mac | `promptSource`, 15 chars | Agent/source name for the prompt. |
-| `promptApproval` | boolean/null | boolean | `promptApproval` | Whether the prompt is an approval request. |
-| `promptLabel` | string/null | not currently sent | `promptLabel`, 23 chars | Parser-supported label for future prompt UI. |
-| `lastCompletedTool` | string/null | 20 chars | ignored | Last completed tool, used by Mac-side displays. |
-| `lastCompletedHint` | string/null | 40 chars | ignored | Last completed hint/summary, used by Mac-side displays. |
-| `lastCompletedSource` | string/null | uncapped by Mac | ignored | Agent/source for the last completed task. |
-| `lastCompletedDurationMs` | number/null | integer | ignored | Duration of the last completed task in milliseconds. |
-| `errorTool` | string/null | extracted from `msg` | ignored | Tool associated with an error state. |
-| `errorSource` | string/null | uncapped by Mac | ignored | Agent/source associated with an error state. |
-| `activity` | string/null | enum value | `TamaState.activity`, 9 chars | Activity kind: `verify`, `read`, `write`, `shell`, `web`, or `work`. Drives the busy-face verb on the landscape board. |
-| `entries` | array<string>/null | max 6 items, 48 chars each | `lines[6][81]`, 80 chars each | Recent activity entries. Parsed for wire compatibility; no transcript UI currently consumes them. |
-| `sessions` | array<object>/null | max 6 items | ignored | Multi-session summaries for richer clients. |
-| `sessions[].src` | string | uncapped by Mac | ignored | Agent/source name. |
-| `sessions[].st` | string | enum value | ignored | Session state: `working`, `idle`, `needsConfirmation`, `errored`, or `thinking`. |
-| `sessions[].tool` | string/null | 16 chars | ignored | Current tool for that session. |
-| `sessions[].lbl` | string/null | 16 chars | ignored | Human-readable session label. |
+## Host → device
 
-## Host-To-Device Commands
+A state frame requires integer `v: 2`. Missing/wrong versions, including old
+`pet` frames, retain the last good model and increment `badFrames`. Malformed
+JSON, wrong types, out-of-range numbers and over-cap strings are also rejected
+atomically. Unknown keys and unknown commands are ignored. A recognized enum
+with an unknown string value retains that field's previous value. Omitted
+transient fields clear; omitted `state` renders asleep. Omitted `snap` and
+`cosmetic` leave their persistent caches intact. Omitted `mute` means 0.
 
-These are newline-delimited JSON commands sent over USB or BLE RX.
-
-| Command | Fields | Device reply | Meaning |
-| --- | --- | --- | --- |
-| `{"time":[epoch,tzOffset]}` | `epoch` seconds, `tzOffset` seconds | none | Set the RTC to local time. |
-| `{"cmd":"name","name":...}` | `name` string | `{"ack":"name","ok":bool,"n":0}` | Store the buddy name. |
-| `{"cmd":"owner","name":...}` | `name` string | `{"ack":"owner","ok":bool,"n":0}` | Store the owner name. |
-| `{"cmd":"species","idx":...}` | `idx` number or `0xFF` | `{"ack":"species","ok":true,"n":0}` | Select ASCII species or installed GIF sentinel for transfer compatibility. |
-| `{"cmd":"unpair"}` | none | `{"ack":"unpair","ok":true,"n":0}` | Clear BLE bonds. |
-| `{"cmd":"status"}` | none | `{"ack":"status","ok":true,"n":0,"data":...}` | Return name, owner, security, firmware, battery, system, and stats snapshot. |
-| `{"cmd":"char_begin",...}` | `name`, `total` | `{"ack":"char_begin","ok":bool,"n":...}` | Begin character asset transfer. |
-| `{"cmd":"file",...}` | `path`, `size` | `{"ack":"file","ok":bool,"n":0}` | Open one character file for writing. |
-| `{"cmd":"chunk","d":...}` | base64 data | `{"ack":"chunk","ok":bool,"n":bytesWritten}` | Append decoded bytes to the current character file. |
-| `{"cmd":"file_end"}` | none | `{"ack":"file_end","ok":bool,"n":bytesWritten}` | Close and validate the current character file size. |
-| `{"cmd":"char_end"}` | none | `{"ack":"char_end","ok":bool,"n":0}` | Finish character transfer and reload assets. |
-| `{"cmd":"ota_begin",...}` | `size`, `sha256`, `version` | `{"ack":"ota_begin","ok":bool,"n":...,"error":...?}` | Begin firmware OTA to the next OTA partition. |
-| `{"cmd":"ota_chunk",...}` | `seq`, base64 `d` | `{"ack":"ota_chunk","ok":bool,"n":bytesWritten,"error":...?}` | Write one OTA chunk. |
-| `{"cmd":"ota_end","sha256":...}` | `sha256` | `{"ack":"ota_end","ok":bool,"n":bytesWritten,"error":...?}` | Verify, commit, and reboot into the new firmware. |
-
-## Device-To-Host Messages
-
-| Message | Fields | Meaning |
-| --- | --- | --- |
-| Permission decision | `{"cmd":"permission","id":promptId,"decision":"allow"|"deny"}` | Sent when physical/debug approval buttons answer an armed prompt. |
-| Species adoption | `{"cmd":"species","name":speciesName}` | Sent when the on-device menu adopts a character. The desktop mirrors it into its species preference so heartbeats stop overriding the device's choice. |
-| Boop | `{"cmd":"boop"}` | Sent when the pet is booped (BOOP button outside a prompt, or a touchscreen pet/stroke). Rate-limited to one frame per ~1.5s during sustained petting. The desktop mirrors it into a ~2.5s `heart` pet state, which flows back in the next heartbeat. |
-| Ack | `{"ack":name,"ok":bool,"n":number,"error":...?}` | Reply for status, character transfer, and OTA commands. `error` is present on some failures. |
-
-## USB Serial Debug Commands
-
-These are plain text commands accepted on USB serial. They intentionally remain
-available for hardware-in-the-loop tests.
-
-| Command | Reply / effect |
+| Key | Values / byte cap |
 | --- | --- |
-| `ping` | Prints `<<PONG {"fw":...,"git":...,"up":...,"heap":...,"heapMin":...,"heapBig":...,"reset":...,"panics":...,"early":...,"safe":...}>>`. `heapMin`/`heapBig` are the free-heap low-water mark and largest free block; `frameUs`/`frameMaxUs` are the average (EMA) and max cost of one display present in microseconds (0 on M5); `reset` is the last reset reason; `panics` is the lifetime abnormal-reset count; `early` counts consecutive crashes before stable uptime; `safe` is the current safe-mode tier (0 normal, 1 no character assets, 2 no BLE). |
-| `state` | Prints `<<STATE {...}>>` with current parser, display, BLE, and prompt state. Includes `muted`, `screenOff`, numeric `brightness`, the crash-telemetry fields (`reset`, `panics`, `earlyCrashes`, `safeTier`), and `bleDrops` (bytes dropped from the BLE RX ring — nonzero means an inbound line was truncated) for HIL assertions. |
-| `reboot` | Prints `<<REBOOT ok>>`, flushes, and restarts. |
-| `screenshot` | Prints `<<SCR_BEGIN ...>>`, base64 RGB565 LCD data, then `<<SCR_END LEN=... CRC32=...>>`. |
-| `press a [ms]` / `press b [ms]` / `press m [ms]` | Synthesizes GPIO-level button down/up edges and prints `<<PRESS ...>>` markers. |
-| `imu` | Prints `<<IMU {"present":...,"injected":...,"ax":...,"ay":...,"az":...,"shake":...,"napping":...,"dizzy":...}>>` — the live accelerometer sample (g) and motion-detector state. |
-| `imu set x y z` / `imu clear` | Overlays a synthetic accelerometer sample (g, floats) so HIL can drive the face-down-nap and shake-dizzy detectors without touching the board; `clear` reverts to the hardware sensor and zeroes the shake accumulator. |
-| `deepsleep [ms]` | Enters the power-down path (same as the 4s physical BOOP hold, which uses button-only wake). Bare `deepsleep` adds a 5s timer wake so tests can prove the round-trip; `deepsleep 0` is button-only. Prints `<<DEEPSLEEP ok wake=...>>` then `<<DEEPSLEEP entering>>`. |
-| `btn a` / `btn b` | Sends an approval/denial for the current prompt without GPIO edge simulation. |
-| `mockprompt` | Arms a fake `DEBUG` approval prompt for offline button-path testing. |
-| `clearbonds` | Erases all stored BLE bonds (recovery from stale host pairing state). Prints `<<CLEARBONDS ok>>`. |
-| `guardclear` | Resets crash-loop bookkeeping (HIL tests use this after deliberate watchdog resets). Prints `<<GUARDCLEAR {"ok":true}>>`. |
-| `hang` | Debug: wedges `loop()` so tests can prove the task watchdog reboots a hung device (~30s). |
+| `state` | asleep, idle, working, needsYou, done, uhoh |
+| `effort` | light, hard, grinding |
+| `cheer` | hop, cheer, dance |
+| `uhoh` | error, stuck, hungry |
+| `overlay` / `greetLevel` | greet or boop / integer 0–3 |
+| `dots` / `dotAlert` | integer 0–5 / optional zero-based index into dots |
+| `card` | decision `{id,tool,gloss,stakes,n,of,approval}` or system `{kind,text}` |
+| decision card | id/tool ≤23 B, gloss ≤63 B, stakes fine/checkIt/careful, approval boolean |
+| system card | kind pair/update, text ≤63 B |
+| `bubble` | ≤63 B, four seconds; unchanged heartbeats do not restart it |
+| `gift` / `giftLine` | boolean / ≤40 B, collected locally until host clears or replaces it |
+| `focus` / `mute` | boolean / integer 0–3 |
+| `posture` | desk/perch/travel; omission restores IMU detection |
+| `cosmetic` | skin/accessory/silhouette ≤15 B each; only skin field tint rendered |
+| `snap` | name, level, xp, xpNext, streak, best, rest, days, tasks, today, biggest |
+| snapshot storage | nonnegative 32-bit counters including rest; name/biggest ≤63 B |
+| `agent` | name ≤23 B, color ≤15 B, emotion ≤23 B, say ≤63 B; suppressed with a card |
+| `t` | nonnegative 64-bit host epoch milliseconds; synchronizes the HAL clock |
+
+All string caps are bytes. The firmware rejects overflow rather than chopping
+an approval ID or a UTF-8 character. The host supplies valid UTF-8. Snapshot,
+cosmetic identifiers, volume and the first-wake flag live in `creature-v2` NVS;
+writes occur only on changes. No prompt, bubble or gift persists across reboot.
+The old species/name/owner storage is neither read nor written.
+
+```json
+{"v":2,"state":"needsYou","dots":1,"mute":1,"card":{"id":"req_1","tool":"Bash","gloss":"Run tests","stakes":"checkIt","n":1,"of":1,"approval":true}}
+```
+
+Cards arm 600 ms after arrival. A press must start after arming and belong to
+the same ID on release. Ordinary tap allows; primary hold ≥1 s or secondary
+tap denies. Careful requires primary hold ≥2 s to allow; a tap shakes the head.
+After deciding, feedback is `sending...`, then `no link?` after three seconds.
+Only an accepted frame without the answered ID confirms `yes!`/`okay`.
+A different new card takes priority over that confirmation. After ten seconds
+without acknowledgement, a live card is rearmed. Link loss is not an ack.
+
+## Device → host
+
+```json
+{"cmd":"decision","id":"req_1","d":"allow"}
+{"cmd":"decision","id":"req_1","d":"deny"}
+{"cmd":"collect"}
+{"cmd":"boop","hold":false}
+{"cmd":"quick"}
+{"cmd":"posture","p":"perch"}
+{"cmd":"motion","m":"pickup"}
+{"cmd":"battery","pct":80,"charging":true}
+{"cmd":"focus","on":true}
+```
+
+Motion values are shake/flip/pickup. Postures are desk/perch/travel. Battery
+reports on change and on a live/secure connection. `{"cmd":"status"}` returns
+an `ack: "status"` with `ok`, `board`, `contract:2`, `fw`, `git`, `name`, `secure`.
+OTA retains `ota_begin`, `ota_chunk`, `ota_end` and existing ack envelopes;
+see `firmware/ota.h`. Character transfer is removed.
+
+## USB debug
+
+- `ping` → `<<PONG {...}>>`: version, board, contract, uptime, heap, largest
+  allocation, minimum heap, present timing and crash telemetry.
+- `state` → `<<STATE {...}>>`: contract, creature, effort, cheer, uhoh, overlay,
+  card/cardId/armed, visible bubble, gift, focus, posture, dots, mute, screenOff,
+  brightness, presence, napping, dizzy, frozen, badFrames and crash telemetry.
+  Also includes layer, feedback, stats/page/cache facts, sound/count/note,
+  firstWake, rtcValid, transport counters and shutdownStage for HIL.
+- `clock <ms>` freezes presentation/model time; `clock clear` resumes it.
+  Springs stop integrating while frozen. Entry/resume translate timer origins
+  to preserve their ages; subsequent frozen clock steps simulate elapsed time.
+  `t` synchronizes wall time, not this clock. Transport timeouts, physical press durations, watchdog and uptime
+  keep real time so debug freezes cannot disable recovery or fake a hold.
+- `press a|b|m <20–10000 ms>` injects a real-duration press. `btn a|b|m` is a
+  120 ms press through the same guards. a=primary, b=secondary, m=secondary alias.
+- `imu`, `imu set <ax> <ay> <az>`, `imu clear`: g-units, real detector path.
+- `screenshot`: RGB565LE base64 between `SCR_BEGIN W=… H=… ROT=… FMT=RGB565LE`
+  and `SCR_END LEN=… CRC32=…`; the watchdog is fed while streaming.
+- `reboot`, `deepsleep [timer-ms]`, `clearbonds`, `guardclear`, `hang` retain
+  their diagnostic roles. `hang` deliberately exercises watchdog recovery.
+
+The normal screen dims after 120 s of inactivity, with an orb glow floor.
+Asleep and face-down nap use brightness 8; pending cards use 220. The screen
+never switches off automatically. Only the secondary shutdown hold does so:
+focus at 1 s, “night night” at 3 s, off after the 600 ms farewell or release.
+A wake press consumes the action. Explicit `deepsleep` is a diagnostic escape.

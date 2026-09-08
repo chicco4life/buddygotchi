@@ -2,8 +2,6 @@
 #include <Arduino.h>
 #include "hal/hal.h"
 #include "anim.h"
-#include "mood.h"
-#include "glance.h"
 #include "ble_bridge.h"
 #include "data.h"
 
@@ -57,6 +55,7 @@ inline bool presenceForced() { return _presForce >= 0; }
 
 inline PresenceKind presenceNow() {
   if (_presForce >= 0) return (PresenceKind)_presForce;
+  if (dataConnected()) return PRESENCE_LIVE;
   if (!bleBonded()) return PRESENCE_PAIRME;
   if (!dataConnected()) return PRESENCE_NAP;
   return PRESENCE_LIVE;
@@ -101,27 +100,13 @@ inline void presencePairText(char* out, size_t n, const char* btName, uint32_t n
   else                         snprintf(out, n, "I'm %s", btName && btName[0] ? btName : "Boop");
 }
 
-// The link-down marker: a small crossed-out Bluetooth rune centred on the
-// bottom edge, on the same baseline as the corner readouts, so it sits
-// between them rather than floating over the face.
-//
-// It was originally a dream bubble drifting up beside the head, which put a
-// second moving object on a screen whose whole point is the face — and it
-// collided with the sleep z's. Down here it reads as what it is: a status
-// tell, in the strip where status lives, small enough to ignore and specific
-// enough to answer "why is it asleep?" when you look.
-//
-// Still breathes rather than sitting perfectly static, because a hard-edged
-// permanent icon on the resting screen is exactly the status text §14
-// deleted.
+// Dim Bluetooth rune; independent of the removed glance card.
 inline void presenceDrawLinkGlyph(BuddyCanvas& spr, uint32_t now, uint16_t tint) {
-  const int S = HAL_UI_SCALE;
-  int cx = HAL_W / 2;
-  // Genuinely the corner readouts' baseline, not an approximation of it —
-  // this used to be a hand-picked 13*S against their 9*S, so the glyph sat
-  // 8px below the text its own comment said it lined up with.
-  int cy = HAL_H - CORNER_SAFE_Y - 3 * S;
-  // Slow fade in and out, ~5s cycle, never fully gone.
-  float a = 0.72f + 0.28f * animPulse01(now, 5000.0f);
-  glanceBtGlyph(spr, cx, cy, 7 * S, animMix(BLACK, tint, 0.95f * a), true);
+  int x = HAL_W - 22, y = 24;
+  uint16_t c = animMix(BLACK, tint, 0.4f + 0.3f * animPulse01(now, 5000));
+  spr.drawLine(x, y - 10, x, y + 10, c);
+  spr.drawLine(x, y - 10, x + 7, y - 4, c);
+  spr.drawLine(x + 7, y - 4, x - 6, y + 6, c);
+  spr.drawLine(x, y + 10, x + 7, y + 4, c);
+  spr.drawLine(x + 7, y + 4, x - 6, y - 6, c);
 }

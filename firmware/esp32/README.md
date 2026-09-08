@@ -1,53 +1,52 @@
-# ESP32 Hardware Buddy
+# Boop ESP32 firmware
 
-C++ firmware, character assets, and tooling for the ESP32 hardware buddy display. This is the original [Claude Desktop Buddy](https://github.com/anthropics/claude-desktop-buddy) codebase, kept under `firmware/esp32/`.
+RenderState v2 firmware for the Waveshare ESP32-S3-Touch-AMOLED-1.64
+(`ws-amoled164`, 456×280 landscape canvas). The Mac supplies six creature
+states; firmware renders composable face parts, cards, bubbles, session dots,
+one gift orb, and an agent frame. The frozen previous generation remains in
+`archived/`; this firmware does not load character packs or a character menu.
 
-Two boards build from the same source via the HAL in `firmware/hal/`:
+From this directory, use the wrapper to select the already-cached pioarduino
+packages without disturbing the M5 toolchain:
 
-| Board | Env | Notes |
-|-------|-----|-------|
-| M5StickC Plus 2 | `m5stickc-plus` (default) | Original dev board / regression rig. ST7789 135x240, buttons A/B. |
-| Waveshare ESP32-S3-Touch-AMOLED-1.64 | `ws-amoled164` | Production "Boop Pebble" board. CO5300 280x456 QSPI AMOLED, FT3168 touch, external BOOP/REJECT/MENU buttons on IO1/IO2/IO5 (BOOT doubles as BOOP). `ws-amoled164-spike` is the bring-up smoke test. Port plan: `archived/research/eng/waveshare-amoled-port.md`. |
-
-## Contents
-
-| Directory | Purpose |
-|-----------|---------|
-| `firmware/` | ESP32 Arduino firmware (main loop, BLE bridge, character renderer, ASCII sprites) |
-| `characters/` | GIF-based character packs for the display (e.g. `bufo/`) |
-| `tools/` | Python scripts: `prep_character.py` (downscale GIFs), `flash_character.py` (USB flash to LittleFS) |
-| `docs/` | Hardware manual, device photos, UI screenshots |
-| `platformio.ini` | PlatformIO build config |
-| `REFERENCE.md` | BLE Nordic UART protocol spec |
-| `CONTRIBUTING.md` | Upstream contribution guidelines (fork-first) |
-
-## Modes
-
-1. **Direct mode** — Pairs with Claude Code over BLE using the NUS UART protocol. No daemon needed.
-2. **Boop mode** — Receives heartbeat JSON from the macOS app over BLE.
-
-## Building
-
-Requires [PlatformIO](https://platformio.org/):
-
-```bash
-cd firmware/esp32
-pio run                            # compile default (M5) firmware
-pio run -t upload                  # flash to device
-pio run -t uploadfs                # flash character assets (LittleFS)
-
-# Waveshare AMOLED board — always via the wrapper (isolates the pioarduino
-# platform's packages from the M5 envs' espressif32 packages):
+```sh
 tools/pio_ws.sh run -e ws-amoled164
+python3 -m py_compile tests/hil/test_usb.py
+# With a connected device (not part of an offline build):
 tools/pio_ws.sh run -e ws-amoled164 -t upload
-tools/pio_ws.sh run -e ws-amoled164-spike -t upload   # bring-up smoke test
+python3 -m pytest tests/hil/test_usb.py tests/hil/test_hardening.py
 ```
 
-## Preparing characters
+PlatformIO is `/opt/homebrew/bin/pio`; the wrapper defaults to
+`~/.platformio/packages-pioarduino`. Keep the pinned platform version in
+`platformio.ini`. No library additions or asset filesystem upload are needed.
+The M5 HAL and environments remain, but this phase verifies only ws-amoled164.
+The bring-up environment remains `ws-amoled164-spike`.
 
-```bash
-python3 tools/prep_character.py characters/bufo/
-python3 tools/flash_character.py bufo
-```
+Primary is IO1/BOOT; secondary is IO2; IO5 is a secondary alias. Tap primary to
+approve, collect, dismiss a bubble or boop. Hold primary to deny ordinary
+cards, approve careful cards at 2 s, or pet. Double tap sends quick when linked
+and opens the two travel stats cards when unlinked in travel. Secondary tap
+denies/dismisses/pages; hold toggles focus at 1 s and shuts the screen off at
+3 s after “night night”. Motion and touch never approve. Touch is affection.
 
-See `REFERENCE.md` for the BLE wire protocol.
+The parser, button guards, timer scheduler, drawing and persistence are in
+`firmware/data.h`, `main.cpp`, `face.h`, `agent.h`, `presence.h`, and `clock.h`.
+`anim.h` supplies the springs and deterministic drawing helpers. HAL, BLE,
+OTA and crash guard retain the existing board/transport implementation.
+The sprite lives in PSRAM at RGB332; screenshots preserve the existing
+RGB565LE + CRC32 format. Cards and bubbles use LGFX's bundled Korean font.
+Seven sound motifs are scheduled and counted even though this board has no
+speaker (`halTone` is a no-op).
+
+See [PROTOCOL.md](PROTOCOL.md) for frames and diagnostics, and
+[UX-DEVICE.md](../../plan/UX-DEVICE.md) for the rendering reference.
+For deterministic captures, send a frame, `clock <ms>`, then `screenshot`;
+`clock clear` resumes animation. Frozen time also advances model deadlines
+for HIL, but physical holds and the watchdog always use real elapsed time.
+
+Hardware-only verification still required: card/face legibility and motion
+on glass, Korean glyph coverage, actual IMU posture thresholds, overnight
+brightness/battery behavior, BLE round trips, screenshot goldens, and heap
+floors (≥40 KB free, ≥28 KB largest block). Static RAM usage is not a runtime
+heap measurement. Sound volume cannot be evaluated on this speakerless board.
