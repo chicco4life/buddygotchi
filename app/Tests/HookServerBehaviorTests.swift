@@ -122,7 +122,7 @@ final class HookServerBehaviorTests: XCTestCase {
         }
         // More than the default limit verifies newest-first ordering and redaction.
         for index in 0..<70 {
-            engine.diagnosticLog.log(category: "hook", source: "codex", event: "event-\(index)", detail: "test", rawPayload: "secret")
+            engine.diagnosticLog.log(category: "hook", source: "codex", event: "event-\(index)", detail: "test")
         }
         for (query, expectedCount) in [("", 50), ("?n=2", 2), ("?n=0", 0), ("?n=-1", 0), ("?n=invalid", 50), ("?n=999", engine.diagnosticLog.entries.count)] {
             let (status, data) = try await get(base + "/diag/recent" + query, token: config.token)

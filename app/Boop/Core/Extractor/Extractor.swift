@@ -1,90 +1,130 @@
 import Foundation
 
-struct Extraction: Sendable { var events: [BuddyEvent] = []; var facts: [Fact] = [] }
+struct Extraction: Sendable {
+    var events: [BuddyEvent] = []
+    var facts: [Fact] = []
+    var goalRunner: String?
+}
 actor Extractor {
     private(set) var windows: [String: SessionWindow] = [:]
     private var degraded: Set<String> = []
-    func reset() { windows.removeAll() }
+    var thresholds: MomentThresholds = .defaults
+    func reset() { windows.removeAll(); degraded.removeAll() }
     func drop(sessionId: String) { windows.removeValue(forKey: sessionId) }
+
     func ingest(_ p: RawHookPayload, localHour: Int? = nil) -> Extraction {
-        var result = Extraction(events: LifecycleReader.read(p))
+        var result = Extraction()
         if p.kind == .sessionEnd {
-            if let w = windows.removeValue(forKey: p.sessionId) { result.facts.append(Fact(kind: .sessionSummary, sessionId: p.sessionId, project: w.project, at: p.timestamp, payload: ["attempts": String(w.goals.values.reduce(0) { $0 + $1.attempts })])) }
+            result.events.append(.sessionEnded(at: p.timestamp, sessionId: p.sessionId))
+            if let w = windows.removeValue(forKey: p.sessionId) {
+                result.facts.append(.sessionSummary(turns: w.turns, tasks: w.tasks, elapsedMs: max(0, p.timestamp - w.startedAt)))
+            }
             return result
         }
-        let isNewWindow = windows[p.sessionId] == nil
-        var w = windows[p.sessionId] ?? SessionWindow(project: ThemeReader.projectIdentity(cwd: p.cwd), startedAt: p.timestamp)
-        func fact(_ kind: Fact.Kind, _ payload: [String: String]) -> Fact { Fact(kind: kind, sessionId: p.sessionId, project: w.project, at: p.timestamp, payload: payload) }
-        let missing = (p.kind == .toolCall && (p.toolInput == nil || p.toolName.isEmpty)) || (p.kind == .toolResult && p.toolName.isEmpty)
-        if missing && degraded.insert(p.source).inserted { result.events.append(.adapterDegraded(at: p.timestamp, source: p.source)) }
-        if degraded.contains(p.source) { windows[p.sessionId] = w; return result }
+        let isNew = windows[p.sessionId] == nil
+        var w = windows.removeValue(forKey: p.sessionId) ?? SessionWindow(project: ThemeReader.project(cwd: p.cwd), startedAt: p.timestamp)
+        if (isNew || p.kind == .sessionStart) && !p.closingOnly {
+            result.events.append(.sessionStarted(at: p.timestamp, sessionId: p.sessionId, source: p.source, cwd: p.cwd, project: w.project))
+            if isNew { result.facts.append(.project(id: w.project)) }
+        }
+        // A bare result is a valid liveness ping, not evidence of schema drift.
+        let toolRelated = p.kind == .toolCall || (p.kind == .toolResult && (p.outputHead != nil || p.outputTail != nil || p.exitStatus != nil || p.errorClass != nil))
+        if toolRelated && p.toolName.isEmpty && p.toolInput == nil && degraded.insert(p.source).inserted {
+            result.events.append(.adapterDegraded(at: p.timestamp, source: p.source))
+        }
+        let dictionary = p.toolInput.flatMap { $0.data(using: .utf8) }.flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }
         switch p.kind {
-        case .sessionStart:
-            result.facts.append(fact(.theme, ["project": w.project]))
-        case .turnStart:
-            if let prompt = p.promptText { result.facts.append(fact(.tone, ["tone": ThemeReader.tone(prompt), "topics": ThemeReader.topics(prompt).joined(separator: ",")])) }
-            w.append(.init(kind: .turnStart, at: p.timestamp, text: ""))
-            if let localHour { result.events.append(.localTurnHour(at: p.timestamp, sessionId: p.sessionId, hour: localHour)) }
+        case .sessionStart: break
+        case .turnStart: turnStart(p, window: &w, result: &result, localHour: localHour)
+        case .turnEnd: turnEnd(p, window: &w, result: &result)
         case .toolCall:
-            let input = p.toolInput ?? ""
-            w.append(.init(kind: .toolCall, at: p.timestamp, text: input))
-            var signature = ""
-            var runnerName = ""
-            if let command = GoalsReader.command(input), let runner = GoalsReader.runner(command) {
-                signature = GoalsReader.signature(command, project: w.project)
-                var tally = w.goals[signature] ?? GoalTally(firstAt: p.timestamp)
-                if tally.lastOutcome == .pass { tally.firstAt = p.timestamp }
-                tally.attempts += 1; tally.attemptsWithoutPass += 1
-                w.goals[signature] = tally
-                runnerName = runner.runner.name
-            }
-            w.pending.append((signature, runnerName, p.toolName, p.callId))
-            if w.pending.count > SessionWindow.entryCap { w.pending.removeFirst() }
-            result.events.append(.toolCalled(at: p.timestamp, sessionId: p.sessionId, source: p.source, tool: p.toolName, hint: signature))
-            if let path = ThemeReader.path(input) {
-                let topic = String((path as NSString).pathExtension.prefix(16))
-                if !topic.isEmpty && !w.topics.contains(topic) && w.topics.count < 3 { w.topics.append(topic) }
-                result.facts.append(fact(.theme, ["topics": w.topics.joined(separator: ",")]))
-            }
-            if let path = ThemeReader.path(input), ["edit", "write", "apply_patch"].contains(p.toolName.lowercased()) {
-                w.edits[path, default: 0] += 1
-                result.events.append(.fileEdited(at: p.timestamp, sessionId: p.sessionId, path: path, count: w.edits[path]!))
-            }
+            if !degraded.contains(p.source) { toolCall(p, dictionary: dictionary, window: &w, result: &result) }
         case .toolResult:
-            if p.source == "cursor", p.toolName == "Edit", let input = p.toolInput, let path = ThemeReader.path(input) {
-                w.edits[path, default: 0] += 1
-                result.events.append(.fileEdited(at: p.timestamp, sessionId: p.sessionId, path: path, count: w.edits[path]!))
-            }
-            w.append(.init(kind: .toolResult, at: p.timestamp, text: (p.outputHead ?? "") + (p.outputTail ?? "")))
-            var outcome: GoalOutcome = p.exitStatus.map { $0 == 0 ? .pass : .fail } ?? .unknown
-            if let index = w.pending.firstIndex(where: { p.callId != nil ? $0.callId == p.callId : $0.tool == p.toolName }) {
-                let pending = w.pending.remove(at: index)
-                if let runner = GoalsReader.runners.first(where: { $0.runner.name == pending.runner }), var tally = w.goals[pending.signature] {
-                    outcome = GoalsReader.outcome(p, runner: runner)
-                    if outcome == .fail { tally.failures += 1; tally.consecutiveFailures += 1; if tally.firstFailureAt == nil { tally.firstFailureAt = p.timestamp } }
-                    result.events.append(.goalRead(at: p.timestamp, sessionId: p.sessionId, goal: pending.signature, outcome: outcome, tally: tally))
-                    result.facts.append(fact(.goalOutcome, ["goal": pending.signature, "runner": pending.runner, "outcome": outcome.rawValue, "attempts": String(tally.attempts), "elapsedMs": String(max(0, p.timestamp - tally.firstAt))]))
-                    if outcome == .pass { tally.attemptsWithoutPass = 0; tally.consecutiveFailures = 0; tally.failures = 0; tally.firstFailureAt = nil }
-                    if outcome == .unknown { tally.consecutiveFailures = 0; tally.firstFailureAt = nil }
-                    tally.lastOutcome = outcome; w.goals[pending.signature] = tally
-                }
-            }
-            if outcome == .fail { w.errors += 1 }
-            // Result first clears a stuck state on a proven pass; goalRead then supplies story evidence.
-            result.events.insert(.toolResulted(at: p.timestamp, sessionId: p.sessionId, source: p.source, tool: p.toolName, ok: outcome == .unknown ? nil : outcome == .pass, durationMs: nil), at: 0)
-        case .turnEnd:
-            if !p.closingOnly { w.append(.init(kind: .turnEnd, at: p.timestamp, text: "")) }
-            if let message = p.closingMessage { w.append(.init(kind: .closingMessage, at: p.timestamp, text: ClosingLineReader.read(message))) }
+            if !degraded.contains(p.source) { toolResult(p, window: &w, result: &result) }
         case .needsYou:
-            let (stakes, gloss) = StakesReader.read(tool: p.toolName, input: p.toolInput ?? "")
+            let (stakes, gloss) = StakesReader.read(tool: p.toolName, input: p.toolInput ?? "", dictionary: dictionary ?? [:])
             result.events.append(.requestArrived(at: p.timestamp, sessionId: p.sessionId, requestId: "\(p.sessionId)_\(Int(p.timestamp))", tool: p.toolName, hint: gloss, sessionLabel: w.project))
             result.events.append(.requestDescribed(at: p.timestamp, sessionId: p.sessionId, stakes: stakes, gloss: gloss))
         case .sessionEnd: break
         }
-        if let error = p.errorClass { result.facts.append(fact(.errorClass, ["class": ["rate_limit", "tool_error", "auth", "timeout"].contains(error) ? error : "unknown"])) }
-        if p.kind == .toolCall || p.kind == .toolResult { result.events.append(.effortObserved(at: p.timestamp, sessionId: p.sessionId, level: EffortReader.read(w, at: p.timestamp))) }
-        if isNewWindow && !p.closingOnly { result.events.append(.projectObserved(at: p.timestamp, sessionId: p.sessionId, project: w.project)) }
+        if !degraded.contains(p.source) {
+            if let error = p.errorClass { result.facts.append(.errorClass(["rate_limit", "tool_error", "auth", "timeout"].contains(error) ? error : "unknown")) }
+            if p.kind == .toolCall || p.kind == .toolResult {
+                let effort = EffortReader.read(w, at: p.timestamp, thresholds: thresholds)
+                if effort != w.lastEffort {
+                    result.events.append(.effortObserved(at: p.timestamp, sessionId: p.sessionId, level: effort))
+                    w.lastEffort = effort
+                }
+            }
+        }
         windows[p.sessionId] = w
         return result
+    }
+
+    private func turnStart(_ p: RawHookPayload, window w: inout SessionWindow, result: inout Extraction, localHour: Int?) {
+        w.turns += 1
+        result.events.append(.turnStarted(at: p.timestamp, sessionId: p.sessionId, source: p.source))
+        guard !degraded.contains(p.source) else { return }
+        if let prompt = p.promptText { result.facts += [.tone(ThemeReader.tone(prompt)), .topics(ThemeReader.topics(prompt))] }
+        if let localHour { result.events.append(.localTurnHour(at: p.timestamp, sessionId: p.sessionId, hour: localHour)) }
+    }
+
+    private func turnEnd(_ p: RawHookPayload, window w: inout SessionWindow, result: inout Extraction) {
+        if !p.closingOnly {
+            result.events.append(.turnEnded(at: p.timestamp, sessionId: p.sessionId, source: p.source, outcome: p.errorClass.map { .failed(errorClass: $0) } ?? .completed))
+            // The reducer clears observed effort on completion; resend it on the next turn.
+            w.lastEffort = .light
+        }
+        if let message = p.closingMessage { w.closingLine = String(message.split(whereSeparator: \.isWhitespace).joined(separator: " ").prefix(120)) }
+    }
+
+    private func toolCall(_ p: RawHookPayload, dictionary: [String: Any]?, window w: inout SessionWindow, result: inout Extraction) {
+        let input = p.toolInput ?? ""
+        var goal: String?
+        if let command = dictionary?["command"] as? String ?? dictionary?["cmd"] as? String ?? (dictionary == nil ? p.toolInput : nil), let runner = GoalsReader.runner(command) {
+            goal = GoalsReader.signature(command)
+            result.goalRunner = runner.runner.name
+        }
+        w.pending.append((goal ?? "", result.goalRunner ?? "", p.toolName, p.callId))
+        if w.pending.count > SessionWindow.pendingCap { w.pending.removeFirst() }
+        result.events.append(.toolCalled(at: p.timestamp, sessionId: p.sessionId, source: p.source, tool: p.toolName, hint: p.displayHint, goal: goal))
+        if let path = dictionary?["file_path"] as? String ?? dictionary?["path"] as? String {
+            let topic = String((path as NSString).pathExtension.prefix(16))
+            if ["swift", "py", "js", "ts", "tsx", "md", "json", "rs", "go"].contains(topic) { result.facts.append(.topics([topic])) }
+            if activityKind(tool: p.toolName, hint: input) == .write || p.toolName == "apply_patch" {
+                recordEdit(&w, path: (path as NSString).lastPathComponent, payload: p, result: &result)
+            }
+        }
+    }
+
+    private func recordEdit(_ w: inout SessionWindow, path: String, payload p: RawHookPayload, result: inout Extraction) {
+        w.edits[path, default: 0] += 1
+        result.events.append(.fileEdited(at: p.timestamp, sessionId: p.sessionId, path: path, count: w.edits[path]!))
+    }
+
+    private func toolResult(_ p: RawHookPayload, window w: inout SessionWindow, result: inout Extraction) {
+        let output = (p.outputHead ?? "") + "\n" + (p.outputTail ?? "")
+        var outcome: GoalOutcome = p.exitStatus.map { $0 == 0 ? .pass : .fail } ?? .unknown
+        var goal: String?
+        var goalEvent: BuddyEvent?
+        if let index = w.pending.firstIndex(where: { p.callId != nil ? $0.callId == p.callId : $0.tool == p.toolName }) {
+            let pending = w.pending.remove(at: index)
+            if let runner = GoalsReader.byName[pending.runner] {
+                goal = pending.goalKey
+                result.goalRunner = pending.runner
+                var tally = w.goals[pending.goalKey] ?? GoalTally()
+                outcome = GoalsReader.outcome(p, runner: runner, output: output)
+                let elapsed = max(0, p.timestamp - (tally.firstFailureAt ?? p.timestamp))
+                // Moment evidence is the pre-reset streak; record owns all tally transitions.
+                goalEvent = .goalRead(at: p.timestamp, sessionId: p.sessionId, goalKey: pending.goalKey, runner: pending.runner, outcome: outcome, tally: tally)
+                tally.record(outcome, at: p.timestamp)
+                result.facts.append(.goalOutcome(goalKey: pending.goalKey, runner: pending.runner, outcome: outcome, attempts: tally.attempts, elapsedMs: elapsed))
+                w.goals[pending.goalKey] = tally
+            }
+        }
+        w.tasks += 1
+        if outcome == .fail { w.errors += 1 }
+        result.events.append(.toolResulted(at: p.timestamp, sessionId: p.sessionId, source: p.source, tool: p.toolName, ok: outcome == .unknown ? nil : outcome == .pass, durationMs: nil, goal: goal))
+        if let goalEvent { result.events.append(goalEvent) }
     }
 }

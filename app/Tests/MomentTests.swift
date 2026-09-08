@@ -12,24 +12,24 @@ final class MomentTests: XCTestCase {
         reduce(s, .turnEnded(at: at, sessionId: "s", source: "codex", outcome: .completed))
     }
     func testHardWonBoundaryAndTuning() {
-        var tally = GoalTally(firstAt: 0)
-        tally.attempts = 5; tally.attemptsWithoutPass = 5; tally.failures = 4
-        var s = reduce(working(), .goalRead(at: 900, sessionId: "s", goal: "p|swift test", outcome: .pass, tally: tally))
+        var tally = GoalTally()
+        tally.attempts = 5; tally.attemptsWithoutPass = 4
+        var s = reduce(working(), .goalRead(at: 900, sessionId: "s", goalKey: "opaque", runner: "swift-test", outcome: .pass, tally: tally))
         XCTAssertNil(complete(s).buddy.creature.moment)
-        tally.attempts = 6; tally.attemptsWithoutPass = 6; tally.failures = 5
-        s = reduce(working(), .goalRead(at: 900, sessionId: "s", goal: "p|swift test", outcome: .pass, tally: tally))
+        tally.attempts = 6; tally.attemptsWithoutPass = 5
+        s = reduce(working(), .goalRead(at: 900, sessionId: "s", goalKey: "opaque", runner: "swift-test", outcome: .pass, tally: tally))
         XCTAssertEqual(complete(s).buddy.creature.cheer, .dance)
         XCTAssertEqual(complete(s).buddy.creature.moment?.kind, .hardWonPass)
         var custom = working(); custom.momentThresholds.hardWonFailures = 6
-        custom = reduce(custom, .goalRead(at: 900, sessionId: "s", goal: "p|swift test", outcome: .pass, tally: tally))
+        custom = reduce(custom, .goalRead(at: 900, sessionId: "s", goalKey: "opaque", runner: "swift-test", outcome: .pass, tally: tally))
         XCTAssertNil(complete(custom).buddy.creature.moment)
     }
     func testRedStreakDurationBoundary() {
-        var tally = GoalTally(firstAt: 0)
-        tally.attempts = 4; tally.failures = 3; tally.consecutiveFailures = 3; tally.firstFailureAt = 0
-        let early = reduce(working(), .goalRead(at: 599_999, sessionId: "s", goal: "g", outcome: .pass, tally: tally))
+        var tally = GoalTally()
+        tally.attempts = 4; tally.attemptsWithoutPass = 3; tally.firstFailureAt = 0
+        let early = reduce(working(), .goalRead(at: 599_999, sessionId: "s", goalKey: "g", runner: "swift-test", outcome: .pass, tally: tally))
         XCTAssertNil(complete(early, at: 600_000).buddy.creature.moment)
-        let ready = reduce(working(), .goalRead(at: 600_000, sessionId: "s", goal: "g", outcome: .pass, tally: tally))
+        let ready = reduce(working(), .goalRead(at: 600_000, sessionId: "s", goalKey: "g", runner: "swift-test", outcome: .pass, tally: tally))
         let finished = complete(ready, at: 600_001)
         XCTAssertEqual(finished.buddy.creature.moment?.kind, .redStreakEnded)
         XCTAssertEqual(finished.buddy.creature.cheer, .dance)
@@ -37,10 +37,10 @@ final class MomentTests: XCTestCase {
     }
     func testAbsenceBoundary() {
         var s = working(); s.memory.projects["project"] = 0
-        s = reduce(s, .sessionStarted(at: 14 * 86_400_000, sessionId: "back", source: "codex", cwd: "/tmp/project"))
+        s = reduce(s, .sessionStarted(at: 14 * 86_400_000, sessionId: "back", source: "codex", cwd: "/tmp/project", project: "project"))
         XCTAssertEqual(s.pendingMoments["back"]?.kind, .backAfterAbsence)
         XCTAssertEqual(s.pendingMoments["back"]?.facts["days"], "14")
-        XCTAssertEqual(s.memory.projects["project"], 14 * 86_400_000)
+        XCTAssertEqual(s.memory.projects["project"], 0)
     }
     func testSameFileAndLocalHourBoundaries() {
         let early = reduce(working(), .fileEdited(at: 1, sessionId: "s", path: "file.swift", count: 19))
@@ -68,8 +68,8 @@ final class MomentTests: XCTestCase {
         XCTAssertEqual(s.memory.completedTurns, 2)
     }
     func testUnknownCannotCelebrateAndPassClearsStuck() {
-        var tally = GoalTally(firstAt: 0); tally.attempts = 7; tally.attemptsWithoutPass = 7; tally.failures = 6
-        var s = reduce(working(), .goalRead(at: 10, sessionId: "s", goal: "g", outcome: .unknown, tally: tally))
+        var tally = GoalTally(); tally.attempts = 7; tally.attemptsWithoutPass = 7
+        var s = reduce(working(), .goalRead(at: 10, sessionId: "s", goalKey: "g", runner: "swift-test", outcome: .unknown, tally: tally))
         XCTAssertEqual(s.buddy.creature.uhoh, .stuck)
         XCTAssertNil(s.pendingMoments["s"])
         s = reduce(s, .toolResulted(at: 11, sessionId: "s", source: "codex", tool: "Bash", ok: true, durationMs: nil))
@@ -79,5 +79,34 @@ final class MomentTests: XCTestCase {
         var s = reduce(working(), .effortReported(at: 1, sessionId: "s", level: .light))
         s = reduce(s, .effortObserved(at: 2, sessionId: "s", level: .grinding))
         XCTAssertEqual(s.buddy.creature.effort, .light)
+    }
+}
+
+extension MomentTests {
+    func testRunnerLinesAndRateLimitNeverCheers() {
+        for (runner, suffix) in [("pytest", " on the tests"), ("swift-build", " on the build"), ("eslint", " on the lint"), ("tsc", "")] {
+            let moment = Moment(kind: .hardWonPass, facts: ["attempts": "10", "runner": runner])
+            XCTAssertEqual(MomentLines.line(moment), "10 tries. nice job\(suffix).")
+            XCTAssertEqual(CheerSize.for(moment: moment, thresholds: .defaults, errors: 0, span: 0, effort: .light), .dance)
+        }
+        var s = working()
+        for i in 1...3 { s = reduce(s, .turnEnded(at: Double(i), sessionId: "s", source: "codex", outcome: .failed(errorClass: "rate_limit"))) }
+        XCTAssertEqual(s.buddy.creature.bubble, "hungry again (3).")
+        XCTAssertNil(s.buddy.creature.cheer)
+        XCTAssertNil(s.buddy.celebrateUntil)
+        XCTAssertFalse(s.buddy.creature.gift)
+        XCTAssertNil(s.pendingMoments["s"])
+    }
+
+    func testGoalEqualityIgnoresDisplayHintAndUnrelatedPass() {
+        var s = working(); s.momentThresholds.stuckAttempts = 3
+        for i in 1...3 {
+            s = reduce(s, .toolCalled(at: Double(i), sessionId: "s", source: "codex", tool: "Bash", hint: "display \(i)", goal: "a"))
+        }
+        XCTAssertEqual(s.buddy.creature.uhoh, .stuck)
+        s = reduce(s, .toolResulted(at: 4, sessionId: "s", source: "codex", tool: "Bash", ok: true, durationMs: nil, goal: "b"))
+        XCTAssertEqual(s.buddy.creature.uhoh, .stuck)
+        s = reduce(s, .toolResulted(at: 5, sessionId: "s", source: "codex", tool: "Bash", ok: true, durationMs: nil, goal: "a"))
+        XCTAssertNil(s.buddy.creature.uhoh)
     }
 }

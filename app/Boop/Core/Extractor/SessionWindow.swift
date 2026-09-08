@@ -3,48 +3,45 @@ import Foundation
 enum GoalOutcome: String, Codable, Sendable { case pass, fail, unknown }
 struct GoalTally: Sendable, Equatable {
     var attempts = 0
-    var failures = 0
-    var consecutiveFailures = 0
     var attemptsWithoutPass = 0
-    var lastOutcome: GoalOutcome = .unknown
-    var firstAt: Double
     var firstFailureAt: Double?
+    var lastOutcome: GoalOutcome = .unknown
+
+    mutating func record(_ outcome: GoalOutcome, at: Double) {
+        attempts += 1
+        switch outcome {
+        case .pass: attemptsWithoutPass = 0; firstFailureAt = nil
+        case .fail:
+            attemptsWithoutPass += 1
+            if firstFailureAt == nil { firstFailureAt = at }
+        case .unknown: attemptsWithoutPass = 0; firstFailureAt = nil
+        }
+        lastOutcome = outcome
+    }
 }
 struct SessionWindow: Sendable {
-    enum EntryKind: Sendable { case turnStart, toolCall, toolResult, turnEnd, closingMessage }
-    struct Entry: Sendable {
-        var kind: EntryKind
-        var at: Double
-        var text: String
-    }
-    static let entryCap = 400
-    static let byteCap = 512 * 1024
-    var entries: [Entry] = []
-    var byteCount = 0
+    static let pendingCap = 400
     var goals: [String: GoalTally] = [:]
-    var pending: [(signature: String, runner: String, tool: String, callId: String?)] = []
+    var pending: [(goalKey: String, runner: String, tool: String, callId: String?)] = []
     var project: String
     var startedAt: Double
     var errors = 0
     var edits: [String: Int] = [:]
-    var topics: [String] = []
-    mutating func append(_ entry: Entry) {
-        var entry = entry
-        entry.text = capUTF8(entry.text, Self.byteCap)
-        entries.append(entry); byteCount += entry.text.utf8.count
-        while entries.count > Self.entryCap || byteCount > Self.byteCap { byteCount -= entries.removeFirst().text.utf8.count }
-    }
+    var closingLine: String?
+    var lastEffort: EffortTier = .light
+    var turns = 0
+    var tasks = 0
 }
-struct Fact: Codable, Sendable, Equatable {
-    enum Kind: String, Codable, Sendable { case goalOutcome, theme, tone, errorClass, sessionSummary }
-    var kind: Kind
-    var sessionId: String
-    var project: String
-    var at: Double
-    var payload: [String: String]
+enum ToneClass: String, Encodable, Sendable { case question, negative, positive, neutral }
+enum Fact: Encodable, Sendable, Equatable {
+    case goalOutcome(goalKey: String, runner: String, outcome: GoalOutcome, attempts: Int, elapsedMs: Double)
+    case project(id: String)
+    case topics([String])
+    case tone(ToneClass)
+    case errorClass(String)
+    case sessionSummary(turns: Int, tasks: Int, elapsedMs: Double)
 }
-@MainActor protocol FactSink: AnyObject, Sendable { func receive(_ facts: [Fact]) }
-@MainActor final class FactRing: FactSink {
+@MainActor final class FactRing {
     private(set) var facts: [Fact] = []
     func receive(_ incoming: [Fact]) { facts.append(contentsOf: incoming); if facts.count > 500 { facts.removeFirst(facts.count - 500) } }
 }

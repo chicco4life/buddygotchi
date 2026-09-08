@@ -5,6 +5,7 @@ import Foundation
 /// How demanding the current task looks. Heuristics (elapsed work span, error
 /// count) provide the floor; an agent's own report via MCP overrides them.
 enum EffortTier: String, Sendable, Equatable, Codable, CaseIterable {
+    var creatureEffort: CreatureEffort { CreatureEffort(rawValue: rawValue) ?? .light }
     case light
     case normal
     case hard

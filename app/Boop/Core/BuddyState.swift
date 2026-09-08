@@ -109,7 +109,10 @@ enum SessionState: String, Encodable, Sendable, Equatable {
 }
 
 struct Session: Encodable, Sendable, Equatable {
-    var project: String?
+    /// What this session last finished with, so the per-session breakdown can
+    /// show its own cheer and moment even after another session completes.
+    var lastDone: DoneRecord?
+    var project: String = "unknown"
     var source: String
     var state: SessionState
     var prompt: Prompt?
@@ -130,8 +133,7 @@ struct Session: Encodable, Sendable, Equatable {
     var observedEffort: EffortTier?
     var uhoh: UhohKind?
     var repeatedToolCount: Int = 0
-    var moment: Moment?
-    var cheer: CheerSize?
+    var lastGoal: String?
 }
 
 struct SessionCounts: Encodable, Sendable, Equatable {
@@ -200,6 +202,12 @@ struct ThinkingSession: Encodable, Sendable, Equatable {
     var hint: String?
     var workStartedAt: Double?
     var lastWorkSignalAt: Double?
+}
+
+struct DoneRecord: Encodable, Sendable, Equatable {
+    var size: CheerSize
+    var moment: Moment?
+    var until: Double
 }
 
 // MARK: - Active Sessions (per-session breakdown for popover)

@@ -33,8 +33,12 @@ state_field() {
 import json,re,sys
 v=json.load(sys.stdin)
 for key in re.findall(r"[^.\[\]]+", sys.argv[1]):
-    v=v[int(key)] if isinstance(v,list) else v[key]
-print(v if isinstance(v,str) else json.dumps(v,separators=(",",":")))' "$1"
+    try:
+        v=v[int(key)] if isinstance(v,list) else v[key]
+    except (KeyError, IndexError, TypeError):
+        v=None; break   # optional keys are omitted when nil: print nothing, not a traceback
+if v is not None:
+    print(v if isinstance(v,str) else json.dumps(v,separators=(",",":")))' "$1"
 }
 # Assert the creature state after a step. Global by default; when another
 # agent was already connected at baseline (D0 != disconnected), the reducer
@@ -262,21 +266,40 @@ print_summary() {
   [ "$fail" -eq 0 ]
 }
 
+# True when any session other than ours is live: a harness running this very
+# script hooks itself in mid-run, so scope is decided at assertion time.
+foreign_present() { # sid
+  state_field .activeSessions | python3 -c 'import json,sys
+sys.exit(0 if any(s.get("id")!=sys.argv[1] for s in json.load(sys.stdin)) else 1)' "$1" 2>/dev/null
+}
+session_field() {
+  state_field .activeSessions | python3 -c 'import json,sys
+s=next((s for s in json.load(sys.stdin) if s["id"]==sys.argv[1]),{})
+for key in sys.argv[2].strip(".").split("."): s=s.get(key,{}) if isinstance(s,dict) else {}
+print(s if s != {} and s is not None else "")' "$1" "$2"
+}
+
 # Native fixture replay through the real authenticated hook route.
 tenth_try() {
   local agent="$1" sid="e2e-tenth-$1-$$" line n=0 got
   hdr "$agent tenth-try"
-  sleep 4.1 # Let an earlier scenario's maximum-length cheer expire.
+  local attempts=0 fixture_agent="$agent"
+  [ "$agent" = codex ] && fixture_agent=claude-code
+  while [ -n "$(state_field .creature.cheer)" ] && [ "$attempts" -lt 100 ]; do
+    sleep 0.1
+    attempts=$((attempts+1))
+  done
+  [ -z "$(state_field .creature.cheer)" ] || { bad 'previous cheer did not expire'; return; }
   while IFS= read -r line; do
     post_event "$agent" "$line"
     n=$((n+1))
     if [ "$n" = 12 ]; then
-      if scoped_mode; then
-        got="$(state_field .activeSessions | python3 -c 'import json,sys; print(next((s.get("effort","") for s in json.load(sys.stdin) if s["id"]==sys.argv[1]),""))' "$sid")"
+      if scoped_mode || foreign_present "$sid"; then
+        got="$(session_field "$sid" effort)"
       else got="$(state_field .creature.effort)"; fi
       [ "$got" = grinding ] && ok 'tenth-try: grinding mid-way' || bad "tenth-try effort: $got"
     fi
-  done < <(python3 - "$DIR/../../Tests/Fixtures/hooks/$agent/2026-09-08/tenth-try.jsonl" "$sid" <<'PY'
+  done < <(python3 - "$DIR/../../Tests/Fixtures/hooks/$fixture_agent/2026-09-08/tenth-try.jsonl" "$sid" <<'PY'
 import json,sys
 for line in open(sys.argv[1]):
     body=json.loads(line)
@@ -285,8 +308,8 @@ for line in open(sys.argv[1]):
     print(json.dumps(body,separators=(',',':')))
 PY
   )
-  if scoped_mode; then
-    got="$(state_field .activeSessions | python3 -c 'import json,sys; s=next((s for s in json.load(sys.stdin) if s["id"]==sys.argv[1]),{}); print(s.get("cheer",""),s.get("moment",{}).get("kind",""))' "$sid")"
+  if scoped_mode || foreign_present "$sid"; then
+    got="$(session_field "$sid" cheer) $(session_field "$sid" moment.kind)"
   else got="$(state_field .creature.cheer) $(state_field .creature.moment.kind)"; fi
   [ "$got" = 'dance hardWonPass' ] && ok 'tenth-try: dance + hardWonPass' || bad "tenth-try payoff: $got"
   post_event "$agent" "{\"hook_event_name\":\"SessionEnd\",\"session_id\":\"$sid\"}"

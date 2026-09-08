@@ -870,7 +870,7 @@ extension EngineIntegrationTests {
         let (engine, recorder, clock) = makeTestEngine()
         for _ in 0..<6 {
             clock.advance(by: 1)
-            engine.toolCalled(sessionId: "new", source: "codex", tool: "Bash", hint: "test")
+            engine.toolCalled(sessionId: "new", source: "codex", tool: "Bash", hint: "test", goal: "opaque")
         }
         XCTAssertEqual(recorder.last?.creature.uhoh, .stuck)
     }

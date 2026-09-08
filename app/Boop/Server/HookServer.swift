@@ -10,7 +10,28 @@ struct HookEventBody: Decodable, Sendable {
     var conversation_id: String?
     var hook_event_name: String?
     var hookEventName: String?
+    var event_name: String?
+    var workspace_roots: [String]?
+    var file_path: String?
+    var path: String?
     var cwd: String?
+    var tool_response: HookJSON?
+    var tool_output: HookJSON?
+    var output: HookJSON?
+    var output_head: String?
+    var output_tail: String?
+    var exit_status: Int?
+    var exit_code: Int?
+    var error_class: String?
+    var status: String?
+    var prompt: HookJSON?
+    var prompt_text: HookJSON?
+    var last_assistant_message: HookJSON?
+    var text: HookJSON?
+    var closing_message: HookJSON?
+    var tool_use_id: String?
+    var tool_call_id: String?
+    var duration_ms: Double?
     var tool_name: String?
     var tool_input: ToolInput?
     var notification_type: String?
@@ -27,6 +48,7 @@ struct HookEventBody: Decodable, Sendable {
     }
 
     struct ToolInput: Decodable, Sendable {
+        var raw: String?
         var command: String?
         var file_path: String?
         var path: String?
@@ -48,6 +70,7 @@ struct HookEventBody: Decodable, Sendable {
         /// proceeds unreviewed. A field we can't read should cost us that
         /// field, never the prompt.
         init(from decoder: Decoder) throws {
+            raw = try? HookJSON(from: decoder).text
             if let single = try? decoder.singleValueContainer(),
                let raw = try? single.decode(String.self) {
                 if let data = raw.data(using: .utf8),
@@ -77,12 +100,17 @@ struct HookEventBody: Decodable, Sendable {
     }
 
     var effectiveEventName: String? {
-        hook_event_name ?? hookEventName
+        hook_event_name ?? hookEventName ?? event_name
     }
+
+    var effectiveSessionId: String? { session_id ?? conversation_id }
+    var effectiveCwd: String? { cwd ?? workspace_roots?.first }
 
     var effectiveToolName: String? {
         tool_name ?? tool?.name ?? toolName ?? (command != nil ? "Shell" : nil)
     }
+
+    var effectiveInputText: String? { effectiveToolInput?.raw ?? command }
 
     var effectiveToolInput: ToolInput? {
         tool_input ?? input
@@ -176,6 +204,7 @@ func buildHookServer(
         let state = await engine.state
         return jsonResponse([
             "ok": true,
+            "hookVersion": HookInstaller.hookSchemaVersion,
             "stateVersion": state.version,
             "desktop": state.desktop.status.rawValue,
         ] as [String: Any])
@@ -186,7 +215,7 @@ func buildHookServer(
         let count = min(500, max(0, request.uri.queryParameters["n"].flatMap { Int($0) } ?? 50))
         let entries = await diagLog.entries.reversed().prefix(count).map {
             DiagnosticEntry(timestamp: $0.timestamp, category: $0.category, source: $0.source,
-                            event: $0.event, detail: $0.detail, rawPayload: nil)
+                            event: $0.event, detail: $0.detail)
         }
         return try encodedResponse(["entries": entries])
     }
@@ -207,13 +236,12 @@ func buildHookServer(
         guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
         let source = request.uri.queryParameters["source"].map(String.init) ?? "claude-code"
         let rawBuffer = try await request.body.collect(upTo: 1_048_576)
-        let rawJSON = String(buffer: rawBuffer)
-        if let payload = try RawHookPayload.parse(Data(rawJSON.utf8), source: source, at: 0) {
+        if let payload = try RawHookPayload.parse(Data(rawBuffer.readableBytesView), source: source, at: 0) {
             let hookPid = payload.kind == .sessionStart ? request.uri.queryParameters["pid"].flatMap { Int32(String($0)) } : nil
             await engine.ingest(payload, hookPid: hookPid)
         } else {
             let body = try sharedDecoder.decode(HookEventBody.self, from: rawBuffer)
-            await diagLog.log(category: "hook", source: source, event: body.effectiveEventName ?? "unknown", detail: body.effectiveToolName ?? "")
+            await diagLog.log(category: "hook", source: source, event: body.effectiveEventName ?? "unknown", detail: "legacy fallback " + (body.effectiveToolName ?? ""))
             await handleAgentEvent(body: body, source: source, hookPid: nil, engine: engine)
         }
         return emptyOK()
@@ -260,16 +288,17 @@ func buildHookServer(
         let body = try sharedDecoder.decode(HookEventBody.self, from: rawBuffer)
         let sessionId = deriveSessionId(from: body, source: source)
         let tool = body.effectiveToolName ?? "Unknown"
-        let hint = extractHint(from: body)
+        let fullHint = extractHint(from: body, limit: .max)
+        let hint = String(fullHint.prefix(200))
         let sessionLabel = cwdLabel(body.cwd)
         let requestId = makeRequestId(sessionId: sessionId)
 
         await diagLog.log(category: "approve", source: source, event: body.effectiveEventName ?? "approve", detail: tool)
 
-        await engine.sessionStarted(sessionId: sessionId, source: source, cwd: body.cwd, hookPid: hookPid)
+        await engine.ingest(RawHookPayload(source: source, sessionId: sessionId, kind: .sessionStart, toolName: "", cwd: body.effectiveCwd, timestamp: 0), hookPid: hookPid)
 
         // The safety check reads the FULL command; `hint` is display-truncated.
-        if let autoDecision = shouldAutoApprove(tool: tool, command: extractHint(from: body, limit: .max), source: source) {
+        if let autoDecision = shouldAutoApprove(tool: tool, command: fullHint, source: source) {
             await diagLog.log(category: "approve", source: source, event: "auto-\(autoDecision.rawValue)", detail: tool)
             await engine.activitySignal(sessionId: sessionId, source: source, signal: .keepWorking, tool: tool, hint: hint)
             return approvalResponse(decision: autoDecision, source: source)
@@ -285,6 +314,7 @@ func buildHookServer(
             try? await channel.closeFuture.get()
             await engine.abandonApproval(sessionId: sessionId, requestId: requestId)
         }
+        let (stakes, gloss) = StakesReader.read(tool: tool, input: fullHint)
         let decision = await engine.submitApproval(
             sessionId: sessionId,
             requestId: requestId,
@@ -292,8 +322,8 @@ func buildHookServer(
             hint: hint,
             sessionLabel: sessionLabel,
             source: source,
-            stakes: StakesReader.read(tool: tool, input: extractHint(from: body, limit: .max)).0,
-            gloss: GlossWriter.read(tool: tool, input: extractHint(from: body, limit: .max))
+            stakes: stakes,
+            gloss: gloss
         )
         // cancel() can't interrupt closeFuture.get(); when the connection
         // eventually closes after a normal decision, the late abandon is a
@@ -504,7 +534,7 @@ func shouldAutoApprove(tool: String, command: String, source: String) -> Approva
 /// `limit` exists so the safety path can ask for the whole command while the
 /// display path keeps its 200-character cap — passing the truncated string to
 /// `shouldAutoApprove` is what let a hidden `; curl … | sh` through.
-private func extractHint(from body: HookEventBody, limit: Int = 200) -> String {
+func extractHint(from body: HookEventBody, limit: Int = 200) -> String {
     func cap(_ s: String) -> String { limit == .max ? s : String(s.prefix(limit)) }
     if let cmd = body.command, !cmd.isEmpty { return cap(cmd) }
     if let ti = body.effectiveToolInput {
@@ -514,17 +544,6 @@ private func extractHint(from body: HookEventBody, limit: Int = 200) -> String {
         }
     }
     return body.message ?? ""
-}
-
-private func cwdLabel(_ cwd: String?) -> String? {
-    guard let cwd, !cwd.isEmpty else { return nil }
-    return (cwd as NSString).lastPathComponent
-}
-
-func stableHashCwd(_ cwd: String?) -> String {
-    guard let cwd, !cwd.isEmpty else { return "unknown" }
-    let digest = SHA256.hash(data: Data(cwd.utf8))
-    return digest.prefix(4).map { String(format: "%02x", $0) }.joined()
 }
 
 private func deriveSessionId(from body: HookEventBody, source: String) -> String {

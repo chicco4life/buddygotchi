@@ -118,7 +118,17 @@ if [ -x "$HOOK" ]; then ok "$HOOK executable ($(sed -n '2p' "$HOOK" | sed 's/^# 
 
 HOOK_VERSION=$(sed -n 's/^# boop-hook v\([0-9][0-9]*\).*/\1/p' "$HOOK" 2>/dev/null | head -1)
 info "hook script version: ${HOOK_VERSION:-unknown}"
-if [ "${HOOK_VERSION:-0}" -lt 5 ]; then bad "hook script must be v5 or newer; repair hooks in Boop Settings"; fi
+HEALTH=$("${CURL[@]}" "$BASE/healthz" 2>/dev/null)
+if [ -z "$HEALTH" ]; then
+  REQUIRED_HOOK_VERSION=6
+else
+  REQUIRED_HOOK_VERSION=$(printf '%s' "$HEALTH" | grep -o '"hookVersion" *: *[0-9]*' | grep -o '[0-9]*')
+fi
+if [ -z "$REQUIRED_HOOK_VERSION" ]; then
+  bad 'running app does not report hookVersion; update Boop'
+elif [ "${HOOK_VERSION:-0}" -lt "$REQUIRED_HOOK_VERSION" ]; then
+  bad "hook script must be v${REQUIRED_HOOK_VERSION} or newer; repair hooks in Boop Settings"
+fi
 
 # --- 3. registration in this harness ---------------------------------------
 hdr "3. Hook registration"

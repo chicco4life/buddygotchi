@@ -10,7 +10,6 @@ final class BuddyEngine {
     let extractor = Extractor()
     private var extractionTail: Task<Void, Never>?
     let factRing = FactRing()
-    var factSink: (any FactSink)?
     var stateDir: String { config.stateDir }
 
     private var internalState: InternalState
@@ -95,7 +94,11 @@ final class BuddyEngine {
     // MARK: - Session API
 
     func sessionStarted(sessionId: String, source: String, cwd: String?, hookPid: Int32? = nil) {
-        apply(.sessionStarted(at: clock.now(), sessionId: sessionId, source: source, cwd: cwd))
+        apply(.sessionStarted(at: clock.now(), sessionId: sessionId, source: source, cwd: cwd, project: internalState.sessions[sessionId]?.project ?? ThemeReader.project(cwd: cwd)))
+        registerWatcher(sessionId: sessionId, source: source, hookPid: hookPid)
+    }
+
+    private func registerWatcher(sessionId: String, source: String, hookPid: Int32?) {
         if let hookPid, processWatchers[sessionId] == nil,
            let appPid = Self.resolveAncestor(from: hookPid) {
             let name = Self.processName(of: appPid) ?? "unknown"
@@ -140,31 +143,30 @@ final class BuddyEngine {
     private func ingestSerial(_ input: RawHookPayload, hookPid: Int32?) async {
         var payload = input
         payload.timestamp = clock.now()
-        if payload.kind != .sessionEnd {
-            sessionStarted(sessionId: payload.sessionId, source: payload.source, cwd: payload.cwd, hookPid: hookPid)
-        }
         let hour = Calendar.current.component(.hour, from: Date(timeIntervalSince1970: payload.timestamp / 1000))
         let extraction = await extractor.ingest(payload, localHour: hour)
         for event in extraction.events {
             if case .adapterDegraded(_, let source) = event { diagnosticLog.log(category: "hook", source: source, event: "adapterDegraded", detail: "lifecycle-only") }
             if case .sessionEnded = event { sessionEnded(sessionId: payload.sessionId) }
-            else { apply(event) }
+            else {
+                apply(event)
+                if case .sessionStarted = event, let hookPid {
+                    // Identity has already been resolved by the extractor.
+                    registerWatcher(sessionId: payload.sessionId, source: payload.source, hookPid: hookPid)
+                }
+            }
         }
         factRing.receive(extraction.facts)
-        factSink?.receive(extraction.facts)
-        let goal = extraction.facts.first { $0.kind == .goalOutcome }?.payload["goal"] ?? extraction.events.compactMap { event -> String? in
-            if case .toolCalled(_, _, _, _, let signature) = event { return signature }
-            return nil
-        }.first ?? ""
-        diagnosticLog.log(category: "hook", source: payload.source, event: payload.eventName.isEmpty ? payload.kind.rawValue : payload.eventName, detail: payload.toolName + (goal.isEmpty ? "" : " " + goal))
+        let runner = extraction.goalRunner ?? ""
+        diagnosticLog.log(category: "hook", source: payload.source, event: payload.eventName.isEmpty ? payload.kind.rawValue : payload.eventName, detail: payload.toolName + (runner.isEmpty ? "" : " " + runner))
     }
 
     func turnStarted(sessionId: String, source: String) {
         apply(.turnStarted(at: clock.now(), sessionId: sessionId, source: source))
     }
 
-    func toolCalled(sessionId: String, source: String, tool: String, hint: String) {
-        apply(.toolCalled(at: clock.now(), sessionId: sessionId, source: source, tool: tool, hint: hint))
+    func toolCalled(sessionId: String, source: String, tool: String, hint: String, goal: String? = nil) {
+        apply(.toolCalled(at: clock.now(), sessionId: sessionId, source: source, tool: tool, hint: hint, goal: goal))
     }
 
     func toolResulted(sessionId: String, source: String, tool: String, ok: Bool?, durationMs: Double? = nil) {

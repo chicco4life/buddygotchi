@@ -37,7 +37,7 @@ func activityKind(tool: String, hint: String) -> ActivityKind {
     case "Edit", "Write", "MultiEdit", "NotebookEdit":
         return .write
     case "Bash", "Shell":
-        if testCommandPattern.firstMatch(in: hint, options: [], range: NSRange(location: 0, length: (hint as NSString).length)) != nil {
+        if GoalsReader.runner(hint).map { RunnerLabel.subject($0.runner.name) == "tests" } == true {
             return .verify
         }
         return .shell
@@ -45,9 +45,3 @@ func activityKind(tool: String, hint: String) -> ActivityKind {
         return .work
     }
 }
-
-// Anchored at start-of-string. Matches common test-runner verbs across stacks.
-private let testCommandPattern: NSRegularExpression = {
-    let pattern = #"^(swift test|npm (test|run test)|pytest|go test|cargo test|cargo bench|xcodebuild test|jest|mocha|rspec)\b"#
-    return try! NSRegularExpression(pattern: pattern, options: [])
-}()

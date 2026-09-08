@@ -15,16 +15,15 @@ enum TurnOutcome: Sendable, Equatable { case completed; case failed(errorClass: 
 // MARK: - Events
 
 enum BuddyEvent: Sendable {
-    case projectObserved(at: Double, sessionId: String, project: String)
     case requestDescribed(at: Double, sessionId: String, stakes: Stakes, gloss: String)
     case effortObserved(at: Double, sessionId: String, level: EffortTier)
-    case goalRead(at: Double, sessionId: String, goal: String, outcome: GoalOutcome, tally: GoalTally)
+    case goalRead(at: Double, sessionId: String, goalKey: String, runner: String, outcome: GoalOutcome, tally: GoalTally)
     case fileEdited(at: Double, sessionId: String, path: String, count: Int)
     case localTurnHour(at: Double, sessionId: String, hour: Int)
     case adapterDegraded(at: Double, source: String)
     case turnStarted(at: Double, sessionId: String, source: String)
-    case toolCalled(at: Double, sessionId: String, source: String, tool: String, hint: String)
-    case toolResulted(at: Double, sessionId: String, source: String, tool: String, ok: Bool?, durationMs: Double?)
+    case toolCalled(at: Double, sessionId: String, source: String, tool: String, hint: String, goal: String? = nil)
+    case toolResulted(at: Double, sessionId: String, source: String, tool: String, ok: Bool?, durationMs: Double?, goal: String? = nil)
     case turnEnded(at: Double, sessionId: String, source: String, outcome: TurnOutcome)
     case devicePostureChanged(at: Double, posture: DevicePosture)
     case deviceBatteryChanged(at: Double, battery: DeviceBattery)
@@ -32,7 +31,7 @@ enum BuddyEvent: Sendable {
     case collectArrived(at: Double)
     case nudgeDismissed(at: Double)
 
-    case sessionStarted(at: Double, sessionId: String, source: String, cwd: String?)
+    case sessionStarted(at: Double, sessionId: String, source: String, cwd: String?, project: String = "unknown")
     case sessionEnded(at: Double, sessionId: String)
 
     case requestArrived(at: Double, sessionId: String, requestId: String, tool: String, hint: String, sessionLabel: String?)
@@ -77,17 +76,17 @@ enum BuddyEvent: Sendable {
 
     var at: Double {
         switch self {
-        case .projectObserved(let at, _, _), .requestDescribed(let at, _, _, _), .effortObserved(let at, _, _), .goalRead(let at, _, _, _, _), .fileEdited(let at, _, _, _), .localTurnHour(let at, _, _), .adapterDegraded(let at, _),
+        case .requestDescribed(let at, _, _, _), .effortObserved(let at, _, _), .goalRead(let at, _, _, _, _, _), .fileEdited(let at, _, _, _), .localTurnHour(let at, _, _), .adapterDegraded(let at, _),
              .turnStarted(let at, _, _),
-             .toolCalled(let at, _, _, _, _),
-             .toolResulted(let at, _, _, _, _, _),
+             .toolCalled(let at, _, _, _, _, _),
+             .toolResulted(let at, _, _, _, _, _, _),
              .turnEnded(let at, _, _, _),
              .devicePostureChanged(let at, _),
              .deviceBatteryChanged(let at, _),
              .focusToggled(let at, _),
              .collectArrived(let at),
              .nudgeDismissed(let at),
-             .sessionStarted(let at, _, _, _),
+             .sessionStarted(let at, _, _, _, _),
              .sessionEnded(let at, _),
              .requestArrived(let at, _, _, _, _, _),
              .requestCleared(let at, _),
@@ -112,7 +111,6 @@ enum BuddyEvent: Sendable {
 
     var name: String {
         switch self {
-        case .projectObserved: "projectObserved"
         case .requestDescribed: "requestDescribed"
         case .effortObserved: "effortObserved"
         case .goalRead: "goalRead"

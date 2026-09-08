@@ -122,6 +122,11 @@ With those, an agent's app loop is: `swift test`, launch headless, run
 
 ### 2.3 Hooks
 
+Phase 3 cleanup: `HookFixtureTests` replays the Claude tenth-try capture for
+both Claude Code and Codex; Cursor keeps its distinct capture. `HookPayloadTests`
+checks v6 transport caps and the Python-free pre-tool path; `ExtractorPrivacyTests`
+checks tallies, closing-line retention, and every UI/diagnostic/fact surface.
+
 Three questions, three layers.
 
 **Is the installer right?** `HookInstallerTests` against temp home
@@ -139,7 +144,7 @@ with app down (returns passthrough).
 **Are the payloads still what we think they are?** Agents ship weekly and
 have shipped hook regressions. Two guards:
 
-- A **fixture corpus** under `archived/app/Tests/Fixtures/hooks/<agent>/<version>/`
+- A **fixture corpus** under `app/Tests/Fixtures/hooks/<agent>/<version>/`
   of real payloads, one per event, recorded with `tools/record-hooks.sh`
   (a wrapper script that tees the raw payload, redacts paths and text, and
   writes it as a fixture). The extractor's unit tests replay these. When a

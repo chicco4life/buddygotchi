@@ -9,7 +9,6 @@ struct DiagnosticEntry: Codable, Sendable {
     let source: String
     let event: String
     let detail: String
-    let rawPayload: String?
 }
 
 // MARK: - Diagnostic Log
@@ -26,14 +25,13 @@ final class DiagnosticLog {
         self.capacity = capacity
     }
 
-    func log(category: String, source: String, event: String, detail: String, rawPayload _: String? = nil) {
+    func log(category: String, source: String, event: String, detail: String) {
         let entry = DiagnosticEntry(
             timestamp: Date.now.timeIntervalSince1970 * 1000,
             category: category,
             source: source,
             event: event,
-            detail: detail,
-            rawPayload: nil
+            detail: detail
         )
         entries.append(entry)
         if entries.count > capacity {

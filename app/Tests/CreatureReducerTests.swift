@@ -164,13 +164,13 @@ final class CreatureReducerTests: XCTestCase {
     func testSixIdenticalCallsAndReset() {
         var s = start(fresh())
         for i in 1...6 {
-            s = reduce(s, .toolCalled(at: Double(i), sessionId: "a", source: "codex", tool: "Bash", hint: "test"))
+            s = reduce(s, .toolCalled(at: Double(i), sessionId: "a", source: "codex", tool: "Bash", hint: "test", goal: "opaque"))
             XCTAssertEqual(s.buddy.creature.state, i == 6 ? .uhoh : .working)
         }
         XCTAssertEqual(s.buddy.creature.uhoh, .stuck)
         s = start(s, 7)
         for i in 8...14 {
-            s = reduce(s, .toolCalled(at: Double(i), sessionId: "a", source: "codex", tool: "Bash", hint: "test \(i)"))
+            s = reduce(s, .toolCalled(at: Double(i), sessionId: "a", source: "codex", tool: "Bash", hint: "test \(i)", goal: "goal-\(i)"))
         }
         XCTAssertEqual(s.buddy.creature.state, .working)
     }
@@ -303,7 +303,7 @@ final class CreatureReducerTests: XCTestCase {
 
     func testRepeatedCallsStayStuckUntilExplicitRecovery() {
         var s = start(fresh())
-        for i in 1...6 { s = reduce(s, .toolCalled(at: Double(i), sessionId: "a", source: "codex", tool: "Bash", hint: "x")) }
+        for i in 1...6 { s = reduce(s, .toolCalled(at: Double(i), sessionId: "a", source: "codex", tool: "Bash", hint: "x", goal: "opaque")) }
         s = reduce(s, .toolCalled(at: 7, sessionId: "a", source: "codex", tool: "Read", hint: "y"))
         XCTAssertEqual(s.buddy.creature.uhoh, .stuck)
         let unknown = reduce(s, .toolResulted(at: 8, sessionId: "a", source: "codex", tool: "Read", ok: nil, durationMs: nil))

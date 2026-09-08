@@ -52,16 +52,6 @@ func reduce(_ state: InternalState, _ event: BuddyEvent) -> InternalState {
 
 private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> InternalState {
     switch event {
-    case .projectObserved(let at, let id, let project):
-        var s = state
-        let basename = ThemeReader.project(cwd: s.sessions[id]?.cwd)
-        if project != basename, s.pendingMoments[id]?.kind == .backAfterAbsence { s.pendingMoments.removeValue(forKey: id) }
-        if let last = s.memory.projects[project], at - last >= Double(s.momentThresholds.absenceDays) * 86_400_000 {
-            s.pendingMoments[id] = Moment(kind: .backAfterAbsence, facts: ["days": String(Int((at - last) / 86_400_000)), "project": project])
-        }
-        s.sessions[id]?.project = project
-        s.memory.projects[project] = at
-        return s
     case .requestDescribed(_, let id, let stakes, let gloss):
         var s = state
         s.sessions[id]?.prompt?.stakes = stakes
@@ -78,15 +68,15 @@ private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> Interna
         return s
     case .fileEdited(_, let id, let path, let count):
         var s = state
-        if count == s.momentThresholds.sameFileEdits && s.pendingMoments[id]?.dances != true { s.pendingMoments[id] = Moment(kind: .sameFileAgain, facts: ["path": path, "count": String(count)]) }
+        if count == s.momentThresholds.sameFileEdits && CheerSize.for(moment: s.pendingMoments[id], thresholds: s.cheerThresholds, errors: 0, span: 0, effort: .light) != .dance { s.pendingMoments[id] = Moment(kind: .sameFileAgain, facts: ["path": path, "count": String(count)]) }
         return s
-    case .goalRead(let at, let id, let goal, let outcome, let tally):
+    case .goalRead(let at, let id, let goal, let runner, let outcome, let tally):
         var s = state
         if outcome == .pass {
-            let elapsed = max(0, at - tally.firstAt)
-            if tally.failures >= s.momentThresholds.hardWonFailures { s.pendingMoments[id] = Moment(kind: .hardWonPass, facts: ["attempts": String(tally.attemptsWithoutPass), "elapsedMs": String(elapsed), "goal": goal]) }
-            else if tally.consecutiveFailures >= s.momentThresholds.redStreakFailures, let first = tally.firstFailureAt, at - first >= s.momentThresholds.redStreakMs { s.pendingMoments[id] = Moment(kind: .redStreakEnded, facts: ["failures": String(tally.consecutiveFailures), "elapsedMs": String(at - first)]) }
-        } else if tally.attemptsWithoutPass >= s.momentThresholds.stuckAttempts { enterUhoh(&s, sessionId: id, kind: .stuck, at: at) }
+            let elapsed = max(0, at - (tally.firstFailureAt ?? at))
+            if tally.attemptsWithoutPass >= s.momentThresholds.hardWonFailures { s.pendingMoments[id] = Moment(kind: .hardWonPass, facts: ["attempts": String(tally.attemptsWithoutPass + 1), "elapsedMs": String(elapsed), "goalKey": goal, "runner": runner]) }
+            else if tally.attemptsWithoutPass >= s.momentThresholds.redStreakFailures, let first = tally.firstFailureAt, at - first >= s.momentThresholds.redStreakMs { s.pendingMoments[id] = Moment(kind: .redStreakEnded, facts: ["failures": String(tally.attemptsWithoutPass), "elapsedMs": String(at - first)]) }
+        } else if tally.attemptsWithoutPass + 1 >= s.momentThresholds.stuckAttempts { enterUhoh(&s, sessionId: id, kind: .stuck, at: at) }
         return s
     case .devicePostureChanged(_, let posture):
         var s = state
@@ -98,10 +88,10 @@ private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> Interna
         return s
     case .turnStarted(let at, let id, let source):
         return handleTurnStarted(state, at: at, sessionId: id, source: source)
-    case .toolCalled(let at, let id, let source, let tool, let hint):
-        return handleToolCalled(state, at: at, sessionId: id, source: source, tool: tool, hint: hint)
-    case .toolResulted(let at, let id, let source, let tool, let ok, _):
-        return handleToolResulted(state, at: at, sessionId: id, source: source, tool: tool, ok: ok)
+    case .toolCalled(let at, let id, let source, let tool, let hint, let goal):
+        return handleToolCalled(state, at: at, sessionId: id, source: source, tool: tool, hint: hint, goal: goal)
+    case .toolResulted(let at, let id, let source, let tool, let ok, _, let goal):
+        return handleToolResulted(state, at: at, sessionId: id, source: source, tool: tool, ok: ok, goal: goal)
     case .turnEnded(let at, let id, let source, let outcome):
         return handleTurnEnded(state, at: at, sessionId: id, source: source, outcome: outcome)
     case .focusToggled(_, let on):
@@ -114,8 +104,8 @@ private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> Interna
         return s
     case .nudgeDismissed(let at):
         return dismissNudge(state, at: at)
-    case .sessionStarted(let at, let sessionId, let source, let cwd):
-        return handleSessionStarted(state, at: at, sessionId: sessionId, source: source, cwd: cwd)
+    case .sessionStarted(let at, let sessionId, let source, let cwd, let project):
+        return handleSessionStarted(state, at: at, sessionId: sessionId, source: source, cwd: cwd, project: project)
     case .sessionEnded(_, let sessionId):
         return handleSessionEnded(state, sessionId: sessionId)
     case .requestArrived(let at, let sessionId, let requestId, let tool, let hint, let sessionLabel):
@@ -175,7 +165,7 @@ private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> Interna
 
 // MARK: - Event Handlers
 
-private func handleSessionStarted(_ state: InternalState, at: Double, sessionId: String, source: String, cwd: String?) -> InternalState {
+private func handleSessionStarted(_ state: InternalState, at: Double, sessionId: String, source: String, cwd: String?, project: String) -> InternalState {
     var s = state
     let isNewSession = s.sessions[sessionId] == nil
     // Judge the hour against history BEFORE this arrival samples into it —
@@ -183,10 +173,9 @@ private func handleSessionStarted(_ state: InternalState, at: Double, sessionId:
     let atUnusualHour = s.memory.circadianReady(at: at) && s.memory.isUnusualHour(PetMemory.utcHour(ofMs: at))
     observePresence(&s, at: at)
     if isNewSession {
-        let project = ThemeReader.project(cwd: cwd)
         if let last = s.memory.projects[project], at - last >= Double(s.momentThresholds.absenceDays) * 86_400_000 { s.pendingMoments[sessionId] = Moment(kind: .backAfterAbsence, facts: ["days": String(Int((at - last) / 86_400_000)), "project": project]) }
-        s.memory.projects[project] = at
         s.sessions[sessionId] = Session(source: source, state: .idle, prompt: nil, cwd: cwd, lastActivityAt: at, workStartedAt: nil)
+        s.sessions[sessionId]?.project = project
         s.memory.lifetimeSessions += 1
         // Surprised-then-cozy: a session at an hour this user never works.
         // Only on a genuinely new session, so per-event sessionStarted
@@ -287,26 +276,32 @@ private func handleTurnStarted(_ state: InternalState, at: Double, sessionId: St
     return s
 }
 
-private func handleToolResulted(_ state: InternalState, at: Double, sessionId: String, source: String, tool: String, ok: Bool?) -> InternalState {
+private func handleToolResulted(_ state: InternalState, at: Double, sessionId: String, source: String, tool: String, ok: Bool?, goal: String? = nil) -> InternalState {
     var s = state
     observePresence(&s, at: at)
     touchSession(&s, sessionId: sessionId, at: at, source: source)
     s.sessions[sessionId]?.lastWorkSignalAt = at
-    if ok == true {
+    if ok == true && (goal == nil || goal == s.sessions[sessionId]?.lastGoal) {
         markAlive(&s, sessionId: sessionId, at: at)
     } else if ok == false {
         s.sessions[sessionId]?.errorCount += 1
+    }
+    if !hasBlockingApproval(s.sessions[sessionId]), s.sessions[sessionId]?.uhoh == nil {
+        s.sessions[sessionId]?.prompt = nil
+        s.sessions[sessionId]?.state = .working
+        if s.sessions[sessionId]?.workStartedAt == nil { s.sessions[sessionId]?.workStartedAt = at }
     }
     if !tool.isEmpty { s.sessions[sessionId]?.currentTool = tool }
     return s
 }
 
-private func handleToolCalled(_ state: InternalState, at: Double, sessionId: String, source: String, tool: String, hint: String) -> InternalState {
+private func handleToolCalled(_ state: InternalState, at: Double, sessionId: String, source: String, tool: String, hint: String, goal: String? = nil) -> InternalState {
     var s = state
     observePresence(&s, at: at)
     touchSession(&s, sessionId: sessionId, at: at, source: source)
     let previous = s.sessions[sessionId]!
-    s.sessions[sessionId]?.repeatedToolCount = previous.lastTool == tool && previous.lastHint == hint ? previous.repeatedToolCount + 1 : 1
+    s.sessions[sessionId]?.repeatedToolCount = goal != nil && previous.lastGoal == goal ? previous.repeatedToolCount + 1 : 1
+    s.sessions[sessionId]?.lastGoal = goal
     s.sessions[sessionId]?.lastWorkSignalAt = at
     if previous.workStartedAt == nil { s.sessions[sessionId]?.workStartedAt = at }
     stampTool(&s, sessionId: sessionId, tool: tool, hint: hint)
@@ -314,7 +309,7 @@ private func handleToolCalled(_ state: InternalState, at: Double, sessionId: Str
         s.sessions[sessionId]?.prompt = nil
         s.sessions[sessionId]?.state = previous.uhoh == nil ? .working : previous.state
     }
-    if !hint.contains("|") && !hint.isEmpty && s.sessions[sessionId]!.repeatedToolCount >= 6 {
+    if goal != nil && s.sessions[sessionId]!.repeatedToolCount >= s.momentThresholds.stuckAttempts {
         enterUhoh(&s, sessionId: sessionId, kind: .stuck, at: at)
     }
     s.buddy.entries.insert(shortMsg(tool: tool, hint: hint, source: source), at: 0)
@@ -333,14 +328,15 @@ private func handleTurnEnded(_ state: InternalState, at: Double, sessionId: Stri
         if errorClass == "rate_limit" {
             s.rateLimits[sessionId, default: 0] += 1
             if s.rateLimits[sessionId] == s.momentThresholds.rateLimits {
-                let moment = Moment(kind: .nthRateLimit, facts: ["n": String(s.rateLimits[sessionId]!)])
-                s.buddy.creature.moment = moment
-                s.buddy.creature.giftLine = MomentLines.line(moment)
-                s.buddy.celebrateUntil = at + s.cheerThresholds.cheerMs
+                s.pendingMoments[sessionId] = Moment(kind: .nthRateLimit, facts: ["n": String(s.rateLimits[sessionId]!)])
             }
         }
         s.sessions[sessionId]?.errorCount += 1
         enterUhoh(&s, sessionId: sessionId, kind: errorClass == "rate_limit" ? .hungry : .error, at: at)
+        if let moment = s.pendingMoments[sessionId], CheerSize.for(moment: moment, thresholds: s.cheerThresholds, errors: 0, span: 0, effort: .light) == nil {
+            s.buddy.creature.moment = s.pendingMoments.removeValue(forKey: sessionId)
+            setBubble(&s, MomentLines.line(moment), at: at)
+        }
     case .completed:
         s.sessions[sessionId]?.uhoh = nil
         guard !hasBlockingApproval(session) else { return s }
@@ -355,18 +351,17 @@ private func handleTurnEnded(_ state: InternalState, at: Double, sessionId: Stri
         guard let start = session.workStartedAt else { return s }
         if s.memory.completedTurns == 0 && s.pendingMoments[sessionId] == nil { s.pendingMoments[sessionId] = Moment(kind: .firstEver, facts: [:]) }
         s.memory.completedTurns += 1
-        s.memory.projects[session.project ?? ThemeReader.project(cwd: session.cwd)] = at
+        s.memory.projects[session.project] = at
         let moment = s.pendingMoments.removeValue(forKey: sessionId)
         let duration = max(0, at - start)
-        let size: CheerSize = moment?.dances == true ? .dance : s.cheerThresholds.size(errors: session.errorCount, span: duration, effort: effortTier(for: session, elapsedMs: duration))
+        let size = CheerSize.for(moment: moment, thresholds: s.cheerThresholds, errors: session.errorCount, span: duration, effort: effortTier(for: session, elapsedMs: duration, thresholds: s.momentThresholds)) ?? .hop
         // A smaller nearby completion cannot truncate or restart the larger cheer.
         let folded = s.buddy.lastCompletionAt.map { at - $0 <= s.cheerThresholds.foldMs } ?? false
+        s.sessions[sessionId]?.lastDone = DoneRecord(size: size, moment: moment, until: at + s.cheerThresholds.duration(size))
         if !folded || size.intensity > (s.doneSize?.intensity ?? 0) {
             s.doneSize = size
             s.buddy.celebrateUntil = at + s.cheerThresholds.duration(size)
         }
-        s.sessions[sessionId]?.moment = moment
-        s.sessions[sessionId]?.cheer = size
         if let moment { s.buddy.creature.moment = moment; s.buddy.creature.giftLine = MomentLines.line(moment) }
         // A pending orb always carries the newest story line.
         if s.buddy.creature.gift { s.buddy.creature.giftLine = moment.map(MomentLines.line) ?? giftLine(forHint: session.lastHint) }
@@ -391,9 +386,8 @@ private func handleStaleTick(_ state: InternalState, now: Double) -> InternalSta
 
     if let until = s.buddy.celebrateUntil, now >= until {
         s.buddy.creature.gift = true
-        s.buddy.creature.giftLine = s.buddy.creature.moment.map(MomentLines.line) ?? giftLine(forHint: s.buddy.lastCompleted?.hint)
+        s.buddy.creature.giftLine = s.buddy.creature.moment.flatMap { $0.kind == .nthRateLimit ? nil : MomentLines.line($0) } ?? giftLine(forHint: s.buddy.lastCompleted?.hint)
         s.buddy.creature.moment = nil
-        for id in s.sessions.keys { s.sessions[id]?.moment = nil; s.sessions[id]?.cheer = nil }
         s.buddy.celebrateUntil = nil
         s.buddy.lastTaskDurationMs = nil
         changed = true
@@ -708,10 +702,11 @@ private func aggregate(_ state: InternalState, now: Double) -> BuddyState {
     var activeSnapshots: [SessionSnapshot] = []
     activeSnapshots.reserveCapacity(min(combined.count, 6))
     for (id, sess) in combined.prefix(6) {
-        let tier = effortTier(for: sess, elapsedMs: sess.workStartedAt.map { now - $0 } ?? 0)
+        let tier = effortTier(for: sess, elapsedMs: sess.workStartedAt.map { now - $0 } ?? 0, thresholds: state.momentThresholds)
         activeSnapshots.append(SessionSnapshot(
-            moment: sess.moment, cheer: sess.cheer,
-            effort: tier == .grinding ? .grinding : tier == .hard ? .hard : .light,
+            moment: state.pendingMoments[id] ?? sess.lastDone.flatMap { $0.until > now ? $0.moment : nil },
+            cheer: sess.lastDone.flatMap { $0.until > now ? $0.size : nil },
+            effort: tier.creatureEffort,
             id: id,
             source: sess.source,
             state: sess.uhoh == nil || sess.state == .needsConfirmation ? sess.state : (sess.uhoh == .stuck ? .thinking : .errored),
@@ -808,9 +803,9 @@ private func aggregate(_ state: InternalState, now: Double) -> BuddyState {
         buddy.msg = buddy.lastCompleted?.tool.map { "Done: \($0)" } ?? ""
     } else if let primary = workingOrdered.first?.value {
         creature.state = .working
-        let tier = effortTier(for: primary, elapsedMs: primary.workStartedAt.map { now - $0 } ?? 0)
+        let tier = effortTier(for: primary, elapsedMs: primary.workStartedAt.map { now - $0 } ?? 0, thresholds: state.momentThresholds)
         buddy.effortTier = tier
-        creature.effort = tier == .grinding ? .grinding : tier == .hard ? .hard : .light
+        creature.effort = tier.creatureEffort
         buddy.currentActivityKind = primary.currentActivityKind
         buddy.msg = primary.currentTool.map { shortMsg(tool: $0, hint: primary.currentHint ?? "", source: primary.source) } ?? ""
     } else {
@@ -839,11 +834,11 @@ private func aggregate(_ state: InternalState, now: Double) -> BuddyState {
 /// The agent's own report wins; otherwise elapsed span and error count set
 /// the tier. Errors escalate faster than time — three failures IS a grind,
 /// however short.
-private func effortTier(for session: Session, elapsedMs: Double) -> EffortTier {
+private func effortTier(for session: Session, elapsedMs: Double, thresholds: MomentThresholds) -> EffortTier {
     if let reported = session.reportedEffort { return reported }
     if let observed = session.observedEffort, observed == .grinding || observed == .hard { return observed }
-    if elapsedMs >= PetTuning.effortGrindingMinMs || session.errorCount >= 3 { return .grinding }
-    if elapsedMs >= PetTuning.effortHardMinMs || session.errorCount >= 2 { return .hard }
+    if elapsedMs >= PetTuning.effortGrindingMinMs || session.errorCount >= thresholds.effortGrindingErrors { return .grinding }
+    if elapsedMs >= PetTuning.effortHardMinMs || session.errorCount >= thresholds.effortHardErrors { return .hard }
     if elapsedMs < PetTuning.effortLightMaxMs && session.errorCount == 0 { return .light }
     return .normal
 }
@@ -939,7 +934,8 @@ struct CardNudge: Sendable, Equatable {
 
 /// Destructive-shell classifier. Literal fragments are plain `contains`;
 /// only the pipe-to-shell shapes need a regex, compiled once.
-private enum CardStakesPolicy {
+enum CardStakesPolicy {
+    static let destructiveLiterals = ["rm ", "mkfs", "dd if="]
     static let carefulLiterals = ["rm -rf", "rm -r ", "sudo ", "git push --force", "git push -f", "mkfs", "dd if=", "chmod 777"]
     static let carefulRegexes: [NSRegularExpression] = [#"curl\b[^\n]*\|\s*sh\b"#, #"wget\b[^\n]*\|\s*sh\b"#]
         .map { try! NSRegularExpression(pattern: $0) }
@@ -1013,6 +1009,7 @@ private func dismissNudge(_ state: InternalState, at: Double) -> InternalState {
 private func updateCreatureTimers(_ s: inout InternalState, event: BuddyEvent) {
     if case .staleTick = event, let until = s.bubbleUntil, event.at >= until {
         s.buddy.creature.bubble = nil
+        if s.buddy.creature.moment?.kind == .nthRateLimit { s.buddy.creature.moment = nil }
         s.bubbleUntil = nil
     }
     let liveIds = Set(s.sessions.values.compactMap { $0.prompt?.id })

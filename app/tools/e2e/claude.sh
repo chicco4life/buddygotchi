@@ -16,7 +16,7 @@ hdr "Claude Code  →  POST /hook/event  (lifecycle)"
 ev claude-code "{\"hook_event_name\":\"SessionStart\",\"session_id\":\"$CC\",\"cwd\":\"$CWD\"}" "SessionStart → registered (idle)" idle
 connected
 ev claude-code "{\"hook_event_name\":\"UserPromptSubmit\",\"session_id\":\"$CC\"}"             "UserPromptSubmit → busy" working
-ev claude-code "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Bash\",\"exit_code\":0,\"session_id\":\"$CC\"}"                  "PostToolUse → keep busy" working
+ev claude-code "{\"hook_event_name\":\"PostToolUse\",\"session_id\":\"$CC\"}"                  "PostToolUse → keep busy" working
 ev claude-code "{\"hook_event_name\":\"Stop\",\"session_id\":\"$CC\"}"                         "Stop → celebrate" done
 ev claude-code "{\"hook_event_name\":\"UserPromptSubmit\",\"session_id\":\"$CC\"}"             "UserPromptSubmit (next turn) → busy" working
 ev claude-code "{\"hook_event_name\":\"StopFailure\",\"session_id\":\"$CC\"}"                  "StopFailure → uhoh" uhoh
@@ -25,7 +25,7 @@ hdr "Claude Code  →  notifications, permission card, elicitation (passive)"
 ev claude-code "{\"hook_event_name\":\"Notification\",\"notification_type\":\"idle_prompt\",\"session_id\":\"$CC\"}"                                      "Notification:idle_prompt → done" done
 ev claude-code "{\"hook_event_name\":\"UserPromptSubmit\",\"session_id\":\"$CC\"}"                                                                       "UserPromptSubmit → busy" working
 ev claude-code "{\"hook_event_name\":\"PermissionRequest\",\"session_id\":\"$CC\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"rm -rf build\"}}" "PermissionRequest → attention (passive tool card)" needsYou
-ev claude-code "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Bash\",\"exit_code\":0,\"session_id\":\"$CC\"}"                                                                            "PostToolUse → clears card, busy" working
+ev claude-code "{\"hook_event_name\":\"PostToolUse\",\"session_id\":\"$CC\"}"                                                                            "PostToolUse → clears card, busy" working
 # +1 is the session-liveness touch every /hook/event performs; a raised card
 # would add a second bump (requestArrived). PermissionRequest is authoritative.
 ev_by claude-code "{\"hook_event_name\":\"Notification\",\"notification_type\":\"permission_prompt\",\"message\":\"Allow?\",\"session_id\":\"$CC\"}" 1 "Notification:permission_prompt → ignored beyond liveness touch (PermissionRequest is authoritative)" working
