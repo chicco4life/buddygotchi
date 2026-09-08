@@ -21,7 +21,7 @@ enum ConsumerUninstaller {
             try FileManager.default.removeItem(at: stateURL)
         }
 
-        let defaults = UserDefaults.standard
+        let defaults = AppDefaults.shared
         if let bundleIdentifier = Bundle.main.bundleIdentifier {
             defaults.removePersistentDomain(forName: bundleIdentifier)
         } else {

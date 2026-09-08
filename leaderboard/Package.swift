@@ -14,10 +14,9 @@ let testingTargets: [Target] = useShim ? [
 ] : [.testTarget(name: "LeaderboardTests", dependencies: testDependencies, path: "Tests/LeaderboardTests")]
 
 let package = Package(name: "Leaderboard", platforms: [.macOS(.v14)], products: [.executable(name: "leaderboard", targets: ["Leaderboard"])], dependencies: [
+    .package(path: "../wire"),
     .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.0.0")
 ], targets: [
-    .systemLibrary(name: "CSQLite", pkgConfig: "sqlite3", providers: [.apt(["libsqlite3-dev"]), .brew(["sqlite"])]),
-    .systemLibrary(name: "CSignature", pkgConfig: "openssl", providers: [.apt(["libssl-dev"]), .brew(["openssl"])]),
-    .target(name: "LeaderboardCore", dependencies: ["CSQLite", .target(name: "CSignature", condition: .when(platforms: [.linux])), .product(name: "Hummingbird", package: "hummingbird")], swiftSettings: useShim ? [.unsafeFlags(["-enable-testing"])] : []),
+    .target(name: "LeaderboardCore", dependencies: [.product(name: "LeaderboardWire", package: "wire"), .product(name: "BoopSQLite", package: "wire"), .product(name: "Hummingbird", package: "hummingbird")], swiftSettings: useShim ? [.unsafeFlags(["-enable-testing"])] : []),
     .executableTarget(name: "Leaderboard", dependencies: ["LeaderboardCore"])
 ] + testingTargets)

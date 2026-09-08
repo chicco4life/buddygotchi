@@ -1,11 +1,11 @@
 import Foundation
 import CSQLite
 
-struct StoreError: Error, Sendable { var message: String }
+public struct StoreError: Error, Sendable { public var message: String; public var code: Int32; public init(message: String, code: Int32 = 0) { self.message = message; self.code = code } }
 /// Owned exclusively by Store. Statements never escape the actor.
-final class Database: @unchecked Sendable {
+public final class Database: @unchecked Sendable {
     private var handle: OpaquePointer?
-    init(path: String) throws {
+    public init(path: String) throws {
         guard sqlite3_open_v2(path, &handle, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nil) == SQLITE_OK else {
             let message = handle.map { String(cString: sqlite3_errmsg($0)) } ?? "SQLite open failed"
             sqlite3_close(handle); handle = nil; throw StoreError(message: message)
@@ -14,7 +14,7 @@ final class Database: @unchecked Sendable {
     }
     private var statements: [String: OpaquePointer] = [:]
     deinit { for statement in statements.values { sqlite3_finalize(statement) }; sqlite3_close(handle) }
-    @discardableResult func run(_ sql: String, _ values: [String] = []) throws -> [[String]] {
+    @discardableResult public func run(_ sql: String, _ values: [String] = []) throws -> [[String]] {
         let statement: OpaquePointer
         if let cached = statements[sql] { statement = cached }
         else {
@@ -39,8 +39,8 @@ final class Database: @unchecked Sendable {
             }
         }
     }
-    private func failure() -> StoreError { StoreError(message: String(cString: sqlite3_errmsg(handle))) }
-    func transaction<T>(_ operation: () throws -> T) throws -> T {
+    private func failure() -> StoreError { StoreError(message: String(cString: sqlite3_errmsg(handle)), code: sqlite3_errcode(handle)) }
+    public func transaction<T>(_ operation: () throws -> T) throws -> T {
         try run("BEGIN IMMEDIATE")
         do { let result = try operation(); try run("COMMIT"); return result }
         catch { _ = try? run("ROLLBACK"); throw error }

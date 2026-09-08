@@ -1,4 +1,6 @@
+import LeaderboardWire
 import Foundation
+import CoreFoundation
 
 // Device → host contract: plan/WIRE-V2.md. Decode strictly before routing.
 enum DevicePosture: String, Codable, Sendable { case desk, perch, travel }
@@ -49,17 +51,19 @@ func parseDeviceLine(_ rawLine: String) -> DeviceCommand? {
     guard let data = line.data(using: .utf8), let i = try? JSONDecoder().decode(Input.self, from: data) else { return nil }
     if let ack = i.ack {
         struct Ack: Decodable { var ok: Bool }
-        if ack == "unit" || ack == "sign" {
-            guard (try? JSONDecoder().decode(Ack.self, from: data).ok) == true else { return nil }
-            if ack == "unit", let identity = try? JSONDecoder().decode(DeviceIdentity.self, from: data), identity.publicKey != nil { return .identity(identity) }
-            if ack == "sign" {
-                guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      let xp = object["xp"] as? NSNumber, !["d", "f"].contains(String(cString: xp.objCType)) else { return nil }
-            }
-            if ack == "sign", let signature = try? JSONDecoder().decode(LedgerSignature.self, from: data) { return .signature(signature) }
-            return nil
+        switch ack {
+        case "unit":
+            guard (try? JSONDecoder().decode(Ack.self, from: data).ok) == true,
+                  let identity = try? JSONDecoder().decode(DeviceIdentity.self, from: data), identity.valid else { return nil }
+            return .identity(identity)
+        case "sign":
+            guard (try? JSONDecoder().decode(Ack.self, from: data).ok) == true,
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  integerValue(object["xp"]) != nil,
+                  let signature = try? JSONDecoder().decode(LedgerSignature.self, from: data) else { return nil }
+            return .signature(signature)
+        default: return .ack(ack)
         }
-        return .ack(ack)
     }
     switch i.cmd {
     case "decision":
@@ -79,4 +83,10 @@ func parseDeviceLine(_ rawLine: String) -> DeviceCommand? {
         return .status(board: board, contract: contract)
     default: return nil
     }
+}
+
+private func integerValue(_ value: Any?) -> Int? {
+    guard let number = value as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID(),
+          !["d", "f"].contains(String(cString: number.objCType)) else { return nil }
+    return Int(number.stringValue)
 }

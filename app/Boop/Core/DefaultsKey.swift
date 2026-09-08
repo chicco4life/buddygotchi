@@ -1,6 +1,8 @@
 import Foundation
 
 enum DefaultsKey {
+    static let leaderboardURL = "leaderboardURL"
+    static let leaderboardFriends = "leaderboardFriends"
     static let buddyNameLocked = "buddyNameLocked"
     static let firstCheerShown = "firstCheerShown"
     static let quickCommand = "quickCommand"

@@ -354,6 +354,20 @@ enum BuddyCopy {
 extension BuddyCopy {
     static func growthLabel(_ growth: GrowthSnapshot) -> String { "L\(growth.level) · \(growth.streak)d" }
     private static let phase7Table: [String: (String, String)] = [
+        "shareDone": ("Done", "닫기"),
+        "shareGrowth": ("Level %d · %d day streak", "레벨 %d · %d일 연속"),
+        "rankAll": ("All time", "전체"),
+        "rankMonth": ("This month", "이번 달"),
+        "rankFriends": ("Friends", "친구"),
+        "rankUnavailable": ("Connect your device and enable the leaderboard in settings.", "기기를 연결하고 설정에서 리더보드를 켜 주세요."),
+        "yourRank": ("Your rank: %d", "내 순위: %d"),
+        "leaderboardURL": ("Leaderboard URL", "리더보드 주소"),
+        "saveLeaderboard": ("Save", "저장"),
+        "friendsCodeLabel": ("Friends code: ", "친구 코드: "),
+        "friendCode": ("Friend’s code", "친구 코드"),
+        "addFriend": ("Add", "추가"),
+        "shareCard": ("Share card…", "공유 카드…"),
+
             "hop": ("Hop", "폴짝"), "cheer": ("Cheer", "환호"), "dance": ("Dance", "춤"),
             "hardWonPass": ("Green at last", "드디어 성공"), "redStreakEnded": ("Back on track", "다시 순조롭게"),
             "firstEver": ("First one", "첫 번째"), "backAfterAbsence": ("Welcome back", "돌아왔네요"),

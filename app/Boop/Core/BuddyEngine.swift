@@ -1,3 +1,4 @@
+import LeaderboardWire
 import Darwin
 import Foundation
 import Observation
@@ -57,8 +58,9 @@ final class BuddyEngine {
     /// One drawing per visit (E4): 30-minute floor per agent.
     private var lastDrewAt: [String: Double] = [:]
 
-    init(config: BuddyConfig = .default, clock: (any Clock)? = nil, diagnosticLog: DiagnosticLog? = nil, store: (any EngineStore)? = nil, dayCalendar: any DayCalendar = LocalDayCalendar(), onACPower: @escaping @Sendable () -> Bool = { PowerObserver.onACPower() }, voiceRuntime: (any VoiceRuntime)? = nil, defaults: UserDefaults = .standard, leaderboardSession: URLSession = .shared) {
+    init(config: BuddyConfig = .default, clock: (any Clock)? = nil, diagnosticLog: DiagnosticLog? = nil, store: (any EngineStore)? = nil, dayCalendar: any DayCalendar = LocalDayCalendar(), onACPower: @escaping @Sendable () -> Bool = { PowerObserver.onACPower() }, voiceRuntime: (any VoiceRuntime)? = nil, defaults: UserDefaults = .standard, leaderboardSession: URLSession = .shared, growthSigner: (any GrowthSigner)? = nil) {
         self.store = store
+        self.growthSigner = growthSigner ?? DeviceGrowthSigner()
         self.leaderboardSession = leaderboardSession
         self.defaults = defaults
         let runtime = voiceRuntime ?? VoiceRuntimes.make(setting: defaults.string(forKey: DefaultsKey.voiceRuntime) ?? "auto")
@@ -78,32 +80,36 @@ final class BuddyEngine {
         }
     }
 
+    // Enrolled identity survives disconnect for rank reads; connectedIdentity is transport state.
     private(set) var deviceIdentity: DeviceIdentity?
-    private var pendingSignature: SignRequest?
+    private let growthSigner: any GrowthSigner
+    private var lastSignedDay: String?
     private var signing = false
     private var activeIdentityRequests = 0
+    // Disconnect invalidates identity handshakes; settings changes invalidate uploads only.
     private var deviceGeneration = 0
-    private var syncingLeaderboard = false
+    private var leaderboardSync: Task<LeaderboardSnapshot, Error>?
+    private var syncingLeaderboard: Bool { leaderboardSync != nil }
     private let leaderboardSession: URLSession
     private var lastLeaderboardFailureAt: Double = -.infinity
     private let leaderboardRetryMs: Double = 10 * 60_000
     private var growthGeneration = 0
     private var signingAttemptAt: Double = -.infinity
-    private var connectedSigningDevice = false
+    private var connectedIdentity: DeviceIdentity?
     var shareRegister: VoiceRegister { VoiceRegister(cheek: cachedTraits["cheek", default: 128]) }
-    var leaderboardURL: String { _ = settingsRevision; return defaults.string(forKey: "leaderboardURL") ?? "" }
-    var friendsCodes: [String] { _ = settingsRevision; return defaults.stringArray(forKey: "leaderboardFriends") ?? [] }
+    var leaderboardURL: String { _ = settingsRevision; return defaults.string(forKey: DefaultsKey.leaderboardURL) ?? "" }
+    var friendsCodes: [String] { _ = settingsRevision; return defaults.stringArray(forKey: DefaultsKey.leaderboardFriends) ?? [] }
     func addFriend(_ code: String) {
         let code = code.uppercased()
         guard code.utf8.count == 6, code.range(of: "^[0-9A-F]{6}$", options: .regularExpression) != nil else { return }
-        defaults.set(Array(Set(friendsCodes + [code]).sorted().prefix(100)), forKey: "leaderboardFriends"); settingsRevision += 1
+        defaults.set(Array(Set(friendsCodes + [code]).sorted().prefix(100)), forKey: DefaultsKey.leaderboardFriends); settingsRevision += 1
     }
     func configureLeaderboard(url: String, optIn: Bool) {
-        defaults.set(url, forKey: "leaderboardURL"); setBoolSetting(DefaultsKey.leaderboardOptIn, optIn)
+        defaults.set(url, forKey: DefaultsKey.leaderboardURL); setBoolSetting(DefaultsKey.leaderboardOptIn, optIn)
         growthGeneration += 1
         if !optIn { apply(.leaderboardUpdated(at: clock.now(), snapshot: nil)) }
     }
-    func signingDeviceDisconnected() { deviceGeneration += 1; connectedSigningDevice = false; pendingSignature = nil }
+    func signingDeviceDisconnected() { deviceGeneration += 1; connectedIdentity = nil; (growthSigner as? DeviceGrowthSigner)?.signingIdentity = nil; (growthSigner as? DeviceGrowthSigner)?.cancel() }
     private func acceptDeviceIdentity(_ identity: DeviceIdentity) async throws {
         await flushStore()
         guard !retiring, let store = store as? Store else { throw LeaderboardError.unavailable("no store") }
@@ -111,78 +117,99 @@ final class BuddyEngine {
         activeIdentityRequests += 1; defer { activeIdentityRequests -= 1 }
         try await store.acceptIdentity(identity, at: clock.now())
         guard !retiring, generation == deviceGeneration else { throw LeaderboardError.unavailable("device changed") }
-        deviceIdentity = identity; connectedSigningDevice = true
+        deviceIdentity = identity; connectedIdentity = identity
+        (growthSigner as? DeviceGrowthSigner)?.signingIdentity = identity
+    }
+    private func requireCurrent(_ generation: Int) throws {
+        guard generation == growthGeneration, !retiring else { throw LeaderboardError.cancelled }
     }
     private func acceptSignature(_ signature: LedgerSignature) async throws {
-        guard !retiring, let pending = pendingSignature, signature.day == pending.day,
-              signature.xp == pending.xp, signature.nonce == pending.nonce,
-              let store = store as? Store else { throw LeaderboardError.replay }
-        try await store.saveSignature(signature)
-        pendingSignature = nil
+        guard !retiring, let signer = growthSigner as? DeviceGrowthSigner else { throw LeaderboardError.replay }
+        try signer.accept(signature)
     }
-    @discardableResult func signGrowth(testFixture: Bool = false) async throws -> [LedgerSignature] {
+    @discardableResult func signGrowth() async throws -> [LedgerSignature] {
         await flushStore()
         guard !retiring, !signing, let store = store as? Store else { throw LeaderboardError.unavailable("signing busy or no store") }
         signing = true; defer { signing = false }
         let generation = growthGeneration
-        if testFixture {
-            guard config.headless, ProcessInfo.processInfo.environment["BOOP_TEST_SIGNER"] == "1" else { throw LeaderboardError.unavailable("test signer not enabled") }
-            try await acceptDeviceIdentity(TestDeviceSigner().identity)
+        if let identity = growthSigner.signingIdentity, connectedIdentity == nil {
+            try await acceptDeviceIdentity(identity)
         }
         let day = localDay(at: clock.now())
-        let existing = try await store.signatures()
-        if existing.contains(where: { $0.day == day }) { return existing }
-        guard connectedSigningDevice, deviceIdentity != nil else { throw LeaderboardError.unavailable("no signing device connected") }
-        let growth = try await store.growth(localDay: day, at: clock.now())
-        let request = SignRequest(day: day, xp: growth.xp)
-        pendingSignature = request
-        defer { pendingSignature = nil }
-        if testFixture { try await acceptSignature(TestDeviceSigner().sign(request)) }
-        else {
-            guard let output = outputs.compactMap({ $0 as? ESP32Output }).first else { throw LeaderboardError.unavailable("no device output") }
-            output.sendSign(request)
-            for _ in 0..<50 {
-                if pendingSignature == nil { break }
-                try await Task.sleep(for: .milliseconds(100))
-            }
-            guard generation == growthGeneration, pendingSignature == nil,
-                  try await store.signatures().contains(where: { $0.day == day }) else { throw LeaderboardError.unavailable("no signature for today") }
+        if try await store.hasSignature(day: day) {
+            lastSignedDay = day
+            return try await store.signatures()
         }
+        guard connectedIdentity != nil else { throw LeaderboardError.unavailable("no signing device connected") }
+        let growth = try await store.growth(localDay: day, at: clock.now())
+        try requireCurrent(generation)
+        let request = SignRequest(day: day, xp: growth.xp)
+        if let signer = growthSigner as? DeviceGrowthSigner {
+            signer.send = { [weak self] request in
+                guard let output = self?.outputs.compactMap({ $0 as? ESP32Output }).first else { throw LeaderboardError.unavailable("no device output") }
+                output.sendSign(request)
+            }
+        }
+        let signature = try await growthSigner.sign(request)
+        try requireCurrent(generation)
+        try await store.saveSignature(signature)
+        try requireCurrent(generation)
+        lastSignedDay = day
         return try await store.signatures()
     }
-    @discardableResult func syncLeaderboard(view: RankView = .all) async throws -> LeaderboardSnapshot {
+    /// Concurrent callers (the maintenance tick, the sheet, the headless route)
+    /// join the in-flight sync instead of racing it or failing on a busy flag.
+    /// `force` skips the failure backoff: a person asked for it, so try now.
+    @discardableResult func syncLeaderboard(view: RankView = .all, force: Bool = false) async throws -> LeaderboardSnapshot {
+        if let running = leaderboardSync { _ = try? await running.value }
+        let task = Task { @MainActor in try await self.performLeaderboardSync(view: view, force: force) }
+        leaderboardSync = task
+        defer { if leaderboardSync == task { leaderboardSync = nil } }
+        return try await task.value
+    }
+    private func performLeaderboardSync(view: RankView, force: Bool) async throws -> LeaderboardSnapshot {
         await flushStore()
-        guard !retiring, !syncingLeaderboard, boolSetting(DefaultsKey.leaderboardOptIn),
+        guard !retiring, boolSetting(DefaultsKey.leaderboardOptIn),
               !leaderboardURL.isEmpty, let url = URL(string: leaderboardURL), ["http", "https"].contains(url.scheme),
               let store = store as? Store else { throw LeaderboardError.unavailable("opt-in, url, or store missing") }
-        syncingLeaderboard = true; defer { syncingLeaderboard = false }
         let generation = growthGeneration, client = LeaderboardClient(url: url, session: leaderboardSession)
-        guard let identity = try await store.deviceIdentity(), generation == growthGeneration, !retiring else { throw LeaderboardError.unavailable("guard failed at line 160") }
-        let day = localDay(at: clock.now()), signatures = try await store.signatures()
-        let sentThrough = try await store.submittedThrough() ?? ""
-        let unsent = Array(signatures.filter { $0.day > sentThrough }.prefix(400))
+        guard let identity = deviceIdentity else { throw LeaderboardError.unavailable("no enrolled identity") }
+        try requireCurrent(generation)
+        let day = localDay(at: clock.now())
+        let (unsent, _) = try await store.unsentSignatures()
         // At-most-once is already guaranteed by the sent-through marker; a failed
         // upload must not burn the day, it just backs off for a while.
-        if !unsent.isEmpty, clock.now() - lastLeaderboardFailureAt >= leaderboardRetryMs, try await store.claimSubmission(day) {
-            let body = try LeaderboardSubmission(buddyName: buddyName, silhouette: state.cosmetic.silhouette, signatures: unsent, identity: identity)
-            guard generation == growthGeneration, !retiring else { throw LeaderboardError.unavailable("guard failed at line 168") }
+        if !unsent.isEmpty, force || clock.now() - lastLeaderboardFailureAt >= leaderboardRetryMs, try await store.claimSubmission(day) {
+            let body = try LeaderboardSubmission(buddyName: displayName, silhouette: state.cosmetic.silhouette, signatures: unsent, identity: identity, verifySignatures: false)
+            try requireCurrent(generation)
             do { try await client.submit(body) } catch {
                 // Release the day so the next tick can retry after the backoff.
                 lastLeaderboardFailureAt = clock.now(); try? await store.releaseSubmission(day); throw error
             }
-            guard generation == growthGeneration, !retiring else { throw LeaderboardError.unavailable("guard failed at line 173") }
+            try requireCurrent(generation)
             try await store.markSubmittedThrough(unsent.map(\.day).max()!)
         }
-        guard generation == growthGeneration, !retiring else { throw LeaderboardError.unavailable("guard failed at line 176") }
+        try requireCurrent(generation)
         let snapshot = try await client.rank(unit: identity.unit, view: view, code: identity.friendsCode, friends: friendsCodes)
-        guard generation == growthGeneration, !retiring else { throw LeaderboardError.unavailable("guard failed at line 178") }
+        try requireCurrent(generation)
+        apply(.leaderboardUpdated(at: clock.now(), snapshot: snapshot))
+        return snapshot
+    }
+    @discardableResult func refreshRank(view: RankView) async throws -> LeaderboardSnapshot {
+        await flushStore()
+        guard boolSetting(DefaultsKey.leaderboardOptIn), let identity = deviceIdentity,
+              let url = URL(string: leaderboardURL), ["http", "https"].contains(url.scheme) else { throw LeaderboardError.unavailable("opt-in, url, or identity missing") }
+        let generation = growthGeneration
+        try requireCurrent(generation)
+        let snapshot = try await LeaderboardClient(url: url, session: leaderboardSession).rank(unit: identity.unit, view: view, code: identity.friendsCode, friends: friendsCodes)
+        try requireCurrent(generation)
         apply(.leaderboardUpdated(at: clock.now(), snapshot: snapshot))
         return snapshot
     }
     func submissionPreview() async throws -> LeaderboardSubmission {
         await flushStore()
-        guard config.headless, let store = store as? Store, let identity = try await store.deviceIdentity() else { throw LeaderboardError.unavailable("guard failed at line 184") }
-        return try await LeaderboardSubmission(buddyName: buddyName, silhouette: state.cosmetic.silhouette, signatures: store.signatures(), identity: identity)
+        guard config.headless, let store = store as? Store, let identity = try await store.deviceIdentity() else { throw LeaderboardError.unavailable("preview requires headless store and identity") }
+        return try await LeaderboardSubmission(buddyName: displayName, silhouette: state.cosmetic.silhouette, signatures: store.signatures(), identity: identity)
     }
 
     // MARK: - Lifecycle
@@ -432,8 +459,11 @@ final class BuddyEngine {
         guard !retiring else { return }
         retiring = true
         deviceGeneration += 1
-        growthGeneration += 1; pendingSignature = nil; connectedSigningDevice = false; deviceIdentity = nil
+        growthGeneration += 1; (growthSigner as? DeviceGrowthSigner)?.cancel(); connectedIdentity = nil; deviceIdentity = nil; lastSignedDay = nil
+        (growthSigner as? DeviceGrowthSigner)?.signingIdentity = nil
         await finishPendingWork()
+        // Calls can be owned by routes as well as maintenance; retain the drain
+        // until all three operations have engine-owned task handles.
         while signing || syncingLeaderboard || activeIdentityRequests > 0 { try? await Task.sleep(for: .milliseconds(50)) }
         defer { retiring = false }
         giftVoiceTask?.cancel(); bubbleVoiceTask?.cancel(); recapTask?.cancel()
@@ -452,7 +482,7 @@ final class BuddyEngine {
         claimedTools = []; mutedTools = []
         teachTool = nil; recappedDays = []; recapFactsCache = nil; recapAttempt = nil; stopHourCache = nil
         defaults.set(false, forKey: DefaultsKey.leaderboardOptIn)
-        defaults.removeObject(forKey: "leaderboardFriends")
+        defaults.removeObject(forKey: DefaultsKey.leaderboardFriends)
         defaults.removeObject(forKey: DefaultsKey.buddyName)
         defaults.removeObject(forKey: DefaultsKey.buddyNameLocked)
         defaults.removeObject(forKey: DefaultsKey.firstCheerShown)
@@ -475,6 +505,7 @@ final class BuddyEngine {
     func setSoundVolume(_ volume: Int) { defaults.set(max(0, min(3, volume)), forKey: DefaultsKey.soundVolume) }
     func boolSetting(_ key: String, fallback: Bool = false) -> Bool { _ = settingsRevision; return defaults.object(forKey: key) as? Bool ?? fallback }
     func setBoolSetting(_ key: String, _ value: Bool) { defaults.set(value, forKey: key); settingsRevision += 1 }
+    var displayName: String { let name = buddyName.trimmingCharacters(in: .whitespacesAndNewlines); return name.isEmpty ? "Boop" : name }
     var buddyName: String { _ = settingsRevision; return defaults.string(forKey: DefaultsKey.buddyName) ?? "" }
     var pairedPeripheral: String? { _ = settingsRevision; return defaults.string(forKey: DefaultsKey.esp32PeripheralUUID) }
     func setPairedPeripheral(_ uuid: UUID?) {
@@ -838,9 +869,9 @@ final class BuddyEngine {
     private var maintenanceDay: String?
     func maintenance() {
         updateFocusHours()
-        if connectedSigningDevice, !signing, !retiring, clock.now() - signingAttemptAt >= 60_000 {
+        if (connectedIdentity != nil || growthSigner.signingIdentity != nil), !signing, !retiring, clock.now() - signingAttemptAt >= 60_000 {
             signingAttemptAt = clock.now()
-            Task { do { _ = try await signGrowth(); _ = try? await syncLeaderboard() } catch { storeFailure(error) } }
+            Task { do { if lastSignedDay != localDay(at: clock.now()) { _ = try await signGrowth() }; _ = try? await syncLeaderboard() } catch { storeFailure(error) } }
         }
         let now = clock.now(), day = localDay(at: clock.now())
         if maintenanceDay != day {

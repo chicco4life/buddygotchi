@@ -24,7 +24,7 @@ extension Notification.Name {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
-    private let engine = BuddyEngine()
+    private let engine = BuddyEngine(defaults: AppDefaults.shared, growthSigner: BuddyConfig.default.headless && ProcessInfo.processInfo.environment["BOOP_TEST_SIGNER"] == "1" ? TestDeviceSigner() : nil)
     private var serverTask: Task<Void, Never>?
     private var serviceGroup: ServiceGroup?
     private var sigintSource: DispatchSourceSignal?
@@ -53,8 +53,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         setupSignalHandlers()
         let config = BuddyConfig.default
-        UserDefaults.standard.set(config.approvalMode, forKey: DefaultsKey.approvalMode)
-        engine.setSpecies(UserDefaults.standard.string(forKey: DefaultsKey.buddySpecies) ?? Pet.defaultSpecies)
+        AppDefaults.shared.set(config.approvalMode, forKey: DefaultsKey.approvalMode)
+        engine.setSpecies(AppDefaults.shared.string(forKey: DefaultsKey.buddySpecies) ?? Pet.defaultSpecies)
 
         if config.headless {
             engine.register(output: DesktopOutput(statusItem: nil, presenter: self, soundsEnabled: { false }))
@@ -124,14 +124,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        if !config.headless && !UserDefaults.standard.bool(forKey: DefaultsKey.setupCompleted) {
+        if !config.headless && !AppDefaults.shared.bool(forKey: DefaultsKey.setupCompleted) {
             showOnboardingWindow()
         }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         guard !BuddyConfig.default.headless else { return false }
-        if !UserDefaults.standard.bool(forKey: DefaultsKey.setupCompleted) {
+        if !AppDefaults.shared.bool(forKey: DefaultsKey.setupCompleted) {
             showOnboardingWindow()
         } else {
             showPopover()
@@ -252,7 +252,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 onFinish: { [weak self] in
                     self?.onboardingWindowController?.close()
                     self?.onboardingWindowController = nil
-                    UserDefaults.standard.set(true, forKey: DefaultsKey.showMenuHint)
+                    AppDefaults.shared.set(true, forKey: DefaultsKey.showMenuHint)
                     self?.showPopover()
                 }
             )
@@ -292,11 +292,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApplication.shared.terminate(nil)
     }
 
-    @objc private func shareCardFromMenu() { engine.presentShareCard() }
+    static func presentShareCard(engine: BuddyEngine) {
+        Task { @MainActor in
+            do {
+                let image = try engine.shareCard().cgImage()
+                let (url, png) = try await Task.detached {
+                    let png = try ShareCard.pngData(image)
+                    let directory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads")
+                    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                    let url = directory.appendingPathComponent("Boop-share-\(UUID().uuidString).png")
+                    try png.write(to: url, options: .atomic)
+                    return (url, png)
+                }.value
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setData(png, forType: .png)
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            } catch { NSAlert(error: error).runModal() }
+        }
+    }
+
+    @objc private func shareCardFromMenu() { Self.presentShareCard(engine: engine) }
 
     private func showStatusMenu() {
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: engine.state.language == "ko" ? "공유 카드…" : "Share card…", action: #selector(shareCardFromMenu), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: BuddyCopy.phase7("shareCard", language: engine.state.language), action: #selector(shareCardFromMenu), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.openBoop, action: #selector(togglePopover), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: BuddyCopy.phase7("recap", language: engine.state.language), action: #selector(showTodayRecap), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.settings, action: #selector(openSettingsFromMenu), keyEquivalent: ","))
@@ -381,7 +400,7 @@ extension AppDelegate: PopoverPresenting {
     }
 
     var isInteractiveModeEnabled: Bool {
-        UserDefaults.standard.bool(forKey: DefaultsKey.interactiveMode)
+        AppDefaults.shared.bool(forKey: DefaultsKey.interactiveMode)
     }
 
     func closePopover() {

@@ -6,7 +6,8 @@ final class ExtractorPrivacyTests: XCTestCase {
     @MainActor func testCapturedLeaderboardBodyExcludesPrivateContext() async throws {
         let (store, _, cleanup) = try makeStore(); defer { cleanup() }
         var config = BuddyConfig.default; config.headless = true
-        let defaults = UserDefaults(suiteName: "privacy-" + UUID().uuidString)!
+        let suite = "privacy-" + UUID().uuidString, defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
         defaults.set("Mochi", forKey: DefaultsKey.buddyName)
         let engine = BuddyEngine(config: config, store: store, defaults: defaults)
         let payload = try XCTUnwrap(RawHookPayload.parse(Data(#"{"hook_event_name":"PreToolUse","session_id":"secret","cwd":"/private/PROJECT_SECRET","tool_name":"Bash","tool_input":{"command":"HINT_SECRET"}}"#.utf8), source: "claude-code", at: 0))

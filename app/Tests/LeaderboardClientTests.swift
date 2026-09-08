@@ -49,6 +49,7 @@ final class LeaderboardClientTests: XCTestCase {
         let engine = BuddyEngine(store: store, defaults: defaults, leaderboardSession: session)
         try await store.acceptIdentity(signer.identity, at: 0)
         try await store.saveSignature(signer.sign(SignRequest(day: "2026-09-09", xp: 10)))
+        engine.start(); defer { engine.stop() }; await engine.flushStore()
         engine.configureLeaderboard(url: "https://leaderboard.invalid", optIn: false)
         do { _ = try await engine.syncLeaderboard(); XCTFail("Opt-out made a request") } catch {}
         XCTAssertTrue(LeaderboardURLProtocol.capture.captured.isEmpty)
@@ -57,10 +58,12 @@ final class LeaderboardClientTests: XCTestCase {
         engine.configureLeaderboard(url: "https://leaderboard.invalid", optIn: true)
         engine.addFriend("abcdef")
         let concurrent = BuddyEngine(store: store, defaults: defaults, leaderboardSession: session)
+        concurrent.start(); defer { concurrent.stop() }; await concurrent.flushStore()
         async let first = engine.syncLeaderboard(view: .friends)
         async let second = concurrent.syncLeaderboard(view: .friends)
         _ = try await (first, second)
         _ = try await engine.syncLeaderboard(view: .all)
+        _ = try await engine.refreshRank(view: .month)
         let requests = LeaderboardURLProtocol.capture.captured
         XCTAssertEqual(requests.filter { $0.httpMethod == "POST" }.count, 1)
         let body = try XCTUnwrap(requests.first(where: { $0.httpMethod == "POST" })?.httpBody)
@@ -73,6 +76,7 @@ final class LeaderboardClientTests: XCTestCase {
         engine.configureLeaderboard(url: "https://leaderboard.invalid", optIn: false)
         XCTAssertNil(engine.state.leaderboard)
         let reopened = BuddyEngine(store: store, defaults: defaults, leaderboardSession: session)
+        reopened.start(); defer { reopened.stop() }; await reopened.flushStore()
         reopened.configureLeaderboard(url: "https://leaderboard.invalid", optIn: true)
         _ = try await reopened.syncLeaderboard()
         XCTAssertEqual(LeaderboardURLProtocol.capture.captured.filter { $0.httpMethod == "POST" }.count, 1)

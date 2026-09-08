@@ -121,7 +121,7 @@ python3 archived/firmware/esp32/tools/button.py b
 
 See [plan/ARCHITECTURE.md](plan/ARCHITECTURE.md) for the target architecture and [archived/research/eng/ARCHITECTURE-APP.md](archived/research/eng/ARCHITECTURE-APP.md) for the source-derived description of the current code. See [AGENTS.md](AGENTS.md) for repo-specific instructions for coding agents.
 
-Release and support details live in [archived/docs/RELEASE.md](archived/docs/RELEASE.md) and [archived/docs/SUPPORT.md](archived/docs/SUPPORT.md). To remove Boop, use Settings, About, Remove Boop, or follow the manual uninstall notes in the support doc.
+Support steps (doctor, forgetting, reset and retire, hook regressions) live in [docs/SUPPORT.md](docs/SUPPORT.md); the previous generation's release notes are in [archived/docs/RELEASE.md](archived/docs/RELEASE.md). To remove Boop, use Settings, About, Remove Boop, or follow the manual uninstall notes in the support doc.
 
 ## License
 

@@ -25,23 +25,23 @@ jobs:
 
       - name: Static check
         run: pio check || true
-        working-directory: archived/firmware/esp32
+        working-directory: firmware/esp32
 
       - name: Build firmware
         env:
           BUDDY_FW_VERSION: ${{ github.ref_name }}
         run: |
           export BUDDY_FW_VERSION="${BUDDY_FW_VERSION#fw-v}"
-          platformio run
-        working-directory: archived/firmware/esp32
+          tools/pio_ws.sh run -e ws-amoled164
+        working-directory: firmware/esp32
 
       - name: Generate release manifests
         run: |
           VERSION="${GITHUB_REF_NAME#fw-v}"
-          python3 archived/firmware/esp32/tools/generate_release_manifests.py \
+          python3 firmware/esp32/tools/generate_release_manifests.py \
             --version "$VERSION" \
             --base-url "https://adoptaboop.com/firmware" \
-            --build-dir archived/firmware/esp32/.pio/build/m5stickc-plus \
+            --build-dir firmware/esp32/.pio/build/ws-amoled164 \
             --out-dir build/firmware
 
       - name: Create GitHub release
@@ -52,7 +52,7 @@ jobs:
             Firmware release ${{ github.ref_name }}.
 
             Manual gate before publishing:
-            - OTA this binary on a real M5StickC Plus 2.
+            - OTA this binary on a real Waveshare ESP32-S3 AMOLED 1.64 board.
             - Confirm buddyctl.py ping --json reports fw == ${{ github.ref_name }} with the fw-v prefix stripped.
             - Open a landing PR publishing manifest.json, esp-web-tools-manifest.json, and the .bin files under archived/landing/public/firmware/ (served at https://adoptaboop.com/firmware/).
           draft: true

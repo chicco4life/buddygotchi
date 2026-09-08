@@ -1,3 +1,4 @@
+import LeaderboardWire
 import Foundation
 
 // MARK: - Activity Signals

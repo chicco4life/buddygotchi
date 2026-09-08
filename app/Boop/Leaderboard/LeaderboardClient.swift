@@ -1,28 +1,11 @@
 import Foundation
+import LeaderboardWire
 
-struct SubmittedSignature: Codable, Sendable, Equatable {
-    var day: String, xp: Int, nonce: String, sig: String
-    init(_ value: LedgerSignature) { day = value.day; xp = value.xp; nonce = value.nonce; sig = value.sig }
-}
-/// Deliberately independent of BuddyState, facts, profile and extractor types.
-struct LeaderboardSubmission: Codable, Sendable {
-    var buddyName: String, silhouette: String, xpTotal: Int
-    var signatures: [SubmittedSignature]
-    var unit: String, pub: String, alg: String
-    init(buddyName: String, silhouette: String, signatures: [LedgerSignature], identity: DeviceIdentity) throws {
-        guard !signatures.isEmpty, signatures.allSatisfy({ $0.verified(by: identity) }), let latest = signatures.max(by: { $0.day < $1.day }) else { throw LeaderboardError.invalidSignature }
-        // The service requires a 1–80 byte name; an unnamed buddy is shown as "Boop".
-        let trimmed = buddyName.trimmingCharacters(in: .whitespacesAndNewlines)
-        self.buddyName = trimmed.isEmpty ? "Boop" : String(decoding: trimmed.utf8.prefix(80), as: UTF8.self)
-        self.silhouette = silhouette; xpTotal = latest.xp
-        self.signatures = signatures.map(SubmittedSignature.init)
-        unit = identity.unit; pub = identity.pub; alg = identity.alg
-    }
-}
 enum LeaderboardError: Error, CustomStringConvertible {
-    case invalidSignature, unavailable(String), rejected(Int), identityChanged, replay
+    case cancelled, invalidSignature, unavailable(String), rejected(Int), identityChanged, replay
     var description: String {
         switch self {
+        case .cancelled: return "cancelled"
         case .invalidSignature: return "invalid signature"
         case .unavailable(let why): return "unavailable: \(why)"
         case .rejected(let code): return "rejected: \(code)"
@@ -30,14 +13,6 @@ enum LeaderboardError: Error, CustomStringConvertible {
         case .replay: return "replay"
         }
     }
-}
-enum RankView: String, Codable, CaseIterable, Sendable { case all, month, friends }
-struct LeaderboardEntry: Codable, Sendable, Equatable, Identifiable {
-    var unit: String, buddyName: String, silhouette: String, xpTotal: Int, rank: Int
-    var id: String { unit }
-}
-struct LeaderboardSnapshot: Codable, Sendable, Equatable {
-    var view: RankView, rank: Int?, entries: [LeaderboardEntry]
 }
 struct LeaderboardClient: Sendable {
     var url: URL

@@ -7,7 +7,9 @@ import Foundation
         try await tests.testDuplicatesRejectAndTransactionRollsBack()
         try await tests.testRankOrderingMonthAndFriends()
         try await tests.testRoutesVerifyBodyKeysAndRankWithoutSockets()
-        print("LeaderboardTests: 4 passed, 0 failed")
+        try await tests.testRankBeyondTopHundredAndTieOrder()
+        try tests.testStrictSubmissionNumericTypesAndNestedKeys()
+        print("LeaderboardTests: 6 passed, 0 failed")
     }
 }
 #endif

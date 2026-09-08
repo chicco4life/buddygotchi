@@ -114,7 +114,7 @@ final class FirmwareReleaseService {
     }
 
     private func readCache() -> CacheEntry? {
-        guard let data = UserDefaults.standard.data(forKey: Self.cacheKey),
+        guard let data = AppDefaults.shared.data(forKey: Self.cacheKey),
               let entry = try? JSONDecoder().decode(CacheEntry.self, from: data)
         else { return nil }
         return entry
@@ -130,7 +130,7 @@ final class FirmwareReleaseService {
             fetchedAt: Date()
         )
         if let data = try? JSONEncoder().encode(entry) {
-            UserDefaults.standard.set(data, forKey: Self.cacheKey)
+            AppDefaults.shared.set(data, forKey: Self.cacheKey)
         }
     }
 

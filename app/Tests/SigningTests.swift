@@ -69,13 +69,46 @@ final class SigningTests: XCTestCase {
         XCTAssertEqual(Set(signatures[0].keys), Set(["day", "xp", "nonce", "sig"]))
         try XCTAssertThrowsError(try LeaderboardSubmission(buddyName: "Mochi", silhouette: "default", signatures: [], identity: signer.identity))
     }
-    @MainActor func testHeadlessSignerGateAndUnsolicitedReply() async throws {
+    @MainActor func testNoSignerAndUnsolicitedReply() async throws {
         let (store, _, cleanup) = try makeStore(); defer { cleanup() }
         let (engine, _) = makeEngine(store: store)
-        do { _ = try await engine.signGrowth(testFixture: true); XCTFail("Fixture available without headless") } catch {}
+        do { _ = try await engine.signGrowth(); XCTFail("Signed without an injected signer or device") } catch {}
         engine.handleDeviceCommand(.signature(try TestDeviceSigner().sign(SignRequest(day: "2026-09-09", xp: 2))))
         await Task.yield()
         let signatures = try await store.signatures(); XCTAssertTrue(signatures.isEmpty)
         do { _ = try await engine.syncLeaderboard(); XCTFail("Software-only submitted") } catch {}
     }
+    @MainActor func testInjectedSignerSignsOnceAndUsesDisplayName() async throws {
+        let (store, _, cleanup) = try makeStore(); defer { cleanup() }
+        let suite = "signer-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let engine = BuddyEngine(store: store, defaults: defaults, growthSigner: TestDeviceSigner())
+        XCTAssertEqual(engine.displayName, "Boop")
+        defaults.set("  Mochi \n", forKey: DefaultsKey.buddyName)
+        XCTAssertEqual(engine.displayName, "Mochi")
+        let first = try await engine.signGrowth()
+        let second = try await engine.signGrowth()
+        XCTAssertEqual(first.count, 1)
+        XCTAssertEqual(first, second)
+        XCTAssertTrue(first[0].verified(by: TestDeviceSigner().identity))
+        let submission = try LeaderboardSubmission(buddyName: "", silhouette: "default", signatures: first, identity: TestDeviceSigner().identity)
+        XCTAssertEqual(submission.buddyName, "")
+        let unicode = try LeaderboardSubmission(buddyName: String(repeating: "보", count: 30), silhouette: "default", signatures: first, identity: TestDeviceSigner().identity)
+        XCTAssertTrue(unicode.buddyName.utf8.count <= 80)
+        XCTAssertFalse(unicode.buddyName.contains("�"))
+    }
+    @MainActor func testDeviceSignerContinuationReplyAndCancellation() async throws {
+        let signer = DeviceGrowthSigner(), fixture = TestDeviceSigner()
+        signer.signingIdentity = fixture.identity
+        signer.send = { request in try signer.accept(fixture.sign(request)) }
+        let request = SignRequest(day: "2026-09-09", xp: 12)
+        let signature = try await signer.sign(request)
+        XCTAssertTrue(signature.verified(by: fixture.identity))
+        signer.send = { _ in signer.cancel() }
+        do { _ = try await signer.sign(request); XCTFail("Cancelled signing succeeded") }
+        catch LeaderboardError.cancelled {} catch { XCTFail("Unexpected error: \(error)") }
+        try XCTAssertThrowsError(try signer.accept(signature))
+    }
+
 }

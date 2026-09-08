@@ -57,10 +57,10 @@ e2e:
 	@bash app/tools/e2e-headless.sh
 
 hil:
-	cd archived/firmware/esp32 && python3 -m pytest tests/hil -m "not ble"
+	cd firmware/esp32 && python3 -m pytest tests/hil -m "not ble"
 
 hil-ble:
-	cd archived/firmware/esp32 && python3 -m pytest tests/hil -m "ble"
+	cd firmware/esp32 && python3 -m pytest tests/hil -m "ble"
 
 package:
 	app/tools/package.sh

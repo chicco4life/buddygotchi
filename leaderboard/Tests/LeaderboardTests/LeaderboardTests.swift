@@ -72,4 +72,27 @@ final class LeaderboardTests: XCTestCase {
             }
         }
     }
+    func testRankBeyondTopHundredAndTieOrder() async throws {
+        let store = try RankingStore(path: ":memory:")
+        let db = await store.db
+        for i in 0..<105 {
+            try db.run("INSERT INTO units VALUES(?,?,?,?,?,?,?)", [String(format: "%016x", i), "pub", "p256", "Buddy", "default", "100", "2026-09-09"])
+        }
+        let snapshot = try await store.rank(unit: String(format: "%016x", 104), view: .all, friends: [], now: now)
+        XCTAssertEqual(snapshot.entries.count, 100)
+        XCTAssertEqual(snapshot.rank, 105)
+        XCTAssertEqual(snapshot.entries.first?.unit, "0000000000000000")
+        XCTAssertEqual(snapshot.entries.last?.rank, 100)
+    }
+    func testStrictSubmissionNumericTypesAndNestedKeys() throws {
+        for (field, value) in [("xp", "200.0"), ("xp", "2e2"), ("xp", "true"), ("xpTotal", "200.0"), ("xpTotal", "true")] {
+            let data = Self.fixtures[2].replacingOccurrences(of: "\"\(field)\":200", with: "\"\(field)\":\(value)")
+            try XCTAssertThrowsError(try SubmissionDecoder.decode(Data(data.utf8)))
+        }
+        let nested = Self.fixtures[2].replacingOccurrences(of: "\"xp\":200", with: "\"private\":true,\"xp\":200")
+        try XCTAssertThrowsError(try SubmissionDecoder.decode(Data(nested.utf8)))
+        let valid = try SubmissionDecoder.decode(Data(Self.fixtures[2].utf8))
+        XCTAssertEqual(valid.xpTotal, 200)
+    }
+
 }

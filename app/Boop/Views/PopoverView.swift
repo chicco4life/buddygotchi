@@ -232,8 +232,8 @@ struct PopoverView: View {
             Toggle(BuddyCopy.phase7("focus", language: engine.state.language), isOn: Binding(get: { engine.state.creature.focus }, set: { engine.focusToggled(on: $0) }))
                 .toggleStyle(.button).font(.buddy(10))
             Menu {
-                Button(engine.state.language == "ko" ? "공유 카드…" : "Share card…") { engine.presentShareCard() }
-                Button(engine.state.language == "ko" ? "리더보드" : "Leaderboard") { showingLeaderboard = true }
+                Button(BuddyCopy.phase7("shareCard", language: engine.state.language)) { AppDelegate.presentShareCard(engine: engine) }
+                Button(BuddyCopy.phase7("leaderboard", language: engine.state.language)) { showingLeaderboard = true }
                 Button(BuddyCopy.phase7("recap", language: engine.state.language)) { Task { _ = try? await engine.makeRecap() } }
                 Button(BuddyCopy.phase7("profile", language: engine.state.language)) { CompanionWindows.shared.profile(engine: engine) }
             } label: { Image(systemName: "ellipsis") }

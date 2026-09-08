@@ -50,11 +50,11 @@ final class DiagnosticLog {
         let state = engine.state
         let logSnapshot = entries.reversed()
         let settingsSnapshot: [String: Any] = [
-            "species": UserDefaults.standard.string(forKey: DefaultsKey.buddySpecies) ?? "cat",
-            "interactiveMode": UserDefaults.standard.bool(forKey: DefaultsKey.interactiveMode),
-            "approvalMode": UserDefaults.standard.bool(forKey: DefaultsKey.approvalMode),
+            "species": AppDefaults.shared.string(forKey: DefaultsKey.buddySpecies) ?? "cat",
+            "interactiveMode": AppDefaults.shared.bool(forKey: DefaultsKey.interactiveMode),
+            "approvalMode": AppDefaults.shared.bool(forKey: DefaultsKey.approvalMode),
             "httpPort": BuddyConfig.default.httpPort,
-            "buddyOutput": UserDefaults.standard.string(forKey: DefaultsKey.buddyOutput) ?? "this-mac",
+            "buddyOutput": AppDefaults.shared.string(forKey: DefaultsKey.buddyOutput) ?? "this-mac",
         ]
         var agents: [String: Any] = [:]
         for agent in AgentKind.allCases {

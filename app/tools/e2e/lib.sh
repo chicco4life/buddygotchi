@@ -406,7 +406,7 @@ leaderboard_check() {
     done
     printf '%s' "$result" | python3 -c 'import json,sys; b=json.load(sys.stdin); assert b["rank"]==1; assert len(b["entries"])==1' || exit 1
     local unit code
-    unit="$(printf '%s' "$body" | python3 -c 'import json,sys; print(json.load(sys.stdin)["unit"])')" || exit 1
+    unit="$(body_field "$body" unit)" || exit 1
     code="$(printf '%s' "$unit" | cut -c 1-6 | tr '[:lower:]' '[:upper:]')" || exit 1
     for view in all month friends; do
       "${CURL[@]}" -f --max-time 5 "http://127.0.0.1:$service_port/rank?unit=$unit&view=$view&code=$code&friends=%5B%5D" |

@@ -57,3 +57,6 @@ tmp/
 *.tmp
 .vercel
 .env*
+
+# Packaging output
+build/

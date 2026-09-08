@@ -76,3 +76,56 @@ jobs:
 
       - name: Package app bundle
         run: make package
+
+  leaderboard:
+    name: Leaderboard service
+    runs-on: macos-15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build
+        run: swift build
+        working-directory: leaderboard
+
+      - name: Test
+        run: swift run LeaderboardTests
+        working-directory: leaderboard
+
+  firmware:
+    name: Firmware builds (every environment)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache PlatformIO packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio/packages
+            ~/.platformio/packages-pioarduino
+            ~/.platformio/platforms
+          key: ${{ runner.os }}-pio-${{ hashFiles('firmware/esp32/platformio.ini') }}
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Build shipping board (ws-amoled164)
+        run: tools/pio_ws.sh run -e ws-amoled164
+        working-directory: firmware/esp32
+
+      - name: Build legacy boards (m5stickc-plus, m5stickc-plus-debug)
+        run: pio run
+        working-directory: firmware/esp32
+
+      - name: Firmware host tests
+        run: |
+          pip install pytest cryptography
+          python3 -m pytest tests/host -q
+        working-directory: firmware/esp32

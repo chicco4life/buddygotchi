@@ -75,14 +75,14 @@ struct CompanionSettings: View {
         case .leaderboard:
             Toggle(BuddyCopy.phase7("leaderboard", language: engine.state.language), isOn: Binding(get: { leaderboard }, set: { leaderboard = $0; engine.configureLeaderboard(url: leaderboardURL, optIn: leaderboard) }))
             HStack {
-                TextField(engine.state.language == "ko" ? "리더보드 주소" : "Leaderboard URL", text: $leaderboardURL)
+                TextField(BuddyCopy.phase7("leaderboardURL", language: engine.state.language), text: $leaderboardURL)
                     .onSubmit { engine.configureLeaderboard(url: leaderboardURL, optIn: leaderboard) }
-                Button(engine.state.language == "ko" ? "저장" : "Save") { engine.configureLeaderboard(url: leaderboardURL, optIn: leaderboard) }
+                Button(BuddyCopy.phase7("saveLeaderboard", language: engine.state.language)) { engine.configureLeaderboard(url: leaderboardURL, optIn: leaderboard) }
             }
-            if let identity = engine.deviceIdentity { Text((engine.state.language == "ko" ? "친구 코드: " : "Friends code: ") + identity.friendsCode).textSelection(.enabled) }
+            if let identity = engine.deviceIdentity { Text((BuddyCopy.phase7("friendsCodeLabel", language: engine.state.language)) + identity.friendsCode).textSelection(.enabled) }
             HStack {
-                TextField(engine.state.language == "ko" ? "친구 코드" : "Friend’s code", text: $friendCode)
-                Button(engine.state.language == "ko" ? "추가" : "Add") { engine.addFriend(friendCode); friendCode = "" }
+                TextField(BuddyCopy.phase7("friendCode", language: engine.state.language), text: $friendCode)
+                Button(BuddyCopy.phase7("addFriend", language: engine.state.language)) { engine.addFriend(friendCode); friendCode = "" }
             }
             Text(engine.friendsCodes.joined(separator: " · "))
         case .profile:
