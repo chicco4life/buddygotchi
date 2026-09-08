@@ -493,8 +493,9 @@ port node vanishing.
 - [x] Latency table filled at p90 and every row within budget:
       `plan/evidence/phase-9/latency.md` (hook→card 398 ms, button→decision
       137 ms, state→frame 124 ms at p90; `firmware/esp32/tools/latency.py`).
-- [ ] Soak and hardening green at release cycle counts. (Blocked on the same
-      reset; the 40-cycle soak is what stranded the board.)
+- [x] Soak and hardening green: 256-cycle soak with heap flat at 195 kB
+      minimum, no panics or reboots; hardening suite 5/5 including the reboot
+      soak (`plan/evidence/phase-9/soak.md`; `tools/soak.py` ported to v2).
 - [x] Release skill preflight green (unsigned mode; signing, notarization,
       Sparkle keys, and an app icon are owner steps); packaged-app smoke green
       (`BOOP_BIN=build/package/Boop.app/Contents/MacOS/Boop app/tools/headless.sh`
