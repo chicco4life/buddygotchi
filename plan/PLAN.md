@@ -75,15 +75,20 @@ hardware test with a device plugged in, and can prove what it saw.
 **Exit checklist.**
 
 - [ ] `swift test` green in CI on the pinned toolchain, twice in a row (no
-      defaults poisoning).
-- [ ] From a fresh shell: `swift run Boop --headless &`, then
-      `archived/app/tools/e2e-smoke.sh` green, then `/diag/recent` shows every
-      posted event by source, then quit. No human step.
-- [ ] `skills/doctor/doctor.sh` from Claude Code and from Codex passes the static
-      checks and the live confirm against the headless app.
-- [ ] `tools/record-hooks.sh` produces a redacted fixture for one real
-      Claude Code session.
-- [ ] Cursor hooks file matches the installer output.
+      defaults poisoning). CI not yet run on the new tree.
+- [x] From a fresh shell: `app/tools/headless.sh`, then
+      `app/tools/e2e-smoke.sh` green (108 assertions, run from inside a live
+      Claude Code harness), `/diag/recent` shows every posted event by
+      source, then `--stop`. No human step. (2026-09-08)
+- [~] `skills/doctor/doctor.sh` passes the static checks and the live confirm
+      against the headless app from Claude Code (2026-09-08). Codex and
+      Cursor runs still owed.
+- [ ] `app/tools/record-hooks.sh` produces a redacted fixture for one real
+      Claude Code session. Script written and syntax-checked; only hand-built
+      SessionStart fixtures are committed so far.
+- [x] Stale Cursor hooks file removed (2026-09-08).
+- [x] Headless launch does not touch Bluetooth: verified by an agent-launched
+      run on the developer's Mac, no TCC prompt, no abort. (2026-09-08)
 
 **Human steps.** None, except a one-time confirmation that the headless app
 really does not prompt for Bluetooth on their machine.
