@@ -18,7 +18,7 @@ connected
 ev codex "{\"hook_event_name\":\"UserPromptSubmit\",\"session_id\":\"$CX\"}"                                                         "UserPromptSubmit → busy" working
 ev codex "{\"hook_event_name\":\"PreToolUse\",\"session_id\":\"$CX\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"ls\"}}"     "PreToolUse → busy  (Fix 10: previously left idle)" working
 ev codex "{\"hook_event_name\":\"PermissionRequest\",\"session_id\":\"$CX\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit\"}}" "PermissionRequest → attention (passive tool card)" needsYou
-ev codex "{\"hook_event_name\":\"PostToolUse\",\"session_id\":\"$CX\"}"                                                              "PostToolUse → clears card, busy" working
+ev codex "{\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"Bash\",\"exit_code\":0,\"session_id\":\"$CX\"}"                                                              "PostToolUse → clears card, busy" working
 ev codex "{\"hook_event_name\":\"Stop\",\"session_id\":\"$CX\"}"                                                                     "Stop → celebrate" done
 
 hdr "Codex  →  POST /hook/approve  (blocking; resolved by session death = passthrough)"
@@ -28,5 +28,7 @@ parked_approve codex \
   resolve_cx __EMPTY__
 settle
 baseline "Codex session reaped" "$CX"
+
+tenth_try codex
 
 print_summary

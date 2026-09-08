@@ -912,7 +912,7 @@ extension EngineIntegrationTests {
         XCTAssertTrue(engine.state.creature.gift)
         engine.collectArrived()
         XCTAssertEqual(recorder.last?.creature.gift, false)
-        XCTAssertEqual(recorder.last?.creature.bubble, "done: ")
+        XCTAssertEqual(recorder.last?.creature.bubble, "first one!")
     }
 
     @MainActor

@@ -1,0 +1,506 @@
+[
+  {
+    "name": "swift test",
+    "kind": "test",
+    "match": "\\bswift\\s+test\\b",
+    "passPatterns": [
+      "\\b[1-9][0-9]* (?:passed)\\b",
+      "\\b(?:BUILD SUCCESSFUL|BUILD SUCCESS|Build complete)\\b",
+      "Test Suite .* passed",
+      "\\bTests?:.*\\bpassed\\b"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "swift build",
+    "kind": "build",
+    "match": "\\bswift\\s+build\\b",
+    "passPatterns": [
+      "\\b[1-9][0-9]* (?:passed)\\b",
+      "\\b(?:BUILD SUCCESSFUL|BUILD SUCCESS|Build complete)\\b",
+      "Test Suite .* passed",
+      "\\bTests?:.*\\bpassed\\b"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "xcodebuild",
+    "kind": "build",
+    "match": "\\bxcodebuild\\b",
+    "passPatterns": [
+      "\\*\\* (?:TEST|BUILD) SUCCEEDED \\*\\*"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "npm test",
+    "kind": "test",
+    "match": "\\bnpm\\s+(?:run\\s+)?test\\b",
+    "passPatterns": [
+      "\\b[1-9][0-9]* (?:passed)\\b",
+      "\\b(?:BUILD SUCCESSFUL|BUILD SUCCESS|Build complete)\\b",
+      "Test Suite .* passed",
+      "\\bTests?:.*\\bpassed\\b"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "npm build",
+    "kind": "build",
+    "match": "\\bnpm\\s+(?:run\\s+)?build\\b",
+    "passPatterns": [
+      "\\b[1-9][0-9]* (?:passed)\\b",
+      "\\b(?:BUILD SUCCESSFUL|BUILD SUCCESS|Build complete)\\b",
+      "Test Suite .* passed",
+      "\\bTests?:.*\\bpassed\\b"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "npm lint",
+    "kind": "lint",
+    "match": "\\bnpm\\s+(?:run\\s+)?lint\\b",
+    "passPatterns": [
+      "\\b[1-9][0-9]* (?:passed)\\b",
+      "\\b(?:BUILD SUCCESSFUL|BUILD SUCCESS|Build complete)\\b",
+      "Test Suite .* passed",
+      "\\bTests?:.*\\bpassed\\b"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "pnpm test",
+    "kind": "test",
+    "match": "\\bpnpm\\s+(?:run\\s+)?test\\b",
+    "passPatterns": [
+      "\\b[1-9][0-9]* (?:passed)\\b",
+      "\\b(?:BUILD SUCCESSFUL|BUILD SUCCESS|Build complete)\\b",
+      "Test Suite .* passed",
+      "\\bTests?:.*\\bpassed\\b"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "pnpm build",
+    "kind": "build",
+    "match": "\\bpnpm\\s+(?:run\\s+)?build\\b",
+    "passPatterns": [
+      "\\b[1-9][0-9]* (?:passed)\\b",
+      "\\b(?:BUILD SUCCESSFUL|BUILD SUCCESS|Build complete)\\b",
+      "Test Suite .* passed",
+      "\\bTests?:.*\\bpassed\\b"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "pnpm lint",
+    "kind": "lint",
+    "match": "\\bpnpm\\s+(?:run\\s+)?lint\\b",
+    "passPatterns": [
+      "\\b[1-9][0-9]* (?:passed)\\b",
+      "\\b(?:BUILD SUCCESSFUL|BUILD SUCCESS|Build complete)\\b",
+      "Test Suite .* passed",
+      "\\bTests?:.*\\bpassed\\b"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "yarn test",
+    "kind": "test",
+    "match": "\\byarn\\s+(?:run\\s+)?test\\b",
+    "passPatterns": [
+      "\\b[1-9][0-9]* (?:passed)\\b",
+      "\\b(?:BUILD SUCCESSFUL|BUILD SUCCESS|Build complete)\\b",
+      "Test Suite .* passed",
+      "\\bTests?:.*\\bpassed\\b"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "yarn build",
+    "kind": "build",
+    "match": "\\byarn\\s+(?:run\\s+)?build\\b",
+    "passPatterns": [
+      "\\b[1-9][0-9]* (?:passed)\\b",
+      "\\b(?:BUILD SUCCESSFUL|BUILD SUCCESS|Build complete)\\b",
+      "Test Suite .* passed",
+      "\\bTests?:.*\\bpassed\\b"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "yarn lint",
+    "kind": "lint",
+    "match": "\\byarn\\s+(?:run\\s+)?lint\\b",
+    "passPatterns": [
+      "\\b[1-9][0-9]* (?:passed)\\b",
+      "\\b(?:BUILD SUCCESSFUL|BUILD SUCCESS|Build complete)\\b",
+      "Test Suite .* passed",
+      "\\bTests?:.*\\bpassed\\b"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "jest",
+    "kind": "test",
+    "match": "\\bjest\\b",
+    "passPatterns": [
+      "\\b[1-9][0-9]* (?:passed)\\b",
+      "\\b(?:BUILD SUCCESSFUL|BUILD SUCCESS|Build complete)\\b",
+      "Test Suite .* passed",
+      "\\bTests?:.*\\bpassed\\b"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "vitest",
+    "kind": "test",
+    "match": "\\bvitest\\b",
+    "passPatterns": [
+      "\\b[1-9][0-9]* (?:passed)\\b",
+      "\\b(?:BUILD SUCCESSFUL|BUILD SUCCESS|Build complete)\\b",
+      "Test Suite .* passed",
+      "\\bTests?:.*\\bpassed\\b"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "pytest",
+    "kind": "test",
+    "match": "\\bpytest\\b",
+    "passPatterns": [
+      "\\b[1-9][0-9]* (?:passed)\\b",
+      "\\b(?:BUILD SUCCESSFUL|BUILD SUCCESS|Build complete)\\b",
+      "Test Suite .* passed",
+      "\\bTests?:.*\\bpassed\\b"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "tsc",
+    "kind": "typecheck",
+    "match": "\\btsc\\b",
+    "passPatterns": [
+      "\\b[1-9][0-9]* (?:passed)\\b",
+      "\\b(?:BUILD SUCCESSFUL|BUILD SUCCESS|Build complete)\\b",
+      "Test Suite .* passed",
+      "\\bTests?:.*\\bpassed\\b"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "eslint",
+    "kind": "lint",
+    "match": "\\beslint\\b",
+    "passPatterns": [
+      "\\b[1-9][0-9]* (?:passed)\\b",
+      "\\b(?:BUILD SUCCESSFUL|BUILD SUCCESS|Build complete)\\b",
+      "Test Suite .* passed",
+      "\\bTests?:.*\\bpassed\\b"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "ruff",
+    "kind": "lint",
+    "match": "\\bruff\\b",
+    "passPatterns": [
+      "All checks passed"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "mypy",
+    "kind": "typecheck",
+    "match": "\\bmypy\\b",
+    "passPatterns": [
+      "Success: no issues found"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "gradle",
+    "kind": "build",
+    "match": "\\bgradle\\b",
+    "passPatterns": [
+      "\\b[1-9][0-9]* (?:passed)\\b",
+      "\\b(?:BUILD SUCCESSFUL|BUILD SUCCESS|Build complete)\\b",
+      "Test Suite .* passed",
+      "\\bTests?:.*\\bpassed\\b"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "mvn",
+    "kind": "build",
+    "match": "\\bmvn\\b",
+    "passPatterns": [
+      "\\b[1-9][0-9]* (?:passed)\\b",
+      "\\b(?:BUILD SUCCESSFUL|BUILD SUCCESS|Build complete)\\b",
+      "Test Suite .* passed",
+      "\\bTests?:.*\\bpassed\\b"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "cargo test",
+    "kind": "test",
+    "match": "\\bcargo\\s+test\\b",
+    "passPatterns": [
+      "test result: ok",
+      "Finished .* (?:profile|target)"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "cargo build",
+    "kind": "build",
+    "match": "\\bcargo\\s+build\\b",
+    "passPatterns": [
+      "test result: ok",
+      "Finished .* (?:profile|target)"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "cargo clippy",
+    "kind": "lint",
+    "match": "\\bcargo\\s+clippy\\b",
+    "passPatterns": [
+      "test result: ok",
+      "Finished .* (?:profile|target)"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "go test",
+    "kind": "test",
+    "match": "\\bgo\\s+test\\b",
+    "passPatterns": [
+      "(?:^|\\n)ok\\s+\\S+"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "go build",
+    "kind": "build",
+    "match": "\\bgo\\s+build\\b",
+    "passPatterns": [
+      "\\b[1-9][0-9]* (?:passed)\\b",
+      "\\b(?:BUILD SUCCESSFUL|BUILD SUCCESS|Build complete)\\b",
+      "Test Suite .* passed",
+      "\\bTests?:.*\\bpassed\\b"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "go vet",
+    "kind": "lint",
+    "match": "\\bgo\\s+vet\\b",
+    "passPatterns": [
+      "\\b[1-9][0-9]* (?:passed)\\b",
+      "\\b(?:BUILD SUCCESSFUL|BUILD SUCCESS|Build complete)\\b",
+      "Test Suite .* passed",
+      "\\bTests?:.*\\bpassed\\b"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "make test",
+    "kind": "test",
+    "match": "\\bmake\\s+test\\b",
+    "passPatterns": [
+      "\\b[1-9][0-9]* (?:passed)\\b",
+      "\\b(?:BUILD SUCCESSFUL|BUILD SUCCESS|Build complete)\\b",
+      "Test Suite .* passed",
+      "\\bTests?:.*\\bpassed\\b"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  },
+  {
+    "name": "make build",
+    "kind": "build",
+    "match": "\\bmake\\s+build\\b",
+    "passPatterns": [
+      "\\b[1-9][0-9]* (?:passed)\\b",
+      "\\b(?:BUILD SUCCESSFUL|BUILD SUCCESS|Build complete)\\b",
+      "Test Suite .* passed",
+      "\\bTests?:.*\\bpassed\\b"
+    ],
+    "failPatterns": [
+      "\\b[1-9][0-9]* (?:failed|failures|errors)\\b",
+      "\\b(?:FAIL|FAILURE|error:)\\b",
+      "(?:^|\\n)FAILED\\b",
+      "BUILD FAILED",
+      "\\*\\* TEST FAILED \\*\\*"
+    ]
+  }
+]

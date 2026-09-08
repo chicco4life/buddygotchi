@@ -17,6 +17,9 @@ struct InternalState: Sendable, Equatable {
     /// mutated only here, written back by the engine when it changes.
     var memory: PetMemory = .empty
 
+    var momentThresholds: MomentThresholds = .defaults
+    var pendingMoments: [String: Moment] = [:]
+    var rateLimits: [String: Int] = [:]
     var cheerThresholds: CheerThresholds = .defaults
     var nudgeTiming: NudgeTiming = .defaults
     var nudges: [String: CardNudge] = [:]
@@ -49,6 +52,42 @@ func reduce(_ state: InternalState, _ event: BuddyEvent) -> InternalState {
 
 private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> InternalState {
     switch event {
+    case .projectObserved(let at, let id, let project):
+        var s = state
+        let basename = ThemeReader.project(cwd: s.sessions[id]?.cwd)
+        if project != basename, s.pendingMoments[id]?.kind == .backAfterAbsence { s.pendingMoments.removeValue(forKey: id) }
+        if let last = s.memory.projects[project], at - last >= Double(s.momentThresholds.absenceDays) * 86_400_000 {
+            s.pendingMoments[id] = Moment(kind: .backAfterAbsence, facts: ["days": String(Int((at - last) / 86_400_000)), "project": project])
+        }
+        s.sessions[id]?.project = project
+        s.memory.projects[project] = at
+        return s
+    case .requestDescribed(_, let id, let stakes, let gloss):
+        var s = state
+        s.sessions[id]?.prompt?.stakes = stakes
+        s.sessions[id]?.prompt?.gloss = gloss
+        return s
+    case .effortObserved(_, let id, let level):
+        var s = state
+        s.sessions[id]?.observedEffort = level
+        return s
+    case .adapterDegraded: return state
+    case .localTurnHour(_, let id, let hour):
+        var s = state
+        if hour >= s.momentThresholds.lateNightStart && hour < s.momentThresholds.lateNightEnd && s.pendingMoments[id] == nil { s.pendingMoments[id] = Moment(kind: .lateNight, facts: ["hour": String(hour)]) }
+        return s
+    case .fileEdited(_, let id, let path, let count):
+        var s = state
+        if count == s.momentThresholds.sameFileEdits && s.pendingMoments[id]?.dances != true { s.pendingMoments[id] = Moment(kind: .sameFileAgain, facts: ["path": path, "count": String(count)]) }
+        return s
+    case .goalRead(let at, let id, let goal, let outcome, let tally):
+        var s = state
+        if outcome == .pass {
+            let elapsed = max(0, at - tally.firstAt)
+            if tally.failures >= s.momentThresholds.hardWonFailures { s.pendingMoments[id] = Moment(kind: .hardWonPass, facts: ["attempts": String(tally.attemptsWithoutPass), "elapsedMs": String(elapsed), "goal": goal]) }
+            else if tally.consecutiveFailures >= s.momentThresholds.redStreakFailures, let first = tally.firstFailureAt, at - first >= s.momentThresholds.redStreakMs { s.pendingMoments[id] = Moment(kind: .redStreakEnded, facts: ["failures": String(tally.consecutiveFailures), "elapsedMs": String(at - first)]) }
+        } else if tally.attemptsWithoutPass >= s.momentThresholds.stuckAttempts { enterUhoh(&s, sessionId: id, kind: .stuck, at: at) }
+        return s
     case .devicePostureChanged(_, let posture):
         var s = state
         s.buddy.devicePosture = posture
@@ -144,6 +183,9 @@ private func handleSessionStarted(_ state: InternalState, at: Double, sessionId:
     let atUnusualHour = s.memory.circadianReady(at: at) && s.memory.isUnusualHour(PetMemory.utcHour(ofMs: at))
     observePresence(&s, at: at)
     if isNewSession {
+        let project = ThemeReader.project(cwd: cwd)
+        if let last = s.memory.projects[project], at - last >= Double(s.momentThresholds.absenceDays) * 86_400_000 { s.pendingMoments[sessionId] = Moment(kind: .backAfterAbsence, facts: ["days": String(Int((at - last) / 86_400_000)), "project": project]) }
+        s.memory.projects[project] = at
         s.sessions[sessionId] = Session(source: source, state: .idle, prompt: nil, cwd: cwd, lastActivityAt: at, workStartedAt: nil)
         s.memory.lifetimeSessions += 1
         // Surprised-then-cozy: a session at an hour this user never works.
@@ -168,6 +210,8 @@ private func handleSessionStarted(_ state: InternalState, at: Double, sessionId:
 private func handleSessionEnded(_ state: InternalState, sessionId: String) -> InternalState {
     var s = state
     s.sessions.removeValue(forKey: sessionId)
+    s.pendingMoments.removeValue(forKey: sessionId)
+    s.rateLimits.removeValue(forKey: sessionId)
     return s
 }
 
@@ -270,7 +314,7 @@ private func handleToolCalled(_ state: InternalState, at: Double, sessionId: Str
         s.sessions[sessionId]?.prompt = nil
         s.sessions[sessionId]?.state = previous.uhoh == nil ? .working : previous.state
     }
-    if s.sessions[sessionId]!.repeatedToolCount >= 6 {
+    if !hint.contains("|") && !hint.isEmpty && s.sessions[sessionId]!.repeatedToolCount >= 6 {
         enterUhoh(&s, sessionId: sessionId, kind: .stuck, at: at)
     }
     s.buddy.entries.insert(shortMsg(tool: tool, hint: hint, source: source), at: 0)
@@ -286,6 +330,15 @@ private func handleTurnEnded(_ state: InternalState, at: Double, sessionId: Stri
     let session = s.sessions[sessionId]!
     switch outcome {
     case .failed(let errorClass):
+        if errorClass == "rate_limit" {
+            s.rateLimits[sessionId, default: 0] += 1
+            if s.rateLimits[sessionId] == s.momentThresholds.rateLimits {
+                let moment = Moment(kind: .nthRateLimit, facts: ["n": String(s.rateLimits[sessionId]!)])
+                s.buddy.creature.moment = moment
+                s.buddy.creature.giftLine = MomentLines.line(moment)
+                s.buddy.celebrateUntil = at + s.cheerThresholds.cheerMs
+            }
+        }
         s.sessions[sessionId]?.errorCount += 1
         enterUhoh(&s, sessionId: sessionId, kind: errorClass == "rate_limit" ? .hungry : .error, at: at)
     case .completed:
@@ -300,19 +353,27 @@ private func handleTurnEnded(_ state: InternalState, at: Double, sessionId: Stri
         s.sessions[sessionId]?.currentActivityKind = nil
         s.sessions[sessionId]?.repeatedToolCount = 0
         guard let start = session.workStartedAt else { return s }
+        if s.memory.completedTurns == 0 && s.pendingMoments[sessionId] == nil { s.pendingMoments[sessionId] = Moment(kind: .firstEver, facts: [:]) }
+        s.memory.completedTurns += 1
+        s.memory.projects[session.project ?? ThemeReader.project(cwd: session.cwd)] = at
+        let moment = s.pendingMoments.removeValue(forKey: sessionId)
         let duration = max(0, at - start)
-        let size = s.cheerThresholds.size(errors: session.errorCount, span: duration, effort: effortTier(for: session, elapsedMs: duration))
+        let size: CheerSize = moment?.dances == true ? .dance : s.cheerThresholds.size(errors: session.errorCount, span: duration, effort: effortTier(for: session, elapsedMs: duration))
         // A smaller nearby completion cannot truncate or restart the larger cheer.
         let folded = s.buddy.lastCompletionAt.map { at - $0 <= s.cheerThresholds.foldMs } ?? false
         if !folded || size.intensity > (s.doneSize?.intensity ?? 0) {
             s.doneSize = size
             s.buddy.celebrateUntil = at + s.cheerThresholds.duration(size)
         }
+        s.sessions[sessionId]?.moment = moment
+        s.sessions[sessionId]?.cheer = size
+        if let moment { s.buddy.creature.moment = moment; s.buddy.creature.giftLine = MomentLines.line(moment) }
         // A pending orb always carries the newest story line.
-        if s.buddy.creature.gift { s.buddy.creature.giftLine = giftLine(forHint: session.lastHint) }
+        if s.buddy.creature.gift { s.buddy.creature.giftLine = moment.map(MomentLines.line) ?? giftLine(forHint: session.lastHint) }
         s.memory.lifetimeCelebrations += 1
         s.sessions[sessionId]?.errorCount = 0
         s.sessions[sessionId]?.reportedEffort = nil
+        s.sessions[sessionId]?.observedEffort = nil
         s.buddy.lastTaskDurationMs = duration
         s.buddy.lastCompletionAt = at
         s.buddy.lastCompleted = CompletedTask(
@@ -330,7 +391,9 @@ private func handleStaleTick(_ state: InternalState, now: Double) -> InternalSta
 
     if let until = s.buddy.celebrateUntil, now >= until {
         s.buddy.creature.gift = true
-        s.buddy.creature.giftLine = giftLine(forHint: s.buddy.lastCompleted?.hint)
+        s.buddy.creature.giftLine = s.buddy.creature.moment.map(MomentLines.line) ?? giftLine(forHint: s.buddy.lastCompleted?.hint)
+        s.buddy.creature.moment = nil
+        for id in s.sessions.keys { s.sessions[id]?.moment = nil; s.sessions[id]?.cheer = nil }
         s.buddy.celebrateUntil = nil
         s.buddy.lastTaskDurationMs = nil
         changed = true
@@ -645,7 +708,10 @@ private func aggregate(_ state: InternalState, now: Double) -> BuddyState {
     var activeSnapshots: [SessionSnapshot] = []
     activeSnapshots.reserveCapacity(min(combined.count, 6))
     for (id, sess) in combined.prefix(6) {
+        let tier = effortTier(for: sess, elapsedMs: sess.workStartedAt.map { now - $0 } ?? 0)
         activeSnapshots.append(SessionSnapshot(
+            moment: sess.moment, cheer: sess.cheer,
+            effort: tier == .grinding ? .grinding : tier == .hard ? .hard : .light,
             id: id,
             source: sess.source,
             state: sess.uhoh == nil || sess.state == .needsConfirmation ? sess.state : (sess.uhoh == .stuck ? .thinking : .errored),
@@ -724,8 +790,8 @@ private func aggregate(_ state: InternalState, now: Double) -> BuddyState {
     creature.dotAlert = buddy.activeSessions.prefix(5).firstIndex { $0.state == .errored }
     if let prompt = highestPrompt {
         creature.state = .needsYou
-        let stakes = cardStakes(tool: prompt.tool, hint: prompt.hint)
-        creature.card = CreatureCard(id: prompt.id, tool: prompt.tool, gloss: prompt.hint,
+        let stakes = prompt.stakes ?? cardStakes(tool: prompt.tool, hint: prompt.hint)
+        creature.card = CreatureCard(id: prompt.id, tool: prompt.tool, gloss: prompt.gloss ?? prompt.hint,
                                      stakes: stakes, index: 0, count: waiting.count, isApproval: prompt.isApproval)
         creature.nudgeRung = state.nudges[prompt.id]?.rung ?? 0
         if creature.focus && stakes != .careful { creature.nudgeRung = 0 }
@@ -775,6 +841,7 @@ private func aggregate(_ state: InternalState, now: Double) -> BuddyState {
 /// however short.
 private func effortTier(for session: Session, elapsedMs: Double) -> EffortTier {
     if let reported = session.reportedEffort { return reported }
+    if let observed = session.observedEffort, observed == .grinding || observed == .hard { return observed }
     if elapsedMs >= PetTuning.effortGrindingMinMs || session.errorCount >= 3 { return .grinding }
     if elapsedMs >= PetTuning.effortHardMinMs || session.errorCount >= 2 { return .hard }
     if elapsedMs < PetTuning.effortLightMaxMs && session.errorCount == 0 { return .light }
@@ -955,7 +1022,7 @@ private func updateCreatureTimers(_ s: inout InternalState, event: BuddyEvent) {
     s.snoozedTools = s.snoozedTools.filter { s.sessions[$0.key] != nil }
     for (id, session) in s.sessions {
         guard let prompt = session.prompt else { continue }
-        let stakes = cardStakes(tool: prompt.tool, hint: prompt.hint)
+        let stakes = prompt.stakes ?? cardStakes(tool: prompt.tool, hint: prompt.hint)
         var nudge = s.nudges[prompt.id] ?? CardNudge(nextAt: prompt.arrivedAt + s.nudgeTiming.t1)
         nudge.snoozed = s.snoozedTools[id]?.contains(prompt.tool) == true
         if nudge.snoozed || (s.buddy.creature.focus && stakes != .careful) {

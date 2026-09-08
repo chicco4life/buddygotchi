@@ -31,6 +31,8 @@ final class HookInstallerTests: XCTestCase {
 
         let settings = try readJSON(harness.home.appendingPathComponent(".claude/settings.json"))
         let hooks = try XCTUnwrap(settings["hooks"] as? [String: Any])
+        XCTAssertNotNil(hooks["PreToolUse"])
+        XCTAssertNotNil(hooks["PostToolUseFailure"])
         let sessionGroups = try XCTUnwrap(hooks["SessionStart"] as? [[String: Any]])
         let buddyCount = sessionGroups.flatMap { ($0["hooks"] as? [[String: Any]]) ?? [] }
             .filter { ($0["command"] as? String)?.contains("boop-hook.sh claude-code") == true }
@@ -94,11 +96,11 @@ final class HookInstallerTests: XCTestCase {
         try harness.installer.installOrThrow(agent: .claudeCode)
         let script = harness.state.appendingPathComponent("boop-hook.sh")
         var content = try String(contentsOf: script, encoding: .utf8)
-        content = content.replacingOccurrences(of: "boop-hook v\(HookInstaller.hookSchemaVersion)", with: "boop-hook v1")
+        content = content.replacingOccurrences(of: "boop-hook v\(HookInstaller.hookSchemaVersion)", with: "boop-hook v4")
         try content.write(to: script, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
 
-        XCTAssertEqual(harness.installer.verify(agent: .claudeCode), .outdated(installed: 1, current: HookInstaller.hookSchemaVersion))
+        XCTAssertEqual(harness.installer.verify(agent: .claudeCode), .outdated(installed: 4, current: HookInstaller.hookSchemaVersion))
         try harness.installer.repair(agent: .claudeCode)
         XCTAssertEqual(harness.installer.verify(agent: .claudeCode), .installed)
     }

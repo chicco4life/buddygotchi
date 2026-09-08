@@ -18,7 +18,6 @@ struct DiagnosticEntry: Codable, Sendable {
 final class DiagnosticLog {
     private(set) var entries: [DiagnosticEntry] = []
     private let capacity: Int
-    private let rawPayloadRetention = 20
 
     private let hooksLogger = Logger(subsystem: "com.boopcomputer.boop", category: "hooks")
     private let engineLogger = Logger(subsystem: "com.boopcomputer.boop", category: "engine")
@@ -27,26 +26,22 @@ final class DiagnosticLog {
         self.capacity = capacity
     }
 
-    func log(category: String, source: String, event: String, detail: String, rawPayload: String? = nil) {
+    func log(category: String, source: String, event: String, detail: String, rawPayload _: String? = nil) {
         let entry = DiagnosticEntry(
             timestamp: Date.now.timeIntervalSince1970 * 1000,
             category: category,
             source: source,
             event: event,
             detail: detail,
-            rawPayload: rawPayload
+            rawPayload: nil
         )
         entries.append(entry)
         if entries.count > capacity {
             entries.removeFirst(entries.count - capacity)
         }
-        trimRawPayloads()
 
         let logger = category == "engine" ? engineLogger : hooksLogger
         logger.info("[\(category)] \(source) \(event): \(detail)")
-        if let raw = rawPayload {
-            logger.debug("payload: \(raw)")
-        }
     }
 
     func exportBundle(engine: BuddyEngine) async -> Data? {
@@ -106,14 +101,13 @@ final class DiagnosticLog {
         bundle["agents"] = agents
 
         bundle["log"] = logSnapshot.map { entry in
-            var dict: [String: Any] = [
+            let dict: [String: Any] = [
                 "timestamp": entry.timestamp,
                 "category": entry.category,
                 "source": entry.source,
                 "event": entry.event,
                 "detail": entry.detail,
             ]
-            if let raw = entry.rawPayload { dict["rawPayload"] = raw }
             return dict
         }
 
@@ -122,22 +116,6 @@ final class DiagnosticLog {
         }
 
         return try? JSONSerialization.data(withJSONObject: bundle, options: [.prettyPrinted, .sortedKeys])
-    }
-
-    private func trimRawPayloads() {
-        let cutoff = max(0, entries.count - rawPayloadRetention)
-        guard cutoff > 0 else { return }
-        for index in entries.startIndex..<cutoff where entries[index].rawPayload != nil {
-            let entry = entries[index]
-            entries[index] = DiagnosticEntry(
-                timestamp: entry.timestamp,
-                category: entry.category,
-                source: entry.source,
-                event: entry.event,
-                detail: entry.detail,
-                rawPayload: nil
-            )
-        }
     }
 
     private nonisolated static func collectSystemLogJSON() -> Data {

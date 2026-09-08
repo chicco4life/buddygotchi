@@ -138,7 +138,6 @@ private func parseAgentFlag() -> String {
 struct SignalCLI {
     static func main() {
         let config = SignalConfig.read()
-        let url = "http://127.0.0.1:\(config.port)/hook/signal"
         let agentId = parseAgentFlag()
         guard agentId == "cursor" else {
             log("unsupported signal agent: \(agentId)")
@@ -163,6 +162,25 @@ struct SignalCLI {
             ?? (hookInput["event_name"] as? String)
             ?? ""
 
+        // Use the same v5 bounded encoder as the other adapters. Pipe only;
+        // transcript input must never pass through a temporary file.
+        let hook = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".boop/boop-hook.sh")
+        if FileManager.default.isExecutableFile(atPath: hook.path) {
+            let process = Process()
+            process.executableURL = hook
+            process.arguments = ["cursor"]
+            let pipe = Pipe()
+            process.standardInput = pipe
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            do {
+                try process.run()
+                try pipe.fileHandleForWriting.write(contentsOf: jsonData)
+                try pipe.fileHandleForWriting.close()
+                process.waitUntilExit()
+            } catch { /* fail open */ }
+        }
+
         if approvalEvents.contains(hookEvent) {
             // Boop only ever ADDS a way to say yes. When it has no answer of
             // its own — approval mode off, Boop down, an error response — the
@@ -180,63 +198,7 @@ struct SignalCLI {
             return
         }
 
-        let signal: String
-        if hookEvent == "stop" {
-            signal = stopSignal(status: hookInput["status"] as? String)
-        } else if let mapped = cursorSignalMap[hookEvent] {
-            signal = mapped
-        } else {
-            log("unmapped event: \(hookEvent)")
-            // An event this build doesn't know could gate anything — Cursor
-            // may have added it after we shipped. "ask" is the only answer
-            // that can't approve an action unseen; events that gate nothing
-            // ignore the field. (The old default-"allow" defer fired here
-            // too, which was one registry edit away from silently approving
-            // a new gating event.)
-            print("{\"permission\":\"ask\"}")
-            return
-        }
-
-        defer {
-            // Cursor requires a permission response for non-blocking hooks; this
-            // is protocol plumbing, not an approval decision. Safe as "allow"
-            // only because every event that reaches here fires after the fact
-            // (afterShellExecution, afterFileEdit, stop, sessionEnd) and gates
-            // nothing — the gating ones were handled above, unmapped ones
-            // answered "ask".
-            print("{\"permission\":\"allow\"}")
-        }
-
-        log("\(hookEvent) -> \(signal)")
-
-        let sessionId = (hookInput["session_id"] as? String)
-            ?? (hookInput["conversation_id"] as? String)
-        let cwd = hookInput["cwd"] as? String
-            ?? (hookInput["workspace_roots"] as? [String])?.first
-
-        var body: [String: Any] = ["agent_id": agentId, "signal": signal]
-        if let sessionId { body["session_id"] = sessionId }
-        if let cwd { body["cwd"] = cwd }
-        body["pid"] = Int32(ProcessInfo.processInfo.processIdentifier)
-        guard let bodyData = try? JSONSerialization.data(withJSONObject: body),
-              let requestURL = URL(string: url) else {
-            return
-        }
-
-        var request = URLRequest(url: requestURL)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let token = config.token, !token.isEmpty {
-            request.setValue(token, forHTTPHeaderField: "X-Boop-Token")
-        }
-        request.httpBody = bodyData
-        request.timeoutInterval = 3
-
-        let semaphore = DispatchSemaphore(value: 0)
-        let task = URLSession.shared.dataTask(with: request) { _, _, _ in
-            semaphore.signal()
-        }
-        task.resume()
-        _ = semaphore.wait(timeout: .now() + 3)
+        let known = cursorSignalMap[hookEvent] != nil || ["stop", "afterAgentResponse", "preToolUse", "postToolUse", "postToolUseFailure"].contains(hookEvent)
+        print(known ? "{\"permission\":\"allow\"}" : "{\"permission\":\"ask\"}")
     }
 }

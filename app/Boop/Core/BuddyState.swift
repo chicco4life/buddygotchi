@@ -23,6 +23,7 @@ struct CreatureCard: Encodable, Sendable, Equatable {
 }
 
 struct Creature: Encodable, Sendable, Equatable {
+    var moment: Moment?
     var state: CreatureState
     var effort: CreatureEffort?
     var cheer: CheerSize?
@@ -108,6 +109,7 @@ enum SessionState: String, Encodable, Sendable, Equatable {
 }
 
 struct Session: Encodable, Sendable, Equatable {
+    var project: String?
     var source: String
     var state: SessionState
     var prompt: Prompt?
@@ -125,8 +127,11 @@ struct Session: Encodable, Sendable, Equatable {
     var errorCount: Int = 0
     /// Agent's own difficulty report (MCP report_effort); beats the heuristic.
     var reportedEffort: EffortTier?
+    var observedEffort: EffortTier?
     var uhoh: UhohKind?
     var repeatedToolCount: Int = 0
+    var moment: Moment?
+    var cheer: CheerSize?
 }
 
 struct SessionCounts: Encodable, Sendable, Equatable {
@@ -140,6 +145,8 @@ struct SessionCounts: Encodable, Sendable, Equatable {
 // MARK: - Prompt
 
 struct Prompt: Encodable, Sendable, Equatable {
+    var stakes: Stakes?
+    var gloss: String?
     var id: String
     var tool: String
     var hint: String
@@ -198,6 +205,9 @@ struct ThinkingSession: Encodable, Sendable, Equatable {
 // MARK: - Active Sessions (per-session breakdown for popover)
 
 struct SessionSnapshot: Encodable, Sendable, Equatable, Identifiable {
+    var moment: Moment?
+    var cheer: CheerSize?
+    var effort: CreatureEffort?
     var id: String
     var source: String
     var state: SessionState

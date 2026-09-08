@@ -15,6 +15,13 @@ enum TurnOutcome: Sendable, Equatable { case completed; case failed(errorClass: 
 // MARK: - Events
 
 enum BuddyEvent: Sendable {
+    case projectObserved(at: Double, sessionId: String, project: String)
+    case requestDescribed(at: Double, sessionId: String, stakes: Stakes, gloss: String)
+    case effortObserved(at: Double, sessionId: String, level: EffortTier)
+    case goalRead(at: Double, sessionId: String, goal: String, outcome: GoalOutcome, tally: GoalTally)
+    case fileEdited(at: Double, sessionId: String, path: String, count: Int)
+    case localTurnHour(at: Double, sessionId: String, hour: Int)
+    case adapterDegraded(at: Double, source: String)
     case turnStarted(at: Double, sessionId: String, source: String)
     case toolCalled(at: Double, sessionId: String, source: String, tool: String, hint: String)
     case toolResulted(at: Double, sessionId: String, source: String, tool: String, ok: Bool?, durationMs: Double?)
@@ -70,7 +77,8 @@ enum BuddyEvent: Sendable {
 
     var at: Double {
         switch self {
-        case .turnStarted(let at, _, _),
+        case .projectObserved(let at, _, _), .requestDescribed(let at, _, _, _), .effortObserved(let at, _, _), .goalRead(let at, _, _, _, _), .fileEdited(let at, _, _, _), .localTurnHour(let at, _, _), .adapterDegraded(let at, _),
+             .turnStarted(let at, _, _),
              .toolCalled(let at, _, _, _, _),
              .toolResulted(let at, _, _, _, _, _),
              .turnEnded(let at, _, _, _),
@@ -104,6 +112,13 @@ enum BuddyEvent: Sendable {
 
     var name: String {
         switch self {
+        case .projectObserved: "projectObserved"
+        case .requestDescribed: "requestDescribed"
+        case .effortObserved: "effortObserved"
+        case .goalRead: "goalRead"
+        case .fileEdited: "fileEdited"
+        case .localTurnHour: "localTurnHour"
+        case .adapterDegraded: "adapterDegraded"
         case .turnStarted: "turnStarted"
         case .toolCalled: "toolCalled"
         case .toolResulted: "toolResulted"

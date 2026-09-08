@@ -21,6 +21,7 @@ var packageTargets: [Target] = [
             "Resources/Info.plist",
         ],
         resources: [
+            .copy("Resources/runners.json"),
             .copy("Resources/Fonts"),
             .copy("Resources/Sounds"),
         ],

@@ -191,6 +191,12 @@ func buildHookServer(
         return try encodedResponse(["entries": entries])
     }
 
+    router.get("/diag/facts") { request, _ -> Response in
+        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
+        guard config.headless else { return Response(status: .notFound) }
+        return try encodedResponse(["facts": await engine.factRing.facts])
+    }
+
     router.get("/state") { request, _ -> Response in
         guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
         guard config.headless else { return Response(status: .notFound) }
@@ -202,28 +208,24 @@ func buildHookServer(
         let source = request.uri.queryParameters["source"].map(String.init) ?? "claude-code"
         let rawBuffer = try await request.body.collect(upTo: 1_048_576)
         let rawJSON = String(buffer: rawBuffer)
-        let body = try sharedDecoder.decode(HookEventBody.self, from: rawBuffer)
-        let hookPid: Int32? = (body.effectiveEventName == "SessionStart")
-            ? request.uri.queryParameters["pid"].flatMap({ Int32(String($0)) })
-            : nil
-        await diagLog.log(category: "hook", source: source, event: body.effectiveEventName ?? "unknown", detail: "\(body.effectiveToolName ?? "") \(extractHint(from: body))".trimmingCharacters(in: .whitespaces), rawPayload: rawJSON)
-        await handleAgentEvent(
-            body: body,
-            source: source,
-            hookPid: hookPid,
-            engine: engine
-        )
+        if let payload = try RawHookPayload.parse(Data(rawJSON.utf8), source: source, at: 0) {
+            let hookPid = payload.kind == .sessionStart ? request.uri.queryParameters["pid"].flatMap { Int32(String($0)) } : nil
+            await engine.ingest(payload, hookPid: hookPid)
+        } else {
+            let body = try sharedDecoder.decode(HookEventBody.self, from: rawBuffer)
+            await diagLog.log(category: "hook", source: source, event: body.effectiveEventName ?? "unknown", detail: body.effectiveToolName ?? "")
+            await handleAgentEvent(body: body, source: source, hookPid: nil, engine: engine)
+        }
         return emptyOK()
     }
 
     router.post("/hook/signal") { request, _ -> Response in
         guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
         let rawBuffer = try await request.body.collect(upTo: 1_048_576)
-        let rawJSON = String(buffer: rawBuffer)
         let body = try sharedDecoder.decode(SignalRequestBody.self, from: rawBuffer)
         let source = body.agent_id ?? "claude-code"
         let sessionId = body.session_id ?? body.conversation_id ?? "\(source)_default"
-        await diagLog.log(category: "signal", source: source, event: body.signal ?? "unknown", detail: "session=\(sessionId)", rawPayload: rawJSON)
+        await diagLog.log(category: "signal", source: source, event: body.signal ?? "unknown", detail: "session=\(sessionId)")
         // A session-end signal deregisters the session outright — agents (e.g. Cursor)
         // route lifecycle close events here, and there is no process watcher to reap them.
         if body.signal == "session_end" {
@@ -255,7 +257,6 @@ func buildHookServer(
         // launched after the session began and never saw a SessionStart.
         let hookPid = request.uri.queryParameters["pid"].flatMap { Int32(String($0)) }
         let rawBuffer = try await request.body.collect(upTo: 1_048_576)
-        let rawJSON = String(buffer: rawBuffer)
         let body = try sharedDecoder.decode(HookEventBody.self, from: rawBuffer)
         let sessionId = deriveSessionId(from: body, source: source)
         let tool = body.effectiveToolName ?? "Unknown"
@@ -263,7 +264,7 @@ func buildHookServer(
         let sessionLabel = cwdLabel(body.cwd)
         let requestId = makeRequestId(sessionId: sessionId)
 
-        await diagLog.log(category: "approve", source: source, event: body.effectiveEventName ?? "approve", detail: "\(tool): \(hint)", rawPayload: rawJSON)
+        await diagLog.log(category: "approve", source: source, event: body.effectiveEventName ?? "approve", detail: tool)
 
         await engine.sessionStarted(sessionId: sessionId, source: source, cwd: body.cwd, hookPid: hookPid)
 
@@ -290,7 +291,9 @@ func buildHookServer(
             tool: tool,
             hint: hint,
             sessionLabel: sessionLabel,
-            source: source
+            source: source,
+            stakes: StakesReader.read(tool: tool, input: extractHint(from: body, limit: .max)).0,
+            gloss: GlossWriter.read(tool: tool, input: extractHint(from: body, limit: .max))
         )
         // cancel() can't interrupt closeFuture.get(); when the connection
         // eventually closes after a normal decision, the late abandon is a

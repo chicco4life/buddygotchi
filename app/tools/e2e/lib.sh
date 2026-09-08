@@ -261,3 +261,33 @@ print_summary() {
   [ -n "${E2E_RESULT_FILE:-}" ] && echo "$pass $fail" > "$E2E_RESULT_FILE"
   [ "$fail" -eq 0 ]
 }
+
+# Native fixture replay through the real authenticated hook route.
+tenth_try() {
+  local agent="$1" sid="e2e-tenth-$1-$$" line n=0 got
+  hdr "$agent tenth-try"
+  sleep 4.1 # Let an earlier scenario's maximum-length cheer expire.
+  while IFS= read -r line; do
+    post_event "$agent" "$line"
+    n=$((n+1))
+    if [ "$n" = 12 ]; then
+      if scoped_mode; then
+        got="$(state_field .activeSessions | python3 -c 'import json,sys; print(next((s.get("effort","") for s in json.load(sys.stdin) if s["id"]==sys.argv[1]),""))' "$sid")"
+      else got="$(state_field .creature.effort)"; fi
+      [ "$got" = grinding ] && ok 'tenth-try: grinding mid-way' || bad "tenth-try effort: $got"
+    fi
+  done < <(python3 - "$DIR/../../Tests/Fixtures/hooks/$agent/2026-09-08/tenth-try.jsonl" "$sid" <<'PY'
+import json,sys
+for line in open(sys.argv[1]):
+    body=json.loads(line)
+    body['session_id']=sys.argv[2]
+    if 'conversation_id' in body: body['conversation_id']=sys.argv[2]
+    print(json.dumps(body,separators=(',',':')))
+PY
+  )
+  if scoped_mode; then
+    got="$(state_field .activeSessions | python3 -c 'import json,sys; s=next((s for s in json.load(sys.stdin) if s["id"]==sys.argv[1]),{}); print(s.get("cheer",""),s.get("moment",{}).get("kind",""))' "$sid")"
+  else got="$(state_field .creature.cheer) $(state_field .creature.moment.kind)"; fi
+  [ "$got" = 'dance hardWonPass' ] && ok 'tenth-try: dance + hardWonPass' || bad "tenth-try payoff: $got"
+  post_event "$agent" "{\"hook_event_name\":\"SessionEnd\",\"session_id\":\"$sid\"}"
+}

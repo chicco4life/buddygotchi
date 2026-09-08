@@ -608,6 +608,51 @@ final class HookInstaller {
         BODY="$(cat)"
         [ -z "$PORT" ] && exit 0
         [ -z "$TOKEN" ] && exit 0
+        BODY=$(python3 - 3<<<"$BODY" <<'BOOP_JSON'
+        import json, os
+        def cap(s,n): return s.encode('utf-8')[:n].decode('utf-8','ignore')
+        def text(v): return v if isinstance(v,str) else json.dumps(v,ensure_ascii=False,separators=(',',':'))
+        try:
+            d=json.load(os.fdopen(3))
+            event=d.get('hook_event_name',d.get('hookEventName',d.get('event_name','')))
+            keys=['session_id','conversation_id','cwd','tool_name','toolName','tool','notification_type','message','error','status','tool_use_id','tool_call_id']
+            b={k:d[k] for k in keys if k in d}
+            b['hook_event_name']=event
+            if 'command' in d and 'tool_name' not in b: b['tool_name']='Shell'
+            if event=='afterFileEdit': b['tool_name']='Edit'; b['tool_input']={'file_path':d.get('file_path',d.get('path',''))}
+            if 'cwd' not in b and d.get('workspace_roots'): b['cwd']=d['workspace_roots'][0]
+            if event in ['PreToolUse','preToolUse','beforeShellExecution','beforeMCPExecution','PermissionRequest']:
+                if 'tool_input' in d: b['tool_input']=d['tool_input']
+                elif 'command' in d: b['command']=d['command']
+                elif 'input' in d: b['tool_input']=d['input']
+            if event in ['PostToolUse','PostToolUseFailure','postToolUse','postToolUseFailure','afterShellExecution','afterMCPExecution','afterFileEdit']:
+                output=d.get('tool_response',d.get('tool_output',d.get('output')))
+                obj=output if isinstance(output,dict) else {}
+                for k in ['exit_status','exit_code','error_class']:
+                    if k in d or k in obj: b[k]=d.get(k,obj.get(k))
+                if output is not None:
+                    raw=text(output)
+                    b['output_head']=cap(raw,1024)
+                    b['output_tail']=raw.encode('utf-8')[-1024:].decode('utf-8','ignore')
+            if event in ['UserPromptSubmit','beforeSubmitPrompt']:
+                if 'prompt' in d: b['prompt']=text(d['prompt'])
+            if event in ['Stop','StopFailure','stop','afterAgentResponse']:
+                msg=d.get('last_assistant_message',d.get('text'))
+                if msg is not None: b['closing_message']=cap(text(msg),2048)
+            def encoded(): return json.dumps(b,ensure_ascii=False,separators=(',',':'))
+            if len(encoded().encode())>16384:
+                b.pop('output_tail',None); b.pop('output_head',None)
+            # Oversized individual inputs cannot coexist with the total cap.
+            # Drop them intact; the adapter reports lifecycle-only degradation.
+            for key in ['tool_input','command','prompt','closing_message','message']:
+                if len(encoded().encode())<=16384: break
+                b.pop(key,None)
+            if len(encoded().encode())>16384: b={'hook_event_name':event}
+            print(encoded())
+        except Exception:
+            print('{}')
+        BOOP_JSON
+        )
         EVENT=$(echo "$BODY" | grep -o '"hook_event_name" *: *"[^"]*"' | head -1 | grep -o '"[^"]*"$' | tr -d '"')
         if [ -n "$APPROVAL" ] && [ "$EVENT" = "PermissionRequest" ]; then
             # Prove the server is actually answering before committing to the
@@ -885,7 +930,7 @@ final class HookInstaller {
     private static let claudePlainEvents = [
         "SessionStart", "UserPromptSubmit",
         "Stop", "StopFailure", "SessionEnd",
-        "PostToolUse",
+        "PreToolUse", "PostToolUse", "PostToolUseFailure",
         "Elicitation", "ElicitationResult",
     ]
 
@@ -900,7 +945,7 @@ final class HookInstaller {
     private static let cursorEvents = [
         "sessionStart", "sessionEnd", "beforeSubmitPrompt", "stop",
         "beforeShellExecution", "beforeMCPExecution",
-        "afterShellExecution", "afterMCPExecution",
+        "afterShellExecution", "afterMCPExecution", "afterAgentResponse", "postToolUseFailure",
         // Without this, a turn that is mostly file edits (no shell, no MCP)
         // sends nothing between beforeSubmitPrompt and stop, so the pet
         // drifts toward the work-stall state while Cursor is busily editing.

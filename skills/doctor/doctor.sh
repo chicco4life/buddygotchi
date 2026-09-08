@@ -116,6 +116,10 @@ grep -q '"approvalMode" *: *true' "$CFG" 2>/dev/null && info "approval mode: on 
 hdr "2. Hook script"
 if [ -x "$HOOK" ]; then ok "$HOOK executable ($(sed -n '2p' "$HOOK" | sed 's/^# //'))"; else bad "$HOOK missing or not executable: Boop > Settings > install hooks"; fi
 
+HOOK_VERSION=$(sed -n 's/^# boop-hook v\([0-9][0-9]*\).*/\1/p' "$HOOK" 2>/dev/null | head -1)
+info "hook script version: ${HOOK_VERSION:-unknown}"
+if [ "${HOOK_VERSION:-0}" -lt 5 ]; then bad "hook script must be v5 or newer; repair hooks in Boop Settings"; fi
+
 # --- 3. registration in this harness ---------------------------------------
 hdr "3. Hook registration"
 check_file_has() { # file label expected...

@@ -7,6 +7,11 @@ import Observation
 final class BuddyEngine {
     private(set) var state: BuddyState = .initial
     let diagnosticLog: DiagnosticLog
+    let extractor = Extractor()
+    private var extractionTail: Task<Void, Never>?
+    let factRing = FactRing()
+    var factSink: (any FactSink)?
+    var stateDir: String { config.stateDir }
 
     private var internalState: InternalState
     private var staleTimer: Timer?
@@ -64,6 +69,7 @@ final class BuddyEngine {
     }
 
     func stop() {
+        Task { await extractor.reset() }
         staleTimer?.invalidate()
         staleTimer = nil
         for (_, source) in processWatchers { source.cancel() }
@@ -107,6 +113,7 @@ final class BuddyEngine {
     }
 
     func sessionEnded(sessionId: String) {
+        Task { await extractor.drop(sessionId: sessionId) }
         apply(.sessionEnded(at: clock.now(), sessionId: sessionId))
     }
 
@@ -116,6 +123,40 @@ final class BuddyEngine {
 
     func clearRequest(sessionId: String) {
         apply(.requestCleared(at: clock.now(), sessionId: sessionId))
+    }
+
+    func ingest(_ input: RawHookPayload, hookPid: Int32? = nil) async {
+        // Awaiting the extractor yields the main actor. Chain handoffs so an
+        // overlapping HTTP result cannot reach the reducer before its call.
+        let previous = extractionTail
+        let task = Task { @MainActor in
+            await previous?.value
+            await self.ingestSerial(input, hookPid: hookPid)
+        }
+        extractionTail = task
+        await task.value
+    }
+
+    private func ingestSerial(_ input: RawHookPayload, hookPid: Int32?) async {
+        var payload = input
+        payload.timestamp = clock.now()
+        if payload.kind != .sessionEnd {
+            sessionStarted(sessionId: payload.sessionId, source: payload.source, cwd: payload.cwd, hookPid: hookPid)
+        }
+        let hour = Calendar.current.component(.hour, from: Date(timeIntervalSince1970: payload.timestamp / 1000))
+        let extraction = await extractor.ingest(payload, localHour: hour)
+        for event in extraction.events {
+            if case .adapterDegraded(_, let source) = event { diagnosticLog.log(category: "hook", source: source, event: "adapterDegraded", detail: "lifecycle-only") }
+            if case .sessionEnded = event { sessionEnded(sessionId: payload.sessionId) }
+            else { apply(event) }
+        }
+        factRing.receive(extraction.facts)
+        factSink?.receive(extraction.facts)
+        let goal = extraction.facts.first { $0.kind == .goalOutcome }?.payload["goal"] ?? extraction.events.compactMap { event -> String? in
+            if case .toolCalled(_, _, _, _, let signature) = event { return signature }
+            return nil
+        }.first ?? ""
+        diagnosticLog.log(category: "hook", source: payload.source, event: payload.eventName.isEmpty ? payload.kind.rawValue : payload.eventName, detail: payload.toolName + (goal.isEmpty ? "" : " " + goal))
     }
 
     func turnStarted(sessionId: String, source: String) {
@@ -291,8 +332,9 @@ final class BuddyEngine {
 
     // MARK: - Approval API
 
-    func submitApproval(sessionId: String, requestId: String, tool: String, hint: String, sessionLabel: String?, source: String?) async -> ApprovalDecision {
+    func submitApproval(sessionId: String, requestId: String, tool: String, hint: String, sessionLabel: String?, source: String?, stakes: Stakes? = nil, gloss: String? = nil) async -> ApprovalDecision {
         apply(.approvalArrived(at: clock.now(), sessionId: sessionId, requestId: requestId, tool: tool, hint: hint, sessionLabel: sessionLabel, source: source))
+        if let stakes, let gloss { apply(.requestDescribed(at: clock.now(), sessionId: sessionId, stakes: stakes, gloss: gloss)) }
         return await withCheckedContinuation { continuation in
             pendingApprovals[requestId] = continuation
         }
@@ -432,6 +474,7 @@ final class BuddyEngine {
             memoryStore?.save(next.memory)
         }
         for id in removedIds {
+            Task { await extractor.drop(sessionId: id) }
             cancelWatcher(sessionId: id)
         }
         for requestId in disappearedPromptIds {

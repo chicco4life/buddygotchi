@@ -120,6 +120,8 @@ struct PetMemory: Sendable, Equatable, Codable {
     var histogramSamples: Int = 0
     var firstSampleAt: Double?
     var lastSampleAt: Double?
+    var projects: [String: Double] = [:]
+    var completedTurns: Int = 0
     var lifetimeSessions: Int = 0
     var lifetimeCelebrations: Int = 0
     var agents: [String: AgentIdentity] = [:]
@@ -141,6 +143,8 @@ struct PetMemory: Sendable, Equatable, Codable {
     /// as if-present with its default instead.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
+        projects = try c.decodeIfPresent([String: Double].self, forKey: .projects) ?? [:]
+        completedTurns = try c.decodeIfPresent(Int.self, forKey: .completedTurns) ?? c.decodeIfPresent(Int.self, forKey: .lifetimeCelebrations) ?? 0
         lastSeenAt = try c.decodeIfPresent(Double.self, forKey: .lastSeenAt)
         let histogram = try c.decodeIfPresent([Int].self, forKey: .hourHistogram) ?? []
         hourHistogram = histogram.count == 24 ? histogram : Array(repeating: 0, count: 24)

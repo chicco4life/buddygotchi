@@ -104,6 +104,7 @@ final class CreatureReducerTests: XCTestCase {
 
     func testDoneGiftCollectAndUTF8Cap() {
         var s = start(fresh())
+        s.memory.completedTurns = 1 // Exercise generic gift truncation after firstEver.
         s = reduce(s, .toolCalled(at: 1, sessionId: "a", source: "codex", tool: "Bash", hint: String(repeating: "한", count: 30)))
         s = finish(s)
         s = reduce(s, .staleTick(at: 1600))
@@ -124,7 +125,7 @@ final class CreatureReducerTests: XCTestCase {
         s = reduce(s, .staleTick(at: 1600))
         s = reduce(s, .boopArrived(at: 1601))
         XCTAssertFalse(s.buddy.creature.gift)
-        XCTAssertEqual(s.buddy.creature.bubble, "done: ")
+        XCTAssertEqual(s.buddy.creature.bubble, "first one!")
         XCTAssertEqual(s.buddy.creature.overlay, .boop)
     }
 
