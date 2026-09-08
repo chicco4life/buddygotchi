@@ -59,7 +59,7 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
             }
         }
         bleManager.disconnect()
-        UserDefaults.standard.removeObject(forKey: DefaultsKey.esp32PeripheralUUID)
+        AppDefaults.shared.removeObject(forKey: DefaultsKey.esp32PeripheralUUID)
         connectionState = .disconnected
     }
 

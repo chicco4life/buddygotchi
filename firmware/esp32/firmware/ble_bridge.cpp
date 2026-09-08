@@ -77,6 +77,16 @@ class ServerCallbacks : public BLEServerCallbacks {
     connected = true;
     Serial.println("[ble] connected");
   }
+#if !defined(CONFIG_BLUEDROID_ENABLED)
+  // NimBLE (S3 board): ask the central for a 15-30 ms connection interval
+  // (units of 1.25 ms; macOS accepts 15 ms and defaults to ~30 ms otherwise).
+  // Every frame chunk costs at least one interval, so this is most of the
+  // hook-to-card budget. Latency 0, supervision timeout 4 s (units of 10 ms).
+  void onConnect(BLEServer* s, ble_gap_conn_desc* desc) override {
+    onConnect(s);
+    s->updateConnParams(desc->conn_handle, 12, 24, 0, 400);
+  }
+#endif
   void onDisconnect(BLEServer* s) override {
     connected = false;
     secure = false;

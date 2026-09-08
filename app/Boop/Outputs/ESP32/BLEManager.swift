@@ -192,10 +192,16 @@ final class BLEManager: NSObject, @unchecked Sendable {
             guard let self,
                   let rx = self.rxCharacteristic,
                   let peripheral = self.connectedPeripheral else { return }
+            // Frames go without response when the link allows it: a
+            // with-response write costs about two connection intervals per
+            // chunk, which is most of the hook-to-card latency. Falls back to
+            // with-response whenever CoreBluetooth's outbound buffer is full.
+            let fast = rx.properties.contains(.writeWithoutResponse)
             var offset = data.startIndex
             while offset < data.endIndex {
                 let end = data.index(offset, offsetBy: Self.writeChunkSize, limitedBy: data.endIndex) ?? data.endIndex
-                peripheral.writeValue(data.subdata(in: offset..<end), for: rx, type: .withResponse)
+                let type: CBCharacteristicWriteType = fast && peripheral.canSendWriteWithoutResponse ? .withoutResponse : .withResponse
+                peripheral.writeValue(data.subdata(in: offset..<end), for: rx, type: type)
                 offset = end
             }
         }
