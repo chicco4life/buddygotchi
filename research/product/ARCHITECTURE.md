@@ -1,9 +1,9 @@
 # Architecture
 
-Status: v1 target architecture, first draft, 2026-09-08. Implements
+Status: v1 target architecture, second draft, 2026-09-08. Implements
 `VISION.md`, `UX-DEVICE.md`, and `IDEAS.md` idea 1. The current codebase is
-described in `research/eng/ARCHITECTURE-APP.md`; this document says what the
-v1 system should be, and §11 says what is kept from today and what is new.
+described in `research/eng/ARCHITECTURE-APP.md`; §10 says what is kept from
+today and what is new.
 
 ---
 
@@ -14,80 +14,65 @@ v1 system should be, and §11 says what is kept from today and what is new.
      │               │            │          local hooks; fail open
      ▼               ▼            ▼
  ┌────────────────────────────────────┐
- │  hook script / BoopSignal          │  one bash script + one tiny binary
- │  caps bytes, POSTs to localhost    │
+ │  hook script                       │  caps bytes, POSTs to localhost
  └────────────────┬───────────────────┘
-                  ▼  HTTP, token-authed, 127.0.0.1
- ┌──────────────────────────────────────────────────────────────────┐
- │  Mac app (the brain)                                             │
- │                                                                  │
- │  HookServer ──► Extractor ──► Engine ──► Reducer ──► BuddyState  │
- │   routes        raw→facts     orchestration  pure     projection │
- │   MCP server    discards raw  clock, timers  no I/O              │
- │                                   │                              │
- │        ┌──────────────────────────┼───────────────────────┐      │
- │        ▼                          ▼                       ▼      │
- │     Memory                     Growth                   Voice    │
- │     working / episodic /       XP, level, streak,       local LLM│
- │     profile; nightly           cosmetics, signed        + authored│
- │     reflection                 ledger                   fallback │
- │        │                          │                       │      │
- │        └──────────────► Occasion detector ◄───────────────┘      │
- │                                   │                              │
- │                                   ▼                              │
- │                          OutputProviders                         │
- │                    Desktop            Device                     │
- │                    menu bar creature  RenderState v2 → BLE       │
- └──────────────────────────────────────────┬───────────────────────┘
-                                            │  Nordic UART, newline JSON
-                                            ▼
- ┌────────────────────────────────────────────────────────────────┐
- │  Buddy firmware (thin terminal)                                │
- │  parse line → validate → device model → renderer (6 states)    │
- │  buttons, motion, posture, sound, travel-mode stats, NVS, OTA  │
- │  sends: decision, boop, collect, posture, battery, motion      │
- └────────────────────────────────────────────────────────────────┘
+                  ▼
+ ┌──────────────────────────────────────────────────────────────┐
+ │  Mac app                                                     │
+ │                                                              │
+ │   Server ──► Extractor ──► Core ──────────────► Outputs      │
+ │   routes     per-session   engine + pure        desktop      │
+ │   auth       transcript    reducer; state,      device ──► BLE
+ │              window        moments, cheer size               │
+ │              (memory only)      │    ▲                       │
+ │                                 ▼    │                       │
+ │                          ┌──────────────┐   ┌──────────┐     │
+ │                          │  Store       │   │  Voice   │     │
+ │                          │  facts,      │──►│  local   │     │
+ │                          │  profile,    │   │  model + │     │
+ │                          │  traits, XP  │   │  fallback│     │
+ │                          │  nightly job │   └──────────┘     │
+ │                          └──────────────┘                    │
+ └──────────────────────────────────────────┬───────────────────┘
+                                            ▼  Nordic UART, newline JSON
+ ┌────────────────────────────────────────────────────────────┐
+ │  Buddy firmware: parse → model → render six states;        │
+ │  buttons, motion, sound, travel stats, NVS, OTA            │
+ └────────────────────────────────────────────────────────────┘
 ```
 
-Two rules shape everything: **the Mac app is the brain and the device is a
-thin terminal**, and **the reducer is pure**. Everything that touches the
-outside world sits either before the reducer (adapters and the extractor) or
-after it (outputs). Memory, growth, and voice are services the engine calls
-around the reducer, never from inside it.
+Four things in the app: **Server**, **Extractor**, **Core**, **Outputs**.
+Two services beside them: **Store** and **Voice**. That is the whole list.
 
 ---
 
 ## 1. Principles
 
 1. **Pure core.** The reducer takes state and an event and returns state. No
-   I/O, no clock, no defaults, no model calls, no BLE. Time arrives as
-   timestamps on events and as ticks from the engine.
-2. **Thin device.** Firmware renders a state the app sends and reports
-   inputs. It never composes text, never scores anything, never decides. The
-   one exception is travel mode, where it displays a snapshot it was given.
-3. **Fail open.** If the app is down, hooks exit successfully and the agent
-   continues natively. If the device is gone, the app carries on. If the
-   model is slow, authored lines carry on.
-4. **See, extract, forget.** Raw hook payloads live in memory only as long
-   as the extractor needs them. Nothing raw is stored, logged, or sent to
-   the model.
-5. **One wire contract.** The device speaks one versioned render state and a
-   small command set. Every display derives from `BuddyState`; the device is
-   just the display that happens to be over Bluetooth.
-6. **Local only, one exception.** The leaderboard client is the only code
-   that opens a socket to anything but localhost and the device.
-7. **Utility before expression.** Approval and needs-you paths never wait on
-   memory, growth, or voice. Those enrich; they cannot block.
+   I/O, no clock, no model calls. Time arrives on events and as ticks.
+2. **Thin device.** Firmware renders what the app sends and reports inputs.
+   It never composes text or decides anything. In travel mode it displays a
+   snapshot it was given.
+3. **Fail open.** App down: hooks exit zero and the agent continues
+   natively. Device gone: the app carries on. Model slow: authored lines.
+4. **See, extract, forget.** Raw transcript content lives in memory only,
+   bounded per session, evicted on session end or size. It is never written
+   to disk, never logged, never sent to the model.
+5. **One wire contract.** Every display derives from `BuddyState`. The
+   device is the display that happens to be over Bluetooth.
+6. **Local only, one exception.** The leaderboard sync in Store is the only
+   code that talks to anything but localhost and the device.
+7. **Utility never waits on expression.** Needs-you and approval paths do
+   not depend on Store or Voice.
 
 ---
 
-## 2. Agents and hooks
+## 2. Hooks and the script
 
-**What is installed.** One bash script registered in each agent's hook
-config, plus a small helper binary for Cursor. Same as today. The installer
-writes the config, verifies it, and can repair it.
+One bash script registered in each agent's hook config, plus the small
+Cursor helper. The installer writes, verifies, and repairs the config.
 
-**Events subscribed,** per agent, mapped to one internal vocabulary:
+Events subscribed, mapped to one internal vocabulary:
 
 | Internal | Claude Code | Codex | Cursor |
 | --- | --- | --- | --- |
@@ -95,460 +80,363 @@ writes the config, verifies it, and can repair it.
 | turn start | UserPromptSubmit | UserPromptSubmit | beforeSubmitPrompt |
 | tool call | PreToolUse | PreToolUse | preToolUse, beforeShellExecution, beforeMCPExecution |
 | tool result | PostToolUse, PostToolUseFailure | PostToolUse | afterShellExecution, postToolUse, postToolUseFailure, afterFileEdit |
-| needs you | PermissionRequest, Notification (elicitation, idle) | PermissionRequest | beforeShellExecution and beforeMCPExecution with a decision, stop with needs-input |
+| needs you | PermissionRequest, Notification | PermissionRequest | before* hooks with a decision, stop needing input |
 | turn end | Stop, StopFailure | Stop | stop, afterAgentResponse |
 
-**What the script forwards.** Today: event name, session id, cwd, tool name,
-and a truncated hint. v1 adds, for tool call and tool result events: the
-full command or tool input, exit status or error class, and the first and
-last 512 bytes of output. For turn end: the agent's closing message capped
-at 2 KB. Everything else in the payload is dropped at the script. Total
-request body capped at 8 KB.
-
-**Fail open** is enforced at the script: short connect timeout, any failure
-exits zero, and the approval path returns "passthrough" so the agent shows
-its own prompt if Boop cannot answer.
+The script forwards: event, session id, cwd, tool name, full tool input,
+exit status or error class, the first and last 1 KB of tool output, the
+prompt text on turn start, and the agent's closing message on turn end.
+Body capped at 16 KB. Fail-open at the script: short timeout, always exit
+zero, approvals return passthrough if the app cannot answer.
 
 ---
 
-## 3. HookServer
+## 3. Server
 
-Localhost HTTP on a fixed port with a per-install token. Same shape as
-today.
-
-| Route | Purpose |
-| --- | --- |
-| `POST /hook/event` | Everything that is not blocking. Returns immediately. |
-| `POST /hook/approve` | Needs-you. Holds the connection until a decision or timeout, then returns allow, deny, or passthrough. |
-| `POST /hook/signal` | Cursor's helper path. |
-| `GET /healthz` | Liveness for the script and the tests. |
-| `/mcp` | The agent channel (§7). |
-
-The server does three things and nothing else: authenticate, parse the
-per-agent payload into a `RawHookPayload`, and hand it to the extractor. It
-does not touch state. The Cursor auto-approve rule for read-only shell
-commands stays here because it is a parsing concern and must read the full
-command.
+Localhost HTTP with a per-install token. Routes: `/hook/event` (returns
+immediately), `/hook/approve` (holds until decision or timeout, returns
+allow, deny, or passthrough), `/hook/signal` (Cursor helper), `/healthz`,
+and `/mcp` (agent channel, §7). The server authenticates, parses the
+per-agent shape into a `RawHookPayload`, and hands it to the extractor. It
+holds no state. The Cursor auto-approve rule for read-only shell commands
+stays here because it must read the full command.
 
 ---
 
 ## 4. Extractor
 
-New in v1. Turns a `RawHookPayload` into one or more `BuddyEvent`s and
-`Fact`s, then drops the payload.
+Turns the hook stream into events and facts. It is the only component that
+sees content, and it holds a **transcript window per session in memory**,
+because most facts cannot be read from a single turn. "Ten tries" needs
+ten tool calls. "Working on the auth flow" needs several turns of context.
 
 ```
-RawHookPayload
-   │
-   ├─ session/turn/tool lifecycle ──► BuddyEvent (sessionStarted, turnStarted,
-   │                                   toolCalled, toolResulted, turnEnded, …)
-   ├─ needs-you ────────────────────► BuddyEvent.needsYou + Gloss + Stakes
-   ├─ tool call + result ───────────► Fact (runner, goal signature, outcome)
-   └─ turn end ─────────────────────► Fact (turn summary source, error class)
+RawHookPayload ──► append to session window ──► read the window ──► emit
+                   (memory only, bounded)        rules + classifiers   BuddyEvents
+                                                                        Facts
 ```
 
-Sub-components:
+**The window.** Per session: an ordered list of entries (turn starts, tool
+calls with input, tool results with capped output, closing messages), each
+with a timestamp. Bounded by entries and bytes, oldest evicted first,
+whole window dropped on session end, all windows dropped on app quit. Never
+serialized. Default cap on the order of a few hundred entries or a few
+hundred KB per session; tuned by what the rules actually need.
 
-- **Per-agent parsers.** One per agent, thin. They know payload shapes and
-  nothing else.
-- **Runner table.** Recognizes test, build, lint, typecheck, and script
-  commands across the common ecosystems, and normalizes each to a goal
-  signature (command with paths, timestamps, and volatile flags stripped,
-  plus project id). Extensible by a data file, not code.
-- **Outcome reader.** Exit status where present; otherwise runner-specific
-  patterns on the capped output. Returns pass, fail, or unknown. Unknown is
-  a first-class answer; guessing is not allowed.
-- **Stakes classifier.** Tool plus command to fine / check it / careful.
-  Destructive shell, deletes outside the project, network, credentials, and
-  package installs are careful. Deterministic rules, tested by fixture.
-  Control characters in a command force careful.
-- **Gloss writer.** One plain-English line per tool call for the needs-you
-  card, from templates keyed on tool and command class. Never a model on
-  this path; it has to be instant and never wrong.
-- **Tone and topic.** Prompt text reduced to a tone class and up to three
-  topic tags. The text is then discarded. Used for personality drift and
-  for the profile's likes and dislikes.
-- **Project id.** Derived from cwd and, when available, the git remote.
+**Readers over the window,** each a small pure function from window to
+output:
 
-The extractor is pure except for the runner table load and is tested with a
-fixture corpus of real payloads per agent. When a field is missing because
-an agent changed, it degrades to lifecycle events only and emits one
-`adapterDegraded` event so the buddy can say so once.
+- **Lifecycle.** Session and turn events, straight through.
+- **Goals.** Recognizes test, build, lint, typecheck, and script commands
+  from a runner table; normalizes each to a goal signature; walks back
+  through the window to count consecutive attempts and read outcomes.
+  Outcome comes from exit status, else runner patterns, else unknown.
+  Unknown is a real answer.
+- **Stakes and gloss.** For a needs-you call: deterministic rules give
+  fine / check it / careful, and templates give one plain-English line.
+  No model on this path.
+- **Effort.** Elapsed time, attempt counts, errors, and agent self-report
+  into light / hard / grinding.
+- **Theme.** What the session is about, from paths touched and prompt
+  topics: a project id plus up to three topic tags. Prompt text is reduced
+  to tone and tags here and not kept beyond the window.
+- **Closing line.** The agent's closing message reduced to a one-line
+  summary source for reflection. Kept in the window until the nightly job
+  reads it, then gone.
+
+Output: `BuddyEvent`s for the reducer (session, turn, tool, needs-you with
+gloss and stakes, effort) and `Fact`s for the store (goal outcomes with
+attempt counts, themes, tone, error classes). Nothing raw leaves the
+extractor.
+
+When an agent changes its payloads, the readers degrade to lifecycle only
+and emit `adapterDegraded` once.
+
+Tested with a fixture corpus of real hook streams per agent, replayed
+through the window, asserting events and facts.
 
 ---
 
-## 5. Core: engine, reducer, state
+## 5. Core
 
-**BuddyEngine** is the orchestrator. It owns the clock, receives events from
-the extractor, the device, and the UI, feeds them through the reducer,
-calls the services, and fans the resulting state out to outputs. Approval
-continuations (the held HTTP connections waiting for a decision) live here.
+**Engine.** The orchestrator: owns the clock and ticks, receives events
+from the extractor, device, and UI, runs the reducer, calls Store and
+Voice, and fans state to outputs. Held approval connections live here.
 
-**Reducer** is a pure function over `InternalState`. It owns:
+**Reducer.** One pure function. It owns:
 
-- **Sessions.** One per agent session with source, project, current state,
-  current tool, effort accumulators, and pending prompt.
-- **The six states** and their parameters, derived from sessions: asleep,
-  idle, working (effort), needs you (prompt, count), done (cheer size), uh-oh
-  (kind: error, stuck, hungry). Overlays greet and boop. One creature: the
-  reducer collapses all sessions into one state by priority: needs you >
-  uh-oh > done > working > idle > asleep.
-- **Working memory.** Goal signatures with attempt counters and start
-  times, per session. This is what makes the tenth try countable.
-- **Effort.** Elapsed time, retries, errors, and agent self-report into
-  light / hard / grinding.
-- **Cheer sizing.** On turn end: hop by default; cheer when effort was hard
-  or the turn had errors; dance when a goal passed after many attempts or a
-  long red streak ended. Thresholds in one place, tunable.
-- **Nudge ladder timing.** Rungs advance on ticks. Dismissals halve, three
-  auto-snooze. Focus mode gates rung 1 and 2.
-- **Stuck detection.** Repeated goal signatures without a pass, repeated
-  identical errors, or silence past a threshold mid-turn, all tuned quiet.
-- **Occasion detection.** Rules that turn state transitions and facts into
-  `Occasion`s: hard-won pass, red streak ended, back after absence, same
-  file again, late night, nth rate limit, ritual observed. Occasions are
-  data; the voice decides what to say.
+- **Sessions.** Per agent session: source, project, state, tool, effort,
+  pending prompt.
+- **The six states** with parameters, collapsed across sessions by
+  priority: needs you > uh-oh > done > working > idle > asleep. One
+  creature.
+- **Nudge ladder timing,** dismissal halving, auto-snooze, focus gating.
+- **Stuck** from repeated goals without a pass or silence mid-turn.
+- **Moments** (below).
 
-**BuddyState** is the public projection: the one creature's state and
-parameters, the session dots, the pending card, the current bubble, the
-gift, greet level, focus flag, and the growth snapshot. Both outputs render
-only from this.
+**BuddyState.** The public projection: the creature's state and
+parameters, session dots, the pending card, the current bubble, the gift
+and its line, greet level, focus, and the growth snapshot.
+
+### Moments
+
+The thing the first draft called an occasion detector. A **moment** is a
+transition worth remarking on, recognized by a rule in the reducer, carried
+as data:
+
+```
+Moment { kind, facts }
+  kinds: hardWonPass, redStreakEnded, backAfterAbsence, sameFileAgain,
+         lateNight, nthRateLimit, ritualObserved, firstEver
+  facts: attempts, elapsed, project, days away, count, …
+```
+
+Why it exists: the buddy needs to know both *how big* to react and *what
+the story is*. Moments answer both with one concept. Cheer size is a
+function of the moment: no moment on turn end is a hop; a hard turn is a
+cheer; a hard-won pass or a red streak ending is a dance. The story line is
+the voice's rendering of the same moment. Store keeps moments as facts so
+the profile can grow from them.
+
+It is rules, not a model, so it is fast, testable, and never wrong about
+what happened; only the sentence is generated.
 
 ---
 
-## 6. Memory, growth, and reflection
+## 6. Store
 
-Services beside the reducer. The engine calls them with facts and occasions
-and feeds their results back as events (`memoryLoaded`, `profileUpdated`,
-`levelChanged`), so the reducer stays pure and the state stays the single
-source of truth.
+One SQLite database and one background job. Called by the engine; results
+return as events so the reducer stays the single source of truth.
 
-**Episodic store.** SQLite on the Mac. Structured facts only: turn
-boundaries, goal outcomes, effort, errors, projects, tone and topic tags,
-occasions. Thirty-day retention. No text longer than a line, no raw.
+| Table | Holds | Retention |
+| --- | --- | --- |
+| facts | Goal outcomes, moments, themes, tone, error classes, session summaries | 30 days |
+| profile | Human-readable lines with source and confidence | Life of the buddy; deletable line by line |
+| traits | Four personality axes plus hidden bond | Life of the buddy |
+| ledger | Append-only XP entries with source; the public formula applied at read time; daily signature from the device | Life of the buddy |
+| inventory | Cosmetics unlocked | Life of the buddy |
 
-**Profile.** A short list of human-readable lines with a source and a
-confidence: "tests first, usually," "works Sunday mornings," "dislikes
-regex." Stored as its own table, rendered as the "what your buddy knows"
-page, deletable line by line. Clearing it emits `profileCleared`; the buddy
-keeps name, level, and bond.
+**Nightly job.** When idle and on power: read the day's facts and the
+closing-line summaries from the extractor windows, ask Voice for three to
+five candidate profile lines and small trait deltas, apply caps, write,
+and tell the extractor it may drop the closing lines. Minutes, off the
+interaction path.
 
-**Personality.** Four slow traits on 0 to 255 with single-digit deltas per
-day, plus a hidden bond that only rises. Drift inputs: hours, tool mix,
-outcomes, nudge responses, check-ins, tone. Never approvals.
+**Leaderboard sync.** Opt-in. Sends buddy name, silhouette, XP total, and
+the device signatures. The only network call in the app.
 
-**Growth ledger.** Append-only XP entries with source and timestamp, the
-public formula applied at read time so the formula can change without
-rewriting history. Level, streak with banked rest days, and the cosmetics
-inventory derive from the ledger. Each day's total is signed by the device
-key when a device is paired (§9.3).
-
-**Reflection.** A scheduled job that runs when the Mac is idle and on
-power. Reads the day's facts and the capped closing messages, asks the
-voice model for three to five candidate profile lines and trait deltas,
-applies caps, writes them. Runs in minutes, not seconds, and may use a
-larger model than the live voice.
+Clearing the profile emits `profileCleared`; name, level, and bond stay.
 
 ---
 
 ## 7. Voice and the agent channel
 
-**Voice service.** Input: an occasion or state transition, up to three
-profile lines, the personality vector, the agent name, time of day, and the
-owner's language. Output: one line under the device's byte budget, and a
-longer app variant when asked. Constraints:
+**Voice.** Input: a moment or state transition, up to three profile lines,
+the traits, agent name, time of day, language. Output: one line under the
+device byte cap, or a longer app line when asked. A small local model
+behind a runtime interface, one-second budget for a device line; past
+budget the authored fallback is used and the model result discarded.
+Authored banks per language and per moment are the floor, and the only
+source on Macs that cannot run the model. Voice sees structured inputs
+only. A post-filter rejects lines aimed at the owner with negative tone.
 
-- Runs a small local model through a runtime abstraction (MLX or llama.cpp
-  on Apple Silicon; the choice is behind an interface).
-- Budget under one second for a device line. Past the budget the authored
-  fallback line is used and the model result is discarded, so the device
-  never waits.
-- Authored fallback banks per language and per occasion, used on machines
-  that cannot run the model at all.
-- Sees only structured inputs. Never a payload, never a transcript, never
-  code.
-- Sass ceiling and target enforced by prompt and by a post-filter that
-  rejects lines addressed at the owner in the second person with negative
-  tone.
-
-**Agent channel.** The MCP server at `/mcp`. Tools: `introduce`,
-`express`, `say`, `draw`, `report_effort`, and one new `tell` for "what I
-am trying to do and how it went." Enforced by the engine, not by
-guidelines: suppressed while a prompt is pending, enum-only emotions,
-byte-capped text, per-agent rate limits, rendered in a visibly different
-frame, never affects XP or traits.
+**Agent channel.** The MCP server at `/mcp`, as today: `introduce`,
+`express`, `say`, `draw`, `report_effort`. Enforced by the engine:
+suppressed while a prompt is pending, enum-only emotions, byte-capped,
+rate-limited, visually distinct, never touches XP or traits. No new tools;
+the transcript window gives the extractor what a "tell me what you did"
+tool would have.
 
 ---
 
-## 8. Outputs
+## 8. Outputs and the wire
 
 `OutputProvider` stays: `start`, `stop`, `stateDidChange(prev, next)`.
 
-**Desktop.** The menu bar creature and popover render `BuddyState` directly
-with the same six states and the same cheer sizes as the device. Also owns
-notifications (rare, opt-in), sounds when no device is paired, the needs-you
-card in the app, the recap screen, the profile page, settings, onboarding.
+**Desktop.** Menu bar creature and popover with the same six states and
+cheer sizes as the device; the needs-you card, recap, profile page,
+settings, onboarding; sounds when no device is paired.
 
-**Device.** Two parts: the mapper from `BuddyState` to `RenderState v2`, and
-the BLE transport. The mapper applies byte budgets and truncates on
-character boundaries. The transport sends a frame on every state change and
-a keepalive every few seconds, receives commands, and runs the acked
-transfer protocol for firmware updates and cosmetics.
+**Device.** A mapper from `BuddyState` to `RenderState v2` with byte caps
+on character boundaries, and the BLE transport: a frame on every change, a
+keepalive every few seconds, inbound commands, and the existing acked
+chunk protocol for updates.
 
----
+### RenderState v2, host to device
 
-## 9. The wire contract
+One JSON object per line, frame cap 1536 bytes, absent keys mean none.
 
-### 9.1 Host to device: RenderState v2
-
-One JSON object per line. Absent keys mean "unchanged or none." Byte
-budgets per field match the firmware's fixed buffers. Frame cap 1536 bytes.
-
-| Field | Type | Meaning |
-| --- | --- | --- |
-| `v` | int | Contract version |
-| `state` | enum | asleep, idle, working, needsYou, done, uhoh |
-| `effort` | enum | light, hard, grinding |
-| `cheer` | enum | hop, cheer, dance |
-| `uhoh` | enum | error, stuck, hungry |
-| `overlay` | enum | greet, boop |
-| `greetLevel` | int | 0 to 3 |
-| `dots` | int | Active sessions, 0 to 5 |
-| `dotAlert` | int | Index of a red-tinted dot, or absent |
-| `card` | object | `{id, tool, gloss, stakes, n, of}` for needs you; `{kind, text}` for pairing and update |
-| `bubble` | string | One line, byte-capped, shown for four seconds |
-| `gift` | bool | Orb pending |
-| `giftLine` | string | The story line shown on collect |
-| `focus` | bool | |
-| `mute` | int | Volume step or mute |
-| `posture` | enum | Optional override: desk, perch, travel |
-| `cosmetic` | object | `{skin, accessory, silhouette}` ids |
-| `snap` | object | Travel snapshot: `{name, level, xp, xpNext, streak, best, rest, days, tasks, today, biggest}` |
-| `agent` | object | Channel overlay: `{name, color, emotion, say}` never with a card |
-| `t` | int | Host time for the device clock |
-
-### 9.2 Device to host
-
-| Message | When |
+| Field | Meaning |
 | --- | --- |
-| `{"cmd":"decision","id":…,"d":"allow"\|"deny"}` | A button answered an armed card |
-| `{"cmd":"collect"}` | Orb popped |
-| `{"cmd":"boop","hold":bool}` | Tap or pet, rate-limited |
-| `{"cmd":"posture","p":…}` | Posture changed |
-| `{"cmd":"motion","m":"shake"\|"flip"\|"pickup"}` | Display-only, mirrored to the desktop |
-| `{"cmd":"battery","pct":…,"charging":bool}` | On change and on connect |
-| `{"cmd":"focus","on":bool}` | Secondary hold toggled it |
-| `{"cmd":"status"}` reply | Board id, firmware, key id, stats snapshot |
-| `{"ack":…}` | Transfer and update replies, as today |
+| `v` | Contract version |
+| `state` | asleep, idle, working, needsYou, done, uhoh |
+| `effort` | light, hard, grinding |
+| `cheer` | hop, cheer, dance |
+| `uhoh` | error, stuck, hungry |
+| `overlay`, `greetLevel` | greet or boop; 0 to 3 |
+| `dots`, `dotAlert` | Active sessions 0 to 5; index of a red dot |
+| `card` | `{id, tool, gloss, stakes, n, of}` or `{kind, text}` for pairing and update |
+| `bubble` | One capped line, four seconds |
+| `gift`, `giftLine` | Orb pending; the story line on collect |
+| `focus`, `mute` | |
+| `cosmetic` | `{skin, accessory, silhouette}` |
+| `snap` | Travel snapshot: name, level, xp, xpNext, streak, best, rest, days, tasks, today, biggest |
+| `agent` | Channel overlay `{name, color, emotion, say}`, never with a card |
+| `t` | Host time |
 
-### 9.3 Device key and signed growth
+### Device to host
 
-Each device holds a per-unit key in protected storage, provisioned at
-manufacture. The app sends the day's XP total; the device returns a
-signature over `{unitId, day, xp}`. The app stores it in the ledger. The
-leaderboard client submits `{buddyName, silhouette, xpTotal, signatures}`
-and nothing else. No device, no signature, no rank.
+`decision {id, d}`, `collect`, `boop {hold}`, `posture {p}`, `motion {m}`,
+`battery {pct, charging}`, `focus {on}`, `status` reply with board id and
+key id, and `ack` for transfers.
 
-### 9.4 Transport
+### Signing
 
-Nordic UART over BLE, newline-delimited JSON both ways, 180-byte write
-chunks, as today. Bonded with LE Secure Connections. Frames on change plus a
-keepalive; the device treats a minute without frames as link lost. Time
-sync rides on the frame. Firmware updates and cosmetic assets use the
-existing chunk-and-ack protocol with back-pressure.
+Each device holds a per-unit key. Once a day the app sends the XP total and
+the device returns a signature over `{unit, day, xp}`, stored in the
+ledger. No device, no signature, no rank.
 
----
+### Transport
 
-## 10. Firmware
-
-```
- BLE / USB line ──► parse ──► validate (version, enums, byte caps)
-                                 │
-                                 ▼
-                          device model          ◄── buttons, IMU, battery
-                    (last RenderState + local:    (debounced, arm delay,
-                     posture, brightness, orb,     wake-press guard)
-                     card armed, travel snap)
-                                 │
-                                 ▼
-                          renderer, by screen priority
-                    system card > needs-you card > decision feedback >
-                    uh-oh bubble > stats > bubble > overlay > face+field+dots+orb
-                                 │
-                                 ▼
-                    face parts (eyes, brows, mouth, cheeks, body, feet)
-                    field, sparks, sound engine (7 motifs, manners)
-```
-
-Responsibilities:
-
-- **Message handling.** One line, one parse, one validation pass. Unknown
-  keys are ignored so old firmware survives new fields. Bad enums fall back
-  to the last good value. A frame never blocks rendering; it updates the
-  model and the next tick renders it.
-- **Local autonomy.** The device owns what must work without the app: the
-  arm delay and wake-press guard on the card, the shutdown hold ladder,
-  posture detection from the IMU, dim ladder, boop and pet reactions,
-  shake and flip, travel-mode stats cards from the last snapshot, and the
-  sleep animation.
-- **Persistence.** NVS holds the unit key, bond, the last travel snapshot,
-  cosmetic ids, volume, and a first-wake-done flag. Nothing else. The Mac is
-  the source of truth for everything the snapshot summarizes.
-- **Sound.** Seven motifs in a table, a non-blocking scheduler, and the
-  manners (one-second spacing, ten-second cheer spacing, café floor).
-- **Rendering.** Per-frame incremental, spring physics for squish and
-  dangle, no blocking sequences. Parts compose; there is no sprite per
-  state.
-- **Updates.** OTA over the existing acked protocol, with a board id in the
-  status reply so the app never sends the wrong image.
-- **Debug.** USB serial mirrors the BLE line protocol so hardware-in-the-loop
-  tests can drive the device without a radio, as today.
-
-What is removed from today's firmware: the species and character menu, the
-glance card, the orb-per-session fireflies, the mood engine, and any text
-composition. Six states, one card, one bubble.
+Nordic UART over BLE, newline JSON, 180-byte chunks, LE Secure Connections
+bonding, as today. A minute without frames is link lost on the device.
 
 ---
 
-## 11. Kept, changed, new
+## 9. Firmware
+
+```
+ line ──► parse ──► validate ──► device model ◄── buttons, IMU, battery
+                                     │
+                                     ▼
+                     renderer by priority: system card > needs-you card >
+                     decision feedback > uh-oh bubble > stats > bubble >
+                     overlay > face + field + dots + orb
+                                     │
+                                     ▼
+                     face parts, field, sparks, sound (7 motifs, manners)
+```
+
+- **Messages.** One line, one parse, one validation. Unknown keys ignored,
+  bad enums keep the last good value, frames never block a render tick.
+- **Local autonomy,** exactly what must work without the app: card arm
+  delay and wake-press guard, shutdown hold ladder, posture from the IMU,
+  dim ladder with a never-off sleep frame, boop and pet, shake and flip,
+  travel stats from the last snapshot.
+- **NVS.** Unit key, bond, last snapshot, cosmetic ids, volume, first-wake
+  flag. Nothing else.
+- **Rendering.** Per-frame incremental, springs for squish and dangle,
+  parts compose; no sprite per state.
+- **Updates.** OTA over the acked protocol; board id in the status reply
+  so the app never sends the wrong image.
+- **Debug.** USB serial mirrors the BLE line protocol for hardware-in-the-
+  loop tests, as today.
+
+Removed from today's firmware: species and character menu, glance card,
+orb-per-session fireflies, mood engine, any text composition.
+
+---
+
+## 10. Kept, changed, new
 
 | Area | Today | v1 |
 | --- | --- | --- |
-| Hook script and installer | Keep | Forward more fields with byte caps |
-| HookServer routes and auth | Keep | Add `RawHookPayload` handoff to the extractor |
-| Cursor auto-approve rule | Keep | Unchanged |
-| Extractor | Does not exist; hints extracted inline | New |
-| Engine and pure reducer | Keep | New state vocabulary, working memory, cheer sizing, occasions |
-| PetMemory | Keep the shape | Grows into episodic store plus profile; moves persistence out of the reducer's file into a store service |
-| Growth | Does not exist | New ledger, level, streak, cosmetics, signing |
-| Voice | Does not exist | New service with runtime abstraction and fallback banks |
-| MCP agent channel | Keep | Add `tell`, keep sandbox rules |
-| Desktop output | Keep | Re-render for six states; add profile page, recap, onboarding |
-| RenderState | Keep the mechanism | v2 fields; contract version field |
-| BLE transport, OTA, acks | Keep | Add device-to-host commands; board id |
-| Firmware | Keep HAL, BLE, OTA, HIL | Rewrite the model and renderer around six states |
-| Leaderboard client | Does not exist | New, opt-in, the only network code |
+| Hook script, installer, server routes, auth, Cursor auto-approve | Keep | Forward more fields with caps |
+| Extractor with session windows | Hints parsed inline | New |
+| Engine and pure reducer | Keep | Six states, moments, cheer sizing |
+| PetMemory | Keep the idea | Becomes Store: SQLite, profile, ledger, nightly job |
+| Voice | None | New, with fallback banks |
+| MCP channel | Keep | Unchanged |
+| Desktop output | Keep | Re-render for six states; profile page, recap, onboarding |
+| RenderState, BLE, OTA | Keep the mechanism | v2 fields, new inbound commands, board id, signing |
+| Firmware | Keep HAL, BLE, OTA, HIL | Rewrite model and renderer around six states |
 
 ---
 
-## 12. Key flows end to end
+## 11. Flows end to end
 
-**Needs you, with budget.**
+**Needs you.** Hook fires, script holds `/hook/approve`. Extractor emits
+needs-you with gloss and stakes. Reducer enters the state; engine holds the
+continuation. Frame with the card reaches the device under 500 ms. Firmware
+arms, plays "meep?". Tap sends `decision` and reaches the app under 300 ms.
+Engine resolves the held call with allow; the next frame clears the card;
+firmware shows "yes!" only then. Timeout or app gone: passthrough.
 
-1. Agent fires the permission hook. Script POSTs `/hook/approve` and holds.
-2. Server parses, extractor produces `needsYou` with gloss and stakes.
-3. Reducer enters needs-you; engine registers the continuation.
-4. Device output maps to a frame with the card; BLE sends it. Target under
-   500 ms from hook to screen.
-5. Firmware arms the card after its delay, plays "meep?", renders.
-6. Primary tap. Firmware sends `decision`. Target under 300 ms from press
-   to the app.
-7. Engine resolves the continuation; the held HTTP call returns allow; the
-   agent proceeds. The next frame clears the card. Firmware shows "yes!"
-   only when that frame arrives.
-8. Timeout or app gone: script returns passthrough; the agent's own prompt
-   appears.
+**The tenth try.** Ten tool call and result pairs land in the session
+window. The goals reader sees the same signature nine fails deep, then a
+pass, and emits a fact with attempts and elapsed time; effort reaches
+grinding along the way. On turn end the reducer's moment rule fires
+hardWonPass; cheer size is dance. Voice renders "ten tries. nice job on the
+tests." within a second or the fallback plays. Frame carries dance, gift,
+and the line. Store keeps the fact and the moment and adds an XP entry.
+Nothing raw was written anywhere.
 
-**The tenth try.**
+**Unlink and back.** Every frame carries `snap`; the device keeps the last
+in NVS. Link lost on battery: a minute at the Bluetooth mark, yawn, travel
+idle; stats render from NVS. Link back: device sends status and battery;
+app sends greet with the level from the gap and asks for the day's
+signature.
 
-1. Ten `toolCalled` and `toolResulted` pairs with the same goal signature;
-   the extractor reads nine fails and one pass.
-2. Working memory counts attempts; effort reaches grinding; the device
-   shows sweat.
-3. Turn ends. Cheer sizing picks dance. Occasion detector emits hard-won
-   pass with attempts and elapsed time.
-4. Voice gets the occasion, the project line from the profile, and the
-   personality. Returns "ten tries. nice job on the tests." in under a
-   second, or the authored fallback.
-5. Frame carries `cheer: dance`, `gift: true`, `giftLine`. Device dances,
-   orb settles. Collect shows the line.
-6. The fact and the occasion go to the episodic store. XP entry for a
-   completed task with effort. Nothing raw was kept.
+**Nightly.** Idle and on power: Store reads the day's facts and the
+closing-line summaries, Voice proposes profile lines and trait deltas,
+caps apply, events go through the reducer, the extractor drops the
+closing lines.
 
-**Unlink to travel and back.**
-
-1. Every frame carries `snap`; the device persists the latest to NVS.
-2. Link lost on battery: a minute of glancing at the Bluetooth mark, then
-   yawn, then travel idle. Stats cards render from NVS.
-3. Link returns: device sends `status` and `battery`; app sends a frame
-   with `overlay: greet` and the level from the gap. Day's XP gets signed.
-
-**Nightly reflection.**
-
-1. Scheduler sees idle and power. Reads the day's facts and closing
-   messages from the store.
-2. Voice model proposes profile lines and trait deltas. Caps applied.
-3. `profileUpdated` and `traitsChanged` events go through the reducer.
-   Closing messages are deleted; facts age out at thirty days.
-
-**First wake and pairing.**
-
-1. First power: firmware's first-wake flag is unset. Plays the first-wake
-   ritual and shows the Bluetooth mark.
-2. App discovers, bonds, sends a frame. Mark turns solid; hop.
-3. First real agent event: frame carries `cosmetic` with the first color;
-   firmware shimmers. First `turnEnded` gets `cheer: cheer` regardless.
+**First wake.** First-wake flag unset: firmware plays the ritual and shows
+the Bluetooth mark. App bonds and sends a frame; the mark goes solid. First
+agent event: frame carries the first color; first turn end is a cheer
+regardless.
 
 ---
 
-## 13. Latency budgets
+## 12. Budgets and storage
 
 | Path | Budget |
 | --- | --- |
 | Hook to card on device | 500 ms |
 | Button to decision at the app | 300 ms |
-| State change to frame on device | 250 ms |
+| State change to frame | 250 ms |
 | Authored line | instant |
 | Model line for the device | 1 s, then fallback |
-| App-side longer line | 3 s |
-| Reflection | minutes, off the interaction path |
-
----
-
-## 14. Storage map
+| Nightly job | minutes, off path |
 
 | Lives on | What | Retention |
 | --- | --- | --- |
-| Mac, SQLite | Facts, occasions, XP ledger with signatures, profile lines, personality, cosmetics inventory | Facts 30 days; the rest for the life of the buddy |
-| Mac, memory only | Raw hook payloads, closing messages until reflection runs | Seconds to one night |
-| Mac, files | Authored line banks, runner table, stakes rules, model weights | Shipped with the app |
-| Device, NVS | Unit key, bond, travel snapshot, cosmetic ids, volume, first-wake flag | Until replaced |
-| Leaderboard server | Buddy name, silhouette, XP total, signatures | Opt-in |
+| Mac, memory only | Session transcript windows | Bounded; gone on session end or app quit |
+| Mac, SQLite | Facts, moments, profile, traits, ledger with signatures, inventory | Facts 30 days; the rest for the buddy's life |
+| Mac, files | Authored banks, runner table, stakes rules, model weights | Shipped |
+| Device, NVS | Unit key, bond, snapshot, cosmetics, volume, first-wake flag | Until replaced |
+| Leaderboard | Name, silhouette, XP total, signatures | Opt-in |
 
-No transcript, code, file content, or prompt text is stored anywhere, in
-any form.
-
----
-
-## 15. Testing
-
-- **Reducer.** Pure, exhaustive unit tests: state collapse across sessions,
-  cheer sizing thresholds, nudge ladder timing, working memory, occasions.
-- **Extractor.** Fixture corpus of real payloads per agent and per version,
-  with expected events, facts, stakes, and glosses. Runs in CI. This is the
-  guard against agent releases changing payloads.
-- **Voice.** Golden tests on the authored banks; property tests on the
-  post-filter; latency test that the fallback fires past budget.
-- **Wire.** Encoder tests for every byte budget on character boundaries;
-  version compatibility tests against the previous firmware.
-- **Firmware.** Hardware-in-the-loop over USB: drive frames, press buttons,
-  assert screenshots and outbound commands, as today.
-- **End to end.** Scripted sessions per agent against a running app; the
-  ten-scenario bench from the sprint plan, extended with the tenth-try case.
+No transcript, code, file content, or prompt text is written to disk
+anywhere, in any form.
 
 ---
 
-## 16. Open questions
+## 13. Testing
 
-- Should the extractor run in-process or as a separate helper so a parsing
-  crash cannot take the engine down? Leaning in-process with a hard
-  try-catch boundary and the fixture corpus as the real defense.
-- Where the runner table lives: shipped file with updates through the app,
-  or fetched. Shipped; the app updates often enough.
-- Whether the device signs daily or per session. Daily is enough for the
-  leaderboard and cheaper on the radio.
-- Model runtime: MLX versus llama.cpp, decided by the latency bench across
-  the Macs the audience actually owns.
-- Windows changes the hook script, the server host, and the model runtime,
-  and nothing in the core. Confirm that boundary holds as the extractor is
-  built.
+- **Reducer.** Pure unit tests: collapse across sessions, moment rules,
+  cheer sizing, nudge timing, stuck.
+- **Extractor.** Fixture corpus of real hook streams per agent and version,
+  replayed through windows, asserting events and facts. The guard against
+  agent releases.
+- **Voice.** Golden tests on banks, post-filter property tests, fallback
+  fires past budget.
+- **Wire.** Byte-cap encoder tests on character boundaries; compatibility
+  against the previous firmware.
+- **Firmware.** Hardware-in-the-loop over USB, as today.
+- **End to end.** Scripted sessions per agent against a running app,
+  including the tenth-try case.
+
+---
+
+## 14. Open questions
+
+- Window caps: entries versus bytes, and whether long sessions need a
+  rolling summary entry so eviction does not lose the goal history. Leaning
+  toward keeping a compact per-goal tally alongside the raw window so
+  eviction never loses a count.
+- Model runtime, MLX versus llama.cpp, decided by a latency bench on the
+  Macs the audience owns.
+- Windows changes the script, the server host, and the runtime, and
+  nothing in the core. Confirm as the extractor is built.
