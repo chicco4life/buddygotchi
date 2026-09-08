@@ -23,8 +23,8 @@ __pycache__/
 venv/
 
 # Swift / SPM
-app/.build/
-app/.swiftpm/
+archived/app/.build/
+archived/app/.swiftpm/
 .build/
 .swiftpm/
 Package.resolved.bak
@@ -45,7 +45,7 @@ dist-tsc/
 *.log
 .env
 .env.*
-!landing/.env.example
+!archived/landing/.env.example
 boop-bug-report-*.json
 
 # Snapshot and temporary outputs

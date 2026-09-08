@@ -1,8 +1,14 @@
 # Boop
 
-Boop is a native macOS menu bar companion for AI coding agents. It watches Claude Code, Cursor, and Codex through local hook integrations, turns their activity into buddy state, surfaces approval prompts, and can mirror the same state to a Boop hardware buddy over Bluetooth.
+This repository is mid-redesign. `plan/` holds the direction for the next
+generation (vision, device UX, architecture, verification, implementation
+plan). `archived/` holds the complete previous generation, which still
+builds and runs: the Swift macOS menu bar app, the ESP32 firmware, the
+landing page, hardware files, and earlier research. Start with
+[plan/VISION.md](plan/VISION.md) and [plan/PLAN.md](plan/PLAN.md).
 
-The current product lives in three top-level areas: the Swift macOS app in `app/`, the landing page in `landing/`, and the active ESP32 firmware in `firmware/esp32/`. Planning and reference material lives in `research/`; public release/support pages live in `docs/`.
+The rest of this file describes the archived implementation. Every command
+below runs from `archived/` unless it says otherwise.
 
 ## What It Does
 
@@ -22,9 +28,10 @@ The current product lives in three top-level areas: the Swift macOS app in `app/
 
 ## Build, Run, And Test
 
-From the repo root:
+From `archived/`:
 
 ```sh
+cd archived
 make build
 make test
 make run
@@ -64,29 +71,29 @@ make clean             # remove SwiftPM build output
 The e2e smoke runner can also be invoked directly:
 
 ```sh
-app/tools/e2e-smoke.sh
-app/tools/e2e/claude.sh
-app/tools/e2e/codex.sh
-app/tools/e2e/cursor.sh
+archived/app/tools/e2e-smoke.sh
+archived/app/tools/e2e/claude.sh
+archived/app/tools/e2e/codex.sh
+archived/app/tools/e2e/cursor.sh
 ```
 
 ## Project Layout
 
 | Path | Purpose |
 | --- | --- |
-| `app/` | Active macOS Swift app, hook CLIs, tests, and e2e scripts |
-| `landing/` | Next.js landing page and waitlist API |
-| `firmware/esp32/` | ESP32 firmware, PlatformIO config, character tools, and device docs |
-| `research/plan/` | The active direction: vision, device UX, architecture, verification, implementation plan, ideas |
-| `research/archived/` | Earlier product, marketing, hardware, and engineering docs, plus captured agent hook references |
-| `docs/` | Public release/support pages and web flasher assets |
+| `archived/app/` | Active macOS Swift app, hook CLIs, tests, and e2e scripts |
+| `archived/landing/` | Next.js landing page and waitlist API |
+| `archived/firmware/esp32/` | ESP32 firmware, PlatformIO config, character tools, and device docs |
+| `plan/` | The active direction: vision, device UX, architecture, verification, implementation plan, ideas |
+| `archived/research/` | Earlier product, marketing, hardware, and engineering docs, plus captured agent hook references |
+| `archived/docs/` | Public release/support pages and web flasher assets |
 | `README.md` | Overview and build/run/test instructions |
 | `AGENTS.md`, `CLAUDE.md` | Repo instructions for coding agents |
 
 ## ESP32 Firmware
 
 ```sh
-cd firmware/esp32
+cd archived/firmware/esp32
 pio run
 pio run -t upload
 pio run -t uploadfs
@@ -95,17 +102,17 @@ pio run -t uploadfs
 Hardware helper scripts:
 
 ```sh
-python3 firmware/esp32/tools/screenshot.py --out /tmp/buddy.png
-python3 firmware/esp32/tools/button.py --mock a
-python3 firmware/esp32/tools/button.py b
+python3 archived/firmware/esp32/tools/screenshot.py --out /tmp/buddy.png
+python3 archived/firmware/esp32/tools/button.py --mock a
+python3 archived/firmware/esp32/tools/button.py b
 ```
 
 ## More Detail
 
-See [research/plan/ARCHITECTURE.md](research/plan/ARCHITECTURE.md) for the target architecture and [research/archived/eng/ARCHITECTURE-APP.md](research/archived/eng/ARCHITECTURE-APP.md) for the source-derived description of the current code. See [AGENTS.md](AGENTS.md) for repo-specific instructions for coding agents.
+See [plan/ARCHITECTURE.md](plan/ARCHITECTURE.md) for the target architecture and [archived/research/eng/ARCHITECTURE-APP.md](archived/research/eng/ARCHITECTURE-APP.md) for the source-derived description of the current code. See [AGENTS.md](AGENTS.md) for repo-specific instructions for coding agents.
 
-Release and support details live in [docs/RELEASE.md](docs/RELEASE.md) and [docs/SUPPORT.md](docs/SUPPORT.md). To remove Boop, use Settings, About, Remove Boop, or follow the manual uninstall notes in the support doc.
+Release and support details live in [archived/docs/RELEASE.md](archived/docs/RELEASE.md) and [archived/docs/SUPPORT.md](archived/docs/SUPPORT.md). To remove Boop, use Settings, About, Remove Boop, or follow the manual uninstall notes in the support doc.
 
 ## License
 
-The ESP32 firmware license is in [firmware/esp32/LICENSE](firmware/esp32/LICENSE).
+The ESP32 firmware license is in [archived/firmware/esp32/LICENSE](archived/firmware/esp32/LICENSE).

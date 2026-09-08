@@ -84,6 +84,6 @@ jobs:
 
           Next manual gate:
           1. Download the signed artifact on a clean Mac and verify Gatekeeper launch.
-          2. Run app/tools/make-appcast.sh "$SPARKLE_BIN_DIR" <downloads-dir> with the private EdDSA key available to Sparkle.
-          3. Open a landing PR updating landing/public/releases/appcast.xml (served at https://adoptaboop.com/releases/appcast.xml).
+          2. Run archived/app/tools/make-appcast.sh "$SPARKLE_BIN_DIR" <downloads-dir> with the private EdDSA key available to Sparkle.
+          3. Open a landing PR updating archived/landing/public/releases/appcast.xml (served at https://adoptaboop.com/releases/appcast.xml).
           MSG

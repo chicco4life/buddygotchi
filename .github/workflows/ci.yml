@@ -19,14 +19,14 @@ jobs:
       - name: Cache SwiftPM build
         uses: actions/cache@v4
         with:
-          path: app/.build
-          key: ${{ runner.os }}-swift-${{ hashFiles('app/Package.resolved') }}
+          path: archived/app/.build
+          key: ${{ runner.os }}-swift-${{ hashFiles('archived/app/Package.resolved') }}
           restore-keys: |
             ${{ runner.os }}-swift-
 
       - name: Build
         run: swift build
-        working-directory: app
+        working-directory: archived/app
 
       - name: Test
         run: |
@@ -37,7 +37,7 @@ jobs:
             echo "Expected at least 100 executed tests; failing to catch silent test skips." >&2
             exit 1
           fi
-        working-directory: app
+        working-directory: archived/app
 
       - name: Generate UI snapshots
         continue-on-error: true
@@ -45,7 +45,7 @@ jobs:
           mkdir -p /tmp/buddy-snapshots
           touch /tmp/buddy-snapshots/.enable
           swift test --disable-sandbox --filter SnapshotHarnessTests
-        working-directory: app
+        working-directory: archived/app
 
       - name: Upload UI snapshots
         uses: actions/upload-artifact@v4

@@ -2,17 +2,37 @@
 
 These instructions apply to the whole repo.
 
+## Repo Layout
+
+- `plan/` is the active direction: `VISION.md`, `UX-DEVICE.md`,
+  `ARCHITECTURE.md`, `VERIFICATION.md`, `PLAN.md`, `IDEAS.md`. Read
+  `plan/PLAN.md` to find the current phase before starting work.
+- `archived/` is the previous generation of the product, moved whole: the
+  Swift macOS app (`archived/app/`), the ESP32 firmware
+  (`archived/firmware/esp32/`), the landing page, hardware, emails, docs,
+  the Makefile, and the earlier research (`archived/research/`). It still
+  builds and runs, and `plan/ARCHITECTURE.md` §10 says which parts carry
+  forward. Do not extend it except to keep it building; new work lands
+  outside `archived/` per the plan.
+- `tools/doctor.sh` and `skills/doctor/` are the agent-agnostic harness
+  self-check and live at the root.
+
 ## Current Product Shape
 
-- The active app is the Swift macOS project in `app/`.
-- The production data path is `agent hooks -> HookServer -> BuddyEngine -> pure reducer -> OutputProvider`.
-- The ESP32 firmware in `firmware/esp32/` is active and consumes the Swift app's heartbeat JSON.
+- The production data path of the archived app is
+  `agent hooks -> HookServer -> BuddyEngine -> pure reducer -> OutputProvider`.
+- The target data path is in `plan/ARCHITECTURE.md`:
+  `hooks -> Server -> Extractor -> Core -> Outputs`, with `Store` and
+  `Voice` beside the core.
+- The archived ESP32 firmware consumes the archived app's heartbeat JSON;
+  the target wire contract is `RenderState v2` in `plan/ARCHITECTURE.md` §8.
 
 ## Build And Test
 
-From the repo root:
+The archived implementation builds from `archived/`:
 
 ```sh
+cd archived
 make build
 make test
 make run
@@ -50,10 +70,10 @@ swift test --disable-sandbox --filter SnapshotHarnessTests
 HTTP smoke tests require the app running in a real terminal:
 
 ```sh
-app/tools/e2e-smoke.sh
-app/tools/e2e/claude.sh
-app/tools/e2e/codex.sh
-app/tools/e2e/cursor.sh
+archived/app/tools/e2e-smoke.sh
+archived/app/tools/e2e/claude.sh
+archived/app/tools/e2e/codex.sh
+archived/app/tools/e2e/cursor.sh
 ```
 
 ESP32 hardware-in-the-loop checks require a plugged-in M5StickC Plus 2:
@@ -66,7 +86,7 @@ make hil-ble
 Verifying firmware on the real device:
 
 ```sh
-cd firmware/esp32
+cd archived/firmware/esp32
 pio run -e m5stickc-plus -t upload
 tools/buddyctl.py ping --json
 tools/buddyctl.py set --pet attention --waiting 1 --prompt-id req_1 --prompt-tool Bash --prompt-hint "npm test"
@@ -89,7 +109,7 @@ yourself; ask the user to (an agent-launched Boop aborts on Bluetooth).
 
 ## Architecture Rules
 
-- Keep `app/Boop/Core/` pure. The reducer must not perform I/O, read clocks, read user defaults, call UI, or touch BLE.
+- Keep `archived/app/Boop/Core/` pure. The reducer must not perform I/O, read clocks, read user defaults, call UI, or touch BLE.
 - Model new behavior as `BuddyEvent` values and reducer transitions first.
 - Add agent-specific parsing in `HookServer` or hook installer code, not in output code.
 - Add displays by implementing `OutputProvider` and deriving everything from `BuddyState`.
@@ -97,32 +117,31 @@ yourself; ask the user to (an agent-launched Boop aborts on Bluetooth).
 - Approval continuations belong in `BuddyEngine`, not in `BuddyState`.
 - Treat `RenderState` in `Outputs/ESP32/Heartbeat.swift` as the desktop-to-firmware wire contract.
 - Keep Cursor auto-approval conservative. Shell commands with control characters must require manual review.
-- Keep agent expression (MCP) inside the enforced sandbox: suppressed while any prompt is pending, enum-only vocabulary, byte-capped text, engine-side rate limits. Never award pet joy or memory for approval decisions. See `research/archived/eng/personality-and-embodiment.md`.
+- Keep agent expression (MCP) inside the enforced sandbox: suppressed while any prompt is pending, enum-only vocabulary, byte-capped text, engine-side rate limits. Never award pet joy or memory for approval decisions. See `archived/research/eng/personality-and-embodiment.md`.
 
 ## Files To Know
 
 | File | Role |
 | --- | --- |
-| `app/Boop/Core/BuddyState.swift` | Public state projection and session models |
-| `app/Boop/Core/BuddyReducer.swift` | State transition authority |
-| `app/Boop/Core/BuddyEngine.swift` | Main orchestrator, outputs, approval continuations |
-| `app/Boop/Server/HookServer.swift` | HTTP input adapter and approval responses |
-| `app/Boop/Install/HookInstaller.swift` | Agent hook registration and generated bash script |
-| `app/Boop/Outputs/ESP32/Heartbeat.swift` | Hardware heartbeat mapper |
-| `app/Boop/Outputs/ESP32/BLEManager.swift` | BLE transport, inbound approvals, OTA acks |
-| `app/Boop/Views/PopoverView.swift` | Main user-visible UI |
-| `app/Boop/Core/PetMemory.swift` | Pet personality memory, effort/mood types, agent vocabulary |
-| `app/Boop/Server/MCPServer.swift` | Agent-embodiment MCP input adapter (express/say/introduce/report_effort) |
+| `archived/app/Boop/Core/BuddyState.swift` | Public state projection and session models |
+| `archived/app/Boop/Core/BuddyReducer.swift` | State transition authority |
+| `archived/app/Boop/Core/BuddyEngine.swift` | Main orchestrator, outputs, approval continuations |
+| `archived/app/Boop/Server/HookServer.swift` | HTTP input adapter and approval responses |
+| `archived/app/Boop/Install/HookInstaller.swift` | Agent hook registration and generated bash script |
+| `archived/app/Boop/Outputs/ESP32/Heartbeat.swift` | Hardware heartbeat mapper |
+| `archived/app/Boop/Outputs/ESP32/BLEManager.swift` | BLE transport, inbound approvals, OTA acks |
+| `archived/app/Boop/Views/PopoverView.swift` | Main user-visible UI |
+| `archived/app/Boop/Core/PetMemory.swift` | Pet personality memory, effort/mood types, agent vocabulary |
+| `archived/app/Boop/Server/MCPServer.swift` | Agent-embodiment MCP input adapter (express/say/introduce/report_effort) |
 
 ## Documentation Expectations
 
-- `research/plan/` is the active product and engineering direction: `VISION.md`,
-  `UX-DEVICE.md`, `ARCHITECTURE.md`, `VERIFICATION.md`, `PLAN.md`, `IDEAS.md`.
-  When code and these docs disagree, the docs describe the target and
-  `PLAN.md` says which phase closes the gap.
-- `research/archived/` holds everything that came before (older product,
-  marketing, hardware, and source-derived engineering docs). Read it for
-  history and for the still-valid command references in
-  `research/archived/eng/TESTING.md` and `RELEASE.md`; do not extend it.
+- `plan/` is the direction. When code and these docs disagree, the docs
+  describe the target and `plan/PLAN.md` says which phase closes the gap.
+- `archived/research/` holds the earlier product, marketing, hardware, and
+  source-derived engineering docs. Read it for history and for the still
+  valid command references in `archived/research/eng/TESTING.md` and
+  `RELEASE.md`; do not extend it. Commands in archived docs run from
+  `archived/`.
 - Keep `README.md` focused on overview and build/run/test instructions.
 - Keep this file mirrored in `CLAUDE.md` and `AGENTS.md`.

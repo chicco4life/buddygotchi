@@ -25,7 +25,7 @@ jobs:
 
       - name: Static check
         run: pio check || true
-        working-directory: firmware/esp32
+        working-directory: archived/firmware/esp32
 
       - name: Build firmware
         env:
@@ -33,15 +33,15 @@ jobs:
         run: |
           export BUDDY_FW_VERSION="${BUDDY_FW_VERSION#fw-v}"
           platformio run
-        working-directory: firmware/esp32
+        working-directory: archived/firmware/esp32
 
       - name: Generate release manifests
         run: |
           VERSION="${GITHUB_REF_NAME#fw-v}"
-          python3 firmware/esp32/tools/generate_release_manifests.py \
+          python3 archived/firmware/esp32/tools/generate_release_manifests.py \
             --version "$VERSION" \
             --base-url "https://adoptaboop.com/firmware" \
-            --build-dir firmware/esp32/.pio/build/m5stickc-plus \
+            --build-dir archived/firmware/esp32/.pio/build/m5stickc-plus \
             --out-dir build/firmware
 
       - name: Create GitHub release
@@ -54,5 +54,5 @@ jobs:
             Manual gate before publishing:
             - OTA this binary on a real M5StickC Plus 2.
             - Confirm buddyctl.py ping --json reports fw == ${{ github.ref_name }} with the fw-v prefix stripped.
-            - Open a landing PR publishing manifest.json, esp-web-tools-manifest.json, and the .bin files under landing/public/firmware/ (served at https://adoptaboop.com/firmware/).
+            - Open a landing PR publishing manifest.json, esp-web-tools-manifest.json, and the .bin files under archived/landing/public/firmware/ (served at https://adoptaboop.com/firmware/).
           draft: true
