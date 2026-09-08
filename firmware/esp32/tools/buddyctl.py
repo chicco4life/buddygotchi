@@ -284,9 +284,18 @@ def json_reply(buf: bytes, ack: str) -> dict[str, Any] | None:
 
 
 def signing_request(serial: SerialBuddy, request: dict[str, Any], timeout: float = 5) -> dict[str, Any]:
-    serial.write_line(json.dumps(request, separators=(",", ":")))
-    _, reply = serial.read_until(lambda buf: json_reply(buf, request["cmd"]), timeout)
-    return reply
+    # Right after a reboot the first line can be swallowed while USB CDC
+    # settles; one retry keeps the HIL suite honest without hiding real faults.
+    for attempt in (1, 2):
+        serial.write_line(json.dumps(request, separators=(",", ":")))
+        try:
+            _, reply = serial.read_until(lambda buf: json_reply(buf, request["cmd"]), timeout)
+            return reply
+        except BuddyError:
+            if attempt == 2:
+                raise
+            time.sleep(0.5)
+    raise BuddyError("unreachable", 2)
 
 
 def command_signing(args: argparse.Namespace) -> int:
