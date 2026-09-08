@@ -40,10 +40,17 @@ struct Decision {
   bool allow = false, confirmed = false;
   uint32_t at = 0, confirmedAt = 0;
 } decision;
-bool retiring = false;
-static bool retired = false, coloring = false, levelActive = false, streakActive = false;
-static bool revealCosmetic = false, awaitCosmetic = false;
-static uint32_t wakeAt=0, colorAt=0, levelAt=0, streakAt=0, retireAt=0, linkAt=0;
+enum Ritual : uint8_t { R_NONE, R_FIRST_WAKE, R_COLOR, R_LEVEL, R_LEVEL_AWAIT, R_STREAK, R_RETIRE };
+static Ritual ritual = R_NONE;
+static uint32_t ritualAt = 0;
+static const uint16_t ritualDuration[] = {0, 0, 600, 1500, 1500, 1500, 2400};
+static const char* const ritualNames[] = {"none", "firstWake", "firstWake", "levelUp", "levelUp", "streak", "retire"};
+// Retirement leaves no active ritual, no frame, and an uncompleted wake.
+// Boot and explicit wake reset instead enter R_FIRST_WAKE.
+static bool isRetired() { return ritual==R_NONE && firstWake && !haveFrame; }
+static uint32_t linkAt = 0;
+bool isRetiring() { return ritual == R_RETIRE; }
+static bool levelRitual() { return ritual == R_LEVEL || ritual == R_LEVEL_AWAIT; }
 static bool linkFlash=false;
 static Cosmetics oldCosmetic;
 static bool systemCard() { return blePasskey() || otaActive() || (tama.card.kind[0] && !cardDismissed); }
@@ -74,44 +81,53 @@ void sendUnpairAck() {
   bleClearBonds(); JsonDocument d; d["ack"] = "unpair"; d["ok"] = true; sendDoc(d);
 }
 void beginRetire() {
-  if (retiring || retired) return;
-  retiring=true; retireAt=stateAt=nowMs();
+  if (isRetiring() || isRetired()) return;
+  ritual=R_RETIRE; ritualAt=stateAt=nowMs();
 }
 static void resetFirstWake() {
-  saveFirstWake(true); coloring=false; retired=false;
-  wakeAt=stateAt=nowMs();
+  saveFirstWake(true);
+  ritual=R_FIRST_WAKE; ritualAt=stateAt=nowMs();
 }
 static void ritualTick() {
   uint32_t now=nowMs();
-  if (coloring && now-colorAt>=600) { coloring=false; saveFirstWake(false); }
-  if (retiring && now-retireAt>=2400) {
-    Preferences p;
-    if (p.begin("creature-v2",false)) { p.clear(); p.end(); }
-    tama=TamaState{}; firstWake=true; haveFrame=false; _rtcValid=false;
-    coloring=levelActive=streakActive=revealCosmetic=awaitCosmetic=false;
-    decision=Decision{}; localBoopUntil=dizzyUntil=perkUntil=statsUntil=0;
-    bubbleUntil=localBubbleUntil=0; giftCollected=cardDismissed=bubbleDismissed=false;
-    retiring=false; retired=true; wakeAt=stateAt=now;
-    sendCmd("{\"ack\":\"retire\"}");
+  switch (ritual) {
+    case R_COLOR:
+      if (now-ritualAt>=ritualDuration[ritual]) { ritual=R_NONE; saveFirstWake(false); }
+      break;
+    case R_LEVEL: case R_LEVEL_AWAIT: case R_STREAK:
+      if (now-ritualAt>=ritualDuration[ritual]) ritual=R_NONE;
+      break;
+    case R_RETIRE:
+      if (now-ritualAt<ritualDuration[ritual]) break;
+      {
+        Preferences p;
+        if (p.begin("creature-v2",false)) { p.clear(); p.end(); }
+        tama=TamaState{}; firstWake=true; haveFrame=false; _rtcValid=false;
+        ritual=R_NONE;
+        decision=Decision{}; localBoopUntil=dizzyUntil=perkUntil=statsUntil=0;
+        bubbleUntil=localBubbleUntil=0; giftCollected=cardDismissed=bubbleDismissed=false;
+        stateAt=now; spr.fillSprite(BLACK);
+        sendCmd("{\"ack\":\"retire\"}");
+      }
+      break;
+    case R_NONE: case R_FIRST_WAKE: break;
   }
 }
 static float colorAmount(uint32_t now) {
-  return firstWake ? (coloring ? animClamp((now-colorAt)/600.0f,0,1) : 0) : 1;
+  return firstWake ? (ritual==R_COLOR ? animClamp((float)(now-ritualAt)/ritualDuration[R_COLOR],0,1) : 0) : 1;
 }
 static float cosmeticAmount(uint32_t now) {
-  return revealCosmetic ? animClamp(((float)(now-levelAt)-900)/600,0,1) : 1;
+  return ritual==R_LEVEL && memcmp(&oldCosmetic,&tama.cosmetic,sizeof(Cosmetics)) ? animClamp(((float)(now-ritualAt)-900)/600,0,1) : 1;
 }
 static const char* ritualName() {
-  uint32_t now=nowMs();
-  if (retiring) return "retire";
-  if (retired) return "none";
-  if (firstWake) return "firstWake";
-  if (hasCard()) return "none";
-  if (levelActive && now-levelAt<1500) return "levelUp";
-  if (streakActive && now-streakAt<1500) return "streak";
-  if (!strcmp(tama.overlay,"greet") && now-overlayAt<2200 &&
+  if (isRetiring()) return ritualNames[ritual];
+  if (isRetired()) return ritualNames[R_NONE];
+  if (firstWake) return ritualNames[R_FIRST_WAKE];
+  if (hasCard()) return ritualNames[R_NONE];
+  if (ritual!=R_NONE && nowMs()-ritualAt<ritualDuration[ritual]) return ritualNames[ritual];
+  if (!strcmp(tama.overlay,"greet") && nowMs()-overlayAt<2200 &&
       (!strcmp(tama.state,"idle") || !strcmp(tama.state,"working") || !strcmp(tama.state,"done"))) return "greet";
-  return "none";
+  return ritualNames[R_NONE];
 }
 static uint16_t skinTint(const Cosmetics& c) {
   return c.skin[0] ? agentColor565(c.skin) : LIGHTGREY;
@@ -154,24 +170,26 @@ static void wake() {
   if (screenOff) { halDisplayWake(); screenOff = false; }
   napping = false; faceDownAt = 0; lastInput = nowMs();
 }
-void onFrame(const TamaState& next, bool firstSignal) {
+void onFrame(const TamaState& next, bool skinSupplied) {
   uint32_t now = nowMs();
   bool cosmeticsChanged=memcmp(&next.cosmetic,&tama.cosmetic,sizeof(Cosmetics));
   if (!dataConnected()) { linkAt=now; linkFlash=true; }
-  retired=false;
-  if (firstWake && !coloring && firstSignal) {
-    coloring=true; colorAt=now;
-  }
+  if (isRetired()) { ritual=firstWake?R_FIRST_WAKE:R_NONE; ritualAt=now; }
+  bool firstSignal=firstWake && ritual!=R_COLOR && (skinSupplied || strcmp(next.state,"asleep"));
   bool levelChanged=haveFrame && next.snap.level>tama.snap.level;
-  if (levelChanged) {
-    levelActive=true; levelAt=now; oldCosmetic=tama.cosmetic;
-    revealCosmetic=cosmeticsChanged; awaitCosmetic=!cosmeticsChanged;
-  } else if (awaitCosmetic) {
-    revealCosmetic=cosmeticsChanged; awaitCosmetic=false;
-  }
   bool milestone=next.snap.streak!=tama.snap.streak &&
     (next.snap.streak==7 || next.snap.streak==30 || next.snap.streak==100);
-  if (milestone) { streakActive=true; streakAt=now; }
+  // First color takes priority over growth; a level reveal takes priority
+  // over a simultaneous streak milestone, matching the reported ritual.
+  if (firstSignal) { ritual=R_COLOR; ritualAt=now; }
+  else if (!firstWake) {
+    if (levelChanged) {
+      ritual=cosmeticsChanged?R_LEVEL:R_LEVEL_AWAIT; ritualAt=now; oldCosmetic=tama.cosmetic;
+    } else if (ritual==R_LEVEL_AWAIT) {
+      ritual=R_LEVEL;
+      if (!cosmeticsChanged) oldCosmetic=next.cosmetic;
+    } else if (milestone && !levelRitual()) { ritual=R_STREAK; ritualAt=now; }
+  }
   bool changed = strcmp(next.state,tama.state) || strcmp(next.cheer,tama.cheer);
   bool newCard = strcmp(next.card.id,tama.card.id) || strcmp(next.card.kind,tama.card.kind);
   if (decision.id[0] && !decision.confirmed && strcmp(next.card.id,decision.id)) {
@@ -189,7 +207,7 @@ void onFrame(const TamaState& next, bool firstSignal) {
   // (and `clock settle`) is anchored to what is on screen, not just the state.
   bool visualChanged = changed || strcmp(next.effort,tama.effort) || strcmp(next.uhoh,tama.uhoh)
     || overlayChanged || next.gift != tama.gift || next.dots != tama.dots
-    || cosmeticsChanged || levelChanged || milestone || (coloring && colorAt==now) || strcmp(next.posture,tama.posture);
+    || cosmeticsChanged || levelChanged || milestone || firstSignal || strcmp(next.posture,tama.posture);
   if (visualChanged) stateAt = now;
   if (changed) lastInput = now;   // only a state change counts as activity for the dim ladder
   // Sound sees the incoming state/volume, never the previous frame's mute.
@@ -422,6 +440,12 @@ static void drawStats() {
 }
 static void render() {
   uint32_t now=nowMs();
+  if (isRetired()) {
+    halSetBrightness(0);
+    if (!screenOff) halPresent(spr);
+    ++drawCount;
+    return;
+  }
   Layer layer=screenLayer();
   uint16_t tint=animMix(skinTint(oldCosmetic),skinTint(tama.cosmetic),cosmeticAmount(now));
   // RGB332 needs at least one channel step to keep a tint visible.
@@ -452,11 +476,8 @@ static void render() {
     if(i==4) { spr.fillRect(x-4,HAL_H-6,9,2,c); spr.fillRect(x,HAL_H-10,2,10,c); }
     else spr.fillSmoothCircle(x,HAL_H-5,3,c);
   }
-  if (retiring || retired) {
-    float fade=retired?0:1-animClamp((now-retireAt)/2400.0f,0,1);
-    for(int y=0;y<HAL_H;++y) for(int x=0;x<HAL_W;++x)
-      spr.drawPixel(x,y,animMix(BLACK,spr.readPixel(x,y),fade));
-  }
+  float fade=isRetiring()?1-animClamp((float)(now-ritualAt)/ritualDuration[R_RETIRE],0,1):1;
+  halSetBrightness(brightness*fade);
   if (!screenOff) halPresent(spr);
   ++drawCount;
 }
@@ -479,7 +500,7 @@ static void dumpState() {
   d["stats"]=before(nowMs(),statsUntil); d["statsPage"]=statsPage; d["snapName"]=tama.snap.name;
   d["snapTasks"]=tama.snap.tasks; d["skin"]=tama.cosmetic.skin; d["firstWake"]=firstWake;
   d["accessory"]=tama.cosmetic.accessory; d["silhouette"]=tama.cosmetic.silhouette;
-  d["ritual"]=ritualName(); d["grey"]=firstWake && !coloring;
+  d["ritual"]=ritualName(); d["grey"]=firstWake && ritual!=R_COLOR;
   d["colorProgress"]=colorAmount(nowMs()); d["cosmeticProgress"]=cosmeticAmount(nowMs());
   d["level"]=tama.snap.level; d["streak"]=tama.snap.streak;
   d["pickup"]=before(nowMs(),perkUntil) && !hasCard(); d["pose"]=poseName();
@@ -661,7 +682,8 @@ void setup() {
   }
   spr.setColorDepth(8); spr.setPsram(true);
   if(!spr.createSprite(HAL_W,HAL_H)) { Serial.println("[guard] canvas allocation failed"); return; }
-  halSetBrightness(brightness); wakeAt=bootAt=lastInput=stateAt=nowMs(); render();
+  halSetBrightness(brightness); ritualAt=bootAt=lastInput=stateAt=nowMs();
+  ritual=firstWake?R_FIRST_WAKE:R_NONE; faceSimulate(nowMs(),0); render();
 }
 void loop() {
   guardLoop(); halUpdate(); dataPoll(tama);
@@ -690,7 +712,7 @@ void loop() {
   }
   uint8_t target=hasCard()?220:(napping || eq(tama.state,"asleep"))?8:
     now-lastInput>=120000?(giftPending()?32:20):120;
-  if (!screenOff && brightness!=target) { brightness=target;halSetBrightness(brightness); }
+  if (!screenOff && brightness!=target) { brightness=target; }
   static uint32_t previous=0;
   float dt=previous?(now-previous)*0.001f:0.016f; previous=now;
   if(dt>0.05f) dt=0.016f;

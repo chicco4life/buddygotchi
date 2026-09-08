@@ -34,7 +34,7 @@ transient fields clear; omitted `state` renders asleep. Omitted `snap` and
 | `gift` / `giftLine` | boolean / ≤40 B, collected locally until host clears or replaces it |
 | `focus` / `mute` | boolean / integer 0–3 |
 | `posture` | desk/perch/travel; omission restores IMU detection |
-| `cosmetic` | skin/accessory/silhouette ≤15 B each; only skin field tint rendered |
+| `cosmetic` | skin/accessory/silhouette ≤15 B each; closed vocabularies and fallback in [WIRE-V2](../../plan/WIRE-V2.md) |
 | `snap` | name, level, xp, xpNext, streak, best, rest, days, tasks, today, biggest |
 | snapshot storage | nonnegative 32-bit counters including rest; name/biggest ≤63 B |
 | `agent` | name ≤23 B, color ≤15 B, emotion ≤23 B, say ≤63 B; suppressed with a card |
@@ -80,6 +80,9 @@ see `firmware/ota.h`. Character transfer is removed.
 
 ## USB debug
 
+All keys in the diagnostic envelopes below are device-only telemetry, not
+additional host-to-device RenderState fields.
+
 - `ping` → `<<PONG {...}>>`: version, board, contract, uptime, heap, largest
   allocation, minimum heap, present timing and crash telemetry.
 - `state` → `<<STATE {...}>>`: contract, creature, effort, cheer, uhoh, overlay,
@@ -108,12 +111,9 @@ A wake press consumes the action. Explicit `deepsleep` is a diagnostic escape.
 
 ## Phase 6 rituals and appearance
 
-`{"cmd":"retire"}` on USB or the secured BLE command stream begins a
-non-blocking 2400 ms fade with one blink at 600–850 ms. Frames are ignored
-during retirement. On completion the `creature-v2` NVS namespace (snapshot,
-cosmetics, volume, wake flag) and transient model are cleared, the display
-stays dark, and `{"ack":"retire"}` is emitted. A subsequent frame or reboot
-starts the new creature; BLE bonds and crash diagnostics are retained.
+The host `retire` command, completion acknowledgement, reset scope, and
+closed cosmetic vocabularies are defined in [WIRE-V2](../../plan/WIRE-V2.md).
+The fade uses panel brightness; its completed screenshot buffer is black.
 
 USB `firstwake reset` replies `<<FIRSTWAKE reset>>`, re-arms the persistent
 wake flag and restarts its animation without deleting the snapshot. Grey
@@ -123,7 +123,7 @@ a reboot before completion still wakes grey. Wake choreography: sleep to
 1200 ms, first eye to 2200, both eyes, blinks at 2600/2920, recognition at
 3200, alternating corner glances from 4000 ms.
 
-Additional `state` keys: `ritual` (`firstWake`, `greet`, `levelUp`, `streak`,
+Additional device-only USB diagnostic `state` keys (not RenderState fields): `ritual` (`firstWake`, `greet`, `levelUp`, `streak`,
 `retire`, `none`), `grey`, `colorProgress` (0–1), `cosmeticProgress` (0–1),
 `accessory`, `silhouette`, `level`, `streak`, `pickup`, and `pose`.
 Perch poses are `dangle`, `lean`, `grip`, `peer-tip`, `hop`, `jump-land`,
@@ -133,9 +133,7 @@ A level increase shimmers for 900 ms then reveals a cosmetic supplied in
 the same or next frame over 600 ms. Streak 7/30/100 pulses for 1500 ms.
 Greet lasts 2200 ms with four sizes (wire range remains 0–3).
 
-Supported accessories: `sprout`, `scarf`, `crown`; silhouettes: `round`,
-`tall`. Unknown accessories/silhouettes draw no additional part; unknown
-skin colors use neutral grey. Dots render in the bottom margin for every
+Appearance identifiers and unknown-value fallbacks follow [WIRE-V2](../../plan/WIRE-V2.md). Dots render in the bottom margin for every
 state/layer, with four circles and a plus for the fifth, including alert tint.
 
 Capture offsets (`clock settle N`, relative to state entry or reset/motion):

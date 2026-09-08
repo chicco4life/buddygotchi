@@ -17,7 +17,10 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 import buddyctl  # noqa: E402
-from shot_cells import cells as shot_cells  # noqa: E402  (shared enum tables)
+from shot_cells import cells as shot_cells, prepare, trigger  # noqa: E402
+from golden import read_png  # noqa: E402
+
+STATES = ["asleep", "idle", "working", "needsYou", "done", "uhoh"]
 
 
 @pytest.fixture(scope="module")
@@ -108,7 +111,7 @@ def test_version_reject_and_unknown_keys(stick):
     assert "pet" not in got   # legacy key never echoed back
 
 
-@pytest.mark.parametrize("creature", ["asleep", "idle", "working", "needsYou", "done", "uhoh"])
+@pytest.mark.parametrize("creature", STATES)
 def test_six_states(stick, creature):
     frame(stick, state=creature)
     got = wait_state(stick, creature=creature, screenOff=False)
@@ -506,7 +509,7 @@ def test_retire_factory_reset(stick):
     wait_state(stick, timeout=20, firstWake=True, snapTasks=0, skin="")
 
 
-@pytest.mark.parametrize("creature", ["asleep", "idle", "working", "needsYou", "done", "uhoh"])
+@pytest.mark.parametrize("creature", STATES)
 def test_session_dots_all_states(stick, creature):
     frame(stick, state=creature, dots=5, dotAlert=4, bubble="hello")
     clock(stick, "settle 600")
@@ -532,3 +535,29 @@ def test_skin_tints_and_explicit_first_signal(stick):
     fixed = state(stick)["now"]
     clock(stick, fixed+650)
     wait_state(stick, firstWake=False, grey=False)
+
+
+@pytest.mark.parametrize("cell_name,pose", [
+    ("perch-working-grinding", "grip"), ("perch-done-dance", "jump-land"),
+])
+def test_perch_report_matches_rendered_row(stick, cell_name, pose):
+    """Check the reported row and its pixels against the existing hardware golden."""
+    cell = shot_cells()[cell_name].copy()
+    settle = cell.pop("settle")
+    action = cell.pop("trigger", None)
+    prepare(stick)
+    frame(stick, **cell)
+    trigger(stick, action)
+    wait_state(stick, posture="perch")
+    clock(stick, f"settle {settle}")
+    wait_state(stick, pose=pose)
+    raw = screenshot(stick)
+    w, h, rgb = read_png(Path(__file__).resolve().parents[1] / "golden" / "ws-amoled164" / f"{cell_name}.png")
+    # buddyctl writes RGB565 captures to RGB888 with integer channel scaling.
+    expected = bytearray()
+    for i in range(0, len(rgb), 3):
+        r, g, b = rgb[i:i+3]
+        px = ((round(r*31/255) << 11) | (round(g*63/255) << 5) | round(b*31/255))
+        expected.extend(px.to_bytes(2, "little"))
+    assert len(raw) == w*h*2
+    assert raw == expected, f"{pose} did not render the {cell_name} row"

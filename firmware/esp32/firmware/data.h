@@ -14,7 +14,38 @@ struct Snapshot {
   uint32_t days = 0, tasks = 0, today = 0;
   uint32_t rest = 0;
 };
-struct Cosmetics { char skin[16] = "", accessory[16] = "", silhouette[16] = ""; };
+enum AccessoryId : uint8_t { A_NONE = 0 };
+enum CosmeticPrimitive : uint8_t { C_RECT, C_ELLIPSE, C_ROUND_RECT, C_TRIANGLE };
+struct CosmeticPart { CosmeticPrimitive kind; int16_t x, y, w, h, r=0, y2=0; };
+// Coordinates are relative to the face center. New accessories are rows of
+// existing primitives; neither parsing nor drawing needs another branch.
+static const struct { const char* name; uint8_t count; CosmeticPart parts[4]; } accessories[] = {
+  {"",0,{}},
+  {"sprout",3,{{C_RECT,-2,-103,4,22}, {C_ELLIPSE,-12,-100,12,6}, {C_ELLIPSE,12,-106,12,6}}},
+  {"scarf",2,{{C_ROUND_RECT,-70,75,140,12,5}, {C_ROUND_RECT,43,82,13,22,4}}},
+  {"crown",4,{{C_RECT,-27,-85,54,9}, {C_TRIANGLE,-27,-85,-18,-105,-9,-85},
+              {C_TRIANGLE,-9,-85,0,-105,9,-85}, {C_TRIANGLE,9,-85,18,-105,27,-85}}}
+};
+static const struct { const char* name; int16_t rx, ry, spacing, dy; } silhouettes[] = {
+  {"",148,96,85,0}, {"round",135,108,73,0}, {"tall",106,118,78,-8}
+};
+template<class Row, size_t N> uint8_t cosmeticIndex(const char* name, const Row (&rows)[N]) {
+  static_assert(N<=256, "cosmetic index must fit a byte");
+  for (size_t i=1;i<N;++i) if (!strcmp(name,rows[i].name)) return i;
+  return 0;
+}
+struct Cosmetics {
+  char skin[16] = "", accessory[16] = "", silhouette[16] = "";
+  AccessoryId accessoryId = A_NONE;
+  uint8_t silhouetteId = 0;
+  void resolve() {
+    accessoryId=static_cast<AccessoryId>(cosmeticIndex(accessory,accessories));
+    silhouetteId=cosmeticIndex(silhouette,silhouettes);
+  }
+};
+// Keep the existing NVS layout: only the three names persist, never derived IDs.
+static constexpr size_t cosmeticStorageBytes = offsetof(Cosmetics,accessoryId);
+static_assert(cosmeticStorageBytes==48, "preserve Phase 6 cosmetic cache");
 struct Card {
   char id[24] = "", tool[24] = "", gloss[64] = "", stakes[8] = "";
   char kind[7] = "", text[64] = "";
@@ -76,7 +107,8 @@ inline void loadPersistent(TamaState& s) {
   Preferences p;
   if (!p.begin("creature-v2", false)) return;
   if (p.getBytesLength("snap") == sizeof(s.snap)) p.getBytes("snap", &s.snap, sizeof(s.snap));
-  if (p.getBytesLength("cosmetic") == sizeof(s.cosmetic)) p.getBytes("cosmetic", &s.cosmetic, sizeof(s.cosmetic));
+  if (p.getBytesLength("cosmetic") == cosmeticStorageBytes) p.getBytes("cosmetic", &s.cosmetic, cosmeticStorageBytes);
+  s.cosmetic.resolve();
   s.mute = p.getUChar("volume", 1);
   firstWake = !p.getBool("awoke", false);
   // Mark complete only after the first signal color reveal.
@@ -89,7 +121,7 @@ inline void persist(const TamaState& old, const TamaState& next, bool snap, bool
   Preferences p;
   if (!p.begin("creature-v2", false)) return;
   if (a) p.putBytes("snap", &next.snap, sizeof(Snapshot));
-  if (b) p.putBytes("cosmetic", &next.cosmetic, sizeof(Cosmetics));
+  if (b) p.putBytes("cosmetic", &next.cosmetic, cosmeticStorageBytes);
   if (old.mute != next.mute) p.putUChar("volume", next.mute);
   p.end();
 }
@@ -99,8 +131,8 @@ inline void saveFirstWake(bool armed) {
   if (p.begin("creature-v2", false)) { p.putBool("awoke", !armed); p.end(); }
 }
 extern void beginRetire();
-extern bool retiring;
-extern void onFrame(const TamaState& next, bool firstSignal);
+extern bool isRetiring();
+extern void onFrame(const TamaState& next, bool skinSupplied);
 extern void handleSerialCommand(const char* line);
 extern void sendStatus();
 void sendUnpairAck();
@@ -142,6 +174,7 @@ inline bool validate(JsonDocument& d, const TamaState& old, TamaState& s) {
     auto c = d["cosmetic"];
     if (!readText(c["skin"], s.cosmetic.skin) || !readText(c["accessory"], s.cosmetic.accessory) ||
         !readText(c["silhouette"], s.cosmetic.silhouette)) return false;
+    s.cosmetic.resolve();
   }
   if (!d["snap"].isNull()) {
     if (!d["snap"].is<JsonObject>()) return false;
@@ -172,7 +205,7 @@ inline void applyJson(const char* line, TamaState& out) {
   JsonDocument d;
   if (deserializeJson(d, line)) { ++badFrames; ++_parseFailCount; return; }
   if (d["cmd"] == "retire") { beginRetire(); return; }
-  if (retiring) return;
+  if (isRetiring()) return;
   if (otaCommand(d)) return;
   if (d["cmd"] == "status") { sendStatus(); return; }
   if (d["cmd"] == "unpair") { sendUnpairAck(); return; }
@@ -184,7 +217,7 @@ inline void applyJson(const char* line, TamaState& out) {
     struct tm local; gmtime_r(&seconds, &local); halSetLocalTime(local); _rtcValid = true;
   }
   persist(out, next, !d["snap"].isNull(), !d["cosmetic"].isNull());
-  onFrame(next, (d["cosmetic"]["skin"].is<const char*>() && d["cosmetic"]["skin"].as<const char*>()[0]) || strcmp(next.state,"asleep")); out = next;
+  onFrame(next, (d["cosmetic"]["skin"].is<const char*>() && d["cosmetic"]["skin"].as<const char*>()[0])); out = next;
   haveFrame = true; _lastLiveMs = nowMs();
 }
 struct LineBuffer {

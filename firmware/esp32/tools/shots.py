@@ -11,7 +11,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import buddyctl  # noqa: E402
-from shot_cells import cells, prepare, trigger, settle_ms  # noqa: E402
+from shot_cells import cells, prepare, trigger  # noqa: E402
 
 OUT = Path('/tmp/boop-shots')
 
@@ -27,16 +27,18 @@ def main() -> int:
         s.write_line('clock clear'); s.write_line('imu set 0 0 0.98'); time.sleep(0.3)
         # Cosmetics persist in NVS across frames; start every sheet from the bare buddy.
         s.write_line(json.dumps({'v': 2, 'state': 'idle', 'cosmetic': {'skin': '', 'accessory': '', 'silhouette': ''}})); time.sleep(0.5)
-    for name, frame in selected.items():
+    for name, cell in selected.items():
+        frame = cell.copy()
+        settle = frame.pop("settle")
+        command = frame.pop("trigger", None)
         frame = {**{k: v for k, v in frame.items() if k != 't'}, 't': int(time.time() * 1000)}
         with buddyctl.SerialBuddy(port, timeout=5) as s:
-            prepare(s, name)
+            prepare(s)
             s.write_line(json.dumps(frame, ensure_ascii=False, separators=(',', ':')))
             deadline = time.monotonic() + 5
             while time.monotonic() < deadline and s.framed_json('state', 'STATE', 3).get('creature') != frame['state']:
                 time.sleep(0.2)
-            trigger(s, name)
-            settle = settle_ms(name, frame)
+            trigger(s, command)
             time.sleep(settle / 1000.0)
             s.write_line(f'clock settle {settle}'); time.sleep(0.15)   # exact offset from state entry
         subprocess.run([sys.executable, str(HERE / 'buddyctl.py'), 'screenshot', '--scale', '1',
