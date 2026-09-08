@@ -33,9 +33,10 @@ time-of-day bucket (morning, day, evening, late); language. Never raw text.
 
 ## Authored banks (the floor)
 
-Per language, per moment kind, per register: ≥ 6 lines each. Selection is
+Per language, per moment kind, per register: ≥ 8 distinct authored bases each. Selection is
 seeded by (moment, day) so the same day does not repeat a line, and the last
-20 lines used are excluded. English and Korean ship; Korean lines are
+20 lines used are excluded. Optional seeded lead-ins live separately and appear
+on at most 40% of draws; they are seasoning, not authored content. English and Korean ship; Korean lines are
 written, not translated.
 
 ## Model

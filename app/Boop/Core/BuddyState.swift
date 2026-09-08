@@ -4,11 +4,11 @@ import Foundation
 
 enum CreatureState: String, Encodable, Sendable, Equatable, CaseIterable { case asleep, idle, working, needsYou, done, uhoh }
 enum CreatureEffort: String, Encodable, Sendable, Equatable { case light, hard, grinding }
-enum CheerSize: String, Codable, Sendable, Equatable {
+enum CheerSize: String, Codable, CaseIterable, Sendable, Equatable {
     case hop, cheer, dance
     var intensity: Int { switch self { case .hop: 1; case .cheer: 2; case .dance: 3 } }
 }
-enum UhohKind: String, Encodable, Sendable, Equatable { case error, stuck, hungry }
+enum UhohKind: String, Encodable, CaseIterable, Sendable, Equatable { case error, stuck, hungry }
 enum CreatureOverlay: String, Encodable, Sendable, Equatable { case greet, boop }
 enum Stakes: String, Encodable, Sendable, Equatable { case fine, checkIt, careful }
 

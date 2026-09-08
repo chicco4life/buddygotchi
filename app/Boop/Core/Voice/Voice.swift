@@ -1,5 +1,7 @@
 import Foundation
 
+enum VoiceCap: Int, Sendable { case gift = 40, bubble = 63, paragraph = 1024 }
+
 typealias Traits = [String: Int]
 enum VoiceRegister: String, CaseIterable, Sendable {
     case earnest, wry, cheeky
@@ -29,7 +31,12 @@ struct VoiceRequest: Sendable {
     var agent: String? = nil
     var timeOfDay: TimeOfDay = .day
     var language: String = "en"
-    var byteCap: Int = 40
+    var byteCap: Int = VoiceCap.gift.rawValue
+    var isParagraph: Bool { byteCap > VoiceCap.bubble.rawValue }
+    var keepsHistory: Bool {
+        if case .profileLine = occasion { return false }
+        return !isParagraph
+    }
     var register: VoiceRegister { VoiceRegister(cheek: traits["cheek", default: 128]) }
 }
 struct VoiceLine: Sendable, Equatable {
@@ -39,14 +46,26 @@ struct VoiceLine: Sendable, Equatable {
 }
 enum VoiceLineKind: Sendable { case gift, bubble }
 
-/// An unstructured race deliberately does not await a cancelled, uncooperative runtime.
-/// Only the first completion can resume the caller; later results are discarded.
+/// Resolves once without awaiting an uncooperative runtime. Attaching after a
+/// fast completion also cancels the tasks, closing the creation/completion race.
 private final class VoiceRace: @unchecked Sendable {
     private let lock = NSLock()
     private var continuation: CheckedContinuation<String?, Never>?
+    private var tasks: [Task<Void, Never>] = []
     init(_ continuation: CheckedContinuation<String?, Never>) { self.continuation = continuation }
+    func attach(_ tasks: [Task<Void, Never>]) {
+        lock.lock()
+        let finished = continuation == nil
+        if !finished { self.tasks = tasks }
+        lock.unlock()
+        if finished { tasks.forEach { $0.cancel() } }
+    }
     func finish(_ value: String?) {
-        lock.lock(); let pending = continuation; continuation = nil; lock.unlock()
+        lock.lock()
+        let pending = continuation, tasks = tasks
+        continuation = nil; self.tasks = []
+        lock.unlock()
+        tasks.forEach { $0.cancel() }
         pending?.resume(returning: value)
     }
 }
@@ -54,78 +73,121 @@ actor Voice {
     private let runtime: any VoiceRuntime
     private weak var store: (any EngineStore)?
     private let day: @Sendable () async -> String
-    private var used: [String: Set<String>] = [:]
-    private var recent: [String] = []
-    private var inFlight = false
+    private struct History {
+        var day: String
+        var lines: Set<String>
+        var draws: Int
+        var seasoned: Int
+    }
+    private var history: [String: History] = [:]
+    private var loading: [String: (day: String, task: Task<[String], Never>)] = [:]
+    private var reservations: [String: Set<String>] = [:]
+    // Separate device and paragraph lanes permit a concurrent recap.
+    private var inFlight: [Bool: UUID] = [:]
     init(runtime: any VoiceRuntime = NullRuntime(), store: (any EngineStore)? = nil,
          localDay: @escaping @Sendable () async -> String = { LocalDayCalendar().localDay(at: Date().timeIntervalSince1970 * 1000) }) {
         self.runtime = runtime; self.store = store; self.day = localDay
     }
+    private func exclusions(day today: String, language: String) async -> Set<String> {
+        if history[language]?.day != today {
+            let task: Task<[String], Never>
+            if let pending = loading[language], pending.day == today { task = pending.task }
+            else {
+                let store = store
+                task = Task { (try? await store?.voiceExclusions(localDay: today)) ?? [] }
+                loading[language] = (today, task)
+            }
+            let persisted = await task.value
+            if history[language]?.day != today {
+                let leads = VoiceBanks.leadIns[language]?.values.flatMap { $0 } ?? []
+                history[language] = History(day: today, lines: Set(persisted), draws: persisted.count,
+                    seasoned: persisted.filter { line in leads.contains { line.hasPrefix($0) } }.count)
+            }
+            if loading[language]?.day == today { loading[language] = nil }
+        }
+        return (history[language]?.lines ?? []).union(reservations[language] ?? [])
+    }
     func line(for request: VoiceRequest) async -> VoiceLine {
-        let result = await produce(for: request)
-        // Rule candidates are persistent facts, not repeated device remarks.
-        if case .profileLine = request.occasion { return result }
-        guard !result.text.isEmpty else { return result }
-        let today = await day()
-        used[today, default: []].insert(result.text)
-        recent.append(result.text); recent = Array(recent.suffix(20))
+        let today = await day(), language = request.language
+        let excluded = request.keepsHistory ? await exclusions(day: today, language: language) : []
+        let values = VoiceBanks.values(request)
+        let fallback = authored(request, day: today, excluded: excluded, values: values)
+        if request.keepsHistory, !fallback.text.isEmpty { reservations[language, default: []].insert(fallback.text) }
+        defer { if request.keepsHistory { reservations[language]?.remove(fallback.text) } }
+        let result = await produce(for: request, fallback: fallback, values: values, day: today)
+        guard request.keepsHistory, !result.text.isEmpty, !Task.isCancelled else { return result }
+        // Commit only what the caller receives; a model win releases its fallback.
+        _ = await exclusions(day: today, language: language)
+        history[language]?.lines.insert(result.text)
+        history[language]?.draws += 1
+        let leads = VoiceBanks.leadIns[language]?[request.register.rawValue] ?? []
+        if leads.contains(where: { result.text.hasPrefix($0) }) { history[language]?.seasoned += 1 }
         try? await store?.rememberVoice(result.text, localDay: today)
         return result
     }
-    private func produce(for request: VoiceRequest) async -> VoiceLine {
-        let deadline = ContinuousClock.now.advanced(by: .seconds(1))
-        let fallback = await authored(request)
-        // At most one outstanding generation, including a runtime that ignores cancellation.
-        guard !inFlight, !(runtime is NullRuntime) else { return fallback }
-        inFlight = true
-        let runtime = runtime, prompt = VoicePrompt.make(request)
-        let result = await withCheckedContinuation { continuation in
+    private func produce(for request: VoiceRequest, fallback: VoiceLine, values: [String: String], day: String) async -> VoiceLine {
+        let lane = request.isParagraph
+        guard inFlight[lane] == nil, !(runtime is NullRuntime), !Task.isCancelled else { return fallback }
+        let token = UUID()
+        inFlight[lane] = token
+        let runtime = runtime, prompt = VoicePrompt.make(request, values: values)
+        let result: String? = await withCheckedContinuation { continuation in
             let race = VoiceRace(continuation)
-            let generation = Task { [weak self] in
+            let generation = Task {
                 let text = try? await runtime.generate(prompt: prompt, maxBytes: request.byteCap)
                 race.finish(text)
-                await self?.generationFinished()
             }
-            Task {
-                try? await Task.sleep(until: deadline, clock: .continuous)
-                race.finish(nil)
-                generation.cancel()
+            let timeout = Task {
+                do { try await Task.sleep(for: .seconds(1)); race.finish(nil) }
+                catch { /* The winning generation cancelled the timer. */ }
             }
+            race.attach([generation, timeout])
         }
-        guard let result, let text = VoiceFilter.check(result, language: request.language, byteCap: request.byteCap, allowExclamation: request.occasion.dance) else { return fallback }
-        if case .profileLine = request.occasion { return VoiceLine(text: text, source: .model) }
-        if case .recap(let recap) = request.occasion, request.byteCap > 63 {
-            // The paragraph must keep all numeric facts, even when the model is terse.
-            let numbers = [String(recap.turns), String(recap.tasks), String(recap.openGoals), String(format: "%.1f", recap.hours)]
-            guard numbers.allSatisfy({ text.contains($0) }) else { return fallback }
+        // Clear on race resolution, not on eventual runtime completion.
+        if inFlight[lane] == token { inFlight[lane] = nil }
+        guard !Task.isCancelled, let result,
+              let text = VoiceFilter.check(result, language: request.language, byteCap: request.byteCap, allowExclamation: request.occasion.dance) else { return fallback }
+        if case .recap = request.occasion, request.isParagraph {
+            let supplied = ["turns", "tasks", "openGoals", "hours"].compactMap { values[$0] }
+            let numbers = Set(text.components(separatedBy: CharacterSet(charactersIn: "0123456789.").inverted)
+                .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: ".")) }.filter { !$0.isEmpty })
+            guard supplied.allSatisfy(numbers.contains) else { return fallback }
         }
-        let today = await day()
-        let persisted = (try? await store?.voiceExclusions(localDay: today)) ?? []
-        guard !used[today, default: []].contains(text), !recent.contains(text), !persisted.contains(text) else { return fallback }
-        used[today, default: []].insert(text)
+        if request.keepsHistory {
+            let excluded = await exclusions(day: day, language: request.language)
+            guard !excluded.contains(text) else { return fallback }
+        }
         return VoiceLine(text: text, source: .model)
     }
-    private func generationFinished() { inFlight = false }
-    private func authored(_ request: VoiceRequest) async -> VoiceLine {
-        if case .recap(let facts) = request.occasion, request.byteCap > 63 {
-            return VoiceLine(text: VoiceFilter.check(facts.paragraph(language: request.language), language: request.language, byteCap: request.byteCap) ?? "", source: .authored)
-        }
+    private func authored(_ request: VoiceRequest, day: String, excluded: Set<String>, values: [String: String]) -> VoiceLine {
         if case .profileLine(let candidate) = request.occasion {
             return VoiceLine(text: VoiceFilter.check(candidate, language: request.language, byteCap: request.byteCap) ?? "", source: .authored)
         }
-        let today = await day()
-        used = used.filter { $0.key == today }
-        let persisted = (try? await store?.voiceExclusions(localDay: today)) ?? []
-        let excluded = used[today, default: []].union(recent).union(persisted)
-        let lines = VoiceBanks.lines(language: request.language, occasion: request.occasion.key, register: request.register)
-        let ordered = lines.sorted { stableHash(today + request.occasion.key + $0) < stableHash(today + request.occasion.key + $1) }
-        for template in ordered {
-            let rendered = VoiceBanks.render(template, request: request)
-            guard let text = VoiceFilter.check(rendered, language: request.language, byteCap: request.byteCap, allowExclamation: request.occasion.dance), !excluded.contains(text) else { continue }
-            used[today, default: []].insert(text) // Reserve while a model request is in flight.
+        let key = request.isParagraph ? "recapParagraph" : request.occasion.key
+        let lines = VoiceBanks.lines(language: request.language, occasion: key, register: request.register)
+        let history = history[request.language]
+        let seasoningAllowed = request.keepsHistory && (history?.seasoned ?? 0) < ((history?.draws ?? 0) + 1) * 4 / 10
+        // Decorate once: the comparator never hashes or renders.
+        let seed = stableHash(day + key + request.register.rawValue)
+        let leads = VoiceBanks.leadIns[request.language]?[request.register.rawValue] ?? []
+        var candidates: [(order: UInt64, text: String)] = []
+        for template in lines {
+            let order = stableHash(String(seed) + template)
+            candidates.append((order, VoiceBanks.render(template, request: request, values: values)))
+            if seasoningAllowed {
+                for index in leads.indices {
+                    let variantSeed = UInt64(index) * 10 + order % 4
+                    candidates.append((stableHash(String(order) + String(index)),
+                        VoiceBanks.render(template, request: request, values: values, seed: variantSeed, allowLeadIn: true)))
+                }
+            }
+        }
+        for candidate in candidates.sorted(by: { $0.order == $1.order ? $0.text < $1.text : $0.order < $1.order }) {
+            guard candidate.text.utf8.count <= request.byteCap,
+                  let text = VoiceFilter.check(candidate.text, language: request.language, byteCap: request.byteCap, allowExclamation: request.occasion.dance),
+                  !excluded.contains(text) else { continue }
             return VoiceLine(text: text, source: .authored)
         }
-        // A finite bank cannot supply infinitely many unique lines: silence on exhaustion.
         return VoiceLine(text: "", source: .authored)
     }
 }

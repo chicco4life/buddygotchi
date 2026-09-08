@@ -233,3 +233,38 @@ extension HookServerBehaviorTests {
         if responded { try await route.value } else { route.cancel() }
     }
 }
+
+extension HookServerBehaviorTests {
+    @MainActor func testHeadlessVoiceAndLanguageSettingsWriters() async throws {
+        let suite = "voice-settings-" + UUID().uuidString
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        var config = testConfig(); config.headless = true
+        let engine = BuddyEngine(config: config, voiceRuntime: VoiceStubRuntime(text: "model is enabled"), defaults: defaults)
+        let app = buildHookServer(engine: engine, config: config)
+        let context = HookRequestContext(source: .init(channel: EmbeddedChannel(), logger: Logger(label: "settings-test")))
+        for (path, body, token, expected) in [
+            ("language", #"{"language":"ko"}"#, "wrong", 401),
+            ("language", #"{"language":"xx"}"#, "test-token", 400),
+            ("language", #"{"language":"ko"}"#, "test-token", 200),
+            ("voice", #"{"voice":"unknown"}"#, "test-token", 400),
+            ("voice", #"{"voice":"off"}"#, "test-token", 200)
+        ] {
+            let request = Request(head: .init(method: .post, scheme: "http", authority: "localhost", path: "/state/" + path,
+                headerFields: [.init("X-Boop-Token")!: token]), body: .init(buffer: ByteBuffer(string: body)))
+            let response = try await app.responder.respond(to: request, context: context)
+            XCTAssertEqual(response.status.code, expected)
+        }
+        XCTAssertEqual(defaults.string(forKey: DefaultsKey.language), "ko")
+        XCTAssertEqual(defaults.string(forKey: DefaultsKey.voiceRuntime), "off")
+        XCTAssertEqual(engine.state.language, "ko")
+        XCTAssertTrue(engine.diagnosticLog.entries.contains { $0.event == "languageChanged" })
+        let recap = try await engine.makeRecap()
+        XCTAssertFalse(recap?.line.isEmpty ?? true)
+        XCTAssertNotEqual(recap?.line, "model is enabled")
+        let removed = Request(head: .init(method: .get, scheme: "http", authority: "localhost", path: "/state/recap",
+            headerFields: [.init("X-Boop-Token")!: "test-token"]), body: .init(buffer: ByteBuffer()))
+        let response = try await app.responder.respond(to: removed, context: context)
+        XCTAssertEqual(response.status.code, 404)
+    }
+}

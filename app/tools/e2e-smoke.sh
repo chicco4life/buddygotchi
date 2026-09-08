@@ -61,6 +61,10 @@ for entry in "${SUITES[@]}"; do
   else STATUS+=("\033[31m✗\033[0m ${name}: ${sf} failed, ${sp} passed"); fi
 done
 
+pass=0; fail=0
+recap_check
+total_pass=$((total_pass + pass)); total_fail=$((total_fail + fail))
+
 # ── Grand summary ────────────────────────────────────────────────────────────
 printf '\n\033[1m═══ Master summary ═══\033[0m\n'
 printf '  %b Core contract: %d passed, %d failed\n' \

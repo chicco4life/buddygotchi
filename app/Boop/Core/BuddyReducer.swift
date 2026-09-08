@@ -81,13 +81,13 @@ private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> Interna
         var s = state; s.buddy.language = language == "ko" ? "ko" : "en"; return s
     case .voiceLine(let at, let kind, let text):
         var s = state
-        if kind == .gift { s.buddy.creature.giftLine = text.prefix(utf8Bytes: 40) }
-        else { setBubble(&s, text.prefix(utf8Bytes: 63), at: at) }
+        if kind == .gift { s.buddy.creature.giftLine = text }
+        else { setBubble(&s, text, at: at) }
         return s
     case .recapReady(let at, let recap):
         var s = state; s.buddy.recap = recap
         if [.idle, .asleep].contains(s.buddy.creature.state) {
-            setBubble(&s, recap.line.prefix(utf8Bytes: 63), at: at)
+            setBubble(&s, recap.line, at: at)
             s.recapSleep = true
         }
         return s

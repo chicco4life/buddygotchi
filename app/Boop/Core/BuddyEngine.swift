@@ -12,7 +12,16 @@ final class BuddyEngine {
     private var store: (any EngineStore)?
     private var storeTail: Task<Void, Never>?
     private var voice: Voice
-    private let voiceRuntime: any VoiceRuntime
+    private var voiceRuntime: any VoiceRuntime
+    private let defaults: UserDefaults
+    private var cachedProfile: [ProfileLine] = []
+    private var cachedTraits: Traits = [:]
+    private var contextLoaded = false
+    private var contextLoad: Task<Void, Error>?
+    private var stopHourCache: (day: String, hour: Int)?
+    private var factsRevision = 0
+    private var recapAttempt: (day: String, revision: Int, at: Double)?
+    private var recapFactsCache: (day: String, revision: Int, facts: [StoredFact])?
     private var giftVoiceTask: Task<Void, Never>?
     private var bubbleVoiceTask: Task<Void, Never>?
     private var giftVoiceRevision = 0
@@ -42,6 +51,7 @@ final class BuddyEngine {
 
     init(config: BuddyConfig = .default, clock: (any Clock)? = nil, diagnosticLog: DiagnosticLog? = nil, store: (any EngineStore)? = nil, dayCalendar: any DayCalendar = LocalDayCalendar(), onACPower: @escaping @Sendable () -> Bool = { PowerObserver.onACPower() }, voiceRuntime: (any VoiceRuntime)? = nil, defaults: UserDefaults = .standard) {
         self.store = store
+        self.defaults = defaults
         let runtime = voiceRuntime ?? VoiceRuntimes.make(setting: defaults.string(forKey: DefaultsKey.voiceRuntime) ?? "auto")
         self.voiceRuntime = runtime
         self.voice = Voice(runtime: runtime, store: store, localDay: { await MainActor.run { dayCalendar.localDay(at: (clock ?? WallClock()).now()) } })
@@ -80,6 +90,7 @@ final class BuddyEngine {
                 self.voice = Voice(runtime: self.voiceRuntime, store: self.store, localDay: { await MainActor.run { calendar.localDay(at: clock.now()) } })
                 await self.store?.configureVoice(self.voice, language: self.state.language)
                 try await self.refreshGrowth()
+                try await self.refreshVoiceContext()
             } catch { self.storeFailure(error) }
             self.loadingStore = false
             let pending = self.deferredEvents; self.deferredEvents.removeAll()
@@ -205,6 +216,7 @@ final class BuddyEngine {
             }
         }
         let facts = extraction.facts
+        if !facts.isEmpty { factsRevision += 1 }
         let project = internalState.sessions[payload.sessionId]?.project ?? ThemeReader.project(cwd: payload.cwd)
         let day = localDay(at: payload.timestamp)
         enqueue { store in
@@ -213,7 +225,7 @@ final class BuddyEngine {
                 if case .tokens(let output) = fact { return LedgerRow(at: payload.timestamp, source: .tokens, amount: output, sessionId: payload.sessionId, day: day) }
                 return nil
             }
-            if !tokens.isEmpty { let snapshot = try await store.award(tokens, active: false, at: payload.timestamp, localDay: day); if let snapshot { try await self.refreshGrowth(snapshot: snapshot) } }
+            if !tokens.isEmpty { let snapshot = try await store.award(tokens, active: false, at: payload.timestamp, localDay: day); if let snapshot { try await self.refreshGrowth(snapshot: snapshot) }; try await self.refreshVoiceContext() }
         }
         let runner = extraction.goalRunner ?? ""
         diagnosticLog.log(category: "hook", source: payload.source, event: payload.eventName.isEmpty ? payload.kind.rawValue : payload.eventName, detail: payload.toolName + (runner.isEmpty ? "" : " " + runner))
@@ -533,6 +545,7 @@ final class BuddyEngine {
         internalState = next
         state = next.buddy
         if memoryChanged {
+            stopHourCache = nil
             if !persistenceResult {
                 // SQLite is the sole persistence path; an unstarted engine without a store is memory-only.
                 enqueue { try await $0.saveMemory(next.memory) }
@@ -582,6 +595,7 @@ final class BuddyEngine {
     }
     private func persist(awards: [XPAward], facts: [PendingFact]) {
         guard !awards.isEmpty || !facts.isEmpty else { return }
+        if !facts.isEmpty { factsRevision += 1 }
         let storedFacts = facts.map { StoredFact(fact: $0.fact, sessionId: $0.sessionId, project: $0.project, at: $0.at, day: localDay(at: $0.at)) }
         for award in awards where award.active && !award.sessionId.isEmpty { lastSessionActivity = award.at }
         enqueue { store in
@@ -596,6 +610,7 @@ final class BuddyEngine {
                     if let snapshot { try await self.refreshGrowth(snapshot: snapshot) }
                 }
             }
+            if !awards.isEmpty { try await self.refreshVoiceContext() }
         }
     }
     private var reflectedDays: Set<String> = []
@@ -607,7 +622,8 @@ final class BuddyEngine {
             enqueue { try await $0.prune(now: now, localDay: day) }
         }
         if dayCalendar.localHour(at: now) >= usualStopHour(at: now),
-           [.idle, .asleep].contains(state.creature.state), !recappedDays.contains(day), recapTask == nil {
+           [.idle, .asleep].contains(state.creature.state), !recappedDays.contains(day), recapTask == nil,
+           recapAttempt?.day != day || now - (recapAttempt?.at ?? 0) >= 300_000 {
             recapTask = Task { [weak self] in
                 guard let self else { return }
                 defer { self.recapTask = nil }
@@ -618,7 +634,7 @@ final class BuddyEngine {
             let target = dayCalendar.previousDay(at: now)
             if reflectedDays.insert(target).inserted {
                 enqueue {
-                    do { await $0.configureVoice(self.voice, language: self.state.language); _ = try await $0.reflect(localDay: target, at: now); await self.extractor.clearClosingLines() }
+                    do { await $0.configureVoice(self.voice, language: self.state.language); _ = try await $0.reflect(localDay: target, at: now); try await self.refreshVoiceContext(); await self.extractor.clearClosingLines() }
                     catch { self.reflectedDays.remove(target); throw error }
                 }
             }
@@ -626,15 +642,17 @@ final class BuddyEngine {
     }
     func storedFacts() async throws -> [StoredFact] { await flushStore(); return try await store?.facts() ?? [] }
     func inventory() async throws -> [InventoryItem] { await flushStore(); return try await store?.inventory() ?? [] }
-    func profileLines() async throws -> [ProfileLine] { await flushStore(); return try await store?.profile() ?? [] }
+    func profileLines() async throws -> [ProfileLine] { await flushStore(); try await ensureVoiceContext(); return cachedProfile }
     func clearProfile(id: Int? = nil) async throws {
         await flushStore()
         if let id { try await store?.deleteProfileLine(id) } else { try await store?.clearProfile() }
+        try await refreshVoiceContext()
     }
     func reflect() async throws -> [ProfileLine] {
         await flushStore()
         await store?.configureVoice(voice, language: state.language)
         let lines = try await store?.reflect(localDay: localDay(at: clock.now()), at: clock.now()) ?? []
+        try await refreshVoiceContext()
         await extractor.clearClosingLines()
         return lines
     }
@@ -642,12 +660,45 @@ final class BuddyEngine {
         await flushStore(); try await store?.equip(cosmetic); try await refreshGrowth()
     }
 
+    private func refreshVoiceContext() async throws {
+        cachedProfile = try await store?.profile() ?? []
+        cachedTraits = try await store?.traits() ?? [:]
+        contextLoaded = true
+    }
+    private func ensureVoiceContext() async throws {
+        if contextLoaded { return }
+        if let contextLoad { try await contextLoad.value; return }
+        let task = Task { try await self.refreshVoiceContext() }
+        contextLoad = task
+        defer { contextLoad = nil }
+        try await task.value
+    }
+    func setLanguage(_ language: String) async {
+        guard ["en", "ko"].contains(language) else { return }
+        await flushStore()
+        defaults.set(language, forKey: DefaultsKey.language)
+        giftVoiceRevision += 1; bubbleVoiceRevision += 1
+        giftVoiceTask?.cancel(); bubbleVoiceTask?.cancel(); recapTask?.cancel()
+        apply(.languageChanged(at: clock.now(), language: language))
+        await store?.configureVoice(voice, language: language)
+    }
+    func setVoiceRuntime(_ setting: String) async {
+        guard ["auto", "off"].contains(setting) else { return }
+        await flushStore()
+        defaults.set(setting, forKey: DefaultsKey.voiceRuntime)
+        giftVoiceRevision += 1; bubbleVoiceRevision += 1
+        giftVoiceTask?.cancel(); bubbleVoiceTask?.cancel(); recapTask?.cancel()
+        voiceRuntime = VoiceRuntimes.make(setting: setting)
+        let calendar = dayCalendar, clock = clock
+        voice = Voice(runtime: voiceRuntime, store: store, localDay: { await MainActor.run { calendar.localDay(at: clock.now()) } })
+        await store?.configureVoice(voice, language: state.language)
+    }
     private func voiceRequest(_ occasion: Occasion, cap: Int) async -> VoiceRequest {
-        let profile = (try? await store?.profile()) ?? []
-        let traits = (try? await store?.traits()) ?? [:]
+        await flushStore()
+        try? await ensureVoiceContext()
         let source = state.lastCompleted?.source
         let agent = source.flatMap { ["codex", "claude-code", "cursor"].contains($0) ? $0 : nil }
-        return VoiceRequest(occasion: occasion, profile: Array(profile.prefix(3).map(\.line)), traits: traits,
+        return VoiceRequest(occasion: occasion, profile: Array(cachedProfile.prefix(3).map(\.line)), traits: cachedTraits,
             agent: agent, timeOfDay: TimeOfDay(hour: dayCalendar.localHour(at: clock.now())), language: state.language, byteCap: cap)
     }
     private func scheduleVoice(previous: BuddyState, event: BuddyEvent) {
@@ -672,7 +723,7 @@ final class BuddyEngine {
         let revision = kind == .gift ? giftVoiceRevision : bubbleVoiceRevision
         let task = Task { [weak self] in
             guard let self else { return }
-            let request = await self.voiceRequest(occasion, cap: kind == .gift ? 40 : 63)
+            let request = await self.voiceRequest(occasion, cap: kind == .gift ? VoiceCap.gift.rawValue : VoiceCap.bubble.rawValue)
             guard !Task.isCancelled else { return }
             let line = await self.voice.line(for: request)
             guard !Task.isCancelled, !line.text.isEmpty,
@@ -685,6 +736,13 @@ final class BuddyEngine {
     /// The legacy histogram is UTC. Convert bins before finding the end of the
     /// owner's evening activity; sparse/unknown histories use 18:00 local.
     func usualStopHour(at: Double) -> Int {
+        let day = localDay(at: at)
+        if let cached = stopHourCache, cached.day == day { return cached.hour }
+        let hour = computeUsualStopHour(at: at)
+        stopHourCache = (day, hour)
+        return hour
+    }
+    private func computeUsualStopHour(at: Double) -> Int {
         let memory = internalState.memory
         guard memory.circadianReady(at: at) else { return 18 }
         let utcHour = PetMemory.utcHour(ofMs: at)
@@ -706,16 +764,23 @@ final class BuddyEngine {
     func makeRecap(force: Bool = true) async throws -> Recap? {
         await flushStore()
         let day = localDay(at: clock.now())
+        let revision = factsRevision
+        recapAttempt = (day, revision, clock.now())
         let savedDay = try await store?.recapDay()
-        if !force, recappedDays.contains(day) || savedDay == day { return state.recap }
-        let facts = try await store?.facts(localDay: day) ?? []
+        if !force, recappedDays.contains(day) || savedDay == day { recappedDays.insert(day); return state.recap }
+        let facts: [StoredFact]
+        if let cached = recapFactsCache, cached.day == day, cached.revision == revision { facts = cached.facts }
+        else {
+            facts = try await store?.facts(localDay: day) ?? []
+            recapFactsCache = (day, revision, facts)
+        }
         guard force || !facts.isEmpty else { return nil }
         let recapFacts = RecapFacts.build(facts)
-        let request = await voiceRequest(.recap(recapFacts), cap: 63)
-        let device = await voice.line(for: request)
-        var appRequest = request; appRequest.byteCap = 1024
-        let paragraph = await voice.line(for: appRequest).text
-        let recap = Recap(line: device.text, paragraph: paragraph)
+        let request = await voiceRequest(.recap(recapFacts), cap: VoiceCap.bubble.rawValue)
+        var appRequest = request; appRequest.byteCap = VoiceCap.paragraph.rawValue
+        async let device = voice.line(for: request)
+        async let paragraph = voice.line(for: appRequest)
+        let recap = await Recap(line: device.text, paragraph: paragraph.text)
         guard !Task.isCancelled else { return nil }
         recappedDays.insert(day); try await store?.markRecapDay(day)
         // A request may arrive during generation: retain the app recap, but do not cover it.

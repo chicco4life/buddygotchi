@@ -19,7 +19,7 @@ final class RecapTests: XCTestCase {
         }
         let recap = RecapFacts.build(facts)
         XCTAssertEqual(recap.turns, 1); XCTAssertEqual(recap.tasks, 1); XCTAssertEqual(recap.openGoals, 0)
-        XCTAssertEqual(recap.biggestMoment?.kind, .hardWonPass)
+        XCTAssertEqual(recap.biggestMoment, .hardWonPass)
         XCTAssertGreaterThan(recap.hours, 0)
         let line = await Voice().line(for: VoiceRequest(occasion: .recap(recap), language: "ko", byteCap: 63))
         XCTAssertFalse(line.text.isEmpty); XCTAssertLessThanOrEqual(line.text.utf8.count, 63)
@@ -100,5 +100,79 @@ extension RecapTests {
         engine.start(); defer { engine.stop() }
         await engine.flushStore()
         XCTAssertEqual(engine.usualStopHour(at: clock.now()), 3)
+    }
+}
+
+extension RecapTests {
+    @MainActor func testUnchangedRecapFactsAreNotReadAgain() async throws {
+        let (base, _, cleanup) = try makeStore(); defer { cleanup() }
+        let store = CountingVoiceStore(base: base)
+        let (engine, clock) = makeEngine(store: store)
+        for _ in 0..<5 { _ = try await engine.makeRecap(force: false); clock.advance(by: 300_000) }
+        var reads = await store.dayFactReads
+        XCTAssertEqual(reads, 1)
+        engine.sessionStarted(sessionId: "s", source: "codex", cwd: nil)
+        engine.turnStarted(sessionId: "s", source: "codex")
+        clock.advance(by: 1000)
+        engine.turnEnded(sessionId: "s", source: "codex", outcome: .completed)
+        _ = try await engine.makeRecap()
+        reads = await store.dayFactReads
+        XCTAssertEqual(reads, 2)
+    }
+    @MainActor func testProfileContextCachedAndRefreshedAfterClearAndReflection() async throws {
+        let (base, _, cleanup) = try makeStore(); defer { cleanup() }
+        let store = CountingVoiceStore(base: base)
+        let (engine, _) = makeEngine(store: store)
+        for _ in 0..<5 { _ = try await engine.profileLines() }
+        var reads = await store.profileReads
+        XCTAssertEqual(reads, 1)
+        try await engine.clearProfile()
+        _ = try await engine.profileLines()
+        reads = await store.profileReads; XCTAssertEqual(reads, 2)
+        _ = try await engine.reflect()
+        _ = try await engine.profileLines()
+        reads = await store.profileReads; XCTAssertEqual(reads, 3)
+        let traits = await store.traitReads; XCTAssertEqual(traits, 3)
+    }
+}
+
+extension RecapTests {
+    @MainActor func testNilRecapProbeWaitsMinutesWithoutRescanning() async throws {
+        struct Evening: DayCalendar {
+            func localDay(at: Double) -> String { "2026-09-09" }
+            func previousDay(at: Double) -> String { "2026-09-08" }
+            func localHour(at: Double) -> Int { 18 }
+        }
+        let (base, _, cleanup) = try makeStore(); defer { cleanup() }
+        let store = CountingVoiceStore(base: base), clock = MockClock()
+        let engine = BuddyEngine(clock: clock, store: store, dayCalendar: Evening(), voiceRuntime: NullRuntime())
+        engine.maintenance()
+        for _ in 0..<30 { await Task.yield() }
+        for _ in 0..<10 { clock.advance(by: 2000); engine.maintenance(); await Task.yield() }
+        var attempts = await store.recapChecks
+        XCTAssertEqual(attempts, 1)
+        clock.advance(by: 300_000); engine.maintenance()
+        for _ in 0..<30 { await Task.yield() }
+        attempts = await store.recapChecks
+        XCTAssertEqual(attempts, 2)
+        let reads = await store.dayFactReads
+        XCTAssertEqual(reads, 1)
+    }
+    @MainActor func testAwardsRefreshCachedTraits() async throws {
+        let (base, _, cleanup) = try makeStore(); defer { cleanup() }
+        let store = CountingVoiceStore(base: base)
+        let (engine, clock) = makeEngine(store: store)
+        _ = try await engine.profileLines()
+        let before = await store.traitReads
+        engine.sessionStarted(sessionId: "award", source: "codex", cwd: nil)
+        engine.turnStarted(sessionId: "award", source: "codex")
+        clock.advance(by: 1000)
+        engine.turnEnded(sessionId: "award", source: "codex", outcome: .completed)
+        await engine.finishPendingWork()
+        let after = await store.traitReads
+        XCTAssertGreaterThan(after, before)
+        _ = try await engine.profileLines()
+        let cached = await store.traitReads
+        XCTAssertEqual(cached, after)
     }
 }

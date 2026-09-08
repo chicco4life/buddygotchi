@@ -1,0 +1,32 @@
+{
+  "earnest": [
+    "{project}에서 {hours}시간 동안 {turns}번 마치고 {tasks}개 통과했어요. {momentKind}. 열린 일은 {openGoals}개예요.",
+    "오늘 {project} 곁에서 {turns}번 함께 마쳤어요, {hours}시간에 통과는 {tasks}개예요. {momentKind}. 아직 {openGoals}개 열려 있어요.",
+    "{turns}번의 끝과 {tasks}개의 통과를 {project}에 남겨요. 함께한 시간은 {hours}시간이고 열린 일은 {openGoals}개예요. {momentKind}.",
+    "{project}의 하루를 접어요, {hours}시간에 {turns}번 마치고 {tasks}개 통과했어요. 열린 일 {openGoals}개도 적어 둬요. {momentKind}.",
+    "{hours}시간 곁에 있었네요, {project}에서 {turns}번 마치고 {tasks}개 통과했어요. {momentKind}. {openGoals}개는 아직 열려 있어요.",
+    "오늘 기록엔 {project}, {turns}번의 마침, {tasks}개의 통과가 있어요. {hours}시간 함께했고 열린 일은 {openGoals}개예요. {momentKind}.",
+    "{project}에서 보낸 {hours}시간을 기억해요, {turns}번 마치고 {tasks}개 통과했어요. {openGoals}개는 열린 채예요. {momentKind}.",
+    "{project} 옆자리에서 하루를 담아요, {turns}번 마치고 {tasks}개 통과한 {hours}시간이에요. {momentKind}. 열린 일은 {openGoals}개 남았어요."
+  ],
+  "wry": [
+    "{project}에서 {hours}시간 동안 {turns}번 마치고 {tasks}개 통과했어요. {momentKind}. 열린 일은 {openGoals}개예요.",
+    "오늘 {project} 곁에서 {turns}번 함께 마쳤어요, {hours}시간에 통과는 {tasks}개예요. {momentKind}. 아직 {openGoals}개 열려 있어요.",
+    "{turns}번의 끝과 {tasks}개의 통과를 {project}에 남겨요. 함께한 시간은 {hours}시간이고 열린 일은 {openGoals}개예요. {momentKind}.",
+    "{project}의 하루를 접어요, {hours}시간에 {turns}번 마치고 {tasks}개 통과했어요. 열린 일 {openGoals}개도 적어 둬요. {momentKind}.",
+    "{hours}시간 곁에 있었네요, {project}에서 {turns}번 마치고 {tasks}개 통과했어요. {momentKind}. {openGoals}개는 아직 열려 있어요.",
+    "오늘 기록엔 {project}, {turns}번의 마침, {tasks}개의 통과가 있어요. {hours}시간 함께했고 열린 일은 {openGoals}개예요. {momentKind}.",
+    "{project}에서 보낸 {hours}시간을 기억해요, {turns}번 마치고 {tasks}개 통과했어요. {openGoals}개는 열린 채예요. {momentKind}.",
+    "{project} 옆자리에서 하루를 담아요, {turns}번 마치고 {tasks}개 통과한 {hours}시간이에요. {momentKind}. 열린 일은 {openGoals}개 남았어요."
+  ],
+  "cheeky": [
+    "{project}에서 {hours}시간 동안 {turns}번 마치고 {tasks}개 통과했어요. {momentKind}. 열린 일은 {openGoals}개예요.",
+    "오늘 {project} 곁에서 {turns}번 함께 마쳤어요, {hours}시간에 통과는 {tasks}개예요. {momentKind}. 아직 {openGoals}개 열려 있어요.",
+    "{turns}번의 끝과 {tasks}개의 통과를 {project}에 남겨요. 함께한 시간은 {hours}시간이고 열린 일은 {openGoals}개예요. {momentKind}.",
+    "{project}의 하루를 접어요, {hours}시간에 {turns}번 마치고 {tasks}개 통과했어요. 열린 일 {openGoals}개도 적어 둬요. {momentKind}.",
+    "{hours}시간 곁에 있었네요, {project}에서 {turns}번 마치고 {tasks}개 통과했어요. {momentKind}. {openGoals}개는 아직 열려 있어요.",
+    "오늘 기록엔 {project}, {turns}번의 마침, {tasks}개의 통과가 있어요. {hours}시간 함께했고 열린 일은 {openGoals}개예요. {momentKind}.",
+    "{project}에서 보낸 {hours}시간을 기억해요, {turns}번 마치고 {tasks}개 통과했어요. {openGoals}개는 열린 채예요. {momentKind}.",
+    "{project} 옆자리에서 하루를 담아요, {turns}번 마치고 {tasks}개 통과한 {hours}시간이에요. {momentKind}. 열린 일은 {openGoals}개 남았어요."
+  ]
+}

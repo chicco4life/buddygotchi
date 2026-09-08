@@ -102,15 +102,15 @@ final class CreatureReducerTests: XCTestCase {
         XCTAssertEqual(s.buddy.celebrateUntil, 6200)
     }
 
-    func testDoneGiftCollectAndUTF8Cap() {
+    func testDoneGiftCollectPreservesCappedVoice() {
         var s = start(fresh())
-        s.memory.completedTurns = 1 // The voice event owns device truncation.
+        s.memory.completedTurns = 1 // Voice caps text before emitting the event.
         s = reduce(s, .toolCalled(at: 1, sessionId: "a", source: "codex", tool: "Bash", hint: String(repeating: "한", count: 30)))
         s = finish(s)
         s = reduce(s, .staleTick(at: 1600))
         XCTAssertEqual(s.buddy.creature.state, .idle)
         XCTAssertTrue(s.buddy.creature.gift)
-        s = reduce(s, .voiceLine(at: 1601, kind: .gift, text: String(repeating: "한", count: 30)))
+        s = reduce(s, .voiceLine(at: 1601, kind: .gift, text: VoiceFilter.check(String(repeating: "한", count: 30), language: "ko", byteCap: VoiceCap.gift.rawValue)!))
         XCTAssertEqual(s.buddy.creature.giftLine?.utf8.count, 39)
         let line = s.buddy.creature.giftLine
         s = reduce(s, .collectArrived(at: 1700))

@@ -237,10 +237,18 @@ func buildHookServer(
         return try encodedResponse(StateResponse(state: await engine.state, inventory: try await engine.inventory()))
     }
 
-    router.get("/state/recap") { request, _ -> Response in
-        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
-        guard config.headless else { return Response(status: .notFound) }
-        return try encodedResponse(await engine.state.recap)
+    for setting in ["language", "voice"] {
+        router.post("/state/\(setting)") { request, _ -> Response in
+            guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
+            guard config.headless else { return Response(status: .notFound) }
+            let bytes = try await request.body.collect(upTo: 1024)
+            guard let body = try? JSONDecoder().decode([String: String].self, from: Data(bytes.readableBytesView)),
+                  let value = body[setting],
+                  (setting == "language" ? ["en", "ko"] : ["auto", "off"]).contains(value) else { return Response(status: .badRequest) }
+            if setting == "language" { await engine.setLanguage(value) }
+            else { await engine.setVoiceRuntime(value) }
+            return try encodedResponse([setting: value])
+        }
     }
     router.post("/diag/recap") { request, _ -> Response in
         guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }

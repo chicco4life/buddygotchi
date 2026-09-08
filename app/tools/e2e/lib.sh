@@ -325,7 +325,6 @@ line=sys.argv[1]
 sys.exit(0 if line and len(line.encode('utf-8')) <= 40 else 1)
 PYVOICE
   then ok 'tenth-try: voice gift fits device'; else bad 'tenth-try: missing or oversized voice gift'; fi
-  recap_check
 
   post_event "$agent" "{\"hook_event_name\":\"SessionEnd\",\"session_id\":\"$sid\"}"
 }
@@ -348,7 +347,9 @@ PYCODE
 recap_check() {
   local response
   response="$("${CURL[@]}" --max-time 5 "${AUTH[@]}" -X POST "$BASE/diag/recap")" || { bad 'recap generation failed'; return; }
-  response="$("${CURL[@]}" --max-time 5 "${AUTH[@]}" "$BASE/state/recap")" || { bad 'recap read failed'; return; }
+  local line
+  line="$(state_field .recap.line)"
+  [ -n "$line" ] && ok 'recap: visible in state' || bad 'recap: absent from state'
   if printf '%s' "$response" | python3 -c 'import json,sys; r=json.load(sys.stdin); assert r["line"] and len(r["line"].encode("utf-8")) <= 63; assert r["paragraph"]'; then
     ok 'recap: device line and app paragraph'
   else bad 'recap: missing or oversized text'; fi
