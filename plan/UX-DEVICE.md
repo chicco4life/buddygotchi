@@ -275,21 +275,28 @@ the per-session view for anyone who wants it.
 
 ## 7. Anatomy
 
+Revised 2026-09-09 (owner decision): **the buddy is a face, not a body.**
+The screen is black; the eyes and mouth float on it. There is no drawn
+body shape, ever. What the old body carried (energy, posture, skin) now
+lives in a soft radial **glow** behind the eyes and in the eyes
+themselves.
+
 | Part | Carries | Range |
 | --- | --- | --- |
 | Eyes | Attention, mood | Open, half, closed, wide, arc, X; look any direction; blink |
 | Brows | Effort, surprise | Neutral, raised, furrowed |
 | Mouth | Mood | Neutral, smile, open smile, flat, small o |
 | Cheeks | Affection, exertion | Blush, sweat drop |
-| Body | Energy, posture | Bob, squish, lean, hop, wobble, curl |
-| Field | Need | Dark, amber, dim red, green ripple |
+| Glow | Energy, skin, posture | A large soft radial gradient centered between the eyes: dim while asleep, warm while working, wide and bright on a cheer. Skins tint it. Bob, lean, squish and hop move eyes and glow together. |
+| Field | Need | Black, amber wash, dim red wash, green ripple |
 | Sparks | Celebration, affection | Confetti, mini hearts, one gold orb |
-| Feet | Perch only | Dangle, kick, tuck |
-| Accessories | Cosmetics | On top, never over the eyes |
+| Feet | Perch only | Two small pads under the glow: dangle, kick, tuck |
+| Accessories | Cosmetics | Small, above or beside the eyes, drawn in the eye ink, never over the eyes or the card |
 
 Eyes are the anchor, centered and largest. Every part has a resting
-micro-motion. Expressions are blends of parts, not separate sprites. The
-silhouette changes at level milestones but the eye anchor never moves.
+micro-motion. Expressions are blends of parts, not separate sprites.
+Silhouettes change eye spacing and size at level milestones; the anchor
+never moves. No outlines anywhere: every shape is a filled, smooth edge.
 
 ## 8. States
 
@@ -334,13 +341,36 @@ Sizes and triggers are in Part I §3.3. Manners:
 
 ## 10. The card
 
-There is one card. It is used for Needs you, for the pairing code, and for
-firmware updates. Same position (lower canvas, eyes visible above), same
-motion (slides up, slides away), same type. Users learn one card.
+Revised 2026-09-09. There is one card. It is used for Needs you, for the
+pairing code, and for firmware updates. Same position (lower third, eyes
+visible above), same motion (rises from the bottom edge, settles, leaves
+the same way), same type. Users learn one card.
 
-Needs you layout: tool in plain words, gloss, stakes dot, button hint. The
-hint is the only text outside a bubble or card body, because the decision
-must be unambiguous.
+**No box.** The card is not a bordered panel. It is two lines of text on
+the black field under the face, with the field's amber wash as the only
+frame. Proportional type, the bundled Korean-capable face; one size for
+the tool name (medium weight) and one for the gloss (regular).
+
+Needs you layout, top to bottom:
+
+1. **Tool line.** Stakes dot, then the tool in plain words. `2 of 3` at
+   the right edge when more than one is waiting.
+2. **Gloss.** One line, two at most. The app truncates.
+3. **Hold ring.** A thin ring at the lower right, empty while the card is
+   unarmed (600 ms), then a faint full ring. While the primary button is
+   held it fills clockwise over the required hold (1 s, 2 s for careful)
+   and completes with the decision. Release before full: it drains back.
+   The ring is the only affordance on screen.
+
+**Hints appear only when needed.** No text explains the buttons at first.
+After five seconds without input, one quiet line fades in below the
+gloss: `tap · yes   hold · no` (or `hold 2s · yes   side · no` for
+careful). It fades out when any button is touched. The pairing and update
+cards carry no hint at all.
+
+Decision feedback replaces the card: `yes!` / `okay` in the tool-line
+position for 1.5 s, then the face returns. `sending...` past 3 s of no
+acknowledgement, `no link?` past 3 s more.
 
 Nudge ladder, chosen by the app, rendered by the device:
 
@@ -410,13 +440,24 @@ Travel interactions: tap to boop, hold to pet, shake for dizzy, flip to
 nap, pick up to perk up. No menu, no settings. Everything is demonstrable to
 a friend in five seconds.
 
+**Stats look (revised 2026-09-09).** No panel, no border. The face slides
+left and shrinks to its arc-eyed proud pose; the right two thirds carry
+the snapshot as three lines in proportional type: the name (medium), then
+`Level 4 · 7-day streak`, then the XP bar: a thin track with a filled
+rounded bar in the green accent and `320 / 500` right-aligned above it.
+Page two: `12 days together`, `84 tasks`, the biggest moment in the
+buddy's words, `today: 6`. Numbers are formatted with the app's
+localizer; the device never composes sentences.
+
 ## 14. Rituals
 
 - **First wake.** Part I §1. Asleep in the box, wakes, sees you, notices
   the Bluetooth mark; grey until the first agent signal brings color.
 - **Greet.** Under an hour, a glance and smile. Hours, a stretch and yawn.
   A day, squish and "missed you." A week or more, the big version. Capped.
-- **Level up.** Shimmer, cosmetic reveal if any, one bubble with the level.
+- **Level up.** The glow swells and brightens over 900 ms and a soft
+  light sweeps across the eyes (never a bar through the face); cosmetic
+  reveal if any; one bubble with the level.
 - **Streak milestone.** A flame pulse and a bubble. Never a reminder, never
   a comment when a streak breaks beyond a shrug.
 - **Retire.** From the app. Slow fade to dark with a single blink.
@@ -462,10 +503,14 @@ room. Never within ten seconds of a real interaction.
 
 ## 18. Cosmetics
 
-Colors and skins recolor body and field tint; eye geometry never changes.
-Accessories draw on top, never over eyes or card. Sounds swap the motif
-within the same manners. Silhouettes change at milestones within the same
-eye anchor. Schedule is `UX-GROWTH.md`.
+Colors and skins tint the glow and the field wash; the eye ink shifts
+slightly toward the tint. Eye geometry never changes. Accessories are
+small silhouettes drawn in the eye ink above or beside the eyes (a crown
+sits above the gap between the eyes, a sprout leans from one side, a
+scarf is a soft band below the mouth), never over eyes or card, never
+outlined. Sounds swap the motif within the same manners. Silhouettes
+change eye spacing and size at milestones within the same eye anchor.
+Schedule is `UX-GROWTH.md`.
 
 ## 19. Decisions this document needs
 
