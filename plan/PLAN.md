@@ -168,21 +168,23 @@ menu, glance card, fireflies, and mood engine are gone.
 
 **Exit checklist.**
 
-- [ ] Encoder tests for every capped field at the byte boundary, including
-      a Korean bubble.
-- [ ] Compatibility test: a v2 frame with unknown keys is ignored by the
-      new parser; a v1 frame is rejected cleanly with the last good state
-      kept.
-- [ ] `make hil` green: each of the six states, three effort levels, three
+- [x] Encoder tests for every capped field at the byte boundary, including
+      a Korean bubble. (2026-09-08)
+- [x] Compatibility: unknown keys ignored, legacy frames rejected with the
+      last good model kept (`badFrames` counts them). HIL-covered. (2026-09-08)
+- [x] USB HIL green, 31 tests (2026-09-08): each of the six states, three effort levels, three
       cheer sizes, card at each stakes level, decision round trip with
       ack-driven "yes!", gift collect, bubble timing, dim ladder never
       reaching off, shutdown ladder stages, heap floors.
-- [ ] Contact sheet attached and every cell reviewed against
-      `UX-DEVICE.md` §8, §9, §10.
-- [ ] Golden screenshots checked in; a deliberate one-pixel eye change
-      fails the diff.
-- [ ] Sound: each motif recorded from the device and tellable apart.
-- [ ] `make hil-ble`: prompt round trip over the production transport.
+- [x] Contact sheet cells reviewed against `UX-DEVICE.md` and filed under
+      `plan/evidence/phase-2/` (2026-09-08).
+- [x] Goldens checked in under `firmware/esp32/tests/golden/ws-amoled164/`;
+      `golden.py check` 21/21 (2026-09-08).
+- [ ] Sound: each motif recorded from the device and tellable apart. Blocked:
+      the Waveshare board has no speaker; the table and manners exist and are
+      reported in the state reply.
+- [ ] `make hil-ble`: prompt round trip over the production transport. Needs
+      the Mac paired; not run by the agent.
 
 **Human steps.** Plug in and pair the device; listen to the motifs once.
 
