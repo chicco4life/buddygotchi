@@ -558,7 +558,7 @@ final class EngineIntegrationTests: XCTestCase {
         engine.setSpecies("duck")
 
         XCTAssertEqual(engine.state.pet.species, "duck")
-        XCTAssertEqual(renderState(from: engine.state).species, "duck")
+        XCTAssertEqual(engine.state.pet.species, "duck")
     }
 
     // MARK: H. Output Contract
@@ -772,27 +772,22 @@ final class EngineIntegrationTests: XCTestCase {
     }
 
     @MainActor
-    func testHeartbeatIncludesLastCompletedFields() throws {
-        // The wire format is the contract with the firmware (data.h::_applyJson).
-        // Sending these fields is what makes the device's "Done: …" line work.
+    func testHeartbeatEmitsDoneCheerAndEngineTime() throws {
         let (engine, _, _) = makeTestEngine()
         engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: "/tmp/my-app")
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Edit", hint: "Foo.swift")
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .celebrate)
 
-        let rs = renderState(from: engine.state)
-        XCTAssertEqual(rs.lastCompletedTool, "Edit")
-        XCTAssertEqual(rs.lastCompletedHint, "Foo.swift")
-        XCTAssertEqual(rs.lastCompletedSource, "claude-code")
-        XCTAssertNotNil(rs.lastCompletedDurationMs)
-        XCTAssertTrue(rs.msg.hasPrefix("Done: Edit"), "device msg line: \(rs.msg)")
+        let rs = renderState(from: engine.state, now: engine.deviceFrameTime)
+        XCTAssertEqual(rs.state, .done)
+        XCTAssertNotNil(rs.cheer)
+        XCTAssertEqual(rs.t, Int(engine.deviceFrameTime))
     }
 
-    // MARK: - Gap B: Working with confidence
 
     @MainActor
-    func testHeartbeatIncludesEntriesArrayDuringBusy() throws {
+    func testHeartbeatEmitsWorkingEffort() throws {
         let (engine, _, _) = makeTestEngine()
         engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
@@ -800,79 +795,65 @@ final class EngineIntegrationTests: XCTestCase {
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Read", hint: "Package.swift")
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Edit", hint: "BuddyState.swift")
 
-        let rs = renderState(from: engine.state)
-        XCTAssertNotNil(rs.entries, "wire format must include entries[] when work is happening")
-        XCTAssertGreaterThanOrEqual(rs.entries?.count ?? 0, 3)
-        // Newest-first ordering is the firmware's expectation for drawHUD's bright→dim.
-        XCTAssertTrue(rs.entries?.first?.contains("Edit") == true, "got entries[0]=\(rs.entries?.first ?? "nil")")
-        // Busy msg shows the current tool — no longer cleared in busy.
-        XCTAssertTrue(rs.msg.contains("Edit"), "busy msg shows current tool; got msg=\(rs.msg)")
+        let rs = renderState(from: engine.state, now: engine.deviceFrameTime)
+        XCTAssertEqual(rs.state, .working)
+        XCTAssertNotNil(rs.effort)
     }
 
     @MainActor
-    func testBusyMsgRevertsToBlankWhenNoCurrentTool() throws {
-        // A keepWorking without a tool (e.g. a generic activity ping) leaves the previous
-        // currentTool in place, but a startWorking with no tool DOES clear since
-        // currentTool isn't bumped without one. Verify the no-tool-ever case clears.
+    func testWorkingWithoutBubbleOmitsBubble() throws {
         let (engine, _, _) = makeTestEngine()
         engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
-        let rs = renderState(from: engine.state)
-        XCTAssertEqual(rs.msg, "", "no current tool → msg blank")
+        let rs = renderState(from: engine.state, now: engine.deviceFrameTime)
+        XCTAssertNil(rs.bubble)
     }
 
     @MainActor
-    func testBusyEntriesArrayCappedAt6OverWire() throws {
-        // BuddyState.entries holds up to 10. RenderState caps at 6 to match the
-        // firmware's tama.lines[6] capacity.
+    func testHeartbeatCountsSessionDots() throws {
         let (engine, _, _) = makeTestEngine()
         engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
         for i in 1...10 {
             engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Edit", hint: "file\(i).swift")
         }
-        let rs = renderState(from: engine.state)
-        XCTAssertEqual(rs.entries?.count, 6, "wire-format cap matches firmware capacity")
+        let rs = renderState(from: engine.state, now: engine.deviceFrameTime)
+        XCTAssertEqual(rs.dots, 1)
     }
 
     @MainActor
-    func testHeartbeatPopulatesErrorToolFromErrorMsg() throws {
-        // Regression: the reducer encodes the failing tool as "Error: <tool>", so the
-        // wire's errorTool must carry that tool name. A stale extractor keyed on a
-        // "Stalled: " prefix that the reducer never emits left errorTool always nil.
+    func testHeartbeatMapsErrorToUhoh() throws {
         let (engine, _, _) = makeTestEngine()
         engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "npm test")
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .error)
 
-        let rs = renderState(from: engine.state)
-        XCTAssertEqual(rs.pet, "error")
-        XCTAssertTrue(rs.msg.hasPrefix("Error: Bash"), "device msg line: \(rs.msg)")
-        XCTAssertEqual(rs.errorTool, "Bash", "errorTool must name the failing tool on the wire")
+        let rs = renderState(from: engine.state, now: engine.deviceFrameTime)
+        XCTAssertEqual(rs.state, .uhoh)
+        XCTAssertEqual(rs.uhoh, .error)
     }
 
     @MainActor
-    func testHeartbeatErrorToolNilWhenNoTool() throws {
-        // A bare "Error" (no known tool) must leave errorTool nil, not "".
+    func testHeartbeatMapsErrorWithoutToolToUhoh() throws {
         let (engine, _, _) = makeTestEngine()
         engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .error)
 
-        let rs = renderState(from: engine.state)
-        XCTAssertEqual(rs.pet, "error")
-        XCTAssertNil(rs.errorTool, "no tool → errorTool nil; got \(String(describing: rs.errorTool))")
+        let rs = renderState(from: engine.state, now: engine.deviceFrameTime)
+        XCTAssertEqual(rs.state, .uhoh)
+        XCTAssertEqual(rs.uhoh, .error)
     }
 
     @MainActor
-    func testHeartbeatActivityFieldReflectsCurrentToolKind() throws {
+    func testHeartbeatRemainsWorkingAcrossToolKinds() throws {
         let (engine, _, _) = makeTestEngine()
         engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "swift test")
-        let rs = renderState(from: engine.state)
-        XCTAssertEqual(rs.activity, "verify", "verify icon class for swift test")
+        let rs = renderState(from: engine.state, now: engine.deviceFrameTime)
+        XCTAssertEqual(rs.state, .working)
 
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Edit", hint: "Foo.swift")
-        let rs2 = renderState(from: engine.state)
-        XCTAssertEqual(rs2.activity, "write", "write icon class for Edit")
+        let rs2 = renderState(from: engine.state, now: engine.deviceFrameTime)
+        XCTAssertEqual(rs2.state, .working)
     }
 }
 
@@ -943,5 +924,47 @@ extension EngineIntegrationTests {
             engine.nudgeDismissed()
         }
         XCTAssertEqual(recorder.last?.creature.bubble, "okay, I'll hush about that")
+    }
+}
+
+extension EngineIntegrationTests {
+    @MainActor
+    func testDeviceCommandsReachEngineThroughParser() throws {
+        let (engine, _, clock) = makeTestEngine()
+        for line in [#"{"cmd":"posture","p":"travel"}"#, #"{"cmd":"battery","pct":73,"charging":true}"#, #"{"cmd":"focus","on":true}"#] {
+            engine.handleDeviceCommand(try XCTUnwrap(parseDeviceLine(line)))
+        }
+        XCTAssertEqual(engine.state.devicePosture, .travel)
+        XCTAssertEqual(engine.state.deviceBattery, DeviceBattery(pct: 73, charging: true))
+        XCTAssertTrue(engine.state.creature.focus)
+        engine.handleDeviceCommand(try XCTUnwrap(parseDeviceLine(#"{"cmd":"focus","on":false}"#)))
+        XCTAssertFalse(engine.state.creature.focus)
+        engine.turnStarted(sessionId: "wire", source: "codex")
+        clock.advance(by: 1000)
+        engine.turnEnded(sessionId: "wire", source: "codex", outcome: .completed)
+        clock.advance(by: 1500)
+        engine.triggerStaleTick()
+        XCTAssertTrue(engine.state.creature.gift)
+        engine.handleDeviceCommand(try XCTUnwrap(parseDeviceLine(#"{"cmd":"collect"}"#)))
+        XCTAssertFalse(engine.state.creature.gift)
+        let before = engine.state
+        engine.handleDeviceCommand(try XCTUnwrap(parseDeviceLine(#"{"cmd":"motion","m":"shake"}"#)))
+        XCTAssertEqual(engine.state, before)
+    }
+
+    @MainActor
+    func testDeviceDecisionThroughParserResolvesContinuation() async throws {
+        let (engine, _, _) = makeTestEngine()
+        for legacy in [false, true] {
+            let id = "wire-id-테스트-" + String(repeating: "x", count: 30)
+            let result = Task { @MainActor in
+                await engine.submitApproval(sessionId: "wire", requestId: id, tool: "Bash", hint: "test", sessionLabel: nil, source: "codex")
+            }
+            await Task.yield()
+            let line = "{\"cmd\":\"\(legacy ? "permission" : "decision")\",\"id\":\"\(id.prefix(utf8Bytes: 23))\",\"\(legacy ? "decision" : "d")\":\"allow\"}"
+            engine.handleDeviceCommand(try XCTUnwrap(parseDeviceLine(line)))
+            let decision = await result.value
+            XCTAssertEqual(decision, .allow)
+        }
     }
 }

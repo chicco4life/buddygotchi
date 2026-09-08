@@ -262,33 +262,10 @@ on character boundaries, and the BLE transport: a frame on every change, a
 keepalive every few seconds, inbound commands, and the existing acked
 chunk protocol for updates.
 
-### RenderState v2, host to device
+### RenderState v2 and device commands
 
-One JSON object per line, frame cap 1536 bytes, absent keys mean none.
-
-| Field | Meaning |
-| --- | --- |
-| `v` | Contract version |
-| `state` | asleep, idle, working, needsYou, done, uhoh |
-| `effort` | light, hard, grinding |
-| `cheer` | hop, cheer, dance |
-| `uhoh` | error, stuck, hungry |
-| `overlay`, `greetLevel` | greet or boop; 0 to 3 |
-| `dots`, `dotAlert` | Active sessions 0 to 5; index of a red dot |
-| `card` | `{id, tool, gloss, stakes, n, of}` or `{kind, text}` for pairing and update |
-| `bubble` | One capped line, four seconds |
-| `gift`, `giftLine` | Orb pending; the story line on collect |
-| `focus`, `mute` | |
-| `cosmetic` | `{skin, accessory, silhouette}` |
-| `snap` | Travel snapshot: name, level, xp, xpNext, streak, best, rest, days, tasks, today, biggest |
-| `agent` | Channel overlay `{name, color, emotion, say}`, never with a card |
-| `t` | Host time |
-
-### Device to host
-
-`decision {id, d}`, `collect`, `boop {hold}`, `posture {p}`, `motion {m}`,
-`battery {pct, charging}`, `focus {on}`, `status` reply with board id and
-key id, and `ack` for transfers.
+[WIRE-V2.md](WIRE-V2.md) is the single source of truth for both directions,
+including field names, byte caps, compatibility, and frame shedding.
 
 ### Signing
 

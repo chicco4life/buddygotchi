@@ -59,10 +59,7 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
         celebrateState.creature.state = .done
         celebrateState.creature.overlay = nil
         celebrateState.creature.cheer = .cheer
-        celebrateState.pet.state = legacyPetState(from: celebrateState.creature)
-        celebrateState.celebrateIntensity = CheerSize.cheer.intensity
-        celebrateState.celebrateUntil = Date().timeIntervalSince1970 + 5
-        if let data = renderStateData(from: celebrateState) {
+        if let data = renderStateData(from: celebrateState, now: engine?.deviceFrameTime ?? 0) {
             bleManager.send(data)
         }
     }
@@ -70,7 +67,7 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
     func sendNow() {
         guard bleManager.connectionState == .connected,
               let s = lastState,
-              let data = renderStateData(from: s) else { return }
+              let data = renderStateData(from: s, now: engine?.deviceFrameTime ?? 0) else { return }
         bleManager.send(data)
     }
 
@@ -117,18 +114,8 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
         }
     }
 
-    func bleManager(_ manager: BLEManager, didReceiveApproval requestId: String, decision: String) {
-        let mapped: ApprovalDecision = (decision == "allow") ? .allow : .deny
-        // A decision for an id nothing is waiting on is a real fault, not a
-        // race: the device only answers prompts we sent it. Say so, because
-        // dropping it in silence is indistinguishable from a dead button.
-        if engine?.resolveApproval(requestId: requestId, decision: mapped) == false {
-            print("[ESP32Output] approval for unknown id \(requestId) (\(requestId.count) chars) — dropped")
-        }
-    }
-
-    func bleManagerDidReceiveBoop(_ manager: BLEManager) {
-        engine?.boop()
+    func bleManager(_ manager: BLEManager, didReceive command: DeviceCommand) {
+        engine?.handleDeviceCommand(command)
     }
 
     // The device menu adopted a character. Mirror it into the desktop

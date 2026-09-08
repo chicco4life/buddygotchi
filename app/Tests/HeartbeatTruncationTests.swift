@@ -2,139 +2,129 @@ import Foundation
 import XCTest
 @testable import BoopCore
 
-/// The heartbeat is the desktop→firmware wire contract, and the firmware reads
-/// it into fixed `char[N]` buffers with `strncpy` — which counts BYTES. Bounding
-/// these fields by Swift Characters let a multi-byte one straddle the buffer
-/// edge, so the device kept a dangling lead byte.
-///
-/// Observed on hardware before the fix: a prompt hint of `"x"*18 + "🐛"*12`
-/// (66 bytes) left the device holding 63 bytes ending mid-emoji, which made the
-/// device's own `state` reply invalid UTF-8 and crashed buddyctl — so the HIL
-/// suite could not even read the device while such a prompt was up.
 final class HeartbeatTruncationTests: XCTestCase {
+    private func object(_ frame: RenderState) throws -> [String: Any] {
+        try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(frame)) as? [String: Any])
+    }
 
-    func testRenderStateUsesIsolatedDefaults() throws {
-        let suiteName = "BoopTests.heartbeat.\(UUID().uuidString)"
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        defaults.set("cat", forKey: DefaultsKey.buddySpecies)
+    func testEveryTextCapWithKoreanAndEmoji() throws {
+        for glyph in ["한", "🐛", "👩‍👩‍👧‍👦"] {
+            let text = String(repeating: glyph, count: 100)
+            var f = RenderState(state: .needsYou, bubble: text, giftLine: text, t: 42)
+            f.card = .needsYou(id: text, tool: text, gloss: text, stakes: .careful, n: 1, of: 2, approval: true)
+            f.snap = .init(name: text)
+            f.cosmetic = .init(skin: text, accessory: text, silhouette: text)
+            var o = try object(f)
+            for (container, fields) in [("card", [("id", 23), ("tool", 23), ("gloss", 63)]), ("snap", [("name", 23)]), ("cosmetic", [("skin", 15), ("accessory", 15), ("silhouette", 15)])] {
+                let nested = try XCTUnwrap(o[container] as? [String: Any])
+                for (key, cap) in fields { XCTAssertEqual(nested[key] as? String, text.prefix(utf8Bytes: cap)) }
+            }
+            XCTAssertEqual(o["bubble"] as? String, text.prefix(utf8Bytes: 63))
+            XCTAssertEqual(o["giftLine"] as? String, text.prefix(utf8Bytes: 40))
+            f.card = .system(kind: .pair, text: text)
+            o = try object(f)
+            XCTAssertEqual((o["card"] as? [String: Any])?["text"] as? String, text.prefix(utf8Bytes: 63))
+            f.card = nil
+            f.agent = .init(name: text, color: text, emotion: text, say: text)
+            let agent = try XCTUnwrap(try object(f)["agent"] as? [String: Any])
+            for (key, cap) in [("name", 15), ("color", 7), ("emotion", 15), ("say", 40)] {
+                XCTAssertEqual(agent[key] as? String, text.prefix(utf8Bytes: cap))
+            }
+        }
+        for cap in [7, 15, 23, 40, 63] {
+            let exact = String(repeating: "a", count: cap - 7) + "한🐛"
+            XCTAssertEqual((exact + "🐛").prefix(utf8Bytes: cap), exact)
+        }
+    }
+
+    func testOptionalKeysAbsentAndSnapshotPresentInMapper() throws {
+        let bare = try object(RenderState(state: .asleep, t: 0))
+        for key in ["effort", "cheer", "uhoh", "overlay", "greetLevel", "dotAlert", "card", "bubble", "giftLine", "posture", "cosmetic", "snap", "agent"] {
+            XCTAssertNil(bare[key], key)
+        }
+        let suite = "BoopTests.wire.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        defaults.set("테스트", forKey: DefaultsKey.buddyName)
         defaults.set(false, forKey: DefaultsKey.soundsEnabled)
-        let frame = renderState(from: .initial, defaults: defaults)
-        XCTAssertEqual(frame.species, "cat")
-        XCTAssertEqual(frame.mute, true)
-        let data = try JSONEncoder().encode(BuddyState.initial)
-        let body = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
-        XCTAssertEqual((body["creature"] as? [String: Any])?["state"] as? String, "asleep")
-        XCTAssertNotNil(body["activeSessions"])
+        let mapped = renderState(from: .initial, defaults: defaults, now: 1234)
+        XCTAssertEqual(mapped.v, 2)
+        XCTAssertEqual(mapped.t, 1234)
+        XCTAssertEqual(mapped.mute, 0)
+        XCTAssertEqual(mapped.snap?.name, "테스트")
+        XCTAssertEqual(mapped.snap?.level, 0)
     }
 
-    func testPrefixByBytesNeverSplitsACharacter() {
-        let s = String(repeating: "x", count: 18) + String(repeating: "🐛", count: 12)
-        let cut = s.prefix(utf8Bytes: 63)
-        XCTAssertLessThanOrEqual(cut.utf8.count, 63)
-        // The real assertion: it round-trips. A split scalar would not.
-        XCTAssertEqual(String(data: Data(cut.utf8), encoding: .utf8), cut)
-        XCTAssertTrue(s.hasPrefix(cut))
-    }
-
-    func testPrefixByBytesKeepsWholeCharactersForCJK() {
-        let s = String(repeating: "修", count: 40)     // 3 bytes each
-        let cut = s.prefix(utf8Bytes: 23)
-        XCTAssertEqual(cut.count, 7)                  // 7*3 = 21 <= 23
-        XCTAssertEqual(cut.utf8.count, 21)
-        XCTAssertEqual(String(data: Data(cut.utf8), encoding: .utf8), cut)
-    }
-
-    func testPrefixByBytesLeavesShortAsciiUntouched() {
-        XCTAssertEqual("git push --force".prefix(utf8Bytes: 63), "git push --force")
-        XCTAssertEqual("".prefix(utf8Bytes: 10), "")
-    }
-
-    func testPrefixByBytesHandlesAGraphemeWiderThanTheBudget() {
-        // A family emoji is a single Character of ~25 bytes; with a 10-byte
-        // budget the only valid answer is to emit nothing rather than a shard.
-        let family = "👩‍👩‍👧‍👦"
-        let cut = family.prefix(utf8Bytes: 10)
-        XCTAssertEqual(cut, "")
-    }
-
-    // MARK: Whole-frame invariants
-
-    // Throws rather than returning a placeholder: the shim's XCTFail is
-    // `Never` while real XCTest's is `Void`, so a `return` after it is
-    // unreachable under one toolchain and required by the other.
-    private func heartbeat(_ mutate: (inout BuddyState) -> Void) throws -> Data {
-        var state = BuddyState.initial
-        mutate(&state)
-        return try XCTUnwrap(renderStateData(from: state), "heartbeat failed to encode")
-    }
-
-    func testEmojiHintProducesValidUTF8OnTheWire() throws {
-        let data = try heartbeat { state in
-            state.pet = Pet(state: .attention, species: "blob")
-            state.prompt = Prompt(
-                id: "req_1",
-                tool: "Bash",
-                hint: String(repeating: "x", count: 18) + String(repeating: "🐛", count: 12),
-                arrivedAt: 0,
-                sessionLabel: nil,
-                source: "claude-code",
-                isApproval: true,
-                activityKind: .shell
-            )
+    func testAgentNeverCoexistsWithEitherCard() throws {
+        var frame = RenderState(state: .needsYou, t: 0)
+        frame.agent = .init(name: "codex", color: "#ffffff", emotion: "happy", say: "hi")
+        for card in [RenderState.Card.needsYou(id: "1", tool: "Bash", gloss: "test", stakes: .fine, n: 1, of: 1, approval: true), .system(kind: .update, text: "Updating")] {
+            frame.card = card
+            let o = try object(frame)
+            XCTAssertNotNil(o["card"])
+            XCTAssertNil(o["agent"])
         }
-        XCTAssertNotNil(String(data: data, encoding: .utf8), "heartbeat is not valid UTF-8")
-
-        // And the field the firmware will strncpy must already fit its buffer.
-        let obj = (try? JSONSerialization.jsonObject(with: data.dropLast())) as? [String: Any]
-        let hint = (obj?["promptHint"] as? String) ?? ""
-        XCTAssertLessThanOrEqual(hint.utf8.count, 63, "promptHint overruns char promptHint[64]")
     }
 
-    /// An oversize frame is not truncated by the firmware — it is dropped
-    /// whole, and the 10s keepalive re-sends the same oversize state, so the
-    /// device stops hearing from a working Mac and naps after 30s.
-    func testOversizeStateShedsExtrasRatherThanBlowingTheFrame() throws {
-        let data = try heartbeat { state in
-            state.pet = Pet(state: .busy, species: "blob")
-            state.msg = String(repeating: "修", count: 40)
-            state.entries = (0..<6).map { _ in String(repeating: "修", count: 200) }
+    func testStateParametersAndRanges() throws {
+        for state in CreatureState.allCases {
+            var buddy = BuddyState.initial
+            buddy.pet.state = .error
+            buddy.creature.state = state
+            buddy.creature.effort = .hard
+            buddy.creature.cheer = .dance
+            buddy.creature.uhoh = .hungry
+            buddy.creature.dots = 100
+            buddy.creature.dotAlert = 8
+            let o = try object(renderState(from: buddy, now: 0))
+            XCTAssertEqual(o["state"] as? String, state.rawValue)
+            XCTAssertEqual(o["effort"] as? String, state == .working ? "hard" : nil)
+            XCTAssertEqual(o["cheer"] as? String, state == .done ? "dance" : nil)
+            XCTAssertEqual(o["uhoh"] as? String, state == .uhoh ? "hungry" : nil)
+            XCTAssertEqual(o["dots"] as? Int, 5)
+            XCTAssertNil(o["dotAlert"])
         }
-        XCTAssertLessThanOrEqual(data.count, 1536, "frame exceeds the firmware's line buffer budget")
-        XCTAssertNotNil(String(data: data, encoding: .utf8))
     }
 
-    /// Personality and agent-overlay fields ride the same frame; worst-case
-    /// (all present at max width, on top of unbounded entries) must still
-    /// shed down under the budget, and the overlay must survive the shed.
-    func testPersonalityFieldsFitTheFrame() throws {
-        let data = try heartbeat { state in
-            state.pet = Pet(state: .busy, species: "blob")
-            state.msg = String(repeating: "修", count: 40)
-            state.entries = (0..<6).map { _ in String(repeating: "修", count: 200) }
-            state.greetUntil = 1
-            state.greetLevel = 2
-            state.mood = .surprised
-            state.effortTier = .grinding
-            state.agentOverlay = AgentOverlay(
-                agentId: "claude-code",
-                color: "lavender",
-                emotion: "dramatic-collapse",
-                intensity: "medium",
-                motion: "look-at-user",
-                say: String(repeating: "x", count: 38) + "🐛",
-                delivery: "deadpan",
-                until: 2
-            )
+    func testFrameCapShedsInOrderIncludingEscapedText() throws {
+        // Control bytes are legal JSON strings and expand to six bytes each.
+        let text = String(repeating: "\u{01}", count: 100)
+        var frame = RenderState(state: .needsYou, bubble: text.prefix(utf8Bytes: 63), giftLine: text.prefix(utf8Bytes: 40), t: Int.max)
+        frame.card = .needsYou(id: text, tool: text, gloss: text, stakes: .careful, n: Int.max, of: Int.max, approval: true)
+        frame.overlay = .greet
+        frame.greetLevel = 3
+        frame.posture = .travel
+        frame.snap = .init(name: text)
+        frame.cosmetic = .init(skin: text, accessory: text, silhouette: text)
+        var sawSnapOnly = false
+        var sawCosmetic = false
+        var sawText = false
+        for length in 0...63 {
+            frame.bubble = String(repeating: "\u{01}", count: length)
+            let full = try JSONEncoder().encode(frame)
+            let data = try XCTUnwrap(renderStateData(from: frame))
+            XCTAssertLessThanOrEqual(data.count, 1536)
+            XCTAssertEqual(data.last, 10)
+            let o = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            if full.count + 1 <= 1536 { XCTAssertNotNil(o["snap"]); continue }
+            XCTAssertNil(o["snap"])
+            var withoutSnap = frame
+            withoutSnap.snap = nil
+            if try JSONEncoder().encode(withoutSnap).count + 1 <= 1536 {
+                XCTAssertNotNil(o["cosmetic"])
+                sawSnapOnly = true
+            } else {
+                XCTAssertNil(o["cosmetic"])
+                sawCosmetic = true
+                withoutSnap.cosmetic = nil
+                if try JSONEncoder().encode(withoutSnap).count + 1 > 1536 {
+                    XCTAssertNotEqual(o["bubble"] as? String, frame.bubble)
+                    sawText = true
+                }
+            }
         }
-        XCTAssertLessThanOrEqual(data.count, 1536, "frame exceeds the firmware's line buffer budget")
-        XCTAssertNotNil(String(data: data, encoding: .utf8))
-
-        let obj = (try? JSONSerialization.jsonObject(with: data.dropLast())) as? [String: Any]
-        XCTAssertEqual(obj?["agentEmotion"] as? String, "dramatic-collapse")
-        XCTAssertEqual(obj?["effort"] as? String, "grinding")
-        XCTAssertEqual(obj?["greet"] as? Bool, true)
-        let say = (obj?["agentSay"] as? String) ?? ""
-        XCTAssertLessThanOrEqual(say.utf8.count, 40)
+        XCTAssertTrue(sawSnapOnly)
+        XCTAssertTrue(sawCosmetic)
+        XCTAssertTrue(sawText)
     }
 }

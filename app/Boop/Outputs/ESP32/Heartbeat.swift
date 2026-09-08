@@ -1,123 +1,173 @@
 import Foundation
 
-struct RenderState: Encodable {
-    var pet: String
-    var species: String
-    var desktop: String
-    var total: Int
-    var running: Int
-    var waiting: Int
-    var msg: String
-    var celebrate: Bool
-    var mute: Bool?
-    var promptId: String?
-    var promptTool: String?
-    var promptHint: String?
-    var promptSource: String?
-    var promptLabel: String?
-    var promptApproval: Bool?
-    var lastCompletedTool: String?
-    var lastCompletedHint: String?
-    var lastCompletedSource: String?
-    var lastCompletedDurationMs: Int?
-    var errorTool: String?
-    var errorSource: String?
-    var activity: String?
-    var entries: [String]?
-    var sessions: [SessionSummary]?
-
-    // Personality (System P). All optional and short — absent keys cost no
-    // budget, and old firmware ignores unknown keys.
-    var greet: Bool?
+/// Host → device contract: plan/WIRE-V2.md. All free text is capped at encoding.
+struct RenderState: Encodable, Sendable {
+    let v = 2
+    var state: CreatureState
+    var effort: CreatureEffort?
+    var cheer: CheerSize?
+    var uhoh: UhohKind?
+    var overlay: CreatureOverlay?
     var greetLevel: Int?
-    var mood: String?
-    var effort: String?
-    var celebrateLevel: Int?
+    var dots: Int = 0
+    var dotAlert: Int?
+    var card: Card?
+    var bubble: String?
+    var gift: Bool = false
+    var giftLine: String?
+    var focus: Bool = false
+    var mute: Int = 1
+    var posture: DevicePosture?
+    var cosmetic: Cosmetic?
+    var snap: Snapshot?
+    var agent: Agent?
+    var t: Int
 
-    // Agent embodiment overlay (System E). Only present while an expression
-    // lease is live; never present while a prompt is pending (S1, upstream).
-    var agentSrc: String?
-    var agentColor: String?
-    var agentEmotion: String?
-    var agentIntensity: String?
-    var agentMotion: String?
-    var agentSay: String?
-    var agentDelivery: String?
-
-    struct SessionSummary: Encodable {
-        var src: String
-        var st: String
-        var tool: String?
-        var lbl: String?
+    enum Card: Encodable, Sendable {
+        case needsYou(id: String, tool: String, gloss: String, stakes: Stakes, n: Int, of: Int, approval: Bool)
+        case system(kind: SystemKind, text: String)
+        enum SystemKind: String, Encodable, Sendable { case pair, update }
+        private enum CodingKeys: String, CodingKey { case id, tool, gloss, stakes, n, of, approval, kind, text }
+        func encode(to encoder: any Encoder) throws {
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            switch self {
+            case let .needsYou(id, tool, gloss, stakes, n, of, approval):
+                try c.encode(id.prefix(utf8Bytes: 23), forKey: .id)
+                try c.encode(tool.prefix(utf8Bytes: 23), forKey: .tool)
+                try c.encode(gloss.prefix(utf8Bytes: 63), forKey: .gloss)
+                try c.encode(stakes, forKey: .stakes)
+                try c.encode(n, forKey: .n)
+                try c.encode(of, forKey: .of)
+                try c.encode(approval, forKey: .approval)
+            case let .system(kind, text):
+                try c.encode(kind, forKey: .kind)
+                try c.encode(text.prefix(utf8Bytes: 63), forKey: .text)
+            }
+        }
+    }
+    struct Cosmetic: Encodable, Sendable {
+        @Capped15 var skin: String
+        @Capped15 var accessory: String
+        @Capped15 var silhouette: String
+    }
+    struct Snapshot: Encodable, Sendable {
+        @Capped23 var name: String
+        var level = 0, xp = 0, xpNext = 0, streak = 0, best = 0, rest = 0
+        var days = 0, tasks = 0, today = 0
+        var biggest: CheerSize = .hop
+    }
+    struct Agent: Encodable, Sendable {
+        @Capped15 var name: String
+        @Capped7 var color: String
+        @Capped15 var emotion: String
+        @Capped40 var say: String
+    }
+    private enum CodingKeys: String, CodingKey {
+        case v, state, effort, cheer, uhoh, overlay, greetLevel, dots, dotAlert, card
+        case bubble, gift, giftLine, focus, mute, posture, cosmetic, snap, agent, t
+    }
+    func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(v, forKey: .v)
+        try c.encode(state, forKey: .state)
+        try c.encodeIfPresent(state == .working ? effort : nil, forKey: .effort)
+        try c.encodeIfPresent(state == .done ? cheer : nil, forKey: .cheer)
+        try c.encodeIfPresent(state == .uhoh ? uhoh : nil, forKey: .uhoh)
+        try c.encodeIfPresent(overlay, forKey: .overlay)
+        try c.encodeIfPresent(greetLevel.map { min(3, max(0, $0)) }, forKey: .greetLevel)
+        let count = min(5, max(0, dots))
+        try c.encode(count, forKey: .dots)
+        try c.encodeIfPresent(dotAlert.flatMap { (0..<count).contains($0) ? $0 : nil }, forKey: .dotAlert)
+        try c.encodeIfPresent(card, forKey: .card)
+        try c.encodeIfPresent(bubble?.prefix(utf8Bytes: 63), forKey: .bubble)
+        try c.encode(gift, forKey: .gift)
+        try c.encodeIfPresent(giftLine?.prefix(utf8Bytes: 40), forKey: .giftLine)
+        try c.encode(focus, forKey: .focus)
+        try c.encode(min(3, max(0, mute)), forKey: .mute)
+        try c.encodeIfPresent(posture, forKey: .posture)
+        try c.encodeIfPresent(cosmetic, forKey: .cosmetic)
+        try c.encodeIfPresent(snap, forKey: .snap)
+        try c.encodeIfPresent(card == nil ? agent : nil, forKey: .agent)
+        try c.encode(t, forKey: .t)
     }
 }
 
-private let encoder = JSONEncoder()
+@propertyWrapper struct Capped7: Encodable, Sendable {
+    var wrappedValue: String
+    func encode(to encoder: any Encoder) throws {
+        var c = encoder.singleValueContainer()
+        try c.encode(wrappedValue.prefix(utf8Bytes: 7))
+    }
+}
+@propertyWrapper struct Capped15: Encodable, Sendable {
+    var wrappedValue: String
+    func encode(to encoder: any Encoder) throws {
+        var c = encoder.singleValueContainer()
+        try c.encode(wrappedValue.prefix(utf8Bytes: 15))
+    }
+}
+@propertyWrapper struct Capped23: Encodable, Sendable {
+    var wrappedValue: String
+    func encode(to encoder: any Encoder) throws {
+        var c = encoder.singleValueContainer()
+        try c.encode(wrappedValue.prefix(utf8Bytes: 23))
+    }
+}
+@propertyWrapper struct Capped40: Encodable, Sendable {
+    var wrappedValue: String
+    func encode(to encoder: any Encoder) throws {
+        var c = encoder.singleValueContainer()
+        try c.encode(wrappedValue.prefix(utf8Bytes: 40))
+    }
+}
 
-func renderState(from state: BuddyState, defaults: UserDefaults = .standard) -> RenderState {
-    // In the error state the reducer encodes the failing tool into msg as
-    // "Error: <tool>" (or a bare "Error" when no tool is known). errorTool is
-    // extracted from that msg so the device can name what failed; errorSource
-    // rides along on the last signal.
-    let isError = state.pet.state == .error
-    let soundsEnabled = defaults.object(forKey: DefaultsKey.soundsEnabled) as? Bool ?? true
-    return RenderState(
-        pet: state.pet.state.rawValue,
-        species: defaults.string(forKey: DefaultsKey.buddySpecies) ?? state.pet.species,
-        desktop: state.desktop.status.rawValue,
-        total: state.sessions.total,
-        running: state.sessions.running,
-        waiting: state.sessions.waiting,
-        // Byte budgets, not character counts — they must match the firmware's
-        // fixed char[N] buffers (msg[24], promptTool[24], promptHint[64],
-        // lines[81]), which strncpy fills by byte. See prefix(utf8Bytes:).
-        msg: state.msg.prefix(utf8Bytes: 23),
-        celebrate: state.celebrateUntil != nil,
-        mute: soundsEnabled ? nil : true,
-        promptId: state.prompt?.id,
-        promptTool: state.prompt.map { $0.tool.prefix(utf8Bytes: 23) },
-        promptHint: state.prompt.map { $0.hint.prefix(utf8Bytes: 63) },
-        promptSource: state.prompt?.source,
-        // Which project is asking. With several agent sessions sharing one
-        // buddy, source+tool alone ("claude-code: Bash") cannot tell you
-        // whose request you are approving.
-        promptLabel: state.prompt?.sessionLabel.map { $0.prefix(utf8Bytes: 23) },
-        promptApproval: state.prompt?.isApproval,
-        lastCompletedTool: state.lastCompleted?.tool.map { $0.prefix(utf8Bytes: 20) },
-        lastCompletedHint: state.lastCompleted?.hint.map { $0.prefix(utf8Bytes: 40) },
-        lastCompletedSource: state.lastCompleted?.source,
-        lastCompletedDurationMs: state.lastCompleted?.durationMs.map { Int($0) },
-        errorTool: isError ? extractTool(fromMsg: state.msg).map { $0.prefix(utf8Bytes: 20) } : nil,
-        errorSource: isError ? state.lastSignal : nil,
-        activity: state.currentActivityKind?.rawValue
-            ?? state.prompt?.activityKind.rawValue
-            ?? state.lastCompleted?.activityKind.rawValue,
-        entries: state.entries.isEmpty ? nil : state.entries.prefix(6).map { $0.prefix(utf8Bytes: 80) },
-        sessions: state.activeSessions.count > 1
-            ? state.activeSessions.prefix(6).map { snap in
-                RenderState.SessionSummary(
-                    src: snap.source,
-                    st: snap.state.rawValue,
-                    tool: snap.currentTool.map { $0.prefix(utf8Bytes: 16) },
-                    lbl: snap.sessionLabel.map { $0.prefix(utf8Bytes: 16) }
-                )
-            }
-            : nil,
-        greet: state.greetUntil != nil ? true : nil,
-        greetLevel: state.greetUntil != nil ? state.greetLevel : nil,
-        mood: state.mood?.rawValue,
-        effort: state.effortTier?.rawValue,
-        celebrateLevel: state.celebrateUntil != nil ? state.celebrateIntensity : nil,
-        agentSrc: state.agentOverlay?.agentId,
-        agentColor: state.agentOverlay?.color,
-        agentEmotion: state.agentOverlay?.emotion,
-        agentIntensity: state.agentOverlay?.intensity,
-        agentMotion: state.agentOverlay?.motion,
-        // say/greeting were byte-capped at the MCP boundary (S5); the prefix
-        // here is the same defense the other free-text fields get.
-        agentSay: state.agentOverlay?.say.map { $0.prefix(utf8Bytes: 40) },
-        agentDelivery: state.agentOverlay?.delivery
-    )
+func renderState(from state: BuddyState, defaults: UserDefaults = .standard, now: Double) -> RenderState {
+    let c = state.creature
+    var frame = RenderState(state: c.state, effort: c.effort, cheer: c.cheer, uhoh: c.uhoh,
+        overlay: c.overlay, greetLevel: c.greetLevel, dots: c.dots, dotAlert: c.dotAlert,
+        bubble: c.bubble, gift: c.gift, giftLine: c.giftLine, focus: c.focus,
+        mute: (defaults.object(forKey: DefaultsKey.soundsEnabled) as? Bool ?? true) ? 1 : 0,
+        t: Int(now))
+    if c.state == .needsYou, let card = c.card {
+        frame.card = .needsYou(id: card.id, tool: card.tool, gloss: card.gloss,
+            stakes: card.stakes, n: card.index, of: card.count, approval: card.isApproval)
+    }
+    frame.snap = .init(name: defaults.string(forKey: DefaultsKey.buddyName) ?? "Boop")
+    if frame.card == nil, state.prompt == nil, let a = state.agentOverlay {
+        frame.agent = .init(name: a.agentId, color: a.color ?? "", emotion: a.emotion, say: a.say ?? "")
+    }
+    return frame
+}
+
+func renderStateData(from state: BuddyState, now: Double) -> Data? {
+    renderStateData(from: renderState(from: state, now: now))
+}
+
+/// Cap includes the newline. Escaped control characters can expand sixfold.
+func renderStateData(from frame: RenderState) -> Data? {
+    let encoder = JSONEncoder()
+    var frame = frame
+    guard var data = try? encoder.encode(frame) else { return nil }
+    if data.count + 1 > 1536 {
+        frame.snap = nil
+        guard let next = try? encoder.encode(frame) else { return nil }
+        data = next
+    }
+    if data.count + 1 > 1536 {
+        frame.cosmetic = nil
+        guard let next = try? encoder.encode(frame) else { return nil }
+        data = next
+    }
+    while data.count + 1 > 1536, !(frame.bubble ?? "").isEmpty || !(frame.giftLine ?? "").isEmpty {
+        frame.bubble = frame.bubble.map { String($0.dropLast()) }
+        frame.giftLine = frame.giftLine.map { String($0.dropLast()) }
+        guard let next = try? encoder.encode(frame) else { return nil }
+        data = next
+    }
+    data.append(0x0A)
+    assert(data.count <= 1536, "ESP32 heartbeat exceeds frame cap")
+    guard data.count <= 1536 else { return nil }
+    return data
 }
 
 extension String {
@@ -142,45 +192,4 @@ extension String {
         }
         return out
     }
-}
-
-private func extractTool(fromMsg msg: String) -> String? {
-    // Reducer encodes the error line as "Error: <tool>" (BuddyReducer.swift);
-    // a bare "Error" carries no tool. Extract the tool half for the wire.
-    let prefix = "Error: "
-    guard msg.hasPrefix(prefix) else { return nil }
-    let tool = String(msg.dropFirst(prefix.count))
-    return tool.isEmpty ? nil : tool
-}
-
-/// Hard ceiling for one heartbeat, newline included.
-///
-/// The firmware reads frames into a 2048-byte `_LineBuf` and drops whatever
-/// overflows, so an oversize frame is not truncated — the trailing bytes are
-/// discarded, the JSON no longer parses, and the WHOLE heartbeat is lost. The
-/// 10s keepalive then re-sends the same oversize state, so the device stops
-/// hearing from a Mac that is working normally and naps after 30s. 1536 leaves
-/// headroom under that buffer.
-private let maxHeartbeatBytes = 1536
-
-func renderStateData(from state: BuddyState) -> Data? {
-    let full = renderState(from: state)
-    guard var data = try? encoder.encode(full) else { return nil }
-    if data.count + 1 > maxHeartbeatBytes {
-        // Shed the two unbounded extras first — the firmware parses `entries`
-        // for the glance card and ignores `sessions` entirely, so losing them
-        // costs far less than losing the frame. Both are driven by agent text
-        // (file paths, commands), which is what makes them unbounded.
-        var trimmed = full
-        trimmed.sessions = nil
-        if let d = try? encoder.encode(trimmed), d.count + 1 <= maxHeartbeatBytes {
-            data = d
-        } else {
-            trimmed.entries = nil
-            if let d = try? encoder.encode(trimmed) { data = d }
-        }
-    }
-    data.append(0x0A)
-    assert(data.count <= maxHeartbeatBytes, "ESP32 heartbeat still oversize: \(data.count) bytes")
-    return data
 }

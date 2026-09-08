@@ -228,6 +228,8 @@ struct BuddyState: Encodable, Sendable, Equatable {
     var entries: [String]
 
     var prompt: Prompt?
+    var devicePosture: DevicePosture?
+    var deviceBattery: DeviceBattery?
     var creature: Creature = .initial
     var pet: Pet
     var lastSignal: String?

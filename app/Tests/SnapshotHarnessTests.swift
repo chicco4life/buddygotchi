@@ -39,7 +39,7 @@ final class SnapshotHarnessTests: XCTestCase {
 
     func testRenderAll() throws {
         SnapshotRenderer.renderAll(to: dir, defaults: defaults)
-        XCTAssertEqual(renderState(from: .initial, defaults: defaults).species, "blob")
+        XCTAssertEqual(renderState(from: .initial, defaults: defaults, now: 0).state, .asleep)
     }
 
     // MARK: Helpers

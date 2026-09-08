@@ -49,6 +49,14 @@ func reduce(_ state: InternalState, _ event: BuddyEvent) -> InternalState {
 
 private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> InternalState {
     switch event {
+    case .devicePostureChanged(_, let posture):
+        var s = state
+        s.buddy.devicePosture = posture
+        return s
+    case .deviceBatteryChanged(_, let battery):
+        var s = state
+        s.buddy.deviceBattery = battery
+        return s
     case .turnStarted(let at, let id, let source):
         return handleTurnStarted(state, at: at, sessionId: id, source: source)
     case .toolCalled(let at, let id, let source, let tool, let hint):

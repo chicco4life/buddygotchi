@@ -134,6 +134,44 @@ final class BuddyEngine {
         apply(.turnEnded(at: clock.now(), sessionId: sessionId, source: source, outcome: outcome))
     }
 
+    var deviceFrameTime: Double { clock.now() }
+
+    func devicePostureArrived(_ posture: DevicePosture) {
+        apply(.devicePostureChanged(at: clock.now(), posture: posture))
+    }
+
+    func deviceBatteryArrived(_ battery: DeviceBattery) {
+        apply(.deviceBatteryChanged(at: clock.now(), battery: battery))
+    }
+
+    func deviceMotionArrived(_ motion: DeviceMotion) {
+        diagnosticLog.log(category: "device", source: "esp32", event: "motion", detail: motion.rawValue)
+    }
+
+    func handleDeviceCommand(_ command: DeviceCommand) {
+        switch command {
+        case let .decision(id, decision):
+            // Match the capped wire ID back to its full request ID. Refuse
+            // ambiguous prefixes rather than resolving a different approval.
+            let matches = Set(internalState.sessions.values.compactMap { $0.prompt?.id }
+                .filter { $0 == id || $0.prefix(utf8Bytes: 23) == id })
+            guard matches.count == 1, let requestId = matches.first else {
+                diagnosticLog.log(category: "device", source: "esp32", event: "unknownDecision", detail: id)
+                return
+            }
+            if !resolveApproval(requestId: requestId, decision: decision) {
+                diagnosticLog.log(category: "device", source: "esp32", event: "unknownDecision", detail: id)
+            }
+        case .collect: collectArrived()
+        case .boop: boop()
+        case .posture(let posture): devicePostureArrived(posture)
+        case .battery(let battery): deviceBatteryArrived(battery)
+        case .motion(let motion): deviceMotionArrived(motion)
+        case .focus(let on): focusToggled(on: on)
+        case .ack, .status: break
+        }
+    }
+
     func focusToggled(on: Bool) {
         apply(.focusToggled(at: clock.now(), on: on))
     }

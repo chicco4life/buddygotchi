@@ -19,6 +19,8 @@ enum BuddyEvent: Sendable {
     case toolCalled(at: Double, sessionId: String, source: String, tool: String, hint: String)
     case toolResulted(at: Double, sessionId: String, source: String, tool: String, ok: Bool?, durationMs: Double?)
     case turnEnded(at: Double, sessionId: String, source: String, outcome: TurnOutcome)
+    case devicePostureChanged(at: Double, posture: DevicePosture)
+    case deviceBatteryChanged(at: Double, battery: DeviceBattery)
     case focusToggled(at: Double, on: Bool)
     case collectArrived(at: Double)
     case nudgeDismissed(at: Double)
@@ -72,6 +74,8 @@ enum BuddyEvent: Sendable {
              .toolCalled(let at, _, _, _, _),
              .toolResulted(let at, _, _, _, _, _),
              .turnEnded(let at, _, _, _),
+             .devicePostureChanged(let at, _),
+             .deviceBatteryChanged(let at, _),
              .focusToggled(let at, _),
              .collectArrived(let at),
              .nudgeDismissed(let at),
@@ -104,6 +108,8 @@ enum BuddyEvent: Sendable {
         case .toolCalled: "toolCalled"
         case .toolResulted: "toolResulted"
         case .turnEnded: "turnEnded"
+        case .devicePostureChanged: "devicePostureChanged"
+        case .deviceBatteryChanged: "deviceBatteryChanged"
         case .focusToggled: "focusToggled"
         case .collectArrived: "collectArrived"
         case .nudgeDismissed: "nudgeDismissed"

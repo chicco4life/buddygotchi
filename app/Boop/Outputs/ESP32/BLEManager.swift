@@ -21,6 +21,8 @@ struct BLEAckReply: Sendable, Equatable {
     struct StatusData: Sendable, Equatable {
         let firmware: String?
         let build: String?
+        var board: String? = nil
+        var contract: Int? = nil
     }
 
     let ack: String
@@ -32,9 +34,8 @@ struct BLEAckReply: Sendable, Equatable {
 @MainActor
 protocol BLEManagerDelegate: AnyObject {
     func bleManager(_ manager: BLEManager, connectionStateChanged state: BLEConnectionState)
-    func bleManager(_ manager: BLEManager, didReceiveApproval requestId: String, decision: String)
     func bleManager(_ manager: BLEManager, didAdoptSpecies species: String)
-    func bleManagerDidReceiveBoop(_ manager: BLEManager)
+    func bleManager(_ manager: BLEManager, didReceive command: DeviceCommand)
 }
 
 // Threading model: all BLE/peripheral state (target id, peripherals, characteristics,
@@ -252,7 +253,9 @@ final class BLEManager: NSObject, @unchecked Sendable {
         let status = data.map {
             BLEAckReply.StatusData(
                 firmware: $0["firmware"] as? String,
-                build: $0["build"] as? String
+                build: $0["build"] as? String,
+                board: $0["board"] as? String,
+                contract: $0["contract"] as? Int
             )
         }
         return BLEAckReply(
@@ -471,13 +474,10 @@ extension BLEManager: CBPeripheralDelegate {
             return
         }
 
-        if let cmd = json["cmd"] as? String,
-           cmd == "permission",
-           let id = json["id"] as? String,
-           let decision = json["decision"] as? String {
+        if let command = parseDeviceLine(line) {
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.delegate?.bleManager(self, didReceiveApproval: id, decision: decision)
+                self.delegate?.bleManager(self, didReceive: command)
             }
         }
 
@@ -489,15 +489,6 @@ extension BLEManager: CBPeripheralDelegate {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.delegate?.bleManager(self, didAdoptSpecies: name)
-            }
-        }
-
-        // The pet was booped (button or petting stroke) — mirror the
-        // affection into the desktop blob.
-        if let cmd = json["cmd"] as? String, cmd == "boop" {
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.delegate?.bleManagerDidReceiveBoop(self)
             }
         }
     }

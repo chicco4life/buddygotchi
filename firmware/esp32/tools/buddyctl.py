@@ -239,27 +239,34 @@ def write_png(path: Path, w: int, h: int, rgb: bytes) -> None:
 
 
 def heartbeat_from_args(args: argparse.Namespace) -> dict[str, Any]:
-    payload: dict[str, Any] = {}
-    for key in ("pet", "species", "desktop", "msg", "activity"):
+    payload: dict[str, Any] = {"v": 2}
+    for key in ("state", "effort", "cheer", "uhoh", "bubble", "gift", "giftLine", "focus", "mute", "posture", "dots", "overlay", "greetLevel", "dotAlert", "t"):
         value = getattr(args, key, None)
         if value is not None:
             payload[key] = value
-    for key in ("total", "running", "waiting"):
-        value = getattr(args, key, None)
+    if getattr(args, "pet", None) and "state" not in payload:
+        payload["state"] = {"sleep": "asleep", "busy": "working", "attention": "needsYou", "celebrate": "done", "error": "uhoh", "thinking": "uhoh", "heart": "idle"}.get(args.pet, args.pet)
+    card = {}
+    for key in ("id", "tool", "gloss", "stakes", "n", "of", "approval"):
+        value = getattr(args, "card_" + key, None)
         if value is not None:
-            payload[key] = value
-    if args.prompt_id:
-        payload.update(
-            {
-                "promptId": args.prompt_id,
-                "promptTool": args.prompt_tool or "",
-                "promptHint": args.prompt_hint or "",
-                "promptSource": args.prompt_source or "",
-                "promptApproval": True,
-            }
-        )
-    if args.entries:
-        payload["entries"] = args.entries
+            card[key] = value
+    for old, new in (("prompt_id", "id"), ("prompt_tool", "tool"), ("prompt_hint", "gloss")):
+        value = getattr(args, old, None)
+        if value is not None:
+            card.setdefault(new, value)
+    if card:
+        payload["card"] = {"id": "req_buddyctl", "tool": "", "gloss": "", "stakes": "checkIt", "n": 1, "of": 1, "approval": True, **card}
+        payload.setdefault("state", "needsYou")
+    snap = {}
+    for key in ("name", "level", "xp", "xpNext", "streak", "best", "rest", "days", "tasks", "today", "biggest"):
+        value = getattr(args, "snap_" + key, None)
+        if value is not None:
+            snap[key] = value
+    if snap:
+        payload["snap"] = {"name": "Boop", "level": 0, "xp": 0, "xpNext": 0, "streak": 0, "best": 0, "rest": 0, "days": 0, "tasks": 0, "today": 0, "biggest": "hop", **snap}
+    if getattr(args, "msg", None) is not None:
+        payload.setdefault("bubble", args.msg)
     return payload
 
 
@@ -371,16 +378,35 @@ def command_inject(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_frame(args: argparse.Namespace) -> int:
+    try:
+        payload = json.loads(args.payload)
+    except json.JSONDecodeError as exc:
+        raise BuddyError(f"invalid JSON: {exc}", 1)
+    if not isinstance(payload, dict) or type(payload.get("v")) is not int or payload["v"] != 2:
+        raise BuddyError("frame must be a v2 JSON object", 1)
+    if args.t is not None:
+        payload["t"] = args.t
+    line = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    if len(line.encode("utf-8")) + 1 > 1536:
+        raise BuddyError("frame exceeds 1536 bytes including newline", 1)
+    with SerialBuddy(args.port, args.timeout) as buddy:
+        if args.t is not None:
+            buddy.write_line(f"clock {args.t}")
+        buddy.write_line(line)
+        state = buddy.framed_json("state", "STATE")
+    emit({"ok": True, "state": state}, args.json)
+    return 0
+
+
 def command_set(args: argparse.Namespace) -> int:
-    payload = heartbeat_from_args(args)
-    if not payload:
-        raise BuddyError("no heartbeat fields supplied", 1)
-    args.payload = json.dumps(payload, separators=(",", ":"))
-    return command_inject(args)
+    args.payload = json.dumps(heartbeat_from_args(args), ensure_ascii=False)
+    return command_frame(args)
 
 
 def predicate_items(args: argparse.Namespace) -> dict[str, Any]:
     mapping = {
+        "creature": args.state,
         "pet": args.pet,
         "species": args.species,
         "desktop": args.desktop,
@@ -589,22 +615,13 @@ async def ble_timesync(args: argparse.Namespace) -> int:
 
 
 async def ble_prompt(args: argparse.Namespace) -> int:
-    payload = {
-        "pet": "attention",
-        "desktop": "connected",
-        "total": 1,
-        "running": 0,
-        "waiting": 1,
-        "msg": f"approve: {args.tool}",
-        "promptId": args.id,
-        "promptTool": args.tool,
-        "promptHint": args.hint,
-        "promptApproval": True,
-    }
-    args.until = r'"cmd"\s*:\s*"permission"'
+    payload = {"v": 2, "state": "needsYou", "card": {
+        "id": args.id, "tool": args.tool, "gloss": args.hint,
+        "stakes": "checkIt", "n": 1, "of": 1, "approval": True}}
+    args.until = r'"cmd"\s*:\s*"(?:decision|permission)"'
     args.secs = args.timeout if args.wait_decision else 1
     lines = await ble_collect(args, [payload])
-    decision = next((line for line in lines if line.get("cmd") == "permission" and line.get("id") == args.id), None)
+    decision = next((line for line in lines if line.get("cmd") in ("decision", "permission") and line.get("id") == args.id), None)
     ok = decision is not None if args.wait_decision else True
     emit({"ok": ok, "sent": payload, "decision": decision, "received": lines}, args.json)
     return 0 if ok else 1
@@ -635,6 +652,14 @@ async def ble_pair(args: argparse.Namespace) -> int:
     return 0
 
 
+def parse_bool(value: str) -> bool:
+    if value.lower() in ("1", "true", "yes"):
+        return True
+    if value.lower() in ("0", "false", "no"):
+        return False
+    raise argparse.ArgumentTypeError("expected true/false or 1/0")
+
+
 def add_common(p: argparse.ArgumentParser) -> None:
     p.add_argument("--port", default=None)
     p.add_argument("--timeout", type=float, default=5.0)
@@ -642,6 +667,25 @@ def add_common(p: argparse.ArgumentParser) -> None:
 
 
 def add_heartbeat_args(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--state", choices=["asleep", "idle", "working", "needsYou", "done", "uhoh"])
+    for key, choices in (("effort", ["light", "hard", "grinding"]), ("cheer", ["hop", "cheer", "dance"]), ("uhoh", ["error", "stuck", "hungry"]), ("posture", ["desk", "perch", "travel"]), ("overlay", ["greet", "boop"])):
+        p.add_argument("--" + key, choices=choices)
+    p.add_argument("--bubble")
+    p.add_argument("--gift-line", dest="giftLine")
+    for key in ("gift", "focus"):
+        p.add_argument("--" + key, type=parse_bool, nargs="?", const=True)
+    for key, dest in (("t", "t"), ("mute", "mute"), ("dots", "dots"), ("dot-alert", "dotAlert"), ("greet-level", "greetLevel")):
+        p.add_argument("--" + key, dest=dest, type=int)
+    for key in ("id", "tool", "gloss"):
+        p.add_argument("--card-" + key)
+    p.add_argument("--card-stakes", choices=["fine", "checkIt", "careful"])
+    for key in ("n", "of"):
+        p.add_argument("--card-" + key, type=int)
+    p.add_argument("--card-approval", type=parse_bool)
+    p.add_argument("--snap-name")
+    p.add_argument("--snap-biggest", choices=["hop", "cheer", "dance"])
+    for key in ("level", "xp", "xpNext", "streak", "best", "rest", "days", "tasks", "today"):
+        p.add_argument("--snap-" + ("xp-next" if key == "xpNext" else key), dest="snap_" + key, type=int)
     p.add_argument("--pet")
     p.add_argument("--species")
     p.add_argument("--desktop")
@@ -658,6 +702,7 @@ def add_heartbeat_args(p: argparse.ArgumentParser) -> None:
 
 
 def add_expect_args(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--state")
     p.add_argument("--pet")
     p.add_argument("--species")
     p.add_argument("--desktop")
@@ -711,6 +756,12 @@ def build_parser() -> argparse.ArgumentParser:
     add_common(p)
     p.add_argument("payload")
     p.set_defaults(func=command_inject)
+    p = sub.add_parser("frame")
+    p.add_argument("--port", default=None)
+    p.add_argument("--timeout", type=float, default=5.0)
+    p.add_argument("--json", dest="payload", required=True)
+    p.add_argument("--t", type=int)
+    p.set_defaults(func=command_frame, json=True)
     p = sub.add_parser("set")
     add_common(p)
     add_heartbeat_args(p)
