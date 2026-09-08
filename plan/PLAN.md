@@ -127,11 +127,13 @@ while the current firmware keeps working through a shim.
       three sessions, each cheer size threshold, each nudge rung, dismissal
       halving, auto-snooze, focus, stuck.
 - [ ] `EngineIntegrationTests` prove each new event reaches `BuddyState`.
-- [ ] Snapshot for every state and cheer size in the popover.
-- [ ] e2e suite (headless) asserts the six states through `/state` for
-      each agent script.
-- [ ] Current firmware, flashed as-is, still renders busy, attention,
-      celebrate, and error through the shim (one HIL screenshot each).
+- [~] Popover snapshots for asleep, working, needsYou, done (hop), and uhoh
+      (error) reviewed and filed under `plan/evidence/phase-1/` (2026-09-08).
+      Scenes for cheer/dance and stuck/hungry still to add to the harness.
+- [x] e2e suite (headless) asserts the six states through `/state` for
+      each agent script: 108/108 with Phase 0 landed (2026-09-08).
+- [x] Current firmware, flashed as-is, renders busy, attention, celebrate,
+      and error through the shim vocabulary: `plan/evidence/phase-1/` (2026-09-08).
 
 **Human steps.** Plug in the device for the shim check.
 
