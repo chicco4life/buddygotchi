@@ -22,9 +22,8 @@ struct InternalState: Sendable, Equatable {
     var nudges: [String: CardNudge] = [:]
     var snoozedTools: [String: Set<String>] = [:]
     var bubbleUntil: Double?
+    /// Size of the cheer currently playing; `celebrateUntil` is its timer.
     var doneSize: CheerSize?
-    var doneStartedAt: Double?
-    var completionLine: String?
 
     var version: Int { buddy.version }
 
@@ -38,11 +37,10 @@ struct InternalState: Sendable, Equatable {
 func reduce(_ state: InternalState, _ event: BuddyEvent) -> InternalState {
     var next = reduceInner(state, event)
     updateCreatureTimers(&next, event: event)
-    next.buddy.updatedAt = event.at
-    next.buddy = aggregate(next)
     // Recompute even on a quiet tick so effort and timed projections advance.
-    // A timestamp alone is not a state change worth notifying outputs about.
-    next.buddy.updatedAt = state.buddy.updatedAt
+    // `updatedAt` is left alone until we know something changed: a timestamp
+    // alone is not a state change worth notifying outputs about.
+    next.buddy = aggregate(next, now: event.at)
     guard next != state else { return state }
     next.buddy.version = state.buddy.version + 1
     next.buddy.updatedAt = event.at
@@ -56,23 +54,7 @@ private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> Interna
     case .toolCalled(let at, let id, let source, let tool, let hint):
         return handleToolCalled(state, at: at, sessionId: id, source: source, tool: tool, hint: hint)
     case .toolResulted(let at, let id, let source, let tool, let ok, _):
-        var s = state
-        observePresence(&s, at: at)
-        touchSession(&s, sessionId: id, at: at, source: source)
-        s.sessions[id]?.lastWorkSignalAt = at
-        if ok == true {
-            s.sessions[id]?.uhoh = nil
-            s.sessions[id]?.repeatedToolCount = 0
-            if !hasBlockingApproval(s.sessions[id]) {
-                s.sessions[id]?.state = .working
-                s.sessions[id]?.prompt = nil
-            }
-            if s.sessions[id]?.workStartedAt == nil { s.sessions[id]?.workStartedAt = at }
-        } else if ok == false {
-            s.sessions[id]?.errorCount += 1
-        }
-        if !tool.isEmpty { s.sessions[id]?.currentTool = tool }
-        return s
+        return handleToolResulted(state, at: at, sessionId: id, source: source, tool: tool, ok: ok)
     case .turnEnded(let at, let id, let source, let outcome):
         return handleTurnEnded(state, at: at, sessionId: id, source: source, outcome: outcome)
     case .focusToggled(_, let on):
@@ -94,25 +76,17 @@ private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> Interna
     case .requestCleared(let at, let sessionId):
         return handleRequestCleared(state, at: at, sessionId: sessionId)
     case .activitySignal(let at, let sessionId, let source, let signal, let tool, let hint):
-        var s = state
-        touchSession(&s, sessionId: sessionId, at: at, source: source)
-        // Compatibility input delegates to the same turn/tool handlers.
-        if signal != .keepWorking, let tool, !tool.isEmpty {
-            s.sessions[sessionId]?.lastTool = tool
-            s.sessions[sessionId]?.lastHint = hint
-            s.sessions[sessionId]?.currentTool = tool
-            s.sessions[sessionId]?.currentHint = hint
-            s.sessions[sessionId]?.currentActivityKind = activityKind(tool: tool, hint: hint ?? "")
-        }
+        // Compatibility input: the same turn/tool handlers, with the legacy
+        // signal's tool/hint stamped through the one shared helper.
         switch signal {
         case .startWorking:
-            return handleTurnStarted(s, at: at, sessionId: sessionId, source: source)
+            return handleTurnStarted(state, at: at, sessionId: sessionId, source: source, tool: tool, hint: hint)
         case .keepWorking:
-            return handleToolCalled(s, at: at, sessionId: sessionId, source: source, tool: tool ?? "", hint: hint ?? "")
+            return handleToolCalled(state, at: at, sessionId: sessionId, source: source, tool: tool ?? "", hint: hint ?? "")
         case .stopWorking, .celebrate:
-            return handleTurnEnded(s, at: at, sessionId: sessionId, source: source, outcome: .completed)
+            return handleTurnEnded(state, at: at, sessionId: sessionId, source: source, outcome: .completed, tool: tool, hint: hint)
         case .error:
-            return handleTurnEnded(s, at: at, sessionId: sessionId, source: source, outcome: .failed(errorClass: nil))
+            return handleTurnEnded(state, at: at, sessionId: sessionId, source: source, outcome: .failed(errorClass: nil), tool: tool, hint: hint)
         }
     case .staleTick(let at):
         return handleStaleTick(state, now: at)
@@ -228,10 +202,20 @@ private func handleRequestCleared(_ state: InternalState, at: Double, sessionId:
     return s
 }
 
-private func handleTurnStarted(_ state: InternalState, at: Double, sessionId: String, source: String) -> InternalState {
-    var s = state
-    observePresence(&s, at: at)
-    touchSession(&s, sessionId: sessionId, at: at, source: source)
+/// "What is the agent doing" fields, stamped in one place so every path
+/// (tool call, legacy signal) records the same set.
+private func stampTool(_ s: inout InternalState, sessionId: String, tool: String?, hint: String?) {
+    guard let tool, !tool.isEmpty else { return }
+    s.sessions[sessionId]?.lastTool = tool
+    s.sessions[sessionId]?.lastHint = hint
+    s.sessions[sessionId]?.currentTool = tool
+    s.sessions[sessionId]?.currentHint = hint
+    s.sessions[sessionId]?.currentActivityKind = activityKind(tool: tool, hint: hint ?? "")
+}
+
+/// The one "session is alive and working again" rule: clears uh-oh, resets
+/// the repeat counter, and (unless an approval blocks it) returns to working.
+private func markAlive(_ s: inout InternalState, sessionId: String, at: Double) {
     s.sessions[sessionId]?.uhoh = nil
     s.sessions[sessionId]?.repeatedToolCount = 0
     s.sessions[sessionId]?.lastWorkSignalAt = at
@@ -240,6 +224,28 @@ private func handleTurnStarted(_ state: InternalState, at: Double, sessionId: St
         s.sessions[sessionId]?.state = .working
         s.sessions[sessionId]?.prompt = nil
     }
+}
+
+private func handleTurnStarted(_ state: InternalState, at: Double, sessionId: String, source: String, tool: String? = nil, hint: String? = nil) -> InternalState {
+    var s = state
+    observePresence(&s, at: at)
+    touchSession(&s, sessionId: sessionId, at: at, source: source)
+    stampTool(&s, sessionId: sessionId, tool: tool, hint: hint)
+    markAlive(&s, sessionId: sessionId, at: at)
+    return s
+}
+
+private func handleToolResulted(_ state: InternalState, at: Double, sessionId: String, source: String, tool: String, ok: Bool?) -> InternalState {
+    var s = state
+    observePresence(&s, at: at)
+    touchSession(&s, sessionId: sessionId, at: at, source: source)
+    s.sessions[sessionId]?.lastWorkSignalAt = at
+    if ok == true {
+        markAlive(&s, sessionId: sessionId, at: at)
+    } else if ok == false {
+        s.sessions[sessionId]?.errorCount += 1
+    }
+    if !tool.isEmpty { s.sessions[sessionId]?.currentTool = tool }
     return s
 }
 
@@ -251,13 +257,7 @@ private func handleToolCalled(_ state: InternalState, at: Double, sessionId: Str
     s.sessions[sessionId]?.repeatedToolCount = previous.lastTool == tool && previous.lastHint == hint ? previous.repeatedToolCount + 1 : 1
     s.sessions[sessionId]?.lastWorkSignalAt = at
     if previous.workStartedAt == nil { s.sessions[sessionId]?.workStartedAt = at }
-    if !tool.isEmpty {
-        s.sessions[sessionId]?.lastTool = tool
-        s.sessions[sessionId]?.lastHint = hint
-        s.sessions[sessionId]?.currentTool = tool
-        s.sessions[sessionId]?.currentHint = hint
-        s.sessions[sessionId]?.currentActivityKind = activityKind(tool: tool, hint: hint)
-    }
+    stampTool(&s, sessionId: sessionId, tool: tool, hint: hint)
     if !hasBlockingApproval(previous) {
         s.sessions[sessionId]?.prompt = nil
         s.sessions[sessionId]?.state = previous.uhoh == nil ? .working : previous.state
@@ -265,14 +265,16 @@ private func handleToolCalled(_ state: InternalState, at: Double, sessionId: Str
     if s.sessions[sessionId]!.repeatedToolCount >= 6 {
         enterUhoh(&s, sessionId: sessionId, kind: .stuck, at: at)
     }
-    s.buddy.entries = Array(([shortMsg(tool: tool, hint: hint, source: source)] + s.buddy.entries).prefix(10))
+    s.buddy.entries.insert(shortMsg(tool: tool, hint: hint, source: source), at: 0)
+    if s.buddy.entries.count > 10 { s.buddy.entries.removeLast(s.buddy.entries.count - 10) }
     return s
 }
 
-private func handleTurnEnded(_ state: InternalState, at: Double, sessionId: String, source: String, outcome: TurnOutcome) -> InternalState {
+private func handleTurnEnded(_ state: InternalState, at: Double, sessionId: String, source: String, outcome: TurnOutcome, tool: String? = nil, hint: String? = nil) -> InternalState {
     var s = state
     observePresence(&s, at: at)
     touchSession(&s, sessionId: sessionId, at: at, source: source)
+    stampTool(&s, sessionId: sessionId, tool: tool, hint: hint)
     let session = s.sessions[sessionId]!
     switch outcome {
     case .failed(let errorClass):
@@ -296,12 +298,10 @@ private func handleTurnEnded(_ state: InternalState, at: Double, sessionId: Stri
         let folded = s.buddy.lastCompletionAt.map { at - $0 <= s.cheerThresholds.foldMs } ?? false
         if !folded || size.intensity > (s.doneSize?.intensity ?? 0) {
             s.doneSize = size
-            s.doneStartedAt = at
             s.buddy.celebrateUntil = at + s.cheerThresholds.duration(size)
-            s.buddy.celebrateIntensity = size.intensity
         }
-        s.completionLine = ("done: " + (session.lastHint ?? "")).prefix(utf8Bytes: 40)
-        if s.buddy.creature.gift { s.buddy.creature.giftLine = s.completionLine }
+        // A pending orb always carries the newest story line.
+        if s.buddy.creature.gift { s.buddy.creature.giftLine = giftLine(forHint: session.lastHint) }
         s.memory.lifetimeCelebrations += 1
         s.sessions[sessionId]?.errorCount = 0
         s.sessions[sessionId]?.reportedEffort = nil
@@ -322,9 +322,8 @@ private func handleStaleTick(_ state: InternalState, now: Double) -> InternalSta
 
     if let until = s.buddy.celebrateUntil, now >= until {
         s.buddy.creature.gift = true
-        s.buddy.creature.giftLine = s.completionLine
+        s.buddy.creature.giftLine = giftLine(forHint: s.buddy.lastCompleted?.hint)
         s.buddy.celebrateUntil = nil
-        s.buddy.celebrateIntensity = nil
         s.buddy.lastTaskDurationMs = nil
         changed = true
     }
@@ -602,7 +601,7 @@ private func handleErrorDismissed(_ state: InternalState, at: Double, sessionId:
 
 // MARK: - Aggregation
 
-private func aggregate(_ state: InternalState) -> BuddyState {
+private func aggregate(_ state: InternalState, now: Double) -> BuddyState {
     var buddy = state.buddy
     let allSessions = state.sessions.sorted { $0.key < $1.key }
 
@@ -633,7 +632,7 @@ private func aggregate(_ state: InternalState) -> BuddyState {
     let idleOrdered = allSessions
         .filter { $0.value.state == .idle && $0.value.uhoh == nil }
         .sorted { $0.value.lastActivityAt > $1.value.lastActivityAt }
-    let thinkingOrdered = thinking.sorted { $0.key < $1.key }
+    let thinkingOrdered = thinking  // allSessions is key-sorted; filter keeps order
     let combined = waitingOrdered + erroredOrdered + thinkingOrdered + workingOrdered + idleOrdered
     var activeSnapshots: [SessionSnapshot] = []
     activeSnapshots.reserveCapacity(min(combined.count, 6))
@@ -650,7 +649,7 @@ private func aggregate(_ state: InternalState) -> BuddyState {
 
     // Project the oldest errored session for the popover Error card. Carries the
     // session id so dismissError(sessionId:) can target a specific one.
-    let firstErroredSession = errored.min(by: { ($0.value.workStartedAt ?? .infinity) < ($1.value.workStartedAt ?? .infinity) })
+    let firstErroredSession = erroredOrdered.first
     buddy.firstErrored = firstErroredSession.map { id, sess in
         return ErroredSession(
             id: id,
@@ -702,7 +701,7 @@ private func aggregate(_ state: InternalState) -> BuddyState {
     let hasConnected = !allSessions.isEmpty
     buddy.desktop = DesktopLink(
         status: hasConnected ? .connected : .disconnected,
-        lastHeartbeatAt: allSessions.map(\.value.lastActivityAt).max()
+        lastHeartbeatAt: allSessions.lazy.map(\.value.lastActivityAt).max()
     )
 
     var creature = buddy.creature
@@ -729,13 +728,13 @@ private func aggregate(_ state: InternalState) -> BuddyState {
         creature.uhoh = primary?.uhoh ?? (errored.isEmpty ? .stuck : .error)
         let label = creature.uhoh == .stuck ? "Thinking" : "Error"
         buddy.msg = primary?.currentTool.flatMap { $0.isEmpty ? nil : "\(label): \($0)" } ?? label
-    } else if let until = buddy.celebrateUntil, buddy.updatedAt < until {
+    } else if let until = buddy.celebrateUntil, now < until {
         creature.state = .done
         creature.cheer = state.doneSize ?? .hop
         buddy.msg = buddy.lastCompleted?.tool.map { "Done: \($0)" } ?? ""
     } else if let primary = workingOrdered.first?.value {
         creature.state = .working
-        let tier = effortTier(for: primary, elapsedMs: primary.workStartedAt.map { buddy.updatedAt - $0 } ?? 0)
+        let tier = effortTier(for: primary, elapsedMs: primary.workStartedAt.map { now - $0 } ?? 0)
         buddy.effortTier = tier
         creature.effort = tier == .grinding ? .grinding : tier == .hard ? .hard : .light
         buddy.currentActivityKind = primary.currentActivityKind
@@ -747,18 +746,18 @@ private func aggregate(_ state: InternalState) -> BuddyState {
     // Sleep wins over affection, like urgency does: a booped sleeper gets the
     // device's one-eye peek, not heart-eyes, and the desktop mirrors that.
     if creature.state == .idle || creature.state == .working || creature.state == .done {
-        if let until = buddy.affectionUntil, buddy.updatedAt < until {
+        if let until = buddy.affectionUntil, now < until {
             creature.overlay = .boop
-        } else if let until = buddy.greetUntil, buddy.updatedAt < until {
+        } else if let until = buddy.greetUntil, now < until {
             creature.overlay = .greet
             creature.greetLevel = buddy.greetLevel == 2 ? 3 : 1
         }
     }
     buddy.creature = creature
+    // Legacy fields are projections of the creature; nothing else writes them.
     buddy.pet.state = legacyPetState(from: creature)
-    var baseCreature = creature
-    baseCreature.overlay = nil
-    buddy.lastSignal = creature.state == .asleep ? nil : legacyPetState(from: baseCreature).rawValue
+    buddy.celebrateIntensity = creature.cheer?.intensity
+    buddy.lastSignal = creature.state == .asleep ? nil : legacyPetState(from: creature, includingOverlay: false).rawValue
 
     return buddy
 }
@@ -863,22 +862,30 @@ struct CardNudge: Sendable, Equatable {
     var lastRung2At: Double?
 }
 
-/// One classifier table keeps destructive shell hints consistent across tools.
+/// Destructive-shell classifier. Literal fragments are plain `contains`;
+/// only the pipe-to-shell shapes need a regex, compiled once.
 private enum CardStakesPolicy {
-    static let carefulPatterns = [
-        "rm -rf", "rm -r ", "sudo ", "git push --force", "git push -f",
-        #"curl\b[^\n]*\|\s*sh\b"#, #"wget\b[^\n]*\|\s*sh\b"#,
-        "mkfs", "dd if=", "chmod 777",
-    ]
+    static let carefulLiterals = ["rm -rf", "rm -r ", "sudo ", "git push --force", "git push -f", "mkfs", "dd if=", "chmod 777"]
+    static let carefulRegexes: [NSRegularExpression] = [#"curl\b[^\n]*\|\s*sh\b"#, #"wget\b[^\n]*\|\s*sh\b"#]
+        .map { try! NSRegularExpression(pattern: $0) }
+    /// Cursor's read-only tool names; Claude/Codex names go through `activityKind`.
+    static let readOnlyCursorTools: Set<String> = ["ls", "read_file", "list_dir", "list_directory", "file_search", "grep_search", "codebase_search", "search"]
+    static let controlCharacters = CharacterSet.controlCharacters.subtracting(CharacterSet(charactersIn: "\t"))
 }
 
 func cardStakes(tool: String, hint: String) -> Stakes {
-    if hint.unicodeScalars.contains(where: { $0.value < 0x20 && $0.value != 9 }) ||
-        CardStakesPolicy.carefulPatterns.contains(where: { hint.range(of: $0, options: .regularExpression) != nil }) {
-        return .careful
-    }
-    let readOnly = ["read", "glob", "grep", "ls", "lsp", "read_file", "list_dir", "list_directory", "file_search", "grep_search", "codebase_search", "search"]
-    return readOnly.contains(tool.lowercased()) ? .fine : .checkIt
+    if hint.rangeOfCharacter(from: CardStakesPolicy.controlCharacters) != nil { return .careful }
+    if CardStakesPolicy.carefulLiterals.contains(where: { hint.contains($0) }) { return .careful }
+    let range = NSRange(location: 0, length: (hint as NSString).length)
+    if CardStakesPolicy.carefulRegexes.contains(where: { $0.firstMatch(in: hint, range: range) != nil }) { return .careful }
+    if activityKind(tool: tool, hint: hint) == .read || CardStakesPolicy.readOnlyCursorTools.contains(tool.lowercased()) { return .fine }
+    return .checkIt
+}
+
+/// The orb's story line (Phase 1: the last hint; Phase 3 replaces it with a
+/// moment). Capped for the device bubble.
+private func giftLine(forHint hint: String?) -> String {
+    ("done: " + (hint ?? "")).prefix(utf8Bytes: 40)
 }
 
 private func setBubble(_ s: inout InternalState, _ line: String, at: Double) {
@@ -929,7 +936,13 @@ private func dismissNudge(_ state: InternalState, at: Double) -> InternalState {
 /// Timers use only supplied event time. Each card owns its ladder even when
 /// another session's older card is currently on top.
 private func updateCreatureTimers(_ s: inout InternalState, event: BuddyEvent) {
+    if case .staleTick = event, let until = s.bubbleUntil, event.at >= until {
+        s.buddy.creature.bubble = nil
+        s.bubbleUntil = nil
+    }
     let liveIds = Set(s.sessions.values.compactMap { $0.prompt?.id })
+    // Hot path: nothing to advance or garbage-collect without a card.
+    if liveIds.isEmpty && s.nudges.isEmpty && s.snoozedTools.isEmpty { return }
     s.nudges = s.nudges.filter { liveIds.contains($0.key) }
     s.snoozedTools = s.snoozedTools.filter { s.sessions[$0.key] != nil }
     for (id, session) in s.sessions {
@@ -950,10 +963,6 @@ private func updateCreatureTimers(_ s: inout InternalState, event: BuddyEvent) {
                 nudge.nextAt = event.at + s.nudgeTiming.rung2RateLimit
             }
         }
-        s.nudges[prompt.id] = nudge
-    }
-    if case .staleTick = event, let until = s.bubbleUntil, event.at >= until {
-        s.buddy.creature.bubble = nil
-        s.bubbleUntil = nil
+        if nudge != s.nudges[prompt.id] { s.nudges[prompt.id] = nudge }
     }
 }

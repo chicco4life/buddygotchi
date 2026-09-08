@@ -291,8 +291,8 @@ struct PopoverView: View {
             .replacingOccurrences(of: "{sessions}", with: sessions)
     }
 
-    private var stateInk: Color { BuddyTheme.stateInk(legacyPetState(from: engine.state.creature)) }
-    private var stateFill: Color { BuddyTheme.stateFill(legacyPetState(from: engine.state.creature)) }
+    private var stateInk: Color { BuddyTheme.stateInk(engine.state.pet.state) }
+    private var stateFill: Color { BuddyTheme.stateFill(engine.state.pet.state) }
 
     private var stateLabel: String { engine.state.creature.statusLabel }
 

@@ -211,8 +211,6 @@ enum PetTuning {
     static let effortGrindingMinMs: Double = 25 * 60_000
 
     /// Celebration payoff boundaries — struggle-proportional joy.
-    static let celebrateBigMinMs: Double = 10 * 60_000
-    static let celebrateHugeMinMs: Double = 25 * 60_000
 
     /// Possession lease (S8): an expression owns the overlay this long, then
     /// the pet is itself again. Speech lingers slightly longer to be readable.

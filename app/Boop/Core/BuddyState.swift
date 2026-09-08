@@ -47,8 +47,8 @@ struct Creature: Sendable, Equatable {
 }
 
 /// The old firmware vocabulary is only a rendering projection.
-func legacyPetState(from creature: Creature) -> PetState {
-    if creature.overlay != nil, [.idle, .working, .done].contains(creature.state) { return .heart }
+func legacyPetState(from creature: Creature, includingOverlay: Bool = true) -> PetState {
+    if includingOverlay, creature.overlay != nil, [.idle, .working, .done].contains(creature.state) { return .heart }
     switch creature.state {
     case .asleep: return .sleep
     case .idle: return .idle

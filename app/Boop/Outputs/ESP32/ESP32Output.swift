@@ -58,7 +58,9 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
         var celebrateState = lastState ?? .initial
         celebrateState.creature.state = .done
         celebrateState.creature.overlay = nil
+        celebrateState.creature.cheer = .cheer
         celebrateState.pet.state = legacyPetState(from: celebrateState.creature)
+        celebrateState.celebrateIntensity = CheerSize.cheer.intensity
         celebrateState.celebrateUntil = Date().timeIntervalSince1970 + 5
         if let data = renderStateData(from: celebrateState) {
             bleManager.send(data)

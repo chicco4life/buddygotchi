@@ -89,7 +89,7 @@ final class DesktopOutput: OutputProvider {
         // No memo on pet state alone: the icon now also depends on the system
         // appearance, since the app inherits it rather than pinning darkAqua.
         // An 18x18 draw on a state change is not a hot path.
-        statusItem?.button?.image = Self.statusIcon(for: legacyPetState(from: state.creature))
+        statusItem?.button?.image = Self.statusIcon(for: state.pet.state)
         statusItem?.button?.toolTip = state.creature.statusLabel
     }
 
