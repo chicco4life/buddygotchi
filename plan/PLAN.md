@@ -456,6 +456,19 @@ ships.
 
 **Size.** M.
 
+**Finding (2026-09-09, autonomous run).** The Waveshare board's native USB
+serial does not always re-enumerate after a reset: a 40-cycle reboot soak
+stranded the device mid-run (no ping, no flasher connection), as the
+watchdog test had twice before. Commanded reboots and watchdog resets
+usually recover; roughly one in tens does not. Until a root cause is found
+(host-side CDC driver, or the firmware's USB init order), treat every
+device test that resets the board as needing a person within reach of the
+reset button, and keep the soak out of unattended runs. Candidates to try:
+`ARDUINO_USB_MODE` 0 (TinyUSB CDC) instead of 1 (HW CDC/JTAG), a delay
+before `Serial.begin`, and a host-side re-open loop that tolerates the
+port node vanishing.
+
+
 **Build.**
 
 1. End-to-end latency scenario over BLE with timestamps at every hop;
