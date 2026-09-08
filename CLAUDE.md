@@ -134,6 +134,18 @@ yourself; ask the user to (an agent-launched Boop aborts on Bluetooth).
 | `archived/app/Boop/Core/PetMemory.swift` | Pet personality memory, effort/mood types, agent vocabulary |
 | `archived/app/Boop/Server/MCPServer.swift` | Agent-embodiment MCP input adapter (express/say/introduce/report_effort) |
 
+## Specs Stay In Sync
+
+`plan/` is the spec and the code is its implementation; they must not
+drift. Any change that alters behavior, a wire contract, a budget, a UX
+flow, or a verification step updates the matching document in the same
+commit: `plan/UX-*.md` for what the person sees, `plan/WIRE-V2.md` and
+`firmware/esp32/PROTOCOL.md` for the wire, `plan/ARCHITECTURE.md` for
+structure and budgets, `plan/VERIFICATION.md` for how it is checked, and
+`plan/PLAN.md` for phase status. If a change deliberately departs from the
+spec, change the spec first and say why in it. Reviewers read the spec
+diff next to the code diff.
+
 ## Documentation Expectations
 
 - `plan/` is the direction. When code and these docs disagree, the docs
