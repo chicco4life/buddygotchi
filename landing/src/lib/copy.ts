@@ -125,7 +125,7 @@ export const copy = {
     ctaLabel: "Get in line",
     placeholder: "you@where-you-code.com",
     // Rendered only when url is non-empty — set it once the build-in-public
-    // account exists (research/TODOs.md).
+    // account exists (research/archived/TODOs.md).
     followBuild: { label: "follow the build", url: "" },
     signoff: "Made by people who also forgot a task finished 40 minutes ago.",
     privacy: "privacy",

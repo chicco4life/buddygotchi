@@ -2,7 +2,7 @@
 
 This is the active Boop runtime: a Swift macOS menu bar app that receives AI agent hook events over localhost, reduces them into one state model, renders the menu bar popover, and optionally mirrors state to an M5StickC Plus 2 over BLE.
 
-For full app and firmware architecture, see `../research/eng/ARCHITECTURE-APP.md`.
+For full app and firmware architecture, see `../research/archived/eng/ARCHITECTURE-APP.md`.
 
 ## Quick Start
 

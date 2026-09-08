@@ -57,7 +57,7 @@ This idea grows that into something that can carry a conversation.
 
 The question was whether Claude Code, Codex, and Cursor let us see what is
 going on, or whether we need another source. Checked against the hook
-references in `research/eng/reference/` and against the files on this
+references in `research/archived/eng/reference/` and against the files on this
 machine: all three put the content stream on the wire through hooks we
 already install. Boop's hook script receives it today and forwards only a
 tool name and a truncated hint.

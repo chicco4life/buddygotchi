@@ -2,7 +2,7 @@
 
 Status: v1 target architecture, second draft, 2026-09-08. Implements
 `VISION.md`, `UX-DEVICE.md`, and `IDEAS.md` idea 1. The current codebase is
-described in `research/eng/ARCHITECTURE-APP.md`; §10 says what is kept from
+described in `research/archived/eng/ARCHITECTURE-APP.md`; §10 says what is kept from
 today and what is new.
 
 ---

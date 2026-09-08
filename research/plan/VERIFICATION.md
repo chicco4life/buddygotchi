@@ -3,7 +3,7 @@
 Status: first draft, 2026-09-08. How an agent verifies its own work on every
 part of Boop, autonomously, and how we make sure no regression ships.
 Companion to `ARCHITECTURE.md`. The current command reference is
-`research/eng/TESTING.md`; this document says what the v1 verification
+`research/archived/eng/TESTING.md`; this document says what the v1 verification
 system should be and what is missing today.
 
 ---
@@ -115,7 +115,7 @@ What v1 needs:
   effort, cheer size, and the card directly.
 - **Snapshot isolation.** The harness writes into the shared defaults
   domain and poisons the next run; fixed by a scratch suite (already in
-  `TODOs.md`).
+  `research/archived/TODOs.md`).
 
 With those, an agent's app loop is: `swift test`, launch headless, run
 `e2e-smoke.sh`, read `/state` at each step, snapshot, quit.
@@ -146,7 +146,7 @@ have shipped hook regressions. Two guards:
   new agent version ships, record a new directory; if the readers degrade,
   the test says which field moved.
 - A **contract check** that diffs the event names and fields we depend on
-  against the reference captures in `research/eng/reference/`, and fails
+  against the reference captures in `research/archived/eng/reference/`, and fails
   when a capture is updated and a field we use disappears.
 
 **Is this harness firing right now?** The doctor (§3).
@@ -295,4 +295,4 @@ Definition of done by area:
   exposed over HTTP. Item 1 above fixes this.
 - The doctor's harness detection for Codex and Cursor is unverified.
 - The snapshot harness poisons the shared defaults domain (tracked in
-  `TODOs.md`).
+  `research/archived/TODOs.md`).

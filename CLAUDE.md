@@ -97,7 +97,7 @@ yourself; ask the user to (an agent-launched Boop aborts on Bluetooth).
 - Approval continuations belong in `BuddyEngine`, not in `BuddyState`.
 - Treat `RenderState` in `Outputs/ESP32/Heartbeat.swift` as the desktop-to-firmware wire contract.
 - Keep Cursor auto-approval conservative. Shell commands with control characters must require manual review.
-- Keep agent expression (MCP) inside the enforced sandbox: suppressed while any prompt is pending, enum-only vocabulary, byte-capped text, engine-side rate limits. Never award pet joy or memory for approval decisions. See `research/eng/personality-and-embodiment.md`.
+- Keep agent expression (MCP) inside the enforced sandbox: suppressed while any prompt is pending, enum-only vocabulary, byte-capped text, engine-side rate limits. Never award pet joy or memory for approval decisions. See `research/archived/eng/personality-and-embodiment.md`.
 
 ## Files To Know
 
@@ -116,11 +116,13 @@ yourself; ask the user to (an agent-launched Boop aborts on Bluetooth).
 
 ## Documentation Expectations
 
+- `research/plan/` is the active product and engineering direction: `VISION.md`,
+  `UX-DEVICE.md`, `ARCHITECTURE.md`, `VERIFICATION.md`, `PLAN.md`, `IDEAS.md`.
+  When code and these docs disagree, the docs describe the target and
+  `PLAN.md` says which phase closes the gap.
+- `research/archived/` holds everything that came before (older product,
+  marketing, hardware, and source-derived engineering docs). Read it for
+  history and for the still-valid command references in
+  `research/archived/eng/TESTING.md` and `RELEASE.md`; do not extend it.
 - Keep `README.md` focused on overview and build/run/test instructions.
-- Keep `research/eng/ARCHITECTURE.md` as a short index pointing at the split architecture docs.
-- Keep `research/eng/ARCHITECTURE-APP.md` focused on the Swift macOS app and ESP32 firmware, including test/mocking strategy.
-- Keep `research/eng/ARCHITECTURE-LANDING.md` focused on the landing page architecture.
-- Keep this file mirrored in `CLAUDE.md`.
-- Use `research/TODOs.md` for open cross-functional items.
-- Use `research/eng/TESTING.md` and `research/eng/RELEASE.md` for engineering verification and release gates.
-- Keep external agent reference captures under `research/eng/reference/`.
+- Keep this file mirrored in `CLAUDE.md` and `AGENTS.md`.

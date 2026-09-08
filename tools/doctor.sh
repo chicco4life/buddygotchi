@@ -133,7 +133,7 @@ if [ $DEVICE -eq 1 ]; then
   hdr "6. Device"
   BC="$REPO/firmware/esp32/tools/buddyctl.py"
   if [ -f "$BC" ]; then
-    if OUT=$(cd "$REPO/firmware/esp32" && python3 tools/buddyctl.py ping --json 2>/dev/null); then ok "device ping: $(echo "$OUT" | head -c 160)"; else bad "no device answered over USB (plugged in? Boop app quit? see research/eng/TESTING.md §7)"; fi
+    if OUT=$(cd "$REPO/firmware/esp32" && python3 tools/buddyctl.py ping --json 2>/dev/null); then ok "device ping: $(echo "$OUT" | head -c 160)"; else bad "no device answered over USB (plugged in? Boop app quit? see research/archived/eng/TESTING.md §7)"; fi
   else note "buddyctl not found at $BC"; fi
 fi
 

@@ -468,8 +468,8 @@ ships.
   Phase 1 maps them to the new overlay, Phase 2 renders the overlay frame.
 - **Privacy tests.** From Phase 3 on, every phase's checklist includes the
   "nothing raw written" grep.
-- **Documentation.** Each phase updates `research/eng/ARCHITECTURE-APP.md`
-  and `TESTING.md` to describe what now exists, so the eng docs stay
+- **Documentation.** Each phase updates `research/archived/eng/ARCHITECTURE-APP.md`
+  and `research/archived/eng/TESTING.md` to describe what now exists, so the eng docs stay
   source-derived and this plan stays the intent.
 
 ---

@@ -249,7 +249,7 @@ everything else as `work`.
 
 ## Personality And Agent Embodiment
 
-Design and invariants: `research/eng/personality-and-embodiment.md`.
+Design and invariants: `research/archived/eng/personality-and-embodiment.md`.
 
 `PetMemory` (in `InternalState`, persisted via `PetMemoryStoring` to
 `~/.boop/pet-memory.json`) holds `lastSeenAt`, a UTC hour-of-day activity

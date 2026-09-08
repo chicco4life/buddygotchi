@@ -30,7 +30,7 @@ unsigned mode explicitly — never silently downgrade a release the user expecte
    - `DEVELOPER_ID_APPLICATION` set to the exact identity from `security find-identity -v -p codesigning`.
    - Notarization credentials: either `NOTARYTOOL_PROFILE` from `xcrun notarytool store-credentials`, or the `APPLE_ID`, `APPLE_TEAM_ID`, and `APPLE_APP_SPECIFIC_PASSWORD` trio.
    - A valid semver `VERSION`, clean git tree, `main` checked out, and no existing `v$(cat VERSION)` tag (these stay hard in both modes).
-   - Sparkle readiness warnings: `SPARKLE_FRAMEWORK_PATH`, `SPARKLE_PUBLIC_ED_KEY`, and hosting from `research/eng/RELEASE.md`.
+   - Sparkle readiness warnings: `SPARKLE_FRAMEWORK_PATH`, `SPARKLE_PUBLIC_ED_KEY`, and hosting from `research/archived/eng/RELEASE.md`.
 
 3. Never fabricate or guess credentials, signing identities, Sparkle keys, app-specific passwords, team IDs, or hosting state.
 
@@ -111,7 +111,7 @@ Use this only on a release-capable Mac with credentials present.
    app/tools/make-appcast.sh <sparkle-bin-dir> <downloads-dir>
    ```
 
-5. Walk the release gates in `research/eng/RELEASE.md`, especially packaged-app smoke from `research/eng/TESTING.md#4-packaged-app-smoke`.
+5. Walk the release gates in `research/archived/eng/RELEASE.md`, especially packaged-app smoke from `research/archived/eng/TESTING.md#4-packaged-app-smoke`.
 
 ## Final Gates
 
@@ -120,5 +120,5 @@ Before publishing, verify:
 - Draft release artifacts launch on a clean Mac.
 - Appcast PR updates `https://adoptaboop.com/releases/appcast.xml`.
 - Firmware manifest hosting is reachable when included in the release.
-- `research/eng/RELEASE.md` gates are complete.
-- `research/eng/TESTING.md` section 4 packaged-app smoke passes.
+- `research/archived/eng/RELEASE.md` gates are complete.
+- `research/archived/eng/TESTING.md` section 4 packaged-app smoke passes.

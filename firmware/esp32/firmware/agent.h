@@ -8,7 +8,7 @@
 // Header-only with file-static state: include from exactly one translation
 // unit (main.cpp), after mood.h and data.h.
 //
-// The agent-expression overlay (System E — research/eng/personality-and-
+// The agent-expression overlay (System E — research/archived/eng/personality-and-
 // embodiment.md). While a connected agent holds an expression lease, the
 // panel carries an unmistakable AGENT CHANNEL: a slow-breathing border in
 // the agent's identity color, plus a small name chip along the bottom edge

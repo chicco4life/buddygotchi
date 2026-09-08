@@ -3,7 +3,7 @@
 Status: v1 product vision, clean slate. Drafted 2026-09-07, revised same day.
 This document is the top of a stack. It says what Boop is, who it is for, and
 what it must feel like. Follow-on UI/UX documents (§19) refine each surface.
-Where it conflicts with `PRODUCT.md`, `MARKETING.md`, or `PEBBLE-UX.md`, this
+Where it conflicts with the archived `PRODUCT.md`, `MARKETING.md`, or `PEBBLE-UX.md` (now under `research/archived/product/`), this
 document wins.
 
 Everything described here is launch scope. There is no v1.5 list. If a

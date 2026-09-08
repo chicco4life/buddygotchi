@@ -3,8 +3,8 @@
 Status: approved direction (2026-07-25), end-state behavior spec for implementation
 Applies to: `ws-amoled164` firmware (Waveshare ESP32-S3 Touch AMOLED 1.64, landscape 456×280)
 Companion docs: `PRODUCT.md` §10 (Blob interaction design — the ancestor of this spec),
-`research/eng/waveshare-amoled-port.md` (hardware + current firmware state),
-`research/eng/one-creature-review.md` (what the 2026-07-22 pass shipped, with by-hand
+`research/archived/eng/waveshare-amoled-port.md` (hardware + current firmware state),
+`research/archived/eng/one-creature-review.md` (what the 2026-07-22 pass shipped, with by-hand
 test steps), `firmware/esp32/PROTOCOL.md` (the wire contract)
 
 This spec describes the **end behavior** of the polished Pebble product. It supersedes
@@ -12,7 +12,7 @@ the current HUD-based resting screen. The M5StickC portrait renderer is untouche
 everything here lives behind `HAL_LANDSCAPE` / board guards.
 
 > **Reconciled 2026-07-25 against the "one creature" pass** (main @ `2bab063`,
-> reviewed in `research/eng/one-creature-review.md`). That pass shipped and
+> reviewed in `research/archived/eng/one-creature-review.md`). That pass shipped and
 > hardware-verified a meaningful slice of this spec ahead of it: the QMI8658 IMU is
 > wired, touch is real petting, and boops now round-trip to the desktop as a `heart`
 > pet state. Sections below marked **[shipped]** describe behavior that already exists

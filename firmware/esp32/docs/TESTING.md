@@ -289,5 +289,5 @@ back.
   `{"cmd":"unpair"}` + macOS Bluetooth forget resets the world.
 - **Production-run leverage.** `state` + `press` + `screenshot` are exactly
   the self-test primitives the 100-unit production checklist needs
-  (research/product/PRODUCT.md §7.4–7.5); design them as the same commands,
+  (research/archived/product/PRODUCT.md §7.4–7.5); design them as the same commands,
   not parallel ones.

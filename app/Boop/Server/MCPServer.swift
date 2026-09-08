@@ -9,7 +9,7 @@ import NIOCore
 /// routes — MCP messages become engine calls become `BuddyEvent`s; the Core
 /// stays MCP-free.
 ///
-/// Security model (see research/eng/personality-and-embodiment.md):
+/// Security model (see research/archived/eng/personality-and-embodiment.md):
 /// guidelines below are UX for well-behaved agents; the enforced invariants
 /// are S1 (suppression while any prompt is pending, reducer + engine),
 /// S4 (enum-only vocabulary, validated here), S5 (byte caps + control-char

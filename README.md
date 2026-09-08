@@ -77,7 +77,8 @@ app/tools/e2e/cursor.sh
 | `app/` | Active macOS Swift app, hook CLIs, tests, and e2e scripts |
 | `landing/` | Next.js landing page and waitlist API |
 | `firmware/esp32/` | ESP32 firmware, PlatformIO config, character tools, and device docs |
-| `research/` | Product notes, engineering architecture/testing/release docs, TODOs, and captured external references |
+| `research/plan/` | The active direction: vision, device UX, architecture, verification, implementation plan, ideas |
+| `research/archived/` | Earlier product, marketing, hardware, and engineering docs, plus captured agent hook references |
 | `docs/` | Public release/support pages and web flasher assets |
 | `README.md` | Overview and build/run/test instructions |
 | `AGENTS.md`, `CLAUDE.md` | Repo instructions for coding agents |
@@ -101,7 +102,7 @@ python3 firmware/esp32/tools/button.py b
 
 ## More Detail
 
-See [research/eng/ARCHITECTURE.md](research/eng/ARCHITECTURE.md) for the architecture index, including links to the app/firmware and landing page architecture docs. See [AGENTS.md](AGENTS.md) for repo-specific instructions for coding agents.
+See [research/plan/ARCHITECTURE.md](research/plan/ARCHITECTURE.md) for the target architecture and [research/archived/eng/ARCHITECTURE-APP.md](research/archived/eng/ARCHITECTURE-APP.md) for the source-derived description of the current code. See [AGENTS.md](AGENTS.md) for repo-specific instructions for coding agents.
 
 Release and support details live in [docs/RELEASE.md](docs/RELEASE.md) and [docs/SUPPORT.md](docs/SUPPORT.md). To remove Boop, use Settings, About, Remove Boop, or follow the manual uninstall notes in the support doc.
 

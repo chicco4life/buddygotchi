@@ -4,7 +4,7 @@
 // face (screen + two buttons) tilts back so the screen looks up at you.
 // Big boop dome on the crown, soft domed back.
 //
-// Board facts (research/eng/waveshare-amoled-port.md):
+// Board facts (research/archived/eng/waveshare-amoled-port.md):
 //   PCB 28.6 x 43.5 mm, 4x M2 holes at 22.86 x 38.50 mm spacing,
 //   display active area 22.3 x 36.1 mm. Board mounts LANDSCAPE.
 //   USB-C exits on the buddy's right (your left as you face it).

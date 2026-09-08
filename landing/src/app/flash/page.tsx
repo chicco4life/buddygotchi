@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function FlashPage() {
   // Hidden until hardware ships: the page 404s unless the flag is set at
   // build time, and /firmware/ artifacts are only published at release
-  // (research/TODOs.md).
+  // (research/archived/TODOs.md).
   if (process.env.NEXT_PUBLIC_SHOW_FLASH !== "true") {
     notFound();
   }

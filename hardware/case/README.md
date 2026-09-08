@@ -42,7 +42,7 @@ Parameters at the top of the `.scad`, unverifiable from docs:
   you face it).
 - `tilt` (25°) — how far the face leans back. Taste parameter.
 
-Known dims baked in from `research/eng/waveshare-amoled-port.md`:
+Known dims baked in from `research/archived/eng/waveshare-amoled-port.md`:
 PCB 28.6 × 43.5 mm, M2 holes at 22.86 × 38.50 mm, active area 22.3 × 36.1 mm.
 
 ## Hardware (not printed)

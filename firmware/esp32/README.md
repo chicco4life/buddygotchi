@@ -7,7 +7,7 @@ Two boards build from the same source via the HAL in `firmware/hal/`:
 | Board | Env | Notes |
 |-------|-----|-------|
 | M5StickC Plus 2 | `m5stickc-plus` (default) | Original dev board / regression rig. ST7789 135x240, buttons A/B. |
-| Waveshare ESP32-S3-Touch-AMOLED-1.64 | `ws-amoled164` | Production "Boop Pebble" board. CO5300 280x456 QSPI AMOLED, FT3168 touch, external BOOP/REJECT/MENU buttons on IO1/IO2/IO5 (BOOT doubles as BOOP). `ws-amoled164-spike` is the bring-up smoke test. Port plan: `research/eng/waveshare-amoled-port.md`. |
+| Waveshare ESP32-S3-Touch-AMOLED-1.64 | `ws-amoled164` | Production "Boop Pebble" board. CO5300 280x456 QSPI AMOLED, FT3168 touch, external BOOP/REJECT/MENU buttons on IO1/IO2/IO5 (BOOT doubles as BOOP). `ws-amoled164-spike` is the bring-up smoke test. Port plan: `research/archived/eng/waveshare-amoled-port.md`. |
 
 ## Contents
 
