@@ -5,7 +5,8 @@ struct CompanionScene {
     var name: String
     var creature: Creature
     var cosmetic = EquippedCosmetic()
-    static var all: [Self] {
+    var needsPopover: Bool { creature.card != nil || creature.gift || creature.bubble != nil || creature.state == .uhoh }
+    static let all: [Self] = {
         var scenes: [Self] = []
         for state in CreatureState.allCases {
             for cheer in CheerSize.allCases {
@@ -13,11 +14,11 @@ struct CompanionScene {
                 scenes.append(Self(name: "\(state.rawValue)-\(cheer.rawValue)", creature: c))
             }
         }
-        for effort in [CreatureEffort.light, .hard, .grinding] {
+        for effort in CreatureEffort.allCases {
             var c = Creature.initial; c.state = .working; c.effort = effort
             scenes.append(Self(name: "effort-\(effort.rawValue)", creature: c))
         }
-        for stakes in [Stakes.fine, .checkIt, .careful] {
+        for stakes in Stakes.allCases {
             var c = Creature.initial; c.state = .needsYou
             c.card = CreatureCard(id: "preview", tool: "Bash", gloss: "swift build", stakes: stakes, index: 0, count: 1, isApproval: true)
             scenes.append(Self(name: "stakes-\(stakes.rawValue)", creature: c))
@@ -42,5 +43,5 @@ struct CompanionScene {
         var gift = Creature.initial; gift.state = .idle; gift.gift = true; gift.giftLine = "first one"
         scenes.append(Self(name: "gift", creature: gift))
         return scenes
-    }
+    }()
 }

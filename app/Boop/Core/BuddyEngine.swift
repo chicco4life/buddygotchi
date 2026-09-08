@@ -6,6 +6,10 @@ import Observation
 @MainActor
 final class BuddyEngine {
     private(set) var state: BuddyState = .initial
+    var popoverVisible = false
+    private var settingsRevision = 0
+    private var claimedTools: Set<String> = []
+    private var mutedTools: Set<String> = []
     private(set) var teachTool: String?
     private var retiring = false
     private var activeRecaps = 0
@@ -87,6 +91,9 @@ final class BuddyEngine {
                     try await store.migrate()
                     return store
                 }.value
+                let tools = try await self.store?.toolPreferences() ?? ToolPreferences()
+                self.claimedTools.formUnion(tools.claimed)
+                self.mutedTools.formUnion(tools.muted)
                 if let memory = try await self.store?.loadMemory() {
                     self.apply(.memoryLoaded(at: self.clock.now(), memory: memory), persistenceResult: true)
                 }
@@ -281,7 +288,7 @@ final class BuddyEngine {
             if !resolveApproval(requestId: requestId, decision: decision) {
                 diagnosticLog.log(category: "device", source: "esp32", event: "unknownDecision", detail: id)
             }
-        case .quick: NotificationManager.shared.postQuickCommand(quickCommand)
+        case .quick: NotificationManager.shared.postQuickCommand(quickCommand, language: state.language)
         case .collect: collectArrived()
         case .boop: boop()
         case .posture(let posture): devicePostureArrived(posture)
@@ -300,7 +307,7 @@ final class BuddyEngine {
     var quickCommand: String { defaults.string(forKey: DefaultsKey.quickCommand) ?? "continue" }
     func setQuickCommand(_ text: String) { defaults.set(String(text.prefix(1000)), forKey: DefaultsKey.quickCommand) }
     func dismissTeach(tool: String) async {
-        do { try await store?.muteTool(tool); if teachTool == tool { teachTool = nil } }
+        do { try await store?.muteTool(tool); mutedTools.insert(tool); if teachTool == tool { teachTool = nil } }
         catch { storeFailure(error) }
     }
     static func preview(state: BuddyState, defaults: UserDefaults) -> BuddyEngine {
@@ -326,13 +333,44 @@ final class BuddyEngine {
         internalState.buddy.language = previous.language
         state = internalState.buddy
         cachedProfile = []; cachedTraits = [:]; contextLoaded = false; contextLoad = nil
+        claimedTools = []; mutedTools = []
         teachTool = nil; recappedDays = []; recapFactsCache = nil; recapAttempt = nil; stopHourCache = nil
         defaults.removeObject(forKey: DefaultsKey.buddyName)
         defaults.removeObject(forKey: DefaultsKey.buddyNameLocked)
         defaults.removeObject(forKey: DefaultsKey.firstCheerShown)
         defaults.set(false, forKey: DefaultsKey.setupCompleted)
         defaults.removeObject(forKey: DefaultsKey.onboardingStep)
+        refreshSettings()
         for output in outputs { output.stateDidChange(prev: previous, next: state) }
+    }
+    var focusHours: (enabled: Bool, start: Int, end: Int) {
+        (defaults.bool(forKey: DefaultsKey.focusHoursEnabled), defaults.object(forKey: DefaultsKey.focusStart) as? Int ?? 9, defaults.object(forKey: DefaultsKey.focusEnd) as? Int ?? 17)
+    }
+    func setFocusHours(enabled: Bool, start: Int, end: Int) {
+        defaults.set(enabled, forKey: DefaultsKey.focusHoursEnabled)
+        defaults.set(max(0, min(23, start)), forKey: DefaultsKey.focusStart)
+        defaults.set(max(0, min(23, end)), forKey: DefaultsKey.focusEnd)
+        updateFocusHours()
+    }
+    var soundVolume: Int { SoundSettings.volume(defaults: defaults, respectingMute: false) }
+    var voiceSetting: String { defaults.string(forKey: DefaultsKey.voiceRuntime) ?? "auto" }
+    func setSoundVolume(_ volume: Int) { defaults.set(max(0, min(3, volume)), forKey: DefaultsKey.soundVolume) }
+    func boolSetting(_ key: String, fallback: Bool = false) -> Bool { _ = settingsRevision; return defaults.object(forKey: key) as? Bool ?? fallback }
+    func setBoolSetting(_ key: String, _ value: Bool) { defaults.set(value, forKey: key); settingsRevision += 1 }
+    var buddyName: String { _ = settingsRevision; return defaults.string(forKey: DefaultsKey.buddyName) ?? "" }
+    var pairedPeripheral: String? { _ = settingsRevision; return defaults.string(forKey: DefaultsKey.esp32PeripheralUUID) }
+    func setPairedPeripheral(_ uuid: UUID?) {
+        defaults.set(uuid?.uuidString, forKey: DefaultsKey.esp32PeripheralUUID)
+        settingsRevision += 1
+    }
+    func restartOnboarding() {
+        defaults.removeObject(forKey: DefaultsKey.onboardingStep)
+        setBoolSetting(DefaultsKey.setupCompleted, false)
+    }
+    func setApprovalMode(_ enabled: Bool) {
+        setBoolSetting(DefaultsKey.approvalMode, enabled)
+        BuddyConfig.setApprovalMode(enabled)
+        if !enabled { resolveAllPendingApprovals(decision: .passthrough) }
     }
     func updateFocusHours() {
         guard defaults.bool(forKey: DefaultsKey.focusHoursEnabled) else {
@@ -364,9 +402,7 @@ final class BuddyEngine {
         apply(.reviewDismissed(at: clock.now()))
     }
 
-    func dismissError(sessionId: String) {
-        apply(.errorDismissed(at: clock.now(), sessionId: sessionId))
-    }
+    func refreshSettings() { settingsRevision += 1 }
 
     func setSpecies(_ species: String) {
         apply(.speciesChanged(at: clock.now(), species: species))
@@ -592,9 +628,9 @@ final class BuddyEngine {
     private func apply(_ event: BuddyEvent, persistenceResult: Bool = false) {
         guard !retiring else { return }
         if loadingStore && !persistenceResult { deferredEvents.append(event); return }
-        if case .toolCalled(_, _, _, let tool, _, _) = event {
+        if case .toolCalled(_, _, _, let tool, _, _) = event, !mutedTools.contains(tool), claimedTools.insert(tool).inserted {
             enqueue { store in
-                if try await store.claimTool(tool), TeachCatalog.line(tool: tool, language: self.state.language) != nil {
+                if try await store.claimTool(tool), !self.mutedTools.contains(tool), TeachCatalog.line(tool: tool, language: self.state.language) != nil {
                     self.teachTool = tool
                 }
             }

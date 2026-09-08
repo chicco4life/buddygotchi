@@ -67,6 +67,31 @@ final class OnboardingModel {
         }
     }
 
+    private var lastScannedIndex = 0
+    var heardEveryAgent: Bool { heardAgents.count == AgentKind.allCases.count }
+    func observe(_ log: DiagnosticLog) {
+        guard !heardEveryAgent else { return }
+        let count = log.appendedCount
+        let remaining = max(0, count - lastScannedIndex)
+        observe(Array(log.entries.suffix(remaining)))
+        lastScannedIndex = count
+    }
+    private(set) var wakeCreature = Creature.initial
+    private(set) var waking = false
+    func firstWake(reduceMotion: Bool) async {
+        guard !waking else { return }
+        waking = true
+        defer { waking = false }
+        do {
+            try await Task.sleep(for: .seconds(reduceMotion ? 0 : 1))
+            wakeCreature.state = .idle
+            try await Task.sleep(for: .seconds(reduceMotion ? 0 : 2))
+            wakeCreature.overlay = .greet; wakeCreature.greetLevel = 1
+            try await Task.sleep(for: .seconds(reduceMotion ? 0 : 2))
+            if step == .welcome { advance() }
+        } catch { wakeCreature = .initial }
+    }
+
     var selectedOutput: BuddyOutputTarget {
         didSet {
             defaults.set(selectedOutput.rawValue, forKey: DefaultsKey.buddyOutput)
@@ -79,8 +104,6 @@ final class OnboardingModel {
     var agentInstalled: [AgentKind: Bool] = [:]
     var agentErrors: [AgentKind: String] = [:]
     var heardFromAgent: AgentKind?
-    var firstContactStartedAt = Date.now
-    var showingTroubleshooting = false
     var pairingTimedOut = false
 
     init(defaults: UserDefaults = .standard) {
@@ -153,10 +176,6 @@ final class OnboardingModel {
     func advance() {
         guard let next = OnboardingStep(rawValue: min(step.rawValue + 1, OnboardingStep.allCases.count - 1)) else { return }
         step = next
-        if next == .firstContact {
-            firstContactStartedAt = .now
-            showingTroubleshooting = false
-        }
     }
 
     func goBack() {

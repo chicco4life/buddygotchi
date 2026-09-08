@@ -51,10 +51,10 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
-    func postQuickCommand(_ command: String) {
+    func postQuickCommand(_ command: String, language: String) {
         guard available else { return }
         let content = UNMutableNotificationContent()
-        content.title = BuddyCopy.phase7("quick")
+        content.title = BuddyCopy.phase7("quick", language: language)
         content.body = command
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "quick-command", content: content, trigger: nil))
     }

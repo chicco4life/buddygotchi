@@ -53,6 +53,11 @@ final class Database: @unchecked Sendable {
     }
 }
 
+struct ToolPreferences: Sendable {
+    var claimed: Set<String> = []
+    var muted: Set<String> = []
+}
+
 actor Store: EngineStore {
     static let factRetentionMs: Double = 30 * 86_400_000
     private let db: Database
@@ -96,6 +101,14 @@ actor Store: EngineStore {
         try db.run("CREATE TABLE IF NOT EXISTS voice_recent(id INTEGER PRIMARY KEY, day TEXT NOT NULL, line TEXT NOT NULL)")
         try db.run("CREATE TABLE IF NOT EXISTS voice_day(day TEXT NOT NULL, line TEXT NOT NULL, PRIMARY KEY(day,line))")
         try db.run("INSERT OR REPLACE INTO meta VALUES('schema_version','3')")
+    }
+    func toolPreferences() async throws -> ToolPreferences {
+        var result = ToolPreferences()
+        for row in try db.run("SELECT key, value FROM meta WHERE key LIKE 'seenTool:%'") {
+            let tool = String(row[0].dropFirst("seenTool:".count))
+            if row[1] == "muted" { result.muted.insert(tool) } else { result.claimed.insert(tool) }
+        }
+        return result
     }
     /// Claim before presentation, so a restart cannot repeat a lesson.
     func claimTool(_ tool: String) async throws -> Bool {
@@ -386,6 +399,7 @@ enum StoreMigrator {
 
 /// Engine persistence seam. Production uses SQLite; tests can suspend individual operations.
 protocol EngineStore: AnyObject, Sendable {
+    func toolPreferences() async throws -> ToolPreferences
     func claimTool(_ tool: String) async throws -> Bool
     func muteTool(_ tool: String) async throws
     func retire() async throws
@@ -418,6 +432,7 @@ protocol EngineStore: AnyObject, Sendable {
 
 // Memory-only test stores can opt into voice persistence independently.
 extension EngineStore {
+    func toolPreferences() async throws -> ToolPreferences { ToolPreferences() }
     func claimTool(_ tool: String) async throws -> Bool { false }
     func muteTool(_ tool: String) async throws {}
     func retire() async throws { throw StoreError(message: "Retire is unavailable") }

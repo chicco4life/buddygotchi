@@ -41,7 +41,7 @@ final class SnapshotHarnessTests: XCTestCase {
         SnapshotRenderer.renderAll(to: dir, defaults: defaults)
         for scene in CompanionScene.all {
             for appearance in ["light", "dark"] {
-                for surface in ["creature", "popover"] {
+                for surface in scene.needsPopover ? ["popover"] : ["creature"] {
                     let path = "\(dir)/phase7-\(surface)-\(scene.name)-\(appearance).png"
                     XCTAssertTrue(FileManager.default.fileExists(atPath: path), "Missing scene: " + path)
                 }
@@ -54,41 +54,13 @@ final class SnapshotHarnessTests: XCTestCase {
 
     private func makeEngine() -> BuddyEngine {
         BuddyEngine(config: BuddyConfig(httpPort: 0, staleTimeoutMs: 600_000,
-                                        celebrateDurationMs: 4_000, workStallTimeoutMs: 300_000, stateDir: "/tmp", approvalMode: false, token: "test-token"))
+                                        celebrateDurationMs: 4_000, workStallTimeoutMs: 300_000, stateDir: "/tmp", approvalMode: false, token: "test-token"), defaults: defaults)
     }
 
     private func snapshot<V: View>(_ view: V, _ name: String, _ size: CGSize) throws {
-        // Render the REAL view hierarchy via NSHostingView (unlike ImageRenderer,
-        // this lays out ScrollView content and draws live controls like switches).
-        // Composite over paper — the popover chrome the app shows these views
-        // inside; the views themselves are transparent. This adds no view content,
-        // just the container background.
-        let root = ZStack {
-            BuddyTheme.paper
-            view
-        }
-        .frame(width: size.width, height: size.height)
-        .environment(\.colorScheme, .light)
-        .defaultAppStorage(defaults)
-
-        let host = NSHostingView(rootView: AnyView(root))
-        host.appearance = NSAppearance(named: .aqua)
-        host.frame = CGRect(origin: .zero, size: size)
-
-        let window = NSWindow(contentRect: host.frame, styleMask: [.borderless],
-                              backing: .buffered, defer: false)
-        window.appearance = NSAppearance(named: .aqua)
-        window.contentView = host
-        host.layoutSubtreeIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.15))   // let SwiftUI draw
-
-        let rep = try XCTUnwrap(host.bitmapImageRepForCachingDisplay(in: host.bounds),
-                                "\(name): could not make bitmap rep")
-        host.cacheDisplay(in: host.bounds, to: rep)
-        let png = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
-        try png.write(to: URL(fileURLWithPath: "\(dir)/\(name).png"))
-        XCTAssertGreaterThan(png.count, 1000, "\(name): PNG suspiciously small — likely blank")
-        print("SNAPSHOT \(name).png  \(png.count)B  \(Int(size.width))x\(Int(size.height))")
+        SnapshotRenderer.render(view, name, size, dir, defaults: defaults)
+        let data = try Data(contentsOf: URL(fileURLWithPath: "\(dir)/\(name).png"))
+        XCTAssertGreaterThan(data.count, 1000, "\(name): PNG suspiciously small")
     }
 
     private func popover(_ engine: BuddyEngine) -> some View {
@@ -101,7 +73,9 @@ final class SnapshotHarnessTests: XCTestCase {
         defaults.set("blob", forKey: DefaultsKey.buddySpecies)
         defaults.set("Mochi", forKey: DefaultsKey.buddyName)
         defaults.set(BuddyOutputTarget.thisMac.rawValue, forKey: DefaultsKey.buddyOutput)
-        return OnboardingView(defaults: defaults, engine: makeEngine(), esp32Output: ESP32Output(), onFinish: {})
+        let engine = BuddyEngine(defaults: defaults)
+        if step == .done { defaults.set(false, forKey: DefaultsKey.firstCheerShown); engine.firstCheer() }
+        return OnboardingView(defaults: defaults, engine: engine, esp32Output: ESP32Output(), onFinish: {})
     }
 
     private var popoverIdle: CGSize { CGSize(width: BuddyTheme.popoverWidth, height: BuddyTheme.liveViewHeight) }

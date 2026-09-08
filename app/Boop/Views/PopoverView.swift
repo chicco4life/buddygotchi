@@ -7,12 +7,11 @@ struct PopoverView: View {
     let serverHealth: ServerHealth?
     var onUserInteraction: (() -> Void)? = nil
     var onOpenOnboarding: () -> Void = {}
-    @AppStorage(DefaultsKey.setupCompleted) private var setupCompleted = false
-    @AppStorage(DefaultsKey.buddyName) private var buddyName = ""
+    private var setupCompleted: Bool { engine.boolSetting(DefaultsKey.setupCompleted) }
+    private var buddyName: String { engine.buddyName }
     @AppStorage(DefaultsKey.showMenuHint) private var showMenuHint = false
-    @State private var showingSettings = false
     @State private var showingShelf = false
-    @AppStorage(DefaultsKey.agentDrawingsEnabled) private var agentDrawingsEnabled = true
+    private var agentDrawingsEnabled: Bool { engine.boolSetting(DefaultsKey.agentDrawingsEnabled, fallback: true) }
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(
@@ -36,18 +35,6 @@ struct PopoverView: View {
             Group {
                 if !setupCompleted {
                     unfinishedSetupView
-                } else if showingSettings {
-                    SettingsView(
-                        isPresented: $showingSettings,
-                        engine: engine,
-                        esp32Output: esp32Output,
-                        serverHealth: serverHealth,
-                        onOpenOnboarding: onOpenOnboarding
-                    )
-                        .transition(reduceMotion ? .opacity : .asymmetric(
-                            insertion: .move(edge: .trailing).combined(with: .opacity),
-                            removal: .move(edge: .trailing).combined(with: .opacity)
-                        ))
                 } else if showingShelf {
                     KeepsakeShelfView(engine: engine, isPresented: $showingShelf)
                         .transition(reduceMotion ? .opacity : .asymmetric(
@@ -60,11 +47,7 @@ struct PopoverView: View {
                 }
             }
         }
-        .animation(reduceMotion ? nil : .buddyEase(0.2), value: showingSettings)
         .animation(reduceMotion ? nil : .buddyEase(0.2), value: showingShelf)
-        .onReceive(NotificationCenter.default.publisher(for: .boopOpenSettings)) { _ in
-            showingSettings = true
-        }
         .onHover { hovering in
             if hovering { onUserInteraction?() }
         }
@@ -100,7 +83,7 @@ struct PopoverView: View {
     private var liveView: some View {
         VStack(spacing: 0) {
             headerRow
-            CreatureView(creature: engine.state.creature, cosmetic: engine.state.cosmetic)
+            CreatureView(creature: engine.state.creature, cosmetic: engine.state.cosmetic, paused: !engine.popoverVisible)
                 .frame(height: 180)
             if let bubble = engine.state.creature.bubble, engine.state.creature.card == nil {
                 Text(bubble).font(.buddy(12)).foregroundStyle(BuddyTheme.ink)
@@ -110,7 +93,7 @@ struct PopoverView: View {
                 Button(action: { engine.collectArrived() }) {
                     HStack {
                         Circle().fill(BuddyTheme.amber.gradient).frame(width: 18, height: 18)
-                        Text(engine.state.creature.giftLine ?? BuddyCopy.phase7("collect"))
+                        Text(engine.state.creature.giftLine ?? BuddyCopy.phase7("collect", language: engine.state.language))
                             .font(.buddy(12))
                     }.frame(maxWidth: .infinity, alignment: .leading)
                 }.buttonStyle(BuddyPlainButtonStyle())
@@ -119,7 +102,7 @@ struct PopoverView: View {
                 HStack {
                     Text(TeachCatalog.line(tool: tool, language: engine.state.language) ?? tool).font(.buddy(11))
                     Button { Task { await engine.dismissTeach(tool: tool) } } label: { Image(systemName: "xmark") }
-                        .accessibilityLabel(BuddyCopy.phase7("quietTool"))
+                        .accessibilityLabel(BuddyCopy.phase7("quietTool", language: engine.state.language))
                 }.foregroundStyle(BuddyTheme.inkSoft)
             }
 
@@ -153,11 +136,11 @@ struct PopoverView: View {
             }
 
             if let card = engine.state.creature.card {
-                NeedsYouCard(card: card, approve: { engine.resolveApproval(requestId: card.id, decision: .allow) }, deny: { engine.resolveApproval(requestId: card.id, decision: .deny) })
+                NeedsYouCard(language: engine.state.language, card: card, approve: { engine.resolveApproval(requestId: card.id, decision: .allow) }, deny: { engine.resolveApproval(requestId: card.id, decision: .deny) })
                     .padding(.top, 12)
             }
             if let recap = engine.state.recap, engine.state.prompt == nil {
-                RecapView(recap: recap).padding(.top, 12)
+                RecapView(language: engine.state.language, recap: recap).padding(.top, 12)
             }
 
             let rows = activityRows
@@ -237,7 +220,7 @@ struct PopoverView: View {
                 .frame(width: 5, height: 5)
                 .accessibilityHidden(true)
 
-            Text(serverWarning ?? BuddyCopy.phase7(engine.state.desktop.status.rawValue))
+            Text(serverWarning ?? (engine.state.desktop.status == .connected ? BuddyCopy.book(language: engine.state.language).common.connected : BuddyCopy.phase7("disconnected", language: engine.state.language)))
                 .font(.buddy(11))
                 .foregroundStyle(serverWarning == nil ? BuddyTheme.inkFaint : BuddyTheme.clayInk)
                 .lineLimit(2)
@@ -245,11 +228,11 @@ struct PopoverView: View {
             Spacer(minLength: 8)
 
             Text(BuddyCopy.growthLabel(engine.state.growth)).font(.buddy(11))
-            Toggle(BuddyCopy.phase7("focus"), isOn: Binding(get: { engine.state.creature.focus }, set: { engine.focusToggled(on: $0) }))
+            Toggle(BuddyCopy.phase7("focus", language: engine.state.language), isOn: Binding(get: { engine.state.creature.focus }, set: { engine.focusToggled(on: $0) }))
                 .toggleStyle(.button).font(.buddy(10))
             Menu {
-                Button(BuddyCopy.phase7("recap")) { Task { _ = try? await engine.makeRecap() } }
-                Button(BuddyCopy.phase7("profile")) { CompanionWindows.shared.profile(engine: engine) }
+                Button(BuddyCopy.phase7("recap", language: engine.state.language)) { Task { _ = try? await engine.makeRecap() } }
+                Button(BuddyCopy.phase7("profile", language: engine.state.language)) { CompanionWindows.shared.profile(engine: engine) }
             } label: { Image(systemName: "ellipsis") }
             .menuStyle(.borderlessButton).fixedSize()
 
@@ -291,10 +274,10 @@ struct PopoverView: View {
             .replacingOccurrences(of: "{sessions}", with: sessions)
     }
 
-    private var stateInk: Color { BuddyTheme.stateInk(engine.state.pet.state) }
-    private var stateFill: Color { BuddyTheme.stateFill(engine.state.pet.state) }
-
-    private var stateLabel: String { BuddyCopy.phase7(engine.state.creature.state.rawValue, language: engine.state.language) }
+    private var pill: CreaturePill { CreaturePill.table[engine.state.creature.state]! }
+    private var stateInk: Color { pill.ink }
+    private var stateFill: Color { pill.fill }
+    private var stateLabel: String { engine.state.language == "ko" ? pill.korean : pill.label }
 
     private var statusColor: Color {
         switch engine.state.desktop.status {
@@ -455,255 +438,6 @@ private struct EmptyAgentsView: View {
 }
 
 
-// MARK: - Tool Card
-
-struct ToolCardView: View {
-    let prompt: Prompt
-    var waitingCount: Int = 1
-    var onApprove: (() -> Void)? = nil
-    var onDeny: (() -> Void)? = nil
-    @State private var isHoveringActions = false
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    if let source = prompt.source {
-                        Text(sourceName(source))
-                            .font(.buddy(11))
-                            .foregroundStyle(BuddyTheme.amberInk)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(BuddyTheme.ink.opacity(0.07), in: Capsule())
-                            .alignmentGuide(.firstTextBaseline) { context in
-                                context[VerticalAlignment.center] + 4
-                            }
-                    }
-                    Spacer(minLength: 8)
-                    if waitingCount > 1 {
-                        Text(BuddyCopy.shared.popover.moreWaitingTemplate.replacingOccurrences(of: "{count}", with: "\(waitingCount - 1)"))
-                            .font(.buddy(9.5, weight: .semibold))
-                            .foregroundStyle(BuddyTheme.amberInk)
-                    }
-                    if let label = prompt.sessionLabel {
-                        Text(label)
-                            .font(.buddy(11))
-                            .foregroundStyle(BuddyTheme.ink.opacity(0.55))
-                    }
-                }
-
-                Text(prompt.tool)
-                    .font(.buddy(13, weight: .semibold))
-                    .lineLimit(1)
-                    .truncationMode(buddyTruncationMode(for: prompt.tool))
-
-                if !prompt.hint.isEmpty {
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Image(systemName: prompt.activityKind.sfSymbol)
-                            .font(.system(.caption2))
-                            .foregroundStyle(BuddyTheme.ink.opacity(0.55))
-                            .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 3 }
-                            .accessibilityHidden(true)
-                        Text(prompt.hint)
-                            .font(.buddy(11))
-                            .foregroundStyle(BuddyTheme.ink.opacity(0.70))
-                            .lineLimit(3)
-                            .truncationMode(pathLikeHint ? .middle : .tail)
-                    }
-                }
-
-                if let onApprove, let onDeny {
-                    HStack(spacing: 8) {
-                        Button(action: onDeny) {
-                            HStack(spacing: 6) {
-                                Text(BuddyCopy.deny)
-                                if isHoveringActions {
-                                    Text("⌫")
-                                        .font(.buddy(11))
-                                        .foregroundStyle(BuddyTheme.inkFaint)
-                                }
-                            }
-                            .font(.buddy(11, weight: .semibold))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 4)
-                            .background(BuddyTheme.paperRaised, in: Capsule())
-                            .overlay(Capsule().strokeBorder(BuddyTheme.clayInk.opacity(0.35), lineWidth: BuddyTheme.hairlineWidth))
-                            .foregroundStyle(BuddyTheme.clayInk)
-                        }
-                        .buttonStyle(BuddyPlainButtonStyle())
-                        .keyboardShortcut(.delete, modifiers: [])
-
-                        Button(action: onApprove) {
-                            HStack(spacing: 6) {
-                                Text(BuddyCopy.approve)
-                                if isHoveringActions {
-                                    Text("↵")
-                                        .font(.buddy(11))
-                                        .foregroundStyle(BuddyTheme.inkFaint)
-                                }
-                            }
-                            .font(.buddy(11, weight: .semibold))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 4)
-                            .background(BuddyTheme.paperRaised, in: Capsule())
-                            .overlay(Capsule().strokeBorder(BuddyTheme.amberInk.opacity(0.45), lineWidth: BuddyTheme.hairlineWidth))
-                            .foregroundStyle(BuddyTheme.amberInk)
-                        }
-                        .buttonStyle(BuddyPlainButtonStyle())
-                        .keyboardShortcut(.return, modifiers: [])
-
-                        Spacer()
-                    }
-                    .onHover { isHoveringActions = $0 }
-                }
-        }
-        .padding(.leading, 13)
-        .padding(.trailing, 12)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
-                .fill(waitingCount > 1 ? BuddyTheme.lanternHot : BuddyTheme.lantern)
-        )
-        // The accent bar is an overlay, not an HStack sibling: a Shape with only
-        // its width constrained is greedy vertically, and it was stretching the
-        // whole card to fill the popover.
-        .overlay(alignment: .leading) {
-            Rectangle()
-                .fill(BuddyTheme.amberInk)
-                .frame(width: 3)
-                .accessibilityHidden(true)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
-                .strokeBorder(BuddyTheme.hairlineStrong, lineWidth: BuddyTheme.hairlineWidth)
-        )
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(toolAccessibilityLabel)
-    }
-
-    private func sourceName(_ source: String) -> String {
-        AgentKind(rawValue: source)?.displayName ?? source
-    }
-
-    private var toolAccessibilityLabel: String {
-        let template = prompt.hint.isEmpty
-            ? BuddyCopy.shared.popover.toolRequestTemplate
-            : BuddyCopy.shared.popover.toolRequestWithHintTemplate
-        return template
-            .replacingOccurrences(of: "{tool}", with: prompt.tool)
-            .replacingOccurrences(of: "{hint}", with: prompt.hint)
-    }
-
-    private var pathLikeHint: Bool {
-        prompt.activityKind == .read || prompt.activityKind == .write
-    }
-}
-
-
-
-// MARK: - Error Card
-
-struct ErrorCardView: View {
-    let source: String
-    var sessionLabel: String? = nil
-    var tool: String? = nil
-    var hint: String? = nil
-    var onDismiss: (() -> Void)? = nil
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(.caption2))
-                        .foregroundStyle(BuddyTheme.clayInk)
-                    Text(headlineLabel)
-                        .font(.buddy(11))
-                        .foregroundStyle(BuddyTheme.inkSoft)
-                    Spacer()
-                    if let sessionLabel {
-                        Text(sessionLabel)
-                            .font(.buddy(11))
-                            .foregroundStyle(BuddyTheme.inkFaint)
-                    }
-                }
-
-                if let tool {
-                    Text(tool)
-                        .font(.buddy(13, weight: .semibold))
-                        .lineLimit(1)
-                        .truncationMode(buddyTruncationMode(for: tool))
-                }
-
-                if let hint, !hint.isEmpty {
-                    Text(hint)
-                        .font(.buddy(11))
-                        .foregroundStyle(BuddyTheme.inkSoft)
-                        .lineLimit(3)
-                        .truncationMode(buddyTruncationMode(for: hint))
-                }
-
-                if let onDismiss {
-                    HStack {
-                        Spacer()
-                        Button(action: onDismiss) {
-                            Text(BuddyCopy.dismiss)
-                                .font(.buddy(9.5, weight: .semibold))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 3)
-                                .background(BuddyTheme.paper, in: Capsule())
-                                .overlay(Capsule().strokeBorder(BuddyTheme.clayInk.opacity(0.30), lineWidth: BuddyTheme.hairlineWidth))
-                                .foregroundStyle(BuddyTheme.clayInk)
-                        }
-                        .buttonStyle(BuddyPlainButtonStyle())
-                    }
-                    .padding(.top, 4)
-                }
-        }
-        .padding(.leading, 13)
-        .padding(.trailing, 12)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
-                .fill(BuddyTheme.paperRaised)
-        )
-        .overlay(alignment: .leading) {
-            Rectangle()
-                .fill(BuddyTheme.clayInk)
-                .frame(width: 3)
-                .accessibilityHidden(true)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius))
-        .overlay(
-            RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
-                .strokeBorder(BuddyTheme.hairline, lineWidth: BuddyTheme.hairlineWidth)
-        )
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(errorAccessibilityLabel)
-    }
-
-    private var headlineLabel: String {
-        let agentName = AgentKind(rawValue: source)?.displayName ?? source
-        return BuddyCopy.shared.popover.errorWithAgentTemplate.replacingOccurrences(of: "{agent}", with: agentName)
-    }
-
-    private var errorAccessibilityLabel: String {
-        if let tool, let hint {
-            return BuddyCopy.shared.popover.errorAccessibilityWithHintTemplate
-                .replacingOccurrences(of: "{agent}", with: source)
-                .replacingOccurrences(of: "{tool}", with: tool)
-                .replacingOccurrences(of: "{hint}", with: hint)
-        }
-        if let tool {
-            return BuddyCopy.shared.popover.errorAccessibilityWithToolTemplate
-                .replacingOccurrences(of: "{agent}", with: source)
-                .replacingOccurrences(of: "{tool}", with: tool)
-        }
-        return BuddyCopy.shared.popover.errorAccessibilityTemplate.replacingOccurrences(of: "{agent}", with: source)
-    }
-}
-
 // MARK: - Activity List
 
 /// One line of "who is doing what". Replaces the separate current-activity,
@@ -722,7 +456,7 @@ struct ActivityRow: Identifiable {
         tone = ActivityRow.tone(for: session.state)
         agent = AgentKind(rawValue: session.source)?.displayName ?? session.source
         status = ActivityRow.label(for: session.state)
-        detail = [session.currentTool, session.moment.map { BuddyCopy.phase7($0.kind.rawValue) } ?? session.cheer.map { BuddyCopy.phase7($0.rawValue) }]
+        detail = [session.currentTool, session.moment.map { BuddyCopy.phase7($0.kind.rawValue, language: state.language) } ?? session.cheer.map { BuddyCopy.phase7($0.rawValue, language: state.language) }]
             .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
         // Elapsed is derived from the state's own timestamp rather than a live
         // clock: the popover redraws on every state change, and a ticking second
@@ -775,54 +509,12 @@ private func formatElapsed(ms: Double) -> String {
     return secs < 60 ? "\(secs)s" : "\(secs / 60)m \(secs % 60)s"
 }
 
-/// The detail line for a session. For whichever session is currently working,
-/// `state.msg` carries a richer "Tool: hint" string than the session snapshot
-/// does, so prefer that and fall back to the snapshot's tool.
-private func activityDetail(for session: SessionSnapshot, in state: BuddyState) -> String? {
-    let tool = nonEmpty(session.currentTool)
-    guard session.state == .working, session.id == state.activeSessions.first(where: { $0.state == .working })?.id else {
-        return tool
-    }
-    let parsed = parseActivityMessage(state.msg)
-    switch (tool ?? parsed.tool, parsed.hint) {
-    case let (.some(tool), .some(hint)): return "\(tool) — \(hint)"
-    case let (.some(tool), .none): return tool
-    case let (.none, .some(hint)): return hint
-    default: return nil
-    }
-}
-
-/// Agent messages arrive as an optional "[prefix] " followed by "Tool: hint".
-private func parseActivityMessage(_ raw: String) -> (tool: String?, hint: String?) {
-    var message = raw
-    if message.first == "[", let close = message.firstIndex(of: "]") {
-        let afterClose = message.index(after: close)
-        if afterClose < message.endIndex, message[afterClose] == " " {
-            message = String(message[message.index(after: afterClose)...])
-        }
-    }
-    guard let separator = message.firstIndex(of: ":") else {
-        return (nonEmpty(message), nil)
-    }
-    let tool = String(message[..<separator]).trimmingCharacters(in: .whitespacesAndNewlines)
-    let hint = String(message[message.index(after: separator)...])
-        .trimmingCharacters(in: .whitespacesAndNewlines)
-        .replacingOccurrences(of: "...", with: "…")
-    return (nonEmpty(tool), nonEmpty(hint))
-}
-
 /// A single token — an identifier like `mcp__filesystem__read_text_file` or a
 /// path like `.../oauth2/strategies/Foo.ts` — carries meaning at both ends, so
 /// it loses its middle. Anything with spaces is a command or a sentence, which
 /// reads front to back and loses its tail.
 func buddyTruncationMode(for text: String) -> Text.TruncationMode {
     text.contains(" ") ? .tail : .middle
-}
-
-private func nonEmpty(_ value: String?) -> String? {
-    guard let value else { return nil }
-    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-    return trimmed.isEmpty ? nil : trimmed
 }
 
 struct ActivityList: View {
@@ -882,4 +574,19 @@ struct ActivityList: View {
             }
         }
     }
+}
+
+private struct CreaturePill {
+    let label: String
+    let korean: String
+    let ink: Color
+    let fill: Color
+    static let table: [CreatureState: Self] = [
+        .asleep: Self(label: "Asleep", korean: "잠자는 중", ink: BuddyTheme.inkFaint, fill: BuddyTheme.paperSunken),
+        .idle: Self(label: "Here with you", korean: "함께 있어요", ink: BuddyTheme.inkSoft, fill: BuddyTheme.paperSunken),
+        .working: Self(label: "Working", korean: "작업 중", ink: BuddyTheme.work, fill: BuddyTheme.work.opacity(0.12)),
+        .needsYou: Self(label: "Needs you", korean: "도움이 필요해요", ink: BuddyTheme.amberInk, fill: BuddyTheme.amber.opacity(0.12)),
+        .done: Self(label: "Done", korean: "해냈어요", ink: BuddyTheme.greenInk, fill: BuddyTheme.green.opacity(0.12)),
+        .uhoh: Self(label: "Uh-oh", korean: "이런", ink: BuddyTheme.clayInk, fill: BuddyTheme.clay.opacity(0.12))
+    ]
 }

@@ -57,45 +57,10 @@ final class DesktopOutput: OutputProvider {
         statusItem: (any StatusItemPresenting)?,
         presenter: any PopoverPresenting,
         notifier: any DesktopNotificationPosting = NotificationManager.shared,
-        soundsEnabled: @escaping () -> Bool = {
-            (UserDefaults.standard.object(forKey: DefaultsKey.soundsEnabled) as? Bool ?? true) && (UserDefaults.standard.object(forKey: DefaultsKey.soundVolume) as? Int ?? 1) > 0
-        },
-        playCelebrate: @escaping () -> Void = {
-            if let url = BuddyResources.soundURL("celebrate"),
-               let sound = NSSound(contentsOf: url, byReference: true) {
-                sound.volume = Float(UserDefaults.standard.object(forKey: DefaultsKey.soundVolume) as? Int ?? 1) / 3
-                sound.play()
-            } else {
-                if let sound = NSSound(named: "Funk") {
-                    sound.volume = Float(UserDefaults.standard.object(forKey: DefaultsKey.soundVolume) as? Int ?? 1) / 3
-                    sound.play()
-                }
-            }
-        },
-        playAttention: @escaping () -> Void = {
-            if let url = BuddyResources.soundURL("attention"),
-               let sound = NSSound(contentsOf: url, byReference: true) {
-                sound.volume = Float(UserDefaults.standard.object(forKey: DefaultsKey.soundVolume) as? Int ?? 1) / 3
-                sound.play()
-            } else {
-                if let sound = NSSound(named: "Glass") {
-                    sound.volume = Float(UserDefaults.standard.object(forKey: DefaultsKey.soundVolume) as? Int ?? 1) / 3
-                    sound.play()
-                }
-            }
-        },
-        playError: @escaping () -> Void = {
-            if let url = BuddyResources.soundURL("error"),
-               let sound = NSSound(contentsOf: url, byReference: true) {
-                sound.volume = Float(UserDefaults.standard.object(forKey: DefaultsKey.soundVolume) as? Int ?? 1) / 3
-                sound.play()
-            } else {
-                if let sound = NSSound(named: "Sosumi") {
-                    sound.volume = Float(UserDefaults.standard.object(forKey: DefaultsKey.soundVolume) as? Int ?? 1) / 3
-                    sound.play()
-                }
-            }
-        }
+        soundsEnabled: @escaping () -> Bool = { SoundSettings.volume() > 0 },
+        playCelebrate: @escaping () -> Void = { play("celebrate", fallback: "Funk") },
+        playAttention: @escaping () -> Void = { play("attention", fallback: "Glass") },
+        playError: @escaping () -> Void = { play("error", fallback: "Sosumi") }
     ) {
         self.statusItem = statusItem
         self.presenter = presenter
@@ -106,8 +71,30 @@ final class DesktopOutput: OutputProvider {
         self.playError = playError
     }
 
-    func start(engine: BuddyEngine) async {}
-    func stop() async {}
+    private static func play(_ name: String, fallback: String) {
+        let sound = BuddyResources.soundURL(name).flatMap { NSSound(contentsOf: $0, byReference: true) } ?? NSSound(named: NSSound.Name(fallback))
+        sound?.volume = Float(SoundSettings.volume()) / 3
+        sound?.play()
+    }
+
+    private struct IconKey: Equatable {
+        var pose: CreaturePose
+        var cheer: CheerSize?
+        var appearance: String
+    }
+    private var lastIcon: IconKey?
+
+    private var appearanceObservation: NSKeyValueObservation?
+    func start(engine: BuddyEngine) async {
+        updateIcon(engine.state)
+        appearanceObservation = NSApp?.observe(\.effectiveAppearance) { [weak self, weak engine] _, _ in
+            Task { @MainActor in
+                guard let engine else { return }
+                self?.updateIcon(engine.state)
+            }
+        }
+    }
+    func stop() async { appearanceObservation = nil; lastIcon = nil }
 
     func stateDidChange(prev: BuddyState, next: BuddyState) {
         updateIcon(next)
@@ -117,85 +104,25 @@ final class DesktopOutput: OutputProvider {
     }
 
     private func updateIcon(_ state: BuddyState) {
-        // No memo on pet state alone: the icon now also depends on the system
-        // appearance, since the app inherits it rather than pinning darkAqua.
-        // An 18x18 draw on a state change is not a hot path.
-        let image = Self.statusIcon(for: state.creature)
-        statusItem?.image = image
         statusItem?.toolTip = state.creature.statusLabel
+        let appearance = NSApp?.effectiveAppearance ?? NSAppearance.currentDrawing()
+        let key = IconKey(pose: CreaturePose(from: state.creature), cheer: state.creature.cheer, appearance: appearance.name.rawValue)
+        if key != lastIcon {
+            lastIcon = key
+            appearance.performAsCurrentDrawingAppearance {
+                statusItem?.image = Self.statusIcon(for: state.creature)
+            }
+        }
+        statusItem?.image?.accessibilityDescription = "Boop — " + state.creature.statusLabel
     }
 
     static func statusIcon(for creature: Creature) -> NSImage {
-        let renderer = ImageRenderer(content: MenuBarFace(creature: creature))
+        let dark = NSAppearance.currentDrawing().bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        let renderer = ImageRenderer(content: MenuBarFace(creature: creature).environment(\.colorScheme, dark ? .dark : .light))
         renderer.scale = 2
         let image = renderer.nsImage ?? NSImage(size: NSSize(width: 18, height: 18))
-        image.accessibilityDescription = accessibilityDescription(for: legacyPetState(from: creature))
+        image.accessibilityDescription = "Boop — " + creature.statusLabel
         return image
-    }
-
-    static func statusIcon(for state: PetState) -> NSImage {
-        let size = NSSize(width: 18, height: 18)
-        let badgeColor = badgeColor(for: state)
-        let image = NSImage(size: size, flipped: false) { rect in
-            // labelColor and controlBackgroundColor are deliberately semantic
-            // rather than BuddyTheme tokens: the menu bar is not a Boop surface,
-            // and these are the only values that track a light or dark menu bar.
-            let bodyRect = NSRect(x: rect.minX + 2.4, y: rect.minY + 4.2, width: 13.2, height: 9.6)
-            let body = NSBezierPath(ovalIn: bodyRect)
-            NSColor.labelColor.setFill()
-            body.fill()
-
-            NSColor.controlBackgroundColor.withAlphaComponent(0.92).setFill()
-            switch state {
-            case .sleep:
-                NSBezierPath(roundedRect: NSRect(x: 6.0, y: 8.6, width: 2.4, height: 0.9), xRadius: 0.5, yRadius: 0.5).fill()
-                NSBezierPath(roundedRect: NSRect(x: 9.8, y: 8.6, width: 2.4, height: 0.9), xRadius: 0.5, yRadius: 0.5).fill()
-            default:
-                NSBezierPath(ovalIn: NSRect(x: 6.4, y: 8.3, width: 1.7, height: 2.6)).fill()
-                NSBezierPath(ovalIn: NSRect(x: 10.0, y: 8.3, width: 1.7, height: 2.6)).fill()
-            }
-
-            if let badgeColor {
-                // Amber on a white menu bar is 2.0:1, so the badge is ringed in
-                // labelColor to hold its edge on either appearance.
-                let badge = NSRect(x: 12.8, y: 2.2, width: 4.0, height: 4.0)
-                badgeColor.setFill()
-                NSBezierPath(ovalIn: badge.insetBy(dx: 0.25, dy: 0.25)).fill()
-                NSColor.labelColor.withAlphaComponent(0.55).setStroke()
-                let ring = NSBezierPath(ovalIn: badge.insetBy(dx: 0.25, dy: 0.25))
-                ring.lineWidth = 0.5
-                ring.stroke()
-            }
-            return true
-        }
-        image.accessibilityDescription = accessibilityDescription(for: state)
-        return image
-    }
-
-    private static func badgeColor(for state: PetState) -> NSColor? {
-        switch state {
-        case .attention:
-            return NSColor(buddyHex: BuddyPalette.amber)
-        case .celebrate:
-            return NSColor(buddyHex: BuddyPalette.green)
-        case .error:
-            return NSColor(buddyHex: BuddyPalette.clay)
-        default:
-            return nil
-        }
-    }
-
-    private static func accessibilityDescription(for state: PetState) -> String {
-        switch state {
-        case .attention: return "Boop — needs you"
-        case .celebrate: return "Boop — finished"
-        case .error: return "Boop — stuck"
-        case .busy: return "Boop — working"
-        case .thinking: return "Boop — thinking"
-        case .idle: return "Boop — idle"
-        case .sleep: return "Boop — asleep"
-        case .heart: return "Boop — loved"
-        }
     }
 
     private func updateNotifications(prev: BuddyState, next: BuddyState) {

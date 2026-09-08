@@ -634,8 +634,11 @@ final class EngineIntegrationTests: XCTestCase {
         output.stateDidChange(prev: attentionOne, next: busy)
         output.stateDidChange(prev: busy, next: attentionTwo)
 
+        let cachedImage = statusItem.image
+        output.stateDidChange(prev: attentionTwo, next: attentionTwo)
+        XCTAssertTrue(statusItem.image === cachedImage)
         XCTAssertEqual(statusItem.toolTip, "needsYou")
-        XCTAssertEqual(statusItem.image?.accessibilityDescription, DesktopOutput.statusIcon(for: .attention).accessibilityDescription)
+        XCTAssertEqual(statusItem.image?.accessibilityDescription, DesktopOutput.statusIcon(for: attentionTwo.creature).accessibilityDescription)
         XCTAssertEqual(statusItem.image?.size, NSSize(width: 18, height: 18))
         XCTAssertEqual(notifier.postedIds, ["p1", "p2"])
         XCTAssertEqual(notifier.clearedIds, ["p1"])

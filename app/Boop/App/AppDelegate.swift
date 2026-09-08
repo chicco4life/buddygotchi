@@ -18,7 +18,6 @@ final class ServerHealth {
 }
 
 extension Notification.Name {
-    static let boopOpenSettings = Notification.Name("boopOpenSettings")
 }
 
 @MainActor
@@ -236,7 +235,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard statusItem?.button != nil else { return }
         if popover.isShown {
             cancelAutoDismiss()
-            popover.performClose(nil)
+            closePopover()
         } else {
             showPopover()
         }
@@ -265,6 +264,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let button = statusItem?.button else { return }
         cancelAutoDismiss()
         popover.behavior = .transient
+        engine.refreshSettings()
+        engine.popoverVisible = true
+        popover.delegate = self
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
     }
@@ -293,7 +295,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showStatusMenu() {
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.openBoop, action: #selector(togglePopover), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: BuddyCopy.phase7("recap"), action: #selector(showTodayRecap), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: BuddyCopy.phase7("recap", language: engine.state.language), action: #selector(showTodayRecap), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.settings, action: #selector(openSettingsFromMenu), keyEquivalent: ","))
         menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.checkForUpdates, action: #selector(checkForUpdatesFromMenu), keyEquivalent: ""))
         menu.addItem(.separator())
@@ -310,12 +312,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let button = statusItem?.button else { return }
         cancelAutoDismiss()
         popover.behavior = .transient
+        engine.refreshSettings()
+        engine.popoverVisible = true
+        popover.delegate = self
         popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         popover.contentViewController?.view.window?.makeKey()
         autoDismissTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.autoDismissTimer = nil
-                self?.popover.performClose(nil)
+                self?.closePopover()
             }
         }
     }
@@ -377,10 +382,15 @@ extension AppDelegate: PopoverPresenting {
     }
 
     func closePopover() {
+        engine.popoverVisible = false
         popover?.performClose(nil)
     }
 
     func cancelPopoverAutoDismiss() {
         cancelAutoDismiss()
     }
+}
+
+extension AppDelegate: NSPopoverDelegate {
+    func popoverDidClose(_ notification: Notification) { engine.popoverVisible = false }
 }

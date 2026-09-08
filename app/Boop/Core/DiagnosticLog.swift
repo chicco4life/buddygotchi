@@ -1,5 +1,6 @@
 import Foundation
 import OSLog
+import Observation
 
 // MARK: - Diagnostic Entry
 
@@ -13,9 +14,11 @@ struct DiagnosticEntry: Codable, Sendable {
 
 // MARK: - Diagnostic Log
 
+@Observable
 @MainActor
 final class DiagnosticLog {
     private(set) var entries: [DiagnosticEntry] = []
+    private(set) var appendedCount = 0
     private let capacity: Int
 
     private let hooksLogger = Logger(subsystem: "com.boopcomputer.boop", category: "hooks")
@@ -34,6 +37,7 @@ final class DiagnosticLog {
             detail: detail
         )
         entries.append(entry)
+        appendedCount += 1
         if entries.count > capacity {
             entries.removeFirst(entries.count - capacity)
         }

@@ -9,12 +9,12 @@ func makeStore(now: Double = 0, temperament: String? = nil) throws -> (Store, UR
 }
 
 @MainActor
-func makeEngine(store: (any EngineStore)? = nil) -> (BuddyEngine, MockClock) {
+func makeEngine(store: (any EngineStore)? = nil, defaults: UserDefaults = .standard) -> (BuddyEngine, MockClock) {
     let clock = MockClock()
     var config = BuddyConfig.default
     config.httpPort = 0; config.stateDir = "/tmp"; config.token = "test-token"
     config.staleTimeoutMs = 600_000; config.celebrateDurationMs = 4_000
-    return (BuddyEngine(config: config, clock: clock, store: store), clock)
+    return (BuddyEngine(config: config, clock: clock, store: store, defaults: defaults), clock)
 }
 
 /// Suspends facts forever while every other operation remains a real SQLite operation.
@@ -48,6 +48,10 @@ actor SuspendedFactStore: EngineStore {
 /// Counts voice-related I/O while retaining real SQLite behavior.
 actor CountingVoiceStore: EngineStore {
     let base: Store
+    private(set) var toolClaims: [String] = []
+    func toolPreferences() async throws -> ToolPreferences { try await base.toolPreferences() }
+    func claimTool(_ tool: String) async throws -> Bool { toolClaims.append(tool); return try await base.claimTool(tool) }
+    func muteTool(_ tool: String) async throws { try await base.muteTool(tool) }
     private(set) var exclusionReads = 0
     private(set) var dayFactReads = 0
     private(set) var recapChecks = 0
@@ -86,4 +90,10 @@ actor CountingVoiceStore: EngineStore {
     func deleteProfileLine(_ id: Int) async throws { try await base.deleteProfileLine(id) }
     func clearProfile() async throws { try await base.clearProfile() }
     func equip(_ cosmetic: EquippedCosmetic) async throws { try await base.equip(cosmetic) }
+}
+
+func makeDefaults() -> (UserDefaults, () -> Void) {
+    let suite = "BoopTests." + UUID().uuidString
+    let defaults = UserDefaults(suiteName: suite)!
+    return (defaults, { defaults.removePersistentDomain(forName: suite) })
 }

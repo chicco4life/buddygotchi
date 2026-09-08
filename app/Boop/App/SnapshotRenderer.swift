@@ -8,6 +8,19 @@ import SwiftUI
 // TimelineView-driven animation is captured at a single frame.
 @MainActor
 enum SnapshotRenderer {
+    @MainActor private final class Surface {
+        let host = NSHostingView(rootView: AnyView(EmptyView()))
+        let window = NSWindow(contentRect: .zero, styleMask: [.borderless], backing: .buffered, defer: false)
+        init() { window.contentView = host }
+    }
+    private static let surface = Surface()
+
+    static var expectedRenderCount: Int {
+        let companionPerAppearance = CompanionScene.all.count + 2 + 2 + SettingsSection.allCases.count + 2 + OnboardingStep.allCases.count
+        let other = 7 + 2 + OnboardingStep.allCases.count + FirmwareUpdater.snapshotStates.count + 1 + 4
+        return 2 * companionPerAppearance + other
+    }
+
     static func renderAll(to dir: String, defaults: UserDefaults) {
         func makeEngine() -> BuddyEngine { Self.makeEngine(defaults: defaults) }
         func render<V: View>(_ view: V, _ name: String, _ size: CGSize, _ dir: String) {
@@ -102,18 +115,15 @@ enum SnapshotRenderer {
             defaults.set(step.rawValue, forKey: DefaultsKey.onboardingStep)
             defaults.set("Mochi", forKey: DefaultsKey.buddyName)
             defaults.set(BuddyOutputTarget.thisMac.rawValue, forKey: DefaultsKey.buddyOutput)
-            let view = OnboardingView(defaults: defaults, engine: makeEngine(), esp32Output: ESP32Output(), onFinish: {})
+            let onboardingEngine = makeEngine()
+            if step == .done { defaults.set(false, forKey: DefaultsKey.firstCheerShown); onboardingEngine.firstCheer() }
+            let view = OnboardingView(defaults: defaults, engine: onboardingEngine, esp32Output: ESP32Output(), onFinish: {})
             render(view, "onboarding-\(step.rawValue)-\(String(describing: step))", onboardingSize, dir)
         }
         defaults.set(true, forKey: DefaultsKey.setupCompleted)
         // Don't leave fixture state behind — a persisted step would make
         // "Run setup again" resume mid-flow on the next real launch.
         defaults.removeObject(forKey: DefaultsKey.onboardingStep)
-
-        // The species gallery is gone with the creature renderer — the Mac app no
-        // longer draws the buddy, so there is nothing here to regress. Species
-        // still ships to the device over the heartbeat; `allBuddies` is covered by
-        // ReducerTests instead.
 
         // 10. Firmware sheet. It is presented with .sheet, so it never appeared in
         // any harness, and it is the densest surface after settings.
@@ -183,12 +193,11 @@ enum SnapshotRenderer {
         print("SNAPSHOTS WRITTEN to \(dir)")
     }
 
-    /// Draws every pet state's status icon twice — once over a light menu bar and
-    /// once over a dark one — at 4x so the badge ring is inspectable.
+    /// Draws every creature state in both menu bar appearances at 4x.
     private static func renderStatusIcons(_ dir: String) {
         let scale: CGFloat = 4
         let cell: CGFloat = 18 * scale
-        let states = PetState.allCases
+        let states = CreatureState.allCases
         let size = NSSize(width: cell * CGFloat(states.count), height: cell * 2)
 
         let sheet = NSImage(size: size, flipped: false) { _ in
@@ -201,7 +210,8 @@ enum SnapshotRenderer {
                     // statusIcon reads labelColor, so it has to be drawn inside the
                     // appearance it will live in.
                     appearance?.performAsCurrentDrawingAppearance {
-                        let icon = DesktopOutput.statusIcon(for: state)
+                        var creature = Creature.initial; creature.state = state
+                        let icon = DesktopOutput.statusIcon(for: creature)
                         icon.draw(
                             in: NSRect(x: CGFloat(col) * cell, y: CGFloat(1 - row) * cell, width: cell, height: cell),
                             from: .zero,
@@ -240,24 +250,26 @@ enum SnapshotRenderer {
                 render(view, "phase7-" + name + "-" + suffix, CGSize(width: width, height: height), dir, defaults: defaults, dark: dark)
             }
             for scene in CompanionScene.all {
-                shot(CreatureView(creature: scene.creature, cosmetic: scene.cosmetic, frozen: true), "creature-" + scene.name, height: 240)
+                guard scene.needsPopover else {
+                    shot(CreatureView(creature: scene.creature, cosmetic: scene.cosmetic, frozen: true), "creature-" + scene.name, height: 240)
+                    continue
+                }
                 var state = BuddyState.initial; state.creature = scene.creature; state.cosmetic = scene.cosmetic
                 let engine = BuddyEngine.preview(state: state, defaults: defaults)
                 shot(PopoverView(engine: engine, esp32Output: ESP32Output()), "popover-" + scene.name)
             }
             let recap = Recap(line: "good day", paragraph: "Green at last. A little progress became a good day.", turns: 14, tasks: 3, biggest: "hardWonPass")
-            shot(RecapView(recap: recap), "recap", height: 240)
+            var recapState = BuddyState.initial; recapState.recap = recap
+            shot(PopoverView(engine: BuddyEngine.preview(state: recapState, defaults: defaults), esp32Output: ESP32Output()), "popover-recap")
+            shot(RecapView(language: "en", recap: recap), "recap", height: 240)
             for count in [0, 3] {
                 let lines = (0..<count).map { ProfileLine(id: $0, line: ["You often work in the morning.", "Tests are part of your routine.", "You have been working on Boop."][$0], source: "rules", confidence: 1, createdAt: 1_780_000_000_000) }
-                shot(ProfilePage(lines: lines), "profile-\(count)", width: 520, height: 540)
+                shot(ProfilePage(language: "en", lines: lines), "profile-\(count)", width: 520, height: 540)
             }
             let engine = BuddyEngine(defaults: defaults)
-            for section in ["sounds", "focus", "language", "voice", "quick", "leaderboard", "profile", "retire"] {
-                shot(CompanionSettings(engine: engine, device: ESP32Output(), section: section).padding(20), "settings-" + section, height: 300)
-            }
-            for section in ["general", "buddy", "agents", "displays", "about"] {
-                let view = SettingsView(isPresented: .constant(true), engine: engine, esp32Output: ESP32Output(), serverHealth: nil, frameHeight: 640, snapshotSection: section)
-                shot(view, "settings-" + section)
+            let settingsSections = SettingsView(isPresented: .constant(true), engine: engine, esp32Output: ESP32Output(), serverHealth: nil)
+            for section in SettingsSection.allCases {
+                shot(settingsSections.section(section).padding(20), "settings-" + section.rawValue, height: SettingsSection.standard.contains(section) ? 640 : 300)
             }
             shot(CompanionSettings(engine: engine, device: ESP32Output()).padding(20), "settings-companion", height: 620)
             var settings = SettingsView(isPresented: .constant(true), engine: engine, esp32Output: ESP32Output(), serverHealth: nil)
@@ -265,28 +277,33 @@ enum SnapshotRenderer {
             shot(settings, "settings-all-sections", height: 2400)
             for step in OnboardingStep.allCases {
                 defaults.set(step.rawValue, forKey: DefaultsKey.onboardingStep)
-                shot(OnboardingView(defaults: defaults, engine: engine, esp32Output: ESP32Output(), onFinish: {}), "onboarding-\(step)", width: BuddyTheme.onboardingWidth, height: BuddyTheme.onboardingHeight)
+                let onboardingEngine = makeEngine(defaults: defaults)
+                if step == .done { defaults.set(false, forKey: DefaultsKey.firstCheerShown); onboardingEngine.firstCheer() }
+                shot(OnboardingView(defaults: defaults, engine: onboardingEngine, esp32Output: ESP32Output(), onFinish: {}), "onboarding-\(step)", width: BuddyTheme.onboardingWidth, height: BuddyTheme.onboardingHeight)
             }
             defaults.removeObject(forKey: DefaultsKey.onboardingStep)
         }
     }
 
-    private static func render<V: View>(_ view: V, _ name: String, _ size: CGSize, _ dir: String, defaults: UserDefaults, dark: Bool = false) {
-        let root = ZStack { BuddyTheme.paper; view }
+    static func render<V: View>(_ view: V, _ name: String, _ size: CGSize, _ dir: String, defaults: UserDefaults, dark: Bool = false) {
+        let root = ZStack { BuddyTheme.paper; view }.id(name)
             .frame(width: size.width, height: size.height)
             .environment(\.colorScheme, dark ? .dark : .light)
             .environment(\.snapshotFrozen, true)
             .defaultAppStorage(defaults)
 
-        let host = NSHostingView(rootView: AnyView(root))
+        let host = surface.host
+        let window = surface.window
+        host.rootView = AnyView(root)
         host.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         host.frame = CGRect(origin: .zero, size: size)
 
-        let window = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.setContentSize(size)
         window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
-        window.contentView = host
         host.layoutSubtreeIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.15))
+        _ = RunLoop.main.run(mode: .default, before: .now)
+        host.layoutSubtreeIfNeeded()
+        defer { window.orderOut(nil) }
 
         guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
             print("SNAPSHOT FAILED \(name): no bitmap rep")

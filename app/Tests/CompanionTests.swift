@@ -26,9 +26,8 @@ final class CompanionTests: XCTestCase {
         XCTAssertEqual(CreaturePose(from: c).confetti, 0)
     }
     func testOnboardingOrderAndPermanentName() {
-        let suite = "BoopTests.phase7." + UUID().uuidString
-        let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let (defaults, cleanup) = makeDefaults()
+        defer { cleanup() }
         let model = OnboardingModel(defaults: defaults)
         XCTAssertEqual(model.step, .welcome)
         model.advance(); XCTAssertEqual(model.step, .agents)
@@ -43,9 +42,8 @@ final class CompanionTests: XCTestCase {
         model.complete(); XCTAssertTrue(defaults.bool(forKey: DefaultsKey.setupCompleted))
     }
     func testHeardAgentRequiresRealHook() {
-        let suite = "BoopTests.phase7." + UUID().uuidString
-        let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
+        let (defaults, cleanup) = makeDefaults()
+        defer { cleanup() }
         let model = OnboardingModel(defaults: defaults)
         model.observe([DiagnosticEntry(timestamp: 0, category: "hooks", source: "codex", event: "onboardingInstall", detail: "")])
         XCTAssertTrue(model.heardAgents.isEmpty)
@@ -53,12 +51,11 @@ final class CompanionTests: XCTestCase {
         XCTAssertTrue(model.heardAgents.contains(.codex))
     }
     func testQuickAndLanguagePersistAndEmit() async {
-        let suite = "BoopTests.phase7." + UUID().uuidString
-        let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let engine = BuddyEngine(defaults: defaults)
+        let (defaults, cleanup) = makeDefaults()
+        defer { cleanup() }
+        let (engine, _) = makeEngine(defaults: defaults)
         engine.setQuickCommand("continue with tests")
-        XCTAssertEqual(BuddyEngine(defaults: defaults).quickCommand, "continue with tests")
+        XCTAssertEqual(makeEngine(defaults: defaults).0.quickCommand, "continue with tests")
         await engine.setLanguage("ko")
         XCTAssertEqual(engine.state.language, "ko")
         XCTAssertEqual(defaults.string(forKey: DefaultsKey.language), "ko")
@@ -66,9 +63,8 @@ final class CompanionTests: XCTestCase {
         if case .quick? = parseDeviceLine("{\"cmd\":\"quick\"}") {} else { XCTFail("Quick command did not parse") }
     }
     func testTeachOnceOptOutAndRestart() async throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: dir) }
-        let store = try Store(stateDir: dir.path, now: 0)
+        let (store, dir, cleanup) = try makeStore()
+        defer { cleanup() }
         let first = try await store.claimTool("Bash")
         let second = try await store.claimTool("Bash")
         XCTAssertTrue(first); XCTAssertFalse(second)
@@ -80,16 +76,14 @@ final class CompanionTests: XCTestCase {
         XCTAssertNotNil(TeachCatalog.line(tool: "Bash", language: "ko"))
     }
     func testRetireWipesStoreAndRestartsOnboarding() async throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let suite = "BoopTests.phase7." + UUID().uuidString
-        let defaults = UserDefaults(suiteName: suite)!
-        defer { try? FileManager.default.removeItem(at: dir); defaults.removePersistentDomain(forName: suite) }
+        let (store, _, cleanupStore) = try makeStore()
+        let (defaults, cleanupDefaults) = makeDefaults()
+        defer { cleanupStore(); cleanupDefaults() }
         defaults.set("Mochi", forKey: DefaultsKey.buddyName)
         defaults.set(true, forKey: DefaultsKey.setupCompleted)
-        let store = try Store(stateDir: dir.path, now: 0)
         try await store.addProfileLine("Morning work", source: "rules", at: 0)
         _ = try await store.claimTool("Bash")
-        let engine = BuddyEngine(store: store, defaults: defaults)
+        let (engine, _) = makeEngine(store: store, defaults: defaults)
         engine.turnStarted(sessionId: "s", source: "codex")
         engine.turnEnded(sessionId: "s", source: "codex", outcome: .completed)
         var sent = false
@@ -119,7 +113,66 @@ final class CompanionTests: XCTestCase {
         XCTAssertNil(unchanged.buddy.celebrateUntil)
     }
 
+    func testDiagnosticCursorSurvivesRingWrapAndStopsAfterAllAgents() {
+        let (defaults, cleanup) = makeDefaults(); defer { cleanup() }
+        let model = OnboardingModel(defaults: defaults)
+        let log = DiagnosticLog(capacity: 1)
+        for agent in AgentKind.allCases {
+            log.log(category: "hook", source: agent.rawValue, event: "SessionStart", detail: "")
+            model.observe(log)
+            model.observe(log)
+        }
+        XCTAssertTrue(model.heardEveryAgent)
+        XCTAssertEqual(model.heardAgents.count, AgentKind.allCases.count)
+    }
+
+    func testFocusAndSoundIntentsUseEngineDefaults() {
+        let (defaults, cleanup) = makeDefaults(); defer { cleanup() }
+        let (engine, _) = makeEngine(defaults: defaults)
+        engine.setFocusHours(enabled: true, start: 0, end: 0)
+        XCTAssertTrue(engine.state.creature.focus)
+        engine.setFocusHours(enabled: false, start: 9, end: 17)
+        XCTAssertFalse(engine.state.creature.focus)
+        engine.setSoundVolume(9)
+        XCTAssertEqual(SoundSettings.volume(defaults: defaults), 3)
+        XCTAssertEqual(renderState(from: engine.state, defaults: defaults, now: 0).mute, 3)
+        engine.setBoolSetting(DefaultsKey.soundsEnabled, false)
+        XCTAssertEqual(SoundSettings.volume(defaults: defaults), 0)
+    }
+
+    func testTeachCacheLoadsAtStartupAndClaimsOnlyFirstSighting() async throws {
+        let (base, _, cleanupStore) = try makeStore()
+        let (defaults, cleanupDefaults) = makeDefaults()
+        defer { cleanupStore(); cleanupDefaults() }
+        _ = try await base.claimTool("Bash")
+        try await base.muteTool("Read")
+        let store = CountingVoiceStore(base: base)
+        let (engine, _) = makeEngine(store: store, defaults: defaults)
+        engine.start()
+        await engine.flushStore()
+        for _ in 0..<20 {
+            for tool in ["Bash", "Read", "Edit"] {
+                engine.toolCalled(sessionId: "s", source: "codex", tool: tool, hint: "")
+            }
+        }
+        await engine.flushStore()
+        let claims = await store.toolClaims
+        XCTAssertEqual(claims, ["Edit"])
+        engine.stop()
+    }
+
+    func testWakeUsesCreatureStates() async {
+        let (defaults, cleanup) = makeDefaults(); defer { cleanup() }
+        let model = OnboardingModel(defaults: defaults)
+        XCTAssertEqual(model.wakeCreature.state, .asleep)
+        await model.firstWake(reduceMotion: true)
+        XCTAssertEqual(model.wakeCreature.state, .idle)
+        XCTAssertEqual(model.wakeCreature.overlay, .greet)
+        XCTAssertEqual(model.step, .agents)
+    }
+
     func testSceneNamesAreUnique() {
         XCTAssertEqual(Set(CompanionScene.all.map(\.name)).count, CompanionScene.all.count)
+        print("PHASE7 SCENES: \(CompanionScene.all.count); chrome scenes: \(CompanionScene.all.filter(\.needsPopover).count); expected renders: \(SnapshotRenderer.expectedRenderCount)")
     }
 }

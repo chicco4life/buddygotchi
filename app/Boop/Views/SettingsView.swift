@@ -7,15 +7,14 @@ struct SettingsView: View {
     let serverHealth: ServerHealth?
     var onOpenOnboarding: () -> Void = {}
 
-    @AppStorage(DefaultsKey.interactiveMode) private var interactiveMode = false
-    @AppStorage(DefaultsKey.soundsEnabled) private var soundsEnabled = true
-    @AppStorage(DefaultsKey.agentDrawingsEnabled) private var agentDrawingsEnabled = true
-    @AppStorage(DefaultsKey.buddySpecies) private var species = Pet.defaultSpecies
-    @AppStorage(DefaultsKey.setupCompleted) private var setupCompleted = false
-    @AppStorage(DefaultsKey.approvalMode) private var approvalMode = false
+    @State private var interactiveMode = false
+    @State private var soundsEnabled = true
+    @State private var agentDrawingsEnabled = true
+
+    @State private var approvalMode = false
     @AppStorage("approvalModeExplained") private var approvalModeExplained = false
-    @AppStorage(DefaultsKey.buddyName) private var buddyName = ""
-    @AppStorage(DefaultsKey.esp32PeripheralUUID) private var esp32UUID: String?
+    private var buddyName: String { engine.buddyName }
+    private var esp32UUID: String? { engine.pairedPeripheral }
     @State private var launchAtLogin = false
     @State private var launchAtLoginStatus = LoginItemManager.Status.disabled
     @State private var agentHealth: [AgentKind: HookHealth] = [:]
@@ -34,7 +33,6 @@ struct SettingsView: View {
 
     /// Overridable so the snapshot renderer can capture the full scroll content.
     var frameHeight: CGFloat = BuddyTheme.popoverHeight
-    var snapshotSection: String? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -63,12 +61,9 @@ struct SettingsView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    if snapshotSection == nil { CompanionSettings(engine: engine, device: esp32Output, onRetired: onOpenOnboarding) }
-                    if snapshotSection == nil || snapshotSection == "general" { generalSection }
-                    if snapshotSection == nil || snapshotSection == "buddy" { buddySection }
-                    if snapshotSection == nil || snapshotSection == "agents" { agentsSection }
-                    if snapshotSection == nil || snapshotSection == "displays" { displaysSection }
-                    if snapshotSection == nil || snapshotSection == "about" { aboutSection }
+                    CompanionSettings(engine: engine, device: esp32Output, onRetired: onOpenOnboarding)
+                    ForEach(SettingsSection.standard, id: \.self) { section in self.section(section) }
+
                 }
                 .padding()
             }
@@ -76,6 +71,10 @@ struct SettingsView: View {
         .frame(width: BuddyTheme.popoverWidth, height: frameHeight)
 
         .onAppear {
+            interactiveMode = engine.boolSetting(DefaultsKey.interactiveMode, fallback: false)
+            soundsEnabled = engine.boolSetting(DefaultsKey.soundsEnabled, fallback: true)
+            agentDrawingsEnabled = engine.boolSetting(DefaultsKey.agentDrawingsEnabled, fallback: true)
+            approvalMode = engine.boolSetting(DefaultsKey.approvalMode, fallback: false)
             normalizeBuddySpecies()
             refreshLoginItemState()
             for agent in AgentKind.allCases {
@@ -93,7 +92,7 @@ struct SettingsView: View {
         }
         .onChange(of: esp32Output.connectionState) { _, state in
             if state == .connected, let selectedDeviceUUID {
-                UserDefaults.standard.set(selectedDeviceUUID.uuidString, forKey: esp32PeripheralUUIDKey)
+                engine.setPairedPeripheral(selectedDeviceUUID)
                 self.selectedDeviceUUID = nil
             }
         }
@@ -143,6 +142,17 @@ struct SettingsView: View {
         }
     }
 
+    @ViewBuilder func section(_ section: SettingsSection) -> some View {
+        switch section {
+        case .general: generalSection
+        case .buddy: buddySection
+        case .agents: agentsSection
+        case .displays: displaysSection
+        case .about: aboutSection
+        default: CompanionSettings(engine: engine, device: esp32Output, onRetired: onOpenOnboarding, sections: [section])
+        }
+    }
+
     // MARK: - General
 
     private var generalSection: some View {
@@ -180,7 +190,7 @@ struct SettingsView: View {
                 BuddySettingToggle(
                     title: BuddyCopy.shared.settingsCopy.interactiveMode,
                     description: BuddyCopy.shared.settingsCopy.interactiveModeDescription,
-                    isOn: $interactiveMode
+                    isOn: Binding(get: { interactiveMode }, set: { interactiveMode = $0; engine.setBoolSetting(DefaultsKey.interactiveMode, $0) })
                 )
 
                 BuddyDivider(inset: 12)
@@ -188,7 +198,7 @@ struct SettingsView: View {
                 BuddySettingToggle(
                     title: BuddyCopy.shared.settingsCopy.sounds,
                     description: BuddyCopy.shared.settingsCopy.soundsDescription,
-                    isOn: $soundsEnabled
+                    isOn: Binding(get: { soundsEnabled }, set: { soundsEnabled = $0; engine.setBoolSetting(DefaultsKey.soundsEnabled, $0) })
                 )
 
                 BuddyDivider(inset: 12)
@@ -196,7 +206,7 @@ struct SettingsView: View {
                 BuddySettingToggle(
                     title: BuddyCopy.shared.settingsCopy.agentDrawings,
                     description: BuddyCopy.shared.settingsCopy.agentDrawingsDescription,
-                    isOn: $agentDrawingsEnabled
+                    isOn: Binding(get: { agentDrawingsEnabled }, set: { agentDrawingsEnabled = $0; engine.setBoolSetting(DefaultsKey.agentDrawingsEnabled, $0) })
                 )
 
                 BuddyDivider(inset: 12)
@@ -291,7 +301,7 @@ struct SettingsView: View {
 
                 TextField(
                     BuddyCopy.shared.settingsCopy.buddyName,
-                    text: $buddyName
+                    text: .constant(buddyName)
                 ).disabled(true)
                     .textFieldStyle(.plain)
                     .font(.buddy(13))
@@ -438,6 +448,7 @@ struct SettingsView: View {
                     .padding(.vertical, 12)
                     .confirmationDialog(BuddyCopy.shared.settingsCopy.forgetThisBuddyTitle, isPresented: $showingUnpairConfirmation) {
                         Button(BuddyCopy.shared.settingsCopy.forgetThisBuddy, role: .destructive) {
+                            engine.setPairedPeripheral(nil)
                             esp32Output.unpair()
                         }
                         Button(BuddyCopy.cancel, role: .cancel) {}
@@ -731,8 +742,7 @@ struct SettingsView: View {
                     systemImage: "arrow.counterclockwise",
                     role: .normal
                 ) {
-                    UserDefaults.standard.removeObject(forKey: DefaultsKey.onboardingStep)
-                    setupCompleted = false
+                    engine.restartOnboarding()
                     isPresented = false
                     onOpenOnboarding()
                 }
@@ -808,16 +818,13 @@ struct SettingsView: View {
 
     private func setApprovalMode(_ enabled: Bool) {
         approvalMode = enabled
-        BuddyConfig.setApprovalMode(enabled)
-        if !enabled {
-            engine.resolveAllPendingApprovals(decision: .passthrough)
-        }
+        engine.setApprovalMode(enabled)
     }
 
     private func cleanupAbandonedPairing() {
         guard selectedDeviceUUID != nil && esp32Output.connectionState != .connected else { return }
         selectedDeviceUUID = nil
-        UserDefaults.standard.removeObject(forKey: esp32PeripheralUUIDKey)
+        engine.setPairedPeripheral(nil)
         esp32Output.unpair()
     }
 
@@ -911,8 +918,7 @@ struct SettingsView: View {
     }
 
     private func normalizeBuddySpecies(sendHeartbeat: Bool = false) {
-        if species != Pet.defaultSpecies {
-            species = Pet.defaultSpecies
+        if engine.state.pet.species != Pet.defaultSpecies {
             engine.setSpecies(Pet.defaultSpecies)
             if sendHeartbeat {
                 esp32Output.sendNow()
