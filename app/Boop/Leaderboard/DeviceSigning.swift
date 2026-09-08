@@ -25,7 +25,7 @@ struct SignRequest: Encodable, Sendable, Equatable {
     func sign(_ request: SignRequest) async throws -> LedgerSignature {
         guard pending == nil, let send else { throw LeaderboardError.unavailable("no device output") }
         let timeout = Task {
-            try await Task.sleep(for: .seconds(5))
+            try await Task.sleep(nanoseconds: 5_000_000_000)  // see Voice.produce
             cancel(LeaderboardError.unavailable("signature timed out"))
         }
         defer { timeout.cancel() }

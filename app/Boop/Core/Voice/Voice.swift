@@ -139,7 +139,9 @@ actor Voice {
                 race.finish(text)
             }
             let timeout = Task {
-                do { try await Task.sleep(for: .seconds(1)); race.finish(nil) }
+                // nanoseconds, not `for:`: the clock-generic sleep aborts in release
+                // builds when the winning generation cancels it (swift_task_dealloc).
+                do { try await Task.sleep(nanoseconds: 1_000_000_000); race.finish(nil) }
                 catch { /* The winning generation cancelled the timer. */ }
             }
             race.attach([generation, timeout])
