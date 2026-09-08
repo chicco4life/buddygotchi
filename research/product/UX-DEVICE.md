@@ -24,7 +24,7 @@ ship.
 | **Motion** (3) | Poke/pet, shake, flip |
 | **Surfaces** (3) | Face · One card · One bubble |
 | **Postures** (3) | Desk · Perch · Travel |
-| **Sounds** (6) | One motif per state, that is all |
+| **Sounds** (7) | One motif per state that has one, plus the boop giggle |
 
 The design rule behind the small set: **idle is simple, need is loud.** At
 rest the buddy is one shape bobbing on a dark field. As the situation gets
@@ -52,20 +52,23 @@ setup never feels like setup.
 
 | Step | On the device | In the app | What the user does |
 | --- | --- | --- | --- |
-| 1. Unbox | Dark. An egg is printed on the screen film or shown on first power. | | Peels the film, presses the primary button. |
-| 2. Wake | The egg rocks, cracks, bursts. A newborn face blinks, looks around, then looks hopefully toward one corner: the "pair me" look. Six seconds, skippable. | | Watches. This is the unboxing moment and must feel hand-finished. |
-| 3. Pair | Newborn keeps looking at the corner. When the app finds it, the buddy notices: eyes widen, small hop. Pairing code appears in the one card if the OS needs it. | Installs, opens, finds the buddy, shows the same newborn on screen. | Confirms pairing. |
-| 4. Connect an agent | Newborn watches the app, curious. | One click per agent: Claude Code, Codex, Cursor. Each success gets a tiny hop on the device. | Clicks. |
-| 5. First signal | The moment the first real agent event arrives the newborn grows into the level-one buddy with a shimmer. This is the true hatch. | "Heard from Claude Code!" | Runs anything in their agent. |
+| 1. Unbox | Dark. The buddy is asleep in the box. | | Lifts it out, presses the primary button. |
+| 2. First wake | A dim, grey sleeping face fades in, breathing. It stirs. One eye opens, then the other. Two blinks. It sees you: eyes go wide, a squish, a big smile. Then it notices a small Bluetooth mark pulsing softly in one corner and looks at it, curious. Glances back at you, then at the mark again. About five seconds, skippable. | | Watches. This is the unboxing moment and must feel hand-finished. |
+| 3. Pair | The buddy keeps glancing between you and the mark, hopeful. When the app finds it, the mark brightens to solid and the buddy hops: it noticed you. If the OS needs a pairing code it appears in the one card, and the buddy peeks at it too. | Installs, opens, finds the buddy, shows the same grey face on screen. | Confirms pairing. |
+| 4. Connect an agent | Still grey, watching the app, curious. | One click per agent: Claude Code, Codex, Cursor. Each success gets a tiny hop on the device. | Clicks. |
+| 5. First signal | The moment the first real agent event arrives, color arrives with it: a shimmer runs across the body and the buddy takes its first color. It has been alive since the box; now the agent has moved in. This is the moment the product is about. | "Heard from Claude Code!" | Runs anything in their agent. |
 | 6. Name | Buddy shows its name in a bubble with a proud pose, once. | Name field. | Types a name. It is permanent. |
 | 7. First cheer | The first completed turn gets a Cheer regardless of size, and a gold orb appears. Tap to collect; bubble: "first one." | Mirrors it. | Taps the primary button. Now they know the loop. |
 
 Rules:
 
 - No step shows a technical word on the device. Pairing is "it noticed
-  you." Hooks are "connect."
-- If pairing fails, the newborn just keeps waiting with the hopeful look.
-  The app explains; the device never does.
+  you." Hooks are "connect." The Bluetooth mark is the one technical symbol
+  allowed on the face, and only while unpaired.
+- If pairing fails, the buddy just keeps glancing at the mark. The app
+  explains; the device never does.
+- The buddy is grey from first wake until the first agent signal. Color is
+  the reward for connecting, and it is what makes step 5 land.
 - The first cheer is deliberately oversized so the loop is taught by doing
   it once.
 
@@ -85,10 +88,17 @@ boot screen or a shutdown message.
 
 **Going to sleep**
 
-- Owner's usual stop hour passes with no agents: the buddy yawns, curls,
-  and sleeps. Screen dims to a barely-breathing dark face, then off.
+- Owner's usual stop hour passes with no agents: one bubble with the day's
+  recap line from the app ("good day. 14 done."), then the buddy yawns,
+  curls, and sleeps.
 - Unplugged and pocketed: after thirty seconds still and dark, sleep.
 - Flipped face-down: nap immediately. Flip back to wake.
+- **Asleep is an animation, not a power state.** The sleeping face stays on
+  at the lowest brightness, breathing slowly, with the occasional twitch.
+  The buddy never turns its own screen off and never powers itself down.
+  Only the shutdown hold does that. A sleeping buddy on a desk at night
+  should look like a sleeping creature, not a dead gadget. The hardware
+  document must budget for an all-night dim sleep frame on battery.
 
 **Shutting down**
 
@@ -113,7 +123,9 @@ The core loop. Written as a timeline of one real task.
 
 The agent starts a turn. The buddy sits up from idle, looks down and a little
 away as if at the work, and starts a slow lean-in. Field stays dark. No
-sound. From across the room: "it's busy."
+sound. From across the room: "it's busy." If the agent introduces itself,
+its name shows in a bubble once, with a small nod. That is the only time an
+agent's name appears on the device.
 
 As the task goes on, effort shows. The app scores effort from elapsed time,
 retries, and errors, and the device renders it as a parameter:
@@ -283,7 +295,7 @@ silhouette changes at level milestones but the eye anchor never moves.
 
 | State | Eyes | Body | Field | Sound |
 | --- | --- | --- | --- | --- |
-| **Asleep** | Closed | Slow breathing | Dark | none |
+| **Asleep** | Closed | Slow breathing, occasional twitch, lowest brightness, never off | Dark | none |
 | **Idle** | Open, drifting, blinking | Gentle bob, micro-idles | Dark | none |
 | **Working** (effort: light / hard / grinding) | Down and away | Lean in → sweat → tremble | Dark | none |
 | **Needs you** | Wide, at you | Turns, leans forward | Amber | "meep?" |
@@ -302,8 +314,9 @@ flip face-down naps. Both are suppressed while a prompt is on screen.
 
 There is no separate thinking, stuck, hungry, focus, or link-lost state.
 Thinking is Working. Stuck and hungry are Uh-oh with a bubble. Focus is a
-small mark in one corner. Link lost is Idle glancing at the corner, then
-Travel.
+small mark in one corner. Link lost is Idle glancing at a dim Bluetooth
+mark in the corner, then Travel. Unpaired is the same mark, pulsing, with
+the buddy looking at it hopefully.
 
 ## 9. The cheer and the gift
 
@@ -398,7 +411,8 @@ a friend in five seconds.
 
 ## 14. Rituals
 
-- **Hatch.** Part I §1. Egg to newborn to level one on first signal.
+- **First wake.** Part I §1. Asleep in the box, wakes, sees you, notices
+  the Bluetooth mark; grey until the first agent signal brings color.
 - **Greet.** Under an hour, a glance and smile. Hours, a stretch and yawn.
   A day, squish and "missed you." A week or more, the big version. Capped.
 - **Level up.** Shimmer, cosmetic reveal if any, one bubble with the level.
@@ -408,7 +422,7 @@ a friend in five seconds.
 
 ## 15. Sound
 
-Six motifs, one per state, plus the boop giggle. Each under 700 ms, each
+Seven motifs and no more. Each under 700 ms, each
 tellable from the others across a room with eyes closed.
 
 | State | Motif |
@@ -434,8 +448,9 @@ next table; silent in focus except rung 2 and Uh-oh; silent asleep.
 - Screen priority, highest wins: system card → Needs you card → decision
   feedback → Uh-oh bubble → stats → bubble → overlay → face and orb. Lower
   layers keep simulating.
-- Dim after two minutes idle, off after ten on battery or thirty on power.
-  A pending prompt never dims. An uncollected orb keeps a low glow.
+- Dim after two minutes idle; Asleep is the lowest brightness. The screen
+  never turns itself off. A pending prompt never dims. An uncollected orb
+  keeps a low glow.
 
 ## 17. Micro-idles
 
@@ -456,7 +471,7 @@ eye anchor. Schedule is `UX-GROWTH.md`.
 1. **Canvas shape.** Moves the card and bubble, changes how perch feet read.
 2. **Second button.** Assumed yes; fallback in §12.
 3. **Touch.** Assumed no.
-4. **Agent name on the device.** Leaning no, except a greet bubble when an
-   agent introduces itself.
+4. **Agent name on the device.** Resolved: only in the one bubble when an
+   agent introduces itself, never ambiently.
 5. **Story-line length.** Forty characters assumed; the canvas and the
    Korean font decide.

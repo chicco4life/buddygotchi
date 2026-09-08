@@ -59,7 +59,7 @@ at the expense of a newcomer.
 ### Expansion audience
 
 Anyone who runs agents for work, not just for code. The state vocabulary
-(sleeping, working, done, stuck, needs you) is not code-specific. Coding
+(asleep, idle, working, needs you, done, uh-oh) is not code-specific. Coding
 agents are the beachhead because that is where the signal exists today.
 
 ### Launch constraints
@@ -178,8 +178,8 @@ Transitions are moments, not settings:
 
 - Unplug and pocket it: it yawns and curls up. Stats from the day are carried
   with it.
-- Pull it out on the train: it wakes, stretches, shows the day's tally if you
-  poke it.
+- Pull it out on the train: it wakes, stretches, shows its level and the
+  day's tally if you ask.
 - Reconnect at the desk: a greeting scaled to how long you were gone. Never a
   guilt trip.
 
@@ -192,10 +192,12 @@ likely to be seen by other people. It is the ad.
 
 ### Day one
 
-Open the box, the buddy is asleep. Open the app, it walks you through
-connecting Claude Code, Codex, or Cursor with one click each. The first time
-the app hears an agent, the buddy hatches. The hatch is the first celebration
-and the first shareable moment.
+Open the box, the buddy is asleep. Press the button and it wakes for the
+first time, sees you, and notices the Bluetooth mark it needs you to answer.
+Open the app, it walks you through connecting Claude Code, Codex, or Cursor
+with one click each. The buddy is grey until the first time the app hears an
+agent; then color runs across it. The agent has moved in. That is the first
+celebration and the first shareable moment.
 
 You name it. The name is permanent (§11).
 
@@ -234,7 +236,8 @@ next signal.
 ### The agent is stuck
 
 Repeated tool calls with similar arguments, repeated errors, or a long silence
-mid-task: the buddy notices and says so. This will be rare, and when it
+mid-task: the buddy notices and says so, in the same "uh-oh" shape it uses
+for errors, with a different line. This will be rare, and when it
 happens it is real. Newcomers do not recognize a stuck loop; the buddy does.
 
 ### The agent needs you
@@ -254,7 +257,9 @@ show the gloss first. The same prompt is in the app and mirrors the decision.
 
 When your usual stop hour passes, the buddy winds down and offers a recap in
 its own voice: what the agents did, what shipped, what is still open, what it
-noticed. One screen in the app, one line on the device.
+noticed. One screen in the app, one line on the device. Then it sleeps,
+visibly: a breathing face at the lowest brightness, never a blank screen. It
+does not power itself down.
 
 ### Away
 
@@ -276,7 +281,7 @@ how often a newcomer in auto mode will feel it.
    (full, peckish, hungry) with the real number in the app.
 4. **Stuck detection.** Repeated tool calls with similar arguments, repeated
    errors, or a long silence get surfaced as "it might be going in circles."
-5. **Focus mode.** One press silences everything except high stakes.
+5. **Focus mode.** One button hold silences everything except high stakes.
 6. **Needs-you alerts** with a gentle nudge ladder and focus hours.
 7. **Plain-English risk translation** on approval prompts. Newcomers do not
    know what a shell command does. The buddy tells them what it will touch and
@@ -298,9 +303,12 @@ user's productivity.
 
 ### The body (deterministic)
 
-Agent events map to a fixed emotional vocabulary: sleeping, idle, busy,
-thinking, celebrate, error, stuck, needs-you, greet, affection. This layer
-never needs a model and works identically for every agent. It is the floor.
+Agent events map to a small fixed vocabulary: six states (asleep, idle,
+working, needs you, done, uh-oh) and two overlays (greet, boop). Effort and
+cheer size are parameters on working and done, not extra states. The set is
+deliberately small so a user can learn it in a day; the full grammar is in
+`UX-DEVICE.md`. This layer never needs a model and works identically for
+every agent. It is the floor.
 
 ### The voice (local model)
 
@@ -390,8 +398,8 @@ The buddy remembers agents by name. Over months, it has opinions about them.
 ### Sound
 
 A speaker with a small library of chirps and digital sounds. No music, no
-speech. Every state has a sound, and every sound is short enough not to
-annoy a café. The completion chirp is the most-heard sound in the product and
+speech. Every state that asks for attention has one sound; idle, working,
+and asleep are silent. Every sound is short enough not to annoy a café. The completion chirp is the most-heard sound in the product and
 gets the most design attention. Volume and mute are on the device and in the
 app.
 
@@ -570,9 +578,10 @@ Specifics are deferred to the hardware document. The principles are not.
   capabilities.
 - **Minimum inventory the experience assumes:** a color face readable at
   arm's length and legible as state across a room, a speaker, one primary
-  button with press and hold, motion sensing for pokes, shakes, flips, and
-  posture, a battery for a working day, USB-C charging, and Bluetooth to the
-  Mac.
+  button with press and hold and a second button strongly preferred (yes
+  and no on separate keys is easier to trust), motion sensing for pokes,
+  shakes, flips, and posture, a battery for a working day that can also hold
+  a dim sleeping face all night, USB-C charging, and Bluetooth to the Mac.
 - **It must perch and it must pocket.** Whatever the shape, it clips to a
   laptop lid and fits in a jacket pocket.
 - **It reads as a designed object.** No visible board, no dev-kit cues.
@@ -673,10 +682,9 @@ Open, deferred to later documents:
 
 Each refines one surface of this vision. Suggested order:
 
-1. `UX-DEVICE.md`: the face, animation vocabulary per posture, the
-   completion cheer and its scaling, sounds, button grammar, travel-mode
-   screens.
-2. `UX-APP.md`: onboarding and hatch, the menu bar creature, recap, focus
+1. `UX-DEVICE.md`: written. Flows first, then the six-state vocabulary,
+   the cheer and its sizes, postures, sounds, buttons, travel mode.
+2. `UX-APP.md`: onboarding and first wake, the menu bar creature, recap, focus
    mode, approval and risk translation, settings.
 3. `UX-GROWTH.md`: level curve, XP formula and its public explanation,
    streaks, cosmetics, share cards, leaderboard.
