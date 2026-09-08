@@ -78,6 +78,15 @@ tools/buddyctl.py press a --ms 150 --json
 Use `tools/buddyctl.py ble status`, `ble set`, and `ble prompt --wait-decision`
 after the one-time OS pairing step to exercise the production BLE transport.
 
+## Self-Diagnosis
+
+Before relying on hooks, run `tools/doctor.sh` from the repo root (skill:
+`doctor`). It checks config, the hook script, registration for the current
+harness, the running app, auth, and a synthetic round trip, then arms a live
+check: run `echo BOOP_DOCTOR_PING` as a tool call and `tools/doctor.sh
+--confirm`. Exit 0 healthy, 1 broken, 2 armed. Do not launch the Boop app
+yourself; ask the user to (an agent-launched Boop aborts on Bluetooth).
+
 ## Architecture Rules
 
 - Keep `app/Boop/Core/` pure. The reducer must not perform I/O, read clocks, read user defaults, call UI, or touch BLE.
