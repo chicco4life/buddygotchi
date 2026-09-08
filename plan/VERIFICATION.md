@@ -545,3 +545,120 @@ checks that every creature/popover catalog output exists.
   sandbox PNG review and a real onboarding/device walkthrough. No screenshot,
   Bluetooth delivery, live hook/doctor, notification presentation or hardware
   fidelity pass is claimed here.
+
+## Phase 8 app notes
+
+Implemented 2026-09-09; `archived/`, `firmware/`, other `plan/` files and
+`.github/` are unchanged. No commit or push.
+
+### Implementation
+
+- `app/Boop/Leaderboard/DeviceSigning.swift`, `DeviceProtocol.swift`,
+  `ESP32Output.swift`, and `BuddyEngine.swift`: query identity on connect;
+  validate P-256 SEC1 keys and 16-hex unit IDs; pin identity; send a random
+  16-hex nonce with the local day and lifetime XP; match the pending request
+  and locally verify DER ECDSA before persistence. Strict integer parsing
+  rejects booleans, floats (including integral floats), and malformed fields.
+- Store schema 4 adds `unit(unit,pub,alg,first_seen)` and
+  `ledger_signatures(day,xp,nonce,sig,unit)`. One signature per local day,
+  unique nonces per unit, identity retained across restarts, cleared at retire.
+  Retirement invalidates in-flight work and waits for signing/sync to finish.
+- `LeaderboardClient.swift` contains a deliberately narrow submission DTO.
+  URL/opt-in/friends settings, daily SQLite upload reservation, signature
+  cursor and rank fetching are wired into the engine. Only the new
+  `leaderboardUpdated` event changes the reducer. Rank all/month/friends is
+  available in the popover footer sheet; software-only users keep growth but
+  cannot submit a score. The coming-soon label is removed in both languages.
+- `ShareCard.swift` renders the current creature/cosmetics, name, level,
+  streak and an authored share line with ImageRenderer. English and Korean
+  each have eight lines per earnest/wry/cheeky register. Cream-only card art
+  uses darker facial features, an upright frozen pose, and omits session
+  indicators. Menu and popover actions save a unique PNG in Downloads, copy
+  PNG data to the pasteboard, and reveal the saved file. Snapshot scenes
+  cover both languages and appearances, plus the shipping ImageRenderer.
+- New `leaderboard/` SwiftPM package: Hummingbird 2, system SQLite,
+  transactional signature verification/duplicate rejection, latest totals,
+  three rank views, health endpoint and deployment README. Hummingbird is
+  the only package dependency; CryptoKit verifies on macOS and system
+  OpenSSL verifies on Linux. No request logging middleware or IP columns.
+- Tests cover tampering, invalid identity/algorithm, strict wire decoding,
+  persistence/replay/retire, fixture gating, exact HTTP body keys, opt-out,
+  empty endpoint, concurrent upload reservations, restart limits, friends
+  query isolation, and extractor/profile privacy. Service tests cover
+  verification/rejection, duplicates and rollback, rank ordering/month/
+  friends, and actual Hummingbird routes without sockets.
+- `app/tools/e2e/lib.sh` adds `leaderboard_check`, called by the master smoke
+  runner when the service builds. It starts an isolated service on a random
+  port, injects the gated test signature, asserts exact body keys and rank 1
+  in all three views, restores URL/opt-in, and stops its service. It requires
+  a fresh named headless software buddy launched with `BOOP_TEST_SIGNER=1`;
+  it does not replace a recorded hardware identity or reset an owner's data.
+
+### Verification evidence
+
+The first default build exited 1 before project compilation because the
+sandbox denied user module-cache writes. Builds succeeded with
+`CLANG_MODULE_CACHE_PATH=/tmp/boop-clang`,
+`SWIFTPM_MODULECACHE_OVERRIDE=/tmp/boop-swift`, and SwiftPM's
+`--disable-sandbox` flag (the outer workspace sandbox remained in effect).
+The new service reused the app's already resolved Hummingbird checkouts;
+no dependency download was claimed in this network-restricted environment.
+
+| Command | Exit | Result |
+| --- | --- | --- |
+| `cd app; swift build --disable-sandbox --product Boop` | 0 | Swift 6 build |
+| `cd app; swift build --disable-sandbox --product BoopSignal` | 0 | Swift 6 build |
+| `cd app; python3 tools/gen-test-runner.py` | 0 | 428 tests generated |
+| `cd app; swift run --disable-sandbox BoopTests` | 0 | 417 passed, 11 skipped, 0 failures |
+| `cd leaderboard; swift build --disable-sandbox` | 0 | Service and local test runner built |
+| `cd leaderboard; swift test --disable-sandbox` | 1 | XCTest unavailable; no test target on this CLT host |
+| `cd leaderboard; swift run --disable-sandbox LeaderboardTests` | 0 | 4 passed, 0 failures using the repo's XCTest shim |
+| `app/.build/debug/Boop --render-snapshots /tmp/phase8-snapshots-reviewed` | 0 | Both languages/appearances rendered; image review completed |
+| PNG IHDR checks | 0 | Four ImageRenderer exports are exactly 1200×630 |
+| OpenSSL C fallback compile/run on macOS | 0 | Identity, valid signature, tampered message and invalid key checked |
+| `bash -n app/tools/e2e/lib.sh app/tools/e2e-smoke.sh` | 0 | Shell syntax valid |
+| `git diff --check` | 0 | No whitespace errors |
+
+App skips: four existing real-socket tests (sandbox prohibits localhost
+sockets) and seven opt-in snapshot harness tests (disabled by default).
+The standalone renderer was run separately; reviewed card exports are in
+`/tmp/phase8-snapshots-reviewed/share-image-renderer-{en,ko}-{light,dark}.png`.
+Final command logs use `/tmp/phase8-verify-*`. Native `swift test` is not
+claimed as passing: the service uses a real XCTest target on full Xcode or
+Linux and an explicitly invoked local shim runner on Command Line Tools.
+
+Unexecuted: socket e2e/master smoke, Bluetooth unit/sign round trip, hardware
+key persistence, native Linux Swift build, and the interactive Downloads/
+pasteboard action. No hook/doctor or hardware pass is claimed.
+
+### Contract decisions beyond the older prose
+
+1. The explicit wire spec overrides architecture shorthand: unit is eight
+   SHA-256 bytes (16 lowercase hex characters); signed ASCII is
+   `unit|day|xp|nonce`. The submit envelope has **exactly seven keys**:
+   `buddyName`, `silhouette`, `xpTotal`, `signatures`, `unit`, `pub`, `alg`.
+   Every signature has exactly `day`, `xp`, `nonce`, `sig`. The older “four
+   fields” language describes payload categories before identity metadata.
+2. Signing occurs at the first connected opportunity each local day (with
+   minute retries on transport failure), and on headless `/state/sign`.
+   Scores use the latest *signed* total, never newer unsigned XP. Opt-out
+   stops leaderboard networking but does not stop local device signing.
+3. At most one POST attempt per local day, including failures, is reserved
+   atomically in SQLite. Unsent signatures retry the next day in batches of
+   up to 400. An accepted POST whose reply was lost may later receive a
+   replay conflict: this minimal protocol intentionally rejects duplicates
+   and has no reconciliation endpoint.
+4. Month means latest total minus the last signed total before the current
+   UTC month, with baseline zero for a new unit. Local day labels allow one
+   day of UTC skew. Totals cannot decrease; supplied days must advance.
+   Ties use unit ID ascending; views return the first 100 entries plus the
+   requesting unit's rank across the full view.
+5. Friends codes are the uppercase first six unit characters, capped at 100
+   local friends. Query key `friends` carries a JSON array. It is absent
+   from submissions and never stored by the service. Prefix collisions
+   include all matching units; codes are discovery aids, not authentication.
+6. The service has no manufacturer allowlist: a valid per-key signature
+   demonstrates possession of that key, not independently measured work.
+   TestDeviceSigner construction in production flow is gated by headless
+   configuration and `BOOP_TEST_SIGNER=1`. The Linux crypto adapter uses
+   system OpenSSL to honor the Hummingbird-only package dependency rule.

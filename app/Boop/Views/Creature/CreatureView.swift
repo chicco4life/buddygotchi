@@ -37,6 +37,8 @@ struct CreatureView: View {
     var creature: Creature
     var cosmetic = EquippedCosmetic()
     var frozen = false
+    var cream = false
+    var frozenTime = 1.25
     var grey = false
     var paused = false
     @State private var enteredAt = Date.now
@@ -46,11 +48,11 @@ struct CreatureView: View {
         let pose = CreaturePose(from: creature)
         let field: Color = creature.state == .needsYou ? .orange : creature.state == .uhoh ? .red : tint
         let fieldGradient = Gradient(colors: [field.opacity(creature.state == .needsYou ? 0.35 : 0.12), .clear])
-        let bodyGradient = Gradient(colors: [tint.opacity(0.18), tint.opacity(0.10)])
+        let bodyGradient = Gradient(colors: [tint.opacity(cream ? 0.65 : 0.18), tint.opacity(cream ? 0.4 : 0.10)])
         let confetti = confettiRing(count: pose.confetti)
         let glyphs = CreatureGlyphs(tint: tint)
         TimelineView(.animation(minimumInterval: creature.animationInterval, paused: paused || frozen || snapshotFrozen || reduceMotion)) { timeline in
-            let t = frozen || snapshotFrozen || reduceMotion ? 1.25 : timeline.date.timeIntervalSince(enteredAt)
+            let t = frozen || snapshotFrozen || reduceMotion ? frozenTime : timeline.date.timeIntervalSince(enteredAt)
             Canvas { context, size in
                 let texts = glyphs.resolve(in: context)
                 draw(&context, size: size, time: t, pose: pose, fieldGradient: fieldGradient, bodyGradient: bodyGradient, confetti: confetti, heart: texts.0, moon: texts.1, more: texts.2)
@@ -73,7 +75,7 @@ struct CreatureView: View {
         }
     }
     private func draw(_ context: inout GraphicsContext, size: CGSize, time t: Double, pose: CreaturePose, fieldGradient: Gradient, bodyGradient: Gradient, confetti: [(Path, Color)], heart: GraphicsContext.ResolvedText, moon: GraphicsContext.ResolvedText, more: GraphicsContext.ResolvedText) {
-        context.fill(Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 24), with: .color(Color(hex: "171513")))
+        context.fill(Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 24), with: .color(Color(hex: cream ? "F6EEDC" : "171513")))
         let scale = min(size.width / 240, size.height / 200)
         context.translateBy(x: (size.width - 240 * scale) / 2, y: (size.height - 200 * scale) / 2)
         context.scaleBy(x: scale, y: scale)
@@ -94,7 +96,7 @@ struct CreatureView: View {
         let round = cosmetic.silhouette == "round"
         let body = CGRect(x: tall ? 67 : round ? 52.5 : 46, y: tall ? 39 : 55, width: tall ? 106 : round ? 135 : 148, height: (tall ? 118 : round ? 108 : 96) + sin(t * 0.7) * 1.5)
         context.fill(Path(roundedRect: body, cornerRadius: tall ? 54 : 60), with: .linearGradient(bodyGradient, startPoint: CGPoint(x: 90, y: 60), endPoint: CGPoint(x: 140, y: 170)))
-        let ink = grey ? Color.gray : tint
+        let ink = grey ? Color.gray : cream ? Color(hex: "66503B") : tint
         let blink = !frozen && !snapshotFrozen && creature.state == .idle && t.truncatingRemainder(dividingBy: 5) < 0.16
         drawEyes(&context, pose: pose, centers: [CGPoint(x: 77.5, y: 103), CGPoint(x: 162.5, y: 103)], scale: 1, ink: ink, blink: blink, gaze: creature.state == .idle ? sin(t * 0.31) * 5.5 : 0)
         var mouth = Path(); mouth.move(to: CGPoint(x: 113, y: 130)); mouth.addQuadCurve(to: CGPoint(x: 127, y: 130), control: CGPoint(x: 120, y: creature.state == .uhoh ? 128 : 139))

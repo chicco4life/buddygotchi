@@ -240,6 +240,7 @@ struct Pet: Encodable, Sendable, Equatable {
 struct BuddyState: Encodable, Sendable, Equatable {
     var language = "en"
     var recap: Recap?
+    var leaderboard: LeaderboardSnapshot?
     var growth = GrowthSnapshot()
     var cosmetic = EquippedCosmetic()
     var version: Int

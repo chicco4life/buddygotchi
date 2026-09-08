@@ -354,3 +354,68 @@ recap_check() {
     ok 'recap: device line and app paragraph'
   else bad 'recap: missing or oversized text'; fi
 }
+
+# Requires a fresh headless app launched with BOOP_TEST_SIGNER=1. Never use a
+# hardware owner's store for this fixture: identity pinning deliberately refuses it.
+leaderboard_check() {
+  local repo service_log
+  repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+  service_log="$(mktemp)"
+  if ! (cd "$repo/leaderboard" && swift build) >"$service_log" 2>&1; then
+    info "leaderboard build unavailable; socket e2e skipped (log: $service_log)"
+    return
+  fi
+  if (
+    set -o pipefail
+    local temporary service_pid service_port service_bin prior result body
+    temporary="$(mktemp -d)" || exit 1
+    service_pid=""
+    prior=""
+    cleanup_leaderboard() {
+      if [ -n "$prior" ]; then
+        "${CURL[@]}" --max-time 5 "${AUTH[@]}" -X POST -H 'Content-Type: application/json' -d "$prior" "$BASE/state/leaderboard" >/dev/null || true
+      fi
+      if [ -n "$service_pid" ]; then kill "$service_pid" 2>/dev/null || true; wait "$service_pid" 2>/dev/null || true; fi
+      rm -rf "$temporary"
+    }
+    trap cleanup_leaderboard EXIT
+    service_port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')" || exit 1
+    service_bin="$(cd "$repo/leaderboard" && swift build --show-bin-path)" || exit 1
+    "$service_bin/leaderboard" --port "$service_port" --database "$temporary/rank.sqlite" >"$service_log" 2>&1 &
+    service_pid=$!
+    for _ in {1..100}; do
+      if "${CURL[@]}" -f --max-time 1 "http://127.0.0.1:$service_port/healthz" >/dev/null 2>&1; then break; fi
+      kill -0 "$service_pid" || exit 1
+      sleep 0.1
+    done
+    "${CURL[@]}" -f --max-time 2 "http://127.0.0.1:$service_port/healthz" >/dev/null || exit 1
+    prior="$("${CURL[@]}" -f --max-time 5 "${AUTH[@]}" "$BASE/state/leaderboard")" || exit 1
+    "${CURL[@]}" -f --max-time 5 "${AUTH[@]}" -H 'Content-Type: application/json' -X POST \
+      -d "{\"url\":\"http://127.0.0.1:$service_port\",\"optIn\":false}" "$BASE/state/leaderboard" >/dev/null || exit 1
+    # Sign before enabling upload so the explicit submit below is the first attempt.
+    "${CURL[@]}" -f --max-time 10 "${AUTH[@]}" -X POST "$BASE/state/sign" >"$temporary/sign.json" || exit 1
+    "${CURL[@]}" -f --max-time 5 "${AUTH[@]}" -H 'Content-Type: application/json' -X POST \
+      -d "{\"url\":\"http://127.0.0.1:$service_port\",\"optIn\":true}" "$BASE/state/leaderboard" >/dev/null || exit 1
+    body="$("${CURL[@]}" -f --max-time 5 "${AUTH[@]}" "$BASE/state/leaderboard/body")" || exit 1
+    printf '%s' "$body" | python3 -c 'import json,sys; b=json.load(sys.stdin); assert set(b)=={"buddyName","silhouette","xpTotal","signatures","unit","pub","alg"}; assert b["signatures"]; assert all(set(s)=={"day","xp","nonce","sig"} for s in b["signatures"])' || exit 1
+    # The client syncs on its own tick after opt-in: give it up to 15 s.
+    for _ in $(seq 1 30); do
+    result="$("${CURL[@]}" -f --max-time 10 "${AUTH[@]}" -X POST "$BASE/state/leaderboard/submit")" || exit 1
+      printf '%s' "$result" | python3 -c 'import json,sys; b=json.load(sys.stdin); sys.exit(0 if b.get("entries") else 1)' 2>/dev/null && break
+      sleep 0.5
+    done
+    printf '%s' "$result" | python3 -c 'import json,sys; b=json.load(sys.stdin); assert b["rank"]==1; assert len(b["entries"])==1' || exit 1
+    local unit code
+    unit="$(printf '%s' "$body" | python3 -c 'import json,sys; print(json.load(sys.stdin)["unit"])')" || exit 1
+    code="$(printf '%s' "$unit" | cut -c 1-6 | tr '[:lower:]' '[:upper:]')" || exit 1
+    for view in all month friends; do
+      "${CURL[@]}" -f --max-time 5 "http://127.0.0.1:$service_port/rank?unit=$unit&view=$view&code=$code&friends=%5B%5D" |
+        python3 -c 'import json,sys; assert json.load(sys.stdin)["rank"]==1' || exit 1
+    done
+  ); then
+    ok "leaderboard: signed fixture, exact body keys, all/month/friends rank 1"
+    rm -f "$service_log"
+  else
+    bad "leaderboard e2e (requires fresh headless BOOP_TEST_SIGNER=1; log: $service_log)"
+  fi
+}

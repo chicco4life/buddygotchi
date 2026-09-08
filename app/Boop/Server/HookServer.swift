@@ -237,6 +237,48 @@ func buildHookServer(
         return try encodedResponse(StateResponse(state: await engine.state, inventory: try await engine.inventory()))
     }
 
+    router.post("/state/sign") { request, _ -> Response in
+        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
+        guard config.headless else { return Response(status: .notFound) }
+        do {
+            let fixture = ProcessInfo.processInfo.environment["BOOP_TEST_SIGNER"] == "1"
+            return try encodedResponse(["signatures": try await engine.signGrowth(testFixture: fixture)])
+        } catch {
+            await engine.diagnosticLog.log(category: "leaderboard", source: "system", event: "sign-failed", detail: String(describing: error))
+            return jsonResponse(["error": String(describing: error)], status: .conflict)
+        }
+    }
+    router.get("/state/leaderboard") { request, _ -> Response in
+        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
+        guard config.headless else { return Response(status: .notFound) }
+        struct Settings: Encodable { var url: String; var optIn: Bool }
+        return try encodedResponse(Settings(url: await engine.leaderboardURL, optIn: await engine.boolSetting(DefaultsKey.leaderboardOptIn)))
+    }
+    router.post("/state/leaderboard") { request, _ -> Response in
+        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
+        guard config.headless else { return Response(status: .notFound) }
+        struct Settings: Decodable { var url: String; var optIn: Bool }
+        let bytes = try await request.body.collect(upTo: 2048)
+        guard let body = try? JSONDecoder().decode(Settings.self, from: Data(bytes.readableBytesView)) else { return Response(status: .badRequest) }
+        await engine.configureLeaderboard(url: body.url, optIn: body.optIn)
+        return Response(status: .noContent)
+    }
+    router.post("/state/leaderboard/submit") { request, _ -> Response in
+        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
+        guard config.headless else { return Response(status: .notFound) }
+        do { return try encodedResponse(try await engine.syncLeaderboard()) }
+        catch {
+            // A test route that swallows errors costs hours; say what failed.
+            await engine.diagnosticLog.log(category: "leaderboard", source: "system", event: "sync-failed", detail: String(describing: error))
+            return jsonResponse(["error": String(describing: error)], status: .conflict)
+        }
+    }
+    router.get("/state/leaderboard/body") { request, _ -> Response in
+        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
+        guard config.headless else { return Response(status: .notFound) }
+        return try encodedResponse(try await engine.submissionPreview())
+    }
+
     for setting in ["language", "voice"] {
         router.post("/state/\(setting)") { request, _ -> Response in
             guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
@@ -670,6 +712,16 @@ private func jsonResponse(_ dict: [String: Any]) -> Response {
     }
     return Response(
         status: .ok,
+        headers: [.contentType: "application/json"],
+        body: .init(byteBuffer: ByteBuffer(data: data))
+    )
+}
+private func jsonResponse(_ dict: [String: Any], status: HTTPResponse.Status) -> Response {
+    guard let data = try? JSONSerialization.data(withJSONObject: dict) else {
+        return Response(status: .internalServerError)
+    }
+    return Response(
+        status: status,
         headers: [.contentType: "application/json"],
         body: .init(byteBuffer: ByteBuffer(data: data))
     )

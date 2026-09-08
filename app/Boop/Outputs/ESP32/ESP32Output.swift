@@ -43,6 +43,10 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
 
     func refreshSnapshot() { sendNow() }
 
+    func sendSign(_ request: SignRequest) {
+        guard connectionState == .connected, let data = try? JSONEncoder().encode(request) else { return }
+        bleManager.send(data + Data([10]))
+    }
     func sendRetire() {
         bleManager.send(Data("{\"cmd\":\"retire\"}\n".utf8))
     }
@@ -84,13 +88,16 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
 
     func bleManager(_ manager: BLEManager, connectionStateChanged state: BLEConnectionState) {
         connectionState = state
+        if state != .connected { engine?.signingDeviceDisconnected() }
         if state == .connected {
+            bleManager.send(Data("{\"cmd\":\"unit\"}\n".utf8))
             sendNow()
             Task { await refreshDeviceFirmware() }
         }
     }
 
     func bleManager(_ manager: BLEManager, didReceive command: DeviceCommand) {
+        guard connectionState == .connected else { return }
         engine?.handleDeviceCommand(command)
     }
 

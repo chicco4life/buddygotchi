@@ -1,7 +1,7 @@
 import Foundation
 
 enum VoiceBanks {
-    static let occasions = ["greet", "recap", "recapParagraph", "profileLine"]
+    static let occasions = ["share", "greet", "recap", "recapParagraph", "profileLine"]
         + Moment.Kind.allCases.map(\.rawValue)
         + CheerSize.allCases.map { "cheer_" + $0.rawValue }
         + UhohKind.allCases.map { "uhoh_" + $0.rawValue }

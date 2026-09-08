@@ -9,6 +9,8 @@ struct CompanionSettings: View {
     @State private var voice = "auto"
     @State private var volume = 1
     @State private var leaderboard = false
+    @State private var leaderboardURL = ""
+    @State private var friendCode = ""
     @State private var focus = false
     @State private var start = 9
     @State private var end = 17
@@ -24,6 +26,7 @@ struct CompanionSettings: View {
         }.font(.buddy(12)).padding(.vertical, 16)
         .onAppear {
             quick = engine.quickCommand; volume = engine.soundVolume; voice = engine.voiceSetting
+            leaderboardURL = engine.leaderboardURL
             leaderboard = engine.boolSetting(DefaultsKey.leaderboardOptIn)
             let hours = engine.focusHours; focus = hours.enabled; start = hours.start; end = hours.end
         }
@@ -70,7 +73,18 @@ struct CompanionSettings: View {
                 .onChange(of: quick) { _, text in engine.setQuickCommand(text) }
             Text(BuddyCopy.phase7("quickNote", language: engine.state.language)).font(.buddy(11)).foregroundStyle(BuddyTheme.inkSoft)
         case .leaderboard:
-            Toggle(BuddyCopy.phase7("leaderboard", language: engine.state.language), isOn: Binding(get: { leaderboard }, set: { leaderboard = $0; engine.setBoolSetting(DefaultsKey.leaderboardOptIn, leaderboard) }))
+            Toggle(BuddyCopy.phase7("leaderboard", language: engine.state.language), isOn: Binding(get: { leaderboard }, set: { leaderboard = $0; engine.configureLeaderboard(url: leaderboardURL, optIn: leaderboard) }))
+            HStack {
+                TextField(engine.state.language == "ko" ? "리더보드 주소" : "Leaderboard URL", text: $leaderboardURL)
+                    .onSubmit { engine.configureLeaderboard(url: leaderboardURL, optIn: leaderboard) }
+                Button(engine.state.language == "ko" ? "저장" : "Save") { engine.configureLeaderboard(url: leaderboardURL, optIn: leaderboard) }
+            }
+            if let identity = engine.deviceIdentity { Text((engine.state.language == "ko" ? "친구 코드: " : "Friends code: ") + identity.friendsCode).textSelection(.enabled) }
+            HStack {
+                TextField(engine.state.language == "ko" ? "친구 코드" : "Friend’s code", text: $friendCode)
+                Button(engine.state.language == "ko" ? "추가" : "Add") { engine.addFriend(friendCode); friendCode = "" }
+            }
+            Text(engine.friendsCodes.joined(separator: " · "))
         case .profile:
             Button(BuddyCopy.phase7("profile", language: engine.state.language)) { CompanionWindows.shared.profile(engine: engine) }
         case .retire:

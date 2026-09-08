@@ -16,9 +16,9 @@ enum SnapshotRenderer {
     private static let surface = Surface()
 
     static var expectedRenderCount: Int {
-        let companionPerAppearance = CompanionScene.all.count + 2 + 2 + SettingsSection.allCases.count + 2 + OnboardingStep.allCases.count
+        let companionPerAppearance = CompanionScene.all.count + 2 + 2 + 2 + SettingsSection.allCases.count + 2 + OnboardingStep.allCases.count
         let other = 7 + 2 + OnboardingStep.allCases.count + FirmwareUpdater.snapshotStates.count + 1 + 4
-        return 2 * companionPerAppearance + other
+        return 2 * companionPerAppearance + other + 4 // share ImageRenderer exports
     }
 
     static func renderAll(to dir: String, defaults: UserDefaults) {
@@ -248,6 +248,16 @@ enum SnapshotRenderer {
             let suffix = dark ? "dark" : "light"
             func shot<V: View>(_ view: V, _ name: String, width: CGFloat = 360, height: CGFloat = 640) {
                 render(view, "phase7-" + name + "-" + suffix, CGSize(width: width, height: height), dir, defaults: defaults, dark: dark)
+            }
+            for language in ["en", "ko"] {
+                var c = Creature.initial; c.state = .done; c.cheer = .cheer
+                let card = ShareCard(creature: c, cosmetic: EquippedCosmetic(), name: language == "ko" ? "보리" : "Mochi", level: 12, streak: 7,
+                                     line: VoiceBanks.lines(language: language, occasion: "share", register: .wry)[0], language: language)
+                shot(card, "share-" + language, width: 1200, height: 630)
+                // Verify the shipping ImageRenderer path too, without writing to Downloads/pasteboard.
+                if let png = try? card.pngData() {
+                    try? png.write(to: URL(fileURLWithPath: dir + "/share-image-renderer-" + language + "-" + suffix + ".png"))
+                }
             }
             for scene in CompanionScene.all {
                 guard scene.needsPopover else {

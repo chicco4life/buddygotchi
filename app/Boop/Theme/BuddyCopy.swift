@@ -366,7 +366,7 @@ extension BuddyCopy {
             "language": ("Language", "언어"), "voice": ("Voice", "목소리"), "auto": ("Automatic", "자동"), "off": ("Off", "끄기"),
             "focusHours": ("Focus hours · daily", "매일 집중 시간"), "start": ("Start", "시작"), "end": ("End", "종료"),
             "quick": ("Quick command", "빠른 명령"), "quickNote": ("Double tap shows this command in a notification. It isn’t sent to a running agent.", "두 번 누르면 이 명령을 알림으로 보여줘요. 실행 중인 에이전트에 전송하지는 않아요."),
-            "leaderboard": ("Leaderboard · coming soon", "리더보드 · 준비 중"), "volume": ("Volume", "음량"),
+            "leaderboard": ("Leaderboard", "리더보드"), "volume": ("Volume", "음량"),
             "retire": ("Retire buddy", "버디 은퇴시키기"), "retireMessage": ("Say goodbye and begin again? This erases growth and everything your buddy learned.", "작별하고 다시 시작할까요? 성장 기록과 버디가 배운 모든 내용이 지워져요."),
             "name": ("Name your buddy", "버디 이름 짓기"), "namePermanent": ("A name to keep. You can’t change it later.", "오래 간직할 이름이에요. 나중에 바꿀 수 없어요."),
             "continue": ("Continue", "계속"), "firstOne": ("first one", "첫 번째야"), "quietTool": ("Don’t explain this tool again", "이 도구 설명 끄기"),

@@ -18,7 +18,9 @@ struct BuddyConfig: Sendable {
     var headless: Bool = false
 
     static let `default`: BuddyConfig = {
-        let stateDir = defaultStateDir()
+        // BOOP_STATE_DIR lets headless/e2e runs use a scratch store instead of
+        // the owner's real one; the hook token still comes from that dir's config.
+        let stateDir = ProcessInfo.processInfo.environment["BOOP_STATE_DIR"] ?? defaultStateDir()
         let (port, approvalMode, token) = readOrCreateConfig(stateDir: stateDir)
         return BuddyConfig(httpPort: port, staleTimeoutMs: 600_000, approvalTimeoutMs: 290_000, celebrateDurationMs: 4000, workStallTimeoutMs: 300_000, stateDir: stateDir, approvalMode: approvalMode, token: token, headless: CommandLine.arguments.contains("--headless") || ProcessInfo.processInfo.environment["BOOP_HEADLESS"] == "1")
     }()

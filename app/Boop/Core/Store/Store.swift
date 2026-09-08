@@ -74,7 +74,7 @@ actor Store: EngineStore {
         try db.run("PRAGMA secure_delete=ON")
         try db.run("CREATE TABLE IF NOT EXISTS meta(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
         let version = Int(try db.run("SELECT value FROM meta WHERE key='schema_version'").first?.first ?? "0") ?? 0
-        guard version <= 3 else { throw StoreError(message: "Unsupported store schema \(version)") }
+        guard version <= 4 else { throw StoreError(message: "Unsupported store schema \(version)") }
         if version == 0 {
             try db.transaction {
                 for sql in [
@@ -98,9 +98,44 @@ actor Store: EngineStore {
         try db.run("CREATE TABLE IF NOT EXISTS growth_turns(at REAL NOT NULL, session_id TEXT NOT NULL, units INTEGER NOT NULL)")
         try db.run("CREATE INDEX IF NOT EXISTS growth_turns_session_at ON growth_turns(session_id,at)")
         try db.run("CREATE INDEX IF NOT EXISTS ledger_at ON ledger(at)")
+        try db.run("CREATE TABLE IF NOT EXISTS unit(unit TEXT PRIMARY KEY, pub TEXT NOT NULL, alg TEXT NOT NULL, first_seen REAL NOT NULL)")
+        try db.run("CREATE TABLE IF NOT EXISTS ledger_signatures(day TEXT NOT NULL, xp INTEGER NOT NULL, nonce TEXT NOT NULL, sig TEXT NOT NULL, unit TEXT NOT NULL, PRIMARY KEY(unit,day), UNIQUE(unit,nonce))")
         try db.run("CREATE TABLE IF NOT EXISTS voice_recent(id INTEGER PRIMARY KEY, day TEXT NOT NULL, line TEXT NOT NULL)")
         try db.run("CREATE TABLE IF NOT EXISTS voice_day(day TEXT NOT NULL, line TEXT NOT NULL, PRIMARY KEY(day,line))")
-        try db.run("INSERT OR REPLACE INTO meta VALUES('schema_version','3')")
+        try db.run("INSERT OR REPLACE INTO meta VALUES('schema_version','4')")
+    }
+    func deviceIdentity() throws -> DeviceIdentity? {
+        try db.run("SELECT unit,pub,alg FROM unit").first.map { DeviceIdentity(unit: $0[0], pub: $0[1], alg: $0[2]) }
+    }
+    func acceptIdentity(_ identity: DeviceIdentity, at: Double) throws {
+        guard identity.publicKey != nil else { throw LeaderboardError.invalidSignature }
+        if let old = try deviceIdentity(), old != identity { throw LeaderboardError.identityChanged }
+        try db.run("INSERT OR IGNORE INTO unit VALUES(?,?,?,?)", [identity.unit, identity.pub, identity.alg, String(at)])
+    }
+    func signatures() throws -> [LedgerSignature] {
+        try db.run("SELECT day,xp,nonce,sig,unit FROM ledger_signatures ORDER BY day").map {
+            LedgerSignature(day: $0[0], xp: Int($0[1])!, nonce: $0[2], sig: $0[3], unit: $0[4])
+        }
+    }
+    func saveSignature(_ signature: LedgerSignature) throws {
+        guard let identity = try deviceIdentity(), signature.verified(by: identity) else { throw LeaderboardError.invalidSignature }
+        try db.run("INSERT INTO ledger_signatures VALUES(?,?,?,?,?)", [signature.day, String(signature.xp), signature.nonce, signature.sig, signature.unit])
+    }
+    func submittedThrough() throws -> String? { try meta("leaderboard_through") }
+    func markSubmittedThrough(_ day: String) throws { try setMeta("leaderboard_through", day) }
+    func claimSubmission(_ day: String) throws -> Bool {
+        try db.transaction {
+            guard try meta("leaderboard_submitted") != day else { return false }
+            try setMeta("leaderboard_submitted", day)
+            return true
+        }
+    }
+    /// Undo a claim whose upload failed, so the next tick may retry.
+    func releaseSubmission(_ day: String) throws {
+        try db.transaction {
+            guard try meta("leaderboard_submitted") == day else { return }
+            try setMeta("leaderboard_submitted", "")
+        }
     }
     func toolPreferences() async throws -> ToolPreferences {
         var result = ToolPreferences()
@@ -125,7 +160,7 @@ actor Store: EngineStore {
         while !reflecting.isEmpty { try? await Task.sleep(for: .milliseconds(10)) }
         try db.transaction {
             try db.run("DROP TRIGGER ledger_no_delete")
-            for table in ["facts", "profile", "ledger", "inventory", "memory", "drift", "growth_totals", "growth_turns", "voice_recent", "voice_day"] {
+            for table in ["unit", "ledger_signatures", "facts", "profile", "ledger", "inventory", "memory", "drift", "growth_totals", "growth_turns", "voice_recent", "voice_day"] {
                 try db.run("DELETE FROM " + table)
             }
             try db.run("UPDATE traits SET value=CASE WHEN axis='bond' THEN 0 ELSE 128 END")

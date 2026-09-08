@@ -63,6 +63,7 @@ done
 
 pass=0; fail=0
 recap_check
+leaderboard_check
 total_pass=$((total_pass + pass)); total_fail=$((total_fail + fail))
 
 # ── Grand summary ────────────────────────────────────────────────────────────

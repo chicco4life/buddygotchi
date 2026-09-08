@@ -12,9 +12,10 @@ enum TimeOfDay: String, Sendable { case morning, day, evening, late
 }
 enum Occasion: Sendable {
     case greet(Int), cheer(Moment?, CheerSize, String?), uhoh(UhohKind, Moment?)
-    case recap(RecapFacts), profileLine(String)
+    case recap(RecapFacts), profileLine(String), share
     var key: String {
         switch self {
+        case .share: "share"
         case .greet: "greet"
         case .cheer(let moment, let size, _): moment?.kind.rawValue ?? "cheer_" + size.rawValue
         case .uhoh(let kind, let moment): moment?.kind.rawValue ?? "uhoh_" + kind.rawValue

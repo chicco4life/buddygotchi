@@ -3,6 +3,31 @@ import XCTest
 @testable import BoopCore
 
 final class ExtractorPrivacyTests: XCTestCase {
+    @MainActor func testCapturedLeaderboardBodyExcludesPrivateContext() async throws {
+        let (store, _, cleanup) = try makeStore(); defer { cleanup() }
+        var config = BuddyConfig.default; config.headless = true
+        let defaults = UserDefaults(suiteName: "privacy-" + UUID().uuidString)!
+        defaults.set("Mochi", forKey: DefaultsKey.buddyName)
+        let engine = BuddyEngine(config: config, store: store, defaults: defaults)
+        let payload = try XCTUnwrap(RawHookPayload.parse(Data(#"{"hook_event_name":"PreToolUse","session_id":"secret","cwd":"/private/PROJECT_SECRET","tool_name":"Bash","tool_input":{"command":"HINT_SECRET"}}"#.utf8), source: "claude-code", at: 0))
+        await engine.ingest(payload)
+        try await store.addProfileLine("PROFILE_SECRET", source: "rules", at: 0)
+        let signer = TestDeviceSigner()
+        try await store.acceptIdentity(signer.identity, at: 0)
+        try await store.saveSignature(signer.sign(SignRequest(day: "2026-09-09", xp: 12)))
+        let body = try await engine.submissionPreview()
+        let session = LeaderboardURLProtocol.session(); defer { session.invalidateAndCancel() }
+        LeaderboardURLProtocol.capture.reset()
+        try await LeaderboardClient(url: URL(string: "https://leaderboard.invalid")!, session: session).submit(body)
+        let capturedData = try XCTUnwrap(LeaderboardURLProtocol.capture.captured.first?.httpBody)
+        let captured = String(decoding: capturedData, as: UTF8.self)
+        for secret in ["PROJECT_SECRET", "Bash", "HINT_SECRET", "PROFILE_SECRET", "claude-code", "cwd", "tool_name"] {
+            XCTAssertFalse(captured.contains(secret), secret)
+        }
+        let object = try JSONSerialization.jsonObject(with: Data(captured.utf8)) as! [String: Any]
+        XCTAssertEqual(Set(object.keys), Set(["buddyName", "silhouette", "xpTotal", "signatures", "unit", "pub", "alg"]))
+    }
+
     @MainActor func testFixturesNeverReachDiskOrDiagnostics() async throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)

@@ -99,6 +99,8 @@ private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> Interna
             s.recapSleep = true
         }
         return s
+    case .leaderboardUpdated(_, let snapshot):
+        var s = state; s.buddy.leaderboard = snapshot; return s
     case .growthUpdated(_, let growth, let cosmetic):
         var s = state; s.buddy.growth = growth; s.buddy.cosmetic = cosmetic; return s
     case .requestDescribed(_, let id, let stakes, let gloss):

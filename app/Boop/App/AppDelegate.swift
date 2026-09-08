@@ -292,8 +292,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApplication.shared.terminate(nil)
     }
 
+    @objc private func shareCardFromMenu() { engine.presentShareCard() }
+
     private func showStatusMenu() {
         let menu = NSMenu()
+        menu.addItem(NSMenuItem(title: engine.state.language == "ko" ? "공유 카드…" : "Share card…", action: #selector(shareCardFromMenu), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.openBoop, action: #selector(togglePopover), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: BuddyCopy.phase7("recap", language: engine.state.language), action: #selector(showTodayRecap), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.settings, action: #selector(openSettingsFromMenu), keyEquivalent: ","))
