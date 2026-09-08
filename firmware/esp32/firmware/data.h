@@ -79,7 +79,7 @@ inline void loadPersistent(TamaState& s) {
   if (p.getBytesLength("cosmetic") == sizeof(s.cosmetic)) p.getBytes("cosmetic", &s.cosmetic, sizeof(s.cosmetic));
   s.mute = p.getUChar("volume", 1);
   firstWake = !p.getBool("awoke", false);
-  if (firstWake) p.putBool("awoke", true);
+  // Mark complete only after the first signal color reveal.
   p.end();
 }
 inline void persist(const TamaState& old, const TamaState& next, bool snap, bool cosmetic) {
@@ -93,7 +93,14 @@ inline void persist(const TamaState& old, const TamaState& next, bool snap, bool
   if (old.mute != next.mute) p.putUChar("volume", next.mute);
   p.end();
 }
-extern void onFrame(const TamaState& next);
+inline void saveFirstWake(bool armed) {
+  firstWake = armed;
+  Preferences p;
+  if (p.begin("creature-v2", false)) { p.putBool("awoke", !armed); p.end(); }
+}
+extern void beginRetire();
+extern bool retiring;
+extern void onFrame(const TamaState& next, bool firstSignal);
 extern void handleSerialCommand(const char* line);
 extern void sendStatus();
 void sendUnpairAck();
@@ -164,6 +171,8 @@ inline bool validate(JsonDocument& d, const TamaState& old, TamaState& s) {
 inline void applyJson(const char* line, TamaState& out) {
   JsonDocument d;
   if (deserializeJson(d, line)) { ++badFrames; ++_parseFailCount; return; }
+  if (d["cmd"] == "retire") { beginRetire(); return; }
+  if (retiring) return;
   if (otaCommand(d)) return;
   if (d["cmd"] == "status") { sendStatus(); return; }
   if (d["cmd"] == "unpair") { sendUnpairAck(); return; }
@@ -175,8 +184,8 @@ inline void applyJson(const char* line, TamaState& out) {
     struct tm local; gmtime_r(&seconds, &local); halSetLocalTime(local); _rtcValid = true;
   }
   persist(out, next, !d["snap"].isNull(), !d["cosmetic"].isNull());
+  onFrame(next, (d["cosmetic"]["skin"].is<const char*>() && d["cosmetic"]["skin"].as<const char*>()[0]) || strcmp(next.state,"asleep")); out = next;
   haveFrame = true; _lastLiveMs = nowMs();
-  onFrame(next); out = next;
 }
 struct LineBuffer {
   char buf[1537]; size_t len = 0; bool overflow = false; uint32_t lastByte = 0;

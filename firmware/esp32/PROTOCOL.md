@@ -105,3 +105,43 @@ Asleep and face-down nap use brightness 8; pending cards use 220. The screen
 never switches off automatically. Only the secondary shutdown hold does so:
 focus at 1 s, “night night” at 3 s, off after the 600 ms farewell or release.
 A wake press consumes the action. Explicit `deepsleep` is a diagnostic escape.
+
+## Phase 6 rituals and appearance
+
+`{"cmd":"retire"}` on USB or the secured BLE command stream begins a
+non-blocking 2400 ms fade with one blink at 600–850 ms. Frames are ignored
+during retirement. On completion the `creature-v2` NVS namespace (snapshot,
+cosmetics, volume, wake flag) and transient model are cleared, the display
+stays dark, and `{"ack":"retire"}` is emitted. A subsequent frame or reboot
+starts the new creature; BLE bonds and crash diagnostics are retained.
+
+USB `firstwake reset` replies `<<FIRSTWAKE reset>>`, re-arms the persistent
+wake flag and restarts its animation without deleting the snapshot. Grey
+lasts until a validated frame explicitly supplies nonempty `cosmetic.skin`
+or has a non-asleep state. The 600 ms color sweep completes the wake flag;
+a reboot before completion still wakes grey. Wake choreography: sleep to
+1200 ms, first eye to 2200, both eyes, blinks at 2600/2920, recognition at
+3200, alternating corner glances from 4000 ms.
+
+Additional `state` keys: `ritual` (`firstWake`, `greet`, `levelUp`, `streak`,
+`retire`, `none`), `grey`, `colorProgress` (0–1), `cosmeticProgress` (0–1),
+`accessory`, `silhouette`, `level`, `streak`, `pickup`, and `pose`.
+Perch poses are `dangle`, `lean`, `grip`, `peer-tip`, `hop`, `jump-land`,
+`sag`, `curl`, `pop-up`; desk/travel report the state, and pick-up reports
+`pickup` for 1000 ms. Card priority suppresses pick-up and growth rituals.
+A level increase shimmers for 900 ms then reveals a cosmetic supplied in
+the same or next frame over 600 ms. Streak 7/30/100 pulses for 1500 ms.
+Greet lasts 2200 ms with four sizes (wire range remains 0–3).
+
+Supported accessories: `sprout`, `scarf`, `crown`; silhouettes: `round`,
+`tall`. Unknown accessories/silhouettes draw no additional part; unknown
+skin colors use neutral grey. Dots render in the bottom margin for every
+state/layer, with four circles and a plus for the fifth, including alert tint.
+
+Capture offsets (`clock settle N`, relative to state entry or reset/motion):
+`first-wake-grey` 4500; `greet-0..3` 700; `levelup`, `streak-7` 450;
+`pickup` 300; `perch-done-dance` 600; all other new cells 2500 ms.
+`tools/shot_cells.py` owns the setup recipes and offsets. First wake resets
+after the asleep frame; growth uses level 1/streak 0 baseline then a target
+frame; pickup injects `(0.7,0,0.7)` after a still baseline. Captures explicitly
+settle the pose, so timing of host serial reads does not affect the pixels.

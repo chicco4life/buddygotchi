@@ -410,3 +410,10 @@ physical Korean device rendering. No app or firmware was launched or flashed;
 no hook-dependent claim is made. Model rephrases are stylistically filtered
 and instructed to preserve facts; semantic fidelity of unconstrained model
 text still needs the planned human/model-quality evaluation.
+Phase 6 notes: firmware rituals, cosmetics, perch poses, pickup and all-state
+session dots now have capture recipes and USB HIL assertions. The 18 new
+cells settle at 4500 ms (first wake), 700 ms (greet 0–3), 450 ms (levelup and
+streak), 300 ms (pickup), 600 ms (perch dance), and 2500 ms (remaining cells).
+The host-only animation clock guard checks the new presentation paths.
+Hardware flash, USB/BLE HIL, golden recording/review, idle heap floors,
+retire frame latency and overnight battery verification remain unexecuted.

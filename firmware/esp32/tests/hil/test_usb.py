@@ -89,7 +89,7 @@ def clock(stick, ms):
 def clean(stick):
     clock(stick, "clear")
     stick.write_line("imu set 0 0 1")
-    frame(stick)
+    frame(stick, cosmetic={}, snap={"level": 1, "streak": 0})
     time.sleep(1.6)  # settle prior decision confirmation and flip exit
     if state(stick)["screenOff"]:
         press(stick)
@@ -108,7 +108,7 @@ def test_version_reject_and_unknown_keys(stick):
     assert "pet" not in got   # legacy key never echoed back
 
 
-@pytest.mark.parametrize("creature", [c for c in shot_cells() if "-" not in c and c not in ("gift", "travel-snap")])
+@pytest.mark.parametrize("creature", ["asleep", "idle", "working", "needsYou", "done", "uhoh"])
 def test_six_states(stick, creature):
     frame(stick, state=creature)
     got = wait_state(stick, creature=creature, screenOff=False)
@@ -386,3 +386,149 @@ def test_snapshot_survives_reboot_and_link_loss_travel_cards(stick):
     wait_state(stick, stats=True, statsPage=1)
     clock(stick, 84000)
     wait_state(stick, stats=False)
+
+
+def test_first_wake_grey_then_signal(stick):
+    frame(stick, state="asleep", cosmetic={})
+    stick.write_line("firstwake reset")
+    clock(stick, "settle 4500")
+    wait_state(stick, firstWake=True, grey=True, ritual="firstWake")
+    grey = screenshot(stick)
+    frame(stick, state="asleep", cosmetic={})
+    assert state(stick)["grey"]
+    frame(stick, state="working", cosmetic={"skin": "mint"})
+    clock(stick, "settle 300")
+    assert 0 < state(stick)["colorProgress"] < 1
+    clock(stick, "settle 650")
+    wait_state(stick, firstWake=False, grey=False)
+    assert screenshot(stick) != grey
+
+
+@pytest.mark.parametrize("level", range(4))
+def test_greet_ritual(stick, level):
+    frame(stick, overlay="greet", greetLevel=level)
+    clock(stick, "settle 700")
+    wait_state(stick, ritual="greet", greetLevel=level)
+    a = screenshot(stick)
+    assert screenshot(stick) == a
+    clock(stick, "settle 2300")
+    wait_state(stick, ritual="none")
+
+
+def test_level_reveal_same_and_next_frame(stick):
+    for next_frame in (False, True):
+        frame(stick, snap={"level": 1}, cosmetic={})
+        frame(stick, snap={"level": 2}, **({} if next_frame else {"cosmetic": {"accessory": "crown"}}))
+        if next_frame:
+            frame(stick, snap={"level": 2}, cosmetic={"accessory": "crown"})
+        clock(stick, "settle 450")
+        wait_state(stick, ritual="levelUp")
+        assert state(stick)["cosmeticProgress"] == 0
+        shimmer = screenshot(stick)
+        clock(stick, "settle 1600")
+        assert state(stick)["cosmeticProgress"] == 1
+        assert shimmer != screenshot(stick)
+        clock(stick, "clear")
+
+
+@pytest.mark.parametrize("milestone", [7, 30, 100])
+def test_streak_milestone_and_card_suppression(stick, milestone):
+    frame(stick, snap={"level": 1, "streak": milestone-1})
+    frame(stick, snap={"level": 1, "streak": milestone})
+    clock(stick, "settle 450")
+    wait_state(stick, ritual="streak")
+    flame = screenshot(stick)
+    clock(stick, "settle 1600")
+    wait_state(stick, ritual="none")
+    assert flame != screenshot(stick)
+    pending(stick, snap={"level": 2, "streak": 7})
+    wait_state(stick, ritual="none")
+
+
+@pytest.mark.parametrize("field,values", [("accessory", ["sprout", "scarf", "crown"]),
+                                          ("silhouette", ["round", "tall"])])
+def test_cosmetic_pixels(stick, field, values):
+    frame(stick, state="working", cosmetic={})
+    clock(stick, "settle 2500")
+    baseline = screenshot(stick)
+    images = []
+    for value in values:
+        frame(stick, state="working", cosmetic={field: value})
+        clock(stick, "settle 2500")
+        wait_state(stick, **{field: value})
+        pixels = screenshot(stick)
+        assert pixels != baseline and pixels not in images
+        images.append(pixels)
+    frame(stick, state="working", cosmetic={field: "unknown"})
+    clock(stick, "settle 2500")
+    assert screenshot(stick) == baseline
+
+
+@pytest.mark.parametrize("creature,fields,pose", [
+    ("idle", {}, "dangle"), ("working", {"effort": "grinding"}, "grip"),
+    ("needsYou", {}, "peer-tip"), ("done", {"cheer": "dance"}, "jump-land"),
+    ("uhoh", {}, "sag"), ("asleep", {}, "curl"),
+    ("idle", {"overlay": "greet"}, "pop-up")])
+def test_perch_pose(stick, creature, fields, pose):
+    frame(stick, state=creature, posture="perch", **fields)
+    clock(stick, "settle 600")
+    wait_state(stick, posture="perch", pose=pose)
+
+
+def test_pickup_one_second(stick):
+    stick.write_line("imu set 0.7 0 0.7")
+    buf, _ = stick.read_until(lambda b: b'"m":"pickup"' in b, 3)
+    assert command(buf, cmd="motion", m="pickup")
+    clock(stick, "settle 300")
+    wait_state(stick, pickup=True, pose="pickup")
+    clock(stick, "settle 1100")
+    wait_state(stick, pickup=False)
+    pending(stick)
+    stick.write_line("imu set 0 0 1")
+    time.sleep(0.2)
+    wait_state(stick, pickup=False)
+
+
+def test_retire_factory_reset(stick):
+    frame(stick, cosmetic={"skin": "mint", "accessory": "crown", "silhouette": "round"},
+          snap={"name": "Boop", "level": 9, "tasks": 81})
+    stick.write_line('{"cmd":"retire"}')
+    clock(stick, "settle 700")
+    wait_state(stick, ritual="retire")
+    stick.write_line("clock settle 2500")
+    buf, _ = stick.read_until(lambda b: b'"ack":"retire"' in b, 3)
+    assert command(buf, ack="retire")
+    wait_state(stick, firstWake=True, snapName="", snapTasks=0, level=0,
+               skin="", accessory="", silhouette="")
+    assert len(set(screenshot(stick))) == 1
+    stick.write_line("reboot")
+    time.sleep(3)
+    wait_state(stick, timeout=20, firstWake=True, snapTasks=0, skin="")
+
+
+@pytest.mark.parametrize("creature", ["asleep", "idle", "working", "needsYou", "done", "uhoh"])
+def test_session_dots_all_states(stick, creature):
+    frame(stick, state=creature, dots=5, dotAlert=4, bubble="hello")
+    clock(stick, "settle 600")
+    a = screenshot(stick)
+    frame(stick, state=creature, dots=5, dotAlert=0, bubble="hello")
+    clock(stick, "settle 600")
+    assert a != screenshot(stick)
+
+
+def test_skin_tints_and_explicit_first_signal(stick):
+    frame(stick, state="working", cosmetic={"skin": "mint"})
+    clock(stick, "settle 2500")
+    wait_state(stick, skin="mint")
+    mint = screenshot(stick)
+    frame(stick, state="working", cosmetic={"skin": "sky"})
+    clock(stick, "settle 2500")
+    assert screenshot(stick) != mint
+    frame(stick, state="asleep")
+    stick.write_line("firstwake reset")
+    frame(stick, state="asleep")  # cached skin alone must not finish onboarding
+    wait_state(stick, grey=True, firstWake=True)
+    frame(stick, state="asleep", cosmetic={"skin": "mint"})
+    fixed = state(stick)["now"]
+    clock(stick, fixed+650)
+    wait_state(stick, firstWake=False, grey=False)

@@ -50,3 +50,33 @@ on glass, Korean glyph coverage, actual IMU posture thresholds, overnight
 brightness/battery behavior, BLE round trips, screenshot goldens, and heap
 floors (≥40 KB free, ≥28 KB largest block). Static RAM usage is not a runtime
 heap measurement. Sound volume cannot be evaluated on this speakerless board.
+
+### Phase 6 device experience
+
+The shared face now renders first wake and its grey-to-color signal, four
+greet sizes, level shimmer/cosmetic reveal, streak flames, retirement,
+accessories/silhouettes, richer perch poses and a one-second pick-up reaction.
+The Bluetooth mark pulses while unpaired or link-lost and lights solid for
+800 ms on first frame/reconnection. Rituals use the virtual presentation
+clock. See `PROTOCOL.md` for reset/retire commands and telemetry.
+
+Offline build with the existing cached dependencies:
+
+```sh
+tools/pio_ws.sh run -e ws-amoled164
+python3 -m py_compile tests/hil/test_usb.py tools/shots.py tools/shot_cells.py
+```
+
+With a flashed board and the host writer stopped, capture all cells with
+`python3 tools/shots.py`, or one with `python3 tools/shots.py --only greet-3`.
+Capture recipes reset cached cosmetics/growth, so running one cell produces
+the same setup as running the whole sheet. They modify the device snapshot.
+The new 18 cells and their exact settle offsets are listed in `PROTOCOL.md`.
+Existing goldens require review and recapture because the shared face changed.
+Run USB HIL with `/tmp/hilvenv/bin/python -m pytest tests/hil/test_usb.py`;
+retire testing clears creature data and reboots. The independent source clock
+guard is `tests/hil/test_animation_clock.py` and needs no hardware.
+
+No Phase 6 hardware results are claimed yet: flash, HIL, golden recording,
+visual review, idle heap floors (40 KB free / 28 KB largest block), frame
+latency and overnight battery behavior still need a connected board.

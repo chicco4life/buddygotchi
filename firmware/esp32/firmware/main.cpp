@@ -40,6 +40,12 @@ struct Decision {
   bool allow = false, confirmed = false;
   uint32_t at = 0, confirmedAt = 0;
 } decision;
+bool retiring = false;
+static bool retired = false, coloring = false, levelActive = false, streakActive = false;
+static bool revealCosmetic = false, awaitCosmetic = false;
+static uint32_t wakeAt=0, colorAt=0, levelAt=0, streakAt=0, retireAt=0, linkAt=0;
+static bool linkFlash=false;
+static Cosmetics oldCosmetic;
 static bool systemCard() { return blePasskey() || otaActive() || (tama.card.kind[0] && !cardDismissed); }
 static bool hasCard() { return systemCard() || (dataConnected() && tama.card.id[0] && !cardDismissed && strcmp(tama.card.id,decision.id)); }
 static bool armed() { return !systemCard() && hasCard() && tama.card.approval && nowMs() - cardAt >= 600; }
@@ -66,6 +72,49 @@ void sendStatus() {
 }
 void sendUnpairAck() {
   bleClearBonds(); JsonDocument d; d["ack"] = "unpair"; d["ok"] = true; sendDoc(d);
+}
+void beginRetire() {
+  if (retiring || retired) return;
+  retiring=true; retireAt=stateAt=nowMs();
+}
+static void resetFirstWake() {
+  saveFirstWake(true); coloring=false; retired=false;
+  wakeAt=stateAt=nowMs();
+}
+static void ritualTick() {
+  uint32_t now=nowMs();
+  if (coloring && now-colorAt>=600) { coloring=false; saveFirstWake(false); }
+  if (retiring && now-retireAt>=2400) {
+    Preferences p;
+    if (p.begin("creature-v2",false)) { p.clear(); p.end(); }
+    tama=TamaState{}; firstWake=true; haveFrame=false; _rtcValid=false;
+    coloring=levelActive=streakActive=revealCosmetic=awaitCosmetic=false;
+    decision=Decision{}; localBoopUntil=dizzyUntil=perkUntil=statsUntil=0;
+    bubbleUntil=localBubbleUntil=0; giftCollected=cardDismissed=bubbleDismissed=false;
+    retiring=false; retired=true; wakeAt=stateAt=now;
+    sendCmd("{\"ack\":\"retire\"}");
+  }
+}
+static float colorAmount(uint32_t now) {
+  return firstWake ? (coloring ? animClamp((now-colorAt)/600.0f,0,1) : 0) : 1;
+}
+static float cosmeticAmount(uint32_t now) {
+  return revealCosmetic ? animClamp(((float)(now-levelAt)-900)/600,0,1) : 1;
+}
+static const char* ritualName() {
+  uint32_t now=nowMs();
+  if (retiring) return "retire";
+  if (retired) return "none";
+  if (firstWake) return "firstWake";
+  if (hasCard()) return "none";
+  if (levelActive && now-levelAt<1500) return "levelUp";
+  if (streakActive && now-streakAt<1500) return "streak";
+  if (!strcmp(tama.overlay,"greet") && now-overlayAt<2200 &&
+      (!strcmp(tama.state,"idle") || !strcmp(tama.state,"working") || !strcmp(tama.state,"done"))) return "greet";
+  return "none";
+}
+static uint16_t skinTint(const Cosmetics& c) {
+  return c.skin[0] ? agentColor565(c.skin) : LIGHTGREY;
 }
 static void sendBattery() {
   JsonDocument d; d["cmd"] = "battery"; d["pct"] = battery;
@@ -105,8 +154,24 @@ static void wake() {
   if (screenOff) { halDisplayWake(); screenOff = false; }
   napping = false; faceDownAt = 0; lastInput = nowMs();
 }
-void onFrame(const TamaState& next) {
+void onFrame(const TamaState& next, bool firstSignal) {
   uint32_t now = nowMs();
+  bool cosmeticsChanged=memcmp(&next.cosmetic,&tama.cosmetic,sizeof(Cosmetics));
+  if (!dataConnected()) { linkAt=now; linkFlash=true; }
+  retired=false;
+  if (firstWake && !coloring && firstSignal) {
+    coloring=true; colorAt=now;
+  }
+  bool levelChanged=haveFrame && next.snap.level>tama.snap.level;
+  if (levelChanged) {
+    levelActive=true; levelAt=now; oldCosmetic=tama.cosmetic;
+    revealCosmetic=cosmeticsChanged; awaitCosmetic=!cosmeticsChanged;
+  } else if (awaitCosmetic) {
+    revealCosmetic=cosmeticsChanged; awaitCosmetic=false;
+  }
+  bool milestone=next.snap.streak!=tama.snap.streak &&
+    (next.snap.streak==7 || next.snap.streak==30 || next.snap.streak==100);
+  if (milestone) { streakActive=true; streakAt=now; }
   bool changed = strcmp(next.state,tama.state) || strcmp(next.cheer,tama.cheer);
   bool newCard = strcmp(next.card.id,tama.card.id) || strcmp(next.card.kind,tama.card.kind);
   if (decision.id[0] && !decision.confirmed && strcmp(next.card.id,decision.id)) {
@@ -123,7 +188,8 @@ void onFrame(const TamaState& next) {
   // Any visible change restarts the presentation phase, so periodic motion
   // (and `clock settle`) is anchored to what is on screen, not just the state.
   bool visualChanged = changed || strcmp(next.effort,tama.effort) || strcmp(next.uhoh,tama.uhoh)
-    || overlayChanged || next.gift != tama.gift || next.dots != tama.dots;
+    || overlayChanged || next.gift != tama.gift || next.dots != tama.dots
+    || cosmeticsChanged || levelChanged || milestone || (coloring && colorAt==now) || strcmp(next.posture,tama.posture);
   if (visualChanged) stateAt = now;
   if (changed) lastInput = now;   // only a state change counts as activity for the dim ladder
   // Sound sees the incoming state/volume, never the previous frame's mute.
@@ -256,7 +322,7 @@ static void motionTick() {
     shakeEnergy=shakeEnergy*0.8f+fabsf(mag-1.0f);
     if (!hasCard()) {
       if (shakeEnergy>2.5f && !before(now,dizzyUntil)) { dizzyUntil=now+3000; motionEvent("shake"); }
-      if (delta>0.45f && mag>0.7f && mag<1.3f && !before(now,perkUntil)) { perkUntil=now+1500; motionEvent("pickup"); }
+      if (delta>0.45f && mag>0.7f && mag<2.0f && shakeEnergy<1.2f && !before(now,dizzyUntil) && !before(now,perkUntil)) { perkUntil=now+1000; stateAt=now; motionEvent("pickup"); }
       if (z < -0.75f) {
         faceUpAt=0; if (!faceDownAt) faceDownAt=now;
         if (!napping && now-faceDownAt>=2000) { napping=true; motionEvent("flip"); }
@@ -264,7 +330,7 @@ static void motionTick() {
         faceDownAt=0; if (!faceUpAt) faceUpAt=now;
         if (napping && now-faceUpAt>=700) { napping=false; motionEvent("flip"); }
       }
-    } else { faceDownAt=faceUpAt=0; napping=false; dizzyUntil=0; }
+    } else { faceDownAt=faceUpAt=0; napping=false; dizzyUntil=perkUntil=0; }
   } else if (napping && now-imuSample>5000) napping=false;
   if (tama.posture[0]) { setPosture(tama.posture); postureAt=now; return; }
   bool travel = (!dataConnected() && !charging && now-dataLastLiveMs()>60000) || shakeEnergy>1.2f || motionEnergy>1.2f;
@@ -357,37 +423,40 @@ static void drawStats() {
 static void render() {
   uint32_t now=nowMs();
   Layer layer=screenLayer();
-  uint16_t tint=agentColor565(tama.cosmetic.skin);
-  if(tama.cosmetic.skin[0] && tint==LIGHTGREY) {
-    uint32_t h=2166136261u;
-    for(const char* p=tama.cosmetic.skin;*p;++p) h=(h^(uint8_t)*p)*16777619u;
-    tint=animRGB(100+(h&127),100+((h>>8)&127),100+((h>>16)&127));
-  }
+  uint16_t tint=animMix(skinTint(oldCosmetic),skinTint(tama.cosmetic),cosmeticAmount(now));
   // RGB332 needs at least one channel step to keep a tint visible.
   uint16_t field=tama.cosmetic.skin[0]?animMix(BLACK,tint,0.22f):BLACK;
   if (eq(tama.state,"needsYou") || hasCard()) field=animMix(BLACK,animRGB(255,182,36),0.14f+animPulse01(now-stateAt,3500)*0.05f);
   else if(eq(tama.state,"uhoh")) field=animMix(BLACK,animRGB(255,36,36),0.18f+animPulse01(now-stateAt,4000)*0.10f);
+  field=animMix(BLACK,field,colorAmount(now));
   spr.fillSprite(field);
   bool base=layer==L_FACE || layer==L_OVERLAY;
   faceDraw(now,base);
-  if (base) {
-    for(int i=0;i<tama.dots;++i) {
-      int x=HAL_W/2+(i*20-(tama.dots-1)*10)+animPx(sinf((now-stateAt)*0.001f+i)*3);
-      spr.fillSmoothCircle(x,HAL_H-12+animPx(sinf((now-stateAt)*0.0008f+i)*2),3,i==tama.dotAlert?animRGB(255,73,82):LIGHTGREY);
-    }
-  }
   if (tama.focus) spr.fillRoundRect(16,16,9,9,2,animRGB(109,146,182));
   if (eq(posture,"travel") && battery>=0 && battery<25) {
     spr.drawRoundRect(HAL_W-30,HAL_H-27,20,10,2,LIGHTGREY);
     spr.fillRect(HAL_W-28,HAL_H-25,4,6,animRGB(255,182,36));
   }
-  if (!dataConnected()) presenceDrawLinkGlyph(spr,now,animRGB(73,146,255));
+  if (!bleBonded() || !dataConnected() || (linkFlash && now-linkAt<800))
+    presenceDrawLinkGlyph(spr,now-stateAt,animRGB(73,146,255),linkFlash && now-linkAt<800);
   if (layer==L_SYSTEM || layer==L_CARD) drawCard(now);
   else if(layer==L_DECISION) { cardBox(HAL_H-70,58,LIGHTGREY); textLines(feedback(),36,HAL_H-52,HAL_W-72,1); }
   else if(layer==L_STATS) drawStats();
   else if(layer==L_BUBBLE || layer==L_UHOH) { cardBox(HAL_H-68,60,LIGHTGREY); textLines(bubbleText(),30,HAL_H-57,HAL_W-60); }
   else if(layer==L_OVERLAY && tama.agentSrc[0]) agentDraw(spr,now,tama);
   if (guardSafeTier()) { cardBox(8,42,animRGB(255,73,82)); textLines("safe mode - USB rescue",28,18,HAL_W-56,1); }
+  // Bottom margin remains visible beneath every card and bubble.
+  for(int i=0;i<tama.dots;++i) {
+    int x=HAL_W/2+i*20-(tama.dots-1)*10;
+    uint16_t c=i==tama.dotAlert?animRGB(255,73,82):LIGHTGREY;
+    if(i==4) { spr.fillRect(x-4,HAL_H-6,9,2,c); spr.fillRect(x,HAL_H-10,2,10,c); }
+    else spr.fillSmoothCircle(x,HAL_H-5,3,c);
+  }
+  if (retiring || retired) {
+    float fade=retired?0:1-animClamp((now-retireAt)/2400.0f,0,1);
+    for(int y=0;y<HAL_H;++y) for(int x=0;x<HAL_W;++x)
+      spr.drawPixel(x,y,animMix(BLACK,spr.readPixel(x,y),fade));
+  }
   if (!screenOff) halPresent(spr);
   ++drawCount;
 }
@@ -409,6 +478,11 @@ static void dumpState() {
   d["bleDrops"]=bleRxDropped(); d["connected"]=dataConnected(); d["feedback"]=feedback(); d["layer"]=layerNames[screenLayer()];
   d["stats"]=before(nowMs(),statsUntil); d["statsPage"]=statsPage; d["snapName"]=tama.snap.name;
   d["snapTasks"]=tama.snap.tasks; d["skin"]=tama.cosmetic.skin; d["firstWake"]=firstWake;
+  d["accessory"]=tama.cosmetic.accessory; d["silhouette"]=tama.cosmetic.silhouette;
+  d["ritual"]=ritualName(); d["grey"]=firstWake && !coloring;
+  d["colorProgress"]=colorAmount(nowMs()); d["cosmeticProgress"]=cosmeticAmount(nowMs());
+  d["level"]=tama.snap.level; d["streak"]=tama.snap.streak;
+  d["pickup"]=before(nowMs(),perkUntil) && !hasCard(); d["pose"]=poseName();
   d["sound"]=soundIndex>=0?motifs[soundIndex].name:""; d["soundCount"]=soundsPlayed; d["soundNote"]=soundNote;
   d["drawCount"]=drawCount; d["touchReady"]=halTouchReady(); d["imuReady"]=halImuReady();
   d["agentOverlay"]=screenLayer()==L_OVERLAY && tama.agentSrc[0];
@@ -521,6 +595,7 @@ static void dumpScreenshot() {
 }
 
 void handleSerialCommand(const char* line) {
+  if (!strcmp(line,"firstwake reset")) { resetFirstWake(); Serial.println("<<FIRSTWAKE reset>>"); return; }
   if (!strcmp(line,"ping")) { JsonDocument d; telemetry(d); framed("PONG",d); return; }
   if (!strcmp(line,"state")) { dumpState(); return; }
   if (!strcmp(line,"screenshot")) { render(); dumpScreenshot(); return; }
@@ -538,7 +613,7 @@ void handleSerialCommand(const char* line) {
       if (end==line+6 || *end) { Serial.println("<<CLOCK error>>"); return; }
       clockFreezeAt(value);
     }
-    faceSimulate(nowMs(),0); render();
+    ritualTick(); faceSimulate(nowMs(),0); render();
     Serial.printf("<<CLOCK {\"frozen\":%s,\"now\":%lu}>>\n",clockFrozen?"true":"false",(unsigned long)nowMs()); return;
   }
   if (!strcmp(line,"imu")) {
@@ -586,7 +661,7 @@ void setup() {
   }
   spr.setColorDepth(8); spr.setPsram(true);
   if(!spr.createSprite(HAL_W,HAL_H)) { Serial.println("[guard] canvas allocation failed"); return; }
-  halSetBrightness(brightness); bootAt=lastInput=stateAt=nowMs(); render();
+  halSetBrightness(brightness); wakeAt=bootAt=lastInput=stateAt=nowMs(); render();
 }
 void loop() {
   guardLoop(); halUpdate(); dataPoll(tama);
@@ -605,7 +680,7 @@ void loop() {
   bool sys=systemCard();
   if(sys&&!priorSystem) wake();
   priorSystem=sys;
-  buttonsTick(); motionTick(); soundTick();
+  buttonsTick(); motionTick(); soundTick(); ritualTick();
   if (decision.confirmed && now-decision.confirmedAt>=1500) decision=Decision{};
   else if (decision.id[0] && !decision.confirmed && now-decision.at>=10000 && linked) { decision=Decision{}; cardAt=now; }
   static uint32_t batteryAt=0;

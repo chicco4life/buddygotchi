@@ -82,9 +82,9 @@ inline void presencePairText(char* out, size_t n, const char* btName, uint32_t n
 }
 
 // Dim Bluetooth rune; independent of the removed glance card.
-inline void presenceDrawLinkGlyph(BuddyCanvas& spr, uint32_t now, uint16_t tint) {
+inline void presenceDrawLinkGlyph(BuddyCanvas& spr, uint32_t now, uint16_t tint, bool solid=false) {
   int x = HAL_W - 22, y = 24;
-  uint16_t c = animMix(BLACK, tint, 0.4f + 0.3f * animPulse01(now, 5000));
+  uint16_t c = animMix(BLACK, tint, solid ? 1.0f : 0.4f + 0.3f * animPulse01(now, 5000));
   spr.drawLine(x, y - 10, x, y + 10, c);
   spr.drawLine(x, y - 10, x + 7, y - 4, c);
   spr.drawLine(x + 7, y - 4, x - 6, y + 6, c);
