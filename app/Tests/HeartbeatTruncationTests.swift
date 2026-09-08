@@ -103,21 +103,21 @@ final class HeartbeatTruncationTests: XCTestCase {
             frame.bubble = String(repeating: "\u{01}", count: length)
             let full = try JSONEncoder().encode(frame)
             let data = try XCTUnwrap(renderStateData(from: frame))
-            XCTAssertLessThanOrEqual(data.count, 1536)
+            XCTAssertLessThanOrEqual(data.count, maxHeartbeatBytes)
             XCTAssertEqual(data.last, 10)
             let o = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
-            if full.count + 1 <= 1536 { XCTAssertNotNil(o["snap"]); continue }
+            if full.count + 1 <= maxHeartbeatBytes { XCTAssertNotNil(o["snap"]); continue }
             XCTAssertNil(o["snap"])
             var withoutSnap = frame
             withoutSnap.snap = nil
-            if try JSONEncoder().encode(withoutSnap).count + 1 <= 1536 {
+            if try JSONEncoder().encode(withoutSnap).count + 1 <= maxHeartbeatBytes {
                 XCTAssertNotNil(o["cosmetic"])
                 sawSnapOnly = true
             } else {
                 XCTAssertNil(o["cosmetic"])
                 sawCosmetic = true
                 withoutSnap.cosmetic = nil
-                if try JSONEncoder().encode(withoutSnap).count + 1 > 1536 {
+                if try JSONEncoder().encode(withoutSnap).count + 1 > maxHeartbeatBytes {
                     XCTAssertNotEqual(o["bubble"] as? String, frame.bubble)
                     sawText = true
                 }

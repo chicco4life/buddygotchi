@@ -1,4 +1,6 @@
 #pragma once
+// plan/WIRE-V2.md: bump together with the encoder and the tools.
+#define WIRE_CONTRACT 2
 #include <ArduinoJson.h>
 #include <Preferences.h>
 #include "clock.h"
@@ -33,7 +35,7 @@ struct TamaState {
   char agentSrc[24] = "", agentColor[16] = "", agentEmotion[24] = "", agentSay[64] = "";
 };
 static uint32_t badFrames = 0, _parseFailCount = 0, _lineOverflowCount = 0;
-static uint32_t _lastLiveMs = 0, frameGeneration = 0;
+static uint32_t _lastLiveMs = 0;
 static bool haveFrame = false, _rtcValid = false, firstWake = false;
 inline bool dataConnected() { return haveFrame && nowMs() - _lastLiveMs <= 60000; }
 inline uint32_t dataLastLiveMs() { return _lastLiveMs; }
@@ -94,9 +96,10 @@ inline void persist(const TamaState& old, const TamaState& next, bool snap, bool
 extern void onFrame(const TamaState& next);
 extern void handleSerialCommand(const char* line);
 extern void sendStatus();
+void sendUnpairAck();
 
 inline bool validate(JsonDocument& d, const TamaState& old, TamaState& s) {
-  if (!d["v"].is<int>() || d["v"].as<int>() != 2) return false;
+  if (!d["v"].is<int>() || d["v"].as<int>() != WIRE_CONTRACT) return false;
   // Snap and cosmetics are caches; omission leaves the persisted cache intact.
   s.snap = old.snap; s.cosmetic = old.cosmetic;
   if (!readEnum(d["state"], s.state, "|asleep|idle|working|needsYou|done|uhoh|", old.state) ||
@@ -163,6 +166,7 @@ inline void applyJson(const char* line, TamaState& out) {
   if (deserializeJson(d, line)) { ++badFrames; ++_parseFailCount; return; }
   if (otaCommand(d)) return;
   if (d["cmd"] == "status") { sendStatus(); return; }
+  if (d["cmd"] == "unpair") { sendUnpairAck(); return; }
   if (!d["cmd"].isNull()) return; // unknown commands aren't state frames
   TamaState next;
   if (!validate(d, out, next)) { ++badFrames; return; }
@@ -171,7 +175,7 @@ inline void applyJson(const char* line, TamaState& out) {
     struct tm local; gmtime_r(&seconds, &local); halSetLocalTime(local); _rtcValid = true;
   }
   persist(out, next, !d["snap"].isNull(), !d["cosmetic"].isNull());
-  haveFrame = true; _lastLiveMs = nowMs(); ++frameGeneration;
+  haveFrame = true; _lastLiveMs = nowMs();
   onFrame(next); out = next;
 }
 struct LineBuffer {

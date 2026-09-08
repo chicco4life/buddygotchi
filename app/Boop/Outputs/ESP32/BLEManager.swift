@@ -34,7 +34,6 @@ struct BLEAckReply: Sendable, Equatable {
 @MainActor
 protocol BLEManagerDelegate: AnyObject {
     func bleManager(_ manager: BLEManager, connectionStateChanged state: BLEConnectionState)
-    func bleManager(_ manager: BLEManager, didAdoptSpecies species: String)
     func bleManager(_ manager: BLEManager, didReceive command: DeviceCommand)
 }
 
@@ -481,16 +480,6 @@ extension BLEManager: CBPeripheralDelegate {
             }
         }
 
-        // Device-menu character adoption — mirrored into the desktop species
-        // preference so heartbeats stop overriding the on-device choice.
-        if let cmd = json["cmd"] as? String,
-           cmd == "species",
-           let name = json["name"] as? String {
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.delegate?.bleManager(self, didAdoptSpecies: name)
-            }
-        }
     }
 }
 

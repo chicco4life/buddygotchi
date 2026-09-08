@@ -45,22 +45,42 @@ struct RenderState: Encodable, Sendable {
             }
         }
     }
+    // Free text is capped at encoding on a character boundary, like Card.
     struct Cosmetic: Encodable, Sendable {
-        @Capped15 var skin: String
-        @Capped15 var accessory: String
-        @Capped15 var silhouette: String
+        var skin: String, accessory: String, silhouette: String
+        func encode(to encoder: any Encoder) throws {
+            var c = encoder.container(keyedBy: Keys.self)
+            try c.encode(skin.prefix(utf8Bytes: 15), forKey: .skin)
+            try c.encode(accessory.prefix(utf8Bytes: 15), forKey: .accessory)
+            try c.encode(silhouette.prefix(utf8Bytes: 15), forKey: .silhouette)
+        }
+        private enum Keys: String, CodingKey { case skin, accessory, silhouette }
     }
     struct Snapshot: Encodable, Sendable {
-        @Capped23 var name: String
+        var name: String
         var level = 0, xp = 0, xpNext = 0, streak = 0, best = 0, rest = 0
         var days = 0, tasks = 0, today = 0
         var biggest: CheerSize = .hop
+        func encode(to encoder: any Encoder) throws {
+            var c = encoder.container(keyedBy: Keys.self)
+            try c.encode(name.prefix(utf8Bytes: 23), forKey: .name)
+            try c.encode(level, forKey: .level); try c.encode(xp, forKey: .xp); try c.encode(xpNext, forKey: .xpNext)
+            try c.encode(streak, forKey: .streak); try c.encode(best, forKey: .best); try c.encode(rest, forKey: .rest)
+            try c.encode(days, forKey: .days); try c.encode(tasks, forKey: .tasks); try c.encode(today, forKey: .today)
+            try c.encode(biggest, forKey: .biggest)
+        }
+        private enum Keys: String, CodingKey { case name, level, xp, xpNext, streak, best, rest, days, tasks, today, biggest }
     }
     struct Agent: Encodable, Sendable {
-        @Capped15 var name: String
-        @Capped7 var color: String
-        @Capped15 var emotion: String
-        @Capped40 var say: String
+        var name: String, color: String, emotion: String, say: String
+        func encode(to encoder: any Encoder) throws {
+            var c = encoder.container(keyedBy: Keys.self)
+            try c.encode(name.prefix(utf8Bytes: 15), forKey: .name)
+            try c.encode(color.prefix(utf8Bytes: 7), forKey: .color)
+            try c.encode(emotion.prefix(utf8Bytes: 15), forKey: .emotion)
+            try c.encode(say.prefix(utf8Bytes: 40), forKey: .say)
+        }
+        private enum Keys: String, CodingKey { case name, color, emotion, say }
     }
     private enum CodingKeys: String, CodingKey {
         case v, state, effort, cheer, uhoh, overlay, greetLevel, dots, dotAlert, card
@@ -92,35 +112,6 @@ struct RenderState: Encodable, Sendable {
     }
 }
 
-@propertyWrapper struct Capped7: Encodable, Sendable {
-    var wrappedValue: String
-    func encode(to encoder: any Encoder) throws {
-        var c = encoder.singleValueContainer()
-        try c.encode(wrappedValue.prefix(utf8Bytes: 7))
-    }
-}
-@propertyWrapper struct Capped15: Encodable, Sendable {
-    var wrappedValue: String
-    func encode(to encoder: any Encoder) throws {
-        var c = encoder.singleValueContainer()
-        try c.encode(wrappedValue.prefix(utf8Bytes: 15))
-    }
-}
-@propertyWrapper struct Capped23: Encodable, Sendable {
-    var wrappedValue: String
-    func encode(to encoder: any Encoder) throws {
-        var c = encoder.singleValueContainer()
-        try c.encode(wrappedValue.prefix(utf8Bytes: 23))
-    }
-}
-@propertyWrapper struct Capped40: Encodable, Sendable {
-    var wrappedValue: String
-    func encode(to encoder: any Encoder) throws {
-        var c = encoder.singleValueContainer()
-        try c.encode(wrappedValue.prefix(utf8Bytes: 40))
-    }
-}
-
 func renderState(from state: BuddyState, defaults: UserDefaults = .standard, now: Double) -> RenderState {
     let c = state.creature
     var frame = RenderState(state: c.state, effort: c.effort, cheer: c.cheer, uhoh: c.uhoh,
@@ -143,30 +134,46 @@ func renderStateData(from state: BuddyState, now: Double) -> Data? {
     renderStateData(from: renderState(from: state, now: now))
 }
 
-/// Cap includes the newline. Escaped control characters can expand sixfold.
+/// Frame cap, newline included. The firmware reads lines into a fixed
+/// buffer (`data.h`) and drops an oversize line whole, so an overflow does
+/// not truncate a frame, it loses it: the buddy would sit on stale state
+/// until the next change. Kept below the buffer with headroom for escaping.
+let maxHeartbeatBytes = 1536
+private let heartbeatEncoder = JSONEncoder()
+
 func renderStateData(from frame: RenderState) -> Data? {
-    let encoder = JSONEncoder()
+    let encoder = heartbeatEncoder
     var frame = frame
     guard var data = try? encoder.encode(frame) else { return nil }
-    if data.count + 1 > 1536 {
+    if data.count + 1 > maxHeartbeatBytes {
         frame.snap = nil
         guard let next = try? encoder.encode(frame) else { return nil }
         data = next
     }
-    if data.count + 1 > 1536 {
+    if data.count + 1 > maxHeartbeatBytes {
         frame.cosmetic = nil
         guard let next = try? encoder.encode(frame) else { return nil }
         data = next
     }
-    while data.count + 1 > 1536, !(frame.bubble ?? "").isEmpty || !(frame.giftLine ?? "").isEmpty {
-        frame.bubble = frame.bubble.map { String($0.dropLast()) }
-        frame.giftLine = frame.giftLine.map { String($0.dropLast()) }
+    // Cut the free text by the overage in one pass (escaping can expand a
+    // character several-fold, so re-check once and cut again if needed).
+    var attempts = 0
+    while data.count + 1 > maxHeartbeatBytes, attempts < 4,
+          !(frame.bubble ?? "").isEmpty || !(frame.giftLine ?? "").isEmpty {
+        let overage = data.count + 1 - maxHeartbeatBytes
+        func cut(_ text: String?) -> String? {
+            guard let text, !text.isEmpty else { return text }
+            return text.prefix(utf8Bytes: max(0, text.utf8.count - overage))
+        }
+        frame.bubble = cut(frame.bubble)
+        frame.giftLine = cut(frame.giftLine)
         guard let next = try? encoder.encode(frame) else { return nil }
         data = next
+        attempts += 1
     }
     data.append(0x0A)
-    assert(data.count <= 1536, "ESP32 heartbeat exceeds frame cap")
-    guard data.count <= 1536 else { return nil }
+    assert(data.count <= maxHeartbeatBytes, "ESP32 heartbeat exceeds frame cap")
+    guard data.count <= maxHeartbeatBytes else { return nil }
     return data
 }
 

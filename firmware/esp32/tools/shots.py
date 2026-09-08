@@ -1,0 +1,58 @@
+#!/usr/bin/env python3
+"""Contact sheet: every RenderState v2 cell rendered on the real device.
+
+One held-open serial session per cell: send the frame, wait for the state,
+let the springs settle on the live clock, freeze at the device's own now,
+screenshot, unfreeze. Cells come from shot_cells.py, shared with golden.py.
+"""
+import json, subprocess, sys, time
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import buddyctl  # noqa: E402
+from shot_cells import cells  # noqa: E402
+
+OUT = Path('/tmp/boop-shots')
+
+
+def main() -> int:
+    OUT.mkdir(parents=True, exist_ok=True)
+    port = buddyctl.find_port()
+    extra = sys.argv[1:]
+    with buddyctl.SerialBuddy(port, timeout=5) as s:
+        s.write_line('clock clear'); s.write_line('imu set 0 0 0.98'); time.sleep(0.3)
+    for name, frame in cells().items():
+        frame = {**{k: v for k, v in frame.items() if k != 't'}, 't': int(time.time() * 1000)}
+        with buddyctl.SerialBuddy(port, timeout=5) as s:
+            s.write_line(json.dumps(frame, ensure_ascii=False, separators=(',', ':')))
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline and s.framed_json('state', 'STATE', 3).get('creature') != frame['state']:
+                time.sleep(0.2)
+            settle = 600 if frame['state'] == 'done' else 2500   # cheers are short
+            time.sleep(settle / 1000.0)
+            s.write_line(f'clock settle {settle}'); time.sleep(0.15)   # exact offset from state entry
+        subprocess.run([sys.executable, str(HERE / 'buddyctl.py'), 'screenshot', '--scale', '1',
+                        '--out', str(OUT / f'{name}.png'), *extra], check=True, capture_output=True)
+        with buddyctl.SerialBuddy(port, timeout=5) as s:
+            s.write_line('clock clear')
+    with buddyctl.SerialBuddy(port, timeout=5) as s:
+        s.write_line('imu clear')
+    try:
+        from PIL import Image, ImageDraw
+    except ImportError:
+        print(f'{len(cells())} cells in {OUT} (install Pillow for a single grid image)')
+        return 0
+    images = [(n, Image.open(OUT / f'{n}.png').convert('RGB')) for n in cells()]
+    w = max(i.width for _, i in images) + 16; h = max(i.height for _, i in images) + 36
+    cols = 4; rows = (len(images) + cols - 1) // cols
+    sheet = Image.new('RGB', (cols * w, rows * h), (24, 24, 24)); draw = ImageDraw.Draw(sheet)
+    for k, (n, img) in enumerate(images):
+        x, y = (k % cols) * w + 8, (k // cols) * h + 28
+        sheet.paste(img, (x, y)); draw.text((x, y - 20), n, fill=(230, 230, 230))
+    sheet.save(OUT / 'contact-sheet.png'); print(OUT / 'contact-sheet.png')
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

@@ -19,19 +19,35 @@ enum DeviceCommand: Sendable {
     case status(board: String, contract: Int)
 }
 
-func parseDeviceLine(_ line: String) -> DeviceCommand? {
+/// Pre-v2 firmware shapes, rewritten to v2 before parsing. Remove with the
+/// first release after every shipped device runs contract 2.
+func normalizeLegacyDeviceLine(_ line: String) -> String {
+    guard let data = line.data(using: .utf8),
+          var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let cmd = json["cmd"] as? String else { return line }
+    switch cmd {
+    case "permission":
+        json["cmd"] = "decision"; json["d"] = json.removeValue(forKey: "decision")
+    case "boop" where json["hold"] == nil:
+        json["hold"] = false
+    default: return line
+    }
+    guard let out = try? JSONSerialization.data(withJSONObject: json), let text = String(data: out, encoding: .utf8) else { return line }
+    return text
+}
+
+func parseDeviceLine(_ rawLine: String) -> DeviceCommand? {
+    let line = normalizeLegacyDeviceLine(rawLine)
     struct Input: Decodable {
-        var cmd: String?, id: String?, d: String?, decision: String?, ack: String?
+        var cmd: String?, id: String?, d: String?, ack: String?
         var hold: Bool?, p: DevicePosture?, m: DeviceMotion?, pct: Int?, charging: Bool?, on: Bool?
         var board: String?, contract: Int?
     }
     guard let data = line.data(using: .utf8), let i = try? JSONDecoder().decode(Input.self, from: data) else { return nil }
     if let ack = i.ack { return .ack(ack) }
     switch i.cmd {
-    case "decision", "permission":
-        guard let id = i.id, !id.isEmpty,
-              let d = i.cmd == "decision" ? i.d : i.decision,
-              d == "allow" || d == "deny" else { return nil }
+    case "decision":
+        guard let id = i.id, !id.isEmpty, let d = i.d, d == "allow" || d == "deny" else { return nil }
         return .decision(id: id, decision: d == "allow" ? .allow : .deny)
     case "collect": return .collect
     case "boop": return .boop(hold: i.hold ?? false)

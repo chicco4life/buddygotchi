@@ -32,18 +32,12 @@ enum PresenceKind : uint8_t { PRESENCE_LIVE = 0, PRESENCE_NAP, PRESENCE_PAIRME }
 // Radio hiccups should be invisible: a link that drops and returns inside
 // this window never reaches the face at all.
 static const uint32_t PRESENCE_GRACE_MS = 10000;
-// Pair-me blooms the lantern briefly when someone engages, then settles
-// back to Night. It can persist for hours on an unadopted device, and a
-// permanent cream field would burn power and panel for a message nobody is
-// currently reading.
-static const uint32_t PAIRME_BLOOM_MS = 3000;
 // The one state that wears Bluetooth blue, so the colour itself says
 // "radio". Blue keeps only 4 levels in RGB332, so this is deliberately
 // bright enough to survive quantization.
 static const uint16_t PAIRME_BLUE = animRGB(82, 146, 255);
 
 static uint32_t _presLinkLostAt = 0;
-static uint32_t _presPairBloomUntil = 0;
 // Debug/HIL override. Pair-me is otherwise only reachable by having no bond
 // at all, and the only way to produce that on a working device is to erase
 // its real pairing — destructive, and it would make the test suite hostile
@@ -56,9 +50,7 @@ inline bool presenceForced() { return _presForce >= 0; }
 inline PresenceKind presenceNow() {
   if (_presForce >= 0) return (PresenceKind)_presForce;
   if (dataConnected()) return PRESENCE_LIVE;
-  if (!bleBonded()) return PRESENCE_PAIRME;
-  if (!dataConnected()) return PRESENCE_NAP;
-  return PRESENCE_LIVE;
+  return bleBonded() ? PRESENCE_NAP : PRESENCE_PAIRME;
 }
 
 inline const char* presenceName() {
@@ -79,17 +71,6 @@ inline void presenceTick(uint32_t now) {
 // carry on as if nothing happened.
 inline bool presenceGraced(uint32_t now) {
   return _presLinkLostAt != 0 && (now - _presLinkLostAt) < PRESENCE_GRACE_MS;
-}
-
-// Someone pressed a button or touched the glass on an unadopted device:
-// bloom the instruction loudly for a few seconds, then settle back.
-inline void presenceEngaged(uint32_t now) {
-  if (presenceNow() != PRESENCE_PAIRME) return;
-  _presPairBloomUntil = now + PAIRME_BLOOM_MS;
-}
-
-inline bool presencePairBlooming(uint32_t now) {
-  return (int32_t)(_presPairBloomUntil - now) > 0;
 }
 
 // The pair-me speech, cycling ~4s between the instruction and the name the

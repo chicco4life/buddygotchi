@@ -391,9 +391,12 @@ def command_frame(args: argparse.Namespace) -> int:
     if len(line.encode("utf-8")) + 1 > 1536:
         raise BuddyError("frame exceeds 1536 bytes including newline", 1)
     with SerialBuddy(args.port, args.timeout) as buddy:
-        if args.t is not None:
-            buddy.write_line(f"clock {args.t}")
         buddy.write_line(line)
+        if args.t is not None:
+            # Let the springs settle on the live clock, then freeze at the
+            # device's own now: deterministic and no epoch jump.
+            time.sleep(min(max(args.t, 0), 10000) / 1000.0)
+            buddy.write_line("clock freeze")
         state = buddy.framed_json("state", "STATE")
     emit({"ok": True, "state": state}, args.json)
     return 0
@@ -760,7 +763,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--port", default=None)
     p.add_argument("--timeout", type=float, default=5.0)
     p.add_argument("--json", dest="payload", required=True)
-    p.add_argument("--t", type=int)
+    p.add_argument("--t", type=int, help="settle this many ms after the frame, then freeze the presentation clock")
     p.set_defaults(func=command_frame, json=True)
     p = sub.add_parser("set")
     add_common(p)

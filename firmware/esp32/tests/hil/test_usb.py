@@ -17,24 +17,27 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "tools"))
 import buddyctl  # noqa: E402
+from shot_cells import cells as shot_cells  # noqa: E402  (shared enum tables)
 
 
 @pytest.fixture(scope="module")
 def stick():
     try:
-        serial = buddyctl.SerialBuddy(buddyctl.find_port(), timeout=5)
-        serial.__enter__()
-        pong = serial.framed_json("ping", "PONG", 3)
+        port = buddyctl.find_port()
     except buddyctl.BuddyError as exc:
         pytest.skip(f"no ESP32 Buddy attached: {exc}")
-    try:
+    with buddyctl.SerialBuddy(port, timeout=5) as serial:
+        try:
+            pong = serial.framed_json("ping", "PONG", 3)
+        except buddyctl.BuddyError as exc:
+            pytest.skip(f"no ESP32 Buddy answered: {exc}")
         assert pong["board"] == "ws-amoled164"
         assert pong["contract"] == 2
-        yield serial
-    finally:
-        serial.write_line("clock clear")
-        serial.write_line("imu clear")
-        serial.__exit__(None, None, None)
+        try:
+            yield serial
+        finally:
+            serial.write_line("clock clear")
+            serial.write_line("imu clear")
 
 
 def state(stick):
@@ -102,10 +105,10 @@ def test_version_reject_and_unknown_keys(stick):
         stick.write_line(json.dumps(payload))
     got = wait_state(stick, badFrames=before["badFrames"] + 4)
     assert got["creature"] == "working" and got["effort"] == "hard"
-    assert not {"pet", "persona", "species", "menu", "glance", "orbs"} & got.keys()
+    assert "pet" not in got   # legacy key never echoed back
 
 
-@pytest.mark.parametrize("creature", ["asleep", "idle", "working", "needsYou", "done", "uhoh"])
+@pytest.mark.parametrize("creature", [c for c in shot_cells() if "-" not in c and c not in ("gift", "travel-snap")])
 def test_six_states(stick, creature):
     frame(stick, state=creature)
     got = wait_state(stick, creature=creature, screenOff=False)

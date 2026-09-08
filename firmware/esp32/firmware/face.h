@@ -71,12 +71,14 @@ static void faceSimulate(uint32_t now,float dt) {
   // integrate springs (AnimSpring intentionally substitutes a dt for zero).
   bool card=hasCard();
   if (dt>0) { cardSpring.step(card?1:0,4,0.65f,dt); squish.step(0,3,0.55f,dt); }
-  if (eq(tama.state,"idle") && !card && now-lastInput>=10000 && now>=nextMicro) {
+  if (eq(tama.state,"idle") && !card && (int32_t)(now-lastInput)>=10000 && (int32_t)(now-nextMicro)>=0) {
     microAt=now; microKind=(microKind+1)%5;
     nextMicro=now+(eq(posture,"travel")?90000:120000);
   }
   FacePose p;
-  float phase=now*0.001f;
+  // Phase from state entry, not boot: a screenshot frozen N ms after a frame
+  // lands on the same phase every run.
+  float phase=(now-stateAt)*0.001f;
   p.bob=sinf(phase*1.4f)*3;
   p.gazeX=sinf(phase*0.31f)*11; p.gazeY=cosf(phase*0.23f)*3;
   const char* state = (!dataConnected() && !presenceGraced(now)) ? "idle" : tama.state;
@@ -133,10 +135,9 @@ static void faceSimulate(uint32_t now,float dt) {
   }
   if (before(now,perkUntil) && !card) { p.lean-=8; p.eyeH+=7; }
   if (before(now,shakeHeadUntil)) p.gazeX+=sinf(phase*24)*14;
-  if (!napping && !eq(state,"asleep") && !eq(state,"done") && now%5100<110) p.eyeH=7;
-  // Pose channels ease independently. Frozen absolute captures snap once at
-  // the clock command, then remain bit-for-bit stable.
-  if (clockFrozen) { facePose=p; return; }
+  if (!napping && !eq(state,"asleep") && !eq(state,"done") && (now-stateAt)%5100<110) p.eyeH=7;
+  // Pose channels ease independently; a frozen clock gives dt=0, so a
+  // settled pose stays bit-for-bit stable for screenshots.
 #define EASE(part) facePose.part=animEase(facePose.part,p.part,12,dt)
   EASE(eyeH); EASE(eyeW); EASE(gazeX); EASE(gazeY); EASE(brow); EASE(arc);
   EASE(bob); EASE(lean); facePose.tilt=p.tilt; EASE(blush); EASE(sweat); EASE(mouth);
@@ -165,14 +166,14 @@ static void faceDraw(uint32_t now,bool showSparks) {
   else if (p.mouth>0.2f) spr.fillArc(cx,my-5,10,13,0,180,ink);
   else spr.fillRoundRect(cx-9,my,18,3,1,ink);
   if (p.sweat>0.2f) {
-    int x=cx+135, y=cy-25+(now%1500)*18/1500;
+    int x=cx+135, y=cy-25+((now-stateAt)%1500)*18/1500;
     uint16_t c=animRGB(73,146,255); spr.fillTriangle(x,y-9,x-5,y+1,x+5,y+1,c); spr.fillSmoothCircle(x,y+2,5,c);
   }
   if (eq(posture,"perch")) {
     bool kick=eq(tama.state,"idle");
     bool tucked=napping || eq(tama.state,"asleep") || (eq(tama.state,"working") && eq(tama.effort,"grinding"));
     for(int side=-1;side<=1;side+=2) {
-      int x=cx+side*48, y=cy+85+(kick?animPx(sinf(now*0.0015f+side)*5):0);
+      int x=cx+side*48, y=cy+85+(kick?animPx(sinf((now-stateAt)*0.0015f+side)*5):0);
       spr.fillRoundRect(x,y,10,tucked?8:21,4,ink);
     }
   }
@@ -194,7 +195,7 @@ static void faceDraw(uint32_t now,bool showSparks) {
     for(int i=0;i<3;++i) heart(cx-130+i*125,cy-55-(now/40+i*17)%35,6,animRGB(255,109,173));
   }
   if (giftPending() && !(eq(tama.state,"done") && age<cheerDuration())) {
-    int x=HAL_W-62,y=HAL_H/2+26+animPx(sinf(now*0.002f)*4);
+    int x=HAL_W-62,y=HAL_H/2+26+animPx(sinf((now-stateAt)*0.002f)*4);
     spr.drawCircle(x,y,16,animRGB(109,73,0)); spr.fillSmoothCircle(x,y,9,animRGB(255,219,82));
     spr.fillSmoothCircle(x-3,y-3,2,WHITE);
   }

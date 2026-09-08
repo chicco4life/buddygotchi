@@ -11,47 +11,31 @@ from buddyctl import write_png
 
 
 def read_png(path):
-    """Read 8-bit RGB/RGBA PNGs without a required imaging dependency."""
+    """Read the PNGs `buddyctl.write_png` produces: 8-bit RGB, filter 0, no interlace."""
     raw = path.read_bytes()
     if raw[:8] != b'\x89PNG\r\n\x1a\n':
         raise ValueError(f'{path}: not a PNG')
-    pos, packed = 8, bytearray()
+    pos, packed, w, h = 8, bytearray(), 0, 0
     while pos < len(raw):
         size = struct.unpack('>I', raw[pos:pos+4])[0]
         kind, data = raw[pos+4:pos+8], raw[pos+8:pos+8+size]
         if kind == b'IHDR':
             w, h, depth, color, compression, filtering, interlace = struct.unpack('>IIBBBBB', data)
-            if depth != 8 or color not in (2, 6) or interlace or compression or filtering:
-                raise ValueError(f'{path}: requires non-interlaced 8-bit RGB/RGBA PNG')
+            if (depth, color, compression, filtering, interlace) != (8, 2, 0, 0, 0):
+                raise ValueError(f'{path}: expected an 8-bit RGB filter-0 PNG as written by buddyctl')
         elif kind == b'IDAT':
             packed.extend(data)
         pos += size + 12
-    bpp = 3 if color == 2 else 4
-    stride = w * bpp
+    stride = w * 3
     pixels = zlib.decompress(packed)
     if len(pixels) != (stride + 1) * h:
         raise ValueError(f'{path}: invalid pixel data length')
-    previous = bytearray(stride)
     rgb = bytearray()
     for y in range(h):
         start = y * (stride + 1)
-        mode = pixels[start]
-        row = bytearray(pixels[start+1:start+1+stride])
-        for x in range(stride):
-            a, b, c = row[x-bpp] if x >= bpp else 0, previous[x], previous[x-bpp] if x >= bpp else 0
-            if mode == 0: predictor = 0
-            elif mode == 1: predictor = a
-            elif mode == 2: predictor = b
-            elif mode == 3: predictor = (a+b)//2
-            elif mode == 4:
-                p = a+b-c
-                distances = (abs(p-a), abs(p-b), abs(p-c))
-                predictor = (a, b, c)[distances.index(min(distances))]
-            else: raise ValueError(f'{path}: invalid PNG filter {mode}')
-            row[x] = (row[x] + predictor) & 255
-        for x in range(0, stride, bpp):
-            rgb.extend(row[x:x+3])
-        previous = row
+        if pixels[start] != 0:
+            raise ValueError(f'{path}: unexpected PNG filter {pixels[start]}')
+        rgb.extend(pixels[start+1:start+1+stride])
     return w, h, rgb
 
 
