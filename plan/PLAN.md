@@ -172,14 +172,20 @@ menu, glance card, fireflies, and mood engine are gone.
       a Korean bubble. (2026-09-08)
 - [x] Compatibility: unknown keys ignored, legacy frames rejected with the
       last good model kept (`badFrames` counts them). HIL-covered. (2026-09-08)
-- [x] USB HIL green, 31 tests (2026-09-08): each of the six states, three effort levels, three
+- [x] USB HIL green: 31 device tests + 4 hardening tests, three consecutive
+      clean runs with the panic counter flat (2026-09-08). Watchdog recovery
+      verified once by observation (task_wdt reset, USB re-enumerated); the
+      hang test is run by hand because a stranded USB port needs a physical
+      reset. Panics seen on a device already in post-hang recovery were not
+      reproducible on a clean device: tracked for Phase 9 hardening. each of the six states, three effort levels, three
       cheer sizes, card at each stakes level, decision round trip with
       ack-driven "yes!", gift collect, bubble timing, dim ladder never
       reaching off, shutdown ladder stages, heap floors.
 - [x] Contact sheet cells reviewed against `UX-DEVICE.md` and filed under
       `plan/evidence/phase-2/` (2026-09-08).
 - [x] Goldens checked in under `firmware/esp32/tests/golden/ws-amoled164/`;
-      `golden.py check` 21/21 (2026-09-08).
+      21/21 across two independent captures once animation phases were
+      anchored to state entry and `clock settle` landed (2026-09-08).
 - [ ] Sound: each motif recorded from the device and tellable apart. Blocked:
       the Waveshare board has no speaker; the table and manners exist and are
       reported in the state reply.
