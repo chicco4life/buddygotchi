@@ -9,6 +9,7 @@ import SwiftUI
 @MainActor
 enum SnapshotRenderer {
     static func renderAll(to dir: String, defaults: UserDefaults) {
+        func makeEngine() -> BuddyEngine { Self.makeEngine(defaults: defaults) }
         func render<V: View>(_ view: V, _ name: String, _ size: CGSize, _ dir: String) {
             Self.render(view, name, size, dir, defaults: defaults)
         }
@@ -32,6 +33,8 @@ enum SnapshotRenderer {
         let expanded = CGSize(width: BuddyTheme.popoverWidth, height: BuddyTheme.liveViewExpandedHeight)
         let settingsSize = CGSize(width: BuddyTheme.popoverWidth, height: BuddyTheme.popoverHeight)
         let onboardingSize = CGSize(width: BuddyTheme.onboardingWidth, height: BuddyTheme.onboardingHeight)
+
+        renderCompanionScenes(to: dir, defaults: defaults)
 
         // 1. Popover: sleep (empty state)
         render(popover(makeEngine()), "popover-1-sleep", idle, dir)
@@ -218,30 +221,69 @@ enum SnapshotRenderer {
         print("SNAPSHOT menubar-icons.png \(png.count)B \(Int(size.width))x\(Int(size.height))")
     }
 
-    private static func makeEngine() -> BuddyEngine {
+    private static func makeEngine(defaults: UserDefaults) -> BuddyEngine {
         BuddyEngine(config: BuddyConfig(
             httpPort: 0, staleTimeoutMs: 600_000, approvalTimeoutMs: 300_000,
             celebrateDurationMs: 4_000, workStallTimeoutMs: 300_000,
             stateDir: "/tmp", approvalMode: false, token: "snapshot-token"
-        ))
+        ), defaults: defaults)
     }
 
     private static func popover(_ engine: BuddyEngine) -> some View {
         PopoverView(engine: engine, esp32Output: ESP32Output())
     }
 
-    private static func render<V: View>(_ view: V, _ name: String, _ size: CGSize, _ dir: String, defaults: UserDefaults) {
+    private static func renderCompanionScenes(to dir: String, defaults: UserDefaults) {
+        for dark in [false, true] {
+            let suffix = dark ? "dark" : "light"
+            func shot<V: View>(_ view: V, _ name: String, width: CGFloat = 360, height: CGFloat = 640) {
+                render(view, "phase7-" + name + "-" + suffix, CGSize(width: width, height: height), dir, defaults: defaults, dark: dark)
+            }
+            for scene in CompanionScene.all {
+                shot(CreatureView(creature: scene.creature, cosmetic: scene.cosmetic, frozen: true), "creature-" + scene.name, height: 240)
+                var state = BuddyState.initial; state.creature = scene.creature; state.cosmetic = scene.cosmetic
+                let engine = BuddyEngine.preview(state: state, defaults: defaults)
+                shot(PopoverView(engine: engine, esp32Output: ESP32Output()), "popover-" + scene.name)
+            }
+            let recap = Recap(line: "good day", paragraph: "Green at last. A little progress became a good day.", turns: 14, tasks: 3, biggest: "hardWonPass")
+            shot(RecapView(recap: recap), "recap", height: 240)
+            for count in [0, 3] {
+                let lines = (0..<count).map { ProfileLine(id: $0, line: ["You often work in the morning.", "Tests are part of your routine.", "You have been working on Boop."][$0], source: "rules", confidence: 1, createdAt: 1_780_000_000_000) }
+                shot(ProfilePage(lines: lines), "profile-\(count)", width: 520, height: 540)
+            }
+            let engine = BuddyEngine(defaults: defaults)
+            for section in ["sounds", "focus", "language", "voice", "quick", "leaderboard", "profile", "retire"] {
+                shot(CompanionSettings(engine: engine, device: ESP32Output(), section: section).padding(20), "settings-" + section, height: 300)
+            }
+            for section in ["general", "buddy", "agents", "displays", "about"] {
+                let view = SettingsView(isPresented: .constant(true), engine: engine, esp32Output: ESP32Output(), serverHealth: nil, frameHeight: 640, snapshotSection: section)
+                shot(view, "settings-" + section)
+            }
+            shot(CompanionSettings(engine: engine, device: ESP32Output()).padding(20), "settings-companion", height: 620)
+            var settings = SettingsView(isPresented: .constant(true), engine: engine, esp32Output: ESP32Output(), serverHealth: nil)
+            settings.frameHeight = 2400
+            shot(settings, "settings-all-sections", height: 2400)
+            for step in OnboardingStep.allCases {
+                defaults.set(step.rawValue, forKey: DefaultsKey.onboardingStep)
+                shot(OnboardingView(defaults: defaults, engine: engine, esp32Output: ESP32Output(), onFinish: {}), "onboarding-\(step)", width: BuddyTheme.onboardingWidth, height: BuddyTheme.onboardingHeight)
+            }
+            defaults.removeObject(forKey: DefaultsKey.onboardingStep)
+        }
+    }
+
+    private static func render<V: View>(_ view: V, _ name: String, _ size: CGSize, _ dir: String, defaults: UserDefaults, dark: Bool = false) {
         let root = ZStack { BuddyTheme.paper; view }
             .frame(width: size.width, height: size.height)
-            .environment(\.colorScheme, .light)
+            .environment(\.colorScheme, dark ? .dark : .light)
+            .environment(\.snapshotFrozen, true)
             .defaultAppStorage(defaults)
 
         let host = NSHostingView(rootView: AnyView(root))
-        host.appearance = NSAppearance(named: .aqua)
+        host.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         host.frame = CGRect(origin: .zero, size: size)
 
         let window = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
-        window.appearance = NSAppearance(named: .aqua)
+        window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         window.contentView = host
         host.layoutSubtreeIfNeeded()
         RunLoop.main.run(until: Date().addingTimeInterval(0.15))

@@ -51,19 +51,21 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
-    func postToolNotification(prompt: Prompt) {
+    func postQuickCommand(_ command: String) {
         guard available else { return }
+        let content = UNMutableNotificationContent()
+        content.title = BuddyCopy.phase7("quick")
+        content.body = command
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "quick-command", content: content, trigger: nil))
+    }
+
+    func postToolNotification(prompt: Prompt) {
+        guard available, UserDefaults.standard.bool(forKey: DefaultsKey.notificationPermissionRequested) else { return }
         UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
             switch settings.authorizationStatus {
             case .authorized, .provisional, .ephemeral:
                 Task { @MainActor in self?.deliverToolNotification(prompt: prompt) }
-            case .notDetermined:
-                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
-                    if granted {
-                        UserDefaults.standard.set(true, forKey: DefaultsKey.notificationPermissionRequested)
-                        Task { @MainActor in self?.deliverToolNotification(prompt: prompt) }
-                    }
-                }
+            case .notDetermined: return
             case .denied:
                 return
             @unknown default:

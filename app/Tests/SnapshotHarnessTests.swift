@@ -29,7 +29,7 @@ final class SnapshotHarnessTests: XCTestCase {
 
     override func setUp() async throws {
         try XCTSkipUnless(
-            FileManager.default.fileExists(atPath: "\(dir)/.enable"),
+            FileManager.default.fileExists(atPath: "\(dir)/.enable") && ProcessInfo.processInfo.environment["BOOP_SKIP_SNAPSHOTS"] != "1",
             "snapshot harness disabled — `touch /tmp/buddy-snapshots/.enable` to enable"
         )
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
@@ -39,6 +39,14 @@ final class SnapshotHarnessTests: XCTestCase {
 
     func testRenderAll() throws {
         SnapshotRenderer.renderAll(to: dir, defaults: defaults)
+        for scene in CompanionScene.all {
+            for appearance in ["light", "dark"] {
+                for surface in ["creature", "popover"] {
+                    let path = "\(dir)/phase7-\(surface)-\(scene.name)-\(appearance).png"
+                    XCTAssertTrue(FileManager.default.fileExists(atPath: path), "Missing scene: " + path)
+                }
+            }
+        }
         XCTAssertEqual(renderState(from: .initial, defaults: defaults, now: 0).state, .asleep)
     }
 

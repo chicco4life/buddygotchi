@@ -9,6 +9,7 @@ struct DeviceBattery: Codable, Sendable, Equatable {
 }
 enum DeviceCommand: Sendable {
     case decision(id: String, decision: ApprovalDecision)
+    case quick
     case collect
     case boop(hold: Bool)
     case posture(DevicePosture)
@@ -49,6 +50,7 @@ func parseDeviceLine(_ rawLine: String) -> DeviceCommand? {
     case "decision":
         guard let id = i.id, !id.isEmpty, let d = i.d, d == "allow" || d == "deny" else { return nil }
         return .decision(id: id, decision: d == "allow" ? .allow : .deny)
+    case "quick": return .quick
     case "collect": return .collect
     case "boop": return .boop(hold: i.hold ?? false)
     case "posture": return i.p.map(DeviceCommand.posture)

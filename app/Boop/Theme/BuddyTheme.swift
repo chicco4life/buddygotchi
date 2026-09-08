@@ -33,9 +33,15 @@ enum BuddyPalette {
 }
 
 enum BuddyTheme {
-    static let paper = Color(hex: BuddyPalette.paper)
-    static let paperRaised = Color(hex: BuddyPalette.paperRaised)
-    static let paperSunken = Color(hex: BuddyPalette.paperSunken)
+    private static func adaptive(_ light: String, _ dark: String) -> Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            NSColor(buddyHex: appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light)
+        })
+    }
+
+    static let paper = adaptive(BuddyPalette.paper, "211E1B")
+    static let paperRaised = adaptive(BuddyPalette.paperRaised, "2C2824")
+    static let paperSunken = adaptive(BuddyPalette.paperSunken, "191715")
     static let night = Color(hex: BuddyPalette.night)
 
     /// The approval field, and nothing else. Reserved so that the one moment the
@@ -43,24 +49,24 @@ enum BuddyTheme {
     static let lantern = Color(hex: BuddyPalette.lantern)
     static let lanternHot = Color(hex: BuddyPalette.lanternHot)
 
-    static let ink = Color(hex: BuddyPalette.ink)
-    static let inkSoft = Color(hex: BuddyPalette.inkSoft)
+    static let ink = adaptive(BuddyPalette.ink, "F7F2E9")
+    static let inkSoft = adaptive(BuddyPalette.inkSoft, "C9C0B3")
     /// 4.1:1 on paper — captions and meta. Still short of AA for body copy, so
     /// never let it be the only thing carrying a meaning.
-    static let inkFaint = Color(hex: BuddyPalette.inkFaint)
+    static let inkFaint = adaptive(BuddyPalette.inkFaint, "B9B0A4")
 
     // The accent is split because #E8A33D is 1.93:1 on paper: fine as a fill,
     // illegible as text. Use `amber` for backgrounds and `amberInk` (5.2:1) for
     // anything a reader has to resolve — labels, icons, hairlines.
     static let amber = Color(hex: BuddyPalette.amber)
     static let amberPressed = Color(hex: BuddyPalette.amberPressed)
-    static let amberInk = Color(hex: BuddyPalette.amberInk)
+    static let amberInk = adaptive(BuddyPalette.amberInk, "E8B970")
     static let amberWash = Color(hex: BuddyPalette.amber).opacity(0.18)
 
     static let green = Color(hex: BuddyPalette.green)
-    static let greenInk = Color(hex: BuddyPalette.greenInk)
+    static let greenInk = adaptive(BuddyPalette.greenInk, "A4C992")
     static let clay = Color(hex: BuddyPalette.clay)
-    static let clayInk = Color(hex: BuddyPalette.clayInk)
+    static let clayInk = adaptive(BuddyPalette.clayInk, "E89E92")
     static let pink = Color(hex: BuddyPalette.pink)
     static let pinkInk = Color(hex: BuddyPalette.pinkInk)
 
@@ -86,14 +92,14 @@ enum BuddyTheme {
     static let popoverWidth: CGFloat = 320
     /// Resting minimum: header, one activity line, footer, and air. The popover
     /// auto-sizes past this (AppDelegate sets .preferredContentSize).
-    static let liveViewHeight: CGFloat = 132
+    static let liveViewHeight: CGFloat = 360
     /// Snapshot canvas for the approval states; not used for layout.
-    static let liveViewExpandedHeight: CGFloat = 300
+    static let liveViewExpandedHeight: CGFloat = 600
     static let popoverHeight: CGFloat = 460
     /// The "finish setup" stub, which has no live content to size against.
     static let unfinishedSetupHeight: CGFloat = 220
     static let onboardingWidth: CGFloat = 760
-    static let onboardingHeight: CGFloat = 560
+    static let onboardingHeight: CGFloat = 660
 
     /// Text, icons, and status dots. Always legible on paper.
     static func stateInk(_ state: PetState) -> Color {

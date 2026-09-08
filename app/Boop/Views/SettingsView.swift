@@ -34,6 +34,7 @@ struct SettingsView: View {
 
     /// Overridable so the snapshot renderer can capture the full scroll content.
     var frameHeight: CGFloat = BuddyTheme.popoverHeight
+    var snapshotSection: String? = nil
 
     var body: some View {
         VStack(spacing: 0) {
@@ -62,17 +63,18 @@ struct SettingsView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    generalSection
-                    buddySection
-                    agentsSection
-                    displaysSection
-                    aboutSection
+                    if snapshotSection == nil { CompanionSettings(engine: engine, device: esp32Output, onRetired: onOpenOnboarding) }
+                    if snapshotSection == nil || snapshotSection == "general" { generalSection }
+                    if snapshotSection == nil || snapshotSection == "buddy" { buddySection }
+                    if snapshotSection == nil || snapshotSection == "agents" { agentsSection }
+                    if snapshotSection == nil || snapshotSection == "displays" { displaysSection }
+                    if snapshotSection == nil || snapshotSection == "about" { aboutSection }
                 }
                 .padding()
             }
         }
         .frame(width: BuddyTheme.popoverWidth, height: frameHeight)
-        .preferredColorScheme(.light)
+
         .onAppear {
             normalizeBuddySpecies()
             refreshLoginItemState()
@@ -290,7 +292,7 @@ struct SettingsView: View {
                 TextField(
                     BuddyCopy.shared.settingsCopy.buddyName,
                     text: $buddyName
-                )
+                ).disabled(true)
                     .textFieldStyle(.plain)
                     .font(.buddy(13))
                     .foregroundStyle(BuddyTheme.ink)
@@ -949,7 +951,7 @@ private struct ApprovalModeExplainerSheet: View {
         .padding(22)
         .frame(width: 380)
         .background(BuddyTheme.paper)
-        .preferredColorScheme(.light)
+
     }
 
     private func explainerRow(_ text: String) -> some View {

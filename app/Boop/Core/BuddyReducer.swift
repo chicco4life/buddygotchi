@@ -77,6 +77,14 @@ func reduce(_ state: InternalState, _ event: BuddyEvent, localHour: Int = 0) -> 
 
 private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> InternalState {
     switch event {
+    case .onboardingCheer(let at, let line):
+        guard state.memory.completedTurns == 0, state.buddy.creature.card == nil else { return state }
+        var s = state
+        s.doneSize = .hop
+        s.buddy.celebrateUntil = at + s.cheerThresholds.duration(.hop)
+        s.buddy.creature.gift = true
+        s.buddy.creature.giftLine = line
+        return s
     case .languageChanged(_, let language):
         var s = state; s.buddy.language = language == "ko" ? "ko" : "en"; return s
     case .voiceLine(let at, let kind, let text):

@@ -22,6 +22,7 @@ var packageTargets: [Target] = [
         ],
         resources: [
             .copy("Resources/runners.json"),
+            .copy("Resources/teach.json"),
             .copy("Resources/voice"),
             .copy("Resources/Fonts"),
             .copy("Resources/Sounds"),

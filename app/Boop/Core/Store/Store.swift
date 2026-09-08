@@ -59,6 +59,8 @@ actor Store: EngineStore {
     private let stateDir: String
     private var lastSnapshot: GrowthSnapshot?
     private var rollupFormula: GrowthFormula?
+    private var ownerGeneration = 0
+    private var retiring = false
     init(stateDir: String, now: Double, temperament: String? = nil) throws {
         self.stateDir = stateDir
         try FileManager.default.createDirectory(atPath: stateDir, withIntermediateDirectories: true)
@@ -95,6 +97,33 @@ actor Store: EngineStore {
         try db.run("CREATE TABLE IF NOT EXISTS voice_day(day TEXT NOT NULL, line TEXT NOT NULL, PRIMARY KEY(day,line))")
         try db.run("INSERT OR REPLACE INTO meta VALUES('schema_version','3')")
     }
+    /// Claim before presentation, so a restart cannot repeat a lesson.
+    func claimTool(_ tool: String) async throws -> Bool {
+        let key = "seenTool:" + tool
+        guard try meta(key) == nil else { return false }
+        try setMeta(key, "seen")
+        return true
+    }
+    func muteTool(_ tool: String) async throws { try setMeta("seenTool:" + tool, "muted") }
+    func retire() async throws {
+        retiring = true
+        defer { retiring = false }
+        ownerGeneration += 1
+        while !reflecting.isEmpty { try? await Task.sleep(for: .milliseconds(10)) }
+        try db.transaction {
+            try db.run("DROP TRIGGER ledger_no_delete")
+            for table in ["facts", "profile", "ledger", "inventory", "memory", "drift", "growth_totals", "growth_turns", "voice_recent", "voice_day"] {
+                try db.run("DELETE FROM " + table)
+            }
+            try db.run("UPDATE traits SET value=CASE WHEN axis='bond' THEN 0 ELSE 128 END")
+            try db.run("DELETE FROM meta WHERE key NOT IN ('schema_version','memory_migrated')")
+            try db.run("INSERT OR REPLACE INTO meta VALUES('memory_migrated','1')")
+            try db.run("CREATE TRIGGER ledger_no_delete BEFORE DELETE ON ledger BEGIN SELECT RAISE(ABORT, 'append only'); END")
+        }
+        lastSnapshot = nil; rollupFormula = nil
+        try db.run("PRAGMA wal_checkpoint(TRUNCATE)")
+    }
+
     func migrate() throws { try StoreMigrator.run(db: db, stateDir: stateDir) }
     func loadMemory() throws -> PetMemory? {
         guard let json = try db.run("SELECT json FROM memory WHERE key='memory'").first?.first else { return nil }
@@ -293,8 +322,10 @@ actor Store: EngineStore {
     func recapDay() async throws -> String? { try meta("recap_day") }
     func markRecapDay(_ day: String) async throws { try setMeta("recap_day", day) }
     func reflect(localDay: String, at: Double) async throws -> [ProfileLine] {
+        guard !retiring else { return [] }
         guard try meta("reflected_" + localDay) == nil, reflecting.insert(localDay).inserted else { return try profile() }
         defer { reflecting.remove(localDay) }
+        let generation = ownerGeneration
         let history = try decodeFacts(db.run("SELECT payload_json,session_id,project,at,day FROM facts WHERE day<=? ORDER BY at,id", [localDay]))
         let daily = history.filter { $0.day == localDay }
         let candidates = Reflection.candidates(day: daily, history: history, localDay: localDay)
@@ -306,6 +337,7 @@ actor Store: EngineStore {
                 lines.append((line.source == .model ? line.text : candidate, line.source == .model ? "model" : "rules"))
             } else { lines.append((candidate, "rules")) }
         }
+        guard generation == ownerGeneration else { return [] }
         try db.transaction {
             for (line, source) in lines { try addProfileLine(line, source: source, at: at) }
             try drift(DailyDrift.calculate(daily, history: history), localDay: localDay)
@@ -354,6 +386,10 @@ enum StoreMigrator {
 
 /// Engine persistence seam. Production uses SQLite; tests can suspend individual operations.
 protocol EngineStore: AnyObject, Sendable {
+    func claimTool(_ tool: String) async throws -> Bool
+    func muteTool(_ tool: String) async throws
+    func retire() async throws
+
     func traits() async throws -> Traits
     func configureVoice(_ voice: Voice, language: String) async
     func facts(localDay: String) async throws -> [StoredFact]
@@ -382,6 +418,10 @@ protocol EngineStore: AnyObject, Sendable {
 
 // Memory-only test stores can opt into voice persistence independently.
 extension EngineStore {
+    func claimTool(_ tool: String) async throws -> Bool { false }
+    func muteTool(_ tool: String) async throws {}
+    func retire() async throws { throw StoreError(message: "Retire is unavailable") }
+
     func traits() async throws -> Traits { [:] }
     func configureVoice(_ voice: Voice, language: String) async {}
     func facts(localDay: String) async throws -> [StoredFact] { try await facts().filter { $0.day == localDay } }

@@ -3,6 +3,9 @@ import Foundation
 struct Recap: Encodable, Sendable, Equatable {
     var line: String
     var paragraph: String
+    var turns: Int = 0
+    var tasks: Int = 0
+    var biggest: String = "—"
 }
 struct RecapFacts: Sendable, Equatable {
     var turns: Int = 0

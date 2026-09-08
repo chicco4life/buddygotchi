@@ -436,3 +436,112 @@ checks remain unexecuted; their USB tests are added. `/tmp/hilvenv` lacks
 cryptography: install it with `/tmp/hilvenv/bin/python -m pip install cryptography`
 before HIL (not installed during this offline task). No app, HAL, archived
 implementation, leaderboard or share-card work is included.
+## Phase 7 notes
+
+2026-09-09 — Mac companion surfaces implemented in `app/`. No changes to
+`archived/`, `firmware/`, other `plan/` documents, or `.github/`.
+
+### Implementation map
+
+- `Boop/Views/Creature/CreatureView.swift`: pure `CreaturePose(from:)`, six-state
+  Canvas/TimelineView face, effort, cheer sizes, urgent-state overlay suppression,
+  first-wake eye sequence, cosmetics, session dots, focus mark, deterministic
+  frozen poses and an 18 pt menu-bar face. Anatomy and animation vocabulary were
+  checked against `firmware/esp32/firmware/face.h` (read only).
+- `Boop/Views/PopoverView.swift` and `CompanionViews.swift`: large creature, state
+  pill, approval card with stakes, per-session completion/moment, collectable gift,
+  bubble, recap tally, connection/growth/focus footer, profile page and windows.
+- Existing `Views/Onboarding/` reshaped to welcome → agents → device → name →
+  first cheer. Hook diagnostics distinguish real agent traffic from installation.
+  Name is locked on confirmation and its saved snapshot is sent to the device.
+- `CompanionSettings.swift`, `SettingsView.swift`, `AppDelegate.swift`: settings
+  window and recap menu; existing installer/repair and BLE/firmware controls are
+  retained. Added stepped volume, daily focus hours, language, voice, quick text,
+  local leaderboard preference and retirement confirmation.
+- `Core/BuddyEngine.swift`, `Store/Store.swift`, `DefaultsKey.swift`,
+  `Voice/Recap.swift`, `TeachCatalog.swift`, `Resources/teach.json`: persistent
+  seen/muted tools, retirement/wipe and in-flight work guards, quick notification
+  fallback, focus scheduling and recap tally. The only reducer addition is the
+  `onboardingCheer` event: a demonstration hop/gift without fake work or XP.
+- Desktop/device outputs and NotificationManager carry the new icon, volume,
+  quick/retire commands and opted-in needs-you notification behavior. BuddyTheme
+  has adaptive cream/charcoal colors; new copy is keyed in BuddyCopy in en/ko.
+- `CompanionTests.swift`, `SnapshotHarnessTests.swift`, `CompanionScenes.swift`,
+  `SnapshotRenderer.swift`, generated runner and Package.swift cover the new
+  behavior and include the teach resource without a new dependency.
+
+### Verification
+
+Baseline generated runner: **408 tests**. The requested initial `swift build
+--product Boop` exited **1** before source compilation because the sandbox denied
+`~/.cache/clang` writes. A clean baseline test pass was not obtained. The available
+permission profile forbids escalation; writable temporary caches worked instead.
+
+Final commands run from `app/`, with:
+
+```sh
+export CLANG_MODULE_CACHE_PATH=/tmp/boop-clang-cache
+export SWIFTPM_MODULECACHE_OVERRIDE=/tmp/boop-swift-cache
+export BOOP_SKIP_SNAPSHOTS=1
+swift build --disable-sandbox --product Boop
+swift build --disable-sandbox --product BoopSignal
+python3 tools/gen-test-runner.py
+swift run --disable-sandbox -j 2 BoopTests
+```
+
+All four commands exited **0**. Final result: **406 passed, 11 skipped, 0 failures
+of 417 tests** (+9). `git diff --check` also exited **0**. Logs are in
+`/tmp/boop-final-build.log`, `/tmp/boop-final-signal.log`, and
+`/tmp/boop-final-tests.log` (local, not committed).
+
+Seven skips are snapshot tests; four are existing real-localhost HTTP tests that
+skip when the OS sandbox prohibits sockets. An existing `.enable` marker was
+left intact. The first GUI-enabled attempt was interrupted (exit 130); the added
+`BOOP_SKIP_SNAPSHOTS=1` override allows sandbox verification without renaming that
+marker. Outside the sandbox, unset the override and use the existing marker to
+run the snapshot harness. Frozen onboarding does not install hooks or start BLE
+scanning, and snapshot engines use the scratch defaults suite.
+
+### Data-driven scene list
+
+`CompanionScene.all` contains 44 fixtures:
+
+- All six states × hop/cheer/dance (18).
+- Working light/hard/grinding (3).
+- Needs-you fine/checkIt/careful (3).
+- Uh-oh error/stuck/hungry, with their bubbles (3).
+- Greet levels 1/2/3 and boop (4).
+- Skins default/sky/mint/ember/midnight; accessories none/sprout/scarf/crown;
+  silhouettes default/round/tall (12).
+- Idle gift with story line (1).
+
+Each fixture renders both a creature and real popover in light and dark (176
+PNGs). Additional paired-appearance scenes: recap (2), profile empty/three lines
+(4), all five onboarding steps (10), and 15 settings scenes (30): sounds, focus,
+language, voice, quick, leaderboard, profile, retire, general, buddy, agents,
+displays, about, companion controls together, and all sections together.
+**222 new PNG scenes**, alongside the existing snapshot collection. The harness
+checks that every creature/popover catalog output exists.
+
+### UX decisions and remaining verification
+
+- Quick command uses a quiet notification, never a shell subprocess. This tree
+  has no documented adapter for safely injecting text into the focused running
+  agent session. Settings explicitly describes the fallback. Notification
+  delivery still depends on macOS authorization.
+- Focus is scheduled in local whole hours, every day; overnight ranges work and
+  equal start/end means all day. Manual focus lasts until a schedule boundary.
+- Names are trimmed and constrained to the existing wire's 23-byte UTF-8 limit
+  while typing so the Mac and device keep the same permanent name.
+- The first-cheer demo does not create a session, completion, ledger row or XP.
+  It is skipped by the engine if real work has already completed.
+- Settings and profile use reusable native windows. Session rows scroll after
+  three rows. The onboarding window is 660 pt high to give the creature room.
+- Retirement waits for current persistence/voice work, prevents older extraction
+  and reflection results from restoring the previous owner, wipes the local
+  owner store and sends the retire command over the existing BLE transport.
+  This command is not an acknowledgment of hardware delivery.
+- New face art, motion, layout and contrast still require the requested outside-
+  sandbox PNG review and a real onboarding/device walkthrough. No screenshot,
+  Bluetooth delivery, live hook/doctor, notification presentation or hardware
+  fidelity pass is claimed here.

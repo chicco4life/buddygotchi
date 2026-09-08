@@ -11,8 +11,11 @@ struct OnboardingView: View {
     @State private var selectedDeviceUUID: UUID?
     @State private var pairingTask: Task<Void, Never>?
     @State private var didAutoConnect = false
+    @State private var waking = false
+    @State private var wakeStarted = Date.now
     @State private var copiedPrompt = false
     @State private var copiedPromptResetTask: Task<Void, Never>?
+    @Environment(\.snapshotFrozen) private var snapshotFrozen
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(defaults: UserDefaults = .standard, engine: BuddyEngine, esp32Output: ESP32Output, onFinish: @escaping () -> Void) {
@@ -51,7 +54,7 @@ struct OnboardingView: View {
             .padding(.bottom, 34)
         }
         .frame(width: BuddyTheme.onboardingWidth, height: BuddyTheme.onboardingHeight)
-        .preferredColorScheme(.light)
+
         .onAppear {
             normalizeSelectedSpecies()
         }
@@ -100,32 +103,20 @@ struct OnboardingView: View {
                 subtitle: BuddyCopy.Onboarding.welcomeSubtitle
             )
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text(BuddyCopy.Onboarding.nameLabel)
-                    .font(.buddy(9.5, weight: .semibold))
-                    .foregroundStyle(BuddyTheme.inkFaint)
-
-                TextField(
-                    BuddyCopy.Onboarding.namePlaceholder,
-                    text: Binding(
-                        get: { model.buddyName },
-                        set: { model.buddyName = $0 }
-                    )
-                )
-                .textFieldStyle(.plain)
-                .font(.buddy(15))
-                .foregroundStyle(BuddyTheme.ink)
-                .multilineTextAlignment(.leading)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 12)
-                .buddySurface(BuddyTheme.paperSunken)
+            TimelineView(.animation(minimumInterval: 0.1, paused: !waking)) { timeline in
+                CreatureView(creature: wakeCreature(elapsed: timeline.date.timeIntervalSince(wakeStarted)), grey: true, wakeProgress: waking ? timeline.date.timeIntervalSince(wakeStarted) : 0)
+                    .frame(width: 260, height: 200)
             }
-            .frame(width: 320)
 
             Spacer()
 
-            Button(BuddyCopy.Onboarding.meetBuddy) {
-                model.advance()
+            Button(BuddyCopy.phase7("continue")) {
+                if waking { model.advance(); return }
+                waking = true; wakeStarted = .now
+                Task {
+                    try? await Task.sleep(for: .seconds(reduceMotion ? 0 : 5))
+                    if model.step == .welcome { model.advance() }
+                }
             }
             .buttonStyle(BuddyPrimaryButtonStyle(size: .large))
             .keyboardShortcut(.return, modifiers: [])
@@ -139,10 +130,16 @@ struct OnboardingView: View {
                 title: BuddyCopy.Onboarding.agentsTitle,
                 subtitle: BuddyCopy.Onboarding.agentsSubtitle
             )
+            CreatureView(creature: engine.state.creature, grey: model.heardAgents.isEmpty)
+                .frame(width: 150, height: 100)
+
 
             VStack(spacing: 10) {
                 ForEach(AgentKind.allCases) { agent in
-                    agentRow(agent)
+                    VStack(alignment: .leading, spacing: 4) {
+                        agentRow(agent)
+                        if model.heardAgents.contains(agent) { Text(BuddyCopy.heardFrom(agent.displayName)).font(.buddy(11)).foregroundStyle(BuddyTheme.greenInk) }
+                    }
                 }
             }
             .frame(width: 520)
@@ -169,95 +166,38 @@ struct OnboardingView: View {
                     .keyboardShortcut(.return, modifiers: [])
             }
         }
-        .onAppear {
-            model.refreshAgents()
-            if !didAutoConnect {
-                let detected = AgentKind.allCases.filter { model.agentDetection[$0] == true }
-                if detected.count == 1, model.agentInstalled[detected[0]] != true {
-                    model.connect(agent: detected[0], diagnosticLog: engine.diagnosticLog)
-                }
-                didAutoConnect = true
+        .task {
+            guard !snapshotFrozen else { return }
+            while !Task.isCancelled {
+                model.observe(engine.diagnosticLog.entries)
+                try? await Task.sleep(for: .seconds(1))
             }
+        }
+        .onAppear {
+            guard !snapshotFrozen else { return }
+            model.refreshAgents()
         }
     }
 
+
+    private func wakeCreature(elapsed: Double) -> Creature {
+        var creature = Creature.initial
+        if waking && elapsed > 1 { creature.state = .idle }
+        if waking && elapsed > 3 { creature.overlay = .greet; creature.greetLevel = 1 }
+        return creature
+    }
+
     private var firstContactStep: some View {
-        VStack(spacing: 18) {
-            Spacer(minLength: 18)
-
-            listeningIndicator
-                .frame(height: 180)
-
-            stepHeader(
-                title: model.heardFromAgent.map { BuddyCopy.heardFrom($0.displayName) } ?? BuddyCopy.Onboarding.firstContactTitle,
-                subtitle: model.heardFromAgent == nil ? BuddyCopy.Onboarding.firstContactWaiting : nil
-            )
-
-            Button(action: copyTestPrompt) {
-                Text(copiedPrompt ? BuddyCopy.Onboarding.copied : BuddyCopy.Onboarding.copyPrompt)
-                    .font(.buddy(13, weight: .semibold))
-                    .foregroundStyle(BuddyTheme.inkSoft)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .overlay(
-                        Capsule()
-                            .stroke(BuddyTheme.ink.opacity(0.15), lineWidth: 1)
-                    )
-            }
-            .buttonStyle(.plain)
-            .opacity(model.heardFromAgent == nil ? 1 : 0)
-            .disabled(model.heardFromAgent != nil)
-
-            if model.showingTroubleshooting {
-                HStack(alignment: .top, spacing: 10) {
-                    Circle()
-                        .fill(engine.state.desktop.status == .connected ? BuddyTheme.green : BuddyTheme.clay)
-                        .frame(width: 9, height: 9)
-                        .padding(.top, 5)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(BuddyCopy.Onboarding.troubleshootingTitle)
-                            .font(.buddy(13, weight: .semibold))
-                            .foregroundStyle(BuddyTheme.ink)
-                        Text(BuddyCopy.Onboarding.troubleshooting)
-                            .font(.buddy(11))
-                            .foregroundStyle(BuddyTheme.inkSoft)
-                    }
-                    Spacer()
-                }
-                .padding(14)
-                .frame(width: 440)
-                .buddySurface()
-            }
-
+        VStack(spacing: 24) {
             Spacer()
-
-            HStack {
-                Button(BuddyCopy.shared.onboarding.back) { model.goBack() }
-                    .buttonStyle(BuddySecondaryButtonStyle(size: .large))
-                Spacer()
-                if model.heardFromAgent == nil {
-                    Button(BuddyCopy.shared.onboarding.skip) { model.advance() }
-                        .buttonStyle(BuddySecondaryButtonStyle(size: .large))
-                        .keyboardShortcut(.return, modifiers: [])
-                } else {
-                    Button(BuddyCopy.shared.onboarding.next) { model.advance() }
-                        .buttonStyle(BuddyPrimaryButtonStyle(size: .large))
-                        .keyboardShortcut(.return, modifiers: [])
-                }
-            }
-        }
-        .onAppear {
-            model.firstContactStartedAt = .now
-            updateHeardAgent(from: engine.state.activeSessions)
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(60))
-                if model.step == .firstContact && model.heardFromAgent == nil {
-                    model.showingTroubleshooting = true
-                }
-            }
-        }
-        .onChange(of: engine.state.activeSessions) { _, sessions in
-            updateHeardAgent(from: sessions)
+            CreatureView(creature: engine.state.creature, grey: model.heardAgents.isEmpty).frame(width: 240, height: 180)
+            stepHeader(title: BuddyCopy.phase7("name"), subtitle: BuddyCopy.phase7("namePermanent"))
+            TextField(BuddyCopy.Onboarding.namePlaceholder, text: Binding(get: { model.buddyName }, set: { model.buddyName = $0.prefix(utf8Bytes: 23) }))
+                .textFieldStyle(.roundedBorder).frame(width: 320).disabled(model.nameIsLocked)
+            Spacer()
+            Button(BuddyCopy.phase7("continue")) { if model.saveName() { esp32Output.refreshSnapshot(); model.advance() } }
+                .buttonStyle(BuddyPrimaryButtonStyle(size: .large))
+                .disabled(model.buddyName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
     }
 
@@ -316,10 +256,19 @@ struct OnboardingView: View {
         }
     }
 
+    private var firstCheer: Creature {
+        if engine.state.creature.state == .done { return engine.state.creature }
+        var creature = Creature.initial
+        creature.state = .done; creature.cheer = .hop; creature.gift = true
+        creature.giftLine = BuddyCopy.phase7("firstOne")
+        return creature
+    }
+
     private var doneStep: some View {
         VStack(spacing: 18) {
             Spacer(minLength: 10)
-            adoptionCard
+            CreatureView(creature: firstCheer, grey: model.heardAgents.isEmpty).frame(width: 240, height: 180)
+            Text(BuddyCopy.phase7("firstOne")).font(.buddy(18, weight: .semibold))
 
             VStack(spacing: 10) {
                 HStack {
@@ -390,7 +339,7 @@ struct OnboardingView: View {
                 .buttonStyle(BuddyPrimaryButtonStyle(size: .large))
                 .keyboardShortcut(.return, modifiers: [])
             }
-        }
+        }.onAppear { if !snapshotFrozen { engine.firstCheer() } }
     }
 
     /// The first-contact step used to watch a sleeping pet wake up. The creature
@@ -650,6 +599,7 @@ struct OnboardingView: View {
     }
 
     private func startScanning() {
+        guard !snapshotFrozen else { return }
         selectedDeviceUUID = nil
         model.pairingTimedOut = false
         pairingTask?.cancel()

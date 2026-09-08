@@ -6,6 +6,10 @@ import Observation
 @MainActor
 final class BuddyEngine {
     private(set) var state: BuddyState = .initial
+    private(set) var teachTool: String?
+    private var retiring = false
+    private var activeRecaps = 0
+    private var scheduledFocus: Bool?
     let diagnosticLog: DiagnosticLog
     let extractor = Extractor()
     private var extractionTail: Task<Void, Never>?
@@ -186,6 +190,7 @@ final class BuddyEngine {
     }
 
     func ingest(_ input: RawHookPayload, hookPid: Int32? = nil) async {
+        guard !retiring else { return }
         // Awaiting the extractor yields the main actor. Chain handoffs so an
         // overlapping HTTP result cannot reach the reducer before its call.
         let previous = extractionTail
@@ -204,6 +209,7 @@ final class BuddyEngine {
         lastSessionActivity = payload.timestamp
         let hour = dayCalendar.localHour(at: payload.timestamp)
         let extraction = await extractor.ingest(payload, localHour: hour)
+        guard !retiring else { await extractor.drop(sessionId: payload.sessionId); return }
         for event in extraction.events {
             if case .adapterDegraded(_, let source) = event { diagnosticLog.log(category: "hook", source: source, event: "adapterDegraded", detail: "lifecycle-only") }
             if case .sessionEnded = event { sessionEnded(sessionId: payload.sessionId) }
@@ -275,6 +281,7 @@ final class BuddyEngine {
             if !resolveApproval(requestId: requestId, decision: decision) {
                 diagnosticLog.log(category: "device", source: "esp32", event: "unknownDecision", detail: id)
             }
+        case .quick: NotificationManager.shared.postQuickCommand(quickCommand)
         case .collect: collectArrived()
         case .boop: boop()
         case .posture(let posture): devicePostureArrived(posture)
@@ -283,6 +290,58 @@ final class BuddyEngine {
         case .focus(let on): focusToggled(on: on)
         case .ack, .status: break
         }
+    }
+
+    func firstCheer() {
+        guard !defaults.bool(forKey: DefaultsKey.firstCheerShown) else { return }
+        defaults.set(true, forKey: DefaultsKey.firstCheerShown)
+        apply(.onboardingCheer(at: clock.now(), line: BuddyCopy.phase7("firstOne", language: state.language)))
+    }
+    var quickCommand: String { defaults.string(forKey: DefaultsKey.quickCommand) ?? "continue" }
+    func setQuickCommand(_ text: String) { defaults.set(String(text.prefix(1000)), forKey: DefaultsKey.quickCommand) }
+    func dismissTeach(tool: String) async {
+        do { try await store?.muteTool(tool); if teachTool == tool { teachTool = nil } }
+        catch { storeFailure(error) }
+    }
+    static func preview(state: BuddyState, defaults: UserDefaults) -> BuddyEngine {
+        let engine = BuddyEngine(defaults: defaults)
+        engine.internalState.buddy = state; engine.state = state
+        return engine
+    }
+    func retire(sendToDevice: () -> Void = {}) async throws {
+        guard !retiring else { return }
+        retiring = true
+        await finishPendingWork()
+        defer { retiring = false }
+        giftVoiceTask?.cancel(); bubbleVoiceTask?.cancel(); recapTask?.cancel()
+        await recapTask?.value
+        while activeRecaps > 0 { try? await Task.sleep(for: .milliseconds(10)) }
+        giftVoiceRevision += 1; bubbleVoiceRevision += 1
+        try await store?.retire()
+        resolveAllPendingApprovals(decision: .passthrough)
+        sendToDevice()
+        let previous = state
+        for id in Array(internalState.sessions.keys) { cancelWatcher(sessionId: id); await extractor.drop(sessionId: id) }
+        internalState = .initial(staleMs: config.staleTimeoutMs, celebrateDurationMs: config.celebrateDurationMs, workStallTimeoutMs: config.workStallTimeoutMs, approvalTimeoutMs: config.approvalTimeoutMs)
+        internalState.buddy.language = previous.language
+        state = internalState.buddy
+        cachedProfile = []; cachedTraits = [:]; contextLoaded = false; contextLoad = nil
+        teachTool = nil; recappedDays = []; recapFactsCache = nil; recapAttempt = nil; stopHourCache = nil
+        defaults.removeObject(forKey: DefaultsKey.buddyName)
+        defaults.removeObject(forKey: DefaultsKey.buddyNameLocked)
+        defaults.removeObject(forKey: DefaultsKey.firstCheerShown)
+        defaults.set(false, forKey: DefaultsKey.setupCompleted)
+        defaults.removeObject(forKey: DefaultsKey.onboardingStep)
+        for output in outputs { output.stateDidChange(prev: previous, next: state) }
+    }
+    func updateFocusHours() {
+        guard defaults.bool(forKey: DefaultsKey.focusHoursEnabled) else {
+            if scheduledFocus == true { focusToggled(on: false) }; scheduledFocus = nil; return
+        }
+        let hour = dayCalendar.localHour(at: clock.now())
+        let start = (defaults.object(forKey: DefaultsKey.focusStart) as? Int ?? 9), end = (defaults.object(forKey: DefaultsKey.focusEnd) as? Int ?? 17)
+        let active = start == end || (start < end ? hour >= start && hour < end : hour >= start || hour < end)
+        if scheduledFocus != active { scheduledFocus = active; focusToggled(on: active) }
     }
 
     func focusToggled(on: Bool) {
@@ -531,7 +590,15 @@ final class BuddyEngine {
     // MARK: - Internal
 
     private func apply(_ event: BuddyEvent, persistenceResult: Bool = false) {
+        guard !retiring else { return }
         if loadingStore && !persistenceResult { deferredEvents.append(event); return }
+        if case .toolCalled(_, _, _, let tool, _, _) = event {
+            enqueue { store in
+                if try await store.claimTool(tool), TeachCatalog.line(tool: tool, language: self.state.language) != nil {
+                    self.teachTool = tool
+                }
+            }
+        }
         let prev = state
         let previousPromptIds = Self.promptIds(in: internalState)
         var next = reduce(internalState, event, localHour: dayCalendar.localHour(at: event.at))
@@ -616,6 +683,7 @@ final class BuddyEngine {
     private var reflectedDays: Set<String> = []
     private var maintenanceDay: String?
     func maintenance() {
+        updateFocusHours()
         let now = clock.now(), day = localDay(at: clock.now())
         if maintenanceDay != day {
             maintenanceDay = day
@@ -702,7 +770,7 @@ final class BuddyEngine {
             agent: agent, timeOfDay: TimeOfDay(hour: dayCalendar.localHour(at: clock.now())), language: state.language, byteCap: cap)
     }
     private func scheduleVoice(previous: BuddyState, event: BuddyEvent) {
-        switch event { case .voiceLine, .recapReady, .growthUpdated, .languageChanged: return; default: break }
+        switch event { case .onboardingCheer, .voiceLine, .recapReady, .growthUpdated, .languageChanged: return; default: break }
         // Invalidate transient text on a new interaction; an old model reply must not cover a card.
         if previous.creature.state != state.creature.state || previous.creature.card?.id != state.creature.card?.id {
             bubbleVoiceRevision += 1; bubbleVoiceTask?.cancel()
@@ -762,6 +830,9 @@ final class BuddyEngine {
         }.first ?? 18
     }
     func makeRecap(force: Bool = true) async throws -> Recap? {
+        guard !retiring else { return nil }
+        activeRecaps += 1
+        defer { activeRecaps -= 1 }
         await flushStore()
         let day = localDay(at: clock.now())
         let revision = factsRevision
@@ -780,8 +851,8 @@ final class BuddyEngine {
         var appRequest = request; appRequest.byteCap = VoiceCap.paragraph.rawValue
         async let device = voice.line(for: request)
         async let paragraph = voice.line(for: appRequest)
-        let recap = await Recap(line: device.text, paragraph: paragraph.text)
-        guard !Task.isCancelled else { return nil }
+        let recap = await Recap(line: device.text, paragraph: paragraph.text, turns: recapFacts.turns, tasks: recapFacts.tasks, biggest: recapFacts.biggestMoment?.rawValue ?? "—")
+        guard !Task.isCancelled, !retiring else { return nil }
         recappedDays.insert(day); try await store?.markRecapDay(day)
         // A request may arrive during generation: retain the app recap, but do not cover it.
         apply(.recapReady(at: clock.now(), recap: recap))

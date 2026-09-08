@@ -63,7 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             SparkleUpdateManager.shared.start()
             statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
             if let button = statusItem?.button {
-                button.image = DesktopOutput.statusIcon(for: .sleep)
+                button.image = DesktopOutput.statusIcon(for: Creature.initial)
                 button.action = #selector(statusItemClicked)
                 button.target = self
                 button.sendAction(on: [.leftMouseUp, .rightMouseUp])
@@ -77,7 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
             let popover = NSPopover()
             popover.behavior = .transient
-            popover.appearance = NSAppearance(named: .aqua)
+            popover.appearance = nil
             NotificationManager.shared.setup(engine: engine) { [weak self] in
                 self?.showPopover()
             }
@@ -269,9 +269,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         popover.contentViewController?.view.window?.makeKey()
     }
 
+    @objc private func showTodayRecap() {
+        Task { _ = try? await engine.makeRecap(); showPopover() }
+    }
+
     @objc private func openSettingsFromMenu() {
-        showPopover()
-        NotificationCenter.default.post(name: .boopOpenSettings, object: nil)
+        guard let esp32Output else { return }
+        CompanionWindows.shared.settings(engine: engine, device: esp32Output, onOnboarding: { [weak self] in self?.showOnboardingWindow() })
     }
 
     @objc private func checkForUpdatesFromMenu() {
@@ -289,6 +293,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func showStatusMenu() {
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.openBoop, action: #selector(togglePopover), keyEquivalent: ""))
+        menu.addItem(NSMenuItem(title: BuddyCopy.phase7("recap"), action: #selector(showTodayRecap), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.settings, action: #selector(openSettingsFromMenu), keyEquivalent: ","))
         menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.checkForUpdates, action: #selector(checkForUpdatesFromMenu), keyEquivalent: ""))
         menu.addItem(.separator())

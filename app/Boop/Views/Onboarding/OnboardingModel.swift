@@ -29,8 +29,8 @@ enum BuddyOutputTarget: String, CaseIterable, Identifiable {
 enum OnboardingStep: Int, CaseIterable {
     case welcome
     case agents
-    case firstContact
     case display
+    case firstContact
     case done
 }
 
@@ -51,9 +51,19 @@ final class OnboardingModel {
         }
     }
 
-    var buddyName: String {
-        didSet {
-            defaults.set(buddyName, forKey: DefaultsKey.buddyName)
+    var buddyName: String
+    private(set) var heardAgents: Set<AgentKind> = []
+    var nameIsLocked: Bool { defaults.bool(forKey: DefaultsKey.buddyNameLocked) || (defaults.bool(forKey: DefaultsKey.setupCompleted) && !(defaults.string(forKey: DefaultsKey.buddyName) ?? "").isEmpty) }
+    func saveName() -> Bool {
+        let name = buddyName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return false }
+        if !nameIsLocked { defaults.set(name.prefix(utf8Bytes: 23), forKey: DefaultsKey.buddyName); defaults.set(true, forKey: DefaultsKey.buddyNameLocked) }
+        buddyName = defaults.string(forKey: DefaultsKey.buddyName) ?? name
+        return true
+    }
+    func observe(_ entries: [DiagnosticEntry]) {
+        for entry in entries where entry.category == "hook" {
+            if let agent = AgentKind(rawValue: entry.source) { heardAgents.insert(agent); heardFromAgent = agent }
         }
     }
 
@@ -157,7 +167,7 @@ final class OnboardingModel {
     func complete() {
         defaults.set(selectedSpecies, forKey: DefaultsKey.buddySpecies)
         defaults.set(selectedOutput.rawValue, forKey: DefaultsKey.buddyOutput)
-        defaults.set(buddyName, forKey: DefaultsKey.buddyName)
+        _ = saveName()
         if isPackagedApp {
             LoginItemManager.shared.setEnabled(launchAtLogin)
         }

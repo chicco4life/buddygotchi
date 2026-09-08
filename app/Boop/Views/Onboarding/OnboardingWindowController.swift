@@ -20,7 +20,7 @@ final class OnboardingWindowController: NSWindowController {
         window.isRestorable = false
         window.center()
         window.backgroundColor = NSColor(buddyHex: BuddyPalette.paper)
-        window.appearance = NSAppearance(named: .aqua)
+        window.appearance = nil
         super.init(window: window)
     }
 

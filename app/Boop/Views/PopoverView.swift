@@ -90,7 +90,7 @@ struct PopoverView: View {
         }
         .padding(18)
         .frame(width: BuddyTheme.popoverWidth, height: BuddyTheme.unfinishedSetupHeight)
-        .preferredColorScheme(.light)
+
     }
 
     // MARK: - Live View
@@ -100,6 +100,28 @@ struct PopoverView: View {
     private var liveView: some View {
         VStack(spacing: 0) {
             headerRow
+            CreatureView(creature: engine.state.creature, cosmetic: engine.state.cosmetic)
+                .frame(height: 180)
+            if let bubble = engine.state.creature.bubble, engine.state.creature.card == nil {
+                Text(bubble).font(.buddy(12)).foregroundStyle(BuddyTheme.ink)
+                    .padding(10).buddySurface()
+            }
+            if engine.state.creature.gift && engine.state.creature.card == nil {
+                Button(action: { engine.collectArrived() }) {
+                    HStack {
+                        Circle().fill(BuddyTheme.amber.gradient).frame(width: 18, height: 18)
+                        Text(engine.state.creature.giftLine ?? BuddyCopy.phase7("collect"))
+                            .font(.buddy(12))
+                    }.frame(maxWidth: .infinity, alignment: .leading)
+                }.buttonStyle(BuddyPlainButtonStyle())
+            }
+            if let tool = engine.teachTool, engine.state.creature.card == nil {
+                HStack {
+                    Text(TeachCatalog.line(tool: tool, language: engine.state.language) ?? tool).font(.buddy(11))
+                    Button { Task { await engine.dismissTeach(tool: tool) } } label: { Image(systemName: "xmark") }
+                        .accessibilityLabel(BuddyCopy.phase7("quietTool"))
+                }.foregroundStyle(BuddyTheme.inkSoft)
+            }
 
             if showMenuHint {
                 Spacer().frame(height: 6)
@@ -130,39 +152,20 @@ struct PopoverView: View {
                     .transition(.opacity)
             }
 
-            if let prompt = engine.state.prompt {
-                Spacer().frame(height: 12)
-                ToolCardView(
-                    prompt: prompt,
-                    waitingCount: engine.state.sessions.waiting,
-                    onApprove: prompt.isApproval ? { engine.resolveApproval(requestId: prompt.id, decision: .allow) } : nil,
-                    onDeny: prompt.isApproval ? { engine.resolveApproval(requestId: prompt.id, decision: .deny) } : nil
-                )
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            } else if let errored = engine.state.firstErrored {
-                Spacer().frame(height: 12)
-                ErrorCardView(
-                    source: errored.source,
-                    sessionLabel: errored.sessionLabel,
-                    tool: errored.tool,
-                    hint: errored.hint,
-                    onDismiss: { engine.dismissError(sessionId: errored.id) }
-                )
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-
-            if let recap = engine.state.recap, engine.state.prompt == nil {
-                Text(recap.paragraph)
-                    .font(.buddy(11))
-                    .foregroundStyle(BuddyTheme.inkSoft)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            if let card = engine.state.creature.card {
+                NeedsYouCard(card: card, approve: { engine.resolveApproval(requestId: card.id, decision: .allow) }, deny: { engine.resolveApproval(requestId: card.id, decision: .deny) })
                     .padding(.top, 12)
+            }
+            if let recap = engine.state.recap, engine.state.prompt == nil {
+                RecapView(recap: recap).padding(.top, 12)
             }
 
             let rows = activityRows
             if !rows.isEmpty {
                 Spacer().frame(height: 12)
-                ActivityList(rows: rows)
+                ScrollView {
+                    ActivityList(rows: rows, maxRows: rows.count)
+                }.frame(height: min(CGFloat(rows.count) * 48, 144))
                     .transition(.opacity)
             } else if engine.state.sessions.total == 0 {
                 Spacer().frame(height: 12)
@@ -178,7 +181,7 @@ struct PopoverView: View {
         .frame(width: BuddyTheme.popoverWidth)
         .frame(minHeight: BuddyTheme.liveViewHeight)
         .animation(reduceMotion ? nil : Animation.buddyBloom(), value: engine.state.prompt != nil)
-        .preferredColorScheme(.light)
+
     }
 
     /// Name, state, and the way out. One row instead of a pill and a footer.
@@ -215,7 +218,7 @@ struct PopoverView: View {
                 .accessibilityLabel(BuddyCopy.shared.popover.keepsakeShelf)
             }
 
-            Button(action: { showingSettings = true }) {
+            Button(action: { CompanionWindows.shared.settings(engine: engine, device: esp32Output, onOnboarding: onOpenOnboarding) }) {
                 Image(systemName: "gearshape")
                     .font(.caption)
                     .foregroundStyle(BuddyTheme.inkSoft)
@@ -234,18 +237,22 @@ struct PopoverView: View {
                 .frame(width: 5, height: 5)
                 .accessibilityHidden(true)
 
-            Text(serverWarning ?? engine.state.desktop.status.rawValue)
+            Text(serverWarning ?? BuddyCopy.phase7(engine.state.desktop.status.rawValue))
                 .font(.buddy(11))
                 .foregroundStyle(serverWarning == nil ? BuddyTheme.inkFaint : BuddyTheme.clayInk)
                 .lineLimit(2)
 
             Spacer(minLength: 8)
 
-            if engine.state.sessions.total > 0 {
-                Text(BuddyCopy.shared.popover.activeTemplate.replacingOccurrences(of: "{count}", with: "\(engine.state.sessions.running)"))
-                    .font(.buddy(11))
-                    .foregroundStyle(BuddyTheme.inkFaint)
-            }
+            Text(BuddyCopy.growthLabel(engine.state.growth)).font(.buddy(11))
+            Toggle(BuddyCopy.phase7("focus"), isOn: Binding(get: { engine.state.creature.focus }, set: { engine.focusToggled(on: $0) }))
+                .toggleStyle(.button).font(.buddy(10))
+            Menu {
+                Button(BuddyCopy.phase7("recap")) { Task { _ = try? await engine.makeRecap() } }
+                Button(BuddyCopy.phase7("profile")) { CompanionWindows.shared.profile(engine: engine) }
+            } label: { Image(systemName: "ellipsis") }
+            .menuStyle(.borderlessButton).fixedSize()
+
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(connectionAccessibilityLabel)
@@ -255,22 +262,7 @@ struct PopoverView: View {
     /// reducer clears `lastCompleted` on the next prompt or work signal, so the
     /// done line ages out on its own.
     private var activityRows: [ActivityRow] {
-        let completed = engine.state.lastCompleted
-        var claimed = false
-        var rows = engine.state.activeSessions.map { session -> ActivityRow in
-            // The session that just finished is still listed, as idle. Say what it
-            // finished instead of saying nothing — that is the whole of what the
-            // review card was for.
-            if !claimed, let completed, session.state == .idle, completed.source == session.source {
-                claimed = true
-                return ActivityRow(completed: completed, id: session.id)
-            }
-            return ActivityRow(session: session, state: engine.state)
-        }
-        if !claimed, let completed, rows.isEmpty {
-            rows.append(ActivityRow(completed: completed))
-        }
-        return rows
+        engine.state.activeSessions.map { ActivityRow(session: $0, state: engine.state) }
     }
 
     private var serverWarning: String? {
@@ -302,7 +294,7 @@ struct PopoverView: View {
     private var stateInk: Color { BuddyTheme.stateInk(engine.state.pet.state) }
     private var stateFill: Color { BuddyTheme.stateFill(engine.state.pet.state) }
 
-    private var stateLabel: String { "L\(engine.state.growth.level) · \(engine.state.growth.streak)d" }
+    private var stateLabel: String { BuddyCopy.phase7(engine.state.creature.state.rawValue, language: engine.state.language) }
 
     private var statusColor: Color {
         switch engine.state.desktop.status {
@@ -730,7 +722,8 @@ struct ActivityRow: Identifiable {
         tone = ActivityRow.tone(for: session.state)
         agent = AgentKind(rawValue: session.source)?.displayName ?? session.source
         status = ActivityRow.label(for: session.state)
-        detail = activityDetail(for: session, in: state)
+        detail = [session.currentTool, session.moment.map { BuddyCopy.phase7($0.kind.rawValue) } ?? session.cheer.map { BuddyCopy.phase7($0.rawValue) }]
+            .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
         // Elapsed is derived from the state's own timestamp rather than a live
         // clock: the popover redraws on every state change, and a ticking second
         // counter is exactly the restlessness this surface is meant to lose.

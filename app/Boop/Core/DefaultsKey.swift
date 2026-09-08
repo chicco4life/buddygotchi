@@ -1,6 +1,15 @@
 import Foundation
 
 enum DefaultsKey {
+    static let buddyNameLocked = "buddyNameLocked"
+    static let firstCheerShown = "firstCheerShown"
+    static let quickCommand = "quickCommand"
+    static let leaderboardOptIn = "leaderboardOptIn"
+    static let soundVolume = "soundVolume"
+    static let focusHoursEnabled = "focusHoursEnabled"
+    static let focusStart = "focusStart"
+    static let focusEnd = "focusEnd"
+
     static let language = "language"
     static let voiceRuntime = "voiceRuntime"
     static let agentDrawingsEnabled = "agentDrawingsEnabled"

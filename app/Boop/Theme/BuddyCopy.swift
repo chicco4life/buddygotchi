@@ -1,3 +1,4 @@
+import Foundation
 enum BuddyCopy {
     static let shared = Book()
 
@@ -343,4 +344,39 @@ enum BuddyCopy {
         "AI",
         "HTTP",
     ]
+}
+
+
+extension BuddyCopy {
+    static func growthLabel(_ growth: GrowthSnapshot) -> String { "L\(growth.level) · \(growth.streak)d" }
+    static func phase7(_ key: String, language: String? = nil) -> String {
+        let ko = (language ?? UserDefaults.standard.string(forKey: DefaultsKey.language)) == "ko"
+        let copy: [String: (String, String)] = [
+            "hop": ("Hop", "폴짝"), "cheer": ("Cheer", "환호"), "dance": ("Dance", "춤"),
+            "hardWonPass": ("Green at last", "드디어 성공"), "redStreakEnded": ("Back on track", "다시 순조롭게"),
+            "firstEver": ("First one", "첫 번째"), "backAfterAbsence": ("Welcome back", "돌아왔네요"),
+            "sameFileAgain": ("One more little change", "작은 수정 하나 더"), "lateNight": ("A quiet night", "조용한 밤"), "nthRateLimit": ("Waiting for a refill", "충전을 기다리는 중"),
+            "asleep": ("Asleep", "잠자는 중"), "idle": ("Here with you", "함께 있어요"),
+            "working": ("Working", "작업 중"), "needsYou": ("Needs you", "도움이 필요해요"),
+            "done": ("Done", "해냈어요"), "uhoh": ("Uh-oh", "이런"),
+            "fine": ("Fine", "괜찮아요"), "checkIt": ("Check it", "확인해 주세요"), "careful": ("Careful", "주의해 주세요"),
+            "focus": ("Focus", "집중"), "collect": ("Collect", "받기"), "approve": ("Approve", "허용"), "deny": ("Deny", "거부"),
+            "recap": ("Show today's recap", "오늘의 요약 보기"), "turns": ("Turns", "대화"), "tasks": ("Tasks", "작업"), "biggest": ("Biggest moment", "가장 큰 순간"),
+            "profile": ("What your buddy knows", "버디가 알고 있는 것"), "emptyProfile": ("Still getting to know you.", "아직 알아가는 중이에요."),
+            "clear": ("Clear all", "모두 지우기"), "delete": ("Delete", "삭제"), "cancel": ("Cancel", "취소"),
+            "clearMessage": ("Your buddy’s name, level, and bond are kept. Only these profile lines are cleared.", "버디의 이름, 레벨, 유대감은 유지돼요. 이 프로필 내용만 지워져요."),
+            "english": ("English", "English"), "korean": ("한국어", "한국어"),
+            "language": ("Language", "언어"), "voice": ("Voice", "목소리"), "auto": ("Automatic", "자동"), "off": ("Off", "끄기"),
+            "focusHours": ("Focus hours · daily", "매일 집중 시간"), "start": ("Start", "시작"), "end": ("End", "종료"),
+            "quick": ("Quick command", "빠른 명령"), "quickNote": ("Double tap shows this command in a notification. It isn’t sent to a running agent.", "두 번 누르면 이 명령을 알림으로 보여줘요. 실행 중인 에이전트에 전송하지는 않아요."),
+            "leaderboard": ("Leaderboard · coming soon", "리더보드 · 준비 중"), "volume": ("Volume", "음량"),
+            "retire": ("Retire buddy", "버디 은퇴시키기"), "retireMessage": ("Say goodbye and begin again? This erases growth and everything your buddy learned.", "작별하고 다시 시작할까요? 성장 기록과 버디가 배운 모든 내용이 지워져요."),
+            "name": ("Name your buddy", "버디 이름 짓기"), "namePermanent": ("A name to keep. You can’t change it later.", "오래 간직할 이름이에요. 나중에 바꿀 수 없어요."),
+            "continue": ("Continue", "계속"), "firstOne": ("first one", "첫 번째야"), "quietTool": ("Don’t explain this tool again", "이 도구 설명 끄기"),
+            "settings": ("Settings", "설정"), "connected": ("Connected", "연결됨"), "disconnected": ("No device connected", "기기 연결 안 됨"),
+            "error": ("Couldn't save this change. Please try again.", "변경을 저장하지 못했어요. 다시 시도해 주세요.")
+        ]
+        guard let pair = copy[key] else { return key }
+        return ko ? pair.1 : pair.0
+    }
 }

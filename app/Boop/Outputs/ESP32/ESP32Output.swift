@@ -41,6 +41,12 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
         bleManager.connect(peripheralIdentifier: uuid)
     }
 
+    func refreshSnapshot() { sendNow() }
+
+    func sendRetire() {
+        bleManager.send(Data("{\"cmd\":\"retire\"}\n".utf8))
+    }
+
     func unpair() {
         if bleManager.connectionState == .connected {
             let json = "{\"cmd\":\"unpair\"}\n"
