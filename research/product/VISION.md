@@ -124,10 +124,13 @@ These are the tests every later decision must pass.
    hardware cost is unknown; the software must feel expensive regardless.
 5. **Fail open, fail cute.** If Boop is off, agents behave exactly as they
    would without it. If a link breaks, the buddy shows it in character.
-6. **Local only.** Agent events, memory, personality, and the voice model all
-   run on the Mac. Nothing leaves the machine except an opt-in, pseudonymous
-   leaderboard score (§10.6). File contents, code, and prompt text are never
-   read.
+6. **Local only, and see-extract-forget.** Agent events, memory,
+   personality, and the voice model all run on the Mac. Nothing leaves the
+   machine except an opt-in, pseudonymous leaderboard score (§10.6). The
+   buddy sees the stream of what your agents do in order to learn from it,
+   but it keeps only the small facts it extracts. It never stores
+   transcripts, code, file contents, or prompt text, and everything it has
+   learned can be cleared at any time.
 7. **Scoring is public, simple, and understandable.** Anyone can read how XP
    works in one screen. Anti-farming is best effort, never at the cost of
    clarity.
@@ -211,6 +214,11 @@ A turn completes, tests pass, a task finishes: the buddy cheers, scaled to
 how hard the task was. Big struggle, big celebration. A one-minute task gets a
 hop; an hour of errors and retries gets the full dance and a chirp you can
 hear from the kitchen.
+
+The cheer knows the story. If that turn was the tenth attempt at the same
+test, the buddy says so. If the build had been red all afternoon, going green
+is a bigger deal than green after green. What the buddy has learned about the
+project and about you (§9) turns a generic cheer into a specific one.
 
 The cheer persists until you boop it. That is the come-back call: a task that
 finished while you were reading something else still pulls you back, without
@@ -304,9 +312,7 @@ second. Model choice is an engineering decision. It is conditioned on:
 - a **personality** made of a few slow-moving traits (energy, cheek, warmth,
   curiosity) that drift with how you work: hours, tool mix, outcomes, how you
   respond to nudges, how often you boop it;
-- a small **memory**: the agents it has met, the projects it has seen, a
-  handful of durable moments extracted nightly when the Mac is idle and
-  plugged in;
+- what it has **learned** about you and your work (§10);
 - the current event and time of day.
 
 Rules for the voice:
@@ -329,6 +335,44 @@ which constrains the model choice and means the authored fallback lines are
 written per language, not translated. Which languages ship first is open
 (§18); Korean and English are the working assumption given where the product
 is being tested.
+
+### It learns you
+
+The buddy gets to know you the way a friend at the next desk would: by being
+there, noticing, and remembering a little. Over weeks it builds a small
+picture on three fronts.
+
+- **Your projects.** What they are, which one you are in, what you keep
+  fighting with in each, when you last touched it, what shipped.
+- **You.** Your hours, your rituals (tests first, commits often), the tools
+  and agents you reach for, the things you have said you like or hate.
+- **Your goals and habits.** What you are trying to get done this week, the
+  streaks you are on, the patterns that repeat.
+
+It uses this to say the right thing at the right time. The test that finally
+passes on the tenth try gets a bigger cheer and "ten tries, nice job on the
+tests." A project you have not opened in three weeks gets "oh, the landing
+page, back at it?" A late night gets "we're close, right?" Never analysis,
+never a report, one short line from a friend who was paying attention.
+
+How it learns, at the level this document cares about:
+
+- It watches the same hook stream that drives its body: prompts, tool calls,
+  results, the agent's closing message. All of it is parsed on the Mac the
+  moment it arrives and turned into small structured facts. The raw stream
+  is discarded. We never write a second copy of a transcript.
+- What it keeps is the extracted, higher-level stuff: "tests in this project
+  took ten tries today," "works Sunday mornings," "dislikes writing regex."
+  Human-readable lines, not data.
+- A nightly pass, when the Mac is plugged in and idle, turns the day's facts
+  into a few durable lines and nudges personality traits by small amounts.
+- Everything it knows is on one page in the app, readable line by line, and
+  any line or all of it can be cleared at any time. Clearing is a normal
+  action, not a reset; the buddy keeps its name, level, and bond.
+- It uses what it knows sparingly. A friend who mentions your habits every
+  hour is not a friend.
+
+Working notes and the sourcing behind this are in `IDEAS.md`, idea 1.
 
 ### The channel (agents speaking through the buddy)
 
@@ -488,9 +532,13 @@ second-body path.
   (traits, memory, keepsakes, level) on the Mac, and the device holds a copy
   of level, streak, and stats for travel mode.
 - Nothing about agent activity leaves the machine. Not tokens, not file
-  names, not transcripts.
+  names, not transcripts, not anything the buddy has learned.
 - The voice model runs on the Mac.
-- Excluded from every input, on purpose: file contents, code, prompt text.
+- The buddy sees the agent stream to learn from it (§9) and keeps only
+  extracted facts. It never stores transcripts, code, file contents, or
+  prompt text, in any form. There is no second copy of your work anywhere.
+- Everything the buddy has learned about you is visible in the app and can
+  be cleared at any time, line by line or all at once.
 - Saving and restoring state across Macs is deferred (§18).
 
 ---
@@ -598,6 +646,9 @@ Assumptions made in this draft, to be confirmed or overturned:
   errors, long silence) and tuned to be quiet. A false "stuck" is worse than
   a missed one.
 - **A5.** Streak rest days are banked automatically, one per week.
+- **A6.** Learning runs at one default level of detail. Whether to offer the
+  user a choice of levels (events only, facts, short summaries) is open;
+  see `IDEAS.md`.
 
 Open, deferred to later documents:
 
@@ -629,7 +680,8 @@ Each refines one surface of this vision. Suggested order:
    mode, approval and risk translation, settings.
 3. `UX-GROWTH.md`: level curve, XP formula and its public explanation,
    streaks, cosmetics, share cards, leaderboard.
-4. `UX-VOICE.md`: personality traits, line style guide, sass ceiling, memory,
+4. `UX-VOICE.md`: personality traits, line style guide, sass ceiling, what
+   the buddy learns and the "what your buddy knows" page,
    agent channel rules, model and fallback behavior.
 5. `UX-HELP.md`: come-back call, stuck detection, spend awareness, nudge
    ladder, teach moments, quick commands.
