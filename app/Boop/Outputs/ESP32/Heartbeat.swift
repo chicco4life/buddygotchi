@@ -123,7 +123,9 @@ func renderState(from state: BuddyState, defaults: UserDefaults = .standard, now
         frame.card = .needsYou(id: card.id, tool: card.tool, gloss: card.gloss,
             stakes: card.stakes, n: card.index, of: card.count, approval: card.isApproval)
     }
-    frame.snap = .init(name: defaults.string(forKey: DefaultsKey.buddyName) ?? "Boop")
+    let g = state.growth
+    frame.snap = .init(name: defaults.string(forKey: DefaultsKey.buddyName) ?? "Boop", level: g.level, xp: g.xp, xpNext: g.xpNext, streak: g.streak, best: g.bestStreak, rest: g.restDays, days: g.daysTogether, tasks: g.tasks, today: g.today, biggest: g.biggest)
+    frame.cosmetic = .init(skin: state.cosmetic.skin, accessory: state.cosmetic.accessory, silhouette: state.cosmetic.silhouette)
     if frame.card == nil, state.prompt == nil, let a = state.agentOverlay {
         frame.agent = .init(name: a.agentId, color: a.color ?? "", emotion: a.emotion, say: a.say ?? "")
     }

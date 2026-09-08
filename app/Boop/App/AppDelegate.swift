@@ -25,7 +25,7 @@ extension Notification.Name {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var popover: NSPopover!
-    private let engine = BuddyEngine(memoryStore: FilePetMemoryStore(stateDir: BuddyConfig.default.stateDir))
+    private let engine = BuddyEngine()
     private var serverTask: Task<Void, Never>?
     private var serviceGroup: ServiceGroup?
     private var sigintSource: DispatchSourceSignal?
@@ -138,6 +138,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             showPopover()
         }
         return true
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        Task { @MainActor in
+            await engine.finishPendingWork()
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
     }
 
     func applicationWillTerminate(_ notification: Notification) {

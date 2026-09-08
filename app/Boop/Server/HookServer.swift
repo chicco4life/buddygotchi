@@ -223,13 +223,48 @@ func buildHookServer(
     router.get("/diag/facts") { request, _ -> Response in
         guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
         guard config.headless else { return Response(status: .notFound) }
-        return try encodedResponse(["facts": await engine.factRing.facts])
+        return try encodedResponse(["facts": try await engine.storedFacts()])
     }
 
     router.get("/state") { request, _ -> Response in
         guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
         guard config.headless else { return Response(status: .notFound) }
+        await engine.flushStore()
         return try encodedResponse(await engine.state)
+    }
+
+    router.get("/state/profile") { request, _ -> Response in
+        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
+        guard config.headless else { return Response(status: .notFound) }
+        return try encodedResponse(["lines": try await engine.profileLines()])
+    }
+    router.delete("/state/profile") { request, _ -> Response in
+        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
+        guard config.headless else { return Response(status: .notFound) }
+        try await engine.clearProfile()
+        return Response(status: .noContent)
+    }
+    router.delete("/state/profile/:id") { request, context -> Response in
+        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
+        guard config.headless else { return Response(status: .notFound) }
+        guard let id = context.parameters.get("id").flatMap(Int.init) else { return Response(status: .badRequest) }
+        try await engine.clearProfile(id: id)
+        return Response(status: .noContent)
+    }
+    router.post("/diag/reflect") { request, _ -> Response in
+        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
+        guard config.headless else { return Response(status: .notFound) }
+        return try encodedResponse(["lines": try await engine.reflect()])
+    }
+    router.post("/state/cosmetic") { request, _ -> Response in
+        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
+        guard config.headless else { return Response(status: .notFound) }
+        let bytes = try await request.body.collect(upTo: 1024)
+        do {
+            let cosmetic = try JSONDecoder().decode(EquippedCosmetic.self, from: Data(bytes.readableBytesView))
+            try await engine.equip(cosmetic)
+            return try encodedResponse(cosmetic)
+        } catch { return Response(status: .badRequest) }
     }
 
     router.post("/hook/event") { request, _ -> Response in

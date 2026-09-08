@@ -407,26 +407,4 @@ final class MCPServerTests: XCTestCase {
         XCTAssertEqual(empty, .empty)
     }
 
-    func testFilePetMemoryStoreRoundTrips() async {
-        let dir = NSTemporaryDirectory() + "boop-test-\(UUID().uuidString)"
-        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(atPath: dir) }
-
-        await MainActor.run {
-            let store = FilePetMemoryStore(stateDir: dir)
-            var memory = PetMemory.empty
-            memory.lifetimeSessions = 3
-            memory.hourHistogram[9] = 12
-            memory.agents["claude-code"] = AgentIdentity(color: "sky", signatureEmote: "zen", greeting: "hi", visits: 4, lastSeenAt: 1)
-            store.save(memory)
-            XCTAssertEqual(store.load(), memory)
-        }
-
-        await MainActor.run {
-            // A corrupt file costs the memory, never the launch.
-            let path = dir + "/pet-memory.json"
-            try? Data("not json".utf8).write(to: URL(fileURLWithPath: path))
-            XCTAssertNil(FilePetMemoryStore(stateDir: dir).load())
-        }
-    }
 }

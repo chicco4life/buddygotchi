@@ -1,7 +1,7 @@
 import Foundation
 
 struct Moment: Encodable, Sendable, Equatable {
-    enum Kind: String, Encodable, Sendable { case hardWonPass, redStreakEnded, backAfterAbsence, sameFileAgain, lateNight, nthRateLimit, firstEver }
+    enum Kind: String, Codable, Sendable { case hardWonPass, redStreakEnded, backAfterAbsence, sameFileAgain, lateNight, nthRateLimit, firstEver }
     var kind: Kind
     var facts: [String: String]
 }

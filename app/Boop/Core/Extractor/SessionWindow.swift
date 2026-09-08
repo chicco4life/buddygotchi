@@ -31,10 +31,17 @@ struct SessionWindow: Sendable {
     var lastEffort: EffortTier = .light
     var turns = 0
     var tasks = 0
+    var sawTool = false
 }
-enum ToneClass: String, Encodable, Sendable { case question, negative, positive, neutral }
-enum Fact: Encodable, Sendable, Equatable {
+enum ToneClass: String, Codable, Sendable { case question, negative, positive, neutral }
+enum Fact: Codable, Sendable, Equatable {
     case goalOutcome(goalKey: String, runner: String, outcome: GoalOutcome, attempts: Int, elapsedMs: Double)
+    case tokens(output: Int)
+    case moment(Moment.Kind)
+    case activity(hour: Int, tool: String?, firstGoal: String?)
+    case checkIn(collected: Bool)
+    case greet
+    case denial
     case project(id: String)
     case topics([String])
     case tone(ToneClass)
@@ -43,5 +50,6 @@ enum Fact: Encodable, Sendable, Equatable {
 }
 @MainActor final class FactRing {
     private(set) var facts: [Fact] = []
+    func drain() -> [Fact] { let batch = facts; facts.removeAll(keepingCapacity: true); return batch }
     func receive(_ incoming: [Fact]) { facts.append(contentsOf: incoming); if facts.count > 500 { facts.removeFirst(facts.count - 500) } }
 }

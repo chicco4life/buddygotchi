@@ -4,7 +4,7 @@ import Foundation
 
 enum CreatureState: String, Encodable, Sendable, Equatable, CaseIterable { case asleep, idle, working, needsYou, done, uhoh }
 enum CreatureEffort: String, Encodable, Sendable, Equatable { case light, hard, grinding }
-enum CheerSize: String, Encodable, Sendable, Equatable {
+enum CheerSize: String, Codable, Sendable, Equatable {
     case hop, cheer, dance
     var intensity: Int { switch self { case .hop: 1; case .cheer: 2; case .dance: 3 } }
 }
@@ -236,6 +236,8 @@ struct Pet: Encodable, Sendable, Equatable {
 // MARK: - BuddyState
 
 struct BuddyState: Encodable, Sendable, Equatable {
+    var growth = GrowthSnapshot()
+    var cosmetic = EquippedCosmetic()
     var version: Int
     var updatedAt: Double
 

@@ -294,7 +294,7 @@ struct PopoverView: View {
     private var stateInk: Color { BuddyTheme.stateInk(engine.state.pet.state) }
     private var stateFill: Color { BuddyTheme.stateFill(engine.state.pet.state) }
 
-    private var stateLabel: String { engine.state.creature.statusLabel }
+    private var stateLabel: String { "L\(engine.state.growth.level) · \(engine.state.growth.streak)d" }
 
     private var statusColor: Color {
         switch engine.state.desktop.status {

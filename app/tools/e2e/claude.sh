@@ -47,5 +47,6 @@ settle
 baseline "Claude Code session reaped" "$CC"
 
 tenth_try claude-code
+growth_check
 
 print_summary

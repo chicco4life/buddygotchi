@@ -15,6 +15,9 @@ enum TurnOutcome: Sendable, Equatable { case completed; case failed(errorClass: 
 // MARK: - Events
 
 enum BuddyEvent: Sendable {
+    case growthLoaded(at: Double, growth: GrowthSnapshot, cosmetic: EquippedCosmetic)
+    case growthChanged(at: Double, growth: GrowthSnapshot, cosmetic: EquippedCosmetic)
+    case profileCleared(at: Double)
     case requestDescribed(at: Double, sessionId: String, stakes: Stakes, gloss: String)
     case effortObserved(at: Double, sessionId: String, level: EffortTier)
     case goalRead(at: Double, sessionId: String, goalKey: String, runner: String, outcome: GoalOutcome, tally: GoalTally)
@@ -76,7 +79,8 @@ enum BuddyEvent: Sendable {
 
     var at: Double {
         switch self {
-        case .requestDescribed(let at, _, _, _), .effortObserved(let at, _, _), .goalRead(let at, _, _, _, _, _), .fileEdited(let at, _, _, _), .localTurnHour(let at, _, _), .adapterDegraded(let at, _),
+        case .growthLoaded(let at, _, _), .growthChanged(let at, _, _), .profileCleared(let at),
+             .requestDescribed(let at, _, _, _), .effortObserved(let at, _, _), .goalRead(let at, _, _, _, _, _), .fileEdited(let at, _, _, _), .localTurnHour(let at, _, _), .adapterDegraded(let at, _),
              .turnStarted(let at, _, _),
              .toolCalled(let at, _, _, _, _, _),
              .toolResulted(let at, _, _, _, _, _, _),
@@ -111,6 +115,9 @@ enum BuddyEvent: Sendable {
 
     var name: String {
         switch self {
+        case .growthLoaded: "growthLoaded"
+        case .growthChanged: "growthChanged"
+        case .profileCleared: "profileCleared"
         case .requestDescribed: "requestDescribed"
         case .effortObserved: "effortObserved"
         case .goalRead: "goalRead"

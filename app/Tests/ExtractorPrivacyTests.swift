@@ -9,7 +9,8 @@ final class ExtractorPrivacyTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: dir) }
         var config = BuddyConfig.default
         config.stateDir = dir.path
-        let engine = BuddyEngine(config: config, memoryStore: FilePetMemoryStore(stateDir: dir.path))
+        let store = try Store(stateDir: dir.path, now: Date.now.timeIntervalSince1970 * 1000)
+        let engine = BuddyEngine(config: config, store: store)
         for url in hookFixtureURLs() {
             let source = url.deletingLastPathComponent().deletingLastPathComponent().lastPathComponent
             for line in try String(contentsOf: url, encoding: .utf8).split(separator: "\n") {
@@ -23,11 +24,21 @@ final class ExtractorPrivacyTests: XCTestCase {
                 }
             }
         }
+        await engine.flushStore()
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dir.appendingPathComponent("boop.sqlite").path))
         var content = String(decoding: try JSONEncoder().encode(engine.diagnosticLog.entries), as: UTF8.self)
         content += String(decoding: try JSONEncoder().encode(engine.factRing.facts), as: UTF8.self)
         let files = FileManager.default.enumerator(atPath: engine.stateDir)?.allObjects as? [String] ?? []
         XCTAssertFalse(files.isEmpty, "Exercise real memory persistence, not an empty directory")
-        for file in files { if let data = try? Data(contentsOf: dir.appendingPathComponent(file)) { content += String(decoding: data, as: UTF8.self) } }
+        for file in files {
+            if let data = try? Data(contentsOf: dir.appendingPathComponent(file)) {
+                content += String(decoding: data, as: UTF8.self)
+                // Inspect SQLite, WAL, and shared-memory bytes, including free pages.
+                for marker in ["PRIVATE_PROMPT_8431", "PRIVATE_OUTPUT_9823", "PRIVATE_CLOSING_7182", "swift test", "npm test", "/private/project"] {
+                    XCTAssertNil(data.range(of: Data(marker.utf8)), "\(file): \(marker)")
+                }
+            }
+        }
         for marker in ["PRIVATE_PROMPT_8431", "PRIVATE_OUTPUT_9823", "PRIVATE_CLOSING_7182"] { XCTAssertFalse(content.contains(marker), marker) }
     }
 

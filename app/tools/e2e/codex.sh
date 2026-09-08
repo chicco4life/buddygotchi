@@ -30,5 +30,6 @@ settle
 baseline "Codex session reaped" "$CX"
 
 tenth_try codex
+growth_check
 
 print_summary

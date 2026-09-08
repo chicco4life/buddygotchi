@@ -17,6 +17,7 @@ struct InternalState: Sendable, Equatable {
     /// mutated only here, written back by the engine when it changes.
     var memory: PetMemory = .empty
 
+    var closedTasks = 0
     var momentThresholds: MomentThresholds = .defaults
     var pendingMoments: [String: Moment] = [:]
     var rateLimits: [String: Int] = [:]
@@ -52,6 +53,9 @@ func reduce(_ state: InternalState, _ event: BuddyEvent) -> InternalState {
 
 private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> InternalState {
     switch event {
+    case .growthLoaded(_, let growth, let cosmetic), .growthChanged(_, let growth, let cosmetic):
+        var s = state; s.buddy.growth = growth; s.buddy.cosmetic = cosmetic; return s
+    case .profileCleared: return state
     case .requestDescribed(_, let id, let stakes, let gloss):
         var s = state
         s.sessions[id]?.prompt?.stakes = stakes
@@ -73,6 +77,7 @@ private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> Interna
     case .goalRead(let at, let id, let goal, let runner, let outcome, let tally):
         var s = state
         if outcome == .pass {
+            s.closedTasks += 1
             let elapsed = max(0, at - (tally.firstFailureAt ?? at))
             if tally.attemptsWithoutPass >= s.momentThresholds.hardWonFailures { s.pendingMoments[id] = Moment(kind: .hardWonPass, facts: ["attempts": String(tally.attemptsWithoutPass + 1), "elapsedMs": String(elapsed), "goalKey": goal, "runner": runner]) }
             else if tally.attemptsWithoutPass >= s.momentThresholds.redStreakFailures, let first = tally.firstFailureAt, at - first >= s.momentThresholds.redStreakMs { s.pendingMoments[id] = Moment(kind: .redStreakEnded, facts: ["failures": String(tally.attemptsWithoutPass), "elapsedMs": String(at - first)]) }

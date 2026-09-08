@@ -7,14 +7,23 @@ struct Extraction: Sendable {
 }
 actor Extractor {
     private(set) var windows: [String: SessionWindow] = [:]
+    private var tokenTotals: [String: Int] = [:]
     private var degraded: Set<String> = []
     var thresholds: MomentThresholds = .defaults
-    func reset() { windows.removeAll(); degraded.removeAll() }
-    func drop(sessionId: String) { windows.removeValue(forKey: sessionId) }
+    func reset() { windows.removeAll(); degraded.removeAll(); tokenTotals.removeAll() }
+    func clearClosingLines() { for id in windows.keys { windows[id]?.closingLine = nil } }
+    func drop(sessionId: String) { windows.removeValue(forKey: sessionId); tokenTotals.removeValue(forKey: sessionId) }
 
     func ingest(_ p: RawHookPayload, localHour: Int? = nil) -> Extraction {
         var result = Extraction()
+        if ["claude-code", "codex"].contains(p.source), let output = p.outputTokens, output >= 0 {
+            let previous = tokenTotals[p.sessionId, default: 0]
+            let delta = p.cumulativeTokens ? max(0, output - previous) : output
+            if p.cumulativeTokens { tokenTotals[p.sessionId] = max(previous, output) }
+            if delta > 0 { result.facts.append(.tokens(output: delta)) }
+        }
         if p.kind == .sessionEnd {
+            tokenTotals.removeValue(forKey: p.sessionId)
             result.events.append(.sessionEnded(at: p.timestamp, sessionId: p.sessionId))
             if let w = windows.removeValue(forKey: p.sessionId) {
                 result.facts.append(.sessionSummary(turns: w.turns, tasks: w.tasks, elapsedMs: max(0, p.timestamp - w.startedAt)))
@@ -38,7 +47,7 @@ actor Extractor {
         case .turnStart: turnStart(p, window: &w, result: &result, localHour: localHour)
         case .turnEnd: turnEnd(p, window: &w, result: &result)
         case .toolCall:
-            if !degraded.contains(p.source) { toolCall(p, dictionary: dictionary, window: &w, result: &result) }
+            if !degraded.contains(p.source) { toolCall(p, dictionary: dictionary, window: &w, result: &result, localHour: localHour) }
         case .toolResult:
             if !degraded.contains(p.source) { toolResult(p, window: &w, result: &result) }
         case .needsYou:
@@ -78,13 +87,16 @@ actor Extractor {
         if let message = p.closingMessage { w.closingLine = String(message.split(whereSeparator: \.isWhitespace).joined(separator: " ").prefix(120)) }
     }
 
-    private func toolCall(_ p: RawHookPayload, dictionary: [String: Any]?, window w: inout SessionWindow, result: inout Extraction) {
+    private func toolCall(_ p: RawHookPayload, dictionary: [String: Any]?, window w: inout SessionWindow, result: inout Extraction, localHour: Int?) {
         let input = p.toolInput ?? ""
         var goal: String?
         if let command = dictionary?["command"] as? String ?? dictionary?["cmd"] as? String ?? (dictionary == nil ? p.toolInput : nil), let runner = GoalsReader.runner(command) {
             goal = GoalsReader.signature(command)
             result.goalRunner = runner.runner.name
         }
+        let safeTool = ["Bash","Shell","Read","Write","Edit","Grep","Glob","apply_patch"].contains(p.toolName) ? p.toolName : "other"
+        result.facts.append(.activity(hour: localHour ?? -1, tool: safeTool, firstGoal: w.sawTool ? nil : (result.goalRunner ?? "none")))
+        w.sawTool = true
         w.pending.append((goal ?? "", result.goalRunner ?? "", p.toolName, p.callId))
         if w.pending.count > SessionWindow.pendingCap { w.pending.removeFirst() }
         result.events.append(.toolCalled(at: p.timestamp, sessionId: p.sessionId, source: p.source, tool: p.toolName, hint: p.displayHint, goal: goal))

@@ -52,7 +52,9 @@ final class HeartbeatTruncationTests: XCTestCase {
         XCTAssertEqual(mapped.t, 1234)
         XCTAssertEqual(mapped.mute, 0)
         XCTAssertEqual(mapped.snap?.name, "테스트")
-        XCTAssertEqual(mapped.snap?.level, 0)
+        XCTAssertEqual(mapped.snap?.level, 1)
+        XCTAssertEqual(mapped.snap?.xpNext, 150)
+        XCTAssertEqual(mapped.cosmetic?.skin, "default")
     }
 
     func testAgentNeverCoexistsWithEitherCard() throws {

@@ -90,7 +90,7 @@ enum HookInstallError: Error, LocalizedError {
 final class HookInstaller {
     static let shared = HookInstaller()
 
-    nonisolated static let hookSchemaVersion = 6
+    nonisolated static let hookSchemaVersion = 7
 
     /// The approval timeout chain, outermost first:
     ///   registered hook timeout (310s) > curl --max-time (300s) > reducer
@@ -619,6 +619,16 @@ final class HookInstaller {
             d=json.load(os.fdopen(3))
             keys=['hook_event_name','session_id','conversation_id','cwd','workspace_roots','tool_name','tool_input','command','tool_response','tool_output','output','exit_code','exit_status','error','last_assistant_message','text','prompt','message','notification_type','status','duration_ms','turn_id']
             b={k:d[k] for k in keys if k in d}
+            usage=d.get('usage') or (d.get('message',{}).get('usage') if isinstance(d.get('message'),dict) else {}) or {}
+            info=d.get('info') or (d.get('payload',{}).get('info') if isinstance(d.get('payload'),dict) else {}) or {}
+            totals=info.get('total_token_usage') if isinstance(info,dict) else None
+            total=totals.get('output_tokens') if isinstance(totals,dict) else None
+            if isinstance(d.get('message'),dict): b.pop('message',None)
+            output=usage.get('output_tokens',d.get('output_tokens')) if isinstance(usage,dict) else None
+            if isinstance(total,int) and total>=0:
+                b['info']={'total_token_usage':{'output_tokens':total}}
+            elif isinstance(output,int) and output>=0:
+                b['output_tokens']=output
             for key in ['tool_response','tool_output','output']:
                 if key in b:
                     raw=text(b.pop(key))

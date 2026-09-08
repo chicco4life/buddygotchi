@@ -282,6 +282,7 @@ print(s if s != {} and s is not None else "")' "$1" "$2"
 # Native fixture replay through the real authenticated hook route.
 tenth_try() {
   local agent="$1" sid="e2e-tenth-$1-$$" line n=0 got
+  GROWTH_BEFORE="$(state_field .growth.xp)"
   hdr "$agent tenth-try"
   local attempts=0 fixture_agent="$agent"
   [ "$agent" = codex ] && fixture_agent=claude-code
@@ -313,4 +314,19 @@ PY
   else got="$(state_field .creature.cheer) $(state_field .creature.moment.kind)"; fi
   [ "$got" = 'dance hardWonPass' ] && ok 'tenth-try: dance + hardWonPass' || bad "tenth-try payoff: $got"
   post_event "$agent" "{\"hook_event_name\":\"SessionEnd\",\"session_id\":\"$sid\"}"
+}
+
+# Verify the durable growth result after tenth_try has completed.
+growth_check() {
+  local xp level expected
+  xp="$(state_field .growth.xp)"; level="$(state_field .growth.level)"
+  if [ -n "$xp" ] && [ "$xp" -gt "${GROWTH_BEFORE:-0}" ]; then ok 'growth XP increased after tenth-try'; else bad 'growth XP did not increase'; fi
+  expected="$(python3 - "$xp" <<'PYCODE'
+import sys
+xp=int(sys.argv[1]); level=1
+while 100*level*(level+1)//2+50*level <= xp: level+=1
+print(level)
+PYCODE
+  )"
+  [ "$level" = "$expected" ] && ok "growth level matches curve ($level)" || bad "growth level $level != $expected"
 }

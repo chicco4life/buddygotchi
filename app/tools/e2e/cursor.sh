@@ -34,5 +34,6 @@ settle
 baseline "Cursor session reaped (approval + activity unified on one session — Fix 8 — and parked approval resolved)" "$CU"
 
 tenth_try cursor
+growth_check
 
 print_summary
