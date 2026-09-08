@@ -124,7 +124,8 @@ void onFrame(const TamaState& next) {
   // (and `clock settle`) is anchored to what is on screen, not just the state.
   bool visualChanged = changed || strcmp(next.effort,tama.effort) || strcmp(next.uhoh,tama.uhoh)
     || overlayChanged || next.gift != tama.gift || next.dots != tama.dots;
-  if (visualChanged) { stateAt = now; lastInput = now; }
+  if (visualChanged) stateAt = now;
+  if (changed) lastInput = now;   // only a state change counts as activity for the dim ladder
   // Sound sees the incoming state/volume, never the previous frame's mute.
   tama = next;
   if (newCard && next.card.id[0]) sound(0);
