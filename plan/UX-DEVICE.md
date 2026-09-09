@@ -494,9 +494,11 @@ next table; silent in focus except rung 2 and Uh-oh; silent asleep.
 - Screen priority, highest wins: system card → Needs you card → decision
   feedback → Uh-oh bubble → stats → bubble → overlay → face and orb. Lower
   layers keep simulating.
-- Dim after two minutes idle; Asleep is the lowest brightness. The screen
-  never turns itself off. A pending prompt never dims. An uncollected orb
-  keeps a low glow.
+- Brightness: 210/255 awake, 255 with a card, 90 after two minutes with
+  no button and no agent activity (110 with an uncollected orb), 28
+  asleep. The screen never turns itself off. A pending prompt never dims.
+  A state change from the app counts as activity: a working buddy is
+  never dim.
 
 ## 17. Micro-idles
 

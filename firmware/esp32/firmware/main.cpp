@@ -20,7 +20,7 @@ BuddyCanvas spr(HAL_CANVAS_PARENT);
 TamaState tama;
 static char btName[16] = "Buddy";
 static bool screenOff = false, napping = false;
-static uint8_t brightness = 120;
+static uint8_t brightness = 210;
 // Sampled every 2 s in loop(); render and posture read the cache (ADC is slow).
 static int battery = -999; static bool charging = false;
 static uint32_t cardAt = 0, stateAt = 0, overlayAt = 0, bubbleUntil = 0, bootAt = 0;
@@ -770,8 +770,12 @@ void loop() {
     batteryAt=millis(); int b=halBatteryPct(); bool c=halIsCharging();
     if(b!=battery || c!=charging) { battery=b;charging=c;sendBattery(); }
   }
-  uint8_t target=hasCard()?220:(napping || eq(tama.state,"asleep"))?8:
-    now-lastInput>=120000?(giftPending()?32:20):120;
+  // Brightness (0-255). With only the eyes lit the panel reads darker than
+  // the old body-and-field frames did, so the levels sit high; activity
+  // from the app (a state change) counts as presence for the idle dim.
+  uint32_t lastActivity=lastInput>stateAt?lastInput:stateAt;
+  uint8_t target=hasCard()?255:(napping || eq(tama.state,"asleep"))?28:
+    now-lastActivity>=120000?(giftPending()?110:90):210;
   if (!screenOff && brightness!=target) { brightness=target; }
   static uint32_t previous=0;
   float dt=previous?(now-previous)*0.001f:0.016f; previous=now;
