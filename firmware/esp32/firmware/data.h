@@ -29,7 +29,7 @@ static const struct { const char* name; uint8_t count; CosmeticPart parts[4]; } 
               {C_TRIANGLE,-9,-85,0,-105,9,-85}, {C_TRIANGLE,9,-85,18,-105,27,-85}}}
 };
 static const struct { const char* name; int16_t rx, ry, spacing, dy; } silhouettes[] = {
-  {"",148,96,85,0}, {"round",135,108,73,0}, {"tall",106,118,78,-8}
+  {"",148,96,96,0}, {"round",135,108,84,0}, {"tall",106,118,88,-8}
 };
 template<class Row, size_t N> uint8_t cosmeticIndex(const char* name, const Row (&rows)[N]) {
   static_assert(N<=256, "cosmetic index must fit a byte");

@@ -290,10 +290,12 @@ nothing is ever drawn behind the eyes.
 | Cheeks | Affection, exertion | Blush, sweat drop |
 | Eye ink | Energy, skin | Bright ink awake, dimmer asleep, grey before first contact; skins tint it. Bob, lean, squish and hop move the whole face. |
 | Field | Need | Black, amber wash, dim red wash |
-| Sparks | Celebration, affection | Six confetti dots, one pink heart, one gold orb |
+| Sparks | Celebration, affection | Six confetti dots, one pink heart |
 | Accessories | Cosmetics | Small, above or beside the eyes, drawn in the eye ink, never over the eyes or the card |
 
-Eyes are the anchor, centered and largest. Every part has a resting
+Eyes are the anchor, centered and largest: 64×80 px at rest, 96 px apart,
+wider on Needs you. Gaze offsets stay small (±6 px drifting, 8 px down-left
+while working) so the pair never leaves the middle of the screen. Every part has a resting
 micro-motion. Expressions are blends of parts, not separate sprites.
 Silhouettes change eye spacing and size at level milestones; the anchor
 never moves. No outlines anywhere: every shape is a filled, smooth edge.
@@ -333,8 +335,9 @@ Sizes and triggers are in Part I §3.3. Manners:
 - No cheer sound twice within ten seconds; the second plays silent.
 - A cheer never plays over Needs you or Uh-oh. It waits, or is folded into
   the next.
-- One gold orb. Newer replaces older. Survives dim and sleep, not reboot.
-- The orb hides under a card and returns when the screen is free.
+- No on-screen cue for an uncollected gift (owner decision 2026-09-09).
+  The gift waits silently; newer replaces older; it survives dim and
+  sleep, not reboot. The app shows the orb.
 - Collect is primary tap when nothing else is pending. Bubble for four
   seconds with the story line from the app. The device never composes
   text.
@@ -543,7 +546,7 @@ screen, nothing swarms, nothing spins.
 | Idle | Slow bob (±3 px, 1.4 s), gaze drifts. Micro-idles are small: gaze lap ±20 px, wiggle ±6 px. |
 | Working | Eyes down-left, lean 5 px; hard adds the brow and the sweat drop (one drop slides 18 px every 3 s); grinding adds a faint tremble (±1.5 px). |
 | Needs you | Eyes spring wide, tiny lean toward you. |
-| Boop (tap, pet) | Eyes squish to 60% height for 250 ms and spring back; blush; smile; **one heart**: it pops in 12 px above the gap between the eyes (scale 0→1 in 150 ms, 6% overshoot, radius 10, pink), floats up 24 px over 900 ms, shrinks away in the last 100 ms. While held, a new heart every 900 ms. Never more than one on screen. |
+| Boop (tap, pet) | Eyes squish to 60% height for 250 ms and spring back; blush; smile; **one heart**: it pops in 12 px above the gap between the eyes (scale 0→1 in 150 ms, 6% overshoot, radius 10, pink), floats up 24 px over 900 ms, shrinks away in the last 100 ms. One heart per boop; holding or petting adds none. |
 | Greet, level 1 | One slow blink and a smile. |
 | Greet, level 2 | One squash-and-stretch bounce (bob −16 px, spring) and blush. |
 | Greet, level 3 | Two bounces and one heart. |
@@ -555,7 +558,7 @@ screen, nothing swarms, nothing spins.
 | Pick-up | Perk: eyes wide, lean back 8 px. Unchanged. |
 | Level up | Light sweep across the eyes, one soft field flash. |
 | Streak | The small flame pulses gently beside the face. |
-| Gift orb | Bobs ±4 px; on collect it shrinks to nothing in 200 ms. |
+| Gift | Nothing on screen. Collect is the primary tap; the bubble tells the story. |
 | Card | Springs up, eases away. Unchanged. |
 | Retire | Slow fade with one blink. Unchanged. |
 

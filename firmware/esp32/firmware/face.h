@@ -57,7 +57,7 @@ static void _faceEyeArch(int cx, int cy, int w, float rise, int thick, uint16_t 
 }
 
 struct FacePose {
-  float eyeH=66, eyeW=53, gazeX=0, gazeY=0, brow=0, arc=0;
+  float eyeH=80, eyeW=64, gazeX=0, gazeY=0, brow=0, arc=0;
   float bob=0, lean=0, tilt=0, blush=0, sweat=0, mouth=0;
   bool rightEyeClosed=false;
 };
@@ -93,7 +93,7 @@ static void applyPerch(FacePose& p, const PerchPose& row, uint32_t age) {
   p.eyeW*=1+row.delta.eyeW;
   p.gazeY+=row.delta.gazeY; p.lean+=row.delta.lean;
   switch (row.motion) {
-    case P_DANGLE: p.gazeY=3+11*cosf(age*ANIM_TAU/8000.0f); p.gazeX*=0.5f; break;
+    case P_DANGLE: p.gazeY=2+6*cosf(age*ANIM_TAU/8000.0f); p.gazeX*=0.5f; break;
     case P_TIP: p.gazeY=18; p.tilt=animClamp(age*0.001f-0.5f,0,1)*0.14f; break;
     case P_LAND: break; // The done motion already supplies the landing.
     case P_POP: {
@@ -120,17 +120,17 @@ static void faceSimulate(uint32_t now,float dt) {
   // lands on the same phase every run.
   float phase=(now-stateAt)*0.001f;
   p.bob=sinf((now-stateAt)*ANIM_TAU/1400.0f)*3;
-  p.gazeX=sinf(phase*0.31f)*11; p.gazeY=cosf(phase*0.23f)*3;
+  p.gazeX=sinf(phase*0.31f)*6; p.gazeY=cosf(phase*0.23f)*2;
   const char* state = (!dataConnected() && !presenceGraced(now)) ? "idle" : tama.state;
   if (napping || eq(state,"asleep")) {
     p.eyeH=7; p.bob=sinf(phase*0.7f)*2; p.gazeX=0; p.gazeY=4;
     if (before(now,localBoopUntil) && !napping) p.eyeH=18; // sleeper's peek, no hearts
   } else if (eq(state,"working")) {
-    p.gazeX=-17; p.gazeY=12; p.lean=5;
-    if (eq(tama.effort,"hard") || eq(tama.effort,"grinding")) { p.brow=1; p.sweat=1; p.eyeH=50; }
+    p.gazeX=-8; p.gazeY=6; p.lean=3;
+    if (eq(tama.effort,"hard") || eq(tama.effort,"grinding")) { p.brow=1; p.sweat=1; p.eyeH=60; }
     if (eq(tama.effort,"grinding")) p.bob+=sinf(phase*37)*1.5f;
   } else if (eq(state,"needsYou")) {
-    p.eyeH=83; p.eyeW=61; p.gazeX=0; p.gazeY=-2; p.lean=-5;
+    p.eyeH=96; p.eyeW=72; p.gazeX=0; p.gazeY=-2; p.lean=-4;
   } else if (eq(state,"done")) {
     p.arc=22; p.eyeH=7; p.mouth=1;
     uint32_t age=now-stateAt;
@@ -145,7 +145,7 @@ static void faceSimulate(uint32_t now,float dt) {
       } else p.bob-=21*animBounce(age,600);
     } else if (giftPending()) { p.arc=9; p.eyeH=35; p.gazeX=20; p.gazeY=-7; }
   } else if (eq(state,"uhoh")) {
-    p.eyeH=30; p.gazeX=-10; p.gazeY=14; p.lean=12; p.bob=sinf(phase)*2; p.mouth=-1;
+    p.eyeH=36; p.gazeX=-6; p.gazeY=8; p.lean=10; p.bob=sinf(phase)*2; p.mouth=-1;
   }
   chosenPoseName=state;
   if (eq(posture,"perch")) {
@@ -161,7 +161,7 @@ static void faceSimulate(uint32_t now,float dt) {
     p=FacePose{}; p.bob=sinf(age*0.0014f)*3;
     p.eyeH=age<1200?7:age<2200?35:66;
     if ((age>=2600 && age<2720) || (age>=2920 && age<3040)) p.eyeH=7;
-    if (age>=3200 && age<4000) { p.eyeH=83; p.mouth=1; p.bob-=sinf((age-3200)*0.0039f)*8; }
+    if (age>=3200 && age<4000) { p.eyeH=96; p.mouth=1; p.bob-=sinf((age-3200)*0.0039f)*8; }
     if (age>=4000) { bool glance=((age-4000)/1300)%2==0; p.gazeX=glance?28:0; p.gazeY=glance?-25:0; p.mouth=1; }
   } else if (!dataConnected() && eq(state,"idle")) {
     p.gazeX+=12; p.gazeY-=7;
@@ -202,7 +202,7 @@ static void faceSimulate(uint32_t now,float dt) {
     uint32_t age=now-(dizzyUntil-3000);
     p.gazeX+=10*sinf(age*ANIM_TAU*3/1000.0f);
   }
-  if (before(now,perkUntil) && !card) { p.lean-=8; p.eyeH=83; chosenPoseName="pickup"; }
+  if (before(now,perkUntil) && !card) { p.lean-=8; p.eyeH=96; chosenPoseName="pickup"; }
   if (before(now,shakeHeadUntil)) p.gazeX+=sinf(phase*24)*14;
   if (!napping && !eq(state,"asleep") && !eq(state,"done") && !booping && !greeting && (now-stateAt)%5100<110) p.eyeH=7;
   if (isRetiring() && now-ritualAt>=600 && now-ritualAt<850) p.eyeH=7;
@@ -277,7 +277,7 @@ static void faceDraw(uint32_t now,bool showSparks,float compact=0,bool proud=fal
     if (before(now,dizzyUntil) && !hasCard() && !proud) {
       spr.fillSmoothCircle(ex,ey,20,eyeInk);
     } else if (p.arc>2) _faceEyeArch(ex,ey,animPx(p.eyeW),p.arc,max(2,animPx(5*scale)),eyeInk);
-    else _faceEye(ex,ey,animPx(p.eyeW),p.rightEyeClosed && side>0 ? 7 : animPx(p.eyeH),18,eyeInk);
+    else _faceEye(ex,ey,animPx(p.eyeW),p.rightEyeClosed && side>0 ? 7 : animPx(p.eyeH),22,eyeInk);
     };
     drawEye(ink);
     if (!hasCard() && levelRitual() && now-ritualAt<900) {
@@ -291,9 +291,9 @@ static void faceDraw(uint32_t now,bool showSparks,float compact=0,bool proud=fal
       spr.clearClipRect();
     }
     _faceBrow(ex,ey-animPx(p.eyeH/2)-15,58,-side,p.brow,ink);
-    if (p.blush>0.1f) spr.fillEllipse(ex,ey+43,18,6,animRGB(255,109,173));
+    if (p.blush>0.1f) spr.fillEllipse(ex,ey+50,20,6,animRGB(255,109,173));
   }
-  int my=cy+animPx(52*scale);
+  int my=cy+animPx(60*scale);
   if (p.mouth>1.2f) spr.drawEllipse(cx,my,9,13,ink);
   else if (p.mouth>0.2f) spr.fillArc(cx,my-animPx(5*scale),animPx(10*scale),animPx(13*scale),0,180,ink);
   else spr.fillSmoothRoundRect(cx-9,my,18,3,1,ink);
@@ -309,16 +309,8 @@ static void faceDraw(uint32_t now,bool showSparks,float compact=0,bool proud=fal
   // Collect remains visible beside the bubble, even after the host clears gift.
   bool collecting=before(now,giftCollectUntil);
   uint32_t age=now-stateAt;
-  if (collecting || (showSparks && giftPending() && !(eq(tama.state,"done") && age<cheerDuration()))) {
-    float amount=collecting?1-animClamp((now-giftCollectedAt)/200.0f,0,1):1;
-    int x=HAL_W-62,y=HAL_H/2+26+animPx(sinf((now-stateAt)*0.002f)*4);
-    int r=animPx(16*amount);
-    if (r>0 && !hasCard() && !proud) {
-      spr.fillSmoothCircle(x,y,r,animRGB(109,73,0));
-      spr.fillSmoothCircle(x,y,max(1,animPx(9*amount)),animRGB(255,219,82));
-      if (amount>0.25f) spr.fillSmoothCircle(x-animPx(3*amount),y-animPx(3*amount),max(1,animPx(2*amount)),WHITE);
-    }
-  }
+  // No on-screen cue for an uncollected gift (owner decision 2026-09-09):
+  // the tap still collects it and the bubble tells the story.
   if (!showSparks) return;
   int eyeTop=cy+animPx(p.gazeY-p.eyeH/2);
   if (eq(tama.state,"done") && eq(tama.cheer,"dance") && age<cheerDuration()) {
@@ -338,8 +330,9 @@ static void faceDraw(uint32_t now,bool showSparks,float compact=0,bool proud=fal
   bool booping=local || (eq(tama.overlay,"boop") && now-overlayAt<1400);
   bool greeting=eq(tama.overlay,"greet") && tama.greetLevel==3 && now-overlayAt<900;
   if (calmOverlay() && (booping || greeting)) {
-    uint32_t heartAge=booping?(now-(local?localBoopAt:overlayAt))%900:now-overlayAt;
-    float amount=heartAge<150?animPop(heartAge/150.0f):heartAge>=800?(900-heartAge)/100.0f:1;
+    // One heart per boop. Holding or petting adds none.
+    uint32_t heartAge=booping?now-(local?localBoopAt:overlayAt):now-overlayAt;
+    float amount=heartAge>=900?0:heartAge<150?animPop(heartAge/150.0f):heartAge>=800?(900-heartAge)/100.0f:1;
     int radius=animPx(10*amount);
     if (radius>0) heart(cx,eyeTop-12-animPx(24*heartAge/900.0f),radius,animRGB(255,109,173));
   }
