@@ -84,6 +84,21 @@ def screenshot_ok(s: buddyctl.SerialBuddy) -> None:
         raise RuntimeError(f"screenshot integrity failed ({w}x{h}, {len(raw)} bytes)")
 
 
+def require_exclusive(s) -> None:
+    """Refuse to drive the device while the Boop app is connected over BLE.
+
+    Two writers on one screen silently corrupts every capture: the app's own
+    frames (real cards, session dots) land between ours and the screenshot.
+    That produced a set of contaminated goldens before this guard existed.
+    """
+    if s.framed_json("state", "STATE", 3).get("connected"):
+        raise SystemExit(
+            "The Boop app is connected to this buddy over Bluetooth and is pushing its own\n"
+            "frames. Quit Boop (menu bar, Quit) and run this again; captures taken now are\n"
+            "not reproducible."
+        )
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--minutes", type=float, default=120.0)
@@ -100,6 +115,7 @@ def main() -> int:
             print(f"firmware speaks contract {base.get('contract')}, this soak needs 2", file=sys.stderr)
             return 1
         base_panics, last_up, heap_first, heap_min_seen = base["panics"], base["up"], base["heap"], base["heapMin"]
+        require_exclusive(s)
         s.write_line("imu set 0 0 1")  # face up: never nap during the run
         print(f"soak start: fw={base['fw']} board={base['board']} heap={heap_first}", flush=True)
         while time.monotonic() < deadline and not failures:

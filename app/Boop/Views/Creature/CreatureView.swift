@@ -29,7 +29,7 @@ struct CreaturePose: Equatable, Sendable {
         hearts = affection && (creature.overlay == .boop || creature.greetLevel == 3)
         blush = affection || (creature.state == .done && creature.cheer == .dance)
         squish = affection
-        confetti = creature.state == .done ? (creature.cheer == .dance ? 18 : creature.cheer == .cheer ? 9 : 0) : 0
+        confetti = creature.state == .done && creature.cheer == .dance ? 6 : 0
     }
 }
 
@@ -49,13 +49,12 @@ struct CreatureView: View {
         let field: Color = creature.state == .needsYou ? .orange : creature.state == .uhoh ? .red : tint
         let fieldGradient = Gradient(colors: [field.opacity(creature.state == .needsYou ? 0.35 : 0.12), .clear])
         let bodyGradient = Gradient(colors: [tint.opacity(creature.state == .asleep ? 0.06 : creature.state == .done ? 0.26 : 0.14), .clear])
-        let confetti = confettiRing(count: pose.confetti)
         let glyphs = CreatureGlyphs(tint: tint)
         TimelineView(.animation(minimumInterval: creature.animationInterval, paused: paused || frozen || snapshotFrozen || reduceMotion)) { timeline in
             let t = frozen || snapshotFrozen || reduceMotion ? frozenTime : timeline.date.timeIntervalSince(enteredAt)
             Canvas { context, size in
                 let texts = glyphs.resolve(in: context)
-                draw(&context, size: size, time: t, pose: pose, fieldGradient: fieldGradient, bodyGradient: bodyGradient, confetti: confetti, heart: texts.0, moon: texts.1, more: texts.2)
+                draw(&context, size: size, time: t, pose: pose, fieldGradient: fieldGradient, bodyGradient: bodyGradient, heart: texts.0, moon: texts.1, more: texts.2)
             }
         }
         .onChange(of: creature.state) { _, _ in enteredAt = .now }
@@ -74,7 +73,7 @@ struct CreatureView: View {
         default: return Color(hex: "E9CE9B")
         }
     }
-    private func draw(_ context: inout GraphicsContext, size: CGSize, time t: Double, pose: CreaturePose, fieldGradient: Gradient, bodyGradient: Gradient, confetti: [(Path, Color)], heart: GraphicsContext.ResolvedText, moon: GraphicsContext.ResolvedText, more: GraphicsContext.ResolvedText) {
+    private func draw(_ context: inout GraphicsContext, size: CGSize, time t: Double, pose: CreaturePose, fieldGradient: Gradient, bodyGradient: Gradient, heart: GraphicsContext.ResolvedText, moon: GraphicsContext.ResolvedText, more: GraphicsContext.ResolvedText) {
         context.fill(Path(roundedRect: CGRect(origin: .zero, size: size), cornerRadius: 20), with: .color(cream ? Color(hex: "F6EEDC") : BuddyTheme.night))
         let scale = min(size.width / 240, size.height / 200)
         context.translateBy(x: (size.width - 240 * scale) / 2, y: (size.height - 200 * scale) / 2)
@@ -103,8 +102,15 @@ struct CreatureView: View {
         context.stroke(mouth, with: .color(ink), style: StrokeStyle(lineWidth: 3, lineCap: .round))
         if pose.blush { for x in [76.0, 151.0] { context.fill(Path(ellipseIn: CGRect(x: x, y: 121, width: 15, height: 7)), with: .color(.pink.opacity(0.55))) } }
         if pose.sweat { context.fill(Path(ellipseIn: CGRect(x: 167, y: 88, width: 7, height: 13)), with: .color(.cyan.opacity(0.8))) }
-        for (path, color) in confetti { context.fill(path, with: .color(color)) }
-        if pose.hearts { for x in [48.0, 190.0] { context.draw(heart, at: CGPoint(x: x, y: 63)) } }
+        for (path, color) in confettiDots(count: pose.confetti, t: t) { context.fill(path, with: .color(color)) }
+        if pose.hearts, t < 0.9 {
+            // One heart per boop, rising from above the gap between the eyes.
+            let u = t / 0.9
+            context.drawLayer { layer in
+                layer.opacity = u < 0.17 ? u / 0.17 : u > 0.89 ? (1 - u) / 0.11 : 1
+                layer.draw(heart, at: CGPoint(x: 120, y: 78 - 13 * u))
+            }
+        }
         switch cosmetic.accessory {
         case "sprout":
             context.fill(Path(ellipseIn: CGRect(x: 108, y: body.minY - 12, width: 14, height: 9)), with: .color(.green))
@@ -176,14 +182,21 @@ extension Creature {
     }
 }
 
-private func confettiRing(count: Int) -> [(Path, Color)] {
-    let colors: [Color] = [.green, .pink, .orange]
-    return (0..<count).map { i in
-        let angle = Double(i) * 2.4
-        let rect = CGRect(x: 120 + cos(angle) * 91, y: 85 + sin(angle) * 64, width: 4, height: 7)
-        return (Path(rect), colors[i % colors.count])
+/// Six soft dots that drift down with staggered starts, mirroring the device
+/// (plan/UX-DEVICE.md §20). Round, never rectangles; nothing swarms.
+private func confettiDots(count: Int, t: Double) -> [(Path, Color)] {
+    let colors: [Color] = [.pink, .green, .yellow]
+    return (0..<count).compactMap { i in
+        let delay = Double((i * 37) % 70) / 100
+        guard t >= delay else { return nil }
+        let travel = 52 + Double((i * 29) % 20)
+        let u = min(1, (t - delay) / 2.5)
+        let x = 120 + Double((i * 53) % 100) - 50 + sin(t * 3 + Double(i)) * 3
+        let rect = CGRect(x: x, y: 58 + u * travel, width: 4, height: 4)
+        return (Path(ellipseIn: rect), colors[i % colors.count])
     }
 }
+
 
 /// A Canvas provides the resolving context. Cache its invariant text resources
 /// for the lifetime of this timeline, rather than resolving on every tick.

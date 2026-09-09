@@ -16,12 +16,29 @@ from shot_cells import cells, prepare, trigger  # noqa: E402
 OUT = Path('/tmp/boop-shots')
 
 
+def require_exclusive(s) -> None:
+    """Refuse to drive the device while the Boop app is connected over BLE.
+
+    Two writers on one screen silently corrupts every capture: the app's own
+    frames (real cards, session dots) land between ours and the screenshot.
+    That produced a set of contaminated goldens before this guard existed.
+    """
+    if s.framed_json("state", "STATE", 3).get("connected"):
+        raise SystemExit(
+            "The Boop app is connected to this buddy over Bluetooth and is pushing its own\n"
+            "frames. Quit Boop (menu bar, Quit) and run this again; captures taken now are\n"
+            "not reproducible."
+        )
+
+
 def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--only", choices=list(cells()))
     args, extra = ap.parse_known_args()
     port = buddyctl.find_port()
+    with buddyctl.SerialBuddy(port, timeout=5) as guard:
+        require_exclusive(guard)
     selected = {n: f for n, f in cells().items() if not args.only or n == args.only}
     with buddyctl.SerialBuddy(port, timeout=5) as s:
         s.write_line('clock clear'); s.write_line('imu set 0 0 0.98'); time.sleep(0.3)
@@ -34,6 +51,11 @@ def main() -> int:
         frame = {**{k: v for k, v in frame.items() if k != 't'}, 't': int(time.time() * 1000)}
         with buddyctl.SerialBuddy(port, timeout=5) as s:
             prepare(s)
+            # A bridge state that differs from the cell's, so the cell frame is a
+            # state change and `stateAt` (the anchor for every phase, including
+            # the working gaze hop) is fresh regardless of host timing.
+            bridge = 'idle' if frame['state'] != 'idle' else 'working'
+            s.write_line(json.dumps({'v': 2, 'state': bridge})); time.sleep(0.4)
             s.write_line(json.dumps(frame, ensure_ascii=False, separators=(',', ':')))
             deadline = time.monotonic() + 5
             while time.monotonic() < deadline and s.framed_json('state', 'STATE', 3).get('creature') != frame['state']:

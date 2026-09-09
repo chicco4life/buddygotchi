@@ -20,8 +20,11 @@ final class CompanionTests: XCTestCase {
         c.effort = .grinding
         XCTAssertTrue(CreaturePose(from: c).tremble)
         c.state = .done; c.cheer = .dance
-        XCTAssertEqual(CreaturePose(from: c).confetti, 18)
+        // Six soft dots on the dance only (UX-DEVICE.md §20); the app mirrors the device.
+        XCTAssertEqual(CreaturePose(from: c).confetti, 6)
         XCTAssertTrue(CreaturePose(from: c).blush)
+        c.cheer = .cheer
+        XCTAssertEqual(CreaturePose(from: c).confetti, 0)
         c.cheer = .hop
         XCTAssertEqual(CreaturePose(from: c).confetti, 0)
     }

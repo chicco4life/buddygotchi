@@ -19,6 +19,11 @@ rounded field, the same face as the device (no body shape; `UX-DEVICE.md`
 device's 8-bit sprite cannot; it is allowed here, dim and warm, never a
 visible edge. It is the only branded element on screen.
 
+Its motion follows `UX-DEVICE.md` §20, including the sparks: one heart
+per boop rising from above the gap between the eyes, and six round
+confetti dots on the dance only (never rectangles, never on hop or
+cheer). When the two surfaces disagree, the device is the reference.
+
 Rules: no custom card chrome (borders, tinted boxes) around content; use
 grouping and whitespace. One accent. One type scale. No text in monospace
 outside the quick-command field. Every string comes from the copy table

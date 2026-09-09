@@ -724,6 +724,17 @@ existing USB HIL suite for card arming, feedback, priority, and decision
 commands. No flash or USB HIL was run for this pass.
 
 
+### The device has one writer (2026-09-09)
+
+Every device capture — contact sheet, goldens, HIL, soak — requires the Boop
+app to be quit. The app pushes its own frames over BLE, so with it connected
+a real card or session-dot update lands between the test's frame and the
+screenshot, and the result is silently wrong rather than failing. A set of
+goldens was recorded this way before anyone noticed. `tools/shots.py` and
+`tools/soak.py` now exit with an explanation when `state.connected` is true,
+and the HIL fixtures skip. Re-record goldens only from a run where that
+guard passed.
+
 ### Motion review (2026-09-09)
 
 Animations are judged from strips, not single frames:

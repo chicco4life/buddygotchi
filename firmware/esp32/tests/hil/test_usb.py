@@ -36,6 +36,10 @@ def stick():
             pytest.skip(f"no ESP32 Buddy answered: {exc}")
         assert pong["board"] == "ws-amoled164"
         assert pong["contract"] == 2
+        # The Boop app pushes its own frames over BLE; two writers on one screen
+        # make every assertion below a coin flip. Skip rather than fail loudly.
+        if serial.framed_json("state", "STATE", 3).get("connected"):
+            pytest.skip("the Boop app is connected over BLE; quit it before running HIL")
         try:
             yield serial
         finally:

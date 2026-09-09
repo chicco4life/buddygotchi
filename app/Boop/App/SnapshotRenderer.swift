@@ -250,7 +250,11 @@ enum SnapshotRenderer {
             }
             for scene in CompanionScene.all {
                 guard scene.needsPopover else {
-                    shot(CreatureView(creature: scene.creature, cosmetic: scene.cosmetic, frozen: true), "creature-" + scene.name, height: 240)
+                    // Overlay moments (boop, greet) are over in 900 ms, so the
+                    // default 1.25 s freeze lands after the heart has gone. Catch
+                    // them mid-gesture instead, or the sheet documents nothing.
+                    let at = scene.creature.overlay != nil ? 0.45 : 1.25
+                    shot(CreatureView(creature: scene.creature, cosmetic: scene.cosmetic, frozen: true, frozenTime: at), "creature-" + scene.name, height: 240)
                     continue
                 }
                 var state = BuddyState.initial; state.creature = scene.creature; state.cosmetic = scene.cosmetic
