@@ -9,6 +9,16 @@
 #include <mbedtls/platform_util.h>
 #include <mbedtls/sha256.h>
 #include <mbedtls/version.h>
+// mbedTLS 3 (S3 board, Arduino core 3.x) hides struct fields behind
+// MBEDTLS_PRIVATE; mbedTLS 2 (M5 boards, core 2.x) exposes them directly.
+#include <mbedtls/version.h>
+#ifndef MBEDTLS_PRIVATE
+#define MBEDTLS_PRIVATE(member) member
+#endif
+#if MBEDTLS_VERSION_MAJOR < 3
+// mbedTLS 2's mbedtls_sha256 returns void; the int-returning form is _ret.
+#define mbedtls_sha256 mbedtls_sha256_ret
+#endif
 
 // Shipped mbedTLS has no Ed25519 pk type. P-256 public keys use SEC1
 // uncompressed encoding; signatures are ASN.1 DER ECDSA over SHA-256.
@@ -142,8 +152,13 @@ void unitSign(JsonDocument& request, JsonDocument& d) {
   bool ok = length>0 && size_t(length)<sizeof(message) && p.begin("unit", true);
   if (ok) { ok = load(p, key, pub); p.end(); }
   if (ok) ok = !mbedtls_sha256((const unsigned char*)message, length, digest, 0) &&
+#if MBEDTLS_VERSION_MAJOR < 3
+    !mbedtls_ecdsa_write_signature(&key, MBEDTLS_MD_SHA256, digest, sizeof(digest),
+      sig, &sigLen, mbedtls_ctr_drbg_random, &rng);
+#else
     !mbedtls_ecdsa_write_signature(&key, MBEDTLS_MD_SHA256, digest, sizeof(digest),
       sig, sizeof(sig), &sigLen, mbedtls_ctr_drbg_random, &rng);
+#endif
   mbedtls_ecdsa_free(&key); // Private scalar exists in RAM only while crypto runs.
   char encoded[101];
   if (!ok || !encode(sig, sigLen, encoded, sizeof(encoded))) { error(d, "sign_failed"); return; }

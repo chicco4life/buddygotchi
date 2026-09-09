@@ -371,6 +371,13 @@ travel mode, rituals, cosmetics rendering, sleep that never powers down.
       near-simultaneous completions fold into one cheer.
 - [ ] First-wake flag: a factory-reset device plays the ritual once.
 
+**Device UI correction (2026-09-09).** Removed the radial glow and bubble
+fill for RGB332. Skin and sleep brightness live in eye ink; level-up uses
+the eye sweep and a 300 ms rise / 300 ms return whole-field flash. Hold
+strokes are full ink (2 px idle, 4 px filling); hints, queue count, and
+stats track use explicit grey. S3 build passed with writable PlatformIO
+cache overrides; hardware visual review and USB HIL remain pending.
+
 **Human steps.** Perch the device on a lid; leave it overnight on battery.
 
 **Risk.** Posture detection depends on the mount; keep the explicit
@@ -408,6 +415,16 @@ onboarding, the creature, the card, the recap, the profile page, settings.
 - [ ] Accessibility of text sizes and contrast checked by the snapshot
       review (kept minimal per the vision).
 - [ ] Doctor passes after onboarding from each harness.
+
+**UI pass (2026-09-09).** Implemented the revised `UX-APP.md` native
+materials, five settings sidebar sections, quiet popover, plain profile
+list, and face glow. Existing settings bindings and engine behavior are
+preserved. Snapshot scenes retain their names; settings captures now use
+the window's 760 pt width. The local command-line runner passed 426 tests;
+four HTTP tests skipped because the execution sandbox prohibits localhost
+sockets. Clean-account onboarding, live control interactions, and the
+unrestricted zero-skip run remain review gates. Native sidebar row labels
+are absent from offscreen captures on this host; inspect navigation live.
 
 **Human steps.** Walk the onboarding once on a clean user account.
 
@@ -511,6 +528,14 @@ port node vanishing.
 **Human steps.** Sign and notarize; a clean-machine install; reset the
 board and pair it over BLE for the latency and soak rows; run the doctor
 from Codex and Cursor.
+
+**Finding (2026-09-09, UI pass).** The M5StickC environments in
+`platformio.ini` have not compiled since Phase 2's v2 renderer: the core
+2.x toolchain (GCC 8, mbedTLS 2, older ArduinoJson) rejects brace
+initializers and JSON proxies the v2 code relies on. They are the archived
+hardware, not a v2 target, so CI builds the shipping board only and the
+M5 envs stay in the file for the archived firmware's sake. Re-enable them
+only with a deliberate port.
 
 **Host-side work landed (2026-09-09).** `VERSION` 1.0.0; CI jobs for the
 leaderboard service and every firmware environment plus the host-side

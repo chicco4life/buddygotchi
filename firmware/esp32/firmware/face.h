@@ -204,62 +204,88 @@ static void heart(int x,int y,int r,uint16_t c) {
   spr.fillSmoothCircle(x-r/2,y,r/2+1,c); spr.fillSmoothCircle(x+r/2,y,r/2+1,c);
   spr.fillTriangle(x-r,y+1,x+r,y+1,x,y+r+2,c);
 }
-static void faceDraw(uint32_t now,bool showSparks) {
-  const FacePose& p=facePose;
-  int lift=animPx(cardSpring.pos*47);
-  int cy=HAL_H/2-10-lift+animPx(p.bob+p.lean), cx=HAL_W/2+animPx(p.gazeX);
-  float reveal=cosmeticAmount(now), color=colorAmount(now);
+static uint16_t faceInk(uint32_t now) {
+  uint16_t tint=animMix(skinTint(oldCosmetic),skinTint(tama.cosmetic),cosmeticAmount(now));
+  const char* state=(!dataConnected() && !presenceGraced(now))?"idle":tama.state;
+  bool asleep=napping || eq(state,"asleep");
+  // Blend visible inks, never a low fraction of light over black.
+  uint16_t base=asleep?animRGB(146,146,146):animRGB(219,219,219);
+  return animMix(animRGB(146,146,146),animMix(base,tint,tama.cosmetic.skin[0]?(asleep?0.3f:0.55f):0),colorAmount(now));
+}
+// Rendering tables are eye-relative; data.h retains the stable wire IDs.
+struct EyeAccessoryPart {
+  CosmeticPrimitive kind;
+  int16_t x,y,w,h,r,y2;
+  constexpr EyeAccessoryPart(CosmeticPrimitive k=C_RECT,int16_t px=0,int16_t py=0,
+      int16_t pw=0,int16_t ph=0,int16_t pr=0,int16_t py2=0)
+    : kind(k),x(px),y(py),w(pw),h(ph),r(pr),y2(py2) {}
+};
+static const struct { uint8_t count; EyeAccessoryPart parts[4]; } eyeAccessories[] = {
+  {0,{}},
+  {3,{{C_ROUND_RECT,-2,-20,4,22,2},{C_ELLIPSE,-9,-17,10,5},{C_ELLIPSE,8,-23,10,5}}},
+  {1,{{C_ROUND_RECT,-43,0,86,10,5}}},
+  {4,{{C_ROUND_RECT,-24,0,48,7,3},{C_TRIANGLE,-24,2,-18,-12,-8,2},
+       {C_TRIANGLE,-8,2,0,-16,8,2},{C_TRIANGLE,8,2,18,-12,24,2}}}
+};
+static void faceDraw(uint32_t now,bool showSparks,float compact=0,bool proud=false) {
+  FacePose p=facePose;
+  float scale=1-0.56f*compact;
+  if (proud) { p.arc=22; p.eyeH=7; p.mouth=1; p.gazeX=p.gazeY=p.tilt=0; p.blush=p.sweat=p.brow=0; }
+  int lift=animPx(max(cardSpring.pos,decision.id[0]?1.0f:0.0f)*47);
+  int cy=HAL_H/2-10-lift+animPx(p.bob+p.lean), cx=animPx(HAL_W/2.0f+(HAL_W/6.0f-HAL_W/2.0f)*compact+p.gazeX*scale);
+  float reveal=cosmeticAmount(now);
   const Cosmetics& shape=reveal<0.5f?oldCosmetic:tama.cosmetic;
-  const auto& silhouette=silhouettes[shape.silhouetteId];
-  float spacing=silhouette.spacing;
-  cy+=silhouette.dy;
-  uint16_t tint=animMix(skinTint(oldCosmetic),skinTint(tama.cosmetic),reveal);
-  uint16_t ink=animMix(animRGB(146,146,146),animMix(animRGB(219,219,219),tint,tama.cosmetic.skin[0]?0.55f:0),color);
-  uint16_t body=animMix(BLACK,animMix(LIGHTGREY,tint,color),0.12f);
-  int rx=silhouette.rx, ry=silhouette.ry;
-  spr.fillEllipse(cx,cy+12,rx,ry,body);
-  // Sweep clipped to the body ellipse, with no frame-history dependency.
-  bool shimmer=!hasCard() && ((ritual==R_COLOR && now-ritualAt<ritualDuration[R_COLOR]) || (levelRitual() && now-ritualAt<900));
-  if(shimmer) {
-    float u=ritual==R_COLOR?(float)(now-ritualAt)/ritualDuration[R_COLOR]:(now-ritualAt)/900.0f;
-    int x=animPx(-rx+2*rx*u);
-    for(int dx=-8;dx<=8;++dx) {
-      float f=(float)(x+dx)/rx;
-      if(fabsf(f)<1) { int h=animPx(ry*sqrtf(1-f*f)); spr.drawLine(cx+x+dx,cy+12-h,cx+x+dx,cy+12+h,animMix(body,ink,0.3f)); }
-    }
-  }
+  float spacing=silhouettes[shape.silhouetteId].spacing*scale;
+  // Silhouettes affect only eye size and spacing, never the anchor.
+  float eyeScale=shape.silhouetteId==1?1.08f:shape.silhouetteId==2?0.9f:1;
+  p.eyeW*=scale*eyeScale; p.eyeH*=scale*eyeScale; p.arc*=scale;
+  uint16_t ink=faceInk(now);
   if(!hasCard()) {
-    uint16_t accessoryInk=animMix(body,ink,reveal);
-    const auto& accessory=accessories[shape.accessoryId];
-    for (uint8_t i=0;i<accessory.count;++i) {
+    const auto& accessory=eyeAccessories[shape.accessoryId];
+    int ax=cx, ay=cy-animPx(p.eyeH/2+30*scale);
+    if(shape.accessoryId==1) { ax=cx-animPx(spacing+p.eyeW/2); ay=cy-animPx(p.eyeH/2+8*scale); }
+    if(shape.accessoryId==2) ay=cy+animPx(72*scale);
+    for(uint8_t i=0;i<accessory.count;++i) {
       const auto& part=accessory.parts[i];
-      switch (part.kind) {
-        case C_RECT: spr.fillRect(cx+part.x,cy+part.y,part.w,part.h,accessoryInk); break;
-        case C_ELLIPSE: spr.fillEllipse(cx+part.x,cy+part.y,part.w,part.h,accessoryInk); break;
-        case C_ROUND_RECT: spr.fillRoundRect(cx+part.x,cy+part.y,part.w,part.h,part.r,accessoryInk); break;
-        case C_TRIANGLE: spr.fillTriangle(cx+part.x,cy+part.y,cx+part.w,cy+part.h,cx+part.r,cy+part.y2,accessoryInk); break;
+      int x=ax+animPx(part.x*scale),y=ay+animPx(part.y*scale),w=animPx(part.w*scale),h=animPx(part.h*scale);
+      switch(part.kind) {
+        case C_RECT: case C_ROUND_RECT: spr.fillSmoothRoundRect(x,y,w,h,max(1,animPx(part.r*scale)),ink); break;
+        case C_ELLIPSE: spr.fillEllipse(x,y,w,h,ink); break;
+        case C_TRIANGLE: spr.fillTriangle(x,y,ax+w,ay+h,ax+animPx(part.r*scale),ay+animPx(part.y2*scale),ink); break;
       }
     }
   }
-
   for (int side=-1;side<=1;side+=2) {
     int ex=cx+animPx(side*spacing*cosf(p.tilt)), ey=cy+animPx(p.gazeY+side*spacing*sinf(p.tilt));
-    if (before(now,dizzyUntil) && !hasCard()) {
-      for (int k=-2;k<=2;++k) { spr.drawLine(ex-20,ey-20+k,ex+20,ey+20+k,ink); spr.drawLine(ex-20,ey+20+k,ex+20,ey-20+k,ink); }
-    } else if (p.arc>2) _faceEyeArch(ex,ey,animPx(p.eyeW),p.arc,5,ink);
-    else _faceEye(ex,ey,animPx(p.eyeW),p.rightEyeClosed && side>0 ? 7 : animPx(p.eyeH),18,ink);
+    auto drawEye=[&](uint16_t eyeInk) {
+    if (before(now,dizzyUntil) && !hasCard() && !proud) {
+      for (int k=-2;k<=2;++k) { spr.drawLine(ex-20,ey-20+k,ex+20,ey+20+k,eyeInk); spr.drawLine(ex-20,ey+20+k,ex+20,ey-20+k,eyeInk); }
+    } else if (p.arc>2) _faceEyeArch(ex,ey,animPx(p.eyeW),p.arc,max(2,animPx(5*scale)),eyeInk);
+    else _faceEye(ex,ey,animPx(p.eyeW),p.rightEyeClosed && side>0 ? 7 : animPx(p.eyeH),18,eyeInk);
+    };
+    drawEye(ink);
+    if (!hasCard() && levelRitual() && now-ritualAt<900) {
+      float sweep=cx+( (now-ritualAt)/900.0f*2-1)*(spacing+p.eyeW/2+20);
+      // Repaint only eye geometry through a soft 40px band.
+      // Both endpoints are bright inks, so low fractions stay visible.
+      for(int dx=-20;dx<=20;dx+=2) {
+        spr.setClipRect(animPx(sweep)+dx,0,2,HAL_H);
+        drawEye(animMix(ink,WHITE,0.8f*(1-fabsf(dx)/22)));
+      }
+      spr.clearClipRect();
+    }
     _faceBrow(ex,ey-animPx(p.eyeH/2)-15,58,-side,p.brow,ink);
-    if (p.blush>0.1f) spr.fillEllipse(ex,ey+43,18,6,animMix(BLACK,animRGB(255,109,173),p.blush));
+    if (p.blush>0.1f) spr.fillEllipse(ex,ey+43,18,6,animRGB(255,109,173));
   }
-  int my=cy+52;
+  int my=cy+animPx(52*scale);
   if (p.mouth>1.2f) spr.drawEllipse(cx,my,9,13,ink);
-  else if (p.mouth>0.2f) spr.fillArc(cx,my-5,10,13,0,180,ink);
-  else spr.fillRoundRect(cx-9,my,18,3,1,ink);
+  else if (p.mouth>0.2f) spr.fillArc(cx,my-animPx(5*scale),animPx(10*scale),animPx(13*scale),0,180,ink);
+  else spr.fillSmoothRoundRect(cx-9,my,18,3,1,ink);
   if (p.sweat>0.2f) {
     int x=cx+135, y=cy-25+((now-stateAt)%1500)*18/1500;
     uint16_t c=animRGB(73,146,255); spr.fillTriangle(x,y-9,x-5,y+1,x+5,y+1,c); spr.fillSmoothCircle(x,y+2,5,c);
   }
-  if (eq(posture,"perch")) {
+  if (eq(posture,"perch") && !proud) {
     bool kick=eq(tama.state,"idle");
     bool tucked=napping || eq(tama.state,"asleep") || (eq(tama.state,"working") && eq(tama.effort,"grinding"));
     for(int side=-1;side<=1;side+=2) {
@@ -276,7 +302,7 @@ static void faceDraw(uint32_t now,bool showSparks) {
   uint32_t age=now-stateAt;
   if (eq(tama.state,"done") && age<cheerDuration()) {
     if (eq(tama.cheer,"hop") || !tama.cheer[0]) {
-      int r=30+age*100/1500; spr.drawCircle(cx,cy,r,animMix(BLACK,GREEN,0.18f*(1-age/1500.0f)));
+      int r=30+age*100/1500; spr.fillArc(cx,cy,r,r+2,0,360,animRGB(36,109,0));
     } else {
       int count=eq(tama.cheer,"dance")?32:16;
       for(int i=0;i<count;++i) {
@@ -291,7 +317,7 @@ static void faceDraw(uint32_t now,bool showSparks) {
   }
   if (giftPending() && !(eq(tama.state,"done") && age<cheerDuration())) {
     int x=HAL_W-62,y=HAL_H/2+26+animPx(sinf((now-stateAt)*0.002f)*4);
-    spr.drawCircle(x,y,16,animRGB(109,73,0)); spr.fillSmoothCircle(x,y,9,animRGB(255,219,82));
+    spr.fillSmoothCircle(x,y,16,animRGB(109,73,0)); spr.fillSmoothCircle(x,y,9,animRGB(255,219,82));
     spr.fillSmoothCircle(x-3,y-3,2,WHITE);
   }
 }

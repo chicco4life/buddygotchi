@@ -23,7 +23,7 @@ struct OnboardingView: View {
 
     var body: some View {
         ZStack {
-            BuddyTheme.paper.ignoresSafeArea()
+            BuddyTheme.windowBackground.ignoresSafeArea()
 
             VStack(spacing: 0) {
                 progressBar
@@ -106,7 +106,7 @@ struct OnboardingView: View {
             Button(BuddyCopy.phase7("continue", language: engine.state.language)) {
                 wakeRequested = true
             }
-            .buttonStyle(BuddyPrimaryButtonStyle(size: .large))
+            .buttonStyle(.borderedProminent).tint(BuddyTheme.amber)
             .disabled(model.waking)
             .task(id: wakeRequested) {
                 if wakeRequested && !snapshotFrozen { await model.firstWake(reduceMotion: reduceMotion); wakeRequested = false }
@@ -130,7 +130,7 @@ struct OnboardingView: View {
                 ForEach(AgentKind.allCases) { agent in
                     VStack(alignment: .leading, spacing: 4) {
                         agentRow(agent)
-                        if model.heardAgents.contains(agent) { Text(BuddyCopy.heardFrom(agent.displayName)).font(.buddy(11)).foregroundStyle(BuddyTheme.greenInk) }
+                        if model.heardAgents.contains(agent) { Text(BuddyCopy.heardFrom(agent.displayName)).font(.body).foregroundStyle(BuddyTheme.greenInk) }
                     }
                 }
             }
@@ -141,18 +141,18 @@ struct OnboardingView: View {
             HStack {
                 HStack(spacing: 12) {
                     Button(BuddyCopy.shared.onboarding.back) { model.goBack() }
-                        .buttonStyle(BuddySecondaryButtonStyle(size: .large))
+                        .buttonStyle(.plain)
 
                     Button(BuddyCopy.Onboarding.skipForNow) {
                         model.advance()
                     }
-                    .buttonStyle(BuddySecondaryButtonStyle(size: .large))
+                    .buttonStyle(.plain)
                 }
 
                 Spacer()
 
-                Button(BuddyCopy.shared.onboarding.next) { model.advance() }
-                    .buttonStyle(BuddyPrimaryButtonStyle(size: .large))
+                Button(BuddyCopy.phase7("continue", language: engine.state.language)) { model.advance() }
+                    .buttonStyle(.borderedProminent).tint(BuddyTheme.amber)
                     .disabled(!model.canFinishAgents)
                     .opacity(model.canFinishAgents ? 1 : 0.45)
                     .keyboardShortcut(.return, modifiers: [])
@@ -177,7 +177,7 @@ struct OnboardingView: View {
                 .textFieldStyle(.roundedBorder).frame(width: 320).disabled(model.nameIsLocked)
             Spacer()
             Button(BuddyCopy.phase7("continue", language: engine.state.language)) { if model.saveName() { engine.refreshSettings(); esp32Output.refreshSnapshot(); model.advance() } }
-                .buttonStyle(BuddyPrimaryButtonStyle(size: .large))
+                .buttonStyle(.borderedProminent).tint(BuddyTheme.amber)
                 .disabled(model.buddyName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
     }
@@ -198,7 +198,7 @@ struct OnboardingView: View {
 
             if model.selectedOutput == .hardware {
                 Text(BuddyCopy.Onboarding.hardwareFootnote)
-                    .font(.buddy(11))
+                    .font(.body)
                     .foregroundStyle(BuddyTheme.inkFaint)
                     .multilineTextAlignment(.center)
                     .frame(width: 460)
@@ -241,16 +241,16 @@ struct OnboardingView: View {
         VStack(spacing: 18) {
             Spacer(minLength: 10)
             CreatureView(creature: engine.state.creature, grey: model.heardAgents.isEmpty).frame(width: 240, height: 180)
-            Text(BuddyCopy.phase7("firstOne", language: engine.state.language)).font(.buddy(18, weight: .semibold))
+            Text(BuddyCopy.phase7("firstOne", language: engine.state.language)).font(.headline)
 
             VStack(spacing: 10) {
                 HStack {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(BuddyCopy.Onboarding.launchAtLogin)
-                            .font(.buddy(13, weight: .semibold))
+                            .font(.headline)
                             .foregroundStyle(BuddyTheme.ink)
                         Text(model.isPackagedApp ? BuddyCopy.Onboarding.launchAtLoginDescription : BuddyCopy.Onboarding.launchAtLoginUnavailable)
-                            .font(.buddy(11))
+                            .font(.body)
                             .foregroundStyle(BuddyTheme.inkFaint)
                     }
                     Spacer()
@@ -262,7 +262,7 @@ struct OnboardingView: View {
                         )
                     )
                         .labelsHidden()
-                        .toggleStyle(BuddySwitchToggleStyle())
+                        .toggleStyle(.switch)
                         .tint(BuddyTheme.amberInk)
                         .disabled(!model.isPackagedApp)
                 }
@@ -273,16 +273,16 @@ struct OnboardingView: View {
                 HStack(spacing: 14) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(BuddyCopy.Onboarding.notificationsTitle)
-                            .font(.buddy(13, weight: .semibold))
+                            .font(.headline)
                             .foregroundStyle(BuddyTheme.ink)
                         Text(BuddyCopy.Onboarding.notificationsDescription)
-                            .font(.buddy(11))
+                            .font(.body)
                             .foregroundStyle(BuddyTheme.inkFaint)
                     }
                     Spacer()
                     if model.notificationRequested {
                         Button(BuddyCopy.Onboarding.notificationsEnabled) {}
-                            .buttonStyle(BuddySecondaryButtonStyle(size: .large))
+                            .buttonStyle(.plain)
                             .disabled(true)
                     } else {
                         Button(BuddyCopy.Onboarding.enableNotifications) {
@@ -290,19 +290,19 @@ struct OnboardingView: View {
                             UserDefaults.standard.set(true, forKey: DefaultsKey.notificationPermissionRequested)
                             model.notificationRequested = true
                         }
-                        .buttonStyle(BuddyPrimaryButtonStyle(size: .large))
+                        .buttonStyle(.borderedProminent).tint(BuddyTheme.amber)
                     }
                 }
             }
             .padding(16)
             .frame(width: 520)
-            .buddySurface()
+
 
             Spacer()
 
             HStack {
                 Button(BuddyCopy.shared.onboarding.back) { model.goBack() }
-                    .buttonStyle(BuddySecondaryButtonStyle(size: .large))
+                    .buttonStyle(.plain)
                 Spacer()
                 Button(BuddyCopy.Onboarding.startWatching) {
                     model.complete()
@@ -310,7 +310,7 @@ struct OnboardingView: View {
                     engine.setSpecies(model.selectedSpecies)
                     onFinish()
                 }
-                .buttonStyle(BuddyPrimaryButtonStyle(size: .large))
+                .buttonStyle(.borderedProminent).tint(BuddyTheme.amber)
                 .keyboardShortcut(.return, modifiers: [])
             }
         }.onAppear { if !snapshotFrozen { engine.firstCheer() } }
@@ -329,10 +329,10 @@ struct OnboardingView: View {
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(agent.displayName)
-                    .font(.buddy(13, weight: .semibold))
+                    .font(.headline)
                     .foregroundStyle(BuddyTheme.ink)
                 Text(error ?? (detected ? BuddyCopy.Onboarding.detected : BuddyCopy.Onboarding.notDetectedHint))
-                    .font(.buddy(11))
+                    .font(.body)
                     .foregroundStyle(error == nil ? BuddyTheme.inkFaint : BuddyTheme.clay)
             }
 
@@ -340,17 +340,17 @@ struct OnboardingView: View {
 
             if installed {
                 Button(BuddyCopy.Onboarding.connected) {}
-                    .buttonStyle(BuddySecondaryButtonStyle(size: .large))
+                    .buttonStyle(.plain)
                     .disabled(true)
             } else {
                 Button(BuddyCopy.Onboarding.connect) {
                     model.connect(agent: agent, diagnosticLog: engine.diagnosticLog)
                 }
-                .buttonStyle(BuddyPrimaryButtonStyle(size: .large))
+                .buttonStyle(.borderedProminent).tint(BuddyTheme.amber)
             }
         }
         .padding(14)
-        .buddySurface()
+
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(agent.displayName), \(installed ? BuddyCopy.Onboarding.connected : detected ? BuddyCopy.Onboarding.detected : BuddyCopy.Onboarding.notDetected)")
     }
@@ -363,16 +363,16 @@ struct OnboardingView: View {
                 outputSelectionIndicator(selected: model.selectedOutput == target)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(target.displayName)
-                        .font(.buddy(13, weight: .semibold))
+                        .font(.headline)
                         .foregroundStyle(BuddyTheme.ink)
                     Text(target.description)
-                        .font(.buddy(11))
+                        .font(.body)
                         .foregroundStyle(BuddyTheme.inkFaint)
                 }
                 Spacer()
             }
             .padding(14)
-            .buddySurface()
+
         }
         .buttonStyle(.plain)
     }
@@ -387,7 +387,7 @@ struct OnboardingView: View {
                     .fill(BuddyTheme.amber)
                     .frame(width: 20, height: 20)
                 Image(systemName: "checkmark")
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.body.weight(.bold))
                     .foregroundStyle(BuddyTheme.ink)
             }
         }
@@ -398,31 +398,31 @@ struct OnboardingView: View {
         VStack(spacing: 10) {
             if esp32Output.connectionState == .connected && selectedDeviceUUID != nil {
                 Label(BuddyCopy.Onboarding.connectedCheered, systemImage: "checkmark.circle.fill")
-                    .font(.buddy(11, weight: .semibold))
+                    .font(.body)
                     .foregroundStyle(BuddyTheme.greenInk)
             } else if model.pairingTimedOut {
                 Text(BuddyCopy.Onboarding.pairingTimeout)
-                    .font(.buddy(11, weight: .semibold))
+                    .font(.body)
                     .foregroundStyle(BuddyTheme.clayInk)
                 HStack {
                     Button(BuddyCopy.Onboarding.retry) {
                         retryPairing()
                     }
-                    .buttonStyle(BuddyPrimaryButtonStyle(size: .large))
+                    .buttonStyle(.borderedProminent).tint(BuddyTheme.amber)
                     Button(BuddyCopy.Onboarding.backToList) {
                         cleanupAbandonedPairing()
                         startScanning()
                     }
-                    .buttonStyle(BuddySecondaryButtonStyle(size: .large))
+                    .buttonStyle(.plain)
                 }
             } else if selectedDeviceUUID != nil {
                 ProgressView()
                     .tint(BuddyTheme.amberInk)
                 Text(BuddyCopy.Onboarding.connecting)
-                    .font(.buddy(11, weight: .semibold))
+                    .font(.body)
                     .foregroundStyle(BuddyTheme.ink)
                 Text(BuddyCopy.Onboarding.pairingHelp)
-                    .font(.buddy(11))
+                    .font(.body)
                     .foregroundStyle(BuddyTheme.inkFaint)
                     .multilineTextAlignment(.center)
             } else {
@@ -432,7 +432,7 @@ struct OnboardingView: View {
         .padding(14)
         .frame(width: 480)
         .frame(minHeight: 96)
-        .buddySurface(BuddyTheme.paperSunken)
+
     }
 
     private var bleDeviceList: some View {
@@ -441,16 +441,16 @@ struct OnboardingView: View {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(BuddyTheme.amberInk)
                 Text(BuddyCopy.Onboarding.bluetoothOff)
-                    .font(.buddy(11, weight: .semibold))
+                    .font(.body)
                     .foregroundStyle(BuddyTheme.ink)
                 Text(BuddyCopy.Onboarding.bluetoothOffHint)
-                    .font(.buddy(11))
+                    .font(.body)
                     .foregroundStyle(BuddyTheme.inkFaint)
             } else if scanner.devices.isEmpty {
                 ProgressView()
                     .tint(BuddyTheme.amberInk)
                 Text(BuddyCopy.Onboarding.scanning)
-                    .font(.buddy(11))
+                    .font(.body)
                     .foregroundStyle(BuddyTheme.inkSoft)
             } else {
                 ForEach(scanner.devices, id: \.identifier) { device in
@@ -460,10 +460,10 @@ struct OnboardingView: View {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(device.name)
-                                    .font(.buddy(11, weight: .semibold))
+                                    .font(.body)
                                     .foregroundStyle(BuddyTheme.ink)
                                 Text(String(device.identifier.uuidString.prefix(8)) + "…")
-                                    .font(.buddy(11))
+                                    .font(.body)
                                     .foregroundStyle(BuddyTheme.inkFaint)
                             }
                             Spacer()
@@ -471,7 +471,7 @@ struct OnboardingView: View {
                                 .foregroundStyle(BuddyTheme.inkFaint)
                         }
                         .padding(10)
-                        .buddySurface(radius: BuddyTheme.wellCornerRadius)
+
                     }
                     .buttonStyle(.plain)
                 }
@@ -482,10 +482,10 @@ struct OnboardingView: View {
     private func navigationBar(nextTitle: String = BuddyCopy.shared.onboarding.next, nextDisabled: Bool = false) -> some View {
         HStack {
             Button(BuddyCopy.shared.onboarding.back) { model.goBack() }
-                .buttonStyle(BuddySecondaryButtonStyle(size: .large))
+                .buttonStyle(.plain)
             Spacer()
             Button(nextTitle) { model.advance() }
-                .buttonStyle(BuddyPrimaryButtonStyle(size: .large))
+                .buttonStyle(.borderedProminent).tint(BuddyTheme.amber)
                 .disabled(nextDisabled)
                 .opacity(nextDisabled ? 0.45 : 1)
                 .keyboardShortcut(.return, modifiers: [])
@@ -495,12 +495,12 @@ struct OnboardingView: View {
     private func stepHeader(title: String, subtitle: String? = nil) -> some View {
         VStack(spacing: 7) {
             Text(title)
-                .font(.buddy(34, weight: .semibold))
+                .font(.largeTitle)
                 .foregroundStyle(BuddyTheme.ink)
                 .multilineTextAlignment(.center)
             if let subtitle {
                 Text(subtitle)
-                    .font(.buddy(13))
+                    .font(.body)
                     .foregroundStyle(BuddyTheme.inkSoft)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 520)

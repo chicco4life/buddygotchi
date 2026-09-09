@@ -16,8 +16,8 @@ enum SnapshotRenderer {
     private static let surface = Surface()
 
     static var expectedRenderCount: Int {
-        let companionPerAppearance = CompanionScene.all.count + 2 + 2 + SettingsSection.allCases.count + 2 + OnboardingStep.allCases.count
-        let other = 7 + 2 + OnboardingStep.allCases.count + FirmwareUpdater.snapshotStates.count + 1 + 4
+        let companionPerAppearance = CompanionScene.all.count + 2 + 2 + SettingsSection.sidebar.count + OnboardingStep.allCases.count
+        let other = 7 + OnboardingStep.allCases.count + FirmwareUpdater.snapshotStates.count + 1 + 4
         return 2 * companionPerAppearance + other + 2 // one cream share card per language
     }
 
@@ -44,7 +44,6 @@ enum SnapshotRenderer {
 
         let idle = CGSize(width: BuddyTheme.popoverWidth, height: BuddyTheme.liveViewHeight)
         let expanded = CGSize(width: BuddyTheme.popoverWidth, height: BuddyTheme.liveViewExpandedHeight)
-        let settingsSize = CGSize(width: BuddyTheme.popoverWidth, height: BuddyTheme.popoverHeight)
         let onboardingSize = CGSize(width: BuddyTheme.onboardingWidth, height: BuddyTheme.onboardingHeight)
 
         renderCompanionScenes(to: dir, defaults: defaults)
@@ -100,14 +99,6 @@ enum SnapshotRenderer {
         review.activitySignal(sessionId: "c1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "swift test")
         review.activitySignal(sessionId: "c1", source: "claude-code", signal: .celebrate)
         render(popover(review), "popover-7-review", expanded, dir)
-
-        // 8. Settings (popover-height viewport + full-height capture of the whole scroll)
-        let settingsEngine = makeEngine()
-        let settings = SettingsView(isPresented: .constant(true), engine: settingsEngine, esp32Output: ESP32Output(), serverHealth: nil)
-        render(settings, "settings", settingsSize, dir)
-        var settingsFull = SettingsView(isPresented: .constant(true), engine: makeEngine(), esp32Output: ESP32Output(), serverHealth: nil)
-        settingsFull.frameHeight = 1400
-        render(settingsFull, "settings-full", CGSize(width: BuddyTheme.popoverWidth, height: 1400), dir)
 
         // 9. Onboarding steps
         for step in OnboardingStep.allCases {
@@ -275,14 +266,11 @@ enum SnapshotRenderer {
                 shot(ProfilePage(language: "en", lines: lines), "profile-\(count)", width: 520, height: 540)
             }
             let engine = BuddyEngine(defaults: defaults)
-            let settingsSections = SettingsView(isPresented: .constant(true), engine: engine, esp32Output: ESP32Output(), serverHealth: nil)
-            for section in SettingsSection.allCases {
-                shot(settingsSections.section(section).padding(20), "settings-" + section.rawValue, height: SettingsSection.standard.contains(section) ? 640 : 300)
+            for section in SettingsSection.sidebar {
+                shot(SettingsSectionView(isPresented: .constant(true), engine: engine, esp32Output: ESP32Output(),
+                                         serverHealth: nil, section: section).formStyle(.grouped),
+                     "settings-" + section.rawValue, width: 520, height: section == .advanced ? 1200 : 650)
             }
-            shot(CompanionSettings(engine: engine, device: ESP32Output()).padding(20), "settings-companion", height: 620)
-            var settings = SettingsView(isPresented: .constant(true), engine: engine, esp32Output: ESP32Output(), serverHealth: nil)
-            settings.frameHeight = 2400
-            shot(settings, "settings-all-sections", height: 2400)
             for step in OnboardingStep.allCases {
                 defaults.set(step.rawValue, forKey: DefaultsKey.onboardingStep)
                 let onboardingEngine = makeEngine(defaults: defaults)
@@ -294,10 +282,11 @@ enum SnapshotRenderer {
     }
 
     static func render<V: View>(_ view: V, _ name: String, _ size: CGSize, _ dir: String, defaults: UserDefaults, dark: Bool = false) {
-        let root = ZStack { BuddyTheme.paper; view }.id(name)
-            .frame(width: size.width, height: size.height)
+        let root = ZStack(alignment: .top) { BuddyTheme.windowBackground; view }.id(name)
+            .frame(width: size.width, height: size.height, alignment: .top)
             .environment(\.colorScheme, dark ? .dark : .light)
             .environment(\.snapshotFrozen, true)
+            .environment(\.controlActiveState, .key)
             .defaultAppStorage(defaults)
 
         let host = surface.host
@@ -309,8 +298,14 @@ enum SnapshotRenderer {
         window.setContentSize(size)
         window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         host.layoutSubtreeIfNeeded()
-        _ = RunLoop.main.run(mode: .default, before: .now)
+        // Native split-view and list rows finish their layout on the next turn.
+        // Drain those updates before capturing the AppKit-backed controls.
+        let layoutDeadline = Date.now.addingTimeInterval(0.05)
+        while Date.now < layoutDeadline {
+            _ = RunLoop.main.run(mode: .default, before: layoutDeadline)
+        }
         host.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
         defer { window.orderOut(nil) }
 
         guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {

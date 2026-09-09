@@ -27,6 +27,7 @@ static uint32_t cardAt = 0, stateAt = 0, overlayAt = 0, bubbleUntil = 0, bootAt 
 static uint32_t localBoopUntil = 0, dizzyUntil = 0, perkUntil = 0, shakeHeadUntil = 0;
 static uint32_t lastInput = 0, statsUntil = 0, lastPet = 0;
 static int statsPage = 0;
+static uint32_t statsAt = 0;
 static bool giftCollected = false, bubbleDismissed = false, cardDismissed = false;
 static char localBubble[64] = "", posture[7] = "desk";
 static uint32_t localBubbleUntil = 0, drawCount = 0;
@@ -246,7 +247,7 @@ static void boop(bool hold) {
   JsonDocument d; d["cmd"] = "boop"; d["hold"] = hold; sendDoc(d);
 }
 static void clearBubble() { bubbleDismissed = true; localBubbleUntil = 0; }
-static void pageStats() { statsPage = before(nowMs(),statsUntil) ? (statsPage+1)%2 : 0; statsUntil = nowMs()+10000; }
+static void pageStats() { if (!before(nowMs(),statsUntil)) statsAt=nowMs(); statsPage = before(nowMs(),statsUntil) ? (statsPage+1)%2 : 0; statsUntil = nowMs()+10000; }
 static void primaryTap() {
   if (hasCard()) {
     if (armed()) { if (careful()) shakeHeadUntil = nowMs()+600; else decide(true); }
@@ -268,7 +269,8 @@ static void secondaryTap() {
 }
 struct Button {
   bool down = false, guard = false, fired = false, focusSent = false, shutdown = false;
-  uint32_t at = 0, injectedUntil = 0;
+  uint32_t at = 0, injectedUntil = 0, visualAt = 0, releasedAt = 0;
+  float releasedHold = 0;
   bool injected = false;
   char cardId[24] = "";
 };
@@ -284,7 +286,7 @@ static void buttonsTick() {
     if (injectedRelease) b.injected = false;
     bool down = b.injected || halButtonDown((HalButton)i);
     if (down && !b.down) {
-      b.at = real; b.fired = b.focusSent = b.shutdown = false;
+      b.at = real; b.visualAt=now; b.releasedHold=0; b.fired = b.focusSent = b.shutdown = false;
       b.guard = screenOff || napping || (hasCard() && tama.card.approval && !armed());
       strlcpy(b.cardId,tama.card.id,sizeof(b.cardId));
       wake();
@@ -308,6 +310,8 @@ static void buttonsTick() {
       if (i != 0 && held >= 3600 && b.shutdown && !screenOff) { halDisplaySleep(); screenOff=true; }
     }
     if (!down && b.down) {
+      b.releasedAt=now;
+      b.releasedHold=(!b.guard && !strcmp(b.cardId,tama.card.id) && armed())?animClamp((now-b.visualAt)/(careful()?2000.0f:1000.0f),0,1):0;
       lastInput = now;
       if (b.shutdown && !screenOff) { halDisplaySleep(); screenOff=true; }
       if (!b.fired && !b.guard && !strcmp(b.cardId,tama.card.id)) {
@@ -383,8 +387,8 @@ static Layer screenLayer() {
   return L_FACE;
 }
 // Two UTF-8-aware lines using the Korean font already bundled in LGFX.
-static void textLines(const char* text,int x,int y,int width,int lines=2) {
-  spr.setFont(&fonts::efontKR_16); spr.setTextSize(1.25f); spr.setTextDatum(TL_DATUM); spr.setTextColor(WHITE);
+static void textLines(const char* text,int x,int y,int width,int lines=2,float size=1.0f,uint16_t ink=WHITE) {
+  spr.setFont(&fonts::efontKR_16); spr.setTextSize(size); spr.setTextDatum(TL_DATUM); spr.setTextColor(ink);
   spr.setTextWrap(false);
   char line[128]={0}; size_t used=0; int lineW=0;
   const unsigned char* p=(const unsigned char*)text;
@@ -396,56 +400,77 @@ static void textLines(const char* text,int x,int y,int width,int lines=2) {
     char glyph[5]={0}; memcpy(glyph,p,n);
     int glyphW=spr.textWidth(glyph);
     if (lineW+glyphW>width && used) {
-      line[used]=0; spr.drawString(line,x,y); y+=22; --lines; used=0; lineW=0;
+      line[used]=0; spr.drawString(line,x,y); y+=animPx(20*size); --lines; used=0; lineW=0;
       if (!lines) break;
     }
     memcpy(line+used,p,n); used+=n; line[used]=0; lineW+=glyphW; p+=n;
   }
   if (lines>0 && used) spr.drawString(line,x,y);
 }
-static void cardBox(int y,int h,uint16_t border) {
-  spr.fillSmoothRoundRect(16,y,HAL_W-32,h,16,animRGB(18,18,24));
-  spr.drawRoundRect(16,y,HAL_W-32,h,16,border);
+static void textRight(const char* text,int right,int y,uint16_t ink) {
+  spr.setFont(&fonts::efontKR_16); spr.setTextSize(1);
+  textLines(text,right-spr.textWidth(text),y,HAL_W,1,1,ink);
 }
+static int cardY() { return HAL_H-132+animPx((1-animClamp(cardSpring.pos,0,1))*132); }
 static void drawCard(uint32_t now) {
-  int y=HAL_H-132+animPx((1-animClamp(cardSpring.pos,0,1))*132);
-  cardBox(y,122,animRGB(255,182,36));
+  int y=cardY();
+  uint16_t ink=faceInk(now);
   char line[96];
   if (systemCard()) {
-    if (blePasskey()) { snprintf(line,sizeof(line),"pair: %06lu",(unsigned long)blePasskey()); textLines(line,32,y+18,HAL_W-64); }
-    else if (otaActive()) { snprintf(line,sizeof(line),"update %lu / %lu",(unsigned long)otaProgress(),(unsigned long)otaTotal()); textLines(line,32,y+18,HAL_W-64); }
-    else { textLines(tama.card.kind,32,y+12,HAL_W-64,1); textLines(tama.card.text,32,y+42,HAL_W-64); }
+    if (blePasskey()) { snprintf(line,sizeof(line),"pair: %06lu",(unsigned long)blePasskey()); textLines(line,30,y+10,HAL_W-60,1,1.5f,ink); }
+    else if (otaActive()) { snprintf(line,sizeof(line),"update %lu / %lu",(unsigned long)otaProgress(),(unsigned long)otaTotal()); textLines(line,30,y+10,HAL_W-60,1,1.5f,ink); }
+    else { textLines(tama.card.kind,30,y+10,HAL_W-60,1,1.5f,ink); textLines(tama.card.text,30,y+42,HAL_W-60,2,1,ink); }
     return;
   }
-  textLines(tama.card.tool,44,y+10,HAL_W-150,1);
+  int toolWidth=HAL_W-74;
+  if(tama.card.of>1) {
+    snprintf(line,sizeof(line),"%d of %d",tama.card.n,tama.card.of);
+    textRight(line,HAL_W-30,y+14,animRGB(146,146,146));
+    toolWidth-=spr.textWidth(line)+16;
+  }
+  textLines(tama.card.tool,44,y+10,toolWidth,1,1.5f,ink);
   uint16_t stakes=careful()?animRGB(255,73,82):eq(tama.card.stakes,"checkIt")?animRGB(255,182,36):GREEN;
-  spr.fillSmoothCircle(31,y+18,5,stakes);
-  if (tama.card.of>1) { snprintf(line,sizeof(line),"%d of %d",tama.card.n,tama.card.of); textLines(line,HAL_W-120,y+10,105,1); }
-  textLines(tama.card.gloss,30,y+38,HAL_W-60);
-  const char* hint=!tama.card.approval?"tap to dismiss":!armed()?"one moment":careful()?"hold 2s · yes  secondary · no":"tap · yes  hold · no";
-  textLines(hint,30,y+94,HAL_W-60,1);
-  (void)now;
+  spr.fillSmoothCircle(31,y+22,5,stakes);
+  textLines(tama.card.gloss,30,y+42,HAL_W-60,2,1,ink);
+  bool touched=false;
+  for(const auto& b:buttons) touched|=b.down;
+  uint32_t quiet=min(now-lastInput,now-cardAt);
+  if(tama.card.approval && !touched && quiet>5000) {
+    textLines(careful()?"hold 2s · yes   side · no":"tap · yes   hold · no",30,y+88,HAL_W-100,1,1,animRGB(146,146,146));
+  }
+  if(armed()) {
+    int x=HAL_W-40, ry=y+96;
+    // LovyanGFX includes both radii: 14..13 is 2 px, 14..11 is 4 px.
+    spr.fillArc(x,ry,14,13,0,360,ink);
+    const auto& b=buttons[0];
+    float hold=0;
+    if(!b.guard && !strcmp(b.cardId,tama.card.id)) {
+      hold=b.down?animClamp((now-b.visualAt)/(careful()?2000.0f:1000.0f),0,1):
+        b.releasedHold*(1-animClamp((now-b.releasedAt)/300.0f,0,1));
+    }
+    if(hold>0) spr.fillArc(x,ry,14,11,270,270+360*hold,ink);
+  }
 }
-static void drawStats() {
-  spr.fillSmoothRoundRect(152,40,HAL_W-164,220,16,animRGB(18,18,24));
-  spr.drawRoundRect(152,40,HAL_W-164,220,16,animRGB(109,219,146));
-  // The same eye parts, scaled beside the snapshot in a proud arc pose.
-  spr.fillRect(0,0,145,HAL_H,BLACK);
-  _faceEyeArch(44,125,27,9,3,WHITE); _faceEyeArch(105,125,27,9,3,WHITE);
-  spr.fillArc(75,153,7,10,0,180,WHITE);
+static void drawStats(uint32_t now) {
+  uint16_t ink=faceInk(now);
+  int x=HAL_W/3+12, right=HAL_W-20, width=right-x;
   char line[128];
   if(statsPage==0) {
-    textLines(tama.snap.name,164,72,HAL_W-184,1);
-    snprintf(line,sizeof(line),"level %lu   streak %lu",(unsigned long)tama.snap.level,(unsigned long)tama.snap.streak); textLines(line,164,108,HAL_W-184);
-    snprintf(line,sizeof(line),"XP %lu / %lu",(unsigned long)tama.snap.xp,(unsigned long)tama.snap.xpNext); textLines(line,164,154,HAL_W-184);
-    spr.drawRoundRect(164,202,HAL_W-184,14,6,WHITE);
+    textLines(tama.snap.name,x,72,width,1,1.5f,ink);
+    if(tama.snap.streak) snprintf(line,sizeof(line),"Level %lu · %lu-day streak",(unsigned long)tama.snap.level,(unsigned long)tama.snap.streak);
+    else snprintf(line,sizeof(line),"Level %lu",(unsigned long)tama.snap.level);
+    textLines(line,x,108,width,1,1,ink);
+    snprintf(line,sizeof(line),"%lu / %lu",(unsigned long)tama.snap.xp,(unsigned long)tama.snap.xpNext);
+    textRight(line,right,158,ink);
+    spr.fillSmoothRoundRect(x,184,width,6,3,animRGB(146,146,146));
     float progress=tama.snap.xpNext?animClamp((float)tama.snap.xp/tama.snap.xpNext,0,1):0;
-    spr.fillRoundRect(166,204,animPx((HAL_W-188)*progress),10,4,GREEN);
+    int filled=animPx(width*progress);
+    if(filled) spr.fillSmoothRoundRect(x,184,filled,6,min(3,filled/2),GREEN);
   } else {
-    snprintf(line,sizeof(line),"days together: %lu",(unsigned long)tama.snap.days); textLines(line,164,76,HAL_W-184,1);
-    snprintf(line,sizeof(line),"tasks: %lu",(unsigned long)tama.snap.tasks); textLines(line,164,114,HAL_W-184,1);
-    snprintf(line,sizeof(line),"biggest: %s",tama.snap.biggest); textLines(line,164,152,HAL_W-184,1);
-    snprintf(line,sizeof(line),"today: %lu",(unsigned long)tama.snap.today); textLines(line,164,190,HAL_W-184,1);
+    snprintf(line,sizeof(line),"%lu days together",(unsigned long)tama.snap.days); textLines(line,x,76,width,1,1,ink);
+    snprintf(line,sizeof(line),"%lu tasks",(unsigned long)tama.snap.tasks); textLines(line,x,114,width,1,1,ink);
+    textLines(tama.snap.biggest,x,152,width,1,1,ink);
+    snprintf(line,sizeof(line),"today: %lu",(unsigned long)tama.snap.today); textLines(line,x,190,width,1,1,ink);
   }
 }
 static void render() {
@@ -459,26 +484,37 @@ static void render() {
   Layer layer=screenLayer();
   uint16_t tint=animMix(skinTint(oldCosmetic),skinTint(tama.cosmetic),cosmeticAmount(now));
   // RGB332 needs at least one channel step to keep a tint visible.
-  uint16_t field=tama.cosmetic.skin[0]?animMix(BLACK,tint,0.22f):BLACK;
+  uint16_t field=BLACK;
   if (eq(tama.state,"needsYou") || hasCard()) field=animMix(BLACK,animRGB(255,182,36),0.14f+animPulse01(now-stateAt,3500)*0.05f);
   else if(eq(tama.state,"uhoh")) field=animMix(BLACK,animRGB(255,36,36),0.18f+animPulse01(now-stateAt,4000)*0.10f);
+  if(field!=BLACK && tama.cosmetic.skin[0]) field=animMix(field,animMix(BLACK,tint,0.22f),0.2f);
   field=animMix(BLACK,field,colorAmount(now));
+  // One whole-field flash: 300 ms toward the skin, then 300 ms back.
+  if (!hasCard() && levelRitual() && now-ritualAt<600) {
+    uint32_t age=now-ritualAt;
+    // Peak at 0.3 so it reads as a flash of light, not a full-screen colour.
+    float flash=(age<300?age/300.0f:(600-age)/300.0f)*0.3f;
+    field=animMix(field,tama.cosmetic.skin[0]?tint:animRGB(255,182,36),flash);
+  }
   spr.fillSprite(field);
   bool base=layer==L_FACE || layer==L_OVERLAY;
-  faceDraw(now,base);
+  bool beside=layer==L_STATS || layer==L_BUBBLE || layer==L_UHOH;
+  float compact=beside?1:0;
+  if(layer==L_STATS) { float u=animClamp((now-statsAt)/300.0f,0,1); compact=u*u*(3-2*u); }
+  faceDraw(now,base,compact,layer==L_STATS);
   if (tama.focus) spr.fillRoundRect(16,16,9,9,2,animRGB(109,146,182));
   if (eq(posture,"travel") && battery>=0 && battery<25) {
-    spr.drawRoundRect(HAL_W-30,HAL_H-27,20,10,2,LIGHTGREY);
+    spr.fillSmoothRoundRect(HAL_W-30,HAL_H-27,20,10,2,animRGB(146,146,146));
     spr.fillRect(HAL_W-28,HAL_H-25,4,6,animRGB(255,182,36));
   }
   if (!bleBonded() || !dataConnected() || (linkFlash && now-linkAt<800))
     presenceDrawLinkGlyph(spr,now-stateAt,animRGB(73,146,255),linkFlash && now-linkAt<800);
   if (layer==L_SYSTEM || layer==L_CARD) drawCard(now);
-  else if(layer==L_DECISION) { cardBox(HAL_H-70,58,LIGHTGREY); textLines(feedback(),36,HAL_H-52,HAL_W-72,1); }
-  else if(layer==L_STATS) drawStats();
-  else if(layer==L_BUBBLE || layer==L_UHOH) { cardBox(HAL_H-68,60,LIGHTGREY); textLines(bubbleText(),30,HAL_H-57,HAL_W-60); }
+  else if(layer==L_DECISION) { textLines(feedback(),44,HAL_H-122,HAL_W-74,1,1.5f,faceInk(now)); }
+  else if(layer==L_STATS) drawStats(now);
+  else if(layer==L_BUBBLE || layer==L_UHOH) { int x=HAL_W/3+12; uint16_t ink=faceInk(now); textLines(bubbleText(),x+12,HAL_H/2-20,HAL_W-x-40,2,1,ink); }
   else if(layer==L_OVERLAY && tama.agentSrc[0]) agentDraw(spr,now,tama);
-  if (guardSafeTier()) { cardBox(8,42,animRGB(255,73,82)); textLines("safe mode - USB rescue",28,18,HAL_W-56,1); }
+  if (guardSafeTier()) { textLines("safe mode - USB rescue",28,18,HAL_W-56,1); }
   // Bottom margin remains visible beneath every card and bubble.
   for(int i=0;i<tama.dots;++i) {
     int x=HAL_W/2+i*20-(tama.dots-1)*10;

@@ -19,7 +19,7 @@ final class OnboardingWindowController: NSWindowController {
         window.isReleasedWhenClosed = false
         window.isRestorable = false
         window.center()
-        window.backgroundColor = NSColor(buddyHex: BuddyPalette.paper)
+        window.backgroundColor = NSColor.windowBackgroundColor
         window.appearance = nil
         super.init(window: window)
     }

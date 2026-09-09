@@ -17,11 +17,11 @@ struct KeepsakeShelfView: View {
                         .font(.caption)
                         .foregroundStyle(BuddyTheme.inkSoft)
                 }
-                .buttonStyle(BuddyPlainButtonStyle())
+                .buttonStyle(.plain)
                 .accessibilityLabel(BuddyCopy.shared.settingsCopy.backToLiveView)
 
                 Text(BuddyCopy.shared.popover.keepsakeShelf)
-                    .font(.buddy(13, weight: .semibold))
+                    .font(.headline)
                     .foregroundStyle(BuddyTheme.ink)
 
                 Spacer(minLength: 8)
@@ -31,7 +31,7 @@ struct KeepsakeShelfView: View {
             if keepsakes.isEmpty {
                 Spacer().frame(height: 24)
                 Text(BuddyCopy.shared.popover.keepsakeShelfEmpty)
-                    .font(.buddy(11))
+                    .font(.footnote)
                     .foregroundStyle(BuddyTheme.inkFaint)
                     .frame(maxWidth: .infinity, alignment: .center)
             } else {
@@ -52,7 +52,6 @@ struct KeepsakeShelfView: View {
         .padding(18)
         .frame(width: BuddyTheme.popoverWidth)
         .frame(minHeight: 180)
-        .preferredColorScheme(.light)
     }
 }
 
@@ -64,15 +63,14 @@ private struct KeepsakeCell: View {
             KeepsakeThumb(drawing: drawing)
                 .frame(width: 84, height: 84)
                 .background(Color.black.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
-                .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.black.opacity(0.06), lineWidth: 1))
 
             Text(drawing.caption?.isEmpty == false ? drawing.caption! : drawing.agentId)
-                .font(.buddy(9))
+                .font(.caption)
                 .foregroundStyle(BuddyTheme.inkSoft)
                 .lineLimit(1)
 
             Text(subtitle)
-                .font(.buddy(8))
+                .font(.caption)
                 .foregroundStyle(BuddyTheme.inkFaint)
                 .lineLimit(1)
         }

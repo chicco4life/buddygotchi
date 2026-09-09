@@ -14,8 +14,10 @@ system colours plus one accent. The accent is the buddy's amber
 state only. Green and red are the system colours for done and uh-oh.
 
 The creature itself keeps its own look: eyes and mouth on a black
-rounded field, matching the device pixel for pixel (no body shape;
-`UX-DEVICE.md` §7). It is the only branded element on screen.
+rounded field, the same face as the device (no body shape; `UX-DEVICE.md`
+§7). The Mac can render a soft radial glow behind the eyes that the
+device's 8-bit sprite cannot; it is allowed here, dim and warm, never a
+visible edge. It is the only branded element on screen.
 
 Rules: no custom card chrome (borders, tinted boxes) around content; use
 grouping and whitespace. One accent. One type scale. No text in monospace

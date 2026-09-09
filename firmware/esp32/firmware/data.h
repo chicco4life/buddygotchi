@@ -16,14 +16,16 @@ struct Snapshot {
 };
 enum AccessoryId : uint8_t { A_NONE = 0 };
 enum CosmeticPrimitive : uint8_t { C_RECT, C_ELLIPSE, C_ROUND_RECT, C_TRIANGLE };
-struct CosmeticPart { CosmeticPrimitive kind; int16_t x, y, w, h, r=0, y2=0; };
+// No default member initializers: the M5 toolchain (GCC 8, C++11 aggregates)
+// cannot brace-initialize a struct that has them. Every row lists all seven.
+struct CosmeticPart { CosmeticPrimitive kind; int16_t x, y, w, h, r, y2; };
 // Coordinates are relative to the face center. New accessories are rows of
 // existing primitives; neither parsing nor drawing needs another branch.
 static const struct { const char* name; uint8_t count; CosmeticPart parts[4]; } accessories[] = {
   {"",0,{}},
-  {"sprout",3,{{C_RECT,-2,-103,4,22}, {C_ELLIPSE,-12,-100,12,6}, {C_ELLIPSE,12,-106,12,6}}},
-  {"scarf",2,{{C_ROUND_RECT,-70,75,140,12,5}, {C_ROUND_RECT,43,82,13,22,4}}},
-  {"crown",4,{{C_RECT,-27,-85,54,9}, {C_TRIANGLE,-27,-85,-18,-105,-9,-85},
+  {"sprout",3,{{C_RECT,-2,-103,4,22,0,0}, {C_ELLIPSE,-12,-100,12,6,0,0}, {C_ELLIPSE,12,-106,12,6,0,0}}},
+  {"scarf",2,{{C_ROUND_RECT,-70,75,140,12,5,0}, {C_ROUND_RECT,43,82,13,22,4,0}}},
+  {"crown",4,{{C_RECT,-27,-85,54,9,0,0}, {C_TRIANGLE,-27,-85,-18,-105,-9,-85},
               {C_TRIANGLE,-9,-85,0,-105,9,-85}, {C_TRIANGLE,9,-85,18,-105,27,-85}}}
 };
 static const struct { const char* name; int16_t rx, ry, spacing, dy; } silhouettes[] = {

@@ -31,7 +31,7 @@ struct PopoverView: View {
 
     var body: some View {
         ZStack {
-            BuddyTheme.paper.ignoresSafeArea()
+            Rectangle().fill(.regularMaterial).ignoresSafeArea()
 
             Group {
                 if !setupCompleted {
@@ -58,17 +58,17 @@ struct PopoverView: View {
         VStack(spacing: 16) {
             VStack(spacing: 5) {
                 Text(BuddyCopy.Onboarding.finishMeeting)
-                    .font(.buddy(15, weight: .semibold))
+                    .font(.headline)
                     .foregroundStyle(BuddyTheme.ink)
                     .multilineTextAlignment(.center)
                 Text(BuddyCopy.Onboarding.finishMeetingSubtitle)
-                    .font(.buddy(11))
+                    .font(.footnote)
                     .foregroundStyle(BuddyTheme.inkSoft)
                     .multilineTextAlignment(.center)
             }
 
             Button(BuddyCopy.Onboarding.meetBuddy, action: onOpenOnboarding)
-                .buttonStyle(BuddyPrimaryButtonStyle())
+                .buttonStyle(.borderedProminent).tint(BuddyTheme.amber)
 
             Spacer()
         }
@@ -79,214 +79,100 @@ struct PopoverView: View {
 
     // MARK: - Live View
 
-    // The popover is the approve/deny surface plus a health readout. Anything the
-    // device says better does not belong here.
     private var liveView: some View {
-        VStack(spacing: 0) {
+        VStack(alignment: .leading, spacing: 14) {
             headerRow
             CreatureView(creature: engine.state.creature, cosmetic: engine.state.cosmetic, paused: !engine.popoverVisible)
-                .frame(height: 180)
-            if let bubble = engine.state.creature.bubble, engine.state.creature.card == nil {
-                Text(bubble).font(.buddy(12)).foregroundStyle(BuddyTheme.ink)
-                    .padding(10).buddySurface()
-            }
-            if engine.state.creature.gift && engine.state.creature.card == nil {
-                Button(action: { engine.collectArrived() }) {
-                    HStack {
-                        Circle().fill(BuddyTheme.amber.gradient).frame(width: 18, height: 18)
-                        Text(engine.state.creature.giftLine ?? BuddyCopy.phase7("collect", language: engine.state.language))
-                            .font(.buddy(12))
-                    }.frame(maxWidth: .infinity, alignment: .leading)
-                }.buttonStyle(BuddyPlainButtonStyle())
-            }
-            if let tool = engine.teachTool, engine.state.creature.card == nil {
-                HStack {
-                    Text(TeachCatalog.line(tool: tool, language: engine.state.language) ?? tool).font(.buddy(11))
-                    Button { Task { await engine.dismissTeach(tool: tool) } } label: { Image(systemName: "xmark") }
-                        .accessibilityLabel(BuddyCopy.phase7("quietTool", language: engine.state.language))
-                }.foregroundStyle(BuddyTheme.inkSoft)
-            }
-
-            if showMenuHint {
-                Spacer().frame(height: 6)
-                Text(BuddyCopy.Onboarding.menuHint)
-                    .font(.buddy(9.5, weight: .semibold))
-                    .foregroundStyle(BuddyTheme.amberInk)
-                    .transition(.opacity)
-                    .task {
-                        try? await Task.sleep(for: .seconds(4))
-                        showMenuHint = false
-                    }
-            }
-
-            // Agent expression (System E). Never rendered while a prompt is
-            // pending — the reducer guarantees the overlay is gone by then —
-            // and always labeled with who is speaking.
-            if let overlay = engine.state.agentOverlay {
-                Spacer().frame(height: 8)
-                AgentExpressionRow(overlay: overlay)
-                    .transition(.opacity)
-            }
-
-            // A drawing the pet is holding up (E4) — same S1 guarantee.
-            // The settings toggle also silences resurfaced memories here.
-            if let drawing = engine.state.agentDrawing, agentDrawingsEnabled {
-                Spacer().frame(height: 8)
-                AgentDrawingCard(drawing: drawing, isMemory: engine.state.agentDrawingIsMemory == true)
-                    .transition(.opacity)
-            }
-
+                .frame(height: 160)
+                .clipShape(RoundedRectangle(cornerRadius: 20))
             if let card = engine.state.creature.card {
-                NeedsYouCard(language: engine.state.language, card: card, approve: { engine.resolveApproval(requestId: card.id, decision: .allow) }, deny: { engine.resolveApproval(requestId: card.id, decision: .deny) })
-                    .padding(.top, 12)
+                NeedsYouCard(language: engine.state.language, card: card,
+                    approve: { engine.resolveApproval(requestId: card.id, decision: .allow) },
+                    deny: { engine.resolveApproval(requestId: card.id, decision: .deny) })
             }
-            if let recap = engine.state.recap, engine.state.prompt == nil {
-                RecapView(language: engine.state.language, recap: recap).padding(.top, 12)
+            let rows = engine.state.activeSessions.map { ActivityRow(session: $0, state: engine.state) }
+            if rows.count > 1 {
+                ScrollView { ActivityList(rows: rows, maxRows: rows.count) }
+                    .frame(height: min(CGFloat(rows.count) * 26, 104))
+            } else if rows.isEmpty {
+                Text(BuddyCopy.phase7("noAgentsAwake", language: engine.state.language))
+                    .font(.callout).foregroundStyle(.secondary)
             }
-
-            let rows = activityRows
-            if !rows.isEmpty {
-                Spacer().frame(height: 12)
-                ScrollView {
-                    ActivityList(rows: rows, maxRows: rows.count)
-                }.frame(height: min(CGFloat(rows.count) * 48, 144))
-                    .transition(.opacity)
-            } else if engine.state.sessions.total == 0 {
-                Spacer().frame(height: 12)
-                EmptyAgentsView()
-                    .transition(.opacity)
+            if engine.state.creature.card == nil {
+                if engine.state.creature.gift {
+                    Button { engine.collectArrived() } label: {
+                        HStack {
+                            Circle().fill(BuddyTheme.amber.gradient).frame(width: 18, height: 18)
+                            Text(engine.state.creature.giftLine ?? BuddyCopy.phase7("collect", language: engine.state.language))
+                                .font(.body).foregroundStyle(.primary)
+                        }
+                    }.buttonStyle(.plain)
+                } else if let bubble = engine.state.creature.bubble {
+                    Text(bubble).font(.body)
+                }
+                if let tool = engine.teachTool {
+                    HStack {
+                        Text(TeachCatalog.line(tool: tool, language: engine.state.language) ?? tool).font(.footnote)
+                        Button { Task { await engine.dismissTeach(tool: tool) } } label: { Image(systemName: "xmark") }
+                            .accessibilityLabel(BuddyCopy.phase7("quietTool", language: engine.state.language))
+                    }.foregroundStyle(.secondary)
+                }
+                if let overlay = engine.state.agentOverlay { AgentExpressionRow(overlay: overlay) }
+                if let drawing = engine.state.agentDrawing, agentDrawingsEnabled {
+                    AgentDrawingCard(drawing: drawing, isMemory: engine.state.agentDrawingIsMemory == true)
+                }
+                if let recap = engine.state.recap, engine.state.prompt == nil {
+                    RecapView(language: engine.state.language, recap: recap)
+                }
             }
-
-            Spacer(minLength: 12)
-
+            if showMenuHint {
+                Text(BuddyCopy.Onboarding.menuHint).font(.caption).foregroundStyle(.secondary)
+                    .task { try? await Task.sleep(for: .seconds(4)); showMenuHint = false }
+            }
             footerRow
         }
         .padding(18)
         .frame(width: BuddyTheme.popoverWidth)
-        .frame(minHeight: BuddyTheme.liveViewHeight)
-        .animation(reduceMotion ? nil : Animation.buddyBloom(), value: engine.state.prompt != nil)
-
-    }
-
-    /// Name, state, and the way out. One row instead of a pill and a footer.
-    private var headerRow: some View {
-        HStack(spacing: 6) {
-            Text(statusName)
-                .font(.buddy(13, weight: .semibold))
-                .foregroundStyle(BuddyTheme.ink)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .layoutPriority(0)
-
-            Text(stateLabel)
-                .font(.buddy(9.5, weight: .semibold))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 2)
-                .background(stateFill.opacity(0.18), in: Capsule())
-                .overlay(Capsule().strokeBorder(stateFill.opacity(0.35), lineWidth: BuddyTheme.hairlineWidth))
-                .foregroundStyle(stateInk)
-                .fixedSize()
-                .accessibilityLabel("\(statusName), \(stateLabel)")
-
-            Spacer(minLength: 8)
-
-            // The museum door: only appears once there's something on the
-            // shelf — a discovered surface, not an announced feature.
-            if !engine.petMemory.keepsakes.isEmpty {
-                Button(action: { showingShelf = true }) {
-                    Image(systemName: "photo.on.rectangle.angled")
-                        .font(.caption)
-                        .foregroundStyle(BuddyTheme.inkSoft)
-                }
-                .buttonStyle(BuddyPlainButtonStyle())
-                .accessibilityLabel(BuddyCopy.shared.popover.keepsakeShelf)
-            }
-
-            Button(action: { CompanionWindows.shared.settings(engine: engine, device: esp32Output, onOnboarding: onOpenOnboarding) }) {
-                Image(systemName: "gearshape")
-                    .font(.caption)
-                    .foregroundStyle(BuddyTheme.inkSoft)
-            }
-            .buttonStyle(BuddyPlainButtonStyle())
-            .accessibilityLabel(BuddyCopy.settings)
-        }
-    }
-
-    /// Connection health, and the server warning when there is one — the warning
-    /// replaces the status rather than stacking another row on top of it.
-    private var footerRow: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(serverWarning == nil ? statusColor : BuddyTheme.clayInk)
-                .frame(width: 5, height: 5)
-                .accessibilityHidden(true)
-
-            Text(serverWarning ?? (engine.state.desktop.status == .connected ? BuddyCopy.book(language: engine.state.language).common.connected : BuddyCopy.phase7("disconnected", language: engine.state.language)))
-                .font(.buddy(11))
-                .foregroundStyle(serverWarning == nil ? BuddyTheme.inkFaint : BuddyTheme.clayInk)
-                .lineLimit(2)
-
-            Spacer(minLength: 8)
-
-            Text(BuddyCopy.growthLabel(engine.state.growth)).font(.buddy(11))
-            Toggle(BuddyCopy.phase7("focus", language: engine.state.language), isOn: Binding(get: { engine.state.creature.focus }, set: { engine.focusToggled(on: $0) }))
-                .toggleStyle(.button).font(.buddy(10))
-            Menu {
-                Button(BuddyCopy.phase7("shareCard", language: engine.state.language)) { AppDelegate.presentShareCard(engine: engine) }
-                Button(BuddyCopy.phase7("leaderboard", language: engine.state.language)) { showingLeaderboard = true }
-                Button(BuddyCopy.phase7("recap", language: engine.state.language)) { Task { _ = try? await engine.makeRecap() } }
-                Button(BuddyCopy.phase7("profile", language: engine.state.language)) { CompanionWindows.shared.profile(engine: engine) }
-            } label: { Image(systemName: "ellipsis") }
-            .menuStyle(.borderlessButton).fixedSize()
-
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(connectionAccessibilityLabel)
+        .frame(minHeight: BuddyTheme.liveViewHeight, alignment: .top)
+        .animation(reduceMotion ? nil : .buddyBloom(), value: engine.state.prompt != nil)
         .sheet(isPresented: $showingLeaderboard) { LeaderboardSheet(engine: engine) }
     }
 
-    /// One line per active session, plus a line for a just-finished task. The
-    /// reducer clears `lastCompleted` on the next prompt or work signal, so the
-    /// done line ages out on its own.
-    private var activityRows: [ActivityRow] {
-        engine.state.activeSessions.map { ActivityRow(session: $0, state: engine.state) }
-    }
-
-    private var serverWarning: String? {
-        guard let serverHealth else { return nil }
-        if case .failed(let reason) = serverHealth.status {
-            return BuddyCopy.shared.popover.serverWarningTemplate
-                .replacingOccurrences(of: "{port}", with: "\(BuddyConfig.default.httpPort)")
-                .replacingOccurrences(of: "{reason}", with: reason)
+    private var headerRow: some View {
+        HStack {
+            Text(engine.displayName).font(.headline).lineLimit(1)
+            Text(BuddyCopy.phase7(engine.state.creature.state.rawValue, language: engine.state.language))
+                .font(.callout).foregroundStyle(.secondary)
+            Spacer(minLength: 4)
+            Menu {
+                Button(BuddyCopy.book(language: engine.state.language).common.settings) {
+                    CompanionWindows.shared.settings(engine: engine, device: esp32Output, onOnboarding: onOpenOnboarding)
+                }
+                Button(BuddyCopy.phase7("shareCard", language: engine.state.language)) { AppDelegate.presentShareCard(engine: engine) }
+                Button(BuddyCopy.phase7("leaderboard", language: engine.state.language)) { showingLeaderboard = true }
+                Button(BuddyCopy.phase7("recap", language: engine.state.language)) { Task { _ = try? await engine.makeRecap() } }
+                if !engine.petMemory.keepsakes.isEmpty {
+                    Button(BuddyCopy.shared.popover.keepsakeShelf) { showingShelf = true }
+                }
+            } label: { Image(systemName: "gearshape").foregroundStyle(.secondary) }
+                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                .accessibilityLabel(BuddyCopy.book(language: engine.state.language).common.settings)
         }
-        return nil
     }
 
-    private var statusName: String {
-        let trimmed = buddyName.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? engine.state.pet.species : trimmed
-    }
-
-    private var connectionAccessibilityLabel: String {
-        let status = engine.state.desktop.status.rawValue
-        guard engine.state.sessions.total > 0 else {
-            return BuddyCopy.shared.popover.desktopStatusTemplate.replacingOccurrences(of: "{status}", with: status)
-        }
-        let sessions = BuddyCopy.shared.popover.activeSessionsTemplate.replacingOccurrences(of: "{count}", with: "\(engine.state.sessions.running)")
-        return BuddyCopy.shared.popover.desktopStatusWithSessionsTemplate
-            .replacingOccurrences(of: "{status}", with: status)
-            .replacingOccurrences(of: "{sessions}", with: sessions)
-    }
-
-    private var pill: CreaturePill { CreaturePill.table[engine.state.creature.state]! }
-    private var stateInk: Color { pill.ink }
-    private var stateFill: Color { pill.fill }
-    private var stateLabel: String { engine.state.language == "ko" ? pill.korean : pill.label }
-
-    private var statusColor: Color {
-        switch engine.state.desktop.status {
-        case .connected: BuddyTheme.green
-        case .disconnected: BuddyTheme.inkFaint
+    private var footerRow: some View {
+        HStack {
+            Text(BuddyCopy.growthLabel(engine.state.growth, language: engine.state.language))
+                .font(.caption).foregroundStyle(.secondary)
+            Spacer(minLength: 4)
+            Toggle(BuddyCopy.phase7("focus", language: engine.state.language), isOn: Binding(
+                get: { engine.state.creature.focus }, set: { engine.focusToggled(on: $0) }))
+                .toggleStyle(.button).buttonStyle(.bordered).controlSize(.small)
+            if engine.pairedPeripheral != nil {
+                Circle().fill(esp32Output.connectionState == .connected ? Color.green : Color.secondary)
+                    .frame(width: 6, height: 6)
+                    .accessibilityLabel(BuddyCopy.phase7("device-" + esp32Output.connectionState.rawValue, language: engine.state.language))
+            }
         }
     }
 }
@@ -307,10 +193,10 @@ private struct AgentExpressionRow: View {
 
             VStack(alignment: .leading, spacing: 1) {
                 Text(overlay.agentId)
-                    .font(.buddy(9, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(BuddyTheme.inkFaint)
                 Text(overlay.say ?? "feels \(overlay.emotion)")
-                    .font(.buddy(12, weight: overlay.say == nil ? .regular : .medium))
+                    .font(.callout.weight(overlay.say == nil ? .regular : .medium))
                     .foregroundStyle(BuddyTheme.ink)
                     .lineLimit(2)
             }
@@ -319,8 +205,6 @@ private struct AgentExpressionRow: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(identityColor.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(identityColor.opacity(0.45), lineWidth: 1))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(overlay.agentId) \(overlay.say ?? "feels \(overlay.emotion)")")
     }
@@ -364,15 +248,13 @@ private struct AgentDrawingCard: View {
                     .frame(width: 7, height: 7)
                     .accessibilityHidden(true)
                 Text(caption)
-                    .font(.buddy(10))
+                    .font(.caption)
                     .foregroundStyle(BuddyTheme.inkSoft)
                     .lineLimit(1)
             }
         }
         .padding(10)
         .frame(maxWidth: .infinity)
-        .background(identityColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(identityColor.opacity(0.45), lineWidth: 1))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Drawing from \(drawing.agentId)\(drawing.caption.map { ": \($0)" } ?? "")")
     }
@@ -417,31 +299,6 @@ private struct DrawingGrid: View {
 
 // MARK: - Empty / Server Rows
 
-private struct EmptyAgentsView: View {
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "antenna.radiowaves.left.and.right")
-                .font(.system(.caption))
-                .foregroundStyle(BuddyTheme.inkSoft)
-                .padding(.top, 1)
-            Text(BuddyCopy.shared.popover.emptyAgents)
-                .font(.buddy(11))
-                .foregroundStyle(BuddyTheme.inkSoft)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 12)
-        .padding(.top, 10)
-        .padding(.bottom, 14)
-        .background(
-            RoundedRectangle(cornerRadius: BuddyTheme.wellCornerRadius)
-                .fill(BuddyTheme.ink.opacity(0.03))
-        )
-        .accessibilityElement(children: .combine)
-    }
-}
-
-
 // MARK: - Activity List
 
 /// One line of "who is doing what". Replaces the separate current-activity,
@@ -459,7 +316,7 @@ struct ActivityRow: Identifiable {
         id = session.id
         tone = ActivityRow.tone(for: session.state)
         agent = AgentKind(rawValue: session.source)?.displayName ?? session.source
-        status = ActivityRow.label(for: session.state)
+        status = ActivityRow.label(for: session.state, language: state.language)
         detail = [session.currentTool, session.moment.map { BuddyCopy.phase7($0.kind.rawValue, language: state.language) } ?? session.cheer.map { BuddyCopy.phase7($0.rawValue, language: state.language) }]
             .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
         // Elapsed is derived from the state's own timestamp rather than a live
@@ -490,13 +347,13 @@ struct ActivityRow: Identifiable {
         }
     }
 
-    private static func label(for state: SessionState) -> String {
+    private static func label(for state: SessionState, language: String) -> String {
         switch state {
-        case .working: BuddyCopy.shared.popover.busy
-        case .idle: BuddyCopy.shared.popover.idle
-        case .needsConfirmation: BuddyCopy.shared.popover.waiting
-        case .errored: BuddyCopy.shared.popover.error
-        case .thinking: BuddyCopy.shared.popover.thinking
+        case .working: BuddyCopy.phase7("working", language: language)
+        case .idle: BuddyCopy.phase7("idle", language: language)
+        case .needsConfirmation: BuddyCopy.phase7("needsYou", language: language)
+        case .errored: BuddyCopy.phase7("uhoh", language: language)
+        case .thinking: BuddyCopy.phase7("working", language: language)
         }
     }
 
@@ -524,73 +381,16 @@ func buddyTruncationMode(for text: String) -> Text.TruncationMode {
 struct ActivityList: View {
     let rows: [ActivityRow]
     var maxRows = 3
-
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(rows.prefix(maxRows)) { row in
-                HStack(alignment: .firstTextBaseline, spacing: 7) {
-                    Circle()
-                        .fill(row.tone)
-                        .frame(width: 5, height: 5)
-                        .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] }
-                        .accessibilityHidden(true)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 5) {
-                            Text(row.agent)
-                                .font(.buddy(11, weight: .semibold))
-                                .foregroundStyle(BuddyTheme.ink)
-                                .lineLimit(1)
-                            Text(row.status)
-                                .font(.buddy(11))
-                                .foregroundStyle(BuddyTheme.inkSoft)
-                                .lineLimit(1)
-                                .fixedSize()
-                        }
-                        if let detail = row.detail {
-                            Text(detail)
-                                .font(.buddy(11))
-                                .foregroundStyle(BuddyTheme.inkFaint)
-                                .lineLimit(1)
-                                .truncationMode(buddyTruncationMode(for: detail))
-                        }
-                    }
-
-                    Spacer(minLength: 8)
-
-                    if let trailing = row.trailing {
-                        Text(trailing)
-                            .font(.buddy(11))
-                            .foregroundStyle(BuddyTheme.inkFaint)
-                            .lineLimit(1)
-                            .truncationMode(buddyTruncationMode(for: trailing))
-                    }
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("\(row.agent) \(row.status)\(row.detail.map { ", \($0)" } ?? "")")
-            }
-
-            if rows.count > maxRows {
-                Text(BuddyCopy.shared.popover.moreSessionsTemplate.replacingOccurrences(of: "{count}", with: "\(rows.count - maxRows)"))
-                    .font(.buddy(11))
-                    .foregroundStyle(BuddyTheme.inkFaint)
-                    .padding(.leading, 12)
+                HStack(spacing: 6) {
+                    Image(systemName: "terminal").foregroundStyle(.secondary)
+                    Text(row.agent).lineLimit(1)
+                    Spacer(minLength: 4)
+                    Text(row.status).foregroundStyle(.secondary)
+                }.font(.callout).accessibilityElement(children: .combine)
             }
         }
     }
-}
-
-private struct CreaturePill {
-    let label: String
-    let korean: String
-    let ink: Color
-    let fill: Color
-    static let table: [CreatureState: Self] = [
-        .asleep: Self(label: "Asleep", korean: "잠자는 중", ink: BuddyTheme.inkFaint, fill: BuddyTheme.paperSunken),
-        .idle: Self(label: "Here with you", korean: "함께 있어요", ink: BuddyTheme.inkSoft, fill: BuddyTheme.paperSunken),
-        .working: Self(label: "Working", korean: "작업 중", ink: BuddyTheme.work, fill: BuddyTheme.work.opacity(0.12)),
-        .needsYou: Self(label: "Needs you", korean: "도움이 필요해요", ink: BuddyTheme.amberInk, fill: BuddyTheme.amber.opacity(0.12)),
-        .done: Self(label: "Done", korean: "해냈어요", ink: BuddyTheme.greenInk, fill: BuddyTheme.green.opacity(0.12)),
-        .uhoh: Self(label: "Uh-oh", korean: "이런", ink: BuddyTheme.clayInk, fill: BuddyTheme.clay.opacity(0.12))
-    ]
 }

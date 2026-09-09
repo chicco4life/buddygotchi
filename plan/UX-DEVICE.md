@@ -278,8 +278,9 @@ the per-session view for anyone who wants it.
 Revised 2026-09-09 (owner decision): **the buddy is a face, not a body.**
 The screen is black; the eyes and mouth float on it. There is no drawn
 body shape, ever. What the old body carried (energy, posture, skin) now
-lives in a soft radial **glow** behind the eyes and in the eyes
-themselves.
+lives in the eyes themselves and in the field wash. There is no glow
+either: on the 8-bit sprite a gradient collapses into a hard disc, so
+nothing is ever drawn behind the eyes.
 
 | Part | Carries | Range |
 | --- | --- | --- |
@@ -287,10 +288,10 @@ themselves.
 | Brows | Effort, surprise | Neutral, raised, furrowed |
 | Mouth | Mood | Neutral, smile, open smile, flat, small o |
 | Cheeks | Affection, exertion | Blush, sweat drop |
-| Glow | Energy, skin, posture | A large soft radial gradient centered between the eyes: dim while asleep, warm while working, wide and bright on a cheer. Skins tint it. Bob, lean, squish and hop move eyes and glow together. |
+| Eye ink | Energy, skin | Bright ink awake, dimmer asleep, grey before first contact; skins tint it. Bob, lean, squish and hop move the whole face. |
 | Field | Need | Black, amber wash, dim red wash, green ripple |
 | Sparks | Celebration, affection | Confetti, mini hearts, one gold orb |
-| Feet | Perch only | Two small pads under the glow: dangle, kick, tuck |
+| Feet | Perch only | Two small pads under the mouth: dangle, kick, tuck |
 | Accessories | Cosmetics | Small, above or beside the eyes, drawn in the eye ink, never over the eyes or the card |
 
 Eyes are the anchor, centered and largest. Every part has a resting
@@ -357,15 +358,16 @@ Needs you layout, top to bottom:
    the right edge when more than one is waiting.
 2. **Gloss.** One line, two at most. The app truncates.
 3. **Hold ring.** A thin ring at the lower right, empty while the card is
-   unarmed (600 ms), then a faint full ring. While the primary button is
-   held it fills clockwise over the required hold (1 s, 2 s for careful)
+   unarmed (600 ms), then a full-brightness, 2 px ring in eye ink. While the primary button is
+   held a 4 px arc in the same ink fills clockwise over the required hold (1 s, 2 s for careful)
    and completes with the decision. Release before full: it drains back.
    The ring is the only affordance on screen.
 
 **Hints appear only when needed.** No text explains the buttons at first.
-After five seconds without input, one quiet line fades in below the
+After five seconds without input, one quiet line appears below the
 gloss: `tap · yes   hold · no` (or `hold 2s · yes   side · no` for
-careful). It fades out when any button is touched. The pairing and update
+careful). It hides when any button is touched. The hint and `n of m` use
+pure grey `animRGB(146,146,146)`, never a dim mix. The pairing and update
 cards carry no hint at all.
 
 Decision feedback replaces the card: `yes!` / `okay` in the tool-line
@@ -444,7 +446,8 @@ a friend in five seconds.
 left and shrinks to its arc-eyed proud pose; the right two thirds carry
 the snapshot as three lines in proportional type: the name (medium), then
 `Level 4 · 7-day streak`, then the XP bar: a thin track with a filled
-rounded bar in the green accent and `320 / 500` right-aligned above it.
+rounded bar in `GREEN` on a pure grey `animRGB(146,146,146)` track,
+with `320 / 500` right-aligned above it. All stats text uses eye ink.
 Page two: `12 days together`, `84 tasks`, the biggest moment in the
 buddy's words, `today: 6`. Numbers are formatted with the app's
 localizer; the device never composes sentences.
@@ -455,9 +458,10 @@ localizer; the device never composes sentences.
   the Bluetooth mark; grey until the first agent signal brings color.
 - **Greet.** Under an hour, a glance and smile. Hours, a stretch and yawn.
   A day, squish and "missed you." A week or more, the big version. Capped.
-- **Level up.** The glow swells and brightens over 900 ms and a soft
-  light sweeps across the eyes (never a bar through the face); cosmetic
-  reveal if any; one bubble with the level.
+- **Level up.** A soft light sweeps across the eyes over 900 ms (never a
+  bar through the face) and the whole field mixes toward the skin tint
+  over 300 ms, then back over 300 ms, once;
+  cosmetic reveal if any; one bubble with the level.
 - **Streak milestone.** A flame pulse and a bubble. Never a reminder, never
   a comment when a streak breaks beyond a shrug.
 - **Retire.** From the app. Slow fade to dark with a single blink.
@@ -484,7 +488,8 @@ next table; silent in focus except rung 2 and Uh-oh; silent asleep.
 
 ## 16. Text, priority, dim
 
-- Text lives in the card and the bubble. Bubbles sit beside the face, one
+- Text lives in the card and the bubble. Bubbles are plain text in the eye
+  ink beside the face, no pill and no box (8-bit fills read as mud), one
   line, two at most, four seconds or any button. The app truncates.
 - The device font must render launch languages including Korean legibly.
 - Screen priority, highest wins: system card → Needs you card → decision
@@ -503,8 +508,7 @@ room. Never within ten seconds of a real interaction.
 
 ## 18. Cosmetics
 
-Colors and skins tint the glow and the field wash; the eye ink shifts
-slightly toward the tint. Eye geometry never changes. Accessories are
+Colors and skins tint the field wash and the eye ink. Eye geometry never changes. Accessories are
 small silhouettes drawn in the eye ink above or beside the eyes (a crown
 sits above the gap between the eyes, a sprout leans from one side, a
 scarf is a soft band below the mouth), never over eyes or card, never

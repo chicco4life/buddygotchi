@@ -219,7 +219,8 @@ PostToolUse entry from `/diag/recent`.
 
 **Every pull request** (CI, no hardware, under five minutes): build,
 `swift test` in full, extractor fixture replay, wire encoder byte-cap tests,
-snapshot harness, lint, and the firmware builds for every environment. Red
+snapshot harness, lint, and the firmware build for the shipping board
+(`ws-amoled164`; the M5 environments are archived hardware). Red
 means no merge. CI pins the Xcode version so lint and test output do not
 drift with the runner.
 
@@ -662,3 +663,62 @@ pasteboard action. No hook/doctor or hardware pass is claimed.
    TestDeviceSigner construction in production flow is gated by headless
    configuration and `BOOP_TEST_SIGNER=1`. The Linux crypto adapter uses
    system OpenSSL to honor the Hummingbird-only package dependency rule.
+
+
+### Native Mac UI pass (2026-09-09)
+
+On a CommandLineTools-only Mac, enable the snapshot harness and run the
+SwiftPM test executable from `app/`:
+
+```sh
+swift build
+mkdir -p /tmp/buddy-snapshots
+touch /tmp/buddy-snapshots/.enable
+python3 tools/gen-test-runner.py
+swift run BoopTests
+```
+
+If user-level caches are sandboxed, set `CLANG_MODULE_CACHE_PATH` and
+`SWIFTPM_MODULECACHE_OVERRIDE` to writable `/tmp` directories and pass
+`--disable-sandbox --cache-path /tmp/boop-ui-cache` to SwiftPM. This only
+fixes build caches; it does not grant localhost socket permission. The
+local UI pass produced 426 passed and 4 skipped (HTTP/socket tests).
+Release verification still requires a run with zero skips.
+
+Review the light/dark popover, profile, onboarding, and settings PNGs in
+`/tmp/buddy-snapshots`. Settings windows are 760 pt wide and popovers 360 pt.
+Legacy settings scene names remain available alongside the new Device and
+Advanced scenes; `expectedRenderCount` includes both. Confirm all five
+settings destinations and their controls manually on a clean account.
+
+The offscreen renderer on this macOS host omits the native sidebar's row
+labels even though the five destination forms render. The navigation
+snapshot is therefore not a visual acceptance result; inspect the sidebar
+and selection in the live Settings window. The renderer waits for native
+layout and uses active control appearance so the approval accent is visible.
+
+
+### Device RGB332 UI correction (2026-09-09)
+
+`face.h` and `main.cpp` remove the glow and bubble pill, retain the
+900 ms eye sweep, and add a single skin-tint field flash (300 ms toward
+tint, 300 ms back). Sleep ink is dimmer; secondary text and the stats
+track use `animRGB(146,146,146)`. Blush, hop ripple, and battery mark use
+explicit visible colors. Remaining blends are visible ink transitions,
+eye highlights, or whole-field washes/flashes. Drawing adds no wall clock
+or frame-history dependency; the flash uses `nowMs() - ritualAt`.
+
+Validation: `tools/pio_ws.sh run -e ws-amoled164` from `firmware/esp32`
+exited 1 at the home-directory PlatformIO lock under the sandbox. The
+same command with `PLATFORMIO_CORE_DIR=/private/tmp/boop-ui-pio` and
+`PLATFORMIO_PACKAGES_DIR=/private/tmp/boop-ui-pio/packages-pioarduino`
+passed (exit 0). Dependency refresh emitted offline warnings but the
+installed tools compiled and produced both firmware binaries. Static
+comparison confirms all committed STATE keys remain; the uncommitted
+`glow` addition is removed. `git diff --check` passed.
+
+Hardware follow-up: inspect bare eyes and two-line bubbles on RGB332;
+check hint/count/track grey, 2 px armed ring and 4 px hold arc; freeze
+level-up at 0/150/300/450/600/900 ms and compare repeated frames. Run the
+existing USB HIL suite for card arming, feedback, priority, and decision
+commands. No flash or USB HIL was run for this pass.

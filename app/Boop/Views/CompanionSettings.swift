@@ -18,12 +18,12 @@ struct CompanionSettings: View {
     @State private var error = false
     @State private var retiring = false
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        Group {
             ForEach(sections, id: \.self) { section in
-                row(section) { content(section) }
+                content(section)
             }
 
-        }.font(.buddy(12)).padding(.vertical, 16)
+        }
         .onAppear {
             quick = engine.quickCommand; volume = engine.soundVolume; voice = engine.voiceSetting
             leaderboardURL = engine.leaderboardURL
@@ -69,30 +69,29 @@ struct CompanionSettings: View {
                 Text(BuddyCopy.phase7("off", language: engine.state.language)).tag("off")
             }.onChange(of: voice) { _, value in Task { await engine.setVoiceRuntime(value) } }
         case .quick:
-            TextField(BuddyCopy.phase7("quick", language: engine.state.language), text: $quick).textFieldStyle(.roundedBorder)
+            TextField(BuddyCopy.phase7("quick", language: engine.state.language), text: $quick).font(.body.monospaced()).textFieldStyle(.roundedBorder)
                 .onChange(of: quick) { _, text in engine.setQuickCommand(text) }
-            Text(BuddyCopy.phase7("quickNote", language: engine.state.language)).font(.buddy(11)).foregroundStyle(BuddyTheme.inkSoft)
+            Text(BuddyCopy.phase7("quickNote", language: engine.state.language)).font(.footnote).foregroundStyle(BuddyTheme.inkSoft)
         case .leaderboard:
             Toggle(BuddyCopy.phase7("leaderboard", language: engine.state.language), isOn: Binding(get: { leaderboard }, set: { leaderboard = $0; engine.configureLeaderboard(url: leaderboardURL, optIn: leaderboard) }))
-            HStack {
-                TextField(BuddyCopy.phase7("leaderboardURL", language: engine.state.language), text: $leaderboardURL)
-                    .onSubmit { engine.configureLeaderboard(url: leaderboardURL, optIn: leaderboard) }
-                Button(BuddyCopy.phase7("saveLeaderboard", language: engine.state.language)) { engine.configureLeaderboard(url: leaderboardURL, optIn: leaderboard) }
+            if leaderboard {
+                HStack {
+                    TextField(BuddyCopy.phase7("leaderboardURL", language: engine.state.language), text: $leaderboardURL)
+                        .onSubmit { engine.configureLeaderboard(url: leaderboardURL, optIn: leaderboard) }
+                    Button(BuddyCopy.phase7("saveLeaderboard", language: engine.state.language)) { engine.configureLeaderboard(url: leaderboardURL, optIn: leaderboard) }
+                }
+                if let identity = engine.deviceIdentity { Text((BuddyCopy.phase7("friendsCodeLabel", language: engine.state.language)) + identity.friendsCode).textSelection(.enabled) }
+                HStack {
+                    TextField(BuddyCopy.phase7("friendCode", language: engine.state.language), text: $friendCode)
+                    Button(BuddyCopy.phase7("addFriend", language: engine.state.language)) { engine.addFriend(friendCode); friendCode = "" }
+                }
+                Text(engine.friendsCodes.joined(separator: " · "))
             }
-            if let identity = engine.deviceIdentity { Text((BuddyCopy.phase7("friendsCodeLabel", language: engine.state.language)) + identity.friendsCode).textSelection(.enabled) }
-            HStack {
-                TextField(BuddyCopy.phase7("friendCode", language: engine.state.language), text: $friendCode)
-                Button(BuddyCopy.phase7("addFriend", language: engine.state.language)) { engine.addFriend(friendCode); friendCode = "" }
-            }
-            Text(engine.friendsCodes.joined(separator: " · "))
         case .profile:
             Button(BuddyCopy.phase7("profile", language: engine.state.language)) { CompanionWindows.shared.profile(engine: engine) }
         case .retire:
-            Button(BuddyCopy.phase7("retire", language: engine.state.language), role: .destructive) { confirming = true }.disabled(retiring)
+            Button(BuddyCopy.phase7("retire", language: engine.state.language), role: .destructive) { confirming = true }.foregroundStyle(.red).disabled(retiring)
         default: EmptyView()
         }
-    }
-    private func row<Content: View>(_ section: SettingsSection, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 8, content: content).id(section)
     }
 }

@@ -8,16 +8,17 @@ struct NeedsYouCard: View {
     var deny: () -> Void = {}
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack { Text(card.tool).font(.buddy(14, weight: .semibold)); Spacer(); if card.count > 1 { Text("\(card.index + 1) / \(card.count)").font(.buddy(10)) } }
-            Text(card.gloss).font(.buddy(12)).fixedSize(horizontal: false, vertical: true)
+            HStack { Text(card.tool).font(.headline); Spacer(); if card.count > 1 { Text("\(card.index + 1) / \(card.count)").font(.caption) } }
+            Text(card.gloss).font(.body).fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 5) {
                 Circle().fill(card.stakes == .fine ? BuddyTheme.green : card.stakes == .checkIt ? BuddyTheme.amber : BuddyTheme.clay).frame(width: 7, height: 7)
-                Text(BuddyCopy.phase7(card.stakes.rawValue, language: language)).font(.buddy(11))
+                Text(BuddyCopy.phase7(card.stakes.rawValue, language: language)).font(.footnote).foregroundStyle(.secondary)
             }
             if card.isApproval {
-                HStack { Button(BuddyCopy.book(language: language).common.deny, action: deny).buttonStyle(BuddySecondaryButtonStyle()); Spacer(); Button(BuddyCopy.book(language: language).common.approve, action: approve).buttonStyle(BuddyPrimaryButtonStyle()) }
+                HStack { Button(BuddyCopy.book(language: language).common.deny, action: deny).buttonStyle(.plain); Spacer(); Button(BuddyCopy.book(language: language).common.approve, action: approve).buttonStyle(.borderedProminent).tint(BuddyTheme.amber) }
             }
-        }.foregroundStyle(BuddyTheme.ink).buddyCard(elevated: true)
+        }.foregroundStyle(BuddyTheme.ink).padding(14)
+            .background(BuddyTheme.groupedBackground, in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
@@ -26,11 +27,11 @@ struct RecapView: View {
     let recap: Recap
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(recap.paragraph).font(.buddy(13))
-            ForEach([( "turns", "\(recap.turns)"), ("tasks", "\(recap.tasks)"), ("biggest", recap.biggest)], id: \.0) { item in
-                HStack { Text(BuddyCopy.phase7(item.0, language: language)); Spacer(); Text(item.1) }.font(.buddy(11)).foregroundStyle(BuddyTheme.inkSoft)
+            Text(recap.paragraph).font(.body)
+            ForEach([( "turns", "\(recap.turns)"), ("tasks", "\(recap.tasks)"), ("biggest", BuddyCopy.momentPhrase(recap.biggest, language: language))], id: \.0) { item in
+                HStack { Text(BuddyCopy.phase7(item.0, language: language)); Spacer(); Text(item.1) }.font(.footnote).foregroundStyle(BuddyTheme.inkSoft)
             }
-        }.foregroundStyle(BuddyTheme.ink).buddyCard()
+        }.foregroundStyle(BuddyTheme.ink)
     }
 }
 
@@ -42,25 +43,24 @@ struct ProfilePage: View {
     @State private var confirming = false
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text(BuddyCopy.phase7("profile", language: language)).font(.buddy(22, weight: .semibold))
+            Text(BuddyCopy.phase7("profile", language: language)).font(.headline)
             if lines.isEmpty { Text(BuddyCopy.phase7("emptyProfile", language: language)).foregroundStyle(BuddyTheme.inkSoft) }
-            ScrollView {
-                VStack(spacing: 12) {
-                    ForEach(lines, id: \.id) { line in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text(line.line).font(.buddy(14))
-                            HStack {
-                                Text(line.source)
-                                Text(Date(timeIntervalSince1970: line.createdAt / 1000), style: .date)
-                                Spacer()
-                                Button(BuddyCopy.phase7("delete", language: language), role: .destructive) { delete(line.id) }
-                            }.font(.buddy(11)).foregroundStyle(BuddyTheme.inkSoft)
-                        }.buddyCard()
+            List(lines, id: \.id) { line in
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(line.line).font(.body)
+                        Text(Date(timeIntervalSince1970: line.createdAt / 1000), style: .date)
+                            .font(.caption).foregroundStyle(.secondary)
                     }
-                }
-            }
+                    Spacer()
+                    Button(role: .destructive) { delete(line.id) } label: {
+                        Image(systemName: "trash")
+                    }.buttonStyle(.plain)
+                        .accessibilityLabel(BuddyCopy.phase7("delete", language: language))
+                }.padding(.vertical, 4)
+            }.listStyle(.plain)
             Button(BuddyCopy.phase7("clear", language: language), role: .destructive) { confirming = true }.disabled(lines.isEmpty)
-        }.padding(28).foregroundStyle(BuddyTheme.ink).background(BuddyTheme.paper)
+        }.padding(28).foregroundStyle(BuddyTheme.ink).background(BuddyTheme.windowBackground)
         .sheet(isPresented: $confirming) {
             VStack(spacing: 20) {
                 Text(BuddyCopy.phase7("clearMessage", language: language))
@@ -97,6 +97,6 @@ final class CompanionWindows {
     }
     func profile(engine: BuddyEngine) { show("profile", title: BuddyCopy.phase7("profile", language: engine.state.language), size: CGSize(width: 520, height: 540), view: ProfileWindowView(engine: engine)) }
     func settings(engine: BuddyEngine, device: ESP32Output, onOnboarding: @escaping () -> Void) {
-        show("settings", title: BuddyCopy.book(language: engine.state.language).common.settings, size: CGSize(width: BuddyTheme.popoverWidth, height: 650), view: SettingsView(isPresented: .constant(true), engine: engine, esp32Output: device, serverHealth: nil, onOpenOnboarding: onOnboarding, frameHeight: 650))
+        show("settings", title: BuddyCopy.book(language: engine.state.language).common.settings, size: CGSize(width: 760, height: 650), view: SettingsView(isPresented: .constant(true), engine: engine, esp32Output: device, serverHealth: nil, onOpenOnboarding: onOnboarding, frameHeight: 650))
     }
 }

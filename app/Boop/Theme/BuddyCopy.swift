@@ -352,8 +352,34 @@ enum BuddyCopy {
 
 
 extension BuddyCopy {
-    static func growthLabel(_ growth: GrowthSnapshot) -> String { "L\(growth.level) · \(growth.streak)d" }
+    static func growthLabel(_ growth: GrowthSnapshot, language: String = "en") -> String {
+        String(format: phase7("growth", language: language), growth.level, growth.streak)
+    }
+    static func momentPhrase(_ kind: String, language: String) -> String {
+        guard Moment.Kind(rawValue: kind) != nil else { return phase7("noMoment", language: language) }
+        return phase7(kind, language: language)
+    }
     private static let phase7Table: [String: (String, String)] = [
+        "updatePrivacy": ("Update checks send no analytics or device identifiers.", "업데이트 확인 시 분석 데이터나 기기 식별자를 보내지 않아요."),
+        "approvals": ("Approvals", "승인"),
+        "agentsCan": ("Agents can", "에이전트 권한"),
+        "diagnostics": ("Diagnostics", "진단"),
+        "about": ("About", "정보"),
+        "reset": ("Reset", "초기화"),
+        "serverListening": ("Listening on 127.0.0.1:{port}", "127.0.0.1:{port}에서 수신 중"),
+        "serverUnreachable": ("Not reachable", "연결할 수 없음"),
+        "buddy": ("Buddy", "버디"), "agents": ("Agents", "에이전트"),
+        "device": ("Device", "기기"), "advanced": ("Advanced", "고급"),
+        "asleep": ("asleep", "잠자는 중"), "idle": ("here with you", "함께 있어요"),
+        "working": ("working", "작업 중"), "needsYou": ("needs you", "도움이 필요해요"),
+        "done": ("done", "해냈어요"), "uhoh": ("uh-oh", "이런"),
+        "noAgentsAwake": ("No agents awake", "깨어 있는 에이전트가 없어요"),
+        "growth": ("Level %d · %d-day streak", "레벨 %d · %d일 연속"),
+        "noMoment": ("A quiet day", "조용한 하루"),
+        "device-connected": ("Device connected", "기기 연결됨"),
+        "device-disconnected": ("Device disconnected", "기기 연결 끊김"),
+        "device-connecting": ("Connecting", "연결 중"),
+        "device-scanning": ("Scanning", "검색 중"),
         "shareDone": ("Done", "닫기"),
         "shareGrowth": ("Level %d · %d day streak", "레벨 %d · %d일 연속"),
         "rankAll": ("All time", "전체"),
@@ -369,13 +395,13 @@ extension BuddyCopy {
         "shareCard": ("Share card…", "공유 카드…"),
 
             "hop": ("Hop", "폴짝"), "cheer": ("Cheer", "환호"), "dance": ("Dance", "춤"),
-            "hardWonPass": ("Green at last", "드디어 성공"), "redStreakEnded": ("Back on track", "다시 순조롭게"),
+            "hardWonPass": ("A hard-won pass", "어렵게 이뤄낸 성공"), "redStreakEnded": ("Back on track", "다시 순조롭게"),
             "firstEver": ("First one", "첫 번째"), "backAfterAbsence": ("Welcome back", "돌아왔네요"),
             "sameFileAgain": ("One more little change", "작은 수정 하나 더"), "lateNight": ("A quiet night", "조용한 밤"), "nthRateLimit": ("Waiting for a refill", "충전을 기다리는 중"),
             "fine": ("Fine", "괜찮아요"), "checkIt": ("Check it", "확인해 주세요"), "careful": ("Careful", "주의해 주세요"),
             "focus": ("Focus", "집중"), "collect": ("Collect", "받기"), "recap": ("Show today's recap", "오늘의 요약 보기"), "turns": ("Turns", "대화"), "tasks": ("Tasks", "작업"), "biggest": ("Biggest moment", "가장 큰 순간"),
             "profile": ("What your buddy knows", "버디가 알고 있는 것"), "emptyProfile": ("Still getting to know you.", "아직 알아가는 중이에요."),
-            "clear": ("Clear all", "모두 지우기"), "delete": ("Delete", "삭제"), "clearMessage": ("Your buddy’s name, level, and bond are kept. Only these profile lines are cleared.", "버디의 이름, 레벨, 유대감은 유지돼요. 이 프로필 내용만 지워져요."),
+            "clear": ("Forget everything", "모두 잊기"), "delete": ("Delete", "삭제"), "clearMessage": ("Your buddy’s name, level, and bond are kept. Only these profile lines are cleared.", "버디의 이름, 레벨, 유대감은 유지돼요. 이 프로필 내용만 지워져요."),
             "english": ("English", "English"), "korean": ("한국어", "한국어"),
             "language": ("Language", "언어"), "voice": ("Voice", "목소리"), "auto": ("Automatic", "자동"), "off": ("Off", "끄기"),
             "focusHours": ("Focus hours · daily", "매일 집중 시간"), "start": ("Start", "시작"), "end": ("End", "종료"),

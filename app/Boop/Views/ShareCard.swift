@@ -18,10 +18,10 @@ struct ShareCard: View {
             CreatureView(creature: cardCreature, cosmetic: cosmetic, frozen: true, cream: true, frozenTime: 2.5)
                 .frame(width: 440, height: 420)
             VStack(alignment: .leading, spacing: 28) {
-                Text(name).font(.buddy(64, weight: .semibold)).lineLimit(2).minimumScaleFactor(0.5)
+                Text(name).font(.custom("Geist-SemiBold", size: 64)).lineLimit(2).minimumScaleFactor(0.5)
                 Text(String(format: BuddyCopy.phase7("shareGrowth", language: language), level, streak))
-                    .font(.buddy(28))
-                Text(line).font(.buddy(30)).lineLimit(3)
+                    .font(.custom("Geist-Regular", size: 28))
+                Text(line).font(.custom("Geist-Regular", size: 30)).lineLimit(3)
             }.frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(60).frame(width: 1200, height: 630)

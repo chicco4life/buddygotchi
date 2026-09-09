@@ -137,8 +137,11 @@ final class SnapshotHarnessTests: XCTestCase {
 
     func testSettings() throws {
         let e = makeEngine()
-        let view = SettingsView(isPresented: .constant(true), engine: e, esp32Output: ESP32Output(), serverHealth: nil)
-        try snapshot(view, "settings", CGSize(width: BuddyTheme.popoverWidth, height: BuddyTheme.popoverHeight))
+        for section in SettingsSection.sidebar {
+            let view = SettingsSectionView(isPresented: .constant(true), engine: e, esp32Output: ESP32Output(),
+                                           serverHealth: nil, section: section).formStyle(.grouped)
+            try snapshot(view, "settings-" + section.rawValue, CGSize(width: 520, height: section == .advanced ? 1200 : 650))
+        }
     }
 
     // MARK: 5. Onboarding window steps

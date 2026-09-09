@@ -93,7 +93,7 @@ jobs:
         working-directory: leaderboard
 
   firmware:
-    name: Firmware builds (every environment)
+    name: Firmware build (shipping board)
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -118,10 +118,6 @@ jobs:
 
       - name: Build shipping board (ws-amoled164)
         run: tools/pio_ws.sh run -e ws-amoled164
-        working-directory: firmware/esp32
-
-      - name: Build legacy boards (m5stickc-plus, m5stickc-plus-debug)
-        run: pio run
         working-directory: firmware/esp32
 
       - name: Firmware host tests
