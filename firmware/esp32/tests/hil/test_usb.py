@@ -116,7 +116,7 @@ def test_six_states(stick, creature):
     frame(stick, state=creature)
     got = wait_state(stick, creature=creature, screenOff=False)
     assert got["contract"] == 2
-    assert got["brightness"] >= 8
+    assert got["brightness"] >= 28
 
 
 @pytest.mark.parametrize("key,creature,values", [
@@ -250,16 +250,16 @@ def test_dim_ladder_and_orb_never_off(stick):
     clock(stick, base)
     frame(stick, state="idle")
     clock(stick, base+120100)
-    wait_state(stick, screenOff=False, brightness=20)
+    wait_state(stick, screenOff=False, brightness=90)
     frame(stick, gift=True)
-    wait_state(stick, screenOff=False, brightness=32)
+    wait_state(stick, screenOff=False, brightness=110)
     pending(stick)
     clock(stick, base+240200)
     # Keep the card live at the advanced presentation time.
     pending(stick)
-    wait_state(stick, screenOff=False, brightness=220)
+    wait_state(stick, screenOff=False, brightness=255)
     frame(stick, state="asleep")
-    wait_state(stick, screenOff=False, brightness=8)
+    wait_state(stick, screenOff=False, brightness=28)
 
 
 def test_shutdown_stages_and_wake_press_guard(stick):
@@ -286,7 +286,7 @@ def test_double_tap_quick_and_hold_pet(stick):
 def test_motion_flip_shake_pickup_and_card_suppression(stick):
     stick.write_line("imu set 0 0 -1")
     wait_state(stick, napping=True, screenOff=False)
-    assert state(stick)["brightness"] == 8
+    assert state(stick)["brightness"] == 28
     stick.write_line("imu set 0 0 1")
     wait_state(stick, napping=False)
     stick.write_line("imu set 0 0 3")

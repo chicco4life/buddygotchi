@@ -771,11 +771,11 @@ void loop() {
     if(b!=battery || c!=charging) { battery=b;charging=c;sendBattery(); }
   }
   // Brightness (0-255). With only the eyes lit the panel reads darker than
-  // the old body-and-field frames did, so the levels sit high; activity
-  // from the app (a state change) counts as presence for the idle dim.
-  uint32_t lastActivity=lastInput>stateAt?lastInput:stateAt;
+  // the old body-and-field frames did, so the levels sit high. A state
+  // change from the app stamps lastInput (frame apply), so a working buddy
+  // never dims; a gift or cosmetic update alone does not wake the panel.
   uint8_t target=hasCard()?255:(napping || eq(tama.state,"asleep"))?28:
-    now-lastActivity>=120000?(giftPending()?110:90):210;
+    now-lastInput>=120000?(giftPending()?110:90):210;
   if (!screenOff && brightness!=target) { brightness=target; }
   static uint32_t previous=0;
   float dt=previous?(now-previous)*0.001f:0.016f; previous=now;
