@@ -284,13 +284,13 @@ nothing is ever drawn behind the eyes.
 
 | Part | Carries | Range |
 | --- | --- | --- |
-| Eyes | Attention, mood | Open, half, closed, wide, arc, X; look any direction; blink |
+| Eyes | Attention, mood | Open, half, closed, wide, arc, small circles; look any direction; blink |
 | Brows | Effort, surprise | Neutral, raised, furrowed |
 | Mouth | Mood | Neutral, smile, open smile, flat, small o |
 | Cheeks | Affection, exertion | Blush, sweat drop |
 | Eye ink | Energy, skin | Bright ink awake, dimmer asleep, grey before first contact; skins tint it. Bob, lean, squish and hop move the whole face. |
-| Field | Need | Black, amber wash, dim red wash, green ripple |
-| Sparks | Celebration, affection | Confetti, mini hearts, one gold orb |
+| Field | Need | Black, amber wash, dim red wash |
+| Sparks | Celebration, affection | Six confetti dots, one pink heart, one gold orb |
 | Accessories | Cosmetics | Small, above or beside the eyes, drawn in the eye ink, never over the eyes or the card |
 
 Eyes are the anchor, centered and largest. Every part has a resting

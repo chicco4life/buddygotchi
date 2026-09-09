@@ -27,6 +27,24 @@ static inline float animClamp(float v, float lo, float hi) {
   return v < lo ? lo : (v > hi ? hi : v);
 }
 
+// Clock-sampled arrival with one 6% overshoot; exact endpoints, no integrator
+// history, so seeking the frozen clock produces the same motion.
+static inline float animPop(float u) {
+  u=animClamp(u,0,1);
+  const float c=1.283f; // peak overshoot ~= 0.060
+  float v=u-1;
+  return 1+(c+1)*v*v*v+c*v*v;
+}
+
+// One spring arrival followed by an eased return. Call twice for two bounces.
+static inline float animBounce(uint32_t age, uint32_t duration) {
+  if (age>=duration) return 0;
+  float u=(float)age/duration;
+  if (u<0.35f) return animPop(u/0.35f);
+  float v=(u-0.35f)/0.65f;
+  return (1-v)*(1-v);
+}
+
 // Critically-under-damped spring. Used where the motion should overshoot
 // and settle (cards springing up, squish, head tilt) — the "playful" half
 // of doctrine #6.

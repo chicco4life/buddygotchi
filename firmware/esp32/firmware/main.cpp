@@ -28,6 +28,7 @@ static uint32_t localBoopUntil = 0, dizzyUntil = 0, perkUntil = 0, shakeHeadUnti
 static uint32_t lastInput = 0, statsUntil = 0, lastPet = 0;
 static int statsPage = 0;
 static uint32_t statsAt = 0;
+static uint32_t localBoopAt = 0, giftCollectedAt = 0, giftCollectUntil = 0;
 static bool giftCollected = false, bubbleDismissed = false, cardDismissed = false;
 static char localBubble[64] = "", posture[7] = "desk";
 static uint32_t localBubbleUntil = 0, drawCount = 0;
@@ -116,7 +117,7 @@ static void ritualTick() {
         tama=TamaState{}; firstWake=true; haveFrame=false; _rtcValid=false;
         ritual=R_NONE;
         decision=Decision{}; localBoopUntil=dizzyUntil=perkUntil=statsUntil=0;
-        bubbleUntil=localBubbleUntil=0; giftCollected=cardDismissed=bubbleDismissed=false;
+        bubbleUntil=localBubbleUntil=giftCollectUntil=0; giftCollected=cardDismissed=bubbleDismissed=false;
         stateAt=now; spr.fillSprite(BLACK);
         sendCmd("{\"ack\":\"retire\"}");
       }
@@ -243,6 +244,7 @@ static void boop(bool hold) {
   uint32_t now = nowMs();
   if (hold && lastPet && now-lastPet < 2000) return;
   if (hold) lastPet = now;
+  if (!before(now,localBoopUntil)) localBoopAt = now;
   localBoopUntil = now + 1400; squish.vel = -5.0f; sound(6);
   JsonDocument d; d["cmd"] = "boop"; d["hold"] = hold; sendDoc(d);
 }
@@ -255,6 +257,7 @@ static void primaryTap() {
     return;
   }
   if (giftPending()) {
+    giftCollectedAt = nowMs(); giftCollectUntil = giftCollectedAt+200;
     giftCollected = true; strlcpy(localBubble,tama.giftLine,sizeof(localBubble)); localBubbleUntil = nowMs()+4000;
     sendCmd("{\"cmd\":\"collect\"}"); return;
   }
@@ -299,7 +302,10 @@ static void buttonsTick() {
           if (armed() && held >= (careful()?2000u:1000u)) { decide(careful()); b.fired=true; }
         } else if (held >= 1000) { boop(true); b.fired=true; }
       }
-      if (i == 0 && b.fired && !b.cardId[0] && !b.guard && !hasCard() && held >= 1000) localBoopUntil=now+300;
+      if (i == 0 && b.fired && !b.cardId[0] && !b.guard && !hasCard() && held >= 1000) {
+        if (!before(now,localBoopUntil)) localBoopAt=now;
+        localBoopUntil=now+300;
+      }
       if (i != 0 && held >= 1000 && !b.focusSent) {
         tama.focus = !tama.focus; JsonDocument d; d["cmd"]="focus"; d["on"]=tama.focus; sendDoc(d);
         b.focusSent = b.fired = true;

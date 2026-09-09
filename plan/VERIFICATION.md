@@ -722,3 +722,13 @@ check hint/count/track grey, 2 px armed ring and 4 px hold arc; freeze
 level-up at 0/150/300/450/600/900 ms and compare repeated frames. Run the
 existing USB HIL suite for card arming, feedback, priority, and decision
 commands. No flash or USB HIL was run for this pass.
+
+
+### Motion review (2026-09-09)
+
+Animations are judged from strips, not single frames:
+`firmware/esp32/tools/motion_strip.py <moment>` freezes the virtual clock
+at several offsets after a moment starts and stitches the screenshots
+(`/tmp/boop-motion/<moment>.png`). A rendering change to any moment in
+`UX-DEVICE.md` §20 ships with its strip in the pull request, and the
+goldens are re-recorded only after the strips have been looked at.

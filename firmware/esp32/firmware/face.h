@@ -65,7 +65,7 @@ static FacePose facePose;
 static uint32_t microAt=0, nextMicro=120000;
 static int microKind=0;
 static bool eq(const char* a,const char* b) { return strcmp(a,b)==0; }
-static uint32_t cheerDuration() { return eq(tama.cheer,"dance")?4000:eq(tama.cheer,"cheer")?2500:1500; }
+static uint32_t cheerDuration() { return eq(tama.cheer,"dance")?2500:eq(tama.cheer,"cheer")?2500:1500; }
 static bool calmOverlay() { return !hasCard() && !napping && (eq(tama.state,"idle") || eq(tama.state,"working") || eq(tama.state,"done")); }
 enum PerchMotion : uint8_t { P_STILL, P_DANGLE, P_TIP, P_LAND, P_POP };
 struct PerchPose {
@@ -93,9 +93,9 @@ static void applyPerch(FacePose& p, const PerchPose& row, uint32_t age) {
   p.eyeW*=1+row.delta.eyeW;
   p.gazeY+=row.delta.gazeY; p.lean+=row.delta.lean;
   switch (row.motion) {
-    case P_DANGLE: p.gazeY=age%8000<6500?14:-8; p.gazeX*=0.5f; break;
+    case P_DANGLE: p.gazeY=3+11*cosf(age*ANIM_TAU/8000.0f); p.gazeX*=0.5f; break;
     case P_TIP: p.gazeY=18; p.tilt=animClamp(age*0.001f-0.5f,0,1)*0.14f; break;
-    case P_LAND: if (age<4000) p.bob+=sinf(age*0.018f)*4; break;
+    case P_LAND: break; // The done motion already supplies the landing.
     case P_POP: {
       float wave=sinf(age/2200.0f*3.14159265f);
       p.lean+=30*(1-wave)-12*wave;
@@ -119,7 +119,7 @@ static void faceSimulate(uint32_t now,float dt) {
   // Phase from state entry, not boot: a screenshot frozen N ms after a frame
   // lands on the same phase every run.
   float phase=(now-stateAt)*0.001f;
-  p.bob=sinf(phase*1.4f)*3;
+  p.bob=sinf((now-stateAt)*ANIM_TAU/1400.0f)*3;
   p.gazeX=sinf(phase*0.31f)*11; p.gazeY=cosf(phase*0.23f)*3;
   const char* state = (!dataConnected() && !presenceGraced(now)) ? "idle" : tama.state;
   if (napping || eq(state,"asleep")) {
@@ -136,10 +136,13 @@ static void faceSimulate(uint32_t now,float dt) {
     uint32_t age=now-stateAt;
     if (age<cheerDuration()) {
       float progress=(float)age/cheerDuration();
-      p.bob-=fabsf(sinf(progress*ANIM_TAU*(eq(tama.cheer,"dance")?3:1)))*21;
-      if (eq(tama.cheer,"cheer")) p.tilt=progress*ANIM_TAU;
-      if (eq(tama.cheer,"dance")) p.tilt=sinf(progress*ANIM_TAU*3)*0.4f;
-      if (eq(tama.cheer,"dance")) { p.blush=1; p.gazeX=sinf(phase*10)*20; }
+      if (eq(tama.cheer,"dance")) {
+        p.bob-=fabsf(sinf(age*ANIM_TAU*2/1000.0f))*18;
+        p.tilt=0.25f*sinf(age*ANIM_TAU*1.5f/1000.0f); p.blush=1;
+      } else if (eq(tama.cheer,"cheer")) {
+        p.bob-=21*animBounce(age%450,450)*(age<900);
+        p.tilt=0.12f*sinf(progress*ANIM_TAU*2); p.blush=1;
+      } else p.bob-=21*animBounce(age,600);
     } else if (giftPending()) { p.arc=9; p.eyeH=35; p.gazeX=20; p.gazeY=-7; }
   } else if (eq(state,"uhoh")) {
     p.eyeH=30; p.gazeX=-10; p.gazeY=14; p.lean=12; p.bob=sinf(phase)*2; p.mouth=-1;
@@ -166,29 +169,42 @@ static void faceSimulate(uint32_t now,float dt) {
   if (eq(state,"idle") && microAt && now-microAt<1800) {
     float u=(now-microAt)/1800.0f, wave=sinf(u*3.14159265f);
     if (microKind==0) { p.eyeH*=1-wave*0.9f; p.mouth=wave*2; }
-    if (microKind==1) { p.gazeX=sinf(u*ANIM_TAU)*30; p.gazeY=wave*30; }
+    if (microKind==1) { p.gazeX=sinf(u*ANIM_TAU)*20; p.gazeY=wave*20; }
     if (microKind==2) { p.bob+=sinf(u*ANIM_TAU*2)*6; p.arc=wave*12; }
     if (microKind==3) { p.gazeX*=1-wave; p.gazeY-=wave*8; }
     if (microKind==4) p.tilt=wave*0.15f;
   }
-  bool affection=calmOverlay() && (before(now,localBoopUntil) ||
-    (tama.overlay[0] && now-overlayAt<(eq(tama.overlay,"greet")?2200u:1400u)));
-  if (affection) {
-    p.blush=1; p.mouth=1;
-    if(!eq(tama.overlay,"greet")) p.bob+=sinf((now-overlayAt)*0.014f)*expf(-((float)(now-overlayAt))*0.003f)*14;
-    if (eq(tama.overlay,"greet")) {
-      float u=(now-overlayAt)/2200.0f, wave=sinf(u*3.14159265f);
-      p.blush=tama.greetLevel>=2?1:0; p.gazeX=wave*15; p.mouth=1;
-      if(tama.greetLevel==1) { p.eyeH=66-55*wave; p.mouth=2*wave; p.lean=-12*wave; }
-      if(tama.greetLevel>=2) { p.bob-=fabsf(sinf(u*ANIM_TAU*2))*(tama.greetLevel==3?28:16); p.eyeH*=1-0.45f*wave; }
-      if(eq(posture,"perch")) {
-        for (const auto& row:perchPoses) if (eq(row.modifier,"greet")) applyPerch(p,row,now-overlayAt);
-      }
-    } else p.eyeH*=0.7f+0.2f*sinf(phase*8);
+  bool booping=calmOverlay() && (before(now,localBoopUntil) ||
+    (eq(tama.overlay,"boop") && now-overlayAt<1400));
+  bool greeting=calmOverlay() && eq(tama.overlay,"greet") && now-overlayAt<2200;
+  if (booping) {
+    uint32_t age=now-(before(now,localBoopUntil)?localBoopAt:overlayAt);
+    p.eyeH*=age<250?0.6f:0.6f+0.4f*animPop((age-250)/150.0f);
+    p.arc=0; p.blush=1; p.mouth=1;
+  } else if (greeting) {
+    uint32_t age=now-overlayAt;
+    p.blush=tama.greetLevel>=2?1:0; p.mouth=1;
+    if (tama.greetLevel==1) {
+      p.arc=0;
+      float u=animClamp(age/600.0f,0,1);
+      p.eyeH=66-59*sinf(u*ANIM_TAU/2);
+    } else {
+      uint32_t duration=tama.greetLevel==3?450:600;
+      uint32_t end=tama.greetLevel==3?900:600;
+      float bounce=age<end?animBounce(age%duration,duration):0;
+      p.bob-=16*bounce; p.eyeH*=1-0.25f*bounce;
+    }
+    if(eq(posture,"perch")) {
+      for (const auto& row:perchPoses) if (eq(row.modifier,"greet")) applyPerch(p,row,age);
+    }
+  }
+  if (before(now,dizzyUntil) && !card) {
+    uint32_t age=now-(dizzyUntil-3000);
+    p.gazeX+=10*sinf(age*ANIM_TAU*3/1000.0f);
   }
   if (before(now,perkUntil) && !card) { p.lean-=8; p.eyeH=83; chosenPoseName="pickup"; }
   if (before(now,shakeHeadUntil)) p.gazeX+=sinf(phase*24)*14;
-  if (!napping && !eq(state,"asleep") && !eq(state,"done") && (now-stateAt)%5100<110) p.eyeH=7;
+  if (!napping && !eq(state,"asleep") && !eq(state,"done") && !booping && !greeting && (now-stateAt)%5100<110) p.eyeH=7;
   if (isRetiring() && now-ritualAt>=600 && now-ritualAt<850) p.eyeH=7;
   p.rightEyeClosed=(eq(tama.state,"asleep") && before(now,localBoopUntil)) ||
     (firstWake && ritual!=R_COLOR && now-ritualAt<2200);
@@ -259,7 +275,7 @@ static void faceDraw(uint32_t now,bool showSparks,float compact=0,bool proud=fal
     int ex=cx+animPx(side*spacing*cosf(p.tilt)), ey=cy+animPx(p.gazeY+side*spacing*sinf(p.tilt));
     auto drawEye=[&](uint16_t eyeInk) {
     if (before(now,dizzyUntil) && !hasCard() && !proud) {
-      for (int k=-2;k<=2;++k) { spr.drawLine(ex-20,ey-20+k,ex+20,ey+20+k,eyeInk); spr.drawLine(ex-20,ey+20+k,ex+20,ey-20+k,eyeInk); }
+      spr.fillSmoothCircle(ex,ey,20,eyeInk);
     } else if (p.arc>2) _faceEyeArch(ex,ey,animPx(p.eyeW),p.arc,max(2,animPx(5*scale)),eyeInk);
     else _faceEye(ex,ey,animPx(p.eyeW),p.rightEyeClosed && side>0 ? 7 : animPx(p.eyeH),18,eyeInk);
     };
@@ -282,42 +298,49 @@ static void faceDraw(uint32_t now,bool showSparks,float compact=0,bool proud=fal
   else if (p.mouth>0.2f) spr.fillArc(cx,my-animPx(5*scale),animPx(10*scale),animPx(13*scale),0,180,ink);
   else spr.fillSmoothRoundRect(cx-9,my,18,3,1,ink);
   if (p.sweat>0.2f) {
-    int x=cx+135, y=cy-25+((now-stateAt)%1500)*18/1500;
+    int x=cx+135, y=cy-25+((now-stateAt)%3000)*18/3000;
     uint16_t c=animRGB(73,146,255); spr.fillTriangle(x,y-9,x-5,y+1,x+5,y+1,c); spr.fillSmoothCircle(x,y+2,5,c);
-  }
-  if (eq(posture,"perch") && !proud) {
-    bool kick=eq(tama.state,"idle");
-    bool tucked=napping || eq(tama.state,"asleep") || (eq(tama.state,"working") && eq(tama.effort,"grinding"));
-    for(int side=-1;side<=1;side+=2) {
-      int x=cx+side*48, y=cy+85+(kick?animPx(sinf((now-stateAt)*0.0015f+side)*5):0);
-      spr.fillRoundRect(x,y,10,tucked?8:21,4,ink);
-    }
   }
   if (!hasCard() && ritual==R_STREAK && now-ritualAt<ritualDuration[R_STREAK]) {
     int x=HAL_W-42,y=60,r=8+animPx(sinf((now-ritualAt)*0.008f)*3);
     uint16_t flame=animRGB(255,146,36);
     spr.fillTriangle(x-r,y,x+3,y-24,x+r,y,flame); spr.fillSmoothCircle(x,y,r,flame);
   }
-  if (!showSparks) return;
+  // Collect remains visible beside the bubble, even after the host clears gift.
+  bool collecting=before(now,giftCollectUntil);
   uint32_t age=now-stateAt;
-  if (eq(tama.state,"done") && age<cheerDuration()) {
-    if (eq(tama.cheer,"hop") || !tama.cheer[0]) {
-      int r=30+age*100/1500; spr.fillArc(cx,cy,r,r+2,0,360,animRGB(36,109,0));
-    } else {
-      int count=eq(tama.cheer,"dance")?32:16;
-      for(int i=0;i<count;++i) {
-        uint32_t h=animHash(i+17); int x=(h%HAL_W+age*(i%3-1)/35+HAL_W*4)%HAL_W;
-        int y=((h>>9)%HAL_H+age/(10+i%6))%HAL_H;
-        spr.fillRect(x,y,4,6,animRGB(100+h%155,140+(h>>8)%115,82+(h>>16)%170));
-      }
+  if (collecting || (showSparks && giftPending() && !(eq(tama.state,"done") && age<cheerDuration()))) {
+    float amount=collecting?1-animClamp((now-giftCollectedAt)/200.0f,0,1):1;
+    int x=HAL_W-62,y=HAL_H/2+26+animPx(sinf((now-stateAt)*0.002f)*4);
+    int r=animPx(16*amount);
+    if (r>0 && !hasCard() && !proud) {
+      spr.fillSmoothCircle(x,y,r,animRGB(109,73,0));
+      spr.fillSmoothCircle(x,y,max(1,animPx(9*amount)),animRGB(255,219,82));
+      if (amount>0.25f) spr.fillSmoothCircle(x-animPx(3*amount),y-animPx(3*amount),max(1,animPx(2*amount)),WHITE);
     }
   }
-  if (calmOverlay() && (before(now,localBoopUntil) || ((eq(tama.overlay,"boop") && now-overlayAt<1400) || (eq(tama.overlay,"greet") && tama.greetLevel==3 && now-overlayAt<2200)))) {
-    for(int i=0;i<3;++i) heart(cx-130+i*125,cy-55-((now-overlayAt)/40+i*17)%35,6,animRGB(255,109,173));
+  if (!showSparks) return;
+  int eyeTop=cy+animPx(p.gazeY-p.eyeH/2);
+  if (eq(tama.state,"done") && eq(tama.cheer,"dance") && age<cheerDuration()) {
+    const uint16_t colors[]={animRGB(255,109,173),animRGB(109,219,146),animRGB(255,219,82)};
+    // Each dot has its own start delay, height, and fall speed so the six
+    // never line up; a row of dots reads as a necklace, not confetti.
+    for (int i=0;i<6;++i) {
+      uint32_t h=animHash(i+3), delay=h%700;
+      if (age<delay) continue;
+      float t=(float)(age-delay)/(cheerDuration()-delay);
+      int x=cx+(int)(animHash(i)%200)-100+animPx(6*sinf(age/300.0f+i));
+      int y=eyeTop-40-(int)((h>>8)%40)+animPx((100+(int)((h>>16)%40))*t);
+      spr.fillSmoothCircle(x,y,4,colors[i%3]);
+    }
   }
-  if (giftPending() && !(eq(tama.state,"done") && age<cheerDuration())) {
-    int x=HAL_W-62,y=HAL_H/2+26+animPx(sinf((now-stateAt)*0.002f)*4);
-    spr.fillSmoothCircle(x,y,16,animRGB(109,73,0)); spr.fillSmoothCircle(x,y,9,animRGB(255,219,82));
-    spr.fillSmoothCircle(x-3,y-3,2,WHITE);
+  bool local=before(now,localBoopUntil);
+  bool booping=local || (eq(tama.overlay,"boop") && now-overlayAt<1400);
+  bool greeting=eq(tama.overlay,"greet") && tama.greetLevel==3 && now-overlayAt<900;
+  if (calmOverlay() && (booping || greeting)) {
+    uint32_t heartAge=booping?(now-(local?localBoopAt:overlayAt))%900:now-overlayAt;
+    float amount=heartAge<150?animPop(heartAge/150.0f):heartAge>=800?(900-heartAge)/100.0f:1;
+    int radius=animPx(10*amount);
+    if (radius>0) heart(cx,eyeTop-12-animPx(24*heartAge/900.0f),radius,animRGB(255,109,173));
   }
 }

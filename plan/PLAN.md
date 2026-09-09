@@ -378,6 +378,14 @@ strokes are full ink (2 px idle, 4 px filling); hints, queue count, and
 stats track use explicit grey. S3 build passed with writable PlatformIO
 cache overrides; hardware visual review and USB HIL remain pending.
 
+**Device motion correction (2026-09-09).** Implemented `UX-DEVICE.md`
+§20: removed perch feet, scrolling hearts, hop ripple, rectangular confetti,
+dizzy Xs, and cheer spin. Added clock-sampled spring motions, one heart,
+six dance dots, gaze-only dangle, and a 200 ms collect shrink that survives
+the gift bubble transition. The dance ends at 2500 ms. STATE fields and
+interaction decisions remain unchanged. S3 build and static field comparison
+passed; hardware visual review and the owner's USB HIL run remain pending.
+
 **Human steps.** Perch the device on a lid; leave it overnight on battery.
 
 **Risk.** Posture detection depends on the mount; keep the explicit
