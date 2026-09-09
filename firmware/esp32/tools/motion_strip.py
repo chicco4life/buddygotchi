@@ -31,6 +31,7 @@ CELLS = {
     "done-cheer": ({**BASE, "state": "done", "cheer": "cheer"}, [0, 200, 400, 700, 1000, 1500, 2200]),
     "done-dance": ({**BASE, "state": "done", "cheer": "dance"}, [0, 250, 500, 900, 1300, 1800, 2400]),
     "needsYou": ({**BASE, "state": "needsYou"}, [0, 80, 160, 300, 600]),
+    "working": ({**BASE, "state": "working", "effort": "light"}, [0, 800, 1500, 1700, 2000, 3100, 3300, 4800]),
     "working-grinding": ({**BASE, "state": "working", "effort": "grinding"}, [0, 400, 800, 1500, 2200, 3000]),
 }
 

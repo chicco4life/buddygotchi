@@ -126,8 +126,12 @@ static void faceSimulate(uint32_t now,float dt) {
     p.eyeH=7; p.bob=sinf(phase*0.7f)*2; p.gazeX=0; p.gazeY=4;
     if (before(now,localBoopUntil) && !napping) p.eyeH=18; // sleeper's peek, no hearts
   } else if (eq(state,"working")) {
-    p.gazeX=-8; p.gazeY=6; p.lean=3;
-    if (eq(tama.effort,"hard") || eq(tama.effort,"grinding")) { p.brow=1; p.sweat=1; p.eyeH=60; }
+    // Reading: eyes narrow a little and the gaze hops between two spots low
+    // on the page every 1.6 s (the pose easing turns the hop into a glance).
+    // Small offsets, so the pair stays centred on the screen.
+    bool right=((now-stateAt)/1600)%2==1;
+    p.gazeX=right?7:-8; p.gazeY=6; p.lean=3; p.eyeH=68; p.bob=sinf(phase*1.4f)*2;
+    if (eq(tama.effort,"hard") || eq(tama.effort,"grinding")) { p.brow=1; p.sweat=1; p.eyeH=58; }
     if (eq(tama.effort,"grinding")) p.bob+=sinf(phase*37)*1.5f;
   } else if (eq(state,"needsYou")) {
     p.eyeH=96; p.eyeW=72; p.gazeX=0; p.gazeY=-2; p.lean=-4;

@@ -98,7 +98,7 @@ struct CreatureView: View {
         context.fill(Path(CGRect(x: 10, y: 0, width: 220, height: 200)), with: .radialGradient(bodyGradient, center: CGPoint(x: 120, y: 103), startRadius: 0, endRadius: creature.state == .done ? 105 : 85))
         let ink = grey ? Color.gray : cream ? Color(hex: "66503B") : tint
         let blink = !frozen && !snapshotFrozen && creature.state == .idle && t.truncatingRemainder(dividingBy: 5) < 0.16
-        drawEyes(&context, pose: pose, centers: [CGPoint(x: 77.5, y: 103), CGPoint(x: 162.5, y: 103)], scale: 1, ink: ink, blink: blink, gaze: creature.state == .idle ? sin(t * 0.31) * 5.5 : 0)
+        drawEyes(&context, pose: pose, centers: [CGPoint(x: 77.5, y: 103), CGPoint(x: 162.5, y: 103)], scale: 1, ink: ink, blink: blink, gaze: creature.state == .idle ? sin(t * 0.31) * 5.5 : creature.state == .working ? readingGaze(t) : 0)
         var mouth = Path(); mouth.move(to: CGPoint(x: 113, y: 130)); mouth.addQuadCurve(to: CGPoint(x: 127, y: 130), control: CGPoint(x: 120, y: creature.state == .uhoh ? 128 : 139))
         context.stroke(mouth, with: .color(ink), style: StrokeStyle(lineWidth: 3, lineCap: .round))
         if pose.blush { for x in [76.0, 151.0] { context.fill(Path(ellipseIn: CGRect(x: x, y: 121, width: 15, height: 7)), with: .color(.pink.opacity(0.55))) } }
@@ -158,7 +158,7 @@ private func drawEyes(_ context: inout GraphicsContext, pose: CreaturePose, cent
             eyeContext.stroke(eye, with: .color(ink), style: StrokeStyle(lineWidth: 4, lineCap: .round))
         default:
             let height = 33 * pose.eyeOpenness
-            let dx = pose.eyes == .down ? -8.5 : gaze
+            let dx = gaze
             eyeContext.fill(Path(roundedRect: CGRect(x: -13.25 + dx, y: -height / 2 + (pose.eyes == .down ? 6 : 0), width: 26.5, height: height), cornerRadius: 9), with: .color(ink))
         }
         if pose.furrow {
@@ -201,4 +201,15 @@ private final class CreatureGlyphs {
         texts = resolved
         return resolved
     }
+}
+
+/// Working reads like reading: the gaze hops between two spots low on the
+/// page every 1.6 s, eased over 250 ms (plan/UX-DEVICE.md §20, same as the device).
+private func readingGaze(_ t: Double) -> Double {
+    let period = 1.6, left = -8.5, right = 3.5
+    let phase = t.truncatingRemainder(dividingBy: period * 2)
+    let toRight = phase >= period
+    let u = min(1, (phase - (toRight ? period : 0)) / 0.25)
+    let eased = u * u * (3 - 2 * u)
+    return toRight ? left + (right - left) * eased : right + (left - right) * eased
 }

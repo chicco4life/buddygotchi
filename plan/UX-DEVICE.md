@@ -544,7 +544,7 @@ screen, nothing swarms, nothing spins.
 | --- | --- |
 | Blink | Lids close 110 ms every ~5 s. Unchanged. |
 | Idle | Slow bob (±3 px, 1.4 s), gaze drifts. Micro-idles are small: gaze lap ±20 px, wiggle ±6 px. |
-| Working | Eyes down-left, lean 5 px; hard adds the brow and the sweat drop (one drop slides 18 px every 3 s); grinding adds a faint tremble (±1.5 px). |
+| Working | Reading: eyes narrow to 85% and the gaze hops between two spots low on the page (8 px left, 7 px right) every 1.6 s, eased, with a small lean; hard adds the brow and the sweat drop (one drop slides 18 px every 3 s); grinding adds a faint tremble (±1.5 px). The Mac creature does the same hop. |
 | Needs you | Eyes spring wide, tiny lean toward you. |
 | Boop (tap, pet) | Eyes squish to 60% height for 250 ms and spring back; blush; smile; **one heart**: it pops in 12 px above the gap between the eyes (scale 0→1 in 150 ms, 6% overshoot, radius 10, pink), floats up 24 px over 900 ms, shrinks away in the last 100 ms. One heart per boop; holding or petting adds none. |
 | Greet, level 1 | One slow blink and a smile. |
