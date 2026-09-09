@@ -68,7 +68,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 button.sendAction(on: [.leftMouseUp, .rightMouseUp])
             }
 
-            let output = ESP32Output()
+            let output = ESP32Output(defaults: AppDefaults.shared)
             esp32Output = output
             engine.register(output: output)
             Task { await output.start(engine: engine) }

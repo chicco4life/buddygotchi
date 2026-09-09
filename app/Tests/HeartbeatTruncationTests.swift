@@ -71,7 +71,6 @@ final class HeartbeatTruncationTests: XCTestCase {
     func testStateParametersAndRanges() throws {
         for state in CreatureState.allCases {
             var buddy = BuddyState.initial
-            buddy.pet.state = .error
             buddy.creature.state = state
             buddy.creature.effort = .hard
             buddy.creature.cheer = .dance

@@ -428,3 +428,54 @@ anywhere, in any form.
   Macs the audience owns.
 - Windows changes the script, the server host, and the runtime, and
   nothing in the core. Confirm as the extractor is built.
+
+## 15. Architecture review, 2026-09-09
+
+Shared pure policies belong in Core: `CardStakes.swift` supplies the risk
+classifier to both extraction and reducer fallback; `UTF8Text.swift` supplies
+character-safe byte truncation to input parsing, Voice, UI, and wire encoding.
+Neither helper belongs to the ESP32 output implementation. Their algorithms
+and wire behavior are unchanged. See [ARCHITECTURE-REVIEW.md](ARCHITECTURE-REVIEW.md)
+for the remaining staged simplifications and preservation gates.
+
+### Growth coordination
+
+`Leaderboard/GrowthCoordinator.swift` owns enrollment, signing, submission,
+retry timing, sync task ordering, and retirement draining. It depends on the
+narrow `GrowthStore` and `GrowthSigner` capabilities; `DeviceReplySigner` adds
+reply completion for device-backed signers. The composition root connects that
+signer to an output's `GrowthDeviceOutput` capability, without a concrete BLE
+output dependency in coordination code.
+
+The engine supplies a persistence barrier before coordinator reads and applies
+returned rank snapshots as reducer events. It retains UI settings and device
+command routing. The coordinator retains enrollment for offline rank reads but
+invalidates an in-flight handshake or signature on disconnect; retirement
+invalidates work and drains it before deleting the store. Sync calls form one
+task chain, preserving each requested view and preventing three or more callers
+from racing after a shared wait. Wire fields, XP policy, retry budgets, and
+approval paths are unchanged.
+
+### Transient voice and device preferences
+
+`TransientVoiceTasks` owns the gift and bubble task slots, cancellation, and
+revision checks. Replacing or canceling one lane leaves the other intact.
+The engine supplies generation and delivery callbacks, keeps prompt suppression
+at delivery, and cancels both lanes for stop, language/runtime changes, and
+retirement. Recap scheduling remains separate; `finishPendingWork` still waits
+for the current gift and bubble work after extraction and persistence.
+
+`ESP32Output` receives its preferences from the composition root. Saved-device
+lookup, unpairing, and both normal and test-celebration frames use that instance.
+Preview/snapshot output instances receive their scratch preferences too. Frame
+encoding still uses the same v2 keys, caps, and shedding policy.
+
+### Canonical creature projection
+
+`BuddyState` stores species independently and derives `pet`, `lastSignal`, and
+`celebrateIntensity` from `creature`. Reducer aggregation no longer writes those
+three projections. `BuddyState+Encoding.swift` preserves the established
+36-field diagnostic shape, including species nested under `pet`, and omits nil
+optionals as before. Prompt, effort tier, and greeting metadata remain stored
+because they carry information not recoverable from the creature projection.
+There is no database migration or device wire change.

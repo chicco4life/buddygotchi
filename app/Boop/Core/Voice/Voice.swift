@@ -45,7 +45,7 @@ struct VoiceLine: Sendable, Equatable {
     var text: String
     var source: Source
 }
-enum VoiceLineKind: Sendable { case gift, bubble }
+enum VoiceLineKind: Sendable, Hashable { case gift, bubble }
 
 /// Resolves once without awaiting an uncooperative runtime. Attaching after a
 /// fast completion also cancels the tasks, closing the creation/completion race.

@@ -64,7 +64,7 @@ final class SnapshotHarnessTests: XCTestCase {
     }
 
     private func popover(_ engine: BuddyEngine) -> some View {
-        PopoverView(engine: engine, esp32Output: ESP32Output())
+        PopoverView(engine: engine, esp32Output: ESP32Output(defaults: defaults))
     }
 
     private func onboarding(step: OnboardingStep) -> some View {
@@ -75,7 +75,7 @@ final class SnapshotHarnessTests: XCTestCase {
         defaults.set(BuddyOutputTarget.thisMac.rawValue, forKey: DefaultsKey.buddyOutput)
         let engine = BuddyEngine(defaults: defaults)
         if step == .done { defaults.set(false, forKey: DefaultsKey.firstCheerShown); engine.firstCheer() }
-        return OnboardingView(defaults: defaults, engine: engine, esp32Output: ESP32Output(), onFinish: {})
+        return OnboardingView(defaults: defaults, engine: engine, esp32Output: ESP32Output(defaults: defaults), onFinish: {})
     }
 
     private var popoverIdle: CGSize { CGSize(width: BuddyTheme.popoverWidth, height: BuddyTheme.liveViewHeight) }
@@ -138,7 +138,7 @@ final class SnapshotHarnessTests: XCTestCase {
     func testSettings() throws {
         let e = makeEngine()
         for section in SettingsSection.sidebar {
-            let view = SettingsSectionView(isPresented: .constant(true), engine: e, esp32Output: ESP32Output(),
+            let view = SettingsSectionView(isPresented: .constant(true), engine: e, esp32Output: ESP32Output(defaults: defaults),
                                            serverHealth: nil, section: section).formStyle(.grouped)
             try snapshot(view, "settings-" + section.rawValue, CGSize(width: 520, height: section == .advanced ? 1200 : 650))
         }

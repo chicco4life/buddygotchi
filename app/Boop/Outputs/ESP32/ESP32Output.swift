@@ -5,8 +5,9 @@ let esp32PeripheralUUIDKey = DefaultsKey.esp32PeripheralUUID
 
 @Observable
 @MainActor
-final class ESP32Output: OutputProvider, BLEManagerDelegate {
+final class ESP32Output: OutputProvider, GrowthDeviceOutput, BLEManagerDelegate {
     let id = "esp32"
+    private let defaults: UserDefaults
     private let bleManager = BLEManager()
     private var keepaliveTimer: Timer?
     private var lastState: BuddyState?
@@ -14,6 +15,8 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
 
     private(set) var connectionState: BLEConnectionState = .disconnected
     let firmwareUpdater = FirmwareUpdater()
+
+    init(defaults: UserDefaults = .standard) { self.defaults = defaults }
 
     func start(engine: BuddyEngine) async {
         self.engine = engine
@@ -31,9 +34,12 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
         bleManager.disconnect()
     }
 
+    var savedPeripheralIdentifier: UUID? {
+        defaults.string(forKey: DefaultsKey.esp32PeripheralUUID).flatMap(UUID.init(uuidString:))
+    }
+
     func connectToSavedDevice() {
-        guard let uuidStr = UserDefaults.standard.string(forKey: DefaultsKey.esp32PeripheralUUID),
-              let uuid = UUID(uuidString: uuidStr) else { return }
+        guard let uuid = savedPeripheralIdentifier else { return }
         bleManager.connect(peripheralIdentifier: uuid)
     }
 
@@ -59,7 +65,7 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
             }
         }
         bleManager.disconnect()
-        AppDefaults.shared.removeObject(forKey: DefaultsKey.esp32PeripheralUUID)
+        defaults.removeObject(forKey: DefaultsKey.esp32PeripheralUUID)
         connectionState = .disconnected
     }
 
@@ -69,16 +75,20 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
         celebrateState.creature.state = .done
         celebrateState.creature.overlay = nil
         celebrateState.creature.cheer = .cheer
-        if let data = renderStateData(from: celebrateState, now: engine?.deviceFrameTime ?? 0) {
+        if let data = frameData(from: celebrateState) {
             bleManager.send(data)
         }
+    }
+
+    func frameData(from state: BuddyState) -> Data? {
+        renderStateData(from: state, defaults: defaults, now: engine?.deviceFrameTime ?? 0)
     }
 
     private var lastCardSent = ""
     func sendNow() {
         guard bleManager.connectionState == .connected,
               let s = lastState,
-              let data = renderStateData(from: s, now: engine?.deviceFrameTime ?? 0) else { return }
+              let data = frameData(from: s) else { return }
         bleManager.send(data)
         // One diagnostic per card so the latency scenario can place the
         // "frame left the app" hop; plain state frames stay unlogged.

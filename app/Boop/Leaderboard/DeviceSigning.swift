@@ -17,8 +17,20 @@ struct SignRequest: Encodable, Sendable, Equatable {
     func sign(_ request: SignRequest) async throws -> LedgerSignature
 }
 
+/// Optional capability for signers completed by device replies.
+@MainActor protocol DeviceReplySigner: GrowthSigner, AnyObject {
+    var signingIdentity: DeviceIdentity? { get set }
+    var send: ((SignRequest) throws -> Void)? { get set }
+    func accept(_ signature: LedgerSignature) throws
+    func cancel(_ error: any Error)
+}
+
+@MainActor protocol GrowthDeviceOutput {
+    func sendSign(_ request: SignRequest)
+}
+
 /// The transport reply completes exactly one request; late replies are ignored.
-@MainActor final class DeviceGrowthSigner: GrowthSigner {
+@MainActor final class DeviceGrowthSigner: DeviceReplySigner {
     var signingIdentity: DeviceIdentity?
     var send: ((SignRequest) throws -> Void)?
     private var pending: (SignRequest, CheckedContinuation<LedgerSignature, any Error>)?

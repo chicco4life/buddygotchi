@@ -49,20 +49,20 @@ enum SnapshotRenderer {
         renderCompanionScenes(to: dir, defaults: defaults)
 
         // 1. Popover: sleep (empty state)
-        render(popover(makeEngine()), "popover-1-sleep", idle, dir)
+        render(popover(makeEngine(), defaults: defaults), "popover-1-sleep", idle, dir)
 
         // 2. Popover: busy with activity row
         let busy = makeEngine()
         busy.sessionStarted(sessionId: "s1", source: "claude-code", cwd: "/Users/dev/boop")
         busy.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
         busy.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "swift build --product Boop")
-        render(popover(busy), "popover-2-busy", idle, dir)
+        render(popover(busy, defaults: defaults), "popover-2-busy", idle, dir)
 
         // 3. Popover: passive prompt
         let passive = makeEngine()
         passive.sessionStarted(sessionId: "s1", source: "cursor", cwd: "/Users/dev/boop")
         passive.submitRequest(sessionId: "s1", requestId: "r1", tool: "Bash", hint: "git push origin main", sessionLabel: "boop")
-        render(popover(passive), "popover-3-passive-prompt", expanded, dir)
+        render(popover(passive, defaults: defaults), "popover-3-passive-prompt", expanded, dir)
 
         // 4. Popover: blocking approval with queue count + error trailer
         let approval = makeEngine()
@@ -73,7 +73,7 @@ enum SnapshotRenderer {
         Task { _ = await approval.submitApproval(sessionId: "s1", requestId: "rq1", tool: "Bash", hint: "rm -rf build && npm ci", sessionLabel: "boop", source: "claude-code") }
         Task { _ = await approval.submitApproval(sessionId: "s2", requestId: "rq2", tool: "Write", hint: "src/app/page.tsx", sessionLabel: "landing", source: "codex") }
         RunLoop.main.run(until: Date().addingTimeInterval(0.1))
-        render(popover(approval), "popover-4-approval-queue-error", expanded, dir)
+        render(popover(approval, defaults: defaults), "popover-4-approval-queue-error", expanded, dir)
         approval.resolveAllPendingApprovals(decision: .passthrough)
 
         // 5. Popover: multi-session list
@@ -83,14 +83,14 @@ enum SnapshotRenderer {
         multi.sessionStarted(sessionId: "m2", source: "codex", cwd: "/Users/dev/landing")
         multi.activitySignal(sessionId: "m2", source: "codex", signal: .keepWorking, tool: "Bash", hint: "npm run build")
         multi.sessionStarted(sessionId: "m3", source: "cursor", cwd: "/Users/dev/api")
-        render(popover(multi), "popover-5-multi-session", expanded, dir)
+        render(popover(multi, defaults: defaults), "popover-5-multi-session", expanded, dir)
 
         // 6. Popover: error card
         let errored = makeEngine()
         errored.sessionStarted(sessionId: "e1", source: "codex", cwd: "/Users/dev/landing")
         errored.activitySignal(sessionId: "e1", source: "codex", signal: .startWorking)
         errored.activitySignal(sessionId: "e1", source: "codex", signal: .error, tool: "Bash", hint: "npm test — 3 failures")
-        render(popover(errored), "popover-6-error", expanded, dir)
+        render(popover(errored, defaults: defaults), "popover-6-error", expanded, dir)
 
         // 7. Popover: review card (completed)
         let review = makeEngine()
@@ -98,7 +98,7 @@ enum SnapshotRenderer {
         review.activitySignal(sessionId: "c1", source: "claude-code", signal: .startWorking)
         review.activitySignal(sessionId: "c1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "swift test")
         review.activitySignal(sessionId: "c1", source: "claude-code", signal: .celebrate)
-        render(popover(review), "popover-7-review", expanded, dir)
+        render(popover(review, defaults: defaults), "popover-7-review", expanded, dir)
 
         // 9. Onboarding steps
         for step in OnboardingStep.allCases {
@@ -108,7 +108,7 @@ enum SnapshotRenderer {
             defaults.set(BuddyOutputTarget.thisMac.rawValue, forKey: DefaultsKey.buddyOutput)
             let onboardingEngine = makeEngine()
             if step == .done { defaults.set(false, forKey: DefaultsKey.firstCheerShown); onboardingEngine.firstCheer() }
-            let view = OnboardingView(defaults: defaults, engine: onboardingEngine, esp32Output: ESP32Output(), onFinish: {})
+            let view = OnboardingView(defaults: defaults, engine: onboardingEngine, esp32Output: ESP32Output(defaults: defaults), onFinish: {})
             render(view, "onboarding-\(step.rawValue)-\(String(describing: step))", onboardingSize, dir)
         }
         defaults.set(true, forKey: DefaultsKey.setupCompleted)
@@ -148,7 +148,7 @@ enum SnapshotRenderer {
             )
         }
         RunLoop.main.run(until: Date().addingTimeInterval(0.1))
-        render(popover(longHint), "stress-1-long-approval", stressSize, dir)
+        render(popover(longHint, defaults: defaults), "stress-1-long-approval", stressSize, dir)
         longHint.resolveAllPendingApprovals(decision: .passthrough)
 
         let longPath = makeEngine()
@@ -158,7 +158,7 @@ enum SnapshotRenderer {
             hint: "/Users/dev/api/packages/backend/src/modules/authentication/providers/oauth2/strategies/GoogleWorkspaceStrategy.ts",
             sessionLabel: "backend-authentication-service"
         )
-        render(popover(longPath), "stress-2-long-path", stressSize, dir)
+        render(popover(longPath, defaults: defaults), "stress-2-long-path", stressSize, dir)
 
         let longError = makeEngine()
         longError.sessionStarted(sessionId: "e1", source: "codex", cwd: "/Users/dev/landing")
@@ -168,7 +168,7 @@ enum SnapshotRenderer {
             tool: "npm run build --workspace=@boop/landing",
             hint: "Type error: Property 'buddySpecies' does not exist on type 'RenderState'. Did you mean 'species'? at src/lib/heartbeat.ts:42:17"
         )
-        render(popover(longError), "stress-3-long-error", stressSize, dir)
+        render(popover(longError, defaults: defaults), "stress-3-long-error", stressSize, dir)
 
         let manySessions = makeEngine()
         for (i, src) in ["claude-code", "codex", "cursor", "claude-code", "codex"].enumerated() {
@@ -178,7 +178,7 @@ enum SnapshotRenderer {
                 tool: "Bash", hint: "pnpm --filter @acme/service-\(i) test --coverage"
             )
         }
-        render(popover(manySessions), "stress-4-many-sessions", stressSize, dir)
+        render(popover(manySessions, defaults: defaults), "stress-4-many-sessions", stressSize, dir)
         defaults.set("Mochi", forKey: DefaultsKey.buddyName)
 
         print("SNAPSHOTS WRITTEN to \(dir)")
@@ -230,8 +230,8 @@ enum SnapshotRenderer {
         ), defaults: defaults)
     }
 
-    private static func popover(_ engine: BuddyEngine) -> some View {
-        PopoverView(engine: engine, esp32Output: ESP32Output())
+    private static func popover(_ engine: BuddyEngine, defaults: UserDefaults) -> some View {
+        PopoverView(engine: engine, esp32Output: ESP32Output(defaults: defaults))
     }
 
     private static func renderCompanionScenes(to dir: String, defaults: UserDefaults) {
@@ -255,11 +255,11 @@ enum SnapshotRenderer {
                 }
                 var state = BuddyState.initial; state.creature = scene.creature; state.cosmetic = scene.cosmetic
                 let engine = BuddyEngine.preview(state: state, defaults: defaults)
-                shot(PopoverView(engine: engine, esp32Output: ESP32Output()), "popover-" + scene.name)
+                shot(PopoverView(engine: engine, esp32Output: ESP32Output(defaults: defaults)), "popover-" + scene.name)
             }
             let recap = Recap(line: "good day", paragraph: "Green at last. A little progress became a good day.", turns: 14, tasks: 3, biggest: "hardWonPass")
             var recapState = BuddyState.initial; recapState.recap = recap
-            shot(PopoverView(engine: BuddyEngine.preview(state: recapState, defaults: defaults), esp32Output: ESP32Output()), "popover-recap")
+            shot(PopoverView(engine: BuddyEngine.preview(state: recapState, defaults: defaults), esp32Output: ESP32Output(defaults: defaults)), "popover-recap")
             shot(RecapView(language: "en", recap: recap), "recap", height: 240)
             for count in [0, 3] {
                 let lines = (0..<count).map { ProfileLine(id: $0, line: ["You often work in the morning.", "Tests are part of your routine.", "You have been working on Boop."][$0], source: "rules", confidence: 1, createdAt: 1_780_000_000_000) }
@@ -267,7 +267,7 @@ enum SnapshotRenderer {
             }
             let engine = BuddyEngine(defaults: defaults)
             for section in SettingsSection.sidebar {
-                shot(SettingsSectionView(isPresented: .constant(true), engine: engine, esp32Output: ESP32Output(),
+                shot(SettingsSectionView(isPresented: .constant(true), engine: engine, esp32Output: ESP32Output(defaults: defaults),
                                          serverHealth: nil, section: section).formStyle(.grouped),
                      "settings-" + section.rawValue, width: 520, height: section == .advanced ? 1200 : 650)
             }
@@ -275,7 +275,7 @@ enum SnapshotRenderer {
                 defaults.set(step.rawValue, forKey: DefaultsKey.onboardingStep)
                 let onboardingEngine = makeEngine(defaults: defaults)
                 if step == .done { defaults.set(false, forKey: DefaultsKey.firstCheerShown); onboardingEngine.firstCheer() }
-                shot(OnboardingView(defaults: defaults, engine: onboardingEngine, esp32Output: ESP32Output(), onFinish: {}), "onboarding-\(step)", width: BuddyTheme.onboardingWidth, height: BuddyTheme.onboardingHeight)
+                shot(OnboardingView(defaults: defaults, engine: onboardingEngine, esp32Output: ESP32Output(defaults: defaults), onFinish: {}), "onboarding-\(step)", width: BuddyTheme.onboardingWidth, height: BuddyTheme.onboardingHeight)
             }
             defaults.removeObject(forKey: DefaultsKey.onboardingStep)
         }

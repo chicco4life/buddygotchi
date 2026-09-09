@@ -1,14 +1,14 @@
 # Boop macOS App
 
-This is the active Boop runtime: a Swift macOS menu bar app that receives AI agent hook events over localhost, reduces them into one state model, renders the menu bar popover, and optionally mirrors state to an M5StickC Plus 2 over BLE.
+This is the active Boop runtime: a Swift macOS menu bar app that receives AI agent hook events over localhost, reduces them into one state model, renders the menu bar popover, and optionally mirrors state to the Waveshare AMOLED 1.64 ESP32 over BLE.
 
-For full app and firmware architecture, see `../archived/research/eng/ARCHITECTURE-APP.md`.
+For the target architecture and implementation status, see `../plan/ARCHITECTURE.md` and `../plan/PLAN.md`.
 
 ## Quick Start
 
 ```sh
 swift build
-swift test
+make -C .. test
 swift run Boop
 tools/package.sh
 ```
@@ -21,7 +21,10 @@ curl http://127.0.0.1:21321/healthz
 
 ## Tests
 
-`swift test` requires a developer directory with XCTest available, normally a full Xcode install.
+`make -C .. test` runs the test target selected by `Package.swift`: real XCTest
+with full Xcode, or the generated executable runner with CommandLineTools.
+It regenerates the shim runner before executing it and propagates failures.
+The targeted `swift test` commands below require full Xcode.
 
 ```sh
 swift test

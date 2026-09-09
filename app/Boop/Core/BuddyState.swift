@@ -48,7 +48,7 @@ struct Creature: Encodable, Sendable, Equatable {
     }
 }
 
-/// The old firmware vocabulary is only a rendering projection.
+/// Legacy diagnostic and desktop vocabulary is a rendering projection.
 func legacyPetState(from creature: Creature, includingOverlay: Bool = true) -> PetState {
     if includingOverlay, creature.overlay != nil, [.idle, .working, .done].contains(creature.state) { return .heart }
     switch creature.state {
@@ -257,8 +257,11 @@ struct BuddyState: Encodable, Sendable, Equatable {
     var devicePosture: DevicePosture?
     var deviceBattery: DeviceBattery?
     var creature: Creature = .initial
-    var pet: Pet
-    var lastSignal: String?
+    var species = Pet.defaultSpecies
+    var pet: Pet { Pet(state: legacyPetState(from: creature), species: species) }
+    var lastSignal: String? {
+        creature.state == .asleep ? nil : legacyPetState(from: creature, includingOverlay: false).rawValue
+    }
     var celebrateUntil: Double?
     /// Device boop mirror: while set and in the future, calm pet states show
     /// heart-eyes so the desktop blob reacts to physical affection.
@@ -291,7 +294,7 @@ struct BuddyState: Encodable, Sendable, Equatable {
     /// How hard the current work looks (busy state only).
     var effortTier: EffortTier?
     /// 1..3, struggle-proportional celebration size. Rides with celebrateUntil.
-    var celebrateIntensity: Int?
+    var celebrateIntensity: Int? { creature.cheer?.intensity }
 
     // MARK: Agent embodiment (System E)
 
@@ -316,8 +319,6 @@ struct BuddyState: Encodable, Sendable, Equatable {
         entries: [],
         prompt: nil,
         creature: .initial,
-        pet: .initial,
-        lastSignal: nil,
         celebrateUntil: nil,
         affectionUntil: nil,
         lastTaskDurationMs: nil,
@@ -332,7 +333,6 @@ struct BuddyState: Encodable, Sendable, Equatable {
         mood: nil,
         moodUntil: nil,
         effortTier: nil,
-        celebrateIntensity: nil,
         agentOverlay: nil,
         agentDrawing: nil,
         agentDrawingUntil: nil,

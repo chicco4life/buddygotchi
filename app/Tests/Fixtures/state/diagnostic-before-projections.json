@@ -1,0 +1,833 @@
+[
+  {
+    "activeSessions" : [
+
+    ],
+    "cosmetic" : {
+      "accessory" : "none",
+      "silhouette" : "default",
+      "skin" : "default"
+    },
+    "creature" : {
+      "dots" : 0,
+      "focus" : false,
+      "gift" : false,
+      "nudgeRung" : 0,
+      "state" : "asleep"
+    },
+    "desktop" : {
+      "status" : "disconnected"
+    },
+    "entries" : [
+
+    ],
+    "growth" : {
+      "bestStreak" : 0,
+      "biggest" : "hop",
+      "daysTogether" : 0,
+      "level" : 1,
+      "restDays" : 0,
+      "streak" : 0,
+      "tasks" : 0,
+      "today" : 0,
+      "xp" : 0,
+      "xpNext" : 150
+    },
+    "language" : "en",
+    "msg" : "",
+    "pet" : {
+      "species" : "blob",
+      "state" : "sleep"
+    },
+    "sessions" : {
+      "running" : 0,
+      "total" : 0,
+      "waiting" : 0
+    },
+    "updatedAt" : 0,
+    "version" : 0
+  },
+  {
+    "activeSessions" : [
+      {
+        "cheer" : "hop",
+        "currentTool" : "Bash",
+        "effort" : "hard",
+        "id" : "s",
+        "moment" : {
+          "facts" : {
+
+          },
+          "kind" : "firstEver"
+        },
+        "sessionLabel" : "project",
+        "source" : "codex",
+        "state" : "working"
+      }
+    ],
+    "affectionUntil" : 1800,
+    "agentDrawing" : {
+      "agentId" : "codex",
+      "at" : 800,
+      "caption" : "hello",
+      "color" : "#ffffff",
+      "rows" : [
+        "01",
+        "10"
+      ]
+    },
+    "agentDrawingIsMemory" : true,
+    "agentDrawingUntil" : 1600,
+    "agentOverlay" : {
+      "agentId" : "codex",
+      "color" : "#ffffff",
+      "delivery" : "bubble",
+      "emotion" : "happy",
+      "intensity" : "soft",
+      "motion" : "bounce",
+      "say" : "hello",
+      "until" : 1500
+    },
+    "celebrateIntensity" : 3,
+    "celebrateUntil" : 2000,
+    "cosmetic" : {
+      "accessory" : "sprout",
+      "silhouette" : "round",
+      "skin" : "mint"
+    },
+    "creature" : {
+      "bubble" : "반가워",
+      "card" : {
+        "count" : 2,
+        "gloss" : "Run tests",
+        "id" : "p",
+        "index" : 0,
+        "isApproval" : true,
+        "stakes" : "careful",
+        "tool" : "Bash"
+      },
+      "cheer" : "dance",
+      "dotAlert" : 1,
+      "dots" : 3,
+      "effort" : "grinding",
+      "focus" : true,
+      "gift" : true,
+      "giftLine" : "ten tries",
+      "greetLevel" : 3,
+      "moment" : {
+        "facts" : {
+          "attempts" : "10"
+        },
+        "kind" : "hardWonPass"
+      },
+      "nudgeRung" : 2,
+      "overlay" : "greet",
+      "state" : "done",
+      "uhoh" : "stuck"
+    },
+    "currentActivityKind" : "work",
+    "desktop" : {
+      "lastHeartbeatAt" : 900,
+      "status" : "connected"
+    },
+    "deviceBattery" : {
+      "charging" : true,
+      "pct" : 73
+    },
+    "devicePosture" : "perch",
+    "effortTier" : "hard",
+    "entries" : [
+      "one",
+      "둘"
+    ],
+    "firstErrored" : {
+      "hint" : "build",
+      "id" : "e",
+      "sessionLabel" : "project",
+      "source" : "cursor",
+      "tool" : "Bash",
+      "workStartedAt" : 600
+    },
+    "firstThinking" : {
+      "hint" : "test",
+      "id" : "t",
+      "lastWorkSignalAt" : 700,
+      "sessionLabel" : "project",
+      "source" : "claude-code",
+      "tool" : "Bash",
+      "workStartedAt" : 500
+    },
+    "greetLevel" : 2,
+    "greetUntil" : 1600,
+    "growth" : {
+      "bestStreak" : 0,
+      "biggest" : "hop",
+      "daysTogether" : 0,
+      "level" : 1,
+      "restDays" : 0,
+      "streak" : 0,
+      "tasks" : 0,
+      "today" : 0,
+      "xp" : 200,
+      "xpNext" : 150
+    },
+    "language" : "ko",
+    "lastCompleted" : {
+      "activityKind" : "work",
+      "completedAt" : 900,
+      "durationMs" : 500,
+      "hint" : "test",
+      "id" : "s",
+      "sessionLabel" : "project",
+      "source" : "codex",
+      "tool" : "Bash"
+    },
+    "lastCompletionAt" : 900,
+    "lastSignal" : "celebrate",
+    "lastTaskDurationMs" : 500,
+    "leaderboard" : {
+      "entries" : [
+        {
+          "buddyName" : "Mochi",
+          "rank" : 2,
+          "silhouette" : "round",
+          "unit" : "fixture",
+          "xpTotal" : 200
+        }
+      ],
+      "rank" : 2,
+      "view" : "friends"
+    },
+    "mood" : "surprised",
+    "moodUntil" : 1700,
+    "msg" : "fixture",
+    "pet" : {
+      "species" : "custom",
+      "state" : "heart"
+    },
+    "prompt" : {
+      "activityKind" : "work",
+      "arrivedAt" : 700,
+      "gloss" : "Run tests",
+      "hint" : "test",
+      "id" : "p",
+      "isApproval" : true,
+      "sessionLabel" : "project",
+      "source" : "codex",
+      "stakes" : "careful",
+      "tool" : "Bash"
+    },
+    "recap" : {
+      "biggest" : "hardWonPass",
+      "line" : "좋은 하루",
+      "paragraph" : "A little progress.",
+      "tasks" : 3,
+      "turns" : 7
+    },
+    "sessions" : {
+      "running" : 2,
+      "total" : 3,
+      "waiting" : 1
+    },
+    "updatedAt" : 1000,
+    "version" : 42
+  },
+  {
+    "activeSessions" : [
+
+    ],
+    "cosmetic" : {
+      "accessory" : "none",
+      "silhouette" : "default",
+      "skin" : "default"
+    },
+    "creature" : {
+      "dots" : 0,
+      "focus" : false,
+      "gift" : false,
+      "nudgeRung" : 0,
+      "state" : "asleep"
+    },
+    "desktop" : {
+      "status" : "disconnected"
+    },
+    "entries" : [
+
+    ],
+    "growth" : {
+      "bestStreak" : 0,
+      "biggest" : "hop",
+      "daysTogether" : 0,
+      "level" : 1,
+      "restDays" : 0,
+      "streak" : 0,
+      "tasks" : 0,
+      "today" : 0,
+      "xp" : 0,
+      "xpNext" : 150
+    },
+    "language" : "en",
+    "msg" : "",
+    "pet" : {
+      "species" : "blob",
+      "state" : "sleep"
+    },
+    "sessions" : {
+      "running" : 0,
+      "total" : 0,
+      "waiting" : 0
+    },
+    "updatedAt" : 0,
+    "version" : 0
+  },
+  {
+    "activeSessions" : [
+
+    ],
+    "cosmetic" : {
+      "accessory" : "none",
+      "silhouette" : "default",
+      "skin" : "default"
+    },
+    "creature" : {
+      "dots" : 0,
+      "focus" : false,
+      "gift" : false,
+      "nudgeRung" : 0,
+      "overlay" : "boop",
+      "state" : "asleep"
+    },
+    "desktop" : {
+      "status" : "disconnected"
+    },
+    "entries" : [
+
+    ],
+    "growth" : {
+      "bestStreak" : 0,
+      "biggest" : "hop",
+      "daysTogether" : 0,
+      "level" : 1,
+      "restDays" : 0,
+      "streak" : 0,
+      "tasks" : 0,
+      "today" : 0,
+      "xp" : 0,
+      "xpNext" : 150
+    },
+    "language" : "en",
+    "msg" : "",
+    "pet" : {
+      "species" : "blob",
+      "state" : "sleep"
+    },
+    "sessions" : {
+      "running" : 0,
+      "total" : 0,
+      "waiting" : 0
+    },
+    "updatedAt" : 0,
+    "version" : 0
+  },
+  {
+    "activeSessions" : [
+
+    ],
+    "cosmetic" : {
+      "accessory" : "none",
+      "silhouette" : "default",
+      "skin" : "default"
+    },
+    "creature" : {
+      "dots" : 0,
+      "focus" : false,
+      "gift" : false,
+      "nudgeRung" : 0,
+      "state" : "idle"
+    },
+    "desktop" : {
+      "status" : "disconnected"
+    },
+    "entries" : [
+
+    ],
+    "growth" : {
+      "bestStreak" : 0,
+      "biggest" : "hop",
+      "daysTogether" : 0,
+      "level" : 1,
+      "restDays" : 0,
+      "streak" : 0,
+      "tasks" : 0,
+      "today" : 0,
+      "xp" : 0,
+      "xpNext" : 150
+    },
+    "language" : "en",
+    "lastSignal" : "idle",
+    "msg" : "",
+    "pet" : {
+      "species" : "blob",
+      "state" : "idle"
+    },
+    "sessions" : {
+      "running" : 0,
+      "total" : 0,
+      "waiting" : 0
+    },
+    "updatedAt" : 0,
+    "version" : 0
+  },
+  {
+    "activeSessions" : [
+
+    ],
+    "cosmetic" : {
+      "accessory" : "none",
+      "silhouette" : "default",
+      "skin" : "default"
+    },
+    "creature" : {
+      "dots" : 0,
+      "focus" : false,
+      "gift" : false,
+      "nudgeRung" : 0,
+      "overlay" : "boop",
+      "state" : "idle"
+    },
+    "desktop" : {
+      "status" : "disconnected"
+    },
+    "entries" : [
+
+    ],
+    "growth" : {
+      "bestStreak" : 0,
+      "biggest" : "hop",
+      "daysTogether" : 0,
+      "level" : 1,
+      "restDays" : 0,
+      "streak" : 0,
+      "tasks" : 0,
+      "today" : 0,
+      "xp" : 0,
+      "xpNext" : 150
+    },
+    "language" : "en",
+    "lastSignal" : "idle",
+    "msg" : "",
+    "pet" : {
+      "species" : "blob",
+      "state" : "heart"
+    },
+    "sessions" : {
+      "running" : 0,
+      "total" : 0,
+      "waiting" : 0
+    },
+    "updatedAt" : 0,
+    "version" : 0
+  },
+  {
+    "activeSessions" : [
+
+    ],
+    "cosmetic" : {
+      "accessory" : "none",
+      "silhouette" : "default",
+      "skin" : "default"
+    },
+    "creature" : {
+      "dots" : 0,
+      "focus" : false,
+      "gift" : false,
+      "nudgeRung" : 0,
+      "state" : "working"
+    },
+    "desktop" : {
+      "status" : "disconnected"
+    },
+    "entries" : [
+
+    ],
+    "growth" : {
+      "bestStreak" : 0,
+      "biggest" : "hop",
+      "daysTogether" : 0,
+      "level" : 1,
+      "restDays" : 0,
+      "streak" : 0,
+      "tasks" : 0,
+      "today" : 0,
+      "xp" : 0,
+      "xpNext" : 150
+    },
+    "language" : "en",
+    "lastSignal" : "busy",
+    "msg" : "",
+    "pet" : {
+      "species" : "blob",
+      "state" : "busy"
+    },
+    "sessions" : {
+      "running" : 0,
+      "total" : 0,
+      "waiting" : 0
+    },
+    "updatedAt" : 0,
+    "version" : 0
+  },
+  {
+    "activeSessions" : [
+
+    ],
+    "cosmetic" : {
+      "accessory" : "none",
+      "silhouette" : "default",
+      "skin" : "default"
+    },
+    "creature" : {
+      "dots" : 0,
+      "focus" : false,
+      "gift" : false,
+      "nudgeRung" : 0,
+      "overlay" : "boop",
+      "state" : "working"
+    },
+    "desktop" : {
+      "status" : "disconnected"
+    },
+    "entries" : [
+
+    ],
+    "growth" : {
+      "bestStreak" : 0,
+      "biggest" : "hop",
+      "daysTogether" : 0,
+      "level" : 1,
+      "restDays" : 0,
+      "streak" : 0,
+      "tasks" : 0,
+      "today" : 0,
+      "xp" : 0,
+      "xpNext" : 150
+    },
+    "language" : "en",
+    "lastSignal" : "busy",
+    "msg" : "",
+    "pet" : {
+      "species" : "blob",
+      "state" : "heart"
+    },
+    "sessions" : {
+      "running" : 0,
+      "total" : 0,
+      "waiting" : 0
+    },
+    "updatedAt" : 0,
+    "version" : 0
+  },
+  {
+    "activeSessions" : [
+
+    ],
+    "cosmetic" : {
+      "accessory" : "none",
+      "silhouette" : "default",
+      "skin" : "default"
+    },
+    "creature" : {
+      "dots" : 0,
+      "focus" : false,
+      "gift" : false,
+      "nudgeRung" : 0,
+      "state" : "needsYou"
+    },
+    "desktop" : {
+      "status" : "disconnected"
+    },
+    "entries" : [
+
+    ],
+    "growth" : {
+      "bestStreak" : 0,
+      "biggest" : "hop",
+      "daysTogether" : 0,
+      "level" : 1,
+      "restDays" : 0,
+      "streak" : 0,
+      "tasks" : 0,
+      "today" : 0,
+      "xp" : 0,
+      "xpNext" : 150
+    },
+    "language" : "en",
+    "lastSignal" : "attention",
+    "msg" : "",
+    "pet" : {
+      "species" : "blob",
+      "state" : "attention"
+    },
+    "sessions" : {
+      "running" : 0,
+      "total" : 0,
+      "waiting" : 0
+    },
+    "updatedAt" : 0,
+    "version" : 0
+  },
+  {
+    "activeSessions" : [
+
+    ],
+    "cosmetic" : {
+      "accessory" : "none",
+      "silhouette" : "default",
+      "skin" : "default"
+    },
+    "creature" : {
+      "dots" : 0,
+      "focus" : false,
+      "gift" : false,
+      "nudgeRung" : 0,
+      "overlay" : "boop",
+      "state" : "needsYou"
+    },
+    "desktop" : {
+      "status" : "disconnected"
+    },
+    "entries" : [
+
+    ],
+    "growth" : {
+      "bestStreak" : 0,
+      "biggest" : "hop",
+      "daysTogether" : 0,
+      "level" : 1,
+      "restDays" : 0,
+      "streak" : 0,
+      "tasks" : 0,
+      "today" : 0,
+      "xp" : 0,
+      "xpNext" : 150
+    },
+    "language" : "en",
+    "lastSignal" : "attention",
+    "msg" : "",
+    "pet" : {
+      "species" : "blob",
+      "state" : "attention"
+    },
+    "sessions" : {
+      "running" : 0,
+      "total" : 0,
+      "waiting" : 0
+    },
+    "updatedAt" : 0,
+    "version" : 0
+  },
+  {
+    "activeSessions" : [
+
+    ],
+    "celebrateIntensity" : 2,
+    "cosmetic" : {
+      "accessory" : "none",
+      "silhouette" : "default",
+      "skin" : "default"
+    },
+    "creature" : {
+      "cheer" : "cheer",
+      "dots" : 0,
+      "focus" : false,
+      "gift" : false,
+      "nudgeRung" : 0,
+      "state" : "done"
+    },
+    "desktop" : {
+      "status" : "disconnected"
+    },
+    "entries" : [
+
+    ],
+    "growth" : {
+      "bestStreak" : 0,
+      "biggest" : "hop",
+      "daysTogether" : 0,
+      "level" : 1,
+      "restDays" : 0,
+      "streak" : 0,
+      "tasks" : 0,
+      "today" : 0,
+      "xp" : 0,
+      "xpNext" : 150
+    },
+    "language" : "en",
+    "lastSignal" : "celebrate",
+    "msg" : "",
+    "pet" : {
+      "species" : "blob",
+      "state" : "celebrate"
+    },
+    "sessions" : {
+      "running" : 0,
+      "total" : 0,
+      "waiting" : 0
+    },
+    "updatedAt" : 0,
+    "version" : 0
+  },
+  {
+    "activeSessions" : [
+
+    ],
+    "celebrateIntensity" : 2,
+    "cosmetic" : {
+      "accessory" : "none",
+      "silhouette" : "default",
+      "skin" : "default"
+    },
+    "creature" : {
+      "cheer" : "cheer",
+      "dots" : 0,
+      "focus" : false,
+      "gift" : false,
+      "nudgeRung" : 0,
+      "overlay" : "boop",
+      "state" : "done"
+    },
+    "desktop" : {
+      "status" : "disconnected"
+    },
+    "entries" : [
+
+    ],
+    "growth" : {
+      "bestStreak" : 0,
+      "biggest" : "hop",
+      "daysTogether" : 0,
+      "level" : 1,
+      "restDays" : 0,
+      "streak" : 0,
+      "tasks" : 0,
+      "today" : 0,
+      "xp" : 0,
+      "xpNext" : 150
+    },
+    "language" : "en",
+    "lastSignal" : "celebrate",
+    "msg" : "",
+    "pet" : {
+      "species" : "blob",
+      "state" : "heart"
+    },
+    "sessions" : {
+      "running" : 0,
+      "total" : 0,
+      "waiting" : 0
+    },
+    "updatedAt" : 0,
+    "version" : 0
+  },
+  {
+    "activeSessions" : [
+
+    ],
+    "cosmetic" : {
+      "accessory" : "none",
+      "silhouette" : "default",
+      "skin" : "default"
+    },
+    "creature" : {
+      "dots" : 0,
+      "focus" : false,
+      "gift" : false,
+      "nudgeRung" : 0,
+      "state" : "uhoh",
+      "uhoh" : "stuck"
+    },
+    "desktop" : {
+      "status" : "disconnected"
+    },
+    "entries" : [
+
+    ],
+    "growth" : {
+      "bestStreak" : 0,
+      "biggest" : "hop",
+      "daysTogether" : 0,
+      "level" : 1,
+      "restDays" : 0,
+      "streak" : 0,
+      "tasks" : 0,
+      "today" : 0,
+      "xp" : 0,
+      "xpNext" : 150
+    },
+    "language" : "en",
+    "lastSignal" : "thinking",
+    "msg" : "",
+    "pet" : {
+      "species" : "blob",
+      "state" : "thinking"
+    },
+    "sessions" : {
+      "running" : 0,
+      "total" : 0,
+      "waiting" : 0
+    },
+    "updatedAt" : 0,
+    "version" : 0
+  },
+  {
+    "activeSessions" : [
+
+    ],
+    "cosmetic" : {
+      "accessory" : "none",
+      "silhouette" : "default",
+      "skin" : "default"
+    },
+    "creature" : {
+      "dots" : 0,
+      "focus" : false,
+      "gift" : false,
+      "nudgeRung" : 0,
+      "overlay" : "boop",
+      "state" : "uhoh",
+      "uhoh" : "stuck"
+    },
+    "desktop" : {
+      "status" : "disconnected"
+    },
+    "entries" : [
+
+    ],
+    "growth" : {
+      "bestStreak" : 0,
+      "biggest" : "hop",
+      "daysTogether" : 0,
+      "level" : 1,
+      "restDays" : 0,
+      "streak" : 0,
+      "tasks" : 0,
+      "today" : 0,
+      "xp" : 0,
+      "xpNext" : 150
+    },
+    "language" : "en",
+    "lastSignal" : "thinking",
+    "msg" : "",
+    "pet" : {
+      "species" : "blob",
+      "state" : "thinking"
+    },
+    "sessions" : {
+      "running" : 0,
+      "total" : 0,
+      "waiting" : 0
+    },
+    "updatedAt" : 0,
+    "version" : 0
+  }
+]

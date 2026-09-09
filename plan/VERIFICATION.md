@@ -732,3 +732,40 @@ at several offsets after a moment starts and stitches the screenshots
 (`/tmp/boop-motion/<moment>.png`). A rendering change to any moment in
 `UX-DEVICE.md` §20 ships with its strip in the pull request, and the
 goldens are re-recorded only after the strips have been looked at.
+
+## Test entry point, 2026-09-09
+
+Run `make test` from the repository root. `app/tools/test.py` reads SwiftPM
+package metadata to use the exact target type selected by `Package.swift`.
+For an executable test target it regenerates and runs `BoopTests`; for a test
+target it runs `swift test`. There is no compile-only success path. This
+removes duplicated XCTest detection from Make without changing the tests.
+
+`GrowthCoordinatorTests` controls signature and HTTP response timing to check
+that disconnect and retirement reject late work, opt-out rejects stale ranks,
+failed submissions release their reservation and respect backoff, forced retry
+works, and three queued callers retain their requested views. A fixture output
+implements the signing capability without BLE to exercise engine routing. A
+store exposing only `GrowthStore` verifies enrollment/disconnect handling without
+coupling tests to the engine's larger store interface. These run under `make test`.
+
+`TransientVoiceTests` holds generation open through replacement, cancellation,
+language/runtime changes, stop, and gift collection; late replies must not
+replace current text, and the two lanes must remain independent.
+`ESP32PreferencesTests` uses separate preferences suites to check saved UUID
+lookup, invalid UUID handling, unpair isolation, and live name/volume/mute
+changes in the output's actual frame encoder. These checks do not start a radio.
+
+`BuddyStateEncodingTests` compares initial, fully populated, six-state, and
+overlay samples against `app/Tests/Fixtures/state/diagnostic-before-projections.json`.
+That fixture was captured from the pre-migration synthesized encoder; the full
+sample contains all 36 diagnostic fields. A separate test mutates the creature
+without a reducer pass to prove the legacy properties cannot drift. Desktop
+snapshot images are compared against a pre-migration capture for this pass.
+
+The 2026-09-09 final comparison passed diagnostic JSON parity and 445 tests with
+zero skips. Snapshot evidence is in
+`plan/evidence/architecture-refactor/snapshot-comparison.json`: 146 images are
+byte-identical; the remaining image was visually reviewed and differs only by
+one RGB level at 155 edge pixels. This is not a claim of byte equality for that
+image or of a newly verified BLE transport run.

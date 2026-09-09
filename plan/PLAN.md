@@ -588,3 +588,36 @@ preferences (`AppDefaults`) as well as a scratch store.
 | `UX-VOICE.md` (line style, sass ceiling, banks) | Phase 5 |
 | `UX-HELP.md` (nudge ladder values, stuck thresholds, glosses) | Phase 3 |
 | `HARDWARE-V2.md` | Phase 6 |
+
+## Architecture simplification pass, 2026-09-09
+
+Cross-cutting maintenance alongside the Phase 9 gates: moved shared byte
+truncation and stakes policy into neutral Core files, without algorithm
+changes. `make test` now delegates target selection to SwiftPM metadata and
+executes the existing runner on CommandLineTools. Review and follow-up gates
+are in [ARCHITECTURE-REVIEW.md](ARCHITECTURE-REVIEW.md). This does not mark
+unverified phase checklists complete.
+
+**Growth extraction follow-up.** Growth coordination now owns signing and
+leaderboard lifetimes behind capability protocols. The engine retains the
+persistence barrier and reducer dispatch. Concurrent sync requests serialize
+as a task chain; regression checks exercise disconnect, retirement, opt-out,
+backoff, and multiple callers. Final `make test`: 437 passed, zero skipped.
+Detailed validation results are in the architecture review.
+
+**Voice/preferences follow-up.** Transient voice slots now have one lifecycle
+owner; device output receives consistent preferences for connection, unpairing,
+and encoding. Targeted cancellation and preference-isolation checks are part
+of the full suite. Diagnostic JSON is captured before the state-projection
+migration so its encoding can be compared independently afterward.
+
+**State projection follow-up.** The voice/preferences stage passed 444 checks
+with zero skips (including the temporary original-encoder capture). Pet state,
+last signal, and celebration intensity are now computed; species remains
+independent. The permanent diagnostic fixture comparison replaces that capture
+check. Snapshot parity and final suite results are recorded in the review.
+
+**Final verification.** 445 tests passed, zero skipped. The 14-sample diagnostic
+JSON fixture matches; 146/147 UI snapshots are byte-identical, with only a
+one-level RGB edge variation in 155 pixels of the Korean share card. The image
+pair was visually reviewed. Full results are in `ARCHITECTURE-REVIEW.md`.

@@ -1,0 +1,33 @@
+{
+  "identical": 146,
+  "total": 147,
+  "changed": [
+    "share-ko.png"
+  ],
+  "missing": [],
+  "shareKoPixelDifferences": {
+    "pixels": 155,
+    "totalPixels": 756000,
+    "bounds": [
+      124,
+      293,
+      436,
+      453
+    ],
+    "channelExtrema": [
+      [
+        0,
+        1
+      ],
+      [
+        0,
+        1
+      ],
+      [
+        0,
+        1
+      ]
+    ]
+  },
+  "review": "Both share-ko images visually inspected: text and layout unchanged; one-level channel differences at creature edges are consistent with rasterization noise."
+}

@@ -618,16 +618,15 @@ final class EngineIntegrationTests: XCTestCase {
         )
 
         var attentionOne = BuddyState.initial
-        attentionOne.pet = Pet(state: .attention, species: Pet.defaultSpecies)
+        attentionOne.creature.state = .needsYou
         attentionOne.prompt = Prompt(id: "p1", tool: "Bash", hint: "first", arrivedAt: NOW)
 
         var busy = attentionOne
-        busy.pet = Pet(state: .busy, species: Pet.defaultSpecies)
+        busy.creature.state = .working
         busy.prompt = nil
 
         var attentionTwo = busy
         attentionTwo.creature.state = .needsYou
-        attentionTwo.pet = Pet(state: .attention, species: Pet.defaultSpecies)
         attentionTwo.prompt = Prompt(id: "p2", tool: "Bash", hint: "second", arrivedAt: NOW + 1)
 
         output.stateDidChange(prev: .initial, next: attentionOne)

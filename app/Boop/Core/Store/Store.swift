@@ -13,7 +13,7 @@ struct ToolPreferences: Sendable {
     var muted: Set<String> = []
 }
 
-actor Store: EngineStore {
+actor Store: EngineStore, GrowthStore {
     static let factRetentionMs: Double = 30 * 86_400_000
     private let db: Database
     private let stateDir: String
