@@ -291,7 +291,6 @@ nothing is ever drawn behind the eyes.
 | Eye ink | Energy, skin | Bright ink awake, dimmer asleep, grey before first contact; skins tint it. Bob, lean, squish and hop move the whole face. |
 | Field | Need | Black, amber wash, dim red wash, green ripple |
 | Sparks | Celebration, affection | Confetti, mini hearts, one gold orb |
-| Feet | Perch only | Two small pads under the mouth: dangle, kick, tuck |
 | Accessories | Cosmetics | Small, above or beside the eyes, drawn in the eye ink, never over the eyes or the card |
 
 Eyes are the anchor, centered and largest. Every part has a resting
@@ -503,7 +502,7 @@ next table; silent in focus except rung 2 and Uh-oh; silent asleep.
 
 Only while Idle, at least ninety seconds apart, under two seconds each:
 yawn, follow a session dot one lap, happy wiggle, one slow look at you,
-head tilt. Perch adds a faster foot kick; Travel adds looking around the
+head tilt. Perch adds a slow dangle of the gaze; Travel adds looking around the
 room. Never within ten seconds of a real interaction.
 
 ## 18. Cosmetics
@@ -515,6 +514,48 @@ scarf is a soft band below the mouth), never over eyes or card, never
 outlined. Sounds swap the motif within the same manners. Silhouettes
 change eye spacing and size at milestones within the same eye anchor.
 Schedule is `UX-GROWTH.md`.
+
+## 20. Motion language
+
+Revised 2026-09-09 (owner: "simple and cute"). Every animation is one
+clear motion with a beginning and an end. Nothing scrolls across the
+screen, nothing swarms, nothing spins.
+
+**Rules.**
+
+- One motion per moment. If two things want to move, the smaller one
+  waits or is dropped.
+- Arrivals spring (about 6% overshoot); departures ease out. Durations
+  150–900 ms; the dance is the only thing longer, and it ends at 2.5 s.
+- Sparks are few and soft: one heart, at most six confetti dots, all
+  filled circles, never rectangles or lines.
+- The eyes carry the emotion. Squash and stretch the eyes before moving
+  anything else.
+- Feet, bodies, particles behind the face: none.
+
+**The moments.**
+
+| Moment | Motion |
+| --- | --- |
+| Blink | Lids close 110 ms every ~5 s. Unchanged. |
+| Idle | Slow bob (±3 px, 1.4 s), gaze drifts. Micro-idles are small: gaze lap ±20 px, wiggle ±6 px. |
+| Working | Eyes down-left, lean 5 px; hard adds the brow and the sweat drop (one drop slides 18 px every 3 s); grinding adds a faint tremble (±1.5 px). |
+| Needs you | Eyes spring wide, tiny lean toward you. |
+| Boop (tap, pet) | Eyes squish to 60% height for 250 ms and spring back; blush; smile; **one heart**: it pops in 12 px above the gap between the eyes (scale 0→1 in 150 ms, 6% overshoot, radius 10, pink), floats up 24 px over 900 ms, shrinks away in the last 100 ms. While held, a new heart every 900 ms. Never more than one on screen. |
+| Greet, level 1 | One slow blink and a smile. |
+| Greet, level 2 | One squash-and-stretch bounce (bob −16 px, spring) and blush. |
+| Greet, level 3 | Two bounces and one heart. |
+| Done · hop | Arc eyes, smile, one bounce (−21 px, spring). No ring, no sparks. |
+| Done · cheer | Arc eyes, blush, two bounces, a small head wag (tilt ±0.12 rad, twice). No spin. |
+| Done · dance | Arc eyes, blush, bounces at 2 Hz with a side sway (tilt ±0.25 rad at 1.5 Hz) for 2.5 s, and six confetti dots: radius 4, pink / mint / gold, each starting above the eyes at a fixed x and drifting down 100 px over the dance with a gentle sway; gone at the end. |
+| Uh-oh | Slump (lean 12, eyes half) and slow bob. Unchanged. |
+| Shake (dizzy) | Eyes shrink to 20 px circles and the gaze wobbles ±10 px for 3 s. No X-lines. |
+| Pick-up | Perk: eyes wide, lean back 8 px. Unchanged. |
+| Level up | Light sweep across the eyes, one soft field flash. |
+| Streak | The small flame pulses gently beside the face. |
+| Gift orb | Bobs ±4 px; on collect it shrinks to nothing in 200 ms. |
+| Card | Springs up, eases away. Unchanged. |
+| Retire | Slow fade with one blink. Unchanged. |
 
 ## 19. Decisions this document needs
 
