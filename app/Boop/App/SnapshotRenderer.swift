@@ -282,7 +282,9 @@ enum SnapshotRenderer {
     }
 
     static func render<V: View>(_ view: V, _ name: String, _ size: CGSize, _ dir: String, defaults: UserDefaults, dark: Bool = false) {
-        let root = ZStack(alignment: .top) { BuddyTheme.windowBackground; view }.id(name)
+        // A trailing spacer pins content to the top whatever the view's own
+        // min-height alignment does; popovers size to content in the real app.
+        let root = ZStack(alignment: .top) { BuddyTheme.windowBackground; VStack(spacing: 0) { view; Spacer(minLength: 0) } }.id(name)
             .frame(width: size.width, height: size.height, alignment: .top)
             .environment(\.colorScheme, dark ? .dark : .light)
             .environment(\.snapshotFrozen, true)
