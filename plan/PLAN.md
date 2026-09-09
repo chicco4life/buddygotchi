@@ -545,6 +545,16 @@ hardware, not a v2 target, so CI builds the shipping board only and the
 M5 envs stay in the file for the archived firmware's sake. Re-enable them
 only with a deliberate port.
 
+**Finding (2026-09-09, HIL).** `test_shutdown_stages_and_wake_press_guard`
+fails only when it runs directly after `test_dim_ladder_and_orb_never_off`,
+whose virtual-clock jump (+240 s) is still in effect: after the 3.9 s
+secondary hold puts the screen to sleep, the board stops answering serial
+for a few seconds and the wake press gets no echo. Alone, or after any
+other test, it passes. Not a product path (the virtual clock is a test
+tool). Suspect the wake path doing time math on the jumped clock; fix by
+making `clock clear` restore real time, or by resetting the clock at the
+start of the shutdown test.
+
 **Host-side work landed (2026-09-09).** `VERSION` 1.0.0; CI jobs for the
 leaderboard service and every firmware environment plus the host-side
 firmware tests; the firmware release workflow points at `firmware/esp32`
