@@ -248,7 +248,8 @@ PostToolUse entry from `/diag/recent`.
 
 ## 4. Regression gates
 
-**Every pull request** (CI, no hardware, under five minutes): build,
+**Intended pull-request checks** (run locally or manually dispatch CI; automatic
+CI is disabled as of 2026-09-10): build,
 `swift test` in full, extractor fixture replay, wire encoder byte-cap tests,
 snapshot harness, lint, and the firmware build for the shipping board
 (`ws-amoled164`; the M5 environments are archived hardware). Red
@@ -811,3 +812,13 @@ zero skips. Snapshot evidence is in
 byte-identical; the remaining image was visually reviewed and differs only by
 one RGB level at 155 edge pixels. This is not a claim of byte equality for that
 image or of a newly verified BLE transport run.
+
+
+## CI invocation policy (2026-09-10)
+
+The `CI` GitHub Actions workflow is manual-only (`workflow_dispatch`) at the
+owner's request to stop failure emails on every push. Pushes and pull requests
+no longer launch it. Existing jobs remain available via Actions → CI → Run
+workflow; their previously reported failures have not been diagnosed or fixed
+by this trigger change. Local verification commands remain available. Release
+workflows retain their existing triggers.

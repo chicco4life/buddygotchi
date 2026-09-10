@@ -1,9 +1,8 @@
 name: CI
 
+# Opt-in only: automatic failures were generating email on every push.
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 env:
   DEVELOPER_DIR: /Applications/Xcode_16.2.app/Contents/Developer
