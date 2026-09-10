@@ -32,3 +32,6 @@ next-env.d.ts
 pnpm-lock.yaml
 pnpm-workspace.yaml
 yarn.lock
+
+# Keep the deployment environment template in Git.
+!.env.example

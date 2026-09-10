@@ -90,7 +90,7 @@ enum HookInstallError: Error, LocalizedError {
 final class HookInstaller {
     static let shared = HookInstaller()
 
-    nonisolated static let hookSchemaVersion = 7
+    nonisolated static let hookSchemaVersion = 8
 
     /// The approval timeout chain, outermost first:
     ///   registered hook timeout (310s) > curl --max-time (300s) > reducer
@@ -609,6 +609,12 @@ final class HookInstaller {
         [ -z "$PORT" ] && exit 0
         [ -z "$TOKEN" ] && exit 0
         EVENT=$(echo "$BODY" | grep -o '"\\(hook_event_name\\|hookEventName\\|event_name\\)" *: *"[^"]*"' | head -1 | grep -o '"[^"]*"$' | tr -d '"')
+        # Codex may run its automatic reviewer after PermissionRequest hooks.
+        # Opt in separately: a global Boop switch must not intercept that flow.
+        if [ "$SOURCE" = "codex" ] && [ "$EVENT" = "PermissionRequest" ]; then
+            grep -q '"codexApprovalMode" *: *true' "$CFG" 2>/dev/null || exit 0
+            [ -n "$APPROVAL" ] || exit 0
+        fi
         case "$EVENT" in
         PostToolUse|PostToolUseFailure|afterShellExecution|postToolUse|postToolUseFailure|afterMCPExecution|Stop|StopFailure|stop|afterAgentResponse|UserPromptSubmit|beforeSubmitPrompt)
         BODY=$(python3 - 3<<<"$BODY" <<'BOOP_JSON'
@@ -617,7 +623,7 @@ final class HookInstaller {
         def text(v): return v if isinstance(v,str) else json.dumps(v,ensure_ascii=False,separators=(',',':'))
         try:
             d=json.load(os.fdopen(3))
-            keys=['hook_event_name','session_id','conversation_id','cwd','workspace_roots','tool_name','tool_input','command','tool_response','tool_output','output','exit_code','exit_status','error','last_assistant_message','text','prompt','message','notification_type','status','duration_ms','turn_id']
+            keys=['hook_event_name','hookEventName','event_name','session_id','conversation_id','cwd','workspace_roots','tool_name','toolName','tool','tool_input','input','command','tool_use_id','tool_call_id','tool_response','tool_output','output','exit_code','exit_status','error','error_class','last_assistant_message','closing_message','text','prompt','prompt_text','message','notification_type','status','duration_ms','turn_id']
             b={k:d[k] for k in keys if k in d}
             usage=d.get('usage') or (d.get('message',{}).get('usage') if isinstance(d.get('message'),dict) else {}) or {}
             info=d.get('info') or (d.get('payload',{}).get('info') if isinstance(d.get('payload'),dict) else {}) or {}
@@ -636,17 +642,17 @@ final class HookInstaller {
                     b['output_tail']=raw.encode('utf-8')[-1024:].decode('utf-8','ignore')
                     break
             for key in ['tool_response','tool_output','output']: b.pop(key,None)
-            for key in ['last_assistant_message','text','prompt']:
+            for key in ['last_assistant_message','closing_message','text','prompt','prompt_text']:
                 if key in b: b[key]=cap(text(b[key]),2048)
             def encoded(): return json.dumps(b,ensure_ascii=False,separators=(',',':'))
             wire=encoded()
-            for key in ['output_tail','output_head','tool_input','command','prompt','message','last_assistant_message','text']:
+            for key in ['output_tail','output_head','tool_input','input','command','prompt','prompt_text','message','last_assistant_message','closing_message','text']:
                 if len(wire.encode('utf-8'))<=16384: break
                 if key in b:
                     del b[key]
                     wire=encoded()
             if len(wire.encode('utf-8'))>16384:
-                b={k:b[k] for k in ['hook_event_name','session_id'] if k in b}
+                b={k:b[k] for k in ['hook_event_name','hookEventName','event_name','session_id','conversation_id'] if k in b}
                 wire=encoded()
                 if len(wire.encode('utf-8'))>16384: wire='{}'
             print(wire)
@@ -659,7 +665,7 @@ final class HookInstaller {
         # C locale makes the shell's length check a byte count; this path never forks Python.
         LC_ALL=C
         if [ "${#BODY}" -gt 16384 ]; then
-            SID=$(echo "$BODY" | grep -o '"session_id" *: *"[a-zA-Z0-9_-]*"' | head -1)
+            SID=$(echo "$BODY" | grep -o '"\\(session_id\\|conversation_id\\)" *: *"[a-zA-Z0-9_-]*"' | head -1)
             BODY="{\\"hook_event_name\\":\\"${EVENT}\\"${SID:+,$SID}}"
             [ "${#BODY}" -le 16384 ] || BODY='{}'
         fi
@@ -970,6 +976,7 @@ final class HookInstaller {
         ("PreToolUse", nil, false),
         ("PostToolUse", nil, false),
         ("Stop", nil, false),
+        ("SessionEnd", nil, false),
     ]
 
     private func commandHook(command: String, timeout: Int) -> [String: Any] {

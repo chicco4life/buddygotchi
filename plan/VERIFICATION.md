@@ -942,3 +942,34 @@ Automatic companion features: Boop builds; 445 tests passed, four sandbox networ
 Settings alignment pass: product build succeeded; 445 tests passed and four sandbox network tests skipped. Inspected refreshed light/dark screenshots for label alignment, grouped Quiet mode help, and absence of the update privacy footer. Firmware check failure detail now appears in its sheet.
 
 Inline sessions: Boop builds; 445 tests pass and four sandbox network tests skip. Added and inspected six/ten/twelve-session light/dark snapshots in evidence/menu-bar. Ten sessions fit inline; twelve retain the same capped viewport with overflow scroll. No All sessions navigation remains.
+
+## Landing deployment checks (2026-09-10)
+
+From `landing/`, use Node 24 (`nvm install` reads `.nvmrc`), then run `npm ci`,
+`npm run lint`, `npm test`, and `npm run build`. The build includes TypeScript
+and static-route validation. No database credentials are needed for these
+checks. Confirm Vercel's project root is `landing`, its Node version is 24.x,
+and deployment skipping for unaffected roots is enabled in project settings.
+After an authorized push, verify the matching commit reaches Ready / Current
+in Production. A successful build does not verify live database writes or
+email delivery; those require a separately authorized signup test.
+
+## Hook integration correction (2026-09-10)
+
+Regression checks execute the generated shell script with a scratch config and
+HTTP stub: a global approval switch alone cannot intercept Codex, explicit
+Codex opt-in can route requests, Claude routing remains available, and ordinary
+Codex activity still forwards. Payload tests cover aliases, call IDs, error
+class and approval descriptions separate from destructive-command stakes.
+Live Codex doctor against the owner's running app: 8 passed, 0 failed, 0 warnings;
+live confirmation passed. Installed script was v7, before these changes.
+Claude configuration inspected; live Claude confirmation not performed here.
+Cursor has no user hooks file on this machine; live Cursor verification remains
+required. Test results and install status are recorded in HOOK-REVIEW.md.
+
+Validation: `make test` passed 452 tests with zero skips; advanced-settings
+snapshot rendered and visually reviewed. Full log: `/tmp/boop-hook-review-tests.log`.
+Final `make build` passed for Boop and BoopSignal outside the cache-restricted sandbox.
+
+
+Merge validation (2026-09-10): integrated main at a159188, preserving native Codex approval defaults and its separate opt-in control within the simplified Settings. Regenerated test runner: 449 passed, four sandbox socket skips of 453; Boop product build passed. Landing and release workflow files are unchanged from main. Refreshed Settings snapshots include the retained Codex approval control. Existing documented M5 firmware partition-size release blocker remains; no firmware was flashed.

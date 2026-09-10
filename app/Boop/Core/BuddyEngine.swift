@@ -434,6 +434,17 @@ final class BuddyEngine {
         BuddyConfig.setApprovalMode(enabled)
         if !enabled { resolveAllPendingApprovals(decision: .passthrough) }
     }
+    func setCodexApprovalMode(_ enabled: Bool) {
+        setBoolSetting(DefaultsKey.codexApprovalMode, enabled)
+        BuddyConfig.setCodexApprovalMode(enabled)
+        if !enabled {
+            for session in Array(internalState.sessions.values) where session.source == "codex" {
+                if let prompt = session.prompt, pendingApprovals[prompt.id] != nil {
+                    resolveApproval(requestId: prompt.id, decision: .passthrough)
+                }
+            }
+        }
+    }
     func focusToggled(on: Bool) { setQuietMode(on) }
 
     func collectArrived() {

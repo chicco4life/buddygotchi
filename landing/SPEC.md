@@ -74,7 +74,7 @@ Chosen for: first-class Vercel support, popularity/agent-friendliness, and minim
 | Email validation | `zod` on the API route | Syntactic validation + lowercase/trim normalization. No verification emails in v1. |
 | Analytics | **Vercel Analytics** (`@vercel/analytics`) + custom events | Plus env-gated ad pixels for the demand test (§7.3). |
 | Animation | CSS transitions + a single `IntersectionObserver` reveal hook | **No animation library.** The motion spec (§4.4) is achievable with CSS alone; framer-motion's spring defaults violate the "no overshoot" rule. |
-| Testing | `next lint`, `tsc --noEmit`, one Playwright spec (§12) | Keep it light. |
+| Testing | `npm run lint`, `tsc --noEmit`, one Playwright spec (§12) | Keep it light. |
 | Package manager | npm | Boring and universal. |
 
 No CMS, no i18n, no dark mode toggle (the page's palette *is* the product's palette; there is one deliberate dark section, S4/night imagery, but the page itself does not theme-switch).
@@ -373,15 +373,10 @@ These are enforced brand law from `../archived/research/product/MARKETING.md` §
 
 ### 11.2 Skip builds when only the Mac app changes
 
-Since the repo also contains the Swift app and firmware, add to `landing/vercel.json` so pushes that don't touch `landing/` skip deployment:
-
-```json
-{
-  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- ."
-}
-```
-
-(The command runs inside the Root Directory, so `.` means `landing/`. Exit 0 = skip build.)
+In Vercel Build and Deployment → Root Directory, enable “Skip deployments
+when there are no changes to the root directory or its dependencies”. Keep
+Root Directory set to `landing` and Node.js set to 24.x, matching `.nvmrc`
+and `package.json` engines. No `ignoreCommand` is configured in `vercel.json`.
 
 ### 11.3 Local development
 
@@ -417,7 +412,7 @@ One Playwright spec (`e2e/waitlist.spec.ts`) run against `next dev` with a stubb
 - [ ] Scroll-depth events fire per section; pixels load only when IDs are set
 - [ ] Lighthouse mobile: Performance ≥ 90, Accessibility ≥ 95, SEO ≥ 95
 - [ ] `prefers-reduced-motion` respected; modal keyboard-accessible
-- [ ] Deploys on Vercel with Root Directory `landing`; `ignoreCommand` skips app-only pushes
+- [ ] Deploys on Vercel with Root Directory `landing`; the project setting skips unaffected deployments
 - [ ] Counter hidden; no fabricated numbers anywhere
 
 ### Explicitly deferred (do not build in v1)

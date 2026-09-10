@@ -584,3 +584,10 @@ startup window (UX-APP.md). Quiet mode replaces Focus: it disables all sounds an
 beeps, including high-stakes and error sounds, with no visual or behavioral change.
 The existing physical Focus gesture toggles Quiet mode. Visual nudge escalation
 continues normally. There are no scheduled Focus hours or visual Focus marker.
+
+## Approval correction (2026-09-10)
+
+Codex approval cards require separate host opt-in; default native approval mode
+shows tool activity but does not synthesize needsYou from PermissionRequest.
+When a card is routed to Buddy, its gloss prefers the supplied approval reason,
+within the existing wire byte cap. No firmware or wire shape changes.

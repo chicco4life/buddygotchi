@@ -360,6 +360,8 @@ extension BuddyCopy {
         return phase7(kind, language: language)
     }
     private static let phase7Table: [String: (String, String)] = [
+        "codexApprovals": ("Handle Codex approvals in Boop", "Boop에서 Codex 승인 처리"),
+        "codexApprovalsDescription": ("Off by default so Codex can review requests automatically. Turn on to decide on Buddy before Codex’s normal approval flow.", "기본적으로 꺼져 있어 Codex가 요청을 자동 검토합니다. 켜면 Codex의 일반 승인 절차 전에 Buddy에서 결정합니다."),
         "updatePrivacy": ("Update checks send no analytics or device identifiers.", "업데이트 확인 시 분석 데이터나 기기 식별자를 보내지 않아요."),
         "approvals": ("Approvals", "승인"),
         "agentsCan": ("Agents can", "에이전트 권한"),

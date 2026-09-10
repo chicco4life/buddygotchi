@@ -111,3 +111,14 @@ invented by the app. Existing service configuration is retained.
 
 
 Settings polish: removed update-check privacy footer, aligned row labels by removing isolated leading icons, and grouped Quiet mode helper text with its toggle consistently. Firmware check errors read “Check unavailable”; the update sheet displays the underlying error and offers Try again. A check failure is distinct from an installation failure.
+
+## Approval correction (2026-09-10)
+
+Settings includes “Handle Codex approvals in Boop”, off by default and
+requiring Local approval mode. Leaving it off preserves Codex's native automatic
+review and avoids false Buddy cards. Native reviewer waiting is not mirrored
+because the hook cannot distinguish it from a request that will auto-approve.
+Turning it on lets Buddy handle the request before Codex's normal approval flow.
+Turning it off releases held Codex requests back to that flow. Approval cards
+prefer the supplied reason over a generic action category; stakes still inspect
+the command.

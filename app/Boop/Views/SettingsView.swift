@@ -157,6 +157,11 @@ struct SettingsSectionView: View {
             Section(BuddyCopy.phase7("approvals", language: engine.state.language)) {
                 BuddySettingToggle(title: BuddyCopy.shared.settingsCopy.localApprovalMode,
                     description: BuddyCopy.shared.settingsCopy.localApprovalModeDescription, isOn: approvalModeBinding)
+                BuddySettingToggle(title: BuddyCopy.phase7("codexApprovals", language: engine.state.language),
+                    description: BuddyCopy.phase7("codexApprovalsDescription", language: engine.state.language),
+                    isOn: Binding(get: { engine.boolSetting(DefaultsKey.codexApprovalMode, fallback: false) },
+                                  set: { engine.setCodexApprovalMode($0) }))
+                    .disabled(!approvalMode)
             }
             Section { exportBugReportRow } header: { Text(copy("Support", "지원")) } footer: {
                 Text(copy("Saves a diagnostic report you can share with support.", "지원팀에 공유할 진단 보고서를 저장합니다."))

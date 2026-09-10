@@ -725,3 +725,52 @@ Settings polish: removed update-check privacy footer, aligned row labels by remo
 
 
 Overview sessions revision: show every session inline, remove All sessions navigation, grow through ten rows within screen bounds, then scroll in the existing overview. Added six/ten/twelve-session light/dark snapshot cases.
+
+## Landing page deployment restoration (2026-09-10)
+
+Restore only `archived/landing/` to its original `landing/` path so the existing
+Vercel project can find the Next.js app again. Other archived components stay
+in place; landing email tooling continues to read `archived/emails/`.
+
+Validation: all 5 landing tests pass; all tracked landing files restored, with
+the two email-source path adjustments and an ignore-rule exception. Production deployment succeeded for `ebff607`
+on 2026-09-10; Vercel reported Ready and Current at `adoptaboop.com`.
+
+Pre-merge Vercel settings checked (2026-09-10): root `landing`, Next.js preset,
+default build/install/output settings, Node 24.x, and skip-unaffected enabled.
+`DATABASE_URL` exists in all environments and `RESEND_API_KEY` in production
+and pre-production (values not inspected). Keep restored `.env.example`
+trackable via the landing ignore rules. Local dependency installation initially
+failed because sandbox DNS could not reach npm; retry outside the sandbox
+succeeded (350 packages). `npm run build` passed, including lint, TypeScript,
+page generation and build traces, using local Node 26.5.0 and locked Next.js
+15.5.20. The subsequent Vercel production build passed on Node 24.x.
+
+## Landing tooling cleanup (2026-09-10)
+
+Document deployment skipping as a Vercel project setting, correct lint and
+email-template instructions, and record the successful restoration deployment.
+Pin the Node major to 24 in `.nvmrc` and package engines; align Node types.
+Replace ESLint 8 with ESLint 9 and flat configuration, preserving the existing
+Next.js Core Web Vitals rules and excluding generated build/test output.
+
+Upstream follow-up: ESLint 9.39.5 itself is deprecated, but the latest React,
+import and JSX accessibility plugins declare support only through ESLint 9.
+ESLint 10.10.0 with eslint-config-next 16.3.4 was checked and crashes during
+lint (`scopeManager.addGlobals is not a function`). Keep the working ESLint 9
+configuration until the plugins support 10; do not suppress npm warnings or
+force incompatible peers. The old ESLint 8 transitive deprecations are removed.
+
+Validation: clean `npm ci`, lint, all 5 tests, and production build passed
+under Node 24.21.0. Lockfile contains only the documented ESLint deprecation.
+
+## Hook integration correction (2026-09-10)
+
+Phase 9 audit: hook v8 separates Codex approval ownership from the global switch,
+repairs capped-payload alias and call-ID loss, registers Codex SessionEnd, and
+uses approval reasons on cards without using them for safety classification.
+See HOOK-REVIEW.md and VERIFICATION.md for evidence and remaining live gates.
+
+Hook correction validation: 452 tests passed, zero skipped; the new advanced
+settings control was reviewed in an offscreen render. Live installation awaits
+the owner launching the rebuilt GUI.
