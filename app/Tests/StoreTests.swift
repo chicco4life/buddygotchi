@@ -87,7 +87,7 @@ final class StoreTests: XCTestCase {
         try await store.equip(EquippedCosmetic())
         let reopened = try Store(stateDir:dir.path,now:0)
         let cosmetic = try await reopened.cosmetic(); XCTAssertEqual(cosmetic, EquippedCosmetic())
-        let growth = try await reopened.growth(localDay:"2026-01-01",at:0); XCTAssertEqual(growth.level,5)
+        let growth = try await reopened.growth(localDay:"2026-01-01",at:0); XCTAssertEqual(growth.level,1)
         var formula = GrowthFormula(); formula.turn = 16
         let reread = try await reopened.growth(localDay:"2026-01-01",at:0,formula:formula)
         XCTAssertEqual(reread.xp,1200)
@@ -193,7 +193,7 @@ extension StoreTests {
 }
 
 extension StoreTests {
-    func testXPActivityUsesActualCappedAwardsAndProgressIsWithinLevel() async throws {
+    func testXPActivityIgnoresRetiredAwards() async throws {
         let (store, _, cleanup) = try makeStore()
         defer { cleanup() }
         _ = try await store.award([
@@ -204,9 +204,21 @@ extension StoreTests {
         let activity = try await source.recentXPActivity()
         XCTAssertEqual(activity.first { $0.source == .checkIn }?.xp, nil)
         XCTAssertEqual(activity.first { $0.source == .tokens }?.xp, nil)
-        let level = GrowthSnapshot(level: 5, xp: 1340, xpNext: 410)
-        XCTAssertEqual(level.levelStartXP, 1200)
-        XCTAssertEqual(level.levelTargetXP, 1750)
-        XCTAssertEqual(level.levelProgress, 140.0 / 550.0, accuracy: 0.0001)
+
+    }
+}
+
+extension StoreTests {
+    func testDailyActivityCountsUnitsAndRetainsActiveOnlyDays() async throws {
+        let (store, _, cleanup) = try makeStore()
+        defer { cleanup() }
+        _ = try await store.award([LedgerRow(at: 1, source: .turn, amount: 4, day: "2026-01-01")], active: true, at: 1, localDay: "2026-01-01")
+        _ = try await store.award([], active: true, at: 2, localDay: "2026-01-02")
+        let days = try await store.dailyActivity()
+        XCTAssertEqual(days, [DailyActivity(day: "2026-01-02", turns: 0, active: true), DailyActivity(day: "2026-01-01", turns: 4, active: true)])
+        let growth = try await store.growth(localDay: "2026-01-02", at: 2)
+        XCTAssertEqual(growth.xp, 32)
+        XCTAssertEqual(growth.tasks, 4)
+        XCTAssertEqual(growth.streak, 2)
     }
 }

@@ -135,8 +135,7 @@ Additional device-only USB diagnostic `state` keys (not RenderState fields): `ri
 Perch poses are `dangle`, `lean`, `grip`, `peer-tip`, `hop`, `jump-land`,
 `sag`, `curl`, `pop-up`; desk/travel report the state, and pick-up reports
 `pickup` for 1000 ms. Card priority suppresses pick-up and growth rituals.
-A level increase shimmers for 900 ms then reveals a cosmetic supplied in
-the same or next frame over 600 ms. Streak 7/30/100 pulses for 1500 ms.
+Level increases are ignored; level-up effects are retired. Streak 7/30/100 pulses for 1500 ms.
 Greet lasts 2200 ms with four sizes (wire range remains 0–3).
 
 Appearance identifiers and unknown-value fallbacks follow [WIRE-V2](../../plan/WIRE-V2.md). Dots render in the bottom margin for every
@@ -192,3 +191,8 @@ and firmware to remove the old device approval presentation completely.
 
 Attention dismissal, 60/120-second nudges and Quiet mode remain. A stale hook
 approval call gets immediate native passthrough, not allow or deny.
+
+Growth update: `snap.xp` is cumulative earned XP; `tasks` counts completed agent turns.
+`level` and `xpNext` remain compatibility fields sent as 1 and 0, respectively.
+They have no display or animation effect. The daily activity grid is Mac-only;
+no history array is sent to the device. Existing wire integer ranges are unchanged.

@@ -173,7 +173,7 @@ hold, arming guard or decision feedback remains.
 Two cards, summoned by double tap or the secondary button, auto-dismiss in
 ten seconds. Big type, one fact per line, no charts, safe to show anyone.
 
-1. **The buddy.** Name, level, XP bar, streak with a small flame. The buddy
+1. **The buddy.** Name, cumulative XP, streak with a small flame. The buddy
    stands beside it with its fixed appearance and strikes a proud pose.
 2. **Together.** Days together, tasks done, biggest cheer, today's tally
    from the last sync (dated if older than a day).
@@ -187,10 +187,8 @@ a friend in five seconds.
 **Stats look (revised 2026-09-09).** No panel, no border. The face slides
 left and shrinks to its arc-eyed proud pose; the right two thirds carry
 the snapshot as three lines in proportional type: the name (medium), then
-`Level 4 · 7-day streak`, then the XP bar: a thin track with a filled
-rounded bar in `GREEN` on a pure grey `animRGB(146,146,146)` track,
-with `320 / 500` right-aligned above it. All stats text uses eye ink.
-Page two: `12 days together`, `84 tasks`, the largest celebration from the last snapshot, `today: 6`. Numbers are formatted with the app's
+`7-day streak`, then cumulative `320 XP`. No level or progress bar. All stats text uses eye ink.
+Page two: `12 days together`, `84 turns`, the largest celebration from the last snapshot, `today: 6`. Numbers are formatted with the app's
 localizer; the device never composes sentences.
 
 ## 14. Rituals
@@ -282,6 +280,6 @@ screen, nothing swarms, nothing spins.
 | Uh-oh | Slump (lean 12, eyes half) and slow bob. Unchanged. |
 | Shake (dizzy) | Eyes shrink to 20 px circles and the gaze wobbles ±10 px for 3 s. No X-lines. |
 | Pick-up | Perk: eyes wide, lean back 8 px. Unchanged. |
-| Level up | Light sweep across the eyes, one soft field flash. |
+| Level up | Removed; cumulative XP has no level milestones. |
 | Streak | The small flame pulses gently beside the face. |
 | Card | Springs up, eases away. Unchanged. |

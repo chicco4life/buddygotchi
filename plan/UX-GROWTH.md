@@ -10,15 +10,21 @@ Session/work activity and boops qualify a day; approvals do not award XP.
 Existing XP stays earned, including historical sources. Accounting never
 reprices materialized history. Task counts represent completed turns.
 
-Level L begins at `100 × (L−1) × L / 2 + 50 × (L−1)` cumulative XP. XP buys
-nothing and gates nothing. Appearance stays default skin, no accessory, default
-silhouette. Historical inventory is retained without new milestone creation.
+XP is one cumulative counter with no product cap, levels, targets or level-up effects.
+The Mac shows total XP, completed agent turns (labeled Turns), and current streak.
+A compact GitHub-style grid shows twelve Sunday-first weeks through today; future
+cells are blank. Daily turn counts come from persisted source units, never XP
+estimates. Fill intensity bands are 1–4, 5–14, 15–29 and 30+ completed turns.
+Hover shows the date and exact count. Active days with zero completions get an
+outline; missing days are empty. History failures are explicitly labeled.
+Appearance stays fixed; historical inventory and earned XP remain stored.
+Legacy level/xpNext fields remain compatibility-only at 1/0, with no live formula.
 
 Streaks count consecutive active local dates, with today allowed to remain
 incomplete until tomorrow. Missed days reset current streak; best streak and
 XP survive. No rest-day credits or streak bonuses.
 
-Local share-card export remains. Leaderboards, sync, rank UI and device signing
+Local share-card export is removed for now. Leaderboards, sync, rank UI and device signing
 are deferred to [IDEAS.md](IDEAS.md).
 
 ## Personality and remembered profile

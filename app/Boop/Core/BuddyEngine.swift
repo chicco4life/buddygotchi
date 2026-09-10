@@ -57,7 +57,6 @@ final class BuddyEngine {
         }
     }
 
-    var shareRegister: VoiceRegister { .wry }
 
     // MARK: - Lifecycle
 
@@ -518,6 +517,7 @@ final class BuddyEngine {
         }
     }
     func storedFacts() async throws -> [StoredFact] { await flushStore(); return try await store?.facts() ?? [] }
+    func dailyActivity() async throws -> [DailyActivity] { await flushStore(); return try await store?.dailyActivity() ?? [] }
     func recentXPActivity() async throws -> [XPActivity] { await flushStore(); return try await store?.recentXPActivity() ?? [] }
     func inventory() async throws -> [InventoryItem] { await flushStore(); return try await store?.inventory() ?? [] }
     func profileLines() async throws -> [ProfileLine] { await flushStore(); try await ensureVoiceContext(); return cachedProfile }

@@ -106,3 +106,8 @@ and firmware to remove the old device approval presentation completely.
 
 Attention dismissal, 60/120-second nudges and Quiet mode remain. A stale hook
 approval call gets immediate native passthrough, not allow or deny.
+
+Growth update: `snap.xp` is cumulative earned XP; `tasks` counts completed agent turns.
+`level` and `xpNext` remain compatibility fields sent as 1 and 0, respectively.
+They have no display or animation effect. The daily activity grid is Mac-only;
+no history array is sent to the device. Existing wire integer ranges are unchanged.

@@ -18,16 +18,11 @@ final class GrowthTests: XCTestCase {
         rows.append(LedgerRow(at: 3_600_000, source: .turn, sessionId: "a", day: "2026-01-01"))
         XCTAssertEqual(GrowthFormula().snapshot(rows, localDay: "2026-01-01").xp, 63 * 3)
     }
-    func testLevelCurveBoundaries() {
-        let formula = GrowthFormula()
-        for (level,xp) in [(2,150),(5,1200),(10,4950),(20,19950),(30,44950)] {
-            XCTAssertEqual(GrowthFormula.threshold(level), xp)
-            XCTAssertEqual(formula.level(for: xp), level)
-            XCTAssertEqual(formula.level(for: xp-1), level-1)
-            XCTAssertEqual(formula.xpToNext(for: xp-1), 1)
-            XCTAssertEqual(formula.xpToNext(for: xp), GrowthFormula.threshold(level+1)-xp)
-        }
-        XCTAssertEqual(formula.level(for: -10), 1)
+    func testXPAccumulatesWithoutLevels() {
+        let result = GrowthFormula().snapshot([LedgerRow(at: 0, source: .turn, amount: 100_000, day: "2026-01-01")], localDay: "2026-01-01")
+        XCTAssertEqual(result.xp, 300_000)
+        XCTAssertEqual(result.level, 1)
+        XCTAssertEqual(result.xpNext, 0)
     }
     func testStreakBreaksWithoutRestCredits() {
         let days = (1...7).map { String(format: "2026-01-%02d", $0) }

@@ -162,11 +162,17 @@ actor Store: EngineStore {
         let days = totals.filter { $0[1] == "activeDay" }.map { $0[0] }
         let streak = Streak.calculate(days: days, through: localDay)
         let biggest = CheerSize(rawValue: try meta("biggest") ?? "hop") ?? .hop
-        let result = GrowthSnapshot(level: formula.level(for: xp), xp: xp, xpNext: formula.xpToNext(for: xp), streak: streak.current,
+        let result = GrowthSnapshot(xp: xp, streak: streak.current,
             bestStreak: streak.best, daysTogether: days.count,
             tasks: totals.filter { $0[1] == "turn" }.reduce(0) { $0 + Int($1[3])! },
             today: totals.filter { $0[0] == localDay }.reduce(0) { $0 + Int($1[2])! }, biggest: biggest)
         return result
+    }
+    func dailyActivity() async throws -> [DailyActivity] {
+        try ensureRollup(GrowthFormula())
+        return try db.run("SELECT day, SUM(CASE WHEN source='turn' THEN units ELSE 0 END), MAX(CASE WHEN source='activeDay' THEN 1 ELSE 0 END) FROM growth_totals GROUP BY day ORDER BY day DESC LIMIT 366").map {
+            DailyActivity(day: $0[0], turns: Int($0[1]) ?? 0, active: $0[2] == "1")
+        }
     }
     func recentXPActivity() async throws -> [XPActivity] {
         try ensureRollup(GrowthFormula())
@@ -308,6 +314,7 @@ protocol EngineStore: AnyObject, Sendable {
     func profile() async throws -> [ProfileLine]
     func inventory() async throws -> [InventoryItem]
     func recentXPActivity() async throws -> [XPActivity]
+    func dailyActivity() async throws -> [DailyActivity]
     func deleteProfileLine(_ id: Int) async throws
     func clearProfile() async throws
     func equip(_ cosmetic: EquippedCosmetic) async throws
@@ -319,6 +326,7 @@ extension EngineStore {
         BehaviorMemory.recentMoments(from: try await facts())
     }
     func recentXPActivity() async throws -> [XPActivity] { [] }
+    func dailyActivity() async throws -> [DailyActivity] { [] }
     func retire() async throws { throw StoreError(message: "Retire is unavailable") }
 
     func traits() async throws -> Traits { [:] }

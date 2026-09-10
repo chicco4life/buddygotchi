@@ -348,7 +348,7 @@ enum BuddyCopy {
 
 extension BuddyCopy {
     static func growthLabel(_ growth: GrowthSnapshot, language: String = "en") -> String {
-        String(format: phase7("growth", language: language), growth.level, growth.streak)
+        String(format: phase7("growth", language: language), growth.xp, growth.streak)
     }
     static func momentPhrase(_ kind: String, language: String) -> String {
         guard Moment.Kind(rawValue: kind) != nil else { return phase7("noMoment", language: language) }
@@ -367,18 +367,17 @@ extension BuddyCopy {
         "serverUnreachable": ("Not reachable", "연결할 수 없음"),
         "buddy": ("Buddy", "버디"), "agents": ("Agents", "에이전트"),
         "device": ("Device", "기기"), "advanced": ("Advanced", "고급"),
-        "asleep": ("asleep", "잠자는 중"), "idle": ("here with you", "함께 있어요"),
+        "asleep": ("asleep", "잠자는 중"), "idle": ("idle", "대기 중"),
         "working": ("working", "작업 중"), "needsYou": ("needs you", "도움이 필요해요"),
         "done": ("done", "해냈어요"), "uhoh": ("uh-oh", "이런"),
         "noAgentsAwake": ("No agents awake", "깨어 있는 에이전트가 없어요"),
-        "growth": ("Level %d · %d-day streak", "레벨 %d · %d일 연속"),
+        "growth": ("%d XP · %d-day streak", "%d XP · %d일 연속"),
         "noMoment": ("A quiet day", "조용한 하루"),
         "device-connected": ("Device connected", "기기 연결됨"),
         "device-disconnected": ("Device disconnected", "기기 연결 끊김"),
         "device-connecting": ("Connecting", "연결 중"),
         "device-scanning": ("Scanning", "검색 중"),
         "shareDone": ("Done", "닫기"),
-        "shareGrowth": ("Level %d · %d day streak", "레벨 %d · %d일 연속"),
         "rankAll": ("All time", "전체"),
         "rankMonth": ("This month", "이번 달"),
         "rankFriends": ("Friends", "친구"),
@@ -386,7 +385,6 @@ extension BuddyCopy {
         "friendsCodeLabel": ("Friends code: ", "친구 코드: "),
         "friendCode": ("Friend’s code", "친구 코드"),
         "addFriend": ("Add", "추가"),
-        "shareCard": ("Share card…", "공유 카드…"),
 
             "hop": ("Hop", "폴짝"), "cheer": ("Cheer", "환호"), "dance": ("Dance", "춤"),
             "hardWonPass": ("A hard-won pass", "어렵게 이뤄낸 성공"), "redStreakEnded": ("Back on track", "다시 순조롭게"),

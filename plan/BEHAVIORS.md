@@ -6,7 +6,7 @@ below. **Current** means found in source, not independently verified on a runnin
 device. **Target** marks intent that is not fully implemented; **gap** marks a
 disagreement or limit. Owner simplifications through 2026-09-11 are implemented in this checkout; see PLAN.md for validation.
 
-Jump to: [States](#2-states-and-attention) · [Effort and celebrations](#3-effort-and-celebrations) · [XP](#4-xp-levels-and-streaks) · [Local LLM](#5-local-llm-and-dialogue) · [Memory](#6-personality-and-memory) · [Attention](#7-native-approvals-and-attention-reminders) · [Device/app](#8-device-mac-app-and-sound) · [Sharing](#9-sharing-and-rankings) · [Review queue](#review-queue)
+Jump to: [States](#2-states-and-attention) · [Effort and celebrations](#3-effort-and-celebrations) · [XP](#4-xp-turns-and-streaks) · [Local LLM](#5-local-llm-and-dialogue) · [Memory](#6-personality-and-memory) · [Attention](#7-native-approvals-and-attention-reminders) · [Device/app](#8-device-mac-app-and-sound) · [Sharing](#9-sharing-and-rankings) · [Review queue](#review-queue)
 
 ## 1. Who decides what
 
@@ -82,7 +82,7 @@ moment records remain readable. No completion stories, gifts or collection.
 **Tune:** duration tiers, animation lengths, folding. Sources:
 [reducer](../app/Boop/Core/BuddyReducer.swift), [extractor](../app/Boop/Core/Extractor/Extractor.swift).
 
-## 4. XP, levels and streaks
+## 4. XP, turns and streaks
 
 | Earned for | XP | Qualification |
 | --- | ---: | --- |
@@ -97,8 +97,9 @@ Existing earned XP is preserved. Changing weights affects future awards;
 restart and backdated additions do not reprice old history. Task count means
 completed turns. XP cannot be spent and unlocks no behavior or appearance.
 
-Level L starts at `100 × (L−1) × L / 2 + 50 × (L−1)` XP: levels 1/2/3/5/10
-start at 0/150/400/1,200/4,950. There is no level cap.
+XP accumulates without levels or a product cap. The Mac shows cumulative XP,
+completed turns, current streak and a twelve-week daily turn-count grid.
+Darker squares indicate more completions; hover gives an exact count.
 
 Streaks count consecutive active local days. Today is not missed until
 tomorrow; a missed day breaks the current streak. No rest credits, earning or
@@ -124,8 +125,7 @@ Apple Foundation Models runs locally when available, with a five-second async
 deadline. New state/cards invalidate pending replies. Bubbles last four seconds,
 are capped at 63 UTF-8 bytes, never cover attention cards and never wake Buddy.
 Unavailable models use a neutral greeting/error fallback, otherwise silence.
-The model cannot change states, XP, celebrations or permissions. Share-card
-captions remain authored. See [Voice](UX-VOICE.md).
+The model cannot change states, XP, celebrations or permissions. See [Voice](UX-VOICE.md).
 
 
 ## 6. Personality and memory
@@ -178,7 +178,7 @@ Passive requests retain the 290-second lifetime. Hooks fail open if Boop is down
 | Sound | Short authored interaction/completion motifs plus a nudge motif; Quiet mode mutes all, normal volume fixed at step 1; current Waveshare board has no speaker |
 | Mac | Static menu icon; 360 pt transient popover opened by the person; state transitions never open it; no ordinary desktop pet face |
 | Overview | Status, attention cards, XP and all sessions inline; grows through 10 rows within screen bounds, then scrolls |
-| Settings/Activity | Attention cards never cover these panes; return to Overview to snooze. Settings is one scrollable form. |
+| Mac overview/settings | Sessions follow status; device then compact XP with tasks and streak. No Activity pane. Attention cards never cover Settings; return to Overview to snooze. Settings is one scrollable form. |
 | Connection/update | Show real link/battery state; unknown battery omitted. Firmware check failure is “Check unavailable”, distinct from installation failure. |
 
 Pixel positions, posture thresholds, shutdown stages, sound motifs and motion
@@ -189,8 +189,7 @@ gates; webcam verification is explicit session opt-in only.
 
 ## 9. Sharing and rankings
 
-Share-card PNG export remains local and uses companion identity and progress.
-It works without a device or network service. Leaderboards, enrollment, friends,
+Share-card export and its authored captions are removed for now. Leaderboards, enrollment, friends,
 network synchronization, rank UI and device signing are removed and recorded
 as optional enhancements in [IDEAS.md](IDEAS.md). BLE bonding and firmware OTA
 remain independent of this removal.

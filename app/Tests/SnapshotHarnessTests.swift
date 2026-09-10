@@ -175,7 +175,7 @@ extension SnapshotHarnessTests {
                 SnapshotRenderer.render(PopoverView(engine: engine, esp32Output: ESP32Output(defaults: defaults), navigation: navigation),
                     "menu-" + name + "-" + suffix, CGSize(width: 360, height: height), dir, defaults: defaults, dark: dark)
             }
-            shot("overview", height: 450)
+            shot("overview", height: 440)
             for count in [6, 10, 12] {
                 var many = state
                 many.activeSessions = (0..<count).map {
@@ -183,7 +183,7 @@ extension SnapshotHarnessTests {
                 }
                 let manyEngine = BuddyEngine.preview(state: many, defaults: defaults)
                 SnapshotRenderer.render(PopoverView(engine: manyEngine, esp32Output: ESP32Output(defaults: defaults), navigation: ControlNavigation()),
-                    "menu-sessions-\(count)-" + suffix, CGSize(width: 360, height: min(450 + CGFloat(min(count, 10) - 3) * 42, max(450, (NSScreen.main?.visibleFrame.height ?? 900) - 40))), dir, defaults: defaults, dark: dark)
+                    "menu-sessions-\(count)-" + suffix, CGSize(width: 360, height: min(440 + CGFloat(min(count, 10) - 1) * 42, max(440, (NSScreen.main?.visibleFrame.height ?? 900) - 40))), dir, defaults: defaults, dark: dark)
             }
             navigation.pane = .settings
             shot("settings-all")
@@ -194,6 +194,22 @@ extension SnapshotHarnessTests {
                 defaults.set(step.rawValue, forKey: DefaultsKey.onboardingStep)
                 SnapshotRenderer.render(OnboardingView(defaults: defaults, engine: engine, esp32Output: ESP32Output(defaults: defaults), compact: true, onFinish: {}),
                     "menu-setup-\(step)-" + suffix, CGSize(width: 360, height: 450), dir, defaults: defaults, dark: dark)
+            }
+        }
+    }
+}
+
+extension SnapshotHarnessTests {
+    func testDailyTurnGrid() throws {
+        let date = Date()
+        let activity = (0..<84).map { offset in
+            let day = Calendar.current.date(byAdding: .day, value: -offset, to: date)!
+            return DailyActivity(day: CivilDay.localDay(at: day.timeIntervalSince1970 * 1000, calendar: .current), turns: [0, 1, 7, 18, 40][offset % 5], active: offset % 3 != 0)
+        }
+        for language in ["en", "ko"] {
+            for dark in [false, true] {
+                SnapshotRenderer.render(DailyActivityGrid(activity: activity, date: date, language: language).padding(18),
+                    "daily-grid-\(language)-\(dark ? "dark" : "light")", CGSize(width: 360, height: 145), dir, defaults: defaults, dark: dark)
             }
         }
     }

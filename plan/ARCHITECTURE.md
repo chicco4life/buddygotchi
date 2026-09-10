@@ -96,10 +96,9 @@ transcripts, approval decisions or old named moments enter model context.
 ## 7. Mac output
 
 A static menu icon opens a transient 360 pt popover only when requested. Overview
-contains status, requests, XP and sessions; Settings and Activity remain separate
-panes. No ordinary desktop face or automatic state-triggered window appears.
-Quiet mode mutes all sounds. Appearance and normal volume are fixed. Local PNG
-sharing remains; there is no ranking service or network growth synchronization.
+contains status, requests, sessions, device connection and compact XP, in that
+order. Settings is a separate pane; Activity is removed. No ordinary desktop face or automatic state-triggered window appears.
+Quiet mode mutes all sounds. Appearance and normal volume are fixed. Share-card export is removed; there is no ranking service or network growth synchronization.
 See [Mac UX](UX-APP.md).
 
 ## 8. Outputs and wire
@@ -141,3 +140,6 @@ published. See [device tooling](../tools/dev/README.md).
 Earlier architecture discussions and phase-specific decisions are retained in
 [architecture history](ARCHITECTURE-HISTORY.md). They do not override this
 contract or the current component specs.
+
+Growth has no live level calculation. The store aggregates daily completed-turn
+units for the Mac activity grid; XP stays cumulative and existing awards persist.

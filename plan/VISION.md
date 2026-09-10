@@ -12,7 +12,7 @@ The device carries the face; the Mac app quietly supplies status and settings.
 - Let one local Markdown-guided model choose event-based dialogue and memories. Silence is a valid response. States remain rules; permissions belong to the editor.
 - Keep personality in Markdown and familiarity in real memories. XP unlocks nothing.
 - Keep progress local and preserve earned history. No account or ranking service
-  is required. Local share-card export is optional.
+  is required. Share-card export is deferred.
 - Stay quiet: no unsolicited Mac windows, no sound exceptions to Quiet mode,
   and no reminders about broken streaks.
 

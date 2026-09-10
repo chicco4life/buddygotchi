@@ -264,30 +264,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApplication.shared.terminate(nil)
     }
 
-    static func presentShareCard(engine: BuddyEngine) {
-        Task { @MainActor in
-            do {
-                let image = try engine.shareCard().cgImage()
-                let (url, png) = try await Task.detached {
-                    let png = try ShareCard.pngData(image)
-                    let directory = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Downloads")
-                    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-                    let url = directory.appendingPathComponent("Boop-share-\(UUID().uuidString).png")
-                    try png.write(to: url, options: .atomic)
-                    return (url, png)
-                }.value
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setData(png, forType: .png)
-                NSWorkspace.shared.activateFileViewerSelecting([url])
-            } catch { NSAlert(error: error).runModal() }
-        }
-    }
-
-    @objc private func shareCardFromMenu() { Self.presentShareCard(engine: engine) }
-
     private func showStatusMenu() {
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: BuddyCopy.phase7("shareCard", language: engine.state.language), action: #selector(shareCardFromMenu), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.openBoop, action: #selector(togglePopover), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.settings, action: #selector(openSettingsFromMenu), keyEquivalent: ","))
         menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.checkForUpdates, action: #selector(checkForUpdatesFromMenu), keyEquivalent: ""))

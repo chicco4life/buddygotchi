@@ -29,7 +29,7 @@
       "tasks" : 0,
       "today" : 0,
       "xp" : 0,
-      "xpNext" : 150
+      "xpNext" : 0
     },
     "language" : "en",
     "msg" : "",
@@ -121,7 +121,7 @@
       "tasks" : 0,
       "today" : 0,
       "xp" : 200,
-      "xpNext" : 150
+      "xpNext" : 0
     },
     "language" : "ko",
     "lastCompleted" : {
@@ -192,7 +192,7 @@
       "tasks" : 0,
       "today" : 0,
       "xp" : 0,
-      "xpNext" : 150
+      "xpNext" : 0
     },
     "language" : "en",
     "msg" : "",
@@ -239,7 +239,7 @@
       "tasks" : 0,
       "today" : 0,
       "xp" : 0,
-      "xpNext" : 150
+      "xpNext" : 0
     },
     "language" : "en",
     "msg" : "",
@@ -285,7 +285,7 @@
       "tasks" : 0,
       "today" : 0,
       "xp" : 0,
-      "xpNext" : 150
+      "xpNext" : 0
     },
     "language" : "en",
     "lastSignal" : "idle",
@@ -333,7 +333,7 @@
       "tasks" : 0,
       "today" : 0,
       "xp" : 0,
-      "xpNext" : 150
+      "xpNext" : 0
     },
     "language" : "en",
     "lastSignal" : "idle",
@@ -380,7 +380,7 @@
       "tasks" : 0,
       "today" : 0,
       "xp" : 0,
-      "xpNext" : 150
+      "xpNext" : 0
     },
     "language" : "en",
     "lastSignal" : "busy",
@@ -428,7 +428,7 @@
       "tasks" : 0,
       "today" : 0,
       "xp" : 0,
-      "xpNext" : 150
+      "xpNext" : 0
     },
     "language" : "en",
     "lastSignal" : "busy",
@@ -475,7 +475,7 @@
       "tasks" : 0,
       "today" : 0,
       "xp" : 0,
-      "xpNext" : 150
+      "xpNext" : 0
     },
     "language" : "en",
     "lastSignal" : "attention",
@@ -523,7 +523,7 @@
       "tasks" : 0,
       "today" : 0,
       "xp" : 0,
-      "xpNext" : 150
+      "xpNext" : 0
     },
     "language" : "en",
     "lastSignal" : "attention",
@@ -572,7 +572,7 @@
       "tasks" : 0,
       "today" : 0,
       "xp" : 0,
-      "xpNext" : 150
+      "xpNext" : 0
     },
     "language" : "en",
     "lastSignal" : "celebrate",
@@ -622,7 +622,7 @@
       "tasks" : 0,
       "today" : 0,
       "xp" : 0,
-      "xpNext" : 150
+      "xpNext" : 0
     },
     "language" : "en",
     "lastSignal" : "celebrate",
@@ -670,7 +670,7 @@
       "tasks" : 0,
       "today" : 0,
       "xp" : 0,
-      "xpNext" : 150
+      "xpNext" : 0
     },
     "language" : "en",
     "lastSignal" : "error",
@@ -719,7 +719,7 @@
       "tasks" : 0,
       "today" : 0,
       "xp" : 0,
-      "xpNext" : 150
+      "xpNext" : 0
     },
     "language" : "en",
     "lastSignal" : "error",

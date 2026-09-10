@@ -12,20 +12,13 @@ struct LedgerRow: Codable, Sendable, Equatable {
     var day: String
 }
 struct GrowthSnapshot: Codable, Sendable, Equatable {
-    var level = 1, xp = 0, xpNext = 150, streak = 0, bestStreak = 0
+    // level/xpNext are inactive compatibility fields; XP has no progression target.
+    var level = 1, xp = 0, xpNext = 0, streak = 0, bestStreak = 0
     var daysTogether = 0, tasks = 0, today = 0
     var biggest: CheerSize = .hop
 }
 struct GrowthFormula: Sendable, Codable, Equatable {
     var turn = 3, activeDay = 10
-    static func threshold(_ level: Int) -> Int { let l = max(1, level); return 100 * (l - 1) * l / 2 + 50 * (l - 1) }
-    func level(for xp: Int) -> Int {
-        var low = 1, high = 2
-        while Self.threshold(high) <= xp { high *= 2 }
-        while low + 1 < high { let mid = (low + high) / 2; if Self.threshold(mid) <= xp { low = mid } else { high = mid } }
-        return low
-    }
-    func xpToNext(for xp: Int) -> Int { Self.threshold(level(for: xp) + 1) - max(0, xp) }
     func awards(_ rows: [LedgerRow], activeDays: [String] = []) -> [(LedgerRow, Int)] {
         var active: Set<String> = []
         return rows.sorted { $0.at < $1.at }.map { row in
@@ -42,7 +35,7 @@ struct GrowthFormula: Sendable, Codable, Equatable {
         let awards = awards(rows), xp = awards.reduce(0) { $0 + $1.1 }
         let days = Set(rows.filter { $0.source == .activeDay }.map(\.day)).sorted()
         let streak = Streak.calculate(days: days, through: localDay)
-        return GrowthSnapshot(level: level(for: xp), xp: xp, xpNext: xpToNext(for: xp), streak: streak.current,
+        return GrowthSnapshot(xp: xp, streak: streak.current,
             bestStreak: streak.best, daysTogether: days.count,
             tasks: rows.filter { $0.source == .turn }.reduce(0) { $0 + $1.amount },
             today: awards.filter { $0.0.day == localDay }.reduce(0) { $0 + $1.1 }, biggest: biggest)
@@ -135,10 +128,8 @@ struct XPActivity: Identifiable, Sendable {
     var id: String { day + ":" + source.rawValue }
 }
 
-extension GrowthSnapshot {
-    var levelStartXP: Int { GrowthFormula.threshold(level) }
-    var levelTargetXP: Int { GrowthFormula.threshold(level + 1) }
-    var levelProgress: Double {
-        min(1, max(0, Double(xp - levelStartXP) / Double(levelTargetXP - levelStartXP)))
-    }
+struct DailyActivity: Equatable, Sendable {
+    var day: String
+    var turns: Int
+    var active: Bool
 }

@@ -14,45 +14,41 @@ its status and configuration surface. Normal use should not require opening it.
 - State changes never open or close it, including attention requests. Old
   interactive-mode preferences are ignored. Previously opted-in passive
   notifications remain available; selecting one opens the dropdown.
-- Activity, Settings, profile, and setup are reached inside the same dropdown,
+- Settings and setup are reached inside the same dropdown,
   with Back navigation. Secondary confirmation and utility sheets remain attached.
-- No creature or animated face in ordinary app content or setup. Share cards
-  may retain the likeness. The physical device owns Buddy's expression.
+- No creature or animated face in ordinary app content or setup. The physical device owns Buddy's expression.
 
 ## Overview
 
 One column, 360 pt wide, with system typography, semantic colors, native controls,
 subtle dividers, and whitespace. No sidebar or top-level tab strip.
 
-1. Buddy name and level.
+1. Buddy name. No level label.
 2. Current state and a short explanation: Working, Idle, Sleeping, Needs you,
    Done, or Needs attention. Device connection is independent of agent state.
-3. Pending requests appear only on Overview, below its status. Settings, Activity
+3. Pending requests appear only on Overview, below its status. Settings
    and setup display only their own content, even while attention is pending.
    Show the tool, supplied reason (or tool name), queue position and
    “Check your editor”. There are no stakes or Approve/Deny buttons.
-4. Within-level XP progress, total XP, and remaining XP. A compact row shows
-   today's XP, lifetime completed tasks, and current streak. The task count is
-   explicitly labeled as lifetime until a reliable daily count is exposed.
-5. All sessions appear inline with agent, project when known, and status. The
-   dropdown grows to accommodate up to ten sessions, within the screen height.
-   Additional sessions remain in the same scrollable overview; no expansion
-   button or sessions navigation is required. Empty state: No agents awake.
-6. Device connection and battery percentage when connected and known. Missing
+4. All sessions appear immediately after status and any pending request, with
+   agent, project when known, and status. The dropdown grows for up to ten sessions;
+   additional sessions remain scrollable. Empty state: No agents awake.
+5. Device connection and battery percentage when connected and known. Missing
    battery is omitted; never substitute a made-up percentage.
-7. Activity and Settings links, plus a small menu containing Quit.
+6. XP is the last content section: cumulative XP, completed turns and current
+   streak in one row, followed by a compact twelve-week daily completed-turn grid.
+   No level, target or progress bar. The grid has no title; “Last 12 weeks” sits
+   below it. Hover a square for its date and exact count.
+7. Plain Settings button at the bottom-left and Quit at the bottom-right. No overflow menu or share-card export.
+   There is no Activity button or pane.
 
 Overview retains progress and statistics while idle or sleeping. It uses a
-450 pt base viewport (590 pt with a pending request), growing by 42 pt per
-additional session beyond three, up to ten and bounded by available screen height;
+440 pt base viewport (580 pt with a pending request), growing by 42 pt per
+additional session beyond one, up to ten and bounded by available screen height;
 secondary panes use 560 pt.
 Long content scrolls inside the dropdown.
 
-## Activity and Settings
-
-Activity contains all sessions, lifetime tasks, days together, current and best
-streak, daily/source XP history, and secondary
-local share-card export. Missing history is an honest empty/error state.
+## Settings
 
 Settings is one continuous scrollable form. Every group is expanded and visible
 in the same view; there is no category picker, sidebar, or extra profile page.

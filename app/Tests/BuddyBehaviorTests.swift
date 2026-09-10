@@ -80,7 +80,7 @@ extension BuddyBehaviorTests {
         let growth = try XCTUnwrap(data["progress"] as? [String: Int])
         XCTAssertEqual(growth["xp"], 1234)
         XCTAssertEqual(growth["xp_today"], 27)
-        XCTAssertEqual(growth["completed_tasks"], 80)
+        XCTAssertEqual(growth["completed_turns"], 80)
         XCTAssertNil(data["energy"])
         let remembered = try XCTUnwrap(data["memory"] as? [String: Any])
         XCTAssertNil(remembered["completed_turns"])

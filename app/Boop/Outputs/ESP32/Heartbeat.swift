@@ -50,7 +50,7 @@ struct RenderState: Encodable, Sendable {
         func encode(to encoder: any Encoder) throws {
             var c = encoder.container(keyedBy: Keys.self)
             try c.encode(name.prefix(utf8Bytes: 23), forKey: .name)
-            try c.encode(growth.level, forKey: .level); try c.encode(growth.xp, forKey: .xp); try c.encode(growth.xpNext, forKey: .xpNext)
+            try c.encode(1, forKey: .level); try c.encode(growth.xp, forKey: .xp); try c.encode(0, forKey: .xpNext)
             try c.encode(growth.streak, forKey: .streak); try c.encode(growth.bestStreak, forKey: .bestStreak)
             try c.encode(growth.daysTogether, forKey: .daysTogether); try c.encode(growth.tasks, forKey: .tasks); try c.encode(growth.today, forKey: .today)
             try c.encode(growth.biggest, forKey: .biggest)

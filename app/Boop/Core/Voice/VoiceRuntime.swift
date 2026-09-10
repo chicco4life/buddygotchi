@@ -38,10 +38,10 @@ enum VoicePrompt {
         ]
         if let growth = request.growth {
             facts["progress"] = [
-                "xp": growth.xp, "level": growth.level, "xp_to_next_level": growth.xpNext,
+                "xp": growth.xp,
                 "current_streak_days": growth.streak, "best_streak_days": growth.bestStreak,
                 "active_days_together": growth.daysTogether,
-                "completed_tasks": growth.tasks, "xp_today": growth.today
+                "completed_turns": growth.tasks, "xp_today": growth.today
             ]
         }
         if let memory = request.memory { facts["memory"] = memory.promptFields }

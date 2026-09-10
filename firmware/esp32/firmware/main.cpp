@@ -166,20 +166,10 @@ void onFrame(const TamaState& next, bool skinSupplied) {
   if (!dataConnected()) { linkAt=now; linkFlash=true; }
   if (isRetired()) { ritual=firstWake?R_FIRST_WAKE:R_NONE; ritualAt=now; }
   bool firstSignal=firstWake && ritual!=R_COLOR && (skinSupplied || strcmp(next.state,"asleep"));
-  bool levelChanged=haveFrame && next.snap.level>tama.snap.level;
   bool milestone=next.snap.streak!=tama.snap.streak &&
     (next.snap.streak==7 || next.snap.streak==30 || next.snap.streak==100);
-  // First color takes priority over growth; a level reveal takes priority
-  // over a simultaneous streak milestone, matching the reported ritual.
   if (firstSignal) { ritual=R_COLOR; ritualAt=now; }
-  else if (!firstWake) {
-    if (levelChanged) {
-      ritual=cosmeticsChanged?R_LEVEL:R_LEVEL_AWAIT; ritualAt=now; oldCosmetic=tama.cosmetic;
-    } else if (ritual==R_LEVEL_AWAIT) {
-      ritual=R_LEVEL;
-      if (!cosmeticsChanged) oldCosmetic=next.cosmetic;
-    } else if (milestone && !levelRitual()) { ritual=R_STREAK; ritualAt=now; }
-  }
+  else if (!firstWake && milestone) { ritual=R_STREAK; ritualAt=now; }
   bool nudgeAdvanced = next.nudgeRung > tama.nudgeRung && !strcmp(next.card.id,tama.card.id);
   bool changed = strcmp(next.state,tama.state) || strcmp(next.cheer,tama.cheer);
   bool newCard = strcmp(next.card.id,tama.card.id) || strcmp(next.card.kind,tama.card.kind);
@@ -194,7 +184,7 @@ void onFrame(const TamaState& next, bool skinSupplied) {
   // (and `clock settle`) is anchored to what is on screen, not just the state.
   bool visualChanged = changed || strcmp(next.effort,tama.effort) || strcmp(next.uhoh,tama.uhoh)
     || overlayChanged
-    || cosmeticsChanged || levelChanged || milestone || firstSignal || strcmp(next.posture,tama.posture);
+    || cosmeticsChanged || milestone || firstSignal || strcmp(next.posture,tama.posture);
   if (visualChanged) stateAt = now;
   if (changed) lastInput = now;   // only a state change counts as activity for the dim ladder
   // Sound sees the incoming state/volume, never the previous frame's mute.
@@ -412,18 +402,13 @@ static void drawStats(uint32_t now) {
   char line[128];
   if(statsPage==0) {
     textLines(tama.snap.name,x,72,width,1,1.5f,ink);
-    if(tama.snap.streak) snprintf(line,sizeof(line),"Level %lu · %lu-day streak",(unsigned long)tama.snap.level,(unsigned long)tama.snap.streak);
-    else snprintf(line,sizeof(line),"Level %lu",(unsigned long)tama.snap.level);
+    snprintf(line,sizeof(line),"%lu-day streak",(unsigned long)tama.snap.streak);
     textLines(line,x,108,width,1,1,ink);
-    snprintf(line,sizeof(line),"%lu / %lu",(unsigned long)tama.snap.xp,(unsigned long)tama.snap.xpNext);
+    snprintf(line,sizeof(line),"%lu XP",(unsigned long)tama.snap.xp);
     textRight(line,right,158,ink);
-    spr.fillSmoothRoundRect(x,184,width,6,3,animRGB(146,146,146));
-    float progress=tama.snap.xpNext?animClamp((float)tama.snap.xp/tama.snap.xpNext,0,1):0;
-    int filled=animPx(width*progress);
-    if(filled) spr.fillSmoothRoundRect(x,184,filled,6,min(3,filled/2),GREEN);
   } else {
     snprintf(line,sizeof(line),"%lu days together",(unsigned long)tama.snap.days); textLines(line,x,76,width,1,1,ink);
-    snprintf(line,sizeof(line),"%lu tasks",(unsigned long)tama.snap.tasks); textLines(line,x,114,width,1,1,ink);
+    snprintf(line,sizeof(line),"%lu turns",(unsigned long)tama.snap.tasks); textLines(line,x,114,width,1,1,ink);
     textLines(tama.snap.biggest,x,152,width,1,1,ink);
     snprintf(line,sizeof(line),"today: %lu",(unsigned long)tama.snap.today); textLines(line,x,190,width,1,1,ink);
   }

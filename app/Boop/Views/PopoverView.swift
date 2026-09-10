@@ -1,7 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-enum ControlPane: String, CaseIterable { case overview, activity, settings, setup }
+enum ControlPane: String, CaseIterable { case overview, settings, setup }
 @Observable final class ControlNavigation {
     var pane: ControlPane = .overview
 }
@@ -15,14 +15,13 @@ struct PopoverView: View {
     var onOpenOnboarding: () -> Void = {}
     var onClose: () -> Void = {}
     var navigation: ControlNavigation = ControlNavigation()
-    @State private var history: [XPActivity] = []
-    @State private var historyError = false
+    @State private var activityDays: [DailyActivity] = []
+    @State private var activityError = false
     private var growth: GrowthSnapshot { engine.state.growth }
     private func copy(_ en: String, _ ko: String) -> String { engine.state.language == "ko" ? ko : en }
     private func title(_ pane: ControlPane) -> String {
         switch pane {
         case .overview: copy("Overview", "개요")
-        case .activity: copy("Activity", "활동")
         case .settings: copy("Settings", "설정")
         case .setup: copy("Set up Buddy", "Buddy 설정")
         }
@@ -37,9 +36,6 @@ struct PopoverView: View {
                 }
                 Text(navigation.pane == .overview ? engine.displayName : title(navigation.pane)).font(.headline)
                 Spacer()
-                if navigation.pane == .overview {
-                    Text(copy("Level \(growth.level)", "레벨 \(growth.level)")).foregroundStyle(.secondary)
-                }
             }.padding(18)
             if navigation.pane == .overview {
                 VStack(alignment: .leading, spacing: 4) {
@@ -59,7 +55,6 @@ struct PopoverView: View {
             }
             switch navigation.pane {
             case .overview: ScrollView { overview.padding(.horizontal, 18).padding(.bottom, 12) }
-            case .activity: ScrollView { activity.padding(18) }
             case .settings: settingsPane
             case .setup:
                 OnboardingView(defaults: engine.preferences, engine: engine, esp32Output: esp32Output, compact: true) {
@@ -71,13 +66,10 @@ struct PopoverView: View {
             Divider()
             HStack {
                 if navigation.pane == .overview {
-                    Button(copy("Activity", "활동")) { navigation.pane = .activity }
-                    Spacer()
                     Button(copy("Settings", "설정")) { navigation.pane = .settings }
-                } else { Spacer() }
-                Menu {
-                    Button(copy("Quit Boop", "Boop 종료")) { NSApp.terminate(nil) }
-                } label: { Image(systemName: "ellipsis") }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                }
+                Spacer()
+                Button(copy("Quit", "종료")) { NSApp.terminate(nil) }
             }.buttonStyle(.plain).padding(14)
         }
         .frame(width: 360, height: navigation.pane == .overview ? overviewHeight : 560)
@@ -87,31 +79,15 @@ struct PopoverView: View {
     }
     private var overviewHeight: CGFloat {
         // Grow for up to ten sessions; keep every row in the existing scroll view.
-        let extraRows = max(0, min(engine.state.activeSessions.count, 10) - 3)
-        let desired = CGFloat(engine.state.creature.card == nil ? 450 : 590) + CGFloat(extraRows) * 42
+        let extraRows = max(0, min(engine.state.activeSessions.count, 10) - 1)
+        let desired = CGFloat(engine.state.creature.card == nil ? 440 : 580) + CGFloat(extraRows) * 42
         let available = (NSScreen.main?.visibleFrame.height ?? 900) - 40
-        return min(desired, max(450, available))
+        return min(desired, max(440, available))
     }
     private var overview: some View {
         VStack(alignment: .leading, spacing: 14) {
             if !engine.boolSetting(DefaultsKey.setupCompleted) {
                 Button(copy("Set up Buddy", "Buddy 설정")) { navigation.pane = .setup }.buttonStyle(.link)
-            }
-            Divider()
-            HStack {
-                Text(copy("Progress to level \(growth.level + 1)", "레벨 \(growth.level + 1)까지"))
-                Spacer()
-                Text("\(growth.xp - growth.levelStartXP) / \(growth.levelTargetXP - growth.levelStartXP) XP").font(.caption).foregroundStyle(.secondary)
-            }
-            ProgressView(value: growth.levelProgress).tint(.secondary)
-            Text(copy("\(growth.xp.formatted()) total XP · \(max(0, growth.levelTargetXP - growth.xp)) to next level", "총 \(growth.xp.formatted()) XP · 다음 레벨까지 \(max(0, growth.levelTargetXP - growth.xp)) XP"))
-                .font(.caption).foregroundStyle(.secondary)
-            HStack {
-                metric(copy("XP today", "오늘 XP"), growth.today)
-                Spacer()
-                metric(copy("Tasks total", "총 작업"), growth.tasks)
-                Spacer()
-                metric(copy("Day streak", "연속 활동일"), growth.streak)
             }
             Divider()
             Text(copy("Sessions", "세션")).font(.caption).foregroundStyle(.secondary)
@@ -129,6 +105,8 @@ struct PopoverView: View {
                     Text("\(battery.pct)%" + (battery.charging ? " ⚡" : "")).foregroundStyle(.secondary)
                 }
             }.font(.callout)
+            Divider()
+            xpSection
         }
     }
     private var statusTitle: String {
@@ -151,65 +129,26 @@ struct PopoverView: View {
         case .uhoh: copy("Open your agent to review the issue.", "에이전트에서 문제를 확인하세요.")
         }
     }
-    private var activity: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            if !engine.state.activeSessions.isEmpty {
-                ActivityList(rows: engine.state.activeSessions.map { ActivityRow(session: $0, state: engine.state) }, maxRows: engine.state.activeSessions.count)
-                Divider()
-            }
-            Grid(alignment: .leading, horizontalSpacing: 44, verticalSpacing: 18) {
-                GridRow { metric(copy("Tasks completed", "완료한 작업"), growth.tasks); metric(copy("Days together", "함께한 날"), growth.daysTogether) }
-                GridRow { metric(copy("Current streak", "현재 연속 활동일"), growth.streak); metric(copy("Best streak", "최장 연속 활동일"), growth.bestStreak) }
-            }.frame(maxWidth: .infinity, alignment: .leading)
+    private var xpSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Button(BuddyCopy.phase7("shareCard", language: engine.state.language)) { AppDelegate.presentShareCard(engine: engine) }
-            }
-            Divider()
-            Text(copy("XP history", "XP 기록")).font(.headline)
-            Text(copy("Recorded totals by day and source", "날짜와 유형별 기록된 합계")).font(.caption).foregroundStyle(.secondary)
-            if historyError {
-                Text(copy("Could not load XP history.", "XP 기록을 불러오지 못했습니다.")).foregroundStyle(.secondary)
-                Button(copy("Retry", "다시 시도")) { Task { await loadHistory() } }
-            } else if history.isEmpty {
-                Text(copy("XP you earn will appear here.", "획득한 XP가 여기에 표시됩니다.")).foregroundStyle(.secondary)
-            } else {
-                ForEach(history) { entry in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(sourceLabel(entry.source))
-                            Text(entry.day).font(.caption).foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                        Text("+\(entry.xp) XP").monospacedDigit()
+                Text("\(growth.xp.formatted()) XP").fontWeight(.medium)
+                Spacer()
+                Text(copy("\(growth.tasks.formatted()) turns", "\(growth.tasks.formatted())턴"))
+                Spacer()
+                Text(copy("\(growth.streak)-day streak", "\(growth.streak)일 연속"))
+            }.font(.caption)
+            TimelineView(.periodic(from: .now, by: 60)) { context in
+                DailyActivityGrid(activity: activityDays, date: context.date, language: engine.state.language)
+                    .task(id: "\(growth.xp)-\(CivilDay.localDay(at: context.date.timeIntervalSince1970 * 1000, calendar: .current))") {
+                        do { activityDays = try await engine.dailyActivity(); activityError = false }
+                        catch { activityError = true }
                     }
-                    Divider()
-                }
             }
-            if engine.state.creature.card == nil {
-                if let bubble = engine.state.creature.bubble { Text(bubble).foregroundStyle(.secondary) }
+            if activityError {
+                Text(copy("Activity history unavailable", "활동 기록을 불러올 수 없습니다"))
+                    .font(.caption2).foregroundStyle(.secondary)
             }
-        }.task(id: growth.xp) { await loadHistory() }
-    }
-    private func metric(_ label: String, _ value: Int) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(value.formatted()).font(.title2.monospacedDigit())
-            Text(label).font(.caption).foregroundStyle(.secondary)
-        }
-    }
-    private func loadHistory() async {
-        do { history = try await engine.recentXPActivity(); historyError = false }
-        catch { historyError = true }
-    }
-    private func sourceLabel(_ source: XPSource) -> String {
-        switch source {
-        case .turn: copy("Completed turns", "완료한 턴")
-        case .task: copy("Finished tasks", "완료한 작업")
-        case .hardWonPass: copy("Hard-won passes", "노력 끝에 성공")
-        case .activeDay: copy("Active day and streak", "활동일 및 연속 활동")
-        case .streakBonus: copy("Streak bonus", "연속 활동 보너스")
-        case .session: copy("Sessions started", "시작한 세션")
-        case .checkIn: copy("Check-ins", "교감")
-        case .tokens: copy("Output tokens", "출력 토큰")
         }
     }
     private var settingsPane: some View {

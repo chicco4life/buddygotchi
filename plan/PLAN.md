@@ -12,18 +12,28 @@ current contract, with detailed specs in the [index](README.md).
 | Core | Six states; 1/3/5-minute celebrations (none below 1 minute); 3 s folding |
 | Help | Fixed nudges at 60/120 s; dismissal snoozes only the current request |
 | Approvals | Editor only; Buddy interception and controls removed; stale hooks return passthrough |
-| Growth | Completed turn +3 XP, active local day +10; historical XP preserved; ordinary consecutive-day streaks |
+| Growth | Completed turn +3 XP, active local day +10; historical XP preserved; no levels; daily turn grid and consecutive-day streaks |
 | Local model | Live-read Markdown defines personality, event-based dialogue and memory; no timed check-ins |
 | Memory | Reduced facts, small profile and recent outcomes; no numeric personality/bond or familiarity counters |
-| Mac/device | Quiet mode, simple menu popover/settings, fixed appearance, local sharing |
+| Mac/device | Quiet mode, simple menu popover/settings, fixed appearance |
 | Removed | Gifts, recaps, teach, inferred stuck/hungry, quick commands, agent expression/drawings, named moment creation, leaderboard/sync/signing |
 
 ## Verified in this change
 
+- Cumulative XP and daily turn grid: 342 tests passed, zero skipped; both Mac
+  products and shipping firmware built. [Evidence](evidence/cumulative-xp-2026-09-11/README.md).
+
+- Share removal: 340 tests passed, zero skipped; both Mac products built.
+  [Evidence](evidence/no-share-2026-09-11/README.md).
+
+- Compact overview update: 341 tests passed, zero skipped; both Mac products built.
+  [Layout evidence](evidence/compact-overview-2026-09-11/README.md).
+
 - **341 app tests passed, zero skipped**, including offscreen native UI checks.
 - Boop and BoopSignal built; shipping Waveshare firmware built without flashing.
 - [Essentials evidence](evidence/essential-behaviors-2026-09-11/README.md).
-- Activity/share-card UI is retained for owner review. Growth, time-away greetings,
+- Overview now puts sessions after status and compact XP last; Activity is removed.
+  Share-card export and the overflow menu are removed; Quit is a plain footer button. Growth, time-away greetings,
   60/120-second reminders and event-based dialogue remain.
 
 ## Previous verification (before this change)

@@ -18,7 +18,7 @@ enum SnapshotRenderer {
     static var expectedRenderCount: Int {
         let companionPerAppearance = CompanionScene.all.count + 2 + SettingsSection.sidebar.count + OnboardingStep.allCases.count
         let other = 7 + OnboardingStep.allCases.count + FirmwareUpdater.snapshotStates.count + 1 + 4
-        return 2 * companionPerAppearance + other + 2 // one cream share card per language
+        return 2 * companionPerAppearance + other
     }
 
     static func renderAll(to dir: String, defaults: UserDefaults) {
@@ -233,14 +233,6 @@ enum SnapshotRenderer {
     }
 
     private static func renderCompanionScenes(to dir: String, defaults: UserDefaults) {
-        for language in ["en", "ko"] {
-            var creature = Creature.initial; creature.state = .done; creature.cheer = .cheer
-            let card = ShareCard(creature: creature, cosmetic: EquippedCosmetic(), name: language == "ko" ? "보리" : "Mochi", level: 12, streak: 7,
-                                 line: VoiceBanks.lines(language: language, occasion: "share", register: .wry)[0], language: language)
-            if let png = try? card.pngData() {
-                try? png.write(to: URL(fileURLWithPath: dir + "/share-" + language + ".png"))
-            }
-        }
         for dark in [false, true] {
             let suffix = dark ? "dark" : "light"
             func shot<V: View>(_ view: V, _ name: String, width: CGFloat = 360, height: CGFloat = 640) {

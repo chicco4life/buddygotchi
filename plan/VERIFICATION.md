@@ -31,7 +31,7 @@ tools/pio_ws.sh run -e ws-amoled164
 | Reflection | Evidence/privacy bounds, valid memories, ignored legacy traits, invalid/unavailable model, daily idempotence |
 | Approvals | Editor-only for every agent, stale enabled config/hook passthrough, ignored device decisions |
 | Wire | UTF-8 caps, compatibility, bounded nudge rung, ignored retired fields |
-| Mac UI | Overview, Settings and Activity; pending cards stay on Overview; English/Korean and light/dark |
+| Mac UI | Overview and Settings; sessions follow status, compact XP is last and includes tasks/streak; no Activity navigation; pending cards stay on Overview; English/Korean and light/dark |
 
 Current result: **341 tests passed, zero skipped**, both Mac products built,
 and shipping Waveshare firmware built. Offscreen UI checked. See the
@@ -77,3 +77,8 @@ Outstanding live/model/hardware and packaging gates are listed in [Plan](PLAN.md
 Earlier phase procedures and evidence are preserved in
 [verification history](VERIFICATION-HISTORY.md). Historical checks for removed
 features are not required to restore them; use current contracts for new tests.
+
+Growth without levels: verify persisted XP is unchanged, completed-turn units
+aggregate by civil day, active-only days preserve streaks, and twelve-week grids
+render in English/Korean and both appearances. Device stats show cumulative XP
+and ignore level transitions. Build firmware; physical verification is separate.

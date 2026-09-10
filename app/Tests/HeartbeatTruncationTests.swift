@@ -49,7 +49,7 @@ final class HeartbeatTruncationTests: XCTestCase {
         XCTAssertEqual(mapped.mute, 0)
         XCTAssertEqual(mapped.snap?.name, "테스트")
         XCTAssertEqual(mapped.snap?.growth.level, 1)
-        XCTAssertEqual(mapped.snap?.growth.xpNext, 150)
+        XCTAssertEqual(mapped.snap?.growth.xpNext, 0)
         XCTAssertEqual(mapped.cosmetic?.skin, "default")
     }
 
