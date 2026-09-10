@@ -516,3 +516,20 @@ within the current level divided by that level's interval, not total/remaining.
 Settings reuses existing section actions and adds catalog-backed appearance
 selection. Desktop completion sound/pop-up is suppressed; approval notifications
 and controls remain. A manually opened window stays open through state changes.
+
+### Parallel development isolation (2026-09-10)
+
+`tools/dev/instance.py` owns per-worktree headless lifecycle: unique loopback
+port/token, config and store directory, preferences suite, logs and PID metadata.
+`BuddyConfig` reads and writes the selected state directory's config. Headless
+instances never install global hooks or create Bluetooth outputs. E2E clients
+receive explicit instance configuration. Live-hook doctor remains an exclusive
+shared-endpoint diagnostic with its separate legacy launcher.
+
+`tools/dev/device.py` reserves the single physical device across setup, scenario,
+and restoration. A machine-wide advisory lease is shared with buddyctl and HIL.
+The GUI must be quit to release BLE before reserving and manually relaunched
+later; the wrapper rejects a running GUI. Firmware setup requires a restoration
+script. No simulator or wire change. See `tools/dev/README.md` for limits.
+Headless startup uses a state-directory instance lock and bypasses the GUI
+bundle-instance check; the normal GUI retains its machine-wide singleton guard.

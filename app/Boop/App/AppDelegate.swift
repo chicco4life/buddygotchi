@@ -34,7 +34,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var autoDismissTimer: Timer?
     private var onboardingWindowController: OnboardingWindowController?
     private let serverHealth = ServerHealth()
-    private let instanceLock = InstanceLock()
+    private let instanceLock = BuddyConfig.default.headless
+        ? InstanceLock(path: "\(BuddyConfig.default.stateDir)/instance.lock")
+        : InstanceLock()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -208,6 +210,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func claimSingleInstance() -> Bool {
+        if BuddyConfig.default.headless { return instanceLock.tryClaim() }
         if let bundleIdentifier = AppMetadata.bundleIdentifier {
             let currentPID = ProcessInfo.processInfo.processIdentifier
             let matches = NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)

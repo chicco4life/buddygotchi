@@ -35,12 +35,12 @@ struct BuddyConfig: Sendable {
     }
 
     private static var configPath: String {
-        "\(defaultStateDir())/config.json"
+        "\(ProcessInfo.processInfo.environment["BOOP_STATE_DIR"] ?? defaultStateDir())/config.json"
     }
 
     private static func readOrCreateConfig(stateDir: String) -> (Int, Bool, String) {
         let fm = FileManager.default
-        let path = configPath
+        let path = "\(stateDir)/config.json"
 
         try? fm.createDirectory(atPath: stateDir, withIntermediateDirectories: true)
 

@@ -663,3 +663,18 @@ are recorded in `VERIFICATION.md`. No webcam session is activated by this work.
 Control center validation: `make test` passed 448 tests, zero skipped; offscreen
 pane, approval and onboarding snapshots reviewed. Ready for user-launched app
 iteration; live window/BLE verification remains separate.
+
+## Parallel development tooling (2026-09-10)
+
+Added per-worktree headless instances and explicit E2E routing, plus a shared
+whole-run device reservation with scenario logs and restoration scripts.
+The GUI is manually quit/relaunched around hardware runs. No simulator planned.
+Software orchestration checks cover lease exclusion/delegation and restoration
+after scenario failure; real device verification is still owed. Usage lives in
+`tools/dev/README.md`.
+
+Validation: `swift build --product Boop` passed outside the cache-restricted
+sandbox. All three workflow tests passed both with a lightweight HTTP fixture
+and with two real Boop headless processes (isolated authenticated startup and
+clean shutdown, lease exclusion/delegation, restore after failed scenario).
+Physical HIL and flashing were not performed.

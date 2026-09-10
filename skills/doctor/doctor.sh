@@ -59,12 +59,12 @@ version() { "${CURL[@]}" "$BASE/healthz" 2>/dev/null | grep -o '"stateVersion":[
 # Keep a doctor-owned app alive between arm and confirm; cleanup on failure or confirm.
 cleanup_headless() {
   if [ "$STARTED" = 1 ] && [ "$KEEP_RUNNING" = 0 ]; then
-    "$REPO/app/tools/headless.sh" --stop >&2
+    "$REPO/app/tools/headless-shared-hooks.sh" --stop >&2
   fi
 }
 trap cleanup_headless EXIT
 if [ "$HEADLESS" = 1 ] && [ "$CONFIRM" = 0 ] && [ -z "$(version)" ]; then
-  "$REPO/app/tools/headless.sh" >&2 || exit 1
+  "$REPO/app/tools/headless-shared-hooks.sh" >&2 || exit 1
   STARTED=1
   PORT=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1])).get("port",21321))' "$CFG")
   TOKEN=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["token"])' "$CFG")
