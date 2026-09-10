@@ -102,3 +102,14 @@ content or onboarding; share cards may retain the likeness. Existing recap,
 collection and keepsake functions remain reachable in Activity. Do not animate
 or automatically open a completion celebration on the desktop. Missing battery
 or XP history must be presented honestly, not as invented data.
+
+## Approval correction (2026-09-10)
+
+Advanced settings adds “Handle Codex approvals in Boop”, off by default and
+requiring Local approval mode. Leaving it off preserves Codex's native automatic
+review and avoids false Buddy cards. Native reviewer waiting is not mirrored
+because the hook cannot distinguish it from a request that will auto-approve.
+Turning it on lets Buddy handle the request before Codex's normal approval flow.
+Turning it off releases held Codex requests back to that flow. Approval cards
+prefer the supplied reason over a generic action category; stakes still inspect
+the command.

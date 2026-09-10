@@ -564,3 +564,10 @@ screen, nothing swarms, nothing spins.
    agent introduces itself, never ambiently.
 5. **Story-line length.** Forty characters assumed; the canvas and the
    Korean font decide.
+
+## Approval correction (2026-09-10)
+
+Codex approval cards require separate host opt-in; default native approval mode
+shows tool activity but does not synthesize needsYou from PermissionRequest.
+When a card is routed to Buddy, its gloss prefers the supplied approval reason,
+within the existing wire byte cap. No firmware or wire shape changes.

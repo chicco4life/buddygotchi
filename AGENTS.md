@@ -7,13 +7,14 @@ These instructions apply to the whole repo.
 - `plan/` is the active direction: `VISION.md`, `UX-DEVICE.md`,
   `ARCHITECTURE.md`, `VERIFICATION.md`, `PLAN.md`, `IDEAS.md`. Read
   `plan/PLAN.md` to find the current phase before starting work.
-- `archived/` is the previous generation of the product, moved whole: the
+- `archived/` is the previous generation of the product: the
   Swift macOS app (`archived/app/`), the ESP32 firmware
-  (`archived/firmware/esp32/`), the landing page, hardware, emails, docs,
+  (`archived/firmware/esp32/`), hardware, emails, docs,
   the Makefile, and the earlier research (`archived/research/`). It still
   builds and runs, and `plan/ARCHITECTURE.md` §10 says which parts carry
   forward. Do not extend it except to keep it building; new work lands
   outside `archived/` per the plan.
+- `landing/` is the restored Next.js landing page and Vercel project root.
 - `skills/doctor/` is the agent-agnostic harness self-check: `SKILL.md` plus
   the `doctor.sh` it drives, symlinked into `.claude`, `.codex`, and `.cursor`.
 

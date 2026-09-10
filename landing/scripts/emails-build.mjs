@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename } from "node:path";
 import process from "node:process";
 
-const emailsDir = new URL("../../emails/", import.meta.url);
+const emailsDir = new URL("../../archived/emails/", import.meta.url);
 const outFile = new URL("../src/lib/email-templates.ts", import.meta.url);
 const check = process.argv.includes("--check");
 

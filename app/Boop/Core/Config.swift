@@ -65,6 +65,14 @@ struct BuddyConfig: Sendable {
     }
 
     static func setApprovalMode(_ enabled: Bool) {
+        setApprovalPreference("approvalMode", enabled)
+    }
+
+    static func setCodexApprovalMode(_ enabled: Bool) {
+        setApprovalPreference("codexApprovalMode", enabled)
+    }
+
+    private static func setApprovalPreference(_ key: String, _ enabled: Bool) {
         let path = configPath
         let fm = FileManager.default
         var json: [String: Any] = [:]
@@ -72,7 +80,7 @@ struct BuddyConfig: Sendable {
            let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             json = parsed
         }
-        json["approvalMode"] = enabled
+        json[key] = enabled
         if json["token"] == nil { json["token"] = makeToken() }
         writeConfigJSON(json, to: path)
     }

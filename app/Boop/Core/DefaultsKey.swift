@@ -16,6 +16,7 @@ enum DefaultsKey {
     static let voiceRuntime = "voiceRuntime"
     static let agentDrawingsEnabled = "agentDrawingsEnabled"
     static let approvalMode = "approvalMode"
+    static let codexApprovalMode = "codexApprovalMode"
     static let buddyName = "buddyName"
     static let buddyOutput = "buddyOutput"
     static let buddySpecies = "buddySpecies"
