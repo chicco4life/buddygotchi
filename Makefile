@@ -48,3 +48,10 @@ lint:
 
 clean:
 	rm -rf app/.build .build
+
+.PHONY: webcam webcam-test
+webcam:
+	tools/webcam/webcam.sh $(ARGS)
+
+webcam-test:
+	python3 -m unittest discover -s tools/webcam/tests -v

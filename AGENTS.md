@@ -98,6 +98,17 @@ tools/buddyctl.py press a --ms 150 --json
 Use `tools/buddyctl.py ble status`, `ble set`, and `ble prompt --wait-decision`
 after the one-time OS pairing step to exercise the production BLE transport.
 
+## Webcam Motion Verification
+
+Webcam verification is **explicit opt-in only**. Use the `webcam-verify` skill
+at `skills/webcam-verify/SKILL.md` only when the user requests webcam verification
+and confirms the physical setup for that session. Do not activate it for general
+verification, animation changes, or merely because a camera/device is connected.
+An earlier setup is not standing authorization for future sessions. Once a session
+is set up, capture the requested bounded clips without re-asking per clip; stop
+when it is complete. Regular tests and screenshots remain independent of webcam
+setup. `make webcam-test` uses synthetic video and never opens a camera.
+
 ## Self-Diagnosis
 
 Before relying on hooks, run `skills/doctor/doctor.sh` from the repo root (skill:

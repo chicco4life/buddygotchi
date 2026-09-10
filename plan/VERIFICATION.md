@@ -39,6 +39,7 @@ Two constraints shape everything:
 | **Live harness** | This harness's own hooks reach Boop | `skills/doctor/doctor.sh` and `--confirm` | app running, agent in a harness | seconds |
 | **Device, USB** | Firmware parse, model, render, buttons, timing, hardening | `make hil` | device on USB, app quit | minutes |
 | **Visual, device** | The real screen, state by state and posture by posture | `buddyctl screenshot` and the contact sheet (§2.1) | device on USB | seconds each |
+| **Motion, webcam** | Physical display motion over time, with capture-quality limits | `make webcam`, [workflow](../tools/webcam/README.md) | Mac camera permission, Buddy facing lens; USB injection requires app quit | 3–60 second clips |
 | **Device, BLE** | The production transport, bonding, prompt round trip | `make hil-ble` | paired device | minutes |
 | **Soak** | Heap floors, reboot cycles, serial fuzz, watchdog | `test_hardening.py` with `BUDDY_SOAK_CYCLES` | device on USB | up to an hour |
 
@@ -91,6 +92,36 @@ What v1 needs on top:
 - **Outbound assertions.** `buddyctl listen` already prints device-to-host
   lines; HIL asserts `decision`, `collect`, `posture`, `battery` for each
   input.
+
+### 2.1.1 Webcam motion verification (2026-09-10)
+
+Implemented in `tools/webcam/`: native macOS video-only capture, explicit camera
+selection, bounded duration, and offline analysis of consecutive video frames.
+The [workflow](../tools/webcam/README.md) covers framing, USB and natural BLE
+scenarios, live presentation clocks, cropping, and review against `UX-DEVICE.md`
+§20. This layer is explicit opt-in only, via `webcam-verify` or an explicit webcam
+request plus physical setup confirmation for the current session. It is not a
+required step for ordinary animation changes and must not start automatically.
+Prior setup does not authorize future sessions; normal tests remain independent.
+
+Evidence consists of the original MOV and capture settings, a full-resolution framing preview, timestamped cropped
+sequence sheets retaining every frame in the selected interval, frame timestamps
+CSV, a capture-cadence report, and a reviewer-authored motion assessment. The
+report always starts **unreviewed**; clean timestamps do not automatically prove
+fluidity. Inspect the full motion and settling, record the usable frame rate and
+focus, and distinguish camera artifacts from firmware faults. If the agent can
+only inspect image sequences, disclose the absence of real-time playback.
+
+Human setup: point the Buddy screen at the camera and allow camera access once.
+Quit Boop only for injected USB scenarios. No microphone is captured, no device
+flash is required, and raw camera footage stays local by default. A fresh output
+directory is mandatory to prevent evidence replacement.
+
+`make webcam-test` exercises a synthetic moving-square video with a deliberate
+missing frame, temporal interval selection, consecutive-frame preservation,
+invalid inputs, and overwrite protection. Live camera/Buddy review is a separate gate. The first physical run is recorded
+in [the 2026-09-10 review](evidence/webcam/2026-09-10.md): capture and temporal
+review worked, with explicit limits on motion certification.
 
 ### 2.2 The Mac app
 

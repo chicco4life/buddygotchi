@@ -27,8 +27,8 @@ run and a human can accept from the evidence alone.
   used until the phase that replaces it lands.
 - **Sizes** are relative: S is a day or two of agent work, M a week, L two
   or more. They are for ordering, not scheduling.
-- **Human steps** are called out per phase. There are only two kinds:
-  launch the Boop app from a terminal, and plug in or pair the device.
+- **Human steps** are called out per phase. They include launching the Boop app from a terminal, plugging in or pairing
+  the device, and positioning it for optional webcam review with camera permission.
 
 Dependency order:
 
@@ -621,3 +621,20 @@ check. Snapshot parity and final suite results are recorded in the review.
 JSON fixture matches; 146/147 UI snapshots are byte-identical, with only a
 one-level RGB edge variation in 155 pixels of the Korean share card. The image
 pair was visually reviewed. Full results are in `ARCHITECTURE-REVIEW.md`.
+
+
+## Webcam verification mode, 2026-09-10
+
+Added a physical-motion layer beside Phase 0/2/6 screenshot verification:
+`make webcam` captures bounded video through native macOS APIs; offline analysis
+preserves consecutive frames, timestamps and capture-gap evidence. Procedures
+and limitations are in `VERIFICATION.md` §2.1.1 and `tools/webcam/README.md`.
+Synthetic-video tests cover the tool. A real Buddy recording was captured and
+450 consecutive frames reviewed for boop, hop and dance; see
+`evidence/webcam/2026-09-10.md` for results and camera-quality limits. This does not close existing hardware gates.
+
+
+**Opt-in preference (2026-09-10).** Webcam verification is a reusable
+`webcam-verify` skill with implicit invocation disabled. Live capture requires
+an explicit request and setup confirmation for that session; it is not part of
+ordinary verification or a standing authorization to use the camera.

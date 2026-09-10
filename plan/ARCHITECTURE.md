@@ -479,3 +479,16 @@ three projections. `BuddyState+Encoding.swift` preserves the established
 optionals as before. Prompt, effort tier, and greeting metadata remain stored
 because they carry information not recoverable from the creature projection.
 There is no database migration or device wire change.
+
+
+### Physical motion verification tooling (2026-09-10)
+
+`tools/webcam` is a standalone macOS verification utility outside the shipping
+app and firmware. AVFoundation records one explicitly selected camera without
+audio for at most 60 seconds. Offline decoding emits original frame timestamps
+and cropped consecutive-frame sheets for a bounded review interval. Capture
+cadence diagnostics are separate from the reviewer’s motion verdict; the utility
+never reports an automatic animation pass. It does not change the wire contract
+or own device control. Existing `buddyctl` commands drive optional USB scenarios
+with BLE writers absent and the presentation clock running. See
+`VERIFICATION.md` §2.1.1 for evidence and capture-quality requirements.

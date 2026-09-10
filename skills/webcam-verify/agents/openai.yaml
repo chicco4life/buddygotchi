@@ -1,0 +1,5 @@
+interface:
+  display_name: "Webcam Verification"
+  short_description: "Opt-in physical Buddy animation review"
+policy:
+  allow_implicit_invocation: false

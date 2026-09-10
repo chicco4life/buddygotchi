@@ -17,6 +17,11 @@ python3 -m py_compile tests/hil/test_usb.py
 
 See [firmware/esp32/README.md](firmware/esp32/README.md) for device controls and HIL.
 
+For physical animation verification using the laptop camera, run `make webcam
+ARGS='list'` from the repository root and follow the
+[webcam workflow](tools/webcam/README.md). `make webcam-test` checks the tooling
+without opening a camera.
+
 The rest of this file describes the archived implementation. Every command
 below runs from `archived/` unless it says otherwise.
 
