@@ -1,5 +1,9 @@
 # XP and skill tree
 
+## Settings policy revision — 2026-09-10
+
+Current owner direction supersedes cosmetic selection described below: the app uses a fixed default appearance with no accessory and no user customization. XP, growth and inventory history are retained.
+
 Status: implementation reference, 2026-09-10. Documents the current XP formula,
 level progression and independent appearance catalog. Numbers are implemented defaults, still
 subject to balance tuning. Companion to [UX-GROWTH.md](UX-GROWTH.md).

@@ -44,6 +44,7 @@ bool halPresentDue()        { return true; }    // M5 presents every loop
 void halFrameStats(uint32_t* avgUs, uint32_t* maxUs) { *avgUs = 0; *maxUs = 0; }
 bool halIsCharging()        { return StickCP2.Power.isCharging(); }
 void halSetLed(bool on)     { StickCP2.Power.setLed(on ? 1 : 0); }
+void halSilence() { StickCP2.Speaker.stop(); }
 void halTone(uint16_t freq, uint16_t ms) { StickCP2.Speaker.tone(freq, ms); }
 
 // The Plus2's MPU6886 isn't wired up here yet — the Pebble is the board

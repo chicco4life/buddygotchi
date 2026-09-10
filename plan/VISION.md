@@ -1,5 +1,9 @@
 # Boop Vision
 
+## Settings policy revision — 2026-09-10
+
+Settings stays in the background: automatic dialogue, fixed default appearance and sound volume, Quiet mode, and a simple local Report a bug export. Remove quick-command, cosmetic, volume, Voice, Reset and Retire controls.
+
 Status: v1 product vision, clean slate. Drafted 2026-09-07, revised same day.
 This document is the top of a stack. It says what Boop is, who it is for, and
 what it must feel like. Follow-on UI/UX documents (§19) refine each surface.
@@ -686,3 +690,12 @@ Each refines one surface of this vision. Suggested order:
 5. `UX-HELP.md`: come-back call, stuck detection, spend awareness, nudge
    ladder, teach moments, quick commands.
 6. `HARDWARE-V2.md`: form factor, mount, battery, board, cost.
+
+## Owner revision: quiet companion (2026-09-10)
+
+This supersedes earlier Focus behavior and desktop-mirror language in this file.
+The Mac is a background menu bar status/configuration app with no creature or
+startup window (UX-APP.md). Quiet mode replaces Focus: it disables all sounds and
+beeps, including high-stakes and error sounds, with no visual or behavioral change.
+The existing physical Focus gesture toggles Quiet mode. Visual nudge escalation
+continues normally. There are no scheduled Focus hours or visual Focus marker.

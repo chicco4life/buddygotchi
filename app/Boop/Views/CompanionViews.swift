@@ -40,27 +40,15 @@ struct ProfilePage: View {
     var lines: [ProfileLine]
     var delete: (Int) -> Void = { _ in }
     var clear: () -> Void = {}
+    var embedded = false
     @State private var confirming = false
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text(BuddyCopy.phase7("profile", language: language)).font(.headline)
             if lines.isEmpty { Text(BuddyCopy.phase7("emptyProfile", language: language)).foregroundStyle(BuddyTheme.inkSoft) }
-            List(lines, id: \.id) { line in
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(line.line).font(.body)
-                        Text(Date(timeIntervalSince1970: line.createdAt / 1000), style: .date)
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button(role: .destructive) { delete(line.id) } label: {
-                        Image(systemName: "trash")
-                    }.buttonStyle(.plain)
-                        .accessibilityLabel(BuddyCopy.phase7("delete", language: language))
-                }.padding(.vertical, 4)
-            }.listStyle(.plain)
+            if embedded { profileRows } else { List { profileRows }.listStyle(.plain) }
             Button(BuddyCopy.phase7("clear", language: language), role: .destructive) { confirming = true }.disabled(lines.isEmpty)
-        }.padding(28).foregroundStyle(BuddyTheme.ink).background(BuddyTheme.windowBackground)
+        }.padding(embedded ? 0 : 28).foregroundStyle(BuddyTheme.ink).background(embedded ? Color.clear : BuddyTheme.windowBackground)
         .sheet(isPresented: $confirming) {
             VStack(spacing: 20) {
                 Text(BuddyCopy.phase7("clearMessage", language: language))
@@ -68,14 +56,32 @@ struct ProfilePage: View {
             }.padding(28).frame(width: 340)
         }
     }
+    private var profileRows: some View {
+        ForEach(lines, id: \.id) { line in
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(line.line).font(.body)
+                    Text(Date(timeIntervalSince1970: line.createdAt / 1000), style: .date)
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button(role: .destructive) { delete(line.id) } label: {
+                    Image(systemName: "trash")
+                }.buttonStyle(.plain)
+                    .accessibilityLabel(BuddyCopy.phase7("delete", language: language))
+            }.padding(.vertical, 4)
+        }
+    }
+
 }
 
 struct ProfileWindowView: View {
     let engine: BuddyEngine
+    var embedded = false
     @State private var lines: [ProfileLine] = []
     @State private var error = false
     var body: some View {
-        ProfilePage(language: engine.state.language, lines: lines, delete: { id in update { try await engine.clearProfile(id: id) } }, clear: { update { try await engine.clearProfile() } })
+        ProfilePage(language: engine.state.language, lines: lines, delete: { id in update { try await engine.clearProfile(id: id) } }, clear: { update { try await engine.clearProfile() } }, embedded: embedded)
             .task { do { lines = try await engine.profileLines() } catch { self.error = true } }
             .alert(BuddyCopy.phase7("error", language: engine.state.language), isPresented: $error) { Button(BuddyCopy.phase7("continue", language: engine.state.language)) {} }
     }

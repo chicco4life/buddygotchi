@@ -7,6 +7,19 @@ builds and runs: the Swift macOS menu bar app, the ESP32 firmware, the
 landing page, hardware files, and earlier research. Start with
 [plan/VISION.md](plan/VISION.md) and [plan/PLAN.md](plan/PLAN.md).
 
+The active Mac app is a quiet menu bar companion: click its icon for status,
+XP, activity and settings. It opens no window at launch. Quiet mode mutes Buddy's
+sounds without changing its screen behavior. From the repository root:
+
+```sh
+make build
+make test
+make run
+```
+
+The GUI should be launched by the user. See [plan/UX-APP.md](plan/UX-APP.md)
+for the current desktop experience.
+
 The v2 Waveshare firmware builds from the active tree:
 
 ```sh

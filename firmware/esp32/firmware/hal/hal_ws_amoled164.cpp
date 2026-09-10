@@ -411,6 +411,7 @@ bool halIsCharging() {
 }
 
 void halSetLed(bool on) { (void)on; }
+void halSilence() {}
 void halTone(uint16_t freq, uint16_t ms) { (void)freq; (void)ms; }
 
 bool halTouchReady() { return _touchOk; }

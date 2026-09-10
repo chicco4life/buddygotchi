@@ -75,28 +75,29 @@ final class StoreTests: XCTestCase {
         traits = try await store.traits()
         XCTAssertEqual(traits["energy"],255); XCTAssertEqual(traits["cheek"],0); XCTAssertEqual(traits["bond"],255)
     }
-    func testAllCosmeticsAvailableWithoutXPAndEquipSurvivesReopen() async throws {
+    func testFixedAppearanceIgnoresLegacyChoicesAndPreservesGrowth() async throws {
         let (store, dir, cleanup) = try makeStore()
         defer { cleanup() }
         let initialInventory = try await store.inventory()
         XCTAssertEqual(initialInventory.count, CompanionOption.catalog.count)
-        // Even the former level-30 cosmetics work before the first growth read.
-        try await store.equip(EquippedCosmetic(skin:"midnight", accessory:"crown", silhouette:"tall"))
+        let db = try Database(path: dir.path + "/boop.sqlite")
+        try db.run("INSERT OR REPLACE INTO meta VALUES('equipped', ?)", [String(decoding: JSONEncoder().encode(EquippedCosmetic(skin: "midnight", accessory: "crown", silhouette: "tall")), as: UTF8.self)])
+        do { try await store.equip(EquippedCosmetic(skin: "mint")); XCTFail("custom appearance accepted") } catch {}
         let fresh = try await store.growth(localDay:"2026-01-01",at:0)
         XCTAssertEqual(fresh.xp, 0)
         XCTAssertEqual(fresh.level, 1)
         do { try await store.equip(EquippedCosmetic(skin:"not-a-skin")); XCTFail("unknown cosmetic accepted") } catch {}
         let preserved = try await store.cosmetic()
-        XCTAssertEqual(preserved.skin, "midnight")
+        XCTAssertEqual(preserved, EquippedCosmetic())
         let lowLevelReopened = try Store(stateDir:dir.path,now:0)
         let lowLevelAppearance = try await lowLevelReopened.cosmetic()
-        XCTAssertEqual(lowLevelAppearance, EquippedCosmetic(skin:"midnight", accessory:"crown", silhouette:"tall"))
+        XCTAssertEqual(lowLevelAppearance, EquippedCosmetic())
         let reopenedInventory = try await lowLevelReopened.inventory()
         XCTAssertEqual(reopenedInventory.map { "\($0.kind):\($0.name)" }, initialInventory.map { "\($0.kind):\($0.name)" })
         _ = try await store.award([LedgerRow(at:0,source:.task,amount:150,day:"2026-01-01")],active:false,at:0,localDay:"2026-01-01")
-        try await store.equip(EquippedCosmetic(skin:"mint"))
+        try await store.equip(EquippedCosmetic())
         let reopened = try Store(stateDir:dir.path,now:0)
-        let cosmetic = try await reopened.cosmetic(); XCTAssertEqual(cosmetic.skin,"mint")
+        let cosmetic = try await reopened.cosmetic(); XCTAssertEqual(cosmetic, EquippedCosmetic())
         let growth = try await reopened.growth(localDay:"2026-01-01",at:0); XCTAssertEqual(growth.level,5)
         var formula = GrowthFormula(); formula.task = 16
         let reread = try await reopened.growth(localDay:"2026-01-01",at:0,formula:formula)

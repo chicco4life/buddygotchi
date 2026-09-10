@@ -120,7 +120,6 @@ struct CreatureView: View {
             var crown = Path(); crown.move(to: CGPoint(x: 103, y: body.minY)); for p in [CGPoint(x: 100, y: body.minY - 18), CGPoint(x: 112, y: body.minY - 10), CGPoint(x: 120, y: body.minY - 24), CGPoint(x: 128, y: body.minY - 10), CGPoint(x: 140, y: body.minY - 18), CGPoint(x: 137, y: body.minY)] { crown.addLine(to: p) }; crown.closeSubpath(); context.fill(crown, with: .color(.orange))
         default: break
         }
-        if creature.focus { context.draw(moon, at: CGPoint(x: 220, y: 20)) }
         if creature.dots > 4 { context.draw(more, at: CGPoint(x: 148, y: 187)) }
         for i in 0..<min(4, creature.dots) { context.fill(Path(ellipseIn: CGRect(x: 103 + i * 10, y: 185, width: 4, height: 4)), with: .color(creature.dotAlert == i ? .red : tint)) }
     }

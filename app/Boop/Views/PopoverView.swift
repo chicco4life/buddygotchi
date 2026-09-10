@@ -1,10 +1,9 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-enum ControlPane: String, CaseIterable { case overview, activity, settings }
+enum ControlPane: String, CaseIterable { case overview, activity, settings, setup }
 @Observable final class ControlNavigation {
     var pane: ControlPane = .overview
-    var settingsCategory: SettingsSection = .device
 }
 
 /// The shared control-center surface, also rendered by the snapshot harness.
@@ -14,16 +13,12 @@ struct PopoverView: View {
     var serverHealth: ServerHealth? = nil
     var onUserInteraction: (() -> Void)? = nil
     var onOpenOnboarding: () -> Void = {}
+    var onClose: () -> Void = {}
     var navigation: ControlNavigation = ControlNavigation()
-    private var settings: SettingsSection {
-        get { navigation.settingsCategory }
-        nonmutating set { navigation.settingsCategory = newValue }
-    }
     @State private var showingLeaderboard = false
     @State private var showingShelf = false
     @State private var history: [XPActivity] = []
     @State private var historyError = false
-    @State private var appearanceError = false
     private var growth: GrowthSnapshot { engine.state.growth }
     private func copy(_ en: String, _ ko: String) -> String { engine.state.language == "ko" ? ko : en }
     private func title(_ pane: ControlPane) -> String {
@@ -31,111 +26,141 @@ struct PopoverView: View {
         case .overview: copy("Overview", "개요")
         case .activity: copy("Activity", "활동")
         case .settings: copy("Settings", "설정")
+        case .setup: copy("Set up Buddy", "Buddy 설정")
         }
     }
     var body: some View {
-        HStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(BuddyCopy.shared.common.appName).font(.title2.weight(.semibold)).padding(.bottom, 24)
-                ForEach(ControlPane.allCases, id: \.self) { pane in
-                    Button { navigation.pane = pane } label: {
-                        Label(title(pane), systemImage: pane == .overview ? "square.grid.2x2" : pane == .activity ? "clock" : "gearshape")
-                            .frame(maxWidth: .infinity, alignment: .leading).padding(10)
-                            .background(navigation.pane == pane ? Color.accentColor.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 8))
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                if navigation.pane != .overview {
+                    Button { navigation.pane = .overview } label: {
+                        Label(copy("Back", "뒤로"), systemImage: "chevron.left")
                     }.buttonStyle(.plain)
-                    .accessibilityAddTraits(navigation.pane == pane ? .isSelected : [])
                 }
+                Text(navigation.pane == .overview ? engine.displayName : title(navigation.pane)).font(.headline)
                 Spacer()
-                Text(engine.displayName).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                Text(copy("Device companion", "기기 제어 센터")).font(.caption2).foregroundStyle(.tertiary)
-            }.padding(18).frame(width: 170).background(.regularMaterial)
+                if navigation.pane == .overview {
+                    Text(copy("Level \(growth.level)", "레벨 \(growth.level)")).foregroundStyle(.secondary)
+                }
+            }.padding(18)
+            if navigation.pane == .overview {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(statusTitle).font(.headline)
+                    Text(statusDetail).font(.caption).foregroundStyle(.secondary)
+                }.padding(.horizontal, 18).padding(.bottom, 14)
+            }
+            if navigation.pane == .overview, let card = engine.state.creature.card {
+                if let prompt = engine.state.prompt, prompt.id == card.id {
+                    Text([prompt.source.flatMap { AgentKind(rawValue: $0)?.displayName } ?? prompt.source, prompt.sessionLabel].compactMap { $0 }.joined(separator: " · "))
+                        .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 32)
+                }
+                NeedsYouCard(language: engine.state.language, card: card,
+                    approve: { engine.resolveApproval(requestId: card.id, decision: .allow) },
+                    deny: { engine.resolveApproval(requestId: card.id, decision: .deny) })
+                    .padding(.horizontal, 18).padding(.bottom, 12)
+            }
+            switch navigation.pane {
+            case .overview: ScrollView { overview.padding(.horizontal, 18).padding(.bottom, 12) }
+            case .activity: ScrollView { activity.padding(18) }
+            case .settings: settingsPane
+            case .setup:
+                OnboardingView(defaults: engine.preferences, engine: engine, esp32Output: esp32Output, compact: true) {
+                    engine.refreshSettings()
+                    navigation.pane = .overview
+                }
+
+            }
             Divider()
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    Text(title(navigation.pane)).font(.title2.weight(.semibold))
+            HStack {
+                if navigation.pane == .overview {
+                    Button(copy("Activity", "활동")) { navigation.pane = .activity }
                     Spacer()
-                    if navigation.pane == .overview {
-                        Toggle(BuddyCopy.phase7("focus", language: engine.state.language), isOn: Binding(
-                            get: { engine.state.creature.focus }, set: { engine.focusToggled(on: $0) }))
-                            .toggleStyle(.switch).controlSize(.small).fixedSize()
-                    }
-                }.padding(24)
-                if let card = engine.state.creature.card {
-                    NeedsYouCard(language: engine.state.language, card: card,
-                        approve: { engine.resolveApproval(requestId: card.id, decision: .allow) },
-                        deny: { engine.resolveApproval(requestId: card.id, decision: .deny) })
-                        .padding(.horizontal, 24).padding(.bottom, 12)
-                }
-                if !engine.boolSetting(DefaultsKey.setupCompleted) {
-                    HStack {
-                        Text(copy("Finish connecting your Buddy.", "Buddy 연결을 완료하세요."))
-                        Spacer()
-                        Button(copy("Set up", "설정 시작"), action: onOpenOnboarding)
-                    }.padding(.horizontal, 24).padding(.bottom, 12)
-                }
-                switch navigation.pane {
-                case .overview: ScrollView { overview.padding(24).padding(.top, -12) }
-                case .activity: ScrollView { activity.padding(24).padding(.top, -12) }
-                case .settings: settingsPane
-                }
-            }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    Button(copy("Settings", "설정")) { navigation.pane = .settings }
+                } else { Spacer() }
+                Menu {
+                    Button(copy("Quit Boop", "Boop 종료")) { NSApp.terminate(nil) }
+                } label: { Image(systemName: "ellipsis") }.menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+            }.buttonStyle(.plain).padding(14)
         }
-        .frame(width: 760, height: 620)
+        .frame(width: 360, height: navigation.pane == .overview ? overviewHeight : 560)
         .background(Color(nsColor: .windowBackgroundColor))
+        .onExitCommand(perform: onClose)
         .onHover { if $0 { onUserInteraction?() } }
         .sheet(isPresented: $showingLeaderboard) { LeaderboardSheet(engine: engine) }
         .sheet(isPresented: $showingShelf) { KeepsakeShelfView(engine: engine, isPresented: $showingShelf) }
-        .alert(copy("Could not change appearance", "외형을 변경하지 못했습니다"), isPresented: $appearanceError) {
-            Button(copy("OK", "확인")) {}
-        }
+    }
+    private var overviewHeight: CGFloat {
+        // Grow for up to ten sessions; keep every row in the existing scroll view.
+        let extraRows = max(0, min(engine.state.activeSessions.count, 10) - 3)
+        let desired = CGFloat(engine.state.creature.card == nil ? 450 : 590) + CGFloat(extraRows) * 42
+        let available = (NSScreen.main?.visibleFrame.height ?? 900) - 40
+        return min(desired, max(450, available))
     }
     private var overview: some View {
-        VStack(alignment: .leading, spacing: 26) {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(alignment: .firstTextBaseline) {
-                    Text(copy("Level \(growth.level)", "레벨 \(growth.level)")).font(.system(size: 32, weight: .semibold, design: .rounded))
-                    Spacer()
-                    Text("\(growth.xp.formatted()) XP").font(.title3.monospacedDigit()).foregroundStyle(.secondary)
-                }
-                ProgressView(value: growth.levelProgress).tint(.accentColor)
-                HStack {
-                    Text(copy("+\(growth.today) XP today", "오늘 +\(growth.today) XP"))
-                    Spacer()
-                    Text(copy("\(max(0, growth.levelTargetXP - growth.xp)) to Level \(growth.level + 1)", "레벨 \(growth.level + 1)까지 \(max(0, growth.levelTargetXP - growth.xp)) XP"))
-                }.font(.caption).foregroundStyle(.secondary)
-            }.padding(20).background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 12))
-            VStack(alignment: .leading, spacing: 14) {
-                Text(copy("Device", "기기")).font(.headline)
-                HStack {
-                    Text(engine.displayName)
-                    Spacer()
-                    HStack(spacing: 6) {
-                        Circle().fill(esp32Output.connectionState == .connected ? Color.green : .secondary).frame(width: 6, height: 6)
-                        Text(BuddyCopy.phase7("device-" + esp32Output.connectionState.rawValue, language: engine.state.language))
-                    }
-                }
-                if esp32Output.connectionState == .connected, let battery = engine.state.deviceBattery {
-                    HStack { Text(copy("Battery", "배터리")); Spacer(); Text("\(battery.pct)%" + (battery.charging ? copy(" · Charging", " · 충전 중") : "")).foregroundStyle(.secondary) }
-                } else {
-                    HStack { Text(copy("Battery", "배터리")); Spacer(); Text(copy("Unavailable", "확인할 수 없음")).foregroundStyle(.secondary) }
-                }
-                Button(copy("Manage device", "기기 관리")) { settings = .device; navigation.pane = .settings }
-                    .buttonStyle(.link)
-            }.font(.callout)
-            Divider()
-            VStack(alignment: .leading, spacing: 14) {
-                Text(copy("Agents", "에이전트")).font(.headline)
-                if engine.state.activeSessions.isEmpty {
-                    Text(copy("No active sessions", "활성 세션 없음")).foregroundStyle(.secondary)
-                } else {
-                    ActivityList(rows: engine.state.activeSessions.map { ActivityRow(session: $0, state: engine.state) }, maxRows: engine.state.activeSessions.count)
-                }
-                Button(copy("View activity", "활동 보기")) { navigation.pane = .activity }.buttonStyle(.link)
+        VStack(alignment: .leading, spacing: 14) {
+            if !engine.boolSetting(DefaultsKey.setupCompleted) {
+                Button(copy("Set up Buddy", "Buddy 설정")) { navigation.pane = .setup }.buttonStyle(.link)
             }
+            Divider()
+            HStack {
+                Text(copy("Progress to level \(growth.level + 1)", "레벨 \(growth.level + 1)까지"))
+                Spacer()
+                Text("\(growth.xp - growth.levelStartXP) / \(growth.levelTargetXP - growth.levelStartXP) XP").font(.caption).foregroundStyle(.secondary)
+            }
+            ProgressView(value: growth.levelProgress).tint(.secondary)
+            Text(copy("\(growth.xp.formatted()) total XP · \(max(0, growth.levelTargetXP - growth.xp)) to next level", "총 \(growth.xp.formatted()) XP · 다음 레벨까지 \(max(0, growth.levelTargetXP - growth.xp)) XP"))
+                .font(.caption).foregroundStyle(.secondary)
+            HStack {
+                metric(copy("XP today", "오늘 XP"), growth.today)
+                Spacer()
+                metric(copy("Tasks total", "총 작업"), growth.tasks)
+                Spacer()
+                metric(copy("Day streak", "연속 활동일"), growth.streak)
+            }
+            Divider()
+            Text(copy("Sessions", "세션")).font(.caption).foregroundStyle(.secondary)
+            if engine.state.activeSessions.isEmpty {
+                Text(copy("No agents awake", "활성 에이전트 없음")).foregroundStyle(.secondary)
+            } else {
+                ActivityList(rows: engine.state.activeSessions.map { ActivityRow(session: $0, state: engine.state) }, maxRows: engine.state.activeSessions.count)
+            }
+            Divider()
+            HStack {
+                Text(copy("Device", "기기"))
+                Spacer()
+                Text(BuddyCopy.phase7("device-" + esp32Output.connectionState.rawValue, language: engine.state.language)).foregroundStyle(.secondary)
+                if esp32Output.connectionState == .connected, let battery = engine.state.deviceBattery {
+                    Text("\(battery.pct)%" + (battery.charging ? " ⚡" : "")).foregroundStyle(.secondary)
+                }
+            }.font(.callout)
+        }
+    }
+    private var statusTitle: String {
+        switch engine.state.creature.state {
+        case .working: copy("Working", "작업 중")
+        case .idle: copy("Idle", "대기 중")
+        case .asleep: copy("Sleeping", "자는 중")
+        case .needsYou: copy("Needs you", "확인 필요")
+        case .done: copy("Done", "완료")
+        case .uhoh: copy("Needs attention", "문제 확인 필요")
+        }
+    }
+    private var statusDetail: String {
+        switch engine.state.creature.state {
+        case .working: copy("Your agents are making progress.", "에이전트가 작업 중입니다.")
+        case .idle: copy("Ready when you are.", "준비되어 있습니다.")
+        case .asleep: copy("No work in progress.", "진행 중인 작업이 없습니다.")
+        case .needsYou: copy("An agent is waiting for your decision.", "에이전트가 결정을 기다립니다.")
+        case .done: copy("Your agent finished its work.", "에이전트가 작업을 완료했습니다.")
+        case .uhoh: copy("Open your agent to review the issue.", "에이전트에서 문제를 확인하세요.")
         }
     }
     private var activity: some View {
         VStack(alignment: .leading, spacing: 20) {
+            if !engine.state.activeSessions.isEmpty {
+                ActivityList(rows: engine.state.activeSessions.map { ActivityRow(session: $0, state: engine.state) }, maxRows: engine.state.activeSessions.count)
+                Divider()
+            }
             Grid(alignment: .leading, horizontalSpacing: 44, verticalSpacing: 18) {
                 GridRow { metric(copy("Tasks completed", "완료한 작업"), growth.tasks); metric(copy("Days together", "함께한 날"), growth.daysTogether) }
                 GridRow { metric(copy("Current streak", "현재 연속 활동일"), growth.streak); metric(copy("Best streak", "최장 연속 활동일"), growth.bestStreak) }
@@ -211,39 +236,8 @@ struct PopoverView: View {
         }
     }
     private var settingsPane: some View {
-        VStack(spacing: 0) {
-            Picker(copy("Category", "카테고리"), selection: Binding(get: { settings }, set: { settings = $0 })) {
-                Text(copy("Device", "기기")).tag(SettingsSection.device)
-                Text(copy("Agents", "에이전트")).tag(SettingsSection.agents)
-                Text(copy("Appearance", "외형")).tag(SettingsSection.displays)
-                Text(copy("General", "일반")).tag(SettingsSection.buddy)
-                Text(copy("Focus", "집중")).tag(SettingsSection.focus)
-                Text(copy("Advanced", "고급")).tag(SettingsSection.advanced)
-            }.pickerStyle(.menu).padding(.horizontal, 24).padding(.bottom, 8)
-            if settings == .displays {
-                Form {
-                    Section {
-                        cosmeticPicker("skin", label: copy("Color", "색상"))
-                        cosmeticPicker("accessory", label: copy("Accessory", "액세서리"))
-                        cosmeticPicker("silhouette", label: copy("Silhouette", "실루엣"))
-                    } footer: { Text(copy("All appearances are available. XP unlocks nothing.", "모든 외형을 사용할 수 있습니다. XP는 잠금 해제에 사용되지 않습니다.")) }
-                }.formStyle(.grouped)
-            } else {
-                SettingsSectionView(isPresented: .constant(true), engine: engine, esp32Output: esp32Output,
-                    serverHealth: serverHealth, onOpenOnboarding: onOpenOnboarding, section: settings).id(settings)
-            }
-        }
-    }
-    private func cosmeticPicker(_ kind: String, label: String) -> some View {
-        Picker(label, selection: Binding(get: {
-            switch kind { case "skin": engine.state.cosmetic.skin; case "accessory": engine.state.cosmetic.accessory; default: engine.state.cosmetic.silhouette }
-        }, set: { value in
-            var selected = engine.state.cosmetic
-            switch kind { case "skin": selected.skin = value; case "accessory": selected.accessory = value; default: selected.silhouette = value }
-            Task { do { try await engine.equip(selected) } catch { appearanceError = true } }
-        })) {
-            ForEach(CompanionOption.catalog.filter { $0.kind == kind }, id: \.name) { Text($0.name.capitalized).tag($0.name) }
-        }
+        SettingsSectionView(isPresented: .constant(true), engine: engine, esp32Output: esp32Output,
+            serverHealth: serverHealth, onOpenOnboarding: onOpenOnboarding, section: .all)
     }
 }
 
@@ -378,6 +372,7 @@ struct ActivityRow: Identifiable {
     let id: String
     let tone: Color
     let agent: String
+    let project: String?
     let status: String
     let detail: String?
     let trailing: String?
@@ -385,6 +380,7 @@ struct ActivityRow: Identifiable {
     init(session: SessionSnapshot, state: BuddyState) {
         id = session.id
         tone = ActivityRow.tone(for: session.state)
+        project = session.sessionLabel
         agent = AgentKind(rawValue: session.source)?.displayName ?? session.source
         status = ActivityRow.label(for: session.state, language: state.language)
         detail = [session.currentTool, session.moment.map { BuddyCopy.phase7($0.kind.rawValue, language: state.language) } ?? session.cheer.map { BuddyCopy.phase7($0.rawValue, language: state.language) }]
@@ -400,6 +396,7 @@ struct ActivityRow: Identifiable {
     /// `lastCompleted` on the next prompt or work signal, so this ages out.
     init(completed: CompletedTask, id: String = "completed") {
         self.id = id
+        project = nil
         tone = BuddyTheme.greenInk
         agent = AgentKind(rawValue: completed.source ?? "")?.displayName ?? (completed.source ?? BuddyCopy.shared.popover.task)
         status = BuddyCopy.shared.popover.doneLabel
@@ -456,7 +453,12 @@ struct ActivityList: View {
             ForEach(rows.prefix(maxRows)) { row in
                 HStack(spacing: 6) {
                     Image(systemName: "terminal").foregroundStyle(.secondary)
-                    Text(row.agent).lineLimit(1)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(row.agent).lineLimit(1)
+                        if let project = row.project, !project.isEmpty {
+                            Text(project).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                        }
+                    }
                     Spacer(minLength: 4)
                     Text(row.status).foregroundStyle(.secondary)
                 }.font(.callout).accessibilityElement(children: .combine)

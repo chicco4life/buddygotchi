@@ -1,5 +1,9 @@
 # UX: The Device
 
+## Settings policy revision — 2026-09-10
+
+The companion app selects default appearance and volume step 1 automatically. Quiet mode mutes audio only. Legacy quick gestures have no host action; Settings exposes no retirement action.
+
 Status: second draft, 2026-09-08. Refines `VISION.md` for the physical buddy.
 Hardware is not decided, so this is written against a face canvas and an
 input inventory, not a board.
@@ -571,3 +575,12 @@ screen, nothing swarms, nothing spins.
    agent introduces itself, never ambiently.
 5. **Story-line length.** Forty characters assumed; the canvas and the
    Korean font decide.
+
+## Owner revision: quiet companion (2026-09-10)
+
+This supersedes earlier Focus behavior and desktop-mirror language in this file.
+The Mac is a background menu bar status/configuration app with no creature or
+startup window (UX-APP.md). Quiet mode replaces Focus: it disables all sounds and
+beeps, including high-stakes and error sounds, with no visual or behavioral change.
+The existing physical Focus gesture toggles Quiet mode. Visual nudge escalation
+continues normally. There are no scheduled Focus hours or visual Focus marker.

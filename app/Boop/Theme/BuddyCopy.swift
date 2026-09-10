@@ -399,7 +399,7 @@ extension BuddyCopy {
             "firstEver": ("First one", "첫 번째"), "backAfterAbsence": ("Welcome back", "돌아왔네요"),
             "sameFileAgain": ("One more little change", "작은 수정 하나 더"), "lateNight": ("A quiet night", "조용한 밤"), "nthRateLimit": ("Waiting for a refill", "충전을 기다리는 중"),
             "fine": ("Fine", "괜찮아요"), "checkIt": ("Check it", "확인해 주세요"), "careful": ("Careful", "주의해 주세요"),
-            "focus": ("Focus", "집중"), "collect": ("Collect", "받기"), "recap": ("Show today's recap", "오늘의 요약 보기"), "turns": ("Turns", "대화"), "tasks": ("Tasks", "작업"), "biggest": ("Biggest moment", "가장 큰 순간"),
+            "quietMode": ("Quiet mode", "무음 모드"), "quietModeDescription": ("Turn off Buddy’s sounds. Screen behavior stays the same.", "Buddy 소리를 끕니다. 화면 동작은 그대로 유지됩니다."), "focus": ("General", "일반"), "collect": ("Collect", "받기"), "recap": ("Show today's recap", "오늘의 요약 보기"), "turns": ("Turns", "대화"), "tasks": ("Tasks", "작업"), "biggest": ("Biggest moment", "가장 큰 순간"),
             "profile": ("What your buddy knows", "버디가 알고 있는 것"), "emptyProfile": ("Still getting to know you.", "아직 알아가는 중이에요."),
             "clear": ("Forget everything", "모두 잊기"), "delete": ("Delete", "삭제"), "clearMessage": ("Your buddy’s name, level, and bond are kept. Only these profile lines are cleared.", "버디의 이름, 레벨, 유대감은 유지돼요. 이 프로필 내용만 지워져요."),
             "english": ("English", "English"), "korean": ("한국어", "한국어"),

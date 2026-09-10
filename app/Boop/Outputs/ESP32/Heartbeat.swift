@@ -106,7 +106,7 @@ func renderState(from state: BuddyState, defaults: UserDefaults = .standard, now
     var frame = RenderState(state: c.state, effort: c.effort, cheer: c.cheer, uhoh: c.uhoh,
         overlay: c.overlay, greetLevel: c.greetLevel, dots: c.dots, dotAlert: c.dotAlert,
         bubble: c.bubble, gift: c.gift, giftLine: c.giftLine, focus: c.focus,
-        mute: SoundSettings.volume(defaults: defaults),
+        mute: c.focus ? 0 : SoundSettings.volume(defaults: defaults),
         t: Int(now))
     if c.state == .needsYou, let card = c.card {
         frame.card = .needsYou(id: card.id, tool: card.tool, gloss: card.gloss,
