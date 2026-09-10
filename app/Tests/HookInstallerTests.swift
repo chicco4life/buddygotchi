@@ -4,6 +4,16 @@ import XCTest
 
 @MainActor
 final class HookInstallerTests: XCTestCase {
+    func testCodexRegistersSessionEnd() throws {
+        let harness = try makeHarness()
+        defer { harness.cleanup() }
+        try harness.installer.installOrThrow(agent: .codex)
+        let settings = try readJSON(harness.home.appendingPathComponent(".codex/hooks.json"))
+        let hooks = try XCTUnwrap(settings["hooks"] as? [String: Any])
+        XCTAssertNotNil(hooks["SessionEnd"])
+        XCTAssertEqual(harness.installer.verify(agent: .codex), .installed)
+    }
+
     func testUnreadableClaudeSettingsIsNotOverwritten() throws {
         let harness = try makeHarness()
         defer { harness.cleanup() }

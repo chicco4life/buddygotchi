@@ -699,3 +699,14 @@ succeeded (350 packages). `npm run build` passed, including lint, TypeScript,
 page generation and build traces, using local Node 26.5.0 and locked Next.js
 15.5.20. Vercel uses Node 24.x; its production build remains to be verified
 after the user-authorized merge and push to main.
+
+## Hook integration correction (2026-09-10)
+
+Phase 9 audit: hook v8 separates Codex approval ownership from the global switch,
+repairs capped-payload alias and call-ID loss, registers Codex SessionEnd, and
+uses approval reasons on cards without using them for safety classification.
+See HOOK-REVIEW.md and VERIFICATION.md for evidence and remaining live gates.
+
+Hook correction validation: 452 tests passed, zero skipped; the new advanced
+settings control was reviewed in an offscreen render. Live installation awaits
+the owner launching the rebuilt GUI.

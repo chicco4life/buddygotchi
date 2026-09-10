@@ -78,9 +78,9 @@ Events subscribed, mapped to one internal vocabulary:
 | --- | --- | --- | --- |
 | session start / end | SessionStart, SessionEnd | SessionStart, SessionEnd | sessionStart, sessionEnd |
 | turn start | UserPromptSubmit | UserPromptSubmit | beforeSubmitPrompt |
-| tool call | PreToolUse | PreToolUse | preToolUse, beforeShellExecution, beforeMCPExecution |
-| tool result | PostToolUse, PostToolUseFailure | PostToolUse | afterShellExecution, postToolUse, postToolUseFailure, afterFileEdit |
-| needs you | PermissionRequest, Notification | PermissionRequest | before* hooks with a decision, stop needing input |
+| tool call | PreToolUse | PreToolUse | beforeShellExecution, beforeMCPExecution, afterFileEdit |
+| tool result | PostToolUse, PostToolUseFailure | PostToolUse | afterShellExecution, afterMCPExecution, postToolUseFailure |
+| needs you | PermissionRequest, Notification | PermissionRequest (separate opt-in) | No authoritative waiting event; before* hooks are activity only |
 | turn end | Stop, StopFailure | Stop | stop, afterAgentResponse |
 
 The script forwards: event, session id, cwd, tool name, full tool input,
@@ -533,3 +533,20 @@ later; the wrapper rejects a running GUI. Firmware setup requires a restoration
 script. No simulator or wire change. See `tools/dev/README.md` for limits.
 Headless startup uses a state-directory instance lock and bypasses the GUI
 bundle-instance check; the normal GUI retains its machine-wide singleton guard.
+
+## Hook approval correction (2026-09-10)
+
+Hook v8 leaves Codex PermissionRequest to its native approval flow by default,
+even when the global Boop approval mode is enabled. Both `approvalMode` and
+`codexApprovalMode` must be true to hold a Codex request. Missing opt-in means
+no HTTP post and no passive waiting card: this event precedes the native flow
+and does not prove the automatic reviewer needs a human. Ordinary activity
+continues through PreToolUse and PostToolUse. There is no authoritative hook
+for a later native Codex reviewer escalation, so native-mode approval waiting
+is not mirrored. Claude Code retains its existing PermissionRequest routing;
+Cursor before-execution events remain nonblocking activity.
+
+The transport retains event aliases, call IDs, error classes and input aliases
+through output capping. Codex now registers SessionEnd. Approval descriptions
+are transient card text (200 UTF-8 bytes before existing device caps); stakes
+and auto-approval classify the actual operation independently of that text.

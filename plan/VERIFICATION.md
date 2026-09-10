@@ -864,3 +864,20 @@ Review the recorded setup, scenario and restoration outcomes; a restoration
 failure requires recovery. Tooling checks: `python3 -m unittest discover -s
 tools/dev/tests -v`. Physical validation remains separate and requires a device;
 these tooling tests never touch hardware. The live-hook doctor is exclusive.
+
+## Hook integration correction (2026-09-10)
+
+Regression checks execute the generated shell script with a scratch config and
+HTTP stub: a global approval switch alone cannot intercept Codex, explicit
+Codex opt-in can route requests, Claude routing remains available, and ordinary
+Codex activity still forwards. Payload tests cover aliases, call IDs, error
+class and approval descriptions separate from destructive-command stakes.
+Live Codex doctor against the owner's running app: 8 passed, 0 failed, 0 warnings;
+live confirmation passed. Installed script was v7, before these changes.
+Claude configuration inspected; live Claude confirmation not performed here.
+Cursor has no user hooks file on this machine; live Cursor verification remains
+required. Test results and install status are recorded in HOOK-REVIEW.md.
+
+Validation: `make test` passed 452 tests with zero skips; advanced-settings
+snapshot rendered and visually reviewed. Full log: `/tmp/boop-hook-review-tests.log`.
+Final `make build` passed for Boop and BoopSignal outside the cache-restricted sandbox.
