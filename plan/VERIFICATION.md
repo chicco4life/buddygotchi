@@ -864,3 +864,14 @@ Review the recorded setup, scenario and restoration outcomes; a restoration
 failure requires recovery. Tooling checks: `python3 -m unittest discover -s
 tools/dev/tests -v`. Physical validation remains separate and requires a device;
 these tooling tests never touch hardware. The live-hook doctor is exclusive.
+
+## Landing deployment checks (2026-09-10)
+
+From `landing/`, use Node 24 (`nvm install` reads `.nvmrc`), then run `npm ci`,
+`npm run lint`, `npm test`, and `npm run build`. The build includes TypeScript
+and static-route validation. No database credentials are needed for these
+checks. Confirm Vercel's project root is `landing`, its Node version is 24.x,
+and deployment skipping for unaffected roots is enabled in project settings.
+After an authorized push, verify the matching commit reaches Ready / Current
+in Production. A successful build does not verify live database writes or
+email delivery; those require a separately authorized signup test.

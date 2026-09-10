@@ -13,7 +13,8 @@ Next.js 15 (App Router, TypeScript) · Tailwind CSS v4 · Geist Sans · Neon Pos
 
 ```sh
 cd landing
-npm install
+nvm install                    # Node 24 from .nvmrc, matching Vercel
+npm ci
 cp .env.example .env.local     # fill DATABASE_URL, or: npx vercel env pull .env.local
 npm run db:push                # apply db/schema.sql once (needs DATABASE_URL)
 npm run dev                    # http://localhost:3000
@@ -32,12 +33,12 @@ works and email sending is skipped.
 | --- | --- |
 | `npm run dev` | Dev server |
 | `npm run build` / `start` | Production build / serve |
-| `npm run lint` | `next lint` |
+| `npm run lint` | ESLint 9 (flat config) |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Copy brand-law unit test (`tests/`) |
 | `npm run test:e2e` | Playwright waitlist flow (`e2e/`) |
 | `npm run db:push` | Apply `db/schema.sql` to `DATABASE_URL` |
-| `npm run emails:build` | Embed canonical templates from `../emails/` |
+| `npm run emails:build` | Embed canonical templates from `../archived/emails/` |
 | `npm run email:test -- you@example.com` | Send a rendered sample through Resend |
 
 ## Assets
@@ -52,5 +53,7 @@ art-directed placeholder and swaps in the real file automatically when dropped i
 Import the repo, set **Root Directory = `landing`**, add a Neon
 database from the Marketplace (injects `DATABASE_URL`), enable Analytics. Full
 steps in `SPEC.md §11`. Add `RESEND_API_KEY` in Vercel when transactional email
-is ready. `vercel.json`'s `ignoreCommand` skips deploys for pushes that don't
-touch `landing/`.
+is ready. Use Node.js 24.x. In Build and Deployment → Root Directory, keep
+“Skip deployments when there are no changes to the root directory or its
+dependencies” enabled. This is a Vercel project setting; `vercel.json` does
+not define an `ignoreCommand`.
