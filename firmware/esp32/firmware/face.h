@@ -248,15 +248,32 @@ static const struct { uint8_t count; EyeAccessoryPart parts[4]; } eyeAccessories
   {4,{{C_ROUND_RECT,-24,0,48,7,3},{C_TRIANGLE,-24,2,-18,-12,-8,2},
        {C_TRIANGLE,-8,2,0,-16,8,2},{C_TRIANGLE,8,2,18,-12,24,2}}}
 };
-static void faceDraw(uint32_t now,bool showSparks,float compact=0,bool proud=false) {
+static void faceDraw(uint32_t now,bool showSparks,float compact=0,bool proud=false,float dashboard=0) {
   FacePose p=facePose;
-  float scale=1-0.56f*compact;
+  float scale=(1-0.56f*compact)*(1-0.72f*dashboard);
+  if(dashboard>0) {
+    // A readable little invitation: anticipate, nod twice at IDLE, look
+    // back and smile, then rest. Counts never move or pulse with the face.
+    uint32_t age=(now-dashboardAt)%5600;
+    float anticipate=age>=400 && age<900?sinf((age-400)*PI/500.0f):0;
+    float nod=age>=900 && age<2300?powf(sinf((age-900)*PI/700.0f),2):0;
+    float happy=age>=2500 && age<3500?sinf((age-2500)*PI/1000.0f):0;
+    p.gazeX=0; p.gazeY=5*nod;
+    p.tilt=0.06f*nod; p.bob=6*nod-3*happy; p.lean=0;
+    p.sweat=p.brow=0; p.blush=happy;
+    p.mouth=1; p.arc=24*happy;
+    p.eyeW=64+10*anticipate+6*nod;
+    p.eyeH=64-22*anticipate-18*nod;
+    if(age>=4700 && age<4830) p.eyeH=7;
+  }
   if (proud) { p.arc=22; p.eyeH=7; p.mouth=1; p.gazeX=p.gazeY=p.tilt=0; p.blush=p.sweat=p.brow=0; }
   float cardAmount=cardSpring.pos;
   // The compact landscape footer leaves room for a lower, larger face.
   float footerAmount=HAL_LANDSCAPE && !systemCard()?animClamp(cardAmount,0,1):0;
   int lift=animPx(cardAmount*(HAL_LANDSCAPE && !systemCard()?25:47));
   int cy=HAL_H/2-10-lift+animPx(p.bob+p.lean), cx=animPx(HAL_W/2.0f+(HAL_W/6.0f-HAL_W/2.0f)*compact+p.gazeX*scale);
+  cx=animPx(cx*(1-dashboard)+(HAL_LANDSCAPE?HAL_W*83/100:98)*dashboard);
+  cy=animPx(cy*(1-dashboard)+(30+p.bob)*dashboard);
   float reveal=cosmeticAmount(now);
   const Cosmetics& shape=reveal<0.5f?oldCosmetic:tama.cosmetic;
   float spacing=silhouettes[shape.silhouetteId].spacing*scale;
@@ -300,7 +317,11 @@ static void faceDraw(uint32_t now,bool showSparks,float compact=0,bool proud=fal
       spr.clearClipRect();
     }
     _faceBrow(ex,ey-animPx(p.eyeH/2)-15,58,-side,p.brow,ink);
-    if (p.blush>0.1f) spr.fillEllipse(ex,ey+50,20,6,animRGB(255,109,173));
+    if (p.blush>0.1f) {
+      float cheekScale=dashboard>0?scale:1;
+      spr.fillEllipse(ex,ey+animPx(50*cheekScale),max(2,animPx(20*cheekScale)),
+                      max(1,animPx(6*cheekScale)),animRGB(255,109,173));
+    }
   }
   int my=cy+animPx(60*scale);
   if (p.mouth>1.2f) spr.drawEllipse(cx,my,9,13,ink);

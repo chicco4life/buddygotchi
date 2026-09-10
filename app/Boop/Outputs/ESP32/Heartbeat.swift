@@ -19,6 +19,7 @@ struct RenderState: Encodable, Sendable {
     var posture: DevicePosture?
     var cosmetic: EquippedCosmetic?
     var snap: Snapshot?
+    var agents: [AgentCounts]?
     var t: Int
 
     enum Card: Encodable, Sendable {
@@ -60,7 +61,7 @@ struct RenderState: Encodable, Sendable {
     }
     private enum CodingKeys: String, CodingKey {
         case v, state, effort, cheer, uhoh, overlay, greetLevel, dots, dotAlert, card
-        case bubble, gift, focus, mute, nudgeRung, posture, cosmetic, snap, t
+        case agents, bubble, gift, focus, mute, nudgeRung, posture, cosmetic, snap, t
     }
     func encode(to encoder: any Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
@@ -83,6 +84,10 @@ struct RenderState: Encodable, Sendable {
         try c.encodeIfPresent(posture, forKey: .posture)
         try c.encodeIfPresent(cosmetic, forKey: .cosmetic)
         try c.encodeIfPresent(snap, forKey: .snap)
+        try c.encodeIfPresent(agents.map { rows in rows.prefix(4).map {
+            AgentCounts(source: ["codex", "claude-code", "cursor"].contains($0.source) ? $0.source : "other",
+                        working: min(99, max(0, $0.working)), idle: min(99, max(0, $0.idle)))
+        } }, forKey: .agents)
         try c.encode(t, forKey: .t)
     }
 }
@@ -97,6 +102,14 @@ func renderState(from state: BuddyState, defaults: UserDefaults = .standard, now
     if c.state == .needsYou, let card = c.card {
         frame.card = .needsYou(id: card.id, tool: card.tool, gloss: card.gloss,
             stakes: card.stakes, n: card.index, of: card.count, approval: card.isApproval)
+    }
+    frame.agents = state.agentCounts
+    // Device activity is availability, not duration-based celebration. Keep
+    // attention, errors and sleep authoritative; desktop celebrations remain.
+    if [.idle, .working, .done].contains(frame.state), !state.agentCounts.isEmpty {
+        frame.state = state.agentCounts.contains { $0.working > 0 } ? .working : .idle
+        frame.cheer = nil
+        frame.bubble = nil
     }
     frame.snap = .init(name: defaults.string(forKey: DefaultsKey.buddyName) ?? "Boop", growth: state.growth)
     frame.cosmetic = state.cosmetic

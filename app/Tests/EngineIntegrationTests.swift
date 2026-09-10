@@ -606,7 +606,7 @@ final class EngineIntegrationTests: XCTestCase {
     }
 
     @MainActor
-    func testHeartbeatEmitsDoneCheerAndEngineTime() throws {
+    func testHeartbeatEmitsIdleAvailabilityAndEngineTime() throws {
         let (engine, _, clock) = makeTestEngine()
         engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: "/tmp/my-app")
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
@@ -615,8 +615,9 @@ final class EngineIntegrationTests: XCTestCase {
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .celebrate)
 
         let rs = renderState(from: engine.state, now: engine.deviceFrameTime)
-        XCTAssertEqual(rs.state, .done)
-        XCTAssertNotNil(rs.cheer)
+        XCTAssertEqual(rs.state, .idle)
+        XCTAssertNil(rs.cheer)
+        XCTAssertEqual(rs.agents, [.init(source: "claude-code", idle: 1)])
         XCTAssertEqual(rs.t, Int(engine.deviceFrameTime))
     }
 

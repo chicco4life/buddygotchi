@@ -126,6 +126,13 @@ struct Session: Encodable, Sendable, Equatable {
     var lastGoal: String?
 }
 
+/// Full-session aggregate, independent of the six-row popover preview.
+struct AgentCounts: Encodable, Sendable, Equatable {
+    var source: String
+    var working: Int = 0
+    var idle: Int = 0
+}
+
 struct SessionCounts: Encodable, Sendable, Equatable {
     var total: Int
     var running: Int
@@ -209,6 +216,7 @@ struct Pet: Encodable, Sendable, Equatable {
 // MARK: - BuddyState
 
 struct BuddyState: Encodable, Sendable, Equatable {
+    var agentCounts: [AgentCounts] = []
     var language = "en"
     var growth = GrowthSnapshot()
     var cosmetic = EquippedCosmetic()

@@ -27,7 +27,7 @@ static uint32_t localBoopUntil = 0, dizzyUntil = 0, perkUntil = 0, shakeHeadUnti
 static uint32_t lastInput = 0, statsUntil = 0, lastPet = 0;
 static int statsPage = 0;
 static uint32_t statsAt = 0;
-static uint32_t localBoopAt = 0;
+static uint32_t localBoopAt = 0, dashboardAt = 0;
 static bool bubbleDismissed = false, cardDismissed = false;
 static char localBubble[64] = "", posture[7] = "desk";
 static uint32_t localBubbleUntil = 0, drawCount = 0;
@@ -330,14 +330,22 @@ static void motionTick() {
 #include "face.h"
 // Screen priority stack (UX-DEVICE §16), highest first. UHOH is a bubble that
 // outranks the stats cards; it draws like BUBBLE.
-enum Layer : uint8_t { L_OFF, L_SYSTEM, L_CARD, L_UHOH, L_STATS, L_BUBBLE, L_OVERLAY, L_FACE };
-static const char* const layerNames[] = {"off","system","card","uhoh","stats","bubble","overlay","face"};
+enum Layer : uint8_t { L_OFF, L_SYSTEM, L_CARD, L_UHOH, L_STATS, L_BUBBLE, L_OVERLAY, L_FACE, L_DASHBOARD };
+static const char* const layerNames[] = {"off","system","card","uhoh","stats","bubble","overlay","face","dashboard"};
+static bool dashboardWanted() {
+  return dataConnected() && !napping && !firstWake &&
+    (eq(tama.state,"working") || eq(tama.state,"idle") || eq(tama.state,"done")) &&
+    tama.workingCount()>0 && tama.idleCount()>0;
+}
+static float dashboardAmount=0;
+static uint32_t dashboardTick=0;
 static Layer screenLayer() {
   if (screenOff) return L_OFF;
   if (systemCard()) return L_SYSTEM;
   if (hasCard()) return L_CARD;
   if (eq(tama.state,"uhoh") && bubbleVisible()) return L_UHOH;
   if (before(nowMs(),statsUntil)) return L_STATS;
+  if (dashboardWanted()) return L_DASHBOARD;
   if (bubbleVisible()) return L_BUBBLE;
   if (calmOverlay() && ((tama.overlay[0] && nowMs()-overlayAt<(eq(tama.overlay,"greet")?2200u:1400u)) || before(nowMs(),localBoopUntil))) return L_OVERLAY;
   return L_FACE;
@@ -413,6 +421,35 @@ static void drawStats(uint32_t now) {
     snprintf(line,sizeof(line),"today: %lu",(unsigned long)tama.snap.today); textLines(line,x,190,width,1,1,ink);
   }
 }
+// A stable count board; only the buddy moves after the entrance settles.
+static void drawDashboard(uint32_t now,float amount) {
+  int offset=animPx((1-amount)*HAL_W);
+  int workX=HAL_LANDSCAPE?HAL_W*56/100:76;
+  int idleX=HAL_LANDSCAPE?HAL_W*83/100:114;
+  int top=HAL_LANDSCAPE?70:72;
+  int rowH=HAL_LANDSCAPE?43:34;
+  float size=HAL_LANDSCAPE?1.5f:0.75f;
+  auto centered=[&](const char* text,int x,int y,uint16_t ink,float sz) {
+    spr.setFont(&fonts::Font2); spr.setTextSize(sz);
+    spr.setTextDatum(TL_DATUM); spr.setTextWrap(false);
+    spr.setTextColor(ink,(uint16_t)BLACK);
+    spr.drawString(text,offset+x-spr.textWidth(text)/2,y);
+  };
+  centered(HAL_LANDSCAPE?"WORKING":"WORK",workX,top,LIGHTGREY,size);
+  centered("IDLE",idleX,top,LIGHTGREY,size);
+  for(int i=0;i<tama.agentCount;++i) {
+    const AgentCount& a=tama.agents[i];
+    const char* name=!strcmp(a.source,"codex")?"Codex":!strcmp(a.source,"claude-code")?"Claude":!strcmp(a.source,"cursor")?"Cursor":"Other";
+    int y=top+28+i*rowH;
+    spr.setFont(&fonts::Font2); spr.setTextSize(size);
+    spr.setTextDatum(TL_DATUM); spr.setTextColor((uint16_t)WHITE,(uint16_t)BLACK);
+    spr.drawString(name,offset+(HAL_LANDSCAPE?24:5),y);
+    char count[4];
+    snprintf(count,sizeof(count),"%d",a.working); centered(count,workX,y,a.working?WHITE:LIGHTGREY,size);
+    snprintf(count,sizeof(count),"%d",a.idle); centered(count,idleX,y,a.idle?GREEN:LIGHTGREY,size);
+  }
+
+}
 static void render() {
   uint32_t now=nowMs();
   if (isRetired()) {
@@ -441,7 +478,25 @@ static void render() {
   bool beside=layer==L_STATS || layer==L_BUBBLE || layer==L_UHOH;
   float compact=beside?1:0;
   if(layer==L_STATS) { float u=animClamp((now-statsAt)/300.0f,0,1); compact=u*u*(3-2*u); }
-  faceDraw(now,base,compact,layer==L_STATS);
+  bool dashboardLayer=layer==L_DASHBOARD;
+  static bool wasDashboard=false;
+  if(dashboardLayer && !wasDashboard) dashboardAt=now;
+  wasDashboard=dashboardLayer;
+  bool mayTransition=dashboardLayer || layer==L_FACE || layer==L_OVERLAY;
+  uint32_t elapsed=dashboardTick?now-dashboardTick:0;
+  dashboardTick=now;
+  float step=elapsed/550.0f;
+  if(!mayTransition) dashboardAmount=0;
+  else dashboardAmount=animClamp(dashboardAmount+(dashboardLayer?step:-step),0,1);
+  float pull=dashboardAmount*dashboardAmount*(3-2*dashboardAmount);
+  faceDraw(now,base && pull==0,compact,layer==L_STATS,pull);
+  if(pull>0) drawDashboard(now,pull);
+  else if(base && dataConnected() && !napping && tama.idleCount()>0 &&
+          (eq(tama.state,"idle") || eq(tama.state,"working"))) {
+    char label[24]; snprintf(label,sizeof(label),"%d idle",tama.idleCount());
+    spr.setFont(&fonts::efontKR_16); spr.setTextSize(1);
+    textLines(label,(HAL_W-spr.textWidth(label))/2,HAL_H-28,HAL_W,1,1,GREEN);
+  }
   if (eq(posture,"travel") && battery>=0 && battery<25) {
     spr.fillSmoothRoundRect(HAL_W-30,HAL_H-27,20,10,2,animRGB(146,146,146));
     spr.fillRect(HAL_W-28,HAL_H-25,4,6,animRGB(255,182,36));
@@ -474,6 +529,7 @@ static void dumpState() {
   d["creature"]=tama.state; d["effort"]=tama.effort; d["cheer"]=tama.cheer; d["uhoh"]=tama.uhoh;
   d["overlay"]=tama.overlay; d["greetLevel"]=tama.greetLevel; d["nudgeRung"]=tama.nudgeRung; d["card"]=hasCard(); d["cardId"]=tama.card.id; d["armed"]=false;
   d["bubble"]=bubbleVisible()?bubbleText():""; d["gift"]=false; d["focus"]=tama.focus; d["posture"]=posture;
+  d["dashboardAge"]=nowMs()-dashboardAt; d["dashboard"]=dashboardWanted(); d["workingCount"]=tama.workingCount(); d["idleCount"]=tama.idleCount();
   d["dots"]=tama.dots; d["dotAlert"]=tama.dotAlert; d["mute"]=tama.mute; d["screenOff"]=screenOff; d["brightness"]=screenOff?0:brightness;
   d["presence"]=presenceName(); d["napping"]=napping; d["dizzy"]=before(nowMs(),dizzyUntil); d["frozen"]=clockFrozen;
   d["now"]=nowMs(); d["badFrames"]=badFrames; d["parseFails"]=_parseFailCount; d["lineOverflows"]=_lineOverflowCount;

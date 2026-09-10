@@ -531,6 +531,16 @@ private func aggregate(_ state: InternalState, now: Double) -> BuddyState {
         ))
     }
     buddy.activeSessions = activeSnapshots
+    buddy.agentCounts = ["codex", "claude-code", "cursor", "other"].compactMap { source in
+        let sessions = allSessions.map(\.value).filter {
+            let group = ["codex", "claude-code", "cursor"].contains($0.source) ? $0.source : "other"
+            return group == source
+        }
+        guard !sessions.isEmpty else { return nil }
+        return AgentCounts(source: source,
+            working: sessions.filter { ($0.state == .working || $0.state == .thinking) && $0.uhoh == nil }.count,
+            idle: sessions.filter { $0.state == .idle && $0.uhoh == nil }.count)
+    }
 
     // Project the oldest errored session for the popover Error card. Carries the
     // session id so dismissError(sessionId:) can target a specific one.

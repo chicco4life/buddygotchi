@@ -1,6 +1,7 @@
 # Implementation plan
 
-Current phase: essential behavior simplification is implemented and automated checks pass;
+Current phase: agent availability dashboard implemented and USB hardware verified;
+essential behavior simplification is implemented and automated checks pass;
 live model, editor and
 physical-device verification remain. [Component behaviors](BEHAVIORS.md) is the
 current contract, with detailed specs in the [index](README.md).
@@ -60,3 +61,11 @@ Use [Verification](VERIFICATION.md) for commands and evidence rules. No device
 was flashed, GUI launched, or webcam session performed for this change.
 The original phase checklists and dated evidence remain in
 [plan history](PLAN-HISTORY.md); removed features there are not future requirements.
+
+## Agent dashboard update
+
+Implemented full-session per-harness counts, additive wire field, persistent mixed-state board, animated corner buddy, all-idle green footer and retained idle affection. 344 app tests and 11 USB hardware tests passed; shipping Waveshare and USB-only builds passed. Screenshots were inspected. [Dashboard evidence](evidence/agent-dashboard-2026-09-11/README.md). M5 flash-size limits and production BLE with the owner-launched updated app remain outstanding.
+
+Dashboard invitation refinement: larger buddy above IDLE, two downward nods and a rosy smile, with unchanged static counts and proportional labels. 12 USB hardware tests passed, both Waveshare variants built, and the captured loop was checked against static board pixels. Device verification recorded in dashboard evidence.
+
+Main integration preserves cumulative XP and daily activity: 345 app tests passed with zero skips, and the integrated shipping Waveshare firmware built successfully.

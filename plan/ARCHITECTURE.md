@@ -143,3 +143,7 @@ contract or the current component specs.
 
 Growth has no live level calculation. The store aggregates daily completed-turn
 units for the Mac activity grid; XP stays cumulative and existing awards persist.
+
+## Device availability projection
+
+Core derives `BuddyState.agentCounts` from the full session dictionary, independently of the six-item `activeSessions` preview. Working/thinking count as working; idle as idle; requests/errors as neither. ESP32 output encodes bounded `agents` rows and maps calm states to working/idle, suppressing device duration cheers and model bubbles for these sessions. Firmware owns the mixed-state dashboard transition and presentation; no new clock, I/O or view acknowledgment enters Core. Wire and frame budgets remain in WIRE-V2.md.

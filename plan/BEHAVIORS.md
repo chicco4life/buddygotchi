@@ -200,3 +200,9 @@ The accepted simplifications above are implemented in this checkout. Next tune
 the Markdown behavior guide against ordinary use: relevance, silence, factuality
 and localization. Delivery and physical-device verification gates remain in
 [PLAN.md](PLAN.md) and [VERIFICATION.md](VERIFICATION.md).
+
+## ESP32 availability presentation
+
+The mixed working/idle dashboard in [Device UX](UX-DEVICE.md#agent-availability-dashboard-2026-09-11) supersedes ESP32 duration cheers. Counts are current tracked sessions, grouped by harness, never unread counts. Desktop core celebrations and growth remain unchanged.
+
+Dashboard buddy presentation: larger upper-right face above IDLE; a 5.6-second squish/two-nod/smile/rest loop invites the next action without moving or pulsing the counts. No separate arrow.

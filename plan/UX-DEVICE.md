@@ -283,3 +283,30 @@ screen, nothing swarms, nothing spins.
 | Level up | Removed; cumulative XP has no level milestones. |
 | Streak | The small flame pulses gently beside the face. |
 | Card | Springs up, eases away. Unchanged. |
+
+## Agent availability dashboard (2026-09-11)
+
+This supersedes duration-based device cheers and the face-only presentation
+for mixed activity. The desktop retains its own celebrations.
+
+- All working: full-size working face. All idle: full-size idle face with a
+  green `N idle` footer. No sessions: ordinary idle/sleep lifecycle.
+- Working and idle sessions coexist: the buddy shrinks into the upper-right
+  corner while pulling in a count board over 550 ms. It remains there,
+  presenting the idle column from directly above it: anticipatory squish, two downward nods, a rosy smile back at the owner, then rest. The 5.6-second loop starts on entry; the separate arrow is removed.
+  The board stays until the mixed state ends; there is no timeout or unread state.
+- Rows are Codex, Claude, Cursor and Other, in stable order, omitting sources
+  with no tracked sessions. Columns are WORKING and IDLE (WORK on narrow M5).
+  Non-zero idle counts alone are green; all other counts are white/grey.
+  The fixed harness names and English headers use the built-in proportional
+  Font2 at 1.5× on Waveshare (0.75× on M5); request/bubble Korean text keeps
+  its existing font. No session names, automatic paging, acknowledgment or
+  dismissal bookkeeping.
+- Counts update in place. When all sessions work or all are idle, the board
+  slides away and the buddy grows back. All-idle taps retain boop affection.
+- Explicit requests/errors, system cards, sleep/disconnection and user-opened
+  stats retain priority. Waiting/error sessions count as neither working nor idle.
+- Idle means an available tracked session, not an unread result. Session end
+  and the existing stale-session cleanup remove entries; no view hook is needed.
+
+Physical motion and font legibility must be verified on the target display.

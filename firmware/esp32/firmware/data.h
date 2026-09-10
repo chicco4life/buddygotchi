@@ -55,7 +55,12 @@ struct Card {
   bool approval = false;
   bool present() const { return id[0] || kind[0]; }
 };
+struct AgentCount { char source[12] = ""; int working = 0, idle = 0; };
 struct TamaState {
+  AgentCount agents[4];
+  uint8_t agentCount = 0;
+  int workingCount() const { int n=0; for(int i=0;i<agentCount;++i) n+=agents[i].working; return n; }
+  int idleCount() const { int n=0; for(int i=0;i<agentCount;++i) n+=agents[i].idle; return n; }
   char state[9] = "asleep", effort[9] = "", cheer[6] = "", uhoh[7] = "";
   char overlay[6] = "", posture[7] = "";
   uint8_t greetLevel = 0, dots = 0, mute = 0, nudgeRung = 0;
@@ -158,6 +163,19 @@ inline bool validate(JsonDocument& d, const TamaState& old, TamaState& s) {
       !readText(d["bubble"], s.bubble)) return false;
   if (alert >= dots) return false;
   s.greetLevel = greet; s.dots = dots; s.dotAlert = alert; s.mute = volume; s.nudgeRung = nudge;
+  // Optional and ephemeral: old hosts and omission clear the dashboard.
+  if (!d["agents"].isNull()) {
+    if (!d["agents"].is<JsonArray>() || d["agents"].size()>4) return false;
+    for (JsonVariantConst row : d["agents"].as<JsonArrayConst>()) {
+      AgentCount& a=s.agents[s.agentCount];
+      if (!row.is<JsonObjectConst>() || !readText(row["source"],a.source) ||
+          (strcmp(a.source,"codex") && strcmp(a.source,"claude-code") && strcmp(a.source,"cursor") && strcmp(a.source,"other")) ||
+          !row["working"].is<int>() || !row["idle"].is<int>() ||
+          !readInt(row["working"],a.working,0,99) || !readInt(row["idle"],a.idle,0,99)) return false;
+      for(int i=0;i<s.agentCount;++i) if (!strcmp(a.source,s.agents[i].source)) return false;
+      ++s.agentCount;
+    }
+  }
   if (!d["card"].isNull()) {
     if (!d["card"].is<JsonObject>()) return false;
     JsonVariantConst c = d["card"];

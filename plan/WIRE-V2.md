@@ -111,3 +111,15 @@ Growth update: `snap.xp` is cumulative earned XP; `tasks` counts completed agent
 `level` and `xpNext` remain compatibility fields sent as 1 and 0, respectively.
 They have no display or animation effect. The daily activity grid is Mac-only;
 no history array is sent to the device. Existing wire integer ranges are unchanged.
+
+## Optional agent availability counts
+
+`agents` is an optional array of at most four unique rows:
+`{"source":"codex","working":2,"idle":1}`. Source is one of `codex`,
+`claude-code`, `cursor`, `other`; both counts are required integers 0–99.
+The host emits stable source order and clamps each displayed count to 99.
+Unknown harnesses aggregate as Other. Missing/empty agents clears all counts;
+these are live state, never persisted. Invalid types, duplicate sources,
+unknown source tokens and out-of-range counts reject the entire frame.
+Older firmware ignores the additive field; older hosts retain face-only behavior.
+The 1536-byte frame cap is unchanged.

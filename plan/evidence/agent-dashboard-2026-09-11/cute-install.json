@@ -1,0 +1,31 @@
+{
+  "commit": "228a36ef23719e28a707558db2fe09963edaa4b4",
+  "dirty": true,
+  "command": [
+    "python3",
+    "-c",
+    "print(\"Installing the normal build after successful USB verification\")"
+  ],
+  "started": 1789083257.19783,
+  "setup": 0,
+  "usbOnly": {
+    "usbOnly": true,
+    "contract": 2,
+    "board": "ws-amoled164",
+    "fw": "dev+228a36ef2371",
+    "git": "228a36ef2371",
+    "up": 1445,
+    "heap": 301104,
+    "heapMin": 301072,
+    "heapBig": 258036,
+    "reset": "unknown",
+    "panics": 101,
+    "early": 0,
+    "safe": 0,
+    "frameUs": 21234,
+    "frameMaxUs": 22155
+  },
+  "scenario": 0,
+  "restore": 0,
+  "finished": 1789083278.507749
+}

@@ -82,3 +82,9 @@ Growth without levels: verify persisted XP is unchanged, completed-turn units
 aggregate by civil day, active-only days preserve streaks, and twelve-week grids
 render in English/Korean and both appearances. Device stats show cumulative XP
 and ignore level transitions. Build firmware; physical verification is separate.
+
+## Agent dashboard
+
+Run `make test` (uses the XCTest shim on CLT-only Macs); with full Xcode, targeted `swift test --filter AgentDashboardTests` and `HeartbeatTruncationTests` from app also work. Verify full-session counts beyond six, turn start/end, session end/stale cleanup, attention priority and wire bounds. Build shipping Waveshare and M5 firmware. In an independent USB-only reservation run `test_agent_dashboard.py`: mixed counts persist beyond ten seconds, all-working/all-idle exit, legacy omission clears, invalid rows reject atomically, and attention wins. Capture settled and transitional dashboard screenshots and verify readable counts, green non-zero idle, white/grey working/zero counts and an unobscured animated corner face. Restore normal firmware. Production BLE integration remains a separate gate.
+
+For the dashboard invitation, capture entry-relative 650, 1250, 1950 and 3000 ms. Run the full-loop regression across re-applied frames as well as the original two-frame check. Verify the two downward nods and rosy smile stay above the fixed text, and repeated-frame board pixels remain identical.
