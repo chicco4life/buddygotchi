@@ -678,3 +678,24 @@ sandbox. All three workflow tests passed both with a lightweight HTTP fixture
 and with two real Boop headless processes (isolated authenticated startup and
 clean shutdown, lease exclusion/delegation, restore after failed scenario).
 Physical HIL and flashing were not performed.
+
+## Landing page deployment restoration (2026-09-10)
+
+Restore only `archived/landing/` to its original `landing/` path so the existing
+Vercel project can find the Next.js app again. Other archived components stay
+in place; landing email tooling continues to read `archived/emails/`.
+
+Validation: all 5 landing tests pass; all tracked landing files restored, with
+the two email-source path adjustments and an ignore-rule exception. Production deployment remains to
+be verified after this change is pushed.
+
+Pre-merge Vercel settings checked (2026-09-10): root `landing`, Next.js preset,
+default build/install/output settings, Node 24.x, and skip-unaffected enabled.
+`DATABASE_URL` exists in all environments and `RESEND_API_KEY` in production
+and pre-production (values not inspected). Keep restored `.env.example`
+trackable via the landing ignore rules. Local dependency installation initially
+failed because sandbox DNS could not reach npm; retry outside the sandbox
+succeeded (350 packages). `npm run build` passed, including lint, TypeScript,
+page generation and build traces, using local Node 26.5.0 and locked Next.js
+15.5.20. Vercel uses Node 24.x; its production build remains to be verified
+after the user-authorized merge and push to main.

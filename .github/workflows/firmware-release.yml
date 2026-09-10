@@ -54,5 +54,5 @@ jobs:
             Manual gate before publishing:
             - OTA this binary on a real Waveshare ESP32-S3 AMOLED 1.64 board.
             - Confirm buddyctl.py ping --json reports fw == ${{ github.ref_name }} with the fw-v prefix stripped.
-            - Open a landing PR publishing manifest.json, esp-web-tools-manifest.json, and the .bin files under archived/landing/public/firmware/ (served at https://adoptaboop.com/firmware/).
+            - Open a landing PR publishing manifest.json, esp-web-tools-manifest.json, and the .bin files under landing/public/firmware/ (served at https://adoptaboop.com/firmware/).
           draft: true

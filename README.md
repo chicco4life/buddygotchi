@@ -2,9 +2,10 @@
 
 This repository is mid-redesign. `plan/` holds the direction for the next
 generation (vision, device UX, architecture, verification, implementation
-plan). `archived/` holds the complete previous generation, which still
+plan). `archived/` holds the previous generation, which still
 builds and runs: the Swift macOS menu bar app, the ESP32 firmware, the
-landing page, hardware files, and earlier research. Start with
+hardware files and earlier research. The landing page lives at `landing/`
+for Vercel deployment. Start with
 [plan/VISION.md](plan/VISION.md) and [plan/PLAN.md](plan/PLAN.md).
 
 The v2 Waveshare firmware builds from the active tree:
@@ -97,7 +98,7 @@ archived/app/tools/e2e/cursor.sh
 | Path | Purpose |
 | --- | --- |
 | `archived/app/` | Active macOS Swift app, hook CLIs, tests, and e2e scripts |
-| `archived/landing/` | Next.js landing page and waitlist API |
+| `landing/` | Next.js landing page and waitlist API |
 | `archived/firmware/esp32/` | ESP32 firmware, PlatformIO config, character tools, and device docs |
 | `plan/` | The active direction: vision, device UX, architecture, verification, implementation plan, ideas |
 | `archived/research/` | Earlier product, marketing, hardware, and engineering docs, plus captured agent hook references |

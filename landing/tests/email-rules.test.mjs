@@ -5,7 +5,7 @@ import { spawnSync } from "node:child_process";
 
 const projectRoot = new URL("../", import.meta.url);
 const repoRoot = new URL("../../", import.meta.url);
-const emailsDir = new URL("emails/", repoRoot);
+const emailsDir = new URL("archived/emails/", repoRoot);
 const copyRules = readFileSync(new URL("tests/copy-rules.test.mjs", projectRoot), "utf8");
 const bannedSource = copyRules.match(/const BANNED = \[([\s\S]*?)\];/);
 const banned = bannedSource ? [...bannedSource[1].matchAll(/"([^"]+)"/g)].map((match) => match[1]) : [];
