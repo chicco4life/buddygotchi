@@ -11,12 +11,8 @@ enum Chirp: String, Sendable, Equatable {
 /// needs an `NSStatusItem` to exist, which makes it painful to test, and the
 /// interesting part here is the edge detection rather than the playback.
 enum ChirpDecision {
-    /// Tasks shorter than this don't chirp. An agent turn that finishes almost
-    /// instantly is usually a no-op, and chirping on those is what made the
-    /// sound worth muting. Deliberately far below the 30s threshold that gates
-    /// auto-opening the popover — being *told* is cheap, being *interrupted*
-    /// isn't.
-    static let minCompletionDurationMs: Double = 2_000
+    /// Completion sounds use the same minimum duration as visual celebrations.
+    static let minCompletionDurationMs = PetTuning.celebrationMinMs
 
     static func chirp(prev: BuddyState, next: BuddyState, soundsEnabled: Bool) -> Chirp? {
         guard soundsEnabled else { return nil }

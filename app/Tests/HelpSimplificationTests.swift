@@ -49,6 +49,7 @@ final class HelpSimplificationTests: XCTestCase {
         let (defaults, cleanup) = makeDefaults(); defer { cleanup() }
         let engine = BuddyEngine(clock: clock, voiceRuntime: runtime, defaults: defaults)
         engine.turnStarted(sessionId: "s", source: "codex")
+        clock.advance(by: 60_000)
         engine.turnEnded(sessionId: "s", source: "codex", outcome: .completed)
         await engine.finishPendingWork()
         XCTAssertEqual(engine.state.creature.cheer, .hop)

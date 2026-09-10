@@ -166,11 +166,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let esp32 = esp32Output {
             Task { await esp32.stop() }
         }
-        // Unblock any hooks parked on an approval BEFORE the server goes away:
-        // a clean passthrough response lets the agent fall back to its native
-        // prompt immediately, instead of a connection reset — and a request
-        // stuck on a continuation can't hold up graceful shutdown.
-        engine.resolveAllPendingApprovals(decision: .passthrough)
         engine.stop()
         if let group = serviceGroup {
             Task { await group.triggerGracefulShutdown() }

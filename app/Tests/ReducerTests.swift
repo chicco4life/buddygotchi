@@ -128,10 +128,10 @@ final class ReducerTests: XCTestCase {
             .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
             .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .startWorking, tool: nil, hint: nil)
         )
-        s = applyEvents(s, .activitySignal(at: NOW + 2, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: nil, hint: nil))
+        s = applyEvents(s, .activitySignal(at: NOW + 60002, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: nil, hint: nil))
         XCTAssertEqual(s.buddy.pet.state, .celebrate)
         XCTAssertNotNil(s.buddy.celebrateUntil)
-        XCTAssertEqual(s.buddy.lastTaskDurationMs, 1, "Duration = celebrate time - work start time")
+        XCTAssertEqual(s.buddy.lastTaskDurationMs, 60_001, "Duration = celebrate time - work start time")
     }
 
     func testCelebrateExpiresOnStaleTick() {
@@ -139,14 +139,14 @@ final class ReducerTests: XCTestCase {
             .test(),
             .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
             .turnStarted(at: NOW, sessionId: "s1", source: "claude-code"),
-            .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: nil, hint: nil)
+            .activitySignal(at: NOW + 60001, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: nil, hint: nil)
         )
         XCTAssertEqual(s.buddy.pet.state, .celebrate)
 
-        s = applyEvents(s, .staleTick(at: NOW + 1000))
+        s = applyEvents(s, .staleTick(at: NOW + 61000))
         XCTAssertEqual(s.buddy.pet.state, .celebrate, "Should still be celebrating before 1.5s")
 
-        s = applyEvents(s, .staleTick(at: NOW + 5000))
+        s = applyEvents(s, .staleTick(at: NOW + 65000))
         XCTAssertEqual(s.buddy.pet.state, .idle)
         XCTAssertNil(s.buddy.celebrateUntil)
     }
@@ -158,10 +158,10 @@ final class ReducerTests: XCTestCase {
             .sessionStarted(at: NOW, sessionId: "s2", source: "claude-code", cwd: nil)
         )
         s = reduce(s, .turnStarted(at: NOW, sessionId: "s1", source: "claude-code"))
-        s = applyEvents(s, .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: nil, hint: nil))
+        s = applyEvents(s, .activitySignal(at: NOW + 60001, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: nil, hint: nil))
         XCTAssertEqual(s.buddy.pet.state, .celebrate)
 
-        s = applyEvents(s, .requestArrived(at: NOW + 2, sessionId: "s2", requestId: "r1", tool: "Bash", hint: "rm", sessionLabel: nil))
+        s = applyEvents(s, .requestArrived(at: NOW + 60002, sessionId: "s2", requestId: "r1", tool: "Bash", hint: "rm", sessionLabel: nil))
         XCTAssertEqual(s.buddy.pet.state, .attention, "Attention takes priority over celebrate")
     }
 
@@ -172,10 +172,10 @@ final class ReducerTests: XCTestCase {
             .sessionStarted(at: NOW, sessionId: "s2", source: "claude-code", cwd: nil)
         )
         s = reduce(s, .turnStarted(at: NOW, sessionId: "s1", source: "claude-code"))
-        s = applyEvents(s, .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: nil, hint: nil))
+        s = applyEvents(s, .activitySignal(at: NOW + 60001, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: nil, hint: nil))
         XCTAssertEqual(s.buddy.pet.state, .celebrate)
 
-        s = applyEvents(s, .activitySignal(at: NOW + 2, sessionId: "s2", source: "claude-code", signal: .startWorking, tool: nil, hint: nil))
+        s = applyEvents(s, .activitySignal(at: NOW + 60002, sessionId: "s2", source: "claude-code", signal: .startWorking, tool: nil, hint: nil))
         XCTAssertEqual(s.buddy.pet.state, .celebrate, "Done takes priority over working")
     }
 
@@ -186,8 +186,8 @@ final class ReducerTests: XCTestCase {
             .activitySignal(at: NOW + 1000, sessionId: "s1", source: "claude-code", signal: .startWorking, tool: nil, hint: nil)
         )
         s = applyEvents(s, .activitySignal(at: NOW + 5000, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: nil, hint: nil))
-        XCTAssertEqual(s.buddy.pet.state, .celebrate)
-        XCTAssertEqual(s.buddy.lastTaskDurationMs, 4000, "4s task is below 30s threshold")
+        XCTAssertEqual(s.buddy.pet.state, .idle)
+        XCTAssertEqual(s.buddy.lastTaskDurationMs, 4000, "4s task records duration without celebration")
     }
 
     func testLongTaskDurationAboveThreshold() {
@@ -196,9 +196,9 @@ final class ReducerTests: XCTestCase {
             .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
             .activitySignal(at: NOW + 1000, sessionId: "s1", source: "claude-code", signal: .startWorking, tool: nil, hint: nil)
         )
-        s = applyEvents(s, .activitySignal(at: NOW + 45_000, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: nil, hint: nil))
+        s = applyEvents(s, .activitySignal(at: NOW + 65_000, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: nil, hint: nil))
         XCTAssertEqual(s.buddy.pet.state, .celebrate)
-        XCTAssertEqual(s.buddy.lastTaskDurationMs, 44_000, "44s task is above 30s threshold")
+        XCTAssertEqual(s.buddy.lastTaskDurationMs, 64_000, "64s task is above the one-minute threshold")
     }
 
     func testCelebrateWithoutWorkStartHasNilDuration() {
@@ -309,12 +309,12 @@ final class ReducerTests: XCTestCase {
             .test(),
             .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
             .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .startWorking, tool: "Bash", hint: "swift test"),
-            .activitySignal(at: NOW + 2, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: nil, hint: nil)
+            .activitySignal(at: NOW + 60_002, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: nil, hint: nil)
         )
         XCTAssertNotNil(s.buddy.lastCompleted)
         XCTAssertEqual(s.buddy.pet.state, .celebrate)
         // Tick past the 4-second celebrate window.
-        s = applyEvents(s, .staleTick(at: NOW + 10_000))
+        s = applyEvents(s, .staleTick(at: NOW + 70_000))
         XCTAssertEqual(s.buddy.pet.state, .idle)
         XCTAssertNotNil(s.buddy.lastCompleted, "review survives celebrate window")
         XCTAssertEqual(s.buddy.lastCompleted?.tool, "Bash")
@@ -467,12 +467,6 @@ final class ReducerTests: XCTestCase {
         XCTAssertNotNil(s.buddy.firstErrored)
         XCTAssertEqual(s.buddy.firstErrored?.tool, "Bash")
     }
-
-
-
-
-
-
 
     func testErrorMsgUsesErrorPrefixNotStalled() {
         let s = applyEvents(

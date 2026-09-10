@@ -1,0 +1,604 @@
+python3 app/tools/test.py
+gen-test-runner: wrote app/Tests/GeneratedTestRunner.swift (341 tests)
+Building for debugging...
+[0/4] Write sources
+[1/4] Write swift-version--1AB21518FC5DEDBE.txt
+[3/7] Compiling BoopCore PopoverView.swift
+[4/7] Emitting module BoopCore
+[5/7] Compiling BoopCore BuddyEngine.swift
+[6/21] Compiling BoopCore OnboardingView.swift
+[7/21] Compiling BoopCore NotificationManager.swift
+/Users/michaeljxzhu/.codex/worktrees/05857101-d9c4-4257-9ed2-fbc2d23f0a99/buddygotchi/app/Boop/Notifications/NotificationManager.swift:99:28: warning: capture 'requestId' was never used [#no-usage]
+ 97 |         let requestId = identifier.hasPrefix("tool-") ? String(identifier.dropFirst(5)) : identifier
+ 98 |         let actionIdentifier = response.actionIdentifier
+ 99 |         Task { @MainActor [requestId, actionIdentifier] in
+    |                            `- warning: capture 'requestId' was never used [#no-usage]
+100 |             switch actionIdentifier {
+101 |             case "APPROVE", "DENY":
+[8/21] Compiling BoopCore DesktopOutput.swift
+/Users/michaeljxzhu/.codex/worktrees/05857101-d9c4-4257-9ed2-fbc2d23f0a99/buddygotchi/app/Boop/Notifications/NotificationManager.swift:99:28: warning: capture 'requestId' was never used [#no-usage]
+ 97 |         let requestId = identifier.hasPrefix("tool-") ? String(identifier.dropFirst(5)) : identifier
+ 98 |         let actionIdentifier = response.actionIdentifier
+ 99 |         Task { @MainActor [requestId, actionIdentifier] in
+    |                            `- warning: capture 'requestId' was never used [#no-usage]
+100 |             switch actionIdentifier {
+101 |             case "APPROVE", "DENY":
+[9/21] Compiling BoopCore OnboardingWindowController.swift
+[10/21] Compiling BoopCore ESP32Output.swift
+/Users/michaeljxzhu/.codex/worktrees/05857101-d9c4-4257-9ed2-fbc2d23f0a99/buddygotchi/app/Boop/Outputs/ESP32/ESP32Output.swift:95:20: warning: no 'async' operations occur within 'await' expression
+ 93 |             lastCardSent = cardId
+ 94 |             let bytes = data.count
+ 95 |             Task { await engine?.diagnosticLog.log(category: "device", source: "ble", event: "cardSent", detail: "\(cardId) \(bytes)B") }
+    |                    `- warning: no 'async' operations occur within 'await' expression
+ 96 |         }
+ 97 |     }
+[11/21] Compiling BoopCore HookServer.swift
+/Users/michaeljxzhu/.codex/worktrees/05857101-d9c4-4257-9ed2-fbc2d23f0a99/buddygotchi/app/Boop/Outputs/ESP32/ESP32Output.swift:95:20: warning: no 'async' operations occur within 'await' expression
+ 93 |             lastCardSent = cardId
+ 94 |             let bytes = data.count
+ 95 |             Task { await engine?.diagnosticLog.log(category: "device", source: "ble", event: "cardSent", detail: "\(cardId) \(bytes)B") }
+    |                    `- warning: no 'async' operations occur within 'await' expression
+ 96 |         }
+ 97 |     }
+[12/21] Compiling BoopCore ShareCard.swift
+[13/21] Compiling BoopCore DiagnosticLog.swift
+[14/21] Compiling BoopCore Protocols.swift
+[15/21] Compiling BoopCore CompanionViews.swift
+[16/21] Compiling BoopCore CompanionSettings.swift
+[17/21] Compiling BoopCore AppDelegate.swift
+[18/21] Compiling BoopCore SnapshotRenderer.swift
+[19/21] Compiling BoopCore SettingsView.swift
+[19/23] Write sources
+[21/41] Compiling BoopTests GrowthTests.swift
+[22/41] Compiling BoopTests HelpSimplificationTests.swift
+[23/42] Compiling BoopTests EngineIntegrationTests.swift
+[24/42] Compiling BoopTests EssentialBehaviorTests.swift
+[25/42] Compiling BoopTests BuddyBehaviorTests.swift
+[26/42] Compiling BoopTests CompanionTests.swift
+[27/42] Compiling BoopTests TransientVoiceTests.swift
+/Users/michaeljxzhu/.codex/worktrees/05857101-d9c4-4257-9ed2-fbc2d23f0a99/buddygotchi/app/Tests/TransientVoiceTests.swift:33:15: warning: will never be executed
+30 |             try await Task.sleep(for: .milliseconds(2))
+31 |         }
+32 |         XCTFail("Voice operation did not start")
+   |         `- note: a call to a never-returning function
+33 |         throw NSError(domain: "test", code: 1)
+   |               `- warning: will never be executed
+34 |     }
+35 | 
+[28/42] Compiling BoopTests HookServerBehaviorTests.swift
+[29/42] Compiling BoopTests OrphanedPromptTests.swift
+[30/42] Compiling BoopTests StoreTestSupport.swift
+[31/42] Compiling BoopTests StoreTests.swift
+[32/42] Compiling BoopTests VoiceTimingTests.swift
+[33/42] Compiling BoopTests ResilienceTests.swift
+[34/42] Compiling BoopTests SnapshotHarnessTests.swift
+[35/42] Compiling BoopTests PromptExpiryTests.swift
+[36/42] Compiling BoopTests ReflectionTests.swift
+[37/42] Emitting module BoopTests
+[38/42] Compiling BoopTests ExtractorPrivacyTests.swift
+[39/42] Compiling BoopTests GeneratedTestRunner.swift
+[39/42] Write Objects.LinkFileList
+[40/42] Linking BoopTests
+[41/42] Applying BoopTests
+Build of product 'BoopTests' complete! (6.36s)
+▶ ApprovalSurvivalTests.testParallelToolActivityDoesNotCancelABlockingApproval
+▶ ApprovalSurvivalTests.testStartWorkingDoesNotCancelABlockingApproval
+▶ ApprovalSurvivalTests.testRequestClearedDoesNotCancelABlockingApproval
+▶ ApprovalSurvivalTests.testActivityStillDismissesAPassiveNotificationCard
+▶ ApprovalSurvivalTests.testResolvingTheApprovalStillClearsIt
+▶ ApprovalSurvivalTests.testSessionEndStillClearsAParkedApproval
+▶ ApprovalSurvivalTests.testApprovalStillExpires
+▶ AutoApproveTests.testStableCwdHashDoesNotUseRandomizedStringHash
+▶ BuddyBehaviorTests.testMarkdownReloadsBetweenDecisionsAndSilenceIsNotFallback
+▶ BuddyBehaviorTests.testMissingGuideAndMissingModelHaveSmallFallbacks
+▶ BuddyBehaviorTests.testEditActionSeedsGuideWithoutOverwritingEdits
+▶ BuddyBehaviorTests.testProgressAndMemoryAreBoundedInputsWithoutRawHistory
+▶ BuddyBehaviorTests.testModelAcknowledgementWaitsForCelebration
+▶ BuddyBehaviorTests.testEngineSuppliesEarnedXPAndRecordedMemoryToModel
+▶ BuddyStateEncodingTests.testDiagnosticEncodingMatchesPreMigrationBaseline
+▶ BuddyStateEncodingTests.testLegacyValuesFollowCreatureWithoutReducerResynchronization
+▶ CelebrateOnceTests.testNewWorkPreservesDoneWithoutReplayingIt
+▶ CelebrateOnceTests.testAnOrdinaryCelebrationStillHappens
+▶ CelebrateOnceTests.testApprovalAllowStampsAStartTime
+▶ ToolInputDecodingTests.testToolInputAsJSONStringIsAccepted
+▶ ToolInputDecodingTests.testToolInputAsNonJSONStringBecomesADescription
+▶ ToolInputDecodingTests.testNonStringFieldDoesNotFailTheWholePayload
+▶ ToolInputDecodingTests.testOrdinaryObjectStillDecodes
+▶ ChirpDecisionTests.testCompletedTaskChirpsOnce
+▶ ChirpDecisionTests.testShortTaskIsSilent
+▶ ChirpDecisionTests.testTaskAtThresholdChirps
+▶ ChirpDecisionTests.testCompletionChirpsWhileAnotherAgentKeepsWorking
+▶ ChirpDecisionTests.testConsecutiveCompletionsEachChirpWithNoPetStateEdge
+▶ ChirpDecisionTests.testApprovalChirpsAttention
+▶ ChirpDecisionTests.testSecondApprovalDuringAttentionChirpsAgain
+▶ ChirpDecisionTests.testResolvingOneOfTwoApprovalsIsSilentDespitePromptIdChange
+▶ ChirpDecisionTests.testResolvingApprovalIsSilent
+▶ ChirpDecisionTests.testErrorChirpsOnce
+▶ ChirpDecisionTests.testAttentionWinsOverCompletion
+▶ ChirpDecisionTests.testSoundsDisabledSilencesEverything
+▶ ChirpDecisionTests.testInitialStateIsSilent
+▶ DesktopOutputSoundTests.testCompletionDoesNotDuplicateDeviceCelebration
+▶ DesktopOutputSoundTests.testMutedOutputPlaysNothing
+▶ DesktopOutputSoundTests.testApprovalReachesThePlaybackClosure
+▶ DesktopOutputSoundTests.testControlCenterDoesNotOpenForCompletionOrCloseWhenWorkSettles
+▶ CodexTomlTests.testTolerantDetectionOfExistingKey
+▶ CodexTomlTests.testKeyOutsideFeaturesDoesNotCount
+▶ CodexTomlTests.testHeaderWithoutTrailingNewlineStaysValid
+▶ CodexTomlTests.testCommentMentioningFeaturesDoesNotHijackTheInsertPoint
+▶ CodexTomlTests.testAddsFeaturesTableWhenAbsent
+▶ CodexTomlTests.testEnablingAnEmptyFileProducesValidToml
+▶ CodexTomlTests.testEnablingIsIdempotentAcrossSpellings
+▶ CodexTomlTests.testRemovalTakesOnlyOurKey
+▶ CodexTomlTests.testRemovalLeavesAnIdenticallyNamedKeyInAnotherTable
+▶ CodexTomlTests.testRemovingBoopMCPTakesOnlyOurTables
+▶ CodexTomlTests.testRemovingBoopMCPWhenAbsentIsIdentity
+▶ CompanionTests.testEveryStatePoseAndUrgencySuppressesAffection
+▶ CompanionTests.testEffortAndCheerEscalation
+▶ CompanionTests.testOnboardingOrderAndPermanentName
+▶ CompanionTests.testHeardAgentRequiresRealHook
+▶ CompanionTests.testLegacyQuickIsIgnoredAndLanguagePersists
+▶ CompanionTests.testRetireWipesStoreAndRestartsOnboarding
+▶ CompanionTests.testFirstCheerHasNoSyntheticWorkOrXP
+▶ CompanionTests.testDiagnosticCursorSurvivesRingWrapAndStopsAfterAllAgents
+▶ CompanionTests.testQuietModeAndSoundIntentsUseEngineDefaults
+▶ CompanionTests.testWakeUsesCreatureStates
+▶ CompanionTests.testSceneNamesAreUnique
+▶ CopyRulesTests.testBuddyCopyFollowsBrandLaw
+▶ CopyRulesTests.testInlineViewTextLiteralRatchet
+▶ CreatureReducerTests.testLegacyProjectionEveryStateAndOverlay
+▶ CreatureReducerTests.testCollapseThreeSessionsAndDoneAboveWorking
+▶ CreatureReducerTests.testCelebrationsFollowDurationIncludingAfterErrors
+▶ CreatureReducerTests.testFoldKeepsLargerTimerAndUpgradesSmaller
+▶ CreatureReducerTests.testAllErrorsUseGenericErrorAndClear
+▶ CreatureReducerTests.testGenericErrorBubbleAndReplacementExpiry
+▶ CreatureReducerTests.testEffortUsesCurrentTaskDurationBoundariesAndResets
+▶ CreatureReducerTests.testPassiveAttentionDoesNotClassifyCommandStakes
+▶ CreatureReducerTests.testCardQueueOldestFirst
+▶ CreatureReducerTests.testFixedNudgeLadderForEveryStakesLevel
+▶ CreatureReducerTests.testDismissSnoozesOnlyCurrentRequest
+▶ CreatureReducerTests.testQuietModePreservesVisualNudges
+▶ CreatureReducerTests.testDotsCappedAndThinkingIncluded
+▶ CreatureReducerTests.testOverlaysOnlyOnIdleWorkingDone
+▶ CreatureReducerTests.testGreetingLevelProjectionAndExpiry
+▶ CreatureReducerTests.testFailureUnderApprovalSurvivesResolutionAndDismissKeepsCard
+▶ CreatureReducerTests.testLegacySignalsDelegateToTurnAndToolPaths
+▶ ESP32PreferencesTests.testSavedDeviceAndUnpairUseOnlyInjectedPreferences
+▶ ESP32PreferencesTests.testOutputFramesUseDefaultVolumeAndRespectMute
+▶ EngineIntegrationTests.testInitialStateIsDisconnectedSleeping
+▶ EngineIntegrationTests.testSessionStartConnects
+▶ EngineIntegrationTests.testSessionEndDisconnects
+▶ EngineIntegrationTests.testMultipleSessionsStayConnectedUntilAllEnd
+▶ EngineIntegrationTests.testStartWorkingSetsBusy
+▶ EngineIntegrationTests.testStopWorkingSetsIdle
+▶ EngineIntegrationTests.testKeepWorkingMaintainsBusy
+▶ EngineIntegrationTests.testRequestArrivedSetsAttention
+▶ EngineIntegrationTests.testClearRequestReturnsToBusy
+▶ EngineIntegrationTests.testCelebrateSignalSetsCelebrate
+▶ EngineIntegrationTests.testSessionCountsReflectActiveSessions
+▶ EngineIntegrationTests.testWaitingCountIncludesApprovals
+▶ EngineIntegrationTests.testEndedSessionDecrementsCount
+▶ EngineIntegrationTests.testPromptShowsOldestWaitingRequest
+▶ EngineIntegrationTests.testPromptClearsWhenNoWaitingSessions
+▶ EngineIntegrationTests.testAttentionOverridesBusy
+▶ EngineIntegrationTests.testAttentionOverridesCelebrate
+▶ EngineIntegrationTests.testDoneOverridesBusy
+▶ EngineIntegrationTests.testCelebrateExpiresAfterDuration
+▶ EngineIntegrationTests.testCelebrateStillActiveBeforeDuration
+▶ EngineIntegrationTests.testCelebrateRecordsTaskDuration
+▶ EngineIntegrationTests.testSetSpeciesUpdatesStateAndHeartbeat
+▶ EngineIntegrationTests.testRecorderReceivesEveryStateChange
+▶ EngineIntegrationTests.testRecorderPrevMatchesPreviousNext
+▶ EngineIntegrationTests.testMultipleOutputsAllReceiveChanges
+▶ EngineIntegrationTests.testDesktopOutputPostsRapidAttentionTransitions
+▶ EngineIntegrationTests.testDuplicateSessionStartIsIdempotent
+▶ EngineIntegrationTests.testEndNonexistentSessionIsNoop
+▶ EngineIntegrationTests.testClearRequestWithoutPendingIsNoop
+▶ EngineIntegrationTests.testStaleTickRemovesExpiredSession
+▶ EngineIntegrationTests.testStaleTickKeepsFreshSession
+▶ EngineIntegrationTests.testClaudePostToolUseThenStopRecordsLastCompletedToolName
+▶ EngineIntegrationTests.testReviewSurvivesCelebrateWindowIntoIdleAndDismissClears
+▶ EngineIntegrationTests.testMultipleSessionsReviewReflectsCelebratingSessionTool
+▶ EngineIntegrationTests.testCursorStopSignalGoesThroughCelebratePath
+▶ EngineIntegrationTests.testHeartbeatEmitsDoneCheerAndEngineTime
+▶ EngineIntegrationTests.testHeartbeatEmitsWorkingEffort
+▶ EngineIntegrationTests.testWorkingWithoutBubbleOmitsBubble
+▶ EngineIntegrationTests.testHeartbeatCountsSessionDots
+▶ EngineIntegrationTests.testHeartbeatMapsErrorToUhoh
+▶ EngineIntegrationTests.testHeartbeatMapsErrorWithoutToolToUhoh
+▶ EngineIntegrationTests.testHeartbeatRemainsWorkingAcrossToolKinds
+▶ EngineIntegrationTests.testTurnStartedReachesCreature
+▶ EngineIntegrationTests.testToolCalledReachesCreature
+▶ EngineIntegrationTests.testToolResultedReachesCreature
+▶ EngineIntegrationTests.testTurnEndedReachesCreature
+▶ EngineIntegrationTests.testFocusToggledReachesCreature
+▶ EngineIntegrationTests.testNudgeDismissedReachesCreature
+▶ EngineIntegrationTests.testDeviceCommandsReachEngineThroughParser
+▶ EssentialBehaviorTests.testShortCompletionEarnsXPWithoutCelebratingAndDuplicateEarnsNothing
+▶ EssentialBehaviorTests.testShortCompletionDoesNotInterruptLargerCelebration
+▶ EssentialBehaviorTests.testMaintenanceNeverCreatesPeriodicDialogue
+▶ EssentialBehaviorTests.testLegacyApprovalCallsCannotHoldOrDecideRequests
+▶ ExtractorPrivacyTests.testFixturesNeverReachDiskOrDiagnostics
+▶ ExtractorPrivacyTests.testTenThousandHooksRetainOnlyTallies
+▶ ExtractorPrivacyTests.testUnknownAndExitStatusPrecedence
+▶ ExtractorPrivacyTests.testAdapterDegradesOncePerSource
+▶ ExtractorPrivacyTests.testRunnerCoverageAndSignatures
+▶ ExtractorPrivacyTests.testInterleavedResultsUseCallIds
+▶ ExtractorPrivacyTests.testClosingCallbackDoesNotCompleteTwice
+▶ ExtractorPrivacyTests.testStakesAndGlossTemplates
+▶ ExtractorPrivacyTests.testLivenessDoesNotDegradeAndSourcesAreIndependent
+▶ ExtractorPrivacyTests.testProjectResolvedOnceAndClosingLineCapped
+▶ ExtractorPrivacyTests.testExtractorDoesNotInferEffort
+▶ ExtractorPrivacyTests.testCommandsAndPathsNeverBecomeHintsOrFacts
+▶ GrowthTests.testEverySourceAndFormulaRereadsHistory
+▶ GrowthTests.testCompletedTurnsHaveNoRateLimit
+▶ GrowthTests.testLevelCurveBoundaries
+▶ GrowthTests.testStreakBreaksWithoutRestCredits
+▶ GrowthTests.testEngineAwardsOnlyRealCompletionsAndNoApprovals
+▶ GrowthTests.testTenthTryFixturesAwardExactXPAndPersistSnapshot
+▶ GrowthTests.testTokenPayloadUsageAndCumulativeDelta
+▶ GrowthTests.testRepeatedBoopsStillDrainEachAward
+▶ HeartbeatTruncationTests.testEveryTextCapWithKoreanAndEmoji
+▶ HeartbeatTruncationTests.testOptionalKeysAbsentAndSnapshotPresentInMapper
+▶ HeartbeatTruncationTests.testAgentNeverCoexistsWithEitherCard
+▶ HeartbeatTruncationTests.testStateParametersAndRanges
+▶ HeartbeatTruncationTests.testFrameCapShedsInOrderIncludingEscapedText
+▶ HelpSimplificationTests.testApprovalFallbackUsesToolWithoutGeneratedExplanation
+▶ HelpSimplificationTests.testRepeatedWorkAndSilenceDoNotInventFailure
+▶ HelpSimplificationTests.testQuotaFailuresUseOrdinaryErrorsWithoutSpecialMoments
+▶ HelpSimplificationTests.testCompletionDecisionCanStaySilentWithoutRestoringGifts
+▶ HookFixtureTests.testRecordedHooksDecode
+▶ HookFixtureTests.testTenthTryAllAgents
+▶ HookFixtureTests.testStuckAndRateLimitStreams
+▶ HookInstallerTests.testCodexRegistersSessionEnd
+▶ HookInstallerTests.testUnreadableClaudeSettingsIsNotOverwritten
+▶ HookInstallerTests.testClaudeInstallIsVerifiedAndIdempotent
+▶ HookInstallerTests.testUninstallUnreadableClaudeSettingsFailsWithoutChangingFile
+▶ HookInstallerTests.testUninstallClearsInstalledAgentsEntry
+▶ HookInstallerTests.testDeletedScriptCorruptsAndRepairRestores
+▶ HookInstallerTests.testCorruptBuddyConfigJSONHealthIsRepairable
+▶ HookInstallerTests.testOlderScriptVersionIsOutdatedAndRepairRestores
+▶ HookInstallerTests.testCodexCommentedFeatureFlagDoesNotCountAsEnabled
+▶ HookInstallerTests.testCursorUsesManagedHelperAndRepairsMissingHelper
+▶ HookInstallerTests.testRetiredMCPCleanupPreservesOtherServers
+▶ HookPayloadTests.testV6ForwardsFullInput
+▶ HookPayloadTests.testV6OutputEndsAndClosingCap
+▶ HookPayloadTests.testV6OversizedBodyStaysValidAndDropsTailsFirst
+▶ HookPayloadTests.testCodexNativeApprovalsAreNotInterceptedByGlobalMode
+▶ HookPayloadTests.testTransportPreservesAliasesAndCallIdentity
+▶ HookPayloadTests.testPermissionHookPayloadIsIgnored
+▶ HookPayloadTests.testFastEventsNeverForkPython
+▶ HookPayloadTests.testRawAndV5ShapesNormalizeAndCursorEditIsCall
+▶ HookPayloadTests.testRetiredUsageDoesNotPreventLifecycleParsing
+▶ HookServerBehaviorTests.testApprovalResponsePassthroughEncodings
+▶ HookServerBehaviorTests.testTurnAndToolHookEventsForClaudeAndCodex
+▶ HookServerBehaviorTests.testDiagnosticEndpointsOverHTTP
+2026-09-11T07:34:04+0900 info Hummingbird: [HummingbirdCore] Server started and listening on 127.0.0.1:55251
+boop: listening on 127.0.0.1:55251 (headless)
+▶ HookServerBehaviorTests.testStateEndpointDisabledOutsideHeadless
+2026-09-11T07:34:04+0900 error Hummingbird: [HummingbirdCore] Server shutdown error: Already closed
+2026-09-11T07:34:04+0900 error Hummingbird: [HummingbirdCore] Waiting on child channel: CancellationError()
+2026-09-11T07:34:04+0900 info Hummingbird: [HummingbirdCore] Server started and listening on 127.0.0.1:51546
+▶ HookServerBehaviorTests.testHookRespondsWhileFactWriteNeverResumes
+2026-09-11T07:34:04+0900 error Hummingbird: [HummingbirdCore] Waiting on child channel: CancellationError()
+2026-09-11T07:34:04+0900 error Hummingbird: [HummingbirdCore] Server shutdown error: Already closed
+▶ HookServerBehaviorTests.testHeadlessVoiceAndLanguageSettingsWriters
+▶ HookServerBehaviorTests.testNativeApprovalDefaultRejectsStaleInterceptionForEveryAgent
+▶ InstanceLockTests.testSecondClaimOnSamePathLoses
+▶ InstanceLockTests.testClaimIsIdempotentForTheHolder
+▶ InstanceLockTests.testReleaseHandsTheClaimToTheNextComer
+▶ InstanceLockTests.testDistinctPathsDoNotContend
+▶ OrphanedPromptTests.testDecisionForAnIdWeNeverHadIsStillReportedAsUnknown
+▶ PersonalityReducerTests.testFirstEverSessionDoesNotGreet
+▶ PersonalityReducerTests.testShortGapDoesNotGreet
+▶ PersonalityReducerTests.testReturnAfterAbsenceGreets
+▶ PersonalityReducerTests.testWeekAwayEarnsTheBigGreeting
+▶ PersonalityReducerTests.testGreetExpiresViaStaleTick
+▶ PersonalityReducerTests.testGreetNeverOutranksAttention
+▶ PersonalityReducerTests.testActivityDoesNotUpdateRetiredHourHistogram
+▶ PersonalityReducerTests.testActivityDoesNotUpdateRetiredSessionCount
+▶ PersonalityReducerTests.testFreshWorkIsLightEffort
+▶ PersonalityReducerTests.testLongWorkEscalatesToHardThenGrinding
+▶ PersonalityReducerTests.testErrorsDoNotEscalateEffort
+▶ PersonalityReducerTests.testOneMinuteTaskGetsModestCelebration
+▶ PersonalityReducerTests.testSubMinuteErrorsDoNotManufactureCelebration
+▶ PersonalityReducerTests.testCelebrateIntensityClearsWithTheWindow
+▶ PersonalityReducerTests.testApprovalResolutionLeavesMemoryAndJoyUntouched
+▶ PersonalityReducerTests.testMemoryLoadedSeedsWithoutCountingAsPresence
+▶ PromptExpiryTests.testReducerClearsPromptOlderThanApprovalTimeout
+▶ PromptExpiryTests.testReducerKeepsFreshPromptBeforeApprovalTimeout
+▶ PromptExpiryTests.testEngineExpiresPassiveAttention
+▶ ReducerTests.testInitialStateIsDisconnectedWithNoPrompt
+▶ ReducerTests.testSessionStartedBumpsVersion
+▶ ReducerTests.testRequestArrivedSetsPromptAndAttention
+▶ ReducerTests.testRequestClearedRemovesPrompt
+▶ ReducerTests.testSessionEndedRemovesSessionAndSleeps
+▶ ReducerTests.testStaleTickRemovesExpiredSessions
+▶ ReducerTests.testVersionBumpsExactlyOncePerChange
+▶ ReducerTests.testMultipleSessionsTrackedIndependently
+▶ ReducerTests.testAttentionPersistsWhenOtherSessionStops
+▶ ReducerTests.testBusyOverridesIdleAcrossSessions
+▶ ReducerTests.testCelebrateSignalSetsCelebrateState
+▶ ReducerTests.testCelebrateExpiresOnStaleTick
+▶ ReducerTests.testAttentionOverridesCelebrate
+▶ ReducerTests.testDoneOverridesBusy
+▶ ReducerTests.testShortTaskDurationBelowThreshold
+▶ ReducerTests.testLongTaskDurationAboveThreshold
+▶ ReducerTests.testCelebrateWithoutWorkStartHasNilDuration
+▶ ReducerTests.testMsgUsesDisplayedPromptSourceNotArbitrarySession
+▶ ReducerTests.testMsgClearsWhenPromptResolves
+▶ ReducerTests.testApprovalPassthroughClearsPromptAndGoesIdle
+▶ ReducerTests.testDefaultSpeciesIsAKnownSpecies
+▶ ReducerTests.testSpeciesChangedUpdatesBuddyState
+▶ ReducerTests.testKeepWorkingWithToolAndHintStashesOnSession
+▶ ReducerTests.testCelebrateAfterKeepWorkingPopulatesLastCompletedWithCorrectTool
+▶ ReducerTests.testLastCompletedPersistsAfterCelebrateWindowExpires
+▶ ReducerTests.testLastCompletedClearsWhenNewRequestArrives
+▶ ReducerTests.testLastCompletedClearsOnStartWorkingFromAnySession
+▶ ReducerTests.testReviewDismissedEventClearsLastCompleted
+▶ ReducerTests.testIdleMsgShowsCompletionSummaryWhenLastCompletedSet
+▶ ReducerTests.testBusyStateMsgIncludesCurrentToolFromPrimarySession
+▶ ReducerTests.testCurrentToolClearsOnCelebrate
+▶ ReducerTests.testCurrentToolClearsOnStopWorking
+▶ ReducerTests.testMultipleWorkingSessionsMsgUsesOldestWorkStartedAt
+▶ ReducerTests.testEntriesAccumulateAndTruncateAt10
+▶ ReducerTests.testKeepWorkingWithoutToolDoesNotOverwritePreviouslyStashedTool
+▶ ReducerTests.testErrorSignalSetsPetToErrorNotIdle
+▶ ReducerTests.testErrorMsgUsesErrorPrefixNotStalled
+▶ ReducerTests.testErroredSessionRecoversToWorkingOnTurnStarted
+▶ ReducerTests.testErroredSessionWithActivePromptElsewherePetRemainsAttention
+▶ ReducerTests.testDismissErrorClearsErroredStateForSession
+▶ ReducerTests.testFirstErroredHasOldestWorkStartedAtAcrossMultipleErrored
+▶ ReducerTests.testActiveSessionsOrdersAttentionFirstThenErroredThenOldestWorking
+▶ ReducerTests.testActiveSessionsCappedAtSix
+▶ ReducerTests.testActiveSessionsIncludesIdleSessionsAfterActiveOnes
+▶ ReducerTests.testActiveSessionsEmptyWhenNoSessions
+▶ ReducerTests.testIdenticalIdleSessionsKeepDistinctSnapshotIds
+▶ ReducerTests.testActivityKindForSwiftTestCommandReturnsVerify
+▶ ReducerTests.testActivityKindForGenericBashReturnsShell
+▶ ReducerTests.testActivityKindForReadToolReturnsRead
+▶ ReducerTests.testActivityKindForEditToolReturnsWrite
+▶ ReducerTests.testActivityKindForWebToolReturnsWeb
+▶ ReducerTests.testActivityKindForUnknownToolReturnsWork
+▶ ReducerTests.testPromptActivityKindSetAfterRequestArrived
+▶ ReducerTests.testSessionCurrentActivityKindSetAfterKeepWorking
+▶ ReducerTests.testCompletedTaskActivityKindCarriedOnCelebrate
+▶ ReducerTests.testBoopPutsIdlePetInHeart
+▶ ReducerTests.testBoopOverlaysBusyButKeepsMsg
+▶ ReducerTests.testBoopExpiresOnStaleTick
+▶ ReducerTests.testBoopNeverOverridesAttention
+▶ ReducerTests.testBoopNeverOverridesError
+▶ ReducerTests.testBoopWhileAsleepStaysAsleep
+▶ ReducerTests.testAttentionArrivingDuringHeartWinsImmediately
+▶ ReflectionTests.testModelChoosesMemoryOncePerDayWithoutChangingLegacyTraits
+▶ ReflectionTests.testUnavailableInvalidOrSilentModelDoesNotInventLearning
+▶ ReflectionTests.testReflectionBoundaryExcludesPrivateAndApprovalData
+▶ ReflectionTests.testGuideIsReadAgainForEachReflection
+▶ ReflectionTests.testMaintenanceUsesInjectedCalendarAndPower
+▶ RequestIdTests.testFitsLegacyDeviceBufferForUUIDSession
+▶ RequestIdTests.testFitsForEveryPlausibleSessionShape
+▶ RequestIdTests.testIdsAreUniqueWithinOneSession
+▶ RequestIdTests.testIdsStayDistinctAcrossSessionsAfterTruncation
+▶ ResilienceTests.testStopWorkingDoesNotWithdrawBlockingApproval
+▶ ResilienceTests.testStopWorkingStillClearsPassiveNotificationPrompt
+▶ ResilienceTests.testAbandonForSupersededPromptLeavesNewPromptAlone
+▶ ResilienceTests.testWatchedSessionSurvivesStaleReap
+▶ ResilienceTests.testUnwatchedSessionStillReaped
+▶ ResilienceTests.testWatchedSessionPromptStillExpires
+▶ ResourceTests.testModuleBundleContainsFontAndSoundResources
+▶ ResourceTests.testCompletionChirpIsShorterThanAttentionChirp
+▶ ResourceTests.testGeistSemiBoldRegistersAndResolves
+▶ SimpleBehaviorTests.testExistingXPIsNeverRepricedAndNewAwardsSurviveRestart
+▶ SimpleBehaviorTests.testLegacyLedgerOnlyMigratesOnce
+▶ SimpleBehaviorTests.testTypicalHourCannotWakeDisconnectedBuddy
+▶ SimpleBehaviorTests.testRetiredSigningRepliesAreIgnored
+▶ SimpleBehaviorTests.testBothNudgesReachWireBeforePromptExpires
+▶ SimpleBehaviorTests.testSessionSummaryCountsCompletedTurnsNotToolResults
+▶ SnapshotHarnessTests.testRenderAll
+PHASE7 SCENES: 41; chrome scenes: 7; expected renders: 130
+SNAPSHOT phase7-creature-asleep-hop-light.png 168376B 360x240
+SNAPSHOT phase7-creature-asleep-cheer-light.png 168376B 360x240
+SNAPSHOT phase7-creature-asleep-dance-light.png 168376B 360x240
+SNAPSHOT phase7-creature-idle-hop-light.png 166911B 360x240
+SNAPSHOT phase7-creature-idle-cheer-light.png 166911B 360x240
+SNAPSHOT phase7-creature-idle-dance-light.png 166911B 360x240
+SNAPSHOT phase7-creature-working-hop-light.png 166771B 360x240
+SNAPSHOT phase7-creature-working-cheer-light.png 166771B 360x240
+SNAPSHOT phase7-creature-working-dance-light.png 166771B 360x240
+SNAPSHOT phase7-creature-needsYou-hop-light.png 168518B 360x240
+SNAPSHOT phase7-creature-needsYou-cheer-light.png 168518B 360x240
+SNAPSHOT phase7-creature-needsYou-dance-light.png 168518B 360x240
+SNAPSHOT phase7-creature-done-hop-light.png 210908B 360x240
+SNAPSHOT phase7-creature-done-cheer-light.png 222712B 360x240
+SNAPSHOT phase7-creature-done-dance-light.png 221192B 360x240
+SNAPSHOT phase7-popover-uhoh-hop-light.png 65751B 360x640
+SNAPSHOT phase7-popover-uhoh-cheer-light.png 65751B 360x640
+SNAPSHOT phase7-popover-uhoh-dance-light.png 65751B 360x640
+SNAPSHOT phase7-creature-effort-light-light.png 166771B 360x240
+SNAPSHOT phase7-creature-effort-hard-light.png 170415B 360x240
+SNAPSHOT phase7-creature-effort-grinding-light.png 169952B 360x240
+SNAPSHOT phase7-popover-stakes-fine-light.png 76114B 360x640
+SNAPSHOT phase7-popover-stakes-checkIt-light.png 76114B 360x640
+SNAPSHOT phase7-popover-stakes-careful-light.png 76114B 360x640
+SNAPSHOT phase7-popover-uhoh-error-light.png 65751B 360x640
+SNAPSHOT phase7-creature-greet-1-light.png 165266B 360x240
+SNAPSHOT phase7-creature-greet-2-light.png 165266B 360x240
+SNAPSHOT phase7-creature-greet-3-light.png 166121B 360x240
+SNAPSHOT phase7-creature-boop-light.png 166121B 360x240
+SNAPSHOT phase7-creature-skin-default-light.png 166911B 360x240
+SNAPSHOT phase7-creature-accessory-none-light.png 166911B 360x240
+SNAPSHOT phase7-creature-silhouette-default-light.png 166911B 360x240
+SNAPSHOT phase7-creature-skin-sky-light.png 166716B 360x240
+SNAPSHOT phase7-creature-skin-mint-light.png 164758B 360x240
+SNAPSHOT phase7-creature-accessory-sprout-light.png 167489B 360x240
+SNAPSHOT phase7-creature-silhouette-round-light.png 166911B 360x240
+SNAPSHOT phase7-creature-skin-ember-light.png 166190B 360x240
+SNAPSHOT phase7-creature-accessory-scarf-light.png 164651B 360x240
+SNAPSHOT phase7-creature-silhouette-tall-light.png 166911B 360x240
+SNAPSHOT phase7-creature-skin-midnight-light.png 155983B 360x240
+SNAPSHOT phase7-creature-accessory-crown-light.png 167002B 360x240
+SNAPSHOT phase7-profile-0-light.png 41220B 520x540
+SNAPSHOT phase7-profile-3-light.png 64412B 520x540
+SNAPSHOT phase7-settings-buddy-light.png 59433B 520x650
+SNAPSHOT phase7-settings-agents-light.png 63091B 520x650
+SNAPSHOT phase7-settings-device-light.png 49673B 520x650
+SNAPSHOT phase7-settings-focus-light.png 44720B 520x650
+SNAPSHOT phase7-settings-advanced-light.png 86709B 520x1200
+SNAPSHOT phase7-onboarding-welcome-light.png 67266B 760x660
+SNAPSHOT phase7-onboarding-agents-light.png 109859B 760x660
+SNAPSHOT phase7-onboarding-display-light.png 83159B 760x660
+SNAPSHOT phase7-onboarding-firstContact-light.png 65364B 760x660
+SNAPSHOT phase7-onboarding-done-light.png 86628B 760x660
+SNAPSHOT phase7-creature-asleep-hop-dark.png 167381B 360x240
+SNAPSHOT phase7-creature-asleep-cheer-dark.png 167381B 360x240
+SNAPSHOT phase7-creature-asleep-dance-dark.png 167381B 360x240
+SNAPSHOT phase7-creature-idle-hop-dark.png 165910B 360x240
+SNAPSHOT phase7-creature-idle-cheer-dark.png 165910B 360x240
+SNAPSHOT phase7-creature-idle-dance-dark.png 165910B 360x240
+SNAPSHOT phase7-creature-working-hop-dark.png 165604B 360x240
+SNAPSHOT phase7-creature-working-cheer-dark.png 165604B 360x240
+SNAPSHOT phase7-creature-working-dance-dark.png 165604B 360x240
+SNAPSHOT phase7-creature-needsYou-hop-dark.png 166374B 360x240
+SNAPSHOT phase7-creature-needsYou-cheer-dark.png 166374B 360x240
+SNAPSHOT phase7-creature-needsYou-dance-dark.png 166374B 360x240
+SNAPSHOT p▶ SnapshotHarnessTests.testPopoverSleep
+▶ SnapshotHarnessTests.testPopoverBusy
+▶ SnapshotHarnessTests.testPopoverPassivePrompt
+▶ SnapshotHarnessTests.testPassiveAttentionSnoozeLoop
+▶ SnapshotHarnessTests.testSettings
+▶ SnapshotHarnessTests.testOnboardingSteps
+hase7-creature-done-hop-dark.png 209834B 360x240
+SNAPSHOT phase7-creature-done-cheer-dark.png 221686B 360x240
+SNAPSHOT phase7-creature-done-dance-dark.png 220530B 360x240
+SNAPSHOT phase7-popover-uhoh-hop-dark.png 67479B 360x640
+SNAPSHOT phase7-popover-uhoh-cheer-dark.png 67479B 360x640
+SNAPSHOT phase7-popover-uhoh-dance-dark.png 67479B 360x640
+SNAPSHOT phase7-creature-effort-light-dark.png 165604B 360x240
+SNAPSHOT phase7-creature-effort-hard-dark.png 169261B 360x240
+SNAPSHOT phase7-creature-effort-grinding-dark.png 168759B 360x240
+SNAPSHOT phase7-popover-stakes-fine-dark.png 77927B 360x640
+SNAPSHOT phase7-popover-stakes-checkIt-dark.png 77927B 360x640
+SNAPSHOT phase7-popover-stakes-careful-dark.png 77927B 360x640
+SNAPSHOT phase7-popover-uhoh-error-dark.png 67479B 360x640
+SNAPSHOT phase7-creature-greet-1-dark.png 164010B 360x240
+SNAPSHOT phase7-creature-greet-2-dark.png 164010B 360x240
+SNAPSHOT phase7-creature-greet-3-dark.png 164813B 360x240
+SNAPSHOT phase7-creature-boop-dark.png 164813B 360x240
+SNAPSHOT phase7-creature-skin-default-dark.png 165910B 360x240
+SNAPSHOT phase7-creature-accessory-none-dark.png 165910B 360x240
+SNAPSHOT phase7-creature-silhouette-default-dark.png 165910B 360x240
+SNAPSHOT phase7-creature-skin-sky-dark.png 165619B 360x240
+SNAPSHOT phase7-creature-skin-mint-dark.png 163633B 360x240
+SNAPSHOT phase7-creature-accessory-sprout-dark.png 166491B 360x240
+SNAPSHOT phase7-creature-silhouette-round-dark.png 165910B 360x240
+SNAPSHOT phase7-creature-skin-ember-dark.png 165049B 360x240
+SNAPSHOT phase7-creature-accessory-scarf-dark.png 163735B 360x240
+SNAPSHOT phase7-creature-silhouette-tall-dark.png 165910B 360x240
+SNAPSHOT phase7-creature-skin-midnight-dark.png 155011B 360x240
+SNAPSHOT phase7-creature-accessory-crown-dark.png 165867B 360x240
+SNAPSHOT phase7-profile-0-dark.png 41269B 520x540
+SNAPSHOT phase7-profile-3-dark.png 64874B 520x540
+SNAPSHOT phase7-settings-buddy-dark.png 58452B 520x650
+SNAPSHOT phase7-settings-agents-dark.png 62149B 520x650
+SNAPSHOT phase7-settings-device-dark.png 48663B 520x650
+SNAPSHOT phase7-settings-focus-dark.png 43113B 520x650
+SNAPSHOT phase7-settings-advanced-dark.png 84390B 520x1200
+SNAPSHOT phase7-onboarding-welcome-dark.png 67604B 760x660
+SNAPSHOT phase7-onboarding-agents-dark.png 110588B 760x660
+SNAPSHOT phase7-onboarding-display-dark.png 83610B 760x660
+SNAPSHOT phase7-onboarding-firstContact-dark.png 65169B 760x660
+SNAPSHOT phase7-onboarding-done-dark.png 86461B 760x660
+SNAPSHOT popover-1-sleep.png 57640B 360x450
+SNAPSHOT popover-2-busy.png 60849B 360x450
+SNAPSHOT popover-3-passive-prompt.png 79407B 360x590
+SNAPSHOT popover-4-approval-queue-error.png 86592B 360x590
+SNAPSHOT popover-5-multi-session.png 70772B 360x590
+SNAPSHOT popover-6-error.png 65433B 360x590
+SNAPSHOT popover-7-review.png 63564B 360x590
+SNAPSHOT onboarding-0-welcome.png 67266B 760x660
+SNAPSHOT onboarding-1-agents.png 109859B 760x660
+SNAPSHOT onboarding-2-display.png 83159B 760x660
+SNAPSHOT onboarding-3-firstContact.png 65470B 760x660
+SNAPSHOT onboarding-4-done.png 86628B 760x660
+SNAPSHOT firmware-checking.png 25067B 360x320
+SNAPSHOT firmware-uploading.png 28634B 360x320
+SNAPSHOT firmware-verifying.png 26114B 360x320
+SNAPSHOT firmware-success.png 27369B 360x320
+SNAPSHOT firmware-failed.png 41807B 360x320
+SNAPSHOT menubar-icons.png 7620B 432x144
+SNAPSHOT stress-1-long-approval.png 60689B 360x420
+SNAPSHOT stress-2-long-path.png 82105B 360x420
+SNAPSHOT stress-3-long-error.png 60519B 360x420
+SNAPSHOT stress-4-many-sessions.png 67782B 360x420
+SNAPSHOTS WRITTEN to /tmp/buddy-snapshots
+SNAPSHOT popover-1-sleep.png 57464B 360x450
+SNAPSHOT popover-2-busy.png 60658B 360x450
+SNAPSHOT popover-3-passive-prompt.png 79236B 360x590
+SNAPSHOT popover-4-attention.png 83679B 360x590
+SNAPSHOT popover-5-snoozed.png 83679B 360x590
+SNAPSHOT settings-buddy.png 58045B 520x650
+SNAPSHOT settings-agents.png 63091B 520x650
+SNAPSHOT settings-device.png 49673B 520x650
+SNAPSHOT settings-focus.png 44720B 520x650
+SNAPSHOT settings-advanced.png 86709B 520x1200
+SNAPSHOT onboarding-0-welcome.png 67266B 760x660
+SNAPSHOT onboarding-1-agents.png 1▶ SnapshotHarnessTests.testControlCenterPanes
+▶ SnapshotHarnessTests.testMenuBarCompactCatalog
+▶ StoreTests.testLegacyMemoryMigrationAndReopen
+▶ StoreTests.testPruningAtBoundaryOnStartupAndDaily
+▶ StoreTests.testProfileClearDoesNotResetGrowthBondOrMemory
+▶ StoreTests.testFixedAppearanceIgnoresLegacyChoicesAndPreservesGrowth
+▶ StoreTests.testSetupTemperamentAndLastFiveHundredFacts
+▶ StoreTests.testSavingEmptyMemoryRemovesOptionalKeysAndCorruptLegacyStaysRecoverable
+▶ StoreTests.testUnreadableLegacyBootstrapStillLoadsGrowthAndPersists
+▶ StoreTests.testRollupMatchesReplayAcrossCapsMidnightReopenAndBackdatedRows
+▶ StoreTests.testExistingPerKeySQLiteMemoryMigratesToOneBlob
+▶ StoreTests.testXPActivityUsesActualCappedAwardsAndProgressIsWithinLevel
+▶ TransientVoiceTests.testCancelAllRejectsUncooperativeLines
+▶ TransientVoiceTests.testLanguageRuntimeAndStopSuppressPendingBubble
+▶ VoiceBankTests.testOnlyShareCardsRetainAuthoredBanks
+▶ VoiceBankTests.testPromptContainsGuideAndBoundedContext
+▶ VoiceFilterTests.testGuideOwnsStyleAndDisplayOwnsControls
+▶ VoiceFilterTests.testEveryByteBoundaryPreservesCharacters
+▶ VoiceTimingTests.testThreeSecondRuntimeMeetsOneSecondDeadline
+▶ VoiceTimingTests.testInvalidDisplayFallsBackAndValidModelWins
+▶ VoiceTimingTests.testUncooperativeRuntimeCannotSuppressLaterLines
+▶ VoiceTimingTests.testRepeatedModelLineUsesNextAuthoredLine
+▶ VoiceTimingTests.testNewPromptSuppressesLateBubble
+▶ VoiceTimingTests.testModelWinDoesNotConsumeFallback
+▶ VoiceTimingTests.testExclusionsLoadOncePerLanguageAndDay
+▶ VoiceTimingTests.testParagraphAndProfileDoNotEnterHistory
+▶ WireCompatibilityTests.testV2FixtureAndNoLegacyKeys
+▶ WireCompatibilityTests.testNewAndLegacyInboundFixtures
+▶ WireCompatibilityTests.testMalformedCommandsRejected
+09859B 760x660
+SNAPSHOT onboarding-2-display.png 83159B 760x660
+SNAPSHOT onboarding-3-firstContact.png 65470B 760x660
+SNAPSHOT onboarding-4-done.png 86628B 760x660
+SNAPSHOT control-center-overview.png 76100B 360x590
+SNAPSHOT control-center-activity.png 53165B 360x590
+SNAPSHOT control-center-settings.png 78840B 360x590
+SNAPSHOT control-center-setup.png 51529B 360x590
+SNAPSHOT menu-overview-light.png 64260B 360x450
+SNAPSHOT menu-sessions-6-light.png 91037B 360x576
+SNAPSHOT menu-sessions-10-light.png 119730B 360x744
+SNAPSHOT menu-sessions-12-light.png 123647B 360x744
+SNAPSHOT menu-settings-all-light.png 77723B 360x560
+SNAPSHOT menu-settings-full-light.png 236760B 360x3300
+SNAPSHOT menu-setup-welcome-light.png 42218B 360x450
+SNAPSHOT menu-setup-agents-light.png 73426B 360x450
+SNAPSHOT menu-setup-display-light.png 57886B 360x450
+SNAPSHOT menu-setup-firstContact-light.png 38071B 360x450
+SNAPSHOT menu-setup-done-light.png 57314B 360x450
+SNAPSHOT menu-overview-dark.png 62106B 360x450
+SNAPSHOT menu-sessions-6-dark.png 93182B 360x576
+SNAPSHOT menu-sessions-10-dark.png 122455B 360x744
+SNAPSHOT menu-sessions-12-dark.png 126491B 360x744
+SNAPSHOT menu-settings-all-dark.png 78645B 360x560
+SNAPSHOT menu-settings-full-dark.png 238354B 360x3300
+SNAPSHOT menu-setup-welcome-dark.png 42785B 360x450
+SNAPSHOT menu-setup-agents-dark.png 74153B 360x450
+SNAPSHOT menu-setup-display-dark.png 59038B 360x450
+SNAPSHOT menu-setup-firstContact-dark.png 38877B 360x450
+SNAPSHOT menu-setup-done-dark.png 57120B 360x450
+
+✓ 341 passed, 0 skipped of 341 tests

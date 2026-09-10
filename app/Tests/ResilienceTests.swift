@@ -45,81 +45,9 @@ final class ResilienceTests: XCTestCase {
         XCTAssertEqual(s.sessions["s1"]?.state, .idle)
     }
 
-    @MainActor
-    func testIdleSignalMidApprovalThenDecisionStillDelivered() async {
-        let (engine, _, _) = makeResilienceEngine()
-        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
-
-        let approvalTask = Task { @MainActor in
-            await engine.submitApproval(
-                sessionId: "s1", requestId: "r1",
-                tool: "Bash", hint: "npm test",
-                sessionLabel: nil, source: "claude-code"
-            )
-        }
-        await Task.yield()
-        XCTAssertEqual(engine.state.prompt?.id, "r1")
-
-        engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .stopWorking)
-        XCTAssertEqual(engine.state.prompt?.id, "r1", "prompt must survive an idle notification")
-
-        engine.resolveApproval(requestId: "r1", decision: .allow)
-        let decision = await approvalTask.value
-        XCTAssertEqual(decision, .allow)
-        XCTAssertNil(engine.state.prompt)
-    }
-
     // MARK: - Abandonment (hook connection closed)
 
     @MainActor
-    func testAbandonApprovalClearsCardAndUnblocksWaiter() async {
-        let (engine, _, _) = makeResilienceEngine()
-        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
-
-        let approvalTask = Task { @MainActor in
-            await engine.submitApproval(
-                sessionId: "s1", requestId: "r1",
-                tool: "Bash", hint: "rm -rf build",
-                sessionLabel: nil, source: "claude-code"
-            )
-        }
-        await Task.yield()
-        XCTAssertEqual(engine.state.prompt?.id, "r1")
-
-        engine.abandonApproval(sessionId: "s1", requestId: "r1")
-
-        let decision = await approvalTask.value
-        XCTAssertEqual(decision, .passthrough, "an abandoned waiter must still finish")
-        XCTAssertNil(engine.state.prompt, "the card must come down when its asker hangs up")
-        XCTAssertEqual(engine.state.pet.state, .idle)
-        XCTAssertEqual(engine.state.sessions.total, 1, "abandonment ends the prompt, not the session")
-    }
-
-    @MainActor
-    func testAbandonAfterResolutionIsNoop() async {
-        // The disconnect watcher can't be interrupted mid-await, so after a
-        // normal decision the eventual connection close still fires a late
-        // abandon. It must change nothing.
-        let (engine, _, _) = makeResilienceEngine()
-        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
-
-        let approvalTask = Task { @MainActor in
-            await engine.submitApproval(
-                sessionId: "s1", requestId: "r1",
-                tool: "Bash", hint: "ls",
-                sessionLabel: nil, source: "claude-code"
-            )
-        }
-        await Task.yield()
-        engine.resolveApproval(requestId: "r1", decision: .allow)
-        _ = await approvalTask.value
-        XCTAssertEqual(engine.state.pet.state, .busy)
-
-        engine.abandonApproval(sessionId: "s1", requestId: "r1")
-
-        XCTAssertEqual(engine.state.pet.state, .busy, "late abandon after allow must not disturb the session")
-        XCTAssertNil(engine.state.prompt)
-    }
 
     func testAbandonForSupersededPromptLeavesNewPromptAlone() {
         var s = applyEvents(
@@ -183,37 +111,6 @@ final class ResilienceTests: XCTestCase {
 
     // MARK: - The timeout chain
 
-    @MainActor
-    func testApprovalTimeoutChain() {
-        let reducerTimeoutSeconds = BuddyConfig(
-            httpPort: 0,
-            staleTimeoutMs: 600_000,
-            celebrateDurationMs: 4_000,
-
-            stateDir: "/tmp",
-            approvalMode: false,
-            token: "t"
-        ).approvalTimeoutMs / 1000
-
-        XCTAssertLessThan(
-            reducerTimeoutSeconds,
-            Double(HookInstaller.approvalCurlMaxTimeSeconds),
-            "the card must expire BEFORE the hook's curl gives up, or a last-second button press resolves into a closed socket"
-        )
-        XCTAssertLessThan(
-            HookInstaller.approvalCurlMaxTimeSeconds,
-            HookInstaller.registeredApprovalHookTimeoutSeconds,
-            "curl must give up BEFORE the agent kills the hook, so the script can still exit 0 and fail open"
-        )
-        // The script must actually use the constant it claims to.
-        XCTAssertTrue(
-            HookInstaller.hookScriptContent.contains("--max-time \(HookInstaller.approvalCurlMaxTimeSeconds)"),
-            "hook script curl --max-time drifted from approvalCurlMaxTimeSeconds"
-        )
-        // And the reducer default must match the documented chain.
-        XCTAssertEqual(InternalState.initial(staleMs: 1, celebrateDurationMs: 1).approvalTimeoutMs, 290_000)
-    }
-
     // MARK: - Real-server disconnect abandonment
 
     /// Boots the REAL Hummingbird server on a spare port and hangs up a real
@@ -221,54 +118,6 @@ final class ResilienceTests: XCTestCase {
     /// tests cannot reach: the whole design rests on the channel's
     /// closeFuture firing when the blocked hook's curl dies, and only an
     /// actual socket close can prove that.
-    @MainActor
-    func testClientHangUpAbandonsParkedApprovalAgainstRealServer() async throws {
-        try requireLocalNetworking()
-        let (engine, _, _) = makeResilienceEngine()
-        let port = Int.random(in: 33000..<59000)
-        let config = BuddyConfig(
-            httpPort: port,
-            staleTimeoutMs: 600_000,
-            celebrateDurationMs: 4_000,
-
-            stateDir: "/tmp",
-            approvalMode: true,
-            token: "test-token"
-        )
-        let app = buildHookServer(engine: engine, config: config)
-        let serverTask = Task { try await app.runService() }
-        defer { serverTask.cancel() }
-
-        // Server up?
-        let base = URL(string: "http://127.0.0.1:\(port)")!
-        try await pollUntil(timeoutMs: 5_000, what: "server listening") {
-            (try? await URLSession.shared.data(from: base.appendingPathComponent("healthz"))) != nil
-        }
-
-        // A "hook" that gives up after 1s — exactly what a killed agent or an
-        // expired hook timeout looks like from the server's side.
-        let curl = Process()
-        curl.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
-        curl.arguments = [
-            "-s", "-o", "/dev/null", "--max-time", "1",
-            "-X", "POST", "http://127.0.0.1:\(port)/hook/approve?source=claude-code",
-            "-H", "X-Boop-Token: test-token",
-            "-H", "Content-Type: application/json",
-            "-d", #"{"hook_event_name":"PermissionRequest","session_id":"hangup-e2e","tool_name":"Bash","tool_input":{"command":"sleep 99"}}"#,
-        ]
-        try curl.run()
-
-        // The card goes up while the connection is parked...
-        try await pollUntil(timeoutMs: 3_000, what: "prompt raised") {
-            engine.state.prompt != nil
-        }
-        // ...and must come DOWN when the client hangs up, long before the
-        // 290s timeout.
-        try await pollUntil(timeoutMs: 5_000, what: "prompt withdrawn on hang-up") {
-            engine.state.prompt == nil
-        }
-    }
-
     @MainActor
     private func pollUntil(
         timeoutMs: Int,
@@ -283,17 +132,6 @@ final class ResilienceTests: XCTestCase {
         XCTFail("timed out waiting for: \(what)")
     }
 
-    @MainActor
-    func testHookScriptProvesServerAliveBeforeLongWait() {
-        let script = HookInstaller.hookScriptContent
-        // The 2s /healthz preflight bounds the hung-but-listening-server case:
-        // without it a deadlocked app still holding the port blocks the agent
-        // for the full 300s with no card ever shown.
-        XCTAssertTrue(script.contains("/healthz"), "approval path lost its liveness preflight")
-        // -f on the approve curl: a future non-2xx-with-body must never be
-        // relayed to the agent as hook output.
-        XCTAssertTrue(script.contains("curl -sf"), "approve curl lost -f; an error body would become hook output")
-    }
 }
 
 @MainActor

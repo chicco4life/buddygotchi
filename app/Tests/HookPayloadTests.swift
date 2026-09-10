@@ -74,9 +74,9 @@ extension HookPayloadTests {
         for global in [false, true] {
             try XCTAssertTrue(try forwarded(request, source: "codex", approvalMode: global).isEmpty)
         }
-        try XCTAssertFalse(try forwarded(request, source: "codex", approvalMode: true, codexApprovalMode: true).isEmpty)
+        try XCTAssertTrue(try forwarded(request, source: "codex", approvalMode: true, codexApprovalMode: true).isEmpty)
         try XCTAssertFalse(try forwarded(["hook_event_name": "PreToolUse", "session_id": "s"], source: "codex", approvalMode: true).isEmpty)
-        try XCTAssertFalse(try forwarded(request, source: "claude-code", approvalMode: true).isEmpty)
+        try XCTAssertTrue(try forwarded(request, source: "claude-code", approvalMode: true).isEmpty)
     }
 
     @MainActor func testTransportPreservesAliasesAndCallIdentity() throws {
@@ -96,20 +96,15 @@ extension HookPayloadTests {
         try XCTAssertEqual(try RawHookPayload.parse(codex, source: "codex", at: 0)?.callId, "call-99")
     }
 
-    func testApprovalDescriptionIsDisplayOnly() throws {
+    func testPermissionHookPayloadIsIgnored() throws {
         let json = #"{"hook_event_name":"PermissionRequest","session_id":"s","tool_name":"Bash","tool_input":{"command":"rm -rf build","description":"Clean build artifacts"}}"#
-        let body = try JSONDecoder().decode(HookEventBody.self, from: Data(json.utf8))
-        let payload = try XCTUnwrap(RawHookPayload.parse(Data(json.utf8), source: "codex", at: 0))
-        XCTAssertEqual(payload.displayHint, "Clean build artifacts")
-        XCTAssertEqual(approvalGloss(from: body, fallback: "runs a command"), "Clean build artifacts")
-        XCTAssertEqual(approvalOperation(from: body), "rm -rf build")
-        XCTAssertNil(shouldAutoApprove(tool: "Shell", command: approvalOperation(from: body), source: "cursor"))
-        XCTAssertTrue(payload.toolInput?.contains("rm -rf") == true)
-        XCTAssertEqual(StakesReader.read(tool: "Bash", input: payload.toolInput ?? "").0, .careful)
+        for source in ["claude-code", "codex", "cursor"] {
+            try XCTAssertNil(try RawHookPayload.parse(Data(json.utf8), source: source, at: 0))
+        }
     }
 
     @MainActor func testFastEventsNeverForkPython() throws {
-        for event in ["PreToolUse", "preToolUse", "beforeShellExecution", "beforeMCPExecution", "SessionStart", "SessionEnd", "Notification", "PermissionRequest"] {
+        for event in ["PreToolUse", "preToolUse", "beforeShellExecution", "beforeMCPExecution", "SessionStart", "SessionEnd", "Notification"] {
             for size in [10, 20_000] {
                 let data = try forwarded(["hook_event_name": event, "session_id": "s", "tool_input": ["command": String(repeating: "한", count: size)]], forbidPython: true)
                 let body = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])

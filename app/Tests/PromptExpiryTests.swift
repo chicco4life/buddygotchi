@@ -56,28 +56,13 @@ final class PromptExpiryTests: XCTestCase {
     }
 
     @MainActor
-    func testEngineResolvesPendingApprovalAsPassthroughWhenPromptExpires() async {
+    func testEngineExpiresPassiveAttention() {
         let (engine, clock) = makePromptExpiryEngine(approvalTimeoutMs: 1_000)
         engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
-
-        let approvalTask = Task { @MainActor in
-            await engine.submitApproval(
-                sessionId: "s1",
-                requestId: "r1",
-                tool: "Bash",
-                hint: "rm -rf",
-                sessionLabel: nil,
-                source: "claude-code"
-            )
-        }
-        await Task.yield()
+        engine.submitRequest(sessionId: "s1", requestId: "r1", tool: "Question", hint: "Check editor", sessionLabel: nil)
         XCTAssertEqual(engine.state.prompt?.id, "r1")
-
         clock.advance(by: 1_001)
         engine.triggerStaleTick()
-
-        let decision = await approvalTask.value
-        XCTAssertEqual(decision, .passthrough)
         XCTAssertNil(engine.state.prompt)
         XCTAssertEqual(engine.state.sessions.total, 1)
         XCTAssertEqual(engine.state.pet.state, .idle)

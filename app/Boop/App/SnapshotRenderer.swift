@@ -70,11 +70,10 @@ enum SnapshotRenderer {
         approval.sessionStarted(sessionId: "s2", source: "codex", cwd: "/Users/dev/landing")
         approval.sessionStarted(sessionId: "s3", source: "cursor", cwd: "/Users/dev/api")
         approval.activitySignal(sessionId: "s3", source: "cursor", signal: .error, tool: "Shell", hint: "npm test")
-        Task { _ = await approval.submitApproval(sessionId: "s1", requestId: "rq1", tool: "Bash", hint: "rm -rf build && npm ci", sessionLabel: "boop", source: "claude-code") }
-        Task { _ = await approval.submitApproval(sessionId: "s2", requestId: "rq2", tool: "Write", hint: "src/app/page.tsx", sessionLabel: "landing", source: "codex") }
+        approval.submitRequest(sessionId: "s1", requestId: "rq1", tool: "Bash", hint: "rm -rf build && npm ci", sessionLabel: "boop")
+        approval.submitRequest(sessionId: "s2", requestId: "rq2", tool: "Write", hint: "src/app/page.tsx", sessionLabel: "landing")
         RunLoop.main.run(until: Date().addingTimeInterval(0.1))
         render(popover(approval, defaults: defaults), "popover-4-approval-queue-error", expanded, dir)
-        approval.resolveAllPendingApprovals(decision: .passthrough)
 
         // 5. Popover: multi-session list
         let multi = makeEngine()
@@ -140,16 +139,15 @@ enum SnapshotRenderer {
         let longHint = makeEngine()
         longHint.sessionStarted(sessionId: "s1", source: "claude-code", cwd: "/Users/dev/very-long-monorepo-name")
         Task {
-            _ = await longHint.submitApproval(
+            longHint.submitRequest(
                 sessionId: "s1", requestId: "rq1",
                 tool: "mcp__filesystem__read_text_file_with_a_long_name",
                 hint: "find . -type f -name '*.swift' -not -path './.build/*' -exec sed -i '' 's/BuddyTheme.textPrimary/BuddyTheme.ink/g' {} + && swift build --product Boop 2>&1 | grep -c 'error:'",
-                sessionLabel: "very-long-monorepo-name", source: "claude-code"
+                sessionLabel: "very-long-monorepo-name"
             )
         }
         RunLoop.main.run(until: Date().addingTimeInterval(0.1))
         render(popover(longHint, defaults: defaults), "stress-1-long-approval", stressSize, dir)
-        longHint.resolveAllPendingApprovals(decision: .passthrough)
 
         let longPath = makeEngine()
         longPath.sessionStarted(sessionId: "s1", source: "cursor", cwd: "/Users/dev/api")

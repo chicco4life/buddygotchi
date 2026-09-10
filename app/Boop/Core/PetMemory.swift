@@ -151,7 +151,6 @@ struct PetMemory: Sendable, Equatable, Codable {
         return hourHistogram[hour] >= max(2, Int(Double(histogramSamples) * 0.08))
     }
 
-
 }
 
 // MARK: - Tuning
@@ -174,8 +173,10 @@ enum PetTuning {
     static let circadianMinSamples = 20
     static let circadianMinAgeMs: Double = 14 * 24 * 3_600_000
 
+    static let celebrationMinMs: Double = 60_000
+
     /// Effort tier boundaries on the current work span.
-    static let effortHardMinMs: Double = 10 * 60_000
-    static let effortGrindingMinMs: Double = 25 * 60_000
+    static let effortHardMinMs: Double = 3 * 60_000
+    static let effortGrindingMinMs: Double = 5 * 60_000
 
 }

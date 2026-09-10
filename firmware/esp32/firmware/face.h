@@ -252,7 +252,7 @@ static void faceDraw(uint32_t now,bool showSparks,float compact=0,bool proud=fal
   FacePose p=facePose;
   float scale=1-0.56f*compact;
   if (proud) { p.arc=22; p.eyeH=7; p.mouth=1; p.gazeX=p.gazeY=p.tilt=0; p.blush=p.sweat=p.brow=0; }
-  float cardAmount=max(cardSpring.pos,decision.id[0]?1.0f:0.0f);
+  float cardAmount=cardSpring.pos;
   // The compact landscape footer leaves room for a lower, larger face.
   float footerAmount=HAL_LANDSCAPE && !systemCard()?animClamp(cardAmount,0,1):0;
   int lift=animPx(cardAmount*(HAL_LANDSCAPE && !systemCard()?25:47));

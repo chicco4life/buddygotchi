@@ -11,8 +11,8 @@ its status and configuration surface. Normal use should not require opening it.
   No animation, XP counter, or completion celebration in the menu bar.
 - Clicking opens a native transient popover anchored to the icon. Clicking again,
   outside, or pressing Escape closes it. Opening normally returns to Overview.
-- State changes never open or close it, including pending approvals. Old
-  interactive-mode preferences are ignored. Previously opted-in approval
+- State changes never open or close it, including attention requests. Old
+  interactive-mode preferences are ignored. Previously opted-in passive
   notifications remain available; selecting one opens the dropdown.
 - Activity, Settings, profile, and setup are reached inside the same dropdown,
   with Back navigation. Secondary confirmation and utility sheets remain attached.
@@ -28,10 +28,9 @@ subtle dividers, and whitespace. No sidebar or top-level tab strip.
 2. Current state and a short explanation: Working, Idle, Sleeping, Needs you,
    Done, or Needs attention. Device connection is independent of agent state.
 3. Pending requests appear only on Overview, below its status. Settings, Activity
-   and setup display only their own content, even while an approval is waiting.
-   Show the tool,
-   supplied reason (or tool name), stakes, queue position, and Approve/Deny for actionable requests. The
-   first decision from either surface wins. Passive requests have no fake buttons.
+   and setup display only their own content, even while attention is pending.
+   Show the tool, supplied reason (or tool name), queue position and
+   “Check your editor”. There are no stakes or Approve/Deny buttons.
 4. Within-level XP progress, total XP, and remaining XP. A compact row shows
    today's XP, lifetime completed tasks, and current streak. The task count is
    explicitly labeled as lifetime until a reliable daily count is exposed.
@@ -63,8 +62,7 @@ Simple headings separate:
 - Device: connection, pairing, and firmware.
 - Agents: installation status, connect and repair actions.
 - General: launch at login.
-- What your buddy knows: inspect and clear stored profile lines inline; “Edit buddy behavior…” opens the Markdown guide for dialogue, memory and personality.
-- Approvals: “Approve through Buddy”, off by default, plus the separate Codex opt-in.
+- What your buddy knows: inspect and clear stored profile lines inline; “Edit buddy behavior…” opens the Markdown guide for event-based dialogue, personality and memory.
 - Support: Report a bug saves a diagnostic file for sharing with support.
 - About: version, Check for updates, and Help & support.
 
@@ -79,7 +77,7 @@ avoid dark filled rectangles within the form.
 ## Quiet mode
 
 Quiet mode turns off **all sounds and beeps**, with no high-stakes exceptions.
-Animations, expressions, visual approval reminders, nudge timing, state changes,
+Animations, expressions, visual attention reminders, nudge timing, state changes,
 XP, and agent behavior remain identical. It neither approves nor denies requests.
 
 The setting lives in Buddy & sound, labeled "Quiet mode", with the description
@@ -93,15 +91,10 @@ English and Korean copy are supported. Review both system appearances.
 
 ## Approvals and reminders
 
-Native editor/agent approval is the default. Explicit Buddy interception can
-replace the native dialog, requiring the decision through Buddy. Codex also
-requires its separate opt-in; existing explicit choices remain. Disabling
-interception releases held requests to the native flow. Server-side checks
-protect this even when an old hook still asks to intercept.
-
-“Snooze reminder” suppresses nudges for that request without deciding it.
-The next request starts fresh. Stakes inspect the command; card copy uses the
-supplied reason, or the tool name when absent.
+Approvals belong entirely to the editor. Buddy interception and both opt-in
+settings are removed. Stale hooks return immediately to native approval.
+Passive attention remains on Overview. “Snooze reminder” suppresses that request's
+60/120-second nudges without resolving it; the next request starts fresh.
 
 Firmware check errors read “Check unavailable”; the sheet shows the underlying
 error and offers Try again. This is separate from an installation failure.

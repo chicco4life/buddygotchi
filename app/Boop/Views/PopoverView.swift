@@ -52,9 +52,7 @@ struct PopoverView: View {
                     Text([prompt.source.flatMap { AgentKind(rawValue: $0)?.displayName } ?? prompt.source, prompt.sessionLabel].compactMap { $0 }.joined(separator: " · "))
                         .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 32)
                 }
-                NeedsYouCard(language: engine.state.language, card: card,
-                    approve: { engine.resolveApproval(requestId: card.id, decision: .allow) },
-                    deny: { engine.resolveApproval(requestId: card.id, decision: .deny) })
+                NeedsYouCard(language: engine.state.language, card: card)
                     .padding(.horizontal, 18).padding(.bottom, 8)
                 Button(copy("Snooze reminder", "알림 잠시 끄기")) { engine.nudgeDismissed(requestId: card.id) }
                     .buttonStyle(.link).font(.caption).padding(.horizontal, 32).padding(.bottom, 12)
@@ -148,7 +146,7 @@ struct PopoverView: View {
         case .working: copy("Your agents are making progress.", "에이전트가 작업 중입니다.")
         case .idle: copy("Ready when you are.", "준비되어 있습니다.")
         case .asleep: copy("No work in progress.", "진행 중인 작업이 없습니다.")
-        case .needsYou: copy("An agent is waiting for your decision.", "에이전트가 결정을 기다립니다.")
+        case .needsYou: copy("An agent needs your attention in the editor.", "에디터에서 에이전트의 요청을 확인해 주세요.")
         case .done: copy("Your agent finished its work.", "에이전트가 작업을 완료했습니다.")
         case .uhoh: copy("Open your agent to review the issue.", "에이전트에서 문제를 확인하세요.")
         }
@@ -278,7 +276,6 @@ struct ActivityRow: Identifiable {
         case .thinking: BuddyCopy.phase7("working", language: language)
         }
     }
-
 
 }
 

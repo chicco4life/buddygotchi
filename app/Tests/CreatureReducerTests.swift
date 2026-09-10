@@ -38,6 +38,7 @@ final class CreatureReducerTests: XCTestCase {
 
     func testCollapseThreeSessionsAndDoneAboveWorking() {
         var s = start(start(start(fresh()), 1, "b"), 2, "c")
+        s.sessions["c"]?.workStartedAt = -60_000
         s = finish(s, 100, "c")
         XCTAssertEqual(s.buddy.creature.state, .done)
         s = reduce(s, .turnEnded(at: 101, sessionId: "b", source: "codex", outcome: .failed(errorClass: nil)))
@@ -55,7 +56,7 @@ final class CreatureReducerTests: XCTestCase {
     }
 
     func testCelebrationsFollowDurationIncludingAfterErrors() {
-        for (span, expected): (Double, CheerSize) in [(1, .hop), (599_999, .hop), (600_000, .cheer), (1_499_999, .cheer), (1_500_000, .dance)] {
+        for (span, expected): (Double, CheerSize) in [(60_000, .hop), (179_999, .hop), (180_000, .cheer), (299_999, .cheer), (300_000, .dance)] {
             var s = start(fresh())
             for i in 1...5 { s = reduce(s, .toolResulted(at: Double(i), sessionId: "a", source: "codex", tool: "Bash", ok: false, durationMs: nil)) }
             s = finish(s, span)
@@ -63,8 +64,6 @@ final class CreatureReducerTests: XCTestCase {
             XCTAssertEqual(s.buddy.celebrateUntil, span + s.cheerThresholds.duration(expected))
         }
     }
-
-
 
     func testFoldKeepsLargerTimerAndUpgradesSmaller() {
         var s = start(start(fresh()), 0, "b")
@@ -74,17 +73,16 @@ final class CreatureReducerTests: XCTestCase {
         XCTAssertEqual(s.buddy.creature.cheer, .dance)
         XCTAssertEqual(s.buddy.celebrateUntil, 4100)
         s = start(s, 600, "b")
+        s.sessions["b"]?.workStartedAt = -60_000
         s = finish(s, 3501, "b")
         XCTAssertEqual(s.buddy.creature.cheer, .hop)
         XCTAssertEqual(s.buddy.celebrateUntil, 5001)
         s = start(s, 3600)
-        s.sessions["a"]?.workStartedAt = -600_000
+        s.sessions["a"]?.workStartedAt = -180_000
         s = finish(s, 3700)
         XCTAssertEqual(s.buddy.creature.cheer, .cheer)
         XCTAssertEqual(s.buddy.celebrateUntil, 6200)
     }
-
-
 
     func testAllErrorsUseGenericErrorAndClear() {
         for errorClass in [String?.none, "rate_limit"] {
@@ -94,7 +92,7 @@ final class CreatureReducerTests: XCTestCase {
             XCTAssertEqual(s.buddy.creature.uhoh, .error)
             XCTAssertNil(s.buddy.creature.bubble) // Engine supplies the authored remark.
             XCTAssertEqual(start(s, 3).buddy.creature.state, .working)
-            XCTAssertEqual(finish(s, 3).buddy.creature.state, .done)
+            XCTAssertEqual(finish(s, 3).buddy.creature.state, .idle)
             XCTAssertEqual(reduce(s, .errorDismissed(at: 3, sessionId: "a")).buddy.creature.state, .idle)
             XCTAssertEqual(reduce(s, .toolResulted(at: 3, sessionId: "a", source: "codex", tool: "Bash", ok: true, durationMs: 1)).buddy.creature.state, .working)
         }
@@ -112,13 +110,11 @@ final class CreatureReducerTests: XCTestCase {
         XCTAssertNil(s.buddy.creature.bubble)
     }
 
-
-
     func testEffortUsesCurrentTaskDurationBoundariesAndResets() {
         var s = start(fresh())
         for (at, expected): (Double, CreatureEffort) in [
-            (119_999, .light), (120_000, .light), (599_999, .light),
-            (600_000, .hard), (1_499_999, .hard), (1_500_000, .grinding)
+            (59_999, .light), (60_000, .light), (179_999, .light),
+            (180_000, .hard), (299_999, .hard), (300_000, .grinding)
         ] {
             s = reduce(s, .staleTick(at: at))
             XCTAssertEqual(s.buddy.creature.effort, expected)
@@ -128,15 +124,11 @@ final class CreatureReducerTests: XCTestCase {
         XCTAssertEqual(s.buddy.creature.effort, .light)
     }
 
-    func testEveryStakesPatternAndReadOnlyTools() {
-        for hint in ["rm -rf x", "rm -r x", "sudo test", "git push --force", "git push -f origin", "curl example | sh", "wget example |sh", "mkfs disk", "dd if=x", "chmod 777 x", "echo\nhi", "echo\u{1b}"] {
-            XCTAssertEqual(card(hint).buddy.creature.card?.stakes, .careful, hint)
+    func testPassiveAttentionDoesNotClassifyCommandStakes() {
+        for hint in ["rm -rf build", "swift build", "read file"] {
+            XCTAssertEqual(card(hint).buddy.creature.card?.stakes, .checkIt)
+            XCTAssertEqual(card(hint).buddy.creature.card?.isApproval, false)
         }
-        for tool in ["Read", "Glob", "Grep", "LS", "LSP", "read_file", "list_dir", "grep_search", "codebase_search"] {
-            XCTAssertEqual(card("file\tname", tool: tool).buddy.creature.card?.stakes, .fine)
-            XCTAssertEqual(card("rm -rf x", tool: tool).buddy.creature.card?.stakes, .careful)
-        }
-        XCTAssertEqual(card("swift build").buddy.creature.card?.stakes, .checkIt)
     }
 
     func testCardQueueOldestFirst() {
@@ -145,7 +137,7 @@ final class CreatureReducerTests: XCTestCase {
         XCTAssertEqual(s.buddy.creature.card?.id, "p")
         XCTAssertEqual(s.buddy.creature.card?.index, 0)
         XCTAssertEqual(s.buddy.creature.card?.count, 2)
-        XCTAssertEqual(s.buddy.creature.card?.isApproval, true)
+        XCTAssertEqual(s.buddy.creature.card?.isApproval, false)
         s = reduce(s, .approvalResolved(at: 11, sessionId: "a", requestId: "p", decision: .deny))
         XCTAssertEqual(s.buddy.creature.card?.id, "q")
         XCTAssertEqual(s.buddy.creature.card?.count, 1)
@@ -199,8 +191,6 @@ final class CreatureReducerTests: XCTestCase {
         XCTAssertNil(reduce(failed, .boopArrived(at: 200)).buddy.creature.overlay)
     }
 
-
-
     func testGreetingLevelProjectionAndExpiry() {
         for (old, expected) in [(1, 1), (2, 3)] {
             // A greet shows once the owner is back and something is connected;
@@ -226,7 +216,6 @@ final class CreatureReducerTests: XCTestCase {
         XCTAssertEqual(s.buddy.creature.uhoh, .error)
         XCTAssertEqual(s.buddy.creature.dotAlert, 0)
     }
-
 
     func testLegacySignalsDelegateToTurnAndToolPaths() {
         var legacy = fresh()

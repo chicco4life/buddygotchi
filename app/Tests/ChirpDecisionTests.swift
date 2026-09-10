@@ -28,11 +28,11 @@ final class ChirpDecisionTests: XCTestCase {
 
     func testCompletedTaskChirpsOnce() {
         let working = applyEvents(.test(), start("s1"), work("s1", at: NOW))
-        let finished = applyEvents(working, done("s1", at: NOW + 10_000))
+        let finished = applyEvents(working, done("s1", at: NOW + 60_000))
 
         XCTAssertEqual(chirp(working, finished), .complete)
         // A subsequent tick with no new completion must stay quiet.
-        let ticked = applyEvents(finished, .staleTick(at: NOW + 11_000))
+        let ticked = applyEvents(finished, .staleTick(at: NOW + 61_000))
         XCTAssertNil(chirp(finished, ticked))
     }
 
@@ -58,7 +58,7 @@ final class ChirpDecisionTests: XCTestCase {
             start("s1"), start("s2", source: "cursor"),
             work("s1", at: NOW), work("s2", at: NOW, source: "cursor")
         )
-        let oneDone = applyEvents(both, done("s1", at: NOW + 10_000))
+        let oneDone = applyEvents(both, done("s1", at: NOW + 60_000))
 
         XCTAssertEqual(oneDone.buddy.pet.state, .celebrate, "done outranks the working peer")
         XCTAssertNil(oneDone.buddy.lastCompleted, "aggregation clears the review card while busy")
@@ -74,8 +74,8 @@ final class ChirpDecisionTests: XCTestCase {
             start("s1"), start("s2", source: "cursor"), start("s3", source: "codex"),
             work("s1", at: NOW), work("s2", at: NOW, source: "cursor"), work("s3", at: NOW, source: "codex")
         )
-        let first = applyEvents(all, done("s1", at: NOW + 10_000))
-        let second = applyEvents(first, done("s2", at: NOW + 11_000, source: "cursor"))
+        let first = applyEvents(all, done("s1", at: NOW + 60_000))
+        let second = applyEvents(first, done("s2", at: NOW + 61_000, source: "cursor"))
 
         XCTAssertEqual(all.buddy.pet.state, .busy)
         XCTAssertEqual(first.buddy.pet.state, .celebrate)
@@ -176,8 +176,8 @@ final class ChirpDecisionTests: XCTestCase {
         )
         let mixed = applyEvents(
             both,
-            done("s1", at: NOW + 10_000),
-            .approvalArrived(at: NOW + 10_000, sessionId: "s2", requestId: "req_1",
+            done("s1", at: NOW + 60_000),
+            .approvalArrived(at: NOW + 60_000, sessionId: "s2", requestId: "req_1",
                              tool: "Bash", hint: "npm test", sessionLabel: nil, source: "cursor")
         )
 
@@ -188,7 +188,7 @@ final class ChirpDecisionTests: XCTestCase {
 
     func testSoundsDisabledSilencesEverything() {
         let working = applyEvents(.test(), start("s1"), work("s1", at: NOW))
-        let finished = applyEvents(working, done("s1", at: NOW + 10_000))
+        let finished = applyEvents(working, done("s1", at: NOW + 60_000))
         let waiting = applyEvents(working, .approvalArrived(
             at: NOW + 1_000, sessionId: "s1", requestId: "req_1",
             tool: "Bash", hint: "npm test", sessionLabel: nil, source: "claude-code"
@@ -249,7 +249,7 @@ final class DesktopOutputSoundTests: XCTestCase {
             .activitySignal(at: NOW, sessionId: "s1", source: "claude-code", signal: .startWorking, tool: "Edit", hint: "x")
         )
         let finished = applyEvents(working, .activitySignal(
-            at: NOW + 10_000, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: "Edit", hint: "x"
+            at: NOW + 60_000, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: "Edit", hint: "x"
         ))
 
         output.stateDidChange(prev: working.buddy, next: finished.buddy)

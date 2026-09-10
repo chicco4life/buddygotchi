@@ -42,9 +42,8 @@ actor Extractor {
         case .toolResult:
             if !degraded.contains(p.source) { toolResult(p, window: &w, result: &result) }
         case .needsYou:
-            let (stakes, gloss) = StakesReader.read(tool: p.toolName, input: p.toolInput ?? "", dictionary: dictionary ?? [:])
-            result.events.append(.requestArrived(at: p.timestamp, sessionId: p.sessionId, requestId: "\(p.sessionId)_\(Int(p.timestamp))", tool: p.toolName, hint: gloss, sessionLabel: w.project))
-            result.events.append(.requestDescribed(at: p.timestamp, sessionId: p.sessionId, stakes: stakes, gloss: p.displayHint.isEmpty ? gloss : p.displayHint))
+            let text = p.displayHint.isEmpty ? p.toolName : p.displayHint
+            result.events.append(.requestArrived(at: p.timestamp, sessionId: p.sessionId, requestId: "\(p.sessionId)_\(Int(p.timestamp))", tool: p.toolName, hint: text, sessionLabel: w.project))
         case .sessionEnd: break
         }
         if !degraded.contains(p.source) {

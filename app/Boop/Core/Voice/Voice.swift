@@ -26,7 +26,6 @@ enum Occasion: Sendable {
 struct VoiceRequest: Sendable {
     var occasion: Occasion
     var profile: [String] = []
-    var traits: Traits = [:]
     var agent: String? = nil
     var timeOfDay: TimeOfDay = .day
     var language: String = "en"
@@ -132,10 +131,10 @@ actor Voice {
         }
         return VoiceLine(text: text, source: .model)
     }
-    func reflect(history: [StoredFact], profile: [String], traits: Traits, day: String, language: String) async -> ReflectionUpdate? {
+    func reflect(history: [StoredFact], profile: [String], day: String, language: String) async -> ReflectionUpdate? {
         let evidence = Reflection.evidence(history)
         guard !evidence.isEmpty else { return nil }
-        let prompt = Reflection.prompt(guide: guide.read(), evidence: evidence, profile: profile, traits: traits, day: day, language: language)
+        let prompt = Reflection.prompt(guide: guide.read(), evidence: evidence, profile: profile, day: day, language: language)
         guard let result = await generate(prompt: prompt, maxBytes: 8192, lane: true) else { return nil }
         return ReflectionUpdate.decode(result, evidenceCount: evidence.count, language: language)
     }

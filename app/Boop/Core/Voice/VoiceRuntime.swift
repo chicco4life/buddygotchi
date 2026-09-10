@@ -50,9 +50,7 @@ enum VoicePrompt {
         facts["sessions"] = String(request.sessionCount)
         if let effort = request.effort { facts["effort"] = effort.rawValue }
         if let duration = request.lastCompletedTaskDurationMs { facts["last_completed_task_duration_seconds"] = String(Int(max(0, duration) / 1000)) }
-        for axis in ["energy", "cheek", "warmth", "curiosity", "bond"] {
-            if let value = request.traits[axis] { facts[axis] = String(min(255, max(0, value))) }
-        }
+
         if case .profileLine(let candidate) = request.occasion { facts["candidate"] = candidate }
         if case .greet(let level) = request.occasion { facts["level"] = String(level) }
         let data = try? JSONSerialization.data(withJSONObject: facts, options: [.sortedKeys])

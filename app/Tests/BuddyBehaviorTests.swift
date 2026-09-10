@@ -56,49 +56,6 @@ final class BuddyBehaviorTests: XCTestCase {
         XCTAssertEqual(editedGuide, "My edited guide")
     }
 
-    @MainActor func testModelAcknowledgementWaitsForCelebration() async throws {
-        let runtime = BehaviorRuntime("All done."), clock = MockClock()
-        let (defaults, cleanup) = makeDefaults(); defer { cleanup() }
-        let engine = BuddyEngine(clock: clock, voiceRuntime: runtime, defaults: defaults)
-        engine.turnStarted(sessionId: "s", source: "codex")
-        engine.turnEnded(sessionId: "s", source: "codex", outcome: .completed)
-        await engine.finishPendingWork()
-        let before = await runtime.prompts
-        XCTAssertTrue(before.isEmpty)
-        XCTAssertEqual(engine.state.creature.cheer, .hop)
-        XCTAssertNil(engine.state.creature.bubble)
-        clock.time = try XCTUnwrap(engine.state.celebrateUntil)
-        engine.triggerStaleTick()
-        await engine.finishPendingWork()
-        XCTAssertEqual(engine.state.creature.state, .idle)
-        XCTAssertEqual(engine.state.creature.bubble, "All done.")
-        let after = await runtime.prompts
-        XCTAssertEqual(after.count, 1)
-        XCTAssertTrue(after[0].contains("completed"))
-    }
-
-    @MainActor func testPeriodicDecisionDoesNotChangeStateAndSkipsApprovals() async throws {
-        let runtime = BehaviorRuntime("Still here."), clock = MockClock()
-        let (defaults, cleanup) = makeDefaults(); defer { cleanup() }
-        let engine = BuddyEngine(clock: clock, voiceRuntime: runtime, defaults: defaults)
-        engine.turnStarted(sessionId: "s", source: "codex")
-        engine.maintenance()
-        clock.advance(by: BuddyEngine.behaviorCheckMs)
-        engine.maintenance()
-        await engine.finishPendingWork()
-        XCTAssertEqual(engine.state.creature.state, .working)
-        XCTAssertEqual(engine.state.creature.bubble, "Still here.")
-        var prompts = await runtime.prompts
-        XCTAssertEqual(prompts.count, 1)
-        XCTAssertTrue(prompts[0].contains("periodic"))
-        engine.submitRequest(sessionId: "s", requestId: "p", tool: "Bash", hint: "check", sessionLabel: nil)
-        clock.advance(by: BuddyEngine.behaviorCheckMs)
-        engine.maintenance()
-        await engine.finishPendingWork()
-        prompts = await runtime.prompts
-        XCTAssertEqual(prompts.count, 1)
-        XCTAssertEqual(engine.state.creature.card?.id, "p")
-    }
 }
 
 extension BuddyBehaviorTests {
@@ -117,30 +74,58 @@ extension BuddyBehaviorTests {
                StoredFact(fact: .moment(.nthRateLimit), sessionId: "s", project: "p", at: 100, day: "2026-09-10")]
         var progress = GrowthSnapshot(); progress.xp = 1234; progress.level = 5
         progress.today = 27; progress.tasks = 80; progress.streak = 4
-        let request = VoiceRequest(occasion: .periodic, profile: ["likes quiet mornings"], traits: ["energy": 70, "bond": 200],
-            growth: progress, memory: BehaviorMemory(memory: memory, moments: BehaviorMemory.recentMoments(from: facts), at: 100))
+        let request = VoiceRequest(occasion: .periodic, profile: ["likes quiet mornings"],
+            growth: progress, memory: BehaviorMemory(moments: BehaviorMemory.recentMoments(from: facts)))
         let prompt = VoicePrompt.make(request), data = try context(prompt)
         let growth = try XCTUnwrap(data["progress"] as? [String: Int])
         XCTAssertEqual(growth["xp"], 1234)
         XCTAssertEqual(growth["xp_today"], 27)
         XCTAssertEqual(growth["completed_tasks"], 80)
-        XCTAssertEqual(data["energy"] as? String, "70")
+        XCTAssertNil(data["energy"])
         let remembered = try XCTUnwrap(data["memory"] as? [String: Any])
-        XCTAssertEqual(remembered["completed_turns"] as? Int, 42)
-        XCTAssertEqual(remembered["known_project_count"] as? Int, 1)
+        XCTAssertNil(remembered["completed_turns"])
+        XCTAssertNil(remembered["known_project_count"])
         XCTAssertNil(remembered["current_hour_is_typical"], "Insufficient history is unknown")
-        XCTAssertEqual((remembered["recent_moments"] as? [[String: String]])?.count, 5)
+        XCTAssertEqual((remembered["recent_outcomes"] as? [[String: String]])?.count, 0)
         for secret in ["SECRET_PROJECT", "SECRET_DRAWING", "SECRET_SESSION", "SECRET_DENIAL", "nthRateLimit"] {
             XCTAssertFalse(prompt.contains(secret))
         }
     }
 
+}
+
+extension BuddyBehaviorTests {
+    @MainActor func testModelAcknowledgementWaitsForCelebration() async throws {
+        let runtime = BehaviorRuntime("All done."), clock = MockClock()
+        let (defaults, cleanup) = makeDefaults(); defer { cleanup() }
+        let engine = BuddyEngine(clock: clock, voiceRuntime: runtime, defaults: defaults)
+        engine.turnStarted(sessionId: "s", source: "codex")
+        clock.advance(by: 60_000)
+        engine.turnEnded(sessionId: "s", source: "codex", outcome: .completed)
+        await engine.finishPendingWork()
+        let before = await runtime.prompts
+        XCTAssertTrue(before.isEmpty)
+        XCTAssertEqual(engine.state.creature.cheer, .hop)
+        XCTAssertNil(engine.state.creature.bubble)
+        clock.time = try XCTUnwrap(engine.state.celebrateUntil)
+        engine.triggerStaleTick()
+        await engine.finishPendingWork()
+        XCTAssertEqual(engine.state.creature.state, .idle)
+        XCTAssertEqual(engine.state.creature.bubble, "All done.")
+        let after = await runtime.prompts
+        XCTAssertEqual(after.count, 1)
+        XCTAssertTrue(after[0].contains("completed"))
+    }
+}
+
+extension BuddyBehaviorTests {
     @MainActor func testEngineSuppliesEarnedXPAndRecordedMemoryToModel() async throws {
         let (store, _, cleanup) = try makeStore(); defer { cleanup() }
         let runtime = BehaviorRuntime(), clock = MockClock()
         let (defaults, clear) = makeDefaults(); defer { clear() }
         let engine = BuddyEngine(clock: clock, store: store, voiceRuntime: runtime, defaults: defaults)
         engine.turnStarted(sessionId: "s", source: "codex")
+        clock.advance(by: 60_000)
         engine.turnEnded(sessionId: "s", source: "codex", outcome: .completed)
         await engine.finishPendingWork()
         let xp = engine.state.growth.xp
@@ -152,8 +137,8 @@ extension BuddyBehaviorTests {
         let data = try context(try XCTUnwrap(prompts.last))
         XCTAssertEqual((data["progress"] as? [String: Int])?["xp"], xp)
         let memory = try XCTUnwrap(data["memory"] as? [String: Any])
-        XCTAssertEqual(memory["completed_turns"] as? Int, 1)
-        let moments = try XCTUnwrap(memory["recent_moments"] as? [[String: String]])
-        XCTAssertTrue(moments.contains { $0["kind"] == "completed_turn_0s" })
+        XCTAssertNil(memory["completed_turns"])
+        let moments = try XCTUnwrap(memory["recent_outcomes"] as? [[String: String]])
+        XCTAssertTrue(moments.contains { $0["kind"] == "completed_turn_60s" })
     }
 }

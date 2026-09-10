@@ -13,8 +13,8 @@ when ordinary use demonstrates a need, and update its spec with the implementati
 | Leaderboards/friends | Separate opt-in service with explicit privacy, identity and verification design |
 | Additional local runtimes | Only if Foundation Models availability or measured quality warrants it |
 
-Energy, XP, bond and memory already feed the Markdown-guided model. Extending
-how the guide interprets them usually needs no new rule system. Keep states,
-celebrations and approval authority deterministic.
+Personality lives in Markdown; supported memories provide familiarity. Keep
+states and celebrations deterministic and approvals in the editor. Periodic
+dialogue can return only when a more enjoyable interaction is designed.
 
 Earlier exploration is retained in [ideas history](IDEAS-HISTORY.md).

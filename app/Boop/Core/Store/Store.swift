@@ -90,7 +90,7 @@ actor Store: EngineStore {
         }
     }
     func recentBehaviorMoments() throws -> [BehaviorMemory.RememberedMoment] {
-        let facts = try decodeFacts(db.run("SELECT payload_json,session_id,project,at,day FROM facts WHERE kind IN ('moment','turnCompleted','toolOutcome','errorClass') ORDER BY at DESC,id DESC LIMIT 20"))
+        let facts = try decodeFacts(db.run("SELECT payload_json,session_id,project,at,day FROM facts WHERE kind IN ('turnCompleted','toolOutcome','errorClass') ORDER BY at DESC,id DESC LIMIT 20"))
         return BehaviorMemory.recentMoments(from: facts)
     }
     func facts() throws -> [StoredFact] { try facts(limit: 500) }
@@ -209,17 +209,7 @@ actor Store: EngineStore {
         try db.run("INSERT INTO profile(line,source,confidence,created_at) VALUES(?,?,0.6,?) ON CONFLICT(line) DO UPDATE SET confidence=min(1.0,confidence+0.1)", [line,source,String(at)])
     }
     func traits() async throws -> [String: Int] { Dictionary(uniqueKeysWithValues: try db.run("SELECT axis,value FROM traits").map { ($0[0], Int($0[1])!) }) }
-    func applyDrift(_ deltas: [String: Int], localDay: String) throws {
-        try db.transaction { try drift(deltas, localDay: localDay) }
-    }
-    private func drift(_ deltas: [String: Int], localDay: String) throws {
-        for axis in ReflectionUpdate.axes {
-            let prior = Int(try db.run("SELECT delta FROM drift WHERE day=? AND axis=?", [localDay,axis]).first?.first ?? "0") ?? 0
-            let total = min(3,max(-3, prior + min(3,max(-3,deltas[axis,default:0]))))
-            try db.run("UPDATE traits SET value=max(0,min(255,value+?)) WHERE axis=?", [String(total-prior),axis])
-            try db.run("INSERT OR REPLACE INTO drift VALUES(?,?,?)", [localDay,axis,String(total)])
-        }
-    }
+
     private var reflectionVoice: Voice?
     private var voiceLanguage = "en"
     private var reflecting: Set<String> = []
@@ -247,12 +237,11 @@ actor Store: EngineStore {
         let generation = ownerGeneration
         let history = try decodeFacts(db.run("SELECT payload_json,session_id,project,at,day FROM facts WHERE day<=? ORDER BY at,id", [localDay]))
         guard let voice = reflectionVoice else { return try profile() }
-        let context = try profile().map(\.line), axes = try await traits()
-        guard let update = await voice.reflect(history: history, profile: context, traits: axes, day: localDay, language: voiceLanguage) else { return try profile() }
+        let context = try profile().map(\.line)
+        guard let update = await voice.reflect(history: history, profile: context, day: localDay, language: voiceLanguage) else { return try profile() }
         guard generation == ownerGeneration, !retiring else { return [] }
         try db.transaction {
             for memory in update.memories { try addProfileLine(memory.line, source: "model", at: at) }
-            try drift(update.traits, localDay: localDay)
             try setMeta("reflected_" + localDay, "1")
         }
         return try profile()

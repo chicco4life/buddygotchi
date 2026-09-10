@@ -1,0 +1,112 @@
+Processing ws-amoled164 (platform: https://github.com/pioarduino/platform-espressif32/releases/download/55.03.39/platform-espressif32.zip; board: esp32-s3-devkitc-1; framework: arduino)
+--------------------------------------------------------------------------------
+Verbose mode can be enabled via `-v, --verbose` option
+Boop firmware version: dev+e24552ba6320 (e24552ba6320)
+CONFIGURATION: https://docs.platformio.org/page/boards/espressif32/esp32-s3-devkitc-1.html
+PLATFORM: Espressif 32 (55.3.39) > Espressif ESP32-S3-DevKitC-1-N8 (8 MB QD, No PSRAM)
+HARDWARE: ESP32S3 240MHz, 320KB RAM, 8MB Flash
+DEBUG: Current (esp-builtin) On-board (esp-builtin) External (cmsis-dap, esp-bridge, esp-prog, esp-prog-2, iot-bus-jtag, jlink, minimodule, olimex-arm-usb-ocd, olimex-arm-usb-ocd-h, olimex-arm-usb-tiny-h, olimex-jtag-tiny, tumpa)
+PACKAGES: 
+ - contrib-piohome @ 3.4.4 
+ - framework-arduinoespressif32 @ 3.3.9 
+ - framework-arduinoespressif32-libs @ 5.5.4+sha.735507283d 
+ - tool-esptoolpy @ 5.3.0 
+ - tool-xtensa-esp-elf-gdb @ 17.1.0+20260402 
+ - toolchain-xtensa-esp-elf @ 14.2.0+20260121
+LDF: Library Dependency Finder -> https://bit.ly/configure-pio-ldf
+LDF Modes: Finder ~ chain, Compatibility ~ soft
+Found 47 compatible libraries
+Scanning dependencies...
+Dependency Graph
+|-- GFX Library for Arduino @ 1.6.7
+|-- LovyanGFX @ 1.2.28
+|-- AnimatedGIF @ 2.2.3
+|-- ArduinoJson @ 7.4.3
+|-- BLE @ 3.3.9
+|-- Wire @ 3.3.9
+|-- Preferences @ 3.3.9
+Building in release mode
+Compiling .pio/build/ws-amoled164/src/main.cpp.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/esp32-hal-dac.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/esp32-hal-gpio.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/esp32-hal-hosted.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/esp32-hal-i2c-ng.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/esp32-hal-i2c-slave.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/esp32-hal-i2c.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/esp32-hal-ldo.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/esp32-hal-ledc.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/esp32-hal-log-wrapper.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/esp32-hal-matrix.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/esp32-hal-misc.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/esp32-hal-periman.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/esp32-hal-psram.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/esp32-hal-rgb-led.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/esp32-hal-rmt.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/esp32-hal-sigmadelta.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/esp32-hal-spi.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/esp32-hal-time.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/esp32-hal-timer.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/esp32-hal-tinyusb.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/esp32-hal-touch-ng.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/esp32-hal-touch.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/esp32-hal-uart.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/firmware_msc_fat.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/freertos_stats.cpp.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/idf_openthread_mpool_wrapper.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/libb64/cdecode.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/libb64/cencode.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/main.cpp.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/stdlib_noniso.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/wiring_pulse.c.o
+Compiling .pio/build/ws-amoled164/FrameworkArduino/wiring_shift.c.o
+Archiving .pio/build/ws-amoled164/libFrameworkArduino.a
+Indexing .pio/build/ws-amoled164/libFrameworkArduino.a
+Linking .pio/build/ws-amoled164/firmware.elf
+Memory Type Usage Summary
+┏━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┓
+┃ Memory Type/Section ┃ Used [bytes] ┃ Used [%] ┃ Remain [bytes] ┃ Total [bytes] ┃
+┡━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━┩
+│ Flash Code          │       555784 │          │                │               │
+│    .text            │       555784 │          │                │               │
+│ Flash Data          │       553292 │          │                │               │
+│    .rodata          │       553036 │          │                │               │
+│    .appdesc         │          256 │          │                │               │
+│ DIRAM               │       130231 │    38.11 │         211529 │        341760 │
+│    .text            │        82899 │    24.26 │                │               │
+│    .bss             │        26688 │     7.81 │                │               │
+│    .data            │        20644 │     6.04 │                │               │
+│ IRAM                │        16384 │    100.0 │              0 │         16384 │
+│    .text            │        15356 │    93.73 │                │               │
+│    .vectors         │         1028 │     6.27 │                │               │
+│ RTC FAST            │           84 │     1.03 │           8108 │          8192 │
+│    .text            │           84 │     1.03 │                │               │
+│ RTC SLOW            │            8 │      0.1 │           7672 │          7680 │
+│    .rtc_noinit      │            8 │      0.1 │                │               │
+└─────────────────────┴──────────────┴──────────┴────────────────┴───────────────┘
+Total image size: 1229087 bytes (.bin may be padded larger)
+Note: The reported total sizes may be smaller than those in the technical reference manual due to reserved memory and application configuration. The total flash size available for the application is not included by default, as it cannot be reliably determined due to the presence of other data like the bootloader, partition table, and application partition size.
+Retrieving maximum program size .pio/build/ws-amoled164/firmware.elf
+Checking size .pio/build/ws-amoled164/firmware.elf
+Advanced Memory Usage is available via "PlatformIO Home > Project Inspect"
+RAM:   [=         ]  14.4% (used 47332 bytes from 327680 bytes)
+Flash: [==        ]  19.5% (used 1228747 bytes from 6291456 bytes)
+Building .pio/build/ws-amoled164/firmware.bin with action:
+  $ERASETOOL --chip esp32s3 elf2image --flash-mode ${__get_board_flash_mode(__env__)} --flash-freq ${__get_board_f_image(__env__)} --flash-size 16MB --elf-sha256-offset 0xb0 -o "$TARGET" "$SOURCES"
+Building .pio/build/ws-amoled164/firmware.bin
+esptool v5.3.0
+Creating ESP32-S3 image...
+Merged 3 ELF sections.
+Successfully created ESP32-S3 image.
+Creating binary "firmware.factory.bin" with:
+    Offset   | File
+ -  0x0000   | bootloader.bin
+ -  0x8000   | partitions.bin
+ -  0xe000   | boot_app0.bin
+ -  0x10000  | firmware.bin
+Successfully created combined binary image.
+========================= [SUCCESS] Took 9.21 seconds =========================
+
+Environment    Status    Duration
+-------------  --------  ------------
+ws-amoled164   SUCCESS   00:00:09.206
+========================= 1 succeeded in 00:00:09.206 =========================

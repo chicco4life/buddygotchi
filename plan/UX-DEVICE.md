@@ -2,9 +2,8 @@
 
 The physical face shows the six states in [Component behaviors](BEHAVIORS.md).
 That catalog owns state triggers, duration tiers, folding and the nudge schedule;
-this reference owns visual presentation and interaction. Approvals stay in the
-editor by default. Actionable Buddy cards require explicit opt-in; passive
-attention cards have no approval buttons. [Wire](WIRE-V2.md) defines transport.
+this reference owns visual presentation and interaction. Approvals stay entirely in the
+editor. Buddy cards are passive attention with no safety labels or decisions. [Wire](WIRE-V2.md) defines transport.
 
 Boot, shutdown and early flow studies remain in [device history](UX-DEVICE-HISTORY.md)
 for hardware reference; retired features there are not current requirements.
@@ -63,8 +62,7 @@ Eyes are the anchor, centered and largest: 64×80 px at rest, 96 px apart,
 wider on Needs you. Gaze offsets stay small (±6 px drifting, 8 px down-left
 while working) so the pair never leaves the middle of the screen. Every part has a resting
 micro-motion. Expressions are blends of parts, not separate sprites.
-Silhouettes change eye spacing and size at level milestones; the anchor
-never moves. No outlines anywhere: every shape is a filled, smooth edge.
+Appearance is fixed; the anchor never moves. No outlines anywhere: every shape is a filled, smooth edge.
 
 ## 8. States
 
@@ -74,7 +72,7 @@ never moves. No outlines anywhere: every shape is a filled, smooth edge.
 | **Idle** | Open, drifting, blinking | Gentle bob, micro-idles | Dark | none |
 | **Working** (effort: light / hard / grinding) | Down and away | Lean in → sweat → tremble | Dark | none |
 | **Needs you** | Wide, at you | Turns, leans forward | Amber | "meep?" |
-| **Done** (size: hop / cheer / dance) | Arc | Hop → spin → dance | Green ripple | blip → chirp → fanfare |
+| **Done** (size: hop / cheer / dance) | Arc | Hop → cheer → dance | Green ripple | blip → chirp → fanfare |
 | **Uh-oh** | Half, down | Slump | Dim red, breathing | one low note |
 
 Overlays, on idle, working, and done only. Never on asleep (a booped
@@ -83,7 +81,7 @@ sleeper gets the one-eye peek, not hearts), never on needs you or uh-oh:
 | Overlay | Trigger | Look |
 | --- | --- | --- |
 | **Greet** | Link after time away | Squish and bounce, scaled to absence; bubble at a day or more |
-| **Boop** | Primary tap or pet with nothing pending | Squish, blush, mini hearts while held; giggle blip |
+| **Boop** | Primary tap or pet with nothing pending | Squish, blush, one heart per boop; giggle blip |
 
 Motion reactions in any state: shake gives three seconds of small-eye wobble,
 flip face-down naps. Both are suppressed while a prompt is on screen.
@@ -113,25 +111,16 @@ the black field under the face, with the field's amber wash as the only
 frame. Proportional type, the bundled Korean-capable face; one size for
 the tool name (medium weight) and one for the gloss (regular).
 
-Needs you layout, revised 2026-09-10: a borderless 88 px bottom footer on
-landscape screens. The left column contains the stakes mark and tool, with
-a quiet queue count beside it, followed by up to two lines of gloss.
-Overflow ends in an ellipsis at a UTF-8 boundary. The right column shows
-`Press: yes` / `Hold: no`, or `Hold 2s: yes` / `Side: no` for careful prompts.
-Labels appear immediately and remain visible during interaction. The landscape
-approval/decision face is lifted only 25 px (22 px lower than the first footer
-iteration), with eyes enlarged by 20% in both dimensions. The enlargement
-eases with the card; system cards and compact side layouts keep their sizing. Portrait
-screens stack instructions below the gloss. System cards retain their layout.
+Needs-you uses a borderless 88 px footer on landscape screens, showing tool,
+queue count and up to two lines of supplied reason. Text uses the full footer
+width with UTF-8-safe overflow. The face lifts 25 px and eyes enlarge 20% while
+the card is visible. System cards keep their layout.
 
-No persistent ring. During a hold, an underline beneath the relevant action
-fills over 1 s (deny) or 2 s (careful approval), draining on early release.
-The 600 ms arming guard is unchanged. Labels and queue count use grey
-`animRGB(146,146,146)`. Feedback occupies the same footer after a decision.
+No stakes dot, yes/no labels, decision holds, arming or acknowledgement feedback.
+A button dismisses a passive card locally, suppressing reminders for that ID.
+A new request starts fresh. Wake presses remain consumed.
 
-Decision feedback replaces the card: `yes!` / `okay` in the tool-line
-position for 1.5 s, then the face returns. `sending...` appears immediately
-while awaiting acknowledgement; `no link?` replaces it after 3 s.
+
 
 Nudge ladder, chosen by the app, rendered by the device:
 
@@ -139,7 +128,7 @@ Nudge ladder, chosen by the app, rendered by the device:
 | --- | --- | --- |
 | 0 | On arrival | Amber, turn, one "meep?" |
 | 1 | 60 seconds | One soft "meep?", small lean |
-| 2 | 120 seconds, every stakes level | Stronger sound, brief field pulse |
+| 2 | 120 seconds | Stronger sound, brief field pulse |
 | Quiet mode | Enabled | All sounds muted; visual rungs and timing unchanged |
 
 Dismissal resets the rung and snoozes this request only. No generated hush line.
@@ -172,17 +161,12 @@ posture; never flicker.
 
 ## 12. Buttons
 
-| | Tap | Double tap | Hold |
-| --- | --- | --- | --- |
-| **Primary** | Yes: approve → clear bubble → boop | Boop (connected) · stats (travel) | Deny (1 s, armed prompt) · approve red dot (2 s) · pet (otherwise) |
-| **Secondary** | No: deny → dismiss → next stats card → "hmph" flick | | Quiet mode toggle (1 s) · shutdown ladder (3 s) |
+Context first: a passive attention card can be dismissed; a bubble can be
+cleared; otherwise primary tap boops and existing stats gestures remain.
+Motion never resolves a request. Wake presses are consumed. Secondary hold
+retains Quiet mode and shutdown behavior. No approval tap, deny hold, careful
+hold, arming guard or decision feedback remains.
 
-Primary tap resolves first match: armed prompt → bubble →
-boop. "Primary means yes" stays one verb.
-
-Without a secondary button: deny stays on primary hold, Quiet mode is a triple
-tap, stats page by repeated double tap, shutdown is a long primary hold with
-the same staged feedback.
 
 ## 13. Travel mode and stats
 
@@ -242,8 +226,7 @@ motif. Current Waveshare hardware has no speaker.
   ink beside the face, no pill and no box (8-bit fills read as mud), one
   line, two at most, four seconds or any button. The app truncates.
 - The device font must render launch languages including Korean legibly.
-- Screen priority, highest wins: system card → Needs you card → decision
-  feedback → Uh-oh bubble → stats → bubble → overlay → face. Lower
+- Screen priority, highest wins: system card → Needs you card  → Uh-oh bubble → stats → bubble → overlay → face. Lower
   layers keep simulating.
 - Brightness: 210/255 awake, 255 with a card, 90 after two minutes with
   no button and no agent activity, 28

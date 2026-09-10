@@ -9,7 +9,6 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     private var defaultAction: (() -> Void)?
     private var available = false
     private let passiveCategoryId = "TOOL_CALL"
-    private let approvalCategoryId = "TOOL_CALL_APPROVAL"
 
     func setup(engine: BuddyEngine, defaultAction: (() -> Void)? = nil) {
         self.engine = engine
@@ -23,27 +22,12 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         let center = UNUserNotificationCenter.current()
         center.delegate = self
 
-        let approve = UNNotificationAction(
-            identifier: "APPROVE",
-            title: BuddyCopy.approve,
-            options: [.authenticationRequired]
-        )
-        let deny = UNNotificationAction(
-            identifier: "DENY",
-            title: BuddyCopy.deny,
-            options: [.destructive]
-        )
         let passiveCategory = UNNotificationCategory(
             identifier: passiveCategoryId,
             actions: [],
             intentIdentifiers: []
         )
-        let approvalCategory = UNNotificationCategory(
-            identifier: approvalCategoryId,
-            actions: [approve, deny],
-            intentIdentifiers: []
-        )
-        center.setNotificationCategories([passiveCategory, approvalCategory])
+        center.setNotificationCategories([passiveCategory])
     }
 
     func requestPermission() {
@@ -71,7 +55,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         let agentName = prompt.source.flatMap { AgentKind(rawValue: $0)?.displayName } ?? prompt.source ?? BuddyCopy.shared.common.appName
         content.title = BuddyCopy.notificationTitle(agentName: agentName)
         content.body = prompt.hint.isEmpty ? prompt.tool : "\(prompt.tool): \(prompt.hint)"
-        content.categoryIdentifier = prompt.isApproval ? approvalCategoryId : passiveCategoryId
+        content.categoryIdentifier = passiveCategoryId
         // Silent on purpose: Boop plays its own attention chirp for this same
         // prompt (ChirpDecision). Letting the banner ding too would either
         // double up or — as it did before — mask the chirp entirely behind the
@@ -115,14 +99,8 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         Task { @MainActor [requestId, actionIdentifier] in
             switch actionIdentifier {
             case "APPROVE", "DENY":
-                // macOS keeps delivered banners in Notification Center across
-                // an app restart, so this id may be long gone — the click
-                // dismisses the banner either way and looks like it worked.
-                // Say when it didn't land; the ESP32 path reports the same.
-                let decision: ApprovalDecision = (actionIdentifier == "APPROVE") ? .allow : .deny
-                if self.engine?.resolveApproval(requestId: requestId, decision: decision) != true {
-                    print("[NotificationManager] \(actionIdentifier) for unknown id \(requestId) — dropped")
-                }
+                // Retired actions on already-delivered notifications are inert.
+                break
             default:
                 self.defaultAction?()
             }

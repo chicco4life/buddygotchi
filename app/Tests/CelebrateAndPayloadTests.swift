@@ -10,17 +10,17 @@ final class CelebrateOnceTests: XCTestCase {
         s = reduce(s, .sessionStarted(at: 0, sessionId: "s1", source: "claude-code", cwd: "/tmp"))
         s = reduce(s, .activitySignal(at: 0, sessionId: "s1", source: "claude-code",
                                       signal: .startWorking, tool: "Bash", hint: "build"))
-        s = reduce(s, .activitySignal(at: 40_000, sessionId: "s1", source: "claude-code",
+        s = reduce(s, .activitySignal(at: 60_000, sessionId: "s1", source: "claude-code",
                                       signal: .celebrate, tool: "Bash", hint: "build"))
         XCTAssertEqual(s.buddy.pet.state, .celebrate)
 
         // A second session starts and finishes inside the hop window.
-        s = reduce(s, .sessionStarted(at: 40_500, sessionId: "s2", source: "claude-code", cwd: "/tmp"))
-        s = reduce(s, .activitySignal(at: 40_500, sessionId: "s2", source: "claude-code",
+        s = reduce(s, .sessionStarted(at: 60_500, sessionId: "s2", source: "claude-code", cwd: "/tmp"))
+        s = reduce(s, .activitySignal(at: 60_500, sessionId: "s2", source: "claude-code",
                                       signal: .startWorking, tool: "Read", hint: "/tmp/a"))
         XCTAssertEqual(s.buddy.pet.state, .celebrate)
 
-        s = reduce(s, .sessionEnded(at: 42_000, sessionId: "s2"))
+        s = reduce(s, .sessionEnded(at: 62_000, sessionId: "s2"))
         XCTAssertNotEqual(s.buddy.pet.state, .celebrate,
                           "the same completion celebrated twice")
     }
@@ -30,10 +30,10 @@ final class CelebrateOnceTests: XCTestCase {
         s = reduce(s, .sessionStarted(at: 0, sessionId: "s1", source: "claude-code", cwd: "/tmp"))
         s = reduce(s, .activitySignal(at: 0, sessionId: "s1", source: "claude-code",
                                       signal: .startWorking, tool: "Bash", hint: "build"))
-        s = reduce(s, .activitySignal(at: 40_000, sessionId: "s1", source: "claude-code",
+        s = reduce(s, .activitySignal(at: 60_000, sessionId: "s1", source: "claude-code",
                                       signal: .celebrate, tool: "Bash", hint: "build"))
         XCTAssertEqual(s.buddy.pet.state, .celebrate)
-        XCTAssertEqual(s.buddy.lastTaskDurationMs, 40_000)
+        XCTAssertEqual(s.buddy.lastTaskDurationMs, 60_000)
     }
 
     /// A session Boop first meets at an approval must still get a start time,

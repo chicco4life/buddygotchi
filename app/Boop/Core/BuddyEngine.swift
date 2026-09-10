@@ -18,7 +18,6 @@ final class BuddyEngine {
     private var voiceRuntime: any VoiceRuntime
     private let defaults: UserDefaults
     private var cachedProfile: [ProfileLine] = []
-    private var cachedTraits: Traits = [:]
     private var cachedMoments: [BehaviorMemory.RememberedMoment] = []
     private var contextLoaded = false
     private var contextLoad: Task<Void, Error>?
@@ -37,7 +36,6 @@ final class BuddyEngine {
     private let onACPower: @Sendable () -> Bool
     private var outputs: [any OutputProvider] = []
     private var processWatchers: [String: DispatchSourceProcess] = [:]
-    private var pendingApprovals: [String: CheckedContinuation<ApprovalDecision, Never>] = [:]
     init(config: BuddyConfig = .default, clock: (any Clock)? = nil, diagnosticLog: DiagnosticLog? = nil, store: (any EngineStore)? = nil, dayCalendar: any DayCalendar = LocalDayCalendar(), onACPower: @escaping @Sendable () -> Bool = { PowerObserver.onACPower() }, voiceRuntime: (any VoiceRuntime)? = nil, defaults: UserDefaults = .standard) {
         self.store = store
         self.defaults = defaults
@@ -59,7 +57,7 @@ final class BuddyEngine {
         }
     }
 
-    var shareRegister: VoiceRegister { VoiceRegister(cheek: cachedTraits["cheek", default: 128]) }
+    var shareRegister: VoiceRegister { .wry }
 
     // MARK: - Lifecycle
 
@@ -243,18 +241,7 @@ final class BuddyEngine {
 
     func handleDeviceCommand(_ command: DeviceCommand) {
         switch command {
-        case let .decision(id, decision):
-            // Match the capped wire ID back to its full request ID. Refuse
-            // ambiguous prefixes rather than resolving a different approval.
-            let matches = Set(internalState.sessions.values.compactMap { $0.prompt?.id }
-                .filter { $0 == id || $0.prefix(utf8Bytes: 23) == id })
-            guard matches.count == 1, let requestId = matches.first else {
-                diagnosticLog.log(category: "device", source: "esp32", event: "unknownDecision", detail: id)
-                return
-            }
-            if !resolveApproval(requestId: requestId, decision: decision) {
-                diagnosticLog.log(category: "device", source: "esp32", event: "unknownDecision", detail: id)
-            }
+        case .decision: break // Retired wire command; never decides an editor request.
         case .boop: boop()
         case .posture(let posture): devicePostureArrived(posture)
         case .battery(let battery): deviceBatteryArrived(battery)
@@ -288,7 +275,7 @@ final class BuddyEngine {
         internalState = .initial(staleMs: config.staleTimeoutMs, celebrateDurationMs: config.celebrateDurationMs, approvalTimeoutMs: config.approvalTimeoutMs)
         internalState.buddy.language = previous.language
         state = internalState.buddy
-        cachedProfile = []; cachedTraits = [:]; contextLoaded = false; contextLoad = nil
+        cachedProfile = []; contextLoaded = false; contextLoad = nil
         defaults.removeObject(forKey: DefaultsKey.buddyName)
         defaults.removeObject(forKey: DefaultsKey.buddyNameLocked)
         defaults.removeObject(forKey: DefaultsKey.firstCheerShown)
@@ -321,30 +308,10 @@ final class BuddyEngine {
         defaults.removeObject(forKey: DefaultsKey.onboardingStep)
         setBoolSetting(DefaultsKey.setupCompleted, false)
     }
-    func acceptsBuddyApprovals(source: String) -> Bool {
-        config.approvalMode && ["claude-code", "cursor", "codex"].contains(source)
-            && (source != "codex" || boolSetting(DefaultsKey.codexApprovalMode, fallback: false))
-    }
+    // Retired preferences cannot re-enable interception, including stale callers.
+    func acceptsBuddyApprovals(source: String) -> Bool { false }
 
-    func setApprovalMode(_ enabled: Bool) {
-        config.approvalMode = enabled
-        setBoolSetting(DefaultsKey.approvalMode, enabled)
-        BuddyConfig.setApprovalMode(enabled)
-        if !enabled { resolveAllPendingApprovals(decision: .passthrough) }
-    }
-    func setCodexApprovalMode(_ enabled: Bool) {
-        setBoolSetting(DefaultsKey.codexApprovalMode, enabled)
-        BuddyConfig.setCodexApprovalMode(enabled)
-        if !enabled {
-            for session in Array(internalState.sessions.values) where session.source == "codex" {
-                if let prompt = session.prompt, pendingApprovals[prompt.id] != nil {
-                    resolveApproval(requestId: prompt.id, decision: .passthrough)
-                }
-            }
-        }
-    }
     func focusToggled(on: Bool) { setQuietMode(on) }
-
 
     func nudgeDismissed(requestId: String? = nil) {
         if let requestId, state.creature.card?.id != requestId { return }
@@ -383,67 +350,12 @@ final class BuddyEngine {
 
     var petMemory: PetMemory { internalState.memory }
 
-    // MARK: - Approval API
-
-    func submitApproval(sessionId: String, requestId: String, tool: String, hint: String, sessionLabel: String?, source: String?, stakes: Stakes? = nil, gloss: String? = nil) async -> ApprovalDecision {
-        apply(.approvalArrived(at: clock.now(), sessionId: sessionId, requestId: requestId, tool: tool, hint: hint, sessionLabel: sessionLabel, source: source))
-        if let stakes, let gloss { apply(.requestDescribed(at: clock.now(), sessionId: sessionId, stakes: stakes, gloss: gloss)) }
-        return await withCheckedContinuation { continuation in
-            pendingApprovals[requestId] = continuation
-        }
-    }
-
-    /// Returns false when nothing was waiting on this id, so the caller can
-    /// surface the mismatch. A decision for an unknown id used to vanish here
-    /// without a trace, which is how a device-truncated id (see makeRequestId
-    /// in HookServer) presented as a dead button instead of an id mismatch:
-    /// the card sat on "yes!" forever and the hook stayed blocked.
+    // Compatibility with old callers. No approval state, waiters or decisions.
+    func submitApproval(sessionId: String, requestId: String, tool: String, hint: String, sessionLabel: String?, source: String?, stakes: Stakes? = nil, gloss: String? = nil) async -> ApprovalDecision { .passthrough }
     @discardableResult
-    func resolveApproval(requestId: String, decision: ApprovalDecision) -> Bool {
-        let continuation = pendingApprovals.removeValue(forKey: requestId)
-        // Clear the card even when nobody is waiting on it any more.
-        //
-        // This used to return early when the continuation was gone, which left
-        // the prompt sitting in state with no way to dismiss it: the device
-        // showed the card, the crown sent a decision, the decision resolved
-        // nothing, and ten seconds later the firmware re-offered the very same
-        // request — forever. Answering something must always make it go away,
-        // whether or not a hook is still listening. The return value still
-        // reports whether a caller was actually unblocked.
-        if let sessionId = findSessionForApproval(requestId) {
-            apply(.approvalResolved(at: clock.now(), sessionId: sessionId, requestId: requestId, decision: decision))
-        }
-        continuation?.resume(returning: decision)
-        return continuation != nil
-    }
-
-    /// The hook blocked on this approval is gone — its HTTP request was
-    /// cancelled out from under us (client hung up, task cancelled). Withdraw
-    /// the card and unblock the (dead) waiter so the request task can unwind.
-    func abandonApproval(sessionId: String, requestId: String) {
-        apply(.approvalAbandoned(at: clock.now(), sessionId: sessionId, requestId: requestId))
-        // The prompt's disappearance above normally resumes the waiter via the
-        // disappeared-prompt sweep in apply(). Belt and braces: a cancelled
-        // request must always finish, even if its prompt was already gone.
-        if let continuation = pendingApprovals.removeValue(forKey: requestId) {
-            continuation.resume(returning: .passthrough)
-        }
-    }
-
-    func resolveAllPendingApprovals(decision: ApprovalDecision) {
-        let approvals = pendingApprovals
-        pendingApprovals.removeAll()
-        for (requestId, continuation) in approvals {
-            if let sessionId = findSessionForApproval(requestId) {
-                apply(.approvalResolved(at: clock.now(), sessionId: sessionId, requestId: requestId, decision: decision))
-            }
-            continuation.resume(returning: decision)
-        }
-    }
-
-    private func findSessionForApproval(_ requestId: String) -> String? {
-        internalState.sessions.first(where: { $0.value.prompt?.id == requestId })?.key
-    }
+    func resolveApproval(requestId: String, decision: ApprovalDecision) -> Bool { false }
+    func abandonApproval(sessionId: String, requestId: String) {}
+    func resolveAllPendingApprovals(decision: ApprovalDecision) {}
 
     // MARK: - Process Monitoring
 
@@ -515,14 +427,12 @@ final class BuddyEngine {
         guard !retiring else { return }
         if loadingStore && !persistenceResult { deferredEvents.append(event); return }
         let prev = state
-        let previousPromptIds = Self.promptIds(in: internalState)
         var next = reduce(internalState, event, localHour: dayCalendar.localHour(at: event.at))
         let awards = next.pendingAwards, facts = next.pendingFacts
         next.pendingAwards = []; next.pendingFacts = []
         if !persistenceResult { persist(awards: awards, facts: facts) }
         guard next != internalState else { return }
         let removedIds = Set(internalState.sessions.keys).subtracting(next.sessions.keys)
-        let disappearedPromptIds = previousPromptIds.subtracting(Self.promptIds(in: next))
         let memoryChanged = next.memory != internalState.memory
         internalState = next
         state = next.buddy
@@ -536,18 +446,13 @@ final class BuddyEngine {
             Task { await extractor.drop(sessionId: id) }
             cancelWatcher(sessionId: id)
         }
-        for requestId in disappearedPromptIds {
-            if let continuation = pendingApprovals.removeValue(forKey: requestId) {
-                continuation.resume(returning: .passthrough)
-            }
-        }
+
         for output in outputs {
             output.stateDidChange(prev: prev, next: state)
         }
         scheduleVoice(previous: prev, event: event)
         diagnosticLog.log(category: "engine", source: "system", event: event.name, detail: "pet=\(state.pet.state.rawValue) sessions=\(state.sessions.total)")
     }
-
 
     // All database operations share one queue, including HTTP reads and startup.
     private func enqueue(_ work: @escaping @MainActor @Sendable (any EngineStore) async throws -> Void) {
@@ -593,21 +498,11 @@ final class BuddyEngine {
         }
     }
     private var reflectedDays: Set<String> = []
-    // Opportunities, not a speech quota. The model can choose silence every time.
-    static let behaviorCheckMs: Double = 300_000
-    private var lastBehaviorCheck: Double?
+
     private var maintenanceDay: String?
     func maintenance() {
         let now = clock.now(), day = localDay(at: clock.now())
-        if lastBehaviorCheck == nil { lastBehaviorCheck = now }
-        if now - (lastBehaviorCheck ?? now) >= Self.behaviorCheckMs {
-            lastBehaviorCheck = now
-            if state.creature.card == nil, state.prompt == nil,
-               state.creature.bubble == nil, state.creature.overlay == nil,
-               state.creature.state == .idle || state.creature.state == .working {
-                requestVoice(.periodic, kind: .bubble)
-            }
-        }
+
         if maintenanceDay != day {
             maintenanceDay = day
             enqueue { try await $0.prune(now: now, localDay: day) }
@@ -645,7 +540,6 @@ final class BuddyEngine {
 
     private func refreshVoiceContext() async throws {
         cachedProfile = try await store?.profile() ?? []
-        cachedTraits = try await store?.traits() ?? [:]
         cachedMoments = try await store?.recentBehaviorMoments() ?? []
         contextLoaded = true
     }
@@ -690,10 +584,10 @@ final class BuddyEngine {
         try? await ensureVoiceContext()
         let source = state.lastCompleted?.source ?? state.activeSessions.first?.source
         let agent = source.flatMap { ["codex", "claude-code", "cursor"].contains($0) ? $0 : nil }
-        return VoiceRequest(occasion: occasion, profile: Array(cachedProfile.prefix(3).map(\.line)), traits: cachedTraits,
+        return VoiceRequest(occasion: occasion, profile: Array(cachedProfile.prefix(3).map(\.line)),
             agent: agent, timeOfDay: TimeOfDay(hour: dayCalendar.localHour(at: clock.now())), language: state.language, byteCap: cap,
             growth: state.growth,
-            memory: BehaviorMemory(memory: internalState.memory, moments: cachedMoments, at: clock.now()),
+            memory: BehaviorMemory(moments: cachedMoments),
             state: state.creature.state, sessionCount: state.sessions.total,
             effort: state.creature.effort, lastCompletedTaskDurationMs: state.lastTaskDurationMs)
     }
@@ -717,7 +611,6 @@ final class BuddyEngine {
     }
 
     private func requestVoice(_ occasion: Occasion, kind: VoiceLineKind) {
-        lastBehaviorCheck = clock.now()
         transientVoice.replace(kind, produce: { [weak self] in
             guard let self else { return nil }
             let request = await self.voiceRequest(occasion, cap: VoiceCap.bubble.rawValue)

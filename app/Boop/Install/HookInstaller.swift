@@ -90,7 +90,7 @@ enum HookInstallError: Error, LocalizedError {
 final class HookInstaller {
     static let shared = HookInstaller()
 
-    nonisolated static let hookSchemaVersion = 8
+    nonisolated static let hookSchemaVersion = 9
 
     /// The approval timeout chain, outermost first:
     ///   registered hook timeout (310s) > curl --max-time (300s) > reducer
@@ -243,12 +243,10 @@ final class HookInstaller {
         hooks = removeLegacyHooks(from: hooks)
 
         let cmdHook = commandHook(command: scriptCommand(for: .claudeCode), timeout: 5)
-        let approvalHook = commandHook(command: scriptCommand(for: .claudeCode), timeout: Self.registeredApprovalHookTimeoutSeconds)
 
         for event in Self.claudePlainEvents {
             hooks[event] = addingNestedHook(to: hooks[event], matcher: nil, hook: cmdHook)
         }
-        hooks["PermissionRequest"] = addingNestedHook(to: hooks["PermissionRequest"], matcher: nil, hook: approvalHook)
         for matcher in Self.claudeNotificationMatchers {
             hooks["Notification"] = addingNestedHook(to: hooks["Notification"], matcher: matcher, hook: cmdHook)
         }
@@ -289,12 +287,11 @@ final class HookInstaller {
         hooks = removeLegacyHooks(from: hooks)
 
         let cmdHook = commandHook(command: scriptCommand(for: .codex), timeout: 5)
-        let approvalHook = commandHook(command: scriptCommand(for: .codex), timeout: Self.registeredApprovalHookTimeoutSeconds)
         for spec in Self.codexEvents {
             hooks[spec.event] = addingNestedHook(
                 to: hooks[spec.event],
                 matcher: spec.matcher,
-                hook: spec.isApproval ? approvalHook : cmdHook
+                hook: cmdHook
             )
         }
         root["hooks"] = hooks
@@ -377,9 +374,6 @@ final class HookInstaller {
             if let health = verifyNestedHook(event: event, matcher: nil, hooks: hooks, command: scriptCommand(for: .claudeCode)) {
                 return health
             }
-        }
-        if let health = verifyNestedHook(event: "PermissionRequest", matcher: nil, hooks: hooks, command: scriptCommand(for: .claudeCode)) {
-            return health
         }
         for matcher in Self.claudeNotificationMatchers {
             if let health = verifyNestedHook(event: "Notification", matcher: matcher, hooks: hooks, command: scriptCommand(for: .claudeCode)) {
@@ -600,7 +594,6 @@ final class HookInstaller {
         CFG="$HOME/.boop/config.json"
         PORT=$(grep -o '"port" *: *[0-9]*' "$CFG" 2>/dev/null | head -1 | grep -o '[0-9]*')
         TOKEN=$(grep -o '"token" *: *"[^"]*"' "$CFG" 2>/dev/null | head -1 | sed 's/.*"token" *: *"//; s/".*//')
-        APPROVAL=$(grep -o '"approvalMode" *: *true' "$CFG" 2>/dev/null)
         # Always drain stdin, even when we're about to bail. The agent is
         # already writing the payload; exiting first hands it EPIPE/SIGPIPE
         # instead of a clean read.
@@ -608,12 +601,9 @@ final class HookInstaller {
         [ -z "$PORT" ] && exit 0
         [ -z "$TOKEN" ] && exit 0
         EVENT=$(echo "$BODY" | grep -o '"\\(hook_event_name\\|hookEventName\\|event_name\\)" *: *"[^"]*"' | head -1 | grep -o '"[^"]*"$' | tr -d '"')
-        # Codex may run its automatic reviewer after PermissionRequest hooks.
-        # Opt in separately: a global Boop switch must not intercept that flow.
-        if [ "$SOURCE" = "codex" ] && [ "$EVENT" = "PermissionRequest" ]; then
-            grep -q '"codexApprovalMode" *: *true' "$CFG" 2>/dev/null || exit 0
-            [ -n "$APPROVAL" ] || exit 0
-        fi
+        # A stale PermissionRequest registration is a no-op. Never block or
+        # return an approval decision; the editor owns its permission flow.
+        [ "$EVENT" = "PermissionRequest" ] && exit 0
         case "$EVENT" in
         PostToolUse|PostToolUseFailure|afterShellExecution|postToolUse|postToolUseFailure|afterMCPExecution|Stop|StopFailure|stop|afterAgentResponse|UserPromptSubmit|beforeSubmitPrompt)
         BODY=$(python3 - 3<<<"$BODY" <<'BOOP_JSON'
@@ -661,28 +651,7 @@ final class HookInstaller {
         fi
         ;;
         esac
-        if [ -n "$APPROVAL" ] && [ "$EVENT" = "PermissionRequest" ]; then
-            # Prove the server is actually answering before committing to the
-            # 300s wait below. A crashed app refuses connections in
-            # milliseconds, but a hung app still holding the listener would
-            # otherwise block the agent for the full five minutes with no card
-            # ever shown. Can't answer /healthz in 2s -> fail open now.
-            curl -sf -o /dev/null --noproxy '*' \\
-                "http://127.0.0.1:${PORT}/healthz" \\
-                --connect-timeout 2 --max-time 2 2>/dev/null || exit 0
-            # -f: a non-2xx must never have its body relayed as hook output.
-            RESPONSE=$(curl -sf --noproxy '*' \\
-                -X POST "http://127.0.0.1:${PORT}/hook/approve?source=${SOURCE}&pid=$$" \\
-                -H "Content-Type: application/json" \\
-                -H "X-Boop-Token: ${TOKEN}" \\
-                -d "$BODY" \\
-                --connect-timeout 2 \\
-                --max-time \(approvalCurlMaxTimeSeconds) 2>/dev/null)
-            if [ $? -eq 0 ] && [ -n "$RESPONSE" ]; then
-                echo "$RESPONSE"
-            fi
-            exit 0
-        fi
+
         curl -s -o /dev/null --noproxy '*' \\
           -X POST "http://127.0.0.1:${PORT}/hook/event?source=${SOURCE}&pid=$$" \\
           -H "Content-Type: application/json" \\
@@ -880,10 +849,8 @@ final class HookInstaller {
         "Elicitation", "ElicitationResult",
     ]
 
-    // `permission_prompt` is deliberately absent: the dedicated PermissionRequest
-    // hook already covers permission cards in both modes with a richer payload,
-    // so registering the notification too only produced a duplicate, worse-labeled
-    // card. We still watch idle_prompt (idle nudge) and elicitation_dialog.
+    // Permissions remain in the editor; only passive lifecycle/elicitation
+    // notifications are registered.
     private static let claudeNotificationMatchers = [
         "idle_prompt", "elicitation_dialog",
     ]
@@ -898,14 +865,13 @@ final class HookInstaller {
         "afterFileEdit",
     ]
 
-    private static let codexEvents: [(event: String, matcher: String?, isApproval: Bool)] = [
-        ("SessionStart", "startup|resume|clear", false),
-        ("UserPromptSubmit", nil, false),
-        ("PermissionRequest", nil, true),
-        ("PreToolUse", nil, false),
-        ("PostToolUse", nil, false),
-        ("Stop", nil, false),
-        ("SessionEnd", nil, false),
+    private static let codexEvents: [(event: String, matcher: String?)] = [
+        ("SessionStart", "startup|resume|clear"),
+        ("UserPromptSubmit", nil),
+        ("PreToolUse", nil),
+        ("PostToolUse", nil),
+        ("Stop", nil),
+        ("SessionEnd", nil),
     ]
 
     private func commandHook(command: String, timeout: Int) -> [String: Any] {

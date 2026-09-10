@@ -163,7 +163,6 @@ private func handleSessionStarted(_ state: InternalState, at: Double, sessionId:
     if isNewSession {
         s.sessions[sessionId] = Session(source: source, state: .idle, prompt: nil, cwd: cwd, lastActivityAt: at, workStartedAt: nil)
         s.sessions[sessionId]?.project = project
-        s.memory.lifetimeSessions += 1
     } else {
         let existingCwd = s.sessions[sessionId]?.cwd
         s.sessions[sessionId]?.lastActivityAt = at
@@ -309,19 +308,19 @@ private func handleTurnEnded(_ state: InternalState, at: Double, sessionId: Stri
         guard let start = session.workStartedAt else { return s }
         s.pendingAwards.append(XPAward(at: at, sessionId: sessionId, sources: [.turn]))
         s.memory.completedTurns += 1
-        s.memory.projects[session.project] = at
         let duration = max(0, at - start)
         appendFact(&s, .turnCompleted(elapsedMs: duration), id: sessionId, at: at)
-        let size = s.cheerThresholds.size(span: duration)
-        s.pendingAwards[s.pendingAwards.count - 1].cheer = size
-        // A smaller nearby completion cannot truncate or restart the larger cheer.
-        let folded = s.buddy.lastCompletionAt.map { at - $0 <= s.cheerThresholds.foldMs } ?? false
-        s.sessions[sessionId]?.lastDone = DoneRecord(size: size, until: at + s.cheerThresholds.duration(size))
-        if !folded || size.intensity > (s.doneSize?.intensity ?? 0) {
-            s.doneSize = size
-            s.buddy.celebrateUntil = at + s.cheerThresholds.duration(size)
+        if let size = s.cheerThresholds.size(span: duration) {
+            s.pendingAwards[s.pendingAwards.count - 1].cheer = size
+            // A smaller nearby completion cannot truncate or restart the larger cheer.
+            let folded = s.buddy.lastCompletionAt.map { at - $0 <= s.cheerThresholds.foldMs } ?? false
+            s.sessions[sessionId]?.lastDone = DoneRecord(size: size, until: at + s.cheerThresholds.duration(size))
+            if !folded || size.intensity > (s.doneSize?.intensity ?? 0) {
+                s.doneSize = size
+                s.buddy.celebrateUntil = at + s.cheerThresholds.duration(size)
+            }
+            s.memory.lifetimeCelebrations += 1
         }
-        s.memory.lifetimeCelebrations += 1
         s.buddy.lastTaskDurationMs = duration
         s.buddy.lastCompletionAt = at
         s.buddy.lastCompleted = CompletedTask(
@@ -453,13 +452,7 @@ private func observePresence(_ s: inout InternalState, at: Double) {
         s.buddy.greetUntil = at + (big ? PetTuning.greetBigMs : PetTuning.greetShortMs)
         s.buddy.greetLevel = big ? 2 : 1
     }
-    if s.memory.lastSampleAt.map({ at - $0 >= PetTuning.circadianSampleGapMs }) ?? true {
-        let hour = PetMemory.utcHour(ofMs: at)
-        s.memory.hourHistogram[hour] += 1
-        s.memory.histogramSamples += 1
-        if s.memory.firstSampleAt == nil { s.memory.firstSampleAt = at }
-        s.memory.lastSampleAt = at
-    }
+
     s.memory.lastSeenAt = at
 }
 
@@ -582,9 +575,9 @@ private func aggregate(_ state: InternalState, now: Double) -> BuddyState {
     creature.dotAlert = buddy.activeSessions.prefix(5).firstIndex { $0.state == .errored }
     if let prompt = highestPrompt {
         creature.state = .needsYou
-        let stakes = prompt.stakes ?? cardStakes(tool: prompt.tool, hint: prompt.hint)
+        let stakes: Stakes = .checkIt // Legacy wire field; no safety classification.
         creature.card = CreatureCard(id: prompt.id, tool: prompt.tool, gloss: prompt.gloss ?? prompt.hint,
-                                     stakes: stakes, index: 0, count: waiting.count, isApproval: prompt.isApproval)
+                                     stakes: stakes, index: 0, count: waiting.count, isApproval: false)
         creature.nudgeRung = state.nudges[prompt.id]?.rung ?? 0
         buddy.msg = shortMsg(tool: prompt.tool, hint: prompt.hint, source: prompt.source ?? "")
     } else if !errored.isEmpty {
@@ -689,7 +682,8 @@ struct CheerThresholds: Sendable, Equatable {
     var foldMs: Double = 3000
     static let defaults = CheerThresholds()
 
-    func size(span: Double) -> CheerSize {
+    func size(span: Double) -> CheerSize? {
+        guard span >= PetTuning.celebrationMinMs else { return nil }
         if span >= PetTuning.effortGrindingMinMs { return .dance }
         if span >= PetTuning.effortHardMinMs { return .cheer }
         return .hop

@@ -164,7 +164,7 @@ final class EngineIntegrationTests: XCTestCase {
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .stopWorking)
 
-        XCTAssertEqual(recorder.last?.pet.state, .celebrate)
+        XCTAssertEqual(recorder.last?.pet.state, .idle)
     }
 
     @MainActor
@@ -202,9 +202,10 @@ final class EngineIntegrationTests: XCTestCase {
 
     @MainActor
     func testCelebrateSignalSetsCelebrate() {
-        let (engine, recorder, _) = makeTestEngine()
+        let (engine, recorder, clock) = makeTestEngine()
         engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
+        clock.advance(by: 60_000)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .celebrate)
 
         XCTAssertEqual(recorder.last?.pet.state, .celebrate)
@@ -275,24 +276,6 @@ final class EngineIntegrationTests: XCTestCase {
         XCTAssertNil(engine.state.prompt)
     }
 
-    @MainActor
-    func testPromptShowsApprovalFields() async {
-        let (engine, _, _) = makeTestEngine()
-        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
-
-        Task { @MainActor in
-            _ = await engine.submitApproval(
-                sessionId: "s1", requestId: "r1",
-                tool: "Bash", hint: "rm -rf",
-                sessionLabel: "proj", source: "claude-code"
-            )
-        }
-        await Task.yield()
-
-        XCTAssertEqual(engine.state.prompt?.isApproval, true)
-        XCTAssertEqual(engine.state.prompt?.source, "claude-code")
-    }
-
     // MARK: E. Priority Ordering
 
     @MainActor
@@ -310,11 +293,12 @@ final class EngineIntegrationTests: XCTestCase {
 
     @MainActor
     func testAttentionOverridesCelebrate() {
-        let (engine, _, _) = makeTestEngine()
+        let (engine, _, clock) = makeTestEngine()
         engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
         engine.sessionStarted(sessionId: "s2", source: "cursor", cwd: nil)
 
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
+        clock.advance(by: 60_000)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .celebrate)
         XCTAssertEqual(engine.state.pet.state, .celebrate)
 
@@ -324,11 +308,12 @@ final class EngineIntegrationTests: XCTestCase {
 
     @MainActor
     func testDoneOverridesBusy() {
-        let (engine, _, _) = makeTestEngine()
+        let (engine, _, clock) = makeTestEngine()
         engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
         engine.sessionStarted(sessionId: "s2", source: "cursor", cwd: nil)
 
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
+        clock.advance(by: 60_000)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .celebrate)
         XCTAssertEqual(engine.state.pet.state, .celebrate)
 
@@ -343,6 +328,7 @@ final class EngineIntegrationTests: XCTestCase {
         let (engine, _, clock) = makeTestEngine(celebrateMs: 4_000)
         engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
+        clock.advance(by: 60_000)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .celebrate)
         XCTAssertEqual(engine.state.pet.state, .celebrate)
 
@@ -358,6 +344,7 @@ final class EngineIntegrationTests: XCTestCase {
         let (engine, _, clock) = makeTestEngine(celebrateMs: 4_000)
         engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
+        clock.advance(by: 60_000)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .celebrate)
 
         clock.advance(by: 1_000)
@@ -379,164 +366,6 @@ final class EngineIntegrationTests: XCTestCase {
     }
 
     // MARK: G. Approval Flow
-
-    @MainActor
-    func testApprovalArrivedSetsAttention() async {
-        let (engine, _, _) = makeTestEngine()
-        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
-
-        Task { @MainActor in
-            _ = await engine.submitApproval(
-                sessionId: "s1", requestId: "r1",
-                tool: "Bash", hint: "cmd",
-                sessionLabel: nil, source: "claude-code"
-            )
-        }
-        await Task.yield()
-
-        XCTAssertEqual(engine.state.pet.state, .attention)
-        XCTAssertEqual(engine.state.prompt?.isApproval, true)
-    }
-
-    @MainActor
-    func testApprovalAllowResumesWorking() async {
-        let (engine, _, _) = makeTestEngine()
-        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
-
-        let approvalTask = Task { @MainActor in
-            await engine.submitApproval(
-                sessionId: "s1", requestId: "r1",
-                tool: "Bash", hint: "cmd",
-                sessionLabel: nil, source: "claude-code"
-            )
-        }
-        await Task.yield()
-
-        XCTAssertEqual(engine.state.pet.state, .attention)
-
-        engine.resolveApproval(requestId: "r1", decision: .allow)
-        let decision = await approvalTask.value
-
-        XCTAssertEqual(decision, .allow)
-        XCTAssertEqual(engine.state.pet.state, .busy)
-        XCTAssertNil(engine.state.prompt)
-    }
-
-    @MainActor
-    func testApprovalDenyGoesIdle() async {
-        let (engine, _, _) = makeTestEngine()
-        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
-
-        let approvalTask = Task { @MainActor in
-            await engine.submitApproval(
-                sessionId: "s1", requestId: "r1",
-                tool: "Bash", hint: "cmd",
-                sessionLabel: nil, source: "claude-code"
-            )
-        }
-        await Task.yield()
-
-        engine.resolveApproval(requestId: "r1", decision: .deny)
-        let decision = await approvalTask.value
-
-        XCTAssertEqual(decision, .deny)
-        XCTAssertEqual(engine.state.pet.state, .idle)
-    }
-
-    @MainActor
-    func testResolveAllPendingApprovals() async {
-        let (engine, _, _) = makeTestEngine()
-        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
-        engine.sessionStarted(sessionId: "s2", source: "cursor", cwd: nil)
-
-        let t1 = Task { @MainActor in
-            await engine.submitApproval(sessionId: "s1", requestId: "r1", tool: "Bash", hint: "a", sessionLabel: nil, source: "claude-code")
-        }
-        let t2 = Task { @MainActor in
-            await engine.submitApproval(sessionId: "s2", requestId: "r2", tool: "Write", hint: "b", sessionLabel: nil, source: "cursor")
-        }
-        await Task.yield()
-
-        engine.resolveAllPendingApprovals(decision: .allow)
-
-        let d1 = await t1.value
-        let d2 = await t2.value
-        XCTAssertEqual(d1, .allow)
-        XCTAssertEqual(d2, .allow)
-        XCTAssertNil(engine.state.prompt)
-    }
-
-    @MainActor
-    func testResolveAllPendingApprovalsCanPassthrough() async {
-        let (engine, _, _) = makeTestEngine()
-        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
-
-        let approvalTask = Task { @MainActor in
-            await engine.submitApproval(
-                sessionId: "s1",
-                requestId: "r1",
-                tool: "Bash",
-                hint: "cmd",
-                sessionLabel: nil,
-                source: "claude-code"
-            )
-        }
-        await Task.yield()
-
-        engine.resolveAllPendingApprovals(decision: .passthrough)
-
-        let decision = await approvalTask.value
-        XCTAssertEqual(decision, .passthrough)
-        XCTAssertNil(engine.state.prompt)
-        XCTAssertEqual(engine.state.pet.state, .idle)
-    }
-
-    @MainActor
-    func testRemovedSessionWithPendingApprovalPassthroughs() async {
-        let (engine, _, _) = makeTestEngine(staleMs: 100)
-        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
-
-        let approvalTask = Task { @MainActor in
-            await engine.submitApproval(
-                sessionId: "s1",
-                requestId: "r1",
-                tool: "Bash",
-                hint: "cmd",
-                sessionLabel: nil,
-                source: "claude-code"
-            )
-        }
-        await Task.yield()
-
-        engine.sessionEnded(sessionId: "s1")
-
-        let decision = await approvalTask.value
-        XCTAssertEqual(decision, .passthrough)
-    }
-
-    @MainActor
-    func testStaleReapResolvesPendingApprovalAsPassthrough() async {
-        let (engine, _, clock) = makeTestEngine(staleMs: 1_000)
-        engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
-
-        let approvalTask = Task { @MainActor in
-            await engine.submitApproval(
-                sessionId: "s1", requestId: "r1",
-                tool: "Bash", hint: "rm -rf",
-                sessionLabel: nil, source: "claude-code"
-            )
-        }
-        await Task.yield()
-        XCTAssertEqual(engine.state.pet.state, .attention)
-
-        clock.advance(by: 2_000)
-        engine.triggerStaleTick()
-        let decision = await approvalTask.value
-
-        XCTAssertEqual(decision, .passthrough)
-        XCTAssertEqual(engine.state.sessions.total, 0)
-        XCTAssertEqual(engine.state.pet.state, .sleep)
-    }
 
     @MainActor
     func testSetSpeciesUpdatesStateAndHeartbeat() {
@@ -708,6 +537,7 @@ final class EngineIntegrationTests: XCTestCase {
         clock.advance(by: 1_500)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Edit", hint: "BuddyState.swift")
         clock.advance(by: 500)
+        clock.advance(by: 60_000)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .celebrate)
 
         XCTAssertEqual(engine.state.pet.state, .celebrate)
@@ -723,6 +553,7 @@ final class EngineIntegrationTests: XCTestCase {
         engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "swift test")
+        clock.advance(by: 60_000)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .celebrate)
         XCTAssertEqual(engine.state.pet.state, .celebrate)
         XCTAssertNotNil(engine.state.lastCompleted)
@@ -739,7 +570,7 @@ final class EngineIntegrationTests: XCTestCase {
 
     @MainActor
     func testMultipleSessionsReviewReflectsCelebratingSessionTool() {
-        let (engine, _, _) = makeTestEngine()
+        let (engine, _, clock) = makeTestEngine()
         engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: nil)
         engine.sessionStarted(sessionId: "s2", source: "cursor", cwd: nil)
         engine.activitySignal(sessionId: "s2", source: "cursor", signal: .startWorking)
@@ -747,6 +578,7 @@ final class EngineIntegrationTests: XCTestCase {
         // s1 finishes; review should be from s1 (the celebrating session), not s2.
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Edit", hint: "Foo.swift")
+        clock.advance(by: 60_000)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .celebrate)
         // Because s2 is still working, aggregate clears lastCompleted.
         XCTAssertNil(engine.state.lastCompleted, "concurrent working session suppresses review")
@@ -761,10 +593,11 @@ final class EngineIntegrationTests: XCTestCase {
         // Engine-level test. The HookServer's /hook/signal endpoint translates Cursor's
         // "stop_working" signal to .celebrate; here we simulate the engine call after
         // that translation.
-        let (engine, recorder, _) = makeTestEngine()
+        let (engine, recorder, clock) = makeTestEngine()
         engine.sessionStarted(sessionId: "c1", source: "cursor", cwd: nil)
         engine.activitySignal(sessionId: "c1", source: "cursor", signal: .startWorking)
         engine.activitySignal(sessionId: "c1", source: "cursor", signal: .keepWorking, tool: "Bash", hint: "swift test")
+        clock.advance(by: 60_000)
         engine.activitySignal(sessionId: "c1", source: "cursor", signal: .celebrate)
         XCTAssertEqual(recorder.last?.pet.state, .celebrate)
         XCTAssertNotNil(recorder.last?.lastCompleted)
@@ -774,10 +607,11 @@ final class EngineIntegrationTests: XCTestCase {
 
     @MainActor
     func testHeartbeatEmitsDoneCheerAndEngineTime() throws {
-        let (engine, _, _) = makeTestEngine()
+        let (engine, _, clock) = makeTestEngine()
         engine.sessionStarted(sessionId: "s1", source: "claude-code", cwd: "/tmp/my-app")
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Edit", hint: "Foo.swift")
+        clock.advance(by: 60_000)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .celebrate)
 
         let rs = renderState(from: engine.state, now: engine.deviceFrameTime)
@@ -785,7 +619,6 @@ final class EngineIntegrationTests: XCTestCase {
         XCTAssertNotNil(rs.cheer)
         XCTAssertEqual(rs.t, Int(engine.deviceFrameTime))
     }
-
 
     @MainActor
     func testHeartbeatEmitsWorkingEffort() throws {
@@ -890,7 +723,7 @@ extension EngineIntegrationTests {
     func testTurnEndedReachesCreature() {
         let (engine, recorder, clock) = makeTestEngine()
         engine.turnStarted(sessionId: "new", source: "codex")
-        clock.advance(by: 100)
+        clock.advance(by: 60_000)
         engine.turnEnded(sessionId: "new", source: "codex", outcome: .completed)
         XCTAssertEqual(recorder.last?.creature.cheer, .hop)
     }
@@ -937,19 +770,4 @@ extension EngineIntegrationTests {
         XCTAssertEqual(engine.state, before)
     }
 
-    @MainActor
-    func testDeviceDecisionThroughParserResolvesContinuation() async throws {
-        let (engine, _, _) = makeTestEngine()
-        for legacy in [false, true] {
-            let id = "wire-id-테스트-" + String(repeating: "x", count: 30)
-            let result = Task { @MainActor in
-                await engine.submitApproval(sessionId: "wire", requestId: id, tool: "Bash", hint: "test", sessionLabel: nil, source: "codex")
-            }
-            await Task.yield()
-            let line = "{\"cmd\":\"\(legacy ? "permission" : "decision")\",\"id\":\"\(id.prefix(utf8Bytes: 23))\",\"\(legacy ? "decision" : "d")\":\"allow\"}"
-            engine.handleDeviceCommand(try XCTUnwrap(parseDeviceLine(line)))
-            let decision = await result.value
-            XCTAssertEqual(decision, .allow)
-        }
-    }
 }

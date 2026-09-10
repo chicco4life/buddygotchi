@@ -37,11 +37,6 @@ static uint32_t imuSample = 0, faceDownAt = 0, faceUpAt = 0, postureAt = 0;
 static char candidatePosture[7] = "desk";
 static bool lastLinked = false, lastSecure = false;
 static AnimSpring cardSpring, squish;
-struct Decision {
-  char id[24] = "";
-  bool allow = false, confirmed = false;
-  uint32_t at = 0, confirmedAt = 0;
-} decision;
 enum Ritual : uint8_t { R_NONE, R_FIRST_WAKE, R_COLOR, R_LEVEL, R_LEVEL_AWAIT, R_STREAK, R_RETIRE };
 static Ritual ritual = R_NONE;
 static uint32_t ritualAt = 0;
@@ -56,16 +51,9 @@ static bool levelRitual() { return ritual == R_LEVEL || ritual == R_LEVEL_AWAIT;
 static bool linkFlash=false;
 static Cosmetics oldCosmetic;
 static bool systemCard() { return blePasskey() || otaActive() || (tama.card.kind[0] && !cardDismissed); }
-static bool hasCard() { return systemCard() || (dataConnected() && tama.card.id[0] && !cardDismissed && strcmp(tama.card.id,decision.id)); }
-static bool armed() { return !systemCard() && hasCard() && tama.card.approval && nowMs() - cardAt >= 600; }
-static bool careful() { return strcmp(tama.card.stakes, "careful") == 0; }
+static bool hasCard() { return systemCard() || (dataConnected() && tama.card.id[0] && !cardDismissed); }
 static bool bubbleVisible() { return (!bubbleDismissed && tama.bubble[0] && before(nowMs(), bubbleUntil)) || before(nowMs(), localBubbleUntil); }
 static const char* bubbleText() { return before(nowMs(), localBubbleUntil) ? localBubble : tama.bubble; }
-static const char* feedback() {
-  if (!decision.id[0]) return "";
-  if (decision.confirmed) return decision.allow ? "yes!" : "okay";
-  return nowMs() - decision.at < 3000 ? "sending..." : "no link?";
-}
 static void sendCmd(const char* json) {
   Serial.println(json);
   if (bleConnected() && bleSecure()) {
@@ -105,7 +93,7 @@ static void ritualTick() {
         if (p.begin("creature-v2",false)) { p.clear(); p.end(); }
         tama=TamaState{}; firstWake=true; haveFrame=false; _rtcValid=false;
         ritual=R_NONE;
-        decision=Decision{}; localBoopUntil=dizzyUntil=perkUntil=statsUntil=0;
+        localBoopUntil=dizzyUntil=perkUntil=statsUntil=0;
         bubbleUntil=localBubbleUntil=0; cardDismissed=bubbleDismissed=false;
         stateAt=now; spr.fillSprite(BLACK);
         sendCmd("{\"ack\":\"retire\"}");
@@ -195,9 +183,6 @@ void onFrame(const TamaState& next, bool skinSupplied) {
   bool nudgeAdvanced = next.nudgeRung > tama.nudgeRung && !strcmp(next.card.id,tama.card.id);
   bool changed = strcmp(next.state,tama.state) || strcmp(next.cheer,tama.cheer);
   bool newCard = strcmp(next.card.id,tama.card.id) || strcmp(next.card.kind,tama.card.kind);
-  if (decision.id[0] && !decision.confirmed && strcmp(next.card.id,decision.id)) {
-    decision.confirmed = true; decision.confirmedAt = now;
-  }
   if (newCard) {
     cardAt = now; cardDismissed = false;
     if (next.card.present()) { wake(); napping = false; dizzyUntil = 0; }
@@ -224,12 +209,6 @@ void onFrame(const TamaState& next, bool skinSupplied) {
     if (!strcmp(next.overlay,"boop")) sound(6);
   }
 }
-static void decide(bool allow) {
-  if (!armed()) return;
-  strlcpy(decision.id,tama.card.id,sizeof(decision.id)); decision.allow = allow;
-  decision.at = nowMs(); decision.confirmed = false;
-  JsonDocument d; d["cmd"] = "decision"; d["id"] = decision.id; d["d"] = allow ? "allow" : "deny"; sendDoc(d);
-}
 static void boop(bool hold) {
   if (hasCard()) return;
   uint32_t now = nowMs();
@@ -243,15 +222,14 @@ static void clearBubble() { bubbleDismissed = true; localBubbleUntil = 0; }
 static void pageStats() { if (!before(nowMs(),statsUntil)) statsAt=nowMs(); statsPage = before(nowMs(),statsUntil) ? (statsPage+1)%2 : 0; statsUntil = nowMs()+10000; }
 static void primaryTap() {
   if (hasCard()) {
-    if (armed()) { if (careful()) shakeHeadUntil = nowMs()+600; else decide(true); }
-    else if (!tama.card.approval && !blePasskey() && !otaActive()) cardDismissed=true;
+    if (!systemCard()) cardDismissed=true;
     return;
   }
   if (bubbleVisible()) { clearBubble(); return; }
   boop(false);
 }
 static void secondaryTap() {
-  if (hasCard()) { if (armed()) decide(false); else if (!tama.card.approval && !blePasskey() && !otaActive()) cardDismissed = true; return; }
+  if (hasCard()) { if (!systemCard()) cardDismissed = true; return; }
   if (bubbleVisible()) { clearBubble(); return; }
   if (before(nowMs(),statsUntil) || !strcmp(posture,"travel")) { pageStats(); return; }
   shakeHeadUntil = nowMs()+600;
@@ -276,7 +254,7 @@ static void buttonsTick() {
     bool down = b.injected || halButtonDown((HalButton)i);
     if (down && !b.down) {
       b.at = real; b.visualAt=now; b.releasedHold=0; b.fired = b.focusSent = b.shutdown = false;
-      b.guard = screenOff || napping || (hasCard() && tama.card.approval && !armed());
+      b.guard = screenOff || napping;
       strlcpy(b.cardId,tama.card.id,sizeof(b.cardId));
       wake();
     }
@@ -284,9 +262,7 @@ static void buttonsTick() {
       uint32_t held = real-b.at;
       bool sameCard = !strcmp(b.cardId,tama.card.id);
       if (i == 0 && !b.fired && !b.guard && sameCard) {
-        if (hasCard()) {
-          if (armed() && held >= (careful()?2000u:1000u)) { decide(careful()); b.fired=true; }
-        } else if (held >= 1000) { boop(true); b.fired=true; }
+        if (!hasCard() && held >= 1000) { boop(true); b.fired=true; }
       }
       if (i == 0 && b.fired && !b.cardId[0] && !b.guard && !hasCard() && held >= 1000) {
         if (!before(now,localBoopUntil)) localBoopAt=now;
@@ -303,7 +279,6 @@ static void buttonsTick() {
     }
     if (!down && b.down) {
       b.releasedAt=now;
-      b.releasedHold=(!b.guard && !strcmp(b.cardId,tama.card.id) && armed())?animClamp((now-b.visualAt)/(careful()?2000.0f:1000.0f),0,1):0;
       lastInput = now;
       if (b.shutdown && !screenOff) { halDisplaySleep(); screenOff=true; }
       if (!b.fired && !b.guard && !strcmp(b.cardId,tama.card.id)) {
@@ -365,13 +340,12 @@ static void motionTick() {
 #include "face.h"
 // Screen priority stack (UX-DEVICE §16), highest first. UHOH is a bubble that
 // outranks the stats cards; it draws like BUBBLE.
-enum Layer : uint8_t { L_OFF, L_SYSTEM, L_CARD, L_DECISION, L_UHOH, L_STATS, L_BUBBLE, L_OVERLAY, L_FACE };
-static const char* const layerNames[] = {"off","system","card","decision","uhoh","stats","bubble","overlay","face"};
+enum Layer : uint8_t { L_OFF, L_SYSTEM, L_CARD, L_UHOH, L_STATS, L_BUBBLE, L_OVERLAY, L_FACE };
+static const char* const layerNames[] = {"off","system","card","uhoh","stats","bubble","overlay","face"};
 static Layer screenLayer() {
   if (screenOff) return L_OFF;
   if (systemCard()) return L_SYSTEM;
   if (hasCard()) return L_CARD;
-  if (decision.id[0]) return L_DECISION;
   if (eq(tama.state,"uhoh") && bubbleVisible()) return L_UHOH;
   if (before(nowMs(),statsUntil)) return L_STATS;
   if (bubbleVisible()) return L_BUBBLE;
@@ -422,8 +396,7 @@ static void drawCard(uint32_t now) {
     return;
   }
   int left=HAL_LANDSCAPE?30:12, right=HAL_W-left;
-  int actionY=HAL_LANDSCAPE?y+10:y+82;
-  int textWidth=HAL_LANDSCAPE?HAL_W-192:right-left;
+  int textWidth=right-left;
   int toolWidth=textWidth-14;
   if(tama.card.of>1) {
     snprintf(line,sizeof(line),"%d of %d",tama.card.n,tama.card.of);
@@ -431,26 +404,7 @@ static void drawCard(uint32_t now) {
     toolWidth-=spr.textWidth(line)+16;
   }
   textLines(tama.card.tool,left+14,y+10,max(16,toolWidth),1,1.5f,ink);
-  uint16_t stakes=careful()?animRGB(255,73,82):eq(tama.card.stakes,"checkIt")?animRGB(255,182,36):GREEN;
-  spr.fillSmoothCircle(left+1,y+22,5,stakes);
   textLines(tama.card.gloss,left,y+40,textWidth,2,1,ink);
-  if(tama.card.approval) {
-    textRight(careful()?"Hold 2s: yes":"Press: yes",right,actionY,animRGB(146,146,146));
-    textRight(careful()?"Side: no":"Hold: no",right,actionY+30,animRGB(146,146,146));
-  }
-  if(armed()) {
-    const auto& b=buttons[0];
-    float hold=0;
-    if(!b.guard && !strcmp(b.cardId,tama.card.id)) {
-      hold=b.down?animClamp((now-b.visualAt)/(careful()?2000.0f:1000.0f),0,1):
-        b.releasedHold*(1-animClamp((now-b.releasedAt)/300.0f,0,1));
-    }
-    if(hold>0) {
-      spr.setFont(&fonts::efontKR_16); spr.setTextSize(1);
-      int width=spr.textWidth(careful()?"Hold 2s: yes":"Hold: no");
-      spr.fillRect(right-width,actionY+(careful()?20:50),max(1,animPx(width*hold)),2,ink);
-    }
-  }
 }
 static void drawStats(uint32_t now) {
   uint16_t ink=faceInk(now);
@@ -510,7 +464,6 @@ static void render() {
   if (!bleBonded() || !dataConnected() || (linkFlash && now-linkAt<800))
     presenceDrawLinkGlyph(spr,now-stateAt,animRGB(73,146,255),linkFlash && now-linkAt<800);
   if (layer==L_SYSTEM || layer==L_CARD) drawCard(now);
-  else if(layer==L_DECISION) { textLines(feedback(),30,HAL_H-(HAL_LANDSCAPE?78:122),HAL_W-60,1,1.5f,faceInk(now)); }
   else if(layer==L_STATS) drawStats(now);
   else if(layer==L_BUBBLE || layer==L_UHOH) { int x=HAL_W/3+12; uint16_t ink=faceInk(now); textLines(bubbleText(),x+12,HAL_H/2-20,HAL_W-x-40,2,1,ink); }
   if (guardSafeTier()) { textLines("safe mode - USB rescue",28,18,HAL_W-56,1); }
@@ -534,12 +487,12 @@ static void framed(const char* tag,JsonDocument& d) { Serial.printf("<<%s ",tag)
 static void dumpState() {
   JsonDocument d; telemetry(d);
   d["creature"]=tama.state; d["effort"]=tama.effort; d["cheer"]=tama.cheer; d["uhoh"]=tama.uhoh;
-  d["overlay"]=tama.overlay; d["greetLevel"]=tama.greetLevel; d["nudgeRung"]=tama.nudgeRung; d["card"]=hasCard(); d["cardId"]=tama.card.id; d["armed"]=armed();
+  d["overlay"]=tama.overlay; d["greetLevel"]=tama.greetLevel; d["nudgeRung"]=tama.nudgeRung; d["card"]=hasCard(); d["cardId"]=tama.card.id; d["armed"]=false;
   d["bubble"]=bubbleVisible()?bubbleText():""; d["gift"]=false; d["focus"]=tama.focus; d["posture"]=posture;
   d["dots"]=tama.dots; d["dotAlert"]=tama.dotAlert; d["mute"]=tama.mute; d["screenOff"]=screenOff; d["brightness"]=screenOff?0:brightness;
   d["presence"]=presenceName(); d["napping"]=napping; d["dizzy"]=before(nowMs(),dizzyUntil); d["frozen"]=clockFrozen;
   d["now"]=nowMs(); d["badFrames"]=badFrames; d["parseFails"]=_parseFailCount; d["lineOverflows"]=_lineOverflowCount;
-  d["bleDrops"]=bleRxDropped(); d["connected"]=dataConnected(); d["feedback"]=feedback(); d["layer"]=layerNames[screenLayer()];
+  d["bleDrops"]=bleRxDropped(); d["connected"]=dataConnected(); d["feedback"]=""; d["layer"]=layerNames[screenLayer()];
   d["stats"]=before(nowMs(),statsUntil); d["statsPage"]=statsPage; d["snapName"]=tama.snap.name;
   d["snapTasks"]=tama.snap.tasks; d["skin"]=tama.cosmetic.skin; d["firstWake"]=firstWake;
   d["accessory"]=tama.cosmetic.accessory; d["silhouette"]=tama.cosmetic.silhouette;
@@ -734,8 +687,7 @@ void loop() {
   bool linked=dataConnected(), secure=bleConnected()&&bleSecure();
   if((linked&&!lastLinked)||(secure&&!lastSecure)) { sendStatus(); sendBattery(); }
   if(!linked && lastLinked) {
-    // Link loss is never a decision acknowledgement. Stale cards disappear,
-    // while a pending decision retains "no link?" until a real frame clears it.
+    // Stale attention cards disappear when their data link is lost.
     tama.card=Card{}; tama.overlay[0]=0;
     tama.posture[0]=0; clearBubble();
   }
@@ -745,8 +697,6 @@ void loop() {
   if(sys&&!priorSystem) wake();
   priorSystem=sys;
   buttonsTick(); motionTick(); soundTick(); ritualTick();
-  if (decision.confirmed && now-decision.confirmedAt>=1500) decision=Decision{};
-  else if (decision.id[0] && !decision.confirmed && now-decision.at>=10000 && linked) { decision=Decision{}; cardAt=now; }
   static uint32_t batteryAt=0;
   if (millis()-batteryAt>=2000) {
     batteryAt=millis(); int b=halBatteryPct(); bool c=halIsCharging();

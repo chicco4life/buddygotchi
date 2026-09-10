@@ -44,7 +44,6 @@ final class SimpleBehaviorTests: XCTestCase {
         s = reduce(s, .memoryLoaded(at: 30 * 86_400_000, memory: memory))
         s = reduce(s, .staleTick(at: 30 * 86_400_000))
         XCTAssertEqual(s.buddy.creature.state, .asleep)
-        XCTAssertNotNil(BehaviorMemory(memory: memory, at: 30 * 86_400_000).currentHourIsTypical)
     }
 
     func testRetiredSigningRepliesAreIgnored() {

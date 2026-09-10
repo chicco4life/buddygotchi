@@ -5,7 +5,7 @@ import XCTest
 final class ReflectionTests: XCTestCase {
     private let fact = StoredFact(fact: .toolOutcome(runner: "swift-test", outcome: .pass), sessionId: "PRIVATE_SESSION", project: "PRIVATE_PATH", at: 0, day: "2026-01-01")
 
-    func testModelChoosesMemoryAndTraitsOncePerDay() async throws {
+    func testModelChoosesMemoryOncePerDayWithoutChangingLegacyTraits() async throws {
         let (store, _, cleanup) = try makeStore(); defer { cleanup() }
         try await store.appendFacts([fact])
         let text = #"{"memories":[{"line":"ran swift-test","evidence":[0]}],"traits":{"energy":-1,"bond":2}}"#
@@ -14,8 +14,8 @@ final class ReflectionTests: XCTestCase {
         XCTAssertEqual(lines.map(\.line), ["ran swift-test"])
         XCTAssertEqual(lines.first?.source, "model")
         let traits = try await store.traits()
-        XCTAssertEqual(traits["energy"], 127)
-        XCTAssertEqual(traits["bond"], 2)
+        XCTAssertEqual(traits["energy"], 128)
+        XCTAssertEqual(traits["bond"], 0)
         _ = try await store.reflect(localDay: fact.day, at: 2)
         let again = try await store.traits()
         XCTAssertEqual(again, traits)
@@ -39,10 +39,10 @@ final class ReflectionTests: XCTestCase {
         let denied = StoredFact(fact: .denial, sessionId: "PRIVATE_SESSION", project: "PRIVATE_PATH", at: 1, day: fact.day)
         let evidence = Reflection.evidence([fact, denied])
         XCTAssertEqual(evidence.count, 1)
-        let prompt = Reflection.prompt(guide: "CUSTOM LEARNING POLICY", evidence: evidence, profile: [], traits: [:], day: fact.day, language: "en")
+        let prompt = Reflection.prompt(guide: "CUSTOM LEARNING POLICY", evidence: evidence, profile: [], day: fact.day, language: "en")
         XCTAssertTrue(prompt.contains("CUSTOM LEARNING POLICY"))
         for secret in ["PRIVATE_SESSION", "PRIVATE_PATH", "denial"] { XCTAssertFalse(prompt.contains(secret)) }
-        for invalid in [#"{"memories":[],"traits":{"xp":3}}"#, #"{"memories":[],"traits":{"bond":4}}"#, #"{"memories":[{"line":"unsupported","evidence":[]}],"traits":{}}"#] {
+        for invalid in [ #"{"memories":[{"line":"unsupported","evidence":[]}],"traits":{}}"#] {
             XCTAssertNil(ReflectionUpdate.decode(invalid, evidenceCount: 1, language: "en"))
         }
     }
@@ -55,7 +55,7 @@ final class ReflectionTests: XCTestCase {
         let voice = Voice(runtime: runtime, guide: .init(overrideURL: file))
         for policy in ["learning-policy-one", "learning-policy-two"] {
             try policy.write(to: file, atomically: true, encoding: .utf8)
-            _ = await voice.reflect(history: [fact], profile: [], traits: [:], day: fact.day, language: "en")
+            _ = await voice.reflect(history: [fact], profile: [], day: fact.day, language: "en")
         }
         let prompts = await runtime.prompts
         XCTAssertTrue(prompts[0].contains("learning-policy-one"))

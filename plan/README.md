@@ -8,8 +8,8 @@ Boop does, what triggers it, the current numbers, and what we can tweak.
 | [Vision](VISION.md) | Product intent and personality |
 | [Device](UX-DEVICE.md) · [Mac app](UX-APP.md) | Screen, motion, button and navigation details |
 | [Help](UX-HELP.md) | The nudge ladder and request dismissal |
-| [Growth](UX-GROWTH.md) · [XP formula](XP-AND-SKILL-TREE.md) | Awards, levels, streaks and personality |
-| [Voice](UX-VOICE.md) | Markdown-guided dialogue, personality and memory |
+| [Growth](UX-GROWTH.md) · [XP formula](XP-AND-SKILL-TREE.md) | Awards, levels and streaks |
+| [Voice](UX-VOICE.md) | Markdown personality, event-based dialogue and memory |
 | [Architecture](ARCHITECTURE.md) · [Wire](WIRE-V2.md) | Ownership, storage, budgets and protocol |
 | [Implementation plan](PLAN.md) · [Verification](VERIFICATION.md) | Work status, evidence and remaining gates |
 | [Ideas](IDEAS.md) | Possibilities, not promised behavior |

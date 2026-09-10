@@ -31,7 +31,8 @@ struct RawHookPayload: Sendable {
         case "UserPromptSubmit", "beforeSubmitPrompt": kind = .turnStart
         case "PreToolUse", "preToolUse", "beforeShellExecution", "beforeMCPExecution", "afterFileEdit": kind = .toolCall
         case "PostToolUse", "PostToolUseFailure", "postToolUse", "postToolUseFailure", "afterShellExecution", "afterMCPExecution": kind = .toolResult
-        case "PermissionRequest", "Elicitation": kind = .needsYou
+        case "PermissionRequest": return nil
+        case "Elicitation": kind = .needsYou
         case "Stop", "StopFailure", "stop", "afterAgentResponse": kind = .turnEnd
         default: return nil
         }

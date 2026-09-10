@@ -11,30 +11,31 @@ hooks → Server → Extractor → Core → Outputs
 ```
 
 The reducer is pure: events and prior state produce the next state and pending
-work. The engine owns clocks, I/O, asynchronous jobs and approval continuations.
+work. The engine owns clocks, I/O, asynchronous jobs.
 Outputs render state; they do not interpret agent-specific input.
 [Component behaviors](BEHAVIORS.md) defines the product rules.
 
 ## 2. Hooks and server
 
-Hooks normalize supported Claude, Codex and Cursor events and fail open if Boop
-is unavailable. Activity is distinct from a permission request. The server
-checks live approval configuration before and after asynchronous ingestion.
-Native approval is the default; Buddy interception requires global opt-in and,
-for Codex, its additional opt-in. Disabling interception returns held requests
-to the native flow. Passthrough does not mean permission granted by Boop.
+Hooks normalize Claude/Codex/Cursor activity and fail open. Approvals belong to
+the editor. Hook v9 removes Boop permission interception registrations; the
+script drains stdin and ignores stale PermissionRequest registrations. Config
+loading removes old enablement keys. `/hook/approve` authenticates and returns
+immediate passthrough for stale scripts, without ingestion or held continuations.
+Legacy engine/device decision entry points are inert. No auto-approval or stakes
+classification runs. Only reliable passive attention requests become cards;
+activity and execution gates do not infer human waiting. Passive requests expire
+after 290 seconds. Managed repair preserves unrelated hooks.
 
-The engine owns held continuations. First valid decisions win; stale IDs cannot
-resolve new requests. Host expiry defaults to 290 s, below curl's 300 s and the
-registered hook's 310 s. Managed installation removes only retired Boop MCP
-entries. There is no active agent-expression endpoint.
 
 ## 3. Extractor and core
 
 Deterministic readers turn bounded session context into lifecycle, runner,
-outcome, topic and stakes events. Raw transcripts/tool arguments are not model
+outcome and topic events. Raw transcripts/tool arguments are not model
 context or durable memory. Explicit errors drive Uh-oh; repeated commands and
-silence do not imply failure. Duration drives effort and completion size.
+silence do not imply failure. Duration drives effort and completion size: under one minute has no cheer,
+one minute hop, three minutes cheer, five minutes dance. Short completions still
+earn XP and record outcomes. Working effort is light before three minutes.
 
 The core chooses priority, three-second completion folding, fixed 60/120-second
 nudges and XP award events. It never waits for model output. Approval decisions
@@ -42,7 +43,7 @@ do not award XP, bond or new memory facts.
 
 ## 4. Store and growth
 
-SQLite persists reduced facts (30 days), profile, five traits, XP ledger and
+SQLite persists reduced facts (30 days), profile, inactive legacy traits, XP ledger and
 materialized earned totals. Existing historical inventory/moment records remain
 readable but no new named moments or milestone keepsakes are created.
 
@@ -65,12 +66,12 @@ decision rereads it; invalid, empty or over-32-KiB overrides use the bundle.
 
 Apple Foundation Models runs locally when available, using fresh sessions and
 a five-second deadline. There is no cloud fallback. The engine offers dialogue
-opportunities at greetings, errors, idle after completion, and every five
-minutes while idle/working without competing UI. Results are text or silence;
+opportunities at greetings, errors and idle after celebration. There are no
+periodic check-ins. Results are text or silence;
 stale results are cancelled/discarded. Neutral greeting/error fallback remains,
 otherwise silence. No daily inference quota exists.
 
-Normal context includes state, effort, time/language, traits, XP/progress,
+Normal context includes state, effort, time/language, XP/progress,
 bounded factual history, three profile lines and twenty prior lines. No raw
 paths, transcripts, approval decisions or drawings are supplied. Display text
 is capped at 63 UTF-8 bytes, profile text at 240; bubbles last four seconds.
@@ -78,17 +79,19 @@ is capped at 63 UTF-8 bytes, profile text at 240; bubbles last four seconds.
 
 ## 6. Personality and memory
 
-After twenty minutes without activity, on AC power, reflection considers the
-previous local day. The same guide/model receives at most 100 reduced facts,
-twenty profile lines and current traits. It may return silence or up to five
-memories with evidence IDs plus integer trait changes of at most ±3 per axis.
-Store validates the whole update and persists it atomically, clamping values
-to 0–255. Successful reflection is idempotent per day.
+Personality is defined in BEHAVIOR.md. Familiarity comes from supported profile
+memories and recent outcomes. Legacy numeric traits and counters stay stored
+but inactive: no model input, daily drift, usual-hour sampling or project/session
+familiarity updates. XP and greeting history remain independent and unchanged.
 
-Invalid/unavailable output leaves profile and traits unchanged. There are no
-fixed habit detectors, automatic bond awards or rule-generated candidates.
-Evidence IDs establish references, not a semantic proof of truth. Model
-reflection cannot alter XP, raw facts, state or permission handling.
+After twenty inactive minutes on AC power, daily reflection considers the
+previous day. The guide/model sees at most 100 reduced facts and twenty profile
+lines. It may choose silence or up to five evidence-backed memories. Store
+validates/persists memories atomically and records daily idempotence. Invalid or
+unavailable output leaves the profile unchanged. Old trait output fields are
+ignored. Evidence references do not prove semantic truth; no raw paths,
+transcripts, approval decisions or old named moments enter model context.
+
 
 ## 7. Mac output
 
@@ -107,10 +110,10 @@ is the field/command contract; [firmware protocol](../firmware/esp32/PROTOCOL.md
 describes the transport. BLE bonding and acknowledged OTA remain independent
 of the removed leaderboard signing feature.
 
-Device priority: system card → request → decision feedback → error bubble →
-stats → bubble → overlay → face. Local firmware owns card arming, wake-press
+Device priority: system card → request → error bubble →
+stats → bubble → overlay → face. Local firmware owns passive dismissal, wake-press
 consumption, hold gestures, shutdown, posture, dimming and offline snapshot
-stats. The host owns approval authority and reminder timing. Repeated frames
+stats. The host owns reminder timing; approvals remain entirely in the editor. Repeated frames
 do not replay a nudge. Quiet mode suppresses sound but preserves visual rungs.
 
 ## 9. Budgets and verification
@@ -118,7 +121,6 @@ do not replay a nudge. Quiet mode suppresses sound but preserves visual rungs.
 | Path | Target/bound |
 | --- | --- |
 | Hook to device card | 500 ms target |
-| Button to host decision | 300 ms target |
 | State change to frame | 250 ms target |
 | Model generation | 5 s deadline, asynchronous |
 | Reflection | Off the interaction path; bounded evidence and output |

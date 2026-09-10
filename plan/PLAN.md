@@ -1,6 +1,7 @@
 # Implementation plan
 
-Current phase: behavior simplification is implemented; live model, editor and
+Current phase: essential behavior simplification is implemented and automated checks pass;
+live model, editor and
 physical-device verification remain. [Component behaviors](BEHAVIORS.md) is the
 current contract, with detailed specs in the [index](README.md).
 
@@ -8,16 +9,24 @@ current contract, with detailed specs in the [index](README.md).
 
 | Area | Current result |
 | --- | --- |
-| Core | Six states; explicit errors only; effort from task duration; 3 s celebration folding |
+| Core | Six states; 1/3/5-minute celebrations (none below 1 minute); 3 s folding |
 | Help | Fixed nudges at 60/120 s; dismissal snoozes only the current request |
-| Approvals | Native editor default; Buddy opt-in enforced at the server; Codex also requires its own opt-in |
+| Approvals | Editor only; Buddy interception and controls removed; stale hooks return passthrough |
 | Growth | Completed turn +3 XP, active local day +10; historical XP preserved; ordinary consecutive-day streaks |
-| Local model | Live-read Markdown steers dialogue/silence, memory selection and personality evolution |
-| Memory | Reduced facts and bounded model reflection; no automatic bond awards or fixed habit detectors |
+| Local model | Live-read Markdown defines personality, event-based dialogue and memory; no timed check-ins |
+| Memory | Reduced facts, small profile and recent outcomes; no numeric personality/bond or familiarity counters |
 | Mac/device | Quiet mode, simple menu popover/settings, fixed appearance, local sharing |
 | Removed | Gifts, recaps, teach, inferred stuck/hungry, quick commands, agent expression/drawings, named moment creation, leaderboard/sync/signing |
 
 ## Verified in this change
+
+- **341 app tests passed, zero skipped**, including offscreen native UI checks.
+- Boop and BoopSignal built; shipping Waveshare firmware built without flashing.
+- [Essentials evidence](evidence/essential-behaviors-2026-09-11/README.md).
+- Activity/share-card UI is retained for owner review. Growth, time-away greetings,
+  60/120-second reminders and event-based dialogue remain.
+
+## Previous verification (before this change)
 
 - 368 app tests passed, zero skipped; Boop and BoopSignal built.
 - Shipping Waveshare firmware built after the device simplification.
@@ -28,10 +37,10 @@ current contract, with detailed specs in the [index](README.md).
 ## Remaining gates
 
 1. Evaluate real on-device model responses in English/Korean: relevance, silence,
-   supported memories, personality changes and latency. Unit tests use fixtures.
-2. With the owner-launched app, verify native approval defaults and explicit Buddy
-   opt-in in supported Claude/Codex/Cursor versions, including disable/passthrough.
-3. Verify nudge timing, button guards, Quiet mode, reconnect and acknowledgement
+   supported memories and latency. Unit tests use fixtures.
+2. With the owner-launched app, verify native approvals, stale-hook passthrough
+   and hook repair in supported Claude/Codex/Cursor versions.
+3. Verify nudge timing, passive dismissal, Quiet mode and reconnect
    on physical hardware over production BLE. Build success is not a device pass.
 4. Finish applicable release checks: clean installation/update, supported Mac and
    board coverage, signing/notarization and packaging. Historical phase results

@@ -4,11 +4,7 @@ import Security
 struct BuddyConfig: Sendable {
     var httpPort: Int
     var staleTimeoutMs: Double
-    /// Deliberately BELOW the hook script's curl `--max-time 300` (which is in
-    /// turn below the registered hook timeout of 310s): each layer's wait must
-    /// outlive the layer below so the card always dies before its caller does.
-    /// At 300==300 the server resolved expired prompts into an already-closed
-    /// socket and a button press in the final seconds was silently lost.
+    /// Lifetime of a passive attention request; name retained for compatibility.
     var approvalTimeoutMs: Double = 290_000
     var celebrateDurationMs: Double
     var stateDir: String
@@ -46,13 +42,14 @@ struct BuddyConfig: Sendable {
         if let data = fm.contents(atPath: path) {
             if var json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                 let port = json["port"] as? Int ?? defaultPort
-                let approval = json["approvalMode"] as? Bool ?? false
+                let hadApprovalSettings = json.removeValue(forKey: "approvalMode") != nil
+                let hadCodexSettings = json.removeValue(forKey: "codexApprovalMode") != nil
                 let token = (json["token"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? makeToken()
-                if json["token"] as? String != token {
+                if json["token"] as? String != token || hadApprovalSettings || hadCodexSettings {
                     json["token"] = token
                     writeConfigJSON(json, to: path)
                 }
-                return (port, approval, token)
+                return (port, false, token)
             }
             recreatedCorruptConfig = true
         }
@@ -61,27 +58,6 @@ struct BuddyConfig: Sendable {
         let defaultConfig: [String: Any] = ["port": defaultPort, "token": token]
         writeConfigJSON(defaultConfig, to: path)
         return (defaultPort, false, token)
-    }
-
-    static func setApprovalMode(_ enabled: Bool) {
-        setApprovalPreference("approvalMode", enabled)
-    }
-
-    static func setCodexApprovalMode(_ enabled: Bool) {
-        setApprovalPreference("codexApprovalMode", enabled)
-    }
-
-    private static func setApprovalPreference(_ key: String, _ enabled: Bool) {
-        let path = configPath
-        let fm = FileManager.default
-        var json: [String: Any] = [:]
-        if let data = fm.contents(atPath: path),
-           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            json = parsed
-        }
-        json[key] = enabled
-        if json["token"] == nil { json["token"] = makeToken() }
-        writeConfigJSON(json, to: path)
     }
 
     private static func writeConfigJSON(_ json: [String: Any], to path: String) {

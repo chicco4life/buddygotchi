@@ -87,30 +87,20 @@ final class PersonalityReducerTests: XCTestCase {
 
     // MARK: - P2 Circadian
 
-
-
-
-
-
-
-
-
-
-
-    func testHistogramSamplesAtMostEveryHalfHour() {
+    func testActivityDoesNotUpdateRetiredHourHistogram() {
         var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
         s = applyEvents(s, .activitySignal(at: NOW + 60_000, sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "x"))
-        XCTAssertEqual(s.memory.histogramSamples, 1)
+        XCTAssertEqual(s.memory.histogramSamples, 0)
         s = applyEvents(s, .activitySignal(at: NOW + 31 * 60_000, sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "x"))
-        XCTAssertEqual(s.memory.histogramSamples, 2)
+        XCTAssertEqual(s.memory.histogramSamples, 0)
     }
 
-    func testLifetimeSessionsCountsNewSessionsOnly() {
+    func testActivityDoesNotUpdateRetiredSessionCount() {
         var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
         s = applyEvents(s, .sessionStarted(at: NOW + 1, sessionId: "s1", source: "claude-code", cwd: nil))
-        XCTAssertEqual(s.memory.lifetimeSessions, 1)
+        XCTAssertEqual(s.memory.lifetimeSessions, 0)
         s = applyEvents(s, .sessionStarted(at: NOW + 2, sessionId: "s2", source: "cursor", cwd: nil))
-        XCTAssertEqual(s.memory.lifetimeSessions, 2)
+        XCTAssertEqual(s.memory.lifetimeSessions, 0)
     }
 
     // MARK: - P3 Effort & payoff
@@ -125,9 +115,9 @@ final class PersonalityReducerTests: XCTestCase {
     func testLongWorkEscalatesToHardThenGrinding() {
         var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
         s = applyEvents(s, .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .startWorking, tool: "Bash", hint: "x"))
-        s = applyEvents(s, .activitySignal(at: NOW + 11 * 60_000, sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "x"))
+        s = applyEvents(s, .activitySignal(at: NOW + 4 * 60_000, sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "x"))
         XCTAssertEqual(s.buddy.effortTier, .hard)
-        s = applyEvents(s, .activitySignal(at: NOW + 26 * 60_000, sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "x"))
+        s = applyEvents(s, .activitySignal(at: NOW + 6 * 60_000, sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "x"))
         XCTAssertEqual(s.buddy.effortTier, .grinding)
     }
 
@@ -144,19 +134,18 @@ final class PersonalityReducerTests: XCTestCase {
         XCTAssertEqual(s.buddy.effortTier, .light)
     }
 
-
-    func testQuickCleanTaskGetsModestCelebration() {
+    func testOneMinuteTaskGetsModestCelebration() {
         var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
         s = applyEvents(
             s,
             .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .startWorking, tool: "Bash", hint: "x"),
-            .activitySignal(at: NOW + 30_000, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: "Bash", hint: "x")
+            .activitySignal(at: NOW + 60_001, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: "Bash", hint: "x")
         )
         XCTAssertEqual(s.buddy.pet.state, .celebrate)
         XCTAssertEqual(s.buddy.celebrateIntensity, 1)
     }
 
-    func testShortStruggleStillGetsHop() {
+    func testSubMinuteErrorsDoNotManufactureCelebration() {
         var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
         s = applyEvents(
             s,
@@ -167,8 +156,8 @@ final class PersonalityReducerTests: XCTestCase {
             .activitySignal(at: NOW + 5, sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "x"),
             .activitySignal(at: NOW + 6, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: "Bash", hint: "x")
         )
-        XCTAssertEqual(s.buddy.celebrateIntensity, 1)
-        XCTAssertEqual(s.memory.lifetimeCelebrations, 1)
+        XCTAssertNil(s.buddy.celebrateIntensity)
+        XCTAssertEqual(s.memory.lifetimeCelebrations, 0)
         // The struggle is spent: the next task starts clean.
     }
 
@@ -177,8 +166,8 @@ final class PersonalityReducerTests: XCTestCase {
         s = applyEvents(
             s,
             .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .startWorking, tool: "Bash", hint: "x"),
-            .activitySignal(at: NOW + 2, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: "Bash", hint: "x"),
-            .staleTick(at: NOW + 2 + 4_001)
+            .activitySignal(at: NOW + 60_002, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: "Bash", hint: "x"),
+            .staleTick(at: NOW + 60_002 + 4_001)
         )
         XCTAssertNil(s.buddy.celebrateIntensity)
     }

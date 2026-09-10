@@ -63,19 +63,7 @@ final class StoreTests: XCTestCase {
         let traits = try await store.traits(); XCTAssertEqual(traits["bond"],0)
         let memory = try await store.loadMemory(); XCTAssertEqual(memory,.empty)
     }
-    func testTraitAndBondStorageBounds() async throws {
-        let (store, _, cleanup) = try makeStore()
-        defer { cleanup() }
-        for _ in 0..<10 {
-            try await store.applyDrift(["energy":99,"cheek":-99,"warmth":99,"curiosity":-99],localDay:"2026-01-01")
-        }
-        var traits = try await store.traits()
-        XCTAssertEqual(traits,["energy":131,"cheek":125,"warmth":131,"curiosity":125,"bond":0])
-        for n in 0..<100 { try await store.applyDrift(["energy":3,"cheek":-3],localDay:"day-\(n)") }
-        for n in 0..<100 { try await store.applyDrift(["bond":3],localDay:"bond-\(n)") }
-        traits = try await store.traits()
-        XCTAssertEqual(traits["energy"],255); XCTAssertEqual(traits["cheek"],0); XCTAssertEqual(traits["bond"],255)
-    }
+
     func testFixedAppearanceIgnoresLegacyChoicesAndPreservesGrowth() async throws {
         let (store, dir, cleanup) = try makeStore()
         defer { cleanup() }
@@ -156,7 +144,9 @@ extension StoreTests {
         XCTAssertTrue(FileManager.default.fileExists(atPath: legacy.path + ".unreadable"))
         XCTAssertEqual(engine.state.growth.xp, 10)
         let saved = try await store.loadMemory()
-        XCTAssertEqual(saved?.lifetimeSessions, 1)
+        XCTAssertEqual(saved?.lastSeenAt, engine.petMemory.lastSeenAt)
+        XCTAssertNotNil(saved?.lastSeenAt)
+        XCTAssertEqual(saved?.lifetimeSessions, 0)
         XCTAssertFalse(engine.diagnosticLog.entries.contains { $0.category == "store" && $0.event == "error" })
     }
     func testRollupMatchesReplayAcrossCapsMidnightReopenAndBackdatedRows() async throws {
@@ -201,7 +191,6 @@ extension StoreTests {
         XCTAssertEqual(again, memory)
     }
 }
-
 
 extension StoreTests {
     func testXPActivityUsesActualCappedAwardsAndProgressIsWithinLevel() async throws {

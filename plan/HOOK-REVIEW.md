@@ -1,4 +1,25 @@
-# Hook integration review — 2026-09-10
+# Hook review
+
+## Current policy — native approvals only
+
+Owner decision, 2026-09-11: Buddy interception is removed. Hook v9 does not
+register PermissionRequest interception and ignores stale registrations after
+draining stdin. The server's compatibility `/hook/approve` route always returns
+native passthrough, regardless of old settings. No auto-approval or command
+classification runs; the engine holds no approval continuations. Repair removes
+only Boop entries and preserves unrelated hooks. Config loading drops old
+approval enablement keys. Runtime permission events cannot create approval cards.
+
+Claude passive attention notifications and Elicitation can show Needs you when
+reliably reported. Tool-use and Cursor execution gates report activity. Native
+Codex approval waiting cannot reliably be mirrored through these hooks.
+
+Verify native editor flows against the owner-launched app before release. Old
+review notes below describe the removed implementation, not the current policy.
+
+---
+
+## Hook integration review — 2026-09-10
 
 The reported repeated “Bash / runs a command” cards have two distinct causes.
 The global approval switch routed every Codex PermissionRequest through Boop's

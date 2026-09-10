@@ -41,8 +41,6 @@ struct SettingsSectionView: View {
     @State private var interactiveMode = false
     @State private var soundsEnabled = true
 
-    @State private var approvalMode = false
-    @AppStorage("approvalModeExplained") private var approvalModeExplained = false
     private var buddyName: String { engine.buddyName }
     private var esp32UUID: String? { engine.pairedPeripheral }
     @State private var launchAtLogin = false
@@ -56,7 +54,6 @@ struct SettingsSectionView: View {
     @State private var isExportingBugReport = false
     @State private var bugReportError: String?
     @State private var showingUpdaterUnavailable = false
-    @State private var showingApprovalModeExplainer = false
     private func copy(_ en: String, _ ko: String) -> String { engine.state.language == "ko" ? ko : en }
 
     var body: some View {
@@ -68,7 +65,6 @@ struct SettingsSectionView: View {
         .onAppear {
             interactiveMode = engine.boolSetting(DefaultsKey.interactiveMode, fallback: false)
             soundsEnabled = engine.boolSetting(DefaultsKey.soundsEnabled, fallback: true)
-            approvalMode = engine.boolSetting(DefaultsKey.approvalMode, fallback: false)
             normalizeBuddySpecies()
             refreshLoginItemState()
             for agent in AgentKind.allCases {
@@ -90,18 +86,7 @@ struct SettingsSectionView: View {
                 self.selectedDeviceUUID = nil
             }
         }
-        .sheet(isPresented: $showingApprovalModeExplainer) {
-            ApprovalModeExplainerSheet(
-                onCancel: {
-                    showingApprovalModeExplainer = false
-                },
-                onConfirm: {
-                    approvalModeExplained = true
-                    setApprovalMode(true)
-                    showingApprovalModeExplainer = false
-                }
-            )
-        }
+
         .sheet(isPresented: $showingFirmwareUpdate) {
             FirmwareUpdateView(
                 updater: esp32Output.firmwareUpdater,
@@ -154,15 +139,7 @@ struct SettingsSectionView: View {
                 }
             }
         case .advanced:
-            Section(BuddyCopy.phase7("approvals", language: engine.state.language)) {
-                BuddySettingToggle(title: BuddyCopy.shared.settingsCopy.localApprovalMode,
-                    description: BuddyCopy.shared.settingsCopy.localApprovalModeDescription, isOn: approvalModeBinding)
-                BuddySettingToggle(title: BuddyCopy.phase7("codexApprovals", language: engine.state.language),
-                    description: BuddyCopy.phase7("codexApprovalsDescription", language: engine.state.language),
-                    isOn: Binding(get: { engine.boolSetting(DefaultsKey.codexApprovalMode, fallback: false) },
-                                  set: { engine.setCodexApprovalMode($0) }))
-                    .disabled(!approvalMode)
-            }
+
             Section { exportBugReportRow } header: { Text(copy("Support", "지원")) } footer: {
                 Text(copy("Saves a diagnostic report you can share with support.", "지원팀에 공유할 진단 보고서를 저장합니다."))
             }
@@ -330,7 +307,6 @@ struct SettingsSectionView: View {
                     .buttonStyle(.plain)
                 }
             }
-
 
             if scanner.isScanning && scanner.bluetoothUnavailable {
                 HStack(spacing: 8) {
@@ -537,24 +513,6 @@ struct SettingsSectionView: View {
 
     // MARK: - Helpers
 
-    private var approvalModeBinding: Binding<Bool> {
-        Binding(
-            get: { approvalMode },
-            set: { newValue in
-                if newValue && !approvalModeExplained {
-                    showingApprovalModeExplainer = true
-                } else {
-                    setApprovalMode(newValue)
-                }
-            }
-        )
-    }
-
-    private func setApprovalMode(_ enabled: Bool) {
-        approvalMode = enabled
-        engine.setApprovalMode(enabled)
-    }
-
     private func cleanupAbandonedPairing() {
         guard selectedDeviceUUID != nil && esp32Output.connectionState != .connected else { return }
         selectedDeviceUUID = nil
@@ -608,50 +566,6 @@ struct SettingsSectionView: View {
         } else if sendHeartbeat {
             engine.setSpecies(Pet.defaultSpecies)
             esp32Output.sendNow()
-        }
-    }
-}
-
-private struct ApprovalModeExplainerSheet: View {
-    let onCancel: () -> Void
-    let onConfirm: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(BuddyCopy.shared.settingsCopy.localApprovalModeSentence)
-                .font(.headline)
-                .foregroundStyle(BuddyTheme.ink)
-
-            VStack(alignment: .leading, spacing: 10) {
-                explainerRow(BuddyCopy.shared.settingsCopy.approvalExplainerRow1)
-                explainerRow(BuddyCopy.shared.settingsCopy.approvalExplainerRow2)
-                explainerRow(BuddyCopy.shared.settingsCopy.approvalExplainerRow3)
-            }
-
-            HStack {
-                Spacer()
-                Button(BuddyCopy.cancel, action: onCancel)
-                    .buttonStyle(.plain)
-                Button(BuddyCopy.shared.settingsCopy.turnOn, action: onConfirm)
-                    .buttonStyle(.plain).tint(BuddyTheme.amber)
-            }
-        }
-        .padding(22)
-        .frame(width: 380)
-        .background(BuddyTheme.windowBackground)
-
-    }
-
-    private func explainerRow(_ text: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Circle()
-                .fill(BuddyTheme.amberInk)
-                .frame(width: 5, height: 5)
-                .padding(.top, 6)
-            Text(text)
-                .font(.callout)
-                .foregroundStyle(BuddyTheme.inkSoft)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

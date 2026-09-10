@@ -107,30 +107,18 @@ final class SnapshotHarnessTests: XCTestCase {
         try snapshot(popover(e), "popover-3-passive-prompt", popoverPrompt)
     }
 
-    // MARK: 3. Approval "button press" loop (drive → render → press → render)
+    // MARK: 3. Passive attention and reminder dismissal
 
-    func testApprovalButtonLoop() async throws {
+    func testPassiveAttentionSnoozeLoop() throws {
         let e = makeEngine()
         e.sessionStarted(sessionId: "s1", source: "claude-code", cwd: "/Users/dev/boop")
-        let reqId = "s1_req"
-        let task = Task { await e.submitApproval(sessionId: "s1", requestId: reqId, tool: "Bash",
-                                                 hint: "rm -rf build && npm ci", sessionLabel: "boop",
-                                                 source: "claude-code") }
-        await Task.yield()
-
-        // Card with Approve/Deny buttons is showing.
-        XCTAssertEqual(e.state.prompt?.isApproval, true)
-        XCTAssertEqual(e.state.pet.state, .attention)
-        try snapshot(popover(e), "popover-4-approval", popoverPrompt)
-
-        // "Press Approve" — exactly what the button's action calls.
-        e.resolveApproval(requestId: reqId, decision: .allow)
-        let decision = await task.value
-
-        XCTAssertEqual(decision, .allow)
-        XCTAssertNil(e.state.prompt, "card should clear after approving")
-        XCTAssertEqual(e.state.pet.state, .busy, "approving resumes work")
-        try snapshot(popover(e), "popover-5-after-approve", popoverIdle)
+        e.submitRequest(sessionId: "s1", requestId: "r1", tool: "Question", hint: "Which project should I use?", sessionLabel: "boop")
+        XCTAssertEqual(e.state.prompt?.isApproval, false)
+        try snapshot(popover(e), "popover-4-attention", popoverPrompt)
+        e.nudgeDismissed(requestId: "r1")
+        XCTAssertEqual(e.state.prompt?.id, "r1", "Snooze does not resolve the request")
+        XCTAssertEqual(e.state.creature.nudgeRung, 0)
+        try snapshot(popover(e), "popover-5-snoozed", popoverPrompt)
     }
 
     // MARK: 4. Settings (regression for toggle-alignment fix #4)
@@ -157,7 +145,6 @@ final class SnapshotHarnessTests: XCTestCase {
     }
 }
 
-
 extension SnapshotHarnessTests {
     func testControlCenterPanes() throws {
         var state = BuddyState.initial
@@ -173,7 +160,6 @@ extension SnapshotHarnessTests {
 
     }
 }
-
 
 extension SnapshotHarnessTests {
     func testMenuBarCompactCatalog() throws {

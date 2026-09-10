@@ -47,7 +47,7 @@ Device → host: one JSON object per line.
 
 | command / reply | JSON shape |
 |---|---|
-| decision | `{"cmd":"decision","id":"…","d":"allow"\|"deny"}` |
+| retired decision | `decision` and legacy `permission` commands are ignored; no editor action |
 | retired commands | `collect` and `quick` are ignored; no event, award or action |
 | boop | `{"cmd":"boop","hold":bool}` |
 | posture | `{"cmd":"posture","p":"desk"\|"perch"\|"travel"}` |
@@ -91,4 +91,18 @@ For the same visible request, rising rungs play one reminder: soft at rung 1,
 stronger at rung 2. Repeated heartbeats do not replay it. A lean marks a nudge;
 rung 2 strengthens the amber pulse. Quiet mode retains visuals without sound.
 Local passive-card dismissal suppresses reminders for that card; a new ID
-resets dismissal. Host prompt expiry and approval decisions remain unchanged.
+resets dismissal. Host passive-request expiry remains 290 seconds. Approval decisions are retired.
+
+## Native approvals and passive cards — 2026-09-11
+
+Buddy no longer handles approval decisions. The host emits `approval:false`
+and the neutral legacy `stakes:"checkIt"` for every attention card. No command
+classification runs. Current firmware normalizes an incoming legacy approval
+flag to false and renders no stakes dot, yes/no labels, hold progress or decision
+feedback. It never sends approval decisions. Host ignores old decision and
+permission messages. Legacy wire fields remain for older firmware compatibility;
+BLE, pairing and OTA acknowledgements are unchanged. Deploy the matching app
+and firmware to remove the old device approval presentation completely.
+
+Attention dismissal, 60/120-second nudges and Quiet mode remain. A stale hook
+approval call gets immediate native passthrough, not allow or deny.

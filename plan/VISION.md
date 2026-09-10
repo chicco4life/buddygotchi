@@ -7,11 +7,10 @@ The device carries the face; the Mac app quietly supplies status and settings.
 ## Product principles
 
 - Show real agent state. Silence and repeated commands are not failures.
-- Keep requests clear. Approve in the editor by default; Buddy approval is opt-in.
+- Keep requests clear. Approve entirely in the editor; Buddy shows passive attention.
 - Celebrate completed work according to task length, with nearby completions folded.
-- Let one local Markdown-guided model choose dialogue, personality evolution and
-  memories. Silence is a valid response. States and permissions remain rules.
-- Treat XP, energy, bond and history as descriptive inputs, not behavior unlocks.
+- Let one local Markdown-guided model choose event-based dialogue and memories. Silence is a valid response. States remain rules; permissions belong to the editor.
+- Keep personality in Markdown and familiarity in real memories. XP unlocks nothing.
 - Keep progress local and preserve earned history. No account or ranking service
   is required. Local share-card export is optional.
 - Stay quiet: no unsolicited Mac windows, no sound exceptions to Quiet mode,

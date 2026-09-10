@@ -36,8 +36,8 @@ transient fields clear; omitted `state` renders asleep. Omitted `snap` and
 | `uhoh` | error; legacy stuck/hungry normalize to error |
 | `overlay` / `greetLevel` | greet or boop / integer 0–3 |
 | `dots` / `dotAlert` | integer 0–5 / optional zero-based index into dots |
-| `card` | decision `{id,tool,gloss,stakes,n,of,approval}` or system `{kind,text}` |
-| decision card | id/tool ≤23 B, gloss ≤63 B, stakes fine/checkIt/careful, approval boolean |
+| `card` | passive attention `{id,tool,gloss,stakes,n,of,approval}` or system `{kind,text}` |
+| attention card | id/tool ≤23 B, gloss ≤63 B, stakes fine/checkIt/careful, approval boolean |
 | system card | kind pair/update, text ≤63 B |
 | `bubble` | ≤63 B, four seconds; unchanged heartbeats do not restart it |
 | `gift` / `giftLine` | retired, ignored; diagnostics report gift=false |
@@ -56,7 +56,7 @@ writes occur only on changes. No prompt or bubble persists across reboot.
 The old species/name/owner storage is neither read nor written.
 
 ```json
-{"v":2,"state":"needsYou","dots":1,"mute":1,"card":{"id":"req_1","tool":"Bash","gloss":"Run tests","stakes":"checkIt","n":1,"of":1,"approval":true}}
+{"v":2,"state":"needsYou","dots":1,"mute":1,"card":{"id":"req_1","tool":"Bash","gloss":"Run tests","stakes":"checkIt","n":1,"of":1,"approval":false}}
 ```
 
 Cards arm 600 ms after arrival. A press must start after arming and belong to
@@ -69,8 +69,6 @@ without acknowledgement, a live card is rearmed. Link loss is not an ack.
 ## Device → host
 
 ```json
-{"cmd":"decision","id":"req_1","d":"allow"}
-{"cmd":"decision","id":"req_1","d":"deny"}
 {"cmd":"boop","hold":false}
 {"cmd":"posture","p":"perch"}
 {"cmd":"motion","m":"pickup"}
@@ -179,4 +177,18 @@ For the same visible request, rising rungs play one reminder: soft at rung 1,
 stronger at rung 2. Repeated heartbeats do not replay it. A lean marks a nudge;
 rung 2 strengthens the amber pulse. Quiet mode retains visuals without sound.
 Local passive-card dismissal suppresses reminders for that card; a new ID
-resets dismissal. Host prompt expiry and approval decisions remain unchanged.
+resets dismissal. Host passive-request expiry remains 290 seconds. Approval decisions are retired.
+
+## Native approvals and passive cards — 2026-09-11
+
+Buddy no longer handles approval decisions. The host emits `approval:false`
+and the neutral legacy `stakes:"checkIt"` for every attention card. No command
+classification runs. Current firmware normalizes an incoming legacy approval
+flag to false and renders no stakes dot, yes/no labels, hold progress or decision
+feedback. It never sends approval decisions. Host ignores old decision and
+permission messages. Legacy wire fields remain for older firmware compatibility;
+BLE, pairing and OTA acknowledgements are unchanged. Deploy the matching app
+and firmware to remove the old device approval presentation completely.
+
+Attention dismissal, 60/120-second nudges and Quiet mode remain. A stale hook
+approval call gets immediate native passthrough, not allow or deny.

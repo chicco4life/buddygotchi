@@ -4,19 +4,11 @@ import AppKit
 struct NeedsYouCard: View {
     var language: String
     let card: CreatureCard
-    var approve: () -> Void = {}
-    var deny: () -> Void = {}
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack { Text(card.tool).font(.headline); Spacer(); if card.count > 1 { Text("\(card.index + 1) / \(card.count)").font(.caption) } }
             Text(card.gloss).font(.body).fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 5) {
-                Circle().fill(card.stakes == .fine ? BuddyTheme.green : card.stakes == .checkIt ? BuddyTheme.amber : BuddyTheme.clay).frame(width: 7, height: 7)
-                Text(BuddyCopy.phase7(card.stakes.rawValue, language: language)).font(.footnote).foregroundStyle(.secondary)
-            }
-            if card.isApproval {
-                HStack { Button(BuddyCopy.book(language: language).common.deny, action: deny).buttonStyle(.plain); Spacer(); Button(BuddyCopy.book(language: language).common.approve, action: approve).buttonStyle(.borderedProminent).tint(BuddyTheme.amber) }
-            }
+            Text(language == "ko" ? "에디터에서 확인해 주세요" : "Check your editor").font(.footnote).foregroundStyle(.secondary)
         }.foregroundStyle(BuddyTheme.ink).padding(14)
             .background(BuddyTheme.groupedBackground, in: RoundedRectangle(cornerRadius: 12))
     }

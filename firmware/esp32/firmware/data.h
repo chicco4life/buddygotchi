@@ -170,6 +170,7 @@ inline bool validate(JsonDocument& d, const TamaState& old, TamaState& s) {
           !readEnum(c["stakes"], s.card.stakes, "|fine|checkIt|careful|", old.card.stakes) ||
           !readInt(c["n"], s.card.n, 0, 1000000) || !readInt(c["of"], s.card.of, 0, 1000000) ||
           !readBool(c["approval"], s.card.approval)) return false;
+      s.card.approval = false; // Retired legacy field: all requests are passive.
     }
   }
   if (!d["cosmetic"].isNull()) {
