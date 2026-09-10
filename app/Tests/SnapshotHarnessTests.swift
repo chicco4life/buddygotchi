@@ -156,3 +156,19 @@ final class SnapshotHarnessTests: XCTestCase {
         }
     }
 }
+
+
+extension SnapshotHarnessTests {
+    func testControlCenterPanes() throws {
+        let engine = makeEngine()
+        let navigation = ControlNavigation()
+        for pane in ControlPane.allCases {
+            navigation.pane = pane
+            try snapshot(PopoverView(engine: engine, esp32Output: ESP32Output(defaults: defaults), navigation: navigation),
+                         "control-center-" + pane.rawValue, CGSize(width: 760, height: 620))
+        }
+        navigation.settingsCategory = .displays
+        try snapshot(PopoverView(engine: engine, esp32Output: ESP32Output(defaults: defaults), navigation: navigation),
+                     "control-center-appearance", CGSize(width: 760, height: 620))
+    }
+}

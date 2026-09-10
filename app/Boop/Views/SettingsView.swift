@@ -305,20 +305,6 @@ struct SettingsSectionView: View {
         Group {
 
             Group {
-                HStack {
-                    Text(BuddyCopy.Onboarding.thisMac).font(.body)
-                    Spacer()
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                        Text(BuddyCopy.shared.settingsCopy.active)
-                            .font(.footnote)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel(BuddyCopy.shared.settingsCopy.thisMacActive)
-
                 if esp32UUID != nil {
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {

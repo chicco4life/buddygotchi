@@ -807,6 +807,7 @@ final class BuddyEngine {
         }
     }
     func storedFacts() async throws -> [StoredFact] { await flushStore(); return try await store?.facts() ?? [] }
+    func recentXPActivity() async throws -> [XPActivity] { await flushStore(); return try await store?.recentXPActivity() ?? [] }
     func inventory() async throws -> [InventoryItem] { await flushStore(); return try await store?.inventory() ?? [] }
     func profileLines() async throws -> [ProfileLine] { await flushStore(); try await ensureVoiceContext(); return cachedProfile }
     func clearProfile(id: Int? = nil) async throws {

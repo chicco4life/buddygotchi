@@ -45,10 +45,10 @@ enum BuddyCopy {
     }
 
     struct OnboardingCopy {
-        let welcomeTitle = "Someone’s been waiting for you."
+        let welcomeTitle = "Connect your Buddy."
         // Retired "a little creature", which implied one particular shape. The
         // form belongs to the device now.
-        let welcomeSubtitle = "It watches your agents and speaks up only when one needs you."
+        let welcomeSubtitle = "Connect your device and agents. Manage status, XP, and settings here."
         let meetBuddy = "Meet your buddy"
 
         let nameLabel = "Name your buddy — optional"
@@ -99,7 +99,7 @@ enum BuddyCopy {
         let enableNotifications = "Enable notifications"
         let notificationsEnabled = "Notifications enabled"
         let startWatching = "Start watching"
-        let menuHint = "your buddy lives here now"
+        let menuHint = "Open Boop for status and settings."
         let finishMeeting = "Finish meeting your buddy."
         let finishMeetingSubtitle = "The adoption window is ready when you are."
         let back = "Back"
@@ -117,8 +117,8 @@ enum BuddyCopy {
         let launchAtLogin = "Launch at login"
         let launchAtLoginDescription = "Start Boop when you log in to your Mac."
         let launchAtLoginApproval = "Approve Boop in System Settings, Login Items."
-        let interactiveMode = "Interactive mode"
-        let interactiveModeDescription = "Auto-show when your buddy celebrates or needs attention."
+        let interactiveMode = "Open for attention"
+        let interactiveModeDescription = "Open the control center when an agent needs your attention."
         let sounds = "Sounds"
         let soundsDescription = "Play a short sound for attention, errors, and long completions."
         let agentDrawings = "Agent drawings"

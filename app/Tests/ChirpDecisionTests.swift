@@ -240,7 +240,7 @@ final class DesktopOutputSoundTests: XCTestCase {
         return (output, { played })
     }
 
-    func testCompletionReachesThePlaybackClosure() {
+    func testCompletionDoesNotDuplicateDeviceCelebration() {
         let (output, played) = makeOutput()
 
         let working = applyEvents(
@@ -254,7 +254,7 @@ final class DesktopOutputSoundTests: XCTestCase {
 
         output.stateDidChange(prev: working.buddy, next: finished.buddy)
 
-        XCTAssertEqual(played(), ["celebrate"])
+        XCTAssertEqual(played(), [])
     }
 
     func testMutedOutputPlaysNothing() {
@@ -283,5 +283,35 @@ final class DesktopOutputSoundTests: XCTestCase {
         output.stateDidChange(prev: idle.buddy, next: waiting.buddy)
 
         XCTAssertEqual(played(), ["attention"])
+    }
+}
+
+@MainActor
+private final class ControlPresenterSpy: PopoverPresenting {
+    var isPopoverShown = false
+    var isInteractiveModeEnabled = true
+    var opened = 0
+    var closed = 0
+    func showPopover(dismissAfter seconds: TimeInterval) { opened += 1 }
+    func closePopover() { closed += 1 }
+    func cancelPopoverAutoDismiss() {}
+}
+
+extension DesktopOutputSoundTests {
+    func testControlCenterDoesNotOpenForCompletionOrCloseWhenWorkSettles() {
+        let presenter = ControlPresenterSpy()
+        let output = DesktopOutput(statusItem: nil, presenter: presenter, notifier: StubNotifier(), soundsEnabled: { false })
+        var working = BuddyState.initial
+        working.creature.state = .working
+        var done = working
+        done.creature.state = .done
+        done.lastTaskDurationMs = 60_000
+        output.stateDidChange(prev: working, next: done)
+        XCTAssertEqual(presenter.opened, 0)
+        presenter.isPopoverShown = true
+        var idle = done
+        idle.creature.state = .idle
+        output.stateDidChange(prev: done, next: idle)
+        XCTAssertEqual(presenter.closed, 0)
     }
 }

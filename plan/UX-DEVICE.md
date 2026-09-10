@@ -517,8 +517,8 @@ small silhouettes drawn in the eye ink above or beside the eyes (a crown
 sits above the gap between the eyes, a sprout leans from one side, a
 scarf is a soft band below the mouth), never over eyes or card, never
 outlined. Sounds swap the motif within the same manners. Silhouettes
-change eye spacing and size at milestones within the same eye anchor.
-Schedule is `UX-GROWTH.md`.
+change eye spacing and size within the same eye anchor. All supported appearances
+and implemented behaviors are available at every XP level; see `UX-GROWTH.md`.
 
 ## 20. Motion language
 

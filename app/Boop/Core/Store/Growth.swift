@@ -95,16 +95,17 @@ struct Streak: Equatable {
 struct EquippedCosmetic: Codable, Sendable, Equatable {
     var skin = "default", accessory = "none", silhouette = "default"
 }
-struct CosmeticUnlock: Sendable {
-    var level: Int, kind: String, name: String
-    static let schedule: [Self] = [
-        .init(level: 1, kind: "skin", name: "default"), .init(level: 1, kind: "accessory", name: "none"), .init(level: 1, kind: "silhouette", name: "default"),
-        .init(level: 2, kind: "skin", name: "sky"), .init(level: 3, kind: "animation", name: "happy-wiggle"),
-        .init(level: 5, kind: "skin", name: "mint"), .init(level: 5, kind: "expression", name: "sulk"),
-        .init(level: 8, kind: "accessory", name: "sprout"), .init(level: 10, kind: "silhouette", name: "round"), .init(level: 10, kind: "sound", name: "hop"),
-        .init(level: 15, kind: "skin", name: "ember"), .init(level: 15, kind: "animation", name: "big-dance"),
-        .init(level: 20, kind: "accessory", name: "scarf"), .init(level: 20, kind: "silhouette", name: "tall"),
-        .init(level: 30, kind: "skin", name: "midnight"), .init(level: 30, kind: "accessory", name: "crown")]
+/// All options are available independently of XP. No level prerequisites.
+struct CompanionOption: Sendable {
+    var kind: String, name: String
+    static let catalog: [Self] = [
+        .init(kind: "skin", name: "default"), .init(kind: "accessory", name: "none"), .init(kind: "silhouette", name: "default"),
+        .init(kind: "skin", name: "sky"), .init(kind: "animation", name: "happy-wiggle"),
+        .init(kind: "skin", name: "mint"), .init(kind: "expression", name: "sulk"),
+        .init(kind: "accessory", name: "sprout"), .init(kind: "silhouette", name: "round"), .init(kind: "sound", name: "hop"),
+        .init(kind: "skin", name: "ember"), .init(kind: "animation", name: "big-dance"),
+        .init(kind: "accessory", name: "scarf"), .init(kind: "silhouette", name: "tall"),
+        .init(kind: "skin", name: "midnight"), .init(kind: "accessory", name: "crown")]
 }
 
 protocol DayCalendar: Sendable {
@@ -143,4 +144,20 @@ struct XPAward: Sendable, Equatable {
 }
 struct PendingFact: Sendable, Equatable {
     var fact: Fact, sessionId: String, project: String, at: Double
+}
+
+
+struct XPActivity: Identifiable, Sendable {
+    var day: String
+    var source: XPSource
+    var xp: Int
+    var id: String { day + ":" + source.rawValue }
+}
+
+extension GrowthSnapshot {
+    var levelStartXP: Int { GrowthFormula.threshold(level) }
+    var levelTargetXP: Int { GrowthFormula.threshold(level + 1) }
+    var levelProgress: Double {
+        min(1, max(0, Double(xp - levelStartXP) / Double(levelTargetXP - levelStartXP)))
+    }
 }

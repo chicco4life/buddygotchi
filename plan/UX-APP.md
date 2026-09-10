@@ -1,5 +1,8 @@
 # UX: The Mac App
 
+Current direction: the **Minimal control center** revision at the end of this
+document supersedes earlier face-led desktop layouts.
+
 Status: revised 2026-09-09 after the owner's UI review. Refines
 `VISION.md` §7 and `UX-DEVICE.md` Part I for the desktop side.
 
@@ -85,3 +88,17 @@ Premium and quiet: no badges, no counters in the menu bar, no
 notifications except needs-you when the popover is closed and the user
 opted in. Feels like part of the Mac, with one small creature living in
 it.
+
+## Minimal control center (owner direction, 2026-09-10)
+
+The Mac is a control center; the physical Buddy owns the character. Replace the
+face-led popover with one compact window opened from a simple menu-bar status
+icon. Three panes: Overview (level, total XP, correct within-level progress,
+today's XP, connection/battery, active agents and focus), Activity (tasks, days,
+streaks and recorded XP by day/source; secondary sharing/leaderboard and history),
+and Settings (existing device/agent/appearance/general controls). Pending
+approvals remain available across panes. No face in navigation, ordinary app
+content or onboarding; share cards may retain the likeness. Existing recap,
+collection and keepsake functions remain reachable in Activity. Do not animate
+or automatically open a completion celebration on the desktop. Missing battery
+or XP history must be presented honestly, not as invented data.

@@ -23,7 +23,8 @@ extension Notification.Name {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
-    private var popover: NSPopover!
+    private var controlWindow: NSWindow!
+    private let controlNavigation = ControlNavigation()
     private let engine = BuddyEngine(defaults: AppDefaults.shared, growthSigner: BuddyConfig.default.headless && ProcessInfo.processInfo.environment["BOOP_TEST_SIGNER"] == "1" ? TestDeviceSigner() : nil)
     private var serverTask: Task<Void, Never>?
     private var serviceGroup: ServiceGroup?
@@ -74,9 +75,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { await output.start(engine: engine) }
             Task { await verifyManagedHooksAfterLaunch() }
 
-            let popover = NSPopover()
-            popover.behavior = .transient
-            popover.appearance = nil
+            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 760, height: 620),
+                styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
+            window.title = "Boop"
+            window.isReleasedWhenClosed = false
+            window.delegate = self
+            window.center()
             NotificationManager.shared.setup(engine: engine) { [weak self] in
                 self?.showPopover()
             }
@@ -86,12 +90,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     esp32Output: output,
                     serverHealth: serverHealth,
                     onUserInteraction: { [weak self] in self?.cancelAutoDismiss() },
-                    onOpenOnboarding: { [weak self] in self?.showOnboardingWindow() }
+                    onOpenOnboarding: { [weak self] in self?.showOnboardingWindow() },
+                    navigation: controlNavigation
                 )
             )
             hostingController.sizingOptions = .preferredContentSize
-            popover.contentViewController = hostingController
-            self.popover = popover
+            window.contentViewController = hostingController
+            self.controlWindow = window
             engine.register(output: DesktopOutput(statusItem: statusItem, presenter: self))
         }
         engine.start()
@@ -233,7 +238,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func togglePopover() {
         guard statusItem?.button != nil else { return }
-        if popover.isShown {
+        if controlWindow.isVisible && !controlWindow.isMiniaturized {
             cancelAutoDismiss()
             closePopover()
         } else {
@@ -261,23 +266,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func showPopover() {
-        guard let button = statusItem?.button else { return }
+        guard controlWindow != nil else { return }
         cancelAutoDismiss()
-        popover.behavior = .transient
         engine.refreshSettings()
         engine.popoverVisible = true
-        popover.delegate = self
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        popover.contentViewController?.view.window?.makeKey()
+        if controlWindow.isMiniaturized { controlWindow.deminiaturize(nil) }
+        controlWindow.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     @objc private func showTodayRecap() {
-        Task { _ = try? await engine.makeRecap(); showPopover() }
+        Task { _ = try? await engine.makeRecap(); controlNavigation.pane = .activity; showPopover() }
     }
 
     @objc private func openSettingsFromMenu() {
-        guard let esp32Output else { return }
-        CompanionWindows.shared.settings(engine: engine, device: esp32Output, onOnboarding: { [weak self] in self?.showOnboardingWindow() })
+        controlNavigation.pane = .settings
+        showPopover()
     }
 
     @objc private func checkForUpdatesFromMenu() {
@@ -331,14 +335,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func showPopover(dismissAfter seconds: TimeInterval) {
-        guard let button = statusItem?.button else { return }
-        cancelAutoDismiss()
-        popover.behavior = .transient
-        engine.refreshSettings()
-        engine.popoverVisible = true
-        popover.delegate = self
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        popover.contentViewController?.view.window?.makeKey()
+        controlNavigation.pane = .overview
+        showPopover()
         autoDismissTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in
             MainActor.assumeIsolated {
                 self?.autoDismissTimer = nil
@@ -396,7 +394,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 extension AppDelegate: PopoverPresenting {
     var isPopoverShown: Bool {
-        popover?.isShown == true
+        controlWindow?.isVisible == true
     }
 
     var isInteractiveModeEnabled: Bool {
@@ -405,7 +403,7 @@ extension AppDelegate: PopoverPresenting {
 
     func closePopover() {
         engine.popoverVisible = false
-        popover?.performClose(nil)
+        controlWindow?.orderOut(nil)
     }
 
     func cancelPopoverAutoDismiss() {
@@ -413,6 +411,6 @@ extension AppDelegate: PopoverPresenting {
     }
 }
 
-extension AppDelegate: NSPopoverDelegate {
-    func popoverDidClose(_ notification: Notification) { engine.popoverVisible = false }
+extension AppDelegate: NSWindowDelegate {
+    func windowWillClose(_ notification: Notification) { engine.popoverVisible = false; cancelAutoDismiss() }
 }

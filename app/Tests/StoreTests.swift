@@ -75,11 +75,24 @@ final class StoreTests: XCTestCase {
         traits = try await store.traits()
         XCTAssertEqual(traits["energy"],255); XCTAssertEqual(traits["cheek"],0); XCTAssertEqual(traits["bond"],255)
     }
-    func testInventoryUnlockAndEquipSurvivesReopen() async throws {
+    func testAllCosmeticsAvailableWithoutXPAndEquipSurvivesReopen() async throws {
         let (store, dir, cleanup) = try makeStore()
         defer { cleanup() }
-        _ = try await store.growth(localDay:"2026-01-01",at:0)
-        do { try await store.equip(EquippedCosmetic(skin:"sky")); XCTFail("locked") } catch {}
+        let initialInventory = try await store.inventory()
+        XCTAssertEqual(initialInventory.count, CompanionOption.catalog.count)
+        // Even the former level-30 cosmetics work before the first growth read.
+        try await store.equip(EquippedCosmetic(skin:"midnight", accessory:"crown", silhouette:"tall"))
+        let fresh = try await store.growth(localDay:"2026-01-01",at:0)
+        XCTAssertEqual(fresh.xp, 0)
+        XCTAssertEqual(fresh.level, 1)
+        do { try await store.equip(EquippedCosmetic(skin:"not-a-skin")); XCTFail("unknown cosmetic accepted") } catch {}
+        let preserved = try await store.cosmetic()
+        XCTAssertEqual(preserved.skin, "midnight")
+        let lowLevelReopened = try Store(stateDir:dir.path,now:0)
+        let lowLevelAppearance = try await lowLevelReopened.cosmetic()
+        XCTAssertEqual(lowLevelAppearance, EquippedCosmetic(skin:"midnight", accessory:"crown", silhouette:"tall"))
+        let reopenedInventory = try await lowLevelReopened.inventory()
+        XCTAssertEqual(reopenedInventory.map { "\($0.kind):\($0.name)" }, initialInventory.map { "\($0.kind):\($0.name)" })
         _ = try await store.award([LedgerRow(at:0,source:.task,amount:150,day:"2026-01-01")],active:false,at:0,localDay:"2026-01-01")
         try await store.equip(EquippedCosmetic(skin:"mint"))
         let reopened = try Store(stateDir:dir.path,now:0)
@@ -90,6 +103,8 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(reread.xp,2400)
         let original = try await reopened.growth(localDay:"2026-01-01",at:0)
         XCTAssertEqual(original.xp,1200)
+        let laterInventory = try await reopened.inventory()
+        XCTAssertEqual(laterInventory.filter { $0.kind != "keepsake" }.map { "\($0.kind):\($0.name)" }, initialInventory.map { "\($0.kind):\($0.name)" })
     }
 }
 
@@ -182,5 +197,25 @@ extension StoreTests {
         try await store.migrate()
         let again = try await store.loadMemory()
         XCTAssertEqual(again, memory)
+    }
+}
+
+
+extension StoreTests {
+    func testXPActivityUsesActualCappedAwardsAndProgressIsWithinLevel() async throws {
+        let (store, _, cleanup) = try makeStore()
+        defer { cleanup() }
+        _ = try await store.award([
+            LedgerRow(at: 1, source: .checkIn, amount: 100, day: "2026-01-01"),
+            LedgerRow(at: 2, source: .tokens, amount: 200_000, day: "2026-01-01")
+        ], active: false, at: 2, localDay: "2026-01-01")
+        let source: any EngineStore = store
+        let activity = try await source.recentXPActivity()
+        XCTAssertEqual(activity.first { $0.source == .checkIn }?.xp, 20)
+        XCTAssertEqual(activity.first { $0.source == .tokens }?.xp, 2)
+        let level = GrowthSnapshot(level: 5, xp: 1340, xpNext: 410)
+        XCTAssertEqual(level.levelStartXP, 1200)
+        XCTAssertEqual(level.levelTargetXP, 1750)
+        XCTAssertEqual(level.levelProgress, 140.0 / 550.0, accuracy: 0.0001)
     }
 }

@@ -250,19 +250,29 @@ actor Store: EngineStore, GrowthStore {
             bestStreak: streak.best, restDays: streak.rest, daysTogether: days.count,
             tasks: totals.filter { $0[1] == "task" }.reduce(0) { $0 + Int($1[3])! },
             today: totals.filter { $0[0] == localDay }.reduce(0) { $0 + Int($1[2])! }, biggest: biggest)
-        if lastSnapshot?.level != result.level {
-            for unlock in CosmeticUnlock.schedule where unlock.level <= result.level {
-                try db.run("INSERT OR IGNORE INTO inventory VALUES(?,?,?)", [unlock.kind, unlock.name, String(at)])
-            }
-        }
         for (met, wasMet, name) in [(biggest == .dance, lastSnapshot?.biggest == .dance, "first-dance"), (result.tasks >= 100, (lastSnapshot?.tasks ?? 0) >= 100, "100th-task"), (result.bestStreak >= 30, (lastSnapshot?.bestStreak ?? 0) >= 30, "30-day-streak")] where met && !wasMet {
             try db.run("INSERT OR IGNORE INTO inventory VALUES('keepsake',?,?)", [name, String(at)])
         }
         lastSnapshot = result
         return result
     }
+    func recentXPActivity() async throws -> [XPActivity] {
+        try ensureRollup(GrowthFormula())
+        return try db.run("SELECT day,source,xp FROM growth_totals WHERE xp>0 ORDER BY day DESC,source LIMIT 60").compactMap {
+            guard let source = XPSource(rawValue: $0[1]), let xp = Int($0[2]) else { return nil }
+            return XPActivity(day: $0[0], source: source, xp: xp)
+        }
+    }
     func inventory() throws -> [InventoryItem] {
-        try db.run("SELECT kind,name,unlocked_at FROM inventory ORDER BY kind,name").map { InventoryItem(kind: $0[0], name: $0[1], unlockedAt: Double($0[2])!) }
+        let recorded = try db.run("SELECT kind,name,unlocked_at FROM inventory ORDER BY kind,name").map {
+            InventoryItem(kind: $0[0], name: $0[1], unlockedAt: Double($0[2])!)
+        }
+        // Preserve historical timestamps and keepsakes without requiring an award,
+        // migration, or growth calculation to make the full catalog available.
+        let available = CompanionOption.catalog.filter { option in
+            !recorded.contains { $0.kind == option.kind && $0.name == option.name }
+        }.map { InventoryItem(kind: $0.kind, name: $0.name, unlockedAt: 0) }
+        return (recorded + available).sorted { ($0.kind, $0.name) < ($1.kind, $1.name) }
     }
     func recordCheer(_ size: CheerSize) throws {
         let old = CheerSize(rawValue: try meta("biggest") ?? "hop") ?? .hop
@@ -274,7 +284,9 @@ actor Store: EngineStore, GrowthStore {
     }
     func equip(_ cosmetic: EquippedCosmetic) throws {
         for (kind,name) in [("skin",cosmetic.skin),("accessory",cosmetic.accessory),("silhouette",cosmetic.silhouette)] {
-            guard try !db.run("SELECT name FROM inventory WHERE kind=? AND name=?", [kind,name]).isEmpty else { throw StoreError(message: "Cosmetic is locked") }
+            guard CompanionOption.catalog.contains(where: { $0.kind == kind && $0.name == name }) else {
+                throw StoreError(message: "Unknown cosmetic")
+            }
         }
         try setMeta("equipped", String(decoding: JSONEncoder().encode(cosmetic), as: UTF8.self))
     }
@@ -423,6 +435,7 @@ protocol EngineStore: AnyObject, Sendable {
     func reflect(localDay: String, at: Double) async throws -> [ProfileLine]
     func profile() async throws -> [ProfileLine]
     func inventory() async throws -> [InventoryItem]
+    func recentXPActivity() async throws -> [XPActivity]
     func deleteProfileLine(_ id: Int) async throws
     func clearProfile() async throws
     func equip(_ cosmetic: EquippedCosmetic) async throws
@@ -430,6 +443,7 @@ protocol EngineStore: AnyObject, Sendable {
 
 // Memory-only test stores can opt into voice persistence independently.
 extension EngineStore {
+    func recentXPActivity() async throws -> [XPActivity] { [] }
     func toolPreferences() async throws -> ToolPreferences { ToolPreferences() }
     func claimTool(_ tool: String) async throws -> Bool { false }
     func muteTool(_ tool: String) async throws {}

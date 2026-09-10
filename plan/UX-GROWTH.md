@@ -4,6 +4,11 @@ Status: first draft, 2026-09-09, written by the agent to unblock Phase 4 while
 the owner was away. Every number here is an assumption to tune; the
 mechanism is what Phase 4 builds. Refines `VISION.md` §10.
 
+**Owner decision, 2026-09-10:** XP is a progress score for bragging rights.
+Behaviors and appearances are all available from the start; XP unlocks nothing.
+See [XP and skill tree](XP-AND-SKILL-TREE.md) for the detailed formula and current
+availability model. The former unlock ladder has been removed.
+
 ## XP formula (public, one screen)
 
 | Source | XP | Notes |
@@ -35,21 +40,16 @@ Consecutive active local days. One rest day banked automatically per seven
 active days, up to three banked; a missed day consumes a banked rest day
 before breaking the streak. Losing a streak resets the counter only.
 
-## Cosmetic unlocks (schedule)
+## Appearance and milestones
 
-| Level | Unlock |
-| --- | --- |
-| 2 | Second skin color ("sky") |
-| 3 | Happy wiggle micro-idle |
-| 5 | Skin "mint"; the sulk expression |
-| 8 | Accessory "sprout" |
-| 10 | Silhouette "round" (first silhouette change); new hop chirp |
-| 15 | Skin "ember"; the big dance variant |
-| 20 | Accessory "scarf"; silhouette "tall" |
-| 30 | Skin "midnight"; accessory "crown" |
+Every supported skin (default, sky, mint, ember, midnight), accessory (none,
+sprout, scarf, crown) and silhouette (default, round, tall) is available without
+XP. All implemented behaviors are available at level 1. There are no skill
+points, unlock thresholds or XP-dependent behavior variants.
 
-Milestone keepsakes (not level-gated): first dance, 100th task, 30-day
-streak, first late-night session.
+Milestone keepsakes record first dance, 100th task, 30-day streak and first
+late-night session. These are commemorative records, not functional rewards.
+Level-up and streak visuals may acknowledge progress without granting access.
 
 ## Hidden bond
 

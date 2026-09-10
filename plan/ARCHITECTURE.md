@@ -214,7 +214,7 @@ return as events so the reducer stays the single source of truth.
 | profile | Human-readable lines with source and confidence | Life of the buddy; deletable line by line |
 | traits | Four personality axes plus hidden bond | Life of the buddy |
 | ledger | Append-only XP entries with source; the public formula applied at read time; daily signature from the device | Life of the buddy |
-| inventory | Cosmetics unlocked | Life of the buddy |
+| inventory | Historical item timestamps and milestone keepsakes; catalog options always available | Life of the buddy |
 
 **Nightly job.** When idle and on power: read the day's facts and the
 closing-line summaries from the extractor windows, ask Voice for three to
@@ -492,3 +492,27 @@ never reports an automatic animation pass. It does not change the wire contract
 or own device control. Existing `buddyctl` commands drive optional USB scenarios
 with BLE writers absent and the presentation clock running. See
 `VERIFICATION.md` §2.1.1 for evidence and capture-quality requirements.
+
+
+### XP-independent availability (2026-09-10)
+
+XP and levels are statistics, not prerequisites. `CompanionOption.catalog`
+defines universally available options; Store inventory projects missing catalog
+entries alongside historical rows, and equip validates catalog membership only.
+Growth no longer grants cosmetics. Existing XP, equipped selections, historical
+timestamps and keepsakes are preserved without a schema change. Behavior and
+wire formats do not change; level-up effects remain milestone acknowledgments.
+
+### Mac control center (2026-09-10)
+
+The existing desktop presenter now owns one regular NSWindow. Its shared
+SwiftUI surface has Overview, Activity and Settings panes; existing presenter
+method names remain internal compatibility points. Device rendering is unchanged.
+The menu bar uses a static system icon, with a filled variant for attention.
+`EngineStore.recentXPActivity` exposes at most 60 positive daily/source totals
+from the existing growth rollup, with the engine persistence barrier before reads.
+No transcript data enters XP history. The Overview progress bar uses XP earned
+within the current level divided by that level's interval, not total/remaining.
+Settings reuses existing section actions and adds catalog-backed appearance
+selection. Desktop completion sound/pop-up is suppressed; approval notifications
+and controls remain. A manually opened window stays open through state changes.

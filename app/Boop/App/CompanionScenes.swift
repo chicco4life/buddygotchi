@@ -34,7 +34,7 @@ struct CompanionScene {
         }
         var boop = Creature.initial; boop.state = .idle; boop.overlay = .boop
         scenes.append(Self(name: "boop", creature: boop))
-        for unlock in CosmeticUnlock.schedule where ["skin", "accessory", "silhouette"].contains(unlock.kind) {
+        for unlock in CompanionOption.catalog where ["skin", "accessory", "silhouette"].contains(unlock.kind) {
             var cosmetic = EquippedCosmetic()
             switch unlock.kind { case "skin": cosmetic.skin = unlock.name; case "accessory": cosmetic.accessory = unlock.name; default: cosmetic.silhouette = unlock.name }
             var c = Creature.initial; c.state = .idle

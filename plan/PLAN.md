@@ -455,8 +455,8 @@ leaderboard works against a minimal service.
 3. Leaderboard client: opt-in, pseudonymous submission of name,
    silhouette, total, signatures. A minimal server with verification and
    three rank views, deployable anywhere.
-4. Cosmetics unlock schedule from `UX-GROWTH.md` (to be written) wired to
-   the inventory.
+4. Universally available cosmetics catalog wired to the inventory; XP is a
+   progress statistic and unlocks nothing (owner decision, 2026-09-10).
 
 **Exit checklist.**
 
@@ -638,3 +638,28 @@ Synthetic-video tests cover the tool. A real Buddy recording was captured and
 `webcam-verify` skill with implicit invocation disabled. Live capture requires
 an explicit request and setup confirmation for that session; it is not part of
 ordinary verification or a standing authorization to use the camera.
+
+
+**Progression reference (2026-09-10).** [XP and skill tree](XP-AND-SKILL-TREE.md)
+documents current awards, caps, level thresholds, streak protection and the
+unlock ladder, separating equippable cosmetics from inventory-only rewards.
+Documentation only; no new progression behavior or phase completion is claimed.
+
+
+**XP simplification (2026-09-10).** Removed level prerequisites from appearance
+availability and equipping. Existing behaviors remain available at all levels;
+XP, levels, streaks and keepsakes are bragging-rights statistics. Existing stores
+retain awards and selections. `XP-AND-SKILL-TREE.md` supersedes its earlier unlock
+ladder description. Verification is tracked in `VERIFICATION.md`.
+
+XP simplification validation: `make test` passed 445 tests, zero skipped.
+
+**Minimal Mac control center (2026-09-10).** Owner-directed Phase 7 revision:
+one window with Overview, Activity and Settings; no pet face in ordinary app
+content or onboarding. Added XP progress/history, retained approvals and settings,
+and kept sharing/recap/collection in Activity. Snapshot and regression validation
+are recorded in `VERIFICATION.md`. No webcam session is activated by this work.
+
+Control center validation: `make test` passed 448 tests, zero skipped; offscreen
+pane, approval and onboarding snapshots reviewed. Ready for user-launched app
+iteration; live window/BLE verification remains separate.

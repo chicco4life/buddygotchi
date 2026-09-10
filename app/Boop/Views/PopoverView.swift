@@ -1,178 +1,248 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+enum ControlPane: String, CaseIterable { case overview, activity, settings }
+@Observable final class ControlNavigation {
+    var pane: ControlPane = .overview
+    var settingsCategory: SettingsSection = .device
+}
+
+/// The shared control-center surface, also rendered by the snapshot harness.
 struct PopoverView: View {
-    @State private var showingLeaderboard = false
     let engine: BuddyEngine
     let esp32Output: ESP32Output
-    let serverHealth: ServerHealth?
+    var serverHealth: ServerHealth? = nil
     var onUserInteraction: (() -> Void)? = nil
     var onOpenOnboarding: () -> Void = {}
-    private var setupCompleted: Bool { engine.boolSetting(DefaultsKey.setupCompleted) }
-    private var buddyName: String { engine.buddyName }
-    @AppStorage(DefaultsKey.showMenuHint) private var showMenuHint = false
+    var navigation: ControlNavigation = ControlNavigation()
+    private var settings: SettingsSection {
+        get { navigation.settingsCategory }
+        nonmutating set { navigation.settingsCategory = newValue }
+    }
+    @State private var showingLeaderboard = false
     @State private var showingShelf = false
-    private var agentDrawingsEnabled: Bool { engine.boolSetting(DefaultsKey.agentDrawingsEnabled, fallback: true) }
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    init(
-        engine: BuddyEngine,
-        esp32Output: ESP32Output,
-        serverHealth: ServerHealth? = nil,
-        onUserInteraction: (() -> Void)? = nil,
-        onOpenOnboarding: @escaping () -> Void = {}
-    ) {
-        self.engine = engine
-        self.esp32Output = esp32Output
-        self.serverHealth = serverHealth
-        self.onUserInteraction = onUserInteraction
-        self.onOpenOnboarding = onOpenOnboarding
+    @State private var history: [XPActivity] = []
+    @State private var historyError = false
+    @State private var appearanceError = false
+    private var growth: GrowthSnapshot { engine.state.growth }
+    private func copy(_ en: String, _ ko: String) -> String { engine.state.language == "ko" ? ko : en }
+    private func title(_ pane: ControlPane) -> String {
+        switch pane {
+        case .overview: copy("Overview", "개요")
+        case .activity: copy("Activity", "활동")
+        case .settings: copy("Settings", "설정")
+        }
     }
-
     var body: some View {
-        ZStack {
-            Rectangle().fill(.regularMaterial).ignoresSafeArea()
-
-            Group {
-                if !setupCompleted {
-                    unfinishedSetupView
-                } else if showingShelf {
-                    KeepsakeShelfView(engine: engine, isPresented: $showingShelf)
-                        .transition(reduceMotion ? .opacity : .asymmetric(
-                            insertion: .move(edge: .trailing).combined(with: .opacity),
-                            removal: .move(edge: .trailing).combined(with: .opacity)
-                        ))
-                } else {
-                    liveView
-                        .transition(.opacity)
+        HStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(BuddyCopy.shared.common.appName).font(.title2.weight(.semibold)).padding(.bottom, 24)
+                ForEach(ControlPane.allCases, id: \.self) { pane in
+                    Button { navigation.pane = pane } label: {
+                        Label(title(pane), systemImage: pane == .overview ? "square.grid.2x2" : pane == .activity ? "clock" : "gearshape")
+                            .frame(maxWidth: .infinity, alignment: .leading).padding(10)
+                            .background(navigation.pane == pane ? Color.accentColor.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 8))
+                    }.buttonStyle(.plain)
+                    .accessibilityAddTraits(navigation.pane == pane ? .isSelected : [])
                 }
-            }
+                Spacer()
+                Text(engine.displayName).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                Text(copy("Device companion", "기기 제어 센터")).font(.caption2).foregroundStyle(.tertiary)
+            }.padding(18).frame(width: 170).background(.regularMaterial)
+            Divider()
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
+                    Text(title(navigation.pane)).font(.title2.weight(.semibold))
+                    Spacer()
+                    if navigation.pane == .overview {
+                        Toggle(BuddyCopy.phase7("focus", language: engine.state.language), isOn: Binding(
+                            get: { engine.state.creature.focus }, set: { engine.focusToggled(on: $0) }))
+                            .toggleStyle(.switch).controlSize(.small).fixedSize()
+                    }
+                }.padding(24)
+                if let card = engine.state.creature.card {
+                    NeedsYouCard(language: engine.state.language, card: card,
+                        approve: { engine.resolveApproval(requestId: card.id, decision: .allow) },
+                        deny: { engine.resolveApproval(requestId: card.id, decision: .deny) })
+                        .padding(.horizontal, 24).padding(.bottom, 12)
+                }
+                if !engine.boolSetting(DefaultsKey.setupCompleted) {
+                    HStack {
+                        Text(copy("Finish connecting your Buddy.", "Buddy 연결을 완료하세요."))
+                        Spacer()
+                        Button(copy("Set up", "설정 시작"), action: onOpenOnboarding)
+                    }.padding(.horizontal, 24).padding(.bottom, 12)
+                }
+                switch navigation.pane {
+                case .overview: ScrollView { overview.padding(24).padding(.top, -12) }
+                case .activity: ScrollView { activity.padding(24).padding(.top, -12) }
+                case .settings: settingsPane
+                }
+            }.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .animation(reduceMotion ? nil : .buddyEase(0.2), value: showingShelf)
-        .onHover { hovering in
-            if hovering { onUserInteraction?() }
+        .frame(width: 760, height: 620)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .onHover { if $0 { onUserInteraction?() } }
+        .sheet(isPresented: $showingLeaderboard) { LeaderboardSheet(engine: engine) }
+        .sheet(isPresented: $showingShelf) { KeepsakeShelfView(engine: engine, isPresented: $showingShelf) }
+        .alert(copy("Could not change appearance", "외형을 변경하지 못했습니다"), isPresented: $appearanceError) {
+            Button(copy("OK", "확인")) {}
         }
     }
-
-    private var unfinishedSetupView: some View {
-        VStack(spacing: 16) {
-            VStack(spacing: 5) {
-                Text(BuddyCopy.Onboarding.finishMeeting)
-                    .font(.headline)
-                    .foregroundStyle(BuddyTheme.ink)
-                    .multilineTextAlignment(.center)
-                Text(BuddyCopy.Onboarding.finishMeetingSubtitle)
-                    .font(.footnote)
-                    .foregroundStyle(BuddyTheme.inkSoft)
-                    .multilineTextAlignment(.center)
+    private var overview: some View {
+        VStack(alignment: .leading, spacing: 26) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(copy("Level \(growth.level)", "레벨 \(growth.level)")).font(.system(size: 32, weight: .semibold, design: .rounded))
+                    Spacer()
+                    Text("\(growth.xp.formatted()) XP").font(.title3.monospacedDigit()).foregroundStyle(.secondary)
+                }
+                ProgressView(value: growth.levelProgress).tint(.accentColor)
+                HStack {
+                    Text(copy("+\(growth.today) XP today", "오늘 +\(growth.today) XP"))
+                    Spacer()
+                    Text(copy("\(max(0, growth.levelTargetXP - growth.xp)) to Level \(growth.level + 1)", "레벨 \(growth.level + 1)까지 \(max(0, growth.levelTargetXP - growth.xp)) XP"))
+                }.font(.caption).foregroundStyle(.secondary)
+            }.padding(20).background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 12))
+            VStack(alignment: .leading, spacing: 14) {
+                Text(copy("Device", "기기")).font(.headline)
+                HStack {
+                    Text(engine.displayName)
+                    Spacer()
+                    HStack(spacing: 6) {
+                        Circle().fill(esp32Output.connectionState == .connected ? Color.green : .secondary).frame(width: 6, height: 6)
+                        Text(BuddyCopy.phase7("device-" + esp32Output.connectionState.rawValue, language: engine.state.language))
+                    }
+                }
+                if esp32Output.connectionState == .connected, let battery = engine.state.deviceBattery {
+                    HStack { Text(copy("Battery", "배터리")); Spacer(); Text("\(battery.pct)%" + (battery.charging ? copy(" · Charging", " · 충전 중") : "")).foregroundStyle(.secondary) }
+                } else {
+                    HStack { Text(copy("Battery", "배터리")); Spacer(); Text(copy("Unavailable", "확인할 수 없음")).foregroundStyle(.secondary) }
+                }
+                Button(copy("Manage device", "기기 관리")) { settings = .device; navigation.pane = .settings }
+                    .buttonStyle(.link)
+            }.font(.callout)
+            Divider()
+            VStack(alignment: .leading, spacing: 14) {
+                Text(copy("Agents", "에이전트")).font(.headline)
+                if engine.state.activeSessions.isEmpty {
+                    Text(copy("No active sessions", "활성 세션 없음")).foregroundStyle(.secondary)
+                } else {
+                    ActivityList(rows: engine.state.activeSessions.map { ActivityRow(session: $0, state: engine.state) }, maxRows: engine.state.activeSessions.count)
+                }
+                Button(copy("View activity", "활동 보기")) { navigation.pane = .activity }.buttonStyle(.link)
             }
-
-            Button(BuddyCopy.Onboarding.meetBuddy, action: onOpenOnboarding)
-                .buttonStyle(.borderedProminent).tint(BuddyTheme.amber)
-
-            Spacer()
         }
-        .padding(18)
-        .frame(width: BuddyTheme.popoverWidth, height: BuddyTheme.unfinishedSetupHeight)
-
     }
-
-    // MARK: - Live View
-
-    private var liveView: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            headerRow
-            CreatureView(creature: engine.state.creature, cosmetic: engine.state.cosmetic, paused: !engine.popoverVisible)
-                .frame(height: 160)
-                .clipShape(RoundedRectangle(cornerRadius: 20))
-            if let card = engine.state.creature.card {
-                NeedsYouCard(language: engine.state.language, card: card,
-                    approve: { engine.resolveApproval(requestId: card.id, decision: .allow) },
-                    deny: { engine.resolveApproval(requestId: card.id, decision: .deny) })
+    private var activity: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Grid(alignment: .leading, horizontalSpacing: 44, verticalSpacing: 18) {
+                GridRow { metric(copy("Tasks completed", "완료한 작업"), growth.tasks); metric(copy("Days together", "함께한 날"), growth.daysTogether) }
+                GridRow { metric(copy("Current streak", "현재 연속 활동일"), growth.streak); metric(copy("Best streak", "최장 연속 활동일"), growth.bestStreak) }
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            HStack {
+                Button(BuddyCopy.phase7("shareCard", language: engine.state.language)) { AppDelegate.presentShareCard(engine: engine) }
+                Button(BuddyCopy.phase7("leaderboard", language: engine.state.language)) { showingLeaderboard = true }
+                Menu(copy("More", "더 보기")) {
+                    Button(BuddyCopy.phase7("recap", language: engine.state.language)) { Task { _ = try? await engine.makeRecap() } }
+                    Button(BuddyCopy.shared.popover.keepsakeShelf) { showingShelf = true }
+                }.fixedSize()
             }
-            let rows = engine.state.activeSessions.map { ActivityRow(session: $0, state: engine.state) }
-            if rows.count > 1 {
-                ScrollView { ActivityList(rows: rows, maxRows: rows.count) }
-                    .frame(height: min(CGFloat(rows.count) * 26, 104))
-            } else if rows.isEmpty {
-                Text(BuddyCopy.phase7("noAgentsAwake", language: engine.state.language))
-                    .font(.callout).foregroundStyle(.secondary)
+            Divider()
+            Text(copy("XP history", "XP 기록")).font(.headline)
+            Text(copy("Recorded totals by day and source", "날짜와 유형별 기록된 합계")).font(.caption).foregroundStyle(.secondary)
+            if historyError {
+                Text(copy("Could not load XP history.", "XP 기록을 불러오지 못했습니다.")).foregroundStyle(.secondary)
+                Button(copy("Retry", "다시 시도")) { Task { await loadHistory() } }
+            } else if history.isEmpty {
+                Text(copy("XP you earn will appear here.", "획득한 XP가 여기에 표시됩니다.")).foregroundStyle(.secondary)
+            } else {
+                ForEach(history) { entry in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(sourceLabel(entry.source))
+                            Text(entry.day).font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text("+\(entry.xp) XP").monospacedDigit()
+                    }
+                    Divider()
+                }
             }
             if engine.state.creature.card == nil {
                 if engine.state.creature.gift {
-                    Button { engine.collectArrived() } label: {
-                        HStack {
-                            Circle().fill(BuddyTheme.amber.gradient).frame(width: 18, height: 18)
-                            Text(engine.state.creature.giftLine ?? BuddyCopy.phase7("collect", language: engine.state.language))
-                                .font(.body).foregroundStyle(.primary)
-                        }
-                    }.buttonStyle(.plain)
-                } else if let bubble = engine.state.creature.bubble {
-                    Text(bubble).font(.body)
+                    Button(BuddyCopy.phase7("collect", language: engine.state.language)) { engine.collectArrived() }
                 }
-                if let tool = engine.teachTool {
-                    HStack {
-                        Text(TeachCatalog.line(tool: tool, language: engine.state.language) ?? tool).font(.footnote)
-                        Button { Task { await engine.dismissTeach(tool: tool) } } label: { Image(systemName: "xmark") }
-                            .accessibilityLabel(BuddyCopy.phase7("quietTool", language: engine.state.language))
-                    }.foregroundStyle(.secondary)
-                }
-                if let overlay = engine.state.agentOverlay { AgentExpressionRow(overlay: overlay) }
-                if let drawing = engine.state.agentDrawing, agentDrawingsEnabled {
-                    AgentDrawingCard(drawing: drawing, isMemory: engine.state.agentDrawingIsMemory == true)
-                }
-                if let recap = engine.state.recap, engine.state.prompt == nil {
-                    RecapView(language: engine.state.language, recap: recap)
-                }
+                if let bubble = engine.state.creature.bubble { Text(bubble).foregroundStyle(.secondary) }
+                if let recap = engine.state.recap { RecapView(language: engine.state.language, recap: recap) }
+                DisclosureGroup(copy("Agent messages", "에이전트 메시지")) {
+                    if let overlay = engine.state.agentOverlay { AgentExpressionRow(overlay: overlay) }
+                    if let drawing = engine.state.agentDrawing, engine.boolSetting(DefaultsKey.agentDrawingsEnabled, fallback: true) {
+                        AgentDrawingCard(drawing: drawing, isMemory: engine.state.agentDrawingIsMemory == true)
+                    }
+                    if let tool = engine.teachTool {
+                        Text(TeachCatalog.line(tool: tool, language: engine.state.language) ?? tool)
+                        Button(BuddyCopy.phase7("quietTool", language: engine.state.language)) { Task { await engine.dismissTeach(tool: tool) } }
+                    }
+                }.font(.callout)
             }
-            if showMenuHint {
-                Text(BuddyCopy.Onboarding.menuHint).font(.caption).foregroundStyle(.secondary)
-                    .task { try? await Task.sleep(for: .seconds(4)); showMenuHint = false }
-            }
-            footerRow
-        }
-        .padding(18)
-        .frame(width: BuddyTheme.popoverWidth)
-        .frame(minHeight: BuddyTheme.liveViewHeight, alignment: .top)
-        .animation(reduceMotion ? nil : .buddyBloom(), value: engine.state.prompt != nil)
-        .sheet(isPresented: $showingLeaderboard) { LeaderboardSheet(engine: engine) }
+        }.task(id: growth.xp) { await loadHistory() }
     }
-
-    private var headerRow: some View {
-        HStack {
-            Text(engine.displayName).font(.headline).lineLimit(1)
-            Text(BuddyCopy.phase7(engine.state.creature.state.rawValue, language: engine.state.language))
-                .font(.callout).foregroundStyle(.secondary)
-            Spacer(minLength: 4)
-            Menu {
-                Button(BuddyCopy.book(language: engine.state.language).common.settings) {
-                    CompanionWindows.shared.settings(engine: engine, device: esp32Output, onOnboarding: onOpenOnboarding)
-                }
-                Button(BuddyCopy.phase7("shareCard", language: engine.state.language)) { AppDelegate.presentShareCard(engine: engine) }
-                Button(BuddyCopy.phase7("leaderboard", language: engine.state.language)) { showingLeaderboard = true }
-                Button(BuddyCopy.phase7("recap", language: engine.state.language)) { Task { _ = try? await engine.makeRecap() } }
-                if !engine.petMemory.keepsakes.isEmpty {
-                    Button(BuddyCopy.shared.popover.keepsakeShelf) { showingShelf = true }
-                }
-            } label: { Image(systemName: "gearshape").foregroundStyle(.secondary) }
-                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                .accessibilityLabel(BuddyCopy.book(language: engine.state.language).common.settings)
+    private func metric(_ label: String, _ value: Int) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(value.formatted()).font(.title2.monospacedDigit())
+            Text(label).font(.caption).foregroundStyle(.secondary)
         }
     }
-
-    private var footerRow: some View {
-        HStack {
-            Text(BuddyCopy.growthLabel(engine.state.growth, language: engine.state.language))
-                .font(.caption).foregroundStyle(.secondary)
-            Spacer(minLength: 4)
-            Toggle(BuddyCopy.phase7("focus", language: engine.state.language), isOn: Binding(
-                get: { engine.state.creature.focus }, set: { engine.focusToggled(on: $0) }))
-                .toggleStyle(.button).buttonStyle(.bordered).controlSize(.small)
-            if engine.pairedPeripheral != nil {
-                Circle().fill(esp32Output.connectionState == .connected ? Color.green : Color.secondary)
-                    .frame(width: 6, height: 6)
-                    .accessibilityLabel(BuddyCopy.phase7("device-" + esp32Output.connectionState.rawValue, language: engine.state.language))
+    private func loadHistory() async {
+        do { history = try await engine.recentXPActivity(); historyError = false }
+        catch { historyError = true }
+    }
+    private func sourceLabel(_ source: XPSource) -> String {
+        switch source {
+        case .turn: copy("Completed turns", "완료한 턴")
+        case .task: copy("Finished tasks", "완료한 작업")
+        case .hardWonPass: copy("Hard-won passes", "노력 끝에 성공")
+        case .activeDay: copy("Active day and streak", "활동일 및 연속 활동")
+        case .streakBonus: copy("Streak bonus", "연속 활동 보너스")
+        case .session: copy("Sessions started", "시작한 세션")
+        case .checkIn: copy("Check-ins", "교감")
+        case .tokens: copy("Output tokens", "출력 토큰")
+        }
+    }
+    private var settingsPane: some View {
+        VStack(spacing: 0) {
+            Picker(copy("Category", "카테고리"), selection: Binding(get: { settings }, set: { settings = $0 })) {
+                Text(copy("Device", "기기")).tag(SettingsSection.device)
+                Text(copy("Agents", "에이전트")).tag(SettingsSection.agents)
+                Text(copy("Appearance", "외형")).tag(SettingsSection.displays)
+                Text(copy("General", "일반")).tag(SettingsSection.buddy)
+                Text(copy("Focus", "집중")).tag(SettingsSection.focus)
+                Text(copy("Advanced", "고급")).tag(SettingsSection.advanced)
+            }.pickerStyle(.menu).padding(.horizontal, 24).padding(.bottom, 8)
+            if settings == .displays {
+                Form {
+                    Section {
+                        cosmeticPicker("skin", label: copy("Color", "색상"))
+                        cosmeticPicker("accessory", label: copy("Accessory", "액세서리"))
+                        cosmeticPicker("silhouette", label: copy("Silhouette", "실루엣"))
+                    } footer: { Text(copy("All appearances are available. XP unlocks nothing.", "모든 외형을 사용할 수 있습니다. XP는 잠금 해제에 사용되지 않습니다.")) }
+                }.formStyle(.grouped)
+            } else {
+                SettingsSectionView(isPresented: .constant(true), engine: engine, esp32Output: esp32Output,
+                    serverHealth: serverHealth, onOpenOnboarding: onOpenOnboarding, section: settings).id(settings)
             }
+        }
+    }
+    private func cosmeticPicker(_ kind: String, label: String) -> some View {
+        Picker(label, selection: Binding(get: {
+            switch kind { case "skin": engine.state.cosmetic.skin; case "accessory": engine.state.cosmetic.accessory; default: engine.state.cosmetic.silhouette }
+        }, set: { value in
+            var selected = engine.state.cosmetic
+            switch kind { case "skin": selected.skin = value; case "accessory": selected.accessory = value; default: selected.silhouette = value }
+            Task { do { try await engine.equip(selected) } catch { appearanceError = true } }
+        })) {
+            ForEach(CompanionOption.catalog.filter { $0.kind == kind }, id: \.name) { Text($0.name.capitalized).tag($0.name) }
         }
     }
 }

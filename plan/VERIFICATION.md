@@ -822,3 +822,32 @@ no longer launch it. Existing jobs remain available via Actions → CI → Run
 workflow; their previously reported failures have not been diagnosed or fixed
 by this trigger change. Local verification commands remain available. Release
 workflows retain their existing triggers.
+
+
+## XP-independent availability checks (2026-09-10)
+
+Store regression coverage checks the full catalog before any growth calculation,
+equipping former high-level cosmetics at zero XP, rejection of unknown IDs,
+persistence on reopen and unchanged XP calculations. Appearance availability
+must not depend on earned XP. No firmware or wire change is involved; webcam
+verification is not required or activated by this change.
+
+Validation: full `make test` passed 445 tests with zero skips after this change.
+
+## Control center verification (2026-09-10)
+
+The snapshot harness renders Overview, Activity and Settings at 760×620 alongside
+existing approval and onboarding cases. Store coverage checks capped XP awards
+in the daily/source history and correct within-level progress. Desktop output
+coverage asserts completion no longer duplicates the device's celebration sound
+while approval notifications remain. Live window/navigation and physical BLE
+behavior require a user-launched app; agent checks use offscreen snapshots and
+the test suite and do not start the graphical app.
+
+Validation: full `make test` passed **448 tests, zero skipped**. Offscreen
+Overview, Activity, Settings, Appearance, approval and welcome snapshots were
+visually reviewed for readable layout and removal of the everyday pet face.
+The capped-award history test exercises the `EngineStore` protocol boundary,
+and desktop tests cover no completion auto-open or idle auto-close. Live window
+interaction and BLE were not exercised in this pass; the user must launch Boop
+for that iteration. No camera was used.

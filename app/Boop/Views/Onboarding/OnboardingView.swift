@@ -98,7 +98,7 @@ struct OnboardingView: View {
                 subtitle: BuddyCopy.Onboarding.welcomeSubtitle
             )
 
-            CreatureView(creature: model.wakeCreature, grey: true)
+            Image(systemName: "display").font(.system(size: 42, weight: .light)).foregroundStyle(.secondary)
                 .frame(width: 260, height: 200)
 
             Spacer()
@@ -122,7 +122,7 @@ struct OnboardingView: View {
                 title: BuddyCopy.Onboarding.agentsTitle,
                 subtitle: BuddyCopy.Onboarding.agentsSubtitle
             )
-            CreatureView(creature: engine.state.creature, grey: model.heardAgents.isEmpty)
+            Image(systemName: "display").font(.system(size: 42, weight: .light)).foregroundStyle(.secondary)
                 .frame(width: 150, height: 100)
 
 
@@ -171,7 +171,7 @@ struct OnboardingView: View {
     private var firstContactStep: some View {
         VStack(spacing: 24) {
             Spacer()
-            CreatureView(creature: engine.state.creature, grey: model.heardAgents.isEmpty).frame(width: 240, height: 180)
+            Image(systemName: "display").font(.system(size: 42, weight: .light)).foregroundStyle(.secondary).frame(width: 240, height: 180)
             stepHeader(title: BuddyCopy.phase7("name", language: engine.state.language), subtitle: BuddyCopy.phase7("namePermanent", language: engine.state.language))
             TextField(BuddyCopy.Onboarding.namePlaceholder, text: Binding(get: { model.buddyName }, set: { model.buddyName = $0.prefix(utf8Bytes: 23) }))
                 .textFieldStyle(.roundedBorder).frame(width: 320).disabled(model.nameIsLocked)
@@ -240,7 +240,7 @@ struct OnboardingView: View {
     private var doneStep: some View {
         VStack(spacing: 18) {
             Spacer(minLength: 10)
-            CreatureView(creature: engine.state.creature, grey: model.heardAgents.isEmpty).frame(width: 240, height: 180)
+            Image(systemName: "display").font(.system(size: 42, weight: .light)).foregroundStyle(.secondary).frame(width: 240, height: 180)
             Text(BuddyCopy.phase7("firstOne", language: engine.state.language)).font(.headline)
 
             VStack(spacing: 10) {

@@ -62,12 +62,12 @@ enum BuddyTheme {
     static let geistSemiBoldPostScriptName = "Geist-SemiBold"
     static let geistMonoRegularPostScriptName = "GeistMono-Regular"
 
-    static let popoverWidth: CGFloat = 360
+    static let popoverWidth: CGFloat = 760
     /// Resting minimum: header, one activity line, footer, and air. The popover
     /// auto-sizes past this (AppDelegate sets .preferredContentSize).
-    static let liveViewHeight: CGFloat = 360
+    static let liveViewHeight: CGFloat = 620
     /// Snapshot canvas for the approval states; not used for layout.
-    static let liveViewExpandedHeight: CGFloat = 600
+    static let liveViewExpandedHeight: CGFloat = 620
     static let popoverHeight: CGFloat = 460
     /// The "finish setup" stub, which has no live content to size against.
     static let unfinishedSetupHeight: CGFloat = 220

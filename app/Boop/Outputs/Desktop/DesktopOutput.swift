@@ -78,8 +78,7 @@ final class DesktopOutput: OutputProvider {
     }
 
     private struct IconKey: Equatable {
-        var pose: CreaturePose
-        var cheer: CheerSize?
+        var needsAttention: Bool
         var appearance: String
     }
     private var lastIcon: IconKey?
@@ -106,7 +105,7 @@ final class DesktopOutput: OutputProvider {
     private func updateIcon(_ state: BuddyState) {
         statusItem?.toolTip = state.creature.statusLabel
         let appearance = NSApp?.effectiveAppearance ?? NSAppearance.currentDrawing()
-        let key = IconKey(pose: CreaturePose(from: state.creature), cheer: state.creature.cheer, appearance: appearance.name.rawValue)
+        let key = IconKey(needsAttention: state.creature.state == .needsYou, appearance: appearance.name.rawValue)
         if key != lastIcon {
             lastIcon = key
             appearance.performAsCurrentDrawingAppearance {
@@ -117,10 +116,10 @@ final class DesktopOutput: OutputProvider {
     }
 
     static func statusIcon(for creature: Creature) -> NSImage {
-        let dark = NSAppearance.currentDrawing().bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-        let renderer = ImageRenderer(content: MenuBarFace(creature: creature).environment(\.colorScheme, dark ? .dark : .light))
-        renderer.scale = 2
-        let image = renderer.nsImage ?? NSImage(size: NSSize(width: 18, height: 18))
+        let symbol = creature.state == .needsYou ? "square.grid.2x2.fill" : "square.grid.2x2"
+        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "Boop") ?? NSImage(size: NSSize(width: 18, height: 18))
+        image.size = NSSize(width: 18, height: 18)
+        image.isTemplate = true
         image.accessibilityDescription = "Boop — " + creature.statusLabel
         return image
     }
@@ -141,7 +140,7 @@ final class DesktopOutput: OutputProvider {
 
     private func playTransitionSounds(prev: BuddyState, next: BuddyState) {
         switch ChirpDecision.chirp(prev: prev, next: next, soundsEnabled: soundsEnabled()) {
-        case .complete:   playCelebrate()
+        case .complete:   break // Completion celebrations belong to the device.
         case .attention:  playAttention()
         case .error:      playError()
         case nil:         break
@@ -156,16 +155,9 @@ final class DesktopOutput: OutputProvider {
         }
         guard prev.creature.state != next.creature.state else { return }
 
-        if next.creature.state == .done
-            && (next.lastTaskDurationMs ?? 0) >= 30_000
-            && !presenter.isPopoverShown
-        {
-            presenter.showPopover(dismissAfter: 3.0)
-        } else if next.creature.state == .needsYou && !presenter.isPopoverShown {
+        if next.creature.state == .needsYou && !presenter.isPopoverShown {
             presenter.showPopover(dismissAfter: 15.0)
-        } else if (next.creature.state == .idle || next.creature.state == .asleep) && presenter.isPopoverShown {
-            presenter.cancelPopoverAutoDismiss()
-            presenter.closePopover()
+
         }
     }
 }

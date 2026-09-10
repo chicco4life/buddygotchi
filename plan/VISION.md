@@ -110,8 +110,8 @@ a fleet view. It is one body that all your agents share.
 These are the tests every later decision must pass.
 
 1. **Fully useful on day one.** Cheers, nudges, approvals, status, talking,
-   and every posture work from the first pairing. Levels unlock cosmetics and
-   expression range, never capability.
+   and every posture work from the first pairing. All behaviors and cosmetics
+   are available immediately. XP and levels are for bragging rights only.
 2. **Cute first, useful second, never a dashboard.** If a screen of numbers
    would do the job better, Boop should not do that job. Stats live in the
    app and in travel mode where they are a trophy, not a workload.
@@ -461,21 +461,13 @@ available for Claude Code and Codex by reading local files the agent already
 writes, and absent for Cursor. The XP formula leans on the universal signals
 and treats tokens as a bonus, so a Cursor-only user is not disadvantaged.
 
-### 10.3 What levels unlock
+### 10.3 XP does not unlock anything
 
-Cosmetic and expressive only:
-
-- new animations and emotions (a bigger celebration set, a sulk, a happy
-  dance, a perch-mode peek);
-- colors and skins for the face and body;
-- new sounds, including new completion chirps;
-- accessories drawn on the face;
-- broader vocabulary and more memory for the voice;
-- a silhouette change at a few big milestones, so a level-30 buddy is
-  recognizable across a room.
-
-Never unlocked by level: cheers, nudges, approvals, talking, quick commands,
-recap, any posture.
+Owner decision, 2026-09-10: keep progression and behavior separate. XP, levels,
+streaks and keepsakes commemorate time and work together. They do not grant
+animations, emotions, cosmetics, sounds, vocabulary, memory or capabilities.
+Every implemented behavior and supported appearance is available from day one.
+Level-up visuals may acknowledge a milestone without changing access.
 
 ### 10.4 Streaks
 
@@ -556,7 +548,7 @@ second-body path.
 - Software: free forever, no account, no subscription.
 - Hardware: one-time purchase, free firmware and app updates for the life of
   the device. "Buy it once. It keeps up."
-- No paid unlocks in v1. Cosmetics are earned. Limited physical editions are
+- No paid or XP-gated unlocks in v1. Cosmetics are available from the start. Limited physical editions are
   the only premium.
 - Pricing is undecided until the hardware is. Whatever the number, the
   software has to make it feel like a bargain: the app, the animations, the
@@ -662,7 +654,7 @@ Assumptions made in this draft, to be confirmed or overturned:
 Open, deferred to later documents:
 
 - Hardware form factor, mount, weight, battery, and board (hardware doc).
-- Exact level curve, XP weights, and cosmetic unlock schedule (growth doc).
+- Exact level curve and XP weights (growth doc); cosmetics are independent.
 - Backup and restore of a buddy to a replacement device.
 - How the risk translator classifies stakes for each agent (safety doc).
 - Which agents expose spend and rate-limit windows, and how (integrations
