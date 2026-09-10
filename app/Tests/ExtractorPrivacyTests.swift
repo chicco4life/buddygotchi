@@ -3,31 +3,7 @@ import XCTest
 @testable import BoopCore
 
 final class ExtractorPrivacyTests: XCTestCase {
-    @MainActor func testCapturedLeaderboardBodyExcludesPrivateContext() async throws {
-        let (store, _, cleanup) = try makeStore(); defer { cleanup() }
-        var config = BuddyConfig.default; config.headless = true
-        let suite = "privacy-" + UUID().uuidString, defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
-        defaults.set("Mochi", forKey: DefaultsKey.buddyName)
-        let engine = BuddyEngine(config: config, store: store, defaults: defaults)
-        let payload = try XCTUnwrap(RawHookPayload.parse(Data(#"{"hook_event_name":"PreToolUse","session_id":"secret","cwd":"/private/PROJECT_SECRET","tool_name":"Bash","tool_input":{"command":"HINT_SECRET"}}"#.utf8), source: "claude-code", at: 0))
-        await engine.ingest(payload)
-        try await store.addProfileLine("PROFILE_SECRET", source: "rules", at: 0)
-        let signer = TestDeviceSigner()
-        try await store.acceptIdentity(signer.identity, at: 0)
-        try await store.saveSignature(signer.sign(SignRequest(day: "2026-09-09", xp: 12)))
-        let body = try await engine.submissionPreview()
-        let session = LeaderboardURLProtocol.session(); defer { session.invalidateAndCancel() }
-        LeaderboardURLProtocol.capture.reset()
-        try await LeaderboardClient(url: URL(string: "https://leaderboard.invalid")!, session: session).submit(body)
-        let capturedData = try XCTUnwrap(LeaderboardURLProtocol.capture.captured.first?.httpBody)
-        let captured = String(decoding: capturedData, as: UTF8.self)
-        for secret in ["PROJECT_SECRET", "Bash", "HINT_SECRET", "PROFILE_SECRET", "claude-code", "cwd", "tool_name"] {
-            XCTAssertFalse(captured.contains(secret), secret)
-        }
-        let object = try JSONSerialization.jsonObject(with: Data(captured.utf8)) as! [String: Any]
-        XCTAssertEqual(Set(object.keys), Set(["buddyName", "silhouette", "xpTotal", "signatures", "unit", "pub", "alg"]))
-    }
+
 
     @MainActor func testFixturesNeverReachDiskOrDiagnostics() async throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -81,8 +57,6 @@ final class ExtractorPrivacyTests: XCTestCase {
         let snapshot = await extractor.windows["large"]
         let window = try XCTUnwrap(snapshot)
         XCTAssertTrue(window.pending.isEmpty)
-        XCTAssertEqual(window.goals.count, 1)
-        XCTAssertEqual(window.goals.values.first?.attempts, 5000)
         let end = try XCTUnwrap(RawHookPayload.parse(Data(#"{"hook_event_name":"SessionEnd","session_id":"large"}"#.utf8), source: "claude-code", at: 10_001))
         _ = await extractor.ingest(end)
         let remaining = await extractor.windows.count
@@ -110,7 +84,6 @@ final class ExtractorPrivacyTests: XCTestCase {
 
     func testRunnerCoverageAndSignatures() {
         for command in ["swift test", "swift build", "xcodebuild", "npm test", "pnpm build", "yarn lint", "jest", "vitest", "pytest", "cargo test", "cargo build", "cargo clippy", "go test", "go build", "go vet", "make test", "make build", "tsc", "eslint", "ruff", "mypy", "gradle", "mvn"] { XCTAssertNotNil(GoalsReader.runner(command), command) }
-        XCTAssertEqual(GoalsReader.signature("swift test --filter /tmp/Foo 2>&1"), GoalsReader.signature("swift   test --filter Foo"))
     }
 }
 
@@ -123,13 +96,12 @@ extension ExtractorPrivacyTests {
             #"{"hook_event_name":"PostToolUse","session_id":"s","tool_name":"Bash","tool_use_id":"b","exit_code":0}"#,
             #"{"hook_event_name":"PostToolUse","session_id":"s","tool_name":"Bash","tool_use_id":"a","exit_code":1}"#
         ]
+        var outcomes: [Fact] = []
         for (i, body) in bodies.enumerated() {
             let p = try XCTUnwrap(RawHookPayload.parse(Data(body.utf8), source: "claude-code", at: Double(i)))
-            _ = await extractor.ingest(p)
+            outcomes += await extractor.ingest(p).facts.filter { $0.kind == "toolOutcome" }
         }
-        let goals = await extractor.windows["s"]?.goals
-        XCTAssertEqual(goals?[GoalsReader.signature("swift test")]?.lastOutcome, .fail)
-        XCTAssertEqual(goals?[GoalsReader.signature("swift build")]?.lastOutcome, .pass)
+        XCTAssertEqual(outcomes, [.toolOutcome(runner: "swift-build", outcome: .pass), .toolOutcome(runner: "swift-test", outcome: .fail)])
     }
     func testClosingCallbackDoesNotCompleteTwice() async throws {
         let extractor = Extractor()
@@ -146,34 +118,11 @@ extension ExtractorPrivacyTests {
     func testStakesAndGlossTemplates() {
         XCTAssertEqual(StakesReader.read(tool: "Bash", input: "rm -rf ../data").0, .careful)
         XCTAssertEqual(StakesReader.read(tool: "Bash", input: #"{"command":"ls\nls"}"#).0, .careful)
-        XCTAssertEqual(GlossWriter.read(tool: "Bash", input: "rm -rf ./data"), "deletes files in this folder")
-        XCTAssertEqual(GlossWriter.read(tool: "Bash", input: "npm install"), "installs packages")
-        XCTAssertEqual(GlossWriter.read(tool: "Read", input: ""), "reads files")
-        XCTAssertEqual(GlossWriter.read(tool: "Bash", input: "curl https://example.com"), "reaches the internet")
-        XCTAssertEqual(GlossWriter.read(tool: "Edit", input: #"{"file_path":"/tmp/main.swift"}"#), "edits main.swift")
-        XCTAssertEqual(GlossWriter.read(tool: "Bash", input: "swift test"), "runs a command")
     }
 }
 
 extension ExtractorPrivacyTests {
-    func testOpaqueKeyAndGoalReset() {
-        let key = GoalsReader.signature("swift test --filter /tmp/SecretTests")
-        XCTAssertEqual(key.count, 16)
-        XCTAssertTrue(key.allSatisfy { "0123456789abcdef".contains($0) })
-        var tally = GoalTally()
-        tally.record(.fail, at: 10)
-        tally.record(.fail, at: 20)
-        XCTAssertEqual(tally.attemptsWithoutPass, 2)
-        XCTAssertEqual(tally.firstFailureAt, 10)
-        tally.record(.pass, at: 30)
-        XCTAssertEqual(tally.attempts, 3)
-        XCTAssertEqual(tally.attemptsWithoutPass, 0)
-        XCTAssertNil(tally.firstFailureAt)
-        tally.record(.fail, at: 40)
-        XCTAssertEqual(tally.firstFailureAt, 40)
-        tally.record(.unknown, at: 50)
-        XCTAssertNil(tally.firstFailureAt)
-    }
+
 
     func testLivenessDoesNotDegradeAndSourcesAreIndependent() async throws {
         let extractor = Extractor()
@@ -210,7 +159,7 @@ extension ExtractorPrivacyTests {
         XCTAssertEqual(w?.closingLine?.count, 120)
     }
 
-    func testEffortOnlyEmitsChangesAndUsesThresholds() async throws {
+    func testExtractorDoesNotInferEffort() async throws {
         let extractor = Extractor()
         var p = RawHookPayload(source: "codex", sessionId: "s", kind: .toolCall, toolName: "Bash", toolInput: "pytest", timestamp: 0)
         var emissions = 0
@@ -220,13 +169,7 @@ extension ExtractorPrivacyTests {
             p.kind = .toolResult; p.exitStatus = 1; p.timestamp += 1
             emissions += await extractor.ingest(p).events.filter { $0.name == "effortObserved" }.count
         }
-        XCTAssertEqual(emissions, 2)
-        var thresholds = MomentThresholds.defaults
-        thresholds.effortHardErrors = 5; thresholds.effortGrindingErrors = 7
-        var w = SessionWindow(project: "p", startedAt: 0); w.errors = 4
-        XCTAssertEqual(EffortReader.read(w, at: 0, thresholds: thresholds), .light)
-        w.errors = 5
-        XCTAssertEqual(EffortReader.read(w, at: 0, thresholds: thresholds), .hard)
+        XCTAssertEqual(emissions, 0)
     }
 }
 
@@ -251,11 +194,5 @@ extension ExtractorPrivacyTests {
             }
         }
     }
-    func testUnknownOutcomesCannotCreateHardWonEvidence() {
-        var tally = GoalTally()
-        for i in 0..<10 { tally.record(.unknown, at: Double(i)) }
-        XCTAssertEqual(tally.attempts, 10)
-        XCTAssertEqual(tally.attemptsWithoutPass, 0)
-        XCTAssertNil(tally.firstFailureAt)
-    }
+
 }

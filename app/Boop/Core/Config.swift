@@ -11,7 +11,6 @@ struct BuddyConfig: Sendable {
     /// socket and a button press in the final seconds was silently lost.
     var approvalTimeoutMs: Double = 290_000
     var celebrateDurationMs: Double
-    var workStallTimeoutMs: Double
     var stateDir: String
     var approvalMode: Bool
     var token: String
@@ -22,7 +21,7 @@ struct BuddyConfig: Sendable {
         // the owner's real one; the hook token still comes from that dir's config.
         let stateDir = ProcessInfo.processInfo.environment["BOOP_STATE_DIR"] ?? defaultStateDir()
         let (port, approvalMode, token) = readOrCreateConfig(stateDir: stateDir)
-        return BuddyConfig(httpPort: port, staleTimeoutMs: 600_000, approvalTimeoutMs: 290_000, celebrateDurationMs: 4000, workStallTimeoutMs: 300_000, stateDir: stateDir, approvalMode: approvalMode, token: token, headless: CommandLine.arguments.contains("--headless") || ProcessInfo.processInfo.environment["BOOP_HEADLESS"] == "1")
+        return BuddyConfig(httpPort: port, staleTimeoutMs: 600_000, approvalTimeoutMs: 290_000, celebrateDurationMs: 4000, stateDir: stateDir, approvalMode: approvalMode, token: token, headless: CommandLine.arguments.contains("--headless") || ProcessInfo.processInfo.environment["BOOP_HEADLESS"] == "1")
     }()
 
     nonisolated(unsafe) private(set) static var recreatedCorruptConfig = false

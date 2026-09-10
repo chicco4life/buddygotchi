@@ -12,16 +12,16 @@ struct VoiceStubRuntime: VoiceRuntime {
 }
 final class VoiceTimingTests: XCTestCase {
     func testThreeSecondRuntimeMeetsOneSecondDeadline() async {
-        let voice = Voice(runtime: VoiceStubRuntime(delay: .seconds(3)))
+        let voice = Voice(runtime: VoiceStubRuntime(delay: .seconds(3)), deadlineMs: 1_000)
         let start = ContinuousClock.now
         let line = await voice.line(for: VoiceRequest(occasion: .greet(1)))
         XCTAssertLessThan(start.duration(to: .now), .milliseconds(1100))
         XCTAssertEqual(line.source, .authored)
         XCTAssertFalse(line.text.isEmpty)
     }
-    func testBannedModelFallsBackAndSafeModelWins() async {
-        let request = VoiceRequest(occasion: .cheer(nil, .hop, nil))
-        let bad = await Voice(runtime: VoiceStubRuntime(text: "you always break things")).line(for: request)
+    func testInvalidDisplayFallsBackAndValidModelWins() async {
+        let request = VoiceRequest(occasion: .greet(1))
+        let bad = await Voice(runtime: VoiceStubRuntime(text: "line\nwith control")).line(for: request)
         XCTAssertEqual(bad.source, .authored)
         let good = await Voice(runtime: VoiceStubRuntime()).line(for: request)
         XCTAssertEqual(good.source, .model)
@@ -39,7 +39,7 @@ final class VoiceTimingTests: XCTestCase {
                 return "late model line"
             }
         }
-        let runtime = Runtime(), voice = Voice(runtime: runtime)
+        let runtime = Runtime(), voice = Voice(runtime: runtime, deadlineMs: 1_000)
         let request = VoiceRequest(occasion: .greet(1))
         let start = ContinuousClock.now
         let first = await voice.line(for: request)
@@ -106,49 +106,18 @@ extension VoiceTimingTests {
         _ = await voice.line(for: VoiceRequest(occasion: .greet(1)))
         reads = await store.exclusionReads; XCTAssertEqual(reads, 3)
         let remembered = await store.remembered
-        XCTAssertEqual(remembered.count, 12)
-        XCTAssertEqual(Set(remembered).count, 12)
+        XCTAssertEqual(remembered.count, 2)
+        XCTAssertEqual(Set(remembered).count, 2)
     }
     func testParagraphAndProfileDoNotEnterHistory() async throws {
         let (base, _, cleanup) = try makeStore(); defer { cleanup() }
         let store = CountingVoiceStore(base: base)
         let voice = Voice(store: store)
-        let paragraph = VoiceRequest(occasion: .recap(RecapFacts(turns: 2, tasks: 1)), byteCap: VoiceCap.paragraph.rawValue)
+        let paragraph = VoiceRequest(occasion: .profileLine("a familiar rhythm"), byteCap: VoiceCap.profile.rawValue)
         let first = await voice.line(for: paragraph), second = await voice.line(for: paragraph)
         XCTAssertFalse(first.text.isEmpty); XCTAssertEqual(first, second)
         _ = await voice.line(for: VoiceRequest(occasion: .profileLine("a familiar rhythm")))
         let reads = await store.exclusionReads, remembered = await store.remembered
         XCTAssertEqual(reads, 0); XCTAssertTrue(remembered.isEmpty)
-    }
-    func testRecapNumericGuardUsesWholeSuppliedNumbers() async {
-        let request = VoiceRequest(occasion: .recap(RecapFacts(turns: 2, tasks: 1, openGoals: 0, hours: 1.5)), byteCap: VoiceCap.paragraph.rawValue)
-        let wrong = await Voice(runtime: VoiceStubRuntime(text: "12 turns, 1 pass, 0 open, 1.5 hours")).line(for: request)
-        XCTAssertEqual(wrong.source, .authored)
-        let right = await Voice(runtime: VoiceStubRuntime(text: "2 turns, 1 pass, 0 open, 1.5 hours")).line(for: request)
-        XCTAssertEqual(right.source, .model)
-        let prompt = VoicePrompt.make(request)
-        XCTAssertFalse(prompt.contains("\"recap\":"))
-        for key in ["turns", "tasks", "openGoals", "hours", "project", "momentKind", "n", "runner"] {
-            XCTAssertTrue(prompt.contains("\"" + key + "\":"))
-        }
-    }
-    @MainActor func testRecapRunsBothGenerationLanesWithinOneBudget() async throws {
-        actor Slow: VoiceRuntime {
-            var calls = 0
-            func generate(prompt: String, maxBytes: Int) async throws -> String? {
-                calls += 1
-                try await Task.sleep(for: .seconds(3))
-                return nil
-            }
-        }
-        let runtime = Slow()
-        let engine = BuddyEngine(voiceRuntime: runtime)
-        let start = ContinuousClock.now
-        let recap = try await engine.makeRecap()
-        XCTAssertLessThan(start.duration(to: .now), .milliseconds(1200))
-        let calls = await runtime.calls
-        XCTAssertEqual(calls, 2)
-        XCTAssertFalse(recap?.line.isEmpty ?? true)
-        XCTAssertFalse(recap?.paragraph.isEmpty ?? true)
     }
 }

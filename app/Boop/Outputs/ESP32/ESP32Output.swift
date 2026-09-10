@@ -5,7 +5,7 @@ let esp32PeripheralUUIDKey = DefaultsKey.esp32PeripheralUUID
 
 @Observable
 @MainActor
-final class ESP32Output: OutputProvider, GrowthDeviceOutput, BLEManagerDelegate {
+final class ESP32Output: OutputProvider, BLEManagerDelegate {
     let id = "esp32"
     private let defaults: UserDefaults
     private let bleManager = BLEManager()
@@ -49,10 +49,6 @@ final class ESP32Output: OutputProvider, GrowthDeviceOutput, BLEManagerDelegate 
 
     func refreshSnapshot() { sendNow() }
 
-    func sendSign(_ request: SignRequest) {
-        guard connectionState == .connected, let data = try? JSONEncoder().encode(request) else { return }
-        bleManager.send(data + Data([10]))
-    }
     func sendRetire() {
         bleManager.send(Data("{\"cmd\":\"retire\"}\n".utf8))
     }
@@ -107,9 +103,7 @@ final class ESP32Output: OutputProvider, GrowthDeviceOutput, BLEManagerDelegate 
 
     func bleManager(_ manager: BLEManager, connectionStateChanged state: BLEConnectionState) {
         connectionState = state
-        if state != .connected { engine?.signingDeviceDisconnected() }
         if state == .connected {
-            bleManager.send(Data("{\"cmd\":\"unit\"}\n".utf8))
             sendNow()
             Task { await refreshDeviceFirmware() }
         }

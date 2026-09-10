@@ -100,7 +100,7 @@ final class HookServerBehaviorTests: XCTestCase {
                 XCTAssertEqual(engine.state.creature.state, expected)
                 XCTAssertEqual(engine.state.activeSessions.first?.source, source)
             }
-            XCTAssertEqual(engine.state.creature.uhoh, .hungry)
+            XCTAssertEqual(engine.state.creature.uhoh, .error)
         }
     }
 
@@ -197,7 +197,7 @@ final class HookServerBehaviorTests: XCTestCase {
             httpPort: 0,
             staleTimeoutMs: 600_000,
             celebrateDurationMs: 4_000,
-            workStallTimeoutMs: 300_000,
+
             stateDir: "/tmp",
             approvalMode: false,
             token: "test-token"
@@ -259,12 +259,36 @@ extension HookServerBehaviorTests {
         XCTAssertEqual(defaults.string(forKey: DefaultsKey.voiceRuntime), "off")
         XCTAssertEqual(engine.state.language, "ko")
         XCTAssertTrue(engine.diagnosticLog.entries.contains { $0.event == "languageChanged" })
-        let recap = try await engine.makeRecap()
-        XCTAssertFalse(recap?.line.isEmpty ?? true)
-        XCTAssertNotEqual(recap?.line, "model is enabled")
-        let removed = Request(head: .init(method: .get, scheme: "http", authority: "localhost", path: "/state/recap",
+        let removed = Request(head: .init(method: .post, scheme: "http", authority: "localhost", path: "/diag/recap",
             headerFields: [.init("X-Boop-Token")!: "test-token"]), body: .init(buffer: ByteBuffer()))
         let response = try await app.responder.respond(to: removed, context: context)
         XCTAssertEqual(response.status.code, 404)
+    }
+}
+
+extension HookServerBehaviorTests {
+    @MainActor func testNativeApprovalDefaultRejectsStaleInterceptionForEveryAgent() async throws {
+        let suite = "native-approval-" + UUID().uuidString, defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let config = testConfig()
+        let engine = BuddyEngine(config: config, defaults: defaults)
+        let app = buildHookServer(engine: engine, config: config)
+        for source in ["claude-code", "cursor", "codex"] {
+            XCTAssertFalse(engine.acceptsBuddyApprovals(source: source))
+            let context = HookRequestContext(source: .init(channel: EmbeddedChannel(), logger: Logger(label: "native-approval")))
+            let request = Request(head: .init(method: .post, scheme: "http", authority: "localhost", path: "/hook/approve?source=" + source,
+                headerFields: [.init("X-Boop-Token")!: "test-token"]), body: .init(buffer: ByteBuffer(string: #"{"hook_event_name":"PermissionRequest","session_id":"native","tool_name":"Bash","tool_input":{"command":"echo hi"}}"#)))
+            let response = try await app.responder.respond(to: request, context: context)
+            XCTAssertEqual(response.status.code, 200)
+            XCTAssertNil(engine.state.prompt)
+            XCTAssertEqual(engine.state.sessions.total, 0)
+        }
+        var enabled = config; enabled.approvalMode = true
+        let optedIn = BuddyEngine(config: enabled, defaults: defaults)
+        XCTAssertTrue(optedIn.acceptsBuddyApprovals(source: "claude-code"))
+        XCTAssertTrue(optedIn.acceptsBuddyApprovals(source: "cursor"))
+        XCTAssertFalse(optedIn.acceptsBuddyApprovals(source: "codex"))
+        defaults.set(true, forKey: DefaultsKey.codexApprovalMode)
+        XCTAssertTrue(optedIn.acceptsBuddyApprovals(source: "codex"))
     }
 }

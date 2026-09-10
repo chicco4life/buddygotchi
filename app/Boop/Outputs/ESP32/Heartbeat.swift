@@ -9,18 +9,16 @@ struct RenderState: Encodable, Sendable {
     var uhoh: UhohKind?
     var overlay: CreatureOverlay?
     var greetLevel: Int?
+    var nudgeRung: Int = 0
     var dots: Int = 0
     var dotAlert: Int?
     var card: Card?
     var bubble: String?
-    var gift: Bool = false
-    var giftLine: String?
     var focus: Bool = false
     var mute: Int = 1
     var posture: DevicePosture?
     var cosmetic: EquippedCosmetic?
     var snap: Snapshot?
-    var agent: Agent?
     var t: Int
 
     enum Card: Encodable, Sendable {
@@ -53,27 +51,16 @@ struct RenderState: Encodable, Sendable {
             var c = encoder.container(keyedBy: Keys.self)
             try c.encode(name.prefix(utf8Bytes: 23), forKey: .name)
             try c.encode(growth.level, forKey: .level); try c.encode(growth.xp, forKey: .xp); try c.encode(growth.xpNext, forKey: .xpNext)
-            try c.encode(growth.streak, forKey: .streak); try c.encode(growth.bestStreak, forKey: .bestStreak); try c.encode(growth.restDays, forKey: .restDays)
+            try c.encode(growth.streak, forKey: .streak); try c.encode(growth.bestStreak, forKey: .bestStreak)
             try c.encode(growth.daysTogether, forKey: .daysTogether); try c.encode(growth.tasks, forKey: .tasks); try c.encode(growth.today, forKey: .today)
             try c.encode(growth.biggest, forKey: .biggest)
         }
         private enum Keys: String, CodingKey { case name, level, xp, xpNext, streak, tasks, today, biggest
-            case bestStreak = "best", restDays = "rest", daysTogether = "days" }
-    }
-    struct Agent: Encodable, Sendable {
-        var name: String, color: String, emotion: String, say: String
-        func encode(to encoder: any Encoder) throws {
-            var c = encoder.container(keyedBy: Keys.self)
-            try c.encode(name.prefix(utf8Bytes: 15), forKey: .name)
-            try c.encode(color.prefix(utf8Bytes: 7), forKey: .color)
-            try c.encode(emotion.prefix(utf8Bytes: 15), forKey: .emotion)
-            try c.encode(say.prefix(utf8Bytes: 40), forKey: .say)
-        }
-        private enum Keys: String, CodingKey { case name, color, emotion, say }
+            case bestStreak = "best", daysTogether = "days" }
     }
     private enum CodingKeys: String, CodingKey {
         case v, state, effort, cheer, uhoh, overlay, greetLevel, dots, dotAlert, card
-        case bubble, gift, giftLine, focus, mute, posture, cosmetic, snap, agent, t
+        case bubble, gift, focus, mute, nudgeRung, posture, cosmetic, snap, t
     }
     func encode(to encoder: any Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
@@ -89,14 +76,13 @@ struct RenderState: Encodable, Sendable {
         try c.encodeIfPresent(dotAlert.flatMap { (0..<count).contains($0) ? $0 : nil }, forKey: .dotAlert)
         try c.encodeIfPresent(card, forKey: .card)
         try c.encodeIfPresent(bubble?.prefix(utf8Bytes: 63), forKey: .bubble)
-        try c.encode(gift, forKey: .gift)
-        try c.encodeIfPresent(giftLine?.prefix(utf8Bytes: 40), forKey: .giftLine)
+        try c.encode(false, forKey: .gift) // Retired v2 field; clear gifts on older firmware.
+        try c.encode(state == .needsYou ? min(2, max(0, nudgeRung)) : 0, forKey: .nudgeRung)
         try c.encode(focus, forKey: .focus)
         try c.encode(min(3, max(0, mute)), forKey: .mute)
         try c.encodeIfPresent(posture, forKey: .posture)
         try c.encodeIfPresent(cosmetic, forKey: .cosmetic)
         try c.encodeIfPresent(snap, forKey: .snap)
-        try c.encodeIfPresent(card == nil ? agent : nil, forKey: .agent)
         try c.encode(t, forKey: .t)
     }
 }
@@ -104,8 +90,8 @@ struct RenderState: Encodable, Sendable {
 func renderState(from state: BuddyState, defaults: UserDefaults = .standard, now: Double) -> RenderState {
     let c = state.creature
     var frame = RenderState(state: c.state, effort: c.effort, cheer: c.cheer, uhoh: c.uhoh,
-        overlay: c.overlay, greetLevel: c.greetLevel, dots: c.dots, dotAlert: c.dotAlert,
-        bubble: c.bubble, gift: c.gift, giftLine: c.giftLine, focus: c.focus,
+        overlay: c.overlay, greetLevel: c.greetLevel, nudgeRung: c.nudgeRung, dots: c.dots, dotAlert: c.dotAlert,
+        bubble: c.bubble, focus: c.focus,
         mute: c.focus ? 0 : SoundSettings.volume(defaults: defaults),
         t: Int(now))
     if c.state == .needsYou, let card = c.card {
@@ -114,9 +100,6 @@ func renderState(from state: BuddyState, defaults: UserDefaults = .standard, now
     }
     frame.snap = .init(name: defaults.string(forKey: DefaultsKey.buddyName) ?? "Boop", growth: state.growth)
     frame.cosmetic = state.cosmetic
-    if frame.card == nil, state.prompt == nil, let a = state.agentOverlay {
-        frame.agent = .init(name: a.agentId, color: a.color ?? "", emotion: a.emotion, say: a.say ?? "")
-    }
     return frame
 }
 
@@ -149,14 +132,13 @@ func renderStateData(from frame: RenderState) -> Data? {
     // character several-fold, so re-check once and cut again if needed).
     var attempts = 0
     while data.count + 1 > maxHeartbeatBytes, attempts < 4,
-          !(frame.bubble ?? "").isEmpty || !(frame.giftLine ?? "").isEmpty {
+          !(frame.bubble ?? "").isEmpty {
         let overage = data.count + 1 - maxHeartbeatBytes
         func cut(_ text: String?) -> String? {
             guard let text, !text.isEmpty else { return text }
             return text.prefix(utf8Bytes: max(0, text.utf8.count - overage))
         }
         frame.bubble = cut(frame.bubble)
-        frame.giftLine = cut(frame.giftLine)
         guard let next = try? encoder.encode(frame) else { return nil }
         data = next
         attempts += 1

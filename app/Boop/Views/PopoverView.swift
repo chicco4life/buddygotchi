@@ -15,8 +15,6 @@ struct PopoverView: View {
     var onOpenOnboarding: () -> Void = {}
     var onClose: () -> Void = {}
     var navigation: ControlNavigation = ControlNavigation()
-    @State private var showingLeaderboard = false
-    @State private var showingShelf = false
     @State private var history: [XPActivity] = []
     @State private var historyError = false
     private var growth: GrowthSnapshot { engine.state.growth }
@@ -57,7 +55,9 @@ struct PopoverView: View {
                 NeedsYouCard(language: engine.state.language, card: card,
                     approve: { engine.resolveApproval(requestId: card.id, decision: .allow) },
                     deny: { engine.resolveApproval(requestId: card.id, decision: .deny) })
-                    .padding(.horizontal, 18).padding(.bottom, 12)
+                    .padding(.horizontal, 18).padding(.bottom, 8)
+                Button(copy("Snooze reminder", "알림 잠시 끄기")) { engine.nudgeDismissed(requestId: card.id) }
+                    .buttonStyle(.link).font(.caption).padding(.horizontal, 32).padding(.bottom, 12)
             }
             switch navigation.pane {
             case .overview: ScrollView { overview.padding(.horizontal, 18).padding(.bottom, 12) }
@@ -86,8 +86,6 @@ struct PopoverView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .onExitCommand(perform: onClose)
         .onHover { if $0 { onUserInteraction?() } }
-        .sheet(isPresented: $showingLeaderboard) { LeaderboardSheet(engine: engine) }
-        .sheet(isPresented: $showingShelf) { KeepsakeShelfView(engine: engine, isPresented: $showingShelf) }
     }
     private var overviewHeight: CGFloat {
         // Grow for up to ten sessions; keep every row in the existing scroll view.
@@ -167,11 +165,6 @@ struct PopoverView: View {
             }.frame(maxWidth: .infinity, alignment: .leading)
             HStack {
                 Button(BuddyCopy.phase7("shareCard", language: engine.state.language)) { AppDelegate.presentShareCard(engine: engine) }
-                Button(BuddyCopy.phase7("leaderboard", language: engine.state.language)) { showingLeaderboard = true }
-                Menu(copy("More", "더 보기")) {
-                    Button(BuddyCopy.phase7("recap", language: engine.state.language)) { Task { _ = try? await engine.makeRecap() } }
-                    Button(BuddyCopy.shared.popover.keepsakeShelf) { showingShelf = true }
-                }.fixedSize()
             }
             Divider()
             Text(copy("XP history", "XP 기록")).font(.headline)
@@ -195,21 +188,7 @@ struct PopoverView: View {
                 }
             }
             if engine.state.creature.card == nil {
-                if engine.state.creature.gift {
-                    Button(BuddyCopy.phase7("collect", language: engine.state.language)) { engine.collectArrived() }
-                }
                 if let bubble = engine.state.creature.bubble { Text(bubble).foregroundStyle(.secondary) }
-                if let recap = engine.state.recap { RecapView(language: engine.state.language, recap: recap) }
-                DisclosureGroup(copy("Agent messages", "에이전트 메시지")) {
-                    if let overlay = engine.state.agentOverlay { AgentExpressionRow(overlay: overlay) }
-                    if let drawing = engine.state.agentDrawing, engine.boolSetting(DefaultsKey.agentDrawingsEnabled, fallback: true) {
-                        AgentDrawingCard(drawing: drawing, isMemory: engine.state.agentDrawingIsMemory == true)
-                    }
-                    if let tool = engine.teachTool {
-                        Text(TeachCatalog.line(tool: tool, language: engine.state.language) ?? tool)
-                        Button(BuddyCopy.phase7("quietTool", language: engine.state.language)) { Task { await engine.dismissTeach(tool: tool) } }
-                    }
-                }.font(.callout)
             }
         }.task(id: growth.xp) { await loadHistory() }
     }
@@ -241,126 +220,6 @@ struct PopoverView: View {
     }
 }
 
-// MARK: - Agent Expression (System E)
-
-/// The agent-channel surface: always carried in the agent's identity color,
-/// always labeled with who is speaking, styled like nothing the system uses.
-private struct AgentExpressionRow: View {
-    let overlay: AgentOverlay
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(identityColor)
-                .frame(width: 8, height: 8)
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(overlay.agentId)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(BuddyTheme.inkFaint)
-                Text(overlay.say ?? "feels \(overlay.emotion)")
-                    .font(.callout.weight(overlay.say == nil ? .regular : .medium))
-                    .foregroundStyle(BuddyTheme.ink)
-                    .lineLimit(2)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(overlay.agentId) \(overlay.say ?? "feels \(overlay.emotion)")")
-    }
-
-    private var identityColor: Color { agentIdentityColor(overlay.color) }
-}
-
-/// The agent identity palette, shared by the expression row and the drawing
-/// card so an agent's channel is one color everywhere.
-private func agentIdentityColor(_ name: String?) -> Color {
-    switch name {
-    case "coral": Color(red: 0.94, green: 0.50, blue: 0.42)
-    case "amber": Color(red: 0.95, green: 0.69, blue: 0.28)
-    case "mint": Color(red: 0.38, green: 0.78, blue: 0.60)
-    case "sky": Color(red: 0.36, green: 0.66, blue: 0.92)
-    case "lavender": Color(red: 0.65, green: 0.58, blue: 0.90)
-    case "rose": Color(red: 0.92, green: 0.50, blue: 0.68)
-    case "sand": Color(red: 0.82, green: 0.70, blue: 0.50)
-    case "teal": Color(red: 0.26, green: 0.70, blue: 0.72)
-    default: BuddyTheme.inkSoft
-    }
-}
-
-/// A drawing the pet is holding up (E4). Rendered chunky from the fixed
-/// 16-color palette; framed in the agent's identity color like every other
-/// agent-channel surface.
-private struct AgentDrawingCard: View {
-    let drawing: AgentDrawing
-    /// The pet dug this one out for a returning agent — "remember this?".
-    var isMemory: Bool = false
-
-    var body: some View {
-        VStack(spacing: 5) {
-            DrawingGrid(drawing: drawing)
-                .frame(width: gridSize.width, height: gridSize.height)
-                .background(Color.black.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
-
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(identityColor)
-                    .frame(width: 7, height: 7)
-                    .accessibilityHidden(true)
-                Text(caption)
-                    .font(.caption)
-                    .foregroundStyle(BuddyTheme.inkSoft)
-                    .lineLimit(1)
-            }
-        }
-        .padding(10)
-        .frame(maxWidth: .infinity)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Drawing from \(drawing.agentId)\(drawing.caption.map { ": \($0)" } ?? "")")
-    }
-
-    private var caption: String {
-        if isMemory {
-            let original = drawing.caption.map { " · \($0)" } ?? ""
-            return "\(BuddyCopy.shared.popover.rememberThis)\(original)"
-        }
-        if let c = drawing.caption, !c.isEmpty { return "\(drawing.agentId): \(c)" }
-        return "from \(drawing.agentId)"
-    }
-
-    private var identityColor: Color { agentIdentityColor(drawing.color) }
-
-    private var gridSize: CGSize {
-        let w = max(drawing.width, 1), h = max(drawing.height, 1)
-        let cell = (128.0 / CGFloat(max(w, h))).rounded(.down)
-        return CGSize(width: cell * CGFloat(w), height: cell * CGFloat(h))
-    }
-}
-
-private struct DrawingGrid: View {
-    let drawing: AgentDrawing
-
-    var body: some View {
-        Canvas { context, size in
-            let w = max(drawing.width, 1), h = max(drawing.height, 1)
-            let cell = min(size.width / CGFloat(w), size.height / CGFloat(h))
-            for (y, row) in drawing.rows.enumerated() {
-                for (x, digit) in row.enumerated() {
-                    guard let color = drawingPaletteColor(digit) else { continue }
-                    // Overdraw by a hair so cells butt cleanly at non-integer scales.
-                    let rect = CGRect(x: CGFloat(x) * cell, y: CGFloat(y) * cell,
-                                      width: cell + 0.5, height: cell + 0.5)
-                    context.fill(Path(rect), with: .color(color))
-                }
-            }
-        }
-    }
-}
-
 // MARK: - Empty / Server Rows
 
 // MARK: - Activity List
@@ -383,13 +242,9 @@ struct ActivityRow: Identifiable {
         project = session.sessionLabel
         agent = AgentKind(rawValue: session.source)?.displayName ?? session.source
         status = ActivityRow.label(for: session.state, language: state.language)
-        detail = [session.currentTool, session.moment.map { BuddyCopy.phase7($0.kind.rawValue, language: state.language) } ?? session.cheer.map { BuddyCopy.phase7($0.rawValue, language: state.language) }]
+        detail = [session.currentTool, session.cheer.map { BuddyCopy.phase7($0.rawValue, language: state.language) }]
             .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · ")
-        // Elapsed is derived from the state's own timestamp rather than a live
-        // clock: the popover redraws on every state change, and a ticking second
-        // counter is exactly the restlessness this surface is meant to lose.
-        trailing = ActivityRow.elapsed(session: session, in: state)
-            ?? session.sessionLabel.flatMap { $0.isEmpty ? nil : $0 }
+        trailing = session.sessionLabel.flatMap { $0.isEmpty ? nil : $0 }
     }
 
     /// A task that just finished, once nothing is running. The reducer clears
@@ -424,12 +279,7 @@ struct ActivityRow: Identifiable {
         }
     }
 
-    /// Only the thinking session carries a start time; SessionSnapshot does not.
-    private static func elapsed(session: SessionSnapshot, in state: BuddyState) -> String? {
-        guard let thinking = state.firstThinking, thinking.id == session.id,
-              let start = thinking.workStartedAt, state.updatedAt > start else { return nil }
-        return formatElapsed(ms: state.updatedAt - start)
-    }
+
 }
 
 private func formatElapsed(ms: Double) -> String {

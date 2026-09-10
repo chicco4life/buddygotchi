@@ -135,20 +135,21 @@ extension HookPayloadTests {
 }
 
 extension HookPayloadTests {
-    @MainActor func testV7ForwardsOnlyNumericUsage() throws {
+    @MainActor func testRetiredUsageDoesNotPreventLifecycleParsing() throws {
         let claude = try forwarded(["hook_event_name":"Stop","session_id":"s","usage":["output_tokens":125000,"private":"PRIVATE_USAGE"]])
         let p = try XCTUnwrap(RawHookPayload.parse(claude,source:"claude-code",at:0))
-        XCTAssertEqual(p.outputTokens,125000)
+        XCTAssertEqual(p.kind, .turnEnd)
         XCTAssertFalse(String(decoding:claude,as:UTF8.self).contains("PRIVATE_USAGE"))
+        XCTAssertFalse(String(decoding:claude,as:UTF8.self).contains("output_tokens"))
         let codex = try forwarded(["hook_event_name":"Stop","session_id":"s","info":["total_token_usage":["output_tokens":225000]]])
         let c = try XCTUnwrap(RawHookPayload.parse(codex,source:"codex",at:0))
-        XCTAssertEqual(c.outputTokens,225000); XCTAssertTrue(c.cumulativeTokens)
+        XCTAssertEqual(c.kind, .turnEnd)
         let message: [String: Any] = ["hook_event_name":"Stop","session_id":"s","message":["usage":["output_tokens":100000],"content":"PRIVATE_TRANSCRIPT"]]
         let raw = try XCTUnwrap(RawHookPayload.parse(JSONSerialization.data(withJSONObject:message),source:"claude-code",at:0))
-        XCTAssertEqual(raw.outputTokens,100000)
+        XCTAssertEqual(raw.kind, .turnEnd)
         let forwardedMessage = try forwarded(message)
         let parsed = try XCTUnwrap(RawHookPayload.parse(forwardedMessage,source:"claude-code",at:0))
-        XCTAssertEqual(parsed.outputTokens,100000)
+        XCTAssertEqual(parsed.kind, .turnEnd)
         XCTAssertFalse(String(decoding:forwardedMessage,as:UTF8.self).contains("PRIVATE_TRANSCRIPT"))
     }
 }

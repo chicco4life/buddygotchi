@@ -10,7 +10,7 @@ final class HeartbeatTruncationTests: XCTestCase {
     func testEveryTextCapWithKoreanAndEmoji() throws {
         for glyph in ["한", "🐛", "👩‍👩‍👧‍👦"] {
             let text = String(repeating: glyph, count: 100)
-            var f = RenderState(state: .needsYou, bubble: text, giftLine: text, t: 42)
+            var f = RenderState(state: .needsYou, bubble: text, t: 42)
             f.card = .needsYou(id: text, tool: text, gloss: text, stakes: .careful, n: 1, of: 2, approval: true)
             f.snap = .init(name: text)
             f.cosmetic = .init(skin: text, accessory: text, silhouette: text)
@@ -20,16 +20,12 @@ final class HeartbeatTruncationTests: XCTestCase {
                 for (key, cap) in fields { XCTAssertEqual(nested[key] as? String, text.prefix(utf8Bytes: cap)) }
             }
             XCTAssertEqual(o["bubble"] as? String, text.prefix(utf8Bytes: 63))
-            XCTAssertEqual(o["giftLine"] as? String, text.prefix(utf8Bytes: 40))
+            XCTAssertNil(o["giftLine"])
             f.card = .system(kind: .pair, text: text)
             o = try object(f)
             XCTAssertEqual((o["card"] as? [String: Any])?["text"] as? String, text.prefix(utf8Bytes: 63))
-            f.card = nil
-            f.agent = .init(name: text, color: text, emotion: text, say: text)
-            let agent = try XCTUnwrap(try object(f)["agent"] as? [String: Any])
-            for (key, cap) in [("name", 15), ("color", 7), ("emotion", 15), ("say", 40)] {
-                XCTAssertEqual(agent[key] as? String, text.prefix(utf8Bytes: cap))
-            }
+            o = try object(f)
+            XCTAssertNil(o["agent"])
         }
         for cap in [7, 15, 23, 40, 63] {
             let exact = String(repeating: "a", count: cap - 7) + "한🐛"
@@ -59,7 +55,6 @@ final class HeartbeatTruncationTests: XCTestCase {
 
     func testAgentNeverCoexistsWithEitherCard() throws {
         var frame = RenderState(state: .needsYou, t: 0)
-        frame.agent = .init(name: "codex", color: "#ffffff", emotion: "happy", say: "hi")
         for card in [RenderState.Card.needsYou(id: "1", tool: "Bash", gloss: "test", stakes: .fine, n: 1, of: 1, approval: true), .system(kind: .update, text: "Updating")] {
             frame.card = card
             let o = try object(frame)
@@ -74,14 +69,14 @@ final class HeartbeatTruncationTests: XCTestCase {
             buddy.creature.state = state
             buddy.creature.effort = .hard
             buddy.creature.cheer = .dance
-            buddy.creature.uhoh = .hungry
+            buddy.creature.uhoh = .error
             buddy.creature.dots = 100
             buddy.creature.dotAlert = 8
             let o = try object(renderState(from: buddy, now: 0))
             XCTAssertEqual(o["state"] as? String, state.rawValue)
             XCTAssertEqual(o["effort"] as? String, state == .working ? "hard" : nil)
             XCTAssertEqual(o["cheer"] as? String, state == .done ? "dance" : nil)
-            XCTAssertEqual(o["uhoh"] as? String, state == .uhoh ? "hungry" : nil)
+            XCTAssertEqual(o["uhoh"] as? String, state == .uhoh ? "error" : nil)
             XCTAssertEqual(o["dots"] as? Int, 5)
             XCTAssertNil(o["dotAlert"])
         }
@@ -90,7 +85,7 @@ final class HeartbeatTruncationTests: XCTestCase {
     func testFrameCapShedsInOrderIncludingEscapedText() throws {
         // Control bytes are legal JSON strings and expand to six bytes each.
         let text = String(repeating: "\u{01}", count: 100)
-        var frame = RenderState(state: .needsYou, bubble: text.prefix(utf8Bytes: 63), giftLine: text.prefix(utf8Bytes: 40), t: Int.max)
+        var frame = RenderState(state: .needsYou, bubble: text.prefix(utf8Bytes: 63), t: Int.max)
         frame.card = .needsYou(id: text, tool: text, gloss: text, stakes: .careful, n: Int.max, of: Int.max, approval: true)
         frame.overlay = .greet
         frame.greetLevel = 3
@@ -99,7 +94,6 @@ final class HeartbeatTruncationTests: XCTestCase {
         frame.cosmetic = .init(skin: text, accessory: text, silhouette: text)
         var sawSnapOnly = false
         var sawCosmetic = false
-        var sawText = false
         for length in 0...63 {
             frame.bubble = String(repeating: "\u{01}", count: length)
             let full = try JSONEncoder().encode(frame)
@@ -107,6 +101,7 @@ final class HeartbeatTruncationTests: XCTestCase {
             XCTAssertLessThanOrEqual(data.count, maxHeartbeatBytes)
             XCTAssertEqual(data.last, 10)
             let o = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            XCTAssertEqual(o["bubble"] as? String, frame.bubble, "The remaining text fits after shedding optional fields")
             if full.count + 1 <= maxHeartbeatBytes { XCTAssertNotNil(o["snap"]); continue }
             XCTAssertNil(o["snap"])
             var withoutSnap = frame
@@ -117,15 +112,10 @@ final class HeartbeatTruncationTests: XCTestCase {
             } else {
                 XCTAssertNil(o["cosmetic"])
                 sawCosmetic = true
-                withoutSnap.cosmetic = nil
-                if try JSONEncoder().encode(withoutSnap).count + 1 > maxHeartbeatBytes {
-                    XCTAssertNotEqual(o["bubble"] as? String, frame.bubble)
-                    sawText = true
-                }
+
             }
         }
         XCTAssertTrue(sawSnapOnly)
         XCTAssertTrue(sawCosmetic)
-        XCTAssertTrue(sawText)
     }
 }

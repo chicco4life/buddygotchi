@@ -58,14 +58,13 @@ struct Card {
 struct TamaState {
   char state[9] = "asleep", effort[9] = "", cheer[6] = "", uhoh[7] = "";
   char overlay[6] = "", posture[7] = "";
-  uint8_t greetLevel = 0, dots = 0, mute = 0;
+  uint8_t greetLevel = 0, dots = 0, mute = 0, nudgeRung = 0;
   int8_t dotAlert = -1;
   Card card;
-  char bubble[64] = "", giftLine[41] = "";
-  bool gift = false, focus = false;
+  char bubble[64] = "";
+  bool focus = false;
   Cosmetics cosmetic;
   Snapshot snap;
-  char agentSrc[24] = "", agentColor[16] = "", agentEmotion[24] = "", agentSay[64] = "";
 };
 static uint32_t badFrames = 0, _parseFailCount = 0, _lineOverflowCount = 0;
 static uint32_t _lastLiveMs = 0;
@@ -137,7 +136,6 @@ extern bool isRetiring();
 extern void onFrame(const TamaState& next, bool skinSupplied);
 extern void handleSerialCommand(const char* line);
 extern void sendStatus();
-extern void sendSigning(JsonDocument& request);
 void sendUnpairAck();
 
 inline bool validate(JsonDocument& d, const TamaState& old, TamaState& s) {
@@ -150,14 +148,16 @@ inline bool validate(JsonDocument& d, const TamaState& old, TamaState& s) {
       !readEnum(d["uhoh"], s.uhoh, "|error|stuck|hungry|", old.uhoh) ||
       !readEnum(d["overlay"], s.overlay, "|greet|boop|", old.overlay) ||
       !readEnum(d["posture"], s.posture, "|desk|perch|travel|", old.posture)) return false;
+  if (!strcmp(s.uhoh,"stuck") || !strcmp(s.uhoh,"hungry")) strlcpy(s.uhoh,"error",sizeof(s.uhoh));
   if (!s.state[0]) strlcpy(s.state, "asleep", sizeof(s.state));
-  int greet = 0, dots = 0, alert = -1, volume = 0;
+  int greet = 0, dots = 0, alert = -1, volume = 0, nudge = 0;
   if (!readInt(d["greetLevel"], greet, 0, 3) || !readInt(d["dots"], dots, 0, 5) ||
       !readInt(d["dotAlert"], alert, 0, 4) || !readInt(d["mute"], volume, 0, 3) ||
-      !readBool(d["gift"], s.gift) || !readBool(d["focus"], s.focus) ||
-      !readText(d["bubble"], s.bubble) || !readText(d["giftLine"], s.giftLine)) return false;
+      !readInt(d["nudgeRung"], nudge, 0, 2) ||
+      !readBool(d["focus"], s.focus) ||
+      !readText(d["bubble"], s.bubble)) return false;
   if (alert >= dots) return false;
-  s.greetLevel = greet; s.dots = dots; s.dotAlert = alert; s.mute = volume;
+  s.greetLevel = greet; s.dots = dots; s.dotAlert = alert; s.mute = volume; s.nudgeRung = nudge;
   if (!d["card"].isNull()) {
     if (!d["card"].is<JsonObject>()) return false;
     JsonVariantConst c = d["card"];
@@ -194,13 +194,6 @@ inline bool validate(JsonDocument& d, const TamaState& old, TamaState& s) {
       *dest[i] = p[keys[i]] | 0u;
     }
   }
-  if (!d["agent"].isNull()) {
-    if (!d["agent"].is<JsonObject>()) return false;
-    auto a = d["agent"];
-    if (!readText(a["name"], s.agentSrc) || !readText(a["color"], s.agentColor) ||
-        !readText(a["emotion"], s.agentEmotion) || !readText(a["say"], s.agentSay)) return false;
-    if (s.card.present()) s.agentSrc[0] = s.agentEmotion[0] = s.agentSay[0] = 0;
-  }
   if (!d["t"].isNull() && !d["t"].is<uint64_t>()) return false;
   return true;
 }
@@ -208,10 +201,7 @@ inline void applyJson(const char* line, TamaState& out) {
   JsonDocument d;
   if (deserializeJson(d, line)) { ++badFrames; ++_parseFailCount; return; }
   if (d["cmd"] == "retire") { beginRetire(); return; }
-  if (d["cmd"] == "unit" || d["cmd"] == "sign") {
-    if (isRetiring()) return;
-    sendSigning(d); return;
-  }
+
   if (isRetiring()) return;
   if (otaCommand(d)) return;
   if (d["cmd"] == "status") { sendStatus(); return; }

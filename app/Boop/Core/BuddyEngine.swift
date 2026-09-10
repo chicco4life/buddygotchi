@@ -1,4 +1,3 @@
-import LeaderboardWire
 import Darwin
 import Foundation
 import Observation
@@ -9,31 +8,21 @@ final class BuddyEngine {
     private(set) var state: BuddyState = .initial
     var popoverVisible = false
     private var settingsRevision = 0
-    private var claimedTools: Set<String> = []
-    private var mutedTools: Set<String> = []
-    private(set) var teachTool: String?
     private var retiring = false
-    private var activeRecaps = 0
     let diagnosticLog: DiagnosticLog
     let extractor = Extractor()
     private var extractionTail: Task<Void, Never>?
     private var store: (any EngineStore)?
     private var storeTail: Task<Void, Never>?
-    private let growth: GrowthCoordinator
     private var voice: Voice
     private var voiceRuntime: any VoiceRuntime
     private let defaults: UserDefaults
     private var cachedProfile: [ProfileLine] = []
     private var cachedTraits: Traits = [:]
+    private var cachedMoments: [BehaviorMemory.RememberedMoment] = []
     private var contextLoaded = false
     private var contextLoad: Task<Void, Error>?
-    private var stopHourCache: (day: String, hour: Int)?
-    private var factsRevision = 0
-    private var recapAttempt: (day: String, revision: Int, at: Double)?
-    private var recapFactsCache: (day: String, revision: Int, facts: [StoredFact])?
     private let transientVoice = TransientVoiceTasks()
-    private var recapTask: Task<Void, Never>?
-    private var recappedDays: Set<String> = []
     private var bootstrap: Task<Void, Never>?
     private var loadingStore = false
     private var deferredEvents: [BuddyEvent] = []
@@ -49,89 +38,28 @@ final class BuddyEngine {
     private var outputs: [any OutputProvider] = []
     private var processWatchers: [String: DispatchSourceProcess] = [:]
     private var pendingApprovals: [String: CheckedContinuation<ApprovalDecision, Never>] = [:]
-    /// Per-agent floor between expressions (S6). Engine-side, not reducer:
-    /// rate limiting is wall-clock policy, not state semantics.
-    private var lastExpressAt: [String: Double] = [:]
-    /// One drawing per visit (E4): 30-minute floor per agent.
-    private var lastDrewAt: [String: Double] = [:]
-
-    init(config: BuddyConfig = .default, clock: (any Clock)? = nil, diagnosticLog: DiagnosticLog? = nil, store: (any EngineStore)? = nil, dayCalendar: any DayCalendar = LocalDayCalendar(), onACPower: @escaping @Sendable () -> Bool = { PowerObserver.onACPower() }, voiceRuntime: (any VoiceRuntime)? = nil, defaults: UserDefaults = .standard, leaderboardSession: URLSession = .shared, growthSigner: (any GrowthSigner)? = nil) {
+    init(config: BuddyConfig = .default, clock: (any Clock)? = nil, diagnosticLog: DiagnosticLog? = nil, store: (any EngineStore)? = nil, dayCalendar: any DayCalendar = LocalDayCalendar(), onACPower: @escaping @Sendable () -> Bool = { PowerObserver.onACPower() }, voiceRuntime: (any VoiceRuntime)? = nil, defaults: UserDefaults = .standard) {
         self.store = store
-        let signer = growthSigner ?? DeviceGrowthSigner()
-        self.growth = GrowthCoordinator(store: store as? any GrowthStore, signer: signer,
-            session: leaderboardSession, defaults: defaults, clock: clock ?? WallClock(), dayCalendar: dayCalendar)
         self.defaults = defaults
-        // Migrate the removed Settings switches to the new enabled defaults.
-        if !defaults.bool(forKey: "automaticCompanionFeaturesV1") {
-            defaults.set(true, forKey: DefaultsKey.agentDrawingsEnabled)
-            defaults.set(true, forKey: DefaultsKey.leaderboardOptIn)
-            defaults.set(true, forKey: "automaticCompanionFeaturesV1")
-        }
         let runtime = voiceRuntime ?? VoiceRuntimes.make(setting: "auto")
         self.voiceRuntime = runtime
-        self.voice = Voice(runtime: runtime, store: store, localDay: { await MainActor.run { dayCalendar.localDay(at: (clock ?? WallClock()).now()) } })
+        self.voice = Voice(runtime: runtime, guide: .init(overrideURL: URL(fileURLWithPath: config.stateDir).appendingPathComponent("BEHAVIOR.md")), store: store, localDay: { await MainActor.run { dayCalendar.localDay(at: (clock ?? WallClock()).now()) } })
         self.config = config
         self.dayCalendar = dayCalendar
         self.onACPower = onACPower
         self.clock = clock ?? WallClock()
         self.diagnosticLog = diagnosticLog ?? DiagnosticLog()
-        self.internalState = .initial(staleMs: config.staleTimeoutMs, celebrateDurationMs: config.celebrateDurationMs, workStallTimeoutMs: config.workStallTimeoutMs, approvalTimeoutMs: config.approvalTimeoutMs)
+        self.internalState = .initial(staleMs: config.staleTimeoutMs, celebrateDurationMs: config.celebrateDurationMs, approvalTimeoutMs: config.approvalTimeoutMs)
         let language = defaults.string(forKey: DefaultsKey.language) == "ko" ? "ko" : "en"
         self.internalState.buddy.language = language
         self.internalState.buddy.creature.focus = !(defaults.object(forKey: DefaultsKey.soundsEnabled) as? Bool ?? true)
         self.state = self.internalState.buddy
-        growth.prepare = { [weak self] in await self?.flushStore() }
-        growth.presentation = { [weak self] in
-            (self?.displayName ?? "Boop", self?.state.cosmetic.silhouette ?? "")
-        }
-        growth.onSnapshot = { [weak self] snapshot in
-            guard let self else { return }
-            self.apply(.leaderboardUpdated(at: self.clock.now(), snapshot: snapshot))
-        }
-        if let signer = signer as? any DeviceReplySigner {
-            signer.send = { [weak self] request in
-                guard let output = self?.outputs.compactMap({ $0 as? any GrowthDeviceOutput }).first else {
-                    throw LeaderboardError.unavailable("no device output")
-                }
-                output.sendSign(request)
-            }
-        }
         if BuddyConfig.recreatedCorruptConfig {
             self.diagnosticLog.log(category: "engine", source: "system", event: "config", detail: "config.json was unreadable; recreated with defaults")
         }
     }
 
-    var deviceIdentity: DeviceIdentity? { growth.deviceIdentity }
     var shareRegister: VoiceRegister { VoiceRegister(cheek: cachedTraits["cheek", default: 128]) }
-    var leaderboardURL: String { _ = settingsRevision; return defaults.string(forKey: DefaultsKey.leaderboardURL) ?? "" }
-    var friendsCodes: [String] { _ = settingsRevision; return defaults.stringArray(forKey: DefaultsKey.leaderboardFriends) ?? [] }
-    func addFriend(_ code: String) {
-        let code = code.uppercased()
-        guard code.utf8.count == 6, code.range(of: "^[0-9A-F]{6}$", options: .regularExpression) != nil else { return }
-        defaults.set(Array(Set(friendsCodes + [code]).sorted().prefix(100)), forKey: DefaultsKey.leaderboardFriends); settingsRevision += 1
-    }
-    func configureLeaderboard(url: String, optIn: Bool) {
-        defaults.set(url, forKey: DefaultsKey.leaderboardURL); setBoolSetting(DefaultsKey.leaderboardOptIn, optIn)
-        growth.settingsChanged()
-        if !optIn { apply(.leaderboardUpdated(at: clock.now(), snapshot: nil)) }
-    }
-    func signingDeviceDisconnected() { growth.signingDeviceDisconnected() }
-    private func acceptDeviceIdentity(_ identity: DeviceIdentity) async throws {
-        try await growth.acceptDeviceIdentity(identity)
-    }
-    private func acceptSignature(_ signature: LedgerSignature) throws { try growth.acceptSignature(signature) }
-    @discardableResult func signGrowth() async throws -> [LedgerSignature] {
-        return try await growth.signGrowth()
-    }
-    @discardableResult func syncLeaderboard(view: RankView = .all, force: Bool = false) async throws -> LeaderboardSnapshot {
-        return try await growth.syncLeaderboard(view: view, force: force)
-    }
-    @discardableResult func refreshRank(view: RankView) async throws -> LeaderboardSnapshot {
-        return try await growth.refreshRank(view: view)
-    }
-    func submissionPreview() async throws -> LeaderboardSubmission {
-        return try await growth.submissionPreview(headless: config.headless)
-    }
 
     // MARK: - Lifecycle
 
@@ -147,17 +75,12 @@ final class BuddyEngine {
                     try await store.migrate()
                     return store
                 }.value
-                let tools = try await self.store?.toolPreferences() ?? ToolPreferences()
-                self.claimedTools.formUnion(tools.claimed)
-                self.mutedTools.formUnion(tools.muted)
                 if let memory = try await self.store?.loadMemory() {
                     self.apply(.memoryLoaded(at: self.clock.now(), memory: memory), persistenceResult: true)
                 }
                 let calendar = self.dayCalendar, clock = self.clock
-                self.voice = Voice(runtime: self.voiceRuntime, store: self.store, localDay: { await MainActor.run { calendar.localDay(at: clock.now()) } })
+                self.voice = Voice(runtime: self.voiceRuntime, guide: .init(overrideURL: URL(fileURLWithPath: self.config.stateDir).appendingPathComponent("BEHAVIOR.md")), store: self.store, localDay: { await MainActor.run { calendar.localDay(at: clock.now()) } })
                 await self.store?.configureVoice(self.voice, language: self.state.language)
-                self.growth.store = self.store as? any GrowthStore
-                try await self.growth.loadIdentity()
                 try await self.refreshGrowth()
                 try await self.refreshVoiceContext()
             } catch { self.storeFailure(error) }
@@ -174,21 +97,13 @@ final class BuddyEngine {
         }
     }
 
-    /// Whether the 2s tick has anything to expire or recompute. Personality
-    /// widens this beyond sessions: transient windows (greet, mood, agent
-    /// lease) need their expiry tick, and a circadian-ready memory needs
-    /// ticks even while asleep so "expectant" can come and go with the hour.
+    /// Tick only while session or transient presentation timers need it.
     private func needsStaleTicks() -> Bool {
         !internalState.sessions.isEmpty
             || state.celebrateUntil != nil
             || state.affectionUntil != nil
             || state.greetUntil != nil
             || internalState.bubbleUntil != nil
-            || state.moodUntil != nil
-            || state.mood != nil
-            || state.agentOverlay != nil
-            || state.agentDrawingUntil != nil
-            || internalState.memory.circadianReady(at: clock.now())
     }
 
     func stop() {
@@ -286,16 +201,11 @@ final class BuddyEngine {
             }
         }
         let facts = extraction.facts
-        if !facts.isEmpty { factsRevision += 1 }
         let project = internalState.sessions[payload.sessionId]?.project ?? ThemeReader.project(cwd: payload.cwd)
         let day = localDay(at: payload.timestamp)
         enqueue { store in
             try await store.appendFacts(facts.map { StoredFact(fact: $0, sessionId: payload.sessionId, project: project, at: payload.timestamp, day: day) })
-            let tokens = facts.compactMap { fact -> LedgerRow? in
-                if case .tokens(let output) = fact { return LedgerRow(at: payload.timestamp, source: .tokens, amount: output, sessionId: payload.sessionId, day: day) }
-                return nil
-            }
-            if !tokens.isEmpty { let snapshot = try await store.award(tokens, active: false, at: payload.timestamp, localDay: day); if let snapshot { try await self.refreshGrowth(snapshot: snapshot) }; try await self.refreshVoiceContext() }
+
         }
         let runner = extraction.goalRunner ?? ""
         diagnosticLog.log(category: "hook", source: payload.source, event: payload.eventName.isEmpty ? payload.kind.rawValue : payload.eventName, detail: payload.toolName + (runner.isEmpty ? "" : " " + runner))
@@ -345,12 +255,6 @@ final class BuddyEngine {
             if !resolveApproval(requestId: requestId, decision: decision) {
                 diagnosticLog.log(category: "device", source: "esp32", event: "unknownDecision", detail: id)
             }
-        case .identity(let identity):
-            Task { do { try await acceptDeviceIdentity(identity); _ = try await signGrowth(); _ = try? await syncLeaderboard() } catch { storeFailure(error) } }
-        case .signature(let signature):
-            Task { do { try acceptSignature(signature) } catch { storeFailure(error) } }
-        case .quick: break // Legacy device command; no longer a user feature.
-        case .collect: collectArrived()
         case .boop: boop()
         case .posture(let posture): devicePostureArrived(posture)
         case .battery(let battery): deviceBatteryArrived(battery)
@@ -363,11 +267,7 @@ final class BuddyEngine {
     func firstCheer() {
         guard !defaults.bool(forKey: DefaultsKey.firstCheerShown) else { return }
         defaults.set(true, forKey: DefaultsKey.firstCheerShown)
-        apply(.onboardingCheer(at: clock.now(), line: BuddyCopy.phase7("firstOne", language: state.language)))
-    }
-    func dismissTeach(tool: String) async {
-        do { try await store?.muteTool(tool); mutedTools.insert(tool); if teachTool == tool { teachTool = nil } }
-        catch { storeFailure(error) }
+        apply(.onboardingCheer(at: clock.now()))
     }
     static func preview(state: BuddyState, defaults: UserDefaults) -> BuddyEngine {
         let engine = BuddyEngine(defaults: defaults)
@@ -377,26 +277,18 @@ final class BuddyEngine {
     func retire(sendToDevice: () -> Void = {}) async throws {
         guard !retiring else { return }
         retiring = true
-        growth.beginRetirement()
         await finishPendingWork()
-        await growth.drain()
-        defer { retiring = false; growth.endRetirement() }
+        defer { retiring = false }
         cancelVoiceGeneration()
-        await recapTask?.value
-        while activeRecaps > 0 { try? await Task.sleep(for: .milliseconds(10)) }
         try await store?.retire()
         resolveAllPendingApprovals(decision: .passthrough)
         sendToDevice()
         let previous = state
         for id in Array(internalState.sessions.keys) { cancelWatcher(sessionId: id); await extractor.drop(sessionId: id) }
-        internalState = .initial(staleMs: config.staleTimeoutMs, celebrateDurationMs: config.celebrateDurationMs, workStallTimeoutMs: config.workStallTimeoutMs, approvalTimeoutMs: config.approvalTimeoutMs)
+        internalState = .initial(staleMs: config.staleTimeoutMs, celebrateDurationMs: config.celebrateDurationMs, approvalTimeoutMs: config.approvalTimeoutMs)
         internalState.buddy.language = previous.language
         state = internalState.buddy
         cachedProfile = []; cachedTraits = [:]; contextLoaded = false; contextLoad = nil
-        claimedTools = []; mutedTools = []
-        teachTool = nil; recappedDays = []; recapFactsCache = nil; recapAttempt = nil; stopHourCache = nil
-        defaults.set(false, forKey: DefaultsKey.leaderboardOptIn)
-        defaults.removeObject(forKey: DefaultsKey.leaderboardFriends)
         defaults.removeObject(forKey: DefaultsKey.buddyName)
         defaults.removeObject(forKey: DefaultsKey.buddyNameLocked)
         defaults.removeObject(forKey: DefaultsKey.firstCheerShown)
@@ -429,7 +321,13 @@ final class BuddyEngine {
         defaults.removeObject(forKey: DefaultsKey.onboardingStep)
         setBoolSetting(DefaultsKey.setupCompleted, false)
     }
+    func acceptsBuddyApprovals(source: String) -> Bool {
+        config.approvalMode && ["claude-code", "cursor", "codex"].contains(source)
+            && (source != "codex" || boolSetting(DefaultsKey.codexApprovalMode, fallback: false))
+    }
+
     func setApprovalMode(_ enabled: Bool) {
+        config.approvalMode = enabled
         setBoolSetting(DefaultsKey.approvalMode, enabled)
         BuddyConfig.setApprovalMode(enabled)
         if !enabled { resolveAllPendingApprovals(decision: .passthrough) }
@@ -447,11 +345,9 @@ final class BuddyEngine {
     }
     func focusToggled(on: Bool) { setQuietMode(on) }
 
-    func collectArrived() {
-        apply(.collectArrived(at: clock.now()))
-    }
 
-    func nudgeDismissed() {
+    func nudgeDismissed(requestId: String? = nil) {
+        if let requestId, state.creature.card?.id != requestId { return }
         apply(.nudgeDismissed(at: clock.now()))
     }
 
@@ -483,83 +379,9 @@ final class BuddyEngine {
         }
     }
 
-    // MARK: - Agent Expression API (System E)
-
-    /// What happened to an agent's expression attempt — also the source of the
-    /// tool-result feedback strings, which teach pacing better than any
-    /// upfront instruction.
-    enum AgentExpressOutcome: Equatable {
-        case shown
-        /// An approval/prompt is pending somewhere (S1). Deferred, not queued.
-        case suppressed
-        case rateLimited(retryAfterMs: Double)
-    }
+    // MARK: - Persisted memory
 
     var petMemory: PetMemory { internalState.memory }
-
-    /// Resolve which session an MCP call belongs to: the most recently active
-    /// session from that agent. Static per-agent MCP configs can't carry a
-    /// per-session id, and a self-reported session parameter would be
-    /// spoofable (S7) — so identity comes from the connection and the mapping
-    /// stays server-side.
-    private func mostRecentSession(source: String) -> String? {
-        internalState.sessions
-            .filter { $0.value.source == source }
-            .max(by: { $0.value.lastActivityAt < $1.value.lastActivityAt })?
-            .key
-    }
-
-    /// Agent difficulty self-report. Returns false when the agent has no live
-    /// session to attach it to.
-    @discardableResult
-    func reportEffort(agentId: String, level: EffortTier) -> Bool {
-        guard let sessionId = mostRecentSession(source: agentId) else { return false }
-        apply(.effortReported(at: clock.now(), sessionId: sessionId, level: level))
-        return true
-    }
-
-    func agentIntroduce(agentId: String, color: String?, signatureEmote: String?, greeting: String?) {
-        apply(.agentIntroduced(at: clock.now(), agentId: agentId, color: color, signatureEmote: signatureEmote, greeting: greeting))
-    }
-
-    /// Validation of enums/caps happened at the MCP layer (S4/S5); this
-    /// enforces suppression (S1) and the per-agent rate floor (S6). The
-    /// reducer re-checks S1 — a prompt can land between check and apply.
-    func agentExpress(agentId: String, emotion: String, intensity: String, motion: String?, say: String?, delivery: String?) -> AgentExpressOutcome {
-        let now = clock.now()
-        if internalState.sessions.values.contains(where: { $0.prompt != nil }) {
-            return .suppressed
-        }
-        if let last = lastExpressAt[agentId], now - last < PetTuning.agentExpressMinGapMs {
-            return .rateLimited(retryAfterMs: PetTuning.agentExpressMinGapMs - (now - last))
-        }
-        lastExpressAt[agentId] = now
-        apply(.agentExpressed(at: now, agentId: agentId, emotion: emotion, intensity: intensity, motion: motion, say: say, delivery: delivery))
-        return .shown
-    }
-
-    enum AgentDrawOutcome: Equatable {
-        /// The pet is holding the drawing up now.
-        case shown
-        /// Kept as a keepsake but not displayed — an approval is pending
-        /// (S1). A parting gift is never lost to timing.
-        case kept
-        case rateLimited(retryAfterMs: Double)
-    }
-
-    /// Row shape and palette digits were validated at the MCP layer; this
-    /// enforces the one-per-visit floor and reports whether the drawing was
-    /// displayed or quietly shelved.
-    func agentDraw(agentId: String, rows: [String], caption: String?) -> AgentDrawOutcome {
-        let now = clock.now()
-        if let last = lastDrewAt[agentId], now - last < PetTuning.agentDrawMinGapMs {
-            return .rateLimited(retryAfterMs: PetTuning.agentDrawMinGapMs - (now - last))
-        }
-        lastDrewAt[agentId] = now
-        let promptPending = internalState.sessions.values.contains { $0.prompt != nil }
-        apply(.agentDrew(at: now, agentId: agentId, rows: rows, caption: caption))
-        return promptPending ? .kept : .shown
-    }
 
     // MARK: - Approval API
 
@@ -692,13 +514,6 @@ final class BuddyEngine {
     private func apply(_ event: BuddyEvent, persistenceResult: Bool = false) {
         guard !retiring else { return }
         if loadingStore && !persistenceResult { deferredEvents.append(event); return }
-        if case .toolCalled(_, _, _, let tool, _, _) = event, !mutedTools.contains(tool), claimedTools.insert(tool).inserted {
-            enqueue { store in
-                if try await store.claimTool(tool), !self.mutedTools.contains(tool), TeachCatalog.line(tool: tool, language: self.state.language) != nil {
-                    self.teachTool = tool
-                }
-            }
-        }
         let prev = state
         let previousPromptIds = Self.promptIds(in: internalState)
         var next = reduce(internalState, event, localHour: dayCalendar.localHour(at: event.at))
@@ -712,7 +527,6 @@ final class BuddyEngine {
         internalState = next
         state = next.buddy
         if memoryChanged {
-            stopHourCache = nil
             if !persistenceResult {
                 // SQLite is the sole persistence path; an unstarted engine without a store is memory-only.
                 enqueue { try await $0.saveMemory(next.memory) }
@@ -762,7 +576,6 @@ final class BuddyEngine {
     }
     private func persist(awards: [XPAward], facts: [PendingFact]) {
         guard !awards.isEmpty || !facts.isEmpty else { return }
-        if !facts.isEmpty { factsRevision += 1 }
         let storedFacts = facts.map { StoredFact(fact: $0.fact, sessionId: $0.sessionId, project: $0.project, at: $0.at, day: localDay(at: $0.at)) }
         for award in awards where award.active && !award.sessionId.isEmpty { lastSessionActivity = award.at }
         enqueue { store in
@@ -770,7 +583,6 @@ final class BuddyEngine {
             for award in awards {
                 let day = self.localDay(at: award.at)
                 if let cheer = award.cheer { try await store.recordCheer(cheer) }
-                if award.collected || award.greet { try await store.bond(collected: award.collected, greetAfterAbsence: award.greet, localDay: day) }
                 let rows = award.sources.map { LedgerRow(at: award.at, source: $0, sessionId: award.sessionId, day: day) }
                 if award.active || !rows.isEmpty {
                     let snapshot = try await store.award(rows, active: award.active, at: award.at, localDay: day)
@@ -781,24 +593,24 @@ final class BuddyEngine {
         }
     }
     private var reflectedDays: Set<String> = []
+    // Opportunities, not a speech quota. The model can choose silence every time.
+    static let behaviorCheckMs: Double = 300_000
+    private var lastBehaviorCheck: Double?
     private var maintenanceDay: String?
     func maintenance() {
-        if growth.shouldMaintain() {
-            Task { do { try await growth.maintain() } catch { storeFailure(error) } }
-        }
         let now = clock.now(), day = localDay(at: clock.now())
+        if lastBehaviorCheck == nil { lastBehaviorCheck = now }
+        if now - (lastBehaviorCheck ?? now) >= Self.behaviorCheckMs {
+            lastBehaviorCheck = now
+            if state.creature.card == nil, state.prompt == nil,
+               state.creature.bubble == nil, state.creature.overlay == nil,
+               state.creature.state == .idle || state.creature.state == .working {
+                requestVoice(.periodic, kind: .bubble)
+            }
+        }
         if maintenanceDay != day {
             maintenanceDay = day
             enqueue { try await $0.prune(now: now, localDay: day) }
-        }
-        if dayCalendar.localHour(at: now) >= usualStopHour(at: now),
-           [.idle, .asleep].contains(state.creature.state), !recappedDays.contains(day), recapTask == nil,
-           recapAttempt?.day != day || now - (recapAttempt?.at ?? 0) >= 300_000 {
-            recapTask = Task { [weak self] in
-                guard let self else { return }
-                defer { self.recapTask = nil }
-                do { _ = try await self.makeRecap(force: false) } catch { self.storeFailure(error) }
-            }
         }
         if now - (lastSessionActivity ?? now) >= 1_200_000 && onACPower() {
             let target = dayCalendar.previousDay(at: now)
@@ -834,6 +646,7 @@ final class BuddyEngine {
     private func refreshVoiceContext() async throws {
         cachedProfile = try await store?.profile() ?? []
         cachedTraits = try await store?.traits() ?? [:]
+        cachedMoments = try await store?.recentBehaviorMoments() ?? []
         contextLoaded = true
     }
     private func ensureVoiceContext() async throws {
@@ -859,107 +672,62 @@ final class BuddyEngine {
         cancelVoiceGeneration()
         voiceRuntime = VoiceRuntimes.make(setting: setting)
         let calendar = dayCalendar, clock = clock
-        voice = Voice(runtime: voiceRuntime, store: store, localDay: { await MainActor.run { calendar.localDay(at: clock.now()) } })
+        voice = Voice(runtime: voiceRuntime, guide: .init(overrideURL: URL(fileURLWithPath: config.stateDir).appendingPathComponent("BEHAVIOR.md")), store: store, localDay: { await MainActor.run { calendar.localDay(at: clock.now()) } })
         await store?.configureVoice(voice, language: state.language)
     }
+    /// Called by the edit action, never during startup or test construction.
+    func editableBehaviorGuide() throws -> URL {
+        let url = URL(fileURLWithPath: stateDir).appendingPathComponent("BEHAVIOR.md")
+        if !FileManager.default.fileExists(atPath: url.path) {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(BuddyBehaviorGuide().read().utf8).write(to: url, options: .withoutOverwriting)
+        }
+        return url
+    }
+
     private func voiceRequest(_ occasion: Occasion, cap: Int) async -> VoiceRequest {
         await flushStore()
         try? await ensureVoiceContext()
-        let source = state.lastCompleted?.source
+        let source = state.lastCompleted?.source ?? state.activeSessions.first?.source
         let agent = source.flatMap { ["codex", "claude-code", "cursor"].contains($0) ? $0 : nil }
         return VoiceRequest(occasion: occasion, profile: Array(cachedProfile.prefix(3).map(\.line)), traits: cachedTraits,
-            agent: agent, timeOfDay: TimeOfDay(hour: dayCalendar.localHour(at: clock.now())), language: state.language, byteCap: cap)
+            agent: agent, timeOfDay: TimeOfDay(hour: dayCalendar.localHour(at: clock.now())), language: state.language, byteCap: cap,
+            growth: state.growth,
+            memory: BehaviorMemory(memory: internalState.memory, moments: cachedMoments, at: clock.now()),
+            state: state.creature.state, sessionCount: state.sessions.total,
+            effort: state.creature.effort, lastCompletedTaskDurationMs: state.lastTaskDurationMs)
     }
     private func scheduleVoice(previous: BuddyState, event: BuddyEvent) {
-        switch event { case .onboardingCheer, .voiceLine, .recapReady, .growthUpdated, .languageChanged: return; default: break }
+        switch event { case .onboardingCheer, .voiceLine, .growthUpdated, .languageChanged: return; default: break }
         // Invalidate transient text on a new interaction; an old model reply must not cover a card.
         if previous.creature.state != state.creature.state || previous.creature.card?.id != state.creature.card?.id {
             transientVoice.cancel(.bubble)
         }
-        if previous.creature.gift && !state.creature.gift { transientVoice.cancel(.gift) }
-        if state.lastCompletionAt != previous.lastCompletionAt, state.lastCompletionAt != nil {
-            requestVoice(.cheer(state.creature.moment, internalState.doneSize ?? .hop, state.creature.moment?.facts["runner"]), kind: .gift)
-        }
-        if let kind = state.creature.uhoh, kind != previous.creature.uhoh || state.creature.moment != previous.creature.moment {
-            requestVoice(.uhoh(kind, kind == .hungry && state.creature.moment?.kind == .nthRateLimit ? state.creature.moment : nil), kind: .bubble)
+        guard state.creature.card == nil, state.prompt == nil else { return }
+        if let kind = state.creature.uhoh, kind != previous.creature.uhoh {
+            requestVoice(.uhoh(kind), kind: .bubble)
+        } else if previous.creature.state == .done, state.creature.state == .idle, state.lastCompletionAt != nil {
+            requestVoice(.completed, kind: .bubble)
         } else if state.greetUntil != previous.greetUntil, state.greetUntil != nil, state.creature.card == nil {
             requestVoice(.greet(state.greetLevel ?? 1), kind: .bubble)
         }
     }
     private func cancelVoiceGeneration() {
         transientVoice.cancelAll()
-        recapTask?.cancel()
     }
 
     private func requestVoice(_ occasion: Occasion, kind: VoiceLineKind) {
+        lastBehaviorCheck = clock.now()
         transientVoice.replace(kind, produce: { [weak self] in
             guard let self else { return nil }
-            let request = await self.voiceRequest(occasion, cap: kind == .gift ? VoiceCap.gift.rawValue : VoiceCap.bubble.rawValue)
+            let request = await self.voiceRequest(occasion, cap: VoiceCap.bubble.rawValue)
             guard !Task.isCancelled else { return nil }
             return await self.voice.line(for: request).text
         }, deliver: { [weak self] text in
-            guard let self, kind == .gift || self.state.creature.card == nil else { return }
+            guard let self, self.state.creature.card == nil else { return }
             self.apply(.voiceLine(at: self.clock.now(), kind: kind, text: text))
         })
     }
-    /// The legacy histogram is UTC. Convert bins before finding the end of the
-    /// owner's evening activity; sparse/unknown histories use 18:00 local.
-    func usualStopHour(at: Double) -> Int {
-        let day = localDay(at: at)
-        if let cached = stopHourCache, cached.day == day { return cached.hour }
-        let hour = computeUsualStopHour(at: at)
-        stopHourCache = (day, hour)
-        return hour
-    }
-    private func computeUsualStopHour(at: Double) -> Int {
-        let memory = internalState.memory
-        guard memory.circadianReady(at: at) else { return 18 }
-        let utcHour = PetMemory.utcHour(ofMs: at)
-        let offset = dayCalendar.localHour(at: at) - utcHour
-        let active = Set((0..<24).filter { memory.isTypicalHour($0) }.map { ($0 + offset + 24) % 24 })
-        // Find the end of the longest typical activity block, including one
-        // crossing midnight. A histogram has no explicit sign-off event.
-        let stops = (0..<24).filter { !active.contains($0) && active.contains(($0 + 23) % 24) }
-        func runLength(endingAt hour: Int) -> Int {
-            var length = 0
-            while length < 24 && active.contains((hour - length - 1 + 48) % 24) { length += 1 }
-            return length
-        }
-        return stops.sorted {
-            let a = runLength(endingAt: $0), b = runLength(endingAt: $1)
-            return a == b ? abs($0 - 18) < abs($1 - 18) : a > b
-        }.first ?? 18
-    }
-    func makeRecap(force: Bool = true) async throws -> Recap? {
-        guard !retiring else { return nil }
-        activeRecaps += 1
-        defer { activeRecaps -= 1 }
-        await flushStore()
-        let day = localDay(at: clock.now())
-        let revision = factsRevision
-        recapAttempt = (day, revision, clock.now())
-        let savedDay = try await store?.recapDay()
-        if !force, recappedDays.contains(day) || savedDay == day { recappedDays.insert(day); return state.recap }
-        let facts: [StoredFact]
-        if let cached = recapFactsCache, cached.day == day, cached.revision == revision { facts = cached.facts }
-        else {
-            facts = try await store?.facts(localDay: day) ?? []
-            recapFactsCache = (day, revision, facts)
-        }
-        guard force || !facts.isEmpty else { return nil }
-        let recapFacts = RecapFacts.build(facts)
-        let request = await voiceRequest(.recap(recapFacts), cap: VoiceCap.bubble.rawValue)
-        var appRequest = request; appRequest.byteCap = VoiceCap.paragraph.rawValue
-        async let device = voice.line(for: request)
-        async let paragraph = voice.line(for: appRequest)
-        let recap = await Recap(line: device.text, paragraph: paragraph.text, turns: recapFacts.turns, tasks: recapFacts.tasks, biggest: recapFacts.biggestMoment?.rawValue ?? "—")
-        guard !Task.isCancelled, !retiring else { return nil }
-        recappedDays.insert(day); try await store?.markRecapDay(day)
-        // A request may arrive during generation: retain the app recap, but do not cover it.
-        apply(.recapReady(at: clock.now(), recap: recap))
-        return recap
-    }
-
     private static func promptIds(in state: InternalState) -> Set<String> {
         Set(state.sessions.values.compactMap { $0.prompt?.id })
     }

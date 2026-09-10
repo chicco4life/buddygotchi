@@ -35,7 +35,6 @@ actor SuspendedFactStore: EngineStore {
     func growth(localDay: String, at: Double) async throws -> GrowthSnapshot { try await base.growth(localDay: localDay, at: at) }
     func cosmetic() async throws -> EquippedCosmetic { try await base.cosmetic() }
     func recordCheer(_ size: CheerSize) async throws { try await base.recordCheer(size) }
-    func bond(collected: Bool, greetAfterAbsence: Bool, localDay: String) async throws { try await base.bond(collected: collected, greetAfterAbsence: greetAfterAbsence, localDay: localDay) }
     func prune(now: Double, localDay: String) async throws { try await base.prune(now: now, localDay: localDay) }
     func reflect(localDay: String, at: Double) async throws -> [ProfileLine] { try await base.reflect(localDay: localDay, at: at) }
     func profile() async throws -> [ProfileLine] { try await base.profile() }
@@ -49,9 +48,6 @@ actor SuspendedFactStore: EngineStore {
 actor CountingVoiceStore: EngineStore {
     let base: Store
     private(set) var toolClaims: [String] = []
-    func toolPreferences() async throws -> ToolPreferences { try await base.toolPreferences() }
-    func claimTool(_ tool: String) async throws -> Bool { toolClaims.append(tool); return try await base.claimTool(tool) }
-    func muteTool(_ tool: String) async throws { try await base.muteTool(tool) }
     private(set) var exclusionReads = 0
     private(set) var dayFactReads = 0
     private(set) var recapChecks = 0
@@ -72,7 +68,6 @@ actor CountingVoiceStore: EngineStore {
         dayFactReads += 1
         return try await base.facts(localDay: localDay)
     }
-    func recapDay() async throws -> String? { recapChecks += 1; return try await base.recapDay() }
     func traits() async throws -> Traits { traitReads += 1; return try await base.traits() }
     func migrate() async throws { try await base.migrate() }
     func loadMemory() async throws -> PetMemory? { try await base.loadMemory() }
@@ -82,7 +77,6 @@ actor CountingVoiceStore: EngineStore {
     func growth(localDay: String, at: Double) async throws -> GrowthSnapshot { try await base.growth(localDay: localDay, at: at) }
     func cosmetic() async throws -> EquippedCosmetic { try await base.cosmetic() }
     func recordCheer(_ size: CheerSize) async throws { try await base.recordCheer(size) }
-    func bond(collected: Bool, greetAfterAbsence: Bool, localDay: String) async throws { try await base.bond(collected: collected, greetAfterAbsence: greetAfterAbsence, localDay: localDay) }
     func prune(now: Double, localDay: String) async throws { try await base.prune(now: now, localDay: localDay) }
     func reflect(localDay: String, at: Double) async throws -> [ProfileLine] { try await base.reflect(localDay: localDay, at: at) }
     func profile() async throws -> [ProfileLine] { profileReads += 1; return try await base.profile() }

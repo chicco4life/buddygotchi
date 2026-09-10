@@ -1,248 +1,15 @@
-# UX: The Device
+# UX: The device
 
-## Settings policy revision — 2026-09-10
+The physical face shows the six states in [Component behaviors](BEHAVIORS.md).
+That catalog owns state triggers, duration tiers, folding and the nudge schedule;
+this reference owns visual presentation and interaction. Approvals stay in the
+editor by default. Actionable Buddy cards require explicit opt-in; passive
+attention cards have no approval buttons. [Wire](WIRE-V2.md) defines transport.
 
-The companion app selects default appearance and volume step 1 automatically. Quiet mode mutes audio only. Legacy quick gestures have no host action; Settings exposes no retirement action.
-
-Status: second draft, 2026-09-08. Refines `VISION.md` for the physical buddy.
-Hardware is not decided, so this is written against a face canvas and an
-input inventory, not a board.
-
-Part I walks through the flows that matter. Part II is the reference for
-the parts those flows are built from. If Part II ever needs something Part I
-does not use, cut it from Part II.
-
----
-
-## 0. The whole vocabulary on one card
-
-Everything the device can do. If a feature does not fit here, it does not
-ship.
-
-| | |
-| --- | --- |
-| **States** (6) | Asleep · Idle · Working · Needs you · Done · Uh-oh |
-| **Overlays** (2) | Greet · Boop |
-| **Cheer sizes** (3) | Hop · Cheer · Dance |
-| **Buttons** (2) | Primary = yes, boop · Secondary = no, look |
-| **Motion** (3) | Poke/pet, shake, flip |
-| **Surfaces** (3) | Face · One card · One bubble |
-| **Postures** (3) | Desk · Perch · Travel |
-| **Sounds** (7) | One motif per state that has one, plus the boop giggle |
-
-The design rule behind the small set: **idle is simple, need is loud.** At
-rest the buddy is one shape bobbing on a dark field. As the situation gets
-more important the device adds layers in a fixed order: color, then motion,
-then sound, then the card. Nothing skips a layer, and nothing uses a layer it
-has not earned. A user can learn this in a day, and a developer can hold it
-in their head.
-
-| Layer | Idle | Working | Done | Needs you |
-| --- | --- | --- | --- | --- |
-| Color | dark | dark | green ripple | amber |
-| Motion | bob | lean in, effort | hop / cheer / dance | turns to you, leans forward |
-| Sound | none | none | blip / chirp / fanfare | "meep?" |
-| Card | none | none | none (bubble on collect) | yes |
-
----
-
-# Part I: Flows
-
-## 1. Onboarding
-
-Goal: from box to a named buddy that has cheered once, in under five
-minutes, with the device doing something delightful at every step so the
-setup never feels like setup.
-
-| Step | On the device | In the app | What the user does |
-| --- | --- | --- | --- |
-| 1. Unbox | Dark. The buddy is asleep in the box. | | Lifts it out, presses the primary button. |
-| 2. First wake | A dim, grey sleeping face fades in, breathing. It stirs. One eye opens, then the other. Two blinks. It sees you: eyes go wide, a squish, a big smile. Then it notices a small Bluetooth mark pulsing softly in one corner and looks at it, curious. Glances back at you, then at the mark again. About five seconds, skippable. | | Watches. This is the unboxing moment and must feel hand-finished. |
-| 3. Pair | The buddy keeps glancing between you and the mark, hopeful. When the app finds it, the mark brightens to solid and the buddy hops: it noticed you. If the OS needs a pairing code it appears in the one card, and the buddy peeks at it too. | Installs, opens, finds the buddy, shows the same grey face on screen. | Confirms pairing. |
-| 4. Connect an agent | Still grey, watching the app, curious. | One click per agent: Claude Code, Codex, Cursor. Each success gets a tiny hop on the device. | Clicks. |
-| 5. First signal | The moment the first real agent event arrives, color arrives with it: a shimmer runs across the body and the buddy takes its first color. It has been alive since the box; now the agent has moved in. This is the moment the product is about. | "Heard from Claude Code!" | Runs anything in their agent. |
-| 6. Name | Buddy shows its name in a bubble with a proud pose, once. | Name field. | Types a name. It is permanent. |
-| 7. First cheer | The first completed turn gets a Cheer regardless of size, and a gold orb appears. Tap to collect; bubble: "first one." | Mirrors it. | Taps the primary button. Now they know the loop. |
-
-Rules:
-
-- No step shows a technical word on the device. Pairing is "it noticed
-  you." Hooks are "connect." The Bluetooth mark is the one technical symbol
-  allowed on the face, and only while unpaired.
-- If pairing fails, the buddy just keeps glancing at the mark. The app
-  explains; the device never does.
-- The buddy is grey from first wake until the first agent signal. Color is
-  the reward for connecting, and it is what makes step 5 land.
-- The first cheer is deliberately oversized so the loop is taught by doing
-  it once.
-
-## 2. Boot up and shut down
-
-The buddy is a creature, so power states are sleep states. It never shows a
-boot screen or a shutdown message.
-
-**Waking**
-
-- Primary tap from off: eyes open, a stretch, then straight into whatever
-  state the app sends. If the app is not there yet, idle with an occasional
-  glance at the corner.
-- Wake after a long time off: the Greet overlay (Part II §14), sized to the
-  gap. Hours: a yawn. A day: "missed you" bubble and a squish. A week or
-  more: the big version with mini hearts, and capped there.
-
-**Going to sleep**
-
-- Owner's usual stop hour passes with no agents: one bubble with the day's
-  recap line from the app ("good day. 14 done."), then the buddy yawns,
-  curls, and sleeps.
-- Unplugged and pocketed: after thirty seconds still and dark, sleep.
-- Flipped face-down: nap immediately. Flip back to wake.
-- **Asleep is an animation, not a power state.** The sleeping face stays on
-  at the lowest brightness, breathing slowly, with the occasional twitch.
-  The buddy never turns its own screen off and never powers itself down.
-  Only the shutdown hold does that. A sleeping buddy on a desk at night
-  should look like a sleeping creature, not a dead gadget. The hardware
-  document must budget for an all-night dim sleep frame on battery.
-
-**Shutting down**
-
-- Hold the secondary button. At one second the screen dims and the buddy
-  closes one eye. Keep holding to three seconds: "night night" bubble, eyes
-  close, screen off. Letting go early cancels with a blink.
-- The staged hold is the only destructive gesture on the device, and it is
-  the only one that requires visible commitment.
-- Waking from shutdown is a tap. Everything the buddy knows is on the Mac,
-  so a dead battery loses nothing but a nap.
-
-**Charging**
-
-- Plugging in: a small contented wiggle. A charge mark sits in one corner
-  while the screen is on. Nothing else changes.
-
-## 3. One agent: working, needs you, done
-
-The core loop. Written as a timeline of one real task.
-
-**3.1 Working**
-
-The agent starts a turn. The buddy sits up from idle, looks down and a little
-away as if at the work, and starts a slow lean-in. Field stays dark. No
-sound. From across the room: "it's busy." If the agent introduces itself,
-its name shows in a bubble once, with a small nod. That is the only time an
-agent's name appears on the device.
-
-As the task goes on, effort shows. The app scores effort from elapsed time,
-retries, and errors, and the device renders it as a parameter:
-
-| Effort | What changes |
-| --- | --- |
-| light | The lean-in and a focused look |
-| hard | Brows furrow, a sweat drop appears |
-| grinding | Sweat plus a small tremble, and the buddy grips the edge in perch |
-
-That is the whole range. Working is where the buddy spends most of the day,
-so it must be pleasant to have in the corner of your eye for an hour: slow,
-breathing, never busy-looking in the fidgety sense.
-
-**3.2 Needs you**
-
-The agent asks for permission or a decision. This is the loudest the device
-ever gets, and it gets there in the fixed layer order within half a second:
-
-1. **Color.** Field goes amber.
-2. **Motion.** The buddy turns to face you and leans forward, eyes wide.
-3. **Sound.** One rising "meep?"
-4. **Card.** Slides up over the lower canvas, eyes still visible above it:
-
-   ```
-   ● Bash                          Hold 2s: yes
-   Deletes files in this folder        Side: no
-   ```
-
-   Line one is the tool in plain words. Line two is the app's plain-English
-   gloss. A stakes mark beside the tool is calm, amber, or red.
-
-You decide:
-
-- Tap primary: approve. Hold primary one second: deny.
-- A red-dot prompt needs a two-second hold to approve, and the card has to
-  be on screen for 600 ms before it arms. A tap just gets a small head
-  shake.
-- On press the card shows "sending…", then "yes!" or "okay" when the app
-  confirms. "no link?" after three seconds without confirmation. A press
-  never claims a delivery that did not happen.
-
-If you do not decide, the buddy waits patiently. Three minutes later, one
-soft "meep?" and a small lean. A red-dot prompt may buzz once more after
-that. Nothing else, ever, and nothing at all during focus time. Each time
-you dismiss without deciding, the next nudge is half as loud.
-
-The moment the decision lands the card slides away, the field fades to
-dark, and the buddy turns back to the work. Back to 3.1.
-
-**3.3 Done**
-
-The turn completes. The app picks a cheer size from the story it knows:
-
-| Size | When | What happens |
-| --- | --- | --- |
-| **Hop** | A normal completion | Hop, arc eyes, one bright blip, faint green ripple. 1.5 s. |
-| **Cheer** | Real effort: a long turn, retries, an error along the way | Hop and spin, confetti, two-note chirp, green ripple. 2.5 s. |
-| **Dance** | Hard-won: many retries, a red streak ending, a long struggle | The full dance, confetti burst, blush, short fanfare. 4 s. |
-
-Then, whatever the size, a small gold orb settles beside the face and
-twinkles, and the buddy returns to idle with a faintly expectant look. From
-across the room: "something finished." That is the come-back call. It stays
-until you tap the primary button: the orb pops, the buddy giggle-squishes,
-and the bubble shows the story line for four seconds:
-
-- "ten tries. nice job on the tests."
-- "green at last."
-- "done: landing page copy."
-
-Most completions in a day are Hops. A few are Cheers. A Dance is rare and
-earned, so it still lands the fortieth time.
-
-**3.4 When it goes wrong**
-
-One state covers every kind of bad news, so the user learns one shape:
-**Uh-oh.** Field dim red and breathing, buddy slumps, eyes down, one low
-note. What differs is the bubble:
-
-- A failed turn or broken build: "build failed."
-- The app thinks the agent is looping: "might be going in circles."
-- A rate limit: "hungry. back at 3:40."
-
-Any button clears the bubble. The state clears on the next good signal.
-The buddy is sad about the work. It never looks at you.
-
-## 4. Several agents: the same flow
-
-The rule from the vision: one creature. Three agents running is still one
-buddy, and the flow above is unchanged. What adds is small and ambient.
-
-**Working, several.** No session dots are shown. Effort is the highest of
-any session; count does not change the face.
-
-**Needs you, several.** Prompts queue oldest first. The card shows a small
-"1 of 3" in its corner. Deciding one slides the next in. Nothing else
-changes; it is still one card, one decision at a time, the same buttons.
-
-**Done, several.** Completions do not stack up cheers. If two land within a
-few seconds, the bigger one plays and the other is folded into it. One gold
-orb, always. The bubble on collect lists the latest story line and a count if
-there was more than one: "done: landing page copy · +1."
-
-**Uh-oh, several.** One session failing while others work: the buddy shows
-Uh-oh for a moment, then returns to Working. No per-session marker is shown.
-
-What we deliberately do not do: split the face, show a list, show names on
-the face, or make the buddy busier because more agents are busy. The app has
-the per-session view for anyone who wants it.
-
----
-
-# Part II: Reference
+Boot, shutdown and early flow studies remain in [device history](UX-DEVICE-HISTORY.md)
+for hardware reference; retired features there are not current requirements.
+The dimensions and timings below are visual targets; see [Plan](PLAN.md) for
+physical verification status.
 
 ## 5. What this assumes
 
@@ -318,28 +85,21 @@ sleeper gets the one-eye peek, not hearts), never on needs you or uh-oh:
 | **Greet** | Link after time away | Squish and bounce, scaled to absence; bubble at a day or more |
 | **Boop** | Primary tap or pet with nothing pending | Squish, blush, mini hearts while held; giggle blip |
 
-Motion reactions in any state: shake gives three seconds of X-eyed wobble,
+Motion reactions in any state: shake gives three seconds of small-eye wobble,
 flip face-down naps. Both are suppressed while a prompt is on screen.
 
 There is no separate thinking, stuck, hungry, focus, or link-lost state.
-Thinking is Working. Stuck and hungry are Uh-oh with a bubble. Focus is a
-small mark in one corner. Link lost is Idle glancing at a dim Bluetooth
+Thinking and silence remain Working until an explicit lifecycle signal.
+Uh-oh is reserved for explicit errors. Quiet mode has no visual marker. Link lost is Idle glancing at a dim Bluetooth
 mark in the corner, then Travel. Unpaired is the same mark, pulsing, with
 the buddy looking at it hopefully.
 
-## 9. The cheer and the gift
+## 9. The cheer
 
-Sizes and triggers are in Part I §3.3. Manners:
-
-- No cheer sound twice within ten seconds; the second plays silent.
-- A cheer never plays over Needs you or Uh-oh. It waits, or is folded into
-  the next.
-- No on-screen cue for an uncollected gift (owner decision 2026-09-09).
-  The gift waits silently; newer replaces older; it survives dim and
-  sleep, not reboot. The app shows the orb.
-- Collect is primary tap when nothing else is pending. Bubble for four
-  seconds with the story line from the app. The device never composes
-  text.
+Sizes and triggers follow [duration tiers](BEHAVIORS.md#3-effort-and-celebrations). No cheer sound twice within ten seconds;
+the second is silent. Needs you and Uh-oh take priority; the cheer timer keeps
+running while hidden and there is no guaranteed replay. Nearby completions
+fold within 3 s. No gift or collection remains. Optional model dialogue is considered after the celebration returns to idle.
 
 ## 10. The card
 
@@ -378,12 +138,11 @@ Nudge ladder, chosen by the app, rendered by the device:
 | Rung | Default | Device |
 | --- | --- | --- |
 | 0 | On arrival | Amber, turn, one "meep?" |
-| 1 | Three minutes | One soft "meep?", small lean |
-| 2 | Red dot only, rate-limited | Stronger sound, brief field pulse |
-| Focus | Declared | Rung 0 only, silent |
+| 1 | 60 seconds | One soft "meep?", small lean |
+| 2 | 120 seconds, every stakes level | Stronger sound, brief field pulse |
+| Quiet mode | Enabled | All sounds muted; visual rungs and timing unchanged |
 
-Dismissal halves the next rung. Three in a row auto-snoozes the class:
-bubble "okay, I'll hush about that."
+Dismissal resets the rung and snoozes this request only. No generated hush line.
 
 ## 11. Postures
 
@@ -415,13 +174,13 @@ posture; never flicker.
 
 | | Tap | Double tap | Hold |
 | --- | --- | --- | --- |
-| **Primary** | Yes: approve → collect → clear Uh-oh bubble → boop | Quick command (connected) · stats (travel) | Deny (1 s, armed prompt) · approve red dot (2 s) · pet (otherwise) |
-| **Secondary** | No: deny → dismiss → next stats card → "hmph" flick | | Focus toggle (1 s) · shutdown ladder (3 s) |
+| **Primary** | Yes: approve → clear bubble → boop | Boop (connected) · stats (travel) | Deny (1 s, armed prompt) · approve red dot (2 s) · pet (otherwise) |
+| **Secondary** | No: deny → dismiss → next stats card → "hmph" flick | | Quiet mode toggle (1 s) · shutdown ladder (3 s) |
 
-Primary tap resolves first match: armed prompt → gift → Uh-oh bubble →
+Primary tap resolves first match: armed prompt → bubble →
 boop. "Primary means yes" stays one verb.
 
-Without a secondary button: deny stays on primary hold, focus is a triple
+Without a secondary button: deny stays on primary hold, Quiet mode is a triple
 tap, stats page by repeated double tap, shutdown is a long primary hold with
 the same staged feedback.
 
@@ -431,7 +190,7 @@ Two cards, summoned by double tap or the secondary button, auto-dismiss in
 ten seconds. Big type, one fact per line, no charts, safe to show anyone.
 
 1. **The buddy.** Name, level, XP bar, streak with a small flame. The buddy
-   stands beside it in its cosmetics and strikes a proud pose.
+   stands beside it with its fixed appearance and strikes a proud pose.
 2. **Together.** Days together, tasks done, biggest cheer, today's tally
    from the last sync (dated if older than a day).
 
@@ -447,27 +206,19 @@ the snapshot as three lines in proportional type: the name (medium), then
 `Level 4 · 7-day streak`, then the XP bar: a thin track with a filled
 rounded bar in `GREEN` on a pure grey `animRGB(146,146,146)` track,
 with `320 / 500` right-aligned above it. All stats text uses eye ink.
-Page two: `12 days together`, `84 tasks`, the biggest moment in the
-buddy's words, `today: 6`. Numbers are formatted with the app's
+Page two: `12 days together`, `84 tasks`, the largest celebration from the last snapshot, `today: 6`. Numbers are formatted with the app's
 localizer; the device never composes sentences.
 
 ## 14. Rituals
 
-- **First wake.** Part I §1. Asleep in the box, wakes, sees you, notices
-  the Bluetooth mark; grey until the first agent signal brings color.
-- **Greet.** Under an hour, a glance and smile. Hours, a stretch and yawn.
-  A day, squish and "missed you." A week or more, the big version. Capped.
-- **Level up.** A soft light sweeps across the eyes over 900 ms (never a
-  bar through the face) and the whole field mixes toward the skin tint
-  over 300 ms, then back over 300 ms, once;
-  cosmetic reveal if any; one bubble with the level.
-- **Streak milestone.** A flame pulse and a bubble. Never a reminder, never
-  a comment when a streak breaks beyond a shrug.
-- **Retire.** From the app. Slow fade to dark with a single blink.
+First wake and greeting are deterministic physical animations. The model chooses
+any greeting text. Level-up light sweeps and streak pulses remain visual feedback;
+there are no cosmetic unlocks or newly created milestone keepsakes. Retirement
+is not exposed in Settings.
 
 ## 15. Sound
 
-Seven motifs and no more. Each under 700 ms, each
+Seven interaction/completion motifs plus the stronger nudge. Each under 700 ms, each
 tellable from the others across a room with eyes closed.
 
 | State | Motif |
@@ -480,10 +231,10 @@ tellable from the others across a room with eyes closed.
 | Greet | Cheerful two-note |
 | Boop | Soft giggle blip |
 
-Manners: never two sounds within a second; no cheer sound twice in ten
-seconds; three volume steps and mute, remembered on the device; **café
-rule**: at the lowest step, audible at arm's length and inaudible at the
-next table; silent in focus except rung 2 and Uh-oh; silent asleep.
+Manners: sounds are separated by at least a second; cheer sounds do not repeat
+within ten seconds. Normal volume is fixed at step 1. Quiet mode mutes every
+motif, including requests and errors. The stronger nudge uses an additional
+motif. Current Waveshare hardware has no speaker.
 
 ## 16. Text, priority, dim
 
@@ -492,10 +243,10 @@ next table; silent in focus except rung 2 and Uh-oh; silent asleep.
   line, two at most, four seconds or any button. The app truncates.
 - The device font must render launch languages including Korean legibly.
 - Screen priority, highest wins: system card → Needs you card → decision
-  feedback → Uh-oh bubble → stats → bubble → overlay → face and orb. Lower
+  feedback → Uh-oh bubble → stats → bubble → overlay → face. Lower
   layers keep simulating.
 - Brightness: 210/255 awake, 255 with a card, 90 after two minutes with
-  no button and no agent activity (110 with an uncollected orb), 28
+  no button and no agent activity, 28
   asleep. The screen never turns itself off. A pending prompt never dims.
   A state change from the app counts as activity: a working buddy is
   never dim.
@@ -507,15 +258,10 @@ yawn, look slowly across the canvas, happy wiggle, one slow look at you,
 head tilt. Perch adds a slow dangle of the gaze; Travel adds looking around the
 room. Never within ten seconds of a real interaction.
 
-## 18. Cosmetics
+## 18. Appearance
 
-Colors and skins tint the field wash and the eye ink. Eye geometry never changes. Accessories are
-small silhouettes drawn in the eye ink above or beside the eyes (a crown
-sits above the gap between the eyes, a sprout leans from one side, a
-scarf is a soft band below the mouth), never over eyes or card, never
-outlined. Sounds swap the motif within the same manners. Silhouettes
-change eye spacing and size within the same eye anchor. All supported appearances
-and implemented behaviors are available at every XP level; see `UX-GROWTH.md`.
+Default skin, no accessory and default silhouette. Old saved choices remain
+inactive. XP does not unlock appearance or behavior.
 
 ## 20. Motion language
 
@@ -541,7 +287,7 @@ screen, nothing swarms, nothing spins.
 | --- | --- |
 | Blink | Lids close 110 ms every ~5 s. Unchanged. |
 | Idle | Slow bob (±3 px, 1.4 s), gaze drifts. Micro-idles are small: gaze lap ±20 px, wiggle ±6 px. |
-| Working | Reading: eyes narrow to 85% and the gaze hops between two spots low on the page (8 px left, 7 px right) every 1.6 s, eased, with a small lean; hard adds the brow and the sweat drop (one drop slides 18 px every 3 s); grinding adds a faint tremble (±1.5 px). The Mac creature does the same hop. |
+| Working | Reading: eyes narrow to 85% and the gaze hops between two spots low on the page (8 px left, 7 px right) every 1.6 s, eased, with a small lean; hard adds the brow and the sweat drop (one drop slides 18 px every 3 s); grinding adds a faint tremble (±1.5 px). |
 | Needs you | Eyes spring wide, tiny lean toward you. |
 | Boop (tap, pet) | Eyes squish to 60% height for 250 ms and spring back; blush; smile; **one heart**: it pops in 12 px above the gap between the eyes (scale 0→1 in 150 ms, 6% overshoot, radius 10, pink), floats up 24 px over 900 ms, shrinks away in the last 100 ms. One heart per boop; holding or petting adds none. |
 | Greet, level 1 | One slow blink and a smile. |
@@ -555,32 +301,4 @@ screen, nothing swarms, nothing spins.
 | Pick-up | Perk: eyes wide, lean back 8 px. Unchanged. |
 | Level up | Light sweep across the eyes, one soft field flash. |
 | Streak | The small flame pulses gently beside the face. |
-| Gift | Nothing on screen. Collect is the primary tap; the bubble tells the story. |
 | Card | Springs up, eases away. Unchanged. |
-| Retire | Slow fade with one blink. Unchanged. |
-
-## 19. Decisions this document needs
-
-1. **Canvas shape.** Moves the card and bubble, changes how perch feet read.
-2. **Second button.** Assumed yes; fallback in §12.
-3. **Touch.** Assumed no.
-4. **Agent name on the device.** Resolved: only in the one bubble when an
-   agent introduces itself, never ambiently.
-5. **Story-line length.** Forty characters assumed; the canvas and the
-   Korean font decide.
-
-## Owner revision: quiet companion (2026-09-10)
-
-This supersedes earlier Focus behavior and desktop-mirror language in this file.
-The Mac is a background menu bar status/configuration app with no creature or
-startup window (UX-APP.md). Quiet mode replaces Focus: it disables all sounds and
-beeps, including high-stakes and error sounds, with no visual or behavioral change.
-The existing physical Focus gesture toggles Quiet mode. Visual nudge escalation
-continues normally. There are no scheduled Focus hours or visual Focus marker.
-
-## Approval correction (2026-09-10)
-
-Codex approval cards require separate host opt-in; default native approval mode
-shows tool activity but does not synthesize needsYou from PermissionRequest.
-When a card is routed to Buddy, its gloss prefers the supplied approval reason,
-within the existing wire byte cap. No firmware or wire shape changes.

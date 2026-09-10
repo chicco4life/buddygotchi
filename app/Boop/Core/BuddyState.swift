@@ -1,4 +1,3 @@
-import LeaderboardWire
 import Foundation
 
 // MARK: - Creature
@@ -9,7 +8,7 @@ enum CheerSize: String, Codable, CaseIterable, Sendable, Equatable {
     case hop, cheer, dance
     var intensity: Int { switch self { case .hop: 1; case .cheer: 2; case .dance: 3 } }
 }
-enum UhohKind: String, Encodable, CaseIterable, Sendable, Equatable { case error, stuck, hungry }
+enum UhohKind: String, Encodable, CaseIterable, Sendable, Equatable { case error }
 enum CreatureOverlay: String, Encodable, Sendable, Equatable { case greet, boop }
 enum Stakes: String, CaseIterable, Encodable, Sendable, Equatable { case fine, checkIt, careful }
 
@@ -24,7 +23,6 @@ struct CreatureCard: Encodable, Sendable, Equatable {
 }
 
 struct Creature: Encodable, Sendable, Equatable {
-    var moment: Moment?
     var state: CreatureState
     var effort: CreatureEffort?
     var cheer: CheerSize?
@@ -35,12 +33,10 @@ struct Creature: Encodable, Sendable, Equatable {
     var dotAlert: Int?
     var card: CreatureCard?
     var bubble: String?
-    var gift: Bool
-    var giftLine: String?
     var focus: Bool
     var nudgeRung: Int
 
-    static let initial = Creature(state: .asleep, dots: 0, gift: false, focus: false, nudgeRung: 0)
+    static let initial = Creature(state: .asleep, dots: 0, focus: false, nudgeRung: 0)
 
     var statusLabel: String {
         let parameter = cheer?.rawValue ?? effort?.rawValue ?? uhoh?.rawValue
@@ -57,7 +53,7 @@ func legacyPetState(from creature: Creature, includingOverlay: Bool = true) -> P
     case .working: return .busy
     case .needsYou: return .attention
     case .done: return .celebrate
-    case .uhoh: return creature.uhoh == .stuck ? .thinking : .error
+    case .uhoh: return .error
     }
 }
 
@@ -111,9 +107,7 @@ enum SessionState: String, Encodable, Sendable, Equatable {
 
 struct Session: Encodable, Sendable, Equatable {
     /// What this session last finished with, so the per-session breakdown can
-    /// show its own cheer and moment even after another session completes.
-    var hasCompletedTurn = false
-    var hasAwardedTask = false
+    /// show its own cheer even after another session completes.
     var lastDone: DoneRecord?
     var project: String = "unknown"
     var source: String
@@ -128,14 +122,7 @@ struct Session: Encodable, Sendable, Equatable {
     var currentTool: String?
     var currentHint: String?
     var currentActivityKind: ActivityKind?
-    /// Errors seen since the last completion — feeds the effort tier and the
-    /// payoff-scaled celebration. Cleared on celebrate.
-    var errorCount: Int = 0
-    /// Agent's own difficulty report (MCP report_effort); beats the heuristic.
-    var reportedEffort: EffortTier?
-    var observedEffort: EffortTier?
     var uhoh: UhohKind?
-    var repeatedToolCount: Int = 0
     var lastGoal: String?
 }
 
@@ -192,31 +179,14 @@ struct ErroredSession: Encodable, Sendable, Equatable {
     var workStartedAt: Double?
 }
 
-// MARK: - Thinking Session
-
-/// A session that has been actively working but went silent past the work-stall
-/// threshold. Distinct from .errored: this is presumed-still-alive ("thinking
-/// hard"), not failed; no Dismiss button, no alert sound.
-struct ThinkingSession: Encodable, Sendable, Equatable {
-    var id: String
-    var source: String
-    var sessionLabel: String?
-    var tool: String?
-    var hint: String?
-    var workStartedAt: Double?
-    var lastWorkSignalAt: Double?
-}
-
 struct DoneRecord: Encodable, Sendable, Equatable {
     var size: CheerSize
-    var moment: Moment?
     var until: Double
 }
 
 // MARK: - Active Sessions (per-session breakdown for popover)
 
 struct SessionSnapshot: Encodable, Sendable, Equatable, Identifiable {
-    var moment: Moment?
     var cheer: CheerSize?
     var effort: CreatureEffort?
     var id: String
@@ -240,8 +210,6 @@ struct Pet: Encodable, Sendable, Equatable {
 
 struct BuddyState: Encodable, Sendable, Equatable {
     var language = "en"
-    var recap: Recap?
-    var leaderboard: LeaderboardSnapshot?
     var growth = GrowthSnapshot()
     var cosmetic = EquippedCosmetic()
     var version: Int
@@ -275,7 +243,6 @@ struct BuddyState: Encodable, Sendable, Equatable {
     var lastCompletionAt: Double?
     var lastCompleted: CompletedTask?
     var firstErrored: ErroredSession?
-    var firstThinking: ThinkingSession?
     var activeSessions: [SessionSnapshot]
     var currentActivityKind: ActivityKind?
 
@@ -288,27 +255,10 @@ struct BuddyState: Encodable, Sendable, Equatable {
     var greetLevel: Int?
     /// Circadian flavor: expectant near the usual start hour, surprised at an
     /// hour this user never works.
-    var mood: PetMood?
-    /// Expiry for the surprised mood; expectant clears by conditions instead.
-    var moodUntil: Double?
     /// How hard the current work looks (busy state only).
     var effortTier: EffortTier?
     /// 1..3, struggle-proportional celebration size. Rides with celebrateUntil.
     var celebrateIntensity: Int? { creature.cheer?.intensity }
-
-    // MARK: Agent embodiment (System E)
-
-    /// The agent expression currently coloring the pet, if any. Never present
-    /// while a prompt is pending (S1).
-    var agentOverlay: AgentOverlay?
-    /// A drawing the pet is currently holding up. Same S1 rule as the
-    /// overlay — evicted the instant a prompt lands. The keepsake itself
-    /// lives in PetMemory regardless of whether this display ever ran.
-    var agentDrawing: AgentDrawing?
-    var agentDrawingUntil: Double?
-    /// True when the held-up drawing is an OLD one the pet dug out for a
-    /// returning agent — rendered with "remember this?".
-    var agentDrawingIsMemory: Bool?
 
     static let initial = BuddyState(
         version: 0,
@@ -325,17 +275,10 @@ struct BuddyState: Encodable, Sendable, Equatable {
         lastCompletionAt: nil,
         lastCompleted: nil,
         firstErrored: nil,
-        firstThinking: nil,
         activeSessions: [],
         currentActivityKind: nil,
         greetUntil: nil,
         greetLevel: nil,
-        mood: nil,
-        moodUntil: nil,
-        effortTier: nil,
-        agentOverlay: nil,
-        agentDrawing: nil,
-        agentDrawingUntil: nil,
-        agentDrawingIsMemory: nil
+        effortTier: nil
     )
 }

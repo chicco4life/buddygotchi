@@ -22,19 +22,6 @@ struct NeedsYouCard: View {
     }
 }
 
-struct RecapView: View {
-    var language: String
-    let recap: Recap
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(recap.paragraph).font(.body)
-            ForEach([( "turns", "\(recap.turns)"), ("tasks", "\(recap.tasks)"), ("biggest", BuddyCopy.momentPhrase(recap.biggest, language: language))], id: \.0) { item in
-                HStack { Text(BuddyCopy.phase7(item.0, language: language)); Spacer(); Text(item.1) }.font(.footnote).foregroundStyle(BuddyTheme.inkSoft)
-            }
-        }.foregroundStyle(BuddyTheme.ink)
-    }
-}
-
 struct ProfilePage: View {
     var language: String
     var lines: [ProfileLine]

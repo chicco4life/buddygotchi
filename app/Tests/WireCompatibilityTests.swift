@@ -5,7 +5,7 @@ import XCTest
 final class WireCompatibilityTests: XCTestCase {
     func testV2FixtureAndNoLegacyKeys() throws {
         let legacy = #"{"pet":"busy","species":"blob","celebrate":false,"promptId":"r1","msg":"working","entries":[],"sessions":[]}"#
-        let v2 = #"{"v":2,"state":"working","effort":"hard","dots":1,"gift":false,"focus":false,"mute":1,"t":123}"#
+        let v2 = #"{"v":2,"state":"working","effort":"hard","dots":1,"gift":false,"focus":false,"mute":1,"nudgeRung":0,"t":123}"#
         let old = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(legacy.utf8)) as? [String: Any])
         let fixture = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(v2.utf8)) as? NSDictionary)
         let frame = RenderState(state: .working, effort: .hard, dots: 1, t: 123)
@@ -24,7 +24,7 @@ final class WireCompatibilityTests: XCTestCase {
         for line in [#"{"cmd":"boop"}"#, #"{"cmd":"boop","hold":false}"#] {
             guard case .boop(hold: false) = try XCTUnwrap(parseDeviceLine(line)) else { throw NSError(domain: "boop expected", code: 1) }
         }
-        for line in [#"{"cmd":"collect"}"#, #"{"cmd":"posture","p":"travel"}"#, #"{"cmd":"motion","m":"pickup"}"#, #"{"cmd":"battery","pct":40,"charging":true}"#, #"{"cmd":"focus","on":false}"#, #"{"ack":"ota","ok":true}"#, #"{"cmd":"status","board":"ws-amoled164","contract":2}"#] {
+        for line in [#"{"cmd":"posture","p":"travel"}"#, #"{"cmd":"motion","m":"pickup"}"#, #"{"cmd":"battery","pct":40,"charging":true}"#, #"{"cmd":"focus","on":false}"#, #"{"ack":"ota","ok":true}"#, #"{"cmd":"status","board":"ws-amoled164","contract":2}"#] {
             XCTAssertNotNil(parseDeviceLine(line), line)
         }
     }

@@ -237,47 +237,6 @@ func buildHookServer(
         return try encodedResponse(StateResponse(state: await engine.state, inventory: try await engine.inventory()))
     }
 
-    router.post("/state/sign") { request, _ -> Response in
-        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
-        guard config.headless else { return Response(status: .notFound) }
-        do {
-            return try encodedResponse(["signatures": try await engine.signGrowth()])
-        } catch {
-            await engine.diagnosticLog.log(category: "leaderboard", source: "system", event: "sign-failed", detail: String(describing: error))
-            return jsonResponse(["error": String(describing: error)], status: .conflict)
-        }
-    }
-    router.get("/state/leaderboard") { request, _ -> Response in
-        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
-        guard config.headless else { return Response(status: .notFound) }
-        struct Settings: Encodable { var url: String; var optIn: Bool }
-        return try encodedResponse(Settings(url: await engine.leaderboardURL, optIn: await engine.boolSetting(DefaultsKey.leaderboardOptIn)))
-    }
-    router.post("/state/leaderboard") { request, _ -> Response in
-        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
-        guard config.headless else { return Response(status: .notFound) }
-        struct Settings: Decodable { var url: String; var optIn: Bool }
-        let bytes = try await request.body.collect(upTo: 2048)
-        guard let body = try? JSONDecoder().decode(Settings.self, from: Data(bytes.readableBytesView)) else { return Response(status: .badRequest) }
-        await engine.configureLeaderboard(url: body.url, optIn: body.optIn)
-        return Response(status: .noContent)
-    }
-    router.post("/state/leaderboard/submit") { request, _ -> Response in
-        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
-        guard config.headless else { return Response(status: .notFound) }
-        do { return try encodedResponse(try await engine.syncLeaderboard(force: true)) }
-        catch {
-            // A test route that swallows errors costs hours; say what failed.
-            await engine.diagnosticLog.log(category: "leaderboard", source: "system", event: "sync-failed", detail: String(describing: error))
-            return jsonResponse(["error": String(describing: error)], status: .conflict)
-        }
-    }
-    router.get("/state/leaderboard/body") { request, _ -> Response in
-        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
-        guard config.headless else { return Response(status: .notFound) }
-        return try encodedResponse(try await engine.submissionPreview())
-    }
-
     for setting in ["language", "voice"] {
         router.post("/state/\(setting)") { request, _ -> Response in
             guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
@@ -291,12 +250,6 @@ func buildHookServer(
             return try encodedResponse([setting: value])
         }
     }
-    router.post("/diag/recap") { request, _ -> Response in
-        guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
-        guard config.headless else { return Response(status: .notFound) }
-        return try encodedResponse(try await engine.makeRecap())
-    }
-
     router.get("/state/profile") { request, _ -> Response in
         guard isAuthorized(request, token: config.token) else { return await rejectUnauthorized(request) }
         guard config.headless else { return Response(status: .notFound) }
@@ -393,9 +346,18 @@ func buildHookServer(
         let sessionLabel = cwdLabel(body.cwd)
         let requestId = makeRequestId(sessionId: sessionId)
 
+        guard await engine.acceptsBuddyApprovals(source: source) else {
+            return approvalResponse(decision: .passthrough, source: source)
+        }
+
         await diagLog.log(category: "approve", source: source, event: body.effectiveEventName ?? "approve", detail: tool)
 
         await engine.ingest(RawHookPayload(source: source, sessionId: sessionId, kind: .sessionStart, toolName: "", cwd: body.effectiveCwd, timestamp: 0), hookPid: hookPid)
+
+        // A stale hook must not claim native approvals when the owner has not opted in.
+        guard await engine.acceptsBuddyApprovals(source: source) else {
+            return approvalResponse(decision: .passthrough, source: source)
+        }
 
         // The safety check reads the FULL command; `hint` is display-truncated.
         if let autoDecision = shouldAutoApprove(tool: tool, command: fullHint, source: source) {
@@ -434,7 +396,6 @@ func buildHookServer(
         return approvalResponse(decision: decision, source: source)
     }
 
-    addMCPRoutes(to: router, engine: engine, config: config)
 
     return Application(
         router: router,

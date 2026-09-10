@@ -14,7 +14,6 @@ import glob
 import json
 import os
 import re
-import secrets
 import struct
 import subprocess
 import sys
@@ -242,7 +241,7 @@ def write_png(path: Path, w: int, h: int, rgb: bytes) -> None:
 
 def heartbeat_from_args(args: argparse.Namespace) -> dict[str, Any]:
     payload: dict[str, Any] = {"v": 2}
-    for key in ("state", "effort", "cheer", "uhoh", "bubble", "gift", "giftLine", "focus", "mute", "posture", "dots", "overlay", "greetLevel", "dotAlert", "t"):
+    for key in ("state", "effort", "cheer", "uhoh", "bubble", "focus", "mute", "posture", "dots", "overlay", "greetLevel", "dotAlert", "t"):
         value = getattr(args, key, None)
         if value is not None:
             payload[key] = value
@@ -282,31 +281,6 @@ def json_reply(buf: bytes, ack: str) -> dict[str, Any] | None:
         if isinstance(obj, dict) and obj.get("ack") == ack:
             return obj
     return None
-
-
-def signing_request(serial: SerialBuddy, request: dict[str, Any], timeout: float = 5) -> dict[str, Any]:
-    # Right after a reboot the first line can be swallowed while USB CDC
-    # settles; one retry keeps the HIL suite honest without hiding real faults.
-    for attempt in (1, 2):
-        serial.write_line(json.dumps(request, separators=(",", ":")))
-        try:
-            _, reply = serial.read_until(lambda buf: json_reply(buf, request["cmd"]), timeout)
-            return reply
-        except BuddyError:
-            if attempt == 2:
-                raise
-            time.sleep(0.5)
-    raise BuddyError("unreachable", 2)
-
-
-def command_signing(args: argparse.Namespace) -> int:
-    request = {"cmd": args.cmd}
-    if args.cmd == "sign":
-        request.update(day=args.day, xp=args.xp, nonce=args.nonce or secrets.token_hex(16))
-    with SerialBuddy(args.port, args.timeout) as serial:
-        reply = signing_request(serial, request, args.timeout)
-    emit(reply, args.json)
-    return 0 if reply.get("ok") is True else 1
 
 
 def command_ping(args: argparse.Namespace) -> int:
@@ -710,11 +684,10 @@ def add_common(p: argparse.ArgumentParser) -> None:
 
 def add_heartbeat_args(p: argparse.ArgumentParser) -> None:
     p.add_argument("--state", choices=["asleep", "idle", "working", "needsYou", "done", "uhoh"])
-    for key, choices in (("effort", ["light", "hard", "grinding"]), ("cheer", ["hop", "cheer", "dance"]), ("uhoh", ["error", "stuck", "hungry"]), ("posture", ["desk", "perch", "travel"]), ("overlay", ["greet", "boop"])):
+    for key, choices in (("effort", ["light", "hard", "grinding"]), ("cheer", ["hop", "cheer", "dance"]), ("uhoh", ["error"]), ("posture", ["desk", "perch", "travel"]), ("overlay", ["greet", "boop"])):
         p.add_argument("--" + key, choices=choices)
     p.add_argument("--bubble")
-    p.add_argument("--gift-line", dest="giftLine")
-    for key in ("gift", "focus"):
+    for key in ("focus",):
         p.add_argument("--" + key, type=parse_bool, nargs="?", const=True)
     for key, dest in (("t", "t"), ("mute", "mute"), ("dots", "dots"), ("dot-alert", "dotAlert"), ("greet-level", "greetLevel")):
         p.add_argument("--" + key, dest=dest, type=int)
@@ -774,14 +747,6 @@ def build_parser() -> argparse.ArgumentParser:
         p = sub.add_parser(name)
         add_common(p)
         p.set_defaults(func=fn)
-    for name in ("unit", "sign"):
-        p = sub.add_parser(name)
-        add_common(p)
-        p.set_defaults(func=command_signing)
-        if name == "sign":
-            p.add_argument("--day", required=True)
-            p.add_argument("--xp", type=int, required=True)
-            p.add_argument("--nonce", help="hex nonce; defaults to 16 random bytes")
     p = sub.add_parser("screenshot")
     p.add_argument("--epx", action="store_true")
     add_common(p)

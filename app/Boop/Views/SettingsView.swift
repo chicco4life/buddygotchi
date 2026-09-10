@@ -135,7 +135,7 @@ struct SettingsSectionView: View {
         case .buddy:
             Section(copy("Buddy & sound", "Buddy 및 소리")) {
                 LabeledContent(BuddyCopy.shared.settingsCopy.name, value: buddyName)
-                companion([.language])
+                companion([.language, .voice])
                 companion([.focus])
             }
         case .agents: Section(copy("Agents", "에이전트")) { agentsSection }

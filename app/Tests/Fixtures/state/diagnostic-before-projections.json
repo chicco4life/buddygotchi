@@ -2,7 +2,7 @@
   {
     "activeSessions" : [
 
-    ],
+],
     "cosmetic" : {
       "accessory" : "none",
       "silhouette" : "default",
@@ -11,7 +11,6 @@
     "creature" : {
       "dots" : 0,
       "focus" : false,
-      "gift" : false,
       "nudgeRung" : 0,
       "state" : "asleep"
     },
@@ -20,13 +19,12 @@
     },
     "entries" : [
 
-    ],
+],
     "growth" : {
       "bestStreak" : 0,
       "biggest" : "hop",
       "daysTogether" : 0,
       "level" : 1,
-      "restDays" : 0,
       "streak" : 0,
       "tasks" : 0,
       "today" : 0,
@@ -54,40 +52,12 @@
         "currentTool" : "Bash",
         "effort" : "hard",
         "id" : "s",
-        "moment" : {
-          "facts" : {
-
-          },
-          "kind" : "firstEver"
-        },
         "sessionLabel" : "project",
         "source" : "codex",
         "state" : "working"
       }
     ],
     "affectionUntil" : 1800,
-    "agentDrawing" : {
-      "agentId" : "codex",
-      "at" : 800,
-      "caption" : "hello",
-      "color" : "#ffffff",
-      "rows" : [
-        "01",
-        "10"
-      ]
-    },
-    "agentDrawingIsMemory" : true,
-    "agentDrawingUntil" : 1600,
-    "agentOverlay" : {
-      "agentId" : "codex",
-      "color" : "#ffffff",
-      "delivery" : "bubble",
-      "emotion" : "happy",
-      "intensity" : "soft",
-      "motion" : "bounce",
-      "say" : "hello",
-      "until" : 1500
-    },
     "celebrateIntensity" : 3,
     "celebrateUntil" : 2000,
     "cosmetic" : {
@@ -111,19 +81,11 @@
       "dots" : 3,
       "effort" : "grinding",
       "focus" : true,
-      "gift" : true,
-      "giftLine" : "ten tries",
       "greetLevel" : 3,
-      "moment" : {
-        "facts" : {
-          "attempts" : "10"
-        },
-        "kind" : "hardWonPass"
-      },
       "nudgeRung" : 2,
       "overlay" : "greet",
       "state" : "done",
-      "uhoh" : "stuck"
+      "uhoh" : "error"
     },
     "currentActivityKind" : "work",
     "desktop" : {
@@ -148,15 +110,6 @@
       "tool" : "Bash",
       "workStartedAt" : 600
     },
-    "firstThinking" : {
-      "hint" : "test",
-      "id" : "t",
-      "lastWorkSignalAt" : 700,
-      "sessionLabel" : "project",
-      "source" : "claude-code",
-      "tool" : "Bash",
-      "workStartedAt" : 500
-    },
     "greetLevel" : 2,
     "greetUntil" : 1600,
     "growth" : {
@@ -164,7 +117,6 @@
       "biggest" : "hop",
       "daysTogether" : 0,
       "level" : 1,
-      "restDays" : 0,
       "streak" : 0,
       "tasks" : 0,
       "today" : 0,
@@ -185,21 +137,6 @@
     "lastCompletionAt" : 900,
     "lastSignal" : "celebrate",
     "lastTaskDurationMs" : 500,
-    "leaderboard" : {
-      "entries" : [
-        {
-          "buddyName" : "Mochi",
-          "rank" : 2,
-          "silhouette" : "round",
-          "unit" : "fixture",
-          "xpTotal" : 200
-        }
-      ],
-      "rank" : 2,
-      "view" : "friends"
-    },
-    "mood" : "surprised",
-    "moodUntil" : 1700,
     "msg" : "fixture",
     "pet" : {
       "species" : "custom",
@@ -217,13 +154,6 @@
       "stakes" : "careful",
       "tool" : "Bash"
     },
-    "recap" : {
-      "biggest" : "hardWonPass",
-      "line" : "좋은 하루",
-      "paragraph" : "A little progress.",
-      "tasks" : 3,
-      "turns" : 7
-    },
     "sessions" : {
       "running" : 2,
       "total" : 3,
@@ -235,7 +165,7 @@
   {
     "activeSessions" : [
 
-    ],
+],
     "cosmetic" : {
       "accessory" : "none",
       "silhouette" : "default",
@@ -244,7 +174,6 @@
     "creature" : {
       "dots" : 0,
       "focus" : false,
-      "gift" : false,
       "nudgeRung" : 0,
       "state" : "asleep"
     },
@@ -253,13 +182,12 @@
     },
     "entries" : [
 
-    ],
+],
     "growth" : {
       "bestStreak" : 0,
       "biggest" : "hop",
       "daysTogether" : 0,
       "level" : 1,
-      "restDays" : 0,
       "streak" : 0,
       "tasks" : 0,
       "today" : 0,
@@ -283,7 +211,7 @@
   {
     "activeSessions" : [
 
-    ],
+],
     "cosmetic" : {
       "accessory" : "none",
       "silhouette" : "default",
@@ -292,7 +220,6 @@
     "creature" : {
       "dots" : 0,
       "focus" : false,
-      "gift" : false,
       "nudgeRung" : 0,
       "overlay" : "boop",
       "state" : "asleep"
@@ -302,13 +229,12 @@
     },
     "entries" : [
 
-    ],
+],
     "growth" : {
       "bestStreak" : 0,
       "biggest" : "hop",
       "daysTogether" : 0,
       "level" : 1,
-      "restDays" : 0,
       "streak" : 0,
       "tasks" : 0,
       "today" : 0,
@@ -332,7 +258,7 @@
   {
     "activeSessions" : [
 
-    ],
+],
     "cosmetic" : {
       "accessory" : "none",
       "silhouette" : "default",
@@ -341,7 +267,6 @@
     "creature" : {
       "dots" : 0,
       "focus" : false,
-      "gift" : false,
       "nudgeRung" : 0,
       "state" : "idle"
     },
@@ -350,13 +275,12 @@
     },
     "entries" : [
 
-    ],
+],
     "growth" : {
       "bestStreak" : 0,
       "biggest" : "hop",
       "daysTogether" : 0,
       "level" : 1,
-      "restDays" : 0,
       "streak" : 0,
       "tasks" : 0,
       "today" : 0,
@@ -381,7 +305,7 @@
   {
     "activeSessions" : [
 
-    ],
+],
     "cosmetic" : {
       "accessory" : "none",
       "silhouette" : "default",
@@ -390,7 +314,6 @@
     "creature" : {
       "dots" : 0,
       "focus" : false,
-      "gift" : false,
       "nudgeRung" : 0,
       "overlay" : "boop",
       "state" : "idle"
@@ -400,13 +323,12 @@
     },
     "entries" : [
 
-    ],
+],
     "growth" : {
       "bestStreak" : 0,
       "biggest" : "hop",
       "daysTogether" : 0,
       "level" : 1,
-      "restDays" : 0,
       "streak" : 0,
       "tasks" : 0,
       "today" : 0,
@@ -431,7 +353,7 @@
   {
     "activeSessions" : [
 
-    ],
+],
     "cosmetic" : {
       "accessory" : "none",
       "silhouette" : "default",
@@ -440,7 +362,6 @@
     "creature" : {
       "dots" : 0,
       "focus" : false,
-      "gift" : false,
       "nudgeRung" : 0,
       "state" : "working"
     },
@@ -449,13 +370,12 @@
     },
     "entries" : [
 
-    ],
+],
     "growth" : {
       "bestStreak" : 0,
       "biggest" : "hop",
       "daysTogether" : 0,
       "level" : 1,
-      "restDays" : 0,
       "streak" : 0,
       "tasks" : 0,
       "today" : 0,
@@ -480,7 +400,7 @@
   {
     "activeSessions" : [
 
-    ],
+],
     "cosmetic" : {
       "accessory" : "none",
       "silhouette" : "default",
@@ -489,7 +409,6 @@
     "creature" : {
       "dots" : 0,
       "focus" : false,
-      "gift" : false,
       "nudgeRung" : 0,
       "overlay" : "boop",
       "state" : "working"
@@ -499,13 +418,12 @@
     },
     "entries" : [
 
-    ],
+],
     "growth" : {
       "bestStreak" : 0,
       "biggest" : "hop",
       "daysTogether" : 0,
       "level" : 1,
-      "restDays" : 0,
       "streak" : 0,
       "tasks" : 0,
       "today" : 0,
@@ -530,7 +448,7 @@
   {
     "activeSessions" : [
 
-    ],
+],
     "cosmetic" : {
       "accessory" : "none",
       "silhouette" : "default",
@@ -539,7 +457,6 @@
     "creature" : {
       "dots" : 0,
       "focus" : false,
-      "gift" : false,
       "nudgeRung" : 0,
       "state" : "needsYou"
     },
@@ -548,13 +465,12 @@
     },
     "entries" : [
 
-    ],
+],
     "growth" : {
       "bestStreak" : 0,
       "biggest" : "hop",
       "daysTogether" : 0,
       "level" : 1,
-      "restDays" : 0,
       "streak" : 0,
       "tasks" : 0,
       "today" : 0,
@@ -579,7 +495,7 @@
   {
     "activeSessions" : [
 
-    ],
+],
     "cosmetic" : {
       "accessory" : "none",
       "silhouette" : "default",
@@ -588,7 +504,6 @@
     "creature" : {
       "dots" : 0,
       "focus" : false,
-      "gift" : false,
       "nudgeRung" : 0,
       "overlay" : "boop",
       "state" : "needsYou"
@@ -598,13 +513,12 @@
     },
     "entries" : [
 
-    ],
+],
     "growth" : {
       "bestStreak" : 0,
       "biggest" : "hop",
       "daysTogether" : 0,
       "level" : 1,
-      "restDays" : 0,
       "streak" : 0,
       "tasks" : 0,
       "today" : 0,
@@ -629,7 +543,7 @@
   {
     "activeSessions" : [
 
-    ],
+],
     "celebrateIntensity" : 2,
     "cosmetic" : {
       "accessory" : "none",
@@ -640,7 +554,6 @@
       "cheer" : "cheer",
       "dots" : 0,
       "focus" : false,
-      "gift" : false,
       "nudgeRung" : 0,
       "state" : "done"
     },
@@ -649,13 +562,12 @@
     },
     "entries" : [
 
-    ],
+],
     "growth" : {
       "bestStreak" : 0,
       "biggest" : "hop",
       "daysTogether" : 0,
       "level" : 1,
-      "restDays" : 0,
       "streak" : 0,
       "tasks" : 0,
       "today" : 0,
@@ -680,7 +592,7 @@
   {
     "activeSessions" : [
 
-    ],
+],
     "celebrateIntensity" : 2,
     "cosmetic" : {
       "accessory" : "none",
@@ -691,7 +603,6 @@
       "cheer" : "cheer",
       "dots" : 0,
       "focus" : false,
-      "gift" : false,
       "nudgeRung" : 0,
       "overlay" : "boop",
       "state" : "done"
@@ -701,13 +612,12 @@
     },
     "entries" : [
 
-    ],
+],
     "growth" : {
       "bestStreak" : 0,
       "biggest" : "hop",
       "daysTogether" : 0,
       "level" : 1,
-      "restDays" : 0,
       "streak" : 0,
       "tasks" : 0,
       "today" : 0,
@@ -732,7 +642,7 @@
   {
     "activeSessions" : [
 
-    ],
+],
     "cosmetic" : {
       "accessory" : "none",
       "silhouette" : "default",
@@ -741,23 +651,21 @@
     "creature" : {
       "dots" : 0,
       "focus" : false,
-      "gift" : false,
       "nudgeRung" : 0,
       "state" : "uhoh",
-      "uhoh" : "stuck"
+      "uhoh" : "error"
     },
     "desktop" : {
       "status" : "disconnected"
     },
     "entries" : [
 
-    ],
+],
     "growth" : {
       "bestStreak" : 0,
       "biggest" : "hop",
       "daysTogether" : 0,
       "level" : 1,
-      "restDays" : 0,
       "streak" : 0,
       "tasks" : 0,
       "today" : 0,
@@ -765,11 +673,11 @@
       "xpNext" : 150
     },
     "language" : "en",
-    "lastSignal" : "thinking",
+    "lastSignal" : "error",
     "msg" : "",
     "pet" : {
       "species" : "blob",
-      "state" : "thinking"
+      "state" : "error"
     },
     "sessions" : {
       "running" : 0,
@@ -782,7 +690,7 @@
   {
     "activeSessions" : [
 
-    ],
+],
     "cosmetic" : {
       "accessory" : "none",
       "silhouette" : "default",
@@ -791,24 +699,22 @@
     "creature" : {
       "dots" : 0,
       "focus" : false,
-      "gift" : false,
       "nudgeRung" : 0,
       "overlay" : "boop",
       "state" : "uhoh",
-      "uhoh" : "stuck"
+      "uhoh" : "error"
     },
     "desktop" : {
       "status" : "disconnected"
     },
     "entries" : [
 
-    ],
+],
     "growth" : {
       "bestStreak" : 0,
       "biggest" : "hop",
       "daysTogether" : 0,
       "level" : 1,
-      "restDays" : 0,
       "streak" : 0,
       "tasks" : 0,
       "today" : 0,
@@ -816,11 +722,11 @@
       "xpNext" : 150
     },
     "language" : "en",
-    "lastSignal" : "thinking",
+    "lastSignal" : "error",
     "msg" : "",
     "pet" : {
       "species" : "blob",
-      "state" : "thinking"
+      "state" : "error"
     },
     "sessions" : {
       "running" : 0,

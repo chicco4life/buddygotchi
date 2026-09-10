@@ -1,12 +1,8 @@
 import Foundation
 
 enum DefaultsKey {
-    static let leaderboardURL = "leaderboardURL"
-    static let leaderboardFriends = "leaderboardFriends"
     static let buddyNameLocked = "buddyNameLocked"
     static let firstCheerShown = "firstCheerShown"
-    static let quickCommand = "quickCommand"
-    static let leaderboardOptIn = "leaderboardOptIn"
     static let soundVolume = "soundVolume"
     static let focusHoursEnabled = "focusHoursEnabled"
     static let focusStart = "focusStart"
@@ -14,7 +10,6 @@ enum DefaultsKey {
 
     static let language = "language"
     static let voiceRuntime = "voiceRuntime"
-    static let agentDrawingsEnabled = "agentDrawingsEnabled"
     static let approvalMode = "approvalMode"
     static let codexApprovalMode = "codexApprovalMode"
     static let buddyName = "buddyName"

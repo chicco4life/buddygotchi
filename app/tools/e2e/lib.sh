@@ -299,7 +299,7 @@ tenth_try() {
       if scoped_mode || foreign_present "$sid"; then
         got="$(session_field "$sid" effort)"
       else got="$(state_field .creature.effort)"; fi
-      [ "$got" = grinding ] && ok 'tenth-try: grinding mid-way' || bad "tenth-try effort: $got"
+      [ "$got" = light ] && ok 'tenth-try: short task stays light despite retries' || bad "tenth-try effort: $got"
     fi
   done < <(python3 - "$DIR/../../Tests/Fixtures/hooks/$fixture_agent/2026-09-08/tenth-try.jsonl" "$sid" <<'PY'
 import json,sys
@@ -311,22 +311,9 @@ for line in open(sys.argv[1]):
 PY
   )
   if scoped_mode || foreign_present "$sid"; then
-    got="$(session_field "$sid" cheer) $(session_field "$sid" moment.kind)"
-  else got="$(state_field .creature.cheer) $(state_field .creature.moment.kind)"; fi
-  [ "$got" = 'dance hardWonPass' ] && ok 'tenth-try: dance + hardWonPass' || bad "tenth-try payoff: $got"
-  local voice_line="" voice_tries=0
-  while [ -z "$voice_line" ] && [ "$voice_tries" -lt 15 ]; do
-    voice_line="$(state_field .creature.giftLine)"
-    voice_tries=$((voice_tries+1))
-    [ -n "$voice_line" ] || sleep 0.1
-  done
-  if python3 - "$voice_line" <<'PYVOICE'
-import sys
-line=sys.argv[1]
-sys.exit(0 if line and len(line.encode('utf-8')) <= 40 else 1)
-PYVOICE
-  then ok 'tenth-try: voice gift fits device'; else bad 'tenth-try: missing or oversized voice gift'; fi
-
+    got="$(session_field "$sid" cheer)"
+  else got="$(state_field .creature.cheer)"; fi
+  [ "$got" = hop ] && ok 'tenth-try: duration-only hop' || bad "tenth-try payoff: $got"
   post_event "$agent" "{\"hook_event_name\":\"SessionEnd\",\"session_id\":\"$sid\"}"
 }
 
@@ -343,80 +330,4 @@ print(level)
 PYCODE
   )"
   [ "$level" = "$expected" ] && ok "growth level matches curve ($level)" || bad "growth level $level != $expected"
-}
-
-recap_check() {
-  local response
-  response="$("${CURL[@]}" --max-time 5 "${AUTH[@]}" -X POST "$BASE/diag/recap")" || { bad 'recap generation failed'; return; }
-  local line
-  line="$(state_field .recap.line)"
-  [ -n "$line" ] && ok 'recap: visible in state' || bad 'recap: absent from state'
-  if printf '%s' "$response" | python3 -c 'import json,sys; r=json.load(sys.stdin); assert r["line"] and len(r["line"].encode("utf-8")) <= 63; assert r["paragraph"]'; then
-    ok 'recap: device line and app paragraph'
-  else bad 'recap: missing or oversized text'; fi
-}
-
-# Requires a fresh headless app launched with BOOP_TEST_SIGNER=1. Never use a
-# hardware owner's store for this fixture: identity pinning deliberately refuses it.
-leaderboard_check() {
-  local repo service_log
-  repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-  service_log="$(mktemp)"
-  if ! (cd "$repo/leaderboard" && swift build) >"$service_log" 2>&1; then
-    info "leaderboard build unavailable; socket e2e skipped (log: $service_log)"
-    return
-  fi
-  if (
-    set -o pipefail
-    local temporary service_pid service_port service_bin prior result body
-    temporary="$(mktemp -d)" || exit 1
-    service_pid=""
-    prior=""
-    cleanup_leaderboard() {
-      if [ -n "$prior" ]; then
-        "${CURL[@]}" --max-time 5 "${AUTH[@]}" -X POST -H 'Content-Type: application/json' -d "$prior" "$BASE/state/leaderboard" >/dev/null || true
-      fi
-      if [ -n "$service_pid" ]; then kill "$service_pid" 2>/dev/null || true; wait "$service_pid" 2>/dev/null || true; fi
-      rm -rf "$temporary"
-    }
-    trap cleanup_leaderboard EXIT
-    service_port="$(python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1",0)); print(s.getsockname()[1]); s.close()')" || exit 1
-    service_bin="$(cd "$repo/leaderboard" && swift build --show-bin-path)" || exit 1
-    "$service_bin/leaderboard" --port "$service_port" --database "$temporary/rank.sqlite" >"$service_log" 2>&1 &
-    service_pid=$!
-    for _ in {1..100}; do
-      if "${CURL[@]}" -f --max-time 1 "http://127.0.0.1:$service_port/healthz" >/dev/null 2>&1; then break; fi
-      kill -0 "$service_pid" || exit 1
-      sleep 0.1
-    done
-    "${CURL[@]}" -f --max-time 2 "http://127.0.0.1:$service_port/healthz" >/dev/null || exit 1
-    prior="$("${CURL[@]}" -f --max-time 5 "${AUTH[@]}" "$BASE/state/leaderboard")" || exit 1
-    "${CURL[@]}" -f --max-time 5 "${AUTH[@]}" -H 'Content-Type: application/json' -X POST \
-      -d "{\"url\":\"http://127.0.0.1:$service_port\",\"optIn\":false}" "$BASE/state/leaderboard" >/dev/null || exit 1
-    # Sign before enabling upload so the explicit submit below is the first attempt.
-    "${CURL[@]}" -f --max-time 10 "${AUTH[@]}" -X POST "$BASE/state/sign" >"$temporary/sign.json" || exit 1
-    "${CURL[@]}" -f --max-time 5 "${AUTH[@]}" -H 'Content-Type: application/json' -X POST \
-      -d "{\"url\":\"http://127.0.0.1:$service_port\",\"optIn\":true}" "$BASE/state/leaderboard" >/dev/null || exit 1
-    body="$("${CURL[@]}" -f --max-time 5 "${AUTH[@]}" "$BASE/state/leaderboard/body")" || exit 1
-    printf '%s' "$body" | python3 -c 'import json,sys; b=json.load(sys.stdin); assert set(b)=={"buddyName","silhouette","xpTotal","signatures","unit","pub","alg"}; assert b["signatures"]; assert all(set(s)=={"day","xp","nonce","sig"} for s in b["signatures"])' || exit 1
-    # The client syncs on its own tick after opt-in: give it up to 15 s.
-    for _ in $(seq 1 30); do
-    result="$("${CURL[@]}" -f --max-time 10 "${AUTH[@]}" -X POST "$BASE/state/leaderboard/submit")" || exit 1
-      printf '%s' "$result" | python3 -c 'import json,sys; b=json.load(sys.stdin); sys.exit(0 if b.get("entries") else 1)' 2>/dev/null && break
-      sleep 0.5
-    done
-    printf '%s' "$result" | python3 -c 'import json,sys; b=json.load(sys.stdin); assert b["rank"]==1; assert len(b["entries"])==1' || exit 1
-    local unit code
-    unit="$(body_field "$body" unit)" || exit 1
-    code="$(printf '%s' "$unit" | cut -c 1-6 | tr '[:lower:]' '[:upper:]')" || exit 1
-    for view in all month friends; do
-      "${CURL[@]}" -f --max-time 5 "http://127.0.0.1:$service_port/rank?unit=$unit&view=$view&code=$code&friends=%5B%5D" |
-        python3 -c 'import json,sys; assert json.load(sys.stdin)["rank"]==1' || exit 1
-    done
-  ); then
-    ok "leaderboard: signed fixture, exact body keys, all/month/friends rank 1"
-    rm -f "$service_log"
-  else
-    bad "leaderboard e2e (requires fresh headless BOOP_TEST_SIGNER=1; log: $service_log)"
-  fi
 }

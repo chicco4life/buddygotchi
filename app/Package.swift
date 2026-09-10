@@ -14,7 +14,6 @@ var packageTargets: [Target] = [
     .target(
         name: "BoopCore",
         dependencies: [
-            .product(name: "LeaderboardWire", package: "wire"),
             .product(name: "BoopSQLite", package: "wire"),
             .product(name: "Hummingbird", package: "hummingbird"),
         ],
@@ -24,7 +23,7 @@ var packageTargets: [Target] = [
         ],
         resources: [
             .copy("Resources/runners.json"),
-            .copy("Resources/teach.json"),
+            .copy("Resources/BEHAVIOR.md"),
             .copy("Resources/voice"),
             .copy("Resources/Fonts"),
             .copy("Resources/Sounds"),

@@ -1,8 +1,0 @@
-{
-  "Bash": {"en":"Runs a command on your Mac.","ko":"Mac에서 명령을 실행해요."},
-  "Shell": {"en":"Runs a command on your Mac.","ko":"Mac에서 명령을 실행해요."},
-  "Read": {"en":"Reads a file without changing it.","ko":"파일을 바꾸지 않고 읽어요."},
-  "Write": {"en":"Creates or replaces a file.","ko":"파일을 만들거나 덮어써요."},
-  "Edit": {"en":"Changes part of a file.","ko":"파일의 일부를 수정해요."},
-  "WebFetch": {"en":"Reads a page from the internet.","ko":"인터넷에서 페이지를 읽어요."}
-}

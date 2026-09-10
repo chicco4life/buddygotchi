@@ -30,33 +30,17 @@ final class TransientVoiceTests: XCTestCase {
             try await Task.sleep(for: .milliseconds(2))
         }
         XCTFail("Voice operation did not start")
-        throw LeaderboardError.unavailable("test timeout")
+        throw NSError(domain: "test", code: 1)
     }
 
-    @MainActor func testReplacementSuppressesOldLineAndKeepsOtherLane() async throws {
-        let tasks = TransientVoiceTasks(), old = HeldVoiceLine(), gift = HeldVoiceLine(), latest = HeldVoiceLine()
-        var delivered: [String] = []
-        tasks.replace(.bubble, produce: { await old.produce() }, deliver: { delivered.append($0) })
-        tasks.replace(.gift, produce: { await gift.produce() }, deliver: { delivered.append($0) })
-        try await waitFor { old.entered && gift.entered }
-        tasks.replace(.bubble, produce: { await latest.produce() }, deliver: { delivered.append($0) })
-        try await waitFor { latest.entered }
-        old.finish("old")
-        gift.finish("gift")
-        latest.finish("latest")
-        await tasks.finish()
-        XCTAssertEqual(Set(delivered), Set(["gift", "latest"]))
-        XCTAssertEqual(delivered.count, 2)
-    }
 
     @MainActor func testCancelAllRejectsUncooperativeLines() async throws {
-        let tasks = TransientVoiceTasks(), bubble = HeldVoiceLine(), gift = HeldVoiceLine()
+        let tasks = TransientVoiceTasks(), bubble = HeldVoiceLine()
         var delivered: [String] = []
         tasks.replace(.bubble, produce: { await bubble.produce() }, deliver: { delivered.append($0) })
-        tasks.replace(.gift, produce: { await gift.produce() }, deliver: { delivered.append($0) })
-        try await waitFor { bubble.entered && gift.entered }
+        try await waitFor { bubble.entered }
         tasks.cancelAll()
-        bubble.finish("bubble"); gift.finish("gift")
+        bubble.finish("bubble")
         await tasks.finish()
         XCTAssertTrue(delivered.isEmpty)
     }
@@ -81,23 +65,4 @@ final class TransientVoiceTests: XCTestCase {
         }
     }
 
-    @MainActor func testCollectedGiftRejectsPendingVoice() async throws {
-        let suite = "gift-cancel-" + UUID().uuidString
-        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let runtime = HeldVoiceRuntime(), clock = MockClock()
-        let engine = BuddyEngine(clock: clock, voiceRuntime: runtime, defaults: defaults)
-        engine.turnStarted(sessionId: "s", source: "codex")
-        engine.turnEnded(sessionId: "s", source: "codex", outcome: .completed)
-        try await waitFor { await runtime.entered }
-        clock.time = try XCTUnwrap(engine.state.celebrateUntil)
-        engine.triggerStaleTick()
-        XCTAssertTrue(engine.state.creature.gift)
-        engine.collectArrived()
-        let line = engine.state.creature.giftLine
-        await runtime.finish()
-        await engine.finishPendingWork()
-        XCTAssertFalse(engine.state.creature.gift)
-        XCTAssertEqual(engine.state.creature.giftLine, line)
-    }
 }

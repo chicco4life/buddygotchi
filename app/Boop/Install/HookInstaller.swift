@@ -173,9 +173,8 @@ final class HookInstaller {
         case .codex:
             try installCodexOrThrow()
         }
-        // Best-effort on purpose: MCP is the expression channel, hooks are the
-        // product. An unreadable agent MCP config must never fail hook install.
-        try? registerMCP(for: agent)
+        // Remove the retired agent-expression channel during install/repair.
+        unregisterMCP(for: agent)
         rememberInstalled(agent)
     }
 
@@ -625,16 +624,7 @@ final class HookInstaller {
             d=json.load(os.fdopen(3))
             keys=['hook_event_name','hookEventName','event_name','session_id','conversation_id','cwd','workspace_roots','tool_name','toolName','tool','tool_input','input','command','tool_use_id','tool_call_id','tool_response','tool_output','output','exit_code','exit_status','error','error_class','last_assistant_message','closing_message','text','prompt','prompt_text','message','notification_type','status','duration_ms','turn_id']
             b={k:d[k] for k in keys if k in d}
-            usage=d.get('usage') or (d.get('message',{}).get('usage') if isinstance(d.get('message'),dict) else {}) or {}
-            info=d.get('info') or (d.get('payload',{}).get('info') if isinstance(d.get('payload'),dict) else {}) or {}
-            totals=info.get('total_token_usage') if isinstance(info,dict) else None
-            total=totals.get('output_tokens') if isinstance(totals,dict) else None
             if isinstance(d.get('message'),dict): b.pop('message',None)
-            output=usage.get('output_tokens',d.get('output_tokens')) if isinstance(usage,dict) else None
-            if isinstance(total,int) and total>=0:
-                b['info']={'total_token_usage':{'output_tokens':total}}
-            elif isinstance(output,int) and output>=0:
-                b['output_tokens']=output
             for key in ['tool_response','tool_output','output']:
                 if key in b:
                     raw=text(b.pop(key))
@@ -747,21 +737,7 @@ final class HookInstaller {
         throw HookInstallError.helperMissing(path: expected)
     }
 
-    // MARK: - MCP registration (System E)
-
-    /// Streamable-HTTP MCP entry for one agent. The X-Boop-Agent header is
-    /// the identity wire (S7): set here at registration time, so it is not
-    /// reachable from the model — unlike anything in a request body.
-    private func mcpEntry(for agent: AgentKind) -> [String: Any] {
-        return [
-            "type": "http",
-            "url": mcpURLString,
-            "headers": [
-                "X-Boop-Token": BuddyConfig.default.token,
-                "X-Boop-Agent": agent.rawValue,
-            ],
-        ]
-    }
+    // MARK: - Retired MCP configuration cleanup
 
     /// Where this agent's CLI reads user-scope MCP servers from. Codex is nil
     /// here because its registry is TOML (`config.toml [mcp_servers.boop]`),
@@ -777,24 +753,7 @@ final class HookInstaller {
         }
     }
 
-    private var mcpURLString: String {
-        "http://127.0.0.1:\(BuddyConfig.default.httpPort)/mcp"
-    }
-
-    private func registerMCP(for agent: AgentKind) throws {
-        if agent == .codex {
-            try registerCodexMCP()
-            return
-        }
-        guard let url = mcpConfigURL(for: agent) else { return }
-        var root = try readJSONObject(at: url, agent: agent)
-        var servers = root["mcpServers"] as? [String: Any] ?? [:]
-        servers["boop"] = mcpEntry(for: agent)
-        root["mcpServers"] = servers
-        try writeJSONObject(root, to: url, agent: agent)
-    }
-
-    private func unregisterMCP(for agent: AgentKind) {
+    func unregisterMCP(for agent: AgentKind) {
         if agent == .codex {
             unregisterCodexMCP()
             return
@@ -806,15 +765,6 @@ final class HookInstaller {
         servers.removeValue(forKey: "boop")
         root["mcpServers"] = servers
         try? writeJSONObject(root, to: url, agent: agent)
-    }
-
-    private func registerCodexMCP() throws {
-        let tomlURL = configDir(for: .codex).appendingPathComponent("config.toml")
-        let toml = (try? String(contentsOf: tomlURL, encoding: .utf8)) ?? ""
-        let updated = Self.addingBoopMCP(to: toml, url: mcpURLString, token: BuddyConfig.default.token)
-        if updated != toml {
-            try writeString(updated, to: tomlURL, agent: .codex)
-        }
     }
 
     private func unregisterCodexMCP() {
@@ -849,27 +799,6 @@ final class HookInstaller {
             out.append(line)
         }
         return out.joined(separator: "\n")
-    }
-
-    /// Return `toml` with the managed `[mcp_servers.boop]` table (re)written.
-    /// Removes any previous copy first, so re-install after a token rotation
-    /// replaces rather than duplicates — a duplicate table is invalid TOML
-    /// and would stop Codex loading its config entirely.
-    nonisolated static func addingBoopMCP(to toml: String, url: String, token: String) -> String {
-        var out = removingBoopMCP(from: toml)
-        while out.hasSuffix("\n\n") { out = String(out.dropLast()) }
-        if !out.isEmpty && !out.hasSuffix("\n") { out += "\n" }
-        if !out.isEmpty { out += "\n" }
-        out += """
-        [mcp_servers.boop]
-        url = "\(url)"
-
-        [mcp_servers.boop.http_headers]
-        X-Boop-Token = "\(token)"
-        X-Boop-Agent = "codex"
-
-        """
-        return out
     }
 
     // MARK: - File helpers

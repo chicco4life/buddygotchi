@@ -73,15 +73,14 @@ private final class MockNotifier: DesktopNotificationPosting {
 @MainActor
 private func makeTestEngine(
     staleMs: Double = 600_000,
-    celebrateMs: Double = 4_000,
-    workStallMs: Double = 300_000
+    celebrateMs: Double = 4_000
 ) -> (BuddyEngine, EchoRecorder, MockClock) {
     let clock = MockClock()
     let config = BuddyConfig(
         httpPort: 0,
         staleTimeoutMs: staleMs,
         celebrateDurationMs: celebrateMs,
-        workStallTimeoutMs: workStallMs,
+
         stateDir: "/tmp",
         approvalMode: false,
         token: "test-token"
@@ -589,7 +588,7 @@ final class EngineIntegrationTests: XCTestCase {
     @MainActor
     func testMultipleOutputsAllReceiveChanges() {
         let clock = MockClock()
-        let config = BuddyConfig(httpPort: 0, staleTimeoutMs: 600_000, celebrateDurationMs: 4_000, workStallTimeoutMs: 300_000, stateDir: "/tmp", approvalMode: false, token: "test-token")
+        let config = BuddyConfig(httpPort: 0, staleTimeoutMs: 600_000, celebrateDurationMs: 4_000, stateDir: "/tmp", approvalMode: false, token: "test-token")
         let engine = BuddyEngine(config: config, clock: clock)
         let r1 = EchoRecorder()
         let r2 = EchoRecorder()
@@ -874,7 +873,7 @@ extension EngineIntegrationTests {
             clock.advance(by: 1)
             engine.toolCalled(sessionId: "new", source: "codex", tool: "Bash", hint: "test", goal: "opaque")
         }
-        XCTAssertEqual(recorder.last?.creature.uhoh, .stuck)
+        XCTAssertNil(recorder.last?.creature.uhoh)
     }
 
     @MainActor
@@ -904,23 +903,6 @@ extension EngineIntegrationTests {
     }
 
     @MainActor
-    func testCollectArrivedReachesCreature() async {
-        let (engine, recorder, clock) = makeTestEngine()
-        engine.turnStarted(sessionId: "new", source: "codex")
-        clock.advance(by: 100)
-        engine.turnEnded(sessionId: "new", source: "codex", outcome: .completed)
-        clock.advance(by: 1500)
-        engine.triggerStaleTick()
-        XCTAssertTrue(engine.state.creature.gift)
-        await engine.finishPendingWork()
-        let line = engine.state.creature.giftLine
-        XCTAssertFalse(line?.isEmpty ?? true)
-        engine.collectArrived()
-        XCTAssertEqual(recorder.last?.creature.gift, false)
-        XCTAssertEqual(recorder.last?.creature.bubble, line)
-    }
-
-    @MainActor
     func testNudgeDismissedReachesCreature() {
         let (engine, recorder, clock) = makeTestEngine()
         engine.submitRequest(sessionId: "new", requestId: "p", tool: "Bash", hint: "build", sessionLabel: nil)
@@ -928,7 +910,7 @@ extension EngineIntegrationTests {
             clock.advance(by: 1)
             engine.nudgeDismissed()
         }
-        XCTAssertEqual(recorder.last?.creature.bubble, "okay, I'll hush about that")
+        XCTAssertNil(recorder.last?.creature.bubble)
     }
 }
 
@@ -949,9 +931,7 @@ extension EngineIntegrationTests {
         engine.turnEnded(sessionId: "wire", source: "codex", outcome: .completed)
         clock.advance(by: 1500)
         engine.triggerStaleTick()
-        XCTAssertTrue(engine.state.creature.gift)
-        engine.handleDeviceCommand(try XCTUnwrap(parseDeviceLine(#"{"cmd":"collect"}"#)))
-        XCTAssertFalse(engine.state.creature.gift)
+        XCTAssertNil(parseDeviceLine(#"{"cmd":"collect"}"#))
         let before = engine.state
         engine.handleDeviceCommand(try XCTUnwrap(parseDeviceLine(#"{"cmd":"motion","m":"shake"}"#)))
         XCTAssertEqual(engine.state, before)

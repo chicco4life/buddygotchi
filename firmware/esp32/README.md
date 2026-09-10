@@ -2,8 +2,7 @@
 
 RenderState v2 firmware for the Waveshare ESP32-S3-Touch-AMOLED-1.64
 (`ws-amoled164`, 456×280 landscape canvas). The Mac supplies six creature
-states; firmware renders composable face parts, cards, bubbles,
-one gift orb, and an agent frame. The frozen previous generation remains in
+states; firmware renders composable face parts, cards, bubbles and reminders. The frozen previous generation remains in
 `archived/`; this firmware does not load character packs or a character menu.
 
 From this directory, use the wrapper for worktree-local pioarduino tools:
@@ -42,7 +41,7 @@ denies/dismisses/pages; hold toggles sound-only Quiet mode at 1 s and shuts the 
 3 s after “night night”. Motion and touch never approve. Touch is affection.
 
 The parser, button guards, timer scheduler, drawing and persistence are in
-`firmware/data.h`, `main.cpp`, `face.h`, `agent.h`, `presence.h`, and `clock.h`.
+`firmware/data.h`, `main.cpp`, `face.h`, `skin-colors.h`, `presence.h`, and `clock.h`.
 `anim.h` supplies the springs and deterministic drawing helpers. HAL, BLE,
 OTA and crash guard retain the existing board/transport implementation.
 The sprite lives in PSRAM at RGB332; screenshots preserve the existing

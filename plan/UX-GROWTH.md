@@ -1,71 +1,41 @@
 # UX: Growth
 
-## Settings policy revision — 2026-09-10
+Current contract, 2026-09-11.
 
-Current owner direction supersedes appearance-selection UI described below: use default skin, no accessory and default silhouette automatically. Preserve growth, XP, inventory and existing progress; expose no cosmetic pickers or retirement controls in Settings.
+## Progress
 
-Status: first draft, 2026-09-09, written by the agent to unblock Phase 4 while
-the owner was away. Every number here is an assumption to tune; the
-mechanism is what Phase 4 builds. Refines `VISION.md` §10.
+Completed turns earn 3 XP; an active local day earns 10 XP once. No other new
+award sources or XP rate limits. Duplicate completion signals cannot earn twice.
+Session/work activity and boops qualify a day; approvals do not award XP.
+Existing XP stays earned, including historical sources. Accounting never
+reprices materialized history. Task counts represent completed turns.
 
-**Owner decision, 2026-09-10:** XP is a progress score for bragging rights.
-Behaviors and appearances are all available from the start; XP unlocks nothing.
-See [XP and skill tree](XP-AND-SKILL-TREE.md) for the detailed formula and current
-availability model. The former unlock ladder has been removed.
+Level L begins at `100 × (L−1) × L / 2 + 50 × (L−1)` cumulative XP. XP buys
+nothing and gates nothing. Appearance stays default skin, no accessory, default
+silhouette. Historical inventory is retained without new milestone creation.
 
-## XP formula (public, one screen)
+Streaks count consecutive active local dates, with today allowed to remain
+incomplete until tomorrow. Missed days reset current streak; best streak and
+XP survive. No rest-day credits or streak bonuses.
 
-| Source | XP | Notes |
-| --- | --- | --- |
-| Turn completed | 3 | The unit of work the buddy cheers for |
-| Task finished | 8 | A turn that ends a goal with a pass, or a session that ends with completed work |
-| Hard-won pass moment | +12 | On top of the task |
-| Active day | 10 | First activity of a local day |
-| Streak bonus | +1 per streak day, capped at +10 | Added to the active-day award |
-| Session started | 2 | Presence |
-| Check-in (boop, pet, collect) | 1, capped 20/day | Bond, lightly |
-| Tokens used | 1 per 100k output tokens, capped 10/day | Best effort, Claude Code and Codex only |
+Local share-card export remains. Leaderboards, sync, rank UI and device signing
+are deferred to [IDEAS.md](IDEAS.md).
 
-Never a source: approvals or denials.
+## Personality and remembered profile
 
-No daily cap on the total; the leaderboard ranks lifetime XP. Anti-farming is
-plausibility limits (no more than 60 turns/hour counted) and device signing
-(Phase 8).
+Energy, cheek, warmth, curiosity and bond are 0–255 model context. Existing
+values are retained. BEHAVIOR.md steers what they mean, when to change them,
+and which evidence-backed memories to save. No hard-coded morning/late-night,
+test-first, project-recurrence or check-in-to-trait rules remain. Active days
+and return greetings no longer automatically add bond.
 
-## Level curve
+Once per day after 20 minutes inactive and on AC power, the local model may
+propose up to five memories and ±3 changes per axis. Code validates evidence
+references, supported axes, numeric bounds and text lengths; it does not prove
+semantic truth. Invalid/unavailable output leaves profile and traits unchanged.
+Stored facts last 30 days; selected profile lines persist and remain deletable.
+The guide's default is gradual learning, no penalties for absence or failure,
+and no unsupported guesses. Edit that file to steer personality and memory.
 
-Cumulative XP to reach level L: `100 × (L−1) × L / 2 + 50 × (L−1)` for
-L ≥ 2 (level 2 at 150, level 5 at 1,200, level 10 at 4,950, level 20 at
-19,950, level 30 at 44,950). Shown as level plus an XP bar to the next level.
-
-## Streaks
-
-Consecutive active local days. One rest day banked automatically per seven
-active days, up to three banked; a missed day consumes a banked rest day
-before breaking the streak. Losing a streak resets the counter only.
-
-## Appearance and milestones
-
-Every supported skin (default, sky, mint, ember, midnight), accessory (none,
-sprout, scarf, crown) and silhouette (default, round, tall) is available without
-XP. All implemented behaviors are available at level 1. There are no skill
-points, unlock thresholds or XP-dependent behavior variants.
-
-Milestone keepsakes record first dance, 100th task, 30-day streak and first
-late-night session. These are commemorative records, not functional rewards.
-Level-up and streak visuals may acknowledge progress without granting access.
-
-## Hidden bond
-
-0–255, monotonic. +1 per active day, +1 per collected gift (max +3/day), +2
-per greet after ≥ 1 day away. Drives greet warmth and how much the buddy
-remembers; never shown as a number.
-
-## Traits
-
-Four axes 0–255, start 128 (cheek set by the setup temperament: earnest 64,
-cheeky 192). Daily deltas capped at ±3 per axis:
-energy ↑ with morning starts and many turns, ↓ with late nights;
-cheek ↑ with denials and rate limits survived, ↓ with long quiet sessions;
-warmth ↑ with check-ins and greets; curiosity ↑ with new projects and many
-distinct tools.
+XP accounting, base state and approval authority remain outside model control.
+Approval decisions are excluded from learning evidence.

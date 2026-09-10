@@ -20,8 +20,6 @@ struct RawHookPayload: Sendable {
     var callId: String?
     var eventName: String = ""
     var displayHint: String = ""
-    var outputTokens: Int?
-    var cumulativeTokens = false
 
     static func parse(_ data: Data, source: String, at: Double) throws -> Self? {
         let body = try JSONDecoder().decode(HookEventBody.self, from: data)
@@ -45,10 +43,6 @@ struct RawHookPayload: Sendable {
         let tool = body.effectiveToolName ?? (event == "afterShellExecution" ? "Shell" : event == "afterFileEdit" ? "Edit" : "")
         let input = body.effectiveInputText ?? (event == "afterFileEdit" ? HookJSON.object(["file_path": .string(body.file_path ?? body.path ?? "")]).text : nil)
         let error = body.error_class ?? body.error ?? object["error_class"]?.text ?? (body.status == "error" ? "tool_error" : nil)
-        let usage = body.usage?.object ?? body.message?.object?["usage"]?.object
-        let info = body.info?.object ?? body.payload?.object?["info"]?.object
-        let total = info?["total_token_usage"]?.object?["output_tokens"]?.integer
-        let outputTokens = !["claude-code", "codex"].contains(source) ? nil : (usage?["output_tokens"]?.integer ?? body.output_tokens ?? total)
         return Self(source: source, sessionId: body.effectiveSessionId ?? "\(source)_\(stableHashCwd(body.effectiveCwd))", kind: kind, toolName: tool, toolInput: input,
                     exitStatus: body.exit_status ?? body.exit_code ?? object["exit_code"]?.integer ?? object["exit_status"]?.integer ?? cappedExitStatus(head: body.output_head, tail: body.output_tail),
                     errorClass: error ?? (event.lowercased().contains("failure") ? "tool_error" : nil),
@@ -56,19 +50,19 @@ struct RawHookPayload: Sendable {
                     outputTail: (body.output_tail ?? output.map { String(decoding: $0.utf8.suffix(1024), as: UTF8.self) }).map { $0.prefix(utf8Bytes: 1024) },
                     promptText: kind == .turnStart ? (body.prompt ?? body.prompt_text)?.text.map { $0.prefix(utf8Bytes: 2048) } : nil,
                     closingMessage: kind == .turnEnd ? (body.last_assistant_message ?? body.text ?? body.closing_message)?.text.map { $0.prefix(utf8Bytes: 2048) } : nil,
-                    cwd: body.effectiveCwd, timestamp: at, closingOnly: event == "afterAgentResponse", callId: body.tool_use_id ?? body.tool_call_id, eventName: event, displayHint: safeDisplayHint(body, tool: tool), outputTokens: outputTokens, cumulativeTokens: total != nil)
+                    cwd: body.effectiveCwd, timestamp: at, closingOnly: event == "afterAgentResponse", callId: body.tool_use_id ?? body.tool_call_id, eventName: event, displayHint: safeDisplayHint(body, tool: tool))
     }
 }
 
 // Preserve authored descriptions while keeping raw command/path fallbacks out of UI history.
 private func safeDisplayHint(_ body: HookEventBody, tool: String) -> String {
     if body.effectiveEventName == "PermissionRequest" {
-        return approvalGloss(from: body, fallback: GlossWriter.read(tool: tool, input: body.effectiveInputText ?? ""))
+        return approvalGloss(from: body, fallback: tool.isEmpty ? "Tool" : tool)
     }
     let hint = extractHint(from: body)
     if body.effectiveToolInput?.description == hint,
        GoalsReader.runner(hint) == nil, !hint.contains("/") { return hint }
-    return GlossWriter.read(tool: tool, input: body.command ?? body.effectiveToolInput?.command ?? "")
+    return tool.isEmpty ? "Tool" : tool
 }
 
 /// The boundary's arbitrary JSON values retain unknown tool-input keys without a second alias parser.

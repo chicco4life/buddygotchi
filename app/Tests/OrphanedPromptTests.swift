@@ -7,7 +7,7 @@ private func makeApprovalEngine() -> BuddyEngine {
         httpPort: 0,
         staleTimeoutMs: 600_000,
         celebrateDurationMs: 4_000,
-        workStallTimeoutMs: 300_000,
+
         stateDir: "/tmp",
         approvalMode: true,
         token: "test-token"

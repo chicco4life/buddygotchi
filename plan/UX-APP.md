@@ -1,7 +1,4 @@
-# UX: The Mac App
-
-Status: owner-approved menu bar direction, 2026-09-10. Supersedes the earlier
-creature-led desktop and separate control-center window designs.
+# UX: The Mac app
 
 The hardware is the companion. The Mac app runs quietly in the background as
 its status and configuration surface. Normal use should not require opening it.
@@ -33,7 +30,7 @@ subtle dividers, and whitespace. No sidebar or top-level tab strip.
 3. Pending requests appear only on Overview, below its status. Settings, Activity
    and setup display only their own content, even while an approval is waiting.
    Show the tool,
-   gloss, stakes, queue position, and Approve/Deny for actionable requests. The
+   supplied reason (or tool name), stakes, queue position, and Approve/Deny for actionable requests. The
    first decision from either surface wins. Passive requests have no fake buttons.
 4. Within-level XP progress, total XP, and remaining XP. A compact row shows
    today's XP, lifetime completed tasks, and current streak. The task count is
@@ -55,8 +52,8 @@ Long content scrolls inside the dropdown.
 ## Activity and Settings
 
 Activity contains all sessions, lifetime tasks, days together, current and best
-streak, daily/source XP history, recap, collection, keepsakes, and secondary
-sharing/leaderboard actions. Missing history is an honest empty/error state.
+streak, daily/source XP history, and secondary
+local share-card export. Missing history is an honest empty/error state.
 
 Settings is one continuous scrollable form. Every group is expanded and visible
 in the same view; there is no category picker, sidebar, or extra profile page.
@@ -66,13 +63,13 @@ Simple headings separate:
 - Device: connection, pairing, and firmware.
 - Agents: installation status, connect and repair actions.
 - General: launch at login.
-- What your buddy knows: inspect and clear stored profile lines inline.
-- Approvals.
+- What your buddy knows: inspect and clear stored profile lines inline; “Edit buddy behavior…” opens the Markdown guide for dialogue, memory and personality.
+- Approvals: “Approve through Buddy”, off by default, plus the separate Codex opt-in.
 - Support: Report a bug saves a diagnostic file for sharing with support.
 - About: version, Check for updates, and Help & support.
 
-Written dialogue is automatic, with authored fallback when the local model is
-unavailable. There is no Voice picker. Sound uses fixed volume step 1; Quiet
+Written dialogue is automatic, with a neutral greeting/error fallback and
+otherwise silence when the local model is unavailable. There is no Voice picker. Sound uses fixed volume step 1; Quiet
 mode is the only sound control. Appearance is fixed to the default skin,
 no accessory, and default silhouette. Old saved choices remain stored but are
 inactive. Quick command, Reset, and Retire buddy are removed from Settings;
@@ -94,31 +91,17 @@ choices survive upgrades and restarts. Wire names remain compatible; see WIRE-V2
 
 English and Korean copy are supported. Review both system appearances.
 
-### Settings simplification (2026-09-10)
+## Approvals and reminders
 
-Owner feedback from live use: one continuous view, automatic dialogue, fixed
-volume and appearance, and a single bug-report action. Profile rows share the
-form's scroll. No category navigation or reset/retirement section remains.
+Native editor/agent approval is the default. Explicit Buddy interception can
+replace the native dialog, requiring the decision through Buddy. Codex also
+requires its separate opt-in; existing explicit choices remain. Disabling
+interception releases held requests to the native flow. Server-side checks
+protect this even when an old hook still asks to intercept.
 
+“Snooze reminder” suppresses nudges for that request without deciding it.
+The next request starts fresh. Stakes inspect the command; card copy uses the
+supplied reason, or the tool name when absent.
 
-### Automatic companion features — 2026-09-10
-
-Agent drawings and leaderboard participation are enabled by default. Remove both
-Settings sections, including leaderboard configuration fields. A one-time migration
-enables the formerly optional features for existing installations. Leaderboard
-sync still requires a configured service URL and device identity; no endpoint is
-invented by the app. Existing service configuration is retained.
-
-
-Settings polish: removed update-check privacy footer, aligned row labels by removing isolated leading icons, and grouped Quiet mode helper text with its toggle consistently. Firmware check errors read “Check unavailable”; the update sheet displays the underlying error and offers Try again. A check failure is distinct from an installation failure.
-
-## Approval correction (2026-09-10)
-
-Settings includes “Handle Codex approvals in Boop”, off by default and
-requiring Local approval mode. Leaving it off preserves Codex's native automatic
-review and avoids false Buddy cards. Native reviewer waiting is not mirrored
-because the hook cannot distinguish it from a request that will auto-approve.
-Turning it on lets Buddy handle the request before Codex's normal approval flow.
-Turning it off releases held Codex requests back to that flow. Approval cards
-prefer the supplied reason over a generic action category; stakes still inspect
-the command.
+Firmware check errors read “Check unavailable”; the sheet shows the underlying
+error and offers Try again. This is separate from an installation failure.

@@ -76,21 +76,6 @@ jobs:
       - name: Package app bundle
         run: make package
 
-  leaderboard:
-    name: Leaderboard service
-    runs-on: macos-15
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Build
-        run: swift build
-        working-directory: leaderboard
-
-      - name: Test
-        run: swift run LeaderboardTests
-        working-directory: leaderboard
-
   firmware:
     name: Firmware build (shipping board)
     runs-on: ubuntu-latest

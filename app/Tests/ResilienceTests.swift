@@ -189,7 +189,7 @@ final class ResilienceTests: XCTestCase {
             httpPort: 0,
             staleTimeoutMs: 600_000,
             celebrateDurationMs: 4_000,
-            workStallTimeoutMs: 300_000,
+
             stateDir: "/tmp",
             approvalMode: false,
             token: "t"
@@ -230,7 +230,7 @@ final class ResilienceTests: XCTestCase {
             httpPort: port,
             staleTimeoutMs: 600_000,
             celebrateDurationMs: 4_000,
-            workStallTimeoutMs: 300_000,
+
             stateDir: "/tmp",
             approvalMode: true,
             token: "test-token"
@@ -303,7 +303,7 @@ private func makeResilienceEngine() -> (BuddyEngine, EchoRecorder, MockClock) {
         httpPort: 0,
         staleTimeoutMs: 600_000,
         celebrateDurationMs: 4_000,
-        workStallTimeoutMs: 300_000,
+
         stateDir: "/tmp",
         approvalMode: true,
         token: "test-token"

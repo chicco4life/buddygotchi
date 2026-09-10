@@ -25,7 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
     private var controlPopover: NSPopover!
     private let controlNavigation = ControlNavigation()
-    private let engine = BuddyEngine(defaults: AppDefaults.shared, growthSigner: BuddyConfig.default.headless && ProcessInfo.processInfo.environment["BOOP_TEST_SIGNER"] == "1" ? TestDeviceSigner() : nil)
+    private let engine = BuddyEngine(defaults: AppDefaults.shared)
     private var serverTask: Task<Void, Never>?
     private var serviceGroup: ServiceGroup?
     private var sigintSource: DispatchSourceSignal?
@@ -252,10 +252,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controlPopover.contentViewController?.view.window?.makeKey()
     }
 
-    @objc private func showTodayRecap() {
-        Task { _ = try? await engine.makeRecap(); controlNavigation.pane = .activity; showPopover() }
-    }
-
     @objc private func openSettingsFromMenu() {
         controlNavigation.pane = .settings
         showPopover()
@@ -298,7 +294,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: BuddyCopy.phase7("shareCard", language: engine.state.language), action: #selector(shareCardFromMenu), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.openBoop, action: #selector(togglePopover), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: BuddyCopy.phase7("recap", language: engine.state.language), action: #selector(showTodayRecap), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.settings, action: #selector(openSettingsFromMenu), keyEquivalent: ","))
         menu.addItem(NSMenuItem(title: BuddyCopy.shared.appMenu.checkForUpdates, action: #selector(checkForUpdatesFromMenu), keyEquivalent: ""))
         menu.addItem(.separator())
@@ -342,6 +337,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             tracked.contains(agent) || healthByAgent[agent] != .notInstalled
         }
         for agent in agents {
+            HookInstaller.shared.unregisterMCP(for: agent)
             guard let health = healthByAgent[agent] else { continue }
             switch health {
             case .installed:

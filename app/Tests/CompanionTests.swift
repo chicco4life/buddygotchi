@@ -58,26 +58,13 @@ final class CompanionTests: XCTestCase {
         defer { cleanup() }
         let (engine, _) = makeEngine(defaults: defaults)
         let before = engine.state.version
-        engine.handleDeviceCommand(.quick)
+        XCTAssertNil(parseDeviceLine(#"{"cmd":"quick"}"#))
         XCTAssertEqual(engine.state.version, before)
         await engine.setLanguage("ko")
         XCTAssertEqual(engine.state.language, "ko")
         XCTAssertEqual(defaults.string(forKey: DefaultsKey.language), "ko")
         XCTAssertTrue(engine.diagnosticLog.entries.contains { $0.event == "languageChanged" })
-        if case .quick? = parseDeviceLine("{\"cmd\":\"quick\"}") {} else { XCTFail("Quick command did not parse") }
-    }
-    func testTeachOnceOptOutAndRestart() async throws {
-        let (store, dir, cleanup) = try makeStore()
-        defer { cleanup() }
-        let first = try await store.claimTool("Bash")
-        let second = try await store.claimTool("Bash")
-        XCTAssertTrue(first); XCTAssertFalse(second)
-        try await store.muteTool("Read")
-        let reopened = try Store(stateDir: dir.path, now: 0)
-        let muted = try await reopened.claimTool("Read")
-        let seen = try await reopened.claimTool("Bash")
-        XCTAssertFalse(muted); XCTAssertFalse(seen)
-        XCTAssertNotNil(TeachCatalog.line(tool: "Bash", language: "ko"))
+        XCTAssertNil(parseDeviceLine(#"{"cmd":"collect"}"#))
     }
     func testRetireWipesStoreAndRestartsOnboarding() async throws {
         let (store, _, cleanupStore) = try makeStore()
@@ -86,7 +73,6 @@ final class CompanionTests: XCTestCase {
         defaults.set("Mochi", forKey: DefaultsKey.buddyName)
         defaults.set(true, forKey: DefaultsKey.setupCompleted)
         try await store.addProfileLine("Morning work", source: "rules", at: 0)
-        _ = try await store.claimTool("Bash")
         let (engine, _) = makeEngine(store: store, defaults: defaults)
         engine.turnStarted(sessionId: "s", source: "codex")
         engine.turnEnded(sessionId: "s", source: "codex", outcome: .completed)
@@ -97,23 +83,20 @@ final class CompanionTests: XCTestCase {
         XCTAssertEqual(engine.state.growth.xp, 0)
         let profile = try await store.profile()
         let facts = try await store.facts()
-        let freshTool = try await store.claimTool("Bash")
-        XCTAssertTrue(profile.isEmpty); XCTAssertTrue(facts.isEmpty); XCTAssertTrue(freshTool)
+        XCTAssertTrue(profile.isEmpty); XCTAssertTrue(facts.isEmpty)
         XCTAssertNil(defaults.string(forKey: DefaultsKey.buddyName))
         XCTAssertFalse(defaults.bool(forKey: DefaultsKey.setupCompleted))
     }
     func testFirstCheerHasNoSyntheticWorkOrXP() {
         let initial = InternalState.initial(staleMs: 60000, celebrateDurationMs: 4000)
-        let next = reduce(initial, .onboardingCheer(at: 1000, line: "first one"))
+        let next = reduce(initial, .onboardingCheer(at: 1000))
         XCTAssertEqual(next.buddy.creature.state, .done)
         XCTAssertEqual(next.buddy.creature.cheer, .hop)
-        XCTAssertTrue(next.buddy.creature.gift)
-        XCTAssertEqual(next.buddy.creature.giftLine, "first one")
         XCTAssertTrue(next.pendingAwards.isEmpty)
         XCTAssertTrue(next.pendingFacts.isEmpty)
         XCTAssertEqual(next.memory.completedTurns, 0)
         var completed = initial; completed.memory.completedTurns = 1
-        let unchanged = reduce(completed, .onboardingCheer(at: 1000, line: "first one"))
+        let unchanged = reduce(completed, .onboardingCheer(at: 1000))
         XCTAssertNil(unchanged.buddy.celebrateUntil)
     }
 
@@ -162,26 +145,6 @@ final class CompanionTests: XCTestCase {
         XCTAssertTrue(engine.state.creature.focus)
     }
 
-    func testTeachCacheLoadsAtStartupAndClaimsOnlyFirstSighting() async throws {
-        let (base, _, cleanupStore) = try makeStore()
-        let (defaults, cleanupDefaults) = makeDefaults()
-        defer { cleanupStore(); cleanupDefaults() }
-        _ = try await base.claimTool("Bash")
-        try await base.muteTool("Read")
-        let store = CountingVoiceStore(base: base)
-        let (engine, _) = makeEngine(store: store, defaults: defaults)
-        engine.start()
-        await engine.flushStore()
-        for _ in 0..<20 {
-            for tool in ["Bash", "Read", "Edit"] {
-                engine.toolCalled(sessionId: "s", source: "codex", tool: tool, hint: "")
-            }
-        }
-        await engine.flushStore()
-        let claims = await store.toolClaims
-        XCTAssertEqual(claims, ["Edit"])
-        engine.stop()
-    }
 
     func testWakeUsesCreatureStates() async {
         let (defaults, cleanup) = makeDefaults(); defer { cleanup() }

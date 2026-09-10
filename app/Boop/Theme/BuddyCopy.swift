@@ -121,11 +121,9 @@ enum BuddyCopy {
         let interactiveModeDescription = "Open the control center when an agent needs your attention."
         let sounds = "Sounds"
         let soundsDescription = "Play a short sound for attention, errors, and long completions."
-        let agentDrawings = "Agent drawings"
-        let agentDrawingsDescription = "Let agents leave small pixel drawings for your buddy to keep."
-        let localApprovalMode = "Local approval mode"
-        let localApprovalModeSentence = "Local approval mode"
-        let localApprovalModeDescription = "Route tool approvals through Boop instead of your agent’s built-in dialog."
+        let localApprovalMode = "Approve through Buddy"
+        let localApprovalModeSentence = "Move approvals to Buddy?"
+        let localApprovalModeDescription = "Off by default. Keep approvals in your editor or agent unless you choose Buddy."
         let httpPort = "HTTP Port"
         let openConfigFolder = "Open config folder"
         let advanced = "Advanced"
@@ -187,16 +185,13 @@ enum BuddyCopy {
         let starting = "Starting"
         let listeningTemplate = "Listening on {port}"
         let failedReasonTemplate = "Failed — {reason}"
-        let approvalExplainerRow1 = "Boop becomes the approval surface for supported hooks."
+        let approvalExplainerRow1 = "Buddy can replace the native approval dialog for supported hooks; you may need to decide here instead of in your editor."
         let approvalExplainerRow2 = "Cursor read-only checks can be approved automatically. Shell commands and writes still ask first."
         let approvalExplainerRow3 = "If Boop is closed or unreachable, hooks fail open and the agent keeps its native flow."
         let turnOn = "Turn on"
     }
 
     struct Popover {
-        let keepsakeShelf = "Keepsakes"
-        let keepsakeShelfEmpty = "Nothing on the shelf yet."
-        let rememberThis = "remember this?"
         let activeTemplate = "{count} active"
         let activeSessionsTemplate = "{count} active sessions"
         let desktopStatusTemplate = "Desktop {status}"
@@ -361,7 +356,7 @@ extension BuddyCopy {
     }
     private static let phase7Table: [String: (String, String)] = [
         "codexApprovals": ("Handle Codex approvals in Boop", "Boop에서 Codex 승인 처리"),
-        "codexApprovalsDescription": ("Off by default so Codex can review requests automatically. Turn on to decide on Buddy before Codex’s normal approval flow.", "기본적으로 꺼져 있어 Codex가 요청을 자동 검토합니다. 켜면 Codex의 일반 승인 절차 전에 Buddy에서 결정합니다."),
+        "codexApprovalsDescription": ("Keep Codex’s native review and approval flow by default. Opt in to intercept requests in Buddy; this can replace the Codex approval surface.", "기본적으로 꺼져 있어 Codex가 요청을 자동 검토합니다. 켜면 Codex의 일반 승인 절차 전에 Buddy에서 결정합니다."),
         "updatePrivacy": ("Update checks send no analytics or device identifiers.", "업데이트 확인 시 분석 데이터나 기기 식별자를 보내지 않아요."),
         "approvals": ("Approvals", "승인"),
         "agentsCan": ("Agents can", "에이전트 권한"),
@@ -387,10 +382,7 @@ extension BuddyCopy {
         "rankAll": ("All time", "전체"),
         "rankMonth": ("This month", "이번 달"),
         "rankFriends": ("Friends", "친구"),
-        "rankUnavailable": ("Connect your device and enable the leaderboard in settings.", "기기를 연결하고 설정에서 리더보드를 켜 주세요."),
         "yourRank": ("Your rank: %d", "내 순위: %d"),
-        "leaderboardURL": ("Leaderboard URL", "리더보드 주소"),
-        "saveLeaderboard": ("Save", "저장"),
         "friendsCodeLabel": ("Friends code: ", "친구 코드: "),
         "friendCode": ("Friend’s code", "친구 코드"),
         "addFriend": ("Add", "추가"),
@@ -399,19 +391,19 @@ extension BuddyCopy {
             "hop": ("Hop", "폴짝"), "cheer": ("Cheer", "환호"), "dance": ("Dance", "춤"),
             "hardWonPass": ("A hard-won pass", "어렵게 이뤄낸 성공"), "redStreakEnded": ("Back on track", "다시 순조롭게"),
             "firstEver": ("First one", "첫 번째"), "backAfterAbsence": ("Welcome back", "돌아왔네요"),
-            "sameFileAgain": ("One more little change", "작은 수정 하나 더"), "lateNight": ("A quiet night", "조용한 밤"), "nthRateLimit": ("Waiting for a refill", "충전을 기다리는 중"),
+            "sameFileAgain": ("One more little change", "작은 수정 하나 더"), "lateNight": ("A quiet night", "조용한 밤"),
             "fine": ("Fine", "괜찮아요"), "checkIt": ("Check it", "확인해 주세요"), "careful": ("Careful", "주의해 주세요"),
-            "quietMode": ("Quiet mode", "무음 모드"), "quietModeDescription": ("Turn off Buddy’s sounds. Screen behavior stays the same.", "Buddy 소리를 끕니다. 화면 동작은 그대로 유지됩니다."), "focus": ("General", "일반"), "collect": ("Collect", "받기"), "recap": ("Show today's recap", "오늘의 요약 보기"), "turns": ("Turns", "대화"), "tasks": ("Tasks", "작업"), "biggest": ("Biggest moment", "가장 큰 순간"),
+            "quietMode": ("Quiet mode", "무음 모드"), "quietModeDescription": ("Turn off Buddy’s sounds. Screen behavior stays the same.", "Buddy 소리를 끕니다. 화면 동작은 그대로 유지됩니다."), "focus": ("General", "일반"), "turns": ("Turns", "대화"), "tasks": ("Tasks", "작업"), "biggest": ("Biggest moment", "가장 큰 순간"),
             "profile": ("What your buddy knows", "버디가 알고 있는 것"), "emptyProfile": ("Still getting to know you.", "아직 알아가는 중이에요."),
             "clear": ("Forget everything", "모두 잊기"), "delete": ("Delete", "삭제"), "clearMessage": ("Your buddy’s name, level, and bond are kept. Only these profile lines are cleared.", "버디의 이름, 레벨, 유대감은 유지돼요. 이 프로필 내용만 지워져요."),
             "english": ("English", "English"), "korean": ("한국어", "한국어"),
             "language": ("Language", "언어"), "voice": ("Voice", "목소리"), "auto": ("Automatic", "자동"), "off": ("Off", "끄기"),
             "focusHours": ("Focus hours · daily", "매일 집중 시간"), "start": ("Start", "시작"), "end": ("End", "종료"),
-            "quick": ("Quick command", "빠른 명령"), "quickNote": ("Double tap shows this command in a notification. It isn’t sent to a running agent.", "두 번 누르면 이 명령을 알림으로 보여줘요. 실행 중인 에이전트에 전송하지는 않아요."),
-            "leaderboard": ("Leaderboard", "리더보드"), "volume": ("Volume", "음량"),
+
+            "volume": ("Volume", "음량"),
             "retire": ("Retire buddy", "버디 은퇴시키기"), "retireMessage": ("Say goodbye and begin again? This erases growth and everything your buddy learned.", "작별하고 다시 시작할까요? 성장 기록과 버디가 배운 모든 내용이 지워져요."),
             "name": ("Name your buddy", "버디 이름 짓기"), "namePermanent": ("A name to keep. You can’t change it later.", "오래 간직할 이름이에요. 나중에 바꿀 수 없어요."),
-            "continue": ("Continue", "계속"), "firstOne": ("first one", "첫 번째야"), "quietTool": ("Don’t explain this tool again", "이 도구 설명 끄기"),
+            "continue": ("Continue", "계속"),
             "disconnected": ("No device connected", "기기 연결 안 됨"),
             "error": ("Couldn't save this change. Please try again.", "변경을 저장하지 못했어요. 다시 시도해 주세요.")
         ]

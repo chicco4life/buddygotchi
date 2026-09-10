@@ -147,7 +147,7 @@ static void faceSimulate(uint32_t now,float dt) {
         p.bob-=21*animBounce(age%450,450)*(age<900);
         p.tilt=0.12f*sinf(progress*ANIM_TAU*2); p.blush=1;
       } else p.bob-=21*animBounce(age,600);
-    } else if (giftPending()) { p.arc=9; p.eyeH=35; p.gazeX=20; p.gazeY=-7; }
+    }
   } else if (eq(state,"uhoh")) {
     p.eyeH=36; p.gazeX=-6; p.gazeY=8; p.lean=10; p.bob=sinf(phase)*2; p.mouth=-1;
   }
@@ -206,6 +206,7 @@ static void faceSimulate(uint32_t now,float dt) {
     uint32_t age=now-(dizzyUntil-3000);
     p.gazeX+=10*sinf(age*ANIM_TAU*3/1000.0f);
   }
+  if (card && tama.nudgeRung > 0 && !cardDismissed) p.lean += 4;
   if (before(now,perkUntil) && !card) { p.lean-=8; p.eyeH=96; chosenPoseName="pickup"; }
   if (before(now,shakeHeadUntil)) p.gazeX+=sinf(phase*24)*14;
   if (!napping && !eq(state,"asleep") && !eq(state,"done") && !booping && !greeting && (now-stateAt)%5100<110) p.eyeH=7;
@@ -314,11 +315,7 @@ static void faceDraw(uint32_t now,bool showSparks,float compact=0,bool proud=fal
     uint16_t flame=animRGB(255,146,36);
     spr.fillTriangle(x-r,y,x+3,y-24,x+r,y,flame); spr.fillSmoothCircle(x,y,r,flame);
   }
-  // Collect remains visible beside the bubble, even after the host clears gift.
-  bool collecting=before(now,giftCollectUntil);
   uint32_t age=now-stateAt;
-  // No on-screen cue for an uncollected gift (owner decision 2026-09-09):
-  // the tap still collects it and the bubble tells the story.
   if (!showSparks) return;
   int eyeTop=cy+animPx(p.gazeY-p.eyeH/2);
   if (eq(tama.state,"done") && eq(tama.cheer,"dance") && age<cheerDuration()) {

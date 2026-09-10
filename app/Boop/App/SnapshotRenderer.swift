@@ -16,7 +16,7 @@ enum SnapshotRenderer {
     private static let surface = Surface()
 
     static var expectedRenderCount: Int {
-        let companionPerAppearance = CompanionScene.all.count + 2 + 2 + SettingsSection.sidebar.count + OnboardingStep.allCases.count
+        let companionPerAppearance = CompanionScene.all.count + 2 + SettingsSection.sidebar.count + OnboardingStep.allCases.count
         let other = 7 + OnboardingStep.allCases.count + FirmwareUpdater.snapshotStates.count + 1 + 4
         return 2 * companionPerAppearance + other + 2 // one cream share card per language
     }
@@ -225,7 +225,7 @@ enum SnapshotRenderer {
     private static func makeEngine(defaults: UserDefaults) -> BuddyEngine {
         BuddyEngine(config: BuddyConfig(
             httpPort: 0, staleTimeoutMs: 600_000, approvalTimeoutMs: 300_000,
-            celebrateDurationMs: 4_000, workStallTimeoutMs: 300_000,
+            celebrateDurationMs: 4_000,
             stateDir: "/tmp", approvalMode: false, token: "snapshot-token"
         ), defaults: defaults)
     }
@@ -261,10 +261,6 @@ enum SnapshotRenderer {
                 let engine = BuddyEngine.preview(state: state, defaults: defaults)
                 shot(PopoverView(engine: engine, esp32Output: ESP32Output(defaults: defaults)), "popover-" + scene.name)
             }
-            let recap = Recap(line: "good day", paragraph: "Green at last. A little progress became a good day.", turns: 14, tasks: 3, biggest: "hardWonPass")
-            var recapState = BuddyState.initial; recapState.recap = recap
-            shot(PopoverView(engine: BuddyEngine.preview(state: recapState, defaults: defaults), esp32Output: ESP32Output(defaults: defaults)), "popover-recap")
-            shot(RecapView(language: "en", recap: recap), "recap", height: 240)
             for count in [0, 3] {
                 let lines = (0..<count).map { ProfileLine(id: $0, line: ["You often work in the morning.", "Tests are part of your routine.", "You have been working on Boop."][$0], source: "rules", confidence: 1, createdAt: 1_780_000_000_000) }
                 shot(ProfilePage(language: "en", lines: lines), "profile-\(count)", width: 520, height: 540)

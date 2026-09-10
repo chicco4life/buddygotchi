@@ -5,10 +5,9 @@
 #include "guard.h"
 #include "ble_bridge.h"
 #include "data.h"
-#include "unit.h"
 #include "anim.h"
 #include "presence.h"
-#include "agent.h"
+#include "skin-colors.h"
 SET_LOOP_TASK_STACK_SIZE(16384);
 #ifndef FW_VERSION
 #define FW_VERSION "dev"
@@ -28,8 +27,8 @@ static uint32_t localBoopUntil = 0, dizzyUntil = 0, perkUntil = 0, shakeHeadUnti
 static uint32_t lastInput = 0, statsUntil = 0, lastPet = 0;
 static int statsPage = 0;
 static uint32_t statsAt = 0;
-static uint32_t localBoopAt = 0, giftCollectedAt = 0, giftCollectUntil = 0;
-static bool giftCollected = false, bubbleDismissed = false, cardDismissed = false;
+static uint32_t localBoopAt = 0;
+static bool bubbleDismissed = false, cardDismissed = false;
 static char localBubble[64] = "", posture[7] = "desk";
 static uint32_t localBubbleUntil = 0, drawCount = 0;
 static bool imuInjected = false, imuSeen = false;
@@ -60,7 +59,6 @@ static bool systemCard() { return blePasskey() || otaActive() || (tama.card.kind
 static bool hasCard() { return systemCard() || (dataConnected() && tama.card.id[0] && !cardDismissed && strcmp(tama.card.id,decision.id)); }
 static bool armed() { return !systemCard() && hasCard() && tama.card.approval && nowMs() - cardAt >= 600; }
 static bool careful() { return strcmp(tama.card.stakes, "careful") == 0; }
-static bool giftPending() { return tama.gift && !giftCollected; }
 static bool bubbleVisible() { return (!bubbleDismissed && tama.bubble[0] && before(nowMs(), bubbleUntil)) || before(nowMs(), localBubbleUntil); }
 static const char* bubbleText() { return before(nowMs(), localBubbleUntil) ? localBubble : tama.bubble; }
 static const char* feedback() {
@@ -76,11 +74,6 @@ static void sendCmd(const char* json) {
 }
 static void sendDoc(JsonDocument& d) { char buf[512]; serializeJson(d, buf, sizeof(buf)); sendCmd(buf); }
 static void telemetry(JsonDocument& d);
-void sendSigning(JsonDocument& request) {
-  JsonDocument d;
-  if (request["cmd"] == "unit") unitReply(d); else unitSign(request, d);
-  sendDoc(d);
-}
 void sendStatus() {
   JsonDocument d; telemetry(d); d["ack"] = "status"; d["ok"] = true;
   d["name"] = btName; d["secure"] = bleSecure(); sendDoc(d);
@@ -108,16 +101,12 @@ static void ritualTick() {
     case R_RETIRE:
       if (now-ritualAt<ritualDuration[ritual]) break;
       {
-        if (!unitClear()) {
-          sendCmd("{\"ack\":\"retire\",\"ok\":false,\"error\":\"key_clear_failed\"}");
-          ritual=R_NONE; break;
-        }
         Preferences p;
         if (p.begin("creature-v2",false)) { p.clear(); p.end(); }
         tama=TamaState{}; firstWake=true; haveFrame=false; _rtcValid=false;
         ritual=R_NONE;
         decision=Decision{}; localBoopUntil=dizzyUntil=perkUntil=statsUntil=0;
-        bubbleUntil=localBubbleUntil=giftCollectUntil=0; giftCollected=cardDismissed=bubbleDismissed=false;
+        bubbleUntil=localBubbleUntil=0; cardDismissed=bubbleDismissed=false;
         stateAt=now; spr.fillSprite(BLACK);
         sendCmd("{\"ack\":\"retire\"}");
       }
@@ -142,7 +131,7 @@ static const char* ritualName() {
   return ritualNames[R_NONE];
 }
 static uint16_t skinTint(const Cosmetics& c) {
-  return c.skin[0] ? agentColor565(c.skin) : LIGHTGREY;
+  return c.skin[0] ? skinColor565(c.skin) : LIGHTGREY;
 }
 static void sendBattery() {
   JsonDocument d; d["cmd"] = "battery"; d["pct"] = battery;
@@ -157,7 +146,8 @@ static const Motif motifs[] = {
   {"dance",4,{{1047,90,0},{1319,90,120},{1568,90,240},{2093,140,360}},true},
   {"uhoh",1,{{220,220,0}},false},
   {"greet",2,{{784,100,0},{1047,140,140}},false},
-  {"boop",3,{{988,55,0},{1175,55,80},{988,65,160}},false}
+  {"boop",3,{{988,55,0},{1175,55,80},{988,65,160}},false},
+  {"nudge",3,{{880,110,0},{1245,130,150},{1245,160,330}},false}
 };
 static int soundIndex = -1;
 static uint8_t soundNote = 0;
@@ -202,6 +192,7 @@ void onFrame(const TamaState& next, bool skinSupplied) {
       if (!cosmeticsChanged) oldCosmetic=next.cosmetic;
     } else if (milestone && !levelRitual()) { ritual=R_STREAK; ritualAt=now; }
   }
+  bool nudgeAdvanced = next.nudgeRung > tama.nudgeRung && !strcmp(next.card.id,tama.card.id);
   bool changed = strcmp(next.state,tama.state) || strcmp(next.cheer,tama.cheer);
   bool newCard = strcmp(next.card.id,tama.card.id) || strcmp(next.card.kind,tama.card.kind);
   if (decision.id[0] && !decision.confirmed && strcmp(next.card.id,decision.id)) {
@@ -212,19 +203,19 @@ void onFrame(const TamaState& next, bool skinSupplied) {
     if (next.card.present()) { wake(); napping = false; dizzyUntil = 0; }
   }
   if (strcmp(next.bubble,tama.bubble)) { bubbleUntil = now + 4000; bubbleDismissed = false; }
-  if (!next.gift || !tama.gift || strcmp(next.giftLine,tama.giftLine)) giftCollected = false;
   bool overlayChanged = strcmp(next.overlay,tama.overlay) || next.greetLevel != tama.greetLevel;
   if (overlayChanged) { overlayAt = now; squish.vel = -3.0f-next.greetLevel; }
   // Any visible change restarts the presentation phase, so periodic motion
   // (and `clock settle`) is anchored to what is on screen, not just the state.
   bool visualChanged = changed || strcmp(next.effort,tama.effort) || strcmp(next.uhoh,tama.uhoh)
-    || overlayChanged || next.gift != tama.gift
+    || overlayChanged
     || cosmeticsChanged || levelChanged || milestone || firstSignal || strcmp(next.posture,tama.posture);
   if (visualChanged) stateAt = now;
   if (changed) lastInput = now;   // only a state change counts as activity for the dim ladder
   // Sound sees the incoming state/volume, never the previous frame's mute.
   tama = next;
-  if (newCard && next.card.id[0]) sound(0);
+  if (nudgeAdvanced && hasCard() && !systemCard()) sound(next.nudgeRung == 2 ? 7 : 0);
+  else if (newCard && next.card.id[0]) sound(0);
   else if (changed && !strcmp(next.state,"needsYou")) sound(0);
   else if (changed && !strcmp(next.state,"done")) sound(!strcmp(next.cheer,"dance") ? 3 : !strcmp(next.cheer,"cheer") ? 2 : 1);
   else if (changed && !strcmp(next.state,"uhoh")) sound(4);
@@ -255,11 +246,6 @@ static void primaryTap() {
     if (armed()) { if (careful()) shakeHeadUntil = nowMs()+600; else decide(true); }
     else if (!tama.card.approval && !blePasskey() && !otaActive()) cardDismissed=true;
     return;
-  }
-  if (giftPending()) {
-    giftCollectedAt = nowMs(); giftCollectUntil = giftCollectedAt+200;
-    giftCollected = true; strlcpy(localBubble,tama.giftLine,sizeof(localBubble)); localBubbleUntil = nowMs()+4000;
-    sendCmd("{\"cmd\":\"collect\"}"); return;
   }
   if (bubbleVisible()) { clearBubble(); return; }
   boop(false);
@@ -325,8 +311,8 @@ static void buttonsTick() {
           if (hasCard()) primaryTap();
           else if (pendingTap && real-pendingTapAt <= 300) {
             pendingTap=false;
-            if (dataConnected()) sendCmd("{\"cmd\":\"quick\"}");
-            else if (!strcmp(posture,"travel")) pageStats();
+            if (!strcmp(posture,"travel")) pageStats();
+            else primaryTap();
           } else { pendingTap=true; pendingTapAt=real; }
         } else secondaryTap();
       }
@@ -389,7 +375,7 @@ static Layer screenLayer() {
   if (eq(tama.state,"uhoh") && bubbleVisible()) return L_UHOH;
   if (before(nowMs(),statsUntil)) return L_STATS;
   if (bubbleVisible()) return L_BUBBLE;
-  if (calmOverlay() && ((tama.overlay[0] && nowMs()-overlayAt<(eq(tama.overlay,"greet")?2200u:1400u)) || before(nowMs(),localBoopUntil) || tama.agentSrc[0])) return L_OVERLAY;
+  if (calmOverlay() && ((tama.overlay[0] && nowMs()-overlayAt<(eq(tama.overlay,"greet")?2200u:1400u)) || before(nowMs(),localBoopUntil))) return L_OVERLAY;
   return L_FACE;
 }
 // Two UTF-8-aware lines using the Korean font already bundled in LGFX.
@@ -500,7 +486,7 @@ static void render() {
   uint16_t tint=animMix(skinTint(oldCosmetic),skinTint(tama.cosmetic),cosmeticAmount(now));
   // RGB332 needs at least one channel step to keep a tint visible.
   uint16_t field=BLACK;
-  if (eq(tama.state,"needsYou") || hasCard()) field=animMix(BLACK,animRGB(255,182,36),0.14f+animPulse01(now-stateAt,3500)*0.05f);
+  if (eq(tama.state,"needsYou") || hasCard()) field=animMix(BLACK,animRGB(255,182,36),0.14f+animPulse01(now-stateAt,tama.nudgeRung == 2 ? 1200 : 3500)*(tama.nudgeRung == 2 && !cardDismissed ? 0.13f : 0.05f));
   else if(eq(tama.state,"uhoh")) field=animMix(BLACK,animRGB(255,36,36),0.18f+animPulse01(now-stateAt,4000)*0.10f);
   if(field!=BLACK && tama.cosmetic.skin[0]) field=animMix(field,animMix(BLACK,tint,0.22f),0.2f);
   field=animMix(BLACK,field,colorAmount(now));
@@ -527,7 +513,6 @@ static void render() {
   else if(layer==L_DECISION) { textLines(feedback(),30,HAL_H-(HAL_LANDSCAPE?78:122),HAL_W-60,1,1.5f,faceInk(now)); }
   else if(layer==L_STATS) drawStats(now);
   else if(layer==L_BUBBLE || layer==L_UHOH) { int x=HAL_W/3+12; uint16_t ink=faceInk(now); textLines(bubbleText(),x+12,HAL_H/2-20,HAL_W-x-40,2,1,ink); }
-  else if(layer==L_OVERLAY && tama.agentSrc[0]) agentDraw(spr,now,tama);
   if (guardSafeTier()) { textLines("safe mode - USB rescue",28,18,HAL_W-56,1); }
   float fade=isRetiring()?1-animClamp((float)(now-ritualAt)/ritualDuration[R_RETIRE],0,1):1;
   halSetBrightness(brightness*fade);
@@ -541,7 +526,6 @@ static void telemetry(JsonDocument& d) {
   d["usbOnly"]=false;
 #endif
   d["contract"]=WIRE_CONTRACT; d["board"]=HAL_BOARD_NAME; d["fw"]=FW_VERSION; d["git"]=GIT_SHA;
-  d["unit"]=unitId(); d["alg"]="p256"; d["keygenMs"]=unitKeygenMs(); d["unitErr"]=unitFailStage();
   d["up"]=millis(); d["heap"]=ESP.getFreeHeap(); d["heapMin"]=ESP.getMinFreeHeap(); d["heapBig"]=ESP.getMaxAllocHeap();
   d["reset"]=guardResetReason(); d["panics"]=guardPanicsTotal(); d["early"]=guardEarlyCrashes(); d["safe"]=guardSafeTier();
   uint32_t avg,max; halFrameStats(&avg,&max); d["frameUs"]=avg; d["frameMaxUs"]=max;
@@ -550,8 +534,8 @@ static void framed(const char* tag,JsonDocument& d) { Serial.printf("<<%s ",tag)
 static void dumpState() {
   JsonDocument d; telemetry(d);
   d["creature"]=tama.state; d["effort"]=tama.effort; d["cheer"]=tama.cheer; d["uhoh"]=tama.uhoh;
-  d["overlay"]=tama.overlay; d["greetLevel"]=tama.greetLevel; d["card"]=hasCard(); d["cardId"]=tama.card.id; d["armed"]=armed();
-  d["bubble"]=bubbleVisible()?bubbleText():""; d["gift"]=giftPending(); d["focus"]=tama.focus; d["posture"]=posture;
+  d["overlay"]=tama.overlay; d["greetLevel"]=tama.greetLevel; d["nudgeRung"]=tama.nudgeRung; d["card"]=hasCard(); d["cardId"]=tama.card.id; d["armed"]=armed();
+  d["bubble"]=bubbleVisible()?bubbleText():""; d["gift"]=false; d["focus"]=tama.focus; d["posture"]=posture;
   d["dots"]=tama.dots; d["dotAlert"]=tama.dotAlert; d["mute"]=tama.mute; d["screenOff"]=screenOff; d["brightness"]=screenOff?0:brightness;
   d["presence"]=presenceName(); d["napping"]=napping; d["dizzy"]=before(nowMs(),dizzyUntil); d["frozen"]=clockFrozen;
   d["now"]=nowMs(); d["badFrames"]=badFrames; d["parseFails"]=_parseFailCount; d["lineOverflows"]=_lineOverflowCount;
@@ -565,7 +549,6 @@ static void dumpState() {
   d["pickup"]=before(nowMs(),perkUntil) && !hasCard(); d["pose"]=poseName();
   d["sound"]=soundIndex>=0?motifs[soundIndex].name:""; d["soundCount"]=soundsPlayed; d["soundNote"]=soundNote;
   d["drawCount"]=drawCount; d["touchReady"]=halTouchReady(); d["imuReady"]=halImuReady();
-  d["agentOverlay"]=screenLayer()==L_OVERLAY && tama.agentSrc[0];
   d["rtcValid"]=dataRtcValid();
   d["shutdownStage"]=(buttons[1].shutdown||buttons[2].shutdown)?"night night":
     ((buttons[1].down&&buttons[1].focusSent)||(buttons[2].down&&buttons[2].focusSent))?"focus":"none";
@@ -675,12 +658,6 @@ static void dumpScreenshot() {
 }
 
 void handleSerialCommand(const char* line) {
-  if (!strcmp(line,"unit")) { JsonDocument d; unitReply(d); sendDoc(d); return; }
-  if (!strcmp(line,"unit regen")) {
-    Serial.println("WARNING: debug unit regen destroys identity and reboots for key generation");
-    if (!unitClear()) { Serial.println("<<UNIT error key_clear_failed>>"); return; }
-    Serial.flush(); esp_restart(); return;
-  }
   if (!strcmp(line,"firstwake reset")) { resetFirstWake(); Serial.println("<<FIRSTWAKE reset>>"); return; }
   if (!strcmp(line,"ping")) { JsonDocument d; telemetry(d); framed("PONG",d); return; }
   if (!strcmp(line,"state")) { dumpState(); return; }
@@ -740,7 +717,6 @@ void setup() {
 #ifdef BOARD_WS_AMOLED_164
   Serial.setTxTimeoutMs(0);
 #endif
-  unitSetup();
   halInit(); guardInit(); loadPersistent(tama);
   if(guardSafeTier()<2) {
     uint8_t mac[6]={0}; esp_read_mac(mac,ESP_MAC_BT);
@@ -760,7 +736,7 @@ void loop() {
   if(!linked && lastLinked) {
     // Link loss is never a decision acknowledgement. Stale cards disappear,
     // while a pending decision retains "no link?" until a real frame clears it.
-    tama.card=Card{}; tama.overlay[0]=tama.agentSrc[0]=tama.agentEmotion[0]=0;
+    tama.card=Card{}; tama.overlay[0]=0;
     tama.posture[0]=0; clearBubble();
   }
   lastLinked=linked; lastSecure=secure;
@@ -779,15 +755,14 @@ void loop() {
   // Brightness (0-255). With only the eyes lit the panel reads darker than
   // the old body-and-field frames did, so the levels sit high. A state
   // change from the app stamps lastInput (frame apply), so a working buddy
-  // never dims; a gift or cosmetic update alone does not wake the panel.
+  // never dims; a cosmetic update alone does not wake the panel.
   uint8_t target=hasCard()?255:(napping || eq(tama.state,"asleep"))?28:
-    now-lastInput>=120000?(giftPending()?110:90):210;
+    now-lastInput>=120000?90:210;
   if (!screenOff && brightness!=target) { brightness=target; }
   static uint32_t previous=0;
   float dt=previous?(now-previous)*0.001f:0.016f; previous=now;
   if(dt>0.05f) dt=0.016f;
   faceSimulate(now,dt);
-  if(dt>0) agentTick(now,dt,tama,screenLayer()!=L_OVERLAY);
   static bool touched=false;
   bool touch=halTouchDown();
   if(touch&&!touched) { lastInput=now; if(screenOff||napping) wake(); else boop(false); }

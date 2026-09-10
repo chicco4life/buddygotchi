@@ -51,14 +51,6 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     }
 
-    func postQuickCommand(_ command: String, language: String) {
-        guard available else { return }
-        let content = UNMutableNotificationContent()
-        content.title = BuddyCopy.phase7("quick", language: language)
-        content.body = command
-        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "quick-command", content: content, trigger: nil))
-    }
-
     func postToolNotification(prompt: Prompt) {
         guard available, UserDefaults.standard.bool(forKey: DefaultsKey.notificationPermissionRequested) else { return }
         UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in

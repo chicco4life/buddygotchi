@@ -87,58 +87,15 @@ final class PersonalityReducerTests: XCTestCase {
 
     // MARK: - P2 Circadian
 
-    func testCircadianColdStartStaysNeutral() {
-        // A handful of samples is not a pattern: no surprise, no expectant.
-        var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
-        s = applyEvents(s, .sessionEnded(at: NOW + 1, sessionId: "s1"))
-        s = applyEvents(s, .sessionStarted(at: NOW + hourMs, sessionId: "s2", source: "claude-code", cwd: nil))
-        XCTAssertNil(s.buddy.mood)
-        s = applyEvents(s, .sessionEnded(at: NOW + hourMs + 1, sessionId: "s2"))
-        s = applyEvents(s, .staleTick(at: NOW + 2 * hourMs))
-        XCTAssertNil(s.buddy.mood)
-    }
 
-    func testSessionAtUnusualHourSurprises() {
-        let start = timestamp(atHour: 3)
-        var s = applyEvents(.test(), .memoryLoaded(at: start - 1, memory: trainedMemory(activeHour: 12, now: start)))
-        s = applyEvents(s, .sessionStarted(at: start, sessionId: "s1", source: "claude-code", cwd: nil))
-        XCTAssertEqual(s.buddy.mood, .surprised)
-        XCTAssertEqual(s.buddy.moodUntil, start + PetTuning.surpriseMoodMs)
 
-        // Then it settles in with you.
-        s = applyEvents(s, .staleTick(at: start + PetTuning.surpriseMoodMs + 100))
-        XCTAssertNil(s.buddy.mood)
-    }
 
-    func testSessionAtTypicalHourDoesNotSurprise() {
-        let start = timestamp(atHour: 12)
-        var s = applyEvents(.test(), .memoryLoaded(at: start - 1, memory: trainedMemory(activeHour: 12, now: start)))
-        s = applyEvents(s, .sessionStarted(at: start, sessionId: "s1", source: "claude-code", cwd: nil))
-        XCTAssertNil(s.buddy.mood)
-    }
 
-    func testExpectantAtTypicalHourWhileDisconnected() {
-        let tick = timestamp(atHour: 12)
-        var s = applyEvents(.test(), .memoryLoaded(at: tick - 1, memory: trainedMemory(activeHour: 12, now: tick)))
-        s = applyEvents(s, .staleTick(at: tick))
-        XCTAssertEqual(s.buddy.mood, .expectant)
-        // Expectant is the one thing that wakes the pet without a session.
-        XCTAssertEqual(s.buddy.pet.state, .idle)
 
-        // Off-hours: back to sleep, no anticipation.
-        s = applyEvents(s, .staleTick(at: timestamp(atHour: 20)))
-        XCTAssertNil(s.buddy.mood)
-        XCTAssertEqual(s.buddy.pet.state, .sleep)
-    }
 
-    func testSessionStartClearsExpectant() {
-        let tick = timestamp(atHour: 12)
-        var s = applyEvents(.test(), .memoryLoaded(at: tick - 1, memory: trainedMemory(activeHour: 12, now: tick)))
-        s = applyEvents(s, .staleTick(at: tick))
-        XCTAssertEqual(s.buddy.mood, .expectant)
-        s = applyEvents(s, .sessionStarted(at: tick + 1, sessionId: "s1", source: "claude-code", cwd: nil))
-        XCTAssertNil(s.buddy.mood)
-    }
+
+
+
 
     func testHistogramSamplesAtMostEveryHalfHour() {
         var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
@@ -174,7 +131,7 @@ final class PersonalityReducerTests: XCTestCase {
         XCTAssertEqual(s.buddy.effortTier, .grinding)
     }
 
-    func testErrorsEscalateEffort() {
+    func testErrorsDoNotEscalateEffort() {
         var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
         s = applyEvents(
             s,
@@ -184,15 +141,9 @@ final class PersonalityReducerTests: XCTestCase {
             .activitySignal(at: NOW + 4, sessionId: "s1", source: "claude-code", signal: .error, tool: "Bash", hint: "x"),
             .activitySignal(at: NOW + 5, sessionId: "s1", source: "claude-code", signal: .startWorking, tool: "Bash", hint: "x")
         )
-        XCTAssertEqual(s.buddy.effortTier, .hard)
+        XCTAssertEqual(s.buddy.effortTier, .light)
     }
 
-    func testReportedEffortOverridesHeuristic() {
-        var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
-        s = applyEvents(s, .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .startWorking, tool: "Bash", hint: "x"))
-        s = applyEvents(s, .effortReported(at: NOW + 2, sessionId: "s1", level: .grinding))
-        XCTAssertEqual(s.buddy.effortTier, .grinding)
-    }
 
     func testQuickCleanTaskGetsModestCelebration() {
         var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
@@ -205,7 +156,7 @@ final class PersonalityReducerTests: XCTestCase {
         XCTAssertEqual(s.buddy.celebrateIntensity, 1)
     }
 
-    func testLongStruggleEarnsTheBigCelebration() {
+    func testShortStruggleStillGetsHop() {
         var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
         s = applyEvents(
             s,
@@ -216,10 +167,9 @@ final class PersonalityReducerTests: XCTestCase {
             .activitySignal(at: NOW + 5, sessionId: "s1", source: "claude-code", signal: .keepWorking, tool: "Bash", hint: "x"),
             .activitySignal(at: NOW + 6, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: "Bash", hint: "x")
         )
-        XCTAssertEqual(s.buddy.celebrateIntensity, 2)
+        XCTAssertEqual(s.buddy.celebrateIntensity, 1)
         XCTAssertEqual(s.memory.lifetimeCelebrations, 1)
         // The struggle is spent: the next task starts clean.
-        XCTAssertEqual(s.sessions["s1"]?.errorCount, 0)
     }
 
     func testCelebrateIntensityClearsWithTheWindow() {
@@ -231,152 +181,6 @@ final class PersonalityReducerTests: XCTestCase {
             .staleTick(at: NOW + 2 + 4_001)
         )
         XCTAssertNil(s.buddy.celebrateIntensity)
-    }
-
-    // MARK: - System E in the reducer
-
-    func testAgentExpressionSetsOverlayWithLease() {
-        var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
-        s = applyEvents(s, .agentExpressed(at: NOW + 1, agentId: "claude-code", emotion: "sheepish", intensity: "medium", motion: "tilt", say: nil, delivery: nil))
-        XCTAssertEqual(s.buddy.agentOverlay?.emotion, "sheepish")
-        XCTAssertEqual(s.buddy.agentOverlay?.until, NOW + 1 + PetTuning.agentExpressLeaseMs)
-
-        // S8: the lease expires; the pet is itself again.
-        s = applyEvents(s, .staleTick(at: NOW + 1 + PetTuning.agentExpressLeaseMs + 100))
-        XCTAssertNil(s.buddy.agentOverlay)
-    }
-
-    func testS1ExpressionRefusedWhilePromptPending() {
-        var s = applyEvents(
-            .test(),
-            .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
-            .approvalArrived(at: NOW + 1, sessionId: "s1", requestId: "r1", tool: "Bash", hint: "rm -rf", sessionLabel: nil, source: "claude-code")
-        )
-        s = applyEvents(s, .agentExpressed(at: NOW + 2, agentId: "claude-code", emotion: "happy", intensity: "high", motion: nil, say: "all good, press A!", delivery: "excited"))
-        XCTAssertNil(s.buddy.agentOverlay)
-        XCTAssertEqual(s.buddy.pet.state, .attention)
-    }
-
-    func testS1PromptArrivingMidLeaseEvictsOverlay() {
-        var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
-        s = applyEvents(s, .agentExpressed(at: NOW + 1, agentId: "claude-code", emotion: "happy", intensity: "low", motion: nil, say: nil, delivery: nil))
-        XCTAssertNotNil(s.buddy.agentOverlay)
-        s = applyEvents(s, .approvalArrived(at: NOW + 2, sessionId: "s1", requestId: "r1", tool: "Bash", hint: "ls", sessionLabel: nil, source: "claude-code"))
-        XCTAssertNil(s.buddy.agentOverlay)
-    }
-
-    func testIntroduceRecordsIdentityAndColorsExpressions() {
-        var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
-        s = applyEvents(s, .agentIntroduced(at: NOW + 1, agentId: "claude-code", color: "sky", signatureEmote: "zen", greeting: "hello!"))
-        XCTAssertEqual(s.memory.agents["claude-code"]?.color, "sky")
-        XCTAssertEqual(s.memory.agents["claude-code"]?.visits, 1)
-
-        s = applyEvents(s, .agentIntroduced(at: NOW + 2, agentId: "claude-code", color: nil, signatureEmote: nil, greeting: nil))
-        XCTAssertEqual(s.memory.agents["claude-code"]?.visits, 2)
-        // Markers survive an introduce that doesn't restate them.
-        XCTAssertEqual(s.memory.agents["claude-code"]?.color, "sky")
-
-        s = applyEvents(s, .agentExpressed(at: NOW + 3, agentId: "claude-code", emotion: "proud", intensity: "medium", motion: nil, say: nil, delivery: nil))
-        XCTAssertEqual(s.buddy.agentOverlay?.color, "sky")
-    }
-
-    // MARK: - E4 drawings
-
-    func testDrawingIsKeptAndHeldUp() {
-        var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
-        s = applyEvents(s, .agentIntroduced(at: NOW + 1, agentId: "claude-code", color: "teal", signatureEmote: nil, greeting: nil))
-        s = applyEvents(s, .agentDrew(at: NOW + 2, agentId: "claude-code", rows: ["4f", "f4"], caption: "us"))
-        XCTAssertEqual(s.memory.keepsakes.count, 1)
-        XCTAssertEqual(s.memory.keepsakes.first?.color, "teal")
-        XCTAssertEqual(s.buddy.agentDrawing?.rows, ["4f", "f4"])
-        XCTAssertEqual(s.buddy.agentDrawingUntil, NOW + 2 + PetTuning.drawShowMs)
-
-        // The pet shelves it after the show window; the keepsake survives.
-        s = applyEvents(s, .staleTick(at: NOW + 2 + PetTuning.drawShowMs + 100))
-        XCTAssertNil(s.buddy.agentDrawing)
-        XCTAssertEqual(s.memory.keepsakes.count, 1)
-    }
-
-    func testDrawingDuringApprovalIsKeptButNotShown() {
-        var s = applyEvents(
-            .test(),
-            .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil),
-            .approvalArrived(at: NOW + 1, sessionId: "s1", requestId: "r1", tool: "Bash", hint: "ls", sessionLabel: nil, source: "claude-code")
-        )
-        s = applyEvents(s, .agentDrew(at: NOW + 2, agentId: "claude-code", rows: ["1"], caption: nil))
-        // S1: never next to a trust decision — but the gift is not lost.
-        XCTAssertNil(s.buddy.agentDrawing)
-        XCTAssertEqual(s.memory.keepsakes.count, 1)
-        XCTAssertEqual(s.buddy.pet.state, .attention)
-    }
-
-    func testPromptArrivingMidShowEvictsDrawingDisplayOnly() {
-        var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
-        s = applyEvents(s, .agentDrew(at: NOW + 1, agentId: "claude-code", rows: ["1"], caption: nil))
-        XCTAssertNotNil(s.buddy.agentDrawing)
-        s = applyEvents(s, .approvalArrived(at: NOW + 2, sessionId: "s1", requestId: "r1", tool: "Bash", hint: "ls", sessionLabel: nil, source: "claude-code"))
-        XCTAssertNil(s.buddy.agentDrawing)
-        XCTAssertEqual(s.memory.keepsakes.count, 1)
-    }
-
-    func testKeepsakesAreCappedFIFO() {
-        var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
-        for i in 0..<(PetTuning.keepsakeCap + 5) {
-            s = applyEvents(s, .agentDrew(at: NOW + Double(i) + 1, agentId: "claude-code", rows: ["1"], caption: "d\(i)"))
-        }
-        XCTAssertEqual(s.memory.keepsakes.count, PetTuning.keepsakeCap)
-        XCTAssertEqual(s.memory.keepsakes.first?.caption, "d5")
-        XCTAssertEqual(s.memory.keepsakes.last?.caption, "d\(PetTuning.keepsakeCap + 4)")
-    }
-
-    // MARK: - E4.1 resurfacing ("remember this?")
-
-    func testReturningAgentGetsAnOldDrawingResurfaced() {
-        var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
-        s = applyEvents(s, .agentIntroduced(at: NOW + 1, agentId: "claude-code", color: "teal", signatureEmote: nil, greeting: nil))
-        s = applyEvents(s, .agentDrew(at: NOW + 2, agentId: "claude-code", rows: ["1"], caption: "old times"))
-        s = applyEvents(s, .staleTick(at: NOW + 2 + PetTuning.drawShowMs + 100))
-        XCTAssertNil(s.buddy.agentDrawing)
-
-        // Two days later the agent returns: the pet digs the drawing out.
-        let back = NOW + 2 * dayMs
-        s = applyEvents(s, .agentIntroduced(at: back, agentId: "claude-code", color: nil, signatureEmote: nil, greeting: nil))
-        XCTAssertEqual(s.buddy.agentDrawing?.caption, "old times")
-        XCTAssertEqual(s.buddy.agentDrawingIsMemory, true)
-        XCTAssertEqual(s.memory.lastResurfacedAt, back)
-    }
-
-    func testResurfacingIsAtMostDailyAndNeedsOldDrawings() {
-        var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
-        s = applyEvents(s, .agentIntroduced(at: NOW + 1, agentId: "claude-code", color: nil, signatureEmote: nil, greeting: nil))
-        s = applyEvents(s, .agentDrew(at: NOW + 2, agentId: "claude-code", rows: ["1"], caption: "fresh"))
-        // A fresh drawing is not yet a memory: same-day reintroduce shows nothing.
-        s = applyEvents(s, .staleTick(at: NOW + 2 + PetTuning.drawShowMs + 100))
-        s = applyEvents(s, .agentIntroduced(at: NOW + 3 * 3_600_000, agentId: "claude-code", color: nil, signatureEmote: nil, greeting: nil))
-        XCTAssertNil(s.buddy.agentDrawing)
-
-        // Old enough two days later — resurfaces once…
-        let day2 = NOW + 2 * dayMs
-        s = applyEvents(s, .agentIntroduced(at: day2, agentId: "claude-code", color: nil, signatureEmote: nil, greeting: nil))
-        XCTAssertEqual(s.buddy.agentDrawingIsMemory, true)
-        s = applyEvents(s, .staleTick(at: day2 + PetTuning.drawShowMs + 100))
-
-        // …but not again an hour later: at most one memory a day.
-        s = applyEvents(s, .agentIntroduced(at: day2 + 3_600_000, agentId: "claude-code", color: nil, signatureEmote: nil, greeting: nil))
-        XCTAssertNil(s.buddy.agentDrawing)
-    }
-
-    func testResurfacingDefersToPendingPrompt() {
-        var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
-        s = applyEvents(s, .agentIntroduced(at: NOW + 1, agentId: "claude-code", color: nil, signatureEmote: nil, greeting: nil))
-        s = applyEvents(s, .agentDrew(at: NOW + 2, agentId: "claude-code", rows: ["1"], caption: nil))
-        s = applyEvents(s, .staleTick(at: NOW + 2 + PetTuning.drawShowMs + 100))
-        let back = NOW + 2 * dayMs
-        s = applyEvents(s, .approvalArrived(at: back - 1, sessionId: "s1", requestId: "r1", tool: "Bash", hint: "ls", sessionLabel: nil, source: "claude-code"))
-        s = applyEvents(s, .agentIntroduced(at: back, agentId: "claude-code", color: nil, signatureEmote: nil, greeting: nil))
-        // S1: no memory next to a trust decision — and no daily slot burned.
-        XCTAssertNil(s.buddy.agentDrawing)
-        XCTAssertNil(s.memory.lastResurfacedAt)
     }
 
     // MARK: - S9: approvals never feed the bond

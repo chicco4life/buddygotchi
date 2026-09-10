@@ -112,37 +112,9 @@ final class CodexTomlTests: XCTestCase {
 
     // MARK: MCP registration (System E)
 
-    func testAddingBoopMCPWritesTableAndHeaders() {
-        let out = HookInstaller.addingBoopMCP(to: "", url: "http://127.0.0.1:21321/mcp", token: "tok123")
-        XCTAssertTrue(out.contains("[mcp_servers.boop]"))
-        XCTAssertTrue(out.contains("url = \"http://127.0.0.1:21321/mcp\""))
-        XCTAssertTrue(out.contains("[mcp_servers.boop.http_headers]"))
-        XCTAssertTrue(out.contains("X-Boop-Token = \"tok123\""))
-        XCTAssertTrue(out.contains("X-Boop-Agent = \"codex\""))
-    }
-
-    func testAddingBoopMCPPreservesExistingConfig() {
-        let toml = "[features]\ncodex_hooks = true\n\n[mcp_servers.other]\ncommand = \"x\"\n"
-        let out = HookInstaller.addingBoopMCP(to: toml, url: "http://127.0.0.1:21321/mcp", token: "t")
-        XCTAssertTrue(out.contains("[features]\ncodex_hooks = true"))
-        XCTAssertTrue(out.contains("[mcp_servers.other]\ncommand = \"x\""))
-        XCTAssertTrue(out.contains("[mcp_servers.boop]"))
-    }
-
-    /// A duplicate table is invalid TOML and stops Codex loading its config —
-    /// the exact failure mode the codex_hooks detector fixed. Re-adding after
-    /// a token rotation must REPLACE the managed table.
-    func testReAddingReplacesRatherThanDuplicates() {
-        let first = HookInstaller.addingBoopMCP(to: "", url: "http://127.0.0.1:21321/mcp", token: "old")
-        let second = HookInstaller.addingBoopMCP(to: first, url: "http://127.0.0.1:21321/mcp", token: "new")
-        XCTAssertEqual(second.components(separatedBy: "[mcp_servers.boop]").count, 2, "duplicate managed table")
-        XCTAssertTrue(second.contains("X-Boop-Token = \"new\""))
-        XCTAssertFalse(second.contains("X-Boop-Token = \"old\""))
-    }
-
     func testRemovingBoopMCPTakesOnlyOurTables() {
         let toml = "[mcp_servers.other]\ncommand = \"x\"\n\n"
-            + HookInstaller.addingBoopMCP(to: "", url: "http://127.0.0.1:21321/mcp", token: "t")
+            + "[mcp_servers.boop]\nurl = \"http://127.0.0.1:21321/mcp\"\n[mcp_servers.boop.http_headers]\nX-Boop-Token = \"t\"\n"
             + "\n[features]\ncodex_hooks = true\n"
         let out = HookInstaller.removingBoopMCP(from: toml)
         XCTAssertFalse(out.contains("[mcp_servers.boop]"))

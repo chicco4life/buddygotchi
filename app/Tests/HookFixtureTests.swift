@@ -40,17 +40,9 @@ extension HookFixtureTests {
                 grinding = grinding || state.buddy.creature.effort == .grinding
             }
             let window = await extractor.windows[session]
-            XCTAssertEqual(window?.goals.values.first?.attempts, 10)
-            XCTAssertTrue(grinding)
-            XCTAssertEqual(state.buddy.creature.moment?.kind, .hardWonPass)
-            XCTAssertEqual(state.buddy.creature.moment?.facts["attempts"], "10")
-            XCTAssertEqual(state.buddy.creature.cheer, .dance)
-            let voiceLine = await Voice().line(for: VoiceRequest(occasion: .cheer(state.buddy.creature.moment, .dance, "swift-test")))
-            state = reduce(state, .voiceLine(at: state.buddy.updatedAt, kind: .gift, text: voiceLine.text))
-            XCTAssertFalse(state.buddy.creature.giftLine?.isEmpty ?? true)
-            XCTAssertLessThanOrEqual(state.buddy.creature.giftLine?.utf8.count ?? 999, 40)
+            XCTAssertFalse(grinding)
+            XCTAssertEqual(state.buddy.creature.cheer, .hop)
             state = reduce(state, .staleTick(at: 100_000))
-            XCTAssertNil(state.buddy.creature.moment)
             }
         }
     }
@@ -62,10 +54,10 @@ extension HookFixtureTests {
             for (i, line) in try String(contentsOf: url, encoding: .utf8).split(separator: "\n").enumerated() {
                 let payload = try XCTUnwrap(RawHookPayload.parse(Data(line.utf8), source: "claude-code", at: Double(i) * 1000))
                 for event in await extractor.ingest(payload).events { state = reduce(state, event) }
-                if payload.errorClass == "rate_limit" { XCTAssertEqual(state.buddy.creature.uhoh, .hungry) }
+                if payload.errorClass == "rate_limit" { XCTAssertEqual(state.buddy.creature.uhoh, .error) }
             }
-            if url.lastPathComponent == "stuck.jsonl" { XCTAssertEqual(state.buddy.creature.uhoh, .stuck) }
-            else { XCTAssertEqual(state.buddy.creature.moment?.kind, .nthRateLimit); XCTAssertNil(state.buddy.creature.bubble) }
+            if url.lastPathComponent == "stuck.jsonl" { XCTAssertNil(state.buddy.creature.uhoh) }
+            else { XCTAssertNil(state.buddy.creature.bubble) }
         }
     }
 }

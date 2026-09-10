@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 struct CompanionSettings: View {
     let engine: BuddyEngine
@@ -25,6 +26,13 @@ struct CompanionSettings: View {
             Picker(BuddyCopy.phase7("language", language: engine.state.language), selection: Binding(get: { engine.state.language }, set: { value in Task { await engine.setLanguage(value) } })) {
                 Text(BuddyCopy.phase7("english", language: engine.state.language)).tag("en")
                 Text(BuddyCopy.phase7("korean", language: engine.state.language)).tag("ko")
+            }
+        case .voice:
+            Button(engine.state.language == "ko" ? "버디 행동 편집…" : "Edit buddy behavior…") {
+                do {
+                    let url = try engine.editableBehaviorGuide()
+                    if !NSWorkspace.shared.open(url) { NSWorkspace.shared.activateFileViewerSelecting([url]) }
+                } catch { NSAlert(error: error).runModal() }
             }
         case .profile:
             Button(BuddyCopy.phase7("profile", language: engine.state.language)) { CompanionWindows.shared.profile(engine: engine) }

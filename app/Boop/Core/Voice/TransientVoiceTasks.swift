@@ -13,7 +13,6 @@ final class TransientVoiceTasks {
     }
 
     func cancelAll() {
-        cancel(.gift)
         cancel(.bubble)
     }
 
@@ -30,7 +29,6 @@ final class TransientVoiceTasks {
     }
 
     func finish() async {
-        await tasks[.gift]?.value
         await tasks[.bubble]?.value
     }
 }

@@ -11,7 +11,7 @@ private func makePromptExpiryEngine(approvalTimeoutMs: Double = 300_000) -> (Bud
         staleTimeoutMs: 600_000,
         approvalTimeoutMs: approvalTimeoutMs,
         celebrateDurationMs: 4_000,
-        workStallTimeoutMs: 300_000,
+
         stateDir: "/tmp",
         approvalMode: false,
         token: "test-token"
@@ -23,7 +23,7 @@ private func makePromptExpiryState(approvalTimeoutMs: Double = 300_000) -> Inter
     .initial(
         staleMs: 600_000,
         celebrateDurationMs: 4_000,
-        workStallTimeoutMs: 300_000,
+
         approvalTimeoutMs: approvalTimeoutMs
     )
 }

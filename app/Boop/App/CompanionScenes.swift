@@ -5,7 +5,7 @@ struct CompanionScene {
     var name: String
     var creature: Creature
     var cosmetic = EquippedCosmetic()
-    var needsPopover: Bool { creature.card != nil || creature.gift || creature.bubble != nil || creature.state == .uhoh }
+    var needsPopover: Bool { creature.card != nil || creature.bubble != nil || creature.state == .uhoh }
     static let all: [Self] = {
         var scenes: [Self] = []
         for state in CreatureState.allCases {
@@ -25,7 +25,7 @@ struct CompanionScene {
         }
         for kind in UhohKind.allCases {
             var c = Creature.initial; c.state = .uhoh; c.uhoh = kind
-            c.bubble = kind == .error ? "build failed" : kind == .stuck ? "might be going in circles" : "waiting for a refill"
+            c.bubble = "build failed"
             scenes.append(Self(name: "uhoh-\(kind.rawValue)", creature: c))
         }
         for level in 1...3 {
@@ -40,8 +40,6 @@ struct CompanionScene {
             var c = Creature.initial; c.state = .idle
             scenes.append(Self(name: "\(unlock.kind)-\(unlock.name)", creature: c, cosmetic: cosmetic))
         }
-        var gift = Creature.initial; gift.state = .idle; gift.gift = true; gift.giftLine = "first one"
-        scenes.append(Self(name: "gift", creature: gift))
         return scenes
     }()
 }

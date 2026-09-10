@@ -143,6 +143,24 @@ final class HookInstallerTests: XCTestCase {
         XCTAssertEqual(harness.installer.verify(agent: .cursor), .installed)
     }
 
+    func testRetiredMCPCleanupPreservesOtherServers() throws {
+        let harness = try makeHarness()
+        defer { harness.cleanup() }
+        for (agent, path) in [(AgentKind.claudeCode, ".claude.json"), (.cursor, ".cursor/mcp.json")] {
+            let url = harness.home.appendingPathComponent(path)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let original: [String: Any] = ["mcpServers": ["boop": ["url": "http://127.0.0.1:21321/mcp"], "other": ["command": "keep-me"]], "custom": true]
+            try JSONSerialization.data(withJSONObject: original).write(to: url)
+            harness.installer.unregisterMCP(for: agent)
+            harness.installer.unregisterMCP(for: agent)
+            let result = try readJSON(url)
+            let servers = try XCTUnwrap(result["mcpServers"] as? [String: Any])
+            XCTAssertNil(servers["boop"])
+            XCTAssertEqual((servers["other"] as? [String: String])?["command"], "keep-me")
+            XCTAssertEqual(result["custom"] as? Bool, true)
+        }
+    }
+
     private struct Harness {
         let tempRoot: URL
         let home: URL

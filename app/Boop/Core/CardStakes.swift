@@ -3,7 +3,6 @@ import Foundation
 /// Destructive-shell classifier. Literal fragments are plain `contains`;
 /// only the pipe-to-shell shapes need a regex, compiled once.
 enum CardStakesPolicy {
-    static let destructiveLiterals = ["rm ", "mkfs", "dd if="]
     static let carefulLiterals = ["rm -rf", "rm -r ", "sudo ", "git push --force", "git push -f", "mkfs", "dd if=", "chmod 777"]
     static let carefulRegexes: [NSRegularExpression] = [#"curl\b[^\n]*\|\s*sh\b"#, #"wget\b[^\n]*\|\s*sh\b"#]
         .map { try! NSRegularExpression(pattern: $0) }

@@ -1,4 +1,5 @@
 import Foundation
+import BoopSQLite
 import SQLite3
 import XCTest
 @testable import BoopCore
@@ -11,6 +12,7 @@ final class StoreTests: XCTestCase {
         memory.lifetimeSessions = 12; memory.completedTurns = 100; memory.lifetimeCelebrations = 99
         memory.projects = ["boop":123]; memory.lastSeenAt = 321; memory.hourHistogram[9] = 7
         memory.agents["codex"] = AgentIdentity(color:"sky",visits:4,lastSeenAt:100)
+        memory.keepsakes = [AgentDrawing(agentId: "codex", rows: ["01", "10"], caption: "saved", at: 100)]
         let legacy = dir.appendingPathComponent("pet-memory.json")
         try JSONEncoder().encode(memory).write(to:legacy)
         try await store.migrate()
@@ -57,21 +59,20 @@ final class StoreTests: XCTestCase {
         let one = try await store.profile(); XCTAssertEqual(one.count,1)
         try await store.clearProfile()
         let empty = try await store.profile(); XCTAssertTrue(empty.isEmpty)
-        let growth = try await store.growth(localDay:"2026-01-01",at:0); XCTAssertEqual(growth.xp,11)
-        let traits = try await store.traits(); XCTAssertEqual(traits["bond"],1)
+        let growth = try await store.growth(localDay:"2026-01-01",at:0); XCTAssertEqual(growth.xp,10)
+        let traits = try await store.traits(); XCTAssertEqual(traits["bond"],0)
         let memory = try await store.loadMemory(); XCTAssertEqual(memory,.empty)
     }
-    func testTraitsCapsAndBondMonotonicCaps() async throws {
+    func testTraitAndBondStorageBounds() async throws {
         let (store, _, cleanup) = try makeStore()
         defer { cleanup() }
         for _ in 0..<10 {
             try await store.applyDrift(["energy":99,"cheek":-99,"warmth":99,"curiosity":-99],localDay:"2026-01-01")
-            try await store.bond(collected:true,greetAfterAbsence:false,localDay:"2026-01-01")
         }
         var traits = try await store.traits()
-        XCTAssertEqual(traits,["energy":131,"cheek":125,"warmth":131,"curiosity":125,"bond":3])
+        XCTAssertEqual(traits,["energy":131,"cheek":125,"warmth":131,"curiosity":125,"bond":0])
         for n in 0..<100 { try await store.applyDrift(["energy":3,"cheek":-3],localDay:"day-\(n)") }
-        for _ in 0..<200 { try await store.bond(collected:false,greetAfterAbsence:true,localDay:"2026-01-01") }
+        for n in 0..<100 { try await store.applyDrift(["bond":3],localDay:"bond-\(n)") }
         traits = try await store.traits()
         XCTAssertEqual(traits["energy"],255); XCTAssertEqual(traits["cheek"],0); XCTAssertEqual(traits["bond"],255)
     }
@@ -94,14 +95,14 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(lowLevelAppearance, EquippedCosmetic())
         let reopenedInventory = try await lowLevelReopened.inventory()
         XCTAssertEqual(reopenedInventory.map { "\($0.kind):\($0.name)" }, initialInventory.map { "\($0.kind):\($0.name)" })
-        _ = try await store.award([LedgerRow(at:0,source:.task,amount:150,day:"2026-01-01")],active:false,at:0,localDay:"2026-01-01")
+        _ = try await store.award([LedgerRow(at:0,source:.turn,amount:400,day:"2026-01-01")],active:false,at:0,localDay:"2026-01-01")
         try await store.equip(EquippedCosmetic())
         let reopened = try Store(stateDir:dir.path,now:0)
         let cosmetic = try await reopened.cosmetic(); XCTAssertEqual(cosmetic, EquippedCosmetic())
         let growth = try await reopened.growth(localDay:"2026-01-01",at:0); XCTAssertEqual(growth.level,5)
-        var formula = GrowthFormula(); formula.task = 16
+        var formula = GrowthFormula(); formula.turn = 16
         let reread = try await reopened.growth(localDay:"2026-01-01",at:0,formula:formula)
-        XCTAssertEqual(reread.xp,2400)
+        XCTAssertEqual(reread.xp,1200)
         let original = try await reopened.growth(localDay:"2026-01-01",at:0)
         XCTAssertEqual(original.xp,1200)
         let laterInventory = try await reopened.inventory()
@@ -135,7 +136,7 @@ extension StoreTests {
         try await store.saveMemory(memory); try await store.saveMemory(.empty)
         let empty = try await store.loadMemory(); XCTAssertEqual(empty,.empty)
         let growth = try await store.award([],active:true,at:0,localDay:"2026-01-01")
-        XCTAssertEqual(growth?.xp,11)
+        XCTAssertEqual(growth?.xp,10)
     }
 }
 
@@ -153,7 +154,7 @@ extension StoreTests {
         await engine.flushStore()
         XCTAssertFalse(FileManager.default.fileExists(atPath: legacy.path))
         XCTAssertTrue(FileManager.default.fileExists(atPath: legacy.path + ".unreadable"))
-        XCTAssertEqual(engine.state.growth.xp, 13)
+        XCTAssertEqual(engine.state.growth.xp, 10)
         let saved = try await store.loadMemory()
         XCTAssertEqual(saved?.lifetimeSessions, 1)
         XCTAssertFalse(engine.diagnosticLog.entries.contains { $0.category == "store" && $0.event == "error" })
@@ -176,9 +177,9 @@ extension StoreTests {
         let rows = try await reopened.ledger()
         let actual = try await reopened.growth(localDay: "2026-01-02", at: midnight)
         XCTAssertEqual(actual, GrowthFormula().snapshot(rows, localDay: "2026-01-02"))
-        var tuned = GrowthFormula(); tuned.turn = 0; tuned.tokens = 7
+        var tuned = GrowthFormula(); tuned.turn = 0
         let changed = try await reopened.growth(localDay: "2026-01-02", at: midnight, formula: tuned)
-        XCTAssertEqual(changed, tuned.snapshot(rows, localDay: "2026-01-02"))
+        XCTAssertEqual(changed, actual)
     }
 }
 
@@ -212,8 +213,8 @@ extension StoreTests {
         ], active: false, at: 2, localDay: "2026-01-01")
         let source: any EngineStore = store
         let activity = try await source.recentXPActivity()
-        XCTAssertEqual(activity.first { $0.source == .checkIn }?.xp, 20)
-        XCTAssertEqual(activity.first { $0.source == .tokens }?.xp, 2)
+        XCTAssertEqual(activity.first { $0.source == .checkIn }?.xp, nil)
+        XCTAssertEqual(activity.first { $0.source == .tokens }?.xp, nil)
         let level = GrowthSnapshot(level: 5, xp: 1340, xpNext: 410)
         XCTAssertEqual(level.levelStartXP, 1200)
         XCTAssertEqual(level.levelTargetXP, 1750)

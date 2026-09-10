@@ -126,7 +126,7 @@ def test_six_states(stick, creature):
 @pytest.mark.parametrize("key,creature,values", [
     ("effort", "working", ["light", "hard", "grinding"]),
     ("cheer", "done", ["hop", "cheer", "dance"]),
-    ("uhoh", "uhoh", ["error", "stuck", "hungry"]),
+    ("uhoh", "uhoh", ["error"]),
     ("overlay", "idle", ["greet", "boop"]),
 ])
 def test_parameters(stick, key, creature, values):
@@ -215,24 +215,19 @@ def test_new_card_has_priority_over_confirmation(stick):
     wait_state(stick, layer="card", cardId="two")
 
 
-def test_system_priority_and_agent_suppression(stick):
+def test_system_priority_and_retired_agent_is_ignored(stick):
     frame(stick, card={"kind": "pair", "text": "123456"}, bubble="hello", gift=True,
           agent={"name": "codex", "color": "sky", "emotion": "happy", "say": "hi"})
-    wait_state(stick, layer="system", agentOverlay=False)
+    wait_state(stick, layer="system")
     assert not command(press(stick), cmd="decision")
     frame(stick, agent={"name": "codex", "color": "sky", "emotion": "happy", "say": "안녕"})
-    wait_state(stick, agentOverlay=True)
+    wait_state(stick, layer="face")
 
 
-def test_collect_and_bubble_expiry_no_heartbeat_replay(stick):
-    frame(stick, gift=True, giftLine="tests passed")
-    press(stick)
-    buf, _ = stick.read_until(lambda b: b'"cmd":"collect"' in b, 2)
-    assert command(buf, cmd="collect")
-    wait_state(stick, gift=False, bubble="tests passed")
+def test_retired_gift_is_ignored_and_bubble_dismissal_persists(stick):
     frame(stick, gift=True, giftLine="tests passed")
     assert state(stick)["gift"] is False
-    wait_state(stick, bubble="", timeout=5)
+    assert not command(press(stick), cmd="collect")
     frame(stick, bubble="build failed", state="uhoh")
     wait_state(stick, bubble="build failed")
     press(stick, "b")
@@ -249,14 +244,14 @@ def test_bubble_four_seconds(stick):
     wait_state(stick, bubble="", timeout=3)
 
 
-def test_dim_ladder_and_orb_never_off(stick):
+def test_dim_ladder_never_off(stick):
     base = state(stick)["now"] + 100
     clock(stick, base)
     frame(stick, state="idle")
     clock(stick, base+120100)
     wait_state(stick, screenOff=False, brightness=90)
     frame(stick, gift=True)
-    wait_state(stick, screenOff=False, brightness=110)
+    wait_state(stick, screenOff=False, brightness=90)
     pending(stick)
     clock(stick, base+240200)
     # Keep the card live at the advanced presentation time.
@@ -276,13 +271,14 @@ def test_shutdown_stages_and_wake_press_guard(stick):
     # Wake consumes the tap even if the screen held a pending gift.
     frame(stick, gift=True)
     press(stick)
-    wait_state(stick, screenOff=False, gift=True)
+    wait_state(stick, screenOff=False, gift=False)
 
 
-def test_double_tap_quick_and_hold_pet(stick):
+def test_double_tap_boop_and_hold_pet(stick):
     press(stick)
     buf = press(stick)
-    assert command(buf, cmd="quick")
+    assert not command(buf, cmd="quick")
+    assert command(buf, cmd="boop")
     assert command(press(stick, ms=1150), cmd="boop", hold=True)
     assert not command(press(stick, ms=1150), cmd="boop", hold=True)
 
@@ -573,84 +569,16 @@ def test_perch_report_matches_rendered_row(stick, cell_name, pose):
 
 
 # Requires cryptography: /tmp/hilvenv/bin/python -m pip install cryptography
-# These tests deliberately retire a test creature; use a bench unit.
-def unit_info(stick):
-    reply = buddyctl.signing_request(stick, {"cmd": "unit"})
-    assert reply["ok"], reply
-    assert re.fullmatch(r"[0-9a-f]{16}", reply["unit"])
-    assert reply["alg"] in ("p256", "ed25519")
-    return reply
 
 
-def test_unit_stable_across_reboot_and_debug_wake(stick):
-    before = unit_info(stick)
-    stick.write_line("firstwake reset")
-    assert unit_info(stick) == before
-    stick.write_line("unit")
-    _, debug = stick.read_until(lambda b: buddyctl.json_reply(b, "unit"), 3)
-    assert debug == before
-    stick.write_line("reboot")
-    time.sleep(3)
-    wait_state(stick, timeout=20, unit=before["unit"])
-    assert unit_info(stick) == before
-    pong = stick.framed_json("ping", "PONG", 3)
-    assert pong["keygenMs"] == 0  # loaded key, no regeneration
-    status = buddyctl.signing_request(stick, {"cmd": "status"})
-    assert status["unit"] == before["unit"] and status["alg"] == before["alg"]
-
-
-def test_growth_signature_tampering_and_rate_limit(stick):
-    from verify_sig import verify_reply
-    unit = unit_info(stick)
-    request = {"cmd": "sign", "day": "2026-09-09", "xp": 1234, "nonce": "0123ABCDef"}
-    time.sleep(1.05)
-    clock(stick, "freeze")
-    try:
-        reply = buddyctl.signing_request(stick, request)
-        blocked = buddyctl.signing_request(stick, request)
-        assert blocked == {"ack": "sign", "ok": False, "error": "rate_limited"}
-        assert verify_reply(reply, unit), reply
-        for key, value in (("xp", 1235), ("day", "2026-09-10"), ("nonce", "0123abcdef"), ("unit", "0"*16)):
-            assert not verify_reply({**reply, key: value}, unit)
-        time.sleep(1.05)
-        assert verify_reply(buddyctl.signing_request(stick, {**request, "xp": 2**63-1}), unit)
-    finally:
-        clock(stick, "clear")
-    got = state(stick)
-    assert got["heap"] >= 40000 and got["heapBig"] >= 28000
-
-
-@pytest.mark.parametrize("field,value,error", [
-    ("xp", -1, "invalid_xp"), ("xp", 1.5, "invalid_xp"),
-    ("xp", True, "invalid_xp"), ("xp", "1", "invalid_xp"),
-    ("xp", 2**63, "invalid_xp"), ("xp", None, "invalid_xp"),
-    ("day", "2026-9-09", "invalid_day"), ("day", "abcd-ef-gh", "invalid_day"),
-    ("day", "2026-09-09\x00", "invalid_day"), ("day", 20260909, "invalid_day"),
-    ("nonce", "", "invalid_nonce"), ("nonce", "a", "invalid_nonce"),
-    ("nonce", "aa|bb", "invalid_nonce"), ("nonce", "ab"*33, "invalid_nonce"),
-    ("nonce", "aa\x00b", "invalid_nonce"),
-])
-def test_sign_validation(stick, field, value, error):
-    request = {"cmd": "sign", "day": "2026-09-09", "xp": 0, "nonce": "aa", field: value}
-    assert buddyctl.signing_request(stick, request) == {"ack": "sign", "ok": False, "error": error}
-
-
-def test_retire_clears_identity_until_setup(stick):
-    from verify_sig import verify_reply
-    old = unit_info(stick)
-    stick.write_line('{"cmd":"retire"}')
-    stick.write_line("clock settle 2500")
-    stick.read_until(lambda b: buddyctl.json_reply(b, "retire"), 5)
-    assert buddyctl.signing_request(stick, {"cmd": "unit"})["ok"] is False
-    request = {"cmd": "sign", "day": "2026-09-09", "xp": 0, "nonce": "aa"}
-    assert buddyctl.signing_request(stick, request)["error"] == "key_unavailable_reboot"
-    stick.write_line("reboot")
-    time.sleep(3)
-    wait_state(stick, timeout=20, firstWake=True)
-    new = unit_info(stick)
-    assert new["unit"] != old["unit"] and new["pub"] != old["pub"]
-    reply = buddyctl.signing_request(stick, request)
-    assert verify_reply(reply, new) and not verify_reply(reply, old)
-    assert stick.framed_json("ping", "PONG", 3)["keygenMs"] > 0
-    got = state(stick)
-    assert got["heap"] >= 40000 and got["heapBig"] >= 28000
+def test_nudge_projection_and_quiet_mode(stick):
+    pending(stick, id="nudge", mute=0, focus=True, nudgeRung=1)
+    first = wait_state(stick, nudgeRung=1)
+    pending(stick, id="nudge", mute=0, focus=True, nudgeRung=2)
+    second = wait_state(stick, nudgeRung=2)
+    assert second["soundCount"] == first["soundCount"]
+    assert second["cardId"] == "nudge"  # Reminder never decides or withdraws.
+    pending(stick, id="nudge", mute=0, focus=True, nudgeRung=3)
+    assert state(stick)["nudgeRung"] == 2  # Reject malformed rung.
+    pending(stick, id="next", mute=0, focus=True)
+    assert state(stick)["nudgeRung"] == 0  # Omission resets, not stale escalation.

@@ -32,14 +32,6 @@ enum GoalsReader {
         if let d = dictionary ?? input.data(using: .utf8).flatMap({ (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }) { return d["command"] as? String ?? d["cmd"] as? String }
         return input
     }
-    private static let volatile = try! NSRegularExpression(pattern: #"(?:2>&1|--(?:timestamp|output|log-file|color|seed)(?:=|\s+)\S+|--no-color|\b\d{4}-\d{2}-\d{2}T\S+)"#)
-    static func signature(_ command: String) -> String {
-        let cleaned = volatile.stringByReplacingMatches(in: command, range: NSRange(command.startIndex..., in: command), withTemplate: "")
-        let normalized = cleaned.split(whereSeparator: { $0.isWhitespace }).map { token in
-            token.contains("/") ? (String(token) as NSString).lastPathComponent : String(token)
-        }.joined(separator: " ")
-        return SHA256.hash(data: Data(normalized.utf8)).prefix(8).map { String(format: "%02x", $0) }.joined()
-    }
     static func outcome(_ payload: RawHookPayload, runner: Compiled, output: String? = nil) -> GoalOutcome {
         if let status = payload.exitStatus { return status == 0 ? .pass : .fail }
         let output = output ?? (payload.outputHead ?? "") + "\n" + (payload.outputTail ?? "")
@@ -48,30 +40,11 @@ enum GoalsReader {
         return .unknown
     }
 }
-enum EffortReader {
-    static func read(_ w: SessionWindow, at: Double, thresholds: MomentThresholds = .defaults) -> EffortTier {
-        let attempts = w.goals.values.map(\.attemptsWithoutPass).max() ?? 0
-        if attempts >= thresholds.effortGrindingAttempts || w.errors >= thresholds.effortGrindingErrors || at - w.startedAt >= PetTuning.effortGrindingMinMs { return .grinding }
-        if attempts >= thresholds.effortHardAttempts || w.errors >= thresholds.effortHardErrors || at - w.startedAt >= PetTuning.effortHardMinMs { return .hard }
-        return .light
-    }
-}
-enum GlossWriter {
-    static func read(tool: String, input: String, dictionary: [String: Any]? = nil) -> String {
-        let s = input.lowercased()
-        if CardStakesPolicy.destructiveLiterals.contains(where: s.contains) || tool.lowercased().contains("delete") { return "deletes files in this folder" }
-        if s.contains("install") || s.contains(" add ") { return "installs packages" }
-        if s.contains("curl ") || s.contains("wget ") || s.contains("https://") { return "reaches the internet" }
-        if activityKind(tool: tool, hint: input) == .write { return "edits " + (ThemeReader.path(input, dictionary: dictionary) ?? "file") }
-        if activityKind(tool: tool, hint: input) == .read { return "reads files" }
-        return "runs a command"
-    }
-}
 enum StakesReader {
     static func read(tool: String, input: String, dictionary: [String: Any]? = nil) -> (Stakes, String) {
         let parsed = dictionary ?? input.data(using: .utf8).flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] } ?? [:]
         let command = GoalsReader.command(input, dictionary: parsed) ?? input
-        return (cardStakes(tool: tool, hint: command), GlossWriter.read(tool: tool, input: input, dictionary: parsed))
+        return (cardStakes(tool: tool, hint: command), tool.isEmpty ? "Tool" : tool)
     }
 }
 enum ThemeReader {

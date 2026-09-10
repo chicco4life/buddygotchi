@@ -1,65 +1,107 @@
-# UX: Voice
+# UX: Model-driven buddy behavior
 
-## Settings policy revision — 2026-09-10
+The local LLM directs the buddy's dialogue, personality evolution and memory selection. One Markdown guide
+sets what deserves a response, what is worth remembering and when to stay quiet.
 
-Written dialogue runs automatically with authored fallback; there is no user-facing Voice setting. This controls written lines, not audio. Quiet mode only silences sounds and beeps.
+## Steering
 
-Status: first draft, 2026-09-09, written by the agent to unblock Phase 5 while
-the owner was away. Style choices are assumptions to overturn. Refines
-`VISION.md` §9 and `IDEAS.md` idea 1.
+The shipped default is [BEHAVIOR.md](../app/Boop/Resources/BEHAVIOR.md).
+**Settings → Edit buddy behavior…** creates and opens `~/.boop/BEHAVIOR.md`
+(or `BEHAVIOR.md` inside `BOOP_STATE_DIR`). It never overwrites an existing
+file. Each decision rereads it; no rebuild or restart is needed. Missing,
+empty, unreadable, invalid UTF-8 or over-32-KiB overrides use the bundled guide.
+The guide is trusted owner configuration; runtime context is supplied as data.
 
-## What the voice is for
+## Ownership
 
-One short line at the right moment, in the buddy's own character: greets,
-cheers with a story, uh-oh remarks, the end-of-day recap, and the nightly
-profile lines. It never explains, never instructs, never judges the owner.
+| Owner | Decisions |
+| --- | --- |
+| Deterministic core | State, effort from task length, celebration size/timing and 3 s folding, XP, approvals, nudge ladder and display priority |
+| Local model + Markdown | Dialogue/silence, tone, learned memories and trait changes |
+| App scheduler/display | When a decision is possible; cancellation, byte budget and bubble expiry |
 
-## Style guide
+Dialogue returns **a line** or **silence**; private reflection can propose
+evidence-backed memories and bounded trait changes. The model has
+no tools, state setter, approval authority or drawing channel. Future optional
+actions can extend this boundary without moving state truth into the model.
+Approval cards, system labels and critical instructions remain deterministic.
 
-- Lowercase, no exclamation marks except in a dance line. One sentence on the
-  device (≤ 40 bytes), up to three in the app.
-- Specific beats generic: name the runner, the project, the count.
-- Sass aims at the agent or the world. Never a second-person negative about
-  the owner ("you keep…" is banned; "that file again" is fine).
-- No emoji on the device; at most one in the app.
-- Never mention tokens, money, or productivity.
+## Decision loop
 
-## Sass ceiling
+1. Offer context on a return greeting, explicit error, or a completed turn after its
+   celebration ends in idle.
+2. Every five minutes, offer a periodic opportunity while idle or working,
+   only without a prompt, existing bubble or affection overlay. An event
+   opportunity restarts this interval. Skipped checks are not queued.
+3. Supply the guide plus state, session count, effort, available completed-task
+   duration, time bucket, language, known agent, traits/bond, XP/level/streak/task totals, a bounded memory
+   summary, up to three profile lines and up to 20 prior lines. No raw transcript or tool arguments.
+4. The model returns a line or `SILENT`. Silence creates no bubble or fallback.
+5. Accept displayable text; discard late results after state/card changes,
+   replacement requests, language/runtime changes or shutdown. A bubble lasts
+   four seconds and never overrides an approval or wakes a sleeping buddy.
 
-Cheek trait 0–255 → three registers: earnest (< 96), wry (96–191), cheeky
-(≥ 192). Cheeky may tease the agent by name ("codex tried that already").
-Earnest never teases. The register is chosen per line, never per word.
+Completion text is considered only after the animation finishes and the buddy
+returns to idle. It cannot delay, resize, cover or restart the celebration. If
+work or an approval interrupts that idle period, its pending reply is discarded. No gifts,
+recaps, completion stories, inferred failures or agent-authored MCP return.
+Nudge dismissal changes the reminder rule silently; no scripted hush remark.
 
-## Inputs to a line
+## Runtime and fallback
 
-Moment kind and facts; up to three profile lines; traits; agent name;
-time-of-day bucket (morning, day, evening, late); language. Never raw text.
+Apple Foundation Models runs locally on supported macOS 26+ systems when
+available. There is no cloud fallback or bundled llama.cpp model. Each request
+uses a fresh session, temperature 0.4, and a five-second asynchronous deadline.
+Device and profile requests have separate generation lanes. A busy/unavailable
+lane, failed generation or invalid reply uses a minimal fallback:
 
-## Authored banks (the floor)
+- Greeting: one neutral English/Korean greeting, then silence if already used.
+- Error: one neutral English/Korean error line, then silence if already used.
+- Completion and periodic opportunity: silence.
+- Reflection: no memory or personality changes.
 
-Per language, per moment kind, per register: ≥ 8 distinct authored bases each. Selection is
-seeded by (moment, day) so the same day does not repeat a line, and the last
-20 lines used are excluded. Optional seeded lead-ins live separately and appear
-on at most 40% of draws; they are seasoning, not authored content. English and Korean ship; Korean lines are
-written, not translated.
+Device text is capped at 63 UTF-8 bytes, profile text at 240, on character
+boundaries. Code rejects control characters and unsupported languages; tone,
+capitalization, punctuation and word choice live in the guide. Exact repeats
+from today or the last 20 stored lines are excluded. Share cards retain their
+separate authored captions.
 
-## Model
+The model is responsible for using supplied facts faithfully; display validation
+is not a semantic proof. Reflection validates evidence IDs and bounds, not the meaning of a memory.
+Quiet mode mutes sound only. No daily inference quota or speech quota exists;
+periodic cadence and generation deadlines are scheduling/latency controls.
 
-A local model behind a `VoiceRuntime` protocol. Default implementation: Apple
-Foundation Models on macOS 26 when available, else a bundled small model
-through a llama.cpp-style runtime is out of scope for this phase (stub that
-returns nil). Budget 1 s for a device line; past budget the authored line is
-used and the model result is discarded. The model's output is validated by
-the same post-filter as authored lines (length, banned patterns, second
-person negative).
+## Stats and memory inputs
 
-## Recap
+Energy, cheek, warmth, curiosity, bond, XP and remembered history are context
+for the same model, interpreted through BEHAVIOR.md. They do not select a
+mandatory conversational response. Accounting and storage stay deterministic.
 
-End of day, one paragraph in the app and one line on the device: turns,
-tasks, biggest moment, what is still open. Built from facts only.
+Each normal behavior request includes `progress` (XP, level, XP to next level,
+current/best streak, active days together, completed tasks and today's
+XP) and `memory` (completed turns, lifetime sessions, known-project count, and
+up to five recent factual outcomes/durations and dates, plus legacy moments). Usual-hour familiarity is omitted until
+20 samples span at least 14 days. Up to three profile lines remain included.
+Reflection receives at most 100 reduced facts from retained history, up to 20
+profile lines and current traits. It uses the same freshly read guide.
 
-## Reflection (nightly)
+History retrieval reads at most twenty stored outcome/completion/error/moment rows and exposes at most
+five eligible facts. No raw project identifiers/paths, transcripts, token
+counts, approval decisions or retired drawings are supplied. Stored records
+and numeric inputs do not grant authority to change XP, base states or approvals.
 
-Rules from `UX-GROWTH.md` produce candidate profile lines; when the model
-is available it may rephrase candidates into the buddy's voice but may not
-invent new facts. Max 5 lines a night.
+## Markdown-guided learning contract
+
+At the existing daily reflection opportunity, return SILENT or JSON containing
+`memories: [{line, evidence: [id]}]` and `traits: {axis: delta}`. Memory selection
+and trait evolution are model/guide decisions; rule-derived candidates and
+DailyDrift are removed, including automatic active-day/greeting bond rewards.
+
+At most five memories, each ≤240 UTF-8 bytes with valid supplied evidence IDs;
+only energy, cheek, warmth, curiosity and bond can change, by integers ±3 per
+day and within 0–255. Unknown axes, invalid evidence, malformed JSON or oversized
+output invalidate the whole update. Empty updates are valid. Stored facts, XP
+and approval decisions cannot be changed. The model must ground claims in
+facts; numeric validation is not a factuality proof. Unavailable models and
+five-second timeouts preserve existing profile and traits. Successful reflection
+is idempotent per local day. Private reflection does not create a bubble.

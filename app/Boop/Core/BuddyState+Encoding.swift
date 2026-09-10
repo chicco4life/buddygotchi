@@ -5,8 +5,6 @@ import Foundation
 extension BuddyState {
     private enum CodingKeys: String, CodingKey {
         case language
-        case recap
-        case leaderboard
         case growth
         case cosmetic
         case version
@@ -27,26 +25,17 @@ extension BuddyState {
         case lastCompletionAt
         case lastCompleted
         case firstErrored
-        case firstThinking
         case activeSessions
         case currentActivityKind
         case greetUntil
         case greetLevel
-        case mood
-        case moodUntil
         case effortTier
         case celebrateIntensity
-        case agentOverlay
-        case agentDrawing
-        case agentDrawingUntil
-        case agentDrawingIsMemory
     }
 
     func encode(to encoder: any Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
         try c.encode(language, forKey: .language)
-        try c.encodeIfPresent(recap, forKey: .recap)
-        try c.encodeIfPresent(leaderboard, forKey: .leaderboard)
         try c.encode(growth, forKey: .growth)
         try c.encode(cosmetic, forKey: .cosmetic)
         try c.encode(version, forKey: .version)
@@ -67,18 +56,11 @@ extension BuddyState {
         try c.encodeIfPresent(lastCompletionAt, forKey: .lastCompletionAt)
         try c.encodeIfPresent(lastCompleted, forKey: .lastCompleted)
         try c.encodeIfPresent(firstErrored, forKey: .firstErrored)
-        try c.encodeIfPresent(firstThinking, forKey: .firstThinking)
         try c.encode(activeSessions, forKey: .activeSessions)
         try c.encodeIfPresent(currentActivityKind, forKey: .currentActivityKind)
         try c.encodeIfPresent(greetUntil, forKey: .greetUntil)
         try c.encodeIfPresent(greetLevel, forKey: .greetLevel)
-        try c.encodeIfPresent(mood, forKey: .mood)
-        try c.encodeIfPresent(moodUntil, forKey: .moodUntil)
         try c.encodeIfPresent(effortTier, forKey: .effortTier)
         try c.encodeIfPresent(celebrateIntensity, forKey: .celebrateIntensity)
-        try c.encodeIfPresent(agentOverlay, forKey: .agentOverlay)
-        try c.encodeIfPresent(agentDrawing, forKey: .agentDrawing)
-        try c.encodeIfPresent(agentDrawingUntil, forKey: .agentDrawingUntil)
-        try c.encodeIfPresent(agentDrawingIsMemory, forKey: .agentDrawingIsMemory)
     }
 }
