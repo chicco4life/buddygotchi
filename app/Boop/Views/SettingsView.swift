@@ -170,6 +170,11 @@ struct SettingsSectionView: View {
             Section(BuddyCopy.phase7("approvals", language: engine.state.language)) {
                 BuddySettingToggle(title: BuddyCopy.shared.settingsCopy.localApprovalMode,
                     description: BuddyCopy.shared.settingsCopy.localApprovalModeDescription, isOn: approvalModeBinding)
+                BuddySettingToggle(title: BuddyCopy.phase7("codexApprovals", language: engine.state.language),
+                    description: BuddyCopy.phase7("codexApprovalsDescription", language: engine.state.language),
+                    isOn: Binding(get: { engine.boolSetting(DefaultsKey.codexApprovalMode, fallback: false) },
+                                  set: { engine.setCodexApprovalMode($0) }))
+                    .disabled(!approvalMode)
                 companion([.quick])
             }
             Section(BuddyCopy.phase7("leaderboard", language: engine.state.language)) { companion([.leaderboard]) }

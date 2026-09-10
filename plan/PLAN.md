@@ -716,3 +716,14 @@ force incompatible peers. The old ESLint 8 transitive deprecations are removed.
 
 Validation: clean `npm ci`, lint, all 5 tests, and production build passed
 under Node 24.21.0. Lockfile contains only the documented ESLint deprecation.
+
+## Hook integration correction (2026-09-10)
+
+Phase 9 audit: hook v8 separates Codex approval ownership from the global switch,
+repairs capped-payload alias and call-ID loss, registers Codex SessionEnd, and
+uses approval reasons on cards without using them for safety classification.
+See HOOK-REVIEW.md and VERIFICATION.md for evidence and remaining live gates.
+
+Hook correction validation: 452 tests passed, zero skipped; the new advanced
+settings control was reviewed in an offscreen render. Live installation awaits
+the owner launching the rebuilt GUI.

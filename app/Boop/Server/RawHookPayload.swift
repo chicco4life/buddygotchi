@@ -62,6 +62,9 @@ struct RawHookPayload: Sendable {
 
 // Preserve authored descriptions while keeping raw command/path fallbacks out of UI history.
 private func safeDisplayHint(_ body: HookEventBody, tool: String) -> String {
+    if body.effectiveEventName == "PermissionRequest" {
+        return approvalGloss(from: body, fallback: GlossWriter.read(tool: tool, input: body.effectiveInputText ?? ""))
+    }
     let hint = extractHint(from: body)
     if body.effectiveToolInput?.description == hint,
        GoalsReader.runner(hint) == nil, !hint.contains("/") { return hint }

@@ -53,7 +53,7 @@ actor Extractor {
         case .needsYou:
             let (stakes, gloss) = StakesReader.read(tool: p.toolName, input: p.toolInput ?? "", dictionary: dictionary ?? [:])
             result.events.append(.requestArrived(at: p.timestamp, sessionId: p.sessionId, requestId: "\(p.sessionId)_\(Int(p.timestamp))", tool: p.toolName, hint: gloss, sessionLabel: w.project))
-            result.events.append(.requestDescribed(at: p.timestamp, sessionId: p.sessionId, stakes: stakes, gloss: gloss))
+            result.events.append(.requestDescribed(at: p.timestamp, sessionId: p.sessionId, stakes: stakes, gloss: p.displayHint.isEmpty ? gloss : p.displayHint))
         case .sessionEnd: break
         }
         if !degraded.contains(p.source) {

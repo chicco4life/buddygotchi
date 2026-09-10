@@ -111,6 +111,15 @@ hdr "1. Config"
 if [ -f "$CFG" ]; then ok "$CFG present"; else bad "$CFG missing: open Boop once to create it"; fi
 [ -n "$TOKEN" ] && ok "token present" || bad "no token in config.json"
 grep -q '"approvalMode" *: *true' "$CFG" 2>/dev/null && info "approval mode: on (Boop answers PermissionRequest)" || info "approval mode: off (agents show their own prompts)"
+if [ "$AGENT" = codex ]; then
+  if grep -q '"codexApprovalMode" *: *true' "$CFG" 2>/dev/null; then
+    info 'Codex approval handling: opted in (also requires global approval mode)'
+  elif [ "$(sed -n 's/^# boop-hook v\([0-9][0-9]*\).*/\1/p' "$HOOK" 2>/dev/null | head -1)" -ge 8 ] 2>/dev/null; then
+    info 'Codex approval handling: native; Boop does not intercept the automatic reviewer'
+  else
+    info 'Codex approval handling: legacy global switch; upgrade to hook v8 for separate opt-in'
+  fi
+fi
 
 # --- 2. hook script ---------------------------------------------------------
 hdr "2. Hook script"

@@ -387,8 +387,9 @@ func buildHookServer(
         let body = try sharedDecoder.decode(HookEventBody.self, from: rawBuffer)
         let sessionId = deriveSessionId(from: body, source: source)
         let tool = body.effectiveToolName ?? "Unknown"
-        let fullHint = extractHint(from: body, limit: .max)
-        let hint = String(fullHint.prefix(200))
+        // Classify the actual operation, never its authored description.
+        let fullHint = approvalOperation(from: body)
+        let hint = extractHint(from: body)
         let sessionLabel = cwdLabel(body.cwd)
         let requestId = makeRequestId(sessionId: sessionId)
 
@@ -413,7 +414,8 @@ func buildHookServer(
             try? await channel.closeFuture.get()
             await engine.abandonApproval(sessionId: sessionId, requestId: requestId)
         }
-        let (stakes, gloss) = StakesReader.read(tool: tool, input: fullHint)
+        let (stakes, fallbackGloss) = StakesReader.read(tool: tool, input: fullHint)
+        let gloss = approvalGloss(from: body, fallback: fallbackGloss)
         let decision = await engine.submitApproval(
             sessionId: sessionId,
             requestId: requestId,
@@ -527,6 +529,17 @@ func handleAgentEvent(
 }
 
 // MARK: - Approval Helpers
+
+func approvalOperation(from body: HookEventBody) -> String {
+    body.command ?? body.effectiveToolInput?.command ?? body.effectiveInputText ?? ""
+}
+
+/// Descriptions are transient display text; they never decide approval or stakes.
+func approvalGloss(from body: HookEventBody, fallback: String) -> String {
+    guard let description = body.effectiveToolInput?.description?
+        .trimmingCharacters(in: .whitespacesAndNewlines), !description.isEmpty else { return fallback }
+    return description.prefix(utf8Bytes: 200)
+}
 
 func approvalResponse(decision: ApprovalDecision, source: String) -> Response {
     if decision == .passthrough {

@@ -3,12 +3,12 @@ import XCTest
 @testable import BoopCore
 
 final class HookPayloadTests: XCTestCase {
-    @MainActor private func forwarded(_ body: [String: Any], forbidPython: Bool = false) throws -> Data {
+    @MainActor private func forwarded(_ body: [String: Any], forbidPython: Bool = false, source: String = "claude-code", approvalMode: Bool = false, codexApprovalMode: Bool = false) throws -> Data {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let config = root.appendingPathComponent(".boop")
         try FileManager.default.createDirectory(at: config, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
-        try Data(#"{"port":21321,"token":"test"}"#.utf8).write(to: config.appendingPathComponent("config.json"))
+        try JSONSerialization.data(withJSONObject: ["port": 21321, "token": "test", "approvalMode": approvalMode, "codexApprovalMode": codexApprovalMode]).write(to: config.appendingPathComponent("config.json"))
         let hook = root.appendingPathComponent("hook.sh")
         try HookInstaller.hookScriptContent.write(to: hook, atomically: true, encoding: .utf8)
         let curl = root.appendingPathComponent("curl")
@@ -21,7 +21,7 @@ final class HookPayloadTests: XCTestCase {
         }
         let syntax = Process(); syntax.executableURL = URL(fileURLWithPath: "/bin/bash"); syntax.arguments = ["-n", hook.path]
         try syntax.run(); syntax.waitUntilExit(); XCTAssertEqual(syntax.terminationStatus, 0)
-        let process = Process(); process.executableURL = URL(fileURLWithPath: "/bin/bash"); process.arguments = [hook.path]
+        let process = Process(); process.executableURL = URL(fileURLWithPath: "/bin/bash"); process.arguments = [hook.path, source]
         var env = ProcessInfo.processInfo.environment; env["HOME"] = root.path; env["PATH"] = root.path + ":" + (env["PATH"] ?? "/usr/bin:/bin")
         process.environment = env
         let input = Pipe(), output = Pipe()
@@ -69,6 +69,45 @@ final class HookPayloadTests: XCTestCase {
 }
 
 extension HookPayloadTests {
+    @MainActor func testCodexNativeApprovalsAreNotInterceptedByGlobalMode() throws {
+        let request: [String: Any] = ["hook_event_name": "PermissionRequest", "session_id": "s", "tool_name": "Bash", "tool_input": ["command": "swift test"]]
+        for global in [false, true] {
+            try XCTAssertTrue(try forwarded(request, source: "codex", approvalMode: global).isEmpty)
+        }
+        try XCTAssertFalse(try forwarded(request, source: "codex", approvalMode: true, codexApprovalMode: true).isEmpty)
+        try XCTAssertFalse(try forwarded(["hook_event_name": "PreToolUse", "session_id": "s"], source: "codex", approvalMode: true).isEmpty)
+        try XCTAssertFalse(try forwarded(request, source: "claude-code", approvalMode: true).isEmpty)
+    }
+
+    @MainActor func testTransportPreservesAliasesAndCallIdentity() throws {
+        let data = try forwarded(["hookEventName": "postToolUse", "conversation_id": "cursor-s",
+                                  "tool": ["name": "Shell"], "input": ["command": "swift test"],
+                                  "tool_call_id": "call-42", "exit_code": 1, "error_class": "test_failure"])
+        let payload = try XCTUnwrap(RawHookPayload.parse(data, source: "cursor", at: 0))
+        XCTAssertEqual(payload.kind, .toolResult)
+        XCTAssertEqual(payload.sessionId, "cursor-s")
+        XCTAssertEqual(payload.toolName, "Shell")
+        XCTAssertEqual(payload.callId, "call-42")
+        XCTAssertEqual(payload.errorClass, "test_failure")
+        XCTAssertEqual(payload.exitStatus, 1)
+        XCTAssertNotNil(payload.toolInput)
+        let codex = try forwarded(["hook_event_name": "PostToolUse", "session_id": "codex-s",
+                                   "tool_name": "Bash", "tool_use_id": "call-99", "tool_response": "done"])
+        try XCTAssertEqual(try RawHookPayload.parse(codex, source: "codex", at: 0)?.callId, "call-99")
+    }
+
+    func testApprovalDescriptionIsDisplayOnly() throws {
+        let json = #"{"hook_event_name":"PermissionRequest","session_id":"s","tool_name":"Bash","tool_input":{"command":"rm -rf build","description":"Clean build artifacts"}}"#
+        let body = try JSONDecoder().decode(HookEventBody.self, from: Data(json.utf8))
+        let payload = try XCTUnwrap(RawHookPayload.parse(Data(json.utf8), source: "codex", at: 0))
+        XCTAssertEqual(payload.displayHint, "Clean build artifacts")
+        XCTAssertEqual(approvalGloss(from: body, fallback: "runs a command"), "Clean build artifacts")
+        XCTAssertEqual(approvalOperation(from: body), "rm -rf build")
+        XCTAssertNil(shouldAutoApprove(tool: "Shell", command: approvalOperation(from: body), source: "cursor"))
+        XCTAssertTrue(payload.toolInput?.contains("rm -rf") == true)
+        XCTAssertEqual(StakesReader.read(tool: "Bash", input: payload.toolInput ?? "").0, .careful)
+    }
+
     @MainActor func testFastEventsNeverForkPython() throws {
         for event in ["PreToolUse", "preToolUse", "beforeShellExecution", "beforeMCPExecution", "SessionStart", "SessionEnd", "Notification", "PermissionRequest"] {
             for size in [10, 20_000] {
