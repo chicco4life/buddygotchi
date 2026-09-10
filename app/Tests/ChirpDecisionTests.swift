@@ -308,6 +308,10 @@ extension DesktopOutputSoundTests {
         done.lastTaskDurationMs = 60_000
         output.stateDidChange(prev: working, next: done)
         XCTAssertEqual(presenter.opened, 0)
+        var waiting = working
+        waiting.creature.state = .needsYou
+        output.stateDidChange(prev: working, next: waiting)
+        XCTAssertEqual(presenter.opened, 0, "Even legacy interactive mode must never auto-open the menu")
         presenter.isPopoverShown = true
         var idle = done
         idle.creature.state = .idle

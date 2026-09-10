@@ -1,5 +1,9 @@
 # Boop device protocol — RenderState v2
 
+## Settings policy revision — 2026-09-10
+
+Current desktop policy sends fixed volume step 1 (0 while quiet) and default appearance with no accessory. The host ignores legacy `quick` gestures. Existing firmware vocabulary remains compatible; no firmware change is needed for this Settings revision.
+
 The shared host contract is [plan/WIRE-V2.md](../../plan/WIRE-V2.md).
 This document describes the firmware receiver and USB diagnostics.
 
@@ -108,7 +112,7 @@ additional host-to-device RenderState fields.
 The normal screen dims after 120 s of inactivity, with an orb glow floor.
 Asleep and face-down nap use brightness 8; pending cards use 220. The screen
 never switches off automatically. Only the secondary shutdown hold does so:
-focus at 1 s, “night night” at 3 s, off after the 600 ms farewell or release.
+Quiet mode (`focus` compatibility command) at 1 s, “night night” at 3 s, off after the 600 ms farewell or release.
 A wake press consumes the action. Explicit `deepsleep` is a diagnostic escape.
 
 ## Phase 6 rituals and appearance
@@ -227,3 +231,11 @@ retire it. Offline host checks:
 Session `dots` and `dotAlert` are still validated and reported for wire
 compatibility, but are not rendered. Omit `dotAlert` when there is no alert;
 an explicit `-1` is not a valid incoming index.
+
+## Quiet mode (2026-09-10)
+
+The v2 `focus` boolean and `cmd:focus` name are retained but now mean sound-only
+Quiet mode. Suppress every motif, including Uh-oh, and stop an in-progress tone.
+Do not draw a Focus marker or change expressions, motion, nudges, or timing.
+The host persists the toggle and sends mute=0 while quiet; unmuting restores its
+fixed default volume on the next frame. Diagnostic field/stage names remain unchanged.

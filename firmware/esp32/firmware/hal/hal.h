@@ -175,6 +175,7 @@ int  halBatteryCurrent_mA();        // 0 where unmeasurable (WS has no coulomb c
 // OTA gate wants "safe to flash", and USB-present is what it really asks.
 bool halIsCharging();
 void halSetLed(bool on);            // no-op on WS (no user LED)
+void halSilence();
 void halTone(uint16_t freq, uint16_t ms);   // no-op on WS (no speaker)
 
 // Set the wall clock from the bridge's time sync. M5: BM8563 RTC (survives

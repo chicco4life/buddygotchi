@@ -889,6 +889,84 @@ require the normal build; the bench build is for frame-driven UI checks.
 
 Review the enlarged approval face at every stakes level and during confirmation. Verify eyes/mouth stay above the footer and compare the same frozen scene with the prior iteration. Reuse USB-only verification with the Mac GUI open.
 
+## Menu bar and sound-only Quiet mode (2026-09-10)
+
+The Mac is a 360 pt menu-anchored NSPopover, with Overview, Activity, Settings,
+profile and explicit setup. No startup window, desktop creature or automatic
+state-triggered popups. Quiet mode persists using soundsEnabled and the legacy
+focus flag, mutes every sound, and no longer gates the reducer's visual nudges.
+Old Focus schedules and interactive-mode preferences do not control behavior.
+
+Validation:
+
+- Earlier unrestricted `make test`: **448 passed, zero skipped**. Includes all
+  four HTTP/socket tests and the updated mute/nudge regression cases.
+- Final suite (with the additional compact catalog): **445 passed, four skipped
+  of 449**, no failures. Skips are the four localhost tests denied by the sandbox:
+  two HookServerBehaviorTests, MCPServerTests.testMCPOverRealHTTP, and the real-server
+  hang-up case in ResilienceTests. No new socket behavior was introduced.
+- Final `swift build --disable-sandbox --skip-update --product Boop`: passed.
+  Restricted runs used CLANG_MODULE_CACHE_PATH=/tmp/boop-menu-clang and
+  SWIFTPM_MODULECACHE_OVERRIDE=/tmp/boop-menu-swift. Existing dependency checkouts
+  were copied into this worktree's .build to avoid network resolution.
+- Regression checks cover unchanged visual wire fields, unchanged routine and
+  careful nudge escalation, saved mute across engine recreation, volume restore,
+  ignored legacy schedules, device toggle routing, and no automatic menu opening
+  even when the presenter reports legacy interactive mode enabled.
+- Actual SwiftUI snapshots reviewed: overview, approvals, settings categories,
+  profile and all compact onboarding steps, including light/dark appearance.
+  Selected captures are in `plan/evidence/menu-bar/`; fixture data is labeled there.
+- Waveshare build passed using PLATFORMIO_CORE_DIR=/private/tmp/boop-ui-pio and
+  PLATFORMIO_PACKAGES_DIR=/private/tmp/boop-ui-pio/packages-pioarduino with the
+  existing cached libraries. No firmware upload.
+- M5 compiler revealed its old gnu++11 setting cannot build the v2 aggregate/JSON
+  code. Both M5 configurations now select gnu++17. The release target compiles and
+  links, including halSilence, but fails the flash gate: **1,770,825 bytes versus
+  1,572,864 bytes**. Partition layout was not changed. This remains a release
+  blocker for the M5 target, independent of the successful Waveshare build.
+- `git diff --check`: passed. No archived implementation or hook registration changed.
+
+User-launched follow-up: confirm quiet startup, menu anchoring, outside-click and
+Escape dismissal, reopening Overview, settings navigation and first-run setup in
+live AppKit. On supported hardware, verify no beep on routine/careful/error/boop
+while Quiet mode is enabled, immediate stopping of an active tone, unchanged
+visual nudges, and normal sounds after disabling Quiet mode. Matching firmware
+removes the former Focus marker. Hardware flashing, live BLE, speaker checks and
+webcam verification were not performed in this session.
+
+### Settings as one view (2026-09-10)
+
+Owner feedback from live use removed the category picker. One grouped Form now
+contains all settings, including inline appearance and profile rows. The profile
+uses the form's scroll, not a nested List. Category navigation state is removed.
+The compact catalog captures the actual settings viewport plus a tall full-form
+view in light and dark; reviewed for readable labels, reachable controls and the
+absence of a category picker. Selected evidence: evidence/menu-bar/settings-*.png.
+Regression run: 445 passed, four sandbox-localhost skips of 449, zero failures.
+Setting behaviors, Quiet mode, wire protocol and firmware are unchanged by this
+follow-up. App rebuilt for the user's ongoing preview session.
+
+### Pending request isolation (2026-09-10)
+
+The pane snapshot fixture now contains an actionable approval while rendering
+all panes. Reviewed Settings without any approval card/agent label and Overview
+with the approval still present. The change only scopes presentation; it does
+not resolve, dismiss or mutate pending requests. Build passed; regression suite
+passed 445 tests with the same four sandbox-localhost skips (449 total).
+Evidence: evidence/menu-bar/settings-with-pending-request.png.
+
+
+## Settings simplification — 2026-09-10
+
+Settings simplification validated with Boop product build and BoopTests: 445 passed, four localhost/socket tests skipped by sandbox restrictions (449 total). Updated tests verify fixed volume with mute, ignored legacy quick commands, and default appearance across store reopen while preserving growth/inventory. Light and dark Settings snapshots show removed controls and plain actions; evidence is in `evidence/menu-bar/settings-simple-*.png`. No hardware flash or hook-dependent verification was performed for this revision.
+
+
+Automatic companion features: Boop builds; 445 tests passed, four sandbox network tests skipped. Refreshed Settings snapshots confirm Agent can and Leaderboard sections are absent.
+
+Settings alignment pass: product build succeeded; 445 tests passed and four sandbox network tests skipped. Inspected refreshed light/dark screenshots for label alignment, grouped Quiet mode help, and absence of the update privacy footer. Firmware check failure detail now appears in its sheet.
+
+Inline sessions: Boop builds; 445 tests pass and four sandbox network tests skip. Added and inspected six/ten/twelve-session light/dark snapshots in evidence/menu-bar. Ten sessions fit inline; twelve retain the same capped viewport with overflow scroll. No All sessions navigation remains.
+
 ## Landing deployment checks (2026-09-10)
 
 From `landing/`, use Node 24 (`nvm install` reads `.nvmrc`), then run `npm ci`,
@@ -916,3 +994,13 @@ required. Test results and install status are recorded in HOOK-REVIEW.md.
 Validation: `make test` passed 452 tests with zero skips; advanced-settings
 snapshot rendered and visually reviewed. Full log: `/tmp/boop-hook-review-tests.log`.
 Final `make build` passed for Boop and BoopSignal outside the cache-restricted sandbox.
+
+
+Merge validation (2026-09-10): integrated main at a159188, preserving native Codex approval defaults and its separate opt-in control within the simplified Settings. Regenerated test runner: 449 passed, four sandbox socket skips of 453; Boop product build passed. Landing and release workflow files are unchanged from main. Refreshed Settings snapshots include the retained Codex approval control. Existing documented M5 firmware partition-size release blocker remains; no firmware was flashed.
+
+
+Device merge validation (2026-09-10): integrated main at `73b3af6`, preserving
+its app and Quiet mode changes. Both Waveshare normal and USB-only builds
+passed. Eleven host/workflow/animation checks passed outside the localhost
+sandbox restriction. The combined build was not reflashed; device UI evidence
+remains the reviewed `dev-face-v2` captures.

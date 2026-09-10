@@ -5,6 +5,7 @@ struct OnboardingView: View {
     let engine: BuddyEngine
     let esp32Output: ESP32Output
     let onFinish: () -> Void
+    let compact: Bool
 
     @State private var model: OnboardingModel
     @State private var scanner = BLEScanner()
@@ -14,12 +15,15 @@ struct OnboardingView: View {
     @Environment(\.snapshotFrozen) private var snapshotFrozen
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(defaults: UserDefaults = .standard, engine: BuddyEngine, esp32Output: ESP32Output, onFinish: @escaping () -> Void) {
+    init(defaults: UserDefaults = .standard, engine: BuddyEngine, esp32Output: ESP32Output, compact: Bool = false, onFinish: @escaping () -> Void) {
+        self.compact = compact
         self.engine = engine
         self.esp32Output = esp32Output
         self.onFinish = onFinish
         _model = State(initialValue: OnboardingModel(defaults: defaults))
     }
+
+    private func copy(_ en: String, _ ko: String) -> String { engine.state.language == "ko" ? ko : en }
 
     var body: some View {
         ZStack {
@@ -29,13 +33,15 @@ struct OnboardingView: View {
                 progressBar
                     .padding(.top, 24)
 
-                Group {
-                    switch model.step {
-                    case .welcome: welcomeStep
-                    case .agents: agentsStep
-                    case .firstContact: firstContactStep
-                    case .display: displayStep
-                    case .done: doneStep
+                ScrollView {
+                    Group {
+                        switch model.step {
+                        case .welcome: welcomeStep
+                        case .agents: agentsStep
+                        case .firstContact: firstContactStep
+                        case .display: displayStep
+                        case .done: doneStep
+                        }
                     }
                 }
                 .id(model.step.rawValue)
@@ -46,16 +52,14 @@ struct OnboardingView: View {
                 .animation(reduceMotion ? nil : .buddyEase(0.35), value: model.step.rawValue)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(.horizontal, 44)
-            .padding(.bottom, 34)
+            .padding(.horizontal, compact ? 18 : 44)
+            .padding(.bottom, compact ? 12 : 34)
         }
-        .frame(width: BuddyTheme.onboardingWidth, height: BuddyTheme.onboardingHeight)
+        .frame(width: compact ? 360 : BuddyTheme.onboardingWidth)
+        .frame(maxHeight: compact ? .infinity : BuddyTheme.onboardingHeight)
 
         .onAppear {
             normalizeSelectedSpecies()
-        }
-        .onExitCommand {
-            model.goBack()
         }
         .onDisappear {
             scanner.stop()
@@ -99,12 +103,12 @@ struct OnboardingView: View {
             )
 
             Image(systemName: "display").font(.system(size: 42, weight: .light)).foregroundStyle(.secondary)
-                .frame(width: 260, height: 200)
+                .frame(width: compact ? 40 : 260, height: compact ? 45 : 200)
 
             Spacer()
 
             Button(BuddyCopy.phase7("continue", language: engine.state.language)) {
-                wakeRequested = true
+                if compact { model.advance() } else { wakeRequested = true }
             }
             .buttonStyle(.borderedProminent).tint(BuddyTheme.amber)
             .disabled(model.waking)
@@ -123,7 +127,7 @@ struct OnboardingView: View {
                 subtitle: BuddyCopy.Onboarding.agentsSubtitle
             )
             Image(systemName: "display").font(.system(size: 42, weight: .light)).foregroundStyle(.secondary)
-                .frame(width: 150, height: 100)
+                .frame(width: compact ? 40 : 150, height: compact ? 45 : 100)
 
 
             VStack(spacing: 10) {
@@ -134,7 +138,7 @@ struct OnboardingView: View {
                     }
                 }
             }
-            .frame(width: 520)
+            .frame(maxWidth: compact ? 320 : 520)
 
             Spacer()
 
@@ -171,10 +175,10 @@ struct OnboardingView: View {
     private var firstContactStep: some View {
         VStack(spacing: 24) {
             Spacer()
-            Image(systemName: "display").font(.system(size: 42, weight: .light)).foregroundStyle(.secondary).frame(width: 240, height: 180)
+            Image(systemName: "display").font(.system(size: 42, weight: .light)).foregroundStyle(.secondary).frame(width: compact ? 40 : 240, height: compact ? 45 : 180)
             stepHeader(title: BuddyCopy.phase7("name", language: engine.state.language), subtitle: BuddyCopy.phase7("namePermanent", language: engine.state.language))
             TextField(BuddyCopy.Onboarding.namePlaceholder, text: Binding(get: { model.buddyName }, set: { model.buddyName = $0.prefix(utf8Bytes: 23) }))
-                .textFieldStyle(.roundedBorder).frame(width: 320).disabled(model.nameIsLocked)
+                .textFieldStyle(.roundedBorder).frame(maxWidth: compact ? 320 : 320).disabled(model.nameIsLocked)
             Spacer()
             Button(BuddyCopy.phase7("continue", language: engine.state.language)) { if model.saveName() { engine.refreshSettings(); esp32Output.refreshSnapshot(); model.advance() } }
                 .buttonStyle(.borderedProminent).tint(BuddyTheme.amber)
@@ -186,30 +190,35 @@ struct OnboardingView: View {
         VStack(spacing: 18) {
             Spacer(minLength: 14)
             stepHeader(
-                title: BuddyCopy.Onboarding.displayTitle,
-                subtitle: BuddyCopy.Onboarding.displaySubtitle
+                title: compact ? copy("Connect your device", "기기 연결") : BuddyCopy.Onboarding.displayTitle,
+                subtitle: compact ? copy("Pair your hardware Buddy, or add it later in Settings.", "Buddy 기기를 연결하거나 나중에 설정에서 추가하세요.") : BuddyCopy.Onboarding.displaySubtitle
             )
 
-            VStack(spacing: 10) {
-                outputRow(.thisMac)
-                outputRow(.hardware)
+            if !compact {
+                VStack(spacing: 10) {
+                    outputRow(.thisMac)
+                    outputRow(.hardware)
+                }.frame(maxWidth: 540)
             }
-            .frame(width: 540)
 
-            if model.selectedOutput == .hardware {
+            if compact || model.selectedOutput == .hardware {
                 Text(BuddyCopy.Onboarding.hardwareFootnote)
                     .font(.body)
                     .foregroundStyle(BuddyTheme.inkFaint)
                     .multilineTextAlignment(.center)
-                    .frame(width: 460)
+                    .frame(maxWidth: compact ? 320 : 460)
                 blePairingPanel
             }
 
             Spacer()
 
             navigationBar(nextDisabled: model.selectedOutput == .hardware && esp32Output.connectionState != .connected)
+            if compact && esp32Output.connectionState != .connected {
+                Button(BuddyCopy.Onboarding.skipForNow) { model.selectedOutput = .thisMac; model.advance() }.buttonStyle(.plain)
+            }
         }
         .onAppear {
+            if compact { model.selectedOutput = .hardware }
             if model.selectedOutput == .hardware {
                 startScanning()
             }
@@ -224,7 +233,7 @@ struct OnboardingView: View {
         }
         .onChange(of: esp32Output.connectionState) { _, state in
             if state == .connected, let selectedDeviceUUID {
-                UserDefaults.standard.set(selectedDeviceUUID.uuidString, forKey: esp32PeripheralUUIDKey)
+                engine.setPairedPeripheral(selectedDeviceUUID)
                 pairingTask?.cancel()
                 model.pairingTimedOut = false
                 esp32Output.sendTestCelebrate()
@@ -240,8 +249,8 @@ struct OnboardingView: View {
     private var doneStep: some View {
         VStack(spacing: 18) {
             Spacer(minLength: 10)
-            Image(systemName: "display").font(.system(size: 42, weight: .light)).foregroundStyle(.secondary).frame(width: 240, height: 180)
-            Text(BuddyCopy.phase7("firstOne", language: engine.state.language)).font(.headline)
+            Image(systemName: "display").font(.system(size: 42, weight: .light)).foregroundStyle(.secondary).frame(width: compact ? 40 : 240, height: compact ? 45 : 180)
+            Text(compact ? copy("You’re ready", "준비 완료") : BuddyCopy.phase7("firstOne", language: engine.state.language)).font(.headline)
 
             VStack(spacing: 10) {
                 HStack {
@@ -285,9 +294,9 @@ struct OnboardingView: View {
                             .buttonStyle(.plain)
                             .disabled(true)
                     } else {
-                        Button(BuddyCopy.Onboarding.enableNotifications) {
+                        Button(compact ? copy("Enable", "켜기") : BuddyCopy.Onboarding.enableNotifications) {
                             NotificationManager.shared.requestPermission()
-                            UserDefaults.standard.set(true, forKey: DefaultsKey.notificationPermissionRequested)
+                            engine.setBoolSetting(DefaultsKey.notificationPermissionRequested, true)
                             model.notificationRequested = true
                         }
                         .buttonStyle(.borderedProminent).tint(BuddyTheme.amber)
@@ -295,7 +304,7 @@ struct OnboardingView: View {
                 }
             }
             .padding(16)
-            .frame(width: 520)
+            .frame(maxWidth: compact ? 320 : 520)
 
 
             Spacer()
@@ -304,7 +313,7 @@ struct OnboardingView: View {
                 Button(BuddyCopy.shared.onboarding.back) { model.goBack() }
                     .buttonStyle(.plain)
                 Spacer()
-                Button(BuddyCopy.Onboarding.startWatching) {
+                Button(compact ? copy("Done", "완료") : BuddyCopy.Onboarding.startWatching) {
                     model.complete()
                     engine.refreshSettings()
                     engine.setSpecies(model.selectedSpecies)
@@ -430,7 +439,7 @@ struct OnboardingView: View {
             }
         }
         .padding(14)
-        .frame(width: 480)
+        .frame(maxWidth: compact ? 320 : 480)
         .frame(minHeight: 96)
 
     }

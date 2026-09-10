@@ -1,5 +1,9 @@
 # UX: Voice
 
+## Settings policy revision — 2026-09-10
+
+Written dialogue runs automatically with authored fallback; there is no user-facing Voice setting. This controls written lines, not audio. Quiet mode only silences sounds and beeps.
+
 Status: first draft, 2026-09-09, written by the agent to unblock Phase 5 while
 the owner was away. Style choices are assumptions to overturn. Refines
 `VISION.md` §9 and `IDEAS.md` idea 1.

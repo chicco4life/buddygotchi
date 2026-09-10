@@ -40,7 +40,6 @@ struct SettingsSectionView: View {
 
     @State private var interactiveMode = false
     @State private var soundsEnabled = true
-    @State private var agentDrawingsEnabled = true
 
     @State private var approvalMode = false
     @AppStorage("approvalModeExplained") private var approvalModeExplained = false
@@ -56,17 +55,19 @@ struct SettingsSectionView: View {
     @State private var showingUnpairConfirmation = false
     @State private var isExportingBugReport = false
     @State private var bugReportError: String?
-    @State private var showingRemoveConfirmation = false
     @State private var showingUpdaterUnavailable = false
-    @State private var uninstallError: String?
     @State private var showingApprovalModeExplainer = false
+    private func copy(_ en: String, _ ko: String) -> String { engine.state.language == "ko" ? ko : en }
+
     var body: some View {
-        Form { sectionContent(section) }
+        Form {
+            if section == .all { allSections } else { sectionContent(section) }
+        }
         .formStyle(.grouped)
+        .buttonStyle(.plain)
         .onAppear {
             interactiveMode = engine.boolSetting(DefaultsKey.interactiveMode, fallback: false)
             soundsEnabled = engine.boolSetting(DefaultsKey.soundsEnabled, fallback: true)
-            agentDrawingsEnabled = engine.boolSetting(DefaultsKey.agentDrawingsEnabled, fallback: true)
             approvalMode = engine.boolSetting(DefaultsKey.approvalMode, fallback: false)
             normalizeBuddySpecies()
             refreshLoginItemState()
@@ -112,50 +113,36 @@ struct SettingsSectionView: View {
         } message: {
             Text(bugReportError ?? BuddyCopy.shared.settingsCopy.bugReportFallback)
         }
-        .alert(BuddyCopy.shared.settingsCopy.removeBoopTitle, isPresented: $showingRemoveConfirmation) {
-            Button(BuddyCopy.cancel, role: .cancel) {}
-            Button(BuddyCopy.shared.settingsCopy.removeAndQuit, role: .destructive) {
-                removeBoop()
-            }
-        } message: {
-            Text(BuddyCopy.shared.settingsCopy.removeBoopMessage)
-        }
         .alert(BuddyCopy.shared.settingsCopy.updatesUnavailable, isPresented: $showingUpdaterUnavailable) {
             Button(BuddyCopy.shared.common.ok, role: .cancel) {}
         } message: {
             Text(BuddyCopy.shared.settingsCopy.updatesUnavailableMessage)
         }
-        .alert(BuddyCopy.shared.settingsCopy.removeFailed, isPresented: Binding(
-            get: { uninstallError != nil },
-            set: { if !$0 { uninstallError = nil } }
-        )) {
-            Button(BuddyCopy.shared.common.ok, role: .cancel) {}
-        } message: {
-            Text(uninstallError ?? BuddyCopy.shared.common.unknown)
-        }
+    }
+
+    @ViewBuilder private var allSections: some View {
+        sectionContent(.buddy)
+        Section(copy("Device", "기기")) { displaysSection }
+        sectionContent(.agents)
+        sectionContent(.general)
+        Section { ProfileWindowView(engine: engine, embedded: true) }
+        sectionContent(.advanced)
     }
 
     @ViewBuilder private func sectionContent(_ section: SettingsSection) -> some View {
         switch section {
+        case .all: EmptyView()
         case .buddy:
-            Section {
+            Section(copy("Buddy & sound", "Buddy 및 소리")) {
                 LabeledContent(BuddyCopy.shared.settingsCopy.name, value: buddyName)
-                companion([.language, .voice])
-                BuddySettingToggle(title: BuddyCopy.shared.settingsCopy.sounds,
-                    description: BuddyCopy.shared.settingsCopy.soundsDescription,
-                    isOn: Binding(get: { soundsEnabled }, set: { soundsEnabled = $0; engine.setBoolSetting(DefaultsKey.soundsEnabled, $0) }))
-                companion([.sounds, .profile])
+                companion([.language])
+                companion([.focus])
             }
-        case .agents: Section { agentsSection }
+        case .agents: Section(copy("Agents", "에이전트")) { agentsSection }
         case .device, .displays:
             Section { displaysSection }
-            Section { companion([.retire]) }
         case .focus, .general:
-            Section {
-                companion([.focus])
-                BuddySettingToggle(title: BuddyCopy.shared.settingsCopy.interactiveMode,
-                    description: BuddyCopy.shared.settingsCopy.interactiveModeDescription,
-                    isOn: Binding(get: { interactiveMode }, set: { interactiveMode = $0; engine.setBoolSetting(DefaultsKey.interactiveMode, $0) }))
+            Section(copy("General", "일반")) {
                 BuddySettingToggle(title: BuddyCopy.shared.settingsCopy.launchAtLogin,
                     description: BuddyCopy.shared.settingsCopy.launchAtLoginDescription, isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, value in
@@ -175,26 +162,15 @@ struct SettingsSectionView: View {
                     isOn: Binding(get: { engine.boolSetting(DefaultsKey.codexApprovalMode, fallback: false) },
                                   set: { engine.setCodexApprovalMode($0) }))
                     .disabled(!approvalMode)
-                companion([.quick])
             }
-            Section(BuddyCopy.phase7("leaderboard", language: engine.state.language)) { companion([.leaderboard]) }
-            Section(BuddyCopy.phase7("agentsCan", language: engine.state.language)) {
-                BuddySettingToggle(title: BuddyCopy.shared.settingsCopy.agentDrawings,
-                    description: BuddyCopy.shared.settingsCopy.agentDrawingsDescription,
-                    isOn: Binding(get: { agentDrawingsEnabled }, set: { agentDrawingsEnabled = $0; engine.setBoolSetting(DefaultsKey.agentDrawingsEnabled, $0) }))
-            }
-            Section(BuddyCopy.phase7("diagnostics", language: engine.state.language)) {
-                advancedRows
-                exportBugReportRow
+            Section { exportBugReportRow } header: { Text(copy("Support", "지원")) } footer: {
+                Text(copy("Saves a diagnostic report you can share with support.", "지원팀에 공유할 진단 보고서를 저장합니다."))
             }
             Section {
                 aboutSection
             } header: {
                 Text(BuddyCopy.phase7("about", language: engine.state.language))
-            } footer: {
-                Text(BuddyCopy.phase7("updatePrivacy", language: engine.state.language))
             }
-            Section(BuddyCopy.phase7("reset", language: engine.state.language)) { resetRows }
         case .about: Section { aboutSection }
         default: Section { companion([section]) }
         }
@@ -202,26 +178,6 @@ struct SettingsSectionView: View {
 
     private func companion(_ sections: [SettingsSection]) -> some View {
         CompanionSettings(engine: engine, device: esp32Output, onRetired: onOpenOnboarding, sections: sections)
-    }
-
-    private var advancedRows: some View {
-        Group {
-            serverHealthRow
-            Button {
-                NSWorkspace.shared.open(URL(fileURLWithPath: BuddyConfig.default.stateDir))
-            } label: {
-                HStack {
-                    Text(BuddyCopy.shared.settingsCopy.openConfigFolder)
-                        .font(.body)
-                    Spacer()
-                    Image(systemName: "arrow.up.forward.square")
-                        .font(.caption)
-                        .foregroundStyle(BuddyTheme.inkSoft)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.bordered)
-        }
     }
 
     // MARK: - Agents
@@ -233,7 +189,6 @@ struct SettingsSectionView: View {
                 ForEach(AgentKind.allCases) { agent in
                     let health = agentHealth[agent] ?? .notInstalled
                     HStack {
-                        Image(systemName: "terminal").foregroundStyle(.secondary)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(agent.displayName).font(.body)
                             Text(hookHealthLabel(health))
@@ -250,7 +205,7 @@ struct SettingsSectionView: View {
                                     agentHealth[agent] = .corrupted(reason: error.localizedDescription)
                                 }
                             }
-                            .buttonStyle(.bordered)
+                            .buttonStyle(.plain)
                         } else {
                             Button(health.repairable ? BuddyCopy.shared.common.repair : BuddyCopy.shared.common.connect) {
                                 do {
@@ -264,7 +219,7 @@ struct SettingsSectionView: View {
                                     agentHealth[agent] = .corrupted(reason: error.localizedDescription)
                                 }
                             }
-                            .buttonStyle(.bordered)
+                            .buttonStyle(.plain)
                             .disabled(!health.repairable && !canInstall(health))
                         }
                     }
@@ -327,7 +282,7 @@ struct SettingsSectionView: View {
                         Button(BuddyCopy.shared.settingsCopy.forget) {
                             showingUnpairConfirmation = true
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.plain)
                     }
                     .confirmationDialog(BuddyCopy.shared.settingsCopy.forgetThisBuddyTitle, isPresented: $showingUnpairConfirmation) {
                         Button(BuddyCopy.shared.settingsCopy.forgetThisBuddy, role: .destructive) {
@@ -355,7 +310,7 @@ struct SettingsSectionView: View {
                             if scanner.isScanning { scanner.stop() }
                             else { scanner.start() }
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.plain)
                     }
 
                     Link(destination: AppMetadata.flashURL) {
@@ -372,7 +327,7 @@ struct SettingsSectionView: View {
                                 .foregroundStyle(BuddyTheme.inkSoft)
                         }
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.plain)
                 }
             }
 
@@ -408,7 +363,7 @@ struct SettingsSectionView: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.plain)
 
                         .accessibilityLabel(BuddyCopy.shared.settingsCopy.connectToDeviceTemplate.replacingOccurrences(of: "{device}", with: device.name))
                     }
@@ -439,7 +394,7 @@ struct SettingsSectionView: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(.plain)
         .accessibilityLabel(firmwareAccessibilityLabel)
     }
 
@@ -469,10 +424,11 @@ struct SettingsSectionView: View {
             Text(BuddyCopy.shared.settingsCopy.updated)
                 .font(.footnote)
                 .foregroundStyle(BuddyTheme.greenInk)
-        case .checkFailed:
-            Text(BuddyCopy.shared.settingsCopy.cantCheckNow)
+        case .checkFailed(let reason):
+            Text(copy("Check unavailable", "확인 불가"))
                 .font(.footnote)
-                .foregroundStyle(BuddyTheme.inkFaint)
+                .foregroundStyle(.secondary)
+                .help(reason)
         case .failed:
             Text(BuddyCopy.shared.settingsCopy.failed)
                 .font(.footnote)
@@ -538,7 +494,7 @@ struct SettingsSectionView: View {
                     }
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.plain)
 
                 Link(destination: AppMetadata.supportURL) {
                     HStack {
@@ -550,7 +506,7 @@ struct SettingsSectionView: View {
                             .foregroundStyle(BuddyTheme.inkSoft)
                     }
                 }
-                .buttonStyle(.bordered)
+                .buttonStyle(.plain)
 
             }
         }
@@ -565,70 +521,18 @@ struct SettingsSectionView: View {
                     ProgressView()
                         .controlSize(.mini)
                         .tint(BuddyTheme.inkSoft)
-                } else {
-                    Image(systemName: "ladybug")
-                        .font(.caption)
-                        .foregroundStyle(BuddyTheme.inkSoft)
                 }
-                Text(BuddyCopy.shared.settingsCopy.exportBugReport)
+                Text(copy("Report a bug", "버그 신고"))
                     .font(.body)
                 Spacer()
+                Image(systemName: "square.and.arrow.up")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(.plain)
 
         .disabled(isExportingBugReport)
-    }
-
-    private var resetRows: some View {
-        Group {
-            settingsActionRow(
-                BuddyCopy.runSetupAgain,
-                systemImage: "arrow.counterclockwise",
-                role: .normal
-            ) {
-                engine.restartOnboarding()
-                isPresented = false
-                onOpenOnboarding()
-            }
-
-            settingsActionRow(
-                BuddyCopy.shared.settingsCopy.removeBoop,
-                systemImage: nil,
-                role: .destructive
-            ) {
-                showingRemoveConfirmation = true
-            }
-        }
-    }
-
-    private enum SettingsActionRole {
-        case normal
-        case destructive
-    }
-
-    private func settingsActionRow(
-        _ title: String,
-        systemImage: String?,
-        role: SettingsActionRole,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            HStack {
-                Text(title)
-                    .font(.body)
-                    .foregroundStyle(role == .destructive ? Color.red : BuddyTheme.ink)
-                Spacer()
-                if let systemImage {
-                    Image(systemName: systemImage)
-                        .font(.caption)
-                        .foregroundStyle(BuddyTheme.inkSoft)
-                }
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.bordered)
-        .accessibilityLabel(title)
     }
 
     // MARK: - Helpers
@@ -656,47 +560,6 @@ struct SettingsSectionView: View {
         selectedDeviceUUID = nil
         engine.setPairedPeripheral(nil)
         esp32Output.unpair()
-    }
-
-    private var serverHealthRow: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(serverHealthColor)
-                .frame(width: 6, height: 6)
-            Text(BuddyCopy.shared.settingsCopy.server)
-                .font(.body)
-            Spacer()
-            Text(serverHealthLabel)
-                .font(.footnote)
-                .foregroundStyle(BuddyTheme.inkSoft)
-                .lineLimit(2)
-                .multilineTextAlignment(.trailing)
-        }
-        .accessibilityElement(children: .combine)
-    }
-
-    private var serverHealthLabel: String {
-        guard let serverHealth else { return BuddyCopy.phase7("serverUnreachable", language: engine.state.language) }
-        switch serverHealth.status {
-        case .starting:
-            return BuddyCopy.shared.settingsCopy.starting
-        case .listening(let port):
-            return BuddyCopy.phase7("serverListening", language: engine.state.language).replacingOccurrences(of: "{port}", with: "\(port)")
-        case .failed:
-            return BuddyCopy.phase7("serverUnreachable", language: engine.state.language)
-        }
-    }
-
-    private var serverHealthColor: Color {
-        guard let serverHealth else { return .secondary.opacity(0.5) }
-        switch serverHealth.status {
-        case .starting:
-            return BuddyTheme.amber
-        case .listening:
-            return BuddyTheme.green
-        case .failed:
-            return BuddyTheme.clay
-        }
     }
 
     private var bugReportErrorBinding: Binding<Bool> {
@@ -736,15 +599,6 @@ struct SettingsSectionView: View {
         launchAtLogin = launchAtLoginStatus == .enabled || launchAtLoginStatus == .requiresApproval
     }
 
-    private func removeBoop() {
-        do {
-            try ConsumerUninstaller.removeInstalledState()
-            NSApplication.shared.terminate(nil)
-        } catch {
-            uninstallError = error.localizedDescription
-        }
-    }
-
     private func normalizeBuddySpecies(sendHeartbeat: Bool = false) {
         if engine.state.pet.species != Pet.defaultSpecies {
             engine.setSpecies(Pet.defaultSpecies)
@@ -777,9 +631,9 @@ private struct ApprovalModeExplainerSheet: View {
             HStack {
                 Spacer()
                 Button(BuddyCopy.cancel, action: onCancel)
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.plain)
                 Button(BuddyCopy.shared.settingsCopy.turnOn, action: onConfirm)
-                    .buttonStyle(.borderedProminent).tint(BuddyTheme.amber)
+                    .buttonStyle(.plain).tint(BuddyTheme.amber)
             }
         }
         .padding(22)

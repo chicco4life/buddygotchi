@@ -858,7 +858,6 @@ private func aggregate(_ state: InternalState, now: Double) -> BuddyState {
         creature.card = CreatureCard(id: prompt.id, tool: prompt.tool, gloss: prompt.gloss ?? prompt.hint,
                                      stakes: stakes, index: 0, count: waiting.count, isApproval: prompt.isApproval)
         creature.nudgeRung = state.nudges[prompt.id]?.rung ?? 0
-        if creature.focus && stakes != .careful { creature.nudgeRung = 0 }
         buddy.msg = shortMsg(tool: prompt.tool, hint: prompt.hint, source: prompt.source ?? "")
     } else if !errored.isEmpty || !thinking.isEmpty {
         creature.state = .uhoh
@@ -1052,7 +1051,7 @@ private func updateCreatureTimers(_ s: inout InternalState, event: BuddyEvent) {
         let stakes = prompt.stakes ?? cardStakes(tool: prompt.tool, hint: prompt.hint)
         var nudge = s.nudges[prompt.id] ?? CardNudge(nextAt: prompt.arrivedAt + s.nudgeTiming.t1)
         nudge.snoozed = s.snoozedTools[id]?.contains(prompt.tool) == true
-        if nudge.snoozed || (s.buddy.creature.focus && stakes != .careful) {
+        if nudge.snoozed {
             nudge.rung = 0
         } else if case .staleTick = event, event.at >= nudge.nextAt {
             if nudge.rung == 0 {

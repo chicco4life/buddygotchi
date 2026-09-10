@@ -55,7 +55,7 @@ final class GrowthCoordinator {
         self.dayCalendar = dayCalendar
     }
 
-    private var optedIn: Bool { defaults.object(forKey: DefaultsKey.leaderboardOptIn) as? Bool ?? false }
+    private var optedIn: Bool { defaults.object(forKey: DefaultsKey.leaderboardOptIn) as? Bool ?? true }
     private var leaderboardURL: String { defaults.string(forKey: DefaultsKey.leaderboardURL) ?? "" }
     private var friendsCodes: [String] { defaults.stringArray(forKey: DefaultsKey.leaderboardFriends) ?? [] }
     private func localDay(at: Double) -> String { dayCalendar.localDay(at: at) }

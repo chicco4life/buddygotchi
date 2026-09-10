@@ -710,6 +710,53 @@ integration gate is claimed by this USB-only run.
 
 Owner-requested second footer iteration: lower the approval face by 22 px and enlarge its eyes by 20%, preserving the compact footer. Both builds and the animation-clock guard passed. All three approval styles, hold feedback, and confirmation were reviewed on hardware; no text overlap or new panic. Three card goldens refreshed; saved device state restored and normal `dev-face-v2` installed (`usbOnly=false`). Evidence: `plan/evidence/device-face-v2-2026-09-10/`.
 
+## Phase 7 revision: menu bar and Quiet mode (2026-09-10)
+
+Owner approved the compact menu bar proposal and requested implementation.
+Replaced the separate control-center window with a 360 pt transient popover,
+Overview-first navigation, Activity, Settings, profile and explicit inline setup.
+Launch and state transitions never open it. No desktop creature. Quiet mode
+replaces Focus and mutes every sound without changing the visual nudge ladder.
+Existing mute preferences persist; old Focus schedules and interactive popups
+are ignored. Firmware keeps compatibility field names but removes visual Focus
+and sound exceptions. Verification and remaining hardware checks: VERIFICATION.md.
+
+Menu bar validation: final Boop build passed; 445/449 tests passed with four
+sandbox socket skips (all four passed in the earlier 448-test full run). Compact
+light/dark UI reviewed; captures in evidence/menu-bar. Waveshare build passed.
+M5 compiles with the corrected C++17 setting but exceeds its existing flash
+partition; no partition change or firmware upload. Live AppKit/BLE remains a
+user-launched check. See VERIFICATION.md for exact results.
+
+**Settings follow-up (2026-09-10).** Owner's live feedback removes the category
+picker. All controls, appearance and profile rows now share one scrollable form
+with section headings. Retire is last. No underlying setting behavior changes.
+
+**Settings isolation (2026-09-10).** Owner feedback: pending tool approvals must
+not overlay Settings. Approval cards and their agent labels now appear only on
+Overview. Activity and setup also keep their own content. Pending requests remain
+intact and are available on returning to Overview or on the physical device.
+
+
+## Settings simplification — 2026-09-10
+
+Implemented the live-use Settings simplification: automatic written dialogue, fixed volume step 1 and default appearance, removal of quick-command/reset/retirement UI, one Report a bug export, and plain action buttons. Existing saved progress is preserved. Boop builds; 445 tests passed, four sandbox network tests skipped.
+
+
+### Automatic companion features — 2026-09-10
+
+Agent drawings and leaderboard participation are enabled by default. Remove both
+Settings sections, including leaderboard configuration fields. A one-time migration
+enables the formerly optional features for existing installations. Leaderboard
+sync still requires a configured service URL and device identity; no endpoint is
+invented by the app. Existing service configuration is retained.
+
+
+Settings polish: removed update-check privacy footer, aligned row labels by removing isolated leading icons, and grouped Quiet mode helper text with its toggle consistently. Firmware check errors read “Check unavailable”; the update sheet displays the underlying error and offers Try again. A check failure is distinct from an installation failure.
+
+
+Overview sessions revision: show every session inline, remove All sessions navigation, grow through ten rows within screen bounds, then scroll in the existing overview. Added six/ten/twelve-session light/dark snapshot cases.
+
 ## Landing page deployment restoration (2026-09-10)
 
 Restore only `archived/landing/` to its original `landing/` path so the existing

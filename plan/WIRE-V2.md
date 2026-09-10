@@ -1,5 +1,9 @@
 # RenderState v2
 
+## Settings policy revision — 2026-09-10
+
+Current desktop policy: unmuted `mute` is always 1; quiet sends 0. Appearance is default skin, `none` accessory and default silhouette. Legacy `quick` commands remain parseable but have no host action. Older protocol capabilities do not imply user-configurable controls.
+
 Host → device: one JSON object per line, frame cap 1536 bytes including newline.
 Absent keys mean "none / unchanged". Every string is byte-capped on a character
 boundary (`prefix(utf8Bytes:)`). Field names and enum raw values are exact.
@@ -19,7 +23,7 @@ boundary (`prefix(utf8Bytes:)`). Field names and enum raw values are exact.
 | `bubble` | string | ≤ 63 bytes |
 | `gift` | bool | orb pending |
 | `giftLine` | string | ≤ 40 bytes |
-| `focus` | bool | |
+| `focus` | bool | Legacy name for sound-only Quiet mode; no visual effect or sound exceptions. |
 | `mute` | int | 0 = mute, 1–3 volume step |
 | `posture` | string | `desk` `perch` `travel` (optional override) |
 | `cosmetic` | object | `{"skin":≤15B,"accessory":"sprout"\|"scarf"\|"crown","silhouette":"round"\|"tall"}`; each identifier ≤15B |
@@ -146,3 +150,12 @@ is disabled. See `firmware/esp32/PROTOCOL.md`.
 Session `dots` and `dotAlert` are still validated and reported for wire
 compatibility, but are not rendered. Omit `dotAlert` when there is no alert;
 an explicit `-1` is not a valid incoming index.
+
+## Quiet mode revision (2026-09-10)
+
+Owner decision: `focus` and `cmd:focus` keep their v2 names for compatibility but
+now mean Quiet mode only. All beeps are suppressed when true, including errors.
+The host also sends `mute:0` while quiet, using fixed default volume step 1 when unmuted.
+Visual states, nudges, rendering and animation timing do not depend on this flag.
+Deploy the matching firmware to remove the former visual Focus marker and old
+sound exception. Former scheduled Focus hours are ignored by the host.

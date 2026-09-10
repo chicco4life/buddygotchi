@@ -23,7 +23,7 @@ extension Notification.Name {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
-    private var controlWindow: NSWindow!
+    private var controlPopover: NSPopover!
     private let controlNavigation = ControlNavigation()
     private let engine = BuddyEngine(defaults: AppDefaults.shared, growthSigner: BuddyConfig.default.headless && ProcessInfo.processInfo.environment["BOOP_TEST_SIGNER"] == "1" ? TestDeviceSigner() : nil)
     private var serverTask: Task<Void, Never>?
@@ -32,7 +32,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var sigtermSource: DispatchSourceSignal?
     private(set) var esp32Output: ESP32Output?
     private var autoDismissTimer: Timer?
-    private var onboardingWindowController: OnboardingWindowController?
     private let serverHealth = ServerHealth()
     private let instanceLock = BuddyConfig.default.headless
         ? InstanceLock(path: "\(BuddyConfig.default.stateDir)/instance.lock")
@@ -40,12 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        // Deliberately left unset. Boop's own surfaces pin themselves to .aqua,
-        // but the status item is not a Boop surface -- it belongs to the menu bar,
-        // and NSColor.labelColor inside DesktopOutput.statusIcon can only resolve
-        // correctly on both light and dark menu bars if the app inherits the
-        // system appearance. Pinning it here made the icon near-invisible on a
-        // light menu bar.
+        // Inherit the system appearance for both the menu bar icon and popover.
         NSApp.windows.forEach { $0.close() }
         registerBundledFonts()
 
@@ -77,12 +71,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             Task { await output.start(engine: engine) }
             Task { await verifyManagedHooksAfterLaunch() }
 
-            let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 760, height: 620),
-                styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
-            window.title = "Boop"
-            window.isReleasedWhenClosed = false
-            window.delegate = self
-            window.center()
+            let popover = NSPopover()
+            popover.behavior = .transient
+            popover.animates = false
+            popover.delegate = self
             NotificationManager.shared.setup(engine: engine) { [weak self] in
                 self?.showPopover()
             }
@@ -92,13 +84,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     esp32Output: output,
                     serverHealth: serverHealth,
                     onUserInteraction: { [weak self] in self?.cancelAutoDismiss() },
-                    onOpenOnboarding: { [weak self] in self?.showOnboardingWindow() },
+                    onOpenOnboarding: { [weak self] in self?.showSetup() },
+                    onClose: { [weak self] in self?.closePopover() },
                     navigation: controlNavigation
                 )
             )
             hostingController.sizingOptions = .preferredContentSize
-            window.contentViewController = hostingController
-            self.controlWindow = window
+            popover.contentViewController = hostingController
+            self.controlPopover = popover
             engine.register(output: DesktopOutput(statusItem: statusItem, presenter: self))
         }
         engine.start()
@@ -131,18 +124,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        if !config.headless && !AppDefaults.shared.bool(forKey: DefaultsKey.setupCompleted) {
-            showOnboardingWindow()
-        }
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         guard !BuddyConfig.default.headless else { return false }
-        if !AppDefaults.shared.bool(forKey: DefaultsKey.setupCompleted) {
-            showOnboardingWindow()
-        } else {
-            showPopover()
-        }
+        controlNavigation.pane = .overview
+        showPopover()
         return true
     }
 
@@ -241,41 +228,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func togglePopover() {
         guard statusItem?.button != nil else { return }
-        if controlWindow.isVisible && !controlWindow.isMiniaturized {
+        if controlPopover.isShown {
             cancelAutoDismiss()
             closePopover()
         } else {
+            controlNavigation.pane = .overview
             showPopover()
         }
     }
 
-    private func showOnboardingWindow() {
-        guard let esp32Output else {
-            preconditionFailure("ESP32Output must be initialized before showing onboarding")
-        }
-        if onboardingWindowController == nil || onboardingWindowController?.window?.isVisible != true {
-            onboardingWindowController = OnboardingWindowController(
-                engine: engine,
-                esp32Output: esp32Output,
-                onFinish: { [weak self] in
-                    self?.onboardingWindowController?.close()
-                    self?.onboardingWindowController = nil
-                    AppDefaults.shared.set(true, forKey: DefaultsKey.showMenuHint)
-                    self?.showPopover()
-                }
-            )
-        }
-        onboardingWindowController?.show()
+    private func showSetup() {
+        controlNavigation.pane = .setup
+        showPopover()
     }
 
     private func showPopover() {
-        guard controlWindow != nil else { return }
+        guard let controlPopover, let button = statusItem?.button else { return }
         cancelAutoDismiss()
         engine.refreshSettings()
         engine.popoverVisible = true
-        if controlWindow.isMiniaturized { controlWindow.deminiaturize(nil) }
-        controlWindow.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        controlPopover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        controlPopover.contentViewController?.view.window?.makeKey()
     }
 
     @objc private func showTodayRecap() {
@@ -397,16 +371,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 extension AppDelegate: PopoverPresenting {
     var isPopoverShown: Bool {
-        controlWindow?.isVisible == true
+        controlPopover?.isShown == true
     }
 
     var isInteractiveModeEnabled: Bool {
-        AppDefaults.shared.bool(forKey: DefaultsKey.interactiveMode)
+        false
     }
 
     func closePopover() {
         engine.popoverVisible = false
-        controlWindow?.orderOut(nil)
+        controlPopover?.performClose(nil)
     }
 
     func cancelPopoverAutoDismiss() {
@@ -414,6 +388,6 @@ extension AppDelegate: PopoverPresenting {
     }
 }
 
-extension AppDelegate: NSWindowDelegate {
-    func windowWillClose(_ notification: Notification) { engine.popoverVisible = false; cancelAutoDismiss() }
+extension AppDelegate: NSPopoverDelegate {
+    func popoverDidClose(_ notification: Notification) { engine.popoverVisible = false; cancelAutoDismiss() }
 }

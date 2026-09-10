@@ -139,7 +139,7 @@ final class DesktopOutput: OutputProvider {
     }
 
     private func playTransitionSounds(prev: BuddyState, next: BuddyState) {
-        switch ChirpDecision.chirp(prev: prev, next: next, soundsEnabled: soundsEnabled()) {
+        switch ChirpDecision.chirp(prev: prev, next: next, soundsEnabled: soundsEnabled() && !next.creature.focus) {
         case .complete:   break // Completion celebrations belong to the device.
         case .attention:  playAttention()
         case .error:      playError()
@@ -148,16 +148,8 @@ final class DesktopOutput: OutputProvider {
     }
 
     private func updateInteractiveMode(prev: BuddyState, next: BuddyState) {
-        guard let presenter else { return }
-        guard presenter.isInteractiveModeEnabled else {
-            presenter.cancelPopoverAutoDismiss()
-            return
-        }
-        guard prev.creature.state != next.creature.state else { return }
-
-        if next.creature.state == .needsYou && !presenter.isPopoverShown {
-            presenter.showPopover(dismissAfter: 15.0)
-
-        }
+        // Status changes never open or dismiss the menu. Legacy interactive
+        // preferences are intentionally ignored.
+        presenter?.cancelPopoverAutoDismiss()
     }
 }

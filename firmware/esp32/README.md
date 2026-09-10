@@ -38,7 +38,7 @@ Primary is IO1/BOOT; secondary is IO2; IO5 is a secondary alias. Tap primary to
 approve, collect, dismiss a bubble or boop. Hold primary to deny ordinary
 cards, approve careful cards at 2 s, or pet. Double tap sends quick when linked
 and opens the two travel stats cards when unlinked in travel. Secondary tap
-denies/dismisses/pages; hold toggles focus at 1 s and shuts the screen off at
+denies/dismisses/pages; hold toggles sound-only Quiet mode at 1 s and shuts the screen off at
 3 s after “night night”. Motion and touch never approve. Touch is affection.
 
 The parser, button guards, timer scheduler, drawing and persistence are in

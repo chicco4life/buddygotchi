@@ -1,5 +1,9 @@
 # UX: Growth
 
+## Settings policy revision — 2026-09-10
+
+Current owner direction supersedes appearance-selection UI described below: use default skin, no accessory and default silhouette automatically. Preserve growth, XP, inventory and existing progress; expose no cosmetic pickers or retirement controls in Settings.
+
 Status: first draft, 2026-09-09, written by the agent to unblock Phase 4 while
 the owner was away. Every number here is an assumption to tune; the
 mechanism is what Phase 4 builds. Refines `VISION.md` §10.

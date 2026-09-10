@@ -165,7 +165,7 @@ static uint32_t soundAt = 0, lastSound = 0, lastCheerSound = 0, soundsPlayed = 0
 static bool sounded = false, cheered = false;
 static void sound(int index) {
   uint32_t now = nowMs();
-  if (!tama.mute || napping || !strcmp(tama.state,"asleep") || (tama.focus && index != 4) ||
+  if (!tama.mute || napping || !strcmp(tama.state,"asleep") || tama.focus ||
       (sounded && now-lastSound < 1000) || (motifs[index].cheer && cheered && now-lastCheerSound < 10000)) return;
   soundIndex = index; soundNote = 0; soundAt = lastSound = now; sounded = true; ++soundsPlayed;
   if (motifs[index].cheer) { cheered = true; lastCheerSound = now; }
@@ -173,7 +173,7 @@ static void sound(int index) {
 static void soundTick() {
   if (soundIndex < 0) return;
   const Motif& m = motifs[soundIndex];
-  if (!tama.mute || napping || !strcmp(tama.state,"asleep") || (tama.focus && soundIndex != 4)) { soundNote = m.n; return; }
+  if (!tama.mute || napping || !strcmp(tama.state,"asleep") || tama.focus) { halSilence(); soundIndex = -1; return; }
   while (soundNote < m.n && nowMs()-soundAt >= m.notes[soundNote].at) {
     const Note& n = m.notes[soundNote++]; halTone(n.hz, n.ms);
   }
@@ -517,7 +517,6 @@ static void render() {
   float compact=beside?1:0;
   if(layer==L_STATS) { float u=animClamp((now-statsAt)/300.0f,0,1); compact=u*u*(3-2*u); }
   faceDraw(now,base,compact,layer==L_STATS);
-  if (tama.focus) spr.fillRoundRect(16,16,9,9,2,animRGB(109,146,182));
   if (eq(posture,"travel") && battery>=0 && battery<25) {
     spr.fillSmoothRoundRect(HAL_W-30,HAL_H-27,20,10,2,animRGB(146,146,146));
     spr.fillRect(HAL_W-28,HAL_H-25,4,6,animRGB(255,182,36));

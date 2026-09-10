@@ -239,12 +239,12 @@ final class CreatureReducerTests: XCTestCase {
         XCTAssertEqual(s.nudges["q"]?.snoozed, true)
     }
 
-    func testFocusGatesOnlyNonCareful() {
+    func testQuietModePreservesVisualNudges() {
         for hint in ["rm -rf x", "build"] {
             var s = reduce(card(hint), .focusToggled(at: 1, on: true))
             s = reduce(s, .staleTick(at: 180_000))
             XCTAssertTrue(s.buddy.creature.focus)
-            XCTAssertEqual(s.buddy.creature.nudgeRung, hint == "build" ? 0 : 1)
+            XCTAssertEqual(s.buddy.creature.nudgeRung, 1)
         }
     }
 

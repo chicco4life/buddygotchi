@@ -14,7 +14,6 @@ final class BuddyEngine {
     private(set) var teachTool: String?
     private var retiring = false
     private var activeRecaps = 0
-    private var scheduledFocus: Bool?
     let diagnosticLog: DiagnosticLog
     let extractor = Extractor()
     private var extractionTail: Task<Void, Never>?
@@ -62,7 +61,13 @@ final class BuddyEngine {
         self.growth = GrowthCoordinator(store: store as? any GrowthStore, signer: signer,
             session: leaderboardSession, defaults: defaults, clock: clock ?? WallClock(), dayCalendar: dayCalendar)
         self.defaults = defaults
-        let runtime = voiceRuntime ?? VoiceRuntimes.make(setting: defaults.string(forKey: DefaultsKey.voiceRuntime) ?? "auto")
+        // Migrate the removed Settings switches to the new enabled defaults.
+        if !defaults.bool(forKey: "automaticCompanionFeaturesV1") {
+            defaults.set(true, forKey: DefaultsKey.agentDrawingsEnabled)
+            defaults.set(true, forKey: DefaultsKey.leaderboardOptIn)
+            defaults.set(true, forKey: "automaticCompanionFeaturesV1")
+        }
+        let runtime = voiceRuntime ?? VoiceRuntimes.make(setting: "auto")
         self.voiceRuntime = runtime
         self.voice = Voice(runtime: runtime, store: store, localDay: { await MainActor.run { dayCalendar.localDay(at: (clock ?? WallClock()).now()) } })
         self.config = config
@@ -73,6 +78,7 @@ final class BuddyEngine {
         self.internalState = .initial(staleMs: config.staleTimeoutMs, celebrateDurationMs: config.celebrateDurationMs, workStallTimeoutMs: config.workStallTimeoutMs, approvalTimeoutMs: config.approvalTimeoutMs)
         let language = defaults.string(forKey: DefaultsKey.language) == "ko" ? "ko" : "en"
         self.internalState.buddy.language = language
+        self.internalState.buddy.creature.focus = !(defaults.object(forKey: DefaultsKey.soundsEnabled) as? Bool ?? true)
         self.state = self.internalState.buddy
         growth.prepare = { [weak self] in await self?.flushStore() }
         growth.presentation = { [weak self] in
@@ -343,7 +349,7 @@ final class BuddyEngine {
             Task { do { try await acceptDeviceIdentity(identity); _ = try await signGrowth(); _ = try? await syncLeaderboard() } catch { storeFailure(error) } }
         case .signature(let signature):
             Task { do { try acceptSignature(signature) } catch { storeFailure(error) } }
-        case .quick: NotificationManager.shared.postQuickCommand(quickCommand, language: state.language)
+        case .quick: break // Legacy device command; no longer a user feature.
         case .collect: collectArrived()
         case .boop: boop()
         case .posture(let posture): devicePostureArrived(posture)
@@ -359,8 +365,6 @@ final class BuddyEngine {
         defaults.set(true, forKey: DefaultsKey.firstCheerShown)
         apply(.onboardingCheer(at: clock.now(), line: BuddyCopy.phase7("firstOne", language: state.language)))
     }
-    var quickCommand: String { defaults.string(forKey: DefaultsKey.quickCommand) ?? "continue" }
-    func setQuickCommand(_ text: String) { defaults.set(String(text.prefix(1000)), forKey: DefaultsKey.quickCommand) }
     func dismissTeach(tool: String) async {
         do { try await store?.muteTool(tool); mutedTools.insert(tool); if teachTool == tool { teachTool = nil } }
         catch { storeFailure(error) }
@@ -401,20 +405,19 @@ final class BuddyEngine {
         refreshSettings()
         for output in outputs { output.stateDidChange(prev: previous, next: state) }
     }
-    var focusHours: (enabled: Bool, start: Int, end: Int) {
-        (defaults.bool(forKey: DefaultsKey.focusHoursEnabled), defaults.object(forKey: DefaultsKey.focusStart) as? Int ?? 9, defaults.object(forKey: DefaultsKey.focusEnd) as? Int ?? 17)
+    var preferences: UserDefaults { defaults }
+    var quietMode: Bool { !boolSetting(DefaultsKey.soundsEnabled, fallback: true) }
+    func setQuietMode(_ on: Bool) {
+        defaults.set(!on, forKey: DefaultsKey.soundsEnabled)
+        settingsRevision += 1
+        // Keep the v2 event/field name for existing device firmware and hooks.
+        apply(.focusToggled(at: clock.now(), on: on))
     }
-    func setFocusHours(enabled: Bool, start: Int, end: Int) {
-        defaults.set(enabled, forKey: DefaultsKey.focusHoursEnabled)
-        defaults.set(max(0, min(23, start)), forKey: DefaultsKey.focusStart)
-        defaults.set(max(0, min(23, end)), forKey: DefaultsKey.focusEnd)
-        updateFocusHours()
-    }
-    var soundVolume: Int { SoundSettings.volume(defaults: defaults, respectingMute: false) }
-    var voiceSetting: String { defaults.string(forKey: DefaultsKey.voiceRuntime) ?? "auto" }
-    func setSoundVolume(_ volume: Int) { defaults.set(max(0, min(3, volume)), forKey: DefaultsKey.soundVolume) }
     func boolSetting(_ key: String, fallback: Bool = false) -> Bool { _ = settingsRevision; return defaults.object(forKey: key) as? Bool ?? fallback }
-    func setBoolSetting(_ key: String, _ value: Bool) { defaults.set(value, forKey: key); settingsRevision += 1 }
+    func setBoolSetting(_ key: String, _ value: Bool) {
+        if key == DefaultsKey.soundsEnabled { setQuietMode(!value); return }
+        defaults.set(value, forKey: key); settingsRevision += 1
+    }
     var displayName: String { let name = buddyName.trimmingCharacters(in: .whitespacesAndNewlines); return name.isEmpty ? "Boop" : name }
     var buddyName: String { _ = settingsRevision; return defaults.string(forKey: DefaultsKey.buddyName) ?? "" }
     var pairedPeripheral: String? { _ = settingsRevision; return defaults.string(forKey: DefaultsKey.esp32PeripheralUUID) }
@@ -442,19 +445,7 @@ final class BuddyEngine {
             }
         }
     }
-    func updateFocusHours() {
-        guard defaults.bool(forKey: DefaultsKey.focusHoursEnabled) else {
-            if scheduledFocus == true { focusToggled(on: false) }; scheduledFocus = nil; return
-        }
-        let hour = dayCalendar.localHour(at: clock.now())
-        let start = (defaults.object(forKey: DefaultsKey.focusStart) as? Int ?? 9), end = (defaults.object(forKey: DefaultsKey.focusEnd) as? Int ?? 17)
-        let active = start == end || (start < end ? hour >= start && hour < end : hour >= start || hour < end)
-        if scheduledFocus != active { scheduledFocus = active; focusToggled(on: active) }
-    }
-
-    func focusToggled(on: Bool) {
-        apply(.focusToggled(at: clock.now(), on: on))
-    }
+    func focusToggled(on: Bool) { setQuietMode(on) }
 
     func collectArrived() {
         apply(.collectArrived(at: clock.now()))
@@ -472,7 +463,10 @@ final class BuddyEngine {
         apply(.reviewDismissed(at: clock.now()))
     }
 
-    func refreshSettings() { settingsRevision += 1 }
+    func refreshSettings() {
+        settingsRevision += 1
+        if state.creature.focus != quietMode { apply(.focusToggled(at: clock.now(), on: quietMode)) }
+    }
 
     func setSpecies(_ species: String) {
         apply(.speciesChanged(at: clock.now(), species: species))
@@ -789,7 +783,6 @@ final class BuddyEngine {
     private var reflectedDays: Set<String> = []
     private var maintenanceDay: String?
     func maintenance() {
-        updateFocusHours()
         if growth.shouldMaintain() {
             Task { do { try await growth.maintain() } catch { storeFailure(error) } }
         }

@@ -1,5 +1,9 @@
 # Architecture
 
+## Settings policy revision — 2026-09-10
+
+The desktop now fixes sound volume to step 1 and initializes dialogue automatically (local model with authored fallback). Legacy saved volume and Voice choices are ignored. Store projects default skin, no accessory and default silhouette, preserving old metadata and inventory without exposing customization. Legacy quick commands are parsed but ignored. Settings has one local diagnostic export action and no reset/retirement actions. Wire shapes remain compatible.
+
 Status: v1 target architecture, second draft, 2026-09-08. Implements
 `VISION.md`, `UX-DEVICE.md`, and `IDEAS.md` idea 1. The current codebase is
 described in `archived/research/eng/ARCHITECTURE-APP.md`; §10 says what is kept from
@@ -503,19 +507,30 @@ Growth no longer grants cosmetics. Existing XP, equipped selections, historical
 timestamps and keepsakes are preserved without a schema change. Behavior and
 wire formats do not change; level-up effects remain milestone acknowledgments.
 
-### Mac control center (2026-09-10)
+### Mac menu bar companion (2026-09-10)
 
-The existing desktop presenter now owns one regular NSWindow. Its shared
-SwiftUI surface has Overview, Activity and Settings panes; existing presenter
-method names remain internal compatibility points. Device rendering is unchanged.
-The menu bar uses a static system icon, with a filled variant for attention.
-`EngineStore.recentXPActivity` exposes at most 60 positive daily/source totals
-from the existing growth rollup, with the engine persistence barrier before reads.
-No transcript data enters XP history. The Overview progress bar uses XP earned
-within the current level divided by that level's interval, not total/remaining.
-Settings reuses existing section actions and adds catalog-backed appearance
-selection. Desktop completion sound/pop-up is suppressed; approval notifications
-and controls remain. A manually opened window stays open through state changes.
+Owner-directed replacement of the regular control-center window: AppDelegate owns
+one transient NSPopover attached to an NSStatusItem. ControlNavigation selects
+Overview, Activity, Settings or explicit setup inside it. The app uses accessory
+activation policy and never auto-opens UI on launch or state changes. Legacy
+interactive-mode preferences are ignored. Settings uses one grouped Form with all sections expanded. Profile rows are
+embedded in that form without a nested scrolling list. There is no settings
+category navigation state. Approval presentation is scoped to Overview; changing
+panes neither resolves requests nor overlays them on Settings, Activity or setup.
+
+The overview exposes growth and session state without a creature. The XP bar is
+within-level earned XP divided by that level's interval. Recent XP history remains
+bounded to 60 positive daily/source totals, read after the persistence barrier.
+No transcript text is added to growth history.
+
+Quiet mode reuses the inverted soundsEnabled preference and the legacy
+focusToggled event / creature.focus field. The reducer no longer gates the visual
+nudge ladder on that flag. Startup restores it from soundsEnabled; old Focus-hour
+preferences are ignored. The engine persists physical-device toggles too. The
+frame sends mute=0 in Quiet mode, preserving the selected volume in preferences;
+firmware treats focus as sound-only and removes its visual marker and error-sound
+exception. No state, animation phase, XP, or approval decision changes with Quiet
+mode. See WIRE-V2 and firmware PROTOCOL for the compatibility names.
 
 ### Parallel development isolation (2026-09-10)
 
@@ -548,6 +563,14 @@ USB bench builds use the separate ws-amoled164-usb-debug environment with BOOP_U
 ## Larger approval face, 2026-09-10
 
 The compact landscape approval/decision face uses a 25 px lift and 1.2× eye dimensions, interpolated by card progress. System-card lift remains 47 px. Footer positions and button behavior are unchanged.
+
+### Automatic companion features — 2026-09-10
+
+Agent drawings and leaderboard participation are enabled by default. Remove both
+Settings sections, including leaderboard configuration fields. A one-time migration
+enables the formerly optional features for existing installations. Leaderboard
+sync still requires a configured service URL and device identity; no endpoint is
+invented by the app. Existing service configuration is retained.
 
 ## Hook approval correction (2026-09-10)
 

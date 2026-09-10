@@ -160,15 +160,55 @@ final class SnapshotHarnessTests: XCTestCase {
 
 extension SnapshotHarnessTests {
     func testControlCenterPanes() throws {
-        let engine = makeEngine()
+        var state = BuddyState.initial
+        state.creature.state = .needsYou
+        state.creature.card = CreatureCard(id: "settings-regression", tool: "Bash", gloss: "Run the project test suite", stakes: .fine, index: 0, count: 1, isApproval: true)
+        let engine = BuddyEngine.preview(state: state, defaults: defaults)
         let navigation = ControlNavigation()
         for pane in ControlPane.allCases {
             navigation.pane = pane
             try snapshot(PopoverView(engine: engine, esp32Output: ESP32Output(defaults: defaults), navigation: navigation),
-                         "control-center-" + pane.rawValue, CGSize(width: 760, height: 620))
+                         "control-center-" + pane.rawValue, CGSize(width: 360, height: 590))
         }
-        navigation.settingsCategory = .displays
-        try snapshot(PopoverView(engine: engine, esp32Output: ESP32Output(defaults: defaults), navigation: navigation),
-                     "control-center-appearance", CGSize(width: 760, height: 620))
+
+    }
+}
+
+
+extension SnapshotHarnessTests {
+    func testMenuBarCompactCatalog() throws {
+        var state = BuddyState.initial
+        state.creature.state = .working
+        state.activeSessions = [SessionSnapshot(id: "preview", source: "codex", state: .working, sessionLabel: "buddygotchi")]
+        state.growth = GrowthSnapshot(level: 4, xp: 930, xpNext: 270, streak: 5, bestStreak: 9, daysTogether: 18, tasks: 42, today: 86)
+        let engine = BuddyEngine.preview(state: state, defaults: defaults)
+        for dark in [false, true] {
+            let suffix = dark ? "dark" : "light"
+            let navigation = ControlNavigation()
+            func shot(_ name: String, height: CGFloat = 560) {
+                SnapshotRenderer.render(PopoverView(engine: engine, esp32Output: ESP32Output(defaults: defaults), navigation: navigation),
+                    "menu-" + name + "-" + suffix, CGSize(width: 360, height: height), dir, defaults: defaults, dark: dark)
+            }
+            shot("overview", height: 450)
+            for count in [6, 10, 12] {
+                var many = state
+                many.activeSessions = (0..<count).map {
+                    SessionSnapshot(id: "session-\($0)", source: "codex", state: .working, sessionLabel: "Project \($0 + 1)")
+                }
+                let manyEngine = BuddyEngine.preview(state: many, defaults: defaults)
+                SnapshotRenderer.render(PopoverView(engine: manyEngine, esp32Output: ESP32Output(defaults: defaults), navigation: ControlNavigation()),
+                    "menu-sessions-\(count)-" + suffix, CGSize(width: 360, height: min(450 + CGFloat(min(count, 10) - 3) * 42, max(450, (NSScreen.main?.visibleFrame.height ?? 900) - 40))), dir, defaults: defaults, dark: dark)
+            }
+            navigation.pane = .settings
+            shot("settings-all")
+            SnapshotRenderer.render(SettingsSectionView(isPresented: .constant(true), engine: engine,
+                esp32Output: ESP32Output(defaults: defaults), serverHealth: nil, section: .all),
+                "menu-settings-full-" + suffix, CGSize(width: 360, height: 3300), dir, defaults: defaults, dark: dark)
+            for step in OnboardingStep.allCases {
+                defaults.set(step.rawValue, forKey: DefaultsKey.onboardingStep)
+                SnapshotRenderer.render(OnboardingView(defaults: defaults, engine: engine, esp32Output: ESP32Output(defaults: defaults), compact: true, onFinish: {}),
+                    "menu-setup-\(step)-" + suffix, CGSize(width: 360, height: 450), dir, defaults: defaults, dark: dark)
+            }
+        }
     }
 }

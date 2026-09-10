@@ -216,6 +216,14 @@ struct FirmwareUpdateView: View {
                 .foregroundStyle(BuddyTheme.inkSoft)
                 .fixedSize(horizontal: false, vertical: true)
 
+            if case .checkFailed(let reason) = updater.state {
+                Text(reason)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            }
+
             HStack {
                 Spacer()
                 Button(BuddyCopy.close) {

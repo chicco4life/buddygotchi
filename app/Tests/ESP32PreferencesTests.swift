@@ -22,7 +22,7 @@ final class ESP32PreferencesTests: XCTestCase {
         XCTAssertNil(output.savedPeripheralIdentifier)
     }
 
-    @MainActor func testOutputFramesFollowInjectedNameVolumeAndMuteChanges() throws {
+    @MainActor func testOutputFramesUseDefaultVolumeAndRespectMute() throws {
         let suite = "device-frame-preferences-" + UUID().uuidString
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
@@ -39,7 +39,7 @@ final class ESP32PreferencesTests: XCTestCase {
         state.creature.state = .working
         var object = try frame(state)
         XCTAssertEqual((object["snap"] as? [String: Any])?["name"] as? String, "보리")
-        XCTAssertEqual(object["mute"] as? Int, 3)
+        XCTAssertEqual(object["mute"] as? Int, SoundSettings.defaultVolume)
         defaults.set("Mochi", forKey: DefaultsKey.buddyName)
         defaults.set(false, forKey: DefaultsKey.soundsEnabled)
         state.creature.state = .done; state.creature.cheer = .cheer

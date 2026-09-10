@@ -53,12 +53,13 @@ final class CompanionTests: XCTestCase {
         model.observe([DiagnosticEntry(timestamp: 0, category: "hook", source: "codex", event: "SessionStart", detail: "")])
         XCTAssertTrue(model.heardAgents.contains(.codex))
     }
-    func testQuickAndLanguagePersistAndEmit() async {
+    func testLegacyQuickIsIgnoredAndLanguagePersists() async {
         let (defaults, cleanup) = makeDefaults()
         defer { cleanup() }
         let (engine, _) = makeEngine(defaults: defaults)
-        engine.setQuickCommand("continue with tests")
-        XCTAssertEqual(makeEngine(defaults: defaults).0.quickCommand, "continue with tests")
+        let before = engine.state.version
+        engine.handleDeviceCommand(.quick)
+        XCTAssertEqual(engine.state.version, before)
         await engine.setLanguage("ko")
         XCTAssertEqual(engine.state.language, "ko")
         XCTAssertEqual(defaults.string(forKey: DefaultsKey.language), "ko")
@@ -129,18 +130,36 @@ final class CompanionTests: XCTestCase {
         XCTAssertEqual(model.heardAgents.count, AgentKind.allCases.count)
     }
 
-    func testFocusAndSoundIntentsUseEngineDefaults() {
+    func testQuietModeAndSoundIntentsUseEngineDefaults() throws {
         let (defaults, cleanup) = makeDefaults(); defer { cleanup() }
+        defaults.set(true, forKey: DefaultsKey.focusHoursEnabled)
+        defaults.set(0, forKey: DefaultsKey.focusStart)
+        defaults.set(0, forKey: DefaultsKey.focusEnd)
         let (engine, _) = makeEngine(defaults: defaults)
-        engine.setFocusHours(enabled: true, start: 0, end: 0)
+        engine.maintenance()
+        XCTAssertFalse(engine.quietMode, "Legacy Focus schedules must not activate quiet mode")
+        defaults.set(3, forKey: DefaultsKey.soundVolume)
+        let before = renderState(from: engine.state, defaults: defaults, now: 0)
+        engine.setQuietMode(true)
         XCTAssertTrue(engine.state.creature.focus)
-        engine.setFocusHours(enabled: false, start: 9, end: 17)
-        XCTAssertFalse(engine.state.creature.focus)
-        engine.setSoundVolume(9)
-        XCTAssertEqual(SoundSettings.volume(defaults: defaults), 3)
-        XCTAssertEqual(renderState(from: engine.state, defaults: defaults, now: 0).mute, 3)
-        engine.setBoolSetting(DefaultsKey.soundsEnabled, false)
         XCTAssertEqual(SoundSettings.volume(defaults: defaults), 0)
+        let quiet = renderState(from: engine.state, defaults: defaults, now: 0)
+        XCTAssertEqual(quiet.mute, 0)
+        var beforeJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(before)) as? [String: Any])
+        var quietJSON = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(quiet)) as? [String: Any])
+        for key in ["focus", "mute"] { beforeJSON.removeValue(forKey: key); quietJSON.removeValue(forKey: key) }
+        XCTAssertTrue(NSDictionary(dictionary: beforeJSON).isEqual(to: quietJSON), "Quiet mode must not change any visual field")
+        let (reopened, _) = makeEngine(defaults: defaults)
+        XCTAssertTrue(reopened.quietMode)
+        XCTAssertTrue(reopened.state.creature.focus)
+        engine.setQuietMode(false)
+        XCTAssertFalse(engine.state.creature.focus)
+        XCTAssertEqual(renderState(from: engine.state, defaults: defaults, now: 0).mute, SoundSettings.defaultVolume)
+        defaults.set(9, forKey: DefaultsKey.soundVolume)
+        XCTAssertEqual(SoundSettings.volume(defaults: defaults), SoundSettings.defaultVolume)
+        engine.setBoolSetting(DefaultsKey.soundsEnabled, false)
+        XCTAssertTrue(engine.quietMode)
+        XCTAssertTrue(engine.state.creature.focus)
     }
 
     func testTeachCacheLoadsAtStartupAndClaimsOnlyFirstSighting() async throws {

@@ -1,111 +1,120 @@
 # UX: The Mac App
 
-Current direction: the **Minimal control center** revision at the end of this
-document supersedes earlier face-led desktop layouts.
+Status: owner-approved menu bar direction, 2026-09-10. Supersedes the earlier
+creature-led desktop and separate control-center window designs.
 
-Status: revised 2026-09-09 after the owner's UI review. Refines
-`VISION.md` §7 and `UX-DEVICE.md` Part I for the desktop side.
+The hardware is the companion. The Mac app runs quietly in the background as
+its status and configuration surface. Normal use should not require opening it.
 
-## Visual language
+## App behavior
 
-**Native macOS.** The app uses system materials and controls: the
-popover is a standard `NSPopover` with the system material background,
-type is the system font at the standard text styles, controls are
-standard SwiftUI controls, icons are SF Symbols, colours are the semantic
-system colours plus one accent. The accent is the buddy's amber
-(`BuddyPalette.amber`), used for the primary action and the needs-you
-state only. Green and red are the system colours for done and uh-oh.
+- Launch as a menu bar accessory: no Dock icon, startup window, or automatic
+  onboarding. A first-run setup link appears when the person opens the menu.
+- A static monochrome status icon has a filled variant when an agent needs you.
+  No animation, XP counter, or completion celebration in the menu bar.
+- Clicking opens a native transient popover anchored to the icon. Clicking again,
+  outside, or pressing Escape closes it. Opening normally returns to Overview.
+- State changes never open or close it, including pending approvals. Old
+  interactive-mode preferences are ignored. Previously opted-in approval
+  notifications remain available; selecting one opens the dropdown.
+- Activity, Settings, profile, and setup are reached inside the same dropdown,
+  with Back navigation. Secondary confirmation and utility sheets remain attached.
+- No creature or animated face in ordinary app content or setup. Share cards
+  may retain the likeness. The physical device owns Buddy's expression.
 
-The creature itself keeps its own look: eyes and mouth on a black
-rounded field, the same face as the device (no body shape; `UX-DEVICE.md`
-§7). The Mac can render a soft radial glow behind the eyes that the
-device's 8-bit sprite cannot; it is allowed here, dim and warm, never a
-visible edge. It is the only branded element on screen.
+## Overview
 
-Its motion follows `UX-DEVICE.md` §20, including the sparks: one heart
-per boop rising from above the gap between the eyes, and six round
-confetti dots on the dance only (never rectangles, never on hop or
-cheer). When the two surfaces disagree, the device is the reference.
+One column, 360 pt wide, with system typography, semantic colors, native controls,
+subtle dividers, and whitespace. No sidebar or top-level tab strip.
 
-Rules: no custom card chrome (borders, tinted boxes) around content; use
-grouping and whitespace. One accent. One type scale. No text in monospace
-outside the quick-command field. Every string comes from the copy table
-(`BuddyCopy`), never an enum name or internal tag.
+1. Buddy name and level.
+2. Current state and a short explanation: Working, Idle, Sleeping, Needs you,
+   Done, or Needs attention. Device connection is independent of agent state.
+3. Pending requests appear only on Overview, below its status. Settings, Activity
+   and setup display only their own content, even while an approval is waiting.
+   Show the tool,
+   gloss, stakes, queue position, and Approve/Deny for actionable requests. The
+   first decision from either surface wins. Passive requests have no fake buttons.
+4. Within-level XP progress, total XP, and remaining XP. A compact row shows
+   today's XP, lifetime completed tasks, and current streak. The task count is
+   explicitly labeled as lifetime until a reliable daily count is exposed.
+5. All sessions appear inline with agent, project when known, and status. The
+   dropdown grows to accommodate up to ten sessions, within the screen height.
+   Additional sessions remain in the same scrollable overview; no expansion
+   button or sessions navigation is required. Empty state: No agents awake.
+6. Device connection and battery percentage when connected and known. Missing
+   battery is omitted; never substitute a made-up percentage.
+7. Activity and Settings links, plus a small menu containing Quit.
 
-## Surfaces
+Overview retains progress and statistics while idle or sleeping. It uses a
+450 pt base viewport (590 pt with a pending request), growing by 42 pt per
+additional session beyond three, up to ten and bounded by available screen height;
+secondary panes use 560 pt.
+Long content scrolls inside the dropdown.
 
-1. **Menu bar creature.** The status item is the creature's face at 18 pt:
-   the same six states and three cheer sizes as the device. Tooltip: state
-   and parameter.
-2. **Popover** (one column, 360 pt wide):
-   - Header: buddy name (headline), state as a short secondary label
-     ("needs you", "working", "asleep"), gear at the right.
-   - Creature: the black field, 160 pt tall, corner radius 20.
-   - Needs-you card, when present: tool (headline), gloss (body), a
-     stakes dot with the stakes word in secondary text, Deny (plain) and
-     Approve (prominent, accent). No border; a grouped background.
-   - Sessions: one line per session (agent icon, label, state), only when
-     more than one agent is awake. When none: a single secondary line
-     "No agents awake" with no box.
-   - Gift: the gold orb with the story line, inline, tappable.
-   - Recap, when available: one paragraph in the buddy's voice and a
-     three-line tally with human labels (`Turns`, `Tasks`, `Biggest
-     moment`, whose value is the moment's phrase, e.g. "a hard-won pass",
-     never the enum).
-   - Footer: level and streak as a short secondary label ("Level 4 · 3-day
-     streak"), a Focus toggle (bordered, small), and the device dot only
-     when a device is paired. Nothing else.
-3. **Onboarding** (window, five steps): welcome with the sleeping buddy;
-   connect agents (per-agent rows with a "heard from" moment); pair the
-   device (or "later"); name the buddy (permanent); the first cheer.
-   System window background, large title, standard buttons.
-4. **Recap** (popover section at end of day, and a menu item).
-5. **What your buddy knows** (window): a plain list with the sentence and
-   a secondary date; hover reveals a delete; a footer "Forget everything"
-   with a confirmation that explains name, level, and bond are kept. No
-   source tags.
-6. **Settings** (window, five sidebar sections, standard `Form` grouping):
-   - **Buddy**: name, language, voice, sounds and volume.
-   - **Agents**: one row per agent with state and a Repair or Connect
-     button.
-   - **Device**: pair or forget, firmware, retire (destructive, at the
-     bottom, with confirmation).
-   - **Focus**: focus hours, interactive mode, launch at login.
-   - **Advanced**: local approval mode, quick command, leaderboard opt-in
-     with URL and friends, agent drawings, diagnostics export, remove Boop.
+## Activity and Settings
 
-## Interactions
+Activity contains all sessions, lifetime tasks, days together, current and best
+streak, daily/source XP history, recap, collection, keepsakes, and secondary
+sharing/leaderboard actions. Missing history is an honest empty/error state.
 
-- Approve and Deny mirror the device exactly; whichever side decides first
-  wins.
-- Clicking the orb collects it.
-- Focus toggle in the popover footer.
-- Every string keyed for localization; English and Korean.
+Settings is one continuous scrollable form. Every group is expanded and visible
+in the same view; there is no category picker, sidebar, or extra profile page.
+Simple headings separate:
 
-## Doctrine on the desktop
+- Buddy & sound: name, language, and Quiet mode.
+- Device: connection, pairing, and firmware.
+- Agents: installation status, connect and repair actions.
+- General: launch at login.
+- What your buddy knows: inspect and clear stored profile lines inline.
+- Approvals.
+- Support: Report a bug saves a diagnostic file for sharing with support.
+- About: version, Check for updates, and Help & support.
 
-Premium and quiet: no badges, no counters in the menu bar, no
-notifications except needs-you when the popover is closed and the user
-opted in. Feels like part of the Mac, with one small creature living in
-it.
+Written dialogue is automatic, with authored fallback when the local model is
+unavailable. There is no Voice picker. Sound uses fixed volume step 1; Quiet
+mode is the only sound control. Appearance is fixed to the default skin,
+no accessory, and default silhouette. Old saved choices remain stored but are
+inactive. Quick command, Reset, and Retire buddy are removed from Settings;
+no existing progress is erased. Ordinary action buttons use plain styling to
+avoid dark filled rectangles within the form.
 
-## Minimal control center (owner direction, 2026-09-10)
+## Quiet mode
 
-The Mac is a control center; the physical Buddy owns the character. Replace the
-face-led popover with one compact window opened from a simple menu-bar status
-icon. Three panes: Overview (level, total XP, correct within-level progress,
-today's XP, connection/battery, active agents and focus), Activity (tasks, days,
-streaks and recorded XP by day/source; secondary sharing/leaderboard and history),
-and Settings (existing device/agent/appearance/general controls). Pending
-approvals remain available across panes. No face in navigation, ordinary app
-content or onboarding; share cards may retain the likeness. Existing recap,
-collection and keepsake functions remain reachable in Activity. Do not animate
-or automatically open a completion celebration on the desktop. Missing battery
-or XP history must be presented honestly, not as invented data.
+Quiet mode turns off **all sounds and beeps**, with no high-stakes exceptions.
+Animations, expressions, visual approval reminders, nudge timing, state changes,
+XP, and agent behavior remain identical. It neither approves nor denies requests.
+
+The setting lives in Buddy & sound, labeled "Quiet mode", with the description
+"Turn off Buddy’s sounds. Screen behavior stays the same." Turning it off restores
+the fixed default volume (step 1). The physical button's former Focus gesture controls the same
+setting. No Focus hours or scheduled behavior remain; old schedule values are
+ignored. The existing sounds-enabled preference is retained so existing mute
+choices survive upgrades and restarts. Wire names remain compatible; see WIRE-V2.
+
+English and Korean copy are supported. Review both system appearances.
+
+### Settings simplification (2026-09-10)
+
+Owner feedback from live use: one continuous view, automatic dialogue, fixed
+volume and appearance, and a single bug-report action. Profile rows share the
+form's scroll. No category navigation or reset/retirement section remains.
+
+
+### Automatic companion features — 2026-09-10
+
+Agent drawings and leaderboard participation are enabled by default. Remove both
+Settings sections, including leaderboard configuration fields. A one-time migration
+enables the formerly optional features for existing installations. Leaderboard
+sync still requires a configured service URL and device identity; no endpoint is
+invented by the app. Existing service configuration is retained.
+
+
+Settings polish: removed update-check privacy footer, aligned row labels by removing isolated leading icons, and grouped Quiet mode helper text with its toggle consistently. Firmware check errors read “Check unavailable”; the update sheet displays the underlying error and offers Try again. A check failure is distinct from an installation failure.
 
 ## Approval correction (2026-09-10)
 
-Advanced settings adds “Handle Codex approvals in Boop”, off by default and
+Settings includes “Handle Codex approvals in Boop”, off by default and
 requiring Local approval mode. Leaving it off preserves Codex's native automatic
 review and avoids false Buddy cards. Native reviewer waiting is not mirrored
 because the hook cannot distinguish it from a request that will auto-approve.

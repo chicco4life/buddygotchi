@@ -279,15 +279,11 @@ actor Store: EngineStore, GrowthStore {
         if size.intensity > old.intensity { try setMeta("biggest", size.rawValue) }
     }
     func cosmetic() throws -> EquippedCosmetic {
-        guard let text = try meta("equipped") else { return EquippedCosmetic() }
-        return try JSONDecoder().decode(EquippedCosmetic.self, from: Data(text.utf8))
+        // One product appearance. Old saved choices remain stored but inactive.
+        EquippedCosmetic()
     }
     func equip(_ cosmetic: EquippedCosmetic) throws {
-        for (kind,name) in [("skin",cosmetic.skin),("accessory",cosmetic.accessory),("silhouette",cosmetic.silhouette)] {
-            guard CompanionOption.catalog.contains(where: { $0.kind == kind && $0.name == name }) else {
-                throw StoreError(message: "Unknown cosmetic")
-            }
-        }
+        guard cosmetic == EquippedCosmetic() else { throw StoreError(message: "Appearance customization is unavailable") }
         try setMeta("equipped", String(decoding: JSONEncoder().encode(cosmetic), as: UTF8.self))
     }
     func profile() throws -> [ProfileLine] {
