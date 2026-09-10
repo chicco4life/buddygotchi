@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Reserve the ESP32 for setup, a scenario, and restoration on normal failure or interruption."""
 import argparse
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import fcntl
 import json
 import os
@@ -35,8 +35,18 @@ def gui_claim():
             fcntl.flock(handle, fcntl.LOCK_UN)
 
 
+def verify_usb_only():
+    from buddyctl import SerialBuddy
+    with SerialBuddy(timeout=5) as serial:
+        info = serial.framed_json('ping', 'PONG', 5)
+    if info.get('board') != 'ws-amoled164' or info.get('usbOnly') is not True:
+        raise RuntimeError('USB-only verification requires ws-amoled164-usb-debug firmware (usbOnly=true).')
+    return info
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('--usb-only', action='store_true', help='Allow the GUI to stay open; require USB-only debug firmware before the scenario')
     ap.add_argument('--setup', help='Executable script: flash candidate and verify board/firmware identity')
     ap.add_argument('--restore', help='Executable script: restore and verify the known-good firmware')
     ap.add_argument('--evidence', required=True, type=Path)
@@ -50,8 +60,8 @@ def main():
     for script in (args.setup, args.restore):
         if script and not os.access(Path(script).resolve(), os.X_OK):
             ap.error(f'Script must exist and be executable: {script}')
-    with reserve() as token, gui_claim():
-        if gui_running():
+    with reserve() as token, (nullcontext() if args.usb_only else gui_claim()):
+        if not args.usb_only and gui_running():
             raise SystemExit('Quit the Boop GUI before hardware testing to release BLE. Headless instances can stay running. Relaunch the GUI yourself afterward.')
         args.evidence.mkdir(parents=True, exist_ok=False)
         env = dict(os.environ, BOOP_DEVICE_LEASE=token)
@@ -76,7 +86,12 @@ def main():
         try:
             result['setup'] = run([str(Path(args.setup).resolve())], 'setup') if args.setup else 0
             if result['setup'] == 0:
+                if args.usb_only:
+                    result['usbOnly'] = verify_usb_only()
                 code = result['scenario'] = run(command, 'scenario')
+        except RuntimeError as exc:
+            result['error'] = str(exc)
+            print(str(exc), file=sys.stderr)
         except KeyboardInterrupt:
             result['interrupted'] = True
             code = 130

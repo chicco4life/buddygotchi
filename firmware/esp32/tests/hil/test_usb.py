@@ -38,7 +38,7 @@ def stick():
         assert pong["contract"] == 2
         # The Boop app pushes its own frames over BLE; two writers on one screen
         # make every assertion below a coin flip. Skip rather than fail loudly.
-        if serial.framed_json("state", "STATE", 3).get("connected"):
+        if not pong.get("usbOnly", False) and serial.framed_json("state", "STATE", 3).get("connected"):
             pytest.skip("the Boop app is connected over BLE; quit it before running HIL")
         try:
             yield serial
@@ -514,13 +514,18 @@ def test_retire_factory_reset(stick):
 
 
 @pytest.mark.parametrize("creature", STATES)
-def test_session_dots_all_states(stick, creature):
+def test_session_dots_are_not_rendered(stick, creature):
     frame(stick, state=creature, dots=5, dotAlert=4, bubble="hello")
-    clock(stick, "settle 600")
+    # Freeze forward from receipt, not an older idle state-entry timestamp:
+    # rewinding before the latest frame makes dataConnected wrap to false.
+    clock(stick, state(stick)["now"] + 600)
     a = screenshot(stick)
     frame(stick, state=creature, dots=5, dotAlert=0, bubble="hello")
-    clock(stick, "settle 600")
-    assert a != screenshot(stick)
+    assert state(stick)["dotAlert"] == 0
+    assert a == screenshot(stick)
+    frame(stick, state=creature, dots=0, bubble="hello")
+    assert state(stick)["dots"] == 0
+    assert a == screenshot(stick)
 
 
 def test_skin_tints_and_explicit_first_signal(stick):

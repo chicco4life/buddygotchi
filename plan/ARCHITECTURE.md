@@ -533,3 +533,18 @@ later; the wrapper rejects a running GUI. Firmware setup requires a restoration
 script. No simulator or wire change. See `tools/dev/README.md` for limits.
 Headless startup uses a state-directory instance lock and bypasses the GUI
 bundle-instance check; the normal GUI retains its machine-wide singleton guard.
+
+
+## Compact device footer, 2026-09-10
+
+Device rendering ignores dots/dotAlert, retaining validation and the wire fields for compatibility. Landscape approval footer is 88 px high with prompt left and instructions right. Approval timing and transport are unchanged.
+
+
+## USB-only bench verification, 2026-09-10
+
+USB bench builds use the separate ws-amoled164-usb-debug environment with BOOP_USB_ONLY. Its BLE bridge is compiled to no-op functions; it never initializes Bluetooth or modifies bond storage. Normal shipping builds retain the existing bridge. No app lifecycle, timers, settings, or runtime debug mode are added. USB ping reports usbOnly for verification tooling.
+
+
+## Larger approval face, 2026-09-10
+
+The compact landscape approval/decision face uses a 25 px lift and 1.2× eye dimensions, interpolated by card progress. System-card lift remains 47 px. Footer positions and button behavior are unchanged.

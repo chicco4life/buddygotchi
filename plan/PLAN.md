@@ -678,3 +678,34 @@ sandbox. All three workflow tests passed both with a lightweight HTTP fixture
 and with two real Boop headless processes (isolated authenticated startup and
 clean shutdown, lease exclusion/delegation, restore after failed scenario).
 Physical HIL and flashing were not performed.
+
+
+## Compact device footer, 2026-09-10
+
+Owner-directed first iteration implemented: compact approval footer, persistent action labels, transient hold underline, and no rendered session dots. Shipping firmware builds successfully. Targeted USB hardware checks and visual review passed; normal firmware with the footer is installed (see evidence/device-footer-2026-09-10/README.md).
+
+
+**Build isolation (2026-09-10).** Waveshare builds now default to ignored
+per-worktree `.platformio-core` state. CI caches the same paths. This removes
+the home-directory cache write dependency and isolates parallel toolchains;
+physical-device reservation is unchanged.
+
+Verified the local-cache shipping build under workspace-only permissions
+(97 s rebuild, then 4.7 s warm build). No permission escalation needed.
+
+
+## USB-only bench verification, 2026-09-10
+
+Independent USB verification now has a compile-time-only firmware target and an explicit runner mode. This enables Mac UI and device UI work in parallel; Bluetooth integration remains a separate coordinated gate. Debug firmware must never be published or left as the shipping image.
+
+**USB-only verification result (2026-09-10):** completed with the Mac GUI
+open. Five host workflow checks, the animation-clock guard, and fourteen
+distinct targeted device cases passed across runs. Footer captures reviewed,
+three card goldens refreshed, saved device state restored, and normal
+`dev-footer-20260910` firmware installed with `usbOnly=false`. No BLE
+integration gate is claimed by this USB-only run.
+
+
+## Larger approval face, 2026-09-10
+
+Owner-requested second footer iteration: lower the approval face by 22 px and enlarge its eyes by 20%, preserving the compact footer. Both builds and the animation-clock guard passed. All three approval styles, hold feedback, and confirmation were reviewed on hardware; no text overlap or new panic. Three card goldens refreshed; saved device state restored and normal `dev-face-v2` installed (`usbOnly=false`). Evidence: `plan/evidence/device-face-v2-2026-09-10/`.

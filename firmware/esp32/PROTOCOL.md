@@ -84,7 +84,9 @@ All keys in the diagnostic envelopes below are device-only telemetry, not
 additional host-to-device RenderState fields.
 
 - `ping` → `<<PONG {...}>>`: version, board, contract, uptime, heap, largest
-  allocation, minimum heap, present timing and crash telemetry.
+  allocation, minimum heap, present timing and crash telemetry. `usbOnly` is
+  true only for the compile-time `ws-amoled164-usb-debug` build; normal
+  firmware reports false. Older firmware omits it and is not USB-isolated.
 - `state` → `<<STATE {...}>>`: contract, creature, effort, cheer, uhoh, overlay,
   card/cardId/armed, visible bubble, gift, focus, posture, dots, mute, screenOff,
   brightness, presence, napping, dizzy, frozen, badFrames and crash telemetry.
@@ -221,3 +223,7 @@ No additional firmware library is used. The HIL signing/retirement tests in
 `tests/hil/test_usb.py` need a disposable bench creature; they reboot and
 retire it. Offline host checks:
 `python3 -m unittest discover -s tests/host -v`.
+
+Session `dots` and `dotAlert` are still validated and reported for wire
+compatibility, but are not rendered. Omit `dotAlert` when there is no alert;
+an explicit `-1` is not a valid incoming index.

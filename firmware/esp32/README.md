@@ -2,26 +2,37 @@
 
 RenderState v2 firmware for the Waveshare ESP32-S3-Touch-AMOLED-1.64
 (`ws-amoled164`, 456×280 landscape canvas). The Mac supplies six creature
-states; firmware renders composable face parts, cards, bubbles, session dots,
+states; firmware renders composable face parts, cards, bubbles,
 one gift orb, and an agent frame. The frozen previous generation remains in
 `archived/`; this firmware does not load character packs or a character menu.
 
-From this directory, use the wrapper to select the already-cached pioarduino
-packages without disturbing the M5 toolchain:
+From this directory, use the wrapper for worktree-local pioarduino tools:
 
 ```sh
 tools/pio_ws.sh run -e ws-amoled164
 python3 -m py_compile tests/hil/test_usb.py
-# With a connected device (not part of an offline build):
-tools/pio_ws.sh run -e ws-amoled164 -t upload
-python3 -m pytest tests/hil/test_usb.py tests/hil/test_hardening.py
+# Independent USB UI verification (Mac GUI may remain open):
+tools/pio_ws.sh run -e ws-amoled164-usb-debug
 ```
 
 PlatformIO is `/opt/homebrew/bin/pio`; the wrapper defaults to
-`~/.platformio/packages-pioarduino`. Keep the pinned platform version in
+the ignored `.platformio-core/` directory inside this firmware worktree. Keep the pinned platform version in
 `platformio.ini`. No library additions or asset filesystem upload are needed.
 The M5 HAL and environments remain, but this phase verifies only ws-amoled164.
 The bring-up environment remains `ws-amoled164-spike`.
+
+Reserve flashing and tests through `tools/dev/device.py` from the repo root.
+Use `--usb-only` with setup/restoration scripts for the USB debug build; the
+runner verifies `ping.usbOnly=true` before tests. See
+[the verification workflow](../../tools/dev/README.md#shared-esp32).
+Return to normal firmware after testing; never release the USB debug image.
+Bluetooth integration requires normal firmware and one identified Mac app
+instance. USB-only screenshots and button tests do not verify Bluetooth.
+
+The approval footer puts the tool/gloss on the left and persistent
+`Press: yes` / `Hold: no` instructions on the right (careful prompts:
+`Hold 2s: yes` / `Side: no`). Hold progress uses a transient underline.
+Session dots and the persistent hold ring are not rendered.
 
 Primary is IO1/BOOT; secondary is IO2; IO5 is a secondary alias. Tap primary to
 approve, collect, dismiss a bubble or boop. Hold primary to deny ordinary

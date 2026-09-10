@@ -98,6 +98,19 @@ tools/buddyctl.py press a --ms 150 --json
 Use `tools/buddyctl.py ble status`, `ble set`, and `ble prompt --wait-decision`
 after the one-time OS pairing step to exercise the production BLE transport.
 
+## Independent USB Device Verification
+
+For device UI and button work, prefer the `ws-amoled164-usb-debug` build
+through `firmware/esp32/tools/pio_ws.sh` and `tools/dev/device.py --usb-only`.
+This debug-only image disables BLE at compile time, so the Mac app can stay
+open. The runner retains the hardware lock and verifies `ping.usbOnly` before
+scenarios. Use setup/restoration scripts and return to normal firmware after
+tests. Never publish the debug image. See `tools/dev/README.md`.
+
+Bluetooth integration uses normal firmware and one explicitly identified Mac
+app instance. USB-only tests do not satisfy that gate. Do not add production
+app lifecycle behavior merely to coordinate independent USB debugging.
+
 ## Webcam Motion Verification
 
 Webcam verification is **explicit opt-in only**. Use the `webcam-verify` skill

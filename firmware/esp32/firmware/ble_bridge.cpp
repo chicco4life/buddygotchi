@@ -1,4 +1,20 @@
 #include "ble_bridge.h"
+#ifdef BOOP_USB_ONLY
+// Bench-only build: never initialize, advertise, or touch the bond store.
+void bleInit(const char*) {}
+void bleStop() {}
+bool bleConnected() { return false; }
+bool bleSecure() { return false; }
+uint32_t blePasskey() { return 0; }
+void bleClearBonds() {}
+// Render the adopted-device UI for bench frames without opening bond storage.
+bool bleBonded() { return true; }
+size_t bleAvailable() { return 0; }
+int bleRead() { return -1; }
+size_t bleWrite(const uint8_t*, size_t) { return 0; }
+uint32_t bleRxDropped() { return 0; }
+uint32_t bleLinkGeneration() { return 0; }
+#else
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
@@ -314,3 +330,5 @@ size_t bleWrite(const uint8_t* data, size_t len) {
   }
   return sent;
 }
+
+#endif // BOOP_USB_ONLY

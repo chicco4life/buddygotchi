@@ -15,6 +15,15 @@ tools/pio_ws.sh run -e ws-amoled164
 python3 -m py_compile tests/hil/test_usb.py
 ```
 
+For independent USB UI tests while the Mac app stays open, build
+`-e ws-amoled164-usb-debug` and use the `--usb-only` device runner described
+in [tools/dev/README.md](tools/dev/README.md). Restore normal firmware afterward;
+Bluetooth integration uses normal firmware and one known Mac app instance.
+
+The wrapper keeps toolchains and cache in the git-ignored
+`firmware/esp32/.platformio-core/` of each worktree; build output is in `.pio/`.
+The first build downloads dependencies; subsequent builds reuse them.
+
 See [firmware/esp32/README.md](firmware/esp32/README.md) for device controls and HIL.
 
 For physical animation verification using the laptop camera, run `make webcam

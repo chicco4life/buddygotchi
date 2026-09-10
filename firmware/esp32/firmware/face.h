@@ -251,13 +251,17 @@ static void faceDraw(uint32_t now,bool showSparks,float compact=0,bool proud=fal
   FacePose p=facePose;
   float scale=1-0.56f*compact;
   if (proud) { p.arc=22; p.eyeH=7; p.mouth=1; p.gazeX=p.gazeY=p.tilt=0; p.blush=p.sweat=p.brow=0; }
-  int lift=animPx(max(cardSpring.pos,decision.id[0]?1.0f:0.0f)*47);
+  float cardAmount=max(cardSpring.pos,decision.id[0]?1.0f:0.0f);
+  // The compact landscape footer leaves room for a lower, larger face.
+  float footerAmount=HAL_LANDSCAPE && !systemCard()?animClamp(cardAmount,0,1):0;
+  int lift=animPx(cardAmount*(HAL_LANDSCAPE && !systemCard()?25:47));
   int cy=HAL_H/2-10-lift+animPx(p.bob+p.lean), cx=animPx(HAL_W/2.0f+(HAL_W/6.0f-HAL_W/2.0f)*compact+p.gazeX*scale);
   float reveal=cosmeticAmount(now);
   const Cosmetics& shape=reveal<0.5f?oldCosmetic:tama.cosmetic;
   float spacing=silhouettes[shape.silhouetteId].spacing*scale;
   // Silhouettes affect only eye size and spacing, never the anchor.
   float eyeScale=shape.silhouetteId==1?1.08f:shape.silhouetteId==2?0.9f:1;
+  eyeScale*=1+0.20f*footerAmount;
   p.eyeW*=scale*eyeScale; p.eyeH*=scale*eyeScale; p.arc*=scale;
   uint16_t ink=faceInk(now);
   if(!hasCard()) {

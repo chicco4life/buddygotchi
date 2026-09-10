@@ -151,20 +151,18 @@ ever gets, and it gets there in the fixed layer order within half a second:
 4. **Card.** Slides up over the lower canvas, eyes still visible above it:
 
    ```
-   run a command
-   deletes files in this folder
-   ● careful
-   tap · yes     hold · no
+   ● Bash                          Hold 2s: yes
+   Deletes files in this folder        Side: no
    ```
 
    Line one is the tool in plain words. Line two is the app's plain-English
-   gloss. Line three is the stakes dot: calm, amber, or red.
+   gloss. A stakes mark beside the tool is calm, amber, or red.
 
 You decide:
 
 - Tap primary: approve. Hold primary one second: deny.
 - A red-dot prompt needs a two-second hold to approve, and the card has to
-  be on screen for a second before it arms. A tap just gets a small head
+  be on screen for 600 ms before it arms. A tap just gets a small head
   shake.
 - On press the card shows "sending…", then "yes!" or "okay" when the app
   confirms. "no link?" after three seconds without confirmation. A press
@@ -219,9 +217,8 @@ The buddy is sad about the work. It never looks at you.
 The rule from the vision: one creature. Three agents running is still one
 buddy, and the flow above is unchanged. What adds is small and ambient.
 
-**Working, several.** One small dot per active session drifts along the
-bottom edge of the canvas. Up to four, then a "+" mark. The face does not
-change because of the count. Effort is the highest of any session.
+**Working, several.** No session dots are shown. Effort is the highest of
+any session; count does not change the face.
 
 **Needs you, several.** Prompts queue oldest first. The card shows a small
 "1 of 3" in its corner. Deciding one slides the next in. Nothing else
@@ -233,9 +230,7 @@ orb, always. The bubble on collect lists the latest story line and a count if
 there was more than one: "done: landing page copy · +1."
 
 **Uh-oh, several.** One session failing while others work: the buddy shows
-Uh-oh for a moment, then returns to Working with the session dot for that
-one tinted red until it recovers. The user sees the whole day the same way
-they would with one agent, with a little more life along the bottom edge.
+Uh-oh for a moment, then returns to Working. No per-session marker is shown.
 
 What we deliberately do not do: split the face, show a list, show names on
 the face, or make the buddy busier because more agents are busy. The app has
@@ -354,27 +349,25 @@ the black field under the face, with the field's amber wash as the only
 frame. Proportional type, the bundled Korean-capable face; one size for
 the tool name (medium weight) and one for the gloss (regular).
 
-Needs you layout, top to bottom:
+Needs you layout, revised 2026-09-10: a borderless 88 px bottom footer on
+landscape screens. The left column contains the stakes mark and tool, with
+a quiet queue count beside it, followed by up to two lines of gloss.
+Overflow ends in an ellipsis at a UTF-8 boundary. The right column shows
+`Press: yes` / `Hold: no`, or `Hold 2s: yes` / `Side: no` for careful prompts.
+Labels appear immediately and remain visible during interaction. The landscape
+approval/decision face is lifted only 25 px (22 px lower than the first footer
+iteration), with eyes enlarged by 20% in both dimensions. The enlargement
+eases with the card; system cards and compact side layouts keep their sizing. Portrait
+screens stack instructions below the gloss. System cards retain their layout.
 
-1. **Tool line.** Stakes dot, then the tool in plain words. `2 of 3` at
-   the right edge when more than one is waiting.
-2. **Gloss.** One line, two at most. The app truncates.
-3. **Hold ring.** A thin ring at the lower right, empty while the card is
-   unarmed (600 ms), then a full-brightness, 2 px ring in eye ink. While the primary button is
-   held a 4 px arc in the same ink fills clockwise over the required hold (1 s, 2 s for careful)
-   and completes with the decision. Release before full: it drains back.
-   The ring is the only affordance on screen.
-
-**Hints appear only when needed.** No text explains the buttons at first.
-After five seconds without input, one quiet line appears below the
-gloss: `tap · yes   hold · no` (or `hold 2s · yes   side · no` for
-careful). It hides when any button is touched. The hint and `n of m` use
-pure grey `animRGB(146,146,146)`, never a dim mix. The pairing and update
-cards carry no hint at all.
+No persistent ring. During a hold, an underline beneath the relevant action
+fills over 1 s (deny) or 2 s (careful approval), draining on early release.
+The 600 ms arming guard is unchanged. Labels and queue count use grey
+`animRGB(146,146,146)`. Feedback occupies the same footer after a decision.
 
 Decision feedback replaces the card: `yes!` / `okay` in the tool-line
-position for 1.5 s, then the face returns. `sending...` past 3 s of no
-acknowledgement, `no link?` past 3 s more.
+position for 1.5 s, then the face returns. `sending...` appears immediately
+while awaiting acknowledgement; `no link?` replaces it after 3 s.
 
 Nudge ladder, chosen by the app, rendered by the device:
 
@@ -506,7 +499,7 @@ next table; silent in focus except rung 2 and Uh-oh; silent asleep.
 ## 17. Micro-idles
 
 Only while Idle, at least ninety seconds apart, under two seconds each:
-yawn, follow a session dot one lap, happy wiggle, one slow look at you,
+yawn, look slowly across the canvas, happy wiggle, one slow look at you,
 head tilt. Perch adds a slow dangle of the gaze; Travel adds looking around the
 room. Never within ten seconds of a real interaction.
 

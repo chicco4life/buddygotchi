@@ -137,3 +137,12 @@ No additional firmware library is used. The HIL signing/retirement tests in
 `tests/hil/test_usb.py` need a disposable bench creature; they reboot and
 retire it. Offline host checks:
 `python3 -m unittest discover -s tests/host -v`.
+
+USB diagnostic `ping.usbOnly` identifies the compile-time USB-only bench
+build. It is not a RenderState field and does not change the production
+wire contract. Missing or false means the test runner must not assume BLE
+is disabled. See `firmware/esp32/PROTOCOL.md`.
+
+Session `dots` and `dotAlert` are still validated and reported for wire
+compatibility, but are not rendered. Omit `dotAlert` when there is no alert;
+an explicit `-1` is not a valid incoming index.

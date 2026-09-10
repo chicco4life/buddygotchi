@@ -28,10 +28,42 @@ feature testing path.
 
 ## Shared ESP32
 
-Quit the Boop GUI before a device reservation, and leave it closed until the
-run ends. Headless instances can remain running. Relaunch the GUI yourself
-afterward; agents must not launch the Bluetooth app. The runner refuses to
-start if it sees the GUI and holds the GUI singleton lock during the run. It does not unpair or erase the device.
+Choose one of two verification paths:
+
+- **Independent USB device/UI work (default for visual changes):** build
+  `ws-amoled164-usb-debug` through `firmware/esp32/tools/pio_ws.sh`. This
+  compile-time-only build has no active Bluetooth bridge and leaves saved
+  bonds untouched. The Mac GUI can stay open and be developed independently.
+  Run the device wrapper with `--usb-only`; it checks `ping.usbOnly == true`
+  after setup and before running the scenario. A normal image is rejected.
+- **Bluetooth integration:** use normal `ws-amoled164` firmware and exactly
+  one identified Mac app build. Reserve the device and coordinate that app
+  explicitly. The existing default runner still requires the GUI closed;
+  an agent BLE client can then be the single host. Testing the actual Mac
+  GUI requires a separately coordinated integration session, not `--usb-only`.
+
+The USB path changes no production app behavior. Never ship the debug image
+or use it as evidence of Bluetooth integration. Flash normal firmware back
+when finished. Keep the device plugged in over USB throughout testing.
+The shared device reservation still serializes flashing and hardware tests.
+
+For USB-only testing with the GUI open:
+
+```sh
+cd firmware/esp32
+tools/pio_ws.sh run -e ws-amoled164-usb-debug
+# From the repo root, using immutable setup/restore images:
+python3 tools/dev/device.py --usb-only \
+  --setup /absolute/path/flash-usb-debug.sh \
+  --restore /absolute/path/restore-normal.sh \
+  --evidence /tmp/usb-device-check -- \
+  python3 -m pytest firmware/esp32/tests/hil/test_usb.py
+```
+
+Without `--usb-only`, quit the Boop GUI and leave it closed until the run
+ends. The runner holds the GUI singleton lock during this default path.
+Headless instances can remain running. Relaunch the GUI yourself afterward;
+agents must not launch the Bluetooth app.
 
 For a scenario using the firmware already on the device:
 
@@ -82,3 +114,16 @@ fixture (requires localhost access):
 BOOP_WORKFLOW_TEST_BINARY="$PWD/app/.build/debug/Boop" \
   python3 -m unittest discover -s tools/dev/tests -v
 ```
+
+### Firmware build isolation
+
+`firmware/esp32/tools/pio_ws.sh` defaults to the worktree-local, git-ignored
+`firmware/esp32/.platformio-core/` for PlatformIO platforms, packages, cache,
+and bookkeeping. Compiled output stays in `firmware/esp32/.pio/`. This keeps
+parallel worktrees from changing each other's toolchains and allows builds
+with workspace-only write access. First builds require network access to
+install dependencies; warm builds reuse local packages. Each worktree needs
+several GB of toolchains. Explicit `PLATFORMIO_CORE_DIR` and
+`PLATFORMIO_PACKAGES_DIR` overrides are supported for managed environments.
+The physical-device reservation remains separate and is needed only for
+flashing and hardware tests.

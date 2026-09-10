@@ -23,6 +23,8 @@ def require_exclusive(s) -> None:
     frames (real cards, session dots) land between ours and the screenshot.
     That produced a set of contaminated goldens before this guard existed.
     """
+    if s.framed_json("ping", "PONG", 3).get("usbOnly") is True:
+        return  # USB frames also set dataConnected; this build has no BLE writer.
     if s.framed_json("state", "STATE", 3).get("connected"):
         raise SystemExit(
             "The Boop app is connected to this buddy over Bluetooth and is pushing its own\n"

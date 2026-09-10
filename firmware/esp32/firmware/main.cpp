@@ -218,7 +218,7 @@ void onFrame(const TamaState& next, bool skinSupplied) {
   // Any visible change restarts the presentation phase, so periodic motion
   // (and `clock settle`) is anchored to what is on screen, not just the state.
   bool visualChanged = changed || strcmp(next.effort,tama.effort) || strcmp(next.uhoh,tama.uhoh)
-    || overlayChanged || next.gift != tama.gift || next.dots != tama.dots
+    || overlayChanged || next.gift != tama.gift
     || cosmeticsChanged || levelChanged || milestone || firstSignal || strcmp(next.posture,tama.posture);
   if (visualChanged) stateAt = now;
   if (changed) lastInput = now;   // only a state change counts as activity for the dim ladder
@@ -406,6 +406,13 @@ static void textLines(const char* text,int x,int y,int width,int lines=2,float s
     char glyph[5]={0}; memcpy(glyph,p,n);
     int glyphW=spr.textWidth(glyph);
     if (lineW+glyphW>width && used) {
+      if (lines==1) {
+        while (used && spr.textWidth(line)+spr.textWidth("…")>width) {
+          do { --used; } while (used && ((unsigned char)line[used]&0xc0)==0x80);
+          line[used]=0;
+        }
+        spr.drawString(String(line)+"…",x,y); return;
+      }
       line[used]=0; spr.drawString(line,x,y); y+=animPx(20*size); --lines; used=0; lineW=0;
       if (!lines) break;
     }
@@ -417,7 +424,7 @@ static void textRight(const char* text,int right,int y,uint16_t ink) {
   spr.setFont(&fonts::efontKR_16); spr.setTextSize(1);
   textLines(text,right-spr.textWidth(text),y,HAL_W,1,1,ink);
 }
-static int cardY() { return HAL_H-132+animPx((1-animClamp(cardSpring.pos,0,1))*132); }
+static int cardY() { int h=!systemCard() && HAL_LANDSCAPE?88:132; return HAL_H-h+animPx((1-animClamp(cardSpring.pos,0,1))*h); }
 static void drawCard(uint32_t now) {
   int y=cardY();
   uint16_t ink=faceInk(now);
@@ -428,33 +435,35 @@ static void drawCard(uint32_t now) {
     else { textLines(tama.card.kind,30,y+10,HAL_W-60,1,1.5f,ink); textLines(tama.card.text,30,y+42,HAL_W-60,2,1,ink); }
     return;
   }
-  int toolWidth=HAL_W-74;
+  int left=HAL_LANDSCAPE?30:12, right=HAL_W-left;
+  int actionY=HAL_LANDSCAPE?y+10:y+82;
+  int textWidth=HAL_LANDSCAPE?HAL_W-192:right-left;
+  int toolWidth=textWidth-14;
   if(tama.card.of>1) {
     snprintf(line,sizeof(line),"%d of %d",tama.card.n,tama.card.of);
-    textRight(line,HAL_W-30,y+14,animRGB(146,146,146));
+    textRight(line,left+textWidth,y+14,animRGB(146,146,146));
     toolWidth-=spr.textWidth(line)+16;
   }
-  textLines(tama.card.tool,44,y+10,toolWidth,1,1.5f,ink);
+  textLines(tama.card.tool,left+14,y+10,max(16,toolWidth),1,1.5f,ink);
   uint16_t stakes=careful()?animRGB(255,73,82):eq(tama.card.stakes,"checkIt")?animRGB(255,182,36):GREEN;
-  spr.fillSmoothCircle(31,y+22,5,stakes);
-  textLines(tama.card.gloss,30,y+42,HAL_W-60,2,1,ink);
-  bool touched=false;
-  for(const auto& b:buttons) touched|=b.down;
-  uint32_t quiet=min(now-lastInput,now-cardAt);
-  if(tama.card.approval && !touched && quiet>5000) {
-    textLines(careful()?"hold 2s · yes   side · no":"tap · yes   hold · no",30,y+88,HAL_W-100,1,1,animRGB(146,146,146));
+  spr.fillSmoothCircle(left+1,y+22,5,stakes);
+  textLines(tama.card.gloss,left,y+40,textWidth,2,1,ink);
+  if(tama.card.approval) {
+    textRight(careful()?"Hold 2s: yes":"Press: yes",right,actionY,animRGB(146,146,146));
+    textRight(careful()?"Side: no":"Hold: no",right,actionY+30,animRGB(146,146,146));
   }
   if(armed()) {
-    int x=HAL_W-40, ry=y+96;
-    // LovyanGFX includes both radii: 14..13 is 2 px, 14..11 is 4 px.
-    spr.fillArc(x,ry,14,13,0,360,ink);
     const auto& b=buttons[0];
     float hold=0;
     if(!b.guard && !strcmp(b.cardId,tama.card.id)) {
       hold=b.down?animClamp((now-b.visualAt)/(careful()?2000.0f:1000.0f),0,1):
         b.releasedHold*(1-animClamp((now-b.releasedAt)/300.0f,0,1));
     }
-    if(hold>0) spr.fillArc(x,ry,14,11,270,270+360*hold,ink);
+    if(hold>0) {
+      spr.setFont(&fonts::efontKR_16); spr.setTextSize(1);
+      int width=spr.textWidth(careful()?"Hold 2s: yes":"Hold: no");
+      spr.fillRect(right-width,actionY+(careful()?20:50),max(1,animPx(width*hold)),2,ink);
+    }
   }
 }
 static void drawStats(uint32_t now) {
@@ -516,24 +525,22 @@ static void render() {
   if (!bleBonded() || !dataConnected() || (linkFlash && now-linkAt<800))
     presenceDrawLinkGlyph(spr,now-stateAt,animRGB(73,146,255),linkFlash && now-linkAt<800);
   if (layer==L_SYSTEM || layer==L_CARD) drawCard(now);
-  else if(layer==L_DECISION) { textLines(feedback(),44,HAL_H-122,HAL_W-74,1,1.5f,faceInk(now)); }
+  else if(layer==L_DECISION) { textLines(feedback(),30,HAL_H-(HAL_LANDSCAPE?78:122),HAL_W-60,1,1.5f,faceInk(now)); }
   else if(layer==L_STATS) drawStats(now);
   else if(layer==L_BUBBLE || layer==L_UHOH) { int x=HAL_W/3+12; uint16_t ink=faceInk(now); textLines(bubbleText(),x+12,HAL_H/2-20,HAL_W-x-40,2,1,ink); }
   else if(layer==L_OVERLAY && tama.agentSrc[0]) agentDraw(spr,now,tama);
   if (guardSafeTier()) { textLines("safe mode - USB rescue",28,18,HAL_W-56,1); }
-  // Bottom margin remains visible beneath every card and bubble.
-  for(int i=0;i<tama.dots;++i) {
-    int x=HAL_W/2+i*20-(tama.dots-1)*10;
-    uint16_t c=i==tama.dotAlert?animRGB(255,73,82):LIGHTGREY;
-    if(i==4) { spr.fillRect(x-4,HAL_H-6,9,2,c); spr.fillRect(x,HAL_H-10,2,10,c); }
-    else spr.fillSmoothCircle(x,HAL_H-5,3,c);
-  }
   float fade=isRetiring()?1-animClamp((float)(now-ritualAt)/ritualDuration[R_RETIRE],0,1):1;
   halSetBrightness(brightness*fade);
   if (!screenOff) halPresent(spr);
   ++drawCount;
 }
 static void telemetry(JsonDocument& d) {
+#ifdef BOOP_USB_ONLY
+  d["usbOnly"]=true;
+#else
+  d["usbOnly"]=false;
+#endif
   d["contract"]=WIRE_CONTRACT; d["board"]=HAL_BOARD_NAME; d["fw"]=FW_VERSION; d["git"]=GIT_SHA;
   d["unit"]=unitId(); d["alg"]="p256"; d["keygenMs"]=unitKeygenMs(); d["unitErr"]=unitFailStage();
   d["up"]=millis(); d["heap"]=ESP.getFreeHeap(); d["heapMin"]=ESP.getMinFreeHeap(); d["heapBig"]=ESP.getMaxAllocHeap();

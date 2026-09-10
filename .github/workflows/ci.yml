@@ -107,16 +107,15 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.platformio/packages
-            ~/.platformio/packages-pioarduino
-            ~/.platformio/platforms
-          key: ${{ runner.os }}-pio-${{ hashFiles('firmware/esp32/platformio.ini') }}
+            firmware/esp32/.platformio-core/packages-pioarduino
+            firmware/esp32/.platformio-core/platforms
+          key: ${{ runner.os }}-pio-local-${{ hashFiles('firmware/esp32/platformio.ini', 'firmware/esp32/tools/pio_ws.sh') }}
 
       - name: Install PlatformIO
         run: pip install platformio
 
-      - name: Build shipping board (ws-amoled164)
-        run: tools/pio_ws.sh run -e ws-amoled164
+      - name: Build shipping board and USB-only debug firmware
+        run: tools/pio_ws.sh run -e ws-amoled164 -e ws-amoled164-usb-debug
         working-directory: firmware/esp32
 
       - name: Firmware host tests

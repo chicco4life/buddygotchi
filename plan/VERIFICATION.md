@@ -864,3 +864,27 @@ Review the recorded setup, scenario and restoration outcomes; a restoration
 failure requires recovery. Tooling checks: `python3 -m unittest discover -s
 tools/dev/tests -v`. Physical validation remains separate and requires a device;
 these tooling tests never touch hardware. The live-hook doctor is exclusive.
+
+
+## Compact device footer, 2026-09-10
+
+Check no pixel changes from dots/dotAlert alone across all states. Review all stakes, queued prompts, long UTF-8 glosses, hold progress and release, and acknowledgement feedback. Labels remain visible immediately and during presses. Refresh affected goldens after visual review.
+
+Firmware builds through `tools/pio_ws.sh` use ignored per-worktree
+`.platformio-core` state and `.pio` output. Verify a warm shipping-board
+build succeeds with workspace-only write access; no home-cache writes or
+device reservation are needed for compilation. Cold setup needs downloads.
+
+
+## USB-only bench verification, 2026-09-10
+
+For independent device rendering and button tests, prefer ws-amoled164-usb-debug and tools/dev/device.py --usb-only. The wrapper retains the exclusive hardware reservation and checks board identity plus ping.usbOnly after flashing, before tests; it permits the Mac app to remain open. Restore normal firmware after testing. This is not BLE evidence. Bluetooth end-to-end tests require normal firmware and one explicitly identified Mac instance, with other hosts excluded. Do not run destructive retire/identity-reset tests on a personal device without a recovery plan.
+
+The USB-only bridge assumes an adopted device for rendering (it does not
+read or modify bonds). Pairing/onboarding and Bluetooth connection visuals
+require the normal build; the bench build is for frame-driven UI checks.
+
+
+## Larger approval face, 2026-09-10
+
+Review the enlarged approval face at every stakes level and during confirmation. Verify eyes/mouth stay above the footer and compare the same frozen scene with the prior iteration. Reuse USB-only verification with the Mac GUI open.

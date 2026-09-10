@@ -1,17 +1,11 @@
 #!/bin/sh
-# pio wrapper for the ws-amoled164* envs (Waveshare ESP32-S3 AMOLED board).
-#
-# Those envs build on the pioarduino platform (Arduino core 3.x) while the
-# M5 envs use PlatformIO's espressif32 (core 2.x). Both platforms manage a
-# package named framework-arduinoespressif32, and building one platform
-# invalidates the other's copy in the shared ~/.platformio/packages tree —
-# the first pioarduino build after any M5 build then fails with a missing
-# FRAMEWORK_DIR. An isolated package tree makes the two platforms
-# invisible to each other. Costs one extra toolchain download (~1GB) the
-# first time, then it's warm.
-#
-# Usage, from firmware/esp32/:
-#   tools/pio_ws.sh run -e ws-amoled164 [-t upload]
-#   tools/pio_ws.sh run -e ws-amoled164-spike -t upload
-export PLATFORMIO_PACKAGES_DIR="${PLATFORMIO_PACKAGES_DIR:-$HOME/.platformio/packages-pioarduino}"
+# Worktree-local PlatformIO state for the Waveshare/pioarduino toolchain.
+# Keep packages separate from M5 builds and from other worktrees. All paths
+# are git-ignored; a fresh checkout downloads its own tools on first build.
+# Explicit environment overrides remain available for managed CI caches.
+# Usage from firmware/esp32: tools/pio_ws.sh run -e ws-amoled164
+set -eu
+firmware_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+export PLATFORMIO_CORE_DIR="${PLATFORMIO_CORE_DIR:-$firmware_dir/.platformio-core}"
+export PLATFORMIO_PACKAGES_DIR="${PLATFORMIO_PACKAGES_DIR:-$PLATFORMIO_CORE_DIR/packages-pioarduino}"
 exec pio "$@"
