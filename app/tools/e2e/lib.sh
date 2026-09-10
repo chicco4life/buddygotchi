@@ -3,11 +3,12 @@
 # Shared helpers for the Boop e2e suites. Source this from each client
 # script; it provides the HTTP plumbing, assertions, and summary.
 #
-PORT="${BUDDY_PORT:-$(python3 -c 'import json,os; print(json.load(open(os.path.expanduser("~/.boop/config.json"))).get("port",21321))' 2>/dev/null)}"
+CONFIG="${BOOP_STATE_DIR:-$HOME/.boop}/config.json"
+PORT="${BUDDY_PORT:-$(python3 -c 'import json,os; print(json.load(open(os.path.join(os.environ.get("BOOP_STATE_DIR", os.path.expanduser("~/.boop")), "config.json"))).get("port",21321))' 2>/dev/null)}"
 PORT="${PORT:-21321}"
 BASE="http://127.0.0.1:${PORT}"
 CURL=(curl -s --noproxy '*' --connect-timeout 2)
-TOKEN="$(grep -o '"token" *: *"[^"]*"' "$HOME/.boop/config.json" 2>/dev/null | head -1 | sed 's/.*"token" *: *"//; s/".*//')"
+TOKEN="$(grep -o '"token" *: *"[^"]*"' "$CONFIG" 2>/dev/null | head -1 | sed 's/.*"token" *: *"//; s/".*//')"
 AUTH=()
 [ -n "$TOKEN" ] && AUTH=(-H "X-Boop-Token: $TOKEN")
 CWD="${BUDDY_E2E_CWD:-/tmp/buddy-e2e}"

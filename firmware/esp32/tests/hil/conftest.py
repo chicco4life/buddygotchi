@@ -28,3 +28,21 @@ if _tee:
             raise
 
     buddyctl.SerialBuddy.read_until = _teed
+
+
+import pytest
+from device_lease import reserve
+
+
+@pytest.fixture(scope="session", autouse=True)
+def device_reservation():
+    with reserve() as token:
+        previous = os.environ.get("BOOP_DEVICE_LEASE")
+        os.environ["BOOP_DEVICE_LEASE"] = token
+        try:
+            yield
+        finally:
+            if previous is None:
+                os.environ.pop("BOOP_DEVICE_LEASE", None)
+            else:
+                os.environ["BOOP_DEVICE_LEASE"] = previous

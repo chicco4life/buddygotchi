@@ -21,6 +21,7 @@ import sys
 import termios
 import time
 import zlib
+from device_lease import reserve
 from pathlib import Path
 from typing import Any, Callable
 
@@ -880,7 +881,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = build_parser().parse_args()
     try:
-        return args.func(args)
+        with reserve():
+            return args.func(args)
     except BuddyError as exc:
         emit({"ok": False, "error": str(exc)}, getattr(args, "json", False))
         return exc.code

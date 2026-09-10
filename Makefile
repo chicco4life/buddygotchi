@@ -24,10 +24,10 @@ e2e:
 	@bash app/tools/e2e-headless.sh
 
 hil:
-	cd firmware/esp32 && python3 -m pytest tests/hil -m "not ble"
+	python3 tools/dev/device.py --evidence /tmp/boop-hil-$$(date +%s) -- python3 -m pytest firmware/esp32/tests/hil -m "not ble"
 
 hil-ble:
-	cd firmware/esp32 && python3 -m pytest tests/hil -m "ble"
+	python3 tools/dev/device.py --evidence /tmp/boop-hil-ble-$$(date +%s) -- python3 -m pytest firmware/esp32/tests/hil -m "ble"
 
 package:
 	app/tools/package.sh

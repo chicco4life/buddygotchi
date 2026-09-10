@@ -638,3 +638,18 @@ Synthetic-video tests cover the tool. A real Buddy recording was captured and
 `webcam-verify` skill with implicit invocation disabled. Live capture requires
 an explicit request and setup confirmation for that session; it is not part of
 ordinary verification or a standing authorization to use the camera.
+
+## Parallel development tooling (2026-09-10)
+
+Added per-worktree headless instances and explicit E2E routing, plus a shared
+whole-run device reservation with scenario logs and restoration scripts.
+The GUI is manually quit/relaunched around hardware runs. No simulator planned.
+Software orchestration checks cover lease exclusion/delegation and restoration
+after scenario failure; real device verification is still owed. Usage lives in
+`tools/dev/README.md`.
+
+Validation: `swift build --product Boop` passed outside the cache-restricted
+sandbox. All three workflow tests passed both with a lightweight HTTP fixture
+and with two real Boop headless processes (isolated authenticated startup and
+clean shutdown, lease exclusion/delegation, restore after failed scenario).
+Physical HIL and flashing were not performed.

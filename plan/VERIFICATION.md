@@ -822,3 +822,16 @@ no longer launch it. Existing jobs remain available via Actions → CI → Run
 workflow; their previously reported failures have not been diagnosed or fixed
 by this trigger change. Local verification commands remain available. Release
 workflows retain their existing triggers.
+
+## Parallel feature verification (2026-09-10)
+
+Use one worktree per feature and `make e2e` for an isolated headless instance.
+Instances retain scratch state and stay running for inspection; explicitly stop
+with `app/tools/headless.sh --stop`. Normal hooks remain on the everyday app.
+For hardware, quit the GUI, then use `make hil`, `make hil-ble`, or the setup /
+scenario / restore wrapper in `tools/dev/README.md`. Keep the GUI closed during
+the reservation. Firmware scripts must verify board and firmware identity.
+Review the recorded setup, scenario and restoration outcomes; a restoration
+failure requires recovery. Tooling checks: `python3 -m unittest discover -s
+tools/dev/tests -v`. Physical validation remains separate and requires a device;
+these tooling tests never touch hardware. The live-hook doctor is exclusive.

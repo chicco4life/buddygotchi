@@ -131,3 +131,6 @@ Support steps (doctor, forgetting, reset and retire, hook regressions) live in [
 ## License
 
 The ESP32 firmware license is in [archived/firmware/esp32/LICENSE](archived/firmware/esp32/LICENSE).
+
+For concurrent feature work, see [parallel development](tools/dev/README.md):
+per-worktree headless instances and a shared ESP32 reservation workflow.
