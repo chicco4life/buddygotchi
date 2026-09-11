@@ -17,7 +17,8 @@ tools/pio_ws.sh run -e ws-amoled164-usb-debug
 PlatformIO is `/opt/homebrew/bin/pio`; the wrapper defaults to
 the ignored `.platformio-core/` directory inside this firmware worktree. Keep the pinned platform version in
 `platformio.ini`. No library additions or asset filesystem upload are needed.
-The M5 HAL and environments remain, but this phase verifies only ws-amoled164.
+The M5StickC Plus 2 was retired on 2026-09-11: its HAL, build environments
+and partition table are gone, and `ws-amoled164` is the only board.
 The bring-up environment remains `ws-amoled164-spike`.
 
 Reserve flashing and tests through `tools/dev/device.py` from the repo root.

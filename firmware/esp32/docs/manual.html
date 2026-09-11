@@ -13,7 +13,7 @@
     --paper-2: #ebe3d0;
     --ink:     #221f1a;
     --ink-dim: #6b6458;
-    --m5:      #ff6b35;   /* M5Stack orange */
+    --accent:  #ff6b35;   /* warm orange */
     --screen:  #0e0e0e;
     --ok:      #2e9e5b;
     --no:      #d13b3b;
@@ -52,7 +52,7 @@
   }
   .sheet::after {
     content:""; position:absolute; right:-40px; top:-40px; width:280px; height:280px;
-    background: radial-gradient(circle at 30% 30%, var(--m5) 18%, #0000 19%) 0 0/11px 11px;
+    background: radial-gradient(circle at 30% 30%, var(--accent) 18%, #0000 19%) 0 0/11px 11px;
     opacity:.12; transform: rotate(12deg); pointer-events:none;
   }
 
@@ -67,7 +67,7 @@
     font-family: "Silkscreen", monospace;
     font-size: clamp(30px, 4.4vw, 52px);
     line-height: .92; letter-spacing: 1px;
-    text-shadow: 3px 3px 0 var(--m5);
+    text-shadow: 3px 3px 0 var(--accent);
   }
   .mast .sub {
     font-size: 12px; letter-spacing: 3px; text-transform: uppercase;
@@ -79,7 +79,7 @@
     background: var(--hi); transform: rotate(2deg);
     box-shadow: 2px 2px 0 var(--ink);
   }
-  .stamp b { color: var(--m5); font-size: 14px; }
+  .stamp b { color: var(--accent); font-size: 14px; }
 
   /* ───────── layout ───────── */
   main {
@@ -97,7 +97,7 @@
     display:flex; align-items:center; gap:10px;
   }
   h2::before {
-    content:""; width:10px; height:10px; background:var(--m5);
+    content:""; width:10px; height:10px; background:var(--accent);
     box-shadow: 2px 2px 0 var(--ink);
   }
 
@@ -106,7 +106,7 @@
   .stick {
     position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
     width: 120px; height: 240px;
-    background: linear-gradient(160deg,#ff8a52 0%,var(--m5) 55%,#e8531f 100%);
+    background: linear-gradient(160deg,#ff8a52 0%,var(--accent) 55%,#e8531f 100%);
     border: 3px solid var(--ink); border-radius: 16px;
     box-shadow: 0 10px 24px -10px #c0440088, inset 0 2px 0 #ffffff40, inset 0 -4px 0 #00000020;
     animation: bob 5s ease-in-out infinite;
@@ -126,7 +126,7 @@
   .btn-a {
     position:absolute; left:50%; bottom:18px; transform:translateX(-50%);
     width:56px; height:36px; border-radius:8px;
-    background: linear-gradient(#ff9a63,var(--m5) 55%,#e0511e);
+    background: linear-gradient(#ff9a63,var(--accent) 55%,#e0511e);
     border:2px solid var(--ink);
     box-shadow: inset 0 2px 0 #ffffff55, inset 0 -4px 0 #00000035, 0 2px 0 var(--ink);
   }
@@ -160,7 +160,7 @@
   .pin .tag {
     background:var(--ink); color:var(--paper); padding:2px 8px 4px; border-radius:4px;
   }
-  .pin .tag.ok { background:var(--m5); color:var(--ink); }
+  .pin .tag.ok { background:var(--accent); color:var(--ink); }
   .pin .tag.no { background:var(--no); }
   .pin .tag.dim { background:var(--ink-dim); }
   .pin .wire { height:2px; background:var(--ink); flex:none; }
@@ -201,14 +201,14 @@
     background:var(--paper-2); box-shadow:1.5px 1.5px 0 var(--ink);
     font-family:"Silkscreen",monospace; font-size:11px;
   }
-  .key.a { background:var(--m5); color:var(--ink); }
+  .key.a { background:var(--accent); color:var(--ink); }
   .ok { color:var(--ok); font-weight:500; }
   .no { color:var(--no); font-weight:500; }
   .dim { color:var(--ink-dim); }
 
   .note {
     font-size:11.5px; font-style:italic; color:var(--ink-dim);
-    padding:8px 12px; border-left:3px solid var(--m5); background:#ff6b3512;
+    padding:8px 12px; border-left:3px solid var(--accent); background:#ff6b3512;
     margin-bottom:18px; border-radius:0 6px 6px 0;
   }
 
@@ -238,7 +238,7 @@
     content: attr(data-n);
     position:absolute; top:-9px; left:-9px;
     width:22px; height:22px; border-radius:50%;
-    background:var(--m5); border:2px solid var(--ink);
+    background:var(--accent); border:2px solid var(--ink);
     font-family:"Silkscreen",monospace; font-size:12px;
     display:grid; place-items:center; padding-bottom:2px;
   }
@@ -399,7 +399,7 @@
       hold A › settings › reset › factory reset › tap twice
     </div>
     <div class="hack">
-      <b style="color:var(--m5)">MAKE IT YOURS ✎</b>&nbsp;
+      <b style="color:var(--accent)">MAKE IT YOURS ✎</b>&nbsp;
       The firmware is open source — clone
       <code>github.com/anthropics/claude-desktop-buddy</code>, point Claude&nbsp;Code at it,
       and reshape the stick however you like. New pets, new screens, new rules.

@@ -32,9 +32,14 @@ tools/pio_ws.sh run -e ws-amoled164
 | Approvals | Editor-only for every agent, stale enabled config/hook passthrough, ignored device decisions |
 | Wire | UTF-8 caps, compatibility, bounded nudge rung, ignored retired fields |
 | Mac UI | Overview and Settings; sessions follow status, compact XP is last and includes tasks/streak; no Activity navigation; pending cards stay on Overview; English/Korean and light/dark |
+| Palette | Every `BuddyTheme.*Ink` tone clears 4.5:1 against its own appearance's paper; amber appears only for "needs you", never on a primary action; the twelve-week grid and its legend are unclipped at the resting height |
 
-Current result: **341 tests passed, zero skipped**, both Mac products built,
-and shipping Waveshare firmware built. Offscreen UI checked. See the
+Current result: **349 tests passed, zero skipped**, both Mac products built,
+shipping Waveshare firmware built and flashed, 43/43 device goldens re-recorded
+and reproduced at zero error against an independently recaptured set. The
+M5StickC Plus 2 was retired, leaving `ws-amoled164` as the only board and the
+only firmware build. Offscreen UI checked in both appearances.
+Previous result: **341 tests passed**; see the
 [essential behavior evidence](evidence/essential-behaviors-2026-09-11/README.md).
 
 Previous result (before the essentials change): **368 tests passed, zero skipped**, both Mac products built.
@@ -68,6 +73,30 @@ Quiet mode, passive dismissal, absence of decision controls/feedback,
 reconnect, byte-capped multilingual text, stats, dimming and OTA recovery.
 Record board/build, commands, assertions and screenshots with each result.
 
+The device contact sheet is `firmware/esp32/tools/shots.py`, whose scenes live
+in `tools/shot_cells.py` and are shared with `tools/golden.py`. Any change to
+the palette, the face, the arms, the card footer or the dashboard invalidates
+`firmware/esp32/tests/golden/ws-amoled164/` and the goldens must be re-recorded
+on hardware in the same commit.
+
+**Record and verify like this, or the check is meaningless.** `golden.py record`
+copies whatever sits in `/tmp/boop-shots`, so a `check` run immediately after a
+`record` compares those same images against goldens made from them and always
+passes. Additionally `shots.py` aborts whenever `state.connected` is true, and
+`dataConnected()` stays true for 60 s after any frame — including the frames
+`shots.py` itself just sent — so a second run inside that window exits early and
+leaves a mixed-vintage directory behind. Never redirect its output to
+`/dev/null`. The sequence that actually verifies:
+
+```sh
+rm -rf /tmp/boop-shots && python3 tools/shots.py   # watch for errors
+python3 tools/golden.py record
+# wait for state.connected to go false (up to 60s), then capture again
+rm -rf /tmp/boop-shots && python3 tools/shots.py
+python3 tools/golden.py check                      # independent round-trip
+``` Cells cover the four phases of the dashboard
+invitation, the single-agent board, and the heart at its peak and on the way out.
+
 Webcam verification requires explicit permission and physical setup for that
 session; it is not part of ordinary build or screenshot checks.
 
@@ -85,6 +114,6 @@ and ignore level transitions. Build firmware; physical verification is separate.
 
 ## Agent dashboard
 
-Run `make test` (uses the XCTest shim on CLT-only Macs); with full Xcode, targeted `swift test --filter AgentDashboardTests` and `HeartbeatTruncationTests` from app also work. Verify full-session counts beyond six, turn start/end, session end/stale cleanup, attention priority and wire bounds. Build shipping Waveshare and M5 firmware. In an independent USB-only reservation run `test_agent_dashboard.py`: mixed counts persist beyond ten seconds, all-working/all-idle exit, legacy omission clears, invalid rows reject atomically, and attention wins. Capture settled and transitional dashboard screenshots and verify readable counts, green non-zero idle, white/grey working/zero counts and an unobscured animated corner face. Restore normal firmware. Production BLE integration remains a separate gate.
+Run `make test` (uses the XCTest shim on CLT-only Macs); with full Xcode, targeted `swift test --filter AgentDashboardTests` and `HeartbeatTruncationTests` from app also work. Verify full-session counts beyond six, turn start/end, session end/stale cleanup, attention priority and wire bounds. Build the shipping Waveshare firmware. In an independent USB-only reservation run `test_agent_dashboard.py`: mixed counts persist beyond ten seconds, all-working/all-idle exit, legacy omission clears, invalid rows reject atomically, and attention wins. Capture settled and transitional dashboard screenshots and verify readable counts, sage non-zero idle, cream working counts, dimmed zeros, the hairline under the column heads, a table centred in the band below the buddy at one and at three agents, and an unobscured animated corner face whose gesturing hand lands above the column heads rather than on them. Restore normal firmware. Production BLE integration remains a separate gate.
 
 For the dashboard invitation, capture entry-relative 650, 1250, 1950 and 3000 ms. Run the full-loop regression across re-applied frames as well as the original two-frame check. Verify the two downward nods and rosy smile stay above the fixed text, and repeated-frame board pixels remain identical.

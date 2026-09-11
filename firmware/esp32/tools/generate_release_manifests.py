@@ -30,7 +30,7 @@ def main() -> None:
     parser.add_argument("--build-dir", required=True, type=Path)
     parser.add_argument("--out-dir", required=True, type=Path)
     parser.add_argument("--min-app-version", default="0.3.0")
-    parser.add_argument("--board", default="m5stickc-plus2")
+    parser.add_argument("--board", default="ws-amoled164")
     args = parser.parse_args()
 
     out_dir = args.out_dir

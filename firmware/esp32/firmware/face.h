@@ -1,5 +1,6 @@
 #pragma once
 #include "anim.h"
+#include "palette.h"
 static void _faceEye(int cx, int cy, int w, int h, int r, uint16_t c) {
   if (h <= 10) {
     spr.fillSmoothRoundRect(cx - w / 2, cy - 4, w, 8, 4, c);   // closed lid
@@ -56,9 +57,48 @@ static void _faceEyeArch(int cx, int cy, int w, float rise, int thick, uint16_t 
   }
 }
 
+// A tiny arm: a quadratic Bezier of overlapping dots running from a shoulder
+// to a mitten hand. Same stroke as the brow and the happy arch, so it inherits
+// their anti-aliasing and adds no new primitive to the renderer.
+//
+// The buddy has no body. Arms exist only while they are doing something — the
+// same rule the brow follows — so the face still reads as two eyes floating on
+// black at rest, and a wave is an event rather than a permanent feature.
+//
+// `ang` is measured from straight down, positive = swung outward and up: 0
+// points at the floor, PI/2 is straight out sideways, ~2.2 rad is a raised
+// wave. `side` is -1 for the left arm and +1 for the right. `bend` bows the
+// curve into a soft elbow; a straight arm reads as a stick.
+static void _faceArm(float sx, float sy, float ang, float len, float bend,
+                     float thick, float handR, int side, uint16_t c) {
+  if (len < 2.0f || thick < 0.5f) return;
+  float dx = side * sinf(ang), dy = cosf(ang);
+  float px = side * cosf(ang), py = -sinf(ang);      // perpendicular, for the elbow
+  float hx = sx + dx * len, hy = sy + dy * len;
+  float mx = sx + dx * len * 0.5f + px * bend * len;
+  float my = sy + dy * len * 0.5f + py * bend * len;
+  // Sample from the geometry, not a constant: the dots must overlap or the
+  // arm reads as a string of beads. One sample per half-radius of travel,
+  // which is what the brow and the arch each arrived at by hand.
+  int N = (int)(len / (thick * 0.5f)) + 1;
+  if (N < 6) N = 6;
+  if (N > 28) N = 28;
+  for (int i = 0; i <= N; i++) {
+    float u = (float)i / (float)N, v = 1 - u;
+    float x = v * v * sx + 2 * v * u * mx + u * u * hx;
+    float y = v * v * sy + 2 * v * u * my + u * u * hy;
+    spr.fillSmoothCircle(animPx(x), animPx(y),
+                         max(1, animPx(thick * (1.0f - 0.26f * u))), c);
+  }
+  if (handR >= 0.8f) spr.fillSmoothCircle(animPx(hx), animPx(hy), max(1, animPx(handR)), c);
+}
+
 struct FacePose {
   float eyeH=80, eyeW=64, gazeX=0, gazeY=0, brow=0, arc=0;
   float bob=0, lean=0, tilt=0, blush=0, sweat=0, mouth=0;
+  // Arms. `armL`/`armR` are reach in units of 54 px at full face scale; 0 is
+  // no arm at all. `angL`/`angR` are the swing, in radians from straight down.
+  float armL=0, armR=0, angL=0, angR=0;
   bool rightEyeClosed=false;
 };
 static FacePose facePose;
@@ -140,12 +180,18 @@ static void faceSimulate(uint32_t now,float dt) {
     uint32_t age=now-stateAt;
     if (age<cheerDuration()) {
       float progress=(float)age/cheerDuration();
+      // Both arms go up for the celebration and swing in opposition, which is
+      // what makes it read as a cheer rather than as a two-armed shrug.
+      float up=animClamp(age/220.0f,0,1)*animClamp((cheerDuration()-age)/280.0f,0,1);
+      float swing=sinf(age*ANIM_TAU*1.8f/1000.0f);
       if (eq(tama.cheer,"dance")) {
         p.bob-=fabsf(sinf(age*ANIM_TAU*2/1000.0f))*18;
         p.tilt=0.25f*sinf(age*ANIM_TAU*1.5f/1000.0f); p.blush=1;
+        p.armL=p.armR=up*0.88f; p.angL=2.55f+0.26f*swing; p.angR=2.55f-0.26f*swing;
       } else if (eq(tama.cheer,"cheer")) {
         p.bob-=21*animBounce(age%450,450)*(age<900);
         p.tilt=0.12f*sinf(progress*ANIM_TAU*2); p.blush=1;
+        p.armL=p.armR=up*0.82f; p.angL=2.45f+0.20f*swing; p.angR=2.45f-0.20f*swing;
       } else p.bob-=21*animBounce(age,600);
     }
   } else if (eq(state,"uhoh")) {
@@ -184,7 +230,7 @@ static void faceSimulate(uint32_t now,float dt) {
   if (booping) {
     uint32_t age=now-(before(now,localBoopUntil)?localBoopAt:overlayAt);
     p.eyeH*=age<250?0.6f:0.6f+0.4f*animPop((age-250)/150.0f);
-    p.arc=0; p.blush=1; p.mouth=1;
+    p.arc=0; p.mouth=1;
   } else if (greeting) {
     uint32_t age=now-overlayAt;
     p.blush=tama.greetLevel>=2?1:0; p.mouth=1;
@@ -198,6 +244,11 @@ static void faceSimulate(uint32_t now,float dt) {
       float bounce=age<end?animBounce(age%duration,duration):0;
       p.bob-=16*bounce; p.eyeH*=1-0.25f*bounce;
     }
+    // One arm, raised and waving. The wave runs for the whole greeting window
+    // rather than only the bounce, because a hand that appears and vanishes
+    // inside 600 ms reads as a glitch rather than as a hello.
+    float out=animClamp(age/240.0f,0,1)*animClamp((2200.0f-age)/320.0f,0,1);
+    p.armR=out*0.88f; p.angR=2.50f+0.30f*sinf(age*ANIM_TAU*2.2f/1000.0f);
     if(eq(posture,"perch")) {
       for (const auto& row:perchPoses) if (eq(row.modifier,"greet")) applyPerch(p,row,age);
     }
@@ -219,19 +270,28 @@ static void faceSimulate(uint32_t now,float dt) {
 #define EASE(part) facePose.part=dt==0?p.part:animEase(facePose.part,p.part,12,dt)
   EASE(eyeH); EASE(eyeW); EASE(gazeX); EASE(gazeY); EASE(brow); EASE(arc);
   EASE(bob); EASE(lean); facePose.tilt=p.tilt; EASE(blush); EASE(sweat); EASE(mouth);
+  // Reach eases so an arm grows and retracts; the swing is applied straight,
+  // because easing a 2 Hz wave at rate 12 damps it into a twitch.
+  EASE(armL); EASE(armR);
+  facePose.angL=p.angL; facePose.angR=p.angR;
 #undef EASE
 }
+// One heart: two lobes and a point. The lobes are lifted slightly above the
+// shoulder line and the point runs a little long — at RGB332 and this size
+// that is the difference between reading as a heart and reading as a blob.
 static void heart(int x,int y,int r,uint16_t c) {
-  spr.fillSmoothCircle(x-r/2,y,r/2+1,c); spr.fillSmoothCircle(x+r/2,y,r/2+1,c);
-  spr.fillTriangle(x-r,y+1,x+r,y+1,x,y+r+2,c);
+  int lobe=max(1,animPx(r*0.58f)), off=animPx(r*0.52f), lift=animPx(r*0.17f);
+  spr.fillSmoothCircle(x-off,y-lift,lobe,c);
+  spr.fillSmoothCircle(x+off,y-lift,lobe,c);
+  spr.fillTriangle(x-animPx(r*1.02f),y,x+animPx(r*1.02f),y,x,y+animPx(r*1.36f),c);
 }
 static uint16_t faceInk(uint32_t now) {
   uint16_t tint=animMix(skinTint(oldCosmetic),skinTint(tama.cosmetic),cosmeticAmount(now));
   const char* state=(!dataConnected() && !presenceGraced(now))?"idle":tama.state;
   bool asleep=napping || eq(state,"asleep");
   // Blend visible inks, never a low fraction of light over black.
-  uint16_t base=asleep?animRGB(146,146,146):animRGB(219,219,219);
-  return animMix(animRGB(146,146,146),animMix(base,tint,tama.cosmetic.skin[0]?(asleep?0.3f:0.55f):0),colorAmount(now));
+  uint16_t base=asleep?BOOP_PAPER_DIM:BOOP_PAPER;
+  return animMix(BOOP_PAPER_FAINT,animMix(base,tint,tama.cosmetic.skin[0]?(asleep?0.3f:0.55f):0),colorAmount(now));
 }
 // Rendering tables are eye-relative; data.h retains the stable wire IDs.
 struct EyeAccessoryPart {
@@ -250,7 +310,7 @@ static const struct { uint8_t count; EyeAccessoryPart parts[4]; } eyeAccessories
 };
 static void faceDraw(uint32_t now,bool showSparks,float compact=0,bool proud=false,float dashboard=0) {
   FacePose p=facePose;
-  float scale=(1-0.56f*compact)*(1-0.72f*dashboard);
+  float scale=(1-0.56f*compact)*(1-0.58f*dashboard);
   if(dashboard>0) {
     // A readable little invitation: anticipate, nod twice at IDLE, look
     // back and smile, then rest. Counts never move or pulse with the face.
@@ -265,15 +325,23 @@ static void faceDraw(uint32_t now,bool showSparks,float compact=0,bool proud=fal
     p.eyeW=64+10*anticipate+6*nod;
     p.eyeH=64-22*anticipate-18*nod;
     if(age>=4700 && age<4830) p.eyeH=7;
+    // A little arm reaches out and gestures down across the board, tapping
+    // twice on the beat of the nod. Cast `age` before subtracting: it is
+    // unsigned, and `age-1150` below 1150 wraps to a colossal positive.
+    float reach=animClamp(((float)age-1150.0f)/260.0f,0,1)
+               *animClamp((4400.0f-(float)age)/320.0f,0,1);
+    float tap=(age>=1500&&age<1900)?sinf((age-1500)*PI/400.0f)
+             :(age>=2150&&age<2550)?sinf((age-2150)*PI/400.0f):0;
+    p.armL=reach*1.55f; p.angL=0.52f+0.20f*tap; p.armR=0;
   }
-  if (proud) { p.arc=22; p.eyeH=7; p.mouth=1; p.gazeX=p.gazeY=p.tilt=0; p.blush=p.sweat=p.brow=0; }
+  if (proud) { p.arc=22; p.eyeH=7; p.mouth=1; p.gazeX=p.gazeY=p.tilt=0; p.blush=p.sweat=p.brow=p.armL=p.armR=0; }
   float cardAmount=cardSpring.pos;
   // The compact landscape footer leaves room for a lower, larger face.
-  float footerAmount=HAL_LANDSCAPE && !systemCard()?animClamp(cardAmount,0,1):0;
-  int lift=animPx(cardAmount*(HAL_LANDSCAPE && !systemCard()?25:47));
+  float footerAmount=systemCard()?0:animClamp(cardAmount,0,1);
+  int lift=animPx(cardAmount*(systemCard()?47:25));
   int cy=HAL_H/2-10-lift+animPx(p.bob+p.lean), cx=animPx(HAL_W/2.0f+(HAL_W/6.0f-HAL_W/2.0f)*compact+p.gazeX*scale);
-  cx=animPx(cx*(1-dashboard)+(HAL_LANDSCAPE?HAL_W*83/100:98)*dashboard);
-  cy=animPx(cy*(1-dashboard)+(30+p.bob)*dashboard);
+  cx=animPx(cx*(1-dashboard)+(HAL_W*83/100)*dashboard);
+  cy=animPx(cy*(1-dashboard)+(46+p.bob)*dashboard);
   float reveal=cosmeticAmount(now);
   const Cosmetics& shape=reveal<0.5f?oldCosmetic:tama.cosmetic;
   float spacing=silhouettes[shape.silhouetteId].spacing*scale;
@@ -312,7 +380,7 @@ static void faceDraw(uint32_t now,bool showSparks,float compact=0,bool proud=fal
       // Both endpoints are bright inks, so low fractions stay visible.
       for(int dx=-20;dx<=20;dx+=2) {
         spr.setClipRect(animPx(sweep)+dx,0,2,HAL_H);
-        drawEye(animMix(ink,WHITE,0.8f*(1-fabsf(dx)/22)));
+        drawEye(animMix(ink,BOOP_PAPER,0.8f*(1-fabsf(dx)/22)));
       }
       spr.clearClipRect();
     }
@@ -320,46 +388,85 @@ static void faceDraw(uint32_t now,bool showSparks,float compact=0,bool proud=fal
     if (p.blush>0.1f) {
       float cheekScale=dashboard>0?scale:1;
       spr.fillEllipse(ex,ey+animPx(50*cheekScale),max(2,animPx(20*cheekScale)),
-                      max(1,animPx(6*cheekScale)),animRGB(255,109,173));
+                      max(1,animPx(6*cheekScale)),BOOP_ROSE);
     }
   }
   int my=cy+animPx(60*scale);
   if (p.mouth>1.2f) spr.drawEllipse(cx,my,9,13,ink);
   else if (p.mouth>0.2f) spr.fillArc(cx,my-animPx(5*scale),animPx(10*scale),animPx(13*scale),0,180,ink);
   else spr.fillSmoothRoundRect(cx-9,my,18,3,1,ink);
+  // Arms are part of the face, drawn in the same ink. Never while a card is
+  // up: the card owns the screen, and a waving hand beside the thing you have
+  // to answer competes with it.
+  if (!hasCard()) {
+    for (int side=-1;side<=1;side+=2) {
+      float reach=side<0?p.armL:p.armR;
+      if (reach<=0.04f) continue;
+      // Thickness follows sqrt(scale), not scale: a 1 px arm on the shrunken
+      // dashboard buddy read as a scratch rather than as a limb.
+      float grip=sqrtf(scale);
+      // The shoulder hangs below and outside the eye, near mouth height. At
+      // eye height the arm came out of the side of an eye and read as an
+      // antenna; the gap is what makes it a limb on a body you cannot see.
+      // The 6 px is deliberately NOT scaled: at dashboard size a purely
+      // proportional gap closed to ~6 px and the arm grew out of the eye.
+      _faceArm(cx+side*(spacing+p.eyeW*0.5f+14*scale+6), cy+animPx(52*scale),
+               side<0?p.angL:p.angR, reach*52*scale, 0.16f,
+               4.6f*grip, 6.6f*grip*animClamp(reach,0,1), side, ink);
+    }
+  }
   if (p.sweat>0.2f) {
     int x=cx+135, y=cy-25+((now-stateAt)%3000)*18/3000;
-    uint16_t c=animRGB(73,146,255); spr.fillTriangle(x,y-9,x-5,y+1,x+5,y+1,c); spr.fillSmoothCircle(x,y+2,5,c);
+    uint16_t c=BOOP_SKY; spr.fillTriangle(x,y-9,x-5,y+1,x+5,y+1,c); spr.fillSmoothCircle(x,y+2,5,c);
   }
   if (!hasCard() && ritual==R_STREAK && now-ritualAt<ritualDuration[R_STREAK]) {
     int x=HAL_W-42,y=60,r=8+animPx(sinf((now-ritualAt)*0.008f)*3);
-    uint16_t flame=animRGB(255,146,36);
+    uint16_t flame=BOOP_FLAME;
     spr.fillTriangle(x-r,y,x+3,y-24,x+r,y,flame); spr.fillSmoothCircle(x,y,r,flame);
   }
   uint32_t age=now-stateAt;
   if (!showSparks) return;
   int eyeTop=cy+animPx(p.gazeY-p.eyeH/2);
   if (eq(tama.state,"done") && eq(tama.cheer,"dance") && age<cheerDuration()) {
-    const uint16_t colors[]={animRGB(255,109,173),animRGB(109,219,146),animRGB(255,219,82)};
-    // Each dot has its own start delay, height, and fall speed so the six
-    // never line up; a row of dots reads as a necklace, not confetti.
-    for (int i=0;i<6;++i) {
+    const uint16_t colors[]={BOOP_ROSE,BOOP_SAGE,BOOP_GOLD};
+    // Each dot has its own start delay, height, and fall speed so they never
+    // line up; a row of dots reads as a necklace, not confetti. Five rather
+    // than six, radius 3 rather than 4, and each one fades out over its last
+    // third instead of blinking off — six hard dots vanishing together was
+    // what made the celebration look busy.
+    for (int i=0;i<5;++i) {
       uint32_t h=animHash(i+3), delay=h%700;
       if (age<delay) continue;
       float t=(float)(age-delay)/(cheerDuration()-delay);
       int x=cx+(int)(animHash(i)%200)-100+animPx(6*sinf(age/300.0f+i));
       int y=eyeTop-40-(int)((h>>8)%40)+animPx((100+(int)((h>>16)%40))*t);
-      spr.fillSmoothCircle(x,y,4,colors[i%3]);
+      spr.fillSmoothCircle(x,y,3,animMix(BLACK,colors[i%3],t>0.68f?animClamp((1-t)/0.32f,0,1):1));
     }
   }
-  bool local=before(now,localBoopUntil);
-  bool booping=local || (eq(tama.overlay,"boop") && now-overlayAt<1400);
-  bool greeting=eq(tama.overlay,"greet") && tama.greetLevel==3 && now-overlayAt<900;
-  if (calmOverlay() && (booping || greeting)) {
-    // One heart per boop. Holding or petting adds none.
-    uint32_t heartAge=booping?now-(local?localBoopAt:overlayAt):now-overlayAt;
-    float amount=heartAge>=900?0:heartAge<150?animPop(heartAge/150.0f):heartAge>=800?(900-heartAge)/100.0f:1;
-    int radius=animPx(10*amount);
-    if (radius>0) heart(cx,eyeTop-12-animPx(24*heartAge/900.0f),radius,animRGB(255,109,173));
+  // One heart, from one clock. `heartAt` is granted in main.cpp, which applies
+  // both rules there rather than here: one heart per boop, and never more than
+  // one every 2.5 s. A minute of petting should read as an affectionate beat
+  // now and then, not as a stream of hearts.
+  if (calmOverlay() && heartAt && now-heartAt<1000) {
+    uint32_t heartAge=now-heartAt;
+    float amount=heartAge<170?animPop(heartAge/170.0f)
+                :heartAge>=850?(1000-heartAge)/150.0f:1;
+    // It rises diagonally off the SIDE of the face, not out of the gap
+    // between the eyes. Centred, a heart sits on the face like a blemish
+    // rather than reading as something the buddy is giving off; off to the
+    // side it reads as emitted, and it stops competing with the eyes.
+    // It rises diagonally off the LEFT side of the face, not out of the gap
+    // between the eyes. Centred, a heart sits on the face like a blemish
+    // rather than reading as something the buddy is giving off. It starts
+    // low — beside the cheek, clear of the eye — and drifts up and outward.
+    //
+    // Left, because the greeting wave is the RIGHT arm and level-3 greet
+    // grants a heart at the same time: on the same side they overlap, on
+    // opposite sides the pose is balanced.
+    float t=heartAge/1000.0f;
+    int radius=animPx(14*amount*scale);
+    int hx=cx-animPx(spacing+p.eyeW*0.5f+18*scale+34*t*scale);
+    int hy=cy+animPx(p.gazeY+30*scale-64*t*scale);
+    if (radius>0) heart(hx,hy,radius,BOOP_ROSE);
   }
 }

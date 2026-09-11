@@ -1,10 +1,11 @@
 # Implementation plan
 
-Current phase: agent availability dashboard implemented and USB hardware verified;
-essential behavior simplification is implemented and automated checks pass;
-live model, editor and
-physical-device verification remain. [Component behaviors](BEHAVIORS.md) is the
-current contract, with detailed specs in the [index](README.md).
+Current phase: UI/UX pass across both surfaces — the "Boop Cream" palette, the
+app's card-and-label layout, and the device's arms, proportions and animation
+audit — implemented, with automated checks passing and USB hardware goldens
+re-recorded. Live model, editor and BLE-integration verification remain.
+[Component behaviors](BEHAVIORS.md) is the current contract, with detailed specs
+in the [index](README.md).
 
 ## Implemented
 
@@ -20,6 +21,39 @@ current contract, with detailed specs in the [index](README.md).
 | Removed | Gifts, recaps, teach, inferred stuck/hungry, quick commands, agent expression/drawings, named moment creation, leaderboard/sync/signing |
 
 ## Verified in this change
+
+### UI/UX pass, 2026-09-11
+
+- **349 app tests passed, zero skipped**, including four new `PaletteTests`
+  that pin the contrast promise in `UX-APP.md`, keep the surfaces separable,
+  and fail the build if amber is ever used to tint a primary action.
+- Both Mac products built. Shipping `ws-amoled164` firmware built, flashed, and
+  **43/43 device goldens re-recorded and reproduced at 0.000000 error**,
+  including five new dashboard cells and two heart cells.
+- Offscreen app screenshots reviewed in both appearances for Overview, the
+  needs-you state, Settings and all five setup steps.
+- Device-side fix: the needs-you and uh-oh field washes were rendering the
+  *identical* colour `(36,0,0)`, because `animMix` blends in RGB565 and the
+  8-bit canvas truncates to RGB332. Both washes were re-chosen against the real
+  quantization path; see `UX-DEVICE.md` §7.
+- **The M5StickC Plus 2 is retired** (owner, 2026-09-11: "the old device I no
+  longer use"). Removed: both `m5stickc-plus` build envs, `partitions.csv`,
+  `firmware/hal/hal_m5stick.cpp`, the `M5StickCPlus2`/M5GFX dependency, the
+  `BOARD_WS_AMOLED_164` board conditionals (one board needs no board switch),
+  and the portrait layout branches — `HAL_LANDSCAPE`, `HAL_UI_SCALE` and
+  `HAL_HUD_H` existed only for its 135x240 screen and are gone. The Waveshare
+  ESP32-S3-Touch-AMOLED-1.64 is now the only supported board; `default_envs` is
+  `ws-amoled164`. The previous generation stays readable under `archived/`.
+  This supersedes the partition-table fix made earlier the same day, which is
+  moot now that the board is gone.
+- **Not verified:** webcam verification of animation smoothness is outstanding.
+  Camera access was granted and one greet-wave clip was recorded, but the
+  footage could not judge motion (room-metered exposure crushed the screen,
+  device small and oblique with a reflection, panel at the dimmed 90/255). To
+  be retried with Buddy larger, face-on and awake. See the evidence README.
+- **Not verified:** BLE integration with the Mac app, and any live-model or
+  native-editor flow.
+- [UI pass evidence](evidence/ui-pass-2026-09-11/README.md).
 
 - Cumulative XP and daily turn grid: 342 tests passed, zero skipped; both Mac
   products and shipping firmware built. [Evidence](evidence/cumulative-xp-2026-09-11/README.md).
@@ -64,7 +98,7 @@ The original phase checklists and dated evidence remain in
 
 ## Agent dashboard update
 
-Implemented full-session per-harness counts, additive wire field, persistent mixed-state board, animated corner buddy, all-idle green footer and retained idle affection. 344 app tests and 11 USB hardware tests passed; shipping Waveshare and USB-only builds passed. Screenshots were inspected. [Dashboard evidence](evidence/agent-dashboard-2026-09-11/README.md). M5 flash-size limits and production BLE with the owner-launched updated app remain outstanding.
+Implemented full-session per-harness counts, additive wire field, persistent mixed-state board, animated corner buddy, all-idle green footer and retained idle affection. 344 app tests and 11 USB hardware tests passed; shipping Waveshare and USB-only builds passed. Screenshots were inspected. [Dashboard evidence](evidence/agent-dashboard-2026-09-11/README.md). Production BLE with the owner-launched updated app remains outstanding. (The M5 flash-size limit noted here is moot: that board was retired on 2026-09-11.)
 
 Dashboard invitation refinement: larger buddy above IDLE, two downward nods and a rosy smile, with unchanged static counts and proportional labels. 12 USB hardware tests passed, both Waveshare variants built, and the captured loop was checked against static board pixels. Device verification recorded in dashboard evidence.
 

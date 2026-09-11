@@ -8,6 +8,7 @@
 #include "anim.h"
 #include "presence.h"
 #include "skin-colors.h"
+#include "palette.h"
 SET_LOOP_TASK_STACK_SIZE(16384);
 #ifndef FW_VERSION
 #define FW_VERSION "dev"
@@ -28,6 +29,13 @@ static uint32_t lastInput = 0, statsUntil = 0, lastPet = 0;
 static int statsPage = 0;
 static uint32_t statsAt = 0;
 static uint32_t localBoopAt = 0, dashboardAt = 0;
+// The heart's own clock. Both rules live here rather than in the renderer:
+// one heart per boop, and never more than one every 2.5 s. A long petting
+// session should read as an affectionate beat now and then, not as a stream.
+static uint32_t heartAt = 0;
+static void grantHeart(uint32_t now) {
+  if (!heartAt || (int32_t)(now - heartAt) >= 2500) heartAt = now;
+}
 static bool bubbleDismissed = false, cardDismissed = false;
 static char localBubble[64] = "", posture[7] = "desk";
 static uint32_t localBubbleUntil = 0, drawCount = 0;
@@ -179,7 +187,13 @@ void onFrame(const TamaState& next, bool skinSupplied) {
   }
   if (strcmp(next.bubble,tama.bubble)) { bubbleUntil = now + 4000; bubbleDismissed = false; }
   bool overlayChanged = strcmp(next.overlay,tama.overlay) || next.greetLevel != tama.greetLevel;
-  if (overlayChanged) { overlayAt = now; squish.vel = -3.0f-next.greetLevel; }
+  if (overlayChanged) {
+    overlayAt = now; squish.vel = -3.0f-next.greetLevel;
+    // The app's own boop, and the warmest greeting, are the other two things
+    // that earn a heart. They go through the same cooldown as a local tap.
+    if (!strcmp(next.overlay,"boop") || (!strcmp(next.overlay,"greet") && next.greetLevel>=3))
+      grantHeart(now);
+  }
   // Any visible change restarts the presentation phase, so periodic motion
   // (and `clock settle`) is anchored to what is on screen, not just the state.
   bool visualChanged = changed || strcmp(next.effort,tama.effort) || strcmp(next.uhoh,tama.uhoh)
@@ -204,7 +218,7 @@ static void boop(bool hold) {
   uint32_t now = nowMs();
   if (hold && lastPet && now-lastPet < 2000) return;
   if (hold) lastPet = now;
-  if (!before(now,localBoopUntil)) localBoopAt = now;
+  if (!before(now,localBoopUntil)) { localBoopAt = now; grantHeart(now); }
   localBoopUntil = now + 1400; squish.vel = -5.0f; sound(6);
   JsonDocument d; d["cmd"] = "boop"; d["hold"] = hold; sendDoc(d);
 }
@@ -351,7 +365,7 @@ static Layer screenLayer() {
   return L_FACE;
 }
 // Two UTF-8-aware lines using the Korean font already bundled in LGFX.
-static void textLines(const char* text,int x,int y,int width,int lines=2,float size=1.0f,uint16_t ink=WHITE) {
+static void textLines(const char* text,int x,int y,int width,int lines=2,float size=1.0f,uint16_t ink=BOOP_PAPER) {
   spr.setFont(&fonts::efontKR_16); spr.setTextSize(size); spr.setTextDatum(TL_DATUM); spr.setTextColor(ink);
   spr.setTextWrap(false);
   char line[128]={0}; size_t used=0; int lineW=0;
@@ -382,7 +396,7 @@ static void textRight(const char* text,int right,int y,uint16_t ink) {
   spr.setFont(&fonts::efontKR_16); spr.setTextSize(1);
   textLines(text,right-spr.textWidth(text),y,HAL_W,1,1,ink);
 }
-static int cardY() { int h=!systemCard() && HAL_LANDSCAPE?88:132; return HAL_H-h+animPx((1-animClamp(cardSpring.pos,0,1))*h); }
+static int cardY() { int h=systemCard()?132:88; return HAL_H-h+animPx((1-animClamp(cardSpring.pos,0,1))*h); }
 static void drawCard(uint32_t now) {
   int y=cardY();
   uint16_t ink=faceInk(now);
@@ -393,16 +407,23 @@ static void drawCard(uint32_t now) {
     else { textLines(tama.card.kind,30,y+10,HAL_W-60,1,1.5f,ink); textLines(tama.card.text,30,y+42,HAL_W-60,2,1,ink); }
     return;
   }
-  int left=HAL_LANDSCAPE?30:12, right=HAL_W-left;
+  int left=30, right=HAL_W-left;
   int textWidth=right-left;
-  int toolWidth=textWidth-14;
+  int toolWidth=textWidth;
+  // One hairline across the top of the footer. No pill and no box — §16 is
+  // right that 8-bit fills read as mud — but the rule separates the question
+  // from the face without filling anything, the same way the board's does.
+  spr.drawFastHLine(left,y,textWidth,animMix(BLACK,ink,0.28f));
   if(tama.card.of>1) {
     snprintf(line,sizeof(line),"%d of %d",tama.card.n,tama.card.of);
-    textRight(line,left+textWidth,y+14,animRGB(146,146,146));
+    textRight(line,left+textWidth,y+18,BOOP_PAPER_SOFT);
     toolWidth-=spr.textWidth(line)+16;
   }
-  textLines(tama.card.tool,left+14,y+10,max(16,toolWidth),1,1.5f,ink);
-  textLines(tama.card.gloss,left,y+40,textWidth,2,1,ink);
+  // Tool and gloss share the left edge; the tool was indented 14 px past it
+  // and the two lines read as a ragged pair. The gloss steps down to the
+  // softer ink so the tool name is what the eye lands on first.
+  textLines(tama.card.tool,left,y+14,max(16,toolWidth),1,1.5f,ink);
+  textLines(tama.card.gloss,left,y+46,textWidth,2,1,BOOP_PAPER_SOFT);
 }
 static void drawStats(uint32_t now) {
   uint16_t ink=faceInk(now);
@@ -422,33 +443,54 @@ static void drawStats(uint32_t now) {
   }
 }
 // A stable count board; only the buddy moves after the entrance settles.
+//
+// Proportions, landscape: the buddy shrinks into the top-right corner directly
+// above the IDLE column and the board owns the rest. The table is then centred
+// in the band BELOW the buddy rather than pinned under a fixed top — with one
+// or two agents the old fixed top left ~80 px of dead screen at the bottom and
+// the whole thing sat high and unbalanced.
 static void drawDashboard(uint32_t now,float amount) {
   int offset=animPx((1-amount)*HAL_W);
-  int workX=HAL_LANDSCAPE?HAL_W*56/100:76;
-  int idleX=HAL_LANDSCAPE?HAL_W*83/100:114;
-  int top=HAL_LANDSCAPE?70:72;
-  int rowH=HAL_LANDSCAPE?43:34;
-  float size=HAL_LANDSCAPE?1.5f:0.75f;
+  int nameX=30;
+  int workX=HAL_W*56/100;
+  int idleX=HAL_W*83/100;
+  float size=1.5f;
+  int rowH=40;
+  int headH=30;
+  // The band the table may use: clear of the buddy above, even margin below.
+  int bandTop=108, bandBottom=HAL_H-20;
+  int rows=tama.agentCount<1?1:tama.agentCount;
+  int tableH=headH+rows*rowH;
+  int top=bandTop+((bandBottom-bandTop)-tableH)/2;
+  if(top<bandTop) top=bandTop;
   auto centered=[&](const char* text,int x,int y,uint16_t ink,float sz) {
     spr.setFont(&fonts::Font2); spr.setTextSize(sz);
     spr.setTextDatum(TL_DATUM); spr.setTextWrap(false);
     spr.setTextColor(ink,(uint16_t)BLACK);
     spr.drawString(text,offset+x-spr.textWidth(text)/2,y);
   };
-  centered(HAL_LANDSCAPE?"WORKING":"WORK",workX,top,LIGHTGREY,size);
-  centered("IDLE",idleX,top,LIGHTGREY,size);
+  // Column heads, then one hairline. The rule is what turns three loose pairs
+  // of numbers into a table you can read down.
+  centered("WORKING",workX,top,BOOP_PAPER_SOFT,size*0.75f);
+  centered("IDLE",idleX,top,BOOP_PAPER_SOFT,size*0.75f);
+  int ruleY=top+headH-9;
+  spr.drawFastHLine(offset+nameX,ruleY,
+                    (HAL_W-30)-nameX,animMix(BLACK,BOOP_PAPER,0.22f));
   for(int i=0;i<tama.agentCount;++i) {
     const AgentCount& a=tama.agents[i];
     const char* name=!strcmp(a.source,"codex")?"Codex":!strcmp(a.source,"claude-code")?"Claude":!strcmp(a.source,"cursor")?"Cursor":"Other";
-    int y=top+28+i*rowH;
+    int y=top+headH+i*rowH;
     spr.setFont(&fonts::Font2); spr.setTextSize(size);
-    spr.setTextDatum(TL_DATUM); spr.setTextColor((uint16_t)WHITE,(uint16_t)BLACK);
-    spr.drawString(name,offset+(HAL_LANDSCAPE?24:5),y);
+    spr.setTextDatum(TL_DATUM); spr.setTextColor(BOOP_PAPER,(uint16_t)BLACK);
+    spr.drawString(name,offset+nameX,y);
     char count[4];
-    snprintf(count,sizeof(count),"%d",a.working); centered(count,workX,y,a.working?WHITE:LIGHTGREY,size);
-    snprintf(count,sizeof(count),"%d",a.idle); centered(count,idleX,y,a.idle?GREEN:LIGHTGREY,size);
+    // A zero is dimmed rather than dropped, so the columns stay aligned and
+    // the eye lands on the counts that are actually non-zero.
+    snprintf(count,sizeof(count),"%d",a.working);
+    centered(count,workX,y,a.working?BOOP_PAPER:BOOP_PAPER_DIM,size);
+    snprintf(count,sizeof(count),"%d",a.idle);
+    centered(count,idleX,y,a.idle?BOOP_SAGE:BOOP_PAPER_DIM,size);
   }
-
 }
 static void render() {
   uint32_t now=nowMs();
@@ -462,8 +504,25 @@ static void render() {
   uint16_t tint=animMix(skinTint(oldCosmetic),skinTint(tama.cosmetic),cosmeticAmount(now));
   // RGB332 needs at least one channel step to keep a tint visible.
   uint16_t field=BLACK;
-  if (eq(tama.state,"needsYou") || hasCard()) field=animMix(BLACK,animRGB(255,182,36),0.14f+animPulse01(now-stateAt,tama.nudgeRung == 2 ? 1200 : 3500)*(tama.nudgeRung == 2 && !cardDismissed ? 0.13f : 0.05f));
-  else if(eq(tama.state,"uhoh")) field=animMix(BLACK,animRGB(255,36,36),0.18f+animPulse01(now-stateAt,4000)*0.10f);
+  // Field wash. These mix factors are chosen against the REAL quantization
+  // path, not the endpoint lattice: animMix lerps in RGB565, and the 8-bit
+  // canvas then TRUNCATES to RGB332 (R5>>2, G6>>3, B5>>3). A blend therefore
+  // quantizes far more coarsely than animRGB's comment implies, and it loses
+  // hue as it darkens because R and G shed different numbers of bits.
+  //
+  // That had bitten both states. A 0.14 mix toward AMBER (255,182,36) landed
+  // on (36,0,0) — and so did uh-oh's 0.18 mix toward RED, so "needs you" and
+  // "uh-oh" were rendering the identical colour. Mixing toward AMBER_DEEP
+  // (a lower G/R ratio) and clearing the R5 >= 8 threshold keeps the wash
+  // amber: rest is (72,36,0), and the second nudge rung peaks at (109,72,0).
+  // Uh-oh sits at the same brightness in pure red, (72,0,0) rising to
+  // (109,0,0), so the two now differ by hue rather than not at all.
+  //
+  // The gentle first-rung breath (0.40 -> 0.51) stays inside one bucket and
+  // renders flat. That is a lattice limit, not an oversight, and it was true
+  // before this change too: the face breathes, so the field need not. §8.
+  if (eq(tama.state,"needsYou") || hasCard()) field=animMix(BLACK,BOOP_AMBER_DEEP,0.40f+animPulse01(now-stateAt,tama.nudgeRung == 2 ? 1200 : 3500)*(tama.nudgeRung == 2 && !cardDismissed ? 0.22f : 0.11f));
+  else if(eq(tama.state,"uhoh")) field=animMix(BLACK,BOOP_RED,0.28f+animPulse01(now-stateAt,4000)*0.12f);
   if(field!=BLACK && tama.cosmetic.skin[0]) field=animMix(field,animMix(BLACK,tint,0.22f),0.2f);
   field=animMix(BLACK,field,colorAmount(now));
   // One whole-field flash: 300 ms toward the skin, then 300 ms back.
@@ -471,7 +530,7 @@ static void render() {
     uint32_t age=now-ritualAt;
     // Peak at 0.3 so it reads as a flash of light, not a full-screen colour.
     float flash=(age<300?age/300.0f:(600-age)/300.0f)*0.3f;
-    field=animMix(field,tama.cosmetic.skin[0]?tint:animRGB(255,182,36),flash);
+    field=animMix(field,tama.cosmetic.skin[0]?tint:BOOP_AMBER,flash);
   }
   spr.fillSprite(field);
   bool base=layer==L_FACE || layer==L_OVERLAY;
@@ -495,14 +554,14 @@ static void render() {
           (eq(tama.state,"idle") || eq(tama.state,"working"))) {
     char label[24]; snprintf(label,sizeof(label),"%d idle",tama.idleCount());
     spr.setFont(&fonts::efontKR_16); spr.setTextSize(1);
-    textLines(label,(HAL_W-spr.textWidth(label))/2,HAL_H-28,HAL_W,1,1,GREEN);
+    textLines(label,(HAL_W-spr.textWidth(label))/2,HAL_H-28,HAL_W,1,1,BOOP_SAGE);
   }
   if (eq(posture,"travel") && battery>=0 && battery<25) {
-    spr.fillSmoothRoundRect(HAL_W-30,HAL_H-27,20,10,2,animRGB(146,146,146));
-    spr.fillRect(HAL_W-28,HAL_H-25,4,6,animRGB(255,182,36));
+    spr.fillSmoothRoundRect(HAL_W-30,HAL_H-27,20,10,2,BOOP_PAPER_DIM);
+    spr.fillRect(HAL_W-28,HAL_H-25,4,6,BOOP_AMBER);
   }
   if (!bleBonded() || !dataConnected() || (linkFlash && now-linkAt<800))
-    presenceDrawLinkGlyph(spr,now-stateAt,animRGB(73,146,255),linkFlash && now-linkAt<800);
+    presenceDrawLinkGlyph(spr,now-stateAt,BOOP_SKY,linkFlash && now-linkAt<800);
   if (layer==L_SYSTEM || layer==L_CARD) drawCard(now);
   else if(layer==L_STATS) drawStats(now);
   else if(layer==L_BUBBLE || layer==L_UHOH) { int x=HAL_W/3+12; uint16_t ink=faceInk(now); textLines(bubbleText(),x+12,HAL_H/2-20,HAL_W-x-40,2,1,ink); }
@@ -588,12 +647,10 @@ static void dumpScreenshot() {
     "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
   esp_log_level_set("*", ESP_LOG_NONE);
-#ifdef BOARD_WS_AMOLED_164
   // The dump streams ~450KB and the host is actively reading it — restore
   // back-pressure for its duration, else the 0-timeout policy (which keeps
   // taps from freezing the pet) silently drops rows mid-stream.
   Serial.setTxTimeoutMs(250);
-#endif
 
   int rot = halDisplayRotation();
   int w   = spr.width();
@@ -645,9 +702,7 @@ static void dumpScreenshot() {
   }
   Serial.println();
   Serial.printf("<<SCR_END LEN=%lu CRC32=%08lx>>\n", (unsigned long)rawLen, (unsigned long)crc);
-#ifdef BOARD_WS_AMOLED_164
   Serial.setTxTimeoutMs(0);
-#endif
   restoreLogLevel();
 }
 
@@ -708,9 +763,7 @@ void handleSerialCommand(const char* line) {
 }
 void setup() {
   Serial.setRxBufferSize(2048); Serial.begin(115200);
-#ifdef BOARD_WS_AMOLED_164
   Serial.setTxTimeoutMs(0);
-#endif
   halInit(); guardInit(); loadPersistent(tama);
   if(guardSafeTier()<2) {
     uint8_t mac[6]={0}; esp_read_mac(mac,ESP_MAC_BT);

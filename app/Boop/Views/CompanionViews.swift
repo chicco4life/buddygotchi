@@ -1,16 +1,58 @@
 import SwiftUI
 import AppKit
 
+/// The one surface where the app raises its voice. An amber bar and a warm
+/// amber wash mark it as the thing to act on, but the buttons stay in the
+/// editor — this card reports, it does not resolve.
+/// The one surface where the app raises its voice. An amber bar and a warm
+/// amber wash mark it as the thing to act on, but the buttons stay in the
+/// editor — this card reports, it does not resolve.
+///
+/// The leading bar is an overlay, not an HStack sibling: a bare `Shape` in a
+/// stack has no ideal height, so as a sibling it made the whole card flexible
+/// and the popover stretched it to fill the column.
 struct NeedsYouCard: View {
     var language: String
     let card: CreatureCard
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack { Text(card.tool).font(.headline); Spacer(); if card.count > 1 { Text("\(card.index + 1) / \(card.count)").font(.caption) } }
-            Text(card.gloss).font(.body).fixedSize(horizontal: false, vertical: true)
-            Text(language == "ko" ? "에디터에서 확인해 주세요" : "Check your editor").font(.footnote).foregroundStyle(.secondary)
-        }.foregroundStyle(BuddyTheme.ink).padding(14)
-            .background(BuddyTheme.groupedBackground, in: RoundedRectangle(cornerRadius: 12))
+        VStack(alignment: .leading, spacing: BuddyTheme.gapSnug) {
+            HStack(alignment: .firstTextBaseline, spacing: BuddyTheme.gapSnug) {
+                Text(card.tool)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1).truncationMode(buddyTruncationMode(for: card.tool))
+                Spacer(minLength: 0)
+                if card.count > 1 {
+                    Text("\(card.index + 1) / \(card.count)")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(BuddyTheme.amberInk)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(BuddyTheme.amber.opacity(0.18), in: Capsule())
+                }
+            }
+            Text(card.gloss)
+                .font(.system(size: 12))
+                .foregroundStyle(BuddyTheme.inkSoft)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 5) {
+                Image(systemName: "arrow.turn.down.right").font(.system(size: 9, weight: .semibold))
+                Text(language == "ko" ? "에디터에서 확인해 주세요" : "Check your editor")
+                    .font(.system(size: 11, weight: .medium))
+            }.foregroundStyle(BuddyTheme.amberInk)
+        }
+        .padding(.leading, 14).padding(.trailing, 12).padding(.vertical, 11)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(BuddyTheme.amber.opacity(0.10), in: RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius))
+        .overlay(alignment: .leading) {
+            RoundedRectangle(cornerRadius: BuddyTheme.accentBarRadius)
+                .fill(BuddyTheme.amber)
+                .frame(width: 3)
+                .padding(.vertical, 9)
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: BuddyTheme.cardCornerRadius)
+                .strokeBorder(BuddyTheme.amber.opacity(0.35), lineWidth: BuddyTheme.hairlineWidth)
+        )
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -41,7 +83,7 @@ struct ProfilePage: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(line.line).font(.body)
                     Text(Date(timeIntervalSince1970: line.createdAt / 1000), style: .date)
-                        .font(.caption).foregroundStyle(.secondary)
+                        .font(.caption).foregroundStyle(BuddyTheme.inkSoft)
                 }
                 Spacer()
                 Button(role: .destructive) { delete(line.id) } label: {

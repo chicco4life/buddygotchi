@@ -6,7 +6,8 @@ Last updated: 2026-07-03
 ## Goal
 
 Let a Claude/Codex agent autonomously flash, drive, observe, and verify the
-**real** M5StickC Plus 2 over its actual transports — no camera, no simulator,
+**real** Waveshare ESP32-S3-Touch-AMOLED-1.64 over its actual transports — no
+camera, no simulator,
 no human in the loop (except a one-time BLE pairing per device). The agent
 must be able to answer, programmatically:
 
@@ -67,7 +68,7 @@ Layer 1   firmware debug surface               (serial commands in main.cpp)
                     │ USB serial                │ BLE NUS (bleak)
                     ▼                           ▼
               ┌─────────────────────────────────────┐
-              │        real M5StickC Plus 2         │
+              │      real Waveshare AMOLED 1.64     │
               └─────────────────────────────────────┘
 ```
 
@@ -186,7 +187,7 @@ Conventions for every subcommand:
 | `buddyctl set --pet attention --waiting 1 --prompt-tool Bash ...` | convenience flags → heartbeat JSON | common scenarios without hand-writing JSON |
 | `buddyctl expect --pet attention --waiting 1 [--timeout 5]` | poll `state` until predicates match | async state transitions |
 | `buddyctl monitor [--secs N \| --until regex]` | stream serial log | boot sequences, async events |
-| `buddyctl flash [--env m5stickc-plus]` | `pio run -t upload`, reopen, `ping`, assert SHA changed | flash actually landed |
+| `buddyctl flash [--env ws-amoled164]` | `pio run -t upload`, reopen, `ping`, assert SHA changed | flash actually landed |
 | `buddyctl reboot` | reboot + wait for boot banner | cold-boot behavior |
 
 `expect` is the agent's bread and butter: it converts "wait and see" into a

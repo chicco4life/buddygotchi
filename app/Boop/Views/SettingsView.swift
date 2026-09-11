@@ -62,6 +62,11 @@ struct SettingsSectionView: View {
         }
         .formStyle(.grouped)
         .buttonStyle(.plain)
+        // The grouped form ships a cold system background and grey group
+        // boxes. Against warm cream those read as a different app bolted onto
+        // the header, so the form supplies its own paper and rows.
+        .scrollContentBackground(.hidden)
+        .background(BuddyTheme.paper)
         .onAppear {
             interactiveMode = engine.boolSetting(DefaultsKey.interactiveMode, fallback: false)
             soundsEnabled = engine.boolSetting(DefaultsKey.soundsEnabled, fallback: true)
@@ -135,7 +140,7 @@ struct SettingsSectionView: View {
                         refreshLoginItemState()
                     }
                 if launchAtLoginStatus == .requiresApproval {
-                    Text(BuddyCopy.shared.settingsCopy.launchAtLoginApproval).foregroundStyle(.secondary)
+                    Text(BuddyCopy.shared.settingsCopy.launchAtLoginApproval).foregroundStyle(BuddyTheme.inkSoft)
                 }
             }
         case .advanced:
@@ -311,7 +316,7 @@ struct SettingsSectionView: View {
             if scanner.isScanning && scanner.bluetoothUnavailable {
                 HStack(spacing: 8) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(BuddyTheme.inkSoft)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(BuddyCopy.Onboarding.bluetoothOff).font(.footnote)
                         Text(BuddyCopy.Onboarding.bluetoothOffHint)
@@ -336,7 +341,7 @@ struct SettingsSectionView: View {
                                 Spacer()
                                 Text(BuddyCopy.shared.common.connect)
                                     .font(.footnote)
-                                    .foregroundStyle(.secondary)
+                                    .foregroundStyle(BuddyTheme.inkSoft)
                             }
                         }
                         .buttonStyle(.plain)
@@ -382,7 +387,7 @@ struct SettingsSectionView: View {
                 Circle().fill(BuddyTheme.amberInk).frame(width: 6, height: 6)
                 Text(BuddyCopy.shared.settingsCopy.firmwareUpdateTemplate.replacingOccurrences(of: "{version}", with: release.version))
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(BuddyTheme.inkSoft)
             }
         case .upToDate:
             Text(BuddyCopy.shared.settingsCopy.upToDate)
@@ -391,11 +396,11 @@ struct SettingsSectionView: View {
         case .downloading(let p), .uploading(let p, _):
             Text("\(Int(p * 100))%")
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(BuddyTheme.inkSoft)
         case .verifying, .rebooting:
             Text(BuddyCopy.shared.settingsCopy.updating)
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(BuddyTheme.inkSoft)
         case .success:
             Text(BuddyCopy.shared.settingsCopy.updated)
                 .font(.footnote)
@@ -403,7 +408,7 @@ struct SettingsSectionView: View {
         case .checkFailed(let reason):
             Text(copy("Check unavailable", "확인 불가"))
                 .font(.footnote)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(BuddyTheme.inkSoft)
                 .help(reason)
         case .failed:
             Text(BuddyCopy.shared.settingsCopy.failed)
@@ -503,7 +508,7 @@ struct SettingsSectionView: View {
                 Spacer()
                 Image(systemName: "square.and.arrow.up")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(BuddyTheme.inkSoft)
             }
         }
         .buttonStyle(.plain)

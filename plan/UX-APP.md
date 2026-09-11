@@ -20,8 +20,31 @@ its status and configuration surface. Normal use should not require opening it.
 
 ## Overview
 
-One column, 360 pt wide, with system typography, semantic colors, native controls,
-subtle dividers, and whitespace. No sidebar or top-level tab strip.
+One column, 360 pt wide, with system typography, native controls and whitespace.
+No sidebar or top-level tab strip.
+
+**Palette (2026-09-11).** The app no longer inherits the system semantic
+colors. It uses "Boop Cream", hand-authored for both appearances in
+`app/Boop/Theme/BuddyTheme.swift`: warm paper (`#FAF7F2` / `#1B1815`),
+warm ink (`#24211C` / `#F2EBE0`), one terracotta accent (`#D97757`), and
+three semantic tones — amber for needs you, sage for done, rose for
+affection. The device shares that trio and inverts the field, so a colour
+means the same thing on both screens (see `plan/UX-DEVICE.md` §7).
+Terracotta marks every primary action, selection and progress indicator;
+**amber is reserved for "an agent needs you" and never marks an action.**
+The trade this accepts: owning both appearances costs the free system
+behaviours (increase-contrast, tinted appearances), so every `*Ink` tone
+is hand-checked to clear 4.5:1 against its own appearance's paper, and
+the `*Faint` tones are decoration and disabled affordances only.
+
+**Structure (2026-09-11).** Sections are a small tracked-out label above a
+card, not rules between blocks: space and the label separate them, which
+keeps a 360 pt column from reading as a form. A status line opens with a
+tone dot that breathes only while work is actually live. Session rows are
+cards carrying their tone in a 3 pt leading bar rather than in the text,
+so ten rows do not become ten coloured sentences. Progress is three stat
+tiles over the grid. Device battery is a small drawn pip, amber under 25%,
+matching the device's own low-battery mark.
 
 1. Buddy name. No level label.
 2. Current state and a short explanation: Working, Idle, Sleeping, Needs you,
@@ -38,14 +61,18 @@ subtle dividers, and whitespace. No sidebar or top-level tab strip.
 6. XP is the last content section: cumulative XP, completed turns and current
    streak in one row, followed by a compact twelve-week daily completed-turn grid.
    No level, target or progress bar. The grid has no title; “Last 12 weeks” sits
-   below it. Hover a square for its date and exact count.
+   below it, with a less/more legend on the same line. Cells are 15 pt squares
+   on the sage scale; an empty day is a warm well rather than a grey, which on
+   cream reads as "nothing yet" instead of as a hole. Today carries a terracotta
+   ring. Hover a square for its date and exact count.
 7. Plain Settings button at the bottom-left and Quit at the bottom-right. No overflow menu or share-card export.
    There is no Activity button or pane.
 
 Overview retains progress and statistics while idle or sleeping. It uses a
-440 pt base viewport (580 pt with a pending request), growing by 42 pt per
+548 pt base viewport (692 pt with a pending request), growing by 46 pt per
 additional session beyond one, up to ten and bounded by available screen height;
-secondary panes use 560 pt.
+secondary panes use 560 pt. The base grew with the cards and the larger
+activity cells: at 440 pt the twelve-week grid and its legend were clipped.
 Long content scrolls inside the dropdown.
 
 ## Settings

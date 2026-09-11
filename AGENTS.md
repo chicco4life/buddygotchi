@@ -77,7 +77,10 @@ archived/app/tools/e2e/codex.sh
 archived/app/tools/e2e/cursor.sh
 ```
 
-ESP32 hardware-in-the-loop checks require a plugged-in M5StickC Plus 2:
+ESP32 hardware-in-the-loop checks require a plugged-in Waveshare
+ESP32-S3-Touch-AMOLED-1.64 ("Boop Pebble"), the only supported board since
+2026-09-11. The M5StickC Plus 2 was retired; its HAL, build envs and partition
+table are gone, and the previous generation remains under `archived/`.
 
 ```sh
 make hil
@@ -87,8 +90,8 @@ make hil-ble
 Verifying firmware on the real device:
 
 ```sh
-cd archived/firmware/esp32
-pio run -e m5stickc-plus -t upload
+cd firmware/esp32
+tools/pio_ws.sh run -e ws-amoled164 -t upload
 tools/buddyctl.py ping --json
 tools/buddyctl.py set --pet attention --waiting 1 --prompt-id req_1 --prompt-tool Bash --prompt-hint "npm test"
 tools/buddyctl.py expect --pet attention --prompt-id req_1 --json

@@ -9,7 +9,7 @@ thing _you_ want than bend this one into it.
 
 ## So what should I do instead?
 
-**Fork it and make it yours.** Swap the M5Stick for a Pi Pico W. Replace
+**Fork it and make it yours.** Swap the Pebble for a Pi Pico W. Replace
 the ASCII pets with an e-ink panel. Put it in a 3D-printed shell. Rip
 out everything but `ble_bridge.cpp` and the JSON parser. The protocol is
 the stable surface — `REFERENCE.md` is the contract, this firmware is

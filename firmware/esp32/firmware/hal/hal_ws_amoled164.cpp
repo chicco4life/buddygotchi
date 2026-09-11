@@ -1,4 +1,3 @@
-#ifdef BOARD_WS_AMOLED_164
 // Waveshare ESP32-S3-Touch-AMOLED-1.64 board implementation.
 //
 // Display: 1.64" AMOLED 280x456, CO5300 controller (SH8601-compatible
@@ -496,4 +495,3 @@ void halSetLocalTime(const struct tm& lt) {
   struct timeval tv = { .tv_sec = t, .tv_usec = 0 };
   settimeofday(&tv, nullptr);
 }
-#endif  // BOARD_WS_AMOLED_164

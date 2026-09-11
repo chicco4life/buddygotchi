@@ -793,7 +793,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=command_monitor)
     p = sub.add_parser("flash")
     add_common(p)
-    p.add_argument("--env", default="m5stickc-plus")
+    p.add_argument("--env", default="ws-amoled164")
     p.set_defaults(func=command_flash)
     p = sub.add_parser("reboot")
     add_common(p)

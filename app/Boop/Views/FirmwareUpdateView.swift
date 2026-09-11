@@ -74,7 +74,7 @@ struct FirmwareUpdateView: View {
     private var checkingView: some View {
         VStack(spacing: 12) {
             ProgressView()
-                .tint(BuddyTheme.amberInk)
+                .tint(BuddyTheme.accentInk)
             Text(BuddyCopy.checkingForUpdates)
                 .font(.body)
                 .foregroundStyle(BuddyTheme.inkSoft)
@@ -87,7 +87,7 @@ struct FirmwareUpdateView: View {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(current).font(.body).foregroundStyle(BuddyTheme.inkSoft)
                 Image(systemName: "arrow.right").font(.caption).foregroundStyle(BuddyTheme.inkSoft)
-                Text(release.version).font(.body).foregroundStyle(BuddyTheme.amberInk)
+                Text(release.version).font(.body).foregroundStyle(BuddyTheme.accentInk)
                 if let published = release.publishedAt {
                     Text(BuddyCopy.shared.firmwareUpdate.releasedTemplate.replacingOccurrences(of: "{date}", with: relativeDate(published)))
                         .font(.footnote)
@@ -119,7 +119,7 @@ struct FirmwareUpdateView: View {
                 Button(BuddyCopy.updateNow) {
                     updater.startUpdate()
                 }
-                .buttonStyle(.borderedProminent).tint(BuddyTheme.amber)
+                .buttonStyle(.borderedProminent).tint(BuddyTheme.accent)
             }
         }
     }
@@ -135,7 +135,7 @@ struct FirmwareUpdateView: View {
                 .font(.body)
                 .foregroundStyle(BuddyTheme.inkSoft)
             Button(BuddyCopy.done) { isPresented = false }
-                .buttonStyle(.borderedProminent).tint(BuddyTheme.amber)
+                .buttonStyle(.borderedProminent).tint(BuddyTheme.accent)
                 .padding(.top, 4)
         }
         .padding(.vertical, 16)
@@ -158,7 +158,7 @@ struct FirmwareUpdateView: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(BuddyTheme.ink.opacity(0.10))
                     Capsule()
-                        .fill(BuddyTheme.amber)
+                        .fill(BuddyTheme.accent)
                         .frame(width: max(0, min(1, progress)) * geo.size.width)
                 }
             }
@@ -203,7 +203,7 @@ struct FirmwareUpdateView: View {
                 updater.dismissTerminal()
                 isPresented = false
             }
-            .buttonStyle(.borderedProminent).tint(BuddyTheme.amber)
+            .buttonStyle(.borderedProminent).tint(BuddyTheme.accent)
             .padding(.top, 4)
         }
         .padding(.vertical, 16)
@@ -219,7 +219,7 @@ struct FirmwareUpdateView: View {
             if case .checkFailed(let reason) = updater.state {
                 Text(reason)
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(BuddyTheme.inkSoft)
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
             }
@@ -234,7 +234,7 @@ struct FirmwareUpdateView: View {
                 Button(BuddyCopy.tryAgain) {
                     updater.checkForUpdates(forceRefresh: true)
                 }
-                .buttonStyle(.borderedProminent).tint(BuddyTheme.amber)
+                .buttonStyle(.borderedProminent).tint(BuddyTheme.accent)
             }
         }
     }
@@ -268,7 +268,7 @@ struct FirmwareUpdateView: View {
                     Button(BuddyCopy.tryAgain) {
                         updater.checkForUpdates(forceRefresh: true)
                     }
-                    .buttonStyle(.borderedProminent).tint(BuddyTheme.amber)
+                    .buttonStyle(.borderedProminent).tint(BuddyTheme.accent)
                 }
             }
         }
