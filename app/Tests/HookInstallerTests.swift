@@ -10,7 +10,9 @@ final class HookInstallerTests: XCTestCase {
         try harness.installer.installOrThrow(agent: .codex)
         let settings = try readJSON(harness.home.appendingPathComponent(".codex/hooks.json"))
         let hooks = try XCTUnwrap(settings["hooks"] as? [String: Any])
-        XCTAssertNotNil(hooks["SessionEnd"])
+        let groups = try XCTUnwrap(hooks["SessionEnd"] as? [[String: Any]])
+        let commands = try XCTUnwrap(groups.first?["hooks"] as? [[String: Any]])
+        XCTAssertEqual(commands.first?["timeout"] as? Int, 3)
         XCTAssertNil(hooks["PermissionRequest"])
         XCTAssertEqual(harness.installer.verify(agent: .codex), .installed)
     }

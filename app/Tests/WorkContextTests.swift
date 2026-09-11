@@ -78,7 +78,7 @@ final class WorkContextTests: XCTestCase {
     func testScopeRejectsOversizeRatherThanDroppingSecondProject() async {
         let runtime = ScopeRuntime()
         let voice = Voice(runtime: runtime)
-        let request = VoiceRequest(occasion: .workContextChanged, context: .init(desk: .init()), byteCap: 120)
+        let request = VoiceRequest(occasion: .workContextChanged, context: .init(desk: .init(projects: [.init(id: "p", name: "Boop", tasks: [.init(id: "t", state: "working", intent: "Polish Boop", latest_request: nil)])])), byteCap: 120)
         await runtime.setResponse(String(repeating: "a", count: 121))
         let oversized = await voice.line(for: request)
         XCTAssertEqual(oversized.text, "")

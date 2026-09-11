@@ -213,3 +213,19 @@ do not turn functional passes into a stability claim. The public update manifest
 returns HTTP 404, and real local-model scope samples still omit work or violate
 the title contract. Native Claude/Cursor editor interaction and actual OTA remain
 open. See the evidence README's follow-up section for the exact limits.
+
+## Readiness replay and native checks
+
+See [the readiness record](evidence/readiness-2026-09-11/README.md) for the
+opt-in 16-case live model replay and current blockers. Ordinary app tests cover
+no-intent silence, private-text masking/rejection, normalized remark repeats,
+HTTP failure handling, manifest cache isolation and Codex's 3-second SessionEnd
+registration. Native Claude allow/deny and Codex denial use temporary marker
+files; a denied marker must stay absent. These checks do not replace actual
+Mac GUI, Bluetooth, Cursor or OTA verification.
+
+Actual local Mac OTA subsequently passed on 12 September: user-launched app,
+normal BLE firmware, verified transfer/reboot/version, secure reconnect and over
+100 seconds of stable uptime. Hide/reopen preserved progress. See the
+[OTA result](evidence/readiness-2026-09-11/ota-result.json). This closes the local
+integration gate, not public hosting or the unexplained-panic investigation.

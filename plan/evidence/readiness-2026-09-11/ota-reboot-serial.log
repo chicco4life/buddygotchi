@@ -1,0 +1,71 @@
+{"ack":"ota_end","ok":true,"n":1243264}
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0xc (RTC_SW_CPU_RST),boot:0x8 (SPI_FAST_FLASH_BOOT)
+Saved PC:0x4037f44e
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x10cc
+load:0x403c8700,len:0xc2c
+load:0x403cb700,len:0x30c0
+entry 0x403c88b8
+E (266) esp_core_dump_flash: No core dump partition found!
+E (266) esp_core_dump_flash: No core dump partition found!
+[hal] FT3168 online
+[   599][E][esp32-hal-i2c-ng.c:275] i2cWrite(): i2c_master_transmit failed: [259] ESP_ERR_INVALID_STATE
+[hal] QMI8658 online at 0x6B
+[ble] advertising as 'Buddy-61C9'
+[ble] auth ok
+[ble] connected
+[ble] connected
+{"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":1863,"heap":199424,"heapMin":199424,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":21673,"frameMaxUs":22588,"ack":"status","ok":true,"name":"Buddy-61C9","secure":true}
+{"cmd":"battery","pct":-999,"charging":true}
+{"cmd":"battery","pct":100,"charging":true}
+[ble] mtu=517
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":2675,"heap":198892,"heapMin":198672,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22170,"frameMaxUs":22588}>>
+{"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":2825,"heap":198644,"heapMin":197448,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22246,"frameMaxUs":22588,"ack":"status","ok":true,"name":"Buddy-61C9","secure":true}
+{"cmd":"battery","pct":100,"charging":true}
+{"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":2888,"heap":198420,"heapMin":197448,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22280,"frameMaxUs":22588,"ack":"status","ok":true,"name":"Buddy-61C9","secure":true}
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":5682,"heap":198516,"heapMin":197448,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22149,"frameMaxUs":22588}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":8721,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22149,"frameMaxUs":22622}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":11761,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22146,"frameMaxUs":22622}>>
+[ 14296][E][esp32-hal-i2c-ng.c:275] i2cWrite(): i2c_master_transmit failed: [259] ESP_ERR_INVALID_STATE
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":14761,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22147,"frameMaxUs":22622}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":17800,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22150,"frameMaxUs":22622}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":20797,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22208,"frameMaxUs":22852}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":23836,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22161,"frameMaxUs":22852}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":26869,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22153,"frameMaxUs":22852}>>
+[ 28012][E][esp32-hal-i2c-ng.c:275] i2cWrite(): i2c_master_transmit failed: [259] ESP_ERR_INVALID_STATE
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":29888,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22148,"frameMaxUs":22852}>>
+[ble] auth ok
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":32928,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22146,"frameMaxUs":22852}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":35919,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22150,"frameMaxUs":22852}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":38951,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22146,"frameMaxUs":22852}>>
+[ 41699][E][esp32-hal-i2c-ng.c:275] i2cWrite(): i2c_master_transmit failed: [259] ESP_ERR_INVALID_STATE
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":41956,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22154,"frameMaxUs":22852}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":45003,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22151,"frameMaxUs":22963}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":47994,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22134,"frameMaxUs":22963}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":51032,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22153,"frameMaxUs":22963}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":54023,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22131,"frameMaxUs":22963}>>
+[ 55395][E][esp32-hal-i2c-ng.c:275] i2cWrite(): i2c_master_transmit failed: [259] ESP_ERR_INVALID_STATE
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":57064,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22129,"frameMaxUs":22963}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":60058,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22126,"frameMaxUs":22963}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":63098,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22134,"frameMaxUs":22963}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":66131,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22128,"frameMaxUs":22963}>>
+[ 69081][E][esp32-hal-i2c-ng.c:275] i2cWrite(): i2c_master_transmit failed: [259] ESP_ERR_INVALID_STATE
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":69132,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22137,"frameMaxUs":22963}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":72177,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22156,"frameMaxUs":22963}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":75211,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22130,"frameMaxUs":22963}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":78244,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22133,"frameMaxUs":22963}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":81241,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22143,"frameMaxUs":22963}>>
+[ 82820][E][esp32-hal-i2c-ng.c:275] i2cWrite(): i2c_master_transmit failed: [259] ESP_ERR_INVALID_STATE
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":84281,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22135,"frameMaxUs":22963}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":87313,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22130,"frameMaxUs":22963}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":90346,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22172,"frameMaxUs":22963}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":93345,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22196,"frameMaxUs":22963}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":96377,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22189,"frameMaxUs":22963}>>
+[ 96504][E][esp32-hal-i2c-ng.c:275] i2cWrite(): i2c_master_transmit failed: [259] ESP_ERR_INVALID_STATE
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":99383,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22191,"frameMaxUs":22963}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":102423,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22197,"frameMaxUs":22963}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":105456,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22192,"frameMaxUs":22963}>>
+<<PONG {"usbOnly":false,"contract":2,"board":"ws-amoled164","fw":"0.0.1-readiness.1","git":"0c7f1d0e9b1a","up":108490,"heap":198516,"heapMin":197048,"heapBig":155636,"reset":"sw","panics":103,"early":0,"safe":0,"frameUs":22194,"frameMaxUs":22963}>>

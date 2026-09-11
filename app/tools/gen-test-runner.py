@@ -71,6 +71,7 @@ def main() -> None:
         "@main",
         "struct GeneratedTestRunner {",
         "    static func main() async {",
+        '        if CommandLine.arguments.dropFirst().first == "--model-replay" { await ModelReplay.run(arguments: CommandLine.arguments); return }',
         "        var passed = 0, skipped = 0",
         "        func run(_ name: String, _ body: () async throws -> Void) async {",
         '            FileHandle.standardError.write("\\u{25B6} \\(name)\\n".data(using: .utf8)!)',

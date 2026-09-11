@@ -74,6 +74,22 @@ cover attention or wake Buddy. Existing duration celebrations and their
 post-idle opportunity are unchanged. Scope has no durable history; actual
 remarks retain only the last five in memory for this display path.
 
+## Readiness refinement
+
+Keep the existing one-call display lane, full owner guide and five-second
+deadline. Scope requests with no supplied intent stay silent without calling the
+model. A guided-generation candidate with per-task purposes and an explicit
+silence flag lives only in the opt-in test replay. Expanded live trials still
+missed purposes, retained canceled work and invented success; it is not enabled
+in the app. Schema compliance does not establish semantic confidence.
+
+Reject exact repeated remarks, private-looking output (paths, email addresses,
+credential assignments), and output echoing explicit credential values from the
+input. Mask recognizable private values in display input before generation.
+These checks are limited protection, not proof that arbitrary prose contains no
+private information. Byte overflow and any invalid result still mean silence.
+The live semantic-quality gate stays open until expanded replays pass.
+
 ## Runtime
 
 Apple Foundation Models on supported macOS 26+ runs locally, with fresh sessions,

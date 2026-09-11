@@ -286,8 +286,8 @@ final class HookInstaller {
         var hooks = root["hooks"] as? [String: Any] ?? [:]
         hooks = removeLegacyHooks(from: hooks)
 
-        let cmdHook = commandHook(command: scriptCommand(for: .codex), timeout: 5)
         for spec in Self.codexEvents {
+            let cmdHook = commandHook(command: scriptCommand(for: .codex), timeout: spec.event == "SessionEnd" ? 3 : 5)
             hooks[spec.event] = addingNestedHook(
                 to: hooks[spec.event],
                 matcher: spec.matcher,

@@ -105,3 +105,12 @@ Layout and screenshot harness share one calculation: Overview base 548 pt,
 692 pt with a request, plus 46 pt per additional session through ten; secondary
 panes use 560 pt. All are clamped to available screen height and scroll as needed.
 Theme constants live in [BuddyTheme.swift](../app/Boop/Theme/BuddyTheme.swift).
+
+Firmware update failures report the HTTP status when the server rejects a
+manifest or binary request. Changing a manifest source cannot reuse another
+source's cached release. Download errors remain retryable; a successful package
+check alone does not indicate an installed update.
+
+Firmware update copy does not promise a fixed duration: the upload screen shows
+an estimate based on transfer progress. Keep the device powered and near the Mac
+until its automatic restart and version confirmation complete.

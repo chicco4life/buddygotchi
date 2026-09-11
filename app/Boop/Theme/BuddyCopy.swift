@@ -38,7 +38,7 @@ enum BuddyCopy {
         let updateFailed = "Update failed"
         let tryAgain = "Try again"
         let checkingForUpdates = "Checking for updates…"
-        let keepHardwareBuddyNear = "Keep your hardware buddy near your Mac and powered on. The update takes a few minutes; it will restart automatically when finished."
+        let keepHardwareBuddyNear = "Keep your hardware buddy near your Mac and powered on until the update finishes. The upload screen shows the estimated time remaining; your buddy will restart automatically."
         let checkInstalledFirmware = "Reconnect your hardware buddy to check its installed version before trying again."
         let runSetupAgain = "Run setup again"
         let quitBoop = "Quit Boop"

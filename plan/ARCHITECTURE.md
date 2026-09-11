@@ -202,3 +202,16 @@ A fresh device status must match the offered version (optional `v` prefix ignore
 Confirmation has a 45-second budget from commit submission; mismatch or missing
 confirmation becomes a recoverable failure. Automatic reconnect checks preserve
 the terminal result. Dismissing a failed check does not assert "up to date".
+
+## Readiness boundary checks
+
+The display boundary masks recognizable private strings before generation and
+rejects private echoes and repeated remarks afterward. Scope without any intent
+returns silence without generation. These are structural safeguards; the model
+still owns semantic interpretation. Guided-generation experiments live only in
+the test replay, outside the production runtime.
+
+Firmware downloads require HTTP 2xx before decoding a manifest or verifying a
+binary hash. Cached manifests are keyed by their source URL; legacy entries
+without a source are refreshed. Codex SessionEnd registration uses its 3-second
+limit; other lifecycle hook registrations retain their existing timeout.

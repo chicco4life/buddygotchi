@@ -19,7 +19,8 @@ final class VoiceTimingTests: XCTestCase {
             XCTAssertTrue(unavailable.text.isEmpty)
             let declined = await Voice(runtime: VoiceStubRuntime(text: "SILENT")).line(for: request)
             XCTAssertTrue(declined.text.isEmpty)
-            XCTAssertEqual(declined.source, .model)
+            if case .workContextChanged = occasion { XCTAssertEqual(declined.source, .authored) }
+            else { XCTAssertEqual(declined.source, .model) }
             let invalid = await Voice(runtime: VoiceStubRuntime(text: "line\nwith control")).line(for: request)
             XCTAssertTrue(invalid.text.isEmpty)
         }

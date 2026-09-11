@@ -122,12 +122,27 @@ actor Voice {
         return result
     }
     private func produce(for request: VoiceRequest, fallback: VoiceLine, recent: [String], day: String) async -> VoiceLine {
+        if case .workContextChanged = request.occasion, let context = request.context {
+            let hasIntent = context.desk.projects.contains { project in
+                project.tasks.contains { task in
+                    [task.intent, task.latest_request].contains { value in
+                        !(value?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+                    }
+                }
+            }
+            if !hasIntent { return fallback }
+        }
         guard let result = await generate(prompt: VoicePrompt.make(request, guide: guide.read(), recent: recent), maxBytes: request.byteCap, lane: request.isParagraph) else { return fallback }
         if result.trimmingCharacters(in: .whitespacesAndNewlines) == "SILENT" {
             return VoiceLine(text: "", source: .model)
         }
         if request.context != nil, result.precomposedStringWithCanonicalMapping.trimmingCharacters(in: .whitespacesAndNewlines).utf8.count > request.byteCap { return fallback }
         guard let text = VoiceFilter.check(result, language: request.language, byteCap: request.byteCap) else { return fallback }
+        if let context = request.context {
+            guard DisplayPrivacy.allows(text, context: context) else { return fallback }
+            if case .workContextChanged = request.occasion { /* Stable scope can repeat. */ }
+            else if context.recent_remarks.contains(where: { DisplayPrivacy.remarkKey($0) == DisplayPrivacy.remarkKey(text) }) { return fallback }
+        }
         if request.keepsHistory {
             let excluded = await exclusions(day: day, language: request.language)
             guard !excluded.contains(text) else { return fallback }

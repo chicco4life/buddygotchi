@@ -38,7 +38,7 @@ protocol FirmwareReleaseProviding {
 final class FirmwareReleaseService: FirmwareReleaseProviding {
     // The manifest URL is the single tunable for ops. Override per-build by
     // setting BUDDY_FIRMWARE_MANIFEST_URL in Info.plist or the environment;
-    // falls back to the GitHub Pages location.
+    // falls back to the public firmware endpoint.
     private static let defaultManifestURL = URL(string: "https://adoptaboop.com/firmware/manifest.json")!
     private static let cacheKey = DefaultsKey.firmwareManifestCache
     private static let cacheTTL: TimeInterval = 60 * 60   // 1 hour
@@ -63,7 +63,7 @@ final class FirmwareReleaseService: FirmwareReleaseProviding {
     func downloadBinary(_ release: FirmwareRelease) async throws -> Data {
         let data: Data
         do {
-            (data, _) = try await session.data(from: release.downloadURL)
+            (data, _) = try await checkedData(from: release.downloadURL)
         } catch {
             throw FirmwareReleaseError.downloadFailed(underlying: error)
         }
@@ -79,7 +79,7 @@ final class FirmwareReleaseService: FirmwareReleaseProviding {
     private func fetchManifest() async throws -> FirmwareRelease {
         let payload: Data
         do {
-            (payload, _) = try await session.data(from: manifestURL)
+            (payload, _) = try await checkedData(from: manifestURL)
         } catch {
             throw FirmwareReleaseError.manifestUnreachable(underlying: error)
         }
@@ -104,9 +104,19 @@ final class FirmwareReleaseService: FirmwareReleaseProviding {
         )
     }
 
+    private func checkedData(from url: URL) async throws -> (Data, URLResponse) {
+        let (data, response) = try await session.data(from: url)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            let status = (response as? HTTPURLResponse).map { "HTTP \($0.statusCode)" } ?? "non-HTTP response"
+            throw URLError(.badServerResponse, userInfo: [NSLocalizedDescriptionKey: "Firmware request failed: \(status)"])
+        }
+        return (data, response)
+    }
+
     // MARK: - Cache
 
     private struct CacheEntry: Codable {
+        let manifestURL: URL?
         let version: String
         let url: URL
         let sha256: String
@@ -121,13 +131,15 @@ final class FirmwareReleaseService: FirmwareReleaseProviding {
 
     private func readCache() -> CacheEntry? {
         guard let data = AppDefaults.shared.data(forKey: Self.cacheKey),
-              let entry = try? JSONDecoder().decode(CacheEntry.self, from: data)
+              let entry = try? JSONDecoder().decode(CacheEntry.self, from: data),
+              entry.manifestURL == manifestURL
         else { return nil }
         return entry
     }
 
     private func writeCache(_ release: FirmwareRelease) {
         let entry = CacheEntry(
+            manifestURL: manifestURL,
             version: release.version,
             url: release.downloadURL,
             sha256: release.sha256,

@@ -1,6 +1,6 @@
 # Implementation and verification status
 
-Updated 2026-09-11. The current development build implements the shared behavior
+Updated 2026-09-12. The current development build implements the shared behavior
 pipeline, optional whole-desk summaries, glanceable device completions and the
 quality/fluidity pass. **Live-model meaning, native-editor flows, public OTA and
 Bluetooth startup stability still have open gates.**
@@ -27,6 +27,20 @@ Richer supported check-result reactions and durable episode callbacks remain
 not the current runtime. Removed features are not future requirements; optional
 possibilities belong in [Ideas](IDEAS.md).
 
+## Current readiness follow-up
+
+[Readiness evidence](evidence/readiness-2026-09-11/README.md) records the latest
+model replay, native-editor checks and OTA client fixes. The app suite passed
+392 tests with zero skips; both Mac products built. Claude and Codex native
+allow/deny checks passed against a temporary headless receiver. The guided model
+candidate remains test-only. USB recovered after the user reported a dim face;
+its asleep state and brightness 28 were confirmed. Three software restarts
+left panic count unchanged at 103. Actual Mac OTA then passed: normal BLE
+firmware `0.0.1-readiness.1` is installed, with secure reconnection and unchanged
+panic count after over 100 seconds. Startup root cause and public delivery remain
+open. The local transfer took about 18 minutes; hide/reopen passed.
+The installed-version and GUI statements below describe the preceding session.
+
 ## Latest evidence
 
 | Check | Result and scope |
@@ -48,15 +62,15 @@ Evidence: [quality and integration](evidence/quality-fluidity-2026-09-11/README.
 
 ## Installed versus built
 
-The footer-removal **normal** firmware is installed and connected to the Mac:
-`dev+6182f51882a7`. Its bounded startup check showed stable uptime and no new panic
-count. This supersedes earlier evidence that restored the previous normal image;
-no USB-only debug image was left installed.
+The local OTA candidate **normal BLE** firmware is installed and connected:
+`0.0.1-readiness.1` (source `0c7f1d0e9b1a`). It preserves the footer removal and
+passed secure reconnection and a bounded post-update uptime check. No USB-only
+debug image was left installed.
 
-The user launched the rebuilt Mac app during integration. The later optional
-silence change was built and tested, but that GUI process was not restarted by
-the agent. It needs a user restart to pick up that change. Owner Markdown guide
-overrides were preserved. No public app/firmware release was made.
+The user launched the readiness Mac app for the successful OTA test. The later
+duration wording change was rebuilt but is not in that running process. Owner
+Markdown overrides were preserved. The local test server was stopped; the
+process-only manifest override clears on a normal app launch. Nothing published.
 
 ## Remaining gates
 
@@ -65,7 +79,7 @@ overrides were preserved. No public app/firmware release was made.
 | Model quality | Evaluate relevance, whole-desk coverage, silence, factuality, private-text handling and latency on real English inputs |
 | Native editor integration | Exercise actual approval UI, stale-hook passthrough and hook repair in supported Claude/Codex/Cursor versions; HTTP fixtures and the live Codex hook check cover only part of this |
 | Startup stability | Explain or reproduce the initial firmware panic before a clean stability sign-off |
-| Actual Mac OTA | Public manifest returned HTTP 404 during this session; package checks do not prove a real download/install/reconnect |
+| Public OTA delivery | Local actual Mac OTA passed; public manifest remains HTTP 404, so hosted delivery is still unverified |
 | Release readiness | Clean install/update, supported environments, signing/notarization, overnight hardware/power checks and applicable release procedures |
 
 ## Earlier evidence
