@@ -1,0 +1,6 @@
+3e158b1c27c97e37d26f6f5a359461ad6c50cfb2ae49dfbd69ff05552de0cff7  scope-dashboard-en.png
+c7e81dccd64a7e6a500e5eee57f4d00228952407d681955897a694bbaf32a856  scope-dashboard-ko.png
+bb0874e0ab830b7714bcf6557e261207df54d3d6758cf3e2bc5408b67992f378  scope-face-en.png
+a8498595c042fc9d47adaae8338feda414779737dcdf17df9cda74c901563af1  scope-face-ko.png
+017d53384a5fd0ce5ce300a1a7a3fbf69fa8c7c43299d5db40a3766353513ee3  scope-idle-en.png
+f99ecc31d9ab67f82aa6cab37a8946a87542bf6b98ceeb61f65ebe4b08b43d09  scope-idle-ko.png

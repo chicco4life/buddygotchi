@@ -124,3 +124,19 @@ these are live state, never persisted. Invalid types, duplicate sources,
 unknown source tokens and out-of-range counts reject the entire frame.
 Older firmware ignores the additive field; older hosts retain face-only behavior.
 The 1536-byte frame cap is unchanged.
+
+## Additive glance fields
+
+`threads`: at most 12 compact arrays `[source, status, title]`, with source
+0 Codex / 1 Claude / 2 Cursor / 3 Other; status 0 idle / 1 working / 2 needs you /
+3 error. `threadTotal` includes rows outside the bounded preview. `recent` holds
+up to six `[sequence, source, title]` completed turns, newest first.
+`notice`: optional object `{id, count, age, left, cheer}`; id is the first
+completion sequence in the batch, age/left are milliseconds, left <= 8000,
+cheer is hop/cheer/dance. Host monotonic time owns coalescing and cooldown;
+firmware uses its local monotonic deadline and never extends repeated frames.
+Omission clears ephemeral fields. Titles <=47 UTF-8 bytes, no control characters.
+These fields stay inside the existing 1536-byte newline-inclusive frame cap:
+drop snapshot/cosmetics first, then oldest history/preview rows as necessary;
+retain at least the newest completion and expose threadTotal. Reconnect may show
+Last finished but must not replay a notice already in progress.

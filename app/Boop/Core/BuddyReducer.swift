@@ -24,6 +24,8 @@ struct InternalState: Sendable, Equatable {
     var bubbleUntil: Double?
     /// Size of the cheer currently playing; `celebrateUntil` is its timer.
     var doneSize: CheerSize?
+    var finishSequence = 0
+    var noticeCooldownUntil: Double = 0
 
     var version: Int { buddy.version }
 
@@ -36,6 +38,10 @@ struct InternalState: Sendable, Equatable {
 
 func reduce(_ state: InternalState, _ event: BuddyEvent, localHour: Int = 0) -> InternalState {
     var input = state
+    if let notice = input.buddy.completionNotice, event.at >= notice.until {
+        input.noticeCooldownUntil = max(input.noticeCooldownUntil, notice.until + 3000)
+        input.buddy.completionNotice = nil
+    }
     input.pendingAwards = []; input.pendingFacts = []
     var next = reduceInner(input, event)
     if case .sessionStarted(_, let id, _, _, _) = event, state.sessions[id] == nil {
@@ -47,13 +53,23 @@ func reduce(_ state: InternalState, _ event: BuddyEvent, localHour: Int = 0) -> 
         appendFact(&next, .greet, id: next.pendingAwards[0].sessionId, at: event.at)
     }
     updateCreatureTimers(&next, event: event)
+    if let notice = next.buddy.completionNotice, event.at >= notice.until {
+        next.noticeCooldownUntil = max(next.noticeCooldownUntil, notice.until + 3000)
+        next.buddy.completionNotice = nil
+    }
     // Recompute even on a quiet tick so effort and timed projections advance.
     // `updatedAt` is left alone until we know something changed: a timestamp
     // alone is not a state change worth notifying outputs about.
     next.buddy = aggregate(next, now: event.at)
+    if [.needsYou, .uhoh, .asleep].contains(next.buddy.creature.state), next.buddy.completionNotice != nil {
+        next.buddy.completionNotice = nil
+        next.noticeCooldownUntil = event.at + 3000
+    }
     var projection = next
     projection.pendingAwards = []; projection.pendingFacts = []
-    guard projection != input else { return next }
+    var previous = state
+    previous.pendingAwards = []; previous.pendingFacts = []
+    guard projection != previous else { return next }
     next.buddy.version = state.buddy.version + 1
     next.buddy.updatedAt = event.at
     return next
@@ -63,6 +79,11 @@ private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> Interna
     switch event {
     case .workScopeChanged(_, let text):
         var s = state; s.buddy.workScope = text; return s
+    case .sessionTitleChanged(_, let id, let title):
+        var s = state
+        let clean = deviceTitle(title)
+        if !clean.isEmpty { s.sessions[id]?.displayTitle = clean }
+        return s
     case .onboardingCheer(let at):
         guard state.memory.completedTurns == 0, state.buddy.creature.card == nil else { return state }
         var s = state
@@ -311,6 +332,18 @@ private func handleTurnEnded(_ state: InternalState, at: Double, sessionId: Stri
         s.pendingAwards.append(XPAward(at: at, sessionId: sessionId, sources: [.turn]))
         s.memory.completedTurns += 1
         let duration = max(0, at - start)
+        s.finishSequence += 1
+        s.buddy.recentFinishes.insert(DeviceFinish(sequence: s.finishSequence, source: session.source,
+            title: deviceSessionTitle(id: sessionId, session: session)), at: 0)
+        s.buddy.recentFinishes = Array(s.buddy.recentFinishes.prefix(6))
+        if var notice = s.buddy.completionNotice {
+            notice.count += 1
+            notice.until = min(notice.startedAt + 8000, max(notice.until, at + 2000))
+            s.buddy.completionNotice = notice
+        } else if at >= s.noticeCooldownUntil {
+            s.buddy.completionNotice = CompletionNotice(id: s.finishSequence, count: 1,
+                startedAt: at, until: at + 5000, cheer: s.cheerThresholds.size(span: duration) ?? .hop)
+        }
         appendFact(&s, .turnCompleted(elapsedMs: duration), id: sessionId, at: at)
         if let size = s.cheerThresholds.size(span: duration) {
             s.pendingAwards[s.pendingAwards.count - 1].cheer = size
@@ -533,6 +566,12 @@ private func aggregate(_ state: InternalState, now: Double) -> BuddyState {
         ))
     }
     buddy.activeSessions = activeSnapshots
+    buddy.deviceThreads = allSessions.map { id, sess in
+        DeviceThread(id: id, source: sess.source,
+            status: sess.state == .needsConfirmation ? 2 : sess.uhoh != nil || sess.state == .errored ? 3 :
+                (sess.state == .working || sess.state == .thinking) ? 1 : 0,
+            title: deviceSessionTitle(id: id, session: sess))
+    } // Stable session IDs keep table rows in place when their status changes.
     buddy.agentCounts = ["codex", "claude-code", "cursor", "other"].compactMap { source in
         let sessions = allSessions.map(\.value).filter {
             let group = ["codex", "claude-code", "cursor"].contains($0.source) ? $0.source : "other"

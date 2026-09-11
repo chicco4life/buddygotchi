@@ -42,13 +42,14 @@ def read_png(path):
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument('action', choices=['record', 'check'])
+    ap.add_argument('--only', choices=list(cells()), help='Record/check one independently captured scene')
     ap.add_argument('--dir', type=Path, default=Path('tests/golden/ws-amoled164'))
     ap.add_argument('--shots', type=Path, default=Path('/tmp/boop-shots'))
     ap.add_argument('--threshold', type=float, default=0.02)
     args = ap.parse_args()
     if not 0 <= args.threshold <= 1:
         ap.error('--threshold must be between 0 and 1')
-    names = list(cells())
+    names = [args.only] if args.only else list(cells())
     missing = [args.shots / f'{n}.png' for n in names if not (args.shots / f'{n}.png').is_file()]
     if missing:
         print('Missing captures; run tools/shots.sh first: ' + ', '.join(map(str, missing)))

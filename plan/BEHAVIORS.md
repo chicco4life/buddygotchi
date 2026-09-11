@@ -53,7 +53,10 @@ sound only, with no change to priority or reminder timing.
 Sources: [reducer](../app/Boop/Core/BuddyReducer.swift),
 [config](../app/Boop/Core/Config.swift), [device states](UX-DEVICE.md#8-states).
 
-## 3. Effort and celebrations
+## 3. Effort and desktop celebrations
+
+The device completion notice below has its own five/eight-second presentation.
+These duration rules govern the desktop celebration.
 
 One task means one started work period ending in a completed turn. Time runs
 from its first work signal, including waits; each new period starts fresh.
@@ -205,8 +208,36 @@ the Markdown behavior guide against ordinary use: relevance, silence, factuality
 and localization. Delivery and physical-device verification gates remain in
 [PLAN.md](PLAN.md) and [VERIFICATION.md](VERIFICATION.md).
 
-## ESP32 availability presentation
+## Glanceable activity and completion notices (2026-09-11)
 
-The mixed working/idle dashboard in [Device UX](UX-DEVICE.md#agent-availability-dashboard-2026-09-11) supersedes ESP32 duration cheers. Counts are current tracked sessions, grouped by harness, never unread counts. Desktop core celebrations and growth remain unchanged.
+This replaces the persistent mixed-session dashboard. Any working session keeps
+the full working face with a small working count; otherwise the buddy is idle.
+A successful completed turn (including short turns) gets a five-second notice,
+agent label, large thread title and a sage-green wash (250 ms in, 600 ms out).
+Concurrent completions update one notice without restarting the cheer or wash:
+latest two titles, total completion count, at least two seconds for arrivals
+where possible, hard eight-second cap from the first arrival. Three-second
+cooldown updates history only. Explicit attention/errors take priority and
+cancel the current notice; it does not replay after dismissal or reconnect.
 
-Dashboard buddy presentation: larger upper-right face above IDLE; a 5.6-second squish/two-nod/smile/rest loop invites the next action without moving or pulsing the counts. No separate arrow.
+Tap the face to inspect threads when working, or when a last completion exists.
+A normal tap anywhere on the table returns immediately to the buddy, including
+when there are multiple thread/history pages. The bottom-right Next control
+alone advances pages (wrapping to the first); Back is always visible at bottom
+left. Either physical short-tap button also exits. Navigation takes priority over
+hidden dialogue so a bubble cannot consume an exit tap. The left-aligned table
+has 40 px side margins, 24 px at the top and bottom, and three inset rows. Idle with no completion retains tap affection; primary hold always
+retains affection. Table rows update without completion interruptions. A quiet
+Last finished footer opens recent history through the same paged detail view.
+History has six entries; the device receives up to twelve session rows, ordered
+by stable session ID. Totals and an explicit omitted-row count expose the
+bounded preview. Older idle chats imply no obligation or unread state.
+
+Use explicit hook thread/session titles when supplied. At Codex session/turn
+boundaries, read matching title metadata from at most the last 256 KiB of its
+local session index, off the main actor. Otherwise use project plus short stable
+session ID. Never read transcripts for titles. Do not display raw prompt or command text as a title.
+Names are ephemeral display metadata, never model memory. UTF-8 titles are
+bounded to 47 bytes; omit older history and preview rows as needed to satisfy
+the 1536-byte frame cap, retaining the full session count.
+Session removal, stale cleanup, failures and duplicate end events never cheer.

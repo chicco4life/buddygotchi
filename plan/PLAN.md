@@ -4,10 +4,8 @@ Current phase: shared Markdown behavior pipeline and whole-desk scope summary
 implemented as a development slice. Automated and USB checks pass; real-model
 whole-desk coverage is not yet reliable. Companion text is English-only. Native-editor and
 production BLE gates remain.
-The preceding UI/UX pass across both surfaces — the "Boop Cream" palette, the
-app's card-and-label layout, and the device's arms, proportions and animation
-audit — implemented, with automated checks passing and USB hardware goldens
-re-recorded. Live model, editor and BLE-integration verification remain.
+This includes main's glanceable completion notices and tap-to-view task pages.
+Combined verification is recorded below; earlier feature evidence is historical.
 [Component behaviors](BEHAVIORS.md) is the current contract, with detailed specs
 in the [index](README.md).
 
@@ -25,6 +23,14 @@ in the [index](README.md).
 | Removed | Gifts, recaps, teach, inferred stuck/hungry, quick commands, agent expression/drawings, named moment creation, leaderboard/sync/signing |
 
 ## Verified in this change
+
+### Integration with current main
+
+The scope phrase sits above the calm device face, leaving the working and
+last-finished footers clear. Task pages and completion notices cover it.
+The combined implementation passes 369 app tests with zero skipped; both Mac
+products and both firmware variants build. Earlier evidence below describes
+the feature branches before integration.
 
 ### Shared behavior pipeline and work scope, 2026-09-11
 
@@ -127,3 +133,27 @@ Implemented full-session per-harness counts, additive wire field, persistent mix
 Dashboard invitation refinement: larger buddy above IDLE, two downward nods and a rosy smile, with unchanged static counts and proportional labels. 12 USB hardware tests passed, both Waveshare variants built, and the captured loop was checked against static board pixels. Device verification recorded in dashboard evidence.
 
 Main integration preserves cumulative XP and daily activity: 345 app tests passed with zero skips, and the integrated shipping Waveshare firmware built successfully.
+
+## Glanceable completion implementation — 2026-09-11
+
+Replaced the mixed count dashboard with a working face, coalesced completion
+notices, sage wash and tap-through thread/history pages. 357 app tests passed,
+zero skipped; both Mac products and both firmware variants built. 12 USB device
+checks passed and 44/44 independently recaptured goldens matched at zero error.
+Codex titles use bounded local index metadata; unavailable titles use project
+plus stable ID. [Evidence](evidence/glance-completions-2026-09-11/README.md).
+The owner must launch the rebuilt Mac app before the production BLE gate closes.
+
+## Dashboard navigation and spacing — 2026-09-11
+
+Normal dashboard taps now exit directly; a separate Next control pages details.
+The table gets 40 px side margins and 24 px top/bottom margins. Both firmware
+variants built; 19 USB checks passed, and three changed/new dashboard goldens
+matched independent captures at zero error. Shared panel handling, multiple/history
+pages, hidden dialogue and invalid coordinates were checked. The previous normal
+firmware is restored because another hardware task is active; the verified
+candidate is not left installed. [Evidence](evidence/dashboard-navigation-spacing-2026-09-11/README.md).
+
+The [main integration evidence](evidence/work-context-main-integration-2026-09-11/README.md)
+records 369 app tests, 26 USB interaction checks and six independently reproduced
+scope goldens for the combined completion/task-page and companion UI.

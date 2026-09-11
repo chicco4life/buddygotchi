@@ -196,6 +196,13 @@ final class BuddyEngine {
         payload.timestamp = clock.now()
         lastSessionActivity = payload.timestamp
         let hour = dayCalendar.localHour(at: payload.timestamp)
+        if payload.displayTitle == nil, payload.source == "codex",
+           [.sessionStart, .turnStart, .turnEnd].contains(payload.kind) {
+            let sessionId = payload.sessionId
+            payload.displayTitle = await Task.detached(priority: .utility) {
+                SessionTitleReader.codexTitle(sessionId: sessionId)
+            }.value
+        }
         let extraction = await extractor.ingest(payload, localHour: hour)
         guard !retiring, !voiceStopped else { await extractor.drop(sessionId: payload.sessionId); return }
         if let project = extraction.workProject {

@@ -1,0 +1,31 @@
+Running: /private/tmp/hilvenv/bin/python -m pytest firmware/esp32/tests/hil/test_agent_dashboard.py -q -rs
+...................                                                      [100%]
+19 passed in 46.14s
+Running: /private/tmp/hilvenv/bin/python tools/shots.py --only glance-threads
+/tmp/boop-shots/contact-sheet.png
+Running: /private/tmp/hilvenv/bin/python tools/golden.py record --only glance-threads --threshold 0 --shots /private/tmp/boop-dashboard-fix-artifacts/shots-record
+Recorded 1 goldens in tests/golden/ws-amoled164
+Running: /private/tmp/hilvenv/bin/python tools/shots.py --only glance-threads-long
+/tmp/boop-shots/contact-sheet.png
+Running: /private/tmp/hilvenv/bin/python tools/golden.py record --only glance-threads-long --threshold 0 --shots /private/tmp/boop-dashboard-fix-artifacts/shots-record
+Recorded 1 goldens in tests/golden/ws-amoled164
+Running: /private/tmp/hilvenv/bin/python tools/shots.py --only glance-history
+/tmp/boop-shots/contact-sheet.png
+Running: /private/tmp/hilvenv/bin/python tools/golden.py record --only glance-history --threshold 0 --shots /private/tmp/boop-dashboard-fix-artifacts/shots-record
+Recorded 1 goldens in tests/golden/ws-amoled164
+Running: /private/tmp/hilvenv/bin/python tools/shots.py --only glance-threads
+/tmp/boop-shots/contact-sheet.png
+Running: /private/tmp/hilvenv/bin/python tools/golden.py check --only glance-threads --threshold 0 --shots /private/tmp/boop-dashboard-fix-artifacts/shots-check
+glance-threads: 0.000000 (threshold 0.0)
+1/1 passed
+Running: /private/tmp/hilvenv/bin/python tools/shots.py --only glance-threads-long
+/tmp/boop-shots/contact-sheet.png
+Running: /private/tmp/hilvenv/bin/python tools/golden.py check --only glance-threads-long --threshold 0 --shots /private/tmp/boop-dashboard-fix-artifacts/shots-check
+glance-threads-long: 0.000000 (threshold 0.0)
+1/1 passed
+Running: /private/tmp/hilvenv/bin/python tools/shots.py --only glance-history
+/tmp/boop-shots/contact-sheet.png
+Running: /private/tmp/hilvenv/bin/python tools/golden.py check --only glance-history --threshold 0 --shots /private/tmp/boop-dashboard-fix-artifacts/shots-check
+glance-history: 0.000000 (threshold 0.0)
+1/1 passed
+All checks passed; waiting for screenshot review.

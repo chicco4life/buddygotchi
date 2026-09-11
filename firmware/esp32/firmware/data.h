@@ -56,7 +56,13 @@ struct Card {
   bool present() const { return id[0] || kind[0]; }
 };
 struct AgentCount { char source[12] = ""; int working = 0, idle = 0; };
+struct ThreadRow { uint8_t source=0, status=0; char title[48]=""; };
+struct FinishRow { uint32_t sequence=0; uint8_t source=0; char title[48]=""; };
+struct FinishNotice { uint32_t id=0; int count=0, age=0, left=0; char cheer[6]=""; };
 struct TamaState {
+  ThreadRow threads[12]; uint8_t threadCount=0; int threadTotal=0;
+  FinishRow recent[6]; uint8_t recentCount=0;
+  FinishNotice notice;
   AgentCount agents[4];
   uint8_t agentCount = 0;
   int workingCount() const { int n=0; for(int i=0;i<agentCount;++i) n+=agents[i].working; return n; }
@@ -86,6 +92,12 @@ template<size_t N> bool readText(JsonVariantConst v, char (&dst)[N]) {
   JsonString s = v.as<JsonString>();
   if (s.size() >= N || strlen(s.c_str()) != s.size()) return false;
   memcpy(dst, s.c_str(), s.size() + 1);
+  return true;
+}
+template<size_t N> bool readDisplayTitle(JsonVariantConst v, char (&dst)[N]) {
+  if(!v.is<const char*>() || !readText(v,dst) || !dst[0]) return false;
+  for(const unsigned char* p=(const unsigned char*)dst;*p;++p)
+    if(*p<32 || *p==127) return false;
   return true;
 }
 template<size_t N> bool readEnum(JsonVariantConst v, char (&dst)[N], const char* values,
@@ -177,6 +189,37 @@ inline bool validate(JsonDocument& d, const TamaState& old, TamaState& s) {
       for(int i=0;i<s.agentCount;++i) if (!strcmp(a.source,s.agents[i].source)) return false;
       ++s.agentCount;
     }
+  }
+  if (!readInt(d["threadTotal"],s.threadTotal,0,1000000)) return false;
+  if (!d["threads"].isNull()) {
+    if (!d["threads"].is<JsonArray>() || d["threads"].size()>12) return false;
+    for (JsonVariantConst row:d["threads"].as<JsonArrayConst>()) {
+      int source=0,status=0;
+      if (!row.is<JsonArrayConst>() || row.size()!=3 || !row[0].is<int>() || !row[1].is<int>() ||
+          !readInt(row[0],source,0,3) || !readInt(row[1],status,0,3) ||
+          !row[2].is<const char*>() || !readDisplayTitle(row[2],s.threads[s.threadCount].title)) return false;
+      s.threads[s.threadCount].source=source; s.threads[s.threadCount++].status=status;
+    }
+    if(s.threadTotal<s.threadCount) return false;
+  }
+  if (!d["recent"].isNull()) {
+    if (!d["recent"].is<JsonArray>() || d["recent"].size()>6) return false;
+    for (JsonVariantConst row:d["recent"].as<JsonArrayConst>()) {
+      int source=0;
+      if (!row.is<JsonArrayConst>() || row.size()!=3 || !row[0].is<uint32_t>() || !row[0].as<uint32_t>() ||
+          !row[1].is<int>() || !readInt(row[1],source,0,3) ||
+          !row[2].is<const char*>() || !readDisplayTitle(row[2],s.recent[s.recentCount].title)) return false;
+      s.recent[s.recentCount].source=source; s.recent[s.recentCount++].sequence=row[0].as<uint32_t>();
+    }
+  }
+  if (!d["notice"].isNull()) {
+    auto n=d["notice"];
+    if (!n.is<JsonObject>() || !n["id"].is<uint32_t>() || !n["id"].as<uint32_t>() ||
+        !n["count"].is<int>() || !n["age"].is<int>() || !n["left"].is<int>() ||
+        !readInt(n["count"],s.notice.count,1,1000000) || !readInt(n["age"],s.notice.age,0,8000) ||
+        !readInt(n["left"],s.notice.left,1,8000) || s.notice.age+s.notice.left>8000 ||
+        !readEnum(n["cheer"],s.notice.cheer,"|hop|cheer|dance|","hop") || !s.recentCount) return false;
+    s.notice.id=n["id"].as<uint32_t>();
   }
   if (!d["card"].isNull()) {
     if (!d["card"].is<JsonObject>()) return false;

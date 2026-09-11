@@ -256,9 +256,8 @@ fallback detail. Existing factual status and physical interactions keep working.
 The scope phrase persists beside the buddy and in Mac Overview. Temporary
 payoff/greeting remarks last four seconds. Cards/errors/system UI take priority.
 Scope survives a temporary cover if its context revision remains current.
-No new sound, gesture or animation is required for scope. The current firmware
-suppresses dialogue while the dashboard is active, so showing persistent scope
-alongside counts needs an explicit presentation and wire change when implemented.
+No new sound, gesture or animation is required for scope. The additive scope field renders above the calm face, clear of working and
+last-finished footers. Task pages and completion notices temporarily cover it.
 
 ## 7. Bounds, privacy and validation
 

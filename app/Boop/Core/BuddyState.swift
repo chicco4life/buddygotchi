@@ -108,6 +108,7 @@ enum SessionState: String, Encodable, Sendable, Equatable {
 struct Session: Encodable, Sendable, Equatable {
     /// What this session last finished with, so the per-session breakdown can
     /// show its own cheer even after another session completes.
+    var displayTitle: String?
     var lastDone: DoneRecord?
     var project: String = "unknown"
     var source: String
@@ -217,6 +218,9 @@ struct Pet: Encodable, Sendable, Equatable {
 
 struct BuddyState: Encodable, Sendable, Equatable {
     var workScope: String? = nil
+    var deviceThreads: [DeviceThread] = []
+    var recentFinishes: [DeviceFinish] = []
+    var completionNotice: CompletionNotice?
     var agentCounts: [AgentCounts] = []
     var language = "en"
     var growth = GrowthSnapshot()
@@ -290,4 +294,36 @@ struct BuddyState: Encodable, Sendable, Equatable {
         greetLevel: nil,
         effortTier: nil
     )
+}
+
+
+struct DeviceThread: Encodable, Sendable, Equatable {
+    var id: String
+    var source: String
+    var status: Int
+    var title: String
+}
+struct DeviceFinish: Encodable, Sendable, Equatable {
+    var sequence: Int
+    var source: String
+    var title: String
+}
+struct CompletionNotice: Encodable, Sendable, Equatable {
+    var id: Int
+    var count: Int
+    var startedAt: Double
+    var until: Double
+    var cheer: CheerSize
+}
+
+func deviceTitle(_ title: String) -> String {
+    String(title.unicodeScalars.map { CharacterSet.controlCharacters.contains($0) ? " " : String($0) }
+        .joined().split(whereSeparator: \.isWhitespace).joined(separator: " ")).prefix(utf8Bytes: 47)
+}
+func deviceSessionTitle(id: String, session: Session) -> String {
+    if let title = session.displayTitle, !title.isEmpty { return title }
+    // A deterministic suffix distinguishes chats in the same project.
+    let hash = id.utf8.reduce(UInt32(2166136261)) { ($0 ^ UInt32($1)) &* 16777619 }
+    let project = session.cwd.map { ($0 as NSString).lastPathComponent } ?? session.source
+    return deviceTitle(project).prefix(utf8Bytes: 38) + " · " + String(format: "%06x", hash & 0xffffff)
 }

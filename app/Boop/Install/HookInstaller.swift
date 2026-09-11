@@ -612,7 +612,7 @@ final class HookInstaller {
         def text(v): return v if isinstance(v,str) else json.dumps(v,ensure_ascii=False,separators=(',',':'))
         try:
             d=json.load(os.fdopen(3))
-            keys=['hook_event_name','hookEventName','event_name','session_id','conversation_id','cwd','workspace_roots','tool_name','toolName','tool','tool_input','input','command','tool_use_id','tool_call_id','tool_response','tool_output','output','exit_code','exit_status','error','error_class','last_assistant_message','closing_message','text','prompt','prompt_text','message','notification_type','status','duration_ms','turn_id']
+            keys=['thread_title','session_title','hook_event_name','hookEventName','event_name','session_id','conversation_id','cwd','workspace_roots','tool_name','toolName','tool','tool_input','input','command','tool_use_id','tool_call_id','tool_response','tool_output','output','exit_code','exit_status','error','error_class','last_assistant_message','closing_message','text','prompt','prompt_text','message','notification_type','status','duration_ms','turn_id']
             b={k:d[k] for k in keys if k in d}
             if isinstance(d.get('message'),dict): b.pop('message',None)
             for key in ['tool_response','tool_output','output']:

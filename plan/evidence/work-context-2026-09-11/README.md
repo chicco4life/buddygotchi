@@ -97,3 +97,15 @@ companion quality is no longer a release gate, but whole-desk coverage and timel
 responses remain unresolved. Production still uses its five-second timeout.
 No firmware changed or new hardware run was needed for this follow-up. Korean
 hardware fixtures continue to verify UTF-8 transport/rendering capability.
+
+## Integration with main
+
+Main's newer completion notices and explicit task pages replace the automatic
+mixed-session dashboard. Scope now renders above the calm face at (24,24),
+width W−48, clear of the working-count and Last finished footers; task pages and
+completion notices cover it. The combined app passes 369 tests with zero skipped,
+and both Mac products and firmware variants build. Earlier screenshots and
+hardware counts in this directory describe the pre-integration implementation.
+
+See the [combined verification](../work-context-main-integration-2026-09-11/README.md)
+for updated device screenshots and checks.
