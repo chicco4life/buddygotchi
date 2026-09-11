@@ -28,17 +28,14 @@ def cells():
                                 ("needsYou", "needsYou", {}), ("done-dance", "done", {"cheer": "dance"}), ("asleep", "asleep", {})):
         result[f"perch-{name}"] = {**base, "state": state, "posture": "perch", **fields, "settle": 600 if state == "done" else 2500}
     result["pickup"] = {**base, "state": "idle", "settle": 300, "trigger": "imu set 0.7 0 0.7"}
-    # The dashboard needs both a working and an idle agent to be wanted at all.
-    # Three phases of the 5.6 s invitation loop: the arm reaching out and
-    # tapping, the happy beat with the arm still out, and the rested face.
-    board = [{"source": "claude-code", "working": 2, "idle": 1},
-             {"source": "codex", "working": 1, "idle": 0},
-             {"source": "cursor", "working": 0, "idle": 3}]
-    for name, settle in (("point", 1800), ("tap", 2400), ("happy", 3000), ("rest", 5200)):
-        result[f"dashboard-{name}"] = {**base, "state": "working", "agents": board, "settle": settle}
-    # One agent: the table must stay centred in the band rather than ride the top.
-    result["dashboard-one"] = {**base, "state": "working", "settle": 3000,
-                               "agents": [{"source": "claude-code", "working": 1, "idle": 2}]}
+    rows = [[0,1,"Fix device layout"], [1,1,"Run regression checks"], [0,0,"Write release notes"]]
+    glance = {**base, "state":"working", "agents":[{"source":"codex","working":1,"idle":1}, {"source":"claude-code","working":1,"idle":0}], "threads":rows, "threadTotal":3}
+    result["glance-working"] = {**glance, "settle":1200}
+    result["glance-threads"] = {**glance, "trigger":"press a 100", "settle":1200}
+    for name, title, count in [("finish", "Fix device layout", 1), ("finish-ko", "기기 화면 개선", 1), ("finish-batch", "Run regression checks", 2)]:
+        result[name] = {**glance, "recent":[[101,0,title],[100,1,"Write release notes"]],
+            "notice":{"id":101,"count":count,"age":0,"left":5000,"cheer":"cheer"}, "settle":800}
+    result["glance-last"] = {**glance,"recent":[[101,0,"Fix device layout"]],"settle":1200}
     # The single heart, at its peak and on the way out.
     for name, settle in (("peak", 320), ("rise", 700)):
         result[f"boop-{name}"] = {**base, "state": "idle", "overlay": "boop", "settle": settle}

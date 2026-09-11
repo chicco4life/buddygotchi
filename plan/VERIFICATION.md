@@ -34,7 +34,14 @@ tools/pio_ws.sh run -e ws-amoled164
 | Mac UI | Overview and Settings; sessions follow status, compact XP is last and includes tasks/streak; no Activity navigation; pending cards stay on Overview; English/Korean and light/dark |
 | Palette | Every `BuddyTheme.*Ink` tone clears 4.5:1 against its own appearance's paper; amber appears only for "needs you", never on a primary action; the twelve-week grid and its legend are unclipped at the resting height |
 
-Current result: **349 tests passed, zero skipped**, both Mac products built,
+Current glanceable-completion result: **357 app tests passed, zero skipped**;
+both Mac products and both firmware variants built; **12 USB hardware checks
+passed**, **44/44 goldens** matched independently recaptured images at zero error.
+English/Korean text, grouped completion, thread table and last-finished footer
+were visually reviewed. Updated-app production BLE remains a separate gate.
+[Glanceable completion evidence](evidence/glance-completions-2026-09-11/README.md).
+
+Previous UI-pass result: **349 tests passed, zero skipped**, both Mac products built,
 shipping Waveshare firmware built and flashed, 43/43 device goldens re-recorded
 and reproduced at zero error against an independently recaptured set. The
 M5StickC Plus 2 was retired, leaving `ws-amoled164` as the only board and the
@@ -112,8 +119,17 @@ aggregate by civil day, active-only days preserve streaks, and twelve-week grids
 render in English/Korean and both appearances. Device stats show cumulative XP
 and ignore level transitions. Build firmware; physical verification is separate.
 
-## Agent dashboard
+## Previous agent dashboard verification (superseded)
 
 Run `make test` (uses the XCTest shim on CLT-only Macs); with full Xcode, targeted `swift test --filter AgentDashboardTests` and `HeartbeatTruncationTests` from app also work. Verify full-session counts beyond six, turn start/end, session end/stale cleanup, attention priority and wire bounds. Build the shipping Waveshare firmware. In an independent USB-only reservation run `test_agent_dashboard.py`: mixed counts persist beyond ten seconds, all-working/all-idle exit, legacy omission clears, invalid rows reject atomically, and attention wins. Capture settled and transitional dashboard screenshots and verify readable counts, sage non-zero idle, cream working counts, dimmed zeros, the hairline under the column heads, a table centred in the band below the buddy at one and at three agents, and an unobscured animated corner face whose gesturing hand lands above the column heads rather than on them. Restore normal firmware. Production BLE integration remains a separate gate.
 
 For the dashboard invitation, capture entry-relative 650, 1250, 1950 and 3000 ms. Run the full-loop regression across re-applied frames as well as the original two-frame check. Verify the two downward nods and rosy smile stay above the fixed text, and repeated-frame board pixels remain identical.
+
+## Glance completion gates
+
+Test short/duplicate/failed completions, coalescing at 5/8 seconds, three-second
+cooldown, priority cancellation, title fallback, UTF-8/escaped frame bounds and
+full counts beyond preview. Device tests cover repeated frames, reconnect,
+notice/table/attention priority, page navigation and sage wash screenshots.
+Re-record changed hardware goldens and independently recapture before checking.
+Production BLE requires the owner-launched updated app. Webcam remains opt-in.

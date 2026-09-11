@@ -110,7 +110,7 @@ describes the transport. BLE bonding and acknowledged OTA remain independent
 of the removed leaderboard signing feature.
 
 Device priority: system card → request → error bubble →
-stats → bubble → overlay → face. Local firmware owns passive dismissal, wake-press
+stats → thread table → completion notice → bubble → overlay → face. Local firmware owns passive dismissal, wake-press
 consumption, hold gestures, shutdown, posture, dimming and offline snapshot
 stats. The host owns reminder timing; approvals remain entirely in the editor. Repeated frames
 do not replay a nudge. Quiet mode suppresses sound but preserves visual rungs.
@@ -146,4 +146,34 @@ units for the Mac activity grid; XP stays cumulative and existing awards persist
 
 ## Device availability projection
 
-Core derives `BuddyState.agentCounts` from the full session dictionary, independently of the six-item `activeSessions` preview. Working/thinking count as working; idle as idle; requests/errors as neither. ESP32 output encodes bounded `agents` rows and maps calm states to working/idle, suppressing device duration cheers and model bubbles for these sessions. Firmware owns the mixed-state dashboard transition and presentation; no new clock, I/O or view acknowledgment enters Core. Wire and frame budgets remain in WIRE-V2.md.
+Core derives `BuddyState.agentCounts` from the full session dictionary, independently of the six-item `activeSessions` preview. Working/thinking count as working; idle as idle; requests/errors as neither. ESP32 output encodes bounded `agents` rows and maps calm states to working/idle, suppressing device duration cheers and model bubbles for these sessions. Core owns completion batching/cooldown; firmware owns local notice deadlines and explicit thread-page navigation; no new clock, I/O or view acknowledgment enters Core. Wire and frame budgets remain in WIRE-V2.md.
+
+## Glanceable activity and completion notices (2026-09-11)
+
+This replaces the persistent mixed-session dashboard. Any working session keeps
+the full working face with a small working count; otherwise the buddy is idle.
+A successful completed turn (including short turns) gets a five-second notice,
+agent label, large thread title and a sage-green wash (250 ms in, 600 ms out).
+Concurrent completions update one notice without restarting the cheer or wash:
+latest two titles, total completion count, at least two seconds for arrivals
+where possible, hard eight-second cap from the first arrival. Three-second
+cooldown updates history only. Explicit attention/errors take priority and
+cancel the current notice; it does not replay after dismissal or reconnect.
+
+Tap the face to inspect threads when working, or when a last completion exists.
+Tap advances three-row pages then returns to the face; secondary tap returns
+immediately. Idle with no completion retains tap affection; primary hold always
+retains affection. Table rows update without completion interruptions. A quiet
+Last finished footer opens recent history through the same paged detail view.
+History has six entries; the device receives up to twelve session rows, ordered
+by stable session ID. Totals and an explicit omitted-row count expose the
+bounded preview. Older idle chats imply no obligation or unread state.
+
+Use explicit hook thread/session titles when supplied. At Codex session/turn
+boundaries, read matching title metadata from at most the last 256 KiB of its
+local session index, off the main actor. Otherwise use project plus short stable
+session ID. Never read transcripts for titles. Do not display raw prompt or command text as a title.
+Names are ephemeral display metadata, never model memory. UTF-8 titles are
+bounded to 47 bytes; omit older history and preview rows as needed to satisfy
+the 1536-byte frame cap, retaining the full session count.
+Session removal, stale cleanup, failures and duplicate end events never cheer.

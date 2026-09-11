@@ -1,0 +1,11 @@
+cd app && swift build --product Boop && swift build --product BoopSignal
+[0/1] Planning build
+Building for debugging...
+[0/3] Write swift-version--1AB21518FC5DEDBE.txt
+[1/4] Write Objects.LinkFileList
+[2/4] Linking Boop
+[3/4] Applying Boop
+Build of product 'Boop' complete! (3.19s)
+Building for debugging...
+[0/3] Write swift-version--1AB21518FC5DEDBE.txt
+Build of product 'BoopSignal' complete! (0.31s)

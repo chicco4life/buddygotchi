@@ -168,6 +168,7 @@ static void wake() {
   if (screenOff) { halDisplayWake(); screenOff = false; }
   napping = false; faceDownAt = 0; lastInput = nowMs();
 }
+#include "glance.h"
 void onFrame(const TamaState& next, bool skinSupplied) {
   uint32_t now = nowMs();
   bool cosmeticsChanged=memcmp(&next.cosmetic,&tama.cosmetic,sizeof(Cosmetics));
@@ -202,6 +203,7 @@ void onFrame(const TamaState& next, bool skinSupplied) {
   if (visualChanged) stateAt = now;
   if (changed) lastInput = now;   // only a state change counts as activity for the dim ladder
   // Sound sees the incoming state/volume, never the previous frame's mute.
+  glanceFrame(next);
   tama = next;
   if (nudgeAdvanced && hasCard() && !systemCard()) sound(next.nudgeRung == 2 ? 7 : 0);
   else if (newCard && next.card.id[0]) sound(0);
@@ -230,9 +232,10 @@ static void primaryTap() {
     return;
   }
   if (bubbleVisible()) { clearBubble(); return; }
-  boop(false);
+  if (!detailTap()) boop(false);
 }
 static void secondaryTap() {
+  if(threadPage>=0) { threadPage=-1; return; }
   if (hasCard()) { if (!systemCard()) cardDismissed = true; return; }
   if (bubbleVisible()) { clearBubble(); return; }
   if (before(nowMs(),statsUntil) || !strcmp(posture,"travel")) { pageStats(); return; }
@@ -344,12 +347,10 @@ static void motionTick() {
 #include "face.h"
 // Screen priority stack (UX-DEVICE §16), highest first. UHOH is a bubble that
 // outranks the stats cards; it draws like BUBBLE.
-enum Layer : uint8_t { L_OFF, L_SYSTEM, L_CARD, L_UHOH, L_STATS, L_BUBBLE, L_OVERLAY, L_FACE, L_DASHBOARD };
-static const char* const layerNames[] = {"off","system","card","uhoh","stats","bubble","overlay","face","dashboard"};
+enum Layer : uint8_t { L_OFF, L_SYSTEM, L_CARD, L_UHOH, L_STATS, L_BUBBLE, L_OVERLAY, L_FACE, L_DASHBOARD, L_COMPLETION };
+static const char* const layerNames[] = {"off","system","card","uhoh","stats","bubble","overlay","face","threads","completion"};
 static bool dashboardWanted() {
-  return dataConnected() && !napping && !firstWake &&
-    (eq(tama.state,"working") || eq(tama.state,"idle") || eq(tama.state,"done")) &&
-    tama.workingCount()>0 && tama.idleCount()>0;
+  return dataConnected() && !napping && !firstWake && threadPage>=0;
 }
 static float dashboardAmount=0;
 static uint32_t dashboardTick=0;
@@ -360,6 +361,7 @@ static Layer screenLayer() {
   if (eq(tama.state,"uhoh") && bubbleVisible()) return L_UHOH;
   if (before(nowMs(),statsUntil)) return L_STATS;
   if (dashboardWanted()) return L_DASHBOARD;
+  if (noticeVisible()) return L_COMPLETION;
   if (bubbleVisible()) return L_BUBBLE;
   if (calmOverlay() && ((tama.overlay[0] && nowMs()-overlayAt<(eq(tama.overlay,"greet")?2200u:1400u)) || before(nowMs(),localBoopUntil))) return L_OVERLAY;
   return L_FACE;
@@ -442,54 +444,48 @@ static void drawStats(uint32_t now) {
     snprintf(line,sizeof(line),"today: %lu",(unsigned long)tama.snap.today); textLines(line,x,190,width,1,1,ink);
   }
 }
-// A stable count board; only the buddy moves after the entrance settles.
-//
-// Proportions, landscape: the buddy shrinks into the top-right corner directly
-// above the IDLE column and the board owns the rest. The table is then centred
-// in the band BELOW the buddy rather than pinned under a fixed top — with one
-// or two agents the old fixed top left ~80 px of dead screen at the bottom and
-// the whole thing sat high and unbalanced.
-static void drawDashboard(uint32_t now,float amount) {
-  int offset=animPx((1-amount)*HAL_W);
-  int nameX=30;
-  int workX=HAL_W*56/100;
-  int idleX=HAL_W*83/100;
-  float size=1.5f;
-  int rowH=40;
-  int headH=30;
-  // The band the table may use: clear of the buddy above, even margin below.
-  int bandTop=108, bandBottom=HAL_H-20;
-  int rows=tama.agentCount<1?1:tama.agentCount;
-  int tableH=headH+rows*rowH;
-  int top=bandTop+((bandBottom-bandTop)-tableH)/2;
-  if(top<bandTop) top=bandTop;
-  auto centered=[&](const char* text,int x,int y,uint16_t ink,float sz) {
-    spr.setFont(&fonts::Font2); spr.setTextSize(sz);
-    spr.setTextDatum(TL_DATUM); spr.setTextWrap(false);
-    spr.setTextColor(ink,(uint16_t)BLACK);
-    spr.drawString(text,offset+x-spr.textWidth(text)/2,y);
-  };
-  // Column heads, then one hairline. The rule is what turns three loose pairs
-  // of numbers into a table you can read down.
-  centered("WORKING",workX,top,BOOP_PAPER_SOFT,size*0.75f);
-  centered("IDLE",idleX,top,BOOP_PAPER_SOFT,size*0.75f);
-  int ruleY=top+headH-9;
-  spr.drawFastHLine(offset+nameX,ruleY,
-                    (HAL_W-30)-nameX,animMix(BLACK,BOOP_PAPER,0.22f));
-  for(int i=0;i<tama.agentCount;++i) {
-    const AgentCount& a=tama.agents[i];
-    const char* name=!strcmp(a.source,"codex")?"Codex":!strcmp(a.source,"claude-code")?"Claude":!strcmp(a.source,"cursor")?"Cursor":"Other";
-    int y=top+headH+i*rowH;
-    spr.setFont(&fonts::Font2); spr.setTextSize(size);
-    spr.setTextDatum(TL_DATUM); spr.setTextColor(BOOP_PAPER,(uint16_t)BLACK);
-    spr.drawString(name,offset+nameX,y);
-    char count[4];
-    // A zero is dimmed rather than dropped, so the columns stay aligned and
-    // the eye lands on the counts that are actually non-zero.
-    snprintf(count,sizeof(count),"%d",a.working);
-    centered(count,workX,y,a.working?BOOP_PAPER:BOOP_PAPER_DIM,size);
-    snprintf(count,sizeof(count),"%d",a.idle);
-    centered(count,idleX,y,a.idle?BOOP_SAGE:BOOP_PAPER_DIM,size);
+static const char* sourceName(int source) {
+  static const char* names[]={"Codex","Claude","Cursor","Other"};
+  return names[min(3,max(0,source))];
+}
+static void drawThreads() {
+  int sessionPages=(tama.threadCount+2)/3;
+  int pages=detailPages();
+  if(threadPage>=pages) threadPage=max(0,pages-1);
+  bool history=threadPage>=sessionPages;
+  int start=(history?threadPage-sessionPages:threadPage)*3;
+  char line[96];
+  snprintf(line,sizeof(line),"%s  %d/%d",history?"Recently finished":"Threads",threadPage+1,max(1,pages));
+  textLines(line,24,14,HAL_W-48,1,2);
+  static const char* states[]={"Idle","Working","Needs you","Error"};
+  for(int row=0;row<3;++row) {
+    int i=start+row;
+    if(i>=(history?tama.recentCount:tama.threadCount)) break;
+    const char* title=history?tama.recent[i].title:tama.threads[i].title;
+    int source=history?tama.recent[i].source:tama.threads[i].source;
+    int status=history?0:tama.threads[i].status;
+    int y=51+row*62;
+    snprintf(line,sizeof(line),"%s · %s",sourceName(source),history?"Finished":states[status]);
+    textLines(line,24,y,HAL_W-48,1,1,status==2?BOOP_AMBER:BOOP_PAPER_SOFT);
+    textLines(title,24,y+21,HAL_W-48,1,2);
+  }
+  int omitted=max(0,tama.threadTotal-(int)tama.threadCount);
+  if(omitted) snprintf(line,sizeof(line),"Tap: next/back · %d more in Mac app",omitted);
+  else snprintf(line,sizeof(line),"Tap: %s",threadPage+1<pages?"next page":"back to buddy");
+  textLines(line,24,HAL_H-26,HAL_W-48,1,1,BOOP_PAPER_SOFT);
+}
+static void drawCompletion(uint32_t now) {
+  if(!tama.recentCount) return;
+  char line[80];
+  if(tama.notice.count>1) snprintf(line,sizeof(line),"%d finished · %s",tama.notice.count,sourceName(tama.recent[0].source));
+  else snprintf(line,sizeof(line),"%s finished",sourceName(tama.recent[0].source));
+  textLines(line,24,18,HAL_W-48,1,1,BOOP_PAPER);
+  // Only text slides on an additional arrival; the field and cheer continue.
+  int offset=animPx(8*(1-animClamp((now-noticeTextAt)/180.0f,0,1)));
+  textLines(tama.recent[0].title,24,HAL_H-112+offset,HAL_W-48,2,2);
+  if(tama.notice.count>1 && tama.recentCount>1) {
+    snprintf(line,sizeof(line),"%s · %s",sourceName(tama.recent[1].source),tama.recent[1].title);
+    textLines(line,24,HAL_H-34,HAL_W-48,1,1,BOOP_PAPER_SOFT);
   }
 }
 static void render() {
@@ -523,6 +519,11 @@ static void render() {
   // before this change too: the face breathes, so the field need not. §8.
   if (eq(tama.state,"needsYou") || hasCard()) field=animMix(BLACK,BOOP_AMBER_DEEP,0.40f+animPulse01(now-stateAt,tama.nudgeRung == 2 ? 1200 : 3500)*(tama.nudgeRung == 2 && !cardDismissed ? 0.22f : 0.11f));
   else if(eq(tama.state,"uhoh")) field=animMix(BLACK,BOOP_RED,0.28f+animPulse01(now-stateAt,4000)*0.12f);
+  else if(layer==L_COMPLETION) {
+    float fadeIn=animClamp((now-noticeAt)/250.0f,0,1);
+    float fadeOut=animClamp((noticeUntil-now)/600.0f,0,1);
+    field=animMix(BLACK,BOOP_SAGE,0.44f*min(fadeIn,fadeOut));
+  }
   if(field!=BLACK && tama.cosmetic.skin[0]) field=animMix(field,animMix(BLACK,tint,0.22f),0.2f);
   field=animMix(BLACK,field,colorAmount(now));
   // One whole-field flash: 300 ms toward the skin, then 300 ms back.
@@ -537,24 +538,23 @@ static void render() {
   bool beside=layer==L_STATS || layer==L_BUBBLE || layer==L_UHOH;
   float compact=beside?1:0;
   if(layer==L_STATS) { float u=animClamp((now-statsAt)/300.0f,0,1); compact=u*u*(3-2*u); }
-  bool dashboardLayer=layer==L_DASHBOARD;
-  static bool wasDashboard=false;
-  if(dashboardLayer && !wasDashboard) dashboardAt=now;
-  wasDashboard=dashboardLayer;
-  bool mayTransition=dashboardLayer || layer==L_FACE || layer==L_OVERLAY;
-  uint32_t elapsed=dashboardTick?now-dashboardTick:0;
-  dashboardTick=now;
-  float step=elapsed/550.0f;
-  if(!mayTransition) dashboardAmount=0;
-  else dashboardAmount=animClamp(dashboardAmount+(dashboardLayer?step:-step),0,1);
-  float pull=dashboardAmount*dashboardAmount*(3-2*dashboardAmount);
-  faceDraw(now,base && pull==0,compact,layer==L_STATS,pull);
-  if(pull>0) drawDashboard(now,pull);
-  else if(base && dataConnected() && !napping && tama.idleCount()>0 &&
-          (eq(tama.state,"idle") || eq(tama.state,"working"))) {
-    char label[24]; snprintf(label,sizeof(label),"%d idle",tama.idleCount());
-    spr.setFont(&fonts::efontKR_16); spr.setTextSize(1);
-    textLines(label,(HAL_W-spr.textWidth(label))/2,HAL_H-28,HAL_W,1,1,BOOP_SAGE);
+  if(layer!=L_DASHBOARD) {
+    // Completion gets a smaller cheerful face above the large title.
+    faceDraw(now,base,layer==L_COMPLETION?1:compact,layer==L_STATS,0);
+  }
+  if(layer==L_DASHBOARD) drawThreads();
+  else if(layer==L_COMPLETION) drawCompletion(now);
+  else if(base && dataConnected() && !napping &&
+          (eq(tama.state,"idle") || eq(tama.state,"working") || eq(tama.state,"done"))) {
+    char label[96];
+    if(tama.workingCount()>0) {
+      snprintf(label,sizeof(label),"%d working · tap for threads",tama.workingCount());
+      textLines(label,24,HAL_H-53,HAL_W-48,1,1,BOOP_PAPER_SOFT);
+    }
+    if(tama.recentCount) {
+      snprintf(label,sizeof(label),"Last finished: %s",tama.recent[0].title);
+      textLines(label,24,HAL_H-27,HAL_W-48,1,1,BOOP_PAPER_SOFT);
+    }
   }
   if (eq(posture,"travel") && battery>=0 && battery<25) {
     spr.fillSmoothRoundRect(HAL_W-30,HAL_H-27,20,10,2,BOOP_PAPER_DIM);
@@ -588,6 +588,8 @@ static void dumpState() {
   d["creature"]=tama.state; d["effort"]=tama.effort; d["cheer"]=tama.cheer; d["uhoh"]=tama.uhoh;
   d["overlay"]=tama.overlay; d["greetLevel"]=tama.greetLevel; d["nudgeRung"]=tama.nudgeRung; d["card"]=hasCard(); d["cardId"]=tama.card.id; d["armed"]=false;
   d["bubble"]=bubbleVisible()?bubbleText():""; d["gift"]=false; d["focus"]=tama.focus; d["posture"]=posture;
+  d["threadPage"]=threadPage; d["threadCount"]=tama.threadCount; d["recentCount"]=tama.recentCount;
+  d["noticeVisible"]=noticeVisible(); d["noticeCount"]=tama.notice.count; d["noticeAge"]=nowMs()-noticeAt;
   d["dashboardAge"]=nowMs()-dashboardAt; d["dashboard"]=dashboardWanted(); d["workingCount"]=tama.workingCount(); d["idleCount"]=tama.idleCount();
   d["dots"]=tama.dots; d["dotAlert"]=tama.dotAlert; d["mute"]=tama.mute; d["screenOff"]=screenOff; d["brightness"]=screenOff?0:brightness;
   d["presence"]=presenceName(); d["napping"]=napping; d["dizzy"]=before(nowMs(),dizzyUntil); d["frozen"]=clockFrozen;
@@ -782,9 +784,11 @@ void loop() {
   if((linked&&!lastLinked)||(secure&&!lastSecure)) { sendStatus(); sendBattery(); }
   if(!linked && lastLinked) {
     // Stale attention cards disappear when their data link is lost.
+    threadPage=-1; noticeUntil=0;
     tama.card=Card{}; tama.overlay[0]=0;
     tama.posture[0]=0; clearBubble();
   }
+  if((!linked && lastLinked) || (!secure && lastSecure)) { glanceBaseline=true; noticeUntil=0; }
   lastLinked=linked; lastSecure=secure;
   static bool priorSystem=false;
   bool sys=systemCard();
@@ -809,7 +813,17 @@ void loop() {
   faceSimulate(now,dt);
   static bool touched=false;
   bool touch=halTouchDown();
-  if(touch&&!touched) { lastInput=now; if(screenOff||napping) wake(); else boop(false); }
+  if(touch&&!touched) {
+    lastInput=now;
+    if(screenOff||napping) wake();
+    else {
+      int x=0,y=0;
+      if(threadPage<0 && tama.recentCount && !hasCard() && !noticeVisible() &&
+         strcmp(tama.state,"uhoh") && halTouchPoint(&x,&y) && y>=HAL_H-35 && dataConnected()) {
+        threadPage=(tama.threadCount+2)/3; noticeUntil=0; statsUntil=0; clearBubble();
+      } else primaryTap();
+    }
+  }
   touched=touch;
   if(halPresentDue() && !screenOff && spr.width()>0) render();
   delay(HAL_LOOP_MS);

@@ -58,6 +58,8 @@ def main() -> int:
             # the working gaze hop) is fresh regardless of host timing.
             bridge = 'idle' if frame['state'] != 'idle' else 'working'
             s.write_line(json.dumps({'v': 2, 'state': bridge})); time.sleep(0.4)
+            if "notice" in frame:
+                frame["notice"]["id"] = int(time.monotonic()*1000) % 2000000000 + 1
             s.write_line(json.dumps(frame, ensure_ascii=False, separators=(',', ':')))
             deadline = time.monotonic() + 5
             while time.monotonic() < deadline and s.framed_json('state', 'STATE', 3).get('creature') != frame['state']:

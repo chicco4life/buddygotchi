@@ -6,6 +6,8 @@ import NIOHTTPTypes
 import CryptoKit
 
 struct HookEventBody: Decodable, Sendable {
+    var session_title: String?
+    var thread_title: String?
     var session_id: String?
     var conversation_id: String?
     var hook_event_name: String?

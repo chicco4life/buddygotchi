@@ -53,7 +53,7 @@ legs, no outline and nothing joining the two arms. An arm follows the
 brow's rule rather than the eyes': it exists only while it is doing
 something, and it leaves when the moment does, so at rest the face is
 still two eyes and a mouth on black. Arms appear in exactly three
-moments — the hello wave, the celebration, and the dashboard gesture —
+moments — the hello wave and the completion celebration —
 and never while a card is up.
 
 | Part | Carries | Range |
@@ -79,7 +79,7 @@ Appearance is fixed; the anchor never moves. No outlines anywhere: every shape i
 the device keeps the ink and puts it on black. Black is free on AMOLED —
 the pixels are off — and a cream field would light all 456×280 of them,
 cost battery, glow in a dark room, and burn in under a persistent
-dashboard. Pure white ink on black is harsh at night, so the ink is a
+thread table. Pure white ink on black is harsh at night, so the ink is a
 warm cream that reads as lamp light and matches the app's paper.
 
 Every device colour sits exactly on the RGB332 lattice the 8-bit canvas
@@ -91,7 +91,7 @@ in `firmware/esp32/firmware/palette.h`; the app's half is
 
 | Token | Value | Use |
 | --- | --- | --- |
-| Paper | `255,219,173` | The ink: face, text, dashboard counts |
+| Paper | `255,219,173` | The ink: face, text, thread details |
 | Paper soft | `219,182,146` | Column heads, units, the card's gloss |
 | Paper dim | `146,109,82` | Asleep; a zero count |
 | Paper faint | `73,73,73` | Grey before first contact |
@@ -353,44 +353,32 @@ screen, nothing swarms, nothing spins.
 | Streak | The small flame pulses gently beside the face. |
 | Card | Springs up, eases away. Unchanged. |
 
-## Agent availability dashboard (2026-09-11)
+## Glanceable activity and completion notices (2026-09-11)
 
-This supersedes duration-based device cheers and the face-only presentation
-for mixed activity. The desktop retains its own celebrations.
+This replaces the persistent mixed-session dashboard. Any working session keeps
+the full working face with a small working count; otherwise the buddy is idle.
+A successful completed turn (including short turns) gets a five-second notice,
+agent label, large thread title and a sage-green wash (250 ms in, 600 ms out).
+Concurrent completions update one notice without restarting the cheer or wash:
+latest two titles, total completion count, at least two seconds for arrivals
+where possible, hard eight-second cap from the first arrival. Three-second
+cooldown updates history only. Explicit attention/errors take priority and
+cancel the current notice; it does not replay after dismissal or reconnect.
 
-- All working: full-size working face. All idle: full-size idle face with a
-  green `N idle` footer. No sessions: ordinary idle/sleep lifecycle.
-- Working and idle sessions coexist: the buddy shrinks into the upper-right
-  corner while pulling in a count board over 550 ms. It remains there,
-  presenting the idle column from directly above it: anticipatory squish, two downward nods, a rosy smile back at the owner, then rest. The 5.6-second loop starts on entry; the separate arrow is removed.
-  The board stays until the mixed state ends; there is no timeout or unread state.
-- **Gesture (2026-09-11).** From 1.15 s a little arm reaches out over
-  260 ms and gestures down across the board at about 0.52 rad from
-  straight down, tapping twice (±0.20 rad) on the beat of the nods, and
-  retracts by 4.4 s. The counts never move: only the buddy does. The hand
-  lands in the gap above the column heads, never on them.
-- **Proportions (2026-09-11).** The board takes precedence here, so the
-  buddy shrinks — but to 42%, not 28%. At 28% it stopped reading as a
-  creature and became two dots and a mouth. The face sits at 83% width and
-  y = 46, clear of the top edge. The table is centred in the band below it
-  (y 108 to H−20) rather than pinned to a fixed top: with one or two agents
-  a fixed top left ~80 px of dead screen and the whole board sat high.
-  One hairline runs under the column heads — no box and no fill, per §16,
-  but a rule is what turns loose pairs of numbers into a table.
-- Rows are Codex, Claude, Cursor and Other, in stable order, omitting sources
-  with no tracked sessions. Columns are WORKING and IDLE (WORK on narrow M5).
-  A non-zero idle count is sage; other non-zero counts are the cream ink;
-  a zero is dimmed rather than dropped, so the columns stay aligned and the
-  eye lands on the counts that are actually worth acting on.
-  The fixed harness names and English headers use the built-in proportional
-  Font2 at 1.5× on Waveshare (0.75× on M5); request/bubble Korean text keeps
-  its existing font. No session names, automatic paging, acknowledgment or
-  dismissal bookkeeping.
-- Counts update in place. When all sessions work or all are idle, the board
-  slides away and the buddy grows back. All-idle taps retain boop affection.
-- Explicit requests/errors, system cards, sleep/disconnection and user-opened
-  stats retain priority. Waiting/error sessions count as neither working nor idle.
-- Idle means an available tracked session, not an unread result. Session end
-  and the existing stale-session cleanup remove entries; no view hook is needed.
+Tap the face to inspect threads when working, or when a last completion exists.
+Tap advances three-row pages then returns to the face; secondary tap returns
+immediately. Idle with no completion retains tap affection; primary hold always
+retains affection. Table rows update without completion interruptions. A quiet
+Last finished footer opens recent history through the same paged detail view.
+History has six entries; the device receives up to twelve session rows, ordered
+by stable session ID. Totals and an explicit omitted-row count expose the
+bounded preview. Older idle chats imply no obligation or unread state.
 
-Physical motion and font legibility must be verified on the target display.
+Use explicit hook thread/session titles when supplied. At Codex session/turn
+boundaries, read matching title metadata from at most the last 256 KiB of its
+local session index, off the main actor. Otherwise use project plus short stable
+session ID. Never read transcripts for titles. Do not display raw prompt or command text as a title.
+Names are ephemeral display metadata, never model memory. UTF-8 titles are
+bounded to 47 bytes; omit older history and preview rows as needed to satisfy
+the 1536-byte frame cap, retaining the full session count.
+Session removal, stale cleanup, failures and duplicate end events never cheer.

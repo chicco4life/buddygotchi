@@ -1,9 +1,9 @@
 # Implementation plan
 
-Current phase: UI/UX pass across both surfaces — the "Boop Cream" palette, the
-app's card-and-label layout, and the device's arms, proportions and animation
-audit — implemented, with automated checks passing and USB hardware goldens
-re-recorded. Live model, editor and BLE-integration verification remain.
+Current phase: glanceable activity and completion notices — implemented, with
+357 app tests passing and both Mac products and firmware variants built.
+12 USB hardware checks passed; all 44 device goldens matched independent
+captures at zero error. Owner-launched updated-app BLE verification remains.
 [Component behaviors](BEHAVIORS.md) is the current contract, with detailed specs
 in the [index](README.md).
 
@@ -103,3 +103,13 @@ Implemented full-session per-harness counts, additive wire field, persistent mix
 Dashboard invitation refinement: larger buddy above IDLE, two downward nods and a rosy smile, with unchanged static counts and proportional labels. 12 USB hardware tests passed, both Waveshare variants built, and the captured loop was checked against static board pixels. Device verification recorded in dashboard evidence.
 
 Main integration preserves cumulative XP and daily activity: 345 app tests passed with zero skips, and the integrated shipping Waveshare firmware built successfully.
+
+## Glanceable completion implementation — 2026-09-11
+
+Replaced the mixed count dashboard with a working face, coalesced completion
+notices, sage wash and tap-through thread/history pages. 357 app tests passed,
+zero skipped; both Mac products and both firmware variants built. 12 USB device
+checks passed and 44/44 independently recaptured goldens matched at zero error.
+Codex titles use bounded local index metadata; unavailable titles use project
+plus stable ID. [Evidence](evidence/glance-completions-2026-09-11/README.md).
+The owner must launch the rebuilt Mac app before the production BLE gate closes.

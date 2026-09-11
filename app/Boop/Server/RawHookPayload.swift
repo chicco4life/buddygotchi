@@ -20,6 +20,7 @@ struct RawHookPayload: Sendable {
     var callId: String?
     var eventName: String = ""
     var displayHint: String = ""
+    var displayTitle: String?
 
     static func parse(_ data: Data, source: String, at: Double) throws -> Self? {
         let body = try JSONDecoder().decode(HookEventBody.self, from: data)
@@ -51,7 +52,7 @@ struct RawHookPayload: Sendable {
                     outputTail: (body.output_tail ?? output.map { String(decoding: $0.utf8.suffix(1024), as: UTF8.self) }).map { $0.prefix(utf8Bytes: 1024) },
                     promptText: kind == .turnStart ? (body.prompt ?? body.prompt_text)?.text.map { $0.prefix(utf8Bytes: 2048) } : nil,
                     closingMessage: kind == .turnEnd ? (body.last_assistant_message ?? body.text ?? body.closing_message)?.text.map { $0.prefix(utf8Bytes: 2048) } : nil,
-                    cwd: body.effectiveCwd, timestamp: at, closingOnly: event == "afterAgentResponse", callId: body.tool_use_id ?? body.tool_call_id, eventName: event, displayHint: safeDisplayHint(body, tool: tool))
+                    cwd: body.effectiveCwd, timestamp: at, closingOnly: event == "afterAgentResponse", callId: body.tool_use_id ?? body.tool_call_id, eventName: event, displayHint: safeDisplayHint(body, tool: tool), displayTitle: (body.thread_title ?? body.session_title).map(deviceTitle))
     }
 }
 

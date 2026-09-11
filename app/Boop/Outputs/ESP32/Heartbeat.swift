@@ -20,6 +20,27 @@ struct RenderState: Encodable, Sendable {
     var cosmetic: EquippedCosmetic?
     var snap: Snapshot?
     var agents: [AgentCounts]?
+    var threads: [ThreadRow]?
+    var threadTotal: Int?
+    var recent: [FinishRow]?
+    var notice: Notice?
+    struct ThreadRow: Encodable, Sendable {
+        var source: Int; var status: Int; var title: String
+        func encode(to encoder: any Encoder) throws {
+            var c = encoder.unkeyedContainer()
+            try c.encode(source); try c.encode(status); try c.encode(deviceTitle(title))
+        }
+    }
+    struct FinishRow: Encodable, Sendable {
+        var sequence: Int; var source: Int; var title: String
+        func encode(to encoder: any Encoder) throws {
+            var c = encoder.unkeyedContainer()
+            try c.encode(sequence); try c.encode(source); try c.encode(deviceTitle(title))
+        }
+    }
+    struct Notice: Encodable, Sendable {
+        var id: Int; var count: Int; var age: Int; var left: Int; var cheer: CheerSize
+    }
     var t: Int
 
     enum Card: Encodable, Sendable {
@@ -61,6 +82,7 @@ struct RenderState: Encodable, Sendable {
     }
     private enum CodingKeys: String, CodingKey {
         case v, state, effort, cheer, uhoh, overlay, greetLevel, dots, dotAlert, card
+        case threads, threadTotal, recent, notice
         case agents, bubble, gift, focus, mute, nudgeRung, posture, cosmetic, snap, t
     }
     func encode(to encoder: any Encoder) throws {
@@ -88,6 +110,10 @@ struct RenderState: Encodable, Sendable {
             AgentCounts(source: ["codex", "claude-code", "cursor"].contains($0.source) ? $0.source : "other",
                         working: min(99, max(0, $0.working)), idle: min(99, max(0, $0.idle)))
         } }, forKey: .agents)
+        try c.encodeIfPresent(threads.map { Array($0.prefix(12)) }, forKey: .threads)
+        try c.encodeIfPresent(threadTotal, forKey: .threadTotal)
+        try c.encodeIfPresent(recent.map { Array($0.prefix(6)) }, forKey: .recent)
+        try c.encodeIfPresent(notice, forKey: .notice)
         try c.encode(t, forKey: .t)
     }
 }
@@ -102,6 +128,15 @@ func renderState(from state: BuddyState, defaults: UserDefaults = .standard, now
     if c.state == .needsYou, let card = c.card {
         frame.card = .needsYou(id: card.id, tool: card.tool, gloss: card.gloss,
             stakes: card.stakes, n: card.index, of: card.count, approval: card.isApproval)
+    }
+    func sourceIndex(_ source: String) -> Int { ["codex", "claude-code", "cursor"].firstIndex(of: source) ?? 3 }
+    frame.threads = state.deviceThreads.prefix(12).map { .init(source: sourceIndex($0.source), status: $0.status, title: $0.title) }
+    frame.threadTotal = state.deviceThreads.count
+    frame.recent = state.recentFinishes.map { .init(sequence: $0.sequence, source: sourceIndex($0.source), title: $0.title) }
+    if let notice = state.completionNotice, now >= notice.startedAt, now < notice.until,
+       ![CreatureState.needsYou, .uhoh, .asleep].contains(c.state) {
+        frame.notice = .init(id: notice.id, count: notice.count, age: Int(now-notice.startedAt),
+            left: Int(notice.until-now), cheer: notice.cheer)
     }
     frame.agents = state.agentCounts
     // Device activity is availability, not duration-based celebration. Keep
@@ -138,6 +173,16 @@ func renderStateData(from frame: RenderState) -> Data? {
     }
     if data.count + 1 > maxHeartbeatBytes {
         frame.cosmetic = nil
+        guard let next = try? encoder.encode(frame) else { return nil }
+        data = next
+    }
+    // Detail is a bounded preview: preserve the newest finish and expose the
+    // full count, rather than losing an entire heartbeat to a long title.
+    while data.count + 1 > maxHeartbeatBytes,
+          (frame.recent?.count ?? 0) > 1 || (frame.threads?.count ?? 0) > 0 {
+        if (frame.recent?.count ?? 0) > 2 { frame.recent?.removeLast() }
+        else if (frame.threads?.count ?? 0) > 0 { frame.threads?.removeLast() }
+        else { frame.recent?.removeLast() }
         guard let next = try? encoder.encode(frame) else { return nil }
         data = next
     }

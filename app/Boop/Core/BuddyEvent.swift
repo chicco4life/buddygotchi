@@ -15,6 +15,7 @@ enum TurnOutcome: Sendable, Equatable { case completed; case failed(errorClass: 
 // MARK: - Events
 
 enum BuddyEvent: Sendable {
+    case sessionTitleChanged(at: Double, sessionId: String, title: String)
     case onboardingCheer(at: Double)
     case voiceLine(at: Double, kind: VoiceLineKind, text: String)
     case languageChanged(at: Double, language: String)
@@ -62,7 +63,7 @@ enum BuddyEvent: Sendable {
 
     var at: Double {
         switch self {
-        case .onboardingCheer(let at), .voiceLine(let at, _, _), .languageChanged(let at, _),
+        case .sessionTitleChanged(let at, _, _), .onboardingCheer(let at), .voiceLine(let at, _, _), .languageChanged(let at, _),
              .growthUpdated(let at, _, _),
              .requestDescribed(let at, _, _, _), .adapterDegraded(let at, _),
              .turnStarted(let at, _, _),
@@ -104,6 +105,7 @@ enum BuddyEvent: Sendable {
         case .turnStarted: "turnStarted"
         case .toolCalled: "toolCalled"
         case .toolResulted: "toolResulted"
+        case .sessionTitleChanged: "sessionTitleChanged"
         case .turnEnded: "turnEnded"
         case .devicePostureChanged: "devicePostureChanged"
         case .deviceBatteryChanged: "deviceBatteryChanged"

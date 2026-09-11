@@ -105,7 +105,8 @@ static FacePose facePose;
 static uint32_t microAt=0, nextMicro=120000;
 static int microKind=0;
 static bool eq(const char* a,const char* b) { return strcmp(a,b)==0; }
-static uint32_t cheerDuration() { return eq(tama.cheer,"dance")?2500:eq(tama.cheer,"cheer")?2500:1500; }
+static const char* visibleCheer() { return noticeVisible()?tama.notice.cheer:tama.cheer; }
+static uint32_t cheerDuration() { return eq(visibleCheer(),"dance")?2500:eq(visibleCheer(),"cheer")?2500:1500; }
 static bool calmOverlay() { return !hasCard() && !napping && (eq(tama.state,"idle") || eq(tama.state,"working") || eq(tama.state,"done")); }
 enum PerchMotion : uint8_t { P_STILL, P_DANGLE, P_TIP, P_LAND, P_POP };
 struct PerchPose {
@@ -161,7 +162,7 @@ static void faceSimulate(uint32_t now,float dt) {
   float phase=(now-stateAt)*0.001f;
   p.bob=sinf((now-stateAt)*ANIM_TAU/1400.0f)*3;
   p.gazeX=sinf(phase*0.31f)*6; p.gazeY=cosf(phase*0.23f)*2;
-  const char* state = (!dataConnected() && !presenceGraced(now)) ? "idle" : tama.state;
+  const char* state = (!dataConnected() && !presenceGraced(now)) ? "idle" : noticeVisible()?"done":tama.state;
   if (napping || eq(state,"asleep")) {
     p.eyeH=7; p.bob=sinf(phase*0.7f)*2; p.gazeX=0; p.gazeY=4;
     if (before(now,localBoopUntil) && !napping) p.eyeH=18; // sleeper's peek, no hearts
@@ -177,18 +178,18 @@ static void faceSimulate(uint32_t now,float dt) {
     p.eyeH=96; p.eyeW=72; p.gazeX=0; p.gazeY=-2; p.lean=-4;
   } else if (eq(state,"done")) {
     p.arc=22; p.eyeH=7; p.mouth=1;
-    uint32_t age=now-stateAt;
+    uint32_t age=now-(noticeVisible()?noticeAt:stateAt);
     if (age<cheerDuration()) {
       float progress=(float)age/cheerDuration();
       // Both arms go up for the celebration and swing in opposition, which is
       // what makes it read as a cheer rather than as a two-armed shrug.
       float up=animClamp(age/220.0f,0,1)*animClamp((cheerDuration()-age)/280.0f,0,1);
       float swing=sinf(age*ANIM_TAU*1.8f/1000.0f);
-      if (eq(tama.cheer,"dance")) {
+      if (eq(visibleCheer(),"dance")) {
         p.bob-=fabsf(sinf(age*ANIM_TAU*2/1000.0f))*18;
         p.tilt=0.25f*sinf(age*ANIM_TAU*1.5f/1000.0f); p.blush=1;
         p.armL=p.armR=up*0.88f; p.angL=2.55f+0.26f*swing; p.angR=2.55f-0.26f*swing;
-      } else if (eq(tama.cheer,"cheer")) {
+      } else if (eq(visibleCheer(),"cheer")) {
         p.bob-=21*animBounce(age%450,450)*(age<900);
         p.tilt=0.12f*sinf(progress*ANIM_TAU*2); p.blush=1;
         p.armL=p.armR=up*0.82f; p.angL=2.45f+0.20f*swing; p.angR=2.45f-0.20f*swing;
@@ -342,6 +343,7 @@ static void faceDraw(uint32_t now,bool showSparks,float compact=0,bool proud=fal
   int cy=HAL_H/2-10-lift+animPx(p.bob+p.lean), cx=animPx(HAL_W/2.0f+(HAL_W/6.0f-HAL_W/2.0f)*compact+p.gazeX*scale);
   cx=animPx(cx*(1-dashboard)+(HAL_W*83/100)*dashboard);
   cy=animPx(cy*(1-dashboard)+(46+p.bob)*dashboard);
+  if(noticeVisible()) { cx=HAL_W/2; cy=91+animPx(p.bob*0.4f); }
   float reveal=cosmeticAmount(now);
   const Cosmetics& shape=reveal<0.5f?oldCosmetic:tama.cosmetic;
   float spacing=silhouettes[shape.silhouetteId].spacing*scale;
@@ -427,7 +429,7 @@ static void faceDraw(uint32_t now,bool showSparks,float compact=0,bool proud=fal
   uint32_t age=now-stateAt;
   if (!showSparks) return;
   int eyeTop=cy+animPx(p.gazeY-p.eyeH/2);
-  if (eq(tama.state,"done") && eq(tama.cheer,"dance") && age<cheerDuration()) {
+  if (eq(tama.state,"done") && eq(visibleCheer(),"dance") && age<cheerDuration()) {
     const uint16_t colors[]={BOOP_ROSE,BOOP_SAGE,BOOP_GOLD};
     // Each dot has its own start delay, height, and fall speed so they never
     // line up; a row of dots reads as a necklace, not confetti. Five rather
