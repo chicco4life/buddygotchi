@@ -9,7 +9,7 @@ final class AgentDashboardTests: XCTestCase {
             s = reduce(s, .sessionStarted(at: NOW, sessionId: "c\(i)", source: "codex", cwd: nil))
         }
         s = reduce(s, .turnStarted(at: NOW + 1, sessionId: "c0", source: "codex"))
-        XCTAssertEqual(s.buddy.activeSessions.count, 6)
+        XCTAssertEqual(s.buddy.activeSessions.count, 9)
         XCTAssertEqual(s.buddy.agentCounts, [.init(source: "codex", working: 1, idle: 8)])
         s = reduce(s, .turnEnded(at: NOW + 70_000, sessionId: "c0", source: "codex", outcome: .completed))
         XCTAssertEqual(s.buddy.agentCounts.first?.idle, 9)

@@ -159,60 +159,61 @@ def test_frame_limit_and_parser_recovery(stick):
     wait_state(stick, creature="working")
 
 
-def test_card_arm_and_inflight_guard(stick):
+def test_passive_card_tap_dismisses_without_arming_or_deciding(stick):
     pending(stick, id="early")
-    assert state(stick)["armed"] is False
+    wait_state(stick, card=True, armed=False)
     assert not command(press(stick), cmd="decision")
-    wait_state(stick, armed=True)
-    got = press(stick)
-    assert command(got, cmd="decision", id="early", d="allow")
-    wait_state(stick, feedback="sending...")
+    wait_state(stick, card=False, creature="needsYou", feedback="")
+    pending(stick, id="early")
+    wait_state(stick, card=False, armed=False)
 
 
 @pytest.mark.parametrize("stakes", ["fine", "checkIt", "careful"])
-def test_card_decisions(stick, stakes):
+def test_legacy_stakes_never_enable_device_decisions(stick, stakes):
     pending(stick, id=f"a-{stakes}", stakes=stakes)
-    wait_state(stick, armed=True)
-    if stakes == "careful":
-        assert not command(press(stick), cmd="decision")
-        assert not command(press(stick, ms=1200), cmd="decision")
-    got = press(stick, ms=2150 if stakes == "careful" else 100)
-    assert command(got, cmd="decision", d="allow")
-    frame(stick)
-    wait_state(stick, feedback="yes!")
-    time.sleep(1.6)
-    pending(stick, id=f"d-{stakes}", stakes=stakes)
-    wait_state(stick, armed=True)
-    assert command(press(stick, "b"), cmd="decision", d="deny")
-    frame(stick)
-    wait_state(stick, feedback="okay")
+    wait_state(stick, card=True, armed=False)
+    assert not command(press(stick), cmd="decision")
+    wait_state(stick, card=False, feedback="")
+    pending(stick, id=f"b-{stakes}", stakes=stakes)
+    wait_state(stick, card=True, armed=False)
+    assert not command(press(stick, "b"), cmd="decision")
+    wait_state(stick, card=False, feedback="")
 
 
-def test_primary_hold_denies(stick):
+def test_primary_hold_on_card_never_denies_or_awards_affection(stick):
     pending(stick)
-    wait_state(stick, armed=True)
-    assert command(press(stick, ms=1150), cmd="decision", d="deny")
+    wait_state(stick, card=True, armed=False)
+    buf = press(stick, ms=1150)
+    assert not command(buf, cmd="decision")
+    assert not command(buf, cmd="boop")
+    wait_state(stick, creature="needsYou", feedback="")
 
 
-def test_ack_is_card_id_removal_not_timeout(stick):
+def test_dismissed_request_stays_snoozed_until_replaced(stick):
     pending(stick, id="waiting")
-    wait_state(stick, armed=True)
     press(stick)
-    pending(stick, id="waiting")
-    wait_state(stick, feedback="sending...")
-    wait_state(stick, feedback="no link?", timeout=4)
+    wait_state(stick, card=False)
+    # Keep heartbeats live while advancing the reminder clock. A 120-second
+    # jump without frames also tests link expiry, which clears the card itself.
+    for _ in range(3):
+        clock(stick, state(stick)["now"] + 40000)
+        pending(stick, id="waiting")
+    pending(stick, id="waiting", nudgeRung=2)
+    wait_state(stick, card=False, feedback="", armed=False)
     stick.write_line('{"v":1}')
-    assert state(stick)["feedback"] == "no link?"
-    frame(stick)
-    wait_state(stick, feedback="yes!")
+    wait_state(stick, card=False)
+    pending(stick, id="new")
+    wait_state(stick, card=True, cardId="new", nudgeRung=0)
 
 
-def test_new_card_has_priority_over_confirmation(stick):
+def test_new_card_is_not_dismissed_by_previous_cards_held_press(stick):
     pending(stick, id="one")
-    wait_state(stick, armed=True)
-    press(stick)
+    stick.write_line("press a 500")
+    stick.read_until(lambda b: b"<<PRESS a down>>" in b, 2)
     pending(stick, id="two")
-    wait_state(stick, layer="card", cardId="two")
+    buf, _ = stick.read_until(lambda b: b"<<PRESS a up>>" in b, 2)
+    assert not command(buf, cmd="decision")
+    wait_state(stick, layer="card", cardId="two", armed=False)
 
 
 def test_system_priority_and_retired_agent_is_ignored(stick):
@@ -267,7 +268,9 @@ def test_shutdown_stages_and_wake_press_guard(stick):
     wait_state(stick, shutdownStage="focus", focus=True, timeout=2)
     wait_state(stick, shutdownStage="night night", timeout=3)
     wait_state(stick, screenOff=True, timeout=2)
-    stick.read_until(lambda b: b"<<PRESS b up>>" in b, 2)
+    # State polling can consume the release notification; observe the durable
+    # released state instead of waiting for an already-read serial marker.
+    wait_state(stick, shutdownStage="none", screenOff=True, timeout=2)
     # Wake consumes the tap even if the screen held a pending gift.
     frame(stick, gift=True)
     press(stick)
@@ -297,10 +300,10 @@ def test_motion_flip_shake_pickup_and_card_suppression(stick):
     buf, _ = stick.read_until(lambda b: b'"m":"pickup"' in b, 3)
     assert command(buf, cmd="motion", m="pickup")
     pending(stick)
-    wait_state(stick, armed=True)
+    wait_state(stick, card=True, armed=False)
     stick.write_line("imu set 0 0 -3")
     time.sleep(2.4)
-    wait_state(stick, dizzy=False, napping=False, armed=True)
+    wait_state(stick, dizzy=False, napping=False, armed=False)
 
 
 def test_posture_hysteresis_and_override(stick):
@@ -341,23 +344,31 @@ def test_sound_manners_and_seven_motifs(stick):
     assert state(stick)["soundCount"] == count
 
 
-def screenshot(stick):
-    stick.write_line("screenshot")
-    buf, parsed = stick.read_until(buddyctl.parse_screenshot, 20)
-    header, start, end, footer = parsed
-    raw = base64.b64decode(re.sub(rb"\s+", b"", buf[start:end]), validate=True)
-    assert len(raw) == int(header.group(1))*int(header.group(2))*2 == int(footer.group(1))
-    assert zlib.crc32(raw) & 0xffffffff == int(footer.group(2), 16)
-    return raw
+def screenshot(stick, attempts=3):
+    # Match buddyctl's bounded recapture on USB transfer loss. Never compare
+    # partial pixels; the integrity test below deliberately disables retries.
+    for attempt in range(attempts):
+        stick.write_line("screenshot")
+        buf, parsed = stick.read_until(buddyctl.parse_screenshot, 20)
+        header, start, end, footer = parsed
+        raw = base64.b64decode(re.sub(rb"\s+", b"", buf[start:end]), validate=True)
+        complete = len(raw) == int(header.group(1))*int(header.group(2))*2 == int(footer.group(1))
+        intact = complete and zlib.crc32(raw) & 0xffffffff == int(footer.group(2), 16)
+        if intact:
+            return raw
+        if attempt + 1 < attempts:
+            import warnings
+            warnings.warn(f"USB screenshot transfer incomplete/corrupt; recapturing ({attempt + 1}/{attempts})")
+    pytest.fail("USB screenshot failed size/CRC validation after bounded capture attempts")
 
 
 def test_clock_freezes_and_screenshot_integrity_heap(stick):
     frame(stick, state="working", effort="grinding")
     fixed = state(stick)["now"]+1000
     clock(stick, fixed)
-    a = screenshot(stick)
+    a = screenshot(stick, attempts=1)
     time.sleep(0.2)
-    b = screenshot(stick)
+    b = screenshot(stick, attempts=1)
     assert a == b and len(set(a)) > 2
     got = state(stick)
     assert got["frozen"] and got["now"] == fixed
@@ -418,20 +429,20 @@ def test_greet_ritual(stick, level):
     wait_state(stick, ritual="none")
 
 
-def test_level_reveal_same_and_next_frame(stick):
-    for next_frame in (False, True):
-        frame(stick, snap={"level": 1}, cosmetic={})
-        frame(stick, snap={"level": 2}, **({} if next_frame else {"cosmetic": {"accessory": "crown"}}))
-        if next_frame:
-            frame(stick, snap={"level": 2}, cosmetic={"accessory": "crown"})
-        clock(stick, "settle 450")
-        wait_state(stick, ritual="levelUp")
-        assert state(stick)["cosmeticProgress"] == 0
-        shimmer = screenshot(stick)
-        clock(stick, "settle 1600")
-        assert state(stick)["cosmeticProgress"] == 1
-        assert shimmer != screenshot(stick)
-        clock(stick, "clear")
+def test_legacy_level_fields_do_not_trigger_retired_ritual(stick):
+    frame(stick, snap={"level": 1, "xp": 90}, cosmetic={})
+    # The idle state may predate the fixture's wait. Rewinding before the last
+    # heartbeat makes unsigned link age look expired and changes the link glyph.
+    clock(stick, state(stick)["now"] + 700)
+    before = screenshot(stick)
+    frame(stick, snap={"level": 2, "xp": 930})
+    wait_state(stick, ritual="none", cosmeticProgress=1)
+    assert screenshot(stick) == before
+    # Explicit legacy appearance fields still render; XP never awards one.
+    frame(stick, snap={"level": 2, "xp": 930}, cosmetic={"accessory": "crown"})
+    clock(stick, "settle 700")
+    wait_state(stick, ritual="none", accessory="crown", cosmeticProgress=1)
+    assert screenshot(stick) != before
 
 
 @pytest.mark.parametrize("milestone", [7, 30, 100])

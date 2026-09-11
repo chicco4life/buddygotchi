@@ -51,7 +51,7 @@ transient fields clear; omitted `state` renders asleep. Omitted `snap` and
 | `t` | nonnegative 64-bit host epoch milliseconds; synchronizes the HAL clock |
 
 All string caps are bytes. The firmware rejects overflow rather than chopping
-an approval ID or a UTF-8 character. The host supplies valid UTF-8. Snapshot,
+a request ID or a UTF-8 character. The host supplies valid UTF-8. Snapshot,
 cosmetic identifiers, volume and the first-wake flag live in `creature-v2` NVS;
 writes occur only on changes. No prompt or bubble persists across reboot.
 The old species/name/owner storage is neither read nor written.
@@ -60,12 +60,11 @@ The old species/name/owner storage is neither read nor written.
 {"v":2,"state":"needsYou","dots":1,"mute":1,"card":{"id":"req_1","tool":"Bash","gloss":"Run tests","stakes":"checkIt","n":1,"of":1,"approval":false}}
 ```
 
-Cards arm 600 ms after arrival. A press must start after arming and belong to
-the same ID on release. Ordinary primary tap allows; secondary hold ≥1 s denies. Careful requires primary hold ≥2 s to allow; a tap shakes the head.
-After deciding, feedback is `sending...`, then `no link?` after three seconds.
-Only an accepted frame without the answered ID confirms `yes!`/`okay`.
-A different new card takes priority over that confirmation. After ten seconds
-without acknowledgement, a live card is rearmed. Link loss is not an ack.
+Attention cards are passive. A tap dismisses the visible card locally; matching
+heartbeats preserve that dismissal and a new ID resets it. Physical presses are
+guarded against a changed card ID and wake-only presses. There is no arming,
+approval/denial, hold-progress or decision acknowledgement flow. Legacy approval
+and stakes fields do not change behavior. System cards retain priority.
 
 ## Device → host
 
@@ -110,13 +109,14 @@ additional host-to-device RenderState fields.
 - `reboot`, `deepsleep [timer-ms]`, `clearbonds`, `guardclear`, `hang` retain
   their diagnostic roles. `hang` deliberately exercises watchdog recovery.
 
-The normal screen dims after 120 s of inactivity, with an orb glow floor.
-Asleep and face-down nap use brightness 8; pending cards use 220. The screen
-never switches off automatically. Only the secondary shutdown hold does so:
-Quiet mode (`focus` compatibility command) at 1 s, “night night” at 3 s, off after the 600 ms farewell or release.
-A wake press consumes the action. Explicit `deepsleep` is a diagnostic escape.
+Brightness is 210 awake, 90 after 120 seconds without input/relevant state change,
+28 asleep or face-down, and 255 with a visible card. Repeated unchanged frames do
+not reset inactivity. There is no orb glow. Automatic dimming never turns the
+display off; secondary hold toggles Quiet at 1 second, says “night night” at
+3 seconds and turns it off on release or at 3.6 seconds. A wake tap is consumed.
+`deepsleep` remains a separate diagnostic command. See [Device UX](../../plan/UX-DEVICE.md).
 
-## Phase 6 rituals and appearance
+## Ritual and compatibility diagnostics
 
 The host `retire` command, completion acknowledgement, reset scope, and
 closed cosmetic vocabularies are defined in [WIRE-V2](../../plan/WIRE-V2.md).
@@ -137,10 +137,12 @@ Perch poses are `dangle`, `lean`, `grip`, `peer-tip`, `hop`, `jump-land`,
 `sag`, `curl`, `pop-up`; desk/travel report the state, and pick-up reports
 `pickup` for 1000 ms. Card priority suppresses pick-up and growth rituals.
 Level increases are ignored; level-up effects are retired. Streak 7/30/100 pulses for 1500 ms.
-Greet lasts 2200 ms with four sizes (wire range remains 0–3).
+Greet lasts 2200 ms; wire/debug range is 0–3. The current host uses 1 for an
+18-hour return and 3 for a 7-day return.
 
-Appearance identifiers and unknown-value fallbacks follow [WIRE-V2](../../plan/WIRE-V2.md). Dots render in the bottom margin for every
-state/layer, with four circles and a plus for the fifth, including alert tint.
+Appearance identifiers and fallbacks follow [WIRE-V2](../../plan/WIRE-V2.md).
+The current host selects default appearance; legacy cosmetic/retire diagnostics
+are not ordinary product controls. Dots/dotAlert remain data only and are not rendered.
 
 Capture offsets (`clock settle N`, relative to state entry or reset/motion):
 `first-wake-grey` 4500; `greet-0..3` 700; `levelup`, `streak-7` 450;
@@ -222,9 +224,10 @@ cheer is hop/cheer/dance. Host monotonic time owns coalescing and cooldown;
 firmware uses its local monotonic deadline and never extends repeated frames.
 Omission clears ephemeral fields. Titles <=47 UTF-8 bytes, no control characters.
 These fields stay inside the existing 1536-byte newline-inclusive frame cap:
-drop snapshot/cosmetics first, then oldest history/preview rows as necessary;
-retain at least the newest completion and expose threadTotal. Reconnect may show
-Last finished but must not replay a notice already in progress.
+follow the host shedding order in [Wire v2](../../plan/WIRE-V2.md): scope, snapshot,
+cosmetics, bounded history/preview reduction, then bubble shortening; retain the
+newest completion and expose threadTotal. Reconnect retains recent history for the detail pages but must not replay a
+notice already in progress. There is no persistent Last finished footer.
 
 ## USB-only panel-tap verification
 
@@ -232,3 +235,10 @@ The `BOOP_USB_ONLY` build accepts `tap X Y` with integer sprite coordinates
 `0 <= X < 456`, `0 <= Y < 280`. It invokes the production panel tap handler and
 replies `<<TAP ok>>`; invalid coordinates/syntax reply `<<TAP error>>` without
 changing state. The shipping build does not enable this injection command.
+
+### USB-only motion diagnostics
+
+The debug image adds `poseTilt`, `armL`, `armR`, `armAngleL`, `armAngleR` and
+`cardProgress`, plus the renderer’s `cardDeparting` visibility flag, to the USB `state` reply for interruption/settling regression
+checks. These are presentation samples, absent from the shipping image and
+not additions to the host-to-device RenderState contract.

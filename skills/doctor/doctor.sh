@@ -151,8 +151,9 @@ check_file_has() { # file label expected...
   else bad "$label does not reference boop; reinstall hooks"; fi
 }
 case "$AGENT" in
-  claude-code) check_file_has "$HOME/.claude/settings.json" "~/.claude/settings.json" SessionStart UserPromptSubmit Stop SessionEnd PostToolUse PermissionRequest Notification ;;
-  codex)       check_file_has "$HOME/.codex/hooks.json" "~/.codex/hooks.json" SessionStart Stop PermissionRequest ;;
+  # Permissions stay in the editor. Match the passive events HookInstaller installs.
+  claude-code) check_file_has "$HOME/.claude/settings.json" "~/.claude/settings.json" SessionStart UserPromptSubmit Stop StopFailure SessionEnd PreToolUse PostToolUse PostToolUseFailure Elicitation ElicitationResult Notification ;;
+  codex)       check_file_has "$HOME/.codex/hooks.json" "~/.codex/hooks.json" SessionStart UserPromptSubmit PreToolUse PostToolUse Stop SessionEnd ;;
   cursor)      check_file_has "$HOME/.cursor/hooks.json" "~/.cursor/hooks.json" beforeShellExecution stop ;;
   *) note "harness unknown; pass --agent to check registration. Checking all three:"
      check_file_has "$HOME/.claude/settings.json" "claude" SessionStart Stop

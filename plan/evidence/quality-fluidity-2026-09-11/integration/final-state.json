@@ -1,0 +1,15 @@
+{
+  "appPID": 79677,
+  "device": {
+    "fw": "dev+1b4976d44e34",
+    "git": "1b4976d44e34",
+    "usbOnly": false,
+    "connected": true,
+    "focus": true,
+    "card": false,
+    "cardId": "",
+    "panics": 103,
+    "safe": 0,
+    "rtcValid": true
+  }
+}

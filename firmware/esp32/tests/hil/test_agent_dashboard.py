@@ -1,6 +1,6 @@
 """Glanceable completion and explicit thread pages on the real display."""
 import pytest
-from test_usb import stick, clean, frame, state, wait_state, press, clock
+from test_usb import stick, clean, frame, state, wait_state, press, clock, screenshot
 
 ROWS = [dict(source="codex", working=2, idle=1)]
 THREADS = [[0, 1, "Fix layout"], [0, 1, "Run checks"], [0, 0, "Write docs"]]
@@ -106,10 +106,24 @@ def test_next_wraps_and_history_can_exit_directly(stick):
     wait_state(stick, layer="threads", threadPage=0)
     tap(stick)
     wait_state(stick, layer="face")
-    tap(stick, 200, 255)  # the last-finished footer opens history
+    tap(stick, 200, 255)  # the removed footer has no special history shortcut
+    wait_state(stick, layer="threads", threadPage=0)
+    tap(stick, 400, 255)
     wait_state(stick, layer="threads", threadPage=1)
     tap(stick)
     wait_state(stick, layer="face", threadPage=-1)
+
+
+@pytest.mark.parametrize("creature", ["idle", "working", "done"])
+def test_recent_history_does_not_draw_a_persistent_footer(stick, creature):
+    frame(stick, state=creature, agents=ROWS, threads=THREADS, threadTotal=3)
+    clock(stick, state(stick)["now"]+2500)
+    before = screenshot(stick)
+    frame(stick, state=creature, agents=ROWS, threads=THREADS, threadTotal=3,
+          recent=[[999,0,"This must not appear below the face"]])
+    after = screenshot(stick)
+    assert state(stick)["recentCount"] == 1
+    assert before[-456*35*2:] == after[-456*35*2:]
 
 
 def test_hidden_bubble_does_not_consume_dashboard_exit(stick):

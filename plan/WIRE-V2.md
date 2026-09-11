@@ -4,7 +4,8 @@ Desktop policy sends fixed volume step 1 (0 while quiet), default skin, no acces
 and default silhouette. Retired commands are ignored as described below.
 
 Host → device: one JSON object per line, frame cap 1536 bytes including newline.
-Absent keys mean "none / unchanged". Every string is byte-capped on a character
+Omitted transient keys clear; omitted snapshot/cosmetics preserve their caches.
+See the receiver protocol for field-specific defaults. Every string is byte-capped on a character
 boundary (`prefix(utf8Bytes:)`). Field names and enum raw values are exact.
 
 | key | type | values / cap |
@@ -16,7 +17,7 @@ boundary (`prefix(utf8Bytes:)`). Field names and enum raw values are exact.
 | `uhoh` | string | `error` (uhoh only); old `stuck`/`hungry` frames normalize to `error` |
 | `overlay` | string | `greet` `boop` |
 | `greetLevel` | int | 0–3 |
-| `dots` | int | 0–5 |
+| `dots` | int | 0–5; compatibility/diagnostic data, not rendered |
 | `dotAlert` | int | index into dots, or absent |
 | `card` | object | `{"id":≤23B,"tool":≤23B,"gloss":≤63B,"stakes":"fine"\|"checkIt"\|"careful","n":int,"of":int,"approval":bool}` for needs-you; `{"kind":"pair"\|"update","text":≤63B}` for system cards |
 | `bubble` | string | ≤ 63 bytes |
@@ -34,13 +35,13 @@ boundary (`prefix(utf8Bytes:)`). Field names and enum raw values are exact.
 Accessory and silhouette vocabularies are closed. Omitted or empty identifiers
 select the bare/default shape; unknown identifiers render the same fallback.
 Omitting the entire `cosmetic` object preserves the cached cosmetics. Skin
-identifiers tint body and field; unknown skins use neutral grey.
+identifiers tint face ink and field; unknown skins use neutral grey.
 
 Host → device command (USB or secured BLE): `{"cmd":"retire"}`. No `v` is
 required. The device fades over 2400 ms with one blink at 600–850 ms, ignores
 state frames during the fade, and then emits `{"ack":"retire"}`. Completion
 clears the unit key, snapshot, cosmetics, volume, first-wake completion flag
-and transient model (see Signing below for key renewal). The display stays black until a subsequent accepted frame or reboot
+and transient model. Unit-key signing is retired; there is no key renewal. The display stays black until a subsequent accepted frame or reboot
 starts a new creature. BLE bonds and crash diagnostics are retained. Repeated
 retire commands during the fade or while retired are ignored.
 
@@ -58,11 +59,13 @@ Device → host: one JSON object per line.
 | retire completion | `{"ack":"retire"}` |
 | ack | Existing `{"ack":…}` replies |
 | status | Existing `{"cmd":"status"}` reply, now also carrying `"board"` and `"contract":2` |
-| legacy (one release) | `{"cmd":"permission","id":"…","decision":"allow"\|"deny"}` and `{"cmd":"boop"}` without `hold` |
+| legacy compatibility | `permission` decisions are ignored; `boop` without `hold` remains accepted |
 
-Shedding order when a frame exceeds 1536 bytes: remove `scope` whole, then `snap`, then
-`cosmetic`, then truncate `bubble` on character boundaries until
-it fits. Assert the cap including the newline.
+Shedding order when a frame exceeds 1536 bytes: remove `scope` whole, then `snap`,
+then `cosmetic`. Drop oldest history until two entries remain, then trailing thread
+rows, then the second history entry if needed; preserve the newest finish and
+`threadTotal`. Finally shorten `bubble` on character boundaries. Recheck the cap
+including newline; never send an oversized frame.
 
 ## Retired signing
 
@@ -111,7 +114,7 @@ approval call gets immediate native passthrough, not allow or deny.
 Growth update: `snap.xp` is cumulative earned XP; `tasks` counts completed agent turns.
 `level` and `xpNext` remain compatibility fields sent as 1 and 0, respectively.
 They have no display or animation effect. The daily activity grid is Mac-only;
-no history array is sent to the device. Existing wire integer ranges are unchanged.
+daily grid history is not sent to the device (the separate `recent` list below is completion metadata). Existing wire integer ranges are unchanged.
 
 ## Optional agent availability counts
 
@@ -137,6 +140,6 @@ cheer is hop/cheer/dance. Host monotonic time owns coalescing and cooldown;
 firmware uses its local monotonic deadline and never extends repeated frames.
 Omission clears ephemeral fields. Titles <=47 UTF-8 bytes, no control characters.
 These fields stay inside the existing 1536-byte newline-inclusive frame cap:
-drop snapshot/cosmetics first, then oldest history/preview rows as necessary;
-retain at least the newest completion and expose threadTotal. Reconnect may show
-Last finished but must not replay a notice already in progress.
+use the shedding order above, retaining at least the newest completion and
+exposing threadTotal. Reconnect retains recent history for detail pages without
+replaying a notice. There is no persistent Last finished footer.

@@ -17,15 +17,16 @@ ev codex "{\"hook_event_name\":\"SessionStart\",\"session_id\":\"$CX\",\"cwd\":\
 connected
 ev codex "{\"hook_event_name\":\"UserPromptSubmit\",\"session_id\":\"$CX\"}"                                                         "UserPromptSubmit → busy" working
 ev codex "{\"hook_event_name\":\"PreToolUse\",\"session_id\":\"$CX\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"ls\"}}"     "PreToolUse → busy  (Fix 10: previously left idle)" working
-ev codex "{\"hook_event_name\":\"PermissionRequest\",\"session_id\":\"$CX\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit\"}}" "PermissionRequest → attention (passive tool card)" needsYou
+ev_by codex "{\"hook_event_name\":\"PermissionRequest\",\"session_id\":\"$CX\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git commit\"}}" 0 "PermissionRequest remains in the editor" working
 ev codex "{\"hook_event_name\":\"PostToolUse\",\"session_id\":\"$CX\"}"                                                              "PostToolUse → clears card, busy" working
-ev codex "{\"hook_event_name\":\"Stop\",\"session_id\":\"$CX\"}"                                                                     "Stop → celebrate" done
+ev codex "{\"hook_event_name\":\"Stop\",\"session_id\":\"$CX\"}"                                                                     "Stop → completed turn" done
 
-hdr "Codex  →  POST /hook/approve  (blocking; resolved by session death = passthrough)"
-resolve_cx() { post_event codex "{\"hook_event_name\":\"SessionEnd\",\"session_id\":\"$CX\"}"; }   # cleanup; Codex normally relies on the process watcher
-parked_approve codex \
-  "{\"hook_event_name\":\"PermissionRequest\",\"session_id\":\"$CX\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"rm -rf /\"}}" \
-  resolve_cx __EMPTY__
+hdr "codex → legacy approval passthrough"
+passthrough_approve codex \
+  "{\"hook_event_name\":\"PermissionRequest\",\"session_id\":\"$CX\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push --force\"}}" \
+  "stale approval endpoint returns immediately"
+post_event codex "{\"hook_event_name\":\"SessionEnd\",\"session_id\":\"$CX\"}"
+
 settle
 baseline "Codex session reaped" "$CX"
 

@@ -39,7 +39,6 @@ struct FirmwareUpdateView: View {
         .frame(width: BuddyTheme.popoverWidth)
         .background(BuddyTheme.windowBackground)
         .foregroundStyle(BuddyTheme.ink)
-        .preferredColorScheme(.light)
         .confirmationDialog(BuddyCopy.shared.firmwareUpdate.stopUpdateTitle, isPresented: $showingCancelConfirmation) {
             Button(BuddyCopy.shared.firmwareUpdate.stopUpdate, role: .destructive) {
                 updater.cancel()
@@ -252,7 +251,7 @@ struct FirmwareUpdateView: View {
                 .foregroundStyle(BuddyTheme.inkSoft)
                 .textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
-            Text(BuddyCopy.previousFirmwareKept)
+            Text(BuddyCopy.checkInstalledFirmware)
                 .font(.footnote)
                 .foregroundStyle(BuddyTheme.inkFaint)
                 .fixedSize(horizontal: false, vertical: true)

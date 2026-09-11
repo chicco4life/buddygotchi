@@ -1,130 +1,107 @@
-# UX: The Mac app
+# UX: Mac app
 
-The hardware is the companion. The Mac app runs quietly in the background as
-its status and configuration surface. Normal use should not require opening it.
+The Mac app is Boop's status and settings surface. The physical ESP32 owns the
+animated face. Shared state, timing, XP and model triggers are in
+[How Boop behaves](BEHAVIORS.md).
 
-## App behavior
+## Opening and navigation
 
-- Launch as a menu bar accessory: no Dock icon, startup window, or automatic
-  onboarding. A first-run setup link appears when the person opens the menu.
-- A static monochrome status icon has a filled variant when an agent needs you.
-  No animation, XP counter, or completion celebration in the menu bar.
-- Clicking opens a native transient popover anchored to the icon. Clicking again,
-  outside, or pressing Escape closes it. Opening normally returns to Overview.
-- State changes never open or close it, including attention requests. Old
-  interactive-mode preferences are ignored. Previously opted-in passive
-  notifications remain available; selecting one opens the dropdown.
-- Settings and setup are reached inside the same dropdown,
-  with Back navigation. Secondary confirmation and utility sheets remain attached.
-- No creature or animated face in ordinary app content or setup. The physical device owns Buddy's expression.
+| Action or event | Behavior |
+| --- | --- |
+| Launch | Menu bar accessory; no Dock icon, startup window or automatic onboarding |
+| Click menu icon | Open a transient popover, normally on Overview |
+| Click again/outside or press Escape | Close the popover |
+| Agent changes state or needs attention | Update status without opening, closing or navigating the popover |
+| Open Settings or setup | Navigate inside the same popover; Back returns to Overview |
+| Select a previously enabled passive notification | Open the popover |
+| First run | Show a setup link when the person opens the menu |
 
-## Overview
+The menu icon is static and monochrome, with a filled variant for Needs you.
+There is no menu-bar XP counter or celebration. Ordinary views and setup do not
+show an animated creature. Utility/confirmation sheets stay attached to the popover.
 
-One column, 360 pt wide, with system typography, native controls and whitespace.
-No sidebar or top-level tab strip.
+Setup has five steps: welcome, connect agents (skippable), pair the device (or add it later),
+name the buddy, and finish with optional launch-at-login and notifications. The
+name is locked once chosen. Hook repair preserves unrelated editor hooks.
+Opted-in, OS-authorized attention notifications are passive silent banners;
+selecting one opens Boop, and clearing its request removes the delivered banner.
 
-**Palette (2026-09-11).** The app no longer inherits the system semantic
-colors. It uses "Boop Cream", hand-authored for both appearances in
-`app/Boop/Theme/BuddyTheme.swift`: warm paper (`#FAF7F2` / `#1B1815`),
-warm ink (`#24211C` / `#F2EBE0`), one terracotta accent (`#D97757`), and
-three semantic tones — amber for needs you, sage for done, rose for
-affection. The device shares that trio and inverts the field, so a colour
-means the same thing on both screens (see `plan/UX-DEVICE.md` §7).
-Terracotta marks every primary action, selection and progress indicator;
-**amber is reserved for "an agent needs you" and never marks an action.**
-The trade this accepts: owning both appearances costs the free system
-behaviours (increase-contrast, tinted appearances), so every `*Ink` tone
-is hand-checked to clear 4.5:1 against its own appearance's paper, and
-the `*Faint` tones are decoration and disabled affordances only.
+## Overview, top to bottom
 
-**Structure (2026-09-11).** Sections are a small tracked-out label above a
-card, not rules between blocks: space and the label separate them, which
-keeps a 360 pt column from reading as a form. A status line opens with a
-tone dot that breathes only while work is actually live. Session rows are
-cards carrying their tone in a 3 pt leading bar rather than in the text,
-so ten rows do not become ten coloured sentences. Progress is three stat
-tiles over the grid. Device battery is a small drawn pip, amber under 25%,
-matching the device's own low-battery mark.
+| Area | Content and behavior |
+| --- | --- |
+| Buddy | Name, with no level label |
+| Status | Current state, optional whole-desk phrase, factual explanation |
+| Attention/error | Reported request or error details. Requests show tool/reason, queue position and “Check your editor”; Snooze suppresses reminders only |
+| Sessions | Every session: agent, known project and status. Waiting first, then errors, working, idle. Empty state: “No agents awake” |
+| Device | Actual connection; battery percentage only when connected and known |
+| Progress | Cumulative XP, completed turns and current streak; twelve-week daily turn grid with exact counts on hover |
+| Footer | Settings on the left; Quit on the right |
 
-1. Buddy name. No level label.
-2. Current state and a short explanation: Working, Idle, Sleeping, Needs you,
-   Done, or Needs attention. Device connection is independent of agent state.
-3. Pending requests appear only on Overview, below its status. Settings
-   and setup display only their own content, even while attention is pending.
-   Show the tool, supplied reason (or tool name), queue position and
-   “Check your editor”. There are no stakes or Approve/Deny buttons.
-4. All sessions appear immediately after status and any pending request, with
-   agent, project when known, and status. The dropdown grows for up to ten sessions;
-   additional sessions remain scrollable. Empty state: No agents awake.
-5. Device connection and battery percentage when connected and known. Missing
-   battery is omitted; never substitute a made-up percentage.
-6. XP is the last content section: cumulative XP, completed turns and current
-   streak in one row, followed by a compact twelve-week daily completed-turn grid.
-   No level, target or progress bar. The grid has no title; “Last 12 weeks” sits
-   below it, with a less/more legend on the same line. Cells are 15 pt squares
-   on the sage scale; an empty day is a warm well rather than a grey, which on
-   cream reads as "nothing yet" instead of as a hole. Today carries a terracotta
-   ring. Hover a square for its date and exact count.
-7. Plain Settings button at the bottom-left and Quit at the bottom-right. No overflow menu or share-card export.
-   There is no Activity button or pane.
+Pending requests appear only on Overview and never cover Settings or setup.
+There are no approve/deny controls. Scope wraps below the state title, hides for
+a pending request and clears when obsolete or unavailable. Model text is optional;
+factual sessions and progress remain available without it.
 
-Overview retains progress and statistics while idle or sleeping. It uses a
-548 pt base viewport (692 pt with a pending request), growing by 46 pt per
-additional session beyond one, up to ten and bounded by available screen height;
-secondary panes use 560 pt. The base grew with the cards and the larger
-activity cells: at 440 pt the twelve-week grid and its legend were clipped.
-Long content scrolls inside the dropdown.
+The 360 pt column grows through ten session rows within the available screen
+height, then scrolls. All sessions and progress stay reachable, including on a
+small screen. Status and progress remain visible while idle or sleeping.
+There is no Activity pane, overflow menu or share export.
 
 ## Settings
 
-Settings is one continuous scrollable form. Every group is expanded and visible
-in the same view; there is no category picker, sidebar, or extra profile page.
-Simple headings separate:
+One scrollable form, with all groups expanded:
 
-- Buddy & sound: name, language, and Quiet mode.
-- Device: connection, pairing, and firmware.
-- Agents: installation status, connect and repair actions.
-- General: launch at login.
-- What your buddy knows: inspect and clear stored profile lines inline; “Edit buddy behavior…” opens the Markdown guide for event-based dialogue, personality and memory.
-- Support: Report a bug saves a diagnostic file for sharing with support.
-- About: version, Check for updates, and Help & support.
+| Group | Controls |
+| --- | --- |
+| Buddy & sound | Saved name (read-only), English/Korean interface language, Quiet mode |
+| Device | Connection, pairing and firmware |
+| Agents | Hook installation status, connect and repair |
+| General | Launch at login |
+| What your buddy knows | Inspect/clear profile lines; Edit buddy behavior… opens the local Markdown guide |
+| Support | Report a bug saves a diagnostic file for the person to share |
+| About | Version, app update check, Help & support |
 
-Written dialogue is automatic, with a neutral greeting/error fallback and
-otherwise silence when the local model is unavailable. There is no Voice picker. Sound uses fixed volume step 1; Quiet
-mode is the only sound control. Appearance is fixed to the default skin,
-no accessory, and default silhouette. Old saved choices remain stored but are
-inactive. Quick command, Reset, and Retire buddy are removed from Settings;
-no existing progress is erased. Ordinary action buttons use plain styling to
-avoid dark filled rectangles within the form.
+Quiet mode mutes every authored sound. Visuals, reminders, state, XP and agent
+behavior stay the same. The device's one-second secondary hold controls the same
+setting, which persists across restart. There are no scheduled hours or volume
+slider; normal volume is fixed at step 1. The supported ESP32 board has no speaker.
 
-## Quiet mode
+Companion text stays English when the interface language changes. The model may
+stay silent; failed responses do not insert stock greetings or error messages.
+There is no Voice picker. Appearance is fixed; saved old cosmetic choices are
+inactive. Quick command, Reset and Retire are not exposed; existing progress is preserved.
 
-Quiet mode turns off **all sounds and beeps**, with no high-stakes exceptions.
-Animations, expressions, visual attention reminders, nudge timing, state changes,
-XP, and agent behavior remain identical. It neither approves nor denies requests.
+## Pairing and firmware updates
 
-The setting lives in Buddy & sound, labeled "Quiet mode", with the description
-"Turn off Buddy’s sounds. Screen behavior stays the same." Turning it off restores
-the fixed default volume (step 1). The physical button's former Focus gesture controls the same
-setting. No Focus hours or scheduled behavior remain; old schedule values are
-ignored. The existing sounds-enabled preference is retained so existing mute
-choices survive upgrades and restarts. Wire names remain compatible; see WIRE-V2.
+Use Device settings to pair the board and inspect its connection/version. Device
+connection is independent of whether coding agents are active.
 
-English and Korean copy are supported. Review both system appearances.
+| Update outcome | What the app reports |
+| --- | --- |
+| Manifest check succeeds | Available update or confirmed up-to-date result |
+| Manifest check fails | “Check unavailable,” underlying error and Try again |
+| Firmware transfer/installation fails | Recoverable installation failure; a known offered update stays retryable |
+| Transfer commits and device restarts | Wait for the device to report the expected version |
+| Expected version arrives | Installation succeeded |
+| Old version or no confirmation within 45 seconds of commit | Recoverable failure; no unverified success claim |
 
-## Approvals and reminders
+Reconnect triggers another version check after an update failure. Stale check
+results cannot overwrite a newer operation. The update sheet follows the current
+appearance. Actual public OTA remains an open gate; see [status](PLAN.md).
 
-Approvals belong entirely to the editor. Buddy interception and both opt-in
-settings are removed. Stale hooks return immediately to native approval.
-Passive attention remains on Overview. “Snooze reminder” suppresses that request's
-60/120-second nudges without resolving it; the next request starts fresh.
+## Visual and layout rules
 
-Firmware check errors read “Check unavailable”; the sheet shows the underlying
-error and offers Try again. This is separate from an installation failure.
+Warm paper/ink in both appearances, terracotta for actions, amber for attention,
+sage for completion/progress, rose for affection. Semantic text colours meet
+4.5:1 against their own background; faint tones are decorative/disabled only.
+The device uses the same meanings on a black field.
 
-## Whole-desk phrase
+Section labels and spacing separate cards. Session status uses a leading colour
+bar, and the status dot breathes only while work is live. Battery has a small
+pip, amber below 25%. Native controls and plain form buttons keep the small view clear.
 
-Overview shows the optional persistent work-scope phrase below the status title
-and above factual status detail. It wraps naturally and hides while a prompt is
-pending. The model describes the whole desk; session rows and XP stay factual.
-It disappears when scope becomes obsolete or unavailable. See [Voice](UX-VOICE.md).
+Layout and screenshot harness share one calculation: Overview base 548 pt,
+692 pt with a request, plus 46 pt per additional session through ten; secondary
+panes use 560 pt. All are clamped to available screen height and scroll as needed.
+Theme constants live in [BuddyTheme.swift](../app/Boop/Theme/BuddyTheme.swift).

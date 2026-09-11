@@ -155,7 +155,7 @@ extension SnapshotHarnessTests {
         for pane in ControlPane.allCases {
             navigation.pane = pane
             try snapshot(PopoverView(engine: engine, esp32Output: ESP32Output(defaults: defaults), navigation: navigation),
-                         "control-center-" + pane.rawValue, CGSize(width: 360, height: 590))
+                         "control-center-" + pane.rawValue, CGSize(width: 360, height: pane == .overview ? PopoverLayout.overviewHeight(sessionCount: 0, hasRequest: true, availableHeight: (NSScreen.main?.visibleFrame.height ?? 900) - 40) : 560))
         }
 
     }
@@ -167,15 +167,18 @@ extension SnapshotHarnessTests {
         state.creature.state = .working
         state.activeSessions = [SessionSnapshot(id: "preview", source: "codex", state: .working, sessionLabel: "buddygotchi")]
         state.growth = GrowthSnapshot(level: 4, xp: 930, xpNext: 270, streak: 5, bestStreak: 9, daysTogether: 18, tasks: 42, today: 86)
-        let engine = BuddyEngine.preview(state: state, defaults: defaults)
         for dark in [false, true] {
+            // Onboarding can mutate its preview engine. Each appearance starts
+            // from the same fixture so the dark overview cannot inherit it.
+            defaults.set(true, forKey: DefaultsKey.firstCheerShown)
+            let engine = BuddyEngine.preview(state: state, defaults: defaults)
             let suffix = dark ? "dark" : "light"
             let navigation = ControlNavigation()
             func shot(_ name: String, height: CGFloat = 560) {
                 SnapshotRenderer.render(PopoverView(engine: engine, esp32Output: ESP32Output(defaults: defaults), navigation: navigation),
                     "menu-" + name + "-" + suffix, CGSize(width: 360, height: height), dir, defaults: defaults, dark: dark)
             }
-            shot("overview", height: 440)
+            shot("overview", height: PopoverLayout.overviewHeight(sessionCount: 1, hasRequest: false, availableHeight: (NSScreen.main?.visibleFrame.height ?? 900) - 40))
             for count in [6, 10, 12] {
                 var many = state
                 many.activeSessions = (0..<count).map {
@@ -183,7 +186,7 @@ extension SnapshotHarnessTests {
                 }
                 let manyEngine = BuddyEngine.preview(state: many, defaults: defaults)
                 SnapshotRenderer.render(PopoverView(engine: manyEngine, esp32Output: ESP32Output(defaults: defaults), navigation: ControlNavigation()),
-                    "menu-sessions-\(count)-" + suffix, CGSize(width: 360, height: min(440 + CGFloat(min(count, 10) - 1) * 42, max(440, (NSScreen.main?.visibleFrame.height ?? 900) - 40))), dir, defaults: defaults, dark: dark)
+                    "menu-sessions-\(count)-" + suffix, CGSize(width: 360, height: PopoverLayout.overviewHeight(sessionCount: count, hasRequest: false, availableHeight: (NSScreen.main?.visibleFrame.height ?? 900) - 40)), dir, defaults: defaults, dark: dark)
             }
             navigation.pane = .settings
             shot("settings-all")
@@ -229,6 +232,19 @@ extension SnapshotHarnessTests {
             for dark in [false, true] {
                 try snapshot(popover(engine).environment(\.colorScheme, dark ? .dark : .light),
                              "work-scope-\(language)-\(dark ? "dark" : "light")", popoverIdle)
+            }
+        }
+    }
+}
+
+
+extension SnapshotHarnessTests {
+    func testFirmwareSheetBothAppearances() {
+        for (name, state) in FirmwareUpdater.snapshotStates {
+            for dark in [false, true] {
+                SnapshotRenderer.render(FirmwareUpdateView(updater: .preview(state: state), isPresented: .constant(true)),
+                    "quality-firmware-\(name)-\(dark ? "dark" : "light")",
+                    CGSize(width: 360, height: 320), dir, defaults: defaults, dark: dark)
             }
         }
     }

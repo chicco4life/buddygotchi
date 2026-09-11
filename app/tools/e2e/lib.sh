@@ -98,7 +98,7 @@ assert_state() { # expected [session-id]
   elif [ "$status" = 0 ] && [ "$1" = done ] && [ "$(state_field .lastCompletionAt 2>/dev/null || echo null)" != "${LAST_DONE_MARK:-null}" ]; then
     # Two completions within the fold window share one cheer (Phase 1 rule);
     # the completion still happened, which lastCompletionAt proves.
-    ok "creature=$actual (completion folded into a cheer still playing)"
+    ok "creature=$actual (completed turn recorded)"
   else bad "expected creature=$1, got ${actual:-<unavailable>}"; fi
 }
 recent_has() {
@@ -183,69 +183,20 @@ ev_by() { # source body delta label
 # session named in it must not exist).
 noop_ev() { ev_by "$1" "$2" 0 "$3"; } # source body label
 
-# immediate approval that should return an allow decision quickly
-approve_allows() { # src body label
-  mark_recent
-  local r; r="$(approve "$1" "$2" 5)"
-  assert_state working
-  assert_recent "$1" auto-allow
-  case "$r" in *'"allow"'*) ok "$3: $r" ;; *) bad "$3 — expected an immediate allow, got '${r:-<empty>}'" ;; esac
-}
-
-# approval that must BLOCK (not auto-approved), then be resolved by $3 (a shell
-# function — typically ending the session), with the final response expected to
-# contain $4. Pass __EMPTY__ as $4 to assert an empty response body.
-parked_approve() { # src body resolver_fn expect
-  local src="$1" body="$2" resolver="$3" expect="$4" out cpid resp
-  mark_recent
-  out="$(mktemp)"
-  "${CURL[@]}" --max-time 20 -X POST "${BASE}/hook/approve?source=${src}" \
-    "${AUTH[@]}" -H 'Content-Type: application/json' -d "$body" > "$out" 2>/dev/null &
-  cpid=$!
-  sleep 0.6
-  if [ -s "$out" ]; then bad "approval returned immediately (should have blocked): $(tr -d '\n' < "$out")"
-  else ok "approval blocked pending a decision (not auto-approved)"; fi
-  assert_state needsYou
-  assert_recent "$src" "$(body_field "$body" hook_event_name approve)"
-  "$resolver"
-  wait "$cpid" 2>/dev/null
-  resp="$(tr -d '\n' < "$out")"; rm -f "$out"
-  if [ "$expect" = "__EMPTY__" ]; then
-    if [ -z "$resp" ]; then ok "blocked approval resolved with empty passthrough body"
-    else bad "resolved response expected empty body, got '$resp'"; fi
-  else
-    case "$resp" in
-      *"$expect"*) ok "blocked approval resolved with '$expect': $resp" ;;
-      *) bad "resolved response missing '$expect': '${resp:-<empty>}'" ;;
-    esac
-  fi
-}
-
-# A hook whose curl dies mid-wait (agent killed, hook timeout fired) must
-# have its card withdrawn: HookServer watches the connection's closeFuture
-# and applies the abandonment as a reducer event. Observable over HTTP as
-# stateVersion advancing again after the client hangs up, with no new input.
-# This is the one approval path unit tests cannot reach — it needs a real
-# TCP close against the real server.
-abandoned_approve() { # src body
-  local src="$1" body="$2" v1 v2 cpid
-  mark_recent
-  "${CURL[@]}" --max-time 3 -X POST "${BASE}/hook/approve?source=${src}" \
-    "${AUTH[@]}" -H 'Content-Type: application/json' -d "$body" >/dev/null 2>&1 &
-  cpid=$!
-  sleep 0.5
-  assert_state needsYou
-  assert_recent "$src" "$(body_field "$body" hook_event_name approve)"
-  v1="$(version)"           # approvalArrived applied; curl still parked
-  wait "$cpid" 2>/dev/null  # curl gives up at 3s — this is the hang-up
-  sleep 0.7                 # let the close propagate and the abandon apply
-  v2="$(version)"
-  if [ -n "$v1" ] && [ -n "$v2" ] && [ "$v2" -gt "$v1" ]; then
-    assert_state working
-    ok "client hang-up withdrew the parked approval  (v${v1}→v${v2})"
-  else
-    bad "client hang-up did not change state — card stays up until timeout (v${v1:-?}→v${v2:-?})"
-  fi
+# Retired approval routes return native-editor passthrough immediately, create
+# no waiting card, and never grant permission themselves.
+passthrough_approve() { # source body label
+  local before response code body
+  before="$(state_field .creature.card.id)"
+  response="$("${CURL[@]}" --max-time 2 -X POST "${BASE}/hook/approve?source=$1" \
+    "${AUTH[@]}" -H 'Content-Type: application/json' -d "$2" -w '\n%{http_code}')" || { bad "$3: route did not return promptly"; return; }
+  code="${response##*$'\n'}"; body="${response%$'\n'*}"
+  if [ "$code" != 200 ]; then bad "$3: HTTP $code"; return; fi
+  if [ "$1" = cursor ]; then
+    if [ "$(body_field "$body" permission)" = ask ]; then ok "$3: native ask"; else bad "$3: unexpected '$body'"; fi
+  elif [ -z "$body" ]; then ok "$3: empty native passthrough"
+  else bad "$3: unexpected '$body'"; fi
+  [ "$(state_field .creature.card.id)" = "$before" ] && ok 'passthrough leaves attention unchanged' || bad 'passthrough created or replaced a card'
 }
 
 require_app() {
@@ -284,6 +235,7 @@ print(s if s != {} and s is not None else "")' "$1" "$2"
 tenth_try() {
   local agent="$1" sid="e2e-tenth-$1-$$" line n=0 got
   GROWTH_BEFORE="$(state_field .growth.xp)"
+  TASKS_BEFORE="$(state_field .growth.tasks)"
   hdr "$agent tenth-try"
   local attempts=0 fixture_agent="$agent"
   [ "$agent" = codex ] && fixture_agent=claude-code
@@ -313,21 +265,20 @@ PY
   if scoped_mode || foreign_present "$sid"; then
     got="$(session_field "$sid" cheer)"
   else got="$(state_field .creature.cheer)"; fi
-  [ "$got" = hop ] && ok 'tenth-try: duration-only hop' || bad "tenth-try payoff: $got"
+  [ -z "$got" ] && ok 'sub-minute completion has no desktop cheer' || bad "unexpected short-turn cheer: $got"
   post_event "$agent" "{\"hook_event_name\":\"SessionEnd\",\"session_id\":\"$sid\"}"
 }
 
 # Verify the durable growth result after tenth_try has completed.
 growth_check() {
-  local xp level expected
-  xp="$(state_field .growth.xp)"; level="$(state_field .growth.level)"
-  if [ -n "$xp" ] && [ "$xp" -gt "${GROWTH_BEFORE:-0}" ]; then ok 'growth XP increased after tenth-try'; else bad 'growth XP did not increase'; fi
-  expected="$(python3 - "$xp" <<'PYCODE'
-import sys
-xp=int(sys.argv[1]); level=1
-while 100*level*(level+1)//2+50*level <= xp: level+=1
-print(level)
-PYCODE
-  )"
-  [ "$level" = "$expected" ] && ok "growth level matches curve ($level)" || bad "growth level $level != $expected"
+  local xp tasks deadline
+  deadline=$((SECONDS + 5))
+  while :; do
+    xp="$(state_field .growth.xp)"; tasks="$(state_field .growth.tasks)"
+    [ "${tasks:-0}" -gt "${TASKS_BEFORE:-0}" ] && break
+    [ "$SECONDS" -lt "$deadline" ] || break
+    sleep 0.1
+  done
+  if [ -n "$xp" ] && [ "$xp" -ge "$(( ${GROWTH_BEFORE:-0} + 3 ))" ]; then ok 'completed turn awarded XP'; else bad 'completed turn did not award XP'; fi
+  [ "$tasks" = "$(( ${TASKS_BEFORE:-0} + 1 ))" ] && ok 'exactly one completed turn recorded' || bad "unexpected turn count: $tasks"
 }

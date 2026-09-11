@@ -23,6 +23,9 @@ jobs:
       - name: Install PlatformIO
         run: pip install platformio
 
+      - name: Verify release packaging
+        run: python3 -m unittest discover -s firmware/esp32/tests -p 'test_release_manifests.py'
+
       - name: Static check
         run: pio check || true
         working-directory: firmware/esp32
@@ -42,6 +45,7 @@ jobs:
             --version "$VERSION" \
             --base-url "https://adoptaboop.com/firmware" \
             --build-dir firmware/esp32/.pio/build/ws-amoled164 \
+            --boot-app0 firmware/esp32/.platformio-core/packages-pioarduino/framework-arduinoespressif32/tools/partitions/boot_app0.bin \
             --out-dir build/firmware
 
       - name: Create GitHub release

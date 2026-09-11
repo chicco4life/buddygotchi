@@ -2,7 +2,7 @@
 
 Current contract, 2026-09-11. There is no skill tree, spending or level-gated
 behavior. [Growth UX](UX-GROWTH.md) defines progress and memory; the
-[component catalog](BEHAVIORS.md#4-xp-levels-and-streaks) is the compact reference.
+[component catalog](BEHAVIORS.md#4-xp-turns-and-streaks) is the compact reference.
 
 | Source | XP |
 | --- | ---: |

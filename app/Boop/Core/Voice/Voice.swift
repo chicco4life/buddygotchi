@@ -169,10 +169,8 @@ actor Voice {
     private func fallback(for request: VoiceRequest, excluded: Set<String>) -> VoiceLine {
         let text: String
         switch request.occasion {
-        case .greet: text = request.language == "ko" ? "다시 만나서 반가워요" : "hello again"
-        case .uhoh: text = request.language == "ko" ? "문제가 생겼어요" : "something went wrong"
         case .profileLine(let candidate): text = candidate
-        case .completed, .periodic, .workContextChanged: text = ""
+        case .greet, .uhoh, .completed, .periodic, .workContextChanged: text = ""
         }
         let safe = VoiceFilter.check(text, language: request.language, byteCap: request.byteCap) ?? ""
         return VoiceLine(text: excluded.contains(safe) ? "" : safe, source: .authored)

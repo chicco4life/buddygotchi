@@ -6,6 +6,15 @@ enum ControlPane: String, CaseIterable { case overview, settings, setup }
     var pane: ControlPane = .overview
 }
 
+/// Shared by the live popover and offscreen rendering so their viewports agree.
+enum PopoverLayout {
+    static func overviewHeight(sessionCount: Int, hasRequest: Bool, availableHeight: CGFloat) -> CGFloat {
+        let extraRows = max(0, min(sessionCount, 10) - 1)
+        let desired = CGFloat(hasRequest ? 692 : 548) + CGFloat(extraRows) * 46
+        return min(desired, max(1, availableHeight))
+    }
+}
+
 /// The shared control-center surface, also rendered by the snapshot harness.
 ///
 /// The column is a stack of one object: a labelled section, then a card. There
@@ -144,11 +153,9 @@ struct PopoverView: View {
     }
 
     private var overviewHeight: CGFloat {
-        // Grow for up to ten sessions; keep every row in the existing scroll view.
-        let extraRows = max(0, min(engine.state.activeSessions.count, 10) - 1)
-        let desired = CGFloat(engine.state.creature.card == nil ? 548 : 692) + CGFloat(extraRows) * 46
-        let available = (NSScreen.main?.visibleFrame.height ?? 900) - 40
-        return min(desired, max(548, available))
+        PopoverLayout.overviewHeight(sessionCount: engine.state.activeSessions.count,
+            hasRequest: engine.state.creature.card != nil,
+            availableHeight: (NSScreen.main?.visibleFrame.height ?? 900) - 40)
     }
 
     // MARK: - Overview

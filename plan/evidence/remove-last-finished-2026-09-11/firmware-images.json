@@ -1,0 +1,10 @@
+{
+  "normal": {
+    "sha256": "5779f19cb2199ef80aa900cfbf73729ef3c4e35cbcd685b84536ebcb406c96e5",
+    "bytes": 1241168
+  },
+  "debug": {
+    "sha256": "efcc6a126030087b186d3fed5060b1718e36f26bc83e0113368712e874283a84",
+    "bytes": 982528
+  }
+}

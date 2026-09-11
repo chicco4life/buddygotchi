@@ -19,6 +19,19 @@ Rules own state, effort, celebrations, XP and attention reminders. The model
 chooses dialogue/silence and supported profile memories. It has no tools or
 permission authority. Approvals remain in the editor.
 
+## What triggers a display decision
+
+| Current trigger | Destination | Delivery |
+| --- | --- | --- |
+| Work-context membership, status or first/latest intent changes | Persistent scope | Two-second debounce; clear obsolete text immediately |
+| Recorded activity after at least 18 hours away | Greeting remark | Immediate opportunity, subject to current state/card eligibility |
+| A new explicit error kind | Error remark | Immediate opportunity |
+| Done transitions to idle after a celebration | Completion remark | Immediate opportunity; no call merely because every tool or turn ended |
+
+An empty desk clears scope without generation. Unchanged tool activity does not
+request a new summary. There are no periodic check-ins. Every row permits SILENT.
+The 7-day return threshold changes greeting warmth, not whether speech is required.
+
 ## Shared display pipeline
 
 `work_context_changed`, return greetings, explicit errors and the existing
@@ -36,8 +49,8 @@ Runtime changes, stop, cards and context revisions invalidate stale
 replies. There is no per-task model, semantic classifier or periodic narration.
 
 Working/thinking/waiting sessions participate, plus idle/error sessions active
-within 15 minutes. End/stale cleanup removes sessions immediately. All sessions
-are considered, independent of the six-row popover preview. Worktrees share the
+within 15 minutes. End/stale cleanup removes sessions immediately. All eligible sessions
+are considered; the Mac lists every session and only the device preview is bounded. Worktrees share the
 canonical Git common-directory identity; same-name unrelated roots stay separate.
 
 First/latest user intent excerpts (768 UTF-8 bytes each) stay in engine memory
@@ -66,8 +79,13 @@ remarks retain only the last five in memory for this display path.
 Apple Foundation Models on supported macOS 26+ runs locally, with fresh sessions,
 temperature 0.4 and a five-second async deadline. No cloud fallback or bundled
 alternate model. The single display lane and existing profile lane keep reflection independent.
-Unavailable/invalid responses produce one neutral greeting/error line when not
-already used, otherwise silence. Reflection failure leaves the profile unchanged.
+Every display trigger is an opportunity, not an obligation to speak. Prefer
+SILENT for thin evidence, uncertain interpretation, redundant remarks or occasions
+already served by the face/animation. A useful greeting may still be appropriate;
+novel factual content is not required for every social moment. Confidence means
+support in the supplied context, not an uncalibrated numeric self-rating.
+Unavailable, timed-out or invalid display responses produce silence, including
+greetings and errors. Reflection failure leaves the profile unchanged.
 
 ## Private memory learning
 

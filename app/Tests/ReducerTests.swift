@@ -569,14 +569,14 @@ final class ReducerTests: XCTestCase {
         XCTAssertEqual(snaps[2].source, "codex")
     }
 
-    func testActiveSessionsCappedAtSix() {
+    func testActiveSessionsPreservesAllRows() {
         var s: InternalState = .test()
         for i in 1...8 {
             s = applyEvents(s, .sessionStarted(at: NOW + Double(i), sessionId: "s\(i)", source: "claude-code", cwd: nil))
             s = applyEvents(s, .activitySignal(at: NOW + Double(i), sessionId: "s\(i)", source: "claude-code", signal: .startWorking, tool: "Edit", hint: nil))
         }
         XCTAssertEqual(s.sessions.count, 8)
-        XCTAssertEqual(s.buddy.activeSessions.count, 6, "wire-format/UI cap matches firmware tama.lines[6]")
+        XCTAssertEqual(s.buddy.activeSessions.count, 8, "Mac rows are independent of device preview limits")
     }
 
     func testActiveSessionsIncludesIdleSessionsAfterActiveOnes() {

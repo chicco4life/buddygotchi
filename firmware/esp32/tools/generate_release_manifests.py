@@ -28,9 +28,10 @@ def main() -> None:
     parser.add_argument("--version", required=True)
     parser.add_argument("--base-url", required=True, help="Public URL prefix that will host the copied files.")
     parser.add_argument("--build-dir", required=True, type=Path)
+    parser.add_argument("--boot-app0", required=True, type=Path, help="OTA boot-selection image from the same Arduino toolchain as the build.")
     parser.add_argument("--out-dir", required=True, type=Path)
     parser.add_argument("--min-app-version", default="0.3.0")
-    parser.add_argument("--board", default="ws-amoled164")
+    parser.add_argument("--board", choices=["ws-amoled164"], default="ws-amoled164")
     args = parser.parse_args()
 
     out_dir = args.out_dir
@@ -41,10 +42,12 @@ def main() -> None:
     app_name = f"boop-fw-{version}.bin"
     bootloader_name = f"boop-bootloader-{version}.bin"
     partitions_name = f"boop-partitions-{version}.bin"
+    boot_app0_name = f"boop-boot-app0-{version}.bin"
 
     app_bin = copy_required(args.build_dir / "firmware.bin", out_dir / app_name)
     bootloader_bin = copy_required(args.build_dir / "bootloader.bin", out_dir / bootloader_name)
     partitions_bin = copy_required(args.build_dir / "partitions.bin", out_dir / partitions_name)
+    copy_required(args.boot_app0, out_dir / boot_app0_name)
 
     manifest = {
         "version": version,
@@ -63,10 +66,11 @@ def main() -> None:
         "new_install_prompt_erase": True,
         "builds": [
             {
-                "chipFamily": "ESP32",
+                "chipFamily": "ESP32-S3",
                 "parts": [
-                    {"path": f"{base_url}/{bootloader_name}", "offset": 0x1000},
+                    {"path": f"{base_url}/{bootloader_name}", "offset": 0x0},
                     {"path": f"{base_url}/{partitions_name}", "offset": 0x8000},
+                    {"path": f"{base_url}/{boot_app0_name}", "offset": 0xE000},
                     {"path": f"{base_url}/{app_name}", "offset": 0x10000},
                 ],
             }

@@ -29,8 +29,8 @@ are deferred to [IDEAS.md](IDEAS.md).
 
 ## Personality and remembered profile
 
-Personality lives directly in BEHAVIOR.md. Familiarity comes from a small learned
-profile and recent factual context. Numeric energy, cheek, warmth, curiosity and
+Personality lives directly in BEHAVIOR.md. Private learning keeps a small profile; the current shared display context uses
+recent remarks but does not yet include profile lines or episode memories. Numeric energy, cheek, warmth, curiosity and
 bond are inactive; existing values are retained without updates or model use.
 There are no usual-hour, known-project or lifetime-session familiarity inputs.
 

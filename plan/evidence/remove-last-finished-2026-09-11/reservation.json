@@ -1,0 +1,30 @@
+{
+  "commit": "6182f51882a7ee1736bda8d40172428dc8bb2e45",
+  "dirty": true,
+  "command": [
+    "/tmp/boop-work-device-venv/bin/python",
+    "/tmp/boop-remove-footer/scenario.py"
+  ],
+  "started": 1789131104.888433,
+  "setup": 0,
+  "usbOnly": {
+    "usbOnly": true,
+    "contract": 2,
+    "board": "ws-amoled164",
+    "fw": "dev+6182f51882a7",
+    "git": "6182f51882a7",
+    "up": 1441,
+    "heap": 299768,
+    "heapMin": 299736,
+    "heapBig": 258036,
+    "reset": "unknown",
+    "panics": 103,
+    "early": 0,
+    "safe": 0,
+    "frameUs": 21228,
+    "frameMaxUs": 22154
+  },
+  "scenario": 0,
+  "restore": 0,
+  "finished": 1789131448.371577
+}

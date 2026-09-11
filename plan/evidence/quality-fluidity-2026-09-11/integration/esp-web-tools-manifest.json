@@ -1,0 +1,28 @@
+{
+  "name": "Boop",
+  "version": "dev+6182f51882a7",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        {
+          "path": "https://example.invalid/firmware/boop-bootloader-dev+6182f51882a7.bin",
+          "offset": 0
+        },
+        {
+          "path": "https://example.invalid/firmware/boop-partitions-dev+6182f51882a7.bin",
+          "offset": 32768
+        },
+        {
+          "path": "https://example.invalid/firmware/boop-boot-app0-dev+6182f51882a7.bin",
+          "offset": 57344
+        },
+        {
+          "path": "https://example.invalid/firmware/boop-fw-dev+6182f51882a7.bin",
+          "offset": 65536
+        }
+      ]
+    }
+  ]
+}

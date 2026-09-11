@@ -1,6 +1,10 @@
 import Foundation
 import Observation
 
+protocol FirmwareUpdateTransport: AnyObject, Sendable {
+    func sendAwaitingAck(_ data: Data, ackKey: String, timeout: TimeInterval) async throws -> BLEAckReply
+}
+
 // State machine for the OTA flow. The updater is owned by ESP32Output and
 // outlives any UI presentation — the popover can close mid-update; the
 // task keeps running and the FirmwareUpdateView reattaches when reopened.
@@ -64,10 +68,16 @@ final class FirmwareUpdater {
     // Stays nil until the first successful status round-trip after connect.
     private(set) var deviceVersion: String?
 
-    private let releaseService: FirmwareReleaseService
-    private weak var bleManager: BLEManager?
+    private let releaseService: any FirmwareReleaseProviding
+    private weak var bleManager: (any FirmwareUpdateTransport)?
 
     private var updateTask: Task<Void, Never>?
+    private var checkTask: Task<Void, Never>?
+    private var checkGeneration = 0
+    private var offeredRelease: FirmwareRelease?
+    private var expectedRestartVersion: String?
+    private var restartTask: Task<Void, Never>?
+    private let restartTimeout: TimeInterval
     private var lastAutoCheckAttemptAt: Date?
 
     // Per-chunk ack timeout. The device acks each chunk after a LittleFS
@@ -77,11 +87,12 @@ final class FirmwareUpdater {
     private let beginAckTimeout: TimeInterval = 10
     private let endAckTimeout: TimeInterval = 20
 
-    init(releaseService: FirmwareReleaseService = FirmwareReleaseService()) {
+    init(releaseService: any FirmwareReleaseProviding = FirmwareReleaseService(), restartTimeout: TimeInterval = 45) {
         self.releaseService = releaseService
+        self.restartTimeout = restartTimeout
     }
 
-    func attach(bleManager: BLEManager) {
+    func attach(bleManager: any FirmwareUpdateTransport) {
         self.bleManager = bleManager
     }
 
@@ -89,6 +100,15 @@ final class FirmwareUpdater {
 
     func recordDeviceVersion(_ version: String?) {
         deviceVersion = version
+        if let expected = expectedRestartVersion, let version {
+            clearRestartExpectation()
+            if version.removingFirmwarePrefix == expected.removingFirmwarePrefix {
+                state = .success(version: version)
+            } else {
+                state = .failed(reason: "Device restarted with \(version); expected \(expected).", recoverable: true)
+            }
+            return
+        }
         // If we already had a release in `.available` for a different version,
         // re-evaluate against the new device version.
         if case .available(let latest, _) = state, let v = version {
@@ -105,17 +125,25 @@ final class FirmwareUpdater {
     func checkForUpdates(forceRefresh: Bool = false) {
         guard !state.isMidFlight else { return }
         if !forceRefresh {
+            // A reconnect status callback must not erase the just-confirmed
+            // installation outcome with an automatic manifest check.
+            switch state { case .success, .failed: return; default: break }
             if let lastAutoCheckAttemptAt,
                Date().timeIntervalSince(lastAutoCheckAttemptAt) < autoCheckCooldown {
                 return
             }
             lastAutoCheckAttemptAt = Date()
         }
-        Task { [weak self] in
+        checkTask?.cancel()
+        checkGeneration += 1
+        let generation = checkGeneration
+        state = .checking
+        checkTask = Task { [weak self] in
             guard let self else { return }
-            self.state = .checking
             do {
                 let latest = try await self.releaseService.latestRelease(forceRefresh: forceRefresh)
+                guard !Task.isCancelled, generation == self.checkGeneration, !self.state.isMidFlight else { return }
+                self.offeredRelease = latest
                 let current = self.deviceVersion ?? "0.0.0"
                 if firmwareVersionIsNewer(latest.version, than: current) {
                     self.state = .available(latest: latest, current: current)
@@ -123,40 +151,41 @@ final class FirmwareUpdater {
                     self.state = .upToDate(version: current)
                 }
             } catch {
+                guard !Task.isCancelled, generation == self.checkGeneration, !self.state.isMidFlight else { return }
                 self.state = .checkFailed(reason: error.localizedDescription)
             }
         }
     }
 
     func startUpdate() {
-        guard case .available(let latest, let current) = state else { return }
-        cancel()
+        guard case .available(let latest, _) = state else { return }
+        checkTask?.cancel()
+        checkGeneration += 1
+        updateTask?.cancel()
+        clearRestartExpectation()
+        state = .downloading(progress: 0)
         updateTask = Task { [weak self] in
-            await self?.runUpdate(release: latest, currentVersion: current)
+            await self?.runUpdate(release: latest)
         }
     }
 
     func cancel() {
         updateTask?.cancel()
         updateTask = nil
+        clearRestartExpectation()
+        if state.isMidFlight { state = .failed(reason: "Update cancelled", recoverable: true) }
     }
 
     func dismissTerminal() {
         switch state {
         case .success(let v):
             state = .upToDate(version: v)
-        case .failed:
-            // Re-evaluate against the cached device version so the row
-            // doesn't get stuck showing "Failed" forever.
-            if let v = deviceVersion {
-                state = .upToDate(version: v)
+        case .failed, .checkFailed:
+            if let release = offeredRelease, let current = deviceVersion,
+               firmwareVersionIsNewer(release.version, than: current) {
+                state = .available(latest: release, current: current)
             } else {
-                state = .idle
-            }
-        case .checkFailed:
-            if let v = deviceVersion {
-                state = .upToDate(version: v)
-            } else {
+                // Knowing the installed version does not prove it is current.
                 state = .idle
             }
         default:
@@ -166,16 +195,19 @@ final class FirmwareUpdater {
 
     // MARK: - The main flow
 
-    private func runUpdate(release: FirmwareRelease, currentVersion: String) async {
+    private func runUpdate(release: FirmwareRelease) async {
+        guard !Task.isCancelled else { return }
         // 1. Download the binary (with hash verification done inside the service).
         state = .downloading(progress: 0)
         let binary: Data
         do {
             binary = try await releaseService.downloadBinary(release)
         } catch {
+            guard !Task.isCancelled else { return }
             state = .failed(reason: error.localizedDescription, recoverable: true)
             return
         }
+        guard !Task.isCancelled else { return }
         state = .downloading(progress: 1.0)
 
         guard let ble = bleManager else {
@@ -192,12 +224,17 @@ final class FirmwareUpdater {
         do {
             _ = try await ble.sendAwaitingAck(beginFrame, ackKey: "ota_begin", timeout: beginAckTimeout)
         } catch let BLEAckError.ackFailure(message) {
+            guard !Task.isCancelled else { return }
+            clearRestartExpectation()
             state = .failed(reason: "Device refused update: \(message)", recoverable: true)
             return
         } catch {
+            guard !Task.isCancelled else { return }
             state = .failed(reason: ackErrorMessage(error, phase: "ota_begin"), recoverable: true)
             return
         }
+
+        guard !Task.isCancelled else { return }
 
         // 3. Stream chunks. Wall clock is dominated by per-chunk RTT — at
         //    ~96-byte payloads and ~50ms per chunk on BLE, a 1MB image is
@@ -206,20 +243,20 @@ final class FirmwareUpdater {
         let totalChunks = chunks.count
         let started = Date()
         for (seq, chunk) in chunks.enumerated() {
-            if Task.isCancelled {
-                state = .failed(reason: "Update cancelled", recoverable: true)
-                return
-            }
+            guard !Task.isCancelled else { return }
             let frame = OTAProtocol.chunkFrame(seq: seq, payload: chunk)
             do {
                 _ = try await ble.sendAwaitingAck(frame, ackKey: "ota_chunk", timeout: chunkAckTimeout)
             } catch let BLEAckError.ackFailure(message) {
+                guard !Task.isCancelled else { return }
                 state = .failed(reason: "Chunk \(seq) rejected: \(message)", recoverable: true)
                 return
             } catch {
+                guard !Task.isCancelled else { return }
                 state = .failed(reason: ackErrorMessage(error, phase: "ota_chunk \(seq)"), recoverable: true)
                 return
             }
+            guard !Task.isCancelled else { return }
             let progress = Double(seq + 1) / Double(totalChunks)
             let elapsed = Date().timeIntervalSince(started)
             let eta = progress > 0 ? Int((elapsed / progress) * (1 - progress)) : 0
@@ -228,34 +265,47 @@ final class FirmwareUpdater {
 
         // 4. ota_end — device verifies and commits. Past this ack the device
         //    will reboot, so the connection drops. We don't retry past this point.
+        guard !Task.isCancelled else { return }
         state = .verifying
+        expectRestart(version: release.version)
         let endFrame = OTAProtocol.endFrame(sha256: release.sha256)
         do {
             _ = try await ble.sendAwaitingAck(endFrame, ackKey: "ota_end", timeout: endAckTimeout)
         } catch let BLEAckError.ackFailure(message) {
+            guard !Task.isCancelled else { return }
+            clearRestartExpectation()
             state = .failed(reason: "Verification failed: \(message)", recoverable: true)
             return
         } catch BLEAckError.notConnected {
-            // Disconnect after ota_end is normal — the device reboots before
-            // sending the ack on slower flash. Treat as success-pending and
-            // let the reconnect prove it.
-            state = .rebooting
-            return
+            // A disconnect may mean reboot, but only a fresh version reply
+            // can establish success. The same bounded confirmation handles
+            // both an end acknowledgment and an early disconnect.
         } catch {
+            guard !Task.isCancelled else { return }
+            clearRestartExpectation()
             state = .failed(reason: ackErrorMessage(error, phase: "ota_end"), recoverable: true)
             return
         }
+        guard !Task.isCancelled else { return }
+        if expectedRestartVersion != nil { state = .rebooting }
+    }
 
-        // 5. Reboot — BLEManager's auto-reconnect will rediscover the device
-        //    and ESP32Output will refresh deviceVersion via status. We optimistically
-        //    surface success now; the next status reply will confirm.
-        state = .rebooting
-        // Hold the rebooting state for ~5s, then declare success. If reconnect
-        // brings back the OLD version, recordDeviceVersion will detect that
-        // and re-check naturally.
-        try? await Task.sleep(nanoseconds: 5_000_000_000)
-        if Task.isCancelled { return }
-        state = .success(version: release.version)
+    private func clearRestartExpectation() {
+        expectedRestartVersion = nil
+        restartTask?.cancel()
+        restartTask = nil
+    }
+
+    private func expectRestart(version: String) {
+        clearRestartExpectation()
+        expectedRestartVersion = version
+        let timeout = restartTimeout
+        restartTask = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(timeout)) } catch { return }
+            guard let self, self.expectedRestartVersion == version else { return }
+            self.clearRestartExpectation()
+            self.state = .failed(reason: "Could not confirm the device restarted with \(version). Reconnect and check its version.", recoverable: true)
+        }
     }
 
     private func ackErrorMessage(_ error: Error, phase: String) -> String {
@@ -266,4 +316,8 @@ final class FirmwareUpdater {
         default:                       return "\(phase) failed: \(error.localizedDescription)"
         }
     }
+}
+
+private extension String {
+    var removingFirmwarePrefix: String { hasPrefix("v") ? String(dropFirst()) : self }
 }

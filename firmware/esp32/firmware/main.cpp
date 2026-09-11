@@ -45,6 +45,9 @@ static uint32_t imuSample = 0, faceDownAt = 0, faceUpAt = 0, postureAt = 0;
 static char candidatePosture[7] = "desk";
 static bool lastLinked = false, lastSecure = false;
 static AnimSpring cardSpring, squish;
+// Presentation-only copy: a dismissed question can finish sliding out without
+// retaining its input behavior or reviving a request removed by the host.
+static Card departingCard;
 enum Ritual : uint8_t { R_NONE, R_FIRST_WAKE, R_COLOR, R_LEVEL, R_LEVEL_AWAIT, R_STREAK, R_RETIRE };
 static Ritual ritual = R_NONE;
 static uint32_t ritualAt = 0;
@@ -243,7 +246,7 @@ static void secondaryTap() {
   shakeHeadUntil = nowMs()+600;
 }
 // One coordinate path for panel touches and USB-only navigation tests.
-// A visible table owns the tap before hidden bubbles or the last-finished link.
+// A visible table owns the tap before hidden bubbles.
 static void panelTap(int x,int y) {
   lastInput=nowMs();
   if(screenOff||napping) { wake(); return; }
@@ -253,10 +256,7 @@ static void panelTap(int x,int y) {
     else threadPage=-1;
     return;
   }
-  if(tama.recentCount && !hasCard() && !noticeVisible() &&
-     strcmp(tama.state,"uhoh") && y>=HAL_H-35 && dataConnected()) {
-    threadPage=(tama.threadCount+2)/3; noticeUntil=0; statsUntil=0; clearBubble();
-  } else primaryTap();
+  primaryTap();
 }
 struct Button {
   bool down = false, guard = false, fired = false, focusSent = false, shutdown = false;
@@ -369,8 +369,6 @@ static const char* const layerNames[] = {"off","system","card","uhoh","stats","b
 static bool dashboardWanted() {
   return dataConnected() && !napping && !firstWake && threadPage>=0;
 }
-static float dashboardAmount=0;
-static uint32_t dashboardTick=0;
 static Layer screenLayer() {
   if (screenOff) return L_OFF;
   if (systemCard()) return L_SYSTEM;
@@ -382,6 +380,13 @@ static Layer screenLayer() {
   if (bubbleVisible()) return L_BUBBLE;
   if (calmOverlay() && ((tama.overlay[0] && nowMs()-overlayAt<(eq(tama.overlay,"greet")?2200u:1400u)) || before(nowMs(),localBoopUntil))) return L_OVERLAY;
   return L_FACE;
+}
+static bool cardDeparting() {
+  Layer layer=screenLayer();
+  return departingCard.id[0] && !hasCard() && cardSpring.pos>0.001f &&
+    dataConnected() && !napping && !firstWake &&
+    !eq(tama.state,"asleep") && !eq(tama.state,"uhoh") &&
+    (layer==L_FACE || layer==L_OVERLAY);
 }
 // Two UTF-8-aware lines using the Korean font already bundled in LGFX.
 static void textLines(const char* text,int x,int y,int width,int lines=2,float size=1.0f,uint16_t ink=BOOP_PAPER) {
@@ -415,12 +420,14 @@ static void textRight(const char* text,int right,int y,uint16_t ink) {
   spr.setFont(&fonts::efontKR_16); spr.setTextSize(1);
   textLines(text,right-spr.textWidth(text),y,HAL_W,1,1,ink);
 }
-static int cardY() { int h=systemCard()?132:88; return HAL_H-h+animPx((1-animClamp(cardSpring.pos,0,1))*h); }
-static void drawCard(uint32_t now) {
-  int y=cardY();
+static void drawCard(uint32_t now, const Card* departing=nullptr) {
+  bool system=!departing && systemCard();
+  const Card& card=departing?*departing:tama.card;
+  int h=system?132:88;
+  int y=HAL_H-h+animPx((1-animClamp(cardSpring.pos,0,1))*h);
   uint16_t ink=faceInk(now);
   char line[96];
-  if (systemCard()) {
+  if (system) {
     if (blePasskey()) { snprintf(line,sizeof(line),"pair: %06lu",(unsigned long)blePasskey()); textLines(line,30,y+10,HAL_W-60,1,1.5f,ink); }
     else if (otaActive()) { snprintf(line,sizeof(line),"update %lu / %lu",(unsigned long)otaProgress(),(unsigned long)otaTotal()); textLines(line,30,y+10,HAL_W-60,1,1.5f,ink); }
     else { textLines(tama.card.kind,30,y+10,HAL_W-60,1,1.5f,ink); textLines(tama.card.text,30,y+42,HAL_W-60,2,1,ink); }
@@ -433,16 +440,16 @@ static void drawCard(uint32_t now) {
   // right that 8-bit fills read as mud — but the rule separates the question
   // from the face without filling anything, the same way the board's does.
   spr.drawFastHLine(left,y,textWidth,animMix(BLACK,ink,0.28f));
-  if(tama.card.of>1) {
-    snprintf(line,sizeof(line),"%d of %d",tama.card.n,tama.card.of);
+  if(card.of>1) {
+    snprintf(line,sizeof(line),"%d of %d",card.n,card.of);
     textRight(line,left+textWidth,y+18,BOOP_PAPER_SOFT);
     toolWidth-=spr.textWidth(line)+16;
   }
   // Tool and gloss share the left edge; the tool was indented 14 px past it
   // and the two lines read as a ragged pair. The gloss steps down to the
   // softer ink so the tool name is what the eye lands on first.
-  textLines(tama.card.tool,left,y+14,max(16,toolWidth),1,1.5f,ink);
-  textLines(tama.card.gloss,left,y+46,textWidth,2,1,BOOP_PAPER_SOFT);
+  textLines(card.tool,left,y+14,max(16,toolWidth),1,1.5f,ink);
+  textLines(card.gloss,left,y+46,textWidth,2,1,BOOP_PAPER_SOFT);
 }
 static void drawStats(uint32_t now) {
   uint16_t ink=faceInk(now);
@@ -572,12 +579,8 @@ static void render() {
       snprintf(label,sizeof(label),"%d working · tap for threads",tama.workingCount());
       textLines(label,24,HAL_H-53,HAL_W-48,1,1,BOOP_PAPER_SOFT);
     }
-    if(tama.recentCount) {
-      snprintf(label,sizeof(label),"Last finished: %s",tama.recent[0].title);
-      textLines(label,24,HAL_H-27,HAL_W-48,1,1,BOOP_PAPER_SOFT);
-    }
   }
-  // Scope sits above the calm face, clear of working and last-finished footers.
+  // Scope sits above the calm face, clear of the working-count footer.
   // Detail pages, completion notices and higher-priority layers cover it.
   if (layer==L_FACE && tama.scope[0] && dataConnected() && !napping &&
       (eq(tama.state,"idle") || eq(tama.state,"working") || eq(tama.state,"done")))
@@ -589,6 +592,7 @@ static void render() {
   if (!bleBonded() || !dataConnected() || (linkFlash && now-linkAt<800))
     presenceDrawLinkGlyph(spr,now-stateAt,BOOP_SKY,linkFlash && now-linkAt<800);
   if (layer==L_SYSTEM || layer==L_CARD) drawCard(now);
+  else if(cardDeparting()) drawCard(now,&departingCard);
   else if(layer==L_STATS) drawStats(now);
   else if(layer==L_BUBBLE || layer==L_UHOH) { int x=HAL_W/3+12; uint16_t ink=faceInk(now); textLines(bubbleText(),x+12,HAL_H/2-20,HAL_W-x-40,2,1,ink); }
   if (guardSafeTier()) { textLines("safe mode - USB rescue",28,18,HAL_W-56,1); }
@@ -616,6 +620,12 @@ static void dumpState() {
   d["scope"]=tama.scope;
   d["bubble"]=bubbleVisible()?bubbleText():""; d["gift"]=false; d["focus"]=tama.focus; d["posture"]=posture;
   d["threadPage"]=threadPage; d["threadCount"]=tama.threadCount; d["recentCount"]=tama.recentCount;
+#ifdef BOOP_USB_ONLY
+  d["poseTilt"]=facePose.tilt; d["armL"]=facePose.armL; d["armR"]=facePose.armR;
+  d["armAngleL"]=facePose.angL; d["armAngleR"]=facePose.angR;
+  d["cardProgress"]=cardSpring.pos;
+  d["cardDeparting"]=cardDeparting();
+#endif
   d["noticeVisible"]=noticeVisible(); d["noticeCount"]=tama.notice.count; d["noticeAge"]=nowMs()-noticeAt;
   d["dashboardAge"]=nowMs()-dashboardAt; d["dashboard"]=dashboardWanted(); d["workingCount"]=tama.workingCount(); d["idleCount"]=tama.idleCount();
   d["dots"]=tama.dots; d["dotAlert"]=tama.dotAlert; d["mute"]=tama.mute; d["screenOff"]=screenOff; d["brightness"]=screenOff?0:brightness;
@@ -828,7 +838,7 @@ void loop() {
   lastLinked=linked; lastSecure=secure;
   static bool priorSystem=false;
   bool sys=systemCard();
-  if(sys&&!priorSystem) wake();
+  if(sys&&!priorSystem) { wake(); noticeUntil=0; threadPage=-1; }
   priorSystem=sys;
   buttonsTick(); motionTick(); soundTick(); ritualTick();
   static uint32_t batteryAt=0;

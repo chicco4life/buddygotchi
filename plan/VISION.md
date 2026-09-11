@@ -21,7 +21,8 @@ The device carries the face; the Mac app quietly supplies status and settings.
 Six base states, duration-based celebrations, a two-step nudge ladder, two XP
 sources, local memory and a fixed appearance. The app UI supports English and Korean; companion summaries and remarks start in English only.
 The current local model is Apple Foundation Models on supported Macs; unavailable
-models use minimal greeting/error text and otherwise stay silent.
+models leave Boop silent; even available models should speak only when the moment
+and supplied context support it.
 
 Gifts, recaps, teaching, inferred stuck behavior, drawings, agent expression,
 leaderboards and cosmetic progression are outside the current product. Optional

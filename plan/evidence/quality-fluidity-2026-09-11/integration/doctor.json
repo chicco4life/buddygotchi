@@ -1,0 +1,11 @@
+{
+  "agent": "codex",
+  "ok": 8,
+  "failed": 0,
+  "warnings": 0,
+  "staticExit": 2,
+  "liveCommand": "echo BOOP_DOCTOR_PING",
+  "confirmExit": 0,
+  "appPID": 79677,
+  "note": "Counts recorded from the executed doctor arm/own-tool/confirm sequence; raw tool output is in the task history."
+}

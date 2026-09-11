@@ -11,18 +11,32 @@ struct VoiceStubRuntime: VoiceRuntime {
     }
 }
 final class VoiceTimingTests: XCTestCase {
+    func testDisplayOpportunitiesCanRemainSilent() async {
+        let occasions: [Occasion] = [.greet(1), .uhoh(.error), .completed, .workContextChanged]
+        for occasion in occasions {
+            let request = VoiceRequest(occasion: occasion, context: BehaviorContext(desk: WorkContext()))
+            let unavailable = await Voice().line(for: request)
+            XCTAssertTrue(unavailable.text.isEmpty)
+            let declined = await Voice(runtime: VoiceStubRuntime(text: "SILENT")).line(for: request)
+            XCTAssertTrue(declined.text.isEmpty)
+            XCTAssertEqual(declined.source, .model)
+            let invalid = await Voice(runtime: VoiceStubRuntime(text: "line\nwith control")).line(for: request)
+            XCTAssertTrue(invalid.text.isEmpty)
+        }
+    }
     func testThreeSecondRuntimeMeetsOneSecondDeadline() async {
         let voice = Voice(runtime: VoiceStubRuntime(delay: .seconds(3)), deadlineMs: 1_000)
         let start = ContinuousClock.now
         let line = await voice.line(for: VoiceRequest(occasion: .greet(1)))
         XCTAssertLessThan(start.duration(to: .now), .milliseconds(1100))
         XCTAssertEqual(line.source, .authored)
-        XCTAssertFalse(line.text.isEmpty)
+        XCTAssertTrue(line.text.isEmpty)
     }
     func testInvalidDisplayFallsBackAndValidModelWins() async {
         let request = VoiceRequest(occasion: .greet(1))
         let bad = await Voice(runtime: VoiceStubRuntime(text: "line\nwith control")).line(for: request)
         XCTAssertEqual(bad.source, .authored)
+        XCTAssertTrue(bad.text.isEmpty)
         let good = await Voice(runtime: VoiceStubRuntime()).line(for: request)
         XCTAssertEqual(good.source, .model)
         XCTAssertEqual(good.text, "a quiet little win")
@@ -51,14 +65,14 @@ final class VoiceTimingTests: XCTestCase {
 }
 
 extension VoiceTimingTests {
-    func testRepeatedModelLineUsesNextAuthoredLine() async {
+    func testRepeatedModelLineStaysSilent() async {
         let voice = Voice(runtime: VoiceStubRuntime())
         let request = VoiceRequest(occasion: .greet(1))
         let first = await voice.line(for: request)
         let second = await voice.line(for: request)
         XCTAssertEqual(first.source, .model)
         XCTAssertEqual(second.source, .authored)
-        XCTAssertNotEqual(first.text, second.text)
+        XCTAssertTrue(second.text.isEmpty)
     }
     @MainActor func testNewPromptSuppressesLateBubble() async throws {
         let clock = MockClock()
@@ -106,8 +120,7 @@ extension VoiceTimingTests {
         _ = await voice.line(for: VoiceRequest(occasion: .greet(1)))
         reads = await store.exclusionReads; XCTAssertEqual(reads, 3)
         let remembered = await store.remembered
-        XCTAssertEqual(remembered.count, 2)
-        XCTAssertEqual(Set(remembered).count, 2)
+        XCTAssertTrue(remembered.isEmpty)
     }
     func testParagraphAndProfileDoNotEnterHistory() async throws {
         let (base, _, cleanup) = try makeStore(); defer { cleanup() }

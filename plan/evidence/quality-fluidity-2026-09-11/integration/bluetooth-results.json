@@ -1,0 +1,301 @@
+{
+  "app": {
+    "pid": 79677,
+    "cwd": "/Users/michaeljxzhu/.codex/worktrees/06c7/buddygotchi/app"
+  },
+  "before": {
+    "usbOnly": false,
+    "contract": 2,
+    "board": "ws-amoled164",
+    "fw": "dev+1b4976d44e34",
+    "git": "1b4976d44e34",
+    "up": 53208,
+    "heap": 198864,
+    "heapMin": 197144,
+    "heapBig": 155636,
+    "reset": "unknown",
+    "panics": 103,
+    "early": 0,
+    "safe": 0,
+    "frameUs": 22161,
+    "frameMaxUs": 22968
+  },
+  "candidateSHA256": "c4f9ff311bd3218ad966fd721924076505d014d701a98237293f30527af3cd43",
+  "candidate": {
+    "usbOnly": false,
+    "contract": 2,
+    "board": "ws-amoled164",
+    "fw": "dev+6182f51882a7",
+    "git": "6182f51882a7",
+    "up": 2225,
+    "heap": 198864,
+    "heapMin": 198688,
+    "heapBig": 155636,
+    "reset": "panic",
+    "panics": 104,
+    "early": 1,
+    "safe": 0,
+    "frameUs": 22127,
+    "frameMaxUs": 22949
+  },
+  "passed": true,
+  "restored": {
+    "usbOnly": false,
+    "contract": 2,
+    "board": "ws-amoled164",
+    "fw": "dev+1b4976d44e34",
+    "git": "1b4976d44e34",
+    "up": 3128,
+    "heap": 198864,
+    "heapMin": 197604,
+    "heapBig": 155636,
+    "reset": "unknown",
+    "panics": 103,
+    "early": 2,
+    "safe": 0,
+    "frameUs": 22196,
+    "frameMaxUs": 22783
+  },
+  "checks": [
+    {
+      "name": "candidate reconnects to the identified Mac app",
+      "passed": true,
+      "state": {
+        "fw": "dev+6182f51882a7",
+        "usbOnly": false,
+        "connected": true,
+        "creature": "working",
+        "card": false,
+        "cardId": "",
+        "armed": false,
+        "focus": true,
+        "threadCount": 4,
+        "rtcValid": true
+      }
+    },
+    {
+      "name": "Mac synchronizes RTC",
+      "passed": true,
+      "state": {
+        "fw": "dev+6182f51882a7",
+        "usbOnly": false,
+        "connected": true,
+        "creature": "working",
+        "card": false,
+        "cardId": "",
+        "armed": false,
+        "focus": true,
+        "threadCount": 4,
+        "rtcValid": true
+      }
+    },
+    {
+      "name": "three hook sources reach production Bluetooth",
+      "passed": true,
+      "state": {
+        "fw": "dev+6182f51882a7",
+        "usbOnly": false,
+        "connected": true,
+        "creature": "working",
+        "card": false,
+        "cardId": "",
+        "armed": false,
+        "focus": true,
+        "threadCount": 4,
+        "rtcValid": true
+      }
+    },
+    {
+      "name": "native permission request does not create a device card",
+      "passed": true,
+      "state": {
+        "fw": "dev+6182f51882a7",
+        "usbOnly": false,
+        "connected": true,
+        "creature": "working",
+        "card": false,
+        "cardId": "",
+        "armed": false,
+        "focus": true,
+        "threadCount": 6,
+        "rtcValid": true
+      }
+    },
+    {
+      "name": "question reaches device",
+      "passed": true,
+      "state": {
+        "fw": "dev+6182f51882a7",
+        "usbOnly": false,
+        "connected": true,
+        "creature": "needsYou",
+        "card": true,
+        "cardId": "gq-c_1789128800934",
+        "armed": false,
+        "focus": true,
+        "threadCount": 7,
+        "rtcValid": true
+      }
+    },
+    {
+      "name": "device tap dismisses the passive card",
+      "passed": true,
+      "state": {
+        "fw": "dev+6182f51882a7",
+        "usbOnly": false,
+        "connected": true,
+        "creature": "needsYou",
+        "card": false,
+        "cardId": "gq-c_1789128800934",
+        "armed": false,
+        "focus": true,
+        "threadCount": 7,
+        "rtcValid": true
+      }
+    },
+    {
+      "name": "Mac keepalive preserves local dismissal",
+      "passed": true,
+      "state": {
+        "fw": "dev+6182f51882a7",
+        "usbOnly": false,
+        "connected": true,
+        "creature": "needsYou",
+        "card": false,
+        "cardId": "gq-c_1789128800934",
+        "armed": false,
+        "focus": true,
+        "threadCount": 7,
+        "rtcValid": true
+      }
+    },
+    {
+      "name": "a new request appears after dismissal",
+      "passed": true,
+      "state": {
+        "fw": "dev+6182f51882a7",
+        "usbOnly": false,
+        "connected": true,
+        "creature": "needsYou",
+        "card": true,
+        "cardId": "gq-x_1789128815907",
+        "armed": false,
+        "focus": true,
+        "threadCount": 7,
+        "rtcValid": true
+      }
+    },
+    {
+      "name": "answer in host clears device card",
+      "passed": true,
+      "state": {
+        "fw": "dev+6182f51882a7",
+        "usbOnly": false,
+        "connected": true,
+        "creature": "working",
+        "card": false,
+        "cardId": "",
+        "armed": false,
+        "focus": true,
+        "threadCount": 7,
+        "rtcValid": true
+      }
+    },
+    {
+      "name": "device quiet toggle",
+      "passed": true,
+      "state": {
+        "fw": "dev+6182f51882a7",
+        "usbOnly": false,
+        "connected": true,
+        "creature": "working",
+        "card": false,
+        "cardId": "",
+        "armed": false,
+        "focus": false,
+        "threadCount": 7,
+        "rtcValid": true
+      }
+    },
+    {
+      "name": "host echo retains device quiet setting",
+      "passed": true,
+      "state": {
+        "fw": "dev+6182f51882a7",
+        "usbOnly": false,
+        "connected": true,
+        "creature": "working",
+        "card": false,
+        "cardId": "",
+        "armed": false,
+        "focus": false,
+        "threadCount": 7,
+        "rtcValid": true
+      }
+    },
+    {
+      "name": "device reboot reconnects without app restart",
+      "passed": true,
+      "state": {
+        "fw": "dev+6182f51882a7",
+        "usbOnly": false,
+        "connected": true,
+        "creature": "working",
+        "card": false,
+        "cardId": "",
+        "armed": false,
+        "focus": false,
+        "threadCount": 7,
+        "rtcValid": true
+      }
+    },
+    {
+      "name": "host restores quiet setting after device reboot",
+      "passed": true,
+      "state": {
+        "fw": "dev+6182f51882a7",
+        "usbOnly": false,
+        "connected": true,
+        "creature": "working",
+        "card": false,
+        "cardId": "",
+        "armed": false,
+        "focus": false,
+        "threadCount": 7,
+        "rtcValid": true
+      }
+    },
+    {
+      "name": "quiet setting restored",
+      "passed": true,
+      "state": {
+        "fw": "dev+6182f51882a7",
+        "usbOnly": false,
+        "connected": true,
+        "creature": "working",
+        "card": false,
+        "cardId": "",
+        "armed": false,
+        "focus": true,
+        "threadCount": 7,
+        "rtcValid": true
+      }
+    },
+    {
+      "name": "original firmware reconnects after full restoration",
+      "passed": true,
+      "state": {
+        "fw": "dev+1b4976d44e34",
+        "usbOnly": false,
+        "connected": true,
+        "creature": "working",
+        "card": false,
+        "cardId": "",
+        "armed": false,
+        "focus": true,
+        "threadCount": 4,
+        "rtcValid": true
+      }
+    }
+  ]
+}

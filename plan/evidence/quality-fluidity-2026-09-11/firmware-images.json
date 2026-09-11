@@ -1,0 +1,14 @@
+[
+  {
+    "environment": "ws-amoled164",
+    "bytes": 1241344,
+    "sha256": "c4f9ff311bd3218ad966fd721924076505d014d701a98237293f30527af3cd43",
+    "candidate": "final footer departure"
+  },
+  {
+    "environment": "ws-amoled164-usb-debug",
+    "bytes": 982688,
+    "sha256": "7faec1be6c560659152b721c40db3cd26c784edebd2b0ec66dce95160d34b1ac",
+    "candidate": "final footer departure"
+  }
+]

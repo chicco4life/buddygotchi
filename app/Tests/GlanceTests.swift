@@ -102,4 +102,54 @@ final class GlanceTests: XCTestCase {
         XCTAssertEqual(s.buddy.deviceThreads.last?.status, 0)
     }
 
+    func testDialogueSurvivesActivityProjection() {
+        var s = applyEvents(.test(),
+            .sessionStarted(at: NOW, sessionId: "a", source: "codex", cwd: nil),
+            .turnStarted(at: NOW + 1, sessionId: "a", source: "codex"))
+        s.buddy.creature.bubble = "One check left."
+        XCTAssertEqual(renderState(from: s.buddy, now: NOW + 2).bubble, "One check left.")
+        s = reduce(s, .turnEnded(at: NOW + 3, sessionId: "a", source: "codex", outcome: .completed))
+        s.buddy.creature.bubble = "Checks passed."
+        XCTAssertEqual(renderState(from: s.buddy, now: NOW + 4).bubble, "Checks passed.")
+    }
+
+    @MainActor
+    func testCelebrationPreviewSurvivesLiveWorkButCannotCoverAttention() throws {
+        let output = ESP32Output()
+        var s = reduce(.test(), .turnStarted(at: NOW, sessionId: "a", source: "codex"))
+        output.stateDidChange(prev: .initial, next: s.buddy)
+        let data = try XCTUnwrap(output.testCelebrateData())
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(json["state"] as? String, "done")
+        XCTAssertEqual(json["cheer"] as? String, "cheer")
+        s = reduce(s, .requestArrived(at: NOW + 1, sessionId: "a", requestId: "p", tool: "Question", hint: "Choose", sessionLabel: nil))
+        output.stateDidChange(prev: .initial, next: s.buddy)
+        XCTAssertNil(output.testCelebrateData())
+    }
+
+    func testMacRowsRemainCompleteWhileDevicePreviewStaysBounded() throws {
+        var s = InternalState.test()
+        for i in 0..<30 {
+            s = reduce(s, .turnStarted(at: NOW, sessionId: String(format: "s%02d", i), source: "codex"))
+        }
+        XCTAssertEqual(s.buddy.activeSessions.count, 30)
+        XCTAssertEqual(Set(s.buddy.activeSessions.map(\.id)).count, 30)
+        let data = try XCTUnwrap(renderStateData(from: s.buddy, now: NOW))
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(json["threadTotal"] as? Int, 30)
+        XCTAssertLessThanOrEqual((json["threads"] as? [[Any]] ?? []).count, 12)
+        XCTAssertLessThanOrEqual(data.count, maxHeartbeatBytes)
+    }
+
+    func testThinkingProjectsConsistentlyAsWorkAcrossSurfaces() {
+        var s = reduce(.test(), .sessionStarted(at: NOW, sessionId: "thinking", source: "codex", cwd: nil))
+        s.sessions["thinking"]?.state = .thinking
+        s = reduce(s, .staleTick(at: NOW + 1))
+        XCTAssertEqual(s.buddy.creature.state, .working)
+        XCTAssertEqual(s.buddy.sessions.running, 1)
+        XCTAssertEqual(s.buddy.activeSessions.first?.state, .thinking)
+        XCTAssertEqual(s.buddy.agentCounts.first?.working, 1)
+        XCTAssertEqual(s.buddy.deviceThreads.first?.status, 1)
+    }
+
 }

@@ -148,7 +148,6 @@ func renderState(from state: BuddyState, defaults: UserDefaults = .standard, now
     if [.idle, .working, .done].contains(frame.state), !state.agentCounts.isEmpty {
         frame.state = state.agentCounts.contains { $0.working > 0 } ? .working : .idle
         frame.cheer = nil
-        frame.bubble = nil
     }
     frame.snap = .init(name: defaults.string(forKey: DefaultsKey.buddyName) ?? "Boop", growth: state.growth)
     frame.cosmetic = state.cosmetic

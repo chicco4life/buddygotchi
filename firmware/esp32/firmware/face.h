@@ -150,8 +150,14 @@ static void faceSimulate(uint32_t now,float dt) {
   // All lower layers advance even when covered. A frozen clock does not
   // integrate springs (AnimSpring intentionally substitutes a dt for zero).
   bool card=hasCard();
-  if (dt>0) { cardSpring.step(card?1:0,4,0.65f,dt); squish.step(0,3,0.55f,dt); }
+  if (dt>0) {
+    if (card) cardSpring.step(1,4,0.65f,dt);
+    else cardSpring.retract(14,dt);
+    squish.step(0,3,0.55f,dt);
+  }
   else { cardSpring.pos=card?1:0; }
+  if (systemCard() || cardSpring.pos<=0.001f) departingCard=Card{};
+  else if (card) departingCard=tama.card;
   if (eq(tama.state,"idle") && !card && (int32_t)(now-lastInput)>=10000 && (int32_t)(now-nextMicro)>=0) {
     microAt=now; microKind=(microKind+1)%5;
     nextMicro=now+(eq(posture,"travel")?90000:120000);
@@ -270,11 +276,14 @@ static void faceSimulate(uint32_t now,float dt) {
   // settled pose stays bit-for-bit stable for screenshots.
 #define EASE(part) facePose.part=dt==0?p.part:animEase(facePose.part,p.part,12,dt)
   EASE(eyeH); EASE(eyeW); EASE(gazeX); EASE(gazeY); EASE(brow); EASE(arc);
-  EASE(bob); EASE(lean); facePose.tilt=p.tilt; EASE(blush); EASE(sweat); EASE(mouth);
+  EASE(bob); EASE(lean); EASE(tilt); EASE(blush); EASE(sweat); EASE(mouth);
   // Reach eases so an arm grows and retracts; the swing is applied straight,
   // because easing a 2 Hz wave at rate 12 damps it into a twitch.
   EASE(armL); EASE(armR);
-  facePose.angL=p.angL; facePose.angR=p.angR;
+  // Preserve the last swing angle while a departing arm retracts. Resetting
+  // it to zero turned a raised hand downward for its final visible frames.
+  if (dt==0 || p.armL>0.001f || facePose.armL<0.001f) facePose.angL=p.angL;
+  if (dt==0 || p.armR>0.001f || facePose.armR<0.001f) facePose.angR=p.angR;
 #undef EASE
 }
 // One heart: two lobes and a point. The lobes are lifted slightly above the

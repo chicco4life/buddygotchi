@@ -42,7 +42,7 @@ protocol BLEManagerDelegate: AnyObject {
 // both the public API and the CoreBluetooth delegate callbacks. `connectionState` is the
 // single published property and is only ever written on the main actor (delegate-driven
 // writes hop there via `Task { @MainActor }`).
-final class BLEManager: NSObject, @unchecked Sendable {
+final class BLEManager: NSObject, FirmwareUpdateTransport, @unchecked Sendable {
     weak var delegate: BLEManagerDelegate?
     private(set) var connectionState: BLEConnectionState = .disconnected {
         didSet {

@@ -7,8 +7,7 @@
 // (face, glance card, mood field, orbs, bubbles) animates through one of
 // these two integrators rather than a hand-rolled lerp per file.
 //
-// Both are frame-rate independent: they take the real dt, so the WS board's
-// ~24ms present cadence and the M5's ~16ms loop produce the same motion.
+// Both take elapsed presentation time, independent of the render cadence.
 
 // Damped exponential approach — eases toward the target with no overshoot.
 // rate is 1/s: higher = snappier. This is the default for anything that
@@ -78,14 +77,6 @@ struct AnimSpring {
       pos += vel * h;
     }
   }
-
-// Small deterministic hash. Every surface that wants organic-feeling
-// variation uses this rather than rand(), so HIL screenshots of the same
-// millisecond are always identical.
-static inline uint32_t animHash(uint32_t x) {
-  x *= 2654435761u;
-  return x ^ (x >> 16);
-}
 
   // Retract to rest without bouncing. Springing out and easing back is the
   // product's motion rule — a card arriving is playful, a card leaving

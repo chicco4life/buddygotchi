@@ -59,12 +59,12 @@ def stick():
         port = buddyctl.find_port()
         serial = buddyctl.SerialBuddy(port, timeout=5)
         serial.__enter__()
-        serial.framed_json("ping", "PONG", 3)
+        info = serial.framed_json("ping", "PONG", 3)
         # Two writers on one screen make every assertion a coin flip.
         connected = serial.framed_json("state", "STATE", 3).get("connected")
     except buddyctl.BuddyError as exc:
         pytest.skip(f"no ESP32 Buddy attached: {exc}")
-    if connected:
+    if connected and not info.get("usbOnly", False):
         serial.__exit__(None, None, None)
         pytest.skip("the Boop app is connected over BLE; quit it before running HIL")
     try:

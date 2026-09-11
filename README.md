@@ -5,7 +5,7 @@ behavior, UX, architecture and verification specs. `archived/` holds the previou
 builds and runs: the Swift macOS menu bar app, the ESP32 firmware, the
 hardware files and earlier research. The landing page lives at `landing/`
 for Vercel deployment. Start with the [spec index](plan/README.md) and
-[component behaviors](plan/BEHAVIORS.md) for current rules and tuning;
+[behavior tables](plan/BEHAVIORS.md) for states, triggers and controls;
 [plan/PLAN.md](plan/PLAN.md) tracks implementation and verification status.
 
 The active Mac app is a quiet menu bar companion: click its icon for status,
@@ -48,5 +48,6 @@ without opening a camera.
 
 ## Previous generation
 
-Historical code and build instructions remain in [archived](archived/README.md).
+Historical code and build instructions remain in the [archived app](archived/app/README.md)
+and [archived firmware](archived/firmware/esp32/README.md).
 Run archived commands from `archived/`; new work belongs in the active tree.

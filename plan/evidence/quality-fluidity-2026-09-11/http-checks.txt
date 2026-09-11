@@ -1,0 +1,159 @@
+Headless instance ready: port 62560, files /tmp/boop-dev-501-2ce4a9be93e60a82
+═══ Boop E2E smoke ═══
+  · baseline: stateVersion=115, desktop=disconnected
+
+Core contract
+  ✓ /healthz reports ok:true
+  ✓ /healthz exposes stateVersion
+  ✓ /healthz exposes desktop status
+  ✓ SessionEnd for a nonexistent session is a no-op  (v115→v115, +0)
+  ✓ received claude-code/SessionEnd
+
+──────── Claude Code (e2e/claude.sh) ────────
+  · baseline: stateVersion=115, desktop=disconnected
+
+Claude Code  →  POST /hook/event  (lifecycle)
+  ✓ SessionStart → registered (idle)  (v115→v116)
+  ✓ creature=idle
+  ✓ received claude-code/SessionStart
+  ✓ desktop connected
+  ✓ UserPromptSubmit → busy  (v116→v117)
+  ✓ creature=working
+  ✓ received claude-code/UserPromptSubmit
+  ✓ PostToolUse → keep busy  (v117→v118)
+  ✓ creature=working
+  ✓ received claude-code/PostToolUse
+  ✓ Stop → completed turn  (v118→v120)
+  ✓ creature=idle (completed turn recorded)
+  ✓ received claude-code/Stop
+  ✓ UserPromptSubmit (next turn) → busy  (v120→v121)
+  ✓ creature=working
+  ✓ received claude-code/UserPromptSubmit
+  ✓ StopFailure → uhoh  (v121→v122)
+  ✓ creature=uhoh
+  ✓ received claude-code/StopFailure
+
+Claude Code  →  notifications, native permissions, elicitation (passive)
+  ✓ Notification:idle_prompt → done  (v122→v125)
+  ✓ creature=idle (completed turn recorded)
+  ✓ received claude-code/Notification
+  ✓ UserPromptSubmit → busy  (v125→v126)
+  ✓ creature=working
+  ✓ received claude-code/UserPromptSubmit
+  ✓ PermissionRequest remains in the editor  (v126→v126, +0)
+  ✓ creature=working
+  ✓ received claude-code/PermissionRequest
+  ✓ PostToolUse → clears card, busy  (v126→v127)
+  ✓ creature=working
+  ✓ received claude-code/PostToolUse
+  ✓ Notification:permission_prompt → ignored beyond liveness touch (native permissions do not create cards)  (v128→v129, +1)
+  ✓ creature=working
+  ✓ received claude-code/Notification
+  ✓ Notification:elicitation_dialog → attention  (v129→v132)
+  ✓ creature=needsYou
+  ✓ received claude-code/Notification
+  ✓ Elicitation → attention  (v132→v133)
+  ✓ creature=needsYou
+  ✓ received claude-code/Elicitation
+  ✓ ElicitationResult → clears, busy  (v133→v136)
+  ✓ creature=working
+  ✓ received claude-code/ElicitationResult
+
+claude-code → legacy approval passthrough
+  ✓ stale approval endpoint returns immediately: empty native passthrough
+  ✓ passthrough leaves attention unchanged
+  ✓ Claude Code session reaped (session e2e-claude-65872 gone)
+  · desktop=disconnected
+
+claude-code tenth-try
+  ✓ tenth-try: short task stays light despite retries
+  ✓ sub-minute completion has no desktop cheer
+  ✓ completed turn awarded XP
+  ✓ exactly one completed turn recorded
+
+Summary
+  50 passed, 0 failed
+
+──────── Codex (e2e/codex.sh) ────────
+  · baseline: stateVersion=162, desktop=disconnected
+
+Codex  →  POST /hook/event  (lifecycle)
+  ✓ SessionStart → registered (idle)  (v162→v163)
+  ✓ creature=idle
+  ✓ received codex/SessionStart
+  ✓ desktop connected
+  ✓ UserPromptSubmit → busy  (v163→v164)
+  ✓ creature=working
+  ✓ received codex/UserPromptSubmit
+  ✓ PreToolUse → busy  (Fix 10: previously left idle)  (v164→v165)
+  ✓ creature=working
+  ✓ received codex/PreToolUse
+  ✓ PermissionRequest remains in the editor  (v165→v165, +0)
+  ✓ creature=working
+  ✓ received codex/PermissionRequest
+  ✓ PostToolUse → clears card, busy  (v165→v166)
+  ✓ creature=working
+  ✓ received codex/PostToolUse
+  ✓ Stop → completed turn  (v166→v168)
+  ✓ creature=idle (completed turn recorded)
+  ✓ received codex/Stop
+
+codex → legacy approval passthrough
+  ✓ stale approval endpoint returns immediately: empty native passthrough
+  ✓ passthrough leaves attention unchanged
+  ✓ Codex session reaped (session e2e-codex-66509 gone)
+  · desktop=disconnected
+
+codex tenth-try
+  ✓ tenth-try: short task stays light despite retries
+  ✓ sub-minute completion has no desktop cheer
+  ✓ completed turn awarded XP
+  ✓ exactly one completed turn recorded
+
+Summary
+  26 passed, 0 failed
+
+──────── Cursor (e2e/cursor.sh) ────────
+  · baseline: stateVersion=194, desktop=disconnected
+
+Cursor  →  POST /hook/signal  (lifecycle: the four mapped signals)
+  ✓ start_working (sessionStart/beforeSubmitPrompt) → busy/connected  (v194→v196)
+  ✓ creature=working
+  ✓ received cursor/start_working
+  ✓ desktop connected
+  ✓ keep_working (after*Execution) → busy  (v196→v198)
+  ✓ creature=working
+  ✓ received cursor/keep_working
+  ✓ stop_working (stop) → done  (v198→v201)
+  ✓ creature=idle (completed turn recorded)
+  ✓ received cursor/stop_working
+  ✓ start_working (resume) → busy  (v201→v203)
+  ✓ creature=working
+  ✓ received cursor/start_working
+
+Cursor → legacy approvals always remain native
+  ✓ read-only tool remains native: native ask
+  ✓ passthrough leaves attention unchanged
+  ✓ shell remains native: native ask
+  ✓ passthrough leaves attention unchanged
+  ✓ chained shell remains native: native ask
+  ✓ passthrough leaves attention unchanged
+  ✓ Cursor session reaped (session e2e-cursor-conv-66839 gone)
+  · desktop=disconnected
+
+cursor tenth-try
+  ✓ tenth-try: short task stays light despite retries
+  ✓ sub-minute completion has no desktop cheer
+  ✓ completed turn awarded XP
+  ✓ exactly one completed turn recorded
+
+Summary
+  24 passed, 0 failed
+
+═══ Master summary ═══
+  ✓ Core contract: 5 passed, 0 failed
+  ✓ Claude Code: 50 passed
+  ✓ Codex: 26 passed
+  ✓ Cursor: 24 passed
+
+  Grand total: 105 passed, 0 failed

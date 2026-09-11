@@ -27,45 +27,47 @@ tools/pio_ws.sh run -e ws-amoled164
 | --- | --- |
 | Core | State priority, session lifecycle, duration boundaries, folding, stale requests |
 | Growth | Two award sources, duplicate completion, local-day streaks, frozen legacy XP and restart |
-| Behavior | Live guide reload, silence, eligibility, cancellation, five-second fallback and text bounds |
+| Behavior | Live guide reload, silence, eligibility, cancellation, five-second timeout-to-silence and text bounds |
 | Reflection | Evidence/privacy bounds, valid memories, ignored legacy traits, invalid/unavailable model, daily idempotence |
 | Approvals | Editor-only for every agent, stale enabled config/hook passthrough, ignored device decisions |
 | Wire | UTF-8 caps, compatibility, bounded nudge rung, ignored retired fields |
 | Mac UI | Overview and Settings; sessions follow status, compact XP is last and includes tasks/streak; no Activity navigation; pending cards stay on Overview; English/Korean and light/dark |
 | Palette | Every `BuddyTheme.*Ink` tone clears 4.5:1 against its own appearance's paper; amber appears only for "needs you", never on a primary action; the twelve-week grid and its legend are unclipped at the resting height |
 
-Current glanceable-completion result: **357 app tests passed, zero skipped**;
-both Mac products and both firmware variants built; **12 USB hardware checks
-passed**, **44/44 goldens** matched independently recaptured images at zero error.
-English/Korean text, grouped completion, thread table and last-finished footer
-were visually reviewed. Updated-app production BLE remains a separate gate.
-[Glanceable completion evidence](evidence/glance-completions-2026-09-11/README.md).
+Latest results and remaining gates are maintained in [Implementation status](PLAN.md),
+with dated evidence links. Earlier screenshots may show removed UI such as the
+Last finished footer; they are historical evidence, not the current specification.
 
-Previous UI-pass result: **349 tests passed, zero skipped**, both Mac products built,
-shipping Waveshare firmware built and flashed, 43/43 device goldens re-recorded
-and reproduced at zero error against an independently recaptured set. The
-M5StickC Plus 2 was retired, leaving `ws-amoled164` as the only board and the
-only firmware build. Offscreen UI checked in both appearances.
-Previous result: **341 tests passed**; see the
-[essential behavior evidence](evidence/essential-behaviors-2026-09-11/README.md).
+## Device footer removal
 
-Previous result (before the essentials change): **368 tests passed, zero skipped**, both Mac products built.
-[App evidence](evidence/markdown-learning-native-approvals-2026-09-11/README.md).
-The shipping firmware build, syntax checks and offscreen screenshots are in
-[simplification evidence](evidence/behavior-simplification-2026-09-11/README.md).
-No live model, native-editor or physical-device pass is implied.
+The calm idle/working/done face must draw the same bottom
+35-pixel band with or without recent history. A tap in the former footer opens
+the ordinary first detail page; Next still reaches history and Back exits.
+Run `test_agent_dashboard.py` and `test_work_scope.py` on the reserved USB-only
+image, independently repeat affected scope/face captures, and confirm unchanged
+history/completion goldens. Install only normal firmware after verification.
 
 ## Live hooks and model
 
+Optional dialogue: each display occasion must accept `SILENT`. Unavailable,
+timed-out and invalid generations must not insert stock greetings/error text or
+record an empty remark in history. Evaluate thin evidence, redundant remarks and
+appropriate social moments with the live model; fixture tests prove the silence
+path, not the model's judgment of when to use it.
+
 Before trusting hook-dependent results, use the `doctor` skill and its live
 confirmation sequence. The owner must launch the Boop app; agents must not.
+Registration checks follow HookInstaller's passive lifecycle and elicitation
+events. `PermissionRequest` is deliberately absent; its absence is not a repair
+warning because approval decisions stay in the editor.
 Run the supported harness flows against that identified app instance. Verify
 native approvals, old enabled settings, permission-event passthrough and hook
 repair without removing third-party hooks. Verify passive attention separately.
 
 On a supported Mac, evaluate real Foundation Models output against the guide in
-English for companion text. UI localization remains separate. Check that silence is common when appropriate, callbacks use
-supplied evidence, invalid reflection leaves stored profile unchanged,
+English for companion text. UI localization remains separate. Check that silence is
+common when appropriate, scope covers the desk, claims use supplied evidence,
+invalid reflection leaves the stored profile unchanged,
 and guide edits affect the next decision without restarting.
 
 ## Device and transport
@@ -166,3 +168,48 @@ record and check must still use independently captured images.
 The [main integration evidence](evidence/work-context-main-integration-2026-09-11/README.md)
 records 369 app tests, 26 USB interaction checks and six independently reproduced
 scope goldens for the combined completion/task-page and companion UI.
+
+## Quality pass regressions — 2026-09-11
+
+`make test` covers complete Mac session lists versus bounded device previews,
+companion bubble preservation, test-cheer priority, shared popover sizing and
+firmware-update confirmation/mismatch/timeout/check races with fixture services.
+Snapshot viewports use the same sizing function as the live popover.
+HTTP smoke tests assert immediate native permission passthrough and one durable
+turn/XP award. Workflow tests use private reservation files, never the real
+device lock.
+
+Reserved USB-only runs include `test_motion_quality.py`: interrupt a dance and
+a greeting, inspect head/arm settling, check monotonic card departure, and cancel
+a completion with a system card. A departing passive footer must yield to
+system/dialogue/sleep surfaces. Keep reminder-test heartbeats below the
+60-second link-expiry window; do not rewind before the last heartbeat. Visual
+comparisons may recapture an invalid USB transfer at most three times, warning
+on each retry and checking size/CRC before comparing. The dedicated screenshot
+integrity test uses one attempt and fails immediately on corruption. Debug-only pose telemetry supports these tests;
+it is absent from shipping status. The hardening fixture recognizes `usbOnly`
+so its own recent USB frames do not incorrectly skip the safety tests.
+Run the ordinary non-BLE HIL suite and two independent full golden captures.
+Webcam review uses bounded clips for working gaze, greeting, dance and card
+arrival/dismissal, only under the current user-confirmed camera session.
+Fixture updater tests and USB runs do not establish real OTA or production BLE.
+Release packaging must target `ESP32-S3`: bootloader at `0x0`, partition table
+at `0x8000`, the build toolchain's `boot_app0.bin` at `0xe000`, and application
+at `0x10000`. Generate both manifests with the shipping build and explicit
+`--boot-app0`; verify that every web-install URL has its matching copied image
+and the OTA manifest hash matches the application. The retired ESP32 `0x1000`
+bootloader layout is invalid for the supported board. Run
+`python3 -m unittest discover -s firmware/esp32/tests -p 'test_release_manifests.py'`.
+
+[Quality-pass results](evidence/quality-fluidity-2026-09-11/README.md): 382 app
+tests, 105 HTTP checks, six workflow checks, and 100 distinct non-BLE device
+scenarios verified across the full run and targeted recheck; 52 final goldens
+reproduced twice at zero error. Camera review is explicitly limited.
+
+The subsequent user-launched GUI run passes fifteen coordinated normal-firmware
+Bluetooth assertions, including restoration. The live Codex doctor passes without
+warnings. A startup panic remains unexplained after eleven confirmed clean follow-up reboots;
+do not turn functional passes into a stability claim. The public update manifest
+returns HTTP 404, and real local-model scope samples still omit work or violate
+the title contract. Native Claude/Cursor editor interaction and actual OTA remain
+open. See the evidence README's follow-up section for the exact limits.

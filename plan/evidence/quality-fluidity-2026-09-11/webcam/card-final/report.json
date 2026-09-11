@@ -1,0 +1,27 @@
+{
+  "captureGapsOver1_5xMedian" : [
+    {
+      "afterSeconds" : 5.0339200000000002,
+      "gapSeconds" : 0.066670000000000229
+    }
+  ],
+  "durationBetweenFirstAndLastFrame" : 5.1005900000000004,
+  "frameCount" : 153,
+  "input" : "\/tmp\/boop-quality-footer\/video-card\/capture.mov",
+  "limitations" : "Video timestamps measure capture cadence, not firmware FPS. Review motion visually; exposure, focus, rolling shutter and display refresh can hide or imitate stutter.",
+  "maxFrameIntervalSeconds" : 0.066670000000000229,
+  "medianFrameIntervalSeconds" : 0.033339999999999925,
+  "nonIncreasingTimestamps" : 0,
+  "observedFPS" : 29.800474062804497,
+  "reviewFrames" : 153,
+  "reviewSeconds" : 6,
+  "reviewStartSeconds" : 0,
+  "roiTopLeftNormalized" : [
+    0.56499999999999995,
+    0.38,
+    0.17999999999999999,
+    0.19
+  ],
+  "sheets" : 6,
+  "verdict" : "unreviewed"
+}

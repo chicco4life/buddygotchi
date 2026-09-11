@@ -67,13 +67,22 @@ final class ESP32Output: OutputProvider, BLEManagerDelegate {
 
     func sendTestCelebrate() {
         guard bleManager.connectionState == .connected else { return }
-        var celebrateState = lastState ?? .initial
-        celebrateState.creature.state = .done
-        celebrateState.creature.overlay = nil
-        celebrateState.creature.cheer = .cheer
-        if let data = frameData(from: celebrateState) {
-            bleManager.send(data)
-        }
+        let data = testCelebrateData()
+        if let data { bleManager.send(data) }
+    }
+
+    // Build the preview after the activity projection so live session counts
+    // cannot silently replace the requested test cheer with a working face.
+    func testCelebrateData() -> Data? {
+        var frame = renderState(from: lastState ?? .initial, defaults: defaults,
+                                now: engine?.deviceFrameTime ?? 0)
+        guard frame.card == nil, frame.state != .needsYou, frame.state != .uhoh else { return nil }
+        frame.state = .done
+        frame.overlay = nil
+        frame.bubble = nil
+        frame.notice = nil
+        frame.cheer = .cheer
+        return renderStateData(from: frame)
     }
 
     func frameData(from state: BuddyState) -> Data? {

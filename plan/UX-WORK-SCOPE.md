@@ -1,8 +1,13 @@
-# Proposal: a companion that follows the work
+# Work context: implementation and next stages
 
 Companion summaries and remarks are English-only in the first version. Context
 uses `language: "en"`; changing the app UI language does not cancel, clear or
 regenerate companion text. Private legacy reflection retains its language setting.
+
+**Reading this document:** stage 1 is implemented as described in [Voice](UX-VOICE.md).
+Sections below retain the design for stages 2/3; `result_observed`, measured return
+events and episode callbacks are proposed, not current triggers. Use the
+[trigger table](UX-VOICE.md#what-triggers-a-display-decision) for the running source.
 
 Status: stage 1 development implementation; automated and USB verification passed. Live-model semantic quality is not yet a pass. Richer result events and episodic callbacks remain planned. Owner direction, 2026-09-11: Boop should
 know what we're working on, recognize the payoff, and remember a little of our
@@ -58,8 +63,8 @@ Before stage 1, `VoicePrompt.make` supplied these fields, when available:
 | Output budget | UTF-8 byte limit |
 
 It does **not** give the model a list of projects, individual task intentions,
-specific check identities, or grounded shared episodes. Consequently, it cannot
-currently produce the proposed experience just by changing its guide.
+specific check identities, or grounded shared episodes. Consequently, the pre-stage-1 input could not produce the proposed experience
+just by changing its guide.
 
 The hook boundary already accepts bounded user prompts for supported turn-start
 events. The extractor reduces these to coarse topic/tone facts. Hook availability
@@ -116,7 +121,7 @@ same call adapting to scope; they are not required exact strings in tests.
 | Field | Source and meaning |
 | --- | --- |
 | `occasion` | App event; chooses an existing section of the guide |
-| `desk.projects` | All eligible sessions grouped by project; not the six-row UI preview |
+| `desk.projects` | All eligible sessions grouped by project; not the bounded device preview |
 | Project ID/name | Opaque local identity and readable label; never an absolute path or remote URL |
 | Task ID/state | Existing session identity and lifecycle, normalized to working/waiting/idle/error |
 | `intent` | Bounded user-provided task text, not an LLM-generated per-task summary; null when unknown |
@@ -256,16 +261,16 @@ fallback detail. Existing factual status and physical interactions keep working.
 The scope phrase persists beside the buddy and in Mac Overview. Temporary
 payoff/greeting remarks last four seconds. Cards/errors/system UI take priority.
 Scope survives a temporary cover if its context revision remains current.
-No new sound, gesture or animation is required for scope. The additive scope field renders above the calm face, clear of working and
-last-finished footers. Task pages and completion notices temporarily cover it.
+No new sound, gesture or animation is required for scope. The additive scope field renders above the calm face, clear of the
+working-count footer; the persistent last-finished row is removed. Task pages and completion notices temporarily cover it.
 
 ## 7. Bounds, privacy and validation
 
 Proposed initial output limits: 120 UTF-8 bytes for scope, 63 for a temporary
 remark. The longer scope budget permits a compact multi-project phrase;
 120 bytes is a ceiling, not an invitation to fill the screen. Reject oversized
-scope output rather than truncating away the second project. The existing filter
-currently truncates, so this requires an explicit validation change.
+scope output rather than truncating away the second project. Stage 1 implements rejection of oversized shared-context output; the budget must
+remain intact when result events are added.
 
 Target at most 8 KiB of encoded context, excluding the guide, with at most
 768 bytes each for initial intent and latest request. Reduce excerpt lengths
@@ -276,8 +281,8 @@ sessions and imply they are the whole desk. Actual local-model context capacity
 must be measured; these are input engineering targets, not a verified runtime fit.
 
 Prompt excerpts are in-memory input only, removed on session end or scope expiry.
-No raw prompt logging, persistence or cloud fallback. This explicitly changes
-the current blanket prohibition on prompts in model context. Treat runtime data
+No raw prompt logging, persistence or cloud fallback. Stage 1 explicitly replaced the former blanket prohibition on prompts in model context
+with this bounded, in-memory exception. Treat runtime data
 as untrusted; use it only to understand work. Safe-label filtering and output
 bounds cannot prove factuality or eliminate all private-text disclosure: evaluate
 both in live-model tests before enabling the feature for ordinary use.

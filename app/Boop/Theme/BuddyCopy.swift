@@ -39,7 +39,7 @@ enum BuddyCopy {
         let tryAgain = "Try again"
         let checkingForUpdates = "Checking for updates…"
         let keepHardwareBuddyNear = "Keep your hardware buddy near your Mac and powered on. The update takes a few minutes; it will restart automatically when finished."
-        let previousFirmwareKept = "Your hardware buddy still runs the previous firmware — failed updates are not committed."
+        let checkInstalledFirmware = "Reconnect your hardware buddy to check its installed version before trying again."
         let runSetupAgain = "Run setup again"
         let quitBoop = "Quit Boop"
     }
@@ -317,7 +317,7 @@ enum BuddyCopy {
     static var tryAgain: String { shared.common.tryAgain }
     static var checkingForUpdates: String { shared.common.checkingForUpdates }
     static var keepHardwareBuddyNear: String { shared.common.keepHardwareBuddyNear }
-    static var previousFirmwareKept: String { shared.common.previousFirmwareKept }
+    static var checkInstalledFirmware: String { shared.common.checkInstalledFirmware }
     static var runSetupAgain: String { shared.common.runSetupAgain }
     static var quitBoop: String { shared.common.quitBoop }
 

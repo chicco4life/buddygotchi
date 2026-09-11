@@ -9,7 +9,7 @@ static bool noticeVisible() {
 }
 static void glanceFrame(const TamaState& next) {
   uint32_t now=nowMs();
-  bool permitted=!next.card.present() && strcmp(next.state,"needsYou") && strcmp(next.state,"uhoh") && strcmp(next.state,"asleep");
+  bool permitted=!systemCard() && !next.card.present() && strcmp(next.state,"needsYou") && strcmp(next.state,"uhoh") && strcmp(next.state,"asleep");
   if (!next.notice.id || !permitted || threadPage>=0) noticeUntil=0;
   if (next.notice.id && next.notice.id!=noticeSeen) {
     noticeSeen=next.notice.id;

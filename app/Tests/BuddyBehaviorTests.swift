@@ -28,7 +28,7 @@ final class BuddyBehaviorTests: XCTestCase {
         XCTAssertFalse(prompts[1].contains("FIRST guide"))
     }
 
-    func testMissingGuideAndMissingModelHaveSmallFallbacks() async {
+    func testMissingGuideUsesBundleAndMissingModelStaysSilent() async {
         let guide = BuddyBehaviorGuide(overrideURL: URL(fileURLWithPath: "/missing/behavior.md"))
         XCTAssertTrue(guide.read().contains("# Boop behavior"))
         let voice = Voice()
@@ -37,7 +37,7 @@ final class BuddyBehaviorTests: XCTestCase {
         let greet = await voice.line(for: .init(occasion: .greet(1)))
         XCTAssertTrue(periodic.text.isEmpty)
         XCTAssertTrue(completed.text.isEmpty)
-        XCTAssertEqual(greet.text, "hello again")
+        XCTAssertTrue(greet.text.isEmpty)
     }
 
     @MainActor func testEditActionSeedsGuideWithoutOverwritingEdits() throws {

@@ -39,7 +39,9 @@ earn XP and record outcomes. Working effort is light before three minutes.
 
 The core chooses priority, three-second completion folding, fixed 60/120-second
 nudges and XP award events. It never waits for model output. Approval decisions
-do not award XP, bond or new memory facts.
+do not award XP, bond or new memory facts. `BuddyReducer.swift` owns mutations;
+`BuddyProjection.swift` derives display priority, ordered Mac rows, device rows,
+and counts from the resulting state. Both remain pure.
 
 ## 4. Store and growth
 
@@ -68,8 +70,8 @@ Apple Foundation Models runs locally when available, using fresh sessions and
 a five-second deadline. There is no cloud fallback. The engine offers dialogue
 opportunities at greetings, errors and idle after celebration. There are no
 periodic check-ins. Results are text or silence;
-stale results are cancelled/discarded. Neutral greeting/error fallback remains,
-otherwise silence. No daily inference quota exists.
+stale results are cancelled/discarded. Every display opportunity may be silent;
+unavailable, timed-out or invalid generation produces no stock greeting/error. No daily inference quota exists.
 
 Display decisions share `BehaviorContext`: the whole desk, optional event,
 previous scope and five recent remarks. `WorkContext` groups canonical local
@@ -87,7 +89,7 @@ remains independent; richer evidence-backed result/callback stages are pending.
 ## 6. Personality and memory
 
 Personality is defined in BEHAVIOR.md. The existing profile/reflection storage
-remains, but the new shared display context does not yet supply episodic memories. Legacy numeric traits and counters stay stored
+remains, but the new shared display context does not yet supply the learned profile or episodic memories. Legacy numeric traits and counters stay stored
 but inactive: no model input, daily drift, usual-hour sampling or project/session
 familiarity updates. XP and greeting history remain independent and unchanged.
 
@@ -116,7 +118,7 @@ is the field/command contract; [firmware protocol](../firmware/esp32/PROTOCOL.md
 describes the transport. BLE bonding and acknowledged OTA remain independent
 of the removed leaderboard signing feature.
 
-Device priority: system card → request → error bubble →
+Device priority: display off → system card → request → error bubble →
 stats → thread table → completion notice → bubble → overlay → face. Local firmware owns passive dismissal, wake-press
 consumption, hold gestures, shutdown, posture, dimming and offline snapshot
 stats. The host owns reminder timing; approvals remain entirely in the editor. Repeated frames
@@ -153,48 +155,50 @@ units for the Mac activity grid; XP stays cumulative and existing awards persist
 
 ## Device availability projection
 
-Core derives `BuddyState.agentCounts` from the full session dictionary, independently of the six-item `activeSessions` preview. Working/thinking count as working; idle as idle; requests/errors as neither. ESP32 output encodes bounded `agents` rows and maps calm states to working/idle, suppressing device duration cheers and model bubbles for these sessions. Core owns completion batching/cooldown; firmware owns local notice deadlines and explicit thread-page navigation; no new clock, I/O or view acknowledgment enters Core. Wire and frame budgets remain in WIRE-V2.md.
+Core derives `BuddyState.agentCounts` and all `activeSessions` rows from the full
+session dictionary. The Mac scrolls the complete list; the independent device
+preview is bounded only at encoding. Working/thinking count as working; idle as
+idle; requests/errors as neither. ESP32 output maps calm states to working/idle
+and suppresses desktop duration cheers while preserving eligible model bubbles.
+The earlier blanket bubble suppression contradicted the dialogue contract and
+made ordinary companion remarks disappear whenever a session existed; the
+quality pass removes that suppression while firmware retains layer priority. Core owns completion batching/cooldown; firmware owns local notice deadlines and explicit thread-page navigation; no new clock, I/O or view acknowledgment enters Core. Wire and frame budgets remain in WIRE-V2.md.
 
-## Glanceable activity and completion notices (2026-09-11)
+## Thread metadata and completion presentation
 
-This replaces the persistent mixed-session dashboard. Any working session keeps
-the full working face with a small working count; otherwise the buddy is idle.
-A successful completed turn (including short turns) gets a five-second notice,
-agent label, large thread title and a sage-green wash (250 ms in, 600 ms out).
-Concurrent completions update one notice without restarting the cheer or wash:
-latest two titles, total completion count, at least two seconds for arrivals
-where possible, hard eight-second cap from the first arrival. Three-second
-cooldown updates history only. Explicit attention/errors take priority and
-cancel the current notice; it does not replay after dismissal or reconnect.
-
-Tap the face to inspect threads when working, or when a last completion exists.
-A normal tap anywhere on the table returns immediately to the buddy, including
-when there are multiple thread/history pages. The bottom-right Next control
-alone advances pages (wrapping to the first); Back is always visible at bottom
-left. Either physical short-tap button also exits. Navigation takes priority over
-hidden dialogue so a bubble cannot consume an exit tap. The left-aligned table
-has 40 px side margins, 24 px at the top and bottom, and three inset rows. Idle with no completion retains tap affection; primary hold always
-retains affection. Table rows update without completion interruptions. A quiet
-Last finished footer opens recent history through the same paged detail view.
-History has six entries; the device receives up to twelve session rows, ordered
-by stable session ID. Totals and an explicit omitted-row count expose the
-bounded preview. Older idle chats imply no obligation or unread state.
+Core owns the completion sequence, batching, cooldown and recent history;
+firmware converts age/remaining duration to local presentation deadlines. Reconnect
+establishes a baseline without replaying old notices. Details/controls and all
+presentation timings are in [Device UX](UX-DEVICE.md); shared completion rules are
+in [Behaviors](BEHAVIORS.md#3-effort-and-celebrations).
 
 Use explicit hook thread/session titles when supplied. At Codex session/turn
 boundaries, read matching title metadata from at most the last 256 KiB of its
 local session index, off the main actor. Otherwise use project plus short stable
-session ID. Never read transcripts for titles. Do not display raw prompt or command text as a title.
+session ID. Never read transcripts or display raw prompt/command text as titles.
 Names are ephemeral display metadata, never model memory. UTF-8 titles are
-bounded to 47 bytes; omit older history and preview rows as needed to satisfy
-the 1536-byte frame cap, retaining the full session count.
-Session removal, stale cleanup, failures and duplicate end events never cheer.
+bounded to 47 bytes. The preview contains up to 12 sessions in stable ID order
+and 6 recent completions; encoding may shed rows while retaining total counts.
+There is no persistent Last finished footer; history remains in detail pages.
 
 ## Persistent work scope
 
 Additive wire `scope` carries up to 120 UTF-8 bytes on calm frames. Unlike
 ordinary bubbles, it persists on the calm face. Firmware places it above the
-face, clear of the working and last-finished footers. Detail pages and completion
+face, clear of the working-count footer. Detail pages and completion
 notices cover it.
 Omission clears it; offline, sleep and higher-priority layers hide it. When a
 frame exceeds the 1536-byte host budget, shed scope whole before existing
 snapshot/cosmetic/bubble shedding. No partial multi-project summary is sent.
+
+## Firmware update coordination
+
+`FirmwareUpdater` uses `FirmwareReleaseProviding` and `FirmwareUpdateTransport`
+boundaries so asynchronous checks, transfer failures and reconnects can be tested
+without network or Bluetooth. New checks invalidate older results; cancellation
+cannot let an old transfer overwrite a retry. A commit acknowledgment or
+post-commit disconnect enters version confirmation, never optimistic success.
+A fresh device status must match the offered version (optional `v` prefix ignored).
+Confirmation has a 45-second budget from commit submission; mismatch or missing
+confirmation becomes a recoverable failure. Automatic reconnect checks preserve
+the terminal result. Dismissing a failed check does not assert "up to date".

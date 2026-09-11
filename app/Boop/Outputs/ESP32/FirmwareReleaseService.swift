@@ -29,7 +29,13 @@ enum FirmwareReleaseError: LocalizedError {
 }
 
 @MainActor
-final class FirmwareReleaseService {
+protocol FirmwareReleaseProviding {
+    func latestRelease(forceRefresh: Bool) async throws -> FirmwareRelease
+    func downloadBinary(_ release: FirmwareRelease) async throws -> Data
+}
+
+@MainActor
+final class FirmwareReleaseService: FirmwareReleaseProviding {
     // The manifest URL is the single tunable for ops. Override per-build by
     // setting BUDDY_FIRMWARE_MANIFEST_URL in Info.plist or the environment;
     // falls back to the GitHub Pages location.

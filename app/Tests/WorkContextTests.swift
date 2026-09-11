@@ -27,7 +27,7 @@ final class WorkContextTests: XCTestCase {
         XCTAssertEqual(desk.projects.count, 2)
         XCTAssertEqual(desk.projects.first?.tasks.count, 8)
         XCTAssertEqual(desk.projects.last?.tasks.first?.intent, "Update website")
-        XCTAssertEqual(s.buddy.activeSessions.count, 6)
+        XCTAssertEqual(s.buddy.activeSessions.count, 9)
         let expired = WorkContext.make(sessions: s.sessions, intents: intents, now: NOW + WorkContext.idleGraceMs)
         XCTAssertEqual(expired.projects.count, 1)
         XCTAssertEqual(expired.projects.first?.tasks.count, 1) // Long-running work survives silence.

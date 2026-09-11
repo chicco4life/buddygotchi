@@ -4,9 +4,6 @@ import AppKit
 /// The one surface where the app raises its voice. An amber bar and a warm
 /// amber wash mark it as the thing to act on, but the buttons stay in the
 /// editor — this card reports, it does not resolve.
-/// The one surface where the app raises its voice. An amber bar and a warm
-/// amber wash mark it as the thing to act on, but the buttons stay in the
-/// editor — this card reports, it does not resolve.
 ///
 /// The leading bar is an overlay, not an HStack sibling: a bare `Shape` in a
 /// stack has no ideal height, so as a sibling it made the whole card flexible
