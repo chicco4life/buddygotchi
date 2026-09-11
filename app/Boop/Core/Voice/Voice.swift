@@ -11,9 +11,10 @@ enum TimeOfDay: String, Sendable { case morning, day, evening, late
     init(hour: Int) { self = (5..<12).contains(hour) ? .morning : (12..<18).contains(hour) ? .day : (18..<23).contains(hour) ? .evening : .late }
 }
 enum Occasion: Sendable {
-    case greet(Int), uhoh(UhohKind), completed, periodic, profileLine(String)
+    case greet(Int), uhoh(UhohKind), completed, periodic, profileLine(String), workContextChanged
     var key: String {
         switch self {
+        case .workContextChanged: "work_context_changed"
         case .completed: "completed"
         case .periodic: "periodic"
         case .greet: "greet"
@@ -24,6 +25,7 @@ enum Occasion: Sendable {
 }
 struct VoiceRequest: Sendable {
     var occasion: Occasion
+    var context: BehaviorContext? = nil
     var profile: [String] = []
     var agent: String? = nil
     var timeOfDay: TimeOfDay = .day
@@ -35,8 +37,9 @@ struct VoiceRequest: Sendable {
     var sessionCount: Int = 0
     var effort: CreatureEffort? = nil
     var lastCompletedTaskDurationMs: Double? = nil
-    var isParagraph: Bool { byteCap > VoiceCap.bubble.rawValue }
+    var isParagraph: Bool { if case .workContextChanged = occasion { return false }; return byteCap > VoiceCap.bubble.rawValue }
     var keepsHistory: Bool {
+        if context != nil { return false }
         if case .profileLine = occasion { return false }
         return !isParagraph
     }
@@ -46,7 +49,7 @@ struct VoiceLine: Sendable, Equatable {
     var text: String
     var source: Source
 }
-enum VoiceLineKind: Sendable, Hashable { case bubble }
+enum VoiceLineKind: Sendable, Hashable { case bubble, scope }
 
 /// Resolves once without awaiting an uncooperative runtime. Attaching after a
 /// fast completion also cancels the tasks, closing the creation/completion race.
@@ -123,6 +126,7 @@ actor Voice {
         if result.trimmingCharacters(in: .whitespacesAndNewlines) == "SILENT" {
             return VoiceLine(text: "", source: .model)
         }
+        if request.context != nil, result.precomposedStringWithCanonicalMapping.trimmingCharacters(in: .whitespacesAndNewlines).utf8.count > request.byteCap { return fallback }
         guard let text = VoiceFilter.check(result, language: request.language, byteCap: request.byteCap) else { return fallback }
         if request.keepsHistory {
             let excluded = await exclusions(day: day, language: request.language)
@@ -168,7 +172,7 @@ actor Voice {
         case .greet: text = request.language == "ko" ? "다시 만나서 반가워요" : "hello again"
         case .uhoh: text = request.language == "ko" ? "문제가 생겼어요" : "something went wrong"
         case .profileLine(let candidate): text = candidate
-        case .completed, .periodic: text = ""
+        case .completed, .periodic, .workContextChanged: text = ""
         }
         let safe = VoiceFilter.check(text, language: request.language, byteCap: request.byteCap) ?? ""
         return VoiceLine(text: excluded.contains(safe) ? "" : safe, source: .authored)

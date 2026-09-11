@@ -1,5 +1,9 @@
 # UX: Model-driven buddy behavior
 
+Companion summaries and remarks are English-only in the first version. Context
+uses `language: "en"`; changing the app UI language does not cancel, clear or
+regenerate companion text. Private legacy reflection retains its language setting.
+
 Owner simplification: keep event-based dialogue and evidence-backed memory.
 Remove periodic check-ins, numeric traits/bond and daily trait adjustment.
 
@@ -15,31 +19,53 @@ Rules own state, effort, celebrations, XP and attention reminders. The model
 chooses dialogue/silence and supported profile memories. It has no tools or
 permission authority. Approvals remain in the editor.
 
-## Dialogue
+## Shared display pipeline
 
-Offer a decision on return greeting, explicit error, or when a completed turn's
-celebration finishes and Buddy returns to idle. There are no timed check-ins.
-Sub-minute work does not celebrate, so it has no post-celebration remark.
-Greeting animations retain their existing time-away levels.
+`work_context_changed`, return greetings, explicit errors and the existing
+post-celebration remark all use the same `Voice`, guide and `BehaviorContext`.
+The context contains the whole desk grouped by local repository identity,
+optional event facts, previous scope and five recent actually displayed remarks.
+XP, profile and coarse legacy memory are no longer engine display inputs.
+Grounded payoff events and episodic callbacks are the next stages described in
+[Work context](UX-WORK-SCOPE.md); they are not implemented in this first stage.
 
-Context includes state, sessions, effort, completed-task duration, time/language,
-known agent, growth, at most five recent factual outcomes/durations/dates, three
-profile lines and twenty prior dialogue lines. No numeric personality traits,
-bond, usual-hour inference, project/session familiarity counters, historical
-moments, raw paths, transcripts or tool arguments.
+`BehaviorTasks` replaces `TransientVoiceTasks`: one outstanding display call,
+latest scope and latest remark, with remarks ahead of scope. Scope updates
+coalesce for two seconds; existing remark opportunities remain immediate.
+Runtime changes, stop, cards and context revisions invalidate stale
+replies. There is no per-task model, semantic classifier or periodic narration.
 
-A line or SILENT is valid. Bubbles last four seconds, are at most 63 UTF-8 bytes,
-and never cover attention requests or wake Buddy. Cancel/discard stale replies
-after state/card/language/runtime changes, replacement or shutdown. Completion
-text cannot delay, resize, cover or restart a celebration. Code validates
-language, control characters, character-safe length and exact repeats; it does
-not prove semantic truth. Quiet mode changes sound only.
+Working/thinking/waiting sessions participate, plus idle/error sessions active
+within 15 minutes. End/stale cleanup removes sessions immediately. All sessions
+are considered, independent of the six-row popover preview. Worktrees share the
+canonical Git common-directory identity; same-name unrelated roots stay separate.
+
+First/latest user intent excerpts (768 UTF-8 bytes each) stay in engine memory
+only and are removed on scope expiry, session end, stop or retirement. This is
+an intentional exception to the former no-prompt model boundary: knowing what
+we're making requires intent. No tool arguments/output or transcripts are added.
+The desk budget is 6 KiB of encoded JSON, reserving room below the 8 KiB context
+target for event and presentation fields. Excerpts share allowance across
+projects and their tasks. If metadata cannot fit, report partial coverage and
+omitted counts rather than silently selecting a project. Unknown intent stays
+unknown. Model factuality and private-text disclosure require live evaluation.
+
+Scope is text or SILENT, at most 120 UTF-8 bytes; reject overflow rather than
+clipping away another project. It persists on calm Mac/device views until its
+context changes, with no sound, animation, XP or four-second expiry. Invalidate
+old scope immediately, include it as comparison data, and accept identical text
+without dialogue-repeat filtering or durable history. SILENT clears scope.
+
+Temporary bubbles remain four seconds and at most 63 UTF-8 bytes. They cannot
+cover attention or wake Buddy. Existing duration celebrations and their
+post-idle opportunity are unchanged. Scope has no durable history; actual
+remarks retain only the last five in memory for this display path.
 
 ## Runtime
 
 Apple Foundation Models on supported macOS 26+ runs locally, with fresh sessions,
 temperature 0.4 and a five-second async deadline. No cloud fallback or bundled
-alternate model. Separate device/profile lanes keep reflection independent.
+alternate model. The single display lane and existing profile lane keep reflection independent.
 Unavailable/invalid responses produce one neutral greeting/error line when not
 already used, otherwise silence. Reflection failure leaves the profile unchanged.
 
@@ -56,3 +82,11 @@ reflection is idempotent per local day. Old trait fields are ignored, never
 applied. No numeric energy, cheek, warmth, curiosity or bond updates remain.
 Legacy values stay stored but inactive. The guide selects useful supported
 preferences rather than daily recaps. Profile lines remain inspectable/deletable.
+
+Foundation Models receives the guide in its instruction field and the compact
+JSON snapshot as input. This separates owner instructions from runtime data;
+it does not prove model adherence. The current real-model evaluation failed
+semantic coverage expectations. See the [evidence](evidence/work-context-2026-09-11/README.md).
+Sessions with no known workspace share an explicitly unknown project bucket;
+this does not claim they belong to one real project. Owner guide overrides are
+preserved, so an old override may need a work-context section added by its owner.

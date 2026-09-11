@@ -4,6 +4,7 @@ enum GoalOutcome: String, Codable, Sendable { case pass, fail, unknown }
 struct SessionWindow: Sendable {
     static let pendingCap = 400
     var pending: [(runner: String, tool: String, callId: String?)] = []
+    var workProject: WorkProject?
     var project: String
     var startedAt: Double
     var closingLine: String?

@@ -394,3 +394,15 @@ for mixed activity. The desktop retains its own celebrations.
   and the existing stale-session cleanup remove entries; no view hook is needed.
 
 Physical motion and font legibility must be verified on the target display.
+
+## Whole-desk phrase — 2026-09-11
+
+Optional `scope` adds persistent text without replacing the dashboard or counts.
+At a settled dashboard it occupies two lines at (24,24), width 64% of the screen,
+left of the corner buddy. On the calm full face it uses a two-line footer at
+H−48, or H−72 when the idle count footer is present. It is hidden during dashboard
+transitions, bubbles, stats, cards, errors, sleep, napping and loss of connection.
+Omission clears it; unchanged frames do not animate or expire it. Soft cream
+ink, the Korean-capable 16px face, no sound. This is separate from suppressed
+ordinary dashboard dialogue. Goldens and actual device readability must be
+verified for English/Korean and up to four agent rows.

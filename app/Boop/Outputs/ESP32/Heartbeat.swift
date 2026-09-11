@@ -13,6 +13,7 @@ struct RenderState: Encodable, Sendable {
     var dots: Int = 0
     var dotAlert: Int?
     var card: Card?
+    var scope: String?
     var bubble: String?
     var focus: Bool = false
     var mute: Int = 1
@@ -61,7 +62,7 @@ struct RenderState: Encodable, Sendable {
     }
     private enum CodingKeys: String, CodingKey {
         case v, state, effort, cheer, uhoh, overlay, greetLevel, dots, dotAlert, card
-        case agents, bubble, gift, focus, mute, nudgeRung, posture, cosmetic, snap, t
+        case agents, scope, bubble, gift, focus, mute, nudgeRung, posture, cosmetic, snap, t
     }
     func encode(to encoder: any Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
@@ -76,6 +77,8 @@ struct RenderState: Encodable, Sendable {
         try c.encode(count, forKey: .dots)
         try c.encodeIfPresent(dotAlert.flatMap { (0..<count).contains($0) ? $0 : nil }, forKey: .dotAlert)
         try c.encodeIfPresent(card, forKey: .card)
+        // Never clip a scope phrase: the suffix may be a second project.
+        try c.encodeIfPresent(scope.flatMap { $0.utf8.count <= 120 ? $0 : nil }, forKey: .scope)
         try c.encodeIfPresent(bubble?.prefix(utf8Bytes: 63), forKey: .bubble)
         try c.encode(false, forKey: .gift) // Retired v2 field; clear gifts on older firmware.
         try c.encode(state == .needsYou ? min(2, max(0, nudgeRung)) : 0, forKey: .nudgeRung)
@@ -103,6 +106,7 @@ func renderState(from state: BuddyState, defaults: UserDefaults = .standard, now
         frame.card = .needsYou(id: card.id, tool: card.tool, gloss: card.gloss,
             stakes: card.stakes, n: card.index, of: card.count, approval: card.isApproval)
     }
+    frame.scope = [.idle, .working, .done].contains(c.state) ? state.workScope : nil
     frame.agents = state.agentCounts
     // Device activity is availability, not duration-based celebration. Keep
     // attention, errors and sleep authoritative; desktop celebrations remain.
@@ -131,6 +135,11 @@ func renderStateData(from frame: RenderState) -> Data? {
     let encoder = heartbeatEncoder
     var frame = frame
     guard var data = try? encoder.encode(frame) else { return nil }
+    if data.count + 1 > maxHeartbeatBytes {
+        frame.scope = nil
+        guard let next = try? encoder.encode(frame) else { return nil }
+        data = next
+    }
     if data.count + 1 > maxHeartbeatBytes {
         frame.snap = nil
         guard let next = try? encoder.encode(frame) else { return nil }

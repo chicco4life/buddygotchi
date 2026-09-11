@@ -9,7 +9,7 @@ The device carries the face; the Mac app quietly supplies status and settings.
 - Show real agent state. Silence and repeated commands are not failures.
 - Keep requests clear. Approve entirely in the editor; Buddy shows passive attention.
 - Celebrate completed work according to task length, with nearby completions folded.
-- Let one local Markdown-guided model choose event-based dialogue and memories. Silence is a valid response. States remain rules; permissions belong to the editor.
+- Let one local Markdown-guided model describe the whole desk and choose event-based dialogue and memories. Silence is a valid response. States remain rules; permissions belong to the editor.
 - Keep personality in Markdown and familiarity in real memories. XP unlocks nothing.
 - Keep progress local and preserve earned history. No account or ranking service
   is required. Share-card export is deferred.
@@ -19,7 +19,7 @@ The device carries the face; the Mac app quietly supplies status and settings.
 ## Scope
 
 Six base states, duration-based celebrations, a two-step nudge ladder, two XP
-sources, local memory and a fixed appearance. English and Korean are supported.
+sources, local memory and a fixed appearance. The app UI supports English and Korean; companion summaries and remarks start in English only.
 The current local model is Apple Foundation Models on supported Macs; unavailable
 models use minimal greeting/error text and otherwise stay silent.
 

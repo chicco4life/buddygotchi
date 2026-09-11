@@ -20,6 +20,7 @@ boundary (`prefix(utf8Bytes:)`). Field names and enum raw values are exact.
 | `dotAlert` | int | index into dots, or absent |
 | `card` | object | `{"id":≤23B,"tool":≤23B,"gloss":≤63B,"stakes":"fine"\|"checkIt"\|"careful","n":int,"of":int,"approval":bool}` for needs-you; `{"kind":"pair"\|"update","text":≤63B}` for system cards |
 | `bubble` | string | ≤ 63 bytes |
+| `scope` | string | ≤120 UTF-8 bytes, persistent while connected; omission clears; overflow omitted whole |
 | `gift` | bool | retired: host always sends false for older firmware |
 | `giftLine` | — | retired: omitted by host, ignored by receiver |
 | `focus` | bool | Legacy name for sound-only Quiet mode; no visual effect or sound exceptions. |
@@ -59,7 +60,7 @@ Device → host: one JSON object per line.
 | status | Existing `{"cmd":"status"}` reply, now also carrying `"board"` and `"contract":2` |
 | legacy (one release) | `{"cmd":"permission","id":"…","decision":"allow"\|"deny"}` and `{"cmd":"boop"}` without `hold` |
 
-Shedding order when a frame exceeds 1536 bytes: remove `snap`, then
+Shedding order when a frame exceeds 1536 bytes: remove `scope` whole, then `snap`, then
 `cosmetic`, then truncate `bubble` on character boundaries until
 it fits. Assert the cap including the newline.
 

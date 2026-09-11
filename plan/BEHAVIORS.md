@@ -116,10 +116,14 @@ BEHAVIOR.md defines personality directly. Settings → Edit buddy behavior… op
 chooses a short line or SILENT on return greetings, explicit errors, and after
 a celebration returns to idle. Five-minute check-ins are removed.
 
-Context is current state/work, language/time, agent, growth, a few recent factual
-outcomes, up to three learned profile lines and twenty prior lines. No numeric
-personality traits, familiarity counters, usual-hour inference, old moments,
-raw transcript or tool arguments. Growth remains descriptive context.
+Every engine display decision uses the same whole-desk context: grouped projects,
+first/latest intent excerpts, lifecycle, optional event, prior scope and five
+recent displayed remarks. Intent is bounded, local and memory-only. XP and
+legacy profile/outcome context remain outside this display path. Scope changes
+trigger `work_context_changed`, coalesced for two seconds through the shared
+Voice worker. It returns a persistent phrase (120 bytes, no truncation) or SILENT.
+No per-project model, topic rules or new memory pipeline. Scope changes immediately
+invalidate obsolete text. See [Work context](UX-WORK-SCOPE.md).
 
 Apple Foundation Models runs locally when available, with a five-second async
 deadline. New state/cards invalidate pending replies. Bubbles last four seconds,
@@ -142,7 +146,7 @@ stored values remain inactive; growth and time-away greetings are unchanged.
 Reduced facts last 30 days. Once daily after 20 minutes inactive on AC power,
 the local model may select up to five evidence-backed profile lines from at
 most 100 facts. Profile context is bounded to 20 lines for reflection and three
-for dialogue. The model may stay silent. Invalid/unavailable output leaves the
+for legacy internal requests; the shared display path uses no profile yet. The model may stay silent. Invalid/unavailable output leaves the
 profile unchanged. No trait updates, XP changes or approval evidence.
 
 

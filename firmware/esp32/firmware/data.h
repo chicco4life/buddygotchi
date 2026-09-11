@@ -66,6 +66,7 @@ struct TamaState {
   uint8_t greetLevel = 0, dots = 0, mute = 0, nudgeRung = 0;
   int8_t dotAlert = -1;
   Card card;
+  char scope[121] = "";
   char bubble[64] = "";
   bool focus = false;
   Cosmetics cosmetic;
@@ -160,6 +161,7 @@ inline bool validate(JsonDocument& d, const TamaState& old, TamaState& s) {
       !readInt(d["dotAlert"], alert, 0, 4) || !readInt(d["mute"], volume, 0, 3) ||
       !readInt(d["nudgeRung"], nudge, 0, 2) ||
       !readBool(d["focus"], s.focus) ||
+      !readText(d["scope"], s.scope) ||
       !readText(d["bubble"], s.bubble)) return false;
   if (alert >= dots) return false;
   s.greetLevel = greet; s.dots = dots; s.dotAlert = alert; s.mute = volume; s.nudgeRung = nudge;

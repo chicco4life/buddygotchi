@@ -18,3 +18,9 @@ states and celebrations deterministic and approvals in the editor. Periodic
 dialogue can return only when a more enjoyable interaction is designed.
 
 Earlier exploration is retained in [ideas history](IDEAS-HISTORY.md).
+
+The proposed [companion behavior design](UX-WORK-SCOPE.md) and
+[draft BEHAVIOR.md](drafts/BEHAVIOR.md) cover whole-desk understanding, grounded
+payoff reactions and remembered callbacks through one model path. The shared pipeline and whole-desk presentation are implemented as stage 1;
+live-model quality remains open. Richer payoff evidence and episode callbacks
+remain planned stages.

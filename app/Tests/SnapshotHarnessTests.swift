@@ -214,3 +214,22 @@ extension SnapshotHarnessTests {
         }
     }
 }
+
+
+extension SnapshotHarnessTests {
+    func testWholeDeskScope() throws {
+        for language in ["en", "ko"] {
+            var state = BuddyState.initial
+            state.creature.state = .working
+            state.language = language
+            state.workScope = "Boop polish and shop website updates"
+            state.activeSessions = [SessionSnapshot(id: "scope", source: "codex", state: .working, sessionLabel: "Boop")]
+            state.agentCounts = [.init(source: "codex", working: 5), .init(source: "claude-code", working: 1)]
+            let engine = BuddyEngine.preview(state: state, defaults: defaults)
+            for dark in [false, true] {
+                try snapshot(popover(engine).environment(\.colorScheme, dark ? .dark : .light),
+                             "work-scope-\(language)-\(dark ? "dark" : "light")", popoverIdle)
+            }
+        }
+    }
+}

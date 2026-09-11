@@ -1,6 +1,10 @@
 # Implementation plan
 
-Current phase: UI/UX pass across both surfaces — the "Boop Cream" palette, the
+Current phase: shared Markdown behavior pipeline and whole-desk scope summary
+implemented as a development slice. Automated and USB checks pass; real-model
+whole-desk coverage is not yet reliable. Companion text is English-only. Native-editor and
+production BLE gates remain.
+The preceding UI/UX pass across both surfaces — the "Boop Cream" palette, the
 app's card-and-label layout, and the device's arms, proportions and animation
 audit — implemented, with automated checks passing and USB hardware goldens
 re-recorded. Live model, editor and BLE-integration verification remain.
@@ -15,12 +19,32 @@ in the [index](README.md).
 | Help | Fixed nudges at 60/120 s; dismissal snoozes only the current request |
 | Approvals | Editor only; Buddy interception and controls removed; stale hooks return passthrough |
 | Growth | Completed turn +3 XP, active local day +10; historical XP preserved; no levels; daily turn grid and consecutive-day streaks |
-| Local model | Live-read Markdown defines personality, event-based dialogue and memory; no timed check-ins |
+| Local model | One Markdown guide and shared display context; whole-desk scope plus existing dialogue; no timed check-ins |
 | Memory | Reduced facts, small profile and recent outcomes; no numeric personality/bond or familiarity counters |
 | Mac/device | Quiet mode, simple menu popover/settings, fixed appearance |
 | Removed | Gifts, recaps, teach, inferred stuck/hungry, quick commands, agent expression/drawings, named moment creation, leaderboard/sync/signing |
 
 ## Verified in this change
+
+### Shared behavior pipeline and work scope, 2026-09-11
+
+- **361 app tests passed, zero skipped**; both Mac products built.
+- Shipping and USB-only Waveshare firmware built. **18/18 USB scope/dashboard
+  checks passed**. **49/49 hardware goldens** were re-recorded and reproduced by
+  an independent capture at exactly zero error; the existing 43 were unchanged.
+- Earlier English/Korean fixture scope snapshots inspected on Mac in both appearances and on
+  the actual device. The exact previous normal firmware/settings were restored.
+- The live Foundation Models check is **not a quality pass**: it sometimes
+  summarizes only one task/project, echoes examples, or uses the wrong language;
+  some trials timed out. Byte/cancellation tests do not establish semantic truth.
+  Multilingual companion output is now deferred; coverage remains the open gate.
+  Do not treat this as ready for ordinary use until that gate is resolved.
+- English-only follow-up: 361 app tests pass. The fresh local replay timed out
+  at the diagnostic 30-second limit; production retains its five-second timeout.
+- The shared context and scope occasion are implemented. Richer check-result
+  triggers and durable episode callbacks remain stages 2/3, not completed work.
+- [Evidence and remaining gates](evidence/work-context-2026-09-11/README.md).
+
 
 ### UI/UX pass, 2026-09-11
 
@@ -81,7 +105,7 @@ in the [index](README.md).
 
 ## Remaining gates
 
-1. Evaluate real on-device model responses in English/Korean: relevance, silence,
+1. Evaluate real on-device companion responses in English: relevance, silence,
    supported memories and latency. Unit tests use fixtures.
 2. With the owner-launched app, verify native approvals, stale-hook passthrough
    and hook repair in supported Claude/Codex/Cursor versions.

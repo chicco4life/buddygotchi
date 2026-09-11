@@ -43,13 +43,15 @@ final class EssentialBehaviorTests: XCTestCase {
         let (defaults, cleanup) = makeDefaults(); defer { cleanup() }
         let engine = BuddyEngine(clock: clock, voiceRuntime: runtime, defaults: defaults)
         engine.turnStarted(sessionId: "s", source: "codex")
+        await engine.finishPendingWork()
+        let initialCalls = await runtime.calls
         for _ in 0..<4 {
             clock.advance(by: 300_000)
             engine.maintenance()
             await engine.finishPendingWork()
         }
         let calls = await runtime.calls
-        XCTAssertEqual(calls, 0)
+        XCTAssertEqual(calls, initialCalls)
         XCTAssertNil(engine.state.creature.bubble)
         XCTAssertEqual(engine.state.creature.state, .working)
     }

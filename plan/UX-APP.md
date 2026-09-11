@@ -121,3 +121,10 @@ Passive attention remains on Overview. “Snooze reminder” suppresses that req
 
 Firmware check errors read “Check unavailable”; the sheet shows the underlying
 error and offers Try again. This is separate from an installation failure.
+
+## Whole-desk phrase
+
+Overview shows the optional persistent work-scope phrase below the status title
+and above factual status detail. It wraps naturally and hides while a prompt is
+pending. The model describes the whole desk; session rows and XP stay factual.
+It disappears when scope becomes obsolete or unavailable. See [Voice](UX-VOICE.md).

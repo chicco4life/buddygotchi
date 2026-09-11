@@ -57,7 +57,7 @@ native approvals, old enabled settings, permission-event passthrough and hook
 repair without removing third-party hooks. Verify passive attention separately.
 
 On a supported Mac, evaluate real Foundation Models output against the guide in
-both languages. Check that silence is common when appropriate, callbacks use
+English for companion text. UI localization remains separate. Check that silence is common when appropriate, callbacks use
 supplied evidence, invalid reflection leaves stored profile unchanged,
 and guide edits affect the next decision without restarting.
 
@@ -117,3 +117,23 @@ and ignore level transitions. Build firmware; physical verification is separate.
 Run `make test` (uses the XCTest shim on CLT-only Macs); with full Xcode, targeted `swift test --filter AgentDashboardTests` and `HeartbeatTruncationTests` from app also work. Verify full-session counts beyond six, turn start/end, session end/stale cleanup, attention priority and wire bounds. Build the shipping Waveshare firmware. In an independent USB-only reservation run `test_agent_dashboard.py`: mixed counts persist beyond ten seconds, all-working/all-idle exit, legacy omission clears, invalid rows reject atomically, and attention wins. Capture settled and transitional dashboard screenshots and verify readable counts, sage non-zero idle, cream working counts, dimmed zeros, the hairline under the column heads, a table centred in the band below the buddy at one and at three agents, and an unobscured animated corner face whose gesturing hand lands above the column heads rather than on them. Restore normal firmware. Production BLE integration remains a separate gate.
 
 For the dashboard invitation, capture entry-relative 650, 1250, 1950 and 3000 ms. Run the full-loop regression across re-applied frames as well as the original two-frame check. Verify the two downward nods and rosy smile stay above the fixed text, and repeated-frame board pixels remain identical.
+
+## Whole-desk scope
+
+Run `make test` for WorkContextTests and the shared delivery tests. Check whole-desk
+coverage, worktree identity, same-name isolation, missing intent, fair input bounds,
+idle expiry, lifecycle clearing, no regeneration on unchanged tool activity,
+strict output caps, stale replies and wire priority. Enable offscreen snapshots
+to inspect `work-scope-{en,ko}-{light,dark}.png`. Build both Mac products and both
+shipping/USB-only Waveshare firmware. USB verification must test scope persistence,
+omission, atomic overflow rejection, dashboard counts, layer priority and English/
+Korean layouts; restore the previous normal image after the reserved run. Re-record
+and independently reproduce goldens. Live Foundation Models semantics and native
+hook coverage remain distinct from fixture and rendering tests.
+
+Latest scope result: 361 app tests, both Mac products, both Waveshare build variants,
+18 USB checks and 49/49 independently reproduced goldens passed. The two old
+dashboard pixel tests now inspect the documented table band at y=108 instead of
+including the enlarged animated buddy at y=70. Scope did not change table layout.
+[Evidence](evidence/work-context-2026-09-11/README.md) records the failed live-model
+quality gate separately. No native-editor or production BLE pass is implied.

@@ -216,6 +216,7 @@ struct Pet: Encodable, Sendable, Equatable {
 // MARK: - BuddyState
 
 struct BuddyState: Encodable, Sendable, Equatable {
+    var workScope: String? = nil
     var agentCounts: [AgentCounts] = []
     var language = "en"
     var growth = GrowthSnapshot()

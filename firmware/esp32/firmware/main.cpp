@@ -556,6 +556,16 @@ static void render() {
     spr.setFont(&fonts::efontKR_16); spr.setTextSize(1);
     textLines(label,(HAL_W-spr.textWidth(label))/2,HAL_H-28,HAL_W,1,1,BOOP_SAGE);
   }
+  // Persistent work scope occupies existing negative space, never the counts.
+  // Cards, errors, stats, temporary bubbles and disconnected snapshots hide it.
+  if (tama.scope[0] && dataConnected() && !napping &&
+      (eq(tama.state,"idle") || eq(tama.state,"working") || eq(tama.state,"done"))) {
+    if (dashboardLayer && pull==1) textLines(tama.scope,24,24,HAL_W*64/100,2,1,BOOP_PAPER_SOFT);
+    else if(base && pull==0) {
+      int y=tama.idleCount()>0?HAL_H-72:HAL_H-48;
+      textLines(tama.scope,24,y,HAL_W-48,2,1,BOOP_PAPER_SOFT);
+    }
+  }
   if (eq(posture,"travel") && battery>=0 && battery<25) {
     spr.fillSmoothRoundRect(HAL_W-30,HAL_H-27,20,10,2,BOOP_PAPER_DIM);
     spr.fillRect(HAL_W-28,HAL_H-25,4,6,BOOP_AMBER);
@@ -587,6 +597,7 @@ static void dumpState() {
   JsonDocument d; telemetry(d);
   d["creature"]=tama.state; d["effort"]=tama.effort; d["cheer"]=tama.cheer; d["uhoh"]=tama.uhoh;
   d["overlay"]=tama.overlay; d["greetLevel"]=tama.greetLevel; d["nudgeRung"]=tama.nudgeRung; d["card"]=hasCard(); d["cardId"]=tama.card.id; d["armed"]=false;
+  d["scope"]=tama.scope;
   d["bubble"]=bubbleVisible()?bubbleText():""; d["gift"]=false; d["focus"]=tama.focus; d["posture"]=posture;
   d["dashboardAge"]=nowMs()-dashboardAt; d["dashboard"]=dashboardWanted(); d["workingCount"]=tama.workingCount(); d["idleCount"]=tama.idleCount();
   d["dots"]=tama.dots; d["dotAlert"]=tama.dotAlert; d["mute"]=tama.mute; d["screenOff"]=screenOff; d["brightness"]=screenOff?0:brightness;

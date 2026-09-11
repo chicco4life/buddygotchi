@@ -4,6 +4,7 @@ struct Extraction: Sendable {
     var events: [BuddyEvent] = []
     var facts: [Fact] = []
     var goalRunner: String?
+    var workProject: WorkProject?
 }
 actor Extractor {
     private(set) var windows: [String: SessionWindow] = [:]
@@ -27,6 +28,8 @@ actor Extractor {
             result.events.append(.sessionStarted(at: p.timestamp, sessionId: p.sessionId, source: p.source, cwd: p.cwd, project: w.project))
             if isNew { result.facts.append(.project(id: w.project)) }
         }
+        if w.workProject == nil { w.workProject = WorkProject.resolve(cwd: p.cwd, sessionId: p.sessionId) }
+        result.workProject = w.workProject
         // A bare result is a valid liveness ping, not evidence of schema drift.
         let toolRelated = p.kind == .toolCall || (p.kind == .toolResult && (p.outputHead != nil || p.outputTail != nil || p.exitStatus != nil || p.errorClass != nil))
         if toolRelated && p.toolName.isEmpty && p.toolInput == nil && degraded.insert(p.source).inserted {

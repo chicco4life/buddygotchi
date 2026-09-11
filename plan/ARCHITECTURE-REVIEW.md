@@ -31,7 +31,8 @@ previously callers waiting on the same task could resume into competing syncs.
 
 ## Voice, preferences, and state follow-up
 
-Voice task cancellation is centralized in `TransientVoiceTasks`, retaining
+Voice task cancellation is now centralized in `BehaviorTasks` (the work-scope
+implementation replaces `TransientVoiceTasks` with one shared display worker), retaining
 independent gift/bubble lifetimes. The engine still decides occasions, prompt
 suppression, and delivery events. `ESP32Output` now uses one injected preferences
 instance for UUID lookup, unpairing, normal frames, and test-celebration frames;

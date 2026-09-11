@@ -42,6 +42,13 @@ def cells():
     # The single heart, at its peak and on the way out.
     for name, settle in (("peak", 320), ("rise", 700)):
         result[f"boop-{name}"] = {**base, "state": "idle", "overlay": "boop", "settle": settle}
+    for lang, text in (("en", "Boop polish and shop website updates"),
+                       ("ko", "Boop과 쇼핑몰 웹사이트를 다듬고 있어요")):
+        result[f"scope-face-{lang}"] = {**base, "state": "working", "scope": text}
+        result[f"scope-idle-{lang}"] = {**base, "state": "idle", "scope": text,
+            "agents": [{"source": "codex", "working": 0, "idle": 5}]}
+        result[f"scope-dashboard-{lang}"] = {**base, "state": "working", "scope": text,
+            "agents": board, "settle": 5200}
     return result
 
 

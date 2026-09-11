@@ -71,16 +71,23 @@ periodic check-ins. Results are text or silence;
 stale results are cancelled/discarded. Neutral greeting/error fallback remains,
 otherwise silence. No daily inference quota exists.
 
-Normal context includes state, effort, time/language, XP/progress,
-bounded factual history, three profile lines and twenty prior lines. No raw
-paths, transcripts, approval decisions or drawings are supplied. Display text
-is capped at 63 UTF-8 bytes, profile text at 240; bubbles last four seconds.
+Display decisions share `BehaviorContext`: the whole desk, optional event,
+previous scope and five recent remarks. `WorkContext` groups canonical local
+project identities and bounds JSON to 6 KiB; `BehaviorTasks` serializes display
+calls with a two-second scope debounce and priority for existing remarks.
+First/latest hook intent (768 bytes each) is memory-only, an explicit exception
+to the old no-prompt model boundary. No extra model or transcript reader exists.
+The reducer projects a persistent `workScope` via `workScopeChanged`; outputs
+only render it. Scope is capped at 120 bytes without truncation and discarded on
+scope/runtime changes. Display requests use English independently of UI language;
+UI language changes preserve scope and pending display replies. It never enters SQLite. Legacy private reflection
+remains independent; richer evidence-backed result/callback stages are pending.
 [Voice](UX-VOICE.md) specifies validation and context limits.
 
 ## 6. Personality and memory
 
-Personality is defined in BEHAVIOR.md. Familiarity comes from supported profile
-memories and recent outcomes. Legacy numeric traits and counters stay stored
+Personality is defined in BEHAVIOR.md. The existing profile/reflection storage
+remains, but the new shared display context does not yet supply episodic memories. Legacy numeric traits and counters stay stored
 but inactive: no model input, daily drift, usual-hour sampling or project/session
 familiarity updates. XP and greeting history remain independent and unchanged.
 
@@ -147,3 +154,12 @@ units for the Mac activity grid; XP stays cumulative and existing awards persist
 ## Device availability projection
 
 Core derives `BuddyState.agentCounts` from the full session dictionary, independently of the six-item `activeSessions` preview. Working/thinking count as working; idle as idle; requests/errors as neither. ESP32 output encodes bounded `agents` rows and maps calm states to working/idle, suppressing device duration cheers and model bubbles for these sessions. Firmware owns the mixed-state dashboard transition and presentation; no new clock, I/O or view acknowledgment enters Core. Wire and frame budgets remain in WIRE-V2.md.
+
+## Persistent work scope
+
+Additive wire `scope` carries up to 120 UTF-8 bytes on calm frames. Unlike
+ordinary bubbles, it survives the agent dashboard. Firmware shows it in existing
+space beside the dashboard buddy or below the full face; counts remain static.
+Omission clears it; offline, sleep and higher-priority layers hide it. When a
+frame exceeds the 1536-byte host budget, shed scope whole before existing
+snapshot/cosmetic/bubble shedding. No partial multi-project summary is sent.

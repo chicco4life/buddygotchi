@@ -60,10 +60,11 @@ def test_dashboard_labels_survive_repeated_animation_frames(stick):
     a = screenshot(stick)
     clock(stick, now + 1800)
     b = screenshot(stick)
-    # The buddy moves above y=70; the board below it must stay unchanged.
-    assert a[70*456*2:] == b[70*456*2:]
-    for x, y, w, h in [(200, 70, 110, 24), (20, 98, 110, 24),
-                        (235, 98, 40, 24), (355, 141, 40, 24)]:
+    # The current larger buddy and arms occupy the band above y=108.
+    # Compare the actual count-board band, not the animated face.
+    assert a[108*456*2:] == b[108*456*2:]
+    for x, y, w, h in [(200, 129, 110, 24), (20, 159, 110, 24),
+                        (235, 159, 40, 24), (355, 199, 40, 24)]:
         lit = sum(a[(yy*456+xx)*2:(yy*456+xx)*2+2] != b"\0\0"
                   for yy in range(y, y+h) for xx in range(x, x+w))
         assert lit > 10, (x, y, lit)
@@ -89,7 +90,7 @@ def test_dashboard_board_is_static_through_full_gesture_loop(stick):
         info = state(stick)
         origin = info["now"] - info["dashboardAge"]
         clock(stick, origin + (info["dashboardAge"]//5600+1)*5600 + phase)
-        board = capture()[70*456*2:]
+        board = capture()[108*456*2:]
         if reference is None:
             reference = board
         else:

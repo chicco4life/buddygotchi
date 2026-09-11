@@ -53,6 +53,7 @@ final class HelpSimplificationTests: XCTestCase {
         engine.turnEnded(sessionId: "s", source: "codex", outcome: .completed)
         await engine.finishPendingWork()
         XCTAssertEqual(engine.state.creature.cheer, .hop)
+        let beforeCompletion = await runtime.calls
         clock.time = try XCTUnwrap(engine.state.celebrateUntil)
         engine.triggerStaleTick()
         engine.maintenance()
@@ -60,7 +61,7 @@ final class HelpSimplificationTests: XCTestCase {
         XCTAssertEqual(engine.state.creature.state, .idle)
         XCTAssertNil(engine.state.creature.bubble)
         let calls = await runtime.calls
-        XCTAssertEqual(calls, 1)
+        XCTAssertEqual(calls, beforeCompletion + 1)
         let wire = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(renderState(from: engine.state, defaults: defaults, now: clock.now()))) as? [String: Any])
         XCTAssertEqual(wire["gift"] as? Bool, false)
         XCTAssertNil(wire["giftLine"])

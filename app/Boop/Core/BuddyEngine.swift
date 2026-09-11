@@ -18,10 +18,15 @@ final class BuddyEngine {
     private var voiceRuntime: any VoiceRuntime
     private let defaults: UserDefaults
     private var cachedProfile: [ProfileLine] = []
-    private var cachedMoments: [BehaviorMemory.RememberedMoment] = []
     private var contextLoaded = false
     private var contextLoad: Task<Void, Error>?
-    private let transientVoice = TransientVoiceTasks()
+    private let transientVoice: BehaviorTasks
+    private var workIntents: [String: WorkIntent] = [:]
+    private var workContext = WorkContext()
+    private var workRevision = 0
+    private var previousScope: String?
+    private var recentRemarks: [String] = []
+    private var voiceStopped = false
     private var bootstrap: Task<Void, Never>?
     private var loadingStore = false
     private var deferredEvents: [BuddyEvent] = []
@@ -36,7 +41,8 @@ final class BuddyEngine {
     private let onACPower: @Sendable () -> Bool
     private var outputs: [any OutputProvider] = []
     private var processWatchers: [String: DispatchSourceProcess] = [:]
-    init(config: BuddyConfig = .default, clock: (any Clock)? = nil, diagnosticLog: DiagnosticLog? = nil, store: (any EngineStore)? = nil, dayCalendar: any DayCalendar = LocalDayCalendar(), onACPower: @escaping @Sendable () -> Bool = { PowerObserver.onACPower() }, voiceRuntime: (any VoiceRuntime)? = nil, defaults: UserDefaults = .standard) {
+    init(config: BuddyConfig = .default, clock: (any Clock)? = nil, diagnosticLog: DiagnosticLog? = nil, store: (any EngineStore)? = nil, dayCalendar: any DayCalendar = LocalDayCalendar(), onACPower: @escaping @Sendable () -> Bool = { PowerObserver.onACPower() }, voiceRuntime: (any VoiceRuntime)? = nil, defaults: UserDefaults = .standard, behaviorDebounceMs: UInt64 = 2000) {
+        self.transientVoice = BehaviorTasks(debounceMs: behaviorDebounceMs)
         self.store = store
         self.defaults = defaults
         let runtime = voiceRuntime ?? VoiceRuntimes.make(setting: "auto")
@@ -61,6 +67,7 @@ final class BuddyEngine {
     // MARK: - Lifecycle
 
     func start() {
+        voiceStopped = false
         lastSessionActivity = clock.now()
         loadingStore = true
         let stateDir = config.stateDir, now = clock.now(), existing = store
@@ -104,7 +111,10 @@ final class BuddyEngine {
     }
 
     func stop() {
+        voiceStopped = true
         cancelVoiceGeneration()
+        workIntents.removeAll(); workContext = WorkContext(); previousScope = nil; recentRemarks = []
+        apply(.workScopeChanged(at: clock.now(), text: nil))
         Task { await extractor.reset() }
         staleTimer?.invalidate()
         staleTimer = nil
@@ -120,6 +130,8 @@ final class BuddyEngine {
             apply(.processWatchChanged(at: clock.now(), watchedSessionIds: watched))
         }
         apply(.staleTick(at: clock.now()))
+        // A watched idle session can outlive the reducer's last visual change.
+        updateWorkContext()
     }
 
     // MARK: - Registration
@@ -166,7 +178,7 @@ final class BuddyEngine {
     }
 
     func ingest(_ input: RawHookPayload, hookPid: Int32? = nil) async {
-        guard !retiring else { return }
+        guard !retiring, !voiceStopped else { return }
         // Awaiting the extractor yields the main actor. Chain handoffs so an
         // overlapping HTTP result cannot reach the reducer before its call.
         let previous = extractionTail
@@ -185,7 +197,13 @@ final class BuddyEngine {
         lastSessionActivity = payload.timestamp
         let hour = dayCalendar.localHour(at: payload.timestamp)
         let extraction = await extractor.ingest(payload, localHour: hour)
-        guard !retiring else { await extractor.drop(sessionId: payload.sessionId); return }
+        guard !retiring, !voiceStopped else { await extractor.drop(sessionId: payload.sessionId); return }
+        if let project = extraction.workProject {
+            var intent = workIntents[payload.sessionId] ?? WorkIntent(project: project)
+            intent.project = project
+            if payload.kind == .turnStart { intent.receive(payload.promptText) }
+            workIntents[payload.sessionId] = intent
+        }
         for event in extraction.events {
             if case .adapterDegraded(_, let source) = event { diagnosticLog.log(category: "hook", source: source, event: "adapterDegraded", detail: "lifecycle-only") }
             if case .sessionEnded = event { sessionEnded(sessionId: payload.sessionId) }
@@ -197,6 +215,7 @@ final class BuddyEngine {
                 }
             }
         }
+        updateWorkContext()
         let facts = extraction.facts
         let project = internalState.sessions[payload.sessionId]?.project ?? ThemeReader.project(cwd: payload.cwd)
         let day = localDay(at: payload.timestamp)
@@ -274,6 +293,7 @@ final class BuddyEngine {
         internalState = .initial(staleMs: config.staleTimeoutMs, celebrateDurationMs: config.celebrateDurationMs, approvalTimeoutMs: config.approvalTimeoutMs)
         internalState.buddy.language = previous.language
         state = internalState.buddy
+        workIntents = [:]; workContext = WorkContext(); previousScope = nil; recentRemarks = []
         cachedProfile = []; contextLoaded = false; contextLoad = nil
         defaults.removeObject(forKey: DefaultsKey.buddyName)
         defaults.removeObject(forKey: DefaultsKey.buddyNameLocked)
@@ -449,6 +469,7 @@ final class BuddyEngine {
         for output in outputs {
             output.stateDidChange(prev: prev, next: state)
         }
+        if case .workScopeChanged = event {} else { updateWorkContext() }
         scheduleVoice(previous: prev, event: event)
         diagnosticLog.log(category: "engine", source: "system", event: event.name, detail: "pet=\(state.pet.state.rawValue) sessions=\(state.sessions.total)")
     }
@@ -540,7 +561,6 @@ final class BuddyEngine {
 
     private func refreshVoiceContext() async throws {
         cachedProfile = try await store?.profile() ?? []
-        cachedMoments = try await store?.recentBehaviorMoments() ?? []
         contextLoaded = true
     }
     private func ensureVoiceContext() async throws {
@@ -555,7 +575,7 @@ final class BuddyEngine {
         guard ["en", "ko"].contains(language) else { return }
         await flushStore()
         defaults.set(language, forKey: DefaultsKey.language)
-        cancelVoiceGeneration()
+        // UI localization is independent of the English-only companion pipeline.
         apply(.languageChanged(at: clock.now(), language: language))
         await store?.configureVoice(voice, language: language)
     }
@@ -567,6 +587,7 @@ final class BuddyEngine {
         voiceRuntime = VoiceRuntimes.make(setting: setting)
         let calendar = dayCalendar, clock = clock
         voice = Voice(runtime: voiceRuntime, guide: .init(overrideURL: URL(fileURLWithPath: config.stateDir).appendingPathComponent("BEHAVIOR.md")), store: store, localDay: { await MainActor.run { calendar.localDay(at: clock.now()) } })
+        updateWorkContext(force: true)
         await store?.configureVoice(voice, language: state.language)
     }
     /// Called by the edit action, never during startup or test construction.
@@ -580,19 +601,47 @@ final class BuddyEngine {
     }
 
     private func voiceRequest(_ occasion: Occasion, cap: Int) async -> VoiceRequest {
-        await flushStore()
-        try? await ensureVoiceContext()
-        let source = state.lastCompleted?.source ?? state.activeSessions.first?.source
-        let agent = source.flatMap { ["codex", "claude-code", "cursor"].contains($0) ? $0 : nil }
-        return VoiceRequest(occasion: occasion, profile: Array(cachedProfile.prefix(3).map(\.line)),
-            agent: agent, timeOfDay: TimeOfDay(hour: dayCalendar.localHour(at: clock.now())), language: state.language, byteCap: cap,
-            growth: state.growth,
-            memory: BehaviorMemory(moments: cachedMoments),
-            state: state.creature.state, sessionCount: state.sessions.total,
-            effort: state.creature.effort, lastCompletedTaskDurationMs: state.lastTaskDurationMs)
+        let event: [String: String]? = switch occasion {
+        case .greet: ["kind": "returned", "new_intent_since_return": "unknown"]
+        case .completed: ["kind": "turn_ended"]
+        case .uhoh: ["kind": "error", "evidence": "explicit_error"]
+        default: nil
+        }
+        return VoiceRequest(occasion: occasion,
+            context: BehaviorContext(desk: workContext.bounded(), event: event, previous_scope: previousScope,
+                                     recent_remarks: Array(recentRemarks.suffix(5))),
+            language: "en", byteCap: cap)
+    }
+
+    private func updateWorkContext(force: Bool = false) {
+        guard !voiceStopped, !retiring else { return }
+        let now = clock.now()
+        workIntents = workIntents.filter { id, _ in
+            internalState.sessions[id].map { WorkContext.eligible($0, now: now) } ?? false
+        }
+        let next = WorkContext.make(sessions: internalState.sessions, intents: workIntents, now: now)
+        guard force || next != workContext else { return }
+        workContext = next
+        workRevision += 1
+        transientVoice.cancel(.scope)
+        transientVoice.cancel(.bubble)
+        if let scope = state.workScope { previousScope = scope }
+        apply(.workScopeChanged(at: now, text: nil))
+        guard !next.projects.isEmpty else { previousScope = nil; return }
+        let revision = workRevision
+        transientVoice.replace(.scope, produce: { [weak self] in
+            guard let self, !self.voiceStopped else { return nil }
+            let request = await self.voiceRequest(.workContextChanged, cap: 120)
+            return await self.voice.line(for: request).text
+        }, deliver: { [weak self] text in
+            guard let self, !self.voiceStopped, self.workRevision == revision else { return }
+            self.previousScope = text.isEmpty ? nil : text
+            self.apply(.workScopeChanged(at: self.clock.now(), text: text.isEmpty ? nil : text))
+        })
     }
     private func scheduleVoice(previous: BuddyState, event: BuddyEvent) {
-        switch event { case .onboardingCheer, .voiceLine, .growthUpdated, .languageChanged: return; default: break }
+        guard !voiceStopped else { return }
+        switch event { case .workScopeChanged, .onboardingCheer, .voiceLine, .growthUpdated, .languageChanged: return; default: break }
         // Invalidate transient text on a new interaction; an old model reply must not cover a card.
         if previous.creature.state != state.creature.state || previous.creature.card?.id != state.creature.card?.id {
             transientVoice.cancel(.bubble)
@@ -617,7 +666,9 @@ final class BuddyEngine {
             guard !Task.isCancelled else { return nil }
             return await self.voice.line(for: request).text
         }, deliver: { [weak self] text in
-            guard let self, self.state.creature.card == nil else { return }
+            guard let self, !text.isEmpty, !self.voiceStopped, self.state.creature.card == nil else { return }
+            self.recentRemarks.append(text)
+            self.recentRemarks = Array(self.recentRemarks.suffix(5))
             self.apply(.voiceLine(at: self.clock.now(), kind: kind, text: text))
         })
     }

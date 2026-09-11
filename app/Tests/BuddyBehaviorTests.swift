@@ -104,7 +104,7 @@ extension BuddyBehaviorTests {
         engine.turnEnded(sessionId: "s", source: "codex", outcome: .completed)
         await engine.finishPendingWork()
         let before = await runtime.prompts
-        XCTAssertTrue(before.isEmpty)
+        XCTAssertFalse(before.compactMap { try? context($0)["occasion"] as? String }.contains("completed"))
         XCTAssertEqual(engine.state.creature.cheer, .hop)
         XCTAssertNil(engine.state.creature.bubble)
         clock.time = try XCTUnwrap(engine.state.celebrateUntil)
@@ -113,13 +113,12 @@ extension BuddyBehaviorTests {
         XCTAssertEqual(engine.state.creature.state, .idle)
         XCTAssertEqual(engine.state.creature.bubble, "All done.")
         let after = await runtime.prompts
-        XCTAssertEqual(after.count, 1)
-        XCTAssertTrue(after[0].contains("completed"))
+        XCTAssertEqual(after.compactMap { try? context($0)["occasion"] as? String }.filter { $0 == "completed" }.count, 1)
     }
 }
 
 extension BuddyBehaviorTests {
-    @MainActor func testEngineSuppliesEarnedXPAndRecordedMemoryToModel() async throws {
+    @MainActor func testEngineSuppliesSharedDeskWithoutProgressOrRawHistory() async throws {
         let (store, _, cleanup) = try makeStore(); defer { cleanup() }
         let runtime = BehaviorRuntime(), clock = MockClock()
         let (defaults, clear) = makeDefaults(); defer { clear() }
@@ -135,10 +134,13 @@ extension BuddyBehaviorTests {
         await engine.finishPendingWork()
         let prompts = await runtime.prompts
         let data = try context(try XCTUnwrap(prompts.last))
-        XCTAssertEqual((data["progress"] as? [String: Int])?["xp"], xp)
-        let memory = try XCTUnwrap(data["memory"] as? [String: Any])
-        XCTAssertNil(memory["completed_turns"])
-        let moments = try XCTUnwrap(memory["recent_outcomes"] as? [[String: String]])
-        XCTAssertTrue(moments.contains { $0["kind"] == "completed_turn_60s" })
+        XCTAssertNil(data["progress"])
+        XCTAssertNil(data["memory"])
+        let desk = try XCTUnwrap(data["desk"] as? [String: Any])
+        let projects = try XCTUnwrap(desk["projects"] as? [[String: Any]])
+        XCTAssertEqual(projects.count, 1)
+        XCTAssertEqual((projects[0]["tasks"] as? [[String: Any]])?.count, 1)
+        XCTAssertEqual(engine.state.growth.xp, xp) // Accounting is still independent.
+
     }
 }

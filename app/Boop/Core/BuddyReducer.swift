@@ -61,6 +61,8 @@ func reduce(_ state: InternalState, _ event: BuddyEvent, localHour: Int = 0) -> 
 
 private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> InternalState {
     switch event {
+    case .workScopeChanged(_, let text):
+        var s = state; s.buddy.workScope = text; return s
     case .onboardingCheer(let at):
         guard state.memory.completedTurns == 0, state.buddy.creature.card == nil else { return state }
         var s = state

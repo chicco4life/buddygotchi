@@ -86,6 +86,12 @@ struct PopoverView: View {
                 .padding(.top, 5)
             VStack(alignment: .leading, spacing: 3) {
                 Text(statusTitle).font(.system(size: 13, weight: .semibold))
+                if let scope = engine.state.workScope, engine.state.prompt == nil {
+                    Text(scope)
+                        .font(.system(size: 12))
+                        .foregroundStyle(BuddyTheme.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
                 Text(statusDetail)
                     .font(.system(size: 11))
                     .foregroundStyle(BuddyTheme.inkSoft)

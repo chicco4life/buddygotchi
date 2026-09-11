@@ -35,7 +35,7 @@ final class TransientVoiceTests: XCTestCase {
 
 
     @MainActor func testCancelAllRejectsUncooperativeLines() async throws {
-        let tasks = TransientVoiceTasks(), bubble = HeldVoiceLine()
+        let tasks = BehaviorTasks(), bubble = HeldVoiceLine()
         var delivered: [String] = []
         tasks.replace(.bubble, produce: { await bubble.produce() }, deliver: { delivered.append($0) })
         try await waitFor { bubble.entered }
@@ -45,8 +45,8 @@ final class TransientVoiceTests: XCTestCase {
         XCTAssertTrue(delivered.isEmpty)
     }
 
-    @MainActor func testLanguageRuntimeAndStopSuppressPendingBubble() async throws {
-        for action in ["language", "runtime", "stop"] {
+    @MainActor func testRuntimeAndStopSuppressPendingBubble() async throws {
+        for action in ["runtime", "stop"] {
             let suite = "voice-cancel-" + UUID().uuidString
             let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
             defer { defaults.removePersistentDomain(forName: suite) }
@@ -55,8 +55,7 @@ final class TransientVoiceTests: XCTestCase {
             engine.turnStarted(sessionId: "s", source: "codex")
             engine.turnEnded(sessionId: "s", source: "codex", outcome: .failed(errorClass: nil))
             try await waitFor { await runtime.entered }
-            if action == "language" { await engine.setLanguage("ko") }
-            else if action == "runtime" { await engine.setVoiceRuntime("off") }
+            if action == "runtime" { await engine.setVoiceRuntime("off") }
             else { engine.stop() }
             let bubble = engine.state.creature.bubble
             await runtime.finish()

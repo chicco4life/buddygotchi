@@ -40,6 +40,7 @@ transient fields clear; omitted `state` renders asleep. Omitted `snap` and
 | attention card | id/tool ≤23 B, gloss ≤63 B, stakes fine/checkIt/careful, approval boolean |
 | system card | kind pair/update, text ≤63 B |
 | `bubble` | ≤63 B, four seconds; unchanged heartbeats do not restart it |
+| `scope` | ≤120 B; persistent calm-view work summary; omission clears, never stored in NVS; wrong type/overflow rejects the frame |
 | `gift` / `giftLine` | retired, ignored; diagnostics report gift=false |
 | `focus` / `mute` | boolean / integer 0–3 |
 | `posture` | desk/perch/travel; omission restores IMU detection |
