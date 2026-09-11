@@ -224,3 +224,10 @@ These fields stay inside the existing 1536-byte newline-inclusive frame cap:
 drop snapshot/cosmetics first, then oldest history/preview rows as necessary;
 retain at least the newest completion and expose threadTotal. Reconnect may show
 Last finished but must not replay a notice already in progress.
+
+## USB-only panel-tap verification
+
+The `BOOP_USB_ONLY` build accepts `tap X Y` with integer sprite coordinates
+`0 <= X < 456`, `0 <= Y < 280`. It invokes the production panel tap handler and
+replies `<<TAP ok>>`; invalid coordinates/syntax reply `<<TAP error>>` without
+changing state. The shipping build does not enable this injection command.

@@ -5,6 +5,11 @@ from test_usb import stick, clean, frame, state, wait_state, press, clock
 ROWS = [dict(source="codex", working=2, idle=1)]
 THREADS = [[0, 1, "Fix layout"], [0, 1, "Run checks"], [0, 0, "Write docs"]]
 
+def tap(stick, x=220, y=130):
+    stick.write_line(f"tap {x} {y}")
+    stick.read_until(lambda b: b"<<TAP ok>>" in b, 3)
+
+
 def activity(stick, **extra):
     frame(stick, state="working", agents=ROWS, threads=THREADS, threadTotal=3, **extra)
 
@@ -55,7 +60,7 @@ def test_table_updates_without_interruption_and_history_pages(stick):
     wait_state(stick, layer="threads")
     finished(stick, 400)
     wait_state(stick, layer="threads", recentCount=2, noticeVisible=False)
-    press(stick)
+    tap(stick, 400, 255)
     wait_state(stick, layer="threads", threadPage=1)
     press(stick)
     wait_state(stick, layer="face", threadPage=-1, noticeVisible=False)
@@ -75,3 +80,57 @@ def test_invalid_details_preserve_last_frame(stick, extra):
     after=state(stick)
     assert after["badFrames"]==before["badFrames"]+1
     assert after["creature"]=="working" and after["threadCount"]==3
+
+
+def test_panel_tap_exits_without_traversing_multiple_pages(stick):
+    rows = [[0, 1, f"Thread {i}"] for i in range(8)]
+    frame(stick, state="working", agents=ROWS, threads=rows, threadTotal=8,
+          recent=[[901,0,"Recent finish"],[900,1,"Earlier finish"]])
+    tap(stick)
+    wait_state(stick, layer="threads", threadPage=0)
+    tap(stick)
+    wait_state(stick, layer="face", threadPage=-1)
+    tap(stick)
+    tap(stick, 400, 255)
+    wait_state(stick, layer="threads", threadPage=1)
+    tap(stick, 45, 250)
+    wait_state(stick, layer="face", threadPage=-1)
+
+
+def test_next_wraps_and_history_can_exit_directly(stick):
+    activity(stick, recent=[[902,0,"Finished"]])
+    tap(stick)
+    tap(stick, 400, 255)
+    wait_state(stick, layer="threads", threadPage=1)
+    tap(stick, 400, 255)
+    wait_state(stick, layer="threads", threadPage=0)
+    tap(stick)
+    wait_state(stick, layer="face")
+    tap(stick, 200, 255)  # the last-finished footer opens history
+    wait_state(stick, layer="threads", threadPage=1)
+    tap(stick)
+    wait_state(stick, layer="face", threadPage=-1)
+
+
+def test_hidden_bubble_does_not_consume_dashboard_exit(stick):
+    activity(stick)
+    tap(stick)
+    activity(stick, bubble="A new line behind the table")
+    wait_state(stick, layer="threads")
+    press(stick)
+    wait_state(stick, threadPage=-1)
+    # Panel taps also exit even when a new bubble arrives while browsing.
+    activity(stick)
+    tap(stick)
+    activity(stick, bubble="Another hidden line")
+    tap(stick)
+    wait_state(stick, threadPage=-1)
+
+
+@pytest.mark.parametrize("command", ["tap -1 100", "tap 456 100", "tap 40 280", "tap 40 40 extra"])
+def test_invalid_panel_coordinates_do_not_navigate(stick, command):
+    activity(stick)
+    tap(stick)
+    stick.write_line(command)
+    stick.read_until(lambda b: b"<<TAP error>>" in b, 3)
+    wait_state(stick, layer="threads", threadPage=0)

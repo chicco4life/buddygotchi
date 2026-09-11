@@ -113,3 +113,13 @@ checks passed and 44/44 independently recaptured goldens matched at zero error.
 Codex titles use bounded local index metadata; unavailable titles use project
 plus stable ID. [Evidence](evidence/glance-completions-2026-09-11/README.md).
 The owner must launch the rebuilt Mac app before the production BLE gate closes.
+
+## Dashboard navigation and spacing — 2026-09-11
+
+Normal dashboard taps now exit directly; a separate Next control pages details.
+The table gets 40 px side margins and 24 px top/bottom margins. Both firmware
+variants built; 19 USB checks passed, and three changed/new dashboard goldens
+matched independent captures at zero error. Shared panel handling, multiple/history
+pages, hidden dialogue and invalid coordinates were checked. The previous normal
+firmware is restored because another hardware task is active; the verified
+candidate is not left installed. [Evidence](evidence/dashboard-navigation-spacing-2026-09-11/README.md).

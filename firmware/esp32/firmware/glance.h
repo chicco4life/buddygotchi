@@ -37,7 +37,7 @@ static int detailPages() {
   return (tama.threadCount+2)/3+(tama.recentCount+2)/3;
 }
 static bool detailTap() {
-  if(threadPage>=0) { if(++threadPage>=detailPages()) threadPage=-1; return true; }
+  if(threadPage>=0) { threadPage=-1; return true; }
   if(dataConnected() && strcmp(tama.state,"uhoh") && strcmp(tama.state,"needsYou") && strcmp(tama.state,"asleep") && (tama.workingCount()>0 || tama.recentCount) && detailPages()) {
     threadPage=0; noticeUntil=0; statsUntil=0; bubbleDismissed=true; localBubbleUntil=0; return true;
   }

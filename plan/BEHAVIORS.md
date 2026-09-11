@@ -217,8 +217,12 @@ cooldown updates history only. Explicit attention/errors take priority and
 cancel the current notice; it does not replay after dismissal or reconnect.
 
 Tap the face to inspect threads when working, or when a last completion exists.
-Tap advances three-row pages then returns to the face; secondary tap returns
-immediately. Idle with no completion retains tap affection; primary hold always
+A normal tap anywhere on the table returns immediately to the buddy, including
+when there are multiple thread/history pages. The bottom-right Next control
+alone advances pages (wrapping to the first); Back is always visible at bottom
+left. Either physical short-tap button also exits. Navigation takes priority over
+hidden dialogue so a bubble cannot consume an exit tap. The left-aligned table
+has 40 px side margins, 24 px at the top and bottom, and three inset rows. Idle with no completion retains tap affection; primary hold always
 retains affection. Table rows update without completion interruptions. A quiet
 Last finished footer opens recent history through the same paged detail view.
 History has six entries; the device receives up to twelve session rows, ordered

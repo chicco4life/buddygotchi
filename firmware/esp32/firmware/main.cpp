@@ -231,6 +231,7 @@ static void primaryTap() {
     if (!systemCard()) cardDismissed=true;
     return;
   }
+  if(threadPage>=0) { threadPage=-1; return; }
   if (bubbleVisible()) { clearBubble(); return; }
   if (!detailTap()) boop(false);
 }
@@ -240,6 +241,22 @@ static void secondaryTap() {
   if (bubbleVisible()) { clearBubble(); return; }
   if (before(nowMs(),statsUntil) || !strcmp(posture,"travel")) { pageStats(); return; }
   shakeHeadUntil = nowMs()+600;
+}
+// One coordinate path for panel touches and USB-only navigation tests.
+// A visible table owns the tap before hidden bubbles or the last-finished link.
+static void panelTap(int x,int y) {
+  lastInput=nowMs();
+  if(screenOff||napping) { wake(); return; }
+  if(threadPage>=0 && !hasCard()) {
+    if(detailPages()>1 && y>=HAL_H-48 && x>=HAL_W/2)
+      threadPage=(threadPage+1)%detailPages();
+    else threadPage=-1;
+    return;
+  }
+  if(tama.recentCount && !hasCard() && !noticeVisible() &&
+     strcmp(tama.state,"uhoh") && y>=HAL_H-35 && dataConnected()) {
+    threadPage=(tama.threadCount+2)/3; noticeUntil=0; statsUntil=0; clearBubble();
+  } else primaryTap();
 }
 struct Button {
   bool down = false, guard = false, fired = false, focusSent = false, shutdown = false;
@@ -454,9 +471,10 @@ static void drawThreads() {
   if(threadPage>=pages) threadPage=max(0,pages-1);
   bool history=threadPage>=sessionPages;
   int start=(history?threadPage-sessionPages:threadPage)*3;
+  constexpr int inset=40, width=HAL_W-2*inset;
   char line[96];
   snprintf(line,sizeof(line),"%s  %d/%d",history?"Recently finished":"Threads",threadPage+1,max(1,pages));
-  textLines(line,24,14,HAL_W-48,1,2);
+  textLines(line,inset,24,width,1,2);
   static const char* states[]={"Idle","Working","Needs you","Error"};
   for(int row=0;row<3;++row) {
     int i=start+row;
@@ -464,15 +482,18 @@ static void drawThreads() {
     const char* title=history?tama.recent[i].title:tama.threads[i].title;
     int source=history?tama.recent[i].source:tama.threads[i].source;
     int status=history?0:tama.threads[i].status;
-    int y=51+row*62;
+    int y=64+row*56;
     snprintf(line,sizeof(line),"%s · %s",sourceName(source),history?"Finished":states[status]);
-    textLines(line,24,y,HAL_W-48,1,1,status==2?BOOP_AMBER:BOOP_PAPER_SOFT);
-    textLines(title,24,y+21,HAL_W-48,1,2);
+    textLines(line,inset,y,width,1,1,status==2?BOOP_AMBER:BOOP_PAPER_SOFT);
+    textLines(title,inset,y+20,width,1,2);
   }
   int omitted=max(0,tama.threadTotal-(int)tama.threadCount);
-  if(omitted) snprintf(line,sizeof(line),"Tap: next/back · %d more in Mac app",omitted);
-  else snprintf(line,sizeof(line),"Tap: %s",threadPage+1<pages?"next page":"back to buddy");
-  textLines(line,24,HAL_H-26,HAL_W-48,1,1,BOOP_PAPER_SOFT);
+  textLines("Back",inset,HAL_H-40,width,1,1,BOOP_PAPER_SOFT);
+  if(omitted) {
+    snprintf(line,sizeof(line),"+%d on Mac",omitted);
+    textLines(line,HAL_W/2-50,HAL_H-40,140,1,1,BOOP_PAPER_SOFT);
+  }
+  if(pages>1) textRight("Next >",HAL_W-inset,HAL_H-40,BOOP_PAPER_SOFT);
 }
 static void drawCompletion(uint32_t now) {
   if(!tama.recentCount) return;
@@ -713,6 +734,15 @@ void handleSerialCommand(const char* line) {
   if (!strcmp(line,"ping")) { JsonDocument d; telemetry(d); framed("PONG",d); return; }
   if (!strcmp(line,"state")) { dumpState(); return; }
   if (!strcmp(line,"screenshot")) { render(); dumpScreenshot(); return; }
+#ifdef BOOP_USB_ONLY
+  if (!strncmp(line,"tap ",4)) {
+    int x,y; char junk;
+    if(sscanf(line+4,"%d %d %c",&x,&y,&junk)==2 && x>=0 && x<HAL_W && y>=0 && y<HAL_H) {
+      panelTap(x,y); Serial.println("<<TAP ok>>");
+    } else Serial.println("<<TAP error>>");
+    return;
+  }
+#endif
   if (!strncmp(line,"clock ",6)) {
     if (!strcmp(line+6,"clear")) clockClear();
     else if (!strcmp(line+6,"freeze")) clockFreeze();
@@ -814,15 +844,9 @@ void loop() {
   static bool touched=false;
   bool touch=halTouchDown();
   if(touch&&!touched) {
-    lastInput=now;
-    if(screenOff||napping) wake();
-    else {
-      int x=0,y=0;
-      if(threadPage<0 && tama.recentCount && !hasCard() && !noticeVisible() &&
-         strcmp(tama.state,"uhoh") && halTouchPoint(&x,&y) && y>=HAL_H-35 && dataConnected()) {
-        threadPage=(tama.threadCount+2)/3; noticeUntil=0; statsUntil=0; clearBubble();
-      } else primaryTap();
-    }
+    int x=HAL_W/2,y=HAL_H/2;
+    halTouchPoint(&x,&y);
+    panelTap(x,y);
   }
   touched=touch;
   if(halPresentDue() && !screenOff && spr.width()>0) render();

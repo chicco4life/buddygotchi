@@ -133,3 +133,13 @@ full counts beyond preview. Device tests cover repeated frames, reconnect,
 notice/table/attention priority, page navigation and sage wash screenshots.
 Re-record changed hardware goldens and independently recapture before checking.
 Production BLE requires the owner-launched updated app. Webcam remains opt-in.
+
+## Dashboard exit and inset regression
+
+USB-only firmware exposes `tap X Y` to invoke the same bounded coordinate handler
+as a panel touch. Verify a normal tap exits immediately with multiple session and
+history pages, Next wraps without exiting, and hidden dialogue cannot consume an
+exit. Physical primary/secondary taps also exit. Capture thread, long-name and
+history pages; inspect 40 px side margins and 24 px top/bottom clearance.
+`golden.py record/check --only NAME` updates/checks selected changed scenes;
+record and check must still use independently captured images.

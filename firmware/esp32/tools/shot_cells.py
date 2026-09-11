@@ -32,6 +32,8 @@ def cells():
     glance = {**base, "state":"working", "agents":[{"source":"codex","working":1,"idle":1}, {"source":"claude-code","working":1,"idle":0}], "threads":rows, "threadTotal":3}
     result["glance-working"] = {**glance, "settle":1200}
     result["glance-threads"] = {**glance, "trigger":"press a 100", "settle":1200}
+    result["glance-threads-long"] = {**glance, "threads":[[0,1,"A deliberately long title that needs truncation"], [1,0,"기기 화면과 대시보드 탐색 개선"], [2,1,"Inspect a second project"]], "trigger":"press a 100", "settle":1200}
+    result["glance-history"] = {**glance, "recent":[[103,0,"Fix dashboard navigation"],[102,1,"기기 화면 개선"],[101,2,"Run firmware tests"]], "trigger":"tap 400 255", "settle":1200}
     for name, title, count in [("finish", "Fix device layout", 1), ("finish-ko", "기기 화면 개선", 1), ("finish-batch", "Run regression checks", 2)]:
         result[name] = {**glance, "recent":[[101,0,title],[100,1,"Write release notes"]],
             "notice":{"id":101,"count":count,"age":0,"left":5000,"cheer":"cheer"}, "settle":800}
@@ -55,6 +57,8 @@ def trigger(s, command):
     """Run a cell's optional command after its frame, then await motion."""
     if not command:
         return
+    if command.startswith("tap ") and not s.framed_json("ping", "PONG", 3).get("usbOnly"):
+        raise RuntimeError("Panel-tap scenes require the USB-only verification firmware")
     s.write_line(command)
     if command.startswith("imu set "):
         deadline = time.monotonic() + 3
