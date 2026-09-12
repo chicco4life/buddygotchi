@@ -25,6 +25,7 @@ struct RenderState: Encodable, Sendable {
     var threadTotal: Int?
     var recent: [FinishRow]?
     var notice: Notice?
+    var moment: DisplayMoment?
     struct ThreadRow: Encodable, Sendable {
         var source: Int; var status: Int; var title: String
         func encode(to encoder: any Encoder) throws {
@@ -41,6 +42,10 @@ struct RenderState: Encodable, Sendable {
     }
     struct Notice: Encodable, Sendable {
         var id: Int; var count: Int; var age: Int; var left: Int; var cheer: CheerSize
+    }
+    struct DisplayMoment: Encodable, Sendable {
+        var id: Int; var kind: MomentKind; var tier: MomentTier; var expression: MomentExpression
+        var text: String; var count: Int; var age: Int; var left: Int
     }
     var t: Int
 
@@ -83,7 +88,7 @@ struct RenderState: Encodable, Sendable {
     }
     private enum CodingKeys: String, CodingKey {
         case v, state, effort, cheer, uhoh, overlay, greetLevel, dots, dotAlert, card
-        case threads, threadTotal, recent, notice
+        case threads, threadTotal, recent, notice, moment
         case agents, scope, bubble, gift, focus, mute, nudgeRung, posture, cosmetic, snap, t
     }
     func encode(to encoder: any Encoder) throws {
@@ -117,6 +122,7 @@ struct RenderState: Encodable, Sendable {
         try c.encodeIfPresent(threadTotal, forKey: .threadTotal)
         try c.encodeIfPresent(recent.map { Array($0.prefix(6)) }, forKey: .recent)
         try c.encodeIfPresent(notice, forKey: .notice)
+        try c.encodeIfPresent(moment, forKey: .moment)
         try c.encode(t, forKey: .t)
     }
 }
@@ -132,7 +138,14 @@ func renderState(from state: BuddyState, defaults: UserDefaults = .standard, now
         frame.card = .needsYou(id: card.id, tool: card.tool, gloss: card.gloss,
             stakes: card.stakes, n: card.index, of: card.count, approval: card.isApproval)
     }
-    frame.scope = [.idle, .working, .done].contains(c.state) ? state.workScope : nil
+    // Scope remains a Mac summary; only event-identified moments speak here.
+    frame.scope = nil
+    if let m = state.moment, now >= m.startedAt, now < m.until,
+       ![CreatureState.needsYou, .uhoh, .asleep].contains(c.state) {
+        frame.moment = .init(id: m.id, kind: m.kind, tier: m.tier, expression: m.expression,
+            text: momentText(m.text, characters: m.characterLimit, lines: m.lines, glyphWidth: m.tier == .full ? 16 : 12) ?? "",
+            count: m.count, age: Int(now-m.startedAt), left: Int(m.until-now))
+    }
     func sourceIndex(_ source: String) -> Int { ["codex", "claude-code", "cursor"].firstIndex(of: source) ?? 3 }
     frame.threads = state.deviceThreads.prefix(12).map { .init(source: sourceIndex($0.source), status: $0.status, title: $0.title) }
     frame.threadTotal = state.deviceThreads.count

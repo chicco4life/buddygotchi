@@ -145,7 +145,7 @@ final class WorkContextTests: XCTestCase {
         s.workScope = "Boop polish and website updates"
         s.agentCounts = [.init(source: "codex", working: 5, idle: 1)]
         let frame = renderState(from: s, now: NOW)
-        XCTAssertEqual(frame.scope, s.workScope)
+        XCTAssertNil(frame.scope) // Summary remains Mac-only.
         XCTAssertEqual(frame.agents?.first?.working, 5)
         let data = try XCTUnwrap(renderStateData(from: frame))
         XCTAssertLessThanOrEqual(data.count, maxHeartbeatBytes)

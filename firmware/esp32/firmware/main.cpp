@@ -24,6 +24,9 @@ static uint8_t brightness = 210;
 // Sampled every 2 s in loop(); render and posture read the cache (ADC is slow).
 static int battery = -999; static bool charging = false;
 static uint32_t cardAt = 0, stateAt = 0, overlayAt = 0, bubbleUntil = 0, bootAt = 0;
+// Arrival identity and local deadlines only; the host owns all trigger policy.
+static uint32_t momentSeen=0, momentAt=0, momentUntil=0;
+static float scopeAmount=0;
 static uint32_t localBoopUntil = 0, dizzyUntil = 0, perkUntil = 0, shakeHeadUntil = 0;
 static uint32_t lastInput = 0, statsUntil = 0, lastPet = 0;
 static int statsPage = 0;
@@ -206,6 +209,19 @@ void onFrame(const TamaState& next, bool skinSupplied) {
   if (visualChanged) stateAt = now;
   if (changed) lastInput = now;   // only a state change counts as activity for the dim ladder
   // Sound sees the incoming state/volume, never the previous frame's mute.
+  bool permitted=!screenOff && !napping && !systemCard() && !next.card.present() &&
+    strcmp(next.state,"needsYou") && strcmp(next.state,"uhoh") && strcmp(next.state,"asleep") && threadPage<0;
+  if(!next.moment.id || !permitted) momentUntil=0;
+  if(next.moment.id && next.moment.id!=momentSeen) {
+    momentSeen=next.moment.id;
+    if(dataConnected() && !glanceBaseline && permitted) {
+      momentAt=now-next.moment.age; momentUntil=now+next.moment.left;
+    }
+  } else if(momentUntil && before(now,momentUntil)) {
+    uint32_t requested=now+next.moment.left;
+    if(next.moment.count>tama.moment.count) momentUntil=min(momentAt+8000,requested);
+    else if(before(requested,momentUntil)) momentUntil=requested;
+  }
   glanceFrame(next);
   tama = next;
   if (nudgeAdvanced && hasCard() && !systemCard()) sound(next.nudgeRung == 2 ? 7 : 0);
@@ -361,11 +377,15 @@ static void motionTick() {
   if (strcmp(candidatePosture,want)) { strlcpy(candidatePosture,want,sizeof(candidatePosture)); postureAt=now; }
   if (now-postureAt>=2500) setPosture(candidatePosture);
 }
+static bool momentVisible() {
+  return momentUntil && before(nowMs(),momentUntil) && dataConnected() && !screenOff && !napping &&
+    !hasCard() && threadPage<0 && strcmp(tama.state,"asleep") && strcmp(tama.state,"uhoh");
+}
 #include "face.h"
 // Screen priority stack (UX-DEVICE §16), highest first. UHOH is a bubble that
 // outranks the stats cards; it draws like BUBBLE.
-enum Layer : uint8_t { L_OFF, L_SYSTEM, L_CARD, L_UHOH, L_STATS, L_BUBBLE, L_OVERLAY, L_FACE, L_DASHBOARD, L_COMPLETION };
-static const char* const layerNames[] = {"off","system","card","uhoh","stats","bubble","overlay","face","threads","completion"};
+enum Layer : uint8_t { L_OFF, L_SYSTEM, L_CARD, L_UHOH, L_STATS, L_BUBBLE, L_OVERLAY, L_FACE, L_DASHBOARD, L_COMPLETION, L_MOMENT };
+static const char* const layerNames[] = {"off","system","card","uhoh","stats","bubble","overlay","face","threads","completion","moment"};
 static bool dashboardWanted() {
   return dataConnected() && !napping && !firstWake && threadPage>=0;
 }
@@ -378,6 +398,7 @@ static Layer screenLayer() {
   if (dashboardWanted()) return L_DASHBOARD;
   if (noticeVisible()) return L_COMPLETION;
   if (bubbleVisible()) return L_BUBBLE;
+  if (momentVisible()) return eq(tama.moment.tier,"full") ? L_MOMENT : L_FACE;
   if (calmOverlay() && ((tama.overlay[0] && nowMs()-overlayAt<(eq(tama.overlay,"greet")?2200u:1400u)) || before(nowMs(),localBoopUntil))) return L_OVERLAY;
   return L_FACE;
 }
@@ -415,6 +436,30 @@ static void textLines(const char* text,int x,int y,int width,int lines=2,float s
     memcpy(line+used,p,n); used+=n; line[used]=0; lineW+=glyphW; p+=n;
   }
   if (lines>0 && used) spr.drawString(line,x,y);
+}
+static bool momentLines(char (&rows)[2][64]) {
+  spr.setFont(&fonts::efontKR_16); spr.setTextSize(eq(tama.moment.tier,"full")?2.0f:1.5f);
+  int row=0; const char* p=tama.moment.text;
+  while(*p) {
+    while(*p==' ') ++p;
+    if(!*p) break;
+    char word[64]={0}; int n=0;
+    while(*p && *p!=' ' && n<63) word[n++]=*p++;
+    if(spr.textWidth(word)>HAL_W-48) return false;
+    String candidate=String(rows[row])+(rows[row][0]?" ":"")+word;
+    if(spr.textWidth(candidate)>HAL_W-48) {
+      if(++row>=2 || strcmp(tama.moment.kind,"completed")) return false;
+      strlcpy(rows[row],word,64);
+    } else strlcpy(rows[row],candidate.c_str(),64);
+  }
+  return true;
+}
+static void drawMomentText(uint16_t ink,int y=184) {
+  char rows[2][64]={{0}};
+  if(!momentLines(rows)) return; // whole phrase or silence; never ellipsis/shrink
+  spr.setTextDatum(TL_DATUM); spr.setTextColor(ink); spr.setTextWrap(false);
+  for(int row=0;row<2;++row) if(rows[row][0])
+    spr.drawString(rows[row],(HAL_W-spr.textWidth(rows[row]))/2,y+row*(eq(tama.moment.tier,"full")?40:30));
 }
 static void textRight(const char* text,int right,int y,uint16_t ink) {
   spr.setFont(&fonts::efontKR_16); spr.setTextSize(1);
@@ -525,6 +570,13 @@ static void render() {
     return;
   }
   Layer layer=screenLayer();
+  if ((layer!=L_FACE && layer!=L_MOMENT) || !dataConnected() || napping || firstWake ||
+      eq(tama.state,"asleep") || eq(tama.state,"uhoh")) momentUntil=0;
+  bool moment=momentVisible();
+  float fadeIn=moment?animClamp((now-momentAt)/250.0f,0,1):0;
+  float fadeOut=moment?animClamp((momentUntil-now)/400.0f,0,1):0;
+  float momentFade=min(fadeIn,fadeOut);
+  scopeAmount=moment && eq(tama.moment.tier,"caption") ? momentFade*momentFade*(3-2*momentFade) : 0;
   uint16_t tint=animMix(skinTint(oldCosmetic),skinTint(tama.cosmetic),cosmeticAmount(now));
   // RGB332 needs at least one channel step to keep a tint visible.
   uint16_t field=BLACK;
@@ -552,6 +604,8 @@ static void render() {
     float fadeOut=animClamp((noticeUntil-now)/600.0f,0,1);
     field=animMix(BLACK,BOOP_SAGE,0.44f*min(fadeIn,fadeOut));
   }
+  if(moment && eq(tama.moment.kind,"completed") && !eq(tama.moment.tier,"face"))
+    field=animMix(BLACK,BOOP_SAGE,0.44f*momentFade);
   if(field!=BLACK && tama.cosmetic.skin[0]) field=animMix(field,animMix(BLACK,tint,0.22f),0.2f);
   field=animMix(BLACK,field,colorAmount(now));
   // One whole-field flash: 300 ms toward the skin, then 300 ms back.
@@ -568,26 +622,33 @@ static void render() {
   if(layer==L_STATS) { float u=animClamp((now-statsAt)/300.0f,0,1); compact=u*u*(3-2*u); }
   if(layer!=L_DASHBOARD) {
     // Completion gets a smaller cheerful face above the large title.
-    faceDraw(now,base,layer==L_COMPLETION?1:compact,layer==L_STATS,0);
+    faceDraw(now,base,(layer==L_COMPLETION || layer==L_MOMENT)?1:compact,layer==L_STATS,0,scopeAmount);
   }
   if(layer==L_DASHBOARD) drawThreads();
   else if(layer==L_COMPLETION) drawCompletion(now);
   else if(base && dataConnected() && !napping &&
           (eq(tama.state,"idle") || eq(tama.state,"working") || eq(tama.state,"done"))) {
     char label[96];
-    if(tama.workingCount()>0) {
-      snprintf(label,sizeof(label),"%d working · tap for threads",tama.workingCount());
-      textLines(label,24,HAL_H-53,HAL_W-48,1,1,BOOP_PAPER_SOFT);
+    if(tama.workingCount()>0 || tama.idleCount()>0 || tama.recentCount>0) {
+      snprintf(label,sizeof(label),"%d busy %d idle · tap to view",tama.workingCount(),tama.idleCount());
+      spr.setFont(&fonts::efontKR_16); spr.setTextSize(1);
+      spr.setTextDatum(TR_DATUM); spr.setTextColor(BOOP_PAPER_SOFT,field);
+      spr.drawString(label,HAL_W-24,HAL_H-32);
     }
   }
-  // Scope sits above the calm face, clear of the working-count footer.
-  // Detail pages, completion notices and higher-priority layers cover it.
-  if (layer==L_FACE && tama.scope[0] && dataConnected() && !napping &&
-      (eq(tama.state,"idle") || eq(tama.state,"working") || eq(tama.state,"done")))
-    textLines(tama.scope,24,24,HAL_W-48,2,1,BOOP_PAPER_SOFT);
+  if (scopeAmount>0) drawMomentText(animMix(field,BOOP_PAPER,scopeAmount));
+  if(layer==L_MOMENT && moment) {
+    // The arms pull the caption as one readable piece, then it settles once.
+    float u=animClamp((now-momentAt)/700.0f,0,1);
+    int pull=animPx(32*(1-u)*(1-u)-5*sinf(u*PI));
+    drawMomentText(animMix(field,BOOP_PAPER,momentFade),164+pull);
+    if(tama.moment.count>1 && u>=1) { char label[32]; snprintf(label,sizeof(label),"%d finished",tama.moment.count); textRight(label,HAL_W-24,HAL_H-32,BOOP_PAPER_SOFT); }
+  }
   if (eq(posture,"travel") && battery>=0 && battery<25) {
-    spr.fillSmoothRoundRect(HAL_W-30,HAL_H-27,20,10,2,BOOP_PAPER_DIM);
-    spr.fillRect(HAL_W-28,HAL_H-25,4,6,BOOP_AMBER);
+    // Leave the bottom-right session hint clear on calm screens.
+    int batteryX=base && dataConnected() && (tama.workingCount() || tama.idleCount() || tama.recentCount) ? 24 : HAL_W-30;
+    spr.fillSmoothRoundRect(batteryX,HAL_H-27,20,10,2,BOOP_PAPER_DIM);
+    spr.fillRect(batteryX+2,HAL_H-25,4,6,BOOP_AMBER);
   }
   if (!bleBonded() || !dataConnected() || (linkFlash && now-linkAt<800))
     presenceDrawLinkGlyph(spr,now-stateAt,BOOP_SKY,linkFlash && now-linkAt<800);
@@ -617,7 +678,7 @@ static void dumpState() {
   JsonDocument d; telemetry(d);
   d["creature"]=tama.state; d["effort"]=tama.effort; d["cheer"]=tama.cheer; d["uhoh"]=tama.uhoh;
   d["overlay"]=tama.overlay; d["greetLevel"]=tama.greetLevel; d["nudgeRung"]=tama.nudgeRung; d["card"]=hasCard(); d["cardId"]=tama.card.id; d["armed"]=false;
-  d["scope"]=tama.scope;
+  d["scope"]=tama.scope; d["scopeVisible"]=false; d["momentVisible"]=momentVisible(); d["momentId"]=tama.moment.id; d["momentTier"]=tama.moment.tier; d["momentText"]=tama.moment.text; d["scopeAmount"]=scopeAmount;
   d["bubble"]=bubbleVisible()?bubbleText():""; d["gift"]=false; d["focus"]=tama.focus; d["posture"]=posture;
   d["threadPage"]=threadPage; d["threadCount"]=tama.threadCount; d["recentCount"]=tama.recentCount;
 #ifdef BOOP_USB_ONLY
@@ -846,11 +907,10 @@ void loop() {
     batteryAt=millis(); int b=halBatteryPct(); bool c=halIsCharging();
     if(b!=battery || c!=charging) { battery=b;charging=c;sendBattery(); }
   }
-  // Brightness (0-255). With only the eyes lit the panel reads darker than
-  // the old body-and-field frames did, so the levels sit high. A state
-  // change from the app stamps lastInput (frame apply), so a working buddy
-  // never dims; a cosmetic update alone does not wake the panel.
-  uint8_t target=hasCard()?255:(napping || eq(tama.state,"asleep"))?28:
+  // Sleep stays legible; a sleeper's tap response uses awake brightness.
+  // Face-down nap stays dim. Unchanged working frames still allow idle dimming.
+  bool sleepPeek=!napping && eq(tama.state,"asleep") && before(now,localBoopUntil);
+  uint8_t target=hasCard()?255:napping?28:sleepPeek?210:eq(tama.state,"asleep")?72:
     now-lastInput>=120000?90:210;
   if (!screenOff && brightness!=target) { brightness=target; }
   static uint32_t previous=0;
@@ -865,6 +925,7 @@ void loop() {
     panelTap(x,y);
   }
   touched=touch;
+  if(screenOff || napping || !linked) momentUntil=0;
   if(halPresentDue() && !screenOff && spr.width()>0) render();
   delay(HAL_LOOP_MS);
 }

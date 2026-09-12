@@ -28,7 +28,7 @@ func aggregateBuddy(_ state: InternalState, now: Double) -> BuddyState {
     let waitingOrdered = waiting
         .sorted { ($0.value.prompt?.arrivedAt ?? .infinity) < ($1.value.prompt?.arrivedAt ?? .infinity) }
     let erroredOrdered = errored
-        .sorted { ($0.value.workStartedAt ?? .infinity) < ($1.value.workStartedAt ?? .infinity) }
+        .sorted { ($0.value.failedWorkStartedAt ?? $0.value.workStartedAt ?? .infinity) < ($1.value.failedWorkStartedAt ?? $1.value.workStartedAt ?? .infinity) }
     let workingOrdered = working
         .sorted { ($0.value.workStartedAt ?? .infinity) < ($1.value.workStartedAt ?? .infinity) }
     let idleOrdered = allSessions
@@ -121,6 +121,10 @@ func aggregateBuddy(_ state: InternalState, now: Double) -> BuddyState {
         creature.uhoh = primary?.uhoh ?? .error
         let label = "Error"
         buddy.msg = primary?.currentTool.flatMap { $0.isEmpty ? nil : "\(label): \($0)" } ?? label
+    } else if let moment = buddy.moment, moment.kind == .completed, now < moment.until {
+        creature.state = .done
+        creature.cheer = moment.tier == .full ? .dance : nil
+        buddy.msg = moment.text
     } else if let until = buddy.celebrateUntil, now < until {
         creature.state = .done
         creature.cheer = state.doneSize ?? .hop

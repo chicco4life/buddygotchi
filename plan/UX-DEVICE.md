@@ -15,38 +15,56 @@ Appearance is fixed. Small gaze, blink, lean and breathing motions carry express
 | --- | --- |
 | Asleep | Closed eyes, slow breath, dim ink |
 | Idle | Open eyes, drifting gaze and gentle bob |
-| Working | Reading gaze; hard effort adds brow/sweat, grinding adds a small tremble |
+| Working | Reading gaze with brow/sweat from the first work signal; grinding adds a small tremble |
 | Needs you | Wide eyes, forward lean, amber field and request footer |
-| Done | Arc eyes and smile; hop, cheer or dance in the completion notice |
+| Done | Pleased face, caption or full pulling animation, chosen by guide policy |
 | Uh-oh | Lowered gaze, slump and red breathing field |
 
 On a connected calm screen, any working/thinking session keeps the working face;
-otherwise it is idle. Attention, errors and sleep still win. Device completion
-notices temporarily cover that face; their 5-second/8-second rules are in
+otherwise it is idle. Attention, errors and sleep still win. Completion moments temporarily cover that face; the three tiers are in
 [Celebrations](BEHAVIORS.md#3-effort-and-celebrations).
 
 ## What appears on screen
 
 | Surface | Content |
 | --- | --- |
-| Calm face | Optional two-line scope above; working count and “tap for threads” below when work is live |
+| Calm face | Optional brief two-line phrase below a gently smaller, raised face; “1 busy 1 idle · tap to view” at bottom right when sessions/history exist |
 | Request | Borderless lower footer: tool, queue count, up to two lines of supplied reason; face lifts above it |
-| Completion | Smaller cheerful face, agent and large thread title, latest second title when present, total count, sage wash |
+| Completion | Face-only, below-face caption, or full caption-pulling celebration; teal/sage wash for caption/full tiers |
 | Thread/history pages | Three rows per page, with agent, status/title and navigation |
 | Temporary remark | Plain text beside a smaller face, no speech-bubble box; up to 4 seconds or dismissal |
 | Travel stats | Last synced personal progress, with the face beside it |
 | System card | Pairing code or firmware-update information |
 
-There is **no persistent Last finished row** and no separate bottom shortcut.
-Recent completions remain in history. Scope is quiet and persistent until changed;
-cards, errors, stats, details, completion, remarks, affection, sleep, nap and
-lost connection hide it. Unchanged scope does not animate or restart a timer.
+There is **no persistent Last finished row**. History remains on detail pages;
+whole-desk scope is Mac-only. Moments use event identity rather than changed text,
+so a new turn can say the same words while keepalives never replay an old moment.
+
+Caption moments ease in over 250 ms and out over 400 ms. Text sits at y=184/214,
+24 px high, with 24 px side margins. The face lifts 28 px and shrinks 14%, then
+returns to its normal pose. Starts are one line for 1.5 seconds without wash;
+medium completions last 4 seconds with the existing teal/sage wash. Long-work
+and return captions last 4 seconds without a completion wash. Tiny completions
+show only the pleased face for 1.2 seconds.
+
+Full celebrations last 5 seconds. A compact face remains prominent above 32 px
+text, centered at y=164/204 after arrival. Both hands track the caption as it
+moves up during the first 700 ms, with a small settling bounce; arms release
+between 750 and 1100 ms. A batched count appears only after arrival, clear of
+the two-line text. Coalescing has an 8-second total ceiling.
+
+The quiet 16 px “1 busy 1 idle · tap to view” hint sits 24 px from the right
+and 32 px from the bottom on the calm face, stable through caption fades.
+Zero counts remain explicit. Low battery stays on the left when this hint exists.
+Full celebration uses that lower area for its optional completion count.
 
 **Screen priority, highest first:** display off → system card → request card →
-error remark → stats → thread pages → completion notice → ordinary remark →
-greeting/affection → face. Base state still controls the expression and field.
-System cards cancel completion notices and close details. Higher-priority work
-never queues old completion notices to replay later.
+error remark → stats → thread pages → legacy completion notice → ordinary
+remark → moment (full or face/caption) → greeting/affection → face.
+The current host emits moments; legacy notices remain compatible with old hosts.
+Cards, errors, stats, details, other remarks, sleep, nap and lost connection
+consume the moment; it is never postponed. First reconnect establishes a baseline
+without replay. No moment wakes the device.
 
 ## Touch and buttons
 
@@ -86,8 +104,7 @@ ID; never use raw prompts/commands as titles. See [Wire](WIRE-V2.md) for byte bo
 | Moment | Motion |
 | --- | --- |
 | Boop/pet | Squish and smile; one heart floats up off the left cheek, no boop blush. At most one heart per 2.5 seconds; holding adds no stream of hearts |
-| Return after 18 hours away | Short greeting, blink/smile and right-arm wave |
-| Return after 7 days away | Warmer greeting with bounces and one heart; no penalty for time away |
+| Person returns after the guide absence threshold (default 18 hours) | One short greeting/wave, merged with start when applicable; wording uses supplied local time |
 | Hop | One bounce, no confetti |
 | Cheer | Two bounces, small head wag and raised arms |
 | Dance | Bounce/sway with raised arms and at most five fading confetti dots |
@@ -98,13 +115,15 @@ ID; never use raw prompts/commands as titles. See [Wire](WIRE-V2.md) for byte bo
 | Streak reaches 7, 30 or 100 in a new snapshot | Brief streak visual; no XP bonus or level-up |
 
 Cards suppress shake, pickup and face-down nap. Sleeping boops get a one-eye
-peek rather than hearts. Greeting is caused by recorded activity after time away,
-not every Bluetooth reconnect; the device wave runs for about 2.2 seconds.
+peek rather than hearts. That 1.4-second response uses awake brightness and
+normal face ink, then returns to readable sleep brightness. Greeting is caused by person interaction after time away, never reconnect.
+The guide chooses its expression and wording.
 
 Desk is the default posture; a stable tilt selects perch and changes gaze/lean.
 Motion, or over a minute without live data while on battery, selects travel.
 A candidate posture must hold for 2.5 seconds; ambiguous orientation retains the
-previous one. There are no perch feet or body. Travel shows a battery mark below 25%.
+previous one. There are no perch feet or body. Travel shows a battery mark below 25%, at bottom left when the bottom-right
+session hint is present.
 
 Travel stats auto-hide after 10 seconds. Page one shows name, streak and cumulative
 XP; page two shows days together, completed turns, biggest cheer and today's turns.
@@ -124,7 +143,9 @@ host state without replaying completion history.
 | Visible card | 255 |
 | Awake, recently active | 210 |
 | No input or relevant state/cheer change for 2 minutes | 90 |
-| Asleep or face-down nap | 28 |
+| Asleep, resting | 72 |
+| Sleeping tap response (1.4 seconds) | 210, with normal face ink |
+| Face-down nap | 28 |
 | Explicit screen-off gesture | 0 |
 
 Automatic inactivity does not turn the display fully off. A visible request does
@@ -144,14 +165,15 @@ Colours must remain distinct through the actual RGB565-to-RGB332 rendering path.
 In particular, amber and red field washes must not collapse into the same colour.
 Constants live in [palette.h](../firmware/esp32/firmware/palette.h).
 
-Text is UTF-8 safe and uses the bundled Korean-capable font. Scope has 24 px side
+Text uses the bundled Korean-capable font; moment phrases are printable ASCII
+English and rejected whole if they cannot fit. Moment captions have 24 px side
 margins; details use 40 px sides and 24 px top/bottom, with three inset rows. The
 request footer is 88 px high, with aligned labels and a top hairline.
 
 Arrivals spring; departures retract smoothly. Interrupted head tilt eases back,
 and retracting arms keep their last angle rather than flipping down. Departing
 card text follows its card, accepts no input and cannot cover a higher-priority
-surface. Completion wash fades in over 250 ms and out over 600 ms. Frozen-clock
+surface. Moment wash fades in over 250 ms and out over 400 ms. Frozen-clock
 settled poses remain deterministic for screenshots.
 
 Use [verification](VERIFICATION.md) and [current status](PLAN.md) for measured

@@ -177,8 +177,9 @@ static void faceSimulate(uint32_t now,float dt) {
     // on the page every 1.6 s (the pose easing turns the hop into a glance).
     // Small offsets, so the pair stays centred on the screen.
     bool right=((now-stateAt)/1600)%2==1;
-    p.gazeX=right?7:-8; p.gazeY=6; p.lean=3; p.eyeH=68; p.bob=sinf(phase*1.4f)*2;
-    if (eq(tama.effort,"hard") || eq(tama.effort,"grinding")) { p.brow=1; p.sweat=1; p.eyeH=58; }
+    p.gazeX=right?7:-8; p.gazeY=6; p.lean=3; p.eyeH=58; p.bob=sinf(phase*1.4f)*2;
+    // Working is visibly busy from the first signal, including light effort.
+    p.brow=1; p.sweat=1;
     if (eq(tama.effort,"grinding")) p.bob+=sinf(phase*37)*1.5f;
   } else if (eq(state,"needsYou")) {
     p.eyeH=96; p.eyeW=72; p.gazeX=0; p.gazeY=-2; p.lean=-4;
@@ -298,7 +299,7 @@ static void heart(int x,int y,int r,uint16_t c) {
 static uint16_t faceInk(uint32_t now) {
   uint16_t tint=animMix(skinTint(oldCosmetic),skinTint(tama.cosmetic),cosmeticAmount(now));
   const char* state=(!dataConnected() && !presenceGraced(now))?"idle":tama.state;
-  bool asleep=napping || eq(state,"asleep");
+  bool asleep=napping || (eq(state,"asleep") && !before(now,localBoopUntil));
   // Blend visible inks, never a low fraction of light over black.
   uint16_t base=asleep?BOOP_PAPER_DIM:BOOP_PAPER;
   return animMix(BOOP_PAPER_FAINT,animMix(base,tint,tama.cosmetic.skin[0]?(asleep?0.3f:0.55f):0),colorAmount(now));
@@ -318,9 +319,23 @@ static const struct { uint8_t count; EyeAccessoryPart parts[4]; } eyeAccessories
   {4,{{C_ROUND_RECT,-24,0,48,7,3},{C_TRIANGLE,-24,2,-18,-12,-8,2},
        {C_TRIANGLE,-8,2,0,-16,8,2},{C_TRIANGLE,8,2,18,-12,24,2}}}
 };
-static void faceDraw(uint32_t now,bool showSparks,float compact=0,bool proud=false,float dashboard=0) {
+static void faceDraw(uint32_t now,bool showSparks,float compact=0,bool proud=false,float dashboard=0,float phrase=0) {
   FacePose p=facePose;
-  float scale=(1-0.56f*compact)*(1-0.58f*dashboard);
+  bool showingMoment=momentVisible();
+  if(showingMoment) {
+    float age=(now-momentAt)/1000.0f;
+    if(eq(tama.moment.kind,"completed") || eq(tama.moment.expression,"pleased")) { p.arc=22; p.eyeH=7; p.mouth=1; p.brow=p.sweat=0; }
+    if(eq(tama.moment.expression,"nod")) p.bob+=4*sinf(min(age/0.6f,1.0f)*PI);
+    if(eq(tama.moment.expression,"weary")) { p.eyeH*=0.65f; p.lean+=4; p.mouth=-1; }
+    if(eq(tama.moment.expression,"wave")) { p.armR=1; p.angR=2.2f+0.2f*sinf(age*12); p.mouth=1; p.brow=p.sweat=0; }
+    if(eq(tama.moment.expression,"pull")) {
+      float u=animClamp(age/0.7f,0,1);
+      p.armL=p.armR=1;
+      p.angL=p.angR=-0.12f;
+      p.bob-=5*sinf(u*PI);
+    }
+  }
+  float scale=(1-0.56f*compact)*(1-0.58f*dashboard)*(1-0.14f*phrase);
   if(dashboard>0) {
     // A readable little invitation: anticipate, nod twice at IDLE, look
     // back and smile, then rest. Counts never move or pulse with the face.
@@ -349,10 +364,10 @@ static void faceDraw(uint32_t now,bool showSparks,float compact=0,bool proud=fal
   // The compact landscape footer leaves room for a lower, larger face.
   float footerAmount=systemCard()?0:animClamp(cardAmount,0,1);
   int lift=animPx(cardAmount*(systemCard()?47:25));
-  int cy=HAL_H/2-10-lift+animPx(p.bob+p.lean), cx=animPx(HAL_W/2.0f+(HAL_W/6.0f-HAL_W/2.0f)*compact+p.gazeX*scale);
+  int cy=HAL_H/2-10-lift-animPx(28*phrase)+animPx(p.bob+p.lean), cx=animPx(HAL_W/2.0f+(HAL_W/6.0f-HAL_W/2.0f)*compact+p.gazeX*scale);
   cx=animPx(cx*(1-dashboard)+(HAL_W*83/100)*dashboard);
   cy=animPx(cy*(1-dashboard)+(46+p.bob)*dashboard);
-  if(noticeVisible()) { cx=HAL_W/2; cy=91+animPx(p.bob*0.4f); }
+  if(noticeVisible() || (showingMoment && eq(tama.moment.tier,"full"))) { cx=HAL_W/2; cy=91+animPx(p.bob*0.4f); }
   float reveal=cosmeticAmount(now);
   const Cosmetics& shape=reveal<0.5f?oldCosmetic:tama.cosmetic;
   float spacing=silhouettes[shape.silhouetteId].spacing*scale;
@@ -406,6 +421,13 @@ static void faceDraw(uint32_t now,bool showSparks,float compact=0,bool proud=fal
   if (p.mouth>1.2f) spr.drawEllipse(cx,my,9,13,ink);
   else if (p.mouth>0.2f) spr.fillArc(cx,my-animPx(5*scale),animPx(10*scale),animPx(13*scale),0,180,ink);
   else spr.fillSmoothRoundRect(cx-9,my,18,3,1,ink);
+  if(showingMoment && eq(tama.moment.expression,"pull")) {
+    float age=now-momentAt, u=animClamp(age/700.0f,0,1);
+    float captionY=164+32*(1-u)*(1-u)-5*sinf(u*PI);
+    float release=animClamp((1100-age)/350.0f,0,1);
+    release=release*release*(3-2*release);
+    p.armL=p.armR=max(0.0f,(captionY-9-cy-52*scale)/(52*scale))*release;
+  }
   // Arms are part of the face, drawn in the same ink. Never while a card is
   // up: the card owns the screen, and a waving hand beside the thing you have
   // to answer competes with it.

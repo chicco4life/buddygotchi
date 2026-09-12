@@ -41,7 +41,8 @@ extension HookFixtureTests {
             }
             let window = await extractor.windows[session]
             XCTAssertFalse(grinding)
-            XCTAssertNil(state.buddy.creature.cheer)
+            XCTAssertEqual(state.buddy.moment?.kind, .completed)
+            XCTAssertEqual(state.buddy.moment?.tier, .full)
             state = reduce(state, .staleTick(at: 100_000))
             }
         }

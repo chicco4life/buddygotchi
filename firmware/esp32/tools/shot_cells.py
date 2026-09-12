@@ -48,6 +48,16 @@ def cells():
             "agents": [{"source": "codex", "working": 0, "idle": 5}]}
         result[f"scope-dashboard-{lang}"] = {**glance, "scope": text,
             "recent": [[101,0,"Fix device layout"]], "settle": 1200}
+    for index, (name,kind,tier,expression,text,left) in enumerate([
+        ("moment-start","start","caption","nod","Checking the layout.",1500),
+        ("moment-tiny","completed","face","pleased","",1200),
+        ("moment-caption","completed","caption","pleased","Layout turn finished.",4000),
+        ("moment-full","completed","full","pull","App improvements and recipe website updates",5000),
+        ("moment-long","longRunning","caption","weary","Still working away.",4000),
+        ("moment-return","returned","caption","wave","Welcome back!",4000),
+    ]):
+        result[name]={**glance,"settle":600,"moment":dict(id=90000+index,kind=kind,tier=tier,
+            expression=expression,text=text,count=1,age=0,left=left)}
     return result
 
 
@@ -55,7 +65,11 @@ def prepare(s):
     """Isolate persisted cosmetics, growth, overlays and motion between cells."""
     s.write_line("clock clear")
     s.write_line("imu set 0 0 0.98")
+    # A distinct event makes repeated moment fixtures independent without
+    # bypassing production suppression of identical clear/resend events.
     s.write_line(json.dumps({"v": 2, "state": "working", "posture": "desk", "mute": 0,
+                             "moment": {"id":1,"kind":"completed","tier":"face","expression":"pleased",
+                                        "text":"","count":1,"age":0,"left":1200},
                              "cosmetic": {}, "snap": {"level": 1, "streak": 0}}))
     time.sleep(3.2)  # finish first color, old rituals, motion and decision feedback
 

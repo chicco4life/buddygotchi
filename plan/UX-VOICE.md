@@ -21,21 +21,25 @@ permission authority. Approvals remain in the editor.
 
 ## What triggers a display decision
 
-| Current trigger | Destination | Delivery |
+| Trigger | Response | Default timing |
 | --- | --- | --- |
-| Work-context membership, status or first/latest intent changes | Persistent scope | Two-second debounce; clear obsolete text immediately |
-| Recorded activity after at least 18 hours away | Greeting remark | Immediate opportunity, subject to current state/card eligibility |
-| A new explicit error kind | Error remark | Immediate opportunity |
-| Done transitions to idle after a celebration | Completion remark | Immediate opportunity; no call merely because every tool or turn ended |
+| First work signal for a distinct turn | Short task-aware acknowledgement; small nod | 1.5 seconds, once per turn |
+| Started turn completes | Proportional completion moment | Three duration tiers; no second post-celebration remark |
+| Active turn crosses 5 or 15 minutes | Optional patient/exasperated remark and weary face | 4 seconds; desk-wide 2-minute cooldown |
+| Person interacts after 18 hours away | Optional time-aware greeting and wave | 4 seconds, or merged into the same start's 1.5-second budget |
+| New explicit error | Grounded error remark through existing Voice lane | Up to 4 seconds |
+| Settled work-context change | Whole-desk summary on Mac only | 2-second debounce; retained until context changes |
 
-An empty desk clears scope without generation. Unchanged tool activity does not
-request a new summary. There are no periodic check-ins. Every row permits SILENT.
-The 7-day return threshold changes greeting warmth, not whether speech is required.
+Long-work opportunities are consumed even when attention wins, never queued.
+Waiting is not a reason to pressure the person. Only a turn-start interaction or
+a boop updates the persisted person-interaction timestamp; background activity
+and reconnect do not manufacture a return. Local hour/time-of-day are supplied
+as facts, without guessing sleep or habits.
 
 ## Shared display pipeline
 
-`work_context_changed`, return greetings, explicit errors and the existing
-post-celebration remark all use the same `Voice`, guide and `BehaviorContext`.
+`work_context_changed`, start/completed/longRunning/returned moments and explicit
+errors all use the same `Voice`, guide and `BehaviorContext`.
 The context contains the whole desk grouped by local repository identity,
 optional event facts, previous scope and five recent actually displayed remarks.
 XP, profile and coarse legacy memory are no longer engine display inputs.
@@ -44,7 +48,7 @@ Grounded payoff events and episodic callbacks are the next stages described in
 
 `BehaviorTasks` replaces `TransientVoiceTasks`: one outstanding display call,
 latest scope and latest remark, with remarks ahead of scope. Scope updates
-coalesce for two seconds; existing remark opportunities remain immediate.
+coalesce for two seconds; moment and error opportunities remain immediate.
 Runtime changes, stop, cards and context revisions invalidate stale
 replies. There is no per-task model, semantic classifier or periodic narration.
 
@@ -63,16 +67,34 @@ projects and their tasks. If metadata cannot fit, report partial coverage and
 omitted counts rather than silently selecting a project. Unknown intent stays
 unknown. Model factuality and private-text disclosure require live evaluation.
 
-Scope is text or SILENT, at most 120 UTF-8 bytes; reject overflow rather than
-clipping away another project. It persists on calm Mac/device views until its
-context changes, with no sound, animation, XP or four-second expiry. Invalidate
-old scope immediately, include it as comparison data, and accept identical text
-without dialogue-repeat filtering or durable history. SILENT clears scope.
+Scope is text or SILENT, at most 120 UTF-8 bytes, retained on Mac until context
+changes. It no longer causes device pop-ups. Invalid scope is rejected whole.
+Moment text is printable ASCII: 24 characters/bytes and one line for starts,
+returns and long work; 48/two lines for completion. Host and firmware enforce
+408 px width with 24 px captions or 32 px full-celebration text; overflow is
+silent, never shrunk or clipped. Tiny completions request no text. The shared
+runtime result stays text-or-SILENT; supported expressions come from guide policy.
 
-Temporary bubbles remain four seconds and at most 63 UTF-8 bytes. They cannot
-cover attention or wake Buddy. Existing duration celebrations and their
-post-idle opportunity are unchanged. Scope has no durable history; actual
-remarks retain only the last five in memory for this display path.
+Moment replies must match both event ID and completion count and arrive before
+the existing deadline. A reply cannot extend, replay or resurrect a moment.
+Explicit-error bubbles retain their 63-byte/four-second limit. Last five accepted
+remarks stay in memory; no durable dialogue history is added.
+
+## Declarative policy in the same guide
+
+One fenced `boop-policy` JSON object controls thresholds, dwell times, cooldowns,
+expression selection and optional short fallbacks. See the complete schema and
+bounds in [Turn moments](UX-TURN-MOMENTS.md#guide-policy).
+Missing top-level fields inherit bundled values. Invalid types/values or unknown
+keys fall back atomically to bundled policy while owner prose remains untouched.
+The engine rereads policy on events; wording reads the same guide for each call.
+A policy change affects the next opportunity, not an already-issued deadline.
+
+Fallbacks are optional immediate guide-authored text, validated for the occasion.
+An unavailable or late model leaves that fallback/animation until normal expiry;
+a timely model SILENT clears the phrase; invalid runtime generation retains the
+fallback, and extra renderer-fit validation can clear unsafe text. This keeps a 1.5-second start
+responsive even when generation takes longer. No hardcoded renderer phrase list.
 
 ## Readiness refinement
 
@@ -87,7 +109,8 @@ Reject exact repeated remarks, private-looking output (paths, email addresses,
 credential assignments), and output echoing explicit credential values from the
 input. Mask recognizable private values in display input before generation.
 These checks are limited protection, not proof that arbitrary prose contains no
-private information. Byte overflow and any invalid result still mean silence.
+private information. Byte overflow and invalid model results are discarded;
+errors and scope stay silent, while a turn moment keeps its validated guide fallback.
 The live semantic-quality gate stays open until expanded replays pass.
 
 ## Runtime
@@ -100,8 +123,8 @@ SILENT for thin evidence, uncertain interpretation, redundant remarks or occasio
 already served by the face/animation. A useful greeting may still be appropriate;
 novel factual content is not required for every social moment. Confidence means
 support in the supplied context, not an uncalibrated numeric self-rating.
-Unavailable, timed-out or invalid display responses produce silence, including
-greetings and errors. Reflection failure leaves the profile unchanged.
+Moment fallback behavior is described above; errors and Mac summaries have no
+stock fallback. Reflection failure leaves the profile unchanged.
 
 ## Private memory learning
 

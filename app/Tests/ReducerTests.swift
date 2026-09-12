@@ -130,7 +130,7 @@ final class ReducerTests: XCTestCase {
         )
         s = applyEvents(s, .activitySignal(at: NOW + 60002, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: nil, hint: nil))
         XCTAssertEqual(s.buddy.pet.state, .celebrate)
-        XCTAssertNotNil(s.buddy.celebrateUntil)
+        XCTAssertNotNil(s.buddy.moment)
         XCTAssertEqual(s.buddy.lastTaskDurationMs, 60_001, "Duration = celebrate time - work start time")
     }
 
@@ -146,7 +146,7 @@ final class ReducerTests: XCTestCase {
         s = applyEvents(s, .staleTick(at: NOW + 61000))
         XCTAssertEqual(s.buddy.pet.state, .celebrate, "Should still be celebrating before 1.5s")
 
-        s = applyEvents(s, .staleTick(at: NOW + 65000))
+        s = applyEvents(s, .staleTick(at: NOW + 65002))
         XCTAssertEqual(s.buddy.pet.state, .idle)
         XCTAssertNil(s.buddy.celebrateUntil)
     }
@@ -186,8 +186,8 @@ final class ReducerTests: XCTestCase {
             .activitySignal(at: NOW + 1000, sessionId: "s1", source: "claude-code", signal: .startWorking, tool: nil, hint: nil)
         )
         s = applyEvents(s, .activitySignal(at: NOW + 5000, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: nil, hint: nil))
-        XCTAssertEqual(s.buddy.pet.state, .idle)
-        XCTAssertEqual(s.buddy.lastTaskDurationMs, 4000, "4s task records duration without celebration")
+        XCTAssertEqual(s.buddy.moment?.tier, .caption)
+        XCTAssertEqual(s.buddy.lastTaskDurationMs, 4000, "4s task uses the caption tier")
     }
 
     func testLongTaskDurationAboveThreshold() {

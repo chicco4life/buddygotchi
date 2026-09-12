@@ -4,7 +4,10 @@ Companion summaries and remarks are English-only in the first version. Context
 uses `language: "en"`; changing the app UI language does not cancel, clear or
 regenerate companion text. Private legacy reflection retains its language setting.
 
-**Reading this document:** stage 1 is implemented as described in [Voice](UX-VOICE.md).
+**Reading this document:** this is the staged design history. Stage 1 is implemented
+with its current display delivery superseded by [Turn moments](UX-TURN-MOMENTS.md):
+Mac retains scope; device uses start/completion/long-work/return moments.
+[Voice](UX-VOICE.md) owns current triggers and limits.
 Sections below retain the design for stages 2/3; `result_observed`, measured return
 events and episode callbacks are proposed, not current triggers. Use the
 [trigger table](UX-VOICE.md#what-triggers-a-display-decision) for the running source.
@@ -258,7 +261,8 @@ existing five-second asynchronous model deadline and local-only runtime fallback
 Unavailable, invalid or timed-out output means no contextual phrase, not invented
 fallback detail. Existing factual status and physical interactions keep working.
 
-The scope phrase persists beside the buddy and in Mac Overview. Temporary
+The original stage proposed scope beside the buddy and in Mac Overview; current
+source retains it on Mac only (see Turn moments). In that original proposal, temporary
 payoff/greeting remarks last four seconds. Cards/errors/system UI take priority.
 Scope survives a temporary cover if its context revision remains current.
 No new sound, gesture or animation is required for scope. The additive scope field renders above the calm face, clear of the

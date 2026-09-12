@@ -11,9 +11,11 @@ enum TimeOfDay: String, Sendable { case morning, day, evening, late
     init(hour: Int) { self = (5..<12).contains(hour) ? .morning : (12..<18).contains(hour) ? .day : (18..<23).contains(hour) ? .evening : .late }
 }
 enum Occasion: Sendable {
+    case moment(String)
     case greet(Int), uhoh(UhohKind), completed, periodic, profileLine(String), workContextChanged
     var key: String {
         switch self {
+        case .moment(let kind): kind
         case .workContextChanged: "work_context_changed"
         case .completed: "completed"
         case .periodic: "periodic"
@@ -185,7 +187,7 @@ actor Voice {
         let text: String
         switch request.occasion {
         case .profileLine(let candidate): text = candidate
-        case .greet, .uhoh, .completed, .periodic, .workContextChanged: text = ""
+        case .moment, .greet, .uhoh, .completed, .periodic, .workContextChanged: text = ""
         }
         let safe = VoiceFilter.check(text, language: request.language, byteCap: request.byteCap) ?? ""
         return VoiceLine(text: excluded.contains(safe) ? "" : safe, source: .authored)

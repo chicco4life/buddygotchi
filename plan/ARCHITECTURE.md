@@ -33,11 +33,12 @@ after 290 seconds. Managed repair preserves unrelated hooks.
 Deterministic readers turn bounded session context into lifecycle, runner,
 outcome and topic events. Raw transcripts/tool arguments are not model
 context or durable memory. Explicit errors drive Uh-oh; repeated commands and
-silence do not imply failure. Duration drives effort and completion size: under one minute has no cheer,
-one minute hop, three minutes cheer, five minutes dance. Short completions still
-earn XP and record outcomes. Working effort is light before three minutes.
+silence do not imply failure. Working effort is light before three minutes, hard
+until five, then grinding. Completion presentation uses guide policy: <3 seconds
+face, 3–<20 seconds caption, >=20 seconds full. All started completions still
+earn XP and record outcomes; historical effort accounting is unchanged.
 
-The core chooses priority, three-second completion folding, fixed 60/120-second
+The core chooses priority, bounded moment coalescing/cooldown, fixed 60/120-second
 nudges and XP award events. It never waits for model output. Approval decisions
 do not award XP, bond or new memory facts. `BuddyReducer.swift` owns mutations;
 `BuddyProjection.swift` derives display priority, ordered Mac rows, device rows,
@@ -68,10 +69,11 @@ decision rereads it; invalid, empty or over-32-KiB overrides use the bundle.
 
 Apple Foundation Models runs locally when available, using fresh sessions and
 a five-second deadline. There is no cloud fallback. The engine offers dialogue
-opportunities at greetings, errors and idle after celebration. There are no
-periodic check-ins. Results are text or silence;
+opportunities on starts, completions, bounded long-work milestones, person
+returns and explicit errors. Results remain text or silence;
 stale results are cancelled/discarded. Every display opportunity may be silent;
-unavailable, timed-out or invalid generation produces no stock greeting/error. No daily inference quota exists.
+optional immediate fallbacks are supplied by the same guide, never firmware
+phrase lists. Error remarks have no stock fallback. No daily inference quota exists.
 
 Display decisions share `BehaviorContext`: the whole desk, optional event,
 previous scope and five recent remarks. `WorkContext` groups canonical local
@@ -79,8 +81,9 @@ project identities and bounds JSON to 6 KiB; `BehaviorTasks` serializes display
 calls with a two-second scope debounce and priority for existing remarks.
 First/latest hook intent (768 bytes each) is memory-only, an explicit exception
 to the old no-prompt model boundary. No extra model or transcript reader exists.
-The reducer projects a persistent `workScope` via `workScopeChanged`; outputs
-only render it. Scope is capped at 120 bytes without truncation and discarded on
+The reducer projects persistent `workScope` for Mac only via `workScopeChanged`.
+Scope is capped at
+120 bytes without truncation and discarded on
 scope/runtime changes. Display requests use English independently of UI language;
 UI language changes preserve scope and pending display replies. It never enters SQLite. Legacy private reflection
 remains independent; richer evidence-backed result/callback stages are pending.
@@ -91,7 +94,9 @@ remains independent; richer evidence-backed result/callback stages are pending.
 Personality is defined in BEHAVIOR.md. The existing profile/reflection storage
 remains, but the new shared display context does not yet supply the learned profile or episodic memories. Legacy numeric traits and counters stay stored
 but inactive: no model input, daily drift, usual-hour sampling or project/session
-familiarity updates. XP and greeting history remain independent and unchanged.
+familiarity updates. XP remains independent. A backward-compatible optional `lastInteractionAt`
+persists actual turn-start/boop interaction for returns, separate from background
+`lastSeenAt` accounting.
 
 After twenty inactive minutes on AC power, daily reflection considers the
 previous day. The guide/model sees at most 100 reduced facts and twenty profile
@@ -119,7 +124,7 @@ describes the transport. BLE bonding and acknowledged OTA remain independent
 of the removed leaderboard signing feature.
 
 Device priority: display off → system card → request → error bubble →
-stats → thread table → completion notice → bubble → overlay → face. Local firmware owns passive dismissal, wake-press
+stats → thread table → legacy completion notice → bubble → moment → overlay → face. Local firmware owns passive dismissal, wake-press
 consumption, hold gestures, shutdown, posture, dimming and offline snapshot
 stats. The host owns reminder timing; approvals remain entirely in the editor. Repeated frames
 do not replay a nudge. Quiet mode suppresses sound but preserves visual rungs.
@@ -181,15 +186,29 @@ bounded to 47 bytes. The preview contains up to 12 sessions in stable ID order
 and 6 recent completions; encoding may shed rows while retaining total counts.
 There is no persistent Last finished footer; history remains in detail pages.
 
-## Persistent work scope
+## Shared turn-moment projection
 
-Additive wire `scope` carries up to 120 UTF-8 bytes on calm frames. Unlike
-ordinary bubbles, it persists on the calm face. Firmware places it above the
-face, clear of the working-count footer. Detail pages and completion
-notices cover it.
-Omission clears it; offline, sleep and higher-priority layers hide it. When a
-frame exceeds the 1536-byte host budget, shed scope whole before existing
-snapshot/cosmetic/bubble shedding. No partial multi-project summary is sent.
+`BuddyBehaviorGuide.policy()` reads one validated `boop-policy` JSON fence from
+the existing Markdown, using bundled defaults when missing/invalid. The engine
+supplies that value to pure Core; `updateTurnMoments` detects starts/completions,
+consumes bounded stale-tick milestones, merges returns, coalesces and expires.
+Terminal failure closes the active duration while retaining its original start
+separately for error ordering; a retry cannot inherit failed work duration.
+`TurnMoment` carries ID, kind, tier, expression, text, count, deadline and bounded
+event facts. `momentText` validates asynchronous results against ID/count/deadline.
+
+Existing `BehaviorTasks`/`Voice` handles all text in its one display lane; no new
+occasion service or model worker. Event context adds elapsed/absence milliseconds,
+local hour/time-of-day, title, count and explicit neutral outcome evidence.
+Presentation expressions are a small enum selected by Markdown policy; the model
+still returns text or SILENT. Animation primitives are firmware code.
+
+The additive v2 `moment` field sends identity, tier, expression, text, count and
+age/left. Firmware enforces local expiry, no replay and actual glyph fit. Scope
+is omitted by the host; old `scope` remains parsed for compatibility but invisible.
+The newline-inclusive 1536-byte frame cap and shedding order remain unchanged;
+snapshot/cosmetics/history preview can be shed while moment identity is retained.
+See [Turn moments](UX-TURN-MOMENTS.md), [Wire](WIRE-V2.md) and [Device UX](UX-DEVICE.md).
 
 ## Firmware update coordination
 

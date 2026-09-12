@@ -1,0 +1,30 @@
+{
+  "commit": "0c7f1d0e9b1a028694e0d9cfe4da951ef009e31c",
+  "dirty": true,
+  "command": [
+    "/tmp/hilvenv/bin/python",
+    "/tmp/boop-visibility-20260912/capture.py"
+  ],
+  "started": 1789182089.881176,
+  "setup": 0,
+  "usbOnly": {
+    "usbOnly": true,
+    "contract": 2,
+    "board": "ws-amoled164",
+    "fw": "dev-visible-20260912",
+    "git": "0c7f1d0e9b1a",
+    "up": 1448,
+    "heap": 299656,
+    "heapMin": 299624,
+    "heapBig": 258036,
+    "reset": "unknown",
+    "panics": 103,
+    "early": 0,
+    "safe": 0,
+    "frameUs": 21227,
+    "frameMaxUs": 22176
+  },
+  "scenario": 0,
+  "restore": 0,
+  "finished": 1789182380.382166
+}

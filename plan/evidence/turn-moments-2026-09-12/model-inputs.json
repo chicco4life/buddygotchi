@@ -1,0 +1,242 @@
+[
+  {
+    "name": "start-10-0",
+    "context": {
+      "language": "en",
+      "max_utf8_bytes": 24,
+      "desk": {
+        "coverage": "complete",
+        "projects": [
+          {
+            "id": "p1",
+            "name": "Boop",
+            "tasks": [
+              {
+                "id": "t1",
+                "state": "working",
+                "intent": "Improve settings spacing",
+                "latest_request": "Keep the text readable"
+              }
+            ]
+          }
+        ]
+      },
+      "recent_remarks": [],
+      "occasion": "start",
+      "event": {
+        "kind": "start",
+        "elapsed_ms": "0",
+        "absence_ms": "0",
+        "local_hour": "10",
+        "time_of_day": "morning",
+        "completed_count": "1",
+        "title": "Settings spacing",
+        "outcome": "unknown",
+        "max_characters": "24",
+        "max_lines": "1",
+        "expression": "nod",
+        "is_return": "false"
+      }
+    }
+  },
+  {
+    "name": "completed-10-6000",
+    "context": {
+      "language": "en",
+      "max_utf8_bytes": 48,
+      "desk": {
+        "coverage": "complete",
+        "projects": [
+          {
+            "id": "p1",
+            "name": "Boop",
+            "tasks": [
+              {
+                "id": "t1",
+                "state": "working",
+                "intent": "Improve settings spacing",
+                "latest_request": "Keep the text readable"
+              }
+            ]
+          }
+        ]
+      },
+      "recent_remarks": [],
+      "occasion": "completed",
+      "event": {
+        "kind": "completed",
+        "elapsed_ms": "6000",
+        "absence_ms": "0",
+        "local_hour": "10",
+        "time_of_day": "morning",
+        "completed_count": "1",
+        "title": "Settings spacing",
+        "outcome": "turn_ended_not_proof_of_success",
+        "max_characters": "48",
+        "max_lines": "2",
+        "expression": "pleased",
+        "is_return": "false"
+      }
+    }
+  },
+  {
+    "name": "completed-10-90000",
+    "context": {
+      "language": "en",
+      "max_utf8_bytes": 48,
+      "desk": {
+        "coverage": "complete",
+        "projects": [
+          {
+            "id": "p1",
+            "name": "Boop",
+            "tasks": [
+              {
+                "id": "t1",
+                "state": "working",
+                "intent": "Improve settings spacing",
+                "latest_request": "Keep the text readable"
+              }
+            ]
+          }
+        ]
+      },
+      "recent_remarks": [],
+      "occasion": "completed",
+      "event": {
+        "kind": "completed",
+        "elapsed_ms": "90000",
+        "absence_ms": "0",
+        "local_hour": "10",
+        "time_of_day": "morning",
+        "completed_count": "1",
+        "title": "Settings spacing",
+        "outcome": "turn_ended_not_proof_of_success",
+        "max_characters": "48",
+        "max_lines": "2",
+        "expression": "pleased",
+        "is_return": "false"
+      }
+    }
+  },
+  {
+    "name": "longRunning-15-300000",
+    "context": {
+      "language": "en",
+      "max_utf8_bytes": 24,
+      "desk": {
+        "coverage": "complete",
+        "projects": [
+          {
+            "id": "p1",
+            "name": "Boop",
+            "tasks": [
+              {
+                "id": "t1",
+                "state": "working",
+                "intent": "Improve settings spacing",
+                "latest_request": "Keep the text readable"
+              }
+            ]
+          }
+        ]
+      },
+      "recent_remarks": [],
+      "occasion": "longRunning",
+      "event": {
+        "kind": "longRunning",
+        "elapsed_ms": "300000",
+        "absence_ms": "0",
+        "local_hour": "15",
+        "time_of_day": "day",
+        "completed_count": "1",
+        "title": "Settings spacing",
+        "outcome": "unknown",
+        "max_characters": "24",
+        "max_lines": "1",
+        "expression": "nod",
+        "is_return": "false"
+      }
+    }
+  },
+  {
+    "name": "returned-8-0",
+    "context": {
+      "language": "en",
+      "max_utf8_bytes": 24,
+      "desk": {
+        "coverage": "complete",
+        "projects": [
+          {
+            "id": "p1",
+            "name": "Boop",
+            "tasks": [
+              {
+                "id": "t1",
+                "state": "working",
+                "intent": "Improve settings spacing",
+                "latest_request": "Keep the text readable"
+              }
+            ]
+          }
+        ]
+      },
+      "recent_remarks": [],
+      "occasion": "returned",
+      "event": {
+        "kind": "returned",
+        "elapsed_ms": "0",
+        "absence_ms": "72000000",
+        "local_hour": "8",
+        "time_of_day": "morning",
+        "completed_count": "1",
+        "title": "Settings spacing",
+        "outcome": "unknown",
+        "max_characters": "24",
+        "max_lines": "1",
+        "expression": "nod",
+        "is_return": "true"
+      }
+    }
+  },
+  {
+    "name": "start-1-0",
+    "context": {
+      "language": "en",
+      "max_utf8_bytes": 24,
+      "desk": {
+        "coverage": "complete",
+        "projects": [
+          {
+            "id": "p1",
+            "name": "Boop",
+            "tasks": [
+              {
+                "id": "t1",
+                "state": "working",
+                "intent": "Improve settings spacing",
+                "latest_request": "Keep the text readable"
+              }
+            ]
+          }
+        ]
+      },
+      "recent_remarks": [],
+      "occasion": "start",
+      "event": {
+        "kind": "start",
+        "elapsed_ms": "0",
+        "absence_ms": "72000000",
+        "local_hour": "1",
+        "time_of_day": "late",
+        "completed_count": "1",
+        "title": "Settings spacing",
+        "outcome": "unknown",
+        "max_characters": "24",
+        "max_lines": "1",
+        "expression": "nod",
+        "is_return": "true"
+      }
+    }
+  }
+]

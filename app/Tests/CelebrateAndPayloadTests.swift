@@ -20,7 +20,7 @@ final class CelebrateOnceTests: XCTestCase {
                                       signal: .startWorking, tool: "Read", hint: "/tmp/a"))
         XCTAssertEqual(s.buddy.pet.state, .celebrate)
 
-        s = reduce(s, .sessionEnded(at: 62_000, sessionId: "s2"))
+        s = reduce(s, .sessionEnded(at: 65_000, sessionId: "s2"))
         XCTAssertNotEqual(s.buddy.pet.state, .celebrate,
                           "the same completion celebrated twice")
     }

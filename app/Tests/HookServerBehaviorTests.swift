@@ -36,7 +36,7 @@ final class HookServerBehaviorTests: XCTestCase {
                 ("PreToolUse", "toolCalled", .working),
                 ("PostToolUseFailure", "toolResulted", .working),
                 ("PostToolUse", "toolResulted", .working),
-                ("Stop", "turnEnded", .idle),
+                ("Stop", "turnEnded", .done),
                 ("StopFailure", "turnEnded", .uhoh),
             ]
             for (hook, event, expected) in cases {

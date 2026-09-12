@@ -164,7 +164,8 @@ final class EngineIntegrationTests: XCTestCase {
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .startWorking)
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .stopWorking)
 
-        XCTAssertEqual(recorder.last?.pet.state, .idle)
+        XCTAssertEqual(recorder.last?.moment?.tier, .face)
+        XCTAssertEqual(recorder.last?.activeSessions.first?.state, .idle)
     }
 
     @MainActor
@@ -209,7 +210,7 @@ final class EngineIntegrationTests: XCTestCase {
         engine.activitySignal(sessionId: "s1", source: "claude-code", signal: .celebrate)
 
         XCTAssertEqual(recorder.last?.pet.state, .celebrate)
-        XCTAssertNotNil(recorder.last?.celebrateUntil)
+        XCTAssertNotNil(recorder.last?.moment)
     }
 
     // MARK: C. Session Counts
@@ -726,7 +727,7 @@ extension EngineIntegrationTests {
         engine.turnStarted(sessionId: "new", source: "codex")
         clock.advance(by: 60_000)
         engine.turnEnded(sessionId: "new", source: "codex", outcome: .completed)
-        XCTAssertEqual(recorder.last?.creature.cheer, .hop)
+        XCTAssertEqual(recorder.last?.moment?.tier, .full)
     }
 
     @MainActor

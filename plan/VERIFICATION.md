@@ -134,7 +134,7 @@ coverage, worktree identity, same-name isolation, missing intent, fair input bou
 idle expiry, lifecycle clearing, no regeneration on unchanged tool activity,
 strict output caps, stale replies and wire priority. Enable offscreen snapshots
 to inspect `work-scope-{en,ko}-{light,dark}.png`. Build both Mac products and both
-shipping/USB-only Waveshare firmware. USB verification must test scope persistence,
+shipping/USB-only Waveshare firmware. USB verification must test host-text retention and four-second device expiry,
 omission, atomic overflow rejection, working counts, task-page/completion priority
 and UTF-8 layouts; restore the previous normal image after the reserved run. Re-record
 and independently reproduce goldens. Live Foundation Models semantics and native
@@ -229,3 +229,37 @@ normal BLE firmware, verified transfer/reboot/version, secure reconnect and over
 100 seconds of stable uptime. Hide/reopen preserved progress. See the
 [OTA result](evidence/readiness-2026-09-11/ota-result.json). This closes the local
 integration gate, not public hosting or the unexplained-panic investigation.
+
+## Turn moments
+
+Run `python3 app/tools/test.py`: exact 2999/3000/19999/20000 ms boundaries,
+duplicate/failed turns, coalescing, fast completion, late and invalid model
+replies, guide-policy reload/fallback, bounded milestones, return+start merging,
+wire size and actual font-width/ASCII boundaries. Engine tests exercise the one
+shared worker and 24/48-byte prompt budgets without a second idle remark.
+Build Boop/BoopSignal and both normal/USB-debug firmware variants.
+
+On reserved USB-debug hardware run `test_turn_moments.py`, `test_work_scope.py`
+and `test_agent_dashboard.py`. Verify all tiers/deadlines, same-ID no replay,
+new IDs with identical words, request/details/sleep interruption, atomic malformed
+frames and fixed busy/idle hint during fade. Scope remains parsed but invisible.
+Inspect arrival, settled, departure and expired frames; for full tier also inspect
+hands tracking the caption and releasing, with two-line/wide text. Reproduce
+affected/new goldens independently before accepting baselines. Restore and verify
+the saved normal firmware. Never publish USB-debug images.
+
+A bounded local Foundation Models replay covers each moment with synthetic
+English context, strict prompt budgets and the shipped guide. It checks latency
+and fit, not broad semantic reliability. Production BLE with this host/firmware
+pair, real native-editor triggers and owner-guide wording remain separate live
+gates; USB screenshots do not close them. Webcam review requires opt-in.
+
+## Working and sleep visibility
+
+The working face sweats at light/hard/grinding effort from the first signal.
+Repeat affected working screenshots, including start/return/long-work captions;
+check that completed moments still clear sweat. In the USB dim-ladder scenario,
+resting sleep is 72/255, tapping produces a 1.4-second peek at 210 with normal
+ink, then returns to 72 while the host remains asleep. Face-down nap stays 28;
+requests stay 255 and awake/inactivity levels remain 210/90. Screenshot pixels
+verify ink/pose; USB brightness telemetry verifies the panel brightness command.

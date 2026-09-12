@@ -13,6 +13,12 @@ struct BuddyBehaviorGuide: Sendable {
         return "Be a quiet desk companion. Use supplied facts only. Return SILENT."
     }
 
+    func policy() -> MomentPolicy {
+        let bundled = BuddyResources.moduleResourceURL(forResource: "BEHAVIOR", withExtension: "md", subdirectory: "").flatMap(Self.read) ?? ""
+        let defaults = MomentPolicy.parse(bundled, fallback: MomentPolicy())
+        return MomentPolicy.parse(read(), fallback: defaults)
+    }
+
     private static func read(_ url: URL) -> String? {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
         defer { try? handle.close() }

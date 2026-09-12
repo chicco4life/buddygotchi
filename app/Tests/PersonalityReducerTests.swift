@@ -43,34 +43,28 @@ final class PersonalityReducerTests: XCTestCase {
     }
 
     func testReturnAfterAbsenceGreets() {
-        var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
-        s = applyEvents(s, .sessionEnded(at: NOW + 1, sessionId: "s1"))
+        var s = InternalState.test(); s.memory.lastInteractionAt = NOW
         let back = NOW + 20 * hourMs
-        s = applyEvents(s, .sessionStarted(at: back, sessionId: "s2", source: "claude-code", cwd: nil))
-        XCTAssertEqual(s.buddy.greetLevel, 1)
-        XCTAssertEqual(s.buddy.greetUntil, back + PetTuning.greetShortMs)
-        // The greeting shows as affection over the calm base state.
-        XCTAssertEqual(s.buddy.pet.state, .heart)
+        s = applyEvents(s, .turnStarted(at: back, sessionId: "s2", source: "claude-code"))
+        XCTAssertEqual(s.buddy.moment?.kind, .start)
+        XCTAssertEqual(s.buddy.moment?.absenceMs, 20 * hourMs)
+        XCTAssertNil(s.buddy.greetUntil) // one combined moment, no second greeting
     }
 
     func testWeekAwayEarnsTheBigGreeting() {
-        var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
-        s = applyEvents(s, .sessionEnded(at: NOW + 1, sessionId: "s1"))
+        var s = InternalState.test(); s.memory.lastInteractionAt = NOW
         let back = NOW + 9 * dayMs
-        s = applyEvents(s, .sessionStarted(at: back, sessionId: "s2", source: "claude-code", cwd: nil))
-        XCTAssertEqual(s.buddy.greetLevel, 2)
-        XCTAssertEqual(s.buddy.greetUntil, back + PetTuning.greetBigMs)
+        s = applyEvents(s, .turnStarted(at: back, sessionId: "s2", source: "claude-code"))
+        XCTAssertEqual(s.buddy.moment?.absenceMs, 9 * dayMs) // warmth is guide-owned
     }
 
     func testGreetExpiresViaStaleTick() {
-        var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
-        s = applyEvents(s, .sessionEnded(at: NOW + 1, sessionId: "s1"))
+        var s = InternalState.test(); s.memory.lastInteractionAt = NOW
         let back = NOW + 20 * hourMs
-        s = applyEvents(s, .sessionStarted(at: back, sessionId: "s2", source: "claude-code", cwd: nil))
-        s = applyEvents(s, .staleTick(at: back + PetTuning.greetShortMs + 100))
-        XCTAssertNil(s.buddy.greetUntil)
-        XCTAssertNil(s.buddy.greetLevel)
-        XCTAssertEqual(s.buddy.pet.state, .idle)
+        s = applyEvents(s, .turnStarted(at: back, sessionId: "s2", source: "claude-code"))
+        s = applyEvents(s, .staleTick(at: back + 1500))
+        XCTAssertNil(s.buddy.moment)
+        XCTAssertEqual(s.buddy.pet.state, .busy)
     }
 
     func testGreetNeverOutranksAttention() {
@@ -134,7 +128,7 @@ final class PersonalityReducerTests: XCTestCase {
         XCTAssertEqual(s.buddy.effortTier, .light)
     }
 
-    func testOneMinuteTaskGetsModestCelebration() {
+    func testOneMinuteTaskGetsFullCelebration() {
         var s = applyEvents(.test(), .sessionStarted(at: NOW, sessionId: "s1", source: "claude-code", cwd: nil))
         s = applyEvents(
             s,
@@ -142,7 +136,7 @@ final class PersonalityReducerTests: XCTestCase {
             .activitySignal(at: NOW + 60_001, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: "Bash", hint: "x")
         )
         XCTAssertEqual(s.buddy.pet.state, .celebrate)
-        XCTAssertEqual(s.buddy.celebrateIntensity, 1)
+        XCTAssertEqual(s.buddy.celebrateIntensity, 3)
     }
 
     func testSubMinuteErrorsDoNotManufactureCelebration() {
@@ -167,7 +161,7 @@ final class PersonalityReducerTests: XCTestCase {
             s,
             .activitySignal(at: NOW + 1, sessionId: "s1", source: "claude-code", signal: .startWorking, tool: "Bash", hint: "x"),
             .activitySignal(at: NOW + 60_002, sessionId: "s1", source: "claude-code", signal: .celebrate, tool: "Bash", hint: "x"),
-            .staleTick(at: NOW + 60_002 + 4_001)
+            .staleTick(at: NOW + 60_002 + 5_001)
         )
         XCTAssertNil(s.buddy.celebrateIntensity)
     }
@@ -192,6 +186,7 @@ final class PersonalityReducerTests: XCTestCase {
     func testMemoryLoadedSeedsWithoutCountingAsPresence() {
         var memory = PetMemory.empty
         memory.lastSeenAt = NOW - 30 * dayMs
+        memory.lastInteractionAt = NOW - 30 * dayMs
         memory.lifetimeSessions = 42
         let s = applyEvents(.test(), .memoryLoaded(at: NOW, memory: memory))
         XCTAssertEqual(s.memory.lifetimeSessions, 42)
@@ -200,7 +195,7 @@ final class PersonalityReducerTests: XCTestCase {
         XCTAssertEqual(s.memory.lastSeenAt, NOW - 30 * dayMs)
 
         // ...so the FIRST real arrival after launch gets the month-away hug.
-        let s2 = applyEvents(s, .sessionStarted(at: NOW + 1, sessionId: "s1", source: "claude-code", cwd: nil))
-        XCTAssertEqual(s2.buddy.greetLevel, 2)
+        let s2 = applyEvents(s, .turnStarted(at: NOW + 1, sessionId: "s1", source: "claude-code"))
+        XCTAssertEqual(s2.buddy.moment?.absenceMs, 30 * dayMs + 1)
     }
 }

@@ -59,7 +59,12 @@ struct AgentCount { char source[12] = ""; int working = 0, idle = 0; };
 struct ThreadRow { uint8_t source=0, status=0; char title[48]=""; };
 struct FinishRow { uint32_t sequence=0; uint8_t source=0; char title[48]=""; };
 struct FinishNotice { uint32_t id=0; int count=0, age=0, left=0; char cheer[6]=""; };
+struct DisplayMoment {
+  uint32_t id=0; int age=0,left=0,count=1;
+  char kind[12]="", tier[8]="", expression[8]="", text[64]="";
+};
 struct TamaState {
+  DisplayMoment moment;
   ThreadRow threads[12]; uint8_t threadCount=0; int threadTotal=0;
   FinishRow recent[6]; uint8_t recentCount=0;
   FinishNotice notice;
@@ -177,6 +182,24 @@ inline bool validate(JsonDocument& d, const TamaState& old, TamaState& s) {
       !readText(d["bubble"], s.bubble)) return false;
   if (alert >= dots) return false;
   s.greetLevel = greet; s.dots = dots; s.dotAlert = alert; s.mute = volume; s.nudgeRung = nudge;
+  if (!d["moment"].isNull()) {
+    JsonVariantConst m=d["moment"];
+    if(!m.is<JsonObjectConst>() || !m["id"].is<uint32_t>() || !m["id"].as<uint32_t>() ||
+       !readText(m["kind"],s.moment.kind) || !readText(m["tier"],s.moment.tier) ||
+       !readText(m["expression"],s.moment.expression) || !readText(m["text"],s.moment.text) ||
+       !m["age"].is<int>() || !m["left"].is<int>() || !m["count"].is<int>() ||
+       !readInt(m["age"],s.moment.age,0,8000) || !readInt(m["left"],s.moment.left,0,8000) ||
+       !readInt(m["count"],s.moment.count,1,1000000) || s.moment.age+s.moment.left>8000) return false;
+    auto member=[](const char* value,const char* list) { char key[24]; snprintf(key,sizeof(key),"|%s|",value); return value[0] && strstr(list,key); };
+    if(!member(s.moment.kind,"|start|completed|longRunning|returned|") ||
+       !member(s.moment.tier,"|face|caption|full|") ||
+       !member(s.moment.expression,"|nod|pleased|weary|wave|pull|")) return false;
+    // The host and guide promise bounded English; reject unsupported payloads.
+    size_t chars=strlen(s.moment.text);
+    if(chars>(strcmp(s.moment.kind,"completed")?24u:48u)) return false;
+    for(const unsigned char* c=(const unsigned char*)s.moment.text;*c;++c) if(*c<32 || *c>126) return false;
+    s.moment.id=m["id"].as<uint32_t>();
+  }
   // Optional and ephemeral: old hosts and omission clear the dashboard.
   if (!d["agents"].isNull()) {
     if (!d["agents"].is<JsonArray>() || d["agents"].size()>4) return false;

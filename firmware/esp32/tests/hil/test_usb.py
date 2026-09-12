@@ -259,7 +259,11 @@ def test_dim_ladder_never_off(stick):
     pending(stick)
     wait_state(stick, screenOff=False, brightness=255)
     frame(stick, state="asleep")
-    wait_state(stick, screenOff=False, brightness=28)
+    wait_state(stick, screenOff=False, brightness=72)
+    press(stick)
+    wait_state(stick, creature="asleep", screenOff=False, brightness=210)
+    clock(stick, base+241700)
+    wait_state(stick, creature="asleep", screenOff=False, brightness=72)
 
 
 def test_shutdown_stages_and_wake_press_guard(stick):

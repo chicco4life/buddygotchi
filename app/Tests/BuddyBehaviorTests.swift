@@ -95,7 +95,7 @@ extension BuddyBehaviorTests {
 }
 
 extension BuddyBehaviorTests {
-    @MainActor func testModelAcknowledgementWaitsForCelebration() async throws {
+    @MainActor func testModelAcknowledgementArrivesDuringCompletion() async throws {
         let runtime = BehaviorRuntime("All done."), clock = MockClock()
         let (defaults, cleanup) = makeDefaults(); defer { cleanup() }
         let engine = BuddyEngine(clock: clock, voiceRuntime: runtime, defaults: defaults)
@@ -104,14 +104,15 @@ extension BuddyBehaviorTests {
         engine.turnEnded(sessionId: "s", source: "codex", outcome: .completed)
         await engine.finishPendingWork()
         let before = await runtime.prompts
-        XCTAssertFalse(before.compactMap { try? context($0)["occasion"] as? String }.contains("completed"))
-        XCTAssertEqual(engine.state.creature.cheer, .hop)
+        XCTAssertTrue(before.compactMap { try? context($0)["occasion"] as? String }.contains("completed"))
+        XCTAssertEqual(engine.state.moment?.tier, .full)
         XCTAssertNil(engine.state.creature.bubble)
-        clock.time = try XCTUnwrap(engine.state.celebrateUntil)
+        clock.time = try XCTUnwrap(engine.state.moment?.until)
         engine.triggerStaleTick()
         await engine.finishPendingWork()
         XCTAssertEqual(engine.state.creature.state, .idle)
-        XCTAssertEqual(engine.state.creature.bubble, "All done.")
+        XCTAssertNil(engine.state.creature.bubble)
+        XCTAssertNil(engine.state.moment)
         let after = await runtime.prompts
         XCTAssertEqual(after.compactMap { try? context($0)["occasion"] as? String }.filter { $0 == "completed" }.count, 1)
     }
@@ -129,7 +130,7 @@ extension BuddyBehaviorTests {
         await engine.finishPendingWork()
         let xp = engine.state.growth.xp
         XCTAssertGreaterThan(xp, 0)
-        clock.time = try XCTUnwrap(engine.state.celebrateUntil)
+        clock.time = try XCTUnwrap(engine.state.moment?.until)
         engine.triggerStaleTick()
         await engine.finishPendingWork()
         let prompts = await runtime.prompts

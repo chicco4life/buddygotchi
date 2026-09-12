@@ -1,0 +1,29 @@
+{
+  "commit": "0c7f1d0e9b1a028694e0d9cfe4da951ef009e31c",
+  "dirty": true,
+  "command": [
+    "/tmp/boop-phrase-artifacts/final.sh"
+  ],
+  "started": 1789173562.04129,
+  "setup": 0,
+  "usbOnly": {
+    "usbOnly": true,
+    "contract": 2,
+    "board": "ws-amoled164",
+    "fw": "dev-phrase-20260912",
+    "git": "0c7f1d0e9b1a",
+    "up": 1445,
+    "heap": 300536,
+    "heapMin": 300504,
+    "heapBig": 258036,
+    "reset": "unknown",
+    "panics": 0,
+    "early": 1,
+    "safe": 0,
+    "frameUs": 21235,
+    "frameMaxUs": 22153
+  },
+  "scenario": 0,
+  "restore": 0,
+  "finished": 1789173623.0129778
+}

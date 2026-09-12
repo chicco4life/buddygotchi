@@ -1,0 +1,210 @@
+Processing ws-amoled164 (platform: https://github.com/pioarduino/platform-espressif32/releases/download/55.03.39/platform-espressif32.zip; board: esp32-s3-devkitc-1; framework: arduino)
+--------------------------------------------------------------------------------
+WARN Retry attempt #0. Sleeping 1.580897324s before the next attempt
+WARN Retry attempt #1. Sleeping 2.578004517s before the next attempt
+WARN Retry attempt #2. Sleeping 6.747852825s before the next attempt
+  × Failed to build `esptool @
+  │ file:///Users/michaeljxzhu/.codex/worktrees/2441/buddygotchi/firmware/esp32/.platformio-core/packages-pioarduino/tool-esptoolpy`
+  ├─▶ Failed to resolve requirements from `build-system.requires`
+  ├─▶ No solution found when resolving: `setuptools>=64`
+  ├─▶ Request failed after 3 retries in 10.9s
+  ├─▶ Failed to fetch: `https://pypi.org/simple/setuptools/`
+  ├─▶ error sending request for url (https://pypi.org/simple/setuptools/)
+  ├─▶ client error (Connect)
+  ├─▶ dns error
+  ╰─▶ failed to lookup address information: nodename nor servname provided, or
+      not known
+WARN Retry attempt #0. Sleeping 1.802686958s before the next attempt
+WARN Retry attempt #1. Sleeping 2.554114363s before the next attempt
+WARN Retry attempt #2. Sleeping 2.182552092s before the next attempt
+  × Failed to build `esptool @
+  │ file:///Users/michaeljxzhu/.codex/worktrees/2441/buddygotchi/firmware/esp32/.platformio-core/packages-pioarduino/tool-esptoolpy`
+  ├─▶ Failed to resolve requirements from `build-system.requires`
+  ├─▶ No solution found when resolving: `setuptools>=64`
+  ├─▶ Request failed after 3 retries in 6.6s
+  ├─▶ Failed to fetch: `https://pypi.org/simple/setuptools/`
+  ├─▶ error sending request for url (https://pypi.org/simple/setuptools/)
+  ├─▶ client error (Connect)
+  ├─▶ dns error
+  ╰─▶ failed to lookup address information: nodename nor servname provided, or
+      not known
+Warning: No internet connection detected, Python dependency check will be skipped.
+Warning: Failed to install esptool from /Users/michaeljxzhu/.codex/worktrees/2441/buddygotchi/firmware/esp32/.platformio-core/packages-pioarduino/tool-esptoolpy (exit 1)
+Warning: No internet connection detected, Python dependency check will be skipped.
+Warning: Failed to install esptool from /Users/michaeljxzhu/.codex/worktrees/2441/buddygotchi/firmware/esp32/.platformio-core/packages-pioarduino/tool-esptoolpy (exit 1)
+Verbose mode can be enabled via `-v, --verbose` option
+Warning: No internet connection detected, Python dependency check will be skipped.
+WARN Retry attempt #0. Sleeping 1.370424605s before the next attempt
+WARN Retry attempt #1. Sleeping 2.051843182s before the next attempt
+WARN Retry attempt #2. Sleeping 5.77389988s before the next attempt
+  × Failed to build `esptool @
+  │ file:///Users/michaeljxzhu/.codex/worktrees/2441/buddygotchi/firmware/esp32/.platformio-core/packages-pioarduino/tool-esptoolpy`
+  ├─▶ Failed to resolve requirements from `build-system.requires`
+  ├─▶ No solution found when resolving: `setuptools>=64`
+  ├─▶ Request failed after 3 retries in 9.2s
+  ├─▶ Failed to fetch: `https://pypi.org/simple/setuptools/`
+  ├─▶ error sending request for url (https://pypi.org/simple/setuptools/)
+  ├─▶ client error (Connect)
+  ├─▶ dns error
+  ╰─▶ failed to lookup address information: nodename nor servname provided, or
+      not known
+Warning: Failed to install esptool from /Users/michaeljxzhu/.codex/worktrees/2441/buddygotchi/firmware/esp32/.platformio-core/packages-pioarduino/tool-esptoolpy (exit 1)
+Boop firmware version: dev-moments-20260912 (0c7f1d0e9b1a)
+CONFIGURATION: https://docs.platformio.org/page/boards/espressif32/esp32-s3-devkitc-1.html
+PLATFORM: Espressif 32 (55.3.39) > Espressif ESP32-S3-DevKitC-1-N8 (8 MB QD, No PSRAM)
+HARDWARE: ESP32S3 240MHz, 320KB RAM, 8MB Flash
+DEBUG: Current (esp-builtin) On-board (esp-builtin) External (cmsis-dap, esp-bridge, esp-prog, esp-prog-2, iot-bus-jtag, jlink, minimodule, olimex-arm-usb-ocd, olimex-arm-usb-ocd-h, olimex-arm-usb-tiny-h, olimex-jtag-tiny, tumpa)
+PACKAGES: 
+ - contrib-piohome @ 3.4.4 
+ - framework-arduinoespressif32 @ 3.3.9 
+ - framework-arduinoespressif32-libs @ 5.5.4+sha.735507283d 
+ - tool-esptoolpy @ 5.3.0 
+ - tool-xtensa-esp-elf-gdb @ 17.1.0+20260402 
+ - toolchain-xtensa-esp-elf @ 14.2.0+20260121
+LDF: Library Dependency Finder -> https://bit.ly/configure-pio-ldf
+LDF Modes: Finder ~ chain, Compatibility ~ soft
+Found 47 compatible libraries
+Scanning dependencies...
+Dependency Graph
+|-- GFX Library for Arduino @ 1.6.7
+|-- LovyanGFX @ 1.2.28
+|-- AnimatedGIF @ 2.2.3
+|-- ArduinoJson @ 7.4.3
+|-- BLE @ 3.3.9
+|-- Wire @ 3.3.9
+|-- Preferences @ 3.3.9
+Building in release mode
+Compiling .pio/build/ws-amoled164/src/main.cpp.o
+Linking .pio/build/ws-amoled164/firmware.elf
+Memory Type Usage Summary
+┏━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┓
+┃ Memory Type/Section ┃ Used [bytes] ┃ Used [%] ┃ Remain [bytes] ┃ Total [bytes] ┃
+┡━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━┩
+│ Flash Code          │       568620 │          │                │               │
+│    .text            │       568620 │          │                │               │
+│ Flash Data          │       555656 │          │                │               │
+│    .rodata          │       555400 │          │                │               │
+│    .appdesc         │          256 │          │                │               │
+│ DIRAM               │       131775 │    38.56 │         209985 │        341760 │
+│    .text            │        82899 │    24.26 │                │               │
+│    .bss             │        26936 │     7.88 │                │               │
+│    .data            │        21940 │     6.42 │                │               │
+│ IRAM                │        16384 │    100.0 │              0 │         16384 │
+│    .text            │        15356 │    93.73 │                │               │
+│    .vectors         │         1028 │     6.27 │                │               │
+│ RTC FAST            │           84 │     1.03 │           8108 │          8192 │
+│    .text            │           84 │     1.03 │                │               │
+│ RTC SLOW            │            8 │      0.1 │           7672 │          7680 │
+│    .rtc_noinit      │            8 │      0.1 │                │               │
+└─────────────────────┴──────────────┴──────────┴────────────────┴───────────────┘
+Total image size: 1245583 bytes (.bin may be padded larger)
+Note: The reported total sizes may be smaller than those in the technical reference manual due to reserved memory and application configuration. The total flash size available for the application is not included by default, as it cannot be reliably determined due to the presence of other data like the bootloader, partition table, and application partition size.
+Retrieving maximum program size .pio/build/ws-amoled164/firmware.elf
+Checking size .pio/build/ws-amoled164/firmware.elf
+Advanced Memory Usage is available via "PlatformIO Home > Project Inspect"
+RAM:   [=         ]  14.9% (used 48876 bytes from 327680 bytes)
+Flash: [==        ]  19.8% (used 1245243 bytes from 6291456 bytes)
+Building .pio/build/ws-amoled164/firmware.bin with action:
+  $ERASETOOL --chip esp32s3 elf2image --flash-mode ${__get_board_flash_mode(__env__)} --flash-freq ${__get_board_f_image(__env__)} --flash-size 16MB --elf-sha256-offset 0xb0 -o "$TARGET" "$SOURCES"
+Building .pio/build/ws-amoled164/firmware.bin
+esptool v5.3.0
+Creating ESP32-S3 image...
+Merged 3 ELF sections.
+Successfully created ESP32-S3 image.
+Creating binary "firmware.factory.bin" with:
+    Offset   | File
+ -  0x0000   | bootloader.bin
+ -  0x8000   | partitions.bin
+ -  0xe000   | boot_app0.bin
+ -  0x10000  | firmware.bin
+Successfully created combined binary image.
+========================= [SUCCESS] Took 35.29 seconds =========================
+
+Processing ws-amoled164-usb-debug (platform: https://github.com/pioarduino/platform-espressif32/releases/download/55.03.39/platform-espressif32.zip; board: esp32-s3-devkitc-1; framework: arduino)
+--------------------------------------------------------------------------------
+WARN Retry attempt #0. Sleeping 1.834115396s before the next attempt
+WARN Retry attempt #1. Sleeping 1.863352984s before the next attempt
+WARN Retry attempt #2. Sleeping 7.507532565s before the next attempt
+  × Failed to build `esptool @
+  │ file:///Users/michaeljxzhu/.codex/worktrees/2441/buddygotchi/firmware/esp32/.platformio-core/packages-pioarduino/tool-esptoolpy`
+  ├─▶ Failed to resolve requirements from `build-system.requires`
+  ├─▶ No solution found when resolving: `setuptools>=64`
+  ├─▶ Request failed after 3 retries in 11.2s
+  ├─▶ Failed to fetch: `https://pypi.org/simple/setuptools/`
+  ├─▶ error sending request for url (https://pypi.org/simple/setuptools/)
+  ├─▶ client error (Connect)
+  ├─▶ dns error
+  ╰─▶ failed to lookup address information: nodename nor servname provided, or
+      not known
+WARN Retry attempt #0. Sleeping 1.83447847s before the next attempt
+WARN Retry attempt #1. Sleeping 3.289024124s before the next attempt
+WARN Retry attempt #2. Sleeping 6.557606069s before the next attempt
+  × Failed to build `esptool @
+  │ file:///Users/michaeljxzhu/.codex/worktrees/2441/buddygotchi/firmware/esp32/.platformio-core/packages-pioarduino/tool-esptoolpy`
+  ├─▶ Failed to resolve requirements from `build-system.requires`
+  ├─▶ No solution found when resolving: `setuptools>=64`
+  ├─▶ Request failed after 3 retries in 11.7s
+  ├─▶ Failed to fetch: `https://pypi.org/simple/setuptools/`
+  ├─▶ error sending request for url (https://pypi.org/simple/setuptools/)
+  ├─▶ client error (Connect)
+  ├─▶ dns error
+  ╰─▶ failed to lookup address information: nodename nor servname provided, or
+      not known
+Warning: No internet connection detected, Python dependency check will be skipped.
+Warning: Failed to install esptool from /Users/michaeljxzhu/.codex/worktrees/2441/buddygotchi/firmware/esp32/.platformio-core/packages-pioarduino/tool-esptoolpy (exit 1)
+Warning: No internet connection detected, Python dependency check will be skipped.
+Warning: Failed to install esptool from /Users/michaeljxzhu/.codex/worktrees/2441/buddygotchi/firmware/esp32/.platformio-core/packages-pioarduino/tool-esptoolpy (exit 1)
+Verbose mode can be enabled via `-v, --verbose` option
+Warning: No internet connection detected, Python dependency check will be skipped.
+WARN Retry attempt #0. Sleeping 1.266844026s before the next attempt
+WARN Retry attempt #1. Sleeping 3.500845008s before the next attempt
+WARN Retry attempt #2. Sleeping 6.632899924s before the next attempt
+  × Failed to build `esptool @
+  │ file:///Users/michaeljxzhu/.codex/worktrees/2441/buddygotchi/firmware/esp32/.platformio-core/packages-pioarduino/tool-esptoolpy`
+  ├─▶ Failed to resolve requirements from `build-system.requires`
+  ├─▶ No solution found when resolving: `setuptools>=64`
+  ├─▶ Request failed after 3 retries in 11.4s
+  ├─▶ Failed to fetch: `https://pypi.org/simple/setuptools/`
+  ├─▶ error sending request for url (https://pypi.org/simple/setuptools/)
+  ├─▶ client error (Connect)
+  ├─▶ dns error
+  ╰─▶ failed to lookup address information: nodename nor servname provided, or
+      not known
+Warning: Failed to install esptool from /Users/michaeljxzhu/.codex/worktrees/2441/buddygotchi/firmware/esp32/.platformio-core/packages-pioarduino/tool-esptoolpy (exit 1)
+Boop firmware version: dev-moments-20260912 (0c7f1d0e9b1a)
+CONFIGURATION: https://docs.platformio.org/page/boards/espressif32/esp32-s3-devkitc-1.html
+PLATFORM: Espressif 32 (55.3.39) > Espressif ESP32-S3-DevKitC-1-N8 (8 MB QD, No PSRAM)
+HARDWARE: ESP32S3 240MHz, 320KB RAM, 8MB Flash
+DEBUG: Current (esp-builtin) On-board (esp-builtin) External (cmsis-dap, esp-bridge, esp-prog, esp-prog-2, iot-bus-jtag, jlink, minimodule, olimex-arm-usb-ocd, olimex-arm-usb-ocd-h, olimex-arm-usb-tiny-h, olimex-jtag-tiny, tumpa)
+PACKAGES: 
+ - contrib-piohome @ 3.4.4 
+ - framework-arduinoespressif32 @ 3.3.9 
+ - framework-arduinoespressif32-libs @ 5.5.4+sha.735507283d 
+ - tool-esptoolpy @ 5.3.0 
+ - tool-xtensa-esp-elf-gdb @ 17.1.0+20260402 
+ - toolchain-xtensa-esp-elf @ 14.2.0+20260121
+LDF: Library Dependency Finder -> https://bit.ly/configure-pio-ldf
+LDF Modes: Finder ~ chain, Compatibility ~ soft
+Found 47 compatible libraries
+Scanning dependencies...
+Dependency Graph
+|-- GFX Library for Arduino @ 1.6.7
+|-- LovyanGFX @ 1.2.28
+|-- AnimatedGIF @ 2.2.3
+|-- ArduinoJson @ 7.4.3
+|-- BLE @ 3.3.9
+|-- Wire @ 3.3.9
+|-- Preferences @ 3.3.9
+Building in release mode
+Retrieving maximum program size .pio/build/ws-amoled164-usb-debug/firmware.elf
+Checking size .pio/build/ws-amoled164-usb-debug/firmware.elf
+Advanced Memory Usage is available via "PlatformIO Home > Project Inspect"
+RAM:   [=         ]  13.0% (used 42612 bytes from 327680 bytes)
+Flash: [==        ]  15.7% (used 986391 bytes from 6291456 bytes)
+========================= [SUCCESS] Took 38.50 seconds =========================
+
+Environment             Status    Duration
+----------------------  --------  ------------
+ws-amoled164            SUCCESS   00:00:35.289
+ws-amoled164-usb-debug  SUCCESS   00:00:38.496
+========================= 2 succeeded in 00:01:13.785 =========================

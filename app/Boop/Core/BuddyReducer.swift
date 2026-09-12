@@ -24,6 +24,11 @@ struct InternalState: Sendable, Equatable {
     var bubbleUntil: Double?
     /// Size of the cheer currently playing; `celebrateUntil` is its timer.
     var doneSize: CheerSize?
+    var momentPolicy = MomentPolicy()
+    var momentSequence = 0
+    var momentCooldownUntil: Double = 0
+    var longMilestones: [String: Int] = [:]
+    var longMomentAfter: Double = 0
     var finishSequence = 0
     var noticeCooldownUntil: Double = 0
 
@@ -53,6 +58,7 @@ func reduce(_ state: InternalState, _ event: BuddyEvent, localHour: Int = 0) -> 
         appendFact(&next, .greet, id: next.pendingAwards[0].sessionId, at: event.at)
     }
     updateCreatureTimers(&next, event: event)
+    updateTurnMoments(&next, previous: state, event: event)
     if let notice = next.buddy.completionNotice, event.at >= notice.until {
         next.noticeCooldownUntil = max(next.noticeCooldownUntil, notice.until + 3000)
         next.buddy.completionNotice = nil
@@ -77,6 +83,7 @@ func reduce(_ state: InternalState, _ event: BuddyEvent, localHour: Int = 0) -> 
 
 private func reduceInner(_ state: InternalState, _ event: BuddyEvent) -> InternalState {
     switch event {
+    case .momentText: return state
     case .workScopeChanged(_, let text):
         var s = state; s.buddy.workScope = text; return s
     case .sessionTitleChanged(_, let id, let title):
@@ -253,6 +260,7 @@ private func stampTool(_ s: inout InternalState, sessionId: String, tool: String
 /// The one "session is alive and working again" rule: clears uh-oh, resets
 /// the repeat counter, and (unless an approval blocks it) returns to working.
 private func markAlive(_ s: inout InternalState, sessionId: String, at: Double) {
+    s.sessions[sessionId]?.failedWorkStartedAt = nil
     s.sessions[sessionId]?.uhoh = nil
     s.sessions[sessionId]?.lastWorkSignalAt = at
     if s.sessions[sessionId]?.workStartedAt == nil { s.sessions[sessionId]?.workStartedAt = at }
@@ -317,8 +325,13 @@ private func handleTurnEnded(_ state: InternalState, at: Double, sessionId: Stri
     let session = s.sessions[sessionId]!
     switch outcome {
     case .failed:
+        // Keep error ordering, but close duration so a retry starts fresh.
+        if let start = session.workStartedAt { s.sessions[sessionId]?.failedWorkStartedAt = start }
+        s.sessions[sessionId]?.workStartedAt = nil
+        s.sessions[sessionId]?.lastWorkSignalAt = nil
         enterUhoh(&s, sessionId: sessionId, kind: .error, at: at)
     case .completed:
+        s.sessions[sessionId]?.failedWorkStartedAt = nil
         s.sessions[sessionId]?.uhoh = nil
         guard !hasBlockingApproval(session) else { return s }
         s.sessions[sessionId]?.state = .idle
@@ -336,24 +349,10 @@ private func handleTurnEnded(_ state: InternalState, at: Double, sessionId: Stri
         s.buddy.recentFinishes.insert(DeviceFinish(sequence: s.finishSequence, source: session.source,
             title: deviceSessionTitle(id: sessionId, session: session)), at: 0)
         s.buddy.recentFinishes = Array(s.buddy.recentFinishes.prefix(6))
-        if var notice = s.buddy.completionNotice {
-            notice.count += 1
-            notice.until = min(notice.startedAt + 8000, max(notice.until, at + 2000))
-            s.buddy.completionNotice = notice
-        } else if at >= s.noticeCooldownUntil {
-            s.buddy.completionNotice = CompletionNotice(id: s.finishSequence, count: 1,
-                startedAt: at, until: at + 5000, cheer: s.cheerThresholds.size(span: duration) ?? .hop)
-        }
         appendFact(&s, .turnCompleted(elapsedMs: duration), id: sessionId, at: at)
         if let size = s.cheerThresholds.size(span: duration) {
             s.pendingAwards[s.pendingAwards.count - 1].cheer = size
-            // A smaller nearby completion cannot truncate or restart the larger cheer.
-            let folded = s.buddy.lastCompletionAt.map { at - $0 <= s.cheerThresholds.foldMs } ?? false
-            s.sessions[sessionId]?.lastDone = DoneRecord(size: size, until: at + s.cheerThresholds.duration(size))
-            if !folded || size.intensity > (s.doneSize?.intensity ?? 0) {
-                s.doneSize = size
-                s.buddy.celebrateUntil = at + s.cheerThresholds.duration(size)
-            }
+            s.sessions[sessionId]?.lastDone = DoneRecord(size: size, until: at + s.momentPolicy.duration(s.momentPolicy.tier(duration)))
             s.memory.lifetimeCelebrations += 1
         }
         s.buddy.lastTaskDurationMs = duration
@@ -476,18 +475,8 @@ private func handleBoopArrived(_ state: InternalState, at: Double) -> InternalSt
 
 // MARK: - Personality Handlers
 
-/// Every user-adjacent event passes through here: it stamps `lastSeenAt`,
-/// triggers the return-greeting when a real absence just ended, and samples
-/// the circadian histogram (at most one sample per ~30 min so activity volume
-/// doesn't skew the shape). Absence is a ratchet — a gap earns warmth on
-/// return, never a penalty.
+/// Background activity accounting is separate from person-return tracking.
 private func observePresence(_ s: inout InternalState, at: Double) {
-    if let last = s.memory.lastSeenAt, at - last >= PetTuning.greetGapMs {
-        let big = at - last >= PetTuning.greetBigGapMs
-        s.buddy.greetUntil = at + (big ? PetTuning.greetBigMs : PetTuning.greetShortMs)
-        s.buddy.greetLevel = big ? 2 : 1
-    }
-
     s.memory.lastSeenAt = at
 }
 

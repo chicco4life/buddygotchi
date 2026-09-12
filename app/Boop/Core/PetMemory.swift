@@ -83,6 +83,7 @@ struct AgentDrawing: Sendable, Equatable, Codable {
 /// when it changes. All time arithmetic uses event timestamps (epoch ms) so
 /// the reducer stays clock-free.
 struct PetMemory: Sendable, Equatable, Codable {
+    var lastInteractionAt: Double?
     var lastSeenAt: Double?
     /// Activity histogram over UTC hour-of-day. UTC on purpose: the absolute
     /// hour never matters, only consistency — "the user's usual hours" is the
@@ -114,6 +115,7 @@ struct PetMemory: Sendable, Equatable, Codable {
     /// as if-present with its default instead.
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
+        lastInteractionAt = try c.decodeIfPresent(Double.self, forKey: .lastInteractionAt)
         projects = try c.decodeIfPresent([String: Double].self, forKey: .projects) ?? [:]
         completedTurns = try c.decodeIfPresent(Int.self, forKey: .completedTurns) ?? c.decodeIfPresent(Int.self, forKey: .lifetimeCelebrations) ?? 0
         lastSeenAt = try c.decodeIfPresent(Double.self, forKey: .lastSeenAt)

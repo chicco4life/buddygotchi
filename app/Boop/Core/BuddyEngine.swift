@@ -54,6 +54,7 @@ final class BuddyEngine {
         self.clock = clock ?? WallClock()
         self.diagnosticLog = diagnosticLog ?? DiagnosticLog()
         self.internalState = .initial(staleMs: config.staleTimeoutMs, celebrateDurationMs: config.celebrateDurationMs, approvalTimeoutMs: config.approvalTimeoutMs)
+        self.internalState.momentPolicy = BuddyBehaviorGuide(overrideURL: URL(fileURLWithPath: config.stateDir).appendingPathComponent("BEHAVIOR.md")).policy()
         let language = defaults.string(forKey: DefaultsKey.language) == "ko" ? "ko" : "en"
         self.internalState.buddy.language = language
         self.internalState.buddy.creature.focus = !(defaults.object(forKey: DefaultsKey.soundsEnabled) as? Bool ?? true)
@@ -104,6 +105,7 @@ final class BuddyEngine {
     /// Tick only while session or transient presentation timers need it.
     private func needsStaleTicks() -> Bool {
         !internalState.sessions.isEmpty
+            || state.moment != nil
             || state.celebrateUntil != nil
             || state.affectionUntil != nil
             || state.greetUntil != nil
@@ -453,7 +455,9 @@ final class BuddyEngine {
         guard !retiring else { return }
         if loadingStore && !persistenceResult { deferredEvents.append(event); return }
         let prev = state
-        var next = reduce(internalState, event, localHour: dayCalendar.localHour(at: event.at))
+        var input = internalState
+        input.momentPolicy = BuddyBehaviorGuide(overrideURL: URL(fileURLWithPath: stateDir).appendingPathComponent("BEHAVIOR.md")).policy()
+        var next = reduce(input, event, localHour: dayCalendar.localHour(at: event.at))
         let awards = next.pendingAwards, facts = next.pendingFacts
         next.pendingAwards = []; next.pendingFacts = []
         if !persistenceResult { persist(awards: awards, facts: facts) }
@@ -631,7 +635,6 @@ final class BuddyEngine {
         workContext = next
         workRevision += 1
         transientVoice.cancel(.scope)
-        transientVoice.cancel(.bubble)
         if let scope = state.workScope { previousScope = scope }
         apply(.workScopeChanged(at: now, text: nil))
         guard !next.projects.isEmpty else { previousScope = nil; return }
@@ -648,19 +651,40 @@ final class BuddyEngine {
     }
     private func scheduleVoice(previous: BuddyState, event: BuddyEvent) {
         guard !voiceStopped else { return }
-        switch event { case .workScopeChanged, .onboardingCheer, .voiceLine, .growthUpdated, .languageChanged: return; default: break }
-        // Invalidate transient text on a new interaction; an old model reply must not cover a card.
-        if previous.creature.state != state.creature.state || previous.creature.card?.id != state.creature.card?.id {
+        switch event { case .workScopeChanged, .momentText, .onboardingCheer, .voiceLine, .growthUpdated, .languageChanged: return; default: break }
+        if state.creature.uhoh != previous.creature.uhoh { transientVoice.cancel(.bubble) }
+        if state.moment?.id != previous.moment?.id || state.moment?.count != previous.moment?.count {
             transientVoice.cancel(.bubble)
+            if let moment = state.moment, moment.wantsText { requestMoment(moment) }
         }
-        guard state.creature.card == nil, state.prompt == nil else { return }
+        guard state.creature.card == nil, state.prompt == nil else { transientVoice.cancel(.bubble); return }
         if let kind = state.creature.uhoh, kind != previous.creature.uhoh {
             requestVoice(.uhoh(kind), kind: .bubble)
-        } else if previous.creature.state == .done, state.creature.state == .idle, state.lastCompletionAt != nil {
-            requestVoice(.completed, kind: .bubble)
-        } else if state.greetUntil != previous.greetUntil, state.greetUntil != nil, state.creature.card == nil {
-            requestVoice(.greet(state.greetLevel ?? 1), kind: .bubble)
         }
+    }
+    private func requestMoment(_ moment: TurnMoment) {
+        let hour = dayCalendar.localHour(at: clock.now())
+        let context = BehaviorContext(desk: workContext.bounded(), event: [
+            "kind": moment.kind.rawValue, "elapsed_ms": String(Int(moment.elapsedMs)),
+            "absence_ms": String(Int(moment.absenceMs)), "is_return": moment.absenceMs > 0 ? "true" : "false", "local_hour": String(hour),
+            "time_of_day": TimeOfDay(hour: hour).rawValue, "completed_count": String(moment.count),
+            "title": moment.title, "outcome": moment.kind == .completed ? "turn_ended_not_proof_of_success" : "unknown",
+            "max_characters": String(moment.characterLimit), "max_lines": String(moment.lines),
+            "expression": moment.expression.rawValue
+        ], previous_scope: previousScope, recent_remarks: Array(recentRemarks.suffix(5)))
+        transientVoice.replace(.bubble, produce: { [weak self] in
+            guard let self, self.state.moment?.id == moment.id, self.clock.now() < moment.until else { return nil }
+            let line = await self.voice.line(for: VoiceRequest(occasion: .moment(moment.kind.rawValue), context: context, language: "en", byteCap: moment.characterLimit))
+            // Missing/invalid generation keeps the already validated guide fallback.
+            // Explicit model SILENT is a successful result and clears the words.
+            return line.source == .model ? line.text : nil
+        }, deliver: { [weak self] text in
+            guard let self, !self.voiceStopped, let current = self.state.moment,
+                  current.id == moment.id, current.count == moment.count, self.clock.now() < current.until else { return }
+            let safe = momentText(text, characters: current.characterLimit, lines: current.lines, glyphWidth: current.tier == .full ? 16 : 12) ?? ""
+            if !safe.isEmpty { self.recentRemarks = Array((self.recentRemarks + [safe]).suffix(5)) }
+            self.apply(.momentText(at: self.clock.now(), id: current.id, count: current.count, text: safe))
+        })
     }
     private func cancelVoiceGeneration() {
         transientVoice.cancelAll()

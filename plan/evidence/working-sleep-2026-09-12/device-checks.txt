@@ -1,0 +1,9 @@
+............                                                             [100%]
+12 passed, 49 deselected in 36.42s
+.................                                                        [100%]
+17 passed in 42.89s
+Traceback (most recent call last):
+  File "/tmp/boop-visibility-20260912/capture.py", line 28, in <module>
+    assert observations['sleep-after']['brightness']==72
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

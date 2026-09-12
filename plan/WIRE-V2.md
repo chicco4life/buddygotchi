@@ -21,7 +21,7 @@ boundary (`prefix(utf8Bytes:)`). Field names and enum raw values are exact.
 | `dotAlert` | int | index into dots, or absent |
 | `card` | object | `{"id":≤23B,"tool":≤23B,"gloss":≤63B,"stakes":"fine"\|"checkIt"\|"careful","n":int,"of":int,"approval":bool}` for needs-you; `{"kind":"pair"\|"update","text":≤63B}` for system cards |
 | `bubble` | string | ≤ 63 bytes |
-| `scope` | string | ≤120 UTF-8 bytes, persistent while connected; omission clears; overflow omitted whole |
+| `scope` | string | ≤120 UTF-8 bytes; compatibility input only, device does not display it; current host omits |
 | `gift` | bool | retired: host always sends false for older firmware |
 | `giftLine` | — | retired: omitted by host, ignored by receiver |
 | `focus` | bool | Legacy name for sound-only Quiet mode; no visual effect or sound exceptions. |
@@ -143,3 +143,37 @@ These fields stay inside the existing 1536-byte newline-inclusive frame cap:
 use the shedding order above, retaining at least the newest completion and
 exposing threadTotal. Reconnect retains recent history for detail pages without
 replaying a notice. There is no persistent Last finished footer.
+
+## Additive turn moments
+
+Current hosts emit `moment` instead of legacy `notice`; old notice frames remain
+supported. Example:
+
+```json
+{"id": 42, "kind": "completed", "tier": "caption", "expression": "pleased", "text": "Layout turn finished.", "count": 1, "age": 600, "left": 3400}
+```
+
+| Field | Validation |
+| --- | --- |
+| `id` | Nonzero unsigned 32-bit event identity |
+| `kind` | `start`, `completed`, `longRunning`, `returned` |
+| `tier` | `face`, `caption`, `full` |
+| `expression` | `nod`, `pleased`, `weary`, `wave`, `pull` |
+| `text` | Printable ASCII only; <=48 characters for completed, <=24 otherwise; storage cap 63 UTF-8 bytes |
+| `count` | Integer 1–1,000,000; coalesced completion count |
+| `age`, `left` | Nonnegative integer milliseconds; each <=8000 and sum <=8000 |
+
+Wrong types/ranges/enums reject the entire frame. Host and device additionally
+validate 408 px of actual word-wrapped text width, one line for non-completion,
+two for completion; overflowing text is silent, without rejecting other valid
+moment state. Text uses 24 px font, or 32 px for full tier. Tiny face-only
+completions carry empty text and do not request a model response.
+
+Same ID updates text/count without restarting motion. A larger count can extend
+within the original 8-second cap; a keepalive cannot extend the local deadline.
+Omission, higher-priority UI, sleep/offline or expiry consume it; resending that
+ID cannot replay it. A new ID can repeat the same text. First connected frame
+establishes a baseline and does not replay its moment. State/history still update.
+All fields remain inside v2's 1536-byte newline-inclusive budget; current host
+omits `scope`, retains `moment` while shedding existing optional snapshots/rows.
+`scope` remains accepted for compatibility but has no device presentation.

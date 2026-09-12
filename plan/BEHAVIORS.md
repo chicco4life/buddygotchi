@@ -1,6 +1,6 @@
 # How Boop behaves
 
-Current source reference, reviewed 2026-09-11. Start here for the rules shared by
+Current source reference, reviewed 2026-09-12. Start here for the rules shared by
 both screens. [Mac app](UX-APP.md) and [ESP32 device](UX-DEVICE.md) cover their
 controls and presentation. [Implementation status](PLAN.md) separates what is
 implemented from what has passed live verification.
@@ -27,8 +27,8 @@ sessions. Device connectivity is separate from agent activity.
 | --- | --- | --- |
 | **Needs you** | A reported passive request is pending; oldest first | Mac request details; device wide eyes and amber request footer |
 | **Uh-oh** | An explicit error remains | Mac error details; device slumped face and red field |
-| **Done** | A qualifying celebration timer is running | Mac completion status; device uses its separate completion notice below |
-| **Working** | At least one session is working or thinking | Mac live session status; device reading gaze, with effort cues |
+| **Done** | A qualifying celebration timer is running | One completion moment projected to Mac status and device presentation |
+| **Working** | At least one session is working or thinking | Mac live session status; device reading gaze with sweat immediately, plus effort cues |
 | **Idle** | Sessions remain, with no higher-priority state | Relaxed face, blinking and occasional small idle motions |
 | **Asleep** | No sessions remain | Mac Sleeping status; device closed eyes and slow breathing |
 
@@ -42,36 +42,25 @@ buddy gets a one-eye peek; attention and errors take precedence over affection.
 
 ## 3. Effort and celebrations
 
-A turn's duration runs from its first work signal through completion, including
-waits. A new work period starts a new duration.
+Turn duration runs from first work signal through completion, including waits.
+Working effort remains light before 3 minutes, hard until 5 minutes, then grinding.
+XP and historical effort accounting are unchanged; presentation uses the guide's
+validated policy in [Turn moments](UX-TURN-MOMENTS.md).
 
-| Turn duration | Working effort | Mac core celebration | Timer |
-| --- | --- | --- | --- |
-| Under 1 minute | Light | None | — |
-| 1 to under 3 minutes | Light | Hop | 1.5 seconds |
-| 3 to under 5 minutes | Hard | Cheer | 2.5 seconds |
-| 5 minutes or more | Grinding | Dance | 4 seconds |
+| Completed turn duration | Presentation | Default duration |
+| --- | --- | --- |
+| Under 3 seconds | Pleased face, no text or wash | 1.2 seconds |
+| 3 seconds to under 20 seconds | Smaller raised face, caption below, teal/sage wash | 4 seconds including fades |
+| 20 seconds or more | Full celebration; two hands pull the larger caption into place | 5 seconds including fades |
 
-Nearby celebrations fold within 3 seconds: a larger one replaces the current
-one; an equal or smaller one does not restart it. Attention and errors can hide
-a celebration while its timer runs out. Hidden celebrations are not queued for replay.
-
-**The device has a separate completion notice.** Any completed started turn,
-including one under a minute, can show a cheerful face, agent, thread title and
-sage wash for 5 seconds. Other working sessions resume the working face afterward.
-
-| Multiple completions or interruptions | Device response |
-| --- | --- |
-| Another completion during the notice | Update the latest two titles and total count; do not restart the motion or wash |
-| Late arrival | Allow at least 2 seconds where possible, within an 8-second total cap |
-| Completion during the following 3-second cooldown | Update history only |
-| Attention, error or system card arrives | Cancel the notice; do not replay it afterward |
-| Thread details are open | Update the rows/history without interrupting reading |
-| Reconnect | Restore current state and history without replaying old completions |
-
-Duplicate endings, session removal, stale cleanup and failures do not celebrate.
-A completed turn means the agent finished its turn; it is not proof that tests
-passed or the user's whole task succeeded.
+Exactly 3 seconds uses the middle tier; exactly 20 seconds uses the full tier.
+One completion moment drives both outputs. Nearby completions coalesce with a
+count and latest two titles as model context. The highest tier wins, without
+restarting motion; later arrivals can extend the deadline within 8 seconds of
+its original start. After expiry, a 3-second cooldown updates history only.
+Requests/errors and deliberate details/system screens consume the presentation;
+it is never queued for replay. Duplicate endings, session removal, stale cleanup
+and failures do not celebrate. Completion means a turn ended, not proven success.
 
 ## 4. XP, turns and streaks
 
@@ -95,17 +84,24 @@ Every trigger offers a chance to speak, **not a requirement**. Thin evidence,
 uncertain meaning, repetition or a moment already served by the animation should
 produce silence. A simple greeting can still be worthwhile.
 
-| Trigger in the current app | What may appear | Timing |
+| Trigger | Response | Default timing |
 | --- | --- | --- |
-| Eligible projects, sessions, status or first/latest request changes | A phrase describing the whole desk | Wait for 2 seconds of settled context; persist until context changes |
-| Activity returns after at least 18 hours away | A greeting; warmer animation after 7 days away | Immediate opportunity |
-| A new explicit error kind appears | A grounded error remark | Immediate opportunity |
-| A celebration ends **and the shared state returns to idle** | A brief completion remark | Immediate opportunity; not every turn end |
+| First work signal for a distinct turn | Short task-aware acknowledgement; small nod | 1.5 seconds, once per turn |
+| Started turn completes | Proportional completion moment | Three duration tiers; no second post-celebration remark |
+| Active turn crosses 5 or 15 minutes | Optional patient/exasperated remark and weary face | 4 seconds; desk-wide 2-minute cooldown |
+| Person interacts after 18 hours away | Optional time-aware greeting and wave | 4 seconds, or merged into the same start's 1.5-second budget |
+| New explicit error | Grounded error remark through existing Voice lane | Up to 4 seconds |
+| Settled work-context change | Whole-desk summary on Mac only | 2-second debounce; retained until context changes |
 
-Unchanged tool activity does not call the model. There are no timed check-ins.
-A context change clears obsolete scope immediately; an empty desk requires no call.
-One display call runs at a time, with temporary remarks ahead of pending scope.
-Superseded replies are discarded; requests/cards can cancel pending remarks.
+Long-work opportunities are consumed even when attention wins, never queued.
+Waiting is not a reason to pressure the person. Only a turn-start interaction or
+a boop updates the persisted person-interaction timestamp; background activity
+and reconnect do not manufacture a return. Local hour/time-of-day are supplied
+as facts, without guessing sleep or habits.
+
+One display call runs at a time, with moments ahead of pending Mac scope.
+Unchanged tool activity does not call the model. Superseded replies are discarded;
+requests/cards can cancel pending remarks.
 
 Both kinds of text use projects, bounded first/latest user intent, lifecycle,
 previous scope and five recent displayed remarks. Working/thinking/waiting
@@ -113,11 +109,12 @@ sessions participate, plus idle/error sessions active within 15 minutes, unless
 removed earlier. Worktrees share project identity. Unknown intent stays unknown.
 
 Apple Foundation Models runs locally when available, with a 5-second deadline
-and no cloud fallback. Scope appears on both screens; temporary remarks appear on the device. Scope is
-limited to 120 UTF-8 bytes; temporary remarks to
-63 bytes and 4 seconds. Both are optional and English-only, independently of the
-app's English/Korean interface. Invalid, unavailable or timed-out output leaves
-Boop silent. Attention takes priority; text never wakes the device.
+and no cloud fallback. Scope appears on Mac only, capped at 120 UTF-8 bytes. Device moment text is
+printable ASCII: at most 24 characters/one line for start, return and long work;
+48 characters/two lines for completion, also checked against actual font width.
+Explicit-error bubbles retain their 63-byte/four-second limit. Both are optional and English-only, independently of the
+app's English/Korean interface. Invalid or late replies cannot revive a moment. Immediate optional fallbacks
+come from the same guide; without one the animation can remain wordless. Attention takes priority; text never wakes the device.
 
 The editable guide is in Settings → Edit buddy behavior…. Changes apply on the
 next decision; existing owner edits are preserved. See [Voice](UX-VOICE.md) for
@@ -169,7 +166,7 @@ Details: [Help](UX-HELP.md).
 | Mac menu bar | Static icon; filled when an agent needs you; click to open |
 | Mac Overview | Status, optional scope, requests/errors, all sessions, device status, XP and activity grid |
 | Mac Settings | Name, UI language, Quiet mode, pairing/firmware, agent hook setup/repair, login, profile/guide, support and app updates |
-| Device at rest | Face, optional scope above it, working count below; no persistent Last finished row |
+| Device at rest | Face, brief larger phrase below it, busy/idle hint at bottom right; no persistent Last finished row |
 | Device face tap | Threads/history when work or recent completions exist; otherwise affection |
 | Device detail pages | Three rows per page; Next advances, other taps return to the face |
 | Device travel stats | Last synced name, XP, streak, days together and turn totals |

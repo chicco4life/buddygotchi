@@ -40,7 +40,7 @@ transient fields clear; omitted `state` renders asleep. Omitted `snap` and
 | attention card | id/tool ≤23 B, gloss ≤63 B, stakes fine/checkIt/careful, approval boolean |
 | system card | kind pair/update, text ≤63 B |
 | `bubble` | ≤63 B, four seconds; unchanged heartbeats do not restart it |
-| `scope` | ≤120 B; persistent calm-view work summary; omission clears, never stored in NVS; wrong type/overflow rejects the frame |
+| `scope` | ≤120 B; compatibility input only, no device display; current host omits; wrong type/overflow rejects the frame |
 | `gift` / `giftLine` | retired, ignored; diagnostics report gift=false |
 | `focus` / `mute` | boolean / integer 0–3 |
 | `posture` | desk/perch/travel; omission restores IMU detection |
@@ -110,7 +110,8 @@ additional host-to-device RenderState fields.
   their diagnostic roles. `hang` deliberately exercises watchdog recovery.
 
 Brightness is 210 awake, 90 after 120 seconds without input/relevant state change,
-28 asleep or face-down, and 255 with a visible card. Repeated unchanged frames do
+72 asleep, 28 face-down, and 255 with a visible card. A sleeping tap response
+uses 210 and normal face ink for 1.4 seconds before returning to 72. Repeated unchanged frames do
 not reset inactivity. There is no orb glow. Automatic dimming never turns the
 display off; secondary hold toggles Quiet at 1 second, says “night night” at
 3 seconds and turns it off on release or at 3.6 seconds. A wake tap is consumed.
@@ -242,3 +243,37 @@ The debug image adds `poseTilt`, `armL`, `armR`, `armAngleL`, `armAngleR` and
 `cardProgress`, plus the renderer’s `cardDeparting` visibility flag, to the USB `state` reply for interruption/settling regression
 checks. These are presentation samples, absent from the shipping image and
 not additions to the host-to-device RenderState contract.
+
+## Additive turn moments
+
+Current hosts emit `moment` instead of legacy `notice`; old notice frames remain
+supported. Example:
+
+```json
+{"id": 42, "kind": "completed", "tier": "caption", "expression": "pleased", "text": "Layout turn finished.", "count": 1, "age": 600, "left": 3400}
+```
+
+| Field | Validation |
+| --- | --- |
+| `id` | Nonzero unsigned 32-bit event identity |
+| `kind` | `start`, `completed`, `longRunning`, `returned` |
+| `tier` | `face`, `caption`, `full` |
+| `expression` | `nod`, `pleased`, `weary`, `wave`, `pull` |
+| `text` | Printable ASCII only; <=48 characters for completed, <=24 otherwise; storage cap 63 UTF-8 bytes |
+| `count` | Integer 1–1,000,000; coalesced completion count |
+| `age`, `left` | Nonnegative integer milliseconds; each <=8000 and sum <=8000 |
+
+Wrong types/ranges/enums reject the entire frame. Host and device additionally
+validate 408 px of actual word-wrapped text width, one line for non-completion,
+two for completion; overflowing text is silent, without rejecting other valid
+moment state. Text uses 24 px font, or 32 px for full tier. Tiny face-only
+completions carry empty text and do not request a model response.
+
+Same ID updates text/count without restarting motion. A larger count can extend
+within the original 8-second cap; a keepalive cannot extend the local deadline.
+Omission, higher-priority UI, sleep/offline or expiry consume it; resending that
+ID cannot replay it. A new ID can repeat the same text. First connected frame
+establishes a baseline and does not replay its moment. State/history still update.
+All fields remain inside v2's 1536-byte newline-inclusive budget; current host
+omits `scope`, retains `moment` while shedding existing optional snapshots/rows.
+`scope` remains accepted for compatibility but has no device presentation.

@@ -50,38 +50,35 @@ final class CreatureReducerTests: XCTestCase {
         s = reduce(s, .requestCleared(at: 103, sessionId: "a"))
         XCTAssertEqual(s.buddy.creature.state, .uhoh)
         s = reduce(s, .errorDismissed(at: 104, sessionId: "b"))
-        XCTAssertEqual(s.buddy.creature.state, .done)
+        XCTAssertEqual(s.buddy.creature.state, .working) // interrupted completion never replays
         s = reduce(s, .staleTick(at: 1600))
         XCTAssertEqual(s.buddy.creature.state, .working)
     }
 
     func testCelebrationsFollowDurationIncludingAfterErrors() {
-        for (span, expected): (Double, CheerSize) in [(60_000, .hop), (179_999, .hop), (180_000, .cheer), (299_999, .cheer), (300_000, .dance)] {
+        for (span, expected): (Double, MomentTier) in [(2999, .face), (3000, .caption), (19999, .caption), (20000, .full)] {
             var s = start(fresh())
             for i in 1...5 { s = reduce(s, .toolResulted(at: Double(i), sessionId: "a", source: "codex", tool: "Bash", ok: false, durationMs: nil)) }
             s = finish(s, span)
-            XCTAssertEqual(s.buddy.creature.cheer, expected)
-            XCTAssertEqual(s.buddy.celebrateUntil, span + s.cheerThresholds.duration(expected))
+            XCTAssertEqual(s.buddy.moment?.tier, expected)
+            XCTAssertEqual(s.buddy.moment?.until, span + s.momentPolicy.duration(expected))
         }
     }
 
     func testFoldKeepsLargerTimerAndUpgradesSmaller() {
         var s = start(start(fresh()), 0, "b")
-        s.sessions["a"]?.workStartedAt = -1_500_000
-        s = finish(s, 100)
-        s = finish(s, 500, "b")
-        XCTAssertEqual(s.buddy.creature.cheer, .dance)
-        XCTAssertEqual(s.buddy.celebrateUntil, 4100)
-        s = start(s, 600, "b")
-        s.sessions["b"]?.workStartedAt = -60_000
-        s = finish(s, 3501, "b")
-        XCTAssertEqual(s.buddy.creature.cheer, .hop)
-        XCTAssertEqual(s.buddy.celebrateUntil, 5001)
+        s = finish(s, 3000)
+        let id = s.buddy.moment?.id
+        s.sessions["b"]?.workStartedAt = -20000
+        s = finish(s, 3500, "b")
+        XCTAssertEqual(s.buddy.moment?.id, id)
+        XCTAssertEqual(s.buddy.moment?.tier, .full)
+        XCTAssertEqual(s.buddy.moment?.until, 8500)
         s = start(s, 3600)
-        s.sessions["a"]?.workStartedAt = -180_000
         s = finish(s, 3700)
-        XCTAssertEqual(s.buddy.creature.cheer, .cheer)
-        XCTAssertEqual(s.buddy.celebrateUntil, 6200)
+        XCTAssertEqual(s.buddy.moment?.tier, .full)
+        XCTAssertEqual(s.buddy.moment?.until, 8500)
+        XCTAssertEqual(s.buddy.moment?.count, 3)
     }
 
     func testAllErrorsUseGenericErrorAndClear() {
@@ -93,6 +90,7 @@ final class CreatureReducerTests: XCTestCase {
             XCTAssertNil(s.buddy.creature.bubble) // Engine supplies the authored remark.
             XCTAssertEqual(start(s, 3).buddy.creature.state, .working)
             XCTAssertEqual(finish(s, 3).buddy.creature.state, .idle)
+            XCTAssertNil(finish(s, 3).buddy.moment) // A failed turn cannot subsequently celebrate without new work.
             XCTAssertEqual(reduce(s, .errorDismissed(at: 3, sessionId: "a")).buddy.creature.state, .idle)
             XCTAssertEqual(reduce(s, .toolResulted(at: 3, sessionId: "a", source: "codex", tool: "Bash", ok: true, durationMs: 1)).buddy.creature.state, .working)
         }

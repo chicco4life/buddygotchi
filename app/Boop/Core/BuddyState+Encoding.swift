@@ -4,6 +4,7 @@ import Foundation
 // are derived from the creature. Species remains nested under "pet".
 extension BuddyState {
     private enum CodingKeys: String, CodingKey {
+        case moment
         case language
         case growth
         case cosmetic
@@ -35,6 +36,7 @@ extension BuddyState {
 
     func encode(to encoder: any Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encodeIfPresent(moment, forKey: .moment)
         try c.encode(language, forKey: .language)
         try c.encode(growth, forKey: .growth)
         try c.encode(cosmetic, forKey: .cosmetic)

@@ -9,30 +9,31 @@ final class GlanceTests: XCTestCase {
     }
     func testShortTurnDuplicateFailureAndRemoval() {
         var s = finish(.test(), "a", NOW)
-        XCTAssertEqual(s.buddy.completionNotice?.cheer, .hop)
+        XCTAssertEqual(s.buddy.moment?.tier, .face)
         XCTAssertEqual(s.buddy.recentFinishes.count, 1)
         s = reduce(s, .turnEnded(at: NOW+1, sessionId: "a", source: "codex", outcome: .completed))
         s = reduce(s, .turnEnded(at: NOW+2, sessionId: "b", source: "codex", outcome: .failed(errorClass: nil)))
         s = reduce(s, .sessionEnded(at: NOW+3, sessionId: "a"))
         XCTAssertEqual(s.buddy.recentFinishes.count, 1)
-        XCTAssertNil(s.buddy.completionNotice) // errors outrank celebration
+        XCTAssertNil(s.buddy.moment) // errors outrank celebration
     }
     func testCoalescingDeadlineCooldownAndHistoryBound() {
-        var s = finish(.test(), "a", NOW)
-        let id = s.buddy.completionNotice?.id
+        var initial = InternalState.test(); initial.momentPolicy.faceMs = 5000
+        var s = finish(initial, "a", NOW)
+        let id = s.buddy.moment?.id
         s = finish(s, "b", NOW+4500)
-        XCTAssertEqual(s.buddy.completionNotice?.id, id)
-        XCTAssertEqual(s.buddy.completionNotice?.until, NOW+6500)
+        XCTAssertEqual(s.buddy.moment?.id, id)
+        XCTAssertEqual(s.buddy.moment?.until, NOW+6500)
         s = finish(s, "c", NOW+6400)
-        XCTAssertEqual(s.buddy.completionNotice?.until, NOW+8000)
+        XCTAssertEqual(s.buddy.moment?.until, NOW+8000)
         s = finish(s, "d", NOW+7900)
-        XCTAssertEqual(s.buddy.completionNotice?.until, NOW+8000)
+        XCTAssertEqual(s.buddy.moment?.until, NOW+8000)
         s = finish(s, "e", NOW+8100)
-        XCTAssertNil(s.buddy.completionNotice)
+        XCTAssertNil(s.buddy.moment)
         s = finish(s, "f", NOW+10900)
-        XCTAssertNil(s.buddy.completionNotice)
+        XCTAssertNil(s.buddy.moment)
         s = finish(s, "g", NOW+11100)
-        XCTAssertEqual(s.buddy.completionNotice?.count, 1)
+        XCTAssertEqual(s.buddy.moment?.count, 1)
         XCTAssertEqual(s.buddy.recentFinishes.count, 6)
         XCTAssertEqual(s.buddy.recentFinishes.first?.sequence, 7)
     }
@@ -40,13 +41,13 @@ final class GlanceTests: XCTestCase {
         var s = finish(.test(), "a", NOW)
         let version = s.buddy.version
         s = reduce(s, .staleTick(at: NOW+5000))
-        XCTAssertNil(s.buddy.completionNotice)
+        XCTAssertNil(s.buddy.moment)
         XCTAssertGreaterThan(s.buddy.version, version)
         s = finish(s, "b", NOW+9000)
         s = reduce(s, .requestArrived(at: NOW+9100, sessionId: "a", requestId: "request", tool: "Question", hint: "Input", sessionLabel: nil))
-        XCTAssertNil(s.buddy.completionNotice)
+        XCTAssertNil(s.buddy.moment)
         s = reduce(s, .requestCleared(at: NOW+9200, sessionId: "a"))
-        XCTAssertNil(s.buddy.completionNotice)
+        XCTAssertNil(s.buddy.moment)
     }
     func testTitlesAreExplicitAndFallbackDistinguishesSameProject() {
         var s = applyEvents(.test(),
@@ -72,7 +73,7 @@ final class GlanceTests: XCTestCase {
         XCTAssertLessThanOrEqual(data.count, maxHeartbeatBytes)
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         XCTAssertEqual(object["threadTotal"] as? Int, 30)
-        XCTAssertNotNil(object["notice"])
+        XCTAssertNotNil(object["moment"])
         XCTAssertFalse((object["recent"] as? [[Any]] ?? []).isEmpty)
     }
     func testHookTitleDoesNotUseRawPrompt() throws {

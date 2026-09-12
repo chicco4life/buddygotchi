@@ -117,6 +117,8 @@ struct Session: Encodable, Sendable, Equatable {
     var cwd: String?
     var lastActivityAt: Double
     var workStartedAt: Double?
+    /// Preserve error ordering after the failed turn's duration is closed.
+    var failedWorkStartedAt: Double?
     var lastWorkSignalAt: Double?
     var lastTool: String?
     var lastHint: String?
@@ -220,6 +222,7 @@ struct BuddyState: Encodable, Sendable, Equatable {
     var workScope: String? = nil
     var deviceThreads: [DeviceThread] = []
     var recentFinishes: [DeviceFinish] = []
+    var moment: TurnMoment?
     var completionNotice: CompletionNotice?
     var agentCounts: [AgentCounts] = []
     var language = "en"

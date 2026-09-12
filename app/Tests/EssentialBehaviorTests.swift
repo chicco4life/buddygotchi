@@ -15,10 +15,10 @@ final class EssentialBehaviorTests: XCTestCase {
         var state = InternalState.initial(staleMs: 600_000, celebrateDurationMs: 4000)
         state = reduce(state, .turnStarted(at: 0, sessionId: "s", source: "codex"))
         state.pendingAwards = []
-        state = reduce(state, .turnEnded(at: 59_999, sessionId: "s", source: "codex", outcome: .completed))
-        XCTAssertEqual(state.buddy.creature.state, .idle)
+        state = reduce(state, .turnEnded(at: 2999, sessionId: "s", source: "codex", outcome: .completed))
+        XCTAssertEqual(state.buddy.moment?.tier, .face)
         XCTAssertNil(state.buddy.celebrateUntil)
-        XCTAssertEqual(state.buddy.lastTaskDurationMs, 59_999)
+        XCTAssertEqual(state.buddy.lastTaskDurationMs, 2999)
         XCTAssertEqual(state.memory.completedTurns, 1)
         XCTAssertEqual(state.pendingAwards.flatMap(\.sources), [.turn])
         XCTAssertNil(state.pendingAwards.last?.cheer)
@@ -34,7 +34,7 @@ final class EssentialBehaviorTests: XCTestCase {
         state = reduce(state, .turnEnded(at: 300_000, sessionId: "long", source: "codex", outcome: .completed))
         state = reduce(state, .turnEnded(at: 301_000, sessionId: "short", source: "codex", outcome: .completed))
         XCTAssertEqual(state.buddy.creature.cheer, .dance)
-        XCTAssertEqual(state.buddy.celebrateUntil, 304_000)
+        XCTAssertEqual(state.buddy.moment?.until, 305_000)
         XCTAssertEqual(state.memory.completedTurns, 2)
     }
 
