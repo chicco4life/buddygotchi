@@ -1,0 +1,64 @@
+Waiting for the shared ESP32 reservation…
+
+SUCCESS — "You can glance over and know when work finishes."
+Enter to continue · Ctrl-C to finish and clean up
+
+Task started: brief acknowledgement.
+(1.5 seconds)
+
+Working: watch the sweating face.
+(23.5 seconds)
+
+Turn completed: watch the words arrive.
+(5.5 seconds)
+
+Finished. Tap the face to view the mock task, then Enter to end.
+Enter to continue · Ctrl-C to finish and clean up
+
+FAILURE + RECOVERY — "Trouble gets a reaction, and retry clears it."
+Enter to continue · Ctrl-C to finish and clean up
+
+Task started: brief acknowledgement.
+(1.5 seconds)
+
+Working: watch the sweating face.
+(3 seconds)
+
+Explicit failure. Explain the red/slumped face; Enter starts a mock retry.
+Enter to continue · Ctrl-C to finish and clean up
+
+Task started: brief acknowledgement.
+(1.5 seconds)
+
+Working: watch the sweating face.
+(6.5 seconds)
+
+Turn completed: watch the words arrive.
+(4.5 seconds)
+
+Recovered. Enter to end this story.
+Enter to continue · Ctrl-C to finish and clean up
+
+NEEDS YOU — "Come back when your agent has a question."
+Enter to continue · Ctrl-C to finish and clean up
+
+Task started: brief acknowledgement.
+(1.5 seconds)
+
+Working: watch the sweating face.
+(3 seconds)
+
+Question: Which layout? Enter simulates the answer. Device taps only dismiss the reminder.
+Enter to continue · Ctrl-C to finish and clean up
+
+Mock answer received: work resumes.
+(4 seconds)
+
+Turn completed: watch the words arrive.
+(4.5 seconds)
+
+Question resolved and turn finished. Enter to end.
+Enter to continue · Ctrl-C to finish and clean up
+
+Cleanup verified: sleeping face, no demo requests/text/tasks; saved settings preserved.
+Reopen your normal Boop app to resume live work.

@@ -263,3 +263,15 @@ resting sleep is 72/255, tapping produces a 1.4-second peek at 210 with normal
 ink, then returns to 72 while the host remains asleep. Face-down nap stays 28;
 requests stay 255 and awake/inactivity levels remain 210/90. Screenshot pixels
 verify ink/pose; USB brightness telemetry verifies the panel brightness command.
+
+## Isolated presenter demo
+
+[Three-story demo](../tools/demo/README.md) provides success, failure/retry and
+passive-question scenarios with mocked USB frames and fixed words. It does not
+exercise agent hooks, the Mac GUI, Voice or production Bluetooth. Run
+`python3 -m unittest discover -s tools/demo/tests -v` and the `--preview` path
+without hardware; use `python3 tools/demo/demo.py all --auto` only with the normal
+app closed and the device available. The runner retains hardware/GUI exclusion,
+forbids persistent frame fields, carries existing volume, and verifies transient
+cleanup. A lost USB connection or forced termination requires `--reset-only`
+after reconnecting. This workflow changes no production behavior or wire fields.
