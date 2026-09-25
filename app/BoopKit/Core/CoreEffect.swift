@@ -26,6 +26,17 @@ public struct Trigger: Equatable, Sendable {
             case .reflect: 600_000
             }
         }
+
+        /// How often a tool may run for this trigger (HARNESS.md §5). Past
+        /// its limit the harness doesn't offer it, so Boop stays quiet most
+        /// of the time whatever the brain would answer.
+        public var limits: [ToolLimit] {
+            switch self {
+            case .event: [ToolLimit("say", everyMs: 600_000, neverOn: ["turn started"])]
+            case .tap: [ToolLimit("say", everyMs: 300_000)]
+            case .talk, .reflect: []
+            }
+        }
     }
 
     public var kind: Kind

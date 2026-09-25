@@ -71,6 +71,8 @@ public final class Harness: @unchecked Sendable {
     let home: DispatchQueue
     let debugLog: URL?
     let log: (String) -> Void
+    /// When each limited tool last ran (HARNESS.md §5).
+    let limits: ToolLimits
     /// Called on `home` after every call, including dropped ones.
     public var onRecord: ((Record) -> Void)?
 
@@ -85,13 +87,15 @@ public final class Harness: @unchecked Sendable {
     ///   - memory: the text for a trigger's prompt, from the memory store.
     ///   - debugLog: a JSONL file for §8's log; nil writes nothing to disk.
     public init(brain: any Brain, tools: [Tool], memory: @escaping (Trigger) -> Prompt.Memory,
-                home: DispatchQueue, debugLog: URL? = nil, log: @escaping (String) -> Void = { _ in }) {
+                home: DispatchQueue, debugLog: URL? = nil, limits: ToolLimits = ToolLimits(),
+                log: @escaping (String) -> Void = { _ in }) {
         self.brain = brain
         self.tools = tools
         self.memory = memory
         self.home = home
         self.debugLog = debugLog
         self.log = log
+        self.limits = limits
     }
 
     /// The tools offered for a trigger: its kind's list, in the order given
@@ -156,9 +160,12 @@ public final class Harness: @unchecked Sendable {
         var handle: (ToolCall) -> ActionOutcome
     }
 
-    /// Steps 3–4's inputs: the prompt and the offered tools. On `home`.
+    /// Steps 3–4's inputs: the prompt and the offered tools, leaving out any
+    /// tool past its limit. On `home`.
     func prepare(_ trigger: Trigger) -> (Prompt, [Offered]) {
-        let offered = offered(trigger.kind).map { Offered(definition: $0.definition, handle: $0.handle) }
+        let offered = offered(trigger.kind)
+            .map { Offered(definition: $0.definition, handle: $0.handle) }
+            .filter { limits.blocked($0.definition.name, for: trigger) == nil }
         let text = memory(trigger)
         for over in Prompt.overBudget(trigger, text, tools: offered.map(\.definition)) {
             log("harness: \(trigger.kind.rawValue) prompt over budget: \(over)")
@@ -212,8 +219,15 @@ public final class Harness: @unchecked Sendable {
                 record.dropped = "shape: \(why)"
             case .success(let calls):
                 for call in calls {
+                    // A second call in one answer can pass the limit.
+                    if let why = limits.blocked(call.name, for: trigger) {
+                        record.ran.append((call, .dropped(why)))
+                        continue
+                    }
                     let tool = offered.first { $0.definition.name == call.name }!
-                    record.ran.append((call, tool.handle(call)))
+                    let outcome = tool.handle(call)
+                    if outcome.isDone { limits.ran(call.name, for: trigger) }
+                    record.ran.append((call, outcome))
                 }
             }
         }

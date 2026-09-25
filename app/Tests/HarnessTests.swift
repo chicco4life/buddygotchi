@@ -192,6 +192,69 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(records[0].dropped, "cancelled by talk")
     }
 
+    // MARK: Limits
+
+    /// Speaks whenever `say` is offered, and adds a face.
+    struct ChattyBrain: Brain {
+        let id = "chatty@1"
+        func complete(system: String, user: String, tools: [ToolDefinition], deadline: Duration) async throws -> String {
+            tools.contains { $0.name == "say" }
+                ? #"{"calls":[{"tool":"say","feeling":"happy"},{"tool":"face","name":"happy"}]}"#
+                : #"{"calls":[{"tool":"face","name":"happy"}]}"#
+        }
+    }
+
+    func at(_ minutes: Double, _ kind: Trigger.Kind, _ line: String, words: String? = nil) -> Trigger {
+        Trigger(kind: kind, line: line, words: words, ts: Int64(minutes * 60_000))
+    }
+
+    func testEventSpeechIsLimitedOnTheTriggersClock() async {
+        let rig = HarnessRig(brain: ChattyBrain())
+        let events = [
+            at(0, .event, "turn finished · claude · a · took 12 s · 09:00 Tuesday"),
+            at(1, .event, "turn finished · claude · a · took 12 s · 09:01 Tuesday"),
+            at(9.9, .event, "turn failed · claude · a · 09:09 Tuesday"),
+            at(10, .event, "turn started · claude · a · 09:10 Tuesday"),
+            at(10.5, .event, "turn finished · claude · a · took 30 s · 09:10 Tuesday"),
+            at(11, .event, "turn finished · claude · a · took 30 s · 09:11 Tuesday"),
+            at(40, .event, "turn started · claude · a · 09:40 Tuesday"),
+        ]
+        for e in events {
+            rig.submit(e)
+            await rig.settle()
+        }
+        let records = rig.snapshot.records
+        XCTAssertEqual(records.map(\.tools), [["say", "face"], ["face"], ["face"], ["face"], ["say", "face"], ["face"], ["face"]])
+        XCTAssertEqual(records.map { $0.ran.map(\.call.name) },
+                       [["say", "face"], ["face"], ["face"], ["face"], ["say", "face"], ["face"], ["face"]])
+        XCTAssertTrue(records.allSatisfy(\.validShape))
+    }
+
+    func testTapSpeechIsLimitedAndTalkIsNot() async {
+        let rig = HarnessRig(brain: ChattyBrain())
+        for t in [at(0, .tap, "tapped · 09:00 Tuesday"), at(4, .tap, "tapped · 09:04 Tuesday"),
+                  at(5, .tap, "tapped · 09:05 Tuesday"),
+                  at(5, .talk, "talk · 09:05 Tuesday", words: "hi"), at(5.1, .talk, "talk · 09:05 Tuesday", words: "hi")] {
+            rig.submit(t)
+            await rig.settle()
+        }
+        XCTAssertEqual(rig.snapshot.records.map { $0.tools.contains("say") }, [true, false, true, true, true])
+    }
+
+    func testASecondSayInOneAnswerIsDroppedAndDroppedSpeechDoesntCount() async {
+        let home = DispatchQueue(label: "test.limits")
+        var outcomes: [ActionOutcome] = [.dropped("quiet mode"), .done("said"), .done("said")]
+        let say = ToolDefinition(name: "say", description: "", parameters: [.init("feeling", .choice(["happy"]))])
+        let harness = Harness(brain: FakeBrain { _ in #"{"calls":[{"tool":"say","feeling":"happy"},{"tool":"say","feeling":"happy"}]}"# },
+                              tools: [Harness.Tool(definition: say, handle: { _ in outcomes.removeFirst() })],
+                              memory: { _ in Prompt.Memory(steering: "", longTerm: "", shortTerm: "") }, home: home)
+        let r = await harness.respond(to: at(0, .tap, "tapped · 09:00 Tuesday"))
+        // The first say was dropped by its action, so the second may still run.
+        XCTAssertEqual(r.ran.map(\.outcome), [.dropped("quiet mode"), .done("said")])
+        let r2 = await harness.respond(to: at(20, .tap, "tapped · 09:20 Tuesday"))
+        XCTAssertEqual(r2.ran.map(\.outcome), [.done("said"), .dropped("limit: say on tap at most once every 5 min")])
+    }
+
     // MARK: Prompt
 
     func testThePromptHasItsFixedLayout() {

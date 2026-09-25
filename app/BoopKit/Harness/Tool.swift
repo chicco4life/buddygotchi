@@ -120,3 +120,48 @@ public struct ToolCall: Equatable, Sendable, CustomStringConvertible {
         name + "(" + arguments.sorted { $0.key < $1.key }.map { "\($0.key): \($0.value)" }.joined(separator: ", ") + ")"
     }
 }
+
+/// How often one tool may run for one kind of trigger (HARNESS.md §5). Plain
+/// data: the harness doesn't know what the tool does, only when it last ran.
+public struct ToolLimit: Equatable, Sendable {
+    public var tool: String
+    /// At least this long between two runs that went through, in ms.
+    public var everyMs: Int64
+    /// Never offered when the trigger's line starts with one of these.
+    public var neverOn: [String]
+
+    public init(_ tool: String, everyMs: Int64, neverOn: [String] = []) {
+        self.tool = tool
+        self.everyMs = everyMs
+        self.neverOn = neverOn
+    }
+}
+
+/// When each limited tool last ran, per trigger kind, on the triggers' own
+/// clock. Shared by whoever needs one history across harnesses (`boopdev
+/// brain`). Touched only on the harness's queue.
+public final class ToolLimits: @unchecked Sendable {
+    var last: [String: Int64] = [:]
+
+    public init() {}
+
+    /// Why `tool` can't run for this trigger, or nil if it can.
+    public func blocked(_ tool: String, for trigger: Trigger) -> String? {
+        guard let limit = trigger.kind.limits.first(where: { $0.tool == tool }) else { return nil }
+        if let start = limit.neverOn.first(where: { trigger.line.hasPrefix($0) }) {
+            return "limit: no \(tool) on \(start)"
+        }
+        if let at = last[key(tool, trigger.kind)], trigger.ts - at < limit.everyMs {
+            return "limit: \(tool) on \(trigger.kind.rawValue) at most once every \(limit.everyMs / 60_000) min"
+        }
+        return nil
+    }
+
+    /// A call to `tool` went through for this trigger.
+    public func ran(_ tool: String, for trigger: Trigger) {
+        guard trigger.kind.limits.contains(where: { $0.tool == tool }) else { return }
+        last[key(tool, trigger.kind)] = trigger.ts
+    }
+
+    func key(_ tool: String, _ kind: Trigger.Kind) -> String { kind.rawValue + "/" + tool }
+}
