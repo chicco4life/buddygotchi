@@ -1,6 +1,6 @@
 #!/bin/bash
 # Runs the unattended Boop v1 build: one fresh Claude Code session per
-# iteration, following plan/LOOP.md, until plan/evidence/v1-build/DONE exists.
+# iteration, strictly one after another, following plan/LOOP.md, until plan/evidence/v1-build/DONE exists.
 # Survives usage limits by waiting and retrying. See plan/PLAN.md §5.
 #
 # Usage, from the repo root:
@@ -22,6 +22,18 @@ max_idle=${MAX_IDLE:-3}                # stop after this many clean iterations w
 iteration_timeout=${ITERATION_TIMEOUT:-9000}  # hard cap per iteration (2.5 h)
 
 mkdir -p "$log_dir"
+
+# One loop at a time: a second copy would fight over the repo and the board.
+lock=/tmp/boop-build-loop.lock
+if ! mkdir "$lock" 2>/dev/null; then
+  if kill -0 "$(cat "$lock/pid" 2>/dev/null)" 2>/dev/null; then
+    echo "another build loop is running (pid $(cat "$lock/pid")); exiting" >&2
+    exit 1
+  fi
+  rm -rf "$lock" && mkdir "$lock" || exit 1   # stale lock from a dead loop
+fi
+echo $$ >"$lock/pid"
+trap 'rm -rf "$lock"' EXIT
 iteration=0
 failing_since=0
 idle=0

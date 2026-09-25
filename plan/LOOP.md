@@ -82,4 +82,7 @@ owner.
   outside it.
 - **Permission denials:** auto mode may refuse an action, and nothing
   prompts. Find another way and note it in `PROGRESS.md`.
+- **One thing at a time:** work on one milestone, yourself. Don't start
+  parallel agents, subagents, background builds of other milestones, or
+  extra worktrees.
 - **Don't push** unless the owner asks.

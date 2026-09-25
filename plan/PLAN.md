@@ -111,11 +111,13 @@ into the app's resources, and a unit test fails if the copies differ.
    before starting.
 6. **Don't get stuck.** If one problem takes about 45 minutes, record it
    (what failed, what was tried, the best guess), mark the milestone
-   Blocked, and move to the next milestone that doesn't depend on it. The
-   firmware track (F) and the app track (A) are independent until J1.
-7. **Keep the checks honest.** Only report a check as passed if it ran and
+   Blocked, and move to the next milestone that doesn't depend on it.
+7. **One thing at a time.** Iterations run strictly one after another, and
+   each works on one milestone. No parallel agents, subagents or extra
+   worktrees.
+8. **Keep the checks honest.** Only report a check as passed if it ran and
    passed. If a check was skipped or changed, say so and why.
-8. **Leave the board clean.** At the end, flash the final firmware and leave
+9. **Leave the board clean.** At the end, flash the final firmware and leave
    it on the idle face, or on the test pattern if bring-up failed.
 
 ## 4. Milestones
@@ -444,8 +446,10 @@ one iteration.
 **How to run it:**
 
 - **Recommended:** `caffeinate -dimsu tools/build-loop.sh` from the repo
-  root. It starts a fresh `claude -p` session per iteration, in auto
-  permission mode with no permission prompts. It stops when `DONE` exists.
+  root. It runs one fresh `claude -p` session at a time, waiting for each
+  to finish before starting the next, in auto permission mode with no
+  permission prompts. A lock stops a second copy from starting. It stops
+  when `DONE` exists.
   Logs go to `/tmp/boop-build-loop/`.
 - **Alternative:** in an interactive Claude Code session, run
   `/loop Follow plan/LOOP.md`. It works the same way, but one session
