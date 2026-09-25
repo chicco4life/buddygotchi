@@ -63,9 +63,9 @@ Each level answers a different question:
 | `touch X Y [--ms N]` | Inject a touch at screen coordinates |
 | `clock freeze T \| step MS \| run` | Control the device clock for repeatable frames |
 | `pattern` | Show the bring-up test pattern |
-| `perf --seconds N` | Sample fps and heap over time |
+| `perf --seconds N [--motion]` | Sample fps and heap over time; `--motion` plays moments back to back so every sample is mid-motion |
 | `soak --minutes N` | Random, realistic traffic and inputs, then check for resets and leaks |
-| `cam frame\|pattern\|clip` | Webcam helpers (L3 in §5) |
+| `cam frame\|pattern\|clip <name>` | Webcam helpers (L3 in §5). Clips are live presets: `idle`, `needs_you`, `cheer` |
 | `calibrate` | Touch calibration. Needs a person to tap 4 targets |
 
 ## 3. The debug channel
@@ -83,9 +83,11 @@ Over USB, the firmware accepts every normal protocol message
 | `{"t":"dbg.press","ms":N}` / `{"t":"dbg.touch","x":…,"y":…,"ms":N}` | Inject input through the same code path as real input |
 | `{"t":"dbg.pattern"}` / `{"fill":N}` | Show the test pattern, or a solid screen of palette index N, until the next `state` |
 | `{"t":"dbg.light","bl":0-255,"led":"#RRGGBB"}` | Set the backlight and the RGB LED (both optional), for bring-up and webcam framing |
+| `{"t":"dbg.reset"}` | Forget everything the Mac has said, the moment and the local screen, and freeze the clock at 0. Every scenario starts with it |
 
-At 460800 baud a screenshot takes about 2.3 s. `dbg.state` also carries
-bring-up readings: `clock` (`now`, `frozen`), `boot` (BOOT's level), `touch`
+At 460800 baud a screenshot takes about 2.3 s. `dbg.ping` also reports
+`draw_us` and `push_us`, the last frame's drawing and pushing time.
+`dbg.state` also carries bring-up readings: `clock` (`now`, `frozen`), `boot` (BOOT's level), `touch`
 (`down`, `irq`, `raw` as x, y, z), `bat` in mV, `amp` and `bl`.
 
 The board handles one message per loop pass, so a reply always reflects
@@ -132,7 +134,8 @@ runs in the simulator and on the device:
 until the clock passes its duration (100 ms for a tap, 800 ms for a hold,
 or `"ms"`), so a scenario steps the clock past it. The simulator starts
 with its clock frozen at 0; the board's runs until the first `clock` line.
-`boopctl run` plays each scenario in the simulator first, then on the
+Both runners send `dbg.reset` first, so the board starts each scenario
+exactly as a fresh simulator does. `boopctl run` plays each scenario in the simulator first, then on the
 board, and diffs every shot against the simulator's with threshold 0.
 
 Every screen and state in [BEHAVIORS.md](BEHAVIORS.md) and [UX.md](UX.md)
@@ -210,8 +213,9 @@ This checks what only the real panel can show. It runs:
    black is dark (not inverted), and that the UP arrow is at the top away
    from USB-C (rotation). Fix the panel settings in the firmware until it
    passes, then record them in [DEVICE.md](DEVICE.md) §4.
-3. **Screens and motion:** `boopctl cam clip <scenario>` records up to 10 s
-   while the scenario plays, crops each frame, and saves a contact sheet. The
+3. **Screens and motion:** `boopctl cam clip <name>` records up to 10 s
+   while a live preset plays with the clock running (scenarios freeze the
+   clock, so they wouldn't move), crops each frame, and saves a contact sheet. The
    agent compares the frames with the simulator's pictures: is it recognisably
    the same, readable, the right colours, and moving smoothly with no tearing,
    stuck frames or flicker?

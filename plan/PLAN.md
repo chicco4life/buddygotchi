@@ -132,7 +132,7 @@ Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 | --- | --- | --- |
 | M0 | Setup | Passed |
 | F1 | Board bring-up | Passed |
-| F2 | Renderer and simulator | Not started |
+| F2 | Renderer and simulator | Passed |
 | F3 | Device behaviour | Not started |
 | F4 | Bluetooth on the device | Not started |
 | A1 | App core: adapters, hook client, core rules | Not started |

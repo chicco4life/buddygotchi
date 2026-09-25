@@ -51,3 +51,34 @@ One entry per iteration, newest last. Each ends with the exact next step.
   size, scenarios for every screen and state, `boopctl cam clip`, and
   `boopctl perf`, to check ≥ 25 fps during blends. If blends are too slow,
   try the SPI clock at 60–80 MHz (`board/display.h`).
+
+## 2026-09-26 01:35 — F2: Renderer and simulator — Passed
+
+- **Changed:** "Warm Terminal" palette with anti-aliasing ramps; an
+  integer-only span/band rasterizer; Geist Mono fonts at 13 and 22 px
+  (`tools/fontgen`); the pose-based face with eased, interruptible 150 ms
+  blends; every animation in BEHAVIORS §7; all screens and the status
+  strip; the device core now parses `state`/`moment` and picks the screen;
+  `dbg.reset`; `boopctl perf` and `cam clip`. Details in
+  [F2/README.md](F2/README.md).
+- **Checks:** fw-test 42/42; 8 scenarios and 58 goldens, all reviewed; on the
+  board, every expect passed and all 58 screenshots were identical to the
+  simulator's; perf with motion gave a minimum of 44 fps and 157 KB heap;
+  webcam framing passed, and the idle, needs-you and cheer clips were
+  reviewed.
+- **Decisions:** integer-only drawing (so the pixels match), Geist Mono
+  (OFL), `dbg.reset` before every scenario, and webcam clips as live presets.
+  All four are logged in ARCHITECTURE §11. 40 MHz SPI is enough.
+- **Board left on:** F2 firmware `c47e775e53`. It shows the face, and goes
+  to no app after 30 s without a Mac.
+- **Next step:** F3 device behaviour. Start with a behaviour state machine
+  in `firmware/src/app/` (pure C++, e.g. `behaviour.*`) that takes over from
+  `Device::advance/resync/sourceAt`. Add idle life (blinks every 2–6 s,
+  glances, from `rng_`), the nudge ladder's effects (amber LED, chirp
+  flags, 3 light pulses at rung 3; visual only in focus), the gestures in
+  UX.md §4 (tap face → wiggle + `input tap`; touch-and-hold the face → mood
+  face; hold the strip → `focus`; feedback within 20 ms), the 10 s threads
+  timeout, dimming (asleep, night, no app), hunger rumble, and mouth sync
+  to `say`. Decide which moments may play over needs you (BEHAVIORS §1:
+  attention wins). Then add goldens for every BEHAVIORS §3 row, and
+  `boopctl soak`.
