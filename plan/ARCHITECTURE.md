@@ -191,12 +191,26 @@ Every brain call includes all three.
 | `short-term.md` | Today: Boop's mood, notes about what you're doing and said, what happened | Throughout the day; starts fresh after reflection |
 
 **Reflection** runs once a day, at the first activity of a new day. The
-memory store snapshots both writable files to `history/<date>/`. The brain
-reads yesterday's `short-term.md` and updates `long-term.md` through the
-reflection actions. Then `short-term.md` starts fresh.
+memory store snapshots both writable files to `history/<date>/`, where
+`<date>` is the day being reflected on (setup also snapshots, under the
+day Boop hatched). Then `short-term.md` starts fresh, and the brain reads
+yesterday's copy from the snapshot and updates `long-term.md` through the
+reflection actions.
 
-The files are plain text. Hand edits are allowed, and a file that won't
-parse is restored from its last snapshot.
+The files are plain text. Hand edits are allowed: the store reads a file
+again when it changes on disk, before its next change, so an edit isn't
+overwritten. A file that won't parse is kept as `<file>.broken`.
+`long-term.md` is restored from its newest snapshot that reads.
+`short-term.md` snapshots are always of an earlier day, so it starts fresh
+instead, keeping the file's date if one can be found so the day doesn't
+start (and reflect) twice.
+
+Each file also has a size budget, so the whole prompt stays within
+[HARNESS.md](HARNESS.md) §4 without trimming: `long-term.md` at most
+3,200 bytes (about 800 tokens) and `short-term.md` at most 2,400 bytes
+(about 600). The line limits below mostly keep them there; when they
+don't, a change to long-term memory is refused ("full") and short-term
+memory drops its oldest Happened lines.
 
 ### 4.1 `steering.md`
 
@@ -234,11 +248,17 @@ xp: 1240 · level: 25 · last fed: 2026-10-14
 | Section | Written by | Rule |
 | --- | --- | --- |
 | Boop (name line) | App, at setup | Never changes. `nature` is the person's one answer (sweet or cheeky); `seed` is random and picks Boop's voice dialect |
-| Temperament | Reflection | At most one sentence changed a day |
-| Moments | Reflection | At most 20; at most one new a day |
+| Temperament | Reflection | At most one sentence changed a day: `temperament` adds one sentence of at most 120 characters, and past five sentences it replaces the oldest |
+| Moments | Reflection | At most 20 of at most 80 characters; at most one a day, dated the day reflected on. Past 20, the oldest drops |
 | Growth | Core | [BEHAVIORS.md](BEHAVIORS.md) §4. While Boop is starving the line also carries `lost: N`, the XP lost since it was last fed, so a restart doesn't take a day's XP twice |
-| About you | Reflection | At most 30 lines of at most 100 characters; no code, paths, secrets or other people's names |
+| About you | Reflection | At most 30 lines of at most 100 characters; no code, paths, secrets or other people's names. A new line when full is refused, so reflection has to `forget` first |
 | Preferences | Reflection | At most 15 lines; same limits |
+
+The checks are simple rules in the memory store: one line, no links,
+addresses, backticks, braces, `=`, `;` or `$`, nothing path-shaped, nothing
+that looks like a key, and no capitalised word mid-sentence other than
+days, months, agents, acronyms and Boop's own name. They err on the side
+of refusing.
 
 The Boop section is who this Boop is. It lives only on the Mac, so
 reflashing or replacing the device doesn't change it, and the app has no
@@ -264,7 +284,7 @@ Preferences; the Boop section isn't shown.
 | Section | Written by | Rule |
 | --- | --- | --- |
 | Today | Core | Date, first activity, and Boop's current mood |
-| Notes | `note` action (from the brain) | At most 10 lines of at most 80 characters; the oldest drops first |
+| Notes | `note` action (from the brain) | At most 10 lines of at most 80 characters; the oldest drops first. No code, paths or secrets |
 | Happened | Core | One line per notable event, summaries only; the last 40 lines |
 
 Mood is internal. It shapes behaviour and is only visible in debug mode.
@@ -395,3 +415,9 @@ When a spec changes direction, add a row here saying why.
 | 2026-09-26 | A late `Notification` within 5 s of a clear is ignored; an hour without events makes a working session idle, and a day forgets it | A quick approval could otherwise turn Boop amber again with nothing waiting, and a missed `SessionEnd` would keep it busy | [ADAPTERS.md](ADAPTERS.md) §4 |
 | 2026-09-26 | `state` cuts names to 23 bytes and drops thread rows to stay within 512 bytes | Eight rows of long project names overflow a line, and the device keeps names in 24-byte fields | [PROTOCOL.md](PROTOCOL.md) §3 |
 | 2026-09-26 | Days together count the day of setup as day 1; failed turns earn no XP; the Growth line carries `lost` while starving | The stats screen shouldn't say 0 days, "finishes" means `turn_end`, and starving must survive restarts | [BEHAVIORS.md](BEHAVIORS.md) §4, §4.2 |
+| 2026-09-26 | The memory files have byte budgets (3,200 and 2,400), enforced by the store | The line limits alone allow about 1,600 tokens of long-term memory, twice its share of the prompt | §4 |
+| 2026-09-26 | A broken `short-term.md` starts fresh (keeping its date); a broken file is kept as `.broken`; the store rereads files changed on disk | Short-term snapshots are always of an earlier day, and hand edits shouldn't be lost or overwritten | §4 |
+| 2026-09-26 | `temperament` adds a sentence (up to five, replacing the oldest); `moment` drops the oldest past 20; `remember` refuses when full | Flat, one-argument tools a small model can use, and memory that keeps growing without breaking its limits | §4.2, [HARNESS.md](HARNESS.md) §6 |
+| 2026-09-26 | Doubled syllables skip the English word list, except common doubles like `mama`; Voice re-rolls a failing gibberish word while building | The word list rejects most doubles (`kiki`, `pipi`, `baba`), which are the Minion bounce; with whole-line retries alone one dialect in three hummed about 5% of the time | [VOICE.md](VOICE.md) §7 |
+| 2026-09-26 | The full syllable set is 64, with 40 vocabulary words | Fixed now so F5's assets and the `say` tool agree | [VOICE.md](VOICE.md) §3, §6 |
+| 2026-09-26 | `say` plays the face for its feeling under the mumble, and drops the call in quiet, focus or while something needs you | The device only speaks over an animation, and a reply shouldn't break quiet | [HARNESS.md](HARNESS.md) §6 |

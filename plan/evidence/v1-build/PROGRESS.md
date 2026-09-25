@@ -181,3 +181,34 @@ One entry per iteration, newest last. Each ends with the exact next step.
   `BoopKit/Actions` (`say`, `face`, `quiet`, `note`, `remember`, `forget`,
   `temperament`, `moment`). `quiet` calls `Core.setQuiet`. Each action
   owns its tool definition and drops invalid input with a logged reason.
+
+## 2026-09-26 04:20 — A2: Memory, Voice, actions — Passed
+
+- **Changed:** new `BoopKit/Memory` (file formats, `MemoryStore` with
+  limits, byte budgets, atomic writes, `history/<date>/` snapshots,
+  rereading hand edits, restore), `BoopKit/Voice` (64 syllables, 40 words,
+  dialects, feelings, tempo, the English check with word re-rolls and the
+  safe hum), `BoopKit/Actions` (the eight actions, each with its
+  `ToolDefinition` from `BoopKit/Harness/Tool.swift`), and `boopdev memory`
+  and `boopdev voice`. Details in [A2/README.md](A2/README.md).
+- **Checks:** `make test` 117/117, three runs. 10,000 Voice lines: 0 hits
+  under the VOICE §7 rule, 4 safe hums. Every action's drops are logged
+  with a reason. `make build` OK. No device checks (Mac-only).
+- **Decisions:** doubled syllables skip the word list except common
+  doubles; memory byte budgets (3,200 and 2,400); broken short-term keeps
+  its date; `temperament`, `moment` and `remember` semantics; the 64-syllable
+  set; `say` plays the feeling's face and respects quiet. All six are in
+  the ARCHITECTURE §11 log, with the specs updated.
+- **Board:** untouched; still on F4 firmware `3707c8eb51`.
+- **Next step:** A3, the harness and brains. Read PLAN.md's A3 section and
+  HARNESS.md in full. Build `BoopKit/Harness` around the existing
+  `ToolDefinition`/`ToolCall` in `Harness/Tool.swift`: take
+  `[Action]` from `Actions.all(...)` as the registry, run one call at a
+  time (a newer trigger replaces a waiting one; `talk` cancels), build the
+  prompt from `MemoryStore.steering`, `longTermText` and `shortTermText`
+  (for `reflect`, use `reflectionText`), shape-check answers (at most 3
+  calls, allowed tools only, against the definitions), dispatch with
+  `action.run`, and log in debug mode. Brains: Apple via
+  `DynamicGenerationSchema` (PLAN §1), rules-only from steering.md's
+  Fallbacks table, and cloud as a disabled interface. Fixtures: 50+
+  triggers plus sample memory in `app/Tests/Fixtures/{triggers,memory}`.

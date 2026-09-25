@@ -1,0 +1,60 @@
+## happy
+1	pi-la…	bounce 125 ms
+2	la-la la…	bounce 125 ms
+3	bi-la-ya…	bounce 125 ms
+4	la bi la-ki la ki-ki…	bounce 125 ms
+5	la-ki-pa pa…	bounce 125 ms
+6	di-pa pa pi…	bounce 125 ms
+## excited
+1	ta-ya wa-ya mi-li-ga…	bounce 115 ms
+2	ki-ki la-pi-ti ki…	bounce 115 ms
+3	ki ma-pa…	bounce 115 ms
+4	pa pa-di-ya pi-la ki-bi…	bounce 115 ms
+5	la-pi…	bounce 115 ms
+6	la-pi la-la ki ki-pa…	bounce 115 ms
+## proud
+1	mo-la-gom la-pa pa go-gom… finally!	lift 135 ms
+2	finally! lo-pa gom-gom…	lift 135 ms
+3	go po-gom la-go-gom… finally!	lift 135 ms
+4	yo go-gom la-pa la-yo gom… finally!	lift 135 ms
+5	la-la to gom-yo o… finally!	lift 135 ms
+6	yo-go la-go a… finally!	lift 135 ms
+## curious
+1	le-pi le le… tests?	up 135 ms
+2	pi-mu-la be-mu-ki le… tests?	up 135 ms
+3	bu lo-lo ki… tests?	up 135 ms
+4	to ku yu-pe… tests?	up 135 ms
+5	pi-mi-pa be… tests?	up 135 ms
+6	wo-nu-pe… tests?	up 135 ms
+## hopeful
+1	yo-lun… food?	up 145 ms
+2	yo-nu bu-lun… food?	up 145 ms
+3	nu-bo-mu wo… food?	up 145 ms
+4	food! mu-yu lun-bu…	up 145 ms
+5	mu-bu… food?	up 145 ms
+6	bu-yu bu nu… food?	up 145 ms
+## annoyed
+1	pi ko-ko…	flat 125 ms
+2	te po-po pe-pa ta-pi…	flat 125 ms
+3	ku-ku…	flat 125 ms
+4	pi-to ta-pi…	flat 125 ms
+5	ku-pi…	flat 125 ms
+6	ki-pi pa…	flat 125 ms
+## sad
+1	bu-go-nu o…	down 160 ms
+2	nu-o…	down 160 ms
+3	yu-u…	down 160 ms
+4	bu-mu nu mu-yo yo-mo-u…	down 160 ms
+5	yo-nu-u…	down 160 ms
+6	yo-o…	down 160 ms
+## sleepy
+1	mm-nu-nn mu…	down 170 ms
+2	nu mo-nu nn…	down 170 ms
+3	mu-nu-mu…	down 170 ms
+4	mu mu…	down 170 ms
+5	nu nu…	down 170 ms
+6	nn-mu nu no…	down 170 ms
+dialect 1: po pa yo to o no bu ke wa te ko ka tu lun pum lon
+dialect 7f3a: pi e go gom le pa pe la ki nu ku yu bu mu yo pum
+dialect 1234: li kun pi no pu lun nu pum be tu u bo a we to ge
+dialect beef: me lun pu bi yo yu gu ya ga la ti i ge mi de we

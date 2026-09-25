@@ -300,6 +300,34 @@ final class MemoryTests: XCTestCase {
         XCTAssertNil(rig.store.lastActiveDay)
     }
 
+    /// The core's effects land in the files, and a restart that reads
+    /// today's date back doesn't start the day (or reflect) twice.
+    func testCoreAndMemoryTogether() throws {
+        let rig = try MemoryRig(setUp: false)
+        let time = LocalTime(timeZone: TimeZone(identifier: "UTC")!)
+        let start = CoreRig.start  // 2026-10-14 14:00 UTC
+        try rig.store.setUp(name: "Pip", nature: .sweet, seed: 1, today: "2026-10-13")
+        rig.store.apply(.newDay(date: "2026-10-13", firstSeen: "09:00", mood: "content"))
+        func boot(_ now: Int64) -> (Core, [CoreEffect]) {
+            let core = Core(config: .init(name: "Pip", time: time), growth: rig.store.longTerm!.growth,
+                            lastActiveDay: rig.store.lastActiveDay, now: now)
+            let fx = core.handle(BoopEvent(agent: .claudeCode, session: "s1", project: "landing", event: .turnStart,
+                                           detail: .init(), ts: now))
+            for effect in fx { rig.store.apply(effect) }
+            return (core, fx)
+        }
+        let (_, first) = boot(start)
+        XCTAssertTrue(first.contains { if case .newDay = $0 { true } else { false } })
+        XCTAssertTrue(first.contains { if case .trigger(let t) = $0 { t.kind == .reflect } else { false } })
+        XCTAssertEqual(rig.store.reflecting, "2026-10-13")
+        XCTAssertEqual(rig.store.lastActiveDay, "2026-10-14")
+        XCTAssertEqual(rig.store.longTerm!.growth.xp, Growth.dailyXP)
+        try rig.reopen()
+        let (_, again) = boot(start + 60_000)
+        XCTAssertFalse(again.contains { if case .newDay = $0 { true } else { false } })
+        XCTAssertEqual(rig.store.longTerm!.growth.xp, Growth.dailyXP)
+    }
+
     func testLimitsHoldOnHandEditedFiles() throws {
         let rig = try MemoryRig()
         var text = rig.file("long-term.md")

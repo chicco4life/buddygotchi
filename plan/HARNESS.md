@@ -1,6 +1,6 @@
 # Boop: harness and brain
 
-Updated 2026-09-25. How a trigger becomes a brain call, and how the answer
+Updated 2026-09-26. How a trigger becomes a brain call, and how the answer
 is handed off.
 
 ## 1. What this is
@@ -140,6 +140,23 @@ Each action writes its own tool definition. For example, `say` publishes:
 
 The word list is Voice's vocabulary ([VOICE.md](VOICE.md) §6). Whatever the
 brain picks, `say` and Voice do the rest.
+
+All eight tools, as their actions define them (`app/BoopKit/Actions/`):
+
+| Tool | Arguments | The action's own checks |
+| --- | --- | --- |
+| `say` | `feeling` (one of 8), `word?` (one of 40) | Dropped in quiet or focus mode or while something needs you. Plays the feeling's face (`happy`, `proud`, `curious`, `love` for hopeful, `side_eye` for annoyed, `worried` for sad, `sleepy`) under the mumble |
+| `face` | `name`: `happy`, `proud`, `smug`, `curious`, `sleepy`, `worried`, `sulky`, `love` or `side_eye` | The core's rules may play any animation through the same action |
+| `quiet` | `minutes`: 15, 30, 60 or 120 | — |
+| `note` | `text`, at most 80 characters | Memory's rules: one line, no code, paths or secrets, no duplicates |
+| `remember` | `text`, at most 100 characters; `kind`: `about_you` or `preference` | Memory's rules, plus no other people's names; refused when the section or file is full |
+| `forget` | `text`, at most 100 characters | Removes the matching line, or the only one containing the text |
+| `temperament` | `text`, one sentence of at most 120 characters | Once a day |
+| `moment` | `text`, at most 80 characters | One per day reflected on |
+
+Every action checks its arguments against its own definition too, so a
+call that skips the harness (a rule's) is held to the same rules. A
+dropped call is logged with the reason.
 
 ## 7. The `Brain` interface
 

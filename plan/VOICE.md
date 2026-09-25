@@ -1,6 +1,6 @@
 # Boop: voice
 
-Updated 2026-09-25. How Boop's gibberish is built, how it sounds, and how we
+Updated 2026-09-26. How Boop's gibberish is built, how it sounds, and how we
 keep it unintelligible. Numbers marked *proposed* are first guesses, to be
 tuned by ear.
 
@@ -41,7 +41,7 @@ can slip real words into the gibberish.
 Voice's interface is one function:
 
 ```
-line(feeling, word?, mood, dialect) -> { syllables, word, word_position, tune, ms_per_syllable }
+line(feeling, word?, mood, dialect, seed) -> { syllables, word, word_position, tune, ms_per_syllable }
 ```
 
 ## 3. The syllables
@@ -58,12 +58,19 @@ where the Minion bounce comes from.
 **Sounds we avoid:** `s`, `sh`, `f`, `th`, `r` and `v`. They make gibberish
 sound like real speech and are hard to play cleanly on an 8-bit speaker.
 
-**The full set** is about 60 syllables, fixed in the firmware.
+**The full set** is 64 syllables, fixed in the firmware
+(`app/BoopKit/Voice/Sounds.swift` is the source):
 
-**Each Boop's dialect.** At setup, Boop's random seed picks about 16
-favourite syllables from the full set. Most lines use the favourites, with
-the rest of the set coming in occasionally. The dialect never changes, so
-your Boop always sounds like itself.
+- the 45 pairs of `b p m n d t l k g` with `a e i o u`;
+- the glides `ya yo yu wa we wo`;
+- the bare vowels `a e i o u`;
+- six closed syllables that aren't English words: `pum lon kun tem gom lun`;
+- two hums, `mm` and `nn`, for sleepy lines and the safe hum.
+
+**Each Boop's dialect.** At setup, Boop's random seed picks 16 favourite
+syllables from the full set (not the hums). About 70% of syllables come
+from the favourites that suit the feeling, and the rest from the whole set.
+The dialect never changes, so your Boop always sounds like itself.
 
 ## 4. Building a line
 
@@ -76,9 +83,9 @@ A line is 2–8 syllables, grouped into gibberish "words" of 1–3 syllables:
 
 | Part | Rule |
 | --- | --- |
-| Length | Voice picks short (2–4 syllables) or long (5–8), from the feeling and Boop's energy |
-| Grouping | Groups of 1–3 syllables. Doubling is common (`po-po`, `ba-ba`), because it sounds playful |
-| Real word | At most one. Usually at the end, as a question or exclamation; sometimes at the start, as an announcement |
+| Length | Voice picks short (2–4 syllables) or long (5–8), from the feeling and Boop's energy. Excited is usually long and sleepy almost always short |
+| Grouping | Groups of 1–3 syllables. Doubling is common (`po-po`, `ba-ba`), because it sounds playful: 40% of two-syllable groups for happy and excited, 15% otherwise |
+| Real word | At most one. Usually at the end, as a question or exclamation; one time in five at the start, as an announcement. Curious always asks, at the end |
 | Randomness | Seeded per line, so replaying a line in debug mode gives the same sound |
 
 **Feeling shapes the syllables and the tune.** These are the eight feelings
@@ -112,7 +119,7 @@ energy. It doesn't copy your sounds.
 | --- | --- |
 | Base pitch | Boop's energy; a cheeky Boop sits a little higher than a sweet one |
 | Tune | The feeling (§4): `up`, `down`, `bounce`, `flat` or `lift` |
-| Tempo | Mood; 90–180 ms per syllable (*proposed*) |
+| Tempo | Mood: 180 ms per syllable at pace 0, down to 90 ms at pace 200, then by feeling (excited −20, happy and annoyed −10, hopeful +10, sad +25, sleepy +35), kept within 90–180 ms (*proposed*) |
 | Liveliness | ±5% random pitch and ±10% timing per syllable, so it never sounds robotic |
 | Volume | The app's volume setting. Silent when muted and in focus mode |
 
@@ -125,6 +132,11 @@ fixed **vocabulary** of about 40 words (*proposed*):
   [ADAPTERS.md](ADAPTERS.md) §3), plus `bug`.
 - **Interjections:** `yay`, `oops`, `hmm`, `finally`, `done`, `food`,
   `sleepy`, `hi`, `bye`, `love`, and a few more.
+
+The v1 list has 40 words: `tests build docs deploy bug fix ship code merge
+review yay oops hmm finally done food sleepy hi bye love wow yes no nope
+okay again nice ugh boo whee hooray thanks hello more snack nap play good
+oh what`.
 
 The vocabulary is English everywhere in v1. The gibberish needs no
 translation, and a stray English word is part of the charm. The same list is
@@ -144,9 +156,19 @@ gibberish word, or the whole line read without hyphens:
   (English, Korean, Japanese and romanised Chinese);
 - is a known Minion word or catchphrase.
 
-A failed line is regenerated, up to 5 times, and then replaced with a safe
-hum (`mmn…`). The real word is the only part allowed through, and it must
-come from the vocabulary.
+A doubled syllable (`po-po`, `ki-ki`) is the Minion bounce, and the
+Mac's word list is full of obscure doubles (`kiki`, `pipi`, `baba`), so
+doubles skip the word list. A short list of doubles people hear as words
+(`mama`, `papa`, `nana`, `yoyo` and a few more) still fails, as do nursery
+words for the toilet (`kaka`, `pipi`). Rude and Minion words of four or
+more letters also fail anywhere inside the line, across word breaks.
+
+While building a line, Voice re-rolls a gibberish word that fails, up to 4
+times. The finished line is checked again. A failed line is regenerated,
+up to 5 times, and then replaced with a safe hum (`mm-nn…`). The real word
+is the only part allowed through, and it must come from the vocabulary; a
+word outside it is left out. In a test of 10,000 lines across 25
+dialects, 4 came out as the safe hum (2026-09-26).
 
 ## 8. Sound on the device
 

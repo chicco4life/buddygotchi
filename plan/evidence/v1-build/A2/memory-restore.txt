@@ -1,0 +1,40 @@
+$ boopdev memory --state-dir <tmp>   # long-term.md broken by hand, a snapshot in history/2026-10-13
+# memory: long-term.md didn't read (the Boop line doesn't read: name Pip, broken by hand); restored from history/2026-10-13, kept the old one as long-term.md.broken
+=== long-term.md ===
+## Boop
+name: Pip · hatched: 2026-10-02 · nature: cheeky · seed: 7f3a
+
+### Temperament
+Nosy and a bit smug. Trusts Codex more than it used to.
+Gets huffy about flaky tests.
+
+### Moments
+- 2026-10-09: first all-nighter together; the migration finally passed.
+
+### Growth
+xp: 1240 · level: 25 · last fed: 2026-10-14
+
+## About you
+- Ships on Fridays.
+- Mostly works on landing and jetpack.
+
+## Preferences
+- Likes it quiet before 10am.
+
+=== short-term.md ===
+## Today
+2026-10-14 · first seen 08:52 · mood: content
+
+## Notes
+- landing: flaky tests
+
+## Happened
+- 14:05 claude · jetpack · finished (18 min)
+
+=== history ===
+2026-10-13
+$ ls <tmp>
+history
+long-term.md
+long-term.md.broken
+short-term.md
