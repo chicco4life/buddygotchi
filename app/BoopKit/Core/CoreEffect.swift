@@ -11,7 +11,9 @@ public struct Trigger: Equatable, Sendable {
             case .event: ["say", "face"]
             case .tap: ["say", "face"]
             case .talk: ["say", "face", "quiet", "note"]
-            case .reflect: ["remember", "forget", "temperament", "moment"]
+            // Not `forget`: Apple's model deleted true facts with it
+            // (ARCHITECTURE.md §11). Reflection only adds.
+            case .reflect: ["remember", "temperament", "moment"]
             }
         }
 

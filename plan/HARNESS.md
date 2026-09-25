@@ -121,7 +121,7 @@ your words on `talk`, which are dropped after the call.
 | `event` | An agent turn starts, finishes or fails | 5 s | `say`, `face` |
 | `tap` | You tap Boop | 3 s | `say`, `face` |
 | `talk` | You release the push-to-talk button | 4 s | `say`, `face`, `quiet`, `note` |
-| `reflect` | Once a day, at the first activity of a new day | Minutes | `remember`, `forget`, `temperament`, `moment` |
+| `reflect` | Once a day, at the first activity of a new day | Minutes | `remember`, `temperament`, `moment` (not `forget` in v1, ARCHITECTURE.md §11) |
 
 "Needs you" is not a trigger. That moment belongs to plain rules, so the
 brain can't make it slower or different from one time to the next.
@@ -161,9 +161,9 @@ All eight tools, as their actions define them (`app/BoopKit/Actions/`):
 | `quiet` | `minutes`: 15, 30, 60 or 120 | — |
 | `note` | `text`, at most 80 characters | Memory's rules: one line, no code, paths or secrets, no duplicates |
 | `remember` | `text`, at most 100 characters; `kind`: `about_you` or `preference` | Memory's rules, plus no other people's names; refused when the section or file is full |
-| `forget` | `text`: one of the lines now under About you or Preferences (the definition is rebuilt for each call; not callable when there are none) | Removes that line |
+| `forget` | `text`: one of the lines now under About you or Preferences (the definition is rebuilt for each call; not callable when there are none) | Removes that line. Registered but offered by no trigger in v1 |
 | `temperament` | `text`, one sentence of at most 120 characters | Once a day |
-| `moment` | `text`, at most 80 characters | One per day reflected on |
+| `moment` | `text`, at most 80 characters | One per day reflected on; refused when half or more of its longer words are in an earlier moment |
 
 Every action checks its arguments against its own definition too, so a
 call that skips the harness (a rule's) is held to the same rules. A
@@ -179,7 +179,7 @@ Brain
 
 | Brain | Notes |
 | --- | --- |
-| Apple on-device | **The default.** Small, private and free. Guided generation with a schema built at runtime: a leading `react` choice (`stay quiet` or `react`, since a small model rarely leaves a list empty on its own), then up to three calls whose choices are constrained. Text lengths are only asked for, so the shape check still applies. Everything must work well on this |
+| Apple on-device | **The default.** Small, private and free. Guided generation with a schema built at runtime: a leading `react` choice (`stay quiet` or `react`, since a small model rarely leaves a list empty on its own), then up to three calls whose choices are constrained. Every choice starts with `none`, which leaves an optional argument out or drops the call, because the model otherwise drifts to a list's first entry. Guardrails are set to `permissiveContentTransformations`; a guardrail refusal is dropped like any brain error. Text lengths are only asked for, so the shape check still applies. Everything must work well on this |
 | Cloud API | Optional, with the person's own API key. Wittier, with the same tools and limits |
 | Rules only | No model. Reads the fallback table from `steering.md` in the system prompt and the trigger from the now section, like any brain. The most specific matching row wins (`Tap, hungry` over `Tap`); "long" means 5 minutes or more. Always available, and used when Apple's model can't run |
 

@@ -8,10 +8,13 @@ import FoundationModels
 /// PLAN.md §1), so every answer already matches the tools' choices:
 ///
 ///     Answer { react: "stay quiet" | "react",
-///              calls: [≤ 3 of: say {tool: "say", feeling: …, word?: …} | face {…} | …] }
+///              calls: [≤ 3 of: say {tool: "say", feeling: "none" | …, word: "none" | …} | face {…} | …] }
 ///
 /// A leading `react` choice makes staying quiet an easy first decision; the
-/// brain turns `stay quiet` into no calls. Numbers are offered as their
+/// brain turns `stay quiet` into no calls. Every choice also starts with
+/// `none`, because a small model otherwise drifts to a list's first entry:
+/// `none` leaves an optional argument out and drops a call whose required
+/// choice it fills (`forget(text: none)` keeps everything). Numbers are offered as their
 /// digits, and text lengths are only asked for, so the harness's shape check
 /// still has work to do.
 public struct AppleBrain: Brain {
@@ -38,11 +41,12 @@ public struct AppleBrain: Brain {
         #if canImport(FoundationModels)
         if let why = AppleBrain.unavailableReason { throw BrainError("apple model unavailable: \(why)") }
         let schema = try AppleBrain.schema(tools)
-        let session = LanguageModelSession(instructions: system)
+        let model = SystemLanguageModel(guardrails: .permissiveContentTransformations)
+        let session = LanguageModelSession(model: model, instructions: system)
         do {
             let response = try await session.respond(to: user, schema: schema,
                                                      options: GenerationOptions(temperature: 0.5))
-            return AppleBrain.fromList(response.content.jsonString)
+            return AppleBrain.fromList(response.content.jsonString, tools: tools)
         } catch let error as LanguageModelSession.GenerationError {
             throw BrainError("apple: \(error)")
         }
@@ -52,10 +56,25 @@ public struct AppleBrain: Brain {
     }
 
     #if canImport(FoundationModels)
-    /// `{"react":"stay quiet",…}` → no calls; otherwise just the calls.
-    static func fromList(_ json: String) -> String {
+    /// The first option of every choice.
+    static let none = "none"
+
+    /// `{"react":"stay quiet",…}` → no calls; otherwise just the calls, with
+    /// `none` arguments left out and calls whose required choice is `none`
+    /// dropped.
+    static func fromList(_ json: String, tools: [ToolDefinition] = []) -> String {
         guard let o = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any] else { return json }
-        let calls = (o["react"] as? String) == "react" ? (o["calls"] as? [Any] ?? []) : []
+        let listed = (o["react"] as? String) == "react" ? (o["calls"] as? [Any] ?? []) : []
+        let calls = listed.compactMap { item -> Any? in
+            guard var call = item as? [String: Any] else { return item }
+            let tool = tools.first { $0.name == call["tool"] as? String }
+            for (key, value) in call where key != "tool" && (value as? String) == none {
+                let optional = tool?.parameters.first { $0.name == key }?.optional ?? false
+                if !optional { return nil }
+                call[key] = nil
+            }
+            return call
+        }
         let data = (try? JSONSerialization.data(withJSONObject: ["calls": calls], options: [.sortedKeys])) ?? Data()
         return String(decoding: data, as: UTF8.self)
     }
@@ -77,14 +96,17 @@ public struct AppleBrain: Brain {
                 var description: String?
                 switch p.kind {
                 case .choice(let options):
-                    schema = DynamicGenerationSchema(name: "\(tool.name)_\(p.name)", anyOf: options)
+                    schema = DynamicGenerationSchema(name: "\(tool.name)_\(p.name)", anyOf: [none] + options)
                 case .number(let options):
                     schema = DynamicGenerationSchema(name: "\(tool.name)_\(p.name)", anyOf: options.map(String.init))
                 case .text(let max):
                     schema = DynamicGenerationSchema(type: String.self)
                     description = "A few words, at most \(max) characters."
                 }
-                properties.append(.init(name: p.name, description: description, schema: schema, isOptional: p.optional))
+                // Choices are always asked for; `none` stands in for leaving one out.
+                let optional: Bool
+                if case .choice = p.kind { optional = false } else { optional = p.optional }
+                properties.append(.init(name: p.name, description: description, schema: schema, isOptional: optional))
             }
             return DynamicGenerationSchema(name: tool.name, description: tool.description, properties: properties)
         }

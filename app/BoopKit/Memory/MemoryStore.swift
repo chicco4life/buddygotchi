@@ -239,6 +239,9 @@ public final class MemoryStore {
         case .failure(let why): return .failure(why)
         case .success(let s): line = s
         }
+        if lt.moments.contains(where: { Self.retells(line, $0.text) }) {
+            return .failure(Refusal("retells an earlier moment"))
+        }
         lt.moments.append(.init(date: day, text: line))
         lt.moments.sort { $0.date < $1.date }
         if lt.moments.count > MemoryLimits.moments { lt.moments.removeFirst() }
@@ -259,6 +262,17 @@ public final class MemoryStore {
     }
 
     static func same(_ a: String, _ b: String) -> Bool { key(a) == key(b) }
+
+    /// Whether at least half of `text`'s longer words (4+ letters) are in
+    /// `earlier`: a small model tends to copy an old moment for a new day.
+    static func retells(_ text: String, _ earlier: String) -> Bool {
+        func words(_ s: String) -> Set<String> {
+            Set(s.lowercased().split(whereSeparator: { !$0.isLetter }).map(String.init).filter { $0.count >= 4 })
+        }
+        let new = words(text)
+        guard !new.isEmpty else { return false }
+        return new.intersection(words(earlier)).count * 2 >= new.count
+    }
 
     // MARK: Files
 

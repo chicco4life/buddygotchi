@@ -352,8 +352,9 @@ final class BrainTests: XCTestCase {
     }
 
     #if canImport(FoundationModels)
-    /// The runtime schema builds for every trigger's tools, including
-    /// `forget` with nothing to forget. Doesn't call the model.
+    /// The runtime schema builds for every trigger's tools, and `none`
+    /// leaves out an optional choice or drops the call. Doesn't call the
+    /// model.
     func testTheAppleSchemaBuildsForEveryTrigger() throws {
         let memory = try MemoryRig()
         let context = ActionContext(send: { _ in }, today: { "2026-10-14" })
@@ -364,6 +365,9 @@ final class BrainTests: XCTestCase {
         XCTAssertEqual(AppleBrain.fromList(#"{"react":"stay quiet","calls":[{"tool":"face","name":"happy"}]}"#), #"{"calls":[]}"#)
         XCTAssertEqual(AppleBrain.fromList(#"{"react":"react","calls":[{"tool":"face","name":"happy"}]}"#),
                        #"{"calls":[{"name":"happy","tool":"face"}]}"#)
+        let tools = actions.map(\.definition)
+        XCTAssertEqual(AppleBrain.fromList(#"{"react":"react","calls":[{"tool":"say","feeling":"happy","word":"none"},{"tool":"face","name":"none"}]}"#, tools: tools),
+                       #"{"calls":[{"feeling":"happy","tool":"say"}]}"#)
     }
     #endif
 }

@@ -2,8 +2,8 @@
 2026-10-14 · first seen 08:52 · mood: a bit frazzled
 
 ## Notes
-- landing: flaky tests, third attempt
-- jetpack: long refactor finally done
+- jetpack is the payments service
+- landing launches Monday
 - said "shut up for an hour" at 13:10
 
 ## Happened

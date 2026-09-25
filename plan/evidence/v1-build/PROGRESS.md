@@ -272,3 +272,33 @@ One entry per iteration, newest last. Each ends with the exact next step.
   passes, write `A3/README.md`, set A3 Passed, and commit
   `A3: Harness and brains — …`. Don't spend more than ~45 min on tuning;
   if the reflection problem persists, Block with the evidence.
+
+## 2026-09-26 04:18 — A3: Harness and brains — Blocked
+
+- **Changed:** Apple's schema starts every choice with `none`, which drops
+  an optional argument, or drops the call when the choice is required. It
+  uses `permissiveContentTransformations` guardrails at temperature 0.5.
+  v1 reflection no longer offers `forget`. `moment` refuses a retelling of
+  an earlier moment. steering.md: new examples (a turn started gets
+  nothing, praise, "hello boop", "you're the best", tapped late at night,
+  an ordinary reflection day gets nothing), stricter Notes rules, and
+  "never `remember` agent news". The sample short-term notes are now
+  facts the person told Boop. HARNESS §5/§6/§7, ARCHITECTURE §4.2/§5 and
+  three decision-log rows were updated.
+- **Checks:** `make test` 135/135. L5 rules: PASS. L5 Apple
+  (`A3/l5-apple-run2.txt`): valid shape 50/52 (2 guardrail refusals),
+  2/86 calls dropped, all p95 values under their deadlines, so **FAIL** on
+  the 100% valid-shape check. The review still fails: talk notes praise and
+  greetings, 18/52 answers mumble `tests`, and only 4/50 were silent.
+  Reflection no longer deletes facts and remembers the right one. Six more
+  variants were tried; see `A3/README.md`.
+- **Decision:** after about 45 min of tuning in this iteration (plus the
+  last one's), A3 is **Blocked** per PLAN §3.6. The fix probably needs a
+  spec call from the owner: the core deciding when the brain speaks, and
+  `note` gated to fact-like words.
+- **Board:** untouched; still on F4 firmware `3707c8eb51`.
+- **Next step:** start **A4** (device link, app shell, push-to-talk,
+  installer). Read PLAN.md §4 A4 and the specs it links. The harness is
+  usable; default the app's brain setting to Apple as specced, and use
+  `--brain rules` for the headless USB checks in A4/J1 so they're
+  deterministic.

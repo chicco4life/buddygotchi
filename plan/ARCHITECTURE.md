@@ -137,7 +137,7 @@ brain, so a cheer looks the same whichever of them asked for it.
 | `face` | `name` | Sends an animation to the device as a moment |
 | `quiet` | `minutes` | Tells the core to stop mumbles for a while |
 | `note` | `text` | Adds a line to today's notes |
-| `remember`, `forget`, `temperament`, `moment` | short text | Reflection only: change long-term memory within its limits |
+| `remember`, `forget`, `temperament`, `moment` | short text | Reflection only: change long-term memory within its limits (v1 reflection doesn't offer `forget`, §11) |
 
 Each action checks its own rules and quietly drops (and logs) anything that
 breaks them. For example, `say` drops a word that isn't in its vocabulary,
@@ -251,7 +251,7 @@ xp: 1240 · level: 25 · last fed: 2026-10-14
 | Temperament | Reflection | At most one sentence changed a day: `temperament` adds one sentence of at most 120 characters, and past five sentences it replaces the oldest |
 | Moments | Reflection | At most 20 of at most 80 characters; at most one a day, dated the day reflected on. Past 20, the oldest drops |
 | Growth | Core | [BEHAVIORS.md](BEHAVIORS.md) §4. While Boop is starving the line also carries `lost: N`, the XP lost since it was last fed, so a restart doesn't take a day's XP twice |
-| About you | Reflection | At most 30 lines of at most 100 characters; no code, paths, secrets or other people's names. A new line when full is refused, so reflection has to `forget` first |
+| About you | Reflection | At most 30 lines of at most 100 characters; no code, paths, secrets or other people's names. A new line when full is refused; in v1 the person frees room by editing the file |
 | Preferences | Reflection | At most 15 lines; same limits |
 
 The checks are simple rules in the memory store: one line, no links,
@@ -425,3 +425,6 @@ When a spec changes direction, add a row here saying why.
 | 2026-09-26 | `forget` picks from the lines that exist, rebuilt for each call | Multiple choice suits a small model; free text named lines that weren't there | [HARNESS.md](HARNESS.md) §6 |
 | 2026-09-26 | One answer format for every brain (`{"calls":[…]}`); Apple's schema starts with a `react` choice | The shape check stays one piece of code; without the choice Apple's model answered every trigger | [HARNESS.md](HARNESS.md) §3, §7 |
 | 2026-09-26 | The rules-only brain reads its table from the prompt, like any brain | Same interface, same prompt; nothing special-cased | [HARNESS.md](HARNESS.md) §7 |
+| 2026-09-26 | v1 reflection doesn't offer `forget` | Apple's model forgot the true line "Ships on Fridays." in nearly every L5 reflection, even with a `none` choice and explicit steering. Forgetting destroys memory and is rarely needed; the action stays, tested, for a later brain | [HARNESS.md](HARNESS.md) §5 |
+| 2026-09-26 | Apple's schema starts every choice with `none` | Without it the model filled `word` with the vocabulary's first entry (`tests`) on greetings and praise | [HARNESS.md](HARNESS.md) §7 |
+| 2026-09-26 | `moment` refuses a text that retells an earlier moment | Apple's model copied the sample's old moment for a new day | [HARNESS.md](HARNESS.md) §6 |

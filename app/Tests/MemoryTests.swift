@@ -240,6 +240,8 @@ final class MemoryTests: XCTestCase {
         let rig = try MemoryRig()
         XCTAssertNotNil(try? rig.store.moment("the migration finally passed", day: "2026-10-09").get())
         XCTAssertEqual(rig.store.moment("again", day: "2026-10-09"), .failure(Refusal("already a moment for 2026-10-09")))
+        XCTAssertEqual(rig.store.moment("migration passed quietly", day: "2026-10-10"),
+                       .failure(Refusal("retells an earlier moment")))
         for i in 1...25 { _ = rig.store.moment("day \(i)", day: LocalTime.day("2026-10-09", plus: i)) }
         XCTAssertEqual(rig.store.longTerm!.moments.count, 20)
         XCTAssertEqual(rig.store.longTerm!.moments.first?.date, "2026-10-15")
