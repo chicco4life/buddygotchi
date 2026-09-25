@@ -1,11 +1,50 @@
-// boop-sim: runs a scenario through the same drawing code as the firmware
-// and writes PNGs (plan/VERIFICATION.md §4). F1 adds the pattern; F2 the rest.
+// boop-sim: the device core on the Mac (plan/VERIFICATION.md §2, §4). It
+// behaves like the board on USB: protocol and dbg.* lines on stdin, replies
+// on stdout. `boopctl sim` drives it with the same scenario runner as the
+// board, so a device screenshot and a simulator screenshot come from the
+// same messages. The clock starts frozen at 0.
 #ifndef PIO_UNIT_TESTING
+#include <chrono>
 #include <cstdio>
+#include <cstring>
+#include <iostream>
+#include <string>
+#include <vector>
 
-int main(int argc, char** argv) {
-  (void)argv;
-  std::fprintf(stderr, "boop-sim: no scenarios yet (args: %d)\n", argc - 1);
+#include "app/device.h"
+
+namespace {
+
+struct SimHal : app::Hal {
+  uint32_t realMs() override {
+    using namespace std::chrono;
+    return uint32_t(duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count());
+  }
+  const char* fwVersion() override { return "sim"; }
+  const char* gitSha() override { return "sim"; }
+};
+
+struct StdOut : app::Out {
+  void write(const char* s, size_t n) override { std::fwrite(s, 1, n, stdout); }
+};
+
+}  // namespace
+
+int main() {
+  SimHal hal;
+  StdOut out;
+  std::vector<uint8_t> pixels(size_t(render::kWidth) * render::kHeight, 0);
+  app::Device device(hal, pixels.data(), /*frozenClock=*/true);
+  device.setOut(app::Link::kUsb, &out);
+  device.tick();
+
+  std::string line;
+  while (std::getline(std::cin, line)) {
+    if (line.empty()) continue;
+    device.handleLine(line.data(), line.size(), app::Link::kUsb);
+    device.tick();
+    std::fflush(stdout);
+  }
   return 0;
 }
 #endif
