@@ -69,7 +69,7 @@ Each level answers a different question:
 | `e2e --soak MIN [--brain rules\|apple]` | J2's pipeline soak: the same fixtures on a loop for MIN minutes, a tap on the board between rounds, then a quiet minute. Samples `dbg.ping`, `audio.out.errors` and the app's memory; fails on a board reset, a heap-minimum drift over 2 KB, audio errors, the app exiting, or anything left on screen (not the plain face, `attn` or a moment) at the end. Checkpoint misses are counted and reported. A debug request that loses its reply (the CH340 rarely drops bytes over a long run) is retried once and counted as a link glitch |
 | `soak --minutes N` | Random, realistic traffic and inputs (with one 35 s silence), then check for resets, a drifting heap minimum, and that calm snapshots bring back the plain face |
 | `cam frame\|pattern\|clip <name>` | Webcam helpers (L3 in §5). Clips are live presets: `idle`, `needs_you`, `cheer`, `ladder` (sped-up clock), `cheers` (sizes 1–3) and `tap` |
-| `calibrate` | Touch calibration. Needs a person to tap 4 targets |
+| `calibrate` | Touch calibration. Needs a person to tap 4 amber crosses near the corners, then one in the middle to check; it fits a raw → screen map and the board keeps it in NVS. `--show` prints the stored map, `--show --clear` forgets it |
 
 ## 3. The debug channel
 
@@ -84,7 +84,8 @@ Over USB, the firmware accepts every normal protocol message
 | `{"t":"dbg.shot"}` | A header line `{"t":"dbg.shot","w":240,"h":320,"bytes":N,"crc":…}`, then one line of base64: 512 bytes of RGB565 palette (256 little-endian entries) followed by 76,800 bytes of pixel indexes, row by row. `crc` is the CRC-32 (as zlib's) of those bytes |
 | `{"t":"dbg.clock","freeze":T}` / `{"step":MS}` / `{"run":true}` | Freeze the clock at T (which also seeds randomness from T), step it, or let it run |
 | `{"t":"dbg.press","ms":N}` / `{"t":"dbg.touch","x":…,"y":…,"ms":N}` | Inject input through the same code path as real input |
-| `{"t":"dbg.pattern"}` / `{"fill":N}` | Show the test pattern, or a solid screen of palette index N, until the next `state` |
+| `{"t":"dbg.pattern"}` / `{"fill":N}` / `{"target":[x,y]}` | Show the test pattern, a solid screen of palette index N, or an amber calibration cross at (x, y) on black, until the next `state` |
+| `{"t":"dbg.touchcal"}` / `{"set":[ax,bx,cx,ay,by,cy]}` / `{"clear":true}` | Read, set or forget the touch calibration: x = (ax·raw x + bx·raw y + cx) / 65536, and y alike. The board keeps it in NVS and replies with `cal` (null when uncalibrated, which uses the default raw range) |
 | `{"t":"dbg.light","bl":0-255,"led":"#RRGGBB"}` | Set the backlight and the RGB LED (both optional), for bring-up and webcam framing |
 | `{"t":"dbg.reset"}` | Forget everything the Mac has said, the moment and the local screen, and freeze the clock at 0. Every scenario starts with it |
 

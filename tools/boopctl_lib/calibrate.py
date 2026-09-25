@@ -77,18 +77,20 @@ def read_tap(dev: Device) -> tuple[float, float]:
 def run(port: str | None) -> dict[str, Any]:
     raw: list[tuple[float, float]] = []
     with Device(port) as dev:
-        for i, (x, y) in enumerate(TARGETS, 1):
-            dev.request({"t": "dbg.pattern", "target": [x, y]})
-            print(f"Tap the amber cross ({i} of {len(TARGETS)}) with a fingertip or stylus, then lift.", flush=True)
-            raw.append(read_tap(dev))
-            print(f"  raw {raw[-1][0]:.0f}, {raw[-1][1]:.0f}", flush=True)
-        cal = fit(raw, TARGETS)
-        worst = max(abs(a - b) for (rx, ry), t in zip(raw, TARGETS) for a, b in zip(apply(cal, rx, ry), t))
-        dev.request({"t": "dbg.pattern", "target": list(CHECK)})
-        print("Now tap the cross in the middle, to check.", flush=True)
-        cx, cy = apply(cal, *read_tap(dev))
-        miss = ((cx - CHECK[0]) ** 2 + (cy - CHECK[1]) ** 2) ** 0.5
-        reply = dev.request({"t": "dbg.touchcal", "set": cal})
-        dev.request({"t": "dbg.reset"})  # back to the face, with the clock running
-        dev.request({"t": "dbg.clock", "run": True})
+        try:
+            for i, (x, y) in enumerate(TARGETS, 1):
+                dev.request({"t": "dbg.pattern", "target": [x, y]})
+                print(f"Tap the amber cross ({i} of {len(TARGETS)}) with a fingertip or stylus, then lift.", flush=True)
+                raw.append(read_tap(dev))
+                print(f"  raw {raw[-1][0]:.0f}, {raw[-1][1]:.0f}", flush=True)
+            cal = fit(raw, TARGETS)
+            worst = max(abs(a - b) for (rx, ry), t in zip(raw, TARGETS) for a, b in zip(apply(cal, rx, ry), t))
+            dev.request({"t": "dbg.pattern", "target": list(CHECK)})
+            print("Now tap the cross in the middle, to check.", flush=True)
+            cx, cy = apply(cal, *read_tap(dev))
+            miss = ((cx - CHECK[0]) ** 2 + (cy - CHECK[1]) ** 2) ** 0.5
+            reply = dev.request({"t": "dbg.touchcal", "set": cal})
+        finally:
+            dev.request({"t": "dbg.reset"})  # back to the face, with the clock running
+            dev.request({"t": "dbg.clock", "run": True})
     return {"raw": raw, "cal": reply["cal"], "fit_worst_px": round(worst, 1), "check_miss_px": round(miss, 1)}

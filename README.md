@@ -71,6 +71,7 @@ tools/boopctl bridge                       # share the serial port on a Unix soc
 tools/boopctl e2e [--brain rules|apple]    # the pipeline check (needs the bridge's port free)
 tools/boopctl e2e --soak 30 --brain apple  # the pipeline on a loop: resets, leaks, stuck states
 tools/boopctl soak | perf | voice          # device-only soak, frame rate, the audio timeline
+tools/boopctl calibrate                    # touch calibration: tap 4 crosses (needs a person)
 ```
 
 `app/.build/debug/boopdev` exercises the app without a board:

@@ -1,0 +1,40 @@
+# before (fresh flash)
+{
+  "cal": null,
+  "t": "dbg.touchcal"
+}
+# set (synthetic map, 4 synthetic taps)
+{
+  "cal": [
+    -4481,
+    123,
+    17022934,
+    -4,
+    6001,
+    -1460541
+  ],
+  "t": "dbg.touchcal"
+}
+# after a reflash and reboot
+  "up": 2860,
+{
+  "cal": [
+    -4481,
+    123,
+    17022934,
+    -4,
+    6001,
+    -1460541
+  ],
+  "t": "dbg.touchcal"
+}
+# cleared (the board is left uncalibrated for the owner)
+{
+  "cal": null,
+  "t": "dbg.touchcal"
+}
+# boopctl calibrate with nobody tapping
+Tap the amber cross (1 of 4) with a fingertip or stylus, then lift.
+boopctl: no tap within a minute
+tools/boopctl calibrate  0.67s user 0.36s system 1% cpu 1:00.11 total
+exit 2

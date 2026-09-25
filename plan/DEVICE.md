@@ -121,7 +121,7 @@ on 2026-09-26 (F1), and live in `firmware/src/board/display.h`:
 | Colour order | RGB | RGB: the red block reads red, the blue block blue |
 | Rotation | Portrait, with USB-C at the bottom as "up" | LovyanGFX rotation 0: the UP arrow points away from USB-C |
 | Offsets | 0, 0 (panel memory 240×320) | 0, 0: all four labelled corners show |
-| Touch calibration | Raw range about 200–3900 on both axes | Needs a person to tap 4 targets (`boopctl calibrate`); stored in NVS |
+| Touch calibration | Raw range about 200–3900 on both axes | Needs a person: `boopctl calibrate` fits an affine raw → screen map from 4 taps and the board keeps it in NVS (`boop`/`touchcal`), surviving reflashes. Until then the default range is used. Not yet run on this board |
 
 ## 5. Flash layout
 
