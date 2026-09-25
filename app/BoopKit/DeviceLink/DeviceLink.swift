@@ -32,6 +32,8 @@ public final class DeviceLink {
     public private(set) var connected = false
     /// Every line sent, for tests; nil keeps nothing.
     public var sentLines: [String]?
+    /// Called with every line sent (headless tracing); nil does nothing.
+    public var onSend: ((String) -> Void)?
 
     public init(transport: DeviceTransport?, log: @escaping (String) -> Void = { _ in }) {
         self.transport = transport
@@ -86,6 +88,7 @@ public final class DeviceLink {
 
     func send(_ line: String) {
         sentLines?.append(line)
+        onSend?(line)
         transport?.send(line)
     }
 }

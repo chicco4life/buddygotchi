@@ -31,6 +31,12 @@ enum Headless {
         var options = Runtime.Options(stateDir: stateDir,
                                       socketPath: option(args, "--socket") ?? stateDir.appendingPathComponent("boop.sock").path,
                                       link: transport, steering: bundledSteering())
+        // The clock can be moved forward with `{"dev":"advance","ms":N}`, so
+        // the pipeline check can finish a 6-minute turn without waiting it out.
+        let skew = Skew()
+        options.clock = { Int64(Date().timeIntervalSince1970 * 1000) + skew.ms }
+        options.advance = { skew.add($0) }
+        options.trace = args.contains("--trace")
         options.brain = option(args, "--brain")
         options.devLines = true
         options.debugLog = option(args, "--debug-log").map { URL(fileURLWithPath: $0) }
@@ -60,4 +66,12 @@ enum Headless {
         }
         withExtendedLifetime(sources) { dispatchMain() }
     }
+}
+
+/// How far headless mode's clock has been moved forward.
+final class Skew: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Int64 = 0
+    var ms: Int64 { lock.withLock { value } }
+    func add(_ ms: Int64) { lock.withLock { value += ms } }
 }

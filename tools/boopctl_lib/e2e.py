@@ -1,0 +1,309 @@
+"""The pipeline check (plan/VERIFICATION.md L4): hook → app → USB → device.
+
+Starts `boopctl bridge` and a headless app with throwaway state, sends each
+fixture's payloads through the real `boop-hook`, and checks the device's
+`dbg.state` at every checkpoint. Latency is hook launch to the device having
+received the new `state` (its `rx.state` count going up), on the host clock.
+
+Fixture lines, besides hook payloads:
+  {"wait_ms": N}                         sleep
+  {"advance_ms": N}                      jump the app's clock (a long turn without the wait)
+  {"expect": {...}, "within_ms": N}      poll dbg.state until it matches (default 2000 ms)
+  {"expect_not": {...}, "for_ms": N}     dbg.state must not match for that long
+  {"expect_not": {...}, "until_ms": N}   … until N ms after the last hook was launched
+  "shot": "name" on an expect line       also save a screenshot
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import shutil
+import signal
+import socket
+import subprocess
+import time
+from pathlib import Path
+from typing import Any
+
+from boopctl_lib.device import Device, DeviceError
+from boopctl_lib.image import save_shot
+from boopctl_lib.scenario import matches
+
+REPO = Path(__file__).resolve().parents[2]
+BIN = REPO / "app" / ".build" / "debug"
+FIXTURES = REPO / "app" / "Tests" / "Fixtures" / "hooks" / "e2e"
+RUN_ORDER = ["claude/session.jsonl", "codex/quick.jsonl", "codex/slow.jsonl"]
+# How long a hook's `state` may take before it counts as "no new state". A
+# later one still fails the checkpoint that expects the change.
+STATE_WAIT = 0.5
+
+
+def percentile(values: list[float], p: float) -> float:
+    s = sorted(values)
+    if not s:
+        return 0.0
+    k = max(0, min(len(s) - 1, int(-(-len(s) * p // 1)) - 1))
+    return s[k]
+
+
+class Run:
+    def __init__(self, root: Path, out: Path, brain: str, port: str | None) -> None:
+        self.root = root
+        self.out = out
+        self.brain = brain
+        self.port = port
+        self.state = root / "state"
+        self.bridge_sock = str(root / "usb.sock")
+        self.hook_sock = str(root / "boop.sock")
+        self.log: list[str] = []
+        self.failures: list[str] = []
+        self.hooks: list[dict[str, Any]] = []
+        self.procs: list[subprocess.Popen] = []
+        self.last_hook = time.monotonic()
+
+    def say(self, line: str) -> None:
+        print(line, flush=True)
+        self.log.append(line)
+
+    def fail(self, line: str) -> None:
+        self.failures.append(line)
+        self.say("FAIL " + line)
+
+    # Processes
+
+    def start(self) -> None:
+        if self.root.exists():
+            shutil.rmtree(self.root)
+        self.root.mkdir(parents=True)
+        self.out.mkdir(parents=True, exist_ok=True)
+        for name in ("Boop", "boop-hook", "boopdev"):
+            if not (BIN / name).exists():
+                raise DeviceError(f"no {BIN / name}; run make build")
+        bridge = [str(REPO / "tools" / "boopctl")] + (["--port", self.port] if self.port else [])
+        bridge += ["bridge", "--socket", self.bridge_sock, "--quiet"]
+        self.procs.append(subprocess.Popen(bridge, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+        self._wait_for(lambda: os.path.exists(self.bridge_sock), 10, "the bridge's socket")
+        app = [str(BIN / "Boop"), "--headless", "--state-dir", str(self.state), "--link", f"usb:{self.bridge_sock}",
+               "--socket", self.hook_sock, "--brain", self.brain, "--name", "Pip", "--trace",
+               "--debug-log", str(self.root / "brain.jsonl")]
+        self.procs.append(subprocess.Popen(app, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
+        self._wait_for(lambda: "device link: connected" in self.app_log(), 10, "the app to reach the bridge")
+        # The first launch of a freshly built boop-hook is slow (~270 ms) while
+        # macOS checks the new binary; agents run it hundreds of times a day.
+        # Warm it once, against a socket nobody listens on.
+        subprocess.run([str(BIN / "boop-hook"), "claude"], input=b"{}",
+                       env=dict(os.environ, BOOP_SOCKET=str(self.root / "none.sock")))
+        self.say(f"bridge and headless app up (brain {self.brain}, state {self.state})")
+
+    def stop(self) -> None:
+        for proc in reversed(self.procs):
+            if proc.poll() is None:
+                proc.send_signal(signal.SIGTERM)
+                try:
+                    code = proc.wait(10)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    code = "killed"
+                self.say(f"{Path(proc.args[0]).name} exit {code}")
+        self.procs = []
+
+    def _wait_for(self, ok, seconds: float, what: str) -> None:
+        end = time.monotonic() + seconds
+        while time.monotonic() < end:
+            if ok():
+                return
+            time.sleep(0.05)
+        raise DeviceError(f"timed out waiting for {what}")
+
+    def app_log(self) -> str:
+        path = self.state / "boop.log"
+        return path.read_text() if path.exists() else ""
+
+    # Steps
+
+    def hook(self, dev: Device, agent: str, payload: str) -> None:
+        before = dev.request({"t": "dbg.state"})["rx"]["state"]
+        env = dict(os.environ, BOOP_SOCKET=self.hook_sock)
+        t0 = self.last_hook = time.monotonic()
+        proc = subprocess.run([str(BIN / "boop-hook"), agent], input=payload.encode(), env=env,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        hook_ms = (time.monotonic() - t0) * 1000
+        name = json.loads(payload).get("hook_event_name", "?")
+        if proc.returncode != 0 or proc.stdout or proc.stderr:
+            self.fail(f"boop-hook {name}: exit {proc.returncode}, printed {len(proc.stdout) + len(proc.stderr)} bytes")
+        latency = None
+        while time.monotonic() - t0 < STATE_WAIT:
+            if dev.request({"t": "dbg.state"})["rx"]["state"] > before:
+                latency = (time.monotonic() - t0) * 1000
+                break
+        self.hooks.append({"agent": agent, "hook": name, "hook_ms": round(hook_ms, 1),
+                           "state_ms": None if latency is None else round(latency, 1)})
+        self.say(f"  {agent} {name}: boop-hook {hook_ms:.0f} ms, " +
+                 (f"state on the device after {latency:.0f} ms" if latency is not None else "no new state"))
+
+    def advance(self, ms: int) -> None:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+            s.connect(self.hook_sock)
+            s.sendall(json.dumps({"dev": "advance", "ms": ms}).encode() + b"\n")
+        time.sleep(0.3)
+        self.say(f"  app clock +{ms / 1000:.0f} s")
+
+    def expect(self, dev: Device, step: dict[str, Any], where: str) -> None:
+        want = step["expect"]
+        end = time.monotonic() + step.get("within_ms", 2000) / 1000
+        state: dict[str, Any] = {}
+        t0 = time.monotonic()
+        while True:
+            state = dev.request({"t": "dbg.state"})
+            if matches(want, state):
+                self.say(f"  ok {json.dumps(want)} after {(time.monotonic() - t0) * 1000:.0f} ms")
+                break
+            if time.monotonic() > end:
+                keys = {k: state.get(k) for k in ("screen", "base", "attn", "rung", "moment")}
+                self.fail(f"{where}: expected {json.dumps(want)}, got {json.dumps(keys)}")
+                break
+        if step.get("shot"):
+            palette, pixels = dev.shot()
+            path = save_shot(palette, pixels, self.out / f"{step['shot']}.png")
+            self.say(f"  shot {path}")
+
+    def expect_not(self, dev: Device, step: dict[str, Any], where: str) -> None:
+        want = step["expect_not"]
+        if "until_ms" in step:
+            end = self.last_hook + step["until_ms"] / 1000
+        else:
+            end = time.monotonic() + step.get("for_ms", 1000) / 1000
+        while time.monotonic() < end:
+            state = dev.request({"t": "dbg.state"})
+            if matches(want, state):
+                self.fail(f"{where}: {json.dumps(want)} showed up too early")
+                return
+        self.say(f"  ok not {json.dumps(want)} until {(end - self.last_hook) * 1000:.0f} ms after the last hook")
+
+    def fixture(self, dev: Device, path: Path) -> None:
+        agent = "codex" if "/codex/" in str(path) else "claude"
+        self.say(f"## {path.relative_to(REPO)}")
+        for n, raw in enumerate(path.read_text().splitlines(), 1):
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            step = json.loads(line)
+            where = f"{path.name}:{n}"
+            if "hook_event_name" in step:
+                self.hook(dev, agent, line)
+            elif "wait_ms" in step:
+                time.sleep(step["wait_ms"] / 1000)
+            elif "advance_ms" in step:
+                self.advance(step["advance_ms"])
+            elif "expect" in step:
+                self.expect(dev, step, where)
+            elif "expect_not" in step:
+                self.expect_not(dev, step, where)
+            else:
+                self.fail(f"{where}: unknown step {line}")
+
+
+def check_after(run: Run, expected: dict[str, Any]) -> None:
+    """The memory files, settings and logs once the app has stopped."""
+    long_term = (run.state / "long-term.md").read_text()
+    short_term = (run.state / "short-term.md").read_text()
+    m = re.search(r"xp: (\d+) · level: (\d+) · last fed: (\S+)", long_term)
+    if not m:
+        run.fail("long-term.md has no Growth line")
+    else:
+        xp, level = int(m.group(1)), int(m.group(2))
+        ok = xp == expected["xp"] and level == expected["level"]
+        (run.say if ok else run.fail)(f"growth: xp {xp} level {level} last fed {m.group(3)} "
+                                      f"(expected xp {expected['xp']} level {expected['level']})")
+    happened = short_term.split("## Happened", 1)[-1]
+    for want in expected["happened"]:
+        count = happened.count(want)
+        need = expected["happened"].count(want)
+        (run.say if count >= need else run.fail)(f"short-term Happened has {want!r} ×{count}")
+    settings = json.loads((run.state / "settings.json").read_text())
+    ok = settings.get("finished") == expected["finished"] and sorted(settings.get("projects", [])) == expected["projects"]
+    (run.say if ok else run.fail)(f"settings: finished {settings.get('finished')}, projects {settings.get('projects')}")
+    brain_log = (run.root / "brain.jsonl").read_text() if (run.root / "brain.jsonl").exists() else ""
+    for want in expected["triggers"]:
+        (run.say if want in brain_log else run.fail)(f"brain saw a trigger with {want!r}: {want in brain_log}")
+    # Nothing private may reach the app's files or the brain.
+    leaks = []
+    for f in list(run.state.rglob("*")) + [run.root / "brain.jsonl"]:
+        if f.is_file() and "PRIVATE_" in f.read_text(errors="replace"):
+            leaks.append(str(f))
+    (run.fail if leaks else run.say)(f"PRIVATE_ markers in app files or the brain log: {leaks or 'none'}")
+
+
+def check_order(run: Run) -> dict[str, Any]:
+    """The brain's moments come after the rules' reaction to the same hook.
+
+    With --trace the app logs `hook: …` for each hook and `link rules → …` or
+    `link brain → …` for each line sent to the device."""
+    stamp = re.compile(r"^(\d\d):(\d\d):(\d\d)\.(\d\d\d) (.*)$")
+    answers = []
+    last_hook: str | None = None
+    reaction: int | None = None
+    for raw in run.app_log().splitlines():
+        m = stamp.match(raw)
+        if not m:
+            continue
+        h, mi, s, ms, text = m.groups()
+        t = (int(h) * 3600 + int(mi) * 60 + int(s)) * 1000 + int(ms)
+        if text.startswith("hook: "):
+            last_hook, reaction = text[6:], None
+        elif text.startswith("link rules → ") and reaction is None and last_hook:
+            reaction = t
+        elif text.startswith("link brain → "):
+            kind = json.loads(text[len("link brain → "):]).get("anim", "?")
+            answers.append({"moment": kind, "after_rule_ms": None if reaction is None else t - reaction,
+                            "hook": last_hook})
+    bad = [a for a in answers if a["after_rule_ms"] is None or a["after_rule_ms"] <= 0]
+    for a in answers:
+        run.say(f"  brain moment {a['moment']} {a['after_rule_ms']} ms after the rules' reaction to {a['hook']}")
+    run.say(f"brain moments: {len(answers)}, before the rules' reaction: {len(bad)}")
+    if bad:
+        run.fail(f"{len(bad)} brain moments came before (or without) a rule reaction")
+    return {"brain_moments": len(answers), "before_rules": len(bad), "answers": answers}
+
+
+def main(out: Path, brain: str, port: str | None, fixtures: list[str] | None) -> int:
+    root = Path("/tmp/boop-e2e")
+    run = Run(root, out, brain, port)
+    expected = json.loads((FIXTURES / "expect.json").read_text())
+    paths = [FIXTURES / f for f in (fixtures or RUN_ORDER)]
+    started = time.time()
+    try:
+        run.start()
+        os.environ["BOOP_BRIDGE"] = run.bridge_sock
+        with Device(timeout=3.0) as dev:
+            for path in paths:
+                run.fixture(dev, path)
+    except DeviceError as exc:
+        run.fail(str(exc))
+    finally:
+        run.stop()
+    for gone in (run.hook_sock, run.bridge_sock):
+        (run.fail if os.path.exists(gone) else run.say)(f"{gone} removed: {not os.path.exists(gone)}")
+
+    lat = [h["state_ms"] for h in run.hooks if h["state_ms"] is not None]
+    p50, p95 = percentile(lat, 0.5), percentile(lat, 0.95)
+    run.say(f"latency, hook launch to state on the device: n {len(lat)}/{len(run.hooks)} hooks, "
+            f"p50 {p50:.0f} ms, p95 {p95:.0f} ms, max {max(lat, default=0):.0f} ms")
+    if not lat or p95 >= 200:
+        run.fail(f"p95 latency {p95:.0f} ms is not under 200 ms")
+    if fixtures is None:
+        check_after(run, expected)
+    order = check_order(run)
+
+    shutil.copy(run.state / "boop.log", out / f"app-{brain}.log")
+    for name in ("long-term.md", "short-term.md", "settings.json"):
+        if (run.state / name).exists():
+            shutil.copy(run.state / name, out / f"{brain}-{name}")
+    result = {"brain": brain, "started": started, "seconds": round(time.time() - started), "hooks": run.hooks,
+              "latency": {"p50": p50, "p95": p95, "n": len(lat)}, "order": order,
+              "failures": run.failures, "ok": not run.failures}
+    (out / f"e2e-{brain}.json").write_text(json.dumps(result, indent=2))
+    (out / f"e2e-{brain}.txt").write_text("\n".join(run.log) + "\n")
+    print("PASS" if not run.failures else f"FAIL ({len(run.failures)})")
+    return 0 if not run.failures else 1

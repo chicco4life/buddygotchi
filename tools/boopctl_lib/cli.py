@@ -330,6 +330,12 @@ def cmd_cam(args: argparse.Namespace) -> int:
     return 0 if result["ok"] else 1
 
 
+def cmd_e2e(args: argparse.Namespace) -> int:
+    from boopctl_lib import e2e
+
+    return e2e.main(Path(args.out), args.brain, args.port, args.fixture or None)
+
+
 def cmd_bridge(args: argparse.Namespace) -> int:
     from boopctl_lib.bridge import bridge_path, serve
 
@@ -349,6 +355,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--socket", help="socket path (default: $BOOP_BRIDGE or /tmp/boop-bridge.sock)")
     p.add_argument("--quiet", action="store_true")
     p.set_defaults(func=cmd_bridge)
+    p = sub.add_parser("e2e", help="the pipeline check: hooks → headless app → bridge → board (L4)")
+    p.add_argument("--brain", default="rules", choices=["rules", "apple"])
+    p.add_argument("--out", default="/tmp/boop-e2e-out", help="results, logs and screenshots")
+    p.add_argument("fixture", nargs="*", help="paths under app/Tests/Fixtures/hooks/e2e (default: all three)")
+    p.set_defaults(func=cmd_e2e)
     sub.add_parser("state", help="the device's own view of itself").set_defaults(func=cmd_state)
     p = sub.add_parser("send", help="send one protocol message")
     p.add_argument("message")

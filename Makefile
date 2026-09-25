@@ -42,7 +42,8 @@ sim:
 
 # Hook → app → USB → device pipeline check (built in J1).
 e2e:
-	@echo "e2e: not built yet (PLAN.md J1)" >&2; exit 1
+	$(MAKE) build
+	tools/boopctl e2e
 
 clean:
 	rm -rf app/.build firmware/.pio

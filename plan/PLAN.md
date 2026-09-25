@@ -141,7 +141,7 @@ Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 | A2 | Memory, Voice, actions | Passed |
 | A3 | Harness and brains | Blocked: Apple's model fails the L5 review (notes praise, filler words, rarely quiet) and its guardrail refuses 2/52; see evidence/v1-build/A3 |
 | A4 | Device link, app shell, push-to-talk, installer | Passed |
-| J1 | End to end over USB | Not started |
+| J1 | End to end over USB | In progress |
 | F5 | Voice on the device | Not started |
 | J2 | Soak and polish | Not started |
 | J3 | Handoff | Not started |

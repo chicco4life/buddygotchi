@@ -128,4 +128,44 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(settings.volume, 6)
         XCTAssertEqual(settings.finished, 0)
     }
+
+    /// A long turn, finished after moving the clock with `{"dev":"advance"}`:
+    /// the rules cheer at size 2 at once, and the brain's moment waits until
+    /// the cheer has played instead of cutting it off.
+    func testTheBrainWaitsForTheRulesMoment() throws {
+        let transport = FakeTransport()
+        try Runtime.setUp(stateDir: dir, name: "Pip", nature: .sweet, today: LocalTime().day(Int64(Date().timeIntervalSince1970 * 1000)))
+        var options = Runtime.Options(stateDir: dir, socketPath: dir.appendingPathComponent("boop.sock").path,
+                                      link: transport, steering: try String(contentsOf: Self.steering, encoding: .utf8))
+        options.brain = "rules"
+        options.devLines = true
+        let skew = NSLock()
+        nonisolated(unsafe) var skewMs: Int64 = 0
+        options.clock = { Int64(Date().timeIntervalSince1970 * 1000) + skew.withLock { skewMs } }
+        options.advance = { ms in skew.withLock { skewMs += ms } }
+        let runtime = try Runtime(options)
+        try runtime.start()
+        defer { runtime.stop() }
+        transport.onConnection?(true)
+
+        let socket = dir.appendingPathComponent("boop.sock").path
+        XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socket))
+        wait("working") { transport.sent.contains { $0.contains("\"base\":\"working\"") } }
+        XCTAssertTrue(HookSocket.send(Data(#"{"dev":"advance","ms":400000}"#.utf8), to: socket))
+        wait("clock moved") { skew.withLock { skewMs } == 400_000 }
+        XCTAssertTrue(HookSocket.send(hook("Stop"), to: socket))
+        wait("size 2 cheer") { transport.sent.contains { $0.contains("\"anim\":\"cheer\",\"size\":2") } }
+        let cheered = Date()
+        let moments = { transport.sent.filter { $0.contains("\"t\":\"moment\"") } }
+        let afterCheer = moments().count
+        wait("the brain's moment", timeout: 4) { moments().count > afterCheer }
+        XCTAssertGreaterThanOrEqual(Date().timeIntervalSince(cheered), 1.5, "a size-2 cheer plays for 1.64 s")
+    }
+
+    func testMomentLengthsFollowTheFirmware() {
+        XCTAssertEqual(DeviceMoment(anim: "cheer", size: 2).playMs, 1640)
+        XCTAssertEqual(DeviceMoment(anim: "oops").playMs, 1400)
+        XCTAssertEqual(DeviceMoment(anim: "thinking").playMs, 0, "the brain's reply replaces thinking")
+        XCTAssertEqual(DeviceMoment(anim: "proud").playMs, 2500)
+    }
 }

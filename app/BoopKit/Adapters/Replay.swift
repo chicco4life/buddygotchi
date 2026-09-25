@@ -5,7 +5,8 @@ import HookWire
 /// `boop-hook`, the adapter and a fresh core, on a virtual clock. Used by
 /// `boopdev replay` and by tests.
 public struct Replay {
-    /// A payload, or a `{"wait_ms": N}` line that moves the clock.
+    /// A payload, or a `{"wait_ms": N}` line that moves the clock. Lines
+    /// with `expect` or `expect_not` are `boopctl e2e` checkpoints, skipped.
     public enum Step: Equatable {
         case payload(Data)
         case wait(Int64)
@@ -34,8 +35,11 @@ public struct Replay {
             let line = raw.trimmingCharacters(in: .whitespaces)
             guard !line.isEmpty, !line.hasPrefix("#") else { return nil }
             if let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
-               object["hook_event_name"] == nil, let wait = object["wait_ms"] as? NSNumber {
-                return .wait(wait.int64Value)
+               object["hook_event_name"] == nil {
+                // `advance_ms` jumps a live app's clock; here it's just time.
+                if let wait = (object["wait_ms"] ?? object["advance_ms"]) as? NSNumber { return .wait(wait.int64Value) }
+                // Checkpoints for the pipeline check (`boopctl e2e`).
+                if object["expect"] != nil || object["expect_not"] != nil { return nil }
             }
             return .payload(Data(line.utf8))
         }

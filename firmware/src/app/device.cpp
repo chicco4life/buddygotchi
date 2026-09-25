@@ -94,6 +94,7 @@ void Device::handleLine(const char* line, size_t n, Link from) {
   b_.advance(at, rng_);
 
   if (!std::strcmp(t, "state")) {
+    ++rxState_;
     Model m;
     if (doc["base"].is<const char*>()) copyStr(m.base, sizeof(m.base), doc["base"]);
     JsonObjectConst attn = doc["attn"];
@@ -131,6 +132,7 @@ void Device::handleLine(const char* line, size_t n, Link from) {
     pattern_ = false;
     dirty_ = true;
   } else if (!std::strcmp(t, "moment")) {
+    ++rxMoment_;
     MomentIn mo;
     mo.anim = render::animFromName(doc["anim"]);
     mo.size = doc["size"] | 1;
@@ -438,6 +440,8 @@ void Device::sendState(Link to) {
   d["bat"] = hal_.batteryMv();
   d["amp"] = hal_.ampOn();
   d["bl"] = b_.backlight(t);
+  d["rx"]["state"] = rxState_;
+  d["rx"]["moment"] = rxMoment_;
   char buf[1024];
   size_t n = serializeJson(d, buf, sizeof(buf));
   reply(to, buf, n);

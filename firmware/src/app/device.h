@@ -113,6 +113,10 @@ class Device {
 
   Screen screen_ = Screen::kFace;
   bool pattern_ = false;  // dbg.pattern until the next state
+  // `state` and `moment` messages received since boot (dbg.state `rx`), so
+  // the pipeline check can see exactly when the Mac's message arrived.
+  uint32_t rxState_ = 0;
+  uint32_t rxMoment_ = 0;
   int patternFill_ = -1;  // a solid dbg.pattern screen, or -1
   uint32_t drawnT_ = 0;   // the time of the last frame
   bool drawnMoving_ = false;  // it was mid-motion, so the next time step redraws

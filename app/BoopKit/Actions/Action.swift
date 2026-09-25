@@ -15,6 +15,27 @@ public struct DeviceMoment: Equatable, Sendable {
         self.ttl = ttl
     }
 
+    /// How long the device plays it, as `animDuration` in
+    /// firmware/src/render/anim.cpp, or the mumble if that's longer.
+    /// `listening` and `thinking` count as 0: they last until something
+    /// replaces them.
+    public var playMs: Int64 {
+        let size = Swift.max(1, Swift.min(3, self.size))
+        let anim: Int64 = switch self.anim {
+        case "listening", "thinking": 0
+        case "nod": 600
+        case "cheer": Int64(size + 1) * 380 + 500
+        case "oops", "stretch": 1400
+        case "side_eye", "yawn": 1600
+        case "wiggle": 700
+        case "shrug": 1200
+        case "zip", "gobble", "rumble": 1500
+        case "levelup": 2400
+        default: 2500
+        }
+        return Swift.max(anim, say.map { Int64($0.ms * $0.syllableCount) } ?? 0)
+    }
+
     public var jsonLine: String {
         var parts = ["\"t\":\"moment\"", "\"anim\":\"\(anim)\"", "\"size\":\(size)"]
         if let say { parts.append("\"say\":" + say.json) }

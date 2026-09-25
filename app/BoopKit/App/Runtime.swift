@@ -18,8 +18,13 @@ public final class Runtime: @unchecked Sendable {
         public var brain: String?
         public var time = LocalTime()
         public var clock: @Sendable () -> Int64 = { Int64(Date().timeIntervalSince1970 * 1000) }
-        /// Accept `{"dev":"talk","words":…}` on the hook socket (headless only).
+        /// Accept `{"dev":"talk","words":…}` and `{"dev":"advance","ms":…}`
+        /// on the hook socket (headless only).
         public var devLines = false
+        /// Moves `clock` forward, for `{"dev":"advance"}`; nil ignores it.
+        public var advance: (@Sendable (Int64) -> Void)?
+        /// Log every hook and every line sent to the device (the L4 check).
+        public var trace = false
         /// §8's JSONL log of every brain call; nil keeps none.
         public var debugLog: URL?
         public var log: @Sendable (String) -> Void = { _ in }
@@ -69,6 +74,21 @@ public final class Runtime: @unchecked Sendable {
     var server: HookServer?
     var timer: DispatchSourceTimer?
     var projects: [String: String] = [:]
+    /// Keeps the brain from cutting off the rules (BEHAVIORS.md §3): a
+    /// moment an action sends outside the core's effects is the brain's, and
+    /// waits until the rules' last moment has finished playing.
+    final class Moments {
+        /// Above zero while the core's effects are carried out.
+        var inRules = 0
+        /// When the rules' last moment ends on the device.
+        var rulesUntil: Int64 = 0
+        /// The brain's moments waiting for it, and whether a flush is due.
+        var held: [DeviceMoment] = []
+        var flushDue = false
+        /// True while a brain moment is being sent (for `trace`).
+        var brainSending = false
+    }
+    let moments = Moments()
 
     /// Push-to-talk: start (true) or stop listening. Called on `home`.
     public var onListen: ((Bool) -> Void)?
@@ -90,6 +110,10 @@ public final class Runtime: @unchecked Sendable {
         guard let longTerm = memory.longTerm else { throw OpenError.notSetUp }
         settings = AppSettings.load(from: options.stateDir)
         link = DeviceLink(transport: options.link, log: log)
+        if options.trace {
+            let moments = self.moments
+            link.onSend = { line in log("link \(moments.brainSending ? "brain" : "rules") → " + line) }
+        }
 
         let now = options.clock()
         var config = Core.Config(name: longTerm.name, volume: settings.volume, time: options.time,
@@ -105,7 +129,16 @@ public final class Runtime: @unchecked Sendable {
         let time = options.time
         let clock = options.clock
         let context = ActionContext(
-            send: { link.play($0) },
+            send: { [moments, home] moment in
+                let now = clock()
+                if moments.inRules > 0 {
+                    link.play(moment)
+                    moments.rulesUntil = max(moments.rulesUntil, now + moment.playMs)
+                    return
+                }
+                moments.held.append(moment)
+                Runtime.flushHeld(moments, link: link, clock: clock, home: home)
+            },
             mood: { core.currentMood(at: clock()) },
             mumblesAllowed: { core.canMumble(at: clock()) },
             setQuiet: { route(core.setQuiet(minutes: $0, at: clock())) },
@@ -132,7 +165,10 @@ public final class Runtime: @unchecked Sendable {
 
     public func start() throws {
         let home = self.home
-        let onLine: @Sendable (HookLine, Int64) -> Void = { [weak self] line, received in
+        // Hooks are timed on the runtime's clock, which headless mode can move.
+        let clock = options.clock
+        let onLine: @Sendable (HookLine, Int64) -> Void = { [weak self] line, _ in
+            let received = clock()
             home.async { self?.hook(line, received: received) }
         }
         let onOther: @Sendable (Data) -> Void = { [weak self] data in home.async { self?.dev(data) } }
@@ -175,7 +211,7 @@ public final class Runtime: @unchecked Sendable {
     func hook(_ line: HookLine, received: Int64) {
         // The doctor skill arms this to see hooks arrive; otherwise hooks
         // aren't logged.
-        if FileManager.default.fileExists(atPath: options.stateDir.appendingPathComponent(Self.doctorArm).path) {
+        if options.trace || FileManager.default.fileExists(atPath: options.stateDir.appendingPathComponent(Self.doctorArm).path) {
             options.log("hook: \(line.agent) \(line.hook) \(line.session)")
         }
         let key = line.agent + "/" + line.session
@@ -201,10 +237,16 @@ public final class Runtime: @unchecked Sendable {
     }
 
     func dev(_ data: Data) {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              object["dev"] as? String == "talk", let words = object["words"] as? String else { return }
-        options.log("dev: talk \"\(words)\"")
-        talkNow(words)
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+        if object["dev"] as? String == "talk", let words = object["words"] as? String {
+            options.log("dev: talk \"\(words)\"")
+            talkNow(words)
+        } else if object["dev"] as? String == "advance", let ms = (object["ms"] as? NSNumber)?.int64Value,
+                  ms > 0, let advance = options.advance {
+            advance(ms)
+            options.log("dev: clock advanced \(ms) ms")
+            tick()
+        }
     }
 
     func tick() {
@@ -215,6 +257,8 @@ public final class Runtime: @unchecked Sendable {
 
     /// Carries out the core's decisions (ARCHITECTURE.md §3.2).
     func run(_ effects: [CoreEffect]) {
+        moments.inRules += 1
+        defer { moments.inRules -= 1 }
         var stateChanged = false
         for effect in effects {
             switch effect {
@@ -238,6 +282,26 @@ public final class Runtime: @unchecked Sendable {
         if stateChanged {
             if memory.shortTerm != nil { memory.setMood(core.moodWord(at: options.clock())) }
             changed()
+        }
+    }
+
+    /// Sends the brain's held moments once the rules' moment is over, or
+    /// checks again then (a newer rule moment pushes them back). On `home`.
+    static func flushHeld(_ moments: Moments, link: DeviceLink, clock: @escaping @Sendable () -> Int64,
+                          home: DispatchQueue) {
+        let wait = moments.rulesUntil - clock()
+        if wait <= 0 {
+            let held = moments.held
+            moments.held = []
+            moments.brainSending = true
+            held.forEach(link.play)
+            moments.brainSending = false
+        } else if !moments.flushDue {
+            moments.flushDue = true
+            home.asyncAfter(deadline: .now() + .milliseconds(Int(wait))) {
+                moments.flushDue = false
+                flushHeld(moments, link: link, clock: clock, home: home)
+            }
         }
     }
 

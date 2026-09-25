@@ -1,0 +1,8 @@
+{
+  "xp": 8,
+  "level": 1,
+  "finished": 3,
+  "projects": ["jetpack", "landing"],
+  "happened": ["claude · jetpack · finished", "claude · jetpack · deploy · failed", "codex · landing · finished", "codex · landing · finished"],
+  "triggers": ["topic: tests", "topic: deploy", "error: rate limit", "turn finished · claude · jetpack", "turn finished · codex · landing"]
+}
