@@ -63,6 +63,15 @@ tools/boopctl ping | state | shot | run <scenario> | sim <scenario> | bridge
   `/dev/cu.usbserial-*`. The serial port needs no special permissions.
 - System Python has no pyserial or Pillow. The tools use `tools/.venv`.
 
+## Running the v1 build
+
+"Run the loop" or "start the build" means: from this checkout's root, start
+`caffeinate -dimsu tools/build-loop.sh` as a background command and report
+where its log is (`/tmp/boop-build-loop/loop.log`). The script runs
+[plan/LOOP.md](plan/LOOP.md) one fresh iteration at a time until
+`plan/evidence/v1-build/DONE` exists ([plan/PLAN.md](plan/PLAN.md) §5).
+Don't run the iterations yourself in this session.
+
 ## Never do these
 
 - **Don't launch the Boop app with Bluetooth, or run `bleak`, from an agent

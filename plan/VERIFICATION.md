@@ -187,7 +187,9 @@ This checks what only the real panel can show. It runs:
 
 1. **Framing** (once per run): `boopctl cam frame` takes a 1-second clip,
    finds the bright screen rectangle, and saves a crop box. If no screen is
-   found, skip L3 for the rest of the run and say so in the report.
+   found, skip L3 for the rest of the run and say so in the report. The board
+   may lie flat in landscape, with USB-C to the right in the camera's view.
+   Rotate the crop so USB-C is at the bottom before judging orientation.
 2. **Pattern** (bring-up): `boopctl cam pattern` shows the test pattern,
    captures it, and samples the colour blocks. It checks that red reads as
    red (not blue, which would mean BGR order), that white is bright and
