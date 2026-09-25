@@ -1,4 +1,0 @@
-
-# pioarduino (Arduino core 3.x) drops these into src during builds
-firmware/idf_component.yml
-firmware/idf_component.yml.orig

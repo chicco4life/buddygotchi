@@ -4,107 +4,20 @@ name: CI
 on:
   workflow_dispatch:
 
-env:
-  DEVELOPER_DIR: /Applications/Xcode_16.2.app/Contents/Developer
-
 jobs:
   swift:
     name: Swift build and tests
     runs-on: macos-15
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Show toolchain
-        run: swift --version
-
-      - name: Cache SwiftPM build
-        uses: actions/cache@v4
-        with:
-          path: app/.build
-          key: ${{ runner.os }}-${{ env.DEVELOPER_DIR }}-swift-${{ hashFiles('app/Package.resolved') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ env.DEVELOPER_DIR }}-swift-
-
-      - name: Build
-        run: swift build
-        working-directory: app
-
-      - name: Lint Swift
-        run: |
-          if command -v swift-format >/dev/null 2>&1; then
-            swift-format lint -r Boop BoopSignal Tests
-          else
-            echo "swift-format unavailable; skipping lint"
-          fi
-        working-directory: app
-
-      - name: Headless HTTP smoke
-        run: |
-          set -uo pipefail
-          trap 'app/tools/headless.sh --stop' EXIT
-          app/tools/headless.sh || exit 1
-          app/tools/e2e-smoke.sh
-
-      - name: Test
-        run: |
-          swift test 2>&1 | tee test-output.log
-          executed="$(grep -Eo 'Executed [0-9]+ tests?' test-output.log | awk '{sum += $2} END {print sum + 0}')"
-          echo "Executed test count: $executed"
-          if [ "$executed" -lt 100 ]; then
-            echo "Expected at least 100 executed tests; failing to catch silent test skips." >&2
-            exit 1
-          fi
-        working-directory: app
-
-      - name: Generate UI snapshots
-        continue-on-error: true
-        run: |
-          mkdir -p /tmp/buddy-snapshots
-          touch /tmp/buddy-snapshots/.enable
-          swift test --disable-sandbox --filter SnapshotHarnessTests
-        working-directory: app
-
-      - name: Upload UI snapshots
-        uses: actions/upload-artifact@v4
-        with:
-          name: ui-snapshots
-          path: /tmp/buddy-snapshots/*.png
-          if-no-files-found: warn
-          retention-days: 14
-
-      - name: Package app bundle
-        run: make package
+      - uses: actions/checkout@v4
+      - run: make build
+      - run: make test
 
   firmware:
-    name: Firmware build (shipping board)
-    runs-on: ubuntu-latest
+    name: Firmware build and native tests
+    runs-on: macos-15
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Cache PlatformIO packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            firmware/esp32/.platformio-core/packages-pioarduino
-            firmware/esp32/.platformio-core/platforms
-          key: ${{ runner.os }}-pio-local-${{ hashFiles('firmware/esp32/platformio.ini', 'firmware/esp32/tools/pio_ws.sh') }}
-
-      - name: Install PlatformIO
-        run: pip install platformio
-
-      - name: Build shipping board and USB-only debug firmware
-        run: tools/pio_ws.sh run -e ws-amoled164 -e ws-amoled164-usb-debug
-        working-directory: firmware/esp32
-
-      - name: Firmware host tests
-        run: |
-          pip install pytest cryptography
-          python3 -m pytest tests/host -q
-        working-directory: firmware/esp32
+      - uses: actions/checkout@v4
+      - run: pip3 install platformio
+      - run: make fw
+      - run: make fw-test

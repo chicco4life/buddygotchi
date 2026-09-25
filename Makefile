@@ -1,57 +1,48 @@
-.PHONY: headless doctor build run test test-snapshots e2e hil hil-ble preflight preflight-unsigned package lint clean
+# Boop v1. Run from the repo root. See README.md and plan/VERIFICATION.md.
+.PHONY: build run test tools fw flash sim fw-test e2e clean
 
+PIO := firmware/tools/pio.sh
+
+# Mac app, boop-hook, boopdev.
 build:
-	cd app && swift build --product Boop && swift build --product BoopSignal
+	cd app && swift build
 
+# The Mac app with Bluetooth. The owner runs this, not agents.
 run:
 	cd app && swift run Boop
 
+# Swift unit tests through the XCTest shim (there's no Xcode here).
 test:
 	python3 app/tools/test.py
 
-test-snapshots:
-	mkdir -p /tmp/buddy-snapshots
-	touch /tmp/buddy-snapshots/.enable
-	cd app && swift test --disable-sandbox --filter SnapshotHarnessTests
+# tools/.venv with pyserial and Pillow, for boopctl.
+tools: tools/.venv/.ok
 
-headless:
-	app/tools/headless.sh
+tools/.venv/.ok: tools/requirements.txt
+	python3 -m venv tools/.venv
+	tools/.venv/bin/pip install --quiet --upgrade pip
+	tools/.venv/bin/pip install --quiet -r tools/requirements.txt
+	touch $@
 
-doctor:
-	skills/doctor/doctor.sh --headless
+# Firmware for the board (env cyd24).
+fw:
+	$(PIO) run -e cyd24
 
+# Build and upload over USB (auto-reset, no BOOT press).
+flash:
+	$(PIO) run -e cyd24 -t upload $(if $(BOOP_PORT),--upload-port $(BOOP_PORT))
+
+# Firmware unit tests on the Mac.
+fw-test:
+	$(PIO) test -e native
+
+# The renderer simulator, boop-sim (runs scenarios via tools/boopctl sim).
+sim:
+	$(PIO) run -e native
+
+# Hook → app → USB → device pipeline check (built in J1).
 e2e:
-	@bash app/tools/e2e-headless.sh
-
-hil:
-	python3 tools/dev/device.py --evidence /tmp/boop-hil-$$(date +%s) -- python3 -m pytest firmware/esp32/tests/hil -m "not ble"
-
-hil-ble:
-	python3 tools/dev/device.py --evidence /tmp/boop-hil-ble-$$(date +%s) -- python3 -m pytest firmware/esp32/tests/hil -m "ble"
-
-package:
-	app/tools/package.sh
-
-preflight:
-	app/tools/release-preflight.sh
-
-preflight-unsigned:
-	BUDDY_ALLOW_UNSIGNED=1 app/tools/release-preflight.sh
-
-lint:
-	@if command -v swift-format >/dev/null 2>&1; then \
-		cd app && swift-format lint -r Boop BoopSignal Tests; \
-	else \
-		echo "swift-format is not installed. Install it or run swift test for the required check."; \
-		exit 1; \
-	fi
+	@echo "e2e: not built yet (PLAN.md J1)" >&2; exit 1
 
 clean:
-	rm -rf app/.build .build
-
-.PHONY: webcam webcam-test
-webcam:
-	tools/webcam/webcam.sh $(ARGS)
-
-webcam-test:
-	python3 -m unittest discover -s tools/webcam/tests -v
+	rm -rf app/.build firmware/.pio

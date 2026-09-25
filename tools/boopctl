@@ -1,0 +1,10 @@
+#!/bin/sh
+# Boop's device tool (plan/VERIFICATION.md §2). Runs in tools/.venv, which
+# `make tools` creates with pyserial and Pillow.
+here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+py="$here/.venv/bin/python"
+if [ ! -x "$py" ]; then
+  echo "boopctl: tools/.venv is missing; run 'make tools' first" >&2
+  exit 2
+fi
+PYTHONPATH="$here${PYTHONPATH:+:$PYTHONPATH}" exec "$py" -m boopctl_lib "$@"

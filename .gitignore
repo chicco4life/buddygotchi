@@ -64,3 +64,4 @@ build/
 # Next.js generated output
 .next/
 *.tsbuildinfo
+app/Tests/GeneratedTestRunner.swift

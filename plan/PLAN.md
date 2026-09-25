@@ -130,7 +130,7 @@ Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 
 | # | Milestone | Status |
 | --- | --- | --- |
-| M0 | Setup | Not started |
+| M0 | Setup | Passed |
 | F1 | Board bring-up | Not started |
 | F2 | Renderer and simulator | Not started |
 | F3 | Device behaviour | Not started |

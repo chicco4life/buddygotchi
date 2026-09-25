@@ -9,7 +9,7 @@ This script parses Tests/*.swift for `XCTestCase` subclasses and their `test…`
 methods, then emits Tests/GeneratedTestRunner.swift: an `@main` entry point
 (guarded by `#if BOOP_SHIM_RUNNER`) that instantiates each case, runs
 its setUp lifecycle, and invokes every test. `make test` regenerates this and
-runs it via `swift run`, so the ~130 tests actually execute locally.
+runs it via `swift run`, so the tests actually execute locally.
 
 On CI (real Xcode / real XCTest) the Tests target stays a normal testTarget,
 BOOP_SHIM_RUNNER is undefined, and this file compiles to nothing.
@@ -65,13 +65,12 @@ def main() -> None:
         "#if BOOP_SHIM_RUNNER",
         "import Foundation",
         "import XCTest",
-        "@testable import BoopCore",
+        "@testable import BoopKit",
         "",
         "@MainActor",
         "@main",
         "struct GeneratedTestRunner {",
         "    static func main() async {",
-        '        if CommandLine.arguments.dropFirst().first == "--model-replay" { await ModelReplay.run(arguments: CommandLine.arguments); return }',
         "        var passed = 0, skipped = 0",
         "        func run(_ name: String, _ body: () async throws -> Void) async {",
         '            FileHandle.standardError.write("\\u{25B6} \\(name)\\n".data(using: .utf8)!)',

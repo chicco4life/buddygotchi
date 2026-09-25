@@ -21,17 +21,16 @@ cheap ESP32 board with a screen is the body. Start with
 | `firmware/` | PlatformIO firmware for the MicroTech MTR024QV01A board ([plan/DEVICE.md](plan/DEVICE.md)) |
 | `tools/` | `boopctl` (device tool), `voicegen` (voice assets), `webcam/` (opt-in recorder) |
 | `skills/` | `doctor` (hook self-check) and `webcam-verify`, symlinked for Claude, Codex and Cursor |
-| `archived/` | Earlier generations: gen 1 (`archived/app`, `archived/firmware`, research) and the gen-2 specs (`archived/plan-gen2`). Gen-2 code is kept at git tag `gen2-final`. Don't extend it; delete what v1 doesn't need |
+| `archived/` | History only: research, docs and the gen-2 specs (`archived/plan-gen2`). All earlier code is kept at git tag `gen2-final` (`git show gen2-final:<path>`). Don't extend it |
 | `landing/` | The Next.js landing page (Vercel project root) |
 
 v1 is a rewrite, and no existing code is off-limits: delete anything v1
 doesn't use, including `archived/` code (the tag `gen2-final` keeps it).
-Keep `landing/` and the specs. Until PLAN.md milestone M0 is done, `app/`
-and `firmware/esp32/` still hold gen-2 code.
+Keep `landing/` and the specs.
 
 ## Build and test
 
-Run from the repo root. The targets are created in PLAN.md M0.
+Run from the repo root.
 
 ```sh
 make build        # Mac app, boop-hook, boopdev
@@ -59,7 +58,9 @@ tools/boopctl ping | state | shot | run <scenario> | sim <scenario> | bridge
   `~/.cache/clang` or `~/Library/org.swift.swiftpm`, rerun it outside the
   sandbox before investigating the source.
 - Apple's Foundation Models runs from the shell (8K context).
-- PlatformIO is `/opt/homebrew/bin/pio`. The board shows up as
+- PlatformIO is `/opt/homebrew/bin/pio`. Call it through
+  `firmware/tools/pio.sh` (the make targets do), which keeps its packages in
+  `firmware/.platformio-core`. The board shows up as
   `/dev/cu.usbserial-*`. The serial port needs no special permissions.
 - System Python has no pyserial or Pillow. The tools use `tools/.venv`.
 

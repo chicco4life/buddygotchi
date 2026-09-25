@@ -12,16 +12,16 @@ personality grows with you and can't be reset.
 - `firmware/` is the firmware for the MicroTech MTR024QV01A board (ESP32 with
   a 2.4" screen).
 - `tools/` has the device tool (`boopctl`) and the webcam recorder.
-- `archived/` holds earlier generations. `landing/` is the landing page.
+- `archived/` holds earlier research and specs; earlier code is at git tag `gen2-final`. `landing/` is the landing page.
 
-v1 is being rebuilt. The commands below are the targets from
-[plan/PLAN.md](plan/PLAN.md) milestone M0:
+v1 is being rebuilt. From the repo root:
 
 ```sh
 make build        # build the Mac app
 make test         # Swift unit tests
 make run          # run the Mac app (from your own terminal, for Bluetooth)
 make tools        # set up tools/.venv
+make fw-test      # firmware unit tests on the Mac
 make flash        # build and flash the firmware over USB
 make sim          # render every screen in the simulator
 tools/boopctl ping
