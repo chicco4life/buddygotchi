@@ -495,3 +495,24 @@ The owner read the A3 blocker (`A3/README.md`) and decided:
   `make flash`, confirm the idle face with `boopctl shot`, set J3 Passed,
   create `plan/evidence/v1-build/DONE` and commit. Webcam stays off: say
   that L3 was skipped. Never start P1.
+
+## 2026-09-26 07:50 — J3: Handoff — Passed; the build is DONE
+
+- **Found:** the morning checklist (row 3) and DEVICE.md §4 named `boopctl
+  calibrate`, but it didn't exist. **Decided** to build it, not drop the
+  row: the owner's first touch check depends on it.
+- **Changed:** `boopctl calibrate` (4 crosses, a least-squares affine fit,
+  a centre check); firmware `dbg.touchcal` (read/set/clear, kept in NVS)
+  and `dbg.pattern` `target`. Specs: DEVICE §4, VERIFICATION §2–3, a
+  decision-log row, README. `REPORT.md` written. PLAN §6 rows 2–4 changed:
+  with no Mac talking, the board shows the **no-app face** after 30 s (so
+  "leave it on the idle face" can't hold without the app), and a strip tap
+  does nothing on the no-app screen.
+- **Checks:** `make fw-test` 77/77; `make test` 166/166; `boopctl sim` and
+  `boopctl run` 10 scenarios, 0 failures, 0 differences; `make e2e` PASS;
+  on the board `dbg.touchcal` survived a reflash, then was cleared. A real
+  calibration needs a person. L3 skipped (webcam withdrawn).
+- **Board:** firmware `06014a970b` flashed, uncalibrated, on the no-app face
+  (idle base), Bluetooth advertising. No bridge or app running.
+- **Next step:** none for the loop: `DONE` exists. The owner works through
+  `REPORT.md` and PLAN.md §6. P1 waits for the owner.

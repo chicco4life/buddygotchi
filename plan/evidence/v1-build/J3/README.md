@@ -36,5 +36,5 @@ no L3 check ran.
 | L2 `boopctl run` | Passed: 10 scenarios, 0 expect failures, 0 pictures differ from the simulator |
 | `make test` | Passed: 166/166 |
 | L4 `make e2e` (rules brain) | PASS |
-| Final firmware flashed | See PROGRESS.md's J3 entry for the SHA and the final screenshot |
+| Final firmware flashed | `06014a970b` (1.0.0), Bluetooth advertising as `Boop-54FE`, heap 73.6 KB, uncalibrated; the no-app face, as expected with no Mac talking ([device-final.png](device-final.png)) |
 | L3 | Skipped: webcam withdrawn |
