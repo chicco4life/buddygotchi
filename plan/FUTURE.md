@@ -4,6 +4,23 @@ A running list of ideas we like but aren't building in v1. Nothing here is a
 promise. To pick one up, write it into the matching spec (UX, BEHAVIORS,
 ARCHITECTURE…) first, then add it to [PLAN.md](PLAN.md).
 
+## Look
+
+- **Landscape screen.** v1 lays the screen out in portrait, 240×320
+  ([UX.md](UX.md) §2, [DEVICE.md](DEVICE.md) §4 rotation 0), so the face
+  stands upright only when the board is on its end. The owner expects Boop
+  to sit sideways most of the time, 320×240, as the gen-2 face did. It
+  needs a new layout for the face, bubble and status strip, plus the
+  display rotation, the touch mapping and new goldens.
+- **Cuter eyes.** The v1 face looks polished but too realistic to be cute.
+  The irises cause most of it: cream eye whites with a dark iris and a
+  highlight read as real eyeballs (`firmware/test/golden/base/idle.png`).
+  The owner found the gen-2 face cuter even though it was simpler: solid
+  rounded eyes with no iris and a small dash mouth
+  (`archived/plan-gen2/evidence/ui-pass/idle.png`). UX.md already asks for
+  Cozmo-style eyes, which have no iris either. Keep v1's smooth edges and
+  expression blends.
+
 ## Character and growth
 
 - **Life stages.** Hatchling → Grown → Veteran, reached by both days
