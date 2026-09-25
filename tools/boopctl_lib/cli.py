@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 import shutil
 import subprocess
 import sys
@@ -203,6 +204,116 @@ def cmd_perf(args: argparse.Namespace) -> int:
     return 0 if result["ok"] else 1
 
 
+SOAK_ANIMS = ["nod", "cheer", "oops", "side_eye", "wiggle", "stretch", "yawn", "shrug", "zip", "gobble",
+              "rumble", "levelup", "happy", "proud", "smug", "curious", "sleepy", "worried", "sulky", "love"]
+SOAK_PROJECTS = ["landing", "jetpack", "buddygotchi", "a-very-long-project-name", "notes"]
+
+
+def soak_state(rng: random.Random) -> dict:
+    """A realistic snapshot: sessions, sometimes something that needs you."""
+    threads = [[rng.choice(["claude", "codex"]), rng.choice(SOAK_PROJECTS), rng.choice(["work", "idle", "wait"])]
+               for _ in range(rng.randint(0, 8))]
+    busy = sum(t[2] == "work" for t in threads)
+    wait = sum(t[2] == "wait" for t in threads)
+    msg = {"t": "state", "v": 1, "time": int(time.time()), "name": "Pip",
+           "base": "working" if busy else rng.choice(["idle", "idle", "asleep"]),
+           "busy": busy, "idle": len(threads) - busy - wait, "wait": wait,
+           "mood": {"energy": rng.randint(30, 170), "pace": rng.randint(60, 150), "pitch": 100},
+           "quiet": rng.choice([0, 0, 0, 5]), "focus": rng.random() < 0.1, "vol": 6,
+           "night": rng.random() < 0.15, "level": rng.randint(1, 30), "prog": rng.randint(0, 99),
+           "days": rng.randint(0, 400), "hungry": rng.choice([0, 0, 0, 1, 2]), "threads": threads}
+    if wait:
+        waiting = next(t for t in threads if t[2] == "wait")
+        msg["attn"] = {"agent": waiting[0], "project": waiting[1], "more": wait - 1}
+    return msg
+
+
+def soak_moment(rng: random.Random) -> dict:
+    msg = {"t": "moment", "anim": rng.choice(SOAK_ANIMS), "size": rng.randint(1, 3), "ttl": 5}
+    if rng.random() < 0.4:
+        n = rng.randint(1, 8)
+        msg["say"] = {"syl": " ".join(rng.choice(["ba", "na", "po", "ti", "ka", "mi"]) for _ in range(n)),
+                      "word": rng.choice(["", "done", "tests", "finally", "hmm"]), "at": rng.randint(0, n),
+                      "tune": "up", "ms": rng.randint(80, 200)}
+    return msg
+
+
+def soak_input(rng: random.Random) -> dict:
+    kind = rng.choice(["tap", "hold", "face", "face_hold", "strip", "strip_hold"])
+    if kind == "tap":
+        return {"t": "dbg.press", "ms": 100}
+    if kind == "hold":
+        return {"t": "dbg.press", "ms": rng.randint(500, 3000)}
+    y = rng.randint(290, 315) if kind.startswith("strip") else rng.randint(20, 260)
+    return {"t": "dbg.touch", "x": rng.randint(10, 230), "y": y, "ms": 800 if kind.endswith("hold") else 100}
+
+
+def cmd_soak(args: argparse.Namespace) -> int:
+    """Random, realistic traffic and inputs with the clock running, then
+    checks for resets, a drifting heap minimum and stuck states."""
+    rng = random.Random(args.seed)
+    samples, log_lines = [], []
+    with Device(args.port) as dev:
+        dev.request({"t": "dbg.reset"})
+        dev.request({"t": "dbg.clock", "run": True})
+        start = time.monotonic()
+        next_ping = 0.0
+        silent_until = 0.0
+        state = soak_state(rng)
+        last_state = -100.0
+        silence_done = False
+        while (elapsed := time.monotonic() - start) < args.minutes * 60:
+            r = rng.random()
+            if not silence_done and elapsed > args.minutes * 30:
+                silent_until, silence_done = elapsed + 35, True  # once: the Mac goes away, "no app"
+            if elapsed >= silent_until:
+                if r < 0.25:
+                    state = soak_state(rng)
+                    dev.send(state)
+                    last_state = elapsed
+                elif r < 0.5:
+                    dev.send(soak_moment(rng))
+                elif r < 0.7:
+                    dev.request(soak_input(rng))
+                if elapsed - last_state >= 10:
+                    dev.send(state)  # the Mac's 10 s snapshot
+                    last_state = elapsed
+            if elapsed >= next_ping:
+                ping = dev.request({"t": "dbg.ping"})
+                samples.append({"t": round(elapsed, 1), "up": ping["up"], "heap": ping["heap"],
+                                "heap_min": ping["heap_min"], "fps": ping["fps"]})
+                next_ping = elapsed + 5
+            time.sleep(rng.uniform(0.2, 1.5))
+        # Stuck? Calm snapshots must bring back the plain face once the last
+        # press and push-to-talk (thinking, then a shrug, ≤ 13 s) are over.
+        for _ in range(3):
+            dev.send({"t": "state", "v": 1, "base": "idle", "busy": 0, "idle": 1, "wait": 0})
+            time.sleep(5)
+        final = dev.request({"t": "dbg.state"})
+        ping = dev.request({"t": "dbg.ping"})
+        samples.append({"t": round(time.monotonic() - start, 1), "up": ping["up"], "heap": ping["heap"],
+                        "heap_min": ping["heap_min"], "fps": ping["fps"]})
+    ups = [s["up"] for s in samples]
+    early = [s["heap_min"] for s in samples if s["t"] >= 60] or [samples[0]["heap_min"]]
+    result = {
+        "minutes": args.minutes,
+        "samples": len(samples),
+        "reset": any(b <= a for a, b in zip(ups, ups[1:])),
+        "heap_min_start": early[0],
+        "heap_min_end": samples[-1]["heap_min"],
+        "heap_min_drift": early[0] - samples[-1]["heap_min"],
+        "final_screen": final.get("screen"),
+        "final_moment": final.get("moment"),
+        "answering": final.get("t") == "dbg.state",
+    }
+    result["ok"] = (not result["reset"] and result["heap_min_drift"] <= 2048 and result["answering"]
+                    and result["final_screen"] == "face" and result["final_moment"] is None)
+    if args.out:
+        Path(args.out).write_text(json.dumps({**result, "series": samples}, indent=1))
+    emit(result)
+    return 0 if result["ok"] else 1
+
+
 def cmd_cam(args: argparse.Namespace) -> int:
     from boopctl_lib import cam
 
@@ -266,6 +377,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--seconds", type=int, default=30)
     p.add_argument("--motion", action="store_true")
     p.set_defaults(func=cmd_perf)
+    p = sub.add_parser("soak", help="random realistic traffic and inputs; checks resets, leaks, stuck states")
+    p.add_argument("--minutes", type=float, default=20)
+    p.add_argument("--seed", type=int, default=1)
+    p.add_argument("--out", help="write the result and the samples as JSON")
+    p.set_defaults(func=cmd_soak)
     p = sub.add_parser("cam", help="webcam helpers (opt-in; plan/VERIFICATION.md §6)")
     p.add_argument("action", choices=["frame", "pattern", "clip"])
     p.add_argument("name", nargs="?", help="clip: idle, needs_you or cheer")
