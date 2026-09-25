@@ -302,7 +302,7 @@ def check_order(run: Run) -> dict[str, Any]:
     return {"brain_moments": len(answers), "early": len(bad), "replaced_by_rules": cut, "answers": answers}
 
 
-def main(out: Path, brain: str, port: str | None, fixtures: list[str] | None) -> int:
+def main(out: Path, brain: str, port: str | None, fixtures: list[str] | None, clip: bool = False) -> int:
     root = Path("/tmp/boop-e2e")
     run = Run(root, out, brain, port)
     expected = json.loads((FIXTURES / "expect.json").read_text())
@@ -312,6 +312,15 @@ def main(out: Path, brain: str, port: str | None, fixtures: list[str] | None) ->
         run.start()
         os.environ["BOOP_BRIDGE"] = run.bridge_sock
         with Device(timeout=3.0) as dev:
+            if clip:
+                # L3: a short Claude session through the whole pipeline, on
+                # camera (VERIFICATION.md §6: authorised runs only).
+                from boopctl_lib import cam
+
+                session = FIXTURES / "claude" / "clip.jsonl"
+                result = cam.clip(dev, "e2e-session", seconds=10, frames=24, play=lambda: run.fixture(dev, session))
+                shutil.copy(result["sheet"], out / "clip-e2e-session.png")
+                run.say(f"clip {out / 'clip-e2e-session.png'}")
             for path in paths:
                 run.fixture(dev, path)
     except DeviceError as exc:
@@ -327,7 +336,7 @@ def main(out: Path, brain: str, port: str | None, fixtures: list[str] | None) ->
             f"p50 {p50:.0f} ms, p95 {p95:.0f} ms, max {max(lat, default=0):.0f} ms")
     if not lat or p95 >= 200:
         run.fail(f"p95 latency {p95:.0f} ms is not under 200 ms")
-    if fixtures is None:
+    if fixtures is None and not clip:
         check_after(run, expected)
     order = check_order(run)
 

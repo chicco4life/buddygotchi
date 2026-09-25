@@ -58,7 +58,10 @@ you.
 ## 3. Triggers and what Boop does
 
 "Rules" happen immediately. "Brain may add" arrives 1–5 s later from the
-[harness](HARNESS.md), and is dropped if the moment has passed.
+[harness](HARNESS.md), and is dropped if the moment has passed. It never
+cuts the rules' reaction short: a brain moment waits until the rule moment
+(and any follow-up, like the `side_eye` after an `oops`) has finished
+playing ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2).
 
 ### 3.1 Agent work
 

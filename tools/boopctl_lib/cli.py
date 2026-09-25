@@ -333,7 +333,7 @@ def cmd_cam(args: argparse.Namespace) -> int:
 def cmd_e2e(args: argparse.Namespace) -> int:
     from boopctl_lib import e2e
 
-    return e2e.main(Path(args.out), args.brain, args.port, args.fixture or None)
+    return e2e.main(Path(args.out), args.brain, args.port, args.fixture or None, args.clip)
 
 
 def cmd_bridge(args: argparse.Namespace) -> int:
@@ -359,6 +359,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--brain", default="rules", choices=["rules", "apple"])
     p.add_argument("--out", default="/tmp/boop-e2e-out", help="results, logs and screenshots")
     p.add_argument("fixture", nargs="*", help="paths under app/Tests/Fixtures/hooks/e2e (default: all three)")
+    p.add_argument("--clip", action="store_true",
+                   help="first film a 10 s Claude session on the webcam (authorised runs only; §6)")
     p.set_defaults(func=cmd_e2e)
     sub.add_parser("state", help="the device's own view of itself").set_defaults(func=cmd_state)
     p = sub.add_parser("send", help="send one protocol message")

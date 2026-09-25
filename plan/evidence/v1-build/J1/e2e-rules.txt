@@ -1,0 +1,73 @@
+bridge and headless app up (brain rules, state /tmp/boop-e2e/state)
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 25 ms, state on the device after 64 ms
+  claude UserPromptSubmit: boop-hook 23 ms, state on the device after 79 ms
+  ok {"base": "working", "attn": null} after 32 ms
+  claude PreToolUse: boop-hook 28 ms, no new state
+  claude PostToolUse: boop-hook 26 ms, no new state
+  claude PreToolUse: boop-hook 26 ms, no new state
+  claude PostToolUse: boop-hook 26 ms, no new state
+  claude PreToolUse: boop-hook 27 ms, no new state
+  claude PermissionRequest: boop-hook 15 ms, state on the device after 72 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 27 ms
+  claude Notification: boop-hook 26 ms, no new state
+  ok {"screen": "needs_you"} after 19 ms
+  shot /tmp/boop-e2e-out/claude-needs-you.png
+  claude PostToolUse: boop-hook 23 ms, state on the device after 70 ms
+  ok {"base": "working", "attn": null} after 33 ms
+  app clock +400 s
+  claude Stop: boop-hook 25 ms, state on the device after 79 ms
+  ok {"moment": {"anim": "cheer"}} after 32 ms
+  claude UserPromptSubmit: boop-hook 26 ms, state on the device after 71 ms
+  ok {"base": "working"} after 21 ms
+  claude PreToolUse: boop-hook 26 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 27 ms, state on the device after 90 ms
+  ok {"moment": {"anim": "oops"}} after 30 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 28 ms, state on the device after 72 ms
+  codex UserPromptSubmit: boop-hook 26 ms, state on the device after 79 ms
+  ok {"base": "working"} after 21 ms
+  codex PreToolUse: boop-hook 28 ms, no new state
+  codex PermissionRequest: boop-hook 25 ms, no new state
+  codex PostToolUse: boop-hook 26 ms, no new state
+  ok not {"screen": "needs_you"} until 3505 ms after the last hook
+  ok {"base": "working", "attn": null} after 18 ms
+  app clock +45 s
+  codex Stop: boop-hook 27 ms, state on the device after 90 ms
+  ok {"moment": {"anim": "cheer"}} after 31 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 27 ms, state on the device after 60 ms
+  codex UserPromptSubmit: boop-hook 24 ms, state on the device after 63 ms
+  ok {"base": "working"} after 18 ms
+  codex PreToolUse: boop-hook 27 ms, no new state
+  codex PermissionRequest: boop-hook 27 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 804 ms
+  ok {"screen": "needs_you"} after 18 ms
+  shot /tmp/boop-e2e-out/codex-needs-you.png
+  codex PostToolUse: boop-hook 22 ms, state on the device after 72 ms
+  ok {"base": "working", "attn": null} after 33 ms
+  app clock +45 s
+  codex Stop: boop-hook 25 ms, state on the device after 91 ms
+  ok {"moment": {"anim": "cheer"}} after 34 ms
+Boop exit 0
+boopctl exit 0
+/tmp/boop-e2e/boop.sock removed: True
+/tmp/boop-e2e/usb.sock removed: True
+latency, hook launch to state on the device: n 14/26 hooks, p50 72 ms, p95 91 ms, max 91 ms
+growth: xp 8 level 1 last fed 2026-09-26 (expected xp 8 level 1)
+short-term Happened has 'claude · jetpack · finished' ×1
+short-term Happened has 'claude · jetpack · deploy · failed' ×1
+short-term Happened has 'codex · landing · finished' ×2
+short-term Happened has 'codex · landing · finished' ×2
+settings: finished 3, projects ['jetpack', 'landing']
+brain saw a trigger with 'topic: tests': True
+brain saw a trigger with 'topic: deploy': True
+brain saw a trigger with 'error: rate limit': True
+brain saw a trigger with 'turn finished · claude · jetpack': True
+brain saw a trigger with 'turn finished · codex · landing': True
+PRIVATE_ markers in app files or the brain log: none
+  04:56:17.985 brain proud: 1748 ms after the rules' reaction to claude Stop e2e-claude-1; last rule moment cheer ended 108 ms before
+  04:56:25.235 brain side_eye: 3911 ms after the rules' reaction to claude StopFailure e2e-claude-1; last rule moment side_eye ended 100 ms before
+brain moments: 2, early: 0, later replaced by a rule moment: none

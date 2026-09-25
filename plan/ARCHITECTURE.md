@@ -118,6 +118,14 @@ out at once, and any that follow within 3 s are held and sent as one when
 the window ends, keeping the most important line (a failure, then a long
 finish, then a finish or a tap, then a start) with "+N more".
 
+The brain adds to the rules' reaction and never cuts it off. The app knows
+how long each rule moment plays on the device (the firmware's animation
+lengths, or the mumble's if longer), and holds a moment from a brain tool
+call until the last rule moment and the core's pending follow-ups
+(`side_eye` after `oops`, `yawn` after `stretch`, `gobble`) are over.
+`listening` and `thinking` don't hold anything back: the brain's reply is
+meant to replace `thinking`.
+
 ### 3.3 Harness and brain
 
 The harness is a small, generic loop ([HARNESS.md](HARNESS.md)). It builds a
@@ -435,3 +443,6 @@ When a spec changes direction, add a row here saying why.
 | 2026-09-26 | The app logs hooks only while `doctor-armed` exists in its state directory | The doctor needs to see a hook arrive; logging every tool call the rest of the time is noise | [ADAPTERS.md](ADAPTERS.md) §6 |
 | 2026-09-26 | Boop's record (tasks finished, number of projects) is kept in `settings.json` by the app, not the core | It's only for the popover, and counting needs no rule | [UX.md](UX.md) §7 |
 | 2026-09-26 | `Info.plist` (usage descriptions, `LSUIElement`) is linked into the `Boop` binary with `-sectcreate` | SwiftPM builds no app bundle here, and macOS reads usage descriptions from that section | [PLAN.md](PLAN.md) A4 |
+| 2026-09-26 | The brain's moments wait until the rules' moment and the core's follow-ups have played | The rules brain answers in 0 ms and Apple's in about 1.5 s, so a `face` replaced the cheer or the oops before it showed (found by J1's pipeline check) | §3.2, [BEHAVIORS.md](BEHAVIORS.md) §3 |
+| 2026-09-26 | Headless mode's clock can be moved forward (`{"dev":"advance"}` on its socket), hooks are timed on the runtime's clock, and `--trace` logs every hook and every line sent to the device, marked rules or brain | The pipeline check must finish a 6-minute turn in seconds, and show that the brain's moments come after the rules' | [VERIFICATION.md](VERIFICATION.md) L4 |
+| 2026-09-26 | `dbg.state` counts the `state` and `moment` messages received (`rx`) | Hook-to-device latency needs the moment the board has the new `state`, not a guess from its screen | [VERIFICATION.md](VERIFICATION.md) §3 |

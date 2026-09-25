@@ -192,12 +192,15 @@ CLIPS = {
 }
 
 
-def clip(dev: Device, name: str, seconds: int = 8, frames: int = 18) -> dict:
+def clip(dev: Device, name: str, seconds: int = 8, frames: int = 18, play=None) -> dict:
     """Records a bounded clip while the steps play, then saves a contact sheet
-    of upright, cropped frames. The raw video is deleted straight away."""
+    of upright, cropped frames. The raw video is deleted straight away.
+
+    `play`, if given, is called once recording has started and drives the
+    board itself (L4's live session, where the headless app owns `state`)."""
     from PIL import ImageDraw
 
-    if name not in CLIPS:
+    if play is None and name not in CLIPS:
         raise DeviceError(f"no clip {name!r}; choose from {', '.join(CLIPS)}")
     seconds = min(seconds, 10)
     crop = load_crop()
@@ -206,12 +209,15 @@ def clip(dev: Device, name: str, seconds: int = 8, frames: int = 18) -> dict:
     shutil.rmtree(out, ignore_errors=True)
     dev.request({"t": "dbg.clock", "run": True})
     dev.request({"t": "dbg.light", "bl": 255})
-    dev.send({"t": "state", "v": 1, "base": "idle"})
+    if play is None:
+        dev.send({"t": "state", "v": 1, "base": "idle"})
     run = [str(WEBCAM), "record", "--camera", CAMERA, "--seconds", str(seconds), "--out", str(out)]
     rec = subprocess.Popen(run, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
     time.sleep(1.0)  # the camera takes about a second to start
     start = time.monotonic()
-    for at, message in CLIPS[name]:
+    if play is not None:
+        play()
+    for at, message in ([] if play is not None else CLIPS[name]):
         time.sleep(max(0.0, at - (time.monotonic() - start)))
         dev.send(message)
     if rec.wait(timeout=60) != 0:

@@ -64,6 +64,7 @@ Each level answers a different question:
 | `clock freeze T \| step MS \| run` | Control the device clock for repeatable frames |
 | `pattern` | Show the bring-up test pattern |
 | `perf --seconds N [--motion]` | Sample fps and heap over time; `--motion` plays moments back to back so every sample is mid-motion |
+| `e2e [--brain rules\|apple] [fixture…]` | The L4 pipeline check (`make e2e`): bridge, headless app, the J1 fixtures through the real `boop-hook`, checkpoints, latency, memory and ordering |
 | `soak --minutes N` | Random, realistic traffic and inputs (with one 35 s silence), then check for resets, a drifting heap minimum, and that calm snapshots bring back the plain face |
 | `cam frame\|pattern\|clip <name>` | Webcam helpers (L3 in §5). Clips are live presets: `idle`, `needs_you`, `cheer`, `ladder` (sped-up clock), `cheers` (sizes 1–3) and `tap` |
 | `calibrate` | Touch calibration. Needs a person to tap 4 targets |
@@ -93,7 +94,9 @@ needs you), `life` (the idle-life event showing: `blink`, `glance`, `peek`,
 with its time (`chirp`, `jingle` or `pulse`, for F5's player and for tests
 while there's no speaker). `audio.playing` is true while the mouth follows a
 mumble. `dbg.state` also carries bring-up readings: `clock` (`now`, `frozen`), `boot` (BOOT's level), `touch`
-(`down`, `irq`, `raw` as x, y, z), `bat` in mV, `amp` and `bl`.
+(`down`, `irq`, `raw` as x, y, z), `bat` in mV, `amp` and `bl`, and `rx`, the
+`state` and `moment` messages received since boot (`{"state":N,"moment":M}`),
+which L4 uses to time a hook's `state` reaching the board.
 
 The board handles one message per loop pass, so a reply always reflects
 every message sent before it.
@@ -232,21 +235,35 @@ Camera judgement is "looks right". Pixel accuracy comes from L2.
 
 This checks the whole path, hook → app → device, without Bluetooth. That
 matters because an agent can't launch the app with Bluetooth on.
+`make e2e` (`tools/boopctl e2e [--brain rules|apple]`) does all of it:
 
-1. `tools/boopctl bridge` owns the serial port.
-2. Start the app headless with isolated state:
-   `Boop --headless --state-dir /tmp/boop-e2e --link usb:/tmp/boop-e2e/usb.sock`.
-   It uses its own hook socket and memory files, never the everyday ones.
-3. `boopdev replay app/Tests/Fixtures/hooks/<session>.jsonl --socket /tmp/boop-e2e/boop.sock`
-   sends recorded hook payloads through the real `boop-hook` binary.
-4. `boopctl expect` polls `dbg.state` and screenshots at each checkpoint,
-   for example: working → needs you (immediately for Claude, after the grace
-   period for Codex) → working → cheer.
-5. The app's own log and `boopdev memory --state-dir …` confirm the memory
-   files and XP changed as the spec says.
+1. `tools/boopctl bridge --socket /tmp/boop-e2e/usb.sock` owns the serial
+   port.
+2. The app starts headless with isolated state and its own hook socket,
+   never the everyday ones:
+   `Boop --headless --state-dir /tmp/boop-e2e/state --link usb:/tmp/boop-e2e/usb.sock --socket /tmp/boop-e2e/boop.sock --trace`.
+   The rules brain is the default, so runs repeat; `--brain apple` runs the
+   same fixtures with Apple's model.
+3. The fixtures in `app/Tests/Fixtures/hooks/e2e/` (a Claude session, a
+   Codex approval answered within 2 s, one left for 10 s) go through the
+   real `boop-hook`. Besides payloads they hold checkpoints: `expect` (poll
+   `dbg.state` until it matches), `expect_not` (it mustn't match for a
+   while), `wait_ms`, `advance_ms` (move the app's clock, for a long turn)
+   and `shot` (a screenshot).
+4. Latency is from launching `boop-hook` to the board's `rx.state` count
+   going up, on the host clock. A hook that changes nothing sends no
+   `state`, and is left out.
+5. Afterwards: XP, level and the Happened lines in the memory files,
+   `settings.json`'s record, the topics in the brain's triggers, no
+   `PRIVATE_` marker from the fixtures in any app file or the brain's log,
+   and, from the `--trace` log, that every brain moment came after the
+   rules' reaction and didn't start while a rule moment was playing.
+
+`boopdev replay <fixture>` without `--socket` runs the same fixtures on the
+virtual clock and prints what the core decides; it skips the checkpoints.
 
 **Pass:** every checkpoint matches, and hook-to-device-state latency is
-under 200 ms at p95 (host clock, measured by `boopdev replay`).
+under 200 ms at p95.
 
 ### L5: brain
 

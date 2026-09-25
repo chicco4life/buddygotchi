@@ -335,3 +335,29 @@ One entry per iteration, newest last. Each ends with the exact next step.
   hook-to-device p95 < 200 ms; `boop-hook`'s own launch is ~70 ms of that.
   Long waits in fixtures (`{"wait_ms":400000}`) need a virtual clock or
   shorter waits: the headless app runs on the real clock.
+
+## 2026-09-26 05:10 — J1: End to end over USB — Passed
+
+- **Changed:** `boopctl e2e` / `make e2e` (bridge + headless app +
+  fixtures through the real `boop-hook`, checkpoints on `dbg.state`,
+  latency, memory, privacy and brain-ordering checks, `--clip` for the
+  webcam). Fixtures in `app/Tests/Fixtures/hooks/e2e/`. Firmware:
+  `dbg.state` `rx` counts (flashed). Headless: `{"dev":"advance"}` clock
+  jump, `--trace`. **Bug fixed:** the brain's `face` replaced the rules'
+  cheer/oops within 7 ms; brain moments now wait for the rule moment and
+  the core's follow-ups. Specs: VERIFICATION §2/§3/L4, BEHAVIORS §3,
+  ARCHITECTURE §3.2 + three decision-log rows.
+- **Checks:** `make test` 163/163; `make fw-test` 61/61. L4 with the rules
+  brain and with Apple's: every checkpoint passes, p95 91/92 ms, XP 8 as
+  specified, no private text anywhere, no brain moment early or cut off.
+  L3: framing passed; a 10 s clip of a Claude session through the
+  pipeline reviewed and passing. See `J1/README.md`.
+- **Board:** firmware from this commit (F4 + `rx`), no bridge or app left
+  running.
+- **Next step:** start **F5** (voice on the device). Read PLAN.md §4 F5,
+  VOICE.md and DEVICE.md (DAC, amp). Build `tools/voicegen` (macOS `say` →
+  `afconvert` → pitch/normalise → 8-bit 11.025 kHz → `firmware/assets/voice.h`),
+  then the player (amp on, continuous DAC at 22.05 kHz, resampling for
+  pitch and tempo) with resampler tests on `native`, and check the audio
+  timeline in `dbg.state` against `say` over USB. Keep the app slot at least
+  15% free (now 43% used).

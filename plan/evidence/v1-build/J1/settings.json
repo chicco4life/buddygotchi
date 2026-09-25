@@ -1,0 +1,11 @@
+{
+  "away" : false,
+  "brain" : "apple",
+  "finished" : 3,
+  "focus" : false,
+  "projects" : [
+    "jetpack",
+    "landing"
+  ],
+  "volume" : 6
+}
