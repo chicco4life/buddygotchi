@@ -1,0 +1,114 @@
+// Anti-aliased shape filling for the face, in integer maths only, so the
+// board and the simulator draw the same pixels (plan/VERIFICATION.md §3).
+//
+// Coordinates are in sub-pixels: 1/16 px (kSub). A shape is a function from
+// a sub-scanline's y to a few horizontal spans. Each pixel row samples 4
+// sub-scanlines and adds up exact horizontal coverage, which gives 64 steps
+// of coverage per pixel, quantised to the palette's 8 ramp levels.
+#pragma once
+#include <cstdint>
+#include <cstring>
+
+#include "render/canvas.h"
+
+namespace render {
+
+constexpr int kSub = 16;
+constexpr int kSubRows = 4;
+
+constexpr int px(int pixels) { return pixels * kSub; }
+
+// Integer square root, rounded down.
+uint32_t isqrt(uint64_t v);
+
+// sin of `turn` (1024 per full turn), scaled to ±1024.
+int isin(int turn);
+inline int icos(int turn) { return isin(turn + 256); }
+
+// Smoothstep ease-in-out: t of `dur` → 0..1024.
+int ease(int t, int dur);
+
+// Up to four half-open spans [a, b) on one sub-scanline.
+struct Spans {
+  struct Span {
+    int a, b;
+  };
+  Span s[4];
+  int n = 0;
+
+  void add(int a, int b) {
+    if (b > a && n < 4) s[n++] = {a, b};
+  }
+  // Keeps only x in [lo, hi).
+  void clip(int lo, int hi);
+  // Removes x in [lo, hi), which may split a span.
+  void cut(int lo, int hi);
+  // Keeps only x inside `other`.
+  void intersect(const Spans& other);
+};
+
+// A rounded rectangle [x0, x1) × [y0, y1) with corner radius r.
+Spans roundRect(int x0, int y0, int x1, int y1, int r, int sy);
+// An axis-aligned ellipse.
+Spans ellipse(int cx, int cy, int rx, int ry, int sy);
+// The half of the ellipse's row inside it, as [lo, hi); false if none.
+bool ellipseRow(int cx, int cy, int rx, int ry, int sy, int& lo, int& hi);
+// Keeps the side of the line through (lx, ly) with slope m/1000 that lies
+// below it (larger y).
+void keepBelow(Spans& s, int lx, int ly, int m, int sy);
+
+// Fills pixel rows [y0, y1) from `shape(sy) -> Spans`, calling
+// `plot(x, y, level)` with level 1..8 for every pixel it touches.
+template <class Shape, class Plot>
+void fillShape(int y0, int y1, Shape shape, Plot plot) {
+  if (y0 < 0) y0 = 0;
+  if (y1 > kHeight) y1 = kHeight;
+  uint8_t acc[kWidth];
+  for (int y = y0; y < y1; ++y) {
+    int minX = kWidth, maxX = -1;
+    std::memset(acc, 0, sizeof(acc));
+    for (int r = 0; r < kSubRows; ++r) {
+      Spans sp = shape(px(y) + (2 * r + 1) * kSub / (2 * kSubRows));
+      for (int i = 0; i < sp.n; ++i) {
+        int a = sp.s[i].a < 0 ? 0 : sp.s[i].a;
+        int b = sp.s[i].b > px(kWidth) ? px(kWidth) : sp.s[i].b;
+        if (b <= a) continue;
+        int p0 = a / kSub, p1 = (b - 1) / kSub;
+        if (p0 < minX) minX = p0;
+        if (p1 > maxX) maxX = p1;
+        if (p0 == p1) {
+          acc[p0] = uint8_t(acc[p0] + (b - a));
+        } else {
+          acc[p0] = uint8_t(acc[p0] + (px(p0 + 1) - a));
+          for (int x = p0 + 1; x < p1; ++x) acc[x] = uint8_t(acc[x] + kSub);
+          acc[p1] = uint8_t(acc[p1] + (b - px(p1)));
+        }
+      }
+    }
+    for (int x = minX; x <= maxX; ++x) {
+      int level = (acc[x] * 8 + 32) / (kSub * kSubRows);
+      if (level > 0) plot(x, y, level);
+    }
+  }
+}
+
+// Fills the pixel box [x0, x1) × [y0, y1) by testing 4×4 samples per pixel
+// with `inside(sx, sy)` in sub-pixels; `plot(x, y, level)` as above.
+template <class Inside, class Plot>
+void sampleShape(int x0, int y0, int x1, int y1, Inside inside, Plot plot) {
+  if (x0 < 0) x0 = 0;
+  if (y0 < 0) y0 = 0;
+  if (x1 > kWidth) x1 = kWidth;
+  if (y1 > kHeight) y1 = kHeight;
+  for (int y = y0; y < y1; ++y) {
+    for (int x = x0; x < x1; ++x) {
+      int n = 0;
+      for (int j = 0; j < 4; ++j) {
+        for (int i = 0; i < 4; ++i) n += inside(px(x) + 2 + 4 * i, px(y) + 2 + 4 * j) ? 1 : 0;
+      }
+      if (n) plot(x, y, (n + 1) / 2);
+    }
+  }
+}
+
+}  // namespace render

@@ -89,7 +89,7 @@ constexpr int kBand = 16;  // rows per DMA batch (DEVICE.md §6)
 
 Panel lcd;
 uint16_t* band[2] = {nullptr, nullptr};
-uint16_t swapped[render::kColorCount];  // palette in the panel's byte order
+uint16_t swapped[256];  // palette in the panel's byte order
 uint32_t hashes[render::kHeight];
 bool pushedOnce = false;
 
@@ -100,8 +100,8 @@ bool displayBegin() {
     band[i] = static_cast<uint16_t*>(heap_caps_malloc(render::kWidth * kBand * 2, MALLOC_CAP_DMA));
     if (!band[i]) return false;
   }
-  for (int i = 0; i < render::kColorCount; ++i) {
-    uint16_t c = render::kPalette[i];
+  for (int i = 0; i < 256; ++i) {
+    uint16_t c = render::paletteAt(i);
     swapped[i] = uint16_t((c << 8) | (c >> 8));
   }
   if (!lcd.init()) return false;
@@ -124,8 +124,7 @@ int displayPush(const render::Canvas& canvas) {
     const uint8_t* src = canvas.pixels() + y0 * render::kWidth;
     uint16_t* dst = band[cur];
     for (int i = 0; i < render::kWidth * kBand; ++i) {
-      uint8_t c = src[i];
-      dst[i] = c < render::kColorCount ? swapped[c] : 0;
+      dst[i] = swapped[src[i]];
     }
     lcd.setAddrWindow(0, y0, render::kWidth, kBand);
     lcd.writePixelsDMA(dst, render::kWidth * kBand, false);  // already in panel order

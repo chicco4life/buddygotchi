@@ -50,6 +50,7 @@ def play(link: Link, path: Path, out_dir: Path, log=print) -> list[str]:
     """Plays one scenario. Returns the failures; saves shots as PNGs."""
     failures: list[str] = []
     out_dir.mkdir(parents=True, exist_ok=True)
+    link.request({"t": "dbg.reset"})  # same start on the board and in the simulator
     for number, raw in enumerate(path.read_text().splitlines(), 1):
         if not raw.strip() or raw.lstrip().startswith("//"):
             continue
