@@ -186,6 +186,7 @@ public final class Runtime: @unchecked Sendable {
     func device(_ line: String) {
         let now = options.clock()
         if case .input(let input) = link.receive(line, now: now) {
+            options.log("device: input \(input.rawValue)")
             run(core.input(input, at: now))
             if input == .focus { saveSettings { $0.focus = self.core.focus } }
         }

@@ -12,6 +12,7 @@ import glob
 import json
 import os
 import re
+import socket
 import struct
 import subprocess
 import time
@@ -162,17 +163,31 @@ class Sim(Link):
 
 
 class Device(Link):
-    """A locked, open serial connection to the board."""
+    """A locked, open serial connection to the board, or, while
+    `boopctl bridge` runs, a connection to the bridge's socket."""
 
-    def __init__(self, port: str | None = None, timeout: float = 3.0) -> None:
+    def __init__(self, port: str | None = None, timeout: float = 3.0, direct: bool = False) -> None:
         super().__init__()
-        self.port = port or find_port()
-        self.name = f"the board on {self.port}"
         self.timeout = timeout
         self._ser: serial.Serial | None = None
+        self._sock: socket.socket | None = None
         self._lock_fd: int | None = None
+        from boopctl_lib.bridge import bridge_path, bridge_running
+
+        self._bridged = not direct and not port and bridge_running()
+        if self._bridged:
+            self.port = bridge_path()
+            self.name = f"the board through the bridge on {self.port}"
+        else:
+            self.port = port or find_port()
+            self.name = f"the board on {self.port}"
 
     def __enter__(self) -> "Device":
+        if self._bridged:
+            self._sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            self._sock.connect(self.port)
+            self._sock.setblocking(False)
+            return self
         safe = re.sub(r"[^A-Za-z0-9_.-]", "_", Path(self.port).name)
         self._lock_fd = os.open(f"/tmp/boopctl-{safe}.lock", os.O_CREAT | os.O_RDWR, 0o666)
         fcntl.flock(self._lock_fd, fcntl.LOCK_EX)
@@ -191,6 +206,8 @@ class Device(Link):
         return self
 
     def __exit__(self, *_: object) -> None:
+        if self._sock is not None:
+            self._sock.close()
         if self._ser is not None:
             self._ser.close()
         if self._lock_fd is not None:
@@ -198,10 +215,23 @@ class Device(Link):
             os.close(self._lock_fd)
 
     def _write(self, data: bytes) -> None:
+        if self._sock is not None:
+            self._sock.setblocking(True)
+            self._sock.sendall(data)
+            self._sock.setblocking(False)
+            return
         assert self._ser is not None
         self._ser.write(data)
         self._ser.flush()
 
     def _read(self) -> bytes:
+        if self._sock is not None:
+            try:
+                data = self._sock.recv(65536)
+            except BlockingIOError:
+                return b""
+            if not data:
+                raise DeviceError("the bridge closed the connection")
+            return data
         assert self._ser is not None
         return self._ser.read(65536)

@@ -330,6 +330,12 @@ def cmd_cam(args: argparse.Namespace) -> int:
     return 0 if result["ok"] else 1
 
 
+def cmd_bridge(args: argparse.Namespace) -> int:
+    from boopctl_lib.bridge import bridge_path, serve
+
+    return serve(args.port, args.socket or bridge_path(), quiet=args.quiet)
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="boopctl", description="Talk to the Boop board over USB.")
     parser.add_argument("--port", help="serial port (default: $BOOP_PORT or the first /dev/cu.usbserial-*)")
@@ -339,6 +345,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--env", default="cyd24")
     p.set_defaults(func=cmd_flash)
     sub.add_parser("ping", help="firmware version, uptime, heap, fps, link").set_defaults(func=cmd_ping)
+    p = sub.add_parser("bridge", help="own the serial port and share it on a Unix socket")
+    p.add_argument("--socket", help="socket path (default: $BOOP_BRIDGE or /tmp/boop-bridge.sock)")
+    p.add_argument("--quiet", action="store_true")
+    p.set_defaults(func=cmd_bridge)
     sub.add_parser("state", help="the device's own view of itself").set_defaults(func=cmd_state)
     p = sub.add_parser("send", help="send one protocol message")
     p.add_argument("message")

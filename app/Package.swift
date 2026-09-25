@@ -51,7 +51,7 @@ var packageTargets: [Target] = [
     // Developer CLI: replay, talk, brain runs, memory dump.
     .executableTarget(
         name: "BoopDev",
-        dependencies: ["BoopKit"],
+        dependencies: ["BoopKit", "HookWire"],
         path: "BoopDev"
     ),
 ]

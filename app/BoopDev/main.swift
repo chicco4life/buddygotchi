@@ -1,5 +1,6 @@
 import BoopKit
 import Foundation
+import HookWire
 
 // Developer CLI (VERIFICATION.md §2). Subcommands arrive with the milestones
 // that need them: replay (A1), memory (A2), brain (A3), talk (A4).
@@ -17,6 +18,8 @@ let usage = """
            boopdev brain [--brain apple|rules] [--triggers DIR] [--memory DIR] [--steering FILE] [--out FILE] [--print]
                Runs the real harness and brain on recorded triggers, each with a fresh copy of the sample
                memory, and reports valid shapes, dropped calls, the silence rate and latency (VERIFICATION.md L5).
+           boopdev talk "<words>" --socket PATH
+               Hands a push-to-talk transcript to a running headless app, as if heard on the Mac's mic.
     (boop \(BoopVersion.current))
     """
 
@@ -236,6 +239,17 @@ func brain(_ args: [String]) async {
     exit(pass ? 0 : 1)
 }
 
+func talk(_ args: [String]) {
+    guard let socket = option(args, "--socket") else { fail(usage) }
+    let words = args.enumerated().filter { i, a in !a.hasPrefix("--") && (i == 0 || args[i - 1] != "--socket") }
+        .map(\.element).joined(separator: " ")
+    guard !words.isEmpty else { fail(usage) }
+    var data = (try? JSONSerialization.data(withJSONObject: ["dev": "talk", "words": words])) ?? Data()
+    data.append(0x0A)
+    guard HookSocket.send(data, to: socket, timeoutMs: 500) else { fail("no app answering on \(socket)") }
+    print("sent talk \"\(words)\"")
+}
+
 let args = Array(CommandLine.arguments.dropFirst())
 switch args.first {
 case "replay":
@@ -246,6 +260,8 @@ case "voice":
     voice(Array(args.dropFirst()))
 case "brain":
     await brain(Array(args.dropFirst()))
+case "talk":
+    talk(Array(args.dropFirst()))
 case nil, "-h", "--help", "help":
     print(usage)
 default:
