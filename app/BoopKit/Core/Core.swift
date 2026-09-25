@@ -72,6 +72,9 @@ public final class Core {
     // Rule moments.
     struct Scheduled { var at: Int64; var anim: String; var size: Int }
     var scheduled: [Scheduled] = []
+    /// Follow-up moments still to play (`side_eye` after `oops`, `yawn`
+    /// after `stretch`, `gobble`); the brain's moments wait for them.
+    public var followUpsPending: Bool { !scheduled.isEmpty }
     var lastMomentAt: Int64 = -1_000_000
     var lastFinish: (at: Int64, size: Int)?
     var levelUpPending = false

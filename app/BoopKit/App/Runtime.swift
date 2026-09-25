@@ -137,7 +137,7 @@ public final class Runtime: @unchecked Sendable {
                     return
                 }
                 moments.held.append(moment)
-                Runtime.flushHeld(moments, link: link, clock: clock, home: home)
+                Runtime.flushHeld(moments, link: link, clock: clock, home: home, followUps: { core.followUpsPending })
             },
             mood: { core.currentMood(at: clock()) },
             mumblesAllowed: { core.canMumble(at: clock()) },
@@ -285,11 +285,13 @@ public final class Runtime: @unchecked Sendable {
         }
     }
 
-    /// Sends the brain's held moments once the rules' moment is over, or
-    /// checks again then (a newer rule moment pushes them back). On `home`.
+    /// Sends the brain's held moments once the rules' moment and its
+    /// follow-ups are over, or checks again then (a newer rule moment pushes
+    /// them back). On `home`.
     static func flushHeld(_ moments: Moments, link: DeviceLink, clock: @escaping @Sendable () -> Int64,
-                          home: DispatchQueue) {
-        let wait = moments.rulesUntil - clock()
+                          home: DispatchQueue, followUps: @escaping () -> Bool) {
+        // Follow-ups go out on the core's once-a-second tick; look again soon.
+        let wait = followUps() ? max(250, moments.rulesUntil - clock()) : moments.rulesUntil - clock()
         if wait <= 0 {
             let held = moments.held
             moments.held = []
@@ -300,7 +302,7 @@ public final class Runtime: @unchecked Sendable {
             moments.flushDue = true
             home.asyncAfter(deadline: .now() + .milliseconds(Int(wait))) {
                 moments.flushDue = false
-                flushHeld(moments, link: link, clock: clock, home: home)
+                flushHeld(moments, link: link, clock: clock, home: home, followUps: followUps)
             }
         }
     }

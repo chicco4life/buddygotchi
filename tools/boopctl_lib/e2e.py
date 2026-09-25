@@ -235,15 +235,34 @@ def check_after(run: Run, expected: dict[str, Any]) -> None:
     (run.fail if leaks else run.say)(f"PRIVATE_ markers in app files or the brain log: {leaks or 'none'}")
 
 
+def play_ms(moment: dict[str, Any]) -> int:
+    """How long the device plays a moment: firmware/src/render/anim.cpp's
+    animDuration, or the mumble if longer (as DeviceMoment.playMs)."""
+    size = max(1, min(3, moment.get("size", 1)))
+    anim = moment.get("anim")
+    table = {"listening": 0, "thinking": 0, "nod": 600, "cheer": (size + 1) * 380 + 500, "oops": 1400,
+             "stretch": 1400, "side_eye": 1600, "yawn": 1600, "wiggle": 700, "shrug": 1200, "zip": 1500,
+             "gobble": 1500, "rumble": 1500, "levelup": 2400}
+    say = moment.get("say") or {}
+    syllables = sum(len(g.split("-")) for g in say.get("syl", "").split()) if say else 0
+    return max(table.get(anim, 2500), syllables * say.get("ms", 0))
+
+
 def check_order(run: Run) -> dict[str, Any]:
-    """The brain's moments come after the rules' reaction to the same hook.
+    """The brain's moments come after the rules' reaction and never cut a
+    rule moment short.
 
     With --trace the app logs `hook: …` for each hook and `link rules → …` or
-    `link brain → …` for each line sent to the device."""
+    `link brain → …` for each line sent to the device. For every brain
+    moment: the rules' reaction to the last hook came first, and the last
+    rule moment had finished playing."""
     stamp = re.compile(r"^(\d\d):(\d\d):(\d\d)\.(\d\d\d) (.*)$")
     answers = []
     last_hook: str | None = None
     reaction: int | None = None
+    rule_moment: tuple[int, str, int] | None = None  # sent, anim, ends
+    brain_ends = 0
+    cut: list[str] = []  # brain moments a later rule moment replaced (a new hook may; for the record)
     for raw in run.app_log().splitlines():
         m = stamp.match(raw)
         if not m:
@@ -251,20 +270,36 @@ def check_order(run: Run) -> dict[str, Any]:
         h, mi, s, ms, text = m.groups()
         t = (int(h) * 3600 + int(mi) * 60 + int(s)) * 1000 + int(ms)
         if text.startswith("hook: "):
-            last_hook, reaction = text[6:], None
-        elif text.startswith("link rules → ") and reaction is None and last_hook:
-            reaction = t
+            last_hook = text[6:]
+        elif text.startswith("link rules → "):
+            if last_hook and (reaction is None or reaction[1] != last_hook):
+                reaction = (t, last_hook)
+            line = json.loads(text[len("link rules → "):])
+            if line.get("t") == "moment":
+                rule_moment = (t, line["anim"], t + play_ms(line))
+                if t < brain_ends:
+                    cut.append(f"{raw[:12]} {line['anim']} after {last_hook}")
         elif text.startswith("link brain → "):
-            kind = json.loads(text[len("link brain → "):]).get("anim", "?")
-            answers.append({"moment": kind, "after_rule_ms": None if reaction is None else t - reaction,
-                            "hook": last_hook})
-    bad = [a for a in answers if a["after_rule_ms"] is None or a["after_rule_ms"] <= 0]
+            brain_line = json.loads(text[len("link brain → "):])
+            anim = brain_line.get("anim", "?")
+            brain_ends = t + play_ms(brain_line)
+            answers.append({
+                "moment": anim, "at": raw[:12],
+                "after_reaction_ms": None if reaction is None else t - reaction[0],
+                "reaction_to": None if reaction is None else reaction[1],
+                "last_rule_moment": None if rule_moment is None else rule_moment[1],
+                "after_rule_moment_ended_ms": None if rule_moment is None else t - rule_moment[2],
+            })
+    bad = [a for a in answers if a["after_reaction_ms"] is None or a["after_reaction_ms"] <= 0
+           or (a["after_rule_moment_ended_ms"] is not None and a["after_rule_moment_ended_ms"] < 0)]
     for a in answers:
-        run.say(f"  brain moment {a['moment']} {a['after_rule_ms']} ms after the rules' reaction to {a['hook']}")
-    run.say(f"brain moments: {len(answers)}, before the rules' reaction: {len(bad)}")
+        run.say(f"  {a['at']} brain {a['moment']}: {a['after_reaction_ms']} ms after the rules' reaction to "
+                f"{a['reaction_to']}; last rule moment {a['last_rule_moment']} ended "
+                f"{a['after_rule_moment_ended_ms']} ms before")
+    run.say(f"brain moments: {len(answers)}, early: {len(bad)}, later replaced by a rule moment: {cut or 'none'}")
     if bad:
-        run.fail(f"{len(bad)} brain moments came before (or without) a rule reaction")
-    return {"brain_moments": len(answers), "before_rules": len(bad), "answers": answers}
+        run.fail(f"{len(bad)} brain moments came before the rules' reaction or cut a rule moment short")
+    return {"brain_moments": len(answers), "early": len(bad), "replaced_by_rules": cut, "answers": answers}
 
 
 def main(out: Path, brain: str, port: str | None, fixtures: list[str] | None) -> int:
