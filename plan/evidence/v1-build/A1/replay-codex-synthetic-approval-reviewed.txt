@@ -1,0 +1,13 @@
+event {"agent":"codex","detail":{},"event":"session_start","project":"landing","session":"fixture-codex-a","ts":1791986400000}
++0.0s state {"t":"state","v":1,"time":1791986400,"name":"Pip","base":"idle","busy":0,"idle":1,"wait":0,"mood":{"energy":100,"pace":100,"pitch":100},"quiet":0,"focus":false,"vol":6,"night":false,"level":1,"prog":0,"days":1,"hungry":0,"threads":[["codex","landing","idle"]]}
+event {"agent":"codex","detail":{},"event":"turn_start","project":"landing","session":"fixture-codex-a","ts":1791986401000}
++1.0s state {"t":"state","v":1,"time":1791986401,"name":"Pip","base":"working","busy":1,"idle":0,"wait":0,"mood":{"energy":100,"pace":100,"pitch":100},"quiet":0,"focus":false,"vol":6,"night":false,"level":1,"prog":0,"days":1,"hungry":0,"threads":[["codex","landing","work"]]}
++1.0s trigger event: turn started · codex · landing · 14:00 Wednesday
+event {"agent":"codex","detail":{"tool":"shell","topic":"tests"},"event":"activity","project":"landing","session":"fixture-codex-a","ts":1791986402000}
+event {"agent":"codex","detail":{"tool":"shell"},"event":"needs_you","project":"landing","session":"fixture-codex-a","ts":1791986403000}
+event {"agent":"codex","detail":{"tool":"shell"},"event":"activity","project":"landing","session":"fixture-codex-a","ts":1791986404500}
+event {"agent":"codex","detail":{},"event":"turn_end","project":"landing","session":"fixture-codex-a","ts":1791986425500}
++25.5s state {"t":"state","v":1,"time":1791986425,"name":"Pip","base":"idle","busy":0,"idle":1,"wait":0,"mood":{"energy":114,"pace":108,"pitch":110},"quiet":0,"focus":false,"vol":6,"night":false,"level":1,"prog":2,"days":1,"hungry":0,"threads":[["codex","landing","idle"]]}
++25.5s moment nod 1
++25.5s growth xp 1 level 1 fed 2026-10-14
++25.5s trigger event: turn finished · codex · landing · topic: tests · took 24 s · 14:00 Wednesday

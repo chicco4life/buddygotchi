@@ -1,0 +1,30 @@
+## round 1
+no app (socket missing): n=40 p50=4.9 ms p95=5.4 ms max=6.4 ms exit0+silent=True
+stale socket file: n=20 p50=4.7 ms p95=5.0 ms max=5.0 ms exit0+silent=True
+app listening: n=23 p50=4.8 ms p95=5.0 ms max=5.2 ms exit0+silent=True
+  received 23/23 lines; any PRIVATE text: False
+  first: {"agent":"claude","cwd":"\/tmp\/fixture-project","hook":"SessionStart","session":"fixture-claude-code","ts":1790360274662}
+  third: {"agent":"claude","cwd":"\/tmp\/fixture-project","hook":"PreToolUse","session":"fixture-claude-code","tool":"Bash","topic":"tests","ts":1790360274671}
+1 MB payload, app listening: n=5 p50=14.1 ms p95=18.8 ms max=35.5 ms exit0+silent=True
+  last: {"agent":"claude","cwd":"\/w\/x","hook":"PostToolUse","session":"big","tool":"Read","ts":1790360275065}
+PASS
+## round 2
+no app (socket missing): n=40 p50=4.6 ms p95=6.3 ms max=9.0 ms exit0+silent=True
+stale socket file: n=20 p50=4.5 ms p95=4.6 ms max=4.8 ms exit0+silent=True
+app listening: n=23 p50=4.5 ms p95=4.7 ms max=5.1 ms exit0+silent=True
+  received 23/23 lines; any PRIVATE text: False
+  first: {"agent":"claude","cwd":"\/tmp\/fixture-project","hook":"SessionStart","session":"fixture-claude-code","ts":1790360275641}
+  third: {"agent":"claude","cwd":"\/tmp\/fixture-project","hook":"PreToolUse","session":"fixture-claude-code","tool":"Bash","topic":"tests","ts":1790360275650}
+1 MB payload, app listening: n=5 p50=13.4 ms p95=19.6 ms max=35.6 ms exit0+silent=True
+  last: {"agent":"claude","cwd":"\/w\/x","hook":"PostToolUse","session":"big","tool":"Read","ts":1790360276038}
+PASS
+## round 3
+no app (socket missing): n=40 p50=4.8 ms p95=5.5 ms max=7.5 ms exit0+silent=True
+stale socket file: n=20 p50=4.9 ms p95=9.1 ms max=9.1 ms exit0+silent=True
+app listening: n=23 p50=4.7 ms p95=5.1 ms max=5.2 ms exit0+silent=True
+  received 23/23 lines; any PRIVATE text: False
+  first: {"agent":"claude","cwd":"\/tmp\/fixture-project","hook":"SessionStart","session":"fixture-claude-code","ts":1790360276632}
+  third: {"agent":"claude","cwd":"\/tmp\/fixture-project","hook":"PreToolUse","session":"fixture-claude-code","tool":"Bash","topic":"tests","ts":1790360276642}
+1 MB payload, app listening: n=5 p50=14.1 ms p95=18.4 ms max=34.2 ms exit0+silent=True
+  last: {"agent":"claude","cwd":"\/w\/x","hook":"PostToolUse","session":"big","tool":"Read","ts":1790360277032}
+PASS

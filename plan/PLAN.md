@@ -69,6 +69,8 @@ app/                       Swift package
                            Voice, Memory, DeviceLink, Talk
   Boop/                    the menu-bar app (also runs --headless)
   BoopHook/                boop-hook, the hook client
+  HookWire/                what boop-hook and the app share: the hook line,
+                           topic tags, the socket (Foundation only)
   BoopDev/                 boopdev: replay, talk, brain runs, memory dump
   Tests/                   unit tests, plus Fixtures/{hooks,triggers,memory}
 firmware/                  PlatformIO project
@@ -135,7 +137,7 @@ Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 | F2 | Renderer and simulator | Passed |
 | F3 | Device behaviour | Passed |
 | F4 | Bluetooth on the device | Passed |
-| A1 | App core: adapters, hook client, core rules | In progress |
+| A1 | App core: adapters, hook client, core rules | Passed |
 | A2 | Memory, Voice, actions | Not started |
 | A3 | Harness and brains | Not started |
 | A4 | Device link, app shell, push-to-talk, installer | Not started |

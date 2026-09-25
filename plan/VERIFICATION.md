@@ -43,7 +43,7 @@ Each level answers a different question:
 | `tools/boopctl` | The new device tool, replacing `buddyctl.py`. It's Python in `tools/.venv` (pyserial, Pillow), created by `make tools` |
 | `tools/boopctl bridge` | Owns the USB serial port and shares it through a Unix socket, so the Mac app and other `boopctl` commands can use the board at the same time |
 | `tools/webcam/webcam.sh` | The existing AVFoundation recorder and frame extractor. `boopctl cam …` wraps it |
-| `boopdev` | A Swift CLI in the app package for replaying hooks, running the harness on recorded triggers, and printing the memory files |
+| `boopdev` | A Swift CLI in the app package for replaying hooks, running the harness on recorded triggers, and printing the memory files. `boopdev replay <fixture>` alone runs the payloads through the hook's field picking, the adapter and the core on a virtual clock and prints every decision (`--states` for snapshots only); with `--socket` it sends them through the real `boop-hook` to a running app |
 
 `boopctl` subcommands:
 

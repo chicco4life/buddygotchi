@@ -32,12 +32,19 @@ boop-hook <agent>        # agent = claude | codex
 ```
 
 1. It reads the hook's JSON from stdin, up to 256 KB. Anything beyond that
-   is drained and ignored.
+   is drained and ignored. A payload cut off at the cap won't parse, so the
+   hook name, session, `cwd` and tool name are picked out of its start
+   instead (it loses its topic).
 2. It picks out the fields in §3.
 3. It writes one JSON line to the app's Unix socket,
    `~/Library/Application Support/Boop/boop.sock`. Tests point it elsewhere
    with `BOOP_SOCKET`.
-4. It exits with 0 and prints nothing.
+4. It exits with 0 and prints nothing. A 1 s watchdog makes sure of that
+   even if stdin never closes.
+
+The line it writes carries only `agent`, `hook`, `session`, `cwd`, `tool`,
+`topic`, `error` (StopFailure's class), `kind` (Notification's type) and
+`ts`. The app's adapter turns that into the common event.
 
 Because it's compiled rather than a script, it costs a few milliseconds at
 most, even for agents that fire a hook on every tool call.
@@ -107,7 +114,10 @@ generation of Boop taught us two things:
 
 - **Start:** `needs_you` puts the session into "needs you". A second one
   from the same session while it's waiting is ignored. That dedupes
-  `PermissionRequest` against the matching `Notification`.
+  `PermissionRequest` against the matching `Notification`. A `Notification`
+  (a `needs_you` with no tool) that arrives within 5 s after the session
+  stopped needing you is the same request arriving late after a quick
+  approval, and is ignored too.
 - **Codex grace period:** for Codex, Boop waits 2 s before showing it. If
   the session moves on in that time, the reviewer handled it and Boop shows
   nothing. Claude shows immediately.
@@ -116,6 +126,9 @@ generation of Boop taught us two things:
   prompt, or the session ended.
 - **Safety net:** after 10 minutes with no events (*proposed*), it clears
   anyway, so a missed event can't leave Boop amber all day.
+- **Stale sessions:** a working session with no events for an hour counts
+  as idle, and a session with no events for a day is forgotten
+  (*proposed*), so a missed `SessionEnd` can't keep Boop busy forever.
 
 ## 5. Installing and repairing hooks
 

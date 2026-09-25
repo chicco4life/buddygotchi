@@ -1,0 +1,30 @@
+event {"agent":"claude_code","detail":{},"event":"session_start","project":"fixture-project","session":"fixture-claude-code","ts":1791986400000}
++0.0s state {"t":"state","v":1,"time":1791986400,"name":"Pip","base":"idle","busy":0,"idle":1,"wait":0,"mood":{"energy":100,"pace":100,"pitch":100},"quiet":0,"focus":false,"vol":6,"night":false,"level":1,"prog":0,"days":1,"hungry":0,"threads":[["claude","fixture-project","idle"]]}
+event {"agent":"claude_code","detail":{},"event":"turn_start","project":"fixture-project","session":"fixture-claude-code","ts":1791986401000}
++1.0s state {"t":"state","v":1,"time":1791986401,"name":"Pip","base":"working","busy":1,"idle":0,"wait":0,"mood":{"energy":100,"pace":100,"pitch":100},"quiet":0,"focus":false,"vol":6,"night":false,"level":1,"prog":0,"days":1,"hungry":0,"threads":[["claude","fixture-project","work"]]}
++1.0s trigger event: turn started · claude · fixture-project · 14:00 Wednesday
+event {"agent":"claude_code","detail":{"tool":"Bash","topic":"tests"},"event":"activity","project":"fixture-project","session":"fixture-claude-code","ts":1791986402000}
+event {"agent":"claude_code","detail":{"tool":"Bash"},"event":"activity","project":"fixture-project","session":"fixture-claude-code","ts":1791986403000}
+event {"agent":"claude_code","detail":{"tool":"Bash","topic":"tests"},"event":"activity","project":"fixture-project","session":"fixture-claude-code","ts":1791986404000}
+event {"agent":"claude_code","detail":{"tool":"Bash"},"event":"activity","project":"fixture-project","session":"fixture-claude-code","ts":1791986405000}
+event {"agent":"claude_code","detail":{"tool":"Bash","topic":"tests"},"event":"activity","project":"fixture-project","session":"fixture-claude-code","ts":1791986406000}
+event {"agent":"claude_code","detail":{"tool":"Bash"},"event":"activity","project":"fixture-project","session":"fixture-claude-code","ts":1791986407000}
+event {"agent":"claude_code","detail":{"tool":"Bash","topic":"tests"},"event":"activity","project":"fixture-project","session":"fixture-claude-code","ts":1791986408000}
+event {"agent":"claude_code","detail":{"tool":"Bash"},"event":"activity","project":"fixture-project","session":"fixture-claude-code","ts":1791986409000}
+event {"agent":"claude_code","detail":{"tool":"Bash","topic":"tests"},"event":"activity","project":"fixture-project","session":"fixture-claude-code","ts":1791986410000}
+event {"agent":"claude_code","detail":{"tool":"Bash"},"event":"activity","project":"fixture-project","session":"fixture-claude-code","ts":1791986411000}
+event {"agent":"claude_code","detail":{"tool":"Bash","topic":"tests"},"event":"activity","project":"fixture-project","session":"fixture-claude-code","ts":1791986412000}
+event {"agent":"claude_code","detail":{"tool":"Bash"},"event":"activity","project":"fixture-project","session":"fixture-claude-code","ts":1791986413000}
+event {"agent":"claude_code","detail":{"tool":"Bash","topic":"tests"},"event":"activity","project":"fixture-project","session":"fixture-claude-code","ts":1791986414000}
+event {"agent":"claude_code","detail":{"tool":"Bash"},"event":"activity","project":"fixture-project","session":"fixture-claude-code","ts":1791986415000}
+event {"agent":"claude_code","detail":{"tool":"Bash","topic":"tests"},"event":"activity","project":"fixture-project","session":"fixture-claude-code","ts":1791986416000}
+event {"agent":"claude_code","detail":{"tool":"Bash"},"event":"activity","project":"fixture-project","session":"fixture-claude-code","ts":1791986417000}
+event {"agent":"claude_code","detail":{"tool":"Bash","topic":"tests"},"event":"activity","project":"fixture-project","session":"fixture-claude-code","ts":1791986418000}
+event {"agent":"claude_code","detail":{"tool":"Bash"},"event":"activity","project":"fixture-project","session":"fixture-claude-code","ts":1791986419000}
+event {"agent":"claude_code","detail":{"tool":"Bash","topic":"tests"},"event":"activity","project":"fixture-project","session":"fixture-claude-code","ts":1791986420000}
+event {"agent":"claude_code","detail":{"tool":"Bash"},"event":"activity","project":"fixture-project","session":"fixture-claude-code","ts":1791986421000}
+event {"agent":"claude_code","detail":{},"event":"turn_end","project":"fixture-project","session":"fixture-claude-code","ts":1791986422000}
++22.0s state {"t":"state","v":1,"time":1791986422,"name":"Pip","base":"idle","busy":0,"idle":1,"wait":0,"mood":{"energy":114,"pace":108,"pitch":110},"quiet":0,"focus":false,"vol":6,"night":false,"level":1,"prog":2,"days":1,"hungry":0,"threads":[["claude","fixture-project","idle"]]}
++22.0s moment nod 1
++22.0s growth xp 1 level 1 fed 2026-10-14
++22.0s trigger event: turn finished · claude · fixture-project · topic: tests · took 21 s · 14:00 Wednesday

@@ -113,12 +113,13 @@ The brain is never involved here. In focus mode this is visual only (§6).
 Deliberately simple for now. XP and hunger are rules in the core; the brain
 can't touch them.
 
-- **Earning:** +1 XP for each agent turn that finishes, and +5 for the first
-  activity of the day. Nothing else earns XP: not approvals, tokens, taps
-  or time.
+- **Earning:** +1 XP for each agent turn that finishes (`turn_end`; a
+  failed turn earns nothing), and +5 for the first activity of the day.
+  Nothing else earns XP: not approvals, tokens, taps or time.
 - **Levels:** a new level every 50 XP (*proposed*), so level = XP ÷ 50,
   rounded down, plus 1. A level-up plays `levelup` at the next calm moment.
-- **Days together:** calendar days since setup.
+- **Days together:** calendar days since setup, counting the day of setup
+  as day 1.
 - **Hunger:** XP is food. The core remembers when Boop last earned any
   ("last fed" in `long-term.md`).
 

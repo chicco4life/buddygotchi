@@ -1,0 +1,9 @@
+no app (socket missing): n=40 p50=5.0 ms p95=12.1 ms max=254.3 ms exit0+silent=True
+stale socket file: n=20 p50=4.7 ms p95=5.0 ms max=5.0 ms exit0+silent=True
+app listening: n=23 p50=4.7 ms p95=4.9 ms max=5.1 ms exit0+silent=True
+  received 23/23 lines; any PRIVATE text: False
+  first: {"agent":"claude","cwd":"\/tmp\/fixture-project","hook":"SessionStart","session":"fixture-claude-code","ts":1790360262844}
+  third: {"agent":"claude","cwd":"\/tmp\/fixture-project","hook":"PreToolUse","session":"fixture-claude-code","tool":"Bash","topic":"tests","ts":1790360262853}
+1 MB payload, app listening: n=5 p50=14.3 ms p95=19.3 ms max=35.7 ms exit0+silent=True
+  last: {"agent":"claude","cwd":"\/w\/x","hook":"PostToolUse","session":"big","tool":"Read","ts":1790360263246}
+FAIL

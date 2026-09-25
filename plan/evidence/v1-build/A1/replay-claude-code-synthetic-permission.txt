@@ -1,0 +1,19 @@
+event {"agent":"claude_code","detail":{},"event":"session_start","project":"jetpack","session":"fixture-claude-p","ts":1791986400000}
++0.0s state {"t":"state","v":1,"time":1791986400,"name":"Pip","base":"idle","busy":0,"idle":1,"wait":0,"mood":{"energy":100,"pace":100,"pitch":100},"quiet":0,"focus":false,"vol":6,"night":false,"level":1,"prog":0,"days":1,"hungry":0,"threads":[["claude","jetpack","idle"]]}
+event {"agent":"claude_code","detail":{},"event":"turn_start","project":"jetpack","session":"fixture-claude-p","ts":1791986401000}
++1.0s state {"t":"state","v":1,"time":1791986401,"name":"Pip","base":"working","busy":1,"idle":0,"wait":0,"mood":{"energy":100,"pace":100,"pitch":100},"quiet":0,"focus":false,"vol":6,"night":false,"level":1,"prog":0,"days":1,"hungry":0,"threads":[["claude","jetpack","work"]]}
++1.0s trigger event: turn started · claude · jetpack · 14:00 Wednesday
+event {"agent":"claude_code","detail":{"tool":"Bash","topic":"build"},"event":"activity","project":"jetpack","session":"fixture-claude-p","ts":1791986402000}
+event {"agent":"claude_code","detail":{"tool":"Bash"},"event":"needs_you","project":"jetpack","session":"fixture-claude-p","ts":1791986403000}
++3.0s state {"t":"state","v":1,"time":1791986403,"name":"Pip","base":"idle","attn":{"agent":"claude","project":"jetpack","more":0},"busy":0,"idle":0,"wait":1,"mood":{"energy":100,"pace":100,"pitch":100},"quiet":0,"focus":false,"vol":6,"night":false,"level":1,"prog":0,"days":1,"hungry":0,"threads":[["claude","jetpack","wait"]]}
+event {"agent":"claude_code","detail":{},"event":"needs_you","project":"jetpack","session":"fixture-claude-p","ts":1791986404000}
+event {"agent":"claude_code","detail":{"tool":"Bash"},"event":"activity","project":"jetpack","session":"fixture-claude-p","ts":1791986410000}
++10.0s state {"t":"state","v":1,"time":1791986410,"name":"Pip","base":"working","busy":1,"idle":0,"wait":0,"mood":{"energy":100,"pace":100,"pitch":100},"quiet":0,"focus":false,"vol":6,"night":false,"level":1,"prog":0,"days":1,"hungry":0,"threads":[["claude","jetpack","work"]]}
++224.0s mumble curious build
++363.0s mumble curious build
+event {"agent":"claude_code","detail":{},"event":"turn_end","project":"jetpack","session":"fixture-claude-p","ts":1791986811000}
++411.0s state {"t":"state","v":1,"time":1791986811,"name":"Pip","base":"idle","busy":0,"idle":1,"wait":0,"mood":{"energy":108,"pace":104,"pitch":106},"quiet":0,"focus":false,"vol":6,"night":false,"level":1,"prog":2,"days":1,"hungry":0,"threads":[["claude","jetpack","idle"]]}
++411.0s moment cheer 2
++411.0s growth xp 1 level 1 fed 2026-10-14
++411.0s happened 14:06 claude · jetpack · finished (6 min)
++411.0s trigger event: turn finished · claude · jetpack · topic: build · took 6 min · 14:06 Wednesday

@@ -1,0 +1,80 @@
+python3 app/tools/test.py
+gen-test-runner: wrote app/Tests/GeneratedTestRunner.swift (72 tests)
+Building for debugging...
+[2 / 5] BoopTests-product
+[4 / 7] BoopTests-product
+Build complete! (0.54 sec)
+▶ AdapterTests.testClaudeMapping
+▶ AdapterTests.testCodexMapping
+▶ AdapterTests.testDetailCarriesToolTopicAndErrorClassOnly
+▶ AdapterTests.testEventJSONShape
+▶ AdapterTests.testProjectNames
+▶ AdapterTests.testAGitWorktreeAnywhereMapsToItsMainRepository
+▶ AdapterTests.testRecordedClaudeSessionMapsInOrder
+▶ AdapterTests.testRecordedCodexSessionStart
+▶ AdapterTests.testHookServerReceivesWhatTheClientSends
+▶ BoopVersionTests.testVersionIsSet
+▶ CoreAgentWorkTests.testSendingAPromptMakesBaseWorking
+▶ CoreAgentWorkTests.testTurnUnder30sNods
+▶ CoreAgentWorkTests.testTurn30sTo5MinCheersSize1
+▶ CoreAgentWorkTests.testTurn5To20MinCheersSize2
+▶ CoreAgentWorkTests.testTurnOver20MinCheersSize3
+▶ CoreAgentWorkTests.testSeveralFinishingAtOnceMakeOneCheerAtTheBiggestSize
+▶ CoreAgentWorkTests.testFailedTurnPlaysOopsThenSideEye
+▶ CoreAgentWorkTests.testTopicAndErrorReachTheTriggerLine
+▶ CoreNeedsYouTests.testClaudeNeedsYouShowsImmediately
+▶ CoreNeedsYouTests.testCodexWaitsTwoSeconds
+▶ CoreNeedsYouTests.testCodexRequestHandledByItsReviewerNeverShows
+▶ CoreNeedsYouTests.testAnyLaterEventClearsIt
+▶ CoreNeedsYouTests.testApprovingGoesBackToWork
+▶ CoreNeedsYouTests.testDuplicateWhileWaitingIsIgnored
+▶ CoreNeedsYouTests.testALateNotificationAfterAQuickApprovalIsIgnored
+▶ CoreNeedsYouTests.testMoreThanOneShowsTheOldestWithACount
+▶ CoreNeedsYouTests.testSafetyNetClearsAfterTenQuietMinutes
+▶ CoreNeedsYouTests.testWhileSomethingNeedsYouOnlyTalkAndReflectionReachTheHarness
+▶ CoreYouAndBoopTests.testTapSendsATapTrigger
+▶ CoreYouAndBoopTests.testPushToTalkListensAndSendsTheWords
+▶ CoreYouAndBoopTests.testTouchAndHoldGetsAMumbleFromTheMood
+▶ CoreYouAndBoopTests.testFirstActivityOfTheDayStretchesThenYawns
+▶ CoreYouAndBoopTests.testANewDayRunsReflectionOnYesterday
+▶ CoreYouAndBoopTests.testFocusToggleFromTheDevice
+▶ CoreGrowthTests.testOneXPPerFinishedTurnAndFiveForTheFirstActivityOfTheDay
+▶ CoreGrowthTests.testLevels
+▶ CoreGrowthTests.testLevelUpPlaysAtTheNextCalmMoment
+▶ CoreGrowthTests.testDaysTogether
+▶ CoreGrowthTests.testHungerThresholds
+▶ CoreGrowthTests.testStarvingLosesOneXPADayButNeverDropsALevel
+▶ CoreGrowthTests.testTheCoreAppliesStarvingAsDaysPass
+▶ CoreGrowthTests.testFirstXPAfterBeingHungryPlaysGobble
+▶ CoreGrowthTests.testHungerNeverSoundsOrInterrupts
+▶ CoreGrowthTests.testAwayPausesHunger
+▶ CoreRulesTests.testFailuresCalmBoopAndItDriftsBackInHalfAnHour
+▶ CoreRulesTests.testQuickWinsMakeBoopBouncier
+▶ CoreRulesTests.testNightIsDrowsierAndSleepsWithNothingWorking
+▶ CoreRulesTests.testNoSessionsIsAsleep
+▶ CoreRulesTests.testWorkingChatterEveryTwoToFourMinutesWithTheTopicAboutHalfTheTime
+▶ CoreRulesTests.testNoChatterWhenIdleQuietOrInFocus
+▶ CoreRulesTests.testQuietCountsDownInTheSnapshot
+▶ CoreRulesTests.testQuietAndFocusGateTriggers
+▶ CoreRulesTests.testTriggersInABurstMergeIntoOne
+▶ CoreRulesTests.testSnapshotShapeAndThreads
+▶ CoreRulesTests.testAtMostEightThreadsAndAFullSnapshotFitsInOneLine
+▶ CoreRulesTests.testSnapshotsGoOutOnlyWhenSomethingChanged
+▶ CoreRulesTests.testStaleWorkGoesIdleAndOldSessionsAreForgotten
+▶ CoreRulesTests.testSessionEndRemovesIt
+▶ HookWireTests.testKeepsOnlyTheMappedFields
+▶ HookWireTests.testStopFailureKeepsTheErrorClassAndNotificationItsType
+▶ HookWireTests.testNoPromptOrOutputFromAnyRecordedFixtureReachesTheLine
+▶ HookWireTests.testPayloadWithoutHookNameOrSessionIsDropped
+▶ HookWireTests.testAPayloadCutOffAtTheCapStillGivesTheEvent
+▶ HookWireTests.testCodexShellArgvAndPatchesGetTopics
+▶ HookWireTests.testTopicTable
+▶ HookWireTests.testEditsToMarkdownOrTextAreDocs
+▶ HookWireTests.testSendingToAMissingSocketGivesUpAtOnce
+▶ HookWireTests.testDefaultSocketPath
+▶ ReplayTests.testClaudePermissionShowsAtOnceAndClearsOnApproval
+▶ ReplayTests.testCodexRequestItsReviewerHandlesNeverShows
+▶ ReplayTests.testCodexRequestThatWaitsShowsAfterTwoSeconds
+▶ ReplayTests.testRecordedClaudeSession
+
+✓ 72 passed, 0 skipped of 72 tests

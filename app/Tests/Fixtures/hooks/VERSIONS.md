@@ -11,6 +11,13 @@ directory before we claim support for it (see `plan/VERIFICATION.md` §4).
 | Codex CLI | 0.153.4 | 2026-09-08 | 2026-09-09: static checks via delegate sandbox; live check needs a person in Codex |
 | Cursor | not recorded (Cursor.app not installed on the capture Mac) | 2026-09-08 | pending: run `skills/doctor/doctor.sh` from a Cursor chat |
 
+`<agent>/synthetic/` holds hand-written sessions in the recorded payloads'
+shape, for cases the recordings don't cover: a Claude permission request
+with its matching `Notification`, and Codex requests its automatic reviewer
+handles (resolved inside the 2 s grace period) or that wait for a person.
+A line `{"wait_ms": N}` moves the replay clock. `PRIVATE_…` markers must
+never reach the hook line (`HookWireTests`).
+
 To refresh a row: install the agent release, launch Boop, run
 `app/tools/record-hooks.sh <agent>` as the hook target for one short session,
 then run the doctor from inside that harness and note the result here.

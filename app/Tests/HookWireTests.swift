@@ -64,8 +64,8 @@ final class HookWireTests: XCTestCase {
 
     func testAPayloadCutOffAtTheCapStillGivesTheEvent() throws {
         let big = String(repeating: "x", count: 300_000)
-        let raw = payload(["hook_event_name": "PostToolUse", "session_id": "s9", "cwd": "/w/jetpack",
-                           "tool_name": "Read", "tool_response": big])
+        // Agents send the small fields first, as the recorded fixtures show.
+        let raw = Data(#"{"session_id": "s9", "cwd": "/w/jetpack", "hook_event_name": "PostToolUse", "tool_name": "Read", "tool_response": "\#(big)"}"#.utf8)
         let cut = raw.prefix(256 * 1024)
         let line = try XCTUnwrap(HookLine.extract(agent: "codex", payload: Data(cut), ts: 1))
         XCTAssertEqual(line.hook, "PostToolUse")

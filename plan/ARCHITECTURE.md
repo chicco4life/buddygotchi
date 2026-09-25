@@ -106,6 +106,18 @@ project, and whether each is working, idle or needs you) and:
 - keeps XP, hunger, mood, quiet, focus and "away", all by rule
   ([BEHAVIORS.md](BEHAVIORS.md)).
 
+In code the core is a pure state machine: each event, input or one-second
+tick goes in with the time, and a list of effects comes out (a snapshot, a
+moment for `face`, a mumble for `say`, a trigger, a Happened line, new
+Growth, a new day, start or stop listening). The app hands each effect to
+the part that carries it out, which keeps the core testable on a virtual
+clock.
+
+Trigger merging is leading-edge: the first trigger after a quiet spell goes
+out at once, and any that follow within 3 s are held and sent as one when
+the window ends, keeping the most important line (a failure, then a long
+finish, then a finish or a tap, then a start) with "+N more".
+
 ### 3.3 Harness and brain
 
 The harness is a small, generic loop ([HARNESS.md](HARNESS.md)). It builds a
@@ -224,7 +236,7 @@ xp: 1240 · level: 25 · last fed: 2026-10-14
 | Boop (name line) | App, at setup | Never changes. `nature` is the person's one answer (sweet or cheeky); `seed` is random and picks Boop's voice dialect |
 | Temperament | Reflection | At most one sentence changed a day |
 | Moments | Reflection | At most 20; at most one new a day |
-| Growth | Core | [BEHAVIORS.md](BEHAVIORS.md) §4 |
+| Growth | Core | [BEHAVIORS.md](BEHAVIORS.md) §4. While Boop is starving the line also carries `lost: N`, the XP lost since it was last fed, so a restart doesn't take a day's XP twice |
 | About you | Reflection | At most 30 lines of at most 100 characters; no code, paths, secrets or other people's names |
 | Preferences | Reflection | At most 15 lines; same limits |
 
@@ -377,3 +389,9 @@ When a spec changes direction, add a row here saying why.
 | 2026-09-26 | Over USB, the device sends `status` when the Mac first speaks, or speaks after 30 s of silence | USB has no connection event, and the Mac replies to the first `status` with a `state` either way | [PROTOCOL.md](PROTOCOL.md) §4 |
 | 2026-09-26 | `dbg.ping` reports Bluetooth's state (`ble`) and advertised name | L2 checks advertising over USB without touching the Mac's Bluetooth | [VERIFICATION.md](VERIFICATION.md) §3 |
 | 2026-09-26 | `dbg.state` reports `sfx` cues (chirp, jingle, pulse) before there's a sound player | The ladder's sound timing is testable now, and F5 plays the same cues | [VERIFICATION.md](VERIFICATION.md) §3 |
+| 2026-09-26 | `boop-hook` and the app share a small Foundation-only `HookWire` target (the hook line, topic tags, the socket) | The hook client stays small and fast without linking the rest of the app, and both sides agree on the line by construction | [PLAN.md](PLAN.md) §2, [ADAPTERS.md](ADAPTERS.md) §2 |
+| 2026-09-26 | The core is a pure state machine that returns effects, with one-second ticks for its timers | Decisions stay separate from effects, and every rule and timing is testable on a virtual clock | §3.2 |
+| 2026-09-26 | Trigger merging is leading-edge with a held follow-up; finishes within 3 s make one cheer, upgraded if a later one is bigger | Holding every trigger for 3 s would make the brain late every time, and the reactive loop can't wait | §3.2, [BEHAVIORS.md](BEHAVIORS.md) §3.1 |
+| 2026-09-26 | A late `Notification` within 5 s of a clear is ignored; an hour without events makes a working session idle, and a day forgets it | A quick approval could otherwise turn Boop amber again with nothing waiting, and a missed `SessionEnd` would keep it busy | [ADAPTERS.md](ADAPTERS.md) §4 |
+| 2026-09-26 | `state` cuts names to 23 bytes and drops thread rows to stay within 512 bytes | Eight rows of long project names overflow a line, and the device keeps names in 24-byte fields | [PROTOCOL.md](PROTOCOL.md) §3 |
+| 2026-09-26 | Days together count the day of setup as day 1; failed turns earn no XP; the Growth line carries `lost` while starving | The stats screen shouldn't say 0 days, "finishes" means `turn_end`, and starving must survive restarts | [BEHAVIORS.md](BEHAVIORS.md) §4, §4.2 |

@@ -140,3 +140,44 @@ One entry per iteration, newest last. Each ends with the exact next step.
   PLAN.md's A1 section and the specs it links (ADAPTERS.md, ARCHITECTURE.md,
   BEHAVIORS.md). The app's USB/BLE link must expect `status` lines (reply to
   the first one with a `state`) and ignore unknown types.
+
+## 2026-09-26 03:20 — A1: App core — Passed
+
+- **Changed:** a new Foundation-only `app/HookWire/` target, shared by
+  `boop-hook` and the app. It holds the hook line (only the ADAPTERS §3
+  fields), topic tags, and the socket send with a 50 ms timeout.
+  `boop-hook` now writes one line to the Unix socket, never prints, always
+  exits 0, and has a 1 s watchdog. `BoopKit/Adapters` gained `Adapter`
+  (Claude and Codex tables, project names including worktrees),
+  `HookServer` (the socket server) and `Replay`. `BoopKit/Core` gained
+  `Core`, a pure state machine that returns effects. It covers sessions,
+  "needs you" with the Codex grace period and safety net, screen priority
+  and the `state` builder, XP, hunger, away, mood, chatter, quiet and focus,
+  and trigger merging and gates. Also `Growth`, `Mood`, `StateSnapshot` and
+  `LocalTime`. `boopdev replay` runs offline on a virtual clock, or with
+  `--socket` through the real hook. There are synthetic Claude and Codex
+  approval fixtures. Details in [A1/README.md](A1/README.md).
+- **Checks:** `make test` 72/72 (three runs). Warm `boop-hook` runs with no
+  app took at most 9 ms over 180 runs, all exit 0 and silent. The first
+  launch after a rebuild took about 250 ms, twice; that's macOS's one-time
+  check of a new binary, and the evidence records it. With the app
+  listening, 23/23 lines arrived with no private text. Replay prints the
+  expected snapshots (`ReplayTests`). No device checks, since A1 is
+  Mac-only.
+- **Decisions:** the HookWire target, the core as a pure state machine,
+  leading-edge trigger merging, the late-Notification guard, stale-session
+  rules, `state` fitting in 512 bytes (names cut to 23 bytes), days
+  counting from 1, no XP for failures, and `lost` on the Growth line. All
+  are in the ARCHITECTURE §11 log, with the specs updated.
+- **Board:** untouched; still on F4 firmware `3707c8eb51`.
+- **Next step:** A2: Memory, Voice and actions. Read PLAN.md's A2 section,
+  ARCHITECTURE.md §4 (the file formats, including the new `lost:` on the
+  Growth line), VOICE.md §3–7 and HARNESS.md §6 (the tool definitions).
+  Build `BoopKit/Memory` (the three files, limits, atomic writes,
+  `history/<date>/` snapshots, restore on a parse failure). It should
+  consume the core's `.happened`, `.growth` and `.newDay` effects.
+  `Core.init` takes `lastActiveDay` from short-term.md's Today date, so a
+  restart doesn't replay the morning. Then build `BoopKit/Voice` and
+  `BoopKit/Actions` (`say`, `face`, `quiet`, `note`, `remember`, `forget`,
+  `temperament`, `moment`). `quiet` calls `Core.setQuiet`. Each action
+  owns its tool definition and drops invalid input with a logged reason.
