@@ -58,9 +58,12 @@ void loop() {
       break;
     }
   }
+  uint32_t t0 = micros();
   device->tick();
   if (device->takeFrame()) {
+    uint32_t t1 = micros();
     board::displayPush(device->canvas());
+    hal.setFrameUs(t1 - t0, micros() - t1);
     ++frames;
   }
   uint32_t now = millis();

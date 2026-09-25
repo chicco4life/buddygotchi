@@ -407,6 +407,10 @@ void Device::sendPing(Link to) {
   d["heap"] = hal_.heapFree();
   d["heap_min"] = hal_.heapMin();
   d["fps"] = hal_.fps();
+  uint32_t drawUs, pushUs;
+  hal_.frameUs(drawUs, pushUs);
+  d["draw_us"] = drawUs;
+  d["push_us"] = pushUs;
   d["link"] = linkName(link_);
   char buf[256];
   size_t n = serializeJson(d, buf, sizeof(buf));

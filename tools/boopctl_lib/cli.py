@@ -6,6 +6,7 @@ import json
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 from boopctl_lib import scenario
@@ -165,6 +166,43 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 1 if failures or differ else 0
 
 
+# Moments that keep the face moving for perf, one after another.
+MOTION = ["cheer", "wiggle", "levelup", "gobble", "rumble", "nod", "yawn", "stretch"]
+
+
+def cmd_perf(args: argparse.Namespace) -> int:
+    """Samples fps and heap once a second with the clock running. With
+    --motion, it plays moments back to back, so every sample is mid-motion."""
+    samples = []
+    with Device(args.port) as dev:
+        dev.request({"t": "dbg.clock", "run": True})
+        dev.send({"t": "state", "v": 1, "base": "working", "busy": 1})
+        start = time.monotonic()
+        last_moment = -10.0
+        i = 0
+        while (elapsed := time.monotonic() - start) < args.seconds:
+            if args.motion and elapsed - last_moment >= 1.0:
+                dev.send({"t": "moment", "anim": MOTION[i % len(MOTION)], "size": 3, "ttl": 5})
+                dev.send({"t": "state", "v": 1, "base": "working", "busy": 1})
+                last_moment, i = elapsed, i + 1
+            time.sleep(1.0)
+            ping = dev.request({"t": "dbg.ping"})
+            samples.append({"fps": ping["fps"], "heap": ping["heap"], "heap_min": ping["heap_min"], "up": ping["up"]})
+    fps = [s["fps"] for s in samples[1:]] or [0]  # the first second includes the start
+    ups = [s["up"] for s in samples]
+    result = {
+        "samples": len(samples),
+        "fps_min": min(fps),
+        "fps_mean": round(sum(fps) / len(fps), 1),
+        "heap_min": min(s["heap_min"] for s in samples),
+        "reset": any(b <= a for a, b in zip(ups, ups[1:])),
+        "motion": args.motion,
+    }
+    result["ok"] = (not args.motion or result["fps_min"] >= 25) and result["heap_min"] >= 60000 and not result["reset"]
+    emit(result)
+    return 0 if result["ok"] else 1
+
+
 def cmd_cam(args: argparse.Namespace) -> int:
     from boopctl_lib import cam
 
@@ -217,6 +255,10 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("run", help="play scenarios on the device and compare with the simulator")
     p.add_argument("scenario", nargs="*", help="names or paths (default: all)")
     p.set_defaults(func=cmd_run)
+    p = sub.add_parser("perf", help="sample fps and heap; --motion keeps the face moving")
+    p.add_argument("--seconds", type=int, default=30)
+    p.add_argument("--motion", action="store_true")
+    p.set_defaults(func=cmd_perf)
     p = sub.add_parser("cam", help="webcam helpers (opt-in; plan/VERIFICATION.md §6)")
     p.add_argument("action", choices=["frame", "pattern"])
     p.add_argument("--usb", default="right", choices=["bottom", "right", "top", "left"],

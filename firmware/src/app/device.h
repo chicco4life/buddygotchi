@@ -38,6 +38,8 @@ struct Hal {
   virtual uint32_t heapFree() { return 0; }
   virtual uint32_t heapMin() { return 0; }
   virtual uint32_t fps() { return 0; }
+  // The last frame's drawing and pushing time, in microseconds.
+  virtual void frameUs(uint32_t& draw, uint32_t& push) { draw = push = 0; }
   virtual uint32_t batteryMv() { return 0; }
   virtual bool ampOn() { return false; }
   virtual const char* fwVersion() = 0;

@@ -3,6 +3,20 @@
 namespace render {
 
 uint32_t isqrt(uint64_t v) {
+  if (v < (uint64_t(1) << 32)) {  // the usual case, in 32-bit maths
+    uint32_t x = uint32_t(v), r = 0, bit = uint32_t(1) << 30;
+    while (bit > x) bit >>= 2;
+    while (bit) {
+      if (x >= r + bit) {
+        x -= r + bit;
+        r = (r >> 1) + bit;
+      } else {
+        r >>= 1;
+      }
+      bit >>= 2;
+    }
+    return r;
+  }
   uint64_t r = 0, bit = uint64_t(1) << 62;
   while (bit > v) bit >>= 2;
   while (bit) {

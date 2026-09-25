@@ -111,4 +111,38 @@ void sampleShape(int x0, int y0, int x1, int y1, Inside inside, Plot plot) {
   }
 }
 
+// Fills a shape that is one vertical band per x: `band(sx, top, bottom)`
+// gives the band [top, bottom) at sample column sx, or false for none. Uses
+// the same 4×4 samples per pixel as sampleShape, but asks for each column
+// once, which is what makes the mouth cheap on the board.
+template <class Band, class Plot>
+void fillBands(int x0, int x1, Band band, Plot plot) {
+  if (x0 < 0) x0 = 0;
+  if (x1 > kWidth) x1 = kWidth;
+  for (int x = x0; x < x1; ++x) {
+    int top[4], bottom[4], lo = 1 << 30, hi = -(1 << 30);
+    bool any = false;
+    for (int i = 0; i < 4; ++i) {
+      if (!band(px(x) + 2 + 4 * i, top[i], bottom[i])) top[i] = bottom[i] = 0;
+      if (bottom[i] > top[i]) {
+        any = true;
+        if (top[i] < lo) lo = top[i];
+        if (bottom[i] > hi) hi = bottom[i];
+      }
+    }
+    if (!any) continue;
+    int y0 = lo / kSub - 1, y1 = hi / kSub + 1;
+    if (y0 < 0) y0 = 0;
+    if (y1 > kHeight) y1 = kHeight;
+    for (int y = y0; y < y1; ++y) {
+      int n = 0;
+      for (int j = 0; j < 4; ++j) {
+        int sy = px(y) + 2 + 4 * j;
+        for (int i = 0; i < 4; ++i) n += sy >= top[i] && sy < bottom[i];
+      }
+      if (n) plot(x, y, (n + 1) / 2);
+    }
+  }
+}
+
 }  // namespace render

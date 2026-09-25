@@ -136,23 +136,13 @@ void drawMouth(Canvas& c, const Pose& p, int cx, int cy, int s, int ink) {
   m.bend = len(kMouthBend) * clampi(p.mouthCurve, -1000, 1000) / 1000;
   m.drop = len(kMouthDrop) * clampi(p.mouthOpen, 0, 1000) / 1000;
   int x0 = (m.x - m.hw) / kSub - 1, x1 = (m.x + m.hw) / kSub + 2;
-  int reach = (m.bend < 0 ? -m.bend : m.bend) + m.th + len(1);
-  int y0 = (m.y - reach) / kSub - 1, y1 = (m.y + reach + m.drop) / kSub + 2;
   uint8_t* px = c.pixels();
-  sampleShape(x0, y0, x1, y1,
-              [&](int sx, int sy) {
-                int top, bottom;
-                return m.band(sx, 0, top, bottom) && sy >= top && sy < bottom;
-              },
-              [&](int x, int y, int level) { px[y * kWidth + x] = inkAt(ink, level); });
+  fillBands(x0, x1, [&](int sx, int& top, int& bottom) { return m.band(sx, 0, top, bottom); },
+            [&](int x, int y, int level) { px[y * kWidth + x] = inkAt(ink, level); });
   int lip = len(3);
   if (m.drop <= lip) return;
-  sampleShape(x0, y0, x1, y1,
-              [&](int sx, int sy) {
-                int top, bottom;
-                return m.band(sx, lip, top, bottom) && sy >= top && sy < bottom;
-              },
-              [&](int x, int y, int level) { px[y * kWidth + x] = pupilAt(ink, level); });
+  fillBands(x0, x1, [&](int sx, int& top, int& bottom) { return m.band(sx, lip, top, bottom); },
+            [&](int x, int y, int level) { px[y * kWidth + x] = pupilAt(ink, level); });
 }
 
 }  // namespace

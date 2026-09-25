@@ -58,14 +58,14 @@ void centred(Canvas& c, const Font& f, int y, const char* text, int ink) {
 // A squiggle standing for one or more gibberish syllables.
 int squiggle(Canvas& c, int x, int cy, int ink) {
   const int w = 22;
-  sampleShape(x, cy - 6, x + w, cy + 6,
-              [&](int sx, int sy) {
-                int t = (sx - px(x)) * 1024 / px(w);  // one full wave
-                int yc = px(cy) + px(4) * isin(t) / 1024;
-                int d = sy - yc;
-                return d >= -px(1) - 8 && d < px(1) + 8;
-              },
-              [&](int xx, int yy, int level) { plotInk(c, xx, yy, level, ink); });
+  fillBands(x, x + w,
+            [&](int sx, int& top, int& bottom) {
+              int t = (sx - px(x)) * 1024 / px(w);  // one full wave
+              int yc = px(cy) + px(4) * isin(t) / 1024;
+              top = yc - px(1) - 8, bottom = yc + px(1) + 8;
+              return true;
+            },
+            [&](int xx, int yy, int level) { plotInk(c, xx, yy, level, ink); });
   return x + w;
 }
 
