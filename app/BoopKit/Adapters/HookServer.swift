@@ -7,15 +7,19 @@ import HookWire
 public final class HookServer: @unchecked Sendable {
     public let path: String
     private let onLine: @Sendable (HookLine, Int64) -> Void
+    private let onOther: (@Sendable (Data) -> Void)?
     private let lock = NSLock()
     private var listener: Int32 = -1
     private var thread: Thread?
 
     /// `onLine` gets each line with the time it arrived, in milliseconds, on
-    /// the server's own thread.
-    public init(path: String, onLine: @escaping @Sendable (HookLine, Int64) -> Void) {
+    /// the server's own thread. `onOther` gets lines that aren't hook lines
+    /// (headless mode's `boopdev talk`); without it they're dropped.
+    public init(path: String, onLine: @escaping @Sendable (HookLine, Int64) -> Void,
+                onOther: (@Sendable (Data) -> Void)? = nil) {
         self.path = path
         self.onLine = onLine
+        self.onOther = onOther
     }
 
     public enum StartError: Error { case pathTooLong, socket(Int32), bind(Int32), listen(Int32) }
@@ -93,7 +97,11 @@ public final class HookServer: @unchecked Sendable {
         }
         let received = Int64(Date().timeIntervalSince1970 * 1000)
         for part in data.split(separator: 0x0A) where !part.isEmpty {
-            if let line = HookLine.decode(Data(part)) { onLine(line, received) }
+            if let line = HookLine.decode(Data(part)) {
+                onLine(line, received)
+            } else {
+                onOther?(Data(part))
+            }
         }
     }
 }

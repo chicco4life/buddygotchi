@@ -140,7 +140,7 @@ Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 | A1 | App core: adapters, hook client, core rules | Passed |
 | A2 | Memory, Voice, actions | Passed |
 | A3 | Harness and brains | Blocked: Apple's model fails the L5 review (notes praise, filler words, rarely quiet) and its guardrail refuses 2/52; see evidence/v1-build/A3 |
-| A4 | Device link, app shell, push-to-talk, installer | Not started |
+| A4 | Device link, app shell, push-to-talk, installer | In progress |
 | J1 | End to end over USB | Not started |
 | F5 | Voice on the device | Not started |
 | J2 | Soak and polish | Not started |

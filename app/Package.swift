@@ -29,10 +29,18 @@ var packageTargets: [Target] = [
         swiftSettings: useXCTestShim ? [.unsafeFlags(["-enable-testing"])] : []
     ),
     // The menu-bar app; `Boop --headless` runs it without UI or Bluetooth.
+    // Info.plist is linked into the binary so macOS finds the Bluetooth,
+    // microphone and speech usage descriptions without an app bundle.
     .executableTarget(
         name: "Boop",
         dependencies: ["BoopKit"],
-        path: "Boop"
+        path: "Boop",
+        exclude: ["Info.plist"],
+        resources: [.copy("Resources/steering.md")],
+        linkerSettings: [.unsafeFlags([
+            "-Xlinker", "-sectcreate", "-Xlinker", "__TEXT", "-Xlinker", "__info_plist",
+            "-Xlinker", Context.packageDirectory + "/Boop/Info.plist",
+        ])]
     ),
     // The hook client agents call. Never prints, always exits 0.
     .executableTarget(

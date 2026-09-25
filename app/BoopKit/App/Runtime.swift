@@ -1,0 +1,305 @@
+import Foundation
+import HookWire
+
+/// Everything the app runs, wired together (ARCHITECTURE.md §1): the hook
+/// socket feeds the adapters and the core; the core's effects go to the
+/// actions, the harness, the memory store and the device link; the device's
+/// inputs come back to the core. The menu-bar app and `Boop --headless` both
+/// run one of these.
+///
+/// All state lives on `home`, one serial queue, which is also the harness's.
+public final class Runtime: @unchecked Sendable {
+    public struct Options {
+        public var stateDir: URL
+        public var socketPath: String
+        public var link: DeviceTransport?
+        public var steering: String
+        /// Overrides the brain in `settings.json`.
+        public var brain: String?
+        public var time = LocalTime()
+        public var clock: @Sendable () -> Int64 = { Int64(Date().timeIntervalSince1970 * 1000) }
+        /// Accept `{"dev":"talk","words":…}` on the hook socket (headless only).
+        public var devLines = false
+        /// §8's JSONL log of every brain call; nil keeps none.
+        public var debugLog: URL?
+        public var log: @Sendable (String) -> Void = { _ in }
+
+        public init(stateDir: URL, socketPath: String, link: DeviceTransport?, steering: String) {
+            self.stateDir = stateDir
+            self.socketPath = socketPath
+            self.link = link
+            self.steering = steering
+        }
+    }
+
+    /// What the menu bar shows.
+    public struct Status: Sendable {
+        public var snapshot: StateSnapshot
+        public var connected: Bool
+        public var device: DeviceStatus?
+        public var brain: String
+        public var away: Bool
+        public var finished: Int
+        public var projects: Int
+    }
+
+    public enum OpenError: Error, CustomStringConvertible {
+        case notSetUp, locked(String)
+        public var description: String {
+            switch self {
+            case .notSetUp: "Boop isn't set up yet: no long-term.md"
+            case .locked(let dir): "another Boop is already running on \(dir)"
+            }
+        }
+    }
+
+    public let home = DispatchQueue(label: "boop.home", qos: .userInitiated)
+    public let options: Options
+    public let memory: MemoryStore
+    public let link: DeviceLink
+    public private(set) var settings: AppSettings
+    let core: Core
+    let harness: Harness
+    let say: SayAction
+    let face: FaceAction
+    let lock: InstanceLock
+    var server: HookServer?
+    var timer: DispatchSourceTimer?
+    var projects: [String: String] = [:]
+
+    /// Push-to-talk: start (true) or stop listening. Called on `home`.
+    public var onListen: ((Bool) -> Void)?
+    /// After every change the menu bar might show. Called on `home`.
+    public var onChange: ((Status) -> Void)?
+
+    /// Sets up a new Boop: name and sweet-or-cheeky, asked once (UX.md §6).
+    public static func setUp(stateDir: URL, name: String, nature: LongTerm.Nature, today: String) throws {
+        let store = try MemoryStore(directory: stateDir, steering: "")
+        try store.setUp(name: name, nature: nature, seed: UInt64.random(in: 1...0xFFFF), today: today)
+    }
+
+    public init(_ options: Options) throws {
+        self.options = options
+        guard let lock = InstanceLock(directory: options.stateDir) else { throw OpenError.locked(options.stateDir.path) }
+        self.lock = lock
+        let log = options.log
+        memory = try MemoryStore(directory: options.stateDir, steering: options.steering, log: log)
+        guard let longTerm = memory.longTerm else { throw OpenError.notSetUp }
+        settings = AppSettings.load(from: options.stateDir)
+        if let brain = options.brain { settings.brain = brain }
+        link = DeviceLink(transport: options.link, log: log)
+
+        let now = options.clock()
+        var config = Core.Config(name: longTerm.name, volume: settings.volume, time: options.time,
+                                 seed: longTerm.seed ^ UInt64(now))
+        config.name = longTerm.name
+        core = Core(config: config, growth: longTerm.growth, lastActiveDay: memory.lastActiveDay, now: now)
+
+        // Actions reach the rest through closures that are only ever called
+        // on `home`, from the core's effects or the harness.
+        var route: ([CoreEffect]) -> Void = { _ in }
+        let core = self.core
+        let link = self.link
+        let time = options.time
+        let clock = options.clock
+        let context = ActionContext(
+            send: { link.play($0) },
+            mood: { core.currentMood(at: clock()) },
+            mumblesAllowed: { core.canMumble(at: clock()) },
+            setQuiet: { route(core.setQuiet(minutes: $0, at: clock())) },
+            today: { time.day(clock()) },
+            log: log)
+        let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: longTerm.seed)), memory: memory)
+        say = actions.compactMap { $0 as? SayAction }.first!
+        face = actions.compactMap { $0 as? FaceAction }.first!
+        let memory = self.memory
+        harness = Harness(brain: Brains.make(settings.brain, log: log), tools: actions.map(Harness.Tool.init),
+                          memory: { memory.promptMemory(for: $0.kind) }, home: home, debugLog: options.debugLog,
+                          log: log)
+        harness.onRecord = { record in
+            let answer = record.dropped.map { "dropped: \($0)" }
+                ?? (record.ran.isEmpty ? "quiet" : record.ran.map { "\($0.call)" }.joined(separator: ", "))
+            log("brain \(record.trigger.kind.rawValue) \(record.latencyMs) ms → \(answer)")
+        }
+        route = { [weak self] in self?.run($0) }
+        if settings.focus { _ = core.setFocus(true, at: now) }
+        if settings.away { _ = core.setAway(true, at: now) }
+    }
+
+    // MARK: Running
+
+    public func start() throws {
+        let home = self.home
+        let onLine: @Sendable (HookLine, Int64) -> Void = { [weak self] line, received in
+            home.async { self?.hook(line, received: received) }
+        }
+        let onOther: @Sendable (Data) -> Void = { [weak self] data in home.async { self?.dev(data) } }
+        let server = HookServer(path: options.socketPath, onLine: onLine, onOther: options.devLines ? onOther : nil)
+        try server.start()
+        self.server = server
+        options.link?.start(
+            onLine: { [weak self] line in self?.home.async { self?.device(line) } },
+            onConnection: { [weak self] up in
+                self?.home.async {
+                    guard let self else { return }
+                    self.link.connection(up, now: self.options.clock())
+                    self.changed()
+                }
+            })
+        let timer = DispatchSource.makeTimerSource(queue: home)
+        timer.schedule(deadline: .now() + 1, repeating: 1)
+        timer.setEventHandler { [weak self] in self?.tick() }
+        timer.resume()
+        self.timer = timer
+        home.async { [self] in
+            run(core.tick(at: options.clock()))
+            link.update(core.snapshot(at: options.clock()), now: options.clock())
+            changed()
+        }
+        options.log("boop: running on \(options.stateDir.path), socket \(options.socketPath), link \(options.link?.name ?? "none"), brain \(harness.brain.id)")
+    }
+
+    /// Stops listening for hooks and the device. Safe to call twice.
+    public func stop() {
+        timer?.cancel()
+        timer = nil
+        server?.stop()
+        server = nil
+        options.link?.stop()
+    }
+
+    // MARK: Inputs (on `home`)
+
+    func hook(_ line: HookLine, received: Int64) {
+        let key = line.agent + "/" + line.session
+        guard let event = Adapter.event(from: line, receivedAt: received, knownProject: projects[key]) else { return }
+        projects[key] = event.project
+        run(core.handle(event))
+        if event.event == .turnEnd {
+            saveSettings {
+                $0.finished += 1
+                if !$0.projects.contains(event.project) { $0.projects.append(event.project) }
+            }
+        }
+    }
+
+    func device(_ line: String) {
+        let now = options.clock()
+        if case .input(let input) = link.receive(line, now: now) {
+            run(core.input(input, at: now))
+            if input == .focus { saveSettings { $0.focus = self.core.focus } }
+        }
+        changed()
+    }
+
+    func dev(_ data: Data) {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              object["dev"] as? String == "talk", let words = object["words"] as? String else { return }
+        options.log("dev: talk \"\(words)\"")
+        talkNow(words)
+    }
+
+    func tick() {
+        let now = options.clock()
+        run(core.tick(at: now))
+        link.tick(now: now, current: core.snapshot(at: now))
+    }
+
+    /// Carries out the core's decisions (ARCHITECTURE.md §3.2).
+    func run(_ effects: [CoreEffect]) {
+        var stateChanged = false
+        for effect in effects {
+            switch effect {
+            case .state(let snapshot):
+                link.update(snapshot, now: options.clock())
+                stateChanged = true
+            case .moment(let anim, let size):
+                face.play(anim, size: size)
+            case .mumble(let feeling, let word):
+                var arguments: [String: ToolValue] = ["feeling": .string(feeling)]
+                if let word { arguments["word"] = .string(word) }
+                say.run(ToolCall("say", arguments))
+            case .trigger(let trigger):
+                harness.submit(trigger)
+            case .happened, .growth, .newDay:
+                memory.apply(effect)
+            case .listen(let on):
+                onListen?(on)
+            }
+        }
+        if stateChanged {
+            if memory.shortTerm != nil { memory.setMood(core.moodWord(at: options.clock())) }
+            changed()
+        }
+    }
+
+    func changed() {
+        onChange?(Status(snapshot: link.latest ?? core.snapshot(at: options.clock()), connected: link.connected,
+                         device: link.status, brain: harness.brain.id, away: core.away,
+                         finished: settings.finished, projects: settings.projects.count))
+    }
+
+    func talkNow(_ words: String) {
+        run(core.talk(words, at: options.clock()))
+    }
+
+    func saveSettings(_ change: (inout AppSettings) -> Void) {
+        change(&settings)
+        do { try settings.save(to: options.stateDir) } catch { options.log("settings: can't save: \(error)") }
+    }
+
+    // MARK: From the menu bar (any thread)
+
+    /// The transcript from push-to-talk. It reaches the harness and is then
+    /// dropped (ARCHITECTURE.md §3.8).
+    public func talk(_ words: String) {
+        home.async { [self] in talkNow(words) }
+    }
+
+    public func setFocus(_ on: Bool) {
+        home.async { [self] in
+            run(core.setFocus(on, at: options.clock()))
+            saveSettings { $0.focus = on }
+        }
+    }
+
+    public func setAway(_ on: Bool) {
+        home.async { [self] in
+            run(core.setAway(on, at: options.clock()))
+            saveSettings { $0.away = on }
+            changed()
+        }
+    }
+
+    public func setVolume(_ volume: Int) {
+        home.async { [self] in
+            run(core.setVolume(volume, at: options.clock()))
+            saveSettings { $0.volume = max(0, min(10, volume)) }
+        }
+    }
+
+    /// Takes effect on the next launch.
+    public func setBrain(_ brain: String) {
+        home.async { [self] in saveSettings { $0.brain = brain } }
+    }
+
+    /// What Boop remembers about you, for the settings screen.
+    public func remembered(_ done: @escaping @Sendable ([String]) -> Void) {
+        home.async { [self] in
+            let lt = memory.longTerm
+            done((lt?.aboutYou ?? []) + (lt?.preferences ?? []))
+        }
+    }
+
+    /// Deletes one remembered line, from the settings screen.
+    public func forget(_ line: String) {
+        home.async { [self] in
+            if case .failure(let why) = memory.forget(line) { options.log("settings: can't forget: \(why)") }
+        }
+    }
+
+    /// A fresh status, on `home`.
+    public func refresh() {
+        home.async { [self] in changed() }
+    }
+}

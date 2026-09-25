@@ -297,6 +297,14 @@ public final class Core {
         return snapshot
     }
 
+    /// Energy, pace and pitch now, for Voice's tempo.
+    public func currentMood(at now: Int64) -> Mood {
+        mood.mood(at: now, night: config.time.isNight(now), hunger: hungerNow(now))
+    }
+
+    /// False in quiet or focus mode, or while something needs you.
+    public func canMumble(at now: Int64) -> Bool { mumblesAllowed(now) }
+
     /// How `short-term.md` describes Boop's mood right now.
     public func moodWord(at now: Int64) -> String {
         mood.word(at: now, night: config.time.isNight(now), hunger: hungerNow(now))

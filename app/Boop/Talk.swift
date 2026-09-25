@@ -1,0 +1,94 @@
+import AVFoundation
+import Foundation
+@preconcurrency import Speech
+
+/// Push-to-talk on the Mac's mic (ARCHITECTURE.md §3.8). `start` on
+/// `talk_on`, `stop` on `talk_off`; the transcript comes back once, and the
+/// audio is never kept. Recognition runs on the Mac only.
+final class SpeechListener: @unchecked Sendable {
+    let engine = AVAudioEngine()
+    let recognizer = SFSpeechRecognizer()
+    var request: SFSpeechAudioBufferRecognitionRequest?
+    var task: SFSpeechRecognitionTask?
+    var best = ""
+    var finish: ((String?) -> Void)?
+    let log: (String) -> Void
+    let queue = DispatchQueue(label: "boop.talk")
+
+    init(log: @escaping (String) -> Void) {
+        self.log = log
+    }
+
+    /// Asks for speech and microphone access once; later calls return at once.
+    func authorize(_ done: @escaping @Sendable (Bool) -> Void) {
+        SFSpeechRecognizer.requestAuthorization { status in
+            guard status == .authorized else {
+                done(false)
+                return
+            }
+            AVCaptureDevice.requestAccess(for: .audio) { done($0) }
+        }
+    }
+
+    func start() {
+        queue.async { [self] in
+            guard task == nil else { return }
+            guard let recognizer, recognizer.isAvailable, recognizer.supportsOnDeviceRecognition else {
+                log("talk: on-device speech recognition isn't available")
+                return
+            }
+            let request = SFSpeechAudioBufferRecognitionRequest()
+            request.requiresOnDeviceRecognition = true
+            request.shouldReportPartialResults = true
+            self.request = request
+            best = ""
+            let input = engine.inputNode
+            input.installTap(onBus: 0, bufferSize: 1024, format: input.outputFormat(forBus: 0)) { buffer, _ in
+                request.append(buffer)
+            }
+            do {
+                engine.prepare()
+                try engine.start()
+            } catch {
+                log("talk: can't start the mic: \(error)")
+                input.removeTap(onBus: 0)
+                self.request = nil
+                return
+            }
+            task = recognizer.recognitionTask(with: request) { [weak self] result, error in
+                guard let self else { return }
+                self.queue.async {
+                    if let result { self.best = result.bestTranscription.formattedString }
+                    if error != nil || result?.isFinal == true { self.done() }
+                }
+            }
+        }
+    }
+
+    /// Stops the mic and hands over what was heard, or nil if nothing was.
+    func stop(_ finish: @escaping (String?) -> Void) {
+        queue.async { [self] in
+            guard task != nil else {
+                finish(nil)
+                return
+            }
+            self.finish = finish
+            engine.stop()
+            engine.inputNode.removeTap(onBus: 0)
+            request?.endAudio()
+            // The final result usually arrives within a second.
+            queue.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.done() }
+        }
+    }
+
+    func done() {
+        guard let finish else { return }
+        self.finish = nil
+        task?.cancel()
+        task = nil
+        request = nil
+        let words = best.trimmingCharacters(in: .whitespacesAndNewlines)
+        best = ""
+        finish(words.isEmpty ? nil : words)
+    }
+}
