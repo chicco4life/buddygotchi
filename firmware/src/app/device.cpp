@@ -51,6 +51,8 @@ void Device::reset() {
   clock_.freeze(0);
   rng_.seed(0);
   b_.reset(0, rng_);
+  hush();
+  sfxSeen_ = b_.sfx(sfxSeenAt_);
   pattern_ = false;
   patternFill_ = -1;
   injPress_ = injTouch_ = touchDown_ = touchHeld_ = false;
@@ -129,6 +131,7 @@ void Device::handleLine(const char* line, size_t n, Link from) {
       th.status = !std::strcmp(st, "wait") ? 'w' : !std::strcmp(st, "work") ? 'b' : 'i';
     }
     b_.onState(m, at, rng_);
+    if (m.attn || m.quiet > 0 || m.focus || m.vol <= 0) hush();  // VOICE.md §9
     pattern_ = false;
     dirty_ = true;
   } else if (!std::strcmp(t, "moment")) {
@@ -136,22 +139,46 @@ void Device::handleLine(const char* line, size_t n, Link from) {
     MomentIn mo;
     mo.anim = render::animFromName(doc["anim"]);
     mo.size = doc["size"] | 1;
+    voice::Line line;
     JsonObjectConst say = doc["say"];
     if (say) {
+      // Syllables are separated by spaces (words) and hyphens.
       int syl = 0;
-      bool inSyl = false;
-      for (const char* p = say["syl"] | ""; *p; ++p) {
-        bool sep = *p == ' ' || *p == '-';
-        if (!sep && !inSyl) ++syl;
-        inSyl = !sep;
+      const char* p = say["syl"] | "";
+      while (*p) {
+        while (*p == ' ' || *p == '-') ++p;
+        const char* s = p;
+        while (*p && *p != ' ' && *p != '-') ++p;
+        if (p == s) break;
+        if (line.n < voice::kMaxSyllables) {
+          int i = voice::syllableIndex(s, size_t(p - s));
+          line.syl[line.n++] = i < 0 ? voice::kSilent : uint8_t(i);
+        }
+        ++syl;
       }
       mo.syllables = syl;
       const char* word = say["word"] | "";
       mo.word = word[0] ? word : nullptr;
       mo.at = say["at"] | syl;
       mo.ms = say["ms"] | 120u;
+      line.word = voice::wordIndex(mo.word);
+      line.at = mo.at;
+      line.tune = voice::tuneFromName(say["tune"]);
+      line.ms = uint16_t(mo.ms < 60 ? 60 : mo.ms > 400 ? 400 : mo.ms);  // as the mouth
     }
-    b_.onMoment(mo, at, rng_);  // copies the word
+    uint32_t seq = b_.momentSeq();
+    bool mumble = b_.onMoment(mo, at, rng_);  // copies the word
+    const Model& m = b_.model();
+    if (mumble && m.vol > 0) {
+      line.pitch = uint16_t(m.pitch);
+      line.vol = uint8_t(m.vol > 10 ? 10 : m.vol);
+      line.seed = at * 2654435761u + rxMoment_;  // not from rng_, which the frames depend on
+      hal_.say(line);
+      saying_ = true;
+      sayMoment_ = b_.momentSeq();
+    } else if (b_.momentSeq() != seq) {
+      hush();  // a new moment replaces the line
+    }
     dirty_ = true;
   } else if (!std::strcmp(t, "dbg.reset")) {
     reset();
@@ -291,6 +318,7 @@ void Device::tick() {
   uint32_t t = now();
   b_.advance(t, rng_);
   readInputs(t);
+  followSound(t);
 
   uint32_t led = b_.led(t);
   if (led != led_) led_ = led, hal_.setLed(led);
@@ -302,6 +330,24 @@ void Device::tick() {
   bool faced = screen_ == Screen::kFace || screen_ == Screen::kNeedsYou || screen_ == Screen::kNoApp;
   bool moving = faced && b_.moving(t);
   if (dirty_ || ((moving || drawnMoving_) && t != drawnT_)) render(t);
+}
+
+void Device::hush() {
+  if (saying_) hal_.hush();
+  saying_ = false;
+}
+
+// Stops a line whose moment ended or was replaced (a tap's wiggle, say),
+// and plays new sound cues (BEHAVIORS.md). A cue waits out a line: the
+// jingle arrives with the cheer that carries the line.
+void Device::followSound(uint32_t t) {
+  if (saying_ && (b_.momentSeq() != sayMoment_ || !b_.mumble(t))) hush();
+  uint32_t at;
+  const char* k = b_.sfx(at);
+  if (k == sfxSeen_ && at == sfxSeenAt_) return;
+  sfxSeen_ = k, sfxSeenAt_ = at;
+  const Model& m = b_.model();
+  if (k && !saying_ && !m.focus && m.vol > 0) hal_.cue(voice::cueFromName(k), uint8_t(m.vol > 10 ? 10 : m.vol));
 }
 
 void Device::render(uint32_t t) {
@@ -358,6 +404,7 @@ void Device::sendPing(Link to) {
   d["link"] = linkName(link_);
   d["ble"] = hal_.bleState();
   if (hal_.bleName()[0]) d["name"] = hal_.bleName();
+  d["voice"] = voice::assetsVersion();
   char buf[320];
   size_t n = serializeJson(d, buf, sizeof(buf));
   reply(to, buf, n);
@@ -407,6 +454,18 @@ void Device::sendState(Link to) {
   d["led"] = led;
   d["audio"]["playing"] = b_.speaking(t);
   d["audio"]["syllables"] = b_.mumble(t) ? b_.syllables() : 0;
+  AudioOut ao = hal_.audioOut();
+  JsonObject out = d["audio"]["out"].to<JsonObject>();
+  out["ready"] = ao.ready;
+  out["playing"] = ao.playing;
+  out["lines"] = ao.lines;
+  out["syl"] = ao.syl;
+  out["word"] = ao.word;
+  out["plan_ms"] = ao.planMs;
+  out["out_ms"] = ao.outMs;
+  out["wall_ms"] = ao.wallMs;
+  out["cut"] = ao.cut;
+  out["errors"] = ao.errors;
   uint32_t sfxAt;
   if (const char* sfx = b_.sfx(sfxAt)) {
     d["sfx"]["k"] = sfx;
@@ -442,7 +501,7 @@ void Device::sendState(Link to) {
   d["bl"] = b_.backlight(t);
   d["rx"]["state"] = rxState_;
   d["rx"]["moment"] = rxMoment_;
-  char buf[1024];
+  char buf[1536];
   size_t n = serializeJson(d, buf, sizeof(buf));
   reply(to, buf, n);
 }

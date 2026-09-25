@@ -6,6 +6,7 @@
 
 #include "app/device.h"
 #include "app/line_reader.h"
+#include "board/audio.h"
 #include "board/board_hal.h"
 #include "board/display.h"
 #include "board/pins.h"
@@ -45,6 +46,7 @@ void setup() {
       delay(2000);
     }
   }
+  board::audioBegin();  // dbg.state audio.out.ready says whether it worked
   static app::Device dev(hal, pixels, /*frozenClock=*/false);
   device = &dev;
   device->setOut(app::Link::kUsb, &usbOut);

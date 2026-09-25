@@ -14,8 +14,8 @@ firmware finds a clip by its index in those lists.
 Syllables use an Italian voice, so vowels come out pure and open (VOICE.md
 §3); a few are respelled so Italian reads them the way Voice means them
 (`ki` → `chi`, `ge` → `ghe`, `ya` → `ia`). The real words use an English
-voice. The two hums can't be spoken (Italian spells out `mm`), so they're
-synthesised as a nasal tone.
+voice. `say` doesn't hum `mm` or `nn` (it gives 0.85 s of speech, most
+likely the letter names), so the two hums are synthesised as a nasal tone.
 
 `--wav-dir` also writes every processed clip as a WAV, for listening.
 """

@@ -63,6 +63,7 @@ Each level answers a different question:
 | `touch X Y [--ms N]` | Inject a touch at screen coordinates |
 | `clock freeze T \| step MS \| run` | Control the device clock for repeatable frames |
 | `pattern` | Show the bring-up test pattern |
+| `voice [--count N] [--json]` | F5's L2 check: plays lines built by the Mac's Voice (`boopdev voice --json`), N per feeling with and without a word, and checks `audio.out` in `dbg.state` for each: the syllable count, the word, and the duration the DAC took within 10% of beats × `ms`. Then checks that a muted line moves the mouth and plays nothing |
 | `perf --seconds N [--motion]` | Sample fps and heap over time; `--motion` plays moments back to back so every sample is mid-motion |
 | `e2e [--brain rules\|apple] [fixture…]` | The L4 pipeline check (`make e2e`): bridge, headless app, the J1 fixtures through the real `boop-hook`, checkpoints, latency, memory and ordering |
 | `soak --minutes N` | Random, realistic traffic and inputs (with one 35 s silence), then check for resets, a drifting heap minimum, and that calm snapshots bring back the plain face |
@@ -77,7 +78,7 @@ Over USB, the firmware accepts every normal protocol message
 
 | Message | Reply |
 | --- | --- |
-| `{"t":"dbg.ping"}` | `{"t":"dbg.ping","fw":…,"sha":…,"up":ms,"heap":…,"heap_min":…,"fps":…,"link":"usb\|ble\|none","ble":"off\|adv\|conn","name":"Boop-XXXX"}`. `ble` is Bluetooth's state (advertising or connected) and `name` the advertised name |
+| `{"t":"dbg.ping"}` | `{"t":"dbg.ping","fw":…,"sha":…,"up":ms,"heap":…,"heap_min":…,"fps":…,"link":"usb\|ble\|none","ble":"off\|adv\|conn","name":"Boop-XXXX","voice":…}`. `ble` is Bluetooth's state (advertising or connected), `name` the advertised name, and `voice` the voice assets' version |
 | `{"t":"dbg.state"}` | `{"t":"dbg.state","screen":"face\|needs_you\|threads\|stats\|no_app\|pattern","base":…,"attn":…,"rung":0-3,"moment":{"anim":…,"left_ms":…},"quiet":…,"focus":…,"led":"#RRGGBB","audio":{"playing":…,"syllables":…},"last_input":…}` |
 | `{"t":"dbg.shot"}` | A header line `{"t":"dbg.shot","w":240,"h":320,"bytes":N,"crc":…}`, then one line of base64: 512 bytes of RGB565 palette (256 little-endian entries) followed by 76,800 bytes of pixel indexes, row by row. `crc` is the CRC-32 (as zlib's) of those bytes |
 | `{"t":"dbg.clock","freeze":T}` / `{"step":MS}` / `{"run":true}` | Freeze the clock at T (which also seeds randomness from T), step it, or let it run |
@@ -93,7 +94,12 @@ needs you), `life` (the idle-life event showing: `blink`, `glance`, `peek`,
 `bob`, `rumble` or null), `night`, `hungry`, and `sfx`, the last sound cue
 with its time (`chirp`, `jingle` or `pulse`, for F5's player and for tests
 while there's no speaker). `audio.playing` is true while the mouth follows a
-mumble. `dbg.state` also carries bring-up readings: `clock` (`now`, `frozen`), `boot` (BOOT's level), `touch`
+mumble. `audio.out` is what the sound output did: `ready` (the DAC
+started), `playing` (a line or cue, amp on), `lines` finished since boot,
+and the last line's `syl`, `word`, `plan_ms` (beats × `ms`), `out_ms`
+(samples rendered), `wall_ms` (the DAC's measured pace over those
+samples), `cut` (hushed or replaced) and `errors` (DAC writes that timed
+out). `dbg.state` also carries bring-up readings: `clock` (`now`, `frozen`), `boot` (BOOT's level), `touch`
 (`down`, `irq`, `raw` as x, y, z), `bat` in mV, `amp` and `bl`, and `rx`, the
 `state` and `moment` messages received since boot (`{"state":N,"moment":M}`),
 which L4 uses to time a hook's `state` reaching the board.

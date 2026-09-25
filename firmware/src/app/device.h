@@ -12,10 +12,26 @@
 #include "render/anim.h"
 #include "render/canvas.h"
 #include "render/screens.h"
+#include "voice/player.h"
 
 namespace app {
 
 enum class Link : uint8_t { kNone, kUsb, kBle };
+
+// What the sound output did (dbg.state `audio.out`): lines finished, and
+// the last line's timeline as planned, as rendered and as the DAC took it.
+struct AudioOut {
+  bool ready = false;   // there's a DAC and it started
+  bool playing = false;
+  uint32_t lines = 0;
+  int syl = 0;          // syllables in the last line
+  bool word = false;
+  uint32_t planMs = 0;  // from `say`: beats × ms
+  uint32_t outMs = 0;   // samples rendered, at 22.05 kHz
+  uint32_t wallMs = 0;  // time the DAC took to play them; 0 where there's no DAC
+  bool cut = false;     // stopped early (hushed or replaced)
+  uint32_t errors = 0;  // DAC writes that timed out
+};
 
 // Where replies and device → Mac messages go.
 struct Out {
@@ -43,6 +59,11 @@ struct Hal {
   virtual void frameUs(uint32_t& draw, uint32_t& push) { draw = push = 0; }
   virtual uint32_t batteryMv() { return 0; }
   virtual bool ampOn() { return false; }
+  // Sound (VOICE.md §8). The board plays on the DAC; the default drops it.
+  virtual void say(const voice::Line& l) { (void)l; }
+  virtual void cue(voice::Cue c, uint8_t vol) { (void)c, (void)vol; }
+  virtual void hush() {}
+  virtual AudioOut audioOut() { return {}; }
   virtual bool usbPowered() { return true; }
   // The permanent ID in `status` (PROTOCOL.md §4).
   virtual const char* deviceId() { return "b00p-0000"; }
@@ -98,6 +119,8 @@ class Device {
   void sendShot(Link to);
   void reset();
   void parseState(const char* line, size_t n, uint32_t at);
+  void hush();
+  void followSound(uint32_t t);
   Screen screenAt(uint32_t t) const { return pattern_ ? Screen::kPattern : b_.screen(t); }
 
   Hal& hal_;
@@ -132,6 +155,12 @@ class Device {
   // The touch in progress.
   bool touchDown_ = false, touchHeld_ = false, touchStrip_ = false;
   uint32_t touchAt_ = 0;
+
+  // The line playing (its moment's number), and the last sound cue heard.
+  bool saying_ = false;
+  uint32_t sayMoment_ = 0;
+  const char* sfxSeen_ = nullptr;
+  uint32_t sfxSeenAt_ = 0;
 
   LastInput last_;
   uint32_t led_ = 0;

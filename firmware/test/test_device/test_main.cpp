@@ -23,6 +23,15 @@ struct FakeHal : app::Hal {
   void setLed(uint32_t rgb) override { led = rgb; }
   const char* fwVersion() override { return "t"; }
   const char* gitSha() override { return "abc"; }
+  std::vector<voice::Line> said;
+  std::vector<voice::Cue> cues;
+  int hushes = 0;
+  void say(const voice::Line& l) override { said.push_back(l); }
+  void cue(voice::Cue c, uint8_t vol) override {
+    (void)vol;
+    cues.push_back(c);
+  }
+  void hush() override { ++hushes; }
 };
 
 struct Capture : app::Out {
@@ -248,6 +257,79 @@ static void test_reset_forgets_the_mac_and_freezes_at_0() {
   TEST_ASSERT_TRUE(has(r.usb.text, "\"attn\":null"));
 }
 
+// F5: a moment's mumble reaches the player with its syllables, word, tune
+// and tempo, and the player follows volume, quiet, focus and needs you.
+static void test_say_reaches_the_player() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":7,\"mood\":{\"pitch\":120}}");
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"size\":1,\"say\":{\"syl\":\"bi-do ba zz\",\"word\":\"done\",\"at\":4,\"tune\":\"up\",\"ms\":110},\"ttl\":5}");
+  TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
+  const voice::Line& l = r.hal.said[0];
+  TEST_ASSERT_EQUAL(4, l.n);
+  TEST_ASSERT_EQUAL(voice::syllableIndex("bi", 2), l.syl[0]);
+  TEST_ASSERT_EQUAL(voice::syllableIndex("ba", 2), l.syl[2]);
+  TEST_ASSERT_EQUAL(voice::kSilent, l.syl[3]);  // not a syllable Boop knows: a silent beat
+  TEST_ASSERT_EQUAL(voice::wordIndex("done"), l.word);
+  TEST_ASSERT_EQUAL(4, l.at);
+  TEST_ASSERT_TRUE(l.tune == voice::Tune::kUp);
+  TEST_ASSERT_EQUAL(110, l.ms);
+  TEST_ASSERT_EQUAL(120, l.pitch);
+  TEST_ASSERT_EQUAL(7, l.vol);
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":true,\"syllables\":4,\"out\":{"));
+  // A tap's wiggle replaces the moment, and with it the line.
+  r.usbLine("{\"t\":\"dbg.press\",\"ms\":50}");
+  r.usbLine("{\"t\":\"dbg.clock\",\"step\":100}");
+  TEST_ASSERT_EQUAL(1, r.hal.hushes);
+}
+
+static void test_mute_quiet_focus_and_needs_you_keep_it_silent() {
+  const char* states[] = {
+      "{\"t\":\"state\",\"base\":\"idle\",\"vol\":0}",
+      "{\"t\":\"state\",\"base\":\"idle\",\"quiet\":30}",
+      "{\"t\":\"state\",\"base\":\"idle\",\"focus\":true}",
+      "{\"t\":\"state\",\"base\":\"idle\",\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}",
+  };
+  for (const char* st : states) {
+    Rig r;
+    r.usbLine(st);
+    r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"size\":2,\"say\":{\"syl\":\"ba\",\"ms\":100}}");
+    TEST_ASSERT_EQUAL(0, int(r.hal.said.size()));
+  }
+  // Muted, the mouth still moves: only the sound goes.
+  Rig r;
+  r.usbLine(states[0]);
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"size\":1,\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":true,\"syllables\":2"));
+  // A line stops when quiet arrives mid-line.
+  Rig q;
+  q.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  q.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"size\":1,\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
+  TEST_ASSERT_EQUAL(1, int(q.hal.said.size()));
+  q.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"quiet\":30}");
+  TEST_ASSERT_EQUAL(1, q.hal.hushes);
+}
+
+static void test_cues_follow_the_behaviour() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"size\":2}");
+  TEST_ASSERT_EQUAL(1, int(r.hal.cues.size()));
+  TEST_ASSERT_TRUE(r.hal.cues[0] == voice::Cue::kJingle);
+  // Needs you: the chirp at 45 s.
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}");
+  r.usbLine("{\"t\":\"dbg.clock\",\"step\":45000}");
+  TEST_ASSERT_EQUAL(2, int(r.hal.cues.size()));
+  TEST_ASSERT_TRUE(r.hal.cues[1] == voice::Cue::kChirp);
+  // With a line playing, the jingle waits it out.
+  Rig s;
+  s.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  s.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"size\":2,\"say\":{\"syl\":\"ba\",\"ms\":100}}");
+  TEST_ASSERT_EQUAL(1, int(s.hal.said.size()));
+  TEST_ASSERT_EQUAL(0, int(s.hal.cues.size()));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_ping_reports_version_and_link);
@@ -264,5 +346,8 @@ int main() {
   RUN_TEST(test_moment_plays_then_ends_and_a_new_one_replaces_it);
   RUN_TEST(test_strip_taps_cycle_the_screens);
   RUN_TEST(test_reset_forgets_the_mac_and_freezes_at_0);
+  RUN_TEST(test_say_reaches_the_player);
+  RUN_TEST(test_mute_quiet_focus_and_needs_you_keep_it_silent);
+  RUN_TEST(test_cues_follow_the_behaviour);
   return UNITY_END();
 }

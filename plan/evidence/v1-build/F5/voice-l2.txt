@@ -1,0 +1,43 @@
+ok  'pi-la'                             plan   250 ms  out   249 ms  dac   249 ms  (-0.4%)  amp on
+ok  'la-la la'                          plan   375 ms  out   374 ms  dac   374 ms  (-0.3%)  amp on
+ok  'pi-la'                      yay    plan   500 ms  out   499 ms  dac   499 ms  (-0.2%)  amp on
+ok  'la-la la'                   yay    plan   625 ms  out   624 ms  dac   624 ms  (-0.2%)  amp on
+ok  'ta-ya wa-ya mi-li-ga'              plan   805 ms  out   804 ms  dac   804 ms  (-0.1%)  amp on
+ok  'ki-ki la-pi-ti ki'                 plan   690 ms  out   689 ms  dac   689 ms  (-0.1%)  amp on
+ok  'ta-ya wa-ya mi-li-ga'       done   plan  1035 ms  out  1034 ms  dac  1034 ms  (-0.1%)  amp on
+ok  'ki-ki la-pi-ti ki'          done   plan   920 ms  out   919 ms  dac   919 ms  (-0.1%)  amp on
+ok  'mo-la-gom la-pa pa go-gom'         plan  1080 ms  out  1079 ms  dac  1079 ms  (-0.1%)  amp on
+ok  'lo-pa gom-gom'                     plan   540 ms  out   539 ms  dac   539 ms  (-0.2%)  amp on
+ok  'mo-la-gom la-pa pa go-gom'  ship   plan  1350 ms  out  1349 ms  dac  1349 ms  (-0.1%)  amp on
+ok  'lo-pa gom-gom'              ship   plan   810 ms  out   809 ms  dac   809 ms  (-0.1%)  amp on
+ok  'le-pi le le'                       plan   540 ms  out   539 ms  dac   539 ms  (-0.2%)  amp on
+ok  'pi-mu-la be-mu-ki le'              plan   945 ms  out   944 ms  dac   944 ms  (-0.1%)  amp on
+ok  'le-pi le le'                tests  plan   810 ms  out   809 ms  dac   809 ms  (-0.1%)  amp on
+ok  'pi-mu-la be-mu-ki le'       tests  plan  1215 ms  out  1214 ms  dac  1214 ms  (-0.1%)  amp on
+ok  'yo-lun'                            plan   290 ms  out   289 ms  dac   289 ms  (-0.3%)  amp on
+ok  'yo-nu bu-lun'                      plan   580 ms  out   579 ms  dac   579 ms  (-0.2%)  amp on
+ok  'yo-lun'                     food   plan   580 ms  out   579 ms  dac   579 ms  (-0.2%)  amp on
+ok  'yo-nu bu-lun'               food   plan   870 ms  out   869 ms  dac   869 ms  (-0.1%)  amp on
+ok  'pi ko-ko'                          plan   375 ms  out   374 ms  dac   374 ms  (-0.3%)  amp on
+ok  'te po-po pe-pa ta-pi'              plan   875 ms  out   874 ms  dac   874 ms  (-0.1%)  amp on
+ok  'pi ko-ko'                   build  plan   625 ms  out   624 ms  dac   624 ms  (-0.2%)  amp on
+ok  'te po-po pe-pa ta-pi'       build  plan  1125 ms  out  1124 ms  dac  1124 ms  (-0.1%)  amp on
+ok  'bu-go-nu o'                        plan   640 ms  out   640 ms  dac   640 ms  (+0.0%)  amp on
+ok  'nu-o'                              plan   320 ms  out   320 ms  dac   319 ms  (-0.3%)  amp on
+ok  'bu-go-nu o'                 oops   plan   960 ms  out   960 ms  dac   960 ms  (+0.0%)  amp on
+ok  'nu-o'                       oops   plan   640 ms  out   640 ms  dac   640 ms  (+0.0%)  amp on
+ok  'mm-nu-nn mu'                       plan   680 ms  out   679 ms  dac   679 ms  (-0.1%)  amp on
+ok  'nu mo-nu nn'                       plan   680 ms  out   679 ms  dac   679 ms  (-0.1%)  amp on
+ok  'mm-nu-nn mu'                nap    plan  1020 ms  out  1019 ms  dac  1019 ms  (-0.1%)  amp on
+ok  'nu mo-nu nn'                nap    plan  1020 ms  out  1019 ms  dac  1019 ms  (-0.1%)  amp on
+{
+  "lines": 32,
+  "muted": {
+    "amp": false,
+    "lines_played": 0,
+    "mouth_moved": true
+  },
+  "ok": true,
+  "passed": 32,
+  "worst_wall_error_pct": 0.4
+}

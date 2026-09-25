@@ -102,7 +102,7 @@ verified end to end.
 | Display and touch | LovyanGFX 1.2.x: `Panel_ST7789` on SPI2 and `Touch_XPT2046` on SPI3, with `Light_PWM` backlight on GPIO21 |
 | Bluetooth | NimBLE-Arduino 2.x, peripheral only, Nordic UART Service ([PROTOCOL.md](PROTOCOL.md)) |
 | JSON | ArduinoJson 7 |
-| Audio | ESP-IDF's continuous DAC driver on GPIO26, at a fixed 22.05 kHz output rate; pitch is changed in software |
+| Audio | ESP-IDF's continuous DAC driver on GPIO26, at a fixed 22.05 kHz output rate; pitch is changed in software. A task on core 0 streams it without a break (silence when there's nothing to say) and turns the amp on only while a line or cue plays |
 
 **Keep the drawing code independent of LovyanGFX.** Boop draws into its own
 8-bit canvas, and LovyanGFX only pushes that canvas to the screen. The same
@@ -138,7 +138,8 @@ new layout.
 
 That's the Arduino core's standard `min_spiffs.csv`. Fonts and syllable
 samples are compiled into the firmware as arrays. The voice assets are
-about 360 KB ([VOICE.md](VOICE.md) §8).
+226 KB ([VOICE.md](VOICE.md) §8). With them the firmware uses 1.09 MB,
+56% of app0 (F5, 2026-09-26).
 
 ## 6. RAM budget
 
@@ -163,6 +164,17 @@ Bluetooth's memory released and the Nordic UART peripheral advertising,
 motion and a 20-minute soak. Bluetooth costs about 75 KB in all, more than
 the 45–60 KB first guessed, but the 60 KB target still holds with 20 KB to
 spare. Frame rates are unchanged (44–60 fps in motion).
+
+**Measured (F5, 2026-09-26).** The voice adds four 1 KB DMA buffers, a
+3 KB task stack and the DAC driver: about 11 KB. 73 KB is free after
+start-up, and the minimum stays at 72.5 KB through a 5-minute soak with
+mumbles. Frame rates are unchanged (44–57 fps in motion).
+
+**The DAC must never run dry.** If the DMA reaches the end of what it was
+given, ESP-IDF's synchronous DAC writes stop getting buffers back and
+time out for good (seen on this board). So the voice task always writes a
+full 512-sample buffer, silence when idle, and a write that still times
+out restarts the DAC and counts in `dbg.state` `audio.out.errors`.
 
 **Drawing.** The renderer (`firmware/src/render/`) uses integer maths
 only, so the board and the simulator agree to the pixel. Edges are

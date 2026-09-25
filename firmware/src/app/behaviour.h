@@ -65,7 +65,9 @@ class Behaviour {
 
   // Messages from the Mac, at time t.
   void onState(const Model& m, uint32_t t, Rng& rng);
-  void onMoment(const MomentIn& m, uint32_t t, Rng& rng);
+  // True when the moment carries a mumble that will play: not during needs
+  // you, quiet or focus.
+  bool onMoment(const MomentIn& m, uint32_t t, Rng& rng);
 
   // Inputs, already recognised as gestures (UX.md §4).
   void pressDown(uint32_t t);  // visible feedback at once
@@ -100,6 +102,8 @@ class Behaviour {
   render::Anim moment(uint32_t t, uint32_t& left) const;
   bool speaking(uint32_t t) const;
   int syllables() const { return moment_.say.syllables; }
+  // Counts moments played, local ones included, so a line can tell it was replaced.
+  uint32_t momentSeq() const { return momentSeq_; }
   Life life(uint32_t t) const;
   bool hushed() const { return model_.attn && hushed_; }
   const char* sfx(uint32_t& at) const {
@@ -169,6 +173,7 @@ class Behaviour {
   const char* sfx_ = nullptr;
   uint32_t sfxAt_ = 0;
   uint32_t modelT_ = 0;
+  uint32_t momentSeq_ = 0;
 };
 
 }  // namespace app

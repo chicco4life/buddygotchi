@@ -204,6 +204,84 @@ def cmd_perf(args: argparse.Namespace) -> int:
     return 0 if result["ok"] else 1
 
 
+# F5's L2 check: one moment per feeling, with and without a real word.
+VOICE_LINES = [("happy", "happy", "yay"), ("excited", "cheer", "done"), ("proud", "proud", "ship"),
+               ("curious", "curious", "tests"), ("hopeful", "love", "food"), ("annoyed", "side_eye", "build"),
+               ("sad", "sulky", "oops"), ("sleepy", "sleepy", "nap")]
+
+
+def voice_lines(count: int) -> list[tuple[str, dict]]:
+    """Lines as the Mac's Voice builds them, through `boopdev voice --json`."""
+    boopdev = REPO / "app" / ".build" / "debug" / "boopdev"
+    if not boopdev.exists():
+        raise DeviceError(f"{boopdev} is missing; run `make build` first")
+    lines = []
+    for feeling, anim, word in VOICE_LINES:
+        for w in (None, word):
+            cmd = [str(boopdev), "voice", feeling] + ([w] if w else []) + ["--count", str(count), "--json"]
+            out = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
+            lines += [(anim, json.loads(row)) for row in out.splitlines() if row.startswith("{")]
+    return lines
+
+
+def cmd_voice(args: argparse.Namespace) -> int:
+    """Plays real `say` lines on the board and checks the audio timeline in
+    dbg.state against each: syllable count, the word, and the duration the
+    DAC took within 10% of beats × ms. Then checks mute keeps it silent."""
+    lines = voice_lines(args.count)
+    results = []
+    with Device(args.port) as dev:
+        dev.request({"t": "dbg.reset"})
+        dev.request({"t": "dbg.clock", "run": True})
+        dev.send({"t": "state", "v": 1, "base": "idle", "vol": 6})
+        for anim, say in lines:
+            before = dev.request({"t": "dbg.state"})["audio"]["out"]["lines"]
+            dev.send({"t": "moment", "anim": anim, "size": 1, "say": say, "ttl": 5})
+            deadline = time.monotonic() + 6
+            amp_seen = playing_seen = False
+            while True:
+                st = dev.request({"t": "dbg.state"})
+                out = st["audio"]["out"]
+                amp_seen |= st["amp"]
+                playing_seen |= out["playing"]
+                if out["lines"] > before or time.monotonic() > deadline:
+                    break
+                time.sleep(0.05)
+            syl = len([s for s in say["syl"].replace("-", " ").split() if s])
+            beats = syl + (2 if say.get("word") else 0)
+            plan = beats * say["ms"]
+            r = {"syl": say["syl"], "word": say.get("word"), "ms": say["ms"], "plan_ms": plan,
+                 "got": {k: out[k] for k in ("syl", "word", "plan_ms", "out_ms", "wall_ms", "cut")},
+                 "amp_on": amp_seen, "amp_off_after": not st["amp"]}
+            r["ok"] = (out["lines"] == before + 1 and out["syl"] == syl and out["word"] == bool(say.get("word"))
+                       and abs(out["plan_ms"] - plan) <= 1 and abs(out["out_ms"] - plan) <= 1
+                       and abs(out["wall_ms"] - plan) <= plan // 10 and not out["cut"] and amp_seen)
+            results.append(r)
+            if not args.json:
+                g = r["got"]
+                print(f"{'ok ' if r['ok'] else 'BAD'} {say['syl']!r:28} {str(say.get('word') or ''):6} "
+                      f"plan {plan:5} ms  out {g['out_ms']:5} ms  dac {g['wall_ms']:5} ms  "
+                      f"({(g['wall_ms'] - plan) * 100 / plan:+.1f}%)  amp {'on' if amp_seen else 'OFF'}")
+        # Muted: the mouth still moves, the DAC stays off.
+        dev.send({"t": "state", "v": 1, "base": "idle", "vol": 0})
+        before = dev.request({"t": "dbg.state"})["audio"]["out"]["lines"]
+        dev.send({"t": "moment", "anim": "happy", "size": 1, "say": lines[0][1], "ttl": 5})
+        mouth = dev.request({"t": "dbg.state"})["audio"]["playing"]
+        time.sleep(2.5)
+        st = dev.request({"t": "dbg.state"})
+        muted = {"mouth_moved": mouth, "lines_played": st["audio"]["out"]["lines"] - before, "amp": st["amp"]}
+        dev.send({"t": "state", "v": 1, "base": "idle", "vol": 6})
+    walls = [abs(r["got"]["wall_ms"] - r["plan_ms"]) * 100 / r["plan_ms"] for r in results]
+    summary = {"lines": len(results), "passed": sum(r["ok"] for r in results),
+               "worst_wall_error_pct": round(max(walls), 1), "muted": muted,
+               "ok": all(r["ok"] for r in results) and muted["mouth_moved"] and not muted["lines_played"]}
+    if args.json:
+        emit({"results": results, **summary})
+    else:
+        emit(summary)
+    return 0 if summary["ok"] else 1
+
+
 SOAK_ANIMS = ["nod", "cheer", "oops", "side_eye", "wiggle", "stretch", "yawn", "shrug", "zip", "gobble",
               "rumble", "levelup", "happy", "proud", "smug", "curious", "sleepy", "worried", "sulky", "love"]
 SOAK_PROJECTS = ["landing", "jetpack", "buddygotchi", "a-very-long-project-name", "notes"]
@@ -400,6 +478,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--seconds", type=int, default=30)
     p.add_argument("--motion", action="store_true")
     p.set_defaults(func=cmd_perf)
+    p = sub.add_parser("voice", help="play say lines and check the audio timeline in dbg.state (F5, L2)")
+    p.add_argument("--count", type=int, default=2, help="lines per feeling, with and without a word")
+    p.add_argument("--json", action="store_true", help="every line's result as JSON")
+    p.set_defaults(func=cmd_voice)
     p = sub.add_parser("soak", help="random realistic traffic and inputs; checks resets, leaks, stuck states")
     p.add_argument("--minutes", type=float, default=20)
     p.add_argument("--seed", type=int, default=1)

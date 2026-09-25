@@ -209,9 +209,9 @@ void Behaviour::onState(const Model& m, uint32_t t, Rng& rng) {
   resync(t, rng);
 }
 
-void Behaviour::onMoment(const MomentIn& in, uint32_t t, Rng& rng) {
-  if (in.anim == render::Anim::kNone) return;
-  if (model_.attn && !noApp(t) && !overAttention(in.anim)) return;
+bool Behaviour::onMoment(const MomentIn& in, uint32_t t, Rng& rng) {
+  if (in.anim == render::Anim::kNone) return false;
+  if (model_.attn && !noApp(t) && !overAttention(in.anim)) return false;
   int size = clamp(in.size, 1, 3);
   if (in.anim == render::Anim::kCheer) {  // colour changes how, not what
     if (model_.energy < 60) size = clamp(size - 1, 1, 3);
@@ -231,10 +231,12 @@ void Behaviour::onMoment(const MomentIn& in, uint32_t t, Rng& rng) {
   }
   if (in.anim == render::Anim::kCheer && size >= 2 && !model_.focus) sound("jingle", t);
   resync(t, rng);
+  return mumble;
 }
 
 void Behaviour::play(render::Anim a, int size, uint32_t t, bool local) {
   moment_ = Moment{};
+  ++momentSeq_;
   moment_.anim = a;
   moment_.size = size;
   moment_.pace = clamp(model_.pace, 70, 140);

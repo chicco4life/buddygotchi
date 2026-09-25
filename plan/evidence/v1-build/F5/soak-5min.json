@@ -1,0 +1,12 @@
+{
+  "minutes": 5.0,
+  "samples": 56,
+  "reset": false,
+  "heap_min_start": 72512,
+  "heap_min_end": 72512,
+  "heap_min_drift": 0,
+  "final_screen": "face",
+  "final_moment": null,
+  "answering": true,
+  "ok": true
+}

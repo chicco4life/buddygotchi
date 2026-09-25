@@ -361,3 +361,33 @@ One entry per iteration, newest last. Each ends with the exact next step.
   pitch and tempo) with resampler tests on `native`, and check the audio
   timeline in `dbg.state` against `say` over USB. Keep the app slot at least
   15% free (now 43% used).
+
+## 2026-09-26 05:35 — F5: Voice on the device — Passed
+
+- **Changed:** `tools/voicegen` (Italian `say` for syllables, English for
+  words, synthesised hums; 226 KB, reproducible) → `firmware/assets/voice.h`.
+  `firmware/src/voice/player` (resampling to 22.05 kHz, beats, tune,
+  jitter within pairs of beats, volume, chirp and jingle cues).
+  `firmware/src/board/audio` (a core-0 task streaming the continuous DAC,
+  with the amp gated per line). The device core turns `moment.say` into a
+  line, keeps silent for needs you, quiet, focus and mute, and hushes on a
+  new moment. `dbg.state` `audio.out`, `dbg.ping` `voice`, and
+  `boopctl voice`. Specs: DEVICE §4–6, VOICE §8, VERIFICATION §2–3, three
+  decision-log rows, and morning steps 16–17.
+- **Found:** ESP-IDF's sync DAC writes time out for good once the DMA runs
+  dry. The DAC now streams without a break (silence when idle).
+- **Checks:** `make fw-test` 74/74; `make test` 163/163. L2 `boopctl
+  voice` 32/32 lines (worst DAC timing error 0.4%, limit 10%), and mute is
+  silent. The app slot is 55.7% used. `boopctl sim` and `boopctl run`: 10
+  scenarios, 0 differences. perf fps min 44; 5-minute soak ok, 0 DAC
+  errors. Not heard: no speaker. No webcam clip (nothing on screen changed).
+- **Board:** F5 firmware (reflashed from the commit), on the idle face, no
+  bridge or app running.
+- **Next step:** start **J2** (soak and polish). Read PLAN.md §4 J2. Run a
+  30-minute soak with replayed traffic *and the Apple brain*: probably
+  `boopctl bridge` + `Boop --headless --brain apple --link usb:…`, with
+  `boopdev replay` fixtures on a loop (see `tools/boopctl_lib/e2e.py` for
+  the wiring), sampling `dbg.ping`/`dbg.state` for resets, heap drift,
+  stuck states and `audio.out.errors`. Confirm every test is green and
+  every golden reviewed, and rewrite `README.md` for the v1 product and
+  commands (`make` targets, `boopctl` including `voice`, `voicegen`).

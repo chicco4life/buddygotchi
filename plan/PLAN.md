@@ -142,7 +142,7 @@ Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 | A3 | Harness and brains | Blocked: Apple's model fails the L5 review (notes praise, filler words, rarely quiet) and its guardrail refuses 2/52; see evidence/v1-build/A3 |
 | A4 | Device link, app shell, push-to-talk, installer | Passed |
 | J1 | End to end over USB | Passed |
-| F5 | Voice on the device | In progress |
+| F5 | Voice on the device | Passed |
 | J2 | Soak and polish | Not started |
 | J3 | Handoff | Not started |
 | P1 | Port to ESP-IDF + LVGL (later, gated) | Not started |
@@ -503,5 +503,7 @@ off at any point:
 | 13 | Hold BOOT and say "shut up for ten minutes" | Sulky face, quiet icon, no mumbles |
 | 14 | Touch and hold the status strip, then trigger an approval | Focus icon; "needs you" is visual only |
 | 15 | Later, open `~/Library/Application Support/Boop/short-term.md` | Today's notes and events |
+| 16 | Listen to the voice clips on the Mac: `tools/.venv/bin/python tools/voicegen/voicegen.py --out /tmp/voice.h --wav-dir /tmp/boop-voice`, then `afplay /tmp/boop-voice/ba.wav` (and a few words, like `done.wav`) | Small, bright, chiptune syllables; the words are clear. Nobody has heard these yet |
+| 17 | When an 8 Ω speaker is on the speaker header: `tools/boopctl voice --count 1` | Bouncy gibberish for each feeling, with the real word landing clearly; no pops when the amp switches |
 
 Anything that's off becomes the next items in this plan.

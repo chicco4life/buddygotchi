@@ -177,11 +177,29 @@ dialects, 4 came out as the safe hum (2026-09-26).
   iterate on than a recorded voice, and the 8-bit processing hides most of
   the difference. The result is a fixed, versioned asset pack, so Boop's
   voice only changes with an announced update.
-- **Size.** Each syllable is one short 8-bit sample. About 60 syllables at
-  about 2 KB, plus about 40 words at about 6 KB, comes to roughly 360 KB,
-  which fits comfortably in the firmware.
+- **Size.** Each syllable is one short 8-bit sample at 11.025 kHz. The
+  budget was about 2 KB per syllable and 6 KB per word, roughly 360 KB; the
+  v1 pack is 226 KB (64 syllables of 84–163 ms, 40 words of 125–481 ms).
+- **How they're made.** `tools/voicegen/voicegen.py` reads the syllable set
+  and vocabulary from `Sounds.swift`, synthesises syllables with macOS's
+  Italian voice (Alice), so vowels stay pure (a few are respelled: `ki` →
+  `chi`, `ge` → `ghe`, `ya` → `ia`), and words with an English one
+  (Samantha). It trims them, pitches them up (1.3× for syllables, 1.15× for
+  words), saturates and normalises them, and writes
+  `firmware/assets/voice.h`. The hums `mm` and `nn` aren't hummed by `say` (it
+  gives 0.85 s of speech, most likely the letter names), so they're
+  synthesised as a nasal tone. `--wav-dir`
+  writes every clip as a WAV for listening.
 - **Playback.** Pitch and tempo are changed in software, by resampling each
-  syllable as it plays. It's the same trick Animal Crossing uses.
+  syllable as it plays. It's the same trick Animal Crossing uses. Each
+  syllable gets one beat of `ms` and the word two; a clip longer than its
+  beat is cut with a 5 ms fade, and a long word speeds up to fit (at most
+  1.6×). The mood's `pitch` sets the base, the tune bends it across the
+  line, and the ±10% timing moves within pairs of beats, so a line lasts
+  exactly beats × `ms`, the same time the mouth moves. A syllable the
+  device doesn't know keeps its beat, silent. Sound cues (the needs-you
+  chirp, the cheer's jingle) are synthesised tones; a cue that arrives
+  during a line waits it out.
 - **On screen.** The mouth follows the syllables, open on vowels and closed
   on `m`, `b` and `p`. The bubble shows only the real word, with small
   squiggles for the gibberish around it. With the sound off, the bubble and

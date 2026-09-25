@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <esp_heap_caps.h>
 
+#include "board/audio.h"
 #include "board/display.h"
 #include "board/pins.h"
 
@@ -49,5 +50,10 @@ uint32_t BoardHal::heapMin() { return heap_caps_get_minimum_free_size(MALLOC_CAP
 uint32_t BoardHal::batteryMv() { return analogReadMilliVolts(pins::kBattery) * 2; }  // 2:1 divider, assumed
 
 bool BoardHal::ampOn() { return digitalRead(pins::kAmpEnable) == LOW; }
+
+void BoardHal::say(const voice::Line& l) { audioSay(l); }
+void BoardHal::cue(voice::Cue c, uint8_t vol) { audioCue(c, vol); }
+void BoardHal::hush() { audioHush(); }
+app::AudioOut BoardHal::audioOut() { return board::audioOut(); }
 
 }  // namespace board
