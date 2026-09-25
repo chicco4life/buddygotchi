@@ -212,3 +212,63 @@ One entry per iteration, newest last. Each ends with the exact next step.
   `DynamicGenerationSchema` (PLAN §1), rules-only from steering.md's
   Fallbacks table, and cloud as a disabled interface. Fixtures: 50+
   triggers plus sample memory in `app/Tests/Fixtures/{triggers,memory}`.
+
+## 2026-09-26 03:59 — A3: Harness and brains — In progress
+
+- **Changed:** new `BoopKit/Harness/{Brain,Prompt,Harness}.swift`: the
+  `Brain` protocol and the one answer format (`{"calls":[…]}`), the shape
+  check (`Answer.check`, sharing `ToolDefinition.check` with the actions),
+  the prompt builder with its budgets, and the `Harness` (one call at a
+  time on a `home` queue, a newer trigger replaces the waiting one, `talk`
+  cancels, deadline race, JSONL debug log). New `BoopKit/Brains/`:
+  `AppleBrain` (a runtime `DynamicGenerationSchema` with a leading `react`
+  choice), `RulesBrain` (reads the Fallbacks table from the prompt),
+  `CloudBrain` (disabled) and `Brains.make`. `MemoryStore.promptMemory(for:)`.
+  `boopdev brain`. 52 fixture triggers in `app/Tests/Fixtures/triggers/`
+  and sample memory in `app/Tests/Fixtures/memory/`. `Tests/HarnessTests.swift`
+  (18 tests: shape check, order, offered tools, more than 3 calls, errors
+  and lateness, replace, talk cancel, prompt layout, budgets, fixtures,
+  debug log; rules brain rows; cloud disabled; Apple schema builds).
+- **Spec changes** (ARCHITECTURE §11, four rows): `event` no longer offers
+  `note`; `forget` picks from existing lines (its definition is rebuilt per
+  call); one answer format with Apple's `react`-first schema; the rules
+  brain reads its table from the prompt. steering.md: tighter Notes and
+  Reflection wording. HARNESS §3/§5/§6/§7 and VERIFICATION §2 updated.
+- **Checks:** `make test` 135/135, three runs. L5 with the rules brain:
+  52/52 valid, 0 drops, PASS. L5 with Apple's model (`apple:27.0`),
+  `plan/evidence/v1-build/A3/l5-apple-run1.txt`: 52/52 valid shape, 1/87
+  calls dropped (1.1%, a note with `=`), silence 2/52, p95 event 1.9 s,
+  tap 1.8 s, talk 2.2 s, reflect 2.2 s — the numbers pass.
+- **The sample review does NOT pass yet**, so A3 stays In progress:
+  1. **Reflection is harmful:** all 4 reflect runs `forget` "Ships on
+     Fridays." (a true fact) and `remember` "flaky tests, third attempt"
+     (about the agent, not the person).
+  2. **Filler word:** `say` adds `word: tests` to greetings, praise and
+     starts ("good job today" → curious + tests). It should usually have no
+     word. Likely because `tests` is the first vocabulary entry.
+  3. **Rarely silent** (2/52); quick finishes and starts almost always get
+     a face and a mumble. Long finishes get smug/curious, never
+     `proud`/`finally`.
+  4. Minor: "shut up for an hour" → `quiet(30)` (example says 60); "keep it
+     down for fifteen minutes" → no quiet at all.
+  Good: failures → side_eye; hungry taps → `hopeful`/`food`; "shut up",
+  "be quiet", "stop talking" → sulky + quiet; "remember I ship on
+  Fridays" → note; never nagging.
+- **Tried already:** a flat "slots" schema (one optional property per
+  tool) filled every slot (3–4 calls per answer, one over the limit);
+  dropped. A plain calls list without `react` never stayed silent.
+- **Board:** untouched; still on F4 firmware `3707c8eb51`.
+- **Next step:** fix the review findings, then rerun
+  `app/.build/debug/boopdev brain --brain apple --print` (about 90 s)
+  and review again. Ideas in order: (1) reflection: don't offer `forget`
+  unless yesterday's notes say something the person corrected, or make
+  the Apple schema's reflect `react` choice explicit ("nothing to keep" /
+  "keep something"), and add a reflection example to steering.md showing
+  `remember` of something the person said and no `forget`; (2) put
+  `word` behind its own choice in the Apple schema (e.g. the say object's
+  `word` offered with a leading "none" option that maps to leaving it out)
+  so the first enum entry isn't the default; (3) add steering examples
+  for a turn started (no tool calls) and a long finish. If the review
+  passes, write `A3/README.md`, set A3 Passed, and commit
+  `A3: Harness and brains — …`. Don't spend more than ~45 min on tuning;
+  if the reflection problem persists, Block with the evidence.

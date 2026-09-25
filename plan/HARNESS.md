@@ -67,7 +67,18 @@ a single turn.
 7. **Log** the call, in debug mode.
 
 At startup, the app gives the harness its tools as a list of
-`(definition, handler)` pairs. That's what keeps the harness generic.
+`(definition, handler)` pairs. That's what keeps the harness generic. A
+definition is read again for each call, so it can depend on memory
+(`forget` offers only the lines there are).
+
+Every brain answers with the same JSON, which the shape check reads:
+
+```json
+{"calls":[{"tool":"say","feeling":"proud","word":"finally"}]}
+```
+
+An empty `calls` list means staying quiet. Numbers may come as digits in a
+string (`"30"`), and a `null` optional argument counts as left out.
 
 ## 4. The prompt
 
@@ -150,7 +161,7 @@ All eight tools, as their actions define them (`app/BoopKit/Actions/`):
 | `quiet` | `minutes`: 15, 30, 60 or 120 | — |
 | `note` | `text`, at most 80 characters | Memory's rules: one line, no code, paths or secrets, no duplicates |
 | `remember` | `text`, at most 100 characters; `kind`: `about_you` or `preference` | Memory's rules, plus no other people's names; refused when the section or file is full |
-| `forget` | `text`, at most 100 characters | Removes the matching line, or the only one containing the text |
+| `forget` | `text`: one of the lines now under About you or Preferences (the definition is rebuilt for each call; not callable when there are none) | Removes that line |
 | `temperament` | `text`, one sentence of at most 120 characters | Once a day |
 | `moment` | `text`, at most 80 characters | One per day reflected on |
 
@@ -168,9 +179,9 @@ Brain
 
 | Brain | Notes |
 | --- | --- |
-| Apple on-device | **The default.** Small, private and free. Guided generation means answers always match the schema. Everything must work well on this |
+| Apple on-device | **The default.** Small, private and free. Guided generation with a schema built at runtime: a leading `react` choice (`stay quiet` or `react`, since a small model rarely leaves a list empty on its own), then up to three calls whose choices are constrained. Text lengths are only asked for, so the shape check still applies. Everything must work well on this |
 | Cloud API | Optional, with the person's own API key. Wittier, with the same tools and limits |
-| Rules only | No model. Answers each trigger from the fallback table in `steering.md`. Always available |
+| Rules only | No model. Reads the fallback table from `steering.md` in the system prompt and the trigger from the now section, like any brain. The most specific matching row wins (`Tap, hungry` over `Tap`); "long" means 5 minutes or more. Always available, and used when Apple's model can't run |
 
 The brain in use is pinned, and switching is a setting the person changes.
 Every brain gets the same prompt and tools, and every tool call goes through

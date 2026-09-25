@@ -1,0 +1,114 @@
+1	2585 ms	turn started · claude · jetpack · 09:12 Tuesday
+	→ face(name: "smug"), say(feeling: "curious", word: "tests")
+2	1925 ms	turn started · codex · landing · 09:40 Tuesday
+	→ face(name: "side_eye"), say(feeling: "curious", word: "tests")
+3	1600 ms	turn started · claude · boop · 10:03 Tuesday · hungry
+	→ say(feeling: "hopeful", word: "food")
+4	1853 ms	turn started · codex · jetpack · 16:20 Friday
+	→ face(name: "smug"), say(feeling: "curious", word: "tests")
+5	1872 ms	turn started · claude · landing · 23:48 Wednesday
+	→ face(name: "side_eye"), say(feeling: "annoyed", word: "tests")
+6	1886 ms	turn finished · claude · jetpack · took 12 s · 09:13 Tuesday
+	→ face(name: "smug"), say(feeling: "curious", word: "tests")
+7	1486 ms	turn finished · codex · landing · topic: tests · took 45 s · 09:41 Tuesday
+	→ face(name: "side_eye")
+8	1933 ms	turn finished · claude · jetpack · topic: tests · took 18 min · 14:05 Tuesday
+	→ face(name: "smug"), say(feeling: "curious", word: "tests")
+9	1501 ms	turn finished · codex · landing · topic: build · took 3 min · 11:30 Tuesday
+	→ face(name: "side_eye")
+10	1481 ms	turn finished · claude · boop · topic: docs · took 7 min · 15:02 Tuesday
+	→ (quiet)
+11	1895 ms	turn finished · codex · jetpack · topic: deploy · took 26 min · 17:55 Friday
+	→ face(name: "curious"), say(feeling: "curious", word: "deploy")
+12	1894 ms	turn finished · claude · jetpack · took 48 min · 01:10 Thursday
+	→ face(name: "smug"), say(feeling: "curious", word: "build")
+13	1853 ms	turn finished · claude · landing · took 2 min · 13:00 Monday · hungry
+	→ face(name: "side_eye"), say(feeling: "annoyed", word: "tests")
+14	1861 ms	turn finished · codex · boop · topic: tests · took 9 min · 10:15 Wednesday · starving
+	→ face(name: "side_eye"), say(feeling: "annoyed", word: "tests")
+15	1844 ms	turn finished · claude · jetpack · topic: tests · took 6 min · 14:40 Tuesday · +2 more
+	→ face(name: "smug"), say(feeling: "curious", word: "build")
+16	1431 ms	turn finished · claude · landing · took 35 s · 08:05 Monday
+	→ face(name: "side_eye")
+17	1884 ms	turn failed · claude · jetpack · topic: tests · 14:02 Tuesday
+	→ face(name: "side_eye"), say(feeling: "annoyed", word: "tests")
+18	1482 ms	turn failed · codex · landing · topic: build · 11:20 Tuesday
+	→ face(name: "side_eye")
+19	1443 ms	turn failed · claude · boop · error: rate limit · 16:45 Tuesday
+	→ face(name: "side_eye")
+20	1489 ms	turn failed · codex · jetpack · error: overloaded · 10:05 Wednesday
+	→ face(name: "side_eye")
+21	1452 ms	turn failed · claude · landing · topic: deploy · error: timeout · 18:30 Friday
+	→ face(name: "side_eye")
+22	1445 ms	turn failed · codex · landing · topic: tests · 14:03 Tuesday · +1 more
+	→ face(name: "side_eye")
+23	1863 ms	turn failed · claude · jetpack · error: context limit · 22:10 Thursday · hungry
+	→ face(name: "side_eye"), say(feeling: "annoyed", word: "bug")
+24	1506 ms	turn failed · codex · boop · error: other · 09:00 Monday
+	→ face(name: "side_eye")
+25	2129 ms	reflect · yesterday 2026-10-14
+	→ forget(text: "Ships on Fridays."), remember(kind: "about_you", text: "Flaky tests, third attempt. Landing still fragile.")
+26	2120 ms	reflect · yesterday 2026-10-14
+	→ forget(text: "Ships on Fridays."), remember(kind: "about_you", text: "Flaky tests on landing, third attempt.")
+27	2225 ms	reflect · yesterday 2026-10-14
+	→ forget(text: "Ships on Fridays."), remember(kind: "about_you", text: "Flaky tests on landing, third try.")
+28	1978 ms	reflect · yesterday 2026-10-14
+	→ forget(text: "Ships on Fridays."), remember(kind: "about_you", text: "Flaky tests, third attempt.")
+29	1781 ms	talk · 09:14 Tuesday "shut up for an hour"
+	→ face(name: "sulky"), quiet(minutes: "30")
+30	1902 ms	talk · 10:02 Tuesday "good job today"
+	→ say(feeling: "curious", word: "tests"), face(name: "smug")
+31	1820 ms	talk · 11:45 Tuesday "remember I ship on Fridays"
+	→ face(name: "smug"), note(text: "ships on Fridays")
+32	1962 ms	talk · 12:30 Tuesday "blorp flibble wazoo"
+	→ face(name: "curious"), say(feeling: "excited", word: "wow")
+33	1806 ms	talk · 13:10 Tuesday "be quiet please"
+	→ face(name: "sulky"), quiet(minutes: "30")
+34	1951 ms	talk · 14:20 Tuesday "how are you doing"
+	→ say(feeling: "curious", word: "tests"), face(name: "side_eye")
+35	2063 ms	talk · 15:05 Tuesday "the tests finally pass"
+	→ face(name: "smug"), note(text: "tests finally pass, landing still flaky")
+36	1551 ms	talk · 12:01 Tuesday "I'm going to lunch"
+	→ (quiet)
+37	1891 ms	talk · 16:40 Tuesday "can you keep it down for fifteen minutes"
+	→ face(name: "side_eye"), say(feeling: "annoyed", word: "build")
+38	1954 ms	talk · 17:30 Friday "you're the best"
+	→ say(feeling: "curious", word: "tests"), face(name: "smug")
+39	2226 ms	talk · 09:05 Wednesday "jetpack is the payments service"
+	→ face(name: "side_eye"), note(text: "jetpack = payments? weird") ✗
+40	1912 ms	talk · 11:11 Wednesday · hungry "ugh this build again"
+	→ face(name: "side_eye"), say(feeling: "annoyed", word: "build")
+41	1999 ms	talk · 08:50 Thursday "hello boop"
+	→ face(name: "curious"), say(feeling: "curious", word: "hi")
+42	1797 ms	talk · 13:33 Thursday "stop talking for a bit"
+	→ face(name: "side_eye"), quiet(minutes: "30")
+43	2017 ms	talk · 10:00 Friday "note that landing launches Monday"
+	→ face(name: "curious"), note(text: "landing: Monday launch, still flaky")
+44	1635 ms	talk · 08:30 Monday "good morning"
+	→ say(feeling: "curious", word: "tests")
+45	1359 ms	tapped · 09:30 Tuesday
+	→ face(name: "happy")
+46	1765 ms	tapped · 12:15 Tuesday · hungry
+	→ say(feeling: "hopeful", word: "food"), face(name: "happy")
+47	1842 ms	tapped · 18:40 Friday · starving
+	→ say(feeling: "hopeful", word: "food"), face(name: "smug")
+48	1842 ms	tapped · 23:55 Wednesday
+	→ face(name: "happy"), say(feeling: "curious", word: "tests")
+49	1811 ms	tapped · 07:02 Monday
+	→ face(name: "happy"), say(feeling: "curious", word: "tests")
+50	1833 ms	tapped · 15:20 Thursday
+	→ face(name: "happy"), say(feeling: "curious", word: "tests")
+51	1525 ms	tapped · 13:05 Sunday · hungry
+	→ say(feeling: "hopeful", word: "food")
+52	1830 ms	tapped · 10:10 Saturday
+	→ face(name: "happy"), say(feeling: "curious", word: "tests")
+brain apple:27.0, 52 triggers, log /tmp/boop-brain/apple-final.jsonl
+valid shape: 52/52
+silence: 2/52
+tool calls: 87, dropped by actions: 1
+  note(text: "jetpack = payments? weird"): looks like code
+latency event: n 24, p50 1844 ms, p95 1933 ms (deadline 5000 ms)
+latency tap: n 8, p50 1811 ms, p95 1842 ms (deadline 3000 ms)
+latency talk: n 16, p50 1902 ms, p95 2226 ms (deadline 4000 ms)
+latency reflect: n 4, p50 2120 ms, p95 2225 ms (deadline 600000 ms)
+PASS (the sample review is separate)
