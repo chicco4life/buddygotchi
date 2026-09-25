@@ -76,6 +76,7 @@ final class RuntimeTests: XCTestCase {
         wait("nod") { transport.sent.contains { $0.contains("\"anim\":\"nod\"") } }
         wait("record") { AppSettings.load(from: self.dir).finished == 1 }
         XCTAssertEqual(AppSettings.load(from: dir).projects, ["jetpack"])
+        XCTAssertEqual(AppSettings.load(from: dir).brain, "apple", "--brain is for this run only")
         wait("today's short-term memory") {
             (try? String(contentsOf: self.dir.appendingPathComponent("short-term.md"), encoding: .utf8))?.contains("## Today") == true
         }

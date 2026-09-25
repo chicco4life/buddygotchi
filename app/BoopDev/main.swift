@@ -18,6 +18,9 @@ let usage = """
            boopdev brain [--brain apple|rules] [--triggers DIR] [--memory DIR] [--steering FILE] [--out FILE] [--print]
                Runs the real harness and brain on recorded triggers, each with a fresh copy of the sample
                memory, and reports valid shapes, dropped calls, the silence rate and latency (VERIFICATION.md L5).
+           boopdev hooks status|install|remove [claude|codex] --home DIR [--hook PATH]
+               The installer, against any HOME (tests use a temporary one). --hook defaults to the boop-hook
+               next to boopdev.
            boopdev talk "<words>" --socket PATH
                Hands a push-to-talk transcript to a running headless app, as if heard on the Mac's mic.
     (boop \(BoopVersion.current))
@@ -250,6 +253,26 @@ func talk(_ args: [String]) {
     print("sent talk \"\(words)\"")
 }
 
+func hooks(_ args: [String]) {
+    guard let action = args.first, let home = option(args, "--home") else { fail(usage) }
+    let built = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent().appendingPathComponent("boop-hook")
+    let installer = HookInstaller(home: URL(fileURLWithPath: home), hookPath: option(args, "--hook") ?? built.path)
+    let agents = args.dropFirst().first.flatMap(HookInstaller.Agent.init(rawValue:)).map { [$0] } ?? HookInstaller.Agent.allCases
+    for agent in agents {
+        do {
+            switch action {
+            case "install": try installer.install(agent)
+            case "remove": try installer.remove(agent)
+            case "status": break
+            default: fail(usage)
+            }
+        } catch {
+            fail("\(agent.rawValue): \(error)")
+        }
+        print("\(agent.rawValue): \(installer.health(agent))")
+    }
+}
+
 let args = Array(CommandLine.arguments.dropFirst())
 switch args.first {
 case "replay":
@@ -262,6 +285,8 @@ case "brain":
     await brain(Array(args.dropFirst()))
 case "talk":
     talk(Array(args.dropFirst()))
+case "hooks":
+    hooks(Array(args.dropFirst()))
 case nil, "-h", "--help", "help":
     print(usage)
 default:

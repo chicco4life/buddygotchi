@@ -1,0 +1,66 @@
+## bridge
+## headless app
+device before hooks: face asleep attn None
+## replay: SessionStart, UserPromptSubmit, PreToolUse, PermissionRequest
+sent SessionStart at 1790365168149 hook 72 ms exit 0
+sent UserPromptSubmit at 1790365168532 hook 73 ms exit 0
+sent PreToolUse at 1790365168916 hook 73 ms exit 0
+sent PermissionRequest at 1790365169301 hook 73 ms exit 0
+device after: needs_you idle attn {'agent': 'claude', 'more': 0, 'project': 'jetpack'} rung 1
+plan/evidence/v1-build/A4/usb-needs-you.png
+## replay: PostToolUse, Stop
+sent PostToolUse at 1790365172492 hook 71 ms exit 0
+sent Stop at 1790365172670 hook 74 ms exit 0
+device after stop: face asleep attn None moment {'anim': 'nod', 'left_ms': 441}
+## inputs: hold 800 ms (push-to-talk), then a tap
+## boopdev talk
+sent talk "shut up"
+device quiet minutes: 30
+## stop
+app exit 0
+socket removed
+bridge exit 0
+bridge socket removed
+## app log
+04:39:25.520 boop: set up Pip (sweet) in /tmp/boop-e2e/state
+04:39:25.677 boop: running on /tmp/boop-e2e/state, socket /tmp/boop-e2e/state/boop.sock, link usb:/tmp/boop-e2e/usb.sock, brain rules@1
+04:39:25.677 device link: connected (usb:/tmp/boop-e2e/usb.sock)
+04:39:28.558 brain event 0 ms → quiet
+04:39:32.699 brain event 0 ms → quiet
+04:39:33.417 device: input talk_on
+04:39:33.820 device: input talk_off
+04:39:34.439 device: input tap
+04:39:35.376 dev: talk "shut up"
+04:39:35.380 brain talk 0 ms → face(name: "sulky"), quiet(minutes: 30)
+04:39:36.517 boop: stopping (signal 15)
+04:39:36.517 boop: stopped
+04:39:36.517 device link: disconnected (usb:/tmp/boop-e2e/usb.sock)
+## memory
+=== long-term.md ===
+## Boop
+name: Pip · hatched: 2026-09-26 · nature: sweet · seed: f6c6
+
+### Temperament
+### Growth
+xp: 6 · level: 1 · last fed: 2026-09-26
+=== short-term.md ===
+## Today
+2026-09-26 · first seen 04:39 · mood: sleepy
+
+## Notes
+
+## Happened
+
+=== history ===
+2026-09-26
+## settings.json
+{
+  "away" : false,
+  "brain" : "rules",
+  "finished" : 1,
+  "focus" : false,
+  "projects" : [
+    "jetpack"
+  ],
+  "volume" : 6
+}

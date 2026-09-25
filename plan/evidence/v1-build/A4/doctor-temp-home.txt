@@ -1,0 +1,19 @@
+
+Boop doctor (agent: claude, state: /tmp/boop-doctor.I7MD)
+
+Hooks
+  ✓ Claude Code: every hook registered
+  ✓ Claude Code: /Users/michaeljxzhu/src/buddygotchi/.claude/worktrees/bridge-cse_01MQ1aHdBiYsz4wpLwqnPShf/app/.build/debug/boop-hook exists
+  ✓ Codex: every hook registered
+  ✓ Codex: /Users/michaeljxzhu/src/buddygotchi/.claude/worktrees/bridge-cse_01MQ1aHdBiYsz4wpLwqnPShf/app/.build/debug/boop-hook exists
+
+App
+  ✓ socket accepts at /tmp/boop-doctor.I7MD/boop.sock
+
+Round trip
+  ✓ boop-hook exited 0
+  ✓ the app received the synthetic event
+
+Result
+  7 passed, 0 failed
+exit 0

@@ -154,9 +154,9 @@ Clips are bounded, video only, and raw footage stays local.
 ## Self-diagnosis
 
 The `doctor` skill (`skills/doctor/doctor.sh`) checks hook registration, the
-running app and a round trip. It's rewritten for the new hook socket in
-PLAN.md A4. Until then it targets the gen-2 app. Don't launch the Boop app
-yourself; ask the owner.
+running app's socket, a synthetic round trip and, with `--confirm`, that
+this agent's own hooks fire. `--headless` checks against a throwaway
+headless app instead. Don't launch the Boop app yourself; ask the owner.
 
 ## Documentation
 

@@ -140,7 +140,7 @@ Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 | A1 | App core: adapters, hook client, core rules | Passed |
 | A2 | Memory, Voice, actions | Passed |
 | A3 | Harness and brains | Blocked: Apple's model fails the L5 review (notes praise, filler words, rarely quiet) and its guardrail refuses 2/52; see evidence/v1-build/A3 |
-| A4 | Device link, app shell, push-to-talk, installer | In progress |
+| A4 | Device link, app shell, push-to-talk, installer | Passed |
 | J1 | End to end over USB | Not started |
 | F5 | Voice on the device | Not started |
 | J2 | Soak and polish | Not started |
@@ -492,9 +492,9 @@ off at any point:
 | 2 | Look at the board | The idle face, blinking |
 | 3 | `tools/boopctl calibrate`, and tap the 4 targets | Touch lands where you tap |
 | 4 | Tap the face; press BOOT; hold BOOT; tap the status strip | Wiggle; wiggle; listening face; face → threads → stats → face |
-| 5 | Run `make run` in your terminal | The menu-bar icon appears. Allow Bluetooth, Microphone and Speech Recognition when asked |
-| 6 | Wait about 10 s | The app connects to `Boop-XXXX`, and the board leaves the no-app face. If Bluetooth won't connect, run the app over USB instead ([VERIFICATION.md](VERIFICATION.md) L4) |
-| 7 | Settings → install hooks for Claude Code and Codex; restart open sessions | Both installed; the old `~/.boop` entries are gone |
+| 5 | Run `make run` in your terminal | The menu-bar icon appears, with the setup window: name Boop, pick sweet or cheeky, and choose the hooks to add (it shows exactly what goes where). Allow Bluetooth, Microphone and Speech Recognition when asked |
+| 6 | Wait about 10 s | The app connects to `Boop-XXXX`, and the board leaves the no-app face. If Bluetooth won't connect, run `tools/boopctl bridge` and `app/.build/debug/Boop --link usb:/tmp/boop-bridge.sock` instead ([VERIFICATION.md](VERIFICATION.md) L4) |
+| 7 | If you skipped them at setup: Settings → install hooks for Claude Code and Codex. Restart open sessions, then run `skills/doctor/doctor.sh` in one, `echo BOOP_DOCTOR_PING`, and `skills/doctor/doctor.sh --confirm` | Both installed; the old `~/.boop` entries are gone; the doctor passes |
 | 8 | In Claude Code, start a task | Working face within a second |
 | 9 | Make Claude ask permission for a shell command | Amber and a look within about 1 s. Approve in the terminal → a nod, back to work |
 | 10 | Let a task run past 5 minutes | A cheer, then maybe a mumble with a word |

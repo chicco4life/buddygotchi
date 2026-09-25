@@ -14,7 +14,7 @@ public final class Runtime: @unchecked Sendable {
         public var socketPath: String
         public var link: DeviceTransport?
         public var steering: String
-        /// Overrides the brain in `settings.json`.
+        /// Overrides the brain in `settings.json` for this run only.
         public var brain: String?
         public var time = LocalTime()
         public var clock: @Sendable () -> Int64 = { Int64(Date().timeIntervalSince1970 * 1000) }
@@ -53,6 +53,9 @@ public final class Runtime: @unchecked Sendable {
         }
     }
 
+    /// While this file exists in the state directory, every hook is logged.
+    public static let doctorArm = "doctor-armed"
+
     public let home = DispatchQueue(label: "boop.home", qos: .userInitiated)
     public let options: Options
     public let memory: MemoryStore
@@ -86,7 +89,6 @@ public final class Runtime: @unchecked Sendable {
         memory = try MemoryStore(directory: options.stateDir, steering: options.steering, log: log)
         guard let longTerm = memory.longTerm else { throw OpenError.notSetUp }
         settings = AppSettings.load(from: options.stateDir)
-        if let brain = options.brain { settings.brain = brain }
         link = DeviceLink(transport: options.link, log: log)
 
         let now = options.clock()
@@ -113,7 +115,7 @@ public final class Runtime: @unchecked Sendable {
         say = actions.compactMap { $0 as? SayAction }.first!
         face = actions.compactMap { $0 as? FaceAction }.first!
         let memory = self.memory
-        harness = Harness(brain: Brains.make(settings.brain, log: log), tools: actions.map(Harness.Tool.init),
+        harness = Harness(brain: Brains.make(options.brain ?? settings.brain, log: log), tools: actions.map(Harness.Tool.init),
                           memory: { memory.promptMemory(for: $0.kind) }, home: home, debugLog: options.debugLog,
                           log: log)
         harness.onRecord = { record in
@@ -171,6 +173,11 @@ public final class Runtime: @unchecked Sendable {
     // MARK: Inputs (on `home`)
 
     func hook(_ line: HookLine, received: Int64) {
+        // The doctor skill arms this to see hooks arrive; otherwise hooks
+        // aren't logged.
+        if FileManager.default.fileExists(atPath: options.stateDir.appendingPathComponent(Self.doctorArm).path) {
+            options.log("hook: \(line.agent) \(line.hook) \(line.session)")
+        }
         let key = line.agent + "/" + line.session
         guard let event = Adapter.event(from: line, receivedAt: received, knownProject: projects[key]) else { return }
         projects[key] = event.project

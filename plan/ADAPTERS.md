@@ -135,26 +135,36 @@ generation of Boop taught us two things:
 - **Where:** Claude hooks go in `~/.claude/settings.json`, and Codex hooks
   in `~/.codex/hooks.json`.
 - **Ownership:** every entry Boop adds calls `boop-hook`. That's how Boop
-  recognises its own entries. It never touches anyone else's, but it does
+  recognises its own entries. The entries call a copy the app keeps at
+  `~/Library/Application Support/Boop/bin/boop-hook`, refreshed at launch,
+  so rebuilding or moving the app doesn't break them. It never touches anyone else's, but it does
   remove the previous generation's entries, which call
   `~/.boop/boop-hook.sh`.
 - **Install:** at setup, one click per detected agent. The app shows exactly
   what it will add.
 - **Repair:** on every launch, the app restores missing or outdated entries
   and leaves other hooks alone.
+- **Codex's switch:** Codex runs hooks only with `codex_hooks = true` under
+  `[features]` in `~/.codex/config.toml`. Installing adds that line if it's
+  missing; removing leaves it, because other hooks may rely on it.
+- **Files Boop can't read:** a config that isn't a JSON object is left
+  untouched, and settings shows why.
 - **Remove:** one click in settings.
 - **Restart:** agents read hooks at startup, so after an install or repair
   the app tells you to restart open sessions.
 
 ## 6. Checking it works
 
-The `doctor` skill checks four things:
+The `doctor` skill (`skills/doctor/doctor.sh`) checks four things:
 
 1. Hooks are registered for each agent and point at the current
    `boop-hook`.
 2. The app is running and its socket answers.
 3. A synthetic event goes from the hook client to the app and back.
 4. A harmless command run in the agent shows up in Boop.
+
+The app never logs hooks, except while the doctor has armed it by writing
+`doctor-armed` into the state directory; `--confirm` removes the file.
 
 ## 7. Claude Cowork (not in v1)
 

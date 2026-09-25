@@ -302,3 +302,36 @@ One entry per iteration, newest last. Each ends with the exact next step.
   usable; default the app's brain setting to Apple as specced, and use
   `--brain rules` for the headless USB checks in A4/J1 so they're
   deterministic.
+
+## 2026-09-26 04:42 — A4: Device link, app shell, push-to-talk, installer — Passed
+
+- **Changed:** new `BoopKit/DeviceLink` (framer, messages, `DeviceLink`,
+  `USBTransport`, `BLETransport`), `BoopKit/App` (`Runtime` wiring
+  everything on one queue, `AppSettings`, `InstanceLock`),
+  `BoopKit/Install/HookInstaller`. The `Boop` target is now the real app:
+  `--headless`, the menu bar with popover, settings and setup, push-to-talk
+  (Speech, on-device), Keychain, an embedded `Info.plist` and a bundled
+  `steering.md`. `boopctl bridge` (and other boopctl commands go through a
+  running bridge), `boopdev talk` and `boopdev hooks`, and a rewritten
+  doctor. Specs: ADAPTERS §5–6, VERIFICATION §2, seven decision-log rows,
+  the morning checklist (steps 5–7), CLAUDE.md/AGENTS.md self-diagnosis.
+- **Checks:** `make build` pass; `make test` 160/160. Live over USB with
+  the bridge and a headless app: hooks → board "needs you" → nod; hold,
+  tap, `boopdev talk "shut up"` → quiet 30 on the board; SIGTERM exits 0
+  and removes both sockets. Doctor `--headless` on a temp HOME: 7/7. See
+  `A4/README.md`. Not run: the menu-bar app and Bluetooth (owner, morning).
+- **Found:** the owner's `~/.claude` and `~/.codex` still hold only gen-2
+  hook entries (read-only check; left alone).
+- **Board:** untouched firmware (F4, `3707c8eb51`); no bridge or app left
+  running.
+- **Next step:** start **J1** (end to end over USB). Read PLAN.md §4 J1 and
+  VERIFICATION.md L4. Build the fixtures (Claude session with topics, a
+  permission, a long Stop, a StopFailure; Codex requests resolved within
+  2 s and after 10 s), then a `make e2e` script: `boopctl bridge --socket
+  /tmp/boop-e2e/usb.sock`, `Boop --headless --state-dir /tmp/boop-e2e/state
+  --link usb:… --brain rules`, `boopdev replay … --socket …`, and `boopctl
+  expect` at each checkpoint. Latency: have the app log when each hook's
+  `state` goes out (or have `boopdev replay` poll `dbg.state`) to get
+  hook-to-device p95 < 200 ms; `boop-hook`'s own launch is ~70 ms of that.
+  Long waits in fixtures (`{"wait_ms":400000}`) need a virtual clock or
+  shorter waits: the headless app runs on the real clock.
