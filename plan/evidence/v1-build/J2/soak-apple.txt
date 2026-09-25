@@ -1,0 +1,1964 @@
+bridge and headless app up (brain apple, state /tmp/boop-soak/state)
+# round 1 at 0.0 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 11 ms, state on the device after 81 ms
+  claude UserPromptSubmit: boop-hook 21 ms, state on the device after 94 ms
+  ok {"base": "working", "attn": null} after 38 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 7 ms, no new state
+  claude PreToolUse: boop-hook 9 ms, no new state
+  claude PostToolUse: boop-hook 9 ms, no new state
+  claude PreToolUse: boop-hook 25 ms, no new state
+  claude PermissionRequest: boop-hook 26 ms, state on the device after 87 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 30 ms
+  claude Notification: boop-hook 28 ms, no new state
+  ok {"screen": "needs_you"} after 38 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 21 ms, state on the device after 72 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +400 s
+  claude Stop: boop-hook 7 ms, state on the device after 72 ms
+  ok {"moment": {"anim": "cheer"}} after 37 ms
+  claude UserPromptSubmit: boop-hook 26 ms, state on the device after 82 ms
+  ok {"base": "working"} after 30 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 73 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 21 ms, state on the device after 66 ms
+  codex UserPromptSubmit: boop-hook 19 ms, state on the device after 70 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 25 ms, no new state
+  ok not {"screen": "needs_you"} until 3521 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 26 ms, state on the device after 92 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 15 ms, state on the device after 56 ms
+  codex UserPromptSubmit: boop-hook 17 ms, state on the device after 57 ms
+  ok {"base": "working"} after 28 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 767 ms
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 25 ms, state on the device after 77 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +45 s
+  codex Stop: boop-hook 24 ms, state on the device after 92 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 2 at 0.8 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 27 ms, no new state
+  claude UserPromptSubmit: boop-hook 27 ms, state on the device after 77 ms
+  ok {"base": "working", "attn": null} after 23 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 27 ms, no new state
+  claude PostToolUse: boop-hook 27 ms, no new state
+  claude PreToolUse: boop-hook 28 ms, no new state
+  claude PermissionRequest: boop-hook 27 ms, state on the device after 97 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 31 ms
+  claude Notification: boop-hook 29 ms, no new state
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 26 ms, state on the device after 80 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +400 s
+  claude Stop: boop-hook 18 ms, state on the device after 96 ms
+  ok {"moment": {"anim": "cheer"}} after 33 ms
+  claude UserPromptSubmit: boop-hook 28 ms, state on the device after 76 ms
+  ok {"base": "working"} after 40 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 86 ms
+  ok {"moment": {"anim": "oops"}} after 38 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 26 ms, no new state
+  codex UserPromptSubmit: boop-hook 21 ms, state on the device after 69 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 10 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 25 ms, no new state
+  ok not {"screen": "needs_you"} until 3522 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 27 ms, state on the device after 95 ms
+  ok {"moment": {"anim": "cheer"}} after 38 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 25 ms, no new state
+  codex UserPromptSubmit: boop-hook 22 ms, state on the device after 70 ms
+  ok {"base": "working"} after 40 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 428 ms
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 25 ms, state on the device after 78 ms
+  ok {"base": "working", "attn": null} after 33 ms
+  app clock +45 s
+  codex Stop: boop-hook 27 ms, state on the device after 106 ms
+  ok {"moment": {"anim": "cheer"}} after 33 ms
+# round 3 at 1.6 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 27 ms, no new state
+  claude UserPromptSubmit: boop-hook 25 ms, state on the device after 76 ms
+  ok {"base": "working", "attn": null} after 23 ms
+  claude PreToolUse: boop-hook 16 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 9 ms, no new state
+  claude PostToolUse: boop-hook 21 ms, no new state
+  claude PreToolUse: boop-hook 26 ms, no new state
+  claude PermissionRequest: boop-hook 23 ms, state on the device after 102 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 38 ms
+  claude Notification: boop-hook 27 ms, no new state
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 18 ms, state on the device after 71 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +400 s
+  claude Stop: boop-hook 27 ms, state on the device after 95 ms
+  ok {"moment": {"anim": "cheer"}} after 33 ms
+  claude UserPromptSubmit: boop-hook 27 ms, state on the device after 76 ms
+  ok {"base": "working"} after 38 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 11 ms, state on the device after 81 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 19 ms, no new state
+  codex UserPromptSubmit: boop-hook 25 ms, state on the device after 73 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 24 ms, no new state
+  ok not {"screen": "needs_you"} until 3510 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 28 ms, state on the device after 96 ms
+  ok {"moment": {"anim": "cheer"}} after 38 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 25 ms, no new state
+  codex UserPromptSubmit: boop-hook 28 ms, state on the device after 76 ms
+  ok {"base": "working"} after 40 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 426 ms
+  ok {"screen": "needs_you"} after 22 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 22 ms, state on the device after 75 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +45 s
+  codex Stop: boop-hook 27 ms, state on the device after 93 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 4 at 2.4 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 25 ms, no new state
+  claude UserPromptSubmit: boop-hook 25 ms, state on the device after 76 ms
+  ok {"base": "working", "attn": null} after 25 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 14 ms, no new state
+  claude PreToolUse: boop-hook 30 ms, no new state
+  claude PermissionRequest: boop-hook 29 ms, state on the device after 102 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 38 ms
+  claude Notification: boop-hook 29 ms, no new state
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 26 ms, state on the device after 78 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +400 s
+  claude Stop: boop-hook 26 ms, state on the device after 96 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+  claude UserPromptSubmit: boop-hook 27 ms, state on the device after 90 ms
+  ok {"base": "working"} after 38 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 78 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 25 ms, no new state
+  codex UserPromptSubmit: boop-hook 26 ms, state on the device after 82 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 18 ms, no new state
+  ok not {"screen": "needs_you"} until 3516 ms after the last hook
+  ok {"base": "working", "attn": null} after 33 ms
+  app clock +45 s
+  codex Stop: boop-hook 27 ms, state on the device after 96 ms
+  ok {"moment": {"anim": "cheer"}} after 38 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 24 ms, no new state
+  codex UserPromptSubmit: boop-hook 27 ms, state on the device after 78 ms
+  ok {"base": "working"} after 38 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 371 ms
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 25 ms, state on the device after 79 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +45 s
+  codex Stop: boop-hook 28 ms, state on the device after 93 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 5 at 3.3 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 17 ms, no new state
+  claude UserPromptSubmit: boop-hook 27 ms, state on the device after 76 ms
+  ok {"base": "working", "attn": null} after 23 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 25 ms, no new state
+  claude PreToolUse: boop-hook 27 ms, no new state
+  claude PermissionRequest: boop-hook 28 ms, state on the device after 85 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 38 ms
+  claude Notification: boop-hook 27 ms, no new state
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 26 ms, state on the device after 80 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +400 s
+  claude Stop: boop-hook 17 ms, state on the device after 85 ms
+  ok {"moment": {"anim": "cheer"}} after 32 ms
+  claude UserPromptSubmit: boop-hook 28 ms, state on the device after 76 ms
+  ok {"base": "working"} after 40 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 86 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 23 ms, no new state
+  codex UserPromptSubmit: boop-hook 26 ms, state on the device after 81 ms
+  ok {"base": "working"} after 23 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 16 ms, no new state
+  ok not {"screen": "needs_you"} until 3502 ms after the last hook
+  ok {"base": "working", "attn": null} after 21 ms
+  app clock +45 s
+  codex Stop: boop-hook 27 ms, state on the device after 98 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 26 ms, state on the device after 505 ms
+  codex UserPromptSubmit: boop-hook 27 ms, state on the device after 75 ms
+  ok {"base": "working"} after 40 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 7 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 501 ms
+  ok {"screen": "needs_you"} after 22 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 23 ms, state on the device after 76 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +45 s
+  codex Stop: boop-hook 27 ms, state on the device after 93 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 6 at 4.1 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 25 ms, no new state
+  claude UserPromptSubmit: boop-hook 23 ms, state on the device after 77 ms
+  ok {"base": "working", "attn": null} after 23 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 28 ms, no new state
+  claude PreToolUse: boop-hook 20 ms, no new state
+  claude PermissionRequest: boop-hook 26 ms, state on the device after 83 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 38 ms
+  claude Notification: boop-hook 28 ms, no new state
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 29 ms, state on the device after 80 ms
+  ok {"base": "working", "attn": null} after 38 ms
+  app clock +400 s
+  claude Stop: boop-hook 23 ms, state on the device after 84 ms
+  ok {"moment": {"anim": "cheer"}} after 33 ms
+  claude UserPromptSubmit: boop-hook 25 ms, state on the device after 86 ms
+  ok {"base": "working"} after 28 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 78 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 22 ms, no new state
+  codex UserPromptSubmit: boop-hook 29 ms, state on the device after 80 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 27 ms, no new state
+  ok not {"screen": "needs_you"} until 3520 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 28 ms, state on the device after 96 ms
+  ok {"moment": {"anim": "cheer"}} after 38 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 26 ms, no new state
+  codex UserPromptSubmit: boop-hook 26 ms, state on the device after 75 ms
+  ok {"base": "working"} after 38 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 525 ms
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 26 ms, state on the device after 80 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +45 s
+  codex Stop: boop-hook 25 ms, state on the device after 94 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 7 at 4.9 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 28 ms, no new state
+  claude UserPromptSubmit: boop-hook 28 ms, state on the device after 74 ms
+  ok {"base": "working", "attn": null} after 25 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 7 ms, no new state
+  claude PostToolUse: boop-hook 13 ms, no new state
+  claude PreToolUse: boop-hook 25 ms, no new state
+  claude PermissionRequest: boop-hook 27 ms, state on the device after 98 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 33 ms
+  claude Notification: boop-hook 24 ms, no new state
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 27 ms, state on the device after 80 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +400 s
+  claude Stop: boop-hook 28 ms, state on the device after 96 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+  claude UserPromptSubmit: boop-hook 26 ms, state on the device after 85 ms
+  ok {"base": "working"} after 30 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 79 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 21 ms, no new state
+  codex UserPromptSubmit: boop-hook 25 ms, state on the device after 79 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 7 ms, no new state
+  codex PostToolUse: boop-hook 9 ms, no new state
+  ok not {"screen": "needs_you"} until 3515 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 27 ms, state on the device after 98 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 26 ms, no new state
+  codex UserPromptSubmit: boop-hook 24 ms, state on the device after 72 ms
+  ok {"base": "working"} after 40 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 464 ms
+  ok {"screen": "needs_you"} after 28 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 24 ms, state on the device after 77 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +45 s
+  codex Stop: boop-hook 26 ms, state on the device after 94 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 8 at 5.7 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 26 ms, no new state
+  claude UserPromptSubmit: boop-hook 28 ms, state on the device after 77 ms
+  ok {"base": "working", "attn": null} after 23 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 7 ms, no new state
+  claude PostToolUse: boop-hook 9 ms, no new state
+  claude PreToolUse: boop-hook 26 ms, no new state
+  claude PermissionRequest: boop-hook 26 ms, state on the device after 82 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 38 ms
+  claude Notification: boop-hook 27 ms, no new state
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 24 ms, state on the device after 77 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +400 s
+  claude Stop: boop-hook 25 ms, state on the device after 83 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+  claude UserPromptSubmit: boop-hook 28 ms, state on the device after 77 ms
+  ok {"base": "working"} after 40 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 78 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 24 ms, no new state
+  codex UserPromptSubmit: boop-hook 29 ms, state on the device after 80 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 9 ms, no new state
+  ok not {"screen": "needs_you"} until 3507 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 25 ms, state on the device after 96 ms
+  ok {"moment": {"anim": "cheer"}} after 37 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 24 ms, no new state
+  codex UserPromptSubmit: boop-hook 17 ms, state on the device after 66 ms
+  ok {"base": "working"} after 38 ms
+  codex PreToolUse: boop-hook 10 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 563 ms
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 27 ms, state on the device after 81 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +45 s
+  codex Stop: boop-hook 27 ms, state on the device after 95 ms
+  ok {"moment": {"anim": "cheer"}} after 32 ms
+# round 9 at 6.5 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 28 ms, no new state
+  claude UserPromptSubmit: boop-hook 28 ms, state on the device after 76 ms
+  ok {"base": "working", "attn": null} after 23 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 28 ms, no new state
+  claude PreToolUse: boop-hook 26 ms, state on the device after 71 ms
+  claude PermissionRequest: boop-hook 20 ms, state on the device after 75 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 38 ms
+  claude Notification: boop-hook 23 ms, no new state
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 23 ms, state on the device after 76 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +400 s
+  claude Stop: boop-hook 25 ms, state on the device after 83 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+  claude UserPromptSubmit: boop-hook 27 ms, state on the device after 76 ms
+  ok {"base": "working"} after 40 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 79 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 25 ms, no new state
+  codex UserPromptSubmit: boop-hook 26 ms, state on the device after 97 ms
+  ok {"base": "working"} after 40 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 12 ms, no new state
+  ok not {"screen": "needs_you"} until 3528 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 26 ms, state on the device after 97 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 23 ms, no new state
+  codex UserPromptSubmit: boop-hook 26 ms, state on the device after 95 ms
+  ok {"base": "working"} after 40 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 884 ms
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 23 ms, state on the device after 76 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +45 s
+  codex Stop: boop-hook 24 ms, state on the device after 93 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 10 at 7.3 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 25 ms, no new state
+  claude UserPromptSubmit: boop-hook 25 ms, state on the device after 76 ms
+  ok {"base": "working", "attn": null} after 25 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, state on the device after 53 ms
+  claude PostToolUse: boop-hook 7 ms, no new state
+  claude PreToolUse: boop-hook 14 ms, no new state
+  claude PermissionRequest: boop-hook 24 ms, state on the device after 84 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 37 ms
+  claude Notification: boop-hook 26 ms, no new state
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 16 ms, state on the device after 69 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +400 s
+  claude Stop: boop-hook 22 ms, state on the device after 82 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+  claude UserPromptSubmit: boop-hook 28 ms, state on the device after 76 ms
+  ok {"base": "working"} after 40 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 78 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 24 ms, no new state
+  codex UserPromptSubmit: boop-hook 14 ms, state on the device after 67 ms
+  ok {"base": "working"} after 38 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 9 ms, no new state
+  codex PostToolUse: boop-hook 9 ms, no new state
+  ok not {"screen": "needs_you"} until 3514 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 25 ms, state on the device after 83 ms
+  ok {"moment": {"anim": "cheer"}} after 30 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 27 ms, no new state
+  codex UserPromptSubmit: boop-hook 19 ms, state on the device after 72 ms
+  ok {"base": "working"} after 30 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 944 ms
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 19 ms, state on the device after 71 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +45 s
+  codex Stop: boop-hook 25 ms, state on the device after 95 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 11 at 8.2 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 33 ms, no new state
+  claude UserPromptSubmit: boop-hook 27 ms, state on the device after 75 ms
+  ok {"base": "working", "attn": null} after 25 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 9 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 9 ms, state on the device after 54 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PermissionRequest: boop-hook 26 ms, state on the device after 83 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 38 ms
+  claude Notification: boop-hook 25 ms, no new state
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 27 ms, state on the device after 80 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +400 s
+  claude Stop: boop-hook 26 ms, state on the device after 107 ms
+  ok {"moment": {"anim": "cheer"}} after 30 ms
+  claude UserPromptSubmit: boop-hook 25 ms, state on the device after 73 ms
+  ok {"base": "working"} after 40 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 81 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 24 ms, no new state
+  codex UserPromptSubmit: boop-hook 26 ms, state on the device after 74 ms
+  ok {"base": "working"} after 40 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 17 ms, no new state
+  ok not {"screen": "needs_you"} until 3502 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 16 ms, state on the device after 86 ms
+  ok {"moment": {"anim": "cheer"}} after 38 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 26 ms, no new state
+  codex UserPromptSubmit: boop-hook 25 ms, state on the device after 76 ms
+  ok {"base": "working"} after 38 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 944 ms
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 26 ms, state on the device after 78 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +45 s
+  codex Stop: boop-hook 26 ms, state on the device after 95 ms
+  ok {"moment": {"anim": "cheer"}} after 33 ms
+# round 12 at 9.0 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 26 ms, no new state
+  claude UserPromptSubmit: boop-hook 27 ms, state on the device after 75 ms
+  ok {"base": "working", "attn": null} after 25 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 13 ms, no new state
+  claude PreToolUse: boop-hook 26 ms, state on the device after 73 ms
+  claude PermissionRequest: boop-hook 25 ms, state on the device after 98 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 36 ms
+  claude Notification: boop-hook 23 ms, state on the device after 254 ms
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 21 ms, state on the device after 74 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +400 s
+  claude Stop: boop-hook 26 ms, state on the device after 94 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+  claude UserPromptSubmit: boop-hook 27 ms, state on the device after 88 ms
+  ok {"base": "working"} after 28 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 78 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 25 ms, no new state
+  codex UserPromptSubmit: boop-hook 26 ms, state on the device after 80 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 3515 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 23 ms, state on the device after 94 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 12 ms, no new state
+  codex UserPromptSubmit: boop-hook 25 ms, state on the device after 90 ms
+  ok {"base": "working"} after 38 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 1122 ms
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 23 ms, state on the device after 76 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +45 s
+  codex Stop: boop-hook 26 ms, state on the device after 95 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 13 at 9.8 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 24 ms, no new state
+  claude UserPromptSubmit: boop-hook 26 ms, state on the device after 77 ms
+  ok {"base": "working", "attn": null} after 23 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 26 ms, no new state
+  claude PermissionRequest: boop-hook 22 ms, state on the device after 86 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 37 ms
+  claude Notification: boop-hook 27 ms, no new state
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 25 ms, state on the device after 78 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +400 s
+  claude Stop: boop-hook 23 ms, state on the device after 84 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+  claude UserPromptSubmit: boop-hook 21 ms, state on the device after 72 ms
+  ok {"base": "working"} after 28 ms
+  claude PreToolUse: boop-hook 9 ms, state on the device after 329 ms
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 78 ms
+  ok {"moment": {"anim": "oops"}} after 37 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 26 ms, no new state
+  codex UserPromptSubmit: boop-hook 27 ms, state on the device after 80 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 11 ms, no new state
+  ok not {"screen": "needs_you"} until 3516 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 27 ms, state on the device after 97 ms
+  ok {"moment": {"anim": "cheer"}} after 38 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 25 ms, no new state
+  codex UserPromptSubmit: boop-hook 24 ms, state on the device after 82 ms
+  ok {"base": "working"} after 35 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 699 ms
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 21 ms, state on the device after 73 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +45 s
+  codex Stop: boop-hook 14 ms, state on the device after 95 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 14 at 10.6 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 27 ms, no new state
+  claude UserPromptSubmit: boop-hook 24 ms, state on the device after 75 ms
+  ok {"base": "working", "attn": null} after 22 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 10 ms, no new state
+  claude PreToolUse: boop-hook 26 ms, no new state
+  claude PermissionRequest: boop-hook 24 ms, state on the device after 80 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 37 ms
+  claude Notification: boop-hook 23 ms, no new state
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 25 ms, state on the device after 88 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +400 s
+  claude Stop: boop-hook 24 ms, state on the device after 85 ms
+  ok {"moment": {"anim": "cheer"}} after 33 ms
+  claude UserPromptSubmit: boop-hook 25 ms, state on the device after 85 ms
+  ok {"base": "working"} after 28 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 78 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 28 ms, no new state
+  codex UserPromptSubmit: boop-hook 27 ms, state on the device after 80 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 11 ms, no new state
+  ok not {"screen": "needs_you"} until 3501 ms after the last hook
+  ok {"base": "working", "attn": null} after 21 ms
+  app clock +45 s
+  codex Stop: boop-hook 26 ms, state on the device after 93 ms
+  ok {"moment": {"anim": "cheer"}} after 43 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 25 ms, no new state
+  codex UserPromptSubmit: boop-hook 27 ms, state on the device after 75 ms
+  ok {"base": "working"} after 40 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 555 ms
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 24 ms, state on the device after 78 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +45 s
+  codex Stop: boop-hook 27 ms, state on the device after 93 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 15 at 11.4 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 29 ms, no new state
+  claude UserPromptSubmit: boop-hook 27 ms, state on the device after 75 ms
+  ok {"base": "working", "attn": null} after 25 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 11 ms, no new state
+  claude PreToolUse: boop-hook 28 ms, no new state
+  claude PermissionRequest: boop-hook 28 ms, state on the device after 83 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 38 ms
+  claude Notification: boop-hook 28 ms, no new state
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 26 ms, state on the device after 78 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +400 s
+  claude Stop: boop-hook 25 ms, state on the device after 83 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+  claude UserPromptSubmit: boop-hook 26 ms, state on the device after 84 ms
+  ok {"base": "working"} after 28 ms
+  claude PreToolUse: boop-hook 10 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 9 ms, state on the device after 79 ms
+  ok {"moment": {"anim": "oops"}} after 37 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 23 ms, no new state
+  codex UserPromptSubmit: boop-hook 28 ms, state on the device after 80 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 10 ms, no new state
+  ok not {"screen": "needs_you"} until 3517 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 27 ms, state on the device after 97 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 26 ms, no new state
+  codex UserPromptSubmit: boop-hook 27 ms, state on the device after 75 ms
+  ok {"base": "working"} after 40 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 523 ms
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 25 ms, state on the device after 78 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +45 s
+  codex Stop: boop-hook 25 ms, state on the device after 94 ms
+  ok {"moment": {"anim": "cheer"}} after 33 ms
+# round 16 at 12.2 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 27 ms, no new state
+  claude UserPromptSubmit: boop-hook 26 ms, state on the device after 77 ms
+  ok {"base": "working", "attn": null} after 23 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 10 ms, no new state
+  claude PreToolUse: boop-hook 27 ms, no new state
+  claude PermissionRequest: boop-hook 26 ms, state on the device after 81 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 37 ms
+  claude Notification: boop-hook 26 ms, no new state
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 24 ms, state on the device after 77 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +400 s
+  claude Stop: boop-hook 25 ms, state on the device after 95 ms
+  ok {"moment": {"anim": "cheer"}} after 33 ms
+  claude UserPromptSubmit: boop-hook 26 ms, state on the device after 79 ms
+  ok {"base": "working"} after 35 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 76 ms
+  ok {"moment": {"anim": "oops"}} after 38 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 27 ms, no new state
+  codex UserPromptSubmit: boop-hook 28 ms, state on the device after 73 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 14 ms, no new state
+  ok not {"screen": "needs_you"} until 3519 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 26 ms, state on the device after 100 ms
+  ok {"moment": {"anim": "cheer"}} after 38 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 25 ms, no new state
+  codex UserPromptSubmit: boop-hook 27 ms, state on the device after 76 ms
+  ok {"base": "working"} after 40 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 508 ms
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 28 ms, state on the device after 81 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +45 s
+  codex Stop: boop-hook 27 ms, state on the device after 93 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 17 at 13.1 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 25 ms, no new state
+  claude UserPromptSubmit: boop-hook 25 ms, state on the device after 76 ms
+  ok {"base": "working", "attn": null} after 23 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 9 ms, no new state
+  claude PreToolUse: boop-hook 22 ms, no new state
+  claude PermissionRequest: boop-hook 24 ms, state on the device after 87 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 36 ms
+  claude Notification: boop-hook 28 ms, no new state
+  ok {"screen": "needs_you"} after 20 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 26 ms, state on the device after 79 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +400 s
+  claude Stop: boop-hook 26 ms, state on the device after 95 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+  claude UserPromptSubmit: boop-hook 22 ms, state on the device after 70 ms
+  ok {"base": "working"} after 40 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 78 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 25 ms, no new state
+  codex UserPromptSubmit: boop-hook 26 ms, state on the device after 81 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 10 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 23 ms, no new state
+  ok not {"screen": "needs_you"} until 3507 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 30 ms, state on the device after 112 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 27 ms, no new state
+  codex UserPromptSubmit: boop-hook 25 ms, state on the device after 86 ms
+  ok {"base": "working"} after 33 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 432 ms
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 25 ms, state on the device after 78 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +45 s
+  codex Stop: boop-hook 22 ms, state on the device after 96 ms
+  ok {"moment": {"anim": "cheer"}} after 33 ms
+# round 18 at 13.9 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 23 ms, no new state
+  claude UserPromptSubmit: boop-hook 24 ms, state on the device after 74 ms
+  ok {"base": "working", "attn": null} after 25 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 9 ms, no new state
+  claude PreToolUse: boop-hook 26 ms, no new state
+  claude PermissionRequest: boop-hook 23 ms, state on the device after 81 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 36 ms
+  claude Notification: boop-hook 27 ms, state on the device after 92 ms
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 24 ms, state on the device after 77 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +400 s
+  claude Stop: boop-hook 26 ms, state on the device after 97 ms
+  ok {"moment": {"anim": "cheer"}} after 33 ms
+  claude UserPromptSubmit: boop-hook 26 ms, state on the device after 86 ms
+  ok {"base": "working"} after 28 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 79 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 25 ms, no new state
+  codex UserPromptSubmit: boop-hook 26 ms, state on the device after 74 ms
+  ok {"base": "working"} after 40 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 9 ms, no new state
+  ok not {"screen": "needs_you"} until 3533 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 25 ms, state on the device after 96 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 21 ms, no new state
+  codex UserPromptSubmit: boop-hook 23 ms, state on the device after 73 ms
+  ok {"base": "working"} after 38 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 9 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 891 ms
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 26 ms, state on the device after 78 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +45 s
+  codex Stop: boop-hook 24 ms, state on the device after 96 ms
+  ok {"moment": {"anim": "cheer"}} after 33 ms
+# round 19 at 14.7 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 28 ms, no new state
+  claude UserPromptSubmit: boop-hook 27 ms, state on the device after 75 ms
+  ok {"base": "working", "attn": null} after 23 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 9 ms, no new state
+  claude PreToolUse: boop-hook 29 ms, no new state
+  claude PermissionRequest: boop-hook 27 ms, state on the device after 93 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 38 ms
+  claude Notification: boop-hook 26 ms, state on the device after 95 ms
+  ok {"screen": "needs_you"} after 20 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 20 ms, state on the device after 71 ms
+  ok {"base": "working", "attn": null} after 37 ms
+  app clock +400 s
+  claude Stop: boop-hook 24 ms, state on the device after 85 ms
+  ok {"moment": {"anim": "cheer"}} after 32 ms
+  claude UserPromptSubmit: boop-hook 25 ms, state on the device after 85 ms
+  ok {"base": "working"} after 28 ms
+  claude PreToolUse: boop-hook 10 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 64 ms
+  ok {"moment": {"anim": "oops"}} after 20 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 25 ms, no new state
+  codex UserPromptSubmit: boop-hook 26 ms, state on the device after 74 ms
+  ok {"base": "working"} after 38 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 10 ms, state on the device after 464 ms
+  codex PostToolUse: boop-hook 12 ms, no new state
+  ok not {"screen": "needs_you"} until 3516 ms after the last hook
+  ok {"base": "working", "attn": null} after 21 ms
+  app clock +45 s
+  codex Stop: boop-hook 35 ms, state on the device after 116 ms
+  ok {"moment": {"anim": "cheer"}} after 38 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 18 ms, no new state
+  codex UserPromptSubmit: boop-hook 25 ms, state on the device after 73 ms
+  ok {"base": "working"} after 38 ms
+  codex PreToolUse: boop-hook 10 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 999 ms
+  ok {"screen": "needs_you"} after 20 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 24 ms, state on the device after 77 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +45 s
+  codex Stop: boop-hook 28 ms, state on the device after 93 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 20 at 15.5 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 27 ms, no new state
+  claude UserPromptSubmit: boop-hook 27 ms, state on the device after 75 ms
+  ok {"base": "working", "attn": null} after 25 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 9 ms, no new state
+  claude PreToolUse: boop-hook 26 ms, no new state
+  claude PermissionRequest: boop-hook 25 ms, state on the device after 83 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 36 ms
+  claude Notification: boop-hook 24 ms, no new state
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 25 ms, state on the device after 77 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +400 s
+  claude Stop: boop-hook 24 ms, state on the device after 84 ms
+  ok {"moment": {"anim": "cheer"}} after 33 ms
+  claude UserPromptSubmit: boop-hook 20 ms, state on the device after 68 ms
+  ok {"base": "working"} after 38 ms
+  claude PreToolUse: boop-hook 10 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 78 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 25 ms, no new state
+  codex UserPromptSubmit: boop-hook 26 ms, state on the device after 74 ms
+  ok {"base": "working"} after 23 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 16 ms, no new state
+  ok not {"screen": "needs_you"} until 3510 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 26 ms, state on the device after 96 ms
+  ok {"moment": {"anim": "cheer"}} after 38 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 27 ms, no new state
+  codex UserPromptSubmit: boop-hook 26 ms, state on the device after 74 ms
+  ok {"base": "working"} after 40 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 596 ms
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 25 ms, state on the device after 77 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +45 s
+  codex Stop: boop-hook 24 ms, state on the device after 94 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 21 at 16.3 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 26 ms, no new state
+  claude UserPromptSubmit: boop-hook 26 ms, state on the device after 75 ms
+  ok {"base": "working", "attn": null} after 25 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 9 ms, no new state
+  claude PreToolUse: boop-hook 26 ms, no new state
+  claude PermissionRequest: boop-hook 24 ms, state on the device after 79 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 38 ms
+  claude Notification: boop-hook 27 ms, no new state
+  ok {"screen": "needs_you"} after 20 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 25 ms, state on the device after 77 ms
+  ok {"base": "working", "attn": null} after 37 ms
+  app clock +400 s
+  claude Stop: boop-hook 27 ms, state on the device after 95 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+  claude UserPromptSubmit: boop-hook 27 ms, state on the device after 85 ms
+  ok {"base": "working"} after 30 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 76 ms
+  ok {"moment": {"anim": "oops"}} after 38 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 24 ms, no new state
+  codex UserPromptSubmit: boop-hook 15 ms, state on the device after 68 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 3519 ms after the last hook
+  ok {"base": "working", "attn": null} after 31 ms
+  app clock +45 s
+  codex Stop: boop-hook 23 ms, state on the device after 94 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 23 ms, no new state
+  codex UserPromptSubmit: boop-hook 23 ms, state on the device after 71 ms
+  ok {"base": "working"} after 40 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 479 ms
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 14 ms, state on the device after 67 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +45 s
+  codex Stop: boop-hook 20 ms, state on the device after 96 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 22 at 17.1 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 26 ms, no new state
+  claude UserPromptSubmit: boop-hook 26 ms, state on the device after 76 ms
+  ok {"base": "working", "attn": null} after 23 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 9 ms, no new state
+  claude PreToolUse: boop-hook 26 ms, no new state
+  claude PermissionRequest: boop-hook 24 ms, state on the device after 80 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 38 ms
+  claude Notification: boop-hook 26 ms, state on the device after 96 ms
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 28 ms, state on the device after 80 ms
+  ok {"base": "working", "attn": null} after 37 ms
+  app clock +400 s
+  claude Stop: boop-hook 27 ms, state on the device after 95 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+  claude UserPromptSubmit: boop-hook 27 ms, state on the device after 81 ms
+  ok {"base": "working"} after 38 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 79 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 26 ms, no new state
+  codex UserPromptSubmit: boop-hook 28 ms, state on the device after 74 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 29 ms, no new state
+  ok not {"screen": "needs_you"} until 3513 ms after the last hook
+  ok {"base": "working", "attn": null} after 25 ms
+  app clock +45 s
+  codex Stop: boop-hook 27 ms, state on the device after 108 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 25 ms, no new state
+  codex UserPromptSubmit: boop-hook 24 ms, state on the device after 72 ms
+  ok {"base": "working"} after 40 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 815 ms
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 27 ms, state on the device after 80 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +45 s
+  codex Stop: boop-hook 27 ms, state on the device after 93 ms
+  ok {"moment": {"anim": "cheer"}} after 33 ms
+# round 23 at 18.0 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 27 ms, no new state
+  claude UserPromptSubmit: boop-hook 29 ms, state on the device after 77 ms
+  ok {"base": "working", "attn": null} after 23 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 9 ms, no new state
+  claude PreToolUse: boop-hook 28 ms, no new state
+  claude PermissionRequest: boop-hook 9 ms, state on the device after 65 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 38 ms
+  claude Notification: boop-hook 18 ms, no new state
+  ok {"screen": "needs_you"} after 24 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 25 ms, state on the device after 77 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +400 s
+  claude Stop: boop-hook 25 ms, state on the device after 96 ms
+  ok {"moment": {"anim": "cheer"}} after 33 ms
+  claude UserPromptSubmit: boop-hook 28 ms, state on the device after 76 ms
+  ok {"base": "working"} after 40 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 78 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 25 ms, no new state
+  codex UserPromptSubmit: boop-hook 26 ms, state on the device after 81 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 9 ms, no new state
+  ok not {"screen": "needs_you"} until 3512 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 25 ms, state on the device after 96 ms
+  ok {"moment": {"anim": "cheer"}} after 37 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 17 ms, no new state
+  codex UserPromptSubmit: boop-hook 27 ms, state on the device after 75 ms
+  ok {"base": "working"} after 40 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 557 ms
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 27 ms, state on the device after 81 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +45 s
+  codex Stop: boop-hook 28 ms, state on the device after 94 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 24 at 18.8 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 26 ms, no new state
+  claude UserPromptSubmit: boop-hook 26 ms, state on the device after 76 ms
+  ok {"base": "working", "attn": null} after 22 ms
+  claude PreToolUse: boop-hook 10 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 9 ms, no new state
+  claude PostToolUse: boop-hook 20 ms, no new state
+  claude PreToolUse: boop-hook 28 ms, no new state
+  claude PermissionRequest: boop-hook 28 ms, state on the device after 83 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 38 ms
+  claude Notification: boop-hook 27 ms, no new state
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 26 ms, state on the device after 79 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +400 s
+  claude Stop: boop-hook 24 ms, state on the device after 82 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+  claude UserPromptSubmit: boop-hook 29 ms, state on the device after 87 ms
+  ok {"base": "working"} after 28 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 88 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 26 ms, no new state
+  codex UserPromptSubmit: boop-hook 28 ms, state on the device after 81 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 27 ms, no new state
+  ok not {"screen": "needs_you"} until 3511 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 27 ms, state on the device after 97 ms
+  ok {"moment": {"anim": "cheer"}} after 37 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 25 ms, no new state
+  codex UserPromptSubmit: boop-hook 25 ms, state on the device after 74 ms
+  ok {"base": "working"} after 40 ms
+  codex PreToolUse: boop-hook 10 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 511 ms
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 19 ms, state on the device after 72 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +45 s
+  codex Stop: boop-hook 22 ms, state on the device after 96 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 25 at 19.6 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 14 ms, no new state
+  claude UserPromptSubmit: boop-hook 13 ms, state on the device after 66 ms
+  ok {"base": "working", "attn": null} after 23 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 7 ms, no new state
+  claude PreToolUse: boop-hook 13 ms, no new state
+  claude PermissionRequest: boop-hook 22 ms, state on the device after 78 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 38 ms
+  claude Notification: boop-hook 26 ms, state on the device after 90 ms
+  ok {"screen": "needs_you"} after 20 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 24 ms, state on the device after 76 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +400 s
+  claude Stop: boop-hook 19 ms, state on the device after 95 ms
+  ok {"moment": {"anim": "cheer"}} after 32 ms
+  claude UserPromptSubmit: boop-hook 23 ms, state on the device after 91 ms
+  ok {"base": "working"} after 35 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 79 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 20 ms, no new state
+  codex UserPromptSubmit: boop-hook 16 ms, state on the device after 77 ms
+  ok {"base": "working"} after 38 ms
+  codex PreToolUse: boop-hook 11 ms, no new state
+  codex PermissionRequest: boop-hook 9 ms, no new state
+  codex PostToolUse: boop-hook 9 ms, no new state
+  ok not {"screen": "needs_you"} until 3511 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 16 ms, state on the device after 85 ms
+  ok {"moment": {"anim": "cheer"}} after 38 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 17 ms, no new state
+  codex UserPromptSubmit: boop-hook 20 ms, state on the device after 70 ms
+  ok {"base": "working"} after 40 ms
+  codex PreToolUse: boop-hook 16 ms, no new state
+  codex PermissionRequest: boop-hook 19 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 994 ms
+  ok {"screen": "needs_you"} after 20 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 19 ms, state on the device after 73 ms
+  ok {"base": "working", "attn": null} after 33 ms
+  app clock +45 s
+  codex Stop: boop-hook 13 ms, state on the device after 93 ms
+  ok {"moment": {"anim": "cheer"}} after 36 ms
+# round 26 at 20.4 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 20 ms, no new state
+  claude UserPromptSubmit: boop-hook 20 ms, state on the device after 75 ms
+  ok {"base": "working", "attn": null} after 23 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 9 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 20 ms, no new state
+  claude PermissionRequest: boop-hook 18 ms, state on the device after 74 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 38 ms
+  claude Notification: boop-hook 18 ms, state on the device after 95 ms
+  ok {"screen": "needs_you"} after 20 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 21 ms, state on the device after 73 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +400 s
+  claude Stop: boop-hook 19 ms, state on the device after 94 ms
+  ok {"moment": {"anim": "cheer"}} after 32 ms
+  claude UserPromptSubmit: boop-hook 20 ms, state on the device after 70 ms
+  ok {"base": "working"} after 38 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 78 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 19 ms, no new state
+  codex UserPromptSubmit: boop-hook 20 ms, state on the device after 100 ms
+  ok {"base": "working"} after 40 ms
+  codex PreToolUse: boop-hook 15 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 10 ms, no new state
+  ok not {"screen": "needs_you"} until 3510 ms after the last hook
+  ok {"base": "working", "attn": null} after 19 ms
+  app clock +45 s
+  codex Stop: boop-hook 28 ms, state on the device after 98 ms
+  ok {"moment": {"anim": "cheer"}} after 38 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 26 ms, no new state
+  codex UserPromptSubmit: boop-hook 27 ms, state on the device after 75 ms
+  ok {"base": "working"} after 40 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 998 ms
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 25 ms, state on the device after 78 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +45 s
+  codex Stop: boop-hook 27 ms, state on the device after 95 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 27 at 21.2 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 22 ms, no new state
+  claude UserPromptSubmit: boop-hook 23 ms, state on the device after 76 ms
+  ok {"base": "working", "attn": null} after 23 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  claude PostToolUse: boop-hook 9 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 24 ms, no new state
+  claude PreToolUse: boop-hook 23 ms, no new state
+  claude PermissionRequest: boop-hook 28 ms, state on the device after 86 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 35 ms
+  claude Notification: boop-hook 28 ms, no new state
+  ok {"screen": "needs_you"} after 22 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 17 ms, state on the device after 70 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +400 s
+  claude Stop: boop-hook 20 ms, state on the device after 84 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+  claude UserPromptSubmit: boop-hook 21 ms, state on the device after 69 ms
+  ok {"base": "working"} after 40 ms
+  claude PreToolUse: boop-hook 10 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 78 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 19 ms, no new state
+  codex UserPromptSubmit: boop-hook 19 ms, state on the device after 70 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 10 ms, no new state
+  codex PermissionRequest: boop-hook 10 ms, no new state
+  codex PostToolUse: boop-hook 11 ms, no new state
+  ok not {"screen": "needs_you"} until 3522 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 19 ms, state on the device after 89 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 23 ms, no new state
+  codex UserPromptSubmit: boop-hook 24 ms, state on the device after 89 ms
+  ok {"base": "working"} after 35 ms
+  codex PreToolUse: boop-hook 11 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 537 ms
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 24 ms, state on the device after 78 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +45 s
+  codex Stop: boop-hook 24 ms, state on the device after 96 ms
+  ok {"moment": {"anim": "cheer"}} after 33 ms
+# round 28 at 22.0 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 22 ms, no new state
+  claude UserPromptSubmit: boop-hook 27 ms, state on the device after 75 ms
+  ok {"base": "working", "attn": null} after 23 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 9 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 10 ms, no new state
+  claude PreToolUse: boop-hook 26 ms, no new state
+  claude PermissionRequest: boop-hook 26 ms, state on the device after 82 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 38 ms
+  claude Notification: boop-hook 22 ms, no new state
+  ok {"screen": "needs_you"} after 22 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 24 ms, state on the device after 76 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +400 s
+  claude Stop: boop-hook 24 ms, state on the device after 84 ms
+  ok {"moment": {"anim": "cheer"}} after 32 ms
+  claude UserPromptSubmit: boop-hook 20 ms, state on the device after 70 ms
+  ok {"base": "working"} after 38 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 13 ms, state on the device after 88 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 26 ms, no new state
+  codex UserPromptSubmit: boop-hook 26 ms, state on the device after 77 ms
+  ok {"base": "working"} after 22 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 13 ms, no new state
+  ok not {"screen": "needs_you"} until 3517 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 22 ms, state on the device after 90 ms
+  ok {"moment": {"anim": "cheer"}} after 38 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 25 ms, no new state
+  codex UserPromptSubmit: boop-hook 26 ms, state on the device after 74 ms
+  ok {"base": "working"} after 40 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 9 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 573 ms
+  ok {"screen": "needs_you"} after 20 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 27 ms, state on the device after 95 ms
+  ok {"base": "working", "attn": null} after 33 ms
+  app clock +45 s
+  codex Stop: boop-hook 32 ms, state on the device after 95 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 29 at 22.9 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 26 ms, no new state
+  claude UserPromptSubmit: boop-hook 26 ms, state on the device after 75 ms
+  ok {"base": "working", "attn": null} after 25 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 11 ms, no new state
+  claude PreToolUse: boop-hook 27 ms, no new state
+  claude PermissionRequest: boop-hook 24 ms, state on the device after 83 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 36 ms
+  claude Notification: boop-hook 23 ms, no new state
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 25 ms, state on the device after 77 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +400 s
+  claude Stop: boop-hook 26 ms, state on the device after 96 ms
+  ok {"moment": {"anim": "cheer"}} after 33 ms
+  claude UserPromptSubmit: boop-hook 26 ms, state on the device after 74 ms
+  ok {"base": "working"} after 39 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 78 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 24 ms, no new state
+  codex UserPromptSubmit: boop-hook 25 ms, state on the device after 81 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 21 ms, no new state
+  ok not {"screen": "needs_you"} until 3505 ms after the last hook
+  ok {"base": "working", "attn": null} after 21 ms
+  app clock +45 s
+  codex Stop: boop-hook 25 ms, state on the device after 94 ms
+  ok {"moment": {"anim": "cheer"}} after 38 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 28 ms, no new state
+  codex UserPromptSubmit: boop-hook 26 ms, state on the device after 92 ms
+  ok {"base": "working"} after 38 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 7 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 472 ms
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 22 ms, state on the device after 76 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +45 s
+  codex Stop: boop-hook 26 ms, state on the device after 97 ms
+  ok {"moment": {"anim": "cheer"}} after 33 ms
+# round 30 at 23.7 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 18 ms, no new state
+  claude UserPromptSubmit: boop-hook 21 ms, state on the device after 66 ms
+  ok {"base": "working", "attn": null} after 23 ms
+  claude PreToolUse: boop-hook 12 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 10 ms, no new state
+  claude PreToolUse: boop-hook 23 ms, no new state
+  claude PermissionRequest: boop-hook 25 ms, state on the device after 83 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 36 ms
+  claude Notification: boop-hook 25 ms, state on the device after 93 ms
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 26 ms, state on the device after 96 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +400 s
+  claude Stop: boop-hook 43 ms, state on the device after 108 ms
+  ok {"moment": {"anim": "cheer"}} after 32 ms
+  claude UserPromptSubmit: boop-hook 27 ms, state on the device after 75 ms
+  ok {"base": "working"} after 40 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 79 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 24 ms, no new state
+  codex UserPromptSubmit: boop-hook 25 ms, state on the device after 81 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 8 ms, state on the device after 413 ms
+  ok not {"screen": "needs_you"} until 3413 ms after the last hook
+  ok {"base": "working", "attn": null} after 25 ms
+  app clock +45 s
+  codex Stop: boop-hook 25 ms, state on the device after 101 ms
+  ok {"moment": {"anim": "cheer"}} after 38 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 26 ms, no new state
+  codex UserPromptSubmit: boop-hook 26 ms, state on the device after 76 ms
+  ok {"base": "working"} after 37 ms
+  codex PreToolUse: boop-hook 10 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 951 ms
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 24 ms, state on the device after 77 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +45 s
+  codex Stop: boop-hook 23 ms, state on the device after 93 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 31 at 24.5 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 27 ms, no new state
+  claude UserPromptSubmit: boop-hook 26 ms, state on the device after 77 ms
+  ok {"base": "working", "attn": null} after 23 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 14 ms, no new state
+  claude PreToolUse: boop-hook 27 ms, no new state
+  claude PermissionRequest: boop-hook 26 ms, state on the device after 82 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 38 ms
+  claude Notification: boop-hook 21 ms, no new state
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 25 ms, state on the device after 77 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +400 s
+  claude Stop: boop-hook 28 ms, state on the device after 95 ms
+  ok {"moment": {"anim": "cheer"}} after 33 ms
+  claude UserPromptSubmit: boop-hook 21 ms, state on the device after 69 ms
+  ok {"base": "working"} after 40 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 78 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 24 ms, no new state
+  codex UserPromptSubmit: boop-hook 27 ms, state on the device after 80 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 10 ms, no new state
+  ok not {"screen": "needs_you"} until 3518 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 27 ms, state on the device after 95 ms
+  ok {"moment": {"anim": "cheer"}} after 38 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 21 ms, no new state
+  codex UserPromptSubmit: boop-hook 24 ms, state on the device after 72 ms
+  ok {"base": "working"} after 39 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 531 ms
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 26 ms, state on the device after 101 ms
+  ok {"base": "working", "attn": null} after 37 ms
+  app clock +45 s
+  codex Stop: boop-hook 25 ms, state on the device after 83 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 32 at 25.3 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 27 ms, no new state
+  claude UserPromptSubmit: boop-hook 28 ms, state on the device after 74 ms
+  ok {"base": "working", "attn": null} after 25 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 11 ms, no new state
+  claude PreToolUse: boop-hook 27 ms, no new state
+  claude PermissionRequest: boop-hook 28 ms, state on the device after 84 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 39 ms
+  claude Notification: boop-hook 25 ms, state on the device after 94 ms
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 20 ms, state on the device after 73 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +400 s
+  claude Stop: boop-hook 26 ms, state on the device after 94 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+  claude UserPromptSubmit: boop-hook 25 ms, state on the device after 86 ms
+  ok {"base": "working"} after 28 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 79 ms
+  ok {"moment": {"anim": "oops"}} after 36 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 27 ms, no new state
+  codex UserPromptSubmit: boop-hook 27 ms, state on the device after 80 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 10 ms, no new state
+  ok not {"screen": "needs_you"} until 3515 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 25 ms, state on the device after 96 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 25 ms, no new state
+  codex UserPromptSubmit: boop-hook 27 ms, state on the device after 75 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 901 ms
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 24 ms, state on the device after 78 ms
+  ok {"base": "working", "attn": null} after 33 ms
+  app clock +45 s
+  codex Stop: boop-hook 27 ms, state on the device after 95 ms
+  ok {"moment": {"anim": "cheer"}} after 33 ms
+# round 33 at 26.1 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 26 ms, no new state
+  claude UserPromptSubmit: boop-hook 20 ms, state on the device after 65 ms
+  ok {"base": "working", "attn": null} after 25 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 24 ms, no new state
+  claude PreToolUse: boop-hook 22 ms, no new state
+  claude PermissionRequest: boop-hook 27 ms, state on the device after 102 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 36 ms
+  claude Notification: boop-hook 24 ms, no new state
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 27 ms, state on the device after 80 ms
+  ok {"base": "working", "attn": null} after 33 ms
+  app clock +400 s
+  claude Stop: boop-hook 26 ms, state on the device after 97 ms
+  ok {"moment": {"anim": "cheer"}} after 33 ms
+  claude UserPromptSubmit: boop-hook 25 ms, state on the device after 83 ms
+  ok {"base": "working"} after 30 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 76 ms
+  ok {"moment": {"anim": "oops"}} after 38 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 23 ms, no new state
+  codex UserPromptSubmit: boop-hook 27 ms, state on the device after 81 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 3512 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 27 ms, state on the device after 97 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 24 ms, no new state
+  codex UserPromptSubmit: boop-hook 25 ms, state on the device after 81 ms
+  ok {"base": "working"} after 35 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 9 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 479 ms
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 25 ms, state on the device after 78 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +45 s
+  codex Stop: boop-hook 26 ms, state on the device after 95 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 34 at 26.9 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 20 ms, no new state
+  claude UserPromptSubmit: boop-hook 28 ms, state on the device after 75 ms
+  ok {"base": "working", "attn": null} after 25 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 10 ms, no new state
+  claude PreToolUse: boop-hook 28 ms, no new state
+  claude PermissionRequest: boop-hook 26 ms, state on the device after 82 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 38 ms
+  claude Notification: boop-hook 28 ms, state on the device after 93 ms
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 26 ms, state on the device after 79 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +400 s
+  claude Stop: boop-hook 27 ms, state on the device after 96 ms
+  ok {"moment": {"anim": "cheer"}} after 33 ms
+  claude UserPromptSubmit: boop-hook 24 ms, state on the device after 85 ms
+  ok {"base": "working"} after 33 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 78 ms
+  ok {"moment": {"anim": "oops"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 24 ms, no new state
+  codex UserPromptSubmit: boop-hook 24 ms, state on the device after 72 ms
+  ok {"base": "working"} after 40 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 27 ms, no new state
+  ok not {"screen": "needs_you"} until 3512 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 28 ms, state on the device after 96 ms
+  ok {"moment": {"anim": "cheer"}} after 38 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 23 ms, no new state
+  codex UserPromptSubmit: boop-hook 29 ms, state on the device after 76 ms
+  ok {"base": "working"} after 40 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 10 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 897 ms
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 24 ms, state on the device after 77 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +45 s
+  codex Stop: boop-hook 27 ms, state on the device after 95 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 35 at 27.8 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 27 ms, no new state
+  claude UserPromptSubmit: boop-hook 27 ms, state on the device after 75 ms
+  ok {"base": "working", "attn": null} after 25 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 9 ms, no new state
+  claude PreToolUse: boop-hook 28 ms, no new state
+  claude PermissionRequest: boop-hook 23 ms, state on the device after 78 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 38 ms
+  claude Notification: boop-hook 28 ms, no new state
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 24 ms, state on the device after 77 ms
+  ok {"base": "working", "attn": null} after 34 ms
+  app clock +400 s
+  claude Stop: boop-hook 25 ms, state on the device after 94 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+  claude UserPromptSubmit: boop-hook 27 ms, state on the device after 86 ms
+  ok {"base": "working"} after 28 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 66 ms
+  ok {"moment": {"anim": "oops"}} after 30 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 27 ms, no new state
+  codex UserPromptSubmit: boop-hook 27 ms, state on the device after 80 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 9 ms, no new state
+  ok not {"screen": "needs_you"} until 3512 ms after the last hook
+  ok {"base": "working", "attn": null} after 21 ms
+  app clock +45 s
+  codex Stop: boop-hook 19 ms, state on the device after 88 ms
+  ok {"moment": {"anim": "cheer"}} after 38 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 24 ms, no new state
+  codex UserPromptSubmit: boop-hook 24 ms, state on the device after 85 ms
+  ok {"base": "working"} after 35 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 554 ms
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 23 ms, state on the device after 86 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +45 s
+  codex Stop: boop-hook 25 ms, state on the device after 93 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+# round 36 at 28.6 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 27 ms, no new state
+  claude UserPromptSubmit: boop-hook 27 ms, state on the device after 76 ms
+  ok {"base": "working", "attn": null} after 23 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 15 ms, no new state
+  claude PreToolUse: boop-hook 30 ms, no new state
+  claude PermissionRequest: boop-hook 27 ms, state on the device after 103 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 38 ms
+  claude Notification: boop-hook 27 ms, no new state
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 18 ms, state on the device after 72 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +400 s
+  claude Stop: boop-hook 18 ms, state on the device after 81 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+  claude UserPromptSubmit: boop-hook 25 ms, state on the device after 74 ms
+  ok {"base": "working"} after 40 ms
+  claude PreToolUse: boop-hook 10 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 78 ms
+  ok {"moment": {"anim": "oops"}} after 34 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 25 ms, no new state
+  codex UserPromptSubmit: boop-hook 27 ms, state on the device after 80 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 9 ms, no new state
+  ok not {"screen": "needs_you"} until 3513 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 24 ms, state on the device after 95 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 24 ms, no new state
+  codex UserPromptSubmit: boop-hook 25 ms, state on the device after 75 ms
+  ok {"base": "working"} after 38 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 538 ms
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 26 ms, state on the device after 79 ms
+  ok {"base": "working", "attn": null} after 34 ms
+  app clock +45 s
+  codex Stop: boop-hook 26 ms, state on the device after 95 ms
+  ok {"moment": {"anim": "cheer"}} after 33 ms
+# round 37 at 29.4 min
+## app/Tests/Fixtures/hooks/e2e/claude/session.jsonl
+  claude SessionStart: boop-hook 28 ms, no new state
+  claude UserPromptSubmit: boop-hook 25 ms, state on the device after 76 ms
+  ok {"base": "working", "attn": null} after 25 ms
+  claude PreToolUse: boop-hook 8 ms, no new state
+  claude PostToolUse: boop-hook 8 ms, no new state
+  claude PreToolUse: boop-hook 7 ms, no new state
+  claude PostToolUse: boop-hook 23 ms, no new state
+  claude PreToolUse: boop-hook 27 ms, no new state
+  claude PermissionRequest: boop-hook 26 ms, state on the device after 104 ms
+  ok {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1} after 36 ms
+  claude Notification: boop-hook 26 ms, no new state
+  ok {"screen": "needs_you"} after 23 ms
+  shot plan/evidence/v1-build/J2/claude-needs-you.png
+  claude PostToolUse: boop-hook 24 ms, state on the device after 76 ms
+  ok {"base": "working", "attn": null} after 36 ms
+  app clock +400 s
+  claude Stop: boop-hook 22 ms, state on the device after 83 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+  claude UserPromptSubmit: boop-hook 26 ms, state on the device after 77 ms
+  ok {"base": "working"} after 38 ms
+  claude PreToolUse: boop-hook 9 ms, no new state
+  app clock +40 s
+  claude StopFailure: boop-hook 8 ms, state on the device after 93 ms
+  ok {"moment": {"anim": "oops"}} after 30 ms
+## app/Tests/Fixtures/hooks/e2e/codex/quick.jsonl
+  codex SessionStart: boop-hook 28 ms, no new state
+  codex UserPromptSubmit: boop-hook 26 ms, state on the device after 80 ms
+  ok {"base": "working"} after 25 ms
+  codex PreToolUse: boop-hook 8 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  codex PostToolUse: boop-hook 11 ms, no new state
+  ok not {"screen": "needs_you"} until 3517 ms after the last hook
+  ok {"base": "working", "attn": null} after 20 ms
+  app clock +45 s
+  codex Stop: boop-hook 24 ms, state on the device after 95 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+## app/Tests/Fixtures/hooks/e2e/codex/slow.jsonl
+  codex SessionStart: boop-hook 26 ms, no new state
+  codex UserPromptSubmit: boop-hook 27 ms, state on the device after 75 ms
+  ok {"base": "working"} after 38 ms
+  codex PreToolUse: boop-hook 9 ms, no new state
+  codex PermissionRequest: boop-hook 8 ms, no new state
+  ok not {"screen": "needs_you"} until 1800 ms after the last hook
+  ok {"screen": "needs_you", "attn": {"agent": "codex", "project": "landing"}} after 438 ms
+  ok {"screen": "needs_you"} after 21 ms
+  shot plan/evidence/v1-build/J2/codex-needs-you.png
+  codex PostToolUse: boop-hook 26 ms, state on the device after 78 ms
+  ok {"base": "working", "attn": null} after 35 ms
+  app clock +45 s
+  codex Stop: boop-hook 27 ms, state on the device after 95 ms
+  ok {"moment": {"anim": "cheer"}} after 35 ms
+Boop exit 0
+boopctl exit 0

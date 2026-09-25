@@ -1,0 +1,1166 @@
+{
+ "brain": "apple",
+ "minutes": 31.2,
+ "rounds": 37,
+ "hooks": 962,
+ "checkpoint_misses": 0,
+ "link_glitches": [],
+ "latency": {
+  "p50": 80.1,
+  "p95": 98.0,
+  "n": 427
+ },
+ "reset": false,
+ "heap_min_after_2min": 72484,
+ "heap_min_end": 72484,
+ "heap_min_drift": 0,
+ "audio_errors": 0,
+ "app_rss_kb": {
+  "after_2min": 37920,
+  "end": 26160,
+  "max": 51776
+ },
+ "app_exited_early": false,
+ "final": {
+  "screen": "face",
+  "base": "idle",
+  "attn": null,
+  "moment": null,
+  "rung": 0
+ },
+ "stuck": false,
+ "failures": [],
+ "ok": true,
+ "series": [
+  {
+   "t": 0.4,
+   "up": 4475214,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 6,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 51104
+  },
+  {
+   "t": 19.2,
+   "up": 4494007,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 91,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 51376
+  },
+  {
+   "t": 29.1,
+   "up": 4503883,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 102,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 51472
+  },
+  {
+   "t": 45.4,
+   "up": 4520161,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 51552
+  },
+  {
+   "t": 67.6,
+   "up": 4542354,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 51776
+  },
+  {
+   "t": 77.9,
+   "up": 4552700,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 10,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 51776
+  },
+  {
+   "t": 94.3,
+   "up": 4569133,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 42576
+  },
+  {
+   "t": 116.6,
+   "up": 4591350,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 42752
+  },
+  {
+   "t": 126.9,
+   "up": 4601665,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 84,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 37920
+  },
+  {
+   "t": 143.4,
+   "up": 4618137,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 83,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 37888
+  },
+  {
+   "t": 165.6,
+   "up": 4640393,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 37952
+  },
+  {
+   "t": 175.9,
+   "up": 4650749,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 59,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 37968
+  },
+  {
+   "t": 192.3,
+   "up": 4667123,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 37920
+  },
+  {
+   "t": 214.5,
+   "up": 4689262,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 38032
+  },
+  {
+   "t": 224.8,
+   "up": 4699601,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 66,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 38064
+  },
+  {
+   "t": 241.3,
+   "up": 4716127,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 83,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25184
+  },
+  {
+   "t": 263.5,
+   "up": 4738263,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25312
+  },
+  {
+   "t": 273.8,
+   "up": 4748608,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25360
+  },
+  {
+   "t": 290.4,
+   "up": 4765151,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 82,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25296
+  },
+  {
+   "t": 312.5,
+   "up": 4787333,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25344
+  },
+  {
+   "t": 322.9,
+   "up": 4797645,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 66,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25344
+  },
+  {
+   "t": 339.4,
+   "up": 4814166,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 84,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25328
+  },
+  {
+   "t": 361.5,
+   "up": 4836272,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25456
+  },
+  {
+   "t": 371.8,
+   "up": 4846585,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25440
+  },
+  {
+   "t": 388.4,
+   "up": 4863167,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 74,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25440
+  },
+  {
+   "t": 410.0,
+   "up": 4884841,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 75,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25504
+  },
+  {
+   "t": 420.4,
+   "up": 4895230,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 88,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25536
+  },
+  {
+   "t": 437.3,
+   "up": 4912154,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 86,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25472
+  },
+  {
+   "t": 459.1,
+   "up": 4933850,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 79,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25584
+  },
+  {
+   "t": 469.4,
+   "up": 4944163,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 0,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25616
+  },
+  {
+   "t": 486.3,
+   "up": 4961130,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 75,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25648
+  },
+  {
+   "t": 508.0,
+   "up": 4982829,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 79,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25792
+  },
+  {
+   "t": 518.4,
+   "up": 4993173,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 62,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25744
+  },
+  {
+   "t": 535.3,
+   "up": 5010129,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 19,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25680
+  },
+  {
+   "t": 556.8,
+   "up": 5031591,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 78,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25808
+  },
+  {
+   "t": 567.1,
+   "up": 5041919,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 0,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25824
+  },
+  {
+   "t": 584.3,
+   "up": 5059117,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 47,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25808
+  },
+  {
+   "t": 606.2,
+   "up": 5081043,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25904
+  },
+  {
+   "t": 616.6,
+   "up": 5091375,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 0,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25904
+  },
+  {
+   "t": 633.3,
+   "up": 5108115,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 19,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25808
+  },
+  {
+   "t": 655.4,
+   "up": 5130232,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25904
+  },
+  {
+   "t": 665.8,
+   "up": 5140570,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 0,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25904
+  },
+  {
+   "t": 682.3,
+   "up": 5157144,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 81,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25856
+  },
+  {
+   "t": 704.5,
+   "up": 5179294,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25904
+  },
+  {
+   "t": 714.8,
+   "up": 5189601,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 0,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25856
+  },
+  {
+   "t": 731.3,
+   "up": 5206143,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 23,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25856
+  },
+  {
+   "t": 753.5,
+   "up": 5228301,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25984
+  },
+  {
+   "t": 763.8,
+   "up": 5238634,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25952
+  },
+  {
+   "t": 780.4,
+   "up": 5255180,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 1,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25888
+  },
+  {
+   "t": 802.5,
+   "up": 5277321,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25984
+  },
+  {
+   "t": 812.8,
+   "up": 5287636,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 86,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26048
+  },
+  {
+   "t": 829.4,
+   "up": 5304142,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 51,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26000
+  },
+  {
+   "t": 851.1,
+   "up": 5325861,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 76,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26048
+  },
+  {
+   "t": 861.4,
+   "up": 5336256,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 83,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26000
+  },
+  {
+   "t": 878.3,
+   "up": 5353129,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 19,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26000
+  },
+  {
+   "t": 900.0,
+   "up": 5374810,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 80,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26000
+  },
+  {
+   "t": 910.3,
+   "up": 5385139,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 89,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26048
+  },
+  {
+   "t": 927.3,
+   "up": 5402137,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 62,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25952
+  },
+  {
+   "t": 949.5,
+   "up": 5424267,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26064
+  },
+  {
+   "t": 959.8,
+   "up": 5434566,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 16,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26064
+  },
+  {
+   "t": 976.4,
+   "up": 5451166,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 1,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25984
+  },
+  {
+   "t": 998.5,
+   "up": 5473287,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26032
+  },
+  {
+   "t": 1008.8,
+   "up": 5483635,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 0,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26080
+  },
+  {
+   "t": 1025.3,
+   "up": 5500141,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 68,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26032
+  },
+  {
+   "t": 1047.1,
+   "up": 5521913,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 86,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26048
+  },
+  {
+   "t": 1057.5,
+   "up": 5532290,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 0,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26032
+  },
+  {
+   "t": 1074.3,
+   "up": 5549147,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 66,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26032
+  },
+  {
+   "t": 1096.4,
+   "up": 5571255,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26064
+  },
+  {
+   "t": 1106.8,
+   "up": 5581587,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 86,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26080
+  },
+  {
+   "t": 1123.3,
+   "up": 5598149,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 60,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26032
+  },
+  {
+   "t": 1145.5,
+   "up": 5620325,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26048
+  },
+  {
+   "t": 1155.8,
+   "up": 5630625,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 84,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26048
+  },
+  {
+   "t": 1172.3,
+   "up": 5647120,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 76,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25984
+  },
+  {
+   "t": 1194.0,
+   "up": 5668808,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 78,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26080
+  },
+  {
+   "t": 1204.3,
+   "up": 5679142,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 0,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26032
+  },
+  {
+   "t": 1221.3,
+   "up": 5696118,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 1,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 25984
+  },
+  {
+   "t": 1243.0,
+   "up": 5717762,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 80,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26112
+  },
+  {
+   "t": 1253.3,
+   "up": 5728135,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 28,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26144
+  },
+  {
+   "t": 1270.3,
+   "up": 5745131,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 19,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26032
+  },
+  {
+   "t": 1292.4,
+   "up": 5767196,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26128
+  },
+  {
+   "t": 1302.7,
+   "up": 5777532,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 0,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26080
+  },
+  {
+   "t": 1319.3,
+   "up": 5794128,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 84,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26080
+  },
+  {
+   "t": 1341.4,
+   "up": 5816250,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26192
+  },
+  {
+   "t": 1351.8,
+   "up": 5826577,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 0,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26144
+  },
+  {
+   "t": 1368.3,
+   "up": 5843162,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 86,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26128
+  },
+  {
+   "t": 1390.5,
+   "up": 5865307,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26160
+  },
+  {
+   "t": 1400.8,
+   "up": 5875620,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 62,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26176
+  },
+  {
+   "t": 1417.3,
+   "up": 5892144,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 83,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26192
+  },
+  {
+   "t": 1439.1,
+   "up": 5913906,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 83,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26144
+  },
+  {
+   "t": 1449.3,
+   "up": 5924151,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 0,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26192
+  },
+  {
+   "t": 1466.3,
+   "up": 5941127,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 1,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26128
+  },
+  {
+   "t": 1488.5,
+   "up": 5963293,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26224
+  },
+  {
+   "t": 1498.8,
+   "up": 5973610,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 5,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26176
+  },
+  {
+   "t": 1515.3,
+   "up": 5990152,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 37,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26128
+  },
+  {
+   "t": 1537.1,
+   "up": 6011885,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 85,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26224
+  },
+  {
+   "t": 1547.4,
+   "up": 6022238,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 4,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26176
+  },
+  {
+   "t": 1564.3,
+   "up": 6039153,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 1,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26160
+  },
+  {
+   "t": 1586.5,
+   "up": 6061294,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26224
+  },
+  {
+   "t": 1596.8,
+   "up": 6071626,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 0,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26176
+  },
+  {
+   "t": 1613.3,
+   "up": 6088149,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 1,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26192
+  },
+  {
+   "t": 1635.1,
+   "up": 6109874,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 79,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26208
+  },
+  {
+   "t": 1645.4,
+   "up": 6120224,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 84,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26192
+  },
+  {
+   "t": 1662.3,
+   "up": 6137128,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 81,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26208
+  },
+  {
+   "t": 1684.4,
+   "up": 6159238,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26256
+  },
+  {
+   "t": 1694.8,
+   "up": 6169579,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 85,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26256
+  },
+  {
+   "t": 1711.3,
+   "up": 6186151,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 78,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26208
+  },
+  {
+   "t": 1733.5,
+   "up": 6208308,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26352
+  },
+  {
+   "t": 1743.8,
+   "up": 6218627,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 91,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26256
+  },
+  {
+   "t": 1760.3,
+   "up": 6235169,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 34,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26256
+  },
+  {
+   "t": 1782.5,
+   "up": 6257362,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 90,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26320
+  },
+  {
+   "t": 1792.9,
+   "up": 6267674,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 85,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26272
+  },
+  {
+   "t": 1809.3,
+   "up": 6284139,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 80,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26240
+  },
+  {
+   "t": 1872.4,
+   "up": 6347213,
+   "heap": 73288,
+   "heap_min": 72484,
+   "fps": 18,
+   "audio_errors": 0,
+   "app_alive": true,
+   "app_rss_kb": 26160
+  }
+ ]
+}

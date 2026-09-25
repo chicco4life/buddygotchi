@@ -466,3 +466,32 @@ The owner read the A3 blocker (`A3/README.md`) and decided:
   golden reviewed, and rewrite `README.md` for the v1 product and commands
   (`make` targets, `boopctl` including `voice`, `voicegen`, `boopdev brain
   --gap-min`). Webcam stays off: skip L3 and say so.
+
+## 2026-09-26 07:25 — J2: Soak and polish — Passed
+
+- **Found:** the cut-off iteration's `boopctl e2e --soak` and README rewrite,
+  uncommitted, plus a half-finished 30-minute soak whose results were never
+  written. Kept both.
+- **Changed:** `boopctl e2e --soak MIN` (committed with a VERIFICATION §2
+  row). It now retries a debug request once and counts it as a link glitch:
+  two soak attempts died on the USB debug channel (a lost `dbg.ping` reply
+  at ~1 min, and 23 base64 characters missing from a `dbg.shot` at 22 min),
+  not in Boop. README rewritten for v1.
+- **Checks:** `make test` 166/166; `make fw-test` 74/74; `boopctl sim` 10
+  scenarios, 0 failures, 0 new or changed pictures, all 80 goldens looked at
+  on one sheet. Soak with the Apple brain: 31.2 min, 37 rounds, 962 hooks,
+  0 checkpoint misses, 0 link glitches, no reset, heap-minimum drift 0,
+  audio errors 0, app RSS 51 MB → 26 MB, and the plain face at the end.
+  p95 hook to board 98 ms. **PASS.** L3 skipped (webcam withdrawn).
+- **Known issue for J3:** over USB, a line lost from the board to the Mac is
+  gone for good (no sequence numbers). See `J2/README.md`.
+- **Board:** firmware untouched (F5), on the idle face; no bridge or app
+  running.
+- **Next step:** every milestone except P1 is now Passed, so do **J3**
+  (PLAN.md §4 J3): write `plan/evidence/v1-build/REPORT.md` covering each
+  milestone with evidence links, known issues (A3's list in `A3/README.md`,
+  J2's USB line loss), what the morning checklist should do differently,
+  and the confirmed panel settings (see DEVICE.md and F1's evidence). Then
+  `make flash`, confirm the idle face with `boopctl shot`, set J3 Passed,
+  create `plan/evidence/v1-build/DONE` and commit. Webcam stays off: say
+  that L3 was skipped. Never start P1.
