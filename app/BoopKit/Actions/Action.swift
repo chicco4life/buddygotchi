@@ -82,31 +82,9 @@ extension Action {
         return outcome
     }
 
-    /// The call's arguments checked against this action's definition: every
-    /// required one present, no unknown ones, choices and lengths respected.
+    /// The call's arguments checked against this action's definition.
     func arguments(_ call: ToolCall) -> Result<[String: ToolValue], Refusal> {
-        for key in call.arguments.keys where !definition.parameters.contains(where: { $0.name == key }) {
-            return .failure(Refusal("unknown argument \(key)"))
-        }
-        for p in definition.parameters {
-            guard let value = call.arguments[p.name] else {
-                if p.optional { continue }
-                return .failure(Refusal("\(p.name) is missing"))
-            }
-            switch p.kind {
-            case .choice(let options):
-                guard let s = value.string, options.contains(s) else {
-                    return .failure(Refusal("\(p.name) \(value) isn't one of its choices"))
-                }
-            case .number(let options):
-                guard let n = value.number, options.contains(n) else {
-                    return .failure(Refusal("\(p.name) \(value) isn't one of its choices"))
-                }
-            case .text(let max):
-                guard let s = value.string else { return .failure(Refusal("\(p.name) isn't text")) }
-                if s.count > max { return .failure(Refusal("\(p.name) is longer than \(max) characters")) }
-            }
-        }
+        if let why = definition.check(call.arguments) { return .failure(Refusal(why)) }
         return .success(call.arguments)
     }
 }

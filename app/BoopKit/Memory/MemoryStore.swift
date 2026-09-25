@@ -374,3 +374,12 @@ public final class MemoryStore {
         stamps[file] = stamp(file)
     }
 }
+
+extension MemoryStore {
+    /// The memory text for a trigger's prompt (HARNESS.md §4). Reflection
+    /// reads yesterday's short-term memory from its snapshot.
+    public func promptMemory(for kind: Trigger.Kind) -> Prompt.Memory {
+        Prompt.Memory(steering: steering, longTerm: longTermText,
+                      shortTerm: kind == .reflect ? (reflectionText ?? "") : shortTermText)
+    }
+}

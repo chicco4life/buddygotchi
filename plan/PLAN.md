@@ -139,7 +139,7 @@ Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 | F4 | Bluetooth on the device | Passed |
 | A1 | App core: adapters, hook client, core rules | Passed |
 | A2 | Memory, Voice, actions | Passed |
-| A3 | Harness and brains | Not started |
+| A3 | Harness and brains | In progress |
 | A4 | Device link, app shell, push-to-talk, installer | Not started |
 | J1 | End to end over USB | Not started |
 | F5 | Voice on the device | Not started |

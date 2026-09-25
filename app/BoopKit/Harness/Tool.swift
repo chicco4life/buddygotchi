@@ -34,6 +34,31 @@ public struct ToolDefinition: Equatable, Sendable {
         self.parameters = parameters
     }
 
+    /// Why these arguments don't fit, or nil if they do: every required one
+    /// present, no unknown ones, choices and lengths respected. The harness's
+    /// shape check and every action use this same check.
+    public func check(_ arguments: [String: ToolValue]) -> String? {
+        for key in arguments.keys.sorted() where !parameters.contains(where: { $0.name == key }) {
+            return "unknown argument \(key)"
+        }
+        for p in parameters {
+            guard let value = arguments[p.name] else {
+                if p.optional { continue }
+                return "\(p.name) is missing"
+            }
+            switch p.kind {
+            case .choice(let options):
+                guard let s = value.string, options.contains(s) else { return "\(p.name) \(value) isn't one of its choices" }
+            case .number(let options):
+                guard let n = value.number, options.contains(n) else { return "\(p.name) \(value) isn't one of its choices" }
+            case .text(let max):
+                guard let s = value.string else { return "\(p.name) isn't text" }
+                if s.count > max { return "\(p.name) is longer than \(max) characters" }
+            }
+        }
+        return nil
+    }
+
     /// `{"name":…,"description":…,"parameters":{…}}`, parameters in order.
     public var json: String {
         func quote(_ s: String) -> String {

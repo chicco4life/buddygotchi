@@ -14,6 +14,9 @@ let usage = """
                Prints long-term.md and short-term.md as the memory store reads them, and the history snapshots.
            boopdev voice <feeling> [word] [--dialect HEX] [--seed N] [--count N] [--json] [--why]
                Prints Minion lines as the say action would build them.
+           boopdev brain [--brain apple|rules] [--triggers DIR] [--memory DIR] [--steering FILE] [--out FILE] [--print]
+               Runs the real harness and brain on recorded triggers, each with a fresh copy of the sample
+               memory, and reports valid shapes, dropped calls, the silence rate and latency (VERIFICATION.md L5).
     (boop \(BoopVersion.current))
     """
 
@@ -129,6 +132,110 @@ func voice(_ args: [String]) {
     }
 }
 
+/// `plan/steering.md`, found from the working directory upwards.
+func findSteering() -> String? {
+    var dir = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+    for _ in 0..<6 {
+        let candidate = dir.appendingPathComponent("plan/steering.md")
+        if FileManager.default.fileExists(atPath: candidate.path) { return candidate.path }
+        dir = dir.deletingLastPathComponent()
+    }
+    return nil
+}
+
+func brain(_ args: [String]) async {
+    let fm = FileManager.default
+    let setting = option(args, "--brain") ?? "apple"
+    let triggersDir = option(args, "--triggers") ?? "app/Tests/Fixtures/triggers"
+    let memoryDir = URL(fileURLWithPath: option(args, "--memory") ?? "app/Tests/Fixtures/memory")
+    guard let steeringPath = option(args, "--steering") ?? findSteering(),
+          let steering = try? String(contentsOfFile: steeringPath, encoding: .utf8)
+    else { fail("can't find steering.md; pass --steering") }
+    let brain: any Brain
+    switch setting {
+    case "apple":
+        if let why = AppleBrain.unavailableReason { fail("Apple's model can't run here: \(why)") }
+        brain = AppleBrain()
+    case "rules": brain = RulesBrain()
+    default: fail("brains: apple, rules")
+    }
+
+    var triggers: [Trigger] = []
+    let files = ((try? fm.contentsOfDirectory(atPath: triggersDir)) ?? []).filter { $0.hasSuffix(".jsonl") }.sorted()
+    for file in files {
+        let text = (try? String(contentsOfFile: triggersDir + "/" + file, encoding: .utf8)) ?? ""
+        for line in text.split(separator: "\n") where !line.trimmingCharacters(in: .whitespaces).isEmpty {
+            guard let o = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
+                  let kind = (o["kind"] as? String).flatMap(Trigger.Kind.init(rawValue:)), let text = o["line"] as? String
+            else { fail("bad trigger in \(file): \(line)") }
+            triggers.append(Trigger(kind: kind, line: text, words: o["words"] as? String, ts: 0))
+        }
+    }
+    guard !triggers.isEmpty else { fail("no triggers in \(triggersDir)") }
+
+    let out = URL(fileURLWithPath: option(args, "--out") ?? "/tmp/boop-brain/\(setting).jsonl")
+    try? fm.createDirectory(at: out.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try? fm.removeItem(at: out)
+    let home = DispatchQueue(label: "boopdev.brain")
+    var records: [Harness.Record] = []
+    var logs: [String] = []
+    for (i, trigger) in triggers.enumerated() {
+        // A fresh copy of the sample memory for every trigger.
+        let dir = fm.temporaryDirectory.appendingPathComponent("boop-brain-\(UUID().uuidString)")
+        do { try fm.copyItem(at: memoryDir, to: dir) } catch { fail("can't copy \(memoryDir.path): \(error)") }
+        defer { try? fm.removeItem(at: dir) }
+        let harness: Harness = home.sync {
+            let store = try! MemoryStore(directory: dir, steering: steering, log: { logs.append($0) })
+            if trigger.kind == .reflect, let day = store.lastActiveDay {
+                let next = LocalTime.day(day, plus: 1)
+                store.apply(.newDay(date: next, firstSeen: "08:30", mood: "content"))
+            }
+            let context = ActionContext(send: { _ in }, today: { store.lastActiveDay ?? "2026-10-15" },
+                                        log: { logs.append($0) })
+            let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: 0x7f3a)), memory: store)
+            return Harness(brain: brain, tools: actions.map(Harness.Tool.init), memory: { store.promptMemory(for: $0.kind) },
+                           home: home, debugLog: out, log: { logs.append($0) })
+        }
+        let r = await harness.respond(to: trigger)
+        records.append(r)
+        if args.contains("--print") {
+            let said = trigger.words.map { " \"\($0)\"" } ?? ""
+            let answer = r.dropped.map { "DROPPED \($0)" }
+                ?? (r.ran.isEmpty ? "(quiet)" : r.ran.map { "\($0.call)" + ($0.outcome.isDone ? "" : " ✗") }.joined(separator: ", "))
+            print("\(i + 1)\t\(r.latencyMs) ms\t\(trigger.line)\(said)\n\t→ \(answer)")
+        }
+    }
+
+    func percentile(_ values: [Int], _ p: Double) -> Int {
+        let sorted = values.sorted()
+        return sorted.isEmpty ? 0 : sorted[min(sorted.count - 1, Int((Double(sorted.count) * p).rounded(.up)) - 1)]
+    }
+    let valid = records.filter(\.validShape)
+    let calls = records.flatMap(\.ran)
+    let dropped = calls.filter { !$0.outcome.isDone }
+    print("brain \(brain.id), \(records.count) triggers, log \(out.path)")
+    print("valid shape: \(valid.count)/\(records.count)")
+    for r in records where !r.validShape { print("  dropped answer (\(r.trigger.kind.rawValue)): \(r.dropped ?? "")") }
+    print("silence: \(valid.filter(\.silent).count)/\(valid.count)")
+    print("tool calls: \(calls.count), dropped by actions: \(dropped.count)")
+    for d in dropped {
+        if case .dropped(let why) = d.outcome { print("  \(d.call): \(why)") }
+    }
+    var latencyOK = true
+    for kind in [Trigger.Kind.event, .tap, .talk, .reflect] {
+        let ms = records.filter { $0.trigger.kind == kind }.map(\.latencyMs)
+        guard !ms.isEmpty else { continue }
+        let p95 = percentile(ms, 0.95)
+        if p95 >= kind.deadlineMs { latencyOK = false }
+        print("latency \(kind.rawValue): n \(ms.count), p50 \(percentile(ms, 0.5)) ms, p95 \(p95) ms (deadline \(kind.deadlineMs) ms)")
+    }
+    for line in logs where line.contains("over budget") { print("  \(line)") }
+    let dropRate = calls.isEmpty ? 0 : Double(dropped.count) / Double(calls.count)
+    let pass = valid.count == records.count && dropRate < 0.05 && latencyOK
+    print(pass ? "PASS (the sample review is separate)" : "FAIL")
+    exit(pass ? 0 : 1)
+}
+
 let args = Array(CommandLine.arguments.dropFirst())
 switch args.first {
 case "replay":
@@ -137,6 +244,8 @@ case "memory":
     memory(Array(args.dropFirst()))
 case "voice":
     voice(Array(args.dropFirst()))
+case "brain":
+    await brain(Array(args.dropFirst()))
 case nil, "-h", "--help", "help":
     print(usage)
 default:
