@@ -130,7 +130,11 @@ void capitalised(const char* in, char* out, size_t n) {
 }  // namespace
 
 void drawStrip(Canvas& c, const Strip& s) {
-  c.fillRect(kMargin, kStripTop, kWidth - 2 * kMargin, 1, inkAt(kInkDim, kLevels));
+  if (s.pressed) {
+    c.fillRect(kMargin, kStripTop, kWidth - 2 * kMargin, 2, inkAt(kInkAmber, kLevels));
+  } else {
+    c.fillRect(kMargin, kStripTop, kWidth - 2 * kMargin, 1, inkAt(kInkDim, kLevels));
+  }
   const int cy = kStripTop + 20, ty = cy - 10;
   int x = kMargin;
   char buf[24];
@@ -151,9 +155,17 @@ void drawStrip(Canvas& c, const Strip& s) {
   if (s.lowBattery) iconBattery(c, ix, cy - 8);
 }
 
-void drawFaceScreen(Canvas& c, const Pose& p, const Mumble* mumble, const Strip& s) {
+// An empty bowl: the lower half of a ring, with a rim.
+void drawBowl(Canvas& c, int cx, int cy) {
+  fillRing(c, px(cx), px(cy), px(16), px(13), kInkGrey);
+  c.fillRect(cx - 17, cy - 17, 35, 17, kBlack);
+  c.fillRect(cx - 18, cy - 1, 37, 2, inkAt(kInkGrey, kLevels));
+}
+
+void drawFaceScreen(Canvas& c, const Pose& p, const Mumble* mumble, const Strip& s, bool bowl) {
   c.fill(kBlack);
   placeFace(c, p);
+  if (bowl && !mumble) drawBowl(c, kWidth - 44, 236);
   if (mumble) drawMumble(c, *mumble);
   drawStrip(c, s);
 }

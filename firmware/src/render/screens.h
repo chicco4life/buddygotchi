@@ -17,6 +17,7 @@ struct Strip {
   int wait = 0;  // sessions that need you (amber; hidden at zero)
   int busy = 0;  // sessions working (grey)
   bool noApp = false, quiet = false, focus = false, lowBattery = false;
+  bool pressed = false;  // a finger is on the strip: its top line lights up
 };
 
 // A mumble in the bubble: squiggles for the gibberish, and the one real
@@ -46,7 +47,8 @@ struct Stats {
 
 // The face screen, with the bubble when there's a mumble. The face's place
 // comes from the pose (Pose::raise), so moving up for the bubble is eased.
-void drawFaceScreen(Canvas& c, const Pose& p, const Mumble* mumble, const Strip& s);
+// `bowl`: a starving Boop sits by an empty bowl (BEHAVIORS.md §4).
+void drawFaceScreen(Canvas& c, const Pose& p, const Mumble* mumble, const Strip& s, bool bowl = false);
 void drawNeedsYou(Canvas& c, const Pose& p, const Attention& a, const Strip& s);
 void drawThreads(Canvas& c, const Thread* threads, int n, const Strip& s);
 void drawStats(Canvas& c, const Stats& st, const Strip& s);

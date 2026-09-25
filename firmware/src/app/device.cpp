@@ -15,15 +15,9 @@ namespace app {
 namespace {
 
 constexpr uint32_t kDefaultPressMs = 100;
-constexpr uint32_t kNoAppMs = 30000;       // PROTOCOL.md §3
-constexpr uint32_t kRung2Ms = 45000;       // BEHAVIORS.md §3.2 (proposed)
-constexpr uint32_t kRung3Ms = 120000;
 constexpr uint32_t kTouchHoldMs = 600;     // UX.md §4
-constexpr uint32_t kBubbleReadMs = 1200;   // the word stays up after the mumble
 
 void copyStr(char* dst, size_t n, const char* src) { std::snprintf(dst, n, "%s", src ? src : ""); }
-
-bool after(uint32_t a, uint32_t b) { return int32_t(a - b) > 0; }  // a later than b
 
 const char* linkName(Link l) {
   switch (l) {
@@ -45,133 +39,24 @@ void sinkToOut(void* ctx, const char* text, size_t n) { static_cast<Out*>(ctx)->
 
 }  // namespace
 
-const char* screenName(Screen s) {
-  switch (s) {
-    case Screen::kFace: return "face";
-    case Screen::kNeedsYou: return "needs_you";
-    case Screen::kThreads: return "threads";
-    case Screen::kStats: return "stats";
-    case Screen::kNoApp: return "no_app";
-    case Screen::kPattern: return "pattern";
-  }
-  return "face";
-}
-
 Device::Device(Hal& hal, uint8_t* pixels, bool frozenClock) : hal_(hal), canvas_(pixels) {
   clock_.start(frozenClock, hal_.realMs());
-  src_ = sourceAt(0);
+  b_.reset(0, rng_);
 }
 
 // Forgets everything the Mac said and freezes the clock at 0, so a scenario
 // starts from the same place on the board and in the simulator.
 void Device::reset() {
-  model_ = Model{};
-  moment_ = Moment{};
-  blend_ = render::Blend{};
-  pattern_ = false;
-  patternFill_ = -1;
-  userScreen_ = Screen::kFace;
-  injPress_ = injTouch_ = touchDown_ = false;
-  boot_ = ButtonGesture{};
-  last_ = LastInput{};
   clock_.freeze(0);
   rng_.seed(0);
-  modelT_ = drawnT_ = 0;
-  src_ = sourceAt(0);
+  b_.reset(0, rng_);
+  pattern_ = false;
+  patternFill_ = -1;
+  injPress_ = injTouch_ = touchDown_ = touchHeld_ = false;
+  boot_ = ButtonGesture{};
+  last_ = LastInput{};
+  drawnT_ = 0;
   dirty_ = true;
-}
-
-bool Device::noApp(uint32_t t) const { return int32_t(t - model_.lastState) >= int32_t(kNoAppMs); }
-
-int Device::rung(uint32_t t) const {
-  if (!model_.attn) return 0;
-  int32_t d = int32_t(t - model_.attnSince);
-  return 1 + (d >= int32_t(kRung2Ms)) + (d >= int32_t(kRung3Ms));
-}
-
-Device::Source Device::sourceAt(uint32_t t) const {
-  Source s;
-  if (moment_.anim != render::Anim::kNone && int32_t(t - moment_.at) < int32_t(moment_.ms)) {
-    s.anim = moment_.anim, s.size = moment_.size, s.at = moment_.at;
-    return s;
-  }
-  if (noApp(t)) {
-    s.look = render::Look::kNoApp;
-  } else if (model_.attn) {
-    s.look = render::Look::kNeedsYou, s.rung = rung(t);
-  } else if (!std::strcmp(model_.base, "asleep")) {
-    s.look = render::Look::kAsleep;
-  } else if (!std::strcmp(model_.base, "working")) {
-    s.look = render::Look::kWorking;
-  }
-  return s;
-}
-
-render::Pose Device::sourcePose(const Source& s, uint32_t t) const {
-  render::Pose p;
-  if (s.anim != render::Anim::kNone) {
-    p = render::animPose(s.anim, s.size, t - s.at);
-    if (s.at == moment_.at && moment_.say.syllables > 0) p.raise = 1000;  // room for the bubble
-  } else {
-    p = render::lookPose(s.look, s.rung, model_.busy);
-    if (s.look == render::Look::kNeedsYou) p.raise = 1000;
-  }
-  return p;
-}
-
-void Device::resync(uint32_t t) {
-  if (moment_.anim != render::Anim::kNone && int32_t(t - moment_.at) >= int32_t(moment_.ms)) {
-    // Ended: the blend starts from the moment's last pose, not from later.
-    render::Pose last = blend_.apply(t, sourcePose(src_, t));
-    moment_.anim = render::Anim::kNone;
-    Source next = sourceAt(t);
-    if (!(next == src_)) blend_.start(t, last), src_ = next;
-    dirty_ = true;
-  }
-  Source next = sourceAt(t);
-  if (!(next == src_)) {
-    blend_.start(t, poseAt(t));
-    src_ = next;
-    dirty_ = true;
-  }
-  modelT_ = t;
-}
-
-void Device::advance(uint32_t t) {
-  if (int32_t(t - modelT_) < 0) {  // the clock went back: no history to replay
-    modelT_ = t;
-    return;
-  }
-  for (;;) {
-    bool found = false;
-    uint32_t next = t;
-    auto consider = [&](uint32_t c) {
-      if (after(c, modelT_) && !after(c, t) && (!found || after(next, c))) next = c, found = true;
-    };
-    if (moment_.anim != render::Anim::kNone) consider(moment_.at + moment_.ms);
-    consider(model_.lastState + kNoAppMs);
-    if (model_.attn) consider(model_.attnSince + kRung2Ms), consider(model_.attnSince + kRung3Ms);
-    if (!found) break;
-    resync(next);
-  }
-  resync(t);
-}
-
-Screen Device::screenAt(uint32_t t) const {
-  if (pattern_) return Screen::kPattern;
-  if (noApp(t)) return Screen::kNoApp;
-  if (userScreen_ != Screen::kFace) return userScreen_;
-  return model_.attn ? Screen::kNeedsYou : Screen::kFace;
-}
-
-render::Strip Device::strip(uint32_t t) const {
-  render::Strip s;
-  s.wait = model_.wait;
-  s.busy = model_.busy;
-  s.noApp = noApp(t);
-  s.quiet = model_.quiet > 0;
-  s.focus = model_.focus;
-  return s;
 }
 
 void Device::reply(Link link, const char* text, size_t n) {
@@ -187,6 +72,11 @@ void Device::emit(const char* k) {
   reply(link_, buf, size_t(n));
 }
 
+void Device::input(const char* k, uint32_t t, int x, int y) {
+  last_ = {k, t, x, y};
+  dirty_ = true;
+}
+
 void Device::handleLine(const char* line, size_t n, Link from) {
   JsonDocument doc;
   if (deserializeJson(doc, line, n) != DeserializationError::Ok) return;
@@ -197,36 +87,34 @@ void Device::handleLine(const char* line, size_t n, Link from) {
   if (!debug) link_ = from;
   uint32_t real = hal_.realMs();
   uint32_t at = now();
-  advance(at);
+  b_.advance(at, rng_);
 
   if (!std::strcmp(t, "state")) {
-    Model& m = model_;
+    Model m;
     if (doc["base"].is<const char*>()) copyStr(m.base, sizeof(m.base), doc["base"]);
     JsonObjectConst attn = doc["attn"];
     if (attn) {
-      const char* agent = attn["agent"] | "";
-      const char* project = attn["project"] | "";
-      if (!m.attn || std::strncmp(m.agent, agent, sizeof(m.agent) - 1) ||
-          std::strncmp(m.project, project, sizeof(m.project) - 1)) {
-        m.attnSince = at;  // a new "needs you" restarts the ladder
-      }
       m.attn = true;
-      copyStr(m.agent, sizeof(m.agent), agent);
-      copyStr(m.project, sizeof(m.project), project);
+      copyStr(m.agent, sizeof(m.agent), attn["agent"] | "");
+      copyStr(m.project, sizeof(m.project), attn["project"] | "");
       m.more = attn["more"] | 0;
-    } else {
-      m.attn = false;
     }
     m.busy = doc["busy"] | 0;
     m.idle = doc["idle"] | 0;
     m.wait = doc["wait"] | 0;
+    JsonObjectConst mood = doc["mood"];
+    m.energy = mood["energy"] | 100;
+    m.pace = mood["pace"] | 100;
+    m.pitch = mood["pitch"] | 100;
     m.quiet = doc["quiet"] | 0;
     m.focus = doc["focus"] | false;
+    m.vol = doc["vol"] | 6;
+    m.night = doc["night"] | false;
     copyStr(m.name, sizeof(m.name), doc["name"] | "");
     m.level = doc["level"] | 1;
     m.prog = doc["prog"] | 0;
     m.days = doc["days"] | 0;
-    m.nThreads = 0;
+    m.hungry = doc["hungry"] | 0;
     for (JsonArrayConst row : doc["threads"].as<JsonArrayConst>()) {
       if (m.nThreads >= 8) break;
       render::Thread& th = m.threads[m.nThreads++];
@@ -235,38 +123,30 @@ void Device::handleLine(const char* line, size_t n, Link from) {
       const char* st = row[2] | "idle";
       th.status = !std::strcmp(st, "wait") ? 'w' : !std::strcmp(st, "work") ? 'b' : 'i';
     }
-    m.lastState = at;
+    b_.onState(m, at, rng_);
     pattern_ = false;
     dirty_ = true;
-    resync(at);
   } else if (!std::strcmp(t, "moment")) {
-    render::Anim anim = render::animFromName(doc["anim"]);
-    if (anim != render::Anim::kNone) {
-      Moment& mo = moment_;
-      mo = Moment{};
-      mo.anim = anim;
-      mo.size = doc["size"] | 1;
-      mo.at = at;
-      mo.ms = render::animDuration(anim, mo.size);
-      JsonObjectConst say = doc["say"];
-      if (say) {
-        int n = 0;
-        bool inSyl = false;
-        for (const char* p = say["syl"] | ""; *p; ++p) {
-          bool sep = *p == ' ' || *p == '-';
-          if (!sep && !inSyl) ++n;
-          inSyl = !sep;
-        }
-        copyStr(mo.word, sizeof(mo.word), say["word"] | "");
-        mo.say.syllables = n;
-        mo.say.word = mo.word[0] ? mo.word : nullptr;
-        mo.say.at = mo.word[0] ? (say["at"] | n) : -1;
-        uint32_t spoken = uint32_t(n + (mo.word[0] ? 2 : 0)) * (say["ms"] | 120u) + kBubbleReadMs;
-        if (spoken > mo.ms) mo.ms = spoken;
+    MomentIn mo;
+    mo.anim = render::animFromName(doc["anim"]);
+    mo.size = doc["size"] | 1;
+    JsonObjectConst say = doc["say"];
+    if (say) {
+      int syl = 0;
+      bool inSyl = false;
+      for (const char* p = say["syl"] | ""; *p; ++p) {
+        bool sep = *p == ' ' || *p == '-';
+        if (!sep && !inSyl) ++syl;
+        inSyl = !sep;
       }
-      resync(at);
-      dirty_ = true;
+      mo.syllables = syl;
+      const char* word = say["word"] | "";
+      mo.word = word[0] ? word : nullptr;
+      mo.at = say["at"] | syl;
+      mo.ms = say["ms"] | 120u;
     }
+    b_.onMoment(mo, at, rng_);  // copies the word
+    dirty_ = true;
   } else if (!std::strcmp(t, "dbg.reset")) {
     reset();
     reply(from, "{\"t\":\"dbg.reset\"}", 17);
@@ -308,68 +188,109 @@ void Device::handleLine(const char* line, size_t n, Link from) {
     injTouchUntil_ = now() + (doc["ms"] | kDefaultPressMs);
     reply(from, "{\"t\":\"dbg.touch\"}", 17);
   } else if (!std::strcmp(t, "dbg.light")) {
-    if (doc["bl"].is<int>()) {
-      backlight_ = uint8_t(doc["bl"].as<int>());
-      hal_.setBacklight(backlight_);
-    }
+    if (doc["bl"].is<int>()) b_.overrideBacklight(uint8_t(doc["bl"].as<int>()));
     uint32_t rgb;
-    if (parseHex(doc["led"], rgb)) {
-      led_ = rgb;
-      hal_.setLed(rgb);
-    }
+    if (parseHex(doc["led"], rgb)) b_.overrideLed(rgb);
     reply(from, "{\"t\":\"dbg.light\"}", 17);
   }
 }
 
-void Device::tick() {
-  uint32_t t = now();
-  advance(t);
-
-  // BOOT: the physical button or an injected press.
+// BOOT and touch, turned into gestures (UX.md §4). Every press and touch
+// shows on screen at once, before the Mac hears about it.
+void Device::readInputs(uint32_t t) {
   if (injPress_ && int32_t(t - injPressUntil_) >= 0) injPress_ = false;
   switch (boot_.update(hal_.bootDown() || injPress_, t)) {
+    case ButtonGesture::kDown:
+      b_.pressDown(t);
+      dirty_ = true;
+      break;
     case ButtonGesture::kTap:
-      last_ = {"tap", t, -1, -1};
+      b_.pressUp(t);
+      b_.tap(t, rng_);
+      input("tap", t);
       emit("tap");
       break;
     case ButtonGesture::kHoldStart:
-      last_ = {"talk_on", t, -1, -1};
+      b_.pressUp(t);
+      b_.talkOn(t, rng_);
+      input("talk_on", t);
       emit("talk_on");
       break;
     case ButtonGesture::kHoldEnd:
-      last_ = {"talk_off", t, -1, -1};
+      b_.talkOff(t, rng_);
+      input("talk_off", t);
       emit("talk_off");
       break;
     default:
       break;
   }
 
-  // Touch: a short tap on the status strip cycles face → threads → stats.
-  // F3 adds the other gestures.
   if (injTouch_ && int32_t(t - injTouchUntil_) >= 0) injTouch_ = false;
   int x = 0, y = 0;
   bool touching = injTouch_ ? (x = injX_, y = injY_, true) : hal_.touch(x, y);
+  Screen s = screenAt(t);
+  bool faced = s == Screen::kFace || s == Screen::kNeedsYou || s == Screen::kNoApp;
   if (touching && !touchDown_) {
-    last_ = {"touch", t, x, y};
-    touchAt_ = t, touchX_ = x, touchY_ = y;
+    input("touch", t, x, y);
+    touchAt_ = t;
+    touchHeld_ = false;
+    touchStrip_ = y >= render::kStripTop;
+    if (!touchStrip_ && faced) b_.pressDown(t);
   }
-  if (!touching && touchDown_ && t - touchAt_ < kTouchHoldMs && touchY_ >= render::kStripTop) {
-    userScreen_ = userScreen_ == Screen::kFace ? Screen::kThreads
-                  : userScreen_ == Screen::kThreads ? Screen::kStats : Screen::kFace;
+  if (touching && !touchHeld_ && t - touchAt_ >= kTouchHoldMs) {  // touch and hold
+    touchHeld_ = true;
+    b_.pressUp(t);
+    if (touchStrip_) {
+      b_.toggleFocus(t);
+      input("focus", t);
+      emit("focus");
+    } else if (faced) {
+      b_.feel(t, rng_);
+      input("feel", t);
+      emit("feel");
+    }
+  }
+  if (!touching && touchDown_) {
+    b_.pressUp(t);
+    if (!touchHeld_) {
+      if (touchStrip_) {
+        b_.stripTap(t);
+      } else if (faced) {
+        b_.tap(t, rng_);
+        input("tap", t);
+        emit("tap");
+      } else {
+        b_.contentTap(t);
+      }
+    }
     dirty_ = true;
   }
+  if (touching != touchDown_) dirty_ = true;
   touchDown_ = touching;
+}
+
+void Device::tick() {
+  uint32_t t = now();
+  b_.advance(t, rng_);
+  readInputs(t);
+
+  uint32_t led = b_.led(t);
+  if (led != led_) led_ = led, hal_.setLed(led);
+  uint8_t bl = b_.backlight(t);
+  if (bl != backlight_) backlight_ = bl, hal_.setBacklight(bl);
 
   Screen screen = screenAt(t);
   if (screen != screen_) screen_ = screen, dirty_ = true;
   bool faced = screen_ == Screen::kFace || screen_ == Screen::kNeedsYou || screen_ == Screen::kNoApp;
-  bool moving = faced && (src_.anim != render::Anim::kNone || blend_.blending(t));
+  bool moving = faced && b_.moving(t);
   if (dirty_ || ((moving || drawnMoving_) && t != drawnT_)) render(t);
 }
 
 void Device::render(uint32_t t) {
-  render::Strip strip = this->strip(t);
-  bool moving = false;
+  render::Strip strip = b_.strip(t);
+  strip.pressed = touchDown_ && touchStrip_;
+  const Model& m = b_.model();
+  bool faced = false;
   switch (screen_) {
     case Screen::kPattern:
       if (patternFill_ >= 0) {
@@ -378,28 +299,26 @@ void Device::render(uint32_t t) {
         render::drawPattern(canvas_);
       }
       break;
-    case Screen::kThreads: render::drawThreads(canvas_, model_.threads, model_.nThreads, strip); break;
+    case Screen::kThreads: render::drawThreads(canvas_, m.threads, m.nThreads, strip); break;
     case Screen::kStats: {
       render::Stats st;
-      st.name = model_.name, st.level = model_.level, st.prog = model_.prog, st.days = model_.days;
+      st.name = m.name, st.level = m.level, st.prog = m.prog, st.days = m.days;
       render::drawStats(canvas_, st, strip);
       break;
     }
     case Screen::kNeedsYou: {
       render::Attention a;
-      a.agent = model_.agent, a.project = model_.project, a.more = model_.more;
-      render::drawNeedsYou(canvas_, poseAt(t), a, strip);
-      moving = true;
+      a.agent = m.agent, a.project = m.project, a.more = m.more;
+      render::drawNeedsYou(canvas_, b_.pose(t), a, strip);
+      faced = true;
       break;
     }
-    default: {
-      bool talking = src_.anim != render::Anim::kNone && moment_.say.syllables > 0;
-      render::drawFaceScreen(canvas_, poseAt(t), talking ? &moment_.say : nullptr, strip);
-      moving = true;
+    default:
+      render::drawFaceScreen(canvas_, b_.pose(t), b_.mumble(t), strip, screen_ == Screen::kFace && m.hungry >= 2);
+      faced = true;
       break;
-    }
   }
-  drawnMoving_ = moving && (src_.anim != render::Anim::kNone || blend_.blending(t));
+  drawnMoving_ = faced && b_.moving(t);
   drawnT_ = t;
   dirty_ = false;
   frame_ = true;
@@ -427,30 +346,46 @@ void Device::sendPing(Link to) {
 void Device::sendState(Link to) {
   JsonDocument d;
   d["t"] = "dbg.state";
-  d["screen"] = screenName(screenAt(now()));
   uint32_t t = now();
-  d["base"] = model_.base;
-  if (model_.attn) {
-    d["attn"]["agent"] = model_.agent;
-    d["attn"]["project"] = model_.project;
-    d["attn"]["more"] = model_.more;
+  const Model& m = b_.model();
+  d["screen"] = screenName(screenAt(t));
+  d["base"] = m.base;
+  if (m.attn) {
+    d["attn"]["agent"] = m.agent;
+    d["attn"]["project"] = m.project;
+    d["attn"]["more"] = m.more;
   } else {
     d["attn"] = nullptr;
   }
-  d["rung"] = rung(t);
-  if (src_.anim != render::Anim::kNone) {
-    d["moment"]["anim"] = render::animName(src_.anim);
-    d["moment"]["left_ms"] = moment_.at + moment_.ms - t;
+  d["rung"] = b_.rung(t);
+  d["hushed"] = b_.hushed();
+  uint32_t left;
+  render::Anim anim = b_.moment(t, left);
+  if (anim != render::Anim::kNone) {
+    d["moment"]["anim"] = render::animName(anim);
+    d["moment"]["left_ms"] = left;
   } else {
     d["moment"] = nullptr;
   }
-  d["quiet"] = model_.quiet;
-  d["focus"] = model_.focus;
+  const char* life = lifeName(b_.life(t));
+  if (life) d["life"] = life;
+  else d["life"] = nullptr;
+  d["quiet"] = m.quiet;
+  d["focus"] = m.focus;
+  d["night"] = m.night;
+  d["hungry"] = m.hungry;
   char led[8];
-  std::snprintf(led, sizeof(led), "#%06lX", (unsigned long)(led_ & 0xFFFFFF));
+  std::snprintf(led, sizeof(led), "#%06lX", (unsigned long)(b_.led(t) & 0xFFFFFF));
   d["led"] = led;
-  d["audio"]["playing"] = false;
-  d["audio"]["syllables"] = 0;
+  d["audio"]["playing"] = b_.speaking(t);
+  d["audio"]["syllables"] = b_.mumble(t) ? b_.syllables() : 0;
+  uint32_t sfxAt;
+  if (const char* sfx = b_.sfx(sfxAt)) {
+    d["sfx"]["k"] = sfx;
+    d["sfx"]["at"] = sfxAt;
+  } else {
+    d["sfx"] = nullptr;
+  }
   if (last_.k) {
     JsonObject li = d["last_input"].to<JsonObject>();
     li["k"] = last_.k;
@@ -476,8 +411,8 @@ void Device::sendState(Link to) {
   raw.add(rx), raw.add(ry), raw.add(rz);
   d["bat"] = hal_.batteryMv();
   d["amp"] = hal_.ampOn();
-  d["bl"] = backlight_;
-  char buf[768];
+  d["bl"] = b_.backlight(t);
+  char buf[1024];
   size_t n = serializeJson(d, buf, sizeof(buf));
   reply(to, buf, n);
 }

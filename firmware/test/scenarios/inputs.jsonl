@@ -9,7 +9,7 @@
 {"expect": {"touch":{"down":false}}}
 {"input": {"press":"hold","ms":1000}}
 {"clock": 699}
-{"expect": {"boot":true,"last_input":{"k":"touch"}}}
+{"expect": {"boot":true,"last_input":{"k":"tap","at":300}}}
 {"clock": 700}
 {"expect": {"last_input":{"k":"talk_on","at":700}}}
 {"clock": 1300}

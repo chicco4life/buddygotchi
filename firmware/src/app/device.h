@@ -1,11 +1,12 @@
 // The device core: message dispatch, the debug channel, inputs and what's
 // on screen (plan/PROTOCOL.md, plan/VERIFICATION.md §3). Pure C++: the board
-// and the simulator run the same code behind a small Hal. F2 keeps what the
-// Mac last said and draws it; F3 adds the behaviour state machine.
+// and the simulator run the same code behind a small Hal. What Boop does is
+// decided by Behaviour; this class parses, recognises gestures and draws.
 #pragma once
 #include <cstddef>
 #include <cstdint>
 
+#include "app/behaviour.h"
 #include "app/clock.h"
 #include "app/gesture.h"
 #include "render/anim.h"
@@ -46,9 +47,6 @@ struct Hal {
   virtual const char* gitSha() = 0;
 };
 
-enum class Screen : uint8_t { kFace, kNeedsYou, kThreads, kStats, kNoApp, kPattern };
-const char* screenName(Screen s);
-
 class Device {
  public:
   // `pixels` is the kWidth × kHeight canvas buffer, allocated by the caller.
@@ -72,42 +70,6 @@ class Device {
   Screen screen() const { return screen_; }
 
  private:
-  // What the Mac last said (PROTOCOL.md §3).
-  struct Model {
-    char base[12] = "idle";
-    bool attn = false;
-    char agent[12] = "";
-    char project[24] = "";
-    int more = 0;
-    uint32_t attnSince = 0;
-    int busy = 0, idle = 0, wait = 0;
-    int quiet = 0;
-    bool focus = false;
-    char name[16] = "";
-    int level = 1, prog = 0, days = 0;
-    render::Thread threads[8];
-    int nThreads = 0;
-    uint32_t lastState = 0;  // when the last `state` arrived
-  };
-  struct Moment {
-    render::Anim anim = render::Anim::kNone;
-    int size = 1;
-    uint32_t at = 0, ms = 0;
-    render::Mumble say;
-    char word[24] = "";
-  };
-  // What the face is following: a moment, or a look from the state.
-  struct Source {
-    render::Anim anim = render::Anim::kNone;
-    int size = 0;
-    uint32_t at = 0;
-    render::Look look = render::Look::kIdle;
-    int rung = 0;
-    bool operator==(const Source& o) const {
-      return anim == o.anim && size == o.size && at == o.at && look == o.look && rung == o.rung;
-    }
-  };
-
   struct LastInput {
     const char* k = nullptr;
     uint32_t at = 0;
@@ -116,28 +78,21 @@ class Device {
 
   void reply(Link link, const char* text, size_t n);
   void emit(const char* k);  // an `input` message to the Mac
+  void input(const char* k, uint32_t t, int x = -1, int y = -1);
+  void readInputs(uint32_t t);
   void render(uint32_t t);
   void sendPing(Link to);
   void sendState(Link to);
   void sendShot(Link to);
   void reset();
-  // Moves the model to time t, starting blends at the exact moments that
-  // time-based changes happen (a moment ends, the app goes quiet, a rung).
-  void advance(uint32_t t);
-  // After a message changed the model at t: blend if the face's source moved.
-  void resync(uint32_t t);
-  bool noApp(uint32_t t) const;
-  int rung(uint32_t t) const;
-  Source sourceAt(uint32_t t) const;
-  render::Pose sourcePose(const Source& s, uint32_t t) const;
-  render::Pose poseAt(uint32_t t) const { return blend_.apply(t, sourcePose(src_, t)); }
-  Screen screenAt(uint32_t t) const;
-  render::Strip strip(uint32_t t) const;
+  void parseState(const char* line, size_t n, uint32_t at);
+  Screen screenAt(uint32_t t) const { return pattern_ ? Screen::kPattern : b_.screen(t); }
 
   Hal& hal_;
   render::Canvas canvas_;
   Clock clock_;
   Rng rng_;
+  Behaviour b_;
   ButtonGesture boot_;
   Out* outs_[3] = {nullptr, nullptr, nullptr};
   Link link_ = Link::kNone;  // the link the Mac last spoke on
@@ -145,12 +100,6 @@ class Device {
   Screen screen_ = Screen::kFace;
   bool pattern_ = false;  // dbg.pattern until the next state
   int patternFill_ = -1;  // a solid dbg.pattern screen, or -1
-  Screen userScreen_ = Screen::kFace;  // face, threads or stats (strip taps)
-  Model model_;
-  Moment moment_;
-  Source src_;
-  render::Blend blend_;
-  uint32_t modelT_ = 0;   // the time the model was last advanced to
   uint32_t drawnT_ = 0;   // the time of the last frame
   bool drawnMoving_ = false;  // it was mid-motion, so the next time step redraws
   bool dirty_ = true;
@@ -162,9 +111,9 @@ class Device {
   bool injTouch_ = false;
   uint32_t injTouchUntil_ = 0;
   int injX_ = 0, injY_ = 0;
-  bool touchDown_ = false;
+  // The touch in progress.
+  bool touchDown_ = false, touchHeld_ = false, touchStrip_ = false;
   uint32_t touchAt_ = 0;
-  int touchX_ = 0, touchY_ = 0;
 
   LastInput last_;
   uint32_t led_ = 0;

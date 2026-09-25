@@ -1,0 +1,35 @@
+// Idle life (BEHAVIORS.md §2, §4): blinks, glances, a hum and a bob, the
+// hungry rumble and hopeful peek. Each starts fresh, so the event and its
+// frame are the same on the board and in the simulator.
+{"clock":0}
+{"t":"state","v":1,"base":"idle","idle":1}
+{"clock":4990}
+{"expect":{"life":null}}
+{"clock":5100}
+{"expect":{"life":"blink"}}
+{"shot":"idle-blink"}
+{"t":"dbg.reset"}
+{"t":"state","v":1,"base":"idle","idle":1}
+{"clock":5320}
+{"expect":{"life":"glance"}}
+{"shot":"idle-glance"}
+{"t":"dbg.reset"}
+{"t":"state","v":1,"base":"idle","idle":1}
+{"clock":5540}
+{"expect":{"life":"bob"}}
+{"shot":"idle-bob"}
+{"t":"dbg.reset"}
+{"t":"state","v":1,"base":"working","busy":1}
+{"clock":5320}
+{"expect":{"life":"glance"}}
+{"shot":"working-glance"}
+{"t":"dbg.reset"}
+{"t":"state","v":1,"base":"idle","idle":1,"hungry":1}
+{"clock":5500}
+{"expect":{"life":"rumble"}}
+{"shot":"hungry-rumble"}
+{"t":"dbg.reset"}
+{"t":"state","v":1,"base":"idle","idle":1,"hungry":1}
+{"clock":5540}
+{"expect":{"life":"peek"}}
+{"shot":"hungry-peek"}
