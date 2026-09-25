@@ -1,7 +1,7 @@
 """Webcam helpers for L3 (plan/VERIFICATION.md §5, §6). Opt-in only.
 
 Clips are short, video only, and stay in /tmp. `frame` finds the screen by
-recording it lit and then with the backlight off; `pattern` checks the
+recording it solid white and then with the backlight off; `pattern` checks the
 bring-up pattern's colours and orientation through the camera.
 """
 from __future__ import annotations
@@ -23,8 +23,12 @@ WORK = Path("/tmp/boop-cam")
 CROP = WORK / "crop.json"
 
 
-def still(name: str, seconds: float = 2.0, at: float = 1.2, camera: str = CAMERA) -> Image.Image:
-    """Records a short clip and returns one full-resolution frame from it."""
+def still(name: str, seconds: float = 3.0, at: float = 1.0, camera: str = CAMERA) -> Image.Image:
+    """Records a short clip and returns one full-resolution frame from it.
+
+    The camera takes about a second to start, so a 3 s request yields about
+    2 s of video; `at` skips the first frames while exposure settles.
+    """
     clip, frames = WORK / f"{name}-clip", WORK / f"{name}-frames"
     for d in (clip, frames):
         shutil.rmtree(d, ignore_errors=True)
@@ -42,16 +46,27 @@ def still(name: str, seconds: float = 2.0, at: float = 1.2, camera: str = CAMERA
 
 def find_screen(lit: Image.Image, dark: Image.Image) -> tuple[int, int, int, int] | None:
     """The box that got brighter when the backlight was on."""
-    diff = ImageChops.subtract(lit.convert("L"), dark.convert("L"))
-    small = diff.reduce(4).point(lambda v: 255 if v > 40 else 0)
+    diff = ImageChops.subtract(lit.convert("L"), dark.convert("L")).reduce(4)
+    # The lit screen also lights up the board around it, so the cut-off is
+    # relative to the screen itself: the brightest 2% of the change. The
+    # screen is solid white, so all of it changes by about that much.
+    hist = diff.histogram()
+    total, seen, top = sum(hist), 0, 255
+    while top > 0 and seen + hist[top] < total * 0.02:
+        seen += hist[top]
+        top -= 1
+    if top < 30:
+        return None
+    cut = top * 0.6
+    small = diff.point(lambda v: 255 if v > cut else 0)
     w, h = small.size
     px = small.load()
     cols = [sum(1 for y in range(h) if px[x, y]) for x in range(w)]
     rows = [sum(1 for x in range(w) if px[x, y]) for y in range(h)]
     if max(cols, default=0) < 10:
         return None
-    xs = [x for x, c in enumerate(cols) if c > max(cols) * 0.3]
-    ys = [y for y, c in enumerate(rows) if c > max(rows) * 0.3]
+    xs = [x for x, c in enumerate(cols) if c > max(cols) * 0.6]
+    ys = [y for y, c in enumerate(rows) if c > max(rows) * 0.6]
     return xs[0] * 4, ys[0] * 4, (xs[-1] + 1) * 4, (ys[-1] + 1) * 4
 
 
@@ -66,7 +81,7 @@ def upright(img: Image.Image, box: tuple[int, int, int, int], usb: str) -> Image
 
 def frame(dev: Device, usb: str) -> dict:
     WORK.mkdir(parents=True, exist_ok=True)
-    dev.request({"t": "dbg.pattern"})
+    dev.request({"t": "dbg.pattern", "fill": 1})  # solid white
     dev.request({"t": "dbg.light", "bl": 255})
     lit = still("lit")
     dev.request({"t": "dbg.light", "bl": 0})
@@ -74,7 +89,9 @@ def frame(dev: Device, usb: str) -> dict:
         dark = still("dark")
     finally:
         dev.request({"t": "dbg.light", "bl": 255})
+        dev.request({"t": "dbg.pattern"})
     lit.save(WORK / "lit.png")
+    dark.save(WORK / "dark.png")
     box = find_screen(lit, dark)
     if box is None:
         return {"ok": False, "reason": "no screen found; skip L3 for this run"}

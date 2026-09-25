@@ -24,7 +24,7 @@ board.
 | Audio | 8-bit DAC on GPIO26 → on-board amp (enable GPIO4, **active low**) → 2-pin speaker header | Nothing attached yet (§3) |
 | Light | RGB LED, common anode (**active low**): R GPIO22, G GPIO16, B GPIO17 | On the back of the board, so it shows as a glow |
 | Buttons | BOOT (IO0) and RESET (EN) | BOOT is usable as a normal button after boot |
-| USB | USB-C, power and programming through an on-board USB-serial bridge with auto-reset | Shows up as `/dev/cu.usbserial-*`; no need to hold BOOT to flash |
+| USB | USB-C, power and programming through an on-board CH340 USB-serial bridge (1a86:7523) with auto-reset | Shows up as `/dev/cu.usbserial-*`; no need to hold BOOT to flash. 460800 baud at most with macOS's driver (§7) |
 | Battery | 1.25 mm 2-pin LiPo header; charger for 3.7 V cells | Charge input 4.2–6.5 V (5 V typical), 500 mA max (367 mA measured), 4.2 V full, up to 62 °C while charging |
 | Battery sense | ADC on GPIO34 | Divider ratio isn't in the spec; assume 2:1 until measured |
 | Storage | microSD slot, SPI | Not used by Boop |
@@ -110,17 +110,17 @@ drawing code builds on the Mac as a simulator ([VERIFICATION.md](VERIFICATION.md
 and the later ESP-IDF + LVGL port only has to replace the part that pushes
 pixels.
 
-**Screen settings to confirm at bring-up.** The spec doesn't state these.
-Start from these values and confirm them on the real panel with the test
-pattern (§7):
+**Screen settings confirmed at bring-up.** The spec doesn't state these.
+They were confirmed on the real panel with the test pattern and the webcam
+on 2026-09-26 (F1), and live in `firmware/src/board/display.h`:
 
-| Setting | Start with | Confirmed |
+| Setting | Started with | Confirmed |
 | --- | --- | --- |
-| SPI write clock | 40 MHz (try 60–80 MHz later) | — |
-| Colour inversion | On (usual for IPS ST7789 panels) | — |
-| Colour order | RGB | — |
-| Rotation | Portrait, with USB-C at the bottom as "up" | — |
-| Offsets | 0, 0 (panel memory 240×320) | — |
+| SPI write clock | 40 MHz (try 60–80 MHz later) | 40 MHz works; faster not tried yet |
+| Colour inversion | On (usual for IPS ST7789 panels) | On: white reads bright and black dark |
+| Colour order | RGB | RGB: the red block reads red, the blue block blue |
+| Rotation | Portrait, with USB-C at the bottom as "up" | LovyanGFX rotation 0: the UP arrow points away from USB-C |
+| Offsets | 0, 0 (panel memory 240×320) | 0, 0: all four labelled corners show |
 | Touch calibration | Raw range about 200–3900 on both axes | Needs a person to tap 4 targets (`boopctl calibrate`); stored in NVS |
 
 ## 5. Flash layout
@@ -151,6 +151,12 @@ about 360 KB ([VOICE.md](VOICE.md) §8).
 | JSON and serial buffers | ~6 KB | One message line is at most 512 bytes |
 | **Target free heap** | **≥ 60 KB** | Checked continuously by `boopctl ping` |
 
+**Measured (F1, 2026-09-26).** 264 KB is free when `setup()` starts. The
+canvas takes 82 KB with allocator overhead, and the push buffers and
+LovyanGFX take 20 KB, which leaves 160 KB before Bluetooth. Linking
+NimBLE-Arduino alone reserves the controller's 39 KB at boot (225 KB free at
+start), so it's added only in F4.
+
 A full-screen push is 153.6 KB over SPI: about 31 ms at 40 MHz, so roughly
 25–30 frames per second. Most frames only change the eyes and mouth, so the
 firmware pushes only the rows that changed. Aim for 30 fps during motion and
@@ -167,8 +173,15 @@ make sim         # build the Mac simulator of the renderer
 tools/boopctl ping         # firmware version, free heap, fps, uptime
 ```
 
-The firmware talks over USB serial at **921600 baud**. The ROM boot log
-before it starts is at 115200 and can be ignored.
+The firmware talks over USB serial at **460800 baud**, and flashing uses
+the same rate. The board's CH340 bridge on macOS's own driver can't do
+921600: esptool stops with "The chip stopped responding" and messages
+arrive garbled. The ROM boot log before it starts is at 115200 and can be
+ignored.
+
+Opening the port must not change DTR or RTS. macOS asserts both on open,
+and deasserting one before the other pulses EN through the auto-reset
+circuit, which reboots the board. `boopctl` leaves them alone.
 
 **Bring-up checklist**, in order. Each step has a check in
 [VERIFICATION.md](VERIFICATION.md):

@@ -49,8 +49,8 @@ Reuse old code only where it fits the new architecture as is:
 - **Firmware tools:** PlatformIO is `/opt/homebrew/bin/pio`, and esptool is
   in `~/.platformio/penv/bin/`. There's 210 GB of disk free for toolchains.
 - **Board:** on `/dev/cu.usbserial-110` (the number can change). It's an
-  ESP32-D0WD-V3 with 4 MB flash. Auto-reset works, and the factory demo is
-  on it.
+  ESP32-D0WD-V3 with 4 MB flash, behind a CH340 USB bridge that tops out at
+  460800 baud with macOS's driver. Auto-reset works.
 - **Camera:** "MacBook Air Camera", id `6C707041-05AC-0010-000D-000000000001`.
 - **Python:** system `python3` (3.14) has no pyserial or Pillow. `make tools`
   creates `tools/.venv` with both (tested).
@@ -131,7 +131,7 @@ Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 | # | Milestone | Status |
 | --- | --- | --- |
 | M0 | Setup | Passed |
-| F1 | Board bring-up | Not started |
+| F1 | Board bring-up | Passed |
 | F2 | Renderer and simulator | Not started |
 | F3 | Device behaviour | Not started |
 | F4 | Bluetooth on the device | Not started |
@@ -169,7 +169,7 @@ the board.
   changed.
 - **Test pattern:** 6 large colour blocks (red, green, blue, white, black,
   amber), labelled corners, and a big UP arrow.
-- **USB link:** 921600 baud, with `dbg.ping`, `dbg.state`, `dbg.shot`,
+- **USB link:** 460800 baud, with `dbg.ping`, `dbg.state`, `dbg.shot`,
   `dbg.clock`, `dbg.pattern`, `dbg.press` and `dbg.touch`.
 - **BOOT:** shorter than 400 ms is a tap; 400 ms or more is push-to-talk
   until release.

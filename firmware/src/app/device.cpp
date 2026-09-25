@@ -91,6 +91,10 @@ void Device::handleLine(const char* line, size_t n, Link from) {
   } else if (!std::strcmp(t, "dbg.shot")) {
     sendShot(from);
   } else if (!std::strcmp(t, "dbg.pattern")) {
+    // With "fill", a solid screen of that palette index (webcam framing).
+    int fill = doc["fill"] | -1;
+    if (fill != patternFill_) dirty_ = true;
+    patternFill_ = fill;
     setScreen(Screen::kPattern);
     reply(from, "{\"t\":\"dbg.pattern\"}", 19);
   } else if (!std::strcmp(t, "dbg.clock")) {
@@ -165,7 +169,13 @@ void Device::tick() {
 
 void Device::render() {
   switch (screen_) {
-    case Screen::kPattern: render::drawPattern(canvas_); break;
+    case Screen::kPattern:
+      if (patternFill_ >= 0) {
+        canvas_.fill(uint8_t(patternFill_));
+      } else {
+        render::drawPattern(canvas_);
+      }
+      break;
     default: render::drawPlaceholderFace(canvas_); break;
   }
   dirty_ = false;

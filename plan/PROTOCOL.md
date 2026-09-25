@@ -41,7 +41,7 @@ Three rules follow from that:
 | Advertised name | `Boop-XXXX`, where XXXX is the last 4 hex digits of the device's MAC |
 
 **USB transport.** The same messages also travel over the USB serial port
-at 921600 baud, one JSON object per line. The Mac app uses it for
+at 460800 baud, one JSON object per line. The Mac app uses it for
 development and automated tests, because an agent can't launch the app with
 Bluetooth on. The device treats both links the same and answers on the
 link a message came in on. Over USB it also accepts `dbg.*` messages for

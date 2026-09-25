@@ -1,4 +1,4 @@
-"""Links to the board (USB serial at 921600 baud) and to boop-sim: one JSON
+"""Links to the board (USB serial at 460800 baud) and to boop-sim: one JSON
 message per line in each direction.
 
 Only one process may hold the port. A lock file in /tmp makes concurrent
@@ -21,7 +21,7 @@ from typing import Any, Callable
 
 import serial
 
-BAUD = 921600
+BAUD = 460800  # the CH340 on macOS can't do 921600 (plan/DEVICE.md §7)
 PORT_PATTERNS = ("/dev/cu.usbserial-*", "/dev/cu.wchusbserial*", "/dev/cu.SLAB_USBtoUART*")
 
 
@@ -177,11 +177,11 @@ class Device(Link):
         self._lock_fd = os.open(f"/tmp/boopctl-{safe}.lock", os.O_CREAT | os.O_RDWR, 0o666)
         fcntl.flock(self._lock_fd, fcntl.LOCK_EX)
         try:
-            # Keep DTR/RTS low so opening the port doesn't reset the board.
+            # Leave DTR and RTS as macOS sets them on open (both asserted).
+            # Changing one before the other pulses EN through the board's
+            # auto-reset circuit and reboots it.
             ser = serial.Serial()
             ser.port, ser.baudrate, ser.timeout = self.port, BAUD, 0
-            ser.dtr = False
-            ser.rts = False
             ser.open()
             self._ser = ser
         except serial.SerialException as exc:

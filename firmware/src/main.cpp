@@ -31,7 +31,7 @@ void setup() {
   auto* pixels = static_cast<uint8_t*>(heap_caps_malloc(canvasBytes, MALLOC_CAP_8BIT));
 
   Serial.setRxBufferSize(2048);
-  Serial.begin(921600);
+  Serial.begin(460800);  // the CH340 on macOS can't do 921600
   hal.begin();
   if (!pixels || !board::displayBegin()) {
     // Nothing to draw with: say so on USB and keep the backlight on.

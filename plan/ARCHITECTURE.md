@@ -365,3 +365,6 @@ When a spec changes direction, add a row here saying why.
 | 2026-09-25 | The voice is synthesised, and the real word is English only | Cheap to iterate; the gibberish needs no translation | [VOICE.md](VOICE.md) |
 | 2026-09-25 | Focus mode is visual only; threads show agent and project only | Quiet when asked; private by default | [BEHAVIORS.md](BEHAVIORS.md), [UX.md](UX.md) |
 | 2026-09-25 | Life stages, Retire, backup and the buddy card wait | Keep v1 small | [FUTURE.md](FUTURE.md) |
+| 2026-09-26 | USB serial runs at 460800 baud, not 921600 | The board's CH340 bridge on macOS's own driver garbles 921600, for flashing and for messages alike | [DEVICE.md](DEVICE.md) §7, [PROTOCOL.md](PROTOCOL.md) §2 |
+| 2026-09-26 | NimBLE is linked only from F4 on | Linking it reserves the Bluetooth controller's 39 KB at boot, even while Bluetooth is off | [DEVICE.md](DEVICE.md) §6 |
+| 2026-09-26 | `dbg.light` and `dbg.pattern`'s `fill` join the debug channel | Bring-up needs the LED and backlight on command, and the webcam finds the screen by lighting it solid white | [VERIFICATION.md](VERIFICATION.md) §3 |

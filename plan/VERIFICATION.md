@@ -76,14 +76,20 @@ Over USB, the firmware accepts every normal protocol message
 
 | Message | Reply |
 | --- | --- |
-| `{"t":"dbg.ping"}` | `{"t":"dbg.ping","fw":…,"sha":…,"up":…,"heap":…,"heap_min":…,"fps":…,"link":"usb\|ble\|none"}` |
+| `{"t":"dbg.ping"}` | `{"t":"dbg.ping","fw":…,"sha":…,"up":ms,"heap":…,"heap_min":…,"fps":…,"link":"usb\|ble\|none"}` |
 | `{"t":"dbg.state"}` | `{"t":"dbg.state","screen":"face\|needs_you\|threads\|stats\|no_app\|pattern","base":…,"attn":…,"rung":0-3,"moment":{"anim":…,"left_ms":…},"quiet":…,"focus":…,"led":"#RRGGBB","audio":{"playing":…,"syllables":…},"last_input":…}` |
-| `{"t":"dbg.shot"}` | A header line `{"t":"dbg.shot","w":240,"h":320,"bytes":N,"crc":…}`, then one line of base64: 512 bytes of RGB565 palette followed by 76,800 bytes of pixel indexes |
+| `{"t":"dbg.shot"}` | A header line `{"t":"dbg.shot","w":240,"h":320,"bytes":N,"crc":…}`, then one line of base64: 512 bytes of RGB565 palette (256 little-endian entries) followed by 76,800 bytes of pixel indexes, row by row. `crc` is the CRC-32 (as zlib's) of those bytes |
 | `{"t":"dbg.clock","freeze":T}` / `{"step":MS}` / `{"run":true}` | Freeze the clock at T (which also seeds randomness from T), step it, or let it run |
 | `{"t":"dbg.press","ms":N}` / `{"t":"dbg.touch","x":…,"y":…,"ms":N}` | Inject input through the same code path as real input |
-| `{"t":"dbg.pattern"}` | Show the test pattern until the next `state` |
+| `{"t":"dbg.pattern"}` / `{"fill":N}` | Show the test pattern, or a solid screen of palette index N, until the next `state` |
+| `{"t":"dbg.light","bl":0-255,"led":"#RRGGBB"}` | Set the backlight and the RGB LED (both optional), for bring-up and webcam framing |
 
-At 921600 baud a screenshot takes about 1.2 s.
+At 460800 baud a screenshot takes about 2.3 s. `dbg.state` also carries
+bring-up readings: `clock` (`now`, `frozen`), `boot` (BOOT's level), `touch`
+(`down`, `irq`, `raw` as x, y, z), `bat` in mV, `amp` and `bl`.
+
+The board handles one message per loop pass, so a reply always reflects
+every message sent before it.
 
 **Why screenshots are exact.** The firmware draws every frame into one
 8-bit canvas and pushes that to the screen, so the canvas *is* the picture.
@@ -120,7 +126,14 @@ runs in the simulator and on the device:
 | A protocol message | Sent as if it came from the Mac |
 | `{"input": …}` | Inject a press or touch |
 | `{"shot": "name"}` | Save a picture as `name.png` |
-| `{"expect": {…}}` | Compare with `dbg.state`; fail on mismatch |
+| `{"expect": {…}}` | Compare with `dbg.state`; fail on mismatch. Only the keys given are compared, recursively |
+
+`input` lines don't move the clock: an injected press or touch stays down
+until the clock passes its duration (100 ms for a tap, 800 ms for a hold,
+or `"ms"`), so a scenario steps the clock past it. The simulator starts
+with its clock frozen at 0; the board's runs until the first `clock` line.
+`boopctl run` plays each scenario in the simulator first, then on the
+board, and diffs every shot against the simulator's with threshold 0.
 
 Every screen and state in [BEHAVIORS.md](BEHAVIORS.md) and [UX.md](UX.md)
 gets at least one scenario. Their pictures become the **golden images** in
@@ -185,8 +198,9 @@ This checks what only the real panel can show. It runs:
 - whenever a new screen or a change in colours or motion lands;
 - once more for the final pass.
 
-1. **Framing** (once per run): `boopctl cam frame` takes a 1-second clip,
-   finds the bright screen rectangle, and saves a crop box. If no screen is
+1. **Framing** (once per run): `boopctl cam frame` takes one still with the
+   screen solid white and one with the backlight off, finds the region that
+   changed most, and saves a crop box in `/tmp/boop-cam/crop.json`. If no screen is
    found, skip L3 for the rest of the run and say so in the report. The board
    may lie flat in landscape, with USB-C to the right in the camera's view.
    Rotate the crop so USB-C is at the bottom before judging orientation.

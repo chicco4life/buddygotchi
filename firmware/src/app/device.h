@@ -91,6 +91,7 @@ class Device {
   Link link_ = Link::kNone;  // the link the Mac last spoke on
 
   Screen screen_ = Screen::kFace;
+  int patternFill_ = -1;  // a solid dbg.pattern screen, or -1
   char base_[12] = "idle";
   bool dirty_ = true;
   bool frame_ = false;

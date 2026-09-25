@@ -24,7 +24,6 @@ void BoardHal::begin() {
     ledcAttach(pin, kLedHz, kLedBits);
     ledChannel(pin, 0);
   }
-  analogSetPinAttenuation(pins::kBattery, ADC_11db);
 }
 
 uint32_t BoardHal::realMs() { return millis(); }
