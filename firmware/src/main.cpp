@@ -1,5 +1,6 @@
-// Board entry point: allocate the canvas first, bring up the screen, then
-// run the device core with USB serial as its link (plan/DEVICE.md §6–7).
+// Board entry point: allocate the canvas first, bring up the screen and
+// Bluetooth, then run the device core with USB serial and BLE as its links
+// (plan/DEVICE.md §6–7).
 #include <Arduino.h>
 #include <esp_heap_caps.h>
 
@@ -8,6 +9,7 @@
 #include "board/board_hal.h"
 #include "board/display.h"
 #include "board/pins.h"
+#include "link/ble.h"
 
 namespace {
 
@@ -18,6 +20,7 @@ struct SerialOut : app::Out {
 board::BoardHal hal;
 SerialOut usbOut;
 app::LineReader usbLine;
+links::Ble ble;
 app::Device* device = nullptr;
 
 uint32_t frames = 0;
@@ -45,6 +48,9 @@ void setup() {
   static app::Device dev(hal, pixels, /*frozenClock=*/false);
   device = &dev;
   device->setOut(app::Link::kUsb, &usbOut);
+  // Bluetooth after the canvas, so the canvas got its contiguous block.
+  if (ble.begin()) device->setOut(app::Link::kBle, &ble);
+  hal.setBle(ble.state(), ble.name(), ble.id());
   fpsSince = millis();
 }
 
@@ -58,6 +64,8 @@ void loop() {
       break;
     }
   }
+  if (ble.poll(*device)) busy = true;  // one line per link per tick
+  hal.setBle(ble.state(), ble.name(), ble.id());
   uint32_t t0 = micros();
   device->tick();
   if (device->takeFrame()) {

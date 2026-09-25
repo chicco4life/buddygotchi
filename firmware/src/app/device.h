@@ -43,6 +43,12 @@ struct Hal {
   virtual void frameUs(uint32_t& draw, uint32_t& push) { draw = push = 0; }
   virtual uint32_t batteryMv() { return 0; }
   virtual bool ampOn() { return false; }
+  virtual bool usbPowered() { return true; }
+  // The permanent ID in `status` (PROTOCOL.md §4).
+  virtual const char* deviceId() { return "b00p-0000"; }
+  // Bluetooth, for dbg.ping: "off", "adv" (advertising) or "conn".
+  virtual const char* bleState() { return "off"; }
+  virtual const char* bleName() { return ""; }
   virtual const char* fwVersion() = 0;
   virtual const char* gitSha() = 0;
 };
@@ -56,6 +62,11 @@ class Device {
 
   // One message line. Replies go back on the link it came in on.
   void handleLine(const char* line, size_t n, Link from);
+  // A Mac connected or disconnected over Bluetooth. USB has no connection
+  // event: the Mac counts as connected when it first speaks, or speaks
+  // again after kNoAppMs of silence.
+  void connected(Link link);
+  void disconnected(Link link);
   // Reads inputs, advances state, and redraws the canvas if needed.
   void tick();
   // True once after each redraw.
@@ -82,6 +93,7 @@ class Device {
   void readInputs(uint32_t t);
   void render(uint32_t t);
   void sendPing(Link to);
+  void sendStatus(Link to);
   void sendState(Link to);
   void sendShot(Link to);
   void reset();
@@ -96,6 +108,8 @@ class Device {
   ButtonGesture boot_;
   Out* outs_[3] = {nullptr, nullptr, nullptr};
   Link link_ = Link::kNone;  // the link the Mac last spoke on
+  uint32_t heardReal_ = 0;   // real time the Mac last spoke, for USB's "connect"
+  uint32_t statusReal_ = 0;  // real time of the last status
 
   Screen screen_ = Screen::kFace;
   bool pattern_ = false;  // dbg.pattern until the next state

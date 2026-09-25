@@ -66,6 +66,56 @@ static void test_debug_is_ignored_over_ble() {
   TEST_ASSERT_TRUE(r.ble.text.empty());
 }
 
+static int count(const std::string& s, const char* needle) {
+  int n = 0;
+  for (size_t at = s.find(needle); at != std::string::npos; at = s.find(needle, at + 1)) ++n;
+  return n;
+}
+
+// PROTOCOL.md §4–5: status on connect and every 60 s, on the Mac's link.
+static void test_status_on_connect_and_every_minute() {
+  Rig r;
+  r.hal.real = 1000;
+  r.dev.connected(app::Link::kBle);
+  TEST_ASSERT_TRUE(has(r.ble.text, "{\"t\":\"status\",\"v\":1,\"id\":\"b00p-0000\",\"fw\":\"t\",\"bat\":0,\"usb\":1}\n"));
+  r.dev.handleLine("{\"t\":\"state\",\"base\":\"idle\"}", 28, app::Link::kBle);
+  r.hal.real = 60999;
+  r.dev.tick();
+  TEST_ASSERT_EQUAL_INT(1, count(r.ble.text, "\"status\""));
+  r.hal.real = 61000;
+  r.dev.tick();
+  TEST_ASSERT_EQUAL_INT(2, count(r.ble.text, "\"status\""));
+  // Input goes to the Mac on Bluetooth; nothing leaks onto USB.
+  r.usbLine("{\"t\":\"dbg.press\",\"ms\":50}");
+  r.hal.real += 100;
+  r.usbLine("{\"t\":\"dbg.clock\",\"step\":100}");
+  TEST_ASSERT_TRUE(has(r.ble.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
+  TEST_ASSERT_FALSE(has(r.usb.text, "\"status\""));
+  r.dev.disconnected(app::Link::kBle);
+  r.hal.real = 200000;
+  r.dev.tick();
+  TEST_ASSERT_EQUAL_INT(2, count(r.ble.text, "\"status\""));
+  r.usbLine("{\"t\":\"dbg.ping\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"link\":\"none\""));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"ble\":\"off\""));
+}
+
+// USB has no connect event: the Mac's first word, or its first after 30 s
+// of silence, counts as connecting.
+static void test_usb_status_when_the_mac_first_speaks() {
+  Rig r;
+  r.usbLine("{\"t\":\"dbg.ping\"}");
+  TEST_ASSERT_FALSE(has(r.usb.text, "\"status\""));  // tools don't count
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "\"status\""));
+  r.hal.real = 20000;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "\"status\""));
+  r.hal.real = 50000;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  TEST_ASSERT_EQUAL_INT(2, count(r.usb.text, "\"status\""));
+}
+
 static void test_pattern_until_next_state() {
   Rig r;
   r.usbLine("{\"t\":\"dbg.pattern\"}");
@@ -202,6 +252,8 @@ int main() {
   UNITY_BEGIN();
   RUN_TEST(test_ping_reports_version_and_link);
   RUN_TEST(test_debug_is_ignored_over_ble);
+  RUN_TEST(test_status_on_connect_and_every_minute);
+  RUN_TEST(test_usb_status_when_the_mac_first_speaks);
   RUN_TEST(test_pattern_until_next_state);
   RUN_TEST(test_injected_tap_reaches_the_mac);
   RUN_TEST(test_physical_hold_sends_talk_on_and_off);

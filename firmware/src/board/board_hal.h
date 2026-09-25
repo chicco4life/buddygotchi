@@ -10,6 +10,8 @@ class BoardHal : public app::Hal {
   void begin();
   void setFps(uint32_t fps) { fps_ = fps; }
   void setFrameUs(uint32_t draw, uint32_t push) { drawUs_ = draw, pushUs_ = push; }
+  // Bluetooth's side, filled in by the main loop.
+  void setBle(const char* state, const char* name, const char* id) { bleState_ = state, bleName_ = name, id_ = id; }
 
   uint32_t realMs() override;
   bool bootDown() override;
@@ -23,12 +25,19 @@ class BoardHal : public app::Hal {
   void frameUs(uint32_t& draw, uint32_t& push) override { draw = drawUs_, push = pushUs_; }
   uint32_t batteryMv() override;
   bool ampOn() override;
+  bool usbPowered() override { return true; }  // no battery in v1 (DEVICE.md §2)
+  const char* deviceId() override { return id_; }
+  const char* bleState() override { return bleState_; }
+  const char* bleName() override { return bleName_; }
   const char* fwVersion() override { return BOOP_FW_VERSION; }
   const char* gitSha() override { return BOOP_GIT_SHA; }
 
  private:
   uint32_t fps_ = 0;
   uint32_t drawUs_ = 0, pushUs_ = 0;
+  const char* bleState_ = "off";
+  const char* bleName_ = "";
+  const char* id_ = "b00p-0000";
 };
 
 }  // namespace board

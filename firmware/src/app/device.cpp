@@ -16,6 +16,7 @@ namespace {
 
 constexpr uint32_t kDefaultPressMs = 100;
 constexpr uint32_t kTouchHoldMs = 600;     // UX.md §4
+constexpr uint32_t kStatusMs = 60000;      // PROTOCOL.md §4
 
 void copyStr(char* dst, size_t n, const char* src) { std::snprintf(dst, n, "%s", src ? src : ""); }
 
@@ -84,8 +85,11 @@ void Device::handleLine(const char* line, size_t n, Link from) {
   if (!t) return;
   bool debug = std::strncmp(t, "dbg.", 4) == 0;
   if (debug && from != Link::kUsb) return;  // the debug channel is USB only
-  if (!debug) link_ = from;
   uint32_t real = hal_.realMs();
+  // USB's "connect": the Mac's first word, or its first after a silence.
+  bool hello = !debug && from == Link::kUsb &&
+               (link_ != Link::kUsb || real - heardReal_ >= Behaviour::kNoAppMs);
+  if (!debug) link_ = from, heardReal_ = real;
   uint32_t at = now();
   b_.advance(at, rng_);
 
@@ -193,6 +197,17 @@ void Device::handleLine(const char* line, size_t n, Link from) {
     if (parseHex(doc["led"], rgb)) b_.overrideLed(rgb);
     reply(from, "{\"t\":\"dbg.light\"}", 17);
   }
+  if (hello) sendStatus(from);
+}
+
+void Device::connected(Link link) {
+  link_ = link;
+  heardReal_ = hal_.realMs();
+  sendStatus(link);
+}
+
+void Device::disconnected(Link link) {
+  if (link_ == link) link_ = Link::kNone;
 }
 
 // BOOT and touch, turned into gestures (UX.md §4). Every press and touch
@@ -270,6 +285,7 @@ void Device::readInputs(uint32_t t) {
 }
 
 void Device::tick() {
+  if (link_ != Link::kNone && hal_.realMs() - statusReal_ >= kStatusMs) sendStatus(link_);
   uint32_t t = now();
   b_.advance(t, rng_);
   readInputs(t);
@@ -338,9 +354,19 @@ void Device::sendPing(Link to) {
   d["draw_us"] = drawUs;
   d["push_us"] = pushUs;
   d["link"] = linkName(link_);
-  char buf[256];
+  d["ble"] = hal_.bleState();
+  if (hal_.bleName()[0]) d["name"] = hal_.bleName();
+  char buf[320];
   size_t n = serializeJson(d, buf, sizeof(buf));
   reply(to, buf, n);
+}
+
+void Device::sendStatus(Link to) {
+  statusReal_ = hal_.realMs();
+  char buf[160];
+  int n = std::snprintf(buf, sizeof(buf), "{\"t\":\"status\",\"v\":1,\"id\":\"%s\",\"fw\":\"%s\",\"bat\":%lu,\"usb\":%d}",
+                        hal_.deviceId(), hal_.fwVersion(), (unsigned long)hal_.batteryMv(), hal_.usbPowered() ? 1 : 0);
+  reply(to, buf, size_t(n));
 }
 
 void Device::sendState(Link to) {

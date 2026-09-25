@@ -1,13 +1,16 @@
-// Line reassembly, screenshot encoding, the clock and button gestures.
+// Line reassembly (USB and BLE packets), screenshot encoding, the clock and button gestures.
 #include <unity.h>
 
 #include <cstring>
+#include <algorithm>
 #include <string>
+#include <vector>
 
 #include "app/clock.h"
 #include "app/codec.h"
 #include "app/gesture.h"
 #include "app/line_reader.h"
+#include "app/packets.h"
 
 using app::ButtonGesture;
 
@@ -41,6 +44,85 @@ static void test_overlong_lines_are_dropped_whole() {
   big += "\nok\n";
   TEST_ASSERT_EQUAL_INT(1, feedAll(r, big.c_str(), &last));
   TEST_ASSERT_EQUAL_STRING("ok", last.c_str());
+}
+
+// BLE: packets of any size, split anywhere, come back as the same lines.
+static void test_ble_packets_reassemble_through_the_ring() {
+  const std::string msg = "{\"t\":\"state\",\"base\":\"working\",\"busy\":2}\n{\"t\":\"moment\",\"anim\":\"cheer\"}\n";
+  for (size_t size : {1, 3, 20, 61, 182, 244}) {
+    app::ByteRing<1024> ring;
+    app::LineReader r;
+    std::vector<std::string> got;
+    for (size_t at = 0; at < msg.size(); at += size) {
+      size_t k = std::min(size, msg.size() - at);
+      TEST_ASSERT_EQUAL_UINT32(k, ring.put(reinterpret_cast<const uint8_t*>(msg.data()) + at, k));
+      uint8_t c;
+      while (ring.take(c))
+        if (r.feed(char(c))) got.emplace_back(r.line(), r.length());
+    }
+    TEST_ASSERT_EQUAL_INT(2, int(got.size()));
+    TEST_ASSERT_EQUAL_STRING("{\"t\":\"state\",\"base\":\"working\",\"busy\":2}", got[0].c_str());
+    TEST_ASSERT_EQUAL_STRING("{\"t\":\"moment\",\"anim\":\"cheer\"}", got[1].c_str());
+  }
+}
+
+static void test_ring_drops_what_does_not_fit_and_wraps() {
+  app::ByteRing<8> ring;
+  const uint8_t a[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
+  TEST_ASSERT_EQUAL_UINT32(8, ring.put(a, 10));
+  TEST_ASSERT_EQUAL_UINT32(2, ring.dropped());
+  uint8_t c = 0;
+  for (int i = 0; i < 5; ++i) ring.take(c);
+  TEST_ASSERT_EQUAL_UINT8(5, c);
+  TEST_ASSERT_EQUAL_UINT32(5, ring.put(a, 5));  // wraps around the end
+  std::vector<uint8_t> rest;
+  while (ring.take(c)) rest.push_back(c);
+  TEST_ASSERT_EQUAL_INT(8, int(rest.size()));
+  TEST_ASSERT_EQUAL_UINT8(6, rest[0]);
+  TEST_ASSERT_EQUAL_UINT8(1, rest[3]);
+  TEST_ASSERT_EQUAL_UINT8(5, rest[7]);
+}
+
+static void collect(void* ctx, const uint8_t* data, size_t n) {
+  static_cast<std::vector<std::string>*>(ctx)->emplace_back(reinterpret_cast<const char*>(data), n);
+}
+
+static void test_packet_writer_sends_whole_lines_in_payload_chunks() {
+  std::vector<std::string> pkts;
+  app::PacketWriter w(collect, &pkts);
+  w.setPayload(20);
+  const std::string line = "{\"t\":\"status\",\"v\":1,\"id\":\"b00p-7f3a\",\"fw\":\"0.4.0\",\"bat\":0,\"usb\":1}";
+  w.write(line.data(), 30);
+  TEST_ASSERT_EQUAL_INT(0, int(pkts.size()));  // nothing until the newline
+  w.write(line.data() + 30, line.size() - 30);
+  w.write("\n", 1);
+  std::string joined;
+  for (auto& p : pkts) {
+    TEST_ASSERT_TRUE(p.size() <= 20);
+    joined += p;
+  }
+  TEST_ASSERT_EQUAL_INT(int((line.size() + 1 + 19) / 20), int(pkts.size()));
+  TEST_ASSERT_EQUAL_STRING((line + "\n").c_str(), joined.c_str());
+
+  pkts.clear();
+  w.setPayload(244);  // a negotiated MTU of 247
+  w.write("{\"t\":\"input\",\"k\":\"tap\"}\n{\"t\":\"input\",\"k\":\"feel\"}\n", 50);
+  TEST_ASSERT_EQUAL_INT(2, int(pkts.size()));
+  TEST_ASSERT_EQUAL_STRING("{\"t\":\"input\",\"k\":\"feel\"}\n", pkts[1].c_str());
+}
+
+static void test_packet_writer_drops_overlong_lines_and_clears() {
+  std::vector<std::string> pkts;
+  app::PacketWriter w(collect, &pkts);
+  std::string big(app::LineReader::kMax + 5, 'x');
+  w.write(big.data(), big.size());
+  w.write("\nok\n", 4);
+  TEST_ASSERT_EQUAL_INT(1, int(pkts.size()));
+  TEST_ASSERT_EQUAL_STRING("ok\n", pkts[0].c_str());
+  w.write("half", 4);
+  w.clear();
+  w.write("new\n", 4);
+  TEST_ASSERT_EQUAL_STRING("new\n", pkts.back().c_str());
 }
 
 static void sink(void* ctx, const char* text, size_t n) { static_cast<std::string*>(ctx)->append(text, n); }
@@ -105,6 +187,10 @@ int main() {
   UNITY_BEGIN();
   RUN_TEST(test_lines_reassemble_across_chunks);
   RUN_TEST(test_overlong_lines_are_dropped_whole);
+  RUN_TEST(test_ble_packets_reassemble_through_the_ring);
+  RUN_TEST(test_ring_drops_what_does_not_fit_and_wraps);
+  RUN_TEST(test_packet_writer_sends_whole_lines_in_payload_chunks);
+  RUN_TEST(test_packet_writer_drops_overlong_lines_and_clears);
   RUN_TEST(test_base64_matches_rfc4648);
   RUN_TEST(test_crc32_matches_zlib);
   RUN_TEST(test_clock_freezes_steps_and_runs);
