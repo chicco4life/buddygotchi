@@ -8,7 +8,7 @@ public struct Trigger: Equatable, Sendable {
         /// The tools the harness offers for this trigger.
         public var tools: [String] {
             switch self {
-            case .event: ["say", "face", "note"]
+            case .event: ["say", "face"]
             case .tap: ["say", "face"]
             case .talk: ["say", "face", "quiet", "note"]
             case .reflect: ["remember", "forget", "temperament", "moment"]

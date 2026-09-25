@@ -107,7 +107,7 @@ your words on `talk`, which are dropped after the call.
 
 | Trigger | Sent when | Deadline | Tools offered |
 | --- | --- | --- | --- |
-| `event` | An agent turn starts, finishes or fails | 5 s | `say`, `face`, `note` |
+| `event` | An agent turn starts, finishes or fails | 5 s | `say`, `face` |
 | `tap` | You tap Boop | 3 s | `say`, `face` |
 | `talk` | You release the push-to-talk button | 4 s | `say`, `face`, `quiet`, `note` |
 | `reflect` | Once a day, at the first activity of a new day | Minutes | `remember`, `forget`, `temperament`, `moment` |

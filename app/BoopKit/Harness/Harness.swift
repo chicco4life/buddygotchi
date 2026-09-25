@@ -11,11 +11,14 @@ public final class Harness: @unchecked Sendable {
     /// A tool as the harness sees it: what the brain is shown, and who
     /// carries out a call.
     public struct Tool {
-        public var definition: ToolDefinition
+        /// Asked again for every call, since a definition may depend on
+        /// memory (`forget` offers the lines there are).
+        let define: () -> ToolDefinition
         public var handle: (ToolCall) -> ActionOutcome
+        public var definition: ToolDefinition { define() }
 
-        public init(definition: ToolDefinition, handle: @escaping (ToolCall) -> ActionOutcome) {
-            self.definition = definition
+        public init(definition: @escaping @autoclosure () -> ToolDefinition, handle: @escaping (ToolCall) -> ActionOutcome) {
+            self.define = definition
             self.handle = handle
         }
 
@@ -75,6 +78,8 @@ public final class Harness: @unchecked Sendable {
     var running: (id: Int, trigger: Trigger, task: Task<Void, Never>)?
     var waiting: Trigger?
     var nextID = 0
+    /// The running call's tools as offered.
+    var pending: [Offered] = []
 
     /// - Parameters:
     ///   - memory: the text for a trigger's prompt, from the memory store.
@@ -126,13 +131,14 @@ public final class Harness: @unchecked Sendable {
         let definitions = offered.map(\.definition)
         nextID += 1
         let id = nextID
+        pending = offered
         let task = Task { [self] in
             let (answer, ms) = await ask(prompt, definitions, deadline: trigger.kind.deadlineMs)
             let cancelled = Task.isCancelled
             home.async { [self] in
                 guard running?.id == id, !cancelled else { return }
                 running = nil
-                finish(hand(trigger, prompt, self.offered(trigger.kind), answer, ms))
+                finish(hand(trigger, prompt, pending, answer, ms))
                 if let next = waiting {
                     waiting = nil
                     start(next)
@@ -144,9 +150,15 @@ public final class Harness: @unchecked Sendable {
 
     // MARK: The steps
 
+    /// A tool as offered for one call: its definition fixed at prompt time.
+    struct Offered {
+        var definition: ToolDefinition
+        var handle: (ToolCall) -> ActionOutcome
+    }
+
     /// Steps 3–4's inputs: the prompt and the offered tools. On `home`.
-    func prepare(_ trigger: Trigger) -> (Prompt, [Tool]) {
-        let offered = offered(trigger.kind)
+    func prepare(_ trigger: Trigger) -> (Prompt, [Offered]) {
+        let offered = offered(trigger.kind).map { Offered(definition: $0.definition, handle: $0.handle) }
         let text = memory(trigger)
         for over in Prompt.overBudget(trigger, text, tools: offered.map(\.definition)) {
             log("harness: \(trigger.kind.rawValue) prompt over budget: \(over)")
@@ -186,7 +198,7 @@ public final class Harness: @unchecked Sendable {
     }
 
     /// Steps 5–6: shape check, then each call to its handler in order. On `home`.
-    func hand(_ trigger: Trigger, _ prompt: Prompt, _ offered: [Tool], _ answer: Result<String, BrainError>,
+    func hand(_ trigger: Trigger, _ prompt: Prompt, _ offered: [Offered], _ answer: Result<String, BrainError>,
               _ ms: Int) -> Record {
         var record = Record(trigger: trigger, brain: brain.id, prompt: prompt, tools: offered.map(\.definition.name),
                             raw: nil, dropped: nil, ran: [], latencyMs: ms)

@@ -149,8 +149,10 @@ final class ActionTests: XCTestCase {
         XCTAssertTrue(rig.run(ToolCall("remember", ["text": .string("Likes it quiet."), "kind": .string("preference")])).isDone)
         XCTAssertFalse(rig.run(ToolCall("remember", ["text": .string("x"), "kind": .string("secret")])).isDone)
         XCTAssertFalse(rig.run(ToolCall("remember", ["text": .string("Works with Bob.")])).isDone)
-        XCTAssertTrue(rig.run(ToolCall("forget", ["text": .string("likes it quiet")])).isDone)
         XCTAssertFalse(rig.run(ToolCall("forget", ["text": .string("likes it quiet")])).isDone)
+        XCTAssertEqual(rig.actions["forget"]!.definition.parameters[0].kind, .choice(["Ships on Fridays.", "Likes it quiet."]))
+        XCTAssertTrue(rig.run(ToolCall("forget", ["text": .string("Likes it quiet.")])).isDone)
+        XCTAssertFalse(rig.run(ToolCall("forget", ["text": .string("Likes it quiet.")])).isDone)
         XCTAssertTrue(rig.run(ToolCall("temperament", ["text": .string("Trusts Codex more than it used to.")])).isDone)
         XCTAssertFalse(rig.run(ToolCall("temperament", ["text": .string("Gets huffy about flaky tests.")])).isDone)
         XCTAssertTrue(rig.run(ToolCall("moment", ["text": .string("first all-nighter together")])).isDone)
@@ -160,7 +162,7 @@ final class ActionTests: XCTestCase {
         XCTAssertEqual(lt.preferences, [])
         XCTAssertEqual(lt.temperament, ["Trusts Codex more than it used to."])
         XCTAssertEqual(lt.moments.map(\.date), ["2026-10-15"])
-        XCTAssertEqual(rig.logs.count, 5)
+        XCTAssertEqual(rig.logs.count, 6)
         for line in rig.logs { XCTAssertTrue(line.contains(": dropped "), line) }
     }
 

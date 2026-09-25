@@ -168,7 +168,9 @@ public final class RememberAction: Action {
     }
 }
 
-/// `forget(text)`: reflection only. Removes a fact that turned out wrong.
+/// `forget(text)`: reflection only. Removes a line about the person that
+/// turned out wrong. The brain picks from the lines there are, so it can't
+/// name one that isn't.
 public final class ForgetAction: Action {
     public let context: ActionContext
     let memory: MemoryStore
@@ -178,9 +180,13 @@ public final class ForgetAction: Action {
         self.context = context
     }
 
-    public let definition = ToolDefinition(
-        name: "forget", description: "Remove a line about the person that turned out wrong.",
-        parameters: [.init("text", .text(maxLength: MemoryLimits.factChars))])
+    /// Built for each call from About you and Preferences as they are now.
+    public var definition: ToolDefinition {
+        let lt = memory.longTerm
+        return ToolDefinition(
+            name: "forget", description: "Remove a line about the person that turned out wrong.",
+            parameters: [.init("text", .choice((lt?.aboutYou ?? []) + (lt?.preferences ?? [])))])
+    }
 
     public func perform(_ call: ToolCall) -> ActionOutcome {
         switch arguments(call) {

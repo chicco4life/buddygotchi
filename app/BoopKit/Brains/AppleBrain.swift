@@ -7,10 +7,13 @@ import FoundationModels
 /// schema built at runtime (the `@Generable` macro doesn't compile here,
 /// PLAN.md §1), so every answer already matches the tools' choices:
 ///
-///     Answer { calls: [≤ 3 of: say {tool: "say", feeling: …, word?: …} | face {…} | …] }
+///     Answer { react: "stay quiet" | "react",
+///              calls: [≤ 3 of: say {tool: "say", feeling: …, word?: …} | face {…} | …] }
 ///
-/// Numbers are offered as their digits, and text lengths are only asked
-/// for, so the harness's shape check still has work to do.
+/// A leading `react` choice makes staying quiet an easy first decision; the
+/// brain turns `stay quiet` into no calls. Numbers are offered as their
+/// digits, and text lengths are only asked for, so the harness's shape check
+/// still has work to do.
 public struct AppleBrain: Brain {
     public let id: String
 
@@ -39,7 +42,7 @@ public struct AppleBrain: Brain {
         do {
             let response = try await session.respond(to: user, schema: schema,
                                                      options: GenerationOptions(temperature: 0.5))
-            return response.content.jsonString
+            return AppleBrain.fromList(response.content.jsonString)
         } catch let error as LanguageModelSession.GenerationError {
             throw BrainError("apple: \(error)")
         }
@@ -49,8 +52,24 @@ public struct AppleBrain: Brain {
     }
 
     #if canImport(FoundationModels)
+    /// `{"react":"stay quiet",…}` → no calls; otherwise just the calls.
+    static func fromList(_ json: String) -> String {
+        guard let o = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any] else { return json }
+        let calls = (o["react"] as? String) == "react" ? (o["calls"] as? [Any] ?? []) : []
+        let data = (try? JSONSerialization.data(withJSONObject: ["calls": calls], options: [.sortedKeys])) ?? Data()
+        return String(decoding: data, as: UTF8.self)
+    }
+
     static func schema(_ tools: [ToolDefinition]) throws -> GenerationSchema {
-        let calls = tools.map { tool -> DynamicGenerationSchema in
+        // A tool with nothing to choose from can't be called (`forget` with
+        // no lines to forget).
+        let callable = tools.filter { tool in
+            !tool.parameters.contains { p in
+                if case .choice(let options) = p.kind { return options.isEmpty && !p.optional }
+                return false
+            }
+        }
+        let calls = callable.map { tool -> DynamicGenerationSchema in
             var properties = [DynamicGenerationSchema.Property(
                 name: "tool", schema: DynamicGenerationSchema(name: tool.name + "_tool", anyOf: [tool.name]))]
             for p in tool.parameters {
@@ -70,8 +89,10 @@ public struct AppleBrain: Brain {
             return DynamicGenerationSchema(name: tool.name, description: tool.description, properties: properties)
         }
         let call = DynamicGenerationSchema(name: "ToolCall", anyOf: calls)
-        let root = DynamicGenerationSchema(name: "Answer", description: "Your tool calls, often none.", properties: [
-            .init(name: "calls", schema: DynamicGenerationSchema(arrayOf: call, minimumElements: 0,
+        let root = DynamicGenerationSchema(name: "Answer", properties: [
+            .init(name: "react", description: "Stay quiet unless this really needs a reaction.",
+                  schema: DynamicGenerationSchema(name: "react", anyOf: ["stay quiet", "react"])),
+            .init(name: "calls", description: "One to three tool calls, in order. Do what the person asks.", schema: DynamicGenerationSchema(arrayOf: call, minimumElements: 0,
                                                                   maximumElements: Answer.maxCalls)),
         ])
         return try GenerationSchema(root: root, dependencies: [])
