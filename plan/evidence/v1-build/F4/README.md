@@ -2,7 +2,9 @@
 
 Run 2026-09-26 on branch `v1-overnight`. Device checks ran against the
 firmware committed as `6dd4ae2` (flashed from the working tree just before
-that commit, so `ping` reported `41ef83f0a3-dirty`). Outputs:
+that commit, so `ping` reported `41ef83f0a3-dirty`). Afterwards the board
+was reflashed from `3707c8e` (same firmware sources) and left advertising
+on the face, heap 84 KB. Outputs:
 [perf-motion.json](perf-motion.json) and [soak.json](soak.json).
 
 ## What was built
@@ -40,7 +42,7 @@ that commit, so `ping` reported `41ef83f0a3-dirty`). Outputs:
 | L1 `boopctl sim` | Passed: 10 scenarios, 0 expect failures, 0 new or changed pictures |
 | L2 `boopctl run` | Passed with Bluetooth on: 10 scenarios, 0 expect failures, all 80 screenshots identical to the simulator's |
 | Perf with Bluetooth on | Passed, unchanged: `perf --seconds 30 --motion` gave min **45 fps** (mean 59.3; F3 was 45 / 58), heap_min 82.7 KB, no reset |
-| Soak with Bluetooth on | SOAK_RESULT |
+| Soak with Bluetooth on | Passed: `soak --minutes 20` with Bluetooth advertising: no reset, heap_min 82.6 KB at start and end (0 drift), still answering, ended on the face |
 | Real connection | Not checked here, by design: agents can't use the Mac's Bluetooth or `bleak`. It's on the morning checklist (VERIFICATION.md L6) |
 
 ## Decisions

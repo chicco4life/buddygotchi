@@ -115,3 +115,28 @@ One entry per iteration, newest last. Each ends with the exact next step.
   with heap_min ≥ 60 KB, and perf and soak re-run with BLE on. Don't use
   `bleak` or the Mac's Bluetooth; the real connection is checked in the
   morning.
+
+## 2026-09-26 03:25 — F4: Bluetooth on the device — Passed
+
+- **Changed:** a NimBLE-Arduino 2.x Nordic UART peripheral
+  (`firmware/src/link/ble.*`) advertising as `Boop-54FE`, no security,
+  Classic BT memory released, started after the canvas. Pure C++
+  `app/packets.h`: a lock-free `ByteRing` hands received bytes from the
+  Bluetooth task to the main loop's `LineReader` (same dispatch as USB), and
+  a `PacketWriter` sends whole reply lines in MTU-sized notifications.
+  `Device::connected/disconnected`, `status` on connect, every 60 s, and over
+  USB when the Mac first speaks. `dbg.ping` gained `ble` and `name`. Details
+  in [F4/README.md](F4/README.md).
+- **Checks:** fw-test 61/61; sim 10 scenarios, 0 changed pictures; on the
+  board with BLE advertising, every expect passed and all 80 screenshots were
+  identical; ping `ble: adv`, heap 84 KB (target ≥ 60 KB); perf min 45 fps
+  (unchanged), heap_min 82.7 KB; 20-minute soak clean, 0 heap drift. A real
+  connection wasn't tried (no Mac Bluetooth from agents); it's for the
+  morning.
+- **Decisions:** USB `status` rule and `dbg.ping`'s `ble`/`name` are in the
+  ARCHITECTURE §11 log; Bluetooth measured at about 75 KB (DEVICE.md §6).
+- **Board left on:** F4 firmware `3707c8eb51`, advertising, on the face.
+- **Next step:** A1, the app core: adapters, hook client, core rules. Read
+  PLAN.md's A1 section and the specs it links (ADAPTERS.md, ARCHITECTURE.md,
+  BEHAVIORS.md). The app's USB/BLE link must expect `status` lines (reply to
+  the first one with a `state`) and ignore unknown types.
