@@ -1,6 +1,7 @@
 #include "board/board_hal.h"
 
 #include <Arduino.h>
+#include <Preferences.h>
 #include <esp_heap_caps.h>
 
 #include "board/audio.h"
@@ -12,6 +13,8 @@ namespace board {
 namespace {
 constexpr uint32_t kLedHz = 5000;
 constexpr uint8_t kLedBits = 8;
+constexpr const char* kNvsSpace = "boop";
+constexpr const char* kNvsTouchCal = "touchcal";
 
 void ledChannel(int pin, uint8_t level) { ledcWrite(pin, 255 - level); }  // common anode
 }  // namespace
@@ -25,15 +28,41 @@ void BoardHal::begin() {
     ledcAttach(pin, kLedHz, kLedBits);
     ledChannel(pin, 0);
   }
+  Preferences nvs;
+  if (nvs.begin(kNvsSpace, true)) {
+    app::TouchCal c;
+    if (nvs.getBytes(kNvsTouchCal, &c, sizeof(c)) == sizeof(c) && c.valid) cal_ = c;
+    nvs.end();
+  }
 }
 
 uint32_t BoardHal::realMs() { return millis(); }
 
 bool BoardHal::bootDown() { return digitalRead(pins::kMainButton) == LOW; }
 
-bool BoardHal::touch(int& x, int& y) { return touchRead(x, y); }
+bool BoardHal::touch(int& x, int& y) {
+  if (!cal_.valid) return touchRead(x, y);
+  int rx, ry, rz;
+  bool irq;
+  board::touchRaw(rx, ry, rz, irq);
+  if (!irq || rz <= 0) return false;
+  cal_.map(rx, ry, x, y);
+  return true;
+}
 
 void BoardHal::touchRaw(int& x, int& y, int& z, bool& irq) { board::touchRaw(x, y, z, irq); }
+
+void BoardHal::setTouchCal(const app::TouchCal& c) {
+  cal_ = c;
+  Preferences nvs;
+  if (!nvs.begin(kNvsSpace, false)) return;
+  if (c.valid) {
+    nvs.putBytes(kNvsTouchCal, &c, sizeof(c));
+  } else {
+    nvs.remove(kNvsTouchCal);
+  }
+  nvs.end();
+}
 
 void BoardHal::setLed(uint32_t rgb) {
   ledChannel(pins::kLedRed, (rgb >> 16) & 0xFF);

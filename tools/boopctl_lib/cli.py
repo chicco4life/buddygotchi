@@ -91,6 +91,17 @@ def cmd_touch(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_calibrate(args: argparse.Namespace) -> int:
+    from boopctl_lib import calibrate
+
+    if args.show:
+        with Device(args.port) as dev:
+            emit(dev.request({"t": "dbg.touchcal", **({"clear": True} if args.clear else {})}))
+        return 0
+    emit(calibrate.run(args.port))
+    return 0
+
+
 def cmd_clock(args: argparse.Namespace) -> int:
     message = {"freeze": {"freeze": args.value}, "step": {"step": args.value}, "run": {"run": True}}[args.action]
     if args.action != "run" and args.value is None:
@@ -467,6 +478,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("y", type=int)
     p.add_argument("--ms", type=int, default=100)
     p.set_defaults(func=cmd_touch)
+    p = sub.add_parser("calibrate", help="touch calibration: tap 4 crosses (needs a person); kept in NVS")
+    p.add_argument("--show", action="store_true", help="print the stored calibration instead")
+    p.add_argument("--clear", action="store_true", help="with --show: forget it (back to the default raw range)")
+    p.set_defaults(func=cmd_calibrate)
     p = sub.add_parser("clock", help="freeze T | step MS | run")
     p.add_argument("action", choices=["freeze", "step", "run"])
     p.add_argument("value", type=int, nargs="?")

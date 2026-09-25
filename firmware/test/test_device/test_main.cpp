@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "app/device.h"
+#include "render/palette.h"
 
 void setUp() {}
 void tearDown() {}
@@ -32,6 +33,9 @@ struct FakeHal : app::Hal {
     cues.push_back(c);
   }
   void hush() override { ++hushes; }
+  app::TouchCal cal;
+  void setTouchCal(const app::TouchCal& c) override { cal = c; }
+  app::TouchCal touchCal() override { return cal; }
 };
 
 struct Capture : app::Out {
@@ -67,6 +71,46 @@ static void test_ping_reports_version_and_link() {
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
   r.usbLine("{\"t\":\"dbg.ping\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"link\":\"usb\""));
+}
+
+static void test_touch_calibration_maps_raw_to_screen() {
+  // Raw x runs 3800 → 300 across the width, raw y 250 → 3750 down the height.
+  app::TouchCal c;
+  c.ax = int32_t(-240.0 / 3500 * 65536), c.cx = int32_t(3800 * 240.0 / 3500 * 65536);
+  c.by = int32_t(320.0 / 3500 * 65536), c.cy = int32_t(-250 * 320.0 / 3500 * 65536);
+  int x, y;
+  c.map(3800, 250, x, y);
+  TEST_ASSERT_INT_WITHIN(1, 0, x);
+  TEST_ASSERT_INT_WITHIN(1, 0, y);
+  c.map(2050, 2000, x, y);
+  TEST_ASSERT_INT_WITHIN(1, 120, x);
+  TEST_ASSERT_INT_WITHIN(1, 160, y);
+  c.map(0, 4095, x, y);  // past the edge: clamped to the screen
+  TEST_ASSERT_EQUAL(239, x);
+  TEST_ASSERT_EQUAL(319, y);
+}
+
+static void test_touchcal_sets_reads_and_clears() {
+  Rig r;
+  r.usbLine("{\"t\":\"dbg.touchcal\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"cal\":null"));
+  r.usbLine("{\"t\":\"dbg.touchcal\",\"set\":[-4494,0,15630336,0,5991,-1497965]}");
+  TEST_ASSERT_TRUE(r.hal.cal.valid);
+  TEST_ASSERT_EQUAL(-4494, r.hal.cal.ax);
+  TEST_ASSERT_EQUAL(-1497965, r.hal.cal.cy);
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"cal\":[-4494,0,15630336,0,5991,-1497965]"));
+  r.usbLine("{\"t\":\"dbg.touchcal\",\"clear\":true}");
+  TEST_ASSERT_FALSE(r.hal.cal.valid);
+}
+
+static void test_pattern_target_draws_a_cross() {
+  Rig r;
+  r.usbLine("{\"t\":\"dbg.pattern\",\"target\":[20,300]}");
+  TEST_ASSERT_EQUAL(render::kAmber, r.dev.canvas().get(20, 300));
+  TEST_ASSERT_EQUAL(render::kAmber, r.dev.canvas().get(29, 300));
+  TEST_ASSERT_EQUAL(render::kAmber, r.dev.canvas().get(20, 291));
+  TEST_ASSERT_EQUAL(render::kBlack, r.dev.canvas().get(40, 280));
+  TEST_ASSERT_EQUAL(render::kBlack, r.dev.canvas().get(120, 160));
 }
 
 static void test_debug_is_ignored_over_ble() {
@@ -334,6 +378,9 @@ int main() {
   UNITY_BEGIN();
   RUN_TEST(test_ping_reports_version_and_link);
   RUN_TEST(test_debug_is_ignored_over_ble);
+  RUN_TEST(test_touch_calibration_maps_raw_to_screen);
+  RUN_TEST(test_touchcal_sets_reads_and_clears);
+  RUN_TEST(test_pattern_target_draws_a_cross);
   RUN_TEST(test_status_on_connect_and_every_minute);
   RUN_TEST(test_usb_status_when_the_mac_first_speaks);
   RUN_TEST(test_pattern_until_next_state);

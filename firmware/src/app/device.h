@@ -9,6 +9,7 @@
 #include "app/behaviour.h"
 #include "app/clock.h"
 #include "app/gesture.h"
+#include "app/touch_cal.h"
 #include "render/anim.h"
 #include "render/canvas.h"
 #include "render/screens.h"
@@ -50,6 +51,9 @@ struct Hal {
     return false;
   }
   virtual void touchRaw(int& x, int& y, int& z, bool& irq) { x = y = z = 0, irq = false; }
+  // Touch calibration: the board applies it to touches and keeps it in NVS.
+  virtual void setTouchCal(const TouchCal& c) { (void)c; }
+  virtual TouchCal touchCal() { return {}; }
   virtual void setLed(uint32_t rgb) { (void)rgb; }
   virtual void setBacklight(uint8_t level) { (void)level; }
   virtual uint32_t heapFree() { return 0; }
@@ -141,6 +145,7 @@ class Device {
   uint32_t rxState_ = 0;
   uint32_t rxMoment_ = 0;
   int patternFill_ = -1;  // a solid dbg.pattern screen, or -1
+  int targetX_ = -1, targetY_ = -1;  // a calibration target on dbg.pattern, or -1
   uint32_t drawnT_ = 0;   // the time of the last frame
   bool drawnMoving_ = false;  // it was mid-motion, so the next time step redraws
   bool dirty_ = true;

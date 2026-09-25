@@ -17,6 +17,8 @@ class BoardHal : public app::Hal {
   bool bootDown() override;
   bool touch(int& x, int& y) override;
   void touchRaw(int& x, int& y, int& z, bool& irq) override;
+  void setTouchCal(const app::TouchCal& c) override;
+  app::TouchCal touchCal() override { return cal_; }
   void setLed(uint32_t rgb) override;
   void setBacklight(uint8_t level) override;
   uint32_t heapFree() override;
@@ -37,6 +39,7 @@ class BoardHal : public app::Hal {
   const char* gitSha() override { return BOOP_GIT_SHA; }
 
  private:
+  app::TouchCal cal_;  // from NVS; invalid until `boopctl calibrate` has run
   uint32_t fps_ = 0;
   uint32_t drawUs_ = 0, pushUs_ = 0;
   const char* bleState_ = "off";

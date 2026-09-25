@@ -55,6 +55,7 @@ void Device::reset() {
   sfxSeen_ = b_.sfx(sfxSeenAt_);
   pattern_ = false;
   patternFill_ = -1;
+  targetX_ = targetY_ = -1;
   injPress_ = injTouch_ = touchDown_ = touchHeld_ = false;
   boot_ = ButtonGesture{};
   last_ = LastInput{};
@@ -191,8 +192,12 @@ void Device::handleLine(const char* line, size_t n, Link from) {
     sendShot(from);
   } else if (!std::strcmp(t, "dbg.pattern")) {
     // With "fill", a solid screen of that palette index (webcam framing).
+    // With "target": [x, y], a cross to tap on black (boopctl calibrate).
     int fill = doc["fill"] | -1;
     patternFill_ = fill;
+    JsonArrayConst target = doc["target"];
+    targetX_ = target.size() == 2 ? target[0].as<int>() : -1;
+    targetY_ = target.size() == 2 ? target[1].as<int>() : -1;
     pattern_ = true;
     dirty_ = true;
     reply(from, "{\"t\":\"dbg.pattern\"}", 19);
@@ -220,6 +225,24 @@ void Device::handleLine(const char* line, size_t n, Link from) {
     injY_ = doc["y"] | 0;
     injTouchUntil_ = now() + (doc["ms"] | kDefaultPressMs);
     reply(from, "{\"t\":\"dbg.touch\"}", 17);
+  } else if (!std::strcmp(t, "dbg.touchcal")) {
+    // "set": [ax, bx, cx, ay, by, cy] in 1/65536 (TouchCal), or "clear".
+    JsonArrayConst set = doc["set"];
+    if (set.size() == 6) {
+      TouchCal c;
+      c.ax = set[0].as<int32_t>(), c.bx = set[1].as<int32_t>(), c.cx = set[2].as<int32_t>();
+      c.ay = set[3].as<int32_t>(), c.by = set[4].as<int32_t>(), c.cy = set[5].as<int32_t>();
+      c.valid = true;
+      hal_.setTouchCal(c);
+    } else if (doc["clear"] | false) {
+      hal_.setTouchCal(TouchCal{});
+    }
+    TouchCal c = hal_.touchCal();
+    char buf[160];
+    int len = c.valid ? std::snprintf(buf, sizeof(buf), "{\"t\":\"dbg.touchcal\",\"cal\":[%ld,%ld,%ld,%ld,%ld,%ld]}",
+                                      long(c.ax), long(c.bx), long(c.cx), long(c.ay), long(c.by), long(c.cy))
+                      : std::snprintf(buf, sizeof(buf), "{\"t\":\"dbg.touchcal\",\"cal\":null}");
+    reply(from, buf, size_t(len));
   } else if (!std::strcmp(t, "dbg.light")) {
     if (doc["bl"].is<int>()) b_.overrideBacklight(uint8_t(doc["bl"].as<int>()));
     uint32_t rgb;
@@ -357,7 +380,11 @@ void Device::render(uint32_t t) {
   bool faced = false;
   switch (screen_) {
     case Screen::kPattern:
-      if (patternFill_ >= 0) {
+      if (targetX_ >= 0) {
+        canvas_.fill(render::kBlack);
+        canvas_.fillRect(targetX_ - 10, targetY_ - 1, 21, 3, render::kAmber);
+        canvas_.fillRect(targetX_ - 1, targetY_ - 10, 3, 21, render::kAmber);
+      } else if (patternFill_ >= 0) {
         canvas_.fill(uint8_t(patternFill_));
       } else {
         render::drawPattern(canvas_);
