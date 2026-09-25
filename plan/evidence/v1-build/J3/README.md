@@ -30,7 +30,7 @@ no L3 check ran.
 | The fit, on synthetic taps with skew and ±8 raw noise | Within 0.6 px at the centre and corners |
 | On the board: `dbg.touchcal` read, set, **survives a reflash and reboot**, then cleared | Passed ([touchcal-board.txt](touchcal-board.txt)). The board is left uncalibrated for you |
 | On the board: the cross | [device-calibration-cross.png](device-calibration-cross.png) at (20, 300) |
-| `boopctl calibrate` with nobody tapping | Stops after 60 s with "no tap within a minute", exit 2; after the fix, it returns the board to the face |
+| `boopctl calibrate` with nobody tapping | Stops after 60 s with "no tap within a minute", exit 2, but left the cross on screen. Fixed so any exit resets to the face; the timeout run wasn't repeated after the fix |
 | A real calibration | **Not done:** it needs a person (morning checklist row 3) |
 | L1 `boopctl sim` | Passed: 10 scenarios, 0 expect failures, 0 new or changed pictures |
 | L2 `boopctl run` | Passed: 10 scenarios, 0 expect failures, 0 pictures differ from the simulator |
