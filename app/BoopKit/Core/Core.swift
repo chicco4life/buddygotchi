@@ -96,6 +96,7 @@ public final class Core {
     // MARK: - Inputs
 
     /// An agent event from an adapter.
+    @discardableResult
     public func handle(_ event: BoopEvent) -> [CoreEffect] {
         let now = event.ts
         var fx: [CoreEffect] = []
@@ -177,6 +178,7 @@ public final class Core {
     }
 
     /// An `input` message from the device. The device has already reacted.
+    @discardableResult
     public func input(_ input: Input, at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
@@ -201,6 +203,7 @@ public final class Core {
     }
 
     /// What the person said on push-to-talk. Always reaches the harness.
+    @discardableResult
     public func talk(_ words: String, at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
@@ -210,6 +213,7 @@ public final class Core {
     }
 
     /// The `quiet` action: no mumbles for `minutes` (0 ends it).
+    @discardableResult
     public func setQuiet(minutes: Int, at now: Int64) -> [CoreEffect] {
         quietUntil = minutes > 0 ? now + Int64(minutes) * 60_000 : 0
         var fx: [CoreEffect] = []
@@ -217,6 +221,7 @@ public final class Core {
         return fx
     }
 
+    @discardableResult
     public func setFocus(_ on: Bool, at now: Int64) -> [CoreEffect] {
         focus = on
         var fx: [CoreEffect] = []
@@ -225,6 +230,7 @@ public final class Core {
     }
 
     /// "I'm away" pauses hunger.
+    @discardableResult
     public func setAway(_ on: Bool, at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
         let today = config.time.day(now)
@@ -240,6 +246,7 @@ public final class Core {
         return fx
     }
 
+    @discardableResult
     public func setVolume(_ volume: Int, at now: Int64) -> [CoreEffect] {
         config.volume = max(0, min(10, volume))
         var fx: [CoreEffect] = []
@@ -249,6 +256,7 @@ public final class Core {
 
     /// Timers: the Codex grace period, the safety net, quiet running out,
     /// follow-up moments, merged triggers, chatter and level-ups.
+    @discardableResult
     public func tick(at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
@@ -272,19 +280,21 @@ public final class Core {
             base = "idle"
         }
         let attn = visible.first.map {
-            StateSnapshot.Attention(agent: $0.agent.short, project: $0.project, more: visible.count - 1)
+            StateSnapshot.Attention(agent: $0.agent.short, project: StateSnapshot.clip($0.project), more: visible.count - 1)
         }
-        let rows = visible.map { [$0.agent.short, $0.project, "wait"] }
-            + working.map { [$0.agent.short, $0.project, "work"] }
-            + idle.map { [$0.agent.short, $0.project, "idle"] }
+        let rows = visible.map { [$0.agent.short, StateSnapshot.clip($0.project), "wait"] }
+            + working.map { [$0.agent.short, StateSnapshot.clip($0.project), "work"] }
+            + idle.map { [$0.agent.short, StateSnapshot.clip($0.project), "idle"] }
         let hunger = hungerNow(now)
-        return StateSnapshot(
-            time: now / 1000, name: config.name, base: base, attn: attn,
+        var snapshot = StateSnapshot(
+            time: now / 1000, name: StateSnapshot.clip(config.name), base: base, attn: attn,
             busy: working.count, idle: idle.count, wait: visible.count,
             mood: mood.mood(at: now, night: night, hunger: hunger),
             quiet: quietLeft(now), focus: focus, vol: config.volume, night: night,
             level: growth.level, prog: growth.progress, days: growth.days(today: config.time.day(now)),
             hungry: hunger.rawValue, threads: Array(rows.prefix(StateSnapshot.maxThreads)))
+        snapshot.fit()
+        return snapshot
     }
 
     /// How `short-term.md` describes Boop's mood right now.

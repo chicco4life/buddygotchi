@@ -79,7 +79,7 @@ so new optional fields never break an older peer.
 | `night` | The Mac's view of whether it's night, for dimming and sleepiness |
 | `level`, `prog`, `days` | For the stats screen: level, progress to the next level (0–100), days together |
 | `hungry` | 0 fed, 1 hungry, 2 starving ([BEHAVIORS.md](BEHAVIORS.md) §4) |
-| `threads` | Up to 8 rows for the threads view: agent, project, status |
+| `threads` | Up to 8 rows for the threads view: agent, project, status. Rows that need you come first, then working, then idle. The Mac cuts names to 23 bytes and drops rows from the end if the line would pass 512 bytes |
 
 If the device hears nothing for 30 s, it shows the "no app" face.
 

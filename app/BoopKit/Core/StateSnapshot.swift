@@ -10,6 +10,28 @@ public struct StateSnapshot: Equatable, Sendable {
 
     public static let version = 1
     public static let maxThreads = 8
+    /// A protocol line is at most 512 bytes (PROTOCOL.md §2).
+    public static let maxLine = 512
+    /// The device keeps names in 24-byte fields.
+    public static let maxNameBytes = 23
+
+    /// `text` cut to at most `bytes` of UTF-8, on a character boundary.
+    public static func clip(_ text: String, bytes: Int = maxNameBytes) -> String {
+        guard text.utf8.count > bytes else { return text }
+        var out = ""
+        for ch in text {
+            if out.utf8.count + String(ch).utf8.count > bytes { break }
+            out.append(ch)
+        }
+        return out
+    }
+
+    /// Drops thread rows from the end until the line fits.
+    public mutating func fit() {
+        while jsonLine.utf8.count > StateSnapshot.maxLine && !threads.isEmpty {
+            threads.removeLast()
+        }
+    }
 
     /// Unix seconds.
     public var time: Int64

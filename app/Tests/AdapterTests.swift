@@ -1,0 +1,139 @@
+import Foundation
+import HookWire
+import XCTest
+@testable import BoopKit
+
+final class AdapterTests: XCTestCase {
+    func line(_ agent: String, _ hook: String, tool: String? = nil, topic: String? = nil, error: String? = nil,
+              kind: String? = nil, cwd: String? = "/w/landing") -> HookLine {
+        HookLine(agent: agent, hook: hook, session: "s1", cwd: cwd, tool: tool, topic: topic, error: error, kind: kind, ts: 7)
+    }
+
+    func kind(_ agent: String, _ hook: String, kind k: String? = nil) -> BoopEvent.Kind? {
+        Adapter.event(from: line(agent, hook, kind: k))?.event
+    }
+
+    func testClaudeMapping() {
+        let table: [(String, BoopEvent.Kind?)] = [
+            ("SessionStart", .sessionStart), ("UserPromptSubmit", .turnStart), ("PreToolUse", .activity),
+            ("PostToolUse", .activity), ("PostToolUseFailure", .activity), ("PermissionRequest", .needsYou),
+            ("Elicitation", .needsYou), ("ElicitationResult", .activity), ("Stop", .turnEnd),
+            ("StopFailure", .turnFailed), ("SessionEnd", .sessionEnd), ("SubagentStop", nil), ("PreCompact", nil),
+        ]
+        for (hook, expected) in table {
+            XCTAssertEqual(kind("claude", hook), expected, hook)
+        }
+        XCTAssertEqual(kind("claude", "Notification", kind: "permission_prompt"), .needsYou)
+        XCTAssertEqual(kind("claude", "Notification", kind: "elicitation_dialog"), .needsYou)
+        XCTAssertNil(kind("claude", "Notification", kind: "idle_prompt"))
+        XCTAssertNil(kind("claude", "Notification"))
+    }
+
+    func testCodexMapping() {
+        let table: [(String, BoopEvent.Kind?)] = [
+            ("SessionStart", .sessionStart), ("UserPromptSubmit", .turnStart), ("PreToolUse", .activity),
+            ("PostToolUse", .activity), ("PermissionRequest", .needsYou), ("Stop", .turnEnd),
+            ("SessionEnd", .sessionEnd), ("StopFailure", nil), ("Notification", nil),
+        ]
+        for (hook, expected) in table {
+            XCTAssertEqual(kind("codex", hook), expected, hook)
+        }
+        XCTAssertEqual(Adapter.event(from: line("codex", "Stop"))?.agent, .codex)
+        XCTAssertNil(Adapter.event(from: line("cursor", "Stop")))
+    }
+
+    func testDetailCarriesToolTopicAndErrorClassOnly() throws {
+        let activity = try XCTUnwrap(Adapter.event(from: line("claude", "PreToolUse", tool: "Bash", topic: "tests")))
+        XCTAssertEqual(activity.detail, BoopEvent.Detail(tool: "Bash", topic: "tests"))
+        let asking = try XCTUnwrap(Adapter.event(from: line("claude", "PermissionRequest", tool: "Bash")))
+        XCTAssertEqual(asking.detail, BoopEvent.Detail(tool: "Bash"))
+        let failed = try XCTUnwrap(Adapter.event(from: line("claude", "StopFailure", error: "rate_limit")))
+        XCTAssertEqual(failed.detail.error, "rate_limit")
+        XCTAssertEqual(Adapter.event(from: line("claude", "StopFailure", error: "weird thing"))?.detail.error, "other")
+        XCTAssertEqual(activity.project, "landing")
+        XCTAssertEqual(activity.ts, 7)
+        XCTAssertEqual(Adapter.event(from: line("claude", "Stop"), receivedAt: 99)?.ts, 99)
+    }
+
+    func testEventJSONShape() throws {
+        let event = BoopEvent(agent: .codex, session: "a1b2", project: "landing", event: .turnEnd,
+                              detail: .init(durationS: 1080, topic: "tests"), ts: 1_790_000_000_123)
+        XCTAssertEqual(event.jsonLine, #"{"agent":"codex","detail":{"duration_s":1080,"topic":"tests"},"event":"turn_end","project":"landing","session":"a1b2","ts":1790000000123}"#)
+    }
+
+    func testProjectNames() {
+        XCTAssertEqual(Adapter.projectName(cwd: "/Users/me/src/landing"), "landing")
+        XCTAssertEqual(Adapter.projectName(cwd: "/Users/me/src/landing/"), "landing")
+        XCTAssertEqual(Adapter.projectName(cwd: "~/project"), "project")
+        XCTAssertEqual(Adapter.projectName(cwd: "/Users/me/src/landing/.worktrees/fix-nav"), "landing")
+        XCTAssertEqual(Adapter.projectName(cwd: "/Users/me/src/buddygotchi/.claude/worktrees/bridge-x"), "buddygotchi")
+        XCTAssertEqual(Adapter.projectName(cwd: "/"), "unknown")
+        XCTAssertEqual(Adapter.projectName(cwd: ""), "unknown")
+    }
+
+    func testAGitWorktreeAnywhereMapsToItsMainRepository() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-wt-\(UUID().uuidString)")
+        let tree = root.appendingPathComponent("elsewhere/feature-x")
+        try FileManager.default.createDirectory(at: tree, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try "gitdir: /Users/me/src/jetpack/.git/worktrees/feature-x\n"
+            .write(to: tree.appendingPathComponent(".git"), atomically: true, encoding: .utf8)
+        XCTAssertEqual(Adapter.projectName(cwd: tree.path), "jetpack")
+    }
+
+    func testRecordedClaudeSessionMapsInOrder() throws {
+        let file = HookWireTests.fixtures.appendingPathComponent("claude-code/2026-09-08/tenth-try.jsonl")
+        let events = try String(contentsOf: file, encoding: .utf8).split(separator: "\n").compactMap { raw in
+            HookLine.extract(agent: "claude", payload: Data(raw.utf8), ts: 0).flatMap { Adapter.event(from: $0) }
+        }
+        XCTAssertEqual(events.first?.event, .sessionStart)
+        XCTAssertEqual(events[1].event, .turnStart)
+        XCTAssertEqual(events.last?.event, .turnEnd)
+        XCTAssertTrue(events.dropFirst(2).dropLast().allSatisfy { $0.event == .activity })
+        XCTAssertEqual(events.filter { $0.detail.topic == "tests" }.count, 10)
+        XCTAssertTrue(events.allSatisfy { $0.project == "fixture-project" && $0.session == "fixture-claude-code" })
+        XCTAssertFalse(events.map(\.jsonLine).joined().contains("PRIVATE"))
+
+        let failures = try String(contentsOf: HookWireTests.fixtures.appendingPathComponent("claude-code/2026-09-08/rate-limit.jsonl"), encoding: .utf8)
+            .split(separator: "\n").compactMap { raw in
+                HookLine.extract(agent: "claude", payload: Data(raw.utf8), ts: 0).flatMap { Adapter.event(from: $0) }
+            }
+        XCTAssertEqual(failures.map(\.event), [.sessionStart, .turnFailed, .turnFailed, .turnFailed])
+        XCTAssertEqual(failures[1].detail.error, "rate_limit")
+    }
+
+    func testRecordedCodexSessionStart() throws {
+        let data = try Data(contentsOf: HookWireTests.fixtures.appendingPathComponent("codex/2026-09-08/SessionStart-1.json"))
+        let event = try XCTUnwrap(HookLine.extract(agent: "codex", payload: data, ts: 0).flatMap { Adapter.event(from: $0) })
+        XCTAssertEqual(event.event, .sessionStart)
+        XCTAssertEqual(event.agent, .codex)
+        XCTAssertEqual(event.session, "abc123")
+        XCTAssertEqual(event.project, "project")
+    }
+
+    func testHookServerReceivesWhatTheClientSends() throws {
+        let path = NSTemporaryDirectory() + "boop-test-\(getpid()).sock"
+        let received = Received()
+        let server = HookServer(path: path) { line, _ in received.add(line) }
+        try server.start()
+        defer { server.stop() }
+        let sent = HookLine(agent: "codex", hook: "Stop", session: "t1", cwd: "/w/x", ts: 5)
+        XCTAssertTrue(HookSocket.send(sent.encoded(), to: path))
+        XCTAssertTrue(HookSocket.send(HookLine(agent: "claude", hook: "Stop", session: "t2", ts: 6).encoded(), to: path))
+        let deadline = Date().addingTimeInterval(2)
+        while received.count < 2 && Date() < deadline { usleep(5000) }
+        XCTAssertEqual(received.lines.first, sent)
+        XCTAssertEqual(received.count, 2)
+        server.stop()
+        XCTAssertFalse(FileManager.default.fileExists(atPath: path))
+        XCTAssertFalse(HookSocket.send(sent.encoded(), to: path))
+    }
+}
+
+final class Received: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: [HookLine] = []
+    func add(_ line: HookLine) { lock.withLock { stored.append(line) } }
+    var lines: [HookLine] { lock.withLock { stored } }
+    var count: Int { lines.count }
+}
