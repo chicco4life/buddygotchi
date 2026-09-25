@@ -363,6 +363,7 @@ def soak(out: Path, brain: str, port: str | None, minutes: float) -> int:
     run = Run(root, out, brain, port)
     samples: list[dict[str, Any]] = []
     rounds, misses = 0, 0
+    glitches: list[str] = []
     started = time.time()
     t0 = time.monotonic()
     final: dict[str, Any] = {}
@@ -381,6 +382,21 @@ def soak(out: Path, brain: str, port: str | None, minutes: float) -> int:
         run.start()
         os.environ["BOOP_BRIDGE"] = run.bridge_sock
         with Device(timeout=3.0) as dev:
+            # The CH340 at 460800 baud on macOS rarely drops a run of bytes
+            # from the board over a long soak (a lost reply, a short shot). A
+            # debug request is retried once and the glitch counted; a second
+            # loss in a row still fails the soak.
+            def retried(call):
+                def wrapper(*a, **kw):
+                    try:
+                        return call(*a, **kw)
+                    except (DeviceError, ValueError) as exc:
+                        glitches.append(f"{time.monotonic() - t0:.0f} s: {exc}"[:160])
+                        run.say(f"  link glitch, retrying: {glitches[-1]}")
+                        dev._buf.clear()
+                        return call(*a, **kw)
+                return wrapper
+            dev.request, dev.shot = retried(dev.request), retried(dev.shot)
             sample(dev)
             while time.monotonic() - t0 < minutes * 60:
                 rounds += 1
@@ -411,7 +427,7 @@ def soak(out: Path, brain: str, port: str | None, minutes: float) -> int:
     lat = [h["state_ms"] for h in run.hooks if h["state_ms"] is not None]
     result = {
         "brain": brain, "minutes": round((time.monotonic() - t0) / 60, 1), "rounds": rounds,
-        "hooks": len(run.hooks), "checkpoint_misses": misses,
+        "hooks": len(run.hooks), "checkpoint_misses": misses, "link_glitches": glitches,
         "latency": {"p50": percentile(lat, 0.5), "p95": percentile(lat, 0.95), "n": len(lat)},
         "reset": any(b <= a for a, b in zip(ups, ups[1:])),
         "heap_min_after_2min": later[0]["heap_min"], "heap_min_end": samples[-1]["heap_min"] if samples else None,
