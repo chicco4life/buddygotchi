@@ -111,6 +111,8 @@ final class VoiceTests: XCTestCase {
         var hits: [String] = []
         var hums = 0
         var n = 0
+        var doublesInWordList = 0
+        var lengths = 0
         for dialectSeed in UInt64(1)...25 {
             let voice = Voice(dialect: Dialect(seed: dialectSeed &* 7919))
             for i in 0..<400 {
@@ -120,16 +122,30 @@ final class VoiceTests: XCTestCase {
                                       seed: UInt64(i + 1))
                 n += 1
                 if line.isSafeHum { hums += 1 }
-                let parts = line.groups.map { $0.joined() }
-                for w in parts + [parts.joined()] where (w.count >= 3 && words.contains(w)) || banned.contains(w) {
-                    hits.append("\(line.syl) → \(w)")
+                // Doubles (`ki-ki`) skip the big word list but not the common
+                // doubles (VOICE.md §7).
+                for g in line.groups {
+                    let w = g.joined()
+                    let doubled = g.count == 2 && g[0] == g[1]
+                    if (!doubled && w.count >= 3 && words.contains(w)) || banned.contains(w)
+                        || Unintelligible.commonDoubles.contains(w) {
+                        hits.append("\(line.syl) → \(w)")
+                    }
+                    if doubled && words.contains(w) { doublesInWordList += 1 }
                 }
+                let whole = line.groups.map { $0.joined() }.joined()
+                if line.groups.count > 1 && (words.contains(whole) || banned.contains(whole)) {
+                    hits.append("\(line.syl) → \(whole)")
+                }
+                for bad in banned where bad.count >= 4 && whole.contains(bad) { hits.append("\(line.syl) ⊃ \(bad)") }
+                lengths += line.syllableCount
             }
         }
         XCTAssertEqual(n, 10_000)
         XCTAssertEqual(hits, [])
         // The safe hum is a last resort, not a habit.
-        XCTAssertLessThan(hums, 100)
+        XCTAssertLessThan(hums, 50)
+        print("  10,000 lines: \(hums) safe hums, \(lengths) syllables, \(doublesInWordList) doubles found in the word list")
     }
 
     func testMomentJSON() {

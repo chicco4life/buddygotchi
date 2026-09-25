@@ -60,6 +60,9 @@ public struct Dialect: Equatable, Sendable {
 public struct Voice: Sendable {
     /// A failed line is regenerated up to this many times, then hummed.
     public static let retries = 5
+    /// A gibberish word that fails is re-rolled up to this many times while
+    /// the line is built.
+    static let wordRerolls = 4
     /// Percent of syllables drawn from the dialect's favourites.
     static let favouriteShare = 70
 
@@ -73,12 +76,17 @@ public struct Voice: Sendable {
 
     /// Builds a line. The same inputs and `seed` give the same line. A word
     /// outside the vocabulary is left out.
-    public func line(_ feeling: Feeling, word: String? = nil, mood: Mood = Mood(), seed: UInt64) -> VoiceLine {
+    /// `rejected` sees every try and why it failed, for debugging.
+    public func line(_ feeling: Feeling, word: String? = nil, mood: Mood = Mood(), seed: UInt64,
+                     rejected: (([[String]], String?) -> Void)? = nil) -> VoiceLine {
         let word = word.flatMap { Sounds.vocabularySet.contains($0) ? $0 : nil }
-        var rng = SplitMix64(seed: seed ^ dialect.seed &* 0x100_0000_01B3)
+        let salt = UInt64(Feeling.allCases.firstIndex(of: feeling)! + 1) << 56
+        var rng = SplitMix64(seed: (seed ^ salt) ^ dialect.seed &* 0x100_0000_01B3)
         for _ in 0...Voice.retries {
             let groups = gibberish(feeling, mood: mood, rng: &rng)
-            if check.failure(groups) == nil {
+            let failure = check.failure(groups)
+            rejected?(groups, failure)
+            if failure == nil {
                 return place(groups, word: word, feeling: feeling, mood: mood, rng: &rng)
             }
         }
@@ -118,15 +126,32 @@ public struct Voice: Sendable {
             let roll = rng.int(in: 0...99)
             let size = min(left, roll < 25 ? 1 : roll < 75 ? 2 : 3)
             left -= size
-            let doubling = [.happy, .excited].contains(feeling) ? 40 : 15
-            if size == 2 && rng.chance(doubling) {
-                let s = pick(feeling, last: left == 0, rng: &rng)
-                groups.append([s, s])
-                continue
+            // A word that fails the check is re-rolled as it's built; the
+            // whole line is still checked afterwards.
+            var group = word(feeling, size: size, last: left == 0, rng: &rng)
+            for _ in 0..<Voice.wordRerolls where check.failure([group]) != nil {
+                group = word(feeling, size: size, last: left == 0, rng: &rng)
             }
-            groups.append((0..<size).map { i in pick(feeling, last: left == 0 && i == size - 1, rng: &rng) })
+            groups.append(group)
         }
         return groups
+    }
+
+    /// One gibberish word of `size` syllables. Only doubling repeats a
+    /// syllable on purpose.
+    func word(_ feeling: Feeling, size: Int, last: Bool, rng: inout SplitMix64) -> [String] {
+        let doubling = [.happy, .excited].contains(feeling) ? 40 : 15
+        if size == 2 && rng.chance(doubling) {
+            let s = pick(feeling, last: last, rng: &rng)
+            return [s, s]
+        }
+        var group: [String] = []
+        for i in 0..<size {
+            var s = pick(feeling, last: last && i == size - 1, rng: &rng)
+            if s == group.last { s = pick(feeling, last: last && i == size - 1, rng: &rng) }
+            group.append(s)
+        }
+        return group
     }
 
     /// Short (2–4) or long (5–8), from the feeling and Boop's energy.

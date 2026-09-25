@@ -5,6 +5,10 @@ import Foundation
 /// English word of three or more letters, a rude or sensitive word, or a
 /// Minion word. Rude and Minion words of four or more letters also fail
 /// anywhere inside the line.
+///
+/// A doubled syllable (`po-po`, `ki-ki`) is the Minion bounce, and the word
+/// list is full of obscure doubles (`kiki`, `pipi`, `pala`), so doubles skip
+/// the word list. Doubles people hear as words (`mama`, `papa`) still fail.
 public final class Unintelligible: Sendable {
     public static let dictionaryPath = "/usr/share/dict/words"
     public static let shared = Unintelligible()
@@ -23,6 +27,8 @@ public final class Unintelligible: Sendable {
         // Chinese.
         "tamade", "nima", "nimade", "wangba", "wangbadan", "niubi", "baichi", "bendan", "sabi", "diao", "gundan",
         "gun", "tama",
+        // Nursery words for what comes out of you, in several languages.
+        "kaka", "pipi", "pepe", "pupu", "caca",
     ]
 
     /// Minion words and catchphrases, which belong to the films.
@@ -30,6 +36,12 @@ public final class Unintelligible: Sendable {
         "banana", "bananonina", "bello", "belo", "poopaye", "papoy", "papoi", "tulaliloo", "tulalilu", "gelato",
         "kampai", "kanpai", "bapple", "bapples", "labodaa", "laboda", "bedo", "beedo", "bido", "baboi", "tankyu",
         "tatata", "bibo", "bananaaa",
+    ]
+
+    /// Doubled syllables that read as words.
+    static let commonDoubles: Set<String> = [
+        "mama", "papa", "dada", "nana", "baba", "tutu", "yoyo", "dodo", "bobo", "gaga", "wawa", "momo", "bebe",
+        "dudu", "nono", "tata", "pupu",
     ]
 
     let words: Set<String>
@@ -49,19 +61,22 @@ public final class Unintelligible: Sendable {
     /// Why these gibberish words fail, or nil if they pass.
     public func failure(_ groups: [[String]]) -> String? {
         let whole = groups.map { $0.joined() }.joined()
-        for candidate in groups.map({ $0.joined() }) + [whole] {
-            if let why = failure(word: candidate) { return why }
+        for group in groups {
+            let doubled = group.count == 2 && group[0] == group[1]
+            if let why = failure(word: group.joined(), wordList: !doubled) { return why }
         }
+        if groups.count > 1, let why = failure(word: whole) { return why }
         for bad in Unintelligible.rude.union(Unintelligible.minion) where bad.count >= 4 && whole.contains(bad) {
             return "contains \"\(bad)\""
         }
         return nil
     }
 
-    func failure(word: String) -> String? {
+    func failure(word: String, wordList: Bool = true) -> String? {
         if Unintelligible.minion.contains(word) { return "\"\(word)\" is a Minion word" }
         if Unintelligible.rude.contains(word) { return "\"\(word)\" is rude" }
-        if word.count >= 3 && words.contains(word) { return "\"\(word)\" is English" }
+        if Unintelligible.commonDoubles.contains(word) { return "\"\(word)\" is a word" }
+        if wordList && word.count >= 3 && words.contains(word) { return "\"\(word)\" is English" }
         return nil
     }
 }
