@@ -108,8 +108,15 @@ replaces one that's still playing.
 ```
 
 `id` is the device's permanent ID, which the Mac uses to know which Boop
-this body belongs to. `bat` is battery voltage in mV. When the Mac receives
-the first `status` after connecting, it replies with a `state`.
+this body belongs to: `b00p-` and the same 4 hex digits as the advertised
+name. `bat` is battery voltage in mV, and `usb` is 1 when on USB power (the
+v1 board has no battery, so it's always 1). When the Mac receives the first
+`status` after connecting, it replies with a `state`.
+
+USB has no connection event, so over USB the device sends `status` when the
+Mac first speaks (any message that isn't `dbg.*`), and again when it speaks
+after 30 s of silence. The 60 s `status` goes on the link the Mac last
+spoke on.
 
 ### `input`: the person did something
 

@@ -146,7 +146,7 @@ about 360 KB ([VOICE.md](VOICE.md) §8).
 | --- | --- | --- |
 | Screen canvas, 8-bit indexed | 76.8 KB | 240 × 320 × 1 byte, plus a 256-colour RGB565 palette (512 B). Allocate it first, before Bluetooth, while one contiguous block is still free |
 | Push buffer | 2 × 7.7 KB | Converts 16 canvas rows at a time to RGB565 for SPI DMA |
-| NimBLE host + controller | ~45–60 KB | Release Classic Bluetooth memory at start-up; Boop only uses BLE |
+| NimBLE host + controller | ~75 KB measured | Release Classic Bluetooth memory at start-up; Boop only uses BLE |
 | Audio | 4 KB | DMA buffers for the DAC |
 | JSON and serial buffers | ~6 KB | One message line is at most 512 bytes |
 | **Target free heap** | **≥ 60 KB** | Checked continuously by `boopctl ping` |
@@ -156,6 +156,13 @@ canvas takes 82 KB with allocator overhead, and the push buffers and
 LovyanGFX take 20 KB, which leaves 160 KB before Bluetooth. Linking
 NimBLE-Arduino alone reserves the controller's 39 KB at boot (225 KB free at
 start), so it's added only in F4.
+
+**Measured (F4, 2026-09-26).** With NimBLE-Arduino 2.x linked, Classic
+Bluetooth's memory released and the Nordic UART peripheral advertising,
+84 KB is free after start-up, and the minimum stays at 82.7 KB through
+motion and a 20-minute soak. Bluetooth costs about 75 KB in all, more than
+the 45–60 KB first guessed, but the 60 KB target still holds with 20 KB to
+spare. Frame rates are unchanged (44–60 fps in motion).
 
 **Drawing.** The renderer (`firmware/src/render/`) uses integer maths
 only, so the board and the simulator agree to the pixel. Edges are
