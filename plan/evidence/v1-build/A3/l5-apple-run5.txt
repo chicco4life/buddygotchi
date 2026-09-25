@@ -1,0 +1,124 @@
+1	2322 ms	turn started · claude · jetpack · 09:12 Tuesday [no say]
+	→ face(name: "smug"), face(name: "side_eye")
+2	1740 ms	turn started · codex · landing · 09:40 Tuesday [no say]
+	→ face(name: "curious"), face(name: "side_eye")
+3	1785 ms	turn started · claude · boop · 10:03 Tuesday · hungry [no say]
+	→ face(name: "happy"), face(name: "smug")
+4	1461 ms	turn started · codex · jetpack · 16:20 Friday [no say]
+	→ face(name: "smug")
+5	1738 ms	turn started · claude · landing · 23:48 Wednesday [no say]
+	→ face(name: "side_eye"), face(name: "curious")
+6	2022 ms	turn finished · claude · jetpack · took 12 s · 09:13 Tuesday
+	→ face(name: "smug"), say(feeling: "curious", word: "tests")
+7	1735 ms	turn finished · codex · landing · topic: tests · took 45 s · 09:41 Tuesday [no say]
+	→ face(name: "side_eye"), face(name: "curious")
+8	1557 ms	turn finished · claude · jetpack · topic: tests · took 18 min · 14:05 Tuesday [no say]
+	→ face(name: "side_eye")
+9	1501 ms	turn finished · codex · landing · topic: build · took 3 min · 11:30 Tuesday [no say]
+	→ face(name: "side_eye")
+10	1647 ms	turn finished · claude · boop · topic: docs · took 7 min · 15:02 Tuesday
+	→ (quiet)
+11	2013 ms	turn finished · codex · jetpack · topic: deploy · took 26 min · 17:55 Friday
+	→ face(name: "smug"), say(feeling: "annoyed", word: "tests")
+12	1725 ms	turn finished · claude · jetpack · took 48 min · 01:10 Thursday [no say]
+	→ face(name: "smug"), face(name: "curious")
+13	1680 ms	turn finished · claude · landing · took 2 min · 13:00 Monday · hungry [no say]
+	→ face(name: "smug"), face(name: "curious")
+14	1728 ms	turn finished · codex · boop · topic: tests · took 9 min · 10:15 Wednesday · starving [no say]
+	→ face(name: "side_eye"), face(name: "curious")
+15	1982 ms	turn finished · claude · jetpack · topic: tests · took 6 min · 14:40 Tuesday · +2 more
+	→ face(name: "side_eye"), say(feeling: "annoyed", word: "tests")
+16	1525 ms	turn finished · claude · landing · took 35 s · 08:05 Monday [no say]
+	→ face(name: "smug")
+17	1481 ms	turn failed · claude · jetpack · topic: tests · 14:02 Tuesday [no say]
+	→ face(name: "side_eye")
+18	1578 ms	turn failed · codex · landing · topic: build · 11:20 Tuesday [no say]
+	→ face(name: "side_eye")
+19	1984 ms	turn failed · claude · boop · error: rate limit · 16:45 Tuesday
+	→ face(name: "side_eye"), say(feeling: "annoyed", word: "bug")
+20	1497 ms	turn failed · codex · jetpack · error: overloaded · 10:05 Wednesday [no say]
+	→ face(name: "side_eye")
+21	1473 ms	turn failed · claude · landing · topic: deploy · error: timeout · 18:30 Friday [no say]
+	→ face(name: "side_eye")
+22	1774 ms	turn failed · codex · landing · topic: tests · 14:03 Tuesday · +1 more [no say]
+	→ face(name: "side_eye"), face(name: "smug")
+23	2021 ms	turn failed · claude · jetpack · error: context limit · 22:10 Thursday · hungry
+	→ face(name: "side_eye"), say(feeling: "annoyed", word: "bug")
+24	1504 ms	turn failed · codex · boop · error: other · 09:00 Monday [no say]
+	→ face(name: "side_eye")
+25	2194 ms	reflect · yesterday 2026-10-14
+	→ moment(text: "all-nighter finally passed") ✗, remember(kind: "about_you", text: "jetpack is payments")
+26	1879 ms	reflect · yesterday 2026-10-14
+	→ (quiet)
+27	2184 ms	reflect · yesterday 2026-10-14
+	→ moment(text: "all-nighter passed, migration done") ✗, remember(kind: "preference", text: "jetpack = payments") ✗
+28	2757 ms	reflect · yesterday 2026-10-14
+	→ moment(text: "migration passed, finally stable") ✗, remember(kind: "about_you", text: "jetpack = payments, must be secure") ✗
+29	2032 ms	talk · 09:14 Tuesday "shut up for an hour"
+	→ face(name: "sulky"), quiet(minutes: "30")
+30	2243 ms	talk · 10:02 Tuesday "good job today"
+	→ face(name: "smug"), say(feeling: "curious", word: "oops")
+31	1769 ms	talk · 11:45 Tuesday "remember I ship on Fridays"
+	→ (quiet)
+32	2038 ms	talk · 12:30 Tuesday "blorp flibble wazoo"
+	→ (quiet)
+33	2064 ms	talk · 13:10 Tuesday "be quiet please"
+	→ face(name: "sulky"), quiet(minutes: "30")
+34	2258 ms	talk · 14:20 Tuesday "how are you doing"
+	→ face(name: "curious"), say(feeling: "curious", word: "hmm")
+35	2170 ms	talk · 15:05 Tuesday "the tests finally pass"
+	→ face(name: "smug"), note(text: "jetpack payment system stable")
+36	1761 ms	talk · 12:01 Tuesday "I'm going to lunch"
+	→ (quiet)
+37	2142 ms	talk · 16:40 Tuesday "can you keep it down for fifteen minutes"
+	→ face(name: "side_eye"), quiet(minutes: "30")
+38	2178 ms	talk · 17:30 Friday "you're the best"
+	→ DROPPED refused: apple: Response may contain sensitive or unsafe content
+39	2365 ms	talk · 09:05 Wednesday "jetpack is the payments service"
+	→ DROPPED refused: apple: Response may contain sensitive or unsafe content
+40	2309 ms	talk · 11:11 Wednesday · hungry "ugh this build again"
+	→ say(feeling: "annoyed", word: "tests"), note(text: "flaky tests keep rising")
+41	2198 ms	talk · 08:50 Thursday "hello boop"
+	→ face(name: "curious"), note(text: "hello on the desk")
+42	2028 ms	talk · 13:33 Thursday "stop talking for a bit"
+	→ face(name: "side_eye"), quiet(minutes: "30")
+43	2074 ms	talk · 10:00 Friday "note that landing launches Monday"
+	→ (quiet)
+44	1760 ms	talk · 08:30 Monday "good morning"
+	→ (quiet)
+45	1965 ms	tapped · 09:30 Tuesday
+	→ face(name: "curious"), say(feeling: "curious", word: "hmm")
+46	1713 ms	tapped · 12:15 Tuesday · hungry [no say]
+	→ face(name: "happy"), face(name: "curious")
+47	1968 ms	tapped · 18:40 Friday · starving
+	→ face(name: "happy"), say(feeling: "hopeful", word: "food")
+48	1446 ms	tapped · 23:55 Wednesday [no say]
+	→ face(name: "happy")
+49	1992 ms	tapped · 07:02 Monday
+	→ face(name: "happy"), say(feeling: "curious", word: "hmm")
+50	1426 ms	tapped · 15:20 Thursday [no say]
+	→ face(name: "happy")
+51	1951 ms	tapped · 13:05 Sunday · hungry
+	→ face(name: "happy"), say(feeling: "hopeful", word: "food")
+52	1392 ms	tapped · 10:10 Saturday [no say]
+	→ face(name: "happy")
+brain apple:27.0, 52 triggers 3 min apart, log /tmp/boop-brain/apple5.jsonl
+refused: 2/52
+  refused (talk): refused: apple: Response may contain sensitive or unsafe content
+  refused (talk): refused: apple: Response may contain sensitive or unsafe content
+valid shape: 50/50 answers given
+silence: 7/50
+spoke on event: 5/24 (say offered 6)
+spoke on tap: 4/8 (say offered 4)
+spoke on talk: 3/14 (say offered 14)
+tool calls: 74, dropped by actions: 5, past a limit: 0
+  moment(text: "all-nighter finally passed"): retells an earlier moment
+  moment(text: "all-nighter passed, migration done"): retells an earlier moment
+  remember(kind: "preference", text: "jetpack = payments"): looks like code
+  moment(text: "migration passed, finally stable"): retells an earlier moment
+  remember(kind: "about_you", text: "jetpack = payments, must be secure"): looks like code
+latency event: n 24, p50 1725 ms, p95 2022 ms (deadline 5000 ms)
+latency tap: n 8, p50 1713 ms, p95 1992 ms (deadline 3000 ms)
+latency talk: n 16, p50 2074 ms, p95 2365 ms (deadline 4000 ms)
+latency reflect: n 4, p50 2184 ms, p95 2757 ms (deadline 600000 ms)
+FAIL

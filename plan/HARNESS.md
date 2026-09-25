@@ -52,11 +52,10 @@ a single turn.
 1. **Receive a trigger** from the core: a name, a line or two describing
    what happened, the tools allowed, and a deadline.
 2. **Wait its turn.** One call runs at a time. A newer trigger replaces one
-   that's waiting, and `talk` cancels whatever is running. That's the
-   harness's only scheduling rule. Whether to send a trigger at all is the
-   core's decision.
+   that's waiting, and `talk` cancels whatever is running. Whether to send a
+   trigger at all is the core's decision.
 3. **Build the prompt** in a fixed order (§4), with the memory text supplied
-   by the memory store.
+   by the memory store. A tool past its limit (§5) isn't offered.
 4. **Call the brain** with the prompt, the allowed tool definitions and the
    deadline.
 5. **Check the shape** of the answer: valid JSON, only allowed tools,
@@ -64,6 +63,8 @@ a single turn.
    fails, the whole answer is dropped. The harness doesn't check meaning;
    each action checks its own rules.
 6. **Hand off** each tool call to the action that registered it, in order.
+   A call that would pass its tool's limit (a second `say` in one answer) is
+   dropped instead.
 7. **Log** the call, in debug mode.
 
 At startup, the app gives the harness its tools as a list of
@@ -123,6 +124,21 @@ your words on `talk`, which are dropped after the call.
 | `talk` | You release the push-to-talk button | 4 s | `say`, `face`, `quiet`, `note` |
 | `reflect` | Once a day, at the first activity of a new day | Minutes | `remember`, `temperament`, `moment` (not `forget` in v1, ARCHITECTURE.md §11) |
 
+**Limits.** The brain doesn't decide how often Boop talks; the harness
+does, in code. Each trigger kind carries a list of tool limits as plain data
+(`Trigger.Kind.limits`): at least so long between two runs of the tool that
+went through, and line starts where it's never offered. Time is the
+trigger's own clock (`ts`), so tests and the pipeline check can move it. A
+tool past its limit isn't offered at all, because a small model can't pick a
+tool it isn't shown, and nearly always speaks when it can. Only the brain's
+calls count; the core's rule mumbles don't.
+
+| Trigger | Tool | Limit |
+| --- | --- | --- |
+| `event` | `say` | Once every 10 minutes, and never on a turn start |
+| `tap` | `say` | Once every 5 minutes |
+| `talk`, `reflect` | — | None: talk is the person asking, and reflection doesn't speak |
+
 "Needs you" is not a trigger. That moment belongs to plain rules, so the
 brain can't make it slower or different from one time to the next.
 
@@ -137,7 +153,8 @@ leans on the menu:
   of eight and an optional `word` from a list of about forty. The only free
   text is a short note or memory line, with a length limit.
 - **One step:** one call, up to three tool calls, no follow-up.
-- **Easy silence:** an empty answer is valid, and common.
+- **Easy silence:** an empty answer is valid, and the limits (§5) make
+  silence the default for `say` whatever the model would pick.
 - **Examples over rules:** `steering.md` shows short examples for each
   trigger, which helps a small model more than extra rules do.
 
@@ -179,7 +196,7 @@ Brain
 
 | Brain | Notes |
 | --- | --- |
-| Apple on-device | **The default.** Small, private and free. Guided generation with a schema built at runtime: a leading `react` choice (`stay quiet` or `react`, since a small model rarely leaves a list empty on its own), then up to three calls whose choices are constrained. Every choice starts with `none`, which leaves an optional argument out or drops the call, because the model otherwise drifts to a list's first entry. Guardrails are set to `permissiveContentTransformations`; a guardrail refusal is dropped like any brain error. Text lengths are only asked for, so the shape check still applies. Everything must work well on this |
+| Apple on-device | **The default.** Small, private and free. Guided generation with a schema built at runtime: a leading `react` choice (`stay quiet` or `react`, since a small model rarely leaves a list empty on its own), then up to three calls whose choices are constrained. Every choice starts with `none`, which leaves an optional argument out or drops the call, because the model otherwise drifts to a list's first entry. Guardrails are set to `permissiveContentTransformations`; a guardrail refusal is dropped like any brain error (Boop keeps the rule reaction), but marked as a refusal so L5 counts it apart. Text lengths are only asked for, so the shape check still applies. Everything must work well on this |
 | Cloud API | Optional, with the person's own API key. Wittier, with the same tools and limits |
 | Rules only | No model. Reads the fallback table from `steering.md` in the system prompt and the trigger from the now section, like any brain. The most specific matching row wins (`Tap, hungry` over `Tap`); "long" means 5 minutes or more. Always available, and used when Apple's model can't run |
 

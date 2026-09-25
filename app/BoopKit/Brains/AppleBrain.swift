@@ -48,7 +48,10 @@ public struct AppleBrain: Brain {
                                                      options: GenerationOptions(temperature: 0.5))
             return AppleBrain.fromList(response.content.jsonString, tools: tools)
         } catch let error as LanguageModelSession.GenerationError {
-            throw BrainError("apple: \(error)")
+            switch error {
+            case .guardrailViolation, .refusal: throw BrainError.refused("apple: \(error)")
+            default: throw BrainError("apple: \(error)")
+            }
         }
         #else
         throw BrainError("FoundationModels isn't in this SDK")

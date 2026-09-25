@@ -15,9 +15,10 @@ let usage = """
                Prints long-term.md and short-term.md as the memory store reads them, and the history snapshots.
            boopdev voice <feeling> [word] [--dialect HEX] [--seed N] [--count N] [--json] [--why]
                Prints Minion lines as the say action would build them.
-           boopdev brain [--brain apple|rules] [--triggers DIR] [--memory DIR] [--steering FILE] [--out FILE] [--print]
+           boopdev brain [--brain apple|rules] [--triggers DIR] [--memory DIR] [--steering FILE] [--out FILE] [--gap-min N] [--print]
                Runs the real harness and brain on recorded triggers, each with a fresh copy of the sample
-               memory, and reports valid shapes, dropped calls, the silence rate and latency (VERIFICATION.md L5).
+               memory, N minutes apart (default 3) under one history of the harness's limits, and reports
+               refusals, valid shapes, dropped calls, speech, silence and latency (VERIFICATION.md L5).
            boopdev hooks status|install|remove [claude|codex] --home DIR [--hook PATH]
                The installer, against any HOME (tests use a temporary one). --hook defaults to the boop-hook
                next to boopdev.
@@ -177,6 +178,11 @@ func brain(_ args: [String]) async {
             triggers.append(Trigger(kind: kind, line: text, words: o["words"] as? String, ts: 0))
         }
     }
+    // A busy stretch: triggers in file order, `--gap-min` apart, sharing one
+    // history of the harness's limits (HARNESS.md §5).
+    let gapMs = Int64((Double(option(args, "--gap-min") ?? "3") ?? 3) * 60_000)
+    for i in triggers.indices { triggers[i].ts = Int64(i) * gapMs }
+    let limits = ToolLimits()
     guard !triggers.isEmpty else { fail("no triggers in \(triggersDir)") }
 
     let out = URL(fileURLWithPath: option(args, "--out") ?? "/tmp/boop-brain/\(setting).jsonl")
@@ -200,7 +206,7 @@ func brain(_ args: [String]) async {
                                         log: { logs.append($0) })
             let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: 0x7f3a)), memory: store)
             return Harness(brain: brain, tools: actions.map(Harness.Tool.init), memory: { store.promptMemory(for: $0.kind) },
-                           home: home, debugLog: out, log: { logs.append($0) })
+                           home: home, debugLog: out, limits: limits, log: { logs.append($0) })
         }
         let r = await harness.respond(to: trigger)
         records.append(r)
@@ -208,7 +214,8 @@ func brain(_ args: [String]) async {
             let said = trigger.words.map { " \"\($0)\"" } ?? ""
             let answer = r.dropped.map { "DROPPED \($0)" }
                 ?? (r.ran.isEmpty ? "(quiet)" : r.ran.map { "\($0.call)" + ($0.outcome.isDone ? "" : " ✗") }.joined(separator: ", "))
-            print("\(i + 1)\t\(r.latencyMs) ms\t\(trigger.line)\(said)\n\t→ \(answer)")
+            let offered = r.tools.contains("say") || trigger.kind.limits.isEmpty ? "" : " [no say]"
+            print("\(i + 1)\t\(r.latencyMs) ms\t\(trigger.line)\(said)\(offered)\n\t→ \(answer)")
         }
     }
 
@@ -216,14 +223,29 @@ func brain(_ args: [String]) async {
         let sorted = values.sorted()
         return sorted.isEmpty ? 0 : sorted[min(sorted.count - 1, Int((Double(sorted.count) * p).rounded(.up)) - 1)]
     }
+    // Refusals (a guardrail declining to answer) are counted apart: Boop
+    // keeps the rule reaction, as for any dropped answer (VERIFICATION.md L5).
+    let answered = records.filter { !$0.refused }
     let valid = records.filter(\.validShape)
-    let calls = records.flatMap(\.ran)
+    func limited(_ c: (call: ToolCall, outcome: ActionOutcome)) -> Bool {
+        if case .dropped(let why) = c.outcome { return why.hasPrefix("limit: ") }
+        return false
+    }
+    let calls = records.flatMap(\.ran).filter { !limited($0) }
     let dropped = calls.filter { !$0.outcome.isDone }
-    print("brain \(brain.id), \(records.count) triggers, log \(out.path)")
-    print("valid shape: \(valid.count)/\(records.count)")
-    for r in records where !r.validShape { print("  dropped answer (\(r.trigger.kind.rawValue)): \(r.dropped ?? "")") }
+    print("brain \(brain.id), \(records.count) triggers \(gapMs / 60_000) min apart, log \(out.path)")
+    print("refused: \(records.count - answered.count)/\(records.count)")
+    for r in records where r.refused { print("  refused (\(r.trigger.kind.rawValue)): \(r.dropped ?? "")") }
+    print("valid shape: \(valid.count)/\(answered.count) answers given")
+    for r in answered where !r.validShape { print("  dropped answer (\(r.trigger.kind.rawValue)): \(r.dropped ?? "")") }
     print("silence: \(valid.filter(\.silent).count)/\(valid.count)")
-    print("tool calls: \(calls.count), dropped by actions: \(dropped.count)")
+    for kind in [Trigger.Kind.event, .tap, .talk] {
+        let rs = valid.filter { $0.trigger.kind == kind }
+        let spoke = rs.filter { $0.ran.contains { $0.call.name == "say" && $0.outcome.isDone } }
+        let offered = rs.filter { $0.tools.contains("say") }
+        print("spoke on \(kind.rawValue): \(spoke.count)/\(rs.count) (say offered \(offered.count))")
+    }
+    print("tool calls: \(calls.count), dropped by actions: \(dropped.count), past a limit: \(records.flatMap(\.ran).filter(limited).count)")
     for d in dropped {
         if case .dropped(let why) = d.outcome { print("  \(d.call): \(why)") }
     }
@@ -237,7 +259,7 @@ func brain(_ args: [String]) async {
     }
     for line in logs where line.contains("over budget") { print("  \(line)") }
     let dropRate = calls.isEmpty ? 0 : Double(dropped.count) / Double(calls.count)
-    let pass = valid.count == records.count && dropRate < 0.05 && latencyOK
+    let pass = valid.count == answered.count && dropRate < 0.05 && latencyOK
     print(pass ? "PASS (the sample review is separate)" : "FAIL")
     exit(pass ? 0 : 1)
 }

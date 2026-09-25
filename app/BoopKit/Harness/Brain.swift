@@ -17,6 +17,11 @@ public protocol Brain: Sendable {
 public struct BrainError: Error, Equatable, CustomStringConvertible {
     public var description: String
     public init(_ description: String) { self.description = description }
+
+    /// The brain declined to answer (a model's guardrail). Dropped like any
+    /// error, but L5 counts it apart from a badly shaped answer.
+    public static func refused(_ why: String) -> BrainError { BrainError(refusedPrefix + why) }
+    static let refusedPrefix = "refused: "
 }
 
 /// The answer format every brain uses.

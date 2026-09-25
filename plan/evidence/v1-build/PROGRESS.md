@@ -428,3 +428,41 @@ The owner read the A3 blocker (`A3/README.md`) and decided:
   but don't fail it. If it passes, write `A3/README.md`, set A3 Passed and
   commit `A3: Harness and brains — …`. Then go back to F5 where the entry
   before this one left off.
+
+## 2026-09-26 05:50 — A3: Harness and brains — Passed (owner's ruling)
+
+- **Changed:** the harness limits brain speech in code, as plain data per
+  trigger kind (`Trigger.Kind.limits`, `ToolLimit`, `ToolLimits`): `say` on
+  `event` at most once every 10 min and never on a turn start, on `tap`
+  once every 5 min, on the triggers' own clock. A tool past its limit isn't
+  offered; a second `say` in one answer is dropped. Guardrail refusals are
+  `BrainError.refused` and counted apart. `boopdev brain` spaces triggers
+  3 min apart under one limit history (`--gap-min`) and reports refusals,
+  valid shape over answers given, and speech per trigger. Steering: one
+  talk example for an indirect quiet request (bundled copy in sync).
+  Specs: HARNESS §3, §5, §6, §7; VERIFICATION §2, L0, L5; two decision-log
+  rows.
+- **Checks:** `make test` 166/166; `make e2e` PASS (rules brain, board
+  over USB). L5 rules 52/52 PASS. L5 Apple, 3 runs: 2 refusals each, 50/50
+  valid shape each, no speech on turn starts, events spoke 5/24 and taps
+  4/8. Action drops 5.5% (run 3, before the steering example), 2.7% (run
+  4) and 6.8% (run 5), against a 5% line. **The drop check failed in 2 of
+  3 runs.** Every drop over the line is in reflection: `moment` retellings
+  (the deferred "moment every day") and `remember("jetpack = payments")`
+  hitting memory's code check. Marked Passed under the owner's ruling that
+  the deferred issues don't fail A3; `A3/README.md` says this plainly and
+  lists the known issues. L3 skipped (webcam withdrawn; nothing on screen
+  changed).
+- **Decided:** kept the 5% line and reported the failures, rather than
+  changing the check to leave out reflection.
+- **Board:** firmware untouched (F5), on the idle face; no bridge or app
+  running.
+- **Next step:** start **J2** (soak and polish). Read PLAN.md §4 J2. Run a
+  30-minute soak with replayed traffic *and the Apple brain*: `boopctl
+  bridge` + `Boop --headless --brain apple --link usb:…`, with `boopdev
+  replay` fixtures on a loop (see `tools/boopctl_lib/e2e.py` for the
+  wiring), sampling `dbg.ping`/`dbg.state` for resets, heap drift, stuck
+  states and `audio.out.errors`. Confirm every test is green and every
+  golden reviewed, and rewrite `README.md` for the v1 product and commands
+  (`make` targets, `boopctl` including `voice`, `voicegen`, `boopdev brain
+  --gap-min`). Webcam stays off: skip L3 and say so.

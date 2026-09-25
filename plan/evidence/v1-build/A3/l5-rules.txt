@@ -1,12 +1,12 @@
-1	0 ms	turn started · claude · jetpack · 09:12 Tuesday
+1	0 ms	turn started · claude · jetpack · 09:12 Tuesday [no say]
 	→ (quiet)
-2	0 ms	turn started · codex · landing · 09:40 Tuesday
+2	0 ms	turn started · codex · landing · 09:40 Tuesday [no say]
 	→ (quiet)
-3	0 ms	turn started · claude · boop · 10:03 Tuesday · hungry
+3	0 ms	turn started · claude · boop · 10:03 Tuesday · hungry [no say]
 	→ (quiet)
-4	0 ms	turn started · codex · jetpack · 16:20 Friday
+4	0 ms	turn started · codex · jetpack · 16:20 Friday [no say]
 	→ (quiet)
-5	0 ms	turn started · claude · landing · 23:48 Wednesday
+5	0 ms	turn started · claude · landing · 23:48 Wednesday [no say]
 	→ (quiet)
 6	0 ms	turn finished · claude · jetpack · took 12 s · 09:13 Tuesday
 	→ (quiet)
@@ -14,20 +14,20 @@
 	→ (quiet)
 8	0 ms	turn finished · claude · jetpack · topic: tests · took 18 min · 14:05 Tuesday
 	→ say(feeling: "proud", word: "finally")
-9	0 ms	turn finished · codex · landing · topic: build · took 3 min · 11:30 Tuesday
+9	0 ms	turn finished · codex · landing · topic: build · took 3 min · 11:30 Tuesday [no say]
 	→ (quiet)
-10	0 ms	turn finished · claude · boop · topic: docs · took 7 min · 15:02 Tuesday
-	→ say(feeling: "proud", word: "finally")
-11	0 ms	turn finished · codex · jetpack · topic: deploy · took 26 min · 17:55 Friday
-	→ say(feeling: "proud", word: "finally")
+10	0 ms	turn finished · claude · boop · topic: docs · took 7 min · 15:02 Tuesday [no say]
+	→ (quiet)
+11	0 ms	turn finished · codex · jetpack · topic: deploy · took 26 min · 17:55 Friday [no say]
+	→ (quiet)
 12	0 ms	turn finished · claude · jetpack · took 48 min · 01:10 Thursday
 	→ say(feeling: "proud", word: "finally")
-13	0 ms	turn finished · claude · landing · took 2 min · 13:00 Monday · hungry
+13	0 ms	turn finished · claude · landing · took 2 min · 13:00 Monday · hungry [no say]
 	→ (quiet)
-14	0 ms	turn finished · codex · boop · topic: tests · took 9 min · 10:15 Wednesday · starving
-	→ say(feeling: "proud", word: "finally")
-15	0 ms	turn finished · claude · jetpack · topic: tests · took 6 min · 14:40 Tuesday · +2 more
-	→ say(feeling: "proud", word: "finally")
+14	0 ms	turn finished · codex · boop · topic: tests · took 9 min · 10:15 Wednesday · starving [no say]
+	→ (quiet)
+15	0 ms	turn finished · claude · jetpack · topic: tests · took 6 min · 14:40 Tuesday · +2 more [no say]
+	→ (quiet)
 16	0 ms	turn finished · claude · landing · took 35 s · 08:05 Monday
 	→ (quiet)
 17	0 ms	turn failed · claude · jetpack · topic: tests · 14:02 Tuesday
@@ -90,8 +90,8 @@
 	→ face(name: "happy")
 46	0 ms	tapped · 12:15 Tuesday · hungry
 	→ say(feeling: "hopeful", word: "food")
-47	0 ms	tapped · 18:40 Friday · starving
-	→ say(feeling: "hopeful", word: "food")
+47	0 ms	tapped · 18:40 Friday · starving [no say]
+	→ (quiet)
 48	0 ms	tapped · 23:55 Wednesday
 	→ face(name: "happy")
 49	0 ms	tapped · 07:02 Monday
@@ -100,12 +100,16 @@
 	→ face(name: "happy")
 51	0 ms	tapped · 13:05 Sunday · hungry
 	→ say(feeling: "hopeful", word: "food")
-52	0 ms	tapped · 10:10 Saturday
+52	0 ms	tapped · 10:10 Saturday [no say]
 	→ face(name: "happy")
-brain rules@1, 52 triggers, log /tmp/boop-brain/rules.jsonl
-valid shape: 52/52
-silence: 14/52
-tool calls: 54, dropped by actions: 0
+brain rules@1, 52 triggers 3 min apart, log /tmp/boop-brain/rules.jsonl
+refused: 0/52
+valid shape: 52/52 answers given
+silence: 19/52
+spoke on event: 2/24 (say offered 13)
+spoke on tap: 2/8 (say offered 6)
+spoke on talk: 14/16 (say offered 16)
+tool calls: 49, dropped by actions: 0, past a limit: 0
 latency event: n 24, p50 0 ms, p95 0 ms (deadline 5000 ms)
 latency tap: n 8, p50 0 ms, p95 0 ms (deadline 3000 ms)
 latency talk: n 16, p50 0 ms, p95 0 ms (deadline 4000 ms)

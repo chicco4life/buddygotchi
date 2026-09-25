@@ -43,7 +43,7 @@ Each level answers a different question:
 | `tools/boopctl` | The new device tool, replacing `buddyctl.py`. It's Python in `tools/.venv` (pyserial, Pillow), created by `make tools` |
 | `tools/boopctl bridge` | Owns the USB serial port and shares it through a Unix socket (`--socket`, default `$BOOP_BRIDGE` or `/tmp/boop-bridge.sock`), so the Mac app and other `boopctl` commands can use the board at the same time. Every line from the board goes to every client, and each client's lines reach the board whole. While a bridge runs, other `boopctl` commands (with `BOOP_BRIDGE` set to its socket, if it isn't the default) go through it instead of opening the port |
 | `tools/webcam/webcam.sh` | The existing AVFoundation recorder and frame extractor. `boopctl cam …` wraps it |
-| `boopdev` | A Swift CLI in the app package for replaying hooks, running the harness on recorded triggers, and printing the memory files. `boopdev replay <fixture>` alone runs the payloads through the hook's field picking, the adapter and the core on a virtual clock and prints every decision (`--states` for snapshots only); with `--socket` it sends them through the real `boop-hook` to a running app. `boopdev memory --state-dir DIR` prints the memory files as the store reads them, and the snapshot days. `boopdev voice <feeling> [word] --count N [--why]` prints the lines `say` would build, and with `--why` every rejected try. `boopdev brain [--brain apple\|rules] [--print]` runs L5: each fixture trigger through the real harness with a fresh copy of the sample memory, reporting valid shapes, dropped calls, silence and latency, and logging every call to `/tmp/boop-brain/<brain>.jsonl` `boopdev talk "<words>" --socket PATH` hands a push-to-talk transcript to a running headless app. `boopdev hooks status\|install\|remove [claude\|codex] --home DIR` runs the hook installer against any HOME |
+| `boopdev` | A Swift CLI in the app package for replaying hooks, running the harness on recorded triggers, and printing the memory files. `boopdev replay <fixture>` alone runs the payloads through the hook's field picking, the adapter and the core on a virtual clock and prints every decision (`--states` for snapshots only); with `--socket` it sends them through the real `boop-hook` to a running app. `boopdev memory --state-dir DIR` prints the memory files as the store reads them, and the snapshot days. `boopdev voice <feeling> [word] --count N [--why]` prints the lines `say` would build, and with `--why` every rejected try. `boopdev brain [--brain apple\|rules] [--gap-min N] [--print]` runs L5: each fixture trigger through the real harness with a fresh copy of the sample memory, N minutes apart under one history of the limits, reporting refusals, valid shapes, dropped calls, speech, silence and latency, and logging every call to `/tmp/boop-brain/<brain>.jsonl` `boopdev talk "<words>" --socket PATH` hands a push-to-talk transcript to a running headless app. `boopdev hooks status\|install\|remove [claude\|codex] --home DIR` runs the hook installer against any HOME |
 
 `boopctl` subcommands:
 
@@ -164,8 +164,8 @@ gets at least one scenario. Their pictures become the **golden images** in
   §3 has tests. That covers adapter mapping, core rules (screen priority, XP,
   hunger, mood, quiet), each action's own checks, Voice (dialect,
   determinism, the English check), memory limits and snapshots, the harness
-  with a fake brain (shape check, one call at a time, `talk` cancelling), and
-  device link message encoding.
+  with a fake brain (shape check, one call at a time, `talk` cancelling,
+  tool limits on a virtual clock), and device link message encoding.
 - **Firmware (`make fw-test`):** the protocol parser, line reassembly across
   BLE packets, the behaviour state machine (screen priority, nudge ladder
   timing, moment expiry, the 30 s no-app timeout), input gestures, and
@@ -275,13 +275,20 @@ under 200 ms at p95.
 
 1. `boopdev brain --brain apple --triggers app/Tests/Fixtures/triggers/ --memory app/Tests/Fixtures/memory/`
    runs the real harness and Apple's on-device model on recorded triggers.
-2. It reports: answers with valid shape (target 100%), tool calls each
-   action dropped and why, the silence rate, and latency p50/p95.
+   The triggers run 3 minutes apart in file order (`--gap-min`), under one
+   history of the harness's limits, so speech is judged on what Boop would
+   actually say after them (HARNESS.md §5).
+2. It reports: refusals (the model's guardrail declining to answer), answers
+   with valid shape out of the answers given (target 100%), tool calls each
+   action dropped and why, calls past a limit, how often each trigger spoke,
+   the silence rate, and latency p50/p95.
 3. The agent reads a sample of about 20 answers against `steering.md`. Is
    it in character, never nagging, and the right word when there is one?
 
-**Pass:** 100% valid shape, fewer than 5% of tool calls dropped, p95 under
-the trigger deadline, and a reviewed sample. Apple's model is available on
+**Pass:** 100% valid shape over the answers given, fewer than 5% of tool
+calls dropped by actions, p95 under the trigger deadline, and a reviewed
+sample. Refusals are reported, not failed: Boop keeps the rule reaction, as
+for any dropped answer. Apple's model is available on
 this Mac with an 8K context.
 
 ### L6: the owner (morning)

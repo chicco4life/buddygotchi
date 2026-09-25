@@ -5,8 +5,9 @@ import Foundation
 /// it `(definition, handler)` pairs at startup.
 ///
 /// One call runs at a time. A newer trigger replaces one that's waiting, and
-/// `talk` cancels whatever is running. Everything except the brain call runs
-/// on `home`, the queue the memory store and the actions live on.
+/// `talk` cancels whatever is running. A tool past its limit (HARNESS.md §5)
+/// isn't offered. Everything except the brain call runs on `home`, the queue
+/// the memory store and the actions live on.
 public final class Harness: @unchecked Sendable {
     /// A tool as the harness sees it: what the brain is shown, and who
     /// carries out a call.
@@ -45,6 +46,8 @@ public final class Harness: @unchecked Sendable {
         /// The answer passed the shape check (an empty one counts).
         public var validShape: Bool { raw != nil && dropped == nil }
         public var silent: Bool { validShape && ran.isEmpty }
+        /// The brain declined to answer (a guardrail); nothing ran.
+        public var refused: Bool { dropped?.hasPrefix(BrainError.refusedPrefix) ?? false }
 
         public var json: String {
             var o: [String: Any] = [

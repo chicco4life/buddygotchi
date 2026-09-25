@@ -1,0 +1,121 @@
+1	1921 ms	turn started · claude · jetpack · 09:12 Tuesday [no say]
+	→ face(name: "smug")
+2	1746 ms	turn started · codex · landing · 09:40 Tuesday [no say]
+	→ face(name: "smug"), face(name: "side_eye")
+3	1735 ms	turn started · claude · boop · 10:03 Tuesday · hungry [no say]
+	→ face(name: "happy"), face(name: "curious")
+4	1430 ms	turn started · codex · jetpack · 16:20 Friday [no say]
+	→ face(name: "smug")
+5	1438 ms	turn started · claude · landing · 23:48 Wednesday [no say]
+	→ face(name: "side_eye")
+6	1982 ms	turn finished · claude · jetpack · took 12 s · 09:13 Tuesday
+	→ face(name: "smug"), say(feeling: "curious", word: "tests")
+7	1478 ms	turn finished · codex · landing · topic: tests · took 45 s · 09:41 Tuesday [no say]
+	→ face(name: "side_eye")
+8	1789 ms	turn finished · claude · jetpack · topic: tests · took 18 min · 14:05 Tuesday [no say]
+	→ face(name: "side_eye"), face(name: "smug")
+9	1626 ms	turn finished · codex · landing · topic: build · took 3 min · 11:30 Tuesday [no say]
+	→ face(name: "side_eye")
+10	1641 ms	turn finished · claude · boop · topic: docs · took 7 min · 15:02 Tuesday
+	→ (quiet)
+11	2048 ms	turn finished · codex · jetpack · topic: deploy · took 26 min · 17:55 Friday
+	→ face(name: "smug"), say(feeling: "annoyed", word: "tests")
+12	1685 ms	turn finished · claude · jetpack · took 48 min · 01:10 Thursday [no say]
+	→ face(name: "smug"), face(name: "side_eye")
+13	1703 ms	turn finished · claude · landing · took 2 min · 13:00 Monday · hungry [no say]
+	→ face(name: "smug"), face(name: "curious")
+14	1745 ms	turn finished · codex · boop · topic: tests · took 9 min · 10:15 Wednesday · starving [no say]
+	→ face(name: "side_eye"), face(name: "curious")
+15	1988 ms	turn finished · claude · jetpack · topic: tests · took 6 min · 14:40 Tuesday · +2 more
+	→ face(name: "side_eye"), say(feeling: "annoyed", word: "tests")
+16	1458 ms	turn finished · claude · landing · took 35 s · 08:05 Monday [no say]
+	→ face(name: "curious")
+17	1497 ms	turn failed · claude · jetpack · topic: tests · 14:02 Tuesday [no say]
+	→ face(name: "side_eye")
+18	1767 ms	turn failed · codex · landing · topic: build · 11:20 Tuesday [no say]
+	→ face(name: "side_eye"), face(name: "smug")
+19	2017 ms	turn failed · claude · boop · error: rate limit · 16:45 Tuesday
+	→ face(name: "side_eye"), say(feeling: "annoyed", word: "bug")
+20	1505 ms	turn failed · codex · jetpack · error: overloaded · 10:05 Wednesday [no say]
+	→ face(name: "side_eye")
+21	1483 ms	turn failed · claude · landing · topic: deploy · error: timeout · 18:30 Friday [no say]
+	→ face(name: "side_eye")
+22	1487 ms	turn failed · codex · landing · topic: tests · 14:03 Tuesday · +1 more [no say]
+	→ face(name: "side_eye")
+23	2014 ms	turn failed · claude · jetpack · error: context limit · 22:10 Thursday · hungry
+	→ face(name: "side_eye"), say(feeling: "annoyed", word: "bug")
+24	1499 ms	turn failed · codex · boop · error: other · 09:00 Monday [no say]
+	→ face(name: "side_eye")
+25	2265 ms	reflect · yesterday 2026-10-14
+	→ moment(text: "first all-nighter passed slowly") ✗, remember(kind: "about_you", text: "jetpack handles payments")
+26	1871 ms	reflect · yesterday 2026-10-14
+	→ (quiet)
+27	3906 ms	reflect · yesterday 2026-10-14
+	→ DROPPED refused: apple: Response may contain sensitive or unsafe content
+28	2338 ms	reflect · yesterday 2026-10-14
+	→ remember(kind: "about_you", text: "flaky tests still linger"), moment(text: "all-nighter passed quietly yet fiercely.") ✗
+29	2109 ms	talk · 09:14 Tuesday "shut up for an hour"
+	→ face(name: "sulky"), quiet(minutes: "30")
+30	2224 ms	talk · 10:02 Tuesday "good job today"
+	→ face(name: "smug"), note(text: "jetpack still flaky")
+31	1754 ms	talk · 11:45 Tuesday "remember I ship on Fridays"
+	→ (quiet)
+32	2266 ms	talk · 12:30 Tuesday "blorp flibble wazoo"
+	→ face(name: "curious"), say(feeling: "curious", word: "hmm")
+33	2073 ms	talk · 13:10 Tuesday "be quiet please"
+	→ face(name: "sulky"), quiet(minutes: "30")
+34	2242 ms	talk · 14:20 Tuesday "how are you doing"
+	→ face(name: "curious"), say(feeling: "curious", word: "hmm")
+35	2416 ms	talk · 15:05 Tuesday "the tests finally pass"
+	→ face(name: "curious"), note(text: "tests pass, but landing still flaky")
+36	1800 ms	talk · 12:01 Tuesday "I'm going to lunch"
+	→ (quiet)
+37	2068 ms	talk · 16:40 Tuesday "can you keep it down for fifteen minutes"
+	→ face(name: "side_eye"), quiet(minutes: "30")
+38	2092 ms	talk · 17:30 Friday "you're the best"
+	→ face(name: "smug"), note(text: "jetpack still flaky")
+39	2266 ms	talk · 09:05 Wednesday "jetpack is the payments service"
+	→ DROPPED refused: apple: Response may contain sensitive or unsafe content
+40	2301 ms	talk · 11:11 Wednesday · hungry "ugh this build again"
+	→ say(feeling: "annoyed", word: "tests"), note(text: "flaky tests keep rising")
+41	2092 ms	talk · 08:50 Thursday "hello boop"
+	→ face(name: "curious"), note(text: "hello")
+42	2031 ms	talk · 13:33 Thursday "stop talking for a bit"
+	→ face(name: "side_eye"), quiet(minutes: "30")
+43	2122 ms	talk · 10:00 Friday "note that landing launches Monday"
+	→ (quiet)
+44	1757 ms	talk · 08:30 Monday "good morning"
+	→ (quiet)
+45	1979 ms	tapped · 09:30 Tuesday
+	→ face(name: "happy"), say(feeling: "curious", word: "tests")
+46	1728 ms	tapped · 12:15 Tuesday · hungry [no say]
+	→ face(name: "happy"), face(name: "curious")
+47	1658 ms	tapped · 18:40 Friday · starving
+	→ say(feeling: "hopeful", word: "food")
+48	1376 ms	tapped · 23:55 Wednesday [no say]
+	→ face(name: "happy")
+49	1532 ms	tapped · 07:02 Monday
+	→ (quiet)
+50	1941 ms	tapped · 15:20 Thursday
+	→ face(name: "happy"), say(feeling: "curious", word: "tests")
+51	1730 ms	tapped · 13:05 Sunday · hungry [no say]
+	→ face(name: "happy"), face(name: "curious")
+52	1945 ms	tapped · 10:10 Saturday
+	→ face(name: "happy"), say(feeling: "curious", word: "tests")
+brain apple:27.0, 52 triggers 3 min apart, log /tmp/boop-brain/apple.jsonl
+refused: 2/52
+  refused (reflect): refused: apple: Response may contain sensitive or unsafe content
+  refused (talk): refused: apple: Response may contain sensitive or unsafe content
+valid shape: 50/50 answers given
+silence: 7/50
+spoke on event: 5/24 (say offered 6)
+spoke on tap: 4/8 (say offered 5)
+spoke on talk: 3/15 (say offered 15)
+tool calls: 73, dropped by actions: 2, past a limit: 0
+  moment(text: "first all-nighter passed slowly"): retells an earlier moment
+  moment(text: "all-nighter passed quietly yet fiercely."): retells an earlier moment
+latency event: n 24, p50 1685 ms, p95 2017 ms (deadline 5000 ms)
+latency tap: n 8, p50 1728 ms, p95 1979 ms (deadline 3000 ms)
+latency talk: n 16, p50 2092 ms, p95 2416 ms (deadline 4000 ms)
+latency reflect: n 4, p50 2265 ms, p95 3906 ms (deadline 600000 ms)
+PASS (the sample review is separate)

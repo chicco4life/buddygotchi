@@ -140,7 +140,7 @@ Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 | F4 | Bluetooth on the device | Passed |
 | A1 | App core: adapters, hook client, core rules | Passed |
 | A2 | Memory, Voice, actions | Passed |
-| A3 | Harness and brains | In progress (reopened by the owner; see the 2026-09-26 05:36 owner entry in PROGRESS.md) |
+| A3 | Harness and brains | Passed (under the owner's 2026-09-26 ruling; known issues in `A3/README.md`) |
 | A4 | Device link, app shell, push-to-talk, installer | Passed |
 | J1 | End to end over USB | Passed |
 | F5 | Voice on the device | Passed |
