@@ -19,6 +19,17 @@ conflict.
 Colour changes *how* Boop does things, never *what*. A hungry, tired Boop
 still clearly cheers when a task finishes. It just cheers smaller.
 
+**Attention wins.** While something needs you, the device plays only the
+moments that answer you directly: `nod`, `listening`, `thinking`, `shrug`
+and `zip`. Other moments (a cheer for another session, an oops, a face) are
+skipped, and a moment that's playing when "needs you" starts is cut short.
+Mumbles never show while something needs you.
+
+**How the device shapes a moment** (it's a rule on the device, from the
+`mood` in `state`): moments play faster or slower with `pace` (clamped to
+70–140%), and a cheer is one size smaller when `energy` is under 60 and one
+size bigger at 140 or more.
+
 ## 2. Base states
 
 | State | When | Loop |
@@ -34,6 +45,15 @@ about half the time the session's latest topic as the word
 (*"mi-ne? po… tests?"*).
 
 **Night** is 23:00–07:00 local time (*proposed*).
+
+**Idle life on the device.** Something small happens every 2–6 s while idle
+(slower when tired, hungry or at night): most often a blink, otherwise a
+glance to one side, a peek up, or a little bob to itself. Working Boop
+blinks and glances down at the work, more often with 3 or more sessions
+busy. Asleep, it breathes slowly and never blinks. With no app it only
+blinks, every 5–9 s. The backlight dims to about 45% at night, 25% asleep
+(15% asleep at night) and 30% with no app, but never while something needs
+you.
 
 ## 3. Triggers and what Boop does
 
@@ -62,8 +82,11 @@ Boop only tells you. You approve on the Mac, in the agent's own prompt.
 | 45 s later (*proposed*) | Leans further, second chirp |
 | 2 min later (*proposed*) | One short buzz, then stays amber and quiet. With no motor (the v1 board): three strong amber light pulses |
 | More than one needs you | The bubble shows the oldest, with "+1 more" |
-| You tap Boop | A small nod; nudges stop for that session; it stays amber |
-| You answer on the Mac | The agent carries on, Boop sees the activity, nods, and goes back to what it was doing |
+| You tap Boop | A small nod; nudges stop for that session (no more chirps, no pulses, the lean stops growing); it stays amber |
+| You answer on the Mac | The agent carries on, Boop sees the activity, nods, and goes back to what it was doing. The device plays the nod itself when `attn` leaves the `state` |
+
+The amber light is steady at half brightness; the three rung-3 pulses are
+200 ms at full brightness with 200 ms gaps.
 
 The brain is never involved here. In focus mode this is visual only (§6).
 
@@ -73,8 +96,8 @@ The brain is never involved here. In focus mode this is visual only (§6).
 | --- | --- | --- |
 | Tap the face, or press BOOT | `wiggle`, happy squint | A small mumble or face |
 | Hold BOOT (push-to-talk) | `listening` at once, `thinking` on release | A mumble reply and a face; on "shut up", `zip` and quiet |
-| Brain too slow to reply | `shrug` and *"hmm?"* | — |
-| Touch and hold the face | A mumble and face that show how Boop feels, from its mood | — |
+| Brain too slow to reply | `shrug` and *"hmm?"*. If no reply arrives, the device ends `thinking` with a `shrug` itself after 8 s | — |
+| Touch and hold the face | The device shows a face from its mood at once (`sleepy` when tired or at night, `curious` when hungry, `worried` when starving, `love` when very bouncy, otherwise `happy`) and sends `input` `feel`; the Mac may add a mumble | — |
 | First activity of the day | `stretch`, then `yawn` | — |
 
 ### 3.4 Time and the device
@@ -104,6 +127,10 @@ can't touch them.
 | Under 2 days | Fed | Normal |
 | 2–5 days | Hungry | An occasional tummy rumble, hopeful glances, slower idle |
 | Over 5 days | Starving | Sits by an empty bowl, low energy; loses 1 XP a day |
+
+On the device, hungry means a tummy rumble now and then and hopeful peeks
+up at you; starving adds heavy lids, a lower face and the empty bowl beside
+it on the face screen.
 
 - It never drops below the start of its current level, never dies, and
   never runs away.

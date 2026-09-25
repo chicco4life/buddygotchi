@@ -178,6 +178,17 @@ CLIPS = {
     "cheer": [(0.0, _WORKING), (1.5, {"t": "moment", "anim": "cheer", "size": 3, "ttl": 5,
                                       "say": {"syl": "bi do ba na", "word": "done!", "at": 4, "ms": 120}}),
               (5.0, _WORKING)],
+    # The ladder with a sped-up clock: jump to just before rung 2, then to
+    # just before rung 3 (three amber pulses), then a tap hushes it.
+    "ladder": [(0.0, _WORKING), (1.0, _ATTN),
+               (3.0, {"t": "dbg.clock", "step": 42500}), (3.0, _ATTN), (3.0, {"t": "dbg.clock", "run": True}),
+               (5.5, {"t": "dbg.clock", "step": 72500}), (5.5, _ATTN), (5.5, {"t": "dbg.clock", "run": True}),
+               (8.0, {"t": "dbg.press", "ms": 100})],
+    "cheers": [(0.0, _WORKING), (0.5, {"t": "moment", "anim": "cheer", "size": 1, "ttl": 5}),
+               (3.0, {"t": "moment", "anim": "cheer", "size": 2, "ttl": 5}), (3.0, _WORKING),
+               (5.8, {"t": "moment", "anim": "cheer", "size": 3, "ttl": 5})],
+    "tap": [(0.0, {"t": "state", "v": 1, "base": "idle", "idle": 1}), (1.0, {"t": "dbg.press", "ms": 100}),
+            (3.0, {"t": "dbg.touch", "x": 120, "y": 120, "ms": 100}), (5.0, {"t": "dbg.press", "ms": 100})],
 }
 
 

@@ -1,0 +1,9 @@
+{
+  "fps_mean": 58.3,
+  "fps_min": 45,
+  "heap_min": 157492,
+  "motion": true,
+  "ok": true,
+  "reset": false,
+  "samples": 30
+}

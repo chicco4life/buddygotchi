@@ -70,7 +70,9 @@ backlit black reads as black glass.
 ```
 
 Rows show agent, project and status, never prompts or commands. Rows that
-need you come first. The view closes after 10 s untouched (*proposed*).
+need you come first. The view closes after 10 s untouched (*proposed*), and
+so does stats. Tapping anywhere above the strip goes back to the face. A
+new "needs you" also goes back, to the needs-you screen.
 
 **Stats.** Name, level with a progress ring, and days together. No
 mood, hunger numbers or traits.
@@ -94,7 +96,8 @@ agents.
 A press shorter than 400 ms is a tap, and holding for 400 ms or more starts
 push-to-talk until you let go. A touch held for 600 ms or more is a
 touch-and-hold. Every press and touch gets visible feedback within 20 ms,
-before the Mac hears about it.
+before the Mac hears about it: pressing BOOT or the face squashes it a
+little, and a finger on the strip lights its top line amber.
 
 When an external main button is added, it takes over BOOT's jobs, and BOOT
 becomes a secondary button: a press cycles screens and a hold toggles focus.

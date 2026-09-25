@@ -64,8 +64,8 @@ Each level answers a different question:
 | `clock freeze T \| step MS \| run` | Control the device clock for repeatable frames |
 | `pattern` | Show the bring-up test pattern |
 | `perf --seconds N [--motion]` | Sample fps and heap over time; `--motion` plays moments back to back so every sample is mid-motion |
-| `soak --minutes N` | Random, realistic traffic and inputs, then check for resets and leaks |
-| `cam frame\|pattern\|clip <name>` | Webcam helpers (L3 in §5). Clips are live presets: `idle`, `needs_you`, `cheer` |
+| `soak --minutes N` | Random, realistic traffic and inputs (with one 35 s silence), then check for resets, a drifting heap minimum, and that calm snapshots bring back the plain face |
+| `cam frame\|pattern\|clip <name>` | Webcam helpers (L3 in §5). Clips are live presets: `idle`, `needs_you`, `cheer`, `ladder` (sped-up clock), `cheers` (sizes 1–3) and `tap` |
 | `calibrate` | Touch calibration. Needs a person to tap 4 targets |
 
 ## 3. The debug channel
@@ -87,7 +87,12 @@ Over USB, the firmware accepts every normal protocol message
 
 At 460800 baud a screenshot takes about 2.3 s. `dbg.ping` also reports
 `draw_us` and `push_us`, the last frame's drawing and pushing time.
-`dbg.state` also carries bring-up readings: `clock` (`now`, `frozen`), `boot` (BOOT's level), `touch`
+`dbg.state` also carries the behaviour's own view: `hushed` (tapped during
+needs you), `life` (the idle-life event showing: `blink`, `glance`, `peek`,
+`bob`, `rumble` or null), `night`, `hungry`, and `sfx`, the last sound cue
+with its time (`chirp`, `jingle` or `pulse`, for F5's player and for tests
+while there's no speaker). `audio.playing` is true while the mouth follows a
+mumble. `dbg.state` also carries bring-up readings: `clock` (`now`, `frozen`), `boot` (BOOT's level), `touch`
 (`down`, `irq`, `raw` as x, y, z), `bat` in mV, `amp` and `bl`.
 
 The board handles one message per loop pass, so a reply always reflects

@@ -122,6 +122,7 @@ the first `status` after connecting, it replies with a `state`.
 | `tap` | Tapped the face or pressed BOOT |
 | `talk_on`, `talk_off` | Push-to-talk held and released |
 | `focus` | Focus mode toggled on the device; the Mac confirms it in the next `state` |
+| `feel` | Touched and held the face. The device already shows a face from its mood; the Mac may reply with a mumble |
 
 The device has already reacted on screen before sending this. Moving
 between the face, threads and stats screens is local and sends nothing.
