@@ -145,7 +145,7 @@ Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 | J1 | End to end over USB | Passed |
 | F5 | Voice on the device | Passed |
 | J2 | Soak and polish | Passed |
-| J3 | Handoff | Not started |
+| J3 | Handoff | Passed |
 | P1 | Port to ESP-IDF + LVGL (later, gated) | Not started |
 
 ### M0: Setup
@@ -490,9 +490,9 @@ off at any point:
 | # | Do | Expect |
 | --- | --- | --- |
 | 1 | Read `plan/evidence/v1-build/REPORT.md` (or `PROGRESS.md` if it's still running) | What passed, what's blocked, and any changes to these steps |
-| 2 | Look at the board | The idle face, blinking |
-| 3 | `tools/boopctl calibrate`, and tap the 4 targets | Touch lands where you tap |
-| 4 | Tap the face; press BOOT; hold BOOT; tap the status strip | Wiggle; wiggle; listening face; face → threads → stats → face |
+| 2 | Look at the board | The no-app face: sleepy eyes, a plug icon, dimmed, slow blinks. It becomes the idle face once the app connects (row 6) |
+| 3 | `tools/boopctl calibrate`: tap each amber cross (4 near the corners, then 1 in the middle) and lift | It prints `check_miss_px`: a few pixels is good, over about 10 means run it again. `--show` prints the stored map; `--show --clear` forgets it |
+| 4 | Tap the face; press BOOT; hold BOOT. After row 6, tap the status strip (the no-app screen ignores it) | Wiggle; wiggle; listening face; face → threads → stats → face |
 | 5 | Run `make run` in your terminal | The menu-bar icon appears, with the setup window: name Boop, pick sweet or cheeky, and choose the hooks to add (it shows exactly what goes where). Allow Bluetooth, Microphone and Speech Recognition when asked |
 | 6 | Wait about 10 s | The app connects to `Boop-XXXX`, and the board leaves the no-app face. If Bluetooth won't connect, run `tools/boopctl bridge` and `app/.build/debug/Boop --link usb:/tmp/boop-bridge.sock` instead ([VERIFICATION.md](VERIFICATION.md) L4) |
 | 7 | If you skipped them at setup: Settings → install hooks for Claude Code and Codex. Restart open sessions, then run `skills/doctor/doctor.sh` in one, `echo BOOP_DOCTOR_PING`, and `skills/doctor/doctor.sh --confirm` | Both installed; the old `~/.boop` entries are gone; the doctor passes |
