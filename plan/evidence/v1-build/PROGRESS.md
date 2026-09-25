@@ -391,3 +391,40 @@ One entry per iteration, newest last. Each ends with the exact next step.
   stuck states and `audio.out.errors`. Confirm every test is green and
   every golden reviewed, and rewrite `README.md` for the v1 product and
   commands (`make` targets, `boopctl` including `voice`, `voicegen`).
+
+## 2026-09-26 05:36 — Owner decisions: A3 reopened, webcam off
+
+The owner read the A3 blocker (`A3/README.md`) and decided:
+
+- **Over-speaking is the one problem to fix now, and the harness fixes
+  it.** Don't rely on the model to choose silence. The harness blocks brain
+  speech past a limit, in code, so Boop stays quiet most of the time
+  whatever the model answers. Keep the harness generic: the limits are
+  plain data (for example a per-trigger or per-tool limit in HARNESS.md
+  §5), not Minion logic. Prefer not offering `say` once its limit is
+  reached over dropping it afterwards, since a small model can't pick a
+  tool it isn't offered. Choose the values yourself (for example, on
+  `event`, brain speech at most once every 10 minutes and never on a turn
+  start), put them in the spec, and add a decision-log row.
+- **The other findings are quality issues for later tuning, not
+  blockers:** `note` on praise and greetings, the `tests` filler word, a
+  `moment` every day, and Apple's guardrail refusals. List them in
+  `A3/README.md` under "Known issues for later tuning". Treat a guardrail
+  refusal as a silent drop (Boop keeps the rule reaction, as it does now):
+  change L5 to measure valid shape over the answers the model gave and to
+  report refusals separately (VERIFICATION.md L5, plus a decision-log row).
+- **Webcam off for the rest of this run.** The owner is using the laptop
+  and has withdrawn the webcam authorisation. Don't open the camera at
+  all, not even for the framing check. Skip every L3 check, say so in each
+  PROGRESS.md entry and in the J3 report, and never count a skipped L3 as
+  passed. LOOP.md §4 and PLAN.md §3 now say the same.
+- **Next step:** A3 is In progress again and comes before F5 in PLAN.md
+  §4's order, so do it first. Build the speech limit in the harness, with
+  unit tests on a virtual clock (a fake brain that always speaks, and the
+  limit holds). Update HARNESS.md §3 step 2, which says one call at a time
+  is the harness's only scheduling rule, and §5. Rerun L5 with Apple's
+  model and review the sample as L5 says, judging silence on what Boop
+  would actually say after the limit; the deferred issues above are noted
+  but don't fail it. If it passes, write `A3/README.md`, set A3 Passed and
+  commit `A3: Harness and brains — …`. Then go back to F5 where the entry
+  before this one left off.

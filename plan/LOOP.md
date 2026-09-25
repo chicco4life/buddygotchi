@@ -72,10 +72,10 @@ owner.
   directories.
 - **No Bluetooth from here:** don't launch the app with Bluetooth or run
   `bleak`. Use USB via `boopctl bridge` and `Boop --headless`.
-- **Webcam:** authorised for this build run only, under
-  `plan/VERIFICATION.md` §6. The owner has positioned the board facing the
-  MacBook Air camera. Run the framing check before the first clip of each
-  iteration. If framing fails, skip webcam checks and say so.
+- **Webcam:** off for the rest of this run. The owner withdrew the
+  authorisation on 2026-09-26 (see the 2026-09-26 05:36 owner entry in
+  `PROGRESS.md`). Don't open the camera, not even for the framing check.
+  Skip L3 checks and say so.
 - **Known traps:** there's no Xcode. SwiftUI's `@State` and Foundation
   Models' `@Generable` macros don't compile here; PLAN.md §1 gives the
   workarounds. SwiftPM cache errors under a sandbox mean you should rerun

@@ -110,7 +110,8 @@ into the app's resources, and a unit test fails if the copies differ.
    don't run `bleak`. Anything live goes over USB, through `boopctl bridge`.
 5. **Webcam:** authorised for this build run only
    ([VERIFICATION.md](VERIFICATION.md) §6). The owner positions the board
-   before starting.
+   before starting. On 2026-09-26 the owner switched it off for the rest
+   of the v1 run: skip L3 checks and say so.
 6. **Don't get stuck.** If one problem takes about 45 minutes, record it
    (what failed, what was tried, the best guess), mark the milestone
    Blocked, and move to the next milestone that doesn't depend on it.
@@ -139,7 +140,7 @@ Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 | F4 | Bluetooth on the device | Passed |
 | A1 | App core: adapters, hook client, core rules | Passed |
 | A2 | Memory, Voice, actions | Passed |
-| A3 | Harness and brains | Blocked: Apple's model fails the L5 review (notes praise, filler words, rarely quiet) and its guardrail refuses 2/52; see evidence/v1-build/A3 |
+| A3 | Harness and brains | In progress (reopened by the owner; see the 2026-09-26 05:36 owner entry in PROGRESS.md) |
 | A4 | Device link, app shell, push-to-talk, installer | Passed |
 | J1 | End to end over USB | Passed |
 | F5 | Voice on the device | Passed |
