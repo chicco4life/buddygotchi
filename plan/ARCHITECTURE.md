@@ -115,6 +115,10 @@ order. Settings is a separate pane; Activity is removed. No ordinary desktop fac
 Quiet mode mutes all sounds. Appearance and normal volume are fixed. Share-card export is removed; there is no ranking service or network growth synchronization.
 See [Mac UX](UX-APP.md).
 
+Views spell the existing `SwiftUI.State<Value>` property wrapper `@ViewState`.
+This type alias avoids the macOS 27 SDK's same-name `State` macro, whose plugin
+is absent from Command Line Tools; state storage and bindings stay unchanged.
+
 ## 8. Outputs and wire
 
 `OutputProvider` consumes state changes. The device mapper derives RenderState

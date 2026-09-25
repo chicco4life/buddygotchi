@@ -227,7 +227,7 @@ struct BuddyDivider: View {
 struct BuddyStateDot: View {
     var tone: Color
     var pulsing = false
-    @State private var up = false
+    @ViewState private var up = false
     var body: some View {
         Circle()
             .fill(tone)
@@ -278,7 +278,7 @@ struct BuddySectionLabel: View {
 /// the chrome stays quiet until the pointer says otherwise.
 struct BuddyTextButtonStyle: ButtonStyle {
     var tone: Color? = nil
-    @State private var hovering = false
+    @ViewState private var hovering = false
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .foregroundStyle(configuration.isPressed ? BuddyTheme.accentPressed : (hovering ? (tone ?? BuddyTheme.accentInk) : BuddyTheme.inkSoft))

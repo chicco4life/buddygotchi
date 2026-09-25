@@ -28,8 +28,8 @@ struct PopoverView: View {
     var onOpenOnboarding: () -> Void = {}
     var onClose: () -> Void = {}
     var navigation: ControlNavigation = ControlNavigation()
-    @State private var activityDays: [DailyActivity] = []
-    @State private var activityError = false
+    @ViewState private var activityDays: [DailyActivity] = []
+    @ViewState private var activityError = false
     private var growth: GrowthSnapshot { engine.state.growth }
     private func copy(_ en: String, _ ko: String) -> String { engine.state.language == "ko" ? ko : en }
     private func title(_ pane: ControlPane) -> String {
@@ -512,7 +512,7 @@ struct StatusChip: View {
     let text: String
     let tone: Color
     var live = false
-    @State private var breathing = false
+    @ViewState private var breathing = false
     var body: some View {
         Text(text)
             .font(.system(size: 10, weight: .medium))

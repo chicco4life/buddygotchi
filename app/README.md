@@ -6,12 +6,19 @@ For the target architecture and implementation status, see `../plan/ARCHITECTURE
 
 ## Quick Start
 
+Run these commands from `app/` (or use `make run` from the repository root):
+
 ```sh
 swift build
 make -C .. test
 swift run Boop
 tools/package.sh
 ```
+
+Command Line Tools builds are supported. Views use `@ViewState`, an alias for
+the `SwiftUI.State` property wrapper: the macOS 27 SDK also exports an `@State`
+macro, but its `SwiftUIMacros` plugin is absent from Command Line Tools. The
+alias preserves the existing state storage and bindings without that plugin.
 
 The app listens on `127.0.0.1:21321` by default:
 

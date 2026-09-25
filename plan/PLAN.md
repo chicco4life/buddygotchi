@@ -9,6 +9,17 @@ Bluetooth startup stability still have open gates.**
 [Verification](VERIFICATION.md) owns procedures; dated evidence records what was
 actually exercised. An implementation or USB pass does not close every live gate.
 
+## Command Line Tools build compatibility (2026-09-25)
+
+Reproduced main's build failure with Apple Swift 6.4 and the macOS 27 SDK:
+`@State` selected a macro whose `SwiftUIMacros` plugin is absent from CLT.
+Views now use `@ViewState`, an alias for the existing `SwiftUI.State` property
+wrapper. `swift build --product Boop` passed in the task worktree and the local
+main checkout; the executable retains its embedded Info.plist. The normal test
+entry point passed **393 tests**, with **12 opt-in snapshot tests skipped** and
+no failures. A focused wrapper/binding typecheck passed against both installed
+macOS 27 and 26.5 SDKs. GUI launch and Bluetooth remain owner-run checks.
+
 ## Turn moments (implemented 2026-09-12)
 
 [Turn moments](UX-TURN-MOMENTS.md) now uses the existing trigger → shared context

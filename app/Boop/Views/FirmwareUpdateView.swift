@@ -3,7 +3,7 @@ import SwiftUI
 struct FirmwareUpdateView: View {
     @Bindable var updater: FirmwareUpdater
     @Binding var isPresented: Bool
-    @State private var showingCancelConfirmation = false
+    @ViewState private var showingCancelConfirmation = false
 
     var body: some View {
         VStack(spacing: 16) {

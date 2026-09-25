@@ -7,7 +7,7 @@ struct SettingsView: View {
     let serverHealth: ServerHealth?
     var onOpenOnboarding: () -> Void = {}
 
-    @State private var selection: SettingsSection? = .buddy
+    @ViewState private var selection: SettingsSection? = .buddy
     var frameHeight: CGFloat = 650
 
     var body: some View {
@@ -38,22 +38,22 @@ struct SettingsSectionView: View {
     var onOpenOnboarding: () -> Void = {}
     let section: SettingsSection
 
-    @State private var interactiveMode = false
-    @State private var soundsEnabled = true
+    @ViewState private var interactiveMode = false
+    @ViewState private var soundsEnabled = true
 
     private var buddyName: String { engine.buddyName }
     private var esp32UUID: String? { engine.pairedPeripheral }
-    @State private var launchAtLogin = false
-    @State private var launchAtLoginStatus = LoginItemManager.Status.disabled
-    @State private var agentHealth: [AgentKind: HookHealth] = [:]
+    @ViewState private var launchAtLogin = false
+    @ViewState private var launchAtLoginStatus = LoginItemManager.Status.disabled
+    @ViewState private var agentHealth: [AgentKind: HookHealth] = [:]
 
-    @State private var scanner = BLEScanner()
-    @State private var selectedDeviceUUID: UUID?
-    @State private var showingFirmwareUpdate = false
-    @State private var showingUnpairConfirmation = false
-    @State private var isExportingBugReport = false
-    @State private var bugReportError: String?
-    @State private var showingUpdaterUnavailable = false
+    @ViewState private var scanner = BLEScanner()
+    @ViewState private var selectedDeviceUUID: UUID?
+    @ViewState private var showingFirmwareUpdate = false
+    @ViewState private var showingUnpairConfirmation = false
+    @ViewState private var isExportingBugReport = false
+    @ViewState private var bugReportError: String?
+    @ViewState private var showingUpdaterUnavailable = false
     private func copy(_ en: String, _ ko: String) -> String { engine.state.language == "ko" ? ko : en }
 
     var body: some View {

@@ -41,7 +41,7 @@ struct CreatureView: View {
     var frozenTime = 1.25
     var grey = false
     var paused = false
-    @State private var enteredAt = Date.now
+    @ViewState private var enteredAt = Date.now
     @Environment(\.snapshotFrozen) private var snapshotFrozen
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var body: some View {

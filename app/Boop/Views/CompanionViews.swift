@@ -59,7 +59,7 @@ struct ProfilePage: View {
     var delete: (Int) -> Void = { _ in }
     var clear: () -> Void = {}
     var embedded = false
-    @State private var confirming = false
+    @ViewState private var confirming = false
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
             Text(BuddyCopy.phase7("profile", language: language)).font(.headline)
@@ -96,8 +96,8 @@ struct ProfilePage: View {
 struct ProfileWindowView: View {
     let engine: BuddyEngine
     var embedded = false
-    @State private var lines: [ProfileLine] = []
-    @State private var error = false
+    @ViewState private var lines: [ProfileLine] = []
+    @ViewState private var error = false
     var body: some View {
         ProfilePage(language: engine.state.language, lines: lines, delete: { id in update { try await engine.clearProfile(id: id) } }, clear: { update { try await engine.clearProfile() } }, embedded: embedded)
             .task { do { lines = try await engine.profileLines() } catch { self.error = true } }

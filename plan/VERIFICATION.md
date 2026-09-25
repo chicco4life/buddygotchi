@@ -16,6 +16,13 @@ The root test entry point runs the repository's Swift test harness. SwiftPM
 cache/module failures before source compilation should be retried outside the
 restricted sandbox before diagnosing source issues.
 
+For Command Line Tools compatibility, run the build and test entry points with
+the selected CLT toolchain and its default SDK. The macOS 27 SDK exposes a
+`State` macro without shipping its `SwiftUIMacros` plugin in CLT; app views use
+the `ViewState` property-wrapper alias. A full `Boop` build must compile all
+views without missing-plugin errors. Keep GUI/Bluetooth launch verification
+owner-run, separate from build and test results.
+
 Shipping firmware build (no flash):
 
 ```sh

@@ -7,11 +7,11 @@ struct OnboardingView: View {
     let onFinish: () -> Void
     let compact: Bool
 
-    @State private var model: OnboardingModel
-    @State private var scanner = BLEScanner()
-    @State private var selectedDeviceUUID: UUID?
-    @State private var pairingTask: Task<Void, Never>?
-    @State private var wakeRequested = false
+    @ViewState private var model: OnboardingModel
+    @ViewState private var scanner = BLEScanner()
+    @ViewState private var selectedDeviceUUID: UUID?
+    @ViewState private var pairingTask: Task<Void, Never>?
+    @ViewState private var wakeRequested = false
     @Environment(\.snapshotFrozen) private var snapshotFrozen
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
