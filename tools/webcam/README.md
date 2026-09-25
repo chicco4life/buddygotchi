@@ -1,5 +1,8 @@
 # Webcam verification
 
+> For v1, drive the device with `tools/boopctl` and follow `plan/VERIFICATION.md`
+> (L3). The `buddyctl` commands below belong to the gen-2 firmware.
+
 Record the physical Buddy screen with a Mac camera and review consecutive
 frames over time. Requires macOS 14+, Command Line Tools, and camera permission;
 no FFmpeg or third-party Python packages. Run commands from the repository root.

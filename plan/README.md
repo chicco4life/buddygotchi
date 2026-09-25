@@ -1,29 +1,23 @@
-# Product specs
+# Boop spec
 
-Start with [How Boop behaves](BEHAVIORS.md): the compact reference for what
-Boop does, what triggers it, the current numbers, and the differences between the two screens.
+These documents are the contract for Boop v1. The code implements them, and
+a change to one goes in the same commit as the code
+([CLAUDE.md](../CLAUDE.md)).
 
-| Read next | Purpose |
+| Read | For |
 | --- | --- |
-| [Vision](VISION.md) | Product intent and personality |
-| [Device](UX-DEVICE.md) · [Mac app](UX-APP.md) | Screen, motion, button and navigation details |
-| [Help](UX-HELP.md) | The nudge ladder and request dismissal |
-| [Growth](UX-GROWTH.md) · [XP formula](XP-AND-SKILL-TREE.md) | Cumulative XP, turn counts and streaks |
-| [Voice](UX-VOICE.md) | Markdown personality, event-based dialogue and memory |
-| [Work context](UX-WORK-SCOPE.md) | Shared pipeline, implemented scope slice, planned payoff/callback stages |
-| [Architecture](ARCHITECTURE.md) · [Wire](WIRE-V2.md) | Ownership, storage, budgets and protocol |
-| [Implementation plan](PLAN.md) · [Verification](VERIFICATION.md) | Work status, evidence and remaining gates |
-| [Ideas](IDEAS.md) | Possibilities, not promised behavior |
+| [VISION.md](VISION.md) | Why Boop exists, personality first, the promises, scope |
+| [UX.md](UX.md) | The screens, controls, setup and the Mac app |
+| [BEHAVIORS.md](BEHAVIORS.md) | What Boop does for each trigger; XP, hunger, mood, sound and light |
+| [VOICE.md](VOICE.md) | The gibberish: how it's built, checked and played |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | The parts and their boundaries, the memory files, and the decisions (§11) |
+| [ADAPTERS.md](ADAPTERS.md) | Hooks, event mapping, and "needs you" |
+| [HARNESS.md](HARNESS.md) | The generic harness and the swappable small-model brain |
+| [steering.md](steering.md) | The brain's read-only instructions (shipped in the app) |
+| [PROTOCOL.md](PROTOCOL.md) | The messages between the Mac and the device, over Bluetooth or USB |
+| [DEVICE.md](DEVICE.md) | The board, pins, firmware stack and bring-up |
+| [VERIFICATION.md](VERIFICATION.md) | How everything is checked, including the screen |
+| [PLAN.md](PLAN.md) | The build order, the check for each milestone, and the morning checklist |
 
-## Keeping this current
-
-For a behavior change, edit the matching row in `BEHAVIORS.md` and its detailed
-UX spec in the same change as the implementation. Update architecture or wire
-specs when their contracts change, and verification when the check changes.
-Use `PLAN.md` for delivery status; a source inspection does not close a live
-device or harness gate.
-
-The behavior guide describes current source; proposals and remaining verification gates are labeled separately. An observed
-implementation discrepancy is not an approved product decision. Resolve it by
-changing the implementation or explicitly revising the target; do not leave
-two competing rules or rely on a newer note at the bottom of a document.
+The previous generation's specs are in
+[archived/plan-gen2/](../archived/plan-gen2/).

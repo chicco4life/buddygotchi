@@ -36,7 +36,8 @@ this repository's root for commands, camera setup, evidence and limitations.
    and duration; the host callback and requested clip duration are approximate.
    Restore temporary device state after the scenario where practical.
 4. Crop the screen and inspect every consecutive frame covering the motion and
-   settling. Compare against `plan/UX-DEVICE.md`. Account for physical screen
+   settling. Compare against `plan/UX.md`, `plan/BEHAVIORS.md` and the
+   simulator's golden images (`plan/VERIFICATION.md` L3). Account for physical screen
    orientation, exposure, camera cadence and display scanning. State explicitly
    when review used image sequences without real-time playback. Clean timestamps
    alone cannot certify smoothness; ambiguous visual artifacts are inconclusive.
@@ -45,6 +46,8 @@ this repository's root for commands, camera setup, evidence and limitations.
    retain only deliberately selected evidence in the repo. Do not silently turn
    a limited scenario review into a full hardware pass.
 
-The first live example is `plan/evidence/webcam/2026-09-10.md`.
+The first live example is `archived/plan-gen2/evidence/webcam/2026-09-10.md`.
+The v1 webcam checks (framing, test pattern, clips) are defined in
+`plan/VERIFICATION.md` §5 L3 and §6, and driven by `tools/boopctl cam`.
 `make webcam-test` tests the tooling with synthetic video and does not open a
 camera; it can run without activating live webcam verification.

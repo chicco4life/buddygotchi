@@ -1,180 +1,160 @@
-# How Boop behaves
+# Boop: device behaviors and XP
 
-Current source reference, reviewed 2026-09-12. Start here for the rules shared by
-both screens. [Mac app](UX-APP.md) and [ESP32 device](UX-DEVICE.md) cover their
-controls and presentation. [Implementation status](PLAN.md) separates what is
-implemented from what has passed live verification.
+Draft 3 · 2026-09-25. Part of the [architecture](ARCHITECTURE.md). This page
+says what Boop does on the device for each trigger, and how XP and hunger
+work. Numbers marked *proposed* are first guesses to tune.
 
-## 1. Who decides what
+## 1. How behaviour is layered
 
-| Part | Responsibility |
-| --- | --- |
-| Agent hooks | Report session, work, completion, error and supported attention events |
-| Mac core | Combine sessions; choose state, effort, celebrations, reminders and XP |
-| Local model | Optionally write a scope phrase or remark; select supported private memories |
-| Mac interface | Show factual status, sessions, progress, connection and settings |
-| ESP32 | Render the face and text; handle touch, buttons, motion and local display timers |
+What you see is built from four layers. The top one wins where they
+conflict.
 
-Approvals stay in the editor. The model cannot approve anything or change states,
-XP, reminders or animations. If Boop is unavailable, hooks let the agent continue.
-
-## 2. States and attention
-
-Read this table from top to bottom: the first applicable state wins across all
-sessions. Device connectivity is separate from agent activity.
-
-| State | When it applies | What the person sees |
+| Layer | Examples | Decided by |
 | --- | --- | --- |
-| **Needs you** | A reported passive request is pending; oldest first | Mac request details; device wide eyes and amber request footer |
-| **Uh-oh** | An explicit error remains | Mac error details; device slumped face and red field |
-| **Done** | A qualifying celebration timer is running | One completion moment projected to Mac status and device presentation |
-| **Working** | At least one session is working or thinking | Mac live session status; device reading gaze with sweat immediately, plus effort cues |
-| **Idle** | Sessions remain, with no higher-priority state | Relaxed face, blinking and occasional small idle motions |
-| **Asleep** | No sessions remain | Mac Sleeping status; device closed eyes and slow breathing |
+| 1. Attention | Something needs you: amber, looking at you, nudges | Core (rules) |
+| 2. Moment | Cheer, oops, mumble, reply to talk | Core, sometimes flavoured by the brain |
+| 3. Base state | Asleep, idle, working | Core (rules) |
+| 4. Colour | Mood, hunger, time of day | Core, from memory; applied by the device |
 
-A new turn, successful recovery or explicit error dismissal clears the relevant
-error. Silence and repeated commands never imply failure or “stuck.” An unwatched
-session expires after more than 10 minutes without activity; a process-watched
-live session is exempt. Passive requests expire after 290 seconds by default.
+Colour changes *how* Boop does things and never *what*. A hungry, tired Boop
+still clearly cheers when a task finishes. It just cheers smaller.
 
-Greeting and affection overlays appear on idle, working and done. A sleeping
-buddy gets a one-eye peek; attention and errors take precedence over affection.
+## 2. Base states
 
-## 3. Effort and celebrations
-
-Turn duration runs from first work signal through completion, including waits.
-Working effort remains light before 3 minutes, hard until 5 minutes, then grinding.
-XP and historical effort accounting are unchanged; presentation uses the guide's
-validated policy in [Turn moments](UX-TURN-MOMENTS.md).
-
-| Completed turn duration | Presentation | Default duration |
+| State | When | Loop |
 | --- | --- | --- |
-| Under 3 seconds | Pleased face, no text or wash | 1.2 seconds |
-| 3 seconds to under 20 seconds | Smaller raised face, caption below, teal/sage wash | 4 seconds including fades |
-| 20 seconds or more | Full celebration; two hands pull the larger caption into place | 5 seconds including fades |
+| Asleep | No sessions, or night with nothing working | Eyes closed, slow breathing, dimmed |
+| Idle | Sessions open, none working | Blinks, looks around, small self-amusements |
+| Working | At least one agent working | Focused gaze, occasional mumble; busier with more sessions |
+| No app | No `state` from the Mac for 30 s | Sleepy, unplugged icon, slow idle loop |
 
-Exactly 3 seconds uses the middle tier; exactly 20 seconds uses the full tier.
-One completion moment drives both outputs. Nearby completions coalesce with a
-count and latest two titles as model context. The highest tier wins, without
-restarting motion; later arrivals can extend the deadline within 8 seconds of
-its original start. After expiry, a 3-second cooldown updates history only.
-Requests/errors and deliberate details/system screens consume the presentation;
-it is never queued for replay. Duplicate endings, session removal, stale cleanup
-and failures do not celebrate. Completion means a turn ended, not proven success.
+## 3. Triggers and what Boop does
 
-## 4. XP, turns and streaks
+"Rules" happen immediately. "Brain may add" arrives 1–5 s later from the
+[harness](HARNESS.md) and is dropped if the moment has passed.
 
-| Event | Award |
-| --- | --- |
-| A started turn completes | +3 XP and one completed turn; duplicates award nothing |
-| First qualifying activity on a local calendar day | +10 XP; session/work activity or a boop qualifies |
+### 3.1 Agent work
 
-There are no other current award sources, quotas, levels, spending or unlocks.
-Existing earned XP is preserved. Approval decisions never earn XP.
-
-The Mac shows cumulative XP, completed turns, current streak and a twelve-week
-daily turn grid. Hover a day for its exact count. A streak counts consecutive
-active local dates; today is allowed to remain incomplete until tomorrow.
-A missed day breaks the current streak, preserving best streak and XP.
-See [Growth](UX-GROWTH.md) for grid details and [Accounting](XP-AND-SKILL-TREE.md).
-
-## 5. Local LLM and dialogue
-
-Every trigger offers a chance to speak, **not a requirement**. Thin evidence,
-uncertain meaning, repetition or a moment already served by the animation should
-produce silence. A simple greeting can still be worthwhile.
-
-| Trigger | Response | Default timing |
+| Trigger | Rules | Brain may add |
 | --- | --- | --- |
-| First work signal for a distinct turn | Short task-aware acknowledgement; small nod | 1.5 seconds, once per turn |
-| Started turn completes | Proportional completion moment | Three duration tiers; no second post-celebration remark |
-| Active turn crosses 5 or 15 minutes | Optional patient/exasperated remark and weary face | 4 seconds; desk-wide 2-minute cooldown |
-| Person interacts after 18 hours away | Optional time-aware greeting and wave | 4 seconds, or merged into the same start's 1.5-second budget |
-| New explicit error | Grounded error remark through existing Voice lane | Up to 4 seconds |
-| Settled work-context change | Whole-desk summary on Mac only | 2-second debounce; retained until context changes |
+| You send a prompt | Perks up; base becomes working | Occasionally a short mumble |
+| Turn finishes, < 30 s | `nod` | Usually nothing |
+| Turn finishes, 30 s–5 min | `cheer` size 1, short chirp | A mumble, e.g. *"ba-ba ti… done!"* |
+| Turn finishes, > 5 min | `cheer` size 2–3, jingle, warm light | A mumble, e.g. *"…finally!"* |
+| Several finish at once | One cheer at the biggest size | One mumble |
+| Turn fails | `oops`, then `side_eye` at the agent, low "hmm" | Sass at the agent, e.g. *"pff… tests."* |
 
-Long-work opportunities are consumed even when attention wins, never queued.
-Waiting is not a reason to pressure the person. Only a turn-start interaction or
-a boop updates the persisted person-interaction timestamp; background activity
-and reconnect do not manufacture a return. Local hour/time-of-day are supplied
-as facts, without guessing sleep or habits.
+### 3.2 Something needs you
 
-One display call runs at a time, with moments ahead of pending Mac scope.
-Unchanged tool activity does not call the model. Superseded replies are discarded;
-requests/cards can cancel pending remarks.
+Boop only tells you. You approve on the Mac, in the agent's own prompt.
 
-Both kinds of text use projects, bounded first/latest user intent, lifecycle,
-previous scope and five recent displayed remarks. Working/thinking/waiting
-sessions participate, plus idle/error sessions active within 15 minutes, unless
-removed earlier. Worktrees share project identity. Unknown intent stays unknown.
-
-Apple Foundation Models runs locally when available, with a 5-second deadline
-and no cloud fallback. Scope appears on Mac only, capped at 120 UTF-8 bytes. Device moment text is
-printable ASCII: at most 24 characters/one line for start, return and long work;
-48 characters/two lines for completion, also checked against actual font width.
-Explicit-error bubbles retain their 63-byte/four-second limit. Both are optional and English-only, independently of the
-app's English/Korean interface. Invalid or late replies cannot revive a moment. Immediate optional fallbacks
-come from the same guide; without one the animation can remain wordless. Attention takes priority; text never wakes the device.
-
-The editable guide is in Settings → Edit buddy behavior…. Changes apply on the
-next decision; existing owner edits are preserved. See [Voice](UX-VOICE.md) for
-input/privacy bounds. Reliable whole-desk meaning is still an open evaluation
-gate. Richer check-result reactions and memory callbacks are [planned](UX-WORK-SCOPE.md).
-
-## 6. Personality and memory
-
-| Mechanism | Current behavior |
+| When | What Boop does |
 | --- | --- |
-| Personality | Defined directly in the editable Markdown guide |
-| Task intent and displayed scope | In memory only; no durable scope history or raw prompt storage |
-| Recent display remarks | Last five, in memory, to discourage repetition |
-| Reduced facts | Kept locally for 30 days |
-| Private reflection | Once daily after 20 inactive minutes on AC; considers evidence through the previous day |
-| Learned profile | Up to five new evidence-backed lines per reflection; inspect/clear in Settings |
+| An agent needs approval | Turns to you, leans in, amber light; the bubble shows agent and project; one soft chirp |
+| 45 s later (*proposed*) | Leans further, second chirp |
+| 2 min later (*proposed*) | One short buzz (on the bare v1 board, with no motor: three strong amber light pulses), then stays amber and quiet |
+| You tap Boop | A small nod; nudges stop for that session; stays amber |
+| You approve or deny on the Mac | The agent carries on, Boop sees the activity, gives a small nod, and goes back to work |
+| More than one needs you | Bubble shows "2 need you" |
 
-Reflection uses at most 100 facts and 20 existing profile lines. Invalid or
-unavailable results leave the profile unchanged. Approval decisions are excluded.
-The current shared display context **does not yet use the learned profile or
-episode memories**. Numeric traits and bond values are inactive.
+The brain is never involved here. In focus mode, "needs you" is visual
+only: the face, the lean and the amber light, with no chirps and no buzz.
+Mute drops all sound, but the buzz stays.
 
-## 7. Native approvals and attention reminders
+### 3.3 You and Boop
 
-Boop mirrors only reliably reported passive requests. Ordinary activity and
-execution gates do not prove someone is waiting for the user. Native Codex
-approval waiting cannot reliably be mirrored.
+| Trigger | Rules | Brain may add |
+| --- | --- | --- |
+| Tap | `wiggle`, happy squint | A tiny mumble or face |
+| Hold the button (talk) | `listening` at once, then `thinking` on release | Mumble reply and a face; on "shut up", `zip` and quiet |
+| Brain too slow to reply | `shrug`, *"hmm?"* | — |
+| First activity of the day | `stretch`, `yawn` | A morning mumble |
 
-| Time since request | Reminder |
+### 3.4 Time and the device
+
+| Trigger | Behaviour |
 | --- | --- |
-| Arrival | Amber face/footer |
-| 60 seconds | First visual nudge |
-| 120 seconds | Stronger visual nudge; no recurring final reminder |
-| Snoozed/dismissed | Suppress reminders for that request until it clears; new requests start fresh |
+| Night | Drowsier, dimmer, fewer mumbles; sleeps once nothing is working |
+| Low battery | Small battery icon |
+| Reconnect | Quick blink, then whatever the next `state` says |
 
-Mac “Snooze reminder” leaves the request pending. Device dismissal also hides
-its card locally, and repeated heartbeats do not reopen that same card. Neither
-action answers the request. Quiet mode mutes all authored sounds while leaving
-visual timing unchanged; the supported board has no speaker.
+## 4. XP and hunger
 
-Old approval hooks return passthrough immediately, even with stale enabled
-settings. Passthrough means continue to the editor's own approval flow.
-Details: [Help](UX-HELP.md).
+This is kept deliberately simple for now, and we'll tune it once we've lived
+with it. XP and hunger are rules in the core. The brain can't touch them.
 
-## 8. Where to find things
+**Earning:**
 
-| Surface | What it provides |
+- +1 XP for each agent turn that finishes.
+- +5 XP for the first activity of the day.
+
+That's it. Approvals, tokens, taps and time don't earn XP.
+
+**Levels:** every 50 XP is a level (*proposed*). A level-up plays
+`levelup` at the next calm moment.
+
+**Hunger:** XP is food. Boop remembers when it last earned any ("last fed"
+in `long-term.md`).
+
+| Time since last fed | Boop is | How it shows (only when you look) |
+| --- | --- | --- |
+| < 2 days | Fed | Normal |
+| 2–5 days | Hungry | Occasional tummy rumble, hopeful glances, slower idle |
+| > 5 days | Starving | Sits by an empty bowl, low energy; loses 1 XP a day |
+
+- It never drops below the start of its current level, never dies, and
+  never runs away.
+- Hunger never makes a sound, lights up, buzzes or interrupts.
+- The first XP after being hungry plays `gobble`, and Boop is delighted to
+  see you. It never sulks.
+- "I'm away" in the app pauses hunger.
+
+**Life stages:** Hatchling → Grown → Veteran, by days together and level.
+The exact thresholds come later.
+
+## 5. Mood
+
+Boop's mood is set by rule in the core, from how the work is going (wins,
+failures, long grinds) and the time of day. It doesn't read your prompts. Mood shows only in behaviour: how bouncy Boop is, how often it
+mumbles, the pitch of its voice. It's never shown as a value, label or
+sentence outside debug mode.
+
+| Signal | Boop's response |
 | --- | --- |
-| Mac menu bar | Static icon; filled when an agent needs you; click to open |
-| Mac Overview | Status, optional scope, requests/errors, all sessions, device status, XP and activity grid |
-| Mac Settings | Name, UI language, Quiet mode, pairing/firmware, agent hook setup/repair, login, profile/guide, support and app updates |
-| Device at rest | Face, brief larger phrase below it, busy/idle hint at bottom right; no persistent Last finished row |
-| Device face tap | Threads/history when work or recent completions exist; otherwise affection |
-| Device detail pages | Three rows per page; Next advances, other taps return to the face |
-| Device travel stats | Last synced name, XP, streak, days together and turn totals |
+| A run of failures | Calmer, slower, fewer mumbles; side-eye at the agent, as if on your side |
+| Quick wins | Bouncier, bigger cheers, higher voice |
+| Late night | Drowsier, dimmer, quieter |
+| Unsure | Neutral calm |
 
-The Mac does not open itself for events. It keeps every session scrollable; the
-device receives a bounded preview of up to 12 sessions and 6 recent completions,
-with totals/omissions shown. Appearance is fixed. There is no Activity pane,
-share export, collection, leaderboard, scheduled Quiet mode or quick-command action.
+Mood drifts back to Boop's temperament over about half an hour.
 
-For exact controls, screen priority, brightness and connection behavior, use
-[Device UX](UX-DEVICE.md). For navigation and update outcomes, use [Mac UX](UX-APP.md).
+## 6. Sound, light and buzz
+
+What the gibberish sounds like is in [VOICE.md](VOICE.md). This covers when
+each output is used.
+
+| Output | Used for | Never used for |
+| --- | --- | --- |
+| Mumbles | Moments, replies, occasional working chatter | Quiet or focus mode; while something needs you |
+| Chirp | The first two "needs you" rungs | Anything else; focus mode |
+| Jingle | Bigger cheers | Focus mode |
+| Buzz | The top "needs you" rung only | Anything else, including hunger; focus mode |
+| Amber light | Something needs you | Decoration |
+| Dimmed backlight | Asleep, night, no app | Hiding "needs you" |
+
+Mute in the app silences all sound, but the light and buzz still work. Focus
+mode is fully silent and still: no sound and no buzz, only the face and the light.
+
+## 7. Animation set
+
+| Name | Used for |
+| --- | --- |
+| `nod` | Quick finishes; after "needs you" clears |
+| `cheer` | Finished turns (sizes 1–3) |
+| `oops`, `side_eye` | Failed turns, sass at agents |
+| `wiggle` | Taps |
+| `stretch`, `yawn` | Mornings |
+| `listening`, `thinking`, `shrug`, `zip` | Push-to-talk |
+| `gobble`, `rumble` | Hunger |
+| `levelup` | Level-ups |
+| `happy`, `proud`, `smug`, `curious`, `sleepy`, `worried`, `sulky`, `love` | Faces the brain can pick |

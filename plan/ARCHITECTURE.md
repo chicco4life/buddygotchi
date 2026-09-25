@@ -1,240 +1,384 @@
-# Architecture
+# Boop: architecture
 
-## 1. Data path and ownership
+Draft 10 · 2026-09-25. This is the overview: the parts, how they connect, and
+the memory files they share. These documents go deeper:
 
-```text
-hooks → Server → Extractor → Core → Outputs
-                              ↕
-                            Store
-                              ↕
-                            Voice ← BEHAVIOR.md
+- [Agent adapters](ADAPTERS.md): hooks, event mapping, and "needs you".
+- [Harness and brain](HARNESS.md): how a trigger becomes a model call and
+  back.
+- [steering.md](steering.md): the first draft of Boop's read-only standing
+  instructions.
+- [Bluetooth protocol](PROTOCOL.md): the messages between the Mac app and
+  the device.
+- [Device behaviors and XP](BEHAVIORS.md): what Boop does for each trigger,
+  plus XP and hunger.
+- [Voice](VOICE.md): how the gibberish is built and played.
+- [Device](DEVICE.md): the board, pins, firmware stack and bring-up.
+- [Verification](VERIFICATION.md): how everything is checked, including
+  the screen.
+- [Plan](PLAN.md): build order, checks per milestone, and the morning
+  checklist.
+
+See [Vision](VISION.md) for why and [UX](UX.md) for what the person sees.
+
+## 1. The shape of it
+
+Boop has two parts: a Mac app that does all the thinking, and a cheap device
+on your desk that draws the creature. Information flows one way, from your
+agents to Boop to you. Boop watches and tells you things. It never acts on
+your agents. When an agent needs approval, Boop gets your attention, and you
+approve on the Mac as you normally would.
+
+```
+   Claude Code / Codex
+          │ hooks: "this happened" (never waits for an answer)
+          ▼
+ ┌──────────────────────────── Boop Mac app ─────────────────────────────┐
+ │                                                                        │
+ │  Adapters ──► Core ───────────── state snapshots ──────────┐           │
+ │               │  │                                         │           │
+ │     rule      │  │ triggers                                │           │
+ │   reactions   │  ▼                                         │           │
+ │               │ Harness ──► Brain (any small LLM)          │           │
+ │               │  │  ▲                                      │           │
+ │               │  │  └── reads steering / long-term /       │           │
+ │               │  │      short-term memory                  │           │
+ │               ▼  ▼ tool calls                              ▼           │
+ │              Actions ──► Voice (minion speech) ──►  Device link ───────┼──► device
+ │              say, face,  Memory store (the .md files)                  │
+ │              quiet, note…                                              │
+ └────────────────────────────────────────────────────────────────────────┘
 ```
 
-The reducer is pure: events and prior state produce the next state and pending
-work. The engine owns clocks, I/O, asynchronous jobs.
-Outputs render state; they do not interpret agent-specific input.
-[Component behaviors](BEHAVIORS.md) defines the product rules.
+**Following one event:**
 
-## 2. Hooks and server
+1. Codex finishes a task. Its hook sends a one-line message to the Mac app
+   and returns immediately.
+2. The Codex **adapter** turns it into the common event: "Codex, session
+   a1b2, project landing, turn finished after 18 minutes".
+3. The **core** updates its session table, adds XP, and by rule calls the
+   `face` action with a cheer. Boop cheers in well under a second.
+4. The core also hands the event to the **harness** as a trigger. The
+   harness reads the memory files, asks the **brain**, and gets back a tool
+   call: `say(feeling: proud, word: finally)`.
+5. The harness passes that call, unchanged, to the **`say` action**. The
+   action asks **Voice** to turn "proud + finally" into Minion speech
+   (*"ma-po li… finally!"*) and sends it to the device through the
+   **device link**.
 
-Hooks normalize Claude/Codex/Cursor activity and fail open. Approvals belong to
-the editor. Hook v9 removes Boop permission interception registrations; the
-script drains stdin and ignores stale PermissionRequest registrations. Config
-loading removes old enablement keys. `/hook/approve` authenticates and returns
-immediate passthrough for stale scripts, without ingestion or held continuations.
-Legacy engine/device decision entry points are inert. No auto-approval or stakes
-classification runs. Only reliable passive attention requests become cards;
-activity and execution gates do not infer human waiting. Passive requests expire
-after 290 seconds. Managed repair preserves unrelated hooks.
+The brain never sits between an event and the screen. Rules give the
+immediate reaction, and the brain adds character a second or two later. If
+the brain is slow, offline or missing, Boop still reacts to everything, just
+with less personality.
 
+## 2. Four loops at four speeds
 
-## 3. Extractor and core
+| Loop | Runs on | Speed | Does | Never does |
+| --- | --- | --- | --- | --- |
+| Reflex | Device | < 20 ms | Tap feedback, blinking, idle life, blending faces, the nudge ladder | Wait for the Mac |
+| Reactive | Core → actions | < 200 ms p95 | Agent event → rule → action → device; XP | Wait for the brain |
+| Deliberative | Harness + brain → actions | 1–5 s, in the background | React with character, take notes, answer push-to-talk | Block the reactive loop |
+| Reflective | Harness + brain, nightly | Minutes | Turn today into durable memory, grow the personality | Break the memory rules |
 
-Deterministic readers turn bounded session context into lifecycle, runner,
-outcome and topic events. Raw transcripts/tool arguments are not model
-context or durable memory. Explicit errors drive Uh-oh; repeated commands and
-silence do not imply failure. Working effort is light before three minutes, hard
-until five, then grinding. Completion presentation uses guide policy: <3 seconds
-face, 3–<20 seconds caption, >=20 seconds full. All started completions still
-earn XP and record outcomes; historical effort accounting is unchanged.
+## 3. Components and boundaries
 
-The core chooses priority, bounded moment coalescing/cooldown, fixed 60/120-second
-nudges and XP award events. It never waits for model output. Approval decisions
-do not award XP, bond or new memory facts. `BuddyReducer.swift` owns mutations;
-`BuddyProjection.swift` derives display priority, ordered Mac rows, device rows,
-and counts from the resulting state. Both remain pure.
+Each part has one job and knows as little as possible about the others. The
+rule is that **decisions and effects are separate**. The core and the brain
+decide *what* should happen. Actions make it happen. Nothing that decides
+ever builds Minion speech, touches a file or talks to Bluetooth directly.
 
-## 4. Store and growth
+| Part | Does | Doesn't know about |
+| --- | --- | --- |
+| Adapters | Turn agent hooks into common events | Boop's state, the brain, the device |
+| Core | Session table, what the device shows, XP, quiet mode; calls actions for rule reactions; sends triggers to the harness | Minion speech, models, hook formats |
+| Harness | Trigger → context → one brain call → schema check → hand each tool call to its action | Minion speech, the device, memory rules, which model it's talking to |
+| Brain | Picks which tools to call, with what arguments | Everything else |
+| Actions | Carry out one tool call each: `say`, `face`, `quiet`, `note`, and the nightly memory tools. Each checks its own rules | Whether a rule or the brain called it |
+| Voice | Turns a feeling and an optional word into Minion speech | Who asked, or why |
+| Memory store | Reads and writes the three Markdown files, enforcing their limits | Models, the device |
+| Device link | Sends snapshots and moments to the device and receives taps and talk, over Bluetooth or USB | What any of it means |
 
-SQLite persists reduced facts (30 days), profile, inactive legacy traits, XP ledger and
-materialized earned totals. Existing historical inventory/moment records remain
-readable but no new named moments or milestone keepsakes are created.
+### 3.1 Adapters
 
-New awards are completed turn +3 and active local day +10. Materialized old XP
-is frozen; a legacy-only ledger is migrated using its old formula once. Future
-weight changes do not reprice earned totals. Streaks are consecutive active
-local days with no rest-credit mechanism. The shared `wire` Swift package now
-provides SQLite only; leaderboard and device-signing modules are removed.
+Each adapter turns one agent's hook calls into the common event (§5).
+Hooks only report. The hook client writes one line to the app's socket and
+exits without returning a decision, so the agent always carries on with its
+normal flow, including its own approval prompt. If the Boop app isn't
+running, the hook exits at once. [ADAPTERS.md](ADAPTERS.md) has the
+details.
 
-The engine drains pending facts/awards through its asynchronous store queue.
-Hook responses do not wait for a flush; shutdown and diagnostic reads do.
-Profile lines are inspectable and deletable. Raw facts, accounting and retention
-remain storage rules independent of what the model chooses to remember.
+### 3.2 Core
 
-## 5. Markdown-guided behavior
+The core is plain rules with no queue. It keeps a table of sessions (agent,
+project, and whether each is working, idle or needs you) and:
 
-`Voice` reads bundled `Resources/BEHAVIOR.md`, overridden by
-`stateDir/BEHAVIOR.md`. Settings creates the override only if absent. Every
-decision rereads it; invalid, empty or over-32-KiB overrides use the bundle.
+- works out what the device shows now, and sends a new snapshot when that
+  changes. The highest true item wins: something needs you, then a task just
+  finished, then you're interacting with Boop, then something is working,
+  then idle;
+- calls actions for the immediate, rule-based reactions (a cheer, an oops, a
+  nod);
+- turns events, taps and talk into triggers for the harness;
+- keeps XP, quiet mode and Boop's mood, all by rule
+  ([BEHAVIORS.md](BEHAVIORS.md)).
 
-Apple Foundation Models runs locally when available, using fresh sessions and
-a five-second deadline. There is no cloud fallback. The engine offers dialogue
-opportunities on starts, completions, bounded long-work milestones, person
-returns and explicit errors. Results remain text or silence;
-stale results are cancelled/discarded. Every display opportunity may be silent;
-optional immediate fallbacks are supplied by the same guide, never firmware
-phrase lists. Error remarks have no stock fallback. No daily inference quota exists.
+### 3.3 Harness and brain
 
-Display decisions share `BehaviorContext`: the whole desk, optional event,
-previous scope and five recent remarks. `WorkContext` groups canonical local
-project identities and bounds JSON to 6 KiB; `BehaviorTasks` serializes display
-calls with a two-second scope debounce and priority for existing remarks.
-First/latest hook intent (768 bytes each) is memory-only, an explicit exception
-to the old no-prompt model boundary. No extra model or transcript reader exists.
-The reducer projects persistent `workScope` for Mac only via `workScopeChanged`.
-Scope is capped at
-120 bytes without truncation and discarded on
-scope/runtime changes. Display requests use English independently of UI language;
-UI language changes preserve scope and pending display replies. It never enters SQLite. Legacy private reflection
-remains independent; richer evidence-backed result/callback stages are pending.
-[Voice](UX-VOICE.md) specifies validation and context limits.
+The harness is the small generic loop from [HARNESS.md](HARNESS.md). It
+knows how to build a prompt, call a model and route tool calls. It doesn't
+know what the tools do. The brain is whatever model is plugged in: Apple's
+on-device model by default, or a cloud model with the person's own API key.
+It's assumed to be small, so the tools are few, flat and mostly multiple
+choice.
 
-## 6. Personality and memory
+### 3.4 Actions
 
-Personality is defined in BEHAVIOR.md. The existing profile/reflection storage
-remains, but the new shared display context does not yet supply the learned profile or episodic memories. Legacy numeric traits and counters stay stored
-but inactive: no model input, daily drift, usual-hour sampling or project/session
-familiarity updates. XP remains independent. A backward-compatible optional `lastInteractionAt`
-persists actual turn-start/boop interaction for returns, separate from background
-`lastSeenAt` accounting.
+Actions are Boop's tools. The same actions serve the core's rules and the
+brain, so a cheer looks the same whichever of them asked for it.
 
-After twenty inactive minutes on AC power, daily reflection considers the
-previous day. The guide/model sees at most 100 reduced facts and twenty profile
-lines. It may choose silence or up to five evidence-backed memories. Store
-validates/persists memories atomically and records daily idempotence. Invalid or
-unavailable output leaves the profile unchanged. Old trait output fields are
-ignored. Evidence references do not prove semantic truth; no raw paths,
-transcripts, approval decisions or old named moments enter model context.
+| Action | Arguments | What it does |
+| --- | --- | --- |
+| `say` | `feeling`, `word?` | Asks Voice for a Minion line, then sends it to the device as a moment |
+| `face` | `name` | Sends an animation to the device as a moment |
+| `quiet` | `minutes` | Tells the core to stop mumbles for a while |
+| `note` | `text` | Adds a line to today's notes in short-term memory |
+| `remember`, `forget`, `temperament`, `moment` | short text | Nightly only: change long-term memory within its limits |
 
+Each action checks its own rules and quietly drops anything that breaks
+them. For example, `say` drops a word that isn't in its vocabulary, and
+`note` drops text that's too long. The action's tool definition, the part
+the brain sees, is owned by the action too. That's where the list of
+allowed words lives, as a multiple-choice field.
 
-## 7. Mac output
+### 3.5 Voice
 
-A static menu icon opens a transient 360 pt popover only when requested. Overview
-contains status, requests, sessions, device connection and compact XP, in that
-order. Settings is a separate pane; Activity is removed. No ordinary desktop face or automatic state-triggered window appears.
-Quiet mode mutes all sounds. Appearance and normal volume are fixed. Share-card export is removed; there is no ranking service or network growth synchronization.
-See [Mac UX](UX-APP.md).
+Voice turns `feeling + word` into a Minion line: syllables from this Boop's
+dialect, the real word, a tune and a tempo. It checks the line isn't
+accidentally English. It's the only code that knows what Minion speech
+sounds like. See [VOICE.md](VOICE.md).
 
-Views spell the existing `SwiftUI.State<Value>` property wrapper `@ViewState`.
-This type alias avoids the macOS 27 SDK's same-name `State` macro, whose plugin
-is absent from Command Line Tools; state storage and bindings stay unchanged.
+### 3.6 Memory store
 
-## 8. Outputs and wire
+The memory store is the only code that reads or writes the Markdown files
+(§4). It enforces their limits and takes the nightly snapshots.
 
-`OutputProvider` consumes state changes. The device mapper derives RenderState
-v2, with character-safe byte caps and bounded `nudgeRung`. [WIRE-V2.md](WIRE-V2.md)
-is the field/command contract; [firmware protocol](../firmware/esp32/PROTOCOL.md)
-describes the transport. BLE bonding and acknowledged OTA remain independent
-of the removed leaderboard signing feature.
+### 3.7 Device link
 
-Device priority: display off → system card → request → error bubble →
-stats → thread table → legacy completion notice → bubble → moment → overlay → face. Local firmware owns passive dismissal, wake-press
-consumption, hold gestures, shutdown, posture, dimming and offline snapshot
-stats. The host owns reminder timing; approvals remain entirely in the editor. Repeated frames
-do not replay a nudge. Quiet mode suppresses sound but preserves visual rungs.
+The device link sends snapshots and moments, and receives taps and
+push-to-talk presses ([PROTOCOL.md](PROTOCOL.md)). It has two transports
+carrying identical messages:
 
-## 9. Budgets and verification
+- **Bluetooth**, for normal use.
+- **USB serial**, for development and automated tests. An agent can't launch
+  the app with Bluetooth on, so the whole hook-to-screen path is tested over
+  USB instead ([VERIFICATION.md](VERIFICATION.md) L4).
 
-| Path | Target/bound |
+Nothing above the device link knows which one is in use.
+
+### 3.8 Push-to-talk
+
+The device has no mic, so holding its button records from the Mac's mic.
+The app turns speech into text locally, and the core gives it to the
+harness as a `talk` trigger. Audio is discarded immediately, and the
+transcript once the brain has answered.
+
+## 4. Memory files
+
+All of Boop's memory is three Markdown files in the app's data directory.
+The harness puts all three into every brain call. `steering.md` is
+read-only. The other two are written only by the memory store, through
+actions that enforce each section's limits. Before each nightly update, both are snapshotted to
+`history/<date>/`, so every change can be traced.
+
+| File | What it is | Changes |
+| --- | --- | --- |
+| `steering.md` | How Boop behaves: character, voice, how to respond to each trigger | Never at runtime. Ships with the app and changes only in an announced release |
+| `long-term.md` | Who this Boop has become, and durable facts and preferences about you | Nightly, within caps; XP by the core |
+| `short-term.md` | Today: Boop's mood, notes about what you're doing and said, what happened | Throughout the day; starts fresh each night |
+
+### 4.1 `steering.md`
+
+This is Boop's AGENTS.md: the standing instructions every Boop shares. It's
+read-only. Neither the brain, the app nor the person can change it at
+runtime. It changes only when we ship a new version, as an announced update,
+because a different `steering.md` makes a different creature. The current
+draft is [steering.md](steering.md).
+
+It covers character, voice rules, how to respond to each trigger, what Boop
+must never do, the always-allowed interjection words, and the fallback table
+the rules-only brain uses.
+
+### 4.2 `long-term.md`
+
+```markdown
+## Boop
+name: Pip · hatched: 2026-10-02 · nature: impish
+
+### Temperament
+Nosy and a bit smug. Trusts Codex more than it used to.
+Gets huffy about flaky tests.
+
+### Moments
+- 2026-10-09: first all-nighter together; the migration finally passed.
+
+### Growth
+xp: 1240 · level: 12 · last fed: 2026-10-14
+
+## About you
+- Ships on Fridays.
+- Mostly works on landing and jetpack.
+
+## Preferences
+- Likes it quiet before 10am.
+```
+
+| Section | Written by | Rule |
+| --- | --- | --- |
+| Boop (name line) | App, at hatching | Never changes |
+| Temperament | Nightly reflection | At most one sentence changed per night |
+| Moments | Nightly reflection | At most 20; at most one new per night |
+| Growth | Core | See [BEHAVIORS.md](BEHAVIORS.md) §4 |
+| About you | Nightly reflection | At most 30 lines, each ≤ 100 characters; no code, paths, secrets or other people's names |
+| Preferences | Nightly reflection | At most 15 lines; same limits |
+
+The **Boop** section is what the "can't be reset" promise protects. The file
+lives on the Mac and in the opt-in encrypted backup, never on the device.
+Retiring Boop archives it and makes a memorial card from it. You can view
+and delete lines in About you and Preferences in the app. The Boop section
+isn't shown.
+
+### 4.3 `short-term.md`
+
+```markdown
+## Today
+2026-10-14 · first seen 08:52 · Boop's mood: a bit frazzled
+
+## Notes
+- landing: flaky tests, third attempt
+- jetpack: long refactor finally done
+- said "shut up for an hour" at 13:10
+
+## Happened
+- 14:02 codex · landing · failed
+- 14:05 claude · jetpack · finished (18 min)
+```
+
+| Section | Written by | Rule |
+| --- | --- | --- |
+| Today | Core | Date, first activity, and Boop's current mood (set by rule) |
+| Notes | `note` action (from the brain) | At most 10 lines of at most 80 characters; the oldest line drops first |
+| Happened | Core | One line per notable event, summaries only; the last 40 lines |
+
+Nightly reflection reads everything and updates `long-term.md` through the
+nightly actions, and then `short-term.md` starts fresh. Mood is internal
+and only visible in debug mode.
+
+## 5. Common event shape
+
+```json
+{"agent":"codex","session":"a1b2","project":"landing","event":"turn_end",
+ "detail":{"duration_s":1080},"ts":1790000000123}
+```
+
+| Field | Meaning |
 | --- | --- |
-| Hook to device card | 500 ms target |
-| State change to frame | 250 ms target |
-| Model generation | 5 s deadline, asynchronous |
-| Reflection | Off the interaction path; bounded evidence and output |
+| `agent` | `claude_code`, `codex` |
+| `session` | Stable session/thread ID |
+| `project` | Short project name, from the working directory |
+| `event` | `session_start`, `turn_start`, `needs_you`, `activity`, `turn_end`, `turn_failed`, `session_end` |
+| `detail` | Small and event-specific: duration, tool name. Never prompt text |
+| `ts` | Milliseconds |
 
-Physical latency targets need hardware measurement. Build and unit tests do not
-close production BLE or live-editor gates. Use [Verification](VERIFICATION.md)
-and [Plan](PLAN.md) for current evidence and remaining checks.
+Adding an agent later means one new adapter that produces this shape.
 
-## 10. Repository and retained infrastructure
+## 6. When an agent needs you
 
-Active implementation lives in `app/` and `firmware/`; `archived/` is the previous
-generation and is not extended. Retained infrastructure includes hook installer,
-server, engine/reducer, BLE transport, OTA, firmware HAL and device tooling.
-Independent development uses isolated app state/ports and a single hardware
-writer; USB-only debug builds do not exercise production BLE and are never
-published. See [device tooling](../tools/dev/README.md).
+```
+ Agent                    Mac app (core)                 Device
+   │ needs approval            │                            │
+   ├── hook: needs_you ───────►│ session → "needs you"      │
+   │ (agent shows its own      ├── snapshot: attention ────►│ amber, looks at you,
+   │  prompt as normal)        │                            │ nudge ladder
+   │                           │                            │
+   │ you approve on the Mac    │                            │
+   ├── hook: activity ────────►│ session → "working"        │
+   │                           ├── snapshot: calm ─────────►│ back to work
+```
 
-Earlier architecture discussions and phase-specific decisions are retained in
-[architecture history](ARCHITECTURE-HISTORY.md). They do not override this
-contract or the current component specs.
+- A session stops needing you when any later event arrives from it (the
+  tool ran, the turn ended, or you sent a new prompt), when it ends, or
+  after 10 minutes as a safety net (*proposed*).
+- Tapping Boop while it's asking for attention quiets the nudges for that
+  session. It doesn't answer anything.
+- Boop can't approve or deny. That keeps the product simple and safe: a bug
+  in Boop can never let an agent do something you didn't agree to.
 
-Growth has no live level calculation. The store aggregates daily completed-turn
-units for the Mac activity grid; XP stays cumulative and existing awards persist.
+## 7. Device
 
-## Device availability projection
+The device is a thin client. It draws what the latest snapshot says, plays
+moments, runs its own short timers (blinks, idle life, the nudge ladder) and
+reports taps and push-to-talk. It holds no personality or memory, just its
+Bluetooth bond, a device ID, and its animation and syllable library.
+[BEHAVIORS.md](BEHAVIORS.md) lists what it does for each trigger.
 
-Core derives `BuddyState.agentCounts` and all `activeSessions` rows from the full
-session dictionary. The Mac scrolls the complete list; the independent device
-preview is bounded only at encoding. Working/thinking count as working; idle as
-idle; requests/errors as neither. ESP32 output maps calm states to working/idle
-and suppresses desktop duration cheers while preserving eligible model bubbles.
-The earlier blanket bubble suppression contradicted the dialogue contract and
-made ordinary companion remarks disappear whenever a session existed; the
-quality pass removes that suppression while firmware retains layer priority. Core owns completion batching/cooldown; firmware owns local notice deadlines and explicit thread-page navigation; no new clock, I/O or view acknowledgment enters Core. Wire and frame budgets remain in WIRE-V2.md.
+The board, wiring and firmware are in [DEVICE.md](DEVICE.md).
 
-## Thread metadata and completion presentation
+## 8. When things go wrong
 
-Core owns the completion sequence, batching, cooldown and recent history;
-firmware converts age/remaining duration to local presentation deadlines. Reconnect
-establishes a baseline without replaying old notices. Details/controls and all
-presentation timings are in [Device UX](UX-DEVICE.md); shared completion rules are
-in [Behaviors](BEHAVIORS.md#3-effort-and-celebrations).
+| Failure | Behaviour |
+| --- | --- |
+| App not running | Hooks exit at once; agents are unaffected. The device idles with a sleepy "no app" face |
+| Device disconnected | The app keeps going; the next snapshot catches the device up on reconnect |
+| Brain offline, slow or invalid | Rules still drive every reaction; mumbles use the fallbacks in `steering.md`; memory doesn't grow that day |
+| Memory file invalid | The harness uses the last snapshot from `history/` |
+| Mac asleep | The device drifts to sleep after 30 s without a message |
 
-Use explicit hook thread/session titles when supplied. At Codex session/turn
-boundaries, read matching title metadata from at most the last 256 KiB of its
-local session index, off the main actor. Otherwise use project plus short stable
-session ID. Never read transcripts or display raw prompt/command text as titles.
-Names are ephemeral display metadata, never model memory. UTF-8 titles are
-bounded to 47 bytes. The preview contains up to 12 sessions in stable ID order
-and 6 recent completions; encoding may shed rows while retaining total counts.
-There is no persistent Last finished footer; history remains in detail pages.
+## 9. Budgets
 
-## Shared turn-moment projection
+| Path | Target |
+| --- | --- |
+| Agent event → pixel | < 200 ms p95 |
+| Tap → visible feedback | < 20 ms, on-device |
+| Hook overhead | Single-digit ms; never waits |
+| Brain call, live triggers | 5 s deadline; late results are dropped |
+| Nightly reflection | Minutes, on power |
 
-`BuddyBehaviorGuide.policy()` reads one validated `boop-policy` JSON fence from
-the existing Markdown, using bundled defaults when missing/invalid. The engine
-supplies that value to pure Core; `updateTurnMoments` detects starts/completions,
-consumes bounded stale-tick milestones, merges returns, coalesces and expires.
-Terminal failure closes the active duration while retaining its original start
-separately for error ordering; a retry cannot inherit failed work duration.
-`TurnMoment` carries ID, kind, tier, expression, text, count, deadline and bounded
-event facts. `momentText` validates asynchronous results against ID/count/deadline.
+## 10. Stack
 
-Existing `BehaviorTasks`/`Voice` handles all text in its one display lane; no new
-occasion service or model worker. Event context adds elapsed/absence milliseconds,
-local hour/time-of-day, title, count and explicit neutral outcome evidence.
-Presentation expressions are a small enum selected by Markdown policy; the model
-still returns text or SILENT. Animation primitives are firmware code.
+- **Mac app:** a Swift menu-bar app, using CoreBluetooth, Apple's
+  Foundation Models and the Speech framework. It's built with SwiftPM from
+  `app/`.
+- **Hook client:** `boop-hook`, a small Swift executable in the same
+  package.
+- **Firmware v1:** PlatformIO + Arduino core + LovyanGFX + NimBLE-Arduino,
+  in `firmware/` ([DEVICE.md](DEVICE.md) §4). A later milestone ports it to
+  ESP-IDF + LVGL, once v1 is verified ([PLAN.md](PLAN.md)).
+- **Dev tools:** `tools/boopctl` for the device and `boopdev` for the app
+  ([VERIFICATION.md](VERIFICATION.md) §2).
 
-The additive v2 `moment` field sends identity, tier, expression, text, count and
-age/left. Firmware enforces local expiry, no replay and actual glyph fit. Scope
-is omitted by the host; old `scope` remains parsed for compatibility but invisible.
-The newline-inclusive 1536-byte frame cap and shedding order remain unchanged;
-snapshot/cosmetics/history preview can be shed while moment identity is retained.
-See [Turn moments](UX-TURN-MOMENTS.md), [Wire](WIRE-V2.md) and [Device UX](UX-DEVICE.md).
+The stable contracts are the event shape (§5), the memory files (§4), the
+brain interface ([HARNESS.md](HARNESS.md)) and the protocol
+([PROTOCOL.md](PROTOCOL.md)).
 
-## Firmware update coordination
+## 11. Decisions
 
-`FirmwareUpdater` uses `FirmwareReleaseProviding` and `FirmwareUpdateTransport`
-boundaries so asynchronous checks, transfer failures and reconnects can be tested
-without network or Bluetooth. New checks invalidate older results; cancellation
-cannot let an old transfer overwrite a retry. A commit acknowledgment or
-post-commit disconnect enters version confirmation, never optimistic success.
-A fresh device status must match the offered version (optional `v` prefix ignored).
-Confirmation has a 45-second budget from commit submission; mismatch or missing
-confirmation becomes a recoverable failure. Automatic reconnect checks preserve
-the terminal result. Dismissing a failed check does not assert "up to date".
+**Decided (2026-09-25):**
 
-## Readiness boundary checks
-
-The display boundary masks recognizable private strings before generation and
-rejects private echoes and repeated remarks afterward. Scope without any intent
-returns silence without generation. These are structural safeguards; the model
-still owns semantic interpretation. Guided-generation experiments live only in
-the test replay, outside the production runtime.
-
-Firmware downloads require HTTP 2xx before decoding a manifest or verifying a
-binary hash. Cached manifests are keyed by their source URL; legacy entries
-without a source are refreshed. Codex SessionEnd registration uses its 3-second
-limit; other lifecycle hook registrations retain their existing timeout.
+- **Claude Cowork is out of v1.** Its sandbox doesn't run Claude Code hooks
+  yet ([ADAPTERS.md](ADAPTERS.md) §7).
+- **Apple's on-device model is the default brain.** Your own API key is an
+  optional upgrade. Everything is designed to work well on the small model.
+- **Hand edits to `long-term.md` are allowed.** There's no checksum. The
+  promise is that there's no reset button, not that the file is locked. A
+  file that won't parse is restored from last night's snapshot.
+- **Prompt text is never sent to the brain.** Mood is set by rule.
+- **Focus mode is visual only** ([BEHAVIORS.md](BEHAVIORS.md) §3.2).
+- **Threads show agent and project only** ([UX.md](UX.md) §3).
+- **Voice** is synthesised, English only, and mumble back matches your
+  energy ([VOICE.md](VOICE.md) §10).
+- **Codex waits 2 s before "needs you"**, which is long enough for its
+  automatic reviewer ([ADAPTERS.md](ADAPTERS.md) §4).
+- **The prompt fits** the ~3,000-token budget, and the small model follows
+  `steering.md` well enough. We assume both and design as if they hold.
+- **Numbers marked *proposed*** are v1 defaults. We'll tune them by trying
+  Boop out.
