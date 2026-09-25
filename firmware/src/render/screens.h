@@ -44,7 +44,8 @@ struct Stats {
   int level = 1, prog = 0, days = 0;
 };
 
-// The face, moved up and smaller when there's a mumble.
+// The face screen, with the bubble when there's a mumble. The face's place
+// comes from the pose (Pose::raise), so moving up for the bubble is eased.
 void drawFaceScreen(Canvas& c, const Pose& p, const Mumble* mumble, const Strip& s);
 void drawNeedsYou(Canvas& c, const Pose& p, const Attention& a, const Strip& s);
 void drawThreads(Canvas& c, const Thread* threads, int n, const Strip& s);

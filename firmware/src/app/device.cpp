@@ -108,8 +108,15 @@ Device::Source Device::sourceAt(uint32_t t) const {
 }
 
 render::Pose Device::sourcePose(const Source& s, uint32_t t) const {
-  if (s.anim != render::Anim::kNone) return render::animPose(s.anim, s.size, t - s.at);
-  return render::lookPose(s.look, s.rung, model_.busy);
+  render::Pose p;
+  if (s.anim != render::Anim::kNone) {
+    p = render::animPose(s.anim, s.size, t - s.at);
+    if (s.at == moment_.at && moment_.say.syllables > 0) p.raise = 1000;  // room for the bubble
+  } else {
+    p = render::lookPose(s.look, s.rung, model_.busy);
+    if (s.look == render::Look::kNeedsYou) p.raise = 1000;
+  }
+  return p;
 }
 
 void Device::resync(uint32_t t) {

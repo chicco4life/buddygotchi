@@ -27,6 +27,7 @@ struct Pose {
   int16_t size = 1000;      // whole face scale (a lean in is > 1000)
   int16_t glow = 0;         // eye tint towards the cheer glow
   int16_t oops = 0;         // eye tint towards the oops red
+  int16_t raise = 0;        // 1000: moved up and smaller, to make room for the bubble
 };
 
 // a + (b - a) × t / 1024, field by field.

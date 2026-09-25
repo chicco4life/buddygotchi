@@ -167,6 +167,7 @@ Pose blend(const Pose& a, const Pose& b, int t) {
   o.size = int16_t(lerp(a.size, b.size, t));
   o.glow = int16_t(lerp(a.glow, b.glow, t));
   o.oops = int16_t(lerp(a.oops, b.oops, t));
+  o.raise = int16_t(lerp(a.raise, b.raise, t));
   return o;
 }
 
@@ -175,7 +176,7 @@ bool operator==(const Pose& a, const Pose& b) {
          a.lidTop == b.lidTop && a.lidTilt == b.lidTilt && a.lidBot == b.lidBot && a.wink == b.wink &&
          a.squash == b.squash && a.mouthCurve == b.mouthCurve && a.mouthOpen == b.mouthOpen &&
          a.mouthWide == b.mouthWide && a.mouthX == b.mouthX && a.dx == b.dx && a.dy == b.dy &&
-         a.size == b.size && a.glow == b.glow && a.oops == b.oops;
+         a.size == b.size && a.glow == b.glow && a.oops == b.oops && a.raise == b.raise;
 }
 
 int eyeInk(const Pose& p) {

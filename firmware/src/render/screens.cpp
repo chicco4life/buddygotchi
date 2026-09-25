@@ -17,6 +17,14 @@ constexpr int kMargin = 12;
 // with a bubble it moves up into the top 200 px and shrinks.
 constexpr int kFaceCy = 122, kFaceBubbleCy = 86, kFaceBubbleScale = 780;
 
+// Where the face sits: `raise` eases it between the two places.
+void placeFace(Canvas& c, const Pose& p) {
+  int r = p.raise < 0 ? 0 : p.raise > 1000 ? 1000 : p.raise;
+  int cy = kFaceCy + (kFaceBubbleCy - kFaceCy) * r / 1000;
+  int scale = 1000 + (kFaceBubbleScale - 1000) * r / 1000;
+  drawFace(c, p, kWidth / 2, cy, scale);
+}
+
 void plotInk(Canvas& c, int x, int y, int level, int ink) { c.pixels()[y * kWidth + x] = inkAt(ink, level); }
 
 void fillCircle(Canvas& c, int cx, int cy, int r, int ink) {
@@ -145,18 +153,14 @@ void drawStrip(Canvas& c, const Strip& s) {
 
 void drawFaceScreen(Canvas& c, const Pose& p, const Mumble* mumble, const Strip& s) {
   c.fill(kBlack);
-  if (mumble) {
-    drawFace(c, p, kWidth / 2, kFaceBubbleCy, kFaceBubbleScale);
-    drawMumble(c, *mumble);
-  } else {
-    drawFace(c, p, kWidth / 2, kFaceCy, 1000);
-  }
+  placeFace(c, p);
+  if (mumble) drawMumble(c, *mumble);
   drawStrip(c, s);
 }
 
 void drawNeedsYou(Canvas& c, const Pose& p, const Attention& a, const Strip& s) {
   c.fill(kBlack);
-  drawFace(c, p, kWidth / 2, kFaceBubbleCy, kFaceBubbleScale);
+  placeFace(c, p);
   char who[48];
   std::snprintf(who, sizeof(who), "%s \xC2\xB7 %s", a.agent, a.project);
   drawStringFit(c, kSmall, kMargin, kBubbleTop + 6, who, kInkAmber, kWidth - 2 * kMargin);

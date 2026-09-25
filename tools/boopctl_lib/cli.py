@@ -207,7 +207,14 @@ def cmd_cam(args: argparse.Namespace) -> int:
     from boopctl_lib import cam
 
     with Device(args.port) as dev:
-        result = cam.frame(dev, args.usb) if args.action == "frame" else cam.pattern(dev)
+        if args.action == "frame":
+            result = cam.frame(dev, args.usb)
+        elif args.action == "clip":
+            if not args.name:
+                raise DeviceError(f"cam clip needs a name: {', '.join(cam.CLIPS)}")
+            result = cam.clip(dev, args.name, args.seconds)
+        else:
+            result = cam.pattern(dev)
     emit(result)
     return 0 if result["ok"] else 1
 
@@ -260,7 +267,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--motion", action="store_true")
     p.set_defaults(func=cmd_perf)
     p = sub.add_parser("cam", help="webcam helpers (opt-in; plan/VERIFICATION.md §6)")
-    p.add_argument("action", choices=["frame", "pattern"])
+    p.add_argument("action", choices=["frame", "pattern", "clip"])
+    p.add_argument("name", nargs="?", help="clip: idle, needs_you or cheer")
+    p.add_argument("--seconds", type=int, default=8, help="clip length, at most 10")
     p.add_argument("--usb", default="right", choices=["bottom", "right", "top", "left"],
                    help="where USB-C is in the camera's view (frame only)")
     p.set_defaults(func=cmd_cam)
