@@ -271,7 +271,7 @@ Pose lookPose(Look look, int rung, int busy) {
       p.pupil = int16_t(busy >= 3 ? 850 : 950);
       break;
     case Look::kAsleep:
-      p.open = 0, p.dy = 10, p.mouthWide = 600, p.lidTilt = -200;
+      p.open = 0, p.dy = 10, p.mouthWide = 600;
       break;
     case Look::kNoApp:
       p = sleepy();

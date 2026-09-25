@@ -1,0 +1,27 @@
+// Base states (BEHAVIORS.md §2) and the no-app face after 30 s of silence.
+{"clock":0}
+{"t":"state","v":1,"base":"idle","busy":0,"idle":2,"wait":0,"threads":[["claude","jetpack","idle"],["codex","landing","idle"]]}
+{"clock":300}
+{"expect":{"screen":"face","base":"idle","attn":null,"moment":null}}
+{"shot":"idle"}
+{"t":"state","v":1,"base":"working","busy":1,"idle":1,"wait":0}
+{"clock":600}
+{"expect":{"base":"working"}}
+{"shot":"working"}
+{"t":"state","v":1,"base":"working","busy":3,"idle":0,"wait":0}
+{"clock":900}
+{"shot":"working-busy"}
+{"t":"state","v":1,"base":"asleep","busy":0,"idle":0,"wait":0}
+{"clock":1200}
+{"expect":{"base":"asleep"}}
+{"shot":"asleep"}
+{"clock":30899}
+{"expect":{"screen":"face"}}
+{"clock":30900}
+{"expect":{"screen":"no_app"}}
+{"clock":31200}
+{"shot":"no-app"}
+{"t":"state","v":1,"base":"idle","busy":0,"idle":1,"wait":0}
+{"clock":31300}
+{"expect":{"screen":"face"}}
+{"shot":"reconnect"}

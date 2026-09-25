@@ -17,4 +17,4 @@
 {"t":"dbg.pattern"}
 {"t":"state","v":1,"base":"working"}
 {"expect": {"screen":"face","base":"working"}}
-{"shot": "placeholder-face"}
+{"shot": "face"}

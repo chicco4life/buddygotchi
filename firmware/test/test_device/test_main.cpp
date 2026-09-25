@@ -2,6 +2,7 @@
 // simulator uses.
 #include <unity.h>
 
+#include <cstdio>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -116,6 +117,87 @@ static void test_light_sets_the_led() {
   TEST_ASSERT_TRUE(has(r.usb.text, "\"led\":\"#FFB000\""));
 }
 
+static void test_attention_shows_needs_you_and_climbs_the_ladder() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"attn\":{\"agent\":\"codex\",\"project\":\"landing\"}}");
+  TEST_ASSERT_EQUAL(app::Screen::kNeedsYou, r.dev.screen());
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":20000}");
+  r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"attn\":{\"agent\":\"codex\",\"project\":\"landing\"}}");
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":45000}");
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"rung\":2"));
+  // A different project restarts the ladder.
+  r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"attn\":{\"agent\":\"codex\",\"project\":\"site\"}}");
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"rung\":1"));
+  r.usbLine("{\"t\":\"state\",\"base\":\"working\"}");
+  TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
+}
+
+static void test_no_app_after_30s_of_silence() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":29999}");
+  TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":30000}");
+  TEST_ASSERT_EQUAL(app::Screen::kNoApp, r.dev.screen());
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
+}
+
+static void test_moment_plays_then_ends_and_a_new_one_replaces_it() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"nod\",\"size\":1,\"ttl\":5}");
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"nod\",\"left_ms\":600}"));
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"size\":2,\"ttl\":5}");
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"anim\":\"cheer\""));
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":5000}");
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"moonwalk\"}");  // unknown: ignored
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
+}
+
+static void test_strip_taps_cycle_the_screens() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  const app::Screen order[] = {app::Screen::kThreads, app::Screen::kStats, app::Screen::kFace};
+  uint32_t t = 0;
+  for (app::Screen want : order) {
+    r.usbLine("{\"t\":\"dbg.touch\",\"x\":120,\"y\":300,\"ms\":100}");
+    t += 200;
+    char step[64];
+    std::snprintf(step, sizeof(step), "{\"t\":\"dbg.clock\",\"freeze\":%u}", unsigned(t));
+    r.usbLine(step);
+    TEST_ASSERT_EQUAL(want, r.dev.screen());
+  }
+  // A touch on the face doesn't change the screen.
+  r.usbLine("{\"t\":\"dbg.touch\",\"x\":120,\"y\":100,\"ms\":100}");
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1000}");
+  TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
+}
+
+static void test_reset_forgets_the_mac_and_freezes_at_0() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"attn\":{\"agent\":\"codex\",\"project\":\"x\"}}");
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":5000}");
+  r.usbLine("{\"t\":\"dbg.reset\"}");
+  TEST_ASSERT_EQUAL(0u, r.dev.now());
+  TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"base\":\"idle\""));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"attn\":null"));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_ping_reports_version_and_link);
@@ -125,5 +207,10 @@ int main() {
   RUN_TEST(test_physical_hold_sends_talk_on_and_off);
   RUN_TEST(test_shot_is_header_then_base64);
   RUN_TEST(test_light_sets_the_led);
+  RUN_TEST(test_attention_shows_needs_you_and_climbs_the_ladder);
+  RUN_TEST(test_no_app_after_30s_of_silence);
+  RUN_TEST(test_moment_plays_then_ends_and_a_new_one_replaces_it);
+  RUN_TEST(test_strip_taps_cycle_the_screens);
+  RUN_TEST(test_reset_forgets_the_mac_and_freezes_at_0);
   return UNITY_END();
 }

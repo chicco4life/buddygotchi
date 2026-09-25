@@ -1,0 +1,25 @@
+// The bubble: squiggles for gibberish and the one real word in amber (UX.md §2).
+{"clock":0}
+{"t":"state","v":1,"base":"working","busy":1}
+{"clock":1000}
+{"t":"moment","anim":"cheer","size":1,"say":{"syl":"bi do ba na","word":"done!","at":4,"tune":"up","ms":120},"ttl":5}
+{"clock":1400}
+{"shot":"word-at-end"}
+{"clock":10000}
+{"t":"state","v":1,"base":"working","busy":1}
+{"t":"moment","anim":"happy","size":1,"say":{"syl":"ma-po li","word":"tests?","at":0,"tune":"up","ms":120},"ttl":5}
+{"clock":10400}
+{"shot":"word-at-start"}
+{"clock":20000}
+{"t":"state","v":1,"base":"working","busy":1}
+{"t":"moment","anim":"happy","size":1,"say":{"syl":"ma-po li bu-da","tune":"bounce","ms":120},"ttl":5}
+{"clock":20400}
+{"shot":"no-word"}
+{"clock":30000}
+{"t":"state","v":1,"base":"working","busy":1}
+{"t":"moment","anim":"happy","size":1,"say":{"syl":"po po","word":"refactoring","at":1,"tune":"flat","ms":120},"ttl":5}
+{"clock":30400}
+{"shot":"long-word"}
+{"clock":34000}
+{"expect":{"moment":null}}
+{"shot":"bubble-gone"}

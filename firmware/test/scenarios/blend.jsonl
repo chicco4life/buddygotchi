@@ -1,0 +1,24 @@
+// Eased, interruptible blends of 150 ms or less (UX.md §2).
+{"clock":0}
+{"t":"state","v":1,"base":"idle"}
+{"clock":1000}
+{"t":"state","v":1,"base":"working","busy":1}
+{"clock":1050}
+{"shot":"idle-to-working-50ms"}
+{"clock":1100}
+{"shot":"idle-to-working-100ms"}
+{"clock":1150}
+{"shot":"idle-to-working-150ms"}
+{"t":"moment","anim":"happy","size":1,"ttl":5}
+{"clock":1225}
+{"shot":"to-happy-75ms"}
+{"t":"moment","anim":"worried","size":1,"ttl":5}
+{"clock":1300}
+{"shot":"interrupted-75ms"}
+{"expect":{"moment":{"anim":"worried"}}}
+{"clock":3724}
+{"expect":{"moment":{"anim":"worried","left_ms":1}}}
+{"clock":3725}
+{"expect":{"moment":null}}
+{"clock":3800}
+{"shot":"back-to-working-75ms"}
