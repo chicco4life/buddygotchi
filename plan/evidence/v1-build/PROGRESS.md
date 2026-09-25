@@ -82,3 +82,36 @@ One entry per iteration, newest last. Each ends with the exact next step.
   to `say`. Decide which moments may play over needs you (BEHAVIORS §1:
   attention wins). Then add goldens for every BEHAVIORS §3 row, and
   `boopctl soak`.
+
+## 2026-09-26 02:19 — F3: Device behaviour — Passed
+
+- **Changed:** a pure C++ behaviour state machine (`firmware/src/app/behaviour.*`).
+  It covers base states, idle life, the needs-you ladder with its light and
+  sound cues, moments shaped by mood, mouth sync, gestures with feedback on
+  the press itself, the threads and stats timeout, dimming, and hunger. The
+  device core now only parses, recognises gestures and draws. `dbg.state`
+  gained `hushed`, `life`, `night`, `hungry` and `sfx`. New:
+  `boopctl soak`, webcam presets `ladder`, `cheers` and `tap`, and scenarios
+  `behaviour` and `life`. Details in [F3/README.md](F3/README.md).
+- **Checks:** fw-test 55/55; the simulator ran 10 scenarios, and 22 new and
+  8 changed goldens were reviewed; on the board, every expect passed and all
+  80 screenshots were identical to the simulator's; perf gave a minimum of
+  45 fps and 157 KB of heap; the 20-minute soak had no reset and 0 heap
+  drift; webcam framing passed, and the ladder, cheers and tap clips were
+  reviewed.
+- **Decisions:** attention wins (only nod, listening, thinking, shrug and zip
+  play over needs you); the device plays the nod on clearing, the fallback
+  shrug, and the mood face, and sends a new `input` `feel`; `sfx` cues show
+  in `dbg.state` before F5. All are in the ARCHITECTURE §11 log.
+- **Board left on:** F3 firmware `a05f38af45`, showing the face.
+- **Next step:** F4, Bluetooth on the device. Add NimBLE back to `lib_deps`
+  (DEVICE.md §6) and a Nordic UART peripheral named `Boop-XXXX` (the last 4
+  hex digits of the MAC) in `firmware/src/link/`. Feed RX through
+  `app::LineReader` into `Device::handleLine(..., Link::kBle)`, with a
+  `Device::setOut(Link::kBle, …)` writer that chunks to the MTU. Send
+  `status` on connect and every 60 s (PROTOCOL §4), and release Classic BT
+  memory. Keep the canvas allocated before BLE starts. Checks: L0
+  reassembly tests (test_link already has some), `ping` shows advertising
+  with heap_min ≥ 60 KB, and perf and soak re-run with BLE on. Don't use
+  `bleak` or the Mac's Bluetooth; the real connection is checked in the
+  morning.
