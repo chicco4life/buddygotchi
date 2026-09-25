@@ -351,3 +351,89 @@ def main(out: Path, brain: str, port: str | None, fixtures: list[str] | None, cl
     (out / f"e2e-{brain}.txt").write_text("\n".join(run.log) + "\n")
     print("PASS" if not run.failures else f"FAIL ({len(run.failures)})")
     return 0 if not run.failures else 1
+
+
+def soak(out: Path, brain: str, port: str | None, minutes: float) -> int:
+    """J2's soak: the e2e fixtures on a loop through the whole pipeline, with
+    a tap on the board between rounds, for `minutes`. Samples the board
+    (resets, heap, audio errors) and the app (alive, memory), counts
+    checkpoint misses, and at the end checks that calm brings back the plain
+    face with nothing stuck."""
+    root = Path("/tmp/boop-soak")
+    run = Run(root, out, brain, port)
+    samples: list[dict[str, Any]] = []
+    rounds, misses = 0, 0
+    started = time.time()
+    t0 = time.monotonic()
+    final: dict[str, Any] = {}
+
+    def sample(dev: Device) -> None:
+        ping = dev.request({"t": "dbg.ping"})
+        st = dev.request({"t": "dbg.state"})
+        app = run.procs[1]
+        rss = subprocess.run(["ps", "-o", "rss=", "-p", str(app.pid)], capture_output=True, text=True).stdout.strip()
+        samples.append({"t": round(time.monotonic() - t0, 1), "up": ping["up"], "heap": ping["heap"],
+                        "heap_min": ping["heap_min"], "fps": ping["fps"],
+                        "audio_errors": st.get("audio", {}).get("out", {}).get("errors"),
+                        "app_alive": app.poll() is None, "app_rss_kb": int(rss) if rss else None})
+
+    try:
+        run.start()
+        os.environ["BOOP_BRIDGE"] = run.bridge_sock
+        with Device(timeout=3.0) as dev:
+            sample(dev)
+            while time.monotonic() - t0 < minutes * 60:
+                rounds += 1
+                run.say(f"# round {rounds} at {(time.monotonic() - t0) / 60:.1f} min")
+                for f in RUN_ORDER:
+                    before = len(run.failures)
+                    run.fixture(dev, FIXTURES / f)
+                    misses += len(run.failures) - before
+                    sample(dev)
+                    if not samples[-1]["app_alive"]:
+                        raise DeviceError("the headless app exited")
+                dev.request({"t": "dbg.press", "ms": 100})  # a tap: the brain's `tap` trigger
+                time.sleep(3)
+            # Nothing stuck: once every session has stopped and a quiet minute
+            # has passed, the board is back on the plain face.
+            time.sleep(60)
+            final = dev.request({"t": "dbg.state"})
+            sample(dev)
+    except DeviceError as exc:
+        run.fail(str(exc))
+    finally:
+        run.stop()
+
+    ups = [s["up"] for s in samples]
+    later = [s for s in samples if s["t"] >= 120] or samples[-1:]
+    errors = [s["audio_errors"] or 0 for s in samples]
+    rss = [s["app_rss_kb"] for s in samples if s["app_rss_kb"]]
+    lat = [h["state_ms"] for h in run.hooks if h["state_ms"] is not None]
+    result = {
+        "brain": brain, "minutes": round((time.monotonic() - t0) / 60, 1), "rounds": rounds,
+        "hooks": len(run.hooks), "checkpoint_misses": misses,
+        "latency": {"p50": percentile(lat, 0.5), "p95": percentile(lat, 0.95), "n": len(lat)},
+        "reset": any(b <= a for a, b in zip(ups, ups[1:])),
+        "heap_min_after_2min": later[0]["heap_min"], "heap_min_end": samples[-1]["heap_min"] if samples else None,
+        "heap_min_drift": later[0]["heap_min"] - samples[-1]["heap_min"] if samples else None,
+        "audio_errors": max(errors, default=0) - min(errors, default=0),
+        "app_rss_kb": {"after_2min": later[0]["app_rss_kb"], "end": rss[-1] if rss else None,
+                       "max": max(rss, default=None)},
+        "app_exited_early": any(not s["app_alive"] for s in samples),
+        "final": {k: final.get(k) for k in ("screen", "base", "attn", "moment", "rung")},
+    }
+    stuck = final.get("screen") != "face" or final.get("attn") is not None or final.get("moment") is not None
+    result["stuck"] = stuck
+    result["failures"] = run.failures
+    result["ok"] = (not result["reset"] and not stuck and not result["app_exited_early"]
+                    and (result["heap_min_drift"] or 0) <= 2048 and result["audio_errors"] == 0)
+    out.mkdir(parents=True, exist_ok=True)
+    (out / f"soak-{brain}.json").write_text(json.dumps({**result, "series": samples}, indent=1))
+    (out / f"soak-{brain}.txt").write_text("\n".join(run.log) + "\n")
+    if (run.state / "boop.log").exists():
+        shutil.copy(run.state / "boop.log", out / f"soak-app-{brain}.log")
+    if (run.root / "brain.jsonl").exists():
+        shutil.copy(run.root / "brain.jsonl", out / f"soak-brain-{brain}.jsonl")
+    print(json.dumps({k: v for k, v in result.items() if k != "failures"}, indent=1))
+    print("PASS" if result["ok"] else "FAIL")
+    return 0 if result["ok"] else 1

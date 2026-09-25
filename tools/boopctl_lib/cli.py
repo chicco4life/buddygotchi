@@ -411,6 +411,8 @@ def cmd_cam(args: argparse.Namespace) -> int:
 def cmd_e2e(args: argparse.Namespace) -> int:
     from boopctl_lib import e2e
 
+    if args.soak:
+        return e2e.soak(Path(args.out), args.brain, args.port, args.soak)
     return e2e.main(Path(args.out), args.brain, args.port, args.fixture or None, args.clip)
 
 
@@ -439,6 +441,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("fixture", nargs="*", help="paths under app/Tests/Fixtures/hooks/e2e (default: all three)")
     p.add_argument("--clip", action="store_true",
                    help="first film a 10 s Claude session on the webcam (authorised runs only; §6)")
+    p.add_argument("--soak", type=float, metavar="MIN",
+                   help="loop the fixtures for MIN minutes and check for resets, leaks and stuck states (J2)")
     p.set_defaults(func=cmd_e2e)
     sub.add_parser("state", help="the device's own view of itself").set_defaults(func=cmd_state)
     p = sub.add_parser("send", help="send one protocol message")

@@ -144,7 +144,7 @@ Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 | A4 | Device link, app shell, push-to-talk, installer | Passed |
 | J1 | End to end over USB | Passed |
 | F5 | Voice on the device | Passed |
-| J2 | Soak and polish | Not started |
+| J2 | Soak and polish | In progress |
 | J3 | Handoff | Not started |
 | P1 | Port to ESP-IDF + LVGL (later, gated) | Not started |
 
