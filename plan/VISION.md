@@ -1,12 +1,12 @@
 # Boop: vision
 
-Draft 7 · 2026-09-25 · built from the handover PRD and the whiteboard sketch.
+Updated 2026-09-25. Why Boop exists, who it's for, and the promises it keeps.
 
 ## The short version
 
 Boop is a small creature that lives on your desk. It has a personality of its
 own, one that was seeded when it hatched and has been shaped since by living
-alongside you. It cannot be reset or copied. After three months your Boop is
+alongside you. There's no reset button. After three months your Boop is
 different from anyone else's, and it is recognisably yours.
 
 It also happens to keep an eye on your AI agents. When you run three Claude
@@ -29,7 +29,8 @@ watched. What they want:
 
 - a bit of warmth and company during long stretches of solo work;
 - to know at a glance whether anything needs them, without switching windows;
-- to unblock an agent in one motion and get back to what they were doing.
+- to see which agent needs them, deal with it, and get back to what they
+  were doing.
 
 ## Personality first
 
@@ -39,12 +40,12 @@ different directions, personality wins, as long as nothing the person relies
 on breaks. "An agent needs you" still has to be fast and reliable, but how
 Boop reacts to one is a question of character.
 
-- **Grown, not chosen.** At first pairing you name it and answer one
-  question: earnest or impish? Everything else comes from hardware entropy
-  and from living with you. There is no menu of traits.
-- **Permanent.** Reflashing or factory-resetting the device keeps its
-  identity. The only way out is to retire it, which produces a memorial card.
-  That permanence is what makes the bond mean something.
+- **Grown, not chosen.** When you set it up, you name it and answer one
+  question: sweet or cheeky? Everything else comes from chance and from
+  living with you. There is no menu of traits.
+- **Lasting.** Boop lives on your Mac, and the device is just its body.
+  Reflash the device or replace it, and it's still the same Boop. There's no
+  reset button.
 - **Shown, never told.** Boop's mood and personality come out in how it
   moves, looks and sounds. You never see a mood meter, a trait score, or a
   line saying "I've noticed you seem stressed." You notice that it's been
@@ -106,12 +107,11 @@ ship. You didn't configure any of that. It grew.
 
 ## Who Boop is
 
-1. **A character that grows.** Over weeks, its temperament drifts along a few
-   axes based on how you work together. It moves through life stages
-   (Hatchling, Grown, Veteran) and keeps a small set of defining moments it
-   can come back to.
-2. **A creature that mirrors your vibe.** How the work is going, the time
-   of day and what you say to it all shape its mood. You only see this in how it behaves.
+1. **A character that grows.** Over weeks, its temperament drifts based on
+   how you work together, and it keeps a small set of defining moments it can
+   come back to.
+2. **A creature that mirrors your vibe.** How the work is going and the time
+   of day shape its mood. You only see this in how it behaves.
 3. **A mumbler.** It keeps up a running commentary in minion gibberish that
    you're not meant to understand, with the odd real word.
 4. **Something you feed.** The work you do together is its food, and it
@@ -135,9 +135,10 @@ ship. You didn't configure any of that. It grew.
    you didn't agree to.
 4. **Reacts to finished work.** It cheers when a task is done, gets flustered
    when something fails, then settles down.
-5. **Keeps a private record of service.** It measures what you and your agents
-   got done together by output. If you want to show off, you can export a
-   buddy card.
+5. **Keeps a private record.** The Mac app shows totals across all your
+   projects: tasks finished, how many projects, days together, XP and level.
+   It never shows a breakdown by project. A shareable buddy card is an idea
+   for later ([FUTURE.md](FUTURE.md)).
 
 ## Look
 
@@ -154,31 +155,29 @@ These are fixed. If a feature conflicts with one of them, the feature changes.
    you breaks, but when the two compete, character wins.
 2. **It never talks like a human.** Minion mumble with at most one real word,
    and that word always comes from what's happening.
-3. **Its inner state stays inner.** Mood and traits show up only in behaviour.
-   Raw values exist only in a debug mode for development.
+3. **Its inner state stays inner.** Mood and temperament show up only in
+   behaviour. Raw values exist only in a debug mode for development.
 4. **Fast and rule-driven where it counts.** Anything that tells you an agent
    needs you is decided by plain rules and shows up in well under a second.
    The AI brain adds colour and is never in that path.
 5. **Boop never approves anything.** It only notifies. Approving happens on
    the Mac, and urgent nudges come from plain rules.
-6. **Your Boop can't be reset or cloned.** Its personality lives in our own
-   data, changes slowly (about 2% per trait per day at most), and belongs to
-   you.
+6. **No reset button.** Boop's personality lives in a file on your Mac, not
+   in the device or the model. It changes slowly, by at most one sentence a
+   day, and it belongs to you.
 7. **Private by construction.** There is no camera, the mic works only while
    you hold the button, and nothing logs your keystrokes. Boop's memory lives
-   on your laptop, and backup is encrypted and opt-in. The default brain runs
-   on the Mac. If you add your own cloud API key, the cloud model receives
+   on your Mac. The default brain runs on the Mac too. If you add your own cloud API key, the cloud model receives
    short summaries and what you say to Boop, and never your code or
    transcripts.
 8. **Never nags, never guilts.** Hunger is visible only when you look. It
    never makes a sound, never sends a notification and never interrupts.
-9. **No leaderboards.** Stats are about what got done, not tokens burned, and
-   they stay private unless you share them.
+9. **No leaderboards.** Stats stay private unless you choose to share them.
 10. **It's your pet, not a brand mascot.** Boop is never branded as Claude or
     Codex. You name it.
-11. **Changes are announced.** The model and line banks are pinned. When
-    Boop's behaviour changes, it ships as a versioned, announced update, so
-    the creature you know doesn't shift under you.
+11. **Changes are announced.** The brain's model, `steering.md` and the voice
+    are pinned. When Boop's behaviour changes, it ships as a versioned,
+    announced update, so the creature you know doesn't shift under you.
 
 ## What it is not
 
@@ -195,9 +194,8 @@ These are fixed. If a feature conflicts with one of them, the feature changes.
 
 ## Scope
 
-- **v1:** one Boop; Claude Code and Codex; personality, mood,
-  mumble, push-to-talk, XP and hunger, nudges, reactions and the record of
-  service.
-- **Not now:** Claude Cowork (its sandbox doesn't run hooks yet), Cursor and other agents, multiple Boops per person, and Boops
-  meeting each other. None of these should be designed out, and none are
-  being designed yet.
+- **v1:** one Boop; Claude Code and Codex; personality, mood, mumble,
+  push-to-talk, XP and hunger, nudges, reactions and the private record.
+- **Not now:** life stages, retiring and backup, the buddy card, Claude
+  Cowork, other agents, and more than one Boop. These are kept in
+  [FUTURE.md](FUTURE.md). None of them should be designed out.

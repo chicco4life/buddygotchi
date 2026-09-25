@@ -1,10 +1,10 @@
 # Boop: verification
 
-Draft 1 · 2026-09-25. How we check that Boop works, especially what's on
-its screen, without a person watching. [PLAN.md](PLAN.md) says which checks
-each milestone must pass. It borrows from the previous generation's tools:
-`buddyctl.py` (USB commands, framebuffer screenshots, golden images) and
-the opt-in webcam recorder in `tools/webcam/`.
+Updated 2026-09-25. How we check that Boop works, especially what's on its
+screen, without a person watching. [PLAN.md](PLAN.md) says which checks
+each milestone must pass. It builds on the previous generation's
+`buddyctl.py` (USB commands, screenshots, golden images) and the opt-in
+webcam recorder in `tools/webcam/`.
 
 ## 1. The loop
 
@@ -59,13 +59,13 @@ Each level answers a different question:
 | `shot --out x.png` | Screenshot the device's canvas |
 | `diff a.png b.png` | Pixel diff. Exits non-zero past a threshold and writes a highlighted diff image |
 | `expect '<json>' [--timeout S]` | Poll `dbg.state` until it matches, or fail |
-| `press short\|long\|hold [--ms N]` | Inject a BOOT press |
+| `press tap\|hold [--ms N]` | Inject a BOOT press |
 | `touch X Y [--ms N]` | Inject a touch at screen coordinates |
 | `clock freeze T \| step MS \| run` | Control the device clock for repeatable frames |
 | `pattern` | Show the bring-up test pattern |
 | `perf --seconds N` | Sample fps and heap over time |
 | `soak --minutes N` | Random, realistic traffic and inputs, then check for resets and leaks |
-| `cam frame\|pattern\|clip` | Webcam helpers (§6) |
+| `cam frame\|pattern\|clip` | Webcam helpers (L3 in §5) |
 | `calibrate` | Touch calibration. Needs a person to tap 4 targets |
 
 ## 3. The debug channel
@@ -110,7 +110,7 @@ runs in the simulator and on the device:
 {"clock": 1400}
 {"shot": "cheer-peak"}
 {"expect": {"screen":"face","moment":{"anim":"cheer"}}}
-{"input": {"press":"short"}}
+{"input": {"press":"tap"}}
 {"expect": {"moment":null}}
 ```
 
@@ -246,21 +246,21 @@ morning checklist in [PLAN.md](PLAN.md).
 
 ## 6. Webcam rules
 
-The webcam stays opt-in ([CLAUDE.md](../CLAUDE.md)). For the overnight run
-of 2026-09-25 the owner has authorised it and positioned the board. That
-authorisation covers that run only.
+The webcam stays opt-in ([CLAUDE.md](../CLAUDE.md)). A run may use it only
+when its prompt authorises it, as [LOOP.md](LOOP.md) does for the v1
+build, and the owner has positioned the board. The authorisation covers
+that run only.
 
 - Clips are bounded: at most 10 s each, video only, no audio.
 - Raw recordings stay in `/tmp` and are deleted at the end of the run. Only
   cropped frames chosen as evidence go into the repo.
-- The Mac is kept awake with `caffeinate -dimsu` for the run, and the lid
-  stays open.
+- The Mac is kept awake with `caffeinate`, and the lid stays open.
 - If the framing check fails, don't try to fix it. Skip L3 and report it.
 
 ## 7. Evidence
 
-Each milestone writes `plan/evidence/<date>-<milestone>/README.md`: what ran,
+Each milestone writes `plan/evidence/v1-build/<milestone>/README.md`: what ran,
 the result, anything accepted or changed and why, plus a few small PNGs
 (simulator, device screenshot, webcam crop). Logs and raw video stay in
-`/tmp`. The overnight run ends with `plan/evidence/<date>-overnight/REPORT.md`
-([PLAN.md](PLAN.md)).
+`/tmp`. A build run also keeps a running log and ends with a report
+([PLAN.md](PLAN.md) §5).

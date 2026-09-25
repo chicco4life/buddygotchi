@@ -21,12 +21,13 @@ cheap ESP32 board with a screen is the body. Start with
 | `firmware/` | PlatformIO firmware for the MicroTech MTR024QV01A board ([plan/DEVICE.md](plan/DEVICE.md)) |
 | `tools/` | `boopctl` (device tool), `voicegen` (voice assets), `webcam/` (opt-in recorder) |
 | `skills/` | `doctor` (hook self-check) and `webcam-verify`, symlinked for Claude, Codex and Cursor |
-| `archived/` | Earlier generations: gen 1 (`archived/app`, `archived/firmware`, research) and the gen-2 specs (`archived/plan-gen2`). Gen-2 code is at git tag `gen2-final`. Read it for history; don't extend it |
+| `archived/` | Earlier generations: gen 1 (`archived/app`, `archived/firmware`, research) and the gen-2 specs (`archived/plan-gen2`). Gen-2 code is kept at git tag `gen2-final`. Don't extend it; delete what v1 doesn't need |
 | `landing/` | The Next.js landing page (Vercel project root) |
 
-v1 is a rewrite. Until [plan/PLAN.md](plan/PLAN.md) milestone M0 is done,
-`app/` and `firmware/esp32/` still hold gen-2 code. Nothing in them is
-reused unless PLAN.md §1 lists it.
+v1 is a rewrite, and no existing code is off-limits: delete anything v1
+doesn't use, including `archived/` code (the tag `gen2-final` keeps it).
+Keep `landing/` and the specs. Until PLAN.md milestone M0 is done, `app/`
+and `firmware/esp32/` still hold gen-2 code.
 
 ## Build and test
 
@@ -50,6 +51,10 @@ tools/boopctl ping | state | shot | run <scenario> | sim <scenario> | bridge
 - There's no Xcode, so `swift test` runs nothing. `make test` runs
   `python3 app/tools/test.py`, which generates the shim runner and runs
   `swift run BoopTests`.
+- Command Line Tools lack some Swift macro plugins. SwiftUI's `@State` and
+  Foundation Models' `@Generable`/`@Guide` don't compile. Use the
+  `ViewState` alias and runtime `DynamicGenerationSchema` instead
+  ([plan/PLAN.md](plan/PLAN.md) §1).
 - If a SwiftPM build fails before compiling, with module-cache errors under
   `~/.cache/clang` or `~/Library/org.swift.swiftpm`, rerun it outside the
   sandbox before investigating the source.
@@ -117,7 +122,8 @@ in the same commit:
 | Build order and status | `PLAN.md` |
 
 If a change deliberately departs from the spec, change the spec first and
-add a line to [plan/ARCHITECTURE.md](plan/ARCHITECTURE.md) §11 saying why.
+add a row to the decision log in
+[plan/ARCHITECTURE.md](plan/ARCHITECTURE.md) §11 saying why.
 
 ## Verification
 
@@ -130,10 +136,10 @@ checks that actually ran and passed. Write evidence to
 ## Webcam
 
 Webcam verification is opt-in. Use the `webcam-verify` skill
-(`skills/webcam-verify/SKILL.md`) only when the owner asks for webcam
-verification and confirms the physical setup for that session. A kickoff
-prompt that authorises it counts, for that run only. Clips are bounded,
-video only, and raw footage stays local.
+(`skills/webcam-verify/SKILL.md`) only when the owner asks for it and
+confirms the physical setup for that session. The build loop prompt
+([plan/LOOP.md](plan/LOOP.md)) authorises it for the v1 build run only.
+Clips are bounded, video only, and raw footage stays local.
 
 ## Self-diagnosis
 

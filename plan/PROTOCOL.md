@@ -1,7 +1,7 @@
-# Boop: Bluetooth protocol
+# Boop: protocol
 
-Draft 3 · 2026-09-25. Part of the [architecture](ARCHITECTURE.md). This
-covers every message between the Boop Mac app ("host") and the device.
+Updated 2026-09-25. Every message between the Boop Mac app and the device,
+over Bluetooth or USB.
 
 ## 1. The idea
 
@@ -12,8 +12,8 @@ gadget:
 
 - **Anthropic's claude-desktop-buddy protocol.** Newline-delimited JSON
   over the Nordic UART Service, with a full status snapshot sent on every
-  change and every 10 s. We keep the shape and drop the parts we don't
-  need, such as approvals and compatibility with Claude Desktop.
+  change and every 10 s. We keep that shape and drop what we don't need,
+  such as approvals and compatibility with Claude Desktop.
 - **The Nordic UART Service (NUS) itself.** It's the de facto "serial port
   over BLE". Firmware libraries, the nRF Connect app and Python's `bleak`
   all speak it, so it's easy to debug with off-the-shelf tools.
@@ -60,7 +60,7 @@ so new optional fields never break an older peer.
  "busy":2,"idle":1,"wait":1,
  "mood":{"energy":70,"pace":110,"pitch":120},
  "quiet":0,"focus":false,"vol":6,"night":false,
- "level":12,"prog":40,"stage":"hatchling","days":12,"hungry":0,
+ "level":12,"prog":40,"days":12,"hungry":0,
  "threads":[["codex","landing","wait"],["claude","jetpack","work"],["codex","buddy","work"]]}
 ```
 
@@ -72,12 +72,12 @@ so new optional fields never break an older peer.
 | `base` | `asleep`, `idle` or `working` |
 | `attn` | Present when something needs you: which agent and project, and how many more are waiting. The device runs the nudge ladder while it's there. A new `attn` (different agent or project) restarts the ladder; the same one continues it |
 | `busy` / `idle` / `wait` | Session counts for the status strip |
-| `mood` | 0–200 values that shape how every animation and sound plays |
+| `mood` | Energy, pace and pitch, 0–200 with 100 as neutral. They shape how every animation and sound plays |
 | `quiet` | Minutes of quiet left; 0 when not quiet |
 | `focus` | Focus mode: no sound or buzz, and "needs you" is visual only |
 | `vol` | Volume 0–10; 0 is mute |
 | `night` | The Mac's view of whether it's night, for dimming and sleepiness |
-| `level`, `prog`, `stage`, `days` | For the stats screen: level, progress to the next level (0–100), life stage, days together |
+| `level`, `prog`, `days` | For the stats screen: level, progress to the next level (0–100), days together |
 | `hungry` | 0 fed, 1 hungry, 2 starving ([BEHAVIORS.md](BEHAVIORS.md) §4) |
 | `threads` | Up to 8 rows for the threads view: agent, project, status |
 
@@ -91,9 +91,9 @@ If the device hears nothing for 30 s, it shows the "no app" face.
 
 | Field | Meaning |
 | --- | --- |
-| `anim` | An animation from the device's set ([BEHAVIORS.md](BEHAVIORS.md) §5) |
+| `anim` | An animation from the device's set ([BEHAVIORS.md](BEHAVIORS.md) §7) |
 | `size` | 1–3, for small, medium or big |
-| `say` | Optional mumble, as built by Voice: gibberish syllables, an optional real word and its position (`at`, index into the syllables), a pitch contour, and milliseconds per syllable |
+| `say` | Optional mumble, as built by Voice: gibberish syllables, an optional real word and its position (`at`, an index into the syllables), the tune (`up`, `down`, `bounce`, `flat` or `lift`), and milliseconds per syllable |
 | `ttl` | Seconds; the device skips it if it can't start in time |
 
 The device plays moments on top of whatever `state` says. A new moment
@@ -119,16 +119,17 @@ the first `status` after connecting, it replies with a `state`.
 
 | `k` | Meaning |
 | --- | --- |
-| `tap` | Tapped the face or pressed the button |
+| `tap` | Tapped the face or pressed BOOT |
 | `talk_on`, `talk_off` | Push-to-talk held and released |
+| `focus` | Focus mode toggled on the device; the Mac confirms it in the next `state` |
 
-The device has already reacted on screen before sending this. The threads
-and stats views are drawn from the last `state` and don't send anything.
+The device has already reacted on screen before sending this. Moving
+between the face, threads and stats screens is local and sends nothing.
 
 ## 5. Lifecycle
 
 ```
-connect ─► encrypt ─► device: status ─► Mac: state
+connect ─► device: status ─► Mac: state
                                         │
           running: state on change and every 10 s,
                    moment when something happens,
@@ -139,9 +140,9 @@ connect ─► encrypt ─► device: status ─► Mac: state
                                   Mac reconnects ─► same as connect
 ```
 
-## 6. Not in this draft
+## 6. Not yet
 
-- **Firmware updates.** This will probably follow ESP-IDF's standard BLE
-  OTA pattern on a separate characteristic. It has its own pass later.
-- **More than one Mac per device, or more than one device per Mac.** Not in
-  v1.
+- **Pairing and encryption** (§2).
+- **Firmware updates over Bluetooth**, probably ESP-IDF's standard OTA
+  pattern on a separate characteristic.
+- **More than one Mac per device, or more than one device per Mac.**

@@ -1,11 +1,9 @@
 # Boop: device
 
-Draft 1 · 2026-09-25. Everything needed to get Boop's board running: the
+Updated 2026-09-25. Everything needed to get Boop's board running: the
 hardware, the pins, what's attached, the firmware stack, and how to build,
 flash and bring it up. Sources: the MicroTech MTR024QV01A-V1 product
-specification (2025-03-24) and measurements from our own board. How Boop
-behaves on this hardware is in [BEHAVIORS.md](BEHAVIORS.md). How we check it
-is in [VERIFICATION.md](VERIFICATION.md).
+specification (2025-03-24) and measurements from our own board.
 
 ## 1. The board
 
@@ -91,9 +89,9 @@ is one line.
 
 **v1: PlatformIO + Arduino core + LovyanGFX + NimBLE-Arduino + ArduinoJson.**
 
-This is the fastest way to a working face. It's what the repo's tools
-already use, and LovyanGFX drives both the ST7789 and the XPT2046 on
-separate buses from one config block. The route to production is a later
+This is the fastest way to a working face. The previous generation's
+firmware used the same stack, and LovyanGFX drives both the ST7789 and the
+XPT2046, on separate buses, from one config block. The route to production is a later
 port to ESP-IDF + LVGL ([PLAN.md](PLAN.md), final milestone), once v1 is
 verified end to end.
 
@@ -166,7 +164,7 @@ Commands (created in the first milestone of [PLAN.md](PLAN.md)):
 make fw          # build firmware/ for the board
 make flash       # build and upload over USB (auto-reset, no BOOT press needed)
 make sim         # build the Mac simulator of the renderer
-tools/boopctl.py ping      # firmware version, free heap, fps, uptime
+tools/boopctl ping         # firmware version, free heap, fps, uptime
 ```
 
 The firmware talks over USB serial at **921600 baud**. The ROM boot log
@@ -182,7 +180,7 @@ before it starts is at 115200 and can be ignored.
    (the arrow points away from USB-C), then record the confirmed values in §4.
 3. **Canvas and screenshot:** a USB screenshot must match the simulator's
    render of the same pattern pixel for pixel.
-4. **BOOT button:** press, long press and hold are reported over USB.
+4. **BOOT button:** taps and holds are reported over USB.
 5. **Touch:** raw readings and the interrupt respond to a press. Real presses
    and calibration need a person (morning checklist).
 6. **LED:** red, green, blue and amber. It's on the back, so check the

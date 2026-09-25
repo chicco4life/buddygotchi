@@ -1,31 +1,14 @@
 # Boop: architecture
 
-Draft 10 · 2026-09-25. This is the overview: the parts, how they connect, and
-the memory files they share. These documents go deeper:
-
-- [Agent adapters](ADAPTERS.md): hooks, event mapping, and "needs you".
-- [Harness and brain](HARNESS.md): how a trigger becomes a model call and
-  back.
-- [steering.md](steering.md): the first draft of Boop's read-only standing
-  instructions.
-- [Bluetooth protocol](PROTOCOL.md): the messages between the Mac app and
-  the device.
-- [Device behaviors and XP](BEHAVIORS.md): what Boop does for each trigger,
-  plus XP and hunger.
-- [Voice](VOICE.md): how the gibberish is built and played.
-- [Device](DEVICE.md): the board, pins, firmware stack and bring-up.
-- [Verification](VERIFICATION.md): how everything is checked, including
-  the screen.
-- [Plan](PLAN.md): build order, checks per milestone, and the morning
-  checklist.
-
-See [Vision](VISION.md) for why and [UX](UX.md) for what the person sees.
+Updated 2026-09-25. The parts of Boop, how they connect, the memory files
+they share, and the decisions behind them. The other specs go deeper on
+each part; [README.md](README.md) lists them all.
 
 ## 1. The shape of it
 
 Boop has two parts: a Mac app that does all the thinking, and a cheap device
 on your desk that draws the creature. Information flows one way, from your
-agents to Boop to you. Boop watches and tells you things. It never acts on
+agents to Boop to you. Boop watches and tells you things; it never acts on
 your agents. When an agent needs approval, Boop gets your attention, and you
 approve on the Mac as you normally would.
 
@@ -39,12 +22,11 @@ approve on the Mac as you normally would.
  │               │  │                                         │           │
  │     rule      │  │ triggers                                │           │
  │   reactions   │  ▼                                         │           │
- │               │ Harness ──► Brain (any small LLM)          │           │
+ │               │ Harness ──► Brain (a small LLM)            │           │
  │               │  │  ▲                                      │           │
- │               │  │  └── reads steering / long-term /       │           │
- │               │  │      short-term memory                  │           │
+ │               │  │  └── memory text, from the memory store │           │
  │               ▼  ▼ tool calls                              ▼           │
- │              Actions ──► Voice (minion speech) ──►  Device link ───────┼──► device
+ │              Actions ──► Voice (Minion speech) ───►  Device link ──────┼──► device
  │              say, face,  Memory store (the .md files)                  │
  │              quiet, note…                                              │
  └────────────────────────────────────────────────────────────────────────┘
@@ -59,10 +41,10 @@ approve on the Mac as you normally would.
 3. The **core** updates its session table, adds XP, and by rule calls the
    `face` action with a cheer. Boop cheers in well under a second.
 4. The core also hands the event to the **harness** as a trigger. The
-   harness reads the memory files, asks the **brain**, and gets back a tool
-   call: `say(feeling: proud, word: finally)`.
-5. The harness passes that call, unchanged, to the **`say` action**. The
-   action asks **Voice** to turn "proud + finally" into Minion speech
+   harness builds a prompt from the memory files, asks the **brain**, and
+   gets back a tool call: `say(feeling: proud, word: finally)`.
+5. The harness passes that call, unchanged, to the **`say` action**, which
+   asks **Voice** to turn "proud + finally" into Minion speech
    (*"ma-po li… finally!"*) and sends it to the device through the
    **device link**.
 
@@ -78,58 +60,59 @@ with less personality.
 | Reflex | Device | < 20 ms | Tap feedback, blinking, idle life, blending faces, the nudge ladder | Wait for the Mac |
 | Reactive | Core → actions | < 200 ms p95 | Agent event → rule → action → device; XP | Wait for the brain |
 | Deliberative | Harness + brain → actions | 1–5 s, in the background | React with character, take notes, answer push-to-talk | Block the reactive loop |
-| Reflective | Harness + brain, nightly | Minutes | Turn today into durable memory, grow the personality | Break the memory rules |
+| Reflective | Harness + brain, once a day | Minutes | Turn yesterday into lasting memory, grow the personality | Break the memory rules |
 
 ## 3. Components and boundaries
 
 Each part has one job and knows as little as possible about the others. The
 rule is that **decisions and effects are separate**. The core and the brain
-decide *what* should happen. Actions make it happen. Nothing that decides
-ever builds Minion speech, touches a file or talks to Bluetooth directly.
+decide *what* should happen, and actions make it happen. Nothing that
+decides ever builds Minion speech, touches a file or talks to the device
+directly.
 
 | Part | Does | Doesn't know about |
 | --- | --- | --- |
 | Adapters | Turn agent hooks into common events | Boop's state, the brain, the device |
-| Core | Session table, what the device shows, XP, quiet mode; calls actions for rule reactions; sends triggers to the harness | Minion speech, models, hook formats |
-| Harness | Trigger → context → one brain call → schema check → hand each tool call to its action | Minion speech, the device, memory rules, which model it's talking to |
+| Core | The session table, what the device shows, XP, hunger, mood, quiet and focus; calls actions for rule reactions; sends triggers to the harness | Minion speech, models, hook formats |
+| Harness | Trigger → prompt → one brain call → shape check → hand each tool call to its action | Minion speech, the device, memory rules, which model it's talking to |
 | Brain | Picks which tools to call, with what arguments | Everything else |
-| Actions | Carry out one tool call each: `say`, `face`, `quiet`, `note`, and the nightly memory tools. Each checks its own rules | Whether a rule or the brain called it |
+| Actions | Carry out one tool call each, checking their own rules | Whether a rule or the brain called them |
 | Voice | Turns a feeling and an optional word into Minion speech | Who asked, or why |
-| Memory store | Reads and writes the three Markdown files, enforcing their limits | Models, the device |
-| Device link | Sends snapshots and moments to the device and receives taps and talk, over Bluetooth or USB | What any of it means |
+| Memory store | The only code that touches the three Markdown files: supplies their text and applies changes within limits | Models, the device |
+| Device link | Sends snapshots and moments; receives taps and talk; over Bluetooth or USB | What any of it means |
 
 ### 3.1 Adapters
 
-Each adapter turns one agent's hook calls into the common event (§5).
-Hooks only report. The hook client writes one line to the app's socket and
-exits without returning a decision, so the agent always carries on with its
+Each adapter turns one agent's hook calls into the common event (§5). Hooks
+only report: the hook client writes one line to the app's socket and exits
+without returning a decision, so the agent always carries on with its
 normal flow, including its own approval prompt. If the Boop app isn't
-running, the hook exits at once. [ADAPTERS.md](ADAPTERS.md) has the
-details.
+running, the hook exits at once. See [ADAPTERS.md](ADAPTERS.md).
 
 ### 3.2 Core
 
 The core is plain rules with no queue. It keeps a table of sessions (agent,
 project, and whether each is working, idle or needs you) and:
 
-- works out what the device shows now, and sends a new snapshot when that
+- works out what the device shows and sends a new snapshot when that
   changes. The highest true item wins: something needs you, then a task just
   finished, then you're interacting with Boop, then something is working,
   then idle;
-- calls actions for the immediate, rule-based reactions (a cheer, an oops, a
-  nod);
-- turns events, taps and talk into triggers for the harness;
-- keeps XP, quiet mode and Boop's mood, all by rule
+- calls actions for the immediate reactions (a cheer, an oops, a nod) and
+  for Boop's occasional working chatter;
+- turns events, taps and talk into triggers for the harness. It merges
+  bursts within 3 s. While something needs you, or during quiet and focus
+  mode, it sends only `talk` and the daily reflection;
+- keeps XP, hunger, mood, quiet, focus and "away", all by rule
   ([BEHAVIORS.md](BEHAVIORS.md)).
 
 ### 3.3 Harness and brain
 
-The harness is the small generic loop from [HARNESS.md](HARNESS.md). It
-knows how to build a prompt, call a model and route tool calls. It doesn't
-know what the tools do. The brain is whatever model is plugged in: Apple's
-on-device model by default, or a cloud model with the person's own API key.
-It's assumed to be small, so the tools are few, flat and mostly multiple
-choice.
+The harness is a small, generic loop ([HARNESS.md](HARNESS.md)). It builds a
+prompt, calls a model and routes tool calls, without knowing what the tools
+do. The brain is whatever model is plugged in: Apple's on-device model by
+default, or a cloud model with the person's own API key. It's assumed to be
+small, so the tools are few, flat and mostly multiple choice.
 
 ### 3.4 Actions
 
@@ -141,14 +124,14 @@ brain, so a cheer looks the same whichever of them asked for it.
 | `say` | `feeling`, `word?` | Asks Voice for a Minion line, then sends it to the device as a moment |
 | `face` | `name` | Sends an animation to the device as a moment |
 | `quiet` | `minutes` | Tells the core to stop mumbles for a while |
-| `note` | `text` | Adds a line to today's notes in short-term memory |
-| `remember`, `forget`, `temperament`, `moment` | short text | Nightly only: change long-term memory within its limits |
+| `note` | `text` | Adds a line to today's notes |
+| `remember`, `forget`, `temperament`, `moment` | short text | Reflection only: change long-term memory within its limits |
 
-Each action checks its own rules and quietly drops anything that breaks
-them. For example, `say` drops a word that isn't in its vocabulary, and
-`note` drops text that's too long. The action's tool definition, the part
-the brain sees, is owned by the action too. That's where the list of
-allowed words lives, as a multiple-choice field.
+Each action checks its own rules and quietly drops (and logs) anything that
+breaks them. For example, `say` drops a word that isn't in its vocabulary,
+and `note` drops text that's too long. Each action also owns its tool
+definition, the part the brain sees. That's where the allowed words live, as
+a multiple-choice field.
 
 ### 3.5 Voice
 
@@ -160,11 +143,13 @@ sounds like. See [VOICE.md](VOICE.md).
 ### 3.6 Memory store
 
 The memory store is the only code that reads or writes the Markdown files
-(§4). It enforces their limits and takes the nightly snapshots.
+(§4). It hands their text to the harness for each prompt, applies changes
+from actions within each section's limits, writes atomically, and snapshots
+the files before each reflection.
 
 ### 3.7 Device link
 
-The device link sends snapshots and moments, and receives taps and
+The device link sends snapshots and moments and receives taps and
 push-to-talk presses ([PROTOCOL.md](PROTOCOL.md)). It has two transports
 carrying identical messages:
 
@@ -185,34 +170,36 @@ transcript once the brain has answered.
 ## 4. Memory files
 
 All of Boop's memory is three Markdown files in the app's data directory.
-The harness puts all three into every brain call. `steering.md` is
-read-only. The other two are written only by the memory store, through
-actions that enforce each section's limits. Before each nightly update, both are snapshotted to
-`history/<date>/`, so every change can be traced.
+Every brain call includes all three.
 
 | File | What it is | Changes |
 | --- | --- | --- |
-| `steering.md` | How Boop behaves: character, voice, how to respond to each trigger | Never at runtime. Ships with the app and changes only in an announced release |
-| `long-term.md` | Who this Boop has become, and durable facts and preferences about you | Nightly, within caps; XP by the core |
-| `short-term.md` | Today: Boop's mood, notes about what you're doing and said, what happened | Throughout the day; starts fresh each night |
+| `steering.md` | How Boop behaves: character, how to act, examples, what never to do | Never at runtime. Ships with the app and changes only in an announced release |
+| `long-term.md` | Who this Boop has become, and lasting facts and preferences about you | Once a day, at reflection, within limits; XP by the core |
+| `short-term.md` | Today: Boop's mood, notes about what you're doing and said, what happened | Throughout the day; starts fresh after reflection |
+
+**Reflection** runs once a day, at the first activity of a new day. The
+memory store snapshots both writable files to `history/<date>/`. The brain
+reads yesterday's `short-term.md` and updates `long-term.md` through the
+reflection actions. Then `short-term.md` starts fresh.
+
+The files are plain text. Hand edits are allowed, and a file that won't
+parse is restored from its last snapshot.
 
 ### 4.1 `steering.md`
 
 This is Boop's AGENTS.md: the standing instructions every Boop shares. It's
 read-only. Neither the brain, the app nor the person can change it at
-runtime. It changes only when we ship a new version, as an announced update,
-because a different `steering.md` makes a different creature. The current
-draft is [steering.md](steering.md).
-
-It covers character, voice rules, how to respond to each trigger, what Boop
-must never do, the always-allowed interjection words, and the fallback table
-the rules-only brain uses.
+runtime, because a different `steering.md` makes a different creature. It
+covers character, how to act through tools, examples for each trigger,
+reflection, what never to do, and the fallback table the rules-only brain
+uses. The current version is [steering.md](steering.md).
 
 ### 4.2 `long-term.md`
 
 ```markdown
 ## Boop
-name: Pip · hatched: 2026-10-02 · nature: impish
+name: Pip · hatched: 2026-10-02 · nature: cheeky · seed: 7f3a
 
 ### Temperament
 Nosy and a bit smug. Trusts Codex more than it used to.
@@ -222,7 +209,7 @@ Gets huffy about flaky tests.
 - 2026-10-09: first all-nighter together; the migration finally passed.
 
 ### Growth
-xp: 1240 · level: 12 · last fed: 2026-10-14
+xp: 1240 · level: 25 · last fed: 2026-10-14
 
 ## About you
 - Ships on Fridays.
@@ -234,24 +221,23 @@ xp: 1240 · level: 12 · last fed: 2026-10-14
 
 | Section | Written by | Rule |
 | --- | --- | --- |
-| Boop (name line) | App, at hatching | Never changes |
-| Temperament | Nightly reflection | At most one sentence changed per night |
-| Moments | Nightly reflection | At most 20; at most one new per night |
-| Growth | Core | See [BEHAVIORS.md](BEHAVIORS.md) §4 |
-| About you | Nightly reflection | At most 30 lines, each ≤ 100 characters; no code, paths, secrets or other people's names |
-| Preferences | Nightly reflection | At most 15 lines; same limits |
+| Boop (name line) | App, at setup | Never changes. `nature` is the person's one answer (sweet or cheeky); `seed` is random and picks Boop's voice dialect |
+| Temperament | Reflection | At most one sentence changed a day |
+| Moments | Reflection | At most 20; at most one new a day |
+| Growth | Core | [BEHAVIORS.md](BEHAVIORS.md) §4 |
+| About you | Reflection | At most 30 lines of at most 100 characters; no code, paths, secrets or other people's names |
+| Preferences | Reflection | At most 15 lines; same limits |
 
-The **Boop** section is what the "can't be reset" promise protects. The file
-lives on the Mac and in the opt-in encrypted backup, never on the device.
-Retiring Boop archives it and makes a memorial card from it. You can view
-and delete lines in About you and Preferences in the app. The Boop section
-isn't shown.
+The Boop section is who this Boop is. It lives only on the Mac, so
+reflashing or replacing the device doesn't change it, and the app has no
+reset button. In the app you can view and delete lines in About you and
+Preferences; the Boop section isn't shown.
 
 ### 4.3 `short-term.md`
 
 ```markdown
 ## Today
-2026-10-14 · first seen 08:52 · Boop's mood: a bit frazzled
+2026-10-14 · first seen 08:52 · mood: a bit frazzled
 
 ## Notes
 - landing: flaky tests, third attempt
@@ -259,34 +245,32 @@ isn't shown.
 - said "shut up for an hour" at 13:10
 
 ## Happened
-- 14:02 codex · landing · failed
+- 14:02 codex · landing · tests · failed
 - 14:05 claude · jetpack · finished (18 min)
 ```
 
 | Section | Written by | Rule |
 | --- | --- | --- |
-| Today | Core | Date, first activity, and Boop's current mood (set by rule) |
-| Notes | `note` action (from the brain) | At most 10 lines of at most 80 characters; the oldest line drops first |
+| Today | Core | Date, first activity, and Boop's current mood |
+| Notes | `note` action (from the brain) | At most 10 lines of at most 80 characters; the oldest drops first |
 | Happened | Core | One line per notable event, summaries only; the last 40 lines |
 
-Nightly reflection reads everything and updates `long-term.md` through the
-nightly actions, and then `short-term.md` starts fresh. Mood is internal
-and only visible in debug mode.
+Mood is internal. It shapes behaviour and is only visible in debug mode.
 
 ## 5. Common event shape
 
 ```json
 {"agent":"codex","session":"a1b2","project":"landing","event":"turn_end",
- "detail":{"duration_s":1080},"ts":1790000000123}
+ "detail":{"duration_s":1080,"topic":"tests"},"ts":1790000000123}
 ```
 
 | Field | Meaning |
 | --- | --- |
-| `agent` | `claude_code`, `codex` |
-| `session` | Stable session/thread ID |
+| `agent` | `claude_code` or `codex` |
+| `session` | Stable session or thread ID |
 | `project` | Short project name, from the working directory |
 | `event` | `session_start`, `turn_start`, `needs_you`, `activity`, `turn_end`, `turn_failed`, `session_end` |
-| `detail` | Small and event-specific: duration, tool name. Never prompt text |
+| `detail` | Small and event-specific: duration, tool name, a topic tag ([ADAPTERS.md](ADAPTERS.md) §3). Never prompt text, commands or file contents |
 | `ts` | Milliseconds |
 
 Adding an agent later means one new adapter that produces this shape.
@@ -302,26 +286,27 @@ Adding an agent later means one new adapter that produces this shape.
    │                           │                            │
    │ you approve on the Mac    │                            │
    ├── hook: activity ────────►│ session → "working"        │
-   │                           ├── snapshot: calm ─────────►│ back to work
+   │                           ├── snapshot: calm ─────────►│ a nod, back to work
 ```
 
-- A session stops needing you when any later event arrives from it (the
-  tool ran, the turn ended, or you sent a new prompt), when it ends, or
-  after 10 minutes as a safety net (*proposed*).
-- Tapping Boop while it's asking for attention quiets the nudges for that
-  session. It doesn't answer anything.
-- Boop can't approve or deny. That keeps the product simple and safe: a bug
-  in Boop can never let an agent do something you didn't agree to.
+- Claude shows "needs you" immediately. Codex waits 2 s first, because its
+  automatic reviewer may approve the request without asking you
+  ([ADAPTERS.md](ADAPTERS.md) §4).
+- A session stops needing you when any later event arrives from it, when
+  it ends, or after 10 minutes as a safety net (*proposed*).
+- Tapping Boop quiets the nudges for that session. It doesn't answer
+  anything.
+- Boop can't approve or deny. That keeps it simple and safe: a bug in Boop
+  can never let an agent do something you didn't agree to.
 
 ## 7. Device
 
 The device is a thin client. It draws what the latest snapshot says, plays
 moments, runs its own short timers (blinks, idle life, the nudge ladder) and
-reports taps and push-to-talk. It holds no personality or memory, just its
-Bluetooth bond, a device ID, and its animation and syllable library.
-[BEHAVIORS.md](BEHAVIORS.md) lists what it does for each trigger.
-
-The board, wiring and firmware are in [DEVICE.md](DEVICE.md).
+reports taps and push-to-talk. It holds no personality or memory, just a
+device ID, its touch calibration, and its animation and syllable library.
+What it does for each trigger is in [BEHAVIORS.md](BEHAVIORS.md); the
+hardware and firmware are in [DEVICE.md](DEVICE.md).
 
 ## 8. When things go wrong
 
@@ -329,8 +314,8 @@ The board, wiring and firmware are in [DEVICE.md](DEVICE.md).
 | --- | --- |
 | App not running | Hooks exit at once; agents are unaffected. The device idles with a sleepy "no app" face |
 | Device disconnected | The app keeps going; the next snapshot catches the device up on reconnect |
-| Brain offline, slow or invalid | Rules still drive every reaction; mumbles use the fallbacks in `steering.md`; memory doesn't grow that day |
-| Memory file invalid | The harness uses the last snapshot from `history/` |
+| Brain offline, slow or invalid | Rules still drive every reaction; the rules-only fallbacks in `steering.md` fill in; memory doesn't grow that day |
+| Memory file won't parse | The memory store restores its last snapshot |
 | Mac asleep | The device drifts to sleep after 30 s without a message |
 
 ## 9. Budgets
@@ -338,21 +323,20 @@ The board, wiring and firmware are in [DEVICE.md](DEVICE.md).
 | Path | Target |
 | --- | --- |
 | Agent event → pixel | < 200 ms p95 |
-| Tap → visible feedback | < 20 ms, on-device |
+| Tap → visible feedback | < 20 ms, on the device |
 | Hook overhead | Single-digit ms; never waits |
-| Brain call, live triggers | 5 s deadline; late results are dropped |
-| Nightly reflection | Minutes, on power |
+| Brain call, live triggers | 3–5 s deadline; late results are dropped |
+| Reflection | Minutes, in the background |
 
 ## 10. Stack
 
-- **Mac app:** a Swift menu-bar app, using CoreBluetooth, Apple's
-  Foundation Models and the Speech framework. It's built with SwiftPM from
-  `app/`.
+- **Mac app:** Swift, built with SwiftPM from `app/`, using CoreBluetooth,
+  Apple's Foundation Models and the Speech framework.
 - **Hook client:** `boop-hook`, a small Swift executable in the same
   package.
-- **Firmware v1:** PlatformIO + Arduino core + LovyanGFX + NimBLE-Arduino,
-  in `firmware/` ([DEVICE.md](DEVICE.md) §4). A later milestone ports it to
-  ESP-IDF + LVGL, once v1 is verified ([PLAN.md](PLAN.md)).
+- **Firmware:** PlatformIO + Arduino core + LovyanGFX + NimBLE-Arduino in
+  `firmware/` ([DEVICE.md](DEVICE.md) §4), to be ported to ESP-IDF + LVGL
+  once v1 is verified ([PLAN.md](PLAN.md) P1).
 - **Dev tools:** `tools/boopctl` for the device and `boopdev` for the app
   ([VERIFICATION.md](VERIFICATION.md) §2).
 
@@ -360,25 +344,24 @@ The stable contracts are the event shape (§5), the memory files (§4), the
 brain interface ([HARNESS.md](HARNESS.md)) and the protocol
 ([PROTOCOL.md](PROTOCOL.md)).
 
-## 11. Decisions
+## 11. Decision log
 
-**Decided (2026-09-25):**
+When a spec changes direction, add a row here saying why.
 
-- **Claude Cowork is out of v1.** Its sandbox doesn't run Claude Code hooks
-  yet ([ADAPTERS.md](ADAPTERS.md) §7).
-- **Apple's on-device model is the default brain.** Your own API key is an
-  optional upgrade. Everything is designed to work well on the small model.
-- **Hand edits to `long-term.md` are allowed.** There's no checksum. The
-  promise is that there's no reset button, not that the file is locked. A
-  file that won't parse is restored from last night's snapshot.
-- **Prompt text is never sent to the brain.** Mood is set by rule.
-- **Focus mode is visual only** ([BEHAVIORS.md](BEHAVIORS.md) §3.2).
-- **Threads show agent and project only** ([UX.md](UX.md) §3).
-- **Voice** is synthesised, English only, and mumble back matches your
-  energy ([VOICE.md](VOICE.md) §10).
-- **Codex waits 2 s before "needs you"**, which is long enough for its
-  automatic reviewer ([ADAPTERS.md](ADAPTERS.md) §4).
-- **The prompt fits** the ~3,000-token budget, and the small model follows
-  `steering.md` well enough. We assume both and design as if they hold.
-- **Numbers marked *proposed*** are v1 defaults. We'll tune them by trying
-  Boop out.
+| Date | Decision | Why | Where |
+| --- | --- | --- | --- |
+| 2026-09-25 | The personality is the product; usefulness comes second | It's why people keep Boop | [VISION.md](VISION.md) |
+| 2026-09-25 | Boop speaks Minion gibberish with at most one real word | A creature, not a chatbot; fast and cheap | [VOICE.md](VOICE.md) |
+| 2026-09-25 | Boop only notifies; approving stays in the agent on the Mac | Simpler, and a Boop bug can never approve anything | §6 |
+| 2026-09-25 | The brain is a small, swappable LLM behind a generic, pi-style harness; Apple's on-device model is the default, with the person's own API key optional | Private and free by default; model choice stays invisible to the rest | [HARNESS.md](HARNESS.md) |
+| 2026-09-25 | Memory is three Markdown files; `steering.md` is read-only; the personality lives in `long-term.md` on the Mac | Simple, inspectable, and independent of the device and the model | §4 |
+| 2026-09-25 | No reset button, but no lock either: hand edits are allowed | Permanence without extra machinery | §4 |
+| 2026-09-25 | No prompt text goes to the brain; mood is set by rule | Privacy, and one less thing to get wrong | [BEHAVIORS.md](BEHAVIORS.md) §5 |
+| 2026-09-25 | Claude Cowork is out of v1 | Its sandbox doesn't run Claude Code hooks yet | [ADAPTERS.md](ADAPTERS.md) §7 |
+| 2026-09-25 | Codex waits 2 s before "needs you" | Its automatic reviewer may approve without asking you | [ADAPTERS.md](ADAPTERS.md) §4 |
+| 2026-09-25 | Our own protocol, with the same messages over Bluetooth and USB; no pairing or encryption for the first test | Only our app talks to the device; USB makes it testable by agents | [PROTOCOL.md](PROTOCOL.md) |
+| 2026-09-25 | Firmware starts on Arduino + LovyanGFX and moves to ESP-IDF + LVGL once v1 works | Fastest to a working face; production path later | [DEVICE.md](DEVICE.md) §4 |
+| 2026-09-25 | v1 runs on the bare board: BOOT is the main button; no speaker, motor or battery | That's the hardware on the bench | [DEVICE.md](DEVICE.md) §3 |
+| 2026-09-25 | The voice is synthesised, and the real word is English only | Cheap to iterate; the gibberish needs no translation | [VOICE.md](VOICE.md) |
+| 2026-09-25 | Focus mode is visual only; threads show agent and project only | Quiet when asked; private by default | [BEHAVIORS.md](BEHAVIORS.md), [UX.md](UX.md) |
+| 2026-09-25 | Life stages, Retire, backup and the buddy card wait | Keep v1 small | [FUTURE.md](FUTURE.md) |

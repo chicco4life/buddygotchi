@@ -17,7 +17,9 @@ a change to one goes in the same commit as the code
 | [PROTOCOL.md](PROTOCOL.md) | The messages between the Mac and the device, over Bluetooth or USB |
 | [DEVICE.md](DEVICE.md) | The board, pins, firmware stack and bring-up |
 | [VERIFICATION.md](VERIFICATION.md) | How everything is checked, including the screen |
-| [PLAN.md](PLAN.md) | The build order, the check for each milestone, and the morning checklist |
+| [PLAN.md](PLAN.md) | The build order, the check for each milestone, how the build runs, and the morning checklist |
+| [LOOP.md](LOOP.md) | The prompt for one iteration of the unattended build |
+| [FUTURE.md](FUTURE.md) | Ideas we like but aren't building in v1 |
 
 The previous generation's specs are in
 [archived/plan-gen2/](../archived/plan-gen2/).
