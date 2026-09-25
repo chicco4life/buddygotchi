@@ -135,7 +135,7 @@ Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 | F2 | Renderer and simulator | Passed |
 | F3 | Device behaviour | Passed |
 | F4 | Bluetooth on the device | Passed |
-| A1 | App core: adapters, hook client, core rules | Not started |
+| A1 | App core: adapters, hook client, core rules | In progress |
 | A2 | Memory, Voice, actions | Not started |
 | A3 | Harness and brains | Not started |
 | A4 | Device link, app shell, push-to-talk, installer | Not started |

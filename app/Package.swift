@@ -11,10 +11,18 @@ let hasAppleXCTest = FileManager.default.fileExists(
 let useXCTestShim = ProcessInfo.processInfo.environment["BOOP_USE_XCTEST_SHIM"] == "1" || !hasAppleXCTest
 
 var packageTargets: [Target] = [
+    // What boop-hook and the app share: the hook line, topic tags and the
+    // socket. Foundation only, so the hook client stays small and fast.
+    .target(
+        name: "HookWire",
+        path: "HookWire",
+        swiftSettings: useXCTestShim ? [.unsafeFlags(["-enable-testing"])] : []
+    ),
     // Everything that isn't the app shell: Adapters, Core, Harness, Brains,
     // Actions, Voice, Memory, DeviceLink, Talk (plan/ARCHITECTURE.md §3).
     .target(
         name: "BoopKit",
+        dependencies: ["HookWire"],
         path: "BoopKit",
         // Without full Xcode the tests run as an executable that `@testable
         // import`s this target, so it must be built with testability enabled.
@@ -29,12 +37,13 @@ var packageTargets: [Target] = [
     // The hook client agents call. Never prints, always exits 0.
     .executableTarget(
         name: "BoopHook",
+        dependencies: ["HookWire"],
         path: "BoopHook"
     ),
     // Developer CLI: replay, talk, brain runs, memory dump.
     .executableTarget(
         name: "BoopDev",
-        dependencies: ["BoopKit"],
+        dependencies: ["BoopKit", "HookWire"],
         path: "BoopDev"
     ),
 ]
@@ -47,7 +56,7 @@ if useXCTestShim {
     packageTargets.append(
         .executableTarget(
             name: "BoopTests",
-            dependencies: ["BoopKit", "XCTest"],
+            dependencies: ["BoopKit", "HookWire", "XCTest"],
             path: "Tests",
             exclude: ["Fixtures"],
             swiftSettings: [.define("BOOP_SHIM_RUNNER")]
@@ -63,7 +72,7 @@ if useXCTestShim {
     packageTargets.append(
         .testTarget(
             name: "BoopTests",
-            dependencies: ["BoopKit"],
+            dependencies: ["BoopKit", "HookWire"],
             path: "Tests",
             exclude: ["Fixtures"]
         )
