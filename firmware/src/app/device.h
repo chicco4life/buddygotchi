@@ -16,7 +16,7 @@
 #include "voice/player.h"
 
 // A debug-only label: the face's state name in faint text at the top left
-// (plan/UX.md §2). The board build turns it on in platformio.ini.
+// (plan/UX.md §2). Off unless a build sets it (firmware/platformio.ini).
 #ifndef BOOP_DEBUG_LABEL
 #define BOOP_DEBUG_LABEL 0
 #endif
