@@ -1,6 +1,6 @@
 # Boop: architecture
 
-Updated 2026-09-26. The parts of Boop, how they connect, the memory files
+Updated 2026-09-27. The parts of Boop, how they connect, the memory files
 they share, and the decisions behind them. The other specs go deeper on
 each part; [README.md](README.md) lists them all.
 
@@ -367,7 +367,8 @@ Adding an agent later means one new adapter that produces this shape.
   automatic reviewer may approve the request without asking you
   ([ADAPTERS.md](ADAPTERS.md) §4).
 - A session stops needing you when any later event arrives from it, when
-  it ends, or after 10 minutes as a safety net (*proposed*).
+  it ends, or after 10 minutes as a safety net (*proposed*), which leaves
+  it idle.
 - Tapping Boop quiets the nudges for that session. It doesn't answer
   anything.
 - Boop can't approve or deny. That keeps it simple and safe: a bug in Boop

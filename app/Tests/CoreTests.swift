@@ -320,14 +320,22 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertEqual(rig.state.attn, StateSnapshot.Attention(agent: "claude", project: "landing", more: 0))
     }
 
+    /// ADAPTERS.md §4: after 10 minutes with no events "needs you" clears,
+    /// and the session goes idle rather than back to working: no sweat drop
+    /// and no chatter while the agent may still be waiting on its prompt.
     func testSafetyNetClearsAfterTenQuietMinutes() {
-        let rig = CoreRig()
+        XCTAssertEqual(Core.Config(name: "Pip").safetyNetMs, 600_000)
+        let rig = CoreRig(mode: .chatty)
         rig.send(.turnStart)
         rig.send(.needsYou, tool: "Bash")
         rig.wait(599_000)
         XCTAssertNotNil(rig.state.attn)
         rig.wait(1000)
         XCTAssertNil(rig.state.attn)
+        XCTAssertEqual(rig.state.base, "idle")
+        XCTAssertEqual(rig.sessions, [["claude", "landing", "idle"]])
+        XCTAssertEqual(mumbles(rig.wait(600_000)), [], "no working chatter")
+        XCTAssertEqual(states(rig.send(.activity, tool: "Bash")).last?.base, "working", "until the agent acts again")
     }
 
     func testWhileSomethingNeedsYouOnlyWhatYouSayReachesTheBrain() {

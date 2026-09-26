@@ -16,7 +16,8 @@ public final class Core {
         public var seed: UInt64
         /// Codex's grace period before "needs you" shows (ADAPTERS.md §4).
         public var codexGraceMs: Int64 = 2000
-        /// "Needs you" clears anyway after this long with no events.
+        /// "Needs you" clears anyway after this long with no events, and
+        /// the session goes idle (ADAPTERS.md §4).
         public var safetyNetMs: Int64 = 10 * 60 * 1000
         /// A working session with no events for this long counts as idle.
         public var staleWorkMs: Int64 = 60 * 60 * 1000
@@ -545,9 +546,13 @@ public final class Core {
                 }
             }
             if s.needsSince != nil && now - s.lastEventAt >= config.safetyNetMs {
+                // Ten silent minutes: the agent is still waiting on its
+                // prompt, or gone. Either way it isn't working, so no
+                // sweat drop and no chatter. Its turn, if it goes on,
+                // still counts from its start.
                 s.needsSince = nil
                 s.clearedAt = now
-                s.status = .working
+                s.status = .idle
             }
             if now - s.lastEventAt >= config.forgetMs {
                 sessions[key] = nil

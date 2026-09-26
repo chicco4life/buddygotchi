@@ -150,7 +150,10 @@ generation of Boop taught us two things:
   tool ran (you approved), the agent moved on (you denied), you sent a new
   prompt, or the session ended.
 - **Safety net:** after 10 minutes with no events (*proposed*), it clears
-  anyway, so a missed event can't leave Boop amber all day.
+  anyway, so a missed event can't leave Boop amber all day. The session
+  goes idle, not back to working: after ten silent minutes the agent is
+  still waiting on its prompt or is gone. Its next event makes it working
+  again.
 - **Stale sessions:** a working session with no events for an hour counts
   as idle, and a session with no events for a day is forgotten
   (*proposed*), so a missed `SessionEnd` can't keep Boop busy forever.
