@@ -45,7 +45,7 @@ language models read its one-line form.
 | --- | --- | --- | --- | --- | --- |
 | Agent started | `turn_start` | agent, project, time | Base becomes working | 5 s | `react` |
 | Agent finished | `turn_end` or `turn_failed`; a `turn_end` whose last test, build or deploy command failed is `failed` ([BEHAVIORS.md](BEHAVIORS.md) §3.1) | outcome (`done` or `failed`), agent, project, topic, how long it took, named (below), the error class when it failed, time, "+N more" | `done`: a cheer. `failed`: nothing; the session goes idle | 5 s | `react` |
-| You said something | push-to-talk, or Send in the popover | your words (at most 500 characters, about 30 s of speech), whether you yelled, time | `listening`, until the reply | 4 s | `quiet` only when your words ask for it, `react`, `remember` today |
+| You said something | push-to-talk, or Send in the popover | your words (at most 500 characters, about 30 s of speech), whether you yelled, time | `listening`, until the reply | 4 s | `quiet` only when your words ask for it, `react` (silent only then too), `remember` today |
 | Poked again and again | a poke streak ([BEHAVIORS.md](BEHAVIORS.md) §3.3) | time | `wiggle`, as for every tap | 4 s | `react` |
 | New day | the first hook or tap on a new day | yesterday's date and short-term memory | — | 10 min | `remember` about you, a preference, temperament or a moment |
 
@@ -109,7 +109,10 @@ topic, and never reach the brain.
    they are now, narrowed to the choices this input allows (`remember`'s
    `where` is only `today` for what you said). `quiet` is on it only when
    your words ask for quiet: its action would refuse it otherwise, and a
-   brain isn't asked what the rules decide.
+   brain isn't asked what the rules decide. A silent `react` is offered
+   only then too: with the brain's faces parked it shows nothing, so it
+   only means something as quiet starts, when a mumble would be dropped
+   anyway. Otherwise `react`'s voice is `mumble`.
 4. **Stage 1.** The classifier gets the input, the memory text and the
    transcript's window, and answers with calls whose decided arguments are
    filled in (§5). The harness checks them: only outputs on the menu,
@@ -262,7 +265,7 @@ says exactly how it behaves.
 | Brain | Stage | What it does |
 | --- | --- | --- |
 | `RulesClassifier` | 1 | **The default.** Plain Swift, no model, always available; reads only the input's fields. Agent started: nothing. Finished `done`, a long or very long turn (15 seconds or more): `react(proud, mumble)`, and for a very long one the writer is steered to always write a word (`steering.md`); a short turn: nothing. Finished `failed`: `react(annoyed, mumble)`, one mumble per failure. Poked again and again: `react(annoyed, mumble)`. You said "quiet": `quiet` (two hours 120, fifteen 15, half an hour 30, an hour 60, else 30), then, if you also yelled or told Boop off, `react(sad, silent)`. You yelled, or told Boop off ("shut up", "go away", "hate you", "you suck", "hush", "stop talking", "keep it down", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot"): `react(sad, mumble)`; "remember" or "note": `react(happy, mumble)` and `remember(today)`; "hello", "hi", "hey" or "morning": `react(happy, mumble)`; "bye", "goodbye", "see you" or "good night": `react(happy, mumble)`; "lunch", "dinner", "breakfast", "food", "snack" or "hungry": `react(hopeful, mumble)`; "good job", "well done", "nice", "great", "thanks" or "the best": `react(proud, mumble)`; anything else: `react(curious, mumble)`. Whole words only, and the first row that matches wins. New day: nothing, since deciding what lasts needs a model |
-| `JevClassifier` | 1 | TypeSafe's `jev-latest` ([docs](https://docs.typesafe.ai/api)), with the person's API key. It doesn't write: it answers typed questions about a state with probabilities, in one request of about 0.2 s. The state is `steering.md` without its Writing section (Jev never writes), both memory files, the window's recent inputs (minutes ago, what happened, what you said, what the rules did and what Boop did) and now. The menu becomes questions built from the definitions' own questions: a yes/no for each output ("Does what just happened call for Boop to react?"), a choice for each decided argument with more than one option (`react.feeling`, `react.voice`, `quiet.minutes`), and, when the menu allows several calls told apart by a choice, a yes/no per choice instead (a new day's `remember.about_you`, `remember.moment`, …). As TypeSafe advises, each question names what it's about (`now`) and what to judge it by (`boop`, its Examples first), and a yes means `boop` says to do it for something like `now`. Each question is answered on its own, so every argument is asked up front and only a chosen output's are used. A yes is above 0.5; each choice is the most likely one. Only the HTTP status of a failed request is logged |
+| `JevClassifier` | 1 | TypeSafe's `jev-latest` ([docs](https://docs.typesafe.ai/api)), with the person's API key. It doesn't write: it answers typed questions about a state with probabilities, in one request of about 0.2 s. The state is `steering.md` without its Writing section (Jev never writes), both memory files, the window's recent inputs (minutes ago, what happened, what you said, what the rules did and what Boop did) and now. The menu becomes questions built from the definitions' own questions: a yes/no for each output ("Does what just happened call for Boop to react?"), a choice for each decided argument with more than one option (`react.feeling`, `react.voice`, `quiet.minutes`), and, when the menu allows several calls told apart by a choice, a yes/no per choice instead (a new day's `remember.about_you`, `remember.moment`, …). As TypeSafe advises, each question names what it's about (`now`) and what to judge it by (`boop`, its Examples first), and a yes means `boop` says to do it for something like `now`. Each question is answered on its own, so every argument is asked up front and only a chosen output's are used. A yes is above 0.5; each choice is the most likely one. A 429, a 5xx (TypeSafe's 529 is "overloaded") or a dropped connection is tried once more, 0.3 s later, as TypeSafe advises; the input's deadline still bounds the pass. Only the HTTP status of a failed request is logged |
 | `AppleWriter` | 2 | **The default.** Apple's on-device model: private and free. A fresh session each call: its instructions are a short preamble, `steering.md` and both memory files; its prompt is what just happened and what Boop decided, then a line per slot (§4). Guided generation with one property per slot: a word from `none` and its list, or text with its length asked for; a slot with sources gets a property before it, where the model picks the source first. Temperature 0.2, so the same moment gets the same word. There's no option to decline, so it can't answer "stay quiet"; that was Stage 1's job. Guardrails are `permissiveContentTransformations`; a refusal fails the write like any error, marked as a refusal |
 | `NoWriter` | 2 | Writes nothing: mumbles have no word, and nothing is remembered. The setting `none`, and what `apple` falls back to when Apple's model can't run at launch |
 | `DeepSeekWriter` | 2 | Not built yet: it refuses every write ([FUTURE.md](FUTURE.md)) |
@@ -306,7 +309,12 @@ open-ended instructions, so the design leans on that:
   need pulls a small model off course.
 - **No arithmetic:** numbers a decision depends on arrive already named
   (a long turn, not 20 s), and what the rules can decide isn't asked
-  (`quiet` is offered only when your words ask for it). Jev is literal and
+  (`quiet`, and a silent `react`, are offered only when your words ask
+  for quiet). Jev couldn't tell from "73 minutes ago" that an hour's quiet
+  was over, and kept picking silent.
+- **Choices that say what they're not:** each feeling's description rules
+  out its neighbours ("sad" is only hurt, a failed turn is "annoyed", a
+  finished one "proud" whatever it ran), as TypeSafe advises for choices. Jev is literal and
   poor at comparing numbers ([TypeSafe](https://docs.typesafe.ai/model-jaggedness/jev-1.13)).
 
 It's modelled on [pi](https://mariozechner.at/posts/2025-11-30-pi-coding-agent/),

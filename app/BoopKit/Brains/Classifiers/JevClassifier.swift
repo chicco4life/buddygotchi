@@ -47,6 +47,13 @@ public struct JevClassifier: Classifier {
     /// The first option of an optional argument: leave it out.
     static let none = "none"
 
+    /// A busy or failing server, or a dropped connection, is tried once more
+    /// after this, as TypeSafe advises for 429 and 529 (HARNESS.md §6). The
+    /// input's deadline still bounds the whole pass.
+    static let retryAfterMs = 300
+
+    static func retryable(_ status: Int) -> Bool { status == 429 || status >= 500 }
+
     public func classify(_ context: Context, _ menu: Menu, deadline: Duration) async throws -> Classification {
         let body = try JSONSerialization.data(withJSONObject: [
             "model": model, "state": JevClassifier.state(context), "questions": JevClassifier.questions(menu),
@@ -56,13 +63,27 @@ public struct JevClassifier: Classifier {
         request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
-        let (data, status) = try await send(request)
+        var (data, status) = try await sendOnce(request)
+        if JevClassifier.retryable(status) {
+            try await Task.sleep(for: .milliseconds(JevClassifier.retryAfterMs))
+            (data, status) = try await send(request)
+        }
         // Only the status: an error body may repeat the request.
         guard status == 200 else { throw BrainError("jev: HTTP \(status)") }
         let raw = String(decoding: data, as: UTF8.self)
         guard let answers = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["answers"] as? [String: Any]
         else { throw BrainError("jev: no answers", raw: raw) }
         return Classification(calls: try JevClassifier.calls(menu, answers), evidence: JevClassifier.evidence(answers))
+    }
+
+    /// Sends the request; a connection that failed (not one that timed out)
+    /// reads as a 503, so it's tried again.
+    func sendOnce(_ request: URLRequest) async throws -> (Data, Int) {
+        do {
+            return try await send(request)
+        } catch let error as URLError where error.code != .timedOut && error.code != .cancelled {
+            return (Data(), 503)
+        }
     }
 
     // MARK: Questions

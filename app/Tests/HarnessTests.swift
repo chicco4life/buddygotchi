@@ -230,14 +230,14 @@ final class HarnessTests: XCTestCase {
     // MARK: Scheduling
 
     func testANewerInputReplacesTheWaitingOne() async {
-        let rig = HarnessRig(classifier: FakeClassifier(delayMs: 150) { i in i.kind == .agentFinished ? [react("happy", "silent")] : [] })
+        let rig = HarnessRig(classifier: FakeClassifier(delayMs: 150) { i in i.kind == .agentFinished ? [react("happy")] : [] })
         rig.submit(input(.agentStarted))
         rig.submit(input(.agentStarted))
         rig.submit(input(.agentFinished))
         await rig.settle()
         let records = rig.snapshot.records
         XCTAssertEqual(records.map(\.input.kind), [.agentStarted, .agentFinished])
-        XCTAssertEqual(rig.snapshot.handled, [react("happy", "silent")])
+        XCTAssertEqual(rig.snapshot.handled, [react("happy")])
         XCTAssertTrue(rig.home.sync { rig.logs.contains("harness: agent started replaced by a newer agent finished") })
     }
 
@@ -274,7 +274,7 @@ final class HarnessTests: XCTestCase {
 
     func testYouTalkingCancelsWhateverIsRunning() async {
         let rig = HarnessRig(classifier: FakeClassifier(delayMs: 300) { i in
-            i.kind == .said ? [react("sulky", "silent")] : [react("happy", "silent")]
+            i.kind == .said ? [react("sulky")] : [react("happy")]
         })
         rig.submit(input(.agentStarted))
         try? await Task.sleep(for: .milliseconds(50))
@@ -282,7 +282,7 @@ final class HarnessTests: XCTestCase {
         await rig.settle()
         try? await Task.sleep(for: .milliseconds(400)) // the cancelled pass's answer would be in by now
         let (handled, records) = rig.snapshot
-        XCTAssertEqual(handled, [react("sulky", "silent")])
+        XCTAssertEqual(handled, [react("sulky")])
         XCTAssertEqual(records.map(\.input.kind), [.agentStarted, .said])
         XCTAssertEqual(records[0].dropped, "cancelled by you talking")
         XCTAssertTrue(rig.entries.contains(.dropped("cancelled by you talking")))

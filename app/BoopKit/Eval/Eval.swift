@@ -174,7 +174,8 @@ public struct Eval: Sendable {
         public var expect: [Expectation]
         /// Each pass as `describe` writes it.
         public var actual: [String]
-        /// How Stage 1 got to each pass: the rule that matched, Jev's answers.
+        /// How Stage 1 got to each pass (the rule that matched, Jev's
+        /// answers), and why it was dropped or the writer failed.
         public var evidence: [String?]
         public var passed: Bool
     }
@@ -260,7 +261,7 @@ public struct Eval: Sendable {
             let passed = records.count == step.expect.count
                 && zip(step.expect, records).allSatisfy { $0.matches($1, writing: writing, definitions: definitions) }
             return StepResult(event: step.event, expect: step.expect, actual: records.map(Eval.describe),
-                              evidence: records.map(\.evidence), passed: passed)
+                              evidence: records.map(Eval.why(_:)), passed: passed)
         }
 
         var results: [StepResult] = []
@@ -334,6 +335,14 @@ public struct Eval: Sendable {
         }
         if let failed = record.writeFailed { line += " · writer failed (\(why(failed)))" }
         return line
+    }
+
+    /// How Stage 1 decided, and the full reason a pass was dropped or its
+    /// writer failed, for a diff: `react 0.92 · … · writer failed: apple: late`.
+    static func why(_ record: Harness.Record) -> String? {
+        let parts = [record.evidence, record.dropped.map { "dropped: \($0)" },
+                     record.writeFailed.map { "writer failed: \($0)" }].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     /// Why a pass or a write came to nothing, as a scenario names it.

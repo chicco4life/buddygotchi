@@ -170,7 +170,7 @@ input replacing a waiting one) is left to the unit tests in
 | --- | --- |
 | `01-short-turn.json` | Turns that finish in 8 and 12 seconds (short turns) get nothing from the brain, since the core's cheer already celebrates them. |
 | `02-long-turn.json` | A 20-second turn (long) gets a proud mumble; a 3-minute one (very long) gets it with a word that fits, always (`steering.md`, Writing). Hero moment 1. |
-| `03-turn-failed.json` | A failed turn gets an annoyed mumble, with an annoyed word or none. Hero moment 2. |
+| `03-turn-failed.json` | A failed turn gets an annoyed mumble, with an annoyed word, bug, or none. Hero moment 2. |
 | `04-be-quiet.json` | "Be quiet for an hour" sets quiet mode for 60 minutes, holds back a turn in that time, and lets the next one through after; a yelled "be quiet" also gets a silent sad `react`, which shows nothing in v1. Hero moment 3. |
 | `05-bad-answer.json` | A classifier answer off the menu and a classifier error each run nothing, and the next turn gets its normal reaction. |
 | `06-tests-left-failing.json` | A turn whose last test run failed finishes failed and gets the annoyed mumble, whose word is `tests`; one whose tests failed, then passed, is a normal finish. Hero moment 2. |

@@ -1,69 +1,67 @@
 cd app && swift build --product boopdev
 Building for debugging...
-[Planning deferred tasks]
-[1 / 9]
-[2 / 10] HookWire
-[6 / 14] HookWire
-[10 / 18] HookWire
+[2 / 9] HookWire
+[6 / 13] HookWire
+[10 / 17] HookWire
 /Users/michaeljxzhu/src/buddygotchi/.claude/worktrees/bridge-cse_01BuaRdzdWikcYe5W4hpkFu1/app/Package.swift: HookWire: ld: warning: search path '/Library/Developer/CommandLineTools/Developer/Library/Frameworks' not found
 [12 / 18] BoopKit
-[22 / 29] BoopKit
+[23 / 29] BoopKit
 [27 / 32] BoopKit
-[29 / 34] BoopKit
-/Users/michaeljxzhu/src/buddygotchi/.claude/worktrees/bridge-cse_01BuaRdzdWikcYe5W4hpkFu1/app/BoopKit/App/Runtime.swift:183:26: [1;33mwarning: [1;39mreference to captured var 'self' in concurrently-executing code[0;0m [#]8;;https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures\SendableClosureCaptures]8;;\]
-[0;36m181 |[0;0m         let onLine: @Sendable (HookLine, Int64) -> Void = { [weak self] line, _ in
-[0;36m182 |[0;0m             let received = clock()
-[0;36m183 |[0;0m             home.async { self?.hook(line, received: received) }
+[29 / 33] BoopKit
+/Users/michaeljxzhu/src/buddygotchi/.claude/worktrees/bridge-cse_01BuaRdzdWikcYe5W4hpkFu1/app/BoopKit/App/Runtime.swift:181:26: [1;33mwarning: [1;39mreference to captured var 'self' in concurrently-executing code[0;0m [#]8;;https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures\SendableClosureCaptures]8;;\]
+[0;36m179 |[0;0m         let onLine: @Sendable (HookLine, Int64) -> Void = { [weak self] line, _ in
+[0;36m180 |[0;0m             let received = clock()
+[0;36m181 |[0;0m             home.async { self?.hook(line, received: received) }
     [0;36m|[0;0m                          `- [1;33mwarning: [1;39mreference to captured var 'self' in concurrently-executing code[0;0m [#]8;;https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures\SendableClosureCaptures]8;;\]
-[0;36m184 |[0;0m         }
-[0;36m185 |[0;0m         let onOther: @Sendable (Data) -> Void = { [weak self] data in home.async { self?.dev(data) } }
+[0;36m182 |[0;0m         }
+[0;36m183 |[0;0m         let onOther: @Sendable (Data) -> Void = { [weak self] data in home.async { self?.dev(data) } }
 
-/Users/michaeljxzhu/src/buddygotchi/.claude/worktrees/bridge-cse_01BuaRdzdWikcYe5W4hpkFu1/app/BoopKit/App/Runtime.swift:185:84: [1;33mwarning: [1;39mreference to captured var 'self' in concurrently-executing code[0;0m [#]8;;https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures\SendableClosureCaptures]8;;\]
-[0;36m183 |[0;0m             home.async { self?.hook(line, received: received) }
-[0;36m184 |[0;0m         }
-[0;36m185 |[0;0m         let onOther: @Sendable (Data) -> Void = { [weak self] data in home.async { self?.dev(data) } }
+/Users/michaeljxzhu/src/buddygotchi/.claude/worktrees/bridge-cse_01BuaRdzdWikcYe5W4hpkFu1/app/BoopKit/App/Runtime.swift:183:84: [1;33mwarning: [1;39mreference to captured var 'self' in concurrently-executing code[0;0m [#]8;;https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures\SendableClosureCaptures]8;;\]
+[0;36m181 |[0;0m             home.async { self?.hook(line, received: received) }
+[0;36m182 |[0;0m         }
+[0;36m183 |[0;0m         let onOther: @Sendable (Data) -> Void = { [weak self] data in home.async { self?.dev(data) } }
     [0;36m|[0;0m                                                                                    `- [1;33mwarning: [1;39mreference to captured var 'self' in concurrently-executing code[0;0m [#]8;;https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures\SendableClosureCaptures]8;;\]
-[0;36m186 |[0;0m         let server = HookServer(path: options.socketPath, onLine: onLine, onOther: options.devLines ? onOther : nil)
-[0;36m187 |[0;0m         try server.start()
+[0;36m184 |[0;0m         let server = HookServer(path: options.socketPath, onLine: onLine, onOther: options.devLines ? onOther : nil)
+[0;36m185 |[0;0m         try server.start()
 
-/Users/michaeljxzhu/src/buddygotchi/.claude/worktrees/bridge-cse_01BuaRdzdWikcYe5W4hpkFu1/app/BoopKit/App/Runtime.swift:190:62: [1;33mwarning: [1;39mreference to captured var 'self' in concurrently-executing code[0;0m [#]8;;https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures\SendableClosureCaptures]8;;\]
-[0;36m188 |[0;0m         self.server = server
-[0;36m189 |[0;0m         options.link?.start(
-[0;36m190 |[0;0m             onLine: { [weak self] line in self?.home.async { self?.device(line) } },
+/Users/michaeljxzhu/src/buddygotchi/.claude/worktrees/bridge-cse_01BuaRdzdWikcYe5W4hpkFu1/app/BoopKit/App/Runtime.swift:188:62: [1;33mwarning: [1;39mreference to captured var 'self' in concurrently-executing code[0;0m [#]8;;https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures\SendableClosureCaptures]8;;\]
+[0;36m186 |[0;0m         self.server = server
+[0;36m187 |[0;0m         options.link?.start(
+[0;36m188 |[0;0m             onLine: { [weak self] line in self?.home.async { self?.device(line) } },
     [0;36m|[0;0m                                                              `- [1;33mwarning: [1;39mreference to captured var 'self' in concurrently-executing code[0;0m [#]8;;https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures\SendableClosureCaptures]8;;\]
-[0;36m191 |[0;0m             onConnection: { [weak self] up in
-[0;36m192 |[0;0m                 self?.home.async {
+[0;36m189 |[0;0m             onConnection: { [weak self] up in
+[0;36m190 |[0;0m                 self?.home.async {
 
-/Users/michaeljxzhu/src/buddygotchi/.claude/worktrees/bridge-cse_01BuaRdzdWikcYe5W4hpkFu1/app/BoopKit/App/Runtime.swift:193:31: [1;33mwarning: [1;39mreference to captured var 'self' in concurrently-executing code[0;0m [#]8;;https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures\SendableClosureCaptures]8;;\]
-[0;36m191 |[0;0m             onConnection: { [weak self] up in
-[0;36m192 |[0;0m                 self?.home.async {
-[0;36m193 |[0;0m                     guard let self else { return }
+/Users/michaeljxzhu/src/buddygotchi/.claude/worktrees/bridge-cse_01BuaRdzdWikcYe5W4hpkFu1/app/BoopKit/App/Runtime.swift:191:31: [1;33mwarning: [1;39mreference to captured var 'self' in concurrently-executing code[0;0m [#]8;;https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures\SendableClosureCaptures]8;;\]
+[0;36m189 |[0;0m             onConnection: { [weak self] up in
+[0;36m190 |[0;0m                 self?.home.async {
+[0;36m191 |[0;0m                     guard let self else { return }
     [0;36m|[0;0m                               `- [1;33mwarning: [1;39mreference to captured var 'self' in concurrently-executing code[0;0m [#]8;;https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures\SendableClosureCaptures]8;;\]
-[0;36m194 |[0;0m                     self.link.connection(up, now: self.options.clock())
-[0;36m195 |[0;0m                     if !up { self.run(self.core.linkDown(at: self.options.clock())) }
+[0;36m192 |[0;0m                     self.link.connection(up, now: self.options.clock())
+[0;36m193 |[0;0m                     if !up { self.run(self.core.linkDown(at: self.options.clock())) }
 
-/Users/michaeljxzhu/src/buddygotchi/.claude/worktrees/bridge-cse_01BuaRdzdWikcYe5W4hpkFu1/app/BoopKit/App/Runtime.swift:312:17: [1;33mwarning: [1;39mcapture of 'moments' with non-Sendable type 'Runtime.Moments' in a '@Sendable' closure[0;0m [#]8;;https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures\SendableClosureCaptures]8;;\]
- [0;36m93 |[0;0m     /// moment an action sends outside the core's effects is the brain's, and
- [0;36m94 |[0;0m     /// waits until the rules' last moment has finished playing.
- [0;36m95 |[0;0m     final class Moments {
+/Users/michaeljxzhu/src/buddygotchi/.claude/worktrees/bridge-cse_01BuaRdzdWikcYe5W4hpkFu1/app/BoopKit/App/Runtime.swift:314:13: [1;33mwarning: [1;39mcapture of 'moments' with non-Sendable type 'Runtime.Moments' in a '@Sendable' closure[0;0m [#]8;;https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures\SendableClosureCaptures]8;;\]
+ [0;36m94 |[0;0m     /// waits its turn in `schedule` behind the rules' moments and the
+ [0;36m95 |[0;0m     /// brain's earlier ones.
+ [0;36m96 |[0;0m     final class Moments {
     [0;36m|[0;0m                 `- [1;39mnote: [1;39mclass 'Moments' does not conform to the 'Sendable' protocol[0;0m
- [0;36m96 |[0;0m         /// Above zero while the core's effects are carried out.
- [0;36m97 |[0;0m         var inRules = 0
+ [0;36m97 |[0;0m         /// Above zero while the core's effects are carried out.
+ [0;36m98 |[0;0m         var inRules = 0
     [0;36m:[0;0m
-[0;36m310 |[0;0m             moments.flushDue = true
-[0;36m311 |[0;0m             home.asyncAfter(deadline: .now() + .milliseconds(Int(wait))) {
-[0;36m312 |[0;0m                 moments.flushDue = false
-    [0;36m|[0;0m                 `- [1;33mwarning: [1;39mcapture of 'moments' with non-Sendable type 'Runtime.Moments' in a '@Sendable' closure[0;0m [#]8;;https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures\SendableClosureCaptures]8;;\]
-[0;36m313 |[0;0m                 flushHeld(moments, link: link, clock: clock, home: home)
-[0;36m314 |[0;0m             }
+[0;36m312 |[0;0m         moments.pumpDue = true
+[0;36m313 |[0;0m         home.asyncAfter(deadline: .now() + .milliseconds(Int(max(1, next - now)))) {
+[0;36m314 |[0;0m             moments.pumpDue = false
+    [0;36m|[0;0m             `- [1;33mwarning: [1;39mcapture of 'moments' with non-Sendable type 'Runtime.Moments' in a '@Sendable' closure[0;0m [#]8;;https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures\SendableClosureCaptures]8;;\]
+[0;36m315 |[0;0m             pump(moments, link: link, clock: clock, home: home, log: log)
+[0;36m316 |[0;0m         }
 
-/Users/michaeljxzhu/src/buddygotchi/.claude/worktrees/bridge-cse_01BuaRdzdWikcYe5W4hpkFu1/app/BoopKit/App/Runtime.swift:313:42: [1;33mwarning: [1;39mcapture of 'link' with non-Sendable type 'DeviceLink' in a '@Sendable' closure[0;0m [#]8;;https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures\SendableClosureCaptures]8;;\]
-[0;36m311 |[0;0m             home.asyncAfter(deadline: .now() + .milliseconds(Int(wait))) {
-[0;36m312 |[0;0m                 moments.flushDue = false
-[0;36m313 |[0;0m                 flushHeld(moments, link: link, clock: clock, home: home)
-    [0;36m|[0;0m                                          `- [1;33mwarning: [1;39mcapture of 'link' with non-Sendable type 'DeviceLink' in a '@Sendable' closure[0;0m [#]8;;https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures\SendableClosureCaptures]8;;\]
-[0;36m314 |[0;0m             }
-[0;36m315 |[0;0m         }
+/Users/michaeljxzhu/src/buddygotchi/.claude/worktrees/bridge-cse_01BuaRdzdWikcYe5W4hpkFu1/app/BoopKit/App/Runtime.swift:315:33: [1;33mwarning: [1;39mcapture of 'link' with non-Sendable type 'DeviceLink' in a '@Sendable' closure[0;0m [#]8;;https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures\SendableClosureCaptures]8;;\]
+[0;36m313 |[0;0m         home.asyncAfter(deadline: .now() + .milliseconds(Int(max(1, next - now)))) {
+[0;36m314 |[0;0m             moments.pumpDue = false
+[0;36m315 |[0;0m             pump(moments, link: link, clock: clock, home: home, log: log)
+    [0;36m|[0;0m                                 `- [1;33mwarning: [1;39mcapture of 'link' with non-Sendable type 'DeviceLink' in a '@Sendable' closure[0;0m [#]8;;https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures\SendableClosureCaptures]8;;\]
+[0;36m316 |[0;0m         }
+[0;36m317 |[0;0m     }
 
 /Users/michaeljxzhu/src/buddygotchi/.claude/worktrees/bridge-cse_01BuaRdzdWikcYe5W4hpkFu1/app/BoopKit/DeviceLink/DeviceLink.swift:24:20: [1;39mnote: [1;39mclass 'DeviceLink' does not conform to the 'Sendable' protocol[0;0m
  [0;36m22 |[0;0m /// `input` on. Call everything on one queue; the transport may call back on
@@ -74,13 +72,12 @@ Building for debugging...
  [0;36m26 |[0;0m     public static let keepaliveMs: Int64 = 10_000
 
 [#SendableClosureCaptures]: <https://docs.swift.org/compiler/documentation/diagnostics/sendable-closure-captures>
-[30 / 34] BoopKit
+[30 / 33] BoopKit
 /Users/michaeljxzhu/src/buddygotchi/.claude/worktrees/bridge-cse_01BuaRdzdWikcYe5W4hpkFu1/app/Package.swift: BoopKit: ld: warning: search path '/Library/Developer/CommandLineTools/Developer/Library/Frameworks' not found
-[32 / 35] boopdev-product
 /Users/michaeljxzhu/src/buddygotchi/.claude/worktrees/bridge-cse_01BuaRdzdWikcYe5W4hpkFu1/app/Package.swift: boopdev-product: ld: warning: search path '/Library/Developer/CommandLineTools/Developer/usr/lib' not found
 /Users/michaeljxzhu/src/buddygotchi/.claude/worktrees/bridge-cse_01BuaRdzdWikcYe5W4hpkFu1/app/Package.swift: boopdev-product: ld: warning: search path '/Library/Developer/CommandLineTools/Developer/Library/Frameworks' not found
-[34 / 35] boopdev-product
-Build complete! (3.36 sec)
+[33 / 34] boopdev-product
+Build complete! (2.57 sec)
 app/.build/debug/boopdev eval
 pass  01-short-turn.json  A short turn: the brain stays quiet
 pass  02-long-turn.json  A long turn is celebrated, and a very long one with a word

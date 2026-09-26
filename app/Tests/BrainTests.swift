@@ -95,6 +95,11 @@ final class RulesClassifierTests: XCTestCase {
         XCTAssertEqual(input(.said, words: "be quiet for an hour").menu.map(\.tool), ["quiet", "react", "remember"])
         XCTAssertEqual(input(.said, words: "shut up for an hour").menu.map(\.tool), ["react", "remember"])
         XCTAssertEqual(input(.agentFinished).menu.map(\.tool), ["react"])
+        // A silent react shows nothing in v1, so it's offered only as quiet starts.
+        XCTAssertEqual(input(.said, words: "be quiet").menu[1].only["voice"], nil)
+        XCTAssertEqual(input(.said, words: "shut up").menu[0].only["voice"], ["mumble"])
+        XCTAssertEqual(input(.agentStarted).menu[0].only["voice"], ["mumble"])
+        XCTAssertEqual(input(.poked).menu[0].only["voice"], ["mumble"])
     }
 
     /// It says which row matched, for the transcript.
@@ -113,6 +118,8 @@ final class FakeJev: @unchecked Sendable {
     let lock = NSLock()
     var requests: [[String: Any]] = []
     var status = 200
+    /// Statuses for the next requests in turn, before `status`.
+    var statuses: [Int] = []
     /// Choice question → its choice; one left out gets its first option.
     var choices: [String: String] = [:]
     /// Yes/no question → its answer, 0 to 1; one left out is 0.
@@ -123,7 +130,7 @@ final class FakeJev: @unchecked Sendable {
             let body = try JSONSerialization.jsonObject(with: request.httpBody ?? Data()) as! [String: Any]
             let (choices, nouls, status): ([String: String], [String: Double], Int) = lock.withLock {
                 requests.append(body)
-                return (self.choices, self.nouls, self.status)
+                return (self.choices, self.nouls, self.statuses.isEmpty ? self.status : self.statuses.removeFirst())
             }
             var answers: [String: Any] = [:]
             for (id, q) in body["questions"] as! [String: [String: Any]] {
@@ -158,7 +165,8 @@ final class JevClassifierTests: XCTestCase {
         XCTAssertEqual(c.calls, [])
         XCTAssertEqual(jev.last["model"] as? String, "jev-latest")
         let q = jev.questions
-        XCTAssertEqual(Set(q.keys), ["react", "react.feeling", "react.voice", "remember"], "quiet only when asked")
+        XCTAssertEqual(Set(q.keys), ["react", "react.feeling", "remember"],
+                       "quiet, and so a silent react, only when asked for quiet")
         XCTAssertEqual(q["react"]?["type"] as? String, "noul")
         // The definition's own question, about `now`, judged by `boop`
         // (TypeSafe's advice: name the part of the state, say what yes means).
@@ -170,11 +178,12 @@ final class JevClassifierTests: XCTestCase {
         XCTAssertEqual(q["react.feeling"]?["type"] as? String, "choice")
         XCTAssertEqual((q["react.feeling"]?["instructions"] as? [String: String])?["question"],
                        "Which feeling does Boop have about what just happened?")
-        XCTAssertEqual((q["react.feeling"]?["criteria"] as? [String: String])?["proud"], "Proud: something long or hard just finished.")
+        XCTAssertEqual((q["react.feeling"]?["criteria"] as? [String: String])?["proud"], "Proud: something long or hard just finished, whatever it was about.")
         XCTAssertNil(q["react.word"], "the writer's")
         XCTAssertNil(q["remember.where"], "one choice needs no question")
 
         _ = try await classify(jev, input(.said, words: "be quiet please"))
+        XCTAssertEqual(Set(jev.questions.keys), ["quiet", "quiet.minutes", "react", "react.feeling", "react.voice", "remember"])
         let minutes = jev.questions["quiet.minutes"]?["criteria"] as? [String: String]
         XCTAssertEqual(Set(minutes?.keys ?? [:].keys), ["15", "30", "60", "120"])
         XCTAssertEqual(minutes?["30"], "Half an hour, or when they don't say how long.")
@@ -251,6 +260,31 @@ final class JevClassifierTests: XCTestCase {
         let at = ReactAction.wordSources.map { writing.range(of: $0 + ":")?.lowerBound }
         XCTAssertFalse(at.contains(nil), "every source in Writing: \(ReactAction.wordSources)")
         XCTAssertEqual(at.compactMap { $0 }, at.compactMap { $0 }.sorted(), "in the same order")
+    }
+
+    /// HARNESS.md §6: a 429, 529 or other 5xx is tried once more, 0.3 s
+    /// later, as TypeSafe advises; any other failure isn't.
+    func testABusyServerIsTriedOnceMore() async throws {
+        XCTAssertEqual(JevClassifier.retryAfterMs, 300)
+        let jev = FakeJev()
+        jev.statuses = [529]
+        _ = try await classify(jev, input(.agentStarted))
+        XCTAssertEqual(jev.lock.withLock { jev.requests.count }, 2)
+
+        let busy = FakeJev()
+        busy.statuses = [429, 429]
+        do {
+            _ = try await classify(busy, input(.agentStarted))
+            XCTFail("answered")
+        } catch {
+            XCTAssertEqual(error as? BrainError, BrainError("jev: HTTP 429"))
+        }
+        XCTAssertEqual(busy.lock.withLock { busy.requests.count }, 2, "once more, not again and again")
+
+        let refused = FakeJev()
+        refused.statuses = [401]
+        _ = try? await classify(refused, input(.agentStarted))
+        XCTAssertEqual(refused.lock.withLock { refused.requests.count }, 1, "a bad key isn't retried")
     }
 
     func testAnErrorStatusFailsWithoutItsBody() async throws {

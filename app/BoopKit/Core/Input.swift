@@ -137,10 +137,22 @@ public struct Input: Equatable, Sendable {
     }
 
     /// What Boop may do for this input (HARNESS.md §3): its kind's menu,
-    /// without `quiet` unless the words ask for it. The quiet action would
-    /// refuse it anyway, and a brain isn't asked what the rules decide.
+    /// narrowed to what can happen, since a brain isn't asked what the
+    /// rules decide. `quiet` only when the words ask for it: the quiet action
+    /// would refuse it otherwise. And a silent `react` only then too: with
+    /// the brain's faces parked it shows nothing, so it only means something
+    /// as quiet starts, when a mumble would be dropped anyway.
     public var menu: [Menu.Item] {
-        kind.menu.filter { $0.tool != "quiet" || asksForQuiet }
+        kind.menu.compactMap { item in
+            switch item.tool {
+            case "quiet": return asksForQuiet ? item : nil
+            case "react" where !asksForQuiet:
+                var mumble = item
+                mumble.only["voice"] = ["mumble"]
+                return mumble
+            default: return item
+            }
+        }
     }
 
     /// Your words asked Boop to be quiet: they have "quiet" in them, as a
