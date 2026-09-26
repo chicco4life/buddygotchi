@@ -153,7 +153,7 @@ kind of model is behind either stage. The mode picks the brains
 ([BEHAVIORS.md](BEHAVIORS.md) §6): each mode has its own plain if-else
 rules, and normal classifies with Jev instead, a "system one" model
 reached with the person's own API key, when it has one. Apple's
-on-device model writes in every mode, and a DeepSeek writer comes later
+on-device model writes in every mode; a cloud writer is for later
 ([FUTURE.md](FUTURE.md)). The mode can change at any time: each pass keeps
 the brains it started with. Both stages are assumed to be small, so the
 outputs are few, flat and mostly multiple choice.

@@ -11,7 +11,7 @@ public enum Brains {
     public static let jevKeyVariable = "BOOP_JEV_KEY"
     /// What `--classifier` and `--writer` take.
     public static let classifiers = ["chatty", "normal", "calm", "jev"]
-    public static let writers = ["apple", "none", "deepseek"]
+    public static let writers = ["apple", "none"]
 
     /// The mode's classifier, or the override's. Jev's key is asked for only
     /// when Jev is chosen. Normal's Jev has its table behind it; `--classifier
@@ -36,7 +36,6 @@ public enum Brains {
     public static func writer(for mode: Mode, override: String? = nil, log: (String) -> Void = { _ in }) -> any Writer {
         switch override {
         case "none": return NoWriter()
-        case "deepseek": return DeepSeekWriter()
         default:
             if let why = AppleWriter.unavailableReason {
                 log("brain: Apple's model can't run (\(why)); writing nothing")

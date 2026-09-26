@@ -1,6 +1,6 @@
 # Boop: UX
 
-Updated 2026-09-26. What the person sees and touches: the screen, the
+Updated 2026-09-27. What the person sees and touches: the screen, the
 controls, setup and the Mac app. What Boop *does* in each situation is in
 [BEHAVIORS.md](BEHAVIORS.md), and how it sounds is in [VOICE.md](VOICE.md).
 
@@ -181,8 +181,7 @@ transcript, in memory only, until its window moves past it
    "system one" model online, decides what Boop does once you add your own
    API key in Settings, and plain rules decide until then; Apple's
    on-device model writes its words. Settings also has chatty and calm
-   ([BEHAVIORS.md](BEHAVIORS.md) §6, [HARNESS.md](HARNESS.md) §6); a
-   DeepSeek writer comes later ([FUTURE.md](FUTURE.md)). On Macs without
+   ([BEHAVIORS.md](BEHAVIORS.md) §6, [HARNESS.md](HARNESS.md) §6). On Macs without
    Apple's model nothing writes: Boop still reacts to everything, but its
    mumbles have no real word and it remembers nothing you tell it.
 

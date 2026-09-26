@@ -15,12 +15,12 @@ let usage = """
                Prints long-term.md and short-term.md as the memory store reads them, and the history snapshots.
            boopdev voice <feeling> [word] [--dialect HEX] [--seed N] [--count N] [--json] [--why]
                Prints Minion lines as the react action would build them.
-           boopdev brain [--mode chatty|normal|calm] [--classifier chatty|normal|calm|jev] [--writer apple|none|deepseek] [--inputs DIR] [--memory DIR] [--steering FILE] [--out FILE] [--gap-min N] [--print]
+           boopdev brain [--mode chatty|normal|calm] [--classifier \(Brains.classifiers.joined(separator: "|"))] [--writer \(Brains.writers.joined(separator: "|"))] [--inputs DIR] [--memory DIR] [--steering FILE] [--out FILE] [--gap-min N] [--print]
                Runs the real pipeline on recorded inputs with the mode's brain (default normal), each with a
                fresh copy of the sample memory, N minutes apart (default 3) sharing one transcript, and reports
                refusals, what each stage did, dropped calls and latency (VERIFICATION.md L5). Jev's key comes
                from BOOP_JEV_KEY; without it, normal decides with the normal rules.
-           boopdev eval [--mode chatty|normal|calm] [--classifier chatty|normal|calm|jev] [--writer none|apple] [--runs N] [--scenarios DIR] [--memory DIR] [--steering FILE] [--only TEXT] [--json FILE]
+           boopdev eval [--mode chatty|normal|calm] [--classifier \(Brains.classifiers.joined(separator: "|"))] [--writer none|apple] [--runs N] [--scenarios DIR] [--memory DIR] [--steering FILE] [--only TEXT] [--json FILE]
                Runs the harness eval scenarios in each mode: events, taps and talk on a virtual clock through a
                fresh core, the real harness and actions, each step checked against the passes it should lead to
                in that mode (plan/EVALS.md). By default every mode, with its if-else table and no writer, which

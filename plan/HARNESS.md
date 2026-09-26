@@ -280,7 +280,6 @@ says exactly how it behaves. The mode picks them
 | `JevClassifier` | 1 | TypeSafe's `jev-latest` ([docs](https://docs.typesafe.ai/api)), with the person's API key. It doesn't write: it answers typed questions about a state with probabilities, in one request of about 0.2 s. The state is `steering.md` without its Writing section (Jev never writes), both memory files, the window's recent inputs (minutes ago, what happened, what you said, what the rules did and what Boop did) and now. The menu becomes questions built from the definitions' own questions: a yes/no for each output ("Does what just happened call for Boop to react?"), a choice for each decided argument with more than one option (`react.feeling`, `quiet.minutes`); `remember.where` is asked with each place's meaning. As TypeSafe advises, each question names what it's about (`now`) and what to judge it by (`boop`, its Examples first), and a yes means `boop` says to do it for something like `now`. Each question is answered on its own, so every argument is asked up front and only a chosen output's are used. A yes is above 0.5; each choice is the most likely one. A 429, a 5xx (TypeSafe's 529 is "overloaded") or a dropped connection is tried once more, 0.3 s later, as TypeSafe advises; the input's deadline still bounds the pass. Only the HTTP status of a failed request is logged |
 | `AppleWriter` | 2 | Apple's on-device model: private and free. A fresh session each call: its instructions are a short preamble, `steering.md` and both memory files; its prompt is what just happened and what Boop decided, then a line per slot (§4). Guided generation with one property per slot: a word from `none` and its list, or text with its length asked for; a slot with sources gets a property before it, where the model picks the source first. Temperature 0.2, so the same moment gets the same word. In chatty mode a word left empty is asked for once more, with `none` off its list, when that can finish in the time left; taking `none` off from the start made the words worse (a failed test run got "ugh", not "tests"). There's no option to decline, so it can't answer "stay quiet"; that was Stage 1's job. Guardrails are `permissiveContentTransformations`; a refusal fails the write like any error, marked as a refusal |
 | `NoWriter` | 2 | Writes nothing: mumbles have no word, and nothing is remembered. What Apple's model falls back to when it can't run, and `--writer none` |
-| `DeepSeekWriter` | 2 | Not built yet: it refuses every write ([FUTURE.md](FUTURE.md)) |
 
 **What you said**, for every if-else classifier (`Phrases`), first match
 wins and whole words only; a curly apostrophe counts as a straight one
@@ -314,7 +313,7 @@ once (§3 step 3). Jev needs its key, from the Keychain or `BOOP_JEV_KEY`;
 without one, normal decides with `NormalRules`, and saving a key in
 Settings brings Jev in at once. A settings file from before the modes
 (`classifier`, `writer` or `brain`) starts in normal. For one run,
-`--mode`, `--classifier chatty|normal|calm|jev` and `--writer apple|none|deepseek`
+`--mode`, `--classifier chatty|normal|calm|jev` and `--writer apple|none`
 override the setting and the mode's brains (`Boop --headless`, `boopdev`);
 `--classifier jev` is Jev alone, without the table behind it, to check its
 own decisions.

@@ -523,17 +523,11 @@ final class WriterTests: XCTestCase {
     }
     #endif
 
-    func testNoWriterAndTheDeepSeekStub() async throws {
+    func testNoWriterWritesNothing() async throws {
         let (c, s) = try slots()
         let none = try await NoWriter().write(c, s, deadline: .seconds(1))
         XCTAssertEqual(none.values, [:])
-        do {
-            _ = try await DeepSeekWriter().write(c, s, deadline: .seconds(1))
-            XCTFail("the stub wrote")
-        } catch {
-            XCTAssertEqual(error as? BrainError, BrainError("the DeepSeek writer isn't available yet"))
-        }
-        XCTAssertEqual(DeepSeekWriter().id, "deepseek:deepseek-flash")
+        XCTAssertEqual(Brains.writers, ["apple", "none"])
     }
 
     /// HARNESS.md §6: each mode's brain. Jev needs a key, asked for only
@@ -555,7 +549,6 @@ final class WriterTests: XCTestCase {
         XCTAssertEqual(Brains.classifier(for: .chatty, override: "normal").id, "normal@1")
         XCTAssertEqual(Brains.classifier(for: .calm, override: "jev", key: { "k" }).id, "jev:jev-latest")
         XCTAssertEqual(Brains.writer(for: .calm, override: "none").id, "none")
-        XCTAssertEqual(Brains.writer(for: .calm, override: "deepseek").id, "deepseek:deepseek-flash")
         // Apple's model writes in every mode, and must find a word in chatty.
         for mode in Mode.allCases {
             let writer = Brains.writer(for: mode)
