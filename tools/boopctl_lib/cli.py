@@ -215,7 +215,7 @@ def cmd_perf(args: argparse.Namespace) -> int:
     return 0 if result["ok"] else 1
 
 
-# F5's L2 check: one moment per feeling, with and without a real word.
+# The feelings `mumble` and `say` play: each one's face and usual word.
 VOICE_LINES = [("happy", "happy", "yay"), ("excited", "cheer", "done"), ("proud", "proud", "ship"),
                ("curious", "curious", "tests"), ("hopeful", "love", "food"), ("annoyed", "side_eye", "build"),
                ("sad", "sulky", "oops"), ("sleepy", "sleepy", "nap")]
@@ -231,69 +231,6 @@ def boopdev_voice(feeling: str, word: str | None, count: int, seed: int | None =
         cmd += ["--seed", str(seed)]
     out = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
     return [json.loads(row) for row in out.splitlines() if row.startswith("{")]
-
-
-def voice_lines(count: int) -> list[tuple[str, dict]]:
-    return [(anim, line) for feeling, anim, word in VOICE_LINES for w in (None, word)
-            for line in boopdev_voice(feeling, w, count)]
-
-
-def cmd_voice(args: argparse.Namespace) -> int:
-    """Plays real `say` lines on the board and checks the audio timeline in
-    dbg.state against each: syllable count, the word, and the duration the
-    DAC took within 10% of beats × ms. Then checks mute keeps it silent."""
-    lines = voice_lines(args.count)
-    results = []
-    with Device(args.port) as dev:
-        dev.request({"t": "dbg.reset"})
-        dev.request({"t": "dbg.clock", "run": True})
-        dev.send({"t": "state", "v": 1, "base": "idle", "vol": 6})
-        for anim, say in lines:
-            before = dev.request({"t": "dbg.state"})["audio"]["out"]["lines"]
-            dev.send({"t": "moment", "anim": anim, "size": 1, "say": say, "ttl": 5})
-            deadline = time.monotonic() + 6
-            amp_seen = playing_seen = False
-            while True:
-                st = dev.request({"t": "dbg.state"})
-                out = st["audio"]["out"]
-                amp_seen |= st["amp"]
-                playing_seen |= out["playing"]
-                if out["lines"] > before or time.monotonic() > deadline:
-                    break
-                time.sleep(0.05)
-            syl = len([s for s in say["syl"].replace("-", " ").split() if s])
-            beats = syl + (2 if say.get("word") else 0)
-            plan = beats * say["ms"]
-            r = {"syl": say["syl"], "word": say.get("word"), "ms": say["ms"], "plan_ms": plan,
-                 "got": {k: out[k] for k in ("syl", "word", "plan_ms", "out_ms", "wall_ms", "cut")},
-                 "amp_on": amp_seen, "amp_off_after": not st["amp"]}
-            r["ok"] = (out["lines"] == before + 1 and out["syl"] == syl and out["word"] == bool(say.get("word"))
-                       and abs(out["plan_ms"] - plan) <= 1 and abs(out["out_ms"] - plan) <= 1
-                       and abs(out["wall_ms"] - plan) <= plan // 10 and not out["cut"] and amp_seen)
-            results.append(r)
-            if not args.json:
-                g = r["got"]
-                print(f"{'ok ' if r['ok'] else 'BAD'} {say['syl']!r:28} {str(say.get('word') or ''):6} "
-                      f"plan {plan:5} ms  out {g['out_ms']:5} ms  dac {g['wall_ms']:5} ms  "
-                      f"({(g['wall_ms'] - plan) * 100 / plan:+.1f}%)  amp {'on' if amp_seen else 'OFF'}")
-        # Muted: the mouth still moves, the DAC stays off.
-        dev.send({"t": "state", "v": 1, "base": "idle", "vol": 0})
-        before = dev.request({"t": "dbg.state"})["audio"]["out"]["lines"]
-        dev.send({"t": "moment", "anim": "happy", "size": 1, "say": lines[0][1], "ttl": 5})
-        mouth = dev.request({"t": "dbg.state"})["audio"]["playing"]
-        time.sleep(2.5)
-        st = dev.request({"t": "dbg.state"})
-        muted = {"mouth_moved": mouth, "lines_played": st["audio"]["out"]["lines"] - before, "amp": st["amp"]}
-        dev.send({"t": "state", "v": 1, "base": "idle", "vol": 6})
-    walls = [abs(r["got"]["wall_ms"] - r["plan_ms"]) * 100 / r["plan_ms"] for r in results]
-    summary = {"lines": len(results), "passed": sum(r["ok"] for r in results),
-               "worst_wall_error_pct": round(max(walls), 1), "muted": muted,
-               "ok": all(r["ok"] for r in results) and muted["mouth_moved"] and not muted["lines_played"]}
-    if args.json:
-        emit({"results": results, **summary})
-    else:
-        emit(summary)
-    return 0 if summary["ok"] else 1
 
 
 SOAK_ANIMS = ["nod", "cheer", "oops", "side_eye", "wiggle", "stretch", "yawn", "shrug", "zip", "gobble",
@@ -446,11 +383,11 @@ FEELINGS = [f for f, _, _ in VOICE_LINES]
 MOMENT_ANIMS = sorted(set(SOAK_ANIMS) | {"listening", "thinking"})
 
 
-def show_begin(dev: Device) -> None:
-    """Lets the clock run (a scenario may have frozen it) and warns when the
-    Mac app is connected, since its next `state` wins. These commands poll
-    dbg.state often, and the CH340 now and then drops a reply, so a debug
-    request is retried once, as in e2e's soak."""
+def show_begin(dev: Device, warn: bool = True) -> dict:
+    """Lets the clock run (a scenario may have frozen it) and, with `warn`,
+    warns when the Mac app is connected, since its next `state` wins. These
+    commands poll dbg.state often, and the CH340 now and then drops a reply,
+    so a debug request is retried once, as in e2e's soak. Returns dbg.ping."""
     request = dev.request
 
     def retried(message: dict) -> dict:
@@ -461,10 +398,12 @@ def show_begin(dev: Device) -> None:
             return request(message)
 
     dev.request = retried
-    if dev.request({"t": "dbg.ping"}).get("ble") == "conn":
+    ping = dev.request({"t": "dbg.ping"})
+    if warn and ping.get("ble") == "conn":
         print("boopctl: the Mac app is connected over Bluetooth and may override this; "
               "quit it for a clean run", file=sys.stderr)
     dev.request({"t": "dbg.clock", "run": True})
+    return ping
 
 
 def show_state(dev: Device, vol: int, base: str = "idle", attn: dict | None = None) -> None:
@@ -498,27 +437,108 @@ def play_line(dev: Device, anim: str, say: dict) -> dict | None:
     return out
 
 
+def syllables(say: dict) -> int:
+    return len([s for s in say["syl"].replace("-", " ").split() if s])
+
+
+def check_line(dev: Device, anim: str, say: dict) -> dict:
+    """Plays one mumble and checks `audio.out` in dbg.state against it: the
+    syllable count, the word, and the duration the DAC took within 10% of
+    beats × ms (F5's L2 check). Waits up to 6 s for the line to finish."""
+    before = dev.request({"t": "dbg.state"})["audio"]["out"]["lines"]
+    dev.send({"t": "moment", "anim": anim, "size": 1, "say": say, "ttl": 5})
+    deadline = time.monotonic() + 6
+    amp_seen = False
+    while True:
+        st = dev.request({"t": "dbg.state"})
+        out = st["audio"]["out"]
+        amp_seen |= st["amp"]
+        if out["lines"] > before or time.monotonic() > deadline:
+            break
+        time.sleep(0.05)
+    played = out["lines"] > before
+    syl = syllables(say)
+    plan = (syl + (2 if say.get("word") else 0)) * say["ms"]
+    r = {"syl": say["syl"], "word": say.get("word"), "ms": say["ms"], "plan_ms": plan, "played": played,
+         "got": {k: out[k] for k in ("syl", "word", "plan_ms", "out_ms", "wall_ms", "cut")} if played else None,
+         "amp_on": amp_seen, "vol": st.get("vol")}
+    r["ok"] = (out["lines"] == before + 1 and out["syl"] == syl and out["word"] == bool(say.get("word"))
+               and abs(out["plan_ms"] - plan) <= 1 and abs(out["out_ms"] - plan) <= 1
+               and abs(out["wall_ms"] - plan) <= plan // 10 and not out["cut"] and amp_seen)
+    return r
+
+
+def line_row(r: dict) -> str:
+    head = f"{'ok ' if r['ok'] else 'BAD'} {r['syl']!r:30} {r['word'] or '':7}"
+    if not r["played"]:
+        return f"{head} didn't play"
+    wall = r["got"]["wall_ms"]
+    return (f"{head} plan {r['plan_ms']:5} ms  dac {wall:5} ms  ({(wall - r['plan_ms']) * 100 / r['plan_ms']:+.1f}%)"
+            f"  amp {'on' if r['amp_on'] else 'OFF'}" + (", cut short" if r["got"]["cut"] else ""))
+
+
 def cmd_mumble(args: argparse.Namespace) -> int:
-    """One mumble per feeling (or the ones named), without and then with its
-    usual word, waiting for the board to finish each line."""
+    """F5's L2 check, and for hearing Boop by hand: lines built by the Mac's
+    Voice for every feeling (or the ones named), without and then with its
+    usual word, each checked with check_line. Then checks that a muted line
+    moves the mouth and plays nothing."""
     words = {f: w for f, _, w in VOICE_LINES}
     anims = {f: a for f, a, _ in VOICE_LINES}
     seed = args.seed if args.seed is not None else random.randrange(10_000)
-    print(f"seed {seed} (--seed {seed} plays these lines again)")
-    missed = 0
+    if not args.json:
+        print(f"seed {seed} (--seed {seed} plays these lines again)")
+    results = []
     with Device(args.port) as dev:
         show_begin(dev)
         for i, feeling in enumerate(args.feeling or FEELINGS):
             variants = [args.word] if args.word else [None] if args.no_word else [None, words[feeling]]
             for word in variants:
-                say = boopdev_voice(feeling, word, 1, seed + i)[0]
-                show_state(dev, args.vol)
-                out = play_line(dev, anims[feeling], say)
-                missed += out is None
-                print(f"{'ok  ' if out else 'MISS'} {feeling:8} {say['syl']!r:30} {say.get('word') or '':7} "
-                      + (f"{out['wall_ms']} ms" if out else "didn't play"))
-                time.sleep(args.gap)
-    return 1 if missed else 0
+                for say in boopdev_voice(feeling, word, args.count, seed + i):
+                    show_state(dev, args.vol)
+                    r = check_line(dev, anims[feeling], say)
+                    results.append({"feeling": feeling, **r})
+                    if not args.json:
+                        print(f"{feeling:8} {line_row(r)}", flush=True)
+                    time.sleep(args.gap)
+        # Muted: the mouth still moves, the DAC stays off.
+        show_state(dev, 0)
+        before = dev.request({"t": "dbg.state"})["audio"]["out"]["lines"]
+        dev.send({"t": "moment", "anim": "happy", "size": 1, "say": boopdev_voice("happy", None, 1, seed)[0], "ttl": 5})
+        mouth = dev.request({"t": "dbg.state"})["audio"]["playing"]
+        time.sleep(2.5)
+        st = dev.request({"t": "dbg.state"})
+        muted = {"mouth_moved": mouth, "lines_played": st["audio"]["out"]["lines"] - before, "amp": st["amp"]}
+        show_state(dev, args.vol)
+    walls = [abs(r["got"]["wall_ms"] - r["plan_ms"]) * 100 / r["plan_ms"] for r in results if r["played"]]
+    summary = {"seed": seed, "lines": len(results), "passed": sum(r["ok"] for r in results),
+               "worst_wall_error_pct": round(max(walls), 1) if walls else None, "muted": muted,
+               "ok": all(r["ok"] for r in results) and muted["mouth_moved"] and not muted["lines_played"]}
+    emit({"results": results, **summary} if args.json else summary)
+    return 0 if summary["ok"] else 1
+
+
+def cmd_say(args: argparse.Namespace) -> int:
+    """One mumble with its word at the end. It sends no `state`, so the line
+    plays at whatever volume the board already has: the Mac app's, when it's
+    connected."""
+    words = {f: w for f, _, w in VOICE_LINES}
+    anims = {f: a for f, a, _ in VOICE_LINES}
+    say = boopdev_voice(args.feeling, args.word or words[args.feeling], 1, args.seed)[0]
+    say["at"] = syllables(say)
+    with Device(args.port) as dev:
+        mac = show_begin(dev, warn=False).get("ble") == "conn"
+        st = dev.request({"t": "dbg.state"})
+        vol = st.get("vol")
+        source = "the Mac app's" if mac else "the last `state` the board got; the Mac app isn't connected"
+        print(f"volume {vol if vol is not None else '? (reflash: this firmware has no vol in dbg.state)'} ({source})")
+        why = ("muted (volume 0)" if vol == 0 else "in focus mode" if st["focus"] else
+               "quiet" if st["quiet"] else "something needs you" if st["attn"] else None)
+        if why:
+            print(f"not playing: the board is {why}, so it won't speak")
+            return 1
+        r = check_line(dev, anims[args.feeling], say)
+    print(f"{args.feeling:8} {line_row(r)}")
+    return 0 if r["ok"] else 1
 
 
 # One fixed line for comparing volumes, so only the level changes between
@@ -671,21 +691,26 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--seconds", type=int, default=30)
     p.add_argument("--motion", action="store_true")
     p.set_defaults(func=cmd_perf)
-    p = sub.add_parser("voice", help="play say lines and check the audio timeline in dbg.state (F5, L2)")
-    p.add_argument("--count", type=int, default=2, help="lines per feeling, with and without a word")
-    p.add_argument("--json", action="store_true", help="every line's result as JSON")
-    p.set_defaults(func=cmd_voice)
     vol = {"type": int, "choices": range(1, 11), "default": 6, "metavar": "1-10", "help": "volume (default 6)"}
-    p = sub.add_parser("mumble", help="hear mumbles: every feeling, or the ones named, without and with a word")
+    p = sub.add_parser("mumble", help="play and check mumbles: every feeling, or the ones named, without and "
+                                      "with a word; then check mute (F5, L2)")
     p.add_argument("feeling", nargs="*", choices=FEELINGS, metavar="feeling",
                    help=f"any of {', '.join(FEELINGS)} (default: all)")
     words = p.add_mutually_exclusive_group()
     words.add_argument("--word", help="say this word in every line (one from the vocabulary, VOICE.md §6)")
     words.add_argument("--no-word", action="store_true", help="only lines without a word")
+    p.add_argument("--count", type=int, default=1, help="lines per feeling, with and without a word (default 1)")
     p.add_argument("--vol", **vol)
     p.add_argument("--seed", type=int, help="replay the lines of an earlier run (default: new lines)")
     p.add_argument("--gap", type=float, default=0.8, help="seconds between lines (default 0.8)")
+    p.add_argument("--json", action="store_true", help="every line's result as JSON")
     p.set_defaults(func=cmd_mumble)
+    p = sub.add_parser("say", help="one mumble with a word at the end, at the board's current volume (the Mac's)")
+    p.add_argument("feeling", nargs="?", choices=FEELINGS, default="happy", metavar="feeling",
+                   help=f"any of {', '.join(FEELINGS)} (default: happy)")
+    p.add_argument("--word", help="the word (default: the feeling's usual one)")
+    p.add_argument("--seed", type=int, help="the same line again (default: a new one)")
+    p.set_defaults(func=cmd_say)
     p = sub.add_parser("volume", help="compare volumes by ear: the same line at each level in turn")
     p.add_argument("levels", nargs="*", type=int, choices=range(1, 11), default=[1, 10], metavar="level",
                    help="volumes 1-10, played in this order each round (default: 1 10)")

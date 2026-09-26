@@ -493,6 +493,7 @@ void Device::sendState(Link to) {
   else d["life"] = nullptr;
   d["quiet"] = m.quiet;
   d["focus"] = m.focus;
+  d["vol"] = m.vol;
   d["night"] = m.night;
   d["hungry"] = m.hungry;
   char led[8];

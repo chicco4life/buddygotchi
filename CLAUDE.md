@@ -44,7 +44,7 @@ make e2e          # hook → app → USB → device pipeline check
 make webcam-test  # the webcam recorder's tests, on synthetic video (no camera)
 make run          # the Mac app, with Bluetooth; the owner runs this, not agents
 tools/boopctl ping | state | shot | run <scenario> | sim <scenario> | bridge
-tools/boopctl mumble [feeling] | volume [level…] | sound chirp|jingle | moment <anim> | needs
+tools/boopctl mumble [feeling] | say [feeling] | volume [level…] | sound chirp|jingle | moment <anim> | needs
 app/.build/debug/Boop --snapshots DIR   # the Mac app's popover and icons as PNGs, no Bluetooth
 ```
 
