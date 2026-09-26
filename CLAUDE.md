@@ -37,7 +37,6 @@ make build        # Mac app, boop-hook, boopdev
 make test         # Swift unit tests (XCTest shim; there is no Xcode here)
 make eval         # harness eval scenarios (app/Evals/scenarios) in chatty and calm, deterministic
 make eval REAL=1  # the same with the real brains, 3 runs each, plus refusals and latency (L5)
-make tools        # tools/.venv with pyserial and Pillow (tools/boopctl makes it when missing)
 make fw           # build firmware for the board
 make flash        # build and upload over USB
 make fw-test      # firmware unit tests on the Mac
@@ -45,16 +44,21 @@ make sim          # every device scenario in the simulator, against the goldens
 make e2e          # hook → app → USB → device pipeline check
 make tools-test   # the tools' own tests: boopctl's commands, the webcam recorder on synthetic video
 make run          # the Mac app, with Bluetooth; the owner runs this, not agents
-tools/boopctl ping | state | shot | run <scenario> | sim <scenario> | bridge
-tools/boopctl play <cheer|wiggle|listening|stop|needs|pattern> | mumble [feeling…] | send '<json>'
+make debug        # make run, printing hooks, decisions, device lines and brain passes; the owner's too
+app/.build/debug/Boop --headless --state-dir DIR --debug   # the runtime with no UI or Bluetooth, printing everything
 app/.build/debug/Boop --snapshots DIR   # the Mac app's popover and icons as PNGs, no Bluetooth
+tools/boopctl ping | state | shot | send '<json>' | sim | run | bridge
+tools/boopctl play <cheer|wiggle|listening|stop|needs|pattern> | mumble [feeling…]
 ```
+
+Every tool lists its options with `--help` (`tools/boopctl`,
+`app/.build/debug/boopdev`, `app/.build/debug/Boop`).
 
 **Environment notes:**
 
 - There's no Xcode, so `swift test` runs nothing. `make test` runs
-  `python3 app/tools/test.py`, which generates the shim runner and runs
-  `swift run BoopTests`.
+  `python3 app/tools/test.py`, which generates the shim runner, builds the
+  package in one `swift build` and runs `app/.build/debug/BoopTests`.
 - Command Line Tools lack some Swift macro plugins. SwiftUI's `@State` and
   Foundation Models' `@Generable`/`@Guide` don't compile. Use the
   `ViewState` alias and runtime `DynamicGenerationSchema` instead
@@ -67,7 +71,10 @@ app/.build/debug/Boop --snapshots DIR   # the Mac app's popover and icons as PNG
   `firmware/tools/pio.sh` (the make targets do), which keeps its packages in
   `firmware/.platformio-core`. The board shows up as
   `/dev/cu.usbserial-*`. The serial port needs no special permissions.
-- System Python has no pyserial or Pillow. The tools use `tools/.venv`.
+- System Python has no pyserial or Pillow. The tools use `tools/.venv`,
+  which `tools/boopctl` makes on its first run (`make tools`).
+- A Unix socket's path has room for 103 bytes, so give `Boop --headless`
+  a short state directory (under `/tmp`) or a short `--socket`.
 - `make build` re-signs `Boop` with the owner's self-signed "Boop Dev"
   certificate when it exists, so the Keychain doesn't ask for the Jev key
   after every rebuild ([plan/VERIFICATION.md](plan/VERIFICATION.md) §2).

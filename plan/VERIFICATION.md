@@ -35,18 +35,29 @@ Each level answers a different question:
 
 ## 2. The tools
 
+Every tool lists its options with `--help`; this table says what each is for.
+
 | Tool | What it is |
 | --- | --- |
-| `make build` / `make sign` | Builds the Mac app, `boop-hook` and `boopdev`. When the login keychain has a code-signing identity named "Boop Dev" (or `SIGN_IDENTITY`), it then re-signs `Boop` with it, so the Keychain keeps recognising the app across rebuilds and stops asking for the Jev key each time. Without one, the build stays ad-hoc signed. The owner makes the certificate once: Keychain Access → Certificate Assistant → Create a Certificate…, name "Boop Dev", type Code Signing |
-| `make test` | Swift unit tests. There's no Xcode here, so this runs the XCTest shim: `python3 app/tools/test.py`, which runs `swift run BoopTests` |
+| `make build` / `make sign` | Builds the Mac app, `boop-hook` and `boopdev` in one `swift build`. When the login keychain has a code-signing identity named "Boop Dev" (or `SIGN_IDENTITY`), it then re-signs `Boop` with it, so the Keychain keeps recognising the app across rebuilds and stops asking for the Jev key each time. Without one, the build stays ad-hoc signed. The owner makes the certificate once: Keychain Access → Certificate Assistant → Create a Certificate…, name "Boop Dev", type Code Signing |
+| `make test` | Swift unit tests. There's no Xcode here, so this runs the XCTest shim: `python3 app/tools/test.py` generates its runner, builds the package in one `swift build` and runs `app/.build/debug/BoopTests` |
 | `make eval` | The harness eval scenarios ([EVALS.md](EVALS.md)): `boopdev eval`. `make eval REAL=1` runs them with the real brains (L5) |
-| `make fw-test` | Firmware unit tests on the Mac: `pio test -e native` |
+| `make run` / `make debug` | The Mac app with Bluetooth, for the owner; `make debug` runs it with `--debug` ([HARNESS.md](HARNESS.md) §8) |
+| `make fw` / `make flash` / `make fw-test` | The firmware for the board, the same uploaded over USB, and its unit tests on the Mac (`pio test -e native`) |
 | `make sim` / `tools/boopctl sim` | The simulator. It builds the same drawing and behaviour code as the firmware for the Mac, runs every scenario (or the ones named), writes PNGs and compares them with the goldens |
-| `tools/boopctl` | The new device tool, replacing `buddyctl.py`. It's Python in `tools/.venv` (pyserial, Pillow), which it creates on its first run (`make tools`) |
+| `make e2e` | The L4 pipeline check (`boopctl e2e`) |
+| `make tools` / `make tools-test` | `tools/.venv` with pyserial and Pillow (`tools/boopctl` makes it when it's missing; this also refreshes it), and the tools' own tests: `boopctl`'s commands and the webcam recorder on synthetic video, with no board or camera |
+| `tools/boopctl` | The device tool, replacing `buddyctl.py`: Python in `tools/.venv`. Its commands are below |
 | `tools/boopctl bridge` | Owns the USB serial port and shares it through a Unix socket (`--socket`, default `$BOOP_BRIDGE` or `/tmp/boop-bridge.sock`), so the Mac app and other `boopctl` commands can use the board at the same time. Every line from the board goes to every client, and each client's lines reach the board whole. It never waits on a client: a client that stops reading and falls 4 MB behind is dropped, so a paused `boopctl` can't stall the others or the app. While a bridge runs, other `boopctl` commands (with `BOOP_BRIDGE` set to its socket, if it isn't the default) go through it instead of opening the port |
-| `tools/webcam/webcam.sh` | The existing AVFoundation recorder and frame extractor. `boopctl cam …` wraps it. `make tools-test` tests it on synthetic video and never opens a camera, along with `boopctl`'s commands |
+| `tools/webcam/webcam.sh` | The AVFoundation recorder and frame extractor ([its README](../tools/webcam/README.md)). `boopctl cam …` wraps it |
+| `Boop --headless` | The whole runtime with isolated state, no UI and no Bluetooth (L4). `--debug` prints everything as it happens, as `make debug` does; `{"dev":"advance","ms":N}` and `{"dev":"talk",…}` on its socket move its clock and hand it what you said |
 | `Boop --snapshots DIR` | Renders the Mac app's popover (seven overview states, including listening and a refused mic, the whole settings pane, the four setup steps) and the menu-bar icons to PNGs, in light and dark, from fixed fixtures, then exits. No runtime, Bluetooth, microphone or Keychain; the agents' settings it reads are in a throwaway HOME |
-| `boopdev` | A Swift CLI in the app package for the evals, reading debug logs and replaying hooks. `boopdev replay <fixture>` alone runs the payloads through the hook's field picking, the adapter and the core on a virtual clock and prints every decision (`--states` for snapshots only); with `--socket` it sends them through the real `boop-hook` to a running app. `boopdev voice <feeling> [word] --count N [--why]` prints the lines `react` would build, and with `--why` every rejected try. `boopdev eval [--real] [--mode chatty\|normal\|calm] [--classifier chatty\|calm\|jev] [--writer none\|apple] [--runs N] [--only TEXT] [--json FILE]` runs the harness eval scenarios in each mode ([EVALS.md](EVALS.md)); with a model, `--runs` runs each one N times and passes it only if every run does, and `--real` is L5. `boopdev watch [FILE] [--new]` prints debug mode's `debug.jsonl` (the everyday app's by default) readably as it grows, as `Boop --debug` prints it (HARNESS.md §8). `boopdev talk "<words>" [--yelled] --socket PATH` hands a push-to-talk transcript to a running headless app, as if heard on the Mac's mic (`--yelled` as if you yelled it). `boopdev hooks status\|install\|remove [claude\|codex] --home DIR` runs the hook installer against any HOME |
+| `boopdev eval` | The harness eval scenarios ([EVALS.md](EVALS.md)); `--real` is L5 |
+| `boopdev watch [FILE]` | Prints debug mode's `debug.jsonl` (the everyday app's by default) readably as it grows, as `Boop --debug` prints it ([HARNESS.md](HARNESS.md) §8) |
+| `boopdev replay <fixture>` | Runs recorded hook payloads through the hook's field picking, the adapter and the core on a virtual clock and prints every decision; with `--socket`, through the real `boop-hook` to a running app, in real time |
+| `boopdev voice <feeling> [word]` | The Minion lines `react` would build (`boopctl mumble` plays them) |
+| `boopdev talk "<words>" --socket PATH` | Hands a push-to-talk transcript to a running headless app, as if heard on the Mac's mic |
+| `boopdev hooks status\|install\|remove --home DIR` | The hook installer against any HOME (the doctor checks with `status`) |
 
 `boopctl` subcommands (`tools/boopctl <command> --help` has their options):
 
