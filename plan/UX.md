@@ -211,7 +211,7 @@ except Talk, which is there to be used in the moment.
 | --- | --- |
 | Header | A small copy of Boop's face on black glass (it blinks, glances about while agents work, looks up with an amber rim when something needs you, sleeps with its eyes closed, and looks up wide-eyed while listening), Boop's name, a tone dot with one short line ("Listening…", "Working on 2 sessions", "Needs you", "Hanging out", "Napping"), whether the body is connected ("Connected", "Looking…" or "No device"), and under it the Talk button (§5), which turns into a red Send while the mic is on. Which board it is never shows |
 | Modes | Small reminders only when something isn't the usual: Chatty or Calm (normal shows nothing), Quiet with minutes left, Muted |
-| Notices | "Restart your agent sessions" after hooks change (dismissable), why Boop couldn't start, or "*name* can't hear you" when push-to-talk can't use the mic (dismissable; the next Talk clears it) |
+| Notices | "Restart your agent sessions" after hooks change (dismissable), why Boop couldn't start (in plain words: another copy is running, or it can't listen for hooks, or look in `boop.log`), or "*name* can't hear you" when push-to-talk can't use the mic (dismissable; the next Talk clears it) |
 | Needs you | An amber card: agent · project (the agent alone when the project has no name), "Answer it in the agent's window", and "+N more" |
 | Sessions | Grouped by agent, Claude Code then Codex whatever their state: one row per session, waiting first, with a coloured edge and a status chip (needs you, working, idle). Empty: "No agents awake" |
 | Footer | Settings on the left, Quit on the right |

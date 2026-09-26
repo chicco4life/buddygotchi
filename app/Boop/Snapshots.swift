@@ -133,7 +133,7 @@ enum Snapshots {
             }()),
             ("not-running", {
                 let m = model(installer, status: nil)
-                m.startError = "Another Boop is already running."
+                m.startError = AppModel.startProblem(Runtime.OpenError.locked("/tmp/boop"))
                 return m
             }()),
             ("waking-up", model(installer, status: nil)),
