@@ -108,6 +108,35 @@ final class CalmRulesTests: XCTestCase {
 }
 
 final class PhrasesTests: XCTestCase {
+    /// HARNESS.md §6: quiet lasts the time you said, as the nearest of its
+    /// choices (15, 30, 60, 120; the shorter on a tie), or 30 when you
+    /// didn't say.
+    func testQuietLastsAboutAsLongAsYouSaid() {
+        let cases: [(String, Int)] = [
+            ("be quiet", 30), ("quiet please, the demo is at 3", 30),
+            ("be quiet for an hour", 60), ("quiet for 1 hour", 60), ("quiet for a couple of hours", 120),
+            ("quiet for two hours", 120), ("quiet for 2 hours", 120), ("quiet for fifteen minutes", 15),
+            ("be quiet for 10 minutes", 15), ("quiet for ten minutes", 15), ("quiet for 5 mins", 15),
+            ("quiet for a quarter of an hour", 15), ("quiet for a little while", 15), ("quiet for 20 minutes", 15),
+            ("quiet for 25 minutes", 30), ("quiet for half an hour", 30), ("quiet for thirty minutes", 30),
+            ("quiet for 45 minutes", 30), ("quiet for forty five minutes", 30), ("quiet for forty-five minutes", 30),
+            ("quiet for 50 minutes", 60), ("quiet for 90 minutes", 60), ("quiet for an hour and a half", 60),
+            ("quiet for 100 minutes", 120), ("quiet for three hours", 120), ("quiet for a few hours", 120),
+            ("quiet for hours", 120), ("quiet for a long while", 120),
+            // A number with no unit is minutes; a unit with no number is one.
+            ("be quiet for fifteen", 15), ("be quiet for 15", 15), ("be quiet for 15, please", 15),
+            ("quiet for the next 20", 15), ("quiet for forty five", 30), ("quiet for a while", 30),
+            ("be quiet for the next hour", 60), ("quiet for another hour", 60), ("quiet for one more hour", 60),
+            ("quiet for ten more minutes", 15), ("quiet for a couple more hours", 120), ("quiet for 30 seconds", 15),
+            // A half, in words or digits.
+            ("be quiet for one and a half hours", 60), ("quiet for two and a half hours", 120),
+            ("quiet for 1.5 hours", 60), ("quiet for 0.5 hours", 30), ("quiet for 2 hours.", 120),
+        ]
+        for (words, minutes) in cases {
+            XCTAssertEqual(Phrases.minutes(words), minutes, words)
+        }
+    }
+
     /// HARNESS.md §6: each row of the table in Phrases' comment, which both
     /// if-else classifiers use for what you said.
     func testEachRow() {

@@ -289,7 +289,7 @@ wins and whole words only; a curly apostrophe counts as a straight one
 | You said | Decides |
 | --- | --- |
 | "remember" or "note", unless you yelled or told Boop off | `react(happy)` and `remember(where)`, where from the words below. It wins over "quiet", for the menu and the quiet action too: "remember I like it quiet" isn't asking for quiet |
-| "quiet" | `quiet`: two hours 120, fifteen 15, half an hour 30, an hour 60, else 30. Nothing else, yelled or not: Boop is quiet now |
+| "quiet" | `quiet`: the time you said ("ten minutes", "1.5 hours", "an hour and a half", "a quarter of an hour", "a couple of hours"), as the nearest of 15, 30, 60 and 120, the shorter on a tie (90 minutes is 60). A unit with no number is one ("the next hour" 60), but "for hours" is 120; a number with no unit is minutes ("for fifteen" 15); "a little while" 15, "a long while" 120; else 30. Nothing else, yelled or not: Boop is quiet now |
 | You yelled, or told Boop off: "shut up", "go away", "hate you", "you suck", "hush", "stop talking", "keep it down", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot" | `react(sad)` in chatty and normal; nothing in calm |
 | Starting with "hello", "hi", "hey", "morning" or "good morning" ("the tests broke this morning" isn't a greeting) | `react(happy)` |
 | "bye", "goodbye", "see you" or "good night" | `react(happy)` |

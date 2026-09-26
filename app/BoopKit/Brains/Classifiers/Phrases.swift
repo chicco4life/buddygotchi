@@ -6,7 +6,7 @@ import Foundation
 /// | You said | Decides |
 /// | --- | --- |
 /// | "remember" or "note", unless you yelled or told Boop off | `react(happy)`, `remember(where)`, where from the words below. It wins over "quiet": "remember I like it quiet" isn't asking for quiet |
-/// | "quiet" | `quiet(n)`; n from the words: two hours 120, an hour 60, fifteen 15, else 30. Nothing else: Boop is quiet now |
+/// | "quiet" | `quiet(n)`: the time you said as the nearest of 15, 30, 60 and 120 (`minutes`), else 30. Nothing else: Boop is quiet now |
 /// | You yelled, or told Boop off: "shut up", "go away", "hate you", "you suck", "hush", "stop talking", "keep it down", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot" | `react(sad)`, or nothing when the table keeps hurt to itself |
 /// | Starting with "hello", "hi", "hey", "morning" or "good morning" | `react(happy)` |
 /// | "bye", "goodbye", "see you", "good night" | `react(happy)` |
@@ -36,7 +36,7 @@ enum Phrases {
             return ([react("happy"), ToolCall("remember", ["where": .string(place)])], "asked to remember, \(place)")
         }
         if input.asksForQuiet {
-            return ([ToolCall("quiet", ["minutes": .number(minutes(words))])], "asked for quiet")
+            return ([ToolCall("quiet", ["minutes": .number(minutes(input.words ?? ""))])], "asked for quiet")
         }
         if hurt { return (hurtMumbles ? [react("sad")] : [], input.yelled ? "yelled at" : "told off") }
         // Only at the start: "the tests broke this morning" isn't a greeting.
@@ -69,14 +69,76 @@ enum Phrases {
                           " wednesdays ", " thursdays ", " fridays ", " saturdays ", " sundays ", " weekends ", " mornings ",
                           " evenings ", " my name ", " i'm a ", " i am a ", " i work ", " i live "]
 
-    /// How long "quiet" lasts, from the words.
-    static func minutes(_ words: String) -> Int {
-        if [" two hours ", " couple of hours ", " 2 hours "].contains(where: words.contains) { return 120 }
-        if [" fifteen ", " 15 "].contains(where: words.contains) { return 15 }
-        if [" half an hour ", " thirty ", " 30 "].contains(where: words.contains) { return 30 }
-        if words.contains(" hour ") { return 60 }
-        return 30
+    /// How long "quiet" lasts: the time you said, as the nearest of quiet's
+    /// choices (the shorter on a tie: 90 minutes is 60), or 30 when you
+    /// didn't say. "Ten minutes" is 15, "three hours" 120.
+    static func minutes(_ said: String) -> Int {
+        guard let asked = spokenMinutes(said) else { return 30 }
+        return QuietAction.choices.min { abs(Double($0) - asked) < abs(Double($1) - asked) }!
     }
+
+    /// A time in what you said, in minutes: a number (digits, "1.5", words
+    /// up to ninety, "a", "a couple of", "a few", "one and a half") and a
+    /// unit, "and a half" after it, "half an hour", "a quarter of an hour",
+    /// "a little while" (15) or "a long while" (120). A unit with no number
+    /// is one ("the next hour"), except hours ("for hours", 120). A number
+    /// after "for" with no unit is minutes ("for fifteen"). Nil when
+    /// there's none.
+    static func spokenMinutes(_ said: String) -> Double? {
+        // As Input.plain, but "1.5" stays one number.
+        let kept = String(Input.straight(said).lowercased().map { $0.isLetter || $0.isNumber || "'.".contains($0) ? $0 : " " })
+        let w = kept.split(separator: " ").map { $0.trimmingCharacters(in: ["."]) }.filter { !$0.isEmpty }
+        let words = " " + w.joined(separator: " ") + " "
+        if words.contains(" quarter ") { return 15 }
+        if words.contains(" half an hour ") || words.contains(" half hour ") { return 30 }
+        if words.contains(" little while ") { return 15 }
+        if words.contains(" long while ") || words.contains(" long time ") { return 120 }
+        for (i, word) in w.enumerated() {
+            let perUnit: Double
+            switch word {
+            case "second", "seconds", "sec", "secs": perUnit = 1.0 / 60
+            case "minute", "minutes", "min", "mins": perUnit = 1
+            case "hour", "hours", "hr", "hrs": perUnit = 60
+            default: continue
+            }
+            var j = i - 1
+            if j >= 0, ["of", "more", "extra"].contains(w[j]) { j -= 1 }  // a couple of hours, ten more minutes
+            var n: Double
+            if j >= 3, w[j] == "half", w[j - 1] == "a", w[j - 2] == "and", let whole = number(w[j - 3]) {
+                n = whole + 0.5  // one and a half hours
+            } else if j >= 0, let said = number(w[j]) {
+                n = said
+                // Twenty five: the tens before the ones.
+                if n < 10, j >= 1, let tens = number(w[j - 1]), isTens(tens) { n += tens }
+                if words.contains(" \(word) and a half ") { n += 0.5 }  // an hour and a half
+            } else if !word.hasSuffix("s") {
+                n = 1  // the next hour, another minute
+            } else if word == "hours" || word == "hrs" {
+                return 120  // for hours
+            } else {
+                continue
+            }
+            return n * perUnit
+        }
+        // For fifteen, for the next 20: a number with no unit is minutes.
+        guard var k = w.firstIndex(of: "for").map({ $0 + 1 }) else { return nil }
+        while k < w.count, ["the", "next", "another", "about", "like", "just"].contains(w[k]) { k += 1 }
+        guard k < w.count, !vague.contains(w[k]), var n = number(w[k]) else { return nil }
+        if isTens(n), k + 1 < w.count, !vague.contains(w[k + 1]), let ones = number(w[k + 1]), ones < 10 { n += ones }
+        return n
+    }
+
+    static func number(_ word: String) -> Double? {
+        if word.allSatisfy({ $0.isASCII && ($0.isNumber || $0 == ".") }), let n = Double(word) { return n }
+        return numbers[word]
+    }
+    static func isTens(_ n: Double) -> Bool { n >= 20 && n < 100 && n.truncatingRemainder(dividingBy: 10) == 0 }
+    static let numbers: [String: Double] = [
+        "a": 1, "an": 1, "one": 1, "two": 2, "couple": 2, "three": 3, "few": 3, "four": 4, "five": 5, "six": 6,
+        "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "fifteen": 15, "twenty": 20,
+        "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "ninety": 90]
+    /// Numbers that only count before a unit: "for a while" is no time.
+    static let vague: Set = ["a", "an", "couple", "few"]
 
     static func react(_ feeling: String) -> ToolCall {
         ToolCall("react", ["feeling": .string(feeling)])
