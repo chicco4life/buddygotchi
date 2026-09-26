@@ -41,7 +41,7 @@ needs-you face, which leans in, is as big as the idle face alone.
   everything is built from square 3 px blocks on one grid, with no
   anti-aliasing. The eyes are warm-white windows, 13 blocks (39 px) square
   and 144 px apart, each four panes around a one-block cross, with a pixel
-  softened off each pane's corners. There are no pupils. Two pink blush
+  softened off each pane's corners. There are no pupils. Two coral blush
   blocks sit under each eye, towards the outside, and the mouth is a flat
   bar as wide as an eye, level with the cheeks. The face blends between
   expressions in 150 ms or less and never cuts hard. It moves a block at
@@ -66,7 +66,8 @@ needs-you face, which leans in, is as big as the idle face alone.
   mouth is drawn as small pixel shapes, not curves: the bar at rest, a
   small "u" smile, a small "o" while talking, and a small filled
   cup when it's happy and open. The eyes stay white. A tap and a cheer pop a pixel
-  heart in at the top right of the face. Asleep, a pixel "zzZZ" climbs up
+  heart in at the top right of the face, a stronger coral than the cheeks
+  so the two pinks don't clash. Asleep, a pixel "zzZZ" climbs up
   from the right eye one letter at a time, two small z's then two big Z's,
   clear of the screen's edges even when the bubble shows. Working, Boop strains every
   couple of seconds, and a pixel sweat drop slides down beside the right

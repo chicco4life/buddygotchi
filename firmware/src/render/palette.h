@@ -1,8 +1,8 @@
 // The canvas palette: index → RGB565 (plan/DEVICE.md §6). Every colour on
 // the screen comes from this one table: "Warm Terminal", black glass with
 // oat text and one amber accent, plus the bring-up colours. The face is
-// warm white with pink blush, a rose heart for affection and a sky sweat
-// drop for effort.
+// warm white with coral blush, a stronger coral heart for affection and a
+// soft sky sweat drop for effort.
 //
 // Anti-aliased edges (text, the bubble and the strip) use ramps: 8 steps
 // from black up to an ink colour. The face is pixel art, so it uses only
@@ -28,8 +28,8 @@ constexpr Rgb kOatRgb = {232, 220, 196};   // main text
 constexpr Rgb kAmberRgb = {255, 176, 0};   // the one accent: needs you, the word
 constexpr Rgb kGreyRgb = {140, 132, 121};  // secondary text
 constexpr Rgb kDimRgb = {74, 68, 62};      // faint text, dividers, rings
-constexpr Rgb kRoseRgb = {255, 109, 173};  // the heart
-constexpr Rgb kSkyRgb = {73, 146, 255};    // the sweat drop
+constexpr Rgb kRoseRgb = {255, 92, 110};   // the heart: a stronger cheek coral
+constexpr Rgb kSkyRgb = {120, 176, 235};   // the sweat drop: a soft sky
 constexpr Rgb kBlushRgb = {236, 120, 124};  // the cheeks
 
 // Fixed entries: the bring-up pattern's colours.

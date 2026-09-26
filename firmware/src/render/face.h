@@ -30,7 +30,7 @@ struct Pose {
   int16_t dx = 0, dy = 0;   // whole face offset, in pixels
   int16_t size = 1000;      // whole face scale (a lean in is > 1000)
   int16_t raise = 0;        // 1000: moved up and smaller, to make room for the bubble
-  int16_t heart = 0;        // a rose heart at the top right of the face, popping in with its size
+  int16_t heart = 0;        // a coral heart at the top right of the face, popping in with its size
   int16_t sweat = 0;        // > 0: a sweat drop by the right eye, slid down this far (permille)
   int16_t zzz = 0;          // > 0: asleep's "zzZZ", this far (permille) through its cycle
 };
