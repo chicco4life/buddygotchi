@@ -56,7 +56,7 @@ make tools        # tools/.venv with pyserial and Pillow, for boopctl
 make fw           # build the firmware
 make flash        # build and upload over USB
 make fw-test      # firmware unit tests on the Mac
-make sim          # build the renderer simulator
+make sim          # every device scenario in the simulator, against the goldens
 make e2e          # hook → app → USB → board pipeline check
 make webcam-test  # the webcam recorder's tests, on synthetic video (no camera)
 ```

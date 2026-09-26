@@ -102,8 +102,8 @@ tools/
   voicegen/                builds the voice assets
   fontgen/                 builds the fonts
   webcam/                  existing recorder
-Makefile                   build run test tools fw flash sim fw-test e2e
-                           webcam webcam-test clean
+Makefile                   build run debug test eval tools fw flash sim fw-test
+                           e2e webcam-test clean
 ```
 
 `plan/steering.md` is the single source for steering. The build copies it

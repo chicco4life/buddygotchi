@@ -37,11 +37,11 @@ make build        # Mac app, boop-hook, boopdev
 make test         # Swift unit tests (XCTest shim; there is no Xcode here)
 make eval         # harness eval scenarios (app/Evals/scenarios) in chatty and calm, deterministic
 make eval REAL=1  # the same with the real brains, 3 runs each, plus refusals and latency (L5)
-make tools        # tools/.venv with pyserial and Pillow
+make tools        # tools/.venv with pyserial and Pillow (tools/boopctl makes it when missing)
 make fw           # build firmware for the board
 make flash        # build and upload over USB
 make fw-test      # firmware unit tests on the Mac
-make sim          # the renderer simulator
+make sim          # every device scenario in the simulator, against the goldens
 make e2e          # hook → app → USB → device pipeline check
 make webcam-test  # the webcam recorder's tests, on synthetic video (no camera)
 make run          # the Mac app, with Bluetooth; the owner runs this, not agents

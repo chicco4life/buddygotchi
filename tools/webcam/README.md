@@ -26,7 +26,7 @@ monitoring. Normal tests do not require a camera. The reusable skill is
 2. List cameras, then explicitly choose the laptop camera ID:
 
    ```sh
-   make webcam ARGS='list'
+   tools/webcam/webcam.sh list
    tools/webcam/webcam.sh record --camera CAMERA_ID --seconds 3 --out /tmp/boop-camera-framing
    ```
 

@@ -1,5 +1,5 @@
 # Boop v1. Run from the repo root. See README.md and plan/VERIFICATION.md.
-.PHONY: build sign run debug test eval tools fw flash sim fw-test e2e webcam webcam-test clean
+.PHONY: build sign run debug test eval tools fw flash sim fw-test e2e webcam-test clean
 
 PIO := firmware/tools/pio.sh
 
@@ -35,7 +35,8 @@ run: build
 debug: build
 	app/.build/debug/Boop --debug
 
-# Swift unit tests through the XCTest shim (there's no Xcode here).
+# Swift unit tests through the XCTest shim (there's no Xcode here): one
+# `swift build` of the whole package, as `build` does, then the runner.
 test:
 	python3 app/tools/test.py
 
@@ -46,7 +47,9 @@ test:
 eval: build
 	app/.build/debug/boopdev eval $(if $(REAL),--real)
 
-# tools/.venv with pyserial and Pillow, for boopctl.
+# tools/.venv with pyserial and Pillow, for boopctl. tools/boopctl makes it
+# by itself when it's missing; this also refreshes it after
+# tools/requirements.txt changes.
 tools: tools/.venv/.ok
 
 tools/.venv/.ok: tools/requirements.txt
@@ -67,18 +70,14 @@ flash:
 fw-test:
 	$(PIO) test -e native
 
-# The renderer simulator, boop-sim (runs scenarios via tools/boopctl sim).
+# Every device scenario in the simulator, against the goldens (L1). The
+# PNGs land in /tmp/boop-sim/<scenario>/; tools/boopctl sim NAME runs one.
 sim:
-	$(PIO) run -e native
+	tools/boopctl sim
 
-# Hook → app → USB → device pipeline check (built in J1).
-e2e:
-	$(MAKE) build
+# Hook → app → USB → device pipeline check (L4), on the board over USB.
+e2e: build
 	tools/boopctl e2e
-
-# The opt-in webcam recorder (tools/webcam/README.md): make webcam ARGS='list'.
-webcam:
-	tools/webcam/webcam.sh $(ARGS)
 
 # The recorder's own tests, on synthetic video. They never open a camera.
 webcam-test:
