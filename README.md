@@ -36,7 +36,7 @@ The full picture is in [plan/UX.md](plan/UX.md) and
 | `plan/` | The spec and the contract the code implements. Start with [the index](plan/README.md) and [the vision](plan/VISION.md); [plan/PLAN.md](plan/PLAN.md) has the build order and status |
 | `app/` | Swift package: the `Boop` menu-bar app, the `boop-hook` hook client and the `boopdev` dev CLI |
 | `firmware/` | PlatformIO firmware for the board (`cyd24`) and the simulator and unit tests (`native`) |
-| `tools/` | `boopctl` (device tool), `voicegen` (voice assets), `fontgen`, `webcam/` (opt-in recorder), `build-loop.sh` |
+| `tools/` | `boopctl` (device tool), `voicegen` (voice assets), `fontgen`, `webcam/` (opt-in recorder) |
 | `skills/` | `doctor` (hook self-check) and `webcam-verify` |
 | `landing/` | The landing page |
 | `archived/` | History only; earlier code is at git tag `gen2-final` |

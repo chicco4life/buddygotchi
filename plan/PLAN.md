@@ -1,7 +1,7 @@
 # Boop: plan
 
-Updated 2026-09-26. The build order for v1, the check that closes each
-milestone, how the unattended build runs, the owner's morning checklist,
+Updated 2026-09-27. The build order for v1, the check that closes each
+milestone, how the unattended build ran, the owner's morning checklist,
 the later port to ESP-IDF + LVGL, and the open items (§7). The specs are
 listed in [README.md](README.md); ideas that aren't in v1 are in
 [FUTURE.md](FUTURE.md), so don't build them. [VERIFICATION.md](VERIFICATION.md)
@@ -102,7 +102,6 @@ tools/
   voicegen/                builds the voice assets
   fontgen/                 builds the fonts
   webcam/                  existing recorder
-  build-loop.sh            runs the unattended build (§5)
 Makefile                   build run test tools fw flash sim fw-test e2e
                            webcam webcam-test clean
 ```
@@ -112,8 +111,8 @@ into the app's resources, and a unit test fails if the copies differ.
 
 ## 3. Rules for the build
 
-1. **Branch and commits.** Work on branch `v1-overnight`. M0 creates it and
-   tags the starting commit `gen2-final`. Commit whenever tests pass, and at
+1. **Branch and commits.** The v1 build worked on branch `v1-overnight`
+   (history now). M0 created it and tagged the starting commit `gen2-final`. Commit whenever tests pass, and at
    least every 30 minutes (`WIP F2: face renderer`). Close each milestone with
    `F2: renderer and simulator — <one line>`. Never commit failing tests
    outside a WIP commit.
@@ -688,59 +687,13 @@ own milestone.
 
 ## 5. Running the build
 
-The build runs unattended as a series of short **iterations**, each with a
-fresh context. Each one reads the state from files, does the next piece of
-work, verifies it, commits, and exits. [LOOP.md](LOOP.md) is the prompt for
-one iteration.
-
-**State lives in files, not in any conversation:**
-
-| File | Holds |
-| --- | --- |
-| The status table (§4) | Where each milestone stands |
-| `plan/evidence/v1-build/PROGRESS.md` | A running log: one entry per iteration, ending with the exact next step |
-| `plan/evidence/v1-build/<milestone>/README.md` | Each milestone's evidence |
-| `plan/evidence/v1-build/DONE` | Created at the end, which stops the loop |
-| Git | Everything else, committed at least every 30 minutes |
-
-**How to run it:**
-
-- **Recommended:** `caffeinate -dimsu tools/build-loop.sh` from the repo
-  root. It runs one fresh `claude -p` session at a time, waiting for each
-  to finish before starting the next, in auto permission mode with no
-  permission prompts. A lock stops a second copy from starting. It stops
-  when `DONE` exists.
-  Logs go to `/tmp/boop-build-loop/`.
-- **Alternative:** in an interactive Claude Code session, run
-  `/loop Follow plan/LOOP.md`. It works the same way, but one session
-  accumulates context, and a usage limit can end the loop.
-
-**Usage limits and other interruptions.** Every iteration is safe to cut
-off at any point:
-
-- **Usage limit:** the iteration dies, and `build-loop.sh` waits 15 minutes
-  and tries again, for up to 8 hours. The next iteration finds any
-  uncommitted work, checks it, and carries on. With a 5-hour window that
-  resets partway through the night, the build simply pauses and resumes.
-- **A crash, a hang, or a reboot of the board:** the same. The next iteration
-  reads `PROGRESS.md`, kills leftover bridges or headless apps, and
-  continues.
-- **No progress:** if three iterations in a row end without a new commit,
-  `build-loop.sh` stops rather than burning usage.
-- **Permission denials:** auto mode may refuse some actions, and nothing
-  prompts. The iteration should find another way (for example, `git rm`
-  rather than `rm -rf`) and note it in `PROGRESS.md`.
-
-**Before starting (owner):**
-
-1. Plug the Mac into power, and keep the lid open.
-2. Make sure the old Boop app isn't running, so nothing else talks to the
-   board.
-3. Put the board facing the MacBook camera: the whole screen visible, about
-   30–40 cm away, with even light and no glare.
-4. Grant camera access once, and check the framing:
-   `tools/webcam/webcam.sh record --camera 6C707041-05AC-0010-000D-000000000001 --seconds 3 --out /tmp/boop-framing`.
-5. From the repo root, run `caffeinate -dimsu tools/build-loop.sh`.
+The v1 build ran unattended on 2026-09-26, on branch `v1-overnight`, as a
+series of short iterations, each with a fresh context, until it wrote
+`plan/evidence/v1-build/DONE`. Its log is
+[PROGRESS.md](evidence/v1-build/PROGRESS.md) and its summary
+[REPORT.md](evidence/v1-build/REPORT.md). The loop script and its prompt
+are in git history (`git show bbab5ac:tools/build-loop.sh`,
+`git show bbab5ac:plan/LOOP.md`).
 
 ## 6. Morning checklist (owner)
 

@@ -1,6 +1,6 @@
 # Boop: verification
 
-Updated 2026-09-26. How we check that Boop works, especially what's on its
+Updated 2026-09-27. How we check that Boop works, especially what's on its
 screen, without a person watching. [PLAN.md](PLAN.md) says which checks
 each milestone must pass. It builds on the previous generation's
 `buddyctl.py` (USB commands, screenshots, golden images) and the opt-in
@@ -357,9 +357,9 @@ morning checklist in [PLAN.md](PLAN.md).
 
 The webcam stays opt-in ([CLAUDE.md](../CLAUDE.md)). A run may use it only
 when its prompt authorises it and the owner has positioned the board. The
-authorisation covers that run only. [LOOP.md](LOOP.md) authorised it for
-the v1 build until the owner withdrew that on 2026-09-26, so the webcam is
-off for the rest of that run.
+authorisation covers that run only. The v1 build was authorised to use it
+until the owner withdrew that on 2026-09-26
+([PROGRESS.md](evidence/v1-build/PROGRESS.md)).
 
 - Clips are bounded: at most 10 s each, video only, no audio.
 - Raw recordings stay in `/tmp` and are deleted at the end of the run. Only
@@ -372,5 +372,5 @@ off for the rest of that run.
 Each milestone writes `plan/evidence/v1-build/<milestone>/README.md`: what ran,
 the result, anything accepted or changed and why, plus a few small PNGs
 (simulator, device screenshot, webcam crop). Logs and raw video stay in
-`/tmp`. A build run also keeps a running log and ends with a report
+`/tmp`. The v1 build also kept a running log and ended with a report
 ([PLAN.md](PLAN.md) §5).

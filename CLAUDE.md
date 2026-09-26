@@ -19,7 +19,7 @@ cheap ESP32 board with a screen is the body. Start with
 | `plan/` | The spec. It's the contract the code implements. [plan/PLAN.md](plan/PLAN.md) has the build order and status, and [plan/VERIFICATION.md](plan/VERIFICATION.md) has how everything is checked. Evidence goes in `plan/evidence/` |
 | `app/` | Swift package: the Mac menu-bar app, the `boop-hook` hook client, and the `boopdev` dev CLI |
 | `firmware/` | PlatformIO firmware for the MicroTech MTR024QV01A board ([plan/DEVICE.md](plan/DEVICE.md)) |
-| `tools/` | `boopctl` (device tool), `voicegen` (voice assets), `fontgen` (the device's fonts), `webcam/` (opt-in recorder), `build-loop.sh` (the unattended build) |
+| `tools/` | `boopctl` (device tool), `voicegen` (voice assets), `fontgen` (the device's fonts), `webcam/` (opt-in recorder) |
 | `skills/` | `doctor` (hook self-check) and `webcam-verify`, symlinked for Claude, Codex and Cursor |
 | `archived/` | History only: research, docs and the gen-2 specs (`archived/plan-gen2`). All earlier code is kept at git tag `gen2-final` (`git show gen2-final:<path>`). Don't extend it |
 | `landing/` | The Next.js landing page (Vercel project root) |
@@ -70,15 +70,6 @@ app/.build/debug/Boop --snapshots DIR   # the Mac app's popover and icons as PNG
 - `make build` re-signs `Boop` with the owner's self-signed "Boop Dev"
   certificate when it exists, so the Keychain doesn't ask for the Jev key
   after every rebuild ([plan/VERIFICATION.md](plan/VERIFICATION.md) §2).
-
-## Running the v1 build
-
-"Run the loop" or "start the build" means: from this checkout's root, start
-`caffeinate -dimsu tools/build-loop.sh` as a background command and report
-where its log is (`/tmp/boop-build-loop/loop.log`). The script runs
-[plan/LOOP.md](plan/LOOP.md) one fresh iteration at a time until
-`plan/evidence/v1-build/DONE` exists ([plan/PLAN.md](plan/PLAN.md) §5).
-Don't run the iterations yourself in this session.
 
 ## Never do these
 
@@ -203,9 +194,9 @@ checks that actually ran and passed. A milestone's evidence goes in
 
 Webcam verification is opt-in. Use the `webcam-verify` skill
 (`skills/webcam-verify/SKILL.md`) only when the owner asks for it and
-confirms the physical setup for that session. The v1 build loop was
+confirms the physical setup for that session. The v1 build was
 authorised to use it until the owner withdrew that on 2026-09-26
-([plan/LOOP.md](plan/LOOP.md)). Clips are bounded, video only, and raw
+(`plan/evidence/v1-build/PROGRESS.md`). Clips are bounded, video only, and raw
 footage stays local.
 
 ## Self-diagnosis
