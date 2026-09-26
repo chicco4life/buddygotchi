@@ -725,6 +725,31 @@ static void test_every_anim_has_a_name_and_ends() {
   TEST_ASSERT_EQUAL_UINT32(30000, animDuration(Anim::kListening));  // the hold cap
 }
 
+static void test_squiggles_make_room_for_the_word() {
+  // The mumble's word is never cut while squiggles keep their room (UX.md
+  // §2): with six syllables around it, "refactoring" shows whole, as it
+  // does alone; only a word too long for the bubble by itself ends "..".
+  auto amber = [](const Mumble& m) {
+    Buf b;
+    drawFaceScreen(b.c, Pose{}, &m, Strip{});
+    int n = 0;
+    for (int y = kBubbleTop; y < kStripTop; ++y) {
+      for (int x = 0; x < kWidth; ++x) n += b.c.get(x, y) == inkAt(kInkAmber, kLevels);
+    }
+    return n;
+  };
+  Mumble many, alone, longest;
+  many.syllables = 6, many.at = 3, many.word = "refactoring";
+  alone.syllables = 0, alone.at = 0, alone.word = "refactoring";
+  TEST_ASSERT_EQUAL_INT(amber(alone), amber(many));
+  longest.syllables = 2, longest.at = 1, longest.word = "a-very-long-mumbled-word";
+  Buf b;
+  drawFaceScreen(b.c, Pose{}, &longest, Strip{});
+  for (int y = kBubbleTop; y < kStripTop; ++y) {  // cut, but inside the margins
+    for (int x : {0, 11, kWidth - 12, kWidth - 1}) TEST_ASSERT_EQUAL_INT(kBlack, b.c.get(x, y));
+  }
+}
+
 static void test_fonts_are_monospaced_and_utf8_aware() {
   TEST_ASSERT_EQUAL_INT(3 * kSmall.w, stringWidth(kSmall, "abc"));
   TEST_ASSERT_EQUAL_INT(3 * kLarge.w, stringWidth(kLarge, "a\xC2\xB7" "b"));  // "·" is one glyph
@@ -765,6 +790,7 @@ int main(int, char**) {
   RUN_TEST(test_listening_bobs_the_whole_face_a_block);
   RUN_TEST(test_blend_is_eased_interruptible_and_150ms);
   RUN_TEST(test_every_anim_has_a_name_and_ends);
+  RUN_TEST(test_squiggles_make_room_for_the_word);
   RUN_TEST(test_fonts_are_monospaced_and_utf8_aware);
   return UNITY_END();
 }

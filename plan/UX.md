@@ -72,7 +72,9 @@ needs-you face, which leans in, is as big as the idle face alone.
   couple of seconds, and a pixel sweat drop slides down beside the right
   eye; it goes when a heart takes its place ([BEHAVIORS.md](BEHAVIORS.md) §2).
 - **Bubble.** Empty most of the time. It shows either a mumble's one real
-  word, or who needs you.
+  word among squiggles for the gibberish, or who needs you. The squiggles
+  make room for the word, so it's cut (ending "..") only when it's too
+  long for the bubble on its own.
 - **Status strip.** How many sessions need you (amber, hidden at zero) and
   how many are working (grey), plus icons at the right for quiet and no
   app.
