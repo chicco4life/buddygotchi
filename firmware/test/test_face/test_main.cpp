@@ -760,6 +760,17 @@ static void test_fonts_are_monospaced_and_utf8_aware() {
   Buf fit;
   int w = drawStringFit(fit.c, kSmall, 0, 0, "a-very-long-project-name", kInkText, 10 * kSmall.w);
   TEST_ASSERT_TRUE(w <= 10 * kSmall.w);
+  // Accented letters show plain (UX.md §2), anything else outside the font
+  // as one "?" per character.
+  Buf accented, plain, other, marks;
+  TEST_ASSERT_EQUAL_INT(4 * kSmall.w, stringWidth(kSmall, "caf\xC3\xA9"));
+  drawString(accented.c, kSmall, 0, 0, "caf\xC3\xA9 \xC3\x9C" "ber", kInkText);
+  drawString(plain.c, kSmall, 0, 0, "cafe Uber", kInkText);
+  TEST_ASSERT_TRUE(accented.px == plain.px);
+  TEST_ASSERT_EQUAL_INT(2 * kSmall.w, stringWidth(kSmall, "\xED\x94\x84\xEB\xA1\x9C"));  // two Hangul syllables
+  drawString(other.c, kSmall, 0, 0, "\xED\x94\x84\xEB\xA1\x9C", kInkText);
+  drawString(marks.c, kSmall, 0, 0, "??", kInkText);
+  TEST_ASSERT_TRUE(other.px == marks.px);
 }
 
 int main(int, char**) {

@@ -1,6 +1,8 @@
 // The two anti-aliased fonts (plan/PLAN.md F2): Geist Mono, generated into
 // firmware/assets/fonts.h by tools/fontgen. Monospaced, printable ASCII plus
-// "·" (UTF-8 C2 B7). Text is drawn over black with an ink ramp.
+// "·" (UTF-8 C2 B7). Accented Latin letters (U+00C0 to U+00FF) show as their
+// plain letter and anything else as "?". Text is drawn over black with an
+// ink ramp.
 #pragma once
 #include <cstdint>
 
