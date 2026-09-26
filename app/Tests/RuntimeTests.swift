@@ -229,6 +229,47 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(mumble.hasPrefix(#"{"t":"moment","say":"#), "a mumble has no anim: \(mumble)")
     }
 
+    /// ARCHITECTURE.md §3.2: the brain's moments play one at a time, each
+    /// after whatever is playing, so none cuts off a rule moment or another
+    /// of the brain's; a newer rule moment pushes them back; one that waited
+    /// past its ttl is dropped.
+    func testBrainMomentsTakeTurns() {
+        let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
+        let mumble = DeviceMoment(say: line)  // 1920 ms
+        var schedule = MomentSchedule()
+        schedule.rule(DeviceMoment(anim: "cheer"), now: 0)
+        schedule.brain(mumble, now: 100)
+        schedule.brain(mumble, now: 200)
+        var due = schedule.due(now: 500)
+        XCTAssertNil(due.play, "the cheer is still playing")
+        XCTAssertEqual(due.next, 2000)
+        due = schedule.due(now: 2000)
+        XCTAssertEqual(due.play, mumble, "the first, once the cheer is over")
+        XCTAssertEqual(due.next, 3920, "the second waits for the first")
+        XCTAssertNil(schedule.due(now: 3000).play)
+        due = schedule.due(now: 3920)
+        XCTAssertEqual(due.play, mumble, "then the second")
+        XCTAssertNil(due.next, "nothing left")
+
+        var pushed = MomentSchedule()
+        pushed.rule(DeviceMoment(anim: "cheer"), now: 0)
+        pushed.brain(mumble, now: 1000)
+        pushed.rule(DeviceMoment(anim: "cheer"), now: 1500)  // a new finish
+        XCTAssertNil(pushed.due(now: 2000).play, "pushed back by the rules")
+        XCTAssertEqual(pushed.due(now: 2000).next, 3500)
+        XCTAssertEqual(pushed.due(now: 3500).play, mumble)
+
+        var late = MomentSchedule()
+        late.rule(DeviceMoment(anim: "cheer"), now: 0)
+        late.brain(mumble, now: 0)
+        late.rule(DeviceMoment(anim: "cheer"), now: 1900)
+        late.rule(DeviceMoment(anim: "cheer"), now: 3800)
+        due = late.due(now: 5800)
+        XCTAssertNil(due.play)
+        XCTAssertEqual(due.dropped, [mumble], "5.8 s is past its 5 s ttl")
+        XCTAssertNil(due.next)
+    }
+
     /// ARCHITECTURE.md §3: the app knows how long each rule moment plays on
     /// the device. The numbers are firmware/src/app/behaviour.cpp's
     /// `onMoment` and `play`, and firmware/src/render/anim.cpp's

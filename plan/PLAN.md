@@ -170,9 +170,9 @@ later cut part of it, so the current behaviour is in the specs, not here.
 | F6 | Landscape and cuter eyes | In progress: code, L0, L1 and L2 pass. The board runs the landscape build, its 83 screenshots in 11 scenarios match the simulator pixel for pixel, and `perf --motion` gives at least 49 fps (50 over 30 s, 49 over 60 s) with 72.7 KB free. Only the owner's look (orientation and liking the face) and touch calibration remain (morning checklist rows 2–3). [Evidence](evidence/v1-build/F6/README.md) Follow-up (gen-2's look: smaller lavender eyes, "^" arches, a heart on a tap, "zzZZ" asleep, effort and a sweat drop working, an open-eyed no-app face): L0 91/91, L1 83 goldens re-accepted, flashed; board screenshots of asleep, a tap and working look right, `perf --motion` minimum 41 fps over 60 s. Not yet run: a full L2 `boopctl run` (the Mac app was connected over Bluetooth). [Evidence](evidence/2026-09-26-gen2-look/README.md) |
 | A5 | Mac app look and flow | In progress: code, L0 and the app's snapshot check pass (light and dark). Only the owner's look in the real menu bar remains (morning checklist rows 5 and 7). [Evidence](evidence/v1-build/A5/README.md) |
 | A6 | Brain conversation | Superseded by A7 (2026-09-26): the conversation became the transcript's window, the `say` limit went with every timing limit, and `note` is offered only for what you say. Its L5 findings are the [evidence](evidence/2026-09-26-brain-conversation/README.md) |
-| A7 | Two-stage brain | In progress: the pipeline is built. L0 (191 Swift tests, 100 firmware) and L5 pass: both classifiers with Apple's model answer all 50 fixture inputs on the menu, fill every slot, and stay inside their deadlines ([evidence](evidence/2026-09-26-two-stage-brain/README.md)). Remaining: L2 and L4 on the board for the removals (the everyday app held it over Bluetooth, [evidence](evidence/2026-09-26-removals/README.md)), and the owner picking each classifier in Settings and talking to Boop. The Jev experiment before it: [evidence](evidence/2026-09-26-jev-brain/README.md) |
+| A7 | Two-stage brain | In progress: the pipeline is built. L0 (191 Swift tests, 100 firmware) and L5 pass: both classifiers with Apple's model answer all 50 fixture inputs on the menu, fill every slot, and stay inside their deadlines ([evidence](evidence/2026-09-26-two-stage-brain/README.md)). L2 and L4 on the board passed on 2026-09-26 ([evidence](evidence/2026-09-26-e2e-hardening/README.md)). Remaining: the owner picking each classifier in Settings and talking to Boop. The Jev experiment before it: [evidence](evidence/2026-09-26-jev-brain/README.md) |
 | A8 | Hero moments: failing tests fail a turn, sad when yelled at or told off, quiet only when asked, annoyed at a poke streak | In progress: code, L0 (210 Swift, 101 firmware), the eval suite (8 scenarios, three of them new), L1 (12 scenarios, including the new `poke`) and L5 with the rules classifier and Apple's writer pass, and the board firmware builds. L2 (`boopctl run poke`, not flashed yet) and the owner's checks (morning checklist rows 11, 13, 19 and 20) remain. [Evidence](evidence/2026-09-26-hero-moments/README.md) |
-| C1 | Cut to the minimal surface | In progress: two cuts, to 4 states and 3 animations; specs, code, L0 and L1 pass, merged with A7's two-stage brain and the evals (the brain's `react` keeps its feelings but shows no face). Follow-up: the pixel face, with boxy eyes in every expression. Not yet flashed or checked on the board. [Evidence](evidence/2026-09-26-minimal-cut/README.md) |
+| C1 | Cut to the minimal surface | In progress: two cuts, to 4 states and 3 animations; specs, code, L0 and L1 pass, merged with A7's two-stage brain and the evals (the brain's `react` keeps its feelings but shows no face). Follow-up: the pixel face, with boxy eyes in every expression. [Evidence](evidence/2026-09-26-minimal-cut/README.md). Flashed and checked on the board on 2026-09-26: L2 (10 scenarios pixel-identical to the simulator), `perf --motion` at least 129 fps, L4 and the webcam; that run's fixes are in the [end-to-end hardening evidence](evidence/2026-09-26-e2e-hardening/README.md) |
 | P1 | Port to ESP-IDF + LVGL (later, gated) | Not started |
 
 ### M0: Setup
@@ -726,6 +726,7 @@ off at any point:
 | 18 | When an 8 Ω speaker is on the speaker header: `tools/boopctl mumble` | Bouncy gibberish for each feeling, with the real word landing clearly; no pops when the amp switches |
 | 19 | Hold BOOT and snap "shut up". Then hold it again and yell anything | A hurt face and a small sad mumble each time, and no quiet icon. If your normal voice counts as yelling, or a real yell doesn't, the yelling threshold ([BEHAVIORS.md](BEHAVIORS.md) §3.3) needs tuning |
 | 20 | Tap the face four times quickly, then keep tapping for a few seconds | Wiggles, then a side-eye at you on the fourth and an annoyed grumble; taps during the side-eye don't wiggle. With the Mac app quit, `tools/boopctl run poke` checks the same on the board (L2) |
+| 21 | With Boop connected over Bluetooth, have an approval arrive while a turn finishes (two sessions); separately, press BOOT again within a second of letting go and speak | The screen always matches the popover, with no half-drawn or stuck state. The second press is heard ([evidence](evidence/2026-09-26-e2e-hardening/README.md)) |
 
 Anything that's off becomes the next items in this plan (§7).
 
@@ -738,14 +739,23 @@ matching spec first.
 - **Release.** Signing, notarisation, an app icon and a release pipeline
   don't exist for v1 yet. The gen-2 list is in
   [archived/docs/TODO-gen2.md](../archived/docs/TODO-gen2.md).
-- **The pixel face's frame rate on the board.** The gen-2 look gave a
-  41 fps minimum against F6's bar of 44
-  ([evidence](evidence/2026-09-26-gen2-look/README.md)). The pixel face
-  (C1 follow-up) draws whole blocks with no anti-aliasing and should be
-  cheaper, but `perf --seconds 30 --motion` hasn't been run on it yet.
-- **The gen-2 look's full L2 run.** `tools/boopctl run` for every scenario
-  on the board waits for a time the Mac app can be quit
-  ([evidence](evidence/2026-09-26-gen2-look/README.md)).
+- **Shear during fast moves.** The webcam shows the face sheared
+  diagonally while it moves quickly. It may be the panel (no tear-effect
+  sync, and in landscape its scan runs across the rows the firmware
+  writes) or the camera's rolling shutter. If the owner sees it, try SPI at
+  80 MHz or pushing in the panel's row order
+  ([evidence](evidence/2026-09-26-e2e-hardening/README.md)).
+- **Bluetooth flow control and push-to-talk twice in a row are unchecked
+  on hardware.** Both were fixed from a code audit and need the owner:
+  a burst over Bluetooth (a finish while something needs you) should never
+  garble the device, and pressing BOOT again within a second of letting go
+  should still hear you ([evidence](evidence/2026-09-26-e2e-hardening/README.md)).
+- **Timers use the wall clock.** A clock step backwards (a manual change)
+  delays the keepalive, the mic's 30 s limit and waiting inputs by that
+  much; durations should use a monotonic clock that counts sleep.
+- **The adapter reads `.git` on every hook** to name a worktree's project;
+  a working directory on a stalled network volume would stall the app.
+  Cache the name per folder. `Runtime.projects` is also never pruned.
 - **Bluetooth reconnect is only partly checked on hardware.** On
   2026-09-26 the owner's `make run` reconnected about 1 s after a reflash
   and 1.5 s after the app was quit and relaunched ([PROTOCOL.md](PROTOCOL.md)

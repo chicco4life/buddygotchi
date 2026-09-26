@@ -5,6 +5,11 @@ Every complete line from the board goes to every client; every complete line
 from a client goes to the board whole, so lines from different clients never
 interleave. The Mac app's USB transport and other boopctl commands can use
 the board at the same time.
+
+The bridge never waits on a client: each has its own outgoing buffer, sent
+as the client reads, and one that falls MAX_BEHIND bytes behind (it stopped
+reading) is dropped. Otherwise a paused `boopctl` would stall the board's
+lines to everyone and, once the app's socket filled, the app itself.
 """
 from __future__ import annotations
 
@@ -18,6 +23,7 @@ import sys
 from boopctl_lib.device import Device
 
 DEFAULT_SOCKET = "/tmp/boop-bridge.sock"
+MAX_BEHIND = 4 * 1024 * 1024  # about 40 screenshots
 
 
 def bridge_path() -> str:
@@ -51,7 +57,8 @@ def serve(port: str | None, path: str, quiet: bool = False) -> int:
         server.bind(path)
         os.chmod(path, 0o600)
         server.listen(8)
-        clients: dict[socket.socket, bytearray] = {}
+        clients: dict[socket.socket, bytearray] = {}  # what each client has sent, up to its newline
+        outgoing: dict[socket.socket, bytearray] = {}  # what each client hasn't read yet
         board = bytearray()
         stopping = False
 
@@ -64,15 +71,35 @@ def serve(port: str | None, path: str, quiet: bool = False) -> int:
         if not quiet:
             print(f"bridge: {dev.port} ⇄ {path}", flush=True)
         try:
+            def drop(conn: socket.socket, why: str) -> None:
+                clients.pop(conn, None)
+                outgoing.pop(conn, None)
+                conn.close()
+                if not quiet:
+                    print(f"bridge: client {why} ({len(clients)})", flush=True)
+
             while not stopping:
+                waiting = [c for c, out in outgoing.items() if out]
                 try:
-                    readable, _, _ = select.select([ser.fileno(), server, *clients], [], [], 0.2)
+                    readable, writable, _ = select.select([ser.fileno(), server, *clients], waiting, [], 0.2)
                 except InterruptedError:
                     continue
+                for w in writable:
+                    out = outgoing.get(w)
+                    if not out:
+                        continue
+                    try:
+                        del out[: w.send(out)]
+                    except BlockingIOError:
+                        pass
+                    except OSError:
+                        drop(w, "left")
                 for r in readable:
                     if r is server:
                         conn, _ = server.accept()
+                        conn.setblocking(False)
                         clients[conn] = bytearray()
+                        outgoing[conn] = bytearray()
                         if not quiet:
                             print(f"bridge: client joined ({len(clients)})", flush=True)
                     elif r == ser.fileno():
@@ -81,22 +108,19 @@ def serve(port: str | None, path: str, quiet: bool = False) -> int:
                             line = bytes(board[: nl + 1])
                             del board[: nl + 1]
                             for c in list(clients):
-                                try:
-                                    c.sendall(line)
-                                except OSError:
-                                    clients.pop(c).clear()
-                                    c.close()
-                    else:
+                                outgoing[c].extend(line)
+                                if len(outgoing[c]) > MAX_BEHIND:
+                                    drop(c, "stopped reading, dropped")
+                    elif r in clients:
                         conn = r
                         try:
                             data = conn.recv(65536)
+                        except BlockingIOError:
+                            continue
                         except OSError:
                             data = b""
                         if not data:
-                            clients.pop(conn, None)
-                            conn.close()
-                            if not quiet:
-                                print(f"bridge: client left ({len(clients)})", flush=True)
+                            drop(conn, "left")
                             continue
                         buf = clients[conn]
                         buf.extend(data)

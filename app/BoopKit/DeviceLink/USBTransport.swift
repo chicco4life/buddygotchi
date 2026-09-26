@@ -6,7 +6,13 @@ import HookWire
 /// (VERIFICATION.md §2, L4). The bridge owns the serial port and passes lines
 /// both ways, so the app never opens the port itself. Reconnects every
 /// second while the bridge is away.
+///
+/// `send` runs on the caller's queue (the runtime's `home`), so a write
+/// never waits more than `sendTimeoutMs`, and a dropped link waits a second
+/// before connecting again: a bridge that stops reading costs at most one
+/// timed-out write a second, not a frozen app.
 public final class USBTransport: DeviceTransport, @unchecked Sendable {
+    public static let sendTimeoutMs = 250
     public let path: String
     public var name: String { "usb:" + path }
     let lock = NSLock()
@@ -35,6 +41,7 @@ public final class USBTransport: DeviceTransport, @unchecked Sendable {
             let ok = data.withUnsafeBytes { raw -> Bool in
                 var offset = 0
                 while offset < raw.count {
+                    // Each write waits at most sendTimeoutMs (SO_SNDTIMEO).
                     let n = write(fd, raw.baseAddress! + offset, raw.count - offset)
                     if n <= 0 { return false }
                     offset += n
@@ -81,6 +88,7 @@ public final class USBTransport: DeviceTransport, @unchecked Sendable {
                 fd = -1
             }
             onConnection(false)
+            usleep(1_000_000)
         }
     }
 
@@ -90,6 +98,8 @@ public final class USBTransport: DeviceTransport, @unchecked Sendable {
         guard socket >= 0 else { return nil }
         var on: Int32 = 1
         setsockopt(socket, SOL_SOCKET, SO_NOSIGPIPE, &on, socklen_t(MemoryLayout<Int32>.size))
+        var limit = timeval(tv_sec: 0, tv_usec: Int32(Self.sendTimeoutMs * 1000))
+        setsockopt(socket, SOL_SOCKET, SO_SNDTIMEO, &limit, socklen_t(MemoryLayout<timeval>.size))
         let ok = withUnsafePointer(to: &address) {
             $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
                 connect(socket, $0, socklen_t(MemoryLayout<sockaddr_un>.size))

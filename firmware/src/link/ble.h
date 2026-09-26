@@ -22,8 +22,8 @@ class Ble : public app::Out {
   // Releases Classic Bluetooth's memory and starts advertising. Call after
   // the canvas is allocated.
   bool begin();
-  // From the main loop: connection changes and whole received lines go to
-  // the device core. Returns true if it handled a line.
+  // From the main loop: connection changes and one whole received line go
+  // to the device core. Returns true if it handled a line.
   bool poll(app::Device& device);
 
   // Replies and device → Mac messages, sent as notifications.

@@ -27,6 +27,9 @@ app::Device* device = nullptr;
 uint32_t frames = 0;
 uint32_t fpsSince = 0;
 
+// Lines are handled for at most this long before the next frame is drawn.
+constexpr uint32_t kLinesUs = 8000;
+
 }  // namespace
 
 void setup() {
@@ -57,16 +60,22 @@ void setup() {
 }
 
 void loop() {
-  // One message per tick, so a reply always reflects every earlier message.
-  bool busy = false;
-  while (Serial.available() > 0) {
-    if (usbLine.feed(char(Serial.read()))) {
-      device->handleLine(usbLine.line(), usbLine.length(), app::Link::kUsb);
-      busy = true;
+  // Every line waiting, then one frame. Drawing between lines (up to 31 ms a
+  // frame) let a burst overflow the 2 KB receive buffers and lose lines. A
+  // debug message ends the batch, since tests order it against ticks; each
+  // reply still reflects every message before it.
+  bool busy = false, debug = false;
+  const uint32_t start = micros();
+  for (bool more = true; more && !debug && micros() - start < kLinesUs;) {
+    more = false;
+    while (Serial.available() > 0) {
+      if (!usbLine.feed(char(Serial.read()))) continue;
+      debug = device->handleLine(usbLine.line(), usbLine.length(), app::Link::kUsb);
+      busy = more = true;
       break;
     }
+    if (!debug && ble.poll(*device)) busy = more = true;
   }
-  if (ble.poll(*device)) busy = true;  // one line per link per tick
   hal.setBle(ble.state(), ble.name(), ble.id());
   uint32_t t0 = micros();
   device->tick();

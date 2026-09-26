@@ -8,7 +8,9 @@ import Foundation
 /// `(definition, handler)` pairs at startup.
 ///
 /// One pass runs at a time. A newer input replaces one that's waiting, and
-/// `you said` cancels whatever is running. Everything except the two brain
+/// `you said` cancels whatever is running. A new day waits apart and is never
+/// replaced: it comes once a day, and a reflection cut off by you talking runs
+/// again after the reply. Everything except the two brain
 /// calls runs on `home`, the queue the memory store and the actions live on.
 public final class Harness: @unchecked Sendable {
     /// An output as the harness sees it: its definition, and who carries out a call.
@@ -118,6 +120,8 @@ public final class Harness: @unchecked Sendable {
     // Scheduling, touched only on `home`.
     var running: (id: Int, pass: Pass, task: Task<Void, Never>)?
     var waiting: Input?
+    /// A new day's reflection, waiting apart from `waiting`.
+    var waitingDay: Input?
     var nextID = 0
 
     /// Time kept back from Stage 2 so its answer can still be handed off.
@@ -153,6 +157,11 @@ public final class Harness: @unchecked Sendable {
                                     window: running.pass.window)
                 record.dropped = "cancelled by you talking"
                 finish(record)
+                // Nothing of a cancelled pass has run, so a reflection can run again.
+                if running.pass.input.kind == .newDay { waitingDay = running.pass.input }
+            } else if input.kind == .newDay {
+                waitingDay = input
+                return
             } else {
                 if let old = waiting { log("harness: \(old.kind.rawValue) replaced by a newer \(input.kind.rawValue)") }
                 waiting = input
@@ -166,7 +175,7 @@ public final class Harness: @unchecked Sendable {
     /// something needing you. Call on `home`.
     public func note(_ aside: String, at ts: Int64) {
         dispatchPrecondition(condition: .onQueue(home))
-        transcript.append(.aside(aside, ts: ts))
+        guard transcript.note(aside, at: ts) else { return }
         if let debugLog {
             let data = (try? JSONSerialization.data(withJSONObject: ["aside": aside, "ts": ts], options: [.sortedKeys])) ?? Data()
             Harness.append(String(decoding: data, as: UTF8.self) + "\n", to: debugLog)
@@ -176,7 +185,7 @@ public final class Harness: @unchecked Sendable {
     /// Nothing running and nothing waiting.
     public var idle: Bool {
         dispatchPrecondition(condition: .onQueue(home))
-        return running == nil && waiting == nil
+        return running == nil && waiting == nil && waitingDay == nil
     }
 
     func start(_ input: Input) {
@@ -195,6 +204,9 @@ public final class Harness: @unchecked Sendable {
                 if let next = waiting {
                     waiting = nil
                     start(next)
+                } else if let day = waitingDay {
+                    waitingDay = nil
+                    start(day)
                 }
             }
         }

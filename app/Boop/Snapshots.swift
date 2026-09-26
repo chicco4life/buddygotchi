@@ -68,6 +68,7 @@ enum Snapshots {
     static func model(_ installer: HookInstaller, status: Runtime.Status?) -> AppModel {
         let model = AppModel(installer: installer, link: .bluetooth)
         model.status = status
+        model.readKey = { nil }  // fixtures only: never the real Keychain
         return model
     }
 

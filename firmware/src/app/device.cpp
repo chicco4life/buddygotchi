@@ -80,13 +80,13 @@ void Device::input(const char* k, uint32_t t, int x, int y) {
   dirty_ = true;
 }
 
-void Device::handleLine(const char* line, size_t n, Link from) {
+bool Device::handleLine(const char* line, size_t n, Link from) {
   JsonDocument doc;
-  if (deserializeJson(doc, line, n) != DeserializationError::Ok) return;
+  if (deserializeJson(doc, line, n) != DeserializationError::Ok) return false;
   const char* t = doc["t"];
-  if (!t) return;
+  if (!t) return false;
   bool debug = std::strncmp(t, "dbg.", 4) == 0;
-  if (debug && from != Link::kUsb) return;  // the debug channel is USB only
+  if (debug && from != Link::kUsb) return false;  // the debug channel is USB only
   uint32_t real = hal_.realMs();
   // USB's "connect": the Mac's first word, or its first after a silence.
   bool hello = !debug && from == Link::kUsb &&
@@ -229,6 +229,7 @@ void Device::handleLine(const char* line, size_t n, Link from) {
     reply(from, "{\"t\":\"dbg.light\"}", 17);
   }
   if (hello) sendStatus(from);
+  return debug;
 }
 
 void Device::connected(Link link) {

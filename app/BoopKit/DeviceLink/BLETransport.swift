@@ -19,7 +19,10 @@ public final class BLETransport: NSObject, DeviceTransport, @unchecked Sendable 
     /// given up and tried again (PROTOCOL.md §2).
     public static let connectTimeout: TimeInterval = 10
 
-    public var name: String { "ble" + (peripheral?.name.map { ":" + $0 } ?? "") }
+    /// Read from any thread, so it's kept apart from `peripheral`.
+    public var name: String { nameLock.withLock { linkName } }
+    let nameLock = NSLock()
+    var linkName = "ble"
 
     let log: @Sendable (String) -> Void
     // Touched only on `queue`, which is also CoreBluetooth's delegate queue.
@@ -32,6 +35,8 @@ public final class BLETransport: NSObject, DeviceTransport, @unchecked Sendable 
     /// Subscribed to TX, so lines flow both ways.
     var up = false
     var framer = LineFramer()
+    /// Lines waiting for CoreBluetooth to take them.
+    var outbox = BLEOutbox()
     var onLine: (@Sendable (String) -> Void)?
     var onConnection: (@Sendable (Bool) -> Void)?
     var running = false
@@ -53,13 +58,22 @@ public final class BLETransport: NSObject, DeviceTransport, @unchecked Sendable 
         }
     }
 
+    /// Writes without response are dropped once CoreBluetooth's queue is
+    /// full, which would splice lines on the device, so each piece waits
+    /// until `canSendWriteWithoutResponse`, and `peripheralIsReady` sends
+    /// the rest.
     public func send(_ line: String) {
         queue.async { [self] in
-            guard up, let peripheral, let rxCharacteristic, peripheral.state == .connected else { return }
-            let size = peripheral.maximumWriteValueLength(for: .withoutResponse)
-            for chunk in LineFramer.chunks(line, size: size) {
-                peripheral.writeValue(chunk, for: rxCharacteristic, type: .withoutResponse)
-            }
+            guard up, let peripheral, rxCharacteristic != nil, peripheral.state == .connected else { return }
+            outbox.add(line, size: peripheral.maximumWriteValueLength(for: .withoutResponse))
+            drain()
+        }
+    }
+
+    func drain() {
+        guard up, let peripheral, let rxCharacteristic else { return }
+        while peripheral.canSendWriteWithoutResponse, let chunk = outbox.next() {
+            peripheral.writeValue(chunk, for: rxCharacteristic, type: .withoutResponse)
         }
     }
 
@@ -100,6 +114,7 @@ public final class BLETransport: NSObject, DeviceTransport, @unchecked Sendable 
     func connect(_ device: CBPeripheral) {
         central?.stopScan()
         peripheral = device
+        nameLock.withLock { linkName = "ble" + (device.name.map { ":" + $0 } ?? "") }
         device.delegate = self
         central?.connect(device, options: nil)
         attempt += 1
@@ -128,11 +143,53 @@ extension BLETransport {
     func forget() {
         let wasUp = up
         peripheral = nil
+        nameLock.withLock { linkName = "ble" }
         rxCharacteristic = nil
         up = false
         framer = LineFramer()
+        outbox = BLEOutbox()
         attempt += 1
         if wasUp { onConnection?(false) }
+    }
+}
+
+/// What waits to go out over Bluetooth, as whole lines cut into write-sized
+/// pieces. A line that has started goes out whole. A newer `state` takes
+/// the place of one still waiting, since only the latest matters, and past
+/// `limit` bytes the oldest lines that haven't started are dropped: the next
+/// `state` catches the device up (PROTOCOL.md §2).
+struct BLEOutbox {
+    static let limit = 4096
+    private var lines: [(state: Bool, chunks: [Data])] = []
+    /// Pieces of the first line already written.
+    private var sent = 0
+
+    var isEmpty: Bool { lines.isEmpty }
+    var bytes: Int { lines.reduce(0) { $0 + $1.chunks.reduce(0) { $0 + $1.count } } }
+
+    mutating func add(_ line: String, size: Int) {
+        let state = line.hasPrefix(#"{"t":"state""#)
+        let chunks = LineFramer.chunks(line, size: size)
+        if state, let i = lines.indices.last(where: { lines[$0].state && ($0 > 0 || sent == 0) }) {
+            lines[i].chunks = chunks
+        } else {
+            lines.append((state, chunks))
+        }
+        while bytes > Self.limit, lines.count > (sent > 0 ? 2 : 1) {
+            lines.remove(at: sent > 0 ? 1 : 0)
+        }
+    }
+
+    /// The next piece to write, or nil when nothing waits.
+    mutating func next() -> Data? {
+        guard let first = lines.first else { return nil }
+        let chunk = first.chunks[sent]
+        sent += 1
+        if sent == first.chunks.count {
+            lines.removeFirst()
+            sent = 0
+        }
+        return chunk
     }
 }
 
@@ -228,6 +285,11 @@ extension BLETransport: CBCentralManagerDelegate, CBPeripheralDelegate {
         guard peripheral === self.peripheral, invalidatedServices.contains(where: { $0.uuid == Self.service }) else { return }
         log("ble: the device's services changed, reconnecting")
         giveUp(peripheral)
+    }
+
+    public func peripheralIsReady(toSendWriteWithoutResponse peripheral: CBPeripheral) {
+        guard peripheral === self.peripheral else { return }
+        drain()
     }
 
     public func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {

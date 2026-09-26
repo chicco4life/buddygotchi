@@ -89,17 +89,16 @@ public final class Runtime: @unchecked Sendable {
     var server: HookServer?
     var timer: DispatchSourceTimer?
     var projects: [String: String] = [:]
-    /// Keeps the brain from cutting off the rules (BEHAVIORS.md §3): a
+    /// Keeps the brain from cutting anything off (BEHAVIORS.md §3): a
     /// moment an action sends outside the core's effects is the brain's, and
-    /// waits until the rules' last moment has finished playing.
+    /// waits its turn in `schedule` behind the rules' moments and the
+    /// brain's earlier ones.
     final class Moments {
         /// Above zero while the core's effects are carried out.
         var inRules = 0
-        /// When the rules' last moment ends on the device.
-        var rulesUntil: Int64 = 0
-        /// The brain's moments waiting for it, and whether a flush is due.
-        var held: [DeviceMoment] = []
-        var flushDue = false
+        var schedule = MomentSchedule()
+        /// A timer is set for the next brain moment's turn.
+        var pumpDue = false
         /// True while a brain moment is being sent (for `trace`).
         var brainSending = false
     }
@@ -148,12 +147,11 @@ public final class Runtime: @unchecked Sendable {
                 let now = clock()
                 if moments.inRules > 0 {
                     link.play(moment)
-                    // As the device times it.
-                    moments.rulesUntil = max(moments.rulesUntil, now + moment.playMs)
+                    moments.schedule.rule(moment, now: now)
                     return
                 }
-                moments.held.append(moment)
-                Runtime.flushHeld(moments, link: link, clock: clock, home: home)
+                moments.schedule.brain(moment, now: now)
+                Runtime.pump(moments, link: link, clock: clock, home: home, log: log)
             },
             mumblesAllowed: { core.canMumble(at: clock()) },
             setQuiet: { route(core.setQuiet(minutes: $0, at: clock())) },
@@ -295,23 +293,26 @@ public final class Runtime: @unchecked Sendable {
         if stateChanged || listenChanged { changed() }
     }
 
-    /// Sends the brain's held moments once the rules' moment is over, or
-    /// checks again then (a newer rule moment pushes them back). On `home`.
-    static func flushHeld(_ moments: Moments, link: DeviceLink, clock: @escaping @Sendable () -> Int64,
-                          home: DispatchQueue) {
-        let wait = moments.rulesUntil - clock()
-        if wait <= 0 {
-            let held = moments.held
-            moments.held = []
+    /// Plays the brain's next moment if its turn has come, and sets a timer
+    /// for the one after (a newer rule moment pushes it back; the timer then
+    /// just sets another). On `home`.
+    static func pump(_ moments: Moments, link: DeviceLink, clock: @escaping @Sendable () -> Int64,
+                     home: DispatchQueue, log: @escaping @Sendable (String) -> Void) {
+        let now = clock()
+        let due = moments.schedule.due(now: now)
+        for moment in due.dropped {
+            log("react: dropped a brain moment that waited past its \(moment.ttl) s: \(moment.jsonLine)")
+        }
+        if let moment = due.play {
             moments.brainSending = true
-            held.forEach(link.play)
+            link.play(moment)
             moments.brainSending = false
-        } else if !moments.flushDue {
-            moments.flushDue = true
-            home.asyncAfter(deadline: .now() + .milliseconds(Int(wait))) {
-                moments.flushDue = false
-                flushHeld(moments, link: link, clock: clock, home: home)
-            }
+        }
+        guard let next = due.next, !moments.pumpDue else { return }
+        moments.pumpDue = true
+        home.asyncAfter(deadline: .now() + .milliseconds(Int(max(1, next - now)))) {
+            moments.pumpDue = false
+            pump(moments, link: link, clock: clock, home: home, log: log)
         }
     }
 

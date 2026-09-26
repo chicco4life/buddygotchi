@@ -37,6 +37,7 @@ Three rules follow from that:
 | Service | Nordic UART Service (`6E400001-…`), with one RX characteristic (Mac → device) and one TX characteristic (device → Mac) |
 | Framing | UTF-8 JSON, one object per line, ending in `\n`. A line can span several BLE packets; the receiver buffers until the newline |
 | MTU | The device asks for 247 bytes. Each side splits a line into packets of the size the link negotiated |
+| Flow control | The Mac writes without response, one packet at a time as CoreBluetooth has room (`canSendWriteWithoutResponse`, then `peripheralIsReady`), so a burst never drops part of a line. A line that has started goes out whole; a newer `state` takes the place of one still waiting, and past 4 KB waiting the oldest lines that haven't started are dropped, since the next `state` catches the device up |
 | Size | ≤ 512 bytes per line. Replies to `dbg.*` over USB can be longer ([VERIFICATION.md](VERIFICATION.md) §3) |
 | Security | **v1: none.** No pairing and no encryption for the first test; the Mac app connects to any device advertising as `Boop-XXXX`. **Later:** LE Secure Connections with bonding and encrypted characteristics, with a 6-digit code on the device typed into macOS's prompt |
 | Advertised name | `Boop-XXXX`, where XXXX is the last 4 hex digits of the device's MAC |
@@ -78,7 +79,9 @@ at 460800 baud, one JSON object per line. The Mac app uses it for
 development and automated tests, because an agent can't launch the app with
 Bluetooth on. The app never opens the port itself: it reaches it through
 `tools/boopctl bridge`, which owns the port and shares it on a Unix socket
-([VERIFICATION.md](VERIFICATION.md) §2). The device treats both links the
+([VERIFICATION.md](VERIFICATION.md) §2). A write to the bridge waits at most
+250 ms; one that can't finish drops the connection, which reconnects, so a
+stuck bridge can't freeze the app. The device treats both links the
 same and answers on the link a message came in on. Over USB it also accepts
 `dbg.*` messages for testing ([VERIFICATION.md](VERIFICATION.md) §3).
 

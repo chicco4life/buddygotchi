@@ -63,9 +63,11 @@ most, even for agents that fire a hook on every tool call.
 | `SessionStart` | `session_start` | session, cwd |
 | `UserPromptSubmit` | `turn_start` | session, cwd |
 | `PreToolUse` | `activity` | session, tool name, topic |
-| `PostToolUse`, `PostToolUseFailure` | `activity` | session, tool name, topic, and whether the call failed (`failed`), unless you interrupted it |
+| `PostToolUse`, `PostToolUseFailure` | `activity` | session, tool name, topic, and whether the call failed (`failed`) |
+| `PostToolUseFailure` because you interrupted it | `turn_stopped` | session |
 | `PermissionRequest` | `needs_you` | session, tool name |
 | `Notification` (`permission_prompt`, `elicitation_dialog`) | `needs_you` (deduplicated) | session |
+| `Notification` (`idle_prompt`) | `turn_stopped` | session |
 | `Elicitation` | `needs_you` | session |
 | `ElicitationResult` | `activity` | session |
 | `Stop` | `turn_end` | session |
@@ -93,8 +95,15 @@ and `PostToolUseFailure` when it fails, including a shell command that
 exits with an error. The adapter keeps only that yes or no, never the
 output. The core counts a turn as failed when the last test, build or
 deploy command in it (by topic tag, below) failed
-([BEHAVIORS.md](BEHAVIORS.md) §3.1). A command you interrupted counts as
-neither.
+([BEHAVIORS.md](BEHAVIORS.md) §3.1).
+
+**Interrupted turns.** Claude sends no `Stop` for a turn you interrupt with
+Esc. An interrupted tool call, or Claude's `idle_prompt` (sent after it has
+sat at its prompt for a minute, which also covers an interrupt between tool
+calls), becomes `turn_stopped`: a working session goes idle with no
+reaction. The interrupted call carries its tool and, like any event from
+the session, answers a request still waiting; the idle notice has none and
+leaves such a request alone.
 
 **Project name.** The last folder of the session's `cwd`. A git worktree
 maps to its main repository's name, so `landing` and

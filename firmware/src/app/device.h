@@ -92,8 +92,10 @@ class Device {
 
   void setOut(Link link, Out* out) { outs_[int(link)] = out; }
 
-  // One message line. Replies go back on the link it came in on.
-  void handleLine(const char* line, size_t n, Link from);
+  // One message line. Replies go back on the link it came in on. Returns
+  // true for a debug message: the caller ticks before the next line, since
+  // tests order injected input and clock steps against ticks.
+  bool handleLine(const char* line, size_t n, Link from);
   // A Mac connected or disconnected over Bluetooth. USB has no connection
   // event: the Mac counts as connected when it first speaks, or speaks
   // again after kNoAppMs of silence.

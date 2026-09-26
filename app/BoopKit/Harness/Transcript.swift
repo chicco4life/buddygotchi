@@ -9,7 +9,9 @@ import Foundation
 /// arrives, the window starts again from the last `keptInputs`, so Boop
 /// still knows what was just said; a new day starts a window of its own.
 /// That is the only rule: nothing is summarized, and the window just moves
-/// its start. Kept in memory only, and touched only on the harness's queue.
+/// its start. Asides don't move it, so at most `asidesPerInput` follow one
+/// input and later ones aren't noted: a burst of taps can't crowd out the
+/// prompt. Kept in memory only, and touched only on the harness's queue.
 public final class Transcript: @unchecked Sendable {
     public enum Entry: Equatable, Sendable {
         /// An input reached the pipeline.
@@ -33,6 +35,7 @@ public final class Transcript: @unchecked Sendable {
 
     public static let windowInputs = 8
     public static let keptInputs = 2
+    public static let asidesPerInput = 8
     /// Entries before the window are never read again; past this many they're let go.
     static let behindLimit = 1000
 
@@ -73,6 +76,20 @@ public final class Transcript: @unchecked Sendable {
 
     func append(_ entry: Entry) {
         entries.append(entry)
+    }
+
+    /// An aside, unless `asidesPerInput` already follow the last input.
+    /// Returns whether it was noted.
+    @discardableResult
+    func note(_ aside: String, at ts: Int64) -> Bool {
+        var since = 0
+        for entry in entries.reversed() {
+            if case .input = entry { break }
+            if case .aside = entry { since += 1 }
+        }
+        guard since < Transcript.asidesPerInput else { return false }
+        append(.aside(aside, ts: ts))
+        return true
     }
 
     // MARK: As text

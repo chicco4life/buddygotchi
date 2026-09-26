@@ -25,8 +25,13 @@ final class AdapterTests: XCTestCase {
         }
         XCTAssertEqual(kind("claude", "Notification", kind: "permission_prompt"), .needsYou)
         XCTAssertEqual(kind("claude", "Notification", kind: "elicitation_dialog"), .needsYou)
-        XCTAssertNil(kind("claude", "Notification", kind: "idle_prompt"))
+        XCTAssertEqual(kind("claude", "Notification", kind: "idle_prompt"), .turnStopped, "sat at its prompt")
         XCTAssertNil(kind("claude", "Notification"))
+        var interrupted = line("claude", "PostToolUseFailure", tool: "Bash")
+        interrupted.interrupt = true
+        XCTAssertEqual(Adapter.event(from: interrupted)?.event, .turnStopped, "Esc sends no Stop")
+        XCTAssertEqual(Adapter.event(from: interrupted)?.detail.tool, "Bash", "an interrupted call keeps its tool")
+        XCTAssertNil(Adapter.event(from: line("claude", "Notification", kind: "idle_prompt"))?.detail.tool)
     }
 
     func testCodexMapping() {

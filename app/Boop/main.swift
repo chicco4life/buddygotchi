@@ -62,8 +62,10 @@ final class LogFile: @unchecked Sendable {
     func write(_ message: String) {
         lock.withLock {
             let line = format.string(from: Date()) + " " + message + "\n"
-            handle?.write(Data(line.utf8))
-            if echo { FileHandle.standardError.write(Data(line.utf8)) }
+            // The throwing write: the old one raises an Objective-C exception
+            // (a crash) on any error, such as a full disk.
+            try? handle?.write(contentsOf: Data(line.utf8))
+            if echo { try? FileHandle.standardError.write(contentsOf: Data(line.utf8)) }
         }
     }
 }

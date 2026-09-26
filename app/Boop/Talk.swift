@@ -19,6 +19,9 @@ final class SpeechListener: @unchecked Sendable {
     var finish: ((String?, Bool) -> Void)?
     /// Between `start` and `stop`: whether the mic should be on.
     var wanted = false
+    /// Counts recordings, so a late result or timer from one that's over
+    /// can't touch the next.
+    var session = 0
     let log: (String) -> Void
     let queue = DispatchQueue(label: "boop.talk")
 
@@ -74,7 +77,10 @@ final class SpeechListener: @unchecked Sendable {
 
     /// On `queue`: starts the mic and recognition, or says why it can't.
     private func begin() -> String? {
-        guard task == nil else { return nil }
+        if task != nil {
+            guard finish != nil else { return nil }  // already listening
+            done()  // the last recording is still finishing: hand its words over now
+        }
         guard let recognizer, recognizer.isAvailable, recognizer.supportsOnDeviceRecognition else {
             return "On-device speech recognition isn't available on this Mac."
         }
@@ -102,9 +108,12 @@ final class SpeechListener: @unchecked Sendable {
             self.request = nil
             return "The Mac's microphone couldn't start."
         }
+        session += 1
+        let this = session
         task = recognizer.recognitionTask(with: request) { [weak self] result, error in
             guard let self else { return }
             self.queue.async {
+                guard self.session == this else { return }
                 if let result { self.best = result.bestTranscription.formattedString }
                 if error != nil || result?.isFinal == true { self.done() }
             }
@@ -126,7 +135,11 @@ final class SpeechListener: @unchecked Sendable {
             engine.inputNode.removeTap(onBus: 0)
             request?.endAudio()
             // The final result usually arrives within a second.
-            queue.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.done() }
+            let this = session
+            queue.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+                guard let self, self.session == this else { return }
+                self.done()
+            }
         }
     }
 

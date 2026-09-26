@@ -121,15 +121,22 @@ class Behaviour {
     uint32_t speakMs = 0;  // the mouth moves this long
     uint32_t sylMs = 120;
   };
-  // What the face is following: an animation or a look, and a mumble on top.
+  // What the face is following: an animation or a look, and a mumble on
+  // top. It holds everything its pose depends on besides the clock and a
+  // blink, so the pose of an old source stays exactly what was on screen
+  // after the model changes, and any change that moves the face is a new
+  // source, which blends (UX.md §2: nothing cuts hard).
   struct Source {
     render::Anim anim = render::Anim::kNone;
     uint32_t at = 0;
     render::Look look = render::Look::kIdle;
+    bool busier = false;  // working's faster pace, with 3+ busy
+    bool raised = false;  // an animation over needs you sits where its face does
     bool say = false;
-    uint32_t sayAt = 0;
+    uint32_t sayAt = 0, speakMs = 0, sylMs = 0;  // the mouth follows the syllables
     bool operator==(const Source& o) const {
-      return anim == o.anim && at == o.at && look == o.look && say == o.say && sayAt == o.sayAt;
+      return anim == o.anim && at == o.at && look == o.look && busier == o.busier && raised == o.raised &&
+             say == o.say && sayAt == o.sayAt && speakMs == o.speakMs && sylMs == o.sylMs;
     }
   };
   struct LifeEvent {
@@ -140,10 +147,27 @@ class Behaviour {
   void play(render::Anim a, uint32_t t, bool local);
   void startSay(const MomentIn& in, uint32_t t);
   void sound(const char* k, uint32_t t);
-  void resync(uint32_t t, Rng& rng);
+  // Every change goes through here: `f` changes the state at t, and if
+  // what the face follows changed, the blend starts from the pose that was
+  // showing just before, blink and all. The backlight eases the same way.
+  template <class F>
+  void change(uint32_t t, F f) {
+    render::Pose showing = blended(t);
+    uint8_t lit = backlight(t);
+    bool overridden = blOverride_;
+    f();
+    Source next = sourceAt(t);
+    if (!(next == src_)) blend_.start(t, showing), src_ = next;
+    uint8_t level = blTarget(t);
+    if (!blOverride_ && (level != blLevel_ || overridden)) blFade_ = true, blFrom_ = lit, blAt_ = t;
+    blLevel_ = level;
+    modelT_ = t;
+  }
+  void resync(uint32_t t);
   void startLife(uint32_t t, Rng& rng);
   uint32_t lifeGap(Rng& rng) const;
   bool momentOn(uint32_t t) const;
+  uint8_t blTarget(uint32_t t) const;  // the level the state asks for at t
   bool sayOn(uint32_t t) const;
   Source sourceAt(uint32_t t) const;
   render::Pose basePose(const Source& s, uint32_t t) const;
@@ -153,9 +177,18 @@ class Behaviour {
   Model model_;
   bool heard_ = false;  // a state arrived since reset
   uint32_t lastState_ = 0;
+  // Latched once the Mac has been silent kNoAppMs, so "no app" holds
+  // however long the silence (the clock's differences wrap after 24 days).
+  bool stale_ = false;
   bool ledOverride_ = false, blOverride_ = false;  // dbg.light, until the next state
   uint32_t ledSet_ = 0;
   uint8_t blSet_ = 255;
+  // The level the state asked for at the last change, like src_ for the
+  // face, easing from blFrom_ since blAt_, over kBlendMs.
+  uint8_t blLevel_ = 255;
+  bool blFade_ = false;
+  uint8_t blFrom_ = 255;
+  uint32_t blAt_ = 0;
   Moment moment_;
   Say say_;
   Source src_;

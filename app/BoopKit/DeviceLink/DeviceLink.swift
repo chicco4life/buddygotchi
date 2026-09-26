@@ -30,7 +30,8 @@ public final class DeviceLink {
     /// The newest snapshot, sent again on `status` and on reconnect.
     public private(set) var latest: StateSnapshot?
     var lastSent: StateSnapshot?
-    var lastSentAt: Int64 = .min
+    /// Nil until the first `state` goes out.
+    var lastSentAt: Int64?
     public private(set) var status: DeviceStatus?
     public private(set) var connected = false
     /// Every line sent, for tests; nil keeps nothing.
@@ -53,7 +54,7 @@ public final class DeviceLink {
     /// Once a second: the 10 s keepalive, with a fresh clock.
     public func tick(now: Int64, current: StateSnapshot) {
         latest = current
-        if now - lastSentAt >= DeviceLink.keepaliveMs { sendState(current, now: now) }
+        if lastSentAt.map({ now - $0 >= DeviceLink.keepaliveMs }) ?? true { sendState(current, now: now) }
     }
 
     public func play(_ moment: DeviceMoment) {

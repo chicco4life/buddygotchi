@@ -62,6 +62,9 @@ final class AppModel: ObservableObject {
     let link: LinkSetting
     var runtime: Runtime?
     var finishSetup: () -> Void = {}
+    /// Reads Jev's key. Settings calls it off the main thread, since the
+    /// Keychain may stop to ask for access; snapshots read none.
+    var readKey: @Sendable () -> String? = { Keychain.key(.jev) }
 
     init(installer: HookInstaller, link: LinkSetting) {
         self.installer = installer
@@ -273,13 +276,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                     }
                 }
             }
+            // Read before start: from then on the runtime's state belongs to
+            // its own queue.
+            model.classifier = runtime.settings.classifier
+            model.writer = runtime.settings.writer
+            model.nature = runtime.memory.longTerm?.nature ?? .sweet
             try runtime.start()
             self.runtime = runtime
             self.listener = listener
             model.runtime = runtime
-            model.classifier = runtime.settings.classifier
-            model.writer = runtime.settings.writer
-            model.nature = runtime.memory.longTerm?.nature ?? .sweet
             model.startError = nil
             runtime.refresh()
         } catch {

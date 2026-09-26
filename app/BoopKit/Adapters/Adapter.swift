@@ -21,6 +21,9 @@ public enum Adapter {
 
     /// Claude's `Notification` types that mean a person is being asked.
     static let askingNotifications: Set<String> = ["permission_prompt", "elicitation_dialog"]
+    /// Claude's `Notification` type for sitting at its prompt for a minute:
+    /// whatever turn there was is over, even one that ended without `Stop`.
+    static let idleNotification = "idle_prompt"
 
     /// Codex's hooks. Codex has no failure hook.
     static let codex: [String: BoopEvent.Kind] = [
@@ -42,7 +45,11 @@ public enum Adapter {
         switch agent {
         case .claudeCode:
             if line.hook == "Notification" {
-                kind = line.kind.map(askingNotifications.contains) == true ? .needsYou : nil
+                kind = line.kind.map(askingNotifications.contains) == true ? .needsYou
+                    : line.kind == idleNotification ? .turnStopped : nil
+            } else if line.interrupt {
+                // Esc: Claude sends no `Stop` for a turn you interrupt.
+                kind = .turnStopped
             } else {
                 kind = claude[line.hook]
             }
@@ -65,6 +72,8 @@ public enum Adapter {
             }
         case .turnFailed:
             detail.error = line.error.map(errorClass)
+        case .turnStopped:
+            detail.tool = line.tool  // an interrupted call; Claude's idle notice has none
         default:
             break
         }

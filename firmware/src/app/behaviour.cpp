@@ -51,7 +51,7 @@ void Behaviour::reset(uint32_t t, Rng& rng) {
 
 // ---- Time ------------------------------------------------------------------
 
-bool Behaviour::noApp(uint32_t t) const { return int32_t(t - lastState_) >= int32_t(kNoAppMs); }
+bool Behaviour::noApp(uint32_t t) const { return stale_ || int32_t(t - lastState_) >= int32_t(kNoAppMs); }
 
 bool Behaviour::momentOn(uint32_t t) const {
   return moment_.anim != render::Anim::kNone && within(t, moment_.at, moment_.ms);
@@ -86,7 +86,7 @@ void Behaviour::advance(uint32_t t, Rng& rng) {
   if (int32_t(t - modelT_) < 0) {  // the clock went back: no history to replay
     modelT_ = t;
     if (after(nextLife_, t + 10000)) nextLife_ = t + lifeGap(rng);
-    resync(t, rng);
+    resync(t);
     return;
   }
   for (;;) {
@@ -101,51 +101,46 @@ void Behaviour::advance(uint32_t t, Rng& rng) {
     consider(nextLife_);
     if (!found) break;
     // Everything due at `next`, in a fixed order.
-    resync(next, rng);
+    resync(next);
     if (next == nextLife_) startLife(next, rng);
   }
-  resync(t, rng);
+  resync(t);
 }
 
-void Behaviour::resync(uint32_t t, Rng& rng) {
-  if (moment_.anim != render::Anim::kNone && !within(t, moment_.at, moment_.ms)) {
-    // Ended: the blend starts from the moment's last pose, not from later.
-    render::Pose last = blended(t);
-    moment_.anim = render::Anim::kNone;
-    Source next = sourceAt(t);
-    if (!(next == src_)) blend_.start(t, last), src_ = next;
-  }
-  Source next = sourceAt(t);
-  if (!(next == src_)) {
-    blend_.start(t, blended(t));
-    src_ = next;
-  }
-  modelT_ = t;
-  (void)rng;
+// Time-based changes at t: a moment that has ended (the blend starts from
+// its last pose), and the Mac's silence turning into "no app".
+void Behaviour::resync(uint32_t t) {
+  change(t, [&] {
+    if (moment_.anim != render::Anim::kNone && !within(t, moment_.at, moment_.ms)) moment_.anim = render::Anim::kNone;
+    if (!stale_ && int32_t(t - lastState_) >= int32_t(kNoAppMs)) stale_ = true;
+  });
 }
 
 // ---- Messages --------------------------------------------------------------
 
 void Behaviour::onState(const Model& m, uint32_t t, Rng& rng) {
-  bool wasNoApp = noApp(t);
-  bool had = model_.attn;
-  bool fresh = m.attn && (!had || std::strncmp(model_.agent, m.agent, sizeof(m.agent)) ||
-                          std::strncmp(model_.project, m.project, sizeof(m.project)));
-  model_ = m;
-  lastState_ = t;
-  ledOverride_ = blOverride_ = false;
-  if (fresh) {  // a new "needs you": one chirp, and attention wins
-    sound("chirp", t);
-    if (momentOn(t) && !overAttention(moment_.anim)) moment_.anim = render::Anim::kNone;
-    say_ = Say{};  // no mumbles while something needs you
-  }
-  // Answered on the Mac (`attn` leaves): the face just blends back.
-  if (wasNoApp && heard_ && !momentOn(t)) {  // reconnect: a quick blink
-    life_ = LifeEvent{};
-    life_.kind = Life::kBlink, life_.at = t, life_.ms = kBlinkMs;
-  }
-  heard_ = true;
-  resync(t, rng);
+  (void)rng;
+  change(t, [&] {
+    bool wasNoApp = noApp(t);
+    bool had = model_.attn;
+    bool fresh = m.attn && (!had || std::strncmp(model_.agent, m.agent, sizeof(m.agent)) ||
+                            std::strncmp(model_.project, m.project, sizeof(m.project)));
+    model_ = m;
+    lastState_ = t;
+    stale_ = false;
+    ledOverride_ = blOverride_ = false;
+    if (fresh) {  // a new "needs you": one chirp, and attention wins
+      sound("chirp", t);
+      if (momentOn(t) && !overAttention(moment_.anim)) moment_.anim = render::Anim::kNone;
+      say_ = Say{};  // no mumbles while something needs you
+    }
+    // Answered on the Mac (`attn` leaves): the face just blends back.
+    if (wasNoApp && heard_ && !momentOn(t)) {  // reconnect: a quick blink
+      life_ = LifeEvent{};
+      life_.kind = Life::kBlink, life_.at = t, life_.ms = kBlinkMs;
+    }
+    heard_ = true;
+  });
 }
 
 // A moment with an anim replaces the one playing, and its mumble too. A
@@ -159,10 +154,12 @@ bool Behaviour::onMoment(const MomentIn& in, uint32_t t, Rng& rng) {
   bool mumble = in.syllables > 0 && !model_.attn && model_.quiet <= 0;
   bool ends = !anim && (in.syllables > 0 || in.empty) && momentOn(t) && moment_.anim == render::Anim::kListening;
   if (!anim && !mumble && !ends) return false;
-  if (anim) play(in.anim, t, false);
-  else if (ends) moment_.anim = render::Anim::kNone;
-  if (mumble) startSay(in, t);
-  resync(t, rng);
+  (void)rng;
+  change(t, [&] {
+    if (anim) play(in.anim, t, false);
+    else if (ends) moment_.anim = render::Anim::kNone;
+    if (mumble) startSay(in, t);
+  });
   return mumble;
 }
 
@@ -208,22 +205,24 @@ void Behaviour::pressUp(uint32_t t) {
 
 // While something needs you, a tap shows the press squash only.
 void Behaviour::tap(uint32_t t, Rng& rng) {
+  (void)rng;
   if (model_.attn && !noApp(t)) return;
-  play(render::Anim::kWiggle, t, true);
-  resync(t, rng);
+  change(t, [&] { play(render::Anim::kWiggle, t, true); });
 }
 
 void Behaviour::talkOn(uint32_t t, Rng& rng) {
-  play(render::Anim::kListening, t, true);
-  resync(t, rng);
+  (void)rng;
+  change(t, [&] { play(render::Anim::kListening, t, true); });
 }
 
 // Released: listening carries on, without a new blend, and waits at most
 // kReplyWaitMs for the reply (BEHAVIORS.md §3.3). If it isn't playing any
 // more (the 30 s cap, or the Mac replaced it), there's nothing to wait on.
 void Behaviour::talkOff(uint32_t t, Rng& rng) {
-  if (momentOn(t) && moment_.anim == render::Anim::kListening) moment_.ms = (t - moment_.at) + kReplyWaitMs;
-  resync(t, rng);
+  (void)rng;
+  change(t, [&] {
+    if (momentOn(t) && moment_.anim == render::Anim::kListening) moment_.ms = (t - moment_.at) + kReplyWaitMs;
+  });
 }
 
 // ---- What shows ------------------------------------------------------------
@@ -235,9 +234,10 @@ Screen Behaviour::screen(uint32_t t) const {
 
 Behaviour::Source Behaviour::sourceAt(uint32_t t) const {
   Source s;
-  if (sayOn(t)) s.say = true, s.sayAt = say_.at;
+  if (sayOn(t)) s.say = true, s.sayAt = say_.at, s.speakMs = say_.speakMs, s.sylMs = say_.sylMs;
   if (momentOn(t)) {
     s.anim = moment_.anim, s.at = moment_.at;
+    s.raised = model_.attn;
     return s;
   }
   if (noApp(t)) {
@@ -248,13 +248,14 @@ Behaviour::Source Behaviour::sourceAt(uint32_t t) const {
     s.look = render::Look::kAsleep;
   } else if (!std::strcmp(model_.base, "working")) {
     s.look = render::Look::kWorking;
+    s.busier = model_.busy >= 3;
   }
   return s;
 }
 
 // The look, with its own motion and idle life on top.
 render::Pose Behaviour::basePose(const Source& s, uint32_t t) const {
-  render::Pose p = render::lookPose(s.look, model_.busy);
+  render::Pose p = render::lookPose(s.look, s.busier ? 3 : 1);
   if (s.look == render::Look::kNeedsYou) p.raise = 1000;
   if (s.look == render::Look::kAsleep) {  // slow breathing, and "zzZZ" rising every 2.4 s
     p.size = int16_t(p.size + 14 * render::isin(int(t % 4000 * 1024 / 4000)) / 1024);
@@ -264,7 +265,7 @@ render::Pose Behaviour::basePose(const Source& s, uint32_t t) const {
     // Effort: every couple of seconds (more often when busier) Boop strains
     // for 0.8 s: the eyes squeeze, the mouth tightens and a small shiver
     // runs through it. A sweat drop slides down beside the right eye.
-    uint32_t period = model_.busy >= 3 ? 1800 : 2600;
+    uint32_t period = s.busier ? 1800 : 2600;
     int e = envelope(t % period, 800, 150, 250);
     p.squash = int16_t(p.squash + 240 * e / 1024);
     p.lidTop = int16_t(p.lidTop + 170 * e / 1024);
@@ -288,12 +289,12 @@ render::Pose Behaviour::sourcePose(const Source& s, uint32_t t) const {
     p = basePose(s, t);
   } else {
     p = render::animPose(s.anim, t - s.at);
-    if (model_.attn) p.raise = 1000;  // where the needs-you face sits
+    if (s.raised) p.raise = 1000;  // where the needs-you face sits
   }
   if (s.say) p.raise = 1000;  // room for the bubble
-  if (s.say && s.sayAt == say_.at && t - s.sayAt < say_.speakMs) {  // the mouth follows the syllables
+  if (s.say && s.sylMs && t - s.sayAt < s.speakMs) {  // the mouth follows the syllables
     uint32_t lt = t - s.sayAt;
-    int phase = int(lt % say_.sylMs * 512 / say_.sylMs);
+    int phase = int(lt % s.sylMs * 512 / s.sylMs);
     int open = 150 + 550 * render::isin(phase) / 1024;
     if (open > p.mouthOpen) p.mouthOpen = int16_t(open);
     if (p.mouthWide > 750) p.mouthWide = 750;
@@ -337,8 +338,15 @@ uint32_t Behaviour::led(uint32_t t) const {
   return model_.attn ? kAmberDim : 0;
 }
 
+// Dims with the asleep look, eased over the face's blend.
 uint8_t Behaviour::backlight(uint32_t t) const {
   if (blOverride_) return blSet_;
+  int target = blLevel_;
+  if (!blFade_ || !within(t, blAt_, render::kBlendMs)) return uint8_t(target);
+  return uint8_t(blFrom_ + (target - blFrom_) * render::ease(int(t - blAt_), int(render::kBlendMs)) / 1024);
+}
+
+uint8_t Behaviour::blTarget(uint32_t t) const {
   if (noApp(t)) return 60;      // the asleep look, dimmed like asleep
   if (model_.attn) return 255;  // dimming never hides "needs you"
   if (!std::strcmp(model_.base, "asleep")) return 60;

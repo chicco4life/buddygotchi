@@ -44,7 +44,10 @@ shows, the face eases up into the top 144 px at three-quarters size.
   blocks sit under each eye, towards the outside, and the mouth is a flat
   bar as wide as an eye, level with the cheeks. The face blends between
   expressions in 150 ms or less and never cuts hard; the grid makes it
-  move a block at a time. A blink shrinks the eye towards a one-block bar;
+  move a block at a time. That holds whatever changes mid-animation:
+  "needs you" arriving under a cheer or `listening`, or the working count
+  crossing 3, eases from the frame that was showing. The backlight eases
+  over the same 150 ms. A blink shrinks the eye towards a one-block bar;
   an eye too thin for its panes is drawn as one bar. A lid takes whole rows
   of blocks off the top, and cuts each half of the eye flat at its own
   height, so a tilted lid steps once between the panes. To look somewhere

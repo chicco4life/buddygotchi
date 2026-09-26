@@ -32,6 +32,9 @@ public struct BoopEvent: Equatable, Sendable {
         case activity
         case turnEnd = "turn_end"
         case turnFailed = "turn_failed"
+        /// The turn is over without finishing: you interrupted it, or the
+        /// agent has sat at its prompt for a while. No reaction.
+        case turnStopped = "turn_stopped"
         case sessionEnd = "session_end"
     }
 

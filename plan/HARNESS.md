@@ -94,7 +94,9 @@ topic, and never reach the brain.
 
 1. **Receive an input** from the core, with its deadline.
 2. **Wait its turn.** One pass runs at a time. A newer input replaces one
-   that's waiting, and what you say cancels whatever is running.
+   that's waiting, and what you say cancels whatever is running. A new day
+   waits apart and is never replaced, since it comes once a day; a
+   reflection that what you say cut off runs again after the reply.
 3. **Open the pass.** The input and the rules' reaction join the
    transcript, moving the window first when it's full (§4). The menu is the
    input's outputs, in the order they run, with the actions' definitions as
@@ -144,7 +146,9 @@ inputs**. When a 9th arrives, the window starts again from the **last 2**,
 so Boop still knows what you just said. A new day starts a window of its
 own. That's the only rule: nothing is summarized, and the window just moves
 its start. The window doesn't restart when memory changes, since every
-call puts the current memory at the top.
+call puts the current memory at the top. Asides don't move it, so at most
+**8 asides** follow an input and later ones aren't noted: a burst of taps
+can't crowd out the prompt.
 
 **How each brain reads it.** The if-else classifier reads only the current
 input. Jev gets the window as JSON (§6). The writers get it as text, which

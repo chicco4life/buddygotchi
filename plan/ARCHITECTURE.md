@@ -128,11 +128,15 @@ when the window ends, keeping the most important
 ([HARNESS.md](HARNESS.md) §2) with "+N more".
 
 The brain adds to the rules' reaction and never cuts it off. The app
-estimates how long each rule moment plays with the device's own rule: the
+estimates how long each moment plays with the device's own rule: the
 animation's length, or, if longer, the mumble's syllables (the word is two
-beats) plus 1.2 s to read the bubble. It holds a moment from the brain's
-calls until the last rule moment is over. `listening` doesn't hold
-anything back: the brain's reply is meant to end it.
+beats) plus 1.2 s to read the bubble. The rules' moments play at once. The
+brain's wait their turn (`MomentSchedule`): one at a time, each after the
+last rule moment and the brain's previous one have played, so two brain
+mumbles never cut each other off. One that has waited longer than its
+`ttl` (5 s) is dropped, since a late reaction is worse than none.
+`listening` doesn't hold anything back: the brain's reply is meant to end
+it.
 
 ### 3.3 Harness and brain
 
@@ -336,7 +340,7 @@ Preferences; the Boop section isn't shown.
 | `agent` | `claude_code` or `codex` |
 | `session` | Stable session or thread ID |
 | `project` | Short project name, from the working directory |
-| `event` | `session_start`, `turn_start`, `needs_you`, `activity`, `turn_end`, `turn_failed`, `session_end` |
+| `event` | `session_start`, `turn_start`, `needs_you`, `activity`, `turn_end`, `turn_failed`, `turn_stopped` (over without finishing: you interrupted it, or the agent sat at its prompt), `session_end` |
 | `detail` | Small and event-specific: `tool` and `topic` on `activity`, plus `failed` (true or false) on Claude's `PostToolUse` and `PostToolUseFailure`; `tool` on `needs_you`; and `error`, an error class, on `turn_failed` ([ADAPTERS.md](ADAPTERS.md) §2–3); nothing on the others. Never prompt text, commands or file contents. The core measures how long a turn took itself, from its start |
 | `ts` | Milliseconds |
 
@@ -512,3 +516,9 @@ When a spec changes direction, add a row here saying why.
 | 2026-09-26 | Every expression keeps the window eyes: happy is a squint from the bottom, not "^" arches; mouths are small pixel shapes (bar, "u", frown, "o", a filled cup), not traced curves; the cheer no longer tints the eyes | The owner found the arches and the wide D grin uncanny on boxy eyes and asked to keep the eyes boxy and cute | [UX.md](UX.md) §2 |
 | 2026-09-26 | Second cut, to 4 states (asleep, idle, working, needs you) and 3 animations (`cheer`, `wiggle`, `listening`): `nod`, `thinking`, `shrug` and the no-app look are parked. `listening` covers the reply wait and ends on the reply, on an empty moment, or after 8 s; no app shows the asleep face with the unplugged icon | The owner asked to go from 11 to 7 | [BEHAVIORS.md](BEHAVIORS.md), [PROTOCOL.md](PROTOCOL.md) §3 |
 | 2026-09-26 | The hero moments (A8) keep C1's 7: a failed turn (now including one that leaves its tests failing) gets no animation, only the brain's annoyed mumble; told off or yelled at, a sad mumble; a poke streak, a grumble after the fourth wiggle; quiet shows only its icon, with no `zip` | The owner chose to keep 4 states and 3 animations and express the hero moments by mumble | [BEHAVIORS.md](BEHAVIORS.md) §3 |
+| 2026-09-26 | The device's face follows a source that holds everything its pose depends on (the look, the working pace, the needs-you raise, the mumble's timing), and every change starts its blend from the frame that was showing; the backlight eases with it. "No app" is latched | A frame-by-frame sweep of 40 transitions in the simulator, and the webcam, found "needs you" arriving under a cheer or `listening` jumping the face 30 px in one frame: the blend started from a pose already recomputed with the new state. The clock's differences wrap after 24.8 days, which would have ended "no app" | [UX.md](UX.md) §2, [BEHAVIORS.md](BEHAVIORS.md) §2, §3.4 |
+| 2026-09-26 | The brain's moments take turns (`MomentSchedule`): one at a time behind the rules' and each other's, dropped past their `ttl` | Held mumbles were all released at once, so only the last one showed, and a later brain mumble cut an earlier one off | §3.2 |
+| 2026-09-26 | Bluetooth writes wait for CoreBluetooth's room (`canSendWriteWithoutResponse`), in a small outbox where a newer `state` replaces a waiting one; a USB write waits at most 250 ms; `boopctl bridge` never waits on a client | Writes without response are dropped when CoreBluetooth's queue is full, which splices lines on the device. A bridge client that stopped reading froze the bridge, and then the app's queue in a blocking write | [PROTOCOL.md](PROTOCOL.md) §2, [VERIFICATION.md](VERIFICATION.md) §2 |
+| 2026-09-26 | A turn you interrupt, or Claude's `idle_prompt`, is a new event, `turn_stopped`: the session goes idle with no reaction (the idle notice leaves a waiting request alone) | Claude sends no `Stop` for an interrupted turn, so Boop showed "working" and chattered for up to an hour | [ADAPTERS.md](ADAPTERS.md) §3, [BEHAVIORS.md](BEHAVIORS.md) §3.1 |
+| 2026-09-26 | The board handles every waiting line (up to 8 ms) before drawing a frame; a debug message ends the batch | It handled one line per loop pass and drew between lines (up to 31 ms), so bursts overflowed the 2 KB receive buffers: 3 of 40 back-to-back `state` lines were lost, and 74 of 300 at 200 a second. After: none of either | [VERIFICATION.md](VERIFICATION.md) §3 |
+| 2026-09-26 | A new day waits apart in the harness and is never replaced; a reflection cut off by you talking runs again. At most 8 asides follow an input | A newer agent input replaced a waiting new day, losing that day's reflection. Taps don't move the transcript's window, so a burst could crowd Apple's 8K context | [HARNESS.md](HARNESS.md) §2, §4 |

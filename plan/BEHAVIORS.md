@@ -38,7 +38,8 @@ needs you.
 
 Needs you (§3.2) sits on top of whichever of these is showing.
 Otherwise the backlight is full (255), and always while something needs
-you.
+you. It dims and brightens over the face's 150 ms blend
+([UX.md](UX.md) §2).
 
 **No app.** With no `state` from the Mac for 30 s the device shows the
 asleep look (backlight 60/255), with the unplugged icon in the strip so
@@ -57,8 +58,9 @@ working sessions that have one, said as a `curious` question
 adds anything is up to its classifier, and a mumble's word is up to its
 writer ([HARNESS.md](HARNESS.md) §6). What it adds is a mumble; the brain's
 faces are parked ([FUTURE.md](FUTURE.md)). It never cuts the rules'
-reaction short: a brain mumble waits until the rule moment has finished
-playing ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2).
+reaction short, or its own: a brain mumble waits until the rule moment,
+and any brain mumble before it, has finished playing
+([ARCHITECTURE.md](ARCHITECTURE.md) §3.2).
 
 ### 3.1 Agent work
 
@@ -75,6 +77,11 @@ A turn fails when Claude stops on an API error, or when the last test,
 build or deploy command in the turn failed. A turn that ends with its tests
 still failing is a failed turn, not a finish: no cheer and no XP. Codex
 doesn't report whether a command failed, so its turns always finish
+([ADAPTERS.md](ADAPTERS.md) §3).
+
+A turn you interrupt (Esc) ends there: the session goes idle at once, with
+no moment and nothing for the brain, and a request it was waiting on clears. Claude sends no `Stop` for it, so the
+interrupt itself, or Claude sitting at its prompt for a minute, ends it
 ([ADAPTERS.md](ADAPTERS.md) §3).
 
 ### 3.2 Something needs you
@@ -116,7 +123,7 @@ milliseconds of audio at a time and keeps only that yes or no
 
 | When | Behaviour |
 | --- | --- |
-| No `state` for 30 s | The asleep look, with the unplugged icon (§2) |
+| No `state` for 30 s | The asleep look, with the unplugged icon (§2), for as long as the silence lasts |
 | Reconnect | Quick blink, then whatever the next `state` says |
 
 ## 4. Sound and light

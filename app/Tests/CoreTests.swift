@@ -135,6 +135,31 @@ final class CoreAgentWorkTests: XCTestCase {
 
     /// BEHAVIORS.md §3.1: a failed turn has no moment of its own; the
     /// session goes idle and the brain still hears about it.
+    /// ADAPTERS.md §3: a turn you interrupt ends without `Stop`, so the
+    /// interrupt (or Claude sitting at its prompt) ends it: idle at once, no
+    /// cheer, nothing for the brain. Only the interrupt answers a request
+    /// still waiting.
+    func testAnInterruptedTurnGoesIdleQuietly() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.activity, tool: "Bash", topic: "tests")
+        let fx = rig.send(.turnStopped, tool: "Bash")
+        XCTAssertEqual(rig.state.base, "idle")
+        XCTAssertEqual(rig.sessions, [["claude", "landing", "idle"]])
+        XCTAssertEqual(moments(fx), [])
+        XCTAssertEqual(inputs(fx), [])
+        XCTAssertFalse(fx.contains { if case .happened = $0 { return true } else { return false } })
+        XCTAssertEqual(mumbles(rig.wait(10 * 60_000)), [], "no working chatter")
+
+        rig.send(.turnStart, session: "s2")
+        rig.send(.needsYou, session: "s2", tool: "Bash")
+        rig.send(.turnStopped, session: "s2")
+        XCTAssertNotNil(rig.state.attn, "Claude's idle notice leaves a waiting request alone")
+        rig.send(.turnStopped, session: "s2", tool: "Bash")
+        XCTAssertNil(rig.state.attn, "an interrupted call answers it, as any event does")
+        XCTAssertEqual(rig.state.base, "idle")
+    }
+
     func testFailedTurnPlaysNoMomentAndGoesIdle() {
         let rig = CoreRig()
         rig.send(.turnStart)

@@ -239,6 +239,37 @@ final class HarnessTests: XCTestCase {
         XCTAssertTrue(rig.home.sync { rig.logs.contains("harness: agent started replaced by a newer agent finished") })
     }
 
+    /// HARNESS.md §2: a new day comes once a day, so a newer input never
+    /// replaces it, and a reflection cut off by you talking runs again after.
+    func testANewDayIsNeverLost() async {
+        let rig = HarnessRig(classifier: FakeClassifier(delayMs: 150) { _ in [] })
+        rig.submit(input(.agentStarted))
+        rig.submit(input(.newDay))
+        rig.submit(input(.agentFinished))
+        await rig.settle()
+        XCTAssertEqual(rig.snapshot.records.map(\.input.kind), [.agentStarted, .agentFinished, .newDay])
+
+        let talk = HarnessRig(classifier: FakeClassifier(delayMs: 150) { _ in [] })
+        talk.submit(input(.newDay))
+        try? await Task.sleep(for: .milliseconds(30))
+        talk.submit(input(.said, words: "morning"))
+        await talk.settle()
+        let records = talk.snapshot.records
+        XCTAssertEqual(records.map(\.input.kind), [.newDay, .said, .newDay])
+        XCTAssertEqual(records.map { $0.dropped != nil }, [true, false, false])
+    }
+
+    /// HARNESS.md §4: asides don't move the window, so at most eight follow
+    /// an input; a burst of taps can't crowd out the prompt.
+    func testABurstOfAsidesIsCapped() async {
+        let rig = HarnessRig(classifier: FakeClassifier { _ in [] })
+        for i in 0..<30 { rig.home.sync { rig.harness.note("tapped \(i)", at: Int64(i)) } }
+        XCTAssertEqual(rig.entries.count, Transcript.asidesPerInput)
+        _ = await run(rig, [input(.agentStarted)])
+        rig.home.sync { rig.harness.note("tapped again", at: 99) }
+        XCTAssertTrue(rig.entries.contains(.aside("tapped again", ts: 99)), "an input makes room again")
+    }
+
     func testYouTalkingCancelsWhateverIsRunning() async {
         let rig = HarnessRig(classifier: FakeClassifier(delayMs: 300) { i in
             i.kind == .said ? [react("sulky", "silent")] : [react("happy", "silent")]

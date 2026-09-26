@@ -43,9 +43,9 @@ Each level answers a different question:
 | `make fw-test` | Firmware unit tests on the Mac: `pio test -e native` |
 | `make sim` / `tools/boopctl sim` | The simulator. It builds the same drawing and behaviour code as the firmware for the Mac, runs a scenario, and writes PNGs |
 | `tools/boopctl` | The new device tool, replacing `buddyctl.py`. It's Python in `tools/.venv` (pyserial, Pillow), created by `make tools` |
-| `tools/boopctl bridge` | Owns the USB serial port and shares it through a Unix socket (`--socket`, default `$BOOP_BRIDGE` or `/tmp/boop-bridge.sock`), so the Mac app and other `boopctl` commands can use the board at the same time. Every line from the board goes to every client, and each client's lines reach the board whole. While a bridge runs, other `boopctl` commands (with `BOOP_BRIDGE` set to its socket, if it isn't the default) go through it instead of opening the port |
+| `tools/boopctl bridge` | Owns the USB serial port and shares it through a Unix socket (`--socket`, default `$BOOP_BRIDGE` or `/tmp/boop-bridge.sock`), so the Mac app and other `boopctl` commands can use the board at the same time. Every line from the board goes to every client, and each client's lines reach the board whole. It never waits on a client: a client that stops reading and falls 4 MB behind is dropped, so a paused `boopctl` can't stall the others or the app. While a bridge runs, other `boopctl` commands (with `BOOP_BRIDGE` set to its socket, if it isn't the default) go through it instead of opening the port |
 | `tools/webcam/webcam.sh` | The existing AVFoundation recorder and frame extractor. `boopctl cam …` wraps it. `make webcam-test` tests it on synthetic video and never opens a camera |
-| `Boop --snapshots DIR` | Renders the Mac app's popover (seven overview states, including listening and a refused mic, the whole settings pane, the four setup steps) and the menu-bar icons to PNGs, in light and dark, from fixed fixtures, then exits. No runtime, Bluetooth or microphone; the agents' settings it reads are in a throwaway HOME |
+| `Boop --snapshots DIR` | Renders the Mac app's popover (seven overview states, including listening and a refused mic, the whole settings pane, the four setup steps) and the menu-bar icons to PNGs, in light and dark, from fixed fixtures, then exits. No runtime, Bluetooth, microphone or Keychain; the agents' settings it reads are in a throwaway HOME |
 | `boopdev` | A Swift CLI in the app package for replaying hooks, running the brain on recorded inputs, and printing the memory files. `boopdev replay <fixture>` alone runs the payloads through the hook's field picking, the adapter and the core on a virtual clock and prints every decision (`--states` for snapshots only); with `--socket` it sends them through the real `boop-hook` to a running app. `boopdev memory --state-dir DIR` prints the memory files as the store reads them, and the snapshot days. `boopdev voice <feeling> [word] --count N [--why]` prints the lines `react` would build, and with `--why` every rejected try. `boopdev brain [--classifier rules\|jev] [--writer apple\|none\|deepseek] [--inputs DIR] [--memory DIR] [--steering FILE] [--out FILE] [--gap-min N] [--print]` runs L5: recorded inputs through the real pipeline (§5). `boopdev eval [--classifier rules\|jev] [--writer none\|apple] [--only TEXT] [--json FILE]` runs the harness eval scenarios ([EVALS.md](EVALS.md)). `boopdev watch FILE [--new]` follows a brain debug log as it grows and prints each pass and aside readably (HARNESS.md §8). `boopdev talk "<words>" [--yelled] --socket PATH` hands a push-to-talk transcript to a running headless app, as if heard on the Mac's mic (`--yelled` as if you yelled it). `boopdev hooks status\|install\|remove [claude\|codex] --home DIR` runs the hook installer against any HOME |
 
 `boopctl` subcommands:
@@ -112,8 +112,11 @@ out). `dbg.state` also carries bring-up readings: `clock` (`now`, `frozen`), `bo
 `state` and `moment` messages received since boot (`{"state":N,"moment":M}`),
 which L4 uses to time a hook's `state` reaching the board.
 
-The board handles one message per loop pass, so a reply always reflects
-every message sent before it.
+The board handles every line waiting (for up to 8 ms) before it draws the
+next frame, so a burst can't overflow its 2 KB receive buffers. Lines are
+handled in order, so a reply always reflects every message sent before it,
+and a debug message ends the batch, so injected input and clock steps
+happen between frames exactly as in the simulator.
 
 **Why screenshots are exact.** The firmware draws every frame into one
 8-bit canvas and pushes that to the screen, so the canvas *is* the picture.
@@ -182,8 +185,9 @@ gets at least one scenario. Their pictures become the **golden images** in
   device link message encoding.
 - **Firmware (`make fw-test`):** the protocol parser, line reassembly across
   BLE packets, the behaviour state machine (screen priority, the needs-you
-  chirp, moment expiry, the 30 s no-app timeout), input gestures, and
-  canvas primitives.
+  chirp, moment expiry, the 30 s no-app timeout, and that no message or
+  input in any state cuts the face hard: `test_no_change_ever_cuts_hard`),
+  input gestures, and canvas primitives.
 
 **Pass:** everything green. New code comes with tests.
 

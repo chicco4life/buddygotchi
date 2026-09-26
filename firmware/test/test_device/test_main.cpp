@@ -335,6 +335,7 @@ static void test_no_app_after_30s_of_silence() {
   TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":30000}");
   TEST_ASSERT_EQUAL(app::Screen::kNoApp, r.dev.screen());
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":30150}");  // dimmed over the blend
   TEST_ASSERT_EQUAL(60, r.hal.bl);
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");

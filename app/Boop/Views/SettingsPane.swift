@@ -25,7 +25,11 @@ struct SettingsPane: View {
                 .padding(.bottom, Theme.gapLoose)
             }
         }
-        .onAppear { apiKey = Keychain.key(.jev) ?? "" }
+        .task {
+            // Off the main thread: a Keychain prompt would freeze the popover.
+            let read = model.readKey
+            apiKey = await Task.detached { read() }.value ?? ""
+        }
     }
 
     // MARK: Sound

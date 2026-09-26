@@ -1,4 +1,5 @@
 import Foundation
+import HookWire
 import XCTest
 @testable import BoopKit
 
@@ -51,6 +52,72 @@ final class DeviceLinkTests: XCTestCase {
         XCTAssertEqual(chunks.reduce(0) { $0 + $1.count }, line.utf8.count + 1)
         var framer = LineFramer()
         XCTAssertEqual(chunks.flatMap { framer.push($0) }, [line])
+    }
+
+    /// PROTOCOL.md §2: Bluetooth lines go out whole, one piece at a time as
+    /// CoreBluetooth takes them; a newer `state` replaces one still waiting,
+    /// and a backlog drops its oldest lines that haven't started.
+    func testBluetoothOutboxKeepsLinesWholeAndStatesFresh() {
+        func drain(_ box: inout BLEOutbox) -> String {
+            var bytes = Data()
+            while let chunk = box.next() { bytes.append(chunk) }
+            return String(decoding: bytes, as: UTF8.self)
+        }
+        let state1 = #"{"t":"state","v":1,"base":"working"}"#
+        let state2 = #"{"t":"state","v":1,"base":"idle"}"#
+        let cheer = #"{"t":"moment","anim":"cheer","ttl":5}"#
+        var box = BLEOutbox()
+        box.add(state1, size: 8)
+        box.add(cheer, size: 8)
+        box.add(state2, size: 8)
+        XCTAssertEqual(drain(&box), state2 + "\n" + cheer + "\n", "the newer state takes the waiting one's place")
+
+        box.add(state1, size: 8)
+        let started = String(decoding: box.next() ?? Data(), as: UTF8.self)  // state1 has started
+        box.add(state2, size: 8)
+        XCTAssertEqual(started + drain(&box), state1 + "\n" + state2 + "\n",
+                       "a state that has started goes out whole, and the new one after it")
+
+        for i in 0..<200 { box.add(#"{"t":"moment","anim":"wiggle","n":\#(i)}"#, size: 20) }
+        XCTAssertLessThanOrEqual(box.bytes, BLEOutbox.limit)
+        let lines = drain(&box).split(separator: "\n")
+        XCTAssertTrue(lines.last?.contains(#""n":199"#) == true, "the newest is kept")
+        XCTAssertTrue(lines.allSatisfy { $0.hasPrefix("{") && $0.hasSuffix("}") }, "only whole lines")
+        XCTAssertTrue(box.isEmpty)
+    }
+
+    /// VERIFICATION.md §2: the USB link sends on the runtime's queue, so a
+    /// bridge that stops reading must cost a reconnect, not a frozen app.
+    func testAUSBBridgeThatStopsReadingCantFreezeTheApp() throws {
+        let path = "/tmp/boop-usb-stall-\(getpid()).sock"
+        unlink(path)
+        let server = socket(AF_UNIX, SOCK_STREAM, 0)
+        defer {
+            close(server)
+            unlink(path)
+        }
+        var address = try XCTUnwrap(HookSocket.unixAddress(path))
+        let bound = withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(server, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
+        }
+        XCTAssertEqual(bound, 0)
+        XCTAssertEqual(listen(server, 8), 0)  // accepts, never reads
+
+        let transport = USBTransport(path: path)
+        let ups = NSLock()
+        nonisolated(unsafe) var changes: [Bool] = []
+        transport.start(onLine: { _ in }, onConnection: { up in ups.withLock { changes.append(up) } })
+        defer { transport.stop() }
+        for _ in 0..<200 where ups.withLock({ changes.isEmpty }) { usleep(10_000) }
+        XCTAssertEqual(ups.withLock { changes }, [true])
+
+        let line = String(repeating: "x", count: 64 * 1024)
+        let start = Date()
+        for _ in 0..<64 { transport.send(line) }  // 4 MB into a socket nobody reads
+        XCTAssertLessThan(Date().timeIntervalSince(start), 2 * Double(USBTransport.sendTimeoutMs) / 1000 + 1,
+                          "one timed-out write, then the rest are dropped")
+        for _ in 0..<200 where ups.withLock({ changes.count < 2 }) { usleep(10_000) }
+        XCTAssertEqual(ups.withLock { changes }.prefix(2), [true, false], "it lets go, to reconnect")
     }
 
     func testDecodesStatusInputAndIgnoresTheRest() {

@@ -152,8 +152,11 @@ public final class Core {
             return fx
         }
 
-        // Any other event from the session means it moved on.
-        if waiting {
+        // Any other event from the session means it moved on, except Claude's
+        // idle notice (`turn_stopped` with no tool), which isn't the session
+        // acting: a request still waiting stays (ADAPTERS.md §3).
+        let idleNotice = event.event == .turnStopped && event.detail.tool == nil
+        if waiting && !idleNotice {
             s.needsSince = nil
             s.pendingSince = nil
             s.clearedAt = now
@@ -204,6 +207,15 @@ public final class Core {
             failed(s, durationMs: ms, error: event.detail.error, now, &fx)
         case .sessionEnd:
             sessions[key] = nil
+        case .turnStopped:
+            // Over without finishing (ADAPTERS.md §3): a working session goes
+            // idle, with no reaction and nothing for the brain.
+            if s.status == .working {
+                s.status = .idle
+                s.turnStartedAt = nil
+                s.check = nil
+            }
+            sessions[key] = s
         case .needsYou:
             break
         }

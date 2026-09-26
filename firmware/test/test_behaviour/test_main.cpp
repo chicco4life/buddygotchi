@@ -2,6 +2,7 @@
 // every timing checked to the millisecond.
 #include <unity.h>
 
+#include <cstdio>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -174,6 +175,123 @@ static void test_attention_wins_over_moments() {
   m.at(100);
   m.state(attn());
   TEST_ASSERT_NULL(m.b.mumble(m.t));
+}
+
+// UX.md §2: nothing cuts hard. A change the Mac makes mid-animation starts
+// its blend from exactly the frame that was showing: attention arriving
+// under a cheer (which it ends) or under listening (which it raises), and a
+// working count crossing 3 (the busier pace).
+static void test_changes_mid_motion_blend_from_what_was_showing() {
+  struct Case {
+    Model from;
+    Anim anim;
+    Model to;
+    int raise;  // where the face ends up
+  };
+  Model busy3 = base("working");
+  busy3.busy = 3;
+  const Case cases[] = {
+      {base("working"), Anim::kCheer, attn(), 1000},
+      {base("working"), Anim::kListening, attn(), 1000},
+      {base("working"), Anim::kNone, busy3, 0},
+  };
+  for (const Case& c : cases) {
+    for (uint32_t when : {300u, 950u, 2100u}) {
+      Rig r;
+      r.state(c.from);
+      if (c.anim != Anim::kNone) r.moment(c.anim);
+      r.at(when);
+      render::Pose before = r.b.pose(r.t);
+      r.state(c.to);
+      TEST_ASSERT_TRUE(before == r.b.pose(r.t));  // the same frame at the change
+      render::Pose half = r.b.pose(r.t + render::kBlendMs / 2);
+      TEST_ASSERT_TRUE(half.raise >= before.raise && half.raise <= c.raise);
+      r.at(r.t + render::kBlendMs);
+      TEST_ASSERT_EQUAL(c.raise, r.b.pose(r.t).raise);
+    }
+  }
+}
+
+// UX.md §2, every way round: whatever state Boop is in, whatever is
+// playing, and whatever arrives (any message or input), the frame just
+// after the change is the frame just before it. Motion only ever starts
+// from what was showing.
+static void test_no_change_ever_cuts_hard() {
+  Model busy3 = base("working");
+  busy3.busy = 3;
+  Model quiet = base("idle");
+  quiet.quiet = 30;
+  const Model states[] = {base("idle"), base("working"), busy3, base("asleep"), attn(), attn("jetpack"), quiet};
+  enum Playing { kNothing, kCheer, kWiggle, kListening, kSay, kCheerSay, kReplyWait, kNoApp, kPlayingCount };
+  const int kEvents = 7 + 6;  // every state, then the moments and inputs
+  int checked = 0;
+  for (int from = 0; from < 7; ++from) {
+    for (int playing = 0; playing < kPlayingCount; ++playing) {
+      for (int event = 0; event < kEvents; ++event) {
+        for (uint32_t when : {40u, 333u, 1210u}) {
+          Rig r;
+          r.state(states[from]);
+          r.at(500);
+          switch (playing) {
+            case kCheer: r.moment(Anim::kCheer); break;
+            case kWiggle: r.b.tap(r.t, r.rng); break;
+            case kListening: r.b.talkOn(r.t, r.rng); break;
+            case kSay: r.say(6); break;
+            case kCheerSay: {
+              MomentIn m;
+              m.anim = Anim::kCheer, m.syllables = 4, m.ms = 120;
+              r.b.onMoment(m, r.t, r.rng);
+              break;
+            }
+            case kReplyWait:
+              r.b.talkOn(r.t, r.rng);
+              r.at(900);
+              r.b.talkOff(r.t, r.rng);
+              break;
+            case kNoApp: r.at(500 + Behaviour::kNoAppMs); break;
+            default: break;
+          }
+          r.at(r.t + when);
+          render::Pose before = r.b.pose(r.t);
+          if (event < 7) {
+            r.state(states[event]);
+          } else {
+            switch (event - 7) {
+              case 0: r.moment(Anim::kCheer); break;
+              case 1: r.b.tap(r.t, r.rng); break;
+              case 2: r.b.talkOn(r.t, r.rng); break;
+              case 3: r.b.talkOff(r.t, r.rng); break;
+              case 4: r.say(3); break;
+              default: r.stop(); break;
+            }
+          }
+          render::Pose after = r.b.pose(r.t);
+          if (!(before == after)) {
+            char why[96];
+            std::snprintf(why, sizeof(why), "from state %d, playing %d, event %d at +%u ms", from, playing, event,
+                          unsigned(when));
+            TEST_FAIL_MESSAGE(why);
+          }
+          ++checked;
+        }
+      }
+    }
+  }
+  TEST_ASSERT_EQUAL(7 * kPlayingCount * kEvents * 3, checked);
+}
+
+// BEHAVIORS.md §3.4: no app holds however long the Mac stays away, even
+// past the 24.8 days where the clock's differences wrap.
+static void test_no_app_holds_for_weeks() {
+  Rig r;
+  r.state(base("working"));
+  r.at(Behaviour::kNoAppMs);
+  TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
+  r.at(0x80000000u + 5000);
+  TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
+  TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
+  r.state(base("idle"));
+  TEST_ASSERT_EQUAL(Screen::kFace, r.b.screen(r.t));
 }
 
 // The debug label's name (UX.md §2): the animation playing, else the look.
@@ -466,10 +584,12 @@ static void test_no_app_at_30s_looks_asleep_and_reconnect_blinks() {
   r.at(31000);
   TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
   TEST_ASSERT_EQUAL_STRING("asleep", r.b.faceName(r.t));
-  TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
+  TEST_ASSERT_EQUAL(255, r.b.backlight(r.t));  // dimming with the face's blend
+  TEST_ASSERT_TRUE(r.b.backlight(r.t + render::kBlendMs / 2) < 255);
   TEST_ASSERT_EQUAL_HEX32(0, r.b.led(r.t));
   TEST_ASSERT_TRUE(r.b.strip(r.t).noApp);
   r.at(31000 + render::kBlendMs);
+  TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
   render::Pose p = r.b.pose(r.t);
   render::Pose asleep = render::lookPose(render::Look::kAsleep, 0);
   TEST_ASSERT_EQUAL_INT(asleep.open, p.open);
@@ -481,7 +601,8 @@ static void test_no_app_at_30s_looks_asleep_and_reconnect_blinks() {
   r.state(base("idle"));
   TEST_ASSERT_EQUAL(Screen::kFace, r.b.screen(r.t));
   TEST_ASSERT_EQUAL(Life::kBlink, r.b.life(r.t));
-  TEST_ASSERT_EQUAL(255, r.b.backlight(r.t));
+  TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
+  TEST_ASSERT_EQUAL(255, r.b.backlight(r.t + render::kBlendMs));
 }
 
 // BEHAVIORS.md §3.3: push-to-talk listens at once on hold, and on release
@@ -659,6 +780,9 @@ int main() {
   RUN_TEST(test_tap_during_needs_you_is_only_the_squash_and_stays_amber);
   RUN_TEST(test_answering_on_the_mac_blends_back);
   RUN_TEST(test_attention_wins_over_moments);
+  RUN_TEST(test_changes_mid_motion_blend_from_what_was_showing);
+  RUN_TEST(test_no_app_holds_for_weeks);
+  RUN_TEST(test_no_change_ever_cuts_hard);
   RUN_TEST(test_face_name_is_the_moment_or_the_look);
   RUN_TEST(test_moments_end_and_replace);
   RUN_TEST(test_mumble_moves_the_mouth_and_respects_quiet);

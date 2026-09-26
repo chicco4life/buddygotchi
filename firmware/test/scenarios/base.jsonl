@@ -20,10 +20,14 @@
 {"clock":31199}
 {"expect":{"screen":"face","bl":255}}
 {"clock":31200}
-{"expect":{"screen":"no_app","bl":60,"led":"#000000"}}
+{"expect":{"screen":"no_app","bl":255,"led":"#000000"}}
+{"clock":31350}
+{"expect":{"screen":"no_app","bl":60}}
 {"clock":31500}
 {"shot":"no-app"}
 {"t":"state","v":1,"base":"idle","busy":0,"idle":1,"wait":0}
 {"clock":31600}
-{"expect":{"screen":"face","bl":255,"life":"blink"}}
+{"expect":{"screen":"face","life":"blink"}}
 {"shot":"reconnect"}
+{"clock":31650}
+{"expect":{"bl":255}}
