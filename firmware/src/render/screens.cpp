@@ -15,9 +15,10 @@ constexpr int kMargin = 12;
 // The face's centre and scale. The centre is the eyes', and the mouth hangs
 // below them, so the eyes sit kFaceDrop (face.h) above the middle of their
 // space. Alone, the face is centred in the space above the strip; with a
-// bubble it moves up into the space above the bubble and shrinks.
+// bubble it moves up into the space above the bubble and shrinks, but only
+// so far that the needs-you face, which leans in, keeps the idle face's size.
 constexpr int kFaceCy = kStripTop / 2 - kFaceDrop;
-constexpr int kFaceBubbleScale = 750;
+constexpr int kFaceBubbleScale = 850;
 constexpr int kFaceBubbleCy = kBubbleTop / 2 - kFaceDrop * kFaceBubbleScale / 1000;
 
 // The middle of the bubble and of the strip.

@@ -34,7 +34,8 @@ reads as black glass. Boop sits sideways, so the screen is landscape,
 ```
 
 Alone, the face is centred in the 204 px above the strip. When the bubble
-shows, the face eases up into the top 144 px at three-quarters size.
+shows, the face eases up into the top 144 px at 85% size, so the
+needs-you face, which leans in, is as big as the idle face alone.
 
 - **Face.** Pixel art, after the owner's reference render (2026-09-26):
   everything is built from square 3 px blocks on one grid, with no

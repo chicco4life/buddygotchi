@@ -607,6 +607,24 @@ static void test_a_sweat_drop_sits_by_the_right_eye_and_slides_down() {
   TEST_ASSERT_TRUE(widths[a.y1] < widest && widestAt < a.y1);
 }
 
+static void test_needs_you_leans_in_without_shrinking() {
+  // With the bubble the face moves up and shrinks to 85% (UX.md §2), so
+  // the needs-you face, which leans in, keeps the idle face's eyes, and
+  // its mouth stays clear of the bubble.
+  Buf idle, needs;
+  drawFaceScreen(idle.c, lookPose(Look::kIdle, 0), nullptr, Strip{});
+  Pose n = lookPose(Look::kNeedsYou, 0);
+  n.raise = 1000;
+  Attention a;
+  a.agent = "codex", a.project = "landing";
+  drawNeedsYou(needs.c, n, a, Strip{});
+  Box ie = inkBox(idle, kInkEye, 0, 125), ne = inkBox(needs, kInkEye, 0, 125);
+  TEST_ASSERT_EQUAL_INT(ie.x1 - ie.x0, ne.x1 - ne.x0);
+  TEST_ASSERT_EQUAL_INT(ie.y1 - ie.y0, ne.y1 - ne.y0);
+  Box mouth = inkBox(needs, kInkEye, 125, 196);
+  TEST_ASSERT_TRUE(mouth.y1 > 0 && mouth.y1 < kBubbleTop - 20);
+}
+
 static void test_the_heart_and_the_drop_never_overlap() {
   // Working into a cheer, and a cheer cut short by listening, blend a drop
   // out and a heart in: the drop goes once the heart shows (UX.md §2).
@@ -741,6 +759,7 @@ int main(int, char**) {
   RUN_TEST(test_asleep_zzz_climbs_one_letter_at_a_time);
   RUN_TEST(test_every_sprite_is_on_the_grid_and_on_screen);
   RUN_TEST(test_a_sweat_drop_sits_by_the_right_eye_and_slides_down);
+  RUN_TEST(test_needs_you_leans_in_without_shrinking);
   RUN_TEST(test_the_heart_and_the_drop_never_overlap);
   RUN_TEST(test_a_happy_blend_squints_a_row_at_a_time);
   RUN_TEST(test_listening_bobs_the_whole_face_a_block);
