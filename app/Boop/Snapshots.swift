@@ -18,7 +18,13 @@ enum Snapshots {
             let home = FileManager.default.temporaryDirectory.appendingPathComponent("boop-snapshots-\(getpid())")
             try FileManager.default.createDirectory(at: home.appendingPathComponent(".claude"), withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: home) }
-            let installer = HookInstaller(home: home, hookPath: "/Applications/Boop/boop-hook")
+            // The installer refuses without a boop-hook to call, so give it one.
+            let hook = home.appendingPathComponent("bin/boop-hook")
+            try FileManager.default.createDirectory(at: hook.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data("#!/bin/sh\n".utf8).write(to: hook)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: hook.path)
+            let installer = HookInstaller(home: home, hookPath: hook.path)
+            let unbuilt = HookInstaller(home: home, hookPath: home.appendingPathComponent("bin/missing").path)
 
             for dark in [false, true] {
                 let look = dark ? "dark" : "light"
@@ -33,6 +39,9 @@ enum Snapshots {
                 settings.restartAgents = true
                 render(PopoverView(model: settings, maxHeight: 2000), "settings-\(look)", dark: dark, to: out)
                 try? installer.remove(.claude)
+                let noHook = model(unbuilt, status: status())
+                noHook.pane = .settings
+                render(PopoverView(model: noHook, maxHeight: 2000), "settings-no-hook-\(look)", dark: dark, to: out)
 
                 for step in SetupDraft.Step.allCases {
                     let setup = model(installer, status: nil)
@@ -42,6 +51,12 @@ enum Snapshots {
                     if step.rawValue >= SetupDraft.Step.name.rawValue { setup.setup.name = "Mochi" }
                     render(PopoverView(model: setup), "setup-\(step.rawValue + 1)-\(step)-\(look)", dark: dark, to: out)
                 }
+                let setup = model(unbuilt, status: nil)
+                setup.pane = .setup
+                setup.setup.step = .agents
+                setup.setup.agents = [.claude]
+                setup.setup.name = "Mochi"
+                render(PopoverView(model: setup), "setup-3-agents-no-hook-\(look)", dark: dark, to: out)
                 renderIcons(dark: dark, to: out)
             }
         } catch {

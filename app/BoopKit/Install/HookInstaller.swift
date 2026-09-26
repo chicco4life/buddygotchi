@@ -21,6 +21,9 @@ public struct HookInstaller {
         case outdated
         /// The file isn't JSON Boop can read; it's left alone.
         case unreadable(String)
+        /// The `boop-hook` the entries call isn't there, so they'd drop every
+        /// event. Nothing is installed or repaired until it is.
+        case clientMissing
     }
 
     /// The hooks each agent gets, with a matcher where one is needed.
@@ -60,6 +63,9 @@ public struct HookInstaller {
         FileManager.default.fileExists(atPath: configURL(agent).deletingLastPathComponent().path)
     }
 
+    /// Whether the `boop-hook` the entries call is in place.
+    public var clientInPlace: Bool { FileManager.default.isExecutableFile(atPath: hookPath) }
+
     public func command(_ agent: Agent) -> String {
         "\"\(hookPath)\" \(agent.rawValue)"
     }
@@ -78,6 +84,7 @@ public struct HookInstaller {
         case .failure(let why): return .unreadable(why.description)
         case .success(let r): root = r
         }
+        guard clientInPlace else { return .clientMissing }
         let hooks = root["hooks"] as? [String: Any] ?? [:]
         let ours = Self.boopCommands(in: hooks)
         if ours.isEmpty { return .notInstalled }
@@ -99,8 +106,9 @@ public struct HookInstaller {
     // MARK: Changing
 
     /// Adds Boop's entries, replacing any older ones. For Codex it also turns
-    /// hooks on in `config.toml`.
+    /// hooks on in `config.toml`. Refuses while `boop-hook` isn't in place.
     public func install(_ agent: Agent) throws {
+        guard clientInPlace else { throw Refusal("there's no boop-hook at \(hookPath)") }
         let root = try read(agent).get()
         try write(installing(agent, into: root), agent)
         if agent == .codex { try enableCodexHooks() }
@@ -113,7 +121,8 @@ public struct HookInstaller {
     }
 
     /// On launch: brings back missing or outdated entries for agents that
-    /// already have Boop's. Returns the agents it repaired.
+    /// already have Boop's. Returns the agents it repaired; none while
+    /// `boop-hook` isn't in place.
     @discardableResult
     public func repair() -> [Agent] {
         Agent.allCases.filter { agent in

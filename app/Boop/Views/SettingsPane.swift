@@ -93,6 +93,7 @@ struct SettingsPane: View {
         case .installed?: ("Connected", Theme.sageInk)
         case .outdated?: ("Needs a repair", Theme.amberInk)
         case .unreadable(let why)?: ("Can't read its settings: \(why)", Theme.clayInk)
+        case .clientMissing?: ("boop-hook isn't built. Run make build, then restart Boop.", Theme.clayInk)
         default: found ? ("Not connected", Theme.inkSoft) : ("Not found on this Mac", Theme.inkFaint)
         }
         return SettingRow(icon: agentSymbol(agent == .claude ? "claude" : "codex"), title: agent.displayName,
@@ -102,7 +103,7 @@ struct SettingsPane: View {
                 Button("Remove") { model.remove(agent) }.buttonStyle(.row)
             case .outdated?:
                 Button("Repair") { model.install(agent) }.buttonStyle(.rowFilled)
-            case .unreadable?:
+            case .unreadable?, .clientMissing?:
                 EmptyView()
             default:
                 Button("Connect") { model.install(agent) }.buttonStyle(.rowFilled).disabled(!found)

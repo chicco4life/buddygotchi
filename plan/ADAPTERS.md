@@ -144,6 +144,11 @@ generation of Boop taught us two things:
   so rebuilding or moving the app doesn't break them. It never touches anyone else's, but it does
   remove the previous generation's entries, which call
   `~/.boop/boop-hook.sh`.
+- **No `boop-hook`, no hooks:** while that copy isn't there (a build that
+  skipped `boop-hook`, so the app had nothing to copy), the app installs
+  and repairs nothing, and setup and settings say why. Entries that call a
+  missing file would drop every event without a sign. `make run` builds
+  everything first for this reason.
 - **Install:** at setup, a switch per detected agent, on by default
   ([UX.md](UX.md) §6), or one click in settings. The app shows exactly what
   it will add: each hook entry and, for Codex, the `codex_hooks = true` line

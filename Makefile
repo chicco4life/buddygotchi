@@ -3,12 +3,15 @@
 
 PIO := firmware/tools/pio.sh
 
-# Mac app, boop-hook, boopdev.
+# Mac app, boop-hook, boopdev. By product: a bare `swift build` also links
+# the BoopTests runner, which has no main until `make test` generates one.
 build:
-	cd app && swift build
+	cd app && swift build --product Boop && swift build --product boop-hook && swift build --product boopdev
 
-# The Mac app with Bluetooth. The owner runs this, not agents.
-run:
+# The Mac app with Bluetooth. The owner runs this, not agents. Builds
+# everything first: the app copies the boop-hook built next to it, and
+# `swift run Boop` alone doesn't build boop-hook.
+run: build
 	cd app && swift run Boop
 
 # Swift unit tests through the XCTest shim (there's no Xcode here).

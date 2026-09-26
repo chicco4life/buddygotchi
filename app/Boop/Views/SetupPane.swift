@@ -160,7 +160,10 @@ struct SetupPane: View {
                 ForEach(HookInstaller.Agent.allCases, id: \.self) { agentRow($0) }
             }
             .padding(.top, Theme.gapTight)
-            if !detected.isEmpty {
+            if !model.installer.clientInPlace {
+                Text("boop-hook isn't built, so I can't add hooks yet. Run make build, restart Boop, then connect them in Settings.")
+                    .font(.system(size: 11)).foregroundStyle(Theme.clayInk).multilineTextAlignment(.center)
+            } else if !detected.isEmpty {
                 DisclosureGroup(isExpanded: $showHooks) {
                     ScrollView {
                         Text(detected.filter { model.setup.agents.contains($0) }.map { agent in
@@ -188,7 +191,7 @@ struct SetupPane: View {
 
     private func agentRow(_ agent: HookInstaller.Agent) -> some View {
         let found = model.installer.detected(agent)
-        let on = found && model.setup.agents.contains(agent)
+        let on = found && model.installer.clientInPlace && model.setup.agents.contains(agent)
         return Card(padding: 0) {
             SettingRow(icon: agentSymbol(agent == .claude ? "claude" : "codex"), title: agent.displayName,
                        detail: found ? "Found on this Mac" : "Not found. You can add it later in Settings.",
@@ -198,7 +201,7 @@ struct SetupPane: View {
                 }))
                 .toggleStyle(.switch)
                 .labelsHidden()
-                .disabled(!found)
+                .disabled(!found || !model.installer.clientInPlace)
             }
         }
         .opacity(found ? 1 : 0.75)
@@ -213,7 +216,7 @@ struct SetupPane: View {
             VStack(alignment: .leading, spacing: Theme.gap) {
                 tip("powerplug.fill", "Plug \(name)'s body into USB power. It finds this Mac over Bluetooth by itself.")
                 tip("hand.raised.fill", "macOS will ask to use Bluetooth, and the microphone the first time you hold \(name)'s button to talk.")
-                if !model.setup.agents.isEmpty {
+                if !model.setup.agents.isEmpty && model.installer.clientInPlace {
                     tip("arrow.clockwise", "Restart any open agent sessions afterwards so I can hear them.")
                 }
             }

@@ -184,7 +184,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let fm = FileManager.default
         guard let built = Bundle.main.executableURL?.deletingLastPathComponent().appendingPathComponent("boop-hook"),
               fm.isExecutableFile(atPath: built.path) else {
-            log.write("hooks: no boop-hook next to the app")
+            let placed = model.installer.clientInPlace ? "keeping the copy in place" : "hooks can't be installed or repaired"
+            log.write("hooks: no boop-hook next to the app; \(placed)")
             return
         }
         let target = URL(fileURLWithPath: model.installer.hookPath)

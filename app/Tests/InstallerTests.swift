@@ -7,13 +7,23 @@ import XCTest
 final class InstallerTests: XCTestCase {
     var home: URL!
     var installer: HookInstaller!
-    let hook = "/Users/x/Library/Application Support/Boop/bin/boop-hook"
+    var hook = ""
 
     override func setUpWithError() throws {
         home = FileManager.default.temporaryDirectory.appendingPathComponent("boop-home-\(UUID().uuidString)")
         try! FileManager.default.createDirectory(at: home.appendingPathComponent(".claude"), withIntermediateDirectories: true)
         try! FileManager.default.createDirectory(at: home.appendingPathComponent(".codex"), withIntermediateDirectories: true)
+        hook = placeClient("Library/Application Support/Boop/bin/boop-hook")
         installer = HookInstaller(home: home, hookPath: hook)
+    }
+
+    /// An executable stand-in for `boop-hook` under HOME; returns its path.
+    func placeClient(_ path: String) -> String {
+        let url = home.appendingPathComponent(path)
+        try! FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try! Data("#!/bin/sh\n".utf8).write(to: url)
+        try! FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        return url.path
     }
 
     override func tearDownWithError() throws {
@@ -160,10 +170,30 @@ final class InstallerTests: XCTestCase {
 
     func testMovedHookBinaryIsOutdated() throws {
         try installer.install(.claude)
-        let moved = HookInstaller(home: home, hookPath: "/Applications/Boop.app/Contents/MacOS/boop-hook")
+        let moved = HookInstaller(home: home, hookPath: placeClient("Applications/Boop.app/Contents/MacOS/boop-hook"))
         XCTAssertEqual(moved.health(.claude), .outdated)
         try moved.install(.claude)
-        XCTAssertEqual(commands(.claude, "Stop"), ["\"/Applications/Boop.app/Contents/MacOS/boop-hook\" claude"])
+        XCTAssertEqual(commands(.claude, "Stop"), ["\"\(moved.hookPath)\" claude"])
+    }
+
+    /// `make run` once built the app without `boop-hook`, and launch repair
+    /// replaced working entries with ones calling a file that wasn't there.
+    func testMissingClientInstallsAndRepairsNothing() throws {
+        write(.claude, existing)
+        let before = try Data(contentsOf: installer.configURL(.claude))
+        let unbuilt = HookInstaller(home: home, hookPath: home.appendingPathComponent("bin/boop-hook").path)
+        XCTAssertFalse(unbuilt.clientInPlace)
+        XCTAssertEqual(unbuilt.health(.claude), .clientMissing)
+        XCTAssertEqual(unbuilt.health(.codex), .clientMissing)
+        XCTAssertEqual(unbuilt.repair(), [])
+        try XCTAssertThrowsError(try unbuilt.install(.claude))
+        try XCTAssertThrowsError(try unbuilt.install(.codex))
+        try XCTAssertEqual(try Data(contentsOf: installer.configURL(.claude)), before)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: installer.configURL(.codex).path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: installer.codexConfigURL.path))
+        // Removing still works: it only takes Boop's entries out.
+        try unbuilt.remove(.claude)
+        XCTAssertEqual(commands(.claude, "Stop"), ["say done"])
     }
 
     func testUnreadableFileIsLeftAlone() throws {

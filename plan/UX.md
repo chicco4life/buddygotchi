@@ -144,7 +144,9 @@ are thrown away after the reply.
       sweet or cheeky?
    3. **Agents:** Claude Code and Codex, each marked found or not found on
       this Mac, with a switch to watch it ([ADAPTERS.md](ADAPTERS.md) §5).
-      "See exactly what gets added" shows each file and its hooks.
+      "See exactly what gets added" shows each file and its hooks. If
+      `boop-hook` isn't built, the switches are off and a line says to run
+      `make build`, restart Boop, and connect the agents in Settings.
    4. **Wake up:** what happens next (plug in the body; macOS asks for
       Bluetooth, and for the microphone on the first push-to-talk), then
       "Wake *name* up". This saves Boop, adds the chosen hooks and starts
@@ -191,7 +193,7 @@ follows its content, and a long pane scrolls.
 | Group | Controls |
 | --- | --- |
 | Sound & focus | Volume (0–10, 0 shows "Off"), focus mode, "I'm away" (pauses hunger) |
-| Agents | Claude Code and Codex: connected, not connected, not found or needs a repair, with Connect, Repair or Remove |
+| Agents | Claude Code and Codex: connected, not connected, not found or needs a repair, with Connect, Repair or Remove. If `boop-hook` isn't built, each says so ("Run make build, then restart Boop") with no button |
 | Device | Whether Boop's body is connected and how (Bluetooth or USB), and its firmware version. Not its id |
 | Brain | Apple's on-device model or rules only (takes effect on restart), and the API key, kept in the Keychain; cloud brains are shown as not yet available |
 | What Boop remembers | Each line, with a button to forget it |
