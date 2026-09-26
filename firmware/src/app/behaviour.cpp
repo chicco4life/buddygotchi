@@ -370,11 +370,14 @@ uint8_t Behaviour::blTarget(uint32_t t) const {
   return 255;
 }
 
+// With no app the Mac's counts and quiet are stale, so only the unplugged
+// icon shows (BEHAVIORS.md §3.4).
 render::Strip Behaviour::strip(uint32_t t) const {
   render::Strip s;
+  s.noApp = noApp(t);
+  if (s.noApp) return s;
   s.wait = model_.wait;
   s.busy = model_.busy;
-  s.noApp = noApp(t);
   s.quiet = model_.quiet > 0;
   return s;
 }

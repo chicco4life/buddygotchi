@@ -67,7 +67,7 @@ shows, the face eases up into the top 144 px at three-quarters size.
   word, or who needs you.
 - **Status strip.** How many sessions need you (amber, hidden at zero) and
   how many are working (grey), plus icons at the right for quiet and no
-  app.
+  app. With no app, only its icon shows.
 - **Debug label.** A debug-only aid, off unless the firmware is built with
   `BOOP_DEBUG_LABEL=1` (the board build sets it in
   `firmware/platformio.ini`). On the face, needs-you and no-app screens,
@@ -94,7 +94,7 @@ shows, the face eases up into the top 144 px at three-quarters size.
 └──────────────────────────────────┘
 ```
 
-**No app.** The asleep face with an unplugged icon in the strip
+**No app.** The asleep face with only an unplugged icon in the strip
 ([BEHAVIORS.md](BEHAVIORS.md) §2).
 
 There are no other screens. The threads and stats screens are parked

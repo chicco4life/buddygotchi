@@ -1,6 +1,6 @@
 # Boop: behaviors
 
-Updated 2026-09-26. What Boop does on the device when things happen. How
+Updated 2026-09-27. What Boop does on the device when things happen. How
 it sounds is in [VOICE.md](VOICE.md). Numbers marked *proposed* are first
 guesses, to be tuned once we've lived with Boop.
 
@@ -44,7 +44,9 @@ you. It dims and brightens over the face's 150 ms blend
 
 **No app.** With no `state` from the Mac for 30 s the device shows the
 asleep look (backlight 60/255), with the unplugged icon in the strip so
-you can tell it from having no sessions (§3.4).
+you can tell it from having no sessions (§3.4). The strip drops the
+session counts and the quiet icon, which the device can no longer
+know.
 
 **Working chatter.** While agents work, the core has Boop mutter by rule,
 as often as the mode says: every 45–90 s in chatty, every 2–4 minutes in
@@ -126,7 +128,7 @@ milliseconds of audio at a time and keeps only that yes or no
 
 | When | Behaviour |
 | --- | --- |
-| No `state` for 30 s | The asleep look, with the unplugged icon (§2), for as long as the silence lasts |
+| No `state` for 30 s | The asleep look, with only the unplugged icon in the strip (§2), for as long as the silence lasts |
 | Reconnect | Quick blink, then whatever the next `state` says |
 
 ## 4. Sound and light

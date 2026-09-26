@@ -631,16 +631,24 @@ static void test_working_strains_and_sweats_and_asleep_says_zzz() {
 static void test_no_app_at_30s_looks_asleep_and_reconnect_blinks() {
   Rig r;
   r.at(1000);
-  r.state(attn());  // even a stale "needs you" gives way
+  Model m = attn();  // even a stale "needs you" gives way
+  m.wait = 1, m.busy = 2, m.quiet = 5;
+  r.state(m);
   r.at(30999);
   TEST_ASSERT_EQUAL(Screen::kNeedsYou, r.b.screen(r.t));
+  TEST_ASSERT_EQUAL(1, r.b.strip(r.t).wait);
   r.at(31000);
   TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
   TEST_ASSERT_EQUAL_STRING("asleep", r.b.faceName(r.t));
   TEST_ASSERT_EQUAL(255, r.b.backlight(r.t));  // dimming with the face's blend
   TEST_ASSERT_TRUE(r.b.backlight(r.t + render::kBlendMs / 2) < 255);
   TEST_ASSERT_EQUAL_HEX32(0, r.b.led(r.t));
-  TEST_ASSERT_TRUE(r.b.strip(r.t).noApp);
+  // The strip keeps only the unplugged icon: the counts and quiet are stale.
+  render::Strip strip = r.b.strip(r.t);
+  TEST_ASSERT_TRUE(strip.noApp);
+  TEST_ASSERT_EQUAL(0, strip.wait);
+  TEST_ASSERT_EQUAL(0, strip.busy);
+  TEST_ASSERT_FALSE(strip.quiet);
   r.at(31000 + render::kBlendMs);
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
   render::Pose p = r.b.pose(r.t);
