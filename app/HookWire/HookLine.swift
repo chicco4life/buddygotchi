@@ -17,11 +17,13 @@ public struct HookLine: Equatable, Sendable {
     public var error: String?
     /// `Notification`'s type, e.g. `permission_prompt`.
     public var kind: String?
+    /// `PostToolUseFailure` because you interrupted the call.
+    public var interrupt: Bool
     /// When the hook ran, in milliseconds.
     public var ts: Int64
 
     public init(agent: String, hook: String, session: String, cwd: String? = nil, tool: String? = nil,
-                topic: String? = nil, error: String? = nil, kind: String? = nil, ts: Int64) {
+                topic: String? = nil, error: String? = nil, kind: String? = nil, interrupt: Bool = false, ts: Int64) {
         self.agent = agent
         self.hook = hook
         self.session = session
@@ -30,6 +32,7 @@ public struct HookLine: Equatable, Sendable {
         self.topic = topic
         self.error = error
         self.kind = kind
+        self.interrupt = interrupt
         self.ts = ts
     }
 
@@ -57,6 +60,7 @@ public struct HookLine: Equatable, Sendable {
             if hook != "PermissionRequest" {
                 line.topic = Topic.tag(tool: line.tool, input: json["tool_input"])
             }
+            line.interrupt = hook == "PostToolUseFailure" && json["is_interrupt"] as? Bool == true
         case "StopFailure":
             line.error = string(json["error"]) ?? string(json["error_type"])
         case "Notification":
@@ -102,6 +106,7 @@ public struct HookLine: Equatable, Sendable {
         if let topic { object["topic"] = topic }
         if let error { object["error"] = error }
         if let kind { object["kind"] = kind }
+        if interrupt { object["interrupt"] = true }
         var data = (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])) ?? Data()
         data.append(0x0A)
         return data
@@ -114,6 +119,7 @@ public struct HookLine: Equatable, Sendable {
         let ts = (object["ts"] as? NSNumber)?.int64Value ?? 0
         return HookLine(agent: agent, hook: hook, session: session, cwd: string(object["cwd"]),
                         tool: string(object["tool"]), topic: string(object["topic"]),
-                        error: string(object["error"]), kind: string(object["kind"]), ts: ts)
+                        error: string(object["error"]), kind: string(object["kind"]),
+                        interrupt: object["interrupt"] as? Bool == true, ts: ts)
     }
 }

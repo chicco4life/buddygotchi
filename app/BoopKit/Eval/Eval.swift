@@ -12,7 +12,8 @@ import Foundation
 public struct Scenario: Sendable {
     /// What happens at a step, as it reaches the core.
     public struct Event: Sendable {
-        /// `turn started`, `turn finished`, `turn failed`, `tap`, `talk` or `wait`.
+        /// `turn started`, `command`, `turn finished`, `turn failed`, `tap`,
+        /// `talk` or `wait`.
         public var event: String
         /// Virtual time since the scenario started, in ms.
         public var atMs: Int64
@@ -21,6 +22,11 @@ public struct Scenario: Sendable {
         public var session: String
         public var error: String?
         public var words: String?
+        /// Talk: you yelled it.
+        public var yelled = false
+        /// A command: its topic (`tests`, `build`, `deploy`), and whether it failed.
+        public var topic: String?
+        public var failed = false
     }
 
     /// What Stage 1 answers for the step's inputs instead of the classifier
@@ -55,7 +61,7 @@ public struct Scenario: Sendable {
     /// Where it came from, for reports.
     public var file: String
 
-    public static let events = ["turn started", "turn finished", "turn failed", "tap", "talk", "wait"]
+    public static let events = ["turn started", "command", "turn finished", "turn failed", "tap", "talk", "wait"]
 
     /// Reads one scenario file. Throws with the file and step on a bad one.
     public init(file: URL) throws {
@@ -81,10 +87,13 @@ public struct Scenario: Sendable {
             guard let agent = Agent(hookName: agentName) else { throw bad("\(n): unknown agent \(agentName)") }
             let project = input["project"] as? String ?? "jetpack"
             if event == "talk", input["words"] as? String == nil { throw bad("\(n): talk needs words") }
+            if event == "command", input["topic"] as? String == nil { throw bad("\(n): a command needs a topic") }
             self.steps.append(Step(
                 event: Event(event: event, atMs: at, agent: agent, project: project,
                              session: input["session"] as? String ?? "\(agent.short)-\(project)",
-                             error: input["error"] as? String, words: input["words"] as? String),
+                             error: input["error"] as? String, words: input["words"] as? String,
+                             yelled: input["yelled"] as? Bool ?? false, topic: input["topic"] as? String,
+                             failed: input["failed"] as? Bool ?? false),
                 classifier: try Scenario.classifier(s["classifier"], bad: { bad("\(n): \($0)") }),
                 writer: try Scenario.writer(s["writer"], bad: { bad("\(n): \($0)") }),
                 expect: expect))
@@ -125,8 +134,9 @@ public struct Scenario: Sendable {
         throw bad("writer is {\"react.word\":\"…\"}, {\"error\":\"…\"}, \"refused\" or \"late\"")
     }
 
-    /// `90s`, `12m`, `2h` → ms.
+    /// `500ms`, `90s`, `12m`, `2h` → ms.
     static func ms(_ text: String) -> Int64? {
+        if text.hasSuffix("ms") { return Int64(text.dropLast(2)).flatMap { $0 >= 0 ? $0 : nil } }
         guard let unit = text.last, let n = Int64(text.dropLast()), n >= 0 else { return nil }
         switch unit {
         case "s": return n * 1000
@@ -202,7 +212,7 @@ public struct Eval: Sendable {
                 send: { _ in },
                 mumblesAllowed: { core.canMumble(at: clock.now) },
                 setQuiet: { pending.effects += core.setQuiet(minutes: $0, at: clock.now) },
-                today: { time.day(clock.now) })
+                quietAsked: { core.quietAsked }, today: { time.day(clock.now) })
             let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: longTerm.seed)), memory: store)
             let harness = Harness(classifier: ScriptedClassifier(base: classifier, script: script),
                                   writer: ScriptedWriter(base: writer, script: script),
@@ -270,10 +280,16 @@ public struct Eval: Sendable {
         }
         switch step.event {
         case "turn started": return event(.turnStart)
+        case "command":
+            // A shell command finished, as Claude's PostToolUse or
+            // PostToolUseFailure reports it (ADAPTERS.md §3).
+            return core.handle(BoopEvent(agent: step.agent, session: step.session, project: step.project,
+                                         event: .activity, detail: .init(tool: "Bash", topic: step.topic,
+                                                                         failed: step.failed), ts: now))
         case "turn finished": return event(.turnEnd)
         case "turn failed": return event(.turnFailed)
         case "tap": return core.input(Core.DeviceInput.tap, at: now)
-        case "talk": return core.talk(step.words ?? "", at: now)
+        case "talk": return core.talk(step.words ?? "", yelled: step.yelled, at: now)
         default: return core.tick(at: now)
         }
     }

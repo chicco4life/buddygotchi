@@ -263,8 +263,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                         Task { @MainActor in model.talkError = why }
                     }
                 } else {
-                    listener.stop { words in
-                        if let words { runtime.talk(words) } else { log.write("talk: heard nothing") }
+                    listener.stop { words, yelled in
+                        // A yell with no words still counts (BEHAVIORS.md §3.3).
+                        if words != nil || yelled {
+                            runtime.talk(words ?? "", yelled: yelled)
+                        } else {
+                            log.write("talk: heard nothing")
+                        }
                     }
                 }
             }

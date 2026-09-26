@@ -20,7 +20,7 @@ public final class Runtime: @unchecked Sendable {
         public var writer: String?
         public var time = LocalTime()
         public var clock: @Sendable () -> Int64 = { Int64(Date().timeIntervalSince1970 * 1000) }
-        /// Accept `{"dev":"talk","words":…}` and `{"dev":"advance","ms":…}`
+        /// Accept `{"dev":"talk","words":…,"yelled":…}` and `{"dev":"advance","ms":…}`
         /// on the hook socket (headless only).
         public var devLines = false
         /// Moves `clock` forward, for `{"dev":"advance"}`; nil ignores it.
@@ -157,6 +157,7 @@ public final class Runtime: @unchecked Sendable {
             },
             mumblesAllowed: { core.canMumble(at: clock()) },
             setQuiet: { route(core.setQuiet(minutes: $0, at: clock())) },
+            quietAsked: { core.quietAsked },
             today: { time.day(clock()) },
             log: log)
         let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: longTerm.seed)), memory: memory)
@@ -244,8 +245,9 @@ public final class Runtime: @unchecked Sendable {
     func dev(_ data: Data) {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
         if object["dev"] as? String == "talk", let words = object["words"] as? String {
-            options.log("dev: talk \"\(words)\"")
-            talkNow(words)
+            let yelled = object["yelled"] as? Bool == true
+            options.log("dev: talk \"\(words)\"\(yelled ? " (yelled)" : "")")
+            talkNow(words, yelled: yelled)
         } else if object["dev"] as? String == "advance", let ms = (object["ms"] as? NSNumber)?.int64Value,
                   ms > 0, let advance = options.advance {
             advance(ms)
@@ -320,8 +322,8 @@ public final class Runtime: @unchecked Sendable {
                          writer: harness.writer.id, listening: core.listening != nil))
     }
 
-    func talkNow(_ words: String) {
-        run(core.talk(words, at: options.clock()))
+    func talkNow(_ words: String, yelled: Bool = false) {
+        run(core.talk(words, yelled: yelled, at: options.clock()))
     }
 
     func saveSettings(_ change: (inout AppSettings) -> Void) {
@@ -331,10 +333,10 @@ public final class Runtime: @unchecked Sendable {
 
     // MARK: From the menu bar (any thread)
 
-    /// The transcript from push-to-talk. It reaches the harness and is then
-    /// dropped (ARCHITECTURE.md §3.8).
-    public func talk(_ words: String) {
-        home.async { [self] in talkNow(words) }
+    /// The transcript from push-to-talk, and whether you yelled it. It
+    /// reaches the harness and is then dropped (ARCHITECTURE.md §3.8).
+    public func talk(_ words: String, yelled: Bool = false) {
+        home.async { [self] in talkNow(words, yelled: yelled) }
     }
 
     /// The Talk button: start or stop listening (UX.md §5).

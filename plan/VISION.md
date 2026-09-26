@@ -53,7 +53,9 @@ Boop reacts to one is a question of character.
 - **Sassy about the world, kind to you.** It can roll its eyes at a flaky test
   or a stubborn agent. It never guilt-trips you, never dies of neglect, and
   never pesters you to come back. It does get hungry if you leave it alone
-  for days, but you only see that when you look at it.
+  for days, but you only see that when you look at it. Its feelings about
+  you are short-lived: poke it over and over and it huffs at you, and yell
+  at it and it looks hurt, but a few seconds later it's over it.
 
 ## It does not talk like a human
 
@@ -92,18 +94,39 @@ once on the desk. You glance over. It's Codex on the landing project, so you
 switch to it and approve. Boop sees the agent carry on, gives a satisfied
 little nod, and gets back to work.
 
-The refactor finishes. Boop throws its hands up and cheers. The Codex tests
-fail, and Boop gives the agent a side-eye. It's annoyed at the agent and
-never at you.
+The refactor finishes. Boop hops and cheers. Then Claude wraps up a fix
+with the tests still failing, and Boop startles, gives the agent a side-eye
+and grumbles. It's annoyed at the agent and never at you.
 
 Later it's been a long afternoon of failed builds. Nothing on screen says
-so, but Boop gets calmer. It fidgets less and mumbles less. When you hold the button
-and say "shut up," it pouts, zips its mouth, and goes quiet for a while.
-It still tells you when an agent needs you.
+so, but Boop gets calmer. It fidgets less and mumbles less. When you hold
+the button and snap "shut up," it looks hurt and mumbles something small
+and sad. When you say "be quiet," it zips its mouth and goes quiet for a
+while. It still tells you when an agent needs you.
 
 Months later, it's a slightly different creature. It's cheekier, it trusts
 the agents you rely on, and it perks up on Fridays because that's when you
 ship. You didn't configure any of that. It grew.
+
+## Hero moments
+
+Four moments show who Boop is. Each has one clear cause and one clear
+feeling, so it reads from across the desk, in a demo or in a ten-second
+clip. How each one works is in [BEHAVIORS.md](BEHAVIORS.md) §3, and the
+harness evals check the brain's part of each ([EVALS.md](EVALS.md) §5).
+
+1. **A turn finishes, and it cheers for you.** Its eyes curl into happy
+   "^ ^" arches and it hops. A longer job gets a bigger cheer, with a
+   heart, a warm glow and a jingle.
+2. **A turn fails, and it's frustrated for you.** It startles, gives the
+   agent a side-eye and grumbles, *"…ugh."* It's annoyed at the agent,
+   never at you.
+3. **Yell at it, and it's sad.** Snap at it or tell it off, and it looks
+   hurt and mumbles something small and sad. Only asking it to be quiet
+   makes it quiet: then it zips its mouth and stops mumbling for a while.
+4. **Poke it too much, and it gets annoyed.** One poke gets a happy wiggle
+   and a heart. Keep poking and it gives you a side-eye and grumbles,
+   *"…nope!"* A few seconds later it has forgotten all about it.
 
 ## Who Boop is
 
@@ -201,7 +224,9 @@ These are fixed. If a feature conflicts with one of them, the feature changes.
   working and "needs you"; a cheer when a turn finishes; mumbles;
   push-to-talk with the brain and its memory. This is deliberately small
   (cut on 2026-09-26, [BEHAVIORS.md](BEHAVIORS.md)), so the surface stays
-  easy to hold in your head.
+  easy to hold in your head. The hero moments above show in v1 as the
+  cheer and the brain's mumbles; the side-eye and the hurt look are
+  parked.
 - **Parked, coming back one at a time:** mood, XP and hunger, the nudge
   ladder, the private record, focus mode and the other v1 extras listed
   under "Parked" in [FUTURE.md](FUTURE.md). The sections above still

@@ -63,6 +63,8 @@ public struct ActionContext {
     public var mumblesAllowed: () -> Bool
     /// `Core.setQuiet`; the app routes the effects it returns.
     public var setQuiet: (Int) -> Void
+    /// Whether the last thing you said asked for quiet (`Core.quietAsked`).
+    public var quietAsked: () -> Bool
     /// Today, `yyyy-MM-dd`.
     public var today: () -> String
     /// Where dropped calls are explained.
@@ -70,10 +72,12 @@ public struct ActionContext {
 
     public init(send: @escaping (DeviceMoment) -> Void,
                 mumblesAllowed: @escaping () -> Bool = { true }, setQuiet: @escaping (Int) -> Void = { _ in },
+                quietAsked: @escaping () -> Bool = { true },
                 today: @escaping () -> String, log: @escaping (String) -> Void = { _ in }) {
         self.send = send
         self.mumblesAllowed = mumblesAllowed
         self.setQuiet = setQuiet
+        self.quietAsked = quietAsked
         self.today = today
         self.log = log
     }

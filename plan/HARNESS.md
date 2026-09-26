@@ -36,15 +36,16 @@ The harness eval scenarios check what it does for given events
 
 ## 2. Inputs
 
-Four things reach the brain. The core builds each as a typed input
+Five things reach the brain. The core builds each as a typed input
 (`app/BoopKit/Core/Input.swift`); classifiers read its fields, and
 language models read its one-line form.
 
 | Input | From | Fields | The rules first | Deadline | Menu |
 | --- | --- | --- | --- | --- | --- |
 | Agent started | `turn_start` | agent, project, time | Base becomes working | 5 s | `react` |
-| Agent finished | `turn_end` or `turn_failed` | outcome (`done` or `failed`), agent, project, topic, how long it took, the error class when it failed, time, "+N more" | `done`: a cheer. `failed`: nothing; the session goes idle | 5 s | `react` |
-| You said something | push-to-talk, or Send in the popover | your words (at most 500 characters, about 30 s of speech), time | `listening`, until the reply | 4 s | `quiet`, `react`, `remember` today |
+| Agent finished | `turn_end` or `turn_failed`; a `turn_end` whose last test, build or deploy command failed is `failed` ([BEHAVIORS.md](BEHAVIORS.md) §3.1) | outcome (`done` or `failed`), agent, project, topic, how long it took, the error class when it failed, time, "+N more" | `done`: a cheer. `failed`: nothing; the session goes idle | 5 s | `react` |
+| You said something | push-to-talk, or Send in the popover | your words (at most 500 characters, about 30 s of speech), whether you yelled, time | `listening`, until the reply | 4 s | `quiet`, `react`, `remember` today |
+| Poked again and again | a poke streak ([BEHAVIORS.md](BEHAVIORS.md) §3.3) | time | `wiggle`, as for every tap | 4 s | `react` |
 | New day | the first hook or tap on a new day | yesterday's date and short-term memory | — | 10 min | `remember` about you, a preference, temperament or a moment |
 
 Their lines look like this:
@@ -54,11 +55,14 @@ agent started · claude · landing · 14:00 Wednesday
 agent finished · done · claude · landing · took 20 min · 14:20 Wednesday
 agent finished · failed · claude · landing · topic: tests · error: rate limit · 14:00 Wednesday
 you said · 14:00 Wednesday
+you said · yelled · 14:00 Wednesday
+poked again and again · 14:00 Wednesday
 new day · yesterday 2026-10-14
 ```
 
 The topic is `tests`, `build`, `deploy` or `docs`, when the agent's tools
-showed one. The error class is one of `rate_limit`, `overloaded`,
+showed one; for a turn that failed on its last test, build or deploy
+command, it's that command's, and there's no error class. The error class is one of `rate_limit`, `overloaded`,
 `api_error`, `auth`, `timeout`, `network`, `context_limit`, `billing` or
 `other` ([ADAPTERS.md](ADAPTERS.md) §2); Codex has no failure hook, so its
 turns always finish `done`.
@@ -69,15 +73,18 @@ then a start. It ends `· +N more` for the others
 ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2).
 
 **Gating.** While something needs you, or in quiet mode, agent inputs don't
-reach the brain. What you say and the new day always do. There are no other
-limits: whether Boop reacts, and whether it mumbles, is Stage 1's decision
-every time.
+reach the brain. What you say and the new day always do, and so does a poke
+streak, except while something needs you, when a tap means "I saw it". A
+poke streak too soon after the last ([BEHAVIORS.md](BEHAVIORS.md) §3.3)
+gets the rules' wiggle alone. There are no other limits: whether Boop reacts, and whether it
+mumbles, is Stage 1's decision every time.
 
 **Rules only.** A tap (the wiggle) and "needs you" (the ladder) never reach
 the brain, so it can't make them slower or different from one time to the
 next. They're noted in the transcript as asides, `tapped · 14:07 Tuesday:
 Boop wiggled` or `claude needs you · jetpack · 14:07 Tuesday`, so the
-brain knows they happened.
+brain knows they happened. The one tap that does reach it is the one that
+completes a poke streak, as its own input.
 
 Session start and end, and each tool use (`activity`), are the core's
 bookkeeping: they keep the session list, the base state and each session's
@@ -189,7 +196,7 @@ each argument has a **role**: **decided** by Stage 1 from its choices, or
 | Output | Decided | Written | What it does |
 | --- | --- | --- | --- |
 | `react` | `feeling`, one of ten; `voice`: `silent` or `mumble` | `word`, only for a mumble: `none` or one of Voice's 40 words ([VOICE.md](VOICE.md) §6) | For a mumble, a Minion line from Voice in the feeling's sound, with the word, played over whatever face is showing. The brain's faces are parked ([FUTURE.md](FUTURE.md)), so `silent` shows nothing. A mumble is dropped in quiet mode or while something needs you |
-| `quiet` | `minutes`: 15, 30, 60 or 120 | — | The core's quiet mode: no mumbles, and agent inputs skip the brain |
+| `quiet` | `minutes`: 15, 30, 60 or 120 | — | The core's quiet mode: no mumbles, and agent inputs skip the brain. The action runs only when the last thing you said asked for quiet ("quiet" in your words), whichever classifier decided ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
 | `remember` | `where`: `today`, `about_you`, `preference`, `temperament` or `moment` | `text` | A line in that part of memory, under its own rules |
 
 | Feeling | Its mumble sounds |
@@ -238,7 +245,7 @@ says exactly how it behaves.
 
 | Brain | Stage | What it does |
 | --- | --- | --- |
-| `RulesClassifier` | 1 | **The default.** Plain Swift, no model, always available; reads only the input's fields. Agent started: nothing. Finished `done` in 5 minutes or more: `react(proud, mumble)`; shorter: nothing. Finished `failed`: `react(annoyed, mumble)`, one mumble per failure. You said "shut up", "quiet", "hush", "stop talking" or "keep it down": `quiet` (two hours 120, fifteen 15, half an hour 30, an hour 60, else 30) then `react(sulky, silent)`; "remember" or "note": `react(happy, mumble)` and `remember(today)`; "hello", "hi", "hey" or "morning": `react(happy, mumble)`; "good job", "well done", "nice", "great", "thanks" or "the best": `react(proud, mumble)`; anything else: `react(curious, mumble)`. Whole words only, and the first row that matches wins. New day: nothing, since deciding what lasts needs a model |
+| `RulesClassifier` | 1 | **The default.** Plain Swift, no model, always available; reads only the input's fields. Agent started: nothing. Finished `done` in 5 minutes or more: `react(proud, mumble)`; shorter: nothing. Finished `failed`: `react(annoyed, mumble)`, one mumble per failure. Poked again and again: `react(annoyed, mumble)`. You said "quiet": `quiet` (two hours 120, fifteen 15, half an hour 30, an hour 60, else 30), then, if you also yelled or told Boop off, `react(sad, silent)`. You yelled, or told Boop off ("shut up", "go away", "hate you", "you suck", "hush", "stop talking", "keep it down", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot"): `react(sad, mumble)`; "remember" or "note": `react(happy, mumble)` and `remember(today)`; "hello", "hi", "hey" or "morning": `react(happy, mumble)`; "good job", "well done", "nice", "great", "thanks" or "the best": `react(proud, mumble)`; anything else: `react(curious, mumble)`. Whole words only, and the first row that matches wins. New day: nothing, since deciding what lasts needs a model |
 | `JevClassifier` | 1 | TypeSafe's `jev-latest` ([docs](https://docs.typesafe.ai/api)), with the person's API key. It doesn't write: it answers typed questions about a state with probabilities, in one request of about 0.2 s. The state is `steering.md`, both memory files, the window's recent inputs (minutes ago, what happened, what you said, what the rules did and what Boop did) and now. The menu becomes questions built from the definitions: a yes/no for each output ("Should Boop react about what just happened?"), a choice for each decided argument with more than one option (`react.feeling`, `react.voice`, `quiet.minutes`), and, when the menu allows several calls told apart by a choice, a yes/no per choice instead (a new day's `remember.about_you`, `remember.moment`, …). Each question is answered on its own, so every argument is asked up front and only a chosen output's are used. A yes is above 0.5; each choice is the most likely one. Only the HTTP status of a failed request is logged |
 | `AppleWriter` | 2 | **The default.** Apple's on-device model: private and free. A fresh session each call: its instructions are a short preamble, `steering.md` and both memory files; its prompt is the window as text, then what just happened and what Boop decided, then a line per slot. Guided generation with one property per slot: a word from `none` and its list, or text with its length asked for. There's no option to decline, so it can't answer "stay quiet"; that was Stage 1's job. Guardrails are `permissiveContentTransformations`; a refusal fails the write like any error, marked as a refusal |
 | `NoWriter` | 2 | Writes nothing: mumbles have no word, and nothing is remembered. The setting `none`, and what `apple` falls back to when Apple's model can't run at launch |

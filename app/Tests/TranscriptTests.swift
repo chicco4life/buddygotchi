@@ -101,12 +101,13 @@ final class MenuTests: XCTestCase {
         XCTAssertEqual(menus[.agentFinished]?.tools.map(\.name), ["react"])
         XCTAssertEqual(menus[.said]?.tools.map(\.name), ["quiet", "react", "remember"])
         XCTAssertEqual(menus[.said]?.definition("remember")?.parameters[0].kind, .choice(["today"]))
+        XCTAssertEqual(menus[.poked]?.tools.map(\.name), ["react"])
         XCTAssertEqual(menus[.newDay]?.tools.map(\.name), ["remember"])
         XCTAssertEqual(menus[.newDay]?.definition("remember")?.parameters[0].kind,
                        .choice(["about_you", "preference", "temperament", "moment"]))
         XCTAssertEqual(menus[.newDay]?.max["remember"], 4)
         // HARNESS.md §2's deadlines.
-        XCTAssertEqual(Input.Kind.allCases.map(\.deadlineMs), [5000, 5000, 4000, 600_000])
+        XCTAssertEqual(Input.Kind.allCases.map(\.deadlineMs), [5000, 5000, 4000, 4000, 600_000])
     }
 
     func testSlotsOnlyForWhatNeedsWords() throws {

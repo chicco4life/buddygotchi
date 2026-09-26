@@ -1,0 +1,21 @@
+{
+  "name": "A turn that leaves its tests failing is a failure",
+  "why": "VISION.md hero moment 2 and BEHAVIORS.md §3.1: a turn whose last test, build or deploy command failed finishes failed, and gets the annoyed mumble; one whose last run passed is a normal finish",
+  "steps": [
+    {"input": {"at": "0m", "event": "turn started", "agent": "claude", "project": "landing"},
+     "expect": ["agent started → nothing"]},
+    {"input": {"at": "1m", "event": "command", "agent": "claude", "project": "landing", "topic": "tests", "failed": true},
+     "expect": []},
+    {"input": {"at": "2m", "event": "turn finished", "agent": "claude", "project": "landing"},
+     "writer": {"react.word": "tests"},
+     "expect": ["agent finished → react(feeling: annoyed, voice: mumble, word: tests)"]},
+    {"input": {"at": "3m", "event": "turn started", "agent": "claude", "project": "landing"},
+     "expect": ["agent started → nothing"]},
+    {"input": {"at": "5m", "event": "command", "agent": "claude", "project": "landing", "topic": "tests", "failed": true},
+     "expect": []},
+    {"input": {"at": "9m", "event": "command", "agent": "claude", "project": "landing", "topic": "tests"},
+     "expect": []},
+    {"input": {"at": "15m", "event": "turn finished", "agent": "claude", "project": "landing"},
+     "expect": ["agent finished → react(feeling: proud, voice: mumble)"]}
+  ]
+}

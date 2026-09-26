@@ -30,10 +30,10 @@ public final class ReactAction: Action {
         ("curious", .curious, "Interested or unsure: something new, or a question."),
         ("hopeful", .hopeful, "Wanting something, warmly: attention, praise."),
         ("annoyed", .annoyed, "Irritated at an agent: a failure, flaky tests."),
-        ("sad", .sad, "Down: something went badly."),
+        ("sad", .sad, "Down or hurt: yelled at or told off, or something went badly."),
         ("sleepy", .sleepy, "Tired: late at night."),
         ("smug", .proud, "Pleased with itself: it knew all along."),
-        ("sulky", .sad, "Pouting: told to be quiet, or brushed off."),
+        ("sulky", .sad, "Pouting: brushed off or left out. Being told off is sad instead."),
     ]
 
     /// Every animation the rules may play (BEHAVIORS.md §5).
@@ -87,7 +87,9 @@ public final class ReactAction: Action {
     }
 }
 
-/// `quiet(minutes)`: tells the core to stop mumbles for a while.
+/// `quiet(minutes)`: tells the core to stop mumbles for a while, only when
+/// the last thing you said asked for quiet, whatever the classifier decided
+/// (BEHAVIORS.md §3.3). The core zips Boop's mouth as quiet starts.
 public final class QuietAction: Action {
     public let context: ActionContext
 
@@ -103,6 +105,7 @@ public final class QuietAction: Action {
         switch arguments(call) {
         case .failure(let why): return .dropped(why.description)
         case .success(let args):
+            guard context.quietAsked() else { return .dropped("only when asked to be quiet") }
             let minutes = args["minutes"]!.number!
             context.setQuiet(minutes)
             return .done("\(minutes) min")

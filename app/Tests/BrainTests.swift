@@ -34,10 +34,23 @@ final class RulesClassifierTests: XCTestCase {
             (input(.agentFinished, tookMs: 300_000), [react("proud")]),
             (input(.agentFinished, tookMs: 240_000), []),
             (input(.agentFinished, outcome: .failed), [react("annoyed")]),
-            (input(.said, words: "Shut up for an hour"), [quiet(60), react("sulky", "silent")]),
-            (input(.said, words: "give me some quiet for a couple of hours"), [quiet(120), react("sulky", "silent")]),
-            (input(.said, words: "can you keep it down for fifteen minutes"), [quiet(15), react("sulky", "silent")]),
-            (input(.said, words: "hush"), [quiet(30), react("sulky", "silent")]),
+            (input(.poked), [react("annoyed")]),
+            // BEHAVIORS.md §3.3: only "quiet" quiets; yelled at or told off, sad.
+            (input(.said, words: "be quiet for an hour"), [quiet(60)]),
+            (input(.said, words: "give me some quiet for a couple of hours"), [quiet(120)]),
+            (input(.said, words: "quiet for fifteen minutes please"), [quiet(15)]),
+            (input(.said, words: "BE QUIET", yelled: true), [quiet(30), react("sad", "silent")]),
+            (input(.said, words: "be quiet, you idiot"), [quiet(30), react("sad", "silent")]),
+            (input(.said, words: "Shut up for an hour"), [react("sad")]),
+            (input(.said, words: "can you keep it down for fifteen minutes"), [react("sad")]),
+            (input(.said, words: "hush"), [react("sad")]),
+            (input(.said, words: "go away"), [react("sad")]),
+            (input(.said, words: "I hate you"), [react("sad")]),
+            (input(.said, words: "you're so annoying"), [react("sad")]),
+            (input(.said, words: "you are useless"), [react("sad")]),
+            (input(.said, words: "what are you doing", yelled: true), [react("sad")]),
+            (input(.said, words: "", yelled: true), [react("sad")]),
+            (input(.said, words: "this build is annoying"), [react("curious")]),
             (input(.said, words: "remember I ship on Fridays"), [react("happy"), remember("today")]),
             (input(.said, words: "note that landing launches Monday"), [react("happy"), remember("today")]),
             (input(.said, words: "Hello, Boop!"), [react("happy")]),
@@ -51,7 +64,9 @@ final class RulesClassifierTests: XCTestCase {
             XCTAssertEqual(calls, expected, i.line + " " + (i.words ?? ""))
         }
         // Whole words only: "hi" isn't in "this", "quiet" isn't in "quietly".
-        XCTAssertEqual(RulesClassifier.plain("Hi, THIS is quiet-ish!"), " hi this is quiet ish ")
+        XCTAssertEqual(Input.plain("Hi, THIS is quiet-ish!"), " hi this is quiet ish ")
+        XCTAssertFalse(input(.said, words: "speak quietly").asksForQuiet)
+        XCTAssertTrue(input(.said, words: "Quiet!").asksForQuiet)
         let notes = Prompt.Memory(steering: "", longTerm: "",
                                   shortTerm: ShortTerm(date: "2026-10-14", firstSeen: "09:00",
                                                        notes: ["demo on Thursday"]).markdown)

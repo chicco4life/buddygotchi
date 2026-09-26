@@ -107,11 +107,22 @@ final class RuntimeTests: XCTestCase {
         let runtime = try makeRuntime(transport)
         try runtime.start()
         defer { runtime.stop() }
-        var data = try JSONSerialization.data(withJSONObject: ["dev": "talk", "words": "shut up"])
-        data.append(0x0A)
-        XCTAssertTrue(HookSocket.send(data, to: dir.appendingPathComponent("boop.sock").path))
-        // The rules classifier answers "shut up" with quiet.
-        wait("quiet in the next state") { transport.sent.contains { $0.contains("\"t\":\"state\"") && !$0.contains("\"quiet\":0") } }
+        let socket = dir.appendingPathComponent("boop.sock").path
+        func talk(_ words: String, yelled: Bool = false) throws {
+            var data = try JSONSerialization.data(withJSONObject: ["dev": "talk", "words": words, "yelled": yelled] as [String: Any])
+            data.append(0x0A)
+            XCTAssertTrue(HookSocket.send(data, to: socket))
+        }
+        func quiet(_ line: String) -> Bool { line.contains("\"t\":\"state\"") && !line.contains("\"quiet\":0") }
+        // BEHAVIORS.md §3.3: told off, the rules classifier has Boop mumble
+        // something sad (a mumble on its own: no face), and it doesn't quiet Boop.
+        try talk("shut up")
+        wait("a sad mumble") { transport.sent.contains { $0.contains("\"t\":\"moment\"") && $0.contains("\"say\"") && !$0.contains("\"anim\"") } }
+        XCTAssertFalse(transport.sent.contains(where: quiet))
+        // "be quiet" quiets it, with no zip: that animation is parked.
+        try talk("be quiet")
+        wait("quiet in the next state") { transport.sent.contains(where: quiet) }
+        XCTAssertFalse(transport.sent.contains { $0.contains("\"anim\":\"zip\"") })
     }
 
     func testStopRemovesTheSocketAndReleasesTheLock() throws {

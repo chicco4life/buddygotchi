@@ -39,6 +39,29 @@ final class HookWireTests: XCTestCase {
         XCTAssertFalse(String(decoding: note.encoded(), as: UTF8.self).contains("Bash"))
     }
 
+    /// ADAPTERS.md §2: a failed call's error text never gets this far, only
+    /// whether you interrupted it.
+    func testPostToolUseFailureKeepsOnlyWhetherYouInterruptedIt() throws {
+        let failure = try XCTUnwrap(HookLine.extract(agent: "claude", payload: payload([
+            "hook_event_name": "PostToolUseFailure", "session_id": "s", "tool_name": "Bash",
+            "tool_input": ["command": "npm test"], "error": "PRIVATE Command exited with non-zero status code 1",
+            "is_interrupt": false,
+        ]), ts: 0))
+        XCTAssertEqual(failure, HookLine(agent: "claude", hook: "PostToolUseFailure", session: "s", tool: "Bash", topic: "tests", ts: 0))
+        let wire = String(decoding: failure.encoded(), as: UTF8.self)
+        XCTAssertFalse(wire.contains("PRIVATE") || wire.contains("interrupt"), wire)
+        let interrupted = try XCTUnwrap(HookLine.extract(agent: "claude", payload: payload([
+            "hook_event_name": "PostToolUseFailure", "session_id": "s", "tool_name": "Bash",
+            "tool_input": ["command": "npm test"], "is_interrupt": true,
+        ]), ts: 0))
+        XCTAssertTrue(interrupted.interrupt)
+        XCTAssertEqual(HookLine.decode(interrupted.encoded()), interrupted)
+        let succeeded = try XCTUnwrap(HookLine.extract(agent: "claude", payload: payload([
+            "hook_event_name": "PostToolUse", "session_id": "s", "tool_name": "Bash", "is_interrupt": true,
+        ]), ts: 0))
+        XCTAssertFalse(succeeded.interrupt, "only a failure can be an interrupt")
+    }
+
     func testNoPromptOrOutputFromAnyRecordedFixtureReachesTheLine() throws {
         let files = FileManager.default.enumerator(at: HookWireTests.fixtures, includingPropertiesForKeys: nil)!
             .compactMap { $0 as? URL }.filter { ["json", "jsonl"].contains($0.pathExtension) }

@@ -85,7 +85,7 @@ boopdev brain [--classifier rules|jev] [--writer apple|none|deepseek] [--print] 
 boopdev eval [--only TEXT] [--json FILE]  # the harness eval scenarios (make eval)
 boopdev watch /tmp/boop-brain.jsonl  # follow a debug log live: each input, decision, words and what ran
 boopdev hooks status|install|remove --home DIR
-boopdev talk "<words>" --socket PATH       # a push-to-talk transcript to a headless app
+boopdev talk "<words>" [--yelled] --socket PATH   # a push-to-talk transcript to a headless app
 ```
 
 For live checks without Bluetooth, run `tools/boopctl bridge` and

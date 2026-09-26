@@ -107,7 +107,11 @@ project, and whether each is working, idle or needs you) and:
 - turns agents starting and finishing, what you say and a new day into the
   brain's inputs, and decides which of them reach it
   ([HARNESS.md](HARNESS.md) §2). Taps and "needs you" stay the rules' own:
-  the brain's transcript only notes them;
+  the brain's transcript only notes them, except a poke streak, which
+  becomes an input of its own ([BEHAVIORS.md](BEHAVIORS.md) §3.3);
+- counts a turn as failed when Claude stops on an API error or when the
+  turn's last test, build or deploy command failed
+  ([BEHAVIORS.md](BEHAVIORS.md) §3.1);
 - keeps quiet mode, by rule ([BEHAVIORS.md](BEHAVIORS.md)).
 
 In code the core is a pure state machine: each event, device input or
@@ -154,7 +158,7 @@ brain, so a cheer looks the same whichever of them asked for it.
 | Action | Arguments | What it does |
 | --- | --- | --- |
 | `react` | `feeling`, `voice`, `word?` | For a mumble, asks Voice for a Minion line with the word and sends it to the device, where it plays over the face that's showing. The brain's faces are parked ([FUTURE.md](FUTURE.md)), so a silent `react` shows nothing. The core's rules use it to play their animations ([BEHAVIORS.md](BEHAVIORS.md) §5) |
-| `quiet` | `minutes` | Tells the core to stop mumbles for a while |
+| `quiet` | `minutes` | Tells the core to stop mumbles for a while, only when your last words asked for quiet |
 | `remember` | `where`, `text` | Adds a line to today's notes or to a section of long-term memory, within its limits |
 
 Each action checks its own rules and quietly drops (and logs) anything that
@@ -203,8 +207,9 @@ popover, records from the Mac's mic. The core decides when the mic is on
 or, for the device's button, the link dropping. The menu bar shows it
 while it's on ([UX.md](UX.md) §5). The app asks for Speech Recognition and
 the Microphone on first use, turns speech into text locally, and the core
-gives it to the harness as a "you said" input. Audio is discarded
-immediately. The words stay in the brain's transcript, in memory only, and
+gives it to the harness as a "you said" input. While recording, the app
+also measures how loud you are, and the input says whether you yelled
+([BEHAVIORS.md](BEHAVIORS.md) §3.3). Audio is discarded immediately. The words stay in the brain's transcript, in memory only, and
 brains see them until its window moves past them
 ([HARNESS.md](HARNESS.md) §4).
 
@@ -332,7 +337,7 @@ Preferences; the Boop section isn't shown.
 | `session` | Stable session or thread ID |
 | `project` | Short project name, from the working directory |
 | `event` | `session_start`, `turn_start`, `needs_you`, `activity`, `turn_end`, `turn_failed`, `session_end` |
-| `detail` | Small and event-specific: `tool` and `topic` on `activity`, `tool` on `needs_you`, and `error`, an error class, on `turn_failed` ([ADAPTERS.md](ADAPTERS.md) §2–3); nothing on the others. Never prompt text, commands or file contents. The core measures how long a turn took itself, from its start |
+| `detail` | Small and event-specific: `tool` and `topic` on `activity`, plus `failed` (true or false) on Claude's `PostToolUse` and `PostToolUseFailure`; `tool` on `needs_you`; and `error`, an error class, on `turn_failed` ([ADAPTERS.md](ADAPTERS.md) §2–3); nothing on the others. Never prompt text, commands or file contents. The core measures how long a turn took itself, from its start |
 | `ts` | Milliseconds |
 
 Adding an agent later means one new adapter that produces this shape.
@@ -497,7 +502,13 @@ When a spec changes direction, add a row here saying why.
 | 2026-09-26 | Event, tap and talk are offered the same four tools. A tool past its limit, or outside the trigger's allowed list, is named in the prompt (`say limit: …`) and a call to it is dropped, instead of not being offered. This replaces the earlier rows "`event` offers only `say` and `face`" and the "isn't offered" part of the speech-limit row | A conversation's tools can't change between calls. In L5 the `say` line holds, but Apple's model calls `note` on most events; the harness drops those calls (PLAN.md A6) | [HARNESS.md](HARNESS.md) §5 |
 | 2026-09-26 | The face takes gen-2's look (F6 follow-up): smaller lavender-white eyes, a short dash mouth, thin "^" arches for happy eyes, a heart at the top right for affection (`Pose::heart`), a climbing "zzZZ" when asleep (`Pose::zzz`), a strain and a sweat drop while working (`Pose::sweat`), a gentle sway for the tap, and open eyes glancing up for no app | On the board the owner found the F6 eyes less cute than gen-2's, the tap's solid crescents frightening (a dome with a bite out of the bottom reads as a hooded glare), and the sleepy no-app face droopy, and asked for the older faces. Seeing those, they asked for a heart instead of pink cheeks, a "zzZZ" and some effort. The new parts are pose fields, so they ease in and out with every blend, and the simulator draws them as the board does | [UX.md](UX.md) §2, [BEHAVIORS.md](BEHAVIORS.md) §2–3, [PLAN.md](PLAN.md) F6 |
 | 2026-09-26 | Push-to-talk can also start from a Talk button in the popover. The core owns whether the mic is on, and turns it off after 30 s, or when the link drops while the device's button is held; the menu-bar icon turns red while it's on. The app asks for mic access on first use, not at launch | The owner found no way to talk from the Mac and no sign the Mac was recording. The mic stopped only on `talk_off`, so a dropped link or a lost line (USB drops the odd one) left it on until the app quit | [UX.md](UX.md) §5, §7 |
+| 2026-09-26 | Four hero moments lead Boop's story: a cheer for a finished turn, frustration at a failed one, sadness when yelled at, and annoyance at a poke streak. Boop may huff at you when you poke it over and over, and look hurt when you yell, as long as it passes in seconds | The owner's pick: each has one clear cause and one clear feeling. "Kind to you" had no room for either, and both are provoked and short-lived | [VISION.md](VISION.md), [EVALS.md](EVALS.md) |
+| 2026-09-26 | A turn whose last test, build or deploy command failed counts as a failed turn: Claude's `PostToolUseFailure` marks the activity failed (not when interrupted), and the adapter keeps only that bit | The frustration moment needs red tests to look like failure. Before, only API errors did, and a turn that left the tests failing got a cheer and XP | [ADAPTERS.md](ADAPTERS.md) §3, [BEHAVIORS.md](BEHAVIORS.md) §3.1 |
+| 2026-09-26 | Yelling at Boop or telling it off makes it sad and doesn't quiet it; only words with "quiet" in them do, and the `quiet` action checks that itself, whichever classifier decided. Starting quiet mode plays `zip`. This replaces "shut up", "hush", "stop talking" and "keep it down" → quiet and a sulk | The owner's call: being mad at Boop shouldn't silence it, and asking should. `zip` was drawn but unused | [BEHAVIORS.md](BEHAVIORS.md) §3.3, [HARNESS.md](HARNESS.md) §5–6 |
+| 2026-09-26 | Push-to-talk measures how loud you are, and the "you said" input says whether you yelled, even with no words; only that yes or no leaves the audio | "Any sort of yelling" should count, whatever the words | [BEHAVIORS.md](BEHAVIORS.md) §3.3, [UX.md](UX.md) §5 |
+| 2026-09-26 | A poke streak, the fourth tap within 3 s, is a fifth input, "poked again and again": the rules side-eye you, and the brain may grumble, at most once a minute. On the device a tap no longer cuts a side-eye short. This amends "Taps and 'needs you' are rules only" | The owner's design: a poke streak goes through the harness as its own event. The side-eye keeps the reaction immediate whatever the brain does, and the device rule keeps a happy wiggle from landing in the middle of the huff | [HARNESS.md](HARNESS.md) §2, [BEHAVIORS.md](BEHAVIORS.md) §3.3 |
 | 2026-09-26 | v1 is cut to a minimal surface: asleep, idle, working, no app and needs you; `cheer`, `nod`, `wiggle`, `listening`, `thinking` and `shrug`; tap and push-to-talk; the brain with `react` (a mumble only), `quiet` and `remember`. Mood, XP and hunger, night, focus, cheer sizes, the nudge ladder, the threads and stats screens, touch-and-hold and the brain's faces are parked and deleted (kept at tag `v1-full`). A `moment` may carry only `say`, which plays over the current face. This supersedes the earlier rows about those features | The surface had grown past what the owner can hold in their head; features come back one at a time | [BEHAVIORS.md](BEHAVIORS.md), [FUTURE.md](FUTURE.md) |
 | 2026-09-26 | The face becomes pixel art after the owner's reference render: 3 px blocks with no anti-aliasing, window eyes of four panes, pink cheeks and a flat bar mouth; the heart, sweat drop and "zzZZ" become sprites. The popover's face and the menu-bar icon follow. This supersedes the gen-2 look row | The owner asked for every animation to match the reference; poses are unchanged, so every animation follows the new drawing | [UX.md](UX.md) §2 |
 | 2026-09-26 | Every expression keeps the window eyes: happy is a squint from the bottom, not "^" arches; mouths are small pixel shapes (bar, "u", frown, "o", a filled cup), not traced curves; the cheer no longer tints the eyes | The owner found the arches and the wide D grin uncanny on boxy eyes and asked to keep the eyes boxy and cute | [UX.md](UX.md) §2 |
 | 2026-09-26 | Second cut, to 4 states (asleep, idle, working, needs you) and 3 animations (`cheer`, `wiggle`, `listening`): `nod`, `thinking`, `shrug` and the no-app look are parked. `listening` covers the reply wait and ends on the reply, on an empty moment, or after 8 s; no app shows the asleep face with the unplugged icon | The owner asked to go from 11 to 7 | [BEHAVIORS.md](BEHAVIORS.md), [PROTOCOL.md](PROTOCOL.md) §3 |
+| 2026-09-26 | The hero moments (A8) keep C1's 7: a failed turn (now including one that leaves its tests failing) gets no animation, only the brain's annoyed mumble; told off or yelled at, a sad mumble; a poke streak, a grumble after the fourth wiggle; quiet shows only its icon, with no `zip` | The owner chose to keep 4 states and 3 animations and express the hero moments by mumble | [BEHAVIORS.md](BEHAVIORS.md) §3 |

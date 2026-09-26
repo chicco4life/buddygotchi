@@ -11,7 +11,7 @@ public enum CoreEffect: Equatable, Sendable {
     case moment(anim: String)
     /// A rule mumble (a `react` call).
     case mumble(feeling: String, word: String?)
-    /// One of the four inputs for the brain's pipeline (HARNESS.md §2).
+    /// One of the inputs for the brain's pipeline (HARNESS.md §2).
     case input(Input)
     /// Something only the rules handled, for the brain's transcript: a tap,
     /// or something needing you (HARNESS.md §4).

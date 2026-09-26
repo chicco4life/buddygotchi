@@ -45,7 +45,8 @@ boop-hook <agent>        # agent = claude | codex
 
 The line it writes carries only `agent`, `hook`, `session`, `cwd`, `tool`,
 `topic`, `error` (StopFailure's raw `error`, or its `error_type`), `kind`
-(Notification's type) and `ts`, each value cut to 200 characters. The app's
+(Notification's type), `interrupt` (true when PostToolUseFailure's
+`is_interrupt` is) and `ts`, each value cut to 200 characters. The app's
 adapter turns that into the common event, and turns `error` into a class:
 `rate_limit`, `overloaded`, `api_error`, `auth`, `timeout`, `network`,
 `context_limit`, `billing`, or `other` for anything else.
@@ -61,7 +62,8 @@ most, even for agents that fire a hook on every tool call.
 | --- | --- | --- |
 | `SessionStart` | `session_start` | session, cwd |
 | `UserPromptSubmit` | `turn_start` | session, cwd |
-| `PreToolUse`, `PostToolUse`, `PostToolUseFailure` | `activity` | session, tool name, topic |
+| `PreToolUse` | `activity` | session, tool name, topic |
+| `PostToolUse`, `PostToolUseFailure` | `activity` | session, tool name, topic, and whether the call failed (`failed`), unless you interrupted it |
 | `PermissionRequest` | `needs_you` | session, tool name |
 | `Notification` (`permission_prompt`, `elicitation_dialog`) | `needs_you` (deduplicated) | session |
 | `Elicitation` | `needs_you` | session |
@@ -82,7 +84,17 @@ most, even for agents that fire a hook on every tool call.
 | `SessionEnd` | `session_end` | session |
 
 Codex has no failure hook, so in v1 a failed Codex turn looks like an
-ordinary finish.
+ordinary finish. Its `PostToolUse` also runs after a shell command fails,
+but what it reports then hasn't been seen from a real session, so Codex
+activity carries no `failed` in v1.
+
+**Failed commands.** Claude sends `PostToolUse` when a tool call succeeds
+and `PostToolUseFailure` when it fails, including a shell command that
+exits with an error. The adapter keeps only that yes or no, never the
+output. The core counts a turn as failed when the last test, build or
+deploy command in it (by topic tag, below) failed
+([BEHAVIORS.md](BEHAVIORS.md) §3.1). A command you interrupted counts as
+neither.
 
 **Project name.** The last folder of the session's `cwd`. A git worktree
 maps to its main repository's name, so `landing` and

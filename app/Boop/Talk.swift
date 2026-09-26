@@ -1,18 +1,22 @@
 import AVFoundation
+import BoopKit
 import Foundation
 @preconcurrency import Speech
 
 /// Push-to-talk on the Mac's mic (ARCHITECTURE.md §3.8). The core says when:
 /// `start` on `talk_on` or the Talk button, `stop` on release, the button
 /// again, the 30 s limit or a dropped link. The transcript comes back once,
-/// and the audio is never kept. Recognition runs on the Mac only.
+/// with whether you yelled (BEHAVIORS.md §3.3), and the audio is never kept.
+/// Recognition runs on the Mac only.
 final class SpeechListener: @unchecked Sendable {
     let engine = AVAudioEngine()
     let recognizer = SFSpeechRecognizer()
     var request: SFSpeechAudioBufferRecognitionRequest?
     var task: SFSpeechRecognitionTask?
     var best = ""
-    var finish: ((String?) -> Void)?
+    /// How loud you've been so far; touched only on `queue`.
+    var meter = YellMeter()
+    var finish: ((String?, Bool) -> Void)?
     /// Between `start` and `stop`: whether the mic should be on.
     var wanted = false
     let log: (String) -> Void
@@ -79,9 +83,15 @@ final class SpeechListener: @unchecked Sendable {
         request.shouldReportPartialResults = true
         self.request = request
         best = ""
+        meter = YellMeter()
         let input = engine.inputNode
-        input.installTap(onBus: 0, bufferSize: 1024, format: input.outputFormat(forBus: 0)) { buffer, _ in
+        input.installTap(onBus: 0, bufferSize: 1024, format: input.outputFormat(forBus: 0)) { [weak self] buffer, _ in
             request.append(buffer)
+            // Only the level leaves this closure, never the samples.
+            guard let samples = buffer.floatChannelData?[0], buffer.format.sampleRate > 0 else { return }
+            let level = YellMeter.dbfs(UnsafeBufferPointer(start: samples, count: Int(buffer.frameLength)))
+            let ms = Double(buffer.frameLength) * 1000 / buffer.format.sampleRate
+            self?.queue.async { self?.meter.add(dbfs: level, ms: ms) }
         }
         do {
             engine.prepare()
@@ -102,12 +112,13 @@ final class SpeechListener: @unchecked Sendable {
         return nil
     }
 
-    /// Stops the mic and hands over what was heard, or nil if nothing was.
-    func stop(_ finish: @escaping (String?) -> Void) {
+    /// Stops the mic and hands over what was heard, or nil if nothing was,
+    /// and whether you yelled.
+    func stop(_ finish: @escaping (String?, Bool) -> Void) {
         queue.async { [self] in
             wanted = false
             guard task != nil else {
-                finish(nil)
+                finish(nil, false)
                 return
             }
             self.finish = finish
@@ -126,7 +137,9 @@ final class SpeechListener: @unchecked Sendable {
         task = nil
         request = nil
         let words = best.trimmingCharacters(in: .whitespacesAndNewlines)
+        let yelled = meter.yelled
         best = ""
-        finish(words.isEmpty ? nil : words)
+        meter = YellMeter()
+        finish(words.isEmpty ? nil : words, yelled)
     }
 }

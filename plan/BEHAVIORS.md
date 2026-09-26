@@ -71,6 +71,12 @@ playing ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2).
 A new moment replaces one that's playing, so several turns finishing
 together look like one cheer.
 
+A turn fails when Claude stops on an API error, or when the last test,
+build or deploy command in the turn failed. A turn that ends with its tests
+still failing is a failed turn, not a finish: no cheer and no XP. Codex
+doesn't report whether a command failed, so its turns always finish
+([ADAPTERS.md](ADAPTERS.md) §3).
+
 ### 3.2 Something needs you
 
 Boop only tells you. You approve on the Mac, in the agent's own prompt.
@@ -91,10 +97,20 @@ chirps again. The brain is never involved here.
 | When | Rules | Brain may add |
 | --- | --- | --- |
 | Tap the screen, or press BOOT | `wiggle`: a happy squint, a small smile and a heart at the top right, swaying gently | Nothing: a tap is the rules' alone ([HARNESS.md](HARNESS.md) §2) |
-| Hold BOOT (push-to-talk) | `listening` at once, while held (at most 30 s) and then while Boop waits for the reply. The Mac's mic goes off on release, after 30 s, or when the link drops | Usually a mumble; on "shut up", quiet; told something to remember, a note for today, as in [steering.md](steering.md) |
+| Poke it 4 times within 3 s (*proposed*) | The fourth is a `wiggle` like the others. Not while something needs you, where a tap means "I saw it" | A grumble, as an annoyed mumble, e.g. *"ba-ka… nope!"*. The streak reaches the brain at most once a minute (*proposed*) |
+| Hold BOOT (push-to-talk) | `listening` at once, while held (at most 30 s) and then while Boop waits for the reply. The Mac's mic goes off on release, after 30 s, or when the link drops | Usually a mumble, as in [steering.md](steering.md). Asked to be quiet ("quiet" in your words), quiet mode for the minutes asked. Told off or yelled at, a sad mumble, and never quiet mode. Told something to remember, a note for today |
 | Talk in the popover, then Send | The Mac sends `listening` when the mic turns on. 8 s after Send (or after the 30 s limit) it sends an empty moment, which ends `listening` if no reply came. A mic that can't start sends the empty moment at once | As for holding BOOT |
 | The reply | A mumble ends `listening` and plays over the face | — |
 | No reply | After BOOT is released, the device waits at most 8 s for the reply, then the face blends back | — |
+
+**Asked to be quiet, told off or yelled at.** Only words with "quiet" in
+them, as a whole word ("be quiet"), let `quiet` run, whoever decided it:
+the action checks. What counts as telling Boop off is the if-else
+classifier's table ([HARNESS.md](HARNESS.md) §6). You yelled if, while the
+Mac's mic was on, it heard you at −18 dBFS or louder for 300 ms or more in
+all (*proposed*), even if it caught no words; the app measures a few
+milliseconds of audio at a time and keeps only that yes or no
+([UX.md](UX.md) §5).
 
 ### 3.4 The link
 

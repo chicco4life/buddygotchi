@@ -10,7 +10,9 @@ import Foundation
 /// | Agent finished, done, 5 min or more | `react(proud, mumble)` |
 /// | Agent finished, done, shorter | nothing |
 /// | Agent finished, failed | `react(annoyed, mumble)`: the sass, one mumble per failure |
-/// | You said "shut up", "quiet", "hush", "stop talking", "keep it down" | `quiet(n)` then `react(sulky, silent)`; n from the words: two hours 120, an hour 60, fifteen 15, else 30 |
+/// | Poked again and again | `react(annoyed, mumble)`: the grumble |
+/// | You said "quiet" | `quiet(n)`; n from the words: two hours 120, an hour 60, fifteen 15, else 30. Yelled or told off too: then `react(sad, silent)` |
+/// | You yelled, or told Boop off: "shut up", "go away", "hate you", "you suck", "hush", "stop talking", "keep it down", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot" | `react(sad, mumble)` |
 /// | You said "remember" or "note" | `react(happy, mumble)`, `remember(today)` |
 /// | You said "hello", "hi", "hey", "morning" | `react(happy, mumble)` |
 /// | You said "good job", "well done", "nice", "great", "thanks", "the best" | `react(proud, mumble)` |
@@ -39,11 +41,16 @@ public struct RulesClassifier: Classifier {
             if input.outcome == .failed { return ([react("annoyed", "mumble")], "failed") }
             if (input.tookMs ?? 0) >= 300_000 { return ([react("proud", "mumble")], "done, 5 min or more") }
             return ([], "done, under 5 min")
+        case .poked:
+            return ([react("annoyed", "mumble")], "poked again and again")
         case .said:
-            let words = plain(input.words ?? "")
-            if hush.contains(where: words.contains) {
-                return ([ToolCall("quiet", ["minutes": .number(minutes(words))]), react("sulky", "silent")], "asked for quiet")
+            let words = Input.plain(input.words ?? "")
+            let hurt = input.yelled || tellsOff(words)
+            if input.asksForQuiet {
+                let quiet = ToolCall("quiet", ["minutes": .number(minutes(words))])
+                return hurt ? ([quiet, react("sad", "silent")], "asked for quiet, and hurt") : ([quiet], "asked for quiet")
             }
+            if hurt { return ([react("sad", "mumble")], input.yelled ? "yelled at" : "told off") }
             if ["remember", "note"].contains(where: words.contains) {
                 return ([react("happy", "mumble"), ToolCall("remember", ["where": .string("today")])], "asked to remember")
             }
@@ -55,14 +62,19 @@ public struct RulesClassifier: Classifier {
         }
     }
 
-    /// Lowercase words between single spaces, padded, so a phrase matches
-    /// whole words only: " hi there ".
-    static func plain(_ words: String) -> String {
-        let letters = words.lowercased().map { $0.isLetter || $0.isNumber || $0 == "'" ? $0 : " " }
-        return " " + String(letters).split(separator: " ").joined(separator: " ") + " "
-    }
+    /// Being told off (BEHAVIORS.md §3.3): one of these, or "you" with an
+    /// insult, so "you're so annoying" counts and "this build is annoying"
+    /// doesn't.
+    static let tellingOff = [" shut up ", " go away ", " hate you ", " you suck ", " hush ", " stop talking ",
+                             " keep it down "]
+    static let you = [" you ", " you're ", " youre ", " ur "]
+    static let insults = [" annoying ", " stupid ", " dumb ", " useless ", " idiot "]
 
-    static let hush = [" shut up ", " quiet ", " hush ", " stop talking ", " keep it down "]
+    /// Plain words (`Input.plain`) that tell Boop off.
+    static func tellsOff(_ words: String) -> Bool {
+        tellingOff.contains(where: words.contains)
+            || you.contains(where: words.contains) && insults.contains(where: words.contains)
+    }
     static let greetings = [" hello ", " hi ", " hey ", " morning ", " good morning "]
     static let praise = [" good job ", " well done ", " nice ", " great ", " thanks ", " thank you ", " the best "]
 

@@ -30,8 +30,9 @@ let usage = """
            boopdev hooks status|install|remove [claude|codex] --home DIR [--hook PATH]
                The installer, against any HOME (tests use a temporary one). --hook defaults to the boop-hook
                next to boopdev.
-           boopdev talk "<words>" --socket PATH
-               Hands a push-to-talk transcript to a running headless app, as if heard on the Mac's mic.
+           boopdev talk "<words>" [--yelled] --socket PATH
+               Hands a push-to-talk transcript to a running headless app, as if heard on the Mac's mic
+               (--yelled: as if you yelled it).
     (boop \(BoopVersion.current))
     """
 
@@ -220,8 +221,9 @@ func brain(_ args: [String]) async {
                 let next = LocalTime.day(day, plus: 1)
                 store.apply(.newDay(date: next, firstSeen: "08:30"))
             }
-            let context = ActionContext(send: { _ in }, today: { store.lastActiveDay ?? "2026-10-15" },
-                                        log: { logs.append($0) })
+            // As the core does: `quiet` runs only when the words asked for it.
+            let context = ActionContext(send: { _ in }, quietAsked: { input.asksForQuiet },
+                                        today: { store.lastActiveDay ?? "2026-10-15" }, log: { logs.append($0) })
             let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: 0x7f3a)), memory: store)
             return Harness(classifier: classifier, writer: writer, tools: actions.map(Harness.Tool.init),
                            memory: { store.promptMemory(for: $0.kind) }, home: home, debugLog: out,
@@ -399,11 +401,13 @@ func talk(_ args: [String]) {
     guard let socket = option(args, "--socket") else { fail(usage) }
     let words = args.enumerated().filter { i, a in !a.hasPrefix("--") && (i == 0 || args[i - 1] != "--socket") }
         .map(\.element).joined(separator: " ")
-    guard !words.isEmpty else { fail(usage) }
-    var data = (try? JSONSerialization.data(withJSONObject: ["dev": "talk", "words": words])) ?? Data()
+    let yelled = args.contains("--yelled")
+    guard !words.isEmpty || yelled else { fail(usage) }
+    var data = (try? JSONSerialization.data(withJSONObject: ["dev": "talk", "words": words, "yelled": yelled] as [String: Any]))
+        ?? Data()
     data.append(0x0A)
     guard HookSocket.send(data, to: socket, timeoutMs: 500) else { fail("no app answering on \(socket)") }
-    print("sent talk \"\(words)\"")
+    print("sent talk \"\(words)\"\(yelled ? " (yelled)" : "")")
 }
 
 func hooks(_ args: [String]) {

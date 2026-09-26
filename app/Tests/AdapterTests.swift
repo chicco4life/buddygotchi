@@ -55,6 +55,24 @@ final class AdapterTests: XCTestCase {
         XCTAssertEqual(Adapter.event(from: line("claude", "Stop"), receivedAt: 99)?.ts, 99)
     }
 
+    /// ADAPTERS.md §3: Claude's PostToolUse and PostToolUseFailure say
+    /// whether the call failed; an interrupted call and Codex say nothing.
+    func testClaudeSaysWhetherACallFailed() throws {
+        func failed(_ agent: String, _ hook: String, interrupt: Bool = false) -> Bool? {
+            var l = line(agent, hook, tool: "Bash", topic: "tests")
+            l.interrupt = interrupt
+            return Adapter.event(from: l)?.detail.failed
+        }
+        XCTAssertEqual(failed("claude", "PostToolUse"), false)
+        XCTAssertEqual(failed("claude", "PostToolUseFailure"), true)
+        XCTAssertNil(failed("claude", "PostToolUseFailure", interrupt: true))
+        XCTAssertNil(failed("claude", "PreToolUse"))
+        XCTAssertNil(failed("codex", "PostToolUse"))
+        let event = try XCTUnwrap(Adapter.event(from: line("claude", "PostToolUseFailure", tool: "Bash", topic: "tests")))
+        XCTAssertEqual(event.event, .activity)
+        XCTAssertTrue(event.jsonLine.contains(#""detail":{"failed":true,"tool":"Bash","topic":"tests"}"#), event.jsonLine)
+    }
+
     func testEventJSONShape() throws {
         let event = BoopEvent(agent: .codex, session: "a1b2", project: "landing", event: .turnEnd,
                               detail: .init(durationS: 1080, topic: "tests"), ts: 1_790_000_000_123)

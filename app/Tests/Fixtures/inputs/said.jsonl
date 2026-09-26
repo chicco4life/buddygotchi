@@ -20,3 +20,7 @@
 {"input": "you said", "time": "12:40", "weekday": "Wednesday", "words": "time for lunch"}
 {"input": "you said", "time": "16:10", "weekday": "Thursday", "words": "that was a long one"}
 {"input": "you said", "time": "18:05", "weekday": "Friday", "words": "see you tomorrow"}
+{"input": "you said", "time": "16:10", "weekday": "Tuesday", "words": "you're so annoying"}
+{"input": "you said", "time": "16:05", "weekday": "Tuesday", "words": "what are you doing", "yelled": true}
+{"input": "you said", "time": "16:12", "weekday": "Tuesday", "words": "", "yelled": true}
+{"input": "you said", "time": "14:45", "weekday": "Monday", "words": "be quiet for half an hour"}

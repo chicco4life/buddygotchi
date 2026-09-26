@@ -145,7 +145,7 @@ into the app's resources, and a unit test fails if the copies differ.
 Order: **M0 → F1 → F2 → F3 → F4 → A1 → A2 → A3 → A4 → J1 → F5 → J2 → J3.**
 Bluetooth (F4) comes before the app track so the morning test can use it.
 Sound (F5) came late because there was no speaker to hear it; one was
-attached on 2026-09-26. F6, A5, A6 and C1
+attached on 2026-09-26. F6, A5, A6, A7, A8 and C1
 came after the build, at the owner's request.
 
 Statuses are Not started, In progress, Passed, or Blocked (with the reason).
@@ -171,6 +171,7 @@ later cut part of it, so the current behaviour is in the specs, not here.
 | A5 | Mac app look and flow | In progress: code, L0 and the app's snapshot check pass (light and dark). Only the owner's look in the real menu bar remains (morning checklist rows 5 and 7). [Evidence](evidence/v1-build/A5/README.md) |
 | A6 | Brain conversation | Superseded by A7 (2026-09-26): the conversation became the transcript's window, the `say` limit went with every timing limit, and `note` is offered only for what you say. Its L5 findings are the [evidence](evidence/2026-09-26-brain-conversation/README.md) |
 | A7 | Two-stage brain | In progress: the pipeline is built. L0 (191 Swift tests, 100 firmware) and L5 pass: both classifiers with Apple's model answer all 50 fixture inputs on the menu, fill every slot, and stay inside their deadlines ([evidence](evidence/2026-09-26-two-stage-brain/README.md)). Remaining: L2 and L4 on the board for the removals (the everyday app held it over Bluetooth, [evidence](evidence/2026-09-26-removals/README.md)), and the owner picking each classifier in Settings and talking to Boop. The Jev experiment before it: [evidence](evidence/2026-09-26-jev-brain/README.md) |
+| A8 | Hero moments: failing tests fail a turn, sad when yelled at or told off, quiet only when asked, annoyed at a poke streak | In progress: code, L0 (210 Swift, 101 firmware), the eval suite (8 scenarios, three of them new), L1 (12 scenarios, including the new `poke`) and L5 with the rules classifier and Apple's writer pass, and the board firmware builds. L2 (`boopctl run poke`, not flashed yet) and the owner's checks (morning checklist rows 11, 13, 19 and 20) remain. [Evidence](evidence/2026-09-26-hero-moments/README.md) |
 | C1 | Cut to the minimal surface | In progress: two cuts, to 4 states and 3 animations; specs, code, L0 and L1 pass, merged with A7's two-stage brain and the evals (the brain's `react` keeps its feelings but shows no face). Follow-up: the pixel face, with boxy eyes in every expression. Not yet flashed or checked on the board. [Evidence](evidence/2026-09-26-minimal-cut/README.md) |
 | P1 | Port to ESP-IDF + LVGL (later, gated) | Not started |
 
@@ -715,14 +716,16 @@ off at any point:
 | 8 | In Claude Code, start a task | Working face within a second |
 | 9 | Make Claude ask permission for a shell command | Amber and a look within about 1 s. Approve in the terminal → a nod, back to work |
 | 10 | Let a task finish | A cheer, then maybe a mumble with a word |
-| 11 | Make a turn fail | No cheer; Boop goes idle, and maybe mutters |
+| 11 | Ask Claude to run a test that fails and then stop | No cheer; Boop goes idle, then an annoyed mumble |
 | 12 | In Codex, trigger an approval | Amber about 2 s after Codex asks. Requests its automatic reviewer handles don't light up |
-| 13 | Hold BOOT and say "shut up for ten minutes" | Quiet icon, no mumbles |
+| 13 | Hold BOOT and say "be quiet for fifteen minutes" | Quiet icon, no mumbles |
 | 14 | Trigger approvals in two sessions | One chirp; the bubble shows the first, with "+1 more" |
 | 15 | Click Talk in the popover, say "good job", click Send. Then click Talk and say nothing for 30 s | The first time, macOS asks for Speech Recognition and the Microphone. While talking: the menu-bar eyes turn red, the popover says "Listening…", Talk is a red Send, and macOS shows its mic indicator; the device looks up listening. Send → thinking, then a mumble. Left alone, all of it goes back after 30 s |
 | 16 | Later, open `~/Library/Application Support/Boop/short-term.md` | Today's notes and events |
 | 17 | Listen to the voice clips on the Mac: `tools/.venv/bin/python tools/voicegen/voicegen.py --out /tmp/voice.h --wav-dir /tmp/boop-voice`, then `afplay /tmp/boop-voice/ba.wav` (and a few words, like `done.wav`) | Small, bright, chiptune syllables; the words are clear. Nobody has heard these yet |
 | 18 | When an 8 Ω speaker is on the speaker header: `tools/boopctl mumble` | Bouncy gibberish for each feeling, with the real word landing clearly; no pops when the amp switches |
+| 19 | Hold BOOT and snap "shut up". Then hold it again and yell anything | A hurt face and a small sad mumble each time, and no quiet icon. If your normal voice counts as yelling, or a real yell doesn't, the yelling threshold ([BEHAVIORS.md](BEHAVIORS.md) §3.3) needs tuning |
+| 20 | Tap the face four times quickly, then keep tapping for a few seconds | Wiggles, then a side-eye at you on the fourth and an annoyed grumble; taps during the side-eye don't wiggle. With the Mac app quit, `tools/boopctl run poke` checks the same on the board (L2) |
 
 Anything that's off becomes the next items in this plan (§7).
 
@@ -748,6 +751,18 @@ matching spec first.
   and 1.5 s after the app was quit and relaunched ([PROTOCOL.md](PROTOCOL.md)
   §2, "Reconnecting"). Not yet seen: the settings screen's Reconnect
   button, and taking over a link macOS kept after the app was killed.
+- **The landing page still sells gen-2.** Its copy
+  ([copy.ts](../landing/src/lib/copy.ts)) leads with "Approve with a pet"
+  and says Boop lets you approve or deny with a press, which
+  [VISION.md](VISION.md) promise 5 rules out. It also lists Cursor and VS
+  Code, and its help page describes gen-2's approval mode, port 21321 and
+  `~/.boop`.
+- **Codex turns never fail.** Codex's `PostToolUse` runs after a failing
+  shell command too, but what it reports then hasn't been seen from a real
+  session, so a Codex turn that leaves its tests failing still ends in a
+  cheer ([ADAPTERS.md](ADAPTERS.md) §3). Recording one real Codex session
+  with a failing test run would show whether it carries an exit code.
+
 From the J3 report's known issues (numbered as there):
 
 - A3, brain tuning, deferred by the owner. These were Apple's model
