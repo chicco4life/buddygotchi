@@ -1,6 +1,6 @@
 # Boop: agent adapters
 
-Updated 2026-09-26. How Boop hears from Claude Code and Codex: the hook
+Updated 2026-09-27. How Boop hears from Claude Code and Codex: the hook
 client, which hooks we register and what each becomes, and how "needs you"
 is detected and cleared.
 
@@ -174,7 +174,9 @@ generation of Boop taught us two things:
   ([UX.md](UX.md) §6), or one click in settings. The app shows exactly what
   it will add: each hook entry and, for Codex, the `codex_hooks = true` line
   in `config.toml` if it isn't there yet. Each entry carries `timeout: 5`
-  (seconds).
+  (seconds). Claude runs a `Notification` hook only for the types its
+  matcher lists, so Boop's matcher lists every type §3 maps:
+  `permission_prompt|elicitation_dialog|idle_prompt`.
 - **Repair:** on every launch, for each agent that already has Boop's
   entries, the app restores missing or outdated ones, replacing the previous
   generation's `~/.boop/boop-hook.sh` entries too. It leaves other hooks

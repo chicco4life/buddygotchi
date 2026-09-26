@@ -27,11 +27,13 @@ public struct HookInstaller {
     }
 
     /// The hooks each agent gets, with a matcher where one is needed.
+    /// Claude matches `Notification` on its type, so the matcher lists every
+    /// type the adapter maps (ADAPTERS.md §3, §5).
     static let events: [Agent: [(event: String, matcher: String?)]] = [
         .claude: [
             ("SessionStart", nil), ("UserPromptSubmit", nil), ("PreToolUse", nil), ("PostToolUse", nil),
             ("PostToolUseFailure", nil), ("PermissionRequest", nil),
-            ("Notification", "permission_prompt|elicitation_dialog"), ("Elicitation", nil),
+            ("Notification", "permission_prompt|elicitation_dialog|idle_prompt"), ("Elicitation", nil),
             ("ElicitationResult", nil), ("Stop", nil), ("StopFailure", nil), ("SessionEnd", nil),
         ],
         .codex: [

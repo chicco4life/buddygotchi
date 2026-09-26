@@ -80,7 +80,29 @@ final class InstallerTests: XCTestCase {
         XCTAssertEqual(commands(.claude, "Stop"), ["say done", ours])
         try XCTAssertFalse(String(decoding: try Data(contentsOf: installer.configURL(.claude)), as: UTF8.self).contains("boop-hook.sh"))
         let notification = (root["hooks"] as! [String: Any])["Notification"] as! [[String: Any]]
-        XCTAssertEqual(notification.first?["matcher"] as? String, "permission_prompt|elicitation_dialog")
+        XCTAssertEqual(notification.first?["matcher"] as? String, "permission_prompt|elicitation_dialog|idle_prompt")
+    }
+
+    /// ADAPTERS.md §5: Claude runs a `Notification` hook only for the types
+    /// its matcher lists, so the matcher lists every type the adapter maps,
+    /// `idle_prompt` included, and an install with the old matcher is
+    /// repaired at the next launch.
+    func testTheNotificationMatcherListsEveryTypeTheAdapterMaps() throws {
+        let matcher = HookInstaller.events[.claude]!.first { $0.event == "Notification" }!.matcher!
+        let types = Set(matcher.split(separator: "|").map(String.init))
+        XCTAssertEqual(types, Adapter.askingNotifications.union([Adapter.idleNotification]))
+
+        try installer.install(.claude)
+        var root = read(.claude)
+        var hooks = root["hooks"] as! [String: Any]
+        hooks["Notification"] = [["matcher": "permission_prompt|elicitation_dialog",
+                                  "hooks": [["type": "command", "command": installer.command(.claude), "timeout": 5]]]]
+        root["hooks"] = hooks
+        write(.claude, root)
+        XCTAssertEqual(installer.health(.claude), .outdated)
+        XCTAssertEqual(installer.repair(), [.claude])
+        let notification = (read(.claude)["hooks"] as! [String: Any])["Notification"] as! [[String: Any]]
+        XCTAssertEqual(notification.map { $0["matcher"] as? String }, [matcher])
     }
 
     func testInstallIsIdempotent() throws {
