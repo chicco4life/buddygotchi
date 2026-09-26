@@ -130,8 +130,7 @@ void Behaviour::settle(uint32_t t) {
 
 // ---- Messages --------------------------------------------------------------
 
-void Behaviour::onState(const Model& m, uint32_t t, Rng& rng) {
-  (void)rng;
+void Behaviour::onState(const Model& m, uint32_t t) {
   change(t, [&] {
     bool had = model_.attn;
     bool fresh = m.attn && (!had || std::strncmp(model_.agent, m.agent, sizeof(m.agent)) ||
@@ -155,28 +154,26 @@ void Behaviour::onState(const Model& m, uint32_t t, Rng& rng) {
 // it, except that it's the reply `listening` waits for, so it ends that,
 // even when it doesn't show (needs you, quiet). The empty moment ends
 // `listening` too, and nothing else (PROTOCOL.md §3).
-bool Behaviour::onMoment(const MomentIn& in, uint32_t t, Rng& rng) {
+bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
   bool anim = in.anim != render::Anim::kNone;
   if (anim && model_.attn && !noApp(t) && !overAttention(in.anim)) return false;
   bool mumble = in.syllables > 0 && !model_.attn && model_.quiet <= 0;
   bool ends = !anim && (in.syllables > 0 || in.empty) && momentOn(t) && moment_.anim == render::Anim::kListening;
   if (!anim && !mumble && !ends) return false;
-  (void)rng;
   change(t, [&] {
-    if (anim) play(in.anim, t, false);
+    if (anim) play(in.anim, t);
     else if (ends) moment_.anim = render::Anim::kNone;
     if (mumble) startSay(in, t);
   });
   return mumble;
 }
 
-void Behaviour::play(render::Anim a, uint32_t t, bool local) {
+void Behaviour::play(render::Anim a, uint32_t t) {
   moment_ = Moment{};
   ++momentSeq_;
   moment_.anim = a;
   moment_.at = t;
   moment_.ms = render::animDuration(a);
-  moment_.local = local;
   say_ = Say{};  // a new moment replaces the line
   life_ = LifeEvent{};
 }
@@ -211,22 +208,19 @@ void Behaviour::pressUp(uint32_t t) {
 }
 
 // While something needs you, a tap shows the press squash only.
-void Behaviour::tap(uint32_t t, Rng& rng) {
-  (void)rng;
+void Behaviour::tap(uint32_t t) {
   if (model_.attn && !noApp(t)) return;
-  change(t, [&] { play(render::Anim::kWiggle, t, true); });
+  change(t, [&] { play(render::Anim::kWiggle, t); });
 }
 
-void Behaviour::talkOn(uint32_t t, Rng& rng) {
-  (void)rng;
-  change(t, [&] { play(render::Anim::kListening, t, true); });
+void Behaviour::talkOn(uint32_t t) {
+  change(t, [&] { play(render::Anim::kListening, t); });
 }
 
 // Released: listening carries on, without a new blend, and waits at most
 // kReplyWaitMs for the reply (BEHAVIORS.md §3.3). If it isn't playing any
 // more (the 30 s cap, or the Mac replaced it), there's nothing to wait on.
-void Behaviour::talkOff(uint32_t t, Rng& rng) {
-  (void)rng;
+void Behaviour::talkOff(uint32_t t) {
   change(t, [&] {
     if (momentOn(t) && moment_.anim == render::Anim::kListening) moment_.ms = (t - moment_.at) + kReplyWaitMs;
   });

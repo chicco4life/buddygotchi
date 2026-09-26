@@ -192,6 +192,8 @@ static void test_pattern_target_draws_a_cross() {
   TEST_ASSERT_EQUAL(render::kAmber, r.dev.canvas().get(300, 20));
   TEST_ASSERT_EQUAL(render::kAmber, r.dev.canvas().get(310, 20));
   TEST_ASSERT_EQUAL(render::kBlack, r.dev.canvas().get(20, 220));
+  r.usbLine("{\"t\":\"dbg.pattern\",\"target\":[2147483647,-9]}");  // off the screen: kept on it
+  TEST_ASSERT_EQUAL(render::kAmber, r.dev.canvas().get(319, 0));
 }
 
 static void test_debug_is_ignored_over_ble() {

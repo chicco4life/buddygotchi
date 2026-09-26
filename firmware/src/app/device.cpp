@@ -125,7 +125,7 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     m.wait = doc["wait"] | 0;
     m.quiet = doc["quiet"] | 0;
     m.vol = doc["vol"] | 6;
-    b_.onState(m, at, rng_);
+    b_.onState(m, at);
     if (m.attn || m.quiet > 0 || m.vol <= 0) hush();  // VOICE.md §9
     pattern_ = false;
     dirty_ = true;
@@ -162,7 +162,7 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
       line.ms = uint16_t(mo.ms < 60 ? 60 : mo.ms > 400 ? 400 : mo.ms);  // as the mouth
     }
     uint32_t seq = b_.momentSeq();
-    bool mumble = b_.onMoment(mo, at, rng_);  // copies the word
+    bool mumble = b_.onMoment(mo, at);  // copies the word
     const Model& m = b_.model();
     if (mumble && m.vol > 0) {
       line.vol = uint8_t(m.vol > 10 ? 10 : m.vol);
@@ -189,8 +189,9 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     int fill = doc["fill"] | -1;
     patternFill_ = fill;
     JsonArrayConst target = doc["target"];
-    targetX_ = target.size() == 2 ? target[0].as<int>() : -1;
-    targetY_ = target.size() == 2 ? target[1].as<int>() : -1;
+    auto onScreen = [](int v, int size) { return v < 0 ? 0 : v >= size ? size - 1 : v; };
+    targetX_ = target.size() == 2 ? onScreen(target[0].as<int>(), render::kWidth) : -1;
+    targetY_ = target.size() == 2 ? onScreen(target[1].as<int>(), render::kHeight) : -1;
     pattern_ = true;
     dirty_ = true;
     reply(from, "{\"t\":\"dbg.pattern\"}", 19);
@@ -272,18 +273,18 @@ void Device::readInputs(uint32_t t) {
       break;
     case ButtonGesture::kTap:
       b_.pressUp(t);
-      b_.tap(t, rng_);
+      b_.tap(t);
       input("tap", t);
       emit("tap");
       break;
     case ButtonGesture::kHoldStart:
       b_.pressUp(t);
-      b_.talkOn(t, rng_);
+      b_.talkOn(t);
       input("talk_on", t);
       emit("talk_on");
       break;
     case ButtonGesture::kHoldEnd:
-      b_.talkOff(t, rng_);
+      b_.talkOff(t);
       input("talk_off", t);
       emit("talk_off");
       break;
@@ -308,7 +309,7 @@ void Device::readInputs(uint32_t t) {
   if (!touching && touchDown_) {
     b_.pressUp(t);
     if (faced) {
-      b_.tap(t, rng_);
+      b_.tap(t);
       input("tap", t);
       emit("tap");
     }

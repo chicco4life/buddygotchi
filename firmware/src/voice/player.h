@@ -58,10 +58,9 @@ class Player {
   size_t render(uint8_t* out, size_t n);
 
   // The timeline so far: slots (beats of syllables plus the word) that
-  // started, of how many, and samples out of the total.
+  // started, of how many, and the total in samples.
   int slotsStarted() const { return slotAt_; }
   int slots() const { return nSlots_; }
-  uint32_t position() const { return pos_; }
   uint32_t total() const { return total_; }
 
  private:

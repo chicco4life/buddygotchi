@@ -61,7 +61,6 @@ class PacketWriter {
 
   // The most bytes one packet may carry (the ATT MTU minus 3).
   void setPayload(size_t n) { payload_ = n < 1 ? 1 : n; }
-  size_t payload() const { return payload_; }
 
   // Appends to the current line; a newline sends it. Lines longer than
   // LineReader::kMax are dropped whole, as the receiver would drop them.

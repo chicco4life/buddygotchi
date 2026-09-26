@@ -134,7 +134,6 @@ class Device {
   void sendState(Link to);
   void sendShot(Link to);
   void reset();
-  void parseState(const char* line, size_t n, uint32_t at);
   void hush();
   void followSound(uint32_t t);
   Screen screenAt(uint32_t t) const { return pattern_ ? Screen::kPattern : b_.screen(t); }

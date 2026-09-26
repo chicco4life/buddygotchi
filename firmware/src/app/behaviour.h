@@ -60,17 +60,17 @@ class Behaviour {
   void reset(uint32_t t, Rng& rng);
 
   // Messages from the Mac, at time t.
-  void onState(const Model& m, uint32_t t, Rng& rng);
+  void onState(const Model& m, uint32_t t);
   // True when the moment carries a mumble that will play: not while
   // something needs you, nor in quiet mode.
-  bool onMoment(const MomentIn& m, uint32_t t, Rng& rng);
+  bool onMoment(const MomentIn& m, uint32_t t);
 
   // Inputs, already recognised as gestures (UX.md §4).
   void pressDown(uint32_t t);  // visible feedback at once
   void pressUp(uint32_t t);
-  void tap(uint32_t t, Rng& rng);  // BOOT, or a touch anywhere
-  void talkOn(uint32_t t, Rng& rng);
-  void talkOff(uint32_t t, Rng& rng);
+  void tap(uint32_t t);  // BOOT, or a touch anywhere
+  void talkOn(uint32_t t);
+  void talkOff(uint32_t t);
   // dbg.light: holds the LED and backlight until the next state.
   void overrideLed(uint32_t rgb) { ledOverride_ = true, ledSet_ = rgb; }
   void overrideBacklight(uint8_t level) { blOverride_ = true, blSet_ = level; }
@@ -113,7 +113,6 @@ class Behaviour {
   struct Moment {
     render::Anim anim = render::Anim::kNone;
     uint32_t at = 0, ms = 0;
-    bool local = false;
   };
   // A mumble: the bubble, and the mouth following the syllables. It plays
   // over whatever face is showing.
@@ -147,7 +146,7 @@ class Behaviour {
     uint32_t at = 0, ms = 0;
   };
 
-  void play(render::Anim a, uint32_t t, bool local);
+  void play(render::Anim a, uint32_t t);
   void startSay(const MomentIn& in, uint32_t t);
   void sound(const char* k, uint32_t t);
   // Every change goes through here: `f` changes the state at t, and if
