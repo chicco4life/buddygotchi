@@ -229,7 +229,11 @@ def boopdev_voice(feeling: str, word: str | None, count: int, seed: int | None =
     cmd = [str(boopdev), "voice", feeling] + ([word] if word else []) + ["--count", str(count), "--json"]
     if seed is not None:
         cmd += ["--seed", str(seed)]
-    out = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
+    run = subprocess.run(cmd, capture_output=True, text=True)
+    if run.returncode:  # a word outside the vocabulary: boopdev lists the ones it knows
+        raise DeviceError(f"`boopdev voice {feeling}{' ' + word if word else ''}` failed. "
+                          + (run.stderr.strip() or f"exit {run.returncode}"))
+    out = run.stdout
     return [json.loads(row) for row in out.splitlines() if row.startswith("{")]
 
 
