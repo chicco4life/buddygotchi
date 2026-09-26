@@ -3,9 +3,10 @@ import Foundation
 /// Each mode's brain (HARNESS.md §6). Each mode has an if-else table;
 /// normal decides with TypeSafe's Jev instead when it has the person's API
 /// key, and with its table for a pass Jev can't answer. Every mode
-/// writes with Apple's model, which falls back to no writer when it can't
-/// run; chatty's is asked again for a mumble's word it leaves out. `--classifier` and
-/// `--writer` override the mode's choice for one run.
+/// writes with Apple's model, which fails each write while it can't run
+/// and recovers by itself when it can; chatty's is asked again for a
+/// mumble's word it leaves out. `--classifier` and `--writer` override the
+/// mode's choice for one run.
 public enum Brains {
     /// Overrides the Keychain's Jev key, for `boopdev` and headless runs.
     public static let jevKeyVariable = "BOOP_JEV_KEY"
@@ -32,17 +33,15 @@ public enum Brains {
         }
     }
 
-    /// The mode's writer, or the override's.
+    /// The mode's writer, or the override's. Apple's writer even when its
+    /// model can't run yet (still downloading, or Apple Intelligence off):
+    /// it asks before every write, so it starts writing once it can.
     public static func writer(for mode: Mode, override: String? = nil, log: (String) -> Void = { _ in }) -> any Writer {
-        switch override {
-        case "none": return NoWriter()
-        default:
-            if let why = AppleWriter.unavailableReason {
-                log("brain: Apple's model can't run (\(why)); writing nothing")
-                return NoWriter()
-            }
-            return AppleWriter(wordRequired: mode == .chatty)
+        if override == "none" { return NoWriter() }
+        if let why = AppleWriter.unavailableReason {
+            log("brain: Apple's model can't run yet (\(why)); mumbles have no word until it can")
         }
+        return AppleWriter(wordRequired: mode == .chatty)
     }
 
     /// Whether the mode, or the override, decides with Jev when it has a key.

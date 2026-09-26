@@ -549,14 +549,11 @@ final class WriterTests: XCTestCase {
         XCTAssertEqual(Brains.classifier(for: .chatty, override: "normal").id, "normal@1")
         XCTAssertEqual(Brains.classifier(for: .calm, override: "jev", key: { "k" }).id, "jev:jev-latest")
         XCTAssertEqual(Brains.writer(for: .calm, override: "none").id, "none")
-        // Apple's model writes in every mode, and must find a word in chatty.
+        // Apple's model writes in every mode, and must find a word in chatty;
+        // it's the writer even while its model can't run, since it asks
+        // again before every write.
         for mode in Mode.allCases {
-            let writer = Brains.writer(for: mode)
-            if AppleWriter.unavailableReason == nil {
-                XCTAssertEqual((writer as? AppleWriter)?.wordRequired, mode == .chatty, mode.rawValue)
-            } else {
-                XCTAssertEqual(writer.id, "none")
-            }
+            XCTAssertEqual((Brains.writer(for: mode) as? AppleWriter)?.wordRequired, mode == .chatty, mode.rawValue)
         }
     }
 }

@@ -136,10 +136,12 @@ struct SettingsPane: View {
         }
     }
 
-    /// Why the brain running isn't the mode's usual one, if it isn't.
+    /// Why mumbles have no word, if they don't.
     private var brainNote: String? {
         guard let status = model.status else { return nil }
-        if status.writer == "none" { return "Apple's model can't run here, so mumbles have no word." }
+        if status.writer == "none" || status.writer.hasPrefix("apple") && AppleWriter.unavailableReason != nil {
+            return "Apple's model can't run here, so mumbles have no word."
+        }
         return nil
     }
 
