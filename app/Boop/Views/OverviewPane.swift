@@ -135,7 +135,7 @@ struct OverviewPane: View {
                     .foregroundStyle(Theme.amberInk)
                     .frame(width: 18)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("\(agentName(attn.agent)) · \(attn.project)")
+                    Text(attn.project.isEmpty ? agentName(attn.agent) : "\(agentName(attn.agent)) · \(attn.project)")
                         .font(.system(size: 13, weight: .semibold)).lineLimit(1).truncationMode(.middle)
                     Text("Waiting for you. Answer it in the agent's window.")
                         .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
