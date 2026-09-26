@@ -535,7 +535,7 @@ public final class Core {
         let cheer = config.mode.cheers(Input.Length(ms: ms))
         if cheer { play("cheer", &fx) }
         if ms >= 30_000 {
-            fx.append(.happened("\(config.time.clock(wall(now))) \(s.agent.short) · \(s.project) · finished (\(took(ms)))"))
+            fx.append(.happened("\(config.time.clock(wall(now))) \(s.agent.short) · \(s.project) · finished (\(Input.took(ms)))"))
         }
         agentInput(.agentFinished, s, outcome: .done, tookMs: ms, rules: cheer ? "cheer" : nil,
                    rank: Input.Length(ms: ms) == .short ? 2 : 3, now, &fx)
@@ -574,10 +574,6 @@ public final class Core {
         let topic = s.topic.map { " · \($0)" } ?? ""
         fx.append(.happened("\(config.time.clock(wall(now))) \(s.agent.short) · \(s.project)\(topic) · failed"))
         agentInput(.agentFinished, s, outcome: .failed, tookMs: ms, error: error, rules: nil, rank: 4, now, &fx)
-    }
-
-    func took(_ ms: Int64) -> String {
-        ms < 60_000 ? "\(ms / 1000) s" : "\(ms / 60_000) min"
     }
 
     func timeLine(_ now: Int64) -> String {

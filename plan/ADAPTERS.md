@@ -34,8 +34,8 @@ boop-hook <agent>        # agent = claude | codex
 
 1. It reads the hook's JSON from stdin, up to 256 KB. Anything beyond that
    is drained and ignored. A payload cut off at the cap won't parse, so the
-   hook name, session, `cwd` and tool name are picked out of its start
-   instead (it loses its topic).
+   hook name, session, `cwd`, `agent_id` and tool name are picked out of
+   its start instead (it loses its topic).
 2. It picks out the fields in §3.
 3. It writes one JSON line to the app's Unix socket,
    `~/Library/Application Support/Boop/boop.sock`. Tests point it elsewhere
@@ -60,13 +60,16 @@ most, even for agents that fire a hook on every tool call.
 
 ### Claude Code
 
+Every line keeps the session and `cwd`, and, from inside a Claude
+subagent, its `agent_id` (§2). The tables list what else each keeps.
+
 | Claude hook | Becomes | Fields kept |
 | --- | --- | --- |
-| `SessionStart` | `session_start` | session, cwd |
-| `UserPromptSubmit` | `turn_start` | session, cwd |
+| `SessionStart` | `session_start` | session |
+| `UserPromptSubmit` | `turn_start` | session |
 | `PreToolUse` | `activity` | session, tool name, topic |
 | `PostToolUse`, `PostToolUseFailure` | `activity` | session, tool name, topic, and whether the call failed (`failed`) |
-| `PostToolUseFailure` because you interrupted it | `turn_stopped` | session |
+| `PostToolUseFailure` because you interrupted it | `turn_stopped` | session, tool name |
 | `PermissionRequest` | `needs_you` | session, tool name |
 | `Notification` (`permission_prompt`, `elicitation_dialog`) | `needs_you` (deduplicated) | session |
 | `Notification` (`idle_prompt`) | `turn_stopped` | session |
@@ -80,8 +83,8 @@ most, even for agents that fire a hook on every tool call.
 
 | Codex hook | Becomes | Fields kept |
 | --- | --- | --- |
-| `SessionStart` (startup, resume, clear) | `session_start` | session, cwd |
-| `UserPromptSubmit` | `turn_start` | session, cwd |
+| `SessionStart` (startup, resume, clear) | `session_start` | session |
+| `UserPromptSubmit` | `turn_start` | session |
 | `PreToolUse`, `PostToolUse` | `activity` | session, tool name, topic |
 | `PermissionRequest` | `needs_you` | session, tool name |
 | `Stop` | `turn_end` | session |

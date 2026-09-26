@@ -92,10 +92,12 @@ final class AdapterTests: XCTestCase {
         XCTAssertTrue(event.jsonLine.contains(#""detail":{"failed":true,"tool":"Bash","topic":"tests"}"#), event.jsonLine)
     }
 
+    /// ARCHITECTURE.md §5's example is this adapter output.
     func testEventJSONShape() throws {
-        let event = BoopEvent(agent: .codex, session: "a1b2", project: "landing", event: .turnEnd,
-                              detail: .init(durationS: 1080, topic: "tests"), ts: 1_790_000_000_123)
-        XCTAssertEqual(event.jsonLine, #"{"agent":"codex","detail":{"duration_s":1080,"topic":"tests"},"event":"turn_end","project":"landing","session":"a1b2","ts":1790000000123}"#)
+        let line = HookLine(agent: "claude", hook: "PreToolUse", session: "a1b2", cwd: "/Users/me/src/landing",
+                            tool: "Bash", topic: "tests", ts: 1_790_000_000_123)
+        let event = try XCTUnwrap(Adapter.event(from: line))
+        XCTAssertEqual(event.jsonLine, #"{"agent":"claude_code","detail":{"tool":"Bash","topic":"tests"},"event":"activity","project":"landing","session":"a1b2","ts":1790000000123}"#)
     }
 
     func testProjectNames() {

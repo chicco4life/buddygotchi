@@ -356,7 +356,7 @@ Preferences; the Boop section isn't shown.
 | `subagent` | Only on events from inside a Claude subagent, which share their parent's `session`: its `agent_id` ([ADAPTERS.md](ADAPTERS.md) §4) |
 | `project` | Short project name, from the working directory |
 | `event` | `session_start`, `turn_start`, `needs_you`, `activity`, `turn_end`, `turn_failed`, `turn_stopped` (over without finishing: you interrupted it, or the agent sat at its prompt), `session_end` |
-| `detail` | Small and event-specific: `tool` and `topic` on `activity`, plus `failed` (true or false) on Claude's `PostToolUse` and `PostToolUseFailure`; `tool` on `needs_you`; and `error`, an error class, on `turn_failed` ([ADAPTERS.md](ADAPTERS.md) §2–3); nothing on the others. Never prompt text, commands or file contents. The core measures how long a turn took itself, from its start |
+| `detail` | Small and event-specific: `tool` and `topic` on `activity`, plus `failed` (true or false) on Claude's `PostToolUse` and `PostToolUseFailure`; `tool` on `needs_you`; `tool` on a `turn_stopped` from an interrupted call; and `error`, an error class, on `turn_failed` ([ADAPTERS.md](ADAPTERS.md) §2–3); nothing on the others. Never prompt text, commands or file contents. The core measures how long a turn took itself, from its start |
 | `ts` | Milliseconds |
 
 Adding an agent later means one new adapter that produces this shape.

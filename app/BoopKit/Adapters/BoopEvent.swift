@@ -40,7 +40,6 @@ public struct BoopEvent: Equatable, Sendable {
 
     /// Small and event-specific. Never prompt text, commands or file contents.
     public struct Detail: Equatable, Sendable {
-        public var durationS: Int?
         public var tool: String?
         public var topic: String?
         public var error: String?
@@ -49,9 +48,7 @@ public struct BoopEvent: Equatable, Sendable {
         /// call you interrupted. Nil when unknown.
         public var failed: Bool?
 
-        public init(durationS: Int? = nil, tool: String? = nil, topic: String? = nil, error: String? = nil,
-                    failed: Bool? = nil) {
-            self.durationS = durationS
+        public init(tool: String? = nil, topic: String? = nil, error: String? = nil, failed: Bool? = nil) {
             self.tool = tool
             self.topic = topic
             self.error = error
@@ -84,7 +81,6 @@ public struct BoopEvent: Equatable, Sendable {
     /// The event as one JSON line, in the shape of ARCHITECTURE.md §5.
     public var jsonLine: String {
         var detailObject: [String: Any] = [:]
-        if let durationS = detail.durationS { detailObject["duration_s"] = durationS }
         if let tool = detail.tool { detailObject["tool"] = tool }
         if let topic = detail.topic { detailObject["topic"] = topic }
         if let error = detail.error { detailObject["error"] = error }
