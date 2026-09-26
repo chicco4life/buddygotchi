@@ -1,3 +1,0 @@
-/tmp/boop-visibility-goldens-1/contact-sheet.png
-/tmp/boop-visibility-goldens-2/contact-sheet.png
-19 working/sleep goldens reproduced twice with identical pixels.

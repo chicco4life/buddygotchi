@@ -1,9 +1,0 @@
-{
-  "partitions.bin": "bab40c2dd03c089041619eb2c3585eb09d5b5e5288ab09d71889dacc907327ac",
-  "usb-partitions.bin": "bab40c2dd03c089041619eb2c3585eb09d5b5e5288ab09d71889dacc907327ac",
-  "boot_app0.bin": "f94c5d786a7a8fab06ac5d10e33bf37711a6697636dc037559ea19cc410a17f0",
-  "usb-bootloader.bin": "b41be55ae9a52aeeb21645c51b86c14027f84c2c91bf67bee6aa0e1b15d18e8b",
-  "firmware.bin": "9061587c066b4bd7353efa7d357d86c079662c1723c398faee988305f6ba74df",
-  "bootloader.bin": "b41be55ae9a52aeeb21645c51b86c14027f84c2c91bf67bee6aa0e1b15d18e8b",
-  "usb-firmware.bin": "60fe8051c28bd1b8358803dd242fbbf030088a2b77fc4bca243e0264ab16b468"
-}

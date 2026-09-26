@@ -15,8 +15,8 @@ tools, and the older generation in `archived/`. v1 **rewrote everything**,
 and the v1 code has replaced it. The tag `gen2-final` keeps the previous
 generation one command away (`git show gen2-final:<path>`). What's left
 under `archived/` is history (research, docs and the gen-2 specs in
-`archived/plan-gen2/`), plus a few evidence scripts there and the gen-2
-case model in `archived/hardware/case/`. Keep `landing/` (the live landing
+`archived/plan-gen2/`) and the gen-2 case model in
+`archived/hardware/case/`. Keep `landing/` (the live landing
 page) and the specs.
 
 Old code was reused only where it fit the new architecture as is. The

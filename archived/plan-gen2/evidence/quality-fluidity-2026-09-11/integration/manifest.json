@@ -1,9 +1,0 @@
-{
-  "version": "dev+6182f51882a7",
-  "url": "https://example.invalid/firmware/boop-fw-dev+6182f51882a7.bin",
-  "sha256": "c4f9ff311bd3218ad966fd721924076505d014d701a98237293f30527af3cd43",
-  "notes": "Boop firmware dev+6182f51882a7.",
-  "published_at": "2026-09-11T12:14:08Z",
-  "minAppVersion": "0.3.0",
-  "board": "ws-amoled164"
-}

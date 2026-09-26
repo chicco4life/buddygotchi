@@ -1,6 +1,0 @@
-................................................                         [100%]
-48 passed in 124.05s (0:02:04)
-Captured moment lifecycle screenshots /Users/michaeljxzhu/.codex/worktrees/2441/buddygotchi/plan/evidence/turn-moments-2026-09-12
-/tmp/boop-moments-goldens-1/contact-sheet.png
-/tmp/boop-moments-goldens-2/contact-sheet.png
-Fourteen affected/new goldens reproduced twice with identical pixels and recorded.

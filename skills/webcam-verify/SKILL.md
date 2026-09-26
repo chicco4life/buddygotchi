@@ -49,7 +49,8 @@ this repository's root for commands, camera setup, evidence and limitations.
    retain only deliberately selected evidence in the repo. Do not silently turn
    a limited scenario review into a full hardware pass.
 
-The first live example is `archived/plan-gen2/evidence/webcam/2026-09-10.md`.
+The first live example is kept at the tag:
+`git show gen2-final:archived/plan-gen2/evidence/webcam/2026-09-10.md`.
 The v1 webcam checks (framing, test pattern, clips) are defined in
 `plan/VERIFICATION.md` §5 L3 and §6, and driven by `tools/boopctl cam`.
 `make webcam-test` tests the tooling with synthetic video and does not open a
