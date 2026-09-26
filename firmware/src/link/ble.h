@@ -29,7 +29,7 @@ class Ble : public app::Out {
   // Replies and device → Mac messages, sent as notifications.
   void write(const char* s, size_t n) override;
 
-  const char* state() const;          // "off", "adv" or "conn"
+  const char* state() const;          // "off", "idle", "adv" or "conn"
   const char* name() const { return name_; }  // Boop-XXXX
   const char* id() const { return id_; }      // b00p-xxxx
   uint32_t dropped() const;
@@ -41,6 +41,7 @@ class Ble : public app::Out {
   char id_[12] = "b00p-0000";
   bool started_ = false;
   bool connected_ = false;  // as the main loop last saw it
+  uint32_t advCheckedAt_ = 0;
   app::LinkSilence silence_;
   app::LineReader line_;
   app::PacketWriter out_;

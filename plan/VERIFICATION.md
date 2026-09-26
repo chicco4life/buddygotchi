@@ -84,7 +84,7 @@ Over USB, the firmware accepts every normal protocol message
 
 | Message | Reply |
 | --- | --- |
-| `{"t":"dbg.ping"}` | `{"t":"dbg.ping","fw":…,"sha":…,"up":ms,"heap":…,"heap_min":…,"fps":…,"link":"usb\|ble\|none","ble":"off\|adv\|conn","name":"Boop-XXXX","voice":…,"w":320,"h":240}`. `ble` is Bluetooth's state (advertising or connected), `name` the advertised name, `voice` the voice assets' version, and `w`/`h` the screen as drawn |
+| `{"t":"dbg.ping"}` | `{"t":"dbg.ping","fw":…,"sha":…,"up":ms,"heap":…,"heap_min":…,"fps":…,"link":"usb\|ble\|none","ble":"off\|idle\|adv\|conn","name":"Boop-XXXX","voice":…,"w":320,"h":240}`. `ble` is Bluetooth's state (`idle` is neither advertising nor connected, so no Mac can find it), `name` the advertised name, `voice` the voice assets' version, and `w`/`h` the screen as drawn |
 | `{"t":"dbg.state"}` | `{"t":"dbg.state","screen":"face\|needs_you\|threads\|stats\|no_app\|pattern","base":…,"attn":…,"rung":0-3,"moment":{"anim":…,"left_ms":…},"quiet":…,"focus":…,"led":"#RRGGBB","audio":{"playing":…,"syllables":…},"last_input":…}` |
 | `{"t":"dbg.shot"}` | A header line `{"t":"dbg.shot","w":320,"h":240,"bytes":N,"crc":…}`, then one line of base64: 512 bytes of RGB565 palette (256 little-endian entries) followed by 76,800 bytes of pixel indexes, row by row. `crc` is the CRC-32 (as zlib's) of those bytes |
 | `{"t":"dbg.clock","freeze":T}` / `{"step":MS}` / `{"run":true}` | Freeze the clock at T (which also seeds randomness from T), step it, or let it run |

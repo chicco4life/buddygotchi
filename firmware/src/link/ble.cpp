@@ -35,7 +35,7 @@ class ServerEvents : public NimBLEServerCallbacks {
   void onDisconnect(NimBLEServer*, NimBLEConnInfo&, int) override {
     linkUp = false;
     ++connects;
-    // advertiseOnDisconnect (the default) starts advertising again.
+    // advertiseOnDisconnect (set in begin) starts advertising again.
   }
   void onMTUChange(uint16_t m, NimBLEConnInfo&) override { mtu = m; }
 };
@@ -68,6 +68,9 @@ bool Ble::begin() {
 
   NimBLEServer* server = NimBLEDevice::createServer();
   server->setCallbacks(&serverEvents, false);
+  // Off by default since NimBLE-Arduino 2.0: without it the device goes
+  // dark after the first disconnect until it's reset.
+  server->advertiseOnDisconnect(true);
   NimBLEService* svc = server->createService(kService);
   tx = svc->createCharacteristic(kTx, NIMBLE_PROPERTY::NOTIFY);
   NimBLECharacteristic* rx = svc->createCharacteristic(kRx, NIMBLE_PROPERTY::WRITE | NIMBLE_PROPERTY::WRITE_NR);
@@ -105,6 +108,12 @@ bool Ble::poll(app::Device& device) {
     out_.setPayload(m > 3 ? m - 3 : 20);
     // A Mac that's gone quiet: let go, so advertising starts again.
     if (silence_.drop(millis())) NimBLEDevice::getServer()->disconnect(connHandle.load());
+  } else if (!linkUp.load() && millis() - advCheckedAt_ >= 1000) {
+    // Not connected and not advertising would leave the device unfindable
+    // until it's reset, so check once a second and start it again.
+    advCheckedAt_ = millis();
+    NimBLEAdvertising* adv = NimBLEDevice::getAdvertising();
+    if (!adv->isAdvertising()) adv->start();
   }
   uint8_t b;
   while (rxRing.take(b)) {
@@ -133,7 +142,8 @@ void Ble::sendPacket(void*, const uint8_t* data, size_t n) {
 
 const char* Ble::state() const {
   if (!started_) return "off";
-  return linkUp.load() ? "conn" : "adv";
+  if (linkUp.load()) return "conn";
+  return NimBLEDevice::getAdvertising()->isAdvertising() ? "adv" : "idle";
 }
 
 uint32_t Ble::dropped() const { return rxRing.dropped(); }

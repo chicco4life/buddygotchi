@@ -77,7 +77,8 @@ struct Hal {
   virtual bool usbPowered() { return true; }
   // The permanent ID in `status` (PROTOCOL.md §4).
   virtual const char* deviceId() { return "b00p-0000"; }
-  // Bluetooth, for dbg.ping: "off", "adv" (advertising) or "conn".
+  // Bluetooth, for dbg.ping: "off", "idle" (neither advertising nor
+  // connected), "adv" (advertising) or "conn".
   virtual const char* bleState() { return "off"; }
   virtual const char* bleName() { return ""; }
   virtual const char* fwVersion() = 0;

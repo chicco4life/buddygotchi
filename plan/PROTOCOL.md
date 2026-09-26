@@ -64,6 +64,9 @@ remembers anything about the other, so a reconnect is just a fresh connect.
 - **Services changed.** If macOS reports the UART service changed (a
   reflash with a different GATT table), the app drops the link and
   connects again.
+- **The device always advertises when it isn't connected.** It starts
+  again on every disconnect (NimBLE-Arduino 2.x doesn't by default), and
+  checks once a second in case that didn't take.
 - **A quiet link is dropped.** The Mac sends a `state` at least every 10 s,
   so a link that has been silent for 30 s is left over from an app that's
   gone. The device drops it and starts advertising again, so a restarted
