@@ -103,23 +103,20 @@ final class CoreAgentWorkTests: XCTestCase {
         XCTAssertNil(inputs(fx).first?.rules)
     }
 
-    func testTurnUnder30sCheersSize1() {  // BEHAVIORS.md §3.1
+    /// BEHAVIORS.md §3.1: size 1 under 15 s, 2 up to a minute, 3 beyond.
+    func testTurnUnder15sCheersSize1() {
         let rig = CoreRig()
-        XCTAssertEqual(moments(rig.turn(29_000)), ["cheer 1"])
+        XCTAssertEqual(moments(rig.turn(14_000)), ["cheer 1"])
         XCTAssertEqual(rig.state.base, "idle")
+        XCTAssertEqual(moments(CoreRig().turn(5_000)), ["cheer 1"])
     }
 
-    func testTurn30sTo5MinCheersSize1() {
-        XCTAssertEqual(moments(CoreRig().turn(30_000)), ["cheer 1"])
-        XCTAssertEqual(moments(CoreRig().turn(299_000)), ["cheer 1"])
+    func testTurn15sTo1MinCheersSize2() {
+        XCTAssertEqual(moments(CoreRig().turn(15_000)), ["cheer 2"])
+        XCTAssertEqual(moments(CoreRig().turn(60_000)), ["cheer 2"])
     }
 
-    func testTurn5To20MinCheersSize2() {
-        XCTAssertEqual(moments(CoreRig().turn(300_000)), ["cheer 2"])
-        XCTAssertEqual(moments(CoreRig().turn(1_199_000)), ["cheer 2"])
-    }
-
-    func testTurnOver20MinCheersSize3() {
+    func testTurnOver1MinCheersSize3() {
         let rig = CoreRig()
         let fx = rig.turn(1_200_000)
         XCTAssertEqual(moments(fx), ["cheer 3"])
@@ -143,7 +140,7 @@ final class CoreAgentWorkTests: XCTestCase {
         rig.send(.turnStart, session: "a")
         rig.send(.turnStart, session: "b")
         rig.send(.turnStart, session: "c")
-        rig.wait(400_000)
+        rig.wait(30_000)
         rig.send(.turnStart, session: "c")  // c restarts: a quick one
         rig.wait(10_000)
         var fx = rig.send(.turnEnd, session: "c")
@@ -200,7 +197,7 @@ final class CoreAgentWorkTests: XCTestCase {
         rig.send(.activity, tool: "Bash", topic: "build", failed: true)
         rig.send(.activity, tool: "Bash", topic: "tests", failed: true)
         rig.send(.activity, tool: "Bash", topic: "tests", failed: false)
-        rig.wait(60_000)
+        rig.wait(10_000)
         XCTAssertEqual(moments(rig.send(.turnEnd)), ["cheer 1"])
         // The next turn starts clean: a failure in the last one doesn't count.
         rig.wait(5000)
@@ -551,7 +548,7 @@ final class CoreGrowthTests: XCTestCase {
         let rig = CoreRig(growth: Growth(xp: 49, hatched: "2026-10-01", lastFed: "2026-10-14"))
         rig.send(.turnStart, session: "other")
         rig.send(.needsYou, session: "other", tool: "Bash")
-        let fx = rig.turn(40_000)
+        let fx = rig.turn(10_000)
         XCTAssertEqual(moments(fx), ["cheer 1"])
         XCTAssertEqual(rig.state.level, 2)
         XCTAssertFalse(moments(rig.wait(60_000)).contains("levelup 1"), "not while something needs you")
@@ -603,7 +600,7 @@ final class CoreGrowthTests: XCTestCase {
 
     func testFirstXPAfterBeingHungryPlaysGobble() {
         let rig = CoreRig(growth: Growth(xp: 10, hatched: "2026-09-01", lastFed: "2026-10-11"))
-        let fx = rig.turn(40_000)
+        let fx = rig.turn(10_000)
         XCTAssertEqual(moments(fx), ["cheer 1"])
         XCTAssertEqual(rig.state.hungry, 0)
         XCTAssertEqual(moments(rig.wait(2000)), ["gobble 1"])
@@ -768,7 +765,7 @@ final class CoreRulesTests: XCTestCase {
     }
 
     /// HARNESS.md §2: agent inputs within 3 s become one, the most important
-    /// winning: failed, then a finish of 5 min or more, then a shorter
+    /// winning: failed, then a finish of 15 s or more, then a shorter
     /// finish, then a start.
     func testAgentInputsInABurstMergeIntoOne() {
         let rig = CoreRig()

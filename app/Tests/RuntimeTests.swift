@@ -208,8 +208,8 @@ final class RuntimeTests: XCTestCase {
         let socket = dir.appendingPathComponent("boop.sock").path
         XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socket))
         wait("working") { transport.sent.contains { $0.contains("\"base\":\"working\"") } }
-        XCTAssertTrue(HookSocket.send(Data(#"{"dev":"advance","ms":400000}"#.utf8), to: socket))
-        wait("clock moved") { skew.withLock { skewMs } == 400_000 }
+        XCTAssertTrue(HookSocket.send(Data(#"{"dev":"advance","ms":30000}"#.utf8), to: socket))
+        wait("clock moved") { skew.withLock { skewMs } == 30_000 }
         XCTAssertTrue(HookSocket.send(hook("Stop"), to: socket))
         wait("size 2 cheer") { transport.sent.contains { $0.contains("\"anim\":\"cheer\",\"size\":2") } }
         let cheered = Date()

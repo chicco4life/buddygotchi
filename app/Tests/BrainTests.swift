@@ -31,8 +31,10 @@ final class RulesClassifierTests: XCTestCase {
         let cases: [(Input, [ToolCall])] = [
             (input(.agentStarted), []),
             (input(.agentFinished, tookMs: 1_080_000), [react("proud")]),
-            (input(.agentFinished, tookMs: 300_000), [react("proud")]),
-            (input(.agentFinished, tookMs: 240_000), []),
+            (input(.agentFinished, tookMs: 61_000), [react("proud")]),
+            (input(.agentFinished, tookMs: 15_000), [react("proud")]),
+            (input(.agentFinished, tookMs: 14_000), []),
+            (input(.agentFinished, tookMs: 8_000), []),
             (input(.agentFinished, outcome: .failed), [react("annoyed")]),
             (input(.poked), [react("annoyed")]),
             // BEHAVIORS.md §3.3: only "quiet" quiets; yelled at or told off, sad.
@@ -238,7 +240,7 @@ final class WriterTests: XCTestCase {
         let request = AppleWriter.request(c, s)
         XCTAssertTrue(request.contains("  decided: react(feeling: happy, voice: mumble), remember(where: today)"), request)
         XCTAssertTrue(request.hasSuffix("""
-            react.word: one word from its list that fits the mumble, or none.
+            react.word: one word from its list that fits the mumble; almost always pick one, even a plain yay, and none only when nothing fits.
             remember.text: at most 80 characters. A note for later today: something the person said or asked to note. \
             Plain words, no code; leave it empty if nothing is worth keeping.
             """), request)

@@ -7,7 +7,7 @@ import Foundation
 /// | Input | Decides |
 /// | --- | --- |
 /// | Agent started | nothing |
-/// | Agent finished, done, 5 min or more | `react(proud, mumble)` |
+/// | Agent finished, done, 15 s or more | `react(proud, mumble)`; over a minute the writer is told to always find a word |
 /// | Agent finished, done, shorter | nothing |
 /// | Agent finished, failed | `react(annoyed, mumble)`: the sass, one mumble per failure |
 /// | Poked again and again | `react(annoyed, mumble)`: the grumble |
@@ -39,8 +39,10 @@ public struct RulesClassifier: Classifier {
             return ([], "agent started")
         case .agentFinished:
             if input.outcome == .failed { return ([react("annoyed", "mumble")], "failed") }
-            if (input.tookMs ?? 0) >= 300_000 { return ([react("proud", "mumble")], "done, 5 min or more") }
-            return ([], "done, under 5 min")
+            let took = input.tookMs ?? 0
+            if took > 60_000 { return ([react("proud", "mumble")], "done, over a minute") }
+            if took >= 15_000 { return ([react("proud", "mumble")], "done, 15 s or more") }
+            return ([], "done, under 15 s")
         case .poked:
             return ([react("annoyed", "mumble")], "poked again and again")
         case .said:

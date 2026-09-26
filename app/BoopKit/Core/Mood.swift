@@ -37,7 +37,7 @@ struct MoodState: Sendable {
         updated = now
     }
 
-    /// A finished turn. Quick ones (under 5 minutes) lift it more.
+    /// A finished turn. Quick ones (under 10 seconds) lift it more.
     mutating func win(quick: Bool, at now: Int64) {
         decay(to: now)
         failures = 0

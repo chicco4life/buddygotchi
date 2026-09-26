@@ -689,7 +689,7 @@ off at any point:
 | 7 | If you skipped them at setup: Settings (in the popover) → Agents → Connect for Claude Code and Codex. Restart open sessions, then run `skills/doctor/doctor.sh` in one, `echo BOOP_DOCTOR_PING`, and `skills/doctor/doctor.sh --confirm` | Both installed; the old `~/.boop` entries are gone; the doctor passes |
 | 8 | In Claude Code, start a task | Working face within a second |
 | 9 | Make Claude ask permission for a shell command | Amber and a look within about 1 s. Approve in the terminal → a nod, back to work |
-| 10 | Let a task run past 5 minutes | A cheer, then maybe a mumble with a word |
+| 10 | Let a task run past a minute | A big cheer, then a proud mumble with a word |
 | 11 | Ask Claude to run a test that fails and then stop | Oops, a side-eye at the agent, then an annoyed mumble; no cheer |
 | 12 | In Codex, trigger an approval | Amber about 2 s after Codex asks. Requests its automatic reviewer handles don't light up |
 | 13 | Hold BOOT and say "be quiet for fifteen minutes" | Boop zips its mouth; quiet icon, no mumbles |

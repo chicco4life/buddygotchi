@@ -54,7 +54,7 @@ final class TranscriptTests: XCTestCase {
     func testTheWindowAsText() {
         let window: [Transcript.Entry] = [
             .input(input(.agentFinished, tookMs: 1_080_000, rules: "cheer size 2")), .rules("cheer size 2"),
-            .decided(by: "rules@2", [react("proud")], evidence: "done, 5 min or more"),
+            .decided(by: "rules@2", [react("proud")], evidence: "done, over a minute"),
             .wrote(by: "apple:27.0", ["react.word": "finally"]),
             .ran(react("proud", word: "finally"), .done("ok")),
             .aside("tapped · 14:07 Tuesday: Boop wiggled", ts: 0),

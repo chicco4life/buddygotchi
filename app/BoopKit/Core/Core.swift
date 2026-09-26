@@ -483,8 +483,8 @@ public final class Core {
     func finished(_ s: Session, durationMs ms: Int64, _ now: Int64, _ fx: inout [CoreEffect]) {
         let size: Int
         switch ms {
-        case ..<300_000: size = 1
-        case ..<1_200_000: size = 2
+        case ..<15_000: size = 1
+        case ...60_000: size = 2
         default: size = 3
         }
         let burst = lastFinish.map { now - $0.at < config.mergeMs } ?? false
@@ -495,13 +495,13 @@ public final class Core {
         } else {
             lastFinish = (now, lastFinish!.size)
         }
-        mood.win(quick: ms < 300_000, at: now)
+        mood.win(quick: ms < 10_000, at: now)
         feed(Growth.turnXP, now, after: now + 1600, &fx)
         if ms >= 30_000 {
             fx.append(.happened("\(config.time.clock(now)) \(s.agent.short) · \(s.project) · finished (\(took(ms)))"))
         }
         agentInput(.agentFinished, s, outcome: .done, tookMs: ms, rules: cheered ? "cheer size \(size)" : nil,
-                   rank: ms >= 300_000 ? 3 : 2, now, &fx)
+                   rank: ms >= 15_000 ? 3 : 2, now, &fx)
     }
 
     /// A tap is the rules' alone: the device wiggles, and the brain's
@@ -578,7 +578,7 @@ public final class Core {
     }
 
     /// Sends an agent input now, or holds it to merge with the burst it's
-    /// part of: failed beats a finish of 5 minutes or more, which beats a
+    /// part of: failed beats a finish of 15 seconds or more, which beats a
     /// shorter finish, which beats a start. The held one goes out when the
     /// window ends, with how many others it stands for.
     func offer(_ input: Input, rank: Int, _ now: Int64, _ fx: inout [CoreEffect]) {

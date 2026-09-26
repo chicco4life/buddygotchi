@@ -98,7 +98,7 @@ public struct AppleWriter: Writer {
     ///     They just said: "remember the demo is on Thursday"
     ///     Boop decided: react(feeling: happy, voice: mumble), remember(where: today)
     ///     --- write ---
-    ///     react.word: one word from its list that fits the mumble, or none.
+    ///     react.word: one word from its list that fits the mumble; almost always pick one, even a plain yay, and none only when nothing fits.
     ///     remember.text: at most 80 characters. A note for later today… Plain words; leave it empty if nothing is worth keeping.
     static func request(_ context: Context, _ slots: [Slot]) -> String {
         var lines = ["--- what happened ---", Transcript.text(context.window), "--- now ---", context.input.line]
@@ -110,7 +110,7 @@ public struct AppleWriter: Writer {
         for slot in slots {
             switch slot.kind {
             case .word:
-                lines.append("\(slot.key): one word from its list that fits the mumble, or none.")
+                lines.append("\(slot.key): one word from its list that fits the mumble; almost always pick one, even a plain yay, and none only when nothing fits.")
             case .text(let max):
                 lines.append("\(slot.key): at most \(max) characters. \(slot.choice ?? slot.about) "
                              + "Plain words, no code; leave it empty if nothing is worth keeping.")
@@ -139,7 +139,7 @@ public struct AppleWriter: Writer {
         let properties = slots.map { slot -> DynamicGenerationSchema.Property in
             switch slot.kind {
             case .word(let options):
-                return .init(name: property(slot.key), description: "One word that fits the mumble, or none.",
+                return .init(name: property(slot.key), description: "One word that fits the mumble; almost always one, even a plain yay.",
                              schema: DynamicGenerationSchema(name: property(slot.key), anyOf: ["none"] + options))
             case .text(let max):
                 return .init(name: property(slot.key), description: "At most \(max) characters, or empty.",

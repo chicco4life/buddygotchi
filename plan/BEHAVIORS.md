@@ -72,9 +72,9 @@ brain moment waits until the rule moment (and any follow-up, like the
 | When | Rules | Brain may add |
 | --- | --- | --- |
 | You send a prompt | Base becomes working | Usually nothing; the classifier may add a face |
-| Turn finishes, under 5 min | `cheer` size 1, even while other sessions keep working | Rarely a mumble, e.g. *"ba-ba ti… done!"* |
-| Turn finishes, 5–20 min | `cheer` size 2, jingle, warm light | A mumble, e.g. *"…finally!"* |
-| Turn finishes, over 20 min | `cheer` size 3, jingle, warm light | A proud mumble |
+| Turn finishes, under 15 s | `cheer` size 1, even while other sessions keep working; under 10 s it's a quick one, which lifts the mood more | Nothing |
+| Turn finishes, 15 s–1 min | `cheer` size 2, jingle, warm light | A proud mumble, e.g. *"ba-ba ti… yay!"* |
+| Turn finishes, over 1 min | `cheer` size 3, jingle, warm light | A proud mumble, nearly always with a word, e.g. *"…finally!"* |
 | Several finish at once | One cheer; a bigger finish within 3 s upgrades it | One mumble at most |
 | Turn fails | `oops`, then `side_eye` at the agent | Sass at the agent, as an annoyed mumble, e.g. *"tu-ka… tests."* |
 

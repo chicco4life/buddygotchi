@@ -53,12 +53,16 @@ and what it should lead to.
 
 ```json
 {
-  "name": "A long turn is celebrated",
-  "why": "HARNESS.md §6: a finish of 5 minutes or more is react(proud, mumble), and the writer fills its word",
+  "name": "A long turn is celebrated, and an ultra-long one with a word",
+  "why": "HARNESS.md §6: a finish of 15 seconds or more is react(proud, mumble); over a minute the writer is steered to always write its word",
   "steps": [
-    {"input": {"at": "0m", "event": "turn started", "agent": "claude", "project": "jetpack"},
+    {"input": {"at": "0s", "event": "turn started", "agent": "claude", "project": "jetpack"},
      "expect": ["agent started → nothing"]},
-    {"input": {"at": "12m", "event": "turn finished", "agent": "claude", "project": "jetpack"},
+    {"input": {"at": "20s", "event": "turn finished", "agent": "claude", "project": "jetpack"},
+     "expect": ["agent finished → react(feeling: proud, voice: mumble)"]},
+    {"input": {"at": "1m", "event": "turn started", "agent": "claude", "project": "jetpack"},
+     "expect": ["agent started → nothing"]},
+    {"input": {"at": "4m", "event": "turn finished", "agent": "claude", "project": "jetpack"},
      "writer": {"react.word": "finally"},
      "expect": ["agent finished → react(feeling: proud, voice: mumble, word: finally)"]}
   ]
@@ -135,8 +139,8 @@ input replacing a waiting one) is left to the unit tests in
 
 | File | Checks |
 | --- | --- |
-| `01-short-turn.json` | A turn that finishes in a minute gets nothing from the brain, since the core's cheer already celebrates it. |
-| `02-long-turn.json` | A turn that finishes after 12 minutes gets a proud mumble, with the word the writer writes. Hero moment 1. |
+| `01-short-turn.json` | Turns that finish in 8 and 12 seconds get nothing from the brain (under 15 s), since the core's cheer already celebrates them. |
+| `02-long-turn.json` | A 20-second turn gets a proud mumble; a 3-minute one gets it with the word the writer writes (the writer is steered to always write one past a minute, which only `--writer apple` can show). Hero moment 1. |
 | `03-turn-failed.json` | A failed turn gets an annoyed mumble. Hero moment 2. |
 | `04-be-quiet.json` | "Be quiet for an hour" sets quiet mode for 60 minutes, holds back a turn in that time, and lets the next one through after; a yelled "be quiet" also gets a silent sad face. Hero moment 3. |
 | `05-bad-answer.json` | A classifier answer off the menu and a classifier error each run nothing, and the next turn gets its normal reaction. |
