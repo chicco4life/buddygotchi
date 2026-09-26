@@ -580,7 +580,11 @@ fewer inputs and outputs ([HARNESS.md](HARNESS.md)).
    classifiers; Apple's model and no writer, with DeepSeek a stub; the
    transcript and its window; Settings to pick both stages
    ([evidence](evidence/2026-09-26-two-stage-brain/README.md)).
-4. **Later:** the DeepSeek writer ([FUTURE.md](FUTURE.md)).
+4. **Harness evals (done):** deterministic scenarios of events in and the
+   harness's passes out, run by `make eval` and `make test`; five so far,
+   all passing ([EVALS.md](EVALS.md),
+   [evidence](evidence/2026-09-26-harness-evals/README.md)).
+5. **Later:** the DeepSeek writer ([FUTURE.md](FUTURE.md)).
 
 **Done when:**
 

@@ -1,0 +1,16 @@
+{
+  "name": "\"Shut up\" keeps Boop quiet for 30 minutes",
+  "why": "HARNESS.md §2 and §6: \"shut up\" is quiet(30) then a silent sulk; in quiet mode agent inputs don't reach the brain",
+  "steps": [
+    {"input": {"at": "0m", "event": "talk", "words": "shut up"},
+     "expect": ["you said → quiet(minutes: 30), react(feeling: sulky, voice: silent)"]},
+    {"input": {"at": "1m", "event": "turn started", "agent": "claude", "project": "jetpack"},
+     "expect": []},
+    {"input": {"at": "13m", "event": "turn finished", "agent": "claude", "project": "jetpack"},
+     "expect": []},
+    {"input": {"at": "31m", "event": "turn started", "agent": "claude", "project": "jetpack"},
+     "expect": ["agent started → nothing"]},
+    {"input": {"at": "43m", "event": "turn finished", "agent": "claude", "project": "jetpack"},
+     "expect": ["agent finished → react(feeling: proud, voice: mumble)"]}
+  ]
+}

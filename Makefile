@@ -1,5 +1,5 @@
 # Boop v1. Run from the repo root. See README.md and plan/VERIFICATION.md.
-.PHONY: build run test tools fw flash sim fw-test e2e webcam webcam-test clean
+.PHONY: build run test eval tools fw flash sim fw-test e2e webcam webcam-test clean
 
 PIO := firmware/tools/pio.sh
 
@@ -17,6 +17,11 @@ run: build
 # Swift unit tests through the XCTest shim (there's no Xcode here).
 test:
 	python3 app/tools/test.py
+
+# The harness eval scenarios: rules classifier, no writer (plan/EVALS.md).
+eval:
+	cd app && swift build --product boopdev
+	app/.build/debug/boopdev eval
 
 # tools/.venv with pyserial and Pillow, for boopctl.
 tools: tools/.venv/.ok

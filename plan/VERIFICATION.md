@@ -38,13 +38,14 @@ Each level answers a different question:
 | Tool | What it is |
 | --- | --- |
 | `make test` | Swift unit tests. There's no Xcode here, so this runs the XCTest shim: `python3 app/tools/test.py`, which runs `swift run BoopTests` |
+| `make eval` | The harness eval scenarios ([EVALS.md](EVALS.md)): `boopdev eval` |
 | `make fw-test` | Firmware unit tests on the Mac: `pio test -e native` |
 | `make sim` / `tools/boopctl sim` | The simulator. It builds the same drawing and behaviour code as the firmware for the Mac, runs a scenario, and writes PNGs |
 | `tools/boopctl` | The new device tool, replacing `buddyctl.py`. It's Python in `tools/.venv` (pyserial, Pillow), created by `make tools` |
 | `tools/boopctl bridge` | Owns the USB serial port and shares it through a Unix socket (`--socket`, default `$BOOP_BRIDGE` or `/tmp/boop-bridge.sock`), so the Mac app and other `boopctl` commands can use the board at the same time. Every line from the board goes to every client, and each client's lines reach the board whole. While a bridge runs, other `boopctl` commands (with `BOOP_BRIDGE` set to its socket, if it isn't the default) go through it instead of opening the port |
 | `tools/webcam/webcam.sh` | The existing AVFoundation recorder and frame extractor. `boopctl cam …` wraps it. `make webcam-test` tests it on synthetic video and never opens a camera |
 | `Boop --snapshots DIR` | Renders the Mac app's popover (seven overview states, including listening and a refused mic, the whole settings pane, the four setup steps) and the menu-bar icons to PNGs, in light and dark, from fixed fixtures, then exits. No runtime, Bluetooth or microphone; the agents' settings it reads are in a throwaway HOME |
-| `boopdev` | A Swift CLI in the app package for replaying hooks, running the brain on recorded inputs, and printing the memory files. `boopdev replay <fixture>` alone runs the payloads through the hook's field picking, the adapter and the core on a virtual clock and prints every decision (`--states` for snapshots only); with `--socket` it sends them through the real `boop-hook` to a running app. `boopdev memory --state-dir DIR` prints the memory files as the store reads them, and the snapshot days. `boopdev voice <feeling> [word] --count N [--why]` prints the lines `react` would build, and with `--why` every rejected try. `boopdev brain [--classifier rules\|jev] [--writer apple\|none\|deepseek] [--inputs DIR] [--memory DIR] [--steering FILE] [--out FILE] [--gap-min N] [--print]` runs L5: recorded inputs through the real pipeline (§5). `boopdev talk "<words>" --socket PATH` hands a push-to-talk transcript to a running headless app. `boopdev hooks status\|install\|remove [claude\|codex] --home DIR` runs the hook installer against any HOME |
+| `boopdev` | A Swift CLI in the app package for replaying hooks, running the brain on recorded inputs, and printing the memory files. `boopdev replay <fixture>` alone runs the payloads through the hook's field picking, the adapter and the core on a virtual clock and prints every decision (`--states` for snapshots only); with `--socket` it sends them through the real `boop-hook` to a running app. `boopdev memory --state-dir DIR` prints the memory files as the store reads them, and the snapshot days. `boopdev voice <feeling> [word] --count N [--why]` prints the lines `react` would build, and with `--why` every rejected try. `boopdev brain [--classifier rules\|jev] [--writer apple\|none\|deepseek] [--inputs DIR] [--memory DIR] [--steering FILE] [--out FILE] [--gap-min N] [--print]` runs L5: recorded inputs through the real pipeline (§5). `boopdev eval [--classifier rules\|jev] [--writer none\|apple] [--only TEXT] [--json FILE]` runs the harness eval scenarios ([EVALS.md](EVALS.md)). `boopdev talk "<words>" --socket PATH` hands a push-to-talk transcript to a running headless app. `boopdev hooks status\|install\|remove [claude\|codex] --home DIR` runs the hook installer against any HOME |
 
 `boopctl` subcommands:
 
@@ -191,6 +192,15 @@ appearances. Check it against [UX.md](UX.md) §7: nothing clipped or cut
 off, no debug data, text readable on its background, and the panes in the
 cream look. There are no goldens. How it feels in the menu bar (opening,
 resizing, typing, switches) is the owner's (L6).
+
+### Harness evals
+
+Named scenarios for what the harness should do, given events, taps and
+talk over time. They're deterministic and part of L0: `make test` runs
+them, and `make eval` prints each one's result. How they work and what each
+checks is in [EVALS.md](EVALS.md).
+
+**Pass:** every scenario passes.
 
 ### L1: simulator
 
