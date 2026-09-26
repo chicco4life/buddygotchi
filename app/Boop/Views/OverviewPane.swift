@@ -167,7 +167,12 @@ struct OverviewPane: View {
                 }
             }
         } else {
-            let agents = status.sessions.map(\.agent).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+            // A fixed order, so a group doesn't jump to the top when one of
+            // its sessions starts waiting and back when it stops.
+            let known = HookInstaller.Agent.allCases.map(\.rawValue)
+            let agents = status.sessions.map(\.agent).reduce(into: known.filter { a in status.sessions.contains { $0.agent == a } }) {
+                if !$0.contains($1) { $0.append($1) }
+            }
             VStack(alignment: .leading, spacing: Theme.gap) {
                 ForEach(agents, id: \.self) { agent in
                     VStack(alignment: .leading, spacing: 5) {
@@ -175,8 +180,8 @@ struct OverviewPane: View {
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(Theme.inkSoft)
                             .padding(.leading, 2)
-                        ForEach(Array(status.sessions.filter { $0.agent == agent }.enumerated()), id: \.offset) { _, row in
-                            SessionRow(project: row.project, status: row.status)
+                        ForEach(KeyedSession.rows(status.sessions.filter { $0.agent == agent })) { row in
+                            SessionRow(project: row.session.project, status: row.session.status)
                         }
                     }
                 }
@@ -227,6 +232,23 @@ func agentSymbol(_ short: String) -> String {
     case "claude": "chevron.left.forwardslash.chevron.right"
     case "codex": "curlybraces"
     default: "terminal"
+    }
+}
+
+/// A session keyed by its project and which of that project's sessions it
+/// is, so a row that changes status moves, instead of the row in its old
+/// place crossfading to another project.
+struct KeyedSession: Identifiable {
+    let id: String
+    let session: SessionSummary
+
+    static func rows(_ sessions: [SessionSummary]) -> [KeyedSession] {
+        var seen: [String: Int] = [:]
+        return sessions.map { s in
+            let n = seen[s.project, default: 0]
+            seen[s.project] = n + 1
+            return KeyedSession(id: "\(s.project)#\(n)", session: s)
+        }
     }
 }
 

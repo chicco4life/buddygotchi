@@ -213,7 +213,7 @@ except Talk, which is there to be used in the moment.
 | Modes | Small reminders only when something isn't the usual: Chatty or Calm (normal shows nothing), Quiet with minutes left, Muted |
 | Notices | "Restart your agent sessions" after hooks change (dismissable), why Boop couldn't start, or "*name* can't hear you" when push-to-talk can't use the mic (dismissable; the next Talk clears it) |
 | Needs you | An amber card: agent · project, "Answer it in the agent's window", and "+N more" |
-| Sessions | Grouped by agent: one row per project with a coloured edge and a status chip (needs you, working, idle). Empty: "No agents awake" |
+| Sessions | Grouped by agent, Claude Code then Codex whatever their state: one row per session, waiting first, with a coloured edge and a status chip (needs you, working, idle). Empty: "No agents awake" |
 | Footer | Settings on the left, Quit on the right |
 
 **Settings**, one scrolling pane with Back at the top:
