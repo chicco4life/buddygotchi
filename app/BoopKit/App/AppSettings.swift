@@ -4,7 +4,7 @@ import Foundation
 /// The app's own settings, in `settings.json` next to the memory files. Name
 /// and nature live in `long-term.md`; the API key lives in the Keychain.
 public struct AppSettings: Codable, Equatable, Sendable {
-    /// `apple`, `rules` or `cloud:<model>` (HARNESS.md §7).
+    /// `apple`, `rules`, `jev` or `cloud:<model>` (HARNESS.md §7).
     public var brain = "apple"
     public var volume = 6
     public var focus = false

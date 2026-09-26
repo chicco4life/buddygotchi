@@ -17,7 +17,7 @@ import FoundationModels
 /// choice it fills (`forget(text: none)` keeps everything). Numbers are offered as their
 /// digits, and text lengths are only asked for, so the harness's shape check
 /// still has work to do.
-public struct AppleBrain: Brain {
+public struct AppleBrain: TextBrain, Writer {
     public let id: String
     /// Why the model can't run right now, or nil; asked before every call.
     let unavailable: @Sendable () -> String?
@@ -45,17 +45,39 @@ public struct AppleBrain: Brain {
         #endif
     }
 
-    public func complete(system: String, history: [Exchange], user: String, tools: [ToolDefinition],
-                         deadline: Duration) async throws -> String {
+    public func decide(_ situation: Situation, _ menu: Menu, deadline: Duration) async throws -> Decision {
         // The model can stop being available after launch (it's updating,
         // or Apple Intelligence was turned off): this call gets the rules
         // brain's answer instead (HARNESS.md §7).
-        if unavailable() != nil {
-            return try await RulesBrain().complete(system: system, history: history, user: user, tools: tools,
-                                                   deadline: deadline)
+        if unavailable() != nil { return try await RulesBrain().decide(situation, menu, deadline: deadline) }
+        return try await decideAsText(situation, menu, deadline: deadline)
+    }
+
+    /// One call to `tool`, already decided on by another brain (Jev): the
+    /// same prompt with only that tool, and a schema that must call it.
+    /// Nil when the model can't run or leaves the text out.
+    public func write(_ tool: ToolDefinition, _ situation: Situation, deadline: Duration) async throws -> ToolCall? {
+        if unavailable() != nil { return nil }
+        let prompt = Prompt(situation, Menu(tools: [tool]))
+        let raw = try await complete(system: prompt.system, history: prompt.history,
+                                     user: prompt.user + "\nYou decided to \(tool.name). Write it.", tools: [tool],
+                                     deadline: deadline, decided: true)
+        switch Answer.check(raw, tools: [tool]) {
+        case .success(let calls): return calls.first
+        case .failure(let why): throw BrainError("shape: \(why)", raw: raw)
         }
+    }
+
+    public func complete(system: String, history: [Exchange], user: String, tools: [ToolDefinition],
+                         deadline: Duration) async throws -> String {
+        try await complete(system: system, history: history, user: user, tools: tools, deadline: deadline, decided: false)
+    }
+
+    /// `decided`: the answer must be exactly one call, with no choice to stay quiet.
+    func complete(system: String, history: [Exchange], user: String, tools: [ToolDefinition],
+                  deadline: Duration, decided: Bool) async throws -> String {
         #if canImport(FoundationModels)
-        let schema = try AppleBrain.schema(tools)
+        let schema = try AppleBrain.schema(tools, decided: decided)
         let model = SystemLanguageModel(guardrails: .permissiveContentTransformations)
         // A fresh session from the conversation each time: the harness's
         // exchanges stay the only history, and a late call leaves nothing behind.
@@ -120,7 +142,8 @@ public struct AppleBrain: Brain {
         return String(decoding: data, as: UTF8.self)
     }
 
-    static func schema(_ tools: [ToolDefinition]) throws -> GenerationSchema {
+    /// `decided` leaves `react` only one option and asks for exactly one call.
+    static func schema(_ tools: [ToolDefinition], decided: Bool = false) throws -> GenerationSchema {
         // A tool with nothing to choose from can't be called (`forget` with
         // no lines to forget).
         let callable = tools.filter { tool in
@@ -154,43 +177,11 @@ public struct AppleBrain: Brain {
         let call = DynamicGenerationSchema(name: "ToolCall", anyOf: calls)
         let root = DynamicGenerationSchema(name: "Answer", properties: [
             .init(name: "react", description: "Stay quiet unless this really needs a reaction.",
-                  schema: DynamicGenerationSchema(name: "react", anyOf: ["stay quiet", "react"])),
-            .init(name: "calls", description: "One to three tool calls, in order. Do what the person asks.", schema: DynamicGenerationSchema(arrayOf: call, minimumElements: 0,
-                                                                  maximumElements: Answer.maxCalls)),
+                  schema: DynamicGenerationSchema(name: "react", anyOf: decided ? ["react"] : ["stay quiet", "react"])),
+            .init(name: "calls", description: "One to three tool calls, in order. Do what the person asks.", schema: DynamicGenerationSchema(arrayOf: call, minimumElements: decided ? 1 : 0,
+                                                                  maximumElements: decided ? 1 : Answer.maxCalls)),
         ])
         return try GenerationSchema(root: root, dependencies: [])
     }
     #endif
-}
-
-/// A cloud model with the person's own API key. Interface only in v1: it
-/// shows up in settings as not yet available and refuses every call.
-public struct CloudBrain: Brain {
-    public let model: String
-    public var id: String { "cloud:\(model)" }
-
-    public init(model: String) { self.model = model }
-
-    public func complete(system: String, history: [Exchange], user: String, tools: [ToolDefinition],
-                         deadline: Duration) async throws -> String {
-        throw BrainError("the cloud brain isn't available yet")
-    }
-}
-
-/// The brain setting (HARNESS.md §7): `apple` (the default), `rules`, or
-/// `cloud:<model>`. Apple's model falls back to rules when it can't run: for
-/// good if it can't at launch, and call by call if it stops later.
-public enum Brains {
-    public static func make(_ setting: String, log: (String) -> Void = { _ in }) -> any Brain {
-        switch setting {
-        case "rules": return RulesBrain()
-        case let s where s.hasPrefix("cloud:"): return CloudBrain(model: String(s.dropFirst("cloud:".count)))
-        default:
-            if let why = AppleBrain.unavailableReason {
-                log("brain: Apple's model can't run (\(why)); using rules")
-                return RulesBrain()
-            }
-            return AppleBrain()
-        }
-    }
 }

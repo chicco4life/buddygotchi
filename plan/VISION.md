@@ -1,6 +1,6 @@
 # Boop: vision
 
-Updated 2026-09-25. Why Boop exists, who it's for, and the promises it keeps.
+Updated 2026-09-26. Why Boop exists, who it's for, and the promises it keeps.
 
 ## The short version
 
@@ -167,9 +167,9 @@ These are fixed. If a feature conflicts with one of them, the feature changes.
    day, and it belongs to you.
 7. **Private by construction.** There is no camera, the mic works only while
    you hold the button, and nothing logs your keystrokes. Boop's memory lives
-   on your Mac. The default brain runs on the Mac too. If you add your own cloud API key, the cloud model receives
-   short summaries and what you say to Boop, and never your code or
-   transcripts.
+   on your Mac. The default brain runs on the Mac too. If you choose a cloud brain with
+   your own API key, it receives Boop's memory, short summaries of what
+   happened and what you say to Boop, and never your code or transcripts.
 8. **Never nags, never guilts.** Hunger is visible only when you look. It
    never makes a sound, never sends a notification and never interrupts.
 9. **No leaderboards.** Stats stay private unless you choose to share them.
@@ -188,7 +188,8 @@ These are fixed. If a feature conflicts with one of them, the feature changes.
 - It is not an agent. It doesn't run tasks, spend money, approve requests or
   act for you in any way. Information only flows from your agents to Boop.
 - It is not tied to one AI. The brain is swappable: Apple's on-device model
-  by default, a cloud model with your own API key, or none at all. Boop stays the
+  by default, a cloud model with your own API key (Jev today), or none at
+  all. Boop stays the
   same creature either way.
 - It has no always-on wake word and no camera, and that will not change.
 

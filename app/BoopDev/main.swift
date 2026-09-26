@@ -15,7 +15,7 @@ let usage = """
                Prints long-term.md and short-term.md as the memory store reads them, and the history snapshots.
            boopdev voice <feeling> [word] [--dialect HEX] [--seed N] [--count N] [--json] [--why]
                Prints Minion lines as the say action would build them.
-           boopdev brain [--brain apple|rules] [--triggers DIR] [--memory DIR] [--steering FILE] [--out FILE] [--gap-min N] [--history N] [--print]
+           boopdev brain [--brain apple|rules|jev] [--triggers DIR] [--memory DIR] [--steering FILE] [--out FILE] [--gap-min N] [--history N] [--print]
                Runs the real harness and brain on recorded triggers, each with a fresh copy of the sample
                memory, N minutes apart (default 3) under one history of the harness's limits, and reports
                refusals, valid shapes, dropped calls, speech, silence and latency (VERIFICATION.md L5).
@@ -164,7 +164,12 @@ func brain(_ args: [String]) async {
         if let why = AppleBrain.unavailableReason { fail("Apple's model can't run here: \(why)") }
         brain = AppleBrain()
     case "rules": brain = RulesBrain()
-    default: fail("brains: apple, rules")
+    case "jev":
+        guard let key = ProcessInfo.processInfo.environment[Brains.keyVariable], !key.isEmpty else {
+            fail("Jev needs its API key in \(Brains.keyVariable)")
+        }
+        brain = JevBrain(key: key, writer: Brains.make("apple"))
+    default: fail("brains: apple, rules, jev")
     }
 
     var triggers: [Trigger] = []

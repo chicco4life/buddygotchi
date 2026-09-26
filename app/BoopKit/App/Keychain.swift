@@ -1,12 +1,13 @@
 import Foundation
 import Security
 
-/// The cloud brain's API key, kept in the login Keychain and nowhere else.
-enum Keychain {
+/// The API key for a brain that needs one (Jev), kept in the login Keychain
+/// and nowhere else.
+public enum Keychain {
     static let service = "com.boopcomputer.boop"
     static let account = "api-key"
 
-    static func apiKey() -> String? {
+    public static func apiKey() -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
             kSecAttrAccount as String: account, kSecReturnData as String: true,
@@ -17,7 +18,7 @@ enum Keychain {
     }
 
     @discardableResult
-    static func setAPIKey(_ key: String?) -> Bool {
+    public static func setAPIKey(_ key: String?) -> Bool {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
             kSecAttrAccount as String: account,

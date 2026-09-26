@@ -1,7 +1,7 @@
 import Foundation
 
-/// No model: answers from the Fallbacks table in `steering.md`, which it reads
-/// from the system prompt like any brain would. Always available.
+/// No model: answers from the Fallbacks table in `steering.md`, matched
+/// against the trigger itself. Always available.
 ///
 /// A row's condition is a trigger (`Turn started`, `Turn finished`, `Turn
 /// failed`, `Tap`, `Talk`) with optional qualifiers after commas: `long`
@@ -15,17 +15,12 @@ public struct RulesBrain: Brain {
     public init() {}
 
     /// Ignores the history. Leaves out calls to tools that aren't offered or
-    /// that the now section names as past a limit (`say limit: …`).
-    public func complete(system: String, history: [Exchange], user: String, tools: [ToolDefinition],
-                         deadline: Duration) async throws -> String {
-        let rows = RulesBrain.fallbacks(system)
+    /// are past a limit.
+    public func decide(_ situation: Situation, _ menu: Menu, deadline: Duration) async throws -> Decision {
+        let rows = RulesBrain.fallbacks(situation.memory.steering)
         guard !rows.isEmpty else { throw BrainError("no Fallbacks table in steering") }
-        let now = Prompt.now(in: user)
-        let limited = Set(now.components(separatedBy: "\n").compactMap { line in
-            line.range(of: " limit: ").map { String(line[..<$0.lowerBound]) }
-        })
-        let calls = RulesBrain.pick(rows, now: now)
-        return Answer.json(calls.filter { call in tools.contains { $0.name == call.name } && !limited.contains(call.name) })
+        let open = menu.open.map(\.name)
+        return Decision(calls: RulesBrain.pick(rows, now: Now(situation.trigger)).filter { open.contains($0.name) })
     }
 
     public struct Row: Equatable, Sendable {
@@ -63,22 +58,21 @@ public struct RulesBrain: Brain {
         }
     }
 
-    /// What happened, read from the now section of the prompt.
+    /// What happened, read from the trigger line and the words.
     struct Now {
         var what: String
         var tookMinutes: Int?
         var hungry: Bool
         var words: String?
 
-        init(_ now: String) {
-            let lines = now.components(separatedBy: "\n")
-            let fields = (lines.first ?? "").components(separatedBy: " · ")
+        init(_ trigger: Trigger) {
+            let fields = trigger.line.components(separatedBy: " · ")
             what = fields.first ?? ""
             tookMinutes = fields.first { $0.hasPrefix("took ") }.map { f in
                 f.hasSuffix(" min") ? Int(f.dropFirst(5).dropLast(4)) ?? 0 : 0
             }
             hungry = fields.contains("hungry") || fields.contains("starving")
-            words = lines.first { $0.hasPrefix("they said: ") }.map { String($0.dropFirst("they said: ".count)) }
+            words = trigger.words
         }
 
         /// The condition's trigger names this.
@@ -107,8 +101,7 @@ public struct RulesBrain: Brain {
         return (trigger, qualifiers)
     }
 
-    static func pick(_ rows: [Row], now text: String) -> [ToolCall] {
-        let now = Now(text)
+    static func pick(_ rows: [Row], now: Now) -> [ToolCall] {
         var best: (score: Int, calls: [ToolCall])?
         for row in rows {
             guard let (trigger, qualifiers) = parse(row.condition), now.matches(trigger) else { continue }

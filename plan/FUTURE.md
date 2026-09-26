@@ -46,10 +46,12 @@ ARCHITECTURE…) first, then add it to [PLAN.md](PLAN.md).
   ([anthropics/claude-code#40495](https://github.com/anthropics/claude-code/issues/40495)).
 - **Cursor and other agents.** Each needs an adapter and a reliable "you're
   being asked" signal ([ADAPTERS.md](ADAPTERS.md) §8).
-- **Cloud brain switched on.** The interface exists in v1. This is about
-  wiring it to the person's own API key (DeepSeek first) and testing it. It
-  sends the conversation unchanged and in order so the provider's prompt
-  cache applies ([HARNESS.md](HARNESS.md) §7).
+- **Cloud language model switched on.** The interface exists in v1, and
+  Jev, a question-answering cloud brain, already works with the person's
+  key. This is about wiring a language model to it (DeepSeek first) and
+  testing it. It sends the conversation unchanged and in order so the
+  provider's prompt cache applies ([HARNESS.md](HARNESS.md) §7). It could
+  also be Jev's writer in place of Apple's model.
 - **Mood from prompt tone.** Reading how you write to your agents. v1
   leaves prompt text out entirely.
 - **Richer brain triggers,** such as coming back after a long break, or a

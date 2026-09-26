@@ -168,6 +168,7 @@ Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 | F6 | Landscape and cuter eyes | In progress: code, L0, L1 and L2 pass. The board runs the landscape build, its 83 screenshots in 11 scenarios match the simulator pixel for pixel, and `perf --motion` gives at least 49 fps (50 over 30 s, 49 over 60 s) with 72.7 KB free. Only the owner's look (orientation and liking the face) and touch calibration remain (morning checklist rows 2–3). [Evidence](evidence/v1-build/F6/README.md) Follow-up (gen-2's look: smaller lavender eyes, "^" arches, a heart on a tap, "zzZZ" asleep, effort and a sweat drop working, an open-eyed no-app face): L0 91/91, L1 83 goldens re-accepted, flashed; board screenshots of asleep, a tap and working look right, `perf --motion` minimum 41 fps over 60 s. Not yet run: a full L2 `boopctl run` (the Mac app was connected over Bluetooth). [Evidence](evidence/2026-09-26-gen2-look/README.md) |
 | A5 | Mac app look and flow | In progress: code, L0 and the app's snapshot check pass (light and dark). Only the owner's look in the real menu bar remains (morning checklist rows 5 and 7). [Evidence](evidence/v1-build/A5/README.md) |
 | A6 | Brain conversation | In progress: code and L0 pass. L5 with Apple's model: the `say` limit line holds, but with history the brain answers quiet far more often, and it calls `note` on most events ([evidence](evidence/2026-09-26-brain-conversation/README.md)). Tuning the behaviour is next |
+| A7 | System-one brain (Jev) | In progress: code, L0 (201 tests) and L5 run. Jev answers all 54 triggers in shape at p50 about 220 ms, with no refusals and no dropped calls of its own; the run is marked FAIL only because Apple's model, writing reflection for it, had 3 of 45 calls refused by their actions. The owner's run in the app (the setting, the key, a live talk) remains ([evidence](evidence/2026-09-26-jev-brain/README.md)) |
 | P1 | Port to ESP-IDF + LVGL (later, gated) | Not started |
 
 ### M0: Setup
@@ -551,6 +552,31 @@ modelled on pi and as simple as possible ([HARNESS.md](HARNESS.md) §4–5).
   reviewed. **Open:** Apple's model goes quiet with history (taps got no
   reaction in 8 of 8 with 4 earlier exchanges) and calls `note` on most
   events even with `note limit: only on talk`.
+
+### A7: System-one brain (Jev)
+
+Asked for by the owner: a third brain, TypeSafe's Jev, in place of the
+on-device model, to see how it does ([HARNESS.md](HARNESS.md) §7).
+
+- **Typed brain contract:** `decide(situation, menu) → calls`; the
+  conversation kept as typed turns; language models behind a shared text
+  adapter that renders the same prompt as before; the harness checks every
+  brain's calls.
+- **Jev:** the situation as JSON state, the menu as choice questions plus a
+  yes/no per tool that needs words; Apple's model writes those calls as a
+  `Writer`. Setting `jev`, key from the Keychain or `BOOP_API_KEY`.
+- **Tools:** `boopdev brain --brain jev`; two talk fixtures asking to note
+  something the sample memory doesn't have.
+
+**Done when:**
+
+- L0: `make test` passes, with Jev's questions, state, writing and errors
+  pinned against a fake API.
+- L5: `boopdev brain --brain jev` passes, and its sample is reviewed next to
+  Apple's. **Open:** reflection is Apple's model's, and fails as it does
+  on its own.
+- The owner picks "System one (Jev)" in the app, saves the key and talks to
+  Boop.
 
 ### P1: Port to ESP-IDF + LVGL (later)
 

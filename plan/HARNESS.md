@@ -5,25 +5,30 @@ is handed off.
 
 ## 1. What this is
 
-The **brain** is a small LLM. The **harness** is the little bit of generic
-code around it:
+The **brain** decides how Boop reacts: a small language model, a "system
+one" model that only answers questions (Jev), or plain rules. The
+**harness** is the little bit of generic code around it:
 
 ```
- trigger ──► build prompt ──► call the brain ──► check shape ──► hand each tool call
- (from the   steering.md +     one call,          valid JSON,     to its action
-  core)      long-term.md +    ≤ 3 tool calls     allowed tools   (say, face, note…)
-             short-term.md +                           │
-             the trigger text                          └─► log (debug)
+ trigger ──► situation + menu ──► brain.decide ──► check calls ──► hand each tool call
+ (from the   what happened,       one call,        allowed tools,   to its action
+  core)      memory, recent       ≤ 3 tool calls   arguments fit    (say, face, note…)
+             turns; the tools                           │
+             and their limits                           └─► log (debug)
 ```
 
-The harness knows how to build a prompt, call a model and route tool calls.
-It doesn't know what any tool does. It never builds Minion speech, writes a
+The input and output are typed. The harness hands every brain the same
+situation and menu and gets back tool calls; how a model sees the situation
+(a text prompt, JSON state, questions) is that brain's business (§7). The
+harness knows how to build the situation, call a brain and route tool
+calls. It doesn't know what any tool does, or what kind of model is
+deciding. It never builds Minion speech, writes a
 file or talks to the device. That work belongs to the actions
 ([ARCHITECTURE.md](ARCHITECTURE.md) §3.4), so the harness would work the
 same driving something other than Boop.
 
 Event, tap and talk calls share a short conversation (§4): each one sends
-Boop's last few exchanges with the brain, so it can follow a back-and-forth
+Boop's last few turns with the brain, so it can follow a back-and-forth
 and not repeat itself. Reflection is a call on its own. Beyond the
 conversation, the memory files are the only state carried from one call to
 the next.
@@ -40,10 +45,10 @@ mode.
 | --- | --- |
 | System prompt under 1,000 tokens, plus AGENTS.md | A few lines of preamble, plus `steering.md` |
 | Four tools | A handful of actions: the same four offered to every event, tap and talk call, three to reflection |
-| `pi-ai`: one API over many providers | The `Brain` interface (§7) |
+| `pi-ai`: one API over many providers | The `Brain` interface (§7): one typed call, whatever the model |
 | Tool arguments validated against schemas | Same. Beyond that the harness checks only the answer's shape and each tool's limits (§3, §5) |
 | Plans and to-dos live in files | Memory lives in three Markdown files |
-| The context is the session's messages, compacted when full | A short conversation of recent exchanges, never compacted: it starts over (§4) |
+| The context is the session's messages, compacted when full | A short conversation of recent turns, never compacted: it starts over (§4) |
 | Sessions saved as inspectable JSON | Every call logged as one JSON line, in debug mode |
 | No MCP, sub-agents or plan mode | Same, and no multi-turn loop either |
 
@@ -58,21 +63,23 @@ a single turn.
 2. **Wait its turn.** One call runs at a time. A newer trigger replaces one
    that's waiting, and `talk` cancels whatever is running. Whether to send a
    trigger at all is the core's decision.
-3. **Build the prompt** (§4): the system prompt, the conversation's earlier
-   exchanges, then the new message, with the memory text supplied by the
-   memory store. Event, tap and talk are offered the same tools every time;
-   each tool past its limit (§5) gets a line saying so.
-4. **Call the brain** with the prompt, the offered tool definitions and the
-   deadline.
-5. **Check the shape** of the answer: valid JSON, only offered tools,
-   arguments matching their schemas, and at most three calls. If anything
-   fails, the whole answer is dropped. The harness doesn't check meaning;
-   each action checks its own rules.
+3. **Build the situation and menu** (§4): the trigger, the memory text
+   supplied by the memory store and the conversation's earlier turns; the
+   tools offered and a line for each one past its limit (§5). Event, tap
+   and talk are offered the same tools every time.
+4. **Call the brain** with the situation, the menu and the deadline. A
+   language model gets them as the text prompt (§4); other brains take them
+   as they need (§7).
+5. **Check the calls:** only offered tools, arguments matching their
+   schemas, and at most three calls. A language model's answer must first
+   be valid JSON in the answer format below. If anything fails, the whole
+   answer is dropped. The harness doesn't check meaning; each action checks
+   its own rules.
 6. **Hand off** each tool call to the action that registered it, in order.
    A call to a tool past its limit is dropped instead, whether the prompt
    named the limit or an earlier call in the same answer used it up.
-7. **Remember** the exchange (§4): for event, tap and talk, the message and
-   the calls that ran join the conversation. A refused, failed or badly
+7. **Remember** the turn (§4): for event, tap and talk, the trigger, its
+   limit lines and the calls that ran join the conversation. A refused, failed or badly
    shaped answer starts the conversation over instead; a late or cancelled
    one changes nothing.
 8. **Log** the call: in full in debug mode, otherwise one short line (§8).
@@ -82,7 +89,7 @@ At startup, the app gives the harness its tools as a list of
 definition is read again for each call, so it can depend on memory
 (`forget` offers only the lines there are).
 
-Every brain answers with the same JSON, which the shape check reads:
+Language models answer with this JSON, which their shape check reads:
 
 ```json
 {"calls":[{"tool":"say","feeling":"proud","word":"finally"}]}
@@ -91,7 +98,13 @@ Every brain answers with the same JSON, which the shape check reads:
 An empty `calls` list means staying quiet. Numbers may come as digits in a
 string (`"30"`), and a `null` optional argument counts as left out.
 
-## 4. The prompt
+## 4. The situation and the prompt
+
+The harness keeps the conversation as typed turns: each one is a trigger,
+the limit lines it was shown and the calls that ran. The situation for a
+call is the trigger, the memory text and those turns, whatever the brain.
+A language model gets it as the text prompt below, rendered from the turns
+the same way every call; Jev gets it as JSON state (§7).
 
 The prompt has the same layout every time, with the stable parts first so a
 provider can cache them:
@@ -112,8 +125,8 @@ user:    long-term.md      only in a conversation's first message,
 
 **The conversation.** Event, tap and talk calls share one. Its first
 message carries the memory files; later messages are only the now section.
-Each earlier exchange is the message as it was sent and the calls that ran,
-in the answer format (§3): calls dropped by a limit or an action are left
+Each earlier turn is shown as the message it was sent as and the calls that
+ran, in the answer format (§3): calls dropped by a limit or an action are left
 out, and an answer where nothing ran is `{"calls":[]}`. So each request
 starts with the one before it, which a provider can cache.
 
@@ -123,8 +136,9 @@ There is no compaction. The conversation starts over, empty, when:
   definition. The core writes a Happened line to `short-term.md` just
   before the trigger for a turn that took 30 seconds or more and for every
   failed turn, so most such events start over;
-- it already holds 4 exchanges;
-- the request would pass 5,000 tokens, estimated at four bytes a token;
+- it already holds 4 turns;
+- the request as text would pass 5,000 tokens, estimated at four bytes a
+  token (the same for every brain, which keeps Jev's state small too);
 - an answer is refused, fails or has a bad shape.
 
 It lives in memory only and is gone when the app quits. Reflection is a call
@@ -150,7 +164,9 @@ on-device model has an 8K context window here (measured 2026-09-25).
 | Tool definitions | ≤ 400 |
 
 No code, file contents, prompts or transcripts go in. The one exception is
-your words on `talk`, which stay in the conversation until it starts over.
+your words on `talk`, which stay in the conversation until it starts over. With
+Jev (§7) the situation leaves the Mac: it goes to TypeSafe with each call,
+your words included.
 
 ## 5. Triggers
 
@@ -234,29 +250,39 @@ dropped call is logged with the reason.
 
 ```
 Brain
-  id                                      e.g. "apple:<os>", "cloud:<model>", "rules@1"
-  complete(system, history, user, tools, deadline) -> [tool call]
+  id                                      e.g. "apple:<os>", "jev:jev-latest", "rules@1"
+  decide(situation, menu, deadline) -> decision (tool calls, and the raw answer for the log)
+
+TextBrain: Brain                          a language model
+  complete(system, history, user, tools, deadline) -> answer JSON
+
+Writer                                    fills in words for a call another brain chose
+  write(tool, situation, deadline) -> tool call or nothing
 ```
 
-A brain sends `system`, each earlier exchange in `history` and then `user`,
-in that order and unchanged, so every request starts with the one before.
+A text brain gets the situation as the prompt (§4) and answers with the
+answer JSON (§3); the shared text adapter builds one and checks the other.
+It sends `system`, each earlier exchange in `history` and then `user`, in
+that order and unchanged, so every request starts with the one before.
 
 | Brain | Notes |
 | --- | --- |
 | Apple on-device | **The default.** Small, private and free. Guided generation with a schema built at runtime: a leading `react` choice (`stay quiet` or `react`, since a small model rarely leaves a list empty on its own), then up to three calls whose choices are constrained. Every list of words to choose from starts with `none`, which leaves an optional argument out or drops the call, because the model otherwise drifts to a list's first entry; lists of numbers (like `quiet`'s minutes) don't. Guardrails are set to `permissiveContentTransformations`; a guardrail refusal is dropped like any brain error (Boop keeps the rule reaction), but marked as a refusal so L5 counts it apart. Text lengths are only asked for, so the shape check still applies. Each call builds a fresh session from the conversation, showing earlier answers in its own `react`/`calls` shape. Everything must work well on this |
+| System one (Jev) | TypeSafe's `jev-latest` ([docs](https://docs.typesafe.ai/api)), with the person's own API key; setting `jev`. It doesn't write: it answers typed questions about a state with probabilities, in one request of about 0.2 s. The state is the situation as JSON: `steering.md`, both memory files, the recent turns (minutes ago, what happened, what Boop did) and now. The menu becomes questions: an `act` choice (`stay_quiet` or each open tool it can fill), a choice for each argument of those tools (`none` first for an optional one), and a yes/no for each open tool that needs words (`note`). Jev answers each question on its own, so every argument is asked up front and only the chosen tool's are used. The most likely `act` wins. A yes above 0.5 has the writer (Apple's model, as a `Writer`: that tool only, and it must call it) write the call, after Jev's own; the rules can't write, so with them there's no note. Reflection offers nothing Jev can fill, so the writer's brain decides it alone. A limited tool isn't an option at all. Only the HTTP status of a failed request is logged. With no key, Boop uses what `apple` gives |
 | Cloud API | Interface only in v1: `cloud:<model>` refuses every call, so Boop keeps its rule reactions. Wiring it to the person's own API key comes later ([FUTURE.md](FUTURE.md)); it should be wittier, with the same tools and limits, and send the conversation in order so the provider's prompt cache applies |
-| Rules only | No model. Reads the fallback table from `steering.md` in the system prompt and the trigger from the now section, like any brain, and ignores the history. It leaves out calls to tools the now section names as past a limit. The most specific matching row wins (`Tap, hungry` over `Tap`); "long" means 5 minutes or more. Always available, and used when Apple's model can't run |
+| Rules only | No model. Matches the fallback table in `steering.md` against the trigger itself and ignores the history. It leaves out calls to tools past a limit. The most specific matching row wins (`Tap, hungry` over `Tap`); "long" means 5 minutes or more. Always available, and used when Apple's model can't run |
 
 The brain in use is pinned, and switching is a setting the person changes.
-Every brain gets the same prompt and tools, and every tool call goes through
+Every brain gets the same situation and menu, and every tool call goes through
 the same actions. A weaker brain makes Boop less witty, but it can't make it
 break the rules.
 
 ## 8. Logging
 
 In debug mode, each call is logged as one JSON line: the trigger, the brain,
-the system prompt and new message, how many earlier exchanges were sent, the
-raw answer, what the shape check dropped, which actions
+the situation as the text prompt (system prompt and new message), how many
+earlier turns were sent, the raw answer (a model's JSON; Jev's answers with
+their probabilities, then what the writer wrote; the rules' calls), what the shape check dropped, which actions
 ran and what they dropped, and the latency. Otherwise the app log gets one
 line per call: the trigger kind, the latency and the names of the tools
 that ran, never their arguments. Outside debug mode, the words you said

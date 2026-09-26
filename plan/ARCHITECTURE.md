@@ -132,12 +132,15 @@ after `oops`, `yawn` after `stretch`, `gobble`) are over. `listening` and
 
 ### 3.3 Harness and brain
 
-The harness is a small, generic loop ([HARNESS.md](HARNESS.md)). It builds a
-prompt, calls a model and routes tool calls, without knowing what the tools
-do. The brain is whatever model is plugged in: Apple's on-device model by
-default, or the rules-only brain. A cloud brain with the person's own API
-key is an interface only in v1 (`cloud:<model>`), switched on later
-([FUTURE.md](FUTURE.md)). The brain is assumed to be small, so the tools are
+The harness is a small, generic loop ([HARNESS.md](HARNESS.md)). It builds
+a typed situation (the trigger, memory, recent turns) and menu (the tools
+and their limits), asks the brain to decide, checks the tool calls it gets
+back and routes them, without knowing what the tools do or what kind of
+model decided. The brain is whatever is plugged in: Apple's on-device model
+by default, the rules-only brain, or Jev, a "system one" model reached with
+the person's own API key, which answers questions rather than writing and
+leaves the writing to Apple's model. A cloud language model is an interface
+only in v1 (`cloud:<model>`), switched on later ([FUTURE.md](FUTURE.md)). The brain is assumed to be small, so the tools are
 few, flat and mostly multiple choice. Event, tap and talk calls share a
 short conversation with the brain that starts over instead of being
 compacted.
@@ -453,7 +456,7 @@ When a spec changes direction, add a row here saying why.
 | 2026-09-26 | `event` offers only `say` and `face`; `note` stays on `talk` | An event line holds nothing the core's Happened line doesn't, and Apple's model filled notes by copying old ones (14 of 92 calls dropped) | [HARNESS.md](HARNESS.md) §5 |
 | 2026-09-26 | `forget` picks from the lines that exist, rebuilt for each call | Multiple choice suits a small model; free text named lines that weren't there | [HARNESS.md](HARNESS.md) §6 |
 | 2026-09-26 | One answer format for every brain (`{"calls":[…]}`); Apple's schema starts with a `react` choice | The shape check stays one piece of code; without the choice Apple's model answered every trigger | [HARNESS.md](HARNESS.md) §3, §7 |
-| 2026-09-26 | The rules-only brain reads its table from the prompt, like any brain | Same interface, same prompt; nothing special-cased | [HARNESS.md](HARNESS.md) §7 |
+| 2026-09-26 | The rules-only brain reads its table from the prompt, like any brain. Replaced below: it matches the trigger itself | Same interface, same prompt; nothing special-cased | [HARNESS.md](HARNESS.md) §7 |
 | 2026-09-26 | v1 reflection doesn't offer `forget` | Apple's model forgot the true line "Ships on Fridays." in nearly every L5 reflection, even with a `none` choice and explicit steering. Forgetting destroys memory and is rarely needed; the action stays, tested, for a later brain | [HARNESS.md](HARNESS.md) §5 |
 | 2026-09-26 | Apple's schema starts every choice with `none` | Without it the model filled `word` with the vocabulary's first entry (`tests`) on greetings and praise | [HARNESS.md](HARNESS.md) §7 |
 | 2026-09-26 | `moment` refuses a text that retells an earlier moment | Apple's model copied the sample's old moment for a new day | [HARNESS.md](HARNESS.md) §6 |
@@ -477,6 +480,9 @@ When a spec changes direction, add a row here saying why.
 | 2026-09-26 | The eyes are solid rounded rectangles with no pupil, iris or highlight (F6). A look moves the whole eye, and the eye on the side looked towards grows a little; `Pose::pupil` became `Pose::eyeSize`; where a lid meets the edge of an eye the corner is rounded | The owner found the pupils too realistic: cream eyes with a dark pupil read as real eyeballs, and gen-2's solid eyes were cuter. Without pupils, the size of the whole eye takes over from pupil size: curious, listening, needs you and love bigger, worried and busy smaller, as their pupils were, while startled now widens its eyes where it used to shrink its pupils. Thinking can't roll its pupils up any more, so it lifts round-topped eyes instead of lidding them, which would make it the working face mirrored. A sharp lid corner was the last hard point on a soft face, so the corner is rounded wherever a lid meets the edge of an eye, with a smaller radius where 8 px doesn't fit | [UX.md](UX.md) §2, [PLAN.md](PLAN.md) F6 |
 | 2026-09-26 | Setup and settings open inside the popover, not in windows; volume, focus and "I'm away" move from the overview to Settings; the board's id isn't shown; the app takes gen-2's "Boop Cream" look, with a small copy of the face in the popover and as the menu-bar icon | The owner found the setup window jarring, the overview crowded with controls and debug data, and preferred gen-2's styling and flow | [UX.md](UX.md) §6–7 |
 | 2026-09-26 | The cloud brain is an interface only in v1: `cloud:<model>` refuses every call, and settings offers Apple's model or rules | Apple's model is the default and needs no key; wiring and testing a provider can wait | §3.3, [HARNESS.md](HARNESS.md) §7, [FUTURE.md](FUTURE.md) |
+| 2026-09-26 | The brain contract is typed: `decide(situation, menu) → calls`. The conversation is kept as typed turns (trigger, limit lines, calls that ran). Language models share a text adapter that renders today's prompt from the turns and checks the answer JSON; the harness checks every brain's calls against the menu. The rules brain matches the trigger itself | The owner asked for a third brain, Jev, which answers typed questions and can't read a prompt or write JSON. Typed input and output let any kind of model decide, and keep the history when brains change or share a call. Apple's model sees exactly the prompt it saw before (the conversation tests pass unchanged) | [HARNESS.md](HARNESS.md) §1, §3–4, §7 |
+| 2026-09-26 | A third brain, `jev`: TypeSafe's Jev with the person's own API key (the existing Keychain field; `BOOP_API_KEY` for `boopdev` and headless runs). The situation goes to TypeSafe as JSON: `steering.md`, both memory files, recent turns and now, with the person's words | The owner wanted to try a "system one" model in place of the on-device one. In L5 it answered every trigger in about 0.2 s against Apple's 2 s, with no refusals, and followed talk requests (quiet for 15 or 60 minutes) that Apple's model missed. It leaves the Mac, so the settings say so | [HARNESS.md](HARNESS.md) §4, §7, [UX.md](UX.md) §7, [VISION.md](VISION.md) §7 |
+| 2026-09-26 | Jev asks whether to write as its own yes/no per tool that needs words, not as an `act` option; on a yes, Apple's model writes only that call (a `Writer`: one tool, must call it) | As an `act`, `note` never beat staying quiet (0.21–0.29 against up to 0.70). Given the whole decision again, Apple's model chose to stay quiet on both notes Jev had said yes to (0.92–0.93). Deciding and writing are separate jobs | [HARNESS.md](HARNESS.md) §7 |
 | 2026-09-26 | The Mac answers every `status` with a `state`, not only the first after connecting | It's one extra `state` a minute, and it covers a connect-time `status` sent before the Mac subscribed over Bluetooth | [PROTOCOL.md](PROTOCOL.md) §4–5 |
 | 2026-09-26 | The installer installs and repairs nothing while its copy of `boop-hook` is missing, and settings and setup say so; `make run` builds everything first | `make run` built only the app, so there was no `boop-hook` to copy, and launch repair swapped the owner's gen-2 entries for ones calling a missing file: every Claude and Codex event was dropped, while settings said "Connected" | [ADAPTERS.md](ADAPTERS.md) §5, [UX.md](UX.md) §6–7 |
 | 2026-09-26 | Event, tap and talk calls share a short conversation with the brain, sent in the same order every call and never compacted: it starts over when its opening changes, when it's full, or after a failed answer. Talk words stay in it until then | The owner asked for a running transcript modelled on pi, kept simple (start over rather than compact) and in an order a cloud provider's prompt cache can reuse. With history, Apple's model answers quiet much more often; tuning is PLAN.md A6 | [HARNESS.md](HARNESS.md) §4 |

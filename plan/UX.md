@@ -187,7 +187,8 @@ memory only, until that starts over ([HARNESS.md](HARNESS.md) §4).
    first activity, a hook or a tap, wakes it with a stretch and a yawn
    ([BEHAVIORS.md](BEHAVIORS.md) §3.3).
 4. Boop uses Apple's on-device model by default, with no setup. Settings
-   has a field for your own API key, for cloud brains, which come later
+   can switch to Jev, a "system one" model online, with your own API key
+   ([HARNESS.md](HARNESS.md) §7); other cloud brains come later
    ([FUTURE.md](FUTURE.md)). On Macs without Apple's model, Boop still works
    fully on rules, with a simpler personality.
 
@@ -227,7 +228,7 @@ except Talk, which is there to be used in the moment.
 | Sound & focus | Volume (0–10, 0 shows "Off"), focus mode, "I'm away" (pauses hunger) |
 | Agents | Claude Code and Codex: connected, not connected, not found or needs a repair, with Connect, Repair or Remove. If `boop-hook` isn't built, each says so ("Run make build, then restart Boop") with no button |
 | Device | Whether Boop's body is connected and how (Bluetooth or USB), and its firmware version. Not its id. A Reconnect button drops the link and looks for the device again at once ([PROTOCOL.md](PROTOCOL.md) §2, "Reconnecting") |
-| Brain | Apple's on-device model or rules only (takes effect on restart), and the API key, kept in the Keychain; cloud brains are shown as not yet available |
+| Brain | "On-device" (Apple's model), "System one (Jev)" or "Rules only" (takes effect on restart), and the API key, kept in the Keychain. The key's caption says that what happens and Boop's memory go to TypeSafe with each call |
 | What Boop remembers | Each line, with a button to forget it |
 | About | The app's version |
 

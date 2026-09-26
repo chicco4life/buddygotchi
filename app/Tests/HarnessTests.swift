@@ -3,7 +3,7 @@ import XCTest
 @testable import BoopKit
 
 /// A brain that answers from a script, after a delay.
-struct FakeBrain: Brain {
+struct FakeBrain: TextBrain {
     let id = "fake@1"
     var delayMs: Int = 0
     var answer: @Sendable (String) throws -> String
@@ -171,7 +171,9 @@ final class HarnessTests: XCTestCase {
         let slow = HarnessRig(brain: FakeBrain(delayMs: 60_000) { _ in #"{"calls":[]}"# })
         let h = slow.harness!
         let start = ContinuousClock.now
-        let (answer, _) = await h.ask(Prompt(system: "", user: ""), [], deadline: 50)
+        let (answer, _) = await h.ask(Situation(trigger: trigger(.tap, "tapped · 09:30 Tuesday"),
+                                                memory: .init(steering: "", longTerm: "", shortTerm: "")),
+                                      Menu(tools: []), deadline: 50)
         XCTAssertEqual(answer.failureReason, "late: no answer within 50 ms")
         XCTAssertLessThan(ContinuousClock.now - start, .seconds(2))
     }
@@ -210,7 +212,7 @@ final class HarnessTests: XCTestCase {
     // MARK: Limits
 
     /// Speaks unless the prompt names a `say` limit, and adds a face.
-    struct ChattyBrain: Brain {
+    struct ChattyBrain: TextBrain {
         let id = "chatty@1"
         func complete(system: String, history: [Exchange], user: String, tools: [ToolDefinition],
                       deadline: Duration) async throws -> String {
@@ -221,7 +223,7 @@ final class HarnessTests: XCTestCase {
     }
 
     /// Always tries to speak, limit or not.
-    struct StubbornBrain: Brain {
+    struct StubbornBrain: TextBrain {
         let id = "stubborn@1"
         func complete(system: String, history: [Exchange], user: String, tools: [ToolDefinition],
                       deadline: Duration) async throws -> String {
@@ -445,14 +447,13 @@ extension Result where Failure == BrainError {
 final class BrainTests: XCTestCase {
     func steering() throws -> String { try String(contentsOf: HarnessTests.steering, encoding: .utf8) }
 
-    func ask(_ brain: any Brain, _ t: Trigger, tools: [String]? = nil) async throws -> String {
-        let prompt = Prompt(trigger: t, memory: .init(steering: try steering(), longTerm: "", shortTerm: ""))
+    func ask(_ brain: any Brain, _ t: Trigger, tools: [String]? = nil, limits: [String] = []) async throws -> String {
         let memory = try MemoryRig()
         let context = ActionContext(send: { _ in }, today: { "2026-10-14" })
         let defs = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: 1)), memory: memory.store)
             .filter { (tools ?? t.kind.tools).contains($0.name) }.map(\.definition)
-        return try await brain.complete(system: prompt.system, history: prompt.history, user: prompt.user, tools: defs,
-                                        deadline: .seconds(1))
+        let situation = Situation(trigger: t, memory: .init(steering: try steering(), longTerm: "", shortTerm: ""))
+        return Answer.json(try await brain.decide(situation, Menu(tools: defs, limits: limits), deadline: .seconds(1)).calls)
     }
 
     func testTheRulesBrainReadsTheFallbackTable() throws {
@@ -488,14 +489,11 @@ final class BrainTests: XCTestCase {
             let answer = try await ask(b, t)
             XCTAssertEqual(answer, expected, t.line)
         }
-        // Calls to tools that aren't offered, or that the prompt names as past a limit, are left out.
+        // Calls to tools that aren't offered, or that the menu names as past a limit, are left out.
         let answer = try await ask(b, trigger(.talk, "talk · 13:10 Tuesday", words: "quiet"), tools: ["face"])
         XCTAssertEqual(answer, #"{"calls":[{"tool":"face","name":"sulky"}]}"#)
-        let hungry = Prompt(trigger: trigger(.tap, "tapped · 12:15 Tuesday · hungry"),
-                            memory: .init(steering: try steering(), longTerm: "", shortTerm: ""),
-                            limits: ["say limit: once every 5 min on tap, next in 2 min"])
-        let limited = try await b.complete(system: hungry.system, history: [], user: hungry.user, tools: HarnessTests().tools,
-                                           deadline: .seconds(1))
+        let limited = try await ask(b, trigger(.tap, "tapped · 12:15 Tuesday · hungry"),
+                                    limits: ["say limit: once every 5 min on tap, next in 2 min"])
         XCTAssertEqual(limited, #"{"calls":[]}"#)
     }
 
@@ -542,6 +540,8 @@ final class BrainTests: XCTestCase {
         for kind in [Trigger.Kind.event, .tap, .talk, .reflect] {
             _ = try (AppleBrain.schema(actions.filter { kind.offered.contains($0.name) }.map(\.definition)))
         }
+        // Writing a call Jev decided on: that tool only, and it must be called.
+        _ = try AppleBrain.schema(actions.filter { $0.name == "note" }.map(\.definition), decided: true)
         // Earlier answers are shown in the shape this brain answers in.
         XCTAssertEqual(AppleBrain.toList(#"{"calls":[]}"#), #"{"react":"stay quiet","calls":[]}"#)
         XCTAssertEqual(AppleBrain.toList(#"{"calls":[{"tool":"face","name":"happy"}]}"#),

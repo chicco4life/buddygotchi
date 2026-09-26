@@ -3,7 +3,7 @@ import XCTest
 @testable import BoopKit
 
 /// Answers from the now section, after an optional delay.
-private struct ScriptBrain: Brain {
+private struct ScriptBrain: TextBrain {
     let id = "script@1"
     var reply: @Sendable (String) async throws -> String
     func complete(system: String, history: [Exchange], user: String, tools: [ToolDefinition],
@@ -82,18 +82,18 @@ final class ConversationTests: XCTestCase {
         let rig = HarnessRig(brain: FakeBrain { _ in quiet })
         let h = rig.harness!
         rig.home.sync {
-            let (prompt, _, generation) = h.prepare(trigger(.tap, "tapped · 09:30 Tuesday"))
-            let late = Harness.Record(trigger: trigger(.tap, "tapped · 09:30 Tuesday"), brain: "fake@1", prompt: prompt,
+            let (call, _, generation) = h.prepare(trigger(.tap, "tapped · 09:30 Tuesday"))
+            let late = Harness.Record(trigger: trigger(.tap, "tapped · 09:30 Tuesday"), brain: "fake@1", prompt: call.prompt,
                                       tools: [], raw: nil, dropped: "late: no answer within 3000 ms", ran: [], latencyMs: 3000)
-            h.remember(late, generation: generation!)
-            XCTAssertEqual(h.conversation.exchanges, [])
+            h.remember(late, limits: [], generation: generation!)
+            XCTAssertEqual(h.conversation.turns, [])
             XCTAssertEqual(h.conversation.generation, generation)
             var answered = late
             answered.raw = quiet
             answered.dropped = nil
             h.conversation.restart()
-            h.remember(answered, generation: generation!)
-            XCTAssertEqual(h.conversation.exchanges, [])
+            h.remember(answered, limits: [], generation: generation!)
+            XCTAssertEqual(h.conversation.turns, [])
         }
     }
 

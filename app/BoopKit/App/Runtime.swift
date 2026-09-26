@@ -163,7 +163,7 @@ public final class Runtime: @unchecked Sendable {
         say = actions.compactMap { $0 as? SayAction }.first!
         face = actions.compactMap { $0 as? FaceAction }.first!
         let memory = self.memory
-        harness = Harness(brain: Brains.make(options.brain ?? settings.brain, log: log), tools: actions.map(Harness.Tool.init),
+        harness = Harness(brain: Brains.make(options.brain ?? settings.brain, key: Brains.key, log: log), tools: actions.map(Harness.Tool.init),
                           memory: { memory.promptMemory(for: $0.kind) }, home: home, debugLog: options.debugLog,
                           log: log)
         // Tool names only: arguments can carry what you said (HARNESS.md §8).

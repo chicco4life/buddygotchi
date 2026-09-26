@@ -1,8 +1,9 @@
 import Foundation
 
-/// One brain call's prompt (HARNESS.md §4), stable parts first so a provider
-/// can cache them: the system prompt, the conversation's earlier exchanges,
-/// then this call's user message.
+/// A brain call as text (HARNESS.md §4), for language models, stable parts
+/// first so a provider can cache them: the system prompt, the conversation's
+/// earlier exchanges, then this call's user message. Built from the typed
+/// situation and menu, the same way every time.
 public struct Prompt: Equatable, Sendable {
     public var system: String
     public var history: [Exchange] = []
@@ -49,20 +50,36 @@ public struct Prompt: Equatable, Sendable {
         self.user = user
     }
 
-    /// The memory text opens a conversation, so only a message with no
-    /// history carries it; later ones are just the now section. `limits` are
-    /// lines like `say limit: once every 10 min on event, next in 6 min`.
-    public init(trigger: Trigger, memory: Memory, limits: [String] = [], history: [Exchange] = []) {
-        system = Prompt.system(memory.steering)
-        self.history = history
+    /// The situation as text, for a language model: the system prompt, each
+    /// earlier turn as the message it was sent as and the calls that ran, then
+    /// this call's message with the menu's limit lines.
+    public init(_ situation: Situation, _ menu: Menu) {
+        let s = situation
+        let history = s.recent.enumerated().map { i, turn in
+            Exchange(user: Prompt.message(turn.trigger, s.memory, limits: turn.limits, opening: i == 0),
+                     answer: Answer.json(turn.did))
+        }
+        self.init(system: Prompt.system(s.memory.steering), history: history,
+                  user: Prompt.message(s.trigger, s.memory, limits: menu.limits, opening: s.recent.isEmpty))
+    }
+
+    /// One call on its own, with no earlier turns. `limits` are lines like
+    /// `say limit: once every 10 min on event, next in 6 min`.
+    public init(trigger: Trigger, memory: Memory, limits: [String] = []) {
+        self.init(Situation(trigger: trigger, memory: memory), Menu(tools: [], limits: limits))
+    }
+
+    /// The memory text opens a conversation, so only its first message
+    /// carries it; later ones are just the now section.
+    static func message(_ trigger: Trigger, _ memory: Memory, limits: [String], opening: Bool) -> String {
         var now = trigger.line
         if let words = trigger.words { now += "\nthey said: \"\(Prompt.oneLine(words))\"" }
         for line in limits { now += "\n" + line }
         let shortTerm = trigger.kind == .reflect
             ? "Yesterday's short-term memory, to reflect on:\n\n" + memory.shortTerm
             : memory.shortTerm
-        let parts = history.isEmpty ? [memory.longTerm, shortTerm] : []
-        user = (parts + [Prompt.nowMarker + "\n" + now])
+        let parts = opening ? [memory.longTerm, shortTerm] : []
+        return (parts + [Prompt.nowMarker + "\n" + now])
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
             .joined(separator: "\n\n")

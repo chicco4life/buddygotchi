@@ -143,9 +143,12 @@ struct SettingsPane: View {
                 SettingRow(icon: "sparkles", title: "Thinks with",
                            detail: model.status.map { $0.brain != model.brain } == true
                                ? "Takes effect when \(model.name) restarts."
-                               : model.brain == "rules" ? "Simple rules, no model." : "Apple's model, on this Mac.") {
+                               : model.brain == "rules" ? "Simple rules, no model."
+                               : model.brain == "jev" ? "TypeSafe's Jev, online, with your API key. Writes with Apple's model."
+                               : "Apple's model, on this Mac.") {
                     Picker("Brain", selection: Binding(get: { model.brain }, set: { model.setBrain($0) })) {
                         Text("On-device").tag("apple")
+                        Text("System one (Jev)").tag("jev")
                         Text("Rules only").tag("rules")
                     }
                     .pickerStyle(.menu)
@@ -166,7 +169,7 @@ struct SettingsPane: View {
                             .buttonStyle(.row)
                             .disabled(keySaved)
                     }
-                    Text("Kept in your Keychain, for a cloud brain. Those aren't available yet.")
+                    Text("Kept in your Keychain, for Jev. What happens and your memory go to TypeSafe with each call.")
                         .font(.system(size: 10)).foregroundStyle(Theme.inkSoft)
                 }
                 .padding(.leading, 40).padding(.trailing, 12).padding(.vertical, 10)
