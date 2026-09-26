@@ -20,15 +20,15 @@ approve on the Mac as you normally would.
  │                                                                        │
  │  Adapters ──► Core ───────────── state snapshots ──────────┐           │
  │               │  │                                         │           │
- │     rule      │  │ triggers                                │           │
+ │     rule      │  │ inputs                                  │           │
  │   reactions   │  ▼                                         │           │
- │               │ Harness ──► Brain (a small LLM)            │           │
+ │               │ Harness ──► Brain: classifier, then writer │           │
  │               │  │  ▲                                      │           │
  │               │  │  └── memory text, from the memory store │           │
- │               ▼  ▼ tool calls                              ▼           │
+ │               ▼  ▼ calls                                   ▼           │
  │              Actions ──► Voice (Minion speech) ───►  Device link ──────┼──► device
- │              say, face,  Memory store (the .md files)                  │
- │              quiet, note…                                              │
+ │              react,      Memory store (the .md files)                  │
+ │              quiet, remember                                           │
  └────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -39,15 +39,16 @@ approve on the Mac as you normally would.
 2. The Codex **adapter** turns it into the common event: "Codex, session
    a1b2, project landing, turn finished".
 3. The **core** updates its session table, works out from when the turn
-   started that it took 18 minutes, adds XP, and by rule calls the `face`
-   action with a cheer. Boop cheers in well under a second.
-4. The core also hands the event to the **harness** as a trigger. The
-   harness builds a prompt from the memory files, asks the **brain**, and
-   gets back a tool call: `say(feeling: proud, word: finally)`.
-5. The harness passes that call, unchanged, to the **`say` action**, which
-   asks **Voice** to turn "proud + finally" into Minion speech
-   (*"ma-po li… finally!"*) and sends it to the device through the
-   **device link**.
+   started that it took 18 minutes, adds XP, and by rule has the `react`
+   action play a cheer. Boop cheers in well under a second.
+4. The core also hands the **harness** an input: an agent finished. The
+   **brain** decides in two stages. Its classifier picks
+   `react(feeling: proud, voice: mumble)`, and its writer, Apple's
+   on-device model, writes the mumble's one real word: `finally`.
+5. The harness hands that call to the **`react` action**, which asks
+   **Voice** to turn "proud + finally" into Minion speech
+   (*"ma-po li… finally!"*) and sends it to the device with the proud face,
+   through the **device link**.
 
 The brain never sits between an event and the screen. Rules give the
 immediate reaction, and the brain adds character a second or two later. If
@@ -60,7 +61,7 @@ with less personality.
 | --- | --- | --- | --- | --- |
 | Reflex | Device | < 20 ms | Tap feedback, blinking, idle life, blending faces, the nudge ladder | Wait for the Mac |
 | Reactive | Core → actions | < 200 ms p95 | Agent event → rule → action → device; XP | Wait for the brain |
-| Deliberative | Harness + brain → actions | 1–5 s, in the background | React with character, take notes, answer push-to-talk | Block the reactive loop |
+| Deliberative | Harness + brain → actions | 1–5 s, in the background | React with character, answer push-to-talk, note what you tell it | Block the reactive loop |
 | Reflective | Harness + brain, once a day | Minutes | Turn yesterday into lasting memory, grow the personality | Break the memory rules |
 
 ## 3. Components and boundaries
@@ -74,10 +75,10 @@ directly.
 | Part | Does | Doesn't know about |
 | --- | --- | --- |
 | Adapters | Turn agent hooks into common events | Boop's state, the brain, the device |
-| Core | The session table, what the device shows, XP, hunger, mood and quiet; calls actions for rule reactions; sends triggers to the harness | Minion speech, models, hook formats |
-| Harness | Trigger → prompt → one brain call → shape check → hand each tool call to its action | Minion speech, the device, memory rules, which model it's talking to |
-| Brain | Picks which tools to call, with what arguments | Everything else |
-| Actions | Carry out one tool call each, checking their own rules | Whether a rule or the brain called them |
+| Core | The session table, what the device shows, XP, hunger, mood and quiet; calls actions for rule reactions; sends the brain's inputs to the harness | Minion speech, models, hook formats |
+| Harness | Input → classifier → menu check → writer, only when words are needed → each call to its action; keeps the transcript both stages read | Minion speech, the device, memory rules, what kind of model is behind either stage |
+| Brain | Two stages: a classifier picks what Boop does from a short menu, and a writer writes the words for it | Everything else |
+| Actions | Carry out one call each, checking their own rules | Whether a rule or the brain called them |
 | Voice | Turns a feeling and an optional word into Minion speech | Who asked, or why |
 | Memory store | The only code that reads or writes `long-term.md` and `short-term.md`: supplies all three memory files' text and applies changes within limits | Models, the device |
 | Device link | Sends snapshots and moments; receives taps, talk and the device's other inputs; over Bluetooth or USB | What any of it means |
@@ -102,29 +103,30 @@ project, and whether each is working, idle or needs you) and:
   no sessions or at night with nothing working, and otherwise idle;
 - calls actions for the immediate reactions (a cheer, an oops, a nod) and
   for Boop's occasional working chatter;
-- turns events, taps and talk into triggers for the harness. It merges
-  bursts within 3 s. While something needs you, or during quiet mode, it
-  sends only `talk` and the daily reflection;
+- turns agents starting and finishing, what you say and a new day into the
+  brain's inputs, and decides which of them reach it
+  ([HARNESS.md](HARNESS.md) §2). Taps and "needs you" stay the rules' own:
+  the brain's transcript only notes them;
 - keeps XP, hunger, mood, quiet and "away", all by rule
   ([BEHAVIORS.md](BEHAVIORS.md)).
 
-In code the core is a pure state machine: each event, input or one-second
-tick goes in with the time, and a list of effects comes out (a snapshot, a
-moment for `face`, a mumble for `say`, a trigger, a Happened line, new
-Growth, a new day, start or stop listening). The app hands each effect to
-the part that carries it out, which keeps the core testable on a virtual
-clock.
+In code the core is a pure state machine: each event, device input or
+one-second tick goes in with the time, and a list of effects comes out (a
+snapshot, a moment or a mumble for `react`, an input or an aside for the
+harness, a Happened line, new Growth, a new day, start or stop listening).
+The app hands each effect to the part that carries it out, which keeps the
+core testable on a virtual clock.
 
-Trigger merging is leading-edge: the first trigger after a quiet spell goes
-out at once, and any that follow within 3 s are held and sent as one when
-the window ends, keeping the most important line (a failure, then a long
-finish, then a finish or a tap, then a start) with "+N more".
+Merging agent inputs is leading-edge: the first one after a quiet spell
+goes out at once, and any that follow within 3 s are held and sent as one
+when the window ends, keeping the most important
+([HARNESS.md](HARNESS.md) §2) with "+N more".
 
 The brain adds to the rules' reaction and never cuts it off. The app
 estimates how long each rule moment plays with the device's own rule: the
 animation's length scaled by `pace`, with a cheer's size adjusted by
 `energy`, or, if longer, the mumble's syllables (the word is two beats)
-plus 1.2 s to read the bubble. It holds a moment from a brain tool call
+plus 1.2 s to read the bubble. It holds a moment from the brain's calls
 until the last rule moment and the core's pending follow-ups (`side_eye`
 after `oops`, `gobble`) are over. `listening` and
 `thinking` don't hold anything back: the brain's reply is meant to replace
@@ -132,38 +134,38 @@ after `oops`, `gobble`) are over. `listening` and
 
 ### 3.3 Harness and brain
 
-The harness is a small, generic loop ([HARNESS.md](HARNESS.md)). It builds
-a typed situation (the trigger, memory, recent turns) and menu (the tools
-and their limits), asks the brain to decide, checks the tool calls it gets
-back and routes them, without knowing what the tools do or what kind of
-model decided. The brain is whatever is plugged in: Apple's on-device model
-by default, the rules-only brain, or Jev, a "system one" model reached with
-the person's own API key, which answers questions rather than writing and
-leaves the writing to Apple's model. A cloud language model is an interface
-only in v1 (`cloud:<model>`), switched on later ([FUTURE.md](FUTURE.md)). The brain is assumed to be small, so the tools are
-few, flat and mostly multiple choice. Event, tap and talk calls share a
-short conversation with the brain that starts over instead of being
-compacted.
+The brain works in two stages ([HARNESS.md](HARNESS.md)). A **classifier**
+decides what Boop does about an input by picking from a short menu, and a
+**writer**, a small language model, writes only the words that decision
+needs: the one real word in a mumble, or a line to remember. Both read one
+append-only transcript of what has happened. The **harness** is the small,
+generic code around them: it runs the two stages, checks their answers and
+hands each call to its action, without knowing what the outputs do or what
+kind of model is behind either stage. By default plain if-else rules
+classify and Apple's on-device model writes. Jev, a "system one" model
+reached with the person's own API key, can classify instead, and a
+DeepSeek writer comes later ([FUTURE.md](FUTURE.md)). Both stages are
+assumed to be small, so the outputs are few, flat and mostly multiple
+choice.
 
 ### 3.4 Actions
 
-Actions are Boop's tools. The same actions serve the core's rules and the
+Actions are Boop's outputs. The same actions serve the core's rules and the
 brain, so a cheer looks the same whichever of them asked for it.
 
 | Action | Arguments | What it does |
 | --- | --- | --- |
-| `say` | `feeling`, `word?` | Asks Voice for a Minion line, then sends it to the device as a moment |
-| `face` | `name` | Sends an animation to the device as a moment |
+| `react` | `feeling`, `voice`, `word?` | Sends the feeling's face to the device as a moment, and for a mumble asks Voice for a Minion line with the word |
 | `quiet` | `minutes` | Tells the core to stop mumbles for a while |
-| `note` | `text` | Adds a line to today's notes |
-| `remember` | `text` (short), `kind` (`about_you` or `preference`) | Reflection only: adds a line to About you or Preferences within its limits |
-| `forget`, `temperament`, `moment` | short text | Reflection only: change long-term memory within its limits (v1 reflection doesn't offer `forget`, §11) |
+| `remember` | `where`, `text` | Adds a line to today's notes or to a section of long-term memory, within its limits |
 
 Each action checks its own rules and quietly drops (and logs) anything that
-breaks them. For example, `say` drops a word that isn't in its vocabulary,
-and `note` drops text that's too long. Each action also owns its tool
-definition, the part the brain sees. That's where the allowed words live, as
-a multiple-choice field.
+breaks them. For example, `react` drops a call whose word isn't in its
+vocabulary, and `remember` drops text that's too long for its section.
+Each action also owns its definition, the part the brain sees: its
+arguments, their choices and which stage fills each in
+([HARNESS.md](HARNESS.md) §5). That's where the allowed words live, as a
+multiple-choice field.
 
 ### 3.5 Voice
 
@@ -177,7 +179,7 @@ sounds like. See [VOICE.md](VOICE.md).
 The memory store is the only code that reads or writes `long-term.md` and
 `short-term.md` (§4). `steering.md` is bundled read-only in the app and
 passed to the store as text. The store hands all three files' text to the
-harness for each prompt, applies changes from actions within each
+harness for each pass, applies changes from actions within each
 section's limits, writes atomically, and snapshots the files before each
 reflection.
 
@@ -203,16 +205,17 @@ popover, records from the Mac's mic. The core decides when the mic is on
 or, for the device's button, the link dropping. The menu bar shows it
 while it's on ([UX.md](UX.md) §5). The app asks for Speech Recognition and
 the Microphone on first use, turns speech into text locally, and the core
-gives it to the harness as a `talk` trigger. Audio is discarded immediately. The words stay
-in the brain's conversation, in memory only, until it starts over
+gives it to the harness as a "you said" input. Audio is discarded
+immediately. The words stay in the brain's transcript, in memory only, and
+brains see them until its window moves past them
 ([HARNESS.md](HARNESS.md) §4).
 
 ## 4. Memory files
 
 All of Boop's memory is three Markdown files. `steering.md` is bundled
 read-only in the app and passed in as text; `long-term.md` and
-`short-term.md` live in the app's state directory (§11). Every brain call
-includes all three.
+`short-term.md` live in the app's state directory (§11). Every pass hands
+all three to the brain.
 
 | File | What it is | Changes |
 | --- | --- | --- |
@@ -220,12 +223,14 @@ includes all three.
 | `long-term.md` | Who this Boop has become, and lasting facts and preferences about you | Once a day, at reflection, within limits; XP by the core |
 | `short-term.md` | Today: Boop's mood, notes about what you're doing and said, what happened | Throughout the day; starts fresh after reflection |
 
-**Reflection** runs once a day, at the first activity of a new day. The
-memory store snapshots both writable files to `history/<date>/`, where
-`<date>` is the day being reflected on (setup also snapshots, under the
-day Boop hatched). Then `short-term.md` starts fresh, and the brain reads
-yesterday's copy from the snapshot and updates `long-term.md` through the
-reflection actions.
+**Reflection** runs once a day, at the first activity of a new day, as the
+brain's "new day" input ([HARNESS.md](HARNESS.md) §2). The memory store
+snapshots both writable files to `history/<date>/`, where `<date>` is the
+day being reflected on (setup also snapshots, under the day Boop hatched).
+Then `short-term.md` starts fresh, and the brain reads yesterday's copy
+from the snapshot: the classifier decides what, if anything, goes into
+`long-term.md`, and the writer writes each line for `remember`
+([HARNESS.md](HARNESS.md) §6).
 
 The files are plain text. Hand edits are allowed: the store reads a file
 again when it changes on disk, before its next change, so an edit isn't
@@ -235,7 +240,7 @@ overwritten. A file that won't parse is kept as `<file>.broken`.
 instead, keeping the file's date if one can be found so the day doesn't
 start (and reflect) twice.
 
-Each file also has a size budget, so the whole prompt stays within
+Each file also has a size budget, so what the brain reads stays within
 [HARNESS.md](HARNESS.md) §4 without trimming: `long-term.md` at most
 3,200 bytes (about 800 tokens) and `short-term.md` at most 2,400 bytes
 (about 600). The line limits below mostly keep them there; when they
@@ -247,9 +252,9 @@ memory drops its oldest Happened lines.
 This is Boop's AGENTS.md: the standing instructions every Boop shares. It's
 read-only. Neither the brain, the app nor the person can change it at
 runtime, because a different `steering.md` makes a different creature. It
-covers character, how to act through tools, examples for each trigger,
-reflection, what never to do, and the fallback table the rules-only brain
-uses. The current version is [steering.md](steering.md).
+covers character, what Boop can do, examples for each input, what's worth
+remembering, how to write Boop's words, and what never to do. The current
+version is [steering.md](steering.md).
 
 ### 4.2 `long-term.md`
 
@@ -278,7 +283,7 @@ xp: 1240 · level: 25 · last fed: 2026-10-14
 | Section | Written by | Rule |
 | --- | --- | --- |
 | Boop (name line) | App, at setup | Never changes. `nature` is the person's one answer (sweet or cheeky); `seed` is random and picks Boop's voice dialect |
-| Temperament | Reflection | At most one sentence changed a day: `temperament` adds one sentence of at most 120 characters, and past five sentences it replaces the oldest |
+| Temperament | Reflection | At most one sentence changed a day: a new sentence of at most 120 characters is added, and past five sentences it replaces the oldest |
 | Moments | Reflection | At most 20 of at most 80 characters; at most one a day, dated the day reflected on. Past 20, the oldest drops |
 | Growth | Core | [BEHAVIORS.md](BEHAVIORS.md) §4. While Boop is starving the line also carries `lost: N`, the XP lost since it was last fed, so a restart doesn't take a day's XP twice |
 | About you | Reflection | At most 30 lines of at most 100 characters; no code, paths, secrets or other people's names. A new line when full is refused; in v1 the person frees room by editing the file |
@@ -302,19 +307,22 @@ Preferences; the Boop section isn't shown.
 2026-10-14 · first seen 08:52 · mood: a bit frazzled
 
 ## Notes
-- landing: flaky tests, third attempt
-- jetpack: long refactor finally done
+- jetpack is the payments service
+- landing launches Monday
 - said "shut up for an hour" at 13:10
 
 ## Happened
+- 09:13 claude · jetpack · finished (4 min)
+- 11:20 codex · landing · build · failed
 - 14:02 codex · landing · tests · failed
 - 14:05 claude · jetpack · finished (18 min)
+- 17:55 codex · jetpack · finished (26 min)
 ```
 
 | Section | Written by | Rule |
 | --- | --- | --- |
 | Today | Core | Date, first activity, and Boop's current mood |
-| Notes | `note` action (from the brain) | At most 10 lines of at most 80 characters; the oldest drops first. No code, paths or secrets |
+| Notes | `remember(today)`, from the brain | At most 10 lines of at most 80 characters; the oldest drops first. No code, paths or secrets |
 | Happened | Core | One line per notable event, summaries only; the last 40 lines |
 
 Mood is internal. It shapes behaviour and is only visible in debug mode.
@@ -368,7 +376,7 @@ moments, runs its own short timers (blinks, idle life, the nudge ladder) and
 reports taps and push-to-talk. It holds no
 personality or memory, just a device ID, its touch calibration, and its
 animation and syllable library.
-What it does for each trigger is in [BEHAVIORS.md](BEHAVIORS.md); the
+What it does in each situation is in [BEHAVIORS.md](BEHAVIORS.md); the
 hardware and firmware are in [DEVICE.md](DEVICE.md).
 
 ## 8. When things go wrong
@@ -377,7 +385,7 @@ hardware and firmware are in [DEVICE.md](DEVICE.md).
 | --- | --- |
 | App not running | Hooks exit at once; agents are unaffected. The device idles with a sleepy "no app" face |
 | Device disconnected | The app keeps going; the next snapshot catches the device up on reconnect |
-| Brain offline, slow or invalid | Rules still drive every reaction; the rules-only fallbacks in `steering.md` fill in; memory doesn't grow that day |
+| Brain offline, slow or invalid | Rules still drive every reaction. The default classifier is plain rules, which always answers; one that fails, runs late or answers off the menu drops that pass. A writer that fails leaves the words empty: a mumble goes without its word, and nothing is remembered ([HARNESS.md](HARNESS.md) §3) |
 | Memory file won't parse | `long-term.md` comes back from its newest snapshot that reads; `short-term.md` starts fresh (§4) |
 | Mac asleep | The device drifts to sleep after 30 s without a `state` |
 
@@ -388,8 +396,7 @@ hardware and firmware are in [DEVICE.md](DEVICE.md).
 | Agent event → pixel | < 200 ms p95 |
 | Tap → visible feedback | < 20 ms, on the device |
 | Hook overhead | Single-digit ms. When the app is slow, the hook waits at most 50 ms in total, then gives up |
-| Brain call, live triggers | 3–5 s deadline; late results are dropped |
-| Reflection | Minutes, in the background |
+| Brain, per input | Both stages within the input's deadline ([HARNESS.md](HARNESS.md) §2): seconds for agents and what you say, minutes for a new day. A late answer is dropped |
 
 ## 10. Stack
 
@@ -404,7 +411,8 @@ hardware and firmware are in [DEVICE.md](DEVICE.md).
   ([VERIFICATION.md](VERIFICATION.md) §2).
 
 The stable contracts are the event shape (§5), the memory files (§4), the
-brain interface ([HARNESS.md](HARNESS.md)) and the protocol
+brain's two interfaces, classifier and writer ([HARNESS.md](HARNESS.md)
+§6), and the protocol
 ([PROTOCOL.md](PROTOCOL.md)).
 
 ## 11. Decision log
@@ -484,6 +492,13 @@ When a spec changes direction, add a row here saying why.
 | 2026-09-26 | A third brain, `jev`: TypeSafe's Jev with the person's own API key (the existing Keychain field; `BOOP_API_KEY` for `boopdev` and headless runs). The situation goes to TypeSafe as JSON: `steering.md`, both memory files, recent turns and now, with the person's words | The owner wanted to try a "system one" model in place of the on-device one. In L5 it answered every trigger in about 0.2 s against Apple's 2 s, with no refusals, and followed talk requests (quiet for 15 or 60 minutes) that Apple's model missed. It leaves the Mac, so the settings say so | [HARNESS.md](HARNESS.md) §4, §7, [UX.md](UX.md) §7, [VISION.md](VISION.md) §7 |
 | 2026-09-26 | Jev asks whether to write as its own yes/no per tool that needs words, not as an `act` option; on a yes, Apple's model writes only that call (a `Writer`: one tool, must call it) | As an `act`, `note` never beat staying quiet (0.21–0.29 against up to 0.70). Given the whole decision again, Apple's model chose to stay quiet on both notes Jev had said yes to (0.92–0.93). Deciding and writing are separate jobs | [HARNESS.md](HARNESS.md) §7 |
 | 2026-09-26 | Focus mode, touch-and-hold on the face (`feel`) and the first activity of the day's `stretch`, `yawn` and +5 XP are removed from the product: the core, the `state` message, the device's gestures and animations, and Settings. A long touch now counts as a tap when you let go. The day boundary stays, since it starts reflection. This replaces the focus and `feel` parts of the 2026-09-25 "Focus mode is visual only" row and of the 2026-09-26 rows on the device's mood face, `say` in focus, and focus moving to Settings | The owner simplified Boop before splitting its brain in two: fewer inputs and modes to keep in mind | [BEHAVIORS.md](BEHAVIORS.md) §3–4, §6–7, [UX.md](UX.md) §2, §4, §7, [PROTOCOL.md](PROTOCOL.md) §3–4 |
+| 2026-09-26 | The brain works in two stages. A classifier decides from a short menu: the if-else rules by default, or Jev. A writer, a language model, writes only the words a decision needs: Apple's model by default. Both read one append-only transcript. This replaces the earlier rows on one answer format for every brain, the rules brain reading its table from the prompt, the typed `decide(situation, menu)` contract, Jev writing through a yes/no, and the cloud brain as an interface | The owner asked for it. Asked to decide and write at once, Apple's model answered most inputs with silence (it spoke on 0 of 48 in L5), and Jev never chose a note over staying quiet. Each is good at one of the two jobs | [HARNESS.md](HARNESS.md) §1, §3, §6 |
+| 2026-09-26 | Four inputs reach the brain: agent started, agent finished (done or failed), what you said, and a new day. Taps and "needs you" are rules only, noted in the transcript as asides | The owner found the triggers too many to keep in mind, and a tap and "needs you" already have their whole reaction in the rules | [HARNESS.md](HARNESS.md) §2, [BEHAVIORS.md](BEHAVIORS.md) §3 |
+| 2026-09-26 | Three outputs. `react(feeling, voice, word)` replaces `say` and `face`; `remember(where, text)` replaces `note`, `remember`, `temperament` and `moment`; `quiet` stays. Each argument is decided by Stage 1 or written by Stage 2. `forget` is no longer the brain's | Fewer, flatter choices for a small model. A face and a mumble were always one reaction, and the memory tools differed only in where a line goes and its rules | [HARNESS.md](HARNESS.md) §5 |
+| 2026-09-26 | No timing limits on the brain: the classifier decides every time whether Boop reacts and whether it mumbles. This replaces the rows on limiting brain speech | The owner didn't want rules to remember. The limits existed because Apple's model mumbled at nearly every event; the classifiers choose silence themselves | [HARNESS.md](HARNESS.md) §2 |
+| 2026-09-26 | The transcript's window holds at most 8 inputs and starts again from the last 2; a new day starts its own. Nothing is compacted, and a memory change doesn't restart it. This replaces the rows on the conversation | The owner wanted no compaction logic. 8 inputs fit Apple's 8K context beside the memory, and keeping the last 2 keeps what was just said | [HARNESS.md](HARNESS.md) §4 |
+| 2026-09-26 | The if-else classifier remembers nothing on a new day | Given a slot, Apple's model always writes something: with "remember about you when yesterday had notes" it kept lines like "frazzled." | [HARNESS.md](HARNESS.md) §6 |
+| 2026-09-26 | Settings pick the classifier and the writer apart. An older `brain` setting becomes the two (`apple` → rules and Apple's model, `rules` → rules and none, `jev` → Jev and Apple's model). Jev's key has its own Keychain entry and `BOOP_JEV_KEY` | The owner wants to choose each stage, and the default needs no key | [UX.md](UX.md) §7, [HARNESS.md](HARNESS.md) §6 |
 | 2026-09-26 | The Mac answers every `status` with a `state`, not only the first after connecting | It's one extra `state` a minute, and it covers a connect-time `status` sent before the Mac subscribed over Bluetooth | [PROTOCOL.md](PROTOCOL.md) §4–5 |
 | 2026-09-26 | The installer installs and repairs nothing while its copy of `boop-hook` is missing, and settings and setup say so; `make run` builds everything first | `make run` built only the app, so there was no `boop-hook` to copy, and launch repair swapped the owner's gen-2 entries for ones calling a missing file: every Claude and Codex event was dropped, while settings said "Connected" | [ADAPTERS.md](ADAPTERS.md) §5, [UX.md](UX.md) §6–7 |
 | 2026-09-26 | Event, tap and talk calls share a short conversation with the brain, sent in the same order every call and never compacted: it starts over when its opening changes, when it's full, or after a failed answer. Talk words stay in it until then | The owner asked for a running transcript modelled on pi, kept simple (start over rather than compact) and in an order a cloud provider's prompt cache can reuse. With history, Apple's model answers quiet much more often; tuning is PLAN.md A6 | [HARNESS.md](HARNESS.md) §4 |

@@ -1,0 +1,24 @@
+{"input": "agent started", "agent": "claude", "project": "jetpack", "time": "09:12", "weekday": "Tuesday"}
+{"input": "agent started", "agent": "codex", "project": "landing", "time": "09:40", "weekday": "Tuesday"}
+{"input": "agent started", "agent": "claude", "project": "boop", "time": "10:03", "weekday": "Tuesday", "hunger": "hungry"}
+{"input": "agent started", "agent": "codex", "project": "jetpack", "time": "16:20", "weekday": "Friday"}
+{"input": "agent started", "agent": "claude", "project": "landing", "time": "23:48", "weekday": "Wednesday"}
+{"input": "agent finished", "outcome": "done", "agent": "claude", "project": "jetpack", "took_s": 12, "time": "09:13", "weekday": "Tuesday"}
+{"input": "agent finished", "outcome": "done", "agent": "codex", "project": "landing", "topic": "tests", "took_s": 45, "time": "09:41", "weekday": "Tuesday"}
+{"input": "agent finished", "outcome": "done", "agent": "claude", "project": "jetpack", "topic": "tests", "took_s": 1080, "time": "14:05", "weekday": "Tuesday"}
+{"input": "agent finished", "outcome": "done", "agent": "codex", "project": "landing", "topic": "build", "took_s": 180, "time": "11:30", "weekday": "Tuesday"}
+{"input": "agent finished", "outcome": "done", "agent": "claude", "project": "boop", "topic": "docs", "took_s": 420, "time": "15:02", "weekday": "Tuesday"}
+{"input": "agent finished", "outcome": "done", "agent": "codex", "project": "jetpack", "topic": "deploy", "took_s": 1560, "time": "17:55", "weekday": "Friday"}
+{"input": "agent finished", "outcome": "done", "agent": "claude", "project": "jetpack", "took_s": 2880, "time": "01:10", "weekday": "Thursday"}
+{"input": "agent finished", "outcome": "done", "agent": "claude", "project": "landing", "took_s": 120, "time": "13:00", "weekday": "Monday", "hunger": "hungry"}
+{"input": "agent finished", "outcome": "done", "agent": "codex", "project": "boop", "topic": "tests", "took_s": 540, "time": "10:15", "weekday": "Wednesday", "hunger": "starving"}
+{"input": "agent finished", "outcome": "done", "agent": "claude", "project": "jetpack", "topic": "tests", "took_s": 360, "time": "14:40", "weekday": "Tuesday", "more": 2}
+{"input": "agent finished", "outcome": "done", "agent": "claude", "project": "landing", "took_s": 35, "time": "08:05", "weekday": "Monday"}
+{"input": "agent finished", "outcome": "failed", "agent": "claude", "project": "jetpack", "topic": "tests", "time": "14:02", "weekday": "Tuesday"}
+{"input": "agent finished", "outcome": "failed", "agent": "codex", "project": "landing", "topic": "build", "time": "11:20", "weekday": "Tuesday"}
+{"input": "agent finished", "outcome": "failed", "agent": "claude", "project": "boop", "error": "rate_limit", "time": "16:45", "weekday": "Tuesday"}
+{"input": "agent finished", "outcome": "failed", "agent": "codex", "project": "jetpack", "error": "overloaded", "time": "10:05", "weekday": "Wednesday"}
+{"input": "agent finished", "outcome": "failed", "agent": "claude", "project": "landing", "topic": "deploy", "error": "timeout", "time": "18:30", "weekday": "Friday"}
+{"input": "agent finished", "outcome": "failed", "agent": "codex", "project": "landing", "topic": "tests", "time": "14:03", "weekday": "Tuesday", "more": 1}
+{"input": "agent finished", "outcome": "failed", "agent": "claude", "project": "jetpack", "error": "context_limit", "time": "22:10", "weekday": "Thursday", "hunger": "hungry"}
+{"input": "agent finished", "outcome": "failed", "agent": "codex", "project": "boop", "error": "other", "time": "09:00", "weekday": "Monday"}

@@ -98,7 +98,8 @@ public struct Replay {
         case .state(let s): "state " + s.jsonLine
         case .moment(let anim, let size): "moment \(anim) \(size)"
         case .mumble(let feeling, let word): "mumble \(feeling)" + (word.map { " \($0)" } ?? "")
-        case .trigger(let t): "trigger \(t.kind.rawValue): \(t.line)"
+        case .input(let i): "input " + i.line + (i.words.map { " \"\($0)\"" } ?? "")
+        case .aside(let line): "aside " + line
         case .happened(let line): "happened \(line)"
         case .growth(let g): "growth xp \(g.xp) level \(g.level) fed \(g.lastFed)"
         case .newDay(let date, let firstSeen, let mood): "new-day \(date) first seen \(firstSeen) mood \(mood)"

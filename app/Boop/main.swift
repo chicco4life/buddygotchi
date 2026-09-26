@@ -9,7 +9,7 @@ import Foundation
 let usage = """
     usage: Boop [--state-dir DIR] [--link ble|usb:SOCKET|none]
                The menu-bar app. The owner runs this; it uses Bluetooth by default.
-           Boop --headless --state-dir DIR [--link usb:SOCKET|none] [--socket PATH] [--brain apple|rules|jev]
+           Boop --headless --state-dir DIR [--link usb:SOCKET|none] [--socket PATH] [--classifier rules|jev] [--writer apple|none|deepseek]
                 [--name NAME] [--nature sweet|cheeky] [--debug-log FILE] [--trace]
                No UI and no Bluetooth. The hook socket defaults to DIR/boop.sock. A new state directory
                is set up with --name (default Boop). Stops cleanly on SIGINT or SIGTERM. --trace logs

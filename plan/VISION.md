@@ -169,13 +169,14 @@ These are fixed. If a feature conflicts with one of them, the feature changes.
    you hold the button, and nothing logs your keystrokes. Boop's memory lives
    on your Mac. The default brain runs on the Mac too. If you choose a cloud brain with
    your own API key, it receives Boop's memory, short summaries of what
-   happened and what you say to Boop, and never your code or transcripts.
+   happened and what you say to Boop, and never your code or your agents'
+   transcripts.
 8. **Never nags, never guilts.** Hunger is visible only when you look. It
    never makes a sound, never sends a notification and never interrupts.
 9. **No leaderboards.** Stats stay private unless you choose to share them.
 10. **It's your pet, not a brand mascot.** Boop is never branded as Claude or
     Codex. You name it.
-11. **Changes are announced.** The brain's model, `steering.md` and the voice
+11. **Changes are announced.** The brain's models, `steering.md` and the voice
     are pinned. When Boop's behaviour changes, it ships as a versioned,
     announced update, so the creature you know doesn't shift under you.
 
@@ -187,10 +188,10 @@ These are fixed. If a feature conflicts with one of them, the feature changes.
   creature is the interface.
 - It is not an agent. It doesn't run tasks, spend money, approve requests or
   act for you in any way. Information only flows from your agents to Boop.
-- It is not tied to one AI. The brain is swappable: Apple's on-device model
-  by default, a cloud model with your own API key (Jev today), or none at
-  all. Boop stays the
-  same creature either way.
+- It is not tied to one AI. The brain is swappable: plain rules or a cloud
+  model with your own API key (Jev today) decide what Boop does, and
+  Apple's on-device model, or nothing at all, writes its few words. Boop
+  stays the same creature either way.
 - It has no always-on wake word and no camera, and that will not change.
 
 ## Scope

@@ -100,8 +100,8 @@ public enum ActionOutcome: Equatable, Sendable {
     }
 }
 
-/// One of Boop's tools (ARCHITECTURE.md §3.4). It owns its definition and its
-/// rules, and carries out a call the same way whether a rule or the brain
+/// One of Boop's outputs (ARCHITECTURE.md §3.4). It owns its definition and
+/// its rules, and carries out a call the same way whether a rule or the brain
 /// made it.
 public protocol Action: AnyObject {
     var definition: ToolDefinition { get }
@@ -134,14 +134,9 @@ extension Action {
 public enum Actions {
     public static func all(context: ActionContext, voice: Voice, memory: MemoryStore) -> [Action] {
         [
-            SayAction(voice: voice, context: context),
-            FaceAction(context: context),
+            ReactAction(voice: voice, context: context),
             QuietAction(context: context),
-            NoteAction(memory: memory, context: context),
             RememberAction(memory: memory, context: context),
-            ForgetAction(memory: memory, context: context),
-            TemperamentAction(memory: memory, context: context),
-            MomentAction(memory: memory, context: context),
         ]
     }
 }

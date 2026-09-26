@@ -131,7 +131,7 @@ public final class MemoryStore {
 
     // MARK: Changes from actions
 
-    /// `note`: a line in today's Notes; the oldest drops past ten.
+    /// `remember` today: a line in today's Notes; the oldest drops past ten.
     public func note(_ text: String) -> Result<String, Refusal> {
         refresh()
         guard var st = shortTerm else { return .failure(Refusal("no short-term memory yet")) }
@@ -390,10 +390,10 @@ public final class MemoryStore {
 }
 
 extension MemoryStore {
-    /// The memory text for a trigger's prompt (HARNESS.md §4). Reflection
-    /// reads yesterday's short-term memory from its snapshot.
-    public func promptMemory(for kind: Trigger.Kind) -> Prompt.Memory {
+    /// The memory text for a pass (HARNESS.md §4). A new day reads
+    /// yesterday's short-term memory from its snapshot.
+    public func promptMemory(for kind: Input.Kind) -> Prompt.Memory {
         Prompt.Memory(steering: steering, longTerm: longTermText,
-                      shortTerm: kind == .reflect ? (reflectionText ?? "") : shortTermText)
+                      shortTerm: kind == .newDay ? (reflectionText ?? "") : shortTermText)
     }
 }

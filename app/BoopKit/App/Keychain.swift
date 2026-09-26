@@ -1,16 +1,19 @@
 import Foundation
 import Security
 
-/// The API key for a brain that needs one (Jev), kept in the login Keychain
-/// and nowhere else.
+/// API keys for the brains that need one (HARNESS.md §6), kept in the login
+/// Keychain and nowhere else. One entry per service.
 public enum Keychain {
-    static let service = "com.boopcomputer.boop"
-    static let account = "api-key"
+    public enum Account: String, Sendable {
+        case jev
+    }
 
-    public static func apiKey() -> String? {
+    static let service = "com.boopcomputer.boop"
+
+    public static func key(_ account: Account) -> String? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
-            kSecAttrAccount as String: account, kSecReturnData as String: true,
+            kSecAttrAccount as String: account.rawValue, kSecReturnData as String: true,
         ]
         var item: CFTypeRef?
         guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess, let data = item as? Data else { return nil }
@@ -18,10 +21,10 @@ public enum Keychain {
     }
 
     @discardableResult
-    public static func setAPIKey(_ key: String?) -> Bool {
+    public static func setKey(_ key: String?, for account: Account) -> Bool {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
+            kSecAttrAccount as String: account.rawValue,
         ]
         SecItemDelete(query as CFDictionary)
         guard let key, !key.isEmpty else { return true }

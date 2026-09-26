@@ -34,7 +34,7 @@ final class CoreRig {
     }
 
     @discardableResult
-    func input(_ input: Core.Input) -> [CoreEffect] {
+    func input(_ input: Core.DeviceInput) -> [CoreEffect] {
         let fx = core.input(input, at: now)
         log += fx
         return fx
@@ -68,8 +68,12 @@ func moments(_ fx: [CoreEffect]) -> [String] {
     fx.compactMap { if case .moment(let anim, let size) = $0 { return "\(anim) \(size)" } else { return nil } }
 }
 
-func triggers(_ fx: [CoreEffect]) -> [Trigger] {
-    fx.compactMap { if case .trigger(let t) = $0 { return t } else { return nil } }
+func inputs(_ fx: [CoreEffect]) -> [Input] {
+    fx.compactMap { if case .input(let i) = $0 { return i } else { return nil } }
+}
+
+func asides(_ fx: [CoreEffect]) -> [String] {
+    fx.compactMap { if case .aside(let line) = $0 { return line } else { return nil } }
 }
 
 func mumbles(_ fx: [CoreEffect]) -> [String] {
@@ -94,8 +98,9 @@ final class CoreAgentWorkTests: XCTestCase {
         let fx = rig.send(.turnStart)
         XCTAssertEqual(states(fx).last?.base, "working")
         XCTAssertEqual(states(fx).last?.busy, 1)
-        XCTAssertEqual(triggers(fx).map(\.kind), [.event])
-        XCTAssertEqual(triggers(fx).first?.line, "turn started · claude · landing · 14:00 Wednesday")
+        XCTAssertEqual(inputs(fx).map(\.kind), [.agentStarted])
+        XCTAssertEqual(inputs(fx).first?.line, "agent started · claude · landing · 14:00 Wednesday")
+        XCTAssertNil(inputs(fx).first?.rules)
     }
 
     func testTurnUnder30sCheersSize1() {  // BEHAVIORS.md §3.1
@@ -119,7 +124,9 @@ final class CoreAgentWorkTests: XCTestCase {
         let fx = rig.turn(1_200_000)
         XCTAssertEqual(moments(fx), ["cheer 3"])
         XCTAssertTrue(fx.contains(.happened("14:20 claude · landing · finished (20 min)")))
-        XCTAssertEqual(triggers(fx).first?.line, "turn finished · claude · landing · took 20 min · 14:20 Wednesday")
+        XCTAssertEqual(inputs(fx).first?.line, "agent finished · done · claude · landing · took 20 min · 14:20 Wednesday")
+        XCTAssertEqual(inputs(fx).first?.rules, "cheer size 3")
+        XCTAssertEqual(inputs(fx).first?.tookMs, 1_200_000)
     }
 
     func testAFinishCheersWhileOthersKeepWorking() {  // BEHAVIORS.md §3.1
@@ -161,13 +168,14 @@ final class CoreAgentWorkTests: XCTestCase {
         let fx = rig.send(.turnFailed)
         XCTAssertEqual(moments(fx), ["oops 1"])
         XCTAssertTrue(fx.contains(.happened("14:01 claude · landing · tests · failed")))
-        XCTAssertEqual(triggers(fx).first?.line, "turn failed · claude · landing · topic: tests · 14:01 Wednesday")
+        XCTAssertEqual(inputs(fx).first?.line, "agent finished · failed · claude · landing · topic: tests · 14:01 Wednesday")
+        XCTAssertEqual(inputs(fx).first?.rules, "oops, then side_eye")
         XCTAssertEqual(moments(rig.wait(1000)), [])
         XCTAssertEqual(moments(rig.wait(1000)), ["side_eye 1"])
         XCTAssertEqual(growths(fx), [], "failures earn nothing")
     }
 
-    func testTopicAndErrorReachTheTriggerLine() {
+    func testTopicAndErrorReachTheInput() {
         let rig = CoreRig()
         rig.send(.turnStart)
         rig.send(.activity, tool: "Bash", topic: "tests")
@@ -175,7 +183,11 @@ final class CoreAgentWorkTests: XCTestCase {
         rig.wait(3000)
         let fx = rig.core.handle(BoopEvent(agent: .claudeCode, session: "s1", project: "landing", event: .turnFailed,
                                            detail: .init(error: "rate_limit"), ts: rig.now))
-        XCTAssertEqual(triggers(fx).first?.line, "turn failed · claude · landing · topic: tests · error: rate limit · 14:00 Wednesday")
+        let failed = inputs(fx).first
+        XCTAssertEqual(failed?.line, "agent finished · failed · claude · landing · topic: tests · error: rate limit · 14:00 Wednesday")
+        XCTAssertEqual(failed?.outcome, .failed)
+        XCTAssertEqual(failed?.topic, "tests")
+        XCTAssertEqual(failed?.error, "rate_limit")
     }
 }
 
@@ -190,7 +202,8 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertEqual(attn, StateSnapshot.Attention(agent: "claude", project: "jetpack", more: 0))
         XCTAssertEqual(states(fx).last?.wait, 1)
         XCTAssertEqual(states(fx).last?.threads, [["claude", "jetpack", "wait"]])
-        XCTAssertEqual(triggers(fx), [], "needs you is never a trigger")
+        XCTAssertEqual(inputs(fx), [], "needs you is never an input")
+        XCTAssertEqual(asides(fx), ["claude needs you · jetpack · 14:00 Wednesday"], "the transcript hears of it")
     }
 
     func testCodexWaitsTwoSeconds() {
@@ -280,37 +293,46 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertNil(rig.state.attn)
     }
 
-    func testWhileSomethingNeedsYouOnlyTalkAndReflectionReachTheHarness() {
+    func testWhileSomethingNeedsYouOnlyWhatYouSayReachesTheBrain() {
         let rig = CoreRig()
         rig.send(.turnStart, session: "a")
         rig.send(.turnStart, session: "b")
         rig.wait(5000)
         rig.send(.needsYou, session: "a", tool: "Bash")
         rig.wait(60_000)
-        XCTAssertEqual(triggers(rig.input(.tap)), [])
-        XCTAssertEqual(triggers(rig.send(.turnEnd, session: "b")), [])
-        XCTAssertEqual(triggers(rig.core.talk("hello", at: rig.now)).map(\.kind), [.talk])
+        XCTAssertEqual(inputs(rig.send(.turnEnd, session: "b")), [])
+        XCTAssertEqual(inputs(rig.core.talk("hello", at: rig.now)).map(\.kind), [.said])
     }
 }
 
 // MARK: - BEHAVIORS.md §3.3 You and Boop
 
 final class CoreYouAndBoopTests: XCTestCase {
-    func testTapSendsATapTrigger() {
+    /// HARNESS.md §2: a tap is the rules' alone; the brain's transcript
+    /// only hears of it.
+    func testATapIsTheRulesAlone() {
         let rig = CoreRig()
         let fx = rig.input(.tap)
-        XCTAssertEqual(triggers(fx).map(\.line), ["tapped · 14:00 Wednesday"])
+        XCTAssertEqual(inputs(fx), [])
+        XCTAssertEqual(asides(fx), ["tapped · 14:00 Wednesday: Boop wiggled"])
         XCTAssertEqual(moments(fx), [], "the device already wiggled")
+        rig.send(.turnStart)
+        rig.send(.needsYou, tool: "Bash")
+        XCTAssertEqual(asides(rig.input(.tap)), ["tapped · 14:00 Wednesday: Boop nodded and stopped nudging"])
     }
 
     func testPushToTalkListensAndSendsTheWords() {
         let rig = CoreRig()
         XCTAssertEqual(rig.input(.talkOn), [.listen(true)])
         XCTAssertEqual(rig.input(.talkOff), [.listen(false)])
-        let t = triggers(rig.core.talk("shut up for ten minutes", at: rig.now))
-        XCTAssertEqual(t.first?.kind, .talk)
+        let t = inputs(rig.core.talk("shut up for ten minutes", at: rig.now))
+        XCTAssertEqual(t.first?.kind, .said)
         XCTAssertEqual(t.first?.words, "shut up for ten minutes")
-        XCTAssertFalse(t.first!.line.contains("shut"), "the words travel apart from the line")
+        XCTAssertEqual(t.first?.line, "you said · 14:00 Wednesday", "the words travel apart from the line")
+        XCTAssertEqual(t.first?.rules, "listening, then thinking")
+        // HARNESS.md §4: about 30 s of speech at most.
+        let long = inputs(rig.core.talk(String(repeating: "blah ", count: 200), at: rig.now))
+        XCTAssertEqual(long.first?.words?.count, 500)
     }
 
     /// UX.md §5: the mic is on only while you hold the button, and never
@@ -381,8 +403,9 @@ final class CoreYouAndBoopTests: XCTestCase {
         rig.send(.sessionStart)
         rig.wait(24 * 3600 * 1000)
         let fx = rig.send(.turnStart)
-        XCTAssertEqual(triggers(fx).map(\.kind), [.reflect, .event])
-        XCTAssertEqual(triggers(fx).first?.line, "reflect · yesterday 2026-10-14")
+        XCTAssertEqual(inputs(fx).map(\.kind), [.newDay, .agentStarted])
+        XCTAssertEqual(inputs(fx).first?.yesterday, "2026-10-14")
+        XCTAssertEqual(inputs(fx).first?.line, "new day · yesterday 2026-10-14")
     }
 }
 
@@ -476,7 +499,7 @@ final class CoreGrowthTests: XCTestCase {
         let fx = rig.wait(3600 * 1000)
         XCTAssertEqual(moments(fx), [])
         XCTAssertEqual(mumbles(fx), [])
-        XCTAssertEqual(triggers(fx), [])
+        XCTAssertEqual(inputs(fx), [])
     }
 
     /// BEHAVIORS.md §4: "I'm away" in the app pauses hunger, across a
@@ -528,7 +551,7 @@ final class CoreGrowthTests: XCTestCase {
     }
 }
 
-// MARK: - Mood, chatter, quiet, screen and triggers
+// MARK: - Mood, chatter, quiet, screen and inputs
 
 final class CoreRulesTests: XCTestCase {
     func testFailuresCalmBoopAndItDriftsBackInHalfAnHour() {
@@ -608,33 +631,36 @@ final class CoreRulesTests: XCTestCase {
         XCTAssertEqual(rig.state.quiet, 9)
         rig.wait(510_000)
         XCTAssertEqual(rig.state.quiet, 0)
-        XCTAssertEqual(triggers(rig.input(.tap)).count, 1)
+        XCTAssertEqual(inputs(rig.send(.turnStart)).count, 1)
     }
 
-    func testQuietGatesTriggers() {
+    func testQuietGatesAgentInputs() {
         let rig = CoreRig()
         rig.core.setQuiet(minutes: 5, at: rig.now)
-        XCTAssertEqual(triggers(rig.input(.tap)), [])
-        XCTAssertEqual(triggers(rig.turn(40_000)), [])
-        XCTAssertEqual(triggers(rig.core.talk("hi", at: rig.now)).count, 1)
+        XCTAssertEqual(inputs(rig.turn(40_000)), [])
+        XCTAssertEqual(inputs(rig.core.talk("hi", at: rig.now)).count, 1)
     }
 
-    func testTriggersInABurstMergeIntoOne() {
+    /// HARNESS.md §2: agent inputs within 3 s become one, the most important
+    /// winning: failed, then a finish of 5 min or more, then a shorter
+    /// finish, then a start.
+    func testAgentInputsInABurstMergeIntoOne() {
         let rig = CoreRig()
         rig.send(.turnStart, session: "a")
         rig.send(.turnStart, session: "b")
         rig.wait(600_000)
-        let first = triggers(rig.send(.turnEnd, session: "a"))
+        let first = inputs(rig.send(.turnEnd, session: "a"))
         XCTAssertEqual(first.count, 1)
         rig.wait(500)
-        XCTAssertEqual(triggers(rig.input(.tap)), [])
-        XCTAssertEqual(triggers(rig.send(.turnFailed, session: "b")), [])
-        let merged = triggers(rig.wait(3000))
+        XCTAssertEqual(inputs(rig.send(.turnStart, session: "c")), [])
+        XCTAssertEqual(inputs(rig.send(.turnFailed, session: "b")), [])
+        let merged = inputs(rig.wait(3000))
         XCTAssertEqual(merged.count, 1)
-        XCTAssertTrue(merged[0].line.hasPrefix("turn failed · claude · landing"), merged[0].line)
+        XCTAssertEqual(merged[0].outcome, .failed, "failed beats a start")
+        XCTAssertEqual(merged[0].more, 1)
         XCTAssertTrue(merged[0].line.hasSuffix(" · +1 more"), merged[0].line)
         rig.wait(5000)
-        XCTAssertEqual(triggers(rig.input(.tap)).count, 1, "a new window")
+        XCTAssertEqual(inputs(rig.send(.turnStart, session: "d")).count, 1, "a new window")
     }
 
     func testSnapshotShapeAndThreads() {

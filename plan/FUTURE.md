@@ -46,15 +46,16 @@ ARCHITECTURE…) first, then add it to [PLAN.md](PLAN.md).
   ([anthropics/claude-code#40495](https://github.com/anthropics/claude-code/issues/40495)).
 - **Cursor and other agents.** Each needs an adapter and a reliable "you're
   being asked" signal ([ADAPTERS.md](ADAPTERS.md) §8).
-- **Cloud language model switched on.** The interface exists in v1, and
-  Jev, a question-answering cloud brain, already works with the person's
-  key. This is about wiring a language model to it (DeepSeek first) and
-  testing it. It sends the conversation unchanged and in order so the
-  provider's prompt cache applies ([HARNESS.md](HARNESS.md) §7). It could
-  also be Jev's writer in place of Apple's model.
+- **A DeepSeek writer.** A cloud language model writing Boop's words in
+  place of Apple's model, with the person's own API key. The writer exists
+  in v1 as a stub that refuses every write ([HARNESS.md](HARNESS.md) §6);
+  this is about wiring DeepSeek to it and testing it. It would send the
+  transcript's window as chat messages that only ever grow, so DeepSeek's
+  prompt cache applies. Deciding with a cloud model already works: Jev is
+  a classifier with the person's key.
 - **Mood from prompt tone.** Reading how you write to your agents. v1
   leaves prompt text out entirely.
-- **Richer brain triggers,** such as coming back after a long break, or a
+- **More brain inputs,** such as coming back after a long break, or a
   periodic check-in while agents work.
 - **Codex failures.** Codex has no failure hook; reading its session file
   when a turn stops would tell failures from finishes.

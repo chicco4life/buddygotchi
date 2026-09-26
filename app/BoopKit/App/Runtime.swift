@@ -14,8 +14,10 @@ public final class Runtime: @unchecked Sendable {
         public var socketPath: String
         public var link: DeviceTransport?
         public var steering: String
-        /// Overrides the brain in `settings.json` for this run only.
-        public var brain: String?
+        /// Override the brain's two stages in `settings.json` for this run
+        /// only (HARNESS.md §6).
+        public var classifier: String?
+        public var writer: String?
         public var time = LocalTime()
         public var clock: @Sendable () -> Int64 = { Int64(Date().timeIntervalSince1970 * 1000) }
         /// Accept `{"dev":"talk","words":…}` and `{"dev":"advance","ms":…}`
@@ -42,19 +44,22 @@ public final class Runtime: @unchecked Sendable {
         public var snapshot: StateSnapshot
         public var connected: Bool
         public var device: DeviceStatus?
-        public var brain: String
+        /// The brain's two stages as they run, e.g. `rules@2` and `apple:26.4`.
+        public var classifier: String
+        public var writer: String
         public var away: Bool
         public var finished: Int
         public var projects: Int
         /// The Mac's mic is on for push-to-talk.
         public var listening: Bool
 
-        public init(snapshot: StateSnapshot, connected: Bool, device: DeviceStatus?, brain: String, away: Bool,
-                    finished: Int, projects: Int, listening: Bool = false) {
+        public init(snapshot: StateSnapshot, connected: Bool, device: DeviceStatus?, classifier: String, writer: String,
+                    away: Bool, finished: Int, projects: Int, listening: Bool = false) {
             self.snapshot = snapshot
             self.connected = connected
             self.device = device
-            self.brain = brain
+            self.classifier = classifier
+            self.writer = writer
             self.away = away
             self.finished = finished
             self.projects = projects
@@ -82,8 +87,7 @@ public final class Runtime: @unchecked Sendable {
     public private(set) var settings: AppSettings
     let core: Core
     let harness: Harness
-    let say: SayAction
-    let face: FaceAction
+    let react: ReactAction
     let lock: InstanceLock
     var server: HookServer?
     var timer: DispatchSourceTimer?
@@ -160,12 +164,12 @@ public final class Runtime: @unchecked Sendable {
             today: { time.day(clock()) },
             log: log)
         let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: longTerm.seed)), memory: memory)
-        say = actions.compactMap { $0 as? SayAction }.first!
-        face = actions.compactMap { $0 as? FaceAction }.first!
+        react = actions.compactMap { $0 as? ReactAction }.first!
         let memory = self.memory
-        harness = Harness(brain: Brains.make(options.brain ?? settings.brain, key: Brains.key, log: log), tools: actions.map(Harness.Tool.init),
-                          memory: { memory.promptMemory(for: $0.kind) }, home: home, debugLog: options.debugLog,
-                          log: log)
+        harness = Harness(classifier: Brains.classifier(options.classifier ?? settings.classifier, key: Brains.jevKey, log: log),
+                          writer: Brains.writer(options.writer ?? settings.writer, log: log),
+                          tools: actions.map(Harness.Tool.init), memory: { memory.promptMemory(for: $0.kind) },
+                          home: home, debugLog: options.debugLog, log: log)
         // Tool names only: arguments can carry what you said (HARNESS.md §8).
         harness.onRecord = { record in log(record.logLine) }
         route = { [weak self] in self?.run($0) }
@@ -211,7 +215,8 @@ public final class Runtime: @unchecked Sendable {
             link.update(core.snapshot(at: options.clock()), now: options.clock())
             changed()
         }
-        options.log("boop: running on \(options.stateDir.path), socket \(options.socketPath), link \(options.link?.name ?? "none"), brain \(harness.brain.id)")
+        options.log("boop: running on \(options.stateDir.path), socket \(options.socketPath), link \(options.link?.name ?? "none"), "
+                    + "brain \(harness.classifier.id) + \(harness.writer.id)")
     }
 
     /// Stops listening for hooks and the device. Safe to call twice.
@@ -283,13 +288,15 @@ public final class Runtime: @unchecked Sendable {
                 link.update(snapshot, now: options.clock())
                 stateChanged = true
             case .moment(let anim, let size):
-                face.play(anim, size: size)
+                react.play(anim, size: size)
             case .mumble(let feeling, let word):
-                var arguments: [String: ToolValue] = ["feeling": .string(feeling)]
+                var arguments: [String: ToolValue] = ["feeling": .string(feeling), "voice": .string("mumble")]
                 if let word { arguments["word"] = .string(word) }
-                say.run(ToolCall("say", arguments))
-            case .trigger(let trigger):
-                harness.submit(trigger)
+                react.run(ToolCall("react", arguments))
+            case .input(let input):
+                harness.submit(input)
+            case .aside(let line):
+                harness.note(line, at: options.clock())
             case .happened, .growth, .newDay:
                 memory.apply(effect)
             case .listen(let on):
@@ -325,7 +332,7 @@ public final class Runtime: @unchecked Sendable {
 
     func changed() {
         onChange?(Status(snapshot: link.latest ?? core.snapshot(at: options.clock()), connected: link.connected,
-                         device: link.status, brain: harness.brain.id, away: core.away,
+                         device: link.status, classifier: harness.classifier.id, writer: harness.writer.id, away: core.away,
                          finished: settings.finished, projects: settings.projects.count, listening: core.listening != nil))
     }
 
@@ -380,8 +387,13 @@ public final class Runtime: @unchecked Sendable {
     }
 
     /// Takes effect on the next launch.
-    public func setBrain(_ brain: String) {
-        home.async { [self] in saveSettings { $0.brain = brain } }
+    public func setClassifier(_ classifier: String) {
+        home.async { [self] in saveSettings { $0.classifier = classifier } }
+    }
+
+    /// Takes effect on the next launch.
+    public func setWriter(_ writer: String) {
+        home.async { [self] in saveSettings { $0.writer = writer } }
     }
 
     /// What Boop remembers about you, for the settings screen.

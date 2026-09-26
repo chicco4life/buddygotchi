@@ -48,10 +48,10 @@ def percentile(values: list[float], p: float) -> float:
 
 
 class Run:
-    def __init__(self, root: Path, out: Path, brain: str, port: str | None) -> None:
+    def __init__(self, root: Path, out: Path, writer: str, port: str | None) -> None:
         self.root = root
         self.out = out
-        self.brain = brain
+        self.writer = writer
         self.port = port
         self.state = root / "state"
         self.bridge_sock = str(root / "usb.sock")
@@ -85,7 +85,7 @@ class Run:
         self.procs.append(subprocess.Popen(bridge, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
         self._wait_for(lambda: os.path.exists(self.bridge_sock), 10, "the bridge's socket")
         app = [str(BIN / "Boop"), "--headless", "--state-dir", str(self.state), "--link", f"usb:{self.bridge_sock}",
-               "--socket", self.hook_sock, "--brain", self.brain, "--name", "Pip", "--trace",
+               "--socket", self.hook_sock, "--classifier", "rules", "--writer", self.writer, "--name", "Pip", "--trace",
                "--debug-log", str(self.root / "brain.jsonl")]
         self.procs.append(subprocess.Popen(app, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
         self._wait_for(lambda: "device link: connected" in self.app_log(), 10, "the app to reach the bridge")
@@ -94,7 +94,7 @@ class Run:
         # Warm it once, against a socket nobody listens on.
         subprocess.run([str(BIN / "boop-hook"), "claude"], input=b"{}",
                        env=dict(os.environ, BOOP_SOCKET=str(self.root / "none.sock")))
-        self.say(f"bridge and headless app up (brain {self.brain}, state {self.state})")
+        self.say(f"bridge and headless app up (rules classifier, writer {self.writer}, state {self.state})")
 
     def stop(self) -> None:
         for proc in reversed(self.procs):
@@ -224,8 +224,8 @@ def check_after(run: Run, expected: dict[str, Any]) -> None:
     ok = settings.get("finished") == expected["finished"] and sorted(settings.get("projects", [])) == expected["projects"]
     (run.say if ok else run.fail)(f"settings: finished {settings.get('finished')}, projects {settings.get('projects')}")
     brain_log = (run.root / "brain.jsonl").read_text() if (run.root / "brain.jsonl").exists() else ""
-    for want in expected["triggers"]:
-        (run.say if want in brain_log else run.fail)(f"brain saw a trigger with {want!r}: {want in brain_log}")
+    for want in expected["inputs"]:
+        (run.say if want in brain_log else run.fail)(f"brain saw an input with {want!r}: {want in brain_log}")
     # Nothing private may reach the app's files or the brain.
     leaks = []
     for f in list(run.state.rglob("*")) + [run.root / "brain.jsonl"]:
@@ -323,9 +323,9 @@ def check_order(run: Run) -> dict[str, Any]:
     return {"brain_moments": len(answers), "early": len(bad), "replaced_by_rules": cut, "answers": answers}
 
 
-def main(out: Path, brain: str, port: str | None, fixtures: list[str] | None, clip: bool = False) -> int:
+def main(out: Path, writer: str, port: str | None, fixtures: list[str] | None, clip: bool = False) -> int:
     root = Path("/tmp/boop-e2e")
-    run = Run(root, out, brain, port)
+    run = Run(root, out, writer, port)
     expected = json.loads((FIXTURES / "expect.json").read_text())
     paths = [FIXTURES / f for f in (fixtures or RUN_ORDER)]
     started = time.time()
@@ -361,27 +361,27 @@ def main(out: Path, brain: str, port: str | None, fixtures: list[str] | None, cl
         check_after(run, expected)
     order = check_order(run)
 
-    shutil.copy(run.state / "boop.log", out / f"app-{brain}.log")
+    shutil.copy(run.state / "boop.log", out / f"app-{writer}.log")
     for name in ("long-term.md", "short-term.md", "settings.json"):
         if (run.state / name).exists():
-            shutil.copy(run.state / name, out / f"{brain}-{name}")
-    result = {"brain": brain, "started": started, "seconds": round(time.time() - started), "hooks": run.hooks,
+            shutil.copy(run.state / name, out / f"{writer}-{name}")
+    result = {"writer": writer, "started": started, "seconds": round(time.time() - started), "hooks": run.hooks,
               "latency": {"p50": p50, "p95": p95, "n": len(lat)}, "order": order,
               "failures": run.failures, "ok": not run.failures}
-    (out / f"e2e-{brain}.json").write_text(json.dumps(result, indent=2))
-    (out / f"e2e-{brain}.txt").write_text("\n".join(run.log) + "\n")
+    (out / f"e2e-{writer}.json").write_text(json.dumps(result, indent=2))
+    (out / f"e2e-{writer}.txt").write_text("\n".join(run.log) + "\n")
     print("PASS" if not run.failures else f"FAIL ({len(run.failures)})")
     return 0 if not run.failures else 1
 
 
-def soak(out: Path, brain: str, port: str | None, minutes: float) -> int:
+def soak(out: Path, writer: str, port: str | None, minutes: float) -> int:
     """J2's soak: the e2e fixtures on a loop through the whole pipeline, with
     a tap on the board between rounds, for `minutes`. Samples the board
     (resets, heap, audio errors) and the app (alive, memory), counts
     checkpoint misses, and at the end checks that calm brings back the plain
     face with nothing stuck."""
     root = Path("/tmp/boop-soak")
-    run = Run(root, out, brain, port)
+    run = Run(root, out, writer, port)
     samples: list[dict[str, Any]] = []
     rounds, misses = 0, 0
     glitches: list[str] = []
@@ -429,7 +429,7 @@ def soak(out: Path, brain: str, port: str | None, minutes: float) -> int:
                     sample(dev)
                     if not samples[-1]["app_alive"]:
                         raise DeviceError("the headless app exited")
-                dev.request({"t": "dbg.press", "ms": 100})  # a tap: the brain's `tap` trigger
+                dev.request({"t": "dbg.press", "ms": 100})  # a tap: the rules' wiggle, noted in the transcript
                 time.sleep(3)
             # Nothing stuck: once every session has stopped and a quiet minute
             # has passed, the board is back on the plain face.
@@ -447,7 +447,7 @@ def soak(out: Path, brain: str, port: str | None, minutes: float) -> int:
     rss = [s["app_rss_kb"] for s in samples if s["app_rss_kb"]]
     lat = [h["state_ms"] for h in run.hooks if h["state_ms"] is not None]
     result = {
-        "brain": brain, "minutes": round((time.monotonic() - t0) / 60, 1), "rounds": rounds,
+        "writer": writer, "minutes": round((time.monotonic() - t0) / 60, 1), "rounds": rounds,
         "hooks": len(run.hooks), "checkpoint_misses": misses, "link_glitches": glitches,
         "latency": {"p50": percentile(lat, 0.5), "p95": percentile(lat, 0.95), "n": len(lat)},
         "reset": any(b <= a for a, b in zip(ups, ups[1:])),
@@ -465,12 +465,12 @@ def soak(out: Path, brain: str, port: str | None, minutes: float) -> int:
     result["ok"] = (not result["reset"] and not stuck and not result["app_exited_early"]
                     and (result["heap_min_drift"] or 0) <= 2048 and result["audio_errors"] == 0)
     out.mkdir(parents=True, exist_ok=True)
-    (out / f"soak-{brain}.json").write_text(json.dumps({**result, "series": samples}, indent=1))
-    (out / f"soak-{brain}.txt").write_text("\n".join(run.log) + "\n")
+    (out / f"soak-{writer}.json").write_text(json.dumps({**result, "series": samples}, indent=1))
+    (out / f"soak-{writer}.txt").write_text("\n".join(run.log) + "\n")
     if (run.state / "boop.log").exists():
-        shutil.copy(run.state / "boop.log", out / f"soak-app-{brain}.log")
+        shutil.copy(run.state / "boop.log", out / f"soak-app-{writer}.log")
     if (run.root / "brain.jsonl").exists():
-        shutil.copy(run.root / "brain.jsonl", out / f"soak-brain-{brain}.jsonl")
+        shutil.copy(run.root / "brain.jsonl", out / f"soak-brain-{writer}.jsonl")
     print(json.dumps({k: v for k, v in result.items() if k != "failures"}, indent=1))
     print("PASS" if result["ok"] else "FAIL")
     return 0 if result["ok"] else 1

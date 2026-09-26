@@ -14,11 +14,11 @@ let usage = """
            boopdev memory --state-dir DIR
                Prints long-term.md and short-term.md as the memory store reads them, and the history snapshots.
            boopdev voice <feeling> [word] [--dialect HEX] [--seed N] [--count N] [--json] [--why]
-               Prints Minion lines as the say action would build them.
-           boopdev brain [--brain apple|rules|jev] [--triggers DIR] [--memory DIR] [--steering FILE] [--out FILE] [--gap-min N] [--history N] [--print]
-               Runs the real harness and brain on recorded triggers, each with a fresh copy of the sample
-               memory, N minutes apart (default 3) under one history of the harness's limits, and reports
-               refusals, valid shapes, dropped calls, speech, silence and latency (VERIFICATION.md L5).
+               Prints Minion lines as the react action would build them.
+           boopdev brain [--classifier rules|jev] [--writer apple|none|deepseek] [--inputs DIR] [--memory DIR] [--steering FILE] [--out FILE] [--gap-min N] [--print]
+               Runs the real pipeline on recorded inputs, each with a fresh copy of the sample memory,
+               N minutes apart (default 3) sharing one transcript, and reports refusals, what each stage
+               did, dropped calls and latency (VERIFICATION.md L5). Jev's key comes from BOOP_JEV_KEY.
            boopdev hooks status|install|remove [claude|codex] --home DIR [--hook PATH]
                The installer, against any HOME (tests use a temporary one). --hook defaults to the boop-hook
                next to boopdev.
@@ -152,77 +152,82 @@ func findSteering() -> String? {
 
 func brain(_ args: [String]) async {
     let fm = FileManager.default
-    let setting = option(args, "--brain") ?? "apple"
-    let triggersDir = option(args, "--triggers") ?? "app/Tests/Fixtures/triggers"
+    let inputsDir = option(args, "--inputs") ?? "app/Tests/Fixtures/inputs"
     let memoryDir = URL(fileURLWithPath: option(args, "--memory") ?? "app/Tests/Fixtures/memory")
     guard let steeringPath = option(args, "--steering") ?? findSteering(),
           let steering = try? String(contentsOfFile: steeringPath, encoding: .utf8)
     else { fail("can't find steering.md; pass --steering") }
-    let brain: any Brain
-    switch setting {
-    case "apple":
-        if let why = AppleBrain.unavailableReason { fail("Apple's model can't run here: \(why)") }
-        brain = AppleBrain()
-    case "rules": brain = RulesBrain()
+    let classifier: any Classifier
+    switch option(args, "--classifier") ?? "rules" {
+    case "rules": classifier = RulesClassifier()
     case "jev":
-        guard let key = ProcessInfo.processInfo.environment[Brains.keyVariable], !key.isEmpty else {
-            fail("Jev needs its API key in \(Brains.keyVariable)")
+        guard let key = ProcessInfo.processInfo.environment[Brains.jevKeyVariable], !key.isEmpty else {
+            fail("Jev needs its API key in \(Brains.jevKeyVariable)")
         }
-        brain = JevBrain(key: key, writer: Brains.make("apple"))
-    default: fail("brains: apple, rules, jev")
+        classifier = JevClassifier(key: key)
+    default: fail("classifiers: rules, jev")
+    }
+    let writer: any Writer
+    switch option(args, "--writer") ?? "apple" {
+    case "apple":
+        if let why = AppleWriter.unavailableReason { fail("Apple's model can't run here: \(why)") }
+        writer = AppleWriter()
+    case "none": writer = NoWriter()
+    case "deepseek": writer = DeepSeekWriter()
+    default: fail("writers: apple, none, deepseek")
     }
 
-    var triggers: [Trigger] = []
-    let files = ((try? fm.contentsOfDirectory(atPath: triggersDir)) ?? []).filter { $0.hasSuffix(".jsonl") }.sorted()
+    var inputs: [Input] = []
+    let files = ((try? fm.contentsOfDirectory(atPath: inputsDir)) ?? []).filter { $0.hasSuffix(".jsonl") }.sorted()
     for file in files {
-        let text = (try? String(contentsOfFile: triggersDir + "/" + file, encoding: .utf8)) ?? ""
+        let text = (try? String(contentsOfFile: inputsDir + "/" + file, encoding: .utf8)) ?? ""
         for line in text.split(separator: "\n") where !line.trimmingCharacters(in: .whitespaces).isEmpty {
-            guard let o = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
-                  let kind = (o["kind"] as? String).flatMap(Trigger.Kind.init(rawValue:)), let text = o["line"] as? String
-            else { fail("bad trigger in \(file): \(line)") }
-            triggers.append(Trigger(kind: kind, line: text, words: o["words"] as? String, ts: 0))
+            guard let input = Input.fixture(String(line)) else { fail("bad input in \(file): \(line)") }
+            inputs.append(input)
         }
     }
-    // A busy stretch: triggers in file order, `--gap-min` apart, sharing one
-    // history of the harness's limits (HARNESS.md §5) and one conversation (§4).
+    guard !inputs.isEmpty else { fail("no inputs in \(inputsDir)") }
+    // A busy stretch: inputs in file order, `--gap-min` apart, sharing one
+    // transcript (HARNESS.md §4).
     let gapMs = Int64((Double(option(args, "--gap-min") ?? "3") ?? 3) * 60_000)
-    for i in triggers.indices { triggers[i].ts = Int64(i) * gapMs }
-    let limits = ToolLimits()
-    // `--history N`: at most N earlier exchanges (0 sends none, like v1's one-shot calls).
-    let conversation = Conversation(maxExchanges: Int(option(args, "--history") ?? "") ?? 4)
-    guard !triggers.isEmpty else { fail("no triggers in \(triggersDir)") }
+    for i in inputs.indices { inputs[i].ts = Int64(i) * gapMs }
+    let transcript = Transcript()
 
-    let out = URL(fileURLWithPath: option(args, "--out") ?? "/tmp/boop-brain/\(setting).jsonl")
+    let name = classifier.id.prefix { $0 != ":" && $0 != "@" } + "-" + writer.id.prefix { $0 != ":" && $0 != "@" }
+    let out = URL(fileURLWithPath: option(args, "--out") ?? "/tmp/boop-brain/\(name).jsonl")
     try? fm.createDirectory(at: out.deletingLastPathComponent(), withIntermediateDirectories: true)
     try? fm.removeItem(at: out)
     let home = DispatchQueue(label: "boopdev.brain")
     var records: [Harness.Record] = []
     var logs: [String] = []
-    for (i, trigger) in triggers.enumerated() {
-        // A fresh copy of the sample memory for every trigger.
+    var windows: [Int] = []
+    for (i, input) in inputs.enumerated() {
+        // A fresh copy of the sample memory for every input.
         let dir = fm.temporaryDirectory.appendingPathComponent("boop-brain-\(UUID().uuidString)")
         do { try fm.copyItem(at: memoryDir, to: dir) } catch { fail("can't copy \(memoryDir.path): \(error)") }
         defer { try? fm.removeItem(at: dir) }
         let harness: Harness = home.sync {
             let store = try! MemoryStore(directory: dir, steering: steering, log: { logs.append($0) })
-            if trigger.kind == .reflect, let day = store.lastActiveDay {
+            if input.kind == .newDay, let day = store.lastActiveDay {
                 let next = LocalTime.day(day, plus: 1)
                 store.apply(.newDay(date: next, firstSeen: "08:30", mood: "content"))
             }
             let context = ActionContext(send: { _ in }, today: { store.lastActiveDay ?? "2026-10-15" },
                                         log: { logs.append($0) })
             let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: 0x7f3a)), memory: store)
-            return Harness(brain: brain, tools: actions.map(Harness.Tool.init), memory: { store.promptMemory(for: $0.kind) },
-                           home: home, debugLog: out, limits: limits, conversation: conversation, log: { logs.append($0) })
+            return Harness(classifier: classifier, writer: writer, tools: actions.map(Harness.Tool.init),
+                           memory: { store.promptMemory(for: $0.kind) }, home: home, debugLog: out,
+                           transcript: transcript, log: { logs.append($0) })
         }
-        let r = await harness.respond(to: trigger)
+        let r = await harness.respond(to: input)
         records.append(r)
+        windows.append(r.window)
         if args.contains("--print") {
-            let said = trigger.words.map { " \"\($0)\"" } ?? ""
+            let said = input.words.map { " \"\($0)\"" } ?? ""
             let answer = r.dropped.map { "DROPPED \($0)" }
-                ?? (r.ran.isEmpty ? "(quiet)" : r.ran.map { "\($0.call)" + ($0.outcome.isDone ? "" : " ✗") }.joined(separator: ", "))
-            let limited = r.prompt.user.contains("\nsay limit: ") ? " [say limit]" : ""
-            print("\(i + 1)\t\(r.latencyMs) ms\t\(trigger.line)\(said)\(limited) (history \(r.prompt.history.count))\n\t→ \(answer)")
+                ?? (r.ran.isEmpty ? "(nothing)" : r.ran.map { "\($0.call.plain)" + ($0.outcome.isDone ? "" : " ✗") }.joined(separator: ", "))
+            let wrote = r.writeFailed.map { " [writer failed: \($0)]" } ?? ""
+            print("\(i + 1)\t\(r.latencyMs) ms\t\(input.line)\(said) (window \(r.window))\n\t→ \(answer)\(wrote)")
         }
     }
 
@@ -230,45 +235,56 @@ func brain(_ args: [String]) async {
         let sorted = values.sorted()
         return sorted.isEmpty ? 0 : sorted[min(sorted.count - 1, Int((Double(sorted.count) * p).rounded(.up)) - 1)]
     }
-    // Refusals (a guardrail declining to answer) are counted apart: Boop
-    // keeps the rule reaction, as for any dropped answer (VERIFICATION.md L5).
-    let answered = records.filter { !$0.refused }
-    let valid = records.filter(\.validShape)
-    func limited(_ c: (call: ToolCall, outcome: ActionOutcome)) -> Bool {
-        if case .dropped(let why) = c.outcome { return why.hasPrefix(c.call.name + " limit: ") }
-        return false
+    print("brain \(classifier.id) + \(writer.id), \(records.count) inputs \(gapMs / 60_000) min apart, log \(out.path)")
+    // Refusals (a guardrail declining) are counted apart: Boop keeps the
+    // rules' reaction, as for any dropped pass (VERIFICATION.md L5).
+    let refused = records.filter(\.refused)
+    print("refused: \(refused.count)/\(records.count)")
+    for r in refused { print("  refused (\(r.input.kind.rawValue)): \(r.dropped ?? r.writeFailed ?? "")") }
+    let failed = records.filter { !$0.answered && !$0.refused }
+    print("stage 1 answered on the menu: \(records.count - failed.count - refused.filter { !$0.answered }.count)/\(records.count)")
+    for r in failed { print("  dropped (\(r.input.kind.rawValue)): \(r.dropped ?? "")") }
+    for kind in Input.Kind.allCases {
+        let rs = records.filter { $0.input.kind == kind && $0.answered }
+        guard !rs.isEmpty else { continue }
+        var counts: [String: Int] = [:]
+        for r in rs {
+            if r.decided.isEmpty { counts["nothing", default: 0] += 1 }
+            for call in r.decided {
+                let voice = call.arguments["voice"]?.string.map { " \($0)" } ?? ""
+                let place = call.arguments["where"]?.string.map { " \($0)" } ?? ""
+                counts[call.name + voice + place, default: 0] += 1
+            }
+        }
+        print("\(kind.rawValue) (\(rs.count)): " + counts.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: ", "))
     }
-    let calls = records.flatMap(\.ran).filter { !limited($0) }
-    let dropped = calls.filter { !$0.outcome.isDone }
-    print("brain \(brain.id), \(records.count) triggers \(gapMs / 60_000) min apart, log \(out.path)")
-    print("refused: \(records.count - answered.count)/\(records.count)")
-    for r in records where r.refused { print("  refused (\(r.trigger.kind.rawValue)): \(r.dropped ?? "")") }
-    print("valid shape: \(valid.count)/\(answered.count) answers given")
-    for r in answered where !r.validShape { print("  dropped answer (\(r.trigger.kind.rawValue)): \(r.dropped ?? "")") }
-    print("silence: \(valid.filter(\.silent).count)/\(valid.count)")
-    for kind in [Trigger.Kind.event, .tap, .talk] {
-        let rs = valid.filter { $0.trigger.kind == kind }
-        let spoke = rs.filter { $0.ran.contains { $0.call.name == "say" && $0.outcome.isDone } }
-        let allowed = rs.filter { !$0.prompt.user.contains("\nsay limit: ") }
-        print("spoke on \(kind.rawValue): \(spoke.count)/\(rs.count) (say allowed \(allowed.count))")
-    }
-    print("tool calls: \(calls.count), dropped by actions: \(dropped.count), past a limit: \(records.flatMap(\.ran).filter(limited).count)")
-    let histories = records.filter(\.trigger.kind.converses).map(\.prompt.history.count)
-    print("conversation: up to \(histories.max() ?? 0) earlier exchanges, \(conversation.restarts) restarts")
+    let asked = records.filter { !$0.slots.isEmpty }
+    let slots = asked.flatMap { r in r.slots.map { r.wrote[$0] ?? "" } }
+    print("writer: \(asked.count) passes, \(slots.filter { !$0.isEmpty }.count)/\(slots.count) slots filled, "
+          + "\(asked.filter { $0.writeFailed != nil }.count) failed")
+    for r in asked where r.writeFailed != nil { print("  writer failed (\(r.input.kind.rawValue)): \(r.writeFailed!)") }
+    let calls = records.flatMap(\.ran)
+    let unwritten = calls.filter { $0.outcome == .dropped("nothing was written") }
+    let handed = calls.filter { $0.outcome != .dropped("nothing was written") }
+    let dropped = handed.filter { !$0.outcome.isDone }
+    print("calls: \(handed.count) to actions, \(dropped.count) dropped by them, \(unwritten.count) with nothing written")
     for d in dropped {
-        if case .dropped(let why) = d.outcome { print("  \(d.call): \(why)") }
+        if case .dropped(let why) = d.outcome { print("  \(d.call.plain): \(why)") }
     }
+    print("window: up to \(windows.max() ?? 0) inputs, \(transcript.restarts) restarts")
     var latencyOK = true
-    for kind in [Trigger.Kind.event, .tap, .talk, .reflect] {
-        let ms = records.filter { $0.trigger.kind == kind }.map(\.latencyMs)
-        guard !ms.isEmpty else { continue }
-        let p95 = percentile(ms, 0.95)
-        if p95 >= kind.deadlineMs { latencyOK = false }
-        print("latency \(kind.rawValue): n \(ms.count), p50 \(percentile(ms, 0.5)) ms, p95 \(p95) ms (deadline \(kind.deadlineMs) ms)")
+    for kind in Input.Kind.allCases {
+        let rs = records.filter { $0.input.kind == kind }
+        guard !rs.isEmpty else { continue }
+        let total = percentile(rs.map(\.latencyMs), 0.95)
+        if total >= kind.deadlineMs { latencyOK = false }
+        let writes = rs.filter { !$0.slots.isEmpty }.map(\.writeMs)
+        print("latency \(kind.rawValue): n \(rs.count), classify p50 \(percentile(rs.map(\.classifyMs), 0.5)) ms, "
+              + "write p50 \(percentile(writes, 0.5)) ms (n \(writes.count)), p95 \(total) ms (deadline \(kind.deadlineMs) ms)")
     }
     for line in logs where line.contains("over budget") { print("  \(line)") }
-    let dropRate = calls.isEmpty ? 0 : Double(dropped.count) / Double(calls.count)
-    let pass = valid.count == answered.count && dropRate < 0.05 && latencyOK
+    let dropRate = handed.isEmpty ? 0 : Double(dropped.count) / Double(handed.count)
+    let pass = failed.isEmpty && dropRate < 0.05 && latencyOK
     print(pass ? "PASS (the sample review is separate)" : "FAIL")
     exit(pass ? 0 : 1)
 }

@@ -80,7 +80,7 @@ app/                       Swift package
   HookWire/                what boop-hook and the app share: the hook line,
                            topic tags, the socket (Foundation only)
   BoopDev/                 boopdev: replay, memory, voice, brain, talk, hooks
-  Tests/                   unit tests, plus Fixtures/{hooks,triggers,memory}
+  Tests/                   unit tests, plus Fixtures/{hooks,inputs,memory}
   TestSupport/             the XCTest shim (there's no Xcode)
   tools/                   test.py and gen-test-runner.py, for make test
 firmware/                  PlatformIO project
@@ -167,8 +167,8 @@ Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 | J3 | Handoff | Passed |
 | F6 | Landscape and cuter eyes | In progress: code, L0, L1 and L2 pass. The board runs the landscape build, its 83 screenshots in 11 scenarios match the simulator pixel for pixel, and `perf --motion` gives at least 49 fps (50 over 30 s, 49 over 60 s) with 72.7 KB free. Only the owner's look (orientation and liking the face) and touch calibration remain (morning checklist rows 2–3). [Evidence](evidence/v1-build/F6/README.md) Follow-up (gen-2's look: smaller lavender eyes, "^" arches, a heart on a tap, "zzZZ" asleep, effort and a sweat drop working, an open-eyed no-app face): L0 91/91, L1 83 goldens re-accepted, flashed; board screenshots of asleep, a tap and working look right, `perf --motion` minimum 41 fps over 60 s. Not yet run: a full L2 `boopctl run` (the Mac app was connected over Bluetooth). [Evidence](evidence/2026-09-26-gen2-look/README.md) |
 | A5 | Mac app look and flow | In progress: code, L0 and the app's snapshot check pass (light and dark). Only the owner's look in the real menu bar remains (morning checklist rows 5 and 7). [Evidence](evidence/v1-build/A5/README.md) |
-| A6 | Brain conversation | In progress: code and L0 pass. L5 with Apple's model: the `say` limit line holds, but with history the brain answers quiet far more often, and it calls `note` on most events ([evidence](evidence/2026-09-26-brain-conversation/README.md)). Tuning the behaviour is next |
-| A7 | Two-stage brain | In progress. The Jev experiment is in ([evidence](evidence/2026-09-26-jev-brain/README.md)). Focus mode, touch-and-hold and stretch/yawn are removed: L0 (199 Swift, 100 firmware) and L1 (11 scenarios; 4 goldens changed, 5 deleted, all looked at) pass; L2 on the board wasn't run, since the everyday app was connected over Bluetooth ([evidence](evidence/2026-09-26-removals/README.md)). The two-stage pipeline is next |
+| A6 | Brain conversation | Superseded by A7 (2026-09-26): the conversation became the transcript's window, the `say` limit went with every timing limit, and `note` is offered only for what you say. Its L5 findings are the [evidence](evidence/2026-09-26-brain-conversation/README.md) |
+| A7 | Two-stage brain | In progress: the pipeline is built. L0 (191 Swift tests, 100 firmware) and L5 pass: both classifiers with Apple's model answer all 50 fixture inputs on the menu, fill every slot, and stay inside their deadlines ([evidence](evidence/2026-09-26-two-stage-brain/README.md)). Remaining: L2 and L4 on the board for the removals (the everyday app held it over Bluetooth, [evidence](evidence/2026-09-26-removals/README.md)), and the owner picking each classifier in Settings and talking to Boop. The Jev experiment before it: [evidence](evidence/2026-09-26-jev-brain/README.md) |
 | P1 | Port to ESP-IDF + LVGL (later, gated) | Not started |
 
 ### M0: Setup
@@ -318,6 +318,7 @@ the board.
   retries, then the safe hum.
 - **Actions:** `say`, `face`, `quiet`, `note`, `remember`, `forget`,
   `temperament` and `moment`. Each owns its tool definition and its checks.
+  (A7 made them three: `react`, `quiet` and `remember`.)
 
 **Done when:**
 
@@ -327,6 +328,9 @@ the board.
 - Every action drops invalid input and logs why.
 
 ### A3: Harness and brains
+
+As planned and built then; A7 replaced the brains and the prompt with the
+two-stage pipeline ([HARNESS.md](HARNESS.md)).
 
 - **Harness** ([HARNESS.md](HARNESS.md) §3): the tool registry, one call at
   a time with replace and cancel, the prompt builder with its budgets, the
@@ -531,6 +535,9 @@ window, and gen-2's styling and flow were better ([UX.md](UX.md) §6–7).
 
 ### A6: Brain conversation
 
+Superseded by A7's two-stage brain, which replaced the conversation with
+the transcript and its window (HARNESS.md §4). Kept as it was planned.
+
 Asked for by the owner after the build: a running transcript for the brain,
 modelled on pi and as simple as possible ([HARNESS.md](HARNESS.md) §4–5).
 
@@ -564,11 +571,13 @@ fewer inputs and outputs ([HARNESS.md](HARNESS.md)).
 2. **Removals (done, less L2):** focus mode, touch-and-hold (`feel`) and
    the first activity's stretch, yawn and +5 XP, from the app, the
    protocol and the device ([evidence](evidence/2026-09-26-removals/README.md)).
-3. **Pipeline (next):** four inputs (agent started, agent finished, you
-   said, new day) with taps and "needs you" rules only; three outputs
-   (`react`, `quiet`, `remember`); the if-else and Jev classifiers; Apple's
-   model and no writer, with DeepSeek a stub; the transcript and its
-   window; Settings to pick both stages.
+3. **Pipeline (done, less the owner's run):** four inputs (agent started,
+   agent finished, you said, new day) with taps and "needs you" rules only;
+   three outputs (`react`, `quiet`, `remember`); the if-else and Jev
+   classifiers; Apple's model and no writer, with DeepSeek a stub; the
+   transcript and its window; Settings to pick both stages
+   ([evidence](evidence/2026-09-26-two-stage-brain/README.md)).
+4. **Later:** the DeepSeek writer ([FUTURE.md](FUTURE.md)).
 
 **Done when:**
 
@@ -714,26 +723,31 @@ matching spec first.
   and 1.5 s after the app was quit and relaunched ([PROTOCOL.md](PROTOCOL.md)
   §2, "Reconnecting"). Not yet seen: the settings screen's Reconnect
   button, and taking over a link macOS kept after the app was killed.
-- **`zip` is drawn but nothing plays it.** [BEHAVIORS.md](BEHAVIORS.md)
-  §3.3 has it on "shut up"; the rules don't send it, and the brain's `face`
-  can't pick it.
+- **`zip` is drawn but nothing plays it.** [VISION.md](VISION.md) has Boop
+  zip its mouth on "shut up"; the rules don't send it, and the brain's
+  `react` can't pick it ([BEHAVIORS.md](BEHAVIORS.md) §7).
 
 From the J3 report's known issues (numbered as there):
 
-- A3, brain tuning, deferred by the owner:
-  - `note` on talk keeps praise and greetings, and sometimes misses a real
-    fact ([#1](evidence/v1-build/REPORT.md#known-issues)).
-  - The filler word `tests` is in most spoken lines, taps included
-    ([#2](evidence/v1-build/REPORT.md#known-issues)).
-  - A `moment` nearly every reflection, usually a retelling the action
-    refuses; it pushes L5's drop rate over 5%
-    ([#3](evidence/v1-build/REPORT.md#known-issues)).
-  - Apple's guardrail refuses about 2 of 52 triggers; Boop keeps the rule
-    reaction ([#4](evidence/v1-build/REPORT.md#known-issues)).
-  - `remember("jetpack = payments")` is refused by memory's code check
-    because of the `=` ([#5](evidence/v1-build/REPORT.md#known-issues)).
-  - Sometimes two faces in one answer on events; one plays
-    ([#6](evidence/v1-build/REPORT.md#known-issues)).
+- A3, brain tuning, deferred by the owner. These were Apple's model
+  deciding; since A7 it only writes the words, and A7's L5
+  ([evidence](evidence/2026-09-26-two-stage-brain/README.md)) shows:
+  - `note` on talk keeping praise and greetings
+    ([#1](evidence/v1-build/REPORT.md#known-issues)): gone. Notes came only
+    when asked, with the words said.
+  - The filler word `tests` in most spoken lines
+    ([#2](evidence/v1-build/REPORT.md#known-issues)): gone; taps don't reach
+    the brain. The if-else classifier's lines lean on "hmm" and "finally".
+  - A `moment` nearly every reflection
+    ([#3](evidence/v1-build/REPORT.md#known-issues)): the if-else classifier
+    remembers nothing on a new day; Jev kept one line in four.
+  - Apple's guardrail refusing about 2 of 52 triggers
+    ([#4](evidence/v1-build/REPORT.md#known-issues)): none as a writer.
+  - `remember("jetpack = payments")` refused by memory's code check because
+    of the `=` ([#5](evidence/v1-build/REPORT.md#known-issues)): still the
+    store's rule; not seen in A7's runs.
+  - Two faces in one answer ([#6](evidence/v1-build/REPORT.md#known-issues)):
+    gone; one `react` per input at most.
 - The device and the link:
   - USB loses the odd line from the board to the Mac, for good: there are
     no sequence numbers ([#7](evidence/v1-build/REPORT.md#known-issues)).

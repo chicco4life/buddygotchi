@@ -30,7 +30,7 @@ Each level answers a different question:
 | L2 Device over USB | Does the board do and draw exactly that? | The board on USB |
 | L3 Webcam | Does the physical panel show it correctly (colours, orientation, readability)? | The board facing the camera; opt-in (§6) |
 | L4 Pipeline | Does a real hook event reach the screen? | The board on USB; no Bluetooth |
-| L5 Brain | Does the brain behave on real triggers? | Apple's on-device model |
+| L5 Brain | Does the brain behave on real inputs? | Apple's on-device model, and Jev's key to check Jev |
 | L6 Person | Bluetooth, mic, touch accuracy, sound, real agents | The owner, in the morning |
 
 ## 2. The tools
@@ -44,7 +44,7 @@ Each level answers a different question:
 | `tools/boopctl bridge` | Owns the USB serial port and shares it through a Unix socket (`--socket`, default `$BOOP_BRIDGE` or `/tmp/boop-bridge.sock`), so the Mac app and other `boopctl` commands can use the board at the same time. Every line from the board goes to every client, and each client's lines reach the board whole. While a bridge runs, other `boopctl` commands (with `BOOP_BRIDGE` set to its socket, if it isn't the default) go through it instead of opening the port |
 | `tools/webcam/webcam.sh` | The existing AVFoundation recorder and frame extractor. `boopctl cam …` wraps it. `make webcam-test` tests it on synthetic video and never opens a camera |
 | `Boop --snapshots DIR` | Renders the Mac app's popover (seven overview states, including listening and a refused mic, the whole settings pane, the four setup steps) and the menu-bar icons to PNGs, in light and dark, from fixed fixtures, then exits. No runtime, Bluetooth or microphone; the agents' settings it reads are in a throwaway HOME |
-| `boopdev` | A Swift CLI in the app package for replaying hooks, running the harness on recorded triggers, and printing the memory files. `boopdev replay <fixture>` alone runs the payloads through the hook's field picking, the adapter and the core on a virtual clock and prints every decision (`--states` for snapshots only); with `--socket` it sends them through the real `boop-hook` to a running app. `boopdev memory --state-dir DIR` prints the memory files as the store reads them, and the snapshot days. `boopdev voice <feeling> [word] --count N [--why]` prints the lines `say` would build, and with `--why` every rejected try. `boopdev brain [--brain apple\|rules\|jev] [--gap-min N] [--history N] [--print]` runs L5 (`jev` reads its key from `BOOP_API_KEY` and writes with Apple's model): each fixture trigger through the real harness with a fresh copy of the sample memory, N minutes apart under one history of the limits and one conversation (at most `--history` earlier turns, default 4; 0 sends none), reporting refusals, valid shapes, dropped calls, speech, silence, the conversation's longest history and restarts, and latency, and logging every call to `/tmp/boop-brain/<brain>.jsonl` `boopdev talk "<words>" --socket PATH` hands a push-to-talk transcript to a running headless app. `boopdev hooks status\|install\|remove [claude\|codex] --home DIR` runs the hook installer against any HOME |
+| `boopdev` | A Swift CLI in the app package for replaying hooks, running the brain on recorded inputs, and printing the memory files. `boopdev replay <fixture>` alone runs the payloads through the hook's field picking, the adapter and the core on a virtual clock and prints every decision (`--states` for snapshots only); with `--socket` it sends them through the real `boop-hook` to a running app. `boopdev memory --state-dir DIR` prints the memory files as the store reads them, and the snapshot days. `boopdev voice <feeling> [word] --count N [--why]` prints the lines `react` would build, and with `--why` every rejected try. `boopdev brain [--classifier rules\|jev] [--writer apple\|none\|deepseek] [--inputs DIR] [--memory DIR] [--steering FILE] [--out FILE] [--gap-min N] [--print]` runs L5: recorded inputs through the real pipeline (§5). `boopdev talk "<words>" --socket PATH` hands a push-to-talk transcript to a running headless app. `boopdev hooks status\|install\|remove [claude\|codex] --home DIR` runs the hook installer against any HOME |
 
 `boopctl` subcommands:
 
@@ -70,8 +70,8 @@ Each level answers a different question:
 | `moment <anim> [--size N] [--say FEELING [--word W]] [--base B]` | Plays one animation or face from the set ([BEHAVIORS.md](BEHAVIORS.md) §7), optionally with a mumble, and checks that the device took it |
 | `needs [--seconds S] [--agent A] [--project P] [--more N]` | Holds a fake "needs you" (130 s by default, past rung 3), printing each rung as the device reaches it, then clears it; Ctrl-C clears it early |
 | `perf --seconds N [--motion]` | Sample fps and heap over time; `--motion` plays moments back to back so every sample is mid-motion |
-| `e2e [--brain rules\|apple] [fixture…]` | The L4 pipeline check (`make e2e`): bridge, headless app, the J1 fixtures through the real `boop-hook`, checkpoints, latency, memory and ordering |
-| `e2e --soak MIN [--brain rules\|apple]` | J2's pipeline soak: the same fixtures on a loop for MIN minutes, a tap on the board between rounds, then a quiet minute. Samples `dbg.ping`, `audio.out.errors` and the app's memory; fails on a board reset, a heap-minimum drift over 2 KB, audio errors, the app exiting, or anything left on screen (not the plain face, `attn` or a moment) at the end. Checkpoint misses are counted and reported. A debug request that loses its reply (the CH340 rarely drops bytes over a long run) is retried once and counted as a link glitch |
+| `e2e [--writer none\|apple] [fixture…]` | The L4 pipeline check (`make e2e`): bridge, headless app, the J1 fixtures through the real `boop-hook`, checkpoints, latency, memory and ordering |
+| `e2e --soak MIN [--writer none\|apple]` | J2's pipeline soak: the same fixtures on a loop for MIN minutes, a tap on the board between rounds, then a quiet minute. Samples `dbg.ping`, `audio.out.errors` and the app's memory; fails on a board reset, a heap-minimum drift over 2 KB, audio errors, the app exiting, or anything left on screen (not the plain face, `attn` or a moment) at the end. Checkpoint misses are counted and reported. A debug request that loses its reply (the CH340 rarely drops bytes over a long run) is retried once and counted as a link glitch |
 | `soak --minutes N` | Random, realistic traffic and inputs (with one 35 s silence), then check for resets, a drifting heap minimum, and that calm snapshots bring back the plain face |
 | `cam frame\|pattern\|clip <name>` | Webcam helpers (L3 in §5). Clips are live presets: `idle`, `needs_you`, `cheer`, `ladder` (sped-up clock), `cheers` (sizes 1–3) and `tap` |
 | `calibrate` | Touch calibration. Needs a person to tap 4 amber crosses 20 px in from the corners, then one in the middle to check; the crosses are placed from the screen size the board reports in `dbg.ping` (320×240). It fits a raw → screen map and the board keeps it in NVS for that screen and rotation. `--show` prints the stored map, `--show --clear` forgets it |
@@ -171,11 +171,14 @@ gets at least one scenario. Their pictures become the **golden images** in
 
 - **Swift (`make test`):** every module in [ARCHITECTURE.md](ARCHITECTURE.md)
   §3 has tests. That covers adapter mapping, core rules (screen priority, XP,
-  hunger, mood, quiet), each action's own checks, Voice (dialect,
-  determinism, the English check), memory limits and snapshots, the harness
-  with a fake brain (shape check, one call at a time, `talk` cancelling,
-  tool limits on a virtual clock, and the conversation: what each request
-  carries and when it starts over), and device link message encoding.
+  hunger, mood, quiet, which inputs reach the brain), each action's own
+  checks, Voice (dialect, determinism, the English check), memory limits
+  and snapshots, the harness with fake brains (the menu check, what's left
+  for the writer, a failed or late stage, one pass at a time, what you say
+  cancelling, and the log), the transcript's window, each brain on its own
+  with no model or network (the rules classifier's rows, Jev's questions to
+  a fake server, what Apple's model is asked), and device link message
+  encoding.
 - **Firmware (`make fw-test`):** the protocol parser, line reassembly across
   BLE packets, the behaviour state machine (screen priority, nudge ladder
   timing, moment expiry, the 30 s no-app timeout), input gestures, and
@@ -260,15 +263,16 @@ Camera judgement is "looks right". Pixel accuracy comes from L2.
 
 This checks the whole path, hook → app → device, without Bluetooth. That
 matters because an agent can't launch the app with Bluetooth on.
-`make e2e` (`tools/boopctl e2e [--brain rules|apple]`) does all of it:
+`make e2e` (`tools/boopctl e2e [--writer none|apple]`) does all of it:
 
 1. `tools/boopctl bridge --socket /tmp/boop-e2e/usb.sock` owns the serial
    port.
 2. The app starts headless with isolated state and its own hook socket,
    never the everyday ones:
-   `Boop --headless --state-dir /tmp/boop-e2e/state --link usb:/tmp/boop-e2e/usb.sock --socket /tmp/boop-e2e/boop.sock --trace`.
-   The rules brain is the default, so runs repeat; `--brain apple` runs the
-   same fixtures with Apple's model.
+   `Boop --headless --state-dir /tmp/boop-e2e/state --link usb:/tmp/boop-e2e/usb.sock --socket /tmp/boop-e2e/boop.sock --classifier rules --writer none --name Pip --trace --debug-log /tmp/boop-e2e/brain.jsonl`.
+   The rules always classify and no writer is the default, so runs repeat;
+   `--writer apple` runs the same fixtures with Apple's model writing the
+   words.
 3. The fixtures in `app/Tests/Fixtures/hooks/e2e/` (a Claude session, a
    Codex approval answered within 2 s, one left for 10 s) go through the
    real `boop-hook`. Besides payloads they hold checkpoints: `expect` (poll
@@ -280,10 +284,11 @@ matters because an agent can't launch the app with Bluetooth on.
    going up, on the host clock. A hook that changes nothing sends no
    `state`, and is left out.
 5. Afterwards: XP, level and the Happened lines in the memory files,
-   `settings.json`'s record, the topics in the brain's triggers, no
-   `PRIVATE_` marker from the fixtures in any app file or the brain's log,
-   and, from the `--trace` log, that every brain moment came after the
-   rules' reaction and didn't start while a rule moment was playing.
+   `settings.json`'s record, the topics, error class and finishes in the
+   brain's inputs, no `PRIVATE_` marker from the fixtures in any app file
+   or the brain's log, and, from the `--trace` log, that every brain moment
+   came after the rules' reaction and didn't start while a rule moment was
+   playing.
 
 `boopdev replay <fixture>` without `--socket` runs the same fixtures on the
 virtual clock and prints what the core decides; it skips the checkpoints.
@@ -293,26 +298,30 @@ under 200 ms at p95.
 
 ### L5: brain
 
-1. `boopdev brain --brain apple --triggers app/Tests/Fixtures/triggers/ --memory app/Tests/Fixtures/memory/`
-   runs the real harness and Apple's on-device model on recorded triggers.
-   The triggers run 3 minutes apart in file order (`--gap-min`), under one
-   history of the harness's limits, so speech is judged on what Boop would
-   actually say after them (HARNESS.md §5), and share one conversation
-   (HARNESS.md §4). Every trigger gets a fresh copy of the sample memory, so
-   unlike the app the conversation starts over only when it's full or an
-   answer fails. `--history 0` runs every call on its own.
-2. It reports: refusals (the model's guardrail declining to answer), answers
-   with valid shape out of the answers given (target 100%), tool calls each
-   action dropped and why, calls past a limit, how often each trigger spoke
-   and how often `say` was allowed, the silence rate, the conversation's
-   longest history and restarts, and latency p50/p95.
-3. The agent reads a sample of about 20 answers against `steering.md`. Is
-   it in character, never nagging, and the right word when there is one?
+1. `boopdev brain --classifier rules --writer apple --inputs app/Tests/Fixtures/inputs --memory app/Tests/Fixtures/memory`
+   (all four are the defaults, from the repo root) runs the real pipeline
+   on recorded inputs: agents starting and finishing, things said to Boop,
+   and new days. They run 3 minutes apart in file order (`--gap-min`) and
+   share one transcript, so its window fills and moves on as it would in
+   the app ([HARNESS.md](HARNESS.md) §4). Every input gets a fresh copy of
+   the sample memory. `--classifier jev` runs the same with Jev, its key in
+   `BOOP_JEV_KEY`. `--print` shows each input and what ran, and every pass
+   is logged to `/tmp/boop-brain/<classifier>-<writer>.jsonl` (`--out`).
+2. It reports: refusals (a model's guardrail declining), how many inputs
+   Stage 1 answered on the menu, what each kind of input decided, the
+   writer's slots filled and its failures, the calls handed to actions and
+   those they dropped and why, the window's largest size and its restarts,
+   and, for each kind of input, each stage's p50 latency and the p95 of the
+   two together against its deadline.
+3. The agent reads a sample of about 20 passes against `steering.md`: are
+   the decisions in character and never nagging, the words right for what
+   happened, and the memory lines worth keeping?
 
-**Pass:** 100% valid shape over the answers given, fewer than 5% of tool
-calls dropped by actions, p95 under the trigger deadline, and a reviewed
-sample. Refusals are reported, not failed: Boop keeps the rule reaction, as
-for any dropped answer. Apple's model is available on
+**Pass:** Stage 1 answered on the menu, in time, for every input it didn't
+refuse, fewer than 5% of the calls handed to actions were dropped by them,
+every kind's p95 is under its deadline, and a reviewed sample. Refusals are
+reported, not failed: a refused pass leaves Boop with the rules' reaction,
+and a refused write leaves the words empty. Apple's model is available on
 this Mac with an 8K context.
 
 ### L6: the owner (morning)

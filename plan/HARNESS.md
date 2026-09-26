@@ -1,289 +1,292 @@
 # Boop: harness and brain
 
-Updated 2026-09-26. How a trigger becomes a brain call, and how the answer
-is handed off.
+Updated 2026-09-26. How something that happened becomes a decision and a
+few words, and how they're handed off.
 
 ## 1. What this is
 
-The **brain** decides how Boop reacts: a small language model, a "system
-one" model that only answers questions (Jev), or plain rules. The
-**harness** is the little bit of generic code around it:
+Boop's brain works in two stages. A **classifier** decides what Boop does
+about something that just happened, by picking from a short menu. When a
+decision needs words (the one real word in a mumble, or a line to
+remember), a **writer**, a language model, writes just those words. The
+**harness** is the little bit of generic code around both:
 
 ```
- trigger ──► situation + menu ──► brain.decide ──► check calls ──► hand each tool call
- (from the   what happened,       one call,        allowed tools,   to its action
-  core)      memory, recent       ≤ 3 tool calls   arguments fit    (say, face, note…)
-             turns; the tools                           │
-             and their limits                           └─► log (debug)
+ input ──► rules react ──► Stage 1: classifier ──► Stage 2: writer ──► actions ──► device, memory
+ (from      at once          Jev or if-else;          Apple's model;       react, quiet,
+  the core)  (the core)      picks outputs and        only for words;      remember
+                             every choice             fills slots
+      └──────────────── one append-only transcript, read by both stages ────────────────┘
 ```
 
-The input and output are typed. The harness hands every brain the same
-situation and menu and gets back tool calls; how a model sees the situation
-(a text prompt, JSON state, questions) is that brain's business (§7). The
-harness knows how to build the situation, call a brain and route tool
-calls. It doesn't know what any tool does, or what kind of model is
-deciding. It never builds Minion speech, writes a
-file or talks to the device. That work belongs to the actions
-([ARCHITECTURE.md](ARCHITECTURE.md) §3.4), so the harness would work the
-same driving something other than Boop.
+Both stages read one **transcript** (§4): the inputs so far, the rules'
+reactions, what Stage 1 decided, what Stage 2 wrote and what ran. So the
+writer knows exactly what it's writing for, and a later decision knows what
+Boop just did.
 
-Event, tap and talk calls share a short conversation (§4): each one sends
-Boop's last few turns with the brain, so it can follow a back-and-forth
-and not repeat itself. Reflection is a call on its own. Beyond the
-conversation, the memory files are the only state carried from one call to
-the next.
+The harness knows how to run the two stages, check their answers and hand
+each call to the action that owns it. It doesn't know what any output
+does, or what kind of model is behind either stage. It never builds Minion
+speech, writes a file or talks to the device. That work belongs to the
+actions ([ARCHITECTURE.md](ARCHITECTURE.md) §3.4), so the harness would
+work the same driving something other than Boop.
 
-## 2. Modelled on pi
+## 2. Inputs
 
-[pi](https://mariozechner.at/posts/2025-11-30-pi-coding-agent/) is the
-harness to follow. Its rule is "if I don't need it, it won't be built": a
-short system prompt, four tools, one API over many model providers, context
-kept in plain files, and every session logged. No MCP, sub-agents or plan
-mode.
+Four things reach the brain. The core builds each as a typed input
+(`app/BoopKit/Core/Input.swift`); classifiers read its fields, and
+language models read its one-line form.
 
-| pi | Boop |
-| --- | --- |
-| System prompt under 1,000 tokens, plus AGENTS.md | A few lines of preamble, plus `steering.md` |
-| Four tools | A handful of actions: the same four offered to every event, tap and talk call, three to reflection |
-| `pi-ai`: one API over many providers | The `Brain` interface (§7): one typed call, whatever the model |
-| Tool arguments validated against schemas | Same. Beyond that the harness checks only the answer's shape and each tool's limits (§3, §5) |
-| Plans and to-dos live in files | Memory lives in three Markdown files |
-| The context is the session's messages, compacted when full | A short conversation of recent turns, never compacted: it starts over (§4) |
-| Sessions saved as inspectable JSON | Every call logged as one JSON line, in debug mode |
-| No MCP, sub-agents or plan mode | Same, and no multi-turn loop either |
+| Input | From | Fields | The rules first | Deadline | Menu |
+| --- | --- | --- | --- | --- | --- |
+| Agent started | `turn_start` | agent, project, time, hunger | Base becomes working | 5 s | `react` |
+| Agent finished | `turn_end` or `turn_failed` | outcome (`done` or `failed`), agent, project, topic, how long it took, the error class when it failed, time, hunger, "+N more" | `done`: a cheer, size 1 under 5 minutes, 2 up to 20, 3 beyond. `failed`: `oops`, then `side_eye` | 5 s | `react` |
+| You said something | push-to-talk, or Send in the popover | your words (at most 500 characters, about 30 s of speech), time, hunger | `listening`, then `thinking` | 4 s | `quiet`, `react`, `remember` today |
+| New day | the first hook or tap on a new day | yesterday's date and short-term memory | — | 10 min | `remember` about you, a preference, temperament or a moment |
 
-pi loops until the model stops calling tools, because a coding agent needs
-tool results. Boop's tools return nothing the model needs, so every call is
-a single turn.
+Their lines look like this:
+
+```
+agent started · claude · landing · 14:00 Wednesday
+agent finished · done · claude · landing · took 20 min · 14:20 Wednesday
+agent finished · failed · claude · landing · topic: tests · error: rate limit · 14:00 Wednesday
+you said · 14:00 Wednesday
+new day · yesterday 2026-10-14
+```
+
+The topic is `tests`, `build`, `deploy` or `docs`, when the agent's tools
+showed one. The error class is one of `rate_limit`, `overloaded`,
+`api_error`, `auth`, `timeout`, `network`, `context_limit`, `billing` or
+`other` ([ADAPTERS.md](ADAPTERS.md) §2); Codex has no failure hook, so its
+turns always finish `done`.
+
+**Bursts.** Agent inputs within 3 s become one, and the most important
+wins: failed, then a finish of 5 minutes or more, then a shorter finish,
+then a start. It ends `· +N more` for the others
+([ARCHITECTURE.md](ARCHITECTURE.md) §3.2).
+
+**Gating.** While something needs you, or in quiet mode, agent inputs don't
+reach the brain. What you say and the new day always do. There are no other
+limits: whether Boop reacts, and whether it mumbles, is Stage 1's decision
+every time.
+
+**Rules only.** A tap (the wiggle) and "needs you" (the ladder) never reach
+the brain, so it can't make them slower or different from one time to the
+next. They're noted in the transcript as asides, `tapped · 14:07 Tuesday:
+Boop wiggled` or `claude needs you · jetpack · 14:07 Tuesday`, so the
+brain knows they happened.
+
+Session start and end, and each tool use (`activity`), are the core's
+bookkeeping: they keep the session list, the base state and each session's
+topic, and never reach the brain.
 
 ## 3. What the harness does, step by step
 
-1. **Receive a trigger** from the core: a name, a line or two describing
-   what happened, the tools allowed, and a deadline.
-2. **Wait its turn.** One call runs at a time. A newer trigger replaces one
-   that's waiting, and `talk` cancels whatever is running. Whether to send a
-   trigger at all is the core's decision.
-3. **Build the situation and menu** (§4): the trigger, the memory text
-   supplied by the memory store and the conversation's earlier turns; the
-   tools offered and a line for each one past its limit (§5). Event, tap
-   and talk are offered the same tools every time.
-4. **Call the brain** with the situation, the menu and the deadline. A
-   language model gets them as the text prompt (§4); other brains take them
-   as they need (§7).
-5. **Check the calls:** only offered tools, arguments matching their
-   schemas, and at most three calls. A language model's answer must first
-   be valid JSON in the answer format below. If anything fails, the whole
-   answer is dropped. The harness doesn't check meaning; each action checks
-   its own rules.
-6. **Hand off** each tool call to the action that registered it, in order.
-   A call to a tool past its limit is dropped instead, whether the prompt
-   named the limit or an earlier call in the same answer used it up.
-7. **Remember** the turn (§4): for event, tap and talk, the trigger, its
-   limit lines and the calls that ran join the conversation. A refused, failed or badly
-   shaped answer starts the conversation over instead; a late or cancelled
-   one changes nothing.
-8. **Log** the call: in full in debug mode, otherwise one short line (§8).
+1. **Receive an input** from the core, with its deadline.
+2. **Wait its turn.** One pass runs at a time. A newer input replaces one
+   that's waiting, and what you say cancels whatever is running.
+3. **Open the pass.** The input and the rules' reaction join the
+   transcript, moving the window first when it's full (§4). The menu is the
+   input's outputs, in the order they run, with the actions' definitions as
+   they are now, narrowed to the choices this input allows (`remember`'s
+   `where` is only `today` for what you said).
+4. **Stage 1.** The classifier gets the input, the memory text and the
+   transcript's window, and answers with calls whose decided arguments are
+   filled in (§5). The harness checks them: only outputs on the menu,
+   decided arguments from their choices and no written ones, at most one
+   call to each output (one per section on a new day), and never the same
+   call twice. If anything is off, the whole pass is dropped. Staying quiet
+   is no calls.
+5. **Stage 2, only when something needs words:** a mumble's word, or a
+   memory line. Each is a slot (`react.word`, `remember.text`). One writer
+   call fills them all, given the window with Stage 1's decision at its end,
+   in whatever time the deadline has left (less 100 ms). A slot the writer
+   leaves out, answers `none`, or fills with something that doesn't fit its
+   list or its length is left empty. A writer that fails or runs late
+   leaves every slot empty.
+6. **Hand off** each call to its action, in the menu's order: `quiet`, then
+   `react`, then `remember`. An empty word leaves the mumble without one; an
+   empty memory line drops that call ("nothing was written"). Each action
+   checks its own rules.
+7. **Record** everything in the transcript, and log the pass (§8).
 
-At startup, the app gives the harness its tools as a list of
-`(definition, handler)` pairs. That's what keeps the harness generic. A
-definition is read again for each call, so it can depend on memory
-(`forget` offers only the lines there are).
+At startup, the app gives the harness its outputs as `(definition,
+handler)` pairs. That's what keeps it generic. A definition is read again
+for each pass.
 
-Language models answer with this JSON, which their shape check reads:
+## 4. The transcript
 
-```json
-{"calls":[{"tool":"say","feeling":"proud","word":"finally"}]}
+One list, owned by the harness (`app/BoopKit/Harness/Transcript.swift`).
+Each pass appends to it; nothing in it is ever changed:
+
+| Entry | What it holds |
+| --- | --- |
+| `input` | An input that reached the brain |
+| `rules` | The rules' reaction to it, e.g. `cheer size 2` |
+| `aside` | Something only the rules handled: a tap, something needing you |
+| `decided` | Stage 1's calls, and how it got there (the rule that matched, Jev's answers) |
+| `dropped` | Why a pass produced nothing: Stage 1 failed, was late or cancelled, or answered off the menu |
+| `wrote` / `write_failed` | Stage 2's values by slot, or why it wrote nothing |
+| `ran` | Each call as its action received it, and what the action did |
+
+**The window.** Brains see a window onto the transcript: at most **8
+inputs**. When a 9th arrives, the window starts again from the **last 2**,
+so Boop still knows what you just said. A new day starts a window of its
+own. That's the only rule: nothing is summarized, and the window just moves
+its start. The window doesn't restart when memory changes, since every
+call puts the current memory at the top.
+
+**How each brain reads it.** The if-else classifier reads only the current
+input. Jev gets the window as JSON (§6). The writers get it as text, which
+looks like this (from `TranscriptTests`):
+
+```
+agent finished · done · claude · jetpack · took 18 min · 14:05 Tuesday
+  rules: cheer size 2
+  decided: react(feeling: proud, voice: mumble)
+  wrote: react.word = finally
+  ran: react(feeling: proud, voice: mumble, word: finally)
+tapped · 14:07 Tuesday: Boop wiggled
+you said · 14:05 Tuesday
+  they said: "remember 'the' demo"
+  decided: react(feeling: happy, voice: mumble), remember(where: today)
+  wrote: nothing
+  ran: react(feeling: happy, voice: mumble)
+  ran: remember(where: today) (dropped)
 ```
 
-An empty `calls` list means staying quiet. Numbers may come as digits in a
-string (`"30"`), and a `null` optional argument counts as left out.
-
-## 4. The situation and the prompt
-
-The harness keeps the conversation as typed turns: each one is a trigger,
-the limit lines it was shown and the calls that ran. The situation for a
-call is the trigger, the memory text and those turns, whatever the brain.
-A language model gets it as the text prompt below, rendered from the turns
-the same way every call; Jev gets it as JSON state (§7).
-
-The prompt has the same layout every time, with the stable parts first so a
-provider can cache them:
-
-```
-system:  preamble (3 lines: you are Boop's brain; answer only with tool calls;
-         no tool calls means staying quiet)
-         steering.md
-earlier: the conversation's exchanges, oldest first (none for reflection)
-user:    long-term.md      only in a conversation's first message,
-         short-term.md     and in every reflection
-         --- now ---
-         turn finished · claude · a · took 12 s · 09:01 Tuesday
-         say limit: once every 10 min on event, next in 9 min
-         quiet limit: only on talk
-         note limit: only on talk
-```
-
-**The conversation.** Event, tap and talk calls share one. Its first
-message carries the memory files; later messages are only the now section.
-Each earlier turn is shown as the message it was sent as and the calls that
-ran, in the answer format (§3): calls dropped by a limit or an action are left
-out, and an answer where nothing ran is `{"calls":[]}`. So each request
-starts with the one before it, which a provider can cache.
-
-There is no compaction. The conversation starts over, empty, when:
-
-- its opening changes: `steering.md`, either memory file or a tool
-  definition. The core writes a Happened line to `short-term.md` just
-  before the trigger for a turn that took 30 seconds or more and for every
-  failed turn, so most such events start over;
-- it already holds 4 turns;
-- the request as text would pass 5,000 tokens, estimated at four bytes a
-  token (the same for every brain, which keeps Jev's state small too);
-- an answer is refused, fails or has a bad shape.
-
-It lives in memory only and is gone when the app quits. Reflection is a call
-on its own; it neither sees nor joins the conversation.
-
-The trigger line carries only what's needed: what happened, the agent,
-project and topic, how long it took, the time, and whether Boop is hungry.
-A failed turn adds its error class (`error: rate limit`), and a trigger
-merged from a burst ends with `· +N more`
-([ARCHITECTURE.md](ARCHITECTURE.md) §3.2). For `talk` it carries your words.
-
-A conversation's first prompt fits in about 3,000 tokens. The memory store's
-line limits keep the files within budget, and the conversation's own limits
-keep later requests under 5,000, so the harness never has to trim. Apple's
-on-device model has an 8K context window here (measured 2026-09-25).
+**Sizes.** Apple's on-device model has an 8K context window here (measured
+2026-09-25), for the prompt, the schema and the answer; Jev takes 32K tokens
+of state. So Apple's model sets the budget. The memory store's line limits
+keep the files within theirs, and 8 inputs of the window come to about
+1–2K tokens, so nothing ever needs trimming:
 
 | Part | Budget (tokens) |
 | --- | --- |
-| Preamble + `steering.md` | ≤ 1,000 |
+| `steering.md` | ≤ 1,000 |
 | `long-term.md` | ≤ 800 |
 | `short-term.md` | ≤ 600 |
-| Trigger line | ≤ 100 |
-| Tool definitions | ≤ 400 |
+| An input's line and your words | ≤ 200 |
 
-No code, file contents, prompts or transcripts go in. The one exception is
-your words on `talk`, which stay in the conversation until it starts over. With
-Jev (§7) the situation leaves the Mac: it goes to TypeSafe with each call,
-your words included.
+The transcript lives in memory only and is gone when the app quits. Entries
+before the window are never read again, and past a thousand of them they're
+let go.
 
-## 5. Triggers
+No code, file contents, prompts or agent transcripts go in. The one
+exception is your words, which stay in the window until it moves past
+them. With Jev (§6) the pass leaves the Mac: `steering.md`, both memory
+files and the window, your words included, go to TypeSafe with each call.
 
-| Trigger | Sent when | Deadline | Tools allowed |
+## 5. Outputs
+
+Boop can do three things. Each output's action writes its definition, and
+each argument has a **role**: **decided** by Stage 1 from its choices, or
+**written** by Stage 2.
+
+| Output | Decided | Written | What it does |
 | --- | --- | --- | --- |
-| `event` | An agent turn starts, finishes or fails | 5 s | `say`, `face` |
-| `tap` | You tap Boop | 3 s | `say`, `face` |
-| `talk` | You release the push-to-talk button | 4 s | `say`, `face`, `quiet`, `note` |
-| `reflect` | Once a day, at the first activity of a new day | Minutes | `remember`, `temperament`, `moment` (not `forget` in v1, ARCHITECTURE.md §11) |
+| `react` | `feeling`, one of ten; `voice`: `silent` or `mumble` | `word`, only for a mumble: `none` or one of Voice's 40 words ([VOICE.md](VOICE.md) §6) | The feeling's face on the device, and for a mumble a Minion line from Voice with the word. The mumble is dropped in quiet mode or while something needs you; the face still plays |
+| `quiet` | `minutes`: 15, 30, 60 or 120 | — | The core's quiet mode: no mumbles, and agent inputs skip the brain |
+| `remember` | `where`: `today`, `about_you`, `preference`, `temperament` or `moment` | `text` | A line in that part of memory, under its own rules |
 
-Event, tap and talk calls are all offered `say`, `face`, `quiet` and `note`,
-so the tools never change within a conversation. A tool outside a trigger's
-allowed list is shown as a limit (`quiet limit: only on talk`). Reflection
-is offered its own list.
-
-**Limits.** The brain doesn't decide how often Boop talks; the harness
-does, in code. Each trigger kind carries a list of tool limits as plain data
-(`Trigger.Kind.limits`): at least so long between two runs of the tool that
-went through, and line starts where it never runs. Time is the trigger's
-own clock (`ts`), so tests and the pipeline check can move it. A tool past
-its limit is still offered, so the tool list stays the same, but the now
-section names the limit (`say limit: once every 10 min on event, next in 9
-min`, `say limit: not on turn started`) and the harness drops any call to
-it. Only the brain's calls count; the core's rule mumbles don't.
-
-| Trigger | Tool | Limit |
+| Feeling | Face | Its mumble sounds |
 | --- | --- | --- |
-| `event` | `say` | Once every 10 minutes, and never on a turn start |
-| `tap` | `say` | Once every 5 minutes |
-| `event`, `tap` | `quiet`, `note` | Only on `talk` |
-| `talk`, `reflect` | — | None: talk is the person asking, and reflection doesn't speak |
+| `happy` | `happy` | happy |
+| `excited` | `happy`, size 2 | excited |
+| `proud` | `proud` | proud |
+| `curious` | `curious` | curious |
+| `hopeful` | `love` | hopeful |
+| `annoyed` | `side_eye` | annoyed |
+| `sad` | `worried` | sad |
+| `sleepy` | `sleepy` | sleepy |
+| `smug` | `smug` | proud |
+| `sulky` | `sulky` | sad |
 
-"Needs you" is not a trigger. That moment belongs to plain rules, so the
-brain can't make it slower or different from one time to the next.
+| `where` | Goes to | Text | Its own rules |
+| --- | --- | --- | --- |
+| `today` | short-term Notes | ≤ 80 characters | One line, no code, paths or secrets, no duplicates |
+| `about_you`, `preference` | long-term About you, Preferences | ≤ 100 | Also no other people's names; refused when the section or file is full |
+| `temperament` | long-term Temperament | one sentence, ≤ 120 | Once a day |
+| `moment` | long-term Moments | ≤ 80 | One per day reflected on; refused when half or more of its longer words are in an earlier moment |
 
-## 6. Designing for small models
+The core's rules use the same `react` action: any animation for their
+instant reactions (a cheer, an oops), and a mumble for working chatter.
+Every action checks its arguments against its own definition, so a call
+that skips the harness (a rule's) is held to the same rules. A dropped call
+is logged with the reason. Forgetting a remembered line is the person's, in
+Settings; the brain has no way to.
 
-The brain is assumed to be small. Small models are good at picking from a
-short menu and bad at following long, open-ended instructions, so the design
-leans on the menu:
+## 6. The brains
 
-- **Few tools:** four for event, tap and talk, three for reflection.
-- **Flat, multiple-choice arguments.** `say` takes a `feeling` from a list
-  of eight and an optional `word` from a list of about forty. The only free
-  text is a short note or memory line, with a length limit.
-- **One step:** one call, up to three tool calls, no follow-up.
-- **Easy silence:** an empty answer is valid, and the limits (§5) make
-  silence the default for `say` whatever the model would pick.
-- **Examples over rules:** `steering.md` shows short examples for each
-  trigger, which helps a small model more than extra rules do.
+```
+Classifier                                   Stage 1
+  id                                         e.g. "rules@2", "jev:jev-latest"
+  classify(context, menu, deadline) -> calls with their decided arguments, and evidence
 
-Each action writes its own tool definition. For example, `say` publishes:
-
-```json
-{"name":"say","description":"Mumble. Pick a feeling; add one word only if it helps.",
- "parameters":{"feeling":{"enum":["happy","excited","proud","curious","hopeful","annoyed","sad","sleepy"]},
-               "word":{"enum":["tests","build","docs","deploy","bug","fix","ship","code","merge","review","yay","…"],"optional":true}}}
+Writer                                       Stage 2
+  id                                         e.g. "apple:26.4", "none"
+  write(context, slots, deadline) -> a value for each slot it filled
 ```
 
-The word list is Voice's vocabulary ([VOICE.md](VOICE.md) §6). Whatever the
-brain picks, `say` and Voice do the rest.
+The context is the input, the memory text and the transcript's window.
+Each brain is its own class in `app/BoopKit/Brains/`, with a comment that
+says exactly how it behaves.
 
-All eight tools, as their actions define them (`app/BoopKit/Actions/`):
-
-| Tool | Arguments | The action's own checks |
+| Brain | Stage | What it does |
 | --- | --- | --- |
-| `say` | `feeling` (one of 8), `word?` (one of 40) | Dropped in quiet mode or while something needs you. Plays the feeling's face (`happy`, `happy` at size 2 for excited, `proud`, `curious`, `love` for hopeful, `side_eye` for annoyed, `worried` for sad, `sleepy`) under the mumble |
-| `face` | `name`: `happy`, `proud`, `smug`, `curious`, `sleepy`, `worried`, `sulky`, `love` or `side_eye` | The core's rules may play any animation through the same action |
-| `quiet` | `minutes`: 15, 30, 60 or 120 | — |
-| `note` | `text`, at most 80 characters | Memory's rules: one line, no code, paths or secrets, no duplicates |
-| `remember` | `text`, at most 100 characters; `kind`: `about_you` or `preference` | Memory's rules, plus no other people's names; refused when the section or file is full |
-| `forget` | `text`: one of the lines now under About you or Preferences (the definition is rebuilt for each call; not callable when there are none) | Removes that line. Registered but offered by no trigger in v1 |
-| `temperament` | `text`, one sentence of at most 120 characters | Once a day |
-| `moment` | `text`, at most 80 characters | One per day reflected on; refused when half or more of its longer words are in an earlier moment |
+| `RulesClassifier` | 1 | **The default.** Plain Swift, no model, always available; reads only the input's fields. Agent started: nothing. Finished `done` in 5 minutes or more: `react(proud, mumble)`; shorter: nothing. Finished `failed`: `react(annoyed, mumble)`, one mumble per failure. You said "shut up", "quiet", "hush", "stop talking" or "keep it down": `quiet` (two hours 120, fifteen 15, half an hour 30, an hour 60, else 30) then `react(sulky, silent)`; "remember" or "note": `react(happy, mumble)` and `remember(today)`; "hello", "hi", "hey" or "morning": `react(happy, mumble)`; "good job", "well done", "nice", "great", "thanks" or "the best": `react(proud, mumble)`; anything else: `react(curious, mumble)`. Whole words only, and the first row that matches wins. New day: nothing, since deciding what lasts needs a model |
+| `JevClassifier` | 1 | TypeSafe's `jev-latest` ([docs](https://docs.typesafe.ai/api)), with the person's API key. It doesn't write: it answers typed questions about a state with probabilities, in one request of about 0.2 s. The state is `steering.md`, both memory files, the window's recent inputs (minutes ago, what happened, what you said, what the rules did and what Boop did) and now. The menu becomes questions built from the definitions: a yes/no for each output ("Should Boop react about what just happened?"), a choice for each decided argument with more than one option (`react.feeling`, `react.voice`, `quiet.minutes`), and, when the menu allows several calls told apart by a choice, a yes/no per choice instead (a new day's `remember.about_you`, `remember.moment`, …). Each question is answered on its own, so every argument is asked up front and only a chosen output's are used. A yes is above 0.5; each choice is the most likely one. Only the HTTP status of a failed request is logged |
+| `AppleWriter` | 2 | **The default.** Apple's on-device model: private and free. A fresh session each call: its instructions are a short preamble, `steering.md` and both memory files; its prompt is the window as text, then what just happened and what Boop decided, then a line per slot. Guided generation with one property per slot: a word from `none` and its list, or text with its length asked for. There's no option to decline, so it can't answer "stay quiet"; that was Stage 1's job. Guardrails are `permissiveContentTransformations`; a refusal fails the write like any error, marked as a refusal |
+| `NoWriter` | 2 | Writes nothing: mumbles have no word, and nothing is remembered. The setting `none`, and what `apple` falls back to when Apple's model can't run at launch |
+| `DeepSeekWriter` | 2 | Not built yet: it refuses every write ([FUTURE.md](FUTURE.md)) |
 
-Every action checks its arguments against its own definition too, so a
-call that skips the harness (a rule's) is held to the same rules. A
-dropped call is logged with the reason.
+**Settings** (`settings.json`, and "Decides with" and "Writes with" in the
+app, [UX.md](UX.md) §7): `classifier` is `rules` or `jev`, `writer` is
+`apple`, `none` or `deepseek`, and they take effect on restart. Jev needs
+its key, from the Keychain or `BOOP_JEV_KEY`; without one Boop classifies
+with the rules. An older `brain` setting becomes the two: `apple` is rules
+and Apple's model, `rules` is rules and no writer, `jev` is Jev and Apple's
+model.
 
-## 7. The `Brain` interface
+A weaker brain makes Boop less witty, but it can't make it break the rules:
+every call goes through the same check and the same actions.
 
-```
-Brain
-  id                                      e.g. "apple:<os>", "jev:jev-latest", "rules@1"
-  decide(situation, menu, deadline) -> decision (tool calls, and the raw answer for the log)
+## 7. Designing for small models
 
-TextBrain: Brain                          a language model
-  complete(system, history, user, tools, deadline) -> answer JSON
+Both stages are assumed to be small. Small models are good at picking from
+a short menu and at filling one blank, and bad at following long,
+open-ended instructions, so the design leans on that:
 
-Writer                                    fills in words for a call another brain chose
-  write(tool, situation, deadline) -> tool call or nothing
-```
+- **Deciding and writing are separate jobs.** Asked to do both, Apple's
+  model answered most inputs with silence, and Jev never chose a note over
+  staying quiet ([ARCHITECTURE.md](ARCHITECTURE.md) §11).
+- **A short menu:** one to three outputs per input, with flat,
+  multiple-choice arguments. The only free text is a memory line with a
+  length limit.
+- **Easy silence:** no calls is always a valid answer.
+- **One step:** one call per stage, no follow-up.
+- **Examples over rules:** `steering.md` shows a short example for each
+  input, which helps a small model more than extra rules do.
 
-A text brain gets the situation as the prompt (§4) and answers with the
-answer JSON (§3); the shared text adapter builds one and checks the other.
-It sends `system`, each earlier exchange in `history` and then `user`, in
-that order and unchanged, so every request starts with the one before.
-
-| Brain | Notes |
-| --- | --- |
-| Apple on-device | **The default.** Small, private and free. Guided generation with a schema built at runtime: a leading `react` choice (`stay quiet` or `react`, since a small model rarely leaves a list empty on its own), then up to three calls whose choices are constrained. Every list of words to choose from starts with `none`, which leaves an optional argument out or drops the call, because the model otherwise drifts to a list's first entry; lists of numbers (like `quiet`'s minutes) don't. Guardrails are set to `permissiveContentTransformations`; a guardrail refusal is dropped like any brain error (Boop keeps the rule reaction), but marked as a refusal so L5 counts it apart. Text lengths are only asked for, so the shape check still applies. Each call builds a fresh session from the conversation, showing earlier answers in its own `react`/`calls` shape. Everything must work well on this |
-| System one (Jev) | TypeSafe's `jev-latest` ([docs](https://docs.typesafe.ai/api)), with the person's own API key; setting `jev`. It doesn't write: it answers typed questions about a state with probabilities, in one request of about 0.2 s. The state is the situation as JSON: `steering.md`, both memory files, the recent turns (minutes ago, what happened, what Boop did) and now. The menu becomes questions: an `act` choice (`stay_quiet` or each open tool it can fill), a choice for each argument of those tools (`none` first for an optional one), and a yes/no for each open tool that needs words (`note`). Jev answers each question on its own, so every argument is asked up front and only the chosen tool's are used. The most likely `act` wins. A yes above 0.5 has the writer (Apple's model, as a `Writer`: that tool only, and it must call it) write the call, after Jev's own; the rules can't write, so with them there's no note. Reflection offers nothing Jev can fill, so the writer's brain decides it alone. A limited tool isn't an option at all. Only the HTTP status of a failed request is logged. With no key, Boop uses what `apple` gives |
-| Cloud API | Interface only in v1: `cloud:<model>` refuses every call, so Boop keeps its rule reactions. Wiring it to the person's own API key comes later ([FUTURE.md](FUTURE.md)); it should be wittier, with the same tools and limits, and send the conversation in order so the provider's prompt cache applies |
-| Rules only | No model. Matches the fallback table in `steering.md` against the trigger itself and ignores the history. It leaves out calls to tools past a limit. The most specific matching row wins (`Tap, hungry` over `Tap`); "long" means 5 minutes or more. Always available, and used when Apple's model can't run |
-
-The brain in use is pinned, and switching is a setting the person changes.
-Every brain gets the same situation and menu, and every tool call goes through
-the same actions. A weaker brain makes Boop less witty, but it can't make it
-break the rules.
+It's modelled on [pi](https://mariozechner.at/posts/2025-11-30-pi-coding-agent/),
+whose rule is "if I don't need it, it won't be built": a short system
+prompt, few tools, context kept in plain files, every session logged, and
+no MCP, sub-agents or plan mode. pi loops until its model stops calling
+tools; Boop's outputs return nothing a model needs, so each stage is a
+single call.
 
 ## 8. Logging
 
-In debug mode, each call is logged as one JSON line: the trigger, the brain,
-the situation as the text prompt (system prompt and new message), how many
-earlier turns were sent, the raw answer (a model's JSON; Jev's answers with
-their probabilities, then what the writer wrote; the rules' calls), what the shape check dropped, which actions
-ran and what they dropped, and the latency. Otherwise the app log gets one
-line per call: the trigger kind, the latency and the names of the tools
-that ran, never their arguments. Outside debug mode, the words you said
-and what the brain answered never reach the log.
+In debug mode, each pass is logged as one JSON line: the input and its
+line, both brains, how many inputs the window held, Stage 1's calls and
+evidence, the slots and what was written (and the writer's raw answer),
+why anything was dropped or failed, what each action did, and each stage's
+latency. Otherwise the app log gets one line per pass: the input kind, the
+latency and the outputs that ran, never their arguments:
+
+```
+brain you said 812 ms → quiet, react, remember
+```
+
+Outside debug mode, the words you said and what the brain wrote never reach
+the log.

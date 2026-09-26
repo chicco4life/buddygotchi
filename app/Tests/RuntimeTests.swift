@@ -4,7 +4,7 @@ import XCTest
 @testable import HookWire
 
 /// The runtime end to end in-process: real hook socket, real core, harness
-/// with the rules brain and memory in a temporary state directory; a fake
+/// with the rules classifier, no writer, and memory in a temporary state directory; a fake
 /// device.
 final class RuntimeTests: XCTestCase {
     var dir: URL!
@@ -25,7 +25,8 @@ final class RuntimeTests: XCTestCase {
         try Runtime.setUp(stateDir: dir, name: "Pip", nature: .sweet, today: LocalTime().day(Int64(Date().timeIntervalSince1970 * 1000)))
         var options = Runtime.Options(stateDir: dir, socketPath: dir.appendingPathComponent("boop.sock").path,
                                       link: transport, steering: try String(contentsOf: Self.steering, encoding: .utf8))
-        options.brain = "rules"
+        options.classifier = "rules"
+        options.writer = "none"
         options.devLines = true
         return try Runtime(options)
     }
@@ -93,7 +94,8 @@ final class RuntimeTests: XCTestCase {
         wait("cheer") { transport.sent.contains { $0.contains("\"anim\":\"cheer\"") } }
         wait("record") { AppSettings.load(from: self.dir).finished == 1 }
         XCTAssertEqual(AppSettings.load(from: dir).projects, ["jetpack"])
-        XCTAssertEqual(AppSettings.load(from: dir).brain, "apple", "--brain is for this run only")
+        XCTAssertEqual(AppSettings.load(from: dir).classifier, "rules")
+        XCTAssertEqual(AppSettings.load(from: dir).writer, "apple", "--writer is for this run only")
         wait("today's short-term memory") {
             (try? String(contentsOf: self.dir.appendingPathComponent("short-term.md"), encoding: .utf8))?.contains("## Today") == true
         }
@@ -141,11 +143,31 @@ final class RuntimeTests: XCTestCase {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try Data(#"{"brain":"rules"}"#.utf8).write(to: dir.appendingPathComponent(AppSettings.file))
         let settings = AppSettings.load(from: dir)
-        XCTAssertEqual(settings.brain, "rules")
+        XCTAssertEqual([settings.classifier, settings.writer], ["rules", "none"], "rules only wrote nothing")
         XCTAssertEqual(settings.volume, 6)
         XCTAssertEqual(settings.finished, 0)
         XCTAssertFalse(settings.away)
         XCTAssertNil(settings.awaySince)
+    }
+
+    /// HARNESS.md §6: the old one `brain` setting becomes the two stages;
+    /// Apple's model and Jev keep Apple's model for the words.
+    func testTheOldBrainSettingBecomesTwo() throws {
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let cases = [(#"{"brain":"apple"}"#, "rules", "apple"), (#"{"brain":"jev"}"#, "jev", "apple"),
+                     (#"{"brain":"cloud:x"}"#, "rules", "apple"), (#"{}"#, "rules", "apple"),
+                     (#"{"brain":"jev","classifier":"rules","writer":"none"}"#, "rules", "none")]
+        for (json, classifier, writer) in cases {
+            try Data(json.utf8).write(to: dir.appendingPathComponent(AppSettings.file))
+            let settings = AppSettings.load(from: dir)
+            XCTAssertEqual([settings.classifier, settings.writer], [classifier, writer], json)
+        }
+        var saved = AppSettings.load(from: dir)
+        saved.classifier = "jev"
+        try saved.save(to: dir)
+        let text = try String(contentsOf: dir.appendingPathComponent(AppSettings.file), encoding: .utf8)
+        XCTAssertFalse(text.contains("\"brain\""), "the old key isn't written back")
+        XCTAssertEqual(AppSettings.load(from: dir).classifier, "jev")
     }
 
     /// A long turn, finished after moving the clock with `{"dev":"advance"}`:
@@ -156,7 +178,8 @@ final class RuntimeTests: XCTestCase {
         try Runtime.setUp(stateDir: dir, name: "Pip", nature: .sweet, today: LocalTime().day(Int64(Date().timeIntervalSince1970 * 1000)))
         var options = Runtime.Options(stateDir: dir, socketPath: dir.appendingPathComponent("boop.sock").path,
                                       link: transport, steering: try String(contentsOf: Self.steering, encoding: .utf8))
-        options.brain = "rules"
+        options.classifier = "rules"
+        options.writer = "none"
         options.devLines = true
         let skew = NSLock()
         nonisolated(unsafe) var skewMs: Int64 = 0

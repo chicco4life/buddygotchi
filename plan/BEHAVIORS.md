@@ -1,8 +1,9 @@
 # Boop: behaviors
 
-Updated 2026-09-26. What Boop does on the device for each trigger, and how
-XP, hunger and mood work. How it sounds is in [VOICE.md](VOICE.md). Numbers
-marked *proposed* are first guesses, to be tuned once we've lived with Boop.
+Updated 2026-09-26. What Boop does on the device when things happen, and
+how XP, hunger and mood work. How it sounds is in [VOICE.md](VOICE.md).
+Numbers marked *proposed* are first guesses, to be tuned once we've lived
+with Boop.
 
 ## 1. How behaviour is layered
 
@@ -56,24 +57,26 @@ blinks, every 5–9 s. The backlight dims to about 45% at night, 25% asleep
 (15% asleep at night) and 30% with no app, but never while something needs
 you.
 
-## 3. Triggers and what Boop does
+## 3. What happens and what Boop does
 
 "Rules" happen immediately. "Brain may add" arrives 1–5 s later from the
-[harness](HARNESS.md), and is dropped if the moment has passed. It never
-cuts the rules' reaction short: a brain moment waits until the rule moment
-(and any follow-up, like the `side_eye` after an `oops`) has finished
-playing ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2).
+[brain](HARNESS.md), and is dropped if the moment has passed. What it adds
+is up to its classifier, and a mumble's word is up to its writer
+([HARNESS.md](HARNESS.md) §6). It never cuts the rules' reaction short: a
+brain moment waits until the rule moment (and any follow-up, like the
+`side_eye` after an `oops`) has finished playing
+([ARCHITECTURE.md](ARCHITECTURE.md) §3.2).
 
 ### 3.1 Agent work
 
-| Trigger | Rules | Brain may add |
+| When | Rules | Brain may add |
 | --- | --- | --- |
-| You send a prompt | Base becomes working | Never a mumble: the brain never speaks on a turn start ([HARNESS.md](HARNESS.md) §5). Rarely a face |
-| Turn finishes, under 5 min | `cheer` size 1, even while other sessions keep working | A mumble, e.g. *"ba-ba ti… done!"* |
+| You send a prompt | Base becomes working | Usually nothing; the classifier may add a face |
+| Turn finishes, under 5 min | `cheer` size 1, even while other sessions keep working | Rarely a mumble, e.g. *"ba-ba ti… done!"* |
 | Turn finishes, 5–20 min | `cheer` size 2, jingle, warm light | A mumble, e.g. *"…finally!"* |
-| Turn finishes, over 20 min | `cheer` size 3, jingle, warm light | A proud mumble; maybe a note |
-| Several finish at once | One cheer; a bigger finish within 3 s upgrades it | One mumble |
-| Turn fails | `oops`, then `side_eye` at the agent | Sass at the agent, e.g. *"tu-ka… tests."* |
+| Turn finishes, over 20 min | `cheer` size 3, jingle, warm light | A proud mumble |
+| Several finish at once | One cheer; a bigger finish within 3 s upgrades it | One mumble at most |
+| Turn fails | `oops`, then `side_eye` at the agent | Sass at the agent, as an annoyed mumble, e.g. *"tu-ka… tests."* |
 
 ### 3.2 Something needs you
 
@@ -95,16 +98,16 @@ The brain is never involved here.
 
 ### 3.3 You and Boop
 
-| Trigger | Rules | Brain may add |
+| When | Rules | Brain may add |
 | --- | --- | --- |
-| Tap the face, or press BOOT | `wiggle`: "^ ^" eyes, a smile and a heart at the top right, swaying gently | A small mumble or face |
-| Hold BOOT (push-to-talk) | `listening` at once (for at most 30 s), `thinking` on release. The Mac's mic goes off on release, after 30 s, or when the link drops | A mumble reply and a face; on "shut up", a `sulky` face and quiet, as in [steering.md](steering.md) |
+| Tap the face, or press BOOT | `wiggle`: "^ ^" eyes, a smile and a heart at the top right, swaying gently | Nothing: a tap is the rules' alone ([HARNESS.md](HARNESS.md) §2) |
+| Hold BOOT (push-to-talk) | `listening` at once (for at most 30 s), `thinking` on release. The Mac's mic goes off on release, after 30 s, or when the link drops | A face, usually with a mumble; on "shut up", quiet and a silent `sulky` face; told something to remember, a note for today, as in [steering.md](steering.md) |
 | Talk in the popover, then Send | The Mac sends `listening`, then `thinking` on Send or after 30 s. A mic that can't start sends `shrug` | As for holding BOOT |
 | Brain too slow to reply | The device ends `thinking` with a `shrug` itself after 8 s | — |
 
 ### 3.4 Time and the device
 
-| Trigger | Behaviour |
+| When | Behaviour |
 | --- | --- |
 | Night | Drowsier, dimmer, fewer mumbles; sleeps once nothing is working |
 | Low battery | Small battery icon (later; the v1 board has no battery) |
@@ -181,7 +184,7 @@ Mute silences all sound but keeps the light and buzz.
 | `oops`, `side_eye` | Failed turns; sass at agents |
 | `wiggle` | Taps |
 | `listening`, `thinking`, `shrug` | Push-to-talk |
-| `zip` | Drawn, but nothing plays it in v1: neither the rules nor the brain's `face` choices |
+| `zip` | Drawn, but nothing plays it in v1: neither the rules nor any of `react`'s feelings |
 | `gobble`, `rumble` | Hunger |
 | `levelup` | Level-ups |
-| `happy`, `proud`, `smug`, `curious`, `sleepy`, `worried`, `sulky`, `love`, `side_eye` | Faces the brain can pick with `face` |
+| `happy`, `proud`, `smug`, `curious`, `sleepy`, `worried`, `sulky`, `love`, `side_eye` | The faces of `react`'s feelings ([HARNESS.md](HARNESS.md) §5) |

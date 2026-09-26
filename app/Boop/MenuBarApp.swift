@@ -49,8 +49,9 @@ final class AppModel: ObservableObject {
     @Published var hooks: [HookInstaller.Agent: HookInstaller.Health] = [:]
     @Published var remembered: [String] = []
     @Published var restartAgents = false
-    /// The brain chosen in settings; `status.brain` is the one running.
-    @Published var brain = "apple"
+    /// The brain's two stages chosen in settings; `status` has the ones running.
+    @Published var classifier = "rules"
+    @Published var writer = "apple"
     @Published var nature = LongTerm.Nature.sweet
     @Published var startError: String?
     /// Why push-to-talk couldn't hear you, until the next try.
@@ -121,9 +122,14 @@ final class AppModel: ObservableObject {
         runtime?.setListening(on)
     }
 
-    func setBrain(_ brain: String) {
-        self.brain = brain
-        runtime?.setBrain(brain)
+    func setClassifier(_ classifier: String) {
+        self.classifier = classifier
+        runtime?.setClassifier(classifier)
+    }
+
+    func setWriter(_ writer: String) {
+        self.writer = writer
+        runtime?.setWriter(writer)
     }
 }
 
@@ -244,7 +250,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             self.runtime = runtime
             self.listener = listener
             model.runtime = runtime
-            model.brain = runtime.settings.brain
+            model.classifier = runtime.settings.classifier
+            model.writer = runtime.settings.writer
             model.nature = runtime.memory.longTerm?.nature ?? .sweet
             model.startError = nil
             runtime.refresh()

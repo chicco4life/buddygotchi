@@ -141,8 +141,8 @@ hold the button or until you click Send.
 1. **Hold, or click Talk:** the listening face appears at once, on the
    device and in the popover.
 2. **Release, or click Send:** a thinking face covers the 2–3 s wait.
-3. **Reply:** a mumble and a face. It's never a sentence, and never an
-   answer to a question.
+3. **Reply:** a face, usually with a mumble. It's never a sentence, and
+   never an answer to a question.
 
 **You can always tell the mic is on.** While it is, the menu-bar icon
 turns recording red with a bigger dot, the popover's line says
@@ -157,8 +157,8 @@ and where to allow it.
 
 Things worth saying: "shut up" (Boop goes quiet for a while), "good job",
 "remember I ship on Fridays", or just mumbling at it. Audio is thrown away at
-once. What you said stays in Boop's short conversation with its brain, in
-memory only, until that starts over ([HARNESS.md](HARNESS.md) §4).
+once. What you said stays in the brain's transcript, in memory only, until
+its window moves past it ([HARNESS.md](HARNESS.md) §4).
 
 ## 6. Setup
 
@@ -183,11 +183,13 @@ memory only, until that starts over ([HARNESS.md](HARNESS.md) §4).
    gets Boop's name. There's no pairing code in v1
    ([PROTOCOL.md](PROTOCOL.md) §2). With no sessions yet Boop sleeps, and
    the first agent session wakes it ([BEHAVIORS.md](BEHAVIORS.md) §2).
-4. Boop uses Apple's on-device model by default, with no setup. Settings
-   can switch to Jev, a "system one" model online, with your own API key
-   ([HARNESS.md](HARNESS.md) §7); other cloud brains come later
-   ([FUTURE.md](FUTURE.md)). On Macs without Apple's model, Boop still works
-   fully on rules, with a simpler personality.
+4. Boop's brain needs no setup: by default plain rules decide what it does,
+   and Apple's on-device model writes its words. Settings can have Jev, a
+   "system one" model online, decide instead, with your own API key
+   ([HARNESS.md](HARNESS.md) §6); a DeepSeek writer comes later
+   ([FUTURE.md](FUTURE.md)). On Macs without Apple's model nothing writes:
+   Boop still reacts to everything, but its mumbles have no real word and
+   it remembers nothing you tell it.
 
 ## 7. The Mac app
 
@@ -225,7 +227,7 @@ except Talk, which is there to be used in the moment.
 | Sound | Volume (0–10, 0 shows "Off"), "I'm away" (pauses hunger) |
 | Agents | Claude Code and Codex: connected, not connected, not found or needs a repair, with Connect, Repair or Remove. If `boop-hook` isn't built, each says so ("Run make build, then restart Boop") with no button |
 | Device | Whether Boop's body is connected and how (Bluetooth or USB), and its firmware version. Not its id. A Reconnect button drops the link and looks for the device again at once ([PROTOCOL.md](PROTOCOL.md) §2, "Reconnecting") |
-| Brain | "On-device" (Apple's model), "System one (Jev)" or "Rules only" (takes effect on restart), and the API key, kept in the Keychain. The key's caption says that what happens and Boop's memory go to TypeSafe with each call |
+| Brain | "Decides with": "Rules" or "System one (Jev)". "Writes with": "On-device" (Apple's model) or "None"; its line says DeepSeek comes later. Both take effect when Boop restarts. The Jev API key, kept in the Keychain; its caption says that with Jev, what happens and Boop's memory go to TypeSafe with each call |
 | What Boop remembers | Each line, with a button to forget it |
 | About | The app's version |
 

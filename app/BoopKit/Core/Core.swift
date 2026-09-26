@@ -2,7 +2,7 @@ import Foundation
 
 /// The core (ARCHITECTURE.md §3.2): plain rules with no queue. It keeps the
 /// session table and decides what the device shows, the rule reactions, XP,
-/// hunger, mood, quiet and away, and which triggers reach the harness.
+/// hunger, mood, quiet and away, and which inputs reach the brain.
 ///
 /// It's a pure state machine: every call takes the time and returns effects
 /// for the app to carry out. Call `tick` about once a second for the timers.
@@ -20,7 +20,7 @@ public final class Core {
         public var staleWorkMs: Int64 = 60 * 60 * 1000
         /// A session with no events for this long is forgotten.
         public var forgetMs: Int64 = 24 * 60 * 60 * 1000
-        /// Triggers within this window merge into one.
+        /// Agent inputs within this window merge into one.
         public var mergeMs: Int64 = 3000
         /// Working chatter comes every 2–4 minutes (BEHAVIORS.md §2, proposed).
         public var chatterMs: ClosedRange<Int> = 120_000...240_000
@@ -81,9 +81,9 @@ public final class Core {
     var levelUpPending = false
     var nextChatterAt: Int64?
 
-    // Trigger merging.
-    var lastTriggerAt: Int64 = -1_000_000
-    var heldTrigger: (trigger: Trigger, rank: Int, count: Int)?
+    // Merging bursts of agent inputs.
+    var lastInputAt: Int64 = -1_000_000
+    var heldInput: (input: Input, rank: Int, count: Int)?
 
     // Push-to-talk (UX.md §5).
     /// Who turned the Mac's mic on: the device's BOOT button or the app's
@@ -134,6 +134,7 @@ public final class Core {
                 } else {
                     s.needsSince = now
                     s.status = .waiting
+                    fx.append(.aside(needsYouLine(s, now)))
                 }
             }
             s.lastEventAt = now
@@ -159,7 +160,7 @@ public final class Core {
             s.turnStartedAt = now
             s.topic = nil
             sessions[key] = s
-            eventTrigger("turn started", s, extra: [], rank: 1, now, &fx)
+            agentInput(.agentStarted, s, rules: nil, rank: 1, now, &fx)
         case .activity:
             s.status = .working
             if s.turnStartedAt == nil { s.turnStartedAt = now }
@@ -186,20 +187,22 @@ public final class Core {
         return fx
     }
 
-    public enum Input: String, Sendable {
+    /// An `input` message's `k` (PROTOCOL.md §4).
+    public enum DeviceInput: String, Sendable {
         case tap, talkOn = "talk_on", talkOff = "talk_off"
     }
 
     /// An `input` message from the device. The device has already reacted.
     @discardableResult
-    public func input(_ input: Input, at now: Int64) -> [CoreEffect] {
+    public func input(_ input: DeviceInput, at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
         startDayIfNew(now, &fx)
         switch input {
         case .tap:
-            let line = "tapped · " + timeLine(now)
-            offer(Trigger(kind: .tap, line: line, ts: now), rank: 2, now, &fx)
+            // The rules' alone: the brain's transcript only hears of it.
+            let reaction = needsYouShowing ? "Boop nodded and stopped nudging" : "Boop wiggled"
+            fx.append(.aside("tapped · \(timeLine(now)): \(reaction)"))
         case .talkOn:
             // The device already shows `listening`, and `thinking` on release.
             startListening(by: .device, now, &fx)
@@ -210,12 +213,13 @@ public final class Core {
         return fx
     }
 
-    /// What the person said on push-to-talk. Always reaches the harness.
+    /// What the person said on push-to-talk. Always reaches the brain.
     @discardableResult
     public func talk(_ words: String, at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
-        fx.append(.trigger(Trigger(kind: .talk, line: "talk · " + timeLine(now), words: words, ts: now)))
+        fx.append(.input(Input(.said, words: words, clock: config.time.clock(now), weekday: config.time.weekday(now),
+                               hunger: hungerNow(now), rules: "listening, then thinking", ts: now)))
         publish(now, &fx)
         return fx
     }
@@ -294,7 +298,7 @@ public final class Core {
     }
 
     /// Timers: the Codex grace period, the safety net, quiet running out,
-    /// follow-up moments, merged triggers, chatter, level-ups and the
+    /// follow-up moments, merged inputs, chatter, level-ups and the
     /// push-to-talk limit.
     @discardableResult
     public func tick(at now: Int64) -> [CoreEffect] {
@@ -394,7 +398,8 @@ public final class Core {
         lastActiveDay = today
         fx.append(.newDay(date: today, firstSeen: config.time.clock(now), mood: moodWord(at: now)))
         if let yesterday {
-            fx.append(.trigger(Trigger(kind: .reflect, line: "reflect · yesterday \(yesterday)", ts: now)))
+            fx.append(.input(Input(.newDay, yesterday: yesterday, clock: config.time.clock(now),
+                                   weekday: config.time.weekday(now), hunger: hungerNow(now), ts: now)))
         }
     }
 
@@ -443,7 +448,8 @@ public final class Core {
         default: size = 3
         }
         let burst = lastFinish.map { now - $0.at < config.mergeMs } ?? false
-        if !burst || size > lastFinish!.size {
+        let cheered = !burst || size > lastFinish!.size
+        if cheered {
             play("cheer", size, now, &fx)
             lastFinish = (now, burst ? max(size, lastFinish!.size) : size)
         } else {
@@ -454,10 +460,8 @@ public final class Core {
         if ms >= 30_000 {
             fx.append(.happened("\(config.time.clock(now)) \(s.agent.short) · \(s.project) · finished (\(took(ms)))"))
         }
-        var extra: [String] = []
-        if let topic = s.topic { extra.append("topic: \(topic)") }
-        extra.append("took \(took(ms))")
-        eventTrigger("turn finished", s, extra: extra, rank: ms >= 300_000 ? 3 : 2, now, &fx)
+        agentInput(.agentFinished, s, outcome: .done, tookMs: ms, rules: cheered ? "cheer size \(size)" : nil,
+                   rank: ms >= 300_000 ? 3 : 2, now, &fx)
     }
 
     /// A failed turn: `oops`, then a side-eye at the agent.
@@ -468,10 +472,8 @@ public final class Core {
         mood.fail(at: now)
         let topic = s.topic.map { " · \($0)" } ?? ""
         fx.append(.happened("\(config.time.clock(now)) \(s.agent.short) · \(s.project)\(topic) · failed"))
-        var extra: [String] = []
-        if let topic = s.topic { extra.append("topic: \(topic)") }
-        if let error { extra.append("error: \(error.replacingOccurrences(of: "_", with: " "))") }
-        eventTrigger("turn failed", s, extra: extra, rank: 4, now, &fx)
+        agentInput(.agentFinished, s, outcome: .failed, tookMs: ms, error: error, rules: "oops, then side_eye",
+                   rank: 4, now, &fx)
     }
 
     func took(_ ms: Int64) -> String {
@@ -488,32 +490,41 @@ public final class Core {
         return line
     }
 
-    func eventTrigger(_ what: String, _ s: Session, extra: [String], rank: Int, _ now: Int64,
-                      _ fx: inout [CoreEffect]) {
-        let line = ([what, s.agent.short, s.project] + extra + [timeLine(now)]).joined(separator: " · ")
-        offer(Trigger(kind: .event, line: line, ts: now), rank: rank, now, &fx)
+    /// "claude needs you · jetpack · 14:07 Tuesday", for the brain's transcript.
+    func needsYouLine(_ s: Session, _ now: Int64) -> String {
+        "\(s.agent.short) needs you · \(s.project) · \(timeLine(now))"
     }
 
-    /// While something needs you, and in quiet mode, only `talk` and the
-    /// daily reflection reach the harness.
-    func triggersAllowed(_ now: Int64) -> Bool {
+    func agentInput(_ kind: Input.Kind, _ s: Session, outcome: Input.Outcome? = nil, tookMs: Int64? = nil,
+                    error: String? = nil, rules: String?, rank: Int, _ now: Int64, _ fx: inout [CoreEffect]) {
+        let input = Input(kind, agent: s.agent.short, project: s.project, outcome: outcome,
+                          topic: kind == .agentFinished ? s.topic : nil, tookMs: tookMs, error: error,
+                          clock: config.time.clock(now), weekday: config.time.weekday(now), hunger: hungerNow(now),
+                          rules: rules, ts: now)
+        offer(input, rank: rank, now, &fx)
+    }
+
+    /// While something needs you, and in quiet mode, only what you said and
+    /// the new day reach the brain.
+    func inputsAllowed(_ now: Int64) -> Bool {
         !needsYouShowing && quietLeft(now) == 0
     }
 
-    /// Sends a trigger now, or holds it to merge with the burst it's part of.
-    /// The held one keeps the most important line and goes out when the
-    /// window ends.
-    func offer(_ trigger: Trigger, rank: Int, _ now: Int64, _ fx: inout [CoreEffect]) {
-        guard triggersAllowed(now) else { return }
-        if now - lastTriggerAt >= config.mergeMs && heldTrigger == nil {
-            lastTriggerAt = now
-            fx.append(.trigger(trigger))
+    /// Sends an agent input now, or holds it to merge with the burst it's
+    /// part of: failed beats a finish of 5 minutes or more, which beats a
+    /// shorter finish, which beats a start. The held one goes out when the
+    /// window ends, with how many others it stands for.
+    func offer(_ input: Input, rank: Int, _ now: Int64, _ fx: inout [CoreEffect]) {
+        guard inputsAllowed(now) else { return }
+        if now - lastInputAt >= config.mergeMs && heldInput == nil {
+            lastInputAt = now
+            fx.append(.input(input))
             return
         }
-        if let held = heldTrigger {
-            heldTrigger = rank >= held.rank ? (trigger, rank, held.count + 1) : (held.trigger, held.rank, held.count + 1)
+        if let held = heldInput {
+            heldInput = rank >= held.rank ? (input, rank, held.count + 1) : (held.input, held.rank, held.count + 1)
         } else {
-            heldTrigger = (trigger, rank, 1)
+            heldInput = (input, rank, 1)
         }
     }
 
@@ -527,6 +538,7 @@ public final class Core {
                     s.pendingSince = nil
                     s.needsSince = pending + config.codexGraceMs
                     s.status = .waiting
+                    fx.append(.aside(needsYouLine(s, now)))
                 }
             }
             if s.needsSince != nil && now - s.lastEventAt >= config.safetyNetMs {
@@ -560,14 +572,14 @@ public final class Core {
             fx.append(.happened("\(config.time.clock(now)) reached level \(growth.level)"))
         }
 
-        // Merged triggers.
-        if let held = heldTrigger, now - lastTriggerAt >= config.mergeMs {
-            heldTrigger = nil
-            lastTriggerAt = now
-            if triggersAllowed(now) {
-                var trigger = held.trigger
-                if held.count > 1 { trigger.line += " · +\(held.count - 1) more" }
-                fx.append(.trigger(trigger))
+        // Merged bursts.
+        if let held = heldInput, now - lastInputAt >= config.mergeMs {
+            heldInput = nil
+            lastInputAt = now
+            if inputsAllowed(now) {
+                var input = held.input
+                input.more = held.count - 1
+                fx.append(.input(input))
             }
         }
 

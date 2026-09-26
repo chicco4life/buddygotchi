@@ -27,14 +27,14 @@ belong to the films.
 
 | Step | Done by |
 | --- | --- |
-| Decide to say something: a feeling and maybe one word | The brain or a rule, by calling the `say` action |
+| Decide to mumble: a feeling and maybe one word | A rule, or the brain: its classifier picks the feeling and its writer the word. Either way through the `react` action |
 | Build the line: syllables, where the word goes, tune and tempo | Voice, on the Mac |
 | Check it isn't accidentally English | Voice |
-| Send it to the device | `say`, through the device link |
+| Send it to the device | `react`, through the device link |
 | Play it | The device |
 
 Voice is the only code that knows what Minion speech is. The brain never
-writes syllables; it picks a feeling and at most one word from a fixed
+writes syllables: it picks a feeling, and at most one word from a fixed
 list. That keeps the voice the same whichever brain is in use, and no model
 can slip real words into the gibberish.
 
@@ -93,8 +93,8 @@ A line is 2–8 syllables, grouped into gibberish "words" of 1–3 syllables:
 | Real word | At most one. Usually at the end, as a question or exclamation; one time in five at the start, as an announcement. Curious always asks, at the end |
 | Randomness | Seeded per line, so replaying a line in debug mode gives the same sound |
 
-**Feeling shapes the syllables and the tune.** These are the eight feelings
-`say` accepts:
+**Feeling shapes the syllables and the tune.** These are the eight
+feelings a mumble can have:
 
 | Feeling | Syllables | Rhythm | Tune |
 | --- | --- | --- | --- |
@@ -106,6 +106,9 @@ A line is 2–8 syllables, grouped into gibberish "words" of 1–3 syllables:
 | Annoyed | Clipped `t`, `k` and `p` | Short and punchy | `flat` |
 | Sad | Rounded `u` and `o`, trailing off | Slow | `down` |
 | Sleepy | Hums `mm` and `nn`, and soft `mu`, `mo`, `nu`, `no` | Very slow, may trail off mid-line | `down` |
+
+`react` has two more feelings, and they borrow a mumble: `smug` sounds
+proud, and `sulky` sad ([HARNESS.md](HARNESS.md) §5).
 
 Examples, with the word in bold (these show the shape only):
 
@@ -145,8 +148,8 @@ oh what`.
 
 The vocabulary is English everywhere in v1. The gibberish needs no
 translation, and a stray English word is part of the charm. The same list is
-the multiple-choice `word` field in the `say` tool
-([HARNESS.md](HARNESS.md) §6), so the brain can't ask for a word Boop can't
+the choices for `react`'s `word`, which the brain's writer picks
+([HARNESS.md](HARNESS.md) §5), so the brain can't ask for a word Boop can't
 say. Adding a word is a firmware asset change and ships as an announced
 update.
 

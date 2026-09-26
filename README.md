@@ -67,8 +67,8 @@ tools/boopctl ports | ping | state | shot | pattern
 tools/boopctl sim [scenario…] [--accept]   # simulator vs goldens
 tools/boopctl run [scenario…]              # board vs simulator, pixel for pixel
 tools/boopctl bridge                       # share the serial port on a Unix socket
-tools/boopctl e2e [--brain rules|apple]    # the pipeline check (needs the bridge's port free)
-tools/boopctl e2e --soak 30 --brain apple  # the pipeline on a loop: resets, leaks, stuck states
+tools/boopctl e2e [--writer none|apple]    # the pipeline check (needs the bridge's port free)
+tools/boopctl e2e --soak 30 --writer apple # the pipeline on a loop: resets, leaks, stuck states
 tools/boopctl soak | perf                  # device-only soak, frame rate
 tools/boopctl mumble | say | volume | sound | moment | needs  # hear and watch Boop by hand
 tools/boopctl calibrate                    # touch calibration: tap 4 crosses (needs a person)
@@ -79,8 +79,8 @@ tools/boopctl calibrate                    # touch calibration: tap 4 crosses (n
 ```sh
 boopdev replay <hooks.jsonl>               # hooks through the adapter and core, on a virtual clock
 boopdev memory --state-dir DIR             # the memory files as the store reads them
-boopdev voice <feeling> [word]             # Minion lines as `say` builds them
-boopdev brain --brain apple|rules|jev [--gap-min N] [--history N]  # the harness and brain on recorded triggers (L5); jev needs BOOP_API_KEY
+boopdev voice <feeling> [word]             # Minion lines as `react` builds them
+boopdev brain [--classifier rules|jev] [--writer apple|none|deepseek] [--print]  # the brain on recorded inputs (L5); jev needs BOOP_JEV_KEY
 boopdev hooks status|install|remove --home DIR
 boopdev talk "<words>" --socket PATH       # a push-to-talk transcript to a headless app
 ```

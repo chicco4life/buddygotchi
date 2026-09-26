@@ -5,7 +5,7 @@ public enum Agent: String, Sendable, CaseIterable {
     case claudeCode = "claude_code"
     case codex
 
-    /// The short name used on the device and in trigger lines.
+    /// The short name used on the device and in input lines.
     public var short: String {
         switch self {
         case .claudeCode: "claude"
