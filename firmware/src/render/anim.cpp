@@ -11,11 +11,6 @@ namespace {
 const char* const kNames[] = {"none", "cheer", "wiggle", "listening"};
 static_assert(sizeof(kNames) / sizeof(kNames[0]) == size_t(Anim::kCount), "one name per anim");
 
-// |sin| bounces: `period` ms per hop, peaking at `amp`.
-int hop(uint32_t t, uint32_t period, int amp) {
-  int s = isin(int(t % period * 512 / period));
-  return amp * s / 1024;
-}
 // A side-to-side wave of `period` ms.
 int wave(uint32_t t, uint32_t period, int amp) { return amp * isin(int(t % period * 1024 / period)) / 1024; }
 
