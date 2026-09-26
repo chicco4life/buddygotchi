@@ -1,6 +1,6 @@
 # Boop: UX
 
-Updated 2026-09-26. What the person sees and touches: the screen, the
+Updated 2026-09-27. What the person sees and touches: the screen, the
 controls, setup and the Mac app. What Boop *does* in each situation is in
 [BEHAVIORS.md](BEHAVIORS.md), and how it sounds is in [VOICE.md](VOICE.md).
 
@@ -49,15 +49,14 @@ shows, the face eases up into the top 144 px at three-quarters size.
   crossing 3, eases from the frame that was showing. The backlight eases
   over the same 150 ms. A blink shrinks the eye towards a one-block bar;
   an eye too thin for its panes is drawn as one bar. A lid takes whole rows
-  of blocks off the top, and cuts each half of the eye flat at its own
-  height, so a tilted lid steps once between the panes. To look somewhere
+  of blocks off the top, straight across the eye. To look somewhere
   the whole eye moves, and the eye on the side it looks towards grows a
   little, as if Boop turned its head. Every expression keeps the window
   eyes: arches and wide grins on boxy eyes read as uncanny (the owner,
   2026-09-26). Happy, the bottom of each eye rises (a squint, as if the
   cheeks pushed it up; the cheeks rise with it) and the top stays put. The
   mouth is drawn as small pixel shapes, not curves: the bar at rest, a
-  small "u" smile, a frown, a small "o" while talking, and a small filled
+  small "u" smile, a small "o" while talking, and a small filled
   cup when it's happy and open. The eyes stay white. A tap and a cheer pop a pixel
   heart in at the top right of the face. Asleep, a pixel "zzZZ" climbs up
   from the right eye one letter at a time. Working, Boop strains every

@@ -1,6 +1,6 @@
 # Boop: device
 
-Updated 2026-09-26. Everything needed to get Boop's board running: the
+Updated 2026-09-27. Everything needed to get Boop's board running: the
 hardware, the pins, what's attached, the firmware stack, and how to build,
 flash and bring it up. Sources: the MicroTech MTR024QV01A-V1 product
 specification (2025-03-24) and measurements from our own board.
@@ -182,9 +182,8 @@ out restarts the DAC and counts in `dbg.state` `audio.out.errors`.
 **Drawing.** The renderer (`firmware/src/render/`) uses integer maths
 only, so the board and the simulator agree to the pixel. Edges are
 anti-aliased by sampling 4 × 16 sub-pixels per pixel and picking from
-8-step palette ramps (black up to each ink colour, and eye colour down to
-the dark inside an open mouth, a rose heart and a sky sweat drop); the palette is "Warm Terminal" in
-`render/palette.h`. The face itself is pixel art with no anti-aliasing: whole 3 px blocks
+8-step palette ramps (black up to each ink colour); the palette is "Warm
+Terminal" in `render/palette.h`. The face itself is pixel art with no anti-aliasing: whole 3 px blocks
 in full-strength inks, including the pink cheeks ([UX.md](UX.md) §2); the
 ramps are for text, the bubble and the strip. The two fonts are Geist Mono (SIL Open Font License) at
 13 and 22 px, stored as

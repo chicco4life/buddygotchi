@@ -82,7 +82,7 @@ void roundCorners(Canvas& c, int x0, int y0, int x1, int y1, uint8_t color) {
 struct Eye {
   int x, y;              // centre, sub-pixels (unsnapped, for what sits beside the eye)
   int bx, by, wb, hb;    // centre block and size in blocks (odd)
-  int lidY, lidM;        // upper lid line through (x, lidY) with slope lidM/1000, sub-pixels
+  int lidY;              // rows above this are under the upper lid, sub-pixels
   int botY;              // happy: rows below this are cut (the squint), sub-pixels
   int happy;             // permille, for the cheeks
 };
@@ -107,8 +107,6 @@ Eye makeEye(const Pose& p, int cx, int cy, int s, bool right) {
   lid = clampi(lid, 0, 1000);
   int top = (e.by - e.hb / 2) * kB, hs = e.hb * kB;
   e.lidY = top + hs * lid / 1000;
-  int m = clampi(p.lidTilt, -1000, 1000) * 7 / 10;
-  e.lidM = right ? -m : m;
 
   e.happy = happy;
   e.botY = top + hs - int(int64_t(hs) * kSquint / 1000 * happy / 1000);
@@ -116,20 +114,16 @@ Eye makeEye(const Pose& p, int cx, int cy, int s, bool right) {
 }
 
 // An open eye is four panes around a one-block cross; the upper lid cuts
-// whole rows of blocks from the top of each half. Too thin for panes, it's one
-// solid bar. Each pane, or the bar, gets softened corners.
+// whole rows of blocks off the top. Too thin for panes, it's one solid bar.
+// Each pane, or the bar, gets softened corners.
 void drawEye(Canvas& c, const Eye& e, uint8_t color) {
   const int x0 = e.bx - e.wb / 2, x1 = e.bx + e.wb / 2, y0 = e.by - e.hb / 2, y1 = e.by + e.hb / 2;
   const bool panes = e.hb >= 2 * kPaneMin + 1 && e.wb >= 2 * kPaneMin + 1;
   for (int bx = x0; bx <= x1; ++bx) {
     if (panes && bx == e.bx) continue;
-    // Each half is cut flat where the lid crosses its middle, so a tilted
-    // lid steps once between the panes instead of jagging every column.
-    int half = bx < e.bx ? (x0 + e.bx - 1) / 2 : bx > e.bx ? (e.bx + 1 + x1 + 1) / 2 : e.bx;
-    int lidAt = e.lidY + int(int64_t(e.lidM) * (centreOf(half) - e.x) / 1000);
     for (int by = y0; by <= y1; ++by) {
       if (panes && by == e.by) continue;
-      if (centreOf(by) < lidAt || centreOf(by) > e.botY) continue;
+      if (centreOf(by) < e.lidY || centreOf(by) > e.botY) continue;
       block(c, bx, by, color);
     }
   }
@@ -158,24 +152,22 @@ void sprite(Canvas& c, const char* const* rows, int n, int cx, int cy, int b, ui
 }
 
 // The mouth, as pixel shapes rather than traced curves (UX.md §2): a flat
-// bar at rest, a small "u" smile, a frown, a small "o" while talking, and a
-// small filled cup when it's both happy and open.
+// bar at rest, a small "u" smile, a small "o" while talking, and a small
+// filled cup when it's both happy and open.
 void drawMouth(Canvas& c, const Pose& p, int cx, int cy, int s, uint8_t color) {
   static const char* const kSmile[] = {"X.....X", ".XXXXX."};
-  static const char* const kFrown[] = {".XXXXX.", "X.....X"};
   static const char* const kO[] = {".XXX.", "X...X", ".XXX."};
   static const char* const kD[] = {"X...X", "XXXXX", ".XXX."};
   auto len = [s](int pixels) { return px(pixels) * s / 1000; };
   int lookX = clampi(p.lookX, -1000, 1000), lookY = clampi(p.lookY, -1000, 1000);
-  int curve = clampi(p.mouthCurve, -1000, 1000), open = clampi(p.mouthOpen, 0, 1000);
-  int x = cx + len(p.mouthX) + len(kLookX) * lookX / 1000 * kMouthFollow / 1000;
+  int curve = clampi(p.mouthCurve, 0, 1000), open = clampi(p.mouthOpen, 0, 1000);
+  int x = cx + len(kLookX) * lookX / 1000 * kMouthFollow / 1000;
   int y = cy + len(kMouthY) + len(kLookY) * lookY / 1000 * kMouthFollow / 1000;
   if (open >= kMouthOpenAt) {
     if (curve >= kMouthCurveAt) return sprite(c, kD, 3, x, y, kBlock, color);
     return sprite(c, kO, 3, x, y, kBlock, color);
   }
   if (curve >= kMouthCurveAt) return sprite(c, kSmile, 2, x, y, kBlock, color);
-  if (curve <= -kMouthCurveAt) return sprite(c, kFrown, 2, x, y, kBlock, color);
   // The bar: two blocks thick, on a line between block rows, as wide as
   // mouthWide makes it (an odd number of blocks, so it centres).
   int hw = len(kMouthHalfW) * clampi(p.mouthWide, 200, 2000) / 1000;
@@ -248,18 +240,15 @@ Pose blend(const Pose& a, const Pose& b, int t) {
   o.lookY = int16_t(lerp(a.lookY, b.lookY, t));
   o.eyeSize = int16_t(lerp(a.eyeSize, b.eyeSize, t));
   o.lidTop = int16_t(lerp(a.lidTop, b.lidTop, t));
-  o.lidTilt = int16_t(lerp(a.lidTilt, b.lidTilt, t));
   o.lidBot = int16_t(lerp(a.lidBot, b.lidBot, t));
   o.wink = int16_t(lerp(a.wink, b.wink, t));
   o.squash = int16_t(lerp(a.squash, b.squash, t));
   o.mouthCurve = int16_t(lerp(a.mouthCurve, b.mouthCurve, t));
   o.mouthOpen = int16_t(lerp(a.mouthOpen, b.mouthOpen, t));
   o.mouthWide = int16_t(lerp(a.mouthWide, b.mouthWide, t));
-  o.mouthX = int16_t(lerp(a.mouthX, b.mouthX, t));
   o.dx = int16_t(lerp(a.dx, b.dx, t));
   o.dy = int16_t(lerp(a.dy, b.dy, t));
   o.size = int16_t(lerp(a.size, b.size, t));
-  o.glow = int16_t(lerp(a.glow, b.glow, t));
   o.raise = int16_t(lerp(a.raise, b.raise, t));
   o.heart = int16_t(lerp(a.heart, b.heart, t));
   o.sweat = int16_t(lerp(a.sweat, b.sweat, t));
@@ -269,22 +258,16 @@ Pose blend(const Pose& a, const Pose& b, int t) {
 
 bool operator==(const Pose& a, const Pose& b) {
   return a.open == b.open && a.lookX == b.lookX && a.lookY == b.lookY && a.eyeSize == b.eyeSize &&
-         a.lidTop == b.lidTop && a.lidTilt == b.lidTilt && a.lidBot == b.lidBot && a.wink == b.wink &&
-         a.squash == b.squash && a.mouthCurve == b.mouthCurve && a.mouthOpen == b.mouthOpen &&
-         a.mouthWide == b.mouthWide && a.mouthX == b.mouthX && a.dx == b.dx && a.dy == b.dy &&
-         a.size == b.size && a.glow == b.glow && a.raise == b.raise &&
+         a.lidTop == b.lidTop && a.lidBot == b.lidBot && a.wink == b.wink && a.squash == b.squash &&
+         a.mouthCurve == b.mouthCurve && a.mouthOpen == b.mouthOpen && a.mouthWide == b.mouthWide &&
+         a.dx == b.dx && a.dy == b.dy && a.size == b.size && a.raise == b.raise &&
          a.heart == b.heart && a.sweat == b.sweat && a.zzz == b.zzz;
-}
-
-int eyeInk(const Pose& p) {
-  int step = (clampi(p.glow, 0, 1000) * 4 + 500) / 1000;
-  return step ? kInkGlow1 + step - 1 : kInkEye;
 }
 
 void drawFace(Canvas& c, const Pose& p, int cx, int cy, int scale) {
   int s = scale * clampi(p.size, 500, 1500) / 1000;
   int x = px(cx) + px(p.dx) * scale / 1000, y = px(cy) + px(p.dy) * scale / 1000;
-  const uint8_t ink = inkAt(eyeInk(p), kLevels);
+  const uint8_t ink = inkAt(kInkEye, kLevels);
   Eye left = makeEye(p, x, y, s, false), right = makeEye(p, x, y, s, true);
   drawBlush(c, left, s, false);
   drawBlush(c, right, s, true);

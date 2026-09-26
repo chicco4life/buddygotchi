@@ -105,7 +105,6 @@ static void test_isin_hits_the_quadrants() {
   TEST_ASSERT_EQUAL_INT(0, isin(512));
   TEST_ASSERT_EQUAL_INT(-1024, isin(768));
   TEST_ASSERT_EQUAL_INT(724, isin(128));  // sin 45°
-  TEST_ASSERT_EQUAL_INT(1024, icos(0));
 }
 
 static void test_ease_is_monotonic_from_0_to_1024() {
@@ -119,19 +118,13 @@ static void test_ease_is_monotonic_from_0_to_1024() {
   }
 }
 
-static void test_spans_cut_and_intersect() {
+static void test_spans_cut() {
   Spans s;
   s.add(0, 100);
   s.cut(40, 60);
   TEST_ASSERT_EQUAL_INT(2, s.n);
   TEST_ASSERT_EQUAL_INT(40, s.s[0].b);
   TEST_ASSERT_EQUAL_INT(60, s.s[1].a);
-  Spans o;
-  o.add(30, 70);
-  s.intersect(o);
-  TEST_ASSERT_EQUAL_INT(2, s.n);
-  TEST_ASSERT_EQUAL_INT(30, s.s[0].a);
-  TEST_ASSERT_EQUAL_INT(70, s.s[1].b);
 }
 
 static void test_fill_shape_antialiases_only_the_edges() {
@@ -156,8 +149,6 @@ static void test_palette_ramps_run_from_black_to_the_ink() {
   TEST_ASSERT_EQUAL_HEX16(rgb565(kRoseRgb), paletteAt(inkAt(kInkRose, kLevels)));
   TEST_ASSERT_EQUAL_HEX16(rgb565(kAmberRgb), paletteAt(inkAt(kInkAmber, kLevels)));
   TEST_ASSERT_EQUAL_INT(kBlack, inkAt(kInkEye, 0));
-  TEST_ASSERT_EQUAL_HEX16(rgb565(kHollowRgb), paletteAt(hollowAt(kInkEye, kLevels)));
-  TEST_ASSERT_EQUAL_INT(inkAt(kInkGlow4, kLevels), hollowAt(kInkGlow4, 0));
   TEST_ASSERT_TRUE(kPaletteUsed <= 256);
   TEST_ASSERT_EQUAL_HEX16(rgb565(255, 0, 0), paletteAt(kRed));  // the bring-up pattern's colours stay
 }
@@ -191,17 +182,16 @@ static void test_eyes_are_four_crisp_panes() {
   looks[1].lookX = 1000;
   looks[2].lookX = -700, looks[2].lookY = -800;
   looks[3].eyeSize = 1250;
-  looks[4].lidTop = 400, looks[4].lidTilt = 600;
-  looks[5].lidTop = 150, looks[5].lidTilt = -500, looks[5].dy = -7, looks[5].squash = -120;
+  looks[4].lidTop = 400;
+  looks[5].lidTop = 150, looks[5].dy = -7, looks[5].squash = -120;
   looks[6] = animPose(Anim::kWiggle, 150);
   looks[7] = animPose(Anim::kListening, 0);
   for (Pose p : looks) {
-    p.mouthOpen = 0;  // nothing dark anywhere: an open mouth is the only hollow
+    p.mouthOpen = 0;
     p.dx = 0, p.dy = 0;
     Buf b = face(p);
-    TEST_ASSERT_EQUAL_INT(0, b.count(kHollow));
-    TEST_ASSERT_TRUE(eyeIsCrisp(b, false, eyeInk(p)));
-    TEST_ASSERT_TRUE(eyeIsCrisp(b, true, eyeInk(p)));
+    TEST_ASSERT_TRUE(eyeIsCrisp(b, false, kInkEye));
+    TEST_ASSERT_TRUE(eyeIsCrisp(b, true, kInkEye));
   }
   // Open, an eye is four panes split by a one-block cross: the middle
   // column and row are dark, the middle of each pane is lit.
@@ -258,26 +248,21 @@ static void test_eye_size_changes_only_the_eyes() {
   }
 }
 
-static void test_lids_cut_each_half_flat() {
-  // A lid takes whole rows of blocks off the top. Tilted, it cuts each half
-  // of the eye flat at its own height, so the eye steps once between the
-  // panes instead of jagging every column (UX.md §2).
-  Pose sad, cross, flat;
+static void test_lids_cut_whole_rows_flat() {
+  // A lid takes whole rows of blocks off the top, straight across the eye
+  // (UX.md §2).
+  Pose flat;
   flat.lidTop = 400;
-  sad.lidTop = 250, sad.lidTilt = -650;
-  cross.lidTop = 450, cross.lidTilt = 450;
   struct Case {
     const char* name;
     Pose p;
   } lidded[] = {{"flat", flat},
-                {"outer corners down, lifted", [] {
+                {"lifted", [] {
                    Pose p;
-                   p.lidTop = 150, p.lidTilt = -500, p.dy = -7, p.squash = -120;
+                   p.lidTop = 150, p.dy = -7, p.squash = -120;
                    return p;
                  }()},
-                {"working", lookPose(Look::kWorking, 1)},
-                {"outer corners down", sad},
-                {"inner corners down", cross}};
+                {"working", lookPose(Look::kWorking, 1)}};
   for (const Case& c : lidded) {
     Pose q = c.p;
     q.mouthOpen = 0, q.dx = 0, q.dy = 0;
@@ -293,11 +278,10 @@ static void test_lids_cut_each_half_flat() {
       }
     }
   }
-  // Flat lids leave the two halves level; tilted ones don't.
-  Buf f = face(flat), t = face(sad);
-  EyeBox fe = eyeBox(f, false), te = eyeBox(t, false);
+  // The two halves stay level.
+  Buf f = face(flat);
+  EyeBox fe = eyeBox(f, false);
   TEST_ASSERT_EQUAL_INT(topAt(f, fe.x0 + 3), topAt(f, fe.x1 - 3));
-  TEST_ASSERT_TRUE(topAt(t, te.x0 + 3) != topAt(t, te.x1 - 3));
 }
 
 static void test_a_look_up_keeps_full_panes_and_working_looks_down() {
@@ -310,7 +294,8 @@ static void test_a_look_up_keeps_full_panes_and_working_looks_down() {
     return w;
   };
   Pose up;
-  up.lookX = 650, up.lookY = -1000, up.dy = -6, up.squash = 100, up.mouthWide = 600, up.mouthX = 8;
+  up.lookX = 650, up.lookY = -1000, up.dy = -6, up.squash = 100;
+  up.mouthWide = 200;  // narrow, so the mouth, following the look, stays right of the middle
   Buf n = face(Pose{}), t = face(up), w = face(lookPose(Look::kWorking, 1));
   for (bool right : {false, true}) {
     EyeBox ne = eyeBox(n, right), te = eyeBox(t, right), we = eyeBox(w, right);
@@ -323,8 +308,8 @@ static void test_a_look_up_keeps_full_panes_and_working_looks_down() {
       while (y < kEyeRows && b.c.get(x, y) != kBlack) ++y;
       return y - e.y0;
     };
-    // Looking up: all four panes (the left eye; looking up, the mouth rises
-    // into the right eye's rows).
+    // Looking up: all four panes (the left eye; looking up and right, the
+    // mouth rises into the right eye's rows).
     if (!right) TEST_ASSERT_TRUE(crossAt(t, te) >= 15);
     TEST_ASSERT_TRUE(crossAt(w, we) <= 12);  // working: the lid takes the top off
     TEST_ASSERT_TRUE(rowWidth(w, right, we.y0 + 1) >= 30);  // cut straight across
@@ -400,7 +385,7 @@ static void test_happy_eyes_squint_and_the_smile_stays_small() {
   TEST_ASSERT_TRUE(inkSpot(b, kInkBlush).y0 < inkSpot(n, kInkBlush).y0);
   // The cheer (BEHAVIORS.md §5): the squint, white eyes and a heart.
   Pose c = animPose(Anim::kCheer, 1500);  // landed, after the hops
-  TEST_ASSERT_EQUAL_INT(kInkEye, eyeInk(c));
+  TEST_ASSERT_TRUE(eyeIsCrisp(face(c), false, kInkEye));
   TEST_ASSERT_EQUAL_INT(1000, c.heart);
   TEST_ASSERT_TRUE(c.lidBot >= 650);
   TEST_ASSERT_EQUAL_INT(0, c.dy);
@@ -549,14 +534,14 @@ int main(int, char**) {
   RUN_TEST(test_isqrt_is_exact);
   RUN_TEST(test_isin_hits_the_quadrants);
   RUN_TEST(test_ease_is_monotonic_from_0_to_1024);
-  RUN_TEST(test_spans_cut_and_intersect);
+  RUN_TEST(test_spans_cut);
   RUN_TEST(test_fill_shape_antialiases_only_the_edges);
   RUN_TEST(test_palette_ramps_run_from_black_to_the_ink);
   RUN_TEST(test_neutral_face_is_symmetric);
   RUN_TEST(test_eyes_are_four_crisp_panes);
   RUN_TEST(test_a_look_moves_the_whole_eye_with_perspective);
   RUN_TEST(test_eye_size_changes_only_the_eyes);
-  RUN_TEST(test_lids_cut_each_half_flat);
+  RUN_TEST(test_lids_cut_whole_rows_flat);
   RUN_TEST(test_a_look_up_keeps_full_panes_and_working_looks_down);
   RUN_TEST(test_closed_eyes_are_a_line);
   RUN_TEST(test_happy_eyes_squint_and_the_smile_stays_small);
