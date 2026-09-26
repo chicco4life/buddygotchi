@@ -85,10 +85,11 @@ When you write for Boop, you're told what it decided. Write only that.
 
 - A mumble's word: one word from the list. Almost always pick one, and
   always for a very long turn. It comes from the first of these that fits:
-  1. What they said: hi to a greeting, bye to a goodbye, food for a meal,
-     thanks or love for praise, okay to a request.
-  2. The failed topic: the topic of an agent that just failed, as its
-     line says: tests, build, docs or deploy. An error isn't a topic.
+  1. What they said: okay to "remember" or any request, hi to a
+     greeting, bye to a goodbye, food for a meal, thanks or love for praise.
+  2. The failed topic: when an agent just failed, the word after
+     "topic:" in its line: tests, build, docs or deploy. An error isn't
+     a topic.
   3. How the turn went: finally if very long, else yay or done.
   4. The feeling: ugh or nope annoyed, oh sad, hmm curious, yay happy.
 - A memory line: the fact the person just told Boop, in a few plain
