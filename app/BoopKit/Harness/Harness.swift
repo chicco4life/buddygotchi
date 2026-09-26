@@ -167,6 +167,10 @@ public final class Harness: @unchecked Sendable {
     public func note(_ aside: String, at ts: Int64) {
         dispatchPrecondition(condition: .onQueue(home))
         transcript.append(.aside(aside, ts: ts))
+        if let debugLog {
+            let data = (try? JSONSerialization.data(withJSONObject: ["aside": aside, "ts": ts], options: [.sortedKeys])) ?? Data()
+            Harness.append(String(decoding: data, as: UTF8.self) + "\n", to: debugLog)
+        }
     }
 
     /// Nothing running and nothing waiting.
