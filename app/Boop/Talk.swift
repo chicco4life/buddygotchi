@@ -9,7 +9,9 @@ import Foundation
 /// with whether you yelled (BEHAVIORS.md §3.3), and the audio is never kept.
 /// Recognition runs on the Mac only.
 final class SpeechListener: @unchecked Sendable {
-    let engine = AVAudioEngine()
+    /// A fresh engine for each recording, so it uses the input device of
+    /// the moment (AirPods that joined since, a mic unplugged).
+    var engine: AVAudioEngine?
     let recognizer = SFSpeechRecognizer()
     var request: SFSpeechAudioBufferRecognitionRequest?
     var task: SFSpeechRecognitionTask?
@@ -84,14 +86,24 @@ final class SpeechListener: @unchecked Sendable {
         guard let recognizer, recognizer.isAvailable, recognizer.supportsOnDeviceRecognition else {
             return "On-device speech recognition isn't available on this Mac."
         }
+        let engine = AVAudioEngine()
+        let input = engine.inputNode
+        // With no usable input device (a Mac mini with no mic, a closed
+        // MacBook) the format is 0 Hz or 0 channels, and a tap on it raises
+        // an exception Swift can't catch.
+        let format = input.outputFormat(forBus: 0)
+        guard format.sampleRate > 0, format.channelCount > 0 else {
+            log("talk: no usable input device (\(format.sampleRate) Hz, \(format.channelCount) channels)")
+            return "No microphone is connected."
+        }
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.requiresOnDeviceRecognition = true
         request.shouldReportPartialResults = true
         self.request = request
+        self.engine = engine
         best = ""
         meter = YellMeter()
-        let input = engine.inputNode
-        input.installTap(onBus: 0, bufferSize: 1024, format: input.outputFormat(forBus: 0)) { [weak self] buffer, _ in
+        input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
             request.append(buffer)
             // Only the level leaves this closure, never the samples.
             guard let samples = buffer.floatChannelData?[0], buffer.format.sampleRate > 0 else { return }
@@ -106,6 +118,7 @@ final class SpeechListener: @unchecked Sendable {
             log("talk: can't start the mic: \(error)")
             input.removeTap(onBus: 0)
             self.request = nil
+            self.engine = nil
             return "The Mac's microphone couldn't start."
         }
         session += 1
@@ -131,8 +144,9 @@ final class SpeechListener: @unchecked Sendable {
                 return
             }
             self.finish = finish
-            engine.stop()
-            engine.inputNode.removeTap(onBus: 0)
+            engine?.stop()
+            engine?.inputNode.removeTap(onBus: 0)
+            engine = nil
             request?.endAudio()
             // The final result usually arrives within a second.
             let this = session

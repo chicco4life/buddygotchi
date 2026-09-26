@@ -1,6 +1,6 @@
 # Boop: UX
 
-Updated 2026-09-26. What the person sees and touches: the screen, the
+Updated 2026-09-27. What the person sees and touches: the screen, the
 controls, setup and the Mac app. What Boop *does* in each situation is in
 [BEHAVIORS.md](BEHAVIORS.md), and how it sounds is in [VOICE.md](VOICE.md).
 
@@ -140,9 +140,9 @@ also shows its own microphone indicator. The mic turns itself off after
 30 s, and at once if the link to the device drops while BOOT is held
 (its release could never arrive). What was heard up to then still goes to
 Boop. The first time, macOS asks for Speech Recognition and then the
-Microphone; if either is refused, or on-device recognition isn't
-available, the listening face ends and the popover says "*name* can't hear you"
-and where to allow it.
+Microphone; if either is refused, on-device recognition isn't
+available, or the Mac has no usable microphone, the listening face ends
+and the popover says "*name* can't hear you" and why.
 
 Things worth saying: "be quiet" (Boop zips its mouth and goes quiet for a
 while), "good job", "remember the demo is on Thursday" (kept for today),
