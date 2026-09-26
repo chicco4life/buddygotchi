@@ -146,7 +146,7 @@ Mute (volume 0) silences all sound but keeps the light.
 | --- | --- |
 | `cheer` | Finished turns: three hops, squashed on each landing, then a happy squint, a small open smile and a beating heart, 2 s |
 | `wiggle` | Taps |
-| `listening` | Push-to-talk: while the mic is on and while Boop waits for the reply. Big eyes looking up, bobbing a block every 1.2 s |
+| `listening` | Push-to-talk: while the mic is on and while Boop waits for the reply. Big eyes looking up and a small "o" mouth, bobbing a block every 1.2 s |
 
 A mumble on its own (the brain's `react`, or chatter) plays over whatever
 face is showing and doesn't change it.

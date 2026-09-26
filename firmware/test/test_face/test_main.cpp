@@ -699,6 +699,11 @@ static void test_listening_bobs_the_whole_face_a_block() {
     up += lifted;
   }
   TEST_ASSERT_EQUAL_INT(48, up);  // half the time
+  // Its mouth is the small "o" (BEHAVIORS.md §5): three blocks tall, dark
+  // in the middle.
+  Box m = inkBox(rest, kInkEye, 125, 196);
+  TEST_ASSERT_EQUAL_INT(9, m.y1 - m.y0 + 1);
+  TEST_ASSERT_EQUAL_INT(kBlack, rest.c.get((m.x0 + m.x1) / 2, (m.y0 + m.y1) / 2));
 }
 
 static void test_blend_is_eased_interruptible_and_150ms() {

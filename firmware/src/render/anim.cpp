@@ -25,9 +25,9 @@ Pose happy() {  // boxy eyes squinting from the bottom, and a small "u" smile
   p.lidBot = 700, p.mouthCurve = 900;
   return p;
 }
-Pose listening() {
+Pose listening() {  // big eyes looking up, one a little lidded, and a small "o": ooh?
   Pose p;
-  p.eyeSize = 1080, p.lookY = -250, p.wink = -150, p.mouthOpen = 250, p.mouthWide = 500;
+  p.eyeSize = 1080, p.lookY = -250, p.wink = -150, p.mouthOpen = 350, p.mouthWide = 500;
   return p;
 }
 Pose with(Pose p, int16_t Pose::*field, int value) {
@@ -123,7 +123,7 @@ Pose lookPose(Look look, int busy) {
       p.open = 0, p.dy = 10, p.mouthWide = 600;
       break;
     case Look::kNeedsYou:  // turned to you and leaning in
-      p.eyeSize = 1080, p.lookY = -100, p.mouthOpen = 200, p.mouthWide = 550;
+      p.eyeSize = 1080, p.lookY = -100, p.mouthWide = 550;
       p.size = 1060, p.dy = 2;
       break;
   }
