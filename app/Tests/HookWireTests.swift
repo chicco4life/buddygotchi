@@ -116,6 +116,18 @@ final class HookWireTests: XCTestCase {
         XCTAssertNil(line.topic)
     }
 
+    /// ADAPTERS.md §2: a cut that lands inside a multibyte character still
+    /// gives the event (a Write of 300 KB of accented text).
+    func testACutInsideACharacterStillGivesTheEvent() throws {
+        let big = String(repeating: "é", count: 200_000)
+        let raw = Data(#"{"session_id": "s9", "hook_event_name": "PostToolUse", "tool_name": "Write", "tool_input": {"content": "\#(big)"}}"#.utf8)
+        for cut in [256 * 1024, 256 * 1024 - 1] {
+            let line = try XCTUnwrap(HookLine.extract(agent: "claude", payload: Data(raw.prefix(cut)), ts: 1), "\(cut)")
+            XCTAssertEqual(line.hook, "PostToolUse")
+            XCTAssertEqual(line.tool, "Write")
+        }
+    }
+
     func testCodexShellArgvAndPatchesGetTopics() {
         XCTAssertEqual(Topic.tag(tool: "shell", input: ["command": ["bash", "-lc", "cargo test -q"]]), "tests")
         XCTAssertEqual(Topic.tag(tool: "exec_command", input: ["cmd": "pnpm run build"]), "build")

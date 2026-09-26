@@ -80,9 +80,10 @@ public struct HookLine: Equatable, Sendable {
 
     /// A payload over the 256 KB cap is cut off and won't parse. The fields we
     /// need come early, so pick them out of the prefix; the topic is lost.
+    /// The cut can land inside a character, so bad bytes are replaced
+    /// rather than losing the line.
     static func salvage(agent: String, payload: Data, ts: Int64) -> HookLine? {
-        guard let text = String(data: payload, encoding: .utf8) ?? String(data: payload.prefix(65536), encoding: .utf8)
-        else { return nil }
+        let text = String(decoding: payload, as: UTF8.self)
         func field(_ name: String) -> String? {
             guard let regex = try? NSRegularExpression(pattern: "\"\(name)\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.){0,400})\"")
             else { return nil }
@@ -116,7 +117,9 @@ public struct HookLine: Equatable, Sendable {
         if let kind { object["kind"] = kind }
         if interrupt { object["interrupt"] = true }
         if let agentID { object["agent_id"] = agentID }
-        var data = (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])) ?? Data()
+        // No `.sortedKeys`: nothing reads the order, and sorting loads
+        // locale-aware comparison, about half of a hook's few milliseconds.
+        var data = (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
         data.append(0x0A)
         return data
     }
