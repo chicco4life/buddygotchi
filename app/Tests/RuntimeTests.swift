@@ -125,6 +125,56 @@ final class RuntimeTests: XCTestCase {
         XCTAssertFalse(transport.sent.contains { $0.contains("\"anim\":\"zip\"") })
     }
 
+    /// HARNESS.md §8: debug mode logs every hook with what it became and
+    /// every line to the device, starts debug.jsonl afresh with every pass,
+    /// and prints passes readably, but what you said stays out of boop.log.
+    func testDebugModePrintsEverythingAndStartsItsLogAfresh() throws {
+        let lines = DebugLines()
+        try Runtime.setUp(stateDir: dir, name: "Pip", nature: .sweet, today: LocalTime().day(Int64(Date().timeIntervalSince1970 * 1000)))
+        let debugLog = dir.appendingPathComponent(DebugLog.fileName)
+        try Data("{\"aside\":\"from the last launch\"}\n".utf8).write(to: debugLog)
+        func file() -> Int? { (try? FileManager.default.attributesOfItem(atPath: debugLog.path))?[.systemFileNumber] as? Int }
+        let lastLaunch = try XCTUnwrap(file())
+        var options = Runtime.Options(stateDir: dir, socketPath: dir.appendingPathComponent("boop.sock").path,
+                                      link: FakeTransport(), steering: try String(contentsOf: Self.steering, encoding: .utf8))
+        options.mode = .chatty
+        options.writer = "none"
+        options.devLines = true
+        options.debug = true
+        options.log = { line in lines.lock.withLock { lines.log.append(line) } }
+        options.debugPrint = { line in lines.lock.withLock { lines.printed.append(line) } }
+        let runtime = try Runtime(options)
+        try runtime.start()
+        defer { runtime.stop() }
+        try XCTAssertEqual(try String(contentsOf: debugLog, encoding: .utf8), "", "each launch starts afresh")
+        XCTAssertEqual(file(), lastLaunch, "in place, so a boopdev watch on it sees it start again")
+
+        let socket = dir.appendingPathComponent("boop.sock").path
+        XCTAssertTrue(HookSocket.send(hook("SessionStart"), to: socket))
+        XCTAssertTrue(HookSocket.send(hook("PreToolUse", tool: "Bash"), to: socket))
+        var talk = try JSONSerialization.data(withJSONObject: ["dev": "talk", "words": "remember PRIVATE_WORDS"])
+        talk.append(0x0A)
+        XCTAssertTrue(HookSocket.send(talk, to: socket))
+        wait("the pass in debug.jsonl") {
+            (try? String(contentsOf: debugLog, encoding: .utf8))?.contains("PRIVATE_WORDS") == true
+        }
+        let log = lines.lock.withLock { lines.log }
+        let printed = lines.lock.withLock { lines.printed }
+        XCTAssertTrue(log.contains("hook: claude SessionStart s1 → session_start jetpack"), "\(log)")
+        XCTAssertTrue(log.contains("hook: claude PreToolUse s1 → activity jetpack · tool Bash"), "\(log)")
+        XCTAssertTrue(log.contains { $0.hasPrefix("link rules → ") })
+        XCTAssertFalse(log.contains { $0.contains("PRIVATE_WORDS") }, "what you said stays out of boop.log")
+        XCTAssertTrue(printed.contains { $0.hasPrefix("core: input you said") && $0.contains("PRIVATE_WORDS") })
+        let pass = try XCTUnwrap(printed.first { $0.hasPrefix("▸ you said") })
+        XCTAssertTrue(pass.contains("    memory\n      ## Boop"), pass)
+        XCTAssertTrue(pass.contains("    window   1 inputs, oldest first\n      you said"), pass)
+        XCTAssertTrue(pass.contains("    decided  "), pass)
+        let record = try XCTUnwrap(try String(contentsOf: debugLog, encoding: .utf8).split(separator: "\n").first)
+        let o = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(record.utf8)) as? [String: Any])
+        XCTAssertNotNil((o["memory"] as? [String: String])?["long_term"])
+        XCTAssertEqual((o["context"] as? [String])?.count, 1)
+    }
+
     func testStopRemovesTheSocketAndReleasesTheLock() throws {
         let runtime = try makeRuntime(FakeTransport())
         try runtime.start()
@@ -301,4 +351,12 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(DeviceMoment(say: quick).playMs, 1560, "6 × 60 + 1200")
         XCTAssertEqual(DeviceMoment(anim: "cheer", say: quick).playMs, 2000, "the cheer is longer")
     }
+}
+
+/// What a runtime in debug mode logged and printed. Not nested in a test:
+/// the shim's runner generator would take it for the test class.
+final class DebugLines: @unchecked Sendable {
+    let lock = NSLock()
+    var log: [String] = []
+    var printed: [String] = []
 }

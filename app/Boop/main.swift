@@ -7,17 +7,20 @@ import Foundation
 // and agents (VERIFICATION.md L4).
 
 let usage = """
-    usage: Boop [--state-dir DIR] [--link ble|usb:SOCKET|none] [--debug-log FILE]
-               The menu-bar app. The owner runs this; it uses Bluetooth by default. --debug-log appends
-               every brain pass and aside to FILE as JSON lines, what you said included (boopdev watch).
+    usage: Boop [--state-dir DIR] [--link ble|usb:SOCKET|none] [--debug]
+               The menu-bar app. The owner runs this; it uses Bluetooth by default.
            Boop --headless --state-dir DIR [--link usb:SOCKET|none] [--socket PATH] [--mode chatty|normal|calm]
-                [--classifier chatty|calm|jev] [--writer apple|none|deepseek] [--name NAME] [--nature sweet|cheeky]
-                [--debug-log FILE] [--trace]
+                [--classifier \(Brains.classifiers.joined(separator: "|"))] [--writer \(Brains.writers.joined(separator: "|"))]
+                [--name NAME] [--nature sweet|cheeky] [--debug]
                No UI and no Bluetooth. The hook socket defaults to DIR/boop.sock. A new state directory
                is set up with --name (default Boop). --mode, --classifier and --writer override the saved
-               mode and its brain for this run only. Stops cleanly on SIGINT or SIGTERM. --trace logs
-               every hook and every line sent to the device. {"dev":"advance","ms":N} on the socket
-               moves the clock forward.
+               mode and its brain for this run only. Stops cleanly on SIGINT or SIGTERM.
+               {"dev":"advance","ms":N} on the socket moves the clock forward.
+           --debug prints everything to this terminal as it happens: each hook and what Boop made of it,
+               the core's decisions, every line sent to the device, and every brain pass (the input, the
+               memory and window the brains read, what Stage 1 decided and why, Stage 2's words, what ran).
+               The passes also go to DIR/debug.jsonl, started afresh each launch (boopdev watch reads it).
+               What you said and what the brain wrote never reach boop.log.
            Boop --snapshots DIR
                Renders the popover's panes and the menu-bar icons to PNGs from fixtures, then exits.
                No runtime, no Bluetooth.
@@ -41,7 +44,8 @@ func bundledSteering() -> String {
     return text
 }
 
-/// Appends to `DIR/boop.log`, and echoes to stderr when asked.
+/// Appends to `DIR/boop.log`, and echoes to stderr when asked. `echo`
+/// prints to stderr alone, for what must stay out of the file.
 final class LogFile: @unchecked Sendable {
     let handle: FileHandle?
     let echo: Bool
@@ -68,6 +72,13 @@ final class LogFile: @unchecked Sendable {
             // (a crash) on any error, such as a full disk.
             try? handle?.write(contentsOf: Data(line.utf8))
             if echo { try? FileHandle.standardError.write(contentsOf: Data(line.utf8)) }
+        }
+    }
+
+    func echo(_ message: String) {
+        lock.withLock {
+            let line = format.string(from: Date()) + " " + message + "\n"
+            try? FileHandle.standardError.write(contentsOf: Data(line.utf8))
         }
     }
 }

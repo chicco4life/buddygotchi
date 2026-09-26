@@ -1,5 +1,5 @@
 # Boop v1. Run from the repo root. See README.md and plan/VERIFICATION.md.
-.PHONY: build sign run test eval tools fw flash sim fw-test e2e webcam webcam-test clean
+.PHONY: build sign run debug test eval tools fw flash sim fw-test e2e webcam webcam-test clean
 
 PIO := firmware/tools/pio.sh
 
@@ -27,10 +27,13 @@ sign:
 # The Mac app with Bluetooth. The owner runs this, not agents. Builds
 # everything first (the app copies the boop-hook built next to it), then
 # starts the binary: `swift run` would check the build all over again.
-# `make run DEBUG_LOG=FILE` also writes the brain's debug log, to follow
-# with `boopdev watch FILE`.
 run: build
-	app/.build/debug/Boop $(if $(DEBUG_LOG),--debug-log $(abspath $(DEBUG_LOG)))
+	app/.build/debug/Boop
+
+# The same, printing everything to this terminal as it happens: hooks, the
+# core's decisions, device messages and every brain pass (HARNESS.md §8).
+debug: build
+	app/.build/debug/Boop --debug
 
 # Swift unit tests through the XCTest shim (there's no Xcode here).
 test:

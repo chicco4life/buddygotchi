@@ -1,6 +1,6 @@
 # Boop: agent adapters
 
-Updated 2026-09-26. How Boop hears from Claude Code and Codex: the hook
+Updated 2026-09-27. How Boop hears from Claude Code and Codex: the hook
 client, which hooks we register and what each becomes, and how "needs you"
 is detected and cleared.
 
@@ -200,8 +200,8 @@ The `doctor` skill (`skills/doctor/doctor.sh`) checks four things:
 
 The app logs hook lines only while the doctor has armed it, by writing
 `doctor-armed` into the state directory (`--confirm` removes the file), or
-when headless mode runs with `--trace` ([VERIFICATION.md](VERIFICATION.md)
-L4).
+in debug mode (`--debug`, [HARNESS.md](HARNESS.md) §8), which adds the
+event each hook became.
 
 ## 7. Claude Cowork (not in v1)
 
