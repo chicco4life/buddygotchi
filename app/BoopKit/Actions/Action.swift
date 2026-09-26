@@ -59,7 +59,8 @@ public struct DeviceMoment: Equatable, Sendable {
 public struct ActionContext {
     /// Sends a moment through the device link.
     public var send: (DeviceMoment) -> Void
-    /// False in quiet mode, or while something needs you.
+    /// False in quiet mode, while something needs you, and while you talk
+    /// until your words arrive (`Core.canMumble`).
     public var mumblesAllowed: () -> Bool
     /// `Core.setQuiet`; the app routes the effects it returns.
     public var setQuiet: (Int) -> Void

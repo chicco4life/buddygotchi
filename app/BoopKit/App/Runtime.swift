@@ -284,6 +284,10 @@ public final class Runtime: @unchecked Sendable {
             case .endListening:
                 react.endListening()
             case .mumble(let feeling, let word):
+                // Working chatter is filler: it never cuts a moment that's
+                // playing, such as the brain's reply, or jumps one waiting
+                // its turn (BEHAVIORS.md §2).
+                guard moments.schedule.idle(now: options.clock()) else { continue }
                 var arguments: [String: ToolValue] = ["feeling": .string(feeling), "voice": .string("mumble")]
                 if let word { arguments["word"] = .string(word) }
                 react.run(ToolCall("react", arguments))
@@ -294,6 +298,13 @@ public final class Runtime: @unchecked Sendable {
             case .happened, .newDay:
                 memory.apply(effect)
             case .listen(let on):
+                // A brain mumble queued before the mic went on would end
+                // `listening` before the reply (BEHAVIORS.md §3.3).
+                if on {
+                    for moment in moments.schedule.dropWaiting() {
+                        options.log("react: dropped a brain moment waiting when the mic went on: \(moment.jsonLine)")
+                    }
+                }
                 onListen?(on)
                 listenChanged = true
             }

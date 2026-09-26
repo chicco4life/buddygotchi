@@ -138,7 +138,11 @@ last rule moment and the brain's previous one have played, so two brain
 mumbles never cut each other off. One that has waited longer than its
 `ttl` (5 s) is dropped, since a late reaction is worse than none.
 `listening` doesn't hold anything back: the brain's reply is meant to end
-it.
+it. The mic turning on drops any brain moment still waiting, since it can
+only be about an agent and would end `listening` before the reply
+([BEHAVIORS.md](BEHAVIORS.md) §3.3). Working chatter is the one rule moment that yields: it's skipped while
+anything plays or a brain moment waits, so it never cuts the reply off
+([BEHAVIORS.md](BEHAVIORS.md) §2).
 
 ### 3.3 Harness and brain
 

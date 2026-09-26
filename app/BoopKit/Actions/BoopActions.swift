@@ -4,7 +4,8 @@ import Foundation
 /// in the feeling's voice, with the one real word, sent as a moment with no
 /// animation so it plays over whatever face is showing. The classifier picks
 /// the feeling and whether to mumble; the writer picks the word, only for a
-/// mumble. The mumble is dropped in quiet mode or while something needs you.
+/// mumble. The mumble is dropped in quiet mode, while something needs you,
+/// and while you talk until your words arrive.
 /// The feelings' own faces are parked (FUTURE.md), so `silent` shows nothing.
 ///
 /// The core's rules use the same action: `play` for their animations (a

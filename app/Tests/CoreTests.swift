@@ -596,6 +596,59 @@ final class CoreYouAndBoopTests: XCTestCase {
         XCTAssertFalse(rig.wait(Core.replyWaitMs).contains(.endListening))
     }
 
+    /// BEHAVIORS.md §3.3: while the mic is on, and after it goes off while
+    /// Boop waits for the reply (at most 8 s), there's no working chatter,
+    /// with either button: a mumble would end `listening` before the reply.
+    func testNoChatterWhileYouTalk() {
+        for button in [Core.Talker.device, .app] {
+            let rig = CoreRig(seed: 7, mode: .chatty)
+            rig.send(.turnStart)
+            rig.send(.activity, tool: "Bash", topic: "tests")
+            rig.wait(1000)
+            func talk(_ on: Bool) {
+                if button == .device { rig.input(on ? .talkOn : .talkOff) } else { rig.core.listen(on, at: rig.now) }
+            }
+            talk(true)
+            rig.core.nextChatterAt = rig.now + 1000  // chatter is due while the mic is on
+            XCTAssertEqual(mumbles(rig.wait(5000)), [], "\(button): mic on")
+            talk(false)
+            rig.core.nextChatterAt = rig.now + 1000
+            XCTAssertEqual(mumbles(rig.wait(Core.replyWaitMs - 1000)), [], "\(button): waiting for the reply")
+            rig.core.nextChatterAt = rig.now + 1000
+            XCTAssertEqual(mumbles(rig.wait(2000)).count, 1, "\(button): chatter again after 8 s")
+        }
+    }
+
+    /// BEHAVIORS.md §3.3: from the mic turning on until the words arrive, a
+    /// brain mumble can only be about an agent, and would end `listening`
+    /// before the reply, so none plays. Once the words arrive the pass
+    /// running is theirs, and the reply may mumble.
+    func testOnlyTheReplyMumblesWhileYouTalk() {
+        let rig = CoreRig()
+        XCTAssertTrue(rig.core.canMumble(at: rig.now))
+        rig.input(.talkOn)
+        XCTAssertFalse(rig.core.canMumble(at: rig.now), "mic on")
+        rig.wait(2000)
+        rig.input(.talkOff)
+        XCTAssertFalse(rig.core.canMumble(at: rig.now), "the words haven't arrived")
+        rig.wait(1000)
+        rig.core.talk("good job", at: rig.now)
+        XCTAssertTrue(rig.core.canMumble(at: rig.now), "the reply")
+        rig.input(.talkOn)
+        XCTAssertFalse(rig.core.canMumble(at: rig.now), "talking again")
+        rig.input(.talkOff)
+        rig.wait(Core.replyWaitMs - 1000)
+        XCTAssertFalse(rig.core.canMumble(at: rig.now))
+        rig.wait(1000)
+        XCTAssertTrue(rig.core.canMumble(at: rig.now), "heard nothing: after 8 s the wait is over")
+        rig.core.listen(true, at: rig.now)
+        XCTAssertFalse(rig.core.canMumble(at: rig.now), "the Talk button too")
+        rig.core.micFailed(at: rig.now)
+        XCTAssertTrue(rig.core.canMumble(at: rig.now), "a mic that can't start waits for nothing")
+        rig.core.talk("hi", at: rig.now)  // the dev talk line, with no mic
+        XCTAssertTrue(rig.core.canMumble(at: rig.now))
+    }
+
     /// BEHAVIORS.md §3.3: a Mac mic that can't start ends the Talk button's
     /// `listening` at once with the empty moment. The device's own button
     /// ends its face by itself.

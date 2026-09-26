@@ -275,6 +275,52 @@ final class RuntimeTests: XCTestCase {
         XCTAssertNil(due.next)
     }
 
+    /// BEHAVIORS.md §2: working chatter never cuts a moment that's playing,
+    /// such as the brain's reply, or jumps one waiting its turn.
+    func testChatterNeverCutsAMoment() throws {
+        let transport = FakeTransport()
+        let runtime = try makeRuntime(transport)
+        let says = { transport.sent.filter { $0.contains("\"say\"") }.count }
+        let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
+        runtime.home.sync {
+            let now = runtime.options.clock()
+            runtime.moments.schedule.brain(DeviceMoment(say: line), now: now)
+            runtime.run([.mumble(feeling: "happy", word: nil)])
+        }
+        XCTAssertEqual(says(), 0, "a brain moment is waiting its turn")
+        runtime.home.sync {
+            let now = runtime.options.clock()
+            _ = runtime.moments.schedule.due(now: now)
+            XCTAssertFalse(runtime.moments.schedule.idle(now: now), "it's playing")
+            runtime.run([.mumble(feeling: "happy", word: nil)])
+        }
+        XCTAssertEqual(says(), 0, "the reply is playing")
+        runtime.home.sync {
+            runtime.moments.schedule = MomentSchedule()
+            runtime.run([.mumble(feeling: "happy", word: nil)])
+        }
+        XCTAssertEqual(says(), 1, "nothing playing: chatter plays")
+    }
+
+    /// BEHAVIORS.md §3.3: a brain mumble still waiting its turn when the mic
+    /// goes on (here behind a cheer) is dropped: it can only be about an
+    /// agent, and would end `listening` before the reply.
+    func testMicOnDropsWaitingBrainMumbles() throws {
+        let transport = FakeTransport()
+        let runtime = try makeRuntime(transport)
+        let says = { transport.sent.filter { $0.contains("\"say\"") }.count }
+        runtime.home.sync {
+            runtime.run([.moment(anim: "cheer")])
+            runtime.react.run(ToolCall("react", ["feeling": .string("happy"), "voice": .string("mumble")]))
+            XCTAssertEqual(runtime.moments.schedule.waiting.count, 1, "waiting behind the cheer")
+            runtime.device(#"{"t":"input","k":"talk_on"}"#)
+            XCTAssertTrue(runtime.moments.schedule.waiting.isEmpty, "the mic went on")
+            let later = runtime.options.clock() + 3000
+            Runtime.pump(runtime.moments, link: runtime.link, clock: { later }, home: runtime.home, log: { _ in })
+        }
+        XCTAssertEqual(says(), 0, "the cheer has played and nothing follows it")
+    }
+
     /// ARCHITECTURE.md §3: the app knows how long each rule moment plays on
     /// the device. The numbers are firmware/src/app/behaviour.cpp's
     /// `onMoment` and `play`, and firmware/src/render/anim.cpp's

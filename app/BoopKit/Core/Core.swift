@@ -100,6 +100,13 @@ public final class Core {
     public static let replyWaitMs: Int64 = 8_000
     /// When that empty moment is due.
     var listeningEndsAt: Int64?
+    /// From the mic going off until the reply, at most `replyWaitMs`, for
+    /// either button: when the wait ends, and when the words it waits on
+    /// arrived (their input's `ts`). While the mic is on or this wait lasts,
+    /// there's no working chatter, and no brain mumble until the words have
+    /// arrived, since until then it can only be about an agent: either would
+    /// end the `listening` face before the reply (BEHAVIORS.md §3.3).
+    var replyWait: (until: Int64, words: Int64?)?
 
     /// Whether the last thing you said asked for quiet: only then may the
     /// `quiet` action run (BEHAVIORS.md §3.3).
@@ -279,6 +286,7 @@ public final class Core {
         startDayIfNew(now, &fx)
         let input = Input(.said, words: words, yelled: yelled, clock: config.time.clock(now),
                           weekday: config.time.weekday(now), rules: "listening", ts: now)
+        if replyWait != nil { replyWait?.words = now }
         quietAsked = input.asksForQuiet
         fx.append(.input(input))
         publish(now, &fx)
@@ -323,6 +331,7 @@ public final class Core {
         var fx: [CoreEffect] = []
         let byApp = listening?.by == .app
         stopListening(now, &fx)
+        replyWait = nil  // no words are coming
         if byApp {
             listeningEndsAt = nil
             fx.append(.endListening)
@@ -403,8 +412,13 @@ public final class Core {
             + idle.map { SessionSummary($0, .idle) }
     }
 
-    /// False in quiet mode, or while something needs you.
-    public func canMumble(at now: Int64) -> Bool { mumblesAllowed(now) }
+    /// False in quiet mode, while something needs you, and while you talk:
+    /// from the mic turning on until your words arrive, so a brain mumble
+    /// about an agent can't end the `listening` face before the reply
+    /// (BEHAVIORS.md §3.3). The reply itself may mumble.
+    public func canMumble(at now: Int64) -> Bool {
+        mumblesAllowed(now) && listening == nil && (replyWait == nil || replyWait?.words != nil)
+    }
 
     // MARK: - Rules
 
@@ -428,6 +442,11 @@ public final class Core {
         quietLeft(now) == 0 && !needsYouShowing
     }
 
+    /// The mic is on, or Boop is waiting for the reply to what it heard.
+    func talking(_ now: Int64) -> Bool {
+        listening != nil || replyWait.map { now < $0.until } == true
+    }
+
     /// Nobody is waiting on the session any more.
     func clearRequest(_ s: inout Session, _ now: Int64) {
         s.needsSince = nil
@@ -449,6 +468,7 @@ public final class Core {
         listening = (talker, now)
         // A new `listening` face mustn't be ended by the last one's stop.
         listeningEndsAt = nil
+        replyWait = nil
         fx.append(.listen(true))
     }
 
@@ -459,6 +479,7 @@ public final class Core {
         guard let l = listening else { return }
         listening = nil
         fx.append(.listen(false))
+        replyWait = (now + Self.replyWaitMs, nil)
         if l.by == .app { listeningEndsAt = now + Self.replyWaitMs }
     }
 
@@ -593,6 +614,7 @@ public final class Core {
             listeningEndsAt = nil
             fx.append(.endListening)
         }
+        if let wait = replyWait, now >= wait.until { replyWait = nil }
 
         // Merged bursts.
         if let held = heldInput, now - lastInputAt >= config.mergeMs {
@@ -611,7 +633,8 @@ public final class Core {
     /// Working chatter (BEHAVIORS.md §2): while agents work, a mumble every
     /// so often, as the mode sets (none in calm). About half the time it asks
     /// about a working session's latest topic (`curious`); otherwise it's
-    /// `happy`, with no word.
+    /// `happy`, with no word. None while you talk to Boop: it would end the
+    /// `listening` face before the reply.
     func chatter(_ now: Int64, _ fx: inout [CoreEffect]) {
         let working = sessions.values.filter { isWorking($0, now) && $0.needsSince == nil }
         guard !working.isEmpty, let gap = config.mode.chatterMs else {
@@ -624,7 +647,7 @@ public final class Core {
         }
         guard now >= due else { return }
         nextChatterAt = now + Int64(rng.int(in: gap))
-        guard mumblesAllowed(now) else { return }
+        guard mumblesAllowed(now), !talking(now) else { return }
         let topics = working.sorted { $0.order < $1.order }.compactMap(\.topic)
         let word = !topics.isEmpty && rng.chance(50) ? topics[rng.int(in: 0...(topics.count - 1))] : nil
         fx.append(.mumble(feeling: word == nil ? "happy" : "curious", word: word))
