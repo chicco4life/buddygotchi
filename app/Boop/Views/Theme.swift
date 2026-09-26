@@ -27,6 +27,8 @@ enum Palette {
     /// The device's own colours (firmware `palette.h`): black glass, the
     /// warm-white eyes, the pink cheeks and its brighter amber, for the little face.
     static let glass = "#000000", eye = "#F6F4EE", blush = "#EC787C", deviceAmber = "#FFB000"
+    /// The menu-bar icon's amber on a light menu bar, where the device's is 1.7:1.
+    static let menuAmberLight = "#B87400"
     /// The mic is on: macOS's own recording red, on the menu bar and the Talk button.
     static let recording = "#FF3B30"
 }

@@ -143,6 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     let log: LogFile
     let model: AppModel
     var statusItem: NSStatusItem?
+    private var iconMood: FaceMood?
     let popover = NSPopover()
     var runtime: Runtime?
     var listener: SpeechListener?
@@ -299,9 +300,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         updateIcon(status)
     }
 
+    /// Every status push lands here, and most don't change the mood.
     func updateIcon(_ status: Runtime.Status?) {
-        guard let button = statusItem?.button else { return }
-        button.image = MenuBarIcon.image(FaceMood(status))
+        let mood = FaceMood(status)
+        guard mood != iconMood, let button = statusItem?.button else { return }
+        iconMood = mood
+        button.image = MenuBarIcon.image(mood)
     }
 
     @objc func togglePopover() {

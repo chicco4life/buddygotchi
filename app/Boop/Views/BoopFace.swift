@@ -5,7 +5,7 @@ import SwiftUI
 /// What the little face shows. The Mac never plays Boop's moments; this is
 /// just enough of the device's face that the popover and the menu bar read
 /// as the same creature (UX.md §7).
-enum FaceMood: Equatable {
+enum FaceMood: Hashable {
     case asleep, idle, working, needsYou, happy, listening
 
     init(_ status: Runtime.Status?) {
@@ -226,52 +226,59 @@ private struct Smile: Shape {
     }
 }
 
-/// The menu-bar icon: Boop's window eyes. Closed while asleep, open while agents
-/// idle, with a small dot while they work, amber when something needs you,
-/// and red with a bigger dot while the Mac's mic is on.
+/// The menu-bar icon: Boop's window eyes and a pixel smile, on whole points
+/// so it's crisp at 1× and 2×. Closed while asleep, open while agents idle,
+/// with a small dot while they work, amber when something needs you, and
+/// red with a bigger dot while the Mac's mic is on (UX.md §7).
+@MainActor
 enum MenuBarIcon {
+    private static var cache: [FaceMood: NSImage] = [:]
+
+    /// Made once per mood. The coloured ones redraw every time they're
+    /// shown, so they follow the menu bar between light and dark.
     static func image(_ mood: FaceMood) -> NSImage {
-        let size = NSSize(width: 20, height: 18)
-        let image = NSImage(size: size, flipped: true) { _ in
+        if let image = cache[mood] { return image }
+        let image = draw(mood)
+        cache[mood] = image
+        return image
+    }
+
+    private static func draw(_ mood: FaceMood) -> NSImage {
+        let image = NSImage(size: NSSize(width: 20, height: 18), flipped: true) { _ in
+            let match = NSAppearance.currentDrawing().bestMatch(from: [.aqua, .darkAqua, .vibrantLight, .vibrantDark])
+            let dark = match == .darkAqua || match == .vibrantDark
             let colour: NSColor = switch mood {
-            case .needsYou: NSColor(hex: Palette.deviceAmber)
+            // The device's amber is too pale on a light bar; a deeper one
+            // keeps 3:1 there and still reads as amber.
+            case .needsYou: NSColor(hex: dark ? Palette.deviceAmber : Palette.menuAmberLight)
             case .listening: NSColor(hex: Palette.recording)
             default: .black
             }
             colour.setFill()
-            colour.setStroke()
-            // Window eyes, as on the device: four 2.2 pt panes a 0.8 pt cross
-            // apart, or a bar while asleep.
-            let pane: CGFloat = 2.2, gap: CGFloat = 0.8, eye = 2 * pane + gap
-            let centres: [CGFloat] = [5.4, 14.6]
-            for x in centres {
+            // Window eyes, as on the device: four 2 pt panes around a 1 pt
+            // cross, or a bar while asleep.
+            for x: CGFloat in [3, 12] {
                 if mood == .asleep {
-                    NSBezierPath(rect: NSRect(x: x - eye / 2, y: 8.6, width: eye, height: 1.6)).fill()
+                    NSRect(x: x, y: 8, width: 5, height: 2).fill()
                     continue
                 }
-                for col in 0..<2 {
-                    for row in 0..<2 {
-                        NSBezierPath(rect: NSRect(x: x - eye / 2 + CGFloat(col) * (pane + gap),
-                                                  y: 4.6 + CGFloat(row) * (pane + gap), width: pane, height: pane)).fill()
-                    }
+                for dx: CGFloat in [0, 3] {
+                    for dy: CGFloat in [0, 3] { NSRect(x: x + dx, y: 5 + dy, width: 2, height: 2).fill() }
                 }
             }
-            let smile = NSBezierPath()
-            smile.lineWidth = 1.1
-            smile.lineCapStyle = .round
-            let y: CGFloat = mood == .asleep ? 13.2 : 13.4
-            smile.move(to: NSPoint(x: 8.6, y: y))
-            smile.curve(to: NSPoint(x: 11.4, y: y), controlPoint1: NSPoint(x: 9.3, y: y + 1.3),
-                        controlPoint2: NSPoint(x: 10.7, y: y + 1.3))
-            smile.stroke()
+            // A small pixel "u", as the device draws its smile.
+            for r in [NSRect(x: 8, y: 13, width: 1, height: 1), NSRect(x: 11, y: 13, width: 1, height: 1),
+                      NSRect(x: 9, y: 14, width: 2, height: 1)] { r.fill() }
+            // The dot sits clear of the eye: 2 pt above it, or 1 pt for the bigger one.
             if mood == .listening {
-                NSBezierPath(ovalIn: NSRect(x: 15.6, y: 0, width: 4.4, height: 4.4)).fill()
+                NSRect(x: 16, y: 0, width: 4, height: 4).fill()
             } else if mood == .working || mood == .needsYou {
-                NSBezierPath(ovalIn: NSRect(x: 16.6, y: 0.6, width: 3.2, height: 3.2)).fill()
+                NSRect(x: 16, y: 0, width: 3, height: 3).fill()
             }
             return true
         }
         image.isTemplate = mood != .needsYou && mood != .listening
+        if !image.isTemplate { image.cacheMode = .never }
         image.accessibilityDescription = "Boop"
         return image
     }

@@ -1,6 +1,6 @@
 # Boop: UX
 
-Updated 2026-09-26. What the person sees and touches: the screen, the
+Updated 2026-09-27. What the person sees and touches: the screen, the
 controls, setup and the Mac app. What Boop *does* in each situation is in
 [BEHAVIORS.md](BEHAVIORS.md), and how it sounds is in [VOICE.md](VOICE.md).
 
@@ -191,10 +191,12 @@ transcript, in memory only, until its window moves past it
 It never pops up by itself after setup and never sends notifications. The
 device does the nudging.
 
-**The menu-bar icon** is Boop's eyes and little smile, drawn from the
-device's face: closed while Boop is asleep, open while agents are idle,
-with a small dot while they work, amber when something needs you, and
-recording red with a bigger dot while the Mac's mic is on (§5).
+**The menu-bar icon** is Boop's window eyes and a pixel smile, drawn from
+the device's face on whole points so it's crisp at 1× and 2×: closed while
+Boop is asleep, open while agents are idle, with a small dot while they
+work, amber when something needs you, and recording red with a bigger dot
+while the Mac's mic is on (§5). On a light menu bar the amber is a deeper
+one that keeps 3:1, since the device's is too pale there.
 
 **The popover** is one 360 pt column on warm paper (the look below).
 Clicking the icon opens it on the overview. Settings and setup open inside
