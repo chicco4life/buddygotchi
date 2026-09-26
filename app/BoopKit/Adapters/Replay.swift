@@ -5,11 +5,14 @@ import HookWire
 /// `boop-hook`, the adapter and a fresh core, on a virtual clock. Used by
 /// `boopdev replay` and by tests.
 public struct Replay {
-    /// A payload, or a `{"wait_ms": N}` line that moves the clock. Lines
-    /// with `expect` or `expect_not` are `boopctl e2e` checkpoints, skipped.
+    /// A payload, a `{"wait_ms": N}` line that waits, or an
+    /// `{"advance_ms": N}` line that jumps a live app's clock; on the virtual
+    /// clock both are just time passing. Lines with `expect` or `expect_not`
+    /// are `boopctl e2e` checkpoints, skipped.
     public enum Step: Equatable {
         case payload(Data)
         case wait(Int64)
+        case advance(Int64)
     }
 
     /// 2026-10-14 14:00 UTC, so output is repeatable.
@@ -36,8 +39,8 @@ public struct Replay {
             guard !line.isEmpty, !line.hasPrefix("#") else { return nil }
             if let object = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
                object["hook_event_name"] == nil {
-                // `advance_ms` jumps a live app's clock; here it's just time.
-                if let wait = (object["wait_ms"] ?? object["advance_ms"]) as? NSNumber { return .wait(wait.int64Value) }
+                if let wait = object["wait_ms"] as? NSNumber { return .wait(wait.int64Value) }
+                if let jump = object["advance_ms"] as? NSNumber { return .advance(jump.int64Value) }
                 // Checkpoints for the pipeline check (`boopctl e2e`).
                 if object["expect"] != nil || object["expect_not"] != nil { return nil }
             }
@@ -71,7 +74,7 @@ public struct Replay {
         if !newDay { core.tick(at: now) }
         for step in steps {
             switch step {
-            case .wait(let ms):
+            case .wait(let ms), .advance(let ms):
                 advance(ms)
             case .payload(let data):
                 guard let line = HookLine.extract(agent: agent, payload: data, ts: now) else {

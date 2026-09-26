@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Boop doctor (plan/ADAPTERS.md §6): will Boop see this agent's hooks?
 #
-#   1. Hooks are registered for each agent and point at an existing boop-hook.
+#   1. Hooks are registered for each agent and point at an existing boop-hook
+#      (the installer's own check, through boopdev: run make build first).
 #   2. The app is running and its socket accepts.
 #   3. A synthetic event goes from boop-hook to the app (seen in its log).
 #   4. A harmless command run in the agent shows up in Boop (--confirm).
@@ -29,7 +30,9 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+# Physically: run through a skill link (.claude/skills/doctor), the logical
+# path's ../.. would be .claude.
+REPO="$(cd -P "$(dirname "$0")/../.." && pwd -P)"
 STATE="${STATE:-$HOME/Library/Application Support/Boop}"
 pass=0; fail=0
 ok()   { pass=$((pass+1)); printf '  \033[32m✓\033[0m %s\n' "$1"; }
@@ -61,10 +64,13 @@ ARM="$STATE/doctor-armed"
 if [ $CONFIRM -eq 1 ]; then
   hdr "Boop doctor: confirm ($AGENT)"
   if [ ! -f "$ARM" ]; then bad "not armed; run doctor.sh first"; exit 1; fi
+  # Only what the log gained since arming: it keeps earlier days' lines,
+  # stamped with the time of day alone.
   since=$(cat "$ARM")
   rm -f "$ARM"
-  if awk -v s="$since" '$0 >= s' "$LOG" 2>/dev/null | grep -v 'doctor-' | grep -q ' hook: '; then
-    ok "this agent's hooks reached Boop: $(awk -v s="$since" '$0 >= s' "$LOG" | grep ' hook: ' | grep -v 'doctor-' | tail -1 | cut -d' ' -f3-5)"
+  seen=$(tail -c +$((since + 1)) "$LOG" 2>/dev/null | grep ' hook: ' | grep -v 'doctor-' | tail -1)
+  if [ -n "$seen" ]; then
+    ok "this agent's hooks reached Boop: $(echo "$seen" | cut -d' ' -f3-5)"
     exit 0
   fi
   bad "no hook from the agent reached Boop since arming"
@@ -74,46 +80,34 @@ fi
 hdr "Boop doctor (agent: $AGENT, state: $STATE)"
 
 # --- 1. hook registration ---------------------------------------------------
+# The installer is the one source of which hooks each agent gets, so its own
+# health check decides (boopdev hooks status). Hooks call the copy of
+# boop-hook the app keeps in its state directory, or, after
+# `boopdev hooks install`, the one built next to boopdev.
 hdr "Hooks"
+BOOPDEV="$REPO/app/.build/debug/boopdev"
+[ -x "$BOOPDEV" ] || { bad "no $BOOPDEV to check the hooks with; run make build"; exit 1; }
 HOOK_BIN=""
-check_agent() {
-  local name="$1" file="$2"; shift 2
-  if [ ! -f "$file" ]; then info "$name: no $file"; return; fi
-  local cmds
-  cmds=$(python3 - "$file" "$@" <<'PY'
-import json, re, sys
-path, events = sys.argv[1], sys.argv[2:]
-try:
-    hooks = json.load(open(path)).get("hooks", {})
-except Exception as e:
-    print("ERR not JSON: %s" % e); sys.exit()
-boop = re.compile(r'(^|/)boop-hook"?(\s|$)')
-missing = []
-cmds = set()
-for ev in events:
-    found = [h.get("command", "") for g in hooks.get(ev, []) for h in g.get("hooks", []) if boop.search(h.get("command", ""))]
-    if not found: missing.append(ev)
-    cmds.update(found)
-old = [h.get("command", "") for gs in hooks.values() for g in gs for h in g.get("hooks", []) if "boop-hook.sh" in h.get("command", "")]
-print("MISSING " + " ".join(missing) if missing else "ALL")
-for c in sorted(cmds): print("CMD " + c)
-if old: print("OLD %d" % len(old))
-PY
-)
-  case "$cmds" in ERR*) bad "$name: $file ${cmds#ERR }"; return ;; esac
-  local status; status=$(echo "$cmds" | head -1)
-  if [ "$status" = "ALL" ]; then ok "$name: every hook registered"; else bad "$name: missing ${status#MISSING }"; fi
-  echo "$cmds" | grep -q '^OLD' && bad "$name: previous-generation entries (~/.boop/boop-hook.sh) are still there"
-  while read -r line; do
-    [ -z "$line" ] && continue
-    local c="${line#CMD }" bin
-    if [[ $c == \"* ]]; then bin="${c#\"}"; bin="${bin%%\"*}"; else bin="${c%% *}"; fi
-    if [ -x "$bin" ]; then ok "$name: $bin exists"; HOOK_BIN="$bin"; else bad "$name: $bin is missing"; fi
-  done < <(echo "$cmds" | grep '^CMD')
-}
-check_agent "Claude Code" "$HOME/.claude/settings.json" SessionStart UserPromptSubmit PreToolUse PostToolUse \
-  PostToolUseFailure PermissionRequest Notification Elicitation ElicitationResult Stop StopFailure SessionEnd
-check_agent "Codex" "$HOME/.codex/hooks.json" SessionStart UserPromptSubmit PreToolUse PostToolUse PermissionRequest Stop SessionEnd
+for agent in claude codex; do
+  case $agent in claude) name="Claude Code"; file="$HOME/.claude/settings.json" ;;
+                 codex) name="Codex"; file="$HOME/.codex/hooks.json" ;; esac
+  if [ ! -f "$file" ]; then info "$name: no $file"; continue; fi
+  health=""; first=""
+  for bin in "$HOME/Library/Application Support/Boop/bin/boop-hook" "$REPO/app/.build/debug/boop-hook"; do
+    health=$("$BOOPDEV" hooks status $agent --home "$HOME" --hook "$bin" 2>&1 | sed "s/^$agent: //")
+    if [ "$health" = installed ]; then HOOK_BIN="$bin"; break; fi
+    first="${first:-$health}"
+  done
+  # The app's copy gone says more than hooks that don't call the repo's build.
+  if [ "$first" = clientMissing ] && [ "$health" = outdated ]; then health=clientMissing; fi
+  case "$health" in
+    installed) ok "$name: every hook registered, calling $HOOK_BIN" ;;
+    notInstalled) bad "$name: no Boop hooks in $file" ;;
+    outdated) bad "$name: Boop's hooks in $file are missing, old or point at another boop-hook" ;;
+    clientMissing) bad "$name: the app's boop-hook ($HOME/Library/Application Support/Boop/bin) is missing" ;;
+    *) bad "$name: $health" ;;
+  esac
+done
 [ -n "$HOOK_BIN" ] || HOOK_BIN="$REPO/app/.build/debug/boop-hook"
 
 # --- 2. the app -------------------------------------------------------------
@@ -131,8 +125,10 @@ fi
 
 # --- 3. synthetic round trip ------------------------------------------------
 hdr "Round trip"
-start=$(date +%H:%M:%S)
-echo "$start" > "$ARM"
+# Arming: the app logs every hook while this file exists, and it holds how
+# long the log was, so --confirm reads only what came after.
+size=0; [ -f "$LOG" ] && size=$(wc -c < "$LOG" | tr -d ' ')
+echo "$size" > "$ARM"
 session="doctor-$$"
 printf '{"hook_event_name":"SessionEnd","session_id":"%s","cwd":"/tmp"}' "$session" \
   | BOOP_SOCKET="$SOCK" "$HOOK_BIN" claude

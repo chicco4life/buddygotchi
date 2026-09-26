@@ -8,9 +8,10 @@ import HookWire
 let usage = """
     usage: boopdev replay <hooks.jsonl> [--agent claude|codex] [--gap-ms N] [--start MS] [--tz ZONE] [--new-day] [--states]
                Runs recorded hook payloads through boop-hook's field picking, the adapter and the core,
-               on a virtual clock, and prints what the core decides. A line {"wait_ms":N} moves the clock.
+               on a virtual clock, and prints what the core decides. {"wait_ms":N} and {"advance_ms":N} move the clock.
            boopdev replay <hooks.jsonl> --socket PATH [--agent …] [--gap-ms N]
-               Sends each payload through the real boop-hook binary to a running app's socket, in real time.
+               Sends each payload through the real boop-hook binary to a running app's socket, in real time:
+               {"wait_ms":N} waits, and {"advance_ms":N} jumps a headless app's clock.
            boopdev memory --state-dir DIR
                Prints long-term.md and short-term.md as the memory store reads them, and the history snapshots.
            boopdev voice <feeling> [word] [--dialect HEX] [--seed N] [--count N] [--json] [--why]
@@ -79,16 +80,26 @@ func replay(_ args: [String]) {
 }
 
 /// Sends payloads through the real `boop-hook`, as agents would, and prints
-/// when each was sent so the caller can measure latency.
+/// when each was sent so the caller can measure latency. `boop-hook` fails
+/// open, so the app is asked first: with nobody listening, every hook would
+/// still exit 0.
 func replayLive(_ steps: [Replay.Step], agent: String, gapMs: Int64, socket: String) {
     let hook = URL(fileURLWithPath: CommandLine.arguments[0]).deletingLastPathComponent().appendingPathComponent("boop-hook")
     guard FileManager.default.isExecutableFile(atPath: hook.path) else { fail("no boop-hook next to boopdev; run make build") }
+    guard HookSocket.send(Data(#"{"dev":"probe"}"#.utf8) + [0x0A], to: socket, timeoutMs: 500) else {
+        fail("no app answering on \(socket)")
+    }
     var environment = ProcessInfo.processInfo.environment
     environment["BOOP_SOCKET"] = socket
     for step in steps {
         switch step {
         case .wait(let ms):
             usleep(useconds_t(ms * 1000))
+        case .advance(let ms):
+            // A headless app jumps its clock; the menu-bar app ignores this.
+            let line = Data(#"{"dev":"advance","ms":\#(ms)}"#.utf8) + [0x0A]
+            guard HookSocket.send(line, to: socket, timeoutMs: 500) else { fail("no app answering on \(socket)") }
+            print("advanced the app's clock \(ms) ms")
         case .payload(let data):
             let process = Process()
             process.executableURL = hook
