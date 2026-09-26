@@ -46,6 +46,11 @@ enum Snapshots {
                 let noHook = model(unbuilt, status: status())
                 noHook.pane = .settings
                 render(PopoverView(model: noHook, maxHeight: 2000), "settings-no-hook-\(look)", dark: dark, to: out)
+                // Normal without Jev's key, the body away and Claude's hooks needing a repair.
+                let offline = model(installer, status: status(connected: false, classifier: "chatty@1"))
+                offline.pane = .settings
+                offline.hooks[.claude] = .outdated
+                render(PopoverView(model: offline, maxHeight: 2000), "settings-offline-nokey-\(look)", dark: dark, to: out)
 
                 for step in SetupDraft.Step.allCases {
                     let setup = model(installer, status: nil)
@@ -69,8 +74,8 @@ enum Snapshots {
         exit(0)
     }
 
-    static func model(_ installer: HookInstaller, status: Runtime.Status?) -> AppModel {
-        let model = AppModel(installer: installer, link: .bluetooth)
+    static func model(_ installer: HookInstaller, status: Runtime.Status?, link: LinkSetting = .bluetooth) -> AppModel {
+        let model = AppModel(installer: installer, link: link)
         model.status = status
         model.readKey = { nil }  // fixtures only: never the real Keychain
         return model
@@ -78,18 +83,20 @@ enum Snapshots {
 
     /// `sessions` are agent, project and `wait`, `work` or `idle`.
     static func status(base: String = "working", sessions rows: [[String]] = [], quiet: Int = 0, vol: Int = 6,
-                       connected: Bool = true, listening: Bool = false, mode: Mode = .normal) -> Runtime.Status {
+                       connected: Bool = true, listening: Bool = false, mode: Mode = .normal,
+                       name: String = "Mochi", classifier: String? = nil) -> Runtime.Status {
         let statuses: [String: SessionSummary.Status] = ["wait": .waiting, "work": .working, "idle": .idle]
         let sessions = rows.map { SessionSummary(agent: $0[0], project: $0[1], status: statuses[$0[2]]!) }
         let wait = sessions.filter { $0.status == .waiting }
         let snapshot = StateSnapshot(
-            time: 1_790_000_000, name: "Mochi", base: base,
+            time: 1_790_000_000, name: name, base: base,
             attn: wait.first.map { StateSnapshot.Attention(agent: $0.agent, project: $0.project, more: wait.count - 1) },
             busy: sessions.filter { $0.status == .working }.count, idle: sessions.filter { $0.status == .idle }.count,
             wait: wait.count, quiet: quiet, vol: vol)
         return Runtime.Status(snapshot: snapshot, sessions: sessions, connected: connected,
                               device: connected ? DeviceStatus(id: "b00p-54fe", fw: "1.0.0") : nil,
-                              mode: mode, classifier: mode == .calm ? "calm@1" : mode == .chatty ? "chatty@1" : "jev:jev-latest",
+                              mode: mode,
+                              classifier: classifier ?? (mode == .calm ? "calm@1" : mode == .chatty ? "chatty@1" : "jev:jev-latest"),
                               writer: "apple:26.4", listening: listening)
     }
 
@@ -122,6 +129,20 @@ enum Snapshots {
                 m.startError = "Another Boop is already running."
                 return m
             }()),
+            ("waking-up", model(installer, status: nil)),
+            ("no-device", model(installer, status: status(base: "idle", sessions: [["claude", "jetpack", "idle"]],
+                                                          connected: false), link: .none)),
+            // Every mode chip at once, under the longest kind of name.
+            ("all-chips", model(installer, status: status(sessions: [["claude", "jetpack", "work"]], quiet: 12, vol: 0,
+                                                          mode: .chatty, name: "Wobblebottom McSnugs"))),
+            // Many sessions, a long project, two in one project, and one
+            // needing you from a project with no name.
+            ("crowded", model(installer, status: status(sessions: [
+                ["codex", "", "wait"], ["claude", "jetpack", "work"], ["claude", "jetpack", "work"],
+                ["codex", "buddygotchi-landing-page-redesign", "work"], ["claude", "notes", "work"],
+                ["codex", "landing", "idle"], ["claude", "dotfiles", "idle"], ["claude", "blog", "idle"],
+                ["codex", "scratch", "idle"], ["claude", "archive", "idle"],
+            ]))),
         ]
     }
 
@@ -157,42 +178,69 @@ enum Snapshots {
         print("\(name).png \(Int(host.bounds.width))×\(Int(host.bounds.height))")
     }
 
-    /// Every icon on a light and a dark menu bar, drawn at 4× so it can be judged.
+    /// Every icon on a light and a dark menu bar, as the bar draws it: the
+    /// top row at 1× and the bottom at 2×, each pixel blown up to 4×4 or 2×2
+    /// so the grid can be judged.
     static func renderIcons(dark: Bool, to dir: URL) {
         let moods: [FaceMood] = [.asleep, .idle, .working, .needsYou, .listening]
         let icon = MenuBarIcon.image(.idle).size
-        let pad: CGFloat = 10, gap: CGFloat = 14, scale: CGFloat = 4
-        let size = NSSize(width: 2 * pad + CGFloat(moods.count) * icon.width + CGFloat(moods.count - 1) * gap, height: 24)
-        guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width * scale),
-                                         pixelsHigh: Int(size.height * scale), bitsPerSample: 8, samplesPerPixel: 4,
-                                         hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
-                                         bytesPerRow: 0, bitsPerPixel: 0) else { fail("snapshots: no icon bitmap") }
-        rep.size = size
-        NSGraphicsContext.saveGraphicsState()
-        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
-        NSColor(white: dark ? 0.16 : 0.93, alpha: 1).setFill()
-        NSRect(origin: .zero, size: size).fill()
+        let pad: CGFloat = 10, gap: CGFloat = 14, row: CGFloat = 24, zoom: CGFloat = 4
+        let size = NSSize(width: 2 * pad + CGFloat(moods.count) * icon.width + CGFloat(moods.count - 1) * gap,
+                          height: 2 * row)
+        let appearance = NSAppearance(named: dark ? .darkAqua : .aqua)!
+        let bar = NSColor(white: dark ? 0.16 : 0.93, alpha: 1)
         let ink = dark ? NSColor.white : NSColor(white: 0, alpha: 0.85)
-        for (i, mood) in moods.enumerated() {
-            let rect = NSRect(x: pad + CGFloat(i) * (icon.width + gap), y: (size.height - icon.height) / 2,
-                              width: icon.width, height: icon.height)
-            let image = MenuBarIcon.image(mood)
-            if image.isTemplate {
-                // A template image takes the menu bar's colour.
-                NSImage(size: icon, flipped: false) { r in
-                    image.draw(in: r)
-                    ink.set()
-                    r.fill(using: .sourceAtop)
-                    return true
-                }.draw(in: rect)
-            } else {
-                image.draw(in: rect)
+        // One strip of icons at `scale` pixels per point, on the bar's colour.
+        func strip(_ scale: CGFloat) -> NSBitmapImageRep {
+            let rep = bitmap(NSSize(width: size.width, height: row), scale: scale)
+            NSGraphicsContext.saveGraphicsState()
+            NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+            bar.setFill()
+            NSRect(origin: .zero, size: rep.size).fill()
+            appearance.performAsCurrentDrawingAppearance {
+                for (i, mood) in moods.enumerated() {
+                    // Whole points, as the status button places it.
+                    let rect = NSRect(x: pad + CGFloat(i) * (icon.width + gap), y: ((row - icon.height) / 2).rounded(.down),
+                                      width: icon.width, height: icon.height)
+                    let image = MenuBarIcon.image(mood)
+                    if image.isTemplate {
+                        // A template image takes the menu bar's colour.
+                        NSImage(size: icon, flipped: false) { r in
+                            image.draw(in: r)
+                            ink.set()
+                            r.fill(using: .sourceAtop)
+                            return true
+                        }.draw(in: rect)
+                    } else {
+                        image.draw(in: rect)
+                    }
+                }
             }
+            NSGraphicsContext.restoreGraphicsState()
+            return rep
         }
+        let rep = bitmap(size, scale: zoom)
+        NSGraphicsContext.saveGraphicsState()
+        let context = NSGraphicsContext(bitmapImageRep: rep)
+        context?.imageInterpolation = .none
+        NSGraphicsContext.current = context
+        strip(1).draw(in: NSRect(x: 0, y: row, width: size.width, height: row), from: .zero, operation: .copy,
+                      fraction: 1, respectFlipped: false, hints: [.interpolation: NSImageInterpolation.none.rawValue])
+        strip(2).draw(in: NSRect(x: 0, y: 0, width: size.width, height: row), from: .zero, operation: .copy,
+                      fraction: 1, respectFlipped: false, hints: [.interpolation: NSImageInterpolation.none.rawValue])
         NSGraphicsContext.restoreGraphicsState()
         let name = "menubar-\(dark ? "dark" : "light")"
         guard let png = rep.representation(using: .png, properties: [:]) else { fail("snapshots: \(name) has no PNG") }
         do { try png.write(to: dir.appendingPathComponent("\(name).png")) } catch { fail("snapshots: \(error)") }
         print("\(name).png")
+    }
+
+    private static func bitmap(_ size: NSSize, scale: CGFloat) -> NSBitmapImageRep {
+        guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width * scale),
+                                         pixelsHigh: Int(size.height * scale), bitsPerSample: 8, samplesPerPixel: 4,
+                                         hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+                                         bytesPerRow: 0, bitsPerPixel: 0) else { fail("snapshots: no icon bitmap") }
+        rep.size = size
+        return rep
     }
 }
