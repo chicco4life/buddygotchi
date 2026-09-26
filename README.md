@@ -24,7 +24,7 @@ On the board:
 | Do | What happens |
 | --- | --- |
 | Press BOOT, or tap the face | Boop it; acknowledges a cheer; quiets the nudges if something needs you |
-| Hold BOOT | Push-to-talk while held (the Mac's mic is on only then) |
+| Hold BOOT | Push-to-talk while held (the Mac's mic is on only then, 30 s at most). Talk in the popover does the same from the Mac |
 | Tap the status strip | Face → threads → stats → face |
 | Touch and hold the status strip | Focus mode on or off |
 | Touch and hold the face | A mumble and a face that show how Boop feels |

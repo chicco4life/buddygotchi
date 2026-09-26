@@ -69,6 +69,23 @@ final class RuntimeTests: XCTestCase {
         transport.onLine?(#"{"t":"input","k":"talk_off"}"#)
         wait("listen on and off") { runtime.home.sync { heard } == [true, false] }
 
+        // The menu bar sees the mic on, and a dropped link turns it off.
+        var shown: [Bool] = []
+        runtime.home.sync { runtime.onChange = { shown.append($0.listening) } }
+        transport.onLine?(#"{"t":"input","k":"talk_on"}"#)
+        wait("listening shows") { runtime.home.sync { heard.count == 3 && shown.last == true } }
+        transport.onConnection?(false)
+        wait("mic off when the link drops") { runtime.home.sync { heard } == [true, false, true, false] }
+        XCTAssertEqual(runtime.home.sync { shown.last }, false)
+        transport.onConnection?(true)
+
+        // The Talk button: the device shows listening, then thinking.
+        runtime.setListening(true)
+        wait("listening on the device") { transport.sent.contains { $0.contains("\"anim\":\"listening\"") } }
+        runtime.setListening(false)
+        wait("thinking on the device") { transport.sent.contains { $0.contains("\"anim\":\"thinking\"") } }
+        XCTAssertEqual(runtime.home.sync { heard }, [true, false, true, false, true, false])
+
         // A finished turn clears "needs you", cheers, and counts
         // in the record.
         XCTAssertTrue(HookSocket.send(hook("PostToolUse", tool: "Bash"), to: socket))

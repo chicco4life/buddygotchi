@@ -194,9 +194,13 @@ Nothing above the device link knows which one is in use.
 
 ### 3.8 Push-to-talk
 
-The device has no mic, so holding its button records from the Mac's mic.
-The app turns speech into text locally, and the core gives it to the
-harness as a `talk` trigger. Audio is discarded immediately. The words stay
+The device has no mic, so holding its button, or clicking Talk in the
+popover, records from the Mac's mic. The core decides when the mic is on
+(`listen` effects): from `talk_on` or Talk until `talk_off`, Send, 30 s,
+or, for the device's button, the link dropping. The menu bar shows it
+while it's on ([UX.md](UX.md) §5). The app asks for Speech Recognition and
+the Microphone on first use, turns speech into text locally, and the core
+gives it to the harness as a `talk` trigger. Audio is discarded immediately. The words stay
 in the brain's conversation, in memory only, until it starts over
 ([HARNESS.md](HARNESS.md) §4).
 
@@ -477,3 +481,4 @@ When a spec changes direction, add a row here saying why.
 | 2026-09-26 | Event, tap and talk calls share a short conversation with the brain, sent in the same order every call and never compacted: it starts over when its opening changes, when it's full, or after a failed answer. Talk words stay in it until then | The owner asked for a running transcript modelled on pi, kept simple (start over rather than compact) and in an order a cloud provider's prompt cache can reuse. With history, Apple's model answers quiet much more often; tuning is PLAN.md A6 | [HARNESS.md](HARNESS.md) §4 |
 | 2026-09-26 | Event, tap and talk are offered the same four tools. A tool past its limit, or outside the trigger's allowed list, is named in the prompt (`say limit: …`) and a call to it is dropped, instead of not being offered. This replaces the earlier rows "`event` offers only `say` and `face`" and the "isn't offered" part of the speech-limit row | A conversation's tools can't change between calls. In L5 the `say` line holds, but Apple's model calls `note` on most events; the harness drops those calls (PLAN.md A6) | [HARNESS.md](HARNESS.md) §5 |
 | 2026-09-26 | The face takes gen-2's look (F6 follow-up): smaller lavender-white eyes, a short dash mouth, thin "^" arches for happy eyes, a heart at the top right for affection (`Pose::heart`), a climbing "zzZZ" when asleep (`Pose::zzz`), a strain and a sweat drop while working (`Pose::sweat`), a gentle sway for the tap, and open eyes glancing up for no app | On the board the owner found the F6 eyes less cute than gen-2's, the tap's solid crescents frightening (a dome with a bite out of the bottom reads as a hooded glare), and the sleepy no-app face droopy, and asked for the older faces. Seeing those, they asked for a heart instead of pink cheeks, a "zzZZ" and some effort. The new parts are pose fields, so they ease in and out with every blend, and the simulator draws them as the board does | [UX.md](UX.md) §2, [BEHAVIORS.md](BEHAVIORS.md) §2–3, [PLAN.md](PLAN.md) F6 |
+| 2026-09-26 | Push-to-talk can also start from a Talk button in the popover. The core owns whether the mic is on, and turns it off after 30 s, or when the link drops while the device's button is held; the menu-bar icon turns red while it's on. The app asks for mic access on first use, not at launch | The owner found no way to talk from the Mac and no sign the Mac was recording. The mic stopped only on `talk_off`, so a dropped link or a lost line (USB drops the odd one) left it on until the app quit | [UX.md](UX.md) §5, §7 |

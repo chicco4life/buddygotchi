@@ -46,9 +46,11 @@ public final class Runtime: @unchecked Sendable {
         public var away: Bool
         public var finished: Int
         public var projects: Int
+        /// The Mac's mic is on for push-to-talk.
+        public var listening: Bool
 
         public init(snapshot: StateSnapshot, connected: Bool, device: DeviceStatus?, brain: String, away: Bool,
-                    finished: Int, projects: Int) {
+                    finished: Int, projects: Int, listening: Bool = false) {
             self.snapshot = snapshot
             self.connected = connected
             self.device = device
@@ -56,6 +58,7 @@ public final class Runtime: @unchecked Sendable {
             self.away = away
             self.finished = finished
             self.projects = projects
+            self.listening = listening
         }
     }
 
@@ -195,6 +198,7 @@ public final class Runtime: @unchecked Sendable {
                 self?.home.async {
                     guard let self else { return }
                     self.link.connection(up, now: self.options.clock())
+                    if !up { self.run(self.core.linkDown(at: self.options.clock())) }
                     self.changed()
                 }
             })
@@ -274,6 +278,7 @@ public final class Runtime: @unchecked Sendable {
         moments.inRules += 1
         defer { moments.inRules -= 1 }
         var stateChanged = false
+        var listenChanged = false
         for effect in effects {
             switch effect {
             case .state(let snapshot):
@@ -291,12 +296,11 @@ public final class Runtime: @unchecked Sendable {
                 memory.apply(effect)
             case .listen(let on):
                 onListen?(on)
+                listenChanged = true
             }
         }
-        if stateChanged {
-            if memory.shortTerm != nil { memory.setMood(core.moodWord(at: options.clock())) }
-            changed()
-        }
+        if stateChanged, memory.shortTerm != nil { memory.setMood(core.moodWord(at: options.clock())) }
+        if stateChanged || listenChanged { changed() }
     }
 
     /// Sends the brain's held moments once the rules' moment and its
@@ -324,7 +328,7 @@ public final class Runtime: @unchecked Sendable {
     func changed() {
         onChange?(Status(snapshot: link.latest ?? core.snapshot(at: options.clock()), connected: link.connected,
                          device: link.status, brain: harness.brain.id, away: core.away,
-                         finished: settings.finished, projects: settings.projects.count))
+                         finished: settings.finished, projects: settings.projects.count, listening: core.listening != nil))
     }
 
     func talkNow(_ words: String) {
@@ -342,6 +346,16 @@ public final class Runtime: @unchecked Sendable {
     /// dropped (ARCHITECTURE.md §3.8).
     public func talk(_ words: String) {
         home.async { [self] in talkNow(words) }
+    }
+
+    /// The Talk button: start or stop listening (UX.md §5).
+    public func setListening(_ on: Bool) {
+        home.async { [self] in run(core.listen(on, at: options.clock())) }
+    }
+
+    /// The mic or speech recognition couldn't start.
+    public func micFailed() {
+        home.async { [self] in run(core.micFailed(at: options.clock())) }
     }
 
     public func setFocus(_ on: Bool) {

@@ -215,7 +215,7 @@ struct SetupPane: View {
             title("Ready to wake \(name)?")
             VStack(alignment: .leading, spacing: Theme.gap) {
                 tip("powerplug.fill", "Plug \(name)'s body into USB power. It finds this Mac over Bluetooth by itself.")
-                tip("hand.raised.fill", "macOS will ask to use Bluetooth, and the microphone the first time you hold \(name)'s button to talk.")
+                tip("hand.raised.fill", "macOS will ask to use Bluetooth, and the microphone the first time you talk to \(name).")
                 if !model.setup.agents.isEmpty && model.installer.clientInPlace {
                     tip("arrow.clockwise", "Restart any open agent sessions afterwards so I can hear them.")
                 }

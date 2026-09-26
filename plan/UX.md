@@ -136,12 +136,26 @@ becomes a secondary button: a press cycles screens and a hold toggles focus.
 
 ## 5. Talking to Boop
 
-Hold BOOT and speak. The Mac's mic is on only while you hold it.
+Hold BOOT and speak, or click **Talk** in the popover, speak, and click
+**Send**. Either way the Mac's mic records, and it's on only while you
+hold the button or until you click Send.
 
-1. **Hold:** the listening face appears at once.
-2. **Release:** a thinking face covers the 2–3 s wait.
+1. **Hold, or click Talk:** the listening face appears at once, on the
+   device and in the popover.
+2. **Release, or click Send:** a thinking face covers the 2–3 s wait.
 3. **Reply:** a mumble and a face. It's never a sentence, and never an
    answer to a question.
+
+**You can always tell the mic is on.** While it is, the menu-bar icon
+turns recording red with a bigger dot, the popover's line says
+"Listening…" with a red dot, and Talk becomes a red Send button. macOS
+also shows its own microphone indicator. The mic turns itself off after
+30 s, and at once if the link to the device drops while BOOT is held
+(its release could never arrive). What was heard up to then still goes to
+Boop. The first time, macOS asks for Speech Recognition and then the
+Microphone; if either is refused, or on-device recognition isn't
+available, the device shrugs and the popover says "*name* can't hear you"
+and where to allow it.
 
 Things worth saying: "shut up" (Boop goes quiet for a while), "good job",
 "remember I ship on Fridays", or just mumbling at it. Audio is thrown away at
@@ -184,7 +198,8 @@ device does the nudging.
 
 **The menu-bar icon** is Boop's eyes and little smile, drawn from the
 device's face: closed while Boop is asleep, open while agents are idle,
-with a small dot while they work, and amber when something needs you.
+with a small dot while they work, amber when something needs you, and
+recording red with a bigger dot while the Mac's mic is on (§5).
 
 **The popover** is one 360 pt column on warm paper (the look below).
 Clicking the icon opens it on the overview. Settings and setup open inside
@@ -192,13 +207,14 @@ it, never in separate windows. Escape or a click outside closes it, and
 closing it from Settings returns to the overview next time. Its height
 follows its content, and a long pane scrolls.
 
-**Overview**, top to bottom. It only shows; every control is in Settings.
+**Overview**, top to bottom. It only shows; every control is in Settings,
+except Talk, which is there to be used in the moment.
 
 | Area | Content |
 | --- | --- |
-| Header | A small copy of Boop's face on black glass (it blinks, glances about while agents work, looks up with an amber rim when something needs you, and sleeps with its eyes closed), Boop's name, a tone dot with one short line ("Working on 2 sessions", "Needs you", "Hanging out", "Napping"), and whether the body is connected ("Connected", "Looking…" or "No device"). Which board it is never shows |
+| Header | A small copy of Boop's face on black glass (it blinks, glances about while agents work, looks up with an amber rim when something needs you, sleeps with its eyes closed, and looks up wide-eyed while listening), Boop's name, a tone dot with one short line ("Listening…", "Working on 2 sessions", "Needs you", "Hanging out", "Napping"), whether the body is connected ("Connected", "Looking…" or "No device"), and under it the Talk button (§5), which turns into a red Send while the mic is on. Which board it is never shows |
 | Modes | Small reminders only when a mode is on: Focus, Quiet with minutes left, Muted, Away |
-| Notices | "Restart your agent sessions" after hooks change (dismissable), or why Boop couldn't start |
+| Notices | "Restart your agent sessions" after hooks change (dismissable), why Boop couldn't start, or "*name* can't hear you" when push-to-talk can't use the mic (dismissable; the next Talk clears it) |
 | Needs you | An amber card: agent · project, "Answer it in the agent's window", and "+N more" |
 | Sessions | Grouped by agent, like the threads screen: one row per project with a coloured edge and a status chip (needs you, working, idle). Empty: "No agents awake" |
 | Together | Boop's record, as totals across all projects: the level ring with the level inside and the percentage to the next, then tasks finished, projects and days together. Never broken down by project |

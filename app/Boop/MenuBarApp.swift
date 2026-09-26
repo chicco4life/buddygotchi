@@ -53,6 +53,8 @@ final class AppModel: ObservableObject {
     @Published var brain = "apple"
     @Published var nature = LongTerm.Nature.sweet
     @Published var startError: String?
+    /// Why push-to-talk couldn't hear you, until the next try.
+    @Published var talkError: String?
 
     let installer: HookInstaller
     let link: LinkSetting
@@ -108,6 +110,16 @@ final class AppModel: ObservableObject {
         guard status?.snapshot.vol != volume else { return }
         status?.snapshot.vol = volume
         runtime?.setVolume(volume)
+    }
+
+    var listening: Bool { status?.listening == true }
+
+    /// The Talk button: click to talk, click again to send.
+    func toggleTalk() {
+        let on = !listening
+        if on { talkError = nil }
+        status?.listening = on
+        runtime?.setListening(on)
     }
 
     func setBrain(_ brain: String) {
@@ -214,10 +226,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         do {
             let runtime = try Runtime(options)
             let listener = SpeechListener(log: { log.write($0) })
+            let model = self.model
             runtime.onChange = { [weak self] status in Task { @MainActor in self?.show(status) } }
             runtime.onListen = { (on: Bool) in
                 if on {
-                    listener.start()
+                    listener.start { why in
+                        log.write("talk: \(why)")
+                        runtime.micFailed()
+                        Task { @MainActor in model.talkError = why }
+                    }
                 } else {
                     listener.stop { words in
                         if let words { runtime.talk(words) } else { log.write("talk: heard nothing") }
@@ -232,7 +249,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             model.nature = runtime.memory.longTerm?.nature ?? .sweet
             model.startError = nil
             runtime.refresh()
-            listener.authorize { ok in if !ok { log.write("talk: speech or microphone access was refused") } }
         } catch {
             log.write("boop: can't start: \(error)")
             model.startError = "\(error)"

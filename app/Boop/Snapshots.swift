@@ -72,7 +72,7 @@ enum Snapshots {
     }
 
     static func status(base: String = "working", threads: [[String]] = [], focus: Bool = false, quiet: Int = 0,
-                       vol: Int = 6, away: Bool = false, connected: Bool = true) -> Runtime.Status {
+                       vol: Int = 6, away: Bool = false, connected: Bool = true, listening: Bool = false) -> Runtime.Status {
         let wait = threads.filter { $0[2] == "wait" }
         let snapshot = StateSnapshot(
             time: 1_790_000_000, name: "Mochi", base: base,
@@ -82,7 +82,7 @@ enum Snapshots {
             level: 4, prog: 62, days: 12, hungry: 0, threads: threads)
         return Runtime.Status(snapshot: snapshot, connected: connected,
                               device: connected ? DeviceStatus(id: "b00p-54fe", fw: "1.0.0") : nil,
-                              brain: "apple", away: away, finished: 148, projects: 6)
+                              brain: "apple", away: away, finished: 148, projects: 6, listening: listening)
     }
 
     static func overviews(_ installer: HookInstaller) -> [(String, AppModel)] {
@@ -96,6 +96,12 @@ enum Snapshots {
                 ["codex", "landing", "wait"], ["claude", "jetpack", "wait"],
                 ["codex", "buddygotchi", "work"], ["claude", "notes", "idle"],
             ], focus: true, quiet: 8))),
+            ("listening", model(installer, status: status(threads: [["claude", "jetpack", "work"]], listening: true))),
+            ("mic-refused", {
+                let m = model(installer, status: status(base: "idle", threads: [["claude", "jetpack", "idle"]]))
+                m.talkError = "Allow Boop in System Settings → Privacy & Security → Microphone."
+                return m
+            }()),
             ("offline", {
                 let m = model(installer, status: status(base: "idle", threads: [["claude", "jetpack", "idle"]],
                                                         vol: 0, away: true, connected: false))
@@ -144,7 +150,7 @@ enum Snapshots {
 
     /// Every icon on a light and a dark menu bar, drawn at 4× so it can be judged.
     static func renderIcons(dark: Bool, to dir: URL) {
-        let moods: [FaceMood] = [.asleep, .idle, .working, .needsYou]
+        let moods: [FaceMood] = [.asleep, .idle, .working, .needsYou, .listening]
         let icon = MenuBarIcon.image(.idle).size
         let pad: CGFloat = 10, gap: CGFloat = 14, scale: CGFloat = 4
         let size = NSSize(width: 2 * pad + CGFloat(moods.count) * icon.width + CGFloat(moods.count - 1) * gap, height: 24)

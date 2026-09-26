@@ -314,6 +314,57 @@ final class CoreYouAndBoopTests: XCTestCase {
         XCTAssertFalse(t.first!.line.contains("shut"), "the words travel apart from the line")
     }
 
+    /// UX.md §5: the mic is on only while you hold the button, and never
+    /// longer than 30 s, even if the release never arrives.
+    func testTheMicTurnsItselfOffAfterThirtySeconds() {
+        let rig = CoreRig()
+        rig.input(.talkOn)
+        XCTAssertEqual(rig.core.listening?.by, .device)
+        XCTAssertEqual(rig.input(.talkOn), [], "a second talk_on doesn't restart the clock")
+        XCTAssertFalse(rig.wait(29_000).contains(.listen(false)))
+        let fx = rig.wait(1_000)
+        XCTAssertTrue(fx.contains(.listen(false)))
+        XCTAssertEqual(moments(fx), [], "the device's own listening ends at the same limit")
+        XCTAssertNil(rig.core.listening)
+        XCTAssertEqual(rig.input(.talkOff), [], "the late release changes nothing")
+    }
+
+    func testALostLinkTurnsTheDevicesMicOff() {
+        let rig = CoreRig()
+        rig.input(.talkOn)
+        XCTAssertEqual(rig.core.linkDown(at: rig.now), [.listen(false)])
+        XCTAssertNil(rig.core.listening)
+        XCTAssertEqual(rig.core.linkDown(at: rig.now), [])
+    }
+
+    func testTheTalkButtonListensThenThinks() {
+        let rig = CoreRig()
+        let on = rig.core.listen(true, at: rig.now)
+        XCTAssertTrue(on.contains(.listen(true)))
+        XCTAssertEqual(moments(on), ["listening 1"], "the device shows it's listening, as for its own button")
+        XCTAssertEqual(rig.core.listening?.by, .app)
+        XCTAssertEqual(rig.core.linkDown(at: rig.now), [], "the Mac's own button doesn't need the device")
+        XCTAssertEqual(rig.input(.talkOn), [], "already listening")
+        let off = rig.core.listen(false, at: rig.now)
+        XCTAssertTrue(off.contains(.listen(false)))
+        XCTAssertEqual(moments(off), ["thinking 1"])
+        XCTAssertFalse(rig.core.listen(false, at: rig.now).contains(.listen(false)), "stopping twice is harmless")
+
+        rig.core.listen(true, at: rig.now)
+        let limit = rig.wait(Core.listenLimitMs)
+        XCTAssertTrue(limit.contains(.listen(false)))
+        XCTAssertEqual(moments(limit), ["thinking 1"], "what was heard still goes to Boop")
+    }
+
+    func testAMicThatCantStartShrugs() {
+        let rig = CoreRig()
+        rig.core.listen(true, at: rig.now)
+        let fx = rig.core.micFailed(at: rig.now)
+        XCTAssertEqual(fx, [.listen(false), .moment(anim: "shrug", size: 1)])
+        rig.input(.talkOn)
+        XCTAssertEqual(rig.core.micFailed(at: rig.now), [.listen(false)], "the device shrugs by itself after its thinking")
+    }
+
     /// BEHAVIORS.md §3.3, touch and hold the face: the device shows a face
     /// from the mood in its last `state` at once (firmware `Behaviour::feel`),
     /// and the Mac's mumble plays under that same face, so it doesn't change.

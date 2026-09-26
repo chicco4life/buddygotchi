@@ -27,6 +27,8 @@ enum Palette {
     /// The device's own colours (firmware `palette.h`): black glass, gen-2's
     /// lavender-white eyes and its brighter amber, for the little face.
     static let glass = "#000000", eye = "#DEDBFF", deviceAmber = "#FFB000"
+    /// The mic is on: macOS's own recording red, on the menu bar and the Talk button.
+    static let recording = "#FF3B30"
 }
 
 enum Theme {
@@ -55,6 +57,7 @@ enum Theme {
     static let sageInk = adaptive(Palette.sageInkLight, Palette.sageInkDark)
     static let clay = Color(hex: Palette.clay)
     static let clayInk = adaptive(Palette.clayInkLight, Palette.clayInkDark)
+    static let recording = Color(hex: Palette.recording)
     static let rose = Color(hex: Palette.rose)
     static let roseInk = adaptive(Palette.roseInkLight, Palette.roseInkDark)
 
@@ -247,6 +250,8 @@ struct ProminentButtonStyle: ButtonStyle {
 /// A small outlined button for rows: Connect, Repair, Save.
 struct RowButtonStyle: ButtonStyle {
     var filled = false
+    /// The fill when `filled`; terracotta unless set.
+    var fill: Color? = nil
     @ViewState private var hovering = false
     @Environment(\.isEnabled) private var enabled
 
@@ -256,7 +261,8 @@ struct RowButtonStyle: ButtonStyle {
             .foregroundStyle(filled ? .white : Theme.ink)
             .padding(.horizontal, 10).padding(.vertical, 4)
             .background(RoundedRectangle(cornerRadius: 7).fill(
-                filled ? (configuration.isPressed ? Theme.accentPressed : Theme.accent)
+                filled ? (fill.map { configuration.isPressed ? $0.opacity(0.85) : $0 }
+                          ?? (configuration.isPressed ? Theme.accentPressed : Theme.accent))
                     : (hovering || configuration.isPressed ? Theme.well : Theme.paper)))
             .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(filled ? .clear : Theme.hairlineStrong, lineWidth: 1))
             .opacity(enabled ? 1 : 0.4)

@@ -178,7 +178,7 @@ struct SettingsPane: View {
         Card(padding: 0) {
             VStack(spacing: 0) {
                 if model.remembered.isEmpty {
-                    Text("Nothing yet. Hold \(model.name)'s button and tell it something, like “I ship on Fridays.”")
+                    Text("Nothing yet. Click Talk, or hold \(model.name)'s button, and tell it something, like “I ship on Fridays.”")
                         .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)

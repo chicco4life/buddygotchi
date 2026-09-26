@@ -98,7 +98,8 @@ The brain is never involved here. In focus mode this is visual only (§6).
 | Trigger | Rules | Brain may add |
 | --- | --- | --- |
 | Tap the face, or press BOOT | `wiggle`: "^ ^" eyes, a smile and a heart at the top right, swaying gently | A small mumble or face |
-| Hold BOOT (push-to-talk) | `listening` at once (for at most 30 s), `thinking` on release | A mumble reply and a face; on "shut up", a `sulky` face and quiet, as in [steering.md](steering.md) |
+| Hold BOOT (push-to-talk) | `listening` at once (for at most 30 s), `thinking` on release. The Mac's mic goes off on release, after 30 s, or when the link drops | A mumble reply and a face; on "shut up", a `sulky` face and quiet, as in [steering.md](steering.md) |
+| Talk in the popover, then Send | The Mac sends `listening`, then `thinking` on Send or after 30 s. A mic that can't start sends `shrug` | As for holding BOOT |
 | Brain too slow to reply | The device ends `thinking` with a `shrug` itself after 8 s | — |
 | Touch and hold the face | The device shows a face from its mood at once (`sleepy` when tired or at night, `curious` when hungry, `worried` when starving, `love` when very bouncy, otherwise `happy`) and sends `input` `feel`; the Mac may add a mumble. While something needs you there's no face (§1) | — |
 | First activity of the day | `stretch`, then `yawn` | — |

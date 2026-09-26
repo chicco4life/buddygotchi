@@ -86,6 +86,15 @@ public final class Core {
     var lastTriggerAt: Int64 = -1_000_000
     var heldTrigger: (trigger: Trigger, rank: Int, count: Int)?
 
+    // Push-to-talk (UX.md §5).
+    /// Who turned the Mac's mic on: the device's BOOT button or the app's
+    /// Talk button.
+    public enum Talker: Sendable { case device, app }
+    /// The mic is never on longer than this, whatever happens to the release.
+    public static let listenLimitMs: Int64 = 30_000
+    /// While the Mac's mic is on: who turned it on, and when.
+    public private(set) var listening: (by: Talker, since: Int64)?
+
     /// `lastActiveDay` is today's date from `short-term.md`, if there is one,
     /// so a restart doesn't replay the morning.
     public init(config: Config, growth: Growth, lastActiveDay: String? = nil, now: Int64) {
@@ -193,9 +202,10 @@ public final class Core {
             let line = "tapped · " + timeLine(now)
             offer(Trigger(kind: .tap, line: line, ts: now), rank: 2, now, &fx)
         case .talkOn:
-            fx.append(.listen(true))
+            // The device already shows `listening`, and `thinking` on release.
+            startListening(by: .device, now, &fx)
         case .talkOff:
-            fx.append(.listen(false))
+            stopListening(now, face: nil, &fx)
         case .focus:
             focus.toggle()
         case .feel:
@@ -214,6 +224,41 @@ public final class Core {
         advance(to: now, &fx)
         fx.append(.trigger(Trigger(kind: .talk, line: "talk · " + timeLine(now), words: words, ts: now)))
         publish(now, &fx)
+        return fx
+    }
+
+    /// The app's Talk button: start or stop listening. The device shows
+    /// `listening`, then `thinking`, as it does for its own button.
+    @discardableResult
+    public func listen(_ on: Bool, at now: Int64) -> [CoreEffect] {
+        var fx: [CoreEffect] = []
+        advance(to: now, &fx)
+        if on {
+            if listening == nil {
+                startListening(by: .app, now, &fx)
+                play("listening", 1, now, &fx)
+            }
+        } else {
+            stopListening(now, face: listening?.by == .app ? "thinking" : nil, &fx)
+        }
+        publish(now, &fx)
+        return fx
+    }
+
+    /// The link to the device dropped, so its button's release can't arrive:
+    /// stop listening now. The app's Talk button carries on.
+    @discardableResult
+    public func linkDown(at now: Int64) -> [CoreEffect] {
+        var fx: [CoreEffect] = []
+        if listening?.by == .device { stopListening(now, face: nil, &fx) }
+        return fx
+    }
+
+    /// The Mac's mic or speech recognition couldn't start.
+    @discardableResult
+    public func micFailed(at now: Int64) -> [CoreEffect] {
+        var fx: [CoreEffect] = []
+        stopListening(now, face: listening?.by == .app ? "shrug" : nil, &fx)
         return fx
     }
 
@@ -264,11 +309,17 @@ public final class Core {
     }
 
     /// Timers: the Codex grace period, the safety net, quiet running out,
-    /// follow-up moments, merged triggers, chatter and level-ups.
+    /// follow-up moments, merged triggers, chatter, level-ups and the
+    /// push-to-talk limit.
     @discardableResult
     public func tick(at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
+        if let l = listening, now - l.since >= Self.listenLimitMs {
+            // What was heard still goes to Boop. The device's own
+            // `listening` ends at the same limit.
+            stopListening(now, face: l.by == .app ? "thinking" : nil, &fx)
+        }
         publish(now, &fx)
         return fx
     }
@@ -390,6 +441,20 @@ public final class Core {
             scheduled.append(Scheduled(at: after, anim: "gobble", size: 1))
         }
         fx.append(.growth(growth))
+    }
+
+    func startListening(by talker: Talker, _ now: Int64, _ fx: inout [CoreEffect]) {
+        guard listening == nil else { return }
+        listening = (talker, now)
+        fx.append(.listen(true))
+    }
+
+    /// Turns the mic off, if it's on, and plays `face` on the device.
+    func stopListening(_ now: Int64, face: String?, _ fx: inout [CoreEffect]) {
+        guard listening != nil else { return }
+        listening = nil
+        fx.append(.listen(false))
+        if let face { play(face, 1, now, &fx) }
     }
 
     /// Plays a rule moment now. Follow-ups from an earlier one are dropped,

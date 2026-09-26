@@ -6,14 +6,17 @@ import SwiftUI
 /// just enough of the device's face that the popover and the menu bar read
 /// as the same creature (UX.md §7).
 enum FaceMood: Equatable {
-    case asleep, idle, working, needsYou, happy
+    case asleep, idle, working, needsYou, happy, listening
 
     init(_ status: Runtime.Status?) {
-        guard let s = status?.snapshot else {
+        guard let status else {
             self = .asleep
             return
         }
-        if s.wait > 0 {
+        let s = status.snapshot
+        if status.listening {
+            self = .listening
+        } else if s.wait > 0 {
             self = .needsYou
         } else {
             switch s.base {
@@ -96,6 +99,10 @@ struct BoopFace: View {
         case .happy:
             p.tint = Color(hex: "#FFE3A8")
             p.smile = 1.6
+        case .listening:
+            p.lookY = -0.35
+            p.scale = 1.1
+            p.smile = 0.6
         }
         if blink { p.open = min(p.open, 0.08) }
         return p
@@ -163,12 +170,17 @@ private struct Smile: Shape {
 }
 
 /// The menu-bar icon: Boop's eyes. Closed while asleep, open while agents
-/// idle, with a small dot while they work, and amber when something needs you.
+/// idle, with a small dot while they work, amber when something needs you,
+/// and red with a bigger dot while the Mac's mic is on.
 enum MenuBarIcon {
     static func image(_ mood: FaceMood) -> NSImage {
         let size = NSSize(width: 20, height: 18)
         let image = NSImage(size: size, flipped: true) { _ in
-            let colour: NSColor = mood == .needsYou ? NSColor(hex: Palette.deviceAmber) : .black
+            let colour: NSColor = switch mood {
+            case .needsYou: NSColor(hex: Palette.deviceAmber)
+            case .listening: NSColor(hex: Palette.recording)
+            default: .black
+            }
             colour.setFill()
             colour.setStroke()
             let eyeW: CGFloat = 4.6, eyeH: CGFloat = 6.2
@@ -190,12 +202,14 @@ enum MenuBarIcon {
             smile.curve(to: NSPoint(x: 11.4, y: y), controlPoint1: NSPoint(x: 9.3, y: y + 1.3),
                         controlPoint2: NSPoint(x: 10.7, y: y + 1.3))
             smile.stroke()
-            if mood == .working || mood == .needsYou {
+            if mood == .listening {
+                NSBezierPath(ovalIn: NSRect(x: 15.6, y: 0, width: 4.4, height: 4.4)).fill()
+            } else if mood == .working || mood == .needsYou {
                 NSBezierPath(ovalIn: NSRect(x: 16.6, y: 0.6, width: 3.2, height: 3.2)).fill()
             }
             return true
         }
-        image.isTemplate = mood != .needsYou
+        image.isTemplate = mood != .needsYou && mood != .listening
         image.accessibilityDescription = "Boop"
         return image
     }
