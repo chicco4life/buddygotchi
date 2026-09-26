@@ -196,7 +196,8 @@ gets at least one scenario. Their pictures become the **golden images** in
 `app/.build/debug/Boop --snapshots DIR`, and open every PNG, in both
 appearances. Check it against [UX.md](UX.md) §7: nothing clipped or cut
 off, no debug data, text readable on its background, and the panes in the
-cream look. There are no goldens. How it feels in the menu bar (opening,
+Warm Terminal look. The run fails if a text tone or a filled button drops
+under UX.md §7's contrast. There are no goldens. How it feels in the menu bar (opening,
 resizing, typing, switches) is the owner's (L6).
 
 ### Harness evals

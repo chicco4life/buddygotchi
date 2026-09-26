@@ -70,7 +70,7 @@ struct SettingsPane: View {
             }
             if model.restartAgents {
                 Label("Restart open agent sessions to pick up the change.", systemImage: "arrow.clockwise")
-                    .font(.system(size: 11)).foregroundStyle(Theme.amberInk)
+                    .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
                     .padding(.leading, 2)
             }
         }
@@ -81,10 +81,10 @@ struct SettingsPane: View {
         let found = model.installer.detected(agent)
         let (text, tone): (String, Color) = switch health {
         case .installed?: ("Connected", Theme.sageInk)
-        case .outdated?: ("Needs a repair", Theme.amberInk)
+        case .outdated?: ("Needs a repair", Theme.clayInk)
         case .unreadable(let why)?: ("Can't read its settings: \(why)", Theme.clayInk)
         case .clientMissing?: ("boop-hook isn't built. Run make build, then restart Boop.", Theme.clayInk)
-        default: found ? ("Not connected", Theme.inkSoft) : ("Not found on this Mac", Theme.inkFaint)
+        default: found ? ("Not connected", Theme.inkSoft) : ("Not found on this Mac", Theme.inkSoft)
         }
         return SettingRow(icon: agentSymbol(agent == .claude ? "claude" : "codex"), title: agent.displayName,
                           detail: text, detailTone: tone) {
@@ -161,7 +161,7 @@ struct SettingsPane: View {
                         .fixedSize(horizontal: false, vertical: true)
                     if let note = brainNote {
                         Text(note)
-                            .font(.system(size: 11)).foregroundStyle(Theme.amberInk)
+                            .font(.system(size: 11)).foregroundStyle(Theme.ink)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }

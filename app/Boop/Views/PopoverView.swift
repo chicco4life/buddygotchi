@@ -30,7 +30,7 @@ struct PopoverView: View {
         .frame(width: Theme.width)
         .background(Theme.paper)
         .foregroundStyle(Theme.ink)
-        .tint(Theme.accent)
+        .tint(Theme.ink)
         .animation(.boopSettle, value: model.pane)
         .onExitCommand(perform: onClose)
     }

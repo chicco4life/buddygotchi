@@ -1,6 +1,6 @@
 # Boop: plan
 
-Updated 2026-09-26. The build order for v1, the check that closes each
+Updated 2026-09-27. The build order for v1, the check that closes each
 milestone, how the unattended build runs, the owner's morning checklist,
 the later port to ESP-IDF + LVGL, and the open items (§7). The specs are
 listed in [README.md](README.md); ideas that aren't in v1 are in
@@ -527,7 +527,8 @@ window, and gen-2's styling and flow were better ([UX.md](UX.md) §6–7).
 - **The look:** gen-2's "Boop Cream" tokens and building blocks (cards,
   section labels, status chips, session rows with a coloured edge), a small
   copy of the device's face in the header and setup, and the eyes as the
-  menu-bar icon.
+  menu-bar icon. Re-coloured on 2026-09-27 in the device's Warm Terminal
+  ([UX.md](UX.md) §7).
 - **Tools:** `Boop --snapshots DIR` renders every pane and the icons from
   fixtures ([VERIFICATION.md](VERIFICATION.md) §2).
 
@@ -790,6 +791,11 @@ matching spec first.
   a burst over Bluetooth (a finish while something needs you) should never
   garble the device, and pressing BOOT again within a second of letting go
   should still hear you ([evidence](evidence/2026-09-26-e2e-hardening/README.md)).
+- **The popover's active colours are unseen.** `Boop --snapshots` draws in
+  a window that is never key, so setup's switches (sage when on) and the
+  volume slider's fill (ink) show only as they do in an inactive window.
+  The owner's `make run` should show both clearly in light and dark
+  ([UX.md](UX.md) §7).
 - **Timers use the wall clock.** A clock step backwards (a manual change)
   delays the keepalive, the mic's 30 s limit and waiting inputs by that
   much; durations should use a monotonic clock that counts sleep.

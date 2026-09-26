@@ -34,7 +34,7 @@ struct SetupPane: View {
         HStack(spacing: 5) {
             ForEach(SetupDraft.Step.allCases, id: \.self) { s in
                 Capsule()
-                    .fill(s.rawValue <= step.rawValue ? Theme.accent : Theme.well)
+                    .fill(s.rawValue <= step.rawValue ? Theme.ink : Theme.hairlineStrong)
                     .frame(width: s == step ? 26 : 12, height: 5)
             }
         }
@@ -113,15 +113,15 @@ struct SetupPane: View {
                 .padding(.vertical, 9)
                 .background(Theme.raised, in: RoundedRectangle(cornerRadius: 10))
                 .overlay(RoundedRectangle(cornerRadius: 10)
-                    .strokeBorder(nameFocused ? Theme.accent : Theme.hairlineStrong, lineWidth: nameFocused ? 1.5 : 1))
+                    .strokeBorder(nameFocused ? Theme.inkSoft : Theme.hairlineStrong, lineWidth: nameFocused ? 1.5 : 1))
                 .focused($nameFocused)
                 .onAppear { nameFocused = true }
             Text("Names are for keeps, so pick one you love.")
                 .font(.system(size: 10.5)).foregroundStyle(Theme.inkSoft)
             Text("Sweet or cheeky?").font(.system(size: 12, weight: .semibold)).padding(.top, Theme.gapSnug)
             HStack(spacing: Theme.gapSnug) {
-                natureCard(.sweet, "heart.fill", Theme.rose, "Sweet", "Warm and encouraging")
-                natureCard(.cheeky, "face.smiling.inverse", Theme.accent, "Cheeky", "Playful, a bit sassy")
+                natureCard(.sweet, "heart.fill", Theme.blush, "Sweet", "Warm and encouraging")
+                natureCard(.cheeky, "face.smiling.inverse", Theme.inkSoft, "Cheeky", "Playful, a bit sassy")
             }
             Spacer(minLength: 0)
             nav(back: .hello, next: "Continue", enabled: !model.setup.trimmedName.isEmpty) { go(.agents) }
@@ -141,9 +141,9 @@ struct SetupPane: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 10)
-            .background(selected ? tone.opacity(0.1) : Theme.raised, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
+            .background(selected ? Theme.well : Theme.raised, in: RoundedRectangle(cornerRadius: Theme.cardRadius))
             .overlay(RoundedRectangle(cornerRadius: Theme.cardRadius)
-                .strokeBorder(selected ? tone : Theme.hairline, lineWidth: selected ? 1.5 : 1))
+                .strokeBorder(selected ? Theme.ink : Theme.hairline, lineWidth: selected ? 1.5 : 1))
             .contentShape(RoundedRectangle(cornerRadius: Theme.cardRadius))
         }
         .buttonStyle(.plain)
@@ -200,6 +200,9 @@ struct SetupPane: View {
                     if value { model.setup.agents.insert(agent) } else { model.setup.agents.remove(agent) }
                 }))
                 .toggleStyle(.switch)
+                // On is sage, like connected. The popover's ink tint would be
+                // a near-white track under the white knob in dark.
+                .tint(Theme.sage)
                 .labelsHidden()
                 .disabled(!found || !model.installer.clientInPlace)
             }
@@ -231,7 +234,7 @@ struct SetupPane: View {
 
     private func tip(_ icon: String, _ text: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: Theme.gapSnug + 2) {
-            Image(systemName: icon).font(.system(size: 11)).foregroundStyle(Theme.accentInk).frame(width: 16)
+            Image(systemName: icon).font(.system(size: 11)).foregroundStyle(Theme.inkSoft).frame(width: 16)
             Text(text).font(.system(size: 12)).foregroundStyle(Theme.ink).fixedSize(horizontal: false, vertical: true)
         }
     }

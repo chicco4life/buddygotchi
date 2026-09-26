@@ -223,18 +223,24 @@ except Talk, which is there to be used in the moment.
 | Sound | Volume (0–10, 0 shows "Off") |
 | Agents | Claude Code and Codex: connected, not connected, not found or needs a repair, with Connect, Repair or Remove. If `boop-hook` isn't built, each says so ("Run make build, then restart Boop") with no button |
 | Device | Whether Boop's body is connected and how (Bluetooth or USB), and its firmware version. Not its id. A Reconnect button drops the link and looks for the device again at once ([PROTOCOL.md](PROTOCOL.md) §2, "Reconnecting") |
-| Mode | Chatty, Normal or Calm, one segmented control ([BEHAVIORS.md](BEHAVIORS.md) §6), with a line saying what the chosen one does. It takes effect at once. An amber line says when the brain running isn't the mode's usual one: no Jev key yet in Normal, or Apple's model can't run, so mumbles have no word. Under it, the Jev API key, kept in the Keychain; its caption says it's for Normal and that with Jev, what happens and Boop's memory go to TypeSafe with each call. Saving it brings Jev in at once |
+| Mode | Chatty, Normal or Calm, one segmented control ([BEHAVIORS.md](BEHAVIORS.md) §6), with a line saying what the chosen one does. It takes effect at once. A line under it says when the brain running isn't the mode's usual one: no Jev key yet in Normal, or Apple's model can't run, so mumbles have no word. Under it, the Jev API key, kept in the Keychain; its caption says it's for Normal and that with Jev, what happens and Boop's memory go to TypeSafe with each call. Saving it brings Jev in at once |
 | What Boop remembers | Each line of About you and Preferences, the durable facts you told Boop, with a button to forget it. With none yet: "Nothing yet. Tell *name* something lasting about you, like "remember I ship on Fridays", and it keeps it here." |
 | About | The app's version |
 
 Name and nature are set once, at setup, and don't change.
 
-**The look** is gen-2's "Boop Cream", in light and dark: warm paper and
-ink, terracotta for actions and working, amber for needs you, sage for
-calm and connected, clay for trouble. Sections are separated by space and
-a small tracked-out label, not rules, and grouped into raised cards with a
-hairline edge. Names, titles and numbers use the rounded system face.
-Each coloured text tone clears 4.5:1 on its own paper; the faint tone is
-for decoration only. The face tile uses the device's own colours (black
+**The look** is the device's "Warm Terminal" ([VISION.md](VISION.md)
+"Look"), in light and dark: warm paper and ink, black glass with an oat
+label for filled buttons (oat with a glass label on dark paper, where glass
+would read as a hole), and one amber accent, used
+only for needs you. Working and idle are greys, as on the device's status
+strip; sage means connected and a switch that's on, clay means trouble, and
+recording red means the mic is on. Sections are separated by space and a
+small tracked-out label, not rules, and grouped into raised cards with a
+hairline edge. Names, titles and numbers use the rounded system face. Every
+text tone, button labels included, clears 4.5:1 on what it sits on (the
+paper, a card, the well, its own chip), a filled button stands 3:1 off its
+card, and
+`Boop --snapshots` checks it; the faint tone is for decoration only. The face tile uses the device's own colours (black
 glass, warm-white window eyes, pink cheeks) and its face geometry (§2). Looping motion is limited to the face and the dot while
 something is live. Tokens live in `app/Boop/Views/Theme.swift`.

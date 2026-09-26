@@ -11,6 +11,7 @@ enum Snapshots {
     static func run(_ args: [String]) -> Never {
         guard let dir = option(args, "--snapshots") else { fail("--snapshots needs a directory") }
         let out = URL(fileURLWithPath: dir)
+        checkContrast()
         _ = NSApplication.shared
         NSApp.setActivationPolicy(.prohibited)
         do {
@@ -144,6 +145,73 @@ enum Snapshots {
                 ["codex", "scratch", "idle"], ["claude", "archive", "idle"],
             ]))),
         ]
+    }
+
+    // MARK: Contrast
+
+    /// UX.md §7's contrast rules, checked on every run, in both
+    /// appearances: each text tone at least 4.5:1 on everything it sits on
+    /// (the paper, a card, the well, its own chip and the needs-you card's
+    /// amber wash); the filled buttons' labels 4.5:1 on their fills, pressed
+    /// too; the filled button 3:1 on a card, so it outweighs an outlined
+    /// one; and the coloured menu-bar icons 3:1 on a light and a dark menu bar.
+    static func checkContrast() {
+        var pairs: [(String, String, String, Double)] = []
+        let tones = [("ink", Palette.inkLight, Palette.inkDark), ("inkSoft", Palette.inkSoftLight, Palette.inkSoftDark),
+                     ("amberInk", Palette.amberInkLight, Palette.amberInkDark),
+                     ("sageInk", Palette.sageInkLight, Palette.sageInkDark),
+                     ("clayInk", Palette.clayInkLight, Palette.clayInkDark)]
+        // Each appearance's paper, card and well, and its filled button: fill, pressed fill, label.
+        let looks = [("light", Palette.paperLight, Palette.raisedLight, Palette.wellLight,
+                      Palette.glass, Palette.glassPressed, Palette.oat),
+                     ("dark", Palette.paperDark, Palette.raisedDark, Palette.wellDark,
+                      Palette.oat, Palette.oatPressed, Palette.glass)]
+        for (i, (look, paper, card, well, fill, pressed, label)) in looks.enumerated() {
+            for (name, light, dark) in tones {
+                let tone = i == 0 ? light : dark
+                pairs += [("\(name) on \(look) paper", tone, paper, 4.5),
+                          ("\(name) on a \(look) card", tone, card, 4.5),
+                          ("\(name) on the \(look) well", tone, well, 4.5),
+                          ("\(name) on its \(look) chip", tone, mix(tone, Theme.chipTint, over: card), 4.5),
+                          ("\(name) on the \(look) needs-you card", tone, mix(Palette.amber, Theme.cardTint, over: card), 4.5)]
+            }
+            pairs += [("a button's label on its \(look) fill", label, fill, 4.5),
+                      ("a button's label on its \(look) pressed fill", label, pressed, 4.5),
+                      ("a \(look) filled button on a card", fill, card, 3)]
+        }
+        pairs += [("Send's label", "#FFFFFF", Palette.recordingFill, 4.5),
+                  ("Send's label, pressed", "#FFFFFF", Palette.recordingPressed, 4.5),
+                  ("needs you on a light menu bar", Palette.menuAmberLight, "#F5F5F5", 3),
+                  ("needs you on a dark menu bar", Palette.amber, "#2A2A2A", 3),
+                  ("listening on a light menu bar", Palette.recording, "#F5F5F5", 3),
+                  ("listening on a dark menu bar", Palette.recording, "#2A2A2A", 3)]
+        let low = pairs.compactMap { what, fg, bg, least -> String? in
+            let ratio = contrast(fg, bg)
+            return ratio < least ? "\(what) is \(String(format: "%.2f", ratio)):1, under \(least):1" : nil
+        }
+        if !low.isEmpty { fail("snapshots: contrast (UX.md §7): \(low.joined(separator: "; "))") }
+        print("contrast: \(pairs.count) pairs pass")
+    }
+
+    /// `fg` at `alpha` over `bg`, as SwiftUI's opacity composites it.
+    static func mix(_ fg: String, _ alpha: Double, over bg: String) -> String {
+        let (f, b) = (NSColor(hex: fg), NSColor(hex: bg))
+        let c = { (x: CGFloat, y: CGFloat) in Int(((alpha * Double(x) + (1 - alpha) * Double(y)) * 255).rounded()) }
+        return String(format: "#%02X%02X%02X", c(f.redComponent, b.redComponent),
+                      c(f.greenComponent, b.greenComponent), c(f.blueComponent, b.blueComponent))
+    }
+
+    static func contrast(_ a: String, _ b: String) -> Double {
+        func luminance(_ hex: String) -> Double {
+            let c = NSColor(hex: hex)
+            let lin = { (v: CGFloat) -> Double in
+                let v = Double(v)
+                return v <= 0.03928 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4)
+            }
+            return 0.2126 * lin(c.redComponent) + 0.7152 * lin(c.greenComponent) + 0.0722 * lin(c.blueComponent)
+        }
+        let (x, y) = (luminance(a), luminance(b))
+        return (max(x, y) + 0.05) / (min(x, y) + 0.05)
     }
 
     // MARK: Rendering

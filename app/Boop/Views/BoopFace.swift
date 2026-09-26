@@ -250,7 +250,7 @@ enum MenuBarIcon {
             let colour: NSColor = switch mood {
             // The device's amber is too pale on a light bar; a deeper one
             // keeps 3:1 there and still reads as amber.
-            case .needsYou: NSColor(hex: dark ? Palette.deviceAmber : Palette.menuAmberLight)
+            case .needsYou: NSColor(hex: dark ? Palette.amber : Palette.menuAmberLight)
             case .listening: NSColor(hex: Palette.recording)
             default: .black
             }

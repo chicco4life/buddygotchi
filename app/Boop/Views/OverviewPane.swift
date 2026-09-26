@@ -22,7 +22,7 @@ struct OverviewPane: View {
                         }
                     }
                     if model.restartAgents {
-                        notice("arrow.clockwise", Theme.amberInk, "Restart your agent sessions",
+                        notice("arrow.clockwise", Theme.inkSoft, "Restart your agent sessions",
                                "Open sessions pick up Boop's hooks when they restart.") {
                             model.restartAgents = false
                         }
@@ -102,9 +102,8 @@ struct OverviewPane: View {
         switch FaceMood(model.status) {
         case .listening: Theme.recording
         case .needsYou: Theme.amber
-        case .working: Theme.accent
-        case .idle, .happy: Theme.sage
-        case .asleep: Theme.inkFaint
+        case .working: Theme.inkSoft
+        case .idle, .happy, .asleep: Theme.inkFaint
         }
     }
 
@@ -232,7 +231,8 @@ func agentSymbol(_ short: String) -> String {
 }
 
 /// One session: the project, and its status in a chip. The tone also runs
-/// down a thin bar on the leading edge, so a column of rows scans by colour.
+/// down a thin bar on the leading edge, so the amber of a waiting one stands
+/// out in a column of greys.
 struct SessionRow: View {
     let project: String
     let status: SessionSummary.Status
@@ -240,7 +240,7 @@ struct SessionRow: View {
     private var tone: Color {
         switch status {
         case .waiting: Theme.amberInk
-        case .working: Theme.accentInk
+        case .working: Theme.ink
         case .idle: Theme.inkSoft
         }
     }
@@ -248,7 +248,7 @@ struct SessionRow: View {
     private var bar: Color {
         switch status {
         case .waiting: Theme.amber
-        case .working: Theme.accent
+        case .working: Theme.inkSoft
         case .idle: Theme.hairlineStrong
         }
     }
@@ -290,7 +290,7 @@ struct TalkButton: View {
             Label(on ? "Send" : "Talk", systemImage: on ? "arrow.up" : "mic.fill")
                 .labelStyle(.titleAndIcon)
         }
-        .buttonStyle(RowButtonStyle(filled: on, fill: Theme.recording))
+        .buttonStyle(RowButtonStyle(filled: on ? Theme.send : nil))
         .fixedSize()
         .help(on ? "Stop listening and send what \(model.name) heard"
                  : "Talk to \(model.name) with the Mac's microphone. It stops by itself after 30 seconds")
