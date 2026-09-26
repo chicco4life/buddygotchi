@@ -274,6 +274,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                             runtime.talk(words ?? "", yelled: yelled)
                         } else {
                             log.write("talk: heard nothing")
+                            runtime.heardNothing()
                         }
                     }
                 }

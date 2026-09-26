@@ -108,6 +108,9 @@ public final class Runtime: @unchecked Sendable {
         var pumpDue = false
         /// True while a brain moment is being sent (for `trace`).
         var brainSending = false
+        /// Brain moments sent since the last harness pass ended. Only a
+        /// pass's actions send them, so at its end this is what it sent.
+        var brainSent = 0
     }
     let moments = Moments()
 
@@ -159,6 +162,7 @@ public final class Runtime: @unchecked Sendable {
                     return
                 }
                 moments.schedule.brain(moment, now: now)
+                moments.brainSent += 1
                 Runtime.pump(moments, link: link, clock: clock, home: home, log: log)
             },
             mumblesAllowed: { core.canMumble(at: clock()) },
@@ -174,7 +178,15 @@ public final class Runtime: @unchecked Sendable {
                           tools: actions.map(Harness.Tool.init), memory: { _ in memory.promptMemory() },
                           home: home, debugLog: options.debugLog, log: log)
         // Tool names only: arguments can carry what you said (HARNESS.md §8).
-        harness.onRecord = { record in log(record.logLine) }
+        // A pass for what you said that sent no mumble ends `listening` now.
+        let moments = self.moments
+        harness.onRecord = { [weak self] record in
+            log(record.logLine)
+            let mumbled = moments.brainSent > 0
+            moments.brainSent = 0
+            guard record.input.kind == .said, let self else { return }
+            run(core.replied(to: record.input.ts, mumbled: mumbled, at: clock()))
+        }
         route = { [weak self] in self?.run($0) }
     }
 
@@ -367,6 +379,11 @@ public final class Runtime: @unchecked Sendable {
     /// The mic or speech recognition couldn't start.
     public func micFailed() {
         home.async { [self] in run(core.micFailed(at: options.clock())) }
+    }
+
+    /// The mic went off and heard nothing, so no words are coming.
+    public func heardNothing() {
+        home.async { [self] in run(core.heardNothing(at: options.clock())) }
     }
 
     /// Drops the device link and looks for the device again now.

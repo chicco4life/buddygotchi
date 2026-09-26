@@ -275,6 +275,33 @@ final class RuntimeTests: XCTestCase {
         XCTAssertNil(due.next)
     }
 
+    /// BEHAVIORS.md §3.3: a "you said" pass that sends no mumble ends the
+    /// device's `listening` face at once with the empty moment; one that
+    /// mumbles leaves the reply to end it.
+    func testNoReplyEndsListeningAtOnce() throws {
+        let transport = FakeTransport()
+        let runtime = try makeRuntime(transport)
+        try runtime.start()
+        defer { runtime.stop() }
+        transport.onConnection?(true)
+        let empty = #"{"t":"moment","ttl":5}"#
+        func holdBOOT() {
+            transport.onLine?(#"{"t":"input","k":"talk_on"}"#)
+            transport.onLine?(#"{"t":"input","k":"talk_off"}"#)
+            wait("waiting for the reply") { runtime.home.sync { runtime.core.replyWait != nil } }
+        }
+        holdBOOT()
+        runtime.talk("good job")
+        wait("a mumble") { transport.sent.contains { $0.contains("\"say\"") } }
+        runtime.home.sync {}
+        XCTAssertFalse(transport.sent.contains(empty), "the reply ends it")
+        holdBOOT()
+        let asked = Date()
+        runtime.talk("be quiet")
+        wait("the empty moment", timeout: 2) { transport.sent.contains(empty) }
+        XCTAssertLessThan(Date().timeIntervalSince(asked), 2, "not 8 s later")
+    }
+
     /// BEHAVIORS.md §2: working chatter never cuts a moment that's playing,
     /// such as the brain's reply, or jumps one waiting its turn.
     func testChatterNeverCutsAMoment() throws {

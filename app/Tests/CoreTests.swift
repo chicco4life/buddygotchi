@@ -649,6 +649,75 @@ final class CoreYouAndBoopTests: XCTestCase {
         XCTAssertTrue(rig.core.canMumble(at: rig.now))
     }
 
+    /// BEHAVIORS.md §3.3: when the pass for what you said decides on no
+    /// mumble ("be quiet", told off in calm, quiet mode, a dropped pass),
+    /// the empty moment ends `listening` at once, not up to 8 s later, for
+    /// either button.
+    func testNoReplyEndsListeningAtOnce() {
+        for button in [Core.Talker.device, .app] {
+            let rig = CoreRig()
+            if button == .device { rig.input(.talkOn); rig.wait(2000); rig.input(.talkOff) }
+            else { rig.core.listen(true, at: rig.now); rig.wait(2000); rig.core.listen(false, at: rig.now) }
+            rig.wait(1000)
+            let said = inputs(rig.core.talk("be quiet", at: rig.now))[0]
+            rig.wait(1000)
+            XCTAssertEqual(rig.core.replied(to: said.ts, mumbled: false, at: rig.now), [.endListening], "\(button)")
+            XCTAssertFalse(rig.wait(Core.replyWaitMs * 2).contains(.endListening), "\(button): only once")
+            XCTAssertEqual(rig.core.replied(to: said.ts, mumbled: false, at: rig.now), [], "\(button): only once")
+        }
+    }
+
+    /// A mumbled reply ends `listening` on the device by itself. After the
+    /// Talk button the 8 s empty moment still follows, harmlessly.
+    func testAReplyEndsListeningItself() {
+        let rig = CoreRig()
+        rig.input(.talkOn)
+        rig.input(.talkOff)
+        let said = inputs(rig.core.talk("good job", at: rig.now))[0]
+        XCTAssertEqual(rig.core.replied(to: said.ts, mumbled: true, at: rig.now), [])
+        XCTAssertFalse(rig.wait(Core.replyWaitMs * 2).contains(.endListening))
+        rig.core.listen(true, at: rig.now)
+        rig.core.listen(false, at: rig.now)
+        let again = inputs(rig.core.talk("good job", at: rig.now))[0]
+        XCTAssertEqual(rig.core.replied(to: again.ts, mumbled: true, at: rig.now), [])
+        XCTAssertEqual(rig.wait(Core.replyWaitMs).filter { $0 == .endListening }.count, 1)
+    }
+
+    /// A pass for older words doesn't end a new talk's `listening`: not
+    /// while the mic is on again, nor while the new words are on their way
+    /// (the new words cancel the old pass, whose end comes then).
+    func testAnOlderPassDoesntEndANewTalk() {
+        let rig = CoreRig()
+        rig.input(.talkOn)
+        rig.input(.talkOff)
+        let first = inputs(rig.core.talk("hello", at: rig.now))[0]
+        rig.wait(1000)
+        rig.input(.talkOn)
+        XCTAssertEqual(rig.core.replied(to: first.ts, mumbled: false, at: rig.now), [], "mic on")
+        rig.wait(2000)
+        rig.input(.talkOff)
+        XCTAssertEqual(rig.core.replied(to: first.ts, mumbled: false, at: rig.now), [], "the new words are coming")
+        rig.wait(1000)
+        let second = inputs(rig.core.talk("be quiet", at: rig.now))[0]
+        XCTAssertEqual(rig.core.replied(to: first.ts, mumbled: false, at: rig.now), [], "cancelled by the new words")
+        XCTAssertEqual(rig.core.replied(to: second.ts, mumbled: false, at: rig.now), [.endListening])
+    }
+
+    /// A mic that heard nothing, not even a yell, sends no words: the empty
+    /// moment ends `listening` at once.
+    func testHearingNothingEndsListeningAtOnce() {
+        let rig = CoreRig()
+        rig.input(.talkOn)
+        XCTAssertEqual(rig.core.heardNothing(at: rig.now), [], "the mic is still on")
+        rig.input(.talkOff)
+        XCTAssertEqual(rig.core.heardNothing(at: rig.now), [.endListening])
+        XCTAssertEqual(rig.core.heardNothing(at: rig.now), [])
+        rig.core.listen(true, at: rig.now)
+        rig.core.listen(false, at: rig.now)
+        XCTAssertEqual(rig.core.heardNothing(at: rig.now), [.endListening])
+        XCTAssertFalse(rig.wait(Core.replyWaitMs * 2).contains(.endListening), "and not again at 8 s")
+    }
+
     /// BEHAVIORS.md §3.3: a Mac mic that can't start ends the Talk button's
     /// `listening` at once with the empty moment. The device's own button
     /// ends its face by itself.

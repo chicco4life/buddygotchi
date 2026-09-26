@@ -94,9 +94,10 @@ public final class Core {
     public static let listenLimitMs: Int64 = 30_000
     /// While the Mac's mic is on: who turned it on, and when.
     public private(set) var listening: (by: Talker, since: Int64)?
-    /// After the Talk button's mic goes off, the device's `listening` face
-    /// waits this long for the reply; then the empty moment ends it
-    /// (BEHAVIORS.md §3.3). The device's own button has the same cap.
+    /// After the mic goes off, the device's `listening` face waits at most
+    /// this long for the reply: after the Talk button, the empty moment ends
+    /// it then (BEHAVIORS.md §3.3). The device's own button has the same
+    /// cap. A pass that decides on no mumble ends it sooner (`replied`).
     public static let replyWaitMs: Int64 = 8_000
     /// When that empty moment is due.
     var listeningEndsAt: Int64?
@@ -312,6 +313,32 @@ public final class Core {
         }
         publish(now, &fx)
         return fx
+    }
+
+    /// The brain's pass for what you said is over (HARNESS.md §2): `words`
+    /// is its input's `ts`, and `mumbled` whether it sent a mumble, which
+    /// ends `listening` on the device. Without one (asked for quiet, told
+    /// off in calm, quiet mode, the pass dropped), nothing else would end
+    /// it for up to 8 s, so the empty moment ends it now. A pass for older
+    /// words, or while the mic is on again, changes nothing
+    /// (BEHAVIORS.md §3.3).
+    @discardableResult
+    public func replied(to words: Int64, mumbled: Bool, at now: Int64) -> [CoreEffect] {
+        guard let wait = replyWait, wait.words == words else { return [] }
+        replyWait = nil
+        guard !mumbled else { return [] }
+        listeningEndsAt = nil
+        return [.endListening]
+    }
+
+    /// The mic went off and heard nothing, not even a yell: no words are
+    /// coming, so the empty moment ends `listening` now.
+    @discardableResult
+    public func heardNothing(at now: Int64) -> [CoreEffect] {
+        guard listening == nil, let wait = replyWait, wait.words == nil else { return [] }
+        replyWait = nil
+        listeningEndsAt = nil
+        return [.endListening]
     }
 
     /// The link to the device dropped, so its button's release can't arrive:
