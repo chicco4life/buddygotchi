@@ -127,6 +127,32 @@ void test_short_beats_cut_the_clip_with_a_fade() {
   TEST_ASSERT_INT_WITHIN(2, 128, out.back());
 }
 
+// VOICE.md §8: a line cut short, hushed or replaced by another line or the
+// chirp, fades from where it was over 4 ms instead of stepping to silence
+// in one sample, which clicks.
+void test_a_cut_fades_instead_of_clicking() {
+  for (int how = 0; how < 3; ++how) {
+    voice::Line l = line(kFour, 4);
+    l.vol = 10;
+    voice::Player p;
+    p.start(l);
+    uint8_t s = 128;
+    for (uint32_t i = 0; i < p.total() && std::abs(int(s) - 128) < 60; ++i) p.render(&s, 1);
+    TEST_ASSERT_TRUE(std::abs(int(s) - 128) >= 60);  // cut at a loud sample
+    voice::Line silent = line(kFour, 2);
+    silent.syl[0] = silent.syl[1] = voice::kSilent;
+    if (how == 0) p.stop();
+    else if (how == 1) p.start(silent);
+    else p.cue(voice::Cue::kChirp, 10);
+    std::vector<uint8_t> out(200);
+    p.render(out.data(), out.size());
+    TEST_ASSERT_INT_WITHIN(2, s, out[0]);
+    if (how == 2) continue;  // the chirp's own wave steps more than that
+    for (size_t i = 1; i < out.size(); ++i) TEST_ASSERT_INT_WITHIN(2, out[i - 1], out[i]);
+    TEST_ASSERT_EQUAL_UINT8(128, out[22050 * 4 / 1000]);  // gone after 4 ms
+  }
+}
+
 void test_volume_scales_and_zero_mutes() {
   voice::Line l = line(kFour, 4);
   voice::Player p;
@@ -193,6 +219,7 @@ int main() {
   RUN_TEST(test_render_pads_with_silence_after_the_line);
   RUN_TEST(test_a_higher_tune_plays_the_clip_faster);
   RUN_TEST(test_short_beats_cut_the_clip_with_a_fade);
+  RUN_TEST(test_a_cut_fades_instead_of_clicking);
   RUN_TEST(test_volume_scales_and_zero_mutes);
   RUN_TEST(test_same_seed_same_sound);
   RUN_TEST(test_unknown_syllables_keep_their_beat_silent);

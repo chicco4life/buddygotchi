@@ -83,6 +83,9 @@ class Player {
   uint32_t src_ = 0;   // 16.16 read position in the current clip
   int gain_ = 0;       // 0–256
   Cue cue_ = Cue::kNone;
+  int last_ = 0;       // the last sample out, around 0
+  int fadeFrom_ = 0;   // what was cut, fading out over the next fade_ samples
+  uint32_t fade_ = 0;
 };
 
 }  // namespace voice

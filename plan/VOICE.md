@@ -1,6 +1,6 @@
 # Boop: voice
 
-Updated 2026-09-26. How Boop's gibberish is built, how it sounds, and how we
+Updated 2026-09-27. How Boop's gibberish is built, how it sounds, and how we
 keep it unintelligible. Numbers marked *proposed* are first guesses, to be
 tuned by ear.
 
@@ -202,7 +202,8 @@ dialects, 4 came out as the safe hum (2026-09-26).
   syllable as it plays. It's the same trick Animal Crossing uses. Each
   syllable gets one beat of `ms` and the word two; a clip longer than its
   beat is cut with a 5 ms fade, and a long word speeds up to fit (at most
-  1.6×). The base pitch is fixed (§5), the tune bends it across the line, and the ±10% timing moves within pairs of
+  1.6×). A line cut short (hushed, or replaced by a new line or the chirp)
+  fades out over 4 ms under what comes next, so the cut doesn't click. The base pitch is fixed (§5), the tune bends it across the line, and the ±10% timing moves within pairs of
   beats, so a line lasts exactly beats × `ms`, the same time the mouth
   moves. A syllable the device doesn't know keeps its beat, silent. The sound
   cue (the needs-you chirp) is a synthesised tone. It only comes with
