@@ -291,7 +291,7 @@ wins and whole words only; a curly apostrophe counts as a straight one
 | "remember" or "note", unless you yelled or told Boop off | `react(happy)` and `remember(where)`, where from the words below. It wins over "quiet", for the menu and the quiet action too: "remember I like it quiet" isn't asking for quiet |
 | "quiet" | `quiet`: two hours 120, fifteen 15, half an hour 30, an hour 60, else 30. Nothing else, yelled or not: Boop is quiet now |
 | You yelled, or told Boop off: "shut up", "go away", "hate you", "you suck", "hush", "stop talking", "keep it down", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot" | `react(sad)` in chatty and normal; nothing in calm |
-| "hello", "hi", "hey" or "morning" | `react(happy)` |
+| Starting with "hello", "hi", "hey", "morning" or "good morning" ("the tests broke this morning" isn't a greeting) | `react(happy)` |
 | "bye", "goodbye", "see you" or "good night" | `react(happy)` |
 | "lunch", "dinner", "breakfast", "food", "snack" or "hungry" | `react(hopeful)` |
 | "good job", "well done", "nice", "great", "thanks" or "the best" | `react(proud)` |

@@ -150,6 +150,10 @@ final class PhrasesTests: XCTestCase {
             (input(.said, words: "remember I like pairing with Ana"), [react("happy"), remember("today")]),
             (input(.said, words: "remember I always review PRs on Fridays"), [react("happy"), remember("about_you")]),
             (input(.said, words: "Hello, Boop!"), [react("happy")]),
+            (input(.said, words: "Good morning Boop"), [react("happy")]),
+            // A greeting counts only at the start.
+            (input(.said, words: "the tests broke this morning"), [react("curious")]),
+            (input(.said, words: "say hi to the new build"), [react("curious")]),
             (input(.said, words: "see you tomorrow"), [react("happy")]),
             (input(.said, words: "time for lunch"), [react("hopeful")]),
             (input(.said, words: "good job today"), [react("proud")]),

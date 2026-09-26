@@ -8,7 +8,7 @@ import Foundation
 /// | "remember" or "note", unless you yelled or told Boop off | `react(happy)`, `remember(where)`, where from the words below. It wins over "quiet": "remember I like it quiet" isn't asking for quiet |
 /// | "quiet" | `quiet(n)`; n from the words: two hours 120, an hour 60, fifteen 15, else 30. Nothing else: Boop is quiet now |
 /// | You yelled, or told Boop off: "shut up", "go away", "hate you", "you suck", "hush", "stop talking", "keep it down", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot" | `react(sad)`, or nothing when the table keeps hurt to itself |
-/// | "hello", "hi", "hey", "morning" | `react(happy)` |
+/// | Starting with "hello", "hi", "hey", "morning" or "good morning" | `react(happy)` |
 /// | "bye", "goodbye", "see you", "good night" | `react(happy)` |
 /// | "lunch", "dinner", "breakfast", "food", "snack", "hungry" | `react(hopeful)` |
 /// | "good job", "well done", "nice", "great", "thanks", "the best" | `react(proud)` |
@@ -39,7 +39,8 @@ enum Phrases {
             return ([ToolCall("quiet", ["minutes": .number(minutes(words))])], "asked for quiet")
         }
         if hurt { return (hurtMumbles ? [react("sad")] : [], input.yelled ? "yelled at" : "told off") }
-        if greetings.contains(where: words.contains) { return ([react("happy")], "a greeting") }
+        // Only at the start: "the tests broke this morning" isn't a greeting.
+        if greetings.contains(where: words.hasPrefix) { return ([react("happy")], "a greeting") }
         if goodbyes.contains(where: words.contains) { return ([react("happy")], "a goodbye") }
         if meals.contains(where: words.contains) { return ([react("hopeful")], "a meal") }
         if praise.contains(where: words.contains) { return ([react("proud")], "praise") }
