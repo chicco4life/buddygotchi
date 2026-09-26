@@ -120,14 +120,16 @@ struct SettingsPane: View {
         case .usb: "USB"
         case .none: ""
         }
-        let detail = connected ? "Connected over \(how)"
+        let firmware = model.status?.device.map { ", firmware \($0.fw)" } ?? ""
+        let detail = connected ? "Connected over \(how)\(firmware)"
             : model.link == .none ? "This copy of Boop runs without a device"
             : "Looking for it over \(how). Plug it into USB power."
         return Card(padding: 0) {
             SettingRow(icon: "rectangle.inset.filled", title: "\(model.name)'s body", detail: detail,
                        detailTone: connected ? Theme.sageInk : Theme.inkSoft) {
-                if connected, let fw = model.status?.device?.fw {
-                    Text("Firmware \(fw)").font(.system(size: 10)).foregroundStyle(Theme.inkFaint)
+                if model.link != .none {
+                    Button("Reconnect") { model.reconnectDevice() }.buttonStyle(.row).fixedSize()
+                        .help("Drop the connection and look for \(model.name)'s body again now")
                 }
             }
         }

@@ -101,6 +101,10 @@ final class AppModel: ObservableObject {
         runtime?.setFocus(on)
     }
 
+    func reconnectDevice() {
+        runtime?.reconnectDevice()
+    }
+
     func setAway(_ on: Bool) {
         status?.away = on
         runtime?.setAway(on)
@@ -215,7 +219,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     func startRuntime() {
         let transport: DeviceTransport? = switch link {
-        case .bluetooth: BLETransport()
+        case .bluetooth: BLETransport(log: { [log] in log.write($0) })
         case .usb(let path): USBTransport(path: path)
         case .none: nil
         }

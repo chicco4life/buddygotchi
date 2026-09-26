@@ -365,6 +365,11 @@ public final class Runtime: @unchecked Sendable {
         }
     }
 
+    /// Drops the device link and looks for the device again now.
+    public func reconnectDevice() {
+        link.transport?.reconnect()
+    }
+
     public func setAway(_ on: Bool) {
         home.async { [self] in
             run(core.setAway(on, at: options.clock()))

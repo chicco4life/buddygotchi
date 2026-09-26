@@ -10,6 +10,7 @@
 #include "app/codec.h"
 #include "app/gesture.h"
 #include "app/line_reader.h"
+#include "app/link_silence.h"
 #include "app/packets.h"
 
 using app::ButtonGesture;
@@ -183,6 +184,23 @@ static void test_bounces_are_ignored() {
   TEST_ASSERT_EQUAL(ButtonGesture::kTap, g.update(false, 60));
 }
 
+// plan/PROTOCOL.md §2, "Reconnecting": a Bluetooth link silent for 30 s is
+// dropped, and if that didn't take, dropped again 30 s later.
+static void test_a_quiet_link_is_dropped_after_30_s() {
+  TEST_ASSERT_EQUAL_UINT32(30000, app::LinkSilence::kDropMs);
+  app::LinkSilence s;
+  s.heard(1000);
+  TEST_ASSERT_FALSE(s.drop(30999));
+  s.heard(20000);  // the Mac's 10 s keepalive
+  TEST_ASSERT_FALSE(s.drop(49999));
+  TEST_ASSERT_TRUE(s.drop(50000));
+  TEST_ASSERT_FALSE(s.drop(50001));
+  TEST_ASSERT_TRUE(s.drop(80000));
+  s.heard(0xFFFFF000u);  // millis() wraps
+  TEST_ASSERT_FALSE(s.drop(0x00001000u));
+  TEST_ASSERT_TRUE(s.drop(0xFFFFF000u + 30000));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_lines_reassemble_across_chunks);
@@ -197,5 +215,6 @@ int main() {
   RUN_TEST(test_short_press_is_a_tap);
   RUN_TEST(test_hold_is_push_to_talk_until_release);
   RUN_TEST(test_bounces_are_ignored);
+  RUN_TEST(test_a_quiet_link_is_dropped_after_30_s);
   return UNITY_END();
 }

@@ -45,6 +45,13 @@ public final class USBTransport: DeviceTransport, @unchecked Sendable {
         }
     }
 
+    /// The reader sees the socket close and connects to the bridge again.
+    public func reconnect() {
+        lock.withLock {
+            if fd >= 0 { shutdown(fd, SHUT_RDWR) }
+        }
+    }
+
     public func stop() {
         lock.withLock {
             running = false

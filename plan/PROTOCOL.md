@@ -41,6 +41,35 @@ Three rules follow from that:
 | Security | **v1: none.** No pairing and no encryption for the first test; the Mac app connects to any device advertising as `Boop-XXXX`. **Later:** LE Secure Connections with bonding and encrypted characteristics, with a 6-digit code on the device typed into macOS's prompt |
 | Advertised name | `Boop-XXXX`, where XXXX is the last 4 hex digits of the device's MAC |
 
+**Reconnecting.** Either side can vanish without warning: the app gets
+killed or rebuilt, and the board gets reflashed or reset. Neither side
+remembers anything about the other, so a reconnect is just a fresh connect.
+
+- **Finding the device.** macOS's Bluetooth service, not the app, owns a
+  connection, and it can keep one alive after the app that made it is gone.
+  A device that's still connected doesn't advertise, so a scan can't see
+  it. The app first asks macOS for a `Boop-*` device it's already connected
+  to and takes that link over. Otherwise it scans.
+- **Ready means subscribed.** A connection counts as up once the Mac is
+  subscribed to TX, so lines can flow both ways. An attempt that isn't up
+  within 10 s is cancelled and tried again. Any failure along the way
+  (connect, service or characteristic lookup, subscribe) does the same.
+- **Retry timing.** After a drop or a failed attempt the app looks again
+  after 1 s, doubling up to 5 s while attempts keep failing, and back to
+  1 s once a connection is up. Scanning is passive, so retrying quickly
+  costs nothing.
+- **Reconnect by hand.** The settings screen's Reconnect button drops the
+  link or attempt in progress, resets the retry timing and looks again at
+  once. Over USB it reconnects to the bridge.
+- **Services changed.** If macOS reports the UART service changed (a
+  reflash with a different GATT table), the app drops the link and
+  connects again.
+- **A quiet link is dropped.** The Mac sends a `state` at least every 10 s,
+  so a link that has been silent for 30 s is left over from an app that's
+  gone. The device drops it and starts advertising again, so a restarted
+  app can find it even if macOS held on to the old link. Anything that
+  connects without sending, such as nRF Connect, is dropped after 30 s too.
+
 **USB transport.** The same messages also travel over the USB serial port
 at 460800 baud, one JSON object per line. The Mac app uses it for
 development and automated tests, because an agent can't launch the app with
@@ -149,7 +178,8 @@ connect ─► Mac: state
                    input when you touch it,
                    status every 60 s ─► Mac: state
                                         │
-          30 s without a state ─► device: "no app" face, keeps advertising
+          30 s without a state ─► device: "no app" face; over Bluetooth
+                                  it drops the link and advertises
                                   Mac reconnects ─► same as connect
 ```
 

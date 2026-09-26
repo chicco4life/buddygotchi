@@ -22,10 +22,12 @@ app::ByteRing<2048> rxRing;
 std::atomic<bool> linkUp{false};
 std::atomic<uint32_t> connects{0};     // bumps on every connect and disconnect,
 std::atomic<uint16_t> mtu{23};         // so the loop never misses a quick pair
+std::atomic<uint16_t> connHandle{0};
 NimBLECharacteristic* tx = nullptr;
 
 class ServerEvents : public NimBLEServerCallbacks {
-  void onConnect(NimBLEServer*, NimBLEConnInfo&) override {
+  void onConnect(NimBLEServer*, NimBLEConnInfo& info) override {
+    connHandle = info.getConnHandle();
     mtu = 23;
     linkUp = true;
     ++connects;
@@ -94,15 +96,19 @@ bool Ble::poll(app::Device& device) {
     out_.clear();
     if (up) {
       connected_ = true;
+      silence_.heard(millis());
       device.connected(app::Link::kBle);  // sends status
     }
   }
   if (connected_) {
     uint16_t m = mtu.load();
     out_.setPayload(m > 3 ? m - 3 : 20);
+    // A Mac that's gone quiet: let go, so advertising starts again.
+    if (silence_.drop(millis())) NimBLEDevice::getServer()->disconnect(connHandle.load());
   }
   uint8_t b;
   while (rxRing.take(b)) {
+    silence_.heard(millis());
     if (line_.feed(char(b))) {
       device.handleLine(line_.line(), line_.length(), app::Link::kBle);
       return true;

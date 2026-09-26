@@ -11,6 +11,9 @@ public protocol DeviceTransport: AnyObject, Sendable {
     /// Sends one line (without its newline). Dropped when not connected:
     /// the next snapshot catches the device up.
     func send(_ line: String)
+    /// Drops the connection or attempt in progress and looks for the
+    /// device again at once (the settings screen's Reconnect).
+    func reconnect()
     func stop()
 }
 

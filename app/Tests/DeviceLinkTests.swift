@@ -16,6 +16,7 @@ final class FakeTransport: DeviceTransport, @unchecked Sendable {
     }
 
     func send(_ line: String) { lock.withLock { lines.append(line) } }
+    func reconnect() {}
     func stop() {}
 
     var sent: [String] { lock.withLock { lines } }
@@ -107,6 +108,16 @@ final class DeviceLinkTests: XCTestCase {
         s.threads = (0..<8).map { ["claude", String(repeating: "p\($0)", count: 20), "work"] }
         s.fit()
         XCTAssertLessThanOrEqual(s.jsonLine.utf8.count, StateSnapshot.maxLine)
+    }
+
+    /// PROTOCOL.md §2, "Reconnecting": 1 s, doubling to 5 s, reset once a
+    /// connection works; an attempt gets 10 s to become ready.
+    func testBluetoothReconnectTiming() {
+        var backoff = ReconnectBackoff()
+        XCTAssertEqual((0..<5).map { _ in backoff.next() }, [1, 2, 4, 5, 5])
+        backoff.reset()
+        XCTAssertEqual(backoff.next(), 1)
+        XCTAssertEqual(BLETransport.connectTimeout, 10)
     }
 
     func testLinkSettings() {

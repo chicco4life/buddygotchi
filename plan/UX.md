@@ -226,7 +226,7 @@ except Talk, which is there to be used in the moment.
 | --- | --- |
 | Sound & focus | Volume (0–10, 0 shows "Off"), focus mode, "I'm away" (pauses hunger) |
 | Agents | Claude Code and Codex: connected, not connected, not found or needs a repair, with Connect, Repair or Remove. If `boop-hook` isn't built, each says so ("Run make build, then restart Boop") with no button |
-| Device | Whether Boop's body is connected and how (Bluetooth or USB), and its firmware version. Not its id |
+| Device | Whether Boop's body is connected and how (Bluetooth or USB), and its firmware version. Not its id. A Reconnect button drops the link and looks for the device again at once ([PROTOCOL.md](PROTOCOL.md) §2, "Reconnecting") |
 | Brain | Apple's on-device model or rules only (takes effect on restart), and the API key, kept in the Keychain; cloud brains are shown as not yet available |
 | What Boop remembers | Each line, with a button to forget it |
 | About | The app's version |

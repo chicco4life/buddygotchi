@@ -2,12 +2,15 @@
 // security in v1 (plan/PROTOCOL.md §2, plan/DEVICE.md §4). Received bytes
 // cross from the Bluetooth task to the main loop through a ring, and the
 // main loop does everything else, so the device core stays single-threaded.
+// A link the Mac has gone quiet on is dropped (app/link_silence.h), so a
+// killed app's leftover link can't stop the device advertising.
 #pragma once
 #include <cstddef>
 #include <cstdint>
 
 #include "app/device.h"
 #include "app/line_reader.h"
+#include "app/link_silence.h"
 #include "app/packets.h"
 
 namespace links {
@@ -38,6 +41,7 @@ class Ble : public app::Out {
   char id_[12] = "b00p-0000";
   bool started_ = false;
   bool connected_ = false;  // as the main loop last saw it
+  app::LinkSilence silence_;
   app::LineReader line_;
   app::PacketWriter out_;
 };

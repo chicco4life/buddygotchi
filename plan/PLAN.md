@@ -681,6 +681,10 @@ matching spec first.
 - **The gen-2 look's full L2 run.** `tools/boopctl run` for every scenario
   on the board waits for a time the Mac app can be quit
   ([evidence](evidence/2026-09-26-gen2-look/README.md)).
+- **Bluetooth reconnect isn't checked on hardware.** The rules in
+  [PROTOCOL.md](PROTOCOL.md) §2 ("Reconnecting") are unit-tested, but
+  killing the app, reflashing the board and the settings screen's Reconnect
+  button with Bluetooth on need the owner to run `make run`.
 - **`zip` is drawn but nothing plays it.** [BEHAVIORS.md](BEHAVIORS.md)
   §3.3 has it on "shut up"; the rules don't send it, and the brain's `face`
   can't pick it.
