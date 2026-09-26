@@ -1,5 +1,13 @@
 # Boop v1 build: report
 
+> **Since this report (2026-09-26).** F6, a landscape screen and cuter
+> eyes, came after it at your request. It's in progress: the board runs the
+> landscape build and matches the simulator, and it waits for your look and
+> a new touch calibration (morning checklist rows 2–3). There are now 83
+> goldens in 11 scenarios (80 at handoff), and the screen is landscape
+> (`kRotation` 1 in `firmware/src/board/display.h`). See
+> [PLAN.md](../../PLAN.md) §4 and the [F6 evidence](F6/README.md).
+
 The unattended build ran on 2026-09-26 on branch `v1-overnight`, starting
 from tag `gen2-final`. Every milestone except P1 has passed; P1 waits for
 you. A3 passed under your 05:36 ruling, with known issues. The running log
@@ -115,7 +123,7 @@ in `firmware/src/board/display.h`:
 | SPI write clock | 40 MHz |
 | Colour inversion | On |
 | Colour order | RGB |
-| Rotation | LovyanGFX 0: portrait, the top is away from USB-C |
+| Rotation | LovyanGFX 0: portrait, the top is away from USB-C (portrait at handoff; landscape since F6) |
 | Offsets | 0, 0 (240×320) |
 | Backlight | PWM on GPIO21 at 12 kHz |
 | Touch | XPT2046 on SPI3 (25/32/39/33, IRQ 36). **Not calibrated yet**: run `boopctl calibrate` |

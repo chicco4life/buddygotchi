@@ -62,6 +62,16 @@ ARCHITECTURE…) first, then add it to [PLAN.md](PLAN.md).
 - **Codex failures.** Codex has no failure hook; reading its session file
   when a turn stops would tell failures from finishes.
 
+## The Mac app
+
+- **Open a session from the menu bar.** Click a session in the menu-bar
+  list to open that conversation in Claude Code or Codex, and close the
+  list. Check first what each app can open: Claude Code's editor extension
+  opens a session by ID, but a terminal session can only be resumed (never
+  start a second copy of a running one), and Codex needs a link to the
+  exact task. Only promise the exact session where the app supports opening
+  it; if only the app or project can be opened, say so.
+
 ## More than one Boop
 
 - **Several Boops per person**, such as one for Claude and one for Codex.

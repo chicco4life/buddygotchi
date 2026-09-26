@@ -1,6 +1,6 @@
 # Boop: behaviors
 
-Updated 2026-09-25. What Boop does on the device for each trigger, and how
+Updated 2026-09-26. What Boop does on the device for each trigger, and how
 XP, hunger and mood work. How it sounds is in [VOICE.md](VOICE.md). Numbers
 marked *proposed* are first guesses, to be tuned once we've lived with Boop.
 
@@ -27,8 +27,9 @@ Mumbles never show while something needs you.
 
 **How the device shapes a moment** (it's a rule on the device, from the
 `mood` in `state`): moments play faster or slower with `pace` (clamped to
-70–140%), and a cheer is one size smaller when `energy` is under 60 and one
-size bigger at 140 or more.
+70–140%), except `listening` and `thinking`, whose limits are fixed times, and a cheer is one size smaller when `energy` is under 60 and one
+size bigger at 140 or more. A cheer's jingle and warm light follow the
+adjusted size.
 
 ## 2. Base states
 
@@ -41,8 +42,8 @@ size bigger at 140 or more.
 
 **Working chatter.** About every 2–4 minutes while agents work
 (*proposed*), the core has Boop mutter by rule: a feeling from its mood, and
-about half the time the session's latest topic as the word
-(*"mi-ne? po… tests?"*).
+about half the time a working session's latest topic as the word, picked
+at random among the working sessions that have one (*"mi-ne? po… tests?"*).
 
 **Night** is 23:00–07:00 local time (*proposed*).
 
@@ -67,13 +68,13 @@ playing ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2).
 
 | Trigger | Rules | Brain may add |
 | --- | --- | --- |
-| You send a prompt | Perks up; base becomes working | Occasionally a short mumble |
+| You send a prompt | Base becomes working | Never a mumble: the brain never speaks on a turn start ([HARNESS.md](HARNESS.md) §5). Rarely a face |
 | Turn finishes, under 30 s | `nod` | Usually nothing |
-| Turn finishes, 30 s–5 min | `cheer` size 1, short chirp | A mumble, e.g. *"ba-ba ti… done!"* |
+| Turn finishes, 30 s–5 min | `cheer` size 1 | A mumble, e.g. *"ba-ba ti… done!"* |
 | Turn finishes, 5–20 min | `cheer` size 2, jingle, warm light | A mumble, e.g. *"…finally!"* |
 | Turn finishes, over 20 min | `cheer` size 3, jingle, warm light | A proud mumble; maybe a note |
-| Several finish at once | One cheer, at the biggest size | One mumble |
-| Turn fails | `oops`, then `side_eye` at the agent, low "hmm" | Sass at the agent, e.g. *"tu-ka… tests."* |
+| Several finish at once | One cheer; a bigger finish within 3 s upgrades it | One mumble |
+| Turn fails | `oops`, then `side_eye` at the agent | Sass at the agent, e.g. *"tu-ka… tests."* |
 
 ### 3.2 Something needs you
 
@@ -98,9 +99,9 @@ The brain is never involved here. In focus mode this is visual only (§6).
 | Trigger | Rules | Brain may add |
 | --- | --- | --- |
 | Tap the face, or press BOOT | `wiggle`, happy squint | A small mumble or face |
-| Hold BOOT (push-to-talk) | `listening` at once, `thinking` on release | A mumble reply and a face; on "shut up", `zip` and quiet |
-| Brain too slow to reply | `shrug` and *"hmm?"*. If no reply arrives, the device ends `thinking` with a `shrug` itself after 8 s | — |
-| Touch and hold the face | The device shows a face from its mood at once (`sleepy` when tired or at night, `curious` when hungry, `worried` when starving, `love` when very bouncy, otherwise `happy`) and sends `input` `feel`; the Mac may add a mumble | — |
+| Hold BOOT (push-to-talk) | `listening` at once (for at most 30 s), `thinking` on release | A mumble reply and a face; on "shut up", a `sulky` face and quiet, as in [steering.md](steering.md) |
+| Brain too slow to reply | The device ends `thinking` with a `shrug` itself after 8 s | — |
+| Touch and hold the face | The device shows a face from its mood at once (`sleepy` when tired or at night, `curious` when hungry, `worried` when starving, `love` when very bouncy, otherwise `happy`) and sends `input` `feel`; the Mac may add a mumble. While something needs you there's no face (§1) | — |
 | First activity of the day | `stretch`, then `yawn` | — |
 
 ### 3.4 Time and the device
@@ -168,10 +169,12 @@ Mood drifts back to neutral over about half an hour.
 | Jingle | Bigger cheers | Focus mode |
 | Buzz | The top "needs you" rung | Anything else, including hunger; focus mode |
 | Amber light | Something needs you | Decoration |
+| Warm light | Cheers of size 2 and 3, while the cheer plays | Anything else |
 | Dimmed backlight | Asleep, night, no app | Hiding "needs you" |
 
-Mute silences all sound but keeps the light and buzz. Focus mode is fully
-silent and still: only the face and the light.
+Mute silences all sound but keeps the light and buzz. Focus mode is visual
+only: no sound and no buzz (on the v1 board, no pulses in its place). The
+face, its animations and the light carry on.
 
 ## 7. Animation set
 
@@ -182,7 +185,8 @@ silent and still: only the face and the light.
 | `oops`, `side_eye` | Failed turns; sass at agents |
 | `wiggle` | Taps |
 | `stretch`, `yawn` | The first activity of the day |
-| `listening`, `thinking`, `shrug`, `zip` | Push-to-talk |
+| `listening`, `thinking`, `shrug` | Push-to-talk |
+| `zip` | Drawn, but nothing plays it in v1: neither the rules nor the brain's `face` choices |
 | `gobble`, `rumble` | Hunger |
 | `levelup` | Level-ups |
 | `happy`, `proud`, `smug`, `curious`, `sleepy`, `worried`, `sulky`, `love`, `side_eye` | Faces the brain can pick with `face` |

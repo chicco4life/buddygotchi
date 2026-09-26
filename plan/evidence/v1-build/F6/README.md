@@ -95,10 +95,10 @@ the serial port, and the board answered `ping` with J3's portrait build
 | --- | --- |
 | `make flash` | Builds and uploads: 1,100,640 bytes written and verified, then a hard reset. Flash 1,100,239 of 1,966,080 bytes (56.0%), static RAM 45,980 bytes (14.0%). The image's SHA-256 starts `a7db5c41a237` |
 | `tools/boopctl ping` after the flash | `"sha": "6a59dfee84-dirty"`, `"fw": "1.0.0"`, `"w": 320`, `"h": 240`, `"link": "none"`, `"ble": "adv"` (advertising, not connected, so nothing else was writing to the board), uptime 9.7 s. Free heap 73,892 bytes |
-| `tools/boopctl run` (all 11 scenarios: base, behaviour, blend, inputs, layout, life, moments, mumble, needs_you, pattern, screens) | 0 expect failures. All 83 board screenshots are identical to the simulator's (threshold 0): "11 scenarios, 0 expect failures, 0 pictures differ from the simulator". Log: [board-run.log](board-run.log) |
+| `tools/boopctl run` (all 11 scenarios: base, behaviour, blend, inputs, layout, life, moments, mumble, needs_you, pattern, screens) | 0 expect failures. All 83 board screenshots are identical to the simulator's (threshold 0): "11 scenarios, 0 expect failures, 0 pictures differ from the simulator". Log: `board-run.log` (kept locally, not in git) |
 | The same 83 board screenshots against the goldens, directly | 83 of 83 identical, all 320×240, none missing |
 | `tools/boopctl sim`, right after | 11 scenarios, 0 expect failures, 0 new or changed pictures |
-| `tools/boopctl perf --seconds 30 --motion` | Minimum **50 fps** (mean 69.7), 30 samples, no reset. Minimum free heap 72,692 bytes. F2's bar is 44 fps and the budget is 60 KB free ([DEVICE.md](../../DEVICE.md) §6). [perf-motion.json](perf-motion.json) |
+| `tools/boopctl perf --seconds 30 --motion` | Minimum **50 fps** (mean 69.7), 30 samples, no reset. Minimum free heap 72,692 bytes. F2's bar is 44 fps and the budget is 60 KB free ([DEVICE.md](../../../DEVICE.md) §6). [perf-motion.json](perf-motion.json) |
 | `tools/boopctl perf --seconds 60 --motion`, a second run | Minimum **49 fps** (mean 69.7), 59 samples, no reset, minimum free heap 72,692 bytes. [perf-motion-60s.json](perf-motion-60s.json) |
 | Free heap against J3's build | Unchanged: J3's portrait build had 73,180 bytes free before the flash, and F5 measured a 72.5 KB minimum. The landscape build starts with 73,892 and bottoms out at 72,692 through motion, about 12.7 KB above the 60 KB target |
 | `tools/boopctl pattern`, then `tools/boopctl shot` | `dbg.state` says `"screen": "pattern"`. The screenshot, [board-pattern.png](board-pattern.png), is identical to the `pattern/pattern` golden (`boopctl diff`: 0 pixels). It shows what the board drew, not which way up the panel shows it; that still needs the owner's eyes |
@@ -158,5 +158,5 @@ is harmless). What only a person can do:
 - `bubble.png` (the face raised for a mumble), `needs-you.png` (with "+1 more")
 - `stats.png`, `threads.png`, `pattern.png`
 - `board-pattern.png`: the test pattern as the board drew it (a USB screenshot)
-- `board-run.log`: `tools/boopctl run` on the board, every scenario
+- `board-run.log` (kept locally, not in git): `tools/boopctl run` on the board, every scenario
 - `perf-motion.json`, `perf-motion-60s.json`: `tools/boopctl perf --motion` for 30 s and 60 s

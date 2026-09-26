@@ -516,3 +516,43 @@ The owner read the A3 blocker (`A3/README.md`) and decided:
   (idle base), Bluetooth advertising. No bridge or app running.
 - **Next step:** none for the loop: `DONE` exists. The owner works through
   `REPORT.md` and PLAN.md §6. P1 waits for the owner.
+
+## 2026-09-26 10:01 — F6: Landscape and cuter eyes — In progress
+
+- **Why:** after the build, the owner asked for a landscape screen (Boop
+  sits sideways, USB-C on the right) and cuter eyes (the v1 eyes looked too
+  realistic). This wasn't a loop iteration; `DONE` stays.
+- **Changed:** commit `b22220f`. A 320×240 canvas that LovyanGFX turns
+  (`kRotation` 1); every screen and the test pattern laid out again; a
+  default touch map per rotation, and a calibration kept with its size and
+  rotation; solid rounded eyes with no pupil (`Pose::pupil` became
+  `Pose::eyeSize`). Specs: UX, DEVICE, VERIFICATION, PLAN F6 and §6,
+  ARCHITECTURE §11. Details in [F6/README.md](F6/README.md).
+- **Checks:** `make fw-test` 85/85; `make test` 166/166 (before the review
+  fixes, which don't touch `app/`); `boopctl sim` 11 scenarios, 0
+  failures, all 83 goldens regenerated and looked at. On the board:
+  `boopctl run` gives 83 of 83 screenshots identical to the simulator;
+  `perf --motion` a minimum of 50 fps over 30 s and 49 over 60 s, with
+  72.7 KB minimum free heap. L3 skipped (webcam withdrawn).
+- **Board:** the landscape build (`6a59dfee84-dirty`, the F6 change just
+  before its commit), on the no-app face, Bluetooth advertising, touch
+  uncalibrated. No bridge or app running.
+- **Next step:** the owner's morning checklist rows 2–3: the look, the
+  orientation and touch calibration. Then set F6 to Passed, or fix what's
+  off.
+
+## 2026-09-26 12:25 — A5: Mac app look and flow — In progress
+
+- **Why:** after the build, the owner found setup jarring, the overview
+  crowded with controls and the board's id, and preferred gen-2's styling.
+  This wasn't a loop iteration; `DONE` stays.
+- **Changed:** commit `1e4acaa`. Setup and settings open inside the popover
+  (setup once, on first launch, as four steps); volume, focus and "I'm
+  away" move to Settings; the board's id is gone; the "Boop Cream" look,
+  with a small copy of the device's face in the header and Boop's eyes as
+  the menu-bar icon. `Boop --snapshots DIR` renders every pane. Specs: UX
+  §6–7, ARCHITECTURE §11, VERIFICATION, PLAN A5 and §6. Details in
+  [A5/README.md](A5/README.md).
+- **Checks:** `make test` 166/166; 22 snapshots reviewed in light and dark.
+- **Next step:** the owner's morning checklist rows 5 and 7: the look in
+  the real menu bar. Then set A5 to Passed, or fix what's off.

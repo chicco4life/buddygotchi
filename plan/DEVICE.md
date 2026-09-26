@@ -78,12 +78,13 @@ pin table. The pin table wins.
 | Main button | **None.** BOOT (IO0) acts as the main button | External button on IO35: button to GND, 10 kΩ pull-up to 3.3 V |
 | Secondary button | **None.** Touch covers its jobs ([UX.md](UX.md) §4) | BOOT becomes the secondary button |
 | Speaker | **None.** The audio code runs, but nothing is heard | 8 Ω, 1–2 W speaker on the 2-pin speaker header |
-| Vibration motor | **None.** The buzz rung becomes a strong amber light pulse | Coin motor on GPIO27 through an N-MOSFET, with a flyback diode |
+| Vibration motor | **None.** The buzz rung becomes three strong amber light pulses ([BEHAVIORS.md](BEHAVIORS.md) §3.2) | Coin motor on GPIO27 through an N-MOSFET, with a flyback diode |
 | Battery | **None.** USB power only; battery sense reads nothing useful | Protected 3.7 V LiPo on the battery header |
 
-The firmware detects none of these. What's attached is a build setting in
-`firmware/src/board/pins.h`, so switching the main button from BOOT to IO35
-is one line.
+The firmware detects none of these. The main button is a build setting in
+`firmware/src/board/pins.h` (`kMainButton`), so switching it from BOOT to
+IO35 is one line, and whether there's a battery is a build setting too. The
+speaker and motor can't be switched on or off in v1.
 
 ## 4. Firmware stack
 
@@ -123,7 +124,7 @@ landscape rotation came after, in F6:
 | Rotation | Portrait, with USB-C at the bottom as "up" | LovyanGFX rotation 0: the UP arrow points away from USB-C (F1) |
 | Rotation, landscape (F6) | `kRotation` 1 in `firmware/src/board/display.h`: landscape, 320×240, USB-C on the **right**. Worked out from rotation 0: LovyanGFX's rotation 1 turns the picture a quarter turn clockwise on the panel, so the panel's USB-C end becomes the right edge. Fairly sure, but not yet seen on the board. The panel controller turns the picture, so it costs no CPU; the panel is still configured as its physical 240×320 | Not yet. With Boop sideways and USB-C on the right, `tools/boopctl pattern` should show the UP arrow at the top and the black bar down the USB-C side. **If it's upside down**, rotation 1 was the wrong way round: set `kRotation` to 3 (half a turn), `make flash`, and run `boopctl calibrate` again. USB-C always goes on the right: the pattern's bar and the webcam check assume it, so 3 isn't a way to put it on the left. Don't use 4–7, which mirror the picture |
 | Offsets | 0, 0 (panel memory 240×320) | 0, 0: all four labelled corners show |
-| Touch calibration | Raw range about 200–3900 on both axes | Needs a person: `boopctl calibrate` fits an affine raw → screen map from 4 taps and the board keeps it in NVS (`boop`/`touchcal2`) with the screen size and rotation it was fitted on, surviving reflashes. A map for another size or rotation is ignored; the portrait build's `touchcal` is deleted at start-up. Until a calibration exists, the raw range is stretched over the panel and turned with `kRotation` (`app/touch_cal.h`). Not yet run on this board |
+| Touch calibration | Raw range about 200–3900 on both axes | Needs a person: `boopctl calibrate` fits an affine raw → screen map from 4 taps and the board keeps it in NVS (`boop`/`touchcal2`) with the screen size and rotation it was fitted on, surviving reflashes. A map for another size or rotation is ignored; the portrait build's `touchcal` is deleted at start-up. Until a calibration exists, the raw range is stretched over the panel and turned with `kRotation` (`firmware/src/app/touch_cal.h`). Not yet run on this board |
 
 ## 5. Flash layout
 
@@ -132,7 +133,7 @@ new layout.
 
 | Partition | Size | Use |
 | --- | --- | --- |
-| nvs | 20 KB | Bluetooth bonds (later), device ID, touch calibration, last `state` |
+| nvs | 20 KB | The touch calibration only (Bluetooth bonds later). The device ID comes from the MAC, and no `state` is kept |
 | otadata | 8 KB | Which app slot boots |
 | app0 | 1.875 MB | Firmware, including fonts and sound assets |
 | app1 | 1.875 MB | Second slot for future updates |
@@ -150,7 +151,7 @@ samples are compiled into the firmware as arrays. The voice assets are
 | Screen canvas, 8-bit indexed | 76.8 KB | 320 × 240 × 1 byte, plus a 256-colour RGB565 palette (512 B). Allocate it first, before Bluetooth, while one contiguous block is still free |
 | Push buffer | 2 × 7.7 KB | Converts 12 canvas rows (of 320 px) at a time to RGB565 for SPI DMA |
 | NimBLE host + controller | ~75 KB measured | Release Classic Bluetooth memory at start-up; Boop only uses BLE |
-| Audio | 4 KB | DMA buffers for the DAC |
+| Audio | ~11 KB | Four 1 KB DMA buffers for the DAC, a 3 KB task stack and the DAC driver (measured, F5) |
 | JSON and serial buffers | ~6 KB | One message line is at most 512 bytes |
 | **Target free heap** | **≥ 60 KB** | Checked continuously by `boopctl ping` |
 
@@ -214,7 +215,7 @@ Commands (created in the first milestone of [PLAN.md](PLAN.md)):
 ```sh
 make fw          # build firmware/ for the board
 make flash       # build and upload over USB (auto-reset, no BOOT press needed)
-make sim         # build the Mac simulator of the renderer
+make sim         # build the Mac simulator of the whole device core
 tools/boopctl ping         # firmware version, free heap, fps, uptime
 ```
 

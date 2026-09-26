@@ -64,7 +64,9 @@ public final class Core {
     var rng: SplitMix64
     var mood = MoodState()
     var quietUntil: Int64 = 0
-    var awaySince: String?
+    /// The day "I'm away" started; the app keeps it in its settings so a
+    /// restart doesn't restart the pause.
+    public private(set) var awaySince: String?
     /// The last day with any activity; a new one starts the day's rituals.
     var lastActiveDay: String?
     var lastPublished: StateSnapshot?
@@ -198,7 +200,7 @@ public final class Core {
             focus.toggle()
         case .feel:
             if mumblesAllowed(now) {
-                fx.append(.mumble(feeling: feeling(now), word: nil))
+                fx.append(.mumble(feeling: heldFeeling(now), word: nil))
             }
         }
         publish(now, &fx)
@@ -232,15 +234,19 @@ public final class Core {
         return fx
     }
 
-    /// "I'm away" pauses hunger.
+    /// "I'm away" pauses hunger. `since` is the day an away period saved
+    /// before a restart started, so the pause keeps counting from it.
     @discardableResult
-    public func setAway(_ on: Bool, at now: Int64) -> [CoreEffect] {
+    public func setAway(_ on: Bool, since: String? = nil, at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
         let today = config.time.day(now)
         if on && !away {
-            awaySince = today
+            awaySince = since.flatMap { LocalTime.isDay($0) ? min($0, today) : nil } ?? today
         } else if !on && away, let since = awaySince {
-            growth.lastFed = LocalTime.day(growth.lastFed, plus: LocalTime.daysBetween(since, today))
+            // Only the away days since the last meal are paused: XP earned
+            // while away already moved lastFed past the start.
+            let paused = LocalTime.daysBetween(max(since, growth.lastFed), today)
+            if paused > 0 { growth.lastFed = LocalTime.day(growth.lastFed, plus: paused) }
             awaySince = nil
             fx.append(.growth(growth))
         }
@@ -336,6 +342,21 @@ public final class Core {
 
     func feeling(_ now: Int64) -> String {
         mood.feeling(at: now, night: config.time.isNight(now), hunger: hungerNow(now))
+    }
+
+    /// The reply to a touch and hold. The device has already shown a face
+    /// from the `state` it was sent (firmware `Behaviour::feel`); this picks
+    /// the feeling whose `say` face is that same face, from the same mood,
+    /// hunger and night, so the reply doesn't change it.
+    func heldFeeling(_ now: Int64) -> String {
+        let night = config.time.isNight(now)
+        let hunger = hungerNow(now)
+        let energy = mood.mood(at: now, night: night, hunger: hunger).energy
+        if hunger == .starving { return "sad" }       // worried
+        if hunger == .hungry { return "curious" }     // curious
+        if night || energy < 60 { return "sleepy" }   // sleepy
+        if energy >= 140 { return "hopeful" }         // love
+        return "happy"                                // happy
     }
 
     /// Mumbles never play in quiet or focus mode, or while something needs you.

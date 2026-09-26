@@ -343,6 +343,49 @@ final class HarnessTests: XCTestCase {
         await rig.settle()
         XCTAssertEqual(rig.snapshot.records.count, 1)
         XCTAssertTrue(rig.snapshot.records[0].silent)
+        XCTAssertTrue(rig.snapshot.records[0].logLine.hasSuffix(" ms → quiet"), rig.snapshot.records[0].logLine)
+    }
+
+    /// HARNESS.md §8: outside debug mode "nothing is written to disk,
+    /// because talk entries contain what you said". The app's log (boop.log)
+    /// gets each call's line, the harness's own lines and every action's
+    /// drop reasons: they name tools and reasons, never an argument's text.
+    func testTheLogNeverGetsWhatYouSaid() async throws {
+        final class Lines: @unchecked Sendable {
+            let lock = NSLock()
+            var all: [String] = []
+            func add(_ line: String) { lock.withLock { all.append(line) } }
+        }
+        let said = "PRIVATE_sam moves to Lisbon"
+        let answers = [
+            // A note that's kept, then the same note again, which the store refuses.
+            Answer.json([ToolCall("say", ["feeling": .string("happy")]), ToolCall("note", ["text": .string(said)])]),
+            Answer.json([ToolCall("note", ["text": .string(said)])]),
+            // A note the store refuses as code, and an answer the shape check drops.
+            Answer.json([ToolCall("note", ["text": .string(said + " `x`")])]),
+            Answer.json([ToolCall("say", ["feeling": .string(said)])]),
+        ]
+        let memory = try MemoryRig()
+        let lines = Lines()
+        for answer in answers {
+            let context = ActionContext(send: { _ in }, today: { "2026-10-14" }, log: lines.add)
+            let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: 1)), memory: memory.store)
+            let harness = Harness(brain: FakeBrain { _ in answer }, tools: actions.map(Harness.Tool.init),
+                                  memory: { memory.store.promptMemory(for: $0.kind) },
+                                  home: DispatchQueue(label: "test.log"), log: lines.add)
+            harness.onRecord = { lines.add($0.logLine) }  // as the Runtime wires it
+            _ = await harness.respond(to: trigger(.talk, "talk · 13:10 Tuesday", words: said))
+        }
+        XCTAssertEqual(memory.store.shortTerm?.notes, [said], "the note itself was kept")
+        let logged = lines.lock.withLock { lines.all }
+        for line in logged { XCTAssertFalse(line.contains("PRIVATE_") || line.contains("Lisbon"), line) }
+        let brain = logged.filter { $0.hasPrefix("brain talk ") }
+        XCTAssertEqual(brain.count, 4)
+        XCTAssertTrue(brain[0].hasSuffix(" ms → say, note"), brain[0])
+        XCTAssertTrue(brain[1].hasSuffix(" ms → note (dropped)"), brain[1])
+        XCTAssertTrue(brain[3].hasSuffix(" ms → dropped: shape: say: feeling isn't one of its choices"), brain[3])
+        XCTAssertTrue(logged.contains("note: dropped: already noted"), "\(logged)")
+        XCTAssertTrue(logged.contains("note: dropped: looks like code"), "\(logged)")
     }
 }
 
@@ -401,6 +444,27 @@ final class BrainTests: XCTestCase {
         // Calls to tools that aren't offered are left out.
         let answer = try await ask(b, trigger(.talk, "talk · 13:10 Tuesday", words: "quiet"), tools: ["face"])
         XCTAssertEqual(answer, #"{"calls":[{"tool":"face","name":"sulky"}]}"#)
+    }
+
+    /// HARNESS.md §7: rules are "used when Apple's model can't run",
+    /// including when it stops being able to after launch: that call gets
+    /// the rules brain's answer instead of being dropped. Never reaches the
+    /// model.
+    func testAppleAnswersWithTheRulesWhenItsModelIsUnavailable() async throws {
+        let apple = AppleBrain(unavailable: { "the model is updating" })
+        XCTAssertTrue(apple.id.hasPrefix("apple:"))
+        let cases = [
+            trigger(.tap, "tapped · 09:30 Tuesday"),
+            trigger(.talk, "talk · 13:10 Tuesday", words: "be quiet"),
+            trigger(.event, "turn failed · codex · landing · topic: tests · 14:02 Tuesday"),
+        ]
+        for t in cases {
+            let answer = try await ask(apple, t)
+            let rules = try await ask(RulesBrain(), t)
+            XCTAssertEqual(answer, rules, t.line)
+        }
+        let tap = try await ask(apple, cases[0])
+        XCTAssertEqual(tap, #"{"calls":[{"tool":"face","name":"happy"}]}"#)
     }
 
     func testTheCloudBrainIsDisabled() async {

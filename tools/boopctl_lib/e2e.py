@@ -234,17 +234,33 @@ def check_after(run: Run, expected: dict[str, Any]) -> None:
     (run.fail if leaks else run.say)(f"PRIVATE_ markers in app files or the brain log: {leaks or 'none'}")
 
 
-def play_ms(moment: dict[str, Any]) -> int:
-    """How long the device plays a moment: firmware/src/render/anim.cpp's
-    animDuration, or the mumble if longer (as DeviceMoment.playMs)."""
-    size = max(1, min(3, moment.get("size", 1)))
+def play_ms(moment: dict[str, Any], mood: dict[str, Any] | None = None) -> int:
+    """How long the device plays a moment, given the mood in the last `state`
+    it was sent (as DeviceMoment.playMs): firmware/src/app/behaviour.cpp's
+    onMoment and play. A cheer is a size smaller when energy is under 60 and a
+    size bigger at 140 or more; firmware/src/render/anim.cpp's animDuration is
+    scaled by 100 / pace, pace held to 70-140; a mumble lasts its syllables,
+    plus two beats for a word, at 60-400 ms each, then 1200 ms for the bubble,
+    when that's longer."""
+    mood = mood or {}
+    energy, pace = mood.get("energy", 100), mood.get("pace", 100)
     anim = moment.get("anim")
+    size = max(1, min(3, moment.get("size", 1)))
+    if anim == "cheer":
+        if energy < 60:
+            size = max(1, size - 1)
+        if energy >= 140:
+            size = min(3, size + 1)
     table = {"listening": 0, "thinking": 0, "nod": 600, "cheer": (size + 1) * 380 + 500, "oops": 1400,
              "stretch": 1400, "side_eye": 1600, "yawn": 1600, "wiggle": 700, "shrug": 1200, "zip": 1500,
              "gobble": 1500, "rumble": 1500, "levelup": 2400}
+    ms = table.get(anim, 2500) * 100 // max(70, min(140, pace))
     say = moment.get("say") or {}
-    syllables = sum(len(g.split("-")) for g in say.get("syl", "").split()) if say else 0
-    return max(table.get(anim, 2500), syllables * say.get("ms", 0))
+    syllables = len([s for s in re.split(r"[ -]+", say.get("syl", "")) if s])
+    if syllables > 0:
+        beats = syllables + (2 if say.get("word") else 0)
+        ms = max(ms, beats * max(60, min(400, say.get("ms", 120))) + 1200)
+    return ms
 
 
 def check_order(run: Run) -> dict[str, Any]:
@@ -261,6 +277,7 @@ def check_order(run: Run) -> dict[str, Any]:
     reaction: int | None = None
     rule_moment: tuple[int, str, int] | None = None  # sent, anim, ends
     brain_ends = 0
+    mood: dict[str, Any] = {}  # from the last state sent: the device times moments by it
     cut: list[str] = []  # brain moments a later rule moment replaced (a new hook may; for the record)
     for raw in run.app_log().splitlines():
         m = stamp.match(raw)
@@ -274,14 +291,19 @@ def check_order(run: Run) -> dict[str, Any]:
             if last_hook and (reaction is None or reaction[1] != last_hook):
                 reaction = (t, last_hook)
             line = json.loads(text[len("link rules → "):])
+            if line.get("t") == "state":
+                mood = line.get("mood") or mood
             if line.get("t") == "moment":
-                rule_moment = (t, line["anim"], t + play_ms(line))
+                rule_moment = (t, line["anim"], t + play_ms(line, mood))
                 if t < brain_ends:
                     cut.append(f"{raw[:12]} {line['anim']} after {last_hook}")
         elif text.startswith("link brain → "):
             brain_line = json.loads(text[len("link brain → "):])
+            if brain_line.get("t") == "state":
+                mood = brain_line.get("mood") or mood
+                continue
             anim = brain_line.get("anim", "?")
-            brain_ends = t + play_ms(brain_line)
+            brain_ends = t + play_ms(brain_line, mood)
             answers.append({
                 "moment": anim, "at": raw[:12],
                 "after_reaction_ms": None if reaction is None else t - reaction[0],

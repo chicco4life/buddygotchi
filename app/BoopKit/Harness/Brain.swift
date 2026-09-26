@@ -8,7 +8,7 @@ import Foundation
 /// An empty `calls` list means staying quiet. The harness checks the shape;
 /// the brain only has to answer.
 public protocol Brain: Sendable {
-    /// e.g. `apple:26.4`, `cloud:<model>@<version>`, `rules@1`.
+    /// e.g. `apple:26.4`, `cloud:<model>`, `rules@1`.
     var id: String { get }
     /// The raw answer. May throw; the harness drops the call and logs why.
     func complete(system: String, user: String, tools: [ToolDefinition], deadline: Duration) async throws -> String

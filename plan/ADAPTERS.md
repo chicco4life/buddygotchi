@@ -1,6 +1,6 @@
 # Boop: agent adapters
 
-Updated 2026-09-25. How Boop hears from Claude Code and Codex: the hook
+Updated 2026-09-26. How Boop hears from Claude Code and Codex: the hook
 client, which hooks we register and what each becomes, and how "needs you"
 is detected and cleared.
 
@@ -17,7 +17,8 @@ Three rules follow:
    It never prints a decision, so the agent always continues with its own
    flow, including its own approval prompt.
 2. **Fail open.** If the Boop app isn't running, or its socket is missing or
-   slow to accept (50 ms), the hook exits with success and does nothing.
+   slow (50 ms in total to connect and write the line), the hook exits with
+   success and does nothing.
 3. **Send little.** The hook forwards only the fields in §3. Prompt text,
    tool input and file contents never leave the hook client. The one thing
    it takes from tool input is a topic tag (§3), worked out in memory and
@@ -43,8 +44,11 @@ boop-hook <agent>        # agent = claude | codex
    even if stdin never closes.
 
 The line it writes carries only `agent`, `hook`, `session`, `cwd`, `tool`,
-`topic`, `error` (StopFailure's class), `kind` (Notification's type) and
-`ts`. The app's adapter turns that into the common event.
+`topic`, `error` (StopFailure's raw `error`, or its `error_type`), `kind`
+(Notification's type) and `ts`, each value cut to 200 characters. The app's
+adapter turns that into the common event, and turns `error` into a class:
+`rate_limit`, `overloaded`, `api_error`, `auth`, `timeout`, `network`,
+`context_limit`, `billing`, or `other` for anything else.
 
 Because it's compiled rather than a script, it costs a few milliseconds at
 most, even for agents that fire a hook on every tool call.
@@ -140,10 +144,15 @@ generation of Boop taught us two things:
   so rebuilding or moving the app doesn't break them. It never touches anyone else's, but it does
   remove the previous generation's entries, which call
   `~/.boop/boop-hook.sh`.
-- **Install:** at setup, one click per detected agent. The app shows exactly
-  what it will add.
-- **Repair:** on every launch, the app restores missing or outdated entries
-  and leaves other hooks alone.
+- **Install:** at setup, a switch per detected agent, on by default
+  ([UX.md](UX.md) §6), or one click in settings. The app shows exactly what
+  it will add: each hook entry and, for Codex, the `codex_hooks = true` line
+  in `config.toml` if it isn't there yet. Each entry carries `timeout: 5`
+  (seconds).
+- **Repair:** on every launch, for each agent that already has Boop's
+  entries, the app restores missing or outdated ones, replacing the previous
+  generation's `~/.boop/boop-hook.sh` entries too. It leaves other hooks
+  alone, and never installs for an agent that has none.
 - **Codex's switch:** Codex runs hooks only with `codex_hooks = true` under
   `[features]` in `~/.codex/config.toml`. Installing adds that line if it's
   missing; removing leaves it, because other hooks may rely on it.
@@ -157,14 +166,16 @@ generation of Boop taught us two things:
 
 The `doctor` skill (`skills/doctor/doctor.sh`) checks four things:
 
-1. Hooks are registered for each agent and point at the current
-   `boop-hook`.
+1. Hooks are registered for each agent and point at a `boop-hook` that
+   exists.
 2. The app is running and its socket answers.
 3. A synthetic event goes from the hook client to the app and back.
 4. A harmless command run in the agent shows up in Boop.
 
-The app never logs hooks, except while the doctor has armed it by writing
-`doctor-armed` into the state directory; `--confirm` removes the file.
+The app logs hook lines only while the doctor has armed it, by writing
+`doctor-armed` into the state directory (`--confirm` removes the file), or
+when headless mode runs with `--trace` ([VERIFICATION.md](VERIFICATION.md)
+L4).
 
 ## 7. Claude Cowork (not in v1)
 

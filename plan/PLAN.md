@@ -2,26 +2,30 @@
 
 Updated 2026-09-26. The build order for v1, the check that closes each
 milestone, how the unattended build runs, the owner's morning checklist,
-and the later port to ESP-IDF + LVGL. The specs are listed in
-[README.md](README.md); ideas that aren't in v1 are in
+the later port to ESP-IDF + LVGL, and the open items (§7). The specs are
+listed in [README.md](README.md); ideas that aren't in v1 are in
 [FUTURE.md](FUTURE.md), so don't build them. [VERIFICATION.md](VERIFICATION.md)
 defines the checks (L0–L6).
 
 ## 1. Starting point
 
-**Code today** is the previous generation: `app/` (a Swift menu-bar app),
-`firmware/esp32/` (firmware for a different board), their tools, and the
-older generation in `archived/`. v1 **rewrites everything**, and no
-existing code is off-limits. Delete anything v1 doesn't use, including
-`archived/` code. The commit `gen2-final` keeps it all one command away.
-Keep `landing/` (the live landing page) and the specs.
+**The build started from** the previous generation: `app/` (a Swift
+menu-bar app), `firmware/esp32/` (firmware for a different board), their
+tools, and the older generation in `archived/`. v1 **rewrote everything**,
+and the v1 code has replaced it. The tag `gen2-final` keeps the previous
+generation one command away (`git show gen2-final:<path>`). What's left
+under `archived/` is history (research, docs and the gen-2 specs in
+`archived/plan-gen2/`), plus a few evidence scripts there and the gen-2
+case model in `archived/hardware/case/`. Keep `landing/` (the live landing
+page) and the specs.
 
-Reuse old code only where it fits the new architecture as is:
+Old code was reused only where it fit the new architecture as is. The
+table is kept as a record:
 
 | Worth reusing | Where it goes |
 | --- | --- |
 | `HookInstaller.swift`: safe merging into `~/.claude/settings.json` and `~/.codex/hooks.json` | The installer |
-| `BoopSignal/`: the compiled hook client (currently HTTP) | `boop-hook`, rewritten for the Unix socket |
+| `BoopSignal/`: the compiled hook client (then HTTP) | `boop-hook`, rewritten for the Unix socket |
 | `BLEManager.swift`: the CoreBluetooth Nordic UART central | Device link: Bluetooth |
 | `VoiceRuntime.swift`: Foundation Models session setup | Brains: Apple |
 | `app/Boop/Views/ViewState.swift`: the `SwiftUI.State` alias | The app shell (see below) |
@@ -46,8 +50,11 @@ Reuse old code only where it fits the new architecture as is:
     `session.respond(to:schema:)`, and read `GeneratedContent`. This route
     was tested here, and a tap trigger answered in 1.3 s.
 - **Apple's model:** available from the shell, with an 8K context.
-- **Firmware tools:** PlatformIO is `/opt/homebrew/bin/pio`, and esptool is
-  in `~/.platformio/penv/bin/`. There's 210 GB of disk free for toolchains.
+- **Firmware tools:** PlatformIO is `/opt/homebrew/bin/pio`.
+  `firmware/tools/pio.sh` keeps PlatformIO's core in
+  `firmware/.platformio-core/` (one per checkout, git-ignored), so esptool
+  is `firmware/.platformio-core/penv/bin/esptool` once `make fw` has run.
+  There's 210 GB of disk free for toolchains.
 - **Board:** on `/dev/cu.usbserial-110` (the number can change). It's an
   ESP32-D0WD-V3 with 4 MB flash, behind a CH340 USB bridge that tops out at
   460800 baud with macOS's driver. Auto-reset works.
@@ -66,28 +73,38 @@ Reuse old code only where it fits the new architecture as is:
 ```
 app/                       Swift package
   BoopKit/                 library: Adapters, Core, Harness, Brains, Actions,
-                           Voice, Memory, DeviceLink, Talk
-  Boop/                    the menu-bar app (also runs --headless)
+                           Voice, Memory, DeviceLink, App, Install
+  Boop/                    the menu-bar app (also runs --headless), and
+                           Talk.swift (push-to-talk)
   BoopHook/                boop-hook, the hook client
   HookWire/                what boop-hook and the app share: the hook line,
                            topic tags, the socket (Foundation only)
-  BoopDev/                 boopdev: replay, talk, brain runs, memory dump
+  BoopDev/                 boopdev: replay, memory, voice, brain, talk, hooks
   Tests/                   unit tests, plus Fixtures/{hooks,triggers,memory}
+  TestSupport/             the XCTest shim (there's no Xcode)
+  tools/                   test.py and gen-test-runner.py, for make test
 firmware/                  PlatformIO project
   platformio.ini           envs: cyd24 (the board), native (Mac: tests + simulator)
+  src/main.cpp             the board's entry point, with USB serial
   src/board/               pins, LovyanGFX config, button, touch, LED, DAC, battery
   src/render/              8-bit canvas, palette, fonts, face, screens (pure C++)
-  src/app/                 protocol parser, behaviour state machine (pure C++)
-  src/link/                USB serial and BLE transports, debug channel
+  src/app/                 protocol parser, behaviour state machine, gestures,
+                           touch map, and the debug channel in device.cpp
+                           (pure C++)
+  src/link/                the BLE transport (ble.cpp)
   src/voice/               syllable player
+  src/sim/                 boop-sim, the simulator's entry point
   assets/                  generated fonts and voice samples (checked in)
   test/                    unit tests, scenarios/, golden/
+  tools/                   pio.sh (PlatformIO inside the checkout), version.py
 tools/
-  boopctl                  device tool (runs tools/.venv)
+  boopctl                  device tool (runs tools/.venv; code in boopctl_lib/)
   voicegen/                builds the voice assets
+  fontgen/                 builds the fonts
   webcam/                  existing recorder
   build-loop.sh            runs the unattended build (§5)
 Makefile                   build run test tools fw flash sim fw-test e2e
+                           webcam webcam-test clean
 ```
 
 `plan/steering.md` is the single source for steering. The build copies it
@@ -147,8 +164,8 @@ Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 | F5 | Voice on the device | Passed |
 | J2 | Soak and polish | Passed |
 | J3 | Handoff | Passed |
-| F6 | Landscape and cuter eyes | In progress: code, L0, L1 and L2 pass. The board runs the landscape build, its 83 screenshots in 11 scenarios match the simulator pixel for pixel, and `perf --motion` gives a minimum of 50 fps with 72.7 KB free. Only the owner's look (orientation and liking the face) and touch calibration remain (morning checklist rows 2–3) |
-| A5 | Mac app look and flow | In progress: code, L0 and the app's snapshot check pass (light and dark). Only the owner's look in the real menu bar remains (morning checklist rows 5 and 7) |
+| F6 | Landscape and cuter eyes | In progress: code, L0, L1 and L2 pass. The board runs the landscape build, its 83 screenshots in 11 scenarios match the simulator pixel for pixel, and `perf --motion` gives at least 49 fps (50 over 30 s, 49 over 60 s) with 72.7 KB free. Only the owner's look (orientation and liking the face) and touch calibration remain (morning checklist rows 2–3). [Evidence](evidence/v1-build/F6/README.md) |
+| A5 | Mac app look and flow | In progress: code, L0 and the app's snapshot check pass (light and dark). Only the owner's look in the real menu bar remains (morning checklist rows 5 and 7). [Evidence](evidence/v1-build/A5/README.md) |
 | P1 | Port to ESP-IDF + LVGL (later, gated) | Not started |
 
 ### M0: Setup
@@ -416,14 +433,15 @@ eyeballs, and the gen-2 face, with solid eyes, was cuter.
 
 - **Canvas and panel:** `render::kWidth` 320, `kHeight` 240, still 76.8 KB.
   The panel stays configured as its physical 240×320 and LovyanGFX turns
-  it (`board/display.h` `kRotation` 1, or 3 if that's upside down), so rows still stream in
-  order with no per-pixel cost. Push bands of 12 rows keep the buffers at
-  2 × 7.68 KB ([DEVICE.md](DEVICE.md) §4, §6).
+  it (`firmware/src/board/display.h` `kRotation` 1, or 3 if that's upside
+  down), so rows still stream in order with no per-pixel cost. Push bands
+  of 12 rows keep the buffers at 2 × 7.68 KB ([DEVICE.md](DEVICE.md) §4,
+  §6).
 - **Touch:** the default map is the raw range turned with `kRotation`
-  (`app/touch_cal.h`, pure C++). A stored calibration carries the screen
-  size and rotation it was fitted on and is ignored otherwise; the portrait
-  build's NVS record is deleted. `boopctl calibrate` places its crosses
-  from the size in `dbg.ping`.
+  (`firmware/src/app/touch_cal.h`, pure C++). A stored calibration carries
+  the screen size and rotation it was fitted on and is ignored otherwise;
+  the portrait build's NVS record is deleted. `boopctl calibrate` places
+  its crosses from the size in `dbg.ping`.
 - **Layout:** the strip is the bottom 36 px, the bubble the 60 px above it.
   The face is centred in the 204 px above the strip, and with a bubble it
   eases up into the top 144 px at 75%. Needs you, threads (one row per
@@ -594,4 +612,52 @@ off at any point:
 | 16 | Listen to the voice clips on the Mac: `tools/.venv/bin/python tools/voicegen/voicegen.py --out /tmp/voice.h --wav-dir /tmp/boop-voice`, then `afplay /tmp/boop-voice/ba.wav` (and a few words, like `done.wav`) | Small, bright, chiptune syllables; the words are clear. Nobody has heard these yet |
 | 17 | When an 8 Ω speaker is on the speaker header: `tools/boopctl voice --count 1` | Bouncy gibberish for each feeling, with the real word landing clearly; no pops when the amp switches |
 
-Anything that's off becomes the next items in this plan.
+Anything that's off becomes the next items in this plan (§7).
+
+## 7. Open items
+
+Known work that isn't a milestone yet. Drift found and not fixed goes here
+too ([CLAUDE.md](../CLAUDE.md)). Pick one up by writing it into the
+matching spec first.
+
+- **Release.** Signing, notarisation, an app icon and a release pipeline
+  don't exist for v1 yet. The gen-2 list is in
+  [archived/docs/TODO-gen2.md](../archived/docs/TODO-gen2.md).
+- **`zip` is drawn but nothing plays it.** [BEHAVIORS.md](BEHAVIORS.md)
+  §3.3 has it on "shut up"; the rules don't send it, and the brain's `face`
+  can't pick it.
+
+From the J3 report's known issues (numbered as there):
+
+- A3, brain tuning, deferred by the owner:
+  - `note` on talk keeps praise and greetings, and sometimes misses a real
+    fact ([#1](evidence/v1-build/REPORT.md#known-issues)).
+  - The filler word `tests` is in most spoken lines, taps included
+    ([#2](evidence/v1-build/REPORT.md#known-issues)).
+  - A `moment` nearly every reflection, usually a retelling the action
+    refuses; it pushes L5's drop rate over 5%
+    ([#3](evidence/v1-build/REPORT.md#known-issues)).
+  - Apple's guardrail refuses about 2 of 52 triggers; Boop keeps the rule
+    reaction ([#4](evidence/v1-build/REPORT.md#known-issues)).
+  - `remember("jetpack = payments")` is refused by memory's code check
+    because of the `=` ([#5](evidence/v1-build/REPORT.md#known-issues)).
+  - Sometimes two faces in one answer on events; one plays
+    ([#6](evidence/v1-build/REPORT.md#known-issues)).
+- The device and the link:
+  - USB loses the odd line from the board to the Mac, for good: there are
+    no sequence numbers ([#7](evidence/v1-build/REPORT.md#known-issues)).
+  - Without the Mac, the board shows the no-app face after 30 s, so it
+    can't be left on the idle face ([#8](evidence/v1-build/REPORT.md#known-issues)).
+  - About 13 KB of heap headroom: 73 KB free against the 60 KB target
+    ([#9](evidence/v1-build/REPORT.md#known-issues)).
+  - A freshly built `boop-hook` takes about 250 ms on its first launch
+    while macOS checks it ([#10](evidence/v1-build/REPORT.md#known-issues)).
+  - The Codex fixtures are synthetic; no real Codex approval has been
+    recorded ([#11](evidence/v1-build/REPORT.md#known-issues)).
+  - The LED's green and amber were only checked in `dbg.state`, not seen
+    ([#12](evidence/v1-build/REPORT.md#known-issues)).
+  - SPI runs at 40 MHz; faster wasn't tried
+    ([#14](evidence/v1-build/REPORT.md#known-issues)).
+  - The owner's `~/.claude` and `~/.codex` still call the gen-2
+    `~/.boop/boop-hook.sh` until the v1 setup replaces it
+    ([#15](evidence/v1-build/REPORT.md#known-issues)).

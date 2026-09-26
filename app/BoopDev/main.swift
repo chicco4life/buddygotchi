@@ -2,8 +2,8 @@ import BoopKit
 import Foundation
 import HookWire
 
-// Developer CLI (VERIFICATION.md §2). Subcommands arrive with the milestones
-// that need them: replay (A1), memory (A2), brain (A3), talk (A4).
+// Developer CLI (VERIFICATION.md §2): replay, memory, voice, brain, talk and
+// hooks, as `usage` describes.
 
 let usage = """
     usage: boopdev replay <hooks.jsonl> [--agent claude|codex] [--gap-ms N] [--start MS] [--tz ZONE] [--new-day] [--states]

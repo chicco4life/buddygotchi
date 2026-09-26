@@ -21,8 +21,9 @@ enum MemoryText {
         if text.count > max { return .failure(Refusal("longer than \(max) characters")) }
         if text.hasPrefix("#") { return .failure(Refusal("looks like a heading")) }
         if let why = code(text) { return .failure(Refusal(why)) }
-        if names, let name = otherName(text, boopName: boopName) {
-            return .failure(Refusal("\"\(name)\" looks like someone's name"))
+        // Not which word: refusals are logged, and the name is the person's.
+        if names, otherName(text, boopName: boopName) != nil {
+            return .failure(Refusal("looks like someone's name"))
         }
         return .success(text)
     }

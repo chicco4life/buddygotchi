@@ -37,9 +37,10 @@ approve on the Mac as you normally would.
 1. Codex finishes a task. Its hook sends a one-line message to the Mac app
    and returns immediately.
 2. The Codex **adapter** turns it into the common event: "Codex, session
-   a1b2, project landing, turn finished after 18 minutes".
-3. The **core** updates its session table, adds XP, and by rule calls the
-   `face` action with a cheer. Boop cheers in well under a second.
+   a1b2, project landing, turn finished".
+3. The **core** updates its session table, works out from when the turn
+   started that it took 18 minutes, adds XP, and by rule calls the `face`
+   action with a cheer. Boop cheers in well under a second.
 4. The core also hands the event to the **harness** as a trigger. The
    harness builds a prompt from the memory files, asks the **brain**, and
    gets back a tool call: `say(feeling: proud, word: finally)`.
@@ -78,8 +79,8 @@ directly.
 | Brain | Picks which tools to call, with what arguments | Everything else |
 | Actions | Carry out one tool call each, checking their own rules | Whether a rule or the brain called them |
 | Voice | Turns a feeling and an optional word into Minion speech | Who asked, or why |
-| Memory store | The only code that touches the three Markdown files: supplies their text and applies changes within limits | Models, the device |
-| Device link | Sends snapshots and moments; receives taps and talk; over Bluetooth or USB | What any of it means |
+| Memory store | The only code that reads or writes `long-term.md` and `short-term.md`: supplies all three memory files' text and applies changes within limits | Models, the device |
+| Device link | Sends snapshots and moments; receives taps, talk and the device's other inputs; over Bluetooth or USB | What any of it means |
 
 ### 3.1 Adapters
 
@@ -95,9 +96,10 @@ The core is plain rules with no queue. It keeps a table of sessions (agent,
 project, and whether each is working, idle or needs you) and:
 
 - works out what the device shows and sends a new snapshot when that
-  changes. The highest true item wins: something needs you, then a task just
-  finished, then you're interacting with Boop, then something is working,
-  then idle;
+  changes, in [BEHAVIORS.md](BEHAVIORS.md) §1's layers: something needing
+  you wins, a moment (a cheer, an oops, a reply) plays over the base
+  state, and the base state is working while any agent works, asleep with
+  no sessions or at night with nothing working, and otherwise idle;
 - calls actions for the immediate reactions (a cheer, an oops, a nod) and
   for Boop's occasional working chatter;
 - turns events, taps and talk into triggers for the harness. It merges
@@ -118,21 +120,25 @@ out at once, and any that follow within 3 s are held and sent as one when
 the window ends, keeping the most important line (a failure, then a long
 finish, then a finish or a tap, then a start) with "+N more".
 
-The brain adds to the rules' reaction and never cuts it off. The app knows
-how long each rule moment plays on the device (the firmware's animation
-lengths, or the mumble's if longer), and holds a moment from a brain tool
-call until the last rule moment and the core's pending follow-ups
-(`side_eye` after `oops`, `yawn` after `stretch`, `gobble`) are over.
-`listening` and `thinking` don't hold anything back: the brain's reply is
-meant to replace `thinking`.
+The brain adds to the rules' reaction and never cuts it off. The app
+estimates how long each rule moment plays with the device's own rule: the
+animation's length scaled by `pace`, with a cheer's size adjusted by
+`energy`, or, if longer, the mumble's syllables (the word is two beats)
+plus 1.2 s to read the bubble. It holds a moment from a brain tool call
+until the last rule moment and the core's pending follow-ups (`side_eye`
+after `oops`, `yawn` after `stretch`, `gobble`) are over. `listening` and
+`thinking` don't hold anything back: the brain's reply is meant to replace
+`thinking`.
 
 ### 3.3 Harness and brain
 
 The harness is a small, generic loop ([HARNESS.md](HARNESS.md)). It builds a
 prompt, calls a model and routes tool calls, without knowing what the tools
 do. The brain is whatever model is plugged in: Apple's on-device model by
-default, or a cloud model with the person's own API key. It's assumed to be
-small, so the tools are few, flat and mostly multiple choice.
+default, or the rules-only brain. A cloud brain with the person's own API
+key is an interface only in v1 (`cloud:<model>`), switched on later
+([FUTURE.md](FUTURE.md)). The brain is assumed to be small, so the tools are
+few, flat and mostly multiple choice.
 
 ### 3.4 Actions
 
@@ -145,7 +151,8 @@ brain, so a cheer looks the same whichever of them asked for it.
 | `face` | `name` | Sends an animation to the device as a moment |
 | `quiet` | `minutes` | Tells the core to stop mumbles for a while |
 | `note` | `text` | Adds a line to today's notes |
-| `remember`, `forget`, `temperament`, `moment` | short text | Reflection only: change long-term memory within its limits (v1 reflection doesn't offer `forget`, §11) |
+| `remember` | `text` (short), `kind` (`about_you` or `preference`) | Reflection only: adds a line to About you or Preferences within its limits |
+| `forget`, `temperament`, `moment` | short text | Reflection only: change long-term memory within its limits (v1 reflection doesn't offer `forget`, §11) |
 
 Each action checks its own rules and quietly drops (and logs) anything that
 breaks them. For example, `say` drops a word that isn't in its vocabulary,
@@ -162,16 +169,19 @@ sounds like. See [VOICE.md](VOICE.md).
 
 ### 3.6 Memory store
 
-The memory store is the only code that reads or writes the Markdown files
-(§4). It hands their text to the harness for each prompt, applies changes
-from actions within each section's limits, writes atomically, and snapshots
-the files before each reflection.
+The memory store is the only code that reads or writes `long-term.md` and
+`short-term.md` (§4). `steering.md` is bundled read-only in the app and
+passed to the store as text. The store hands all three files' text to the
+harness for each prompt, applies changes from actions within each
+section's limits, writes atomically, and snapshots the files before each
+reflection.
 
 ### 3.7 Device link
 
-The device link sends snapshots and moments and receives taps and
-push-to-talk presses ([PROTOCOL.md](PROTOCOL.md)). It has two transports
-carrying identical messages:
+The device link sends snapshots and moments and receives taps,
+push-to-talk presses and the device's other inputs
+([PROTOCOL.md](PROTOCOL.md) §4). It has two transports carrying identical
+messages:
 
 - **Bluetooth**, for normal use.
 - **USB serial**, for development and automated tests. An agent can't launch
@@ -189,8 +199,10 @@ transcript once the brain has answered.
 
 ## 4. Memory files
 
-All of Boop's memory is three Markdown files in the app's data directory.
-Every brain call includes all three.
+All of Boop's memory is three Markdown files. `steering.md` is bundled
+read-only in the app and passed in as text; `long-term.md` and
+`short-term.md` live in the app's state directory (§11). Every brain call
+includes all three.
 
 | File | What it is | Changes |
 | --- | --- | --- |
@@ -300,8 +312,8 @@ Mood is internal. It shapes behaviour and is only visible in debug mode.
 ## 5. Common event shape
 
 ```json
-{"agent":"codex","session":"a1b2","project":"landing","event":"turn_end",
- "detail":{"duration_s":1080,"topic":"tests"},"ts":1790000000123}
+{"agent":"claude_code","detail":{"tool":"Bash","topic":"tests"},"event":"activity",
+ "project":"landing","session":"a1b2","ts":1790000000123}
 ```
 
 | Field | Meaning |
@@ -310,7 +322,7 @@ Mood is internal. It shapes behaviour and is only visible in debug mode.
 | `session` | Stable session or thread ID |
 | `project` | Short project name, from the working directory |
 | `event` | `session_start`, `turn_start`, `needs_you`, `activity`, `turn_end`, `turn_failed`, `session_end` |
-| `detail` | Small and event-specific: duration, tool name, a topic tag ([ADAPTERS.md](ADAPTERS.md) §3). Never prompt text, commands or file contents |
+| `detail` | Small and event-specific: `tool` and `topic` on `activity`, `tool` on `needs_you`, and `error`, an error class, on `turn_failed` ([ADAPTERS.md](ADAPTERS.md) §2–3); nothing on the others. Never prompt text, commands or file contents. The core measures how long a turn took itself, from its start |
 | `ts` | Milliseconds |
 
 Adding an agent later means one new adapter that produces this shape.
@@ -343,8 +355,9 @@ Adding an agent later means one new adapter that produces this shape.
 
 The device is a thin client. It draws what the latest snapshot says, plays
 moments, runs its own short timers (blinks, idle life, the nudge ladder) and
-reports taps and push-to-talk. It holds no personality or memory, just a
-device ID, its touch calibration, and its animation and syllable library.
+reports taps, push-to-talk, focus and touch-and-hold. It holds no
+personality or memory, just a device ID, its touch calibration, and its
+animation and syllable library.
 What it does for each trigger is in [BEHAVIORS.md](BEHAVIORS.md); the
 hardware and firmware are in [DEVICE.md](DEVICE.md).
 
@@ -355,8 +368,8 @@ hardware and firmware are in [DEVICE.md](DEVICE.md).
 | App not running | Hooks exit at once; agents are unaffected. The device idles with a sleepy "no app" face |
 | Device disconnected | The app keeps going; the next snapshot catches the device up on reconnect |
 | Brain offline, slow or invalid | Rules still drive every reaction; the rules-only fallbacks in `steering.md` fill in; memory doesn't grow that day |
-| Memory file won't parse | The memory store restores its last snapshot |
-| Mac asleep | The device drifts to sleep after 30 s without a message |
+| Memory file won't parse | `long-term.md` comes back from its newest snapshot that reads; `short-term.md` starts fresh (§4) |
+| Mac asleep | The device drifts to sleep after 30 s without a `state` |
 
 ## 9. Budgets
 
@@ -364,7 +377,7 @@ hardware and firmware are in [DEVICE.md](DEVICE.md).
 | --- | --- |
 | Agent event → pixel | < 200 ms p95 |
 | Tap → visible feedback | < 20 ms, on the device |
-| Hook overhead | Single-digit ms; never waits |
+| Hook overhead | Single-digit ms. When the app is slow, the hook waits at most 50 ms in total, then gives up |
 | Brain call, live triggers | 3–5 s deadline; late results are dropped |
 | Reflection | Minutes, in the background |
 
@@ -422,7 +435,7 @@ When a spec changes direction, add a row here saying why.
 | 2026-09-26 | Trigger merging is leading-edge with a held follow-up; finishes within 3 s make one cheer, upgraded if a later one is bigger | Holding every trigger for 3 s would make the brain late every time, and the reactive loop can't wait | §3.2, [BEHAVIORS.md](BEHAVIORS.md) §3.1 |
 | 2026-09-26 | A late `Notification` within 5 s of a clear is ignored; an hour without events makes a working session idle, and a day forgets it | A quick approval could otherwise turn Boop amber again with nothing waiting, and a missed `SessionEnd` would keep it busy | [ADAPTERS.md](ADAPTERS.md) §4 |
 | 2026-09-26 | `state` cuts names to 23 bytes and drops thread rows to stay within 512 bytes | Eight rows of long project names overflow a line, and the device keeps names in 24-byte fields | [PROTOCOL.md](PROTOCOL.md) §3 |
-| 2026-09-26 | Days together count the day of setup as day 1; failed turns earn no XP; the Growth line carries `lost` while starving | The stats screen shouldn't say 0 days, "finishes" means `turn_end`, and starving must survive restarts | [BEHAVIORS.md](BEHAVIORS.md) §4, §4.2 |
+| 2026-09-26 | Days together count the day of setup as day 1; failed turns earn no XP; the Growth line carries `lost` while starving | The stats screen shouldn't say 0 days, "finishes" means `turn_end`, and starving must survive restarts | [BEHAVIORS.md](BEHAVIORS.md) §4 |
 | 2026-09-26 | The memory files have byte budgets (3,200 and 2,400), enforced by the store | The line limits alone allow about 1,600 tokens of long-term memory, twice its share of the prompt | §4 |
 | 2026-09-26 | A broken `short-term.md` starts fresh (keeping its date); a broken file is kept as `.broken`; the store rereads files changed on disk | Short-term snapshots are always of an earlier day, and hand edits shouldn't be lost or overwritten | §4 |
 | 2026-09-26 | `temperament` adds a sentence (up to five, replacing the oldest); `moment` drops the oldest past 20; `remember` refuses when full | Flat, one-argument tools a small model can use, and memory that keeps growing without breaking its limits | §4.2, [HARNESS.md](HARNESS.md) §6 |
@@ -437,7 +450,7 @@ When a spec changes direction, add a row here saying why.
 | 2026-09-26 | Apple's schema starts every choice with `none` | Without it the model filled `word` with the vocabulary's first entry (`tests`) on greetings and praise | [HARNESS.md](HARNESS.md) §7 |
 | 2026-09-26 | `moment` refuses a text that retells an earlier moment | Apple's model copied the sample's old moment for a new day | [HARNESS.md](HARNESS.md) §6 |
 | 2026-09-26 | `boopctl bridge` shares the serial port on a Unix socket; every board line goes to every client, and other `boopctl` commands use a running bridge | The headless app and the checks need the board at the same time, and only one process can open the port | [VERIFICATION.md](VERIFICATION.md) §2 |
-| 2026-09-26 | The app's state lives in `~/Library/Application Support/Boop` (memory files, `settings.json`, the socket, `boop.log`, `bin/boop-hook`); hooks call that copy of `boop-hook` | One place per Boop, and hooks survive rebuilding or moving the app | [ADAPTERS.md](ADAPTERS.md) §5 |
+| 2026-09-26 | The app's state lives in `~/Library/Application Support/Boop` (memory files, their `history/` snapshots and any `*.broken` copies, `settings.json`, the socket, `boop.lock`, `boop.log`, `doctor-armed` while the doctor is armed, `bin/boop-hook`); hooks call that copy of `boop-hook` | One place per Boop, and hooks survive rebuilding or moving the app | [ADAPTERS.md](ADAPTERS.md) §5 |
 | 2026-09-26 | Installing Codex hooks also sets `codex_hooks = true` in `~/.codex/config.toml`; removing leaves it | Codex ignores `hooks.json` without it, and other hooks may rely on it | [ADAPTERS.md](ADAPTERS.md) §5 |
 | 2026-09-26 | Headless mode accepts `{"dev":"talk","words":…}` on the hook socket, for `boopdev talk`; the menu-bar app ignores it | Push-to-talk needs the Mac's mic, which tests can't use; the socket is already private to the user | [VERIFICATION.md](VERIFICATION.md) §2 |
 | 2026-09-26 | The app logs hooks only while `doctor-armed` exists in its state directory | The doctor needs to see a hook arrive; logging every tool call the rest of the time is noise | [ADAPTERS.md](ADAPTERS.md) §6 |
@@ -455,3 +468,5 @@ When a spec changes direction, add a row here saying why.
 | 2026-09-26 | The screen is landscape, 320×240, with USB-C on the right (F6). The canvas is 320×240 and LovyanGFX turns the physical 240×320 panel with one constant, `kRotation` (1, or 3 if the board shows that upside down). Touch maps raw readings in pure C++ even before calibration, turned by the same constant; a stored calibration keeps the screen size and rotation it was fitted on, and one for any other screen is ignored (the portrait build's record is deleted). The test pattern gains a black bar down the USB-C edge | The owner uses Boop sideways, as the gen-2 face was. Letting the panel controller turn the picture keeps the push in row order with no per-pixel work, and the drawing code only ever sees the canvas size. A portrait calibration applied to the landscape screen would send taps to the wrong place. In landscape the UP arrow no longer points away from USB-C, so the pattern needs its own mark for the port's side | [UX.md](UX.md) §2, [DEVICE.md](DEVICE.md) §4 and §7, [VERIFICATION.md](VERIFICATION.md) §3 and L3 |
 | 2026-09-26 | The eyes are solid rounded rectangles with no pupil, iris or highlight (F6). A look moves the whole eye, and the eye on the side looked towards grows a little; `Pose::pupil` became `Pose::eyeSize`; where a lid meets the edge of an eye the corner is rounded | The owner found the pupils too realistic: cream eyes with a dark pupil read as real eyeballs, and gen-2's solid eyes were cuter. Without pupils, the size of the whole eye takes over from pupil size: curious, listening, needs you and love bigger, worried and busy smaller, as their pupils were, while startled now widens its eyes where it used to shrink its pupils. Thinking can't roll its pupils up any more, so it lifts round-topped eyes instead of lidding them, which would make it the working face mirrored. A sharp lid corner was the last hard point on a soft face, so the corner is rounded wherever a lid meets the edge of an eye, with a smaller radius where 8 px doesn't fit | [UX.md](UX.md) §2, [PLAN.md](PLAN.md) F6 |
 | 2026-09-26 | Setup and settings open inside the popover, not in windows; volume, focus and "I'm away" move from the overview to Settings; the board's id isn't shown; the app takes gen-2's "Boop Cream" look, with a small copy of the face in the popover and as the menu-bar icon | The owner found the setup window jarring, the overview crowded with controls and debug data, and preferred gen-2's styling and flow | [UX.md](UX.md) §6–7 |
+| 2026-09-26 | The cloud brain is an interface only in v1: `cloud:<model>` refuses every call, and settings offers Apple's model or rules | Apple's model is the default and needs no key; wiring and testing a provider can wait | §3.3, [HARNESS.md](HARNESS.md) §7, [FUTURE.md](FUTURE.md) |
+| 2026-09-26 | The Mac answers every `status` with a `state`, not only the first after connecting | It's one extra `state` a minute, and it covers a connect-time `status` sent before the Mac subscribed over Bluetooth | [PROTOCOL.md](PROTOCOL.md) §4–5 |

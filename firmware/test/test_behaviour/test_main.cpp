@@ -353,6 +353,89 @@ static void test_touch_and_hold_shows_the_mood() {
   }
 }
 
+// BEHAVIORS.md §1: while something needs you, only nod, listening,
+// thinking, shrug and zip play, so touch and hold shows no mood face. The
+// press squash still shows at once (UX.md §4).
+static void test_touch_and_hold_during_needs_you_plays_no_face() {
+  struct Case {
+    int energy, hungry;
+    bool night;
+  } cases[] = {{100, 0, false}, {150, 0, false}, {40, 0, false}, {100, 0, true}, {100, 1, false}, {100, 2, false}};
+  for (const Case& c : cases) {
+    Rig r;
+    Model m = attn();
+    m.energy = c.energy, m.hungry = c.hungry, m.night = c.night;
+    r.state(m);
+    r.at(1000);
+    render::Pose before = r.b.pose(1000);
+    r.b.pressDown(1000);
+    TEST_ASSERT_TRUE(r.b.pose(1016) != before);
+    r.at(1600);
+    r.b.pressUp(1600);
+    r.b.feel(1600, r.rng);
+    TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
+    TEST_ASSERT_EQUAL(Screen::kNeedsYou, r.b.screen(r.t));
+  }
+  // A tap's nod answers you, and a touch and hold doesn't cut it short.
+  Rig r;
+  r.state(attn());
+  r.at(1000);
+  r.b.tap(1000, r.rng);
+  r.at(1200);
+  r.b.feel(1200, r.rng);
+  TEST_ASSERT_EQUAL(Anim::kNod, r.anim());
+  // With no app, nothing is known to need you, so the face shows again
+  // (as for a moment from the Mac).
+  r.at(31000);
+  TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
+  r.b.feel(r.t, r.rng);
+  TEST_ASSERT_EQUAL(Anim::kHappy, r.anim());
+}
+
+// BEHAVIORS.md §3.3: listening lasts until release, capped at 30 s, and the
+// device ends thinking with a shrug after 8 s. Those are timeouts, so the
+// mood's pace (§1) doesn't stretch or shrink them; it still paces the shrug.
+static void test_push_to_talk_timeouts_ignore_pace() {
+  for (int pace : {70, 140}) {
+    Rig r;
+    Model m = base("idle");
+    m.pace = pace;
+    r.state(m);
+    r.b.talkOn(0, r.rng);
+    keepAlive(r, m, 29999);
+    TEST_ASSERT_EQUAL(Anim::kListening, r.anim());
+    r.at(30000);
+    TEST_ASSERT_EQUAL(Anim::kNone, r.anim());  // the cap
+    r.b.talkOff(r.t, r.rng);
+    const uint32_t start = r.t;
+    keepAlive(r, m, start + 7999);
+    TEST_ASSERT_EQUAL(Anim::kThinking, r.anim());
+    r.at(start + 8000);
+    TEST_ASSERT_EQUAL(Anim::kShrug, r.anim());  // no reply came
+    uint32_t shrug = render::animDuration(Anim::kShrug, 1) * 100 / uint32_t(pace);
+    r.at(start + 8000 + shrug - 1);
+    TEST_ASSERT_EQUAL(Anim::kShrug, r.anim());
+    r.at(start + 8000 + shrug);
+    TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
+  }
+}
+
+// PLAN.md §6, morning checklist row 4: the no-app screen ignores a strip
+// tap, so threads doesn't open later when a `state` arrives within 10 s.
+static void test_strip_tap_on_no_app_is_ignored() {
+  Rig r;
+  r.state(base("idle"));
+  r.at(30000);
+  TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
+  r.b.stripTap(r.t);
+  TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
+  r.at(35000);
+  r.state(base("idle"));  // the Mac is back, 5 s after the tap
+  TEST_ASSERT_EQUAL(Screen::kFace, r.b.screen(r.t));
+  r.b.stripTap(r.t);  // and a tap cycles again
+  TEST_ASSERT_EQUAL(Screen::kThreads, r.b.screen(r.t));
+}
+
 static void test_press_shows_within_20ms() {
   Rig r;
   r.state(base("idle"));
@@ -448,6 +531,20 @@ static void test_gestures_send_the_right_inputs() {
   TEST_ASSERT_TRUE(r.usb.text.find("\"k\":\"tap\"", taps) == std::string::npos);
 }
 
+// BEHAVIORS.md §1 and PROTOCOL.md §4: touch and hold during needs you
+// shows no face, but still sends `feel` (the Mac adds no mumble then).
+static void test_touch_and_hold_during_needs_you_still_sends_feel() {
+  DevRig r;
+  r.line("{\"t\":\"state\",\"base\":\"working\",\"attn\":{\"agent\":\"codex\",\"project\":\"landing\"}}");
+  r.line("{\"t\":\"dbg.touch\",\"x\":160,\"y\":100,\"ms\":800}");  // hold the face
+  r.clock(700);
+  TEST_ASSERT_TRUE(r.has("\"k\":\"feel\""));
+  r.usb.text.clear();
+  r.line("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(r.has("\"screen\":\"needs_you\""));
+  TEST_ASSERT_TRUE(r.has("\"moment\":null"));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_ladder_rungs_chirps_and_pulses);
@@ -464,8 +561,12 @@ int main() {
   RUN_TEST(test_threads_close_after_10s_untouched);
   RUN_TEST(test_push_to_talk_listens_thinks_then_shrugs);
   RUN_TEST(test_touch_and_hold_shows_the_mood);
+  RUN_TEST(test_touch_and_hold_during_needs_you_plays_no_face);
+  RUN_TEST(test_push_to_talk_timeouts_ignore_pace);
+  RUN_TEST(test_strip_tap_on_no_app_is_ignored);
   RUN_TEST(test_press_shows_within_20ms);
   RUN_TEST(test_hunger_rumbles_and_never_lights_or_sounds);
   RUN_TEST(test_gestures_send_the_right_inputs);
+  RUN_TEST(test_touch_and_hold_during_needs_you_still_sends_feel);
   return UNITY_END();
 }

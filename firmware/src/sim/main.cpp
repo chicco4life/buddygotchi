@@ -6,12 +6,10 @@
 #ifndef PIO_UNIT_TESTING
 #include <chrono>
 #include <cstdio>
-#include <cstring>
-#include <iostream>
-#include <string>
 #include <vector>
 
 #include "app/device.h"
+#include "app/line_reader.h"
 
 namespace {
 
@@ -38,10 +36,12 @@ int main() {
   device.setOut(app::Link::kUsb, &out);
   device.tick();
 
-  std::string line;
-  while (std::getline(std::cin, line)) {
-    if (line.empty()) continue;
-    device.handleLine(line.data(), line.size(), app::Link::kUsb);
+  // Lines go through the board's own LineReader, so a line over its limit
+  // (plan/PROTOCOL.md §2) is dropped here exactly as on USB.
+  app::LineReader reader;
+  for (int c; (c = std::getchar()) != EOF;) {
+    if (!reader.feed(char(c))) continue;
+    device.handleLine(reader.line(), reader.length(), app::Link::kUsb);
     device.tick();
     std::fflush(stdout);
   }

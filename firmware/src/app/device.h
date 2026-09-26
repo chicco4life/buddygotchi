@@ -161,7 +161,8 @@ class Device {
   bool touchDown_ = false, touchHeld_ = false, touchStrip_ = false;
   uint32_t touchAt_ = 0;
 
-  // The line playing (its moment's number), and the last sound cue heard.
+  // The line playing (its moment's number), and the last sound cue handled
+  // (played or dropped). A newer cue waits while the line plays.
   bool saying_ = false;
   uint32_t sayMoment_ = 0;
   const char* sfxSeen_ = nullptr;

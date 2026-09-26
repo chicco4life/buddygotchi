@@ -144,7 +144,8 @@ public final class Runtime: @unchecked Sendable {
                 let now = clock()
                 if moments.inRules > 0 {
                     link.play(moment)
-                    moments.rulesUntil = max(moments.rulesUntil, now + moment.playMs)
+                    // As the device times it, with the mood the last state carried.
+                    moments.rulesUntil = max(moments.rulesUntil, now + moment.playMs(mood: core.currentMood(at: now)))
                     return
                 }
                 moments.held.append(moment)
@@ -162,14 +163,16 @@ public final class Runtime: @unchecked Sendable {
         harness = Harness(brain: Brains.make(options.brain ?? settings.brain, log: log), tools: actions.map(Harness.Tool.init),
                           memory: { memory.promptMemory(for: $0.kind) }, home: home, debugLog: options.debugLog,
                           log: log)
-        harness.onRecord = { record in
-            let answer = record.dropped.map { "dropped: \($0)" }
-                ?? (record.ran.isEmpty ? "quiet" : record.ran.map { "\($0.call)" }.joined(separator: ", "))
-            log("brain \(record.trigger.kind.rawValue) \(record.latencyMs) ms → \(answer)")
-        }
+        // Tool names only: arguments can carry what you said (HARNESS.md §8).
+        harness.onRecord = { record in log(record.logLine) }
         route = { [weak self] in self?.run($0) }
         if settings.focus { _ = core.setFocus(true, at: now) }
-        if settings.away { _ = core.setAway(true, at: now) }
+        if settings.away {
+            // Away keeps the day it started; an older settings file without
+            // that day starts it today and saves it.
+            _ = core.setAway(true, since: settings.awaySince, at: now)
+            if settings.awaySince != core.awaySince { saveSettings { $0.awaySince = core.awaySince } }
+        }
     }
 
     // MARK: Running
@@ -351,7 +354,10 @@ public final class Runtime: @unchecked Sendable {
     public func setAway(_ on: Bool) {
         home.async { [self] in
             run(core.setAway(on, at: options.clock()))
-            saveSettings { $0.away = on }
+            saveSettings {
+                $0.away = on
+                $0.awaySince = core.awaySince
+            }
             changed()
         }
     }

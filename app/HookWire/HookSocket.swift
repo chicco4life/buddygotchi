@@ -12,9 +12,15 @@ public enum HookSocket {
 
     /// Writes `data` to the socket and returns whether it was sent. Gives up
     /// if the socket is missing or doesn't accept within `timeoutMs`; never
-    /// blocks longer than that.
+    /// blocks longer than that. Connecting and writing share the one
+    /// budget (ADAPTERS.md §2, ARCHITECTURE.md §9).
     @discardableResult
     public static func send(_ data: Data, to path: String, timeoutMs: Int32 = 50) -> Bool {
+        send(data, to: path, deadline: DispatchTime.now().uptimeNanoseconds + UInt64(max(0, timeoutMs)) * 1_000_000)
+    }
+
+    /// `send` against a deadline in `DispatchTime` uptime nanoseconds.
+    static func send(_ data: Data, to path: String, deadline: UInt64) -> Bool {
         let fd = socket(AF_UNIX, SOCK_STREAM, 0)
         guard fd >= 0 else { return false }
         defer { close(fd) }
@@ -29,7 +35,8 @@ public enum HookSocket {
             }
         }
         if connected != 0 {
-            guard errno == EINPROGRESS || errno == EAGAIN, wait(fd, for: Int16(POLLOUT), ms: timeoutMs) else {
+            guard errno == EINPROGRESS || errno == EAGAIN, let ms = msLeft(until: deadline),
+                  wait(fd, for: Int16(POLLOUT), ms: ms) else {
                 return false
             }
             var error: Int32 = 0
@@ -38,7 +45,7 @@ public enum HookSocket {
             guard error == 0 else { return false }
         }
 
-        let deadline = DispatchTime.now().uptimeNanoseconds + UInt64(timeoutMs) * 1_000_000
+        // The write gets what the connect left of the budget, not a fresh one.
         var offset = 0
         return data.withUnsafeBytes { raw -> Bool in
             guard let base = raw.baseAddress else { return true }
@@ -48,12 +55,18 @@ public enum HookSocket {
                     offset += n
                     continue
                 }
-                let now = DispatchTime.now().uptimeNanoseconds
-                guard n < 0, errno == EAGAIN, now < deadline,
-                      wait(fd, for: Int16(POLLOUT), ms: Int32((deadline - now) / 1_000_000) + 1) else { return false }
+                guard n < 0, errno == EAGAIN, let ms = msLeft(until: deadline),
+                      wait(fd, for: Int16(POLLOUT), ms: ms) else { return false }
             }
             return true
         }
+    }
+
+    /// Whole milliseconds to the deadline, rounded up; nil once it's passed.
+    static func msLeft(until deadline: UInt64) -> Int32? {
+        let now = DispatchTime.now().uptimeNanoseconds
+        guard now < deadline else { return nil }
+        return Int32(min(UInt64(Int32.max), (deadline - now + 999_999) / 1_000_000))
     }
 
     static func wait(_ fd: Int32, for events: Int16, ms: Int32) -> Bool {

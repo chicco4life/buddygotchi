@@ -120,6 +120,20 @@ final class InstallerTests: XCTestCase {
         try XCTAssertEqual(try String(contentsOf: home.appendingPathComponent(".codex/config.toml"), encoding: .utf8), toml)
     }
 
+    /// ADAPTERS.md §5: "The app shows exactly what it will add", and for
+    /// Codex that includes the switch in `config.toml`, until it's on.
+    func testTheCodexPreviewShowsTheConfigChange() throws {
+        let toml = home.appendingPathComponent(".codex/config.toml")
+        let preview = installer.preview(.codex)
+        XCTAssertTrue(preview.hasPrefix("SessionStart (startup|resume|clear) → \"\(hook)\" codex\n"), preview)
+        XCTAssertTrue(preview.hasSuffix("SessionEnd → \"\(hook)\" codex\n\nIn \(toml.path), under [features]:\ncodex_hooks = true"),
+                      preview)
+        XCTAssertFalse(installer.preview(.claude).contains("codex_hooks"))
+        try installer.install(.codex)
+        try XCTAssertTrue(try String(contentsOf: toml, encoding: .utf8).contains("codex_hooks = true"))
+        XCTAssertFalse(installer.preview(.codex).contains("codex_hooks"), "already on, so nothing to add")
+    }
+
     func testFeatureFlagEdits() {
         XCTAssertEqual(HookInstaller.enablingCodexHooks(in: ""), "[features]\ncodex_hooks = true\n")
         XCTAssertEqual(HookInstaller.enablingCodexHooks(in: "a = 1"), "a = 1\n\n[features]\ncodex_hooks = true\n")

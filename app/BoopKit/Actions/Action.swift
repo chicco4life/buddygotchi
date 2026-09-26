@@ -15,13 +15,25 @@ public struct DeviceMoment: Equatable, Sendable {
         self.ttl = ttl
     }
 
-    /// How long the device plays it, as `animDuration` in
-    /// firmware/src/render/anim.cpp, or the mumble if that's longer.
-    /// `listening` and `thinking` count as 0: they last until something
-    /// replaces them.
-    public var playMs: Int64 {
-        let size = Swift.max(1, Swift.min(3, self.size))
-        let anim: Int64 = switch self.anim {
+    /// Bubble time after the last syllable (firmware `kBubbleReadMs`).
+    static let bubbleReadMs: Int64 = 1200
+
+    /// How long the device plays it, given the mood in the last `state` it
+    /// was sent, worked out as firmware/src/app/behaviour.cpp's `onMoment`
+    /// and `play` do: a cheer is a size smaller when energy is under 60 and
+    /// a size bigger at 140 or more; the animation's length
+    /// (`animDuration` in firmware/src/render/anim.cpp) is scaled by 100 ÷
+    /// pace, with pace held to 70–140; and a mumble lasts its syllables,
+    /// plus two beats for a word, at 60–400 ms each, then 1.2 s for the
+    /// bubble, when that's longer. `listening` and `thinking` count as 0:
+    /// the device holds them until something replaces them.
+    public func playMs(mood: Mood) -> Int64 {
+        var size = Swift.max(1, Swift.min(3, self.size))
+        if anim == "cheer" {
+            if mood.energy < 60 { size = Swift.max(1, size - 1) }
+            if mood.energy >= 140 { size = Swift.min(3, size + 1) }
+        }
+        let base: Int64 = switch anim {
         case "listening", "thinking": 0
         case "nod": 600
         case "cheer": Int64(size + 1) * 380 + 500
@@ -33,7 +45,12 @@ public struct DeviceMoment: Equatable, Sendable {
         case "levelup": 2400
         default: 2500
         }
-        return Swift.max(anim, say.map { Int64($0.ms * $0.syllableCount) } ?? 0)
+        var ms = base * 100 / Int64(Swift.max(70, Swift.min(140, mood.pace)))
+        if let say, say.syllableCount > 0 {
+            let beats = Int64(say.syllableCount + (say.word?.isEmpty == false ? 2 : 0))
+            ms = Swift.max(ms, beats * Int64(Swift.max(60, Swift.min(400, say.ms))) + DeviceMoment.bubbleReadMs)
+        }
+        return ms
     }
 
     public var jsonLine: String {
@@ -95,11 +112,13 @@ public protocol Action: AnyObject {
 extension Action {
     public var name: String { definition.name }
 
-    /// Runs a call and logs why it was dropped, if it was.
+    /// Runs a call and logs why it was dropped, if it was. The log gets the
+    /// reason, never the arguments, which can carry what you said
+    /// (HARNESS.md §8).
     @discardableResult
     public func run(_ call: ToolCall) -> ActionOutcome {
         let outcome = call.name == name ? perform(call) : .dropped("sent to \(name)")
-        if case .dropped(let why) = outcome { context.log("\(name): dropped \(call): \(why)") }
+        if case .dropped(let why) = outcome { context.log("\(name): dropped: \(why)") }
         return outcome
     }
 

@@ -29,7 +29,7 @@ struct Model {
   bool focus = false;
   int vol = 6;
   bool night = false;
-  char name[16] = "";
+  char name[24] = "";  // the Mac clips it to 23 bytes on a character boundary
   int level = 1, prog = 0, days = 0;
   int hungry = 0;
   render::Thread threads[8];
@@ -75,9 +75,9 @@ class Behaviour {
   void tap(uint32_t t, Rng& rng);  // BOOT or the face
   void talkOn(uint32_t t, Rng& rng);
   void talkOff(uint32_t t, Rng& rng);
-  void feel(uint32_t t, Rng& rng);  // touch and hold the face
+  void feel(uint32_t t, Rng& rng);  // touch and hold the face; no face while something needs you
   void toggleFocus(uint32_t t);
-  void stripTap(uint32_t t);    // cycles face → threads → stats
+  void stripTap(uint32_t t);    // cycles face → threads → stats; the no-app screen ignores it
   void contentTap(uint32_t t);  // a tap on threads or stats goes back to the face
   // dbg.light: holds the LED and backlight until the next state.
   void overrideLed(uint32_t rgb) { ledOverride_ = true, ledSet_ = rgb; }

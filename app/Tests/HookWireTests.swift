@@ -110,6 +110,42 @@ final class HookWireTests: XCTestCase {
         XCTAssertLessThan(Date().timeIntervalSince(start), 0.05)
     }
 
+    /// ADAPTERS.md §2 and ARCHITECTURE.md §9: the hook gives up if the app
+    /// is slow to accept, and connecting and writing share one 50 ms budget,
+    /// so the write never starts a fresh one.
+    func testConnectingAndWritingShareOneDeadline() throws {
+        // An app that listens but never reads: a big line fills the socket
+        // buffer, so the write has to wait for room.
+        let path = "/tmp/boop-slow-\(getpid()).sock"
+        unlink(path)
+        let server = socket(AF_UNIX, SOCK_STREAM, 0)
+        XCTAssertGreaterThanOrEqual(server, 0)
+        defer {
+            close(server)
+            unlink(path)
+        }
+        var address = try XCTUnwrap(HookSocket.unixAddress(path))
+        let bound = withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(server, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
+        }
+        XCTAssertEqual(bound, 0)
+        XCTAssertEqual(listen(server, 8), 0)
+        let big = Data(count: 1 << 20)
+
+        // A budget already spent (on connecting) leaves the write none.
+        var start = Date()
+        XCTAssertFalse(HookSocket.send(big, to: path, deadline: DispatchTime.now().uptimeNanoseconds))
+        XCTAssertLessThan(Date().timeIntervalSince(start), 0.045, "no fresh 50 ms for the write")
+
+        // The whole send gives up within its budget, give or take scheduling.
+        start = Date()
+        XCTAssertFalse(HookSocket.send(big, to: path, timeoutMs: 50))
+        XCTAssertLessThan(Date().timeIntervalSince(start), 0.5)
+
+        // A line that fits goes straight through, with time to spare.
+        XCTAssertTrue(HookSocket.send(Data("x\n".utf8), to: path))
+    }
+
     func testDefaultSocketPath() {
         XCTAssertEqual(HookSocket.defaultPath(environment: ["HOME": "/Users/x"]),
                        "/Users/x/Library/Application Support/Boop/boop.sock")

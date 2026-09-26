@@ -6,16 +6,21 @@ import XCTest
 /// Wednesday afternoon, with today's rituals already done.
 final class CoreRig {
     static let start: Int64 = 1_791_986_400_000
+    static let day: Int64 = 24 * 3600 * 1000
     let time = LocalTime(timeZone: TimeZone(identifier: "UTC")!)
     var now: Int64
     let core: Core
     var log: [CoreEffect] = []
 
-    init(start: Int64 = CoreRig.start, growth: Growth? = nil, newDay: Bool = false, seed: UInt64 = 1) {
+    /// `awaySince` restores "I'm away" from settings, as the app does after
+    /// a restart, before the first tick.
+    init(start: Int64 = CoreRig.start, growth: Growth? = nil, newDay: Bool = false, seed: UInt64 = 1,
+         awaySince: String? = nil) {
         now = start
         let today = time.day(start)
         core = Core(config: .init(name: "Pip", time: time, seed: seed), growth: growth ?? Growth(hatched: today),
                     lastActiveDay: newDay ? nil : today, now: start)
+        if let awaySince { core.setAway(true, since: awaySince, at: start) }
         if !newDay { core.tick(at: start) }  // the first snapshot has gone out
     }
 
@@ -300,12 +305,44 @@ final class CoreYouAndBoopTests: XCTestCase {
         XCTAssertFalse(t.first!.line.contains("shut"), "the words travel apart from the line")
     }
 
-    func testTouchAndHoldGetsAMumbleFromTheMood() {
-        let rig = CoreRig()
-        XCTAssertEqual(mumbles(rig.input(.feel)), ["curious"])
-        rig.turn(10_000)
-        rig.turn(10_000, session: "s2")
-        XCTAssertEqual(mumbles(rig.input(.feel)), ["happy"])
+    /// BEHAVIORS.md §3.3, touch and hold the face: the device shows a face
+    /// from the mood in its last `state` at once (firmware `Behaviour::feel`),
+    /// and the Mac's mumble plays under that same face, so it doesn't change.
+    func testTouchAndHoldMumblesUnderTheFaceTheDeviceShows() {
+        /// The device's rule, from the state it was sent.
+        func deviceFace(_ s: StateSnapshot) -> String {
+            if s.hungry >= 2 { return "worried" }
+            if s.hungry == 1 { return "curious" }
+            if s.night || s.mood.energy < 60 { return "sleepy" }
+            if s.mood.energy >= 140 { return "love" }
+            return "happy"
+        }
+        func check(_ rig: CoreRig, _ feeling: String, _ face: String, _ why: String) {
+            let fx = rig.input(.feel)
+            XCTAssertEqual(mumbles(fx), [feeling], why)
+            XCTAssertEqual(deviceFace(rig.state), face, why)
+            XCTAssertEqual(SayAction.faces[Feeling(rawValue: feeling)!], face, why)
+        }
+        check(CoreRig(), "happy", "happy", "fed, daytime, neutral energy")
+        check(CoreRig(growth: Growth(hatched: "2026-09-01", lastFed: "2026-10-01")), "sad", "worried", "starving")
+        check(CoreRig(growth: Growth(hatched: "2026-09-01", lastFed: "2026-10-11")), "curious", "curious", "hungry")
+        check(CoreRig(start: CoreRig.start + 9 * 3600 * 1000), "sleepy", "sleepy", "23:00")
+
+        let tired = CoreRig()
+        for _ in 0..<3 {
+            tired.send(.turnStart)
+            tired.send(.turnFailed)
+        }
+        XCTAssertLessThan(tired.state.mood.energy, 60)
+        check(tired, "sleepy", "sleepy", "tired")
+
+        let bouncy = CoreRig()
+        for i in 0..<4 { bouncy.turn(5000, session: "q\(i)") }
+        XCTAssertGreaterThanOrEqual(bouncy.state.mood.energy, 140)
+        check(bouncy, "hopeful", "love", "very bouncy")
+
+        // Other mumbles still come from Boop's own feeling rule.
+        XCTAssertEqual(CoreRig().core.feeling(CoreRig.start), "curious")
     }
 
     func testFirstActivityOfTheDayStretchesThenYawns() {
@@ -426,6 +463,43 @@ final class CoreGrowthTests: XCTestCase {
         XCTAssertEqual(moments(fx), [])
         XCTAssertEqual(mumbles(fx), [])
         XCTAssertEqual(triggers(fx), [])
+    }
+
+    /// BEHAVIORS.md §4: "I'm away" in the app pauses hunger, across a
+    /// restart too: the pause keeps the day it started, and a hungry Boop
+    /// loses nothing while you're gone.
+    func testAwaySurvivesARestart() {
+        let rig = CoreRig(growth: Growth(xp: 60, hatched: "2026-09-01", lastFed: "2026-10-09"))
+        rig.core.setAway(true, at: rig.now)
+        XCTAssertEqual(rig.core.awaySince, "2026-10-14")
+        XCTAssertEqual(rig.state.hungry, 1)
+
+        // Ten days on, the app starts again with away restored from settings.
+        let restarted = CoreRig(start: rig.now + 10 * CoreRig.day, growth: rig.core.growth,
+                                awaySince: rig.core.awaySince)
+        XCTAssertEqual(restarted.core.awaySince, "2026-10-14", "the pause keeps its first day")
+        XCTAssertEqual(restarted.state.hungry, 1, "as hungry as when you left, not starving")
+        restarted.wait(3000)
+        XCTAssertEqual(restarted.core.growth.xp, 60, "no XP lost while away")
+        let fx = restarted.core.setAway(false, at: restarted.now)
+        XCTAssertEqual(growths(fx).last?.lastFed, "2026-10-19", "moved on by the ten away days")
+        XCTAssertEqual(restarted.state.hungry, 1)
+        XCTAssertEqual(restarted.core.growth.xp, 60)
+    }
+
+    /// BEHAVIORS.md §4: XP earned while away is a meal, so coming back adds
+    /// only the away days after it, and "last fed" never passes today.
+    func testFeedingWhileAwayThenReturningStopsAtToday() {
+        let rig = CoreRig(growth: Growth(xp: 10, hatched: "2026-09-01", lastFed: "2026-10-13"))
+        rig.core.setAway(true, at: rig.now)
+        rig.now += 6 * CoreRig.day
+        rig.turn(10_000)  // a new day's first activity and a finished turn
+        XCTAssertEqual(rig.core.growth.lastFed, "2026-10-20")
+        XCTAssertEqual(rig.core.growth.xp, 16)
+        rig.now += 3 * CoreRig.day
+        let fx = rig.core.setAway(false, at: rig.now)
+        XCTAssertEqual(growths(fx).last?.lastFed, "2026-10-23", "today, not nine days on from the meal")
+        XCTAssertEqual(rig.state.hungry, 0)
     }
 
     func testAwayPausesHunger() {

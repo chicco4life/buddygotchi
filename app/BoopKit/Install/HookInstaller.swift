@@ -84,10 +84,16 @@ public struct HookInstaller {
         return NSDictionary(dictionary: installing(agent, into: root)).isEqual(to: root) ? .installed : .outdated
     }
 
-    /// What installing adds, one line per hook, for the setup screen.
+    /// What installing adds, one line per hook, for the setup screen, which
+    /// puts the config file's path above it. For Codex it ends with the
+    /// switch installing turns on in `config.toml`, unless it's already on.
     public func preview(_ agent: Agent) -> String {
-        Self.events[agent]!.map { "\($0.event)\($0.matcher.map { " (\($0))" } ?? "") → \(command(agent))" }
+        var text = Self.events[agent]!.map { "\($0.event)\($0.matcher.map { " (\($0))" } ?? "") → \(command(agent))" }
             .joined(separator: "\n")
+        if agent == .codex, Self.enablingCodexHooks(in: codexConfigText) != nil {
+            text += "\n\nIn \(codexConfigURL.path), under [features]:\ncodex_hooks = true"
+        }
+        return text
     }
 
     // MARK: Changing
@@ -198,11 +204,14 @@ public struct HookInstaller {
     /// Boop adds the line if it's missing and never removes it: other hooks
     /// may rely on it.
     func enableCodexHooks() throws {
-        let url = home.appendingPathComponent(".codex/config.toml")
-        let toml = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
-        guard let updated = Self.enablingCodexHooks(in: toml) else { return }
-        try updated.write(to: url, atomically: true, encoding: .utf8)
+        guard let updated = Self.enablingCodexHooks(in: codexConfigText) else { return }
+        try updated.write(to: codexConfigURL, atomically: true, encoding: .utf8)
     }
+
+    var codexConfigURL: URL { home.appendingPathComponent(".codex/config.toml") }
+
+    /// `config.toml` as it is now; empty if it isn't there.
+    var codexConfigText: String { (try? String(contentsOf: codexConfigURL, encoding: .utf8)) ?? "" }
 
     /// `toml` with `codex_hooks = true` in `[features]`, or nil if it's
     /// already there.

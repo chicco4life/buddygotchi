@@ -89,7 +89,9 @@ final class ActionTests: XCTestCase {
         }
         XCTAssertEqual(rig.sent, [])
         XCTAssertEqual(rig.logs.count, bad.count)
-        XCTAssertTrue(rig.logs[1].contains("word \"kubernetes\" isn't one of its choices"), rig.logs[1])
+        // HARNESS.md §8: the reason names the argument, never its value.
+        XCTAssertEqual(rig.logs[1], "say: dropped: word isn't one of its choices")
+        for line in rig.logs { XCTAssertFalse(line.contains("kubernetes") || line.contains("hello there"), line) }
     }
 
     func testSayIsSilentWhenMumblesArent() {
@@ -163,7 +165,11 @@ final class ActionTests: XCTestCase {
         XCTAssertEqual(lt.temperament, ["Trusts Codex more than it used to."])
         XCTAssertEqual(lt.moments.map(\.date), ["2026-10-15"])
         XCTAssertEqual(rig.logs.count, 6)
-        for line in rig.logs { XCTAssertTrue(line.contains(": dropped "), line) }
+        for line in rig.logs { XCTAssertTrue(line.contains(": dropped: "), line) }
+        // The name refusal doesn't repeat the name: it's logged (HARNESS.md §8).
+        XCTAssertFalse(rig.run(ToolCall("remember", ["text": .string("Works with Bob."), "kind": .string("about_you")])).isDone)
+        XCTAssertEqual(rig.logs.last, "remember: dropped: looks like someone's name")
+        XCTAssertFalse(rig.logs.contains { $0.contains("Bob") })
     }
 
     func testACallToTheWrongActionIsDropped() {

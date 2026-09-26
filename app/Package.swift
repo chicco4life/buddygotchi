@@ -19,7 +19,9 @@ var packageTargets: [Target] = [
         swiftSettings: useXCTestShim ? [.unsafeFlags(["-enable-testing"])] : []
     ),
     // Everything that isn't the app shell: Adapters, Core, Harness, Brains,
-    // Actions, Voice, Memory, DeviceLink, Talk (plan/ARCHITECTURE.md §3).
+    // Actions, Voice, Memory, DeviceLink, the hook installer (Install) and
+    // the Runtime that wires them together (App) (plan/ARCHITECTURE.md §3).
+    // Push-to-talk's mic lives in the app, in Boop/Talk.swift.
     .target(
         name: "BoopKit",
         dependencies: ["HookWire"],
@@ -48,7 +50,8 @@ var packageTargets: [Target] = [
         dependencies: ["HookWire"],
         path: "BoopHook"
     ),
-    // Developer CLI: replay, talk, brain runs, memory dump.
+    // Developer CLI: replay, memory dump, voice lines, brain runs, talk and
+    // the hook installer (hooks).
     .executableTarget(
         name: "BoopDev",
         dependencies: ["BoopKit", "HookWire"],

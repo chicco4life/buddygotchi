@@ -1,6 +1,6 @@
 ---
 name: webcam-verify
-description: Verify physical Buddy animations using bounded webcam recordings and consecutive-frame review. Use only when the user explicitly requests webcam verification; never activate for ordinary testing, animation edits, or a connected device alone.
+description: Verify Boop's physical screen and animations using bounded webcam recordings and consecutive-frame review. Use only when the user explicitly requests webcam verification; never activate for ordinary testing, animation edits, or a connected device alone.
 ---
 
 # Opt-in webcam verification
@@ -12,8 +12,8 @@ this repository's root for commands, camera setup, evidence and limitations.
 
 - Only use on an explicit request such as “use webcam verification” or
   `$webcam-verify`. General requests to verify changes do not enable the camera.
-- Before a live recording, the user must confirm Buddy is positioned for the
-  current verification session. Accept an existing “ready” confirmation in
+- Before a live recording, the user must confirm the board is positioned for
+  the current verification session. Accept an existing “ready” confirmation in
   that session; do not ask again for each clip. If setup has ended or this is a
   later session, obtain fresh setup confirmation. Previous camera permission
   and earlier recordings are not standing authorization to record.
@@ -26,11 +26,14 @@ this repository's root for commands, camera setup, evidence and limitations.
 1. Discover cameras; explicitly select the intended laptop camera. Take a short
    framing clip and inspect `preview.png`. If the display is out of frame or
    unreadable, ask for repositioning before recording the scenarios.
-2. Choose natural app/BLE operation or controlled USB injection. For USB, ensure
-   Boop is quit; do not launch it. `STATE.connected` indicates recent data,
-   including USB, not exclusively BLE. Resume the presentation clock and avoid
-   frozen-clock screenshots during recording. Record installed firmware identity;
-   do not assume it matches the checkout or flash it merely to use this skill.
+2. Choose natural app/Bluetooth operation or controlled USB injection. For USB,
+   check `tools/boopctl ping` (`dbg.ping`, `plan/VERIFICATION.md` §3): `ble`
+   must not be `conn` and `link` must not be `ble`, because a connected Mac
+   app's `state` messages replace yours (L2's one-writer rule). Don't launch
+   the app to fix it; ask the owner. Run the clock (`tools/boopctl clock run`)
+   and avoid frozen-clock screenshots during recording. Record the installed
+   firmware's `fw` and `sha` from `ping`; do not assume it matches the checkout
+   or flash it merely to use this skill.
 3. Start video-only recording before triggering the requested motion. Wait for
    `RECORDING`, retain scenario events, and use actual video timestamps for onset
    and duration; the host callback and requested clip duration are approximate.

@@ -2,7 +2,7 @@
 
 Run 2026-09-26 on branch `v1-overnight`. Checks ran against firmware
 `174d429931`, flashed from that commit. Full output is in
-[checks.log](checks.log).
+`checks.log` (kept locally, not in git).
 
 ## What was built
 

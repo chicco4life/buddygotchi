@@ -9,6 +9,9 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var volume = 6
     public var focus = false
     public var away = false
+    /// The day "I'm away" started, `yyyy-MM-dd`, so a restart keeps pausing
+    /// hunger from then rather than from the day it restarts.
+    public var awaySince: String?
     /// Boop's record (UX.md §7): turns finished and how many projects, as
     /// totals. Project names are kept only to count them.
     public var finished = 0
@@ -23,6 +26,7 @@ public struct AppSettings: Codable, Equatable, Sendable {
         volume = try c.decodeIfPresent(Int.self, forKey: .volume) ?? volume
         focus = try c.decodeIfPresent(Bool.self, forKey: .focus) ?? focus
         away = try c.decodeIfPresent(Bool.self, forKey: .away) ?? away
+        awaySince = try c.decodeIfPresent(String.self, forKey: .awaySince)
         finished = try c.decodeIfPresent(Int.self, forKey: .finished) ?? finished
         projects = try c.decodeIfPresent([String].self, forKey: .projects) ?? projects
     }

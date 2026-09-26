@@ -59,6 +59,7 @@ make flash        # build and upload over USB
 make fw-test      # firmware unit tests on the Mac
 make sim          # build the renderer simulator
 make e2e          # hook → app → USB → board pipeline check
+make webcam-test  # the webcam recorder's tests, on synthetic video (no camera)
 ```
 
 `tools/boopctl` talks to the board over USB:

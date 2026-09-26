@@ -4,8 +4,8 @@ The owner asked for a pass on the Mac app: simple, but nice, elegant and
 cute. Setup was a jarring window, the overview showed the board's id
 (`b00p-54fe`) and held the volume, focus and away controls, settings was a
 separate window, and gen-2's styling and flow were better. The spec is
-[UX.md](../../UX.md) §6–7; the decision is in
-[ARCHITECTURE.md](../../ARCHITECTURE.md) §11.
+[UX.md](../../../UX.md) §6–7; the decision is in
+[ARCHITECTURE.md](../../../ARCHITECTURE.md) §11.
 
 ## What changed
 
@@ -25,7 +25,7 @@ separate window, and gen-2's styling and flow were better. The spec is
 | --- | --- |
 | `make build` (`swift build`, all products) | Passed |
 | `make test` | 166 passed, 0 skipped |
-| `app/.build/debug/Boop --snapshots plan/evidence/2026-09-26-mac-app-ui` | 22 PNGs, all opened and checked against UX.md §7 in light and dark: nothing clipped, no board id, readable text |
+| `app/.build/debug/Boop --snapshots plan/evidence/v1-build/A5` | 22 PNGs, all opened and checked against UX.md §7 in light and dark: nothing clipped, no board id, readable text |
 
 Found and fixed on the way, from the snapshots: the header line truncated
 next to the connection pill (shortened), the pill was squeezed (fixed
@@ -50,4 +50,4 @@ pill uses a rounded rectangle).
 The app in the real menu bar (opening, the popover's resizing, typing the
 name, the switches' accent colour when the popover is key) needs the
 owner, because an agent can't launch the app with Bluetooth. That's
-morning checklist rows 5 and 7 ([PLAN.md](../../PLAN.md) §6).
+morning checklist rows 5 and 7 ([PLAN.md](../../../PLAN.md) §6).

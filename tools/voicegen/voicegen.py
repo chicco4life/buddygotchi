@@ -8,8 +8,9 @@ firmware/assets/voice.h, is checked in; rerun this only to change the voice:
     tools/.venv/bin/python tools/voicegen/voicegen.py [--wav-dir DIR]
 
 The syllable set and the vocabulary come from
-app/BoopKit/Voice/Sounds.swift, the single source, in its order: the
-firmware finds a clip by its index in those lists.
+app/BoopKit/Voice/Sounds.swift, the single source, in its order. Each clip
+is stored with its name, and the firmware looks clips up by that name
+(firmware/src/voice/player.cpp), so the order doesn't matter to it.
 
 Syllables use an Italian voice, so vowels come out pure and open (VOICE.md
 §3); a few are respelled so Italian reads them the way Voice means them

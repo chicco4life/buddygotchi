@@ -32,7 +32,7 @@ Run 2026-09-26 on branch `v1-overnight`, started from tag `gen2-final`
 
 ## Checks
 
-All ran in one pass; full output in [checks.log](checks.log).
+All ran in one pass; full output in `checks.log` (kept locally, not in git).
 
 | Check | Result |
 | --- | --- |

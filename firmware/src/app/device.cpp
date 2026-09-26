@@ -361,16 +361,21 @@ void Device::hush() {
 }
 
 // Stops a line whose moment ended or was replaced (a tap's wiggle, say),
-// and plays new sound cues (BEHAVIORS.md). A cue waits out a line: the
-// jingle arrives with the cheer that carries the line.
+// and plays new sound cues (BEHAVIORS.md §6). A cue that arrives during a
+// line waits it out (VOICE.md §8), since a cue on the DAC would cut the
+// line: the jingle arrives with the cheer that carries the line, and plays
+// when the line ends, as the mouth stops (or sooner, if the line is hushed).
+// A newer cue replaces a waiting one, and focus and volume are checked when
+// it plays.
 void Device::followSound(uint32_t t) {
   if (saying_ && (b_.momentSeq() != sayMoment_ || !b_.mumble(t))) hush();
   uint32_t at;
   const char* k = b_.sfx(at);
   if (k == sfxSeen_ && at == sfxSeenAt_) return;
+  if (saying_ && b_.speaking(t)) return;  // the line is still playing
   sfxSeen_ = k, sfxSeenAt_ = at;
   const Model& m = b_.model();
-  if (k && !saying_ && !m.focus && m.vol > 0) hal_.cue(voice::cueFromName(k), uint8_t(m.vol > 10 ? 10 : m.vol));
+  if (k && !m.focus && m.vol > 0) hal_.cue(voice::cueFromName(k), uint8_t(m.vol > 10 ? 10 : m.vol));
 }
 
 void Device::render(uint32_t t) {

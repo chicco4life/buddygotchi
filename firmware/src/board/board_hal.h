@@ -31,7 +31,7 @@ class BoardHal : public app::Hal {
   void cue(voice::Cue c, uint8_t vol) override;
   void hush() override;
   app::AudioOut audioOut() override;
-  bool usbPowered() override { return true; }  // no battery in v1 (DEVICE.md §2)
+  bool usbPowered() override { return true; }  // no battery in v1 (DEVICE.md §3)
   const char* deviceId() override { return id_; }
   const char* bleState() override { return bleState_; }
   const char* bleName() override { return bleName_; }

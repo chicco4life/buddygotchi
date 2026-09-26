@@ -90,8 +90,6 @@ already there.
   like how they work or what they told you. Not what an agent did.
 - Flaky tests, failed builds and finished turns are about the agents.
   Never `remember` them.
-- `forget` only a line under About you or Preferences that yesterday's
-  notes say is wrong. Most days, forget nothing.
 - `temperament`: change at most one sentence, and only if today gave a
   reason.
 - `moment`: only for a truly memorable day. Most days aren't.
@@ -107,7 +105,7 @@ Reflection on an ordinary day of builds and tests:
 
 ## Fallbacks
 
-Used when no brain is configured.
+Used when the brain is set to rules, or Apple's model can't run.
 
 | Trigger | Fallback |
 | --- | --- |

@@ -49,6 +49,17 @@ public final class Harness: @unchecked Sendable {
         /// The brain declined to answer (a guardrail); nothing ran.
         public var refused: Bool { dropped?.hasPrefix(BrainError.refusedPrefix) ?? false }
 
+        /// The one line the app logs for a call outside debug mode (§8): the
+        /// trigger kind, the latency and the tools that ran, or why nothing
+        /// did. Never argument values, which can carry what you said:
+        /// `brain talk 812 ms → face, quiet`. A call its action or a limit
+        /// dropped shows as `note (dropped)`; the action logs why.
+        public var logLine: String {
+            let tools = ran.map { $0.outcome.isDone ? $0.call.name : "\($0.call.name) (dropped)" }
+            let answer = dropped.map { "dropped: \($0)" } ?? (tools.isEmpty ? "quiet" : tools.joined(separator: ", "))
+            return "brain \(trigger.kind.rawValue) \(latencyMs) ms → \(answer)"
+        }
+
         public var json: String {
             var o: [String: Any] = [
                 "trigger": ["kind": trigger.kind.rawValue, "line": trigger.line, "ts": trigger.ts],

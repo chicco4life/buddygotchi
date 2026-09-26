@@ -38,7 +38,7 @@ mode.
 | System prompt under 1,000 tokens, plus AGENTS.md | A few lines of preamble, plus `steering.md` |
 | Four tools | A handful of actions, at most four offered per trigger |
 | `pi-ai`: one API over many providers | The `Brain` interface (§7) |
-| Tool arguments validated against schemas | Same, and that's the only check the harness makes |
+| Tool arguments validated against schemas | Same. Beyond that the harness checks only the answer's shape and each tool's limits (§3, §5) |
 | Plans and to-dos live in files | Memory lives in three Markdown files |
 | Sessions saved as inspectable JSON | Every call logged as one JSON line, in debug mode |
 | No MCP, sub-agents or plan mode | Same, and no multi-turn loop either |
@@ -65,7 +65,7 @@ a single turn.
 6. **Hand off** each tool call to the action that registered it, in order.
    A call that would pass its tool's limit (a second `say` in one answer) is
    dropped instead.
-7. **Log** the call, in debug mode.
+7. **Log** the call: in full in debug mode, otherwise one short line (§8).
 
 At startup, the app gives the harness its tools as a list of
 `(definition, handler)` pairs. That's what keeps the harness generic. A
@@ -98,7 +98,9 @@ user:    long-term.md
 
 The trigger line carries only what's needed: what happened, the agent,
 project and topic, how long it took, the time, and whether Boop is hungry.
-For `talk` it carries your words.
+A failed turn adds its error class (`error: rate limit`), and a trigger
+merged from a burst ends with `· +N more`
+([ARCHITECTURE.md](ARCHITECTURE.md) §3.2). For `talk` it carries your words.
 
 The whole prompt fits in about 3,000 tokens. The memory store's line limits
 keep the files within budget, so the harness never has to trim. Apple's
@@ -162,8 +164,8 @@ Each action writes its own tool definition. For example, `say` publishes:
 
 ```json
 {"name":"say","description":"Mumble. Pick a feeling; add one word only if it helps.",
- "parameters":{"feeling":{"enum":["happy","proud","curious","annoyed","sad","sleepy","hopeful","excited"]},
-               "word":{"enum":["tests","build","docs","deploy","bug","done","finally","yay","oops","hmm","food","…"],"optional":true}}}
+ "parameters":{"feeling":{"enum":["happy","excited","proud","curious","hopeful","annoyed","sad","sleepy"]},
+               "word":{"enum":["tests","build","docs","deploy","bug","fix","ship","code","merge","review","yay","…"],"optional":true}}}
 ```
 
 The word list is Voice's vocabulary ([VOICE.md](VOICE.md) §6). Whatever the
@@ -173,7 +175,7 @@ All eight tools, as their actions define them (`app/BoopKit/Actions/`):
 
 | Tool | Arguments | The action's own checks |
 | --- | --- | --- |
-| `say` | `feeling` (one of 8), `word?` (one of 40) | Dropped in quiet or focus mode or while something needs you. Plays the feeling's face (`happy`, `proud`, `curious`, `love` for hopeful, `side_eye` for annoyed, `worried` for sad, `sleepy`) under the mumble |
+| `say` | `feeling` (one of 8), `word?` (one of 40) | Dropped in quiet or focus mode or while something needs you. Plays the feeling's face (`happy`, `happy` at size 2 for excited, `proud`, `curious`, `love` for hopeful, `side_eye` for annoyed, `worried` for sad, `sleepy`) under the mumble |
 | `face` | `name`: `happy`, `proud`, `smug`, `curious`, `sleepy`, `worried`, `sulky`, `love` or `side_eye` | The core's rules may play any animation through the same action |
 | `quiet` | `minutes`: 15, 30, 60 or 120 | — |
 | `note` | `text`, at most 80 characters | Memory's rules: one line, no code, paths or secrets, no duplicates |
@@ -190,14 +192,14 @@ dropped call is logged with the reason.
 
 ```
 Brain
-  id                                      e.g. "apple:<os>", "cloud:<model>@<version>", "rules@1"
+  id                                      e.g. "apple:<os>", "cloud:<model>", "rules@1"
   complete(system, user, tools, deadline) -> [tool call]
 ```
 
 | Brain | Notes |
 | --- | --- |
-| Apple on-device | **The default.** Small, private and free. Guided generation with a schema built at runtime: a leading `react` choice (`stay quiet` or `react`, since a small model rarely leaves a list empty on its own), then up to three calls whose choices are constrained. Every choice starts with `none`, which leaves an optional argument out or drops the call, because the model otherwise drifts to a list's first entry. Guardrails are set to `permissiveContentTransformations`; a guardrail refusal is dropped like any brain error (Boop keeps the rule reaction), but marked as a refusal so L5 counts it apart. Text lengths are only asked for, so the shape check still applies. Everything must work well on this |
-| Cloud API | Optional, with the person's own API key. Wittier, with the same tools and limits |
+| Apple on-device | **The default.** Small, private and free. Guided generation with a schema built at runtime: a leading `react` choice (`stay quiet` or `react`, since a small model rarely leaves a list empty on its own), then up to three calls whose choices are constrained. Every list of words to choose from starts with `none`, which leaves an optional argument out or drops the call, because the model otherwise drifts to a list's first entry; lists of numbers (like `quiet`'s minutes) don't. Guardrails are set to `permissiveContentTransformations`; a guardrail refusal is dropped like any brain error (Boop keeps the rule reaction), but marked as a refusal so L5 counts it apart. Text lengths are only asked for, so the shape check still applies. Everything must work well on this |
+| Cloud API | Interface only in v1: `cloud:<model>` refuses every call, so Boop keeps its rule reactions. Wiring it to the person's own API key comes later ([FUTURE.md](FUTURE.md)); it should be wittier, with the same tools and limits |
 | Rules only | No model. Reads the fallback table from `steering.md` in the system prompt and the trigger from the now section, like any brain. The most specific matching row wins (`Tap, hungry` over `Tap`); "long" means 5 minutes or more. Always available, and used when Apple's model can't run |
 
 The brain in use is pinned, and switching is a setting the person changes.
@@ -209,5 +211,7 @@ break the rules.
 
 In debug mode, each call is logged as one JSON line: the trigger, the brain,
 the full prompt, the raw answer, what the shape check dropped, which actions
-ran and what they dropped, and the latency. Otherwise nothing is written to
-disk, because `talk` entries contain what you said.
+ran and what they dropped, and the latency. Otherwise the app log gets one
+line per call: the trigger kind, the latency and the names of the tools
+that ran, never their arguments. Outside debug mode, the words you said
+and what the brain answered never reach the log.

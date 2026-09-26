@@ -19,10 +19,18 @@ import FoundationModels
 /// still has work to do.
 public struct AppleBrain: Brain {
     public let id: String
+    /// Why the model can't run right now, or nil; asked before every call.
+    let unavailable: @Sendable () -> String?
 
     public init() {
+        self.init(unavailable: { AppleBrain.unavailableReason })
+    }
+
+    /// Tests pass their own `unavailable` so they never reach the model.
+    init(unavailable: @escaping @Sendable () -> String?) {
         let v = ProcessInfo.processInfo.operatingSystemVersion
         id = "apple:\(v.majorVersion).\(v.minorVersion)"
+        self.unavailable = unavailable
     }
 
     /// Nil when the model can be used, otherwise why not.
@@ -38,8 +46,13 @@ public struct AppleBrain: Brain {
     }
 
     public func complete(system: String, user: String, tools: [ToolDefinition], deadline: Duration) async throws -> String {
+        // The model can stop being available after launch (it's updating,
+        // or Apple Intelligence was turned off): this call gets the rules
+        // brain's answer instead (HARNESS.md §7).
+        if unavailable() != nil {
+            return try await RulesBrain().complete(system: system, user: user, tools: tools, deadline: deadline)
+        }
         #if canImport(FoundationModels)
-        if let why = AppleBrain.unavailableReason { throw BrainError("apple model unavailable: \(why)") }
         let schema = try AppleBrain.schema(tools)
         let model = SystemLanguageModel(guardrails: .permissiveContentTransformations)
         let session = LanguageModelSession(model: model, instructions: system)
@@ -48,9 +61,12 @@ public struct AppleBrain: Brain {
                                                      options: GenerationOptions(temperature: 0.5))
             return AppleBrain.fromList(response.content.jsonString, tools: tools)
         } catch let error as LanguageModelSession.GenerationError {
+            // Only the case name: a refusal's or decoding failure's details can
+            // carry generated text, which never goes to the log (HARNESS.md §8).
+            let kind = String(describing: error).prefix { $0 != "(" }
             switch error {
-            case .guardrailViolation, .refusal: throw BrainError.refused("apple: \(error)")
-            default: throw BrainError("apple: \(error)")
+            case .guardrailViolation, .refusal: throw BrainError.refused("apple: \(kind)")
+            default: throw BrainError("apple: \(kind)")
             }
         }
         #else
@@ -139,7 +155,8 @@ public struct CloudBrain: Brain {
 }
 
 /// The brain setting (HARNESS.md §7): `apple` (the default), `rules`, or
-/// `cloud:<model>`. Apple's model falls back to rules when it can't run.
+/// `cloud:<model>`. Apple's model falls back to rules when it can't run: for
+/// good if it can't at launch, and call by call if it stops later.
 public enum Brains {
     public static func make(_ setting: String, log: (String) -> Void = { _ in }) -> any Brain {
         switch setting {

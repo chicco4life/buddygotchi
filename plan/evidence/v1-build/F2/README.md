@@ -1,7 +1,7 @@
 # F2: Renderer and simulator — evidence
 
 Run 2026-09-26 on branch `v1-overnight`. Device checks ran against firmware
-`c47e775e53`, flashed from that commit. Outputs: [run.log](run.log) (every
+`c47e775e53`, flashed from that commit. Outputs: `run.log` (kept locally, not in git; every
 scenario on the board) and [perf.json](perf.json).
 
 ## What was built

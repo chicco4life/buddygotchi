@@ -37,7 +37,7 @@ From [soak-apple.json](soak-apple.json):
   lines in 31 real minutes is within it.
 
 Files: [soak-apple.txt](soak-apple.txt) (every step),
-[soak-app-apple.log](soak-app-apple.log) (the app's trace),
+`soak-app-apple.log` (the app's trace; kept locally, not in git),
 [soak-brain-apple.jsonl.gz](soak-brain-apple.jsonl.gz) (the brain's
 prompts and answers), and the two needs-you screenshots from the last round.
 

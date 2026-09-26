@@ -83,7 +83,10 @@ uint32_t BoardHal::heapFree() { return heap_caps_get_free_size(MALLOC_CAP_8BIT);
 
 uint32_t BoardHal::heapMin() { return heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT); }
 
-uint32_t BoardHal::batteryMv() { return analogReadMilliVolts(pins::kBattery) * 2; }  // 2:1 divider, assumed
+uint32_t BoardHal::batteryMv() {
+  if (!pins::kHasBattery) return 0;
+  return analogReadMilliVolts(pins::kBattery) * 2;  // 2:1 divider, assumed
+}
 
 bool BoardHal::ampOn() { return digitalRead(pins::kAmpEnable) == LOW; }
 

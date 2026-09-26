@@ -42,7 +42,7 @@ Each level answers a different question:
 | `make sim` / `tools/boopctl sim` | The simulator. It builds the same drawing and behaviour code as the firmware for the Mac, runs a scenario, and writes PNGs |
 | `tools/boopctl` | The new device tool, replacing `buddyctl.py`. It's Python in `tools/.venv` (pyserial, Pillow), created by `make tools` |
 | `tools/boopctl bridge` | Owns the USB serial port and shares it through a Unix socket (`--socket`, default `$BOOP_BRIDGE` or `/tmp/boop-bridge.sock`), so the Mac app and other `boopctl` commands can use the board at the same time. Every line from the board goes to every client, and each client's lines reach the board whole. While a bridge runs, other `boopctl` commands (with `BOOP_BRIDGE` set to its socket, if it isn't the default) go through it instead of opening the port |
-| `tools/webcam/webcam.sh` | The existing AVFoundation recorder and frame extractor. `boopctl cam …` wraps it |
+| `tools/webcam/webcam.sh` | The existing AVFoundation recorder and frame extractor. `boopctl cam …` wraps it. `make webcam-test` tests it on synthetic video and never opens a camera |
 | `Boop --snapshots DIR` | Renders the Mac app's popover (five overview states, the whole settings pane, the four setup steps) and the menu-bar icons to PNGs, in light and dark, from fixed fixtures, then exits. No runtime, Bluetooth or microphone; the agents' settings it reads are in a throwaway HOME |
 | `boopdev` | A Swift CLI in the app package for replaying hooks, running the harness on recorded triggers, and printing the memory files. `boopdev replay <fixture>` alone runs the payloads through the hook's field picking, the adapter and the core on a virtual clock and prints every decision (`--states` for snapshots only); with `--socket` it sends them through the real `boop-hook` to a running app. `boopdev memory --state-dir DIR` prints the memory files as the store reads them, and the snapshot days. `boopdev voice <feeling> [word] --count N [--why]` prints the lines `say` would build, and with `--why` every rejected try. `boopdev brain [--brain apple\|rules] [--gap-min N] [--print]` runs L5: each fixture trigger through the real harness with a fresh copy of the sample memory, N minutes apart under one history of the limits, reporting refusals, valid shapes, dropped calls, speech, silence and latency, and logging every call to `/tmp/boop-brain/<brain>.jsonl` `boopdev talk "<words>" --socket PATH` hands a push-to-talk transcript to a running headless app. `boopdev hooks status\|install\|remove [claude\|codex] --home DIR` runs the hook installer against any HOME |
 
@@ -59,7 +59,6 @@ Each level answers a different question:
 | `sim <scenario>` | Play the same scenario in the simulator and save its PNGs |
 | `shot --out x.png` | Screenshot the device's canvas, at the size its `dbg.shot` header gives |
 | `diff a.png b.png` | Pixel diff. Exits non-zero past a threshold and writes a highlighted diff image. Pictures of different sizes differ in every pixel, and their diff image shows the two side by side |
-| `expect '<json>' [--timeout S]` | Poll `dbg.state` until it matches, or fail |
 | `press tap\|hold [--ms N]` | Inject a BOOT press |
 | `touch X Y [--ms N]` | Inject a touch at screen coordinates |
 | `clock freeze T \| step MS \| run` | Control the device clock for repeatable frames |
@@ -103,7 +102,7 @@ and the last line's `syl`, `word`, `plan_ms` (beats × `ms`), `out_ms`
 (samples rendered), `wall_ms` (the DAC's measured pace over those
 samples), `cut` (hushed or replaced) and `errors` (DAC writes that timed
 out). `dbg.state` also carries bring-up readings: `clock` (`now`, `frozen`), `boot` (BOOT's level), `touch`
-(`down`, `irq`, `raw` as x, y, z), `bat` in mV, `amp` and `bl`, and `rx`, the
+(`down`, `irq`, `raw` as x, y, z), `bat` in mV (0 on the v1 board, which has no battery), `amp` and `bl`, and `rx`, the
 `state` and `moment` messages received since boot (`{"state":N,"moment":M}`),
 which L4 uses to time a hook's `state` reaching the board.
 
@@ -128,7 +127,7 @@ runs in the simulator and on the device:
 
 ```json
 {"clock": 0}
-{"t":"state","base":"working","busy":1,"idle":0,"wait":0,"mood":{"energy":100,"pace":100,"pitch":100},"threads":[["claude","jetpack","work"]]}
+{"t":"state","v":1,"base":"working","busy":1,"idle":0,"wait":0,"mood":{"energy":100,"pace":100,"pitch":100},"threads":[["claude","jetpack","work"]]}
 {"clock": 800}
 {"shot": "working"}
 {"t":"moment","anim":"cheer","size":3,"ttl":5}
@@ -143,9 +142,11 @@ runs in the simulator and on the device:
 | --- | --- |
 | `{"clock": ms}` | Set the frozen clock to this time since the scenario started |
 | A protocol message | Sent as if it came from the Mac |
+| A `dbg.` message | Sent as a debug request (§3), such as `{"t":"dbg.pattern"}` |
 | `{"input": …}` | Inject a press or touch |
 | `{"shot": "name"}` | Save a picture as `name.png` |
-| `{"expect": {…}}` | Compare with `dbg.state`; fail on mismatch. Only the keys given are compared, recursively |
+| `{"expect": {…}}` | Read `dbg.state` once and compare; fail on mismatch. Only the keys given are compared, recursively |
+| `// …` | A comment; blank lines are skipped too |
 
 `input` lines don't move the clock: an injected press or touch stays down
 until the clock passes its duration (100 ms for a tap, 800 ms for a hold,
@@ -265,9 +266,10 @@ matters because an agent can't launch the app with Bluetooth on.
 3. The fixtures in `app/Tests/Fixtures/hooks/e2e/` (a Claude session, a
    Codex approval answered within 2 s, one left for 10 s) go through the
    real `boop-hook`. Besides payloads they hold checkpoints: `expect` (poll
-   `dbg.state` until it matches), `expect_not` (it mustn't match for a
-   while), `wait_ms`, `advance_ms` (move the app's clock, for a long turn)
-   and `shot` (a screenshot).
+   `dbg.state` until it matches, within `within_ms`, 2000 by default),
+   `expect_not` (it mustn't match for `for_ms`, or until `until_ms` after
+   the last hook), `wait_ms`, `advance_ms` (move the app's clock, for a long
+   turn) and `shot` on an `expect` line (a screenshot).
 4. Latency is from launching `boop-hook` to the board's `rx.state` count
    going up, on the host clock. A hook that changes nothing sends no
    `state`, and is left out.
@@ -315,9 +317,10 @@ morning checklist in [PLAN.md](PLAN.md).
 ## 6. Webcam rules
 
 The webcam stays opt-in ([CLAUDE.md](../CLAUDE.md)). A run may use it only
-when its prompt authorises it, as [LOOP.md](LOOP.md) does for the v1
-build, and the owner has positioned the board. The authorisation covers
-that run only.
+when its prompt authorises it and the owner has positioned the board. The
+authorisation covers that run only. [LOOP.md](LOOP.md) authorised it for
+the v1 build until the owner withdrew that on 2026-09-26, so the webcam is
+off for the rest of that run.
 
 - Clips are bounded: at most 10 s each, video only, no audio.
 - Raw recordings stay in `/tmp` and are deleted at the end of the run. Only

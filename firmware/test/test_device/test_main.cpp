@@ -8,6 +8,8 @@
 #include <vector>
 
 #include "app/device.h"
+#include "app/line_reader.h"
+#include "board/pins.h"
 #include "render/palette.h"
 
 void setUp() {}
@@ -446,6 +448,122 @@ static void test_cues_follow_the_behaviour() {
   TEST_ASSERT_EQUAL(0, int(s.hal.cues.size()));
 }
 
+// VOICE.md §8: a cue that arrives during a line waits it out, then plays
+// once. A newer cue replaces a waiting one, and focus or mute drop it.
+static void test_a_cue_during_a_line_waits_it_out() {
+  const char* idle = "{\"t\":\"state\",\"base\":\"idle\"}";
+  // Two beats of 100 ms: the line plays from 0 to 200 ms.
+  const char* cheer = "{\"t\":\"moment\",\"anim\":\"cheer\",\"size\":2,\"say\":{\"syl\":\"ba po\",\"ms\":100}}";
+  Rig r;
+  r.usbLine(idle);
+  r.usbLine(cheer);
+  TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
+  TEST_ASSERT_EQUAL(0, int(r.hal.cues.size()));
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":199}");
+  TEST_ASSERT_EQUAL(0, int(r.hal.cues.size()));
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":200}");
+  TEST_ASSERT_EQUAL(1, int(r.hal.cues.size()));
+  TEST_ASSERT_TRUE(r.hal.cues[0] == voice::Cue::kJingle);
+  TEST_ASSERT_EQUAL(0, r.hal.hushes);  // the line wasn't cut for it
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":3000}");
+  TEST_ASSERT_EQUAL(1, int(r.hal.cues.size()));  // once
+
+  // Needs you arrives mid-line: its chirp replaces the waiting jingle.
+  Rig n;
+  n.usbLine(idle);
+  n.usbLine(cheer);
+  n.usbLine("{\"t\":\"dbg.clock\",\"freeze\":100}");
+  n.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}");
+  n.usbLine("{\"t\":\"dbg.clock\",\"freeze\":3000}");
+  TEST_ASSERT_EQUAL(1, int(n.hal.cues.size()));
+  TEST_ASSERT_TRUE(n.hal.cues[0] == voice::Cue::kChirp);
+
+  // Focus or mute arrives mid-line: the waiting jingle is dropped.
+  const char* quiets[] = {"{\"t\":\"state\",\"base\":\"idle\",\"focus\":true}",
+                          "{\"t\":\"state\",\"base\":\"idle\",\"vol\":0}"};
+  for (const char* q : quiets) {
+    Rig f;
+    f.usbLine(idle);
+    f.usbLine(cheer);
+    f.usbLine("{\"t\":\"dbg.clock\",\"freeze\":100}");
+    f.usbLine(q);
+    f.usbLine("{\"t\":\"dbg.clock\",\"freeze\":3000}");
+    TEST_ASSERT_EQUAL(0, int(f.hal.cues.size()));
+  }
+}
+
+// PROTOCOL.md §3 and the ARCHITECTURE.md §11 decision log: the Mac clips
+// `name` to 23 bytes on a character boundary, for 24-byte fields on the
+// device. A 23-byte name reaches the stats screen whole. This one is 18
+// glyphs (five 2-byte "·"), the most the stats name area holds (UX.md §3).
+static void test_a_23_byte_name_reaches_the_stats_screen_whole() {
+  const char* name = "Pip\xC2\xB7" "Bo\xC2\xB7" "Kit\xC2\xB7" "Mo\xC2\xB7" "Ze\xC2\xB7" "D";
+  TEST_ASSERT_EQUAL(23, int(std::strlen(name)));
+  Rig r;
+  std::string st = std::string("{\"t\":\"state\",\"base\":\"idle\",\"name\":\"") + name + "\"}";
+  r.usbLine(st.c_str());
+  for (uint32_t t : {200u, 400u}) {  // two strip taps: threads, then stats
+    r.usbLine("{\"t\":\"dbg.touch\",\"x\":160,\"y\":222,\"ms\":100}");
+    char step[64];
+    std::snprintf(step, sizeof(step), "{\"t\":\"dbg.clock\",\"freeze\":%u}", unsigned(t));
+    r.usbLine(step);
+  }
+  TEST_ASSERT_EQUAL(app::Screen::kStats, r.dev.screen());
+  std::vector<uint8_t> px(size_t(render::kWidth) * render::kHeight);
+  render::Canvas want(px.data());
+  render::Stats stats;
+  stats.name = name;
+  render::drawStats(want, stats, render::Strip{});
+  TEST_ASSERT_EQUAL_MEMORY(px.data(), r.dev.canvas().pixels(), px.size());
+}
+
+// PROTOCOL.md §2: a line is at most 512 bytes. The board and boop-sim both
+// read their lines through LineReader, so a longer one is dropped whole on
+// both, and the next line is read as usual.
+static void test_lines_over_512_bytes_are_dropped() {
+  auto state = [](const char* base, size_t bytes) {
+    std::string s = std::string("{\"t\":\"state\",\"base\":\"") + base + "\",\"pad\":\"";
+    s += std::string(bytes - s.size() - 2, 'x') + "\"}";
+    return s;
+  };
+  Rig r;
+  app::LineReader reader;
+  auto feed = [&](const std::string& line) {
+    TEST_ASSERT_TRUE(line.size() <= 520);
+    for (char c : line + "\n") {
+      if (reader.feed(c)) r.dev.handleLine(reader.line(), reader.length(), app::Link::kUsb);
+    }
+    r.dev.tick();
+  };
+  std::string at512 = state("working", 512), at513 = state("asleep", 513);
+  TEST_ASSERT_EQUAL(512, int(at512.size()));
+  TEST_ASSERT_EQUAL(513, int(at513.size()));
+  feed(at512);
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"base\":\"working\""));
+  r.usb.text.clear();
+  feed(at513);
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"base\":\"working\""));  // dropped
+  r.usb.text.clear();
+  feed(state("asleep", 100));
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"base\":\"asleep\""));
+}
+
+// PROTOCOL.md §4 and DEVICE.md §3: the v1 board has no battery, so `bat` is
+// 0 (not a reading of the floating sense pin), and the field is still sent.
+// BoardHal::batteryMv only builds for the board; this pins the setting it
+// follows and the messages that carry it.
+static void test_no_battery_reports_bat_0() {
+  TEST_ASSERT_FALSE(pins::kHasBattery);
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");  // the Mac speaks: a status
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"bat\":0,\"usb\":1}"));
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"bat\":0,"));
+}
+
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_ping_reports_version_and_link);
@@ -470,5 +588,9 @@ int main() {
   RUN_TEST(test_say_reaches_the_player);
   RUN_TEST(test_mute_quiet_focus_and_needs_you_keep_it_silent);
   RUN_TEST(test_cues_follow_the_behaviour);
+  RUN_TEST(test_a_cue_during_a_line_waits_it_out);
+  RUN_TEST(test_a_23_byte_name_reaches_the_stats_screen_whole);
+  RUN_TEST(test_lines_over_512_bytes_are_dropped);
+  RUN_TEST(test_no_battery_reports_bat_0);
   return UNITY_END();
 }

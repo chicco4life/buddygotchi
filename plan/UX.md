@@ -40,10 +40,12 @@ shows, the face eases up into the top 144 px at three-quarters size.
   procedurally, blending between expressions in 150 ms or less. It never
   cuts hard. The eyes are solid rounded rectangles in one soft colour, a
   bit taller than wide and set wide apart, with no pupils or highlights,
-  so they read as a character rather than real eyeballs. To look
-  somewhere, the whole eye moves, and the eye on the side it looks towards
-  grows a little, as if Boop turned its head. Where a lid meets the edge
-  of an eye the corner is rounded, so a lid never leaves a sharp point.
+  so they read as a character rather than real eyeballs. They tint towards
+  the cheer glow during `cheer`, `love`, `levelup` and `gobble`, and
+  towards the oops red during `oops`. To look somewhere, the whole eye
+  moves, and the eye on the side it looks towards grows a little, as if
+  Boop turned its head. Where a lid meets the edge of an eye the corner is
+  rounded, so a lid never leaves a sharp point.
 - **Bubble.** Empty most of the time. It shows either a mumble's one real
   word, or who needs you.
 - **Status strip.** How many sessions need you (amber, hidden at zero) and
@@ -78,15 +80,16 @@ session with the agent's name on its first row:
 ```
 
 Rows show agent, project and status, never prompts or commands. Rows that
-need you come first. All 8 sessions fit, with a little space between
-agents when there's room; a long project name ends in "..". The view
-closes after 10 s untouched (*proposed*), and so does stats. Tapping
-anywhere above the strip goes back to the face. A new "needs you" also
-goes back, to the needs-you screen.
+need you come first. It shows up to 8 rows; the Mac drops rows from the end
+when the `state` line would pass 512 bytes ([PROTOCOL.md](PROTOCOL.md) §3).
+There's a little space between agents when there's room, and a long
+project name ends in "..". The view closes after 10 s untouched
+(*proposed*), and so does stats. Tapping anywhere above the strip goes back
+to the face. A new "needs you" also goes back, to the needs-you screen.
 
 **Stats.** The progress ring on the left with the level inside it, and the
 name and days together on the right (a name too long for the large type
-uses the small one). No mood, hunger numbers or traits.
+uses the small one, and one over 18 characters ends in ".."). No mood, hunger numbers or traits.
 
 **No app.** A sleepy face with an unplugged icon in the strip.
 
@@ -100,15 +103,18 @@ agents.
 | --- | --- |
 | Press BOOT, or tap the face | Boop it; acknowledges a cheer; quiets the nudges if something needs you |
 | Hold BOOT | Push-to-talk while held |
-| Tap the status strip | Cycle screens: face → threads → stats → face |
+| Tap the status strip | Cycle screens: face → threads → stats → face (ignored on the no-app screen) |
 | Touch and hold the status strip | Focus mode on or off |
-| Touch and hold the face | A mumble and face that show how Boop feels |
+| Touch and hold the face | A mumble and face that show how Boop feels (no face while something needs you) |
 
 A press shorter than 400 ms is a tap, and holding for 400 ms or more starts
 push-to-talk until you let go. A touch held for 600 ms or more is a
-touch-and-hold. Every press and touch gets visible feedback within 20 ms,
-before the Mac hears about it: pressing BOOT or the face squashes it a
-little, and a finger on the strip lights its top line amber.
+touch-and-hold. On the screens that show the face, every press and touch
+gets visible feedback within 20 ms, before the Mac hears about it: pressing
+BOOT or the face squashes it a little, and a finger on the strip lights its
+top line amber. On threads and stats the strip still lights at once, but
+anything else shows when the screen changes, on release (or when
+push-to-talk starts).
 
 When an external main button is added, it takes over BOOT's jobs, and BOOT
 becomes a secondary button: a press cycles screens and a hold toggles focus.
@@ -143,12 +149,15 @@ are thrown away after the reply.
       Bluetooth, and for the microphone on the first push-to-talk), then
       "Wake *name* up". This saves Boop, adds the chosen hooks and starts
       it.
-3. The app finds `Boop-XXXX` over Bluetooth and connects, and Boop wakes up
-   on the device for the first time. There's no pairing code in v1
-   ([PROTOCOL.md](PROTOCOL.md) §2).
-4. Boop uses Apple's on-device model by default, with no setup. You can add
-   your own API key in settings. On Macs without Apple's model and without
-   a key, Boop still works fully on rules, with a simpler personality.
+3. The app finds `Boop-XXXX` over Bluetooth and connects, and the device
+   gets Boop's name. There's no pairing code in v1
+   ([PROTOCOL.md](PROTOCOL.md) §2). With no sessions yet Boop sleeps; its
+   first activity, a hook or a tap, wakes it with a stretch and a yawn
+   ([BEHAVIORS.md](BEHAVIORS.md) §3.3).
+4. Boop uses Apple's on-device model by default, with no setup. Settings
+   has a field for your own API key, for cloud brains, which come later
+   ([FUTURE.md](FUTURE.md)). On Macs without Apple's model, Boop still works
+   fully on rules, with a simpler personality.
 
 ## 7. The Mac app
 

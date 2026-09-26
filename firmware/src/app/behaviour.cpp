@@ -241,7 +241,10 @@ void Behaviour::play(render::Anim a, int size, uint32_t t, bool local) {
   moment_.size = size;
   moment_.pace = clamp(model_.pace, 70, 140);
   moment_.at = t;
-  moment_.ms = render::animDuration(a, size) * 100 / uint32_t(moment_.pace);
+  // Pace speeds animations up or slows them down (BEHAVIORS.md §1), but
+  // listening's cap and thinking's 8 s (§3.3) are timeouts: they stay put.
+  bool timeout = a == render::Anim::kListening || a == render::Anim::kThinking;
+  moment_.ms = render::animDuration(a, size) * 100 / uint32_t(timeout ? 100 : moment_.pace);
   moment_.local = local;
   life_ = LifeEvent{};
 }
@@ -281,7 +284,9 @@ void Behaviour::talkOff(uint32_t t, Rng& rng) {
   resync(t, rng);
 }
 
-// How Boop feels, from the mood, hunger and the time of day (BEHAVIORS §5).
+// How Boop feels, from the mood, hunger and the time of day (BEHAVIORS.md
+// §3.3). None of these faces answers you directly, so while something needs
+// you none plays (§1: attention wins), just as a moment from the Mac wouldn't.
 void Behaviour::feel(uint32_t t, Rng& rng) {
   using render::Anim;
   Anim a = Anim::kHappy;
@@ -289,6 +294,7 @@ void Behaviour::feel(uint32_t t, Rng& rng) {
   else if (model_.hungry == 1) a = Anim::kCurious;
   else if (model_.night || model_.energy < 60) a = Anim::kSleepy;
   else if (model_.energy >= 140) a = Anim::kLove;
+  if (model_.attn && !noApp(t) && !overAttention(a)) return;
   play(a, 1, t, true);
   resync(t, rng);
 }
@@ -299,6 +305,7 @@ void Behaviour::toggleFocus(uint32_t t) {
 }
 
 void Behaviour::stripTap(uint32_t t) {
+  if (noApp(t)) return;  // the no-app screen ignores it (PLAN.md §6, row 4)
   user_ = user_ == Screen::kFace ? Screen::kThreads : user_ == Screen::kThreads ? Screen::kStats : Screen::kFace;
   userAt_ = t;
 }

@@ -127,6 +127,8 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(settings.brain, "rules")
         XCTAssertEqual(settings.volume, 6)
         XCTAssertEqual(settings.finished, 0)
+        XCTAssertFalse(settings.away)
+        XCTAssertNil(settings.awaySince)
     }
 
     /// A long turn, finished after moving the clock with `{"dev":"advance"}`:
@@ -159,13 +161,89 @@ final class RuntimeTests: XCTestCase {
         let moments = { transport.sent.filter { $0.contains("\"t\":\"moment\"") } }
         let afterCheer = moments().count
         wait("the brain's moment", timeout: 4) { moments().count > afterCheer }
-        XCTAssertGreaterThanOrEqual(Date().timeIntervalSince(cheered), 1.5, "a size-2 cheer plays for 1.64 s")
+        XCTAssertGreaterThanOrEqual(Date().timeIntervalSince(cheered), 1.5,
+                                    "a size-2 cheer plays 1640 ms × 100 ÷ pace, about 1.6 s after a long win")
     }
 
+    /// ARCHITECTURE.md §3: the app knows how long each rule moment plays on
+    /// the device. The numbers are firmware/src/app/behaviour.cpp's
+    /// `onMoment` and `play`, and firmware/src/render/anim.cpp's
+    /// `animDuration`, with the mood from the last `state`.
     func testMomentLengthsFollowTheFirmware() {
-        XCTAssertEqual(DeviceMoment(anim: "cheer", size: 2).playMs, 1640)
-        XCTAssertEqual(DeviceMoment(anim: "oops").playMs, 1400)
-        XCTAssertEqual(DeviceMoment(anim: "thinking").playMs, 0, "the brain's reply replaces thinking")
-        XCTAssertEqual(DeviceMoment(anim: "proud").playMs, 2500)
+        let neutral = Mood()
+        XCTAssertEqual(DeviceMoment(anim: "cheer", size: 2).playMs(mood: neutral), 1640)
+        XCTAssertEqual(DeviceMoment(anim: "proud").playMs(mood: neutral), 2500)
+        XCTAssertEqual(DeviceMoment(anim: "thinking").playMs(mood: neutral), 0, "the brain's reply replaces thinking")
+
+        // Pace scales every animation by 100 ÷ pace, held to 70–140, rounded down.
+        let oops = DeviceMoment(anim: "oops")
+        XCTAssertEqual(oops.playMs(mood: Mood(pace: 70)), 2000)
+        XCTAssertEqual(oops.playMs(mood: Mood(pace: 100)), 1400)
+        XCTAssertEqual(oops.playMs(mood: Mood(pace: 140)), 1000)
+        XCTAssertEqual(oops.playMs(mood: Mood(pace: 20)), 2000)
+        XCTAssertEqual(oops.playMs(mood: Mood(pace: 200)), 1000)
+        XCTAssertEqual(DeviceMoment(anim: "nod").playMs(mood: Mood(pace: 89)), 674)
+
+        // A tired cheer (energy under 60) is a size smaller, a bouncy one
+        // (140 or more) a size bigger, within 1–3.
+        let cheer = DeviceMoment(anim: "cheer", size: 2)
+        XCTAssertEqual(cheer.playMs(mood: Mood(energy: 59)), 1260)
+        XCTAssertEqual(cheer.playMs(mood: Mood(energy: 60)), 1640)
+        XCTAssertEqual(cheer.playMs(mood: Mood(energy: 140)), 2020)
+        XCTAssertEqual(DeviceMoment(anim: "cheer", size: 1).playMs(mood: Mood(energy: 30)), 1260)
+        XCTAssertEqual(DeviceMoment(anim: "cheer", size: 3).playMs(mood: Mood(energy: 180)), 2020)
+        XCTAssertEqual(cheer.playMs(mood: Mood(energy: 150, pace: 140)), 1442, "bigger, and faster")
+        XCTAssertEqual(DeviceMoment(anim: "oops").playMs(mood: Mood(energy: 30)), 1400, "only a cheer changes size")
+
+        // A mumble lasts its syllables plus two beats for a word, at 60–400
+        // ms a beat, then 1.2 s of bubble, when that's longer than the face.
+        let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
+        XCTAssertEqual(DeviceMoment(anim: "nod", say: line).playMs(mood: neutral), 1920)
+        var plain = line
+        plain.word = nil
+        XCTAssertEqual(DeviceMoment(anim: "nod", say: plain).playMs(mood: neutral), 1680)
+        var slow = line
+        slow.ms = 500
+        XCTAssertEqual(DeviceMoment(anim: "happy", say: slow).playMs(mood: neutral), 3600)
+        var quick = line
+        quick.ms = 20
+        XCTAssertEqual(DeviceMoment(anim: "happy", say: quick).playMs(mood: neutral), 2500, "6 × 60 + 1200 is shorter")
+        XCTAssertEqual(DeviceMoment(anim: "happy", say: line).playMs(mood: Mood(pace: 70)), 3571, "the slow face is longer")
+    }
+
+    /// BEHAVIORS.md §4: "I'm away" pauses hunger, and settings keep the day
+    /// it started, so a restart doesn't start the pause again. An older
+    /// settings file without that day starts it on launch and saves it.
+    func testAwayKeepsItsFirstDayAcrossARestart() throws {
+        try Runtime.setUp(stateDir: dir, name: "Pip", nature: .sweet, today: LocalTime().day(Int64(Date().timeIntervalSince1970 * 1000)))
+        try Data(#"{"brain":"rules","away":true}"#.utf8).write(to: dir.appendingPathComponent(AppSettings.file))
+        let skew = NSLock()
+        nonisolated(unsafe) var skewMs: Int64 = 0
+        let dir = self.dir!
+        func openRuntime() throws -> Runtime {
+            var options = Runtime.Options(stateDir: dir, socketPath: dir.appendingPathComponent("boop.sock").path,
+                                          link: FakeTransport(), steering: "")
+            options.clock = { Int64(Date().timeIntervalSince1970 * 1000) + skew.withLock { skewMs } }
+            return try Runtime(options)
+        }
+        let since: String?
+        do {
+            let first = try openRuntime()
+            since = first.home.sync { first.core.awaySince }
+            XCTAssertNotNil(since)
+            XCTAssertEqual(AppSettings.load(from: dir).awaySince, since, "saved on launch")
+        }
+
+        skew.withLock { skewMs = 3 * 24 * 3600 * 1000 }
+        let second = try openRuntime()
+        XCTAssertEqual(second.home.sync { second.core.awaySince }, since, "three days later it still started then")
+        second.setAway(false)
+        second.home.sync {}
+        XCTAssertFalse(AppSettings.load(from: dir).away)
+        XCTAssertNil(AppSettings.load(from: dir).awaySince)
+        second.setAway(true)
+        second.home.sync {}
+        XCTAssertEqual(AppSettings.load(from: dir).awaySince, second.home.sync { second.core.awaySince })
+        XCTAssertNotEqual(AppSettings.load(from: dir).awaySince, since)
     }
 }
