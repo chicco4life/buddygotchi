@@ -56,11 +56,8 @@ final class DeviceLinkTests: XCTestCase {
     func testDecodesStatusInputAndIgnoresTheRest() {
         XCTAssertEqual(DeviceMessage.decode(#"{"t":"status","v":1,"id":"b00p-7f3a","fw":"0.3.1","bat":3910,"usb":1}"#),
                        .status(DeviceStatus(id: "b00p-7f3a", fw: "0.3.1", bat: 3910, usb: true)))
-        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"tap"}"#), .input(.tap))
         XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"talk_on"}"#), .input(.talkOn))
-        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"talk_off"}"#), .input(.talkOff))
-        // PROTOCOL.md §4: `focus` and `feel` went with the cut; an old
-        // firmware's are ignored.
+        // Focus and touch-and-hold were removed; an older board's are ignored.
         XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"focus"}"#), .other(#"{"t":"input","k":"focus"}"#))
         XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"feel"}"#), .other(#"{"t":"input","k":"feel"}"#))
         XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"dance"}"#), .other(#"{"t":"input","k":"dance"}"#))

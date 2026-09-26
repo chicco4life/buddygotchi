@@ -2,17 +2,43 @@ import Foundation
 import XCTest
 @testable import BoopKit
 
-/// A brain that answers from a script, after a delay.
-struct FakeBrain: Brain {
-    let id = "fake@1"
-    var delayMs: Int = 0
-    var answer: @Sendable (String) throws -> String
+/// A classifier that answers from a script, after a delay, and keeps what it saw.
+final class FakeClassifier: Classifier, @unchecked Sendable {
+    let id = "fake-classifier@1"
+    let delayMs: Int
+    let answer: @Sendable (Input) throws -> [ToolCall]
+    let lock = NSLock()
+    var seen: [Context] = []
 
-    func complete(system: String, history: [Exchange], user: String, tools: [ToolDefinition],
-                  deadline: Duration) async throws -> String {
-        if delayMs > 0 { try await Task.sleep(for: .milliseconds(delayMs)) }
-        return try answer(Prompt.now(in: user))
+    init(delayMs: Int = 0, _ answer: @escaping @Sendable (Input) throws -> [ToolCall]) {
+        self.delayMs = delayMs
+        self.answer = answer
     }
+
+    func classify(_ context: Context, _ menu: Menu, deadline: Duration) async throws -> Classification {
+        lock.withLock { seen.append(context) }
+        if delayMs > 0 { try await Task.sleep(for: .milliseconds(delayMs)) }
+        return Classification(calls: try answer(context.input), evidence: "scripted")
+    }
+}
+
+/// A writer that fills slots from a script, and keeps what it was asked.
+final class FakeWriter: Writer, @unchecked Sendable {
+    let id = "fake-writer@1"
+    let answer: @Sendable ([Slot]) throws -> [String: String]
+    let lock = NSLock()
+    var asked: [(context: Context, slots: [Slot])] = []
+
+    init(_ answer: @escaping @Sendable ([Slot]) throws -> [String: String] = { _ in [:] }) {
+        self.answer = answer
+    }
+
+    func write(_ context: Context, _ slots: [Slot], deadline: Duration) async throws -> Writing {
+        lock.withLock { asked.append((context, slots)) }
+        return Writing(values: try answer(slots), raw: "scripted")
+    }
+
+    var calls: Int { lock.withLock { asked.count } }
 }
 
 /// Records what the harness hands off, touched only on the harness's queue.
@@ -21,26 +47,27 @@ final class HarnessRig: @unchecked Sendable {
     var handled: [ToolCall] = []
     var records: [Harness.Record] = []
     var logs: [String] = []
-    /// What the memory store would supply; change it on `home` between calls.
-    var memory: Prompt.Memory
+    var memory = Prompt.Memory(steering: "# Boop\n", longTerm: "## Boop\n", shortTerm: "## Today\n")
     var harness: Harness!
 
-    init(brain: any Brain, memory: Prompt.Memory = Prompt.Memory(steering: "# Boop\n", longTerm: "## Boop\n", shortTerm: "## Today\n"),
-         debugLog: URL? = nil, conversation: Conversation = Conversation()) {
-        self.memory = memory
+    init(classifier: any Classifier, writer: any Writer = FakeWriter(), debugLog: URL? = nil) {
         let tools = [
-            ToolDefinition(name: "say", description: "Mumble.", parameters: [
-                .init("feeling", .choice(["happy", "proud"])), .init("word", .choice(["tests", "yay"]), optional: true),
+            ToolDefinition(name: "react", description: "React.", parameters: [
+                .init("feeling", .choice(["happy", "sulky", "proud"])), .init("voice", .choice(["silent", "mumble"])),
+                .init("word", .choice(["hi", "finally"]), optional: true, role: .writtenWhen("voice", is: "mumble")),
             ]),
             ToolDefinition(name: "quiet", description: "Quiet.", parameters: [.init("minutes", .number([15, 30]))]),
-            ToolDefinition(name: "note", description: "Note.", parameters: [.init("text", .text(maxLength: 10))]),
+            ToolDefinition(name: "remember", description: "Remember.", parameters: [
+                .init("where", .choice(["today", "about_you", "preference", "temperament", "moment"])),
+                .init("text", .text(maxLength: 20, by: "where", limits: ["today": 10]), role: .written),
+            ]),
         ].map { d in Harness.Tool(definition: d, handle: { [unowned self] call in handled.append(call); return .done("ok") }) }
-        harness = Harness(brain: brain, tools: tools, memory: { [unowned self] _ in self.memory }, home: home, debugLog: debugLog,
-                          conversation: conversation, log: { [unowned self] in logs.append($0) })
+        harness = Harness(classifier: classifier, writer: writer, tools: tools, memory: { [unowned self] _ in self.memory },
+                          home: home, debugLog: debugLog, log: { [unowned self] in logs.append($0) })
         harness.onRecord = { [unowned self] in records.append($0) }
     }
 
-    func submit(_ trigger: Trigger) { home.sync { harness.submit(trigger) } }
+    func submit(_ input: Input) { home.sync { harness.submit(input) } }
 
     /// Waits until nothing is running or waiting.
     func settle(timeoutMs: Int = 3000) async {
@@ -52,10 +79,16 @@ final class HarnessRig: @unchecked Sendable {
     }
 
     var snapshot: (handled: [ToolCall], records: [Harness.Record]) { home.sync { (handled, records) } }
+    var entries: [Transcript.Entry] { home.sync { harness.transcript.entries } }
 }
 
-func trigger(_ kind: Trigger.Kind, _ line: String, words: String? = nil) -> Trigger {
-    Trigger(kind: kind, line: line, words: words, ts: 0)
+func input(_ kind: Input.Kind, words: String? = nil, outcome: Input.Outcome? = nil, tookMs: Int64? = nil,
+           rules: String? = nil, at minutes: Double = 0) -> Input {
+    Input(kind, agent: kind == .agentStarted || kind == .agentFinished ? "claude" : nil,
+          project: kind == .agentStarted || kind == .agentFinished ? "jetpack" : nil,
+          outcome: kind == .agentFinished ? outcome ?? .done : nil, tookMs: tookMs, words: words,
+          yesterday: kind == .newDay ? "2026-10-14" : nil, clock: "14:05", weekday: "Tuesday", rules: rules,
+          ts: Int64(minutes * 60_000))
 }
 
 final class HarnessTests: XCTestCase {
@@ -63,265 +96,246 @@ final class HarnessTests: XCTestCase {
     static let steering = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         .appendingPathComponent("../../plan/steering.md").standardizedFileURL
 
-    let tools = [
-        ToolDefinition(name: "say", description: "", parameters: [
-            .init("feeling", .choice(["happy", "proud"])), .init("word", .choice(["tests"]), optional: true),
-        ]),
-        ToolDefinition(name: "quiet", description: "", parameters: [.init("minutes", .number([15, 30]))]),
-        ToolDefinition(name: "note", description: "", parameters: [.init("text", .text(maxLength: 10))]),
-    ]
-
-    // MARK: Shape check
-
-    func testTheShapeCheckAcceptsGoodAnswers() throws {
-        let ok = try Answer.check(#"{"calls":[{"tool":"say","feeling":"proud","word":"tests"},{"tool":"quiet","minutes":30}]}"#,
-                                  tools: tools).get()
-        XCTAssertEqual(ok, [ToolCall("say", ["feeling": .string("proud"), "word": .string("tests")]),
-                            ToolCall("quiet", ["minutes": .number(30)])])
-        let empty = try Answer.check(#"{"calls":[]}"#, tools: tools).get()
-        XCTAssertEqual(empty, [])
-        // Digits as text count as the number; a null optional is left out.
-        let loose = try Answer.check(#"{"calls":[{"tool":"quiet","minutes":"15"},{"tool":"say","feeling":"happy","word":null}]}"#,
-                                     tools: tools).get()
-        XCTAssertEqual(loose, [ToolCall("quiet", ["minutes": .string("15")]), ToolCall("say", ["feeling": .string("happy")])])
-    }
-
-    func testTheShapeCheckDropsTheWholeAnswer() {
-        let bad = [
-            "", "calls", "[]", #"{"calls":{}}"#, #"{"calls":[],"extra":1}"#,
-            #"{"calls":[{"feeling":"happy"}]}"#,                                        // no tool
-            #"{"calls":[{"tool":"face","name":"happy"}]}"#,                              // not offered (gone with the cut)
-            #"{"calls":[{"tool":"say","feeling":"sad"}]}"#,                              // not a choice
-            #"{"calls":[{"tool":"say"}]}"#,                                              // missing
-            #"{"calls":[{"tool":"say","feeling":"happy","volume":"loud"}]}"#,            // unknown
-            #"{"calls":[{"tool":"quiet","minutes":45}]}"#,                               // not a choice
-            #"{"calls":[{"tool":"quiet","minutes":15.5}]}"#,                             // not whole
-            #"{"calls":[{"tool":"quiet","minutes":true}]}"#,                             // not a number
-            #"{"calls":[{"tool":"note","text":"far too long for it"}]}"#,               // too long
-            #"{"calls":[{"tool":"say","feeling":"happy"},{"tool":"say","feeling":"happy"},{"tool":"say","feeling":"happy"},{"tool":"say","feeling":"happy"}]}"#,
-            #"{"calls":[{"tool":"say","feeling":"happy"},{"tool":"say","feeling":"sad"}]}"#, // one bad call
-        ]
-        for raw in bad {
-            if case .success(let calls) = Answer.check(raw, tools: tools) { XCTFail("accepted \(raw) as \(calls)") }
+    func run(_ rig: HarnessRig, _ inputs: [Input]) async -> [Harness.Record] {
+        for i in inputs {
+            rig.submit(i)
+            await rig.settle()
         }
-        XCTAssertEqual(Answer.check(#"{"calls":[{"tool":"say"},{"tool":"say"},{"tool":"say"},{"tool":"say"}]}"#,
-                                    tools: tools).failureReason, "4 calls, more than 3")
+        return rig.snapshot.records
     }
 
-    func testAnswersRoundTrip() throws {
-        let calls = [ToolCall("say", ["feeling": .string("proud"), "word": .string("tests")]), ToolCall("quiet", ["minutes": .number(15)])]
-        XCTAssertEqual(Answer.json(calls), #"{"calls":[{"tool":"say","feeling":"proud","word":"tests"},{"tool":"quiet","minutes":15}]}"#)
-        let back = try Answer.check(Answer.json(calls), tools: tools).get()
-        XCTAssertEqual(back, calls)
+    // MARK: One pass
+
+    /// HARNESS.md §3: Stage 1's calls run in the menu's order (quiet, react,
+    /// remember), with Stage 2's words filled in.
+    func testCallsRunInTheMenusOrderWithTheirWords() async {
+        let writer = FakeWriter { slots in Dictionary(uniqueKeysWithValues: slots.map { ($0.key, $0.key == "react.word" ? "hi" : "demo Thu") }) }
+        let rig = HarnessRig(classifier: FakeClassifier { _ in
+            [remember("today"), react("happy"), ToolCall("quiet", ["minutes": .number(30)])]
+        }, writer: writer)
+        let records = await run(rig, [input(.said, words: "remember the demo")])
+        XCTAssertEqual(rig.snapshot.handled, [ToolCall("quiet", ["minutes": .number(30)]), react("happy", word: "hi"),
+                                              remember("today", "demo Thu")])
+        XCTAssertEqual(records[0].slots, ["react.word", "remember.text"])
+        XCTAssertEqual(records[0].wrote, ["react.word": "hi", "remember.text": "demo Thu"])
+        XCTAssertTrue(records[0].answered)
+        XCTAssertEqual(records[0].logLine, "brain you said \(records[0].latencyMs) ms → quiet, react, remember")
     }
 
-    // MARK: One call
-
-    func testCallsAreHandedOffInOrder() async {
-        let rig = HarnessRig(brain: FakeBrain { _ in #"{"calls":[{"tool":"say","feeling":"happy"},{"tool":"quiet","minutes":30}]}"# })
-        rig.submit(trigger(.talk, "talk · 13:10 Tuesday", words: "shut up"))
-        await rig.settle()
-        let (handled, records) = rig.snapshot
-        XCTAssertEqual(handled, [ToolCall("say", ["feeling": .string("happy")]), ToolCall("quiet", ["minutes": .number(30)])])
-        XCTAssertEqual(records.count, 1)
-        XCTAssertTrue(records[0].validShape)
-        XCTAssertEqual(records[0].tools, ["say", "quiet", "note"])
+    /// HARNESS.md §3 step 5: Stage 2 runs only when something needs words.
+    func testASilentReactOrAQuietNeedsNoWriter() async {
+        let writer = FakeWriter()
+        let rig = HarnessRig(classifier: FakeClassifier { _ in [ToolCall("quiet", ["minutes": .number(15)]), react("sulky", "silent")] },
+                             writer: writer)
+        _ = await run(rig, [input(.said, words: "shut up")])
+        XCTAssertEqual(writer.calls, 0)
+        XCTAssertEqual(rig.snapshot.handled.count, 2)
     }
 
-    /// HARNESS.md §5: event, tap and talk are all offered say, quiet and
-    /// note; on event and tap, quiet and note are named as limits.
-    func testEveryConversationCallIsOfferedTheSameToolsWithLimitsNamed() async {
-        XCTAssertEqual(Trigger.Kind.event.tools, ["say"])
-        XCTAssertEqual(Trigger.Kind.tap.tools, ["say"])
-        XCTAssertEqual(Trigger.Kind.talk.tools, ["say", "quiet", "note"])
-        for kind in [Trigger.Kind.event, .tap, .talk] { XCTAssertEqual(kind.offered, ["say", "quiet", "note"]) }
-        XCTAssertEqual(Trigger.Kind.reflect.offered, ["remember", "temperament", "moment"])
-
-        // `quiet` is offered on a tap but named as a limit, so that one call is dropped.
-        let rig = HarnessRig(brain: FakeBrain { _ in #"{"calls":[{"tool":"say","feeling":"happy"},{"tool":"quiet","minutes":30}]}"# })
-        rig.submit(trigger(.tap, "tapped · 09:30 Tuesday"))
-        await rig.settle()
-        let (handled, records) = rig.snapshot
-        XCTAssertEqual(handled, [ToolCall("say", ["feeling": .string("happy")])])
-        XCTAssertEqual(records.first?.tools, ["say", "quiet", "note"])
-        XCTAssertEqual(Prompt.now(in: records.first?.prompt.user ?? ""),
-                       "tapped · 09:30 Tuesday\nquiet limit: only on talk\nnote limit: only on talk")
-        XCTAssertEqual(records.first?.ran.map(\.outcome), [.done("ok"), .dropped("quiet limit: only on talk")])
-        XCTAssertTrue(records.first?.validShape ?? false)
+    /// The writer sees everything: the input, the rules' reaction, and
+    /// Stage 1's decision it's writing for.
+    func testTheWriterSeesTheDecision() async throws {
+        let writer = FakeWriter { _ in ["react.word": "finally"] }
+        let rig = HarnessRig(classifier: FakeClassifier { _ in [react("proud")] }, writer: writer)
+        let finished = input(.agentFinished, tookMs: 1_080_000, rules: "cheer")
+        _ = await run(rig, [finished])
+        let asked = try XCTUnwrap(writer.asked.first)
+        XCTAssertEqual(asked.context.window, [.input(finished), .rules("cheer"),
+                                              .decided(by: "fake-classifier@1", [react("proud")], evidence: "scripted")])
+        XCTAssertEqual(asked.slots.map(\.key), ["react.word"])
+        XCTAssertEqual(asked.slots[0].kind, .word(["hi", "finally"]))
+        XCTAssertEqual(rig.entries.suffix(2), [.wrote(by: "fake-writer@1", ["react.word": "finally"]),
+                                               .ran(react("proud", word: "finally"), .done("ok"))])
     }
 
-    func testTheShapeCheckStillDropsToolsThatArentOffered() async {
-        let rig = HarnessRig(brain: FakeBrain { _ in #"{"calls":[{"tool":"say","feeling":"happy"},{"tool":"remember","text":"hi"}]}"# })
-        rig.submit(trigger(.tap, "tapped · 09:30 Tuesday"))
-        await rig.settle()
-        XCTAssertEqual(rig.snapshot.handled, [])
-        XCTAssertEqual(rig.snapshot.records.first?.dropped, "shape: remember isn't offered")
-        XCTAssertTrue(rig.home.sync { rig.logs.contains { $0.contains("answer dropped") } })
+    /// HARNESS.md §3 step 4: one bad call drops them all.
+    func testCallsOffTheMenuAreAllDropped() async {
+        let cases: [(Input, [ToolCall], String)] = [
+            (input(.agentFinished), [react("happy"), ToolCall("quiet", ["minutes": .number(15)])], "quiet isn't on the menu"),
+            (input(.said), [react("happy", word: "hi")], "react: word is the writer's"),
+            (input(.said), [remember("about_you")], "remember: where isn't one of its choices"),
+            (input(.said), [react("happy"), react("happy")], "react twice"),
+            (input(.said), [react("happy"), react("sulky")], "more than 1 react"),
+            (input(.said), [react("angry")], "react: feeling isn't one of its choices"),
+            (input(.said), [ToolCall("react", ["feeling": .string("happy")])], "react: voice is missing"),
+        ]
+        for (i, calls, why) in cases {
+            let rig = HarnessRig(classifier: FakeClassifier { _ in calls })
+            let records = await run(rig, [i])
+            XCTAssertEqual(records.first?.dropped, "off the menu: \(why)")
+            XCTAssertEqual(rig.snapshot.handled, [])
+            XCTAssertEqual(rig.entries.last, .dropped("off the menu: \(why)"))
+        }
     }
 
-    func testMoreThanThreeCallsAreDropped() async {
-        let four = Answer.json(Array(repeating: ToolCall("say", ["feeling": .string("happy")]), count: 4))
-        let rig = HarnessRig(brain: FakeBrain { _ in four })
-        rig.submit(trigger(.tap, "tapped · 09:30 Tuesday"))
-        await rig.settle()
-        XCTAssertEqual(rig.snapshot.handled, [])
-        XCTAssertEqual(rig.snapshot.records.first?.dropped, "shape: 4 calls, more than 3")
+    /// A new day may remember once per section; each slot gets its own key,
+    /// and a line left empty drops only its own call.
+    func testANewDayRemembersOncePerSection() async {
+        let writer = FakeWriter { _ in ["remember#1.text": "Ships Fridays."] }
+        let rig = HarnessRig(classifier: FakeClassifier { _ in [remember("about_you"), remember("moment")] }, writer: writer)
+        let records = await run(rig, [input(.newDay)])
+        XCTAssertEqual(records[0].slots, ["remember#1.text", "remember#2.text"])
+        XCTAssertEqual(records[0].ran.map(\.outcome), [.done("ok"), .dropped("nothing was written")])
+        XCTAssertEqual(rig.snapshot.handled, [remember("about_you", "Ships Fridays.")])
     }
 
-    func testBrainErrorsAndLateAnswersAreDropped() async {
-        let failing = HarnessRig(brain: FakeBrain { _ in throw BrainError("offline") })
-        failing.submit(trigger(.tap, "tapped · 09:30 Tuesday"))
-        await failing.settle()
-        XCTAssertEqual(failing.snapshot.records.first?.dropped, "offline")
+    /// A text that doesn't fit its section's limit counts as empty.
+    func testWordsThatDontFitAreLeftEmpty() async {
+        let writer = FakeWriter { _ in ["react.word": "kubernetes", "remember.text": "far too long for today"] }
+        let rig = HarnessRig(classifier: FakeClassifier { _ in [react("happy"), remember("today")] }, writer: writer)
+        let records = await run(rig, [input(.said, words: "hi")])
+        XCTAssertEqual(records[0].wrote, ["react.word": "", "remember.text": ""])
+        XCTAssertEqual(rig.snapshot.handled, [react("happy")])
+    }
 
-        // A brain that ignores its deadline: the answer comes too late.
-        let slow = HarnessRig(brain: FakeBrain(delayMs: 60_000) { _ in #"{"calls":[]}"# })
-        let h = slow.harness!
+    /// HARNESS.md §3: when Stage 2 fails, a mumble goes without its word and
+    /// nothing is remembered.
+    func testAFailedWriterLeavesEverySlotEmpty() async {
+        let writer = FakeWriter { _ in throw BrainError("offline") }
+        let rig = HarnessRig(classifier: FakeClassifier { _ in [react("happy"), remember("today")] }, writer: writer)
+        let records = await run(rig, [input(.said, words: "remember x")])
+        XCTAssertEqual(records[0].writeFailed, "offline")
+        XCTAssertEqual(rig.snapshot.handled, [react("happy")])
+        XCTAssertEqual(records[0].ran.last?.outcome, .dropped("nothing was written"))
+        XCTAssertTrue(rig.entries.contains(.writeFailed(by: "fake-writer@1", "offline")))
+        XCTAssertTrue(records[0].logLine.hasSuffix("→ react, remember (dropped) (writer failed: offline)"), records[0].logLine)
+    }
+
+    func testClassifierErrorsAndLateAnswersAreDropped() async {
+        let failing = HarnessRig(classifier: FakeClassifier { _ in throw BrainError("offline") })
+        let records = await run(failing, [input(.agentStarted)])
+        XCTAssertEqual(records.first?.dropped, "offline")
+        XCTAssertEqual(failing.entries.last, .dropped("offline"))
+
+        // Work that ignores its deadline: the answer comes too late.
         let start = ContinuousClock.now
-        let (answer, _) = await h.ask(Prompt(system: "", user: ""), [], deadline: 50)
-        XCTAssertEqual(answer.failureReason, "late: no answer within 50 ms")
+        let late: Result<Int, BrainError> = await Harness.race(50) {
+            try await Task.sleep(for: .seconds(60))
+            return 1
+        }
+        XCTAssertEqual(late.failureReason, "late: no answer within 50 ms")
         XCTAssertLessThan(ContinuousClock.now - start, .seconds(2))
+    }
+
+    func testStayingQuietIsNoCalls() async {
+        let rig = HarnessRig(classifier: FakeClassifier { _ in [] })
+        let records = await run(rig, [input(.agentStarted)])
+        XCTAssertTrue(records[0].silent)
+        XCTAssertTrue(records[0].logLine.hasSuffix(" ms → nothing"), records[0].logLine)
+        XCTAssertEqual(rig.entries.last, .decided(by: "fake-classifier@1", [], evidence: "scripted"))
     }
 
     // MARK: Scheduling
 
-    func testANewerTriggerReplacesTheWaitingOne() async {
-        let rig = HarnessRig(brain: FakeBrain(delayMs: 150) { now in
-            now.hasPrefix("tapped") ? #"{"calls":[{"tool":"say","feeling":"happy"}]}"# : #"{"calls":[]}"#
-        })
-        rig.submit(trigger(.event, "turn started · claude · a · 09:00 Tuesday"))
-        rig.submit(trigger(.event, "turn finished · claude · a · took 12 s · 09:00 Tuesday"))
-        rig.submit(trigger(.tap, "tapped · 09:00 Tuesday"))
+    func testANewerInputReplacesTheWaitingOne() async {
+        let rig = HarnessRig(classifier: FakeClassifier(delayMs: 150) { i in i.kind == .agentFinished ? [react("happy", "silent")] : [] })
+        rig.submit(input(.agentStarted))
+        rig.submit(input(.agentStarted))
+        rig.submit(input(.agentFinished))
         await rig.settle()
         let records = rig.snapshot.records
-        XCTAssertEqual(records.map(\.trigger.line), ["turn started · claude · a · 09:00 Tuesday", "tapped · 09:00 Tuesday"])
-        XCTAssertEqual(rig.snapshot.handled, [ToolCall("say", ["feeling": .string("happy")])])
-        XCTAssertTrue(rig.home.sync { rig.logs.contains("harness: event replaced by a newer tap") })
+        XCTAssertEqual(records.map(\.input.kind), [.agentStarted, .agentFinished])
+        XCTAssertEqual(rig.snapshot.handled, [react("happy", "silent")])
+        XCTAssertTrue(rig.home.sync { rig.logs.contains("harness: agent started replaced by a newer agent finished") })
     }
 
-    func testTalkCancelsWhateverIsRunning() async {
-        let rig = HarnessRig(brain: FakeBrain(delayMs: 300) { now in
-            now.hasPrefix("talk") ? #"{"calls":[{"tool":"quiet","minutes":30}]}"# : #"{"calls":[{"tool":"say","feeling":"happy"}]}"#
+    func testYouTalkingCancelsWhateverIsRunning() async {
+        let rig = HarnessRig(classifier: FakeClassifier(delayMs: 300) { i in
+            i.kind == .said ? [react("sulky", "silent")] : [react("happy", "silent")]
         })
-        rig.submit(trigger(.event, "turn started · claude · a · 09:00 Tuesday"))
+        rig.submit(input(.agentStarted))
         try? await Task.sleep(for: .milliseconds(50))
-        rig.submit(trigger(.talk, "talk · 09:00 Tuesday", words: "hush"))
+        rig.submit(input(.said, words: "hush"))
         await rig.settle()
-        try? await Task.sleep(for: .milliseconds(400)) // the cancelled call's answer would be in by now
+        try? await Task.sleep(for: .milliseconds(400)) // the cancelled pass's answer would be in by now
         let (handled, records) = rig.snapshot
-        XCTAssertEqual(handled, [ToolCall("quiet", ["minutes": .number(30)])])
-        XCTAssertEqual(records.map(\.trigger.kind), [.event, .talk])
-        XCTAssertEqual(records[0].dropped, "cancelled by talk")
+        XCTAssertEqual(handled, [react("sulky", "silent")])
+        XCTAssertEqual(records.map(\.input.kind), [.agentStarted, .said])
+        XCTAssertEqual(records[0].dropped, "cancelled by you talking")
+        XCTAssertTrue(rig.entries.contains(.dropped("cancelled by you talking")))
     }
 
-    // MARK: Limits
+    /// Taps and "needs you" go in the transcript, and start no pass.
+    func testAsidesJoinTheTranscriptOnly() async {
+        let classifier = FakeClassifier { _ in [] }
+        let rig = HarnessRig(classifier: classifier)
+        rig.home.sync { rig.harness.note("tapped · 14:07 Tuesday: Boop wiggled", at: 60_000) }
+        _ = await run(rig, [input(.agentStarted, at: 2)])
+        XCTAssertEqual(rig.snapshot.records.count, 1)
+        XCTAssertEqual(classifier.seen.first?.window.first, .aside("tapped · 14:07 Tuesday: Boop wiggled", ts: 60_000))
+    }
 
-    /// Speaks unless the prompt names a `say` limit.
-    struct ChattyBrain: Brain {
-        let id = "chatty@1"
-        func complete(system: String, history: [Exchange], user: String, tools: [ToolDefinition],
-                      deadline: Duration) async throws -> String {
-            !Prompt.now(in: user).contains("say limit: ") ? #"{"calls":[{"tool":"say","feeling":"happy"}]}"# : #"{"calls":[]}"#
+    // MARK: Logging
+
+    func testDebugModeLogsOneJSONLinePerPass() async throws {
+        let log = FileManager.default.temporaryDirectory.appendingPathComponent("boop-harness-\(UUID().uuidString).jsonl")
+        defer { try? FileManager.default.removeItem(at: log) }
+        let rig = HarnessRig(classifier: FakeClassifier { _ in [react("proud")] }, writer: FakeWriter { _ in ["react.word": "finally"] },
+                             debugLog: log)
+        _ = await run(rig, [input(.agentFinished, tookMs: 600_000), input(.said, words: "hi")])
+        let lines = try String(contentsOf: log, encoding: .utf8).split(separator: "\n")
+        XCTAssertEqual(lines.count, 2)
+        let first = try JSONSerialization.jsonObject(with: Data(lines[0].utf8)) as! [String: Any]
+        XCTAssertEqual(first["classifier"] as? String, "fake-classifier@1")
+        XCTAssertEqual(first["writer"] as? String, "fake-writer@1")
+        XCTAssertEqual(first["decided"] as? [String], ["react(feeling: proud, voice: mumble)"])
+        XCTAssertEqual(first["wrote"] as? [String: String], ["react.word": "finally"])
+        XCTAssertEqual(first["window"] as? Int, 1)
+        XCTAssertEqual((first["input"] as? [String: Any])?["line"] as? String,
+                       "agent finished · done · claude · jetpack · took 10 min · 14:05 Tuesday")
+        XCTAssertNotNil(first["latency_ms"])
+        let second = try JSONSerialization.jsonObject(with: Data(lines[1].utf8)) as! [String: Any]
+        XCTAssertEqual(second["window"] as? Int, 2)
+    }
+
+    func testWithoutDebugModeNothingIsWritten() async {
+        let rig = HarnessRig(classifier: FakeClassifier { _ in [] })
+        XCTAssertNil(rig.harness.debugLog)
+        _ = await run(rig, [input(.agentStarted)])
+        XCTAssertEqual(rig.snapshot.records.count, 1)
+    }
+
+    /// HARNESS.md §8: outside debug mode "the words you said and what the
+    /// brain answered never reach the log". The app's log gets each pass's
+    /// line, the harness's own lines and every action's drop reasons: they
+    /// name outputs and reasons, never an argument's text.
+    func testTheLogNeverGetsWhatYouSaid() async throws {
+        final class Lines: @unchecked Sendable {
+            let lock = NSLock()
+            var all: [String] = []
+            func add(_ line: String) { lock.withLock { all.append(line) } }
         }
-    }
-
-    /// Always tries to speak, limit or not.
-    struct StubbornBrain: Brain {
-        let id = "stubborn@1"
-        func complete(system: String, history: [Exchange], user: String, tools: [ToolDefinition],
-                      deadline: Duration) async throws -> String {
-            #"{"calls":[{"tool":"say","feeling":"happy"}]}"#
+        let said = "PRIVATE_sam moves to Lisbon"
+        // A note that's kept, then the same note again, which the store
+        // refuses, then one it refuses as code.
+        let notes = [said, said, said + " `x`"]
+        let memory = try MemoryRig()
+        let lines = Lines()
+        for note in notes {
+            let context = ActionContext(send: { _ in }, today: { "2026-10-14" }, log: lines.add)
+            let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: 1)), memory: memory.store)
+            let harness = Harness(classifier: FakeClassifier { _ in [react("happy"), remember("today")] },
+                                  writer: FakeWriter { _ in ["react.word": "hi", "remember.text": note] },
+                                  tools: actions.map(Harness.Tool.init), memory: { memory.store.promptMemory(for: $0.kind) },
+                                  home: DispatchQueue(label: "test.log"), log: lines.add)
+            harness.onRecord = { lines.add($0.logLine) }  // as the Runtime wires it
+            _ = await harness.respond(to: input(.said, words: said))
         }
+        XCTAssertEqual(memory.store.shortTerm?.notes, [said], "the note itself was kept")
+        let logged = lines.lock.withLock { lines.all }
+        for line in logged { XCTAssertFalse(line.contains("PRIVATE_") || line.contains("Lisbon"), line) }
+        let brain = logged.filter { $0.hasPrefix("brain you said ") }
+        XCTAssertEqual(brain.count, 3)
+        XCTAssertTrue(brain[0].hasSuffix(" ms → react, remember"), brain[0])
+        XCTAssertTrue(brain[1].hasSuffix(" ms → react, remember (dropped)"), brain[1])
+        XCTAssertTrue(logged.contains("remember: dropped: already noted"), "\(logged)")
+        XCTAssertTrue(logged.contains("remember: dropped: looks like code"), "\(logged)")
     }
 
-    func sayLimited(_ r: Harness.Record) -> Bool { Prompt.now(in: r.prompt.user).contains("say limit: ") }
-
-    func at(_ minutes: Double, _ kind: Trigger.Kind, _ line: String, words: String? = nil) -> Trigger {
-        Trigger(kind: kind, line: line, words: words, ts: Int64(minutes * 60_000))
-    }
-
-    func testEventSpeechIsLimitedOnTheTriggersClock() async {
-        let rig = HarnessRig(brain: ChattyBrain())
-        let events = [
-            at(0, .event, "turn finished · claude · a · took 12 s · 09:00 Tuesday"),
-            at(1, .event, "turn finished · claude · a · took 12 s · 09:01 Tuesday"),
-            at(9.9, .event, "turn failed · claude · a · 09:09 Tuesday"),
-            at(10, .event, "turn started · claude · a · 09:10 Tuesday"),
-            at(10.5, .event, "turn finished · claude · a · took 30 s · 09:10 Tuesday"),
-            at(11, .event, "turn finished · claude · a · took 30 s · 09:11 Tuesday"),
-            at(40, .event, "turn started · claude · a · 09:40 Tuesday"),
-        ]
-        for e in events {
-            rig.submit(e)
-            await rig.settle()
-        }
-        let records = rig.snapshot.records
-        XCTAssertTrue(records.allSatisfy { $0.tools == ["say", "quiet", "note"] })
-        XCTAssertEqual(records.map(sayLimited), [false, true, true, true, false, true, true])
-        // The example in HARNESS.md §4.
-        XCTAssertEqual(Prompt.now(in: records[1].prompt.user),
-                       "turn finished · claude · a · took 12 s · 09:01 Tuesday\nsay limit: once every 10 min on event, next in 9 min\n"
-                       + "quiet limit: only on talk\nnote limit: only on talk")
-        XCTAssertEqual(Prompt.now(in: records[3].prompt.user).components(separatedBy: "\n")[1],
-                       "say limit: not on turn started")
-        XCTAssertEqual(records.map { $0.ran.map(\.call.name) },
-                       [["say"], [], [], [], ["say"], [], []])
-        XCTAssertTrue(records.allSatisfy(\.validShape))
-    }
-
-    func testTapSpeechIsLimitedAndTalkIsNot() async {
-        let rig = HarnessRig(brain: ChattyBrain())
-        for t in [at(0, .tap, "tapped · 09:00 Tuesday"), at(4, .tap, "tapped · 09:04 Tuesday"),
-                  at(5, .tap, "tapped · 09:05 Tuesday"),
-                  at(5, .talk, "talk · 09:05 Tuesday", words: "hi"), at(5.1, .talk, "talk · 09:05 Tuesday", words: "hi")] {
-            rig.submit(t)
-            await rig.settle()
-        }
-        XCTAssertEqual(rig.snapshot.records.map { !sayLimited($0) }, [true, false, true, true, true])
-    }
-
-    func testSpeechPastItsLimitIsDroppedEvenWhenTheBrainTriesAnyway() async {
-        let rig = HarnessRig(brain: StubbornBrain())
-        for t in [at(0, .tap, "tapped · 09:00 Tuesday"), at(2, .tap, "tapped · 09:02 Tuesday")] {
-            rig.submit(t)
-            await rig.settle()
-        }
-        let records = rig.snapshot.records
-        XCTAssertEqual(records[1].ran.map(\.outcome), [.dropped("say limit: once every 5 min on tap, next in 3 min")])
-        XCTAssertEqual(rig.snapshot.handled.map(\.name), ["say"])
-    }
-
-    func testASecondSayInOneAnswerIsDroppedAndDroppedSpeechDoesntCount() async {
-        let home = DispatchQueue(label: "test.limits")
-        var outcomes: [ActionOutcome] = [.dropped("quiet mode"), .done("said"), .done("said")]
-        let say = ToolDefinition(name: "say", description: "", parameters: [.init("feeling", .choice(["happy"]))])
-        let harness = Harness(brain: FakeBrain { _ in #"{"calls":[{"tool":"say","feeling":"happy"},{"tool":"say","feeling":"happy"}]}"# },
-                              tools: [Harness.Tool(definition: say, handle: { _ in outcomes.removeFirst() })],
-                              memory: { _ in Prompt.Memory(steering: "", longTerm: "", shortTerm: "") }, home: home)
-        let r = await harness.respond(to: at(0, .tap, "tapped · 09:00 Tuesday"))
-        // The first say was dropped by its action, so the second may still run.
-        XCTAssertEqual(r.ran.map(\.outcome), [.dropped("quiet mode"), .done("said")])
-        let r2 = await harness.respond(to: at(20, .tap, "tapped · 09:20 Tuesday"))
-        XCTAssertEqual(r2.ran.map(\.outcome), [.done("said"), .dropped("say limit: once every 5 min on tap, next in 5 min")])
-    }
-
-    // MARK: Prompt
-
-    func testThePromptHasItsFixedLayout() {
-        let memory = Prompt.Memory(steering: "<!-- for maintainers -->\n# Boop\nBe nice.\n", longTerm: "## Boop\nname: Pip\n",
-                                   shortTerm: "## Today\n2026-10-14\n")
-        let p = Prompt(trigger: trigger(.talk, "talk · 13:10 Tuesday", words: "shut \"up\"\nnow"), memory: memory)
-        XCTAssertEqual(p.system, Prompt.preamble + "\n\n# Boop\nBe nice.")
-        XCTAssertEqual(Prompt.preamble.components(separatedBy: "\n").count, 3)
-        XCTAssertEqual(p.user, "## Boop\nname: Pip\n\n## Today\n2026-10-14\n\n--- now ---\ntalk · 13:10 Tuesday\nthey said: \"shut 'up' now\"")
-        XCTAssertEqual(Prompt.now(in: p.user), "talk · 13:10 Tuesday\nthey said: \"shut 'up' now\"")
-
-        let r = Prompt(trigger: trigger(.reflect, "reflect · yesterday 2026-10-14"), memory: memory)
-        XCTAssertTrue(r.user.contains("Yesterday's short-term memory, to reflect on:\n\n## Today\n2026-10-14"))
-    }
+    // MARK: Budgets and fixtures
 
     /// The real steering.md and the sample memory fit every budget in
-    /// HARNESS.md §4, with every trigger in the fixtures.
+    /// HARNESS.md §4, with every input in the fixtures.
     func testTheSampleFitsTheBudgets() throws {
         let steering = try String(contentsOf: Self.steering, encoding: .utf8)
         let rig = try MemoryRig(setUp: false)
@@ -332,111 +346,28 @@ final class HarnessTests: XCTestCase {
         let store = try MemoryStore(directory: rig.dir, steering: steering)
         XCTAssertNotNil(store.longTerm)
         XCTAssertNotNil(store.shortTerm)
-        let context = ActionContext(send: { _ in }, today: { "2026-10-14" })
-        let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: 1)), memory: store)
-        for t in try Self.fixtureTriggers() {
-            let tools = actions.filter { t.kind.offered.contains($0.name) }.map(\.definition)
-            XCTAssertEqual(Prompt.overBudget(t, store.promptMemory(for: t.kind), tools: tools), [], t.line)
+        for i in try Self.fixtureInputs() {
+            XCTAssertEqual(Prompt.overBudget(i, store.promptMemory(for: i.kind)), [], i.line)
         }
     }
 
-    // MARK: Fixtures
-
-    static func fixtureTriggers() throws -> [Trigger] {
-        let dir = fixtures.appendingPathComponent("triggers")
-        var out: [Trigger] = []
+    static func fixtureInputs() throws -> [Input] {
+        let dir = fixtures.appendingPathComponent("inputs")
+        var out: [Input] = []
         for file in try FileManager.default.contentsOfDirectory(atPath: dir.path).sorted() where file.hasSuffix(".jsonl") {
             for line in try String(contentsOf: dir.appendingPathComponent(file), encoding: .utf8).split(separator: "\n") {
-                let o = try JSONSerialization.jsonObject(with: Data(line.utf8)) as! [String: Any]
-                out.append(Trigger(kind: Trigger.Kind(rawValue: o["kind"] as! String)!, line: o["line"] as! String,
-                                   words: o["words"] as? String, ts: 0))
+                out.append(try XCTUnwrap(Input.fixture(String(line)), String(line)))
             }
         }
         return out
     }
 
-    func testThereAreFiftyFixtureTriggersOfEveryKind() throws {
-        let triggers = try Self.fixtureTriggers()
-        XCTAssertGreaterThanOrEqual(triggers.count, 50)
-        XCTAssertEqual(Set(triggers.map(\.kind)), [.event, .tap, .talk, .reflect])
-        for what in ["turn started", "turn finished", "turn failed"] {
-            XCTAssertTrue(triggers.contains { $0.line.hasPrefix(what) }, what)
-        }
-        XCTAssertTrue(triggers.filter { $0.kind == .talk }.allSatisfy { $0.words != nil })
-    }
-
-    // MARK: Logging
-
-    func testDebugModeLogsOneJSONLinePerCall() async throws {
-        let log = FileManager.default.temporaryDirectory.appendingPathComponent("boop-harness-\(UUID().uuidString).jsonl")
-        defer { try? FileManager.default.removeItem(at: log) }
-        let rig = HarnessRig(brain: FakeBrain { _ in #"{"calls":[{"tool":"say","feeling":"sad"}]}"# }, debugLog: log)
-        rig.submit(trigger(.tap, "tapped · 09:30 Tuesday"))
-        await rig.settle()
-        rig.submit(trigger(.talk, "talk · 09:31 Tuesday", words: "hi"))
-        await rig.settle()
-        let lines = try String(contentsOf: log, encoding: .utf8).split(separator: "\n")
-        XCTAssertEqual(lines.count, 2)
-        let first = try JSONSerialization.jsonObject(with: Data(lines[0].utf8)) as! [String: Any]
-        XCTAssertEqual(first["brain"] as? String, "fake@1")
-        XCTAssertEqual(first["raw"] as? String, #"{"calls":[{"tool":"say","feeling":"sad"}]}"#)
-        XCTAssertTrue((first["dropped"] as? String)?.hasPrefix("shape: say: feeling") ?? false)
-        XCTAssertNotNil(first["system"])
-        XCTAssertEqual(first["history"] as? Int, 0)
-        XCTAssertNotNil(first["user"])
-        XCTAssertNotNil(first["latency_ms"])
-    }
-
-    func testWithoutDebugModeNothingIsWritten() async {
-        let rig = HarnessRig(brain: FakeBrain { _ in #"{"calls":[]}"# })
-        XCTAssertNil(rig.harness.debugLog)
-        rig.submit(trigger(.tap, "tapped · 09:30 Tuesday"))
-        await rig.settle()
-        XCTAssertEqual(rig.snapshot.records.count, 1)
-        XCTAssertTrue(rig.snapshot.records[0].silent)
-        XCTAssertTrue(rig.snapshot.records[0].logLine.hasSuffix(" ms → quiet"), rig.snapshot.records[0].logLine)
-    }
-
-    /// HARNESS.md §8: outside debug mode "nothing is written to disk,
-    /// because talk entries contain what you said". The app's log (boop.log)
-    /// gets each call's line, the harness's own lines and every action's
-    /// drop reasons: they name tools and reasons, never an argument's text.
-    func testTheLogNeverGetsWhatYouSaid() async throws {
-        final class Lines: @unchecked Sendable {
-            let lock = NSLock()
-            var all: [String] = []
-            func add(_ line: String) { lock.withLock { all.append(line) } }
-        }
-        let said = "PRIVATE_sam moves to Lisbon"
-        let answers = [
-            // A note that's kept, then the same note again, which the store refuses.
-            Answer.json([ToolCall("say", ["feeling": .string("happy")]), ToolCall("note", ["text": .string(said)])]),
-            Answer.json([ToolCall("note", ["text": .string(said)])]),
-            // A note the store refuses as code, and an answer the shape check drops.
-            Answer.json([ToolCall("note", ["text": .string(said + " `x`")])]),
-            Answer.json([ToolCall("say", ["feeling": .string(said)])]),
-        ]
-        let memory = try MemoryRig()
-        let lines = Lines()
-        for answer in answers {
-            let context = ActionContext(send: { _ in }, today: { "2026-10-14" }, log: lines.add)
-            let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: 1)), memory: memory.store)
-            let harness = Harness(brain: FakeBrain { _ in answer }, tools: actions.map(Harness.Tool.init),
-                                  memory: { memory.store.promptMemory(for: $0.kind) },
-                                  home: DispatchQueue(label: "test.log"), log: lines.add)
-            harness.onRecord = { lines.add($0.logLine) }  // as the Runtime wires it
-            _ = await harness.respond(to: trigger(.talk, "talk · 13:10 Tuesday", words: said))
-        }
-        XCTAssertEqual(memory.store.shortTerm?.notes, [said], "the note itself was kept")
-        let logged = lines.lock.withLock { lines.all }
-        for line in logged { XCTAssertFalse(line.contains("PRIVATE_") || line.contains("Lisbon"), line) }
-        let brain = logged.filter { $0.hasPrefix("brain talk ") }
-        XCTAssertEqual(brain.count, 4)
-        XCTAssertTrue(brain[0].hasSuffix(" ms → say, note"), brain[0])
-        XCTAssertTrue(brain[1].hasSuffix(" ms → note (dropped)"), brain[1])
-        XCTAssertTrue(brain[3].hasSuffix(" ms → dropped: shape: say: feeling isn't one of its choices"), brain[3])
-        XCTAssertTrue(logged.contains("note: dropped: already noted"), "\(logged)")
-        XCTAssertTrue(logged.contains("note: dropped: looks like code"), "\(logged)")
+    func testThereAreFiftyFixtureInputsOfEveryKind() throws {
+        let inputs = try Self.fixtureInputs()
+        XCTAssertGreaterThanOrEqual(inputs.count, 50)
+        XCTAssertEqual(Set(inputs.map(\.kind)), Set(Input.Kind.allCases))
+        XCTAssertTrue(inputs.contains { $0.outcome == .failed })
+        XCTAssertTrue(inputs.filter { $0.kind == .said }.allSatisfy { $0.words != nil })
     }
 }
 
@@ -445,123 +376,4 @@ extension Result where Failure == BrainError {
         if case .failure(let e) = self { return e.description }
         return nil
     }
-}
-
-final class BrainTests: XCTestCase {
-    func steering() throws -> String { try String(contentsOf: HarnessTests.steering, encoding: .utf8) }
-
-    func ask(_ brain: any Brain, _ t: Trigger, tools: [String]? = nil) async throws -> String {
-        let prompt = Prompt(trigger: t, memory: .init(steering: try steering(), longTerm: "", shortTerm: ""))
-        let memory = try MemoryRig()
-        let context = ActionContext(send: { _ in }, today: { "2026-10-14" })
-        let defs = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: 1)), memory: memory.store)
-            .filter { (tools ?? t.kind.tools).contains($0.name) }.map(\.definition)
-        return try await brain.complete(system: prompt.system, history: prompt.history, user: prompt.user, tools: defs,
-                                        deadline: .seconds(1))
-    }
-
-    func testTheRulesBrainReadsTheFallbackTable() throws {
-        let rows = RulesBrain.fallbacks(try steering())
-        XCTAssertEqual(rows.count, 6)
-        XCTAssertEqual(rows[3].condition, #"Talk containing "shut up" or "quiet""#)
-        XCTAssertEqual(rows[3].calls, [ToolCall("quiet", ["minutes": .number(30)])])
-        XCTAssertEqual(rows[5].calls, [])
-        // Every fallback calls only tools a conversation is offered.
-        let offered = Set(Trigger.Kind.talk.offered)
-        for row in rows { for call in row.calls { XCTAssertTrue(offered.contains(call.name), "\(call)") } }
-    }
-
-    func testTheRulesBrainAnswersEachRow() async throws {
-        let b = RulesBrain()
-        let cases: [(Trigger, String)] = [
-            (trigger(.event, "turn finished · claude · jetpack · topic: tests · took 18 min · 14:05 Tuesday"),
-             #"{"calls":[{"tool":"say","feeling":"proud","word":"finally"}]}"#),
-            (trigger(.event, "turn finished · claude · jetpack · took 4 min · 14:05 Tuesday"), #"{"calls":[]}"#),
-            (trigger(.event, "turn finished · claude · jetpack · took 45 s · 14:05 Tuesday"), #"{"calls":[]}"#),
-            (trigger(.event, "turn failed · codex · landing · topic: tests · 14:02 Tuesday"),
-             #"{"calls":[{"tool":"say","feeling":"annoyed"}]}"#),
-            (trigger(.event, "turn started · claude · jetpack · 09:12 Tuesday"), #"{"calls":[]}"#),
-            (trigger(.tap, "tapped · 09:30 Tuesday"), #"{"calls":[{"tool":"say","feeling":"happy"}]}"#),
-            (trigger(.talk, "talk · 13:10 Tuesday", words: "Shut up for an hour"), #"{"calls":[{"tool":"quiet","minutes":30}]}"#),
-            (trigger(.talk, "talk · 13:10 Tuesday", words: "be quiet"), #"{"calls":[{"tool":"quiet","minutes":30}]}"#),
-            (trigger(.talk, "talk · 13:10 Tuesday", words: "good job"), #"{"calls":[{"tool":"say","feeling":"curious"}]}"#),
-            (trigger(.reflect, "reflect · yesterday 2026-10-14"), #"{"calls":[]}"#),
-        ]
-        for (t, expected) in cases {
-            let answer = try await ask(b, t)
-            XCTAssertEqual(answer, expected, t.line)
-        }
-        // Calls to tools that aren't offered, or that the prompt names as past a limit, are left out.
-        let answer = try await ask(b, trigger(.talk, "talk · 13:10 Tuesday", words: "quiet"), tools: ["say"])
-        XCTAssertEqual(answer, #"{"calls":[]}"#)
-        let tap = Prompt(trigger: trigger(.tap, "tapped · 12:15 Tuesday"),
-                         memory: .init(steering: try steering(), longTerm: "", shortTerm: ""),
-                         limits: ["say limit: once every 5 min on tap, next in 2 min"])
-        let limited = try await b.complete(system: tap.system, history: [], user: tap.user, tools: HarnessTests().tools,
-                                           deadline: .seconds(1))
-        XCTAssertEqual(limited, #"{"calls":[]}"#)
-        // A qualifier this brain doesn't know never matches: an old "Tap,
-        // hungry" row in a hand-edited steering.md is skipped.
-        let old = "## Fallbacks\n\n| Trigger | Fallback |\n| --- | --- |\n| Tap, hungry | `say(feeling: hopeful, word: food)` |\n| Tap | `say(feeling: happy)` |\n"
-        XCTAssertEqual(RulesBrain.pick(RulesBrain.fallbacks(old), now: "tapped · 12:15 Tuesday · hungry"),
-                       [ToolCall("say", ["feeling": .string("happy")])])
-    }
-
-    /// HARNESS.md §7: rules are "used when Apple's model can't run",
-    /// including when it stops being able to after launch: that call gets
-    /// the rules brain's answer instead of being dropped. Never reaches the
-    /// model.
-    func testAppleAnswersWithTheRulesWhenItsModelIsUnavailable() async throws {
-        let apple = AppleBrain(unavailable: { "the model is updating" })
-        XCTAssertTrue(apple.id.hasPrefix("apple:"))
-        let cases = [
-            trigger(.tap, "tapped · 09:30 Tuesday"),
-            trigger(.talk, "talk · 13:10 Tuesday", words: "be quiet"),
-            trigger(.event, "turn failed · codex · landing · topic: tests · 14:02 Tuesday"),
-        ]
-        for t in cases {
-            let answer = try await ask(apple, t)
-            let rules = try await ask(RulesBrain(), t)
-            XCTAssertEqual(answer, rules, t.line)
-        }
-        let tap = try await ask(apple, cases[0])
-        XCTAssertEqual(tap, #"{"calls":[{"tool":"say","feeling":"happy"}]}"#)
-    }
-
-    func testTheCloudBrainIsDisabled() async {
-        do {
-            _ = try await CloudBrain(model: "any").complete(system: "", history: [], user: "", tools: [], deadline: .seconds(1))
-            XCTFail("the cloud brain answered")
-        } catch {
-            XCTAssertEqual(error as? BrainError, BrainError("the cloud brain isn't available yet"))
-        }
-        XCTAssertEqual(Brains.make("rules").id, "rules@1")
-        XCTAssertEqual(Brains.make("cloud:some-model").id, "cloud:some-model")
-    }
-
-    #if canImport(FoundationModels)
-    /// The runtime schema builds for every trigger's tools, and `none`
-    /// leaves out an optional choice or drops the call. Doesn't call the
-    /// model.
-    func testTheAppleSchemaBuildsForEveryTrigger() throws {
-        let memory = try MemoryRig()
-        let context = ActionContext(send: { _ in }, today: { "2026-10-14" })
-        let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: 1)), memory: memory.store)
-        for kind in [Trigger.Kind.event, .tap, .talk, .reflect] {
-            _ = try (AppleBrain.schema(actions.filter { kind.offered.contains($0.name) }.map(\.definition)))
-        }
-        // Earlier answers are shown in the shape this brain answers in.
-        XCTAssertEqual(AppleBrain.toList(#"{"calls":[]}"#), #"{"react":"stay quiet","calls":[]}"#)
-        XCTAssertEqual(AppleBrain.toList(#"{"calls":[{"tool":"say","feeling":"happy"}]}"#),
-                       #"{"react":"react","calls":[{"feeling":"happy","tool":"say"}]}"#)
-        let transcript = AppleBrain.transcript("System", [Exchange(user: "u1", answer: #"{"calls":[]}"#)])
-        XCTAssertEqual(transcript.count, 3)
-        XCTAssertEqual(AppleBrain.fromList(#"{"react":"stay quiet","calls":[{"tool":"say","feeling":"happy"}]}"#), #"{"calls":[]}"#)
-        XCTAssertEqual(AppleBrain.fromList(#"{"react":"react","calls":[{"tool":"say","feeling":"happy"}]}"#),
-                       #"{"calls":[{"feeling":"happy","tool":"say"}]}"#)
-        let tools = actions.map(\.definition)
-        XCTAssertEqual(AppleBrain.fromList(#"{"react":"react","calls":[{"tool":"say","feeling":"happy","word":"none"},{"tool":"forget","text":"none"}]}"#, tools: tools),
-                       #"{"calls":[{"feeling":"happy","tool":"say"}]}"#)
-    }
-    #endif
 }

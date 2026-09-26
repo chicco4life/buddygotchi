@@ -1,6 +1,6 @@
 # Boop: vision
 
-Updated 2026-09-25. Why Boop exists, who it's for, and the promises it keeps.
+Updated 2026-09-26. Why Boop exists, who it's for, and the promises it keeps.
 
 ## The short version
 
@@ -117,7 +117,7 @@ ship. You didn't configure any of that. It grew.
 4. **Something you feed.** The work you do together is its food, and it
    earns XP and levels up from it. Leave it alone for days and it gets
    hungry, and after a while slowly loses a little XP, but it can never lose
-   a level or die. See [Behaviors](BEHAVIORS.md) §4.
+   a level or die. It's parked for now ([FUTURE.md](FUTURE.md)).
 5. **Something you can talk to.** Hold the button and speak. Tell it to be
    quiet, tell it good job, or just mumble at it and get mumbled back. The
    mic is on only while you hold the button.
@@ -143,8 +143,9 @@ ship. You didn't configure any of that. It grew.
 ## Look
 
 "Warm Terminal": an oat matte body, a black glass face and one amber accent.
-The face is two expressive eyes in the style of Cozmo, drawn procedurally so
-every expression blends into the next. It should look like an object an adult
+The face is pixel art: two window eyes with pink cheeks and a bar mouth
+([UX.md](UX.md) §2), drawn from code so every expression blends into the
+next. It should look like an object an adult
 is happy to have on their desk, not like a toy.
 
 ## Promises
@@ -167,15 +168,16 @@ These are fixed. If a feature conflicts with one of them, the feature changes.
    day, and it belongs to you.
 7. **Private by construction.** There is no camera, the mic works only while
    you hold the button, and nothing logs your keystrokes. Boop's memory lives
-   on your Mac. The default brain runs on the Mac too. If you add your own cloud API key, the cloud model receives
-   short summaries and what you say to Boop, and never your code or
+   on your Mac. The default brain runs on the Mac too. If you choose a cloud brain with
+   your own API key, it receives Boop's memory, short summaries of what
+   happened and what you say to Boop, and never your code or your agents'
    transcripts.
 8. **Never nags, never guilts.** Hunger is visible only when you look. It
    never makes a sound, never sends a notification and never interrupts.
 9. **No leaderboards.** Stats stay private unless you choose to share them.
 10. **It's your pet, not a brand mascot.** Boop is never branded as Claude or
     Codex. You name it.
-11. **Changes are announced.** The brain's model, `steering.md` and the voice
+11. **Changes are announced.** The brain's models, `steering.md` and the voice
     are pinned. When Boop's behaviour changes, it ships as a versioned,
     announced update, so the creature you know doesn't shift under you.
 
@@ -187,9 +189,10 @@ These are fixed. If a feature conflicts with one of them, the feature changes.
   creature is the interface.
 - It is not an agent. It doesn't run tasks, spend money, approve requests or
   act for you in any way. Information only flows from your agents to Boop.
-- It is not tied to one AI. The brain is swappable: Apple's on-device model
-  by default, a cloud model with your own API key, or none at all. Boop stays the
-  same creature either way.
+- It is not tied to one AI. The brain is swappable: plain rules or a cloud
+  model with your own API key (Jev today) decide what Boop does, and
+  Apple's on-device model, or nothing at all, writes its few words. Boop
+  stays the same creature either way.
 - It has no always-on wake word and no camera, and that will not change.
 
 ## Scope

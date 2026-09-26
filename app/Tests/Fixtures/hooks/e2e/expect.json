@@ -1,4 +1,4 @@
 {
   "happened": ["claude · jetpack · finished", "claude · jetpack · deploy · failed", "codex · landing · finished", "codex · landing · finished"],
-  "triggers": ["topic: tests", "topic: deploy", "error: rate limit", "turn finished · claude · jetpack", "turn finished · codex · landing"]
+  "inputs": ["topic: tests", "topic: deploy", "error: rate limit", "agent finished · done · claude · jetpack", "agent finished · done · codex · landing"]
 }

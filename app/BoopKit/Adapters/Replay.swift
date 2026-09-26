@@ -20,7 +20,7 @@ public struct Replay {
     public var gapMs: Int64 = 1000
     public var start: Int64 = Replay.defaultStart
     public var time = LocalTime(timeZone: TimeZone(identifier: "UTC")!)
-    /// Start before today's first activity, so it starts a new day.
+    /// Start with today's rituals still to come.
     public var newDay = false
 
     public init(agent: String) {
@@ -97,7 +97,8 @@ public struct Replay {
         case .state(let s): "state " + s.jsonLine
         case .moment(let anim): "moment \(anim)"
         case .mumble(let feeling, let word): "mumble \(feeling)" + (word.map { " \($0)" } ?? "")
-        case .trigger(let t): "trigger \(t.kind.rawValue): \(t.line)"
+        case .input(let i): "input " + i.line + (i.words.map { " \"\($0)\"" } ?? "")
+        case .aside(let line): "aside " + line
         case .happened(let line): "happened \(line)"
         case .newDay(let date, let firstSeen): "new-day \(date) first seen \(firstSeen)"
         case .listen(let on): "listen \(on)"

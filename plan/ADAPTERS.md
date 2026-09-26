@@ -100,7 +100,7 @@ a tag, then drops the input:
 | `docs` | An edit to a Markdown or plain-text file |
 
 Anything else has no topic. The core remembers each session's latest topic
-for triggers and working chatter.
+for the brain's inputs and working chatter.
 
 ## 4. "Needs you"
 

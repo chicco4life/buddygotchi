@@ -61,6 +61,24 @@ unchanged, so every animation takes the new look.
 | `make test` | `✓ 170 passed` |
 | `Boop --snapshots` | The popover face, setup face and menu-bar icons were looked at |
 
+## Merged with the two-stage brain (A7)
+
+`main` gained A7's two-stage brain while C1 was in progress.
+
+- **Firmware:** the merge keeps C1's firmware as it is. It already
+  included A7's removals (focus mode, touch-and-hold, the morning stretch).
+- **Brain:** A7's design is kept: a classifier and a writer, with the
+  `react`, `quiet` and `remember` outputs.
+- **What C1 changes on top of A7:**
+  - no hunger in the brain's inputs;
+  - `cheer` with no size;
+  - a failed turn gets no rule moment;
+  - `react` keeps its ten feelings for the voice but shows no face. A
+    mumble plays over the current face, and `silent` shows nothing.
+
+After the merge: `make test` `✓ 173 passed`, `make fw-test` 95 passed,
+`tools/boopctl sim` `0 new or changed pictures`, and `make fw` builds.
+
 ## Not yet run
 
 - Flashing the board and L2 (`tools/boopctl run`): it needs the owner.

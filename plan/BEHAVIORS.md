@@ -1,7 +1,7 @@
 # Boop: behaviors
 
-Updated 2026-09-26. What Boop does on the device for each trigger. How it
-sounds is in [VOICE.md](VOICE.md). Numbers marked *proposed* are first
+Updated 2026-09-26. What Boop does on the device when things happen. How
+it sounds is in [VOICE.md](VOICE.md). Numbers marked *proposed* are first
 guesses, to be tuned once we've lived with Boop.
 
 This is the minimal set. On 2026-09-26 everything beyond it was cut so
@@ -44,20 +44,23 @@ word is a working session's latest topic, picked at random among the
 working sessions that have one, said as a `curious` question
 (*"mi-ne? po… tests?"*); otherwise it's a `happy` mumble with no word.
 
-## 3. Triggers and what Boop does
+## 3. What happens and what Boop does
 
 "Rules" happen immediately. "Brain may add" arrives 1–5 s later from the
-[harness](HARNESS.md), and is dropped if the moment has passed. It never
-cuts the rules' reaction short: a brain mumble waits until the rule moment
-has finished playing ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2).
+[brain](HARNESS.md), and is dropped if the moment has passed. Whether it
+adds anything is up to its classifier, and a mumble's word is up to its
+writer ([HARNESS.md](HARNESS.md) §6). What it adds is a mumble; the brain's
+faces are parked ([FUTURE.md](FUTURE.md)). It never cuts the rules'
+reaction short: a brain mumble waits until the rule moment has finished
+playing ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2).
 
 ### 3.1 Agent work
 
-| Trigger | Rules | Brain may add |
+| When | Rules | Brain may add |
 | --- | --- | --- |
-| You send a prompt | Base becomes working | Nothing: the brain never speaks on a turn start ([HARNESS.md](HARNESS.md) §5) |
-| Turn finishes | `cheer`, even while other sessions keep working | A mumble, e.g. *"ba-ba ti… done!"* |
-| Turn fails | No moment; the session goes idle | Sass at the agent, e.g. *"tu-ka… tests."* |
+| You send a prompt | Base becomes working | Usually nothing |
+| Turn finishes | `cheer`, even while other sessions keep working | Sometimes a mumble, more likely after a long turn, e.g. *"…finally!"* |
+| Turn fails | No moment; the session goes idle | Sass at the agent, as an annoyed mumble, e.g. *"tu-ka… tests."* |
 
 A new moment replaces one that's playing, so several turns finishing
 together look like one cheer.
@@ -79,16 +82,16 @@ chirps again. The brain is never involved here.
 
 ### 3.3 You and Boop
 
-| Trigger | Rules | Brain may add |
+| When | Rules | Brain may add |
 | --- | --- | --- |
-| Tap the screen, or press BOOT | `wiggle`: "^ ^" eyes, a smile and a heart at the top right, swaying gently | A small mumble |
-| Hold BOOT (push-to-talk) | `listening` at once (for at most 30 s), `thinking` on release. The Mac's mic goes off on release, after 30 s, or when the link drops | A mumble reply; on "shut up", quiet, as in [steering.md](steering.md) |
+| Tap the screen, or press BOOT | `wiggle`: "^ ^" eyes, a smile and a heart at the top right, swaying gently | Nothing: a tap is the rules' alone ([HARNESS.md](HARNESS.md) §2) |
+| Hold BOOT (push-to-talk) | `listening` at once (for at most 30 s), `thinking` on release. The Mac's mic goes off on release, after 30 s, or when the link drops | Usually a mumble; on "shut up", quiet; told something to remember, a note for today, as in [steering.md](steering.md) |
 | Talk in the popover, then Send | The Mac sends `listening`, then `thinking` on Send or after 30 s. A mic that can't start sends `shrug` | As for holding BOOT |
 | Brain too slow to reply | The device ends `thinking` with a `shrug` itself after 8 s | — |
 
 ### 3.4 The link
 
-| Trigger | Behaviour |
+| When | Behaviour |
 | --- | --- |
 | No `state` for 30 s | The no-app state (§2) |
 | Reconnect | Quick blink, then whatever the next `state` says |
@@ -97,7 +100,7 @@ chirps again. The brain is never involved here.
 
 | Output | Used for | Never |
 | --- | --- | --- |
-| Mumbles | Working chatter, the brain's replies to events, taps and talk | In quiet mode; while something needs you |
+| Mumbles | Working chatter, and the brain's reactions to agents and to what you say | In quiet mode; while something needs you |
 | Chirp | Once when something starts needing you | Anything else |
 | Amber light | Something needs you | Decoration |
 | Dimmed backlight | Asleep, no app | While something needs you |
@@ -113,5 +116,5 @@ Mute (volume 0) silences all sound but keeps the light.
 | `wiggle` | Taps |
 | `listening`, `thinking`, `shrug` | Push-to-talk |
 
-A mumble on its own (the brain's `say`, or chatter) plays over whatever
+A mumble on its own (the brain's `react`, or chatter) plays over whatever
 face is showing and doesn't change it.

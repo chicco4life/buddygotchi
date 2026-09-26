@@ -285,7 +285,7 @@ final class MemoryTests: XCTestCase {
         XCTAssertEqual(rig.store.lastActiveDay, "2026-10-15")
         // A moment during the reflection is dated the day reflected on.
         let actions = ActionRig(memory: rig.store)
-        XCTAssertTrue(actions.run(ToolCall("moment", ["text": .string("first all-nighter together")])).isDone)
+        XCTAssertTrue(actions.run(remember("moment", "first all-nighter together")).isDone)
         XCTAssertEqual(rig.store.longTerm!.moments.last?.date, "2026-10-14")
     }
 
@@ -342,13 +342,13 @@ final class MemoryTests: XCTestCase {
         }
         let (_, first) = boot(start)
         XCTAssertTrue(first.contains { if case .newDay = $0 { true } else { false } })
-        XCTAssertTrue(first.contains { if case .trigger(let t) = $0 { t.kind == .reflect } else { false } })
+        XCTAssertTrue(first.contains { if case .input(let i) = $0 { i.kind == .newDay } else { false } })
         XCTAssertEqual(rig.store.reflecting, "2026-10-13")
         XCTAssertEqual(rig.store.lastActiveDay, "2026-10-14")
         try rig.reopen()
         let (_, again) = boot(start + 60_000)
         XCTAssertFalse(again.contains { if case .newDay = $0 { true } else { false } })
-        XCTAssertFalse(again.contains { if case .trigger(let t) = $0 { t.kind == .reflect } else { false } })
+        XCTAssertFalse(again.contains { if case .input(let i) = $0 { i.kind == .newDay } else { false } })
     }
 
     func testLimitsHoldOnHandEditedFiles() throws {

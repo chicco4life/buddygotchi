@@ -84,7 +84,7 @@ enum Snapshots {
             wait: wait.count, quiet: quiet, vol: vol)
         return Runtime.Status(snapshot: snapshot, sessions: sessions, connected: connected,
                               device: connected ? DeviceStatus(id: "b00p-54fe", fw: "1.0.0") : nil,
-                              brain: "apple", listening: listening)
+                              classifier: "rules@2", writer: "apple:26.4", listening: listening)
     }
 
     static func overviews(_ installer: HookInstaller) -> [(String, AppModel)] {

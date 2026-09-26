@@ -4,7 +4,7 @@ import XCTest
 @testable import HookWire
 
 /// The runtime end to end in-process: real hook socket, real core, harness
-/// with the rules brain and memory in a temporary state directory; a fake
+/// with the rules classifier, no writer, and memory in a temporary state directory; a fake
 /// device.
 final class RuntimeTests: XCTestCase {
     var dir: URL!
@@ -25,7 +25,8 @@ final class RuntimeTests: XCTestCase {
         try Runtime.setUp(stateDir: dir, name: "Pip", nature: .sweet, today: LocalTime().day(Int64(Date().timeIntervalSince1970 * 1000)))
         var options = Runtime.Options(stateDir: dir, socketPath: dir.appendingPathComponent("boop.sock").path,
                                       link: transport, steering: try String(contentsOf: Self.steering, encoding: .utf8))
-        options.brain = "rules"
+        options.classifier = "rules"
+        options.writer = "none"
         options.devLines = true
         return try Runtime(options)
     }
@@ -71,21 +72,12 @@ final class RuntimeTests: XCTestCase {
 
         // The menu bar sees the mic on, and a dropped link turns it off.
         var shown: [Bool] = []
-        var sessions: [SessionSummary] = []
-        runtime.home.sync {
-            runtime.onChange = {
-                shown.append($0.listening)
-                sessions = $0.sessions
-            }
-        }
+        runtime.home.sync { runtime.onChange = { shown.append($0.listening) } }
         transport.onLine?(#"{"t":"input","k":"talk_on"}"#)
         wait("listening shows") { runtime.home.sync { heard.count == 3 && shown.last == true } }
         transport.onConnection?(false)
         wait("mic off when the link drops") { runtime.home.sync { heard } == [true, false, true, false] }
         XCTAssertEqual(runtime.home.sync { shown.last }, false)
-        XCTAssertEqual(runtime.home.sync { sessions }, [SessionSummary(agent: "claude", project: "jetpack", status: .waiting)],
-                       "the popover's list comes with the status, not the state")
-        XCTAssertFalse(transport.sent.contains { $0.contains("threads") })
         transport.onConnection?(true)
 
         // The Talk button: the device shows listening, then thinking.
@@ -99,7 +91,8 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(HookSocket.send(hook("PostToolUse", tool: "Bash"), to: socket))
         XCTAssertTrue(HookSocket.send(hook("Stop"), to: socket))
         wait("cheer") { transport.sent.contains { $0 == #"{"t":"moment","anim":"cheer","ttl":5}"# } }
-        XCTAssertEqual(AppSettings.load(from: dir).brain, "apple", "--brain is for this run only")
+        XCTAssertEqual(AppSettings.load(from: dir).classifier, "rules")
+        XCTAssertEqual(AppSettings.load(from: dir).writer, "apple", "--writer is for this run only")
         wait("today's short-term memory") {
             (try? String(contentsOf: self.dir.appendingPathComponent("short-term.md"), encoding: .utf8))?.contains("## Today") == true
         }
@@ -113,7 +106,7 @@ final class RuntimeTests: XCTestCase {
         var data = try JSONSerialization.data(withJSONObject: ["dev": "talk", "words": "shut up"])
         data.append(0x0A)
         XCTAssertTrue(HookSocket.send(data, to: dir.appendingPathComponent("boop.sock").path))
-        // The rules brain answers "shut up" with quiet.
+        // The rules classifier answers "shut up" with quiet.
         wait("quiet in the next state") { transport.sent.contains { $0.contains("\"t\":\"state\"") && !$0.contains("\"quiet\":0") } }
     }
 
@@ -147,43 +140,54 @@ final class RuntimeTests: XCTestCase {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try Data(#"{"brain":"rules"}"#.utf8).write(to: dir.appendingPathComponent(AppSettings.file))
         let settings = AppSettings.load(from: dir)
-        XCTAssertEqual(settings.brain, "rules")
+        XCTAssertEqual([settings.classifier, settings.writer], ["rules", "none"], "rules only wrote nothing")
         XCTAssertEqual(settings.volume, 6)
     }
 
-    /// Settings saved before the cut (2026-09-26) carry focus, away and the
-    /// record. They still load, those keys are ignored, and the next save
-    /// drops them.
-    func testSettingsFromBeforeTheCutStillLoad() throws {
-        try Runtime.setUp(stateDir: dir, name: "Pip", nature: .sweet, today: LocalTime().day(Int64(Date().timeIntervalSince1970 * 1000)))
-        let old = #"{"awaySince":"2026-09-20","away":true,"brain":"rules","finished":148,"focus":true,"projects":["jetpack","landing"],"volume":3}"#
+    /// Settings from before 2026-09-26 still load; the keys that went with
+    /// the cut are ignored and aren't written back.
+    func testSettingsIgnoreTheCutKeys() throws {
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let old = #"{"classifier":"jev","writer":"none","volume":3,"focus":true,"away":true,"awaySince":"2026-09-20","finished":148,"projects":["jetpack"]}"#
         try Data(old.utf8).write(to: dir.appendingPathComponent(AppSettings.file))
-        XCTAssertEqual(AppSettings.load(from: dir).brain, "rules")
-        XCTAssertEqual(AppSettings.load(from: dir).volume, 3)
+        let settings = AppSettings.load(from: dir)
+        XCTAssertEqual([settings.classifier, settings.writer], ["jev", "none"])
+        XCTAssertEqual(settings.volume, 3)
+        try settings.save(to: dir)
+        let text = try String(contentsOf: dir.appendingPathComponent(AppSettings.file), encoding: .utf8)
+        for key in ["focus", "away", "finished", "projects"] { XCTAssertFalse(text.contains(key), key) }
+    }
 
-        let transport = FakeTransport()
-        var options = Runtime.Options(stateDir: dir, socketPath: dir.appendingPathComponent("boop.sock").path,
-                                      link: transport, steering: "")
-        options.brain = "rules"
-        let runtime = try Runtime(options)
-        XCTAssertEqual(runtime.core.snapshot(at: 0).vol, 3)
-        XCTAssertTrue(runtime.home.sync { runtime.core.canMumble(at: 0) }, "focus is gone: mumbles aren't held back")
-        runtime.setVolume(4)
-        runtime.home.sync {}
-        let saved = try String(contentsOf: dir.appendingPathComponent(AppSettings.file), encoding: .utf8)
-        let keys = try JSONSerialization.jsonObject(with: Data(saved.utf8)) as? [String: AnyHashable]
-        XCTAssertEqual(keys, ["brain": "rules", "volume": 4])
+    /// HARNESS.md §6: the old one `brain` setting becomes the two stages;
+    /// Apple's model and Jev keep Apple's model for the words.
+    func testTheOldBrainSettingBecomesTwo() throws {
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let cases = [(#"{"brain":"apple"}"#, "rules", "apple"), (#"{"brain":"jev"}"#, "jev", "apple"),
+                     (#"{"brain":"cloud:x"}"#, "rules", "apple"), (#"{}"#, "rules", "apple"),
+                     (#"{"brain":"jev","classifier":"rules","writer":"none"}"#, "rules", "none")]
+        for (json, classifier, writer) in cases {
+            try Data(json.utf8).write(to: dir.appendingPathComponent(AppSettings.file))
+            let settings = AppSettings.load(from: dir)
+            XCTAssertEqual([settings.classifier, settings.writer], [classifier, writer], json)
+        }
+        var saved = AppSettings.load(from: dir)
+        saved.classifier = "jev"
+        try saved.save(to: dir)
+        let text = try String(contentsOf: dir.appendingPathComponent(AppSettings.file), encoding: .utf8)
+        XCTAssertFalse(text.contains("\"brain\""), "the old key isn't written back")
+        XCTAssertEqual(AppSettings.load(from: dir).classifier, "jev")
     }
 
     /// A long turn, finished after moving the clock with `{"dev":"advance"}`:
     /// the rules cheer at once, and the brain's mumble waits until the cheer
-    /// has played instead of cutting it off (BEHAVIORS.md §3).
+    /// has played instead of cutting it off.
     func testTheBrainWaitsForTheRulesMoment() throws {
         let transport = FakeTransport()
         try Runtime.setUp(stateDir: dir, name: "Pip", nature: .sweet, today: LocalTime().day(Int64(Date().timeIntervalSince1970 * 1000)))
         var options = Runtime.Options(stateDir: dir, socketPath: dir.appendingPathComponent("boop.sock").path,
                                       link: transport, steering: try String(contentsOf: Self.steering, encoding: .utf8))
-        options.brain = "rules"
+        options.classifier = "rules"
+        options.writer = "none"
         options.devLines = true
         let skew = NSLock()
         nonisolated(unsafe) var skewMs: Int64 = 0

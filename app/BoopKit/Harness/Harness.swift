@@ -1,21 +1,19 @@
 import Foundation
 
-/// Trigger → prompt → one brain call → shape check → each tool call to its
-/// handler (HARNESS.md §3). It doesn't know what any tool does: the app hands
-/// it `(definition, handler)` pairs at startup.
+/// The brain's pipeline (HARNESS.md §3): an input → Stage 1, the classifier,
+/// picks outputs from the input's menu → Stage 2, the writer, writes any
+/// words they need → each call to its action. Both stages read one
+/// append-only transcript (§4). The harness doesn't know what any output
+/// does, or what kind of model is behind either stage: the app hands it
+/// `(definition, handler)` pairs at startup.
 ///
-/// One call runs at a time. A newer trigger replaces one that's waiting, and
-/// `talk` cancels whatever is running. Event, tap and talk calls share one
-/// conversation and are offered the same tools every time; a tool past its
-/// limit (HARNESS.md §5) is named in the prompt and a call to it is dropped.
-/// Everything except the brain call runs on `home`, the queue the memory
-/// store and the actions live on.
+/// One pass runs at a time. A newer input replaces one that's waiting, and
+/// `you said` cancels whatever is running. Everything except the two brain
+/// calls runs on `home`, the queue the memory store and the actions live on.
 public final class Harness: @unchecked Sendable {
-    /// A tool as the harness sees it: what the brain is shown, and who
-    /// carries out a call.
+    /// An output as the harness sees it: its definition, and who carries out a call.
     public struct Tool {
-        /// Asked again for every call, since a definition may depend on
-        /// memory (`forget` offers the lines there are).
+        /// Asked again for every pass, since a definition may depend on memory.
         let define: () -> ToolDefinition
         public var handle: (ToolCall) -> ActionOutcome
         public var definition: ToolDefinition { define() }
@@ -30,119 +28,145 @@ public final class Harness: @unchecked Sendable {
         }
     }
 
-    /// What one call did, logged as one JSON line in debug mode (§8).
+    /// What one pass did, logged as one JSON line in debug mode (§8).
     public struct Record: Sendable {
-        public var trigger: Trigger
-        public var brain: String
-        public var prompt: Prompt
-        public var tools: [String]
-        /// The brain's answer as it came back, if it did.
-        public var raw: String?
-        /// Why the call produced nothing: a brain error, lateness, cancelling,
-        /// or the shape check dropping the whole answer.
+        public var input: Input
+        public var classifier: String
+        public var writer: String
+        /// Inputs in the window this pass saw, its own included.
+        public var window: Int
+        /// Stage 1's calls, in the order they run.
+        public var decided: [ToolCall] = []
+        public var evidence: String?
+        /// Why the pass produced nothing: Stage 1 failed, was late or
+        /// cancelled, or answered off the menu.
         public var dropped: String?
-        /// Each call handed off, with what its handler did.
-        public var ran: [(call: ToolCall, outcome: ActionOutcome)]
-        public var latencyMs: Int
+        /// The slots Stage 2 was asked to fill, and what it wrote ("" left empty).
+        public var slots: [String] = []
+        public var wrote: [String: String] = [:]
+        public var writerRaw: String?
+        /// Why Stage 2 wrote nothing, if it failed or was late.
+        public var writeFailed: String?
+        /// Each call handed off, with what its action did.
+        public var ran: [(call: ToolCall, outcome: ActionOutcome)] = []
+        public var classifyMs = 0
+        public var writeMs = 0
+        public var latencyMs = 0
 
-        /// The answer passed the shape check (an empty one counts).
-        public var validShape: Bool { raw != nil && dropped == nil }
-        public var silent: Bool { validShape && ran.isEmpty }
-        /// The brain declined to answer (a guardrail); nothing ran.
-        public var refused: Bool { dropped?.hasPrefix(BrainError.refusedPrefix) ?? false }
+        public init(input: Input, classifier: String, writer: String, window: Int) {
+            self.input = input
+            self.classifier = classifier
+            self.writer = writer
+            self.window = window
+        }
 
-        /// The one line the app logs for a call outside debug mode (§8): the
-        /// trigger kind, the latency and the tools that ran, or why nothing
+        /// Stage 1 answered with calls the menu allows (none counts).
+        public var answered: Bool { dropped == nil }
+        public var silent: Bool { answered && decided.isEmpty }
+        /// A model declined to answer (a guardrail).
+        public var refused: Bool {
+            (dropped ?? writeFailed ?? "").hasPrefix(BrainError.refusedPrefix)
+        }
+
+        /// The one line the app logs for a pass outside debug mode (§8): the
+        /// input kind, the latency and the outputs that ran, or why nothing
         /// did. Never argument values, which can carry what you said:
-        /// `brain talk 812 ms → say, quiet`. A call its action or a limit
-        /// dropped shows as `note (dropped)`; the action logs why.
+        /// `brain you said 812 ms → quiet, react`. A call its action dropped
+        /// shows as `remember (dropped)`; the action logs why.
         public var logLine: String {
             let tools = ran.map { $0.outcome.isDone ? $0.call.name : "\($0.call.name) (dropped)" }
-            let answer = dropped.map { "dropped: \($0)" } ?? (tools.isEmpty ? "quiet" : tools.joined(separator: ", "))
-            return "brain \(trigger.kind.rawValue) \(latencyMs) ms → \(answer)"
+            let answer = dropped.map { "dropped: \($0)" } ?? (tools.isEmpty ? "nothing" : tools.joined(separator: ", "))
+            let write = writeFailed.map { " (writer failed: \($0))" } ?? ""
+            return "brain \(input.kind.rawValue) \(latencyMs) ms → \(answer)\(write)"
         }
 
         public var json: String {
+            var input: [String: Any] = ["kind": self.input.kind.rawValue, "line": self.input.line, "ts": self.input.ts]
+            if let words = self.input.words { input["words"] = words }
             var o: [String: Any] = [
-                "trigger": ["kind": trigger.kind.rawValue, "line": trigger.line, "ts": trigger.ts],
-                "brain": brain, "system": prompt.system, "history": prompt.history.count, "user": prompt.user, "tools": tools,
-                "latency_ms": latencyMs,
+                "input": input, "classifier": classifier, "writer": writer, "window": window,
+                "decided": decided.map(\.plain), "slots": slots, "wrote": wrote,
+                "classify_ms": classifyMs, "write_ms": writeMs, "latency_ms": latencyMs,
                 "ran": ran.map { r -> [String: Any] in
                     switch r.outcome {
-                    case .done(let what): ["call": r.call.description, "done": what]
-                    case .dropped(let why): ["call": r.call.description, "dropped": why]
+                    case .done(let what): ["call": r.call.plain, "done": what]
+                    case .dropped(let why): ["call": r.call.plain, "dropped": why]
                     }
                 },
             ]
-            if let raw { o["raw"] = raw }
+            if let evidence { o["evidence"] = evidence }
             if let dropped { o["dropped"] = dropped }
+            if let writerRaw { o["writer_raw"] = writerRaw }
+            if let writeFailed { o["write_failed"] = writeFailed }
             let data = (try? JSONSerialization.data(withJSONObject: o, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data()
             return String(decoding: data, as: UTF8.self)
         }
     }
 
-    public let brain: any Brain
+    public let classifier: any Classifier
+    public let writer: any Writer
     let tools: [Tool]
-    let memory: (Trigger) -> Prompt.Memory
+    let memory: (Input) -> Prompt.Memory
     let home: DispatchQueue
     let debugLog: URL?
     let log: (String) -> Void
-    /// When each limited tool last ran (HARNESS.md §5).
-    let limits: ToolLimits
-    /// The earlier exchanges sent with every conversation call (HARNESS.md §4).
-    let conversation: Conversation
-    /// Called on `home` after every call, including dropped ones.
+    /// Shared by both stages (§4). Touched only on `home`.
+    public let transcript: Transcript
+    /// Called on `home` after every pass, including dropped ones.
     public var onRecord: ((Record) -> Void)?
 
     // Scheduling, touched only on `home`.
-    var running: (id: Int, trigger: Trigger, task: Task<Void, Never>)?
-    var waiting: Trigger?
+    var running: (id: Int, pass: Pass, task: Task<Void, Never>)?
+    var waiting: Input?
     var nextID = 0
-    /// The running call's tools as offered, and its conversation's generation.
-    var pending: [Offered] = []
-    var pendingGeneration: Int?
+
+    /// Time kept back from Stage 2 so its answer can still be handed off.
+    static let marginMs = 100
 
     /// - Parameters:
-    ///   - memory: the text for a trigger's prompt, from the memory store.
+    ///   - memory: the memory text for an input, from the memory store.
     ///   - debugLog: a JSONL file for §8's log; nil writes nothing to disk.
-    public init(brain: any Brain, tools: [Tool], memory: @escaping (Trigger) -> Prompt.Memory,
-                home: DispatchQueue, debugLog: URL? = nil, limits: ToolLimits = ToolLimits(),
-                conversation: Conversation = Conversation(), log: @escaping (String) -> Void = { _ in }) {
-        self.brain = brain
+    public init(classifier: any Classifier, writer: any Writer, tools: [Tool], memory: @escaping (Input) -> Prompt.Memory,
+                home: DispatchQueue, debugLog: URL? = nil, transcript: Transcript = Transcript(),
+                log: @escaping (String) -> Void = { _ in }) {
+        self.classifier = classifier
+        self.writer = writer
         self.tools = tools
         self.memory = memory
         self.home = home
         self.debugLog = debugLog
+        self.transcript = transcript
         self.log = log
-        self.limits = limits
-        self.conversation = conversation
-    }
-
-    /// The tools offered for a trigger, in the order given at startup. A
-    /// conversation call gets every conversing kind's tools, so the list never
-    /// changes within a conversation; reflection gets its own.
-    public func offered(_ kind: Trigger.Kind) -> [Tool] {
-        tools.filter { kind.offered.contains($0.definition.name) }
     }
 
     // MARK: Scheduling
 
-    /// Queues a trigger. Call on `home`.
-    public func submit(_ trigger: Trigger) {
+    /// Queues an input. Call on `home`.
+    public func submit(_ input: Input) {
         dispatchPrecondition(condition: .onQueue(home))
         if let running {
-            if trigger.kind == .talk {
+            if input.kind == .said {
                 running.task.cancel()
                 self.running = nil
-                finish(Record(trigger: running.trigger, brain: brain.id, prompt: Prompt(system: "", user: ""),
-                              tools: [], raw: nil, dropped: "cancelled by talk", ran: [], latencyMs: 0))
+                transcript.append(.dropped("cancelled by you talking"))
+                var record = Record(input: running.pass.input, classifier: classifier.id, writer: writer.id,
+                                    window: running.pass.window)
+                record.dropped = "cancelled by you talking"
+                finish(record)
             } else {
-                if let old = waiting { log("harness: \(old.kind.rawValue) replaced by a newer \(trigger.kind.rawValue)") }
-                waiting = trigger
+                if let old = waiting { log("harness: \(old.kind.rawValue) replaced by a newer \(input.kind.rawValue)") }
+                waiting = input
                 return
             }
         }
-        start(trigger)
+        start(input)
+    }
+
+    /// Something only the rules handled, for the transcript: a tap, or
+    /// something needing you. Call on `home`.
+    public func note(_ aside: String, at ts: Int64) {
+        dispatchPrecondition(condition: .onQueue(home))
+        transcript.append(.aside(aside, ts: ts))
     }
 
     /// Nothing running and nothing waiting.
@@ -151,75 +175,201 @@ public final class Harness: @unchecked Sendable {
         return running == nil && waiting == nil
     }
 
-    func start(_ trigger: Trigger) {
-        let (prompt, offered, generation) = prepare(trigger)
-        let definitions = offered.map(\.definition)
+    func start(_ input: Input) {
+        let pass = prepare(input)
         nextID += 1
         let id = nextID
-        pending = offered
-        pendingGeneration = generation
+        let context = pass.context
+        let menu = pass.menu
         let task = Task { [self] in
-            let (answer, ms) = await ask(prompt, definitions, deadline: trigger.kind.deadlineMs)
+            let thought = await think(context, menu)
             let cancelled = Task.isCancelled
             home.async { [self] in
-                guard running?.id == id, !cancelled else { return }
-                running = nil
-                finish(hand(trigger, prompt, pending, answer, ms, generation: pendingGeneration))
+                guard let running, running.id == id, !cancelled else { return }
+                self.running = nil
+                finish(hand(running.pass, thought))
                 if let next = waiting {
                     waiting = nil
                     start(next)
                 }
             }
         }
-        running = (id, trigger, task)
+        running = (id, pass, task)
     }
 
     // MARK: The steps
 
-    /// A tool as offered for one call: its definition fixed at prompt time.
-    struct Offered {
-        var definition: ToolDefinition
-        var handle: (ToolCall) -> ActionOutcome
+    /// One pass's inputs, fixed when it starts.
+    struct Pass {
+        var input: Input
+        var context: Context
+        var menu: Menu
+        var handlers: [String: (ToolCall) -> ActionOutcome]
+        var window: Int
     }
 
-    /// Steps 3–4's inputs: the prompt, the offered tools and, for a
-    /// conversation call, the conversation's generation. The conversation
-    /// starts over when its opening (system prompt, memory text, tools) has
-    /// changed, it holds its most exchanges, or the request would pass its
-    /// budget. On `home`.
-    func prepare(_ trigger: Trigger) -> (Prompt, [Offered], Int?) {
-        let offered = offered(trigger.kind).map { Offered(definition: $0.definition, handle: $0.handle) }
-        let definitions = offered.map(\.definition)
-        let text = memory(trigger)
-        for over in Prompt.overBudget(trigger, text, tools: definitions) {
-            log("harness: \(trigger.kind.rawValue) prompt over budget: \(over)")
+    /// Steps 1–2, on `home`: the input and the rules' reaction join the
+    /// transcript (moving the window first when it's full), and the menu is
+    /// built from the actions' definitions as they are now.
+    func prepare(_ input: Input) -> Pass {
+        transcript.begin(input)
+        let current = tools.map { ($0.definition, $0.handle) }
+        let menu = Menu(input.kind.menu, definitions: current.map(\.0))
+        let text = memory(input)
+        for over in Prompt.overBudget(input, text) {
+            log("harness: \(input.kind.rawValue) over budget: \(over)")
         }
-        guard trigger.kind.converses else { return (Prompt(trigger: trigger, memory: text), offered, nil) }
-        let limitLines = definitions.compactMap { limits.blocked($0.name, for: trigger) }
-        conversation.open([Prompt.system(text.steering), text.longTerm, text.shortTerm,
-                           definitions.map(\.json).joined(separator: "\n")].joined(separator: "\n\u{0}\n"))
-        if conversation.exchanges.count > conversation.maxExchanges { conversation.restart() }
-        var prompt = Prompt(trigger: trigger, memory: text, limits: limitLines, history: conversation.exchanges)
-        if !prompt.history.isEmpty, Conversation.tokens(prompt, tools: definitions) > Conversation.budget {
-            conversation.restart()
-            prompt = Prompt(trigger: trigger, memory: text, limits: limitLines)
-        }
-        return (prompt, offered, conversation.generation)
+        var handlers: [String: (ToolCall) -> ActionOutcome] = [:]
+        for (definition, handle) in current { handlers[definition.name] = handle }
+        return Pass(input: input, context: Context(input: input, memory: text, window: transcript.window),
+                    menu: menu, handlers: handlers, window: transcript.inputs)
     }
 
-    /// Step 4: the brain call, raced against the deadline. A brain that
-    /// ignores cancelling is left to finish on its own; its answer is dropped.
-    func ask(_ prompt: Prompt, _ tools: [ToolDefinition], deadline ms: Int) async -> (Result<String, BrainError>, Int) {
+    /// What the two brain calls came back with.
+    struct Thought: Sendable {
+        var classification: Result<Classification, BrainError>
+        /// Why Stage 1's calls don't fit the menu.
+        var offMenu: String?
+        var calls: [ToolCall] = []
+        var slots: [Slot] = []
+        /// Nil when there was nothing to write.
+        var writing: Result<Writing, BrainError>?
+        var classifyMs = 0
+        var writeMs = 0
+    }
+
+    /// Steps 3–5, off `home`: Stage 1, the menu check, then Stage 2 when
+    /// something needs words, all within the input's deadline.
+    func think(_ context: Context, _ menu: Menu) async -> Thought {
+        let deadline = context.input.kind.deadlineMs
         let start = ContinuousClock.now
-        let brain = self.brain
-        let once = Once<Result<String, BrainError>>()
-        let result = await withTaskCancellationHandler {
-            await withCheckedContinuation { (k: CheckedContinuation<Result<String, BrainError>, Never>) in
+        let classifier = self.classifier
+        let result = await Harness.race(deadline) {
+            try await classifier.classify(context, menu, deadline: .milliseconds(deadline))
+        }
+        var thought = Thought(classification: result, classifyMs: Harness.ms(since: start))
+        guard case .success(let classification) = result else { return thought }
+        if let why = menu.check(classification.calls) {
+            thought.offMenu = why
+            return thought
+        }
+        thought.calls = menu.ordered(classification.calls)
+        thought.slots = menu.slots(thought.calls)
+        guard !thought.slots.isEmpty else { return thought }
+
+        let left = deadline - thought.classifyMs - Harness.marginMs
+        let writeStart = ContinuousClock.now
+        if left <= 0 {
+            thought.writing = .failure(BrainError("late: no time left to write"))
+        } else {
+            var written = context
+            written.window.append(.decided(by: classifier.id, thought.calls, evidence: classification.evidence))
+            let writer = self.writer
+            let slots = thought.slots
+            let asked = written
+            thought.writing = await Harness.race(left) {
+                try await writer.write(asked, slots, deadline: .milliseconds(left))
+            }
+        }
+        thought.writeMs = Harness.ms(since: writeStart)
+        return thought
+    }
+
+    /// Step 6, on `home`: the words go into the calls, each call to its
+    /// action in order, and everything into the transcript. A slot left
+    /// empty leaves its argument out, or drops its call when it's required
+    /// (a memory line with no text).
+    func hand(_ pass: Pass, _ thought: Thought) -> Record {
+        var record = Record(input: pass.input, classifier: classifier.id, writer: writer.id, window: pass.window)
+        record.classifyMs = thought.classifyMs
+        record.writeMs = thought.writeMs
+        record.latencyMs = thought.classifyMs + thought.writeMs
+        let classification: Classification
+        switch thought.classification {
+        case .failure(let error):
+            record.dropped = error.description
+            transcript.append(.dropped(error.description))
+            return record
+        case .success(let c):
+            classification = c
+        }
+        record.evidence = classification.evidence
+        if let why = thought.offMenu {
+            record.decided = classification.calls
+            record.dropped = "off the menu: \(why)"
+            transcript.append(.decided(by: classifier.id, classification.calls, evidence: classification.evidence))
+            transcript.append(.dropped(record.dropped!))
+            return record
+        }
+        record.decided = thought.calls
+        transcript.append(.decided(by: classifier.id, thought.calls, evidence: classification.evidence))
+
+        var calls = thought.calls
+        var unwritten: Set<Int> = []
+        if let writing = thought.writing {
+            record.slots = thought.slots.map(\.key)
+            var values: [String: String] = [:]
+            switch writing {
+            case .success(let w):
+                record.writerRaw = w.raw
+                for slot in thought.slots { values[slot.key] = slot.value(w.values[slot.key]) ?? "" }
+                transcript.append(.wrote(by: writer.id, values))
+            case .failure(let error):
+                record.writerRaw = error.raw
+                record.writeFailed = error.description
+                for slot in thought.slots { values[slot.key] = "" }
+                transcript.append(.writeFailed(by: writer.id, error.description))
+            }
+            record.wrote = values
+            for slot in thought.slots {
+                let value = values[slot.key] ?? ""
+                if value.isEmpty {
+                    if !slot.optional { unwritten.insert(slot.call) }
+                } else {
+                    calls[slot.call].arguments[slot.parameter] = .string(value)
+                }
+            }
+        }
+        for (i, call) in calls.enumerated() {
+            let outcome = unwritten.contains(i) ? .dropped("nothing was written") : pass.handlers[call.name]!(call)
+            record.ran.append((call, outcome))
+            transcript.append(.ran(call, outcome))
+        }
+        return record
+    }
+
+    /// Step 7. On `home`.
+    func finish(_ record: Record) {
+        if let dropped = record.dropped { log("harness: \(record.input.kind.rawValue) dropped: \(dropped)") }
+        if let failed = record.writeFailed { log("harness: \(record.input.kind.rawValue) writer failed: \(failed)") }
+        if let debugLog { Harness.append(record.json + "\n", to: debugLog) }
+        onRecord?(record)
+    }
+
+    /// One input straight through, without the queue: for `boopdev brain`.
+    /// Don't call on `home`.
+    public func respond(to input: Input) async -> Record {
+        let pass = home.sync { prepare(input) }
+        let thought = await think(pass.context, pass.menu)
+        return home.sync {
+            let record = hand(pass, thought)
+            finish(record)
+            return record
+        }
+    }
+
+    // MARK: Helpers
+
+    /// `work`, raced against a deadline and cancelling. Work that ignores
+    /// cancelling is left to finish on its own; its answer is dropped.
+    static func race<T: Sendable>(_ ms: Int, _ work: @escaping @Sendable () async throws -> T) async -> Result<T, BrainError> {
+        let once = Once<Result<T, BrainError>>()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { (k: CheckedContinuation<Result<T, BrainError>, Never>) in
                 once.set(k)
                 once.add(Task {
                     do {
-                        once.resume(.success(try await brain.complete(system: prompt.system, history: prompt.history,
-                                                                      user: prompt.user, tools: tools, deadline: .milliseconds(ms))))
+                        once.resume(.success(try await work()))
                     } catch let error as BrainError {
                         once.resume(.failure(error))
                     } catch {
@@ -234,79 +384,11 @@ public final class Harness: @unchecked Sendable {
         } onCancel: {
             once.resume(.failure(BrainError("cancelled")))
         }
+    }
+
+    static func ms(since start: ContinuousClock.Instant) -> Int {
         let elapsed = ContinuousClock.now - start
-        return (result, Int(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000))
-    }
-
-    /// Steps 5–6: shape check, then each call to its handler in order, then
-    /// the conversation. On `home`.
-    func hand(_ trigger: Trigger, _ prompt: Prompt, _ offered: [Offered], _ answer: Result<String, BrainError>,
-              _ ms: Int, generation: Int?) -> Record {
-        let record = handOff(trigger, prompt, offered, answer, ms)
-        if let generation { remember(record, generation: generation) }
-        return record
-    }
-
-    /// A conversation call adds what actually ran. A refused, failed or badly
-    /// shaped answer starts the conversation over instead, since its history
-    /// may be the cause; a late or cancelled one changes nothing.
-    func remember(_ record: Record, generation: Int) {
-        guard generation == conversation.generation else { return }
-        if let dropped = record.dropped {
-            if !dropped.hasPrefix("late") && !dropped.hasPrefix("cancelled") { conversation.restart() }
-            return
-        }
-        let done = record.ran.filter { $0.outcome.isDone }.map(\.call)
-        conversation.append(Exchange(user: record.prompt.user, answer: Answer.json(done)), generation: generation)
-    }
-
-    func handOff(_ trigger: Trigger, _ prompt: Prompt, _ offered: [Offered], _ answer: Result<String, BrainError>,
-                 _ ms: Int) -> Record {
-        var record = Record(trigger: trigger, brain: brain.id, prompt: prompt, tools: offered.map(\.definition.name),
-                            raw: nil, dropped: nil, ran: [], latencyMs: ms)
-        switch answer {
-        case .failure(let error):
-            record.dropped = error.description
-        case .success(let raw):
-            record.raw = raw
-            switch Answer.check(raw, tools: offered.map(\.definition)) {
-            case .failure(let why):
-                record.dropped = "shape: \(why)"
-            case .success(let calls):
-                for call in calls {
-                    // Past its limit, even if the prompt said so or an
-                    // earlier call in this answer just used it up.
-                    if let why = limits.blocked(call.name, for: trigger) {
-                        record.ran.append((call, .dropped(why)))
-                        continue
-                    }
-                    let tool = offered.first { $0.definition.name == call.name }!
-                    let outcome = tool.handle(call)
-                    if outcome.isDone { limits.ran(call.name, for: trigger) }
-                    record.ran.append((call, outcome))
-                }
-            }
-        }
-        return record
-    }
-
-    /// Step 7. On `home`.
-    func finish(_ record: Record) {
-        if let dropped = record.dropped { log("harness: \(record.trigger.kind.rawValue) answer dropped: \(dropped)") }
-        if let debugLog { Harness.append(record.json + "\n", to: debugLog) }
-        onRecord?(record)
-    }
-
-    /// One trigger straight through, without the queue: for `boopdev brain`.
-    /// Don't call on `home`.
-    public func respond(to trigger: Trigger) async -> Record {
-        let (prompt, offered, generation) = home.sync { prepare(trigger) }
-        let (answer, ms) = await ask(prompt, offered.map(\.definition), deadline: trigger.kind.deadlineMs)
-        return home.sync {
-            let record = hand(trigger, prompt, offered, answer, ms, generation: generation)
-            finish(record)
-            return record
-        }
+        return Int(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000)
     }
 
     static func append(_ line: String, to url: URL) {
@@ -321,8 +403,8 @@ public final class Harness: @unchecked Sendable {
     }
 }
 
-/// Resumes a continuation once, from whichever of the brain, the deadline
-/// or cancelling gets there first, then cancels the others.
+/// Resumes a continuation once, from whichever of the work, the deadline or
+/// cancelling gets there first, then cancels the others.
 final class Once<T: Sendable>: @unchecked Sendable {
     let lock = NSLock()
     var continuation: CheckedContinuation<T, Never>?

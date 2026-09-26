@@ -1,6 +1,6 @@
 import Foundation
 
-/// Local calendar maths for the core: days, and the time as trigger lines
+/// Local calendar maths for the core: days, and the time as input lines
 /// and memory files write it. Times are milliseconds since 1970.
 public struct LocalTime: Sendable {
     public var timeZone: TimeZone

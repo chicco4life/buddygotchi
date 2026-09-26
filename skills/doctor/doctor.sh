@@ -47,7 +47,7 @@ if [ $HEADLESS -eq 1 ]; then
   STATE="$(mktemp -d /tmp/boop-doctor.XXXX)"
   BOOP="$REPO/app/.build/debug/Boop"
   [ -x "$BOOP" ] || { echo "no $BOOP; run make build" >&2; exit 1; }
-  "$BOOP" --headless --state-dir "$STATE" --brain rules --name Doctor >/dev/null 2>&1 &
+  "$BOOP" --headless --state-dir "$STATE" --classifier rules --writer none --name Doctor >/dev/null 2>&1 &
   APP_PID=$!
   trap 'kill -TERM $APP_PID 2>/dev/null; wait $APP_PID 2>/dev/null; rm -rf "$STATE"' EXIT
   for _ in $(seq 50); do [ -S "$STATE/boop.sock" ] && break; sleep 0.1; done

@@ -107,9 +107,10 @@ static void test_packet_writer_sends_whole_lines_in_payload_chunks() {
 
   pkts.clear();
   w.setPayload(244);  // a negotiated MTU of 247
-  w.write("{\"t\":\"input\",\"k\":\"tap\"}\n{\"t\":\"input\",\"k\":\"feel\"}\n", 50);
+  const char* two = "{\"t\":\"input\",\"k\":\"tap\"}\n{\"t\":\"input\",\"k\":\"talk_on\"}\n";
+  w.write(two, std::strlen(two));
   TEST_ASSERT_EQUAL_INT(2, int(pkts.size()));
-  TEST_ASSERT_EQUAL_STRING("{\"t\":\"input\",\"k\":\"feel\"}\n", pkts[1].c_str());
+  TEST_ASSERT_EQUAL_STRING("{\"t\":\"input\",\"k\":\"talk_on\"}\n", pkts[1].c_str());
 }
 
 static void test_packet_writer_drops_overlong_lines_and_clears() {

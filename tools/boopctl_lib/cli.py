@@ -368,8 +368,8 @@ def cmd_e2e(args: argparse.Namespace) -> int:
     from boopctl_lib import e2e
 
     if args.soak:
-        return e2e.soak(Path(args.out), args.brain, args.port, args.soak)
-    return e2e.main(Path(args.out), args.brain, args.port, args.fixture or None, args.clip)
+        return e2e.soak(Path(args.out), args.writer, args.port, args.soak)
+    return e2e.main(Path(args.out), args.writer, args.port, args.fixture or None, args.clip)
 
 
 def cmd_bridge(args: argparse.Namespace) -> int:
@@ -649,7 +649,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--quiet", action="store_true")
     p.set_defaults(func=cmd_bridge)
     p = sub.add_parser("e2e", help="the pipeline check: hooks → headless app → bridge → board (L4)")
-    p.add_argument("--brain", default="rules", choices=["rules", "apple"])
+    p.add_argument("--writer", default="none", choices=["none", "apple"],
+                   help="the brain's writer; the classifier is always the rules (default: none)")
     p.add_argument("--out", default="/tmp/boop-e2e-out", help="results, logs and screenshots")
     p.add_argument("fixture", nargs="*", help="paths under app/Tests/Fixtures/hooks/e2e (default: all three)")
     p.add_argument("--clip", action="store_true",

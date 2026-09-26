@@ -37,7 +37,8 @@ enum Headless {
         options.clock = { Int64(Date().timeIntervalSince1970 * 1000) + skew.ms }
         options.advance = { skew.add($0) }
         options.trace = args.contains("--trace")
-        options.brain = option(args, "--brain")
+        options.classifier = option(args, "--classifier")
+        options.writer = option(args, "--writer")
         options.devLines = true
         options.debugLog = option(args, "--debug-log").map { URL(fileURLWithPath: $0) }
         options.log = { log.write($0) }

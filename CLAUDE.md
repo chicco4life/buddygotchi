@@ -96,21 +96,23 @@ The full picture is in [plan/ARCHITECTURE.md](plan/ARCHITECTURE.md). The
 rules that are easy to break:
 
 - **Decisions and effects are separate.** The core and the brain decide.
-  Actions (`say`, `quiet`, `note`, …) carry out effects and check
-  their own rules.
-- **The harness is generic.** It builds the prompt, calls the model, checks
-  the answer's shape and routes tool calls. It never builds Minion speech,
-  writes files or talks to the device.
+  Actions (`react`, `quiet`, `remember`) carry out effects and check their
+  own rules.
+- **The harness is generic.** It runs the brain's two stages, checks their
+  answers against the menu and hands each call to its action. It never
+  builds Minion speech, writes files or talks to the device.
 - **Only Voice knows Minion speech.** Only the memory store reads and writes
   the memory files. Only the device link knows Bluetooth or USB.
 - **The brain is never on the event path.** Rules give the immediate
   reaction, and the brain adds character later or not at all.
-- **The brain is assumed to be small** (Apple's on-device model by default).
-  Keep tools few and flat, with mostly multiple-choice arguments.
+- **The brain is assumed to be small** (by default plain rules decide and
+  Apple's on-device model writes the words). Keep outputs few and flat,
+  with mostly multiple-choice arguments, and keep deciding and writing
+  apart.
 - **`steering.md` is read-only at runtime.** `plan/steering.md` is the single
   source, and the app bundles a copy.
-- **No code, file contents, prompts or transcripts go to the brain.** The
-  only exception is the person's own words on push-to-talk.
+- **No code, file contents, prompts or agent transcripts go to the brain.**
+  The only exception is the person's own words on push-to-talk.
 - **"Needs you" and the screen priority are plain rules in the core.**
 - **The device only renders and reports.** It receives the same messages
   over Bluetooth and USB. Its drawing code stays independent of the display
@@ -135,7 +137,7 @@ anything. A worktree made from `origin/main` can be far behind a local
 | `app/BoopKit/Core/`, `firmware/src/app/behaviour.*` | `BEHAVIORS.md` |
 | `app/Boop/`, `firmware/src/render/`, `firmware/src/app/gesture.*` | `UX.md` |
 | `app/HookWire/`, `app/BoopHook/`, `app/BoopKit/Adapters/`, `app/BoopKit/Install/` | `ADAPTERS.md`, `ARCHITECTURE.md` §5 |
-| `app/BoopKit/Harness/`, `app/BoopKit/Brains/` | `HARNESS.md`, `steering.md` |
+| `app/BoopKit/Harness/`, `app/BoopKit/Brains/`, `app/BoopKit/Core/Input.swift` | `HARNESS.md`, `steering.md` |
 | `app/BoopKit/Actions/` | `ARCHITECTURE.md` §3, `HARNESS.md`, `steering.md` |
 | `app/BoopKit/Memory/`, `app/BoopKit/App/` | `ARCHITECTURE.md` §3–4 |
 | `app/BoopKit/Voice/`, `firmware/src/voice/`, `tools/voicegen/` | `VOICE.md` |

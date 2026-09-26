@@ -64,7 +64,7 @@ public struct DeviceStatus: Equatable, Sendable {
 /// A line from the device.
 public enum DeviceMessage: Equatable, Sendable {
     case status(DeviceStatus)
-    case input(Core.Input)
+    case input(Core.DeviceInput)
     /// Anything else: debug replies passing through the bridge, unknown types.
     case other(String)
 
@@ -80,7 +80,7 @@ public enum DeviceMessage: Equatable, Sendable {
                                         bat: (object["bat"] as? NSNumber)?.intValue ?? 0,
                                         usb: (object["usb"] as? NSNumber)?.intValue != 0))
         case "input":
-            guard let input = (object["k"] as? String).flatMap(Core.Input.init(rawValue:)) else { return .other(line) }
+            guard let input = (object["k"] as? String).flatMap(Core.DeviceInput.init(rawValue:)) else { return .other(line) }
             return .input(input)
         default:
             return .other(line)

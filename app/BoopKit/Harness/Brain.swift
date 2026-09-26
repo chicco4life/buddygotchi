@@ -1,93 +1,77 @@
 import Foundation
 
-/// A model behind the harness (HARNESS.md §7). Every brain gets the same
-/// prompt and tools and answers with the same JSON:
-///
-///     {"calls":[{"tool":"say","feeling":"proud","word":"finally"}]}
-///
-/// An empty `calls` list means staying quiet. The harness checks the shape;
-/// the brain only has to answer.
-public protocol Brain: Sendable {
-    /// e.g. `apple:26.4`, `cloud:<model>`, `rules@1`.
+/// Stage 1 of the brain (HARNESS.md §6): decides what Boop does about an
+/// input. It picks outputs from the menu and fills in every argument the
+/// menu marks as decided; it never writes words. Staying quiet is no calls.
+public protocol Classifier: Sendable {
+    /// e.g. `rules@2`, `jev:jev-latest`.
     var id: String { get }
-    /// The raw answer. May throw; the harness drops the call and logs why.
-    /// A brain sends `system`, each exchange in `history` and then `user`, in
-    /// that order and unchanged, so the start of every request repeats the
-    /// last one's (HARNESS.md §4).
-    func complete(system: String, history: [Exchange], user: String, tools: [ToolDefinition], deadline: Duration) async throws -> String
+    /// May throw; the harness drops the pass and logs why.
+    func classify(_ context: Context, _ menu: Menu, deadline: Duration) async throws -> Classification
+}
+
+/// Stage 2 (HARNESS.md §6): writes the words for what Stage 1 decided, and
+/// nothing else. It fills slots: it can't add, drop or reorder decisions.
+public protocol Writer: Sendable {
+    /// e.g. `apple:26.4`, `none`.
+    var id: String { get }
+    /// Values by slot key. A slot left out, empty or `none` is left empty.
+    /// May throw; the harness then treats every slot as empty.
+    func write(_ context: Context, _ slots: [Slot], deadline: Duration) async throws -> Writing
+}
+
+/// What a brain gets for one pass: the input, the memory text and the
+/// transcript's window (HARNESS.md §4), oldest first. The window ends with
+/// this input's own entries; the writer's also has Stage 1's `decided`.
+public struct Context: Equatable, Sendable {
+    public var input: Input
+    public var memory: Prompt.Memory
+    public var window: [Transcript.Entry]
+
+    public init(input: Input, memory: Prompt.Memory, window: [Transcript.Entry]) {
+        self.input = input
+        self.memory = memory
+        self.window = window
+    }
+}
+
+/// Stage 1's answer: the calls, with only decided arguments, and how it got
+/// there (the rule that matched, Jev's answers) for the transcript and the log.
+public struct Classification: Equatable, Sendable {
+    public var calls: [ToolCall]
+    public var evidence: String?
+
+    public init(calls: [ToolCall], evidence: String? = nil) {
+        self.calls = calls
+        self.evidence = evidence
+    }
+}
+
+/// Stage 2's answer: a value for each slot it filled, and what the model
+/// returned, for the debug log.
+public struct Writing: Equatable, Sendable {
+    public var values: [String: String]
+    public var raw: String?
+
+    public init(values: [String: String], raw: String? = nil) {
+        self.values = values
+        self.raw = raw
+    }
 }
 
 public struct BrainError: Error, Equatable, CustomStringConvertible {
     public var description: String
-    public init(_ description: String) { self.description = description }
+    /// What the model answered, when it answered something unusable.
+    public var raw: String?
 
-    /// The brain declined to answer (a model's guardrail). Dropped like any
-    /// error, but L5 counts it apart from a badly shaped answer.
+    public init(_ description: String, raw: String? = nil) {
+        self.description = description
+        self.raw = raw
+    }
+
+    /// The model declined to answer (a guardrail). Handled like any error,
+    /// but counted apart in L5.
     public static func refused(_ why: String) -> BrainError { BrainError(refusedPrefix + why) }
     static let refusedPrefix = "refused: "
-}
-
-/// The answer format every brain uses.
-public enum Answer {
-    /// At most this many tool calls in one answer.
-    public static let maxCalls = 3
-
-    /// Encodes calls as an answer, arguments sorted by name.
-    public static func json(_ calls: [ToolCall]) -> String {
-        let items = calls.map { call -> String in
-            var fields = ["\"tool\":" + quote(call.name)]
-            for (key, value) in call.arguments.sorted(by: { $0.key < $1.key }) {
-                switch value {
-                case .string(let s): fields.append(quote(key) + ":" + quote(s))
-                case .number(let n): fields.append(quote(key) + ":\(n)")
-                }
-            }
-            return "{" + fields.joined(separator: ",") + "}"
-        }
-        return "{\"calls\":[" + items.joined(separator: ",") + "]}"
-    }
-
-    /// The shape check (HARNESS.md §3 step 5): valid JSON, at most three
-    /// calls, only the tools offered, arguments matching their definitions.
-    /// One bad call drops the whole answer.
-    public static func check(_ raw: String, tools: [ToolDefinition]) -> Result<[ToolCall], BrainError> {
-        guard let object = try? JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any],
-              let items = object["calls"] as? [Any]
-        else { return .failure(BrainError("not a JSON object with a calls list")) }
-        if object.count > 1 { return .failure(BrainError("unexpected keys besides calls")) }
-        if items.count > maxCalls { return .failure(BrainError("\(items.count) calls, more than \(maxCalls)")) }
-        var calls: [ToolCall] = []
-        for item in items {
-            guard let fields = item as? [String: Any], let name = fields["tool"] as? String else {
-                return .failure(BrainError("a call without a tool name"))
-            }
-            guard let definition = tools.first(where: { $0.name == name }) else {
-                return .failure(BrainError("\(name) isn't offered"))
-            }
-            var arguments: [String: ToolValue] = [:]
-            for (key, value) in fields where key != "tool" {
-                switch value {
-                case let n as NSNumber where CFGetTypeID(n) != CFBooleanGetTypeID():
-                    guard n.doubleValue == Double(n.intValue) else {
-                        return .failure(BrainError("\(name): \(key) isn't a whole number"))
-                    }
-                    arguments[key] = .number(n.intValue)
-                case let s as String:
-                    arguments[key] = .string(s)
-                case is NSNull:
-                    continue // an optional argument left out
-                default:
-                    return .failure(BrainError("\(name): \(key) isn't text or a number"))
-                }
-            }
-            if let why = definition.check(arguments) { return .failure(BrainError("\(name): \(why)")) }
-            calls.append(ToolCall(name, arguments))
-        }
-        return .success(calls)
-    }
-
-    static func quote(_ s: String) -> String {
-        let data = (try? JSONSerialization.data(withJSONObject: [s], options: [.withoutEscapingSlashes])) ?? Data()
-        return String(String(decoding: data, as: UTF8.self).dropFirst().dropLast())
-    }
+    public var refused: Bool { description.hasPrefix(BrainError.refusedPrefix) }
 }

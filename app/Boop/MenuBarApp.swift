@@ -49,8 +49,9 @@ final class AppModel: ObservableObject {
     @Published var hooks: [HookInstaller.Agent: HookInstaller.Health] = [:]
     @Published var remembered: [String] = []
     @Published var restartAgents = false
-    /// The brain chosen in settings; `status.brain` is the one running.
-    @Published var brain = "apple"
+    /// The brain's two stages chosen in settings; `status` has the ones running.
+    @Published var classifier = "rules"
+    @Published var writer = "apple"
     @Published var nature = LongTerm.Nature.sweet
     @Published var startError: String?
     /// Why push-to-talk couldn't hear you, until the next try.
@@ -94,11 +95,12 @@ final class AppModel: ObservableObject {
         remembered.removeAll { $0 == line }
     }
 
+    // The switches show the change at once; the runtime's next status confirms it.
+
     func reconnectDevice() {
         runtime?.reconnectDevice()
     }
 
-    /// The slider shows the change at once; the runtime's next status confirms it.
     func setVolume(_ volume: Int) {
         guard status?.snapshot.vol != volume else { return }
         status?.snapshot.vol = volume
@@ -115,9 +117,14 @@ final class AppModel: ObservableObject {
         runtime?.setListening(on)
     }
 
-    func setBrain(_ brain: String) {
-        self.brain = brain
-        runtime?.setBrain(brain)
+    func setClassifier(_ classifier: String) {
+        self.classifier = classifier
+        runtime?.setClassifier(classifier)
+    }
+
+    func setWriter(_ writer: String) {
+        self.writer = writer
+        runtime?.setWriter(writer)
     }
 }
 
@@ -142,7 +149,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         super.init()
     }
 
+    /// A menu bar that's never shown. A menu-bar-only app has none, but
+    /// ⌘X, ⌘C, ⌘V, ⌘A and ⌘Z reach a text field through the Edit menu's
+    /// shortcuts, so without one the popover's fields (Boop's name in setup,
+    /// Jev's key in settings) can't paste.
+    static func editMenu() -> NSMenu {
+        let edit = NSMenu(title: "Edit")
+        edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        edit.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z").keyEquivalentModifierMask = [.command, .shift]
+        edit.addItem(.separator())
+        edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem())  // where the app menu would go
+        let item = NSMenuItem()
+        item.submenu = edit
+        menu.addItem(item)
+        return menu
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.mainMenu = AppDelegate.editMenu()
         placeHookClient()
         let repaired = model.installer.repair()
         if !repaired.isEmpty {
@@ -238,7 +267,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             self.runtime = runtime
             self.listener = listener
             model.runtime = runtime
-            model.brain = runtime.settings.brain
+            model.classifier = runtime.settings.classifier
+            model.writer = runtime.settings.writer
             model.nature = runtime.memory.longTerm?.nature ?? .sweet
             model.startError = nil
             runtime.refresh()

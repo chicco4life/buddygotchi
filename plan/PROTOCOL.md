@@ -154,7 +154,9 @@ spoke on.
 | `tap` | Touched the screen or pressed BOOT |
 | `talk_on`, `talk_off` | Push-to-talk held and released |
 
-The device has already reacted on screen before sending this.
+The device has already reacted on screen before sending this. The Mac
+ignores any other `k`, such as `focus` or `feel` from a board built before
+those were removed.
 
 ## 5. Lifecycle
 

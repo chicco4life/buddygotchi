@@ -4,8 +4,10 @@ import Foundation
 /// The app's own settings, in `settings.json` next to the memory files. Name
 /// and nature live in `long-term.md`; the API key lives in the Keychain.
 public struct AppSettings: Codable, Equatable, Sendable {
-    /// `apple`, `rules` or `cloud:<model>` (HARNESS.md §7).
-    public var brain = "apple"
+    /// The brain's two stages (HARNESS.md §6): the classifier, `rules` or
+    /// `jev`, and the writer, `apple`, `none` or `deepseek`.
+    public var classifier = "rules"
+    public var writer = "apple"
     public var volume = 6
 
     public init() {}
@@ -15,8 +17,26 @@ public struct AppSettings: Codable, Equatable, Sendable {
         // this version doesn't know (`focus`, `away`, `awaySince`, `finished`
         // and `projects` from before 2026-09-26) are ignored.
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        brain = try c.decodeIfPresent(String.self, forKey: .brain) ?? brain
+        classifier = try c.decodeIfPresent(String.self, forKey: .classifier) ?? classifier
+        writer = try c.decodeIfPresent(String.self, forKey: .writer) ?? writer
+        // Before the two stages there was one `brain` setting.
+        if !c.contains(.classifier), !c.contains(.writer),
+           let brain = try? decoder.container(keyedBy: OldKeys.self).decodeIfPresent(String.self, forKey: .brain) {
+            (classifier, writer) = AppSettings.migrate(brain)
+        }
         volume = try c.decodeIfPresent(Int.self, forKey: .volume) ?? volume
+    }
+
+    enum OldKeys: String, CodingKey { case brain }
+
+    /// The old `brain` setting as the two stages: `rules` wrote nothing, and
+    /// Apple's model and Jev keep Apple's model for the words.
+    static func migrate(_ brain: String) -> (classifier: String, writer: String) {
+        switch brain {
+        case "rules": ("rules", "none")
+        case "jev": ("jev", "apple")
+        default: ("rules", "apple")
+        }
     }
 
     public static let file = "settings.json"

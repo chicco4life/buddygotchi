@@ -55,7 +55,7 @@ final class ReplayTests: XCTestCase {
         let lines = replay.run(try Replay.steps(fromFile: path))
         let effects = lines.filter { $0.hasPrefix("+") }.map { $0.split(separator: " ", maxSplits: 1)[1] }
         XCTAssertTrue(effects.contains("moment cheer"))
-        XCTAssertTrue(effects.contains("trigger event: turn finished · claude · fixture-project · topic: tests · took 1 min · 14:01 Wednesday"))
+        XCTAssertTrue(effects.contains("input agent finished · done · claude · fixture-project · topic: tests · took 1 min · 14:01 Wednesday"))
         XCTAssertEqual(effects.filter { $0.hasPrefix("state") }.count, 3)
         XCTAssertFalse(lines.joined().contains("PRIVATE"))
     }
@@ -70,7 +70,7 @@ final class ReplayTests: XCTestCase {
         let lines = Replay(agent: "claude").run(steps)
         XCTAssertFalse(lines.contains { $0.hasPrefix("# skipped") })
         XCTAssertTrue(lines.contains { $0.hasSuffix("moment cheer") })
-        XCTAssertTrue(lines.contains { $0.contains("trigger event: turn failed") })
+        XCTAssertTrue(lines.contains { $0.contains("input agent finished · failed") })
         XCTAssertFalse(lines.contains { $0.contains("moment oops") }, "a failed turn has no moment")
     }
 }

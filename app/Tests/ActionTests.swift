@@ -9,7 +9,6 @@ final class ActionRig {
     var logs: [String] = []
     var allowed = true
     var actions: [String: Action] = [:]
-    var face: FacePlayer!
     let memory: MemoryStore
 
     init(memory: MemoryStore) {
@@ -21,7 +20,6 @@ final class ActionRig {
         for action in Actions.all(context: context, voice: Voice(dialect: Dialect(seed: 0x7f3a)), memory: memory) {
             actions[action.name] = action
         }
-        face = FacePlayer(context: context)
     }
 
     @discardableResult
@@ -29,6 +27,20 @@ final class ActionRig {
         guard let action = actions[call.name] else { return .dropped("no such action") }
         return action.run(call)
     }
+
+    var react: ReactAction { actions["react"] as! ReactAction }
+}
+
+func react(_ feeling: String, _ voice: String = "mumble", word: String? = nil) -> ToolCall {
+    var arguments: [String: ToolValue] = ["feeling": .string(feeling), "voice": .string(voice)]
+    if let word { arguments["word"] = .string(word) }
+    return ToolCall("react", arguments)
+}
+
+func remember(_ place: String, _ text: String? = nil) -> ToolCall {
+    var arguments: [String: ToolValue] = ["where": .string(place)]
+    if let text { arguments["text"] = .string(text) }
+    return ToolCall("remember", arguments)
 }
 
 final class ActionTests: XCTestCase {
@@ -40,54 +52,78 @@ final class ActionTests: XCTestCase {
         rig = ActionRig(memory: memory.store)
     }
 
-    func testThereAreSevenActionsEachWithItsDefinition() {
-        XCTAssertEqual(Set(rig.actions.keys),
-                       ["say", "quiet", "note", "remember", "forget", "temperament", "moment"])
-        for kind in [Trigger.Kind.event, .tap, .talk, .reflect] {
-            for tool in kind.tools { XCTAssertNotNil(rig.actions[tool], tool) }
+    /// HARNESS.md §5: three outputs, each argument with its role.
+    func testThereAreThreeOutputs() {
+        XCTAssertEqual(Set(rig.actions.keys), ["react", "quiet", "remember"])
+        for kind in Input.Kind.allCases {
+            for item in kind.menu { XCTAssertNotNil(rig.actions[item.tool], item.tool) }
         }
-        let say = rig.actions["say"]!.definition.json
-        XCTAssertTrue(say.hasPrefix(#"{"name":"say","description":"Mumble. Pick a feeling; add one word only if it helps.","parameters":{"feeling":{"enum":["happy","excited","proud","curious","hopeful","annoyed","sad","sleepy"]},"word":{"enum":["tests","build""#))
-        XCTAssertTrue(say.hasSuffix(#""what"],"optional":true}}}"#))
-        XCTAssertEqual(rig.actions["quiet"]!.definition.json,
-                       #"{"name":"quiet","description":"Stop mumbling for a while, when asked to.","parameters":{"minutes":{"enum":[15,30,60,120]}}}"#)
-        XCTAssertTrue(rig.actions["note"]!.definition.json.contains(#""text":{"type":"string","maxLength":80}"#))
+        let react = rig.actions["react"]!.definition
+        XCTAssertEqual(react.parameters.map(\.name), ["feeling", "voice", "word"])
+        XCTAssertEqual(react.parameters.map(\.role), [.decided, .decided, .writtenWhen("voice", is: "mumble")])
+        XCTAssertEqual(react.parameters[0].kind, .choice(["happy", "excited", "proud", "curious", "hopeful", "annoyed",
+                                                          "sad", "sleepy", "smug", "sulky"]))
+        XCTAssertEqual(react.parameters[2].kind, .choice(Sounds.vocabulary))
+        XCTAssertEqual(Sounds.vocabulary.count, 40)
+        XCTAssertEqual(rig.actions["quiet"]!.definition.parameters[0].kind, .number([15, 30, 60, 120]))
+        let remember = rig.actions["remember"]!.definition
+        XCTAssertEqual(remember.parameters.map(\.role), [.decided, .written])
+        XCTAssertEqual(remember.parameters[0].kind, .choice(["today", "about_you", "preference", "temperament", "moment"]))
+        // ARCHITECTURE.md §4's limits, by section.
+        let text = remember.parameters[1]
+        XCTAssertEqual(["today", "about_you", "preference", "temperament", "moment"].map {
+            text.maxLength(["where": .string($0)])
+        }, [80, 100, 100, 120, 80])
     }
 
-    /// The tools offered for the biggest trigger fit the 400-token budget
-    /// (HARNESS.md §4), at about four bytes a token.
-    func testToolDefinitionsFitTheirBudget() {
-        for kind in [Trigger.Kind.event, .tap, .talk, .reflect] {
-            let bytes = kind.tools.map { rig.actions[$0]!.definition.json.utf8.count }.reduce(0, +)
-            XCTAssertLessThanOrEqual(bytes, 1600, "\(kind)")
-        }
-    }
-
-    /// PROTOCOL.md §3: a mumble is a moment with only `say`, so it plays
-    /// over whatever face is showing.
-    func testSaySendsAMumbleWithNoFace() throws {
-        let outcome = rig.run(ToolCall("say", ["feeling": .string("proud"), "word": .string("finally")]))
-        XCTAssertTrue(outcome.isDone)
+    /// A mumble is a moment with only `say`: it plays over whatever face is
+    /// showing (PROTOCOL.md §3).
+    func testAMumbleCarriesItsWordAndNoFace() throws {
+        XCTAssertTrue(rig.run(react("proud", word: "finally")).isDone)
         let moment = try XCTUnwrap(rig.sent.last)
         XCTAssertNil(moment.anim)
         XCTAssertEqual(moment.say?.word, "finally")
         XCTAssertEqual(moment.say?.tune, .lift)
-        XCTAssertFalse(moment.jsonLine.contains("anim"))
         XCTAssertTrue(moment.jsonLine.utf8.count <= 512)
-        for feeling in Feeling.allCases {
-            rig.run(ToolCall("say", ["feeling": .string(feeling.rawValue)]))
-            XCTAssertNil(rig.sent.last?.anim, feeling.rawValue)
-            XCTAssertNil(rig.sent.last?.say?.word)
-        }
+        XCTAssertFalse(moment.jsonLine.contains("anim"))
+        rig.run(react("sleepy"))
+        XCTAssertNil(rig.sent.last?.anim)
+        XCTAssertNil(rig.sent.last?.say?.word)
+        XCTAssertNotNil(rig.sent.last?.say)
     }
 
-    func testSayDropsWhatItCantSay() {
+    /// The ten feelings choose the voice; smug and sulky borrow one.
+    func testEachFeelingMumblesInItsVoice() {
+        for (name, _, _) in ReactAction.feelings {
+            XCTAssertTrue(rig.run(react(name)).isDone, name)
+            XCTAssertEqual(rig.sent.last?.anim, nil, name)
+        }
+        rig.run(react("smug"))
+        XCTAssertEqual(rig.sent.last?.say?.tune, .lift, "smug mumbles like proud")
+        rig.run(react("sulky"))
+        XCTAssertEqual(rig.sent.last?.say?.tune, .down, "sulky mumbles like sad")
+    }
+
+    /// The feelings' faces are parked (FUTURE.md): silent shows nothing.
+    func testSilentShowsNothing() {
+        XCTAssertEqual(rig.run(react("sulky", "silent", word: "nope")), .done("sulky, silent: Boop has no face for it in v1"))
+        XCTAssertEqual(rig.sent, [])
+    }
+
+    /// BEHAVIORS.md §6: no mumbles in quiet mode or while something needs you.
+    func testAMumbleInQuietIsDropped() {
+        rig.allowed = false
+        XCTAssertEqual(rig.run(react("happy")), .dropped("Boop is quiet right now"))
+        XCTAssertEqual(rig.sent, [])
+    }
+
+    func testReactDropsWhatItCantDo() {
         let bad: [ToolCall] = [
-            ToolCall("say", ["feeling": .string("furious")]),
-            ToolCall("say", ["feeling": .string("happy"), "word": .string("kubernetes")]),
-            ToolCall("say", ["word": .string("yay")]),
-            ToolCall("say", ["feeling": .string("happy"), "text": .string("hello there")]),
-            ToolCall("say", ["feeling": .number(3)]),
+            react("furious"),
+            react("happy", word: "kubernetes"),
+            ToolCall("react", ["voice": .string("mumble")]),
+            react("happy", "shout"),
+            ToolCall("react", ["feeling": .string("happy"), "voice": .string("mumble"), "text": .string("hello there")]),
         ]
         for call in bad {
             if case .done = rig.run(call) { XCTFail("ran \(call)") }
@@ -95,31 +131,22 @@ final class ActionTests: XCTestCase {
         XCTAssertEqual(rig.sent, [])
         XCTAssertEqual(rig.logs.count, bad.count)
         // HARNESS.md §8: the reason names the argument, never its value.
-        XCTAssertEqual(rig.logs[1], "say: dropped: word isn't one of its choices")
+        XCTAssertEqual(rig.logs[1], "react: dropped: word isn't one of its choices")
         for line in rig.logs { XCTAssertFalse(line.contains("kubernetes") || line.contains("hello there"), line) }
     }
 
-    func testSayIsSilentWhenMumblesArent() {
-        rig.allowed = false
-        XCTAssertEqual(rig.run(ToolCall("say", ["feeling": .string("happy")])), .dropped("Boop is quiet right now"))
-        XCTAssertEqual(rig.sent, [])
-        XCTAssertEqual(rig.logs.count, 1)
-    }
-
-    /// BEHAVIORS.md §5: the rules play only the six animations; the brain
-    /// has no `face` tool.
-    func testRulesPlayOnlyTheSixAnimations() {
-        XCTAssertEqual(FacePlayer.anims, ["cheer", "nod", "wiggle", "listening", "thinking", "shrug"])
-        for anim in FacePlayer.anims {
-            XCTAssertTrue(rig.face.play(anim).isDone, anim)
+    /// BEHAVIORS.md §5: the rules play only the six kept animations.
+    func testRulesPlayOnlyTheKeptAnimations() {
+        XCTAssertEqual(ReactAction.anims, ["cheer", "nod", "wiggle", "listening", "thinking", "shrug"])
+        for anim in ReactAction.anims {
+            XCTAssertTrue(rig.react.play(anim).isDone, anim)
             XCTAssertEqual(rig.sent.last, DeviceMoment(anim: anim))
         }
-        for gone in ["oops", "side_eye", "stretch", "yawn", "gobble", "levelup", "happy", "dance"] {
-            XCTAssertFalse(rig.face.play(gone).isDone, gone)
+        for removed in ["dance", "stretch", "oops", "side_eye", "gobble", "levelup", "happy", "proud"] {
+            XCTAssertFalse(rig.react.play(removed).isDone, removed)
         }
         XCTAssertEqual(rig.sent.count, 6)
         XCTAssertEqual(rig.logs.count, 8)
-        XCTAssertNil(rig.actions["face"])
     }
 
     func testQuietTellsTheCore() {
@@ -138,48 +165,45 @@ final class ActionTests: XCTestCase {
         XCTAssertEqual(core.core.snapshot(at: core.now).quiet, 30)
     }
 
-    func testNoteWritesToday() {
-        XCTAssertTrue(rig.run(ToolCall("note", ["text": .string("ships on Fridays")])).isDone)
+    func testRememberTodayWritesANote() {
+        XCTAssertTrue(rig.run(remember("today", "ships on Fridays")).isDone)
         XCTAssertEqual(memory.store.shortTerm?.notes, ["ships on Fridays"])
-        XCTAssertFalse(rig.run(ToolCall("note", ["text": .string(String(repeating: "x", count: 81))])).isDone)
-        XCTAssertFalse(rig.run(ToolCall("note", ["text": .string("")])).isDone)
-        XCTAssertFalse(rig.run(ToolCall("note", ["text": .string("ran `make test`")])).isDone)
+        XCTAssertFalse(rig.run(remember("today", String(repeating: "x", count: 81))).isDone)
+        XCTAssertFalse(rig.run(remember("today", "")).isDone)
+        XCTAssertFalse(rig.run(remember("today", "ran `make test`")).isDone)
+        XCTAssertFalse(rig.run(remember("today")).isDone, "no text")
         XCTAssertEqual(memory.store.shortTerm?.notes.count, 1)
-        XCTAssertEqual(rig.logs.count, 3)
+        XCTAssertEqual(rig.logs.count, 4)
     }
 
-    func testReflectionActions() {
-        XCTAssertTrue(rig.run(ToolCall("remember", ["text": .string("Ships on Fridays."), "kind": .string("about_you")])).isDone)
-        XCTAssertTrue(rig.run(ToolCall("remember", ["text": .string("Likes it quiet."), "kind": .string("preference")])).isDone)
-        XCTAssertFalse(rig.run(ToolCall("remember", ["text": .string("x"), "kind": .string("secret")])).isDone)
-        XCTAssertFalse(rig.run(ToolCall("remember", ["text": .string("Works with Bob.")])).isDone)
-        XCTAssertFalse(rig.run(ToolCall("forget", ["text": .string("likes it quiet")])).isDone)
-        XCTAssertEqual(rig.actions["forget"]!.definition.parameters[0].kind, .choice(["Ships on Fridays.", "Likes it quiet."]))
-        XCTAssertTrue(rig.run(ToolCall("forget", ["text": .string("Likes it quiet.")])).isDone)
-        XCTAssertFalse(rig.run(ToolCall("forget", ["text": .string("Likes it quiet.")])).isDone)
-        XCTAssertTrue(rig.run(ToolCall("temperament", ["text": .string("Trusts Codex more than it used to.")])).isDone)
-        XCTAssertFalse(rig.run(ToolCall("temperament", ["text": .string("Gets huffy about flaky tests.")])).isDone)
-        XCTAssertTrue(rig.run(ToolCall("moment", ["text": .string("first all-nighter together")])).isDone)
-        XCTAssertFalse(rig.run(ToolCall("moment", ["text": .string("another one")])).isDone)
+    func testRememberEachLongTermSection() {
+        XCTAssertTrue(rig.run(remember("about_you", "Ships on Fridays.")).isDone)
+        XCTAssertTrue(rig.run(remember("preference", "Likes it quiet.")).isDone)
+        XCTAssertFalse(rig.run(remember("secrets", "x")).isDone)
+        XCTAssertFalse(rig.run(remember("about_you", String(repeating: "x", count: 101))).isDone)
+        XCTAssertTrue(rig.run(remember("temperament", "Trusts Codex more than it used to.")).isDone)
+        XCTAssertFalse(rig.run(remember("temperament", "Gets huffy about flaky tests.")).isDone, "once a day")
+        XCTAssertTrue(rig.run(remember("moment", "first all-nighter together")).isDone)
+        XCTAssertFalse(rig.run(remember("moment", "another one")).isDone, "one a day")
         let lt = memory.store.longTerm!
         XCTAssertEqual(lt.aboutYou, ["Ships on Fridays."])
-        XCTAssertEqual(lt.preferences, [])
+        XCTAssertEqual(lt.preferences, ["Likes it quiet."])
         XCTAssertEqual(lt.temperament, ["Trusts Codex more than it used to."])
         XCTAssertEqual(lt.moments.map(\.date), ["2026-10-15"])
-        XCTAssertEqual(rig.logs.count, 6)
+        XCTAssertEqual(rig.logs.count, 4)
         for line in rig.logs { XCTAssertTrue(line.contains(": dropped: "), line) }
         // The name refusal doesn't repeat the name: it's logged (HARNESS.md §8).
-        XCTAssertFalse(rig.run(ToolCall("remember", ["text": .string("Works with Bob."), "kind": .string("about_you")])).isDone)
+        XCTAssertFalse(rig.run(remember("about_you", "Works with Bob.")).isDone)
         XCTAssertEqual(rig.logs.last, "remember: dropped: looks like someone's name")
         XCTAssertFalse(rig.logs.contains { $0.contains("Bob") })
     }
 
     func testACallToTheWrongActionIsDropped() {
-        XCTAssertEqual(rig.actions["say"]!.run(ToolCall("quiet", ["minutes": .number(30)])), .dropped("sent to say"))
+        XCTAssertEqual(rig.actions["react"]!.run(ToolCall("quiet", ["minutes": .number(15)])), .dropped("sent to react"))
     }
 
     func testToolCallsReadNaturally() {
-        XCTAssertEqual(ToolCall("say", ["word": .string("finally"), "feeling": .string("proud")]).description,
-                       #"say(feeling: "proud", word: "finally")"#)
+        XCTAssertEqual(react("proud", word: "finally").description, #"react(feeling: "proud", voice: "mumble", word: "finally")"#)
+        XCTAssertEqual(remember("today", "demo on Thursday").plain, #"remember(text: "demo on Thursday", where: today)"#)
     }
 }
