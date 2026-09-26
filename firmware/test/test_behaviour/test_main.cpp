@@ -627,8 +627,8 @@ static void test_working_strains_and_sweats_and_asleep_says_zzz() {
 
 // BEHAVIORS.md §3.4: with no state for 30 s the device shows the asleep
 // look (breathing, zzZZ, backlight 60), with the unplugged icon in the
-// strip; a reconnect blinks.
-static void test_no_app_at_30s_looks_asleep_and_reconnect_blinks() {
+// strip; on reconnect the face blends to whatever the next state says.
+static void test_no_app_at_30s_looks_asleep_and_reconnect_blends_back() {
   Rig r;
   r.at(1000);
   Model m = attn();  // even a stale "needs you" gives way
@@ -657,11 +657,14 @@ static void test_no_app_at_30s_looks_asleep_and_reconnect_blinks() {
   TEST_ASSERT_TRUE(p.zzz > 0);
   TEST_ASSERT_TRUE(r.b.moving(r.t));  // breathing
   r.at(40000);
+  const render::Pose before = r.b.pose(r.t);
   r.state(base("idle"));
-  r.at(40000);
   r.state(base("idle"));
   TEST_ASSERT_EQUAL(Screen::kFace, r.b.screen(r.t));
-  TEST_ASSERT_EQUAL(Life::kBlink, r.b.life(r.t));
+  TEST_ASSERT_EQUAL(Life::kNone, r.b.life(r.t));
+  TEST_ASSERT_TRUE(r.b.pose(r.t) == before);  // from the asleep face, no cut
+  TEST_ASSERT_TRUE(r.b.pose(r.t + render::kBlendMs / 2).open > 0);
+  TEST_ASSERT_EQUAL_INT(render::lookPose(render::Look::kIdle, 0).open, r.b.pose(r.t + render::kBlendMs).open);
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
   TEST_ASSERT_EQUAL(255, r.b.backlight(r.t + render::kBlendMs));
 }
@@ -854,7 +857,7 @@ int main() {
   RUN_TEST(test_asleep_breathes_and_never_blinks);
   RUN_TEST(test_working_strains_and_sweats_and_asleep_says_zzz);
   RUN_TEST(test_working_keeps_moving_and_idle_rests);
-  RUN_TEST(test_no_app_at_30s_looks_asleep_and_reconnect_blinks);
+  RUN_TEST(test_no_app_at_30s_looks_asleep_and_reconnect_blends_back);
   RUN_TEST(test_push_to_talk_listens_then_waits);
   RUN_TEST(test_push_to_talk_timeouts);
   RUN_TEST(test_press_shows_within_20ms);

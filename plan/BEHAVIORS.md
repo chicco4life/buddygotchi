@@ -129,7 +129,7 @@ milliseconds of audio at a time and keeps only that yes or no
 | When | Behaviour |
 | --- | --- |
 | No `state` for 30 s | The asleep look, with only the unplugged icon in the strip (§2), for as long as the silence lasts |
-| Reconnect | Quick blink, then whatever the next `state` says |
+| Reconnect | Whatever the next `state` says, blending from the asleep face |
 
 ## 4. Sound and light
 

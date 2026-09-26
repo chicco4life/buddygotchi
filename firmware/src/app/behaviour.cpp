@@ -133,7 +133,6 @@ void Behaviour::settle(uint32_t t) {
 void Behaviour::onState(const Model& m, uint32_t t, Rng& rng) {
   (void)rng;
   change(t, [&] {
-    bool wasNoApp = noApp(t);
     bool had = model_.attn;
     bool fresh = m.attn && (!had || std::strncmp(model_.agent, m.agent, sizeof(m.agent)) ||
                             std::strncmp(model_.project, m.project, sizeof(m.project)));
@@ -146,12 +145,8 @@ void Behaviour::onState(const Model& m, uint32_t t, Rng& rng) {
       if (momentOn(t) && !overAttention(moment_.anim)) moment_.anim = render::Anim::kNone;
       say_ = Say{};  // no mumbles while something needs you
     }
-    // Answered on the Mac (`attn` leaves): the face just blends back.
-    if (wasNoApp && heard_ && !momentOn(t)) {  // reconnect: a quick blink
-      life_ = LifeEvent{};
-      life_.kind = Life::kBlink, life_.at = t, life_.ms = kBlinkMs;
-    }
-    heard_ = true;
+    // Answered on the Mac (`attn` leaves), or back after no app: the face
+    // just blends to what the state says.
   });
 }
 

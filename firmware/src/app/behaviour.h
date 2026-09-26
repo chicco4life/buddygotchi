@@ -179,7 +179,6 @@ class Behaviour {
   render::Pose blended(uint32_t t) const { return blend_.apply(t, sourcePose(src_, t)); }
 
   Model model_;
-  bool heard_ = false;  // a state arrived since reset
   uint32_t lastState_ = 0;
   // Latched once the Mac has been silent kNoAppMs, so "no app" holds
   // however long the silence (the clock's differences wrap after 24 days).
