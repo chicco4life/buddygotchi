@@ -301,6 +301,7 @@ only go by the words, so they err towards today:
 
 | The words have | `where` |
 | --- | --- |
+| Someone else's name: a capitalised word that isn't the first, "I", a day, a month or an acronym ("Bob", not "PRs"), as the memory store finds one | `today`, since long-term keeps no one else's name |
 | "I like", "I love", "I prefer", "I hate", "I don't like", "I'd rather" | `preference` |
 | "I", "I'm", "I've" or "my", with a sign it lasts: "always", "usually", "never", "every", "mostly", "generally", a weekday in the plural ("Fridays"), "weekends", "mornings", "evenings", "my name", "I'm a", "I work", "I live" | `about_you` |
 | Anything else | `today` |

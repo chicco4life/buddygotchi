@@ -145,6 +145,10 @@ final class PhrasesTests: XCTestCase {
             (input(.said, words: "note that landing launches Monday"), [react("happy"), remember("today")]),
             (input(.said, words: "remember the demo is on Thursday"), [react("happy"), remember("today")]),
             (input(.said, words: "remember I have a dentist appointment at 3"), [react("happy"), remember("today")]),
+            // Someone else's name: long-term would refuse it, so today.
+            (input(.said, words: "remember I work with Bob on landing"), [react("happy"), remember("today")]),
+            (input(.said, words: "remember I like pairing with Ana"), [react("happy"), remember("today")]),
+            (input(.said, words: "remember I always review PRs on Fridays"), [react("happy"), remember("about_you")]),
             (input(.said, words: "Hello, Boop!"), [react("happy")]),
             (input(.said, words: "see you tomorrow"), [react("happy")]),
             (input(.said, words: "time for lunch"), [react("hopeful")]),

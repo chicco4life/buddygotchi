@@ -21,6 +21,7 @@ import Foundation
 ///
 /// | The words have | Where |
 /// | --- | --- |
+/// | Someone else's name: a capitalised word that isn't the first, "I", a day, a month or an acronym ("Bob", not "PRs") | `today`: long-term keeps no one else's name |
 /// | "I like", "I love", "I prefer", "I hate", "I don't like", "I'd rather" | `preference`: how you like things, long-term |
 /// | "I", "I'm", "I've" or "my", with a sign it lasts: "always", "usually", "never", "every", "mostly", "generally", a weekday in the plural ("Fridays"), "weekends", "mornings", "evenings", "my name", "I'm a", "I work", "I live" | `about_you`: a durable fact about you, long-term |
 /// | Anything else: a project, a date, today's session | `today`: short-term |
@@ -31,7 +32,7 @@ enum Phrases {
         let words = Input.plain(input.words ?? "")
         let hurt = input.yelled || tellsOff(words)
         if !hurt && [" remember ", " note "].contains(where: words.contains) {
-            let place = place(words)
+            let place = place(input.words ?? "")
             return ([react("happy"), ToolCall("remember", ["where": .string(place)])], "asked to remember, \(place)")
         }
         if input.asksForQuiet {
@@ -63,8 +64,12 @@ enum Phrases {
     static let meals = [" lunch ", " dinner ", " breakfast ", " food ", " snack ", " hungry "]
     static let praise = [" good job ", " well done ", " nice ", " great ", " thanks ", " thank you ", " the best "]
 
-    /// Where a thing to remember goes, from the words (see the table above).
-    static func place(_ words: String) -> String {
+    /// Where a thing to remember goes, from what you said (see the table
+    /// above). A name is found as the memory store finds one, so a fact the
+    /// store would refuse for long-term is kept for today instead.
+    static func place(_ said: String) -> String {
+        if MemoryText.otherName(Input.straight(said), boopName: nil) != nil { return "today" }
+        let words = Input.plain(said)
         if likes.contains(where: words.contains) { return "preference" }
         if firstPerson.contains(where: words.contains) && lasting.contains(where: words.contains) { return "about_you" }
         return "today"
