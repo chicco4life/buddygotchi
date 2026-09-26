@@ -69,7 +69,7 @@ shows, the face eases up into the top 144 px at three-quarters size.
   from the right eye one letter at a time, two small z's then two big Z's,
   clear of the screen's edges even when the bubble shows. Working, Boop strains every
   couple of seconds, and a pixel sweat drop slides down beside the right
-  eye ([BEHAVIORS.md](BEHAVIORS.md) §2).
+  eye; it goes when a heart takes its place ([BEHAVIORS.md](BEHAVIORS.md) §2).
 - **Bubble.** Empty most of the time. It shows either a mumble's one real
   word, or who needs you.
 - **Status strip.** How many sessions need you (amber, hidden at zero) and

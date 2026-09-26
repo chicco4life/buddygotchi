@@ -607,6 +607,23 @@ static void test_a_sweat_drop_sits_by_the_right_eye_and_slides_down() {
   TEST_ASSERT_TRUE(widths[a.y1] < widest && widestAt < a.y1);
 }
 
+static void test_the_heart_and_the_drop_never_overlap() {
+  // Working into a cheer, and a cheer cut short by listening, blend a drop
+  // out and a heart in: the drop goes once the heart shows (UX.md §2).
+  Pose working = lookPose(Look::kWorking, 1), cheer = animPose(Anim::kCheer, 1500);
+  working.sweat = 300;
+  bool sawDrop = false, sawHeart = false;
+  for (int t = 0; t <= 1024; t += 16) {
+    for (const Pose& p : {blend(working, cheer, t), blend(cheer, working, t)}) {
+      Buf b = face(p);
+      int drop = inkSpot(b, kInkSky).n, heart = inkSpot(b, kInkRose).n;
+      TEST_ASSERT_FALSE(drop && heart);
+      sawDrop |= drop > 0, sawHeart |= heart > 0;
+    }
+  }
+  TEST_ASSERT_TRUE(sawDrop && sawHeart);
+}
+
 static void test_a_happy_blend_squints_a_row_at_a_time() {
   // On the way to happy the bottom of the eye rises steadily and the top
   // stays put, so the change never jumps between two drawings (UX.md §2).
@@ -724,6 +741,7 @@ int main(int, char**) {
   RUN_TEST(test_asleep_zzz_climbs_one_letter_at_a_time);
   RUN_TEST(test_every_sprite_is_on_the_grid_and_on_screen);
   RUN_TEST(test_a_sweat_drop_sits_by_the_right_eye_and_slides_down);
+  RUN_TEST(test_the_heart_and_the_drop_never_overlap);
   RUN_TEST(test_a_happy_blend_squints_a_row_at_a_time);
   RUN_TEST(test_listening_bobs_the_whole_face_a_block);
   RUN_TEST(test_blend_is_eased_interruptible_and_150ms);

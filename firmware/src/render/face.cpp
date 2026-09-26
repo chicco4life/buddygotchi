@@ -45,6 +45,7 @@ constexpr int kHeartDx = 36, kHeartDy = -30;
 constexpr int kSweatDx = 34, kSweatDy = -21, kSweatSlide = 12;
 constexpr int kZzzDx = 27, kZzzDy = -15;  // the first letter's top left
 constexpr uint32_t kZzzStep = 220;        // permille of the cycle between letters
+constexpr int kHeartSmallAt = 250, kHeartFullAt = 650;  // heart: it pops in small, then full size
 
 // The middle of the face (from the eye tops to the mouth) lies kFaceDrop
 // below the eye centres; screens.cpp centres the face on that.
@@ -232,8 +233,8 @@ void drawHeart(Canvas& c, int hx, int hy, int grow) {
   static const char* const kSmall[] = {"XX.XX", "XXXXX", ".XXX.", "..X.."};
   static const char* const kFull[] = {".XX.XX.", "XXXXXXX", "XXXXXXX", ".XXXXX.", "..XXX..", "...X..."};
   const uint8_t rose = inkAt(kInkRose, kLevels);
-  if (grow >= 650) spriteAt(c, kFull, 6, hx, hy, rose);
-  else if (grow >= 250) spriteAt(c, kSmall, 4, hx, hy, rose);
+  if (grow >= kHeartFullAt) spriteAt(c, kFull, 6, hx, hy, rose);
+  else if (grow >= kHeartSmallAt) spriteAt(c, kSmall, 4, hx, hy, rose);
 }
 
 // A pixel sweat drop, centred on block (bx, by): it tapers from a point
@@ -328,7 +329,9 @@ void drawFace(Canvas& c, const Pose& p, int cx, int cy, int scale) {
   drawMouth(c, p, f, ink);
   int heart = clampi(p.heart, 0, 1000);
   if (heart > 0) drawHeart(c, right.bx + f.off(kHeartDx), right.by + f.off(kHeartDy), heart);
-  if (p.sweat > 0) {
+  // The drop sits where the heart does, so it goes once the heart shows
+  // (working into a cheer).
+  if (p.sweat > 0 && heart < kHeartSmallAt) {
     int slide = blocks(f.len(kSweatSlide) * clampi(p.sweat, 0, 1000) / 1000);
     drawDrop(c, right.bx + f.off(kSweatDx), right.by + f.off(kSweatDy) + slide);
   }
