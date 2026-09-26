@@ -229,6 +229,20 @@ static void test_a_look_moves_the_whole_eye_with_perspective() {
   p.lookX = -1000;
   Buf m = face(p);
   TEST_ASSERT_TRUE(eyeBox(m, false).n * 100 >= eyeBox(m, true).n * 125);
+  // The turn adds a pair of blocks to the near eye and takes one from the
+  // far one (UX.md §2), and a small look like working's leaves the two eyes
+  // the same size, straining or not.
+  TEST_ASSERT_EQUAL_INT(eyeBox(n, true).w() + 6, r.w());
+  TEST_ASSERT_EQUAL_INT(eyeBox(n, false).w() - 6, l.w());
+  for (int strain : {0, 240}) {
+    for (int size : {1000, 850}) {
+      Pose w = lookPose(Look::kWorking, 1);
+      w.squash = int16_t(strain), w.lidTop = 0, w.size = int16_t(size);
+      Buf wb = face(w);
+      TEST_ASSERT_EQUAL_INT(eyeBox(wb, false).w(), eyeBox(wb, true).w());
+      TEST_ASSERT_EQUAL_INT(eyeBox(wb, false).h(), eyeBox(wb, true).h());
+    }
+  }
   // Up and down move the eyes too.
   Pose up, down;
   up.lookY = -1000, down.lookY = 1000;

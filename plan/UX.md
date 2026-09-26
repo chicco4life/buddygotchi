@@ -53,8 +53,10 @@ shows, the face eases up into the top 144 px at three-quarters size.
   of blocks off the top, straight across the eye, and a pane it leaves
   less than two blocks tall goes altogether, so no sliver floats like a
   brow. To look somewhere
-  the whole eye moves, and the eye on the side it looks towards grows a
-  little, as if Boop turned its head. Every expression keeps the window
+  the whole eye moves, and on a big look the eye on the side it looks
+  towards grows a pair of blocks and the other shrinks as much, as if Boop
+  turned its head. A small look, like working's, keeps the eyes the same
+  size. Every expression keeps the window
   eyes: arches and wide grins on boxy eyes read as uncanny (the owner,
   2026-09-26). Happy, the bottom of each eye rises (a squint, as if the
   cheeks pushed it up; the cheeks rise with it) and the top stays put. The

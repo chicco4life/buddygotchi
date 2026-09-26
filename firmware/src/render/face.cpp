@@ -104,9 +104,7 @@ Eye makeEye(const Pose& p, const Frame& f, bool right) {
   auto len = [&f](int pixels) { return f.len(pixels); };
   Eye e{};
   int lookX = clampi(p.lookX, -1000, 1000), lookY = clampi(p.lookY, -1000, 1000);
-  // Perspective: the eye on the side being looked towards is nearer.
-  int turn = 1000 + (right ? kTurn : -kTurn) * lookX / 1000;
-  int size = clampi(p.eyeSize, 800, 1250) * turn / 1000;
+  int size = clampi(p.eyeSize, 800, 1250);
   int sq = clampi(p.squash, -600, 600);
   int w = len(kEyeW) * (1000 + sq * 4 / 10) / 1000 * size / 1000;
   int h = len(kEyeH) * (1000 - sq * 6 / 10) / 1000 * size / 1000 * clampi(p.open, 0, 1000) / 1000;
@@ -114,7 +112,17 @@ Eye makeEye(const Pose& p, const Frame& f, bool right) {
   // Both eyes round the look alike, so they move together.
   e.bx = f.ox + (right ? f.off(kEyeGap) : -f.off(kEyeGap)) + blocks(len(kLookX) * lookX / 1000);
   e.by = f.oy + blocks(len(kLookY) * lookY / 1000);
-  e.wb = oddBlocks(w, 3), e.hb = oddBlocks(h, 1);
+  // Perspective: the eye on the side being looked towards is nearer. Both
+  // eyes round from the same size, and the turn adds to one and takes from
+  // the other the same whole pair of blocks, so a small look (working's)
+  // never leaves them lopsided.
+  const bool near = right == (lookX > 0);
+  auto turned = [&](int n, int least) {
+    int k = int((int64_t(n) * kTurn * (lookX < 0 ? -lookX : lookX) + 1000000) / 2000000);
+    n += near ? 2 * k : -2 * k;
+    return n < least ? least : n;
+  };
+  e.wb = turned(oddBlocks(w, 3), 3), e.hb = turned(oddBlocks(h, 1), 1);
 
   int lid = p.lidTop + (right ? (p.wink > 0 ? p.wink : 0) : (p.wink < 0 ? -p.wink : 0));
   lid = clampi(lid, 0, 1000);
