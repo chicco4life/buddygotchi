@@ -98,7 +98,7 @@ public final class Runtime: @unchecked Sendable {
     let lock: InstanceLock
     var server: HookServer?
     var timer: DispatchSourceTimer?
-    var projects: [String: String] = [:]
+    let projectNames = Adapter.ProjectNames()
     /// Keeps the brain from cutting anything off (BEHAVIORS.md §3): a
     /// moment an action sends outside the core's effects is the brain's, and
     /// waits its turn in `schedule` behind the rules' moments and the
@@ -264,9 +264,7 @@ public final class Runtime: @unchecked Sendable {
         if options.trace || FileManager.default.fileExists(atPath: options.stateDir.appendingPathComponent(Self.doctorArm).path) {
             options.log("hook: \(line.agent) \(line.hook) \(line.session)")
         }
-        let key = line.agent + "/" + line.session
-        guard let event = Adapter.event(from: line, receivedAt: received, knownProject: projects[key]) else { return }
-        projects[key] = event.project
+        guard let event = Adapter.event(from: line, receivedAt: received, project: projectNames.name) else { return }
         run(core.handle(event))
     }
 

@@ -37,9 +37,10 @@ public enum Adapter {
     ]
 
     /// The common event for a hook line, or nil for hooks Boop ignores.
-    /// `project` is the session's project if the line carries no `cwd`.
-    public static func event(from line: HookLine, receivedAt: Int64? = nil, knownProject: String? = nil,
-                             fileManager: FileManager = .default) -> BoopEvent? {
+    /// `project` names the line's `cwd`; a line without one is `unknown`,
+    /// and the core keeps the session's project.
+    public static func event(from line: HookLine, receivedAt: Int64? = nil,
+                             project: (String) -> String = { projectName(cwd: $0) }) -> BoopEvent? {
         guard let agent = Agent(hookName: line.agent) else { return nil }
         let kind: BoopEvent.Kind?
         switch agent {
@@ -77,9 +78,9 @@ public enum Adapter {
         default:
             break
         }
-        let project = line.cwd.map { projectName(cwd: $0, fileManager: fileManager) } ?? knownProject ?? "unknown"
         return BoopEvent(agent: agent, session: line.session, subagent: agent == .claudeCode ? line.agentID : nil,
-                         project: project, event: kind, detail: detail, ts: receivedAt ?? line.ts)
+                         project: line.cwd.map(project) ?? "unknown", event: kind, detail: detail,
+                         ts: receivedAt ?? line.ts)
     }
 
     /// A short, fixed error class; anything unfamiliar becomes `other`.
@@ -87,6 +88,24 @@ public enum Adapter {
         let known = ["rate_limit", "overloaded", "api_error", "auth", "timeout", "network", "context_limit", "billing"]
         let lowered = raw.lowercased()
         return known.first { lowered.contains($0) } ?? "other"
+    }
+
+    /// Project names by working directory, so a worktree's `.git` is read
+    /// once per folder rather than on every hook. Touch it from one queue.
+    public final class ProjectNames {
+        var names: [String: String] = [:]
+        /// Folders remembered before the cache starts again.
+        static let limit = 512
+
+        public init() {}
+
+        public func name(cwd: String) -> String {
+            if let name = names[cwd] { return name }
+            if names.count >= Self.limit { names.removeAll() }
+            let name = Adapter.projectName(cwd: cwd)
+            names[cwd] = name
+            return name
+        }
     }
 
     /// The last folder of `cwd`. A git worktree maps to its main repository's

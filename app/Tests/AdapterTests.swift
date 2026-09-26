@@ -118,6 +118,28 @@ final class AdapterTests: XCTestCase {
         XCTAssertEqual(Adapter.projectName(cwd: tree.path), "jetpack")
     }
 
+    /// ADAPTERS.md §3: a worktree's `.git` is read once per folder, not on
+    /// every hook, and the cache starts again past 512 folders. A line
+    /// without a `cwd` is `unknown`; the core keeps the session's project.
+    func testProjectNamesAreCachedPerFolder() throws {
+        let root = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-wt-\(UUID().uuidString)")
+        let tree = root.appendingPathComponent("feature-x")
+        try FileManager.default.createDirectory(at: tree, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let git = tree.appendingPathComponent(".git")
+        try "gitdir: /Users/me/src/jetpack/.git/worktrees/feature-x\n".write(to: git, atomically: true, encoding: .utf8)
+        let names = Adapter.ProjectNames()
+        XCTAssertEqual(names.name(cwd: tree.path), "jetpack")
+        try FileManager.default.removeItem(at: git)
+        XCTAssertEqual(names.name(cwd: tree.path), "jetpack", "not read again")
+        for i in 0..<Adapter.ProjectNames.limit { _ = names.name(cwd: "/w/p\(i)") }
+        XCTAssertEqual(names.name(cwd: tree.path), "feature-x", "read again once the cache starts over")
+        XCTAssertLessThanOrEqual(names.names.count, Adapter.ProjectNames.limit)
+        var line = line("claude", "PreToolUse", tool: "Bash")
+        line.cwd = nil
+        XCTAssertEqual(Adapter.event(from: line)?.project, "unknown")
+    }
+
     func testRecordedClaudeSessionMapsInOrder() throws {
         let file = HookWireTests.fixtures.appendingPathComponent("claude-code/2026-09-08/tenth-try.jsonl")
         let events = try String(contentsOf: file, encoding: .utf8).split(separator: "\n").compactMap { raw in

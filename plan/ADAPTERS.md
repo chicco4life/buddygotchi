@@ -109,7 +109,10 @@ leaves such a request alone.
 
 **Project name.** The last folder of the session's `cwd`. A git worktree
 maps to its main repository's name, so `landing` and
-`landing/.worktrees/fix-nav` both show as `landing`.
+`landing/.worktrees/fix-nav` both show as `landing`. The app reads a
+folder's `.git` once and remembers the name (up to 512 folders, then it
+starts again), so a hook never waits on the disk. A line without a `cwd`
+keeps the session's project.
 
 **Topic tags.** So that Boop's one real word can be about what's happening
 (*"…tests?"*), `boop-hook` looks at a tool's input just long enough to pick
