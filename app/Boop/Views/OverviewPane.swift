@@ -43,32 +43,39 @@ struct OverviewPane: View {
     // MARK: Header
 
     private var header: some View {
-        HStack(spacing: Theme.gap) {
+        VStack(alignment: .leading, spacing: Theme.gapSnug) {
             HStack(spacing: Theme.gap) {
-                BoopFace(mood: FaceMood(model.status), size: 46)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(model.name).font(.boop(18)).lineLimit(1)
-                    HStack(spacing: 6) {
-                        StateDot(tone: tone, pulsing: live)
-                        Text(headline).font(.system(size: 12)).foregroundStyle(Theme.inkSoft).lineLimit(1)
+                HStack(spacing: Theme.gap) {
+                    BoopFace(mood: FaceMood(model.status), size: faceSize)
+                    VStack(alignment: .leading, spacing: 3) {
+                        // A long name shrinks a little before it's cut.
+                        Text(model.name).font(.boop(18)).lineLimit(1).minimumScaleFactor(0.8)
+                        HStack(spacing: 6) {
+                            StateDot(tone: tone, pulsing: live)
+                            Text(headline).font(.system(size: 12)).foregroundStyle(Theme.inkSoft).lineLimit(1)
+                        }
+                        .animation(.boopSettle, value: headline)
                     }
-                    .animation(.boopSettle, value: headline)
-                    modes
+                }
+                .accessibilityElement(children: .combine)
+                Spacer(minLength: 0)
+                if model.status != nil {
+                    VStack(alignment: .trailing, spacing: 6) {
+                        DeviceLine(model: model)
+                        TalkButton(model: model)
+                    }
                 }
             }
-            .accessibilityElement(children: .combine)
-            Spacer(minLength: 0)
-            if model.status != nil {
-                VStack(alignment: .trailing, spacing: 6) {
-                    DevicePill(model: model)
-                    TalkButton(model: model)
-                }
-            }
+            // Under the name, the full width of the popover, so three
+            // chips never squeeze each other or the Talk column.
+            modes.padding(.leading, faceSize + Theme.gap)
         }
         .padding(.horizontal, Theme.gutter)
         .padding(.top, Theme.gutter)
         .padding(.bottom, Theme.gapLoose)
     }
+
+    private let faceSize: CGFloat = 46
 
     /// Small reminders of the modes set in Settings, so a silent Boop never
     /// looks broken. Nothing shows when everything is normal.
@@ -85,14 +92,18 @@ struct OverviewPane: View {
             if !chips.isEmpty {
                 HStack(spacing: 4) {
                     ForEach(chips, id: \.1) { icon, text in
-                        Label(text, systemImage: icon)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(Theme.inkSoft)
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(Theme.well, in: Capsule())
+                        HStack(spacing: 4) {
+                            Image(systemName: icon)
+                            Text(text)
+                        }
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(Theme.inkSoft)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .padding(.horizontal, 7).padding(.vertical, 3)
+                        .background(Theme.well, in: Capsule())
                     }
                 }
-                .padding(.top, 2)
                 .transition(.opacity)
             }
         }
@@ -131,12 +142,12 @@ struct OverviewPane: View {
         Card(tone: Theme.amber) {
             HStack(alignment: .top, spacing: Theme.gapSnug + 2) {
                 Image(systemName: "hand.wave.fill")
-                    .font(.system(size: 14))
+                    .font(.system(size: 13))
                     .foregroundStyle(Theme.amberInk)
                     .frame(width: 18)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(attn.project.isEmpty ? agentName(attn.agent) : "\(agentName(attn.agent)) · \(attn.project)")
-                        .font(.system(size: 13, weight: .semibold)).lineLimit(1).truncationMode(.middle)
+                        .font(.system(size: 12, weight: .semibold)).lineLimit(1).truncationMode(.middle)
                     Text("Waiting for you. Answer it in the agent's window.")
                         .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
                 }
@@ -176,10 +187,13 @@ struct OverviewPane: View {
             VStack(alignment: .leading, spacing: Theme.gap) {
                 ForEach(agents, id: \.self) { agent in
                     VStack(alignment: .leading, spacing: 5) {
-                        Label(agentName(agent), systemImage: agentSymbol(agent))
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Theme.inkSoft)
-                            .padding(.leading, 2)
+                        // A fixed icon width, so the names line up.
+                        HStack(spacing: 6) {
+                            Image(systemName: agentSymbol(agent)).frame(width: 18)
+                            Text(agentName(agent))
+                        }
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Theme.inkSoft)
                         ForEach(KeyedSession.rows(status.sessions.filter { $0.agent == agent })) { row in
                             SessionRow(project: row.session.project, status: row.session.status)
                         }
@@ -309,8 +323,11 @@ struct TalkButton: View {
     var body: some View {
         let on = model.listening
         Button(action: model.toggleTalk) {
+            // One width for both words, so the button doesn't jump.
             Label(on ? "Send" : "Talk", systemImage: on ? "arrow.up" : "mic.fill")
                 .labelStyle(.titleAndIcon)
+                .lineLimit(1)
+                .frame(width: 50)
         }
         .buttonStyle(RowButtonStyle(filled: on ? Theme.send : nil))
         .fixedSize()
@@ -321,8 +338,9 @@ struct TalkButton: View {
     }
 }
 
-/// Whether Boop's body is connected. Which board it is stays out of sight.
-struct DevicePill: View {
+/// Whether Boop's body is connected, as plain words over the Talk button, so
+/// it doesn't look like a second button. Which board it is stays out of sight.
+struct DeviceLine: View {
     @ObservedObject var model: AppModel
 
     var body: some View {
@@ -333,12 +351,8 @@ struct DevicePill: View {
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(Theme.inkSoft)
         }
-        .padding(.horizontal, 8).padding(.vertical, 4)
         .fixedSize()
-        // Just under half the height: an exact capsule outline picks up
-        // straight edges when rendered offscreen.
-        .background(Theme.raised, in: RoundedRectangle(cornerRadius: 9, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(Theme.hairline, lineWidth: 1))
+        .padding(.trailing, 2)
         .help(connected ? "Boop's body is connected" : "Boop's body isn't connected yet. Plug it into USB power.")
         .animation(.boopSettle, value: connected)
     }

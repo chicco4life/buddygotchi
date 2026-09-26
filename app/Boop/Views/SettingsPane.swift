@@ -8,6 +8,7 @@ struct SettingsPane: View {
     var maxHeight: CGFloat
     @ViewState private var apiKey = ""
     @ViewState private var keySaved = false
+    @FocusState private var keyFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -43,7 +44,7 @@ struct SettingsPane: View {
                                           set: { model.setVolume(Int($0.rounded())) }),
                            in: 0...10, step: 1)
                         .controlSize(.small)
-                        .frame(width: 96)
+                        .frame(width: 84)
                         .accessibilityLabel("Volume")
                     Text(s?.vol == 0 ? "Off" : "\(s?.vol ?? 6)")
                         .font(.system(size: 11, weight: .medium).monospacedDigit())
@@ -62,7 +63,7 @@ struct SettingsPane: View {
             Card(padding: 0) {
                 VStack(spacing: 0) {
                     ForEach(Array(HookInstaller.Agent.allCases.enumerated()), id: \.element) { index, agent in
-                        if index > 0 { Hairline().padding(.leading, 40) }
+                        if index > 0 { Hairline().padding(.leading, 40).padding(.trailing, 12) }
                         agentRow(agent)
                     }
                 }
@@ -148,14 +149,7 @@ struct SettingsPane: View {
         Card(padding: 0) {
             VStack(spacing: 0) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Picker("Mode", selection: Binding(get: { model.mode }, set: { model.setMode($0) })) {
-                        Text("Chatty").tag(Mode.chatty)
-                        Text("Normal").tag(Mode.normal)
-                        Text("Calm").tag(Mode.calm)
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity)
+                    ModePicker(mode: Binding(get: { model.mode }, set: { model.setMode($0) }))
                     Text(about(model.mode))
                         .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
                         .fixedSize(horizontal: false, vertical: true)
@@ -175,22 +169,34 @@ struct SettingsPane: View {
     /// Jev's key, only where it's used.
     private var key: some View {
         VStack(spacing: 0) {
-            Hairline().padding(.leading, 12)
+            Hairline().padding(.horizontal, 12)
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: Theme.gapSnug) {
+                    // As tall as the Save button beside it.
                     SecureField("Jev API key", text: $apiKey)
                         .textFieldStyle(.plain)
                         .font(.system(size: 12))
-                        .padding(.horizontal, 8).padding(.vertical, 5)
+                        .padding(.horizontal, 8)
+                        .frame(height: 22)
                         .background(Theme.paper, in: RoundedRectangle(cornerRadius: 7))
-                        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Theme.hairlineStrong, lineWidth: 1))
+                        .overlay(RoundedRectangle(cornerRadius: 7)
+                            .strokeBorder(keyFocused ? Theme.inkSoft : Theme.hairlineStrong, lineWidth: keyFocused ? 1.5 : 1))
+                        .focused($keyFocused)
                         .onChange(of: apiKey) { keySaved = false }
-                    Button(keySaved ? "Saved" : "Save") {
-                        keySaved = Keychain.setKey(apiKey, for: .jev)
-                        if keySaved { model.jevKeyChanged() }
+                    if keySaved {
+                        // Done, not disabled.
+                        Label("Saved", systemImage: "checkmark")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(Theme.sageInk)
+                            .frame(height: 22)
+                            .transition(.opacity)
+                    } else {
+                        Button("Save") {
+                            keySaved = Keychain.setKey(apiKey, for: .jev)
+                            if keySaved { model.jevKeyChanged() }
+                        }
+                        .buttonStyle(.row)
                     }
-                    .buttonStyle(.row)
-                    .disabled(keySaved)
                 }
                 Text("Kept in your Keychain. With Jev, what happens and \(model.name)'s memory go to TypeSafe with each call.")
                     .font(.system(size: 10)).foregroundStyle(Theme.inkSoft)
@@ -214,7 +220,7 @@ struct SettingsPane: View {
                         .padding(12)
                 }
                 ForEach(Array(model.remembered.enumerated()), id: \.element) { index, line in
-                    if index > 0 { Hairline().padding(.leading, 12) }
+                    if index > 0 { Hairline().padding(.horizontal, 12) }
                     HStack(alignment: .firstTextBaseline, spacing: Theme.gapSnug) {
                         Text(line).font(.system(size: 12)).fixedSize(horizontal: false, vertical: true)
                         Spacer(minLength: 0)
@@ -231,6 +237,46 @@ struct SettingsPane: View {
                 }
             }
         }
+    }
+}
+
+/// Chatty, Normal or Calm: three equal segments on a well, the chosen one
+/// raised on paper. Drawn here rather than the system's segmented control,
+/// which doesn't stretch, and draws grey in the popover's inactive window.
+struct ModePicker: View {
+    @Binding var mode: Mode
+    @Namespace private var chosen
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach([Mode.chatty, .normal, .calm], id: \.self) { m in
+                let on = m == mode
+                Button {
+                    withAnimation(.boopSettle) { mode = m }
+                } label: {
+                    Text(m.rawValue.capitalized)
+                        .font(.system(size: 11, weight: on ? .semibold : .medium))
+                        .foregroundStyle(on ? Theme.ink : Theme.inkSoft)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
+                        .background {
+                            if on {
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(Theme.paper)
+                                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Theme.hairlineStrong, lineWidth: 1))
+                                    .matchedGeometryEffect(id: "chosen", in: chosen)
+                            }
+                        }
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+        .padding(2)
+        .background(Theme.well, in: RoundedRectangle(cornerRadius: Theme.wellRadius))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Mode")
     }
 }
 
@@ -252,7 +298,7 @@ struct SettingRow<Trailing: View>: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title).font(.system(size: 12, weight: .medium))
                 if let detail {
-                    Text(detail).font(.system(size: 10.5)).foregroundStyle(detailTone)
+                    Text(detail).font(.system(size: 11)).foregroundStyle(detailTone)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }

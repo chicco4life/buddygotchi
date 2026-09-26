@@ -26,7 +26,7 @@ struct SetupPane: View {
             .clipped()
         }
         .frame(height: 448)
-        .padding(.horizontal, Theme.gutter + 4)
+        .padding(.horizontal, Theme.gutter)
         .padding(.bottom, Theme.gutter)
     }
 
@@ -66,6 +66,9 @@ struct SetupPane: View {
                     .foregroundStyle(Theme.inkSoft)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+                    // Narrower than the column, so lines break evenly
+                    // instead of leaving one word on the last.
+                    .frame(maxWidth: 290)
             }
         }
     }
@@ -73,7 +76,8 @@ struct SetupPane: View {
     private func nav(back: SetupDraft.Step?, next: String, enabled: Bool = true, action: @escaping () -> Void) -> some View {
         HStack {
             if let back {
-                Button("Back") { go(back) }.buttonStyle(.quiet).font(.system(size: 12))
+                // Its hover padding hangs outside, so the word lines up with the column.
+                Button("Back") { go(back) }.buttonStyle(.quiet).font(.system(size: 12)).padding(.leading, -8)
             }
             Spacer()
             Button(next, action: action)
@@ -117,7 +121,7 @@ struct SetupPane: View {
                 .focused($nameFocused)
                 .onAppear { nameFocused = true }
             Text("Names are for keeps, so pick one you love.")
-                .font(.system(size: 10.5)).foregroundStyle(Theme.inkSoft)
+                .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
             Text("Sweet or cheeky?").font(.system(size: 12, weight: .semibold)).padding(.top, Theme.gapSnug)
             HStack(spacing: Theme.gapSnug) {
                 natureCard(.sweet, "heart.fill", Theme.blush, "Sweet", "Warm and encouraging")
@@ -164,25 +168,41 @@ struct SetupPane: View {
                 Text("boop-hook isn't built, so I can't add hooks yet. Run make build, restart Boop, then connect them in Settings.")
                     .font(.system(size: 11)).foregroundStyle(Theme.clayInk).multilineTextAlignment(.center)
             } else if !detected.isEmpty {
-                DisclosureGroup(isExpanded: $showHooks) {
-                    ScrollView {
-                        Text(detected.filter { model.setup.agents.contains($0) }.map { agent in
-                            "\(model.installer.configURL(agent).path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))\n"
-                                + model.installer.preview(agent)
-                        }.joined(separator: "\n\n"))
-                        .font(.system(size: 9.5, design: .monospaced))
+                // A disclosure of our own: the system's chevron ignores the
+                // tint and glares white on dark paper.
+                VStack(alignment: .leading, spacing: 4) {
+                    Button {
+                        withAnimation(.boopSettle) { showHooks.toggle() }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 9, weight: .semibold))
+                                .rotationEffect(.degrees(showHooks ? 90 : 0))
+                            Text("See exactly what gets added").font(.system(size: 11))
+                        }
                         .foregroundStyle(Theme.inkSoft)
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(8)
+                        .contentShape(Rectangle())
                     }
-                    .frame(height: 104)
-                    .background(Theme.well, in: RoundedRectangle(cornerRadius: Theme.wellRadius))
-                    .padding(.top, 4)
-                } label: {
-                    Text("See exactly what gets added").font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
+                    .buttonStyle(.plain)
+                    .accessibilityValue(showHooks ? "Shown" : "Hidden")
+                    if showHooks {
+                        ScrollView {
+                            Text(detected.filter { model.setup.agents.contains($0) }.map { agent in
+                                "\(model.installer.configURL(agent).path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))\n"
+                                    + model.installer.preview(agent)
+                            }.joined(separator: "\n\n"))
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(Theme.inkSoft)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(8)
+                        }
+                        .frame(height: 104)
+                        .background(Theme.well, in: RoundedRectangle(cornerRadius: Theme.wellRadius))
+                        .transition(.opacity)
+                    }
                 }
-                .tint(Theme.inkSoft)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
             Spacer(minLength: 0)
             nav(back: .name, next: "Continue") { go(.ready) }
