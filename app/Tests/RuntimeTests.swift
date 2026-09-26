@@ -69,11 +69,11 @@ final class RuntimeTests: XCTestCase {
         transport.onLine?(#"{"t":"input","k":"talk_off"}"#)
         wait("listen on and off") { runtime.home.sync { heard } == [true, false] }
 
-        // A finished turn clears "needs you", nods (it was quick), and counts
+        // A finished turn clears "needs you", cheers, and counts
         // in the record.
         XCTAssertTrue(HookSocket.send(hook("PostToolUse", tool: "Bash"), to: socket))
         XCTAssertTrue(HookSocket.send(hook("Stop"), to: socket))
-        wait("nod") { transport.sent.contains { $0.contains("\"anim\":\"nod\"") } }
+        wait("cheer") { transport.sent.contains { $0.contains("\"anim\":\"cheer\"") } }
         wait("record") { AppSettings.load(from: self.dir).finished == 1 }
         XCTAssertEqual(AppSettings.load(from: dir).projects, ["jetpack"])
         XCTAssertEqual(AppSettings.load(from: dir).brain, "apple", "--brain is for this run only")
@@ -162,7 +162,7 @@ final class RuntimeTests: XCTestCase {
         let afterCheer = moments().count
         wait("the brain's moment", timeout: 4) { moments().count > afterCheer }
         XCTAssertGreaterThanOrEqual(Date().timeIntervalSince(cheered), 1.5,
-                                    "a size-2 cheer plays 1640 ms × 100 ÷ pace, about 1.6 s after a long win")
+                                    "a size-2 cheer plays 2400 ms × 100 ÷ pace, about 2.4 s after a long win")
     }
 
     /// ARCHITECTURE.md §3: the app knows how long each rule moment plays on
@@ -171,7 +171,7 @@ final class RuntimeTests: XCTestCase {
     /// `animDuration`, with the mood from the last `state`.
     func testMomentLengthsFollowTheFirmware() {
         let neutral = Mood()
-        XCTAssertEqual(DeviceMoment(anim: "cheer", size: 2).playMs(mood: neutral), 1640)
+        XCTAssertEqual(DeviceMoment(anim: "cheer", size: 2).playMs(mood: neutral), 2400)
         XCTAssertEqual(DeviceMoment(anim: "proud").playMs(mood: neutral), 2500)
         XCTAssertEqual(DeviceMoment(anim: "thinking").playMs(mood: neutral), 0, "the brain's reply replaces thinking")
 
@@ -187,12 +187,12 @@ final class RuntimeTests: XCTestCase {
         // A tired cheer (energy under 60) is a size smaller, a bouncy one
         // (140 or more) a size bigger, within 1–3.
         let cheer = DeviceMoment(anim: "cheer", size: 2)
-        XCTAssertEqual(cheer.playMs(mood: Mood(energy: 59)), 1260)
-        XCTAssertEqual(cheer.playMs(mood: Mood(energy: 60)), 1640)
-        XCTAssertEqual(cheer.playMs(mood: Mood(energy: 140)), 2020)
-        XCTAssertEqual(DeviceMoment(anim: "cheer", size: 1).playMs(mood: Mood(energy: 30)), 1260)
-        XCTAssertEqual(DeviceMoment(anim: "cheer", size: 3).playMs(mood: Mood(energy: 180)), 2020)
-        XCTAssertEqual(cheer.playMs(mood: Mood(energy: 150, pace: 140)), 1442, "bigger, and faster")
+        XCTAssertEqual(cheer.playMs(mood: Mood(energy: 59)), 2000)
+        XCTAssertEqual(cheer.playMs(mood: Mood(energy: 60)), 2400)
+        XCTAssertEqual(cheer.playMs(mood: Mood(energy: 140)), 2800)
+        XCTAssertEqual(DeviceMoment(anim: "cheer", size: 1).playMs(mood: Mood(energy: 30)), 2000)
+        XCTAssertEqual(DeviceMoment(anim: "cheer", size: 3).playMs(mood: Mood(energy: 180)), 2800)
+        XCTAssertEqual(cheer.playMs(mood: Mood(energy: 150, pace: 140)), 2000, "bigger, and faster")
         XCTAssertEqual(DeviceMoment(anim: "oops").playMs(mood: Mood(energy: 30)), 1400, "only a cheer changes size")
 
         // A mumble lasts its syllables plus two beats for a word, at 60–400

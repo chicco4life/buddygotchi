@@ -36,7 +36,7 @@ public struct DeviceMoment: Equatable, Sendable {
         let base: Int64 = switch anim {
         case "listening", "thinking": 0
         case "nod": 600
-        case "cheer": Int64(size + 1) * 380 + 500
+        case "cheer": 2000 + Int64(size - 1) * 400
         case "oops", "stretch": 1400
         case "side_eye", "yawn": 1600
         case "wiggle": 700

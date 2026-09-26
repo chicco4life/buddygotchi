@@ -143,7 +143,7 @@ uint32_t animDuration(Anim a, int size) {
   switch (a) {
     case Anim::kNone: return 0;
     case Anim::kNod: return 600;
-    case Anim::kCheer: return (size + 1) * 380 + 500;
+    case Anim::kCheer: return 2000 + (size - 1) * 400;  // long enough to notice
     case Anim::kOops: return 1400;
     case Anim::kSideEye: return 1600;
     case Anim::kWiggle: return 700;

@@ -400,19 +400,19 @@ public final class Core {
         fx.append(.moment(anim: anim, size: size))
     }
 
-    /// A finished turn: a nod under 30 s, otherwise a cheer sized by how long
-    /// it took. Several at once make one cheer at the biggest size.
+    /// A finished turn: a cheer sized by how long it took, even while other
+    /// sessions are still working. Several at once make one cheer at the
+    /// biggest size.
     func finished(_ s: Session, durationMs ms: Int64, _ now: Int64, _ fx: inout [CoreEffect]) {
         let size: Int
         switch ms {
-        case ..<30_000: size = 0
         case ..<300_000: size = 1
         case ..<1_200_000: size = 2
         default: size = 3
         }
         let burst = lastFinish.map { now - $0.at < config.mergeMs } ?? false
         if !burst || size > lastFinish!.size {
-            play(size == 0 ? "nod" : "cheer", max(1, size), now, &fx)
+            play("cheer", size, now, &fx)
             lastFinish = (now, burst ? max(size, lastFinish!.size) : size)
         } else {
             lastFinish = (now, lastFinish!.size)

@@ -590,6 +590,7 @@ static void test_every_anim_has_a_name_and_ends() {
   }
   TEST_ASSERT_TRUE(animFromName("dance") == Anim::kNone);
   TEST_ASSERT_TRUE(animDuration(Anim::kCheer, 3) > animDuration(Anim::kCheer, 1));
+  TEST_ASSERT_EQUAL_UINT32(2000, animDuration(Anim::kCheer, 1));  // BEHAVIORS.md §7
 }
 
 static void test_fonts_are_monospaced_and_utf8_aware() {

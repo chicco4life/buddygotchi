@@ -98,9 +98,9 @@ final class CoreAgentWorkTests: XCTestCase {
         XCTAssertEqual(triggers(fx).first?.line, "turn started · claude · landing · 14:00 Wednesday")
     }
 
-    func testTurnUnder30sNods() {
+    func testTurnUnder30sCheersSize1() {  // BEHAVIORS.md §3.1
         let rig = CoreRig()
-        XCTAssertEqual(moments(rig.turn(29_000)), ["nod 1"])
+        XCTAssertEqual(moments(rig.turn(29_000)), ["cheer 1"])
         XCTAssertEqual(rig.state.base, "idle")
     }
 
@@ -122,6 +122,15 @@ final class CoreAgentWorkTests: XCTestCase {
         XCTAssertEqual(triggers(fx).first?.line, "turn finished · claude · landing · took 20 min · 14:20 Wednesday")
     }
 
+    func testAFinishCheersWhileOthersKeepWorking() {  // BEHAVIORS.md §3.1
+        let rig = CoreRig()
+        rig.send(.turnStart, session: "a")
+        rig.send(.turnStart, session: "b")
+        rig.wait(10_000)
+        XCTAssertEqual(moments(rig.send(.turnEnd, session: "a")), ["cheer 1"])
+        XCTAssertEqual(rig.state.base, "working")
+    }
+
     func testSeveralFinishingAtOnceMakeOneCheerAtTheBiggestSize() {
         let rig = CoreRig()
         rig.send(.turnStart, session: "a")
@@ -131,7 +140,7 @@ final class CoreAgentWorkTests: XCTestCase {
         rig.send(.turnStart, session: "c")  // c restarts: a quick one
         rig.wait(10_000)
         var fx = rig.send(.turnEnd, session: "c")
-        XCTAssertEqual(moments(fx), ["nod 1"])
+        XCTAssertEqual(moments(fx), ["cheer 1"])
         rig.wait(1000)
         fx = rig.send(.turnEnd, session: "a")
         XCTAssertEqual(moments(fx), ["cheer 2"], "upgraded to the bigger cheer")
@@ -141,7 +150,7 @@ final class CoreAgentWorkTests: XCTestCase {
         rig.wait(5000)
         rig.send(.turnStart, session: "a")
         rig.wait(1000)
-        XCTAssertEqual(moments(rig.send(.turnEnd, session: "a")), ["nod 1"], "a new window")
+        XCTAssertEqual(moments(rig.send(.turnEnd, session: "a")), ["cheer 1"], "a new window")
     }
 
     func testFailedTurnPlaysOopsThenSideEye() {

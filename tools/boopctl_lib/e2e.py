@@ -251,7 +251,7 @@ def play_ms(moment: dict[str, Any], mood: dict[str, Any] | None = None) -> int:
             size = max(1, size - 1)
         if energy >= 140:
             size = min(3, size + 1)
-    table = {"listening": 0, "thinking": 0, "nod": 600, "cheer": (size + 1) * 380 + 500, "oops": 1400,
+    table = {"listening": 0, "thinking": 0, "nod": 600, "cheer": 2000 + (size - 1) * 400, "oops": 1400,
              "stretch": 1400, "side_eye": 1600, "yawn": 1600, "wiggle": 700, "shrug": 1200, "zip": 1500,
              "gobble": 1500, "rumble": 1500, "levelup": 2400}
     ms = table.get(anim, 2500) * 100 // max(70, min(140, pace))

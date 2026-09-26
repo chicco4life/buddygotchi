@@ -69,8 +69,7 @@ playing ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2).
 | Trigger | Rules | Brain may add |
 | --- | --- | --- |
 | You send a prompt | Base becomes working | Never a mumble: the brain never speaks on a turn start ([HARNESS.md](HARNESS.md) §5). Rarely a face |
-| Turn finishes, under 30 s | `nod` | Usually nothing |
-| Turn finishes, 30 s–5 min | `cheer` size 1 | A mumble, e.g. *"ba-ba ti… done!"* |
+| Turn finishes, under 5 min | `cheer` size 1, even while other sessions keep working | A mumble, e.g. *"ba-ba ti… done!"* |
 | Turn finishes, 5–20 min | `cheer` size 2, jingle, warm light | A mumble, e.g. *"…finally!"* |
 | Turn finishes, over 20 min | `cheer` size 3, jingle, warm light | A proud mumble; maybe a note |
 | Several finish at once | One cheer; a bigger finish within 3 s upgrades it | One mumble |
@@ -180,8 +179,8 @@ face, its animations and the light carry on.
 
 | Name | Used for |
 | --- | --- |
-| `nod` | Quick finishes; after "needs you" clears |
-| `cheer` | Finished turns (sizes 1–3) |
+| `nod` | After "needs you" clears |
+| `cheer` | Finished turns (sizes 1–3); 2 s at size 1, 0.4 s longer per size |
 | `oops`, `side_eye` | Failed turns; sass at agents |
 | `wiggle` | Taps |
 | `stretch`, `yawn` | The first activity of the day |
