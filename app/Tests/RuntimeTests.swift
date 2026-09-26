@@ -106,11 +106,26 @@ final class RuntimeTests: XCTestCase {
         let runtime = try makeRuntime(transport)
         try runtime.start()
         defer { runtime.stop() }
-        var data = try JSONSerialization.data(withJSONObject: ["dev": "talk", "words": "shut up"])
-        data.append(0x0A)
-        XCTAssertTrue(HookSocket.send(data, to: dir.appendingPathComponent("boop.sock").path))
-        // The rules brain answers "shut up" with a sulky face and quiet.
-        wait("quiet in the next state") { transport.sent.contains { $0.contains("\"t\":\"state\"") && !$0.contains("\"quiet\":0") } }
+        let socket = dir.appendingPathComponent("boop.sock").path
+        func talk(_ words: String, yelled: Bool = false) throws {
+            var data = try JSONSerialization.data(withJSONObject: ["dev": "talk", "words": words, "yelled": yelled] as [String: Any])
+            data.append(0x0A)
+            XCTAssertTrue(HookSocket.send(data, to: socket))
+        }
+        func quiet(_ line: String) -> Bool { line.contains("\"t\":\"state\"") && !line.contains("\"quiet\":0") }
+        // BEHAVIORS.md §3.3: told off, the rules classifier has Boop mumble
+        // something sad, and it doesn't quiet Boop.
+        try talk("shut up")
+        wait("a sad mumble") { transport.sent.contains { $0.contains("\"anim\":\"worried\"") && $0.contains("\"say\"") } }
+        XCTAssertFalse(transport.sent.contains(where: quiet))
+        // "be quiet" zips Boop's mouth and quiets it.
+        try talk("be quiet")
+        wait("quiet in the next state") { transport.sent.contains(where: quiet) }
+        XCTAssertTrue(transport.sent.contains { $0.contains("\"anim\":\"zip\"") })
+        // Yelled at while quiet: the sad face without a mumble, once the zip is over.
+        let before = transport.sent.count
+        try talk("", yelled: true)
+        wait("a sad face") { transport.sent.dropFirst(before).contains { $0.contains("\"anim\":\"worried\"") && !$0.contains("\"say\"") } }
     }
 
     func testStopRemovesTheSocketAndReleasesTheLock() throws {

@@ -267,7 +267,9 @@ void Behaviour::tap(uint32_t t, Rng& rng) {
   if (model_.attn && !noApp(t)) {
     if (!hushed_) hushed_ = true, hushAt_ = t;  // nudges stop; it stays amber
     play(render::Anim::kNod, 1, t, true);
-  } else {
+  } else if (!(momentOn(t) && moment_.anim == render::Anim::kSideEye)) {
+    // A poke doesn't cut a side-eye short (BEHAVIORS.md §3.3): the press
+    // squash is its only answer, and a grumble under it plays on.
     play(render::Anim::kWiggle, 1, t, true);
   }
   resync(t, rng);

@@ -82,11 +82,11 @@ final class HarnessRig: @unchecked Sendable {
     var entries: [Transcript.Entry] { home.sync { harness.transcript.entries } }
 }
 
-func input(_ kind: Input.Kind, words: String? = nil, outcome: Input.Outcome? = nil, tookMs: Int64? = nil,
-           rules: String? = nil, at minutes: Double = 0) -> Input {
+func input(_ kind: Input.Kind, words: String? = nil, yelled: Bool = false, outcome: Input.Outcome? = nil,
+           tookMs: Int64? = nil, rules: String? = nil, at minutes: Double = 0) -> Input {
     Input(kind, agent: kind == .agentStarted || kind == .agentFinished ? "claude" : nil,
           project: kind == .agentStarted || kind == .agentFinished ? "jetpack" : nil,
-          outcome: kind == .agentFinished ? outcome ?? .done : nil, tookMs: tookMs, words: words,
+          outcome: kind == .agentFinished ? outcome ?? .done : nil, tookMs: tookMs, words: words, yelled: yelled,
           yesterday: kind == .newDay ? "2026-10-14" : nil, clock: "14:05", weekday: "Tuesday", rules: rules,
           ts: Int64(minutes * 60_000))
 }

@@ -116,7 +116,7 @@ agents.
 
 | Input | Does |
 | --- | --- |
-| Press BOOT, or tap the face | Boop it; acknowledges a cheer; quiets the nudges if something needs you |
+| Press BOOT, or tap the face | Boop it; acknowledges a cheer; quiets the nudges if something needs you. Poking it over and over annoys it ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
 | Hold BOOT | Push-to-talk while held |
 | Tap the status strip | Cycle screens: face → threads → stats → face (ignored on the no-app screen) |
 
@@ -155,10 +155,13 @@ Microphone; if either is refused, or on-device recognition isn't
 available, the device shrugs and the popover says "*name* can't hear you"
 and where to allow it.
 
-Things worth saying: "shut up" (Boop goes quiet for a while), "good job",
-"remember I ship on Fridays", or just mumbling at it. Audio is thrown away at
-once. What you said stays in the brain's transcript, in memory only, until
-its window moves past it ([HARNESS.md](HARNESS.md) §4).
+Things worth saying: "be quiet" (Boop zips its mouth and goes quiet for a
+while), "good job", "remember I ship on Fridays", or just mumbling at it.
+Yelling at it, or telling it off, makes it sad but doesn't quiet it. Audio
+is thrown away at once; Boop keeps only whether you yelled
+([BEHAVIORS.md](BEHAVIORS.md) §3.3). What you said stays in the brain's
+transcript, in memory only, until its window moves past it
+([HARNESS.md](HARNESS.md) §4).
 
 ## 6. Setup
 

@@ -71,6 +71,26 @@ final class EvalTests: XCTestCase {
         XCTAssertTrue(result.passed, Eval.diff(result))
     }
 
+    /// EVALS.md §3: a command's topic and result, a yell, and times in ms.
+    func testCommandsYellsAndMilliseconds() throws {
+        XCTAssertEqual(Scenario.ms("500ms"), 500)
+        XCTAssertEqual(Scenario.ms("90s"), 90_000)
+        let url = try write("""
+            {"name": "x", "steps": [
+              {"input": {"at": "0m", "event": "command", "topic": "tests", "failed": true}, "expect": []},
+              {"input": {"at": "1500ms", "event": "talk", "words": "", "yelled": true}, "expect": []}]}
+            """)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let scenario = try Scenario(file: url)
+        XCTAssertEqual(scenario.steps[0].event.topic, "tests")
+        XCTAssertTrue(scenario.steps[0].event.failed)
+        XCTAssertEqual(scenario.steps[1].event.atMs, 1500)
+        XCTAssertTrue(scenario.steps[1].event.yelled)
+        let noTopic = try write(#"{"name": "x", "steps": [{"input": {"at": "0m", "event": "command"}, "expect": []}]}"#)
+        defer { try? FileManager.default.removeItem(at: noTopic) }
+        try XCTAssertThrowsError(try Scenario(file: noTopic))
+    }
+
     func testABadScenarioNamesTheStep() throws {
         let url = try write("""
             {"name": "x", "steps": [{"input": {"at": "0m", "event": "turn started"}, "expect": []},

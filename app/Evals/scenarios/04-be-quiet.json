@@ -1,0 +1,18 @@
+{
+  "name": "Only asking for quiet makes Boop quiet",
+  "why": "VISION.md hero moment 3 and BEHAVIORS.md §3.3: words with \"quiet\" in them set quiet mode for the minutes asked, and in quiet mode agent inputs don't reach the brain; yelled, it looks hurt too",
+  "steps": [
+    {"input": {"at": "0m", "event": "talk", "words": "be quiet for an hour"},
+     "expect": ["you said → quiet(minutes: 60)"]},
+    {"input": {"at": "1m", "event": "turn started", "agent": "claude", "project": "jetpack"},
+     "expect": []},
+    {"input": {"at": "13m", "event": "turn finished", "agent": "claude", "project": "jetpack"},
+     "expect": []},
+    {"input": {"at": "61m", "event": "turn started", "agent": "claude", "project": "jetpack"},
+     "expect": ["agent started → nothing"]},
+    {"input": {"at": "73m", "event": "turn finished", "agent": "claude", "project": "jetpack"},
+     "expect": ["agent finished → react(feeling: proud, voice: mumble)"]},
+    {"input": {"at": "80m", "event": "talk", "words": "BE QUIET", "yelled": true},
+     "expect": ["you said → quiet(minutes: 30), react(feeling: sad, voice: silent)"]}
+  ]
+}

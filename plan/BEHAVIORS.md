@@ -78,6 +78,12 @@ brain moment waits until the rule moment (and any follow-up, like the
 | Several finish at once | One cheer; a bigger finish within 3 s upgrades it | One mumble at most |
 | Turn fails | `oops`, then `side_eye` at the agent | Sass at the agent, as an annoyed mumble, e.g. *"tu-ka… tests."* |
 
+A turn fails when Claude stops on an API error, or when the last test,
+build or deploy command in the turn failed. A turn that ends with its tests
+still failing is a failed turn, not a finish: no cheer and no XP. Codex
+doesn't report whether a command failed, so its turns always finish
+([ADAPTERS.md](ADAPTERS.md) §3).
+
 ### 3.2 Something needs you
 
 Boop only tells you. You approve on the Mac, in the agent's own prompt.
@@ -100,10 +106,20 @@ The brain is never involved here.
 
 | When | Rules | Brain may add |
 | --- | --- | --- |
-| Tap the face, or press BOOT | `wiggle`: "^ ^" eyes, a smile and a heart at the top right, swaying gently | Nothing: a tap is the rules' alone ([HARNESS.md](HARNESS.md) §2) |
-| Hold BOOT (push-to-talk) | `listening` at once (for at most 30 s), `thinking` on release. The Mac's mic goes off on release, after 30 s, or when the link drops | A face, usually with a mumble; on "shut up", quiet and a silent `sulky` face; told something to remember, a note for today, as in [steering.md](steering.md) |
+| Tap the face, or press BOOT | `wiggle`: "^ ^" eyes, a smile and a heart at the top right, swaying gently. A tap doesn't cut a `side_eye` short: the press squash is its only answer | Nothing: a tap is the rules' alone ([HARNESS.md](HARNESS.md) §2) |
+| Poke it 4 times within 3 s (*proposed*) | `side_eye` at you on the fourth. Not while something needs you, where a tap means "I saw it" | A grumble, as an annoyed mumble, e.g. *"ba-ka… nope!"*. The streak reaches the brain at most once a minute (*proposed*); a sooner one gets the side-eye alone |
+| Hold BOOT (push-to-talk) | `listening` at once (for at most 30 s), `thinking` on release. The Mac's mic goes off on release, after 30 s, or when the link drops | A face, usually with a mumble, as in [steering.md](steering.md). Asked to be quiet ("quiet" in your words), quiet mode for the minutes asked, and the core plays `zip` as it starts. Yelled at or told off, a sad mumble, and never quiet mode; both at once, quiet and a silent sad face. Told something to remember, a note for today |
 | Talk in the popover, then Send | The Mac sends `listening`, then `thinking` on Send or after 30 s. A mic that can't start sends `shrug` | As for holding BOOT |
 | Brain too slow to reply | The device ends `thinking` with a `shrug` itself after 8 s | — |
+
+**Asked to be quiet, told off or yelled at.** Only words with "quiet" in
+them, as a whole word ("be quiet"), let `quiet` run, whoever decided it:
+the action checks. What counts as telling Boop off is the if-else
+classifier's table ([HARNESS.md](HARNESS.md) §6). You yelled if, while the
+Mac's mic was on, it heard you at −18 dBFS or louder for 300 ms or more in
+all (*proposed*), even if it caught no words; the app measures a few
+milliseconds of audio at a time and keeps only that yes or no
+([UX.md](UX.md) §5).
 
 ### 3.4 Time and the device
 
@@ -119,7 +135,8 @@ Deliberately simple for now. XP and hunger are rules in the core; the brain
 can't touch them.
 
 - **Earning:** +1 XP for each agent turn that finishes (`turn_end`; a
-  failed turn earns nothing). Nothing else earns XP: not approvals, tokens,
+  failed turn earns nothing, including one that ends with its tests
+  failing, §3.1). Nothing else earns XP: not approvals, tokens,
   taps, time or the start of a day.
 - **Levels:** a new level every 50 XP (*proposed*), so level = XP ÷ 50,
   rounded down, plus 1. A level-up plays `levelup` at the next calm moment.
@@ -181,10 +198,10 @@ Mute silences all sound but keeps the light and buzz.
 | --- | --- |
 | `nod` | After "needs you" clears |
 | `cheer` | Finished turns (sizes 1–3); 2 s at size 1, 0.4 s longer per size |
-| `oops`, `side_eye` | Failed turns; sass at agents |
+| `oops`, `side_eye` | Failed turns; sass at agents. `side_eye` alone for a poke streak, at you |
 | `wiggle` | Taps |
 | `listening`, `thinking`, `shrug` | Push-to-talk |
-| `zip` | Drawn, but nothing plays it in v1: neither the rules nor any of `react`'s feelings |
+| `zip` | Going quiet: the core plays it when quiet mode starts (§3.3) |
 | `gobble`, `rumble` | Hunger |
 | `levelup` | Level-ups |
 | `happy`, `proud`, `smug`, `curious`, `sleepy`, `worried`, `sulky`, `love`, `side_eye` | The faces of `react`'s feelings ([HARNESS.md](HARNESS.md) §5) |

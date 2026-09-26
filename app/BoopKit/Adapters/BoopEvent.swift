@@ -41,12 +41,18 @@ public struct BoopEvent: Equatable, Sendable {
         public var tool: String?
         public var topic: String?
         public var error: String?
+        /// Whether the tool call failed, where the agent says: Claude's
+        /// `PostToolUse` (false) and `PostToolUseFailure` (true), but not a
+        /// call you interrupted. Nil when unknown.
+        public var failed: Bool?
 
-        public init(durationS: Int? = nil, tool: String? = nil, topic: String? = nil, error: String? = nil) {
+        public init(durationS: Int? = nil, tool: String? = nil, topic: String? = nil, error: String? = nil,
+                    failed: Bool? = nil) {
             self.durationS = durationS
             self.tool = tool
             self.topic = topic
             self.error = error
+            self.failed = failed
         }
     }
 
@@ -74,6 +80,7 @@ public struct BoopEvent: Equatable, Sendable {
         if let tool = detail.tool { detailObject["tool"] = tool }
         if let topic = detail.topic { detailObject["topic"] = topic }
         if let error = detail.error { detailObject["error"] = error }
+        if let failed = detail.failed { detailObject["failed"] = failed }
         let object: [String: Any] = [
             "agent": agent.rawValue, "session": session, "project": project,
             "event": event.rawValue, "detail": detailObject, "ts": ts,

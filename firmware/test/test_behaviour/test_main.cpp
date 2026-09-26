@@ -100,6 +100,26 @@ static void test_ladder_rungs_chirps_and_pulses() {
   TEST_ASSERT_EQUAL_HEX32(0x805800, r.b.led(122200));  // then stays amber, quietly
 }
 
+// BEHAVIORS.md §3.3: a tap wiggles, but doesn't cut a side-eye short (the
+// Mac's side-eye at a poke streak, with the grumble under it, or at an agent).
+static void test_a_tap_doesnt_cut_a_side_eye_short() {
+  Rig r;
+  r.state(base("idle"));
+  r.at(1000);
+  r.b.tap(r.t, r.rng);
+  TEST_ASSERT_EQUAL(Anim::kWiggle, r.anim());
+  r.at(3000);
+  r.moment(Anim::kSideEye);
+  r.at(3500);
+  r.b.tap(r.t, r.rng);
+  TEST_ASSERT_EQUAL(Anim::kSideEye, r.anim());
+  r.at(3000 + render::animDuration(Anim::kSideEye, 1) - 1);
+  TEST_ASSERT_EQUAL(Anim::kSideEye, r.anim());  // not restarted either
+  r.at(3000 + render::animDuration(Anim::kSideEye, 1));
+  r.b.tap(r.t, r.rng);
+  TEST_ASSERT_EQUAL(Anim::kWiggle, r.anim());  // over: a tap wiggles again
+}
+
 static void test_tap_hushes_nudges_and_nods() {
   Rig r;
   r.state(attn());
@@ -540,6 +560,7 @@ int main() {
   UNITY_BEGIN();
   RUN_TEST(test_ladder_rungs_chirps_and_pulses);
   RUN_TEST(test_tap_hushes_nudges_and_nods);
+  RUN_TEST(test_a_tap_doesnt_cut_a_side_eye_short);
   RUN_TEST(test_answering_on_the_mac_nods_and_goes_back);
   RUN_TEST(test_attention_wins_over_moments);
   RUN_TEST(test_face_name_is_the_moment_or_the_look);

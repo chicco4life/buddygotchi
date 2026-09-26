@@ -71,12 +71,13 @@ for the harness ([HARNESS.md](HARNESS.md) §2):
 | `event` | Extra fields |
 | --- | --- |
 | `turn started`, `turn finished`, `turn failed` | `agent` (default `claude`), `project` (default `jetpack`), `error` for a failure |
-| `tap` | — (never reaches the brain; only noted in the transcript) |
-| `talk` | `words` |
+| `command` | `topic` (`tests`, `build` or `deploy`), `failed` (default `false`), `agent`, `project`: an agent's shell command finished, as Claude's `PostToolUse` or `PostToolUseFailure` reports it. Never reaches the brain; the turn's finish shows what it did |
+| `tap` | — (only noted in the transcript, unless it's the fourth of a poke streak) |
+| `talk` | `words` (`""` for a yell with no words), `yelled` (default `false`) |
 | `wait` | — (time passes; checks what the core releases on its own) |
 
-`at` is the time since the scenario started (`90s`, `12m`, `2h`), later for
-each step. A turn's length is the time from its start to its finish, so a
+`at` is the time since the scenario started (`500ms`, `90s`, `12m`, `2h`),
+later for each step. A turn's length is the time from its start to its finish, so a
 12-minute turn is a start at `0m` and a finish at `12m`.
 
 **Scripted stages** (optional) replace a brain for the passes that step
@@ -101,7 +102,7 @@ their actions (arguments in alphabetical order):
 | Written | Means |
 | --- | --- |
 | `agent finished → react(feeling: proud, voice: mumble, word: finally)` | The call ran, with the word the writer wrote |
-| `you said → quiet(minutes: 30), react(feeling: sulky, voice: silent)` | Both calls ran, in the menu's order |
+| `you said → quiet(minutes: 30), react(feeling: sad, voice: silent)` | Both calls ran, in the menu's order |
 | `agent started → nothing` | An input reached the harness and Stage 1 chose to do nothing |
 | `you said → remember(where: today) dropped (unwritten)` | The writer left its required words empty, so the call was dropped |
 | `… dropped (action)` | The call's action refused it (a memory rule, say) |
@@ -135,9 +136,16 @@ input replacing a waiting one) is left to the unit tests in
 | File | Checks |
 | --- | --- |
 | `01-short-turn.json` | A turn that finishes in a minute gets nothing from the brain, since the core's cheer already celebrates it. |
-| `02-long-turn.json` | A turn that finishes after 12 minutes gets a proud mumble, with the word the writer writes. |
-| `03-turn-failed.json` | A failed turn gets an annoyed mumble. |
-| `04-shut-up.json` | "Shut up" sets quiet mode for 30 minutes with a silent sulk, holds back a turn in that time, and lets the next one through after. |
+| `02-long-turn.json` | A turn that finishes after 12 minutes gets a proud mumble, with the word the writer writes. Hero moment 1. |
+| `03-turn-failed.json` | A failed turn gets an annoyed mumble. Hero moment 2. |
+| `04-be-quiet.json` | "Be quiet for an hour" sets quiet mode for 60 minutes, holds back a turn in that time, and lets the next one through after; a yelled "be quiet" also gets a silent sad face. Hero moment 3. |
 | `05-bad-answer.json` | A classifier answer off the menu and a classifier error each run nothing, and the next turn gets its normal reaction. |
+| `06-tests-left-failing.json` | A turn whose last test run failed finishes failed and gets the annoyed mumble; one whose tests failed, then passed, is a normal finish. Hero moment 2. |
+| `07-told-off.json` | "Shut up", "you're so annoying", a yell and a wordless yell each get a sad mumble and leave quiet mode off; "this build is annoying" doesn't count; a classifier that calls `quiet` anyway has it dropped. Hero moment 3. |
+| `08-poke-streak.json` | Quick taps reach nothing until one completes a poke streak, which gets an annoyed mumble; a second streak soon after gets nothing from the brain, and one later does; slow taps never do. Hero moment 4. |
+
+The hero moments are VISION.md's. Hero moment 1's cheer, 2's oops and 4's
+side-eye are the core's own reactions, which the evals don't record; the
+core's unit tests check those.
 
 Adding a scenario means adding its file and its row here.

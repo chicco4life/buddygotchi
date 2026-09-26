@@ -28,10 +28,10 @@ public final class ReactAction: Action {
         ("curious", "curious", 1, .curious, "Interested or unsure: something new, or a question."),
         ("hopeful", "love", 1, .hopeful, "Wanting something, warmly: food, attention, praise."),
         ("annoyed", "side_eye", 1, .annoyed, "Irritated at an agent: a failure, flaky tests."),
-        ("sad", "worried", 1, .sad, "Down: something went badly, or Boop is starving."),
+        ("sad", "worried", 1, .sad, "Down or hurt: yelled at or told off, something went badly, or starving."),
         ("sleepy", "sleepy", 1, .sleepy, "Tired: late at night, or low on energy."),
         ("smug", "smug", 1, .proud, "Pleased with itself: it knew all along."),
-        ("sulky", "sulky", 1, .sad, "Pouting: told to be quiet, or brushed off."),
+        ("sulky", "sulky", 1, .sad, "Pouting: brushed off or left out. Being told off is sad instead."),
     ]
 
     /// Every animation the device has (BEHAVIORS.md §7).
@@ -89,7 +89,9 @@ public final class ReactAction: Action {
     }
 }
 
-/// `quiet(minutes)`: tells the core to stop mumbles for a while.
+/// `quiet(minutes)`: tells the core to stop mumbles for a while, only when
+/// the last thing you said asked for quiet, whatever the classifier decided
+/// (BEHAVIORS.md §3.3). The core zips Boop's mouth as quiet starts.
 public final class QuietAction: Action {
     public let context: ActionContext
 
@@ -105,6 +107,7 @@ public final class QuietAction: Action {
         switch arguments(call) {
         case .failure(let why): return .dropped(why.description)
         case .success(let args):
+            guard context.quietAsked() else { return .dropped("only when asked to be quiet") }
             let minutes = args["minutes"]!.number!
             context.setQuiet(minutes)
             return .done("\(minutes) min")

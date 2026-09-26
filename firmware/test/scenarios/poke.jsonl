@@ -1,0 +1,21 @@
+// A poke doesn't cut a side-eye short (BEHAVIORS.md §3.3): the Mac's
+// side-eye at a poke streak, and the grumble under it, play on while you
+// keep poking. Before and after it, a poke wiggles.
+{"clock":0}
+{"t":"state","v":1,"base":"idle"}
+{"clock":1000}
+{"input":{"press":"tap"}}
+{"clock":1150}
+{"expect":{"moment":{"anim":"wiggle"},"last_input":{"k":"tap","at":1150}}}
+{"clock":5000}
+{"t":"moment","anim":"side_eye","size":1,"ttl":5}
+{"input":{"press":"tap"}}
+{"clock":5150}
+{"expect":{"moment":{"anim":"side_eye"},"last_input":{"k":"tap","at":5150}}}
+{"input":{"touch":[160,100]}}
+{"clock":5300}
+{"expect":{"moment":{"anim":"side_eye"}}}
+{"clock":7000}
+{"input":{"press":"tap"}}
+{"clock":7150}
+{"expect":{"moment":{"anim":"wiggle"},"last_input":{"k":"tap","at":7150}}}

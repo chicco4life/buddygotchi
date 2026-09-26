@@ -1,0 +1,25 @@
+{
+  "name": "Poked again and again, Boop grumbles",
+  "why": "VISION.md hero moment 4 and BEHAVIORS.md §3.3: a tap is the rules' alone, but the fourth within 3 s is a poke streak that reaches the brain, at most once a minute, and gets an annoyed mumble",
+  "steps": [
+    {"input": {"at": "10s", "event": "tap"}, "expect": []},
+    {"input": {"at": "10500ms", "event": "tap"}, "expect": []},
+    {"input": {"at": "11s", "event": "tap"}, "expect": []},
+    {"input": {"at": "11500ms", "event": "tap"},
+     "writer": {"react.word": "nope"},
+     "expect": ["poked again and again → react(feeling: annoyed, voice: mumble, word: nope)"]},
+    {"input": {"at": "12s", "event": "tap"}, "expect": []},
+    {"input": {"at": "12500ms", "event": "tap"}, "expect": []},
+    {"input": {"at": "13s", "event": "tap"}, "expect": []},
+    {"input": {"at": "13500ms", "event": "tap"}, "expect": []},
+    {"input": {"at": "80s", "event": "tap"}, "expect": []},
+    {"input": {"at": "80500ms", "event": "tap"}, "expect": []},
+    {"input": {"at": "81s", "event": "tap"}, "expect": []},
+    {"input": {"at": "81500ms", "event": "tap"},
+     "expect": ["poked again and again → react(feeling: annoyed, voice: mumble)"]},
+    {"input": {"at": "300s", "event": "tap"}, "expect": []},
+    {"input": {"at": "304s", "event": "tap"}, "expect": []},
+    {"input": {"at": "308s", "event": "tap"}, "expect": []},
+    {"input": {"at": "312s", "event": "tap"}, "expect": []}
+  ]
+}

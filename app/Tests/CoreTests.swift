@@ -26,9 +26,9 @@ final class CoreRig {
 
     @discardableResult
     func send(_ kind: BoopEvent.Kind, _ agent: Agent = .claudeCode, session: String = "s1", project: String = "landing",
-              tool: String? = nil, topic: String? = nil) -> [CoreEffect] {
+              tool: String? = nil, topic: String? = nil, failed: Bool? = nil) -> [CoreEffect] {
         let fx = core.handle(BoopEvent(agent: agent, session: session, project: project, event: kind,
-                                       detail: .init(tool: tool, topic: topic), ts: now))
+                                       detail: .init(tool: tool, topic: topic, failed: failed), ts: now))
         log += fx
         return fx
     }
@@ -175,6 +175,44 @@ final class CoreAgentWorkTests: XCTestCase {
         XCTAssertEqual(growths(fx), [], "failures earn nothing")
     }
 
+    /// BEHAVIORS.md §3.1: a turn whose last test, build or deploy command
+    /// failed is a failed turn: oops, a side-eye, no cheer and no XP.
+    func testATurnThatLeavesItsTestsFailingFails() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.activity, tool: "Bash", topic: "tests", failed: false)
+        rig.send(.activity, tool: "Bash", topic: "tests", failed: true)
+        rig.send(.activity, tool: "Edit", topic: "docs", failed: false)  // not a check
+        rig.send(.activity, tool: "Read", failed: false)
+        rig.send(.activity, tool: "Bash", topic: "tests")  // no result: PreToolUse, or Codex
+        rig.wait(60_000)
+        let fx = rig.send(.turnEnd)
+        XCTAssertEqual(moments(fx), ["oops 1"])
+        XCTAssertEqual(inputs(fx).first?.line, "agent finished · failed · claude · landing · topic: tests · 14:01 Wednesday")
+        XCTAssertTrue(fx.contains(.happened("14:01 claude · landing · tests · failed")))
+        XCTAssertEqual(growths(fx), [], "a failed turn earns nothing")
+        XCTAssertEqual(moments(rig.wait(2000)), ["side_eye 1"])
+    }
+
+    func testATurnWhoseLastCheckPassedCheers() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.activity, tool: "Bash", topic: "build", failed: true)
+        rig.send(.activity, tool: "Bash", topic: "tests", failed: true)
+        rig.send(.activity, tool: "Bash", topic: "tests", failed: false)
+        rig.wait(60_000)
+        XCTAssertEqual(moments(rig.send(.turnEnd)), ["cheer 1"])
+        // The next turn starts clean: a failure in the last one doesn't count.
+        rig.wait(5000)
+        rig.send(.turnStart)
+        rig.send(.activity, tool: "Bash", topic: "deploy", failed: true)
+        rig.send(.turnEnd)
+        rig.wait(5000)
+        rig.send(.turnStart)
+        rig.wait(1000)
+        XCTAssertEqual(moments(rig.send(.turnEnd)), ["cheer 1"])
+    }
+
     func testTopicAndErrorReachTheInput() {
         let rig = CoreRig()
         rig.send(.turnStart)
@@ -319,6 +357,84 @@ final class CoreYouAndBoopTests: XCTestCase {
         rig.send(.turnStart)
         rig.send(.needsYou, tool: "Bash")
         XCTAssertEqual(asides(rig.input(.tap)), ["tapped · 14:00 Wednesday: Boop nodded and stopped nudging"])
+    }
+
+    /// BEHAVIORS.md §3.3: the fourth tap within 3 s is a poke streak: a
+    /// side-eye at you, and an input for the brain in place of an aside.
+    func testFourPokesWithinThreeSecondsSideEyeAndReachTheBrain() {
+        let rig = CoreRig()
+        for _ in 0..<3 {
+            let fx = rig.input(.tap)
+            XCTAssertEqual(inputs(fx), [])
+            XCTAssertEqual(asides(fx), ["tapped · 14:00 Wednesday: Boop wiggled"])
+            rig.wait(900)
+        }
+        let fx = rig.input(.tap)
+        XCTAssertEqual(moments(fx), ["side_eye 1"])
+        XCTAssertEqual(asides(fx), [])
+        XCTAssertEqual(inputs(fx).map(\.line), ["poked again and again · 14:00 Wednesday"])
+        XCTAssertEqual(inputs(fx).first?.rules, "side_eye at you")
+    }
+
+    /// At most once a minute: a streak sooner side-eyes you, and the brain
+    /// only hears of it.
+    func testAPokeStreakReachesTheBrainAtMostOnceAMinute() {
+        let rig = CoreRig()
+        var pokes: [Input] = []
+        func streak() -> [CoreEffect] {
+            var fx: [CoreEffect] = []
+            for _ in 0..<4 { fx += rig.input(.tap); fx += rig.wait(500) }
+            pokes += inputs(fx)
+            return fx
+        }
+        _ = streak()
+        let soon = streak()
+        XCTAssertEqual(moments(soon), ["side_eye 1"])
+        XCTAssertEqual(asides(soon).last, "poked again and again · 14:00 Wednesday: Boop side-eyed you")
+        rig.wait(60_000)
+        _ = streak()
+        XCTAssertEqual(pokes.map(\.kind), [.poked, .poked])
+    }
+
+    func testSlowPokesNeverAnnoyIt() {
+        let rig = CoreRig()
+        var fx: [CoreEffect] = []
+        for _ in 0..<6 { fx += rig.input(.tap); fx += rig.wait(3000) }
+        XCTAssertEqual(inputs(fx), [])
+        XCTAssertEqual(moments(fx), [])
+    }
+
+    /// While something needs you a tap means "I saw it", so it isn't counted;
+    /// in quiet mode a streak still side-eyes you and reaches the brain.
+    func testPokesWhileSomethingNeedsYouDontCount() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.needsYou, tool: "Bash")
+        var fx: [CoreEffect] = []
+        for _ in 0..<5 { fx += rig.input(.tap); fx += rig.wait(300) }
+        XCTAssertEqual(moments(fx), [])
+        XCTAssertEqual(inputs(fx), [])
+        rig.send(.activity, tool: "Bash")  // answered on the Mac
+        rig.core.setQuiet(minutes: 15, at: rig.now)
+        fx = []
+        for _ in 0..<4 { fx += rig.input(.tap); fx += rig.wait(200) }
+        XCTAssertEqual(moments(fx), ["side_eye 1"], "the taps before didn't count")
+        XCTAssertEqual(inputs(fx).map(\.kind), [.poked])
+    }
+
+    /// BEHAVIORS.md §3.3: the input says when you yelled, even with no words,
+    /// and whether your words asked for quiet.
+    func testYelledTalkAndAskingForQuiet() {
+        let rig = CoreRig()
+        let yelled = inputs(rig.core.talk("", yelled: true, at: rig.now)).first
+        XCTAssertEqual(yelled?.line, "you said · yelled · 14:00 Wednesday")
+        XCTAssertEqual(yelled?.words, "")
+        XCTAssertEqual(yelled?.yelled, true)
+        for (words, asked) in [("shut up", false), ("be quiet please", true), ("stop talking", false), ("Quiet!", true),
+                               ("speak quietly", false)] {
+            rig.core.talk(words, at: rig.now)
+            XCTAssertEqual(rig.core.quietAsked, asked, words)
+        }
     }
 
     func testPushToTalkListensAndSendsTheWords() {
@@ -622,6 +738,16 @@ final class CoreRulesTests: XCTestCase {
         var fx: [CoreEffect] = []
         for _ in 0..<25 { fx += rig.wait(60_000); rig.send(.activity) }
         XCTAssertEqual(mumbles(fx), [])
+    }
+
+    /// BEHAVIORS.md §7: going quiet zips Boop's mouth, once.
+    func testGoingQuietZipsBoopsMouth() {
+        let rig = CoreRig()
+        let fx = rig.core.setQuiet(minutes: 30, at: rig.now)
+        XCTAssertEqual(moments(fx), ["zip 1"])
+        XCTAssertEqual(states(fx).last?.quiet, 30, "the picture changes first")
+        XCTAssertEqual(moments(rig.core.setQuiet(minutes: 60, at: rig.now)), [], "already quiet")
+        XCTAssertEqual(moments(rig.core.setQuiet(minutes: 0, at: rig.now)), [])
     }
 
     func testQuietCountsDownInTheSnapshot() {

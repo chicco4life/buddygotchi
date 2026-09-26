@@ -24,6 +24,12 @@ public final class Core {
         public var mergeMs: Int64 = 3000
         /// Working chatter comes every 2–4 minutes (BEHAVIORS.md §2, proposed).
         public var chatterMs: ClosedRange<Int> = 120_000...240_000
+        /// A poke streak is this many taps within `pokeWindowMs`, and it
+        /// reaches the brain at most once every `pokedEveryMs`
+        /// (BEHAVIORS.md §3.3, proposed).
+        public var pokeTaps = 4
+        public var pokeWindowMs: Int64 = 3000
+        public var pokedEveryMs: Int64 = 60_000
 
         public init(name: String, volume: Int = 6, time: LocalTime = LocalTime(), seed: UInt64 = 1) {
             self.name = name
@@ -43,6 +49,9 @@ public final class Core {
         var turnStartedAt: Int64?
         var lastEventAt: Int64
         var topic: String?
+        /// This turn's last test, build or deploy command, and whether it
+        /// failed (BEHAVIORS.md §3.1).
+        var check: (topic: String, failed: Bool)?
         /// When "needs you" started showing.
         var needsSince: Int64?
         /// Codex: when "needs you" arrived, during the grace period.
@@ -93,6 +102,13 @@ public final class Core {
     public static let listenLimitMs: Int64 = 30_000
     /// While the Mac's mic is on: who turned it on, and when.
     public private(set) var listening: (by: Talker, since: Int64)?
+    /// Whether the last thing you said asked for quiet: only then may the
+    /// `quiet` action run (BEHAVIORS.md §3.3).
+    public private(set) var quietAsked = false
+
+    // Poke streaks (BEHAVIORS.md §3.3).
+    var taps: [Int64] = []
+    var pokedAt: Int64?
 
     /// `lastActiveDay` is today's date from `short-term.md`, if there is one,
     /// so a restart doesn't replay the morning.
@@ -105,6 +121,9 @@ public final class Core {
     }
 
     static func key(_ agent: Agent, _ id: String) -> String { agent.rawValue + "/" + id }
+
+    /// The topics whose failing command fails a turn (BEHAVIORS.md §3.1).
+    static let checks: Set<String> = ["tests", "build", "deploy"]
 
     // MARK: - Inputs
 
@@ -159,23 +178,38 @@ public final class Core {
             s.status = .working
             s.turnStartedAt = now
             s.topic = nil
+            s.check = nil
             sessions[key] = s
             agentInput(.agentStarted, s, rules: nil, rank: 1, now, &fx)
         case .activity:
             s.status = .working
             if s.turnStartedAt == nil { s.turnStartedAt = now }
             if let topic = event.detail.topic { s.topic = topic }
+            if let topic = event.detail.topic, let failed = event.detail.failed, Core.checks.contains(topic) {
+                s.check = (topic, failed)
+            }
             sessions[key] = s
         case .turnEnd:
             let ms = s.turnStartedAt.map { now - $0 } ?? 0
+            let check = s.check
             s.status = .idle
             s.turnStartedAt = nil
-            sessions[key] = s
-            finished(s, durationMs: ms, now, &fx)
+            s.check = nil
+            if let check, check.failed {
+                // It left its tests, build or deploy failing: a failure, not
+                // a finish.
+                s.topic = check.topic
+                sessions[key] = s
+                failed(s, durationMs: ms, error: nil, now, &fx)
+            } else {
+                sessions[key] = s
+                finished(s, durationMs: ms, now, &fx)
+            }
         case .turnFailed:
             let ms = s.turnStartedAt.map { now - $0 } ?? 0
             s.status = .idle
             s.turnStartedAt = nil
+            s.check = nil
             sessions[key] = s
             failed(s, durationMs: ms, error: event.detail.error, now, &fx)
         case .sessionEnd:
@@ -200,9 +234,7 @@ public final class Core {
         startDayIfNew(now, &fx)
         switch input {
         case .tap:
-            // The rules' alone: the brain's transcript only hears of it.
-            let reaction = needsYouShowing ? "Boop nodded and stopped nudging" : "Boop wiggled"
-            fx.append(.aside("tapped · \(timeLine(now)): \(reaction)"))
+            tapped(now, &fx)
         case .talkOn:
             // The device already shows `listening`, and `thinking` on release.
             startListening(by: .device, now, &fx)
@@ -213,13 +245,17 @@ public final class Core {
         return fx
     }
 
-    /// What the person said on push-to-talk. Always reaches the brain.
+    /// What the person said on push-to-talk, and whether they yelled it
+    /// (BEHAVIORS.md §3.3). Always reaches the brain.
     @discardableResult
-    public func talk(_ words: String, at now: Int64) -> [CoreEffect] {
+    public func talk(_ words: String, yelled: Bool = false, at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
-        fx.append(.input(Input(.said, words: words, clock: config.time.clock(now), weekday: config.time.weekday(now),
-                               hunger: hungerNow(now), rules: "listening, then thinking", ts: now)))
+        let input = Input(.said, words: words, yelled: yelled, clock: config.time.clock(now),
+                          weekday: config.time.weekday(now), hunger: hungerNow(now), rules: "listening, then thinking",
+                          ts: now)
+        quietAsked = input.asksForQuiet
+        fx.append(.input(input))
         publish(now, &fx)
         return fx
     }
@@ -259,12 +295,16 @@ public final class Core {
         return fx
     }
 
-    /// The `quiet` action: no mumbles for `minutes` (0 ends it).
+    /// The `quiet` action: no mumbles for `minutes` (0 ends it). Going quiet
+    /// zips Boop's mouth (BEHAVIORS.md §7); new minutes while already quiet
+    /// don't.
     @discardableResult
     public func setQuiet(minutes: Int, at now: Int64) -> [CoreEffect] {
+        let starting = minutes > 0 && quietLeft(now) == 0
         quietUntil = minutes > 0 ? now + Int64(minutes) * 60_000 : 0
         var fx: [CoreEffect] = []
         publish(now, &fx)
+        if starting { play("zip", 1, now, &fx) }
         return fx
     }
 
@@ -462,6 +502,33 @@ public final class Core {
         }
         agentInput(.agentFinished, s, outcome: .done, tookMs: ms, rules: cheered ? "cheer size \(size)" : nil,
                    rank: ms >= 300_000 ? 3 : 2, now, &fx)
+    }
+
+    /// A tap is the rules' alone: the device wiggles, and the brain's
+    /// transcript only hears of it. The fourth tap within 3 s is a poke
+    /// streak (BEHAVIORS.md §3.3): a side-eye at you, and an input for the
+    /// brain, at most once a minute. While something needs you a tap means
+    /// "I saw it", so it isn't counted.
+    func tapped(_ now: Int64, _ fx: inout [CoreEffect]) {
+        guard !needsYouShowing else {
+            taps.removeAll()
+            fx.append(.aside("tapped · \(timeLine(now)): Boop nodded and stopped nudging"))
+            return
+        }
+        taps = taps.filter { now - $0 < config.pokeWindowMs } + [now]
+        guard taps.count >= config.pokeTaps else {
+            fx.append(.aside("tapped · \(timeLine(now)): Boop wiggled"))
+            return
+        }
+        taps.removeAll()
+        play("side_eye", 1, now, &fx)
+        if let last = pokedAt, now - last < config.pokedEveryMs {
+            fx.append(.aside("poked again and again · \(timeLine(now)): Boop side-eyed you"))
+            return
+        }
+        pokedAt = now
+        fx.append(.input(Input(.poked, clock: config.time.clock(now), weekday: config.time.weekday(now),
+                               hunger: hungerNow(now), rules: "side_eye at you", ts: now)))
     }
 
     /// A failed turn: `oops`, then a side-eye at the agent.

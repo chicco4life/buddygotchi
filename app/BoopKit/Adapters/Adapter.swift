@@ -56,6 +56,13 @@ public enum Adapter {
         case .activity, .needsYou:
             detail.tool = line.tool
             detail.topic = kind == .activity ? line.topic : nil
+            if agent == .claudeCode && !line.interrupt {
+                switch line.hook {
+                case "PostToolUse": detail.failed = false
+                case "PostToolUseFailure": detail.failed = true
+                default: break
+                }
+            }
         case .turnFailed:
             detail.error = line.error.map(errorClass)
         default:
