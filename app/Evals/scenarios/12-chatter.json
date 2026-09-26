@@ -1,5 +1,5 @@
 {
-  "name": "Working chatter keeps the mode's pace, and calm cheers only a long turn",
+  "name": "Working chatter keeps the mode's pace, and calm cheers only a very long turn",
   "why": "BEHAVIORS.md §2 and §6: while an agent works, the rules chatter every 45–90 s in chatty, every 2–4 minutes in normal, and never in calm; a 10-minute turn gets the cheer in every mode",
   "rules": true,
   "steps": [

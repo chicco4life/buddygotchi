@@ -1,0 +1,18 @@
+{
+  "name": "Quiet for fifteen minutes holds back mumbles, then lets them go",
+  "why": "PLAN.md §6 row 13 and BEHAVIORS.md §3.3: \"be quiet for fifteen minutes\" is quiet(15); talk still reaches the brain but its mumble is dropped, agent inputs don't reach it, and after 15 minutes both come back",
+  "steps": [
+    {"input": {"at": "0s", "event": "talk", "words": "be quiet for fifteen minutes"},
+     "expect": ["you said → quiet(minutes: 15)"]},
+    {"input": {"at": "1m", "event": "talk", "words": "hello boop"},
+     "expect": ["you said → react(feeling: happy|excited|curious, word: hi|hello) dropped (action)"]},
+    {"input": {"at": "2m", "event": "turn started"},
+     "expect": []},
+    {"input": {"at": "14m", "event": "turn finished"},
+     "expect": []},
+    {"input": {"at": "16m", "event": "turn started"},
+     "expect": {"chatty": ["agent started → react(feeling: curious, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
+                "normal": ["agent started → nothing"],
+                "calm": ["agent started → nothing"]}}
+  ]
+}

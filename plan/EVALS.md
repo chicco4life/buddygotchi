@@ -44,7 +44,8 @@ BOOP_JEV_KEY=… app/.build/debug/boopdev eval --mode normal --classifier jev --
 
 `boopdev eval` prints `pass` or `FAIL` for each scenario in each mode, then
 a diff of each failed step, with how Stage 1 got to each pass (the rule
-that matched, or Jev's answers), and exits 1 if any failed. Normal's
+that matched, or Jev's answers) and what the writer answered, and exits 1
+if any failed. Normal's
 expectations run against the chatty table
 (`boopdev eval --mode normal --classifier chatty --only 03`):
 
@@ -104,8 +105,9 @@ for the harness ([HARNESS.md](HARNESS.md) §2):
 
 | `event` | Extra fields |
 | --- | --- |
-| `turn started`, `turn finished`, `turn failed` | `agent` (default `claude`), `project` (default `jetpack`), `error` for a failure |
+| `turn started`, `turn finished`, `turn failed` | `agent` (default `claude`), `project` (default `jetpack`), `session` (default the agent and project, `claude-jetpack`), `error` for a failure |
 | `command` | `topic` (`tests`, `build` or `deploy`), `failed` (default `false`), `agent`, `project`: an agent's shell command finished, as Claude's `PostToolUse` or `PostToolUseFailure` reports it. Never reaches the brain; the turn's finish shows what it did |
+| `needs you` | `agent`, `project`, `session`: the agent asks for your approval, as Claude's `PermissionRequest` reports it. The session's next event (a `command`, say) is its answer. Never reaches the brain |
 | `tap` | — (only noted in the transcript, unless it's the fourth of a poke streak) |
 | `talk` | `words` (`""` for a yell with no words), `yelled` (default `false`) |
 | `mode` | `mode` (`chatty`, `normal` or `calm`): the person picks a new mode, which applies at once, as in the app |
@@ -178,7 +180,7 @@ temporary directory. The clock starts at 2026-10-14 14:00 UTC and moves a
 second at a time between steps, ticking the core as the app does, so held
 inputs come out when they would. Inputs go through the harness one at a
 time, asides (a tap) go into its transcript, and the core's memory lines
-(Happened, growth, a new day) are written to the memory copy, as the app
+(Happened, a new day) are written to the memory copy, as the app
 does.
 
 Only the harness's passes are recorded, unless the scenario asks for the
@@ -203,10 +205,14 @@ input replacing a waiting one) is left to the unit tests in
 | `10-small-talk.json` | "Hello boop", "time for lunch" and "see you tomorrow" get the word each calls for, in every mode: hi, food, bye. |
 | `11-mode-switch.json` | Switching mode mid-turn changes the next reaction and the core's cheer at once, between chatty and calm. |
 | `12-chatter.json` | A 10-minute turn: the core chatters 8 times in chatty (45–90 s apart), twice in normal (2–4 minutes apart) and never in calm, and cheers the finish in every mode. |
+| `13-no-cheer-for-a-failure.json` | A turn that leaves its tests failing, and one that stops on an API error, get the annoyed mumble and no cheer; a 30-second turn (long) cheers in chatty and normal but not in calm. Records the cheer. Hero moment 2. |
+| `14-quiet-fifteen.json` | "Be quiet for fifteen minutes" is quiet(15): talk still reaches the brain but its mumble is dropped, agent inputs don't, and after 15 minutes they come back. |
+| `15-needs-you.json` | While one session needs you, another's finish and a poke streak don't reach the brain, and a reply to talk is dropped; once the first carries on (its next command is the answer), its finish gets the mode's reaction. |
 
 The hero moments are VISION.md's. Hero moment 1's cheer is the core's own
-reaction: `01` and `10` record it, and the core's unit tests check it too. In
-v1 the others are the brain's mumbles, which the evals do record: C1 parked
-the `oops` and side-eye they had ([BEHAVIORS.md](BEHAVIORS.md)).
+reaction: `01`, `11`, `12` and `13` record it (`"rules": true`), and the
+core's unit tests check it too. In v1 the others are the brain's mumbles,
+which the evals do record; the `oops` and side-eye they had are parked
+([FUTURE.md](FUTURE.md)).
 
 Adding a scenario means adding its file and its row here.
