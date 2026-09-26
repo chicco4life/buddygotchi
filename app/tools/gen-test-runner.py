@@ -14,7 +14,8 @@ runs it via `swift run`, so the tests actually execute locally.
 On CI (real Xcode / real XCTest) the Tests target stays a normal testTarget,
 BOOP_SHIM_RUNNER is undefined, and this file compiles to nothing.
 
-Idempotent: run it any time; it overwrites the generated file.
+Idempotent: run it any time. It rewrites the generated file only when the
+tests changed, so an unchanged runner doesn't make SwiftPM rebuild it.
 """
 
 from __future__ import annotations
@@ -107,8 +108,13 @@ def main() -> None:
         "",
     ]
 
+    text = "\n".join(lines)
+    if os.path.exists(OUT):
+        with open(OUT, encoding="utf-8") as f:
+            if f.read() == text:
+                return
     with open(OUT, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines))
+        f.write(text)
     print(f"gen-test-runner: wrote {os.path.relpath(OUT)} ({len(tests)} tests)")
 
 

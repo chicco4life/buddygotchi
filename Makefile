@@ -3,17 +3,21 @@
 
 PIO := firmware/tools/pio.sh
 
-# Mac app, boop-hook, boopdev. By product: a bare `swift build` also links
-# the BoopTests runner, which has no main until `make test` generates one.
+# Mac app, boop-hook, boopdev, in one `swift build`: building them one by
+# one made SwiftPM redo their shared work each time (about 98 s from clean
+# against 64 s, and 18 s against 2 s after a one-file change). A bare build
+# also links the BoopTests runner, so its main is generated first.
 build:
-	cd app && swift build --product Boop && swift build --product boop-hook && swift build --product boopdev
+	python3 app/tools/gen-test-runner.py
+	cd app && swift build
 
 # The Mac app with Bluetooth. The owner runs this, not agents. Builds
-# everything first: the app copies the boop-hook built next to it, and
-# `swift run Boop` alone doesn't build boop-hook. `make run DEBUG_LOG=FILE`
-# also writes the brain's debug log, to follow with `boopdev watch FILE`.
+# everything first (the app copies the boop-hook built next to it), then
+# starts the binary: `swift run` would check the build all over again.
+# `make run DEBUG_LOG=FILE` also writes the brain's debug log, to follow
+# with `boopdev watch FILE`.
 run: build
-	cd app && swift run Boop $(if $(DEBUG_LOG),--debug-log $(abspath $(DEBUG_LOG)))
+	app/.build/debug/Boop $(if $(DEBUG_LOG),--debug-log $(abspath $(DEBUG_LOG)))
 
 # Swift unit tests through the XCTest shim (there's no Xcode here).
 test:
