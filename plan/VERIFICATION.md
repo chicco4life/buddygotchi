@@ -43,6 +43,7 @@ Each level answers a different question:
 | `tools/boopctl` | The new device tool, replacing `buddyctl.py`. It's Python in `tools/.venv` (pyserial, Pillow), created by `make tools` |
 | `tools/boopctl bridge` | Owns the USB serial port and shares it through a Unix socket (`--socket`, default `$BOOP_BRIDGE` or `/tmp/boop-bridge.sock`), so the Mac app and other `boopctl` commands can use the board at the same time. Every line from the board goes to every client, and each client's lines reach the board whole. While a bridge runs, other `boopctl` commands (with `BOOP_BRIDGE` set to its socket, if it isn't the default) go through it instead of opening the port |
 | `tools/webcam/webcam.sh` | The existing AVFoundation recorder and frame extractor. `boopctl cam …` wraps it |
+| `Boop --snapshots DIR` | Renders the Mac app's popover (five overview states, the whole settings pane, the four setup steps) and the menu-bar icons to PNGs, in light and dark, from fixed fixtures, then exits. No runtime, Bluetooth or microphone; the agents' settings it reads are in a throwaway HOME |
 | `boopdev` | A Swift CLI in the app package for replaying hooks, running the harness on recorded triggers, and printing the memory files. `boopdev replay <fixture>` alone runs the payloads through the hook's field picking, the adapter and the core on a virtual clock and prints every decision (`--states` for snapshots only); with `--socket` it sends them through the real `boop-hook` to a running app. `boopdev memory --state-dir DIR` prints the memory files as the store reads them, and the snapshot days. `boopdev voice <feeling> [word] --count N [--why]` prints the lines `say` would build, and with `--why` every rejected try. `boopdev brain [--brain apple\|rules] [--gap-min N] [--print]` runs L5: each fixture trigger through the real harness with a fresh copy of the sample memory, N minutes apart under one history of the limits, reporting refusals, valid shapes, dropped calls, speech, silence and latency, and logging every call to `/tmp/boop-brain/<brain>.jsonl` `boopdev talk "<words>" --socket PATH` hands a push-to-talk transcript to a running headless app. `boopdev hooks status\|install\|remove [claude\|codex] --home DIR` runs the hook installer against any HOME |
 
 `boopctl` subcommands:
@@ -175,6 +176,13 @@ gets at least one scenario. Their pictures become the **golden images** in
 
 **Pass:** everything green. New code comes with tests.
 
+**The Mac app's look** (Mac-only UI changes): build, run
+`app/.build/debug/Boop --snapshots DIR`, and open every PNG, in both
+appearances. Check it against [UX.md](UX.md) §7: nothing clipped or cut
+off, no debug data, text readable on its background, and the panes in the
+cream look. There are no goldens. How it feels in the menu bar (opening,
+resizing, typing, switches) is the owner's (L6).
+
 ### L1: simulator
 
 1. `tools/boopctl sim` runs every scenario and writes PNGs to
@@ -300,7 +308,8 @@ this Mac with an 8K context.
 These can't be checked without a person: Bluetooth connection (launching
 the app with Bluetooth), the mic and speech recognition, real touches and
 touch calibration, sound (when a speaker is attached), real Claude Code and
-Codex sessions with installed hooks, and how Boop feels. They're on the
+Codex sessions with installed hooks, the Mac app in the real menu bar, and
+how Boop feels. They're on the
 morning checklist in [PLAN.md](PLAN.md).
 
 ## 6. Webcam rules

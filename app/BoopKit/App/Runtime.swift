@@ -46,6 +46,17 @@ public final class Runtime: @unchecked Sendable {
         public var away: Bool
         public var finished: Int
         public var projects: Int
+
+        public init(snapshot: StateSnapshot, connected: Bool, device: DeviceStatus?, brain: String, away: Bool,
+                    finished: Int, projects: Int) {
+            self.snapshot = snapshot
+            self.connected = connected
+            self.device = device
+            self.brain = brain
+            self.away = away
+            self.finished = finished
+            self.projects = projects
+        }
     }
 
     public enum OpenError: Error, CustomStringConvertible {

@@ -2,8 +2,9 @@ import AppKit
 import BoopKit
 import SwiftUI
 
-/// The menu-bar app (UX.md §7): an icon that mirrors Boop and a popover. It
-/// never pops up by itself and never sends notifications.
+/// The menu-bar app (UX.md §7): an icon that mirrors Boop and a popover.
+/// Setup and settings open inside the popover. It pops up by itself only
+/// once, on first launch, to show setup, and never sends notifications.
 enum MenuBarApp {
     static func run(_ args: [String]) -> Never {
         let stateDir = option(args, "--state-dir").map { URL(fileURLWithPath: $0) } ?? AppSettings.defaultStateDir()
@@ -19,23 +20,52 @@ enum MenuBarApp {
     }
 }
 
+enum Pane: Equatable {
+    case overview, settings, setup
+}
+
+/// What the person has chosen so far in setup. It lives in the model, so
+/// closing the popover halfway through loses nothing.
+struct SetupDraft {
+    enum Step: Int, CaseIterable {
+        case hello, name, agents, ready
+    }
+
+    var step = Step.hello
+    var name = ""
+    var nature = LongTerm.Nature.sweet
+    var agents = Set(HookInstaller.Agent.allCases)
+    var error: String?
+
+    var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
+}
+
 /// What the views show. Updated on the main thread only.
 @MainActor
 final class AppModel: ObservableObject {
+    @Published var pane = Pane.overview
+    @Published var setup = SetupDraft()
     @Published var status: Runtime.Status?
     @Published var hooks: [HookInstaller.Agent: HookInstaller.Health] = [:]
     @Published var remembered: [String] = []
     @Published var restartAgents = false
+    /// The brain chosen in settings; `status.brain` is the one running.
     @Published var brain = "apple"
-    @Published var name = ""
+    @Published var nature = LongTerm.Nature.sweet
+    @Published var startError: String?
 
     let installer: HookInstaller
+    let link: LinkSetting
     var runtime: Runtime?
+    var finishSetup: () -> Void = {}
 
-    init(installer: HookInstaller) {
+    init(installer: HookInstaller, link: LinkSetting) {
         self.installer = installer
+        self.link = link
         refreshHooks()
     }
+
+    var name: String { status?.snapshot.name ?? "Boop" }
 
     func refreshHooks() {
         hooks = Dictionary(uniqueKeysWithValues: HookInstaller.Agent.allCases.map { ($0, installer.health($0)) })
@@ -61,17 +91,39 @@ final class AppModel: ObservableObject {
         runtime?.forget(line)
         remembered.removeAll { $0 == line }
     }
+
+    // The switches show the change at once; the runtime's next status confirms it.
+
+    func setFocus(_ on: Bool) {
+        status?.snapshot.focus = on
+        runtime?.setFocus(on)
+    }
+
+    func setAway(_ on: Bool) {
+        status?.away = on
+        runtime?.setAway(on)
+    }
+
+    func setVolume(_ volume: Int) {
+        guard status?.snapshot.vol != volume else { return }
+        status?.snapshot.vol = volume
+        runtime?.setVolume(volume)
+    }
+
+    func setBrain(_ brain: String) {
+        self.brain = brain
+        runtime?.setBrain(brain)
+    }
 }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     let stateDir: URL
     let link: LinkSetting
     let log: LogFile
     let model: AppModel
     var statusItem: NSStatusItem?
     let popover = NSPopover()
-    var windows: [NSWindow] = []
     var runtime: Runtime?
     var listener: SpeechListener?
 
@@ -80,7 +132,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.link = link
         log = LogFile(directory: stateDir, echo: false)
         model = AppModel(installer: HookInstaller(home: URL(fileURLWithPath: NSHomeDirectory()),
-                                                  hookPath: stateDir.appendingPathComponent("bin/boop-hook").path))
+                                                  hookPath: stateDir.appendingPathComponent("bin/boop-hook").path),
+                         link: link)
         super.init()
     }
 
@@ -92,20 +145,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             model.restartAgents = true
         }
         model.refreshHooks()
+        model.finishSetup = { [weak self] in self?.finishSetup() }
 
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         item.button?.target = self
         item.button?.action = #selector(togglePopover)
+        item.button?.toolTip = "Boop"
         statusItem = item
         updateIcon(nil)
+
+        let host = NSHostingController(rootView: PopoverView(model: model) { [weak self] in self?.popover.performClose(nil) })
+        host.sizingOptions = [.preferredContentSize]
+        popover.contentViewController = host
         popover.behavior = .transient
-        popover.contentViewController = NSHostingController(rootView: PopoverView(model: model, delegate: self))
+        // Panes change height; an animated resize would clip them mid-way.
+        popover.animates = false
+        popover.delegate = self
 
         let memory = try? MemoryStore(directory: stateDir, steering: "")
         if memory?.isSetUp == true {
             startRuntime()
         } else {
-            showSetup()
+            // First launch: open the popover on setup, once, so the person
+            // sees where Boop lives.
+            model.pane = .setup
+            model.setup.agents = Set(HookInstaller.Agent.allCases.filter(model.installer.detected))
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in self?.showPopover() }
         }
     }
 
@@ -163,75 +228,62 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self.listener = listener
             model.runtime = runtime
             model.brain = runtime.settings.brain
-            model.name = runtime.memory.longTerm?.name ?? "Boop"
+            model.nature = runtime.memory.longTerm?.nature ?? .sweet
+            model.startError = nil
+            runtime.refresh()
             listener.authorize { ok in if !ok { log.write("talk: speech or microphone access was refused") } }
         } catch {
             log.write("boop: can't start: \(error)")
+            model.startError = "\(error)"
         }
     }
 
     func show(_ status: Runtime.Status) {
         model.status = status
-        updateIcon(status.snapshot)
+        updateIcon(status)
     }
 
-    /// A dot while agents work, amber when something needs you.
-    func updateIcon(_ snapshot: StateSnapshot?) {
+    func updateIcon(_ status: Runtime.Status?) {
         guard let button = statusItem?.button else { return }
-        let waiting = (snapshot?.wait ?? 0) > 0
-        let working = (snapshot?.busy ?? 0) > 0
-        let symbol = waiting || working ? "circle.fill" : "circle"
-        let image = NSImage(systemSymbolName: symbol, accessibilityDescription: "Boop")
-        image?.isTemplate = !waiting
-        button.image = image
-        button.contentTintColor = waiting ? NSColor(red: 1, green: 0.69, blue: 0.2, alpha: 1) : nil
+        button.image = MenuBarIcon.image(FaceMood(status))
     }
 
     @objc func togglePopover() {
-        guard let button = statusItem?.button else { return }
         if popover.isShown {
             popover.performClose(nil)
         } else {
-            model.refreshHooks()
-            runtime?.refresh()
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            popover.contentViewController?.view.window?.makeKey()
+            showPopover()
         }
     }
 
-    func showSettings() {
-        popover.performClose(nil)
-        model.loadRemembered()
-        open(SettingsView(model: model), title: "Boop Settings")
+    func showPopover() {
+        guard let button = statusItem?.button else { return }
+        model.refreshHooks()
+        runtime?.refresh()
+        NSApp.activate()
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.contentViewController?.view.window?.makeKey()
     }
 
-    func showSetup() {
-        open(SetupView(model: model) { [weak self] name, nature, agents in self?.finishSetup(name, nature, agents) },
-             title: "Meet Boop")
+    /// Settings closes back to the overview; setup stays where it was.
+    func popoverDidClose(_ notification: Notification) {
+        if model.pane == .settings { model.pane = .overview }
     }
 
-    func finishSetup(_ name: String, _ nature: LongTerm.Nature, _ agents: [HookInstaller.Agent]) {
+    func finishSetup() {
+        let draft = model.setup
         do {
-            try Runtime.setUp(stateDir: stateDir, name: name, nature: nature,
+            try Runtime.setUp(stateDir: stateDir, name: draft.trimmedName, nature: draft.nature,
                               today: LocalTime().day(Int64(Date().timeIntervalSince1970 * 1000)))
         } catch {
             log.write("setup: \(error)")
+            model.setup.error = "Boop couldn't save its memory: \(error)"
             return
         }
-        for agent in agents { model.install(agent) }
-        windows.forEach { $0.close() }
-        windows.removeAll()
+        for agent in HookInstaller.Agent.allCases where draft.agents.contains(agent) && model.installer.detected(agent) {
+            model.install(agent)
+        }
         startRuntime()
-    }
-
-    func open<V: View>(_ view: V, title: String) {
-        let window = NSWindow(contentViewController: NSHostingController(rootView: view))
-        window.title = title
-        window.styleMask = [.titled, .closable]
-        window.isReleasedWhenClosed = false
-        window.center()
-        windows.append(window)
-        NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
+        withAnimation(.boopSettle) { model.pane = .overview }
     }
 }

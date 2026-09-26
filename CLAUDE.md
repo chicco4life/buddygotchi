@@ -43,6 +43,7 @@ make sim          # the renderer simulator
 make e2e          # hook → app → USB → device pipeline check
 make run          # the Mac app, with Bluetooth; the owner runs this, not agents
 tools/boopctl ping | state | shot | run <scenario> | sim <scenario> | bridge
+app/.build/debug/Boop --snapshots DIR   # the Mac app's popover and icons as PNGs, no Bluetooth
 ```
 
 **Environment notes:**

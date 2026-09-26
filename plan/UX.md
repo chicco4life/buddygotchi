@@ -9,7 +9,7 @@ controls, setup and the Mac app. What Boop *does* in each situation is in
 | Surface | Role |
 | --- | --- |
 | The device | The creature: face, bubble, status strip, light, speaker, buzz, buttons, touch |
-| The Mac app | A quiet menu-bar app for setup, settings, sessions and Boop's record. Never opens windows on its own |
+| The Mac app | A quiet menu-bar app for setup, settings, sessions and Boop's record. Opens on its own only once, for setup |
 | The agent's own window | Where you approve or deny. Boop only tells you it's waiting |
 
 Most days the device is the only surface you look at.
@@ -129,28 +129,73 @@ are thrown away after the reply.
 ## 6. Setup
 
 1. Plug the device into USB power.
-2. Install and open the app. It finds `Boop-XXXX` over Bluetooth and
-   connects. There's no pairing code in v1 ([PROTOCOL.md](PROTOCOL.md) §2).
-3. The app finds Claude Code and Codex, shows the hooks it will add, and
-   installs them with one click each ([ADAPTERS.md](ADAPTERS.md) §5).
-4. Name Boop and answer one question: sweet or cheeky? Boop wakes up on the
-   device for the first time.
-5. Boop uses Apple's on-device model by default, with no setup. You can add
+2. Install and open the app. The first time, its popover opens under the
+   menu-bar icon on its own and walks through setup there, one step at a
+   time, with Back on each step. Closing the popover halfway keeps your
+   place; clicking the icon brings it back.
+   1. **Hello:** Boop's face and one sentence about what it does.
+   2. **Name:** a name (up to 23 bytes, for keeps) and one question:
+      sweet or cheeky?
+   3. **Agents:** Claude Code and Codex, each marked found or not found on
+      this Mac, with a switch to watch it ([ADAPTERS.md](ADAPTERS.md) §5).
+      "See exactly what gets added" shows each file and its hooks.
+   4. **Wake up:** what happens next (plug in the body; macOS asks for
+      Bluetooth, and for the microphone on the first push-to-talk), then
+      "Wake *name* up". This saves Boop, adds the chosen hooks and starts
+      it.
+3. The app finds `Boop-XXXX` over Bluetooth and connects, and Boop wakes up
+   on the device for the first time. There's no pairing code in v1
+   ([PROTOCOL.md](PROTOCOL.md) §2).
+4. Boop uses Apple's on-device model by default, with no setup. You can add
    your own API key in settings. On Macs without Apple's model and without
    a key, Boop still works fully on rules, with a simpler personality.
 
 ## 7. The Mac app
 
-A menu-bar icon mirrors Boop: a dot while agents are working, amber when
-something needs you. Clicking it shows:
+It never pops up by itself after setup and never sends notifications. The
+device does the nudging.
 
-- sessions grouped by agent, like the threads screen;
-- Boop's name, level and days together;
-- focus mode, "I'm away" (pauses hunger) and volume;
-- Boop's record: totals across all projects (tasks finished, how many
-  projects, days together, XP and level), never broken down by project;
-- settings: agents and hooks, the device, the brain and API key, and what
-  Boop remembers about you (view and delete).
+**The menu-bar icon** is Boop's eyes and little smile, drawn from the
+device's face: closed while Boop is asleep, open while agents are idle,
+with a small dot while they work, and amber when something needs you.
 
-It never pops up by itself and never sends notifications. The device does
-the nudging.
+**The popover** is one 360 pt column on warm paper (the look below).
+Clicking the icon opens it on the overview. Settings and setup open inside
+it, never in separate windows. Escape or a click outside closes it, and
+closing it from Settings returns to the overview next time. Its height
+follows its content, and a long pane scrolls.
+
+**Overview**, top to bottom. It only shows; every control is in Settings.
+
+| Area | Content |
+| --- | --- |
+| Header | A small copy of Boop's face on black glass (it blinks, glances about while agents work, looks up with an amber rim when something needs you, and sleeps with its eyes closed), Boop's name, a tone dot with one short line ("Working on 2 sessions", "Needs you", "Hanging out", "Napping"), and whether the body is connected ("Connected", "Looking…" or "No device"). Which board it is never shows |
+| Modes | Small reminders only when a mode is on: Focus, Quiet with minutes left, Muted, Away |
+| Notices | "Restart your agent sessions" after hooks change (dismissable), or why Boop couldn't start |
+| Needs you | An amber card: agent · project, "Answer it in the agent's window", and "+N more" |
+| Sessions | Grouped by agent, like the threads screen: one row per project with a coloured edge and a status chip (needs you, working, idle). Empty: "No agents awake" |
+| Together | Boop's record, as totals across all projects: the level ring with the level inside and the percentage to the next, then tasks finished, projects and days together. Never broken down by project |
+| Footer | Settings on the left, Quit on the right |
+
+**Settings**, one scrolling pane with Back at the top:
+
+| Group | Controls |
+| --- | --- |
+| Sound & focus | Volume (0–10, 0 shows "Off"), focus mode, "I'm away" (pauses hunger) |
+| Agents | Claude Code and Codex: connected, not connected, not found or needs a repair, with Connect, Repair or Remove |
+| Device | Whether Boop's body is connected and how (Bluetooth or USB), and its firmware version. Not its id |
+| Brain | Apple's on-device model or rules only (takes effect on restart), and the API key, kept in the Keychain; cloud brains are shown as not yet available |
+| What Boop remembers | Each line, with a button to forget it |
+| About | The app's version |
+
+Name and nature are set once, at setup, and don't change.
+
+**The look** is gen-2's "Boop Cream", in light and dark: warm paper and
+ink, terracotta for actions and working, amber for needs you, sage for
+calm and connected, clay for trouble. Sections are separated by space and
+a small tracked-out label, not rules, and grouped into raised cards with a
+hairline edge. Names, titles and numbers use the rounded system face.
+Each coloured text tone clears 4.5:1 on its own paper; the faint tone is
+for decoration only. The face tile uses the device's own colours (black
+glass, oat eyes). Looping motion is limited to the face and the dot while
+something is live. Tokens live in `app/Boop/Views/Theme.swift`.

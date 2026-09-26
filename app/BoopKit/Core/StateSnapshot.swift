@@ -6,6 +6,12 @@ public struct StateSnapshot: Equatable, Sendable {
         public var agent: String
         public var project: String
         public var more: Int
+
+        public init(agent: String, project: String, more: Int) {
+            self.agent = agent
+            self.project = project
+            self.more = more
+        }
     }
 
     public static let version = 1
@@ -54,6 +60,28 @@ public struct StateSnapshot: Equatable, Sendable {
     public var hungry: Int
     /// Agent, project, status (`wait`, `work` or `idle`).
     public var threads: [[String]]
+
+    public init(time: Int64, name: String, base: String, attn: Attention?, busy: Int, idle: Int, wait: Int,
+                mood: Mood, quiet: Int, focus: Bool, vol: Int, night: Bool, level: Int, prog: Int, days: Int,
+                hungry: Int, threads: [[String]]) {
+        self.time = time
+        self.name = name
+        self.base = base
+        self.attn = attn
+        self.busy = busy
+        self.idle = idle
+        self.wait = wait
+        self.mood = mood
+        self.quiet = quiet
+        self.focus = focus
+        self.vol = vol
+        self.night = night
+        self.level = level
+        self.prog = prog
+        self.days = days
+        self.hungry = hungry
+        self.threads = threads
+    }
 
     /// Equal apart from the clock, which changes every second.
     public func sameContent(as other: StateSnapshot?) -> Bool {

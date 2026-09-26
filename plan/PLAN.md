@@ -127,8 +127,8 @@ into the app's resources, and a unit test fails if the copies differ.
 
 Order: **M0 → F1 → F2 → F3 → F4 → A1 → A2 → A3 → A4 → J1 → F5 → J2 → J3.**
 Bluetooth (F4) comes before the app track so the morning test can use it.
-Sound (F5) comes late because there's no speaker to hear it. F6 came after
-the build, at the owner's request.
+Sound (F5) comes late because there's no speaker to hear it. F6 and A5 came
+after the build, at the owner's request.
 
 Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 
@@ -148,6 +148,7 @@ Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 | J2 | Soak and polish | Passed |
 | J3 | Handoff | Passed |
 | F6 | Landscape and cuter eyes | In progress: code, L0, L1 and L2 pass. The board runs the landscape build, its 83 screenshots in 11 scenarios match the simulator pixel for pixel, and `perf --motion` gives a minimum of 50 fps with 72.7 KB free. Only the owner's look (orientation and liking the face) and touch calibration remain (morning checklist rows 2–3) |
+| A5 | Mac app look and flow | In progress: code, L0 and the app's snapshot check pass (light and dark). Only the owner's look in the real menu bar remains (morning checklist rows 5 and 7) |
 | P1 | Port to ESP-IDF + LVGL (later, gated) | Not started |
 
 ### M0: Setup
@@ -461,6 +462,33 @@ eyeballs, and the gen-2 face, with solid eyes, was cuter.
   the USB-C side (or sets `kRotation` to 3) and calibrates touch again
   (row 3).
 
+### A5: Mac app look and flow
+
+Asked for by the owner after the build: the Mac app should be simple but
+nice, elegant and cute. The setup window was jarring, the overview mixed
+controls with debug data (the board's id), settings was a separate
+window, and gen-2's styling and flow were better ([UX.md](UX.md) §6–7).
+
+- **One popover:** setup and settings open inside it; no windows. Setup
+  opens it once, on first launch, and is four steps (hello, name and
+  nature, agents, wake up) whose progress survives closing the popover.
+- **Overview only shows:** volume, focus and "I'm away" move to Settings;
+  small reminders show when a mode is on. The board's id is gone; the
+  header says only whether the body is connected.
+- **The look:** gen-2's "Boop Cream" tokens and building blocks (cards,
+  section labels, status chips, session rows with a coloured edge), a small
+  copy of the device's face in the header and setup, and the eyes as the
+  menu-bar icon.
+- **Tools:** `Boop --snapshots DIR` renders every pane and the icons from
+  fixtures ([VERIFICATION.md](VERIFICATION.md) §2).
+
+**Done when:**
+
+- L0: `make test` passes and the app builds.
+- The snapshots have been looked at in both appearances against
+  [UX.md](UX.md) §7.
+- The owner runs the app and likes it (morning checklist rows 5 and 7).
+
 ### P1: Port to ESP-IDF + LVGL (later)
 
 **Gate:** only after the owner has run the morning checklist and confirmed
@@ -552,9 +580,9 @@ off at any point:
 | 2 | The board runs the landscape build (F6), flashed for its L2 check. Run `tools/boopctl ping`, and `make flash` first if it doesn't show `"w": 320`. Stand Boop sideways with USB-C on the right and look at it | `ping` shows `"w": 320` and `"h": 240`. The no-app face, landscape: sleepy solid eyes, a plug icon, dimmed, slow blinks. It becomes the idle face once the app connects (row 6). Whether the new eyes are cute enough is your call (F6); note anything that's off |
 | 3 | Run `tools/boopctl pattern`. Then `tools/boopctl calibrate`: tap each amber cross (4 near the corners, then 1 in the middle) and lift. Do both only on the landscape build (row 2's `ping`): on the portrait build the pattern has no USB-C bar, and a calibration saved there is deleted when the landscape build starts | The UP arrow is at the top and the black bar is down the edge with the USB-C port. If the picture is upside down (the bar on the other side), set `kRotation` to 3 in `firmware/src/board/display.h`, `make flash`, and look again. Calibration prints `check_miss_px`: a few pixels is good, over about 10 means run it again. Run it again after any rotation change, because a calibration from another screen or rotation (including the portrait build's) is ignored. `--show` prints the stored map; `--show --clear` forgets it |
 | 4 | Tap the face; press BOOT; hold BOOT. After row 6, tap the status strip (the no-app screen ignores it) | Wiggle; wiggle; listening face; face → threads → stats → face |
-| 5 | Run `make run` in your terminal | The menu-bar icon appears, with the setup window: name Boop, pick sweet or cheeky, and choose the hooks to add (it shows exactly what goes where). Allow Bluetooth, Microphone and Speech Recognition when asked |
+| 5 | Run `make run` in your terminal | Boop's eyes appear in the menu bar and the popover opens on setup: hello, a name and sweet or cheeky, which agents to watch ("See exactly what gets added" shows what goes where), then "Wake … up". Allow Bluetooth, Microphone and Speech Recognition when asked. Say whether setup and the popover feel right (A5) |
 | 6 | Wait about 10 s | The app connects to `Boop-XXXX`, and the board leaves the no-app face. If Bluetooth won't connect, run `tools/boopctl bridge` and `app/.build/debug/Boop --link usb:/tmp/boop-bridge.sock` instead ([VERIFICATION.md](VERIFICATION.md) L4) |
-| 7 | If you skipped them at setup: Settings → install hooks for Claude Code and Codex. Restart open sessions, then run `skills/doctor/doctor.sh` in one, `echo BOOP_DOCTOR_PING`, and `skills/doctor/doctor.sh --confirm` | Both installed; the old `~/.boop` entries are gone; the doctor passes |
+| 7 | If you skipped them at setup: Settings (in the popover) → Agents → Connect for Claude Code and Codex. Restart open sessions, then run `skills/doctor/doctor.sh` in one, `echo BOOP_DOCTOR_PING`, and `skills/doctor/doctor.sh --confirm` | Both installed; the old `~/.boop` entries are gone; the doctor passes |
 | 8 | In Claude Code, start a task | Working face within a second |
 | 9 | Make Claude ask permission for a shell command | Amber and a look within about 1 s. Approve in the terminal → a nod, back to work |
 | 10 | Let a task run past 5 minutes | A cheer, then maybe a mumble with a word |

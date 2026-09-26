@@ -15,6 +15,9 @@ let usage = """
                is set up with --name (default Boop). Stops cleanly on SIGINT or SIGTERM. --trace logs
                every hook and every line sent to the device. {"dev":"advance","ms":N} on the socket
                moves the clock forward.
+           Boop --snapshots DIR
+               Renders the popover's panes and the menu-bar icons to PNGs from fixtures, then exits.
+               No runtime, no Bluetooth.
     (boop \(BoopVersion.current))
     """
 
@@ -71,6 +74,8 @@ if args.contains("-h") || args.contains("--help") {
 }
 if args.contains("--headless") {
     Headless.run(args)
+} else if args.contains("--snapshots") {
+    MainActor.assumeIsolated { Snapshots.run(args) }
 } else {
     MenuBarApp.run(args)
 }
