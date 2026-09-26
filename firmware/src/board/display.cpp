@@ -4,6 +4,7 @@
 #include <LovyanGFX.hpp>
 #include <esp_heap_caps.h>
 
+#include "app/touch_cal.h"
 #include "board/pins.h"
 #include "render/palette.h"
 
@@ -34,10 +35,11 @@ class Panel : public lgfx::LGFX_Device {
       cfg.pin_cs = pins::kLcdCs;
       cfg.pin_rst = -1;  // shared with EN; the ST7789 gets a software reset
       cfg.pin_busy = -1;
-      cfg.memory_width = render::kWidth;
-      cfg.memory_height = render::kHeight;
-      cfg.panel_width = render::kWidth;
-      cfg.panel_height = render::kHeight;
+      // The physical panel. setRotation turns it into the 320×240 canvas.
+      cfg.memory_width = kPanelWidth;
+      cfg.memory_height = kPanelHeight;
+      cfg.panel_width = kPanelWidth;
+      cfg.panel_height = kPanelHeight;
       cfg.offset_x = 0;
       cfg.offset_y = 0;
       cfg.offset_rotation = 0;
@@ -59,10 +61,11 @@ class Panel : public lgfx::LGFX_Device {
     }
     {
       auto cfg = touch_.config();
-      cfg.x_min = 200;
-      cfg.x_max = 3900;
-      cfg.y_min = 200;
-      cfg.y_max = 3900;
+      // Only raw readings are used; BoardHal maps them (app/touch_cal.h).
+      cfg.x_min = app::kTouchRawMin;
+      cfg.x_max = app::kTouchRawMax;
+      cfg.y_min = app::kTouchRawMin;
+      cfg.y_max = app::kTouchRawMax;
       cfg.pin_int = pins::kTouchIrq;
       cfg.bus_shared = false;
       cfg.offset_rotation = 0;
@@ -85,7 +88,10 @@ class Panel : public lgfx::LGFX_Device {
   lgfx::Touch_XPT2046 touch_;
 };
 
-constexpr int kBand = 16;  // rows per DMA batch (DEVICE.md §6)
+// Rows per DMA batch (DEVICE.md §6): 12 rows of 320 px keep each buffer at
+// 7.68 KB, the same as 16 portrait rows.
+constexpr int kBand = 12;
+static_assert(render::kHeight % kBand == 0, "bands must tile the screen");
 
 Panel lcd;
 uint16_t* band[2] = {nullptr, nullptr};
@@ -137,14 +143,6 @@ int displayPush(const render::Canvas& canvas) {
 }
 
 void displayBacklight(uint8_t level) { lcd.setBrightness(level); }
-
-bool touchRead(int& x, int& y) {
-  if (digitalRead(pins::kTouchIrq) != LOW) return false;
-  int32_t tx, ty;
-  if (!lcd.getTouch(&tx, &ty)) return false;
-  x = tx, y = ty;
-  return true;
-}
 
 void touchRaw(int& x, int& y, int& z, bool& irq) {
   irq = digitalRead(pins::kTouchIrq) == LOW;

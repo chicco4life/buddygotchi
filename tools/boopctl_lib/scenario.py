@@ -66,8 +66,7 @@ def play(link: Link, path: Path, out_dir: Path, log=print) -> list[str]:
         elif "input" in step:
             link.request(input_message(step["input"]))
         elif "shot" in step:
-            palette, pixels = link.shot()
-            save_shot(palette, pixels, out_dir / f"{step['shot']}.png")
+            save_shot(link.shot(), out_dir / f"{step['shot']}.png")
         elif "expect" in step:
             state = link.request({"t": "dbg.state"})
             if not matches(step["expect"], state):

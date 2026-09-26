@@ -361,11 +361,11 @@ render::Pose Behaviour::basePose(const Source& s, uint32_t t) const {
       env = envelope(lt, life_.ms, 150, 150);
       break;
     case Life::kPeek:
-      q.lookX = int16_t(life_.dx), q.lookY = -550, q.pupil = 1200, q.mouthOpen = 150, q.mouthWide = 500;
+      q.lookX = int16_t(life_.dx), q.lookY = -550, q.eyeSize = 1080, q.mouthOpen = 150, q.mouthWide = 500;
       env = envelope(lt, life_.ms, 150, 150);
       break;
     case Life::kBob:
-      q.lidBot = 300, q.mouthCurve = 700;
+      q.lidBot = 500, q.mouthCurve = 700;
       q.dy = int16_t(p.dy - 5 * render::isin(int(lt % 550 * 512 / 550)) / 1024);
       env = envelope(lt, life_.ms, 120, 120);
       break;

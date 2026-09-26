@@ -432,6 +432,8 @@ void Device::sendPing(Link to) {
   d["ble"] = hal_.bleState();
   if (hal_.bleName()[0]) d["name"] = hal_.bleName();
   d["voice"] = voice::assetsVersion();
+  d["w"] = render::kWidth;  // the screen as drawn, for boopctl calibrate
+  d["h"] = render::kHeight;
   char buf[320];
   size_t n = serializeJson(d, buf, sizeof(buf));
   reply(to, buf, n);

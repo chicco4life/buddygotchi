@@ -6,8 +6,11 @@
 
 namespace render {
 
-constexpr int kWidth = 240;
-constexpr int kHeight = 320;
+// The logical screen: landscape, 320 wide and 240 tall (plan/UX.md §2). The
+// panel itself is 240×320; the board turns the picture (board/display.h
+// kRotation), so drawing code only ever sees this size.
+constexpr int kWidth = 320;
+constexpr int kHeight = 240;
 
 class Canvas {
  public:

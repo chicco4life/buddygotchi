@@ -1,6 +1,6 @@
 # Boop: device
 
-Updated 2026-09-25. Everything needed to get Boop's board running: the
+Updated 2026-09-26. Everything needed to get Boop's board running: the
 hardware, the pins, what's attached, the firmware stack, and how to build,
 flash and bring it up. Sources: the MicroTech MTR024QV01A-V1 product
 specification (2025-03-24) and measurements from our own board.
@@ -18,7 +18,7 @@ board.
 | Memory | 520 KB SRAM, 448 KB ROM, 16 KB RTC SRAM, **no PSRAM** | RAM is the tightest limit on this board (§6) |
 | Flash | 4 MB QSPI (measured: manufacturer 0xC4, device 0x6016), DIO mode | Two app slots plus a little data (§5) |
 | Radio | Wi-Fi 2.4 GHz b/g/n; Bluetooth 4.2 BR/EDR + BLE | Boop uses BLE only; Wi-Fi stays off |
-| Screen | 2.4" IPS TFT, 240×320, ST7789, 4-wire SPI, RGB565 (RGB666 max) | Active area 36.2 × 49 mm; 0.15 mm pixels (~169 ppi); viewable from all angles |
+| Screen | 2.4" IPS TFT, 240×320, ST7789, 4-wire SPI, RGB565 (RGB666 max) | Active area 36.2 × 49 mm; 0.15 mm pixels (~169 ppi); viewable from all angles. Boop uses it sideways, as 320×240 (§4) |
 | Backlight | 4 white LEDs through a MOSFET, 220 cd/m² typical | GPIO21: high is on, PWM dims it |
 | Touch | Resistive, XPT2046, SPI on its own pins | Needs a firm press; viewing window 38.36 × 50.70 mm |
 | Audio | 8-bit DAC on GPIO26 → on-board amp (enable GPIO4, **active low**) → 2-pin speaker header | Nothing attached yet (§3) |
@@ -112,16 +112,18 @@ pixels.
 
 **Screen settings confirmed at bring-up.** The spec doesn't state these.
 They were confirmed on the real panel with the test pattern and the webcam
-on 2026-09-26 (F1), and live in `firmware/src/board/display.h`:
+on 2026-09-26 (F1), and live in `firmware/src/board/display.h`. The
+landscape rotation came after, in F6:
 
 | Setting | Started with | Confirmed |
 | --- | --- | --- |
 | SPI write clock | 40 MHz (try 60–80 MHz later) | 40 MHz works; faster not tried yet |
 | Colour inversion | On (usual for IPS ST7789 panels) | On: white reads bright and black dark |
 | Colour order | RGB | RGB: the red block reads red, the blue block blue |
-| Rotation | Portrait, with USB-C at the bottom as "up" | LovyanGFX rotation 0: the UP arrow points away from USB-C |
+| Rotation | Portrait, with USB-C at the bottom as "up" | LovyanGFX rotation 0: the UP arrow points away from USB-C (F1) |
+| Rotation, landscape (F6) | `kRotation` 1 in `firmware/src/board/display.h`: landscape, 320×240, USB-C on the **right**. Worked out from rotation 0: LovyanGFX's rotation 1 turns the picture a quarter turn clockwise on the panel, so the panel's USB-C end becomes the right edge. Fairly sure, but not yet seen on the board. The panel controller turns the picture, so it costs no CPU; the panel is still configured as its physical 240×320 | Not yet. With Boop sideways and USB-C on the right, `tools/boopctl pattern` should show the UP arrow at the top and the black bar down the USB-C side. **If it's upside down**, rotation 1 was the wrong way round: set `kRotation` to 3 (half a turn), `make flash`, and run `boopctl calibrate` again. USB-C always goes on the right: the pattern's bar and the webcam check assume it, so 3 isn't a way to put it on the left. Don't use 4–7, which mirror the picture |
 | Offsets | 0, 0 (panel memory 240×320) | 0, 0: all four labelled corners show |
-| Touch calibration | Raw range about 200–3900 on both axes | Needs a person: `boopctl calibrate` fits an affine raw → screen map from 4 taps and the board keeps it in NVS (`boop`/`touchcal`), surviving reflashes. Until then the default range is used. Not yet run on this board |
+| Touch calibration | Raw range about 200–3900 on both axes | Needs a person: `boopctl calibrate` fits an affine raw → screen map from 4 taps and the board keeps it in NVS (`boop`/`touchcal2`) with the screen size and rotation it was fitted on, surviving reflashes. A map for another size or rotation is ignored; the portrait build's `touchcal` is deleted at start-up. Until a calibration exists, the raw range is stretched over the panel and turned with `kRotation` (`app/touch_cal.h`). Not yet run on this board |
 
 ## 5. Flash layout
 
@@ -145,8 +147,8 @@ samples are compiled into the firmware as arrays. The voice assets are
 
 | Use | Size | Notes |
 | --- | --- | --- |
-| Screen canvas, 8-bit indexed | 76.8 KB | 240 × 320 × 1 byte, plus a 256-colour RGB565 palette (512 B). Allocate it first, before Bluetooth, while one contiguous block is still free |
-| Push buffer | 2 × 7.7 KB | Converts 16 canvas rows at a time to RGB565 for SPI DMA |
+| Screen canvas, 8-bit indexed | 76.8 KB | 320 × 240 × 1 byte, plus a 256-colour RGB565 palette (512 B). Allocate it first, before Bluetooth, while one contiguous block is still free |
+| Push buffer | 2 × 7.7 KB | Converts 12 canvas rows (of 320 px) at a time to RGB565 for SPI DMA |
 | NimBLE host + controller | ~75 KB measured | Release Classic Bluetooth memory at start-up; Boop only uses BLE |
 | Audio | 4 KB | DMA buffers for the DAC |
 | JSON and serial buffers | ~6 KB | One message line is at most 512 bytes |
@@ -180,8 +182,9 @@ out restarts the DAC and counts in `dbg.state` `audio.out.errors`.
 only, so the board and the simulator agree to the pixel. Edges are
 anti-aliased by sampling 4 × 16 sub-pixels per pixel and picking from
 8-step palette ramps (black up to each ink colour, and eye colour down to
-the pupil); the palette is "Warm Terminal" in `render/palette.h`. The two
-fonts are Geist Mono (SIL Open Font License) at 13 and 22 px, stored as
+the dark inside an open mouth); the palette is "Warm Terminal" in
+`render/palette.h`. The two fonts are Geist Mono (SIL Open Font License) at
+13 and 22 px, stored as
 4-bit coverage in `firmware/assets/fonts.h` (about 27 KB of flash) and
 generated by `tools/fontgen/fontgen.py`.
 
@@ -193,7 +196,16 @@ at 158 KB before Bluetooth.
 A full-screen push is 153.6 KB over SPI: about 31 ms at 40 MHz, so roughly
 25–30 frames per second. Most frames only change the eyes and mouth, so the
 firmware pushes only the rows that changed. Aim for 30 fps during motion and
-10–15 fps at rest.
+10–15 fps at rest. The F2 figures are portrait. In landscape each row is
+320 px instead of 240. A band is still 3,840 px (12 rows of 320 rather
+than 16 of 240), but the same change now spans more bands, so each changed
+row pushes a third more pixels, while the solid eyes draw faster than the
+old ones with pupils.
+
+**Measured (F6, 2026-09-26).** Landscape, with the solid eyes and
+Bluetooth advertising: `boopctl perf --motion` gives a minimum of 49–50 fps
+(mean 70) over 30 s and 60 s, better than F2's 44. 73.9 KB is free after
+start-up, and the minimum stays at 72.7 KB through motion, as in F5.
 
 ## 7. Build, flash, bring up
 
@@ -221,9 +233,11 @@ circuit, which reboots the board. `boopctl` leaves them alone.
 
 1. **Backlight:** GPIO21 high. The spec's FAQ says a dark screen after
    flashing almost always means this pin was never driven high.
-2. **Test pattern:** colour bars, labelled corners and an "UP" arrow. On the
-   webcam, confirm the colours (inversion, RGB/BGR order) and the rotation
-   (the arrow points away from USB-C), then record the confirmed values in §4.
+2. **Test pattern:** colour bars, labelled corners, an "UP" arrow and a black
+   USB-C bar down the right edge. On the webcam, confirm the colours
+   (inversion, RGB/BGR order) and the rotation (seen upright, the arrow is
+   at the top and the bar is on the side with the USB-C port), then record
+   the confirmed values in §4.
 3. **Canvas and screenshot:** a USB screenshot must match the simulator's
    render of the same pattern pixel for pixel.
 4. **BOOT button:** taps and holds are reported over USB.

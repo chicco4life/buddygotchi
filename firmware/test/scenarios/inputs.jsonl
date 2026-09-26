@@ -3,8 +3,8 @@
 {"expect": {"boot":true,"last_input":null}}
 {"clock": 150}
 {"expect": {"boot":false,"last_input":{"k":"tap","at":150}}}
-{"input": {"touch":[60,200]}}
-{"expect": {"touch":{"down":true},"last_input":{"k":"touch","x":60,"y":200,"at":150}}}
+{"input": {"touch":[60,120]}}
+{"expect": {"touch":{"down":true},"last_input":{"k":"touch","x":60,"y":120,"at":150}}}
 {"clock": 300}
 {"expect": {"touch":{"down":false}}}
 {"input": {"press":"hold","ms":1000}}

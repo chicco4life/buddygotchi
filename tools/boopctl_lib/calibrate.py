@@ -9,10 +9,25 @@ from typing import Any
 
 from boopctl_lib.device import Device, DeviceError
 
-TARGETS = [(20, 20), (220, 20), (20, 300), (220, 300)]
-CHECK = (120, 160)
+INSET = 20  # the crosses sit this far in from each corner
 POLL_S = 0.03
 TAP_TIMEOUT_S = 60.0
+
+
+def screen_size(dev: Device) -> tuple[int, int]:
+    """The screen as the board draws it, from dbg.ping (320×240 in landscape).
+    Older firmware doesn't report it there, so fall back to a screenshot's header."""
+    ping = dev.request({"t": "dbg.ping"})
+    if "w" in ping and "h" in ping:
+        return int(ping["w"]), int(ping["h"])
+    _, _, size = dev.shot()
+    return size
+
+
+def targets(w: int, h: int) -> tuple[list[tuple[int, int]], tuple[int, int]]:
+    """The 4 crosses near the corners, and the check cross in the middle."""
+    corners = [(INSET, INSET), (w - INSET, INSET), (INSET, h - INSET), (w - INSET, h - INSET)]
+    return corners, (w // 2, h // 2)
 
 
 def solve3(m: list[list[float]], v: list[float]) -> list[float]:
@@ -78,19 +93,22 @@ def run(port: str | None) -> dict[str, Any]:
     raw: list[tuple[float, float]] = []
     with Device(port) as dev:
         try:
-            for i, (x, y) in enumerate(TARGETS, 1):
+            w, h = screen_size(dev)
+            corners, check = targets(w, h)
+            for i, (x, y) in enumerate(corners, 1):
                 dev.request({"t": "dbg.pattern", "target": [x, y]})
-                print(f"Tap the amber cross ({i} of {len(TARGETS)}) with a fingertip or stylus, then lift.", flush=True)
+                print(f"Tap the amber cross ({i} of {len(corners)}) with a fingertip or stylus, then lift.", flush=True)
                 raw.append(read_tap(dev))
                 print(f"  raw {raw[-1][0]:.0f}, {raw[-1][1]:.0f}", flush=True)
-            cal = fit(raw, TARGETS)
-            worst = max(abs(a - b) for (rx, ry), t in zip(raw, TARGETS) for a, b in zip(apply(cal, rx, ry), t))
-            dev.request({"t": "dbg.pattern", "target": list(CHECK)})
+            cal = fit(raw, corners)
+            worst = max(abs(a - b) for (rx, ry), t in zip(raw, corners) for a, b in zip(apply(cal, rx, ry), t))
+            dev.request({"t": "dbg.pattern", "target": list(check)})
             print("Now tap the cross in the middle, to check.", flush=True)
             cx, cy = apply(cal, *read_tap(dev))
-            miss = ((cx - CHECK[0]) ** 2 + (cy - CHECK[1]) ** 2) ** 0.5
+            miss = ((cx - check[0]) ** 2 + (cy - check[1]) ** 2) ** 0.5
             reply = dev.request({"t": "dbg.touchcal", "set": cal})
         finally:
             dev.request({"t": "dbg.reset"})  # back to the face, with the clock running
             dev.request({"t": "dbg.clock", "run": True})
-    return {"raw": raw, "cal": reply["cal"], "fit_worst_px": round(worst, 1), "check_miss_px": round(miss, 1)}
+    return {"screen": [w, h], "raw": raw, "cal": reply["cal"], "fit_worst_px": round(worst, 1),
+            "check_miss_px": round(miss, 1)}

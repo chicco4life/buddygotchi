@@ -14,7 +14,10 @@ namespace {
 constexpr uint32_t kLedHz = 5000;
 constexpr uint8_t kLedBits = 8;
 constexpr const char* kNvsSpace = "boop";
-constexpr const char* kNvsTouchCal = "touchcal";
+// The touch calibration with the screen it was fitted on (app::SavedTouchCal).
+// "touchcal" held the portrait build's bare map; it's deleted, never read.
+constexpr const char* kNvsTouchCal = "touchcal2";
+constexpr const char* kNvsTouchCalPortrait = "touchcal";
 
 void ledChannel(int pin, uint8_t level) { ledcWrite(pin, 255 - level); }  // common anode
 }  // namespace
@@ -28,10 +31,14 @@ void BoardHal::begin() {
     ledcAttach(pin, kLedHz, kLedBits);
     ledChannel(pin, 0);
   }
+  defaultCal_ = app::defaultTouchCal(kRotation);
   Preferences nvs;
-  if (nvs.begin(kNvsSpace, true)) {
+  if (nvs.begin(kNvsSpace, false)) {
+    if (nvs.isKey(kNvsTouchCalPortrait)) nvs.remove(kNvsTouchCalPortrait);
+    app::SavedTouchCal saved;
+    size_t n = nvs.isKey(kNvsTouchCal) ? nvs.getBytes(kNvsTouchCal, &saved, sizeof(saved)) : 0;
     app::TouchCal c;
-    if (nvs.getBytes(kNvsTouchCal, &c, sizeof(c)) == sizeof(c) && c.valid) cal_ = c;
+    if (app::loadTouchCal(&saved, n, kRotation, c)) cal_ = c;
     nvs.end();
   }
 }
@@ -41,12 +48,11 @@ uint32_t BoardHal::realMs() { return millis(); }
 bool BoardHal::bootDown() { return digitalRead(pins::kMainButton) == LOW; }
 
 bool BoardHal::touch(int& x, int& y) {
-  if (!cal_.valid) return touchRead(x, y);
   int rx, ry, rz;
   bool irq;
   board::touchRaw(rx, ry, rz, irq);
   if (!irq || rz <= 0) return false;
-  cal_.map(rx, ry, x, y);
+  (cal_.valid ? cal_ : defaultCal_).map(rx, ry, x, y);
   return true;
 }
 
@@ -57,7 +63,8 @@ void BoardHal::setTouchCal(const app::TouchCal& c) {
   Preferences nvs;
   if (!nvs.begin(kNvsSpace, false)) return;
   if (c.valid) {
-    nvs.putBytes(kNvsTouchCal, &c, sizeof(c));
+    app::SavedTouchCal saved = app::saveTouchCal(c, kRotation);
+    nvs.putBytes(kNvsTouchCal, &saved, sizeof(saved));
   } else {
     nvs.remove(kNvsTouchCal);
   }

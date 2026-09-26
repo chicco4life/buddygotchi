@@ -60,8 +60,8 @@ def cmd_send(args: argparse.Namespace) -> int:
 
 def cmd_shot(args: argparse.Namespace) -> int:
     with Device(args.port) as dev:
-        palette, pixels = dev.shot()
-    print(save_shot(palette, pixels, Path(args.out)))
+        shot = dev.shot()
+    print(save_shot(shot, Path(args.out)))
     return 0
 
 
@@ -333,8 +333,9 @@ def soak_input(rng: random.Random) -> dict:
         return {"t": "dbg.press", "ms": 100}
     if kind == "hold":
         return {"t": "dbg.press", "ms": rng.randint(500, 3000)}
-    y = rng.randint(290, 315) if kind.startswith("strip") else rng.randint(20, 260)
-    return {"t": "dbg.touch", "x": rng.randint(10, 230), "y": y, "ms": 800 if kind.endswith("hold") else 100}
+    # The 320×240 screen: the strip is the bottom 36 px (render/screens.h kStripTop 204).
+    y = rng.randint(210, 235) if kind.startswith("strip") else rng.randint(20, 190)
+    return {"t": "dbg.touch", "x": rng.randint(10, 310), "y": y, "ms": 800 if kind.endswith("hold") else 100}
 
 
 def cmd_soak(args: argparse.Namespace) -> int:
@@ -511,7 +512,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("name", nargs="?", help="clip: idle, needs_you, cheer, ladder, cheers or tap")
     p.add_argument("--seconds", type=int, default=8, help="clip length, at most 10")
     p.add_argument("--usb", default="right", choices=["bottom", "right", "top", "left"],
-                   help="where USB-C is in the camera's view (frame only)")
+                   help="where USB-C is in the camera's view (frame only); right means upright")
     p.set_defaults(func=cmd_cam)
     return parser
 

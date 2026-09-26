@@ -71,23 +71,90 @@ static void test_ping_reports_version_and_link() {
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
   r.usbLine("{\"t\":\"dbg.ping\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"link\":\"usb\""));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"w\":320,\"h\":240"));  // the screen, for boopctl calibrate
 }
 
 static void test_touch_calibration_maps_raw_to_screen() {
-  // Raw x runs 3800 → 300 across the width, raw y 250 → 3750 down the height.
+  // Raw y runs 250 → 3750 across the width, raw x 3800 → 300 down the height.
   app::TouchCal c;
-  c.ax = int32_t(-240.0 / 3500 * 65536), c.cx = int32_t(3800 * 240.0 / 3500 * 65536);
-  c.by = int32_t(320.0 / 3500 * 65536), c.cy = int32_t(-250 * 320.0 / 3500 * 65536);
+  c.bx = int32_t(320.0 / 3500 * 65536), c.cx = int32_t(-250 * 320.0 / 3500 * 65536);
+  c.ay = int32_t(-240.0 / 3500 * 65536), c.cy = int32_t(3800 * 240.0 / 3500 * 65536);
   int x, y;
   c.map(3800, 250, x, y);
   TEST_ASSERT_INT_WITHIN(1, 0, x);
   TEST_ASSERT_INT_WITHIN(1, 0, y);
   c.map(2050, 2000, x, y);
-  TEST_ASSERT_INT_WITHIN(1, 120, x);
-  TEST_ASSERT_INT_WITHIN(1, 160, y);
+  TEST_ASSERT_INT_WITHIN(1, 160, x);
+  TEST_ASSERT_INT_WITHIN(1, 120, y);
   c.map(0, 4095, x, y);  // past the edge: clamped to the screen
-  TEST_ASSERT_EQUAL(239, x);
-  TEST_ASSERT_EQUAL(319, y);
+  TEST_ASSERT_EQUAL(319, x);
+  TEST_ASSERT_EQUAL(239, y);
+}
+
+// The default map turns with the picture. Raw (x_min, y_min) is the panel's
+// own top-left pixel (portrait, USB-C at the bottom), and raw y runs down
+// the panel's 320 px side, towards USB-C.
+static void test_default_touch_map_follows_the_rotation() {
+  const int lo = app::kTouchRawMin, hi = app::kTouchRawMax;
+  int x, y;
+  // Rotation 1, USB-C on the right (a quarter turn anticlockwise from
+  // portrait): the panel's top-left is the screen's bottom-left, and the
+  // USB-C end is the right edge.
+  app::TouchCal r1 = app::defaultTouchCal(1);
+  TEST_ASSERT_TRUE(r1.valid);
+  r1.map(lo, lo, x, y);
+  TEST_ASSERT_INT_WITHIN(1, 0, x);
+  TEST_ASSERT_INT_WITHIN(1, 239, y);
+  r1.map(hi, lo, x, y);  // the panel's top-right: the screen's top-left
+  TEST_ASSERT_INT_WITHIN(1, 0, x);
+  TEST_ASSERT_INT_WITHIN(1, 0, y);
+  r1.map(lo, hi, x, y);  // the panel's bottom-left, by USB-C: the bottom-right
+  TEST_ASSERT_INT_WITHIN(1, 319, x);
+  TEST_ASSERT_INT_WITHIN(1, 239, y);
+  r1.map((lo + hi) / 2, (lo + hi) / 2, x, y);
+  TEST_ASSERT_INT_WITHIN(1, 160, x);
+  TEST_ASSERT_INT_WITHIN(1, 120, y);
+  // Rotation 3, USB-C on the left (a quarter turn clockwise): the panel's
+  // top-left is the screen's top-right.
+  app::TouchCal r3 = app::defaultTouchCal(3);
+  r3.map(lo, lo, x, y);
+  TEST_ASSERT_INT_WITHIN(1, 319, x);
+  TEST_ASSERT_INT_WITHIN(1, 0, y);
+  r3.map(lo, hi, x, y);
+  TEST_ASSERT_INT_WITHIN(1, 0, x);
+  TEST_ASSERT_INT_WITHIN(1, 0, y);
+  r3.map(hi, hi, x, y);
+  TEST_ASSERT_INT_WITHIN(1, 0, x);
+  TEST_ASSERT_INT_WITHIN(1, 239, y);
+}
+
+// A calibration is kept with the screen it was fitted on; one fitted on
+// another screen (the portrait build's) or another rotation is ignored.
+static void test_saved_touch_calibration_must_match_the_screen() {
+  app::TouchCal c;
+  c.ax = 11, c.bx = 22, c.cx = 33, c.ay = 44, c.by = 55, c.cy = 66, c.valid = true;
+  app::SavedTouchCal saved = app::saveTouchCal(c, 1);
+  TEST_ASSERT_EQUAL(320, saved.w);
+  TEST_ASSERT_EQUAL(240, saved.h);
+  app::TouchCal out;
+  TEST_ASSERT_TRUE(app::loadTouchCal(&saved, sizeof(saved), 1, out));
+  TEST_ASSERT_EQUAL(11, out.ax);
+  TEST_ASSERT_EQUAL(66, out.cy);
+  TEST_ASSERT_TRUE(out.valid);
+
+  app::TouchCal none;
+  TEST_ASSERT_FALSE(app::loadTouchCal(&saved, sizeof(saved), 3, none));  // kRotation flipped since
+  TEST_ASSERT_FALSE(none.valid);
+  app::SavedTouchCal portrait = saved;
+  portrait.w = 240, portrait.h = 320, portrait.rotation = 0;
+  TEST_ASSERT_FALSE(app::loadTouchCal(&portrait, sizeof(portrait), 1, none));
+  // The portrait build stored the bare map, with no screen: a different size.
+  TEST_ASSERT_FALSE(app::loadTouchCal(&c, sizeof(c), 1, none));
+  TEST_ASSERT_FALSE(app::loadTouchCal(&saved, 0, 1, none));
+  TEST_ASSERT_FALSE(app::loadTouchCal(nullptr, sizeof(saved), 1, none));
+  app::SavedTouchCal cleared = app::saveTouchCal(app::TouchCal{}, 1);
+  TEST_ASSERT_FALSE(app::loadTouchCal(&cleared, sizeof(cleared), 1, none));
+  TEST_ASSERT_FALSE(none.valid);
 }
 
 static void test_touchcal_sets_reads_and_clears() {
@@ -105,12 +172,17 @@ static void test_touchcal_sets_reads_and_clears() {
 
 static void test_pattern_target_draws_a_cross() {
   Rig r;
-  r.usbLine("{\"t\":\"dbg.pattern\",\"target\":[20,300]}");
-  TEST_ASSERT_EQUAL(render::kAmber, r.dev.canvas().get(20, 300));
-  TEST_ASSERT_EQUAL(render::kAmber, r.dev.canvas().get(29, 300));
-  TEST_ASSERT_EQUAL(render::kAmber, r.dev.canvas().get(20, 291));
-  TEST_ASSERT_EQUAL(render::kBlack, r.dev.canvas().get(40, 280));
-  TEST_ASSERT_EQUAL(render::kBlack, r.dev.canvas().get(120, 160));
+  r.usbLine("{\"t\":\"dbg.pattern\",\"target\":[20,220]}");  // bottom left, as boopctl calibrate puts it
+  TEST_ASSERT_EQUAL(render::kAmber, r.dev.canvas().get(20, 220));
+  TEST_ASSERT_EQUAL(render::kAmber, r.dev.canvas().get(29, 220));
+  TEST_ASSERT_EQUAL(render::kAmber, r.dev.canvas().get(20, 211));
+  TEST_ASSERT_EQUAL(render::kAmber, r.dev.canvas().get(20, 229));
+  TEST_ASSERT_EQUAL(render::kBlack, r.dev.canvas().get(40, 200));
+  TEST_ASSERT_EQUAL(render::kBlack, r.dev.canvas().get(160, 120));
+  r.usbLine("{\"t\":\"dbg.pattern\",\"target\":[300,20]}");  // top right
+  TEST_ASSERT_EQUAL(render::kAmber, r.dev.canvas().get(300, 20));
+  TEST_ASSERT_EQUAL(render::kAmber, r.dev.canvas().get(310, 20));
+  TEST_ASSERT_EQUAL(render::kBlack, r.dev.canvas().get(20, 220));
 }
 
 static void test_debug_is_ignored_over_ble() {
@@ -275,7 +347,7 @@ static void test_strip_taps_cycle_the_screens() {
   const app::Screen order[] = {app::Screen::kThreads, app::Screen::kStats, app::Screen::kFace};
   uint32_t t = 0;
   for (app::Screen want : order) {
-    r.usbLine("{\"t\":\"dbg.touch\",\"x\":120,\"y\":300,\"ms\":100}");
+    r.usbLine("{\"t\":\"dbg.touch\",\"x\":160,\"y\":222,\"ms\":100}");
     t += 200;
     char step[64];
     std::snprintf(step, sizeof(step), "{\"t\":\"dbg.clock\",\"freeze\":%u}", unsigned(t));
@@ -283,7 +355,7 @@ static void test_strip_taps_cycle_the_screens() {
     TEST_ASSERT_EQUAL(want, r.dev.screen());
   }
   // A touch on the face doesn't change the screen.
-  r.usbLine("{\"t\":\"dbg.touch\",\"x\":120,\"y\":100,\"ms\":100}");
+  r.usbLine("{\"t\":\"dbg.touch\",\"x\":160,\"y\":100,\"ms\":100}");
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1000}");
   TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
 }
@@ -379,6 +451,8 @@ int main() {
   RUN_TEST(test_ping_reports_version_and_link);
   RUN_TEST(test_debug_is_ignored_over_ble);
   RUN_TEST(test_touch_calibration_maps_raw_to_screen);
+  RUN_TEST(test_default_touch_map_follows_the_rotation);
+  RUN_TEST(test_saved_touch_calibration_must_match_the_screen);
   RUN_TEST(test_touchcal_sets_reads_and_clears);
   RUN_TEST(test_pattern_target_draws_a_cross);
   RUN_TEST(test_status_on_connect_and_every_minute);

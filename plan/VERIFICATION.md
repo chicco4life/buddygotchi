@@ -1,6 +1,6 @@
 # Boop: verification
 
-Updated 2026-09-25. How we check that Boop works, especially what's on its
+Updated 2026-09-26. How we check that Boop works, especially what's on its
 screen, without a person watching. [PLAN.md](PLAN.md) says which checks
 each milestone must pass. It builds on the previous generation's
 `buddyctl.py` (USB commands, screenshots, golden images) and the opt-in
@@ -56,8 +56,8 @@ Each level answers a different question:
 | `send '<json>'` | Send one protocol message, exactly as Bluetooth would |
 | `run <scenario>` | Play a scenario on the device (§4) and save its screenshots |
 | `sim <scenario>` | Play the same scenario in the simulator and save its PNGs |
-| `shot --out x.png` | Screenshot the device's canvas |
-| `diff a.png b.png` | Pixel diff. Exits non-zero past a threshold and writes a highlighted diff image |
+| `shot --out x.png` | Screenshot the device's canvas, at the size its `dbg.shot` header gives |
+| `diff a.png b.png` | Pixel diff. Exits non-zero past a threshold and writes a highlighted diff image. Pictures of different sizes differ in every pixel, and their diff image shows the two side by side |
 | `expect '<json>' [--timeout S]` | Poll `dbg.state` until it matches, or fail |
 | `press tap\|hold [--ms N]` | Inject a BOOT press |
 | `touch X Y [--ms N]` | Inject a touch at screen coordinates |
@@ -69,7 +69,7 @@ Each level answers a different question:
 | `e2e --soak MIN [--brain rules\|apple]` | J2's pipeline soak: the same fixtures on a loop for MIN minutes, a tap on the board between rounds, then a quiet minute. Samples `dbg.ping`, `audio.out.errors` and the app's memory; fails on a board reset, a heap-minimum drift over 2 KB, audio errors, the app exiting, or anything left on screen (not the plain face, `attn` or a moment) at the end. Checkpoint misses are counted and reported. A debug request that loses its reply (the CH340 rarely drops bytes over a long run) is retried once and counted as a link glitch |
 | `soak --minutes N` | Random, realistic traffic and inputs (with one 35 s silence), then check for resets, a drifting heap minimum, and that calm snapshots bring back the plain face |
 | `cam frame\|pattern\|clip <name>` | Webcam helpers (L3 in §5). Clips are live presets: `idle`, `needs_you`, `cheer`, `ladder` (sped-up clock), `cheers` (sizes 1–3) and `tap` |
-| `calibrate` | Touch calibration. Needs a person to tap 4 amber crosses near the corners, then one in the middle to check; it fits a raw → screen map and the board keeps it in NVS. `--show` prints the stored map, `--show --clear` forgets it |
+| `calibrate` | Touch calibration. Needs a person to tap 4 amber crosses 20 px in from the corners, then one in the middle to check; the crosses are placed from the screen size the board reports in `dbg.ping` (320×240). It fits a raw → screen map and the board keeps it in NVS for that screen and rotation. `--show` prints the stored map, `--show --clear` forgets it |
 
 ## 3. The debug channel
 
@@ -79,13 +79,13 @@ Over USB, the firmware accepts every normal protocol message
 
 | Message | Reply |
 | --- | --- |
-| `{"t":"dbg.ping"}` | `{"t":"dbg.ping","fw":…,"sha":…,"up":ms,"heap":…,"heap_min":…,"fps":…,"link":"usb\|ble\|none","ble":"off\|adv\|conn","name":"Boop-XXXX","voice":…}`. `ble` is Bluetooth's state (advertising or connected), `name` the advertised name, and `voice` the voice assets' version |
+| `{"t":"dbg.ping"}` | `{"t":"dbg.ping","fw":…,"sha":…,"up":ms,"heap":…,"heap_min":…,"fps":…,"link":"usb\|ble\|none","ble":"off\|adv\|conn","name":"Boop-XXXX","voice":…,"w":320,"h":240}`. `ble` is Bluetooth's state (advertising or connected), `name` the advertised name, `voice` the voice assets' version, and `w`/`h` the screen as drawn |
 | `{"t":"dbg.state"}` | `{"t":"dbg.state","screen":"face\|needs_you\|threads\|stats\|no_app\|pattern","base":…,"attn":…,"rung":0-3,"moment":{"anim":…,"left_ms":…},"quiet":…,"focus":…,"led":"#RRGGBB","audio":{"playing":…,"syllables":…},"last_input":…}` |
-| `{"t":"dbg.shot"}` | A header line `{"t":"dbg.shot","w":240,"h":320,"bytes":N,"crc":…}`, then one line of base64: 512 bytes of RGB565 palette (256 little-endian entries) followed by 76,800 bytes of pixel indexes, row by row. `crc` is the CRC-32 (as zlib's) of those bytes |
+| `{"t":"dbg.shot"}` | A header line `{"t":"dbg.shot","w":320,"h":240,"bytes":N,"crc":…}`, then one line of base64: 512 bytes of RGB565 palette (256 little-endian entries) followed by 76,800 bytes of pixel indexes, row by row. `crc` is the CRC-32 (as zlib's) of those bytes |
 | `{"t":"dbg.clock","freeze":T}` / `{"step":MS}` / `{"run":true}` | Freeze the clock at T (which also seeds randomness from T), step it, or let it run |
 | `{"t":"dbg.press","ms":N}` / `{"t":"dbg.touch","x":…,"y":…,"ms":N}` | Inject input through the same code path as real input |
 | `{"t":"dbg.pattern"}` / `{"fill":N}` / `{"target":[x,y]}` | Show the test pattern, a solid screen of palette index N, or an amber calibration cross at (x, y) on black, until the next `state` |
-| `{"t":"dbg.touchcal"}` / `{"set":[ax,bx,cx,ay,by,cy]}` / `{"clear":true}` | Read, set or forget the touch calibration: x = (ax·raw x + bx·raw y + cx) / 65536, and y alike. The board keeps it in NVS and replies with `cal` (null when uncalibrated, which uses the default raw range) |
+| `{"t":"dbg.touchcal"}` / `{"set":[ax,bx,cx,ay,by,cy]}` / `{"clear":true}` | Read, set or forget the touch calibration: x = (ax·raw x + bx·raw y + cx) / 65536, and y alike. The board keeps it in NVS with the screen size and rotation it was set on, and ignores a stored map for any other (the portrait build's, or one from before `kRotation` changed). It replies with `cal` (null when uncalibrated, which uses the default raw range turned with the rotation) |
 | `{"t":"dbg.light","bl":0-255,"led":"#RRGGBB"}` | Set the backlight and the RGB LED (both optional), for bring-up and webcam framing |
 | `{"t":"dbg.reset"}` | Forget everything the Mac has said, the moment and the local screen, and freeze the clock at 0. Every scenario starts with it |
 
@@ -221,14 +221,16 @@ This checks what only the real panel can show. It runs:
    screen solid white and one with the backlight off, finds the region that
    changed most, and saves a crop box in `/tmp/boop-cam/crop.json`. If no screen is
    found, skip L3 for the rest of the run and say so in the report. The board
-   may lie flat in landscape, with USB-C to the right in the camera's view.
-   Rotate the crop so USB-C is at the bottom before judging orientation.
+   sits sideways, with USB-C to the right in the camera's view (`--usb`
+   says where it is otherwise). The crop is turned so USB-C is on the right,
+   320×240, before judging orientation.
 2. **Pattern** (bring-up): `boopctl cam pattern` shows the test pattern,
    captures it, and samples the colour blocks. It checks that red reads as
    red (not blue, which would mean BGR order), that white is bright and
-   black is dark (not inverted), and that the UP arrow is at the top away
-   from USB-C (rotation). Fix the panel settings in the firmware until it
-   passes, then record them in [DEVICE.md](DEVICE.md) §4.
+   black is dark (not inverted), that the UP arrow is at the top, and that
+   the black USB-C bar is on the USB-C side (rotation). Fix the panel
+   settings in the firmware until it passes, then record them in
+   [DEVICE.md](DEVICE.md) §4.
 3. **Screens and motion:** `boopctl cam clip <name>` records up to 10 s
    while a live preset plays with the clock running (scenarios freeze the
    clock, so they wouldn't move), crops each frame, and saves a contact sheet. The

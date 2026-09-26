@@ -41,12 +41,12 @@ int wave(uint32_t t, uint32_t period, int amp) { return amp * isin(int(t % perio
 // The expressions. Each is the neutral pose with a few fields changed.
 Pose happy() {
   Pose p;
-  p.lidBot = 450, p.mouthCurve = 900, p.mouthOpen = 200;
+  p.lidBot = 700, p.mouthCurve = 900, p.mouthOpen = 200;
   return p;
 }
 Pose proud() {
   Pose p;
-  p.lidTop = 250, p.lidBot = 350, p.lookY = -350, p.mouthCurve = 800, p.dy = -4, p.size = 1030;
+  p.lidTop = 250, p.lidBot = 550, p.lookY = -350, p.mouthCurve = 800, p.dy = -4, p.size = 1030;
   return p;
 }
 Pose smug() {
@@ -56,7 +56,7 @@ Pose smug() {
 }
 Pose curious() {
   Pose p;
-  p.pupil = 1250, p.lookX = 450, p.lookY = -250, p.wink = -250, p.mouthOpen = 250, p.mouthWide = 450;
+  p.eyeSize = 1080, p.lookX = 450, p.lookY = -250, p.wink = -250, p.mouthOpen = 250, p.mouthWide = 450;
   p.size = 1030;
   return p;
 }
@@ -67,7 +67,7 @@ Pose sleepy() {
 }
 Pose worried() {
   Pose p;
-  p.lidTilt = -650, p.lidTop = 250, p.pupil = 850, p.lookY = 200, p.mouthCurve = -600, p.mouthWide = 700;
+  p.lidTilt = -650, p.lidTop = 250, p.eyeSize = 950, p.lookY = 200, p.mouthCurve = -600, p.mouthWide = 700;
   return p;
 }
 Pose sulky() {
@@ -77,7 +77,7 @@ Pose sulky() {
 }
 Pose love() {
   Pose p;
-  p.glow = 1000, p.lidBot = 380, p.pupil = 1450, p.mouthCurve = 900, p.mouthOpen = 250, p.size = 1040;
+  p.glow = 1000, p.lidBot = 650, p.eyeSize = 1060, p.mouthCurve = 900, p.mouthOpen = 250, p.size = 1040;
   return p;
 }
 Pose sideEye() {
@@ -87,17 +87,20 @@ Pose sideEye() {
 }
 Pose startled() {
   Pose p;
-  p.squash = -150, p.pupil = 700, p.mouthOpen = 400, p.mouthWide = 500, p.mouthCurve = -300, p.oops = 750;
+  p.squash = -150, p.eyeSize = 1120, p.mouthOpen = 400, p.mouthWide = 500, p.mouthCurve = -300, p.oops = 750;
   return p;
 }
 Pose listening() {
   Pose p;
-  p.pupil = 1300, p.lookY = -250, p.wink = -150, p.mouthOpen = 250, p.mouthWide = 500;
+  p.eyeSize = 1080, p.lookY = -250, p.wink = -150, p.mouthOpen = 250, p.mouthWide = 500;
   return p;
 }
+// Looking up and away to think. With no pupils to roll up, the whole face
+// lifts and the eyes stay round on top: lids would make it the working face
+// (hooded, looking down) mirrored.
 Pose thinking() {
   Pose p;
-  p.lookX = 650, p.lookY = -750, p.lidTop = 200, p.wink = 150, p.mouthCurve = -150, p.mouthWide = 600;
+  p.lookX = 650, p.lookY = -1000, p.dy = -6, p.squash = 100, p.mouthCurve = -150, p.mouthWide = 600;
   p.mouthX = 8;
   return p;
 }
@@ -162,7 +165,7 @@ Pose animPose(Anim a, int size, uint32_t t) {
   switch (a) {
     case Anim::kNone: return n;
     case Anim::kNod: {
-      Pose up = with(with(n, &Pose::lidBot, 200), &Pose::mouthCurve, 500);
+      Pose up = with(with(n, &Pose::lidBot, 350), &Pose::mouthCurve, 500);
       Pose down = with(with(up, &Pose::dy, 9), &Pose::lidTop, 180);
       const Key k[] = {{0, up}, {150, down}, {330, with(up, &Pose::dy, -2)}, {480, up}};
       return keys(t, k);
@@ -172,13 +175,13 @@ Pose animPose(Anim a, int size, uint32_t t) {
       Pose p = startled();
       if (t < 500) p.dx = int16_t(wave(t, 125, 4));
       Pose after = with(with(with(p, &Pose::lidTop, 300), &Pose::mouthCurve, -600), &Pose::mouthOpen, 0);
-      after.oops = 600, after.squash = 0, after.pupil = 900, after.dx = 0;
+      after.oops = 600, after.squash = 0, after.eyeSize = 940, after.dx = 0;
       const Key k[] = {{0, p}, {800, p}, {950, after}};
       return keys(t, k);
     }
     case Anim::kSideEye: return sideEye();
     case Anim::kWiggle: {
-      Pose p = with(with(n, &Pose::lidBot, 400), &Pose::mouthCurve, 800);
+      Pose p = with(with(n, &Pose::lidBot, 650), &Pose::mouthCurve, 800);
       p.dx = int16_t(wave(t, 175, 7));
       p.squash = int16_t(wave(t + 44, 175, 80));
       return p;
@@ -268,7 +271,7 @@ Pose lookPose(Look look, int rung, int busy) {
       break;
     case Look::kWorking:
       p.lidTop = 180, p.lookX = -250, p.lookY = 350, p.mouthWide = 700;
-      p.pupil = int16_t(busy >= 3 ? 850 : 950);
+      p.eyeSize = int16_t(busy >= 3 ? 950 : 1000);  // busier, more focused
       break;
     case Look::kAsleep:
       p.open = 0, p.dy = 10, p.mouthWide = 600;
@@ -280,7 +283,7 @@ Pose lookPose(Look look, int rung, int busy) {
     case Look::kNeedsYou:
       if (rung < 1) rung = 1;
       if (rung > 3) rung = 3;
-      p.pupil = 1250, p.lookY = -100, p.mouthOpen = 200, p.mouthWide = 550;
+      p.eyeSize = 1080, p.lookY = -100, p.mouthOpen = 200, p.mouthWide = 550;
       p.size = int16_t(1000 + 60 * rung);
       p.dy = int16_t(2 * rung);
       break;

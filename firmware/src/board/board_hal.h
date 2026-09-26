@@ -39,7 +39,8 @@ class BoardHal : public app::Hal {
   const char* gitSha() override { return BOOP_GIT_SHA; }
 
  private:
-  app::TouchCal cal_;  // from NVS; invalid until `boopctl calibrate` has run
+  app::TouchCal cal_;         // from NVS; invalid until `boopctl calibrate` has run on this rotation
+  app::TouchCal defaultCal_;  // used until then: the raw range, turned by kRotation
   uint32_t fps_ = 0;
   uint32_t drawUs_ = 0, pushUs_ = 0;
   const char* bleState_ = "off";

@@ -1,5 +1,7 @@
-// The face (plan/UX.md §2): two big rounded eyes with pupils and lids, and
-// a small mouth, drawn procedurally from a Pose. Every field blends
+// The face (plan/UX.md §2): two big solid rounded eyes with lids, Cozmo
+// style, and a small mouth, drawn procedurally from a Pose. The eyes have
+// no pupils: to look somewhere the whole eye moves, and the eye on that
+// side grows a little, as if the head turned. Every field blends
 // linearly, so any two poses can be eased into each other.
 #pragma once
 #include <cstdint>
@@ -11,9 +13,9 @@ namespace render {
 // Fields are permille unless noted: 1000 is "fully" or "normal".
 struct Pose {
   int16_t open = 1000;      // eye openness; 0 is a closed line
-  int16_t lookX = 0;        // pupil position, -1000 left .. 1000 right
-  int16_t lookY = 0;        // -1000 up .. 1000 down
-  int16_t pupil = 1000;     // pupil size
+  int16_t lookX = 0;        // where the eyes look, -1000 left .. 1000 right (the
+  int16_t lookY = 0;        // near eye grows), -1000 up .. 1000 down
+  int16_t eyeSize = 1000;   // both eyes, without the mouth: > 1000 wide-eyed
   int16_t lidTop = 0;       // how far the upper lids come down
   int16_t lidTilt = 0;      // > 0 inner corners down (cross), < 0 outer down (sad)
   int16_t lidBot = 0;       // happy squint: the lower lids push up in an arc
@@ -29,6 +31,10 @@ struct Pose {
   int16_t oops = 0;         // eye tint towards the oops red
   int16_t raise = 0;        // 1000: moved up and smaller, to make room for the bubble
 };
+
+// At full size, the middle of the face (eye tops to mouth) lies this many
+// pixels below the eye centres, because the mouth hangs below the eyes.
+constexpr int kFaceDrop = 8;
 
 // a + (b - a) × t / 1024, field by field.
 Pose blend(const Pose& a, const Pose& b, int t);

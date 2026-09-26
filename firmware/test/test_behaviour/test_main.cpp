@@ -419,18 +419,18 @@ struct DevRig {
 
 static void test_gestures_send_the_right_inputs() {
   DevRig r;
-  r.line("{\"t\":\"dbg.touch\",\"x\":120,\"y\":120,\"ms\":100}");  // tap the face
+  r.line("{\"t\":\"dbg.touch\",\"x\":160,\"y\":100,\"ms\":100}");  // tap the face
   r.clock(100);
   TEST_ASSERT_TRUE(r.has("\"k\":\"tap\""));
   r.line("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(r.has("\"anim\":\"wiggle\""));
 
-  r.line("{\"t\":\"dbg.touch\",\"x\":120,\"y\":120,\"ms\":800}");  // hold the face
+  r.line("{\"t\":\"dbg.touch\",\"x\":160,\"y\":100,\"ms\":800}");  // hold the face
   r.clock(700);
   TEST_ASSERT_TRUE(r.has("\"k\":\"feel\""));
   r.clock(900);
 
-  r.line("{\"t\":\"dbg.touch\",\"x\":120,\"y\":300,\"ms\":800}");  // hold the strip
+  r.line("{\"t\":\"dbg.touch\",\"x\":160,\"y\":222,\"ms\":800}");  // hold the strip
   r.clock(1500);
   TEST_ASSERT_TRUE(r.has("\"k\":\"focus\""));
   r.line("{\"t\":\"dbg.state\"}");
@@ -438,11 +438,11 @@ static void test_gestures_send_the_right_inputs() {
   r.clock(1700);
   TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());  // a hold doesn't cycle
 
-  r.line("{\"t\":\"dbg.touch\",\"x\":120,\"y\":300,\"ms\":100}");  // tap the strip
+  r.line("{\"t\":\"dbg.touch\",\"x\":160,\"y\":222,\"ms\":100}");  // tap the strip
   r.clock(1800);
   TEST_ASSERT_EQUAL(app::Screen::kThreads, r.dev.screen());
   size_t taps = r.usb.text.size();
-  r.line("{\"t\":\"dbg.touch\",\"x\":120,\"y\":100,\"ms\":100}");  // tap the list
+  r.line("{\"t\":\"dbg.touch\",\"x\":160,\"y\":100,\"ms\":100}");  // tap the list
   r.clock(1900);
   TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
   TEST_ASSERT_TRUE(r.usb.text.find("\"k\":\"tap\"", taps) == std::string::npos);

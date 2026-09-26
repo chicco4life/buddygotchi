@@ -164,8 +164,7 @@ class Run:
                 self.fail(f"{where}: expected {json.dumps(want)}, got {json.dumps(keys)}")
                 break
         if step.get("shot"):
-            palette, pixels = dev.shot()
-            path = save_shot(palette, pixels, self.out / f"{step['shot']}.png")
+            path = save_shot(dev.shot(), self.out / f"{step['shot']}.png")
             self.say(f"  shot {path}")
 
     def expect_not(self, dev: Device, step: dict[str, Any], where: str) -> None:

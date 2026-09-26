@@ -1,6 +1,6 @@
 # Boop: plan
 
-Updated 2026-09-25. The build order for v1, the check that closes each
+Updated 2026-09-26. The build order for v1, the check that closes each
 milestone, how the unattended build runs, the owner's morning checklist,
 and the later port to ESP-IDF + LVGL. The specs are listed in
 [README.md](README.md); ideas that aren't in v1 are in
@@ -127,7 +127,8 @@ into the app's resources, and a unit test fails if the copies differ.
 
 Order: **M0 → F1 → F2 → F3 → F4 → A1 → A2 → A3 → A4 → J1 → F5 → J2 → J3.**
 Bluetooth (F4) comes before the app track so the morning test can use it.
-Sound (F5) comes late because there's no speaker to hear it.
+Sound (F5) comes late because there's no speaker to hear it. F6 came after
+the build, at the owner's request.
 
 Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 
@@ -146,6 +147,7 @@ Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 | F5 | Voice on the device | Passed |
 | J2 | Soak and polish | Passed |
 | J3 | Handoff | Passed |
+| F6 | Landscape and cuter eyes | In progress: code, L0, L1 and L2 pass. The board runs the landscape build, its 83 screenshots in 11 scenarios match the simulator pixel for pixel, and `perf --motion` gives a minimum of 50 fps with 72.7 KB free. Only the owner's look (orientation and liking the face) and touch calibration remain (morning checklist rows 2–3) |
 | P1 | Port to ESP-IDF + LVGL (later, gated) | Not started |
 
 ### M0: Setup
@@ -171,7 +173,8 @@ the board.
 - **Canvas:** the 8-bit canvas, allocated first, pushing only the rows that
   changed.
 - **Test pattern:** 6 large colour blocks (red, green, blue, white, black,
-  amber), labelled corners, and a big UP arrow.
+  amber), labelled corners, and a big UP arrow. Since F6, also a black bar
+  down the USB-C edge.
 - **USB link:** 460800 baud, with `dbg.ping`, `dbg.state`, `dbg.shot`,
   `dbg.clock`, `dbg.pattern`, `dbg.press` and `dbg.touch`.
 - **BOOT:** shorter than 400 ms is a tap; 400 ms or more is push-to-talk
@@ -197,8 +200,8 @@ the board.
   eyes and one amber accent, plus a few state colours (a warm glow for
   cheers, a dim red for oops). Keep it in one header.
 - **Fonts:** two sizes, printable ASCII.
-- **Face:** eye openness, pupil position, upper and lower lids, squash and
-  stretch, and mouth curve and opening. Blends are eased and interruptible,
+- **Face:** eye openness, where the eyes look, upper and lower lids, squash
+  and stretch, and mouth curve and opening. Blends are eased and interruptible,
   150 ms or less.
 - **Screens:** face, needs you, threads, stats, no app, and the status strip
   with its icons ([UX.md](UX.md) §2–3). The bubble shows the one real word
@@ -402,6 +405,62 @@ the board.
 - Flash the final firmware and leave the board on the idle face.
 - Update the status table, create `plan/evidence/v1-build/DONE`, and commit.
 
+### F6: Landscape and cuter eyes
+
+Two changes to the look, asked for by the owner after the build
+([UX.md](UX.md) §2). Boop sits sideways, so the screen is landscape,
+320×240, with USB-C on the right. And the v1 eyes were "too realistic, not
+cute enough": cream eyes with a dark pupil and a highlight read as real
+eyeballs, and the gen-2 face, with solid eyes, was cuter.
+
+- **Canvas and panel:** `render::kWidth` 320, `kHeight` 240, still 76.8 KB.
+  The panel stays configured as its physical 240×320 and LovyanGFX turns
+  it (`board/display.h` `kRotation` 1, or 3 if that's upside down), so rows still stream in
+  order with no per-pixel cost. Push bands of 12 rows keep the buffers at
+  2 × 7.68 KB ([DEVICE.md](DEVICE.md) §4, §6).
+- **Touch:** the default map is the raw range turned with `kRotation`
+  (`app/touch_cal.h`, pure C++). A stored calibration carries the screen
+  size and rotation it was fitted on and is ignored otherwise; the portrait
+  build's NVS record is deleted. `boopctl calibrate` places its crosses
+  from the size in `dbg.ping`.
+- **Layout:** the strip is the bottom 36 px, the bubble the 60 px above it.
+  The face is centred in the 204 px above the strip, and with a bubble it
+  eases up into the top 144 px at 75%. Needs you, threads (one row per
+  session with an agent column), stats (the ring on the left), the starving
+  bowl, the strip and the test pattern (with a black bar down the USB-C
+  edge) are laid out for the wide screen.
+- **Eyes:** solid rounded rectangles in the eye ink (60 × 80 px, corner
+  radius 22, centres 134 px apart), with no pupil, iris or highlight. A
+  look moves the whole eye (26 px sideways, 16 px up or down); the eye on
+  the side being looked towards grows by up to 11% and the other shrinks,
+  and the mouth follows by 45%. Wherever a lid meets the edge of an eye
+  the corner is rounded (8 px, or the largest radius down to 2 px that fits
+  a nearly shut eye), and happy eyes are crescents.
+- **Pose:** `Pose::pupil` is now `Pose::eyeSize`: both eyes a little bigger
+  (curious, listening, needs you, love, startled) or smaller (worried,
+  busy), without the mouth. Thinking lifts the whole face and keeps the eye
+  tops round rather than lidding them, so it isn't the working face
+  mirrored.
+- **Mouth:** a little smaller (28 px wide) and tucked in closer under the
+  eyes. An open mouth is a rounded bowl.
+- **Tools:** screenshots take their size from the `dbg.shot` header; a
+  golden of another size counts as changed rather than crashing `boopctl
+  sim`, and its diff image shows the two side by side; the webcam check
+  turns the crop so USB-C is on the right.
+
+**Done when:**
+
+- L0: the firmware unit tests pass.
+- L1: every golden has been regenerated, looked at and accepted.
+- L2: with this build flashed (`make flash`; `boopctl ping` shows `"w": 320`),
+  device screenshots are pixel-identical to the simulator for every
+  scenario, and `perf --seconds 30 --motion` gives a minimum no worse than
+  F2's 44 fps.
+- The owner flashes it and likes the face on the board (morning checklist
+  row 2), then sees the test pattern the right way up with the black bar on
+  the USB-C side (or sets `kRotation` to 3) and calibrates touch again
+  (row 3).
+
 ### P1: Port to ESP-IDF + LVGL (later)
 
 **Gate:** only after the owner has run the morning checklist and confirmed
@@ -490,8 +549,8 @@ off at any point:
 | # | Do | Expect |
 | --- | --- | --- |
 | 1 | Read `plan/evidence/v1-build/REPORT.md` (or `PROGRESS.md` if it's still running) | What passed, what's blocked, and any changes to these steps |
-| 2 | Look at the board | The no-app face: sleepy eyes, a plug icon, dimmed, slow blinks. It becomes the idle face once the app connects (row 6) |
-| 3 | `tools/boopctl calibrate`: tap each amber cross (4 near the corners, then 1 in the middle) and lift | It prints `check_miss_px`: a few pixels is good, over about 10 means run it again. `--show` prints the stored map; `--show --clear` forgets it |
+| 2 | The board runs the landscape build (F6), flashed for its L2 check. Run `tools/boopctl ping`, and `make flash` first if it doesn't show `"w": 320`. Stand Boop sideways with USB-C on the right and look at it | `ping` shows `"w": 320` and `"h": 240`. The no-app face, landscape: sleepy solid eyes, a plug icon, dimmed, slow blinks. It becomes the idle face once the app connects (row 6). Whether the new eyes are cute enough is your call (F6); note anything that's off |
+| 3 | Run `tools/boopctl pattern`. Then `tools/boopctl calibrate`: tap each amber cross (4 near the corners, then 1 in the middle) and lift. Do both only on the landscape build (row 2's `ping`): on the portrait build the pattern has no USB-C bar, and a calibration saved there is deleted when the landscape build starts | The UP arrow is at the top and the black bar is down the edge with the USB-C port. If the picture is upside down (the bar on the other side), set `kRotation` to 3 in `firmware/src/board/display.h`, `make flash`, and look again. Calibration prints `check_miss_px`: a few pixels is good, over about 10 means run it again. Run it again after any rotation change, because a calibration from another screen or rotation (including the portrait build's) is ignored. `--show` prints the stored map; `--show --clear` forgets it |
 | 4 | Tap the face; press BOOT; hold BOOT. After row 6, tap the status strip (the no-app screen ignores it) | Wiggle; wiggle; listening face; face → threads → stats → face |
 | 5 | Run `make run` in your terminal | The menu-bar icon appears, with the setup window: name Boop, pick sweet or cheeky, and choose the hooks to add (it shows exactly what goes where). Allow Bluetooth, Microphone and Speech Recognition when asked |
 | 6 | Wait about 10 s | The app connects to `Boop-XXXX`, and the board leaves the no-app face. If Bluetooth won't connect, run `tools/boopctl bridge` and `app/.build/debug/Boop --link usb:/tmp/boop-bridge.sock` instead ([VERIFICATION.md](VERIFICATION.md) L4) |

@@ -114,8 +114,9 @@ class Link:
         self.send(message)
         return self.wait_for(lambda m: m.get("t") == message["t"], timeout)
 
-    def shot(self) -> tuple[list[int], bytes]:
-        """The canvas: 256 RGB565 palette entries and one index per pixel."""
+    def shot(self) -> tuple[list[int], bytes, tuple[int, int]]:
+        """The canvas: 256 RGB565 palette entries, one index per pixel, and
+        the (width, height) from the header, so a PNG has the device's shape."""
         head = self.request({"t": "dbg.shot"}, timeout=5)
         line = self.read_line(time.monotonic() + 10)
         if line is None:
@@ -124,7 +125,10 @@ class Link:
         if len(raw) != head["bytes"] or zlib.crc32(raw) != head["crc"]:
             raise DeviceError(f"screenshot from {self.name} is corrupt ({len(raw)} of {head['bytes']} bytes)")
         palette = list(struct.unpack("<256H", raw[:512]))
-        return palette, raw[512:]
+        size = (int(head["w"]), int(head["h"]))
+        if size[0] * size[1] != len(raw) - 512:
+            raise DeviceError(f"screenshot from {self.name} is {size[0]}×{size[1]} but has {len(raw) - 512} pixels")
+        return palette, raw[512:], size
 
     name = "the board"
 

@@ -12,17 +12,35 @@ namespace board {
 constexpr uint32_t kSpiWriteHz = 40000000;
 constexpr bool kInvert = true;
 constexpr bool kBgr = false;
-constexpr uint8_t kRotation = 0;
+
+// The panel as it's built: 240×320, portrait. LovyanGFX needs these, not
+// the canvas size.
+constexpr int kPanelWidth = 240, kPanelHeight = 320;
+
+// Which way up Boop is. LovyanGFX rotation, in quarter turns of the picture
+// clockwise; the panel controller does the turning, so it costs no CPU.
+// Boop sits sideways with USB-C on the RIGHT, and the test pattern's USB-C
+// bar and the webcam check assume it. Rotation 0 is portrait with USB-C at
+// the bottom (confirmed at bring-up), so 1 should be that landscape. If the
+// board shows the pattern upside down (the UP arrow at the bottom, the bar
+// away from the port), 1 was the wrong way round: change this to 3, half a
+// turn. It isn't a setting for USB-C on the left. The default touch map
+// follows it, and a touch calibration saved for another rotation is ignored,
+// so run `boopctl calibrate` again after changing it. Don't use 4–7: mirrored.
+constexpr uint8_t kRotation = 1;
+
+static_assert((kRotation & 1 ? kPanelHeight : kPanelWidth) == render::kWidth &&
+                  (kRotation & 1 ? kPanelWidth : kPanelHeight) == render::kHeight,
+              "kRotation must turn the panel to the canvas's shape");
 
 bool displayBegin();
-// Pushes the rows that changed since the last push, 16 rows per DMA batch.
-// Returns the number of rows sent.
+// Pushes the rows that changed since the last push, a band of rows per DMA
+// batch. Returns the number of rows sent.
 int displayPush(const render::Canvas& canvas);
 void displayBacklight(uint8_t level);
 
-// Touch in screen coordinates, using the default raw range until
-// calibration exists. False when nothing's pressed.
-bool touchRead(int& x, int& y);
+// The XPT2046's raw reading (no mapping) and the interrupt line. BoardHal
+// maps it to screen pixels (app/touch_cal.h).
 void touchRaw(int& x, int& y, int& z, bool& irq);
 
 }  // namespace board

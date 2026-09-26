@@ -18,9 +18,12 @@ static void test_fill_rect_clips_to_canvas() {
   TEST_ASSERT_EQUAL_UINT8(7, c.get(0, 0));
   TEST_ASSERT_EQUAL_UINT8(7, c.get(9, 9));
   TEST_ASSERT_EQUAL_UINT8(0, c.get(10, 10));
-  c.fillRect(230, 310, 50, 50, 3);
-  TEST_ASSERT_EQUAL_UINT8(3, c.get(239, 319));
-  TEST_ASSERT_EQUAL_UINT8(0, c.get(229, 319));
+  TEST_ASSERT_EQUAL_INT(320, render::kWidth);  // landscape (UX.md §2)
+  TEST_ASSERT_EQUAL_INT(240, render::kHeight);
+  c.fillRect(310, 230, 50, 50, 3);
+  TEST_ASSERT_EQUAL_UINT8(3, c.get(319, 239));
+  TEST_ASSERT_EQUAL_UINT8(0, c.get(309, 239));
+  TEST_ASSERT_EQUAL_UINT8(0, c.get(319, 229));
 }
 
 static void test_fill_covers_everything() {
@@ -28,8 +31,9 @@ static void test_fill_covers_everything() {
   Canvas c(buf.data());
   c.fill(5);
   TEST_ASSERT_EQUAL_UINT8(5, c.get(0, 0));
-  TEST_ASSERT_EQUAL_UINT8(5, c.get(239, 319));
-  TEST_ASSERT_EQUAL_UINT8(0, c.get(240, 0));  // out of range reads as 0
+  TEST_ASSERT_EQUAL_UINT8(5, c.get(319, 239));
+  TEST_ASSERT_EQUAL_UINT8(0, c.get(320, 0));  // out of range reads as 0
+  TEST_ASSERT_EQUAL_UINT8(0, c.get(0, 240));
 }
 
 static void test_text_draws_glyph_pixels() {
@@ -59,7 +63,7 @@ static void test_row_hash_tracks_changes() {
   Canvas c(buf.data());
   uint32_t before = c.rowHash(5);
   TEST_ASSERT_EQUAL_UINT32(before, c.rowHash(6));
-  c.fillRect(239, 5, 1, 1, 1);
+  c.fillRect(render::kWidth - 1, 5, 1, 1, 1);
   TEST_ASSERT_NOT_EQUAL(before, c.rowHash(5));
   TEST_ASSERT_EQUAL_UINT32(before, c.rowHash(6));
 }
@@ -71,8 +75,18 @@ static void test_pattern_blocks_have_their_colours() {
   for (const auto& b : render::kPatternBlocks) {
     TEST_ASSERT_EQUAL_UINT8(b.color, c.get(b.x + b.w / 2, b.y + b.h / 2));
   }
-  TEST_ASSERT_EQUAL_UINT8(render::kWhite, c.get(120, 20));  // the arrow tip is at the top
-  TEST_ASSERT_EQUAL_UINT8(render::kGrey, c.get(120, 305));
+  for (const auto& b : render::kPatternBlocks) {  // on screen, clear of the USB-C bar and the labels
+    TEST_ASSERT_TRUE(b.x >= 0 && b.x + b.w <= render::kWidth - render::kPatternUsbW);
+    TEST_ASSERT_TRUE(b.y >= 0 && b.y + b.h <= render::kHeight - 12);
+  }
+  const int mid = render::kWidth / 2;
+  TEST_ASSERT_EQUAL_UINT8(render::kWhite, c.get(mid, 20));  // the arrow tip is at the top
+  TEST_ASSERT_EQUAL_UINT8(render::kGrey, c.get(mid, render::kHeight - 6));  // grey at the bottom
+  // The USB-C bar is down the right edge, and the left edge is grey.
+  TEST_ASSERT_EQUAL_UINT8(render::kBlack, c.get(render::kWidth - 1, render::kHeight / 2));
+  TEST_ASSERT_EQUAL_UINT8(render::kBlack, c.get(render::kWidth - render::kPatternUsbW, render::kHeight / 2));
+  TEST_ASSERT_EQUAL_UINT8(render::kGrey, c.get(0, render::kHeight / 2));
+  TEST_ASSERT_EQUAL_UINT8(render::kGrey, c.get(render::kWidth - 1, 1));  // the bar stops short of the corners
 }
 
 int main() {

@@ -1,6 +1,6 @@
 # Boop: UX
 
-Updated 2026-09-25. What the person sees and touches: the screen, the
+Updated 2026-09-26. What the person sees and touches: the screen, the
 controls, setup and the Mac app. What Boop *does* in each situation is in
 [BEHAVIORS.md](BEHAVIORS.md), and how it sounds is in [VOICE.md](VOICE.md).
 
@@ -16,26 +16,34 @@ Most days the device is the only surface you look at.
 
 ## 2. The screen
 
-The screen is a 240×320 portrait IPS panel behind a tinted window, so the
-backlit black reads as black glass.
+The screen is a 2.4" IPS panel behind a tinted window, so the backlit black
+reads as black glass. Boop sits sideways, so the screen is landscape,
+320×240, with the USB-C port on the right ([DEVICE.md](DEVICE.md) §4).
 
 ```
-┌──────────────────────┐
-│                      │
-│      ( o )  ( o )    │  face, ~200 px
-│          ‿           │  moves up and shrinks when the bubble needs room
-│                      │
-├──────────────────────┤
-│   ~ ~ ~  tests?      │  bubble, ~80 px
-│                      │
-├──────────────────────┤
-│ ● 1 needs you  ◦ 4   │  status strip, ~40 px
-└──────────────────────┘
+┌──────────────────────────────────┐
+│                                  │
+│       ▐██▌        ▐██▌           │  face, the top 204 px when alone
+│               ‿                  │  moves up and shrinks when the bubble shows
+│                                  │
+├──────────────────────────────────┤
+│       ~ ~ ~  tests?  ~           │  bubble, 60 px, only when it shows
+├──────────────────────────────────┤
+│ ● 1 needs you  ◦ 4          ⊙ ▯  │  status strip, the bottom 36 px
+└──────────────────────────────────┘
 ```
+
+Alone, the face is centred in the 204 px above the strip. When the bubble
+shows, the face eases up into the top 144 px at three-quarters size.
 
 - **Face.** Two big Cozmo-style eyes and a small mouth, drawn
   procedurally, blending between expressions in 150 ms or less. It never
-  cuts hard.
+  cuts hard. The eyes are solid rounded rectangles in one soft colour, a
+  bit taller than wide and set wide apart, with no pupils or highlights,
+  so they read as a character rather than real eyeballs. To look
+  somewhere, the whole eye moves, and the eye on the side it looks towards
+  grows a little, as if Boop turned its head. Where a lid meets the edge
+  of an eye the corner is rounded, so a lid never leaves a sharp point.
 - **Bubble.** Empty most of the time. It shows either a mumble's one real
   word, or who needs you.
 - **Status strip.** How many sessions need you (amber, hidden at zero) and
@@ -49,33 +57,36 @@ backlit black reads as black glass.
 **Needs you.** The face moves up and the bubble says who:
 
 ```
-┌──────────────────────┐
-│    (◉)  (◉)          │
-├──────────────────────┤
-│ codex · landing      │  agent · project
-│ needs you on the Mac │
-│              +1 more │
-└──────────────────────┘
+┌──────────────────────────────────┐
+│           ▐██▌    ▐██▌           │
+├──────────────────────────────────┤
+│ codex · landing                  │  agent · project, in amber
+│ needs you on the Mac     +1 more │  "+N more" in grey, at the right
+├──────────────────────────────────┤
+│ ● 2 needs you  ◦ 1               │
+└──────────────────────────────────┘
 ```
 
-**Threads.** What every agent is doing, grouped by agent:
+**Threads.** What every agent is doing, grouped by agent, one row per
+session with the agent's name on its first row:
 
 ```
- Codex
-   landing         needs you ●
-   buddygotchi     working
- Claude
-   jetpack         working
-   notes           idle
+ Codex    landing              needs you ●
+          buddygotchi            working
+ Claude   jetpack                working
+          notes                     idle
 ```
 
 Rows show agent, project and status, never prompts or commands. Rows that
-need you come first. The view closes after 10 s untouched (*proposed*), and
-so does stats. Tapping anywhere above the strip goes back to the face. A
-new "needs you" also goes back, to the needs-you screen.
+need you come first. All 8 sessions fit, with a little space between
+agents when there's room; a long project name ends in "..". The view
+closes after 10 s untouched (*proposed*), and so does stats. Tapping
+anywhere above the strip goes back to the face. A new "needs you" also
+goes back, to the needs-you screen.
 
-**Stats.** Name, level with a progress ring, and days together. No
-mood, hunger numbers or traits.
+**Stats.** The progress ring on the left with the level inside it, and the
+name and days together on the right (a name too long for the large type
+uses the small one). No mood, hunger numbers or traits.
 
 **No app.** A sleepy face with an unplugged icon in the strip.
 

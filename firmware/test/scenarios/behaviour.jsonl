@@ -30,7 +30,7 @@
 {"shot":"too-slow-shrug"}
 {"t":"state","v":1,"base":"idle","busy":0,"idle":1,"wait":0,"mood":{"energy":100,"pace":100,"pitch":100}}
 {"clock":14000}
-{"input":{"touch":[120,120],"ms":900}}
+{"input":{"touch":[160,100],"ms":900}}
 {"clock":14599}
 {"expect":{"moment":null,"touch":{"down":true}}}
 {"clock":14600}
@@ -39,7 +39,7 @@
 {"shot":"feel-happy"}
 {"t":"state","v":1,"base":"idle","idle":1,"mood":{"energy":40,"pace":80,"pitch":90}}
 {"clock":18000}
-{"input":{"touch":[120,120],"ms":900}}
+{"input":{"touch":[160,100],"ms":900}}
 {"clock":18600}
 {"expect":{"moment":{"anim":"sleepy"}}}
 {"clock":19000}
@@ -71,13 +71,13 @@
 {"t":"moment","anim":"cheer","size":2,"ttl":5}
 {"expect":{"moment":null}}
 {"clock":28000}
-{"input":{"touch":[120,80]}}
+{"input":{"touch":[160,70]}}
 {"clock":28100}
 {"expect":{"hushed":true,"moment":{"anim":"nod"},"last_input":{"k":"tap","at":28100}}}
 {"clock":28250}
 {"shot":"needs-you-tapped"}
 {"clock":29000}
-{"input":{"touch":[120,300],"ms":900}}
+{"input":{"touch":[160,222],"ms":900}}
 {"clock":29016}
 {"shot":"strip-press"}
 {"clock":29600}

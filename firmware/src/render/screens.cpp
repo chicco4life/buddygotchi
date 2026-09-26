@@ -13,9 +13,17 @@ namespace {
 
 constexpr int kMargin = 12;
 
-// The face's centre and scale: alone it fills the space above the strip;
-// with a bubble it moves up into the top 200 px and shrinks.
-constexpr int kFaceCy = 122, kFaceBubbleCy = 86, kFaceBubbleScale = 780;
+// The face's centre and scale. The centre is the eyes', and the mouth hangs
+// below them, so the eyes sit kFaceDrop (face.h) above the middle of their
+// space. Alone, the face is centred in the space above the strip; with a
+// bubble it moves up into the space above the bubble and shrinks.
+constexpr int kFaceCy = kStripTop / 2 - kFaceDrop;
+constexpr int kFaceBubbleScale = 750;
+constexpr int kFaceBubbleCy = kBubbleTop / 2 - kFaceDrop * kFaceBubbleScale / 1000;
+
+// The middle of the bubble and of the strip.
+constexpr int kBubbleCy = (kBubbleTop + kStripTop) / 2;
+constexpr int kStripCy = (kStripTop + kHeight) / 2;
 
 // Where the face sits: `raise` eases it between the two places.
 void placeFace(Canvas& c, const Pose& p) {
@@ -56,11 +64,14 @@ int clockAngle(int x, int y) {
   return (a + 256) & 1023;
 }
 
-// Centred text.
-void centred(Canvas& c, const Font& f, int y, const char* text, int ink) {
+// Text centred between x0 and x1.
+void centred(Canvas& c, const Font& f, int x0, int x1, int y, const char* text, int ink) {
   int w = stringWidth(f, text);
-  if (w > kWidth - 2 * kMargin) w = kWidth - 2 * kMargin;
-  drawStringFit(c, f, (kWidth - w) / 2, y, text, ink, kWidth - 2 * kMargin);
+  if (w > x1 - x0) w = x1 - x0;
+  drawStringFit(c, f, (x0 + x1 - w) / 2, y, text, ink, x1 - x0);
+}
+void centred(Canvas& c, const Font& f, int y, const char* text, int ink) {
+  centred(c, f, kMargin, kWidth - kMargin, y, text, ink);
 }
 
 // A squiggle standing for one or more gibberish syllables.
@@ -88,7 +99,7 @@ void drawMumble(Canvas& c, const Mumble& m) {
   int maxWord = kWidth - 2 * kMargin - (before + after) * (sq + gap);
   if (wordW > maxWord) wordW = maxWord;
   int total = (before + after) * (sq + gap) + wordW - (hasWord ? 0 : gap);
-  int x = (kWidth - total) / 2, cy = kBubbleTop + 40;
+  int x = (kWidth - total) / 2, cy = kBubbleCy;
   for (int i = 0; i < before; ++i) x = squiggle(c, x, cy, kInkGrey) + gap;
   if (hasWord) x = drawStringFit(c, kLarge, x, cy - kLarge.baseline + 8, m.word, kInkAmber, maxWord) + gap;
   for (int i = 0; i < after; ++i) x = squiggle(c, x, cy, kInkGrey) + gap;
@@ -135,7 +146,7 @@ void drawStrip(Canvas& c, const Strip& s) {
   } else {
     c.fillRect(kMargin, kStripTop, kWidth - 2 * kMargin, 1, inkAt(kInkDim, kLevels));
   }
-  const int cy = kStripTop + 20, ty = cy - 10;
+  const int cy = kStripCy, ty = cy - 10;
   int x = kMargin;
   char buf[24];
   if (s.wait > 0) {
@@ -162,10 +173,13 @@ void drawBowl(Canvas& c, int cx, int cy) {
   c.fillRect(cx - 18, cy - 1, 37, 2, inkAt(kInkGrey, kLevels));
 }
 
+// Where the bowl sits: beside the face, just above the strip.
+constexpr int kBowlX = kWidth - 52, kBowlY = kStripTop - 24;
+
 void drawFaceScreen(Canvas& c, const Pose& p, const Mumble* mumble, const Strip& s, bool bowl) {
   c.fill(kBlack);
   placeFace(c, p);
-  if (bowl && !mumble) drawBowl(c, kWidth - 44, 236);
+  if (bowl && !mumble) drawBowl(c, kBowlX, kBowlY);
   if (mumble) drawMumble(c, *mumble);
   drawStrip(c, s);
 }
@@ -173,32 +187,39 @@ void drawFaceScreen(Canvas& c, const Pose& p, const Mumble* mumble, const Strip&
 void drawNeedsYou(Canvas& c, const Pose& p, const Attention& a, const Strip& s) {
   c.fill(kBlack);
   placeFace(c, p);
+  // Two lines in the bubble: who, then what, with "+N more" at its end.
+  const int whoY = kBubbleCy - 22, whatY = kBubbleCy;
   char who[48];
   std::snprintf(who, sizeof(who), "%s \xC2\xB7 %s", a.agent, a.project);
-  drawStringFit(c, kSmall, kMargin, kBubbleTop + 6, who, kInkAmber, kWidth - 2 * kMargin);
-  drawString(c, kSmall, kMargin, kBubbleTop + 28, "needs you on the Mac", kInkOat);
+  drawStringFit(c, kSmall, kMargin, whoY, who, kInkAmber, kWidth - 2 * kMargin);
+  drawString(c, kSmall, kMargin, whatY, "needs you on the Mac", kInkOat);
   if (a.more > 0) {
     char more[16];
     std::snprintf(more, sizeof(more), "+%d more", a.more);
-    drawString(c, kSmall, kWidth - kMargin - stringWidth(kSmall, more), kBubbleTop + 50, more, kInkGrey);
+    drawString(c, kSmall, kWidth - kMargin - stringWidth(kSmall, more), whatY, more, kInkGrey);
   }
   drawStrip(c, s);
 }
 
+// The threads list: one row per session, with the agent's name on its first
+// row, the project, and the status at the right.
+constexpr int kListTop = 10, kRow = 22, kAgentW = 72;  // an 8-letter agent fits
+
 void drawThreads(Canvas& c, const Thread* threads, int n, const Strip& s) {
   c.fill(kBlack);
   if (n <= 0) {
-    centred(c, kSmall, 130, "no sessions", kInkGrey);
+    centred(c, kSmall, (kStripTop - kSmall.h) / 2, "no sessions", kInkGrey);
     drawStrip(c, s);
     return;
   }
+  if (n > 8) n = 8;
   // Agents in order of their most urgent row, then first appearance; rows
   // that need you first within each agent.
   auto rank = [](char st) { return st == 'w' ? 0 : st == 'b' ? 1 : 2; };
   int order[8], agents = 0;
   const char* names[8];
   int best[8];
-  for (int i = 0; i < n && i < 8; ++i) {
+  for (int i = 0; i < n; ++i) {
     int k = 0;
     while (k < agents && std::strcmp(names[k], threads[i].agent)) ++k;
     if (k == agents) names[agents] = threads[i].agent, best[agents] = 3, order[agents] = agents, ++agents;
@@ -210,36 +231,47 @@ void drawThreads(Canvas& c, const Thread* threads, int n, const Strip& s) {
       order[j] = order[j - 1], order[j - 1] = t;
     }
   }
-  int y = 10;
-  const int row = 22;
-  for (int g = 0; g < agents && y + row <= kStripTop; ++g) {
+  // A little space between agents, as much as the rows leave (at most 6 px).
+  int gap = agents > 1 ? (kStripTop - 4 - kListTop - n * kRow) / (agents - 1) : 0;
+  gap = gap < 0 ? 0 : gap > 6 ? 6 : gap;
+  const int projectX = kMargin + kAgentW;
+  int y = kListTop;
+  for (int g = 0; g < agents; ++g) {
     const char* agent = names[order[g]];
-    char title[16];
-    capitalised(agent, title, sizeof(title));
-    drawString(c, kSmall, kMargin, y, title, kInkGrey);
-    y += row;
+    bool first = true;
     for (int r = 0; r < 3; ++r) {
-      for (int i = 0; i < n && i < 8; ++i) {
+      for (int i = 0; i < n; ++i) {
         const Thread& t = threads[i];
-        if (std::strcmp(t.agent, agent) || rank(t.status) != r || y + row > kStripTop) continue;
+        if (std::strcmp(t.agent, agent) || rank(t.status) != r || y + kRow > kStripTop) continue;
+        if (first) {
+          char title[16];
+          capitalised(agent, title, sizeof(title));
+          drawStringFit(c, kSmall, kMargin, y, title, kInkGrey, kAgentW - 8);
+          first = false;
+        }
         const char* status = r == 0 ? "needs you" : r == 1 ? "working" : "idle";
         int ink = r == 0 ? kInkAmber : r == 1 ? kInkGrey : kInkDim;
         int sw = stringWidth(kSmall, status) + (r == 0 ? 14 : 0);
-        drawStringFit(c, kSmall, kMargin + 16, y, t.project, kInkOat, kWidth - 2 * kMargin - 16 - sw - 8);
-        int sx = kWidth - kMargin - sw;
-        drawString(c, kSmall, sx, y, status, ink);
+        drawStringFit(c, kSmall, projectX, y, t.project, kInkOat, kWidth - kMargin - sw - 8 - projectX);
+        drawString(c, kSmall, kWidth - kMargin - sw, y, status, ink);
         if (r == 0) fillCircle(c, px(kWidth - kMargin - 4), px(y + 10), px(4), kInkAmber);
-        y += row;
+        y += kRow;
       }
     }
+    y += gap;
   }
   drawStrip(c, s);
 }
 
+// Stats: the progress ring on the left with the level inside it; the name
+// and the days together on the right.
+constexpr int kRingR = 62, kRingInner = 52;
+constexpr int kRingCx = kMargin + kRingR + 6, kRingCy = kStripTop / 2;
+constexpr int kStatsTextX = kRingCx + kRingR + 18;  // "1234 days together" fits
+
 void drawStats(Canvas& c, const Stats& st, const Strip& s) {
   c.fill(kBlack);
-  centred(c, kLarge, 18, st.name && *st.name ? st.name : "Boop", kInkOat);
-  const int cx = px(kWidth / 2), cy = px(146), r = px(64), inner = px(54);
+  const int cx = px(kRingCx), cy = px(kRingCy), r = px(kRingR), inner = px(kRingInner);
   fillRing(c, cx, cy, r, inner, kInkDim);
   int prog = st.prog < 0 ? 0 : st.prog > 100 ? 100 : st.prog;
   int end = prog * 1024 / 100;
@@ -253,12 +285,19 @@ void drawStats(Canvas& c, const Stats& st, const Strip& s) {
                 },
                 [&](int x, int y, int level) { plotInk(c, x, y, level, kInkAmber); });
   }
-  centred(c, kSmall, 118, "level", kInkGrey);
+  const int ringL = kRingCx - kRingInner, ringR = kRingCx + kRingInner;
+  centred(c, kSmall, ringL, ringR, kRingCy - 28, "level", kInkGrey);
   char buf[24];
   std::snprintf(buf, sizeof(buf), "%d", st.level);
-  centred(c, kLarge, 134, buf, kInkOat);
+  centred(c, kLarge, ringL, ringR, kRingCy - 12, buf, kInkOat);
+
+  // A name too long for the large font drops to the small one.
+  const char* name = st.name && *st.name ? st.name : "Boop";
+  const int room = kWidth - kMargin - kStatsTextX;
+  const Font& nameFont = stringWidth(kLarge, name) <= room ? kLarge : kSmall;
+  drawStringFit(c, nameFont, kStatsTextX, kRingCy - 34 + (&nameFont == &kSmall ? 8 : 0), name, kInkOat, room);
   std::snprintf(buf, sizeof(buf), st.days == 1 ? "%d day together" : "%d days together", st.days);
-  centred(c, kSmall, 236, buf, kInkGrey);
+  drawStringFit(c, kSmall, kStatsTextX, kRingCy + 8, buf, kInkGrey, room);
   drawStrip(c, s);
 }
 

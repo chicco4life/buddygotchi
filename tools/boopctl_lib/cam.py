@@ -70,13 +70,16 @@ def find_screen(lit: Image.Image, dark: Image.Image) -> tuple[int, int, int, int
     return xs[0] * 4, ys[0] * 4, (xs[-1] + 1) * 4, (ys[-1] + 1) * 4
 
 
+SCREEN = (320, 240)  # the screen as drawn: landscape, USB-C on the right (board/display.h kRotation)
+
+
 def upright(img: Image.Image, box: tuple[int, int, int, int], usb: str) -> Image.Image:
-    """Crops the screen and turns it so USB-C is at the bottom, 240×320."""
+    """Crops the screen and turns it so USB-C is on the right, 320×240."""
     crop = img.crop(box)
-    turn = {"bottom": 0, "right": 90, "top": 180, "left": 270}[usb]  # clockwise degrees
+    turn = {"right": 0, "top": 90, "left": 180, "bottom": 270}[usb]  # clockwise degrees
     if turn:
         crop = crop.rotate(-turn, expand=True)
-    return crop.resize((240, 320))
+    return crop.resize(SCREEN)
 
 
 def frame(dev: Device, usb: str) -> dict:
@@ -120,12 +123,12 @@ def mean(img: Image.Image, x: int, y: int, w: int, h: int) -> tuple[float, float
 
 # The same rectangles as firmware/src/render/pattern.h.
 BLOCKS = {
-    "red": (8, 122, 108, 56), "green": (124, 122, 108, 56),
-    "blue": (8, 182, 108, 56), "white": (124, 182, 108, 56),
-    "black": (8, 242, 108, 56), "amber": (124, 242, 108, 56),
+    "red": (8, 122, 92, 50), "green": (108, 122, 92, 50), "blue": (208, 122, 92, 50),
+    "white": (8, 176, 92, 50), "black": (108, 176, 92, 50), "amber": (208, 176, 92, 50),
 }
-ARROW = (98, 70, 44, 14)  # top of the arrow's shaft, above the "UP" text
-BELOW = (98, 299, 44, 10)  # the grey strip at the same x, near USB-C
+ARROW = (138, 70, 44, 14)  # top of the arrow's shaft, above the "UP" text
+BELOW = (138, 228, 44, 10)  # the grey strip at the same x, along the bottom
+USB = (308, 70, 12, 100)  # the black USB-C bar down the right edge
 
 
 def judge(colors: dict[str, tuple[float, float, float]]) -> list[str]:
@@ -146,7 +149,9 @@ def judge(colors: dict[str, tuple[float, float, float]]) -> list[str]:
     if not (r > g > b and r > 1.5 * b):
         problems.append(f"amber block reads {colors['amber']}")
     if sum(colors["arrow"]) < sum(colors["below"]) + 60:
-        problems.append("the UP arrow isn't at the end away from USB-C: rotation")
+        problems.append("the UP arrow isn't at the top with USB-C on the right: rotation (board/display.h kRotation)")
+    if sum(colors["usb"]) + 60 > sum(colors["below"]):
+        problems.append("the black USB-C bar isn't on the USB-C side: rotation (board/display.h kRotation)")
     return problems
 
 
@@ -159,6 +164,7 @@ def pattern(dev: Device) -> dict:
     colors = {name: mean(img, *rect) for name, rect in BLOCKS.items()}
     colors["arrow"] = mean(img, *ARROW)
     colors["below"] = mean(img, *BELOW)
+    colors["usb"] = mean(img, *USB)
     problems = judge(colors)
     return {
         "ok": not problems,
@@ -188,7 +194,7 @@ CLIPS = {
                (3.0, {"t": "moment", "anim": "cheer", "size": 2, "ttl": 5}), (3.0, _WORKING),
                (5.8, {"t": "moment", "anim": "cheer", "size": 3, "ttl": 5})],
     "tap": [(0.0, {"t": "state", "v": 1, "base": "idle", "idle": 1}), (1.0, {"t": "dbg.press", "ms": 100}),
-            (3.0, {"t": "dbg.touch", "x": 120, "y": 120, "ms": 100}), (5.0, {"t": "dbg.press", "ms": 100})],
+            (3.0, {"t": "dbg.touch", "x": 160, "y": 100, "ms": 100}), (5.0, {"t": "dbg.press", "ms": 100})],
 }
 
 
@@ -237,10 +243,11 @@ def clip(dev: Device, name: str, seconds: int = 8, frames: int = 18, play=None) 
     finally:
         movie.unlink(missing_ok=True)  # raw video never lingers
     cols = 6
-    sheet = Image.new("RGB", (cols * 250, ((len(shots) + cols - 1) // cols) * 340), (40, 40, 40))
+    cw, ch = SCREEN[0] + 10, SCREEN[1] + 20
+    sheet = Image.new("RGB", (cols * cw, ((len(shots) + cols - 1) // cols) * ch), (40, 40, 40))
     draw = ImageDraw.Draw(sheet)
     for i, (t, img) in enumerate(shots):
-        x, y = (i % cols) * 250, (i // cols) * 340
+        x, y = (i % cols) * cw, (i // cols) * ch
         sheet.paste(img, (x + 5, y + 16))
         draw.text((x + 6, y + 2), f"{t:.2f} s", fill=(255, 255, 255))
     path = WORK / f"clip-{name}.png"

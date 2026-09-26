@@ -1,6 +1,8 @@
 // The bring-up test pattern (plan/PLAN.md F1, plan/DEVICE.md §7): six
-// colour blocks, labelled corners and a big UP arrow on a grey background.
-// boopctl's webcam check samples the blocks at the rectangles below.
+// colour blocks, labelled corners, a big UP arrow and a black USB-C bar down
+// the right edge, on a grey background. Seen upright, the arrow is at the
+// top and the bar is on the side where the USB-C port is.
+// boopctl's webcam check samples the rectangles below (tools/boopctl_lib/cam.py).
 #pragma once
 #include "render/canvas.h"
 #include "render/palette.h"
@@ -13,11 +15,14 @@ struct PatternBlock {
   const char* name;
 };
 
+// Three across and two down, under the arrow and clear of the USB-C bar.
 constexpr PatternBlock kPatternBlocks[6] = {
-    {8, 122, 108, 56, kRed, "red"},     {124, 122, 108, 56, kGreen, "green"},
-    {8, 182, 108, 56, kBlue, "blue"},   {124, 182, 108, 56, kWhite, "white"},
-    {8, 242, 108, 56, kBlack, "black"}, {124, 242, 108, 56, kAmber, "amber"},
+    {8, 122, 92, 50, kRed, "red"},     {108, 122, 92, 50, kGreen, "green"},  {208, 122, 92, 50, kBlue, "blue"},
+    {8, 176, 92, 50, kWhite, "white"}, {108, 176, 92, 50, kBlack, "black"}, {208, 176, 92, 50, kAmber, "amber"},
 };
+
+// The USB-C bar: the right edge, between the corner labels.
+constexpr int kPatternUsbW = 12, kPatternUsbTop = 14, kPatternUsbBottom = kHeight - 14;
 
 void drawPattern(Canvas& c);
 

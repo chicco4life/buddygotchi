@@ -9,9 +9,11 @@
 
 namespace render {
 
-// Screen bands, in pixels (UX.md §2).
-constexpr int kStripTop = 280;   // the status strip, 40 px
-constexpr int kBubbleTop = 200;  // the bubble, when it shows, 80 px
+// Screen bands on the 320×240 screen, in pixels (UX.md §2). The face has
+// everything above the strip; when the bubble shows, the face moves up into
+// the space above it.
+constexpr int kStripTop = 204;   // the status strip, the bottom 36 px
+constexpr int kBubbleTop = 144;  // the bubble, the 60 px above the strip
 
 struct Strip {
   int wait = 0;  // sessions that need you (amber; hidden at zero)
