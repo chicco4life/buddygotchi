@@ -219,7 +219,7 @@ func brain(_ args: [String]) async {
             let store = try! MemoryStore(directory: dir, steering: steering, log: { logs.append($0) })
             if input.kind == .newDay, let day = store.lastActiveDay {
                 let next = LocalTime.day(day, plus: 1)
-                store.apply(.newDay(date: next, firstSeen: "08:30", mood: "content"))
+                store.apply(.newDay(date: next, firstSeen: "08:30"))
             }
             // As the core does: `quiet` runs only when the words asked for it.
             let context = ActionContext(send: { _ in }, quietAsked: { input.asksForQuiet },

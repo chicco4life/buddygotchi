@@ -50,8 +50,7 @@ public struct Replay {
     public func run(_ steps: [Step], statesOnly: Bool = false) -> [String] {
         var now = start
         let today = time.day(now)
-        let core = Core(config: .init(name: "Pip", time: time), growth: Growth(hatched: today),
-                        lastActiveDay: newDay ? nil : today, now: now)
+        let core = Core(config: .init(name: "Pip", time: time), lastActiveDay: newDay ? nil : today)
         var out: [String] = []
         var projects: [String: String] = [:]
 
@@ -96,14 +95,14 @@ public struct Replay {
     public static func describe(_ effect: CoreEffect) -> String {
         switch effect {
         case .state(let s): "state " + s.jsonLine
-        case .moment(let anim, let size): "moment \(anim) \(size)"
+        case .moment(let anim): "moment \(anim)"
         case .mumble(let feeling, let word): "mumble \(feeling)" + (word.map { " \($0)" } ?? "")
         case .input(let i): "input " + i.line + (i.words.map { " \"\($0)\"" } ?? "")
         case .aside(let line): "aside " + line
         case .happened(let line): "happened \(line)"
-        case .growth(let g): "growth xp \(g.xp) level \(g.level) fed \(g.lastFed)"
-        case .newDay(let date, let firstSeen, let mood): "new-day \(date) first seen \(firstSeen) mood \(mood)"
+        case .newDay(let date, let firstSeen): "new-day \(date) first seen \(firstSeen)"
         case .listen(let on): "listen \(on)"
+        case .endListening: "moment empty"
         }
     }
 }

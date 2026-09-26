@@ -140,7 +140,7 @@ harness evals check the brain's part of each ([EVALS.md](EVALS.md) §5).
 4. **Something you feed.** The work you do together is its food, and it
    earns XP and levels up from it. Leave it alone for days and it gets
    hungry, and after a while slowly loses a little XP, but it can never lose
-   a level or die. See [Behaviors](BEHAVIORS.md) §4.
+   a level or die. It's parked for now ([FUTURE.md](FUTURE.md)).
 5. **Something you can talk to.** Hold the button and speak. Tell it to be
    quiet, tell it good job, or just mumble at it and get mumbled back. The
    mic is on only while you hold the button.
@@ -166,8 +166,9 @@ harness evals check the brain's part of each ([EVALS.md](EVALS.md) §5).
 ## Look
 
 "Warm Terminal": an oat matte body, a black glass face and one amber accent.
-The face is two expressive eyes in the style of Cozmo, drawn procedurally so
-every expression blends into the next. It should look like an object an adult
+The face is pixel art: two window eyes with pink cheeks and a bar mouth
+([UX.md](UX.md) §2), drawn from code so every expression blends into the
+next. It should look like an object an adult
 is happy to have on their desk, not like a toy.
 
 ## Promises
@@ -219,8 +220,17 @@ These are fixed. If a feature conflicts with one of them, the feature changes.
 
 ## Scope
 
-- **v1:** one Boop; Claude Code and Codex; personality, mood, mumble,
-  push-to-talk, XP and hunger, nudges, reactions and the private record.
+- **v1:** one Boop; Claude Code and Codex; a face that shows asleep, idle,
+  working and "needs you"; a cheer when a turn finishes; mumbles;
+  push-to-talk with the brain and its memory. This is deliberately small
+  (cut on 2026-09-26, [BEHAVIORS.md](BEHAVIORS.md)), so the surface stays
+  easy to hold in your head. The hero moments above show in v1 as the
+  cheer and the brain's mumbles; the side-eye and the hurt look are
+  parked.
+- **Parked, coming back one at a time:** mood, XP and hunger, the nudge
+  ladder, the private record, focus mode and the other v1 extras listed
+  under "Parked" in [FUTURE.md](FUTURE.md). The sections above still
+  describe where Boop is headed.
 - **Not now:** life stages, retiring and backup, the buddy card, Claude
   Cowork, other agents, and more than one Boop. These are kept in
   [FUTURE.md](FUTURE.md). None of them should be designed out.

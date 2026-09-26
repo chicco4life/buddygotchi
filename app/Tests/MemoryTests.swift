@@ -13,7 +13,7 @@ final class MemoryRig {
         try reopen()
         if setUp {
             try store.setUp(name: "Pip", nature: .cheeky, seed: 0x7f3a, today: "2026-10-02")
-            store.apply(.newDay(date: day, firstSeen: "08:52", mood: "content"))
+            store.apply(.newDay(date: day, firstSeen: "08:52"))
         }
     }
 
@@ -47,9 +47,6 @@ final class MemoryTests: XCTestCase {
         ### Moments
         - 2026-10-09: first all-nighter together; the migration finally passed.
 
-        ### Growth
-        xp: 1240 · level: 25 · last fed: 2026-10-14
-
         ## About you
         - Ships on Fridays.
         - Mostly works on landing and jetpack.
@@ -66,24 +63,50 @@ final class MemoryTests: XCTestCase {
         XCTAssertEqual(lt.seed, 0x7f3a)
         XCTAssertEqual(lt.temperament.count, 2)
         XCTAssertEqual(lt.moments, [.init(date: "2026-10-09", text: "first all-nighter together; the migration finally passed.")])
-        XCTAssertEqual(lt.growth, Growth(xp: 1240, hatched: "2026-10-02", lastFed: "2026-10-14"))
         XCTAssertEqual(lt.aboutYou, ["Ships on Fridays.", "Mostly works on landing and jetpack."])
         XCTAssertEqual(lt.preferences, ["Likes it quiet before 10am."])
         XCTAssertEqual(lt.markdown, MemoryTests.sample)
         try XCTAssertEqual(try LongTerm.parse(lt.markdown), lt)
     }
 
-    func testGrowthLineCarriesLost() throws {
-        var lt = try LongTerm.parse(MemoryTests.sample)
-        lt.growth = Growth(xp: 1237, hatched: "2026-10-02", lastFed: "2026-10-01", lost: 3)
-        XCTAssertTrue(lt.markdown.contains("xp: 1237 · level: 25 · last fed: 2026-10-01 · lost: 3\n"))
-        try XCTAssertEqual(try LongTerm.parse(lt.markdown).growth.lost, 3)
+    /// Files written before the cut (2026-09-26) have a Growth section in
+    /// `long-term.md` and a mood on the Today line. They still load; the next
+    /// write leaves those out.
+    func testFilesFromBeforeTheCutStillLoad() throws {
+        let oldLongTerm = MemoryTests.sample.replacingOccurrences(
+            of: "## About you\n",
+            with: "### Growth\nxp: 1240 · level: 25 · last fed: 2026-10-14 · lost: 3\n\n## About you\n")
+        let lt = try LongTerm.parse(oldLongTerm)
+        try XCTAssertEqual(lt, try LongTerm.parse(MemoryTests.sample))
+        XCTAssertEqual(lt.moments.count, 1, "the Growth heading ends Moments")
+        XCTAssertEqual(lt.markdown, MemoryTests.sample)
+
+        let oldShortTerm = "## Today\n2026-10-14 · first seen 08:52 · mood: a bit frazzled\n\n## Notes\n- a note\n\n## Happened\n"
+        let st = try ShortTerm.parse(oldShortTerm)
+        XCTAssertEqual(st.date, "2026-10-14")
+        XCTAssertEqual(st.firstSeen, "08:52")
+        XCTAssertEqual(st.notes, ["a note"])
+        XCTAssertEqual(st.markdown, "## Today\n2026-10-14 · first seen 08:52\n\n## Notes\n- a note\n\n## Happened\n")
+
+        // Through the store: both load, and the next change rewrites them.
+        let rig = try MemoryRig()
+        try rig.edit("long-term.md", oldLongTerm)
+        try rig.edit("short-term.md", oldShortTerm)
+        try rig.reopen()
+        XCTAssertEqual(rig.store.longTerm?.name, "Pip")
+        XCTAssertEqual(rig.store.lastActiveDay, "2026-10-14")
+        XCTAssertFalse(rig.logs.contains { $0.contains("didn't read") }, "\(rig.logs)")
+        XCTAssertNotNil(try? rig.store.remember("Likes tests before lunch.", as: .preference).get())
+        _ = rig.store.note("landing launches Monday")
+        XCTAssertFalse(rig.file("long-term.md").contains("Growth"))
+        XCTAssertFalse(rig.file("short-term.md").contains("mood"))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: rig.dir.appendingPathComponent("long-term.md.broken").path))
     }
 
     func testShortTermRoundTrips() throws {
         let text = """
             ## Today
-            2026-10-14 · first seen 08:52 · mood: a bit frazzled
+            2026-10-14 · first seen 08:52
 
             ## Notes
             - landing: flaky tests, third attempt
@@ -97,7 +120,6 @@ final class MemoryTests: XCTestCase {
         let st = try ShortTerm.parse(text)
         XCTAssertEqual(st.date, "2026-10-14")
         XCTAssertEqual(st.firstSeen, "08:52")
-        XCTAssertEqual(st.mood, "a bit frazzled")
         XCTAssertEqual(st.notes.count, 2)
         XCTAssertEqual(st.happened.last, "14:05 claude · jetpack · finished (18 min)")
         XCTAssertEqual(st.markdown, text)
@@ -105,7 +127,7 @@ final class MemoryTests: XCTestCase {
 
     func testUnreadableFilesThrow() throws {
         try XCTAssertThrowsError(try LongTerm.parse("hello"))
-        try XCTAssertThrowsError(try LongTerm.parse(MemoryTests.sample.replacingOccurrences(of: "xp: 1240", with: "xp: lots")))
+        try XCTAssertThrowsError(try LongTerm.parse(MemoryTests.sample.replacingOccurrences(of: "seed: 7f3a", with: "seed: lots")))
         try XCTAssertThrowsError(try LongTerm.parse(MemoryTests.sample.replacingOccurrences(of: "nature: cheeky", with: "nature: grumpy")))
         try XCTAssertThrowsError(try LongTerm.parse(MemoryTests.sample.replacingOccurrences(of: "2026-10-09:", with: "last week:")))
         try XCTAssertThrowsError(try ShortTerm.parse("## Today\nyesterday\n"))
@@ -131,12 +153,12 @@ final class MemoryTests: XCTestCase {
     func testCoreEffectsLandInTheFiles() throws {
         let rig = try MemoryRig()
         rig.store.apply(.happened("14:02 codex · landing · tests · failed"))
-        rig.store.apply(.growth(Growth(xp: 7, hatched: "2026-10-02", lastFed: "2026-10-14")))
+        let longTerm = rig.file("long-term.md")
         rig.store.apply(.state(StateSnapshot.sample))  // ignored
+        rig.store.apply(.moment(anim: "cheer"))  // ignored
+        XCTAssertTrue(rig.file("short-term.md").hasPrefix("## Today\n2026-10-14 · first seen 08:52\n"))
         XCTAssertTrue(rig.file("short-term.md").contains("- 14:02 codex · landing · tests · failed\n"))
-        XCTAssertTrue(rig.file("long-term.md").contains("xp: 7 · level: 1 · last fed: 2026-10-14\n"))
-        rig.store.setMood("bouncy")
-        XCTAssertTrue(rig.file("short-term.md").hasPrefix("## Today\n2026-10-14 · first seen 08:52 · mood: bouncy\n"))
+        XCTAssertEqual(rig.file("long-term.md"), longTerm)
     }
 
     func testHappenedKeepsTheLastForty() throws {
@@ -181,8 +203,9 @@ final class MemoryTests: XCTestCase {
     func testLongTermStaysWithinItsBudget() throws {
         let rig = try MemoryRig()
         var refused: Refusal?
-        for i in 0..<30 {
-            if case .failure(let why) = rig.store.remember(String(repeating: "w", count: 95) + " \(i)", as: .aboutYou) {
+        for i in 0..<45 {
+            let kind: MemoryStore.FactKind = i < 30 ? .aboutYou : .preference
+            if case .failure(let why) = rig.store.remember(String(repeating: "w", count: 95) + " \(i)", as: kind) {
                 refused = why
                 break
             }
@@ -253,12 +276,12 @@ final class MemoryTests: XCTestCase {
         let rig = try MemoryRig()
         _ = rig.store.note("landing: flaky tests")
         rig.store.apply(.happened("14:05 claude · jetpack · finished (18 min)"))
-        rig.store.apply(.newDay(date: "2026-10-15", firstSeen: "09:01", mood: "content"))
+        rig.store.apply(.newDay(date: "2026-10-15", firstSeen: "09:01"))
         XCTAssertEqual(rig.store.reflecting, "2026-10-14")
         XCTAssertTrue(rig.file("history/2026-10-14/short-term.md").contains("landing: flaky tests"))
         XCTAssertTrue(rig.file("history/2026-10-14/long-term.md").contains("name: Pip"))
         XCTAssertTrue(rig.store.reflectionText?.contains("14:05 claude · jetpack") ?? false)
-        XCTAssertEqual(rig.file("short-term.md"), "## Today\n2026-10-15 · first seen 09:01 · mood: content\n\n## Notes\n\n## Happened\n")
+        XCTAssertEqual(rig.file("short-term.md"), "## Today\n2026-10-15 · first seen 09:01\n\n## Notes\n\n## Happened\n")
         XCTAssertEqual(rig.store.lastActiveDay, "2026-10-15")
         // A moment during the reflection is dated the day reflected on.
         let actions = ActionRig(memory: rig.store)
@@ -279,7 +302,7 @@ final class MemoryTests: XCTestCase {
     func testABrokenLongTermIsRestoredFromItsSnapshot() throws {
         let rig = try MemoryRig()
         _ = rig.store.remember("Ships on Fridays.", as: .aboutYou)
-        rig.store.apply(.newDay(date: "2026-10-15", firstSeen: "09:01", mood: "content"))  // snapshot with the fact
+        rig.store.apply(.newDay(date: "2026-10-15", firstSeen: "09:01"))  // snapshot with the fact
         try rig.edit("long-term.md", "## Boop\nname Pip, hatched some time ago\n")
         XCTAssertTrue(rig.store.longTermText.contains("- Ships on Fridays.\n"))
         XCTAssertTrue(rig.file("long-term.md").contains("- Ships on Fridays.\n"))
@@ -309,10 +332,9 @@ final class MemoryTests: XCTestCase {
         let time = LocalTime(timeZone: TimeZone(identifier: "UTC")!)
         let start = CoreRig.start  // 2026-10-14 14:00 UTC
         try rig.store.setUp(name: "Pip", nature: .sweet, seed: 1, today: "2026-10-13")
-        rig.store.apply(.newDay(date: "2026-10-13", firstSeen: "09:00", mood: "content"))
+        rig.store.apply(.newDay(date: "2026-10-13", firstSeen: "09:00"))
         func boot(_ now: Int64) -> (Core, [CoreEffect]) {
-            let core = Core(config: .init(name: "Pip", time: time), growth: rig.store.longTerm!.growth,
-                            lastActiveDay: rig.store.lastActiveDay, now: now)
+            let core = Core(config: .init(name: "Pip", time: time), lastActiveDay: rig.store.lastActiveDay)
             let fx = core.handle(BoopEvent(agent: .claudeCode, session: "s1", project: "landing", event: .turnStart,
                                            detail: .init(), ts: now))
             for effect in fx { rig.store.apply(effect) }
@@ -341,6 +363,5 @@ final class MemoryTests: XCTestCase {
 
 extension StateSnapshot {
     static let sample = StateSnapshot(
-        time: 0, name: "Pip", base: "idle", attn: nil, busy: 0, idle: 0, wait: 0, mood: Mood(), quiet: 0,
-        vol: 6, night: false, level: 1, prog: 0, days: 1, hungry: 0, threads: [])
+        time: 0, name: "Pip", base: "idle", attn: nil, busy: 0, idle: 0, wait: 0, quiet: 0, vol: 6)
 }

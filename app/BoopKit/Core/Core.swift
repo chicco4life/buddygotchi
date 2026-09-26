@@ -1,8 +1,8 @@
 import Foundation
 
 /// The core (ARCHITECTURE.md §3.2): plain rules with no queue. It keeps the
-/// session table and decides what the device shows, the rule reactions, XP,
-/// hunger, mood, quiet and away, and which inputs reach the brain.
+/// session table and decides what the device shows, the rule reactions,
+/// quiet, and which inputs reach the brain.
 ///
 /// It's a pure state machine: every call takes the time and returns effects
 /// for the app to carry out. Call `tick` about once a second for the timers.
@@ -64,30 +64,15 @@ public final class Core {
     }
 
     public private(set) var config: Config
-    public private(set) var growth: Growth
-    public private(set) var away = false
 
     var sessions: [String: Session] = [:]
     var nextOrder = 0
     var rng: SplitMix64
-    var mood = MoodState()
     var quietUntil: Int64 = 0
-    /// The day "I'm away" started; the app keeps it in its settings so a
-    /// restart doesn't restart the pause.
-    public private(set) var awaySince: String?
-    /// The last day with any activity; a new one starts the day's rituals.
+    /// The last day with any activity; a new one starts the reflection on
+    /// the day before.
     var lastActiveDay: String?
     var lastPublished: StateSnapshot?
-
-    // Rule moments.
-    struct Scheduled { var at: Int64; var anim: String; var size: Int }
-    var scheduled: [Scheduled] = []
-    /// Follow-up moments still to play (`side_eye` after `oops`, `gobble`);
-    /// the brain's moments wait for them.
-    public var followUpsPending: Bool { !scheduled.isEmpty }
-    var lastMomentAt: Int64 = -1_000_000
-    var lastFinish: (at: Int64, size: Int)?
-    var levelUpPending = false
     var nextChatterAt: Int64?
 
     // Merging bursts of agent inputs.
@@ -102,6 +87,13 @@ public final class Core {
     public static let listenLimitMs: Int64 = 30_000
     /// While the Mac's mic is on: who turned it on, and when.
     public private(set) var listening: (by: Talker, since: Int64)?
+    /// After the Talk button's mic goes off, the device's `listening` face
+    /// waits this long for the reply; then the empty moment ends it
+    /// (BEHAVIORS.md §3.3). The device's own button has the same cap.
+    public static let replyWaitMs: Int64 = 8_000
+    /// When that empty moment is due.
+    var listeningEndsAt: Int64?
+
     /// Whether the last thing you said asked for quiet: only then may the
     /// `quiet` action run (BEHAVIORS.md §3.3).
     public private(set) var quietAsked = false
@@ -111,13 +103,11 @@ public final class Core {
     var pokedAt: Int64?
 
     /// `lastActiveDay` is today's date from `short-term.md`, if there is one,
-    /// so a restart doesn't replay the morning.
-    public init(config: Config, growth: Growth, lastActiveDay: String? = nil, now: Int64) {
+    /// so a restart doesn't start the day again.
+    public init(config: Config, lastActiveDay: String? = nil) {
         self.config = config
-        self.growth = growth
         self.lastActiveDay = lastActiveDay
         rng = SplitMix64(seed: config.seed)
-        mood.updated = now
     }
 
     static func key(_ agent: Agent, _ id: String) -> String { agent.rawValue + "/" + id }
@@ -236,10 +226,11 @@ public final class Core {
         case .tap:
             tapped(now, &fx)
         case .talkOn:
-            // The device already shows `listening`, and `thinking` on release.
+            // The device already shows `listening`, and holds it after the
+            // release until the reply, or for at most 8 s.
             startListening(by: .device, now, &fx)
         case .talkOff:
-            stopListening(now, face: nil, &fx)
+            stopListening(now, &fx)
         }
         publish(now, &fx)
         return fx
@@ -252,8 +243,7 @@ public final class Core {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
         let input = Input(.said, words: words, yelled: yelled, clock: config.time.clock(now),
-                          weekday: config.time.weekday(now), hunger: hungerNow(now), rules: "listening, then thinking",
-                          ts: now)
+                          weekday: config.time.weekday(now), rules: "listening", ts: now)
         quietAsked = input.asksForQuiet
         fx.append(.input(input))
         publish(now, &fx)
@@ -261,7 +251,9 @@ public final class Core {
     }
 
     /// The app's Talk button: start or stop listening. The device shows
-    /// `listening`, then `thinking`, as it does for its own button.
+    /// `listening` from the mic turning on until the reply, or until the
+    /// empty moment `replyWaitMs` after the mic goes off, as it does for its
+    /// own button (BEHAVIORS.md §3.3).
     @discardableResult
     public func listen(_ on: Bool, at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
@@ -269,10 +261,10 @@ public final class Core {
         if on {
             if listening == nil {
                 startListening(by: .app, now, &fx)
-                play("listening", 1, now, &fx)
+                play("listening", &fx)
             }
         } else {
-            stopListening(now, face: listening?.by == .app ? "thinking" : nil, &fx)
+            stopListening(now, &fx)
         }
         publish(now, &fx)
         return fx
@@ -283,48 +275,31 @@ public final class Core {
     @discardableResult
     public func linkDown(at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
-        if listening?.by == .device { stopListening(now, face: nil, &fx) }
+        if listening?.by == .device { stopListening(now, &fx) }
         return fx
     }
 
-    /// The Mac's mic or speech recognition couldn't start.
+    /// The Mac's mic or speech recognition couldn't start. After the Talk
+    /// button, the empty moment ends the device's `listening` face at once;
+    /// the device's own button ends it by itself.
     @discardableResult
     public func micFailed(at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
-        stopListening(now, face: listening?.by == .app ? "shrug" : nil, &fx)
+        let byApp = listening?.by == .app
+        stopListening(now, &fx)
+        if byApp {
+            listeningEndsAt = nil
+            fx.append(.endListening)
+        }
         return fx
     }
 
-    /// The `quiet` action: no mumbles for `minutes` (0 ends it). Going quiet
-    /// zips Boop's mouth (BEHAVIORS.md §7); new minutes while already quiet
-    /// don't.
+    /// The `quiet` action: no mumbles for `minutes` (0 ends it). The strip's
+    /// quiet icon is its only sign; the `zip` animation is parked.
     @discardableResult
     public func setQuiet(minutes: Int, at now: Int64) -> [CoreEffect] {
-        let starting = minutes > 0 && quietLeft(now) == 0
         quietUntil = minutes > 0 ? now + Int64(minutes) * 60_000 : 0
         var fx: [CoreEffect] = []
-        publish(now, &fx)
-        if starting { play("zip", 1, now, &fx) }
-        return fx
-    }
-
-    /// "I'm away" pauses hunger. `since` is the day an away period saved
-    /// before a restart started, so the pause keeps counting from it.
-    @discardableResult
-    public func setAway(_ on: Bool, since: String? = nil, at now: Int64) -> [CoreEffect] {
-        var fx: [CoreEffect] = []
-        let today = config.time.day(now)
-        if on && !away {
-            awaySince = since.flatMap { LocalTime.isDay($0) ? min($0, today) : nil } ?? today
-        } else if !on && away, let since = awaySince {
-            // Only the away days since the last meal are paused: XP earned
-            // while away already moved lastFed past the start.
-            let paused = LocalTime.daysBetween(max(since, growth.lastFed), today)
-            if paused > 0 { growth.lastFed = LocalTime.day(growth.lastFed, plus: paused) }
-            awaySince = nil
-            fx.append(.growth(growth))
-        }
-        away = on
         publish(now, &fx)
         return fx
     }
@@ -338,16 +313,17 @@ public final class Core {
     }
 
     /// Timers: the Codex grace period, the safety net, quiet running out,
-    /// follow-up moments, merged inputs, chatter, level-ups and the
-    /// push-to-talk limit.
+    /// merged inputs, chatter, the push-to-talk limit and the Talk button's
+    /// wait for the reply.
     @discardableResult
     public func tick(at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
         if let l = listening, now - l.since >= Self.listenLimitMs {
-            // What was heard still goes to Boop. The device's own
-            // `listening` ends at the same limit.
-            stopListening(now, face: l.by == .app ? "thinking" : nil, &fx)
+            // What was heard still goes to Boop. The device's own button
+            // hits the same limit; the Talk button waits for the reply as
+            // after Send.
+            stopListening(now, &fx)
         }
         publish(now, &fx)
         return fx
@@ -355,49 +331,37 @@ public final class Core {
 
     // MARK: - Reading
 
-    public func snapshot(at now: Int64) -> StateSnapshot {
-        let visible = sessions.values.filter { $0.needsSince != nil }.sorted { ($0.needsSince!, $0.order) < ($1.needsSince!, $1.order) }
+    /// The sessions in the order the popover lists them: those that need
+    /// you (oldest first), then working, then idle.
+    func grouped(at now: Int64) -> (waiting: [Session], working: [Session], idle: [Session]) {
+        let waiting = sessions.values.filter { $0.needsSince != nil }.sorted { ($0.needsSince!, $0.order) < ($1.needsSince!, $1.order) }
         let working = sessions.values.filter { $0.needsSince == nil && isWorking($0, now) }.sorted { $0.order < $1.order }
         let idle = sessions.values.filter { $0.needsSince == nil && !isWorking($0, now) }.sorted { $0.order < $1.order }
-        let night = config.time.isNight(now)
-        let base: String
-        if !working.isEmpty {
-            base = "working"
-        } else if sessions.isEmpty || (night && visible.isEmpty) {
-            base = "asleep"
-        } else {
-            base = "idle"
-        }
-        let attn = visible.first.map {
-            StateSnapshot.Attention(agent: $0.agent.short, project: StateSnapshot.clip($0.project), more: visible.count - 1)
-        }
-        let rows = visible.map { [$0.agent.short, StateSnapshot.clip($0.project), "wait"] }
-            + working.map { [$0.agent.short, StateSnapshot.clip($0.project), "work"] }
-            + idle.map { [$0.agent.short, StateSnapshot.clip($0.project), "idle"] }
-        let hunger = hungerNow(now)
-        var snapshot = StateSnapshot(
-            time: now / 1000, name: StateSnapshot.clip(config.name), base: base, attn: attn,
-            busy: working.count, idle: idle.count, wait: visible.count,
-            mood: mood.mood(at: now, night: night, hunger: hunger),
-            quiet: quietLeft(now), vol: config.volume, night: night,
-            level: growth.level, prog: growth.progress, days: growth.days(today: config.time.day(now)),
-            hungry: hunger.rawValue, threads: Array(rows.prefix(StateSnapshot.maxThreads)))
-        snapshot.fit()
-        return snapshot
+        return (waiting, working, idle)
     }
 
-    /// Energy, pace and pitch now, for Voice's tempo.
-    public func currentMood(at now: Int64) -> Mood {
-        mood.mood(at: now, night: config.time.isNight(now), hunger: hungerNow(now))
+    public func snapshot(at now: Int64) -> StateSnapshot {
+        let (waiting, working, idle) = grouped(at: now)
+        let base = !working.isEmpty ? "working" : sessions.isEmpty ? "asleep" : "idle"
+        let attn = waiting.first.map {
+            StateSnapshot.Attention(agent: $0.agent.short, project: StateSnapshot.clip($0.project), more: waiting.count - 1)
+        }
+        return StateSnapshot(
+            time: now / 1000, name: StateSnapshot.clip(config.name), base: base, attn: attn,
+            busy: working.count, idle: idle.count, wait: waiting.count,
+            quiet: quietLeft(now), vol: config.volume)
+    }
+
+    /// Every session, for the popover's list (UX.md §7). The device doesn't
+    /// get these.
+    public func sessionList(at now: Int64) -> [SessionSummary] {
+        let (waiting, working, idle) = grouped(at: now)
+        return waiting.map { SessionSummary($0, .waiting) } + working.map { SessionSummary($0, .working) }
+            + idle.map { SessionSummary($0, .idle) }
     }
 
     /// False in quiet mode, or while something needs you.
     public func canMumble(at now: Int64) -> Bool { mumblesAllowed(now) }
-
-    /// How `short-term.md` describes Boop's mood right now.
-    public func moodWord(at now: Int64) -> String {
-        mood.word(at: now, night: config.time.isNight(now), hunger: hungerNow(now))
-    }
 
     // MARK: - Rules
 
@@ -416,14 +380,6 @@ public final class Core {
         quietUntil > now ? Int((quietUntil - now + 59_999) / 60_000) : 0
     }
 
-    func hungerNow(_ now: Int64) -> Growth.Hunger {
-        growth.hunger(today: awaySince ?? config.time.day(now))
-    }
-
-    func feeling(_ now: Int64) -> String {
-        mood.feeling(at: now, night: config.time.isNight(now), hunger: hungerNow(now))
-    }
-
     /// Mumbles never play in quiet mode, or while something needs you.
     func mumblesAllowed(_ now: Int64) -> Bool {
         quietLeft(now) == 0 && !needsYouShowing
@@ -436,83 +392,56 @@ public final class Core {
         guard today != lastActiveDay else { return }
         let yesterday = lastActiveDay
         lastActiveDay = today
-        fx.append(.newDay(date: today, firstSeen: config.time.clock(now), mood: moodWord(at: now)))
+        fx.append(.newDay(date: today, firstSeen: config.time.clock(now)))
         if let yesterday {
             fx.append(.input(Input(.newDay, yesterday: yesterday, clock: config.time.clock(now),
-                                   weekday: config.time.weekday(now), hunger: hungerNow(now), ts: now)))
+                                   weekday: config.time.weekday(now), ts: now)))
         }
-    }
-
-    /// Adds XP; a first meal after being hungry plays `gobble` once `after`.
-    func feed(_ xp: Int, _ now: Int64, after: Int64, _ fx: inout [CoreEffect]) {
-        let wasHungry = hungerNow(now) >= .hungry
-        if growth.earn(xp, today: config.time.day(now)) {
-            levelUpPending = true
-        }
-        if wasHungry {
-            scheduled.append(Scheduled(at: after, anim: "gobble", size: 1))
-        }
-        fx.append(.growth(growth))
     }
 
     func startListening(by talker: Talker, _ now: Int64, _ fx: inout [CoreEffect]) {
         guard listening == nil else { return }
         listening = (talker, now)
+        // A new `listening` face mustn't be ended by the last one's stop.
+        listeningEndsAt = nil
         fx.append(.listen(true))
     }
 
-    /// Turns the mic off, if it's on, and plays `face` on the device.
-    func stopListening(_ now: Int64, face: String?, _ fx: inout [CoreEffect]) {
-        guard listening != nil else { return }
+    /// Turns the mic off, if it's on. After the Talk button, the empty
+    /// moment follows `replyWaitMs` later; it's harmless if the reply
+    /// already came.
+    func stopListening(_ now: Int64, _ fx: inout [CoreEffect]) {
+        guard let l = listening else { return }
         listening = nil
         fx.append(.listen(false))
-        if let face { play(face, 1, now, &fx) }
+        if l.by == .app { listeningEndsAt = now + Self.replyWaitMs }
     }
 
-    /// Plays a rule moment now. Follow-ups from an earlier one are dropped,
-    /// since the device replaces a playing moment anyway.
-    func play(_ anim: String, _ size: Int, _ now: Int64, _ fx: inout [CoreEffect]) {
-        scheduled.removeAll()
-        lastMomentAt = now
-        fx.append(.moment(anim: anim, size: size))
+    /// Plays a rule moment now. The device replaces one that's playing.
+    func play(_ anim: String, _ fx: inout [CoreEffect]) {
+        fx.append(.moment(anim: anim))
     }
 
-    /// A finished turn: a cheer sized by how long it took, even while other
-    /// sessions are still working. Several at once make one cheer at the
-    /// biggest size.
+    /// A finished turn: a cheer, even while other sessions are still
+    /// working (BEHAVIORS.md §3.1).
     func finished(_ s: Session, durationMs ms: Int64, _ now: Int64, _ fx: inout [CoreEffect]) {
-        let size: Int
-        switch ms {
-        case ..<15_000: size = 1
-        case ...60_000: size = 2
-        default: size = 3
-        }
-        let burst = lastFinish.map { now - $0.at < config.mergeMs } ?? false
-        let cheered = !burst || size > lastFinish!.size
-        if cheered {
-            play("cheer", size, now, &fx)
-            lastFinish = (now, burst ? max(size, lastFinish!.size) : size)
-        } else {
-            lastFinish = (now, lastFinish!.size)
-        }
-        mood.win(quick: ms < 10_000, at: now)
-        feed(Growth.turnXP, now, after: now + 1600, &fx)
+        play("cheer", &fx)
         if ms >= 30_000 {
             fx.append(.happened("\(config.time.clock(now)) \(s.agent.short) · \(s.project) · finished (\(took(ms)))"))
         }
-        agentInput(.agentFinished, s, outcome: .done, tookMs: ms, rules: cheered ? "cheer size \(size)" : nil,
-                   rank: ms >= 15_000 ? 3 : 2, now, &fx)
+        agentInput(.agentFinished, s, outcome: .done, tookMs: ms, rules: "cheer", rank: ms >= 15_000 ? 3 : 2, now, &fx)
     }
 
     /// A tap is the rules' alone: the device wiggles, and the brain's
     /// transcript only hears of it. The fourth tap within 3 s is a poke
-    /// streak (BEHAVIORS.md §3.3): a side-eye at you, and an input for the
-    /// brain, at most once a minute. While something needs you a tap means
-    /// "I saw it", so it isn't counted.
+    /// streak (BEHAVIORS.md §3.3): an input for the brain, at most once a
+    /// minute, which may grumble back with a mumble. The rules add no
+    /// animation of their own: the device has already wiggled. While
+    /// something needs you a tap means "I saw it", so it isn't counted.
     func tapped(_ now: Int64, _ fx: inout [CoreEffect]) {
         guard !needsYouShowing else {
             taps.removeAll()
-            fx.append(.aside("tapped · \(timeLine(now)): Boop nodded and stopped nudging"))
+            fx.append(.aside("tapped while something needs you · \(timeLine(now))"))
             return
         }
         taps = taps.filter { now - $0 < config.pokeWindowMs } + [now]
@@ -521,26 +450,21 @@ public final class Core {
             return
         }
         taps.removeAll()
-        play("side_eye", 1, now, &fx)
         if let last = pokedAt, now - last < config.pokedEveryMs {
-            fx.append(.aside("poked again and again · \(timeLine(now)): Boop side-eyed you"))
+            fx.append(.aside("poked again and again · \(timeLine(now)): Boop wiggled"))
             return
         }
         pokedAt = now
         fx.append(.input(Input(.poked, clock: config.time.clock(now), weekday: config.time.weekday(now),
-                               hunger: hungerNow(now), rules: "side_eye at you", ts: now)))
+                               rules: "wiggle", ts: now)))
     }
 
-    /// A failed turn: `oops`, then a side-eye at the agent.
+    /// A failed turn: no moment of its own; the session just goes idle
+    /// (BEHAVIORS.md §3.1). The brain still hears of it.
     func failed(_ s: Session, durationMs ms: Int64, error: String?, _ now: Int64, _ fx: inout [CoreEffect]) {
-        play("oops", 1, now, &fx)
-        scheduled.append(Scheduled(at: now + 1400, anim: "side_eye", size: 1))
-        lastFinish = nil
-        mood.fail(at: now)
         let topic = s.topic.map { " · \($0)" } ?? ""
         fx.append(.happened("\(config.time.clock(now)) \(s.agent.short) · \(s.project)\(topic) · failed"))
-        agentInput(.agentFinished, s, outcome: .failed, tookMs: ms, error: error, rules: "oops, then side_eye",
-                   rank: 4, now, &fx)
+        agentInput(.agentFinished, s, outcome: .failed, tookMs: ms, error: error, rules: nil, rank: 4, now, &fx)
     }
 
     func took(_ ms: Int64) -> String {
@@ -548,13 +472,7 @@ public final class Core {
     }
 
     func timeLine(_ now: Int64) -> String {
-        var line = "\(config.time.clock(now)) \(config.time.weekday(now))"
-        switch hungerNow(now) {
-        case .fed: break
-        case .hungry: line += " · hungry"
-        case .starving: line += " · starving"
-        }
-        return line
+        "\(config.time.clock(now)) \(config.time.weekday(now))"
     }
 
     /// "claude needs you · jetpack · 14:07 Tuesday", for the brain's transcript.
@@ -566,8 +484,8 @@ public final class Core {
                     error: String? = nil, rules: String?, rank: Int, _ now: Int64, _ fx: inout [CoreEffect]) {
         let input = Input(kind, agent: s.agent.short, project: s.project, outcome: outcome,
                           topic: kind == .agentFinished ? s.topic : nil, tookMs: tookMs, error: error,
-                          clock: config.time.clock(now), weekday: config.time.weekday(now), hunger: hungerNow(now),
-                          rules: rules, ts: now)
+                          clock: config.time.clock(now), weekday: config.time.weekday(now), rules: rules,
+                          ts: now)
         offer(input, rank: rank, now, &fx)
     }
 
@@ -620,23 +538,9 @@ public final class Core {
             }
         }
         if quietUntil != 0 && quietUntil <= now { quietUntil = 0 }
-
-        let today = awaySince ?? config.time.day(now)
-        if growth.starve(today: today) { fx.append(.growth(growth)) }
-
-        // Follow-up moments.
-        while let first = scheduled.min(by: { $0.at < $1.at }), first.at <= now {
-            scheduled.removeAll { $0.at == first.at && $0.anim == first.anim }
-            lastMomentAt = first.at
-            fx.append(.moment(anim: first.anim, size: first.size))
-        }
-
-        // A level-up plays at the next calm moment.
-        if levelUpPending && scheduled.isEmpty && !needsYouShowing && now - lastMomentAt >= 3000 {
-            levelUpPending = false
-            lastMomentAt = now
-            fx.append(.moment(anim: "levelup", size: 1))
-            fx.append(.happened("\(config.time.clock(now)) reached level \(growth.level)"))
+        if let due = listeningEndsAt, now >= due {
+            listeningEndsAt = nil
+            fx.append(.endListening)
         }
 
         // Merged bursts.
@@ -653,9 +557,9 @@ public final class Core {
         chatter(now, &fx)
     }
 
-    /// Working chatter: every 2–4 minutes while agents work, a mumble from
-    /// Boop's mood, about half the time with the session's latest topic.
-    /// Slower when tired or at night.
+    /// Working chatter (BEHAVIORS.md §2): every 2–4 minutes while agents
+    /// work, a mumble. About half the time it asks about a working session's
+    /// latest topic (`curious`); otherwise it's `happy`, with no word.
     func chatter(_ now: Int64, _ fx: inout [CoreEffect]) {
         let working = sessions.values.filter { isWorking($0, now) && $0.needsSince == nil }
         guard !working.isEmpty else {
@@ -671,15 +575,11 @@ public final class Core {
         guard mumblesAllowed(now) else { return }
         let topics = working.sorted { $0.order < $1.order }.compactMap(\.topic)
         let word = !topics.isEmpty && rng.chance(50) ? topics[rng.int(in: 0...(topics.count - 1))] : nil
-        fx.append(.mumble(feeling: feeling(now), word: word))
+        fx.append(.mumble(feeling: word == nil ? "happy" : "curious", word: word))
     }
 
     func chatterGap(_ now: Int64) -> Int64 {
-        var gap = Int64(rng.int(in: config.chatterMs))
-        let m = mood.mood(at: now, night: config.time.isNight(now), hunger: hungerNow(now))
-        if m.energy < 70 { gap = gap * 3 / 2 }
-        if config.time.isNight(now) { gap = gap * 3 / 2 }
-        return gap
+        Int64(rng.int(in: config.chatterMs))
     }
 
     func publish(_ now: Int64, _ fx: inout [CoreEffect]) {
@@ -688,5 +588,25 @@ public final class Core {
         lastPublished = snapshot
         // The picture changes before any moment plays on top of it.
         fx.insert(.state(snapshot), at: 0)
+    }
+}
+
+/// One session as the popover lists it.
+public struct SessionSummary: Equatable, Sendable {
+    public enum Status: String, Sendable { case waiting, working, idle }
+
+    /// `claude` or `codex`.
+    public var agent: String
+    public var project: String
+    public var status: Status
+
+    public init(agent: String, project: String, status: Status) {
+        self.agent = agent
+        self.project = project
+        self.status = status
+    }
+
+    init(_ s: Core.Session, _ status: Status) {
+        self.init(agent: s.agent.short, project: s.project, status: status)
     }
 }

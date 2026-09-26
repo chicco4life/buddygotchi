@@ -8,9 +8,6 @@ Gets huffy about flaky tests.
 ### Moments
 - 2026-10-09: first all-nighter together; the migration finally passed.
 
-### Growth
-xp: 1240 · level: 25 · last fed: 2026-10-14
-
 ## About you
 - Ships on Fridays.
 - Mostly works on landing and jetpack.

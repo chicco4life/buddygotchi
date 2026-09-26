@@ -137,10 +137,10 @@ final class HarnessTests: XCTestCase {
     func testTheWriterSeesTheDecision() async throws {
         let writer = FakeWriter { _ in ["react.word": "finally"] }
         let rig = HarnessRig(classifier: FakeClassifier { _ in [react("proud")] }, writer: writer)
-        let finished = input(.agentFinished, tookMs: 1_080_000, rules: "cheer size 2")
+        let finished = input(.agentFinished, tookMs: 1_080_000, rules: "cheer")
         _ = await run(rig, [finished])
         let asked = try XCTUnwrap(writer.asked.first)
-        XCTAssertEqual(asked.context.window, [.input(finished), .rules("cheer size 2"),
+        XCTAssertEqual(asked.context.window, [.input(finished), .rules("cheer"),
                                               .decided(by: "fake-classifier@1", [react("proud")], evidence: "scripted")])
         XCTAssertEqual(asked.slots.map(\.key), ["react.word"])
         XCTAssertEqual(asked.slots[0].kind, .word(["hi", "finally"]))

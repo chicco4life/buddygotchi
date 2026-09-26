@@ -39,16 +39,16 @@ approve on the Mac as you normally would.
 2. The Codex **adapter** turns it into the common event: "Codex, session
    a1b2, project landing, turn finished".
 3. The **core** updates its session table, works out from when the turn
-   started that it took 18 minutes, adds XP, and by rule has the `react`
-   action play a cheer. Boop cheers in well under a second.
+   started that it took 18 minutes, and by rule has the `react` action
+   play a cheer. Boop cheers in well under a second.
 4. The core also hands the **harness** an input: an agent finished. The
    **brain** decides in two stages. Its classifier picks
    `react(feeling: proud, voice: mumble)`, and its writer, Apple's
    on-device model, writes the mumble's one real word: `finally`.
 5. The harness hands that call to the **`react` action**, which asks
    **Voice** to turn "proud + finally" into Minion speech
-   (*"ma-po li… finally!"*) and sends it to the device with the proud face,
-   through the **device link**.
+   (*"ma-po li… finally!"*) and sends it to the device through the
+   **device link**. It plays over whatever face is showing.
 
 The brain never sits between an event and the screen. Rules give the
 immediate reaction, and the brain adds character a second or two later. If
@@ -59,8 +59,8 @@ with less personality.
 
 | Loop | Runs on | Speed | Does | Never does |
 | --- | --- | --- | --- | --- |
-| Reflex | Device | < 20 ms | Tap feedback, blinking, idle life, blending faces, the nudge ladder | Wait for the Mac |
-| Reactive | Core → actions | < 200 ms p95 | Agent event → rule → action → device; XP | Wait for the brain |
+| Reflex | Device | < 20 ms | Tap feedback, blinking, blending faces, the needs-you chirp and light | Wait for the Mac |
+| Reactive | Core → actions | < 200 ms p95 | Agent event → rule → action → device | Wait for the brain |
 | Deliberative | Harness + brain → actions | 1–5 s, in the background | React with character, answer push-to-talk, note what you tell it | Block the reactive loop |
 | Reflective | Harness + brain, once a day | Minutes | Turn yesterday into lasting memory, grow the personality | Break the memory rules |
 
@@ -75,7 +75,7 @@ directly.
 | Part | Does | Doesn't know about |
 | --- | --- | --- |
 | Adapters | Turn agent hooks into common events | Boop's state, the brain, the device |
-| Core | The session table, what the device shows, XP, hunger, mood and quiet; calls actions for rule reactions; sends the brain's inputs to the harness | Minion speech, models, hook formats |
+| Core | The session table, what the device shows, and quiet; calls actions for rule reactions; sends the brain's inputs to the harness | Minion speech, models, hook formats |
 | Harness | Input → classifier → menu check → writer, only when words are needed → each call to its action; keeps the transcript both stages read | Minion speech, the device, memory rules, what kind of model is behind either stage |
 | Brain | Two stages: a classifier picks what Boop does from a short menu, and a writer writes the words for it | Everything else |
 | Actions | Carry out one call each, checking their own rules | Whether a rule or the brain called them |
@@ -98,29 +98,29 @@ project, and whether each is working, idle or needs you) and:
 
 - works out what the device shows and sends a new snapshot when that
   changes, in [BEHAVIORS.md](BEHAVIORS.md) §1's layers: something needing
-  you wins, a moment (a cheer, an oops, a reply) plays over the base
-  state, and the base state is working while any agent works, asleep with
-  no sessions or at night with nothing working, and otherwise idle;
-- calls actions for the immediate reactions (a cheer, an oops, a nod) and
-  for Boop's occasional working chatter;
+  you wins, a moment (a cheer, a reply) plays over the base state, and
+  the base state is working while any agent works, asleep with no
+  sessions, and otherwise idle;
+- calls actions for the immediate reactions (a cheer, `listening`, and
+  the empty moment that ends it) and for Boop's occasional working
+  chatter;
 - turns agents starting and finishing, what you say and a new day into the
   brain's inputs, and decides which of them reach it
   ([HARNESS.md](HARNESS.md) §2). Taps and "needs you" stay the rules' own:
   the brain's transcript only notes them, except a poke streak, which
-  side-eyes you and becomes an input of its own ([BEHAVIORS.md](BEHAVIORS.md)
-  §3.3);
+  becomes an input of its own ([BEHAVIORS.md](BEHAVIORS.md) §3.3);
 - counts a turn as failed when Claude stops on an API error or when the
   turn's last test, build or deploy command failed
   ([BEHAVIORS.md](BEHAVIORS.md) §3.1);
-- keeps XP, hunger, mood, quiet and "away", all by rule
-  ([BEHAVIORS.md](BEHAVIORS.md)).
+- keeps quiet mode, by rule ([BEHAVIORS.md](BEHAVIORS.md)).
 
 In code the core is a pure state machine: each event, device input or
 one-second tick goes in with the time, and a list of effects comes out (a
 snapshot, a moment or a mumble for `react`, an input or an aside for the
-harness, a Happened line, new Growth, a new day, start or stop listening).
-The app hands each effect to the part that carries it out, which keeps the
-core testable on a virtual clock.
+harness, a Happened line, a new day, start or stop listening, or the
+empty moment that ends `listening`). The app
+hands each effect to the part that carries it out, which keeps the core
+testable on a virtual clock.
 
 Merging agent inputs is leading-edge: the first one after a quiet spell
 goes out at once, and any that follow within 3 s are held and sent as one
@@ -129,13 +129,10 @@ when the window ends, keeping the most important
 
 The brain adds to the rules' reaction and never cuts it off. The app
 estimates how long each rule moment plays with the device's own rule: the
-animation's length scaled by `pace`, with a cheer's size adjusted by
-`energy`, or, if longer, the mumble's syllables (the word is two beats)
-plus 1.2 s to read the bubble. It holds a moment from the brain's calls
-until the last rule moment and the core's pending follow-ups (`side_eye`
-after `oops`, `gobble`) are over. `listening` and
-`thinking` don't hold anything back: the brain's reply is meant to replace
-`thinking`.
+animation's length, or, if longer, the mumble's syllables (the word is two
+beats) plus 1.2 s to read the bubble. It holds a moment from the brain's
+calls until the last rule moment is over. `listening` doesn't hold
+anything back: the brain's reply is meant to end it.
 
 ### 3.3 Harness and brain
 
@@ -160,8 +157,8 @@ brain, so a cheer looks the same whichever of them asked for it.
 
 | Action | Arguments | What it does |
 | --- | --- | --- |
-| `react` | `feeling`, `voice`, `word?` | Sends the feeling's face to the device as a moment, and for a mumble asks Voice for a Minion line with the word |
-| `quiet` | `minutes` | Tells the core to stop mumbles for a while, only when your last words asked for quiet; the core plays `zip` as quiet starts |
+| `react` | `feeling`, `voice`, `word?` | For a mumble, asks Voice for a Minion line with the word and sends it to the device, where it plays over the face that's showing. The brain's faces are parked ([FUTURE.md](FUTURE.md)), so a silent `react` shows nothing. The core's rules use it to play their animations ([BEHAVIORS.md](BEHAVIORS.md) §5) |
+| `quiet` | `minutes` | Tells the core to stop mumbles for a while, only when your last words asked for quiet |
 | `remember` | `where`, `text` | Adds a line to today's notes or to a section of long-term memory, within its limits |
 
 Each action checks its own rules and quietly drops (and logs) anything that
@@ -226,8 +223,8 @@ all three to the brain.
 | File | What it is | Changes |
 | --- | --- | --- |
 | `steering.md` | How Boop behaves: character, how to act, examples, what never to do | Never at runtime. Ships with the app and changes only in an announced release |
-| `long-term.md` | Who this Boop has become, and lasting facts and preferences about you | Once a day, at reflection, within limits; XP by the core |
-| `short-term.md` | Today: Boop's mood, notes about what you're doing and said, what happened | Throughout the day; starts fresh after reflection |
+| `long-term.md` | Who this Boop has become, and lasting facts and preferences about you | Once a day, at reflection, within limits |
+| `short-term.md` | Today: notes about what you're doing and said, what happened | Throughout the day; starts fresh after reflection |
 
 **Reflection** runs once a day, at the first activity of a new day, as the
 brain's "new day" input ([HARNESS.md](HARNESS.md) §2). The memory store
@@ -275,9 +272,6 @@ Gets huffy about flaky tests.
 ### Moments
 - 2026-10-09: first all-nighter together; the migration finally passed.
 
-### Growth
-xp: 1240 · level: 25 · last fed: 2026-10-14
-
 ## About you
 - Ships on Fridays.
 - Mostly works on landing and jetpack.
@@ -291,7 +285,6 @@ xp: 1240 · level: 25 · last fed: 2026-10-14
 | Boop (name line) | App, at setup | Never changes. `nature` is the person's one answer (sweet or cheeky); `seed` is random and picks Boop's voice dialect |
 | Temperament | Reflection | At most one sentence changed a day: a new sentence of at most 120 characters is added, and past five sentences it replaces the oldest |
 | Moments | Reflection | At most 20 of at most 80 characters; at most one a day, dated the day reflected on. Past 20, the oldest drops |
-| Growth | Core | [BEHAVIORS.md](BEHAVIORS.md) §4. While Boop is starving the line also carries `lost: N`, the XP lost since it was last fed, so a restart doesn't take a day's XP twice |
 | About you | Reflection | At most 30 lines of at most 100 characters; no code, paths, secrets or other people's names. A new line when full is refused; in v1 the person frees room by editing the file |
 | Preferences | Reflection | At most 15 lines; same limits |
 
@@ -310,7 +303,7 @@ Preferences; the Boop section isn't shown.
 
 ```markdown
 ## Today
-2026-10-14 · first seen 08:52 · mood: a bit frazzled
+2026-10-14 · first seen 08:52
 
 ## Notes
 - jetpack is the payments service
@@ -327,11 +320,9 @@ Preferences; the Boop section isn't shown.
 
 | Section | Written by | Rule |
 | --- | --- | --- |
-| Today | Core | Date, first activity, and Boop's current mood |
+| Today | Core | Date and first activity |
 | Notes | `remember(today)`, from the brain | At most 10 lines of at most 80 characters; the oldest drops first. No code, paths or secrets |
 | Happened | Core | One line per notable event, summaries only; the last 40 lines |
-
-Mood is internal. It shapes behaviour and is only visible in debug mode.
 
 ## 5. Common event shape
 
@@ -358,11 +349,11 @@ Adding an agent later means one new adapter that produces this shape.
    │ needs approval            │                            │
    ├── hook: needs_you ───────►│ session → "needs you"      │
    │ (agent shows its own      ├── snapshot: attention ────►│ amber, looks at you,
-   │  prompt as normal)        │                            │ nudge ladder
+   │  prompt as normal)        │                            │ one chirp
    │                           │                            │
    │ you approve on the Mac    │                            │
    ├── hook: activity ────────►│ session → "working"        │
-   │                           ├── snapshot: calm ─────────►│ a nod, back to work
+   │                           ├── snapshot: calm ─────────►│ back to work
 ```
 
 - Claude shows "needs you" immediately. Codex waits 2 s first, because its
@@ -378,8 +369,8 @@ Adding an agent later means one new adapter that produces this shape.
 ## 7. Device
 
 The device is a thin client. It draws what the latest snapshot says, plays
-moments, runs its own short timers (blinks, idle life, the nudge ladder) and
-reports taps and push-to-talk. It holds no
+moments, runs its own short timers (blinks, the needs-you chirp, the
+reply wait after push-to-talk) and reports taps and push-to-talk. It holds no
 personality or memory, just a device ID, its touch calibration, and its
 animation and syllable library.
 What it does in each situation is in [BEHAVIORS.md](BEHAVIORS.md); the
@@ -389,7 +380,7 @@ hardware and firmware are in [DEVICE.md](DEVICE.md).
 
 | Failure | Behaviour |
 | --- | --- |
-| App not running | Hooks exit at once; agents are unaffected. The device idles with a sleepy "no app" face |
+| App not running | Hooks exit at once; agents are unaffected. The device shows the asleep face with the unplugged icon |
 | Device disconnected | The app keeps going; the next snapshot catches the device up on reconnect |
 | Brain offline, slow or invalid | Rules still drive every reaction. The default classifier is plain rules, which always answers; one that fails, runs late or answers off the menu drops that pass. A writer that fails leaves the words empty: a mumble goes without its word, and nothing is remembered ([HARNESS.md](HARNESS.md) §3) |
 | Memory file won't parse | `long-term.md` comes back from its newest snapshot that reads; `short-term.md` starts fresh (§4) |
@@ -516,3 +507,8 @@ When a spec changes direction, add a row here saying why.
 | 2026-09-26 | Yelling at Boop or telling it off makes it sad and doesn't quiet it; only words with "quiet" in them do, and the `quiet` action checks that itself, whichever classifier decided. Starting quiet mode plays `zip`. This replaces "shut up", "hush", "stop talking" and "keep it down" → quiet and a sulk | The owner's call: being mad at Boop shouldn't silence it, and asking should. `zip` was drawn but unused | [BEHAVIORS.md](BEHAVIORS.md) §3.3, [HARNESS.md](HARNESS.md) §5–6 |
 | 2026-09-26 | Push-to-talk measures how loud you are, and the "you said" input says whether you yelled, even with no words; only that yes or no leaves the audio | "Any sort of yelling" should count, whatever the words | [BEHAVIORS.md](BEHAVIORS.md) §3.3, [UX.md](UX.md) §5 |
 | 2026-09-26 | A poke streak, the fourth tap within 3 s, is a fifth input, "poked again and again": the rules side-eye you, and the brain may grumble, at most once a minute. On the device a tap no longer cuts a side-eye short. This amends "Taps and 'needs you' are rules only" | The owner's design: a poke streak goes through the harness as its own event. The side-eye keeps the reaction immediate whatever the brain does, and the device rule keeps a happy wiggle from landing in the middle of the huff | [HARNESS.md](HARNESS.md) §2, [BEHAVIORS.md](BEHAVIORS.md) §3.3 |
+| 2026-09-26 | v1 is cut to a minimal surface: asleep, idle, working, no app and needs you; `cheer`, `nod`, `wiggle`, `listening`, `thinking` and `shrug`; tap and push-to-talk; the brain with `react` (a mumble only), `quiet` and `remember`. Mood, XP and hunger, night, focus, cheer sizes, the nudge ladder, the threads and stats screens, touch-and-hold and the brain's faces are parked and deleted (kept at tag `v1-full`). A `moment` may carry only `say`, which plays over the current face. This supersedes the earlier rows about those features | The surface had grown past what the owner can hold in their head; features come back one at a time | [BEHAVIORS.md](BEHAVIORS.md), [FUTURE.md](FUTURE.md) |
+| 2026-09-26 | The face becomes pixel art after the owner's reference render: 3 px blocks with no anti-aliasing, window eyes of four panes, pink cheeks and a flat bar mouth; the heart, sweat drop and "zzZZ" become sprites. The popover's face and the menu-bar icon follow. This supersedes the gen-2 look row | The owner asked for every animation to match the reference; poses are unchanged, so every animation follows the new drawing | [UX.md](UX.md) §2 |
+| 2026-09-26 | Every expression keeps the window eyes: happy is a squint from the bottom, not "^" arches; mouths are small pixel shapes (bar, "u", frown, "o", a filled cup), not traced curves; the cheer no longer tints the eyes | The owner found the arches and the wide D grin uncanny on boxy eyes and asked to keep the eyes boxy and cute | [UX.md](UX.md) §2 |
+| 2026-09-26 | Second cut, to 4 states (asleep, idle, working, needs you) and 3 animations (`cheer`, `wiggle`, `listening`): `nod`, `thinking`, `shrug` and the no-app look are parked. `listening` covers the reply wait and ends on the reply, on an empty moment, or after 8 s; no app shows the asleep face with the unplugged icon | The owner asked to go from 11 to 7 | [BEHAVIORS.md](BEHAVIORS.md), [PROTOCOL.md](PROTOCOL.md) §3 |
+| 2026-09-26 | The hero moments (A8) keep C1's 7: a failed turn (now including one that leaves its tests failing) gets no animation, only the brain's annoyed mumble; told off or yelled at, a sad mumble; a poke streak, a grumble after the fourth wiggle; quiet shows only its icon, with no `zip` | The owner chose to keep 4 states and 3 animations and express the hero moments by mumble | [BEHAVIORS.md](BEHAVIORS.md) §3 |

@@ -102,11 +102,6 @@ final class AppModel: ObservableObject {
         runtime?.reconnectDevice()
     }
 
-    func setAway(_ on: Bool) {
-        status?.away = on
-        runtime?.setAway(on)
-    }
-
     func setVolume(_ volume: Int) {
         guard status?.snapshot.vol != volume else { return }
         status?.snapshot.vol = volume

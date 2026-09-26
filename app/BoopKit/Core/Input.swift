@@ -61,8 +61,7 @@ public struct Input: Equatable, Sendable {
     /// `14:05`, and `Tuesday`.
     public var clock: String
     public var weekday: String
-    public var hunger: Growth.Hunger
-    /// What the rules already did about it, e.g. `cheer size 2`, for the transcript.
+    /// What the rules already did about it, e.g. `cheer`, for the transcript.
     public var rules: String?
     public var ts: Int64
 
@@ -72,7 +71,7 @@ public struct Input: Equatable, Sendable {
     public init(_ kind: Kind, agent: String? = nil, project: String? = nil, outcome: Outcome? = nil,
                 topic: String? = nil, tookMs: Int64? = nil, error: String? = nil, more: Int = 0,
                 words: String? = nil, yelled: Bool = false, yesterday: String? = nil, clock: String,
-                weekday: String, hunger: Growth.Hunger = .fed, rules: String? = nil, ts: Int64) {
+                weekday: String, rules: String? = nil, ts: Int64) {
         self.kind = kind
         self.agent = agent
         self.project = project
@@ -86,7 +85,6 @@ public struct Input: Equatable, Sendable {
         self.yesterday = yesterday
         self.clock = clock
         self.weekday = weekday
-        self.hunger = hunger
         self.rules = rules
         self.ts = ts
     }
@@ -115,8 +113,6 @@ public struct Input: Equatable, Sendable {
             return ([kind.rawValue] + (yesterday.map { ["yesterday \($0)"] } ?? [])).joined(separator: " · ")
         }
         parts.append("\(clock) \(weekday)")
-        if hunger == .hungry { parts.append("hungry") }
-        if hunger == .starving { parts.append("starving") }
         if more > 0 { parts.append("+\(more) more") }
         return parts.joined(separator: " · ")
     }
@@ -147,22 +143,15 @@ extension Input {
     ///      "topic": "tests", "took_s": 1080, "time": "14:05", "weekday": "Tuesday"}
     ///
     /// Optional fields: `outcome`, `topic`, `took_s`, `error`, `more`, `words`,
-    /// `yelled`, `yesterday`, `hunger` (`hungry` or `starving`). The caller
-    /// gives the time.
+    /// `yelled`, `yesterday`. The caller gives the time.
     public static func fixture(_ line: String, ts: Int64 = 0) -> Input? {
         guard let o = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
               let kind = (o["input"] as? String).flatMap(Kind.init(rawValue:)) else { return nil }
-        let hunger: Growth.Hunger = switch o["hunger"] as? String {
-        case "hungry": .hungry
-        case "starving": .starving
-        default: .fed
-        }
         return Input(kind, agent: o["agent"] as? String, project: o["project"] as? String,
                      outcome: (o["outcome"] as? String).flatMap(Outcome.init(rawValue:)), topic: o["topic"] as? String,
                      tookMs: (o["took_s"] as? Int).map { Int64($0) * 1000 }, error: o["error"] as? String,
                      more: o["more"] as? Int ?? 0, words: o["words"] as? String, yelled: o["yelled"] as? Bool ?? false,
                      yesterday: o["yesterday"] as? String,
-                     clock: o["time"] as? String ?? "12:00", weekday: o["weekday"] as? String ?? "Tuesday",
-                     hunger: hunger, ts: ts)
+                     clock: o["time"] as? String ?? "12:00", weekday: o["weekday"] as? String ?? "Tuesday", ts: ts)
     }
 }

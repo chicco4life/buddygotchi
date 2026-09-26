@@ -8,7 +8,7 @@ public enum CoreEffect: Equatable, Sendable {
     /// A new snapshot, sent because something on it changed.
     case state(StateSnapshot)
     /// A rule reaction: play `anim` once (the `react` action's `play`).
-    case moment(anim: String, size: Int)
+    case moment(anim: String)
     /// A rule mumble (a `react` call).
     case mumble(feeling: String, word: String?)
     /// One of the inputs for the brain's pipeline (HARNESS.md §2).
@@ -18,10 +18,10 @@ public enum CoreEffect: Equatable, Sendable {
     case aside(String)
     /// A line for `short-term.md`'s Happened section.
     case happened(String)
-    /// Growth changed; the memory store writes it to `long-term.md`.
-    case growth(Growth)
     /// The first activity of a new day: short-term starts fresh.
-    case newDay(date: String, firstSeen: String, mood: String)
+    case newDay(date: String, firstSeen: String)
     /// Push-to-talk: start (true) or stop listening on the Mac's mic.
     case listen(Bool)
+    /// Ends the device's `listening` face: the empty moment (PROTOCOL.md §3).
+    case endListening
 }

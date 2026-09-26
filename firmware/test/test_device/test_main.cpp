@@ -21,7 +21,9 @@ struct FakeHal : app::Hal {
   uint32_t real = 0;
   bool boot = false;
   uint32_t led = 0;
+  uint8_t bl = 255;
   uint32_t realMs() override { return real; }
+  void setBacklight(uint8_t level) override { bl = level; }
   bool bootDown() override { return boot; }
   void setLed(uint32_t rgb) override { led = rgb; }
   const char* fwVersion() override { return "t"; }
@@ -294,24 +296,38 @@ static void test_light_sets_the_led() {
   TEST_ASSERT_TRUE(has(r.usb.text, "\"led\":\"#FFB000\""));
 }
 
-static void test_attention_shows_needs_you_and_climbs_the_ladder() {
+// BEHAVIORS.md §3.2: one chirp per request, amber at half, nothing more
+// while it waits; a different request chirps again.
+static void test_attention_shows_needs_you_and_chirps_once() {
   Rig r;
-  r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"attn\":{\"agent\":\"codex\",\"project\":\"landing\"}}");
+  const char* landing = "{\"t\":\"state\",\"base\":\"working\",\"attn\":{\"agent\":\"codex\",\"project\":\"landing\"}}";
+  r.usbLine(landing);
   TEST_ASSERT_EQUAL(app::Screen::kNeedsYou, r.dev.screen());
-  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":20000}");
-  r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"attn\":{\"agent\":\"codex\",\"project\":\"landing\"}}");
-  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":45000}");
-  r.usbLine("{\"t\":\"dbg.state\"}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"rung\":2"));
-  // A different project restarts the ladder.
+  TEST_ASSERT_EQUAL_UINT32(0x805800, r.hal.led);
+  TEST_ASSERT_EQUAL(1, int(r.hal.cues.size()));
+  TEST_ASSERT_TRUE(r.hal.cues[0] == voice::Cue::kChirp);
+  for (uint32_t t : {20000u, 40000u, 60000u, 80000u, 100000u, 120000u, 140000u}) {
+    char step[64];
+    std::snprintf(step, sizeof(step), "{\"t\":\"dbg.clock\",\"freeze\":%u}", unsigned(t));
+    r.usbLine(step);
+    r.usbLine(landing);
+  }
+  TEST_ASSERT_EQUAL(1, int(r.hal.cues.size()));
+  TEST_ASSERT_EQUAL_UINT32(0x805800, r.hal.led);
+  // A different project chirps again.
   r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"attn\":{\"agent\":\"codex\",\"project\":\"site\"}}");
-  r.usb.text.clear();
-  r.usbLine("{\"t\":\"dbg.state\"}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"rung\":1"));
+  TEST_ASSERT_EQUAL(2, int(r.hal.cues.size()));
   r.usbLine("{\"t\":\"state\",\"base\":\"working\"}");
   TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
+  TEST_ASSERT_EQUAL_UINT32(0, r.hal.led);
+  // Muted, no chirp.
+  Rig m;
+  m.usbLine("{\"t\":\"state\",\"base\":\"working\",\"vol\":0,\"attn\":{\"agent\":\"codex\",\"project\":\"landing\"}}");
+  TEST_ASSERT_EQUAL(0, int(m.hal.cues.size()));
 }
 
+// BEHAVIORS.md §3.4: no app after 30 s of silence. dbg.state still says
+// "no_app", the backlight dims to 60 and the face is asleep.
 static void test_no_app_after_30s_of_silence() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
@@ -319,6 +335,11 @@ static void test_no_app_after_30s_of_silence() {
   TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":30000}");
   TEST_ASSERT_EQUAL(app::Screen::kNoApp, r.dev.screen());
+  TEST_ASSERT_EQUAL(60, r.hal.bl);
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"screen\":\"no_app\""));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"bl\":60"));
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
   TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
 }
@@ -326,63 +347,65 @@ static void test_no_app_after_30s_of_silence() {
 static void test_moment_plays_then_ends_and_a_new_one_replaces_it() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"nod\",\"size\":1,\"ttl\":5}");
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"wiggle\",\"ttl\":5}");
   r.usbLine("{\"t\":\"dbg.state\"}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"nod\",\"left_ms\":600}"));
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"size\":2,\"ttl\":5}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"wiggle\",\"left_ms\":700}"));
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"size\":3,\"ttl\":5}");  // an old `size` is ignored
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"anim\":\"cheer\""));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"anim\":\"cheer\",\"left_ms\":2000"));  // one size, 2 s
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":5000}");
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"moonwalk\"}");  // unknown: ignored
-  r.usb.text.clear();
-  r.usbLine("{\"t\":\"dbg.state\"}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
-}
-
-// The stretch and the yawn left the set (BEHAVIORS.md §7), so an older Mac
-// app's `stretch` or `yawn` is an unknown animation, ignored like any other:
-// nothing plays, its mumble is dropped with it, and a moment already playing
-// carries on.
-static void test_stretch_and_yawn_are_unknown_and_ignored() {
-  Rig r;
-  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  for (const char* anim : {"stretch", "yawn"}) {
-    std::string m = std::string("{\"t\":\"moment\",\"anim\":\"") + anim +
-                    "\",\"size\":2,\"say\":{\"syl\":\"ba po\",\"ms\":100},\"ttl\":5}";
-    r.usbLine(m.c_str());
+  // Unknown animations, the removed ones among them: ignored.
+  for (const char* gone : {"moonwalk", "oops", "happy", "levelup", "yawn", "nod", "thinking", "shrug"}) {
+    std::string line = std::string("{\"t\":\"moment\",\"anim\":\"") + gone + "\"}";
+    r.usbLine(line.c_str());
     r.usb.text.clear();
     r.usbLine("{\"t\":\"dbg.state\"}");
     TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
   }
   TEST_ASSERT_EQUAL(0, int(r.hal.said.size()));
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"nod\",\"size\":1,\"ttl\":5}");
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"yawn\",\"size\":1,\"ttl\":5}");
-  r.usb.text.clear();
-  r.usbLine("{\"t\":\"dbg.state\"}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"nod\",\"left_ms\":600}"));
+  // An unknown animation with a mumble: the mumble plays on its own.
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"oops\",\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
+  TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
 }
 
-static void test_strip_taps_cycle_the_screens() {
+// PROTOCOL.md §3: the empty moment {"t":"moment","ttl":5} ends listening
+// and does nothing else; an unknown anim alone isn't the empty moment.
+static void test_the_empty_moment_ends_listening() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  const app::Screen order[] = {app::Screen::kThreads, app::Screen::kStats, app::Screen::kFace};
-  uint32_t t = 0;
-  for (app::Screen want : order) {
-    r.usbLine("{\"t\":\"dbg.touch\",\"x\":160,\"y\":222,\"ms\":100}");
-    t += 200;
-    char step[64];
-    std::snprintf(step, sizeof(step), "{\"t\":\"dbg.clock\",\"freeze\":%u}", unsigned(t));
-    r.usbLine(step);
-    TEST_ASSERT_EQUAL(want, r.dev.screen());
-  }
-  // A touch on the face doesn't change the screen.
-  r.usbLine("{\"t\":\"dbg.touch\",\"x\":160,\"y\":100,\"ms\":100}");
-  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1000}");
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"listening\",\"ttl\":5}");
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"shrug\",\"ttl\":5}");  // removed: ignored
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"listening\""));
+  r.usbLine("{\"t\":\"moment\",\"ttl\":5}");
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"rx\":{\"state\":1,\"moment\":3}"));
+  // It never ends a cheer.
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"ttl\":5}");
+  r.usbLine("{\"t\":\"moment\",\"ttl\":5}");
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"cheer\""));
+  TEST_ASSERT_EQUAL(0, r.hal.hushes);
+}
+
+// UX.md §4: the strip is part of the screen; a touch on it is a tap.
+static void test_a_strip_touch_is_a_tap() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  r.usbLine("{\"t\":\"dbg.touch\",\"x\":160,\"y\":222,\"ms\":100}");
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":200}");
   TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"anim\":\"wiggle\""));
 }
 
 static void test_reset_forgets_the_mac_and_freezes_at_0() {
@@ -402,8 +425,8 @@ static void test_reset_forgets_the_mac_and_freezes_at_0() {
 // and tempo, and the player follows volume, quiet and needs you.
 static void test_say_reaches_the_player() {
   Rig r;
-  r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":7,\"mood\":{\"pitch\":120}}");
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"size\":1,\"say\":{\"syl\":\"bi-do ba zz\",\"word\":\"done\",\"at\":4,\"tune\":\"up\",\"ms\":110},\"ttl\":5}");
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":7}");
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"say\":{\"syl\":\"bi-do ba zz\",\"word\":\"done\",\"at\":4,\"tune\":\"up\",\"ms\":110},\"ttl\":5}");
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
   const voice::Line& l = r.hal.said[0];
   TEST_ASSERT_EQUAL(4, l.n);
@@ -414,7 +437,6 @@ static void test_say_reaches_the_player() {
   TEST_ASSERT_EQUAL(4, l.at);
   TEST_ASSERT_TRUE(l.tune == voice::Tune::kUp);
   TEST_ASSERT_EQUAL(110, l.ms);
-  TEST_ASSERT_EQUAL(120, l.pitch);
   TEST_ASSERT_EQUAL(7, l.vol);
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":true,\"syllables\":4,\"out\":{"));
@@ -424,6 +446,27 @@ static void test_say_reaches_the_player() {
   TEST_ASSERT_EQUAL(1, r.hal.hushes);
 }
 
+// PROTOCOL.md §3: a moment with only `say` plays the mumble, bubble and
+// voice, over the face showing; no animation starts. The line stops when
+// the bubble goes.
+static void test_a_say_on_its_own_plays_the_mumble() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"working\"}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"ttl\":5}");
+  TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":true,\"syllables\":2"));
+  // (2 syllables × 100 ms) + 1.2 s: the bubble goes, and the line with it.
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1399}");
+  TEST_ASSERT_EQUAL(0, r.hal.hushes);
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1400}");
+  TEST_ASSERT_EQUAL(1, r.hal.hushes);
+  // With no mumble and no animation, nothing happens.
+  r.usbLine("{\"t\":\"moment\",\"ttl\":5}");
+  TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
+}
+
 static void test_mute_quiet_and_needs_you_keep_it_silent() {
   const char* states[] = {
       "{\"t\":\"state\",\"base\":\"idle\",\"vol\":0}",
@@ -431,133 +474,57 @@ static void test_mute_quiet_and_needs_you_keep_it_silent() {
       "{\"t\":\"state\",\"base\":\"idle\",\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}",
   };
   for (const char* st : states) {
-    Rig r;
-    r.usbLine(st);
-    r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"size\":2,\"say\":{\"syl\":\"ba\",\"ms\":100}}");
-    TEST_ASSERT_EQUAL(0, int(r.hal.said.size()));
+    for (const char* mo : {"{\"t\":\"moment\",\"anim\":\"cheer\",\"say\":{\"syl\":\"ba\",\"ms\":100}}",
+                           "{\"t\":\"moment\",\"say\":{\"syl\":\"ba\",\"ms\":100}}"}) {
+      Rig r;
+      r.usbLine(st);
+      r.usbLine(mo);
+      TEST_ASSERT_EQUAL(0, int(r.hal.said.size()));
+    }
   }
   // Muted, the mouth still moves: only the sound goes.
   Rig r;
   r.usbLine(states[0]);
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"size\":1,\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":true,\"syllables\":2"));
   // A line stops when quiet arrives mid-line.
   Rig q;
   q.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  q.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"size\":1,\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
+  q.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
   TEST_ASSERT_EQUAL(1, int(q.hal.said.size()));
   q.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"quiet\":30}");
   TEST_ASSERT_EQUAL(1, q.hal.hushes);
 }
 
-// Focus mode is gone. An older Mac app may still send `focus` in `state`;
-// like any unknown field it's ignored (PROTOCOL.md §2): Boop still mumbles,
-// plays the jingle and chirps for "needs you", and shows and reports exactly
-// what it would without it.
-static void test_focus_from_an_older_mac_is_ignored() {
-  auto play = [](Rig& r, bool focus) {
-    std::string f = focus ? ",\"focus\":true" : "";
-    r.usbLine(("{\"t\":\"state\",\"base\":\"idle\"" + f + "}").c_str());
-    r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"size\":2,\"say\":{\"syl\":\"ba po\",\"ms\":100},\"ttl\":5}");
-    r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":3000}");
-    r.usbLine(("{\"t\":\"state\",\"base\":\"idle\"" + f + ",\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}").c_str());
-    r.usbLine("{\"t\":\"dbg.state\"}");
-  };
-  Rig older, plain;
-  play(older, true);
-  play(plain, false);
-  TEST_ASSERT_EQUAL(1, int(older.hal.said.size()));  // the mumble
-  TEST_ASSERT_EQUAL(2, int(older.hal.cues.size()));
-  TEST_ASSERT_TRUE(older.hal.cues[0] == voice::Cue::kJingle);  // once the line ends
-  TEST_ASSERT_TRUE(older.hal.cues[1] == voice::Cue::kChirp);   // needs you
-  TEST_ASSERT_FALSE(has(older.usb.text, "focus"));
-  TEST_ASSERT_EQUAL_STRING(plain.usb.text.c_str(), older.usb.text.c_str());
-  TEST_ASSERT_EQUAL_MEMORY(plain.px.data(), older.px.data(), plain.px.size());
-}
-
-static void test_cues_follow_the_behaviour() {
+// BEHAVIORS.md §4: the chirp is the only cue. A cheer plays none.
+static void test_only_needs_you_chirps() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"size\":2}");
-  TEST_ASSERT_EQUAL(1, int(r.hal.cues.size()));
-  TEST_ASSERT_TRUE(r.hal.cues[0] == voice::Cue::kJingle);
-  // Needs you: the chirp at 45 s.
-  r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}");
-  r.usbLine("{\"t\":\"dbg.clock\",\"step\":45000}");
-  TEST_ASSERT_EQUAL(2, int(r.hal.cues.size()));
-  TEST_ASSERT_TRUE(r.hal.cues[1] == voice::Cue::kChirp);
-  // With a line playing, the jingle waits it out.
-  Rig s;
-  s.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  s.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"size\":2,\"say\":{\"syl\":\"ba\",\"ms\":100}}");
-  TEST_ASSERT_EQUAL(1, int(s.hal.said.size()));
-  TEST_ASSERT_EQUAL(0, int(s.hal.cues.size()));
-}
-
-// VOICE.md §8: a cue that arrives during a line waits it out, then plays
-// once. A newer cue replaces a waiting one, and mute drops it.
-static void test_a_cue_during_a_line_waits_it_out() {
-  const char* idle = "{\"t\":\"state\",\"base\":\"idle\"}";
-  // Two beats of 100 ms: the line plays from 0 to 200 ms.
-  const char* cheer = "{\"t\":\"moment\",\"anim\":\"cheer\",\"size\":2,\"say\":{\"syl\":\"ba po\",\"ms\":100}}";
-  Rig r;
-  r.usbLine(idle);
-  r.usbLine(cheer);
-  TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
-  TEST_ASSERT_EQUAL(0, int(r.hal.cues.size()));
-  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":199}");
-  TEST_ASSERT_EQUAL(0, int(r.hal.cues.size()));
-  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":200}");
-  TEST_ASSERT_EQUAL(1, int(r.hal.cues.size()));
-  TEST_ASSERT_TRUE(r.hal.cues[0] == voice::Cue::kJingle);
-  TEST_ASSERT_EQUAL(0, r.hal.hushes);  // the line wasn't cut for it
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\"}");
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":3000}");
-  TEST_ASSERT_EQUAL(1, int(r.hal.cues.size()));  // once
-
-  // Needs you arrives mid-line: its chirp replaces the waiting jingle.
-  Rig n;
-  n.usbLine(idle);
-  n.usbLine(cheer);
-  n.usbLine("{\"t\":\"dbg.clock\",\"freeze\":100}");
-  n.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}");
-  n.usbLine("{\"t\":\"dbg.clock\",\"freeze\":3000}");
-  TEST_ASSERT_EQUAL(1, int(n.hal.cues.size()));
-  TEST_ASSERT_TRUE(n.hal.cues[0] == voice::Cue::kChirp);
-
-  // Mute arrives mid-line: the waiting jingle is dropped.
-  Rig m;
-  m.usbLine(idle);
-  m.usbLine(cheer);
-  m.usbLine("{\"t\":\"dbg.clock\",\"freeze\":100}");
-  m.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":0}");
-  m.usbLine("{\"t\":\"dbg.clock\",\"freeze\":3000}");
-  TEST_ASSERT_EQUAL(0, int(m.hal.cues.size()));
+  TEST_ASSERT_EQUAL(0, int(r.hal.cues.size()));
+  // A line playing when something starts needing you is hushed for the chirp.
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
+  TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":3100}");
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}");
+  TEST_ASSERT_EQUAL(1, r.hal.hushes);
+  TEST_ASSERT_EQUAL(1, int(r.hal.cues.size()));
+  TEST_ASSERT_TRUE(r.hal.cues[0] == voice::Cue::kChirp);
 }
 
-// PROTOCOL.md §3 and the ARCHITECTURE.md §11 decision log: the Mac clips
-// `name` to 23 bytes on a character boundary, for 24-byte fields on the
-// device. A 23-byte name reaches the stats screen whole. This one is 18
-// glyphs (five 2-byte "·"), the most the stats name area holds (UX.md §3).
-static void test_a_23_byte_name_reaches_the_stats_screen_whole() {
-  const char* name = "Pip\xC2\xB7" "Bo\xC2\xB7" "Kit\xC2\xB7" "Mo\xC2\xB7" "Ze\xC2\xB7" "D";
-  TEST_ASSERT_EQUAL(23, int(std::strlen(name)));
+// dbg.state carries nothing for the parked features (the cut, 2026-09-26).
+static void test_state_has_no_parked_fields() {
   Rig r;
-  std::string st = std::string("{\"t\":\"state\",\"base\":\"idle\",\"name\":\"") + name + "\"}";
-  r.usbLine(st.c_str());
-  for (uint32_t t : {200u, 400u}) {  // two strip taps: threads, then stats
-    r.usbLine("{\"t\":\"dbg.touch\",\"x\":160,\"y\":222,\"ms\":100}");
-    char step[64];
-    std::snprintf(step, sizeof(step), "{\"t\":\"dbg.clock\",\"freeze\":%u}", unsigned(t));
-    r.usbLine(step);
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"mood\":{\"energy\":40},\"focus\":true,\"night\":true,\"hungry\":2,"
+            "\"level\":3,\"threads\":[[\"claude\",\"x\",\"work\"]]}");
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"screen\":\"face\""));
+  for (const char* gone : {"\"rung\"", "\"hushed\"", "\"focus\"", "\"night\"", "\"hungry\"", "\"mood\"", "\"level\""}) {
+    TEST_ASSERT_FALSE_MESSAGE(has(r.usb.text, gone), gone);
   }
-  TEST_ASSERT_EQUAL(app::Screen::kStats, r.dev.screen());
-  std::vector<uint8_t> px(size_t(render::kWidth) * render::kHeight);
-  render::Canvas want(px.data());
-  render::Stats stats;
-  stats.name = name;
-  render::drawStats(want, stats, render::Strip{});
-  TEST_ASSERT_EQUAL_MEMORY(px.data(), r.dev.canvas().pixels(), px.size());
+  TEST_ASSERT_EQUAL(255, r.hal.bl);  // no night dimming
 }
 
 // PROTOCOL.md §2: a line is at most 512 bytes. The board and boop-sim both
@@ -623,18 +590,17 @@ int main() {
   RUN_TEST(test_physical_hold_sends_talk_on_and_off);
   RUN_TEST(test_shot_is_header_then_base64);
   RUN_TEST(test_light_sets_the_led);
-  RUN_TEST(test_attention_shows_needs_you_and_climbs_the_ladder);
+  RUN_TEST(test_attention_shows_needs_you_and_chirps_once);
   RUN_TEST(test_no_app_after_30s_of_silence);
   RUN_TEST(test_moment_plays_then_ends_and_a_new_one_replaces_it);
-  RUN_TEST(test_stretch_and_yawn_are_unknown_and_ignored);
-  RUN_TEST(test_strip_taps_cycle_the_screens);
+  RUN_TEST(test_the_empty_moment_ends_listening);
+  RUN_TEST(test_a_strip_touch_is_a_tap);
   RUN_TEST(test_reset_forgets_the_mac_and_freezes_at_0);
   RUN_TEST(test_say_reaches_the_player);
+  RUN_TEST(test_a_say_on_its_own_plays_the_mumble);
   RUN_TEST(test_mute_quiet_and_needs_you_keep_it_silent);
-  RUN_TEST(test_focus_from_an_older_mac_is_ignored);
-  RUN_TEST(test_cues_follow_the_behaviour);
-  RUN_TEST(test_a_cue_during_a_line_waits_it_out);
-  RUN_TEST(test_a_23_byte_name_reaches_the_stats_screen_whole);
+  RUN_TEST(test_only_needs_you_chirps);
+  RUN_TEST(test_state_has_no_parked_fields);
   RUN_TEST(test_lines_over_512_bytes_are_dropped);
   RUN_TEST(test_no_battery_reports_bat_0);
   return UNITY_END();

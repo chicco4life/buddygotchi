@@ -15,7 +15,7 @@ namespace app {
 namespace {
 
 constexpr uint32_t kDefaultPressMs = 100;
-constexpr uint32_t kStatusMs = 60000;      // PROTOCOL.md §4
+constexpr uint32_t kStatusMs = 60000;  // PROTOCOL.md §4
 
 void copyStr(char* dst, size_t n, const char* src) { std::snprintf(dst, n, "%s", src ? src : ""); }
 
@@ -109,26 +109,8 @@ void Device::handleLine(const char* line, size_t n, Link from) {
     m.busy = doc["busy"] | 0;
     m.idle = doc["idle"] | 0;
     m.wait = doc["wait"] | 0;
-    JsonObjectConst mood = doc["mood"];
-    m.energy = mood["energy"] | 100;
-    m.pace = mood["pace"] | 100;
-    m.pitch = mood["pitch"] | 100;
     m.quiet = doc["quiet"] | 0;
     m.vol = doc["vol"] | 6;
-    m.night = doc["night"] | false;
-    copyStr(m.name, sizeof(m.name), doc["name"] | "");
-    m.level = doc["level"] | 1;
-    m.prog = doc["prog"] | 0;
-    m.days = doc["days"] | 0;
-    m.hungry = doc["hungry"] | 0;
-    for (JsonArrayConst row : doc["threads"].as<JsonArrayConst>()) {
-      if (m.nThreads >= 8) break;
-      render::Thread& th = m.threads[m.nThreads++];
-      copyStr(th.agent, sizeof(th.agent), row[0] | "");
-      copyStr(th.project, sizeof(th.project), row[1] | "");
-      const char* st = row[2] | "idle";
-      th.status = !std::strcmp(st, "wait") ? 'w' : !std::strcmp(st, "work") ? 'b' : 'i';
-    }
     b_.onState(m, at, rng_);
     if (m.attn || m.quiet > 0 || m.vol <= 0) hush();  // VOICE.md §9
     pattern_ = false;
@@ -136,8 +118,8 @@ void Device::handleLine(const char* line, size_t n, Link from) {
   } else if (!std::strcmp(t, "moment")) {
     ++rxMoment_;
     MomentIn mo;
-    mo.anim = render::animFromName(doc["anim"]);
-    mo.size = doc["size"] | 1;
+    mo.anim = render::animFromName(doc["anim"]);  // none, or unknown: only the mumble
+    mo.empty = doc["anim"].isNull() && doc["say"].isNull();  // the empty moment ends listening
     voice::Line line;
     JsonObjectConst say = doc["say"];
     if (say) {
@@ -169,7 +151,6 @@ void Device::handleLine(const char* line, size_t n, Link from) {
     bool mumble = b_.onMoment(mo, at, rng_);  // copies the word
     const Model& m = b_.model();
     if (mumble && m.vol > 0) {
-      line.pitch = uint16_t(m.pitch);
       line.vol = uint8_t(m.vol > 10 ? 10 : m.vol);
       line.seed = at * 2654435761u + rxMoment_;  // not from rng_, which the frames depend on
       hal_.say(line);
@@ -290,29 +271,23 @@ void Device::readInputs(uint32_t t) {
       break;
   }
 
+  // A touch anywhere is a tap, sent on release however long it was held.
+  // The press shows at once. The debug pattern ignores touches.
   if (injTouch_ && int32_t(t - injTouchUntil_) >= 0) injTouch_ = false;
   int x = 0, y = 0;
   bool touching = injTouch_ ? (x = injX_, y = injY_, true) : hal_.touch(x, y);
-  Screen s = screenAt(t);
-  bool faced = s == Screen::kFace || s == Screen::kNeedsYou || s == Screen::kNoApp;
+  bool faced = screenAt(t) != Screen::kPattern;
   if (touching && !touchDown_) {
     input("touch", t, x, y);
-    touchStrip_ = y >= render::kStripTop;
-    if (!touchStrip_ && faced) b_.pressDown(t);
+    if (faced) b_.pressDown(t);
   }
-  // A touch acts on release, however long it was held.
   if (!touching && touchDown_) {
     b_.pressUp(t);
-    if (touchStrip_) {
-      b_.stripTap(t);
-    } else if (faced) {
+    if (faced) {
       b_.tap(t, rng_);
       input("tap", t);
       emit("tap");
-    } else {
-      b_.contentTap(t);
     }
-    dirty_ = true;
   }
   if (touching != touchDown_) dirty_ = true;
   touchDown_ = touching;
@@ -333,8 +308,7 @@ void Device::tick() {
   Screen screen = screenAt(t);
   if (screen != screen_) screen_ = screen, dirty_ = true;
   if (debugLabel(t) != labelDrawn_) dirty_ = true;
-  bool faced = screen_ == Screen::kFace || screen_ == Screen::kNeedsYou || screen_ == Screen::kNoApp;
-  bool moving = faced && b_.moving(t);
+  bool moving = screen_ != Screen::kPattern && b_.moving(t);
   if (dirty_ || ((moving || drawnMoving_) && t != drawnT_)) render(t);
 }
 
@@ -343,19 +317,14 @@ void Device::hush() {
   saying_ = false;
 }
 
-// Stops a line whose moment ended or was replaced (a tap's wiggle, say),
-// and plays new sound cues (BEHAVIORS.md §6). A cue that arrives during a
-// line waits it out (VOICE.md §8), since a cue on the DAC would cut the
-// line: the jingle arrives with the cheer that carries the line, and plays
-// when the line ends, as the mouth stops (or sooner, if the line is hushed).
-// A newer cue replaces a waiting one, and the volume is checked when it
-// plays.
+// Stops a line whose mumble ended or was replaced (a tap's wiggle, say),
+// and plays new sound cues (BEHAVIORS.md §4): the chirp, once when
+// something starts needing you. Its `state` has already hushed any line.
 void Device::followSound(uint32_t t) {
   if (saying_ && (b_.momentSeq() != sayMoment_ || !b_.mumble(t))) hush();
   uint32_t at;
   const char* k = b_.sfx(at);
   if (k == sfxSeen_ && at == sfxSeenAt_) return;
-  if (saying_ && b_.speaking(t)) return;  // the line is still playing
   sfxSeen_ = k, sfxSeenAt_ = at;
   const Model& m = b_.model();
   if (k && m.vol > 0) hal_.cue(voice::cueFromName(k), uint8_t(m.vol > 10 ? 10 : m.vol));
@@ -363,7 +332,6 @@ void Device::followSound(uint32_t t) {
 
 void Device::render(uint32_t t) {
   render::Strip strip = b_.strip(t);
-  strip.pressed = touchDown_ && touchStrip_;
   const Model& m = b_.model();
   bool faced = false;
   switch (screen_) {
@@ -378,13 +346,6 @@ void Device::render(uint32_t t) {
         render::drawPattern(canvas_);
       }
       break;
-    case Screen::kThreads: render::drawThreads(canvas_, m.threads, m.nThreads, strip); break;
-    case Screen::kStats: {
-      render::Stats st;
-      st.name = m.name, st.level = m.level, st.prog = m.prog, st.days = m.days;
-      render::drawStats(canvas_, st, strip);
-      break;
-    }
     case Screen::kNeedsYou: {
       render::Attention a;
       a.agent = m.agent, a.project = m.project, a.more = m.more;
@@ -393,7 +354,7 @@ void Device::render(uint32_t t) {
       break;
     }
     default:
-      render::drawFaceScreen(canvas_, b_.pose(t), b_.mumble(t), strip, screen_ == Screen::kFace && m.hungry >= 2);
+      render::drawFaceScreen(canvas_, b_.pose(t), b_.mumble(t), strip);
       faced = true;
       break;
   }
@@ -410,7 +371,7 @@ void Device::render(uint32_t t) {
 // device screenshots still match the goldens pixel for pixel.
 const char* Device::debugLabel(uint32_t t) const {
   if (!BOOP_DEBUG_LABEL || clock_.frozen()) return nullptr;
-  if (screen_ != Screen::kFace && screen_ != Screen::kNeedsYou && screen_ != Screen::kNoApp) return nullptr;
+  if (screen_ == Screen::kPattern) return nullptr;
   return b_.faceName(t);
 }
 
@@ -460,8 +421,6 @@ void Device::sendState(Link to) {
   } else {
     d["attn"] = nullptr;
   }
-  d["rung"] = b_.rung(t);
-  d["hushed"] = b_.hushed();
   uint32_t left;
   render::Anim anim = b_.moment(t, left);
   if (anim != render::Anim::kNone) {
@@ -475,8 +434,6 @@ void Device::sendState(Link to) {
   else d["life"] = nullptr;
   d["quiet"] = m.quiet;
   d["vol"] = m.vol;
-  d["night"] = m.night;
-  d["hungry"] = m.hungry;
   char led[8];
   std::snprintf(led, sizeof(led), "#%06lX", (unsigned long)(b_.led(t) & 0xFFFFFF));
   d["led"] = led;

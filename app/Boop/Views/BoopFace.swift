@@ -28,16 +28,19 @@ enum FaceMood: Equatable {
     }
 }
 
-/// The device's face geometry (firmware `face.cpp`), in its pixels: solid
-/// rounded eyes a bit taller than wide, set wide apart, and a short mouth.
+/// The device's face geometry (firmware `face.cpp`), in its pixels: square
+/// window eyes of four panes around a one-block cross, set wide apart, pink
+/// cheeks under them and a flat bar mouth. The device draws it in 3 px
+/// blocks; the tile is too small for the grid to show, so it keeps the shapes.
 private enum FaceGeometry {
-    static let eyeW: CGFloat = 48, eyeH: CGFloat = 60, eyeR: CGFloat = 17
-    static let eyeGap: CGFloat = 67
-    static let lookX: CGFloat = 26, lookY: CGFloat = 16, turn: CGFloat = 0.11
-    static let mouthY: CGFloat = 46, mouthHalfW: CGFloat = 8, mouthThick: CGFloat = 3, mouthBend: CGFloat = 6
+    static let eye: CGFloat = 39, block: CGFloat = 3
+    static let eyeGap: CGFloat = 72
+    static let lookX: CGFloat = 24, lookY: CGFloat = 15, turn: CGFloat = 0.11
+    static let mouthY: CGFloat = 45, mouthHalfW: CGFloat = 20, mouthThick: CGFloat = 6, mouthBend: CGFloat = 9
+    static let blushDx: CGFloat = 22, blushDy: CGFloat = 40, blushW: CGFloat = 12, blushH: CGFloat = 9
     /// Eye tops to the bottom of the mouth, so the face centres on its middle.
-    static let drop: CGFloat = (mouthY + mouthThick / 2 - eyeH / 2) / 2
-    static let span: CGFloat = 2 * eyeGap + eyeW
+    static let drop: CGFloat = (mouthY + mouthThick / 2 - eye / 2) / 2
+    static let span: CGFloat = 2 * eyeGap + eye
 }
 
 /// Boop's face on a small black-glass tile. It blinks now and then, glances
@@ -76,6 +79,7 @@ struct BoopFace: View {
         var scale: CGFloat = 1
         var tint = Theme.eye
         var smile: CGFloat = 0  // at rest, a flat dash, as on the device
+        var squint: CGFloat = 0  // happy: the bottom of the eye rises
     }
 
     private var pose: Pose {
@@ -96,9 +100,9 @@ struct BoopFace: View {
             p.lookY = -0.6
             p.scale = 1.06
             p.smile = 0.5
-        case .happy:
-            p.tint = Color(hex: "#FFE3A8")
-            p.smile = 1.6
+        case .happy:  // the device's happy squint and a small smile
+            p.squint = 0.25
+            p.smile = 0.6
         case .listening:
             p.lookY = -0.35
             p.scale = 1.1
@@ -110,7 +114,6 @@ struct BoopFace: View {
 
     private func face(k: CGFloat, pose: Pose) -> some View {
         let g = FaceGeometry.self
-        let w = g.eyeW * k * pose.scale, h = g.eyeH * k * pose.scale
         let dx = g.lookX * k * pose.lookX, dy = g.lookY * k * pose.lookY
         let centreY = size / 2 - g.drop * k
         return ZStack {
@@ -118,16 +121,18 @@ struct BoopFace: View {
                 // The eye on the side Boop looks towards grows a little, as
                 // if it turned its head.
                 let grow = 1 + g.turn * max(0, pose.lookX * CGFloat(side))
-                let openH = max(h * grow * pose.open, 1.2)
-                RoundedRectangle(cornerRadius: min(g.eyeR * k * grow, openH / 2), style: .continuous)
+                let x = size / 2 + CGFloat(side) * g.eyeGap * k + dx, y = centreY + dy
+                Cheeks(k: k)
+                    .fill(Theme.blush)
+                    .frame(width: (2 * g.blushW + g.block) * k, height: g.blushH * k)
+                    .position(x: x + CGFloat(side) * g.blushDx * k, y: y + g.blushDy * k)
+                Panes(open: pose.open, squint: pose.squint, gap: g.block * k * pose.scale * grow)
                     .fill(pose.tint)
-                    .frame(width: w * grow, height: openH)
-                    // Lids come down from the top, so a closing eye keeps its bottom.
-                    .position(x: size / 2 + CGFloat(side) * g.eyeGap * k + dx,
-                              y: centreY + dy + (h * grow - openH) / 2)
+                    .frame(width: g.eye * k * pose.scale * grow, height: g.eye * k * pose.scale * grow)
+                    .position(x: x, y: y)
             }
             Smile(bend: g.mouthBend * k * pose.smile)
-                .stroke(pose.tint, style: StrokeStyle(lineWidth: max(g.mouthThick * k, 1.1), lineCap: .round))
+                .stroke(pose.tint, style: StrokeStyle(lineWidth: max(g.mouthThick * k, 1.1), lineCap: .butt))
                 .frame(width: max(2 * g.mouthHalfW * k, 4), height: max(g.mouthBend * k * pose.smile, 0.5))
                 .position(x: size / 2 + dx * 0.45, y: centreY + g.mouthY * k + dy * 0.45)
         }
@@ -152,6 +157,58 @@ struct BoopFace: View {
     }
 }
 
+/// A window eye: four panes around a cross, squeezing about its middle as it
+/// closes, and one bar once it's too thin for panes (as the device does).
+/// Happy, the bottom rises (`squint`) and the top stays put.
+private struct Panes: Shape {
+    var open: CGFloat
+    var squint: CGFloat = 0
+    var gap: CGFloat
+
+    var animatableData: CGFloat {
+        get { open }
+        set { open = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        let h = max(rect.height * open, gap)
+        let top = rect.midY - h / 2
+        let r = min(gap / 3, 1)
+        if h < gap * 7 {
+            p.addRoundedRect(in: CGRect(x: rect.minX, y: top, width: rect.width, height: h),
+                             cornerSize: CGSize(width: r, height: r))
+            return p
+        }
+        let pw = (rect.width - gap) / 2, ph = (h - gap) / 2
+        let cut = h * squint
+        for col in 0..<2 {
+            for row in 0..<2 {
+                let pane = CGRect(x: rect.minX + CGFloat(col) * (pw + gap), y: top + CGFloat(row) * (ph + gap),
+                                  width: pw, height: row == 1 ? max(ph - cut, 0) : ph)
+                p.addRoundedRect(in: pane, cornerSize: CGSize(width: r, height: r))
+            }
+        }
+        return p
+    }
+}
+
+/// The cheeks under one eye: two pink blocks a block apart.
+private struct Cheeks: Shape {
+    var k: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        let gap = FaceGeometry.block * k, w = (rect.width - gap) / 2
+        let r = min(gap / 3, 1)
+        p.addRoundedRect(in: CGRect(x: rect.minX, y: rect.minY, width: w, height: rect.height),
+                         cornerSize: CGSize(width: r, height: r))
+        p.addRoundedRect(in: CGRect(x: rect.minX + w + gap, y: rect.minY, width: w, height: rect.height),
+                         cornerSize: CGSize(width: r, height: r))
+        return p
+    }
+}
+
 private struct Smile: Shape {
     var bend: CGFloat
 
@@ -169,7 +226,7 @@ private struct Smile: Shape {
     }
 }
 
-/// The menu-bar icon: Boop's eyes. Closed while asleep, open while agents
+/// The menu-bar icon: Boop's window eyes. Closed while asleep, open while agents
 /// idle, with a small dot while they work, amber when something needs you,
 /// and red with a bigger dot while the Mac's mic is on.
 enum MenuBarIcon {
@@ -183,16 +240,21 @@ enum MenuBarIcon {
             }
             colour.setFill()
             colour.setStroke()
-            let eyeW: CGFloat = 4.6, eyeH: CGFloat = 6.2
-            let centres: [CGFloat] = [5.6, 14.4]
+            // Window eyes, as on the device: four 2.2 pt panes a 0.8 pt cross
+            // apart, or a bar while asleep.
+            let pane: CGFloat = 2.2, gap: CGFloat = 0.8, eye = 2 * pane + gap
+            let centres: [CGFloat] = [5.4, 14.6]
             for x in centres {
-                let rect: NSRect
                 if mood == .asleep {
-                    rect = NSRect(x: x - eyeW / 2, y: 8.6, width: eyeW, height: 1.9)
-                } else {
-                    rect = NSRect(x: x - eyeW / 2, y: 4.6, width: eyeW, height: eyeH)
+                    NSBezierPath(rect: NSRect(x: x - eye / 2, y: 8.6, width: eye, height: 1.6)).fill()
+                    continue
                 }
-                NSBezierPath(roundedRect: rect, xRadius: min(1.9, rect.height / 2), yRadius: min(1.9, rect.height / 2)).fill()
+                for col in 0..<2 {
+                    for row in 0..<2 {
+                        NSBezierPath(rect: NSRect(x: x - eye / 2 + CGFloat(col) * (pane + gap),
+                                                  y: 4.6 + CGFloat(row) * (pane + gap), width: pane, height: pane)).fill()
+                    }
+                }
             }
             let smile = NSBezierPath()
             smile.lineWidth = 1.1

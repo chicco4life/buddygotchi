@@ -1,9 +1,8 @@
 import BoopKit
 import SwiftUI
 
-/// Settings, inside the popover (UX.md §7): sound and away, agents and
-/// hooks, the device, the brain's two stages and Jev's key, and what Boop
-/// remembers.
+/// Settings, inside the popover (UX.md §7): sound, agents and hooks, the
+/// device, the brain's two stages and Jev's key, and what Boop remembers.
 struct SettingsPane: View {
     @ObservedObject var model: AppModel
     var maxHeight: CGFloat
@@ -34,32 +33,23 @@ struct SettingsPane: View {
     private var sound: some View {
         let s = model.status?.snapshot
         return Card(padding: 0) {
-            VStack(spacing: 0) {
-                SettingRow(icon: s?.vol == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill", title: "Volume",
-                           detail: "How loud \(model.name) mumbles and chirps.") {
-                    HStack(spacing: 6) {
-                        Slider(value: Binding(get: { Double(s?.vol ?? 6) },
-                                              set: { model.setVolume(Int($0.rounded())) }),
-                               in: 0...10, step: 1)
-                            .controlSize(.small)
-                            .frame(width: 96)
-                            .accessibilityLabel("Volume")
-                        Text(s?.vol == 0 ? "Off" : "\(s?.vol ?? 6)")
-                            .font(.system(size: 11, weight: .medium).monospacedDigit())
-                            .foregroundStyle(Theme.inkSoft)
-                            .frame(width: 22, alignment: .trailing)
-                    }
-                }
-                Hairline().padding(.leading, 40)
-                SettingRow(icon: "figure.walk", title: "I'm away",
-                           detail: "\(model.name) won't get hungry while you're gone.") {
-                    Toggle("I'm away", isOn: Binding(get: { model.status?.away ?? false }, set: { model.setAway($0) }))
+            SettingRow(icon: s?.vol == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill", title: "Volume",
+                       detail: "How loud \(model.name) mumbles and chirps.") {
+                HStack(spacing: 6) {
+                    Slider(value: Binding(get: { Double(s?.vol ?? 6) },
+                                          set: { model.setVolume(Int($0.rounded())) }),
+                           in: 0...10, step: 1)
+                        .controlSize(.small)
+                        .frame(width: 96)
+                        .accessibilityLabel("Volume")
+                    Text(s?.vol == 0 ? "Off" : "\(s?.vol ?? 6)")
+                        .font(.system(size: 11, weight: .medium).monospacedDigit())
+                        .foregroundStyle(Theme.inkSoft)
+                        .frame(width: 22, alignment: .trailing)
                 }
             }
         }
         .disabled(model.status == nil)
-        .toggleStyle(.switch)
-        .labelsHidden()
     }
 
     // MARK: Agents

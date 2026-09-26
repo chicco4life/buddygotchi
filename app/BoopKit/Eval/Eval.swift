@@ -205,11 +205,11 @@ public struct Eval: Sendable {
         let (core, harness, pending): (Core, Harness, Pending) = try home.sync {
             let store = try MemoryStore(directory: dir, steering: steering)
             guard let longTerm = store.longTerm else { throw EvalError("\(memory.path) has no long-term.md") }
-            let core = Core(config: .init(name: longTerm.name, time: time, seed: 1), growth: longTerm.growth,
-                            lastActiveDay: store.lastActiveDay, now: start)
+            let core = Core(config: .init(name: longTerm.name, time: time, seed: 1),
+                            lastActiveDay: store.lastActiveDay)
             let pending = Pending(store: store)
             let context = ActionContext(
-                send: { _ in }, mood: { core.currentMood(at: clock.now) },
+                send: { _ in },
                 mumblesAllowed: { core.canMumble(at: clock.now) },
                 setQuiet: { pending.effects += core.setQuiet(minutes: $0, at: clock.now) },
                 quietAsked: { core.quietAsked }, today: { time.day(clock.now) })
@@ -235,9 +235,9 @@ public struct Eval: Sendable {
                     queue += home.sync { defer { pending.effects = [] }; return pending.effects }
                 case .aside(let line):
                     home.sync { harness.note(line, at: clock.now) }
-                case .happened, .growth, .newDay:
+                case .happened, .newDay:
                     home.sync { pending.store.apply(effect) }
-                case .state, .moment, .mumble, .listen:
+                case .state, .moment, .mumble, .listen, .endListening:
                     break
                 }
             }

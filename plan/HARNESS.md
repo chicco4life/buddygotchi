@@ -42,10 +42,10 @@ language models read its one-line form.
 
 | Input | From | Fields | The rules first | Deadline | Menu |
 | --- | --- | --- | --- | --- | --- |
-| Agent started | `turn_start` | agent, project, time, hunger | Base becomes working | 5 s | `react` |
-| Agent finished | `turn_end` or `turn_failed`; a `turn_end` whose last test, build or deploy command failed is `failed` ([BEHAVIORS.md](BEHAVIORS.md) §3.1) | outcome (`done` or `failed`), agent, project, topic, how long it took, the error class when it failed, time, hunger, "+N more" | `done`: a cheer, size 1 under 15 seconds, 2 up to a minute, 3 beyond. `failed`: `oops`, then `side_eye` | 5 s | `react` |
-| You said something | push-to-talk, or Send in the popover | your words (at most 500 characters, about 30 s of speech), whether you yelled, time, hunger | `listening`, then `thinking` | 4 s | `quiet`, `react`, `remember` today |
-| Poked again and again | a poke streak ([BEHAVIORS.md](BEHAVIORS.md) §3.3) | time, hunger | `side_eye` at you | 4 s | `react` |
+| Agent started | `turn_start` | agent, project, time | Base becomes working | 5 s | `react` |
+| Agent finished | `turn_end` or `turn_failed`; a `turn_end` whose last test, build or deploy command failed is `failed` ([BEHAVIORS.md](BEHAVIORS.md) §3.1) | outcome (`done` or `failed`), agent, project, topic, how long it took, the error class when it failed, time, "+N more" | `done`: a cheer. `failed`: nothing; the session goes idle | 5 s | `react` |
+| You said something | push-to-talk, or Send in the popover | your words (at most 500 characters, about 30 s of speech), whether you yelled, time | `listening`, until the reply | 4 s | `quiet`, `react`, `remember` today |
+| Poked again and again | a poke streak ([BEHAVIORS.md](BEHAVIORS.md) §3.3) | time | `wiggle`, as for every tap | 4 s | `react` |
 | New day | the first hook or tap on a new day | yesterday's date and short-term memory | — | 10 min | `remember` about you, a preference, temperament or a moment |
 
 Their lines look like this:
@@ -76,7 +76,7 @@ then a start. It ends `· +N more` for the others
 reach the brain. What you say and the new day always do, and so does a poke
 streak, except while something needs you, when a tap means "I saw it". A
 poke streak too soon after the last ([BEHAVIORS.md](BEHAVIORS.md) §3.3)
-gets the rules' side-eye alone. There are no other limits: whether Boop reacts, and whether it
+gets the rules' wiggle alone. There are no other limits: whether Boop reacts, and whether it
 mumbles, is Stage 1's decision every time.
 
 **Rules only.** A tap (the wiggle) and "needs you" (the ladder) never reach
@@ -132,7 +132,7 @@ Each pass appends to it; nothing in it is ever changed:
 | Entry | What it holds |
 | --- | --- |
 | `input` | An input that reached the brain |
-| `rules` | The rules' reaction to it, e.g. `cheer size 2` |
+| `rules` | The rules' reaction to it, e.g. `cheer` |
 | `aside` | Something only the rules handled: a tap, something needing you |
 | `decided` | Stage 1's calls, and how it got there (the rule that matched, Jev's answers) |
 | `dropped` | Why a pass produced nothing: Stage 1 failed, was late or cancelled, or answered off the menu |
@@ -152,7 +152,7 @@ looks like this (from `TranscriptTests`):
 
 ```
 agent finished · done · claude · jetpack · took 18 min · 14:05 Tuesday
-  rules: cheer size 2
+  rules: cheer
   decided: react(feeling: proud, voice: mumble)
   wrote: react.word = finally
   ran: react(feeling: proud, voice: mumble, word: finally)
@@ -195,22 +195,22 @@ each argument has a **role**: **decided** by Stage 1 from its choices, or
 
 | Output | Decided | Written | What it does |
 | --- | --- | --- | --- |
-| `react` | `feeling`, one of ten; `voice`: `silent` or `mumble` | `word`, only for a mumble: `none` or one of Voice's 40 words ([VOICE.md](VOICE.md) §6) | The feeling's face on the device, and for a mumble a Minion line from Voice with the word. The mumble is dropped in quiet mode or while something needs you; the face still plays |
-| `quiet` | `minutes`: 15, 30, 60 or 120 | — | The core's quiet mode: no mumbles, and agent inputs skip the brain. The action runs only when the last thing you said asked for quiet ("quiet" in your words), whichever classifier decided, and the core plays `zip` as quiet starts ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
+| `react` | `feeling`, one of ten; `voice`: `silent` or `mumble` | `word`, only for a mumble: `none` or one of Voice's 40 words ([VOICE.md](VOICE.md) §6) | For a mumble, a Minion line from Voice in the feeling's sound, with the word, played over whatever face is showing. The brain's faces are parked ([FUTURE.md](FUTURE.md)), so `silent` shows nothing. A mumble is dropped in quiet mode or while something needs you |
+| `quiet` | `minutes`: 15, 30, 60 or 120 | — | The core's quiet mode: no mumbles, and agent inputs skip the brain. The action runs only when the last thing you said asked for quiet ("quiet" in your words), whichever classifier decided ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
 | `remember` | `where`: `today`, `about_you`, `preference`, `temperament` or `moment` | `text` | A line in that part of memory, under its own rules |
 
-| Feeling | Face | Its mumble sounds |
-| --- | --- | --- |
-| `happy` | `happy` | happy |
-| `excited` | `happy`, size 2 | excited |
-| `proud` | `proud` | proud |
-| `curious` | `curious` | curious |
-| `hopeful` | `love` | hopeful |
-| `annoyed` | `side_eye` | annoyed |
-| `sad` | `worried` | sad |
-| `sleepy` | `sleepy` | sleepy |
-| `smug` | `smug` | proud |
-| `sulky` | `sulky` | sad |
+| Feeling | Its mumble sounds |
+| --- | --- |
+| `happy` | happy |
+| `excited` | excited |
+| `proud` | proud |
+| `curious` | curious |
+| `hopeful` | hopeful |
+| `annoyed` | annoyed |
+| `sad` | sad |
+| `sleepy` | sleepy |
+| `smug` | proud |
+| `sulky` | sad |
 
 | `where` | Goes to | Text | Its own rules |
 | --- | --- | --- | --- |
@@ -219,8 +219,9 @@ each argument has a **role**: **decided** by Stage 1 from its choices, or
 | `temperament` | long-term Temperament | one sentence, ≤ 120 | Once a day |
 | `moment` | long-term Moments | ≤ 80 | One per day reflected on; refused when half or more of its longer words are in an earlier moment |
 
-The core's rules use the same `react` action: any animation for their
-instant reactions (a cheer, an oops), and a mumble for working chatter.
+The core's rules use the same `react` action: its animations for their
+instant reactions (`cheer`, `wiggle`, `listening`), and a mumble for
+working chatter.
 Every action checks its arguments against its own definition, so a call
 that skips the harness (a rule's) is held to the same rules. A dropped call
 is logged with the reason. Forgetting a remembered line is the person's, in

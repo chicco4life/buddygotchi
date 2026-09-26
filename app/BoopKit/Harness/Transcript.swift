@@ -14,7 +14,7 @@ public final class Transcript: @unchecked Sendable {
     public enum Entry: Equatable, Sendable {
         /// An input reached the pipeline.
         case input(Input)
-        /// The rules' instant reaction to that input, e.g. `cheer size 2`.
+        /// The rules' instant reaction to that input, e.g. `cheer`.
         case rules(String)
         /// Something only the rules handled, e.g. `tapped · 14:07 Tuesday: Boop wiggled`.
         case aside(String, ts: Int64)
@@ -81,7 +81,7 @@ public final class Transcript: @unchecked Sendable {
     /// then what followed it, indented.
     ///
     ///     agent finished · done · claude · jetpack · topic: tests · took 18 min · 14:05 Tuesday
-    ///       rules: cheer size 2
+    ///       rules: cheer
     ///       decided: react(feeling: proud, voice: mumble)
     ///       wrote: react.word = finally
     ///       ran: react(feeling: proud, voice: mumble, word: finally)

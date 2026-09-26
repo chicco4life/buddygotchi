@@ -23,9 +23,8 @@ On the board:
 
 | Do | What happens |
 | --- | --- |
-| Press BOOT, or tap the face | Boop it; acknowledges a cheer; quiets the nudges if something needs you |
+| Press BOOT, or touch the screen | Boop it (`wiggle`) |
 | Hold BOOT | Push-to-talk while held (the Mac's mic is on only then, 30 s at most). Talk in the popover does the same from the Mac |
-| Tap the status strip | Face → threads → stats → face |
 
 The full picture is in [plan/UX.md](plan/UX.md) and
 [plan/BEHAVIORS.md](plan/BEHAVIORS.md).

@@ -1,13 +1,15 @@
 import Foundation
 
-/// `react(feeling, voice, word?)`: the feeling's face on the device, and, for
-/// a mumble, a Minion line from Voice with the one real word. The classifier
-/// picks the feeling and whether to mumble; the writer picks the word, only
-/// for a mumble. The mumble is dropped in quiet mode or while something
-/// needs you, and the face still plays.
+/// `react(feeling, voice, word?)`: for a mumble, a Minion line from Voice
+/// in the feeling's voice, with the one real word, sent as a moment with no
+/// animation so it plays over whatever face is showing. The classifier picks
+/// the feeling and whether to mumble; the writer picks the word, only for a
+/// mumble. The mumble is dropped in quiet mode or while something needs you.
+/// The feelings' own faces are parked (FUTURE.md), so `silent` shows nothing.
 ///
-/// The core's rules use the same action: `play` for any animation (a cheer,
-/// an oops) and a `react` call for working chatter.
+/// The core's rules use the same action: `play` for their animations (a
+/// cheer), `endListening` for the empty moment, and a `react` call for
+/// working chatter.
 public final class ReactAction: Action {
     public let context: ActionContext
     let voice: Voice
@@ -19,34 +21,31 @@ public final class ReactAction: Action {
         self.context = context
     }
 
-    /// The ten feelings, their faces, and the Voice feeling their mumble
-    /// uses: `smug` mumbles like proud and `sulky` like sad (VOICE.md §4).
-    public static let feelings: [(name: String, face: String, size: Int, voice: Feeling, about: String)] = [
-        ("happy", "happy", 1, .happy, "Pleased and friendly: a greeting, a small win."),
-        ("excited", "happy", 2, .excited, "Thrilled: something big just went right."),
-        ("proud", "proud", 1, .proud, "Proud: something long or hard just finished."),
-        ("curious", "curious", 1, .curious, "Interested or unsure: something new, or a question."),
-        ("hopeful", "love", 1, .hopeful, "Wanting something, warmly: food, attention, praise."),
-        ("annoyed", "side_eye", 1, .annoyed, "Irritated at an agent: a failure, flaky tests."),
-        ("sad", "worried", 1, .sad, "Down or hurt: yelled at or told off, something went badly, or starving."),
-        ("sleepy", "sleepy", 1, .sleepy, "Tired: late at night, or low on energy."),
-        ("smug", "smug", 1, .proud, "Pleased with itself: it knew all along."),
-        ("sulky", "sulky", 1, .sad, "Pouting: brushed off or left out. Being told off is sad instead."),
+    /// The ten feelings and the Voice feeling their mumble uses: `smug`
+    /// mumbles like proud and `sulky` like sad (VOICE.md §4).
+    public static let feelings: [(name: String, voice: Feeling, about: String)] = [
+        ("happy", .happy, "Pleased and friendly: a greeting, a small win."),
+        ("excited", .excited, "Thrilled: something big just went right."),
+        ("proud", .proud, "Proud: something long or hard just finished."),
+        ("curious", .curious, "Interested or unsure: something new, or a question."),
+        ("hopeful", .hopeful, "Wanting something, warmly: attention, praise."),
+        ("annoyed", .annoyed, "Irritated at an agent: a failure, flaky tests."),
+        ("sad", .sad, "Down or hurt: yelled at or told off, or something went badly."),
+        ("sleepy", .sleepy, "Tired: late at night."),
+        ("smug", .proud, "Pleased with itself: it knew all along."),
+        ("sulky", .sad, "Pouting: brushed off or left out. Being told off is sad instead."),
     ]
 
-    /// Every animation the device has (BEHAVIORS.md §7).
-    public static let anims: Set<String> = Set(feelings.map(\.face) + [
-        "nod", "cheer", "oops", "wiggle", "listening", "thinking", "shrug", "zip", "gobble",
-        "rumble", "levelup",
-    ])
+    /// Every animation the rules may play (BEHAVIORS.md §5).
+    public static let anims: Set<String> = ["cheer", "wiggle", "listening"]
 
     public let definition = ToolDefinition(
-        name: "react", description: "Show a feeling on Boop's face, and mumble if it fits.",
+        name: "react", description: "Mumble with a feeling, or stay silent.",
         parameters: [
             .init("feeling", .choice(ReactAction.feelings.map(\.name)),
                   about: Dictionary(uniqueKeysWithValues: ReactAction.feelings.map { ($0.name, $0.about) })),
             .init("voice", .choice(["silent", "mumble"]),
-                  about: ["silent": "Just the face.", "mumble": "The face and a mumble of Boop's gibberish."]),
+                  about: ["silent": "Say nothing.", "mumble": "A mumble of Boop's gibberish in that feeling."]),
             .init("word", .choice(Sounds.vocabulary), optional: true, role: .writtenWhen("voice", is: "mumble")),
         ])
 
@@ -58,34 +57,33 @@ public final class ReactAction: Action {
         }
         let feeling = ReactAction.feelings.first { $0.name == args["feeling"]?.string }!
         guard args["voice"]?.string == "mumble" else {
-            context.send(DeviceMoment(anim: feeling.face, size: feeling.size))
-            return .done("\(feeling.name), silent")
+            return .done("\(feeling.name), silent: Boop has no face for it in v1")
         }
-        guard context.mumblesAllowed() else {
-            context.send(DeviceMoment(anim: feeling.face, size: feeling.size))
-            return .done("\(feeling.name), face only: Boop is quiet right now")
-        }
+        guard context.mumblesAllowed() else { return .dropped("Boop is quiet right now") }
         lines += 1
         let seed = lines
-        let line = voice.line(feeling.voice, word: args["word"]?.string, mood: context.mood(), seed: seed)
-        context.send(DeviceMoment(anim: feeling.face, size: feeling.size, say: line))
+        let line = voice.line(feeling.voice, word: args["word"]?.string, seed: seed)
+        context.send(DeviceMoment(say: line))
         return .done("\(feeling.name): \(line.text) (seed \(seed))")
     }
 
-    /// A rule reaction from the core (`.moment`): any animation, size 1–3.
+    /// A rule reaction from the core (`.moment`): one of `anims`.
     @discardableResult
-    public func play(_ anim: String, size: Int) -> ActionOutcome {
-        let outcome: ActionOutcome
-        if !ReactAction.anims.contains(anim) {
-            outcome = .dropped("no animation called \(anim)")
-        } else if !(1...3).contains(size) {
-            outcome = .dropped("size \(size) isn't 1–3")
-        } else {
-            context.send(DeviceMoment(anim: anim, size: size))
-            outcome = .done("\(anim) \(size)")
+    public func play(_ anim: String) -> ActionOutcome {
+        guard ReactAction.anims.contains(anim) else {
+            context.log("react: dropped \(anim): no animation called \(anim)")
+            return .dropped("no animation called \(anim)")
         }
-        if case .dropped(let why) = outcome { context.log("react: dropped \(anim) \(size): \(why)") }
-        return outcome
+        context.send(DeviceMoment(anim: anim))
+        return .done(anim)
+    }
+
+    /// The core's `.endListening`: the empty moment, which ends the device's
+    /// `listening` face if no reply has.
+    @discardableResult
+    public func endListening() -> ActionOutcome {
+        context.send(.empty)
+        return .done("end listening")
     }
 }
 

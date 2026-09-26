@@ -145,10 +145,12 @@ into the app's resources, and a unit test fails if the copies differ.
 Order: **M0 → F1 → F2 → F3 → F4 → A1 → A2 → A3 → A4 → J1 → F5 → J2 → J3.**
 Bluetooth (F4) comes before the app track so the morning test can use it.
 Sound (F5) came late because there was no speaker to hear it; one was
-attached on 2026-09-26. F6, A5, A6, A7 and A8
+attached on 2026-09-26. F6, A5, A6, A7, A8 and C1
 came after the build, at the owner's request.
 
 Statuses are Not started, In progress, Passed, or Blocked (with the reason).
+The milestone sections below describe what each built at the time; C1
+later cut part of it, so the current behaviour is in the specs, not here.
 
 | # | Milestone | Status |
 | --- | --- | --- |
@@ -170,6 +172,7 @@ Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 | A6 | Brain conversation | Superseded by A7 (2026-09-26): the conversation became the transcript's window, the `say` limit went with every timing limit, and `note` is offered only for what you say. Its L5 findings are the [evidence](evidence/2026-09-26-brain-conversation/README.md) |
 | A7 | Two-stage brain | In progress: the pipeline is built. L0 (191 Swift tests, 100 firmware) and L5 pass: both classifiers with Apple's model answer all 50 fixture inputs on the menu, fill every slot, and stay inside their deadlines ([evidence](evidence/2026-09-26-two-stage-brain/README.md)). Remaining: L2 and L4 on the board for the removals (the everyday app held it over Bluetooth, [evidence](evidence/2026-09-26-removals/README.md)), and the owner picking each classifier in Settings and talking to Boop. The Jev experiment before it: [evidence](evidence/2026-09-26-jev-brain/README.md) |
 | A8 | Hero moments: failing tests fail a turn, sad when yelled at or told off, quiet only when asked, annoyed at a poke streak | In progress: code, L0 (210 Swift, 101 firmware), the eval suite (8 scenarios, three of them new), L1 (12 scenarios, including the new `poke`) and L5 with the rules classifier and Apple's writer pass, and the board firmware builds. L2 (`boopctl run poke`, not flashed yet) and the owner's checks (morning checklist rows 11, 13, 19 and 20) remain. [Evidence](evidence/2026-09-26-hero-moments/README.md) |
+| C1 | Cut to the minimal surface | In progress: two cuts, to 4 states and 3 animations; specs, code, L0 and L1 pass, merged with A7's two-stage brain and the evals (the brain's `react` keeps its feelings but shows no face). Follow-up: the pixel face, with boxy eyes in every expression. Not yet flashed or checked on the board. [Evidence](evidence/2026-09-26-minimal-cut/README.md) |
 | P1 | Port to ESP-IDF + LVGL (later, gated) | Not started |
 
 ### M0: Setup
@@ -593,6 +596,29 @@ fewer inputs and outputs ([HARNESS.md](HARNESS.md)).
   side.
 - The owner picks each classifier in Settings and talks to Boop.
 
+### C1: Cut to the minimal surface
+
+Asked for by the owner on 2026-09-26: too many states to hold in their
+head. Cut v1 to what Boop needs to do its job, and add features back one
+at a time ([BEHAVIORS.md](BEHAVIORS.md), decision log in
+[ARCHITECTURE.md](ARCHITECTURE.md) §11).
+
+- **Kept:** asleep, idle, working and needs you (one chirp, steady
+  amber); `cheer` (one size), `wiggle` and `listening`; tap and
+  push-to-talk; the brain, memory and all mumbles. No app shows the asleep
+  face with the unplugged icon.
+- **Parked and deleted:** everything under "Parked" in
+  [FUTURE.md](FUTURE.md). The code before the cut is at git tag `v1-full`.
+
+**Done when:**
+
+- L0: `make test` and `make fw-test` pass; `make fw` builds.
+- L1: `tools/boopctl sim` passes with the goldens re-accepted after looking
+  at every new or changed picture.
+- The popover's snapshots have been looked at.
+- L2 on the board once the owner has flashed it: `tools/boopctl run` for
+  every scenario matches the simulator.
+
 ### P1: Port to ESP-IDF + LVGL (later)
 
 **Gate:** only after the owner has run the morning checklist and confirmed
@@ -683,17 +709,17 @@ off at any point:
 | 1 | Read `plan/evidence/v1-build/REPORT.md` (or `PROGRESS.md` if it's still running) | What passed, what's blocked, and any changes to these steps |
 | 2 | The board runs the landscape build (F6), flashed for its L2 check. Run `tools/boopctl ping`, and `make flash` first if it doesn't show `"w": 320`. Stand Boop sideways with USB-C on the right and look at it | `ping` shows `"w": 320` and `"h": 240`. The no-app face, landscape: open lavender eyes glancing up, a plug icon, dimmed, slow blinks. It becomes the idle face once the app connects (row 6). Whether the new eyes are cute enough is your call (F6); note anything that's off |
 | 3 | Run `tools/boopctl pattern`. Then `tools/boopctl calibrate`: tap each amber cross (4 near the corners, then 1 in the middle) and lift. Do both only on the landscape build (row 2's `ping`): on the portrait build the pattern has no USB-C bar, and a calibration saved there is deleted when the landscape build starts | The UP arrow is at the top and the black bar is down the edge with the USB-C port. If the picture is upside down (the bar on the other side), set `kRotation` to 3 in `firmware/src/board/display.h`, `make flash`, and look again. Calibration prints `check_miss_px`: a few pixels is good, over about 10 means run it again. Run it again after any rotation change, because a calibration from another screen or rotation (including the portrait build's) is ignored. `--show` prints the stored map; `--show --clear` forgets it |
-| 4 | Tap the face; press BOOT; hold BOOT. After row 6, tap the status strip (the no-app screen ignores it) | Wiggle; wiggle; listening face; face → threads → stats → face |
+| 4 | Tap the screen; press BOOT; hold BOOT | Wiggle; wiggle; listening face |
 | 5 | Run `make run` in your terminal | Boop's eyes appear in the menu bar and the popover opens on setup: hello, a name and sweet or cheeky, which agents to watch ("See exactly what gets added" shows what goes where), then "Wake … up". Allow Bluetooth, Microphone and Speech Recognition when asked. Say whether setup and the popover feel right (A5) |
 | 6 | Wait about 10 s | The app connects to `Boop-XXXX`, and the board leaves the no-app face. If Bluetooth won't connect, run `tools/boopctl bridge` and `app/.build/debug/Boop --link usb:/tmp/boop-bridge.sock` instead ([VERIFICATION.md](VERIFICATION.md) L4) |
 | 7 | If you skipped them at setup: Settings (in the popover) → Agents → Connect for Claude Code and Codex. Restart open sessions, then run `skills/doctor/doctor.sh` in one, `echo BOOP_DOCTOR_PING`, and `skills/doctor/doctor.sh --confirm` | Both installed; the old `~/.boop` entries are gone; the doctor passes |
 | 8 | In Claude Code, start a task | Working face within a second |
 | 9 | Make Claude ask permission for a shell command | Amber and a look within about 1 s. Approve in the terminal → a nod, back to work |
-| 10 | Let a task run past a minute | A big cheer, then a proud mumble with a word |
-| 11 | Ask Claude to run a test that fails and then stop | Oops, a side-eye at the agent, then an annoyed mumble; no cheer |
+| 10 | Let a task run past a minute | A cheer, then a proud mumble with a word |
+| 11 | Ask Claude to run a test that fails and then stop | No cheer; Boop goes idle, then an annoyed mumble |
 | 12 | In Codex, trigger an approval | Amber about 2 s after Codex asks. Requests its automatic reviewer handles don't light up |
-| 13 | Hold BOOT and say "be quiet for fifteen minutes" | Boop zips its mouth; quiet icon, no mumbles |
-| 14 | (Removed 2026-09-26 with focus mode) | — |
+| 13 | Hold BOOT and say "be quiet for fifteen minutes" | Quiet icon, no mumbles |
+| 14 | Trigger approvals in two sessions | One chirp; the bubble shows the first, with "+1 more" |
 | 15 | Click Talk in the popover, say "good job", click Send. Then click Talk and say nothing for 30 s | The first time, macOS asks for Speech Recognition and the Microphone. While talking: the menu-bar eyes turn red, the popover says "Listening…", Talk is a red Send, and macOS shows its mic indicator; the device looks up listening. Send → thinking, then a mumble. Left alone, all of it goes back after 30 s |
 | 16 | Later, open `~/Library/Application Support/Boop/short-term.md` | Today's notes and events |
 | 17 | Listen to the voice clips on the Mac: `tools/.venv/bin/python tools/voicegen/voicegen.py --out /tmp/voice.h --wav-dir /tmp/boop-voice`, then `afplay /tmp/boop-voice/ba.wav` (and a few words, like `done.wav`) | Small, bright, chiptune syllables; the words are clear. Nobody has heard these yet |
@@ -712,16 +738,11 @@ matching spec first.
 - **Release.** Signing, notarisation, an app icon and a release pipeline
   don't exist for v1 yet. The gen-2 list is in
   [archived/docs/TODO-gen2.md](../archived/docs/TODO-gen2.md).
-- **A 2 px lid tip mid-blink.** [UX.md](UX.md) §2 says a lid never leaves
-  a sharp point, but mid-blink the working face at night while starving
-  leaves a 2 px tip for about 90 ms, where its low lid meets the inner top
-  corner of a 12 px sliver. `test_a_lid_never_leaves_a_sharp_point` skips
-  that pose mid-blink ([evidence](evidence/2026-09-26-gen2-look/README.md)).
-- **The gen-2 look's motion frame rate.** `perf --seconds 30 --motion`
-  gives a 41 fps minimum against F6's bar of 44; main before it gave 45
-  under the same conditions (Bluetooth connected). The arch stroke's 64-bit
-  division per sample is the likely cost
-  ([evidence](evidence/2026-09-26-gen2-look/README.md)).
+- **The pixel face's frame rate on the board.** The gen-2 look gave a
+  41 fps minimum against F6's bar of 44
+  ([evidence](evidence/2026-09-26-gen2-look/README.md)). The pixel face
+  (C1 follow-up) draws whole blocks with no anti-aliasing and should be
+  cheaper, but `perf --seconds 30 --motion` hasn't been run on it yet.
 - **The gen-2 look's full L2 run.** `tools/boopctl run` for every scenario
   on the board waits for a time the Mac app can be quit
   ([evidence](evidence/2026-09-26-gen2-look/README.md)).

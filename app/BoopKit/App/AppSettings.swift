@@ -9,19 +9,13 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public var classifier = "rules"
     public var writer = "apple"
     public var volume = 6
-    public var away = false
-    /// The day "I'm away" started, `yyyy-MM-dd`, so a restart keeps pausing
-    /// hunger from then rather than from the day it restarts.
-    public var awaySince: String?
-    /// Boop's record (UX.md §7): turns finished and how many projects, as
-    /// totals. Project names are kept only to count them.
-    public var finished = 0
-    public var projects: [String] = []
 
     public init() {}
 
     public init(from decoder: Decoder) throws {
-        // Missing keys keep their defaults, so older files still load.
+        // Missing keys keep their defaults, so older files still load; keys
+        // this version doesn't know (`focus`, `away`, `awaySince`, `finished`
+        // and `projects` from before 2026-09-26) are ignored.
         let c = try decoder.container(keyedBy: CodingKeys.self)
         classifier = try c.decodeIfPresent(String.self, forKey: .classifier) ?? classifier
         writer = try c.decodeIfPresent(String.self, forKey: .writer) ?? writer
@@ -31,10 +25,6 @@ public struct AppSettings: Codable, Equatable, Sendable {
             (classifier, writer) = AppSettings.migrate(brain)
         }
         volume = try c.decodeIfPresent(Int.self, forKey: .volume) ?? volume
-        away = try c.decodeIfPresent(Bool.self, forKey: .away) ?? away
-        awaySince = try c.decodeIfPresent(String.self, forKey: .awaySince)
-        finished = try c.decodeIfPresent(Int.self, forKey: .finished) ?? finished
-        projects = try c.decodeIfPresent([String].self, forKey: .projects) ?? projects
     }
 
     enum OldKeys: String, CodingKey { case brain }

@@ -1,8 +1,8 @@
 // The canvas palette: index → RGB565 (plan/DEVICE.md §6). Every colour on
 // the screen comes from this one table: "Warm Terminal", black glass with
-// oat text and one amber accent, plus the bring-up colours. The eyes are
-// gen-2's soft lavender-white, with a rose heart for affection and a sky
-// sweat drop for effort.
+// oat text and one amber accent, plus the bring-up colours. The face is
+// warm white with pink blush, a rose heart for affection and a sky sweat
+// drop for effort.
 //
 // Anti-aliased edges use ramps: 8 steps from black up to an ink colour, and
 // 7 steps from an eye colour down to the dark inside an open mouth. The table is computed with
@@ -22,16 +22,16 @@ struct Rgb {
 
 // The Warm Terminal colours.
 constexpr Rgb kGlass = {0, 0, 0};          // the backlit black
-constexpr Rgb kEyeRgb = {222, 219, 255};   // the eyes and mouth: gen-2's lavender-white
+constexpr Rgb kEyeRgb = {246, 244, 238};   // the eyes and mouth: warm white
 constexpr Rgb kOatRgb = {232, 220, 196};   // main text
 constexpr Rgb kAmberRgb = {255, 176, 0};   // the one accent: needs you, the word
 constexpr Rgb kGlowRgb = {255, 206, 110};  // warm glow for cheers
-constexpr Rgb kOopsRgb = {186, 72, 58};    // dim red for oops
 constexpr Rgb kGreyRgb = {140, 132, 121};  // secondary text
 constexpr Rgb kDimRgb = {74, 68, 62};      // faint text, dividers, rings
 constexpr Rgb kHollowRgb = {30, 23, 18};   // the inside of an open mouth
 constexpr Rgb kRoseRgb = {255, 109, 173};  // the heart
 constexpr Rgb kSkyRgb = {73, 146, 255};    // the sweat drop
+constexpr Rgb kBlushRgb = {236, 120, 124};  // the cheeks
 
 // Fixed entries. 0–8 are also the bring-up pattern's colours.
 enum Color : uint8_t {
@@ -50,26 +50,23 @@ enum Color : uint8_t {
 
 // Inks: colours drawn over black with an anti-aliased ramp. Eye tints come
 // first, so an eye's ink is also its tint: the eye colour, then four steps
-// towards the cheer glow, then four towards the oops red.
+// towards the cheer glow.
 enum Ink : uint8_t {
   kInkEye = 0,
   kInkGlow1,
   kInkGlow2,
   kInkGlow3,
   kInkGlow4,
-  kInkOops1,
-  kInkOops2,
-  kInkOops3,
-  kInkOops4,
   kInkAmber,
   kInkGrey,
   kInkDim,
   kInkText,  // oat
   kInkRose,  // the heart
   kInkSky,   // the sweat drop
+  kInkBlush, // the cheeks
   kInkCount,
 };
-constexpr int kEyeInks = kInkOops4 + 1;
+constexpr int kEyeInks = kInkGlow4 + 1;
 
 constexpr int kLevels = 8;          // coverage 1..8 of 8; 0 is the background
 constexpr int kInkBase = 16;        // ink i, level k at kInkBase + i * 8 + k - 1
@@ -96,12 +93,12 @@ constexpr uint16_t rgb565(Rgb c) { return rgb565(c.r, c.g, c.b); }
 constexpr Rgb inkRgb(int ink) {
   if (ink == kInkEye) return kEyeRgb;
   if (ink <= kInkGlow4) return mix(kEyeRgb, kGlowRgb, ink - kInkEye, 4);
-  if (ink <= kInkOops4) return mix(kEyeRgb, kOopsRgb, ink - kInkGlow4, 4);
   if (ink == kInkAmber) return kAmberRgb;
   if (ink == kInkGrey) return kGreyRgb;
   if (ink == kInkText) return kOatRgb;
   if (ink == kInkRose) return kRoseRgb;
   if (ink == kInkSky) return kSkyRgb;
+  if (ink == kInkBlush) return kBlushRgb;
   return kDimRgb;
 }
 

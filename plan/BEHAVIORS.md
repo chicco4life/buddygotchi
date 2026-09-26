@@ -1,82 +1,75 @@
 # Boop: behaviors
 
-Updated 2026-09-26. What Boop does on the device when things happen, and
-how XP, hunger and mood work. How it sounds is in [VOICE.md](VOICE.md).
-Numbers marked *proposed* are first guesses, to be tuned once we've lived
-with Boop.
+Updated 2026-09-26. What Boop does on the device when things happen. How
+it sounds is in [VOICE.md](VOICE.md). Numbers marked *proposed* are first
+guesses, to be tuned once we've lived with Boop.
+
+This is the minimal set: **4 states** (asleep, idle, working, needs you)
+and **3 animations** (`cheer`, `wiggle`, `listening`). On 2026-09-26
+everything beyond it was cut, in two steps, so the surface is small
+enough to hold in your head; features come back one at a time
+([FUTURE.md](FUTURE.md), "Parked"). The code from before the first cut is
+at git tag `v1-full`.
 
 ## 1. How behaviour is layered
 
-What you see is built from four layers. The top one wins where they
+What you see is built from three layers. The top one wins where they
 conflict.
 
 | Layer | Examples | Decided by |
 | --- | --- | --- |
-| 1. Attention | Something needs you: amber, looking at you, nudges | Core (rules) |
-| 2. Moment | Cheer, oops, mumble, reply to talk | Core, sometimes flavoured by the brain |
+| 1. Attention | Something needs you: amber, looking at you | Core (rules) |
+| 2. Moment | Cheer, wiggle, listening, a mumble | Core, sometimes flavoured by the brain |
 | 3. Base state | Asleep, idle, working | Core (rules) |
-| 4. Colour | Mood, hunger, time of day | Core; applied by the device |
 
-Colour changes *how* Boop does things, never *what*. A hungry, tired Boop
-still clearly cheers when a task finishes. It just cheers smaller.
-
-**Attention wins.** While something needs you, the device plays only the
-moments that answer you directly: `nod`, `listening`, `thinking`, `shrug`
-and `zip`. Other moments (a cheer for another session, an oops, a face) are
-skipped, and a moment that's playing when "needs you" starts is cut short.
-Mumbles never show while something needs you.
-
-**How the device shapes a moment** (it's a rule on the device, from the
-`mood` in `state`): moments play faster or slower with `pace` (clamped to
-70–140%), except `listening` and `thinking`, whose limits are fixed times, and a cheer is one size smaller when `energy` is under 60 and one
-size bigger at 140 or more. A cheer's jingle and warm light follow the
-adjusted size.
+**Attention wins.** While something needs you, the device plays only
+`listening`, so push-to-talk still works. Other moments (a cheer for
+another session, a tap's wiggle) are skipped, and a moment that's playing
+when "needs you" starts is cut short. Mumbles never show while something
+needs you.
 
 ## 2. Base states
 
 | State | When | Loop |
 | --- | --- | --- |
-| Asleep | No sessions, or night with nothing working | Eyes closed, slow breathing, a "zzZZ" climbing every 2.4 s, dimmed |
-| Idle | Sessions open, none working | Blinks every 2–6 s, looks around, small self-amusements |
-| Working | At least one agent working | Focused gaze and a sweat drop; every 2.6 s (1.8 s with 3+ busy) a 0.8 s strain: eyes squeeze, mouth tightens, a small shiver; occasional chatter |
-| No app | No `state` from the Mac for 30 s | Eyes open, glancing up and aside as if waiting; unplugged icon, slow idle loop |
+| Asleep | No sessions | Eyes closed, slow breathing, a "zzZZ" climbing every 2.4 s, never blinks, backlight at 60/255 |
+| Idle | Sessions open, none working | Blinks every 2–6 s |
+| Working | At least one agent working | Focused gaze, a sweat drop, blinks every 2–5 s (1.2–3.5 s with 3+ busy); every 2.6 s (1.8 s with 3+ busy) a 0.8 s strain: eyes squeeze, mouth tightens, a small shiver |
+
+Needs you (§3.2) sits on top of whichever of these is showing.
+Otherwise the backlight is full (255), and always while something needs
+you.
+
+**No app.** With no `state` from the Mac for 30 s the device shows the
+asleep look (backlight 60/255), with the unplugged icon in the strip so
+you can tell it from having no sessions (§3.4).
 
 **Working chatter.** About every 2–4 minutes while agents work
-(*proposed*), the core has Boop mutter by rule: a feeling from its mood, and
-about half the time a working session's latest topic as the word, picked
-at random among the working sessions that have one (*"mi-ne? po… tests?"*).
-
-**Night** is 23:00–07:00 local time (*proposed*).
-
-**Idle life on the device.** Something small happens every 2–6 s while idle
-(slower when tired, hungry or at night): most often a blink, otherwise a
-glance to one side, a peek up, or a little bob to itself. Working Boop
-blinks and glances down at the work, more often with 3 or more sessions
-busy. Asleep, it breathes slowly and never blinks. With no app it only
-blinks, every 5–9 s. The backlight dims to about 45% at night, 25% asleep
-(15% asleep at night) and 30% with no app, but never while something needs
-you.
+(*proposed*), the core has Boop mutter by rule. About half the time the
+word is a working session's latest topic, picked at random among the
+working sessions that have one, said as a `curious` question
+(*"mi-ne? po… tests?"*); otherwise it's a `happy` mumble with no word.
 
 ## 3. What happens and what Boop does
 
 "Rules" happen immediately. "Brain may add" arrives 1–5 s later from the
-[brain](HARNESS.md), and is dropped if the moment has passed. What it adds
-is up to its classifier, and a mumble's word is up to its writer
-([HARNESS.md](HARNESS.md) §6). It never cuts the rules' reaction short: a
-brain moment waits until the rule moment (and any follow-up, like the
-`side_eye` after an `oops`) has finished playing
-([ARCHITECTURE.md](ARCHITECTURE.md) §3.2).
+[brain](HARNESS.md), and is dropped if the moment has passed. Whether it
+adds anything is up to its classifier, and a mumble's word is up to its
+writer ([HARNESS.md](HARNESS.md) §6). What it adds is a mumble; the brain's
+faces are parked ([FUTURE.md](FUTURE.md)). It never cuts the rules'
+reaction short: a brain mumble waits until the rule moment has finished
+playing ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2).
 
 ### 3.1 Agent work
 
 | When | Rules | Brain may add |
 | --- | --- | --- |
-| You send a prompt | Base becomes working | Usually nothing; the classifier may add a face |
-| Turn finishes, under 15 s | `cheer` size 1, even while other sessions keep working; under 10 s it's a quick one, which lifts the mood more | Nothing |
-| Turn finishes, 15 s–1 min | `cheer` size 2, jingle, warm light | A proud mumble, e.g. *"ba-ba ti… yay!"* |
-| Turn finishes, over 1 min | `cheer` size 3, jingle, warm light | A proud mumble, nearly always with a word, e.g. *"…finally!"* |
-| Several finish at once | One cheer; a bigger finish within 3 s upgrades it | One mumble at most |
-| Turn fails | `oops`, then `side_eye` at the agent | Sass at the agent, as an annoyed mumble, e.g. *"tu-ka… tests."* |
+| You send a prompt | Base becomes working | Usually nothing |
+| Turn finishes | `cheer`, even while other sessions keep working | Under 15 s, nothing. From 15 s, a proud mumble, e.g. *"ba-ba ti… yay!"*; past a minute, nearly always with a word, e.g. *"…finally!"* |
+| Turn fails | No moment; the session goes idle | Sass at the agent, as an annoyed mumble, e.g. *"tu-ka… tests."* |
+
+A new moment replaces one that's playing, so several turns finishing
+together look like one cheer.
 
 A turn fails when Claude stops on an API error, or when the last test,
 build or deploy command in the turn failed. A turn that ends with its tests
@@ -91,26 +84,24 @@ Boop only tells you. You approve on the Mac, in the agent's own prompt.
 | When | What Boop does |
 | --- | --- |
 | An agent needs approval | Turns to you, leans in, amber light; the bubble shows agent and project; one soft chirp |
-| 45 s later (*proposed*) | Leans further, second chirp |
-| 2 min later (*proposed*) | One short buzz, then stays amber and quiet. With no motor (the v1 board): three strong amber light pulses |
 | More than one needs you | The bubble shows the oldest, with "+1 more" |
-| You tap Boop | A small nod; nudges stop for that session (no more chirps, no pulses, the lean stops growing); it stays amber |
-| You answer on the Mac | The agent carries on, Boop sees the activity, nods, and goes back to what it was doing. The device plays the nod itself when `attn` leaves the `state` |
+| You tap Boop | The press squash only; it stays amber |
+| You answer on the Mac | The agent carries on, Boop sees the activity and blends back to what it was doing when `attn` leaves the `state` |
 
-The amber light is steady at half brightness; the three rung-3 pulses are
-200 ms at full brightness with 200 ms gaps.
-
-The brain is never involved here.
+The amber light is steady at half brightness until nothing needs you.
+There's one chirp per request: a new `attn` (a different agent or project)
+chirps again. The brain is never involved here.
 
 ### 3.3 You and Boop
 
 | When | Rules | Brain may add |
 | --- | --- | --- |
-| Tap the face, or press BOOT | `wiggle`: "^ ^" eyes, a smile and a heart at the top right, swaying gently. A tap doesn't cut a `side_eye` short: the press squash is its only answer | Nothing: a tap is the rules' alone ([HARNESS.md](HARNESS.md) §2) |
-| Poke it 4 times within 3 s (*proposed*) | `side_eye` at you on the fourth. Not while something needs you, where a tap means "I saw it" | A grumble, as an annoyed mumble, e.g. *"ba-ka… nope!"*. The streak reaches the brain at most once a minute (*proposed*); a sooner one gets the side-eye alone |
-| Hold BOOT (push-to-talk) | `listening` at once (for at most 30 s), `thinking` on release. The Mac's mic goes off on release, after 30 s, or when the link drops | A face, usually with a mumble, as in [steering.md](steering.md). Asked to be quiet ("quiet" in your words), quiet mode for the minutes asked, and the core plays `zip` as it starts. Yelled at or told off, a sad mumble, and never quiet mode; both at once, quiet and a silent sad face. Told something to remember, a note for today |
-| Talk in the popover, then Send | The Mac sends `listening`, then `thinking` on Send or after 30 s. A mic that can't start sends `shrug` | As for holding BOOT |
-| Brain too slow to reply | The device ends `thinking` with a `shrug` itself after 8 s | — |
+| Tap the screen, or press BOOT | `wiggle`: a happy squint, a small smile and a heart at the top right, swaying gently | Nothing: a tap is the rules' alone ([HARNESS.md](HARNESS.md) §2) |
+| Poke it 4 times within 3 s (*proposed*) | The fourth is a `wiggle` like the others. Not while something needs you, where a tap means "I saw it" | A grumble, as an annoyed mumble, e.g. *"ba-ka… nope!"*. The streak reaches the brain at most once a minute (*proposed*) |
+| Hold BOOT (push-to-talk) | `listening` at once, while held (at most 30 s) and then while Boop waits for the reply. The Mac's mic goes off on release, after 30 s, or when the link drops | Usually a mumble, as in [steering.md](steering.md). Asked to be quiet ("quiet" in your words), quiet mode for the minutes asked. Told off or yelled at, a sad mumble, and never quiet mode. Told something to remember, a note for today |
+| Talk in the popover, then Send | The Mac sends `listening` when the mic turns on. 8 s after Send (or after the 30 s limit) it sends an empty moment, which ends `listening` if no reply came. A mic that can't start sends the empty moment at once | As for holding BOOT |
+| The reply | A mumble ends `listening` and plays over the face | — |
+| No reply | After BOOT is released, the device waits at most 8 s for the reply, then the face blends back | — |
 
 **Asked to be quiet, told off or yelled at.** Only words with "quiet" in
 them, as a whole word ("be quiet"), let `quiet` run, whoever decided it:
@@ -121,87 +112,31 @@ all (*proposed*), even if it caught no words; the app measures a few
 milliseconds of audio at a time and keeps only that yes or no
 ([UX.md](UX.md) §5).
 
-### 3.4 Time and the device
+### 3.4 The link
 
 | When | Behaviour |
 | --- | --- |
-| Night | Drowsier, dimmer, fewer mumbles; sleeps once nothing is working |
-| Low battery | Small battery icon (later; the v1 board has no battery) |
+| No `state` for 30 s | The asleep look, with the unplugged icon (§2) |
 | Reconnect | Quick blink, then whatever the next `state` says |
 
-## 4. XP and hunger
-
-Deliberately simple for now. XP and hunger are rules in the core; the brain
-can't touch them.
-
-- **Earning:** +1 XP for each agent turn that finishes (`turn_end`; a
-  failed turn earns nothing, including one that ends with its tests
-  failing, §3.1). Nothing else earns XP: not approvals, tokens,
-  taps, time or the start of a day.
-- **Levels:** a new level every 50 XP (*proposed*), so level = XP ÷ 50,
-  rounded down, plus 1. A level-up plays `levelup` at the next calm moment.
-- **Days together:** calendar days since setup, counting the day of setup
-  as day 1.
-- **Hunger:** XP is food. The core remembers when Boop last earned any
-  ("last fed" in `long-term.md`).
-
-| Time since last fed | Boop is | How it shows (only when you look) |
-| --- | --- | --- |
-| Under 2 days | Fed | Normal |
-| 2–5 days | Hungry | An occasional tummy rumble, hopeful glances, slower idle |
-| Over 5 days | Starving | Sits by an empty bowl, low energy; loses 1 XP a day |
-
-On the device, hungry means a tummy rumble now and then and hopeful peeks
-up at you; starving adds heavy lids, a lower face and the empty bowl beside
-it on the face screen.
-
-- It never drops below the start of its current level, never dies, and
-  never runs away.
-- Hunger never makes a sound, lights up, buzzes or interrupts.
-- The first XP after being hungry plays `gobble`, and Boop is delighted to
-  see you. It never sulks.
-- "I'm away" in the app pauses hunger.
-
-## 5. Mood
-
-Boop's mood is set by rule in the core, from how the work is going (wins,
-failures, long grinds) and the time of day. It doesn't read your prompts.
-Mood shows only in behaviour (how bouncy Boop is, how often it mumbles, the
-pitch of its voice), never as a value, label or sentence outside debug
-mode.
-
-| Signal | Boop's response |
-| --- | --- |
-| A run of failures | Calmer, slower, fewer mumbles; side-eye at the agent, as if on your side |
-| Quick wins | Bouncier, bigger cheers, higher voice |
-| Night | Drowsier, dimmer, quieter |
-
-Mood drifts back to neutral over about half an hour.
-
-## 6. Sound, light and buzz
+## 4. Sound and light
 
 | Output | Used for | Never |
 | --- | --- | --- |
-| Mumbles | Moments, replies, working chatter | In quiet mode; while something needs you |
-| Chirp | The first two "needs you" rungs | Anything else |
-| Jingle | Bigger cheers | Anything else |
-| Buzz | The top "needs you" rung | Anything else, including hunger |
+| Mumbles | Working chatter, and the brain's reactions to agents and to what you say | In quiet mode; while something needs you |
+| Chirp | Once when something starts needing you | Anything else |
 | Amber light | Something needs you | Decoration |
-| Warm light | Cheers of size 2 and 3, while the cheer plays | Anything else |
-| Dimmed backlight | Asleep, night, no app | Hiding "needs you" |
+| Dimmed backlight | Asleep, no app | While something needs you |
 
-Mute silences all sound but keeps the light and buzz.
+Mute (volume 0) silences all sound but keeps the light.
 
-## 7. Animation set
+## 5. Animation set
 
 | Name | Used for |
 | --- | --- |
-| `nod` | After "needs you" clears |
-| `cheer` | Finished turns (sizes 1–3); 2 s at size 1, 0.4 s longer per size |
-| `oops`, `side_eye` | Failed turns; sass at agents. `side_eye` alone for a poke streak, at you |
+| `cheer` | Finished turns: three hops, then a happy squint, a small open smile and a heart, 2 s |
 | `wiggle` | Taps |
-| `listening`, `thinking`, `shrug` | Push-to-talk |
-| `zip` | Going quiet: the core plays it when quiet mode starts (§3.3) |
-| `gobble`, `rumble` | Hunger |
-| `levelup` | Level-ups |
-| `happy`, `proud`, `smug`, `curious`, `sleepy`, `worried`, `sulky`, `love`, `side_eye` | The faces of `react`'s feelings ([HARNESS.md](HARNESS.md) §5) |
+| `listening` | Push-to-talk: while the mic is on and while Boop waits for the reply |
+
+A mumble on its own (the brain's `react`, or chatter) plays over whatever
+face is showing and doesn't change it.

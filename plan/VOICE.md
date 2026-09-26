@@ -42,7 +42,7 @@ Voice is made once per Boop, with its dialect (§3), and has one function:
 
 ```
 Voice(dialect)
-  line(feeling, word?, mood, seed) -> { groups, word, at, tune, ms }
+  line(feeling, word?, seed) -> { groups, word, at, tune, ms }
 ```
 
 `groups` are the gibberish words, each a list of syllables; `at` is where
@@ -88,7 +88,7 @@ A line is 2–8 syllables, grouped into gibberish "words" of 1–3 syllables:
 
 | Part | Rule |
 | --- | --- |
-| Length | Voice picks short (2–4 syllables) or long (5–8), from the feeling and Boop's energy. Excited is usually long and sleepy almost always short |
+| Length | Voice picks short (2–4 syllables) or long (5–8), from the feeling. Excited is usually long and sleepy almost always short |
 | Grouping | Groups of 1–3 syllables. Doubling is common (`po-po`, `ba-ba`), because it sounds playful: 40% of two-syllable groups for happy and excited, 15% otherwise |
 | Real word | At most one. Usually at the end, as a question or exclamation; one time in five at the start, as an announcement. Curious always asks, at the end |
 | Randomness | Seeded per line, so replaying a line in debug mode gives the same sound |
@@ -125,9 +125,9 @@ energy. It doesn't copy your sounds.
 
 | Setting | Comes from |
 | --- | --- |
-| Base pitch | The mood's `pitch` (100 is neutral), set by rule in the core: wins raise it, failures and night lower it, and it drifts back to neutral ([BEHAVIORS.md](BEHAVIORS.md) §5). Sweet or cheeky doesn't change it in v1 |
+| Base pitch | Fixed at 100%. Mood used to move it; mood is parked ([FUTURE.md](FUTURE.md)). Sweet or cheeky doesn't change it in v1 |
 | Tune | The feeling (§4): `up`, `down`, `bounce`, `flat` or `lift` |
-| Tempo | Mood: 180 ms per syllable at pace 0, down to 90 ms at pace 200, then by feeling (excited −20, happy and annoyed −10, hopeful +10, sad +25, sleepy +35), kept within 90–180 ms (*proposed*) |
+| Tempo | 135 ms per syllable, then by feeling (excited −20, happy and annoyed −10, hopeful +10, sad +25, sleepy +35), kept within 90–180 ms (*proposed*) |
 | Liveliness | ±5% random pitch and ±10% timing per syllable, so it never sounds robotic |
 | Volume | The app's volume setting. Silent when muted |
 
@@ -202,12 +202,11 @@ dialects, 4 came out as the safe hum (2026-09-26).
   syllable as it plays. It's the same trick Animal Crossing uses. Each
   syllable gets one beat of `ms` and the word two; a clip longer than its
   beat is cut with a 5 ms fade, and a long word speeds up to fit (at most
-  1.6×). The `pitch` in the latest `state`'s mood sets the base (§5), the
-  tune bends it across the line, and the ±10% timing moves within pairs of
+  1.6×). The base pitch is fixed (§5), the tune bends it across the line, and the ±10% timing moves within pairs of
   beats, so a line lasts exactly beats × `ms`, the same time the mouth
-  moves. A syllable the device doesn't know keeps its beat, silent. Sound
-  cues (the needs-you chirp, the cheer's jingle) are synthesised tones; a
-  cue that arrives during a line waits it out.
+  moves. A syllable the device doesn't know keeps its beat, silent. The sound
+  cue (the needs-you chirp) is a synthesised tone. It only comes with
+  "needs you", which already stops any line.
 - **Limits.** The device clamps `ms` to 60–400 and the base pitch to
   60–160%, and plays at most 12 syllables of a line.
 - **On screen.** The mouth follows the syllables, open on vowels and closed

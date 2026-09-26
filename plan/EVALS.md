@@ -130,7 +130,7 @@ time, asides (a tap) go into its transcript, and the core's memory lines
 does.
 
 Only the harness's passes are recorded. The core's own rule reactions (a
-cheer, an oops, working chatter) aren't, so the evals stay about the
+cheer, `listening`, working chatter) aren't, so the evals stay about the
 harness. Queue timing (what you say cancelling a running pass, a newer
 input replacing a waiting one) is left to the unit tests in
 `HarnessTests`.
@@ -142,14 +142,15 @@ input replacing a waiting one) is left to the unit tests in
 | `01-short-turn.json` | Turns that finish in 8 and 12 seconds get nothing from the brain (under 15 s), since the core's cheer already celebrates them. |
 | `02-long-turn.json` | A 20-second turn gets a proud mumble; a 3-minute one gets it with the word the writer writes (the writer is steered to always write one past a minute, which only `--writer apple` can show). Hero moment 1. |
 | `03-turn-failed.json` | A failed turn gets an annoyed mumble. Hero moment 2. |
-| `04-be-quiet.json` | "Be quiet for an hour" sets quiet mode for 60 minutes, holds back a turn in that time, and lets the next one through after; a yelled "be quiet" also gets a silent sad face. Hero moment 3. |
+| `04-be-quiet.json` | "Be quiet for an hour" sets quiet mode for 60 minutes, holds back a turn in that time, and lets the next one through after; a yelled "be quiet" also gets a silent sad `react`, which shows nothing in v1. Hero moment 3. |
 | `05-bad-answer.json` | A classifier answer off the menu and a classifier error each run nothing, and the next turn gets its normal reaction. |
 | `06-tests-left-failing.json` | A turn whose last test run failed finishes failed and gets the annoyed mumble; one whose tests failed, then passed, is a normal finish. Hero moment 2. |
 | `07-told-off.json` | "Shut up", "you're so annoying", a yell and a wordless yell each get a sad mumble and leave quiet mode off; "this build is annoying" doesn't count; a classifier that calls `quiet` anyway has it dropped. Hero moment 3. |
 | `08-poke-streak.json` | Quick taps reach nothing until one completes a poke streak, which gets an annoyed mumble; a second streak soon after gets nothing from the brain, and one later does; slow taps never do. Hero moment 4. |
 
-The hero moments are VISION.md's. Hero moment 1's cheer, 2's oops and 4's
-side-eye are the core's own reactions, which the evals don't record; the
-core's unit tests check those.
+The hero moments are VISION.md's. Hero moment 1's cheer is the core's own
+reaction, which the evals don't record; the core's unit tests check it. In
+v1 the others are the brain's mumbles, which the evals do record: C1 parked
+the `oops` and side-eye they had ([BEHAVIORS.md](BEHAVIORS.md)).
 
 Adding a scenario means adding its file and its row here.

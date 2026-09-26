@@ -15,7 +15,7 @@ final class ActionRig {
     init(memory: MemoryStore) {
         self.memory = memory
         let context = ActionContext(
-            send: { [unowned self] in self.sent.append($0) }, mood: { Mood() },
+            send: { [unowned self] in self.sent.append($0) },
             mumblesAllowed: { [unowned self] in self.allowed }, setQuiet: { [unowned self] in self.quiet.append($0) },
             quietAsked: { [unowned self] in self.asked }, today: { "2026-10-15" },
             log: { [unowned self] in self.logs.append($0) })
@@ -78,45 +78,45 @@ final class ActionTests: XCTestCase {
         }, [80, 100, 100, 120, 80])
     }
 
-    func testAMumbleCarriesItsFaceAndWord() throws {
+    /// A mumble is a moment with only `say`: it plays over whatever face is
+    /// showing (PROTOCOL.md §3).
+    func testAMumbleCarriesItsWordAndNoFace() throws {
         XCTAssertTrue(rig.run(react("proud", word: "finally")).isDone)
         let moment = try XCTUnwrap(rig.sent.last)
-        XCTAssertEqual(moment.anim, "proud")
+        XCTAssertNil(moment.anim)
         XCTAssertEqual(moment.say?.word, "finally")
         XCTAssertEqual(moment.say?.tune, .lift)
         XCTAssertTrue(moment.jsonLine.utf8.count <= 512)
+        XCTAssertFalse(moment.jsonLine.contains("anim"))
         rig.run(react("sleepy"))
-        XCTAssertEqual(rig.sent.last?.anim, "sleepy")
+        XCTAssertNil(rig.sent.last?.anim)
         XCTAssertNil(rig.sent.last?.say?.word)
         XCTAssertNotNil(rig.sent.last?.say)
     }
 
-    /// The ten feelings and their faces; smug and sulky borrow a voice.
-    func testEachFeelingHasItsFace() {
-        let faces = ["happy": "happy", "excited": "happy", "proud": "proud", "curious": "curious", "hopeful": "love",
-                     "annoyed": "side_eye", "sad": "worried", "sleepy": "sleepy", "smug": "smug", "sulky": "sulky"]
-        for (feeling, face) in faces {
-            rig.run(react(feeling, "silent"))
-            XCTAssertEqual(rig.sent.last, DeviceMoment(anim: face, size: feeling == "excited" ? 2 : 1), feeling)
+    /// The ten feelings choose the voice; smug and sulky borrow one.
+    func testEachFeelingMumblesInItsVoice() {
+        for (name, _, _) in ReactAction.feelings {
+            XCTAssertTrue(rig.run(react(name)).isDone, name)
+            XCTAssertEqual(rig.sent.last?.anim, nil, name)
         }
         rig.run(react("smug"))
         XCTAssertEqual(rig.sent.last?.say?.tune, .lift, "smug mumbles like proud")
         rig.run(react("sulky"))
         XCTAssertEqual(rig.sent.last?.say?.tune, .down, "sulky mumbles like sad")
-        XCTAssertTrue(Set(ReactAction.feelings.map(\.face)).isSubset(of: ReactAction.anims))
     }
 
-    func testSilentIsJustTheFace() {
-        XCTAssertEqual(rig.run(react("sulky", "silent", word: "nope")), .done("sulky, silent"))
-        XCTAssertEqual(rig.sent, [DeviceMoment(anim: "sulky")])
+    /// The feelings' faces are parked (FUTURE.md): silent shows nothing.
+    func testSilentShowsNothing() {
+        XCTAssertEqual(rig.run(react("sulky", "silent", word: "nope")), .done("sulky, silent: Boop has no face for it in v1"))
+        XCTAssertEqual(rig.sent, [])
     }
 
-    /// BEHAVIORS.md §6: no mumbles in quiet mode or while something needs
-    /// you; the face still plays.
-    func testAMumbleInQuietIsJustTheFace() {
+    /// BEHAVIORS.md §6: no mumbles in quiet mode or while something needs you.
+    func testAMumbleInQuietIsDropped() {
         rig.allowed = false
-        XCTAssertEqual(rig.run(react("happy")), .done("happy, face only: Boop is quiet right now"))
-        XCTAssertEqual(rig.sent, [DeviceMoment(anim: "happy")])
+        XCTAssertEqual(rig.run(react("happy")), .dropped("Boop is quiet right now"))
+        XCTAssertEqual(rig.sent, [])
     }
 
     func testReactDropsWhatItCantDo() {
@@ -137,19 +137,22 @@ final class ActionTests: XCTestCase {
         for line in rig.logs { XCTAssertFalse(line.contains("kubernetes") || line.contains("hello there"), line) }
     }
 
-    func testRulesPlayAnyAnimation() {
-        XCTAssertTrue(rig.react.play("cheer", size: 3).isDone)
-        XCTAssertEqual(rig.sent.last, DeviceMoment(anim: "cheer", size: 3))
-        XCTAssertFalse(rig.react.play("dance", size: 1).isDone)
-        XCTAssertFalse(rig.react.play("cheer", size: 4).isDone)
-        XCTAssertFalse(rig.react.play("stretch", size: 1).isDone, "removed with the first activity's stretch")
-        XCTAssertEqual(rig.sent.count, 1)
-        XCTAssertEqual(rig.logs.count, 3)
-    }
-
-    func testReactKnowsTheDevicesAnimations() {
-        // firmware/src/render/anim.cpp's names, less "none".
-        XCTAssertEqual(ReactAction.anims.count, 20)
+    /// BEHAVIORS.md §5: the rules play only the three kept animations.
+    func testRulesPlayOnlyTheKeptAnimations() {
+        XCTAssertEqual(ReactAction.anims, ["cheer", "wiggle", "listening"])
+        for anim in ReactAction.anims {
+            XCTAssertTrue(rig.react.play(anim).isDone, anim)
+            XCTAssertEqual(rig.sent.last, DeviceMoment(anim: anim))
+        }
+        let removed = ["nod", "thinking", "shrug", "dance", "stretch", "oops", "side_eye", "gobble", "levelup", "happy", "proud"]
+        for anim in removed {
+            XCTAssertFalse(rig.react.play(anim).isDone, anim)
+        }
+        XCTAssertEqual(rig.sent.count, 3)
+        XCTAssertEqual(rig.logs.count, removed.count)
+        // The core's `.endListening`: the empty moment.
+        XCTAssertTrue(rig.react.endListening().isDone)
+        XCTAssertEqual(rig.sent.last, DeviceMoment.empty)
     }
 
     func testQuietTellsTheCore() {

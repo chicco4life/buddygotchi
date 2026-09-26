@@ -80,20 +80,21 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(runtime.home.sync { shown.last }, false)
         transport.onConnection?(true)
 
-        // The Talk button: the device shows listening, then thinking.
+        // The Talk button: the device shows listening; the mic failing
+        // ends it at once with the empty moment.
         runtime.setListening(true)
         wait("listening on the device") { transport.sent.contains { $0.contains("\"anim\":\"listening\"") } }
         runtime.setListening(false)
-        wait("thinking on the device") { transport.sent.contains { $0.contains("\"anim\":\"thinking\"") } }
-        XCTAssertEqual(runtime.home.sync { heard }, [true, false, true, false, true, false])
+        wait("mic off") { runtime.home.sync { heard } == [true, false, true, false, true, false] }
+        XCTAssertFalse(transport.sent.contains(#"{"t":"moment","ttl":5}"#), "the empty moment waits 8 s")
+        runtime.setListening(true)
+        runtime.micFailed()
+        wait("the empty moment") { transport.sent.contains(#"{"t":"moment","ttl":5}"#) }
 
-        // A finished turn clears "needs you", cheers, and counts
-        // in the record.
+        // A finished turn clears "needs you" and cheers.
         XCTAssertTrue(HookSocket.send(hook("PostToolUse", tool: "Bash"), to: socket))
         XCTAssertTrue(HookSocket.send(hook("Stop"), to: socket))
-        wait("cheer") { transport.sent.contains { $0.contains("\"anim\":\"cheer\"") } }
-        wait("record") { AppSettings.load(from: self.dir).finished == 1 }
-        XCTAssertEqual(AppSettings.load(from: dir).projects, ["jetpack"])
+        wait("cheer") { transport.sent.contains { $0 == #"{"t":"moment","anim":"cheer","ttl":5}"# } }
         XCTAssertEqual(AppSettings.load(from: dir).classifier, "rules")
         XCTAssertEqual(AppSettings.load(from: dir).writer, "apple", "--writer is for this run only")
         wait("today's short-term memory") {
@@ -114,18 +115,14 @@ final class RuntimeTests: XCTestCase {
         }
         func quiet(_ line: String) -> Bool { line.contains("\"t\":\"state\"") && !line.contains("\"quiet\":0") }
         // BEHAVIORS.md §3.3: told off, the rules classifier has Boop mumble
-        // something sad, and it doesn't quiet Boop.
+        // something sad (a mumble on its own: no face), and it doesn't quiet Boop.
         try talk("shut up")
-        wait("a sad mumble") { transport.sent.contains { $0.contains("\"anim\":\"worried\"") && $0.contains("\"say\"") } }
+        wait("a sad mumble") { transport.sent.contains { $0.contains("\"t\":\"moment\"") && $0.contains("\"say\"") && !$0.contains("\"anim\"") } }
         XCTAssertFalse(transport.sent.contains(where: quiet))
-        // "be quiet" zips Boop's mouth and quiets it.
+        // "be quiet" quiets it, with no zip: that animation is parked.
         try talk("be quiet")
         wait("quiet in the next state") { transport.sent.contains(where: quiet) }
-        XCTAssertTrue(transport.sent.contains { $0.contains("\"anim\":\"zip\"") })
-        // Yelled at while quiet: the sad face without a mumble, once the zip is over.
-        let before = transport.sent.count
-        try talk("", yelled: true)
-        wait("a sad face") { transport.sent.dropFirst(before).contains { $0.contains("\"anim\":\"worried\"") && !$0.contains("\"say\"") } }
+        XCTAssertFalse(transport.sent.contains { $0.contains("\"anim\":\"zip\"") })
     }
 
     func testStopRemovesTheSocketAndReleasesTheLock() throws {
@@ -160,9 +157,20 @@ final class RuntimeTests: XCTestCase {
         let settings = AppSettings.load(from: dir)
         XCTAssertEqual([settings.classifier, settings.writer], ["rules", "none"], "rules only wrote nothing")
         XCTAssertEqual(settings.volume, 6)
-        XCTAssertEqual(settings.finished, 0)
-        XCTAssertFalse(settings.away)
-        XCTAssertNil(settings.awaySince)
+    }
+
+    /// Settings from before 2026-09-26 still load; the keys that went with
+    /// the cut are ignored and aren't written back.
+    func testSettingsIgnoreTheCutKeys() throws {
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let old = #"{"classifier":"jev","writer":"none","volume":3,"focus":true,"away":true,"awaySince":"2026-09-20","finished":148,"projects":["jetpack"]}"#
+        try Data(old.utf8).write(to: dir.appendingPathComponent(AppSettings.file))
+        let settings = AppSettings.load(from: dir)
+        XCTAssertEqual([settings.classifier, settings.writer], ["jev", "none"])
+        XCTAssertEqual(settings.volume, 3)
+        try settings.save(to: dir)
+        let text = try String(contentsOf: dir.appendingPathComponent(AppSettings.file), encoding: .utf8)
+        for key in ["focus", "away", "finished", "projects"] { XCTAssertFalse(text.contains(key), key) }
     }
 
     /// HARNESS.md §6: the old one `brain` setting becomes the two stages;
@@ -186,8 +194,8 @@ final class RuntimeTests: XCTestCase {
     }
 
     /// A long turn, finished after moving the clock with `{"dev":"advance"}`:
-    /// the rules cheer at size 2 at once, and the brain's moment waits until
-    /// the cheer has played instead of cutting it off.
+    /// the rules cheer at once, and the brain's mumble waits until the cheer
+    /// has played instead of cutting it off.
     func testTheBrainWaitsForTheRulesMoment() throws {
         let transport = FakeTransport()
         try Runtime.setUp(stateDir: dir, name: "Pip", nature: .sweet, today: LocalTime().day(Int64(Date().timeIntervalSince1970 * 1000)))
@@ -211,94 +219,40 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(HookSocket.send(Data(#"{"dev":"advance","ms":30000}"#.utf8), to: socket))
         wait("clock moved") { skew.withLock { skewMs } == 30_000 }
         XCTAssertTrue(HookSocket.send(hook("Stop"), to: socket))
-        wait("size 2 cheer") { transport.sent.contains { $0.contains("\"anim\":\"cheer\",\"size\":2") } }
+        wait("cheer") { transport.sent.contains { $0.contains("\"anim\":\"cheer\"") } }
         let cheered = Date()
         let moments = { transport.sent.filter { $0.contains("\"t\":\"moment\"") } }
         let afterCheer = moments().count
-        wait("the brain's moment", timeout: 4) { moments().count > afterCheer }
-        XCTAssertGreaterThanOrEqual(Date().timeIntervalSince(cheered), 1.5,
-                                    "a size-2 cheer plays 2400 ms × 100 ÷ pace, about 2.4 s after a long win")
+        wait("the brain's mumble", timeout: 4) { moments().count > afterCheer }
+        XCTAssertGreaterThanOrEqual(Date().timeIntervalSince(cheered), 1.5, "a cheer plays 2 s")
+        let mumble = try XCTUnwrap(moments().last)
+        XCTAssertTrue(mumble.hasPrefix(#"{"t":"moment","say":"#), "a mumble has no anim: \(mumble)")
     }
 
     /// ARCHITECTURE.md §3: the app knows how long each rule moment plays on
     /// the device. The numbers are firmware/src/app/behaviour.cpp's
     /// `onMoment` and `play`, and firmware/src/render/anim.cpp's
-    /// `animDuration`, with the mood from the last `state`.
+    /// `animDuration` (BEHAVIORS.md §5: a cheer is 2 s).
     func testMomentLengthsFollowTheFirmware() {
-        let neutral = Mood()
-        XCTAssertEqual(DeviceMoment(anim: "cheer", size: 2).playMs(mood: neutral), 2400)
-        XCTAssertEqual(DeviceMoment(anim: "proud").playMs(mood: neutral), 2500)
-        XCTAssertEqual(DeviceMoment(anim: "thinking").playMs(mood: neutral), 0, "the brain's reply replaces thinking")
-
-        // Pace scales every animation by 100 ÷ pace, held to 70–140, rounded down.
-        let oops = DeviceMoment(anim: "oops")
-        XCTAssertEqual(oops.playMs(mood: Mood(pace: 70)), 2000)
-        XCTAssertEqual(oops.playMs(mood: Mood(pace: 100)), 1400)
-        XCTAssertEqual(oops.playMs(mood: Mood(pace: 140)), 1000)
-        XCTAssertEqual(oops.playMs(mood: Mood(pace: 20)), 2000)
-        XCTAssertEqual(oops.playMs(mood: Mood(pace: 200)), 1000)
-        XCTAssertEqual(DeviceMoment(anim: "nod").playMs(mood: Mood(pace: 89)), 674)
-
-        // A tired cheer (energy under 60) is a size smaller, a bouncy one
-        // (140 or more) a size bigger, within 1–3.
-        let cheer = DeviceMoment(anim: "cheer", size: 2)
-        XCTAssertEqual(cheer.playMs(mood: Mood(energy: 59)), 2000)
-        XCTAssertEqual(cheer.playMs(mood: Mood(energy: 60)), 2400)
-        XCTAssertEqual(cheer.playMs(mood: Mood(energy: 140)), 2800)
-        XCTAssertEqual(DeviceMoment(anim: "cheer", size: 1).playMs(mood: Mood(energy: 30)), 2000)
-        XCTAssertEqual(DeviceMoment(anim: "cheer", size: 3).playMs(mood: Mood(energy: 180)), 2800)
-        XCTAssertEqual(cheer.playMs(mood: Mood(energy: 150, pace: 140)), 2000, "bigger, and faster")
-        XCTAssertEqual(DeviceMoment(anim: "oops").playMs(mood: Mood(energy: 30)), 1400, "only a cheer changes size")
+        XCTAssertEqual(DeviceMoment(anim: "cheer").playMs, 2000)
+        XCTAssertEqual(DeviceMoment(anim: "wiggle").playMs, 700)
+        XCTAssertEqual(DeviceMoment(anim: "listening").playMs, 0, "the reply or the empty moment ends it")
+        XCTAssertEqual(DeviceMoment.empty.playMs, 0)
 
         // A mumble lasts its syllables plus two beats for a word, at 60–400
         // ms a beat, then 1.2 s of bubble, when that's longer than the face.
         let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
-        XCTAssertEqual(DeviceMoment(anim: "nod", say: line).playMs(mood: neutral), 1920)
+        XCTAssertEqual(DeviceMoment(say: line).playMs, 1920)
+        XCTAssertEqual(DeviceMoment(anim: "wiggle", say: line).playMs, 1920)
         var plain = line
         plain.word = nil
-        XCTAssertEqual(DeviceMoment(anim: "nod", say: plain).playMs(mood: neutral), 1680)
+        XCTAssertEqual(DeviceMoment(say: plain).playMs, 1680)
         var slow = line
         slow.ms = 500
-        XCTAssertEqual(DeviceMoment(anim: "happy", say: slow).playMs(mood: neutral), 3600)
+        XCTAssertEqual(DeviceMoment(say: slow).playMs, 3600)
         var quick = line
         quick.ms = 20
-        XCTAssertEqual(DeviceMoment(anim: "happy", say: quick).playMs(mood: neutral), 2500, "6 × 60 + 1200 is shorter")
-        XCTAssertEqual(DeviceMoment(anim: "happy", say: line).playMs(mood: Mood(pace: 70)), 3571, "the slow face is longer")
-    }
-
-    /// BEHAVIORS.md §4: "I'm away" pauses hunger, and settings keep the day
-    /// it started, so a restart doesn't start the pause again. An older
-    /// settings file without that day starts it on launch and saves it.
-    func testAwayKeepsItsFirstDayAcrossARestart() throws {
-        try Runtime.setUp(stateDir: dir, name: "Pip", nature: .sweet, today: LocalTime().day(Int64(Date().timeIntervalSince1970 * 1000)))
-        try Data(#"{"brain":"rules","away":true}"#.utf8).write(to: dir.appendingPathComponent(AppSettings.file))
-        let skew = NSLock()
-        nonisolated(unsafe) var skewMs: Int64 = 0
-        let dir = self.dir!
-        func openRuntime() throws -> Runtime {
-            var options = Runtime.Options(stateDir: dir, socketPath: dir.appendingPathComponent("boop.sock").path,
-                                          link: FakeTransport(), steering: "")
-            options.clock = { Int64(Date().timeIntervalSince1970 * 1000) + skew.withLock { skewMs } }
-            return try Runtime(options)
-        }
-        let since: String?
-        do {
-            let first = try openRuntime()
-            since = first.home.sync { first.core.awaySince }
-            XCTAssertNotNil(since)
-            XCTAssertEqual(AppSettings.load(from: dir).awaySince, since, "saved on launch")
-        }
-
-        skew.withLock { skewMs = 3 * 24 * 3600 * 1000 }
-        let second = try openRuntime()
-        XCTAssertEqual(second.home.sync { second.core.awaySince }, since, "three days later it still started then")
-        second.setAway(false)
-        second.home.sync {}
-        XCTAssertFalse(AppSettings.load(from: dir).away)
-        XCTAssertNil(AppSettings.load(from: dir).awaySince)
-        second.setAway(true)
-        second.home.sync {}
-        XCTAssertEqual(AppSettings.load(from: dir).awaySince, second.home.sync { second.core.awaySince })
-        XCTAssertNotEqual(AppSettings.load(from: dir).awaySince, since)
+        XCTAssertEqual(DeviceMoment(say: quick).playMs, 1560, "6 × 60 + 1200")
+        XCTAssertEqual(DeviceMoment(anim: "cheer", say: quick).playMs, 2000, "the cheer is longer")
     }
 }

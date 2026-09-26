@@ -1,7 +1,6 @@
 #include "render/screens.h"
 
 #include <cstdio>
-#include <cstring>
 
 #include "render/font.h"
 #include "render/palette.h"
@@ -51,29 +50,6 @@ void fillRing(Canvas& c, int cx, int cy, int r, int inner, int ink) {
             [&](int x, int y, int level) { plotInk(c, x, y, level, ink); });
 }
 
-// Angle of (x, y) from 12 o'clock, clockwise, in 1/1024 turns.
-int clockAngle(int x, int y) {
-  int ax = x < 0 ? -x : x, ay = y < 0 ? -y : y;
-  if (!ax && !ay) return 0;
-  int lo = ax < ay ? ax : ay, hi = ax < ay ? ay : ax;
-  int r = int(int64_t(lo) * 1024 / hi);
-  int a = (128 * r + 44 * r * (1024 - r) / 1024) / 1024;  // atan, 0..128
-  if (ay > ax) a = 256 - a;
-  if (x < 0) a = 512 - a;
-  if (y < 0) a = 1024 - a;  // angle from +x towards +y (clockwise on screen)
-  return (a + 256) & 1023;
-}
-
-// Text centred between x0 and x1.
-void centred(Canvas& c, const Font& f, int x0, int x1, int y, const char* text, int ink) {
-  int w = stringWidth(f, text);
-  if (w > x1 - x0) w = x1 - x0;
-  drawStringFit(c, f, (x0 + x1 - w) / 2, y, text, ink, x1 - x0);
-}
-void centred(Canvas& c, const Font& f, int y, const char* text, int ink) {
-  centred(c, f, kMargin, kWidth - kMargin, y, text, ink);
-}
-
 // A squiggle standing for one or more gibberish syllables.
 int squiggle(Canvas& c, int x, int cy, int ink) {
   const int w = 22;
@@ -119,29 +95,11 @@ void iconQuiet(Canvas& c, int x, int y) {  // a speaker with a slash
   c.fillTriangle(x + 4, y + 8, x + 9, y + 2, x + 9, y + 14, g);
   for (int i = 0; i < 9; ++i) c.fillRect(x + 6 + i, y + 3 + i, 2, 2, g);
 }
-void iconBattery(Canvas& c, int x, int y) {  // an almost empty battery
-  uint8_t g = inkAt(kInkGrey, kLevels);
-  c.fillRect(x, y + 4, 14, 1, g);
-  c.fillRect(x, y + 11, 14, 1, g);
-  c.fillRect(x, y + 4, 1, 8, g);
-  c.fillRect(x + 13, y + 4, 1, 8, g);
-  c.fillRect(x + 14, y + 6, 2, 4, g);
-  c.fillRect(x + 2, y + 6, 3, 4, inkAt(kInkAmber, kLevels));
-}
-
-void capitalised(const char* in, char* out, size_t n) {
-  std::snprintf(out, n, "%s", in);
-  if (out[0] >= 'a' && out[0] <= 'z') out[0] = char(out[0] - 'a' + 'A');
-}
 
 }  // namespace
 
 void drawStrip(Canvas& c, const Strip& s) {
-  if (s.pressed) {
-    c.fillRect(kMargin, kStripTop, kWidth - 2 * kMargin, 2, inkAt(kInkAmber, kLevels));
-  } else {
-    c.fillRect(kMargin, kStripTop, kWidth - 2 * kMargin, 1, inkAt(kInkDim, kLevels));
-  }
+  c.fillRect(kMargin, kStripTop, kWidth - 2 * kMargin, 1, inkAt(kInkDim, kLevels));
   const int cy = kStripCy, ty = cy - 10;
   int x = kMargin;
   char buf[24];
@@ -157,24 +115,12 @@ void drawStrip(Canvas& c, const Strip& s) {
   }
   int ix = kWidth - kMargin - 16;
   if (s.noApp) iconNoApp(c, ix, cy - 8), ix -= 22;
-  if (s.quiet) iconQuiet(c, ix, cy - 8), ix -= 22;
-  if (s.lowBattery) iconBattery(c, ix, cy - 8);
+  if (s.quiet) iconQuiet(c, ix, cy - 8);
 }
 
-// An empty bowl: the lower half of a ring, with a rim.
-void drawBowl(Canvas& c, int cx, int cy) {
-  fillRing(c, px(cx), px(cy), px(16), px(13), kInkGrey);
-  c.fillRect(cx - 17, cy - 17, 35, 17, kBlack);
-  c.fillRect(cx - 18, cy - 1, 37, 2, inkAt(kInkGrey, kLevels));
-}
-
-// Where the bowl sits: beside the face, just above the strip.
-constexpr int kBowlX = kWidth - 52, kBowlY = kStripTop - 24;
-
-void drawFaceScreen(Canvas& c, const Pose& p, const Mumble* mumble, const Strip& s, bool bowl) {
+void drawFaceScreen(Canvas& c, const Pose& p, const Mumble* mumble, const Strip& s) {
   c.fill(kBlack);
   placeFace(c, p);
-  if (bowl && !mumble) drawBowl(c, kBowlX, kBowlY);
   if (mumble) drawMumble(c, *mumble);
   drawStrip(c, s);
 }
@@ -193,106 +139,6 @@ void drawNeedsYou(Canvas& c, const Pose& p, const Attention& a, const Strip& s) 
     std::snprintf(more, sizeof(more), "+%d more", a.more);
     drawString(c, kSmall, kWidth - kMargin - stringWidth(kSmall, more), whatY, more, kInkGrey);
   }
-  drawStrip(c, s);
-}
-
-// The threads list: one row per session, with the agent's name on its first
-// row, the project, and the status at the right.
-constexpr int kListTop = 10, kRow = 22, kAgentW = 72;  // an 8-letter agent fits
-
-void drawThreads(Canvas& c, const Thread* threads, int n, const Strip& s) {
-  c.fill(kBlack);
-  if (n <= 0) {
-    centred(c, kSmall, (kStripTop - kSmall.h) / 2, "no sessions", kInkGrey);
-    drawStrip(c, s);
-    return;
-  }
-  if (n > 8) n = 8;
-  // Agents in order of their most urgent row, then first appearance; rows
-  // that need you first within each agent.
-  auto rank = [](char st) { return st == 'w' ? 0 : st == 'b' ? 1 : 2; };
-  int order[8], agents = 0;
-  const char* names[8];
-  int best[8];
-  for (int i = 0; i < n; ++i) {
-    int k = 0;
-    while (k < agents && std::strcmp(names[k], threads[i].agent)) ++k;
-    if (k == agents) names[agents] = threads[i].agent, best[agents] = 3, order[agents] = agents, ++agents;
-    if (rank(threads[i].status) < best[k]) best[k] = rank(threads[i].status);
-  }
-  for (int i = 1; i < agents; ++i) {  // stable insertion sort by urgency
-    for (int j = i; j > 0 && best[order[j]] < best[order[j - 1]]; --j) {
-      int t = order[j];
-      order[j] = order[j - 1], order[j - 1] = t;
-    }
-  }
-  // A little space between agents, as much as the rows leave (at most 6 px).
-  int gap = agents > 1 ? (kStripTop - 4 - kListTop - n * kRow) / (agents - 1) : 0;
-  gap = gap < 0 ? 0 : gap > 6 ? 6 : gap;
-  const int projectX = kMargin + kAgentW;
-  int y = kListTop;
-  for (int g = 0; g < agents; ++g) {
-    const char* agent = names[order[g]];
-    bool first = true;
-    for (int r = 0; r < 3; ++r) {
-      for (int i = 0; i < n; ++i) {
-        const Thread& t = threads[i];
-        if (std::strcmp(t.agent, agent) || rank(t.status) != r || y + kRow > kStripTop) continue;
-        if (first) {
-          char title[16];
-          capitalised(agent, title, sizeof(title));
-          drawStringFit(c, kSmall, kMargin, y, title, kInkGrey, kAgentW - 8);
-          first = false;
-        }
-        const char* status = r == 0 ? "needs you" : r == 1 ? "working" : "idle";
-        int ink = r == 0 ? kInkAmber : r == 1 ? kInkGrey : kInkDim;
-        int sw = stringWidth(kSmall, status) + (r == 0 ? 14 : 0);
-        drawStringFit(c, kSmall, projectX, y, t.project, kInkText, kWidth - kMargin - sw - 8 - projectX);
-        drawString(c, kSmall, kWidth - kMargin - sw, y, status, ink);
-        if (r == 0) fillCircle(c, px(kWidth - kMargin - 4), px(y + 10), px(4), kInkAmber);
-        y += kRow;
-      }
-    }
-    y += gap;
-  }
-  drawStrip(c, s);
-}
-
-// Stats: the progress ring on the left with the level inside it; the name
-// and the days together on the right.
-constexpr int kRingR = 62, kRingInner = 52;
-constexpr int kRingCx = kMargin + kRingR + 6, kRingCy = kStripTop / 2;
-constexpr int kStatsTextX = kRingCx + kRingR + 18;  // "1234 days together" fits
-
-void drawStats(Canvas& c, const Stats& st, const Strip& s) {
-  c.fill(kBlack);
-  const int cx = px(kRingCx), cy = px(kRingCy), r = px(kRingR), inner = px(kRingInner);
-  fillRing(c, cx, cy, r, inner, kInkDim);
-  int prog = st.prog < 0 ? 0 : st.prog > 100 ? 100 : st.prog;
-  int end = prog * 1024 / 100;
-  if (end > 0) {
-    int x0 = (cx - r) / kSub - 1, y0 = (cy - r) / kSub - 1;
-    sampleShape(x0, y0, x0 + 2 * r / kSub + 3, y0 + 2 * r / kSub + 3,
-                [&](int sx, int sy) {
-                  int64_t dx = sx - cx, dy = sy - cy, d2 = dx * dx + dy * dy;
-                  if (d2 >= int64_t(r) * r || d2 < int64_t(inner) * inner) return false;
-                  return clockAngle(int(dx), int(dy)) < end;
-                },
-                [&](int x, int y, int level) { plotInk(c, x, y, level, kInkAmber); });
-  }
-  const int ringL = kRingCx - kRingInner, ringR = kRingCx + kRingInner;
-  centred(c, kSmall, ringL, ringR, kRingCy - 28, "level", kInkGrey);
-  char buf[24];
-  std::snprintf(buf, sizeof(buf), "%d", st.level);
-  centred(c, kLarge, ringL, ringR, kRingCy - 12, buf, kInkText);
-
-  // A name too long for the large font drops to the small one.
-  const char* name = st.name && *st.name ? st.name : "Boop";
-  const int room = kWidth - kMargin - kStatsTextX;
-  const Font& nameFont = stringWidth(kLarge, name) <= room ? kLarge : kSmall;
-  drawStringFit(c, nameFont, kStatsTextX, kRingCy - 34 + (&nameFont == &kSmall ? 8 : 0), name, kInkText, room);
-  std::snprintf(buf, sizeof(buf), st.days == 1 ? "%d day together" : "%d days together", st.days);
-  drawStringFit(c, kSmall, kStatsTextX, kRingCy + 8, buf, kInkGrey, room);
   drawStrip(c, s);
 }
 

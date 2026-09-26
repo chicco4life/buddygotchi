@@ -70,7 +70,7 @@ final class RulesClassifierTests: XCTestCase {
         XCTAssertFalse(input(.said, words: "speak quietly").asksForQuiet)
         XCTAssertTrue(input(.said, words: "Quiet!").asksForQuiet)
         let notes = Prompt.Memory(steering: "", longTerm: "",
-                                  shortTerm: ShortTerm(date: "2026-10-14", firstSeen: "09:00", mood: "content",
+                                  shortTerm: ShortTerm(date: "2026-10-14", firstSeen: "09:00",
                                                        notes: ["demo on Thursday"]).markdown)
         let newDay = try await decide(input(.newDay), memory: notes)
         XCTAssertEqual(newDay, [], "long-term memory needs a model to decide")
@@ -175,10 +175,10 @@ final class JevClassifierTests: XCTestCase {
     /// The state is the pass as JSON: who Boop is, memory, what happened
     /// lately (with what Boop did), and now. Never the key.
     func testTheStateCarriesTheWindow() async throws {
-        let earlier = input(.agentFinished, tookMs: 600_000, rules: "cheer size 2", at: 0)
+        let earlier = input(.agentFinished, tookMs: 600_000, rules: "cheer", at: 0)
         let now = input(.said, words: "hi", at: 4)
         let window: [Transcript.Entry] = [
-            .input(earlier), .rules("cheer size 2"), .decided(by: "x", [react("proud")], evidence: nil),
+            .input(earlier), .rules("cheer"), .decided(by: "x", [react("proud")], evidence: nil),
             .ran(react("proud", word: "finally"), .done("ok")),
             .aside("tapped · 14:07 Tuesday: Boop wiggled", ts: 120_000),
             .input(now),
@@ -192,7 +192,7 @@ final class JevClassifierTests: XCTestCase {
         let recent = state["recent"] as! [[String: Any]]
         XCTAssertEqual(recent.map { $0["minutes_ago"] as? Int }, [4, 2])
         XCTAssertEqual(recent[0]["boop_did"] as? [String], ["react(feeling: proud, voice: mumble, word: finally)"])
-        XCTAssertEqual(recent[0]["rules"] as? String, "cheer size 2")
+        XCTAssertEqual(recent[0]["rules"] as? String, "cheer")
         XCTAssertNil(recent[1]["boop_did"], "an aside")
         let request = String(decoding: try JSONSerialization.data(withJSONObject: jev.last), as: UTF8.self)
         XCTAssertFalse(request.contains("test-key"))

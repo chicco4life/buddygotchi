@@ -1,8 +1,4 @@
 {
-  "xp": 3,
-  "level": 1,
-  "finished": 3,
-  "projects": ["jetpack", "landing"],
   "happened": ["claude · jetpack · finished", "claude · jetpack · deploy · failed", "codex · landing · finished", "codex · landing · finished"],
   "inputs": ["topic: tests", "topic: deploy", "error: rate limit", "agent finished · done · claude · jetpack", "agent finished · done · codex · landing"]
 }

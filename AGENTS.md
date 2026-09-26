@@ -45,7 +45,7 @@ make e2e          # hook → app → USB → device pipeline check
 make webcam-test  # the webcam recorder's tests, on synthetic video (no camera)
 make run          # the Mac app, with Bluetooth; the owner runs this, not agents
 tools/boopctl ping | state | shot | run <scenario> | sim <scenario> | bridge
-tools/boopctl mumble [feeling] | say [feeling] | volume [level…] | sound chirp|jingle | moment <anim> | needs
+tools/boopctl mumble [feeling] | say [feeling] | volume [level…] | sound [chirp] | moment [anim] [--say F] | needs
 app/.build/debug/Boop --snapshots DIR   # the Mac app's popover and icons as PNGs, no Bluetooth
 ```
 
@@ -117,8 +117,7 @@ rules that are easy to break:
   source, and the app bundles a copy.
 - **No code, file contents, prompts or agent transcripts go to the brain.**
   The only exception is the person's own words on push-to-talk.
-- **XP, hunger, mood, "needs you" and the screen priority are plain rules in
-  the core.**
+- **"Needs you" and the screen priority are plain rules in the core.**
 - **The device only renders and reports.** It receives the same messages
   over Bluetooth and USB. Its drawing code stays independent of the display
   library, so the simulator and a later ESP-IDF + LVGL port can reuse it.

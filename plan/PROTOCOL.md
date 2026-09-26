@@ -26,8 +26,8 @@ Three rules follow from that:
 - **Moments are fire-and-forget.** A cheer or a mumble either plays in time
   or is skipped. Nothing is acknowledged or retried.
 - **Nothing important flows back.** The device only reports taps and
-  push-to-talk. Boop never approves anything, so no message from the device
-  can affect an agent.
+  push-to-talk. Boop never approves
+  anything, so no message from the device can affect an agent.
 
 ## 2. Transport
 
@@ -92,47 +92,44 @@ so new optional fields never break an older peer.
 ```json
 {"t":"state","v":1,"time":1790000000,"name":"Pip",
  "base":"working","attn":{"agent":"codex","project":"landing","more":0},
- "busy":2,"idle":1,"wait":1,
- "mood":{"energy":70,"pace":110,"pitch":120},
- "quiet":0,"vol":6,"night":false,
- "level":12,"prog":40,"days":12,"hungry":0,
- "threads":[["codex","landing","wait"],["claude","jetpack","work"],["codex","buddy","work"]]}
+ "busy":2,"idle":1,"wait":1,"quiet":0,"vol":6}
 ```
 
 | Field | Meaning |
 | --- | --- |
 | `v` | Protocol version |
-| `time` | Unix time. The v1 device doesn't read it; it goes by `night` |
-| `name` | Boop's name |
+| `time` | Unix time. The v1 device doesn't read it |
+| `name` | Boop's name. The v1 device doesn't show it since the stats screen was parked |
 | `base` | `asleep`, `idle` or `working` |
-| `attn` | Present when something needs you: which agent and project, and how many more are waiting. The device runs the nudge ladder while it's there. A new `attn` (different agent or project) restarts the ladder; the same one continues it |
+| `attn` | Present when something needs you: which agent and project, and how many more are waiting. A new `attn` (different agent or project) chirps once; the same one doesn't chirp again |
 | `busy` / `idle` / `wait` | Session counts for the status strip |
-| `mood` | Energy, pace and pitch, 0–200 with 100 as neutral. They shape how every animation and sound plays |
 | `quiet` | Minutes of quiet left; 0 when not quiet |
 | `vol` | Volume 0–10; 0 is mute |
-| `night` | The Mac's view of whether it's night, for dimming and sleepiness |
-| `level`, `prog`, `days` | For the stats screen: level, progress to the next level (0–100), days together |
-| `hungry` | 0 fed, 1 hungry, 2 starving ([BEHAVIORS.md](BEHAVIORS.md) §4) |
-| `threads` | Up to 8 rows for the threads view: agent, project, and status (`wait`, `work` or `idle`). Rows that need you come first, then working, then idle. The Mac cuts names to 23 bytes and drops rows from the end if the line would pass 512 bytes |
 
-If the device gets no `state` for 30 s, it shows the "no app" face.
+If the device gets no `state` for 30 s, it shows the asleep face with the
+unplugged icon ([BEHAVIORS.md](BEHAVIORS.md) §2).
 
 ### `moment`: something to play once
 
 ```json
-{"t":"moment","anim":"cheer","size":2,"say":{"syl":"bi-do ba-na","word":"done","at":4,"tune":"up","ms":120},"ttl":5}
+{"t":"moment","anim":"cheer","say":{"syl":"bi-do ba-na","word":"done","at":4,"tune":"up","ms":120},"ttl":5}
 ```
 
 | Field | Meaning |
 | --- | --- |
-| `anim` | An animation from the device's set ([BEHAVIORS.md](BEHAVIORS.md) §7) |
-| `size` | 1–3, for small, medium or big |
+| `anim` | Optional. An animation from the device's set ([BEHAVIORS.md](BEHAVIORS.md) §5). Without one, the `say` plays over whatever face is showing |
 | `say` | Optional mumble, as built by Voice: gibberish syllables (`syl`: syllables within a gibberish word joined with `-`, words separated by spaces), an optional real word and its position (`at`, an index into the syllables), the tune (`up`, `down`, `bounce`, `flat` or `lift`), and milliseconds per syllable. The real word takes two beats |
 | `ttl` | Seconds. The v1 device plays a moment as soon as it arrives or skips it, so it doesn't read `ttl`; the field is kept for later |
 
 The device plays moments on top of whatever `state` says, except while
 something needs you, when only the moments in [BEHAVIORS.md](BEHAVIORS.md)
 §1 play. A new moment replaces one that's still playing.
+
+**The empty moment,** `{"t":"moment","ttl":5}` with no `anim` and no
+`say`, ends `listening` and does nothing else: it never ends a cheer, a
+wiggle or a mumble. The Mac sends it 8 s after Send in the popover, and at
+once when the mic can't start ([BEHAVIORS.md](BEHAVIORS.md) §3.3). A
+mumble also ends `listening`: it's the reply.
 
 ## 4. Device → Mac
 
@@ -161,13 +158,12 @@ spoke on.
 
 | `k` | Meaning |
 | --- | --- |
-| `tap` | Tapped the face or pressed BOOT |
+| `tap` | Touched the screen or pressed BOOT |
 | `talk_on`, `talk_off` | Push-to-talk held and released |
 
 The device has already reacted on screen before sending this. The Mac
 ignores any other `k`, such as `focus` or `feel` from a board built before
-those were removed. Moving
-between the face, threads and stats screens is local and sends nothing.
+those were removed.
 
 ## 5. Lifecycle
 
@@ -180,7 +176,7 @@ connect ─► Mac: state
                    input when you touch it,
                    status every 60 s ─► Mac: state
                                         │
-          30 s without a state ─► device: "no app" face; over Bluetooth
+          30 s without a state ─► device: asleep face, unplugged icon; over Bluetooth
                                   it drops the link and advertises
                                   Mac reconnects ─► same as connect
 ```

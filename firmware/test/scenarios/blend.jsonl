@@ -9,16 +9,16 @@
 {"shot":"idle-to-working-100ms"}
 {"clock":1150}
 {"shot":"idle-to-working-150ms"}
-{"t":"moment","anim":"happy","size":1,"ttl":5}
+{"t":"moment","anim":"cheer","ttl":5}
 {"clock":1225}
-{"shot":"to-happy-75ms"}
-{"t":"moment","anim":"worried","size":1,"ttl":5}
+{"shot":"to-cheer-75ms"}
+{"t":"moment","anim":"listening","ttl":5}
 {"clock":1300}
 {"shot":"interrupted-75ms"}
-{"expect":{"moment":{"anim":"worried"}}}
-{"clock":3724}
-{"expect":{"moment":{"anim":"worried","left_ms":1}}}
-{"clock":3725}
+{"expect":{"moment":{"anim":"listening"}}}
+// The empty moment ends listening (PROTOCOL.md §3), and the face blends back.
+{"clock":2425}
+{"t":"moment","ttl":5}
 {"expect":{"moment":null}}
-{"clock":3800}
+{"clock":2500}
 {"shot":"back-to-working-75ms"}

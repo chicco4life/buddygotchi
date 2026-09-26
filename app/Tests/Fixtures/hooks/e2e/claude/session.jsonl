@@ -11,7 +11,7 @@
 {"hook_event_name": "PostToolUse", "session_id": "e2e-claude-1", "cwd": "/tmp/jetpack", "tool_name": "Edit", "tool_response": {"success": true}}
 {"hook_event_name": "PreToolUse", "session_id": "e2e-claude-1", "cwd": "/tmp/jetpack", "tool_name": "Bash", "tool_input": {"command": "git push origin PRIVATE_BRANCH_7006"}}
 {"hook_event_name": "PermissionRequest", "session_id": "e2e-claude-1", "cwd": "/tmp/jetpack", "tool_name": "Bash", "tool_input": {"command": "git push origin PRIVATE_BRANCH_7006"}}
-{"expect": {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}, "rung": 1}, "within_ms": 500}
+{"expect": {"screen": "needs_you", "attn": {"agent": "claude", "project": "jetpack", "more": 0}}, "within_ms": 500}
 {"hook_event_name": "Notification", "session_id": "e2e-claude-1", "cwd": "/tmp/jetpack", "notification_type": "permission_prompt", "message": "PRIVATE_MESSAGE_7007"}
 {"wait_ms": 3000}
 {"expect": {"screen": "needs_you"}, "shot": "claude-needs-you"}
@@ -26,5 +26,5 @@
 {"hook_event_name": "PreToolUse", "session_id": "e2e-claude-1", "cwd": "/tmp/jetpack", "tool_name": "Bash", "tool_input": {"command": "vercel --prod PRIVATE_ARG_7011"}}
 {"advance_ms": 40000}
 {"hook_event_name": "StopFailure", "session_id": "e2e-claude-1", "cwd": "/tmp/jetpack", "error": "rate_limit", "last_assistant_message": "PRIVATE_CLOSING_7012"}
-{"expect": {"moment": {"anim": "oops"}}, "within_ms": 1000}
+{"expect": {"base": "idle", "attn": null}, "within_ms": 1000}
 {"wait_ms": 4000}

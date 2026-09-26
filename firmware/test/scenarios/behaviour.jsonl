@@ -1,7 +1,7 @@
-// Device behaviour (BEHAVIORS.md §3): press feedback, gestures, push-to-talk,
-// hunger, night, and the needs-you tap. Shots are the rows' goldens.
+// Device behaviour (BEHAVIORS.md §3): press feedback, gestures, push-to-talk
+// and its wait for the reply, and the needs-you tap. Shots are the rows' goldens.
 {"clock":0}
-{"t":"state","v":1,"base":"idle","busy":0,"idle":1,"wait":0,"mood":{"energy":100,"pace":100,"pitch":100}}
+{"t":"state","v":1,"base":"idle","busy":0,"idle":1,"wait":0}
 {"clock":500}
 {"input":{"press":"tap"}}
 {"clock":516}
@@ -17,72 +17,57 @@
 {"expect":{"moment":{"anim":"listening"},"last_input":{"k":"talk_on","at":2400}}}
 {"clock":2700}
 {"shot":"listening"}
+// Released: the same listening face waits at most 8 s for the reply
+// (BEHAVIORS.md §3.3), then blends back with nothing else.
 {"clock":3500}
-{"expect":{"moment":{"anim":"thinking"},"last_input":{"k":"talk_off","at":3500}}}
-{"clock":4000}
-{"shot":"thinking"}
-{"t":"state","v":1,"base":"idle","busy":0,"idle":1,"wait":0,"mood":{"energy":100,"pace":100,"pitch":100}}
+{"expect":{"moment":{"anim":"listening","left_ms":8000},"last_input":{"k":"talk_off","at":3500}}}
+{"t":"state","v":1,"base":"idle","busy":0,"idle":1,"wait":0}
 {"clock":11499}
-{"expect":{"moment":{"anim":"thinking"}}}
+{"expect":{"moment":{"anim":"listening","left_ms":1}}}
 {"clock":11500}
-{"expect":{"moment":{"anim":"shrug"}}}
-{"clock":11800}
-{"shot":"too-slow-shrug"}
-{"t":"state","v":1,"base":"idle","busy":0,"idle":1,"wait":0,"mood":{"energy":100,"pace":100,"pitch":100}}
-// A long touch on the face does nothing while it's held, and is a tap when it's released.
+{"expect":{"moment":null}}
+{"clock":11575}
+{"shot":"no-reply-75ms"}
+{"t":"state","v":1,"base":"idle","busy":0,"idle":1,"wait":0}
+// A touch held however long is a tap, sent on release (UX.md §4).
 {"clock":14000}
 {"input":{"touch":[160,100],"ms":900}}
 {"clock":14899}
 {"expect":{"moment":null,"touch":{"down":true},"last_input":{"k":"touch","at":14000}}}
 {"clock":14900}
-{"expect":{"moment":{"anim":"wiggle"},"touch":{"down":false},"last_input":{"k":"tap","at":14900}}}
-{"clock":19000}
-{"t":"state","v":1,"base":"idle","idle":1,"hungry":2}
-{"clock":22000}
-{"expect":{"hungry":2,"moment":null}}
-{"shot":"starving"}
-{"t":"state","v":1,"base":"idle","idle":1,"night":true}
-{"clock":22500}
-{"expect":{"night":true,"bl":110}}
-{"shot":"night"}
-{"t":"state","v":1,"base":"working","busy":1,"idle":0,"wait":0,"threads":[["claude","jetpack","work"]]}
-{"clock":23000}
-{"t":"moment","anim":"nod","size":1,"ttl":5}
-{"clock":23150}
-{"shot":"quick-finish-nod"}
-{"clock":24000}
-{"t":"moment","anim":"oops","size":1,"ttl":5}
-{"clock":24300}
-{"shot":"fail-oops"}
-{"clock":25400}
-{"t":"moment","anim":"side_eye","size":1,"ttl":5}
-{"clock":25700}
-{"shot":"fail-side-eye"}
+{"expect":{"moment":{"anim":"wiggle"},"last_input":{"k":"tap","at":14900}}}
+{"t":"state","v":1,"base":"working","busy":1,"idle":0,"wait":0}
 {"clock":27000}
-{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":0},"busy":1,"idle":0,"wait":1,"threads":[["codex","landing","wait"],["claude","jetpack","work"]]}
-{"expect":{"screen":"needs_you","rung":1,"led":"#805800","sfx":{"k":"chirp","at":27000}}}
-{"t":"moment","anim":"cheer","size":2,"ttl":5}
+{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":0},"busy":1,"idle":0,"wait":1}
+{"expect":{"screen":"needs_you","led":"#805800","bl":255,"sfx":{"k":"chirp","at":27000}}}
+{"t":"moment","anim":"cheer","ttl":5}
 {"expect":{"moment":null}}
+// A tap while something needs you: the press squash only (BEHAVIORS.md §3.2).
 {"clock":28000}
 {"input":{"touch":[160,70]}}
 {"clock":28100}
-{"expect":{"hushed":true,"moment":{"anim":"nod"},"last_input":{"k":"tap","at":28100}}}
-{"clock":28250}
-{"shot":"needs-you-tapped"}
-// A long touch on the strip lights its top line while it's held, and is a strip tap when it's released.
+{"expect":{"screen":"needs_you","moment":null,"last_input":{"k":"tap","at":28100}}}
+// The strip is part of the screen: a touch there squashes the face and taps.
 {"clock":29000}
-{"input":{"touch":[160,222],"ms":900}}
+{"input":{"touch":[160,222]}}
 {"clock":29016}
 {"shot":"strip-press"}
-{"clock":29899}
-{"expect":{"screen":"needs_you","touch":{"down":true}}}
+{"clock":29100}
+{"expect":{"screen":"needs_you","moment":null,"last_input":{"k":"tap","at":29100}}}
+// Push-to-talk still works while something needs you.
+{"clock":29200}
+{"input":{"press":"hold","ms":600}}
+{"clock":29600}
+{"expect":{"screen":"needs_you","moment":{"anim":"listening"},"last_input":{"k":"talk_on","at":29600}}}
+{"clock":29700}
+{"shot":"needs-you-listening"}
+// The reply can't show while something needs you, but it ends listening.
 {"clock":29900}
-{"expect":{"screen":"threads","touch":{"down":false}}}
-{"input":{"touch":[160,100]}}
+{"t":"moment","say":{"syl":"ba po","ms":120},"ttl":5}
+{"expect":{"screen":"needs_you","moment":null,"audio":{"syllables":0}}}
+// Answered on the Mac: the face blends back to working.
 {"clock":30000}
-{"expect":{"screen":"needs_you"}}
 {"t":"state","v":1,"base":"working","busy":2,"idle":0,"wait":0}
-{"clock":30100}
-{"expect":{"screen":"face","attn":null,"moment":{"anim":"nod"},"led":"#000000"}}
-{"clock":30150}
-{"shot":"answered-nod"}
+{"clock":30075}
+{"expect":{"screen":"face","attn":null,"moment":null,"led":"#000000"}}
+{"shot":"answered-75ms"}

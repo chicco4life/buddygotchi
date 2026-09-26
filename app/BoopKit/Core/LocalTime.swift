@@ -1,7 +1,7 @@
 import Foundation
 
-/// Local calendar maths for the core: days, night, and the time as input
-/// lines and memory files write it. Times are milliseconds since 1970.
+/// Local calendar maths for the core: days, and the time as input lines
+/// and memory files write it. Times are milliseconds since 1970.
 public struct LocalTime: Sendable {
     public var timeZone: TimeZone
     private var calendar: Calendar
@@ -32,20 +32,6 @@ public struct LocalTime: Sendable {
         let names = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
         let index = calendar.component(.weekday, from: date(ms)) - 1
         return names[max(0, min(6, index))]
-    }
-
-    public func hour(_ ms: Int64) -> Int { calendar.component(.hour, from: date(ms)) }
-
-    /// Night is 23:00–07:00 (BEHAVIORS.md §2, proposed).
-    public func isNight(_ ms: Int64) -> Bool {
-        let h = hour(ms)
-        return h >= 23 || h < 7
-    }
-
-    /// Whole calendar days from one `yyyy-MM-dd` to another; 0 for the same day.
-    public static func daysBetween(_ from: String, _ to: String) -> Int {
-        guard let a = ordinal(from), let b = ordinal(to) else { return 0 }
-        return b - a
     }
 
     /// The day `n` days after a `yyyy-MM-dd`.

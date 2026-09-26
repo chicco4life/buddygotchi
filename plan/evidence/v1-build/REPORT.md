@@ -7,6 +7,15 @@
 > goldens in 11 scenarios (80 at handoff), and the screen is landscape
 > (`kRotation` 1 in `firmware/src/board/display.h`). See
 > [PLAN.md](../../PLAN.md) §4 and the [F6 evidence](F6/README.md).
+>
+> **Cut to the minimal surface (C1, 2026-09-26).** After that, v1 was cut
+> down at your request. Mood, XP and hunger, night, focus, the nudge
+> ladder, cheer sizes, the threads and stats screens and the brain's faces
+> are parked (code at tag `v1-full`), and a second cut parked `nod`,
+> `thinking`, `shrug` and the no-app look. The goldens are now 41 in 10
+> scenarios. Where this report describes those features, it's history. See
+> [BEHAVIORS.md](../../BEHAVIORS.md) and the
+> [C1 evidence](../2026-09-26-minimal-cut/README.md).
 
 The unattended build ran on 2026-09-26 on branch `v1-overnight`, starting
 from tag `gen2-final`. Every milestone except P1 has passed; P1 waits for

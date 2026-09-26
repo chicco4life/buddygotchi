@@ -81,7 +81,7 @@ tools/boopctl send '{"t":"state","v":1,"base":"working","busy":1,"idle":0,"wait"
 After the camera says `RECORDING`, trigger a cheer:
 
 ```sh
-tools/boopctl send '{"t":"moment","anim":"cheer","size":3,"ttl":5}'
+tools/boopctl send '{"t":"moment","anim":"cheer","ttl":5}'
 ```
 
 Do not use `clock freeze`, `clock step` or screenshot loops during video:
@@ -119,11 +119,11 @@ has not watched real-time playback. Reanalyze a shorter interval for detailed
 inspection. Compare before/after clips with the same camera, crop, lighting,
 state trigger and frame rate. Record findings in a separate `review.md`: scenario,
 firmware ID, usable capture rate/focus, observed motion and timestamps, deviations
-from [plan/UX.md](../../plan/UX.md) and [plan/BEHAVIORS.md](../../plan/BEHAVIORS.md) §7,
+from [plan/UX.md](../../plan/UX.md) and [plan/BEHAVIORS.md](../../plan/BEHAVIORS.md) §5,
 and pass/fail/inconclusive with evidence links.
 
-Start with the L3 presets: idle blinks, the needs-you ladder, cheers at each
-size and a tap wiggle. Check continuous motion, overshoot/settling, repeated or
+Start with the L3 presets: idle blinks, needs you, a cheer with a mumble
+after it, and a tap wiggle. Check continuous motion, overshoot/settling, repeated or
 abrupt jumps, and the return to rest. Review timings relative to visible onset,
 allowing camera-frame quantization (about 33 ms at 30 fps).
 

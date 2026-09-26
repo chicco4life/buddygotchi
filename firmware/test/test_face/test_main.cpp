@@ -22,7 +22,7 @@ namespace {
 // the space above the strip, the eyes kFaceDrop above the middle.
 constexpr int kFaceCy = kStripTop / 2 - kFaceDrop;
 constexpr int kFaceCx = kWidth / 2;
-constexpr int kEyeRows = kFaceCy + 38;  // rows above this hold only the eyes (the mouth hangs 46 below)
+constexpr int kEyeRows = kFaceCy + 36;  // rows above this hold only the eyes and cheeks (the mouth hangs 45 below)
 
 struct Buf {
   std::vector<uint8_t> px = std::vector<uint8_t>(size_t(kWidth) * kHeight, 0);
@@ -41,9 +41,12 @@ Buf face(const Pose& p) {
 }
 
 // One eye, from the rows above the mouth: the left eye is in the left half.
-// The heart and the sweat drop aren't eye.
+// The heart, the sweat drop and the cheeks aren't eye.
 bool notEye(int v) {
-  return (v >= inkAt(kInkRose, 1) && v <= inkAt(kInkRose, kLevels)) || (v >= inkAt(kInkSky, 1) && v <= inkAt(kInkSky, kLevels));
+  for (int ink : {int(kInkRose), int(kInkSky), int(kInkBlush)}) {
+    if (v >= inkAt(ink, 1) && v <= inkAt(ink, kLevels)) return true;
+  }
+  return false;
 }
 struct EyeBox {
   int n = 0, x0 = kWidth, x1 = -1, y0 = kHeight, y1 = -1;
@@ -66,126 +69,25 @@ EyeBox eyeBox(const Buf& b, bool right) {
   return e;
 }
 
-// An eye is one convex shape in one ink: every pixel is on the eye ink's
-// ramp, and along every row and column the coverage only rises, then only
-// falls. A pupil, a hole or a sliver left where a lid meets the side would
-// all show as a dip.
-bool unimodal(const int* v, int n) {
-  int i = 0;
-  while (i + 1 < n && v[i + 1] >= v[i]) ++i;
-  while (i + 1 < n && v[i + 1] <= v[i]) ++i;
-  return i == n - 1;
-}
-bool eyeIsConvex(const Buf& b, bool right, int ink) {
-  const int x0 = right ? kWidth / 2 : 0, x1 = right ? kWidth : kWidth / 2;
-  static int cover[kHeight][kWidth];
+// The face is pixel art (UX.md §2): every lit pixel of an eye is its ink at
+// full strength, with no anti-aliased edge.
+bool eyeIsCrisp(const Buf& b, bool right, int ink) {
   for (int y = 0; y < kEyeRows; ++y) {
-    for (int x = x0; x < x1; ++x) {
+    for (int x = right ? kWidth / 2 : 0; x < (right ? kWidth : kWidth / 2); ++x) {
       int v = b.c.get(x, y);
-      if (v != kBlack && (v < inkAt(ink, 1) || v > inkAt(ink, kLevels))) return false;
-      cover[y][x] = v == kBlack ? 0 : v - inkAt(ink, 1) + 1;
+      if (v != kBlack && !notEye(v) && v != inkAt(ink, kLevels)) return false;
     }
-    if (!unimodal(&cover[y][x0], x1 - x0)) return false;
-  }
-  int col[kHeight];
-  for (int x = x0; x < x1; ++x) {
-    for (int y = 0; y < kEyeRows; ++y) col[y] = cover[y][x];
-    if (!unimodal(col, kEyeRows)) return false;
   }
   return true;
 }
 
-// Pixels of the eyes that no disk of radius rho inside them can reach. A
-// shape whose corners all have a radius of at least rho has none; a sharp
-// point, where a lid meets the outline, leaves a few in its tip. The face is
-// drawn at 1.5× so the corners are big enough to measure, and an eye pixel
-// is one at least half covered. The mouth (a thin line with the mouth shut)
-// is left out: only the two biggest blobs count. Single stray pixels are
-// the stair-steps of an edge, so only ones next to another count.
-int sharpPoints(const Pose& pose, int rho) {
-  Pose p = pose;
-  p.mouthOpen = 0, p.dx = 0, p.dy = 0, p.size = 1000, p.raise = 0;
-  Buf b;
-  drawFace(b.c, p, kWidth / 2, 110, 1500);
-  const int ink = eyeInk(p);
-  static bool eye[kHeight][kWidth], fits[kHeight][kWidth], tip[kHeight][kWidth];
-  static int blob[kHeight][kWidth];
-  for (int y = 0; y < kHeight; ++y) {
-    for (int x = 0; x < kWidth; ++x) {
-      int v = b.c.get(x, y);
-      eye[y][x] = v >= inkAt(ink, (kLevels + 1) / 2) && v <= inkAt(ink, kLevels);
-      blob[y][x] = 0;
-    }
+// The top row of an eye's lit pixels in column x, or -1.
+int topAt(const Buf& b, int x) {
+  for (int y = 0; y < kEyeRows; ++y) {
+    int v = b.c.get(x, y);
+    if (v != kBlack && !notEye(v)) return y;
   }
-  std::vector<int> size(1, 0);
-  std::vector<int> stack;
-  for (int y = 0; y < kHeight; ++y) {
-    for (int x = 0; x < kWidth; ++x) {
-      if (!eye[y][x] || blob[y][x]) continue;
-      int id = int(size.size());
-      size.push_back(0);
-      blob[y][x] = id;
-      stack.push_back(y * kWidth + x);
-      while (!stack.empty()) {
-        int at = stack.back();
-        stack.pop_back();
-        ++size[id];
-        for (int dy = -1; dy <= 1; ++dy) {
-          for (int dx = -1; dx <= 1; ++dx) {
-            int yy = at / kWidth + dy, xx = at % kWidth + dx;
-            if (yy < 0 || yy >= kHeight || xx < 0 || xx >= kWidth || !eye[yy][xx] || blob[yy][xx]) continue;
-            blob[yy][xx] = id;
-            stack.push_back(yy * kWidth + xx);
-          }
-        }
-      }
-    }
-  }
-  int big = 0, next = 0;
-  for (int i = 1; i < int(size.size()); ++i) {
-    if (size[i] > size[big]) next = big, big = i;
-    else if (size[i] > size[next]) next = i;
-  }
-  for (int y = 0; y < kHeight; ++y) {
-    for (int x = 0; x < kWidth; ++x) eye[y][x] = eye[y][x] && (blob[y][x] == big || blob[y][x] == next);
-  }
-  auto inDisk = [rho](int dx, int dy) { return dx * dx + dy * dy <= rho * rho; };
-  for (int y = 0; y < kHeight; ++y) {  // where a whole disk fits (past the screen's edge counts as eye)
-    for (int x = 0; x < kWidth; ++x) {
-      bool ok = eye[y][x];
-      for (int dy = -rho; ok && dy <= rho; ++dy) {
-        for (int dx = -rho; ok && dx <= rho; ++dx) {
-          int yy = y + dy, xx = x + dx;
-          if (inDisk(dx, dy)) ok = yy < 0 || yy >= kHeight || xx < 0 || xx >= kWidth || eye[yy][xx];
-        }
-      }
-      fits[y][x] = ok;
-    }
-  }
-  for (int y = 0; y < kHeight; ++y) {  // eye pixels no fitting disk covers
-    for (int x = 0; x < kWidth; ++x) {
-      bool reached = !eye[y][x];
-      for (int dy = -rho; !reached && dy <= rho; ++dy) {
-        for (int dx = -rho; !reached && dx <= rho; ++dx) {
-          int yy = y + dy, xx = x + dx;
-          reached = inDisk(dx, dy) && yy >= 0 && yy < kHeight && xx >= 0 && xx < kWidth && fits[yy][xx];
-        }
-      }
-      tip[y][x] = !reached;
-    }
-  }
-  int n = 0;
-  for (int y = 1; y < kHeight - 1; ++y) {
-    for (int x = 1; x < kWidth - 1; ++x) {
-      if (!tip[y][x]) continue;
-      int around = 0;
-      for (int dy = -1; dy <= 1; ++dy) {
-        for (int dx = -1; dx <= 1; ++dx) around += (dx || dy) && tip[y + dy][x + dx];
-      }
-      n += around > 0;
-    }
-  }
-  return n;
+  return -1;
 }
 }  // namespace
 
@@ -262,37 +164,62 @@ static void test_palette_ramps_run_from_black_to_the_ink() {
 
 static void test_neutral_face_is_symmetric() {
   Buf b = face(Pose{});
-  TEST_ASSERT_TRUE(b.count(inkAt(kInkEye, kLevels)) > 4000);
-  // Solid eyes and a centred mouth: the face is its own mirror image.
+  TEST_ASSERT_TRUE(b.count(inkAt(kInkEye, kLevels)) > 2000);
+  // The face is its own mirror image about the middle of its middle block
+  // (x = 160, the middle of the block from 159 to 161).
   for (int y = 0; y < kHeight; ++y) {
-    for (int x = 0; x < kWidth / 2; ++x) TEST_ASSERT_EQUAL_INT(b.c.get(x, y), b.c.get(kWidth - 1 - x, y));
+    for (int x = 1; x < kWidth / 2; ++x) TEST_ASSERT_EQUAL_INT(b.c.get(x, y), b.c.get(320 - x, y));
   }
-  // The eyes are about 42% of the screen apart (plan/UX.md §2).
+  // The eyes are about 45% of the screen apart (plan/UX.md §2).
   int apart = eyeBox(b, true).cx() - eyeBox(b, false).cx();
-  TEST_ASSERT_INT_WITHIN(6, kWidth * 42 / 100, apart);
+  TEST_ASSERT_INT_WITHIN(6, kWidth * 45 / 100, apart);
+  // Pink cheeks sit under each eye, towards the outside.
+  int left = 0, right = 0;
+  for (int y = 0; y < kHeight; ++y) {
+    for (int x = 0; x < kWidth; ++x) {
+      if (b.c.get(x, y) != inkAt(kInkBlush, kLevels)) continue;
+      (x < kWidth / 2 ? left : right)++;
+      TEST_ASSERT_TRUE(y > eyeBox(b, x >= kWidth / 2).y1);
+    }
+  }
+  TEST_ASSERT_TRUE(left > 100);
+  TEST_ASSERT_EQUAL_INT(left, right);
 }
 
-static void test_eyes_are_solid_with_no_pupils() {
+static void test_eyes_are_four_crisp_panes() {
   Pose looks[8];
   looks[1].lookX = 1000;
   looks[2].lookX = -700, looks[2].lookY = -800;
   looks[3].eyeSize = 1250;
   looks[4].lidTop = 400, looks[4].lidTilt = 600;
-  looks[5] = animPose(Anim::kWorried, 1, 0);
-  looks[6] = animPose(Anim::kSideEye, 1, 0);
-  looks[7] = animPose(Anim::kOops, 2, 300);
+  looks[5].lidTop = 150, looks[5].lidTilt = -500, looks[5].dy = -7, looks[5].squash = -120;
+  looks[6] = animPose(Anim::kWiggle, 150);
+  looks[7] = animPose(Anim::kListening, 0);
   for (Pose p : looks) {
     p.mouthOpen = 0;  // nothing dark anywhere: an open mouth is the only hollow
     p.dx = 0, p.dy = 0;
     Buf b = face(p);
     TEST_ASSERT_EQUAL_INT(0, b.count(kHollow));
-    TEST_ASSERT_TRUE(eyeIsConvex(b, false, eyeInk(p)));
-    TEST_ASSERT_TRUE(eyeIsConvex(b, true, eyeInk(p)));
-    // The middle of each eye is solid ink.
-    EyeBox l = eyeBox(b, false), r = eyeBox(b, true);
-    int ink = inkAt(eyeInk(p), kLevels);
-    TEST_ASSERT_EQUAL_INT(ink, b.c.get(l.cx(), l.y1 - l.h() / 3));
-    TEST_ASSERT_EQUAL_INT(ink, b.c.get(r.cx(), r.y1 - r.h() / 3));
+    TEST_ASSERT_TRUE(eyeIsCrisp(b, false, eyeInk(p)));
+    TEST_ASSERT_TRUE(eyeIsCrisp(b, true, eyeInk(p)));
+  }
+  // Open, an eye is four panes split by a one-block cross: the middle
+  // column and row are dark, the middle of each pane is lit.
+  Buf b = face(Pose{});
+  const int ink = inkAt(kInkEye, kLevels);
+  for (bool right : {false, true}) {
+    EyeBox e = eyeBox(b, right);
+    int mx = e.x0 + e.w() / 2, my = e.y0 + e.h() / 2;
+    TEST_ASSERT_TRUE(e.w() >= 36 && e.w() <= 42 && e.h() >= 36 && e.h() <= 42);  // 13 blocks of 3 px
+    TEST_ASSERT_EQUAL_INT(kBlack, b.c.get(mx, my - 8));
+    TEST_ASSERT_EQUAL_INT(kBlack, b.c.get(mx - 8, my));
+    for (int qx : {e.x0 + e.w() / 4, e.x1 - e.w() / 4}) {
+      for (int qy : {e.y0 + e.h() / 4, e.y1 - e.h() / 4}) TEST_ASSERT_EQUAL_INT(ink, b.c.get(qx, qy));
+    }
+    // Each pane's outer corners are softened by a pixel.
+    TEST_ASSERT_EQUAL_INT(kBlack, b.c.get(e.x0, e.y0));
+    TEST_ASSERT_EQUAL_INT(ink, b.c.get(e.x0 + 1, e.y0));
+    TEST_ASSERT_EQUAL_INT(ink, b.c.get(e.x0, e.y0 + 1));
   }
 }
 
@@ -324,94 +251,83 @@ static void test_eye_size_changes_only_the_eyes() {
   p.eyeSize = 1150;
   Buf b = face(p);
   EyeBox nl = eyeBox(n, false), l = eyeBox(b, false);
-  TEST_ASSERT_TRUE(l.w() - nl.w() >= 6 && l.h() - nl.h() >= 8);
-  TEST_ASSERT_INT_WITHIN(1, nl.cx(), l.cx());  // it grows about its own centre
+  TEST_ASSERT_TRUE(l.w() - nl.w() >= 6 && l.h() - nl.h() >= 6);
+  TEST_ASSERT_INT_WITHIN(2, nl.cx(), l.cx());  // it grows about its own centre
   for (int y = kEyeRows + 2; y < kHeight; ++y) {  // the mouth doesn't change
     for (int x = 0; x < kWidth; ++x) TEST_ASSERT_EQUAL_INT(n.c.get(x, y), b.c.get(x, y));
   }
 }
 
-static void test_lid_corners_are_rounded() {
-  Pose p;
-  p.lidTop = 400;
-  Buf b = face(p);
-  EyeBox e = eyeBox(b, false);
-  // A sharp lid would leave the rows just under it nearly as wide as the
-  // eye; the rounded corners pull them in.
-  auto width = [&](int y) {
-    int n = 0;
-    for (int x = 0; x < kWidth / 2; ++x) n += b.c.get(x, y) != kBlack;
-    return n;
-  };
-  TEST_ASSERT_TRUE(width(e.y0 + 1) <= e.w() - 6);
-  TEST_ASSERT_TRUE(width(e.y0 + e.h() / 2) == e.w());
-  // Tilted lids too: every lid pose leaves each eye one clean convex shape.
-  const Anim lidded[] = {Anim::kWorried, Anim::kSulky, Anim::kSideEye, Anim::kShrug, Anim::kZip, Anim::kSmug};
-  for (Anim a : lidded) {
-    Pose q = animPose(a, 1, 400);
-    q.mouthOpen = 0, q.dx = 0, q.dy = 0;  // keep the mouth below the eye rows
-    Buf c = face(q);
-    TEST_ASSERT_TRUE_MESSAGE(eyeIsConvex(c, false, eyeInk(q)), animName(a));
-    TEST_ASSERT_TRUE_MESSAGE(eyeIsConvex(c, true, eyeInk(q)), animName(a));
-  }
-}
-
-static void test_a_lid_never_leaves_a_sharp_point() {
-  // Held looks, where the full 8 px corner fits: low tilted lids (the
-  // working and idle faces at night while starving, as app/behaviour.cpp
-  // colours them), a low lid on its own, and every expression with lids.
+static void test_lids_cut_each_half_flat() {
+  // A lid takes whole rows of blocks off the top. Tilted, it cuts each half
+  // of the eye flat at its own height, so the eye steps once between the
+  // panes instead of jagging every column (UX.md §2).
+  Pose sad, cross, flat;
+  flat.lidTop = 400;
+  sad.lidTop = 250, sad.lidTilt = -650;
+  cross.lidTop = 450, cross.lidTilt = 450;
   struct Case {
     const char* name;
     Pose p;
-    bool blink;  // also check it mid-blink
-  };
-  std::vector<Case> cases;
-  for (Look look : {Look::kWorking, Look::kIdle}) {
-    Pose p = lookPose(look, 1, 0);
-    p.lidTop = int16_t(p.lidTop + 180 + 250), p.lidTilt = -200;
-    // Mid-blink, the working one leaves a 2 px tip where its low lid meets
-    // the inner top corner of a 12 px sliver, for about 90 ms: the known
-    // case from F6, a little sharper at gen-2's smaller eye. Held, it has
-    // no point.
-    cases.push_back({look == Look::kWorking ? "working, night, starving" : "idle, night, starving", p,
-                     look != Look::kWorking});
-  }
-  Pose low;
-  low.lidTop = 600, low.lidTilt = -200;
-  cases.push_back({"low tilted lid", low, true});
-  for (Anim a : {Anim::kWorried, Anim::kSulky, Anim::kSideEye, Anim::kShrug, Anim::kZip, Anim::kSmug, Anim::kSleepy,
-                 Anim::kThinking, Anim::kCurious, Anim::kListening}) {
-    cases.push_back({animName(a), animPose(a, 1, 400), true});
-  }
-  for (const Case& c : cases) {
-    TEST_ASSERT_EQUAL_INT_MESSAGE(0, sharpPoints(c.p, 4), c.name);
-    if (!c.blink) continue;
-    // Mid-blink the eye narrows and the corner radius with it, down to
-    // 2 px, but there is still no point.
-    for (int open : {500, 300}) {
-      Pose b = c.p;
-      b.open = int16_t(open);
-      TEST_ASSERT_EQUAL_INT_MESSAGE(0, sharpPoints(b, 3), c.name);
+  } lidded[] = {{"flat", flat},
+                {"outer corners down, lifted", [] {
+                   Pose p;
+                   p.lidTop = 150, p.lidTilt = -500, p.dy = -7, p.squash = -120;
+                   return p;
+                 }()},
+                {"working", lookPose(Look::kWorking, 1)},
+                {"outer corners down", sad},
+                {"inner corners down", cross}};
+  for (const Case& c : lidded) {
+    Pose q = c.p;
+    q.mouthOpen = 0, q.dx = 0, q.dy = 0;
+    Buf b = face(q);
+    for (bool right : {false, true}) {
+      EyeBox e = eyeBox(b, right);
+      int mx = e.x0 + e.w() / 2;
+      // Away from the softened corners, every column of a half starts on
+      // the same row.
+      for (int x0 : {e.x0 + 2, mx + 3}) {
+        int top = topAt(b, x0);
+        for (int x = x0; x < x0 + 12 && x < e.x1 - 1; ++x) TEST_ASSERT_EQUAL_INT_MESSAGE(top, topAt(b, x), c.name);
+      }
     }
   }
+  // Flat lids leave the two halves level; tilted ones don't.
+  Buf f = face(flat), t = face(sad);
+  EyeBox fe = eyeBox(f, false), te = eyeBox(t, false);
+  TEST_ASSERT_EQUAL_INT(topAt(f, fe.x0 + 3), topAt(f, fe.x1 - 3));
+  TEST_ASSERT_TRUE(topAt(t, te.x0 + 3) != topAt(t, te.x1 - 3));
 }
 
-static void test_thinking_looks_up_and_working_looks_down() {
+static void test_a_look_up_keeps_full_panes_and_working_looks_down() {
   // With no pupils to roll, lids alone would make these the same hooded
-  // eyes in two places. Working keeps flat lid tops and sits low; thinking
-  // keeps round tops and sits high.
+  // eyes in two places. Working is lidded and sits low; a look up and
+  // aside keeps its full top panes and sits high.
   auto rowWidth = [](const Buf& b, bool right, int y) {
     int w = 0;
     for (int x = right ? kWidth / 2 : 0; x < (right ? kWidth : kWidth / 2); ++x) w += b.c.get(x, y) != kBlack;
     return w;
   };
-  Buf n = face(Pose{}), t = face(animPose(Anim::kThinking, 1, 0)), w = face(lookPose(Look::kWorking, 1, 0));
+  Pose up;
+  up.lookX = 650, up.lookY = -1000, up.dy = -6, up.squash = 100, up.mouthWide = 600, up.mouthX = 8;
+  Buf n = face(Pose{}), t = face(up), w = face(lookPose(Look::kWorking, 1));
   for (bool right : {false, true}) {
     EyeBox ne = eyeBox(n, right), te = eyeBox(t, right), we = eyeBox(w, right);
     TEST_ASSERT_TRUE(ne.y0 - te.y0 >= 15);
-    TEST_ASSERT_TRUE(we.y0 - ne.y0 >= 15);
-    TEST_ASSERT_TRUE(rowWidth(t, right, te.y0 + 2) <= 36);  // under 3/4 of the 48 px eye: a round top
-    TEST_ASSERT_TRUE(rowWidth(w, right, we.y0 + 2) >= 40);  // a lid's flat top
+    TEST_ASSERT_TRUE(we.y0 - ne.y0 >= 9);
+    // How far down the cross is from the top: a full top pane is 5 or 6
+    // blocks (the far eye is smaller), a lidded one less.
+    auto crossAt = [](const Buf& b, const EyeBox& e) {
+      int x = e.x0 + e.w() / 4, y = e.y0;
+      while (y < kEyeRows && b.c.get(x, y) != kBlack) ++y;
+      return y - e.y0;
+    };
+    // Looking up: all four panes (the left eye; looking up, the mouth rises
+    // into the right eye's rows).
+    if (!right) TEST_ASSERT_TRUE(crossAt(t, te) >= 15);
+    TEST_ASSERT_TRUE(crossAt(w, we) <= 12);  // working: the lid takes the top off
+    TEST_ASSERT_TRUE(rowWidth(w, right, we.y0 + 1) >= 30);  // cut straight across
   }
 }
 
@@ -421,32 +337,8 @@ static void test_closed_eyes_are_a_line() {
   Buf b = face(p);
   EyeBox e = eyeBox(b, false);
   TEST_ASSERT_TRUE(e.h() <= 6);
-  TEST_ASSERT_TRUE(e.w() >= 40);
+  TEST_ASSERT_TRUE(e.w() >= 36);
   TEST_ASSERT_TRUE(b.count(inkAt(kInkEye, kLevels)) > 80);  // but a line is there
-}
-
-// A "^" arch: down the middle of the eye, one thin stroke near the top
-// and nothing below it; at the ends, ink down at the eye's centre line.
-void checkArch(const Buf& b, bool right) {
-  EyeBox e = eyeBox(b, right);
-  int top = 0, below = 0;
-  for (int y = e.y0; y < e.y0 + 10; ++y) top += b.c.get(e.cx(), y) != kBlack;
-  for (int y = e.y0 + 10; y < kEyeRows; ++y) below += b.c.get(e.cx(), y) != kBlack && !notEye(b.c.get(e.cx(), y));
-  TEST_ASSERT_TRUE(top >= 6 && top <= 9);
-  TEST_ASSERT_EQUAL_INT(0, below);
-  TEST_ASSERT_TRUE(e.h() >= 18 && e.h() <= 28);  // 16 px of rise plus the stroke
-  TEST_ASSERT_TRUE(e.w() >= 44);
-}
-
-static void test_happy_eyes_are_arches_and_cheer_glows() {
-  Pose p = animPose(Anim::kHappy, 1, 0);
-  Buf b = face(p);
-  checkArch(b, false);
-  checkArch(b, true);
-  TEST_ASSERT_EQUAL_INT(0, b.count(kHollow));
-  TEST_ASSERT_EQUAL_INT(0, b.count(inkAt(kInkRose, kLevels)));  // happy alone has no heart
-  TEST_ASSERT_EQUAL_INT(kInkGlow4, eyeInk(animPose(Anim::kCheer, 3, 0)));
-  TEST_ASSERT_TRUE(eyeInk(animPose(Anim::kOops, 1, 0)) >= kInkOops1);
 }
 
 // Pixels of one ink's ramp: how many, their mean row and leftmost column.
@@ -470,20 +362,72 @@ InkSpot inkSpot(const Buf& b, int ink) {
   return s;
 }
 
-static void test_a_tap_is_arches_and_a_heart() {
-  // Gen-2's boop, "^ ^" and a smile, with a heart at the top right of the
-  // face where v1's solid crescents read as hooded, glaring eyes (UX.md §2,
-  // BEHAVIORS.md §3.3).
-  Pose p = animPose(Anim::kWiggle, 1, 0);
+// A happy eye stays a boxy window: its top panes are whole and the same
+// place as a neutral eye's, and its bottom has risen (the squint), so the
+// eye is shorter but still has a lit bottom row under the cross. Never a
+// "^" arch: on boxy eyes that read as uncanny (UX.md §2).
+void checkSquint(const Buf& b, const Buf& n, bool right) {
+  EyeBox e = eyeBox(b, right), ne = eyeBox(n, right);
+  TEST_ASSERT_EQUAL_INT(ne.y0, e.y0);
+  TEST_ASSERT_TRUE(e.y1 <= ne.y1 - 6);   // at least two blocks up
+  TEST_ASSERT_TRUE(e.h() >= ne.h() / 2 + 3);  // but still more than the top panes
+  TEST_ASSERT_TRUE(e.w() >= 36);
+  TEST_ASSERT_TRUE(eyeIsCrisp(b, right, kInkEye));
+}
+
+static void test_happy_eyes_squint_and_the_smile_stays_small() {
+  Pose p;  // boxy eyes squinting from the bottom, and a small "u" smile
+  p.lidBot = 700, p.mouthCurve = 900;
+  Buf b = face(p), n = face(Pose{});
+  checkSquint(b, n, false);
+  checkSquint(b, n, true);
+  TEST_ASSERT_EQUAL_INT(0, inkSpot(b, kInkRose).n);  // squinting alone has no heart
+  // The smile is narrower than the resting mouth, not a wide grin.
+  auto mouthWidth = [](const Buf& b) {
+    int x0 = kWidth, x1 = -1;
+    for (int y = kEyeRows; y < kStripTop; ++y) {
+      for (int x = kWidth / 2 - 40; x < kWidth / 2 + 40; ++x) {
+        if (b.c.get(x, y) != inkAt(kInkEye, kLevels)) continue;
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+      }
+    }
+    return x1 - x0 + 1;
+  };
+  TEST_ASSERT_TRUE(mouthWidth(b) <= 21);
+  TEST_ASSERT_TRUE(mouthWidth(b) < mouthWidth(n));
+  // The cheeks rise with the squint.
+  TEST_ASSERT_TRUE(inkSpot(b, kInkBlush).y0 < inkSpot(n, kInkBlush).y0);
+  // The cheer (BEHAVIORS.md §5): the squint, white eyes and a heart.
+  Pose c = animPose(Anim::kCheer, 1500);  // landed, after the hops
+  TEST_ASSERT_EQUAL_INT(kInkEye, eyeInk(c));
+  TEST_ASSERT_EQUAL_INT(1000, c.heart);
+  TEST_ASSERT_TRUE(c.lidBot >= 650);
+  TEST_ASSERT_EQUAL_INT(0, c.dy);
+  // Three hops, then still.
+  int hops = 0;
+  bool up = false;
+  for (uint32_t t = 0; t < animDuration(Anim::kCheer); t += 10) {
+    bool air = animPose(Anim::kCheer, t).dy < -7;
+    hops += air && !up;
+    up = air;
+  }
+  TEST_ASSERT_EQUAL_INT(3, hops);
+}
+
+static void test_a_tap_is_a_squint_and_a_heart() {
+  // A boop: the happy squint and a small smile, with a heart at the top
+  // right of the face (UX.md §2, BEHAVIORS.md §3.3).
+  Pose p = animPose(Anim::kWiggle, 0);
   p.dx = 0, p.squash = 0;
-  Buf b = face(p);
-  checkArch(b, false);
-  checkArch(b, true);
+  Buf b = face(p), n = face(Pose{});
+  checkSquint(b, n, false);
+  checkSquint(b, n, true);
   EyeBox r = eyeBox(b, true);
   InkSpot heart = inkSpot(b, kInkRose);
   TEST_ASSERT_TRUE(heart.n > 150);
   TEST_ASSERT_TRUE(heart.x0 > r.x1);    // right of the right eye
-  TEST_ASSERT_TRUE(heart.y1 < kFaceCy);  // and above the eyes' centre line: no cheeks
+  TEST_ASSERT_TRUE(heart.y1 < kFaceCy);  // and above the eyes' centre line
   // It pops in with the blend: halfway, a smaller heart.
   InkSpot half = inkSpot(face(blend(Pose{}, p, 512)), kInkRose);
   TEST_ASSERT_TRUE(half.n > 0 && half.n < heart.n);
@@ -492,11 +436,11 @@ static void test_a_tap_is_arches_and_a_heart() {
 
 static void test_asleep_zzz_climbs_one_letter_at_a_time() {
   // Asleep, "zzZZ" climbs up from the right eye a letter at a time (UX.md §2).
-  Pose p = lookPose(Look::kAsleep, 1, 0);
+  Pose p = lookPose(Look::kAsleep, 0);
   auto letters = [](const Buf& b) {  // lit pixels up and to the right of the right eye
     int n = 0;
     for (int y = 0; y < kFaceCy; ++y) {
-      for (int x = kFaceCx + 67 + 28; x < kWidth; ++x) n += b.c.get(x, y) != kBlack;
+      for (int x = kFaceCx + 72 + 24; x < kWidth; ++x) n += b.c.get(x, y) != kBlack;
     }
     return n;
   };
@@ -515,7 +459,7 @@ static void test_asleep_zzz_climbs_one_letter_at_a_time() {
 
 static void test_a_sweat_drop_sits_by_the_right_eye_and_slides_down() {
   // Working, a sweat drop slides down beside the right eye (UX.md §2).
-  Pose p = lookPose(Look::kWorking, 1, 0);
+  Pose p = lookPose(Look::kWorking, 1);
   TEST_ASSERT_EQUAL_INT(0, inkSpot(face(p), kInkSky).n);
   p.sweat = 1;
   Buf top = face(p);
@@ -528,35 +472,22 @@ static void test_a_sweat_drop_sits_by_the_right_eye_and_slides_down() {
   TEST_ASSERT_TRUE(a.x0 > eyeBox(top, true).x1);
 }
 
-static void test_a_happy_blend_squeezes_then_arches() {
-  // On the way to happy the eye squeezes to a bar and the bar bends up, so
-  // the change never jumps between two drawings (UX.md §2).
+static void test_a_happy_blend_squints_a_row_at_a_time() {
+  // On the way to happy the bottom of the eye rises steadily and the top
+  // stays put, so the change never jumps between two drawings (UX.md §2).
   int last = 1000;
+  EyeBox n = eyeBox(face(Pose{}), false);
   for (int t = 0; t <= 1024; t += 64) {
-    Pose p = blend(Pose{}, animPose(Anim::kHappy, 1, 0), t);
+    Pose happy;
+    happy.lidBot = 700;
+    Pose p = blend(Pose{}, happy, t);
     p.mouthCurve = 0;
     EyeBox e = eyeBox(face(p), false);
-    TEST_ASSERT_TRUE(e.n > 0);
-    TEST_ASSERT_TRUE(e.w() >= 44);
-    if (p.lidBot < 450) {
-      TEST_ASSERT_TRUE(e.h() <= last);  // squeezing
-      last = e.h();
-    }
+    TEST_ASSERT_EQUAL_INT(n.y0, e.y0);
+    TEST_ASSERT_TRUE(e.w() >= 36);
+    TEST_ASSERT_TRUE(e.y1 <= last);
+    last = e.y1;
   }
-}
-
-static void test_no_app_eyes_are_open_not_droopy() {
-  // Waiting for the Mac, Boop looks up and aside with open eyes, as gen-2
-  // did before contact. The sleepy half-shut look read as droopy
-  // (BEHAVIORS.md §2).
-  Pose p = lookPose(Look::kNoApp, 1, 0);
-  TEST_ASSERT_EQUAL_INT(1000, p.open);
-  TEST_ASSERT_EQUAL_INT(0, p.lidTop);
-  TEST_ASSERT_EQUAL_INT(0, p.lidTilt);
-  Buf n = face(Pose{}), b = face(p);
-  EyeBox ne = eyeBox(n, false), e = eyeBox(b, false);
-  TEST_ASSERT_TRUE(e.h() * 10 >= ne.h() * 9);
-  TEST_ASSERT_TRUE(e.y0 < ne.y0);  // looking up
 }
 
 static void test_blend_is_eased_interruptible_and_150ms() {
@@ -579,18 +510,26 @@ static void test_blend_is_eased_interruptible_and_150ms() {
   TEST_ASSERT_EQUAL_INT(-1000, bl.apply(1225, c).lookX);
 }
 
+// BEHAVIORS.md §5: three animations, and nothing else.
 static void test_every_anim_has_a_name_and_ends() {
+  TEST_ASSERT_EQUAL_INT(4, int(Anim::kCount));
   for (int i = 1; i < int(Anim::kCount); ++i) {
     Anim a = Anim(i);
     TEST_ASSERT_TRUE(animFromName(animName(a)) == a);
-    TEST_ASSERT_TRUE(animDuration(a, 2) > 0);
-    TEST_ASSERT_TRUE(animDuration(a, 2) <= 30000);
+    TEST_ASSERT_TRUE(animDuration(a) > 0);
+    TEST_ASSERT_TRUE(animDuration(a) <= 30000);
   }
-  TEST_ASSERT_TRUE(animFromName("dance") == Anim::kNone);
-  TEST_ASSERT_TRUE(animFromName("stretch") == Anim::kNone);  // retired: an older Mac's is ignored
-  TEST_ASSERT_TRUE(animFromName("yawn") == Anim::kNone);
-  TEST_ASSERT_TRUE(animDuration(Anim::kCheer, 3) > animDuration(Anim::kCheer, 1));
-  TEST_ASSERT_EQUAL_UINT32(2000, animDuration(Anim::kCheer, 1));  // BEHAVIORS.md §7
+  for (const char* name : {"cheer", "wiggle", "listening"}) {
+    TEST_ASSERT_TRUE_MESSAGE(animFromName(name) != Anim::kNone, name);
+  }
+  for (const char* gone : {"dance", "oops", "side_eye", "stretch", "yawn", "zip", "gobble", "rumble", "levelup",
+                           "happy", "proud", "smug", "curious", "sleepy", "worried", "sulky", "love", "nod",
+                           "thinking", "shrug"}) {
+    TEST_ASSERT_TRUE_MESSAGE(animFromName(gone) == Anim::kNone, gone);
+  }
+  TEST_ASSERT_EQUAL_UINT32(2000, animDuration(Anim::kCheer));
+  TEST_ASSERT_EQUAL_UINT32(700, animDuration(Anim::kWiggle));
+  TEST_ASSERT_EQUAL_UINT32(30000, animDuration(Anim::kListening));  // the hold cap
 }
 
 static void test_fonts_are_monospaced_and_utf8_aware() {
@@ -614,19 +553,17 @@ int main(int, char**) {
   RUN_TEST(test_fill_shape_antialiases_only_the_edges);
   RUN_TEST(test_palette_ramps_run_from_black_to_the_ink);
   RUN_TEST(test_neutral_face_is_symmetric);
-  RUN_TEST(test_eyes_are_solid_with_no_pupils);
+  RUN_TEST(test_eyes_are_four_crisp_panes);
   RUN_TEST(test_a_look_moves_the_whole_eye_with_perspective);
   RUN_TEST(test_eye_size_changes_only_the_eyes);
-  RUN_TEST(test_lid_corners_are_rounded);
-  RUN_TEST(test_a_lid_never_leaves_a_sharp_point);
-  RUN_TEST(test_thinking_looks_up_and_working_looks_down);
+  RUN_TEST(test_lids_cut_each_half_flat);
+  RUN_TEST(test_a_look_up_keeps_full_panes_and_working_looks_down);
   RUN_TEST(test_closed_eyes_are_a_line);
-  RUN_TEST(test_happy_eyes_are_arches_and_cheer_glows);
-  RUN_TEST(test_a_tap_is_arches_and_a_heart);
+  RUN_TEST(test_happy_eyes_squint_and_the_smile_stays_small);
+  RUN_TEST(test_a_tap_is_a_squint_and_a_heart);
   RUN_TEST(test_asleep_zzz_climbs_one_letter_at_a_time);
   RUN_TEST(test_a_sweat_drop_sits_by_the_right_eye_and_slides_down);
-  RUN_TEST(test_a_happy_blend_squeezes_then_arches);
-  RUN_TEST(test_no_app_eyes_are_open_not_droopy);
+  RUN_TEST(test_a_happy_blend_squints_a_row_at_a_time);
   RUN_TEST(test_blend_is_eased_interruptible_and_150ms);
   RUN_TEST(test_every_anim_has_a_name_and_ends);
   RUN_TEST(test_fonts_are_monospaced_and_utf8_aware);

@@ -41,35 +41,19 @@ public struct LongTerm: Equatable, Sendable {
     public var seed: UInt64
     public var temperament: [String]
     public var moments: [Moment]
-    public var xp: Int
-    public var lastFed: String
-    public var lost: Int
     public var aboutYou: [String]
     public var preferences: [String]
 
     public init(name: String, hatched: String, nature: Nature, seed: UInt64, temperament: [String] = [],
-                moments: [Moment] = [], growth: Growth? = nil, aboutYou: [String] = [], preferences: [String] = []) {
+                moments: [Moment] = [], aboutYou: [String] = [], preferences: [String] = []) {
         self.name = name
         self.hatched = hatched
         self.nature = nature
         self.seed = seed
         self.temperament = temperament
         self.moments = moments
-        let growth = growth ?? Growth(hatched: hatched)
-        xp = growth.xp
-        lastFed = growth.lastFed
-        lost = growth.lost
         self.aboutYou = aboutYou
         self.preferences = preferences
-    }
-
-    public var growth: Growth {
-        get { Growth(xp: xp, hatched: hatched, lastFed: lastFed, lost: lost) }
-        set {
-            xp = newValue.xp
-            lastFed = newValue.lastFed
-            lost = newValue.lost
-        }
     }
 
     public var markdown: String {
@@ -79,9 +63,6 @@ public struct LongTerm: Equatable, Sendable {
         out += temperament.map { $0 + "\n" }.joined()
         out += "\n### Moments\n"
         out += moments.map { "- \($0.date): \($0.text)\n" }.joined()
-        out += "\n### Growth\n"
-        let g = growth
-        out += "xp: \(g.xp) · level: \(g.level) · last fed: \(g.lastFed)" + (g.lost > 0 ? " · lost: \(g.lost)" : "") + "\n"
         out += "\n## About you\n"
         out += aboutYou.map { "- \($0)\n" }.joined()
         out += "\n## Preferences\n"
@@ -89,9 +70,10 @@ public struct LongTerm: Equatable, Sendable {
         return out
     }
 
-    /// Reads the file. Hand edits are fine as long as the Boop line and the
-    /// Growth line still read; list items may drop their `- `. Anything past a
-    /// section's limit is left out.
+    /// Reads the file. Hand edits are fine as long as the Boop line still
+    /// reads; list items may drop their `- `. Anything past a section's limit
+    /// is left out, and so is a section this version doesn't know, like the
+    /// Growth section files from before 2026-09-26 have.
     public static func parse(_ text: String) throws -> LongTerm {
         let sections = MarkdownSections(text)
         guard let boop = sections["Boop"]?.first(where: { !$0.isEmpty }) else {
@@ -102,14 +84,6 @@ public struct LongTerm: Equatable, Sendable {
               let nature = fields["nature"].flatMap(Nature.init(rawValue:)),
               let seed = fields["seed"].flatMap({ UInt64($0, radix: 16) })
         else { throw MemoryParseError("the Boop line doesn't read: \(boop)") }
-
-        guard let growthLine = sections["Growth"]?.first(where: { !$0.isEmpty }) else {
-            throw MemoryParseError("no Growth line")
-        }
-        let g = Fields(growthLine)
-        guard let xp = g["xp"].flatMap(Int.init), xp >= 0, let lastFed = g["last fed"], LocalTime.isDay(lastFed)
-        else { throw MemoryParseError("the Growth line doesn't read: \(growthLine)") }
-        let lost = g["lost"].flatMap(Int.init) ?? 0
 
         var moments: [Moment] = []
         for line in items(sections["Moments"]) {
@@ -122,7 +96,6 @@ public struct LongTerm: Equatable, Sendable {
             name: name, hatched: hatched, nature: nature, seed: seed,
             temperament: Array(items(sections["Temperament"]).prefix(MemoryLimits.temperamentSentences)),
             moments: Array(moments.suffix(MemoryLimits.moments)),
-            growth: Growth(xp: xp, hatched: hatched, lastFed: lastFed, lost: max(0, lost)),
             aboutYou: Array(items(sections["About you"]).prefix(MemoryLimits.aboutYou)),
             preferences: Array(items(sections["Preferences"]).prefix(MemoryLimits.preferences)))
     }
@@ -132,20 +105,18 @@ public struct LongTerm: Equatable, Sendable {
 public struct ShortTerm: Equatable, Sendable {
     public var date: String
     public var firstSeen: String
-    public var mood: String
     public var notes: [String]
     public var happened: [String]
 
-    public init(date: String, firstSeen: String, mood: String, notes: [String] = [], happened: [String] = []) {
+    public init(date: String, firstSeen: String, notes: [String] = [], happened: [String] = []) {
         self.date = date
         self.firstSeen = firstSeen
-        self.mood = mood
         self.notes = notes
         self.happened = happened
     }
 
     public var markdown: String {
-        var out = "## Today\n\(date) · first seen \(firstSeen) · mood: \(mood)\n"
+        var out = "## Today\n\(date) · first seen \(firstSeen)\n"
         out += "\n## Notes\n"
         out += notes.map { "- \($0)\n" }.joined()
         out += "\n## Happened\n"
@@ -153,6 +124,8 @@ public struct ShortTerm: Equatable, Sendable {
         return out
     }
 
+    /// Reads the file. Anything else on the Today line, like the `mood:`
+    /// files from before 2026-09-26 have, is left out.
     public static func parse(_ text: String) throws -> ShortTerm {
         let sections = MarkdownSections(text)
         guard let today = sections["Today"]?.first(where: { !$0.isEmpty }) else {
@@ -163,12 +136,10 @@ public struct ShortTerm: Equatable, Sendable {
             throw MemoryParseError("the Today line doesn't read: \(today)")
         }
         var firstSeen = ""
-        var mood = ""
-        for part in parts.dropFirst() {
-            if part.hasPrefix("first seen ") { firstSeen = String(part.dropFirst("first seen ".count)) }
-            if part.hasPrefix("mood: ") { mood = String(part.dropFirst("mood: ".count)) }
+        for part in parts.dropFirst() where part.hasPrefix("first seen ") {
+            firstSeen = String(part.dropFirst("first seen ".count))
         }
-        return ShortTerm(date: date, firstSeen: firstSeen, mood: mood,
+        return ShortTerm(date: date, firstSeen: firstSeen,
                          notes: Array(items(sections["Notes"]).suffix(MemoryLimits.notes)),
                          happened: Array(items(sections["Happened"]).suffix(MemoryLimits.happened)))
     }
