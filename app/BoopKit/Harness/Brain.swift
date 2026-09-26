@@ -11,7 +11,10 @@ public protocol Brain: Sendable {
     /// e.g. `apple:26.4`, `cloud:<model>`, `rules@1`.
     var id: String { get }
     /// The raw answer. May throw; the harness drops the call and logs why.
-    func complete(system: String, user: String, tools: [ToolDefinition], deadline: Duration) async throws -> String
+    /// A brain sends `system`, each exchange in `history` and then `user`, in
+    /// that order and unchanged, so the start of every request repeats the
+    /// last one's (HARNESS.md §4).
+    func complete(system: String, history: [Exchange], user: String, tools: [ToolDefinition], deadline: Duration) async throws -> String
 }
 
 public struct BrainError: Error, Equatable, CustomStringConvertible {

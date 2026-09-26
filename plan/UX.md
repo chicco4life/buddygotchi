@@ -129,8 +129,9 @@ Hold BOOT and speak. The Mac's mic is on only while you hold it.
    answer to a question.
 
 Things worth saying: "shut up" (Boop goes quiet for a while), "good job",
-"remember I ship on Fridays", or just mumbling at it. Audio and transcripts
-are thrown away after the reply.
+"remember I ship on Fridays", or just mumbling at it. Audio is thrown away at
+once. What you said stays in Boop's short conversation with its brain, in
+memory only, until that starts over ([HARNESS.md](HARNESS.md) §4).
 
 ## 6. Setup
 

@@ -81,7 +81,7 @@ tools/boopctl calibrate                    # touch calibration: tap 4 crosses (n
 boopdev replay <hooks.jsonl>               # hooks through the adapter and core, on a virtual clock
 boopdev memory --state-dir DIR             # the memory files as the store reads them
 boopdev voice <feeling> [word]             # Minion lines as `say` builds them
-boopdev brain --brain apple [--gap-min N]  # the harness and brain on recorded triggers (L5)
+boopdev brain --brain apple [--gap-min N] [--history N]  # the harness and brain on recorded triggers (L5)
 boopdev hooks status|install|remove --home DIR
 boopdev talk "<words>" --socket PATH       # a push-to-talk transcript to a headless app
 ```

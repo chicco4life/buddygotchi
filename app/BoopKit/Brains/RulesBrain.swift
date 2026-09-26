@@ -14,11 +14,18 @@ public struct RulesBrain: Brain {
 
     public init() {}
 
-    public func complete(system: String, user: String, tools: [ToolDefinition], deadline: Duration) async throws -> String {
+    /// Ignores the history. Leaves out calls to tools that aren't offered or
+    /// that the now section names as past a limit (`say limit: …`).
+    public func complete(system: String, history: [Exchange], user: String, tools: [ToolDefinition],
+                         deadline: Duration) async throws -> String {
         let rows = RulesBrain.fallbacks(system)
         guard !rows.isEmpty else { throw BrainError("no Fallbacks table in steering") }
-        let calls = RulesBrain.pick(rows, now: Prompt.now(in: user))
-        return Answer.json(calls.filter { call in tools.contains { $0.name == call.name } })
+        let now = Prompt.now(in: user)
+        let limited = Set(now.components(separatedBy: "\n").compactMap { line in
+            line.range(of: " limit: ").map { String(line[..<$0.lowerBound]) }
+        })
+        let calls = RulesBrain.pick(rows, now: now)
+        return Answer.json(calls.filter { call in tools.contains { $0.name == call.name } && !limited.contains(call.name) })
     }
 
     public struct Row: Equatable, Sendable {

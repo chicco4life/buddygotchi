@@ -45,17 +45,21 @@ public struct AppleBrain: Brain {
         #endif
     }
 
-    public func complete(system: String, user: String, tools: [ToolDefinition], deadline: Duration) async throws -> String {
+    public func complete(system: String, history: [Exchange], user: String, tools: [ToolDefinition],
+                         deadline: Duration) async throws -> String {
         // The model can stop being available after launch (it's updating,
         // or Apple Intelligence was turned off): this call gets the rules
         // brain's answer instead (HARNESS.md §7).
         if unavailable() != nil {
-            return try await RulesBrain().complete(system: system, user: user, tools: tools, deadline: deadline)
+            return try await RulesBrain().complete(system: system, history: history, user: user, tools: tools,
+                                                   deadline: deadline)
         }
         #if canImport(FoundationModels)
         let schema = try AppleBrain.schema(tools)
         let model = SystemLanguageModel(guardrails: .permissiveContentTransformations)
-        let session = LanguageModelSession(model: model, instructions: system)
+        // A fresh session from the conversation each time: the harness's
+        // exchanges stay the only history, and a late call leaves nothing behind.
+        let session = LanguageModelSession(model: model, transcript: AppleBrain.transcript(system, history))
         do {
             let response = try await session.respond(to: user, schema: schema,
                                                      options: GenerationOptions(temperature: 0.5))
@@ -77,6 +81,24 @@ public struct AppleBrain: Brain {
     #if canImport(FoundationModels)
     /// The first option of every choice.
     static let none = "none"
+
+    static func transcript(_ system: String, _ history: [Exchange]) -> Transcript {
+        func text(_ s: String) -> [Transcript.Segment] { [.text(.init(content: s))] }
+        var entries: [Transcript.Entry] = [.instructions(.init(segments: text(system), toolDefinitions: []))]
+        for exchange in history {
+            entries.append(.prompt(.init(segments: text(exchange.user))))
+            entries.append(.response(.init(assetIDs: [], segments: text(toList(exchange.answer)))))
+        }
+        return Transcript(entries: entries)
+    }
+
+    /// An earlier answer, `{"calls":[…]}`, in the shape this brain answers in,
+    /// so the history reads like its own: `{"react":"stay quiet","calls":[]}`.
+    static func toList(_ answer: String) -> String {
+        let calls = (try? JSONSerialization.jsonObject(with: Data(answer.utf8)) as? [String: Any])?["calls"] as? [Any] ?? []
+        let data = (try? JSONSerialization.data(withJSONObject: calls, options: [.sortedKeys])) ?? Data("[]".utf8)
+        return "{\"react\":\"" + (calls.isEmpty ? "stay quiet" : "react") + "\",\"calls\":" + String(decoding: data, as: UTF8.self) + "}"
+    }
 
     /// `{"react":"stay quiet",…}` → no calls; otherwise just the calls, with
     /// `none` arguments left out and calls whose required choice is `none`
@@ -149,7 +171,8 @@ public struct CloudBrain: Brain {
 
     public init(model: String) { self.model = model }
 
-    public func complete(system: String, user: String, tools: [ToolDefinition], deadline: Duration) async throws -> String {
+    public func complete(system: String, history: [Exchange], user: String, tools: [ToolDefinition],
+                         deadline: Duration) async throws -> String {
         throw BrainError("the cloud brain isn't available yet")
     }
 }

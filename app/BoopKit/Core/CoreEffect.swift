@@ -2,10 +2,16 @@ import Foundation
 
 /// A trigger for the harness (HARNESS.md §5).
 public struct Trigger: Equatable, Sendable {
-    public enum Kind: String, Sendable {
+    public enum Kind: String, Sendable, CaseIterable {
         case event, tap, talk, reflect
 
-        /// The tools the harness offers for this trigger.
+        /// Event, tap and talk share one conversation with the brain
+        /// (HARNESS.md §4). Reflection is one call on its own.
+        public var converses: Bool { self != .reflect }
+
+        /// The tools a call for this trigger may use. Conversation calls are
+        /// offered every conversing kind's tools, the same list each time,
+        /// and one outside this list is shown as a limit (HARNESS.md §5).
         public var tools: [String] {
             switch self {
             case .event: ["say", "face"]
@@ -15,6 +21,17 @@ public struct Trigger: Equatable, Sendable {
             // (ARCHITECTURE.md §11). Reflection only adds.
             case .reflect: ["remember", "temperament", "moment"]
             }
+        }
+
+        /// The tools offered: every conversing kind's for a conversation call,
+        /// so the list never changes within a conversation; reflection's own.
+        public var offered: [String] {
+            guard converses else { return tools }
+            var names: [String] = []
+            for kind in Kind.allCases where kind.converses {
+                for tool in kind.tools where !names.contains(tool) { names.append(tool) }
+            }
+            return names
         }
 
         /// Milliseconds before a late answer is dropped.
@@ -27,9 +44,9 @@ public struct Trigger: Equatable, Sendable {
             }
         }
 
-        /// How often a tool may run for this trigger (HARNESS.md §5). Past
-        /// its limit the harness doesn't offer it, so Boop stays quiet most
-        /// of the time whatever the brain would answer.
+        /// How often a tool may run for this trigger (HARNESS.md §5). Past its
+        /// limit the prompt says so and the harness drops a call to it, so
+        /// Boop stays quiet most of the time whatever the brain would answer.
         public var limits: [ToolLimit] {
             switch self {
             case .event: [ToolLimit("say", everyMs: 600_000, neverOn: ["turn started"])]
@@ -42,7 +59,8 @@ public struct Trigger: Equatable, Sendable {
     public var kind: Kind
     /// What happened, e.g. `turn finished · claude · jetpack · topic: tests · took 18 min · 14:05 Tuesday`.
     public var line: String
-    /// Only for `talk`: the person's words, dropped after the call.
+    /// Only for `talk`: the person's words. Kept in the brain's conversation
+    /// until it starts over, in memory only.
     public var words: String?
     public var ts: Int64
 

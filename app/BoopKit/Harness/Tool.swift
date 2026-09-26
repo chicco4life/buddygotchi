@@ -146,14 +146,21 @@ public final class ToolLimits: @unchecked Sendable {
 
     public init() {}
 
-    /// Why `tool` can't run for this trigger, or nil if it can.
+    /// Why `tool` can't run for this trigger, as the line the prompt shows
+    /// (`say limit: once every 5 min on tap, next in 3 min`), or nil if it
+    /// can. A call past its limit is dropped with the same line.
     public func blocked(_ tool: String, for trigger: Trigger) -> String? {
+        if !trigger.kind.tools.contains(tool) {
+            let kinds = Trigger.Kind.allCases.filter { $0.converses && $0.tools.contains(tool) }.map(\.rawValue)
+            return "\(tool) limit: " + (kinds.isEmpty ? "not on \(trigger.kind.rawValue)" : "only on " + kinds.joined(separator: " or "))
+        }
         guard let limit = trigger.kind.limits.first(where: { $0.tool == tool }) else { return nil }
         if let start = limit.neverOn.first(where: { trigger.line.hasPrefix($0) }) {
-            return "limit: no \(tool) on \(start)"
+            return "\(tool) limit: not on \(start)"
         }
         if let at = last[key(tool, trigger.kind)], trigger.ts - at < limit.everyMs {
-            return "limit: \(tool) on \(trigger.kind.rawValue) at most once every \(limit.everyMs / 60_000) min"
+            let left = (limit.everyMs - (trigger.ts - at) + 59_999) / 60_000
+            return "\(tool) limit: once every \(limit.everyMs / 60_000) min on \(trigger.kind.rawValue), next in \(left) min"
         }
         return nil
     }

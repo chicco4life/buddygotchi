@@ -144,8 +144,8 @@ into the app's resources, and a unit test fails if the copies differ.
 
 Order: **M0 → F1 → F2 → F3 → F4 → A1 → A2 → A3 → A4 → J1 → F5 → J2 → J3.**
 Bluetooth (F4) comes before the app track so the morning test can use it.
-Sound (F5) comes late because there's no speaker to hear it. F6 and A5 came
-after the build, at the owner's request.
+Sound (F5) comes late because there's no speaker to hear it. F6, A5 and A6
+came after the build, at the owner's request.
 
 Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 
@@ -166,6 +166,7 @@ Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 | J3 | Handoff | Passed |
 | F6 | Landscape and cuter eyes | In progress: code, L0, L1 and L2 pass. The board runs the landscape build, its 83 screenshots in 11 scenarios match the simulator pixel for pixel, and `perf --motion` gives at least 49 fps (50 over 30 s, 49 over 60 s) with 72.7 KB free. Only the owner's look (orientation and liking the face) and touch calibration remain (morning checklist rows 2–3). [Evidence](evidence/v1-build/F6/README.md) |
 | A5 | Mac app look and flow | In progress: code, L0 and the app's snapshot check pass (light and dark). Only the owner's look in the real menu bar remains (morning checklist rows 5 and 7). [Evidence](evidence/v1-build/A5/README.md) |
+| A6 | Brain conversation | In progress: code and L0 pass. L5 with Apple's model: the `say` limit line holds, but with history the brain answers quiet far more often, and it calls `note` on most events ([evidence](evidence/2026-09-26-brain-conversation/README.md)). Tuning the behaviour is next |
 | P1 | Port to ESP-IDF + LVGL (later, gated) | Not started |
 
 ### M0: Setup
@@ -506,6 +507,29 @@ window, and gen-2's styling and flow were better ([UX.md](UX.md) §6–7).
 - The snapshots have been looked at in both appearances against
   [UX.md](UX.md) §7.
 - The owner runs the app and likes it (morning checklist rows 5 and 7).
+
+### A6: Brain conversation
+
+Asked for by the owner after the build: a running transcript for the brain,
+modelled on pi and as simple as possible ([HARNESS.md](HARNESS.md) §4–5).
+
+- **Conversation:** event, tap and talk calls send the system prompt, the
+  earlier exchanges and the new message, in that order, so a provider's
+  prompt cache can reuse each request's start. No compaction: it starts
+  over when steering, memory or tools change, when it's full, or after a
+  failed answer.
+- **Static tools:** every conversation call is offered the same four tools.
+  A tool past its limit is named in the prompt (`say limit: …`) and a call
+  to it is dropped.
+- **Tools:** `boopdev brain --history N` sets the conversation's size for L5.
+
+**Done when:**
+
+- L0: `make test` passes, with the conversation's rules pinned in tests.
+- L5: the brain run on the fixtures passes with history, and its sample is
+  reviewed. **Open:** Apple's model goes quiet with history (taps got no
+  reaction in 8 of 8 with 4 earlier exchanges) and calls `note` on most
+  events even with `note limit: only on talk`.
 
 ### P1: Port to ESP-IDF + LVGL (later)
 

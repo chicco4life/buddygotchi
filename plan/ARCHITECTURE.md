@@ -138,7 +138,9 @@ do. The brain is whatever model is plugged in: Apple's on-device model by
 default, or the rules-only brain. A cloud brain with the person's own API
 key is an interface only in v1 (`cloud:<model>`), switched on later
 ([FUTURE.md](FUTURE.md)). The brain is assumed to be small, so the tools are
-few, flat and mostly multiple choice.
+few, flat and mostly multiple choice. Event, tap and talk calls share a
+short conversation with the brain that starts over instead of being
+compacted.
 
 ### 3.4 Actions
 
@@ -194,8 +196,9 @@ Nothing above the device link knows which one is in use.
 
 The device has no mic, so holding its button records from the Mac's mic.
 The app turns speech into text locally, and the core gives it to the
-harness as a `talk` trigger. Audio is discarded immediately, and the
-transcript once the brain has answered.
+harness as a `talk` trigger. Audio is discarded immediately. The words stay
+in the brain's conversation, in memory only, until it starts over
+([HARNESS.md](HARNESS.md) §4).
 
 ## 4. Memory files
 
@@ -471,3 +474,5 @@ When a spec changes direction, add a row here saying why.
 | 2026-09-26 | The cloud brain is an interface only in v1: `cloud:<model>` refuses every call, and settings offers Apple's model or rules | Apple's model is the default and needs no key; wiring and testing a provider can wait | §3.3, [HARNESS.md](HARNESS.md) §7, [FUTURE.md](FUTURE.md) |
 | 2026-09-26 | The Mac answers every `status` with a `state`, not only the first after connecting | It's one extra `state` a minute, and it covers a connect-time `status` sent before the Mac subscribed over Bluetooth | [PROTOCOL.md](PROTOCOL.md) §4–5 |
 | 2026-09-26 | The installer installs and repairs nothing while its copy of `boop-hook` is missing, and settings and setup say so; `make run` builds everything first | `make run` built only the app, so there was no `boop-hook` to copy, and launch repair swapped the owner's gen-2 entries for ones calling a missing file: every Claude and Codex event was dropped, while settings said "Connected" | [ADAPTERS.md](ADAPTERS.md) §5, [UX.md](UX.md) §6–7 |
+| 2026-09-26 | Event, tap and talk calls share a short conversation with the brain, sent in the same order every call and never compacted: it starts over when its opening changes, when it's full, or after a failed answer. Talk words stay in it until then | The owner asked for a running transcript modelled on pi, kept simple (start over rather than compact) and in an order a cloud provider's prompt cache can reuse. With history, Apple's model answers quiet much more often; tuning is PLAN.md A6 | [HARNESS.md](HARNESS.md) §4 |
+| 2026-09-26 | Event, tap and talk are offered the same four tools. A tool past its limit, or outside the trigger's allowed list, is named in the prompt (`say limit: …`) and a call to it is dropped, instead of not being offered. This replaces the earlier rows "`event` offers only `say` and `face`" and the "isn't offered" part of the speech-limit row | A conversation's tools can't change between calls. In L5 the `say` line holds, but Apple's model calls `note` on most events; the harness drops those calls (PLAN.md A6) | [HARNESS.md](HARNESS.md) §5 |

@@ -5,9 +5,11 @@ import Foundation
 /// it `(definition, handler)` pairs at startup.
 ///
 /// One call runs at a time. A newer trigger replaces one that's waiting, and
-/// `talk` cancels whatever is running. A tool past its limit (HARNESS.md §5)
-/// isn't offered. Everything except the brain call runs on `home`, the queue
-/// the memory store and the actions live on.
+/// `talk` cancels whatever is running. Event, tap and talk calls share one
+/// conversation and are offered the same tools every time; a tool past its
+/// limit (HARNESS.md §5) is named in the prompt and a call to it is dropped.
+/// Everything except the brain call runs on `home`, the queue the memory
+/// store and the actions live on.
 public final class Harness: @unchecked Sendable {
     /// A tool as the harness sees it: what the brain is shown, and who
     /// carries out a call.
@@ -63,7 +65,7 @@ public final class Harness: @unchecked Sendable {
         public var json: String {
             var o: [String: Any] = [
                 "trigger": ["kind": trigger.kind.rawValue, "line": trigger.line, "ts": trigger.ts],
-                "brain": brain, "system": prompt.system, "user": prompt.user, "tools": tools,
+                "brain": brain, "system": prompt.system, "history": prompt.history.count, "user": prompt.user, "tools": tools,
                 "latency_ms": latencyMs,
                 "ran": ran.map { r -> [String: Any] in
                     switch r.outcome {
@@ -87,6 +89,8 @@ public final class Harness: @unchecked Sendable {
     let log: (String) -> Void
     /// When each limited tool last ran (HARNESS.md §5).
     let limits: ToolLimits
+    /// The earlier exchanges sent with every conversation call (HARNESS.md §4).
+    let conversation: Conversation
     /// Called on `home` after every call, including dropped ones.
     public var onRecord: ((Record) -> Void)?
 
@@ -94,15 +98,16 @@ public final class Harness: @unchecked Sendable {
     var running: (id: Int, trigger: Trigger, task: Task<Void, Never>)?
     var waiting: Trigger?
     var nextID = 0
-    /// The running call's tools as offered.
+    /// The running call's tools as offered, and its conversation's generation.
     var pending: [Offered] = []
+    var pendingGeneration: Int?
 
     /// - Parameters:
     ///   - memory: the text for a trigger's prompt, from the memory store.
     ///   - debugLog: a JSONL file for §8's log; nil writes nothing to disk.
     public init(brain: any Brain, tools: [Tool], memory: @escaping (Trigger) -> Prompt.Memory,
                 home: DispatchQueue, debugLog: URL? = nil, limits: ToolLimits = ToolLimits(),
-                log: @escaping (String) -> Void = { _ in }) {
+                conversation: Conversation = Conversation(), log: @escaping (String) -> Void = { _ in }) {
         self.brain = brain
         self.tools = tools
         self.memory = memory
@@ -110,12 +115,14 @@ public final class Harness: @unchecked Sendable {
         self.debugLog = debugLog
         self.log = log
         self.limits = limits
+        self.conversation = conversation
     }
 
-    /// The tools offered for a trigger: its kind's list, in the order given
-    /// at startup.
+    /// The tools offered for a trigger, in the order given at startup. A
+    /// conversation call gets every conversing kind's tools, so the list never
+    /// changes within a conversation; reflection gets its own.
     public func offered(_ kind: Trigger.Kind) -> [Tool] {
-        tools.filter { kind.tools.contains($0.definition.name) }
+        tools.filter { kind.offered.contains($0.definition.name) }
     }
 
     // MARK: Scheduling
@@ -145,18 +152,19 @@ public final class Harness: @unchecked Sendable {
     }
 
     func start(_ trigger: Trigger) {
-        let (prompt, offered) = prepare(trigger)
+        let (prompt, offered, generation) = prepare(trigger)
         let definitions = offered.map(\.definition)
         nextID += 1
         let id = nextID
         pending = offered
+        pendingGeneration = generation
         let task = Task { [self] in
             let (answer, ms) = await ask(prompt, definitions, deadline: trigger.kind.deadlineMs)
             let cancelled = Task.isCancelled
             home.async { [self] in
                 guard running?.id == id, !cancelled else { return }
                 running = nil
-                finish(hand(trigger, prompt, pending, answer, ms))
+                finish(hand(trigger, prompt, pending, answer, ms, generation: pendingGeneration))
                 if let next = waiting {
                     waiting = nil
                     start(next)
@@ -174,17 +182,29 @@ public final class Harness: @unchecked Sendable {
         var handle: (ToolCall) -> ActionOutcome
     }
 
-    /// Steps 3–4's inputs: the prompt and the offered tools, leaving out any
-    /// tool past its limit. On `home`.
-    func prepare(_ trigger: Trigger) -> (Prompt, [Offered]) {
-        let offered = offered(trigger.kind)
-            .map { Offered(definition: $0.definition, handle: $0.handle) }
-            .filter { limits.blocked($0.definition.name, for: trigger) == nil }
+    /// Steps 3–4's inputs: the prompt, the offered tools and, for a
+    /// conversation call, the conversation's generation. The conversation
+    /// starts over when its opening (system prompt, memory text, tools) has
+    /// changed, it holds its most exchanges, or the request would pass its
+    /// budget. On `home`.
+    func prepare(_ trigger: Trigger) -> (Prompt, [Offered], Int?) {
+        let offered = offered(trigger.kind).map { Offered(definition: $0.definition, handle: $0.handle) }
+        let definitions = offered.map(\.definition)
         let text = memory(trigger)
-        for over in Prompt.overBudget(trigger, text, tools: offered.map(\.definition)) {
+        for over in Prompt.overBudget(trigger, text, tools: definitions) {
             log("harness: \(trigger.kind.rawValue) prompt over budget: \(over)")
         }
-        return (Prompt(trigger: trigger, memory: text), offered)
+        guard trigger.kind.converses else { return (Prompt(trigger: trigger, memory: text), offered, nil) }
+        let limitLines = definitions.compactMap { limits.blocked($0.name, for: trigger) }
+        conversation.open([Prompt.system(text.steering), text.longTerm, text.shortTerm,
+                           definitions.map(\.json).joined(separator: "\n")].joined(separator: "\n\u{0}\n"))
+        if conversation.exchanges.count > conversation.maxExchanges { conversation.restart() }
+        var prompt = Prompt(trigger: trigger, memory: text, limits: limitLines, history: conversation.exchanges)
+        if !prompt.history.isEmpty, Conversation.tokens(prompt, tools: definitions) > Conversation.budget {
+            conversation.restart()
+            prompt = Prompt(trigger: trigger, memory: text, limits: limitLines)
+        }
+        return (prompt, offered, conversation.generation)
     }
 
     /// Step 4: the brain call, raced against the deadline. A brain that
@@ -198,8 +218,8 @@ public final class Harness: @unchecked Sendable {
                 once.set(k)
                 once.add(Task {
                     do {
-                        once.resume(.success(try await brain.complete(system: prompt.system, user: prompt.user,
-                                                                      tools: tools, deadline: .milliseconds(ms))))
+                        once.resume(.success(try await brain.complete(system: prompt.system, history: prompt.history,
+                                                                      user: prompt.user, tools: tools, deadline: .milliseconds(ms))))
                     } catch let error as BrainError {
                         once.resume(.failure(error))
                     } catch {
@@ -218,9 +238,30 @@ public final class Harness: @unchecked Sendable {
         return (result, Int(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000))
     }
 
-    /// Steps 5–6: shape check, then each call to its handler in order. On `home`.
+    /// Steps 5–6: shape check, then each call to its handler in order, then
+    /// the conversation. On `home`.
     func hand(_ trigger: Trigger, _ prompt: Prompt, _ offered: [Offered], _ answer: Result<String, BrainError>,
-              _ ms: Int) -> Record {
+              _ ms: Int, generation: Int?) -> Record {
+        let record = handOff(trigger, prompt, offered, answer, ms)
+        if let generation { remember(record, generation: generation) }
+        return record
+    }
+
+    /// A conversation call adds what actually ran. A refused, failed or badly
+    /// shaped answer starts the conversation over instead, since its history
+    /// may be the cause; a late or cancelled one changes nothing.
+    func remember(_ record: Record, generation: Int) {
+        guard generation == conversation.generation else { return }
+        if let dropped = record.dropped {
+            if !dropped.hasPrefix("late") && !dropped.hasPrefix("cancelled") { conversation.restart() }
+            return
+        }
+        let done = record.ran.filter { $0.outcome.isDone }.map(\.call)
+        conversation.append(Exchange(user: record.prompt.user, answer: Answer.json(done)), generation: generation)
+    }
+
+    func handOff(_ trigger: Trigger, _ prompt: Prompt, _ offered: [Offered], _ answer: Result<String, BrainError>,
+                 _ ms: Int) -> Record {
         var record = Record(trigger: trigger, brain: brain.id, prompt: prompt, tools: offered.map(\.definition.name),
                             raw: nil, dropped: nil, ran: [], latencyMs: ms)
         switch answer {
@@ -233,7 +274,8 @@ public final class Harness: @unchecked Sendable {
                 record.dropped = "shape: \(why)"
             case .success(let calls):
                 for call in calls {
-                    // A second call in one answer can pass the limit.
+                    // Past its limit, even if the prompt said so or an
+                    // earlier call in this answer just used it up.
                     if let why = limits.blocked(call.name, for: trigger) {
                         record.ran.append((call, .dropped(why)))
                         continue
@@ -258,10 +300,10 @@ public final class Harness: @unchecked Sendable {
     /// One trigger straight through, without the queue: for `boopdev brain`.
     /// Don't call on `home`.
     public func respond(to trigger: Trigger) async -> Record {
-        let (prompt, offered) = home.sync { prepare(trigger) }
+        let (prompt, offered, generation) = home.sync { prepare(trigger) }
         let (answer, ms) = await ask(prompt, offered.map(\.definition), deadline: trigger.kind.deadlineMs)
         return home.sync {
-            let record = hand(trigger, prompt, offered, answer, ms)
+            let record = hand(trigger, prompt, offered, answer, ms, generation: generation)
             finish(record)
             return record
         }

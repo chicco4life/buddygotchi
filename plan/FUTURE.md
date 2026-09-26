@@ -47,18 +47,13 @@ ARCHITECTURE…) first, then add it to [PLAN.md](PLAN.md).
 - **Cursor and other agents.** Each needs an adapter and a reliable "you're
   being asked" signal ([ADAPTERS.md](ADAPTERS.md) §8).
 - **Cloud brain switched on.** The interface exists in v1. This is about
-  wiring it to the person's own API key and testing it.
+  wiring it to the person's own API key (DeepSeek first) and testing it. It
+  sends the conversation unchanged and in order so the provider's prompt
+  cache applies ([HARNESS.md](HARNESS.md) §7).
 - **Mood from prompt tone.** Reading how you write to your agents. v1
   leaves prompt text out entirely.
 - **Richer brain triggers,** such as coming back after a long break, or a
   periodic check-in while agents work.
-- **A running transcript for the brain.** In v1 every trigger is a one-shot
-  call with no history ([HARNESS.md](HARNESS.md) §2); only the memory files
-  carry over. Keep a short transcript of Boop's own recent exchanges (the
-  trigger line, what it did, and on push-to-talk what you said) and put it
-  in the prompt. Then it can follow a back-and-forth when you talk to it,
-  and not repeat itself. Keep it small against the 8K context, say the last
-  few exchanges, and keep agent transcripts and code out of it.
 - **Codex failures.** Codex has no failure hook; reading its session file
   when a turn stops would tell failures from finishes.
 

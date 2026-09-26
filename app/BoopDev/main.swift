@@ -15,7 +15,7 @@ let usage = """
                Prints long-term.md and short-term.md as the memory store reads them, and the history snapshots.
            boopdev voice <feeling> [word] [--dialect HEX] [--seed N] [--count N] [--json] [--why]
                Prints Minion lines as the say action would build them.
-           boopdev brain [--brain apple|rules] [--triggers DIR] [--memory DIR] [--steering FILE] [--out FILE] [--gap-min N] [--print]
+           boopdev brain [--brain apple|rules] [--triggers DIR] [--memory DIR] [--steering FILE] [--out FILE] [--gap-min N] [--history N] [--print]
                Runs the real harness and brain on recorded triggers, each with a fresh copy of the sample
                memory, N minutes apart (default 3) under one history of the harness's limits, and reports
                refusals, valid shapes, dropped calls, speech, silence and latency (VERIFICATION.md L5).
@@ -179,10 +179,12 @@ func brain(_ args: [String]) async {
         }
     }
     // A busy stretch: triggers in file order, `--gap-min` apart, sharing one
-    // history of the harness's limits (HARNESS.md §5).
+    // history of the harness's limits (HARNESS.md §5) and one conversation (§4).
     let gapMs = Int64((Double(option(args, "--gap-min") ?? "3") ?? 3) * 60_000)
     for i in triggers.indices { triggers[i].ts = Int64(i) * gapMs }
     let limits = ToolLimits()
+    // `--history N`: at most N earlier exchanges (0 sends none, like v1's one-shot calls).
+    let conversation = Conversation(maxExchanges: Int(option(args, "--history") ?? "") ?? 4)
     guard !triggers.isEmpty else { fail("no triggers in \(triggersDir)") }
 
     let out = URL(fileURLWithPath: option(args, "--out") ?? "/tmp/boop-brain/\(setting).jsonl")
@@ -206,7 +208,7 @@ func brain(_ args: [String]) async {
                                         log: { logs.append($0) })
             let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: 0x7f3a)), memory: store)
             return Harness(brain: brain, tools: actions.map(Harness.Tool.init), memory: { store.promptMemory(for: $0.kind) },
-                           home: home, debugLog: out, limits: limits, log: { logs.append($0) })
+                           home: home, debugLog: out, limits: limits, conversation: conversation, log: { logs.append($0) })
         }
         let r = await harness.respond(to: trigger)
         records.append(r)
@@ -214,8 +216,8 @@ func brain(_ args: [String]) async {
             let said = trigger.words.map { " \"\($0)\"" } ?? ""
             let answer = r.dropped.map { "DROPPED \($0)" }
                 ?? (r.ran.isEmpty ? "(quiet)" : r.ran.map { "\($0.call)" + ($0.outcome.isDone ? "" : " ✗") }.joined(separator: ", "))
-            let offered = r.tools.contains("say") || trigger.kind.limits.isEmpty ? "" : " [no say]"
-            print("\(i + 1)\t\(r.latencyMs) ms\t\(trigger.line)\(said)\(offered)\n\t→ \(answer)")
+            let limited = r.prompt.user.contains("\nsay limit: ") ? " [say limit]" : ""
+            print("\(i + 1)\t\(r.latencyMs) ms\t\(trigger.line)\(said)\(limited) (history \(r.prompt.history.count))\n\t→ \(answer)")
         }
     }
 
@@ -228,7 +230,7 @@ func brain(_ args: [String]) async {
     let answered = records.filter { !$0.refused }
     let valid = records.filter(\.validShape)
     func limited(_ c: (call: ToolCall, outcome: ActionOutcome)) -> Bool {
-        if case .dropped(let why) = c.outcome { return why.hasPrefix("limit: ") }
+        if case .dropped(let why) = c.outcome { return why.hasPrefix(c.call.name + " limit: ") }
         return false
     }
     let calls = records.flatMap(\.ran).filter { !limited($0) }
@@ -242,10 +244,12 @@ func brain(_ args: [String]) async {
     for kind in [Trigger.Kind.event, .tap, .talk] {
         let rs = valid.filter { $0.trigger.kind == kind }
         let spoke = rs.filter { $0.ran.contains { $0.call.name == "say" && $0.outcome.isDone } }
-        let offered = rs.filter { $0.tools.contains("say") }
-        print("spoke on \(kind.rawValue): \(spoke.count)/\(rs.count) (say offered \(offered.count))")
+        let allowed = rs.filter { !$0.prompt.user.contains("\nsay limit: ") }
+        print("spoke on \(kind.rawValue): \(spoke.count)/\(rs.count) (say allowed \(allowed.count))")
     }
     print("tool calls: \(calls.count), dropped by actions: \(dropped.count), past a limit: \(records.flatMap(\.ran).filter(limited).count)")
+    let histories = records.filter(\.trigger.kind.converses).map(\.prompt.history.count)
+    print("conversation: up to \(histories.max() ?? 0) earlier exchanges, \(conversation.restarts) restarts")
     for d in dropped {
         if case .dropped(let why) = d.outcome { print("  \(d.call): \(why)") }
     }

@@ -1,9 +1,11 @@
 import Foundation
 
 /// One brain call's prompt (HARNESS.md §4), stable parts first so a provider
-/// can cache them.
+/// can cache them: the system prompt, the conversation's earlier exchanges,
+/// then this call's user message.
 public struct Prompt: Equatable, Sendable {
     public var system: String
+    public var history: [Exchange] = []
     public var user: String
 
     /// Three lines ahead of `steering.md`.
@@ -41,22 +43,34 @@ public struct Prompt: Equatable, Sendable {
         }
     }
 
-    public init(system: String, user: String) {
+    public init(system: String, history: [Exchange] = [], user: String) {
         self.system = system
+        self.history = history
         self.user = user
     }
 
-    public init(trigger: Trigger, memory: Memory) {
-        system = Prompt.preamble + "\n\n" + Prompt.stripComment(memory.steering)
+    /// The memory text opens a conversation, so only a message with no
+    /// history carries it; later ones are just the now section. `limits` are
+    /// lines like `say limit: once every 10 min on event, next in 6 min`.
+    public init(trigger: Trigger, memory: Memory, limits: [String] = [], history: [Exchange] = []) {
+        system = Prompt.system(memory.steering)
+        self.history = history
         var now = trigger.line
         if let words = trigger.words { now += "\nthey said: \"\(Prompt.oneLine(words))\"" }
+        for line in limits { now += "\n" + line }
         let shortTerm = trigger.kind == .reflect
             ? "Yesterday's short-term memory, to reflect on:\n\n" + memory.shortTerm
             : memory.shortTerm
-        user = [memory.longTerm, shortTerm, Prompt.nowMarker + "\n" + now]
+        let parts = history.isEmpty ? [memory.longTerm, shortTerm] : []
+        user = (parts + [Prompt.nowMarker + "\n" + now])
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
             .joined(separator: "\n\n")
+    }
+
+    /// The preamble and `steering.md`.
+    public static func system(_ steering: String) -> String {
+        preamble + "\n\n" + stripComment(steering)
     }
 
     /// The part after `--- now ---`: the trigger line and, for `talk`, the words.
