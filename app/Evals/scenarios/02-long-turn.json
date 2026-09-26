@@ -1,0 +1,11 @@
+{
+  "name": "A long turn is celebrated",
+  "why": "HARNESS.md §6: a finish of 5 minutes or more is react(proud, mumble), and the writer fills its word",
+  "steps": [
+    {"input": {"at": "0m", "event": "turn started", "agent": "claude", "project": "jetpack"},
+     "expect": ["agent started → nothing"]},
+    {"input": {"at": "12m", "event": "turn finished", "agent": "claude", "project": "jetpack"},
+     "writer": {"react.word": "finally"},
+     "expect": ["agent finished → react(feeling: proud, voice: mumble, word: finally)"]}
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "A short turn: the brain stays quiet",
+  "why": "HARNESS.md §6: the rules classifier does nothing for a start or a finish under 5 minutes; the core's cheer celebrates it",
+  "steps": [
+    {"input": {"at": "0m", "event": "turn started", "agent": "claude", "project": "jetpack"},
+     "expect": ["agent started → nothing"]},
+    {"input": {"at": "1m", "event": "turn finished", "agent": "claude", "project": "jetpack"},
+     "expect": ["agent finished → nothing"]}
+  ]
+}

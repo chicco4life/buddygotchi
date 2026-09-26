@@ -31,6 +31,9 @@ speech, writes a file or talks to the device. That work belongs to the
 actions ([ARCHITECTURE.md](ARCHITECTURE.md) §3.4), so the harness would
 work the same driving something other than Boop.
 
+The harness eval scenarios check what it does for given events
+([EVALS.md](EVALS.md)).
+
 ## 2. Inputs
 
 Four things reach the brain. The core builds each as a typed input
