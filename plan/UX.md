@@ -79,7 +79,8 @@ needs-you face, which leans in, is as big as the idle face alone.
   show as "?".
 - **Status strip.** How many sessions need you (amber, hidden at zero) and
   how many are working (grey), plus icons at the right for quiet and no
-  app.
+  app. With nothing to show it's bare glass, divider and all; the face
+  doesn't move when it fills.
 - **Debug label.** A debug-only aid, off unless the firmware is built with
   `BOOP_DEBUG_LABEL=1` (the board build sets it in
   `firmware/platformio.ini`). On the face, needs-you and no-app screens,

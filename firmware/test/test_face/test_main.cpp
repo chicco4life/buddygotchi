@@ -743,6 +743,26 @@ static void test_every_anim_has_a_name_and_ends() {
   TEST_ASSERT_EQUAL_UINT32(30000, animDuration(Anim::kListening));  // the hold cap
 }
 
+static void test_an_empty_strip_is_bare_glass() {
+  // With nothing to count or flag, the strip shows nothing, not even its
+  // divider (UX.md §2); with anything, the divider is there.
+  auto lit = [](const Strip& s) {
+    Buf b;
+    drawStrip(b.c, s);
+    int n = 0;
+    for (uint8_t v : b.px) n += v != kBlack;
+    return n;
+  };
+  TEST_ASSERT_EQUAL_INT(0, lit(Strip{}));
+  Strip busy, quiet;
+  busy.busy = 1, quiet.quiet = true;
+  for (const Strip& s : {busy, quiet}) {
+    Buf b;
+    drawStrip(b.c, s);
+    TEST_ASSERT_EQUAL_INT(inkAt(kInkDim, kLevels), b.c.get(kWidth / 2, kStripTop));
+  }
+}
+
 static void test_squiggles_make_room_for_the_word() {
   // The mumble's word is never cut while squiggles keep their room (UX.md
   // §2): with six syllables around it, "refactoring" shows whole, as it
@@ -819,6 +839,7 @@ int main(int, char**) {
   RUN_TEST(test_listening_bobs_the_whole_face_a_block);
   RUN_TEST(test_blend_is_eased_interruptible_and_150ms);
   RUN_TEST(test_every_anim_has_a_name_and_ends);
+  RUN_TEST(test_an_empty_strip_is_bare_glass);
   RUN_TEST(test_squiggles_make_room_for_the_word);
   RUN_TEST(test_fonts_are_monospaced_and_utf8_aware);
   return UNITY_END();

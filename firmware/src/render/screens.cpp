@@ -107,6 +107,8 @@ void iconQuiet(Canvas& c, int x, int y) {  // a speaker with a slash
 }  // namespace
 
 void drawStrip(Canvas& c, const Strip& s) {
+  // An empty strip is bare glass: no divider under the face.
+  if (s.wait <= 0 && s.busy <= 0 && !s.noApp && !s.quiet) return;
   c.fillRect(kMargin, kStripTop, kWidth - 2 * kMargin, 1, inkAt(kInkDim, kLevels));
   const int cy = kStripCy, ty = cy - 10;
   int x = kMargin;
