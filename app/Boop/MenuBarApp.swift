@@ -9,9 +9,10 @@ enum MenuBarApp {
     static func run(_ args: [String]) -> Never {
         let stateDir = option(args, "--state-dir").map { URL(fileURLWithPath: $0) } ?? AppSettings.defaultStateDir()
         guard let link = LinkSetting(option(args, "--link") ?? "ble") else { fail("--link is ble, usb:SOCKET or none") }
+        let debugLog = option(args, "--debug-log").map { URL(fileURLWithPath: $0) }
         MainActor.assumeIsolated {
             let app = NSApplication.shared
-            let delegate = AppDelegate(stateDir: stateDir, link: link)
+            let delegate = AppDelegate(stateDir: stateDir, link: link, debugLog: debugLog)
             app.delegate = delegate
             app.setActivationPolicy(.accessory)
             withExtendedLifetime(delegate) { app.run() }
@@ -137,6 +138,8 @@ final class AppModel: ObservableObject {
 final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     let stateDir: URL
     let link: LinkSetting
+    /// HARNESS.md §8's log of every pass and aside, with what you said; nil keeps none.
+    let debugLog: URL?
     let log: LogFile
     let model: AppModel
     var statusItem: NSStatusItem?
@@ -144,9 +147,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     var runtime: Runtime?
     var listener: SpeechListener?
 
-    init(stateDir: URL, link: LinkSetting) {
+    init(stateDir: URL, link: LinkSetting, debugLog: URL?) {
         self.stateDir = stateDir
         self.link = link
+        self.debugLog = debugLog
         log = LogFile(directory: stateDir, echo: false)
         model = AppModel(installer: HookInstaller(home: URL(fileURLWithPath: NSHomeDirectory()),
                                                   hookPath: stateDir.appendingPathComponent("bin/boop-hook").path),
@@ -250,6 +254,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         var options = Runtime.Options(stateDir: stateDir, socketPath: stateDir.appendingPathComponent("boop.sock").path, link: transport,
                                       steering: bundledSteering())
         options.log = { log.write($0) }
+        options.debugLog = debugLog
         do {
             let runtime = try Runtime(options)
             let listener = SpeechListener(log: { log.write($0) })

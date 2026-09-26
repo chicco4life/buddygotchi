@@ -7,8 +7,9 @@ import Foundation
 // and agents (VERIFICATION.md L4).
 
 let usage = """
-    usage: Boop [--state-dir DIR] [--link ble|usb:SOCKET|none]
-               The menu-bar app. The owner runs this; it uses Bluetooth by default.
+    usage: Boop [--state-dir DIR] [--link ble|usb:SOCKET|none] [--debug-log FILE]
+               The menu-bar app. The owner runs this; it uses Bluetooth by default. --debug-log appends
+               every brain pass and aside to FILE as JSON lines, what you said included (boopdev watch).
            Boop --headless --state-dir DIR [--link usb:SOCKET|none] [--socket PATH] [--classifier rules|jev] [--writer apple|none|deepseek]
                 [--name NAME] [--nature sweet|cheeky] [--debug-log FILE] [--trace]
                No UI and no Bluetooth. The hook socket defaults to DIR/boop.sock. A new state directory

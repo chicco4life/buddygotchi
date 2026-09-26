@@ -10,9 +10,10 @@ build:
 
 # The Mac app with Bluetooth. The owner runs this, not agents. Builds
 # everything first: the app copies the boop-hook built next to it, and
-# `swift run Boop` alone doesn't build boop-hook.
+# `swift run Boop` alone doesn't build boop-hook. `make run DEBUG_LOG=FILE`
+# also writes the brain's debug log, to follow with `boopdev watch FILE`.
 run: build
-	cd app && swift run Boop
+	cd app && swift run Boop $(if $(DEBUG_LOG),--debug-log $(abspath $(DEBUG_LOG)))
 
 # Swift unit tests through the XCTest shim (there's no Xcode here).
 test:

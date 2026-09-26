@@ -2,8 +2,8 @@ import BoopKit
 import Foundation
 import HookWire
 
-// Developer CLI (VERIFICATION.md §2): replay, memory, voice, brain, talk and
-// hooks, as `usage` describes.
+// Developer CLI (VERIFICATION.md §2): replay, memory, voice, brain, watch,
+// talk and hooks, as `usage` describes.
 
 let usage = """
     usage: boopdev replay <hooks.jsonl> [--agent claude|codex] [--gap-ms N] [--start MS] [--tz ZONE] [--new-day] [--states]
@@ -19,6 +19,10 @@ let usage = """
                Runs the real pipeline on recorded inputs, each with a fresh copy of the sample memory,
                N minutes apart (default 3) sharing one transcript, and reports refusals, what each stage
                did, dropped calls and latency (VERIFICATION.md L5). Jev's key comes from BOOP_JEV_KEY.
+           boopdev watch FILE [--new]
+               Follows a brain debug log (Boop --debug-log FILE, or make run DEBUG_LOG=FILE) and prints each
+               pass as it lands: the input, what was decided and why, the words written, and what ran.
+               Asides (taps, needs you) too. --new skips what's already in the file.
            boopdev hooks status|install|remove [claude|codex] --home DIR [--hook PATH]
                The installer, against any HOME (tests use a temporary one). --hook defaults to the boop-hook
                next to boopdev.
@@ -289,6 +293,57 @@ func brain(_ args: [String]) async {
     exit(pass ? 0 : 1)
 }
 
+/// `boopdev watch FILE`: follows a brain debug log (HARNESS.md §8) and
+/// prints each pass and aside as it lands, readably.
+func watch(_ args: [String]) {
+    guard let path = args.first(where: { !$0.hasPrefix("--") }) else { fail(usage) }
+    if !FileManager.default.fileExists(atPath: path) { FileManager.default.createFile(atPath: path, contents: nil) }
+    guard let handle = FileHandle(forReadingAtPath: path) else { fail("can't read \(path)") }
+    if args.contains("--new") { handle.seekToEndOfFile() }
+    setvbuf(stdout, nil, _IOLBF, 0)
+    print("watching \(path) (Ctrl-C to stop)")
+    var pending = ""
+    while true {
+        let data = handle.availableData
+        if data.isEmpty {
+            usleep(250_000)
+            continue
+        }
+        pending += String(decoding: data, as: UTF8.self)
+        while let end = pending.firstIndex(of: "\n") {
+            let line = String(pending[..<end])
+            pending = String(pending[pending.index(after: end)...])
+            if !line.isEmpty { print(describe(line)) }
+        }
+    }
+}
+
+/// One debug-log line as a few readable lines.
+func describe(_ line: String) -> String {
+    guard let o = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any] else { return line }
+    if let aside = o["aside"] as? String { return "· \(aside)" }
+    let input = o["input"] as? [String: Any] ?? [:]
+    var out = ["▸ \(input["line"] as? String ?? "?")   [\(o["classifier"] as? String ?? "?") → \(o["writer"] as? String ?? "?"), "
+               + "window \(o["window"] as? Int ?? 0), \(o["latency_ms"] as? Int ?? 0) ms]"]
+    if let words = input["words"] as? String { out.append("    said     \"\(words)\"") }
+    let decided = o["decided"] as? [String] ?? []
+    out.append("    decided  " + (decided.isEmpty ? "nothing" : decided.joined(separator: ", "))
+               + " (\(o["classify_ms"] as? Int ?? 0) ms)")
+    if let evidence = o["evidence"] as? String { out.append("    because  \(evidence)") }
+    if let dropped = o["dropped"] as? String { out.append("    DROPPED  \(dropped)") }
+    if let wrote = o["wrote"] as? [String: String], !wrote.isEmpty {
+        let values = wrote.sorted { $0.key < $1.key }.map { "\($0.key) = \($0.value.isEmpty ? "(empty)" : "\"\($0.value)\"")" }
+        out.append("    wrote    " + values.joined(separator: ", ") + " (\(o["write_ms"] as? Int ?? 0) ms)")
+    }
+    if let failed = o["write_failed"] as? String { out.append("    WRITER   failed: \(failed)") }
+    if let raw = o["writer_raw"] as? String { out.append("    raw      \(raw)") }
+    for r in o["ran"] as? [[String: Any]] ?? [] {
+        let what = (r["done"] as? String).map { "done: \($0)" } ?? "dropped: \(r["dropped"] as? String ?? "?")"
+        out.append("    ran      \(r["call"] as? String ?? "?") → \(what)")
+    }
+    return out.joined(separator: "\n")
+}
+
 func talk(_ args: [String]) {
     guard let socket = option(args, "--socket") else { fail(usage) }
     let words = args.enumerated().filter { i, a in !a.hasPrefix("--") && (i == 0 || args[i - 1] != "--socket") }
@@ -330,6 +385,8 @@ case "voice":
     voice(Array(args.dropFirst()))
 case "brain":
     await brain(Array(args.dropFirst()))
+case "watch":
+    watch(Array(args.dropFirst()))
 case "talk":
     talk(Array(args.dropFirst()))
 case "hooks":

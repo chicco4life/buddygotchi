@@ -278,10 +278,13 @@ single call.
 ## 8. Logging
 
 In debug mode, each pass is logged as one JSON line: the input and its
-line, both brains, how many inputs the window held, Stage 1's calls and
-evidence, the slots and what was written (and the writer's raw answer),
-why anything was dropped or failed, what each action did, and each stage's
-latency. Otherwise the app log gets one line per pass: the input kind, the
+line (with what you said), both brains, how many inputs the window held,
+Stage 1's calls and evidence, the slots and what was written (and the
+writer's raw answer), why anything was dropped or failed, what each action
+did, and each stage's latency. Each aside gets a line too, so the log
+carries the whole transcript. Debug mode is `--debug-log FILE`, in the
+menu-bar app (`make run DEBUG_LOG=FILE`) or headless, and `boopdev watch
+FILE` follows it live, printing each pass readably. Otherwise the app log gets one line per pass: the input kind, the
 latency and the outputs that ran, never their arguments:
 
 ```
