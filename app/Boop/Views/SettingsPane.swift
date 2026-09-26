@@ -2,7 +2,7 @@ import BoopKit
 import SwiftUI
 
 /// Settings, inside the popover (UX.md §7): sound, agents and hooks, the
-/// device, the mode and Jev's key, and what Boop remembers.
+/// device, the mode (and in Normal, Jev's key), and what Boop remembers.
 struct SettingsPane: View {
     @ObservedObject var model: AppModel
     var maxHeight: CGFloat
@@ -19,7 +19,6 @@ struct SettingsPane: View {
                     PaneSection("Device") { device }
                     PaneSection("Mode") { modes }
                     PaneSection("What \(model.name) remembers") { remembered }
-                    PaneSection("About") { about }
                 }
                 .padding(.horizontal, Theme.gutter)
                 .padding(.bottom, Theme.gapLoose)
@@ -38,7 +37,7 @@ struct SettingsPane: View {
         let s = model.status?.snapshot
         return Card(padding: 0) {
             SettingRow(icon: s?.vol == 0 ? "speaker.slash.fill" : "speaker.wave.2.fill", title: "Volume",
-                       detail: "How loud \(model.name) mumbles and chirps.") {
+                       detail: "How loud \(model.name) mumbles.") {
                 HStack(spacing: 6) {
                     Slider(value: Binding(get: { Double(s?.vol ?? 6) },
                                           set: { model.setVolume(Int($0.rounded())) }),
@@ -96,7 +95,9 @@ struct SettingsPane: View {
             case .unreadable?, .clientMissing?:
                 EmptyView()
             default:
-                Button("Connect") { model.install(agent) }.buttonStyle(.rowFilled).disabled(!found)
+                // Not on this Mac: nothing to do. Opening the popover looks
+                // again, so Connect appears once it's installed.
+                if found { Button("Connect") { model.install(agent) }.buttonStyle(.rowFilled) }
             }
         }
     }
@@ -110,8 +111,7 @@ struct SettingsPane: View {
         case .usb: "USB"
         case .none: ""
         }
-        let firmware = model.status?.device.map { ", firmware \($0.fw)" } ?? ""
-        let detail = connected ? "Connected over \(how)\(firmware)"
+        let detail = connected ? "Connected over \(how)"
             : model.link == .none ? "This copy of Boop runs without a device"
             : "Looking for it over \(how). Plug it into USB power."
         return Card(padding: 0) {
@@ -131,7 +131,7 @@ struct SettingsPane: View {
     private func about(_ mode: Mode) -> String {
         switch mode {
         case .chatty: "A mumble and a word for every turn, and chatter while agents work. Decides with plain rules on this Mac."
-        case .normal: "A balance. TypeSafe's Jev decides, online, with your API key below; without one, \(model.name) acts as in Chatty."
+        case .normal: "A balance. TypeSafe's Jev decides, online, with your API key below."
         case .calm: "Only what you need: something needs you, a turn failed, or a long one finished. Decides with plain rules on this Mac."
         }
     }
@@ -167,30 +167,38 @@ struct SettingsPane: View {
                 }
                 .padding(12)
                 .disabled(model.status == nil)
-                Hairline().padding(.leading, 12)
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: Theme.gapSnug) {
-                        SecureField("Jev API key", text: $apiKey)
-                            .textFieldStyle(.plain)
-                            .font(.system(size: 12))
-                            .padding(.horizontal, 8).padding(.vertical, 5)
-                            .background(Theme.paper, in: RoundedRectangle(cornerRadius: 7))
-                            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Theme.hairlineStrong, lineWidth: 1))
-                            .onChange(of: apiKey) { keySaved = false }
-                        Button(keySaved ? "Saved" : "Save") {
-                            keySaved = Keychain.setKey(apiKey, for: .jev)
-                            if keySaved { model.jevKeyChanged() }
-                        }
-                            .buttonStyle(.row)
-                            .disabled(keySaved)
-                    }
-                    Text("For Normal. Kept in your Keychain. With Jev, what happens and \(model.name)'s memory go to TypeSafe with each call.")
-                        .font(.system(size: 10)).foregroundStyle(Theme.inkSoft)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .padding(.horizontal, 12).padding(.vertical, 10)
+                if model.mode == .normal { key }
             }
         }
+    }
+
+    /// Jev's key, only where it's used.
+    private var key: some View {
+        VStack(spacing: 0) {
+            Hairline().padding(.leading, 12)
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: Theme.gapSnug) {
+                    SecureField("Jev API key", text: $apiKey)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12))
+                        .padding(.horizontal, 8).padding(.vertical, 5)
+                        .background(Theme.paper, in: RoundedRectangle(cornerRadius: 7))
+                        .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Theme.hairlineStrong, lineWidth: 1))
+                        .onChange(of: apiKey) { keySaved = false }
+                    Button(keySaved ? "Saved" : "Save") {
+                        keySaved = Keychain.setKey(apiKey, for: .jev)
+                        if keySaved { model.jevKeyChanged() }
+                    }
+                    .buttonStyle(.row)
+                    .disabled(keySaved)
+                }
+                Text("Kept in your Keychain. With Jev, what happens and \(model.name)'s memory go to TypeSafe with each call.")
+                    .font(.system(size: 10)).foregroundStyle(Theme.inkSoft)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 10)
+        }
+        .transition(.opacity)
     }
 
     // MARK: Remembered
@@ -224,16 +232,6 @@ struct SettingsPane: View {
             }
         }
     }
-
-    // MARK: About
-
-    private var about: some View {
-        Card(padding: 0) {
-            SettingRow(icon: "info.circle", title: "Version", detail: nil) {
-                Text(BoopVersion.current).font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
-            }
-        }
-    }
 }
 
 /// One settings row: an icon, a title with an optional line under it, and
@@ -258,8 +256,10 @@ struct SettingRow<Trailing: View>: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Spacer(minLength: Theme.gapSnug)
-            trailing
+            // The words take the room the control leaves, so they wrap only
+            // when they must.
+            .frame(maxWidth: .infinity, alignment: .leading)
+            trailing.fixedSize()
         }
         .padding(.horizontal, 12).padding(.vertical, 9)
     }
