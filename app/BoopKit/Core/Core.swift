@@ -255,6 +255,7 @@ public final class Core {
     public func talk(_ words: String, yelled: Bool = false, at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
+        startDayIfNew(now, &fx)
         let input = Input(.said, words: words, yelled: yelled, clock: config.time.clock(now),
                           weekday: config.time.weekday(now), rules: "listening", ts: now)
         quietAsked = input.asksForQuiet
@@ -271,6 +272,7 @@ public final class Core {
     public func listen(_ on: Bool, at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
+        startDayIfNew(now, &fx)
         if on {
             if listening == nil {
                 startListening(by: .app, now, &fx)

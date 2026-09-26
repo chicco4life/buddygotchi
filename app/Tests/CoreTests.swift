@@ -556,6 +556,25 @@ final class CoreYouAndBoopTests: XCTestCase {
         XCTAssertFalse(rig.send(.turnStart).contains { if case .newDay = $0 { true } else { false } }, "only the first activity")
     }
 
+    /// ARCHITECTURE.md §4: talking to Boop is activity too, so the popover's
+    /// Talk button or a talk line as the day's first activity starts the day
+    /// before its words reach the brain, and a note lands in today.
+    func testTalkingStartsTheDayBeforeItsWords() {
+        let newDay = CoreEffect.newDay(date: "2026-10-15", firstSeen: "14:00")
+        let rig = CoreRig()
+        rig.now += CoreRig.day
+        let on = rig.core.listen(true, at: rig.now)
+        XCTAssertEqual(on.first { if case .newDay = $0 { true } else { false } }, newDay)
+        XCTAssertFalse(rig.core.talk("hi", at: rig.now).contains(newDay), "only once")
+        let talked = CoreRig()
+        talked.now += CoreRig.day
+        let fx = talked.core.talk("remember the demo is on Thursday", at: talked.now)
+        let day = fx.firstIndex(of: newDay)
+        let said = fx.firstIndex { if case .input = $0 { true } else { false } }
+        XCTAssertNotNil(day)
+        XCTAssertLessThan(day ?? .max, said ?? .max, "the day starts before the words reach the brain")
+    }
+
     /// A new day starts short-term memory fresh; nothing about it reaches
     /// the brain (the reflection was removed on 2026-09-26).
     func testANewDayOnlyStartsShortTermFresh() {
