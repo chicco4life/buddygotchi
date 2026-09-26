@@ -37,6 +37,11 @@ struct FakeHal : app::Hal {
     cues.push_back(c);
   }
   void hush() override { ++hushes; }
+  bool touching = false;  // the panel, at the middle of the face
+  bool touch(int& x, int& y) override {
+    if (touching) x = 160, y = 100;
+    return touching;
+  }
   app::TouchCal cal;
   void setTouchCal(const app::TouchCal& c) override { cal = c; }
   app::TouchCal touchCal() override { return cal; }
@@ -300,6 +305,38 @@ static void test_injected_tap_reaches_the_mac() {
   r.usbLine("{\"t\":\"dbg.press\",\"ms\":100}");
   r.usbLine("{\"t\":\"dbg.clock\",\"step\":100}");
   TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
+}
+
+// UX.md §4: the resistive panel misses readings under a light press, so a
+// panel touch ends only after 50 ms without contact. A press that flickers
+// is one tap; a new press after a real lift is another.
+static void test_a_flickering_touch_is_one_tap() {
+  TEST_ASSERT_EQUAL_UINT32(50, app::Device::kTouchReleaseMs);
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  r.usbLine("{\"t\":\"dbg.clock\",\"run\":true}");
+  const char* tap = "{\"t\":\"input\",\"k\":\"tap\"}";
+  for (uint32_t ms = 0; ms < 300; ms += 2) {  // 10 ms in contact, 10 ms not; last contact at 288
+    r.hal.real = ms;
+    r.hal.touching = ms / 10 % 2 == 0;
+    r.dev.tick();
+  }
+  r.hal.touching = false;
+  r.hal.real = 337;
+  r.dev.tick();
+  TEST_ASSERT_EQUAL_INT(0, count(r.usb.text, tap));
+  r.hal.real = 338;
+  r.dev.tick();
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, tap));
+  r.hal.real = 400;
+  r.hal.touching = true;
+  r.dev.tick();
+  r.hal.real = 450;
+  r.hal.touching = false;
+  r.dev.tick();
+  r.hal.real = 500;
+  r.dev.tick();
+  TEST_ASSERT_EQUAL_INT(2, count(r.usb.text, tap));
 }
 
 static void test_physical_hold_sends_talk_on_and_off() {
@@ -723,6 +760,7 @@ int main() {
   RUN_TEST(test_pattern_until_next_state);
   RUN_TEST(test_injected_tap_reaches_the_mac);
   RUN_TEST(test_physical_hold_sends_talk_on_and_off);
+  RUN_TEST(test_a_flickering_touch_is_one_tap);
   RUN_TEST(test_a_frozen_clock_runs_again_after_60s_without_debug);
   RUN_TEST(test_shot_is_header_then_base64);
   RUN_TEST(test_light_sets_the_led);

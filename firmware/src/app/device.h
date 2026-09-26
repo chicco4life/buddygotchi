@@ -87,6 +87,9 @@ struct Hal {
 
 class Device {
  public:
+  // A panel touch ends after this long without contact (UX.md §4).
+  static constexpr uint32_t kTouchReleaseMs = 50;
+
   // `pixels` is the kWidth × kHeight canvas buffer, allocated by the caller.
   Device(Hal& hal, uint8_t* pixels, bool frozenClock);
 
@@ -174,8 +177,11 @@ class Device {
   bool injTouch_ = false;
   uint32_t injTouchUntil_ = 0;
   int injX_ = 0, injY_ = 0;
-  // The touch in progress.
+  // The touch in progress: from the panel (not injected), last in contact
+  // at touchSeenAt_.
   bool touchDown_ = false;
+  bool touchPanel_ = false;
+  uint32_t touchSeenAt_ = 0;
 
   // The line playing (its moment's number), and the last sound cue handled
   // (played or dropped).

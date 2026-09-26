@@ -63,7 +63,7 @@ void Device::reset() {
   pattern_ = false;
   patternFill_ = -1;
   targetX_ = targetY_ = -1;
-  injPress_ = injTouch_ = touchDown_ = false;
+  injPress_ = injTouch_ = touchDown_ = touchPanel_ = false;
   boot_ = ButtonGesture{};
   last_ = LastInput{};
   drawnT_ = 0;
@@ -292,10 +292,14 @@ void Device::readInputs(uint32_t t) {
   }
 
   // A touch anywhere is a tap, sent on release however long it was held.
-  // The press shows at once. The debug pattern ignores touches.
+  // The press shows at once. The panel misses readings under a light
+  // press, so its touch ends only after kTouchReleaseMs without contact;
+  // an injected one ends when it says. The debug pattern ignores touches.
   if (injTouch_ && int32_t(t - injTouchUntil_) >= 0) injTouch_ = false;
   int x = 0, y = 0;
-  bool touching = injTouch_ ? (x = injX_, y = injY_, true) : hal_.touch(x, y);
+  bool contact = injTouch_ ? (x = injX_, y = injY_, true) : hal_.touch(x, y);
+  if (contact) touchSeenAt_ = t, touchPanel_ = !injTouch_;
+  bool touching = contact || (touchDown_ && touchPanel_ && int32_t(t - touchSeenAt_) < int32_t(kTouchReleaseMs));
   bool faced = screenAt(t) != Screen::kPattern;
   if (touching && !touchDown_) {
     input("touch", t, x, y);

@@ -1,6 +1,6 @@
 # Boop: UX
 
-Updated 2026-09-26. What the person sees and touches: the screen, the
+Updated 2026-09-27. What the person sees and touches: the screen, the
 controls, setup and the Mac app. What Boop *does* in each situation is in
 [BEHAVIORS.md](BEHAVIORS.md), and how it sounds is in [VOICE.md](VOICE.md).
 
@@ -113,7 +113,9 @@ agents.
 
 A press shorter than 400 ms is a tap, and holding BOOT for 400 ms or more
 starts push-to-talk until you let go. A touch is a tap however long it's
-held, and counts when you lift your finger. Every press and touch gets
+held, and counts when you lift your finger. The panel misses readings
+under a light press, so a touch counts as lifted only after 50 ms without
+contact. Every press and touch gets
 visible feedback within 20 ms, before the Mac hears about it: the face
 squashes a little.
 
