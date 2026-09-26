@@ -98,6 +98,8 @@ public final class Runtime: @unchecked Sendable {
     let lock: InstanceLock
     var server: HookServer?
     var timer: DispatchSourceTimer?
+    /// Keeps macOS from napping the app while it runs.
+    var activity: NSObjectProtocol?
     let projectNames = Adapter.ProjectNames()
     /// Keeps the brain from cutting anything off (BEHAVIORS.md §3): a
     /// moment an action sends outside the core's effects is the brain's, and
@@ -233,6 +235,11 @@ public final class Runtime: @unchecked Sendable {
                     self.changed()
                 }
             })
+        // A menu-bar app with its popover closed is a candidate for App Nap,
+        // which coalesces timers; the 10 s keepalive must beat the device's
+        // 30 s no-app timeout. This doesn't keep the Mac awake.
+        activity = ProcessInfo.processInfo.beginActivity(options: .userInitiatedAllowingIdleSystemSleep,
+                                                         reason: "Keeps Boop's device in sync")
         let timer = DispatchSource.makeTimerSource(queue: home)
         timer.schedule(deadline: .now() + 1, repeating: 1)
         timer.setEventHandler { [weak self] in self?.tick() }
@@ -251,6 +258,8 @@ public final class Runtime: @unchecked Sendable {
     public func stop() {
         timer?.cancel()
         timer = nil
+        if let activity { ProcessInfo.processInfo.endActivity(activity) }
+        activity = nil
         server?.stop()
         server = nil
         options.link?.stop()

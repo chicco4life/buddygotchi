@@ -214,7 +214,10 @@ messages:
   the app with Bluetooth on, so the whole hook-to-screen path is tested over
   USB instead ([VERIFICATION.md](VERIFICATION.md) L4).
 
-Nothing above the device link knows which one is in use.
+Nothing above the device link knows which one is in use. While the app
+runs it opts out of App Nap (without keeping the Mac awake), so the
+keepalive every 10 s ([PROTOCOL.md](PROTOCOL.md) §3) isn't delayed past
+the device's 30 s no-app timeout while the popover is closed.
 
 ### 3.8 Push-to-talk
 
