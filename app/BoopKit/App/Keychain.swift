@@ -2,7 +2,9 @@ import Foundation
 import Security
 
 /// API keys for the brains that need one (HARNESS.md §6), kept in the login
-/// Keychain and nowhere else. One entry per service.
+/// Keychain and nowhere else. One entry per service. Both calls can block
+/// while macOS asks for access, so they never run on the main thread or on
+/// the runtime's `home` queue.
 public enum Keychain {
     public enum Account: String, Sendable {
         case jev

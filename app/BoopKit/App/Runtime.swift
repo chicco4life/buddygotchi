@@ -31,6 +31,9 @@ public final class Runtime: @unchecked Sendable {
         public var trace = false
         /// §8's JSONL log of every brain call; nil keeps none.
         public var debugLog: URL?
+        /// Reads Jev's key, off `home` and the main thread, the first time
+        /// the mode needs it: the Keychain may stop to ask for access.
+        public var readJevKey: @Sendable () -> String? = { Brains.jevKey() }
         public var log: @Sendable (String) -> Void = { _ in }
 
         public init(stateDir: URL, socketPath: String, link: DeviceTransport?, steering: String) {
@@ -95,6 +98,10 @@ public final class Runtime: @unchecked Sendable {
     let lock: InstanceLock
     var server: HookServer?
     var timer: DispatchSourceTimer?
+    /// Jev's key, touched only on `home`: nil until read, and then the key
+    /// or none. Until then normal decides with its table.
+    var jevKey: String??
+    var readingJevKey = false
     var projects: [String: String] = [:]
     /// Keeps the brain from cutting anything off (BEHAVIORS.md §3): a
     /// moment an action sends outside the core's effects is the brain's, and
@@ -169,13 +176,15 @@ public final class Runtime: @unchecked Sendable {
         let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: longTerm.seed)), memory: memory)
         react = actions.compactMap { $0 as? ReactAction }.first!
         let memory = self.memory
-        harness = Harness(classifier: Brains.classifier(for: mode, override: options.classifier, key: Brains.jevKey, log: log),
+        // Jev's key isn't read yet: normal starts with its table (`readJevKey`).
+        harness = Harness(classifier: Brains.classifier(for: mode, override: options.classifier == "jev" ? "normal" : options.classifier),
                           writer: Brains.writer(for: mode, override: options.writer, log: log),
                           tools: actions.map(Harness.Tool.init), memory: { _ in memory.promptMemory() },
                           home: home, debugLog: options.debugLog, log: log)
         // Tool names only: arguments can carry what you said (HARNESS.md §8).
         harness.onRecord = { record in log(record.logLine) }
         route = { [weak self] in self?.run($0) }
+        if Brains.wantsJevKey(mode, override: options.classifier) { home.async { [self] in readJevKey() } }
     }
 
     // MARK: Running
@@ -383,19 +392,46 @@ public final class Runtime: @unchecked Sendable {
         }
     }
 
-    /// Builds the mode's brain again, for a new mode or a new Jev key.
-    public func reloadBrains() {
+    /// Builds the mode's brain again with the Jev key Settings just saved
+    /// (nil when it was cleared); `BOOP_JEV_KEY` still wins.
+    public func reloadBrains(jevKey key: String?) {
         home.async { [self] in
+            jevKey = .some(Brains.environmentJevKey() ?? key)
             useBrains()
             changed()
         }
     }
 
+    /// The mode's brains, on `home`. A mode that wants Jev's key before it's
+    /// been read starts it reading and decides with its table meanwhile.
     func useBrains() {
         let log = options.log
-        harness.use(Brains.classifier(for: mode, override: options.classifier, key: Brains.jevKey, log: log),
+        let wantsKey = Brains.wantsJevKey(mode, override: options.classifier)
+        if wantsKey && jevKey == nil { readJevKey() }
+        let (key, override) = (jevKey ?? nil, jevKey == nil && options.classifier == "jev" ? "normal" : options.classifier)
+        harness.use(Brains.classifier(for: mode, override: override, key: { key }, log: log),
                     Brains.writer(for: mode, override: options.writer, log: log))
         log("mode \(mode.rawValue), brain \(harness.classifier.id) + \(harness.writer.id)")
+    }
+
+    /// Reads Jev's key off `home` (HARNESS.md §6): a Keychain prompt there
+    /// would stall every hook, tick and device line until it's answered.
+    /// Then the brains are built again with it. On `home`.
+    func readJevKey() {
+        guard !readingJevKey else { return }
+        readingJevKey = true
+        let read = options.readJevKey
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let key = read()
+            self?.home.async { [weak self] in
+                guard let self else { return }
+                readingJevKey = false
+                // A key Settings saved meanwhile wins.
+                if jevKey == nil { jevKey = .some(key) }
+                useBrains()
+                changed()
+            }
+        }
     }
 
     /// What Boop remembers about you, for the settings screen.

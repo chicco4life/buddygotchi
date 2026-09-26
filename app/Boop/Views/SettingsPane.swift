@@ -177,8 +177,12 @@ struct SettingsPane: View {
                             .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Theme.hairlineStrong, lineWidth: 1))
                             .onChange(of: apiKey) { keySaved = false }
                         Button(keySaved ? "Saved" : "Save") {
-                            keySaved = Keychain.setKey(apiKey, for: .jev)
-                            if keySaved { model.jevKeyChanged() }
+                            // Off the main thread, like the read above.
+                            let key = apiKey
+                            Task {
+                                keySaved = await Task.detached { Keychain.setKey(key, for: .jev) }.value
+                                if keySaved { model.jevKeyChanged(key.isEmpty ? nil : key) }
+                            }
                         }
                             .buttonStyle(.row)
                             .disabled(keySaved)

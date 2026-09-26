@@ -45,8 +45,19 @@ public enum Brains {
         }
     }
 
-    /// Jev's key from `BOOP_JEV_KEY`, else the Keychain.
+    /// Whether the mode, or the override, decides with Jev when it has a key.
+    public static func wantsJevKey(_ mode: Mode, override: String?) -> Bool {
+        override == "jev" || override == nil && mode == .normal
+    }
+
+    /// Jev's key from `BOOP_JEV_KEY`, else the Keychain. May block on a
+    /// Keychain prompt: never call it on the main thread or `home`.
     public static func jevKey() -> String? {
-        ProcessInfo.processInfo.environment[jevKeyVariable].flatMap { $0.isEmpty ? nil : $0 } ?? Keychain.key(.jev)
+        environmentJevKey() ?? Keychain.key(.jev)
+    }
+
+    /// `BOOP_JEV_KEY`, which wins over the Keychain.
+    public static func environmentJevKey() -> String? {
+        ProcessInfo.processInfo.environment[jevKeyVariable].flatMap { $0.isEmpty ? nil : $0 }
     }
 }

@@ -311,7 +311,9 @@ only go by the words, so they err towards today:
 [UX.md](UX.md) §7) is `chatty`, `normal` or `calm`, and takes effect at
 once (§3 step 3). Jev needs its key, from the Keychain or `BOOP_JEV_KEY`;
 without one, normal decides with `NormalRules`, and saving a key in
-Settings brings Jev in at once. A settings file from before the modes
+Settings brings Jev in at once. The key is read off the app's event queue
+and the main thread the first time normal needs it, since a Keychain
+prompt would stall both; normal decides with its table until it arrives. A settings file from before the modes
 (`classifier`, `writer` or `brain`) starts in normal. For one run,
 `--mode`, `--classifier chatty|normal|calm|jev` and `--writer apple|none`
 override the setting and the mode's brains (`Boop --headless`, `boopdev`);

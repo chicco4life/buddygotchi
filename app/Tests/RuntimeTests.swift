@@ -5,8 +5,8 @@ import XCTest
 
 /// The runtime end to end in-process: real hook socket, real core, harness
 /// in chatty mode with no writer, and memory in a temporary state directory;
-/// a fake device. Never normal mode, whose Jev key would come from the
-/// Keychain.
+/// a fake device. Jev's key is never read from the Keychain, and no input
+/// reaches Jev.
 final class RuntimeTests: XCTestCase {
     var dir: URL!
 
@@ -22,14 +22,37 @@ final class RuntimeTests: XCTestCase {
     static let steering = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         .appendingPathComponent("../../plan/steering.md")
 
-    func makeRuntime(_ transport: FakeTransport) throws -> Runtime {
+    func makeRuntime(_ transport: FakeTransport, mode: Mode = .chatty,
+                     readJevKey: @escaping @Sendable () -> String? = { nil }) throws -> Runtime {
         try Runtime.setUp(stateDir: dir, name: "Pip", nature: .sweet, today: LocalTime().day(Int64(Date().timeIntervalSince1970 * 1000)))
         var options = Runtime.Options(stateDir: dir, socketPath: dir.appendingPathComponent("boop.sock").path,
                                       link: transport, steering: try String(contentsOf: Self.steering, encoding: .utf8))
-        options.mode = .chatty
+        options.mode = mode
         options.writer = "none"
         options.devLines = true
+        options.readJevKey = readJevKey
         return try Runtime(options)
+    }
+
+    /// HARNESS.md §6: in normal mode Jev's key is read off `home`, since a
+    /// Keychain prompt would stall every event, and normal's table decides
+    /// until it arrives; a key Settings saves or clears takes over at once.
+    func testJevsKeyIsReadOffHome() throws {
+        let prompt = DispatchSemaphore(value: 0)
+        let runtime = try makeRuntime(FakeTransport(), mode: .normal) {
+            prompt.wait()  // as a Keychain prompt waits for an answer
+            return "k"
+        }
+        var statuses: [Runtime.Status] = []  // on `home`
+        runtime.onChange = { statuses.append($0) }
+        runtime.refresh()
+        wait("home answers while the key is read") { runtime.home.sync { statuses.last?.classifier == "normal@1" } }
+        prompt.signal()
+        wait("Jev once it's read") { runtime.home.sync { statuses.last?.classifier == "jev:jev-latest" } }
+        runtime.reloadBrains(jevKey: nil)
+        wait("the table when Settings clears it") { runtime.home.sync { statuses.last?.classifier == "normal@1" } }
+        runtime.reloadBrains(jevKey: "k2")
+        wait("Jev when Settings saves one") { runtime.home.sync { statuses.last?.classifier == "jev:jev-latest" } }
     }
 
     func wait(_ what: String, timeout: TimeInterval = 3, _ condition: () -> Bool) {
