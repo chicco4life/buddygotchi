@@ -21,7 +21,7 @@ board.
 | Screen | 2.4" IPS TFT, 240×320, ST7789, 4-wire SPI, RGB565 (RGB666 max) | Active area 36.2 × 49 mm; 0.15 mm pixels (~169 ppi); viewable from all angles. Boop uses it sideways, as 320×240 (§4) |
 | Backlight | 4 white LEDs through a MOSFET, 220 cd/m² typical | GPIO21: high is on, PWM dims it |
 | Touch | Resistive, XPT2046, SPI on its own pins | Needs a firm press; viewing window 38.36 × 50.70 mm |
-| Audio | 8-bit DAC on GPIO26 → on-board amp (enable GPIO4, **active low**) → 2-pin speaker header | Nothing attached yet (§3) |
+| Audio | 8-bit DAC on GPIO26 → on-board amp (enable GPIO4, **active low**) → 2-pin speaker header | A speaker is attached (§3) |
 | Light | RGB LED, common anode (**active low**): R GPIO22, G GPIO16, B GPIO17 | On the back of the board, so it shows as a glow |
 | Buttons | BOOT (IO0) and RESET (EN) | BOOT is usable as a normal button after boot |
 | USB | USB-C, power and programming through an on-board CH340 USB-serial bridge (1a86:7523) with auto-reset | Shows up as `/dev/cu.usbserial-*`; no need to hold BOOT to flash. 460800 baud at most with macOS's driver (§7) |
@@ -77,7 +77,7 @@ pin table. The pin table wins.
 | --- | --- | --- |
 | Main button | **None.** BOOT (IO0) acts as the main button | External button on IO35: button to GND, 10 kΩ pull-up to 3.3 V |
 | Secondary button | **None.** Touch covers its jobs ([UX.md](UX.md) §4) | BOOT becomes the secondary button |
-| Speaker | **None.** The audio code runs, but nothing is heard | 8 Ω, 1–2 W speaker on the 2-pin speaker header |
+| Speaker | On the 2-pin speaker header since 2026-09-26 | The same; the header takes an 8 Ω, 1–2 W speaker |
 | Vibration motor | **None.** The buzz rung becomes three strong amber light pulses ([BEHAVIORS.md](BEHAVIORS.md) §3.2) | Coin motor on GPIO27 through an N-MOSFET, with a flyback diode |
 | Battery | **None.** USB power only; battery sense reads nothing useful | Protected 3.7 V LiPo on the battery header |
 
@@ -255,8 +255,8 @@ circuit, which reboots the board. `boopctl` leaves them alone.
    and calibration need a person (morning checklist).
 6. **LED:** red, green, blue and amber. It's on the back, so check the
    colour of the glow on the webcam or by eye.
-7. **Audio:** the amp enables and the DAC runs (reported over USB). It's
-   silent until a speaker is attached.
+7. **Audio:** the amp enables and the DAC runs (reported over USB). Hearing it
+   needs a person: `tools/boopctl mumble` plays every feeling.
 8. **Bluetooth:** advertises as `Boop-XXXX` (the last 4 hex digits of the
    MAC). Connecting needs the Mac app, which the owner launches.
 

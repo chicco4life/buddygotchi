@@ -211,10 +211,11 @@ dialects, 4 came out as the safe hum (2026-09-26).
   on `m`, `b` and `p`. The bubble shows only the real word, with small
   squiggles for the gibberish around it. With the sound off, the bubble and
   mouth still play.
-- **Bare board.** The v1 board has no speaker ([DEVICE.md](DEVICE.md) §3).
-  Everything still runs, and tests check playback through `dbg.state`
+- **Checking it.** Tests check playback through `dbg.state`
   ([VERIFICATION.md](VERIFICATION.md) §3). The sound itself is checked by
-  ear once a speaker is attached.
+  ear on the bench board's speaker ([DEVICE.md](DEVICE.md) §3):
+  `tools/boopctl mumble`, `volume` and `sound` play it on demand
+  ([VERIFICATION.md](VERIFICATION.md) §2).
 
 ## 9. How often Boop talks
 

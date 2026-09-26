@@ -144,7 +144,8 @@ into the app's resources, and a unit test fails if the copies differ.
 
 Order: **M0 → F1 → F2 → F3 → F4 → A1 → A2 → A3 → A4 → J1 → F5 → J2 → J3.**
 Bluetooth (F4) comes before the app track so the morning test can use it.
-Sound (F5) comes late because there's no speaker to hear it. F6, A5 and A6
+Sound (F5) came late because there was no speaker to hear it; one was
+attached on 2026-09-26. F6, A5 and A6
 came after the build, at the owner's request.
 
 Statuses are Not started, In progress, Passed, or Blocked (with the reason).
@@ -161,7 +162,7 @@ Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 | A3 | Harness and brains | Passed (under the owner's 2026-09-26 ruling; known issues in `A3/README.md`) |
 | A4 | Device link, app shell, push-to-talk, installer | Passed |
 | J1 | End to end over USB | Passed |
-| F5 | Voice on the device | Passed |
+| F5 | Voice on the device | Passed. Heard on a speaker on 2026-09-26: every feeling's mumble, the chirp and the jingle play, and volume 1 and 10 sound clearly different ([evidence](evidence/2026-09-26-speaker/README.md)) |
 | J2 | Soak and polish | Passed |
 | J3 | Handoff | Passed |
 | F6 | Landscape and cuter eyes | In progress: code, L0, L1 and L2 pass. The board runs the landscape build, its 83 screenshots in 11 scenarios match the simulator pixel for pixel, and `perf --motion` gives at least 49 fps (50 over 30 s, 49 over 60 s) with 72.7 KB free. Only the owner's look (orientation and liking the face) and touch calibration remain (morning checklist rows 2–3). [Evidence](evidence/v1-build/F6/README.md) Follow-up (gen-2's look: smaller lavender eyes, "^" arches, a heart on a tap, "zzZZ" asleep, effort and a sweat drop working, an open-eyed no-app face): L0 91/91, L1 83 goldens re-accepted, flashed; board screenshots of asleep, a tap and working look right, `perf --motion` minimum 41 fps over 60 s. Not yet run: a full L2 `boopctl run` (the Mac app was connected over Bluetooth). [Evidence](evidence/2026-09-26-gen2-look/README.md) |

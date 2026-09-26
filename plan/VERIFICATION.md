@@ -64,6 +64,11 @@ Each level answers a different question:
 | `clock freeze T \| step MS \| run` | Control the device clock for repeatable frames |
 | `pattern` | Show the bring-up test pattern |
 | `voice [--count N] [--json]` | F5's L2 check: plays lines built by the Mac's Voice (`boopdev voice --json`), N per feeling with and without a word, and checks `audio.out` in `dbg.state` for each: the syllable count, the word, and the duration the DAC took within 10% of beats × `ms`. Then checks that a muted line moves the mouth and plays nothing |
+| `mumble [feeling…] [--word W \| --no-word] [--vol N] [--seed N]` | For hearing Boop by hand. Plays a line built by the Mac's Voice for every feeling (or the ones named), without and then with its usual word, and says whether `audio.out` counted each one. It prints its seed, and `--seed` plays the same lines again |
+| `volume [level…] [--rounds N]` | For comparing volumes by ear. Plays one fixed line at each level in turn (1 then 10 by default), for 6 rounds, and says whether the board played each one in full |
+| `sound chirp\|jingle [--vol N]` | Plays a sound cue the way the Mac causes it: the chirp with a new `attn` (then cleared, so Boop nods), the jingle with a size 2 `cheer`. Checks `sfx` in `dbg.state` |
+| `moment <anim> [--size N] [--say FEELING [--word W]] [--base B]` | Plays one animation or face from the set ([BEHAVIORS.md](BEHAVIORS.md) §7), optionally with a mumble, and checks that the device took it |
+| `needs [--seconds S] [--agent A] [--project P] [--more N]` | Holds a fake "needs you" (130 s by default, past rung 3), printing each rung as the device reaches it, then clears it; Ctrl-C clears it early |
 | `perf --seconds N [--motion]` | Sample fps and heap over time; `--motion` plays moments back to back so every sample is mid-motion |
 | `e2e [--brain rules\|apple] [fixture…]` | The L4 pipeline check (`make e2e`): bridge, headless app, the J1 fixtures through the real `boop-hook`, checkpoints, latency, memory and ordering |
 | `e2e --soak MIN [--brain rules\|apple]` | J2's pipeline soak: the same fixtures on a loop for MIN minutes, a tap on the board between rounds, then a quiet minute. Samples `dbg.ping`, `audio.out.errors` and the app's memory; fails on a board reset, a heap-minimum drift over 2 KB, audio errors, the app exiting, or anything left on screen (not the plain face, `attn` or a moment) at the end. Checkpoint misses are counted and reported. A debug request that loses its reply (the CH340 rarely drops bytes over a long run) is retried once and counted as a link glitch |
@@ -94,8 +99,8 @@ At 460800 baud a screenshot takes about 2.3 s. `dbg.ping` also reports
 `dbg.state` also carries the behaviour's own view: `hushed` (tapped during
 needs you), `life` (the idle-life event showing: `blink`, `glance`, `peek`,
 `bob`, `rumble` or null), `night`, `hungry`, and `sfx`, the last sound cue
-with its time (`chirp`, `jingle` or `pulse`, for F5's player and for tests
-while there's no speaker). `audio.playing` is true while the mouth follows a
+with its time (`chirp`, `jingle` or `pulse`, for F5's player and for tests,
+which can't hear). `audio.playing` is true while the mouth follows a
 mumble. `audio.out` is what the sound output did: `ready` (the DAC
 started), `playing` (a line or cue, amp on), `lines` finished since boot,
 and the last line's `syl`, `word`, `plan_ms` (beats × `ms`), `out_ms`
@@ -314,7 +319,7 @@ this Mac with an 8K context.
 
 These can't be checked without a person: Bluetooth connection (launching
 the app with Bluetooth), the mic and speech recognition, real touches and
-touch calibration, sound (when a speaker is attached), real Claude Code and
+touch calibration, sound (by ear, with `boopctl mumble`, `volume` and `sound`), real Claude Code and
 Codex sessions with installed hooks, the Mac app in the real menu bar, and
 how Boop feels. They're on the
 morning checklist in [PLAN.md](PLAN.md).
