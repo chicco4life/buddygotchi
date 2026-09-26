@@ -279,6 +279,38 @@ static void test_physical_hold_sends_talk_on_and_off() {
   TEST_ASSERT_TRUE(has(r.usb.text, "\"k\":\"talk_off\""));
 }
 
+// VERIFICATION.md §3: a clock a tool froze runs again after 60 s with no
+// dbg.* message, from where it stopped, so a tool that dies mid-run can't
+// leave the board still: no-app, blinks and BOOT all need a moving clock.
+// Traffic from the Mac doesn't count; the simulator's own start stays frozen.
+static void test_a_frozen_clock_runs_again_after_60s_without_debug() {
+  Rig r;
+  r.hal.real = 100000;
+  r.dev.tick();
+  TEST_ASSERT_EQUAL_UINT32(0, r.dev.now());  // started frozen: not a tool's doing
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":5000}");
+  r.hal.real = 130000;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  r.hal.real = 159999;
+  r.dev.tick();
+  TEST_ASSERT_EQUAL_UINT32(5000, r.dev.now());
+  r.hal.real = 160000;
+  r.dev.tick();
+  r.hal.real = 160250;
+  TEST_ASSERT_EQUAL_UINT32(5250, r.dev.now());
+  // dbg.reset freezes it too, and any dbg.* message holds it another 60 s.
+  r.usbLine("{\"t\":\"dbg.reset\"}");
+  r.hal.real = 200000;
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  r.hal.real = 259999;
+  r.dev.tick();
+  TEST_ASSERT_EQUAL_UINT32(0, r.dev.now());
+  r.hal.real = 260000;
+  r.dev.tick();
+  r.hal.real = 261000;
+  TEST_ASSERT_EQUAL_UINT32(1000, r.dev.now());
+}
+
 static void test_shot_is_header_then_base64() {
   Rig r;
   r.usbLine("{\"t\":\"dbg.shot\"}");
@@ -652,6 +684,7 @@ int main() {
   RUN_TEST(test_pattern_until_next_state);
   RUN_TEST(test_injected_tap_reaches_the_mac);
   RUN_TEST(test_physical_hold_sends_talk_on_and_off);
+  RUN_TEST(test_a_frozen_clock_runs_again_after_60s_without_debug);
   RUN_TEST(test_shot_is_header_then_base64);
   RUN_TEST(test_light_sets_the_led);
   RUN_TEST(test_motion_redraws_at_most_every_16ms);

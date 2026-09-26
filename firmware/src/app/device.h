@@ -147,6 +147,8 @@ class Device {
   Link link_ = Link::kNone;  // the link the Mac last spoke on
   uint32_t heardReal_ = 0;   // real time the Mac last spoke, for USB's "connect"
   uint32_t statusReal_ = 0;  // real time of the last status
+  uint32_t dbgReal_ = 0;     // real time of the last dbg.* message
+  bool toolFrozen_ = false;  // a dbg.* message froze the clock (not the simulator's start)
 
   Screen screen_ = Screen::kFace;
   bool pattern_ = false;  // dbg.pattern until the next state

@@ -19,6 +19,10 @@ constexpr uint32_t kStatusMs = 60000;  // PROTOCOL.md §4
 // Motion redraws at most this often, in real ms: about 60 fps, while the
 // pixel face changes at most about 32 times a second (DEVICE.md §6).
 constexpr uint32_t kFrameMs = 16;
+// A clock a tool froze runs again after this long, in real ms, with no
+// dbg.* message, so a tool that dies mid-run can't leave the board
+// stopped (VERIFICATION.md §3).
+constexpr uint32_t kThawMs = 60000;
 
 void copyStr(char* dst, size_t n, const char* src) { std::snprintf(dst, n, "%s", src ? src : ""); }
 
@@ -51,6 +55,7 @@ Device::Device(Hal& hal, uint8_t* pixels, bool frozenClock) : hal_(hal), canvas_
 // starts from the same place on the board and in the simulator.
 void Device::reset() {
   clock_.freeze(0);
+  toolFrozen_ = true;
   rng_.seed(0);
   b_.reset(0, rng_);
   hush();
@@ -95,6 +100,7 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
   bool hello = !debug && from == Link::kUsb &&
                (link_ != Link::kUsb || real - heardReal_ >= Behaviour::kNoAppMs);
   if (!debug) link_ = from, heardReal_ = real;
+  else dbgReal_ = real;
   uint32_t at = now();
   b_.advance(at, rng_);
 
@@ -188,10 +194,13 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
       uint32_t to = doc["freeze"];
       clock_.freeze(to);
       rng_.seed(to);
+      toolFrozen_ = true;
     } else if (doc["step"].is<uint32_t>()) {
       clock_.step(doc["step"].as<uint32_t>(), real);
+      toolFrozen_ = true;
     } else if (doc["run"].as<bool>()) {
       clock_.run(real);
+      toolFrozen_ = false;
     }
     char buf[64];
     int len = std::snprintf(buf, sizeof(buf), "{\"t\":\"dbg.clock\",\"now\":%lu,\"frozen\":%s}",
@@ -299,6 +308,7 @@ void Device::readInputs(uint32_t t) {
 
 void Device::tick() {
   if (link_ != Link::kNone && hal_.realMs() - statusReal_ >= kStatusMs) sendStatus(link_);
+  if (toolFrozen_ && hal_.realMs() - dbgReal_ >= kThawMs) clock_.run(hal_.realMs()), toolFrozen_ = false;
   uint32_t t = now();
   b_.advance(t, rng_);
   readInputs(t);
