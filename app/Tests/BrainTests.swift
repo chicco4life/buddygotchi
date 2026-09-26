@@ -186,6 +186,12 @@ final class InputMenuTests: XCTestCase {
     func testQuietIsOnTheMenuOnlyWhenAsked() {
         XCTAssertEqual(input(.said, words: "be quiet for an hour").menu, ["quiet", "react", "remember"])
         XCTAssertEqual(input(.said, words: "shut up for an hour").menu, ["react", "remember"])
+        // Remember wins over quiet, for the menu and the core as for the
+        // phrase table: "remember I like it quiet" isn't asking for quiet.
+        XCTAssertFalse(input(.said, words: "remember I like it quiet in the mornings").asksForQuiet)
+        XCTAssertEqual(input(.said, words: "remember I like it quiet in the mornings").menu, ["react", "remember"])
+        XCTAssertTrue(input(.said, words: "remember to be quiet", yelled: true).asksForQuiet)
+        XCTAssertTrue(input(.said, words: "be quiet, you idiot, remember").asksForQuiet)
         XCTAssertEqual(input(.agentFinished).menu, ["react"])
         XCTAssertEqual(input(.poked).menu, ["react"])
     }

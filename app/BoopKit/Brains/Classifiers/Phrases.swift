@@ -30,8 +30,8 @@ enum Phrases {
     /// says whether a yell or telling off gets a sad mumble or nothing.
     static func reply(to input: Input, hurtMumbles: Bool) -> ([ToolCall], String) {
         let words = Input.plain(input.words ?? "")
-        let hurt = input.yelled || tellsOff(words)
-        if !hurt && [" remember ", " note "].contains(where: words.contains) {
+        let hurt = input.yelled || Input.tellsOff(words)
+        if input.asksToRemember {
             let place = place(input.words ?? "")
             return ([react("happy"), ToolCall("remember", ["where": .string(place)])], "asked to remember, \(place)")
         }
@@ -46,19 +46,6 @@ enum Phrases {
         return ([react("curious")], "said anything else")
     }
 
-    /// Being told off (BEHAVIORS.md §3.3): one of these, or "you" with an
-    /// insult, so "you're so annoying" counts and "this build is annoying"
-    /// doesn't.
-    static let tellingOff = [" shut up ", " go away ", " hate you ", " you suck ", " hush ", " stop talking ",
-                             " keep it down "]
-    static let you = [" you ", " you're ", " youre ", " ur "]
-    static let insults = [" annoying ", " stupid ", " dumb ", " useless ", " idiot "]
-
-    /// Plain words (`Input.plain`) that tell Boop off.
-    static func tellsOff(_ words: String) -> Bool {
-        tellingOff.contains(where: words.contains)
-            || you.contains(where: words.contains) && insults.contains(where: words.contains)
-    }
     static let greetings = [" hello ", " hi ", " hey ", " morning ", " good morning "]
     static let goodbyes = [" bye ", " goodbye ", " see you ", " good night ", " goodnight "]
     static let meals = [" lunch ", " dinner ", " breakfast ", " food ", " snack ", " hungry "]

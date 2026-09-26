@@ -106,9 +106,10 @@ which starts short-term memory fresh; nothing reflects on the day before
 3. **Open the pass.** The input and the rules' reaction join the
    transcript, moving the window first when it's full (§4). The menu is the
    input's outputs, in the order they run, with the actions' definitions as
-   they are now. `quiet` is on it only when your words ask for quiet: its
-   action would refuse it otherwise, and a brain isn't asked what the
-   rules decide.
+   they are now. `quiet` is on it only when your words ask for quiet
+   ("quiet" as a whole word, and not asking Boop to remember something,
+   `Input.asksForQuiet`): its action would refuse it otherwise, and a brain
+   isn't asked what the rules decide.
    The pass keeps the classifier and writer it starts with: a new mode
    (§6) takes the next pass, and one already running finishes with its
    own.
@@ -214,7 +215,7 @@ can come from, in order (the writer picks one before the value, §7).
 | Output | Decided | Written | What it does |
 | --- | --- | --- | --- |
 | `react` | `feeling`, one of ten | `word`: `none` or one of Voice's 40 words ([VOICE.md](VOICE.md) §6), from what they said, the failed topic, how the turn went or the feeling (`steering.md`, Writing) | A mumble: a Minion line from Voice in the feeling's sound, with the word, played over whatever face is showing. The brain's faces are parked ([FUTURE.md](FUTURE.md)), so staying silent is not calling `react`. A mumble is dropped in quiet mode or while something needs you |
-| `quiet` | `minutes`: 15, 30, 60 or 120 | — | The core's quiet mode: no mumbles, and agent inputs skip the brain. The action runs only when the last thing you said asked for quiet ("quiet" in your words), whichever classifier decided ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
+| `quiet` | `minutes`: 15, 30, 60 or 120 | — | The core's quiet mode: no mumbles, and agent inputs skip the brain. The action runs only when the last thing you said asked for quiet ("quiet" in your words, and not asking Boop to remember something), whichever classifier decided ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
 | `remember` | `where`: `today`, `about_you` or `preference` | `text` | A line in that part of memory, under its own rules |
 
 | Feeling | Its mumble sounds |
@@ -287,7 +288,7 @@ wins and whole words only; a curly apostrophe counts as a straight one
 
 | You said | Decides |
 | --- | --- |
-| "remember" or "note", unless you yelled or told Boop off | `react(happy)` and `remember(where)`, where from the words below. It wins over "quiet": "remember I like it quiet" isn't asking for quiet |
+| "remember" or "note", unless you yelled or told Boop off | `react(happy)` and `remember(where)`, where from the words below. It wins over "quiet", for the menu and the quiet action too: "remember I like it quiet" isn't asking for quiet |
 | "quiet" | `quiet`: two hours 120, fifteen 15, half an hour 30, an hour 60, else 30. Nothing else, yelled or not: Boop is quiet now |
 | You yelled, or told Boop off: "shut up", "go away", "hate you", "you suck", "hush", "stop talking", "keep it down", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot" | `react(sad)` in chatty and normal; nothing in calm |
 | "hello", "hi", "hey" or "morning" | `react(happy)` |

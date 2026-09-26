@@ -112,7 +112,7 @@ final class HarnessTests: XCTestCase {
         let rig = HarnessRig(classifier: FakeClassifier { _ in
             [remember("today"), react("happy"), ToolCall("quiet", ["minutes": .number(30)])]
         }, writer: writer)
-        let records = await run(rig, [input(.said, words: "be quiet, and remember the demo")])
+        let records = await run(rig, [input(.said, words: "be quiet, the demo is on Thursday")])
         XCTAssertEqual(rig.snapshot.handled, [ToolCall("quiet", ["minutes": .number(30)]), react("happy", word: "hi"),
                                               remember("today", "demo Thu")])
         XCTAssertEqual(records[0].slots, ["react.word", "remember.text"])

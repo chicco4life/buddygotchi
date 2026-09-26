@@ -91,8 +91,8 @@ public final class ReactAction: Action {
 }
 
 /// `quiet(minutes)`: tells the core to stop mumbles for a while, only when
-/// the last thing you said asked for quiet, whatever the classifier decided
-/// (BEHAVIORS.md §3.3). The core zips Boop's mouth as quiet starts.
+/// the last thing you said asked for quiet (`Input.asksForQuiet`), whatever
+/// the classifier decided (BEHAVIORS.md §3.3).
 public final class QuietAction: Action {
     public let context: ActionContext
 

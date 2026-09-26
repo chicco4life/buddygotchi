@@ -134,9 +134,34 @@ public struct Input: Equatable, Sendable {
     }
 
     /// Your words asked Boop to be quiet: they have "quiet" in them, as a
-    /// whole word ("be quiet"). Only then may `quiet` run (BEHAVIORS.md §3.3).
+    /// whole word ("be quiet"), and don't ask it to remember something
+    /// ("remember I like it quiet"). Only then may `quiet` run, whoever
+    /// decided it: the menu, the core and the quiet action all ask this
+    /// (BEHAVIORS.md §3.3).
     public var asksForQuiet: Bool {
-        kind == .said && Input.plain(words ?? "").contains(" quiet ")
+        kind == .said && Input.plain(words ?? "").contains(" quiet ") && !asksToRemember
+    }
+
+    /// Your words asked Boop to remember something: "remember" or "note",
+    /// unless you yelled or told Boop off (HARNESS.md §6).
+    public var asksToRemember: Bool {
+        guard kind == .said, !yelled else { return false }
+        let plain = Input.plain(words ?? "")
+        return [" remember ", " note "].contains(where: plain.contains) && !Input.tellsOff(plain)
+    }
+
+    /// Being told off (BEHAVIORS.md §3.3): one of these, or "you" with an
+    /// insult, so "you're so annoying" counts and "this build is annoying"
+    /// doesn't.
+    static let tellingOff = [" shut up ", " go away ", " hate you ", " you suck ", " hush ", " stop talking ",
+                             " keep it down "]
+    static let you = [" you ", " you're ", " youre ", " ur "]
+    static let insults = [" annoying ", " stupid ", " dumb ", " useless ", " idiot "]
+
+    /// Plain words (`plain`) that tell Boop off.
+    static func tellsOff(_ plain: String) -> Bool {
+        tellingOff.contains(where: plain.contains)
+            || you.contains(where: plain.contains) && insults.contains(where: plain.contains)
     }
 
     /// Lowercase words between single spaces, padded, so a phrase matches

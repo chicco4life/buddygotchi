@@ -114,7 +114,8 @@ chirps again. The brain is never involved here.
 | No reply | After BOOT is released, the device waits at most 8 s for the reply, then the face blends back | — |
 
 **Asked to be quiet, told off or yelled at.** Only words with "quiet" in
-them, as a whole word ("be quiet"), let `quiet` run, whoever decided it:
+them, as a whole word ("be quiet"), let `quiet` run, whoever decided it,
+unless they ask Boop to remember something ("remember I like it quiet"):
 only then is it on the brain's menu, and the action checks too. What counts as telling Boop off is the if-else
 classifier's table ([HARNESS.md](HARNESS.md) §6). You yelled if, while the
 Mac's mic was on, it heard you at −18 dBFS or louder for 300 ms or more in
