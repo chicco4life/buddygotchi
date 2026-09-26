@@ -224,6 +224,9 @@ public struct Eval: Sendable {
         public var classifier: String
         public var writer: String
         public var steps: [StepResult]
+        /// The passes the brains made themselves, for `Summary`: a step that
+        /// scripts a stage (a crash, a refusal, words) is left out.
+        public var brainPasses: [Harness.Record] = []
         public var passed: Bool { steps.allSatisfy(\.passed) }
     }
 
@@ -235,6 +238,8 @@ public struct Eval: Sendable {
     public var memory: URL
     /// 2026-10-14 14:00 UTC, as `boopdev replay` starts.
     public var start: Int64 = Replay.defaultStart
+    /// HARNESS.md §8's log of every pass, for `boopdev eval`; nil keeps none.
+    public var debugLog: URL?
     public var time = LocalTime(timeZone: TimeZone(identifier: "UTC")!)
 
     public init(classifier: @escaping @Sendable (Mode) -> any Classifier = Eval.rules,
@@ -282,10 +287,11 @@ public struct Eval: Sendable {
             let harness = Harness(classifier: ScriptedClassifier(base: classifier(mode), script: script),
                                   writer: ScriptedWriter(base: writer(mode), script: script),
                                   tools: actions.map(Harness.Tool.init),
-                                  memory: { _ in store.promptMemory() }, home: home)
+                                  memory: { _ in store.promptMemory() }, home: home, debugLog: debugLog)
             return (core, harness, pending, actions.map(\.definition))
         }
 
+        var brainPasses: [Harness.Record] = []
         /// Carries out effects as the app does, and runs each input through
         /// the harness in turn; returns what each pass did, and the rule
         /// reactions when the scenario asks.
@@ -296,7 +302,9 @@ public struct Eval: Sendable {
                 let effect = queue.removeFirst()
                 switch effect {
                 case .input(let input):
-                    out.append(.pass(await harness.respond(to: input)))
+                    let record = await harness.respond(to: input)
+                    out.append(.pass(record))
+                    if !script.scripted { brainPasses.append(record) }
                     queue += home.sync { defer { pending.effects = [] }; return pending.effects }
                 case .aside(let line):
                     home.sync { harness.note(line, at: clock.now) }
@@ -371,7 +379,7 @@ public struct Eval: Sendable {
         }
         results.append(result(scenario.steps[scenario.steps.count - 1], records))
         return Result(scenario: scenario, mode: mode, classifier: classifier(mode).id, writer: writer(mode).id,
-                      steps: results)
+                      steps: results, brainPasses: brainPasses)
     }
 
     static func apply(_ step: Scenario.Event, to core: Core, at now: Int64) -> [CoreEffect] {
@@ -503,6 +511,7 @@ final class Script: @unchecked Sendable {
 
     var forClassifier: Scenario.ScriptedClassifier? { lock.withLock { classifier } }
     var forWriter: Scenario.ScriptedWriter? { lock.withLock { writer } }
+    var scripted: Bool { lock.withLock { classifier != nil || writer != nil } }
 }
 
 /// The virtual clock, read by the actions' context.

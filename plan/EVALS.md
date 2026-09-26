@@ -1,6 +1,6 @@
 # Boop: harness evals
 
-Updated 2026-09-26. Named scenarios for what the harness should do in each
+Updated 2026-09-27. Named scenarios for what the harness should do in each
 mode, how they run, and what each one checks.
 
 ## 1. What they're for
@@ -34,19 +34,22 @@ checked live with its key.
 ## 2. Running them
 
 ```sh
-make eval                                                  # every scenario in chatty and calm, no writer
-app/.build/debug/boopdev eval --mode calm                  # one mode
-app/.build/debug/boopdev eval --only told                  # scenarios whose name or file matches
-app/.build/debug/boopdev eval --json FILE                  # also write a report, to diff two runs
-app/.build/debug/boopdev eval --writer apple --runs 5      # Apple's model writes; every run must pass
-BOOP_JEV_KEY=… app/.build/debug/boopdev eval --mode normal --writer apple --runs 3   # normal: Jev decides
+make eval                                         # every scenario in chatty and calm (if-else tables), no writer
+make eval REAL=1                                  # the real brains, 3 runs each, then refusals and latency
+app/.build/debug/boopdev eval --mode calm         # one mode
+app/.build/debug/boopdev eval --only told         # scenarios whose name or file matches
+app/.build/debug/boopdev eval --json FILE         # also write a report, to diff two runs
+app/.build/debug/boopdev watch FILE               # every pass of a run, readably: the FILE it names
 ```
 
-`boopdev eval` prints `pass` or `FAIL` for each scenario in each mode, then
-a diff of each failed step, with how Stage 1 got to each pass (the rule
-that matched, or Jev's answers), and exits 1 if any failed. Normal's
-expectations run against the chatty table
-(`boopdev eval --mode normal --classifier chatty --only 03`):
+`boopdev eval --help` lists the rest. It prints `pass` or `FAIL` for each
+scenario in each mode, then a diff of each failed step, with how Stage 1
+got to each pass (the rule that matched, or Jev's answers), and exits 1 if
+any failed. Every pass, with the memory and window the brains read and the
+words written, goes to the run's own file in `/tmp/boop-eval`, which it
+names at the start and the end ([HARNESS.md](HARNESS.md) §8); files over a
+day old are cleared away. Normal's expectations run against the chatty
+table (`boopdev eval --mode normal --classifier chatty --only 03`):
 
 ```
 FAIL  normal  03-turn-failed.json  A failed turn gets an annoyed mumble in every mode
@@ -63,13 +66,18 @@ character across every scenario: in chatty, every agent input and poke
 streak gets a mumble; in calm, the brain mumbles only at a failed turn or
 when you talk to it, and the rules never chatter.
 
-With a model, `--runs N` runs each scenario N times and passes it only if
-every run does, since a model can answer differently from one run to the
-next. Run the suite this way after changing `steering.md`, a definition's
-questions or a brain's prompt: chatty and calm with Apple's model
-(`--writer apple`), and normal, which needs Jev's key in `BOOP_JEV_KEY`,
-with Apple's model. `--classifier` runs any mode's scenarios with another
-classifier, for comparison.
+`make eval REAL=1` (`boopdev eval --real`) runs every mode with the brains
+the app would run: Apple's model writes, and normal decides with Jev by
+itself, which needs its key in `BOOP_JEV_KEY` (without it, normal is
+skipped with one line). Each scenario runs 3 times (`--runs`) and passes
+only if every run does, since a model can answer differently from one run
+to the next. Then it sums up the real brains' passes, leaving out steps
+that script a stage: refusals, Stage 1's answers off the menu, the
+writer's slots filled, the calls actions dropped, and each input kind's
+latency against its deadline ([VERIFICATION.md](VERIFICATION.md) L5). Run
+it after changing `steering.md`, a definition's questions or a brain's
+prompt. `--classifier` runs any mode's scenarios with another classifier,
+for comparison.
 
 ## 3. A scenario
 

@@ -49,7 +49,7 @@ shim.
 ```sh
 make build        # Boop, boop-hook, boopdev; signs Boop as "Boop Dev" if you have that certificate
 make test         # Swift unit tests
-make eval         # the harness eval scenarios
+make eval         # the harness eval scenarios; REAL=1 runs the real brains
 make run          # the Mac app, with Bluetooth (from your own terminal)
 make debug        # the same, printing hooks, decisions, device lines and every brain pass as they happen
 make tools        # tools/.venv with pyserial and Pillow, for boopctl
@@ -79,10 +79,8 @@ tools/boopctl calibrate                    # touch calibration: tap 4 crosses (n
 
 ```sh
 boopdev replay <hooks.jsonl>               # hooks through the adapter and core, on a virtual clock
-boopdev memory --state-dir DIR             # the memory files as the store reads them
 boopdev voice <feeling> [word]             # Minion lines as `react` builds them
-boopdev brain [--mode chatty|normal|calm] [--classifier chatty|calm|jev] [--writer apple|none|deepseek] [--print]  # the brain on recorded inputs (L5); jev needs BOOP_JEV_KEY
-boopdev eval [--mode chatty|normal|calm] [--writer apple] [--runs N]  # the eval scenarios per mode (make eval: chatty and calm); normal needs BOOP_JEV_KEY; with Apple's model, N runs each
+boopdev eval [--real] [--mode chatty|normal|calm] [--runs N]  # the eval scenarios (make eval; make eval REAL=1 is --real)
 boopdev watch [FILE]  # read debug mode's debug.jsonl readably, as make debug prints it
 boopdev hooks status|install|remove --home DIR
 boopdev talk "<words>" [--yelled] --socket PATH   # a push-to-talk transcript to a headless app

@@ -390,7 +390,7 @@ public final class Harness: @unchecked Sendable {
         onRecord?(record)
     }
 
-    /// One input straight through, without the queue: for `boopdev brain`.
+    /// One input straight through, without the queue: for the evals.
     /// Don't call on `home`.
     public func respond(to input: Input) async -> Record {
         let pass = home.sync { prepare(input) }

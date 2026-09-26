@@ -39,14 +39,14 @@ Each level answers a different question:
 | --- | --- |
 | `make build` / `make sign` | Builds the Mac app, `boop-hook` and `boopdev`. When the login keychain has a code-signing identity named "Boop Dev" (or `SIGN_IDENTITY`), it then re-signs `Boop` with it, so the Keychain keeps recognising the app across rebuilds and stops asking for the Jev key each time. Without one, the build stays ad-hoc signed. The owner makes the certificate once: Keychain Access → Certificate Assistant → Create a Certificate…, name "Boop Dev", type Code Signing |
 | `make test` | Swift unit tests. There's no Xcode here, so this runs the XCTest shim: `python3 app/tools/test.py`, which runs `swift run BoopTests` |
-| `make eval` | The harness eval scenarios ([EVALS.md](EVALS.md)): `boopdev eval` |
+| `make eval` | The harness eval scenarios ([EVALS.md](EVALS.md)): `boopdev eval`. `make eval REAL=1` runs them with the real brains (L5) |
 | `make fw-test` | Firmware unit tests on the Mac: `pio test -e native` |
 | `make sim` / `tools/boopctl sim` | The simulator. It builds the same drawing and behaviour code as the firmware for the Mac, runs a scenario, and writes PNGs |
 | `tools/boopctl` | The new device tool, replacing `buddyctl.py`. It's Python in `tools/.venv` (pyserial, Pillow), created by `make tools` |
 | `tools/boopctl bridge` | Owns the USB serial port and shares it through a Unix socket (`--socket`, default `$BOOP_BRIDGE` or `/tmp/boop-bridge.sock`), so the Mac app and other `boopctl` commands can use the board at the same time. Every line from the board goes to every client, and each client's lines reach the board whole. It never waits on a client: a client that stops reading and falls 4 MB behind is dropped, so a paused `boopctl` can't stall the others or the app. While a bridge runs, other `boopctl` commands (with `BOOP_BRIDGE` set to its socket, if it isn't the default) go through it instead of opening the port |
 | `tools/webcam/webcam.sh` | The existing AVFoundation recorder and frame extractor. `boopctl cam …` wraps it. `make webcam-test` tests it on synthetic video and never opens a camera |
 | `Boop --snapshots DIR` | Renders the Mac app's popover (seven overview states, including listening and a refused mic, the whole settings pane, the four setup steps) and the menu-bar icons to PNGs, in light and dark, from fixed fixtures, then exits. No runtime, Bluetooth, microphone or Keychain; the agents' settings it reads are in a throwaway HOME |
-| `boopdev` | A Swift CLI in the app package for replaying hooks, running the brain on recorded inputs, and printing the memory files. `boopdev replay <fixture>` alone runs the payloads through the hook's field picking, the adapter and the core on a virtual clock and prints every decision (`--states` for snapshots only); with `--socket` it sends them through the real `boop-hook` to a running app. `boopdev memory --state-dir DIR` prints the memory files as the store reads them, and the snapshot days. `boopdev voice <feeling> [word] --count N [--why]` prints the lines `react` would build, and with `--why` every rejected try. `boopdev brain [--mode chatty\|normal\|calm] [--classifier chatty\|calm\|jev] [--writer apple\|none\|deepseek] [--inputs DIR] [--memory DIR] [--steering FILE] [--out FILE] [--gap-min N] [--print]` runs L5: recorded inputs through the real pipeline (§5). `boopdev eval [--mode chatty\|normal\|calm] [--classifier chatty\|calm\|jev] [--writer none\|apple] [--runs N] [--only TEXT] [--json FILE]` runs the harness eval scenarios in each mode ([EVALS.md](EVALS.md)); with a model, `--runs` runs each one N times and passes it only if every run does. `boopdev watch [FILE] [--new]` prints debug mode's `debug.jsonl` (the everyday app's by default) readably as it grows, as `Boop --debug` prints it (HARNESS.md §8). `boopdev talk "<words>" [--yelled] --socket PATH` hands a push-to-talk transcript to a running headless app, as if heard on the Mac's mic (`--yelled` as if you yelled it). `boopdev hooks status\|install\|remove [claude\|codex] --home DIR` runs the hook installer against any HOME |
+| `boopdev` | A Swift CLI in the app package for the evals, reading debug logs and replaying hooks. `boopdev replay <fixture>` alone runs the payloads through the hook's field picking, the adapter and the core on a virtual clock and prints every decision (`--states` for snapshots only); with `--socket` it sends them through the real `boop-hook` to a running app. `boopdev voice <feeling> [word] --count N [--why]` prints the lines `react` would build, and with `--why` every rejected try. `boopdev eval [--real] [--mode chatty\|normal\|calm] [--classifier chatty\|calm\|jev] [--writer none\|apple] [--runs N] [--only TEXT] [--json FILE]` runs the harness eval scenarios in each mode ([EVALS.md](EVALS.md)); with a model, `--runs` runs each one N times and passes it only if every run does, and `--real` is L5. `boopdev watch [FILE] [--new]` prints debug mode's `debug.jsonl` (the everyday app's by default) readably as it grows, as `Boop --debug` prints it (HARNESS.md §8). `boopdev talk "<words>" [--yelled] --socket PATH` hands a push-to-talk transcript to a running headless app, as if heard on the Mac's mic (`--yelled` as if you yelled it). `boopdev hooks status\|install\|remove [claude\|codex] --home DIR` runs the hook installer against any HOME |
 
 `boopctl` subcommands:
 
@@ -205,8 +205,8 @@ Named scenarios for what the harness should do in each mode, given events,
 taps and talk over time. In chatty and calm they're deterministic and part
 of L0: `make test` runs them, and `make eval` prints each one's result.
 Normal decides with Jev, so its column runs only with Jev's key
-(`boopdev eval --mode normal`). How they work and what each checks is in
-[EVALS.md](EVALS.md).
+(`make eval REAL=1`, or `boopdev eval --mode normal --classifier jev`).
+How they work and what each checks is in [EVALS.md](EVALS.md).
 
 **Pass:** every scenario passes in chatty and calm.
 
@@ -315,34 +315,29 @@ under 200 ms at p95.
 
 ### L5: brain
 
-1. `boopdev brain --mode normal --writer apple --inputs app/Tests/Fixtures/inputs --memory app/Tests/Fixtures/memory`
-   (all four are the defaults, from the repo root) runs the real pipeline
-   on recorded inputs, with the mode's brains: agents starting and
-   finishing, things said to Boop, and poke streaks. They run 3 minutes
-   apart in file order (`--gap-min`) and share one transcript, so its
-   window fills and moves on as it would in the app
-   ([HARNESS.md](HARNESS.md) §4). Every input gets a fresh copy of the
-   sample memory. Normal decides with Jev, its key in `BOOP_JEV_KEY`, and
-   with the chatty rules without one; `--mode chatty` asks Apple's model
-   for a word on every mumble. `--print` shows each input and what ran, and
-   every pass is logged to `/tmp/boop-brain/<classifier>-<writer>.jsonl`
-   (`--out`).
-2. It reports: refusals (a model's guardrail declining), how many inputs
-   Stage 1 answered on the menu, what each kind of input decided, the
-   writer's slots filled and its failures, the calls handed to actions and
-   those they dropped and why, the window's largest size and its restarts,
-   and, for each kind of input, each stage's p50 latency and the p95 of the
-   two together against its deadline.
-3. The agent reads a sample of about 20 passes against `steering.md`: are
+1. `make eval REAL=1` (`boopdev eval --real`) runs every eval scenario
+   ([EVALS.md](EVALS.md)) in every mode with its real brains, 3 times
+   each: Apple's model writes, and normal decides with Jev, its key in
+   `BOOP_JEV_KEY` (skipped without one). Every pass goes to the run's own
+   file in `/tmp/boop-eval`, which it names.
+2. After the scenarios it reports, over the passes whose stages weren't
+   scripted: refusals (a model's guardrail declining), how many passes
+   Stage 1 answered on the menu, the writer's slots filled and its
+   failures, the calls handed to actions and those they dropped and why,
+   and, for each kind of input, each stage's p50 latency and the p95 of
+   the two together against its deadline.
+3. The agent reads a sample of about 20 passes
+   (`boopdev watch` on that file) against `steering.md`: are
    the decisions in character and never nagging, the words right for what
    happened, and the memory lines worth keeping?
 
-**Pass:** Stage 1 answered on the menu, in time, for every input it didn't
-refuse, fewer than 5% of the calls handed to actions were dropped by them,
-every kind's p95 is under its deadline, and a reviewed sample. Refusals are
-reported, not failed: a refused pass leaves Boop with the rules' reaction,
-and a refused write leaves the words empty. Apple's model is available on
-this Mac with an 8K context.
+**Pass:** every scenario passes in every run, Stage 1 answered on the
+menu, in time, for every pass it didn't refuse, fewer than 5% of the calls
+handed to actions were dropped by them, every kind's p95 is under its
+deadline, and a reviewed sample. Refusals are reported, not failed: a
+refused pass leaves Boop with the rules' reaction, and a refused write
+leaves the words empty. Apple's model is available on this Mac with an 8K
+context.
 
 ### L6: the owner (morning)
 

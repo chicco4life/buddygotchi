@@ -39,10 +39,12 @@ debug: build
 test:
 	python3 app/tools/test.py
 
-# The harness eval scenarios: rules classifier, no writer (plan/EVALS.md).
-eval:
-	cd app && swift build --product boopdev
-	app/.build/debug/boopdev eval
+# The harness eval scenarios (plan/EVALS.md): every scenario in each mode
+# that has an if-else table, with no writer, deterministic. REAL=1 runs the real
+# brains (Apple's model; Jev for normal with BOOP_JEV_KEY), 3 runs each,
+# and reports refusals and latency (plan/VERIFICATION.md L5).
+eval: build
+	app/.build/debug/boopdev eval $(if $(REAL),--real)
 
 # tools/.venv with pyserial and Pillow, for boopctl.
 tools: tools/.venv/.ok

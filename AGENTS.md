@@ -36,6 +36,7 @@ Run from the repo root.
 make build        # Mac app, boop-hook, boopdev
 make test         # Swift unit tests (XCTest shim; there is no Xcode here)
 make eval         # harness eval scenarios (app/Evals/scenarios) in chatty and calm, deterministic
+make eval REAL=1  # the same with the real brains, 3 runs each, plus refusals and latency (L5)
 make tools        # tools/.venv with pyserial and Pillow
 make fw           # build firmware for the board
 make flash        # build and upload over USB

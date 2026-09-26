@@ -2,8 +2,8 @@ import BoopKit
 import Foundation
 import HookWire
 
-// Developer CLI (VERIFICATION.md §2): replay, memory, voice, brain, eval,
-// watch, talk and hooks, as `usage` describes.
+// Developer CLI (VERIFICATION.md §2): eval, watch, replay, voice, talk and
+// hooks, as `usage` describes.
 
 let usage = """
     usage: boopdev replay <hooks.jsonl> [--agent claude|codex] [--gap-ms N] [--start MS] [--tz ZONE] [--new-day] [--states]
@@ -12,21 +12,20 @@ let usage = """
            boopdev replay <hooks.jsonl> --socket PATH [--agent …] [--gap-ms N]
                Sends each payload through the real boop-hook binary to a running app's socket, in real time:
                {"wait_ms":N} waits, and {"advance_ms":N} jumps a headless app's clock.
-           boopdev memory --state-dir DIR
-               Prints long-term.md and short-term.md as the memory store reads them, and the history snapshots.
            boopdev voice <feeling> [word] [--dialect HEX] [--seed N] [--count N] [--json] [--why]
                Prints Minion lines as the react action would build them.
-           boopdev brain [--mode chatty|normal|calm] [--classifier chatty|calm|jev] [--writer apple|none|deepseek] [--inputs DIR] [--memory DIR] [--steering FILE] [--out FILE] [--gap-min N] [--print]
-               Runs the real pipeline on recorded inputs with the mode's brain (default normal), each with a
-               fresh copy of the sample memory, N minutes apart (default 3) sharing one transcript, and reports
-               refusals, what each stage did, dropped calls and latency (VERIFICATION.md L5). Jev's key comes
-               from BOOP_JEV_KEY; without it, normal decides with the chatty rules.
-           boopdev eval [--mode chatty|normal|calm] [--classifier chatty|calm|jev] [--writer none|apple] [--runs N] [--scenarios DIR] [--memory DIR] [--steering FILE] [--only TEXT] [--json FILE]
+           boopdev eval [--real] [--mode chatty|normal|calm] [--classifier \(Brains.classifiers.joined(separator: "|"))] [--writer none|apple]
+                [--runs N] [--only TEXT] [--json FILE] [--scenarios DIR] [--memory DIR] [--steering FILE]
                Runs the harness eval scenarios in each mode: events, taps and talk on a virtual clock through a
                fresh core, the real harness and actions, each step checked against the passes it should lead to
-               in that mode (plan/EVALS.md). By default chatty and calm, with their if-else tables and no writer,
-               which is deterministic; --mode normal decides with Jev and needs BOOP_JEV_KEY. With a model,
-               --runs runs each scenario N times, and it passes only if every run does. Exits 1 if any fails.
+               in that mode (plan/EVALS.md). By default each mode with an if-else table and no writer, which is
+               deterministic; --classifier jev decides with Jev and needs BOOP_JEV_KEY. With a model, --runs
+               runs each scenario N times, and it passes only if every run does. Every pass goes to the run's
+               own file in /tmp/boop-eval, named at the start (boopdev watch FILE prints it). Exits 1 if any fails.
+               --real runs every mode with its real brains (VERIFICATION.md L5): Apple's model writes, normal
+               decides with Jev alone (skipped without BOOP_JEV_KEY), 3 runs each; then refusals, the writer's
+               slots, calls actions dropped and each input kind's latency against its deadline, which must hold
+               too. Steps that script a stage are left out of that.
            boopdev watch [FILE] [--new]
                Follows debug mode's log (Boop --debug writes STATE-DIR/debug.jsonl; the default is the
                everyday app's) and prints each pass and aside readably, as Boop --debug does in its own
@@ -124,24 +123,6 @@ func replayLive(_ steps: [Replay.Step], agent: String, gapMs: Int64, socket: Str
     }
 }
 
-func memory(_ args: [String]) {
-    guard let dir = option(args, "--state-dir") else { fail(usage) }
-    let store: MemoryStore
-    do {
-        store = try MemoryStore(directory: URL(fileURLWithPath: dir), steering: "", log: { print("# \($0)") })
-    } catch {
-        fail("can't open \(dir): \(error)")
-    }
-    print("=== long-term.md ===")
-    print(store.isSetUp ? store.longTermText : "(not set up)")
-    print("=== short-term.md ===")
-    print(store.shortTerm == nil ? "(none yet)" : store.shortTermText)
-    let history = URL(fileURLWithPath: dir).appendingPathComponent(MemoryStore.historyDir)
-    let days = ((try? FileManager.default.contentsOfDirectory(atPath: history.path)) ?? []).sorted()
-    print("=== history ===")
-    print(days.isEmpty ? "(none)" : days.joined(separator: "\n"))
-}
-
 func voice(_ args: [String]) {
     let words = args.filter { !$0.hasPrefix("--") && !["--dialect", "--seed", "--count"].contains(args[max(0, (args.firstIndex(of: $0) ?? 0) - 1)]) }
     guard let feeling = words.first.flatMap(Feeling.init(rawValue:)) else {
@@ -171,141 +152,6 @@ func findSteering() -> String? {
         dir = dir.deletingLastPathComponent()
     }
     return nil
-}
-
-/// The brains `--mode`, `--classifier` and `--writer` ask for, as the app
-/// would build them. Jev's key comes from `BOOP_JEV_KEY`.
-func brains(_ args: [String], defaultMode: Mode, defaultWriter: String) -> (any Classifier, any Writer) {
-    let mode = option(args, "--mode").map { name in
-        guard let mode = Mode(rawValue: name) else { fail("modes: chatty, normal, calm") }
-        return mode
-    } ?? defaultMode
-    let override = option(args, "--classifier")
-    if let override, !Brains.classifiers.contains(override) { fail("classifiers: " + Brains.classifiers.joined(separator: ", ")) }
-    let key = ProcessInfo.processInfo.environment[Brains.jevKeyVariable].flatMap { $0.isEmpty ? nil : $0 }
-    if override == "jev", key == nil { fail("Jev needs its API key in \(Brains.jevKeyVariable)") }
-    let classifier = Brains.classifier(for: mode, override: override, key: { key }, log: { print("# \($0)") })
-    let writerName = option(args, "--writer") ?? defaultWriter
-    guard Brains.writers.contains(writerName) else { fail("writers: " + Brains.writers.joined(separator: ", ")) }
-    if writerName == "apple", let why = AppleWriter.unavailableReason { fail("Apple's model can't run here: \(why)") }
-    return (classifier, Brains.writer(for: mode, override: writerName))
-}
-
-func brain(_ args: [String]) async {
-    let fm = FileManager.default
-    let inputsDir = option(args, "--inputs") ?? "app/Tests/Fixtures/inputs"
-    let memoryDir = URL(fileURLWithPath: option(args, "--memory") ?? "app/Tests/Fixtures/memory")
-    guard let steeringPath = option(args, "--steering") ?? findSteering(),
-          let steering = try? String(contentsOfFile: steeringPath, encoding: .utf8)
-    else { fail("can't find steering.md; pass --steering") }
-    let (classifier, writer) = brains(args, defaultMode: .normal, defaultWriter: "apple")
-
-    var inputs: [Input] = []
-    let files = ((try? fm.contentsOfDirectory(atPath: inputsDir)) ?? []).filter { $0.hasSuffix(".jsonl") }.sorted()
-    for file in files {
-        let text = (try? String(contentsOfFile: inputsDir + "/" + file, encoding: .utf8)) ?? ""
-        for line in text.split(separator: "\n") where !line.trimmingCharacters(in: .whitespaces).isEmpty {
-            guard let input = Input.fixture(String(line)) else { fail("bad input in \(file): \(line)") }
-            inputs.append(input)
-        }
-    }
-    guard !inputs.isEmpty else { fail("no inputs in \(inputsDir)") }
-    // A busy stretch: inputs in file order, `--gap-min` apart, sharing one
-    // transcript (HARNESS.md §4).
-    let gapMs = Int64((Double(option(args, "--gap-min") ?? "3") ?? 3) * 60_000)
-    for i in inputs.indices { inputs[i].ts = Int64(i) * gapMs }
-    let transcript = Transcript()
-
-    let name = classifier.id.prefix { $0 != ":" && $0 != "@" } + "-" + writer.id.prefix { $0 != ":" && $0 != "@" }
-    let out = URL(fileURLWithPath: option(args, "--out") ?? "/tmp/boop-brain/\(name).jsonl")
-    try? fm.createDirectory(at: out.deletingLastPathComponent(), withIntermediateDirectories: true)
-    try? fm.removeItem(at: out)
-    let home = DispatchQueue(label: "boopdev.brain")
-    var records: [Harness.Record] = []
-    var logs: [String] = []
-    var windows: [Int] = []
-    for (i, input) in inputs.enumerated() {
-        // A fresh copy of the sample memory for every input.
-        let dir = fm.temporaryDirectory.appendingPathComponent("boop-brain-\(UUID().uuidString)")
-        do { try fm.copyItem(at: memoryDir, to: dir) } catch { fail("can't copy \(memoryDir.path): \(error)") }
-        defer { try? fm.removeItem(at: dir) }
-        let harness: Harness = home.sync {
-            let store = try! MemoryStore(directory: dir, steering: steering, log: { logs.append($0) })
-            // As the core does: `quiet` runs only when the words asked for it.
-            let context = ActionContext(send: { _ in }, quietAsked: { input.asksForQuiet },
-                                        today: { store.lastActiveDay ?? "2026-10-15" }, log: { logs.append($0) })
-            let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: 0x7f3a)), memory: store)
-            return Harness(classifier: classifier, writer: writer, tools: actions.map(Harness.Tool.init),
-                           memory: { _ in store.promptMemory() }, home: home, debugLog: out,
-                           transcript: transcript, log: { logs.append($0) })
-        }
-        let r = await harness.respond(to: input)
-        records.append(r)
-        windows.append(r.window)
-        if args.contains("--print") {
-            let said = input.words.map { " \"\($0)\"" } ?? ""
-            let answer = r.dropped.map { "DROPPED \($0)" }
-                ?? (r.ran.isEmpty ? "(nothing)" : r.ran.map { "\($0.call.plain)" + ($0.outcome.isDone ? "" : " ✗") }.joined(separator: ", "))
-            let wrote = r.writeFailed.map { " [writer failed: \($0)]" } ?? ""
-            print("\(i + 1)\t\(r.latencyMs) ms\t\(input.line)\(said) (window \(r.window))\n\t→ \(answer)\(wrote)")
-        }
-    }
-
-    func percentile(_ values: [Int], _ p: Double) -> Int {
-        let sorted = values.sorted()
-        return sorted.isEmpty ? 0 : sorted[min(sorted.count - 1, Int((Double(sorted.count) * p).rounded(.up)) - 1)]
-    }
-    print("brain \(classifier.id) + \(writer.id), \(records.count) inputs \(gapMs / 60_000) min apart, log \(out.path)")
-    // Refusals (a guardrail declining) are counted apart: Boop keeps the
-    // rules' reaction, as for any dropped pass (VERIFICATION.md L5).
-    let refused = records.filter(\.refused)
-    print("refused: \(refused.count)/\(records.count)")
-    for r in refused { print("  refused (\(r.input.kind.rawValue)): \(r.dropped ?? r.writeFailed ?? "")") }
-    let failed = records.filter { !$0.answered && !$0.refused }
-    print("stage 1 answered on the menu: \(records.count - failed.count - refused.filter { !$0.answered }.count)/\(records.count)")
-    for r in failed { print("  dropped (\(r.input.kind.rawValue)): \(r.dropped ?? "")") }
-    for kind in Input.Kind.allCases {
-        let rs = records.filter { $0.input.kind == kind && $0.answered }
-        guard !rs.isEmpty else { continue }
-        var counts: [String: Int] = [:]
-        for r in rs {
-            if r.decided.isEmpty { counts["nothing", default: 0] += 1 }
-            for call in r.decided {
-                let voice = call.arguments["voice"]?.string.map { " \($0)" } ?? ""
-                counts[call.name + voice, default: 0] += 1
-            }
-        }
-        print("\(kind.rawValue) (\(rs.count)): " + counts.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: ", "))
-    }
-    let asked = records.filter { !$0.slots.isEmpty }
-    let slots = asked.flatMap { r in r.slots.map { r.wrote[$0] ?? "" } }
-    print("writer: \(asked.count) passes, \(slots.filter { !$0.isEmpty }.count)/\(slots.count) slots filled, "
-          + "\(asked.filter { $0.writeFailed != nil }.count) failed")
-    for r in asked where r.writeFailed != nil { print("  writer failed (\(r.input.kind.rawValue)): \(r.writeFailed!)") }
-    let calls = records.flatMap(\.ran)
-    let unwritten = calls.filter { $0.outcome == .dropped("nothing was written") }
-    let handed = calls.filter { $0.outcome != .dropped("nothing was written") }
-    let dropped = handed.filter { !$0.outcome.isDone }
-    print("calls: \(handed.count) to actions, \(dropped.count) dropped by them, \(unwritten.count) with nothing written")
-    for d in dropped {
-        if case .dropped(let why) = d.outcome { print("  \(d.call.plain): \(why)") }
-    }
-    print("window: up to \(windows.max() ?? 0) inputs, \(transcript.restarts) restarts")
-    var latencyOK = true
-    for kind in Input.Kind.allCases {
-        let rs = records.filter { $0.input.kind == kind }
-        guard !rs.isEmpty else { continue }
-        let total = percentile(rs.map(\.latencyMs), 0.95)
-        if total >= kind.deadlineMs { latencyOK = false }
-        let writes = rs.filter { !$0.slots.isEmpty }.map(\.writeMs)
-        print("latency \(kind.rawValue): n \(rs.count), classify p50 \(percentile(rs.map(\.classifyMs), 0.5)) ms, "
-              + "write p50 \(percentile(writes, 0.5)) ms (n \(writes.count)), p95 \(total) ms (deadline \(kind.deadlineMs) ms)")
-    }
-    for line in logs where line.contains("over budget") { print("  \(line)") }
-    let dropRate = handed.isEmpty ? 0 : Double(dropped.count) / Double(handed.count)
-    let pass = failed.isEmpty && dropRate < 0.05 && latencyOK
-    print(pass ? "PASS (the sample review is separate)" : "FAIL")
-    exit(pass ? 0 : 1)
 }
 
 /// `boopdev watch [FILE]`: follows debug mode's log (HARNESS.md §8) and
@@ -357,18 +203,28 @@ func eval(_ args: [String]) async {
     guard let steeringPath = option(args, "--steering") ?? findSteering(),
           let steering = try? String(contentsOfFile: steeringPath, encoding: .utf8)
     else { fail("can't find steering.md; pass --steering") }
-    var modes = Eval.deterministic
+    // --real: every mode with the brains the app would run (VERIFICATION.md L5).
+    let real = args.contains("--real")
+    var modes = real ? Mode.allCases : Eval.deterministic
     if let name = option(args, "--mode") {
         guard let mode = Mode(rawValue: name) else { fail("modes: chatty, normal, calm") }
         modes = [mode]
     }
     let override = option(args, "--classifier")
     if let override, !Brains.classifiers.contains(override) { fail("classifiers: " + Brains.classifiers.joined(separator: ", ")) }
-    let key = ProcessInfo.processInfo.environment[Brains.jevKeyVariable].flatMap { $0.isEmpty ? nil : $0 }
-    if key == nil, override == "jev" || (override == nil && modes.contains(.normal)) {
-        fail("normal mode decides with Jev: its API key goes in \(Brains.jevKeyVariable)")
+    // Jev only when asked for, or for normal in a real run, so a key in the
+    // environment doesn't make the default run a live one. A real run asks
+    // for Jev by name: Jev alone decides normal, which is what L5 checks.
+    let jev: @Sendable (Mode) -> String? = { mode in override ?? (real && mode == .normal ? "jev" : nil) }
+    let key = modes.contains { jev($0) == "jev" }
+        ? ProcessInfo.processInfo.environment[Brains.jevKeyVariable].flatMap { $0.isEmpty ? nil : $0 } : nil
+    if key == nil, override == "jev" { fail("Jev needs its API key in \(Brains.jevKeyVariable)") }
+    if key == nil, real, override == nil, modes.contains(.normal) {
+        guard modes.count > 1 else { fail("a real run decides normal with Jev: its API key goes in \(Brains.jevKeyVariable)") }
+        print("normal: skipped, since Jev decides it in a real run and its API key goes in \(Brains.jevKeyVariable)")
+        modes.removeAll { $0 == .normal }
     }
-    let writerName = option(args, "--writer") ?? "none"
+    let writerName = option(args, "--writer") ?? (real ? "apple" : "none")
     guard ["none", "apple"].contains(writerName) else { fail("writers: none, apple") }
     if writerName == "apple", let why = AppleWriter.unavailableReason { fail("Apple's model can't run here: \(why)") }
     var list: [Scenario]
@@ -377,11 +233,15 @@ func eval(_ args: [String]) async {
         list = list.filter { $0.name.localizedCaseInsensitiveContains(only) || $0.file.contains(only) }
     }
     guard !list.isEmpty else { fail("no scenarios in \(scenarios.path)") }
-    guard let runs = Int(option(args, "--runs") ?? "1"), runs >= 1 else { fail("--runs is a count, 1 or more") }
-    let runner = Eval(
-        classifier: { mode in Brains.classifier(for: mode, override: override, key: { key }) },
+    guard let runs = Int(option(args, "--runs") ?? (real ? "3" : "1")), runs >= 1 else { fail("--runs is a count, 1 or more") }
+    var runner = Eval(
+        classifier: { mode in Brains.classifier(for: mode, override: jev(mode), key: { key }) },
         writer: { mode in writerName == "none" ? NoWriter() : Brains.writer(for: mode) },
         steering: steering, memory: memoryDir)
+    let log = evalDebugLog()
+    runner.debugLog = log
+    DebugLog.start(log)
+    print("every pass goes to \(log.path)")
     // One entry per scenario and mode: its runs.
     var results: [[Eval.Result]] = []
     for mode in modes {
@@ -414,7 +274,29 @@ func eval(_ args: [String]) async {
         do { try Eval.json(results).write(toFile: out, atomically: true, encoding: .utf8) }
         catch { fail("can't write \(out): \(error)") }
     }
-    exit(passed == results.count ? 0 : 1)
+    var summaryHolds = true
+    if real {
+        let summary = Eval.Summary(results.flatMap { $0.flatMap(\.brainPasses) })
+        summary.lines.forEach { print($0) }
+        summaryHolds = summary.holds
+    }
+    print("every pass: boopdev watch \(log.path)")
+    exit(passed == results.count && summaryHolds ? 0 : 1)
+}
+
+/// A file of the run's own for every pass (HARNESS.md §8), so runs side by
+/// side don't write over each other. Runs over a day old are cleared away.
+func evalDebugLog() -> URL {
+    let dir = URL(fileURLWithPath: "/tmp/boop-eval")
+    let fm = FileManager.default
+    let dayAgo = Date().addingTimeInterval(-86_400)
+    for file in (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+    where (try? file.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate).flatMap { $0 < dayAgo } == true {
+        try? fm.removeItem(at: file)
+    }
+    let stamp = DateFormatter()
+    stamp.dateFormat = "yyyyMMdd-HHmmss"
+    return dir.appendingPathComponent("\(stamp.string(from: Date()))-\(getpid()).jsonl")
 }
 
 func talk(_ args: [String]) {
@@ -454,12 +336,8 @@ let args = Array(CommandLine.arguments.dropFirst())
 switch args.first {
 case "replay":
     replay(Array(args.dropFirst()))
-case "memory":
-    memory(Array(args.dropFirst()))
 case "voice":
     voice(Array(args.dropFirst()))
-case "brain":
-    await brain(Array(args.dropFirst()))
 case "eval":
     await eval(Array(args.dropFirst()))
 case "watch":
