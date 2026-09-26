@@ -110,10 +110,22 @@ void Behaviour::advance(uint32_t t, Rng& rng) {
 // Time-based changes at t: a moment that has ended (the blend starts from
 // its last pose), and the Mac's silence turning into "no app".
 void Behaviour::resync(uint32_t t) {
+  settle(t);
   change(t, [&] {
     if (moment_.anim != render::Anim::kNone && !within(t, moment_.at, moment_.ms)) moment_.anim = render::Anim::kNone;
     if (!stale_ && int32_t(t - lastState_) >= int32_t(kNoAppMs)) stale_ = true;
   });
+}
+
+// Clears timers that have run out, so none comes back when the clock's
+// differences wrap: the blend's signed compare after 2^31 ms (24.9 days),
+// the others after 2^32 (49.7 days). None of them is part of the source,
+// so the face doesn't change.
+void Behaviour::settle(uint32_t t) {
+  if (blending_ && !within(t, blendAt_, render::kBlendMs)) blend_ = render::Blend{}, blending_ = false;
+  if (say_.say.syllables > 0 && !within(t, say_.at, say_.ms)) say_ = Say{};
+  if (releaseAt_ && !within(t, releaseAt_, kPressEaseMs)) releaseAt_ = 0;
+  if (blFade_ && !within(t, blAt_, render::kBlendMs)) blFade_ = false;
 }
 
 // ---- Messages --------------------------------------------------------------

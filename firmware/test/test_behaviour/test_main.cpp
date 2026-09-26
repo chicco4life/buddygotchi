@@ -281,15 +281,42 @@ static void test_no_change_ever_cuts_hard() {
 }
 
 // BEHAVIORS.md §3.4: no app holds however long the Mac stays away, even
-// past the 24.8 days where the clock's differences wrap.
+// past the 24.9 days where the clock's differences wrap, and whatever had
+// finished stays finished when they come round again at 49.7 days: the
+// asleep face, no old mumble, press squish or backlight fade.
 static void test_no_app_holds_for_weeks() {
   Rig r;
   r.state(base("working"));
+  r.at(1000);
+  TEST_ASSERT_TRUE(r.say(3));  // over by 2500
+  r.b.pressDown(r.t);
+  r.at(1100);
+  r.b.pressUp(r.t);
   r.at(Behaviour::kNoAppMs);
   TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
-  r.at(0x80000000u + 5000);
+  const uint32_t start = Behaviour::kNoAppMs + 200;
+  r.at(start);
+  const render::Pose asleep = r.b.pose(start);
+  TEST_ASSERT_EQUAL_INT(0, asleep.open);
+  // The clock moves on a minute at a time, as the ticks would take it.
+  uint64_t now = start;
+  auto walk = [&](uint64_t to) {
+    while (now + 60000 < to) now += 60000, r.at(uint32_t(now));
+    now = to;
+    r.at(uint32_t(now));
+  };
+  // The asleep face repeats every 12 s (breathing 4 s, zzZZ 2.4 s).
+  walk(start + 12000ull * 178957);  // 2^31 ms and a little after the blend to asleep
   TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
+  TEST_ASSERT_TRUE(asleep == r.b.pose(r.t));
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
+  walk(0x100000000ull + 1150);  // 2^32 ms after the release, 150 after the mumble started
+  TEST_ASSERT_NULL(r.b.mumble(r.t));
+  TEST_ASSERT_EQUAL_INT(asleep.squash, r.b.pose(r.t).squash);
+  TEST_ASSERT_EQUAL_INT(asleep.dy, r.b.pose(r.t).dy);
+  walk(0x100000000ull + Behaviour::kNoAppMs + 50);  // 2^32 ms after the dimming began
+  TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
+  TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
   r.state(base("idle"));
   TEST_ASSERT_EQUAL(Screen::kFace, r.b.screen(r.t));
 }
