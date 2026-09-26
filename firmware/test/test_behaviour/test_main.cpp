@@ -538,7 +538,9 @@ static void test_asleep_breathes_and_never_blinks() {
     TEST_ASSERT_EQUAL(Life::kNone, r.b.life(t));
   }
   TEST_ASSERT_TRUE(r.b.moving(r.t));
-  TEST_ASSERT_TRUE(r.b.pose(1000).size != r.b.pose(2000).size);
+  // Breathing is a one-block bob every 4 s, not a size pulse (BEHAVIORS.md §2).
+  TEST_ASSERT_EQUAL_INT(r.b.pose(3000).dy - render::kBobPx, r.b.pose(1000).dy);
+  TEST_ASSERT_EQUAL_INT(r.b.pose(1000).size, r.b.pose(3000).size);
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
 }
 

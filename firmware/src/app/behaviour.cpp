@@ -258,7 +258,7 @@ render::Pose Behaviour::basePose(const Source& s, uint32_t t) const {
   render::Pose p = render::lookPose(s.look, s.busier ? 3 : 1);
   if (s.look == render::Look::kNeedsYou) p.raise = 1000;
   if (s.look == render::Look::kAsleep) {  // slow breathing, and "zzZZ" rising every 2.4 s
-    p.size = int16_t(p.size + 14 * render::isin(int(t % 4000 * 1024 / 4000)) / 1024);
+    p.dy = int16_t(p.dy + render::bob(t, 4000));
     p.zzz = int16_t(1 + t % 2400 * 999 / 2400);
   }
   if (s.look == render::Look::kWorking) {

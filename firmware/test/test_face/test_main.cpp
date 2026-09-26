@@ -35,6 +35,12 @@ struct Buf {
   }
 };
 
+// The pose at rest where it stands: no offset.
+Pose with0(Pose p) {
+  p.dx = 0, p.dy = 0;
+  return p;
+}
+
 Buf face(const Pose& p) {
   Buf b;
   drawFace(b.c, p, kFaceCx, kFaceCy, 1000);
@@ -571,6 +577,29 @@ static void test_a_happy_blend_squints_a_row_at_a_time() {
   }
 }
 
+static void test_listening_bobs_the_whole_face_a_block() {
+  // Listening bobs a block every 1.2 s (BEHAVIORS.md §5) instead of pulsing
+  // its size, which popped single eyes and cheeks (UX.md §2): every frame
+  // is the rest frame, or the whole of it one block (3 px) higher.
+  Buf rest = face(with0(animPose(Anim::kListening, 600)));
+  int up = 0;
+  for (uint32_t t = 0; t < 2400; t += 25) {
+    Pose p = animPose(Anim::kListening, t);
+    TEST_ASSERT_EQUAL_INT(1000, p.size);
+    Buf b = face(p);
+    bool same = true, lifted = true;
+    for (int y = 0; y < kHeight; ++y) {
+      for (int x = 0; x < kWidth; ++x) {
+        same &= b.c.get(x, y) == rest.c.get(x, y);
+        lifted &= b.c.get(x, y) == rest.c.get(x, y + 3);
+      }
+    }
+    TEST_ASSERT_TRUE(same || lifted);
+    up += lifted;
+  }
+  TEST_ASSERT_EQUAL_INT(48, up);  // half the time
+}
+
 static void test_blend_is_eased_interruptible_and_150ms() {
   Pose a, b;
   b.lookX = 1000, b.eyeSize = 1200;
@@ -647,6 +676,7 @@ int main(int, char**) {
   RUN_TEST(test_asleep_zzz_climbs_one_letter_at_a_time);
   RUN_TEST(test_a_sweat_drop_sits_by_the_right_eye_and_slides_down);
   RUN_TEST(test_a_happy_blend_squints_a_row_at_a_time);
+  RUN_TEST(test_listening_bobs_the_whole_face_a_block);
   RUN_TEST(test_blend_is_eased_interruptible_and_150ms);
   RUN_TEST(test_every_anim_has_a_name_and_ends);
   RUN_TEST(test_fonts_are_monospaced_and_utf8_aware);

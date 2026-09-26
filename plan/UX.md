@@ -45,7 +45,9 @@ shows, the face eases up into the top 144 px at three-quarters size.
   bar as wide as an eye, level with the cheeks. The face blends between
   expressions in 150 ms or less and never cuts hard. It moves a block at
   a time, as one sprite: its origin snaps to the grid and every part sits
-  a whole number of blocks from it, so no part lags behind the eyes. That holds whatever changes mid-animation:
+  a whole number of blocks from it, so no part lags behind the eyes.
+  Breathing and listening bob the whole face a block rather than pulsing
+  its size, which would pop single parts. That holds whatever changes mid-animation:
   "needs you" arriving under a cheer or `listening`, or the working count
   crossing 3, eases from the frame that was showing. The backlight eases
   over the same 150 ms. A blink shrinks the eye towards a one-block bar;

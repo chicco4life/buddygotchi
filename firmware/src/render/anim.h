@@ -24,6 +24,12 @@ uint32_t animDuration(Anim a);
 // The pose `t` ms into the animation.
 Pose animPose(Anim a, uint32_t t);
 
+// A slow bob, where a size pulse would pop single parts a block at a time
+// (plan/UX.md §2): the face is kBobPx higher for the first half of every
+// `period` ms, which on the grid lifts the whole face one block.
+constexpr int kBobPx = 3;
+inline int16_t bob(uint32_t t, uint32_t period) { return int16_t(t % period < period / 2 ? -kBobPx : 0); }
+
 // What the face shows when no moment plays.
 enum class Look : uint8_t { kIdle, kWorking, kAsleep, kNeedsYou };
 const char* lookName(Look look);

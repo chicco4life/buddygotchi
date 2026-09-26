@@ -82,9 +82,9 @@ Pose animPose(Anim a, uint32_t t) {
       p.squash = int16_t(wave(t + 88, 350, 60));
       return p;
     }
-    case Anim::kListening: {
+    case Anim::kListening: {  // all ears, bobbing gently
       Pose p = listening();
-      p.size = int16_t(1000 + wave(t, 1200, 15));
+      p.dy = bob(t, 1200);
       return p;
     }
     default: return n;

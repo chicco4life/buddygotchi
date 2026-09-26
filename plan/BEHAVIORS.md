@@ -33,7 +33,7 @@ needs you.
 
 | State | When | Loop |
 | --- | --- | --- |
-| Asleep | No sessions | Eyes closed, slow breathing, a "zzZZ" climbing every 2.4 s, never blinks, backlight at 60/255 |
+| Asleep | No sessions | Eyes closed, slow breathing (the face rises a block for 2 s of every 4), a "zzZZ" climbing every 2.4 s, never blinks, backlight at 60/255 |
 | Idle | Sessions open, none working | Blinks every 2–6 s |
 | Working | At least one agent working | Focused gaze, a sweat drop, blinks every 2–5 s (1.2–3.5 s with 3+ busy); every 2.6 s (1.8 s with 3+ busy) a 0.8 s strain: eyes squeeze, mouth tightens, the face dips a block |
 
@@ -146,7 +146,7 @@ Mute (volume 0) silences all sound but keeps the light.
 | --- | --- |
 | `cheer` | Finished turns: three hops, then a happy squint, a small open smile and a heart, 2 s |
 | `wiggle` | Taps |
-| `listening` | Push-to-talk: while the mic is on and while Boop waits for the reply |
+| `listening` | Push-to-talk: while the mic is on and while Boop waits for the reply. Big eyes looking up, bobbing a block every 1.2 s |
 
 A mumble on its own (the brain's `react`, or chatter) plays over whatever
 face is showing and doesn't change it.
