@@ -57,10 +57,12 @@ public struct AppleWriter: Writer {
         #endif
     }
 
-    /// Low, so the same moment gets the same word: at 0.5 a failed test run
-    /// was "tests" one time and "ugh" the next. Variety comes from what
-    /// happened, not from chance.
-    static let temperature = 0.2
+    #if canImport(FoundationModels)
+    /// Greedy: the same moment always gets the same words. At temperature
+    /// 0.2 a failed test run was still "tests" one time and "ugh" the next.
+    /// Variety comes from what happened, not from chance.
+    static let sampling = GenerationOptions(samplingMode: .greedy)
+    #endif
 
     /// Three lines ahead of `steering.md`.
     static let preamble = """
@@ -103,7 +105,7 @@ public struct AppleWriter: Writer {
         do {
             let response = try await session.respond(to: AppleWriter.request(context, slots),
                                                      schema: schema,
-                                                     options: GenerationOptions(temperature: AppleWriter.temperature))
+                                                     options: AppleWriter.sampling)
             let json = response.content.jsonString
             return Writing(values: AppleWriter.values(json, slots), raw: json)
         } catch let error as LanguageModelSession.GenerationError {

@@ -441,8 +441,17 @@ public struct Eval: Sendable {
     /// `failed · wrote {"react_word_from":"the failed topic","react_word":"ugh"}`.
     static func why(_ record: Harness.Record) -> String? {
         let parts = [record.evidence, record.dropped.map { "dropped: \($0)" },
-                     record.writeFailed.map { "writer failed: \($0)" }, record.writerRaw.map { "wrote \($0)" }].compactMap { $0 }
+                     record.writeFailed.map { "writer failed: \($0)" }, record.writerRaw.map { "wrote \(sorted($0))" }].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// A JSON object with its keys in order, so the same answer reads the
+    /// same from one run to the next; anything else as it is.
+    static func sorted(_ raw: String) -> String {
+        guard let o = try? JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any],
+              let data = try? JSONSerialization.data(withJSONObject: o, options: [.sortedKeys, .withoutEscapingSlashes])
+        else { return raw }
+        return String(decoding: data, as: UTF8.self)
     }
 
     /// Why a pass or a write came to nothing, as a scenario names it.
