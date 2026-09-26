@@ -761,6 +761,37 @@ final class CoreYouAndBoopTests: XCTestCase {
         XCTAssertLessThan(day ?? .max, said ?? .max, "the day starts before the words reach the brain")
     }
 
+    /// ARCHITECTURE.md §3.2: timers run on the steady time the core is
+    /// given, and days and times of day on the wall clock the app reports.
+    /// Setting the Mac's clock back an hour doesn't stretch the mic's 30 s
+    /// limit or a merge window; moving it past midnight starts a new day.
+    func testTimersFollowTheSteadyClockAndDaysTheWallClock() {
+        let rig = CoreRig()
+        rig.input(.talkOn)
+        rig.wait(10_000)
+        rig.core.setWallClock(rig.now - 3_600_000, at: rig.now)  // the Mac's clock set back an hour
+        XCTAssertEqual(inputs(rig.core.talk("hi", at: rig.now)).first?.line, "you said · 13:00 Wednesday")
+        XCTAssertTrue(rig.wait(20_000).contains(.listen(false)), "the 30 s limit, on time")
+        XCTAssertEqual(rig.state.time, (rig.now - 3_600_000) / 1000, "the snapshot's time is the wall clock's")
+        rig.core.setWallClock(rig.now + CoreRig.day, at: rig.now)
+        let fx = rig.send(.sessionStart)
+        XCTAssertTrue(fx.contains(.newDay(date: "2026-10-15", firstSeen: "14:00")))
+    }
+
+    /// The runtime's steady clock starts at the wall clock's time and never
+    /// goes back.
+    func testTheSteadyClockStartsAtTheWallClockAndNeverStepsBack() {
+        let wall = Int64(Date().timeIntervalSince1970 * 1000)
+        let clock = Runtime.steadyClock()
+        var last = clock()
+        XCTAssertLessThan(abs(last - wall), 100)
+        for _ in 0..<1000 {
+            let now = clock()
+            XCTAssertGreaterThanOrEqual(now, last)
+            last = now
+        }
+    }
+
     /// A new day starts short-term memory fresh; nothing about it reaches
     /// the brain (the reflection was removed on 2026-09-26).
     func testANewDayOnlyStartsShortTermFresh() {

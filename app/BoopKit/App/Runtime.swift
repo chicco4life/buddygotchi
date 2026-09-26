@@ -21,7 +21,10 @@ public final class Runtime: @unchecked Sendable {
         public var classifier: String?
         public var writer: String?
         public var time = LocalTime()
-        public var clock: @Sendable () -> Int64 = { Int64(Date().timeIntervalSince1970 * 1000) }
+        /// Milliseconds for every duration: a steady clock by default.
+        public var clock: @Sendable () -> Int64 = Runtime.steadyClock()
+        /// Milliseconds since 1970, for days and times of day.
+        public var wallClock: @Sendable () -> Int64 = { Int64(Date().timeIntervalSince1970 * 1000) }
         /// Accept `{"dev":"talk","words":…,"yelled":…}` and `{"dev":"advance","ms":…}`
         /// on the hook socket (headless only).
         public var devLines = false
@@ -119,6 +122,20 @@ public final class Runtime: @unchecked Sendable {
     /// After every change the menu bar might show. Called on `home`.
     public var onChange: ((Status) -> Void)?
 
+    /// A clock that never steps and keeps counting while the Mac sleeps,
+    /// starting at the wall clock's time: the keepalive, the mic's 30 s
+    /// limit, held inputs, the reply wait and moments' turns are measured on
+    /// it, so setting the Mac's clock back can't stall them
+    /// (ARCHITECTURE.md §3.2).
+    public static func steadyClock() -> @Sendable () -> Int64 {
+        let wall = Int64(Date().timeIntervalSince1970 * 1000)
+        let start = ContinuousClock.now
+        return {
+            let (seconds, attoseconds) = (ContinuousClock.now - start).components
+            return wall + seconds * 1000 + attoseconds / 1_000_000_000_000_000
+        }
+    }
+
     /// Sets up a new Boop: name and sweet-or-cheeky, asked once (UX.md §6).
     public static func setUp(stateDir: URL, name: String, nature: LongTerm.Nature, today: String) throws {
         let store = try MemoryStore(directory: stateDir, steering: "")
@@ -145,6 +162,7 @@ public final class Runtime: @unchecked Sendable {
                                  seed: longTerm.seed ^ UInt64(now))
         config.name = longTerm.name
         core = Core(config: config, lastActiveDay: memory.lastActiveDay)
+        core.setWallClock(options.wallClock(), at: now)
 
         // Actions reach the rest through closures that are only ever called
         // on `home`, from the core's effects or the harness.
@@ -153,6 +171,7 @@ public final class Runtime: @unchecked Sendable {
         let link = self.link
         let time = options.time
         let clock = options.clock
+        let wallClock = options.wallClock
         let context = ActionContext(
             send: { [moments, home] moment in
                 let now = clock()
@@ -168,7 +187,7 @@ public final class Runtime: @unchecked Sendable {
             mumblesAllowed: { core.canMumble(at: clock()) },
             setQuiet: { route(core.setQuiet(minutes: $0, at: clock())) },
             quietAsked: { core.quietAsked },
-            today: { time.day(clock()) },
+            today: { time.day(wallClock()) },
             log: log)
         let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: longTerm.seed)), memory: memory)
         react = actions.compactMap { $0 as? ReactAction }.first!
@@ -276,6 +295,7 @@ public final class Runtime: @unchecked Sendable {
 
     func tick() {
         let now = options.clock()
+        core.setWallClock(options.wallClock(), at: now)
         run(core.tick(at: now))
         link.tick(now: now, current: core.snapshot(at: now))
     }

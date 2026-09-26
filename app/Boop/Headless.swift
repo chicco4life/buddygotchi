@@ -34,7 +34,9 @@ enum Headless {
         // The clock can be moved forward with `{"dev":"advance","ms":N}`, so
         // the pipeline check can finish a 6-minute turn without waiting it out.
         let skew = Skew()
-        options.clock = { Int64(Date().timeIntervalSince1970 * 1000) + skew.ms }
+        let steady = Runtime.steadyClock()
+        options.clock = { steady() + skew.ms }
+        options.wallClock = { Int64(Date().timeIntervalSince1970 * 1000) + skew.ms }
         options.advance = { skew.add($0) }
         options.trace = args.contains("--trace")
         if let name = option(args, "--mode") {

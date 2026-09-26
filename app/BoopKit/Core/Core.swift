@@ -6,6 +6,9 @@ import Foundation
 ///
 /// It's a pure state machine: every call takes the time and returns effects
 /// for the app to carry out. Call `tick` about once a second for the timers.
+/// The time is a steady clock, so a change to the Mac's clock can't stretch
+/// a timer; days and times of day follow the wall clock the app reports
+/// with `setWallClock`.
 public final class Core {
     public struct Config: Sendable {
         public var name: String
@@ -81,6 +84,8 @@ public final class Core {
     var lastActiveDay: String?
     var lastPublished: StateSnapshot?
     var nextChatterAt: Int64?
+    /// The wall clock less the steady one, for days and times of day.
+    var wallOffsetMs: Int64 = 0
 
     // Merging bursts of agent inputs.
     var lastInputAt: Int64 = -1_000_000
@@ -285,8 +290,8 @@ public final class Core {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
         startDayIfNew(now, &fx)
-        let input = Input(.said, words: words, yelled: yelled, clock: config.time.clock(now),
-                          weekday: config.time.weekday(now), rules: "listening", ts: now)
+        let input = Input(.said, words: words, yelled: yelled, clock: config.time.clock(wall(now)),
+                          weekday: config.time.weekday(wall(now)), rules: "listening", ts: now)
         if replyWait != nil { replyWait?.words = now }
         quietAsked = input.asksForQuiet
         fx.append(.input(input))
@@ -384,6 +389,12 @@ public final class Core {
         return fx
     }
 
+    /// The wall clock's time at the steady time `now`: days and times of
+    /// day follow it, and timers don't (ARCHITECTURE.md §3.2).
+    public func setWallClock(_ wallMs: Int64, at now: Int64) {
+        wallOffsetMs = wallMs - now
+    }
+
     /// A new mode (BEHAVIORS.md §6), from the next event on. Working chatter
     /// starts its wait again at the new mode's pace.
     public func setMode(_ mode: Mode) {
@@ -426,7 +437,7 @@ public final class Core {
             StateSnapshot.Attention(agent: $0.agent.short, project: StateSnapshot.clip($0.project), more: waiting.count - 1)
         }
         return StateSnapshot(
-            time: now / 1000, name: StateSnapshot.clip(config.name), base: base, attn: attn,
+            time: wall(now) / 1000, name: StateSnapshot.clip(config.name), base: base, attn: attn,
             busy: working.count, idle: idle.count, wait: waiting.count,
             quiet: quietLeft(now), vol: config.volume)
     }
@@ -448,6 +459,9 @@ public final class Core {
     }
 
     // MARK: - Rules
+
+    /// The wall clock at steady time `now`.
+    func wall(_ now: Int64) -> Int64 { now + wallOffsetMs }
 
     func takeOrder() -> Int {
         nextOrder += 1
@@ -484,10 +498,10 @@ public final class Core {
 
     /// The first activity of a new day: short-term memory starts fresh.
     func startDayIfNew(_ now: Int64, _ fx: inout [CoreEffect]) {
-        let today = config.time.day(now)
+        let today = config.time.day(wall(now))
         guard today != lastActiveDay else { return }
         lastActiveDay = today
-        fx.append(.newDay(date: today, firstSeen: config.time.clock(now)))
+        fx.append(.newDay(date: today, firstSeen: config.time.clock(wall(now))))
     }
 
     func startListening(by talker: Talker, _ now: Int64, _ fx: inout [CoreEffect]) {
@@ -521,7 +535,7 @@ public final class Core {
         let cheer = config.mode.cheers(Input.Length(ms: ms))
         if cheer { play("cheer", &fx) }
         if ms >= 30_000 {
-            fx.append(.happened("\(config.time.clock(now)) \(s.agent.short) · \(s.project) · finished (\(took(ms)))"))
+            fx.append(.happened("\(config.time.clock(wall(now))) \(s.agent.short) · \(s.project) · finished (\(took(ms)))"))
         }
         agentInput(.agentFinished, s, outcome: .done, tookMs: ms, rules: cheer ? "cheer" : nil,
                    rank: Input.Length(ms: ms) == .short ? 2 : 3, now, &fx)
@@ -550,7 +564,7 @@ public final class Core {
             return
         }
         pokedAt = now
-        fx.append(.input(Input(.poked, clock: config.time.clock(now), weekday: config.time.weekday(now),
+        fx.append(.input(Input(.poked, clock: config.time.clock(wall(now)), weekday: config.time.weekday(wall(now)),
                                rules: "wiggle", ts: now)))
     }
 
@@ -558,7 +572,7 @@ public final class Core {
     /// (BEHAVIORS.md §3.1). The brain still hears of it.
     func failed(_ s: Session, durationMs ms: Int64, error: String?, _ now: Int64, _ fx: inout [CoreEffect]) {
         let topic = s.topic.map { " · \($0)" } ?? ""
-        fx.append(.happened("\(config.time.clock(now)) \(s.agent.short) · \(s.project)\(topic) · failed"))
+        fx.append(.happened("\(config.time.clock(wall(now))) \(s.agent.short) · \(s.project)\(topic) · failed"))
         agentInput(.agentFinished, s, outcome: .failed, tookMs: ms, error: error, rules: nil, rank: 4, now, &fx)
     }
 
@@ -567,7 +581,7 @@ public final class Core {
     }
 
     func timeLine(_ now: Int64) -> String {
-        "\(config.time.clock(now)) \(config.time.weekday(now))"
+        "\(config.time.clock(wall(now))) \(config.time.weekday(wall(now)))"
     }
 
     /// "claude needs you · jetpack · 14:07 Tuesday", for the brain's transcript.
@@ -579,7 +593,7 @@ public final class Core {
                     error: String? = nil, rules: String?, rank: Int, _ now: Int64, _ fx: inout [CoreEffect]) {
         let input = Input(kind, agent: s.agent.short, project: s.project, outcome: outcome,
                           topic: kind == .agentFinished ? s.topic : nil, tookMs: tookMs, error: error,
-                          clock: config.time.clock(now), weekday: config.time.weekday(now), rules: rules,
+                          clock: config.time.clock(wall(now)), weekday: config.time.weekday(wall(now)), rules: rules,
                           ts: now)
         offer(input, rank: rank, now, &fx)
     }

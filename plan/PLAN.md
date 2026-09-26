@@ -790,9 +790,6 @@ matching spec first.
   a burst over Bluetooth (a finish while something needs you) should never
   garble the device, and pressing BOOT again within a second of letting go
   should still hear you ([evidence](evidence/2026-09-26-e2e-hardening/README.md)).
-- **Timers use the wall clock.** A clock step backwards (a manual change)
-  delays the keepalive, the mic's 30 s limit and waiting inputs by that
-  much; durations should use a monotonic clock that counts sleep.
 - **The adapter reads `.git` on every hook** to name a worktree's project;
   a working directory on a stalled network volume would stall the app.
   Cache the name per folder. `Runtime.projects` is also never pruned.

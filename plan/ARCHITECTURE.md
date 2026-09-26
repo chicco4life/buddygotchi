@@ -122,7 +122,11 @@ harness, a Happened line, a new day for short-term memory, start or stop
 listening, or the
 empty moment that ends `listening`). The app
 hands each effect to the part that carries it out, which keeps the core
-testable on a virtual clock.
+testable on a virtual clock. The time it's given is a steady clock that
+never steps and keeps counting while the Mac sleeps, so setting the Mac's
+clock back can't stall a timer (the keepalive, the mic's 30 s limit, held
+inputs, the reply wait, moments' turns); days and times of day follow the
+wall clock, which the app reports every second.
 
 Merging agent inputs is leading-edge: the first one after a quiet spell
 goes out at once, and any that follow within 3 s are held and sent as one
