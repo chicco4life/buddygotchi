@@ -61,6 +61,12 @@ enum Snapshots {
                     if step.rawValue >= SetupDraft.Step.name.rawValue { setup.setup.name = "Mochi" }
                     render(PopoverView(model: setup), "setup-\(step.rawValue + 1)-\(step)-\(look)", dark: dark, to: out)
                 }
+                let cheeky = model(installer, status: nil)
+                cheeky.pane = .setup
+                cheeky.setup.step = .name
+                cheeky.setup.name = "Mochi"
+                cheeky.setup.nature = .cheeky
+                render(PopoverView(model: cheeky), "setup-2-name-cheeky-\(look)", dark: dark, to: out)
                 let setup = model(unbuilt, status: nil)
                 setup.pane = .setup
                 setup.setup.step = .agents

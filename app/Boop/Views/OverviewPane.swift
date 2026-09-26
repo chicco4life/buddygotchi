@@ -103,7 +103,7 @@ struct OverviewPane: View {
         case .listening: Theme.recording
         case .needsYou: Theme.amber
         case .working: Theme.inkSoft
-        case .idle, .happy, .asleep: Theme.inkFaint
+        case .idle, .happy, .asleep, .cheeky: Theme.inkFaint
         }
     }
 

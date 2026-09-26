@@ -102,7 +102,7 @@ struct SetupPane: View {
     private var naming: some View {
         VStack(spacing: Theme.gap) {
             Spacer(minLength: 0)
-            BoopFace(mood: model.setup.nature == .cheeky ? .working : .happy, size: 64)
+            BoopFace(mood: model.setup.nature == .cheeky ? .cheeky : .happy, size: 88)
             title("What should I be called?")
             TextField("A name", text: Binding(
                 get: { model.setup.name },

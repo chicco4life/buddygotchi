@@ -241,6 +241,11 @@ hairline edge. Names, titles and numbers use the rounded system face. Every
 text tone, button labels included, clears 4.5:1 on what it sits on (the
 paper, a card, the well, its own chip), a filled button stands 3:1 off its
 card, and
-`Boop --snapshots` checks it; the faint tone is for decoration only. The face tile uses the device's own colours (black
-glass, warm-white window eyes, pink cheeks) and its face geometry (§2). Looping motion is limited to the face and the dot while
-something is live. Tokens live in `app/Boop/Views/Theme.swift`.
+`Boop --snapshots` checks it; the faint tone is for decoration only.
+The face tile uses the device's own colours (black glass, warm-white
+window eyes, pink cheeks), its face geometry and its pixel mouths (§2),
+drawn in square blocks on a grid snapped to the screen's pixels: as crisp
+as the device, and moving a block at a time. Its looks follow the
+device's (working lowers the lids and looks down, needs you leans in).
+Looping motion is limited to the face and the dot while something is
+live. Tokens live in `app/Boop/Views/Theme.swift`.
