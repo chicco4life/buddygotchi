@@ -1,11 +1,11 @@
 import Foundation
 
-/// `react(feeling, voice, word?)`: for a mumble, a Minion line from Voice
-/// in the feeling's voice, with the one real word, sent as a moment with no
+/// `react(feeling, word?)`: a mumble, a Minion line from Voice in the
+/// feeling's voice, with the one real word, sent as a moment with no
 /// animation so it plays over whatever face is showing. The classifier picks
-/// the feeling and whether to mumble; the writer picks the word, only for a
-/// mumble. The mumble is dropped in quiet mode or while something needs you.
-/// The feelings' own faces are parked (FUTURE.md), so `silent` shows nothing.
+/// the feeling; the writer picks the word. The mumble is dropped in quiet
+/// mode or while something needs you. The feelings' own faces are parked
+/// (FUTURE.md), so staying silent is not calling `react` at all.
 ///
 /// The core's rules use the same action: `play` for their animations (a
 /// cheer), `endListening` for the empty moment, and a `react` call for
@@ -46,18 +46,13 @@ public final class ReactAction: Action {
     public static let anims: Set<String> = ["cheer", "wiggle", "listening"]
 
     public let definition = ToolDefinition(
-        name: "react", description: "Mumble with a feeling, or stay silent.",
+        name: "react", description: "Mumble with a feeling.",
         question: "Does what just happened call for Boop to react?",
         parameters: [
             .init("feeling", .choice(ReactAction.feelings.map(\.name)),
                   about: Dictionary(uniqueKeysWithValues: ReactAction.feelings.map { ($0.name, $0.about) }),
                   question: "Which feeling does Boop have about what just happened?"),
-            .init("voice", .choice(["silent", "mumble"]),
-                  about: ["silent": "Only when the person just asked for quiet: keep the feeling to itself.",
-                          "mumble": "Every other time: mumble it out loud, in Boop's gibberish."],
-                  question: "Does Boop mumble about it out loud, or keep it to itself?"),
-            .init("word", .choice(Sounds.vocabulary), optional: true, role: .writtenWhen("voice", is: "mumble"),
-                  sources: ReactAction.wordSources),
+            .init("word", .choice(Sounds.vocabulary), optional: true, role: .written, sources: ReactAction.wordSources),
         ])
 
     public func perform(_ call: ToolCall) -> ActionOutcome {
@@ -67,9 +62,6 @@ public final class ReactAction: Action {
         case .success(let a): args = a
         }
         let feeling = ReactAction.feelings.first { $0.name == args["feeling"]?.string }!
-        guard args["voice"]?.string == "mumble" else {
-            return .done("\(feeling.name), silent: Boop has no face for it in v1")
-        }
         guard context.mumblesAllowed() else { return .dropped("Boop is quiet right now") }
         lines += 1
         let seed = lines

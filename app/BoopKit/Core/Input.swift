@@ -22,10 +22,10 @@ public struct Input: Equatable, Sendable {
         /// What Boop may do for this kind of input, in the order it's done
         /// (HARNESS.md §3); `Input.menu` narrows it for the input itself.
         /// Plain data: the harness doesn't know what the tools do.
-        public var menu: [Menu.Item] {
+        public var menu: [String] {
             switch self {
-            case .agentStarted, .agentFinished, .poked: [Menu.Item("react")]
-            case .said: [Menu.Item("quiet"), Menu.Item("react"), Menu.Item("remember")]
+            case .agentStarted, .agentFinished, .poked: ["react"]
+            case .said: ["quiet", "react", "remember"]
             }
         }
     }
@@ -127,21 +127,10 @@ public struct Input: Equatable, Sendable {
 
     /// What Boop may do for this input (HARNESS.md §3): its kind's menu,
     /// narrowed to what can happen, since a brain isn't asked what the
-    /// rules decide. `quiet` only when the words ask for it: the quiet action
-    /// would refuse it otherwise. And a silent `react` only then too: with
-    /// the brain's faces parked it shows nothing, so it only means something
-    /// as quiet starts, when a mumble would be dropped anyway.
-    public var menu: [Menu.Item] {
-        kind.menu.compactMap { item in
-            switch item.tool {
-            case "quiet": return asksForQuiet ? item : nil
-            case "react" where !asksForQuiet:
-                var mumble = item
-                mumble.only["voice"] = ["mumble"]
-                return mumble
-            default: return item
-            }
-        }
+    /// rules decide: `quiet` only when the words ask for it, since the quiet
+    /// action would refuse it otherwise.
+    public var menu: [String] {
+        kind.menu.filter { $0 != "quiet" || asksForQuiet }
     }
 
     /// Your words asked Boop to be quiet: they have "quiet" in them, as a

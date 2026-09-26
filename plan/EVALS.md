@@ -52,7 +52,7 @@ expectations run against the chatty table
 FAIL  normal  03-turn-failed.json  A failed turn gets an annoyed mumble in every mode
   step 1 (0s turn started)
     - agent started → nothing
-    + agent started → react(feeling: curious, voice: mumble)
+    + agent started → react(feeling: curious)
         because: agent started
 0/1 passed: normal chatty@1 + none
 ```
@@ -79,16 +79,15 @@ and what it should lead to, in each mode. From `03-turn-failed.json`:
 
 ```json
 {
-
   "name": "A failed turn gets an annoyed mumble in every mode",
-  "why": "HARNESS.md §6: a failed finish is react(annoyed, mumble), in calm too, where it's the one alert besides needs you; with no topic, its word is an annoyed one, or bug for a turn that broke (steering.md, Writing; VOICE.md §6)",
+  "why": "HARNESS.md §6: a failed finish is react(annoyed), in calm too, where it's the one alert besides needs you; with no topic, its word is an annoyed one, or bug for a turn that broke (steering.md, Writing; VOICE.md §6)",
   "steps": [
     {"input": {"at": "0m", "event": "turn started", "agent": "claude", "project": "landing"},
-     "expect": {"chatty": ["agent started → react(feeling: curious, voice: mumble, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
+     "expect": {"chatty": ["agent started → react(feeling: curious, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
                 "normal": ["agent started → nothing"],
                 "calm": ["agent started → nothing"]}},
     {"input": {"at": "2m", "event": "turn failed", "agent": "claude", "project": "landing", "error": "rate_limit"},
-     "expect": ["agent finished → react(feeling: annoyed, voice: mumble, word: ugh|nope|oops|no|boo|again|what|bug|none)"]}
+     "expect": ["agent finished → react(feeling: annoyed, word: ugh|nope|oops|no|boo|again|what|bug|none)"]}
   ]
 }
 ```
@@ -123,7 +122,7 @@ word would stand in for the writer the run is meant to check.
 
 | Field | Value | The stage… |
 | --- | --- | --- |
-| `classifier` | `{"calls": [{"tool": "react", "feeling": "happy", "voice": "mumble"}]}` | decides these calls, with their decided arguments |
+| `classifier` | `{"calls": [{"tool": "react", "feeling": "happy"}]}` | decides these calls, with their decided arguments |
 | `writer` | `{"react.word": "finally"}` | writes these values, by slot |
 | either | `{"error": "…"}` | fails |
 | either | `"refused"` | refuses (a guardrail) |
@@ -139,9 +138,9 @@ their actions:
 
 | Written | Means |
 | --- | --- |
-| `agent finished → react(feeling: proud, voice: mumble, word: finally)` | The call ran, with the word the writer wrote |
+| `agent finished → react(feeling: proud, word: finally)` | The call ran, with the word the writer wrote |
 | `rules → cheer` | The core played a rule moment (only with `"rules": true`) |
-| `you said → quiet(minutes: 30), react(feeling: sad, voice: silent)` | Both calls ran, in the menu's order |
+| `you said → react(feeling: happy, word: okay), remember(text: "demo on Thursday", where: today)` | Both calls ran, in the menu's order |
 | `agent started → nothing` | An input reached the harness and Stage 1 chose to do nothing |
 | `you said → remember(where: today) dropped (unwritten)` | The writer left its required words empty, so the call was dropped |
 | `… dropped (action)` | The call's action refused it (a memory rule, say) |
@@ -195,7 +194,7 @@ input replacing a waiting one) is left to the unit tests in
 | `01-short-turn.json` | Turns of 8 and 12 seconds (short turns): chatty mumbles at each start (curious) and finish (happy); normal leaves them to the core's cheer; calm has no cheer and no mumble. Records the cheer. |
 | `02-long-turn.json` | A 20-second turn (long) gets a proud mumble in chatty and normal; a 3-minute one (very long) gets an excited (chatty) or proud (normal) mumble with a word that fits, always (`steering.md`, Writing). Calm: nothing. Hero moment 1. |
 | `03-turn-failed.json` | A failed turn gets an annoyed mumble in every mode, with an annoyed word, bug, or none. Hero moment 2. |
-| `04-be-quiet.json` | "Be quiet for an hour" sets quiet mode for 60 minutes in every mode, holds back a turn in that time, and lets the next one through after; a yelled "be quiet" also gets a silent sad `react`, which shows nothing in v1. Hero moment 3. |
+| `04-be-quiet.json` | "Be quiet for an hour" sets quiet mode for 60 minutes in every mode, holds back a turn in that time, and lets the next one through after; a yelled "be quiet" is just quiet too. Hero moment 3. |
 | `05-bad-answer.json` | A classifier answer off the menu and a classifier error each run nothing, and the next turn gets its mode's reaction. |
 | `06-tests-left-failing.json` | A turn whose last test run failed finishes failed and gets the annoyed mumble in every mode, whose word is `tests`; one whose tests failed, then passed, is a normal finish. Hero moment 2. |
 | `07-told-off.json` | "Shut up", "you're so annoying", a yell and a wordless yell each get a sad mumble (nothing in calm) and leave quiet mode off; "this build is annoying" doesn't count (curious, or annoyed at the build); a classifier that calls `quiet` anyway has its pass dropped, since `quiet` isn't on the menu. Hero moment 3. |

@@ -91,7 +91,7 @@ final class MenuTests: XCTestCase {
 
     func testSlotsOnlyForWhatNeedsWords() throws {
         let menu = Menu(Input.Kind.said.menu, definitions: try definitions())
-        XCTAssertEqual(menu.slots([react("sulky", "silent")]), [])
+        XCTAssertEqual(menu.slots([ToolCall("quiet", ["minutes": .number(15)])]), [])
         let slots = menu.slots([ToolCall("quiet", ["minutes": .number(15)]), react("happy"), remember("today")])
         XCTAssertEqual(slots.map(\.key), ["react.word", "remember.text"])
         XCTAssertEqual(slots.map(\.call), [1, 2])
@@ -110,7 +110,7 @@ final class MenuTests: XCTestCase {
     func testCallsRunInTheMenusOrder() throws {
         let menu = Menu(Input.Kind.said.menu, definitions: try definitions())
         let quiet = ToolCall("quiet", ["minutes": .number(60)])
-        XCTAssertEqual(menu.ordered([remember("today"), react("sulky", "silent"), quiet]),
-                       [quiet, react("sulky", "silent"), remember("today")])
+        XCTAssertEqual(menu.ordered([remember("today"), react("sulky"), quiet]),
+                       [quiet, react("sulky"), remember("today")])
     }
 }

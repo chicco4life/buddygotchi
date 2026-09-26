@@ -43,7 +43,7 @@ approve on the Mac as you normally would.
    play a cheer. Boop cheers in well under a second.
 4. The core also hands the **harness** an input: an agent finished. The
    **brain** decides in two stages. Its classifier picks
-   `react(feeling: proud, voice: mumble)`, and its writer, Apple's
+   `react(feeling: proud)`, and its writer, Apple's
    on-device model, writes the mumble's one real word: `finally`.
 5. The harness hands that call to the **`react` action**, which asks
    **Voice** to turn "proud + finally" into Minion speech
@@ -165,7 +165,7 @@ brain, so a cheer looks the same whichever of them asked for it.
 
 | Action | Arguments | What it does |
 | --- | --- | --- |
-| `react` | `feeling`, `voice`, `word?` | For a mumble, asks Voice for a Minion line with the word and sends it to the device, where it plays over the face that's showing. The brain's faces are parked ([FUTURE.md](FUTURE.md)), so a silent `react` shows nothing. The core's rules use it to play their animations ([BEHAVIORS.md](BEHAVIORS.md) §5) |
+| `react` | `feeling`, `word?` | Asks Voice for a Minion line with the word and sends it to the device, where it plays over the face that's showing. The brain's faces are parked ([FUTURE.md](FUTURE.md)), so staying silent is not calling `react`. The core's rules use it to play their animations ([BEHAVIORS.md](BEHAVIORS.md) §5) |
 | `quiet` | `minutes` | Tells the core to stop mumbles for a while, only when your last words asked for quiet |
 | `remember` | `where`, `text` | Adds a line where the classifier chose: today's notes for a fact about a project or this session, About you or Preferences for a durable fact about the person, within its limits |
 
@@ -533,3 +533,4 @@ When a spec changes direction, add a row here saying why.
 | 2026-09-26 | The new-day input and its reflection are removed. The first activity of a day still starts short-term memory fresh, but nothing looks back on the day, so Temperament and Moments keep what they have. Jev's per-choice questions, a menu's several calls to one tool and the harness's separate wait for a new day went with it. This replaces the row on the new day waiting apart | To simplify: only Jev could reflect, and the if-else modes couldn't | §4, [HARNESS.md](HARNESS.md) §2 |
 | 2026-09-26 | What you tell Boop to remember goes where it belongs, decided by Stage 1 from explicit meanings: `today` for a fact about a project or this session, `about_you` for a durable fact about you, `preference` for how you like things. Jev is asked with those meanings and `steering.md`; the if-else tables go by the words ("I" with a sign it lasts, "I like"), and "remember" wins over "quiet" | The owner wanted both memories kept, with durable facts long-term and project or session facts short-term, and the rule spelled out | §4, [HARNESS.md](HARNESS.md) §5–6 |
 | 2026-09-27 | Normal mode has its own if-else table, `NormalRules`, for normal's column: it decides without Jev's key, and for any pass Jev fails, refuses or doesn't answer in half the input's deadline. `--classifier jev` is Jev alone. The deterministic evals run all three modes | Without a key the default mode behaved as chatty, which its column says it doesn't, and nothing checked it; and a Jev outage or a bad key silently dropped hero moments (a failed turn, "be quiet", remember) | [HARNESS.md](HARNESS.md) §6, [BEHAVIORS.md](BEHAVIORS.md) §6, [EVALS.md](EVALS.md) |
+| 2026-09-27 | `react` loses its `voice` argument (`silent` or `mumble`): a react is a mumble, and staying silent is not calling it. Asked for quiet, Boop is just quiet, yelled or not. The menu's per-input narrowing and the "written only when" role, which existed only to contain `silent`, are gone | With the brain's faces parked, a silent react showed nothing; it was one more question for every brain, and Jev misread it twice (silent at agent starts, silent for yells) | [HARNESS.md](HARNESS.md) §3, §5 |

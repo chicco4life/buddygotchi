@@ -5,14 +5,14 @@ import Foundation
 ///
 /// | You said | Decides |
 /// | --- | --- |
-/// | "remember" or "note", unless you yelled or told Boop off | `react(happy, mumble)`, `remember(where)`, where from the words below. It wins over "quiet": "remember I like it quiet" isn't asking for quiet |
-/// | "quiet" | `quiet(n)`; n from the words: two hours 120, an hour 60, fifteen 15, else 30. Yelled or told off too: then `react(sad, silent)` |
-/// | You yelled, or told Boop off: "shut up", "go away", "hate you", "you suck", "hush", "stop talking", "keep it down", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot" | `react(sad, mumble)`, or nothing when the table keeps hurt to itself |
-/// | "hello", "hi", "hey", "morning" | `react(happy, mumble)` |
-/// | "bye", "goodbye", "see you", "good night" | `react(happy, mumble)` |
-/// | "lunch", "dinner", "breakfast", "food", "snack", "hungry" | `react(hopeful, mumble)` |
-/// | "good job", "well done", "nice", "great", "thanks", "the best" | `react(proud, mumble)` |
-/// | Anything else | `react(curious, mumble)` |
+/// | "remember" or "note", unless you yelled or told Boop off | `react(happy)`, `remember(where)`, where from the words below. It wins over "quiet": "remember I like it quiet" isn't asking for quiet |
+/// | "quiet" | `quiet(n)`; n from the words: two hours 120, an hour 60, fifteen 15, else 30. Nothing else: Boop is quiet now |
+/// | You yelled, or told Boop off: "shut up", "go away", "hate you", "you suck", "hush", "stop talking", "keep it down", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot" | `react(sad)`, or nothing when the table keeps hurt to itself |
+/// | "hello", "hi", "hey", "morning" | `react(happy)` |
+/// | "bye", "goodbye", "see you", "good night" | `react(happy)` |
+/// | "lunch", "dinner", "breakfast", "food", "snack", "hungry" | `react(hopeful)` |
+/// | "good job", "well done", "nice", "great", "thanks", "the best" | `react(proud)` |
+/// | Anything else | `react(curious)` |
 ///
 /// The first row that matches wins; whole words count ("hi" isn't in
 /// "this"). The writer picks every word.
@@ -26,26 +26,23 @@ import Foundation
 /// | Anything else: a project, a date, today's session | `today`: short-term |
 enum Phrases {
     /// The calls for what you said and the row that matched. `hurtMumbles`
-    /// says whether a yell or telling off gets a sad mumble or nothing: a
-    /// silent react is on the menu only when you ask for quiet
-    /// (HARNESS.md §2).
+    /// says whether a yell or telling off gets a sad mumble or nothing.
     static func reply(to input: Input, hurtMumbles: Bool) -> ([ToolCall], String) {
         let words = Input.plain(input.words ?? "")
         let hurt = input.yelled || tellsOff(words)
         if !hurt && [" remember ", " note "].contains(where: words.contains) {
             let place = place(words)
-            return ([react("happy", "mumble"), ToolCall("remember", ["where": .string(place)])], "asked to remember, \(place)")
+            return ([react("happy"), ToolCall("remember", ["where": .string(place)])], "asked to remember, \(place)")
         }
         if input.asksForQuiet {
-            let quiet = ToolCall("quiet", ["minutes": .number(minutes(words))])
-            return hurt ? ([quiet, react("sad", "silent")], "asked for quiet, and hurt") : ([quiet], "asked for quiet")
+            return ([ToolCall("quiet", ["minutes": .number(minutes(words))])], "asked for quiet")
         }
-        if hurt { return (hurtMumbles ? [react("sad", "mumble")] : [], input.yelled ? "yelled at" : "told off") }
-        if greetings.contains(where: words.contains) { return ([react("happy", "mumble")], "a greeting") }
-        if goodbyes.contains(where: words.contains) { return ([react("happy", "mumble")], "a goodbye") }
-        if meals.contains(where: words.contains) { return ([react("hopeful", "mumble")], "a meal") }
-        if praise.contains(where: words.contains) { return ([react("proud", "mumble")], "praise") }
-        return ([react("curious", "mumble")], "said anything else")
+        if hurt { return (hurtMumbles ? [react("sad")] : [], input.yelled ? "yelled at" : "told off") }
+        if greetings.contains(where: words.contains) { return ([react("happy")], "a greeting") }
+        if goodbyes.contains(where: words.contains) { return ([react("happy")], "a goodbye") }
+        if meals.contains(where: words.contains) { return ([react("hopeful")], "a meal") }
+        if praise.contains(where: words.contains) { return ([react("proud")], "praise") }
+        return ([react("curious")], "said anything else")
     }
 
     /// Being told off (BEHAVIORS.md §3.3): one of these, or "you" with an
@@ -88,7 +85,7 @@ enum Phrases {
         return 30
     }
 
-    static func react(_ feeling: String, _ voice: String) -> ToolCall {
-        ToolCall("react", ["feeling": .string(feeling), "voice": .string(voice)])
+    static func react(_ feeling: String) -> ToolCall {
+        ToolCall("react", ["feeling": .string(feeling)])
     }
 }

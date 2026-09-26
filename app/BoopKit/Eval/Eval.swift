@@ -397,7 +397,7 @@ public struct Eval: Sendable {
     }
 
     /// One pass as the scenarios write it (plan/EVALS.md §3):
-    /// `agent finished → react(feeling: proud, voice: mumble)`,
+    /// `agent finished → react(feeling: proud)`,
     /// `agent started → nothing`, `you said → remember(where: today) dropped (unwritten)`,
     /// `agent finished → dropped (off menu)`. A writer that failed adds
     /// ` · writer failed (error)`.

@@ -284,7 +284,7 @@ public final class Runtime: @unchecked Sendable {
             case .endListening:
                 react.endListening()
             case .mumble(let feeling, let word):
-                var arguments: [String: ToolValue] = ["feeling": .string(feeling), "voice": .string("mumble")]
+                var arguments: [String: ToolValue] = ["feeling": .string(feeling)]
                 if let word { arguments["word"] = .string(word) }
                 react.run(ToolCall("react", arguments))
             case .input(let input):

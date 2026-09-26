@@ -22,9 +22,6 @@ public struct ToolDefinition: Equatable, Sendable {
             case decided
             /// Stage 2, the writer.
             case written
-            /// Stage 2, but only when the argument `name` has the value
-            /// `value` (`react`'s word, only for a mumble); left out otherwise.
-            case writtenWhen(String, is: String)
         }
 
         public var name: String
@@ -86,7 +83,7 @@ public struct ToolDefinition: Equatable, Sendable {
         }
         for p in parameters {
             guard let value = arguments[p.name] else {
-                if p.optional || !needed(p, arguments) { continue }
+                if p.optional { continue }
                 return "\(p.name) is missing"
             }
             if let why = Self.check(value, p, arguments) { return why }
@@ -111,12 +108,6 @@ public struct ToolDefinition: Equatable, Sendable {
         return nil
     }
 
-    /// A written argument is needed only when its condition holds.
-    func needed(_ p: Parameter, _ arguments: [String: ToolValue]) -> Bool {
-        if case .writtenWhen(let name, let value) = p.role { return arguments[name]?.string == value }
-        return true
-    }
-
     static func check(_ value: ToolValue, _ p: Parameter, _ arguments: [String: ToolValue]) -> String? {
         switch p.kind {
         case .choice(let options):
@@ -129,18 +120,6 @@ public struct ToolDefinition: Equatable, Sendable {
             if s.count > max { return "\(p.name) is longer than \(max) characters" }
         }
         return nil
-    }
-
-    /// This definition with fewer choices for some decided arguments, as a
-    /// menu item allows (`voice: [mumble]`).
-    public func narrowed(_ only: [String: [String]]) -> ToolDefinition {
-        var copy = self
-        for (name, allowed) in only {
-            guard let i = copy.parameters.firstIndex(where: { $0.name == name }),
-                  case .choice(let options) = copy.parameters[i].kind else { continue }
-            copy.parameters[i].kind = .choice(options.filter(allowed.contains))
-        }
-        return copy
     }
 }
 
@@ -187,12 +166,12 @@ public struct ToolCall: Equatable, Sendable, CustomStringConvertible {
         self.arguments = arguments
     }
 
-    /// `react(feeling: "proud", voice: "mumble")`.
+    /// `react(feeling: "proud", word: "yay")`.
     public var description: String {
         name + "(" + arguments.sorted { $0.key < $1.key }.map { "\($0.key): \($0.value)" }.joined(separator: ", ") + ")"
     }
 
-    /// `react(feeling: proud, voice: mumble)`, for a model to read.
+    /// `react(feeling: proud, word: yay)`, for a model to read.
     public var plain: String {
         name + "(" + arguments.sorted { $0.key < $1.key }.map { "\($0.key): \($0.value.plain)" }.joined(separator: ", ") + ")"
     }

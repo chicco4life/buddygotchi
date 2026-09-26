@@ -48,7 +48,7 @@ language models read its one-line form.
 | --- | --- | --- | --- | --- | --- |
 | Agent started | `turn_start` | agent, project, time | Base becomes working | 5 s | `react` |
 | Agent finished | `turn_end` or `turn_failed`; a `turn_end` whose last test, build or deploy command failed is `failed` ([BEHAVIORS.md](BEHAVIORS.md) §3.1) | outcome (`done` or `failed`), agent, project, topic, how long it took, named (below), the error class when it failed, time, "+N more" | `done`: a cheer (in calm, only for a very long turn). `failed`: nothing; the session goes idle | 5 s | `react` |
-| You said something | push-to-talk, or Send in the popover | your words (at most 500 characters, about 30 s of speech), whether you yelled, time | `listening`, until the reply | 4 s | `quiet` only when your words ask for it, `react` (silent only then too), `remember` |
+| You said something | push-to-talk, or Send in the popover | your words (at most 500 characters, about 30 s of speech), whether you yelled, time | `listening`, until the reply | 4 s | `quiet` only when your words ask for it, `react`, `remember` |
 | Poked again and again | a poke streak ([BEHAVIORS.md](BEHAVIORS.md) §3.3) | time | `wiggle`, as for every tap | 4 s | `react` |
 
 Their lines look like this:
@@ -106,12 +106,9 @@ which starts short-term memory fresh; nothing reflects on the day before
 3. **Open the pass.** The input and the rules' reaction join the
    transcript, moving the window first when it's full (§4). The menu is the
    input's outputs, in the order they run, with the actions' definitions as
-   they are now, narrowed to the choices this input allows. `quiet` is on
-   it only when your words ask for quiet: its action would refuse it otherwise, and a
-   brain isn't asked what the rules decide. A silent `react` is offered
-   only then too: with the brain's faces parked it shows nothing, so it
-   only means something as quiet starts, when a mumble would be dropped
-   anyway. Otherwise `react`'s voice is `mumble`.
+   they are now. `quiet` is on it only when your words ask for quiet: its
+   action would refuse it otherwise, and a brain isn't asked what the
+   rules decide.
    The pass keeps the classifier and writer it starts with: a new mode
    (§6) takes the next pass, and one already running finishes with its
    own.
@@ -171,7 +168,7 @@ decided, then a line per slot (from `BrainTests`):
 --- now ---
 you said · 14:05 Tuesday
 They just said: "remember the demo is on Thursday"
-Boop decided: react(feeling: happy, voice: mumble), remember(where: today)
+Boop decided: react(feeling: happy), remember(where: today)
 --- write ---
 react.word: the mumble's one real word, from its list, as Writing says; none only when nothing fits.
 remember.text: at most 80 characters. Short-term, for today: a fact about a project or this session, like what something is, a date, or what they're doing now. Plain words, no code; leave it empty if nothing is worth keeping.
@@ -216,7 +213,7 @@ can come from, in order (the writer picks one before the value, §7).
 
 | Output | Decided | Written | What it does |
 | --- | --- | --- | --- |
-| `react` | `feeling`, one of ten; `voice`: `silent` or `mumble` | `word`, only for a mumble: `none` or one of Voice's 40 words ([VOICE.md](VOICE.md) §6), from what they said, the failed topic, how the turn went or the feeling (`steering.md`, Writing) | For a mumble, a Minion line from Voice in the feeling's sound, with the word, played over whatever face is showing. The brain's faces are parked ([FUTURE.md](FUTURE.md)), so `silent` shows nothing. A mumble is dropped in quiet mode or while something needs you |
+| `react` | `feeling`, one of ten | `word`: `none` or one of Voice's 40 words ([VOICE.md](VOICE.md) §6), from what they said, the failed topic, how the turn went or the feeling (`steering.md`, Writing) | A mumble: a Minion line from Voice in the feeling's sound, with the word, played over whatever face is showing. The brain's faces are parked ([FUTURE.md](FUTURE.md)), so staying silent is not calling `react`. A mumble is dropped in quiet mode or while something needs you |
 | `quiet` | `minutes`: 15, 30, 60 or 120 | — | The core's quiet mode: no mumbles, and agent inputs skip the brain. The action runs only when the last thing you said asked for quiet ("quiet" in your words), whichever classifier decided ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
 | `remember` | `where`: `today`, `about_you` or `preference` | `text` | A line in that part of memory, under its own rules |
 
@@ -276,10 +273,10 @@ says exactly how it behaves. The mode picks them
 
 | Brain | Stage | What it does |
 | --- | --- | --- |
-| `ChattyRules` | 1 | Plain Swift, no model, always available; reads only the input's fields, so the same events always get the same decisions. Every agent input gets a mumble. Agent started: `react(curious, mumble)`. Finished `done`, a short turn: `react(happy, mumble)`; a long turn: `react(proud, mumble)`; a very long turn: `react(excited, mumble)`. Finished `failed`: `react(annoyed, mumble)`, one mumble per failure. Poked again and again: `react(annoyed, mumble)`. You said something: the phrase table below, with a sad `mumble` when you yelled or told Boop off |
-| `NormalRules` | 1 | Plain Swift, no model, always available; reads only the input's fields. Normal decides with it without Jev's key, and for any pass Jev fails, refuses or doesn't answer in half the input's deadline (2.5 s for an agent input, 2 s otherwise), which leaves the rest for the writer; the evidence says `jev:jev-latest failed (…) · normal@1: …` and the log gives Jev's error. Normal's column ([BEHAVIORS.md](BEHAVIORS.md) §6), which Jev is steered toward. Agent started, and finished `done` in a short turn: nothing (the rules cheer). Finished `done`, a long or very long turn: `react(proud, mumble)`. Finished `failed`: `react(annoyed, mumble)`. Poked again and again: `react(annoyed, mumble)`. You said something: the phrase table below, with a sad `mumble` when you yelled or told Boop off |
-| `CalmRules` | 1 | Plain Swift, no model, always available; reads only the input's fields. Agent started, finished `done`, and poked again and again: nothing. Finished `failed`: `react(annoyed, mumble)`, the one alert besides "needs you". You said something: the phrase table below, and nothing when you yelled or told Boop off |
-| `JevClassifier` | 1 | TypeSafe's `jev-latest` ([docs](https://docs.typesafe.ai/api)), with the person's API key. It doesn't write: it answers typed questions about a state with probabilities, in one request of about 0.2 s. The state is `steering.md` without its Writing section (Jev never writes), both memory files, the window's recent inputs (minutes ago, what happened, what you said, what the rules did and what Boop did) and now. The menu becomes questions built from the definitions' own questions: a yes/no for each output ("Does what just happened call for Boop to react?"), a choice for each decided argument with more than one option (`react.feeling`, `react.voice`, `quiet.minutes`); `remember.where` is asked with each place's meaning. As TypeSafe advises, each question names what it's about (`now`) and what to judge it by (`boop`, its Examples first), and a yes means `boop` says to do it for something like `now`. Each question is answered on its own, so every argument is asked up front and only a chosen output's are used. A yes is above 0.5; each choice is the most likely one. A 429, a 5xx (TypeSafe's 529 is "overloaded") or a dropped connection is tried once more, 0.3 s later, as TypeSafe advises; the input's deadline still bounds the pass. Only the HTTP status of a failed request is logged |
+| `ChattyRules` | 1 | Plain Swift, no model, always available; reads only the input's fields, so the same events always get the same decisions. Every agent input gets a mumble. Agent started: `react(curious)`. Finished `done`, a short turn: `react(happy)`; a long turn: `react(proud)`; a very long turn: `react(excited)`. Finished `failed`: `react(annoyed)`, one mumble per failure. Poked again and again: `react(annoyed)`. You said something: the phrase table below, with a sad mumble when you yelled or told Boop off |
+| `NormalRules` | 1 | Plain Swift, no model, always available; reads only the input's fields. Normal decides with it without Jev's key, and for any pass Jev fails, refuses or doesn't answer in half the input's deadline (2.5 s for an agent input, 2 s otherwise), which leaves the rest for the writer; the evidence says `jev:jev-latest failed (…) · normal@1: …` and the log gives Jev's error. Normal's column ([BEHAVIORS.md](BEHAVIORS.md) §6), which Jev is steered toward. Agent started, and finished `done` in a short turn: nothing (the rules cheer). Finished `done`, a long or very long turn: `react(proud)`. Finished `failed`: `react(annoyed)`. Poked again and again: `react(annoyed)`. You said something: the phrase table below, with a sad mumble when you yelled or told Boop off |
+| `CalmRules` | 1 | Plain Swift, no model, always available; reads only the input's fields. Agent started, finished `done`, and poked again and again: nothing. Finished `failed`: `react(annoyed)`, the one alert besides "needs you". You said something: the phrase table below, and nothing when you yelled or told Boop off |
+| `JevClassifier` | 1 | TypeSafe's `jev-latest` ([docs](https://docs.typesafe.ai/api)), with the person's API key. It doesn't write: it answers typed questions about a state with probabilities, in one request of about 0.2 s. The state is `steering.md` without its Writing section (Jev never writes), both memory files, the window's recent inputs (minutes ago, what happened, what you said, what the rules did and what Boop did) and now. The menu becomes questions built from the definitions' own questions: a yes/no for each output ("Does what just happened call for Boop to react?"), a choice for each decided argument with more than one option (`react.feeling`, `quiet.minutes`); `remember.where` is asked with each place's meaning. As TypeSafe advises, each question names what it's about (`now`) and what to judge it by (`boop`, its Examples first), and a yes means `boop` says to do it for something like `now`. Each question is answered on its own, so every argument is asked up front and only a chosen output's are used. A yes is above 0.5; each choice is the most likely one. A 429, a 5xx (TypeSafe's 529 is "overloaded") or a dropped connection is tried once more, 0.3 s later, as TypeSafe advises; the input's deadline still bounds the pass. Only the HTTP status of a failed request is logged |
 | `AppleWriter` | 2 | Apple's on-device model: private and free. A fresh session each call: its instructions are a short preamble, `steering.md` and both memory files; its prompt is what just happened and what Boop decided, then a line per slot (§4). Guided generation with one property per slot: a word from `none` and its list, or text with its length asked for; a slot with sources gets a property before it, where the model picks the source first. Temperature 0.2, so the same moment gets the same word. In chatty mode a word left empty is asked for once more, with `none` off its list, when that can finish in the time left; taking `none` off from the start made the words worse (a failed test run got "ugh", not "tests"). There's no option to decline, so it can't answer "stay quiet"; that was Stage 1's job. Guardrails are `permissiveContentTransformations`; a refusal fails the write like any error, marked as a refusal |
 | `NoWriter` | 2 | Writes nothing: mumbles have no word, and nothing is remembered. What Apple's model falls back to when it can't run, and `--writer none` |
 | `DeepSeekWriter` | 2 | Not built yet: it refuses every write ([FUTURE.md](FUTURE.md)) |
@@ -289,14 +286,14 @@ wins and whole words only:
 
 | You said | Decides |
 | --- | --- |
-| "remember" or "note", unless you yelled or told Boop off | `react(happy, mumble)` and `remember(where)`, where from the words below. It wins over "quiet": "remember I like it quiet" isn't asking for quiet |
-| "quiet" | `quiet`: two hours 120, fifteen 15, half an hour 30, an hour 60, else 30. If you also yelled or told Boop off, then `react(sad, silent)` |
-| You yelled, or told Boop off: "shut up", "go away", "hate you", "you suck", "hush", "stop talking", "keep it down", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot" | `react(sad, mumble)` in chatty and normal; nothing in calm, since a silent react is on the menu only as quiet starts (§2) |
-| "hello", "hi", "hey" or "morning" | `react(happy, mumble)` |
-| "bye", "goodbye", "see you" or "good night" | `react(happy, mumble)` |
-| "lunch", "dinner", "breakfast", "food", "snack" or "hungry" | `react(hopeful, mumble)` |
-| "good job", "well done", "nice", "great", "thanks" or "the best" | `react(proud, mumble)` |
-| Anything else | `react(curious, mumble)` |
+| "remember" or "note", unless you yelled or told Boop off | `react(happy)` and `remember(where)`, where from the words below. It wins over "quiet": "remember I like it quiet" isn't asking for quiet |
+| "quiet" | `quiet`: two hours 120, fifteen 15, half an hour 30, an hour 60, else 30. Nothing else, yelled or not: Boop is quiet now |
+| You yelled, or told Boop off: "shut up", "go away", "hate you", "you suck", "hush", "stop talking", "keep it down", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot" | `react(sad)` in chatty and normal; nothing in calm |
+| "hello", "hi", "hey" or "morning" | `react(happy)` |
+| "bye", "goodbye", "see you" or "good night" | `react(happy)` |
+| "lunch", "dinner", "breakfast", "food", "snack" or "hungry" | `react(hopeful)` |
+| "good job", "well done", "nice", "great", "thanks" or "the best" | `react(proud)` |
+| Anything else | `react(curious)` |
 
 Where to remember, for every if-else classifier, first match wins. They can
 only go by the words, so they err towards today:
@@ -349,9 +346,7 @@ open-ended instructions, so the design leans on that:
   need pulls a small model off course.
 - **No arithmetic:** numbers a decision depends on arrive already named
   (a long turn, not 20 s), and what the rules can decide isn't asked
-  (`quiet`, and a silent `react`, are offered only when your words ask
-  for quiet). Jev couldn't tell from "73 minutes ago" that an hour's quiet
-  was over, and kept picking silent.
+  (`quiet` is offered only when your words ask for quiet).
 - **Choices that say what they're not:** each feeling's description rules
   out its neighbours ("sad" is only hurt, a failed turn is "annoyed", a
   finished one "proud" whatever it ran), as TypeSafe advises for choices. Jev is literal and

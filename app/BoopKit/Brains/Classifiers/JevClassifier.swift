@@ -13,7 +13,7 @@ import Foundation
 ///
 ///     react              yes/no: the definition's question
 ///     react.feeling      choice: happy | excited | proud | …   (a decided argument
-///     react.voice        choice: silent | mumble                 with more than one option)
+///                                                               with more than one option)
 ///
 /// As TypeSafe advises for Jev, each question names the part of the state
 /// it's about (`now`) and what to judge it by (`boop`, its Examples first),

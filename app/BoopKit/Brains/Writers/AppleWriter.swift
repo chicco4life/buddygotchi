@@ -132,7 +132,7 @@ public struct AppleWriter: Writer {
     ///     --- now ---
     ///     you said · 11:45 Tuesday
     ///     They just said: "remember the demo is on Thursday"
-    ///     Boop decided: react(feeling: happy, voice: mumble), remember(where: today)
+    ///     Boop decided: react(feeling: happy), remember(where: today)
     ///     --- write ---
     ///     react.word: the mumble's one real word, from its list, as Writing says; none only when nothing fits.
     ///     remember.text: at most 80 characters. Short-term, for today: a fact about a project or this session… Plain words; leave it empty if nothing is worth keeping.

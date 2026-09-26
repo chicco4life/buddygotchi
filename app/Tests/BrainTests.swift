@@ -117,8 +117,9 @@ final class PhrasesTests: XCTestCase {
             (input(.said, words: "be quiet for an hour"), [quiet(60)]),
             (input(.said, words: "give me some quiet for a couple of hours"), [quiet(120)]),
             (input(.said, words: "quiet for fifteen minutes please"), [quiet(15)]),
-            (input(.said, words: "BE QUIET", yelled: true), [quiet(30), react("sad", "silent")]),
-            (input(.said, words: "be quiet, you idiot"), [quiet(30), react("sad", "silent")]),
+            // Asked for quiet, Boop is just quiet, hurt or not.
+            (input(.said, words: "BE QUIET", yelled: true), [quiet(30)]),
+            (input(.said, words: "be quiet, you idiot"), [quiet(30)]),
             (input(.said, words: "Shut up for an hour"), [react("sad")]),
             (input(.said, words: "can you keep it down for fifteen minutes"), [react("sad")]),
             (input(.said, words: "hush"), [react("sad")]),
@@ -135,7 +136,7 @@ final class PhrasesTests: XCTestCase {
             (input(.said, words: "remember that I always review PRs before lunch"), [react("happy"), remember("about_you")]),
             (input(.said, words: "remember my name is on the release notes every week"), [react("happy"), remember("about_you")]),
             (input(.said, words: "remember I like it quiet before 10am"), [react("happy"), remember("preference")]),
-            (input(.said, words: "remember to be quiet", yelled: true), [quiet(30), react("sad", "silent")]),
+            (input(.said, words: "remember to be quiet", yelled: true), [quiet(30)]),
             (input(.said, words: "note that I'd rather have tests first"), [react("happy"), remember("preference")]),
             (input(.said, words: "note that landing launches Monday"), [react("happy"), remember("today")]),
             (input(.said, words: "remember the demo is on Thursday"), [react("happy"), remember("today")]),
@@ -154,8 +155,7 @@ final class PhrasesTests: XCTestCase {
         XCTAssertEqual(Input.plain("Hi, THIS is quiet-ish!"), " hi this is quiet ish ")
         XCTAssertFalse(input(.said, words: "speak quietly").asksForQuiet)
         XCTAssertTrue(input(.said, words: "Quiet!").asksForQuiet)
-        // Calm keeps hurt to itself: a silent react is only on the menu
-        // as quiet starts.
+        // Calm keeps hurt to itself.
         XCTAssertEqual(Phrases.reply(to: input(.said, words: "shut up"), hurtMumbles: false).0, [])
     }
 }
@@ -175,14 +175,10 @@ final class InputMenuTests: XCTestCase {
 
     /// `quiet` is on the menu only when the words ask for it.
     func testQuietIsOnTheMenuOnlyWhenAsked() {
-        XCTAssertEqual(input(.said, words: "be quiet for an hour").menu.map(\.tool), ["quiet", "react", "remember"])
-        XCTAssertEqual(input(.said, words: "shut up for an hour").menu.map(\.tool), ["react", "remember"])
-        XCTAssertEqual(input(.agentFinished).menu.map(\.tool), ["react"])
-        // A silent react shows nothing in v1, so it's offered only as quiet starts.
-        XCTAssertEqual(input(.said, words: "be quiet").menu[1].only["voice"], nil)
-        XCTAssertEqual(input(.said, words: "shut up").menu[0].only["voice"], ["mumble"])
-        XCTAssertEqual(input(.agentStarted).menu[0].only["voice"], ["mumble"])
-        XCTAssertEqual(input(.poked).menu[0].only["voice"], ["mumble"])
+        XCTAssertEqual(input(.said, words: "be quiet for an hour").menu, ["quiet", "react", "remember"])
+        XCTAssertEqual(input(.said, words: "shut up for an hour").menu, ["react", "remember"])
+        XCTAssertEqual(input(.agentFinished).menu, ["react"])
+        XCTAssertEqual(input(.poked).menu, ["react"])
     }
 }
 
@@ -250,7 +246,7 @@ final class JevClassifierTests: XCTestCase {
         XCTAssertEqual(jev.last["model"] as? String, "jev-latest")
         let q = jev.questions
         XCTAssertEqual(Set(q.keys), ["react", "react.feeling", "remember", "remember.where"],
-                       "quiet, and so a silent react, only when asked for quiet")
+                       "quiet only when asked for quiet")
         XCTAssertEqual(q["react"]?["type"] as? String, "noul")
         // The definition's own question, about `now`, judged by `boop`
         // (TypeSafe's advice: name the part of the state, say what yes means).
@@ -271,8 +267,7 @@ final class JevClassifierTests: XCTestCase {
         XCTAssertTrue(places?["about_you"]?.contains("durable fact") ?? false)
 
         _ = try await classify(jev, input(.said, words: "be quiet please"))
-        XCTAssertEqual(Set(jev.questions.keys), ["quiet", "quiet.minutes", "react", "react.feeling", "react.voice", "remember",
-                                                 "remember.where"])
+        XCTAssertEqual(Set(jev.questions.keys), ["quiet", "quiet.minutes", "react", "react.feeling", "remember", "remember.where"])
         let minutes = jev.questions["quiet.minutes"]?["criteria"] as? [String: String]
         XCTAssertEqual(Set(minutes?.keys ?? [:].keys), ["15", "30", "60", "120"])
         XCTAssertEqual(minutes?["30"], "Half an hour, or when they don't say how long.")
@@ -281,14 +276,14 @@ final class JevClassifierTests: XCTestCase {
     func testYesesBecomeCallsWithTheirChoices() async throws {
         let jev = FakeJev()
         jev.nouls = ["quiet": 0.9, "react": 0.8, "remember": 0.3]
-        jev.choices = ["quiet.minutes": "60", "react.feeling": "sulky", "react.voice": "silent"]
+        jev.choices = ["quiet.minutes": "60", "react.feeling": "sulky"]
         let c = try await classify(jev, input(.said, words: "be quiet for an hour"))
-        XCTAssertEqual(c.calls, [ToolCall("quiet", ["minutes": .number(60)]), react("sulky", "silent")])
+        XCTAssertEqual(c.calls, [ToolCall("quiet", ["minutes": .number(60)]), react("sulky")])
         XCTAssertTrue(c.evidence?.contains("quiet 0.90") ?? false, c.evidence ?? "")
         XCTAssertTrue(c.evidence?.contains("react.feeling sulky 0.90") ?? false, c.evidence ?? "")
 
         jev.nouls = ["react": 0.7, "remember": 0.93]
-        jev.choices = ["react.feeling": "happy", "react.voice": "mumble", "remember.where": "about_you"]
+        jev.choices = ["react.feeling": "happy", "remember.where": "about_you"]
         let noted = try await classify(jev, input(.said, words: "remember I ship on Fridays"))
         XCTAssertEqual(noted.calls, [react("happy"), remember("about_you")])
     }
@@ -312,7 +307,7 @@ final class JevClassifierTests: XCTestCase {
         XCTAssertEqual(state["now"] as? [String: String], ["happened": "you said · 14:05 Tuesday", "they_said": "hi"])
         let recent = state["recent"] as! [[String: Any]]
         XCTAssertEqual(recent.map { $0["minutes_ago"] as? Int }, [4, 2])
-        XCTAssertEqual(recent[0]["boop_did"] as? [String], ["react(feeling: proud, voice: mumble, word: finally)"])
+        XCTAssertEqual(recent[0]["boop_did"] as? [String], ["react(feeling: proud, word: finally)"])
         XCTAssertEqual(recent[0]["rules"] as? String, "cheer")
         XCTAssertNil(recent[1]["boop_did"], "an aside")
         let request = String(decoding: try JSONSerialization.data(withJSONObject: jev.last), as: UTF8.self)
@@ -447,7 +442,7 @@ final class WriterTests: XCTestCase {
             --- now ---
             you said · 14:05 Tuesday
             They just said: "remember the demo is on Thursday"
-            Boop decided: react(feeling: happy, voice: mumble), remember(where: today)
+            Boop decided: react(feeling: happy), remember(where: today)
             --- write ---
             react.word: the mumble's one real word, from its list, as Writing says; none only when nothing fits.
             remember.text: at most 80 characters. Short-term, for today: a fact about a project or this session, like what \

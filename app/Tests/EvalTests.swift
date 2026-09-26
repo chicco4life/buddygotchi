@@ -49,7 +49,7 @@ final class EvalTests: XCTestCase {
                 mode = scenarioStep.event.mode ?? mode
                 guard scenarioStep.classifier == nil else { continue }
                 for line in step.actual {
-                    let mumble = line.contains("voice: mumble")
+                    let mumble = line.contains("react(")
                     switch mode {
                     case .chatty:
                         if line.hasPrefix("agent ") || line.hasPrefix("poked ") {
@@ -91,8 +91,8 @@ final class EvalTests: XCTestCase {
             """)
         XCTAssertFalse(result.passed)
         XCTAssertEqual(result.steps.map(\.actual),
-                       [["agent started → react(feeling: curious, voice: mumble)"],
-                        ["agent finished → react(feeling: excited, voice: mumble)"]])
+                       [["agent started → react(feeling: curious)"],
+                        ["agent finished → react(feeling: excited)"]])
     }
 
     /// Scripted stages replace the brains for that step only. A tap never
@@ -105,14 +105,14 @@ final class EvalTests: XCTestCase {
                "expect": ["agent started → dropped (refused)"]},
               {"input": {"at": "1m", "event": "tap"}, "expect": []},
               {"input": {"at": "2m", "event": "talk", "words": "remember the demo is at noon"},
-               "expect": ["you said → react(feeling: happy, voice: mumble), remember(where: today) dropped (unwritten)"]},
+               "expect": ["you said → react(feeling: happy), remember(where: today) dropped (unwritten)"]},
               {"input": {"at": "3m", "event": "talk", "words": "remember the demo is at noon"},
                "writer": {"remember.text": "demo at noon"},
-               "expect": ["you said → react(feeling: happy, voice: mumble), remember(text: \\"demo at noon\\", where: today)"]},
+               "expect": ["you said → react(feeling: happy), remember(text: \\"demo at noon\\", where: today)"]},
               {"input": {"at": "4m", "event": "turn finished"}, "classifier": "late",
                "expect": ["agent finished → dropped (late)"]},
               {"input": {"at": "5m", "event": "talk", "words": "hi"}, "writer": {"error": "boom"},
-               "expect": ["you said → react(feeling: happy, voice: mumble) · writer failed (error)"]}]}
+               "expect": ["you said → react(feeling: happy) · writer failed (error)"]}]}
             """)
         XCTAssertTrue(result.passed, Eval.diff(result))
     }
@@ -123,16 +123,16 @@ final class EvalTests: XCTestCase {
         let json = """
             {"name": "x", "modes": ["chatty", "calm"], "rules": true, "steps": [
               {"input": {"at": "0s", "event": "turn started"},
-               "expect": {"chatty": ["agent started → react(feeling: curious, voice: mumble)"],
+               "expect": {"chatty": ["agent started → react(feeling: curious)"],
                           "calm": ["agent started → nothing"]}},
               {"input": {"at": "8s", "event": "turn finished"},
-               "expect": {"chatty": ["rules → cheer", "agent finished → react(feeling: happy, voice: mumble)"],
+               "expect": {"chatty": ["rules → cheer", "agent finished → react(feeling: happy)"],
                           "calm": ["agent finished → nothing"]}},
               {"input": {"at": "10s", "event": "mode", "mode": "chatty"}, "expect": []},
               {"input": {"at": "20s", "event": "turn started"},
-               "expect": ["agent started → react(feeling: curious, voice: mumble)"]},
+               "expect": ["agent started → react(feeling: curious)"]},
               {"input": {"at": "30s", "event": "turn finished"},
-               "expect": ["rules → cheer", "agent finished → react(feeling: happy, voice: mumble)"]}]}
+               "expect": ["rules → cheer", "agent finished → react(feeling: happy)"]}]}
             """
         let url = try write(json)
         defer { try? FileManager.default.removeItem(at: url) }
@@ -183,7 +183,7 @@ final class EvalTests: XCTestCase {
             r.writeFailed = writeFailed
             return r
         }
-        let word = try Expectation("you said → react(feeling: happy|proud, voice: mumble, word: okay|yes)")
+        let word = try Expectation("you said → react(feeling: happy|proud, word: okay|yes)")
         XCTAssertTrue(word.matches(record([(react("proud", word: "yes"), .done(""))]), writing: true, definitions: defs))
         XCTAssertFalse(word.matches(record([(react("proud", word: "yay"), .done(""))]), writing: true, definitions: defs))
         XCTAssertFalse(word.matches(record([(react("sad", word: "yes"), .done(""))]), writing: true, definitions: defs))
@@ -191,9 +191,9 @@ final class EvalTests: XCTestCase {
                        "a word left out fits only with none")
         XCTAssertTrue(word.matches(record([(react("proud"), .done(""))]), writing: false, definitions: defs),
                       "with no writer, words aren't checked")
-        try XCTAssertTrue(try Expectation("you said → react(feeling: happy, voice: mumble, word: okay|none)")
+        try XCTAssertTrue(try Expectation("you said → react(feeling: happy, word: okay|none)")
             .matches(record([(react("happy"), .done(""))]), writing: true, definitions: defs))
-        try XCTAssertFalse(try Expectation("you said → react(feeling: happy, voice: mumble)")
+        try XCTAssertFalse(try Expectation("you said → react(feeling: happy)")
             .matches(record([(react("happy", word: "hi"), .done(""))]), writing: true, definitions: defs),
                        "a word nobody expected fails")
 
@@ -204,7 +204,7 @@ final class EvalTests: XCTestCase {
                       "with no writer, the note is expected dropped (unwritten)")
         XCTAssertFalse(note.matches(record([(remember("today"), .dropped("nothing was written"))]), writing: true, definitions: defs))
 
-        let failed = try Expectation("you said → react(feeling: happy, voice: mumble) · writer failed (error)")
+        let failed = try Expectation("you said → react(feeling: happy) · writer failed (error)")
         XCTAssertTrue(failed.matches(record([(react("happy"), .done(""))], writeFailed: "apple: boom"), writing: true, definitions: defs))
         try XCTAssertEqual(try Expectation("you said → dropped (off menu)").answer, .dropped("off menu"))
         try XCTAssertThrowsError(try Expectation("you said: react(feeling: happy)"))

@@ -1,7 +1,7 @@
 import Foundation
 
 /// One pass as a scenario expects it (EVALS.md §3), parsed from its line:
-/// `agent finished → react(feeling: proud, voice: mumble, word: finally|done|yay)`.
+/// `agent finished → react(feeling: proud, word: finally|done|yay)`.
 ///
 /// An argument's value lists every value that fits, split by `|`; `none`
 /// among them lets the argument be left out, and `*` stands for any run of
@@ -60,7 +60,7 @@ public struct Expectation: Equatable, Sendable {
         }
     }
 
-    /// `react(feeling: sad, voice: mumble), remember(where: today) dropped (unwritten)`.
+    /// `react(feeling: sad), remember(where: today) dropped (unwritten)`.
     static func calls(_ text: String, bad: (String) -> Error) throws -> [Call] {
         var calls: [Call] = []
         var s = Substring(text)
@@ -155,7 +155,7 @@ extension Expectation.Call {
         if !writing, let definition {
             for p in definition.parameters where !p.decided {
                 expected[p.name] = nil
-                if !p.optional, definition.needed(p, call.arguments) { dropped = "unwritten" }
+                if !p.optional { dropped = "unwritten" }
             }
         }
         let actual: String? = switch outcome {

@@ -260,8 +260,7 @@ func brain(_ args: [String]) async {
         for r in rs {
             if r.decided.isEmpty { counts["nothing", default: 0] += 1 }
             for call in r.decided {
-                let voice = call.arguments["voice"]?.string.map { " \($0)" } ?? ""
-                counts[call.name + voice, default: 0] += 1
+                counts[call.name, default: 0] += 1
             }
         }
         print("\(kind.rawValue) (\(rs.count)): " + counts.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: ", "))

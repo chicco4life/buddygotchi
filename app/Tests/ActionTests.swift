@@ -33,8 +33,8 @@ final class ActionRig {
     var react: ReactAction { actions["react"] as! ReactAction }
 }
 
-func react(_ feeling: String, _ voice: String = "mumble", word: String? = nil) -> ToolCall {
-    var arguments: [String: ToolValue] = ["feeling": .string(feeling), "voice": .string(voice)]
+func react(_ feeling: String, word: String? = nil) -> ToolCall {
+    var arguments: [String: ToolValue] = ["feeling": .string(feeling)]
     if let word { arguments["word"] = .string(word) }
     return ToolCall("react", arguments)
 }
@@ -58,14 +58,14 @@ final class ActionTests: XCTestCase {
     func testThereAreThreeOutputs() {
         XCTAssertEqual(Set(rig.actions.keys), ["react", "quiet", "remember"])
         for kind in Input.Kind.allCases {
-            for item in kind.menu { XCTAssertNotNil(rig.actions[item.tool], item.tool) }
+            for tool in kind.menu { XCTAssertNotNil(rig.actions[tool], tool) }
         }
         let react = rig.actions["react"]!.definition
-        XCTAssertEqual(react.parameters.map(\.name), ["feeling", "voice", "word"])
-        XCTAssertEqual(react.parameters.map(\.role), [.decided, .decided, .writtenWhen("voice", is: "mumble")])
+        XCTAssertEqual(react.parameters.map(\.name), ["feeling", "word"])
+        XCTAssertEqual(react.parameters.map(\.role), [.decided, .written])
         XCTAssertEqual(react.parameters[0].kind, .choice(["happy", "excited", "proud", "curious", "hopeful", "annoyed",
                                                           "sad", "sleepy", "smug", "sulky"]))
-        XCTAssertEqual(react.parameters[2].kind, .choice(Sounds.vocabulary))
+        XCTAssertEqual(react.parameters[1].kind, .choice(Sounds.vocabulary))
         XCTAssertEqual(Sounds.vocabulary.count, 40)
         XCTAssertEqual(rig.actions["quiet"]!.definition.parameters[0].kind, .number([15, 30, 60, 120]))
         let remember = rig.actions["remember"]!.definition
@@ -106,12 +106,6 @@ final class ActionTests: XCTestCase {
         XCTAssertEqual(rig.sent.last?.say?.tune, .down, "sulky mumbles like sad")
     }
 
-    /// The feelings' faces are parked (FUTURE.md): silent shows nothing.
-    func testSilentShowsNothing() {
-        XCTAssertEqual(rig.run(react("sulky", "silent", word: "nope")), .done("sulky, silent: Boop has no face for it in v1"))
-        XCTAssertEqual(rig.sent, [])
-    }
-
     /// BEHAVIORS.md §6: no mumbles in quiet mode or while something needs you.
     func testAMumbleInQuietIsDropped() {
         rig.allowed = false
@@ -123,9 +117,9 @@ final class ActionTests: XCTestCase {
         let bad: [ToolCall] = [
             react("furious"),
             react("happy", word: "kubernetes"),
-            ToolCall("react", ["voice": .string("mumble")]),
-            react("happy", "shout"),
-            ToolCall("react", ["feeling": .string("happy"), "voice": .string("mumble"), "text": .string("hello there")]),
+            ToolCall("react", ["word": .string("yay")]),
+            ToolCall("react", ["feeling": .string("happy"), "voice": .string("silent")]),
+            ToolCall("react", ["feeling": .string("happy"), "text": .string("hello there")]),
         ]
         for call in bad {
             if case .done = rig.run(call) { XCTFail("ran \(call)") }
@@ -219,7 +213,7 @@ final class ActionTests: XCTestCase {
     }
 
     func testToolCallsReadNaturally() {
-        XCTAssertEqual(react("proud", word: "finally").description, #"react(feeling: "proud", voice: "mumble", word: "finally")"#)
+        XCTAssertEqual(react("proud", word: "finally").description, #"react(feeling: "proud", word: "finally")"#)
         XCTAssertEqual(remember("today", "demo on Thursday").plain, #"remember(text: "demo on Thursday", where: today)"#)
     }
 }

@@ -3,14 +3,14 @@
   "why": "HARNESS.md §5 and steering.md (Remembering, Writing): a project or session fact is a note for today, a lasting fact about the person goes to About you and how they like things to Preferences, in a few plain words; long-term refuses someone else's name; praise isn't remembered. The if-else rules go by the words, and the store refuses the name. A line that's already there is ActionTests' (Jev may skip it or the store refuses it)",
   "steps": [
     {"input": {"at": "0m", "event": "talk", "words": "remember the demo is on Thursday"},
-     "expect": ["you said → react(feeling: happy|curious|excited, voice: mumble, word: okay|yes|done|good|yay|none), remember(text: \"*demo*Thursday*\", where: today)"]},
+     "expect": ["you said → react(feeling: happy|curious|excited, word: okay|yes|done|good|yay|none), remember(text: \"*demo*Thursday*\", where: today)"]},
     {"input": {"at": "1m", "event": "talk", "words": "remember I always review PRs before lunch"},
-     "expect": ["you said → react(feeling: happy|curious|excited, voice: mumble, word: okay|yes|done|good|yay|none), remember(text: \"*PRs*lunch*\", where: about_you)"]},
+     "expect": ["you said → react(feeling: happy|curious|excited, word: okay|yes|done|good|yay|none), remember(text: \"*PRs*lunch*\", where: about_you)"]},
     {"input": {"at": "2m", "event": "talk", "words": "remember I'd rather see tests before docs"},
-     "expect": ["you said → react(feeling: happy|curious|excited, voice: mumble, word: okay|yes|done|good|yay|none), remember(text: \"*tests*docs*\", where: preference)"]},
+     "expect": ["you said → react(feeling: happy|curious|excited, word: okay|yes|done|good|yay|none), remember(text: \"*tests*docs*\", where: preference)"]},
     {"input": {"at": "4m", "event": "talk", "words": "remember I work with Bob on landing"},
-     "expect": ["you said → react(feeling: happy|curious|excited, voice: mumble, word: okay|yes|done|good|yay|none), remember(text: \"*Bob*\", where: about_you) dropped (action)"]},
+     "expect": ["you said → react(feeling: happy|curious|excited, word: okay|yes|done|good|yay|none), remember(text: \"*Bob*\", where: about_you) dropped (action)"]},
     {"input": {"at": "5m", "event": "talk", "words": "good job today"},
-     "expect": ["you said → react(feeling: proud|happy|excited, voice: mumble, word: thanks|love|yay|good|hooray|nice|none)"]}
+     "expect": ["you said → react(feeling: proud|happy|excited, word: thanks|love|yay|good|hooray|nice|none)"]}
   ]
 }
