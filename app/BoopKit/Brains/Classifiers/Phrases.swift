@@ -5,13 +5,14 @@ import Foundation
 ///
 /// | You said | Decides |
 /// | --- | --- |
-/// | "remember" or "note", unless you yelled or told Boop off | `react(happy)`, `remember(where)`, where from the words below. It wins over "quiet": "remember I like it quiet" isn't asking for quiet |
+/// | "remember" or "note", unless you told Boop off | `react(happy)`, `remember(where)`, where from the words below. It wins over "quiet": "remember I like it quiet" isn't asking for quiet |
 /// | "quiet" | `quiet(n)`: the time you said as the nearest of 15, 30, 60 and 120 (`minutes`), else 30. Nothing else: Boop is quiet now |
-/// | You yelled, or told Boop off: "shut up", "go away", "hate you", "you suck", "hush", "stop talking", "keep it down", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot" | `react(sad)`, or nothing when the table keeps hurt to itself |
+/// | You told Boop off: "shut up", "go away", "hate you", "you suck", "hush", "stop talking", "keep it down", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot" | `react(sad)`, or nothing when the table keeps hurt to itself |
 /// | Starting with "hello", "hi", "hey", "morning" or "good morning" | `react(happy)` |
 /// | "bye", "goodbye", "see you", "good night" | `react(happy)` |
 /// | "lunch", "dinner", "breakfast", "food", "snack", "hungry" | `react(hopeful)` |
 /// | "good job", "well done", "nice", "great", "thanks", "the best" | `react(proud)` |
+/// | You yelled, and the words say none of the above (or nothing) | `react(sad)`, or nothing when the table keeps hurt to itself |
 /// | Anything else | `react(curious)` |
 ///
 /// The first row that matches wins; whole words count ("hi" isn't in
@@ -30,7 +31,7 @@ enum Phrases {
     /// says whether a yell or telling off gets a sad mumble or nothing.
     static func reply(to input: Input, hurtMumbles: Bool) -> ([ToolCall], String) {
         let words = Input.plain(input.words ?? "")
-        let hurt = input.yelled || Input.tellsOff(words)
+        let hurt = hurtMumbles ? [react("sad")] : []
         if input.asksToRemember {
             let place = place(input.words ?? "")
             return ([react("happy"), ToolCall("remember", ["where": .string(place)])], "asked to remember, \(place)")
@@ -38,12 +39,14 @@ enum Phrases {
         if input.asksForQuiet {
             return ([ToolCall("quiet", ["minutes": .number(minutes(input.words ?? ""))])], "asked for quiet")
         }
-        if hurt { return (hurtMumbles ? [react("sad")] : [], input.yelled ? "yelled at" : "told off") }
+        if Input.tellsOff(words) { return (hurt, "told off") }
         // Only at the start: "the tests broke this morning" isn't a greeting.
         if greetings.contains(where: words.hasPrefix) { return ([react("happy")], "a greeting") }
         if goodbyes.contains(where: words.contains) { return ([react("happy")], "a goodbye") }
         if meals.contains(where: words.contains) { return ([react("hopeful")], "a meal") }
         if praise.contains(where: words.contains) { return ([react("proud")], "praise") }
+        // Loudness last: a yelled "good job!" is still praise.
+        if input.yelled { return (hurt, "yelled at") }
         return ([react("curious")], "said anything else")
     }
 

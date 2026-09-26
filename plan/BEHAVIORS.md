@@ -108,7 +108,7 @@ chirps again. The brain is never involved here.
 | --- | --- | --- |
 | Tap the screen, or press BOOT | `wiggle`: a happy squint, a small smile and a heart at the top right, swaying gently | Nothing: a tap is the rules' alone ([HARNESS.md](HARNESS.md) §2) |
 | Poke it 4 times within 3 s (*proposed*) | The fourth is a `wiggle` like the others. Not while something needs you, where a tap means "I saw it" | A grumble, as an annoyed mumble, e.g. *"ba-ka… nope!"*. The streak reaches the brain at most once a minute (*proposed*) |
-| Hold BOOT (push-to-talk) | `listening` at once, while held (at most 30 s) and then while Boop waits for the reply. The Mac's mic goes off on release, after 30 s, or when the link drops | Usually a mumble, as in [steering.md](steering.md). Asked to be quiet ("quiet" in your words), quiet mode for the minutes asked. Told off or yelled at, a sad mumble, and never quiet mode. Told something to remember, a line where it belongs: a project or session fact for today, a durable fact about you for good ([HARNESS.md](HARNESS.md) §5) |
+| Hold BOOT (push-to-talk) | `listening` at once, while held (at most 30 s) and then while Boop waits for the reply. The Mac's mic goes off on release, after 30 s, or when the link drops | Usually a mumble, as in [steering.md](steering.md). Asked to be quiet ("quiet" in your words), quiet mode for the minutes asked. Told off, or yelled at with words that say nothing else (a yelled "good job!" is still praise), a sad mumble, and never quiet mode. Told something to remember, a line where it belongs: a project or session fact for today, a durable fact about you for good ([HARNESS.md](HARNESS.md) §5) |
 | Talk in the popover, then Send | The Mac sends `listening` when the mic turns on. 8 s after Send (or after the 30 s limit) it sends an empty moment, which ends `listening` if no reply came. A mic that can't start sends the empty moment at once | As for holding BOOT |
 | The reply | A mumble ends `listening` and plays over the face | — |
 | No reply | After BOOT is released, the device waits at most 8 s for the reply, then the face blends back | — |
@@ -171,7 +171,7 @@ tap's wiggle are the same in every mode, and quiet wins over all of them.
 | Turn finishes, a very long turn (over a minute) | `cheer` and an excited mumble | `cheer` and a proud mumble | `cheer` |
 | Turn fails | An annoyed mumble | An annoyed mumble | An annoyed mumble: the one alert besides "needs you" |
 | Poked again and again | An annoyed mumble | An annoyed mumble | The wiggle only |
-| You talk to Boop | A mumble back (§3.3) | A mumble back | A mumble back; told off or yelled at, nothing |
+| You talk to Boop | A mumble back (§3.3) | A mumble back | A mumble back; told off, or yelled at with nothing else said, nothing |
 | Working chatter | Every 45–90 s | Every 2–4 minutes | Never |
 
 Normal's column is the normal if-else table, and what Jev is steered

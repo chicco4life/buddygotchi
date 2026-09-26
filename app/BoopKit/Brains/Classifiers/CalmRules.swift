@@ -11,7 +11,7 @@ import Foundation
 /// | Agent finished, done | nothing |
 /// | Agent finished, failed | `react(annoyed)`: the one alert besides "needs you" |
 /// | Poked again and again | nothing |
-/// | You said anything | `Phrases`' table; yelled at or told off, nothing |
+/// | You said anything | `Phrases`' table; told off, or yelled with nothing else said, nothing |
 ///
 /// Calls the menu doesn't offer are left out.
 public struct CalmRules: Classifier {

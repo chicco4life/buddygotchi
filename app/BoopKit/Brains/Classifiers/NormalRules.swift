@@ -13,7 +13,7 @@ import Foundation
 /// | Agent finished, done, a long or very long turn (15 s or more) | `react(proud)` |
 /// | Agent finished, failed | `react(annoyed)` |
 /// | Poked again and again | `react(annoyed)`: the grumble |
-/// | You said anything | `Phrases`' table; yelled at or told off, `react(sad)` |
+/// | You said anything | `Phrases`' table; told off, or yelled with nothing else said, `react(sad)` |
 ///
 /// Calls the menu doesn't offer are left out.
 public struct NormalRules: Classifier {

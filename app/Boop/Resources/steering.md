@@ -54,7 +54,7 @@ Poked again and again: react annoyed, mumble "nope".
 "be quiet for an hour": quiet 60.
 "BE QUIET", yelled: quiet 30.
 "shut up": react sad, mumble "oh".
-Yelled at, whatever the words: react sad, mumble "oh".
+Yelled at, and the words say nothing else: react sad, mumble "oh".
 "ugh, the tests are flaky again": react annoyed, mumble "ugh".
 "good job today": react proud, mumble "thanks".
 "hello boop": react happy, mumble "hi".

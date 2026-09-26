@@ -165,7 +165,11 @@ final class PhrasesTests: XCTestCase {
             (input(.said, words: "remember that I always review PRs before lunch"), [react("happy"), remember("about_you")]),
             (input(.said, words: "remember my name is on the release notes every week"), [react("happy"), remember("about_you")]),
             (input(.said, words: "remember I like it quiet before 10am"), [react("happy"), remember("preference")]),
-            (input(.said, words: "remember to be quiet", yelled: true), [quiet(30)]),
+            // A yell decides only when the words say nothing else.
+            (input(.said, words: "remember the demo is on Thursday", yelled: true), [react("happy"), remember("today")]),
+            (input(.said, words: "GOOD JOB!", yelled: true), [react("proud")]),
+            (input(.said, words: "hello boop", yelled: true), [react("happy")]),
+            (input(.said, words: "remember, shut up", yelled: true), [react("sad")]),
             (input(.said, words: "note that I'd rather have tests first"), [react("happy"), remember("preference")]),
             // Curly apostrophes count as straight ones.
             (input(.said, words: "remember I\u{2019}d rather see tests before docs"), [react("happy"), remember("preference")]),
@@ -223,7 +227,7 @@ final class InputMenuTests: XCTestCase {
         // phrase table: "remember I like it quiet" isn't asking for quiet.
         XCTAssertFalse(input(.said, words: "remember I like it quiet in the mornings").asksForQuiet)
         XCTAssertEqual(input(.said, words: "remember I like it quiet in the mornings").menu, ["react", "remember"])
-        XCTAssertTrue(input(.said, words: "remember to be quiet", yelled: true).asksForQuiet)
+        XCTAssertFalse(input(.said, words: "remember to be quiet", yelled: true).asksForQuiet)
         XCTAssertTrue(input(.said, words: "be quiet, you idiot, remember").asksForQuiet)
         XCTAssertEqual(input(.agentFinished).menu, ["react"])
         XCTAssertEqual(input(.poked).menu, ["react"])

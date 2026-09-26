@@ -13,7 +13,7 @@ import Foundation
 /// | Agent finished, done, a very long turn (over a minute) | `react(excited)` |
 /// | Agent finished, failed | `react(annoyed)`: the sass, one mumble per failure |
 /// | Poked again and again | `react(annoyed)`: the grumble |
-/// | You said anything | `Phrases`' table; yelled at or told off, `react(sad)` |
+/// | You said anything | `Phrases`' table; told off, or yelled with nothing else said, `react(sad)` |
 ///
 /// Calls the menu doesn't offer are left out.
 public struct ChattyRules: Classifier {

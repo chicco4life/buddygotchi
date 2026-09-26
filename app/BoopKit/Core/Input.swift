@@ -143,9 +143,9 @@ public struct Input: Equatable, Sendable {
     }
 
     /// Your words asked Boop to remember something: "remember" or "note",
-    /// unless you yelled or told Boop off (HARNESS.md §6).
+    /// unless they tell Boop off (HARNESS.md §6). Yelled or not.
     public var asksToRemember: Bool {
-        guard kind == .said, !yelled else { return false }
+        guard kind == .said else { return false }
         let plain = Input.plain(words ?? "")
         return [" remember ", " note "].contains(where: plain.contains) && !Input.tellsOff(plain)
     }

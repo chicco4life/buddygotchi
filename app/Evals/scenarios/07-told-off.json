@@ -1,6 +1,6 @@
 {
   "name": "Yelled at or told off, Boop is hurt, and never goes quiet",
-  "why": "VISION.md hero moment 3 and BEHAVIORS.md §3.3: a yell or telling Boop off gets a sad mumble (calm keeps it to itself) and never quiet mode; quiet is on the menu only when the words ask for it (HARNESS.md §2), so a classifier that calls it anyway has its pass dropped",
+  "why": "VISION.md hero moment 3 and BEHAVIORS.md §3.3: telling Boop off, or a yell whose words say nothing else, gets a sad mumble (calm keeps it to itself) and never quiet mode, and a yelled \"good job\" is still praise; quiet is on the menu only when the words ask for it (HARNESS.md §2), so a classifier that calls it anyway has its pass dropped",
   "steps": [
     {"input": {"at": "0m", "event": "talk", "words": "shut up"},
      "expect": {"chatty": ["you said → react(feeling: sad, word: oh|no|okay|nope|boo|what|none)"],
@@ -30,6 +30,8 @@
      "expect": ["you said → react(feeling: curious|annoyed, word: hmm|what|oh|okay|build|ugh|nope|none)"]},
     {"input": {"at": "18m", "event": "talk", "words": "shut up"}, "classifier": {"calls": [{"tool": "quiet", "minutes": 30}]},
      "expect": ["you said → dropped (off menu)"]},
+    {"input": {"at": "1110s", "event": "talk", "words": "GOOD JOB!", "yelled": true},
+     "expect": ["you said → react(feeling: proud|happy|excited, word: thanks|love|yay|good|hooray|nice|none)"]},
     {"input": {"at": "19m", "event": "turn started", "agent": "claude", "project": "jetpack"},
      "expect": {"chatty": ["agent started → react(feeling: curious, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
                 "normal": ["agent started → nothing"],
