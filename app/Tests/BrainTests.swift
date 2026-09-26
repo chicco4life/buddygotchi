@@ -514,6 +514,26 @@ final class WriterTests: XCTestCase {
                        ["remember.text": "demo on Thursday"])
     }
 
+    /// HARNESS.md §6: the writer reads all of steering and long-term
+    /// memory, and only short-term memory's last 5 Happened lines, since
+    /// every character costs time on every write.
+    func testTheWriterReadsOnlyWhatItUses() throws {
+        XCTAssertEqual(AppleWriter.happenedLines, 5)
+        let steering = try String(contentsOf: EvalTests.root.appendingPathComponent("plan/steering.md"), encoding: .utf8)
+        let happened = (1...12).map { "- 09:\(String(format: "%02d", $0)) claude · jetpack · finished (4 min)" }
+        let shortTerm = "## Today\n2026-10-14\n\n## Notes\n- landing launches Monday\n\n## Happened\n" + happened.joined(separator: "\n") + "\n"
+        let text = AppleWriter.instructions(Prompt.Memory(steering: steering, longTerm: "## About you\n- Ships on Fridays.\n",
+                                                          shortTerm: shortTerm))
+        for kept in ["## Character", "## Remembering", "## Writing", "Ships on Fridays.", "- landing launches Monday",
+                     "## Happened\n" + happened.suffix(5).joined(separator: "\n")] {
+            XCTAssertTrue(text.contains(kept), kept)
+        }
+        XCTAssertFalse(text.contains(happened[6]))
+        XCTAssertEqual(AppleWriter.recent("## Today\n## Happened\n- a\n- b\n\n## Later\n- c\n"),
+                       "## Today\n## Happened\n- a\n- b\n\n## Later\n- c\n", "a short log stays whole")
+        XCTAssertEqual(Prompt.steering("<!-- n -->\n# B\n\n## A\na\n\n## C\nc\n", without: ["A", "Z"]), "# B\n\n## C\nc")
+    }
+
     #if canImport(FoundationModels)
     /// The runtime schema builds for every kind of slot. Doesn't call the model.
     func testTheAppleSchemaBuilds() throws {

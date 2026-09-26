@@ -10,7 +10,7 @@
     {"input": {"at": "5s", "event": "command", "project": "landing", "topic": "tests", "failed": true},
      "expect": []},
     {"input": {"at": "20s", "event": "turn finished", "project": "landing"},
-     "expect": ["agent finished → react(feeling: annoyed, word: tests)"]},
+     "expect": ["agent finished → react(feeling: annoyed, word: tests|ugh)"]},
     {"input": {"at": "30s", "event": "turn started", "project": "landing"},
      "expect": {"chatty": ["agent started → react(feeling: curious, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
                 "normal": ["agent started → nothing"],

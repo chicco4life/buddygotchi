@@ -7,7 +7,8 @@ import FoundationModels
 /// default. Private and free, with an 8K context.
 ///
 /// Each call is a fresh session. Its instructions are a short preamble,
-/// `steering.md` and both memory files; its prompt is what just happened,
+/// `steering.md` and the memory files, less all but the latest Happened
+/// lines (`instructions`); its prompt is what just happened,
 /// what was said and what Boop decided, then a line for each slot. It
 /// doesn't read the rest of the transcript's window: with it, the model
 /// copied the words it wrote before instead of following steering
@@ -120,12 +121,31 @@ public struct AppleWriter: Writer {
     }
     #endif
 
-    /// The preamble, `steering.md` and the memory files.
+    /// How many of short-term memory's latest Happened lines the writer
+    /// reads. The log grows all day, and every character of instructions
+    /// costs prefill time on every write (about 0.2 ms), without changing
+    /// the words.
+    static let happenedLines = 5
+
+    /// The preamble, `steering.md`, long-term memory, and short-term memory
+    /// with only its latest Happened lines. All of steering stays: without
+    /// What Boop can do and Remembering, which look like Stage 1's, the
+    /// memory lines and the words got worse (a request got "hi").
     static func instructions(_ memory: Prompt.Memory) -> String {
-        [preamble, Prompt.stripComment(memory.steering), memory.longTerm, memory.shortTerm]
+        [preamble, Prompt.stripComment(memory.steering), memory.longTerm, recent(memory.shortTerm)]
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
             .joined(separator: "\n\n")
+    }
+
+    /// Short-term memory with only the last `happenedLines` of Happened.
+    static func recent(_ shortTerm: String) -> String {
+        var lines = shortTerm.components(separatedBy: "\n")
+        guard let heading = lines.firstIndex(of: "## Happened") else { return shortTerm }
+        let end = lines[(heading + 1)...].firstIndex { $0.hasPrefix("## ") } ?? lines.endIndex
+        let items = lines[(heading + 1)..<end].filter { $0.hasPrefix("- ") }
+        lines.replaceSubrange((heading + 1)..<end, with: Array(items.suffix(happenedLines)) + (end < lines.endIndex ? [""] : []))
+        return lines.joined(separator: "\n")
     }
 
     /// What just happened, what Boop decided (the window's last entry), then
