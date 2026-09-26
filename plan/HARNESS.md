@@ -282,7 +282,8 @@ says exactly how it behaves. The mode picks them
 | `DeepSeekWriter` | 2 | Not built yet: it refuses every write ([FUTURE.md](FUTURE.md)) |
 
 **What you said**, for every if-else classifier (`Phrases`), first match
-wins and whole words only:
+wins and whole words only; a curly apostrophe counts as a straight one
+("I’d rather" is "I'd rather"):
 
 | You said | Decides |
 | --- | --- |

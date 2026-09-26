@@ -138,6 +138,10 @@ final class PhrasesTests: XCTestCase {
             (input(.said, words: "remember I like it quiet before 10am"), [react("happy"), remember("preference")]),
             (input(.said, words: "remember to be quiet", yelled: true), [quiet(30)]),
             (input(.said, words: "note that I'd rather have tests first"), [react("happy"), remember("preference")]),
+            // Curly apostrophes count as straight ones.
+            (input(.said, words: "remember I\u{2019}d rather see tests before docs"), [react("happy"), remember("preference")]),
+            (input(.said, words: "remember I don\u{2019}t like long PRs"), [react("happy"), remember("preference")]),
+            (input(.said, words: "remember I\u{2019}m a night owl"), [react("happy"), remember("about_you")]),
             (input(.said, words: "note that landing launches Monday"), [react("happy"), remember("today")]),
             (input(.said, words: "remember the demo is on Thursday"), [react("happy"), remember("today")]),
             (input(.said, words: "remember I have a dentist appointment at 3"), [react("happy"), remember("today")]),
@@ -153,6 +157,7 @@ final class PhrasesTests: XCTestCase {
         }
         // Whole words only: "hi" isn't in "this", "quiet" isn't in "quietly".
         XCTAssertEqual(Input.plain("Hi, THIS is quiet-ish!"), " hi this is quiet ish ")
+        XCTAssertEqual(Input.plain("I\u{2019}d rather \u{2018}not\u{2019}"), " i'd rather 'not' ")
         XCTAssertFalse(input(.said, words: "speak quietly").asksForQuiet)
         XCTAssertTrue(input(.said, words: "Quiet!").asksForQuiet)
         // Calm keeps hurt to itself.

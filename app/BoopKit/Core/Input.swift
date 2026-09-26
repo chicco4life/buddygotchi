@@ -140,10 +140,17 @@ public struct Input: Equatable, Sendable {
     }
 
     /// Lowercase words between single spaces, padded, so a phrase matches
-    /// whole words only: " hi there ".
+    /// whole words only: " hi there ". Curly apostrophes are straight ones:
+    /// "I’d rather" is " i'd rather ".
     public static func plain(_ words: String) -> String {
-        let letters = words.lowercased().map { $0.isLetter || $0.isNumber || $0 == "'" ? $0 : " " }
+        let letters = straight(words).lowercased().map { $0.isLetter || $0.isNumber || $0 == "'" ? $0 : " " }
         return " " + String(letters).split(separator: " ").joined(separator: " ") + " "
+    }
+
+    /// The words with curly apostrophes (’ and ‘, as typed or pasted text
+    /// may have them) made straight.
+    public static func straight(_ words: String) -> String {
+        words.replacingOccurrences(of: "\u{2019}", with: "'").replacingOccurrences(of: "\u{2018}", with: "'")
     }
 }
 
