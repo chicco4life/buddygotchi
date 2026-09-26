@@ -131,7 +131,9 @@ public final class QuietAction: Action {
 
 /// `remember(where, text)`: a line in Boop's memory, under that section's
 /// own rules (ARCHITECTURE.md §4). The classifier picks where; the writer
-/// writes the line. `today` is short-term Notes; the rest are long-term.
+/// writes the line. Facts about a project or this session are short-term
+/// notes for today; durable facts about the person, and how they like
+/// things done, are long-term.
 public final class RememberAction: Action {
     public let context: ActionContext
     let memory: MemoryStore
@@ -142,19 +144,21 @@ public final class RememberAction: Action {
     }
 
     public static let sections: [(name: String, chars: Int, about: String)] = [
-        ("today", MemoryLimits.noteChars, "A note for later today: something the person said or asked to note."),
-        ("about_you", MemoryLimits.factChars, "Something about the person that will still matter in a month."),
-        ("preference", MemoryLimits.factChars, "How the person likes things done."),
-        ("temperament", MemoryLimits.temperamentChars, "One sentence on how Boop has changed, only if the day gave a reason."),
-        ("moment", MemoryLimits.momentChars, "A truly memorable day. Most days aren't."),
+        ("today", MemoryLimits.noteChars,
+         "Short-term, for today: a fact about a project or this session, like what something is, a date, or what they're doing now."),
+        ("about_you", MemoryLimits.factChars,
+         "Long-term: a durable fact about the person that will still matter in a month, like their role, how they work or their routine."),
+        ("preference", MemoryLimits.factChars,
+         "Long-term: how the person likes things done, lasting."),
     ]
 
     public let definition = ToolDefinition(
-        name: "remember", description: "Keep a line in Boop's memory.",
+        name: "remember", description: "Keep a line in Boop's memory, when the person tells Boop a fact.",
         question: "Is there something worth keeping in Boop's memory, as Remembering says?",
         parameters: [
             .init("where", .choice(RememberAction.sections.map(\.name)),
-                  about: Dictionary(uniqueKeysWithValues: RememberAction.sections.map { ($0.name, $0.about) })),
+                  about: Dictionary(uniqueKeysWithValues: RememberAction.sections.map { ($0.name, $0.about) }),
+                  question: "Where does it belong in Boop's memory, as Remembering says?"),
             .init("text", .text(maxLength: RememberAction.sections.map(\.chars).max()!, by: "where",
                                 limits: Dictionary(uniqueKeysWithValues: RememberAction.sections.map { ($0.name, $0.chars) })),
                   role: .written),
@@ -169,11 +173,9 @@ public final class RememberAction: Action {
         let text = args["text"]!.string!
         let result: Result<String, Refusal>
         switch args["where"]!.string! {
-        case "today": result = memory.note(text)
         case "about_you": result = memory.remember(text, as: .aboutYou)
         case "preference": result = memory.remember(text, as: .preference)
-        case "temperament": result = memory.temperament(text, today: context.today())
-        default: result = memory.moment(text, day: memory.reflecting ?? context.today())
+        default: result = memory.note(text)
         }
         switch result {
         case .failure(let why): return .dropped(why.description)

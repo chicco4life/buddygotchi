@@ -50,9 +50,8 @@ final class AppModel: ObservableObject {
     @Published var hooks: [HookInstaller.Agent: HookInstaller.Health] = [:]
     @Published var remembered: [String] = []
     @Published var restartAgents = false
-    /// The brain's two stages chosen in settings; `status` has the ones running.
-    @Published var classifier = "rules"
-    @Published var writer = "apple"
+    /// How much Boop reacts, chosen in settings; `status` has the brain it runs.
+    @Published var mode = Mode.normal
     @Published var nature = LongTerm.Nature.sweet
     @Published var startError: String?
     /// Why push-to-talk couldn't hear you, until the next try.
@@ -121,14 +120,17 @@ final class AppModel: ObservableObject {
         runtime?.setListening(on)
     }
 
-    func setClassifier(_ classifier: String) {
-        self.classifier = classifier
-        runtime?.setClassifier(classifier)
+    /// Takes effect at once (BEHAVIORS.md §6).
+    func setMode(_ mode: Mode) {
+        guard mode != self.mode else { return }
+        self.mode = mode
+        status?.mode = mode
+        runtime?.setMode(mode)
     }
 
-    func setWriter(_ writer: String) {
-        self.writer = writer
-        runtime?.setWriter(writer)
+    /// Jev's key changed: normal mode decides with it from the next input.
+    func jevKeyChanged() {
+        runtime?.reloadBrains()
     }
 }
 
@@ -278,8 +280,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
             // Read before start: from then on the runtime's state belongs to
             // its own queue.
-            model.classifier = runtime.settings.classifier
-            model.writer = runtime.settings.writer
+            model.mode = runtime.settings.mode
             model.nature = runtime.memory.longTerm?.nature ?? .sweet
             try runtime.start()
             self.runtime = runtime

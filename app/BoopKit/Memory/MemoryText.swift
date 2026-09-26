@@ -70,8 +70,10 @@ enum MemoryText {
             defer { sentenceStart = w.hasSuffix(".") || w.hasSuffix("!") || w.hasSuffix("?") || w.hasSuffix(":") }
             guard let first = bare.first, first.isUppercase else { continue }
             if sentenceStart || notNames.contains(bare) || bare == boopName { continue }
-            // All capitals is an acronym (CI, PR), not a name.
-            if bare.allSatisfy({ $0.isUppercase || $0.isNumber }) { continue }
+            // All capitals is an acronym (CI, PR), not a name, and so is its
+            // plural (PRs).
+            let acronym = bare.count > 2 && bare.hasSuffix("s") ? String(bare.dropLast()) : bare
+            if acronym.allSatisfy({ $0.isUppercase || $0.isNumber }) { continue }
             let possessive = bare.hasSuffix("'s") ? String(bare.dropLast(2)) : bare
             if notNames.contains(possessive) || possessive == boopName { continue }
             return bare

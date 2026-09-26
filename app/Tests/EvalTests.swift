@@ -2,8 +2,9 @@ import Foundation
 import XCTest
 @testable import BoopKit
 
-/// The harness eval suite (plan/EVALS.md) passes with the rules classifier
-/// and no writer, and the runner checks each step's whole window of passes.
+/// The harness eval suite (plan/EVALS.md) passes in chatty and calm, with
+/// their if-else tables and no writer, and the runner checks each step's
+/// whole window of passes.
 final class EvalTests: XCTestCase {
     static let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../..")
         .standardizedFileURL
@@ -14,13 +15,55 @@ final class EvalTests: XCTestCase {
         return Eval(steering: steering, memory: EvalTests.root.appendingPathComponent("app/Tests/Fixtures/memory"))
     }
 
-    func testEveryScenarioPasses() async throws {
+    /// Every scenario in every mode it runs in, but normal, which needs Jev.
+    func results() async throws -> [Eval.Result] {
         let scenarios = try Scenario.load(directory: EvalTests.scenarios)
         XCTAssertFalse(scenarios.isEmpty)
         let eval = try runner()
+        var results: [Eval.Result] = []
         for scenario in scenarios {
-            let result = try await eval.run(scenario)
-            XCTAssertTrue(result.passed, "\(scenario.file)\n" + Eval.diff(result))
+            for mode in Eval.deterministic where scenario.modes.contains(mode) {
+                results.append(try await eval.run(scenario, mode: mode))
+            }
+        }
+        return results
+    }
+
+    func testEveryScenarioPasses() async throws {
+        let results = try await results()
+        XCTAssertEqual(Set(results.map(\.mode)), [.chatty, .calm])
+        for result in results {
+            XCTAssertTrue(result.passed, "\(result.scenario.file) in \(result.mode.rawValue)\n" + Eval.diff(result))
+        }
+    }
+
+    /// BEHAVIORS.md §6, across every scenario: in chatty, every agent input
+    /// and poke streak the brain decides on gets a mumble; in calm, the
+    /// brain mumbles only at a failed turn or when you talk to it, and the
+    /// rules never chatter.
+    func testEachModeKeepsItsCharacter() async throws {
+        for result in try await results() {
+            var mode = result.mode
+            for (step, scenarioStep) in zip(result.steps, result.scenario.steps) {
+                // A step's window is in the mode it switched to, if it did.
+                mode = scenarioStep.event.mode ?? mode
+                guard scenarioStep.classifier == nil else { continue }
+                for line in step.actual {
+                    let mumble = line.contains("voice: mumble")
+                    switch mode {
+                    case .chatty:
+                        if line.hasPrefix("agent ") || line.hasPrefix("poked ") {
+                            XCTAssertTrue(mumble, "\(result.scenario.file): \(line)")
+                        }
+                    case .calm:
+                        let allowed = line.hasPrefix("you said ") || line.hasPrefix("agent finished → react(feeling: annoyed")
+                        XCTAssertTrue(!mumble || allowed, "\(result.scenario.file): \(line)")
+                        XCTAssertFalse(line.hasPrefix("rules → mumble"), "\(result.scenario.file): \(line)")
+                    case .normal:
+                        XCTFail("normal needs Jev")
+                    }
+                }
+            }
         }
     }
 
@@ -30,10 +73,10 @@ final class EvalTests: XCTestCase {
         return url
     }
 
-    func run(_ json: String) async throws -> Eval.Result {
+    func run(_ json: String, mode: Mode = .chatty) async throws -> Eval.Result {
         let url = try write(json)
         defer { try? FileManager.default.removeItem(at: url) }
-        return try await runner().run(Scenario(file: url))
+        return try await runner().run(Scenario(file: url), mode: mode)
     }
 
     /// An expectation that leaves out a pass fails: a step's window is
@@ -46,7 +89,8 @@ final class EvalTests: XCTestCase {
             """)
         XCTAssertFalse(result.passed)
         XCTAssertEqual(result.steps.map(\.actual),
-                       [["agent started → nothing"], ["agent finished → react(feeling: proud, voice: mumble)"]])
+                       [["agent started → react(feeling: curious, voice: mumble)"],
+                        ["agent finished → react(feeling: excited, voice: mumble)"]])
     }
 
     /// Scripted stages replace the brains for that step only. A tap never
@@ -69,6 +113,41 @@ final class EvalTests: XCTestCase {
                "expect": ["you said → react(feeling: happy, voice: mumble) · writer failed (error)"]}]}
             """)
         XCTAssertTrue(result.passed, Eval.diff(result))
+    }
+
+    /// EVALS.md §3: expectations for each mode, a switch mid-scenario, and
+    /// the rules' own reactions when a scenario asks for them.
+    func testModesAndRuleReactions() async throws {
+        let json = """
+            {"name": "x", "modes": ["chatty", "calm"], "rules": true, "steps": [
+              {"input": {"at": "0s", "event": "turn started"},
+               "expect": {"chatty": ["agent started → react(feeling: curious, voice: mumble)"],
+                          "calm": ["agent started → nothing"]}},
+              {"input": {"at": "8s", "event": "turn finished"},
+               "expect": {"chatty": ["rules → cheer", "agent finished → react(feeling: happy, voice: mumble)"],
+                          "calm": ["agent finished → nothing"]}},
+              {"input": {"at": "10s", "event": "mode", "mode": "chatty"}, "expect": []},
+              {"input": {"at": "20s", "event": "turn started"},
+               "expect": ["agent started → react(feeling: curious, voice: mumble)"]},
+              {"input": {"at": "30s", "event": "turn finished"},
+               "expect": ["rules → cheer", "agent finished → react(feeling: happy, voice: mumble)"]}]}
+            """
+        let url = try write(json)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let scenario = try Scenario(file: url)
+        XCTAssertEqual(scenario.modes, [.chatty, .calm])
+        XCTAssertEqual(scenario.steps[2].event.mode, .chatty)
+        for mode in scenario.modes {
+            let result = try await runner().run(scenario, mode: mode)
+            XCTAssertTrue(result.passed, mode.rawValue + "\n" + Eval.diff(result))
+            XCTAssertEqual(result.classifier, mode == .calm ? "calm@1" : "chatty@1")
+        }
+        let partial = try write(#"{"name": "x", "modes": ["calm"], "steps": [{"input": {"at": "0m", "event": "tap"}, "expect": {"chatty": []}}]}"#)
+        defer { try? FileManager.default.removeItem(at: partial) }
+        try XCTAssertThrowsError(try Scenario(file: partial)) { XCTAssertTrue("\($0)".contains("expect needs a list for each of calm")) }
+        let noMode = try write(#"{"name": "x", "steps": [{"input": {"at": "0m", "event": "mode"}, "expect": []}]}"#)
+        defer { try? FileManager.default.removeItem(at: noMode) }
+        try XCTAssertThrowsError(try Scenario(file: noMode))
     }
 
     /// EVALS.md §3: a command's topic and result, a yell, and times in ms.

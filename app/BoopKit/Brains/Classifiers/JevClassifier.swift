@@ -14,8 +14,6 @@ import Foundation
 ///     react              yes/no: the definition's question
 ///     react.feeling      choice: happy | excited | proud | …   (a decided argument
 ///     react.voice        choice: silent | mumble                 with more than one option)
-///     remember.moment    yes/no, one per choice, when the menu allows several calls
-///                        told apart by it (a new day's `where`)
 ///
 /// As TypeSafe advises for Jev, each question names the part of the state
 /// it's about (`now`) and what to judge it by (`boop`, its Examples first),
@@ -88,16 +86,6 @@ public struct JevClassifier: Classifier {
 
     // MARK: Questions
 
-    /// The decided choice argument that tells several calls to one tool
-    /// apart, when the menu allows more than one (`where` on a new day).
-    static func split(_ tool: ToolDefinition, _ menu: Menu) -> ToolDefinition.Parameter? {
-        guard (menu.max[tool.name] ?? 1) > 1 else { return nil }
-        return tool.parameters.first { p in
-            if p.decided, case .choice(let options) = p.kind { return options.count > 1 }
-            return false
-        }
-    }
-
     /// The options of a decided argument, as Jev's criteria.
     static func criteria(_ p: ToolDefinition.Parameter) -> [String: String] {
         var criteria: [String: String] = [:]
@@ -122,19 +110,9 @@ public struct JevClassifier: Classifier {
     static func questions(_ menu: Menu) -> [String: Any] {
         var questions: [String: Any] = [:]
         for tool in menu.tools {
-            let split = split(tool, menu)
             let ask = tool.question ?? "Should Boop \(tool.name) now? \(tool.description)"
-            if let split, case .choice(let options) = split.kind {
-                for option in options {
-                    questions[tool.name + "." + option] = [
-                        "type": "noul", "criteria": yesNo,
-                        "instructions": instructions(ask, [split.name: split.about[option] ?? option]),
-                    ]
-                }
-            } else {
-                questions[tool.name] = ["type": "noul", "criteria": yesNo, "instructions": instructions(ask)]
-            }
-            for p in tool.parameters where p.decided && p != split {
+            questions[tool.name] = ["type": "noul", "criteria": yesNo, "instructions": instructions(ask)]
+            for p in tool.parameters where p.decided {
                 let criteria = criteria(p)
                 guard criteria.count > 1 else { continue }
                 questions[tool.name + "." + p.name] = [
@@ -150,30 +128,20 @@ public struct JevClassifier: Classifier {
 
     static func calls(_ menu: Menu, _ answers: [String: Any]) throws -> [ToolCall] {
         var calls: [ToolCall] = []
-        for tool in menu.tools {
-            let split = split(tool, menu)
-            var picks: [[String: ToolValue]] = []
-            if let split, case .choice(let options) = split.kind {
-                for option in options where yes(answers, tool.name + "." + option) {
-                    picks.append([split.name: .string(option)])
+        for tool in menu.tools where yes(answers, tool.name) {
+            var arguments: [String: ToolValue] = [:]
+            for p in tool.parameters where p.decided {
+                let options = criteria(p).keys.sorted()
+                let answer = options.count == 1 ? options[0] : choice(answers, tool.name + "." + p.name)
+                guard let answer else { throw BrainError("jev: no answer for \(tool.name).\(p.name)") }
+                if answer == none && p.optional { continue }
+                if case .number = p.kind, let n = Int(answer) {
+                    arguments[p.name] = .number(n)
+                } else {
+                    arguments[p.name] = .string(answer)
                 }
-            } else if yes(answers, tool.name) {
-                picks.append([:])
             }
-            for var arguments in picks {
-                for p in tool.parameters where p.decided && p != split {
-                    let options = criteria(p).keys.sorted()
-                    let answer = options.count == 1 ? options[0] : choice(answers, tool.name + "." + p.name)
-                    guard let answer else { throw BrainError("jev: no answer for \(tool.name).\(p.name)") }
-                    if answer == none && p.optional { continue }
-                    if case .number = p.kind, let n = Int(answer) {
-                        arguments[p.name] = .number(n)
-                    } else {
-                        arguments[p.name] = .string(answer)
-                    }
-                }
-                calls.append(ToolCall(tool.name, arguments))
-            }
+            calls.append(ToolCall(tool.name, arguments))
         }
         return calls
     }
@@ -219,8 +187,7 @@ public struct JevClassifier: Classifier {
         var now: [String: Any] = ["happened": input.line]
         if let words = input.words { now["they_said"] = words }
         if let rules = input.rules { now["rules"] = rules }
-        var memory = ["long_term": context.memory.longTerm, "short_term": context.memory.shortTerm]
-        if input.kind == .newDay { memory["short_term_yesterday"] = memory.removeValue(forKey: "short_term") }
+        let memory = ["long_term": context.memory.longTerm, "short_term": context.memory.shortTerm]
         return ["boop": JevClassifier.boop(context.memory.steering), "memory": memory, "recent": recent, "now": now]
     }
 

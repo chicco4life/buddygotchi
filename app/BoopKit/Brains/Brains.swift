@@ -1,26 +1,37 @@
 import Foundation
 
-/// The two brain settings (HARNESS.md §6): the classifier, `rules` (the
-/// default) or `jev`, and the writer, `apple` (the default), `none` or
-/// `deepseek`. Jev needs the person's API key, asked for only when it's
-/// chosen; without one Boop classifies with the rules. Apple's model falls
-/// back to no writer when it can't run at launch.
+/// Each mode's brain (HARNESS.md §6). Chatty and calm decide with their
+/// if-else tables; normal decides with TypeSafe's Jev, which needs the
+/// person's API key, and without one with the chatty table. Every mode
+/// writes with Apple's model, which falls back to no writer when it can't
+/// run; chatty's is asked again for a mumble's word it leaves out. `--classifier` and
+/// `--writer` override the mode's choice for one run.
 public enum Brains {
-    /// Overrides the Keychain's Jev key, for `boopdev brain` and headless runs.
+    /// Overrides the Keychain's Jev key, for `boopdev` and headless runs.
     public static let jevKeyVariable = "BOOP_JEV_KEY"
+    /// What `--classifier` and `--writer` take.
+    public static let classifiers = ["chatty", "calm", "jev"]
+    public static let writers = ["apple", "none", "deepseek"]
 
-    public static func classifier(_ setting: String, key: () -> String? = { nil },
+    /// The mode's classifier, or the override's. Jev's key is asked for only
+    /// when Jev is chosen.
+    public static func classifier(for mode: Mode, override: String? = nil, key: () -> String? = { nil },
                                   log: (String) -> Void = { _ in }) -> any Classifier {
-        guard setting == "jev" else { return RulesClassifier() }
-        guard let key = key(), !key.isEmpty else {
-            log("brain: Jev needs an API key; classifying with the rules")
-            return RulesClassifier()
+        switch override ?? (mode == .normal ? "jev" : mode.rawValue) {
+        case "calm": return CalmRules()
+        case "jev":
+            guard let key = key(), !key.isEmpty else {
+                log("brain: Jev needs an API key; deciding with the chatty rules")
+                return ChattyRules()
+            }
+            return JevClassifier(key: key)
+        default: return ChattyRules()
         }
-        return JevClassifier(key: key)
     }
 
-    public static func writer(_ setting: String, log: (String) -> Void = { _ in }) -> any Writer {
-        switch setting {
+    /// The mode's writer, or the override's.
+    public static func writer(for mode: Mode, override: String? = nil, log: (String) -> Void = { _ in }) -> any Writer {
+        switch override {
         case "none": return NoWriter()
         case "deepseek": return DeepSeekWriter()
         default:
@@ -28,7 +39,7 @@ public enum Brains {
                 log("brain: Apple's model can't run (\(why)); writing nothing")
                 return NoWriter()
             }
-            return AppleWriter()
+            return AppleWriter(wordRequired: mode == .chatty)
         }
     }
 

@@ -4,8 +4,9 @@ import XCTest
 @testable import HookWire
 
 /// The runtime end to end in-process: real hook socket, real core, harness
-/// with the rules classifier, no writer, and memory in a temporary state directory; a fake
-/// device.
+/// in chatty mode with no writer, and memory in a temporary state directory;
+/// a fake device. Never normal mode, whose Jev key would come from the
+/// Keychain.
 final class RuntimeTests: XCTestCase {
     var dir: URL!
 
@@ -25,7 +26,7 @@ final class RuntimeTests: XCTestCase {
         try Runtime.setUp(stateDir: dir, name: "Pip", nature: .sweet, today: LocalTime().day(Int64(Date().timeIntervalSince1970 * 1000)))
         var options = Runtime.Options(stateDir: dir, socketPath: dir.appendingPathComponent("boop.sock").path,
                                       link: transport, steering: try String(contentsOf: Self.steering, encoding: .utf8))
-        options.classifier = "rules"
+        options.mode = .chatty
         options.writer = "none"
         options.devLines = true
         return try Runtime(options)
@@ -95,8 +96,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(HookSocket.send(hook("PostToolUse", tool: "Bash"), to: socket))
         XCTAssertTrue(HookSocket.send(hook("Stop"), to: socket))
         wait("cheer") { transport.sent.contains { $0 == #"{"t":"moment","anim":"cheer","ttl":5}"# } }
-        XCTAssertEqual(AppSettings.load(from: dir).classifier, "rules")
-        XCTAssertEqual(AppSettings.load(from: dir).writer, "apple", "--writer is for this run only")
+        XCTAssertEqual(AppSettings.load(from: dir).mode, .normal, "--mode is for this run only")
         wait("today's short-term memory") {
             (try? String(contentsOf: self.dir.appendingPathComponent("short-term.md"), encoding: .utf8))?.contains("## Today") == true
         }
@@ -114,7 +114,7 @@ final class RuntimeTests: XCTestCase {
             XCTAssertTrue(HookSocket.send(data, to: socket))
         }
         func quiet(_ line: String) -> Bool { line.contains("\"t\":\"state\"") && !line.contains("\"quiet\":0") }
-        // BEHAVIORS.md §3.3: told off, the rules classifier has Boop mumble
+        // BEHAVIORS.md §3.3: told off, the chatty rules have Boop mumble
         // something sad (a mumble on its own: no face), and it doesn't quiet Boop.
         try talk("shut up")
         wait("a sad mumble") { transport.sent.contains { $0.contains("\"t\":\"moment\"") && $0.contains("\"say\"") && !$0.contains("\"anim\"") } }
@@ -151,46 +151,51 @@ final class RuntimeTests: XCTestCase {
                        "app/Boop/Resources/steering.md must be a copy of plan/steering.md")
     }
 
-    func testSettingsLoadOlderFiles() throws {
+    /// Settings from before the modes and the 2026-09-26 cut still load, in
+    /// normal mode; the keys that went are ignored and aren't written back.
+    func testSettingsFromBeforeTheModesStartInNormal() throws {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        try Data(#"{"brain":"rules"}"#.utf8).write(to: dir.appendingPathComponent(AppSettings.file))
-        let settings = AppSettings.load(from: dir)
-        XCTAssertEqual([settings.classifier, settings.writer], ["rules", "none"], "rules only wrote nothing")
-        XCTAssertEqual(settings.volume, 6)
-    }
-
-    /// Settings from before 2026-09-26 still load; the keys that went with
-    /// the cut are ignored and aren't written back.
-    func testSettingsIgnoreTheCutKeys() throws {
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let old = #"{"classifier":"jev","writer":"none","volume":3,"focus":true,"away":true,"awaySince":"2026-09-20","finished":148,"projects":["jetpack"]}"#
+        let old = #"{"brain":"jev","classifier":"rules","writer":"none","volume":3,"focus":true,"away":true,"awaySince":"2026-09-20","finished":148,"projects":["jetpack"]}"#
         try Data(old.utf8).write(to: dir.appendingPathComponent(AppSettings.file))
         let settings = AppSettings.load(from: dir)
-        XCTAssertEqual([settings.classifier, settings.writer], ["jev", "none"])
+        XCTAssertEqual(settings.mode, .normal)
         XCTAssertEqual(settings.volume, 3)
         try settings.save(to: dir)
         let text = try String(contentsOf: dir.appendingPathComponent(AppSettings.file), encoding: .utf8)
-        for key in ["focus", "away", "finished", "projects"] { XCTAssertFalse(text.contains(key), key) }
+        for key in ["brain", "classifier", "writer", "focus", "away", "finished", "projects"] {
+            XCTAssertFalse(text.contains(key), key)
+        }
     }
 
-    /// HARNESS.md §6: the old one `brain` setting becomes the two stages;
-    /// Apple's model and Jev keep Apple's model for the words.
-    func testTheOldBrainSettingBecomesTwo() throws {
+    /// BEHAVIORS.md §6: the mode is saved; a missing or unknown one is normal.
+    func testSettingsKeepTheMode() throws {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let cases = [(#"{"brain":"apple"}"#, "rules", "apple"), (#"{"brain":"jev"}"#, "jev", "apple"),
-                     (#"{"brain":"cloud:x"}"#, "rules", "apple"), (#"{}"#, "rules", "apple"),
-                     (#"{"brain":"jev","classifier":"rules","writer":"none"}"#, "rules", "none")]
-        for (json, classifier, writer) in cases {
+        let cases: [(String, Mode)] = [(#"{"mode":"calm"}"#, .calm), (#"{"mode":"chatty","volume":2}"#, .chatty),
+                                       (#"{"mode":"loud"}"#, .normal), (#"{}"#, .normal)]
+        for (json, mode) in cases {
             try Data(json.utf8).write(to: dir.appendingPathComponent(AppSettings.file))
-            let settings = AppSettings.load(from: dir)
-            XCTAssertEqual([settings.classifier, settings.writer], [classifier, writer], json)
+            XCTAssertEqual(AppSettings.load(from: dir).mode, mode, json)
         }
-        var saved = AppSettings.load(from: dir)
-        saved.classifier = "jev"
+        var saved = AppSettings()
+        saved.mode = .calm
         try saved.save(to: dir)
-        let text = try String(contentsOf: dir.appendingPathComponent(AppSettings.file), encoding: .utf8)
-        XCTAssertFalse(text.contains("\"brain\""), "the old key isn't written back")
-        XCTAssertEqual(AppSettings.load(from: dir).classifier, "jev")
+        XCTAssertEqual(AppSettings.load(from: dir), saved)
+    }
+
+    /// BEHAVIORS.md §6: a new mode takes effect at once, brain included, and
+    /// is saved.
+    func testANewModeTakesEffectAtOnce() throws {
+        let transport = FakeTransport()
+        let runtime = try makeRuntime(transport)
+        var statuses: [Runtime.Status] = []  // on `home`
+        runtime.onChange = { statuses.append($0) }
+        try runtime.start()
+        defer { runtime.stop() }
+        wait("started chatty") { runtime.home.sync { statuses.last?.classifier == "chatty@1" } }
+        runtime.setMode(.calm)
+        wait("calm now") { runtime.home.sync { statuses.last?.mode == .calm && statuses.last?.classifier == "calm@1" } }
+        XCTAssertEqual(runtime.home.sync { runtime.core.config.mode }, .calm)
+        XCTAssertEqual(AppSettings.load(from: dir).mode, .calm)
     }
 
     /// A long turn, finished after moving the clock with `{"dev":"advance"}`:
@@ -201,7 +206,7 @@ final class RuntimeTests: XCTestCase {
         try Runtime.setUp(stateDir: dir, name: "Pip", nature: .sweet, today: LocalTime().day(Int64(Date().timeIntervalSince1970 * 1000)))
         var options = Runtime.Options(stateDir: dir, socketPath: dir.appendingPathComponent("boop.sock").path,
                                       link: transport, steering: try String(contentsOf: Self.steering, encoding: .utf8))
-        options.classifier = "rules"
+        options.mode = .chatty
         options.writer = "none"
         options.devLines = true
         let skew = NSLock()

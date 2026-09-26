@@ -37,8 +37,16 @@ enum Headless {
         options.clock = { Int64(Date().timeIntervalSince1970 * 1000) + skew.ms }
         options.advance = { skew.add($0) }
         options.trace = args.contains("--trace")
+        if let name = option(args, "--mode") {
+            guard let mode = Mode(rawValue: name) else { fail("--mode is chatty, normal or calm") }
+            options.mode = mode
+        }
         options.classifier = option(args, "--classifier")
         options.writer = option(args, "--writer")
+        if let c = options.classifier, !Brains.classifiers.contains(c) {
+            fail("--classifier is " + Brains.classifiers.joined(separator: ", "))
+        }
+        if let w = options.writer, !Brains.writers.contains(w) { fail("--writer is " + Brains.writers.joined(separator: ", ")) }
         options.devLines = true
         options.debugLog = option(args, "--debug-log").map { URL(fileURLWithPath: $0) }
         options.log = { log.write($0) }

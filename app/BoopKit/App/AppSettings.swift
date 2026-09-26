@@ -4,39 +4,29 @@ import Foundation
 /// The app's own settings, in `settings.json` next to the memory files. Name
 /// and nature live in `long-term.md`; the API key lives in the Keychain.
 public struct AppSettings: Codable, Equatable, Sendable {
-    /// The brain's two stages (HARNESS.md §6): the classifier, `rules` or
-    /// `jev`, and the writer, `apple`, `none` or `deepseek`.
-    public var classifier = "rules"
-    public var writer = "apple"
+    /// How much Boop reacts (BEHAVIORS.md §6); it picks the brain.
+    public var mode = Mode.normal
     public var volume = 6
 
     public init() {}
 
     public init(from decoder: Decoder) throws {
         // Missing keys keep their defaults, so older files still load; keys
-        // this version doesn't know (`focus`, `away`, `awaySince`, `finished`
-        // and `projects` from before 2026-09-26) are ignored.
+        // this version doesn't know are ignored: `classifier`, `writer` and
+        // `brain` from before the modes, which all start in normal, and
+        // `focus`, `away`, `awaySince`, `finished` and `projects` from before
+        // 2026-09-26. An unknown mode is normal.
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        classifier = try c.decodeIfPresent(String.self, forKey: .classifier) ?? classifier
-        writer = try c.decodeIfPresent(String.self, forKey: .writer) ?? writer
-        // Before the two stages there was one `brain` setting.
-        if !c.contains(.classifier), !c.contains(.writer),
-           let brain = try? decoder.container(keyedBy: OldKeys.self).decodeIfPresent(String.self, forKey: .brain) {
-            (classifier, writer) = AppSettings.migrate(brain)
-        }
+        if let raw = try? c.decodeIfPresent(String.self, forKey: .mode), let mode = Mode(rawValue: raw) { self.mode = mode }
         volume = try c.decodeIfPresent(Int.self, forKey: .volume) ?? volume
     }
 
-    enum OldKeys: String, CodingKey { case brain }
+    enum CodingKeys: String, CodingKey { case mode, volume }
 
-    /// The old `brain` setting as the two stages: `rules` wrote nothing, and
-    /// Apple's model and Jev keep Apple's model for the words.
-    static func migrate(_ brain: String) -> (classifier: String, writer: String) {
-        switch brain {
-        case "rules": ("rules", "none")
-        case "jev": ("jev", "apple")
-        default: ("rules", "apple")
-        }
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(mode.rawValue, forKey: .mode)
+        try c.encode(volume, forKey: .volume)
     }
 
     public static let file = "settings.json"

@@ -10,6 +10,8 @@ public final class Core {
     public struct Config: Sendable {
         public var name: String
         public var volume: Int
+        /// How much Boop reacts: its chatter and which finishes cheer.
+        public var mode: Mode
         public var time: LocalTime
         public var seed: UInt64
         /// Codex's grace period before "needs you" shows (ADAPTERS.md §4).
@@ -22,8 +24,6 @@ public final class Core {
         public var forgetMs: Int64 = 24 * 60 * 60 * 1000
         /// Agent inputs within this window merge into one.
         public var mergeMs: Int64 = 3000
-        /// Working chatter comes every 2–4 minutes (BEHAVIORS.md §2, proposed).
-        public var chatterMs: ClosedRange<Int> = 120_000...240_000
         /// A poke streak is this many taps within `pokeWindowMs`, and it
         /// reaches the brain at most once every `pokedEveryMs`
         /// (BEHAVIORS.md §3.3, proposed).
@@ -31,9 +31,10 @@ public final class Core {
         public var pokeWindowMs: Int64 = 3000
         public var pokedEveryMs: Int64 = 60_000
 
-        public init(name: String, volume: Int = 6, time: LocalTime = LocalTime(), seed: UInt64 = 1) {
+        public init(name: String, volume: Int = 6, mode: Mode = .normal, time: LocalTime = LocalTime(), seed: UInt64 = 1) {
             self.name = name
             self.volume = volume
+            self.mode = mode
             self.time = time
             self.seed = seed
         }
@@ -69,8 +70,8 @@ public final class Core {
     var nextOrder = 0
     var rng: SplitMix64
     var quietUntil: Int64 = 0
-    /// The last day with any activity; a new one starts the reflection on
-    /// the day before.
+    /// The last day with any activity; a new one starts short-term memory
+    /// fresh.
     var lastActiveDay: String?
     var lastPublished: StateSnapshot?
     var nextChatterAt: Int64?
@@ -324,6 +325,13 @@ public final class Core {
         return fx
     }
 
+    /// A new mode (BEHAVIORS.md §6), from the next event on. Working chatter
+    /// starts its wait again at the new mode's pace.
+    public func setMode(_ mode: Mode) {
+        config.mode = mode
+        nextChatterAt = nil
+    }
+
     /// Timers: the Codex grace period, the safety net, quiet running out,
     /// merged inputs, chatter, the push-to-talk limit and the Talk button's
     /// wait for the reply.
@@ -397,18 +405,12 @@ public final class Core {
         quietLeft(now) == 0 && !needsYouShowing
     }
 
-    /// The first activity of a new day: short-term memory starts fresh, and
-    /// yesterday gets its reflection.
+    /// The first activity of a new day: short-term memory starts fresh.
     func startDayIfNew(_ now: Int64, _ fx: inout [CoreEffect]) {
         let today = config.time.day(now)
         guard today != lastActiveDay else { return }
-        let yesterday = lastActiveDay
         lastActiveDay = today
         fx.append(.newDay(date: today, firstSeen: config.time.clock(now)))
-        if let yesterday {
-            fx.append(.input(Input(.newDay, yesterday: yesterday, clock: config.time.clock(now),
-                                   weekday: config.time.weekday(now), ts: now)))
-        }
     }
 
     func startListening(by talker: Talker, _ now: Int64, _ fx: inout [CoreEffect]) {
@@ -435,13 +437,14 @@ public final class Core {
     }
 
     /// A finished turn: a cheer, even while other sessions are still
-    /// working (BEHAVIORS.md §3.1).
+    /// working, when it's long enough for the mode (BEHAVIORS.md §3.1).
     func finished(_ s: Session, durationMs ms: Int64, _ now: Int64, _ fx: inout [CoreEffect]) {
-        play("cheer", &fx)
+        let cheer = config.mode.cheers(Input.Length(ms: ms))
+        if cheer { play("cheer", &fx) }
         if ms >= 30_000 {
             fx.append(.happened("\(config.time.clock(now)) \(s.agent.short) · \(s.project) · finished (\(took(ms)))"))
         }
-        agentInput(.agentFinished, s, outcome: .done, tookMs: ms, rules: "cheer",
+        agentInput(.agentFinished, s, outcome: .done, tookMs: ms, rules: cheer ? "cheer" : nil,
                    rank: Input.Length(ms: ms) == .short ? 2 : 3, now, &fx)
     }
 
@@ -502,8 +505,8 @@ public final class Core {
         offer(input, rank: rank, now, &fx)
     }
 
-    /// While something needs you, and in quiet mode, only what you said and
-    /// the new day reach the brain.
+    /// While something needs you, and in quiet mode, only what you said
+    /// reaches the brain.
     func inputsAllowed(_ now: Int64) -> Bool {
         !needsYouShowing && quietLeft(now) == 0
     }
@@ -570,29 +573,26 @@ public final class Core {
         chatter(now, &fx)
     }
 
-    /// Working chatter (BEHAVIORS.md §2): every 2–4 minutes while agents
-    /// work, a mumble. About half the time it asks about a working session's
-    /// latest topic (`curious`); otherwise it's `happy`, with no word.
+    /// Working chatter (BEHAVIORS.md §2): while agents work, a mumble every
+    /// so often, as the mode sets (none in calm). About half the time it asks
+    /// about a working session's latest topic (`curious`); otherwise it's
+    /// `happy`, with no word.
     func chatter(_ now: Int64, _ fx: inout [CoreEffect]) {
         let working = sessions.values.filter { isWorking($0, now) && $0.needsSince == nil }
-        guard !working.isEmpty else {
+        guard !working.isEmpty, let gap = config.mode.chatterMs else {
             nextChatterAt = nil
             return
         }
         guard let due = nextChatterAt else {
-            nextChatterAt = now + chatterGap(now)
+            nextChatterAt = now + Int64(rng.int(in: gap))
             return
         }
         guard now >= due else { return }
-        nextChatterAt = now + chatterGap(now)
+        nextChatterAt = now + Int64(rng.int(in: gap))
         guard mumblesAllowed(now) else { return }
         let topics = working.sorted { $0.order < $1.order }.compactMap(\.topic)
         let word = !topics.isEmpty && rng.chance(50) ? topics[rng.int(in: 0...(topics.count - 1))] : nil
         fx.append(.mumble(feeling: word == nil ? "happy" : "curious", word: word))
-    }
-
-    func chatterGap(_ now: Int64) -> Int64 {
-        Int64(rng.int(in: config.chatterMs))
     }
 
     func publish(_ now: Int64, _ fx: inout [CoreEffect]) {

@@ -1,0 +1,24 @@
+{
+  "name": "A new mode takes effect at once",
+  "why": "BEHAVIORS.md §6: switching modes changes the brain and the rules from the next event, with no restart; normal isn't used here, since it decides with Jev",
+  "modes": ["chatty", "calm"],
+  "rules": true,
+  "steps": [
+    {"input": {"at": "0s", "event": "turn started", "agent": "claude", "project": "jetpack"},
+     "expect": {"chatty": ["agent started → react(feeling: curious, voice: mumble, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
+                "calm": ["agent started → nothing"]}},
+    {"input": {"at": "5s", "event": "mode", "mode": "calm"}, "expect": []},
+    {"input": {"at": "8s", "event": "turn finished", "agent": "claude", "project": "jetpack"},
+     "expect": ["agent finished → nothing"]},
+    {"input": {"at": "10s", "event": "mode", "mode": "chatty"}, "expect": []},
+    {"input": {"at": "20s", "event": "turn started", "agent": "claude", "project": "jetpack"},
+     "expect": ["agent started → react(feeling: curious, voice: mumble, word: hmm|what|oh|okay|code|more|wow|hi|none)"]},
+    {"input": {"at": "30s", "event": "turn finished", "agent": "claude", "project": "jetpack"},
+     "expect": ["rules → cheer", "agent finished → react(feeling: happy, voice: mumble, word: yay|done|good|nice|okay|yes|whee|hooray|none)"]},
+    {"input": {"at": "40s", "event": "mode", "mode": "calm"}, "expect": []},
+    {"input": {"at": "50s", "event": "turn started", "agent": "claude", "project": "jetpack"},
+     "expect": ["agent started → nothing"]},
+    {"input": {"at": "60s", "event": "turn finished", "agent": "claude", "project": "jetpack"},
+     "expect": ["agent finished → nothing"]}
+  ]
+}

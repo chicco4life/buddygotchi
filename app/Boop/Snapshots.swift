@@ -39,6 +39,10 @@ enum Snapshots {
                 settings.restartAgents = true
                 render(PopoverView(model: settings, maxHeight: 2000), "settings-\(look)", dark: dark, to: out)
                 try? installer.remove(.claude)
+                let chatty = model(installer, status: status(mode: .chatty))
+                chatty.mode = .chatty
+                chatty.pane = .settings
+                render(PopoverView(model: chatty, maxHeight: 2000), "settings-chatty-\(look)", dark: dark, to: out)
                 let noHook = model(unbuilt, status: status())
                 noHook.pane = .settings
                 render(PopoverView(model: noHook, maxHeight: 2000), "settings-no-hook-\(look)", dark: dark, to: out)
@@ -74,7 +78,7 @@ enum Snapshots {
 
     /// `sessions` are agent, project and `wait`, `work` or `idle`.
     static func status(base: String = "working", sessions rows: [[String]] = [], quiet: Int = 0, vol: Int = 6,
-                       connected: Bool = true, listening: Bool = false) -> Runtime.Status {
+                       connected: Bool = true, listening: Bool = false, mode: Mode = .normal) -> Runtime.Status {
         let statuses: [String: SessionSummary.Status] = ["wait": .waiting, "work": .working, "idle": .idle]
         let sessions = rows.map { SessionSummary(agent: $0[0], project: $0[1], status: statuses[$0[2]]!) }
         let wait = sessions.filter { $0.status == .waiting }
@@ -85,7 +89,8 @@ enum Snapshots {
             wait: wait.count, quiet: quiet, vol: vol)
         return Runtime.Status(snapshot: snapshot, sessions: sessions, connected: connected,
                               device: connected ? DeviceStatus(id: "b00p-54fe", fw: "1.0.0") : nil,
-                              classifier: "rules@2", writer: "apple:26.4", listening: listening)
+                              mode: mode, classifier: mode == .calm ? "calm@1" : mode == .chatty ? "chatty@1" : "jev:jev-latest",
+                              writer: "apple:26.4", listening: listening)
     }
 
     static func overviews(_ installer: HookInstaller) -> [(String, AppModel)] {
@@ -100,6 +105,7 @@ enum Snapshots {
                 ["codex", "buddygotchi", "work"], ["claude", "notes", "idle"],
             ], quiet: 8))),
             ("listening", model(installer, status: status(sessions: [["claude", "jetpack", "work"]], listening: true))),
+            ("calm", model(installer, status: status(sessions: [["claude", "jetpack", "work"]], mode: .calm))),
             ("mic-refused", {
                 let m = model(installer, status: status(base: "idle", sessions: [["claude", "jetpack", "idle"]]))
                 m.talkError = "Allow Boop in System Settings → Privacy & Security → Microphone."

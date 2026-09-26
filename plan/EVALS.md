@@ -1,7 +1,7 @@
 # Boop: harness evals
 
-Updated 2026-09-26. Named scenarios for what the harness should do, how
-they run, and what each one checks.
+Updated 2026-09-26. Named scenarios for what the harness should do in each
+mode, how they run, and what each one checks.
 
 ## 1. What they're for
 
@@ -17,66 +17,88 @@ harness did: which calls ran, with the words written into them, and what
 was dropped and why. Prompts, the transcript and other internals aren't
 checked, so a scenario stays valid when the harness is restructured.
 
+Each scenario runs once per mode ([BEHAVIORS.md](BEHAVIORS.md) §6), and
+says what should happen in each: one file shows chatty, normal and calm
+side by side for the same events.
+
 The same scenarios hold for every brain. Where the spec leaves a value to
 judgment, a scenario lists every value that fits (§3): a word a model may
-write, or a feeling for small talk. By default they're deterministic: a
-virtual clock, the rules classifier, no writer, a fixed voice seed and a
-fresh copy of the sample memory for every scenario, so the same code gives
-the same result every time. With no writer, the words aren't checked; with
-Apple's model they are, which is the point of running it.
+write, or a feeling for small talk. Chatty and calm are deterministic by
+default: a virtual clock, the mode's if-else table, no writer, a fixed
+voice seed and a fresh copy of the sample memory for every scenario, so the
+same code gives the same result every time. With no writer, the words
+aren't checked; with Apple's model they are, which is the point of running
+it. Normal decides with Jev, so its expectations are what Jev should do,
+checked live with its key.
 
 ## 2. Running them
 
 ```sh
-make eval                                                  # every scenario: rules classifier, no writer
+make eval                                                  # every scenario in chatty and calm, no writer
+app/.build/debug/boopdev eval --mode calm                  # one mode
 app/.build/debug/boopdev eval --only told                  # scenarios whose name or file matches
 app/.build/debug/boopdev eval --json FILE                  # also write a report, to diff two runs
 app/.build/debug/boopdev eval --writer apple --runs 5      # Apple's model writes; every run must pass
-BOOP_JEV_KEY=… app/.build/debug/boopdev eval --classifier jev --writer apple --runs 3
+BOOP_JEV_KEY=… app/.build/debug/boopdev eval --mode normal --writer apple --runs 3   # normal: Jev decides
 ```
 
-`boopdev eval` prints `pass` or `FAIL` for each scenario, then a diff of
-each failed step, with how Stage 1 got to each pass (the rule that matched,
-or Jev's answers), and exits 1 if any failed:
+`boopdev eval` prints `pass` or `FAIL` for each scenario in each mode, then
+a diff of each failed step, with how Stage 1 got to each pass (the rule
+that matched, or Jev's answers), and exits 1 if any failed. Normal's
+expectations run against the chatty table
+(`boopdev eval --mode normal --classifier chatty --only 03`):
 
 ```
-FAIL  08-poke-streak.json  Poked again and again, Boop grumbles  (2/3 runs)
-  in 1 of 3 runs:
-  step 12 (81s tap)
-    - poked again and again → react(feeling: annoyed, voice: mumble, word: nope|ugh|no|boo|hmm|what|none)
-    + poked again and again → react(feeling: annoyed, voice: mumble, word: tests)
-        because: poked again and again
+FAIL  normal  03-turn-failed.json  A failed turn gets an annoyed mumble in every mode
+  step 1 (0s turn started)
+    - agent started → nothing
+    + agent started → react(feeling: curious, voice: mumble)
+        because: agent started
+0/1 passed: normal chatty@1 + none
 ```
 
-`make test` runs the whole suite too (`EvalTests`), so a change that breaks
-a scenario fails the unit tests. With a model, `--runs N` runs each
-scenario N times and passes it only if every run does, since a model can
-answer differently from one run to the next. Run the suite this way after
-changing `steering.md`, a definition's questions or a brain's prompt: rules
-with Apple's model (`--writer apple`), and Jev with Apple's model.
+`make test` runs the chatty and calm suite too (`EvalTests`), so a change
+that breaks a scenario fails the unit tests. It also checks each mode's
+character across every scenario: in chatty, every agent input and poke
+streak gets a mumble; in calm, the brain mumbles only at a failed turn or
+when you talk to it, and the rules never chatter.
+
+With a model, `--runs N` runs each scenario N times and passes it only if
+every run does, since a model can answer differently from one run to the
+next. Run the suite this way after changing `steering.md`, a definition's
+questions or a brain's prompt: chatty and calm with Apple's model
+(`--writer apple`), and normal, which needs Jev's key in `BOOP_JEV_KEY`,
+with Apple's model. `--classifier` runs any mode's scenarios with another
+classifier, for comparison.
 
 ## 3. A scenario
 
 A scenario is a JSON file in `app/Evals/scenarios/`: a name, a line saying
 why (usually the spec it checks), and steps. Each step is an input event
-and what it should lead to.
+and what it should lead to, in each mode. From `03-turn-failed.json`:
 
 ```json
 {
-  "name": "A long turn is celebrated, and a very long one with a word",
-  "why": "HARNESS.md §6: a long turn (15 s or more) is react(proud, mumble); a very long one (over a minute) always gets its word (steering.md, Writing)",
+
+  "name": "A failed turn gets an annoyed mumble in every mode",
+  "why": "HARNESS.md §6: a failed finish is react(annoyed, mumble), in calm too, where it's the one alert besides needs you; with no topic, its word is an annoyed one, or bug for a turn that broke (steering.md, Writing; VOICE.md §6)",
   "steps": [
-    {"input": {"at": "0s", "event": "turn started", "agent": "claude", "project": "jetpack"},
-     "expect": ["agent started → nothing"]},
-    {"input": {"at": "20s", "event": "turn finished", "agent": "claude", "project": "jetpack"},
-     "expect": ["agent finished → react(feeling: proud, voice: mumble, word: yay|done|finally|hooray|whee|nice|good|wow|none)"]},
-    {"input": {"at": "1m", "event": "turn started", "agent": "claude", "project": "jetpack"},
-     "expect": ["agent started → nothing"]},
-    {"input": {"at": "4m", "event": "turn finished", "agent": "claude", "project": "jetpack"},
-     "expect": ["agent finished → react(feeling: proud, voice: mumble, word: finally|done|yay|hooray|whee|nice|good|wow)"]}
+    {"input": {"at": "0m", "event": "turn started", "agent": "claude", "project": "landing"},
+     "expect": {"chatty": ["agent started → react(feeling: curious, voice: mumble, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
+                "normal": ["agent started → nothing"],
+                "calm": ["agent started → nothing"]}},
+    {"input": {"at": "2m", "event": "turn failed", "agent": "claude", "project": "landing", "error": "rate_limit"},
+     "expect": ["agent finished → react(feeling: annoyed, voice: mumble, word: ugh|nope|oops|no|boo|again|what|bug|none)"]}
   ]
 }
 ```
+
+**`expect`** is a list when every mode should do the same, or one list for
+each mode the scenario runs in. **`modes`** (optional) narrows which modes
+it runs in, each from the start; by default all three. **`rules`**
+(optional, `true`) also records the core's own rule reactions, so a
+scenario can check a cheer or working chatter: `rules → cheer`,
+`rules → mumble(feeling: curious, word: tests)`.
 
 **Events** are what reaches the core, which decides what becomes an input
 for the harness ([HARNESS.md](HARNESS.md) §2):
@@ -87,6 +109,7 @@ for the harness ([HARNESS.md](HARNESS.md) §2):
 | `command` | `topic` (`tests`, `build` or `deploy`), `failed` (default `false`), `agent`, `project`: an agent's shell command finished, as Claude's `PostToolUse` or `PostToolUseFailure` reports it. Never reaches the brain; the turn's finish shows what it did |
 | `tap` | — (only noted in the transcript, unless it's the fourth of a poke streak) |
 | `talk` | `words` (`""` for a yell with no words), `yelled` (default `false`) |
+| `mode` | `mode` (`chatty`, `normal` or `calm`): the person picks a new mode, which applies at once, as in the app |
 | `wait` | — (time passes; checks what the core releases on its own) |
 
 `at` is the time since the scenario started (`500ms`, `90s`, `12m`, `2h`),
@@ -117,6 +140,7 @@ their actions:
 | Written | Means |
 | --- | --- |
 | `agent finished → react(feeling: proud, voice: mumble, word: finally)` | The call ran, with the word the writer wrote |
+| `rules → cheer` | The core played a rule moment (only with `"rules": true`) |
 | `you said → quiet(minutes: 30), react(feeling: sad, voice: silent)` | Both calls ran, in the menu's order |
 | `agent started → nothing` | An input reached the harness and Stage 1 chose to do nothing |
 | `you said → remember(where: today) dropped (unwritten)` | The writer left its required words empty, so the call was dropped |
@@ -149,8 +173,8 @@ any order, and one the line doesn't mention must be absent.
 
 ## 4. How a scenario runs
 
-Each scenario gets a fresh core, the real harness and the real actions,
-with a copy of the sample memory (`app/Tests/Fixtures/memory/`) in a
+Each run of a scenario gets a fresh core and harness in its mode, the real
+actions, and a copy of the sample memory (`app/Tests/Fixtures/memory/`) in a
 temporary directory. The clock starts at 2026-10-14 14:00 UTC and moves a
 second at a time between steps, ticking the core as the app does, so held
 inputs come out when they would. Inputs go through the harness one at a
@@ -158,9 +182,9 @@ time, asides (a tap) go into its transcript, and the core's memory lines
 (Happened, growth, a new day) are written to the memory copy, as the app
 does.
 
-Only the harness's passes are recorded. The core's own rule reactions (a
-cheer, `listening`, working chatter) aren't, so the evals stay about the
-harness. Queue timing (what you say cancelling a running pass, a newer
+Only the harness's passes are recorded, unless the scenario asks for the
+core's rule moments and chatter too (`"rules": true`), so the evals stay
+about the harness. Queue timing (what you say cancelling a running pass, a newer
 input replacing a waiting one) is left to the unit tests in
 `HarnessTests`.
 
@@ -168,19 +192,21 @@ input replacing a waiting one) is left to the unit tests in
 
 | File | Checks |
 | --- | --- |
-| `01-short-turn.json` | Turns that finish in 8 and 12 seconds (short turns) get nothing from the brain, since the core's cheer already celebrates them. |
-| `02-long-turn.json` | A 20-second turn (long) gets a proud mumble; a 3-minute one (very long) gets it with a word that fits, always (`steering.md`, Writing). Hero moment 1. |
-| `03-turn-failed.json` | A failed turn gets an annoyed mumble, with an annoyed word, bug, or none. Hero moment 2. |
-| `04-be-quiet.json` | "Be quiet for an hour" sets quiet mode for 60 minutes, holds back a turn in that time, and lets the next one through after; a yelled "be quiet" also gets a silent sad `react`, which shows nothing in v1. Hero moment 3. |
-| `05-bad-answer.json` | A classifier answer off the menu and a classifier error each run nothing, and the next turn gets its normal reaction. |
-| `06-tests-left-failing.json` | A turn whose last test run failed finishes failed and gets the annoyed mumble, whose word is `tests`; one whose tests failed, then passed, is a normal finish. Hero moment 2. |
-| `07-told-off.json` | "Shut up", "you're so annoying", a yell and a wordless yell each get a sad mumble and leave quiet mode off; "this build is annoying" doesn't count (curious, or annoyed at the build); a classifier that calls `quiet` anyway has its pass dropped, since `quiet` is on the menu only when the words ask for it. Hero moment 3. |
-| `08-poke-streak.json` | Quick taps reach nothing until one completes a poke streak, which gets an annoyed mumble; a second streak soon after gets nothing from the brain, and one later does; slow taps never do. Hero moment 4. |
-| `09-remember.json` | "Remember the demo is on Thursday" keeps a note with the demo and the day in it; "good job today" gets a proud mumble and no note. |
-| `10-small-talk.json` | "Hello boop", "time for lunch" and "see you tomorrow" get the word each calls for: hi, food, bye. |
+| `01-short-turn.json` | Turns of 8 and 12 seconds (short turns): chatty mumbles at each start (curious) and finish (happy); normal leaves them to the core's cheer; calm has no cheer and no mumble. Records the cheer. |
+| `02-long-turn.json` | A 20-second turn (long) gets a proud mumble in chatty and normal; a 3-minute one (very long) gets an excited (chatty) or proud (normal) mumble with a word that fits, always (`steering.md`, Writing). Calm: nothing. Hero moment 1. |
+| `03-turn-failed.json` | A failed turn gets an annoyed mumble in every mode, with an annoyed word, bug, or none. Hero moment 2. |
+| `04-be-quiet.json` | "Be quiet for an hour" sets quiet mode for 60 minutes in every mode, holds back a turn in that time, and lets the next one through after; a yelled "be quiet" also gets a silent sad `react`, which shows nothing in v1. Hero moment 3. |
+| `05-bad-answer.json` | A classifier answer off the menu and a classifier error each run nothing, and the next turn gets its mode's reaction. |
+| `06-tests-left-failing.json` | A turn whose last test run failed finishes failed and gets the annoyed mumble in every mode, whose word is `tests`; one whose tests failed, then passed, is a normal finish. Hero moment 2. |
+| `07-told-off.json` | "Shut up", "you're so annoying", a yell and a wordless yell each get a sad mumble (nothing in calm) and leave quiet mode off; "this build is annoying" doesn't count (curious, or annoyed at the build); a classifier that calls `quiet` anyway has its pass dropped, since `quiet` isn't on the menu. Hero moment 3. |
+| `08-poke-streak.json` | Quick taps reach nothing until one completes a poke streak, which gets an annoyed mumble in chatty and normal and nothing in calm; a second streak soon after doesn't reach the brain, and one later does; slow taps never do. Hero moment 4. |
+| `09-remember.json` | "Remember the demo is on Thursday" is kept for today, a lasting fact about you in About you and how you like things in Preferences; long-term refuses someone else's name, and "good job today" gets a proud mumble and no note. Normal (Jev) puts the named fact in today. |
+| `10-small-talk.json` | "Hello boop", "time for lunch" and "see you tomorrow" get the word each calls for, in every mode: hi, food, bye. |
+| `11-mode-switch.json` | Chatty and calm only: switching mode mid-turn changes the next reaction and the core's cheer at once, from either mode. |
+| `12-chatter.json` | A 10-minute turn: the core chatters 8 times in chatty (45–90 s apart), twice in normal (2–4 minutes apart) and never in calm, and cheers the finish in every mode. |
 
 The hero moments are VISION.md's. Hero moment 1's cheer is the core's own
-reaction, which the evals don't record; the core's unit tests check it. In
+reaction: `01` and `10` record it, and the core's unit tests check it too. In
 v1 the others are the brain's mumbles, which the evals do record: C1 parked
 the `oops` and side-eye they had ([BEHAVIORS.md](BEHAVIORS.md)).
 

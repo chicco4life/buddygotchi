@@ -8,10 +8,10 @@ import Foundation
 /// `(definition, handler)` pairs at startup.
 ///
 /// One pass runs at a time. A newer input replaces one that's waiting, and
-/// `you said` cancels whatever is running. A new day waits apart and is never
-/// replaced: it comes once a day, and a reflection cut off by you talking runs
-/// again after the reply. Everything except the two brain
+/// `you said` cancels whatever is running. Everything except the two brain
 /// calls runs on `home`, the queue the memory store and the actions live on.
+/// The brains can be swapped at any time (a new mode): each pass keeps the
+/// ones it started with.
 public final class Harness: @unchecked Sendable {
     /// An output as the harness sees it: its definition, and who carries out a call.
     public struct Tool {
@@ -105,8 +105,9 @@ public final class Harness: @unchecked Sendable {
         }
     }
 
-    public let classifier: any Classifier
-    public let writer: any Writer
+    /// The brains the next pass starts with. Touched only on `home`.
+    public private(set) var classifier: any Classifier
+    public private(set) var writer: any Writer
     let tools: [Tool]
     let memory: (Input) -> Prompt.Memory
     let home: DispatchQueue
@@ -120,8 +121,6 @@ public final class Harness: @unchecked Sendable {
     // Scheduling, touched only on `home`.
     var running: (id: Int, pass: Pass, task: Task<Void, Never>)?
     var waiting: Input?
-    /// A new day's reflection, waiting apart from `waiting`.
-    var waitingDay: Input?
     var nextID = 0
 
     /// Time kept back from Stage 2 so its answer can still be handed off.
@@ -153,15 +152,10 @@ public final class Harness: @unchecked Sendable {
                 running.task.cancel()
                 self.running = nil
                 transcript.append(.dropped("cancelled by you talking"))
-                var record = Record(input: running.pass.input, classifier: classifier.id, writer: writer.id,
-                                    window: running.pass.window)
+                var record = Record(input: running.pass.input, classifier: running.pass.classifier.id,
+                                    writer: running.pass.writer.id, window: running.pass.window)
                 record.dropped = "cancelled by you talking"
                 finish(record)
-                // Nothing of a cancelled pass has run, so a reflection can run again.
-                if running.pass.input.kind == .newDay { waitingDay = running.pass.input }
-            } else if input.kind == .newDay {
-                waitingDay = input
-                return
             } else {
                 if let old = waiting { log("harness: \(old.kind.rawValue) replaced by a newer \(input.kind.rawValue)") }
                 waiting = input
@@ -169,6 +163,14 @@ public final class Harness: @unchecked Sendable {
             }
         }
         start(input)
+    }
+
+    /// New brains, from the next pass on; a running one finishes with its
+    /// own. Call on `home`.
+    public func use(_ classifier: any Classifier, _ writer: any Writer) {
+        dispatchPrecondition(condition: .onQueue(home))
+        self.classifier = classifier
+        self.writer = writer
     }
 
     /// Something only the rules handled, for the transcript: a tap, or
@@ -185,17 +187,16 @@ public final class Harness: @unchecked Sendable {
     /// Nothing running and nothing waiting.
     public var idle: Bool {
         dispatchPrecondition(condition: .onQueue(home))
-        return running == nil && waiting == nil && waitingDay == nil
+        return running == nil && waiting == nil
     }
 
     func start(_ input: Input) {
         let pass = prepare(input)
         nextID += 1
         let id = nextID
-        let context = pass.context
-        let menu = pass.menu
+        let job = pass.job
         let task = Task { [self] in
-            let thought = await think(context, menu)
+            let thought = await Harness.think(job)
             let cancelled = Task.isCancelled
             home.async { [self] in
                 guard let running, running.id == id, !cancelled else { return }
@@ -204,9 +205,6 @@ public final class Harness: @unchecked Sendable {
                 if let next = waiting {
                     waiting = nil
                     start(next)
-                } else if let day = waitingDay {
-                    waitingDay = nil
-                    start(day)
                 }
             }
         }
@@ -218,10 +216,21 @@ public final class Harness: @unchecked Sendable {
     /// One pass's inputs, fixed when it starts.
     struct Pass {
         var input: Input
-        var context: Context
-        var menu: Menu
+        var job: Job
         var handlers: [String: (ToolCall) -> ActionOutcome]
         var window: Int
+
+        var classifier: any Classifier { job.classifier }
+        var writer: any Writer { job.writer }
+    }
+
+    /// What the brain calls need, off `home`: the brains the pass started
+    /// with, and what they're asked.
+    struct Job: Sendable {
+        var classifier: any Classifier
+        var writer: any Writer
+        var context: Context
+        var menu: Menu
     }
 
     /// Steps 1–2, on `home`: the input and the rules' reaction join the
@@ -237,8 +246,9 @@ public final class Harness: @unchecked Sendable {
         }
         var handlers: [String: (ToolCall) -> ActionOutcome] = [:]
         for (definition, handle) in current { handlers[definition.name] = handle }
-        return Pass(input: input, context: Context(input: input, memory: text, window: transcript.window),
-                    menu: menu, handlers: handlers, window: transcript.inputs)
+        let job = Job(classifier: classifier, writer: writer,
+                      context: Context(input: input, memory: text, window: transcript.window), menu: menu)
+        return Pass(input: input, job: job, handlers: handlers, window: transcript.inputs)
     }
 
     /// What the two brain calls came back with.
@@ -256,10 +266,10 @@ public final class Harness: @unchecked Sendable {
 
     /// Steps 3–5, off `home`: Stage 1, the menu check, then Stage 2 when
     /// something needs words, all within the input's deadline.
-    func think(_ context: Context, _ menu: Menu) async -> Thought {
+    static func think(_ job: Job) async -> Thought {
+        let (classifier, writer, context, menu) = (job.classifier, job.writer, job.context, job.menu)
         let deadline = context.input.kind.deadlineMs
         let start = ContinuousClock.now
-        let classifier = self.classifier
         let result = await Harness.race(deadline) {
             try await classifier.classify(context, menu, deadline: .milliseconds(deadline))
         }
@@ -280,7 +290,6 @@ public final class Harness: @unchecked Sendable {
         } else {
             var written = context
             written.window.append(.decided(by: classifier.id, thought.calls, evidence: classification.evidence))
-            let writer = self.writer
             let slots = thought.slots
             let asked = written
             thought.writing = await Harness.race(left) {
@@ -296,6 +305,7 @@ public final class Harness: @unchecked Sendable {
     /// empty leaves its argument out, or drops its call when it's required
     /// (a memory line with no text).
     func hand(_ pass: Pass, _ thought: Thought) -> Record {
+        let (classifier, writer) = (pass.classifier, pass.writer)
         var record = Record(input: pass.input, classifier: classifier.id, writer: writer.id, window: pass.window)
         record.classifyMs = thought.classifyMs
         record.writeMs = thought.writeMs
@@ -366,7 +376,7 @@ public final class Harness: @unchecked Sendable {
     /// Don't call on `home`.
     public func respond(to input: Input) async -> Record {
         let pass = home.sync { prepare(input) }
-        let thought = await think(pass.context, pass.menu)
+        let thought = await Harness.think(pass.job)
         return home.sync {
             let record = hand(pass, thought)
             finish(record)

@@ -145,7 +145,7 @@ into the app's resources, and a unit test fails if the copies differ.
 Order: **M0 → F1 → F2 → F3 → F4 → A1 → A2 → A3 → A4 → J1 → F5 → J2 → J3.**
 Bluetooth (F4) comes before the app track so the morning test can use it.
 Sound (F5) came late because there was no speaker to hear it; one was
-attached on 2026-09-26. F6, A5, A6, A7, A8 and C1
+attached on 2026-09-26. F6, A5, A6, A7, A8, C1 and A9
 came after the build, at the owner's request.
 
 Statuses are Not started, In progress, Passed, or Blocked (with the reason).
@@ -173,6 +173,7 @@ later cut part of it, so the current behaviour is in the specs, not here.
 | A7 | Two-stage brain | In progress: the pipeline is built. L0 (191 Swift tests, 100 firmware) and L5 pass: both classifiers with Apple's model answer all 50 fixture inputs on the menu, fill every slot, and stay inside their deadlines ([evidence](evidence/2026-09-26-two-stage-brain/README.md)). L2 and L4 on the board passed on 2026-09-26 ([evidence](evidence/2026-09-26-e2e-hardening/README.md)). Remaining: the owner picking each classifier in Settings and talking to Boop. The Jev experiment before it: [evidence](evidence/2026-09-26-jev-brain/README.md) |
 | A8 | Hero moments: failing tests fail a turn, sad when yelled at or told off, quiet only when asked, annoyed at a poke streak | In progress: code, L0 (210 Swift, 101 firmware), the eval suite (8 scenarios, three of them new), L1 (12 scenarios, including the new `poke`) and L5 with the rules classifier and Apple's writer pass, and the board firmware builds. L2 (`boopctl run poke`, not flashed yet) and the owner's checks (morning checklist rows 11, 13, 19 and 20) remain. [Evidence](evidence/2026-09-26-hero-moments/README.md) |
 | C1 | Cut to the minimal surface | In progress: two cuts, to 4 states and 3 animations; specs, code, L0 and L1 pass, merged with A7's two-stage brain and the evals (the brain's `react` keeps its feelings but shows no face). Follow-up: the pixel face, with boxy eyes in every expression. [Evidence](evidence/2026-09-26-minimal-cut/README.md). Flashed and checked on the board on 2026-09-26: L2 (10 scenarios pixel-identical to the simulator), `perf --motion` at least 129 fps, L4 and the webcam; that run's fixes are in the [end-to-end hardening evidence](evidence/2026-09-26-e2e-hardening/README.md) |
+| A9 | Modes: chatty, normal and calm | In progress, rebased onto main's real-brain evals: code, L0 (210 Swift tests), the evals (12 scenarios; 24/24 in chatty and calm with no writer; normal with Jev and Apple's model 11/11 in 3 of 3 runs; chatty and calm with Apple's model 22/24, one known miss), L5 for normal (Jev) and chatty (every mumble got a word), L4 (`make e2e` on the board, in chatty mode) and the headless doctor pass. Remaining: the owner switching modes in the app. [Evidence](evidence/2026-09-26-modes/README.md) |
 | P1 | Port to ESP-IDF + LVGL (later, gated) | Not started |
 
 ### M0: Setup
@@ -625,6 +626,39 @@ at a time ([BEHAVIORS.md](BEHAVIORS.md), decision log in
 - L2 on the board once the owner has flashed it: `tools/boopctl run` for
   every scenario matches the simulator.
 
+### A9: Modes
+
+Asked for by the owner on 2026-09-26: split behaviour and the evals into
+three modes, picked in Settings and applied at once
+([BEHAVIORS.md](BEHAVIORS.md) §6, decision log in
+[ARCHITECTURE.md](ARCHITECTURE.md) §11).
+
+- **Chatty:** maximal interaction and debugging; the chatty if-else table
+  and Apple's model, asked again for a mumble's word it leaves out; chatter every
+  45–90 s.
+- **Normal:** today's balance; Jev and Apple's model, and the chatty table
+  without Jev's key.
+- **Calm:** only alerts; the calm if-else table and Apple's model; no
+  chatter, and a cheer only for a very long turn (over a minute).
+- **Remembering:** what you tell Boop goes where it belongs, from
+  explicit meanings in the menu and `steering.md`: a project or session
+  fact to today's notes, a durable fact about you to About you, how you
+  like things to Preferences.
+- **Removed with it:** the new-day input and its reflection, today's
+  single if-else table, and Settings' separate classifier and writer
+  pickers.
+
+**Done when:**
+
+- L0: `make test` passes, including every scenario in chatty and calm.
+  Done.
+- `boopdev eval --mode normal --writer apple --runs 3` with Jev's key.
+  Done: 11/11 in every run.
+- L5: `boopdev brain --mode chatty --writer apple` fills a word for every
+  mumble, and `--mode normal` with Jev passes. Done.
+- L4: `make e2e` passes in chatty mode. Done.
+- The owner switches modes in the running app and feels the difference.
+
 ### P1: Port to ESP-IDF + LVGL (later)
 
 **Gate:** only after the owner has run the morning checklist and confirmed
@@ -777,6 +811,15 @@ matching spec first.
   launches on Monday" would be kept beside "landing launches Monday";
   moments already refuse a line whose longer words are mostly in an
   earlier one ([HARNESS.md](HARNESS.md) §5).
+- **"Love" for a request, about one run in six.** With Apple's model,
+  "remember I work with Bob on landing" sometimes gets the word "love"
+  where Writing says "okay", in chatty and calm, so `09-remember` fails
+  some `--writer apple` runs ([evidence](evidence/2026-09-26-modes/README.md)).
+- **Temperament and Moments no longer change.** With the new day's
+  reflection gone (A9), only About you and Preferences grow, when you tell
+  Boop something lasting. Decide whether the other two stay as they are,
+  go, or get a new writer ([FUTURE.md](FUTURE.md), "The new day's
+  reflection").
 - **Codex turns never fail.** Codex's `PostToolUse` runs after a failing
   shell command too, but what it reports then hasn't been seen from a real
   session, so a Codex turn that leaves its tests failing still ends in a
@@ -795,8 +838,8 @@ From the J3 report's known issues (numbered as there):
     ([#2](evidence/v1-build/REPORT.md#known-issues)): gone; taps don't reach
     the brain. The if-else classifier's lines lean on "hmm" and "finally".
   - A `moment` nearly every reflection
-    ([#3](evidence/v1-build/REPORT.md#known-issues)): the if-else classifier
-    remembers nothing on a new day; Jev kept one line in four.
+    ([#3](evidence/v1-build/REPORT.md#known-issues)): gone with the new
+    day's reflection (A9).
   - Apple's guardrail refusing about 2 of 52 triggers
     ([#4](evidence/v1-build/REPORT.md#known-issues)): none as a writer.
   - `remember("jetpack = payments")` refused by memory's code check because

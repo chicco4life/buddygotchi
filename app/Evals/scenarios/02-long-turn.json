@@ -1,14 +1,22 @@
 {
   "name": "A long turn is celebrated, and a very long one with a word",
-  "why": "HARNESS.md §6: a long turn (15 s or more) is react(proud, mumble); a very long one (over a minute) always gets its word (steering.md, Writing)",
+  "why": "HARNESS.md §6: a long turn (15 s or more) is react(proud, mumble) in chatty and normal, and a very long one (over a minute) always gets its word (steering.md, Writing), excited in chatty; calm leaves every finish to the rules",
   "steps": [
     {"input": {"at": "0s", "event": "turn started", "agent": "claude", "project": "jetpack"},
-     "expect": ["agent started → nothing"]},
+     "expect": {"chatty": ["agent started → react(feeling: curious, voice: mumble, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
+                "normal": ["agent started → nothing"],
+                "calm": ["agent started → nothing"]}},
     {"input": {"at": "20s", "event": "turn finished", "agent": "claude", "project": "jetpack"},
-     "expect": ["agent finished → react(feeling: proud, voice: mumble, word: yay|done|finally|hooray|whee|nice|good|wow|none)"]},
+     "expect": {"chatty": ["agent finished → react(feeling: proud, voice: mumble, word: yay|done|finally|hooray|whee|nice|good|wow|none)"],
+                "normal": ["agent finished → react(feeling: proud, voice: mumble, word: yay|done|finally|hooray|whee|nice|good|wow|none)"],
+                "calm": ["agent finished → nothing"]}},
     {"input": {"at": "1m", "event": "turn started", "agent": "claude", "project": "jetpack"},
-     "expect": ["agent started → nothing"]},
+     "expect": {"chatty": ["agent started → react(feeling: curious, voice: mumble, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
+                "normal": ["agent started → nothing"],
+                "calm": ["agent started → nothing"]}},
     {"input": {"at": "4m", "event": "turn finished", "agent": "claude", "project": "jetpack"},
-     "expect": ["agent finished → react(feeling: proud, voice: mumble, word: finally|done|yay|hooray|whee|nice|good|wow)"]}
+     "expect": {"chatty": ["agent finished → react(feeling: excited, voice: mumble, word: finally|yay|hooray|whee|wow|done|nice|good)"],
+                "normal": ["agent finished → react(feeling: proud, voice: mumble, word: finally|done|yay|hooray|whee|nice|good|wow)"],
+                "calm": ["agent finished → nothing"]}}
   ]
 }

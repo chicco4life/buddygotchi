@@ -85,7 +85,7 @@ class Run:
         self.procs.append(subprocess.Popen(bridge, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
         self._wait_for(lambda: os.path.exists(self.bridge_sock), 10, "the bridge's socket")
         app = [str(BIN / "Boop"), "--headless", "--state-dir", str(self.state), "--link", f"usb:{self.bridge_sock}",
-               "--socket", self.hook_sock, "--classifier", "rules", "--writer", self.writer, "--name", "Pip", "--trace",
+               "--socket", self.hook_sock, "--mode", "chatty", "--writer", self.writer, "--name", "Pip", "--trace",
                "--debug-log", str(self.root / "brain.jsonl")]
         self.procs.append(subprocess.Popen(app, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
         self._wait_for(lambda: "device link: connected" in self.app_log(), 10, "the app to reach the bridge")
@@ -94,7 +94,7 @@ class Run:
         # Warm it once, against a socket nobody listens on.
         subprocess.run([str(BIN / "boop-hook"), "claude"], input=b"{}",
                        env=dict(os.environ, BOOP_SOCKET=str(self.root / "none.sock")))
-        self.say(f"bridge and headless app up (rules classifier, writer {self.writer}, state {self.state})")
+        self.say(f"bridge and headless app up (chatty mode, writer {self.writer}, state {self.state})")
 
     def stop(self) -> None:
         for proc in reversed(self.procs):
@@ -290,7 +290,10 @@ def check_order(run: Run) -> dict[str, Any]:
                 "last_rule_moment": None if rule_moment is None else rule_moment[1],
                 "after_rule_moment_ended_ms": None if rule_moment is None else t - rule_moment[2],
             })
-    bad = [a for a in answers if a["after_reaction_ms"] is None or a["after_reaction_ms"] <= 0
+    # The log is written in order, so a brain line after the rules' line came
+    # after it, even in the same millisecond: chatty's if-else rules answer an
+    # agent start at once (BEHAVIORS.md §6).
+    bad = [a for a in answers if a["after_reaction_ms"] is None or a["after_reaction_ms"] < 0
            or (a["after_rule_moment_ended_ms"] is not None and a["after_rule_moment_ended_ms"] < 0)]
     for a in answers:
         run.say(f"  {a['at']} brain {a['moment']}: {a['after_reaction_ms']} ms after the rules' reaction to "

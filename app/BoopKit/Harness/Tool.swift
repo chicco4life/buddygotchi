@@ -132,7 +132,7 @@ public struct ToolDefinition: Equatable, Sendable {
     }
 
     /// This definition with fewer choices for some decided arguments, as a
-    /// menu item allows (`where: [today]`).
+    /// menu item allows (`voice: [mumble]`).
     public func narrowed(_ only: [String: [String]]) -> ToolDefinition {
         var copy = self
         for (name, allowed) in only {

@@ -15,15 +15,17 @@ let usage = """
                Prints long-term.md and short-term.md as the memory store reads them, and the history snapshots.
            boopdev voice <feeling> [word] [--dialect HEX] [--seed N] [--count N] [--json] [--why]
                Prints Minion lines as the react action would build them.
-           boopdev brain [--classifier rules|jev] [--writer apple|none|deepseek] [--inputs DIR] [--memory DIR] [--steering FILE] [--out FILE] [--gap-min N] [--print]
-               Runs the real pipeline on recorded inputs, each with a fresh copy of the sample memory,
-               N minutes apart (default 3) sharing one transcript, and reports refusals, what each stage
-               did, dropped calls and latency (VERIFICATION.md L5). Jev's key comes from BOOP_JEV_KEY.
-           boopdev eval [--classifier rules|jev] [--writer none|apple] [--runs N] [--scenarios DIR] [--memory DIR] [--steering FILE] [--only TEXT] [--json FILE]
-               Runs the harness eval scenarios: events, taps and talk on a virtual clock through a fresh core,
-               the real harness and actions, each step checked against the passes it should lead to
-               (plan/EVALS.md). Deterministic with the defaults, rules and no writer; with a model, --runs
-               runs each scenario N times, and it passes only if every run does. Exits 1 if any fails.
+           boopdev brain [--mode chatty|normal|calm] [--classifier chatty|calm|jev] [--writer apple|none|deepseek] [--inputs DIR] [--memory DIR] [--steering FILE] [--out FILE] [--gap-min N] [--print]
+               Runs the real pipeline on recorded inputs with the mode's brain (default normal), each with a
+               fresh copy of the sample memory, N minutes apart (default 3) sharing one transcript, and reports
+               refusals, what each stage did, dropped calls and latency (VERIFICATION.md L5). Jev's key comes
+               from BOOP_JEV_KEY; without it, normal decides with the chatty rules.
+           boopdev eval [--mode chatty|normal|calm] [--classifier chatty|calm|jev] [--writer none|apple] [--runs N] [--scenarios DIR] [--memory DIR] [--steering FILE] [--only TEXT] [--json FILE]
+               Runs the harness eval scenarios in each mode: events, taps and talk on a virtual clock through a
+               fresh core, the real harness and actions, each step checked against the passes it should lead to
+               in that mode (plan/EVALS.md). By default chatty and calm, with their if-else tables and no writer,
+               which is deterministic; --mode normal decides with Jev and needs BOOP_JEV_KEY. With a model,
+               --runs runs each scenario N times, and it passes only if every run does. Exits 1 if any fails.
            boopdev watch FILE [--new]
                Follows a brain debug log (Boop --debug-log FILE, or make run DEBUG_LOG=FILE) and prints each
                pass as it lands: the input, what was decided and why, the words written, and what ran.
@@ -160,6 +162,24 @@ func findSteering() -> String? {
     return nil
 }
 
+/// The brains `--mode`, `--classifier` and `--writer` ask for, as the app
+/// would build them. Jev's key comes from `BOOP_JEV_KEY`.
+func brains(_ args: [String], defaultMode: Mode, defaultWriter: String) -> (any Classifier, any Writer) {
+    let mode = option(args, "--mode").map { name in
+        guard let mode = Mode(rawValue: name) else { fail("modes: chatty, normal, calm") }
+        return mode
+    } ?? defaultMode
+    let override = option(args, "--classifier")
+    if let override, !Brains.classifiers.contains(override) { fail("classifiers: " + Brains.classifiers.joined(separator: ", ")) }
+    let key = ProcessInfo.processInfo.environment[Brains.jevKeyVariable].flatMap { $0.isEmpty ? nil : $0 }
+    if override == "jev", key == nil { fail("Jev needs its API key in \(Brains.jevKeyVariable)") }
+    let classifier = Brains.classifier(for: mode, override: override, key: { key }, log: { print("# \($0)") })
+    let writerName = option(args, "--writer") ?? defaultWriter
+    guard Brains.writers.contains(writerName) else { fail("writers: " + Brains.writers.joined(separator: ", ")) }
+    if writerName == "apple", let why = AppleWriter.unavailableReason { fail("Apple's model can't run here: \(why)") }
+    return (classifier, Brains.writer(for: mode, override: writerName))
+}
+
 func brain(_ args: [String]) async {
     let fm = FileManager.default
     let inputsDir = option(args, "--inputs") ?? "app/Tests/Fixtures/inputs"
@@ -167,25 +187,7 @@ func brain(_ args: [String]) async {
     guard let steeringPath = option(args, "--steering") ?? findSteering(),
           let steering = try? String(contentsOfFile: steeringPath, encoding: .utf8)
     else { fail("can't find steering.md; pass --steering") }
-    let classifier: any Classifier
-    switch option(args, "--classifier") ?? "rules" {
-    case "rules": classifier = RulesClassifier()
-    case "jev":
-        guard let key = ProcessInfo.processInfo.environment[Brains.jevKeyVariable], !key.isEmpty else {
-            fail("Jev needs its API key in \(Brains.jevKeyVariable)")
-        }
-        classifier = JevClassifier(key: key)
-    default: fail("classifiers: rules, jev")
-    }
-    let writer: any Writer
-    switch option(args, "--writer") ?? "apple" {
-    case "apple":
-        if let why = AppleWriter.unavailableReason { fail("Apple's model can't run here: \(why)") }
-        writer = AppleWriter()
-    case "none": writer = NoWriter()
-    case "deepseek": writer = DeepSeekWriter()
-    default: fail("writers: apple, none, deepseek")
-    }
+    let (classifier, writer) = brains(args, defaultMode: .normal, defaultWriter: "apple")
 
     var inputs: [Input] = []
     let files = ((try? fm.contentsOfDirectory(atPath: inputsDir)) ?? []).filter { $0.hasSuffix(".jsonl") }.sorted()
@@ -218,16 +220,12 @@ func brain(_ args: [String]) async {
         defer { try? fm.removeItem(at: dir) }
         let harness: Harness = home.sync {
             let store = try! MemoryStore(directory: dir, steering: steering, log: { logs.append($0) })
-            if input.kind == .newDay, let day = store.lastActiveDay {
-                let next = LocalTime.day(day, plus: 1)
-                store.apply(.newDay(date: next, firstSeen: "08:30"))
-            }
             // As the core does: `quiet` runs only when the words asked for it.
             let context = ActionContext(send: { _ in }, quietAsked: { input.asksForQuiet },
                                         today: { store.lastActiveDay ?? "2026-10-15" }, log: { logs.append($0) })
             let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: 0x7f3a)), memory: store)
             return Harness(classifier: classifier, writer: writer, tools: actions.map(Harness.Tool.init),
-                           memory: { store.promptMemory(for: $0.kind) }, home: home, debugLog: out,
+                           memory: { _ in store.promptMemory() }, home: home, debugLog: out,
                            transcript: transcript, log: { logs.append($0) })
         }
         let r = await harness.respond(to: input)
@@ -263,8 +261,7 @@ func brain(_ args: [String]) async {
             if r.decided.isEmpty { counts["nothing", default: 0] += 1 }
             for call in r.decided {
                 let voice = call.arguments["voice"]?.string.map { " \($0)" } ?? ""
-                let place = call.arguments["where"]?.string.map { " \($0)" } ?? ""
-                counts[call.name + voice + place, default: 0] += 1
+                counts[call.name + voice, default: 0] += 1
             }
         }
         print("\(kind.rawValue) (\(rs.count)): " + counts.sorted { $0.key < $1.key }.map { "\($0.key) \($0.value)" }.joined(separator: ", "))
@@ -357,24 +354,20 @@ func eval(_ args: [String]) async {
     guard let steeringPath = option(args, "--steering") ?? findSteering(),
           let steering = try? String(contentsOfFile: steeringPath, encoding: .utf8)
     else { fail("can't find steering.md; pass --steering") }
-    let classifier: any Classifier
-    switch option(args, "--classifier") ?? "rules" {
-    case "rules": classifier = RulesClassifier()
-    case "jev":
-        guard let key = ProcessInfo.processInfo.environment[Brains.jevKeyVariable], !key.isEmpty else {
-            fail("Jev needs its API key in \(Brains.jevKeyVariable)")
-        }
-        classifier = JevClassifier(key: key)
-    default: fail("classifiers: rules, jev")
+    var modes = Eval.deterministic
+    if let name = option(args, "--mode") {
+        guard let mode = Mode(rawValue: name) else { fail("modes: chatty, normal, calm") }
+        modes = [mode]
     }
-    let writer: any Writer
-    switch option(args, "--writer") ?? "none" {
-    case "none": writer = NoWriter()
-    case "apple":
-        if let why = AppleWriter.unavailableReason { fail("Apple's model can't run here: \(why)") }
-        writer = AppleWriter()
-    default: fail("writers: none, apple")
+    let override = option(args, "--classifier")
+    if let override, !Brains.classifiers.contains(override) { fail("classifiers: " + Brains.classifiers.joined(separator: ", ")) }
+    let key = ProcessInfo.processInfo.environment[Brains.jevKeyVariable].flatMap { $0.isEmpty ? nil : $0 }
+    if key == nil, override == "jev" || (override == nil && modes.contains(.normal)) {
+        fail("normal mode decides with Jev: its API key goes in \(Brains.jevKeyVariable)")
     }
+    let writerName = option(args, "--writer") ?? "none"
+    guard ["none", "apple"].contains(writerName) else { fail("writers: none, apple") }
+    if writerName == "apple", let why = AppleWriter.unavailableReason { fail("Apple's model can't run here: \(why)") }
     var list: [Scenario]
     do { list = try Scenario.load(directory: scenarios) } catch { fail("\(error)") }
     if let only = option(args, "--only") {
@@ -382,30 +375,40 @@ func eval(_ args: [String]) async {
     }
     guard !list.isEmpty else { fail("no scenarios in \(scenarios.path)") }
     guard let runs = Int(option(args, "--runs") ?? "1"), runs >= 1 else { fail("--runs is a count, 1 or more") }
-    let runner = Eval(classifier: classifier, writer: writer, steering: steering, memory: memoryDir)
+    let runner = Eval(
+        classifier: { mode in Brains.classifier(for: mode, override: override, key: { key }) },
+        writer: { mode in writerName == "none" ? NoWriter() : Brains.writer(for: mode) },
+        steering: steering, memory: memoryDir)
+    // One entry per scenario and mode: its runs.
     var results: [[Eval.Result]] = []
-    for scenario in list {
-        var rs: [Eval.Result] = []
-        for _ in 0..<runs {
-            do { rs.append(try await runner.run(scenario)) } catch { fail("\(scenario.file): \(error)") }
-        }
-        results.append(rs)
-        let passed = rs.filter(\.passed).count
-        let tally = runs > 1 ? "  (\(passed)/\(runs) runs)" : ""
-        print((passed == runs ? "pass  " : "FAIL  ") + "\(scenario.file)  \(scenario.name)\(tally)")
-        // Each different failure once, most common first.
-        var diffs: [String: Int] = [:]
-        for r in rs where !r.passed { diffs[Eval.diff(r), default: 0] += 1 }
-        for (diff, n) in diffs.sorted(by: { $0.value > $1.value }) {
-            if runs > 1 { print("  in \(n) of \(runs) runs:") }
-            print(diff)
+    for mode in modes {
+        for scenario in list where scenario.modes.contains(mode) {
+            var rs: [Eval.Result] = []
+            for _ in 0..<runs {
+                do { rs.append(try await runner.run(scenario, mode: mode)) } catch { fail("\(scenario.file): \(error)") }
+            }
+            results.append(rs)
+            let passed = rs.filter(\.passed).count
+            let tally = runs > 1 ? "  (\(passed)/\(runs) runs)" : ""
+            print((passed == runs ? "pass  " : "FAIL  ") + "\(mode.rawValue)  \(scenario.file)  \(scenario.name)\(tally)")
+            // Each different failure once, most common first.
+            var diffs: [String: Int] = [:]
+            for r in rs where !r.passed { diffs[Eval.diff(r), default: 0] += 1 }
+            for (diff, n) in diffs.sorted(by: { $0.value > $1.value }) {
+                if runs > 1 { print("  in \(n) of \(runs) runs:") }
+                print(diff)
+            }
         }
     }
     let passed = results.filter { $0.allSatisfy(\.passed) }.count
     let every = runs > 1 ? " in all \(runs) runs" : ""
-    print("\(passed)/\(results.count) scenarios passed\(every), classifier \(classifier.id), writer \(writer.id)")
+    let brains = modes.map { mode in
+        let r = results.first { $0.first?.mode == mode }?.first
+        return "\(mode.rawValue) \(r?.classifier ?? "?") + \(r?.writer ?? "?")"
+    }
+    print("\(passed)/\(results.count) passed\(every): " + brains.joined(separator: ", "))
     if let out = option(args, "--json") {
-        do { try Eval.json(results, classifier: classifier.id, writer: writer.id).write(toFile: out, atomically: true, encoding: .utf8) }
+        do { try Eval.json(results).write(toFile: out, atomically: true, encoding: .utf8) }
         catch { fail("can't write \(out): \(error)") }
     }
     exit(passed == results.count ? 0 : 1)

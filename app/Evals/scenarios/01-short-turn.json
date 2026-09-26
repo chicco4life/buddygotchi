@@ -1,14 +1,23 @@
 {
-  "name": "A short turn: the brain stays quiet",
-  "why": "HARNESS.md §6: the rules classifier does nothing for a start or a finish under 15 seconds, short (under 10 s) or in between; the core's cheer celebrates it",
+  "name": "Short turns: a mumble in chatty, the cheer alone in normal, nothing in calm",
+  "why": "BEHAVIORS.md §6 and HARNESS.md §6: chatty mumbles at every start and finish (happy for a short turn); normal and calm leave a start or a short finish to the rules, and only calm has no cheer under a minute",
+  "rules": true,
   "steps": [
     {"input": {"at": "0s", "event": "turn started", "agent": "claude", "project": "jetpack"},
-     "expect": ["agent started → nothing"]},
+     "expect": {"chatty": ["agent started → react(feeling: curious, voice: mumble, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
+                "normal": ["agent started → nothing"],
+                "calm": ["agent started → nothing"]}},
     {"input": {"at": "8s", "event": "turn finished", "agent": "claude", "project": "jetpack"},
-     "expect": ["agent finished → nothing"]},
+     "expect": {"chatty": ["rules → cheer", "agent finished → react(feeling: happy, voice: mumble, word: yay|done|good|nice|okay|yes|whee|hooray|none)"],
+                "normal": ["rules → cheer", "agent finished → nothing"],
+                "calm": ["agent finished → nothing"]}},
     {"input": {"at": "20s", "event": "turn started", "agent": "claude", "project": "jetpack"},
-     "expect": ["agent started → nothing"]},
+     "expect": {"chatty": ["agent started → react(feeling: curious, voice: mumble, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
+                "normal": ["agent started → nothing"],
+                "calm": ["agent started → nothing"]}},
     {"input": {"at": "32s", "event": "turn finished", "agent": "claude", "project": "jetpack"},
-     "expect": ["agent finished → nothing"]}
+     "expect": {"chatty": ["rules → cheer", "agent finished → react(feeling: happy, voice: mumble, word: yay|done|good|nice|okay|yes|whee|hooray|none)"],
+                "normal": ["rules → cheer", "agent finished → nothing"],
+                "calm": ["agent finished → nothing"]}}
   ]
 }

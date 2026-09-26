@@ -225,6 +225,7 @@ final class MemoryTests: XCTestCase {
             if case .success = rig.store.remember(text, as: .aboutYou) { XCTFail("kept: \(text)") }
         }
         for text in ["Ships on Fridays.", "Mostly works on landing and jetpack.", "Likes CI green before lunch.",
+                     "Reviews PRs before lunch.",
                      "Calls Boop Pip's friend."] {
             XCTAssertNotNil(try? rig.store.remember(text, as: .aboutYou).get(), text)
         }
@@ -246,47 +247,16 @@ final class MemoryTests: XCTestCase {
         XCTAssertEqual(rig.store.longTerm!.preferences, ["Likes it quiet before 10am."])
     }
 
-    func testTemperamentChangesOneSentenceADay() throws {
-        let rig = try MemoryRig()
-        XCTAssertEqual(rig.store.temperament("Nosy. And smug.", today: "2026-10-14"), .failure(Refusal("more than one sentence")))
-        XCTAssertEqual(rig.store.temperament("Nosy and a bit smug.", today: "2026-10-14"), .success("Nosy and a bit smug."))
-        XCTAssertEqual(rig.store.temperament("Gets huffy about flaky tests.", today: "2026-10-14"),
-                       .failure(Refusal("temperament already changed today")))
-        for (i, day) in ["2026-10-15", "2026-10-16", "2026-10-17", "2026-10-18", "2026-10-19"].enumerated() {
-            XCTAssertNotNil(try? rig.store.temperament("Sentence \(i).", today: day).get())
-        }
-        XCTAssertEqual(rig.store.longTerm!.temperament.count, 5)
-        XCTAssertEqual(rig.store.longTerm!.temperament.first, "Sentence 0.")
-    }
-
-    func testMomentsOneADayAtMostTwenty() throws {
-        let rig = try MemoryRig()
-        XCTAssertNotNil(try? rig.store.moment("the migration finally passed", day: "2026-10-09").get())
-        XCTAssertEqual(rig.store.moment("again", day: "2026-10-09"), .failure(Refusal("already a moment for 2026-10-09")))
-        XCTAssertEqual(rig.store.moment("migration passed quietly", day: "2026-10-10"),
-                       .failure(Refusal("retells an earlier moment")))
-        for i in 1...25 { _ = rig.store.moment("day \(i)", day: LocalTime.day("2026-10-09", plus: i)) }
-        XCTAssertEqual(rig.store.longTerm!.moments.count, 20)
-        XCTAssertEqual(rig.store.longTerm!.moments.first?.date, "2026-10-15")
-        XCTAssertEqual(rig.store.moment(String(repeating: "m", count: 81), day: "2026-12-01"),
-                       .failure(Refusal("longer than 80 characters")))
-    }
-
     func testANewDaySnapshotsAndStartsFresh() throws {
         let rig = try MemoryRig()
         _ = rig.store.note("landing: flaky tests")
         rig.store.apply(.happened("14:05 claude · jetpack · finished (18 min)"))
         rig.store.apply(.newDay(date: "2026-10-15", firstSeen: "09:01"))
-        XCTAssertEqual(rig.store.reflecting, "2026-10-14")
         XCTAssertTrue(rig.file("history/2026-10-14/short-term.md").contains("landing: flaky tests"))
+        XCTAssertTrue(rig.file("history/2026-10-14/short-term.md").contains("14:05 claude · jetpack"))
         XCTAssertTrue(rig.file("history/2026-10-14/long-term.md").contains("name: Pip"))
-        XCTAssertTrue(rig.store.reflectionText?.contains("14:05 claude · jetpack") ?? false)
         XCTAssertEqual(rig.file("short-term.md"), "## Today\n2026-10-15 · first seen 09:01\n\n## Notes\n\n## Happened\n")
         XCTAssertEqual(rig.store.lastActiveDay, "2026-10-15")
-        // A moment during the reflection is dated the day reflected on.
-        let actions = ActionRig(memory: rig.store)
-        XCTAssertTrue(actions.run(remember("moment", "first all-nighter together")).isDone)
-        XCTAssertEqual(rig.store.longTerm!.moments.last?.date, "2026-10-14")
     }
 
     func testHandEditsAreKept() throws {
@@ -326,7 +296,7 @@ final class MemoryTests: XCTestCase {
     }
 
     /// The core's effects land in the files, and a restart that reads
-    /// today's date back doesn't start the day (or reflect) twice.
+    /// today's date back doesn't start the day twice.
     func testCoreAndMemoryTogether() throws {
         let rig = try MemoryRig(setUp: false)
         let time = LocalTime(timeZone: TimeZone(identifier: "UTC")!)
@@ -342,13 +312,11 @@ final class MemoryTests: XCTestCase {
         }
         let (_, first) = boot(start)
         XCTAssertTrue(first.contains { if case .newDay = $0 { true } else { false } })
-        XCTAssertTrue(first.contains { if case .input(let i) = $0 { i.kind == .newDay } else { false } })
-        XCTAssertEqual(rig.store.reflecting, "2026-10-13")
+        XCTAssertTrue(rig.file("history/2026-10-13/short-term.md").contains("2026-10-13"))
         XCTAssertEqual(rig.store.lastActiveDay, "2026-10-14")
         try rig.reopen()
         let (_, again) = boot(start + 60_000)
         XCTAssertFalse(again.contains { if case .newDay = $0 { true } else { false } })
-        XCTAssertFalse(again.contains { if case .input(let i) = $0 { i.kind == .newDay } else { false } })
     }
 
     func testLimitsHoldOnHandEditedFiles() throws {

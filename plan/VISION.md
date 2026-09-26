@@ -214,21 +214,25 @@ These are fixed. If a feature conflicts with one of them, the feature changes.
   act for you in any way. Information only flows from your agents to Boop.
 - It is not tied to one AI. The brain is swappable: plain rules or a cloud
   model with your own API key (Jev today) decide what Boop does, and
-  Apple's on-device model, or nothing at all, writes its few words. Boop
-  stays the same creature either way.
+  Apple's on-device model, or nothing at all, writes its few words. Which
+  decides is the mode you pick: chatty, normal or calm
+  ([BEHAVIORS.md](BEHAVIORS.md) §6). Boop stays the same creature either
+  way.
 - It has no always-on wake word and no camera, and that will not change.
 
 ## Scope
 
 - **v1:** one Boop; Claude Code and Codex; a face that shows asleep, idle,
-  working and "needs you"; a cheer when a turn finishes; mumbles;
+  working and "needs you"; a cheer when a turn finishes; mumbles; three
+  modes for how much Boop reacts (chatty, normal and calm);
   push-to-talk with the brain and its memory. This is deliberately small
   (cut on 2026-09-26, [BEHAVIORS.md](BEHAVIORS.md)), so the surface stays
   easy to hold in your head. The hero moments above show in v1 as the
   cheer and the brain's mumbles; the side-eye and the hurt look are
   parked.
 - **Parked, coming back one at a time:** mood, XP and hunger, the nudge
-  ladder, the private record, focus mode and the other v1 extras listed
+  ladder, the private record, focus mode, the new day's reflection that
+  grew long-term memory, and the other v1 extras listed
   under "Parked" in [FUTURE.md](FUTURE.md). The sections above still
   describe where Boop is headed.
 - **Not now:** life stages, retiring and backup, the buddy card, Claude

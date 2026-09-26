@@ -33,6 +33,7 @@ spec first.
 | `nod` | A nod when "needs you" cleared, and on a tap while it showed (parked in the second cut, after `fd1c083`) | BEHAVIORS §5 at `fd1c083` |
 | `thinking` and `shrug` | A thinking face while waiting for the brain's reply, and a shrug when it was too slow or the mic couldn't start; now `listening` covers the wait and just ends (second cut) | BEHAVIORS §3.3 at `fd1c083` |
 | The no-app look | Eyes open, glancing up and aside while waiting for the Mac; now the asleep face with the unplugged icon (second cut) | BEHAVIORS §2 at `fd1c083` |
+| The new day's reflection | At the first activity of a day the brain looked back on yesterday and could keep a line about you, a preference, a temperament sentence or a moment in `long-term.md`; only Jev ever did. Removed with the modes, so Temperament and Moments no longer change; About you and Preferences still grow when you tell Boop something lasting (ARCHITECTURE §11) | HARNESS §2, §5; ARCHITECTURE §4 at `9bb8004` |
 
 ## Character and growth
 

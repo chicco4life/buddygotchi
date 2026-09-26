@@ -70,12 +70,12 @@ final class ActionTests: XCTestCase {
         XCTAssertEqual(rig.actions["quiet"]!.definition.parameters[0].kind, .number([15, 30, 60, 120]))
         let remember = rig.actions["remember"]!.definition
         XCTAssertEqual(remember.parameters.map(\.role), [.decided, .written])
-        XCTAssertEqual(remember.parameters[0].kind, .choice(["today", "about_you", "preference", "temperament", "moment"]))
+        XCTAssertEqual(remember.parameters[0].kind, .choice(["today", "about_you", "preference"]))
+        XCTAssertTrue(remember.parameters[0].about["today"]!.hasPrefix("Short-term"))
+        XCTAssertTrue(remember.parameters[0].about["about_you"]!.hasPrefix("Long-term: a durable fact"))
         // ARCHITECTURE.md §4's limits, by section.
         let text = remember.parameters[1]
-        XCTAssertEqual(["today", "about_you", "preference", "temperament", "moment"].map {
-            text.maxLength(["where": .string($0)])
-        }, [80, 100, 100, 120, 80])
+        XCTAssertEqual(["today", "about_you", "preference"].map { text.maxLength(["where": .string($0)]) }, [80, 100, 100])
     }
 
     /// A mumble is a moment with only `say`: it plays over whatever face is
@@ -183,8 +183,8 @@ final class ActionTests: XCTestCase {
     }
 
     func testRememberTodayWritesANote() {
-        XCTAssertTrue(rig.run(remember("today", "ships on Fridays")).isDone)
-        XCTAssertEqual(memory.store.shortTerm?.notes, ["ships on Fridays"])
+        XCTAssertTrue(rig.run(remember("today", "demo on Thursday")).isDone)
+        XCTAssertEqual(memory.store.shortTerm?.notes, ["demo on Thursday"])
         XCTAssertFalse(rig.run(remember("today", String(repeating: "x", count: 81))).isDone)
         XCTAssertFalse(rig.run(remember("today", "")).isDone)
         XCTAssertFalse(rig.run(remember("today", "ran `make test`")).isDone)
@@ -193,20 +193,19 @@ final class ActionTests: XCTestCase {
         XCTAssertEqual(rig.logs.count, 4)
     }
 
-    func testRememberEachLongTermSection() {
+    /// Durable facts about the person go to long-term memory
+    /// (ARCHITECTURE.md §4.2).
+    func testRememberAboutYouAndPreferencesAreLongTerm() {
         XCTAssertTrue(rig.run(remember("about_you", "Ships on Fridays.")).isDone)
-        XCTAssertTrue(rig.run(remember("preference", "Likes it quiet.")).isDone)
+        XCTAssertTrue(rig.run(remember("preference", "Likes it quiet before 10am.")).isDone)
         XCTAssertFalse(rig.run(remember("secrets", "x")).isDone)
+        XCTAssertFalse(rig.run(remember("temperament", "Nosy.")).isDone, "reflection's sections went with the new day")
         XCTAssertFalse(rig.run(remember("about_you", String(repeating: "x", count: 101))).isDone)
-        XCTAssertTrue(rig.run(remember("temperament", "Trusts Codex more than it used to.")).isDone)
-        XCTAssertFalse(rig.run(remember("temperament", "Gets huffy about flaky tests.")).isDone, "once a day")
-        XCTAssertTrue(rig.run(remember("moment", "first all-nighter together")).isDone)
-        XCTAssertFalse(rig.run(remember("moment", "another one")).isDone, "one a day")
+        XCTAssertFalse(rig.run(remember("about_you", "ships on fridays")).isDone, "already remembered")
         let lt = memory.store.longTerm!
         XCTAssertEqual(lt.aboutYou, ["Ships on Fridays."])
-        XCTAssertEqual(lt.preferences, ["Likes it quiet."])
-        XCTAssertEqual(lt.temperament, ["Trusts Codex more than it used to."])
-        XCTAssertEqual(lt.moments.map(\.date), ["2026-10-15"])
+        XCTAssertEqual(lt.preferences, ["Likes it quiet before 10am."])
+        XCTAssertEqual(memory.store.shortTerm?.notes, [], "nothing short-term")
         XCTAssertEqual(rig.logs.count, 4)
         for line in rig.logs { XCTAssertTrue(line.contains(": dropped: "), line) }
         // The name refusal doesn't repeat the name: it's logged (HARNESS.md §8).

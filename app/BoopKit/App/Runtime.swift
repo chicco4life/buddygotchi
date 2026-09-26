@@ -14,8 +14,10 @@ public final class Runtime: @unchecked Sendable {
         public var socketPath: String
         public var link: DeviceTransport?
         public var steering: String
-        /// Override the brain's two stages in `settings.json` for this run
-        /// only (HARNESS.md §6).
+        /// Override the mode in `settings.json` for this run only.
+        public var mode: Mode?
+        /// Override the mode's brain for this run only (HARNESS.md §6):
+        /// `Brains.classifiers` and `Brains.writers`.
         public var classifier: String?
         public var writer: String?
         public var time = LocalTime()
@@ -46,18 +48,20 @@ public final class Runtime: @unchecked Sendable {
         public var sessions: [SessionSummary]
         public var connected: Bool
         public var device: DeviceStatus?
-        /// The brain's two stages as they run, e.g. `rules@2` and `apple:26.4`.
+        public var mode: Mode
+        /// The brain's two stages as they run, e.g. `jev:jev-latest` and `apple:26.4`.
         public var classifier: String
         public var writer: String
         /// The Mac's mic is on for push-to-talk.
         public var listening: Bool
 
         public init(snapshot: StateSnapshot, sessions: [SessionSummary], connected: Bool, device: DeviceStatus?,
-                    classifier: String, writer: String, listening: Bool = false) {
+                    mode: Mode, classifier: String, writer: String, listening: Bool = false) {
             self.snapshot = snapshot
             self.sessions = sessions
             self.connected = connected
             self.device = device
+            self.mode = mode
             self.classifier = classifier
             self.writer = writer
             self.listening = listening
@@ -82,6 +86,9 @@ public final class Runtime: @unchecked Sendable {
     public let memory: MemoryStore
     public let link: DeviceLink
     public private(set) var settings: AppSettings
+    /// The mode running now, touched only on `home`. Starts as the saved one,
+    /// unless this run overrides it.
+    public private(set) var mode: Mode
     let core: Core
     let harness: Harness
     let react: ReactAction
@@ -130,7 +137,8 @@ public final class Runtime: @unchecked Sendable {
         }
 
         let now = options.clock()
-        var config = Core.Config(name: longTerm.name, volume: settings.volume, time: options.time,
+        mode = options.mode ?? settings.mode
+        var config = Core.Config(name: longTerm.name, volume: settings.volume, mode: mode, time: options.time,
                                  seed: longTerm.seed ^ UInt64(now))
         config.name = longTerm.name
         core = Core(config: config, lastActiveDay: memory.lastActiveDay)
@@ -161,9 +169,9 @@ public final class Runtime: @unchecked Sendable {
         let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: longTerm.seed)), memory: memory)
         react = actions.compactMap { $0 as? ReactAction }.first!
         let memory = self.memory
-        harness = Harness(classifier: Brains.classifier(options.classifier ?? settings.classifier, key: Brains.jevKey, log: log),
-                          writer: Brains.writer(options.writer ?? settings.writer, log: log),
-                          tools: actions.map(Harness.Tool.init), memory: { memory.promptMemory(for: $0.kind) },
+        harness = Harness(classifier: Brains.classifier(for: mode, override: options.classifier, key: Brains.jevKey, log: log),
+                          writer: Brains.writer(for: mode, override: options.writer, log: log),
+                          tools: actions.map(Harness.Tool.init), memory: { _ in memory.promptMemory() },
                           home: home, debugLog: options.debugLog, log: log)
         // Tool names only: arguments can carry what you said (HARNESS.md §8).
         harness.onRecord = { record in log(record.logLine) }
@@ -205,7 +213,7 @@ public final class Runtime: @unchecked Sendable {
             changed()
         }
         options.log("boop: running on \(options.stateDir.path), socket \(options.socketPath), link \(options.link?.name ?? "none"), "
-                    + "brain \(harness.classifier.id) + \(harness.writer.id)")
+                    + "mode \(mode.rawValue), brain \(harness.classifier.id) + \(harness.writer.id)")
     }
 
     /// Stops listening for hooks and the device. Safe to call twice.
@@ -319,7 +327,7 @@ public final class Runtime: @unchecked Sendable {
     func changed() {
         let now = options.clock()
         onChange?(Status(snapshot: link.latest ?? core.snapshot(at: now), sessions: core.sessionList(at: now),
-                         connected: link.connected, device: link.status, classifier: harness.classifier.id,
+                         connected: link.connected, device: link.status, mode: mode, classifier: harness.classifier.id,
                          writer: harness.writer.id, listening: core.listening != nil))
     }
 
@@ -362,14 +370,32 @@ public final class Runtime: @unchecked Sendable {
         }
     }
 
-    /// Takes effect on the next launch.
-    public func setClassifier(_ classifier: String) {
-        home.async { [self] in saveSettings { $0.classifier = classifier } }
+    /// A new mode, at once (BEHAVIORS.md §6): the core's rules from the next
+    /// event, the brain from the next input. A pass already running
+    /// finishes with the brain it started with.
+    public func setMode(_ mode: Mode) {
+        home.async { [self] in
+            self.mode = mode
+            saveSettings { $0.mode = mode }
+            core.setMode(mode)
+            useBrains()
+            changed()
+        }
     }
 
-    /// Takes effect on the next launch.
-    public func setWriter(_ writer: String) {
-        home.async { [self] in saveSettings { $0.writer = writer } }
+    /// Builds the mode's brain again, for a new mode or a new Jev key.
+    public func reloadBrains() {
+        home.async { [self] in
+            useBrains()
+            changed()
+        }
+    }
+
+    func useBrains() {
+        let log = options.log
+        harness.use(Brains.classifier(for: mode, override: options.classifier, key: Brains.jevKey, log: log),
+                    Brains.writer(for: mode, override: options.writer, log: log))
+        log("mode \(mode.rawValue), brain \(harness.classifier.id) + \(harness.writer.id)")
     }
 
     /// What Boop remembers about you, for the settings screen.

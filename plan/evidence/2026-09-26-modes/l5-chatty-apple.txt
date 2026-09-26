@@ -1,0 +1,16 @@
+brain chatty@1 + apple:27.0, 54 inputs 3 min apart, log chatty-apple-2.jsonl
+refused: 0/54
+stage 1 answered on the menu: 54/54
+agent started (5): react mumble 5
+agent finished (19): react mumble 19
+you said (26): quiet 2, react mumble 24, remember 4
+poked again and again (4): react mumble 4
+writer: 52 passes, 56/56 slots filled, 0 failed
+calls: 58 to actions, 1 dropped by them, 0 with nothing written
+  remember(text: "landing launches Monday", where: today): already noted
+window: up to 8 inputs, 8 restarts
+latency agent started: n 5, classify p50 0 ms, write p50 1420 ms (n 5), p95 1944 ms (deadline 5000 ms)
+latency agent finished: n 19, classify p50 0 ms, write p50 1516 ms (n 19), p95 1555 ms (deadline 5000 ms)
+latency you said: n 26, classify p50 0 ms, write p50 1458 ms (n 24), p95 1761 ms (deadline 4000 ms)
+latency poked again and again: n 4, classify p50 0 ms, write p50 1410 ms (n 4), p95 1418 ms (deadline 4000 ms)
+PASS (the sample review is separate)

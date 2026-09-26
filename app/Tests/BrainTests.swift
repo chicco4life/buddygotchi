@@ -14,30 +14,79 @@ func context(_ i: Input, window: [Transcript.Entry]? = nil,
     Context(input: i, memory: memory, window: window ?? [.input(i)])
 }
 
-// MARK: - The if-else classifier
+// MARK: - The if-else classifiers
 
-final class RulesClassifierTests: XCTestCase {
-    func decide(_ i: Input, memory: Prompt.Memory? = nil) async throws -> [ToolCall] {
-        let menu = Menu(i.menu, definitions: try definitions())
-        let c = memory.map { context(i, memory: $0) } ?? context(i)
-        let answer = try await RulesClassifier().classify(c, menu, deadline: .seconds(1)).calls
-        XCTAssertNil(menu.check(answer), "every answer fits the menu")
-        return answer
-    }
+func decide(_ classifier: any Classifier, _ i: Input) async throws -> [ToolCall] {
+    let menu = Menu(i.menu, definitions: try definitions())
+    let answer = try await classifier.classify(context(i), menu, deadline: .seconds(1)).calls
+    XCTAssertNil(menu.check(answer), "every answer fits the menu")
+    return answer
+}
 
-    /// HARNESS.md §6: each row of the table in RulesClassifier's comment.
+final class ChattyRulesTests: XCTestCase {
+    /// HARNESS.md §6: each row of the table in ChattyRules' comment. Every
+    /// agent input gets a mumble.
     func testEachRow() async throws {
-        let quiet = { (m: Int) in ToolCall("quiet", ["minutes": .number(m)]) }
         let cases: [(Input, [ToolCall])] = [
-            (input(.agentStarted), []),
-            (input(.agentFinished, tookMs: 1_080_000), [react("proud")]),
-            (input(.agentFinished, tookMs: 61_000), [react("proud")]),
+            (input(.agentStarted), [react("curious")]),
+            (input(.agentFinished, tookMs: 1_080_000), [react("excited")]),
+            (input(.agentFinished, tookMs: 61_000), [react("excited")]),
             (input(.agentFinished, tookMs: 60_000), [react("proud")]),
             (input(.agentFinished, tookMs: 15_000), [react("proud")]),
-            (input(.agentFinished, tookMs: 14_000), []),
-            (input(.agentFinished, tookMs: 8_000), []),
+            (input(.agentFinished, tookMs: 14_000), [react("happy")]),
+            (input(.agentFinished, tookMs: 8_000), [react("happy")]),
             (input(.agentFinished, outcome: .failed), [react("annoyed")]),
             (input(.poked), [react("annoyed")]),
+            (input(.said, words: "shut up"), [react("sad")]),
+            (input(.said, words: "hello boop"), [react("happy")]),
+        ]
+        for (i, expected) in cases {
+            let calls = try await decide(ChattyRules(), i)
+            XCTAssertEqual(calls, expected, i.line + " " + (i.words ?? ""))
+        }
+    }
+
+    /// It says which row matched, for the transcript.
+    func testItSaysWhichRowMatched() async throws {
+        let i = input(.agentFinished, outcome: .failed)
+        let c = try await ChattyRules().classify(context(i), Menu(i.menu, definitions: try definitions()), deadline: .seconds(1))
+        XCTAssertEqual(c.evidence, "failed")
+        XCTAssertEqual(ChattyRules().id, "chatty@1")
+    }
+}
+
+final class CalmRulesTests: XCTestCase {
+    /// HARNESS.md §6: each row of the table in CalmRules' comment. Only a
+    /// failure and what you say get anything.
+    func testEachRow() async throws {
+        let cases: [(Input, [ToolCall])] = [
+            (input(.agentStarted), []),
+            (input(.agentFinished, tookMs: 1_080_000), []),
+            (input(.agentFinished, tookMs: 8_000), []),
+            (input(.agentFinished, outcome: .failed), [react("annoyed")]),
+            (input(.poked), []),
+            // Hurt keeps to itself; the rest of what you say gets its mumble.
+            (input(.said, words: "shut up"), []),
+            (input(.said, words: "what are you doing", yelled: true), []),
+            (input(.said, words: "be quiet for an hour"), [ToolCall("quiet", ["minutes": .number(60)])]),
+            (input(.said, words: "hello boop"), [react("happy")]),
+            (input(.said, words: "remember the demo is on Thursday"), [react("happy"), remember("today")]),
+            (input(.said, words: "remember I ship on Fridays"), [react("happy"), remember("about_you")]),
+        ]
+        for (i, expected) in cases {
+            let calls = try await decide(CalmRules(), i)
+            XCTAssertEqual(calls, expected, i.line + " " + (i.words ?? ""))
+        }
+        XCTAssertEqual(CalmRules().id, "calm@1")
+    }
+}
+
+final class PhrasesTests: XCTestCase {
+    /// HARNESS.md §6: each row of the table in Phrases' comment, which both
+    /// if-else classifiers use for what you said.
+    func testEachRow() {
+        let quiet = { (m: Int) in ToolCall("quiet", ["minutes": .number(m)]) }
+        let cases: [(Input, [ToolCall])] = [
             // BEHAVIORS.md §3.3: only "quiet" quiets; yelled at or told off, sad.
             (input(.said, words: "be quiet for an hour"), [quiet(60)]),
             (input(.said, words: "give me some quiet for a couple of hours"), [quiet(120)]),
@@ -54,33 +103,41 @@ final class RulesClassifierTests: XCTestCase {
             (input(.said, words: "what are you doing", yelled: true), [react("sad")]),
             (input(.said, words: "", yelled: true), [react("sad")]),
             (input(.said, words: "this build is annoying"), [react("curious")]),
-            (input(.said, words: "remember I ship on Fridays"), [react("happy"), remember("today")]),
+            // ARCHITECTURE.md §4: how you like things is a preference; a
+            // lasting fact about you is about_you; the rest is today's.
+            (input(.said, words: "remember I ship on Fridays"), [react("happy"), remember("about_you")]),
+            (input(.said, words: "remember that I always review PRs before lunch"), [react("happy"), remember("about_you")]),
+            (input(.said, words: "remember my name is on the release notes every week"), [react("happy"), remember("about_you")]),
+            (input(.said, words: "remember I like it quiet before 10am"), [react("happy"), remember("preference")]),
+            (input(.said, words: "remember to be quiet", yelled: true), [quiet(30), react("sad", "silent")]),
+            (input(.said, words: "note that I'd rather have tests first"), [react("happy"), remember("preference")]),
             (input(.said, words: "note that landing launches Monday"), [react("happy"), remember("today")]),
+            (input(.said, words: "remember the demo is on Thursday"), [react("happy"), remember("today")]),
+            (input(.said, words: "remember I have a dentist appointment at 3"), [react("happy"), remember("today")]),
             (input(.said, words: "Hello, Boop!"), [react("happy")]),
             (input(.said, words: "see you tomorrow"), [react("happy")]),
             (input(.said, words: "time for lunch"), [react("hopeful")]),
             (input(.said, words: "good job today"), [react("proud")]),
             (input(.said, words: "you're the best"), [react("proud")]),
             (input(.said, words: "this is a thing"), [react("curious")]),
-            (input(.newDay), []),
         ]
         for (i, expected) in cases {
-            let calls = try await decide(i)
-            XCTAssertEqual(calls, expected, i.line + " " + (i.words ?? ""))
+            XCTAssertEqual(Phrases.reply(to: i, hurtMumbles: true).0, expected, i.words ?? "")
         }
         // Whole words only: "hi" isn't in "this", "quiet" isn't in "quietly".
         XCTAssertEqual(Input.plain("Hi, THIS is quiet-ish!"), " hi this is quiet ish ")
         XCTAssertFalse(input(.said, words: "speak quietly").asksForQuiet)
         XCTAssertTrue(input(.said, words: "Quiet!").asksForQuiet)
-        let notes = Prompt.Memory(steering: "", longTerm: "",
-                                  shortTerm: ShortTerm(date: "2026-10-14", firstSeen: "09:00",
-                                                       notes: ["demo on Thursday"]).markdown)
-        let newDay = try await decide(input(.newDay), memory: notes)
-        XCTAssertEqual(newDay, [], "long-term memory needs a model to decide")
+        // Calm keeps hurt to itself: a silent react is only on the menu
+        // as quiet starts.
+        XCTAssertEqual(Phrases.reply(to: input(.said, words: "shut up"), hurtMumbles: false).0, [])
     }
+}
 
-    /// HARNESS.md §2: a turn's length arrives named, so no brain compares
-    /// numbers: short under 15 s, long up to a minute, very long past it.
+/// HARNESS.md §2: what reaches a brain, and what it may do about it.
+final class InputMenuTests: XCTestCase {
+    /// A turn's length arrives named, so no brain compares numbers: short
+    /// under 15 s, long up to a minute, very long past it.
     func testATurnsLengthIsNamed() {
         XCTAssertEqual([8_000, 14_999, 15_000, 60_000, 60_001, 1_080_000].map { Input.Length(ms: $0) },
                        [.short, .short, .long, .long, .veryLong, .veryLong])
@@ -90,7 +147,7 @@ final class RulesClassifierTests: XCTestCase {
                        "agent finished · done · claude · jetpack · a very long turn (4 min) · 14:05 Tuesday")
     }
 
-    /// HARNESS.md §2: `quiet` is on the menu only when the words ask for it.
+    /// `quiet` is on the menu only when the words ask for it.
     func testQuietIsOnTheMenuOnlyWhenAsked() {
         XCTAssertEqual(input(.said, words: "be quiet for an hour").menu.map(\.tool), ["quiet", "react", "remember"])
         XCTAssertEqual(input(.said, words: "shut up for an hour").menu.map(\.tool), ["react", "remember"])
@@ -100,13 +157,6 @@ final class RulesClassifierTests: XCTestCase {
         XCTAssertEqual(input(.said, words: "shut up").menu[0].only["voice"], ["mumble"])
         XCTAssertEqual(input(.agentStarted).menu[0].only["voice"], ["mumble"])
         XCTAssertEqual(input(.poked).menu[0].only["voice"], ["mumble"])
-    }
-
-    /// It says which row matched, for the transcript.
-    func testItSaysWhichRowMatched() async throws {
-        let i = input(.agentFinished, outcome: .failed)
-        let c = try await RulesClassifier().classify(context(i), Menu(i.menu, definitions: try definitions()), deadline: .seconds(1))
-        XCTAssertEqual(c.evidence, "failed")
     }
 }
 
@@ -165,7 +215,7 @@ final class JevClassifierTests: XCTestCase {
         XCTAssertEqual(c.calls, [])
         XCTAssertEqual(jev.last["model"] as? String, "jev-latest")
         let q = jev.questions
-        XCTAssertEqual(Set(q.keys), ["react", "react.feeling", "remember"],
+        XCTAssertEqual(Set(q.keys), ["react", "react.feeling", "remember", "remember.where"],
                        "quiet, and so a silent react, only when asked for quiet")
         XCTAssertEqual(q["react"]?["type"] as? String, "noul")
         // The definition's own question, about `now`, judged by `boop`
@@ -180,10 +230,15 @@ final class JevClassifierTests: XCTestCase {
                        "Which feeling does Boop have about what just happened?")
         XCTAssertEqual((q["react.feeling"]?["criteria"] as? [String: String])?["proud"], "Proud: something long or hard just finished, whatever it was about.")
         XCTAssertNil(q["react.word"], "the writer's")
-        XCTAssertNil(q["remember.where"], "one choice needs no question")
+        XCTAssertNil(q["remember.text"], "the writer's")
+        // Where to remember is asked with each place's meaning spelled out.
+        let places = q["remember.where"]?["criteria"] as? [String: String]
+        XCTAssertEqual(places.map { Set($0.keys) }, ["today", "about_you", "preference"])
+        XCTAssertTrue(places?["about_you"]?.contains("durable fact") ?? false)
 
         _ = try await classify(jev, input(.said, words: "be quiet please"))
-        XCTAssertEqual(Set(jev.questions.keys), ["quiet", "quiet.minutes", "react", "react.feeling", "react.voice", "remember"])
+        XCTAssertEqual(Set(jev.questions.keys), ["quiet", "quiet.minutes", "react", "react.feeling", "react.voice", "remember",
+                                                 "remember.where"])
         let minutes = jev.questions["quiet.minutes"]?["criteria"] as? [String: String]
         XCTAssertEqual(Set(minutes?.keys ?? [:].keys), ["15", "30", "60", "120"])
         XCTAssertEqual(minutes?["30"], "Half an hour, or when they don't say how long.")
@@ -199,20 +254,9 @@ final class JevClassifierTests: XCTestCase {
         XCTAssertTrue(c.evidence?.contains("react.feeling sulky 0.90") ?? false, c.evidence ?? "")
 
         jev.nouls = ["react": 0.7, "remember": 0.93]
-        jev.choices = ["react.feeling": "happy", "react.voice": "mumble"]
-        let noted = try await classify(jev, input(.said, words: "remember the demo is on Thursday"))
-        XCTAssertEqual(noted.calls, [react("happy"), remember("today")])
-    }
-
-    /// A new day asks one yes/no per section, and may keep several.
-    func testANewDayAsksPerSection() async throws {
-        let jev = FakeJev()
-        jev.nouls = ["remember.about_you": 0.8, "remember.moment": 0.6, "remember.temperament": 0.4]
-        let c = try await classify(jev, input(.newDay))
-        XCTAssertEqual(Set(jev.questions.keys),
-                       ["remember.about_you", "remember.preference", "remember.temperament", "remember.moment"])
-        XCTAssertEqual(c.calls, [remember("about_you"), remember("moment")])
-        XCTAssertNotNil((jev.state["memory"] as? [String: String])?["short_term_yesterday"])
+        jev.choices = ["react.feeling": "happy", "react.voice": "mumble", "remember.where": "about_you"]
+        let noted = try await classify(jev, input(.said, words: "remember I ship on Fridays"))
+        XCTAssertEqual(noted.calls, [react("happy"), remember("about_you")])
     }
 
     /// The state is the pass as JSON: who Boop is, memory, what happened
@@ -305,8 +349,8 @@ final class WriterTests: XCTestCase {
     func slots() throws -> (Context, [Slot]) {
         let i = input(.said, words: "remember the demo is on Thursday")
         let calls = [react("happy"), remember("today")]
-        let menu = Menu(i.kind.menu, definitions: try definitions())
-        let window: [Transcript.Entry] = [.input(i), .decided(by: "rules@2", calls, evidence: nil)]
+        let menu = Menu(i.menu, definitions: try definitions())
+        let window: [Transcript.Entry] = [.input(i), .decided(by: "chatty@1", calls, evidence: nil)]
         return (context(i, window: window), menu.slots(calls))
     }
 
@@ -338,11 +382,16 @@ final class WriterTests: XCTestCase {
             Boop decided: react(feeling: happy, voice: mumble), remember(where: today)
             --- write ---
             react.word: the mumble's one real word, from its list, as Writing says; none only when nothing fits.
-            remember.text: at most 80 characters. A note for later today: something the person said or asked to note. \
-            Plain words, no code; leave it empty if nothing is worth keeping.
+            remember.text: at most 80 characters. Short-term, for today: a fact about a project or this session, like what \
+            something is, a date, or what they're doing now. Plain words, no code; leave it empty if nothing is worth keeping.
             """)
         XCTAssertEqual(s.first?.sources, ReactAction.wordSources, "the word names where it can come from")
         XCTAssertEqual(AppleWriter.values(#"{"react_word_from":"the feeling","react_word":"yay"}"#, s), ["react.word": "yay"])
+        // Chatty mode's writer asks again for a word left empty, without `none`.
+        XCTAssertTrue(AppleWriter.missesAWord(["remember.text": "demo"], s))
+        XCTAssertFalse(AppleWriter.missesAWord(["react.word": "okay"], s))
+        XCTAssertEqual(AppleWriter.wordChoices(["yay", "tests"], false), ["none", "yay", "tests"])
+        XCTAssertEqual(AppleWriter.wordChoices(["yay", "tests"], true), ["yay", "tests"])
         let instructions = AppleWriter.instructions(c.memory)
         XCTAssertTrue(instructions.hasPrefix(AppleWriter.preamble + "\n\n# Boop\nBe nice."), instructions)
         XCTAssertTrue(instructions.contains("Ships on Fridays."))
@@ -355,8 +404,7 @@ final class WriterTests: XCTestCase {
     func testTheAppleSchemaBuilds() throws {
         let (_, s) = try slots()
         _ = try AppleWriter.schema(s)
-        let menu = Menu(Input.Kind.newDay.menu, definitions: try definitions())
-        _ = try AppleWriter.schema(menu.slots([remember("about_you"), remember("moment")]))
+        _ = try AppleWriter.schema(s, wordRequired: true)
     }
     #endif
 
@@ -373,17 +421,30 @@ final class WriterTests: XCTestCase {
         XCTAssertEqual(DeepSeekWriter().id, "deepseek:deepseek-flash")
     }
 
-    /// The settings: Jev needs a key, asked for only when it's chosen.
-    func testTheSettingsMakeTheBrains() {
+    /// HARNESS.md §6: each mode's brain. Jev needs a key, asked for only
+    /// when it's chosen; without one, normal decides with the chatty rules.
+    func testEachModeHasItsBrain() {
         var asked = 0
         var logs: [String] = []
-        XCTAssertEqual(Brains.classifier("rules", key: { asked += 1; return "k" }).id, "rules@2")
-        XCTAssertEqual(Brains.classifier("jev", key: { asked += 1; return nil }, log: { logs.append($0) }).id, "rules@2")
+        XCTAssertEqual(Brains.classifier(for: .chatty, key: { asked += 1; return "k" }).id, "chatty@1")
+        XCTAssertEqual(Brains.classifier(for: .calm, key: { asked += 1; return "k" }).id, "calm@1")
+        XCTAssertEqual(Brains.classifier(for: .normal, key: { asked += 1; return "k" }).id, "jev:jev-latest")
+        XCTAssertEqual(Brains.classifier(for: .normal, key: { asked += 1; return nil }, log: { logs.append($0) }).id, "chatty@1")
         XCTAssertTrue(logs.contains { $0.hasPrefix("brain: Jev needs an API key") }, "\(logs)")
-        XCTAssertEqual(Brains.classifier("jev", key: { asked += 1; return "k" }).id, "jev:jev-latest")
         XCTAssertEqual(asked, 2)
-        XCTAssertEqual(Brains.writer("none").id, "none")
-        XCTAssertEqual(Brains.writer("deepseek").id, "deepseek:deepseek-flash")
-        XCTAssertEqual(Brains.writer("apple").id, AppleWriter.unavailableReason == nil ? AppleWriter().id : "none")
+        // Overrides, for one run.
+        XCTAssertEqual(Brains.classifier(for: .normal, override: "calm").id, "calm@1")
+        XCTAssertEqual(Brains.classifier(for: .calm, override: "jev", key: { "k" }).id, "jev:jev-latest")
+        XCTAssertEqual(Brains.writer(for: .calm, override: "none").id, "none")
+        XCTAssertEqual(Brains.writer(for: .calm, override: "deepseek").id, "deepseek:deepseek-flash")
+        // Apple's model writes in every mode, and must find a word in chatty.
+        for mode in Mode.allCases {
+            let writer = Brains.writer(for: mode)
+            if AppleWriter.unavailableReason == nil {
+                XCTAssertEqual((writer as? AppleWriter)?.wordRequired, mode == .chatty, mode.rawValue)
+            } else {
+                XCTAssertEqual(writer.id, "none")
+            }
+        }
     }
 }

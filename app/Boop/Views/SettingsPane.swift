@@ -2,7 +2,7 @@ import BoopKit
 import SwiftUI
 
 /// Settings, inside the popover (UX.md §7): sound, agents and hooks, the
-/// device, the brain's two stages and Jev's key, and what Boop remembers.
+/// device, the mode and Jev's key, and what Boop remembers.
 struct SettingsPane: View {
     @ObservedObject var model: AppModel
     var maxHeight: CGFloat
@@ -17,7 +17,7 @@ struct SettingsPane: View {
                     PaneSection("Sound") { sound }
                     PaneSection("Agents") { agents }
                     PaneSection("Device") { device }
-                    PaneSection("Brain") { brain }
+                    PaneSection("Mode") { modes }
                     PaneSection("What \(model.name) remembers") { remembered }
                     PaneSection("About") { about }
                 }
@@ -125,56 +125,49 @@ struct SettingsPane: View {
         }
     }
 
-    // MARK: Brain
+    // MARK: Mode
 
-    /// The setting a running stage's id belongs to: `jev:jev-latest` → `jev`.
-    private func setting(_ id: String?) -> String? {
-        guard let id else { return nil }
-        if id.hasPrefix("jev") { return "jev" }
-        if id.hasPrefix("apple") { return "apple" }
-        if id.hasPrefix("deepseek") { return "deepseek" }
-        return id == "none" ? "none" : "rules"
-    }
-
-    private var classifierDetail: String {
-        if model.classifier == "jev" && apiKey.isEmpty { return "TypeSafe's Jev, online. Needs your API key below." }
-        if let running = setting(model.status?.classifier), running != model.classifier {
-            return "Takes effect when \(model.name) restarts."
+    /// What each mode does, in one line (BEHAVIORS.md §6).
+    private func about(_ mode: Mode) -> String {
+        switch mode {
+        case .chatty: "A mumble and a word for every turn, and chatter while agents work. Decides with plain rules on this Mac."
+        case .normal: "A balance. TypeSafe's Jev decides, online, with your API key below; without one, \(model.name) acts as in Chatty."
+        case .calm: "Only what you need: something needs you, a turn failed, or a long one finished. Decides with plain rules on this Mac."
         }
-        return model.classifier == "jev" ? "TypeSafe's Jev, online, with your API key." : "Simple rules, on this Mac."
     }
 
-    private var writerDetail: String {
-        let running = setting(model.status?.writer)
-        if model.writer == "apple" && running == "none" { return "Apple's model can't run here, so mumbles have no word." }
-        if let running, running != model.writer { return "Takes effect when \(model.name) restarts." }
-        return model.writer == "none" ? "Nothing: mumbles have no word, and nothing is remembered."
-            : "Apple's model, on this Mac. DeepSeek comes later."
+    /// Why the brain running isn't the mode's usual one, if it isn't.
+    private var brainNote: String? {
+        guard let status = model.status else { return nil }
+        if status.writer == "none" { return "Apple's model can't run here, so mumbles have no word." }
+        if model.mode == .normal && !status.classifier.hasPrefix("jev") { return "No Jev key yet, so \(model.name) acts as in Chatty." }
+        return nil
     }
 
-    private var brain: some View {
+    private var modes: some View {
         Card(padding: 0) {
             VStack(spacing: 0) {
-                SettingRow(icon: "sparkles", title: "Decides with", detail: classifierDetail) {
-                    Picker("Decides with", selection: Binding(get: { model.classifier }, set: { model.setClassifier($0) })) {
-                        Text("Rules").tag("rules")
-                        Text("System one (Jev)").tag("jev")
+                VStack(alignment: .leading, spacing: 8) {
+                    Picker("Mode", selection: Binding(get: { model.mode }, set: { model.setMode($0) })) {
+                        Text("Chatty").tag(Mode.chatty)
+                        Text("Normal").tag(Mode.normal)
+                        Text("Calm").tag(Mode.calm)
                     }
-                    .pickerStyle(.menu)
+                    .pickerStyle(.segmented)
                     .labelsHidden()
-                    .fixedSize()
-                }
-                Hairline().padding(.leading, 40)
-                SettingRow(icon: "text.bubble", title: "Writes with", detail: writerDetail) {
-                    Picker("Writes with", selection: Binding(get: { model.writer }, set: { model.setWriter($0) })) {
-                        Text("On-device").tag("apple")
-                        Text("None").tag("none")
+                    .frame(maxWidth: .infinity)
+                    Text(about(model.mode))
+                        .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if let note = brainNote {
+                        Text(note)
+                            .font(.system(size: 11)).foregroundStyle(Theme.amberInk)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
-                    .pickerStyle(.menu)
-                    .labelsHidden()
-                    .fixedSize()
                 }
-                Hairline().padding(.leading, 40)
+                .padding(12)
+                .disabled(model.status == nil)
+                Hairline().padding(.leading, 12)
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: Theme.gapSnug) {
                         SecureField("Jev API key", text: $apiKey)
@@ -184,15 +177,18 @@ struct SettingsPane: View {
                             .background(Theme.paper, in: RoundedRectangle(cornerRadius: 7))
                             .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Theme.hairlineStrong, lineWidth: 1))
                             .onChange(of: apiKey) { keySaved = false }
-                        Button(keySaved ? "Saved" : "Save") { keySaved = Keychain.setKey(apiKey, for: .jev) }
+                        Button(keySaved ? "Saved" : "Save") {
+                            keySaved = Keychain.setKey(apiKey, for: .jev)
+                            if keySaved { model.jevKeyChanged() }
+                        }
                             .buttonStyle(.row)
                             .disabled(keySaved)
                     }
-                    Text("Kept in your Keychain. With Jev, what happens and \(model.name)'s memory go to TypeSafe with each call.")
+                    Text("For Normal. Kept in your Keychain. With Jev, what happens and \(model.name)'s memory go to TypeSafe with each call.")
                         .font(.system(size: 10)).foregroundStyle(Theme.inkSoft)
                         .fixedSize(horizontal: false, vertical: true)
                 }
-                .padding(.leading, 40).padding(.trailing, 12).padding(.vertical, 10)
+                .padding(.horizontal, 12).padding(.vertical, 10)
             }
         }
     }
@@ -203,7 +199,7 @@ struct SettingsPane: View {
         Card(padding: 0) {
             VStack(spacing: 0) {
                 if model.remembered.isEmpty {
-                    Text("Nothing yet. With System one (Jev) deciding, \(model.name) keeps what will still matter about you when it looks back on each day.")
+                    Text("Nothing yet. Tell \(model.name) something lasting about you, like \"remember I ship on Fridays\", and it keeps it here.")
                         .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)

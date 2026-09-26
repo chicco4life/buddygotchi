@@ -30,17 +30,15 @@ final class TranscriptTests: XCTestCase {
         XCTAssertEqual(first.words, "hi 7", "the last two before the 9th: 7 and 8")
     }
 
-    /// Asides don't count as inputs, and a new day starts its own window.
-    func testAsidesDontCountAndANewDayStartsAfresh() {
+    /// Asides don't count as inputs.
+    func testAsidesDontCount() {
         let t = Transcript()
         t.begin(said(1))
         for n in 0..<20 { t.append(.aside("tapped", ts: Int64(n))) }
         XCTAssertEqual(t.inputs, 1)
-        t.begin(input(.newDay))
-        XCTAssertEqual(t.window, [.input(input(.newDay))])
-        XCTAssertEqual(t.restarts, 1)
         t.begin(said(2))
-        XCTAssertEqual(t.inputs, 2, "the day's inputs follow its reflection")
+        XCTAssertEqual(t.inputs, 2)
+        XCTAssertEqual(t.restarts, 0)
     }
 
     func testTheInputsRulesFollowIt() {
@@ -55,12 +53,12 @@ final class TranscriptTests: XCTestCase {
     func testTheWindowInGroups() {
         let window: [Transcript.Entry] = [
             .input(input(.agentFinished, tookMs: 1_080_000, rules: "cheer")), .rules("cheer"),
-            .decided(by: "rules@2", [react("proud")], evidence: "done, a very long turn"),
+            .decided(by: "chatty@1", [react("proud")], evidence: "done, a very long turn"),
             .wrote(by: "apple:27.0", ["react.word": "finally"]),
             .ran(react("proud", word: "finally"), .done("ok")),
             .aside("tapped · 14:07 Tuesday: Boop wiggled", ts: 0),
             .input(input(.said, words: "remember \"the\"\ndemo")),
-            .decided(by: "rules@2", [react("happy"), remember("today")], evidence: nil),
+            .decided(by: "chatty@1", [react("happy"), remember("today")], evidence: nil),
             .writeFailed(by: "apple:27.0", "offline"),
             .ran(react("happy"), .done("ok")), .ran(remember("today"), .dropped("nothing was written")),
             .input(input(.agentStarted)), .dropped("late: no answer within 5000 ms"),
@@ -85,14 +83,10 @@ final class MenuTests: XCTestCase {
         XCTAssertEqual(menus[.agentStarted]?.tools.map(\.name), ["react"])
         XCTAssertEqual(menus[.agentFinished]?.tools.map(\.name), ["react"])
         XCTAssertEqual(menus[.said]?.tools.map(\.name), ["quiet", "react", "remember"])
-        XCTAssertEqual(menus[.said]?.definition("remember")?.parameters[0].kind, .choice(["today"]))
         XCTAssertEqual(menus[.poked]?.tools.map(\.name), ["react"])
-        XCTAssertEqual(menus[.newDay]?.tools.map(\.name), ["remember"])
-        XCTAssertEqual(menus[.newDay]?.definition("remember")?.parameters[0].kind,
-                       .choice(["about_you", "preference", "temperament", "moment"]))
-        XCTAssertEqual(menus[.newDay]?.max["remember"], 4)
-        // HARNESS.md §2's deadlines.
-        XCTAssertEqual(Input.Kind.allCases.map(\.deadlineMs), [5000, 5000, 4000, 4000, 600_000])
+        // HARNESS.md §2's four inputs and their deadlines.
+        XCTAssertEqual(Input.Kind.allCases, [.agentStarted, .agentFinished, .said, .poked])
+        XCTAssertEqual(Input.Kind.allCases.map(\.deadlineMs), [5000, 5000, 4000, 4000])
     }
 
     func testSlotsOnlyForWhatNeedsWords() throws {
@@ -105,7 +99,8 @@ final class MenuTests: XCTestCase {
         XCTAssertTrue(slots[0].optional)
         XCTAssertEqual(slots[1].kind, .text(maxLength: 80))
         XCTAssertFalse(slots[1].optional)
-        XCTAssertEqual(slots[1].choice, "A note for later today: something the person said or asked to note.")
+        XCTAssertEqual(slots[1].choice, RememberAction.sections[0].about)
+        XCTAssertEqual(menu.slots([remember("about_you")]).first?.kind, .text(maxLength: 100))
         XCTAssertEqual(slots[1].value("  demo on Thursday "), "demo on Thursday")
         XCTAssertNil(slots[1].value("none"))
         XCTAssertNil(slots[1].value(String(repeating: "x", count: 81)))

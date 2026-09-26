@@ -12,10 +12,10 @@ final class CoreRig {
     let core: Core
     var log: [CoreEffect] = []
 
-    init(start: Int64 = CoreRig.start, newDay: Bool = false, seed: UInt64 = 1) {
+    init(start: Int64 = CoreRig.start, newDay: Bool = false, seed: UInt64 = 1, mode: Mode = .normal) {
         now = start
         let today = time.day(start)
-        core = Core(config: .init(name: "Pip", time: time, seed: seed), lastActiveDay: newDay ? nil : today)
+        core = Core(config: .init(name: "Pip", mode: mode, time: time, seed: seed), lastActiveDay: newDay ? nil : today)
         if !newDay { core.tick(at: start) }  // the first snapshot has gone out
     }
 
@@ -556,14 +556,78 @@ final class CoreYouAndBoopTests: XCTestCase {
         XCTAssertFalse(rig.send(.turnStart).contains { if case .newDay = $0 { true } else { false } }, "only the first activity")
     }
 
-    func testANewDayRunsReflectionOnYesterday() {
+    /// A new day starts short-term memory fresh; nothing about it reaches
+    /// the brain (the reflection was removed on 2026-09-26).
+    func testANewDayOnlyStartsShortTermFresh() {
         let rig = CoreRig()
         rig.send(.sessionStart)
         rig.wait(24 * 3600 * 1000)
         let fx = rig.send(.turnStart)
-        XCTAssertEqual(inputs(fx).map(\.kind), [.newDay, .agentStarted])
-        XCTAssertEqual(inputs(fx).first?.yesterday, "2026-10-14")
-        XCTAssertEqual(inputs(fx).first?.line, "new day · yesterday 2026-10-14")
+        XCTAssertTrue(fx.contains(.newDay(date: "2026-10-15", firstSeen: "14:00")))
+        XCTAssertEqual(inputs(fx).map(\.kind), [.agentStarted])
+    }
+}
+
+// MARK: - BEHAVIORS.md §6 Modes
+
+final class CoreModeTests: XCTestCase {
+    /// BEHAVIORS.md §3.1 and §6: chatty and normal cheer every finish; calm
+    /// only a very long one (over a minute), and the brain hears it didn't
+    /// cheer.
+    func testCalmCheersOnlyAVeryLongTurn() {
+        for mode in [Mode.chatty, .normal] {
+            XCTAssertEqual(moments(CoreRig(mode: mode).turn(8_000)), ["cheer"], mode.rawValue)
+        }
+        let rig = CoreRig(mode: .calm)
+        let short = rig.turn(60_000)
+        XCTAssertEqual(moments(short), [])
+        XCTAssertNil(inputs(short).first?.rules)
+        rig.wait(5000)
+        let long = rig.turn(61_000)
+        XCTAssertEqual(moments(long), ["cheer"])
+        XCTAssertEqual(inputs(long).first?.rules, "cheer")
+        XCTAssertEqual([Input.Length.short, .long, .veryLong].map(Mode.calm.cheers), [false, false, true])
+        XCTAssertEqual([Input.Length.short, .long, .veryLong].map(Mode.chatty.cheers), [true, true, true])
+        XCTAssertEqual([Input.Length.short, .long, .veryLong].map(Mode.normal.cheers), [true, true, true])
+    }
+
+    /// The gaps between chatter mumbles over two working hours.
+    func chatterGaps(_ rig: CoreRig) -> [Int64] {
+        rig.send(.turnStart)
+        var times: [Int64] = []
+        for _ in 0..<7200 {
+            if !mumbles(rig.wait(1000)).isEmpty { times.append(rig.now) }
+            rig.send(.activity)  // keep it working
+        }
+        return zip(times, times.dropFirst()).map { $1 - $0 }
+    }
+
+    /// BEHAVIORS.md §2 and §6: chatter every 45–90 s in chatty, every 2–4
+    /// minutes in normal, and never in calm.
+    func testChatterKeepsTheModesPace() {
+        let chatty = chatterGaps(CoreRig(seed: 7, mode: .chatty))
+        XCTAssertGreaterThan(chatty.count, 70)
+        for gap in chatty { XCTAssertTrue((45_000...91_000).contains(gap), "\(gap)") }
+        let normal = chatterGaps(CoreRig(seed: 7, mode: .normal))
+        XCTAssertGreaterThan(normal.count, 25)
+        for gap in normal { XCTAssertTrue((120_000...241_000).contains(gap), "\(gap)") }
+        XCTAssertEqual(chatterGaps(CoreRig(seed: 7, mode: .calm)), [])
+        XCTAssertEqual(Mode.chatty.chatterMs, 45_000...90_000)
+        XCTAssertEqual(Mode.normal.chatterMs, 120_000...240_000)
+        XCTAssertNil(Mode.calm.chatterMs)
+    }
+
+    /// A new mode applies from the next event, with no restart.
+    func testANewModeAppliesAtOnce() {
+        let rig = CoreRig(mode: .calm)
+        rig.send(.turnStart)
+        XCTAssertEqual(mumbles(rig.wait(300_000)), [], "calm doesn't chatter")
+        rig.core.setMode(.chatty)
+        XCTAssertFalse(mumbles(rig.wait(91_000)).isEmpty, "chatty chatters within 90 s")
+        XCTAssertEqual(moments(rig.send(.turnEnd)), ["cheer"])
+        rig.core.setMode(.calm)
+        XCTAssertEqual(moments(rig.turn(10_000)), [])
+        XCTAssertEqual(rig.core.config.mode, .calm)
     }
 }
 

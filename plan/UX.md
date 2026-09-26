@@ -145,7 +145,9 @@ available, the listening face ends and the popover says "*name* can't hear you"
 and where to allow it.
 
 Things worth saying: "be quiet" (Boop zips its mouth and goes quiet for a
-while), "good job", "remember I ship on Fridays", or just mumbling at it.
+while), "good job", "remember the demo is on Thursday" (kept for today),
+"remember I ship on Fridays" (kept for good, under What Boop remembers), or
+just mumbling at it.
 Yelling at it, or telling it off, makes it sad but doesn't quiet it. Audio
 is thrown away at once; Boop keeps only whether you yelled
 ([BEHAVIORS.md](BEHAVIORS.md) §3.3). What you said stays in the brain's
@@ -175,13 +177,14 @@ transcript, in memory only, until its window moves past it
    pairing code in v1
    ([PROTOCOL.md](PROTOCOL.md) §2). With no sessions yet Boop sleeps, and
    the first agent session wakes it ([BEHAVIORS.md](BEHAVIORS.md) §2).
-4. Boop's brain needs no setup: by default plain rules decide what it does,
-   and Apple's on-device model writes its words. Settings can have Jev, a
-   "system one" model online, decide instead, with your own API key
-   ([HARNESS.md](HARNESS.md) §6); a DeepSeek writer comes later
-   ([FUTURE.md](FUTURE.md)). On Macs without Apple's model nothing writes:
-   Boop still reacts to everything, but its mumbles have no real word and
-   it remembers nothing you tell it.
+4. Boop's brain needs no setup. It starts in normal mode, where Jev, a
+   "system one" model online, decides what Boop does once you add your own
+   API key in Settings, and plain rules decide until then; Apple's
+   on-device model writes its words. Settings also has chatty and calm
+   ([BEHAVIORS.md](BEHAVIORS.md) §6, [HARNESS.md](HARNESS.md) §6); a
+   DeepSeek writer comes later ([FUTURE.md](FUTURE.md)). On Macs without
+   Apple's model nothing writes: Boop still reacts to everything, but its
+   mumbles have no real word and it remembers nothing you tell it.
 
 ## 7. The Mac app
 
@@ -205,7 +208,7 @@ except Talk, which is there to be used in the moment.
 | Area | Content |
 | --- | --- |
 | Header | A small copy of Boop's face on black glass (it blinks, glances about while agents work, looks up with an amber rim when something needs you, sleeps with its eyes closed, and looks up wide-eyed while listening), Boop's name, a tone dot with one short line ("Listening…", "Working on 2 sessions", "Needs you", "Hanging out", "Napping"), whether the body is connected ("Connected", "Looking…" or "No device"), and under it the Talk button (§5), which turns into a red Send while the mic is on. Which board it is never shows |
-| Modes | Small reminders only when a mode is on: Quiet with minutes left, Muted |
+| Modes | Small reminders only when something isn't the usual: Chatty or Calm (normal shows nothing), Quiet with minutes left, Muted |
 | Notices | "Restart your agent sessions" after hooks change (dismissable), why Boop couldn't start, or "*name* can't hear you" when push-to-talk can't use the mic (dismissable; the next Talk clears it) |
 | Needs you | An amber card: agent · project, "Answer it in the agent's window", and "+N more" |
 | Sessions | Grouped by agent: one row per project with a coloured edge and a status chip (needs you, working, idle). Empty: "No agents awake" |
@@ -218,8 +221,8 @@ except Talk, which is there to be used in the moment.
 | Sound | Volume (0–10, 0 shows "Off") |
 | Agents | Claude Code and Codex: connected, not connected, not found or needs a repair, with Connect, Repair or Remove. If `boop-hook` isn't built, each says so ("Run make build, then restart Boop") with no button |
 | Device | Whether Boop's body is connected and how (Bluetooth or USB), and its firmware version. Not its id. A Reconnect button drops the link and looks for the device again at once ([PROTOCOL.md](PROTOCOL.md) §2, "Reconnecting") |
-| Brain | "Decides with": "Rules" or "System one (Jev)". "Writes with": "On-device" (Apple's model) or "None"; its line says DeepSeek comes later. Both take effect when Boop restarts. The Jev API key, kept in the Keychain; its caption says that with Jev, what happens and Boop's memory go to TypeSafe with each call |
-| What Boop remembers | Each line, with a button to forget it |
+| Mode | Chatty, Normal or Calm, one segmented control ([BEHAVIORS.md](BEHAVIORS.md) §6), with a line saying what the chosen one does. It takes effect at once. An amber line says when the brain running isn't the mode's usual one: no Jev key yet in Normal, or Apple's model can't run, so mumbles have no word. Under it, the Jev API key, kept in the Keychain; its caption says it's for Normal and that with Jev, what happens and Boop's memory go to TypeSafe with each call. Saving it brings Jev in at once |
+| What Boop remembers | Each line of About you and Preferences, the durable facts you told Boop, with a button to forget it. With none yet: "Nothing yet. Tell *name* something lasting about you, like "remember I ship on Fridays", and it keeps it here." |
 | About | The app's version |
 
 Name and nature are set once, at setup, and don't change.

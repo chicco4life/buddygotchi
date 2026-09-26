@@ -1,6 +1,6 @@
 import Foundation
 
-/// One of the five things that reach the brain's pipeline (HARNESS.md §2),
+/// One of the four things that reach the brain's pipeline (HARNESS.md §2),
 /// typed. The core builds them; classifiers read their fields, and language
 /// models read `line`. A tap and "needs you" never become inputs: the rules
 /// handle them, and the transcript only notes them. A poke streak does.
@@ -10,28 +10,22 @@ public struct Input: Equatable, Sendable {
         case agentFinished = "agent finished"
         case said = "you said"
         case poked = "poked again and again"
-        case newDay = "new day"
 
         /// Milliseconds for both stages; a later answer is dropped.
         public var deadlineMs: Int {
             switch self {
             case .agentStarted, .agentFinished: 5000
             case .said, .poked: 4000
-            case .newDay: 600_000
             }
         }
 
-        /// What Boop may do for this input, in the order it's done
-        /// (HARNESS.md §3). Plain data: the harness doesn't know what the
-        /// tools do.
+        /// What Boop may do for this kind of input, in the order it's done
+        /// (HARNESS.md §3); `Input.menu` narrows it for the input itself.
+        /// Plain data: the harness doesn't know what the tools do.
         public var menu: [Menu.Item] {
             switch self {
-            case .agentStarted, .agentFinished, .poked:
-                [Menu.Item("react")]
-            case .said:
-                [Menu.Item("quiet"), Menu.Item("react"), Menu.Item("remember", only: ["where": ["today"]])]
-            case .newDay:
-                [Menu.Item("remember", only: ["where": ["about_you", "preference", "temperament", "moment"]], max: 4)]
+            case .agentStarted, .agentFinished, .poked: [Menu.Item("react")]
+            case .said: [Menu.Item("quiet"), Menu.Item("react"), Menu.Item("remember")]
             }
         }
     }
@@ -70,8 +64,6 @@ public struct Input: Equatable, Sendable {
     public var words: String?
     /// You said: you yelled it (BEHAVIORS.md §3.3).
     public var yelled = false
-    /// New day: the day to reflect on, `yyyy-MM-dd`.
-    public var yesterday: String?
     /// `14:05`, and `Tuesday`.
     public var clock: String
     public var weekday: String
@@ -84,7 +76,7 @@ public struct Input: Equatable, Sendable {
 
     public init(_ kind: Kind, agent: String? = nil, project: String? = nil, outcome: Outcome? = nil,
                 topic: String? = nil, tookMs: Int64? = nil, error: String? = nil, more: Int = 0,
-                words: String? = nil, yelled: Bool = false, yesterday: String? = nil, clock: String,
+                words: String? = nil, yelled: Bool = false, clock: String,
                 weekday: String, rules: String? = nil, ts: Int64) {
         self.kind = kind
         self.agent = agent
@@ -96,7 +88,6 @@ public struct Input: Equatable, Sendable {
         self.more = more
         self.words = words.map { String($0.prefix(Input.maxWords)) }
         self.yelled = yelled
-        self.yesterday = yesterday
         self.clock = clock
         self.weekday = weekday
         self.rules = rules
@@ -124,8 +115,6 @@ public struct Input: Equatable, Sendable {
             if yelled { parts.append("yelled") }
         case .poked:
             break
-        case .newDay:
-            return ([kind.rawValue] + (yesterday.map { ["yesterday \($0)"] } ?? [])).joined(separator: " · ")
         }
         parts.append("\(clock) \(weekday)")
         if more > 0 { parts.append("+\(more) more") }
@@ -177,7 +166,7 @@ extension Input {
     ///      "topic": "tests", "took_s": 1080, "time": "14:05", "weekday": "Tuesday"}
     ///
     /// Optional fields: `outcome`, `topic`, `took_s`, `error`, `more`, `words`,
-    /// `yelled`, `yesterday`. The caller gives the time.
+    /// `yelled`. The caller gives the time.
     public static func fixture(_ line: String, ts: Int64 = 0) -> Input? {
         guard let o = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any],
               let kind = (o["input"] as? String).flatMap(Kind.init(rawValue:)) else { return nil }
@@ -185,7 +174,6 @@ extension Input {
                      outcome: (o["outcome"] as? String).flatMap(Outcome.init(rawValue:)), topic: o["topic"] as? String,
                      tookMs: (o["took_s"] as? Int).map { Int64($0) * 1000 }, error: o["error"] as? String,
                      more: o["more"] as? Int ?? 0, words: o["words"] as? String, yelled: o["yelled"] as? Bool ?? false,
-                     yesterday: o["yesterday"] as? String,
                      clock: o["time"] as? String ?? "12:00", weekday: o["weekday"] as? String ?? "Tuesday", ts: ts)
     }
 }

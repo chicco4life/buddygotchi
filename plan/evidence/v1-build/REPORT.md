@@ -16,6 +16,13 @@
 > scenarios. Where this report describes those features, it's history. See
 > [BEHAVIORS.md](../../BEHAVIORS.md) and the
 > [C1 evidence](../2026-09-26-minimal-cut/README.md).
+>
+> **Modes (A9, 2026-09-26).** Boop now has three modes, chatty, normal and
+> calm, picked in Settings; each has its own brain, and the evals run per
+> mode. The new day's reflection is gone, so what this report says about
+> reflection and `moment` is history. See
+> [BEHAVIORS.md](../../BEHAVIORS.md) §6 and the
+> [A9 evidence](../2026-09-26-modes/README.md).
 
 The unattended build ran on 2026-09-26 on branch `v1-overnight`, starting
 from tag `gen2-final`. Every milestone except P1 has passed; P1 waits for

@@ -19,6 +19,9 @@ public struct Expectation: Equatable, Sendable {
     }
 
     public enum Answer: Equatable, Sendable {
+        /// One of the core's rule reactions, as `Eval.describe` writes it:
+        /// `rules → cheer`. Only in a scenario that records them.
+        case rule(String)
         case nothing
         /// The whole pass: `off menu`, `error`, `refused`, `late` or `cancelled`.
         case dropped(String)
@@ -38,8 +41,12 @@ public struct Expectation: Equatable, Sendable {
         self.line = line
         guard let arrow = line.range(of: " → ") else { throw bad("needs an input, then → and what happened") }
         input = String(line[..<arrow.lowerBound])
-        guard Input.Kind(rawValue: input) != nil else { throw bad("\(input) isn't an input") }
         var rest = String(line[arrow.upperBound...])
+        if input == "rules" {
+            answer = .rule(line)
+            return
+        }
+        guard Input.Kind(rawValue: input) != nil else { throw bad("\(input) isn't an input") }
         if let failed = rest.range(of: " · writer failed (", options: .backwards), rest.hasSuffix(")") {
             writerFailed = String(rest[failed.upperBound..<rest.index(before: rest.endIndex)])
             rest = String(rest[..<failed.lowerBound])
@@ -118,6 +125,8 @@ public struct Expectation: Equatable, Sendable {
     public func matches(_ record: Harness.Record, writing: Bool, definitions: [ToolDefinition]) -> Bool {
         guard record.input.kind.rawValue == input, record.writeFailed.map(Eval.why) == writerFailed else { return false }
         switch answer {
+        case .rule:
+            return false
         case .dropped(let why):
             return record.dropped.map(Eval.why) == why
         case .nothing:

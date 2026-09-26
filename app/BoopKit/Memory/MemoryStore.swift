@@ -30,10 +30,6 @@ public final class MemoryStore {
         refresh()
         return shortTermValue
     }
-    /// The day the last reflection is about, set when a new day starts.
-    public private(set) var reflecting: String?
-    /// The day `temperament` last changed, so it changes at most once a day.
-    var temperamentChanged: String?
     var stamps: [String: Date] = [:]
 
     public init(directory: URL, steering: String, log: @escaping (String) -> Void = { _ in }) throws {
@@ -70,12 +66,6 @@ public final class MemoryStore {
         return shortTerm?.markdown ?? ""
     }
 
-    /// Short-term memory for the day being reflected on, from its snapshot.
-    public var reflectionText: String? {
-        guard let reflecting else { return nil }
-        return try? String(contentsOf: historyURL(reflecting).appendingPathComponent(Self.shortTermFile), encoding: .utf8)
-    }
-
     /// Today's date in `short-term.md`, for `Core.init`'s `lastActiveDay`.
     public var lastActiveDay: String? {
         refresh()
@@ -103,13 +93,12 @@ public final class MemoryStore {
         }
     }
 
-    /// Snapshots both files to `history/<the old day>/`, keeps that day for
-    /// the reflection, and starts short-term memory fresh.
+    /// Snapshots both files to `history/<the old day>/` and starts
+    /// short-term memory fresh.
     func startDay(_ date: String, firstSeen: String) {
         if let old = shortTerm, old.date != date {
             do {
                 try snapshot(day: old.date)
-                reflecting = old.date
             } catch {
                 log("memory: snapshot for \(old.date) failed: \(error)")
             }
@@ -145,7 +134,7 @@ public final class MemoryStore {
         case preference
     }
 
-    /// `remember`: a line in About you or Preferences.
+    /// `remember` a durable fact: a line in About you or Preferences.
     public func remember(_ text: String, as kind: FactKind) -> Result<String, Refusal> {
         refresh()
         guard var lt = longTerm else { return .failure(Refusal("not set up")) }
@@ -194,48 +183,6 @@ public final class MemoryStore {
         return commit(lt).map { removed }
     }
 
-    /// `temperament`: one new sentence, at most once a day. Past five, it
-    /// replaces the oldest.
-    public func temperament(_ text: String, today: String) -> Result<String, Refusal> {
-        refresh()
-        guard var lt = longTerm else { return .failure(Refusal("not set up")) }
-        if temperamentChanged == today { return .failure(Refusal("temperament already changed today")) }
-        let line: String
-        switch MemoryText.check(text, max: MemoryLimits.temperamentChars, names: true, boopName: lt.name) {
-        case .failure(let why): return .failure(why)
-        case .success(let s): line = s
-        }
-        let body = line.dropLast(line.last.map { ".!?".contains($0) } == true ? 1 : 0)
-        if body.contains(where: { ".!?".contains($0) }) { return .failure(Refusal("more than one sentence")) }
-        if lt.temperament.contains(where: { Self.same($0, line) }) { return .failure(Refusal("already says that")) }
-        lt.temperament.append(line)
-        if lt.temperament.count > MemoryLimits.temperamentSentences { lt.temperament.removeFirst() }
-        return commit(lt).map {
-            temperamentChanged = today
-            return line
-        }
-    }
-
-    /// `moment`: a memorable day, at most one per day. Past twenty, the
-    /// oldest drops.
-    public func moment(_ text: String, day: String) -> Result<String, Refusal> {
-        refresh()
-        guard var lt = longTerm else { return .failure(Refusal("not set up")) }
-        if lt.moments.contains(where: { $0.date == day }) { return .failure(Refusal("already a moment for \(day)")) }
-        let line: String
-        switch MemoryText.check(text, max: MemoryLimits.momentChars, names: true, boopName: lt.name) {
-        case .failure(let why): return .failure(why)
-        case .success(let s): line = s
-        }
-        if lt.moments.contains(where: { Self.retells(line, $0.text) }) {
-            return .failure(Refusal("retells an earlier moment"))
-        }
-        lt.moments.append(.init(date: day, text: line))
-        lt.moments.sort { $0.date < $1.date }
-        if lt.moments.count > MemoryLimits.moments { lt.moments.removeFirst() }
-        return commit(lt).map { line }
-    }
-
     /// Writes long-term memory if it fits its budget.
     func commit(_ lt: LongTerm) -> Result<Void, Refusal> {
         guard lt.markdown.utf8.count <= MemoryLimits.longTermBytes else {
@@ -250,17 +197,6 @@ public final class MemoryStore {
     }
 
     static func same(_ a: String, _ b: String) -> Bool { key(a) == key(b) }
-
-    /// Whether at least half of `text`'s longer words (4+ letters) are in
-    /// `earlier`: a small model tends to copy an old moment for a new day.
-    static func retells(_ text: String, _ earlier: String) -> Bool {
-        func words(_ s: String) -> Set<String> {
-            Set(s.lowercased().split(whereSeparator: { !$0.isLetter }).map(String.init).filter { $0.count >= 4 })
-        }
-        let new = words(text)
-        guard !new.isEmpty else { return false }
-        return new.intersection(words(earlier)).count * 2 >= new.count
-    }
 
     // MARK: Files
 
@@ -315,7 +251,7 @@ public final class MemoryStore {
     /// from the newest snapshot that reads, or from what this store last had.
     /// Short-term snapshots are always of an earlier day, so short-term memory
     /// starts fresh instead, keeping the file's date if it has one so the day
-    /// isn't started (and reflected on) twice.
+    /// isn't started twice.
     func restore(_ file: String, because error: Error) {
         let broken = url(file + ".broken")
         try? FileManager.default.removeItem(at: broken)
@@ -378,10 +314,8 @@ public final class MemoryStore {
 }
 
 extension MemoryStore {
-    /// The memory text for a pass (HARNESS.md §4). A new day reads
-    /// yesterday's short-term memory from its snapshot.
-    public func promptMemory(for kind: Input.Kind) -> Prompt.Memory {
-        Prompt.Memory(steering: steering, longTerm: longTermText,
-                      shortTerm: kind == .newDay ? (reflectionText ?? "") : shortTermText)
+    /// The memory text for a pass (HARNESS.md §4).
+    public func promptMemory() -> Prompt.Memory {
+        Prompt.Memory(steering: steering, longTerm: longTermText, shortTerm: shortTermText)
     }
 }

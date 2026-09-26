@@ -76,6 +76,8 @@ struct OverviewPane: View {
         if let status = model.status {
             let s = status.snapshot
             let all: [(String, String)?] = [
+                status.mode == .chatty ? ("bubble.left.and.bubble.right.fill", "Chatty") : nil,
+                status.mode == .calm ? ("leaf.fill", "Calm") : nil,
                 s.quiet > 0 ? ("zzz", "Quiet · \(s.quiet) min") : nil,
                 s.vol == 0 ? ("speaker.slash.fill", "Muted") : nil,
             ]

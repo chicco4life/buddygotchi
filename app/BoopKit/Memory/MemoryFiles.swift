@@ -5,9 +5,7 @@ import Foundation
 /// about four bytes a token.
 public enum MemoryLimits {
     public static let temperamentSentences = 5
-    public static let temperamentChars = 120
     public static let moments = 20
-    public static let momentChars = 80
     public static let aboutYou = 30
     public static let preferences = 15
     public static let factChars = 100

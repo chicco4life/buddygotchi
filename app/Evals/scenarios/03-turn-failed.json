@@ -1,9 +1,11 @@
 {
-  "name": "A failed turn gets an annoyed mumble",
-  "why": "HARNESS.md §6: a failed finish is react(annoyed, mumble); with no topic, its word is an annoyed one, or bug for a turn that broke (steering.md, Writing; VOICE.md §6)",
+  "name": "A failed turn gets an annoyed mumble in every mode",
+  "why": "HARNESS.md §6: a failed finish is react(annoyed, mumble), in calm too, where it's the one alert besides needs you; with no topic, its word is an annoyed one, or bug for a turn that broke (steering.md, Writing; VOICE.md §6)",
   "steps": [
     {"input": {"at": "0m", "event": "turn started", "agent": "claude", "project": "landing"},
-     "expect": ["agent started → nothing"]},
+     "expect": {"chatty": ["agent started → react(feeling: curious, voice: mumble, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
+                "normal": ["agent started → nothing"],
+                "calm": ["agent started → nothing"]}},
     {"input": {"at": "2m", "event": "turn failed", "agent": "claude", "project": "landing", "error": "rate_limit"},
      "expect": ["agent finished → react(feeling: annoyed, voice: mumble, word: ugh|nope|oops|no|boo|again|what|bug|none)"]}
   ]

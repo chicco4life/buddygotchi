@@ -55,14 +55,13 @@ immediate reaction, and the brain adds character a second or two later. If
 the brain is slow, offline or missing, Boop still reacts to everything, just
 with less personality.
 
-## 2. Four loops at four speeds
+## 2. Three loops at three speeds
 
 | Loop | Runs on | Speed | Does | Never does |
 | --- | --- | --- | --- | --- |
 | Reflex | Device | < 20 ms | Tap feedback, blinking, blending faces, the needs-you chirp and light | Wait for the Mac |
 | Reactive | Core → actions | < 200 ms p95 | Agent event → rule → action → device | Wait for the brain |
 | Deliberative | Harness + brain → actions | 1–5 s, in the background | React with character, answer push-to-talk, note what you tell it | Block the reactive loop |
-| Reflective | Harness + brain, once a day | Minutes | Turn yesterday into lasting memory, grow the personality | Break the memory rules |
 
 ## 3. Components and boundaries
 
@@ -104,20 +103,23 @@ project, and whether each is working, idle or needs you) and:
 - calls actions for the immediate reactions (a cheer, `listening`, and
   the empty moment that ends it) and for Boop's occasional working
   chatter;
-- turns agents starting and finishing, what you say and a new day into the
-  brain's inputs, and decides which of them reach it
+- turns agents starting and finishing and what you say into the brain's
+  inputs, and decides which of them reach it
   ([HARNESS.md](HARNESS.md) §2). Taps and "needs you" stay the rules' own:
   the brain's transcript only notes them, except a poke streak, which
   becomes an input of its own ([BEHAVIORS.md](BEHAVIORS.md) §3.3);
 - counts a turn as failed when Claude stops on an API error or when the
   turn's last test, build or deploy command failed
   ([BEHAVIORS.md](BEHAVIORS.md) §3.1);
-- keeps quiet mode, by rule ([BEHAVIORS.md](BEHAVIORS.md)).
+- keeps quiet mode, by rule ([BEHAVIORS.md](BEHAVIORS.md));
+- follows the mode for how often Boop chatters and which finishes cheer
+  ([BEHAVIORS.md](BEHAVIORS.md) §6).
 
 In code the core is a pure state machine: each event, device input or
 one-second tick goes in with the time, and a list of effects comes out (a
 snapshot, a moment or a mumble for `react`, an input or an aside for the
-harness, a Happened line, a new day, start or stop listening, or the
+harness, a Happened line, a new day for short-term memory, start or stop
+listening, or the
 empty moment that ends `listening`). The app
 hands each effect to the part that carries it out, which keeps the core
 testable on a virtual clock.
@@ -147,12 +149,14 @@ needs: the one real word in a mumble, or a line to remember. Both read one
 append-only transcript of what has happened. The **harness** is the small,
 generic code around them: it runs the two stages, checks their answers and
 hands each call to its action, without knowing what the outputs do or what
-kind of model is behind either stage. By default plain if-else rules
-classify and Apple's on-device model writes. Jev, a "system one" model
-reached with the person's own API key, can classify instead, and a
-DeepSeek writer comes later ([FUTURE.md](FUTURE.md)). Both stages are
-assumed to be small, so the outputs are few, flat and mostly multiple
-choice.
+kind of model is behind either stage. The mode picks the brains
+([BEHAVIORS.md](BEHAVIORS.md) §6): chatty and calm classify with their own
+plain if-else rules, and normal with Jev, a "system one" model reached with
+the person's own API key (or chatty's rules without one). Apple's
+on-device model writes in every mode, and a DeepSeek writer comes later
+([FUTURE.md](FUTURE.md)). The mode can change at any time: each pass keeps
+the brains it started with. Both stages are assumed to be small, so the
+outputs are few, flat and mostly multiple choice.
 
 ### 3.4 Actions
 
@@ -163,7 +167,7 @@ brain, so a cheer looks the same whichever of them asked for it.
 | --- | --- | --- |
 | `react` | `feeling`, `voice`, `word?` | For a mumble, asks Voice for a Minion line with the word and sends it to the device, where it plays over the face that's showing. The brain's faces are parked ([FUTURE.md](FUTURE.md)), so a silent `react` shows nothing. The core's rules use it to play their animations ([BEHAVIORS.md](BEHAVIORS.md) §5) |
 | `quiet` | `minutes` | Tells the core to stop mumbles for a while, only when your last words asked for quiet |
-| `remember` | `where`, `text` | Adds a line to today's notes or to a section of long-term memory, within its limits |
+| `remember` | `where`, `text` | Adds a line where the classifier chose: today's notes for a fact about a project or this session, About you or Preferences for a durable fact about the person, within its limits |
 
 Each action checks its own rules and quietly drops (and logs) anything that
 breaks them. For example, `react` drops a call whose word isn't in its
@@ -187,8 +191,8 @@ The memory store is the only code that reads or writes `long-term.md` and
 `short-term.md` (§4). `steering.md` is bundled read-only in the app and
 passed to the store as text. The store hands all three files' text to the
 harness for each pass, applies changes from actions within each
-section's limits, writes atomically, and snapshots the files before each
-reflection.
+section's limits, writes atomically, and snapshots the files when a new
+day starts.
 
 ### 3.7 Device link
 
@@ -228,17 +232,14 @@ all three to the brain.
 | File | What it is | Changes |
 | --- | --- | --- |
 | `steering.md` | How Boop behaves: character, how to act, examples, what never to do | Never at runtime. Ships with the app and changes only in an announced release |
-| `long-term.md` | Who this Boop has become, and lasting facts and preferences about you | Once a day, at reflection, within limits |
-| `short-term.md` | Today: notes about what you're doing and said, what happened | Throughout the day; starts fresh after reflection |
+| `long-term.md` | Who this Boop has become, and lasting facts and preferences about you | When you tell Boop something lasting about you, within limits; forgetting a line in Settings removes it |
+| `short-term.md` | Today: notes about what you're doing and said, what happened | Throughout the day; starts fresh on a new day |
 
-**Reflection** runs once a day, at the first activity of a new day, as the
-brain's "new day" input ([HARNESS.md](HARNESS.md) §2). The memory store
-snapshots both writable files to `history/<date>/`, where `<date>` is the
-day being reflected on (setup also snapshots, under the day Boop hatched).
-Then `short-term.md` starts fresh, and the brain reads yesterday's copy
-from the snapshot: the classifier decides what, if anything, goes into
-`long-term.md`, and the writer writes each line for `remember`
-([HARNESS.md](HARNESS.md) §6).
+**A new day** starts at its first activity. The memory store snapshots
+both writable files to `history/<date>/`, where `<date>` is the day before
+(setup also snapshots, under the day Boop hatched), and `short-term.md`
+starts fresh. Nothing looks back on the day: the brain has no new-day
+input (§11).
 
 The files are plain text. Hand edits are allowed: the store reads a file
 again when it changes on disk, before its next change, so an edit isn't
@@ -246,7 +247,7 @@ overwritten. A file that won't parse is kept as `<file>.broken`.
 `long-term.md` is restored from its newest snapshot that reads.
 `short-term.md` snapshots are always of an earlier day, so it starts fresh
 instead, keeping the file's date if one can be found so the day doesn't
-start (and reflect) twice.
+start twice.
 
 Each file also has a size budget, so what the brain reads stays within
 [HARNESS.md](HARNESS.md) §4 without trimming: `long-term.md` at most
@@ -288,16 +289,17 @@ Gets huffy about flaky tests.
 | Section | Written by | Rule |
 | --- | --- | --- |
 | Boop (name line) | App, at setup | Never changes. `nature` is the person's one answer (sweet or cheeky); `seed` is random and picks Boop's voice dialect |
-| Temperament | Reflection | At most one sentence changed a day: a new sentence of at most 120 characters is added, and past five sentences it replaces the oldest |
-| Moments | Reflection | At most 20 of at most 80 characters; at most one a day, dated the day reflected on. Past 20, the oldest drops |
-| About you | Reflection | At most 30 lines of at most 100 characters; no code, paths, secrets or other people's names. A new line when full is refused; in v1 the person frees room by editing the file |
-| Preferences | Reflection | At most 15 lines; same limits |
+| Temperament | By hand | The first five sentences are read. The new day's reflection wrote it until 2026-09-26 (§11) |
+| Moments | By hand | The newest 20 are read; also the reflection's until then |
+| About you | `remember(about_you)`, from the brain | At most 30 lines of at most 100 characters: durable facts about you. A new line when full is refused; in v1 the person frees room in Settings or by editing the file |
+| Preferences | `remember(preference)`, from the brain | At most 15 lines; same limits |
 
-The checks are simple rules in the memory store: one line, no links,
+A line's checks are simple rules in the memory store: one line, no links,
 addresses, backticks, braces, `=`, `;` or `$`, nothing path-shaped, nothing
-that looks like a key, and no capitalised word mid-sentence other than
-days, months, agents, acronyms and Boop's own name. They err on the side
-of refusing.
+that looks like a key, nothing already there, and, in long-term memory, no
+capitalised word mid-sentence other than days, months, agents, acronyms
+(and their plurals) and Boop's own name. They err on the side of
+refusing.
 
 The Boop section is who this Boop is. It lives only on the Mac, so
 reflashing or replacing the device doesn't change it, and the app has no
@@ -326,7 +328,7 @@ Preferences; the Boop section isn't shown.
 | Section | Written by | Rule |
 | --- | --- | --- |
 | Today | Core | Date and first activity |
-| Notes | `remember(today)`, from the brain | At most 10 lines of at most 80 characters; the oldest drops first. No code, paths or secrets |
+| Notes | `remember(today)`, from the brain | At most 10 lines of at most 80 characters: facts about a project or this session. The oldest drops first. The checks above, but names are fine |
 | Happened | Core | One line per notable event, summaries only; the last 40 lines |
 
 ## 5. Common event shape
@@ -387,7 +389,7 @@ hardware and firmware are in [DEVICE.md](DEVICE.md).
 | --- | --- |
 | App not running | Hooks exit at once; agents are unaffected. The device shows the asleep face with the unplugged icon |
 | Device disconnected | The app keeps going; the next snapshot catches the device up on reconnect |
-| Brain offline, slow or invalid | Rules still drive every reaction. The default classifier is plain rules, which always answers; one that fails, runs late or answers off the menu drops that pass. A writer that fails leaves the words empty: a mumble goes without its word, and nothing is remembered ([HARNESS.md](HARNESS.md) §3) |
+| Brain offline, slow or invalid | Rules still drive every reaction. The if-else classifiers always answer; one that fails (Jev offline), runs late or answers off the menu drops that pass. A writer that fails leaves the words empty: a mumble goes without its word, and nothing is remembered ([HARNESS.md](HARNESS.md) §3) |
 | Memory file won't parse | `long-term.md` comes back from its newest snapshot that reads; `short-term.md` starts fresh (§4) |
 | Mac asleep | The device drifts to sleep after 30 s without a `state` |
 
@@ -398,7 +400,7 @@ hardware and firmware are in [DEVICE.md](DEVICE.md).
 | Agent event → pixel | < 200 ms p95 |
 | Tap → visible feedback | < 20 ms, on the device |
 | Hook overhead | Single-digit ms. When the app is slow, the hook waits at most 50 ms in total, then gives up |
-| Brain, per input | Both stages within the input's deadline ([HARNESS.md](HARNESS.md) §2): seconds for agents and what you say, minutes for a new day. A late answer is dropped |
+| Brain, per input | Both stages within the input's deadline ([HARNESS.md](HARNESS.md) §2), 4–5 s. A late answer is dropped |
 
 ## 10. Stack
 
@@ -527,3 +529,6 @@ When a spec changes direction, add a row here saying why.
 | 2026-09-26 | A written argument can name its sources, and the writer picks one before the value: `react`'s word comes from what they said, the failed topic, how the turn went or the feeling. The writer's temperature drops from 0.5 to 0.2 | Asked for the word straight away, Apple's model keyed it to the feeling ("ugh" for any annoyed mumble), even with the rule written as the last line of the prompt. With the source first, it named a failed turn's topic 24 of 24 times. Named "what the agent failed at", the source led to "bug" instead | [HARNESS.md](HARNESS.md) §5, §7 |
 | 2026-09-26 | A turn's length arrives named (a short, long or very long turn), and `quiet`, and with it a silent `react`, are on the menu only when the words ask for quiet; otherwise `react`'s voice is `mumble` | TypeSafe's guidance for Jev: keep arithmetic and what rules decide in code. Jev read "took 45 s" as quick and said yes to quiet for "shut up for an hour", which the action then refused. With silent on offer it went silent for yells, and for a finished turn after an hour's quiet had ended, since it can't tell from "73 minutes ago" that it had. With the brain's faces parked, a silent `react` shows nothing | [HARNESS.md](HARNESS.md) §2–3 |
 | 2026-09-26 | Jev's questions come from the definitions (a plain question per output and decided argument), name the part of the state they're about (`now`) and what to judge it by (`boop`, its Examples first), and its state leaves out the writer's section of `steering.md`. The feelings' descriptions rule out their neighbours, and a 429, 5xx or dropped connection is tried once more after 0.3 s | TypeSafe's guidance: Jev is literal, and unrelated state costs accuracy. The old "Should Boop react about what just happened (now)? Mumble with a feeling, or stay silent." read a silent face as a way of doing nothing, and Jev reacted silently to most agent starts. "Sad" also covered "something went badly", so a complaint about a build came out sad; and one of about 185 requests in a five-run eval failed outright | [HARNESS.md](HARNESS.md) §6 |
+| 2026-09-26 | Three modes set how much Boop reacts and pick its brain: chatty (every turn gets a mumble with a word; the chatty if-else table), normal (the default; Jev, or the chatty table without its key) and calm (only a failed turn, a very long finish's cheer and "needs you"; the calm if-else table). Apple's model writes in all three, and in chatty is asked again for a word it leaves out. The core's chatter pace and which finishes cheer follow the mode. A new mode applies at once: each harness pass keeps the brains it started with. This replaces the rows on picking the classifier and the writer apart, and today's if-else table | The owner wanted a maximal, deterministic mode for people who want interaction and for debugging, today's balance, and one that only alerts. "Quiet mode" was already "be quiet for an hour", so the third is calm | [BEHAVIORS.md](BEHAVIORS.md) §6, [HARNESS.md](HARNESS.md) §6 |
+| 2026-09-26 | The new-day input and its reflection are removed. The first activity of a day still starts short-term memory fresh, but nothing looks back on the day, so Temperament and Moments keep what they have. Jev's per-choice questions, a menu's several calls to one tool and the harness's separate wait for a new day went with it. This replaces the row on the new day waiting apart | To simplify: only Jev could reflect, and the if-else modes couldn't | §4, [HARNESS.md](HARNESS.md) §2 |
+| 2026-09-26 | What you tell Boop to remember goes where it belongs, decided by Stage 1 from explicit meanings: `today` for a fact about a project or this session, `about_you` for a durable fact about you, `preference` for how you like things. Jev is asked with those meanings and `steering.md`; the if-else tables go by the words ("I" with a sign it lasts, "I like"), and "remember" wins over "quiet" | The owner wanted both memories kept, with durable facts long-term and project or session facts short-term, and the rule spelled out | §4, [HARNESS.md](HARNESS.md) §5–6 |

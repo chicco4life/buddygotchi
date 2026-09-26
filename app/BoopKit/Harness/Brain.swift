@@ -4,7 +4,7 @@ import Foundation
 /// input. It picks outputs from the menu and fills in every argument the
 /// menu marks as decided; it never writes words. Staying quiet is no calls.
 public protocol Classifier: Sendable {
-    /// e.g. `rules@2`, `jev:jev-latest`.
+    /// e.g. `chatty@1`, `jev:jev-latest`.
     var id: String { get }
     /// May throw; the harness drops the pass and logs why.
     func classify(_ context: Context, _ menu: Menu, deadline: Duration) async throws -> Classification

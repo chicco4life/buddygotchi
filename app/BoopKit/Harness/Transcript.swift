@@ -7,11 +7,11 @@ import Foundation
 ///
 /// Brains see a window onto it: at most `windowInputs` inputs. When one more
 /// arrives, the window starts again from the last `keptInputs`, so Boop
-/// still knows what was just said; a new day starts a window of its own.
-/// That is the only rule: nothing is summarized, and the window just moves
-/// its start. Asides don't move it, so at most `asidesPerInput` follow one
-/// input and later ones aren't noted: a burst of taps can't crowd out the
-/// prompt. Kept in memory only, and touched only on the harness's queue.
+/// still knows what was just said. That is the only rule: nothing is
+/// summarized, and the window just moves its start. Asides don't move it, so
+/// at most `asidesPerInput` follow one input and later ones aren't noted: a
+/// burst of taps can't crowd out the prompt. Kept in memory only, and
+/// touched only on the harness's queue.
 public final class Transcript: @unchecked Sendable {
     public enum Entry: Equatable, Sendable {
         /// An input reached the pipeline.
@@ -52,17 +52,14 @@ public final class Transcript: @unchecked Sendable {
     /// How many inputs the window holds.
     public var inputs: Int { window.filter { if case .input = $0 { true } else { false } }.count }
 
-    /// A pass starts: moves the window first when it's full (or for a new
-    /// day), then appends the input and the rules' reaction.
+    /// A pass starts: moves the window first when it's full, then appends
+    /// the input and the rules' reaction.
     func begin(_ input: Input) {
         let starts = entries.indices.filter { i in
             if i >= windowStart, case .input = entries[i] { return true }
             return false
         }
-        if input.kind == .newDay {
-            if !starts.isEmpty { restarts += 1 }
-            windowStart = entries.count
-        } else if starts.count >= Transcript.windowInputs {
+        if starts.count >= Transcript.windowInputs {
             restarts += 1
             windowStart = starts[starts.count - Transcript.keptInputs]
         }

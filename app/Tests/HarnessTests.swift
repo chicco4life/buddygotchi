@@ -58,7 +58,7 @@ final class HarnessRig: @unchecked Sendable {
             ]),
             ToolDefinition(name: "quiet", description: "Quiet.", parameters: [.init("minutes", .number([15, 30]))]),
             ToolDefinition(name: "remember", description: "Remember.", parameters: [
-                .init("where", .choice(["today", "about_you", "preference", "temperament", "moment"])),
+                .init("where", .choice(["today", "about_you", "preference"])),
                 .init("text", .text(maxLength: 20, by: "where", limits: ["today": 10]), role: .written),
             ]),
         ].map { d in Harness.Tool(definition: d, handle: { [unowned self] call in handled.append(call); return .done("ok") }) }
@@ -87,8 +87,7 @@ func input(_ kind: Input.Kind, words: String? = nil, yelled: Bool = false, outco
     Input(kind, agent: kind == .agentStarted || kind == .agentFinished ? "claude" : nil,
           project: kind == .agentStarted || kind == .agentFinished ? "jetpack" : nil,
           outcome: kind == .agentFinished ? outcome ?? .done : nil, tookMs: tookMs, words: words, yelled: yelled,
-          yesterday: kind == .newDay ? "2026-10-14" : nil, clock: "14:05", weekday: "Tuesday", rules: rules,
-          ts: Int64(minutes * 60_000))
+          clock: "14:05", weekday: "Tuesday", rules: rules, ts: Int64(minutes * 60_000))
 }
 
 final class HarnessTests: XCTestCase {
@@ -155,9 +154,10 @@ final class HarnessTests: XCTestCase {
             // HARNESS.md §2: quiet is on the menu only when the words ask for it.
             (input(.said, words: "shut up"), [ToolCall("quiet", ["minutes": .number(15)])], "quiet isn't on the menu"),
             (input(.said), [react("happy", word: "hi")], "react: word is the writer's"),
-            (input(.said), [remember("about_you")], "remember: where isn't one of its choices"),
+            (input(.said), [remember("moment")], "remember: where isn't one of its choices"),
+            (input(.said), [remember("today", "x")], "remember: text is the writer's"),
             (input(.said), [react("happy"), react("happy")], "react twice"),
-            (input(.said), [react("happy"), react("sulky")], "more than 1 react"),
+            (input(.said), [react("happy"), react("sulky")], "react twice"),
             (input(.said), [react("angry")], "react: feeling isn't one of its choices"),
             (input(.said), [ToolCall("react", ["feeling": .string("happy")])], "react: voice is missing"),
         ]
@@ -170,15 +170,14 @@ final class HarnessTests: XCTestCase {
         }
     }
 
-    /// A new day may remember once per section; each slot gets its own key,
-    /// and a line left empty drops only its own call.
-    func testANewDayRemembersOncePerSection() async {
-        let writer = FakeWriter { _ in ["remember#1.text": "Ships Fridays."] }
-        let rig = HarnessRig(classifier: FakeClassifier { _ in [remember("about_you"), remember("moment")] }, writer: writer)
-        let records = await run(rig, [input(.newDay)])
-        XCTAssertEqual(records[0].slots, ["remember#1.text", "remember#2.text"])
+    /// A line left empty drops only its own call.
+    func testAnEmptyLineDropsOnlyItsCall() async {
+        let writer = FakeWriter { _ in ["react.word": "hi"] }
+        let rig = HarnessRig(classifier: FakeClassifier { _ in [react("happy"), remember("today")] }, writer: writer)
+        let records = await run(rig, [input(.said, words: "remember")])
+        XCTAssertEqual(records[0].slots, ["react.word", "remember.text"])
         XCTAssertEqual(records[0].ran.map(\.outcome), [.done("ok"), .dropped("nothing was written")])
-        XCTAssertEqual(rig.snapshot.handled, [remember("about_you", "Ships Fridays.")])
+        XCTAssertEqual(rig.snapshot.handled, [react("happy", word: "hi")])
     }
 
     /// A text that doesn't fit its section's limit counts as empty.
@@ -241,26 +240,6 @@ final class HarnessTests: XCTestCase {
         XCTAssertTrue(rig.home.sync { rig.logs.contains("harness: agent started replaced by a newer agent finished") })
     }
 
-    /// HARNESS.md §2: a new day comes once a day, so a newer input never
-    /// replaces it, and a reflection cut off by you talking runs again after.
-    func testANewDayIsNeverLost() async {
-        let rig = HarnessRig(classifier: FakeClassifier(delayMs: 150) { _ in [] })
-        rig.submit(input(.agentStarted))
-        rig.submit(input(.newDay))
-        rig.submit(input(.agentFinished))
-        await rig.settle()
-        XCTAssertEqual(rig.snapshot.records.map(\.input.kind), [.agentStarted, .agentFinished, .newDay])
-
-        let talk = HarnessRig(classifier: FakeClassifier(delayMs: 150) { _ in [] })
-        talk.submit(input(.newDay))
-        try? await Task.sleep(for: .milliseconds(30))
-        talk.submit(input(.said, words: "morning"))
-        await talk.settle()
-        let records = talk.snapshot.records
-        XCTAssertEqual(records.map(\.input.kind), [.newDay, .said, .newDay])
-        XCTAssertEqual(records.map { $0.dropped != nil }, [true, false, false])
-    }
-
     /// HARNESS.md §4: asides don't move the window, so at most eight follow
     /// an input; a burst of taps can't crowd out the prompt.
     func testABurstOfAsidesIsCapped() async {
@@ -296,6 +275,21 @@ final class HarnessTests: XCTestCase {
         _ = await run(rig, [input(.agentStarted, at: 2)])
         XCTAssertEqual(rig.snapshot.records.count, 1)
         XCTAssertEqual(classifier.seen.first?.window.first, .aside("tapped · 14:07 Tuesday: Boop wiggled", ts: 60_000))
+    }
+
+    /// BEHAVIORS.md §6: a new mode's brains take the next pass; one already
+    /// running finishes with the brains it started with.
+    func testNewBrainsTakeTheNextPass() async {
+        let old = FakeClassifier(delayMs: 200) { _ in [react("happy")] }
+        let new = FakeClassifier { _ in [react("sulky")] }
+        let rig = HarnessRig(classifier: old)
+        rig.submit(input(.agentStarted))
+        rig.home.sync { rig.harness.use(new, FakeWriter()) }
+        rig.submit(input(.agentFinished))
+        await rig.settle()
+        XCTAssertEqual(rig.snapshot.handled, [react("happy"), react("sulky")])
+        XCTAssertEqual(old.seen.count, 1)
+        XCTAssertEqual(new.seen.map(\.input.kind), [.agentFinished])
     }
 
     // MARK: Logging
@@ -349,7 +343,7 @@ final class HarnessTests: XCTestCase {
             let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: 1)), memory: memory.store)
             let harness = Harness(classifier: FakeClassifier { _ in [react("happy"), remember("today")] },
                                   writer: FakeWriter { _ in ["react.word": "hi", "remember.text": note] },
-                                  tools: actions.map(Harness.Tool.init), memory: { memory.store.promptMemory(for: $0.kind) },
+                                  tools: actions.map(Harness.Tool.init), memory: { _ in memory.store.promptMemory() },
                                   home: DispatchQueue(label: "test.log"), log: lines.add)
             harness.onRecord = { lines.add($0.logLine) }  // as the Runtime wires it
             _ = await harness.respond(to: input(.said, words: said))
@@ -380,7 +374,7 @@ final class HarnessTests: XCTestCase {
         XCTAssertNotNil(store.longTerm)
         XCTAssertNotNil(store.shortTerm)
         for i in try Self.fixtureInputs() {
-            XCTAssertEqual(Prompt.overBudget(i, store.promptMemory(for: i.kind)), [], i.line)
+            XCTAssertEqual(Prompt.overBudget(i, store.promptMemory()), [], i.line)
         }
     }
 
