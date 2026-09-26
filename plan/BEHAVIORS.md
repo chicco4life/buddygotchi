@@ -1,6 +1,6 @@
 # Boop: behaviors
 
-Updated 2026-09-26. What Boop does on the device when things happen. How
+Updated 2026-09-27. What Boop does on the device when things happen. How
 it sounds is in [VOICE.md](VOICE.md). Numbers marked *proposed* are first
 guesses, to be tuned once we've lived with Boop.
 
@@ -162,9 +162,9 @@ tap's wiggle are the same in every mode, and quiet wins over all of them.
 | | Chatty | Normal (the default) | Calm |
 | --- | --- | --- | --- |
 | For | Maximal interaction, and debugging: the same events always get the same decisions | A balance | Only what you need to know |
-| Decides with | The chatty if-else table | Jev, or the chatty table without Jev's key | The calm if-else table |
+| Decides with | The chatty if-else table | Jev, or the normal if-else table without Jev's key | The calm if-else table |
 | Writes with | Apple's model, asked again for a word it leaves out | Apple's model | Apple's model |
-| Agent starts | A curious mumble | Usually nothing | Nothing |
+| Agent starts | A curious mumble | Nothing | Nothing |
 | Turn finishes, a short turn (under 15 s) | `cheer` and a happy mumble | `cheer` | Nothing |
 | Turn finishes, a long turn (15 s up to a minute) | `cheer` and a proud mumble | `cheer` and a proud mumble | Nothing |
 | Turn finishes, a very long turn (over a minute) | `cheer` and an excited mumble | `cheer` and a proud mumble | `cheer` |
@@ -173,6 +173,7 @@ tap's wiggle are the same in every mode, and quiet wins over all of them.
 | You talk to Boop | A mumble back (§3.3) | A mumble back | A mumble back; told off or yelled at, nothing |
 | Working chatter | Every 45–90 s | Every 2–4 minutes | Never |
 
-Normal's column is what Jev is steered toward (`steering.md`); Jev decides
-each time, so it can differ. The if-else tables are in
+Normal's column is the normal if-else table, and what Jev is steered
+toward (`steering.md`); Jev decides each time, so it can differ. The
+if-else tables are in
 [HARNESS.md](HARNESS.md) §6. The numbers are *proposed*.

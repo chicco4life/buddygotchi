@@ -8,7 +8,8 @@ public enum Mode: String, CaseIterable, Sendable {
     /// the chatty if-else table, so the same events always lead to the same
     /// decisions, which also makes it the mode to debug in.
     case chatty
-    /// The balance: Jev decides, or the chatty table without Jev's key.
+    /// The balance: Jev decides, or the normal if-else table without Jev's
+    /// key.
     case normal
     /// Only what you need to know: something needs you, a turn failed, or a
     /// very long one finished. Decides with the calm if-else table.

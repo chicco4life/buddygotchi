@@ -15,16 +15,16 @@ let usage = """
                Prints long-term.md and short-term.md as the memory store reads them, and the history snapshots.
            boopdev voice <feeling> [word] [--dialect HEX] [--seed N] [--count N] [--json] [--why]
                Prints Minion lines as the react action would build them.
-           boopdev brain [--mode chatty|normal|calm] [--classifier chatty|calm|jev] [--writer apple|none|deepseek] [--inputs DIR] [--memory DIR] [--steering FILE] [--out FILE] [--gap-min N] [--print]
+           boopdev brain [--mode chatty|normal|calm] [--classifier chatty|normal|calm|jev] [--writer apple|none|deepseek] [--inputs DIR] [--memory DIR] [--steering FILE] [--out FILE] [--gap-min N] [--print]
                Runs the real pipeline on recorded inputs with the mode's brain (default normal), each with a
                fresh copy of the sample memory, N minutes apart (default 3) sharing one transcript, and reports
                refusals, what each stage did, dropped calls and latency (VERIFICATION.md L5). Jev's key comes
-               from BOOP_JEV_KEY; without it, normal decides with the chatty rules.
-           boopdev eval [--mode chatty|normal|calm] [--classifier chatty|calm|jev] [--writer none|apple] [--runs N] [--scenarios DIR] [--memory DIR] [--steering FILE] [--only TEXT] [--json FILE]
+               from BOOP_JEV_KEY; without it, normal decides with the normal rules.
+           boopdev eval [--mode chatty|normal|calm] [--classifier chatty|normal|calm|jev] [--writer none|apple] [--runs N] [--scenarios DIR] [--memory DIR] [--steering FILE] [--only TEXT] [--json FILE]
                Runs the harness eval scenarios in each mode: events, taps and talk on a virtual clock through a
                fresh core, the real harness and actions, each step checked against the passes it should lead to
-               in that mode (plan/EVALS.md). By default chatty and calm, with their if-else tables and no writer,
-               which is deterministic; --mode normal decides with Jev and needs BOOP_JEV_KEY. With a model,
+               in that mode (plan/EVALS.md). By default every mode, with its if-else table and no writer, which
+               is deterministic; --classifier jev decides with Jev and needs BOOP_JEV_KEY. With a model,
                --runs runs each scenario N times, and it passes only if every run does. Exits 1 if any fails.
            boopdev watch FILE [--new]
                Follows a brain debug log (Boop --debug-log FILE, or make run DEBUG_LOG=FILE) and prints each
@@ -361,10 +361,9 @@ func eval(_ args: [String]) async {
     }
     let override = option(args, "--classifier")
     if let override, !Brains.classifiers.contains(override) { fail("classifiers: " + Brains.classifiers.joined(separator: ", ")) }
-    let key = ProcessInfo.processInfo.environment[Brains.jevKeyVariable].flatMap { $0.isEmpty ? nil : $0 }
-    if key == nil, override == "jev" || (override == nil && modes.contains(.normal)) {
-        fail("normal mode decides with Jev: its API key goes in \(Brains.jevKeyVariable)")
-    }
+    // Jev only when asked for, so a key in the environment doesn't make the default run a live one.
+    let key = override == "jev" ? ProcessInfo.processInfo.environment[Brains.jevKeyVariable].flatMap { $0.isEmpty ? nil : $0 } : nil
+    if key == nil, override == "jev" { fail("Jev needs its API key in \(Brains.jevKeyVariable)") }
     let writerName = option(args, "--writer") ?? "none"
     guard ["none", "apple"].contains(writerName) else { fail("writers: none, apple") }
     if writerName == "apple", let why = AppleWriter.unavailableReason { fail("Apple's model can't run here: \(why)") }

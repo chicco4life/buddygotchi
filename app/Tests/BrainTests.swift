@@ -55,6 +55,32 @@ final class ChattyRulesTests: XCTestCase {
     }
 }
 
+final class NormalRulesTests: XCTestCase {
+    /// HARNESS.md §6 and BEHAVIORS.md §6's normal column: each row of the
+    /// table in NormalRules' comment. A start and a short turn (under 15 s)
+    /// are the rules' alone; 15 s or more is proud.
+    func testEachRow() async throws {
+        let cases: [(Input, [ToolCall])] = [
+            (input(.agentStarted), []),
+            (input(.agentFinished, tookMs: 8_000), []),
+            (input(.agentFinished, tookMs: 14_999), []),
+            (input(.agentFinished, tookMs: 15_000), [react("proud")]),
+            (input(.agentFinished, tookMs: 60_000), [react("proud")]),
+            (input(.agentFinished, tookMs: 1_080_000), [react("proud")]),
+            (input(.agentFinished, outcome: .failed), [react("annoyed")]),
+            (input(.poked), [react("annoyed")]),
+            (input(.said, words: "shut up"), [react("sad")]),
+            (input(.said, words: "hello boop"), [react("happy")]),
+            (input(.said, words: "remember the demo is on Thursday"), [react("happy"), remember("today")]),
+        ]
+        for (i, expected) in cases {
+            let calls = try await decide(NormalRules(), i)
+            XCTAssertEqual(calls, expected, i.line + " " + (i.words ?? ""))
+        }
+        XCTAssertEqual(NormalRules().id, "normal@1")
+    }
+}
+
 final class CalmRulesTests: XCTestCase {
     /// HARNESS.md §6: each row of the table in CalmRules' comment. Only a
     /// failure and what you say get anything.
@@ -422,18 +448,19 @@ final class WriterTests: XCTestCase {
     }
 
     /// HARNESS.md §6: each mode's brain. Jev needs a key, asked for only
-    /// when it's chosen; without one, normal decides with the chatty rules.
+    /// when it's chosen; without one, normal decides with its own table.
     func testEachModeHasItsBrain() {
         var asked = 0
         var logs: [String] = []
         XCTAssertEqual(Brains.classifier(for: .chatty, key: { asked += 1; return "k" }).id, "chatty@1")
         XCTAssertEqual(Brains.classifier(for: .calm, key: { asked += 1; return "k" }).id, "calm@1")
         XCTAssertEqual(Brains.classifier(for: .normal, key: { asked += 1; return "k" }).id, "jev:jev-latest")
-        XCTAssertEqual(Brains.classifier(for: .normal, key: { asked += 1; return nil }, log: { logs.append($0) }).id, "chatty@1")
+        XCTAssertEqual(Brains.classifier(for: .normal, key: { asked += 1; return nil }, log: { logs.append($0) }).id, "normal@1")
         XCTAssertTrue(logs.contains { $0.hasPrefix("brain: Jev needs an API key") }, "\(logs)")
         XCTAssertEqual(asked, 2)
         // Overrides, for one run.
         XCTAssertEqual(Brains.classifier(for: .normal, override: "calm").id, "calm@1")
+        XCTAssertEqual(Brains.classifier(for: .chatty, override: "normal").id, "normal@1")
         XCTAssertEqual(Brains.classifier(for: .calm, override: "jev", key: { "k" }).id, "jev:jev-latest")
         XCTAssertEqual(Brains.writer(for: .calm, override: "none").id, "none")
         XCTAssertEqual(Brains.writer(for: .calm, override: "deepseek").id, "deepseek:deepseek-flash")

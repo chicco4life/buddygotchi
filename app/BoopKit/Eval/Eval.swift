@@ -201,9 +201,9 @@ public struct EvalError: Error, CustomStringConvertible {
 /// copy of the sample memory for every scenario. With a model, run each
 /// scenario a few times (`boopdev eval --runs`).
 public struct Eval: Sendable {
-    /// The modes with an if-else table of their own. Normal decides with Jev,
-    /// so its expectations are checked only with Jev's key (EVALS.md §2).
-    public static let deterministic: [Mode] = [.chatty, .calm]
+    /// Every mode has an if-else table, so every mode runs deterministically;
+    /// Jev runs normal's expectations only when asked for (EVALS.md §2).
+    public static let deterministic: [Mode] = Mode.allCases
 
     public struct StepResult: Sendable {
         public var event: Scenario.Event
@@ -245,9 +245,9 @@ public struct Eval: Sendable {
         self.memory = memory
     }
 
-    /// The mode's if-else table: normal's is chatty's, as without Jev's key.
+    /// The mode's if-else table, as without Jev's key.
     public static func rules(_ mode: Mode) -> any Classifier {
-        Brains.classifier(for: mode == .normal ? .chatty : mode)
+        Brains.classifier(for: mode)
     }
 
     /// What a step's window saw: a harness pass, or one of the core's rule

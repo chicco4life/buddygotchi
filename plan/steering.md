@@ -1,10 +1,10 @@
 <!--
-Updated 2026-09-26. What both stages of Boop's brain read on every pass:
+Updated 2026-09-27. What both stages of Boop's brain read on every pass:
 Jev, normal mode's classifier, as part of its state (without Writing,
 which is only the writer's), and Apple's model, the writer in every mode,
-as its instructions (HARNESS.md §6). The if-else classifiers of chatty and
-calm don't read it; their rules are in code. The Examples are normal
-mode's. Read-only: it ships with the app and changes only in an announced
+as its instructions (HARNESS.md §6). The if-else classifiers don't read
+it; their rules are in code. The Examples are normal mode's, as its
+if-else table decides. Read-only: it ships with the app and changes only in an announced
 release. This Boop's name, temperament and moments live in long-term.md.
 See ARCHITECTURE.md §4. Written for small models: short rules, concrete
 examples, and every mumble example with its word. Keep it under ~1,000

@@ -2,9 +2,9 @@ import Foundation
 import XCTest
 @testable import BoopKit
 
-/// The harness eval suite (plan/EVALS.md) passes in chatty and calm, with
-/// their if-else tables and no writer, and the runner checks each step's
-/// whole window of passes.
+/// The harness eval suite (plan/EVALS.md) passes in every mode, with its
+/// if-else table and no writer, and the runner checks each step's whole
+/// window of passes.
 final class EvalTests: XCTestCase {
     static let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().appendingPathComponent("../..")
         .standardizedFileURL
@@ -15,7 +15,7 @@ final class EvalTests: XCTestCase {
         return Eval(steering: steering, memory: EvalTests.root.appendingPathComponent("app/Tests/Fixtures/memory"))
     }
 
-    /// Every scenario in every mode it runs in, but normal, which needs Jev.
+    /// Every scenario in every mode it runs in.
     func results() async throws -> [Eval.Result] {
         let scenarios = try Scenario.load(directory: EvalTests.scenarios)
         XCTAssertFalse(scenarios.isEmpty)
@@ -31,16 +31,16 @@ final class EvalTests: XCTestCase {
 
     func testEveryScenarioPasses() async throws {
         let results = try await results()
-        XCTAssertEqual(Set(results.map(\.mode)), [.chatty, .calm])
+        XCTAssertEqual(Set(results.map(\.mode)), Set(Mode.allCases))
         for result in results {
             XCTAssertTrue(result.passed, "\(result.scenario.file) in \(result.mode.rawValue)\n" + Eval.diff(result))
         }
     }
 
     /// BEHAVIORS.md §6, across every scenario: in chatty, every agent input
-    /// and poke streak the brain decides on gets a mumble; in calm, the
-    /// brain mumbles only at a failed turn or when you talk to it, and the
-    /// rules never chatter.
+    /// and poke streak the brain decides on gets a mumble; in normal, a
+    /// start never does; in calm, the brain mumbles only at a failed turn or
+    /// when you talk to it, and the rules never chatter.
     func testEachModeKeepsItsCharacter() async throws {
         for result in try await results() {
             var mode = result.mode
@@ -60,7 +60,9 @@ final class EvalTests: XCTestCase {
                         XCTAssertTrue(!mumble || allowed, "\(result.scenario.file): \(line)")
                         XCTAssertFalse(line.hasPrefix("rules → mumble"), "\(result.scenario.file): \(line)")
                     case .normal:
-                        XCTFail("normal needs Jev")
+                        if line.hasPrefix("agent started") {
+                            XCTAssertFalse(mumble, "\(result.scenario.file): \(line)")
+                        }
                     }
                 }
             }

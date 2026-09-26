@@ -1,6 +1,6 @@
 # Boop: verification
 
-Updated 2026-09-26. How we check that Boop works, especially what's on its
+Updated 2026-09-27. How we check that Boop works, especially what's on its
 screen, without a person watching. [PLAN.md](PLAN.md) says which checks
 each milestone must pass. It builds on the previous generation's
 `buddyctl.py` (USB commands, screenshots, golden images) and the opt-in
@@ -202,13 +202,13 @@ resizing, typing, switches) is the owner's (L6).
 ### Harness evals
 
 Named scenarios for what the harness should do in each mode, given events,
-taps and talk over time. In chatty and calm they're deterministic and part
-of L0: `make test` runs them, and `make eval` prints each one's result.
-Normal decides with Jev, so its column runs only with Jev's key
-(`boopdev eval --mode normal`). How they work and what each checks is in
-[EVALS.md](EVALS.md).
+taps and talk over time. In every mode they're deterministic and part of
+L0: `make test` runs them, and `make eval` prints each one's result. Jev
+runs normal's column only with its key
+(`boopdev eval --mode normal --classifier jev`). How they work and what
+each checks is in [EVALS.md](EVALS.md).
 
-**Pass:** every scenario passes in chatty and calm.
+**Pass:** every scenario passes in every mode.
 
 ### L1: simulator
 
@@ -323,7 +323,7 @@ under 200 ms at p95.
    window fills and moves on as it would in the app
    ([HARNESS.md](HARNESS.md) §4). Every input gets a fresh copy of the
    sample memory. Normal decides with Jev, its key in `BOOP_JEV_KEY`, and
-   with the chatty rules without one; `--mode chatty` asks Apple's model
+   with the normal rules without one; `--mode chatty` asks Apple's model
    for a word on every mumble. `--print` shows each input and what ran, and
    every pass is logged to `/tmp/boop-brain/<classifier>-<writer>.jsonl`
    (`--out`).

@@ -1,6 +1,6 @@
 # Boop: architecture
 
-Updated 2026-09-26. The parts of Boop, how they connect, the memory files
+Updated 2026-09-27. The parts of Boop, how they connect, the memory files
 they share, and the decisions behind them. The other specs go deeper on
 each part; [README.md](README.md) lists them all.
 
@@ -150,9 +150,9 @@ append-only transcript of what has happened. The **harness** is the small,
 generic code around them: it runs the two stages, checks their answers and
 hands each call to its action, without knowing what the outputs do or what
 kind of model is behind either stage. The mode picks the brains
-([BEHAVIORS.md](BEHAVIORS.md) §6): chatty and calm classify with their own
-plain if-else rules, and normal with Jev, a "system one" model reached with
-the person's own API key (or chatty's rules without one). Apple's
+([BEHAVIORS.md](BEHAVIORS.md) §6): each mode has its own plain if-else
+rules, and normal classifies with Jev instead, a "system one" model
+reached with the person's own API key, when it has one. Apple's
 on-device model writes in every mode, and a DeepSeek writer comes later
 ([FUTURE.md](FUTURE.md)). The mode can change at any time: each pass keeps
 the brains it started with. Both stages are assumed to be small, so the

@@ -1,6 +1,6 @@
 # Boop: harness and brain
 
-Updated 2026-09-26. How something that happened becomes a decision and a
+Updated 2026-09-27. How something that happened becomes a decision and a
 few words, and how they're handed off.
 
 ## 1. What this is
@@ -271,33 +271,34 @@ says exactly how it behaves. The mode picks them
 | Mode | Classifier | Writer |
 | --- | --- | --- |
 | Chatty | `ChattyRules` | `AppleWriter`, asked again for a word it leaves out |
-| Normal (the default) | `JevClassifier`; `ChattyRules` without Jev's key | `AppleWriter` |
+| Normal (the default) | `JevClassifier`; `NormalRules` without Jev's key | `AppleWriter` |
 | Calm | `CalmRules` | `AppleWriter` |
 
 | Brain | Stage | What it does |
 | --- | --- | --- |
 | `ChattyRules` | 1 | Plain Swift, no model, always available; reads only the input's fields, so the same events always get the same decisions. Every agent input gets a mumble. Agent started: `react(curious, mumble)`. Finished `done`, a short turn: `react(happy, mumble)`; a long turn: `react(proud, mumble)`; a very long turn: `react(excited, mumble)`. Finished `failed`: `react(annoyed, mumble)`, one mumble per failure. Poked again and again: `react(annoyed, mumble)`. You said something: the phrase table below, with a sad `mumble` when you yelled or told Boop off |
+| `NormalRules` | 1 | Plain Swift, no model, always available; reads only the input's fields. Normal's column ([BEHAVIORS.md](BEHAVIORS.md) §6), which Jev is steered toward. Agent started, and finished `done` in a short turn: nothing (the rules cheer). Finished `done`, a long or very long turn: `react(proud, mumble)`. Finished `failed`: `react(annoyed, mumble)`. Poked again and again: `react(annoyed, mumble)`. You said something: the phrase table below, with a sad `mumble` when you yelled or told Boop off |
 | `CalmRules` | 1 | Plain Swift, no model, always available; reads only the input's fields. Agent started, finished `done`, and poked again and again: nothing. Finished `failed`: `react(annoyed, mumble)`, the one alert besides "needs you". You said something: the phrase table below, and nothing when you yelled or told Boop off |
 | `JevClassifier` | 1 | TypeSafe's `jev-latest` ([docs](https://docs.typesafe.ai/api)), with the person's API key. It doesn't write: it answers typed questions about a state with probabilities, in one request of about 0.2 s. The state is `steering.md` without its Writing section (Jev never writes), both memory files, the window's recent inputs (minutes ago, what happened, what you said, what the rules did and what Boop did) and now. The menu becomes questions built from the definitions' own questions: a yes/no for each output ("Does what just happened call for Boop to react?"), a choice for each decided argument with more than one option (`react.feeling`, `react.voice`, `quiet.minutes`); `remember.where` is asked with each place's meaning. As TypeSafe advises, each question names what it's about (`now`) and what to judge it by (`boop`, its Examples first), and a yes means `boop` says to do it for something like `now`. Each question is answered on its own, so every argument is asked up front and only a chosen output's are used. A yes is above 0.5; each choice is the most likely one. A 429, a 5xx (TypeSafe's 529 is "overloaded") or a dropped connection is tried once more, 0.3 s later, as TypeSafe advises; the input's deadline still bounds the pass. Only the HTTP status of a failed request is logged |
 | `AppleWriter` | 2 | Apple's on-device model: private and free. A fresh session each call: its instructions are a short preamble, `steering.md` and both memory files; its prompt is what just happened and what Boop decided, then a line per slot (§4). Guided generation with one property per slot: a word from `none` and its list, or text with its length asked for; a slot with sources gets a property before it, where the model picks the source first. Temperature 0.2, so the same moment gets the same word. In chatty mode a word left empty is asked for once more, with `none` off its list, when that can finish in the time left; taking `none` off from the start made the words worse (a failed test run got "ugh", not "tests"). There's no option to decline, so it can't answer "stay quiet"; that was Stage 1's job. Guardrails are `permissiveContentTransformations`; a refusal fails the write like any error, marked as a refusal |
 | `NoWriter` | 2 | Writes nothing: mumbles have no word, and nothing is remembered. What Apple's model falls back to when it can't run, and `--writer none` |
 | `DeepSeekWriter` | 2 | Not built yet: it refuses every write ([FUTURE.md](FUTURE.md)) |
 
-**What you said**, for both if-else classifiers (`Phrases`), first match
+**What you said**, for every if-else classifier (`Phrases`), first match
 wins and whole words only:
 
 | You said | Decides |
 | --- | --- |
 | "remember" or "note", unless you yelled or told Boop off | `react(happy, mumble)` and `remember(where)`, where from the words below. It wins over "quiet": "remember I like it quiet" isn't asking for quiet |
 | "quiet" | `quiet`: two hours 120, fifteen 15, half an hour 30, an hour 60, else 30. If you also yelled or told Boop off, then `react(sad, silent)` |
-| You yelled, or told Boop off: "shut up", "go away", "hate you", "you suck", "hush", "stop talking", "keep it down", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot" | `react(sad, mumble)` in chatty; nothing in calm, since a silent react is on the menu only as quiet starts (§2) |
+| You yelled, or told Boop off: "shut up", "go away", "hate you", "you suck", "hush", "stop talking", "keep it down", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot" | `react(sad, mumble)` in chatty and normal; nothing in calm, since a silent react is on the menu only as quiet starts (§2) |
 | "hello", "hi", "hey" or "morning" | `react(happy, mumble)` |
 | "bye", "goodbye", "see you" or "good night" | `react(happy, mumble)` |
 | "lunch", "dinner", "breakfast", "food", "snack" or "hungry" | `react(hopeful, mumble)` |
 | "good job", "well done", "nice", "great", "thanks" or "the best" | `react(proud, mumble)` |
 | Anything else | `react(curious, mumble)` |
 
-Where to remember, for both if-else classifiers, first match wins. They can
+Where to remember, for every if-else classifier, first match wins. They can
 only go by the words, so they err towards today:
 
 | The words have | `where` |
@@ -309,10 +310,10 @@ only go by the words, so they err towards today:
 **The setting** (`mode` in `settings.json`, and Mode in the app,
 [UX.md](UX.md) §7) is `chatty`, `normal` or `calm`, and takes effect at
 once (§3 step 3). Jev needs its key, from the Keychain or `BOOP_JEV_KEY`;
-without one, normal decides with `ChattyRules`, and saving a key in
+without one, normal decides with `NormalRules`, and saving a key in
 Settings brings Jev in at once. A settings file from before the modes
 (`classifier`, `writer` or `brain`) starts in normal. For one run,
-`--mode`, `--classifier chatty|calm|jev` and `--writer apple|none|deepseek`
+`--mode`, `--classifier chatty|normal|calm|jev` and `--writer apple|none|deepseek`
 override the setting and the mode's brains (`Boop --headless`, `boopdev`).
 
 A weaker brain makes Boop less witty, but it can't make it break the rules:

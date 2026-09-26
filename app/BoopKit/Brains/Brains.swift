@@ -1,8 +1,8 @@
 import Foundation
 
-/// Each mode's brain (HARNESS.md §6). Chatty and calm decide with their
-/// if-else tables; normal decides with TypeSafe's Jev, which needs the
-/// person's API key, and without one with the chatty table. Every mode
+/// Each mode's brain (HARNESS.md §6). Each mode has an if-else table;
+/// normal decides with TypeSafe's Jev instead when it has the person's API
+/// key. Every mode
 /// writes with Apple's model, which falls back to no writer when it can't
 /// run; chatty's is asked again for a mumble's word it leaves out. `--classifier` and
 /// `--writer` override the mode's choice for one run.
@@ -10,7 +10,7 @@ public enum Brains {
     /// Overrides the Keychain's Jev key, for `boopdev` and headless runs.
     public static let jevKeyVariable = "BOOP_JEV_KEY"
     /// What `--classifier` and `--writer` take.
-    public static let classifiers = ["chatty", "calm", "jev"]
+    public static let classifiers = ["chatty", "normal", "calm", "jev"]
     public static let writers = ["apple", "none", "deepseek"]
 
     /// The mode's classifier, or the override's. Jev's key is asked for only
@@ -19,10 +19,11 @@ public enum Brains {
                                   log: (String) -> Void = { _ in }) -> any Classifier {
         switch override ?? (mode == .normal ? "jev" : mode.rawValue) {
         case "calm": return CalmRules()
+        case "normal": return NormalRules()
         case "jev":
             guard let key = key(), !key.isEmpty else {
-                log("brain: Jev needs an API key; deciding with the chatty rules")
-                return ChattyRules()
+                log("brain: Jev needs an API key; deciding with the normal rules")
+                return NormalRules()
             }
             return JevClassifier(key: key)
         default: return ChattyRules()

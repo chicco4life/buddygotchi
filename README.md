@@ -81,8 +81,8 @@ tools/boopctl calibrate                    # touch calibration: tap 4 crosses (n
 boopdev replay <hooks.jsonl>               # hooks through the adapter and core, on a virtual clock
 boopdev memory --state-dir DIR             # the memory files as the store reads them
 boopdev voice <feeling> [word]             # Minion lines as `react` builds them
-boopdev brain [--mode chatty|normal|calm] [--classifier chatty|calm|jev] [--writer apple|none|deepseek] [--print]  # the brain on recorded inputs (L5); jev needs BOOP_JEV_KEY
-boopdev eval [--mode chatty|normal|calm] [--writer apple] [--runs N]  # the eval scenarios per mode (make eval: chatty and calm); normal needs BOOP_JEV_KEY; with Apple's model, N runs each
+boopdev brain [--mode chatty|normal|calm] [--classifier chatty|normal|calm|jev] [--writer apple|none|deepseek] [--print]  # the brain on recorded inputs (L5); jev needs BOOP_JEV_KEY
+boopdev eval [--mode chatty|normal|calm] [--writer apple] [--runs N]  # the eval scenarios per mode (make eval: every mode); --classifier jev needs BOOP_JEV_KEY; with Apple's model, N runs each
 boopdev watch /tmp/boop-brain.jsonl  # follow a debug log live: each input, decision, words and what ran
 boopdev hooks status|install|remove --home DIR
 boopdev talk "<words>" [--yelled] --socket PATH   # a push-to-talk transcript to a headless app

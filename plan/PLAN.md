@@ -1,6 +1,6 @@
 # Boop: plan
 
-Updated 2026-09-26. The build order for v1, the check that closes each
+Updated 2026-09-27. The build order for v1, the check that closes each
 milestone, how the unattended build runs, the owner's morning checklist,
 the later port to ESP-IDF + LVGL, and the open items (§7). The specs are
 listed in [README.md](README.md); ideas that aren't in v1 are in
@@ -636,8 +636,8 @@ three modes, picked in Settings and applied at once
 - **Chatty:** maximal interaction and debugging; the chatty if-else table
   and Apple's model, asked again for a mumble's word it leaves out; chatter every
   45–90 s.
-- **Normal:** today's balance; Jev and Apple's model, and the chatty table
-  without Jev's key.
+- **Normal:** today's balance; Jev and Apple's model, and the normal
+  if-else table without Jev's key.
 - **Calm:** only alerts; the calm if-else table and Apple's model; no
   chatter, and a cheer only for a very long turn (over a minute).
 - **Remembering:** what you tell Boop goes where it belongs, from
