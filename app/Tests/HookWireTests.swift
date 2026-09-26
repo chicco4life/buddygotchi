@@ -79,6 +79,26 @@ final class HookWireTests: XCTestCase {
         XCTAssertGreaterThan(lines, 40)
     }
 
+    /// ADAPTERS.md §2: a subagent's hooks carry the parent's session plus
+    /// its `agent_id`, which the line keeps (an opaque id; `agent_type` is
+    /// dropped), even from a payload cut off at the cap.
+    func testASubagentsIDIsKept() throws {
+        let raw = payload([
+            "hook_event_name": "PreToolUse", "session_id": "s1", "agent_id": "a1b2", "agent_type": "general-purpose",
+            "tool_name": "Read", "tool_input": ["file_path": "/w/x.swift"],
+        ])
+        let line = try XCTUnwrap(HookLine.extract(agent: "claude", payload: raw, ts: 0))
+        XCTAssertEqual(line.agentID, "a1b2")
+        XCTAssertEqual(HookLine.decode(line.encoded()), line)
+        XCTAssertFalse(String(decoding: line.encoded(), as: UTF8.self).contains("general-purpose"))
+        let main = try XCTUnwrap(HookLine.extract(agent: "claude", payload: payload(["hook_event_name": "Stop", "session_id": "s1"]), ts: 0))
+        XCTAssertNil(main.agentID)
+        XCTAssertFalse(String(decoding: main.encoded(), as: UTF8.self).contains("agent_id"))
+        let big = String(repeating: "x", count: 300_000)
+        let cut = Data(#"{"session_id": "s1", "agent_id": "a1b2", "hook_event_name": "PostToolUse", "tool_name": "Read", "tool_response": "\#(big)"}"#.utf8).prefix(256 * 1024)
+        XCTAssertEqual(HookLine.extract(agent: "claude", payload: Data(cut), ts: 0)?.agentID, "a1b2")
+    }
+
     func testPayloadWithoutHookNameOrSessionIsDropped() {
         XCTAssertNil(HookLine.extract(agent: "claude", payload: payload(["session_id": "s"]), ts: 0))
         XCTAssertNil(HookLine.extract(agent: "claude", payload: payload(["hook_event_name": "Stop"]), ts: 0))

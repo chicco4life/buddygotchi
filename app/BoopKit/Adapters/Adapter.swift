@@ -78,8 +78,8 @@ public enum Adapter {
             break
         }
         let project = line.cwd.map { projectName(cwd: $0, fileManager: fileManager) } ?? knownProject ?? "unknown"
-        return BoopEvent(agent: agent, session: line.session, project: project, event: kind, detail: detail,
-                         ts: receivedAt ?? line.ts)
+        return BoopEvent(agent: agent, session: line.session, subagent: agent == .claudeCode ? line.agentID : nil,
+                         project: project, event: kind, detail: detail, ts: receivedAt ?? line.ts)
     }
 
     /// A short, fixed error class; anything unfamiliar becomes `other`.

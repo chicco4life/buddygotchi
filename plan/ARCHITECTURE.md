@@ -342,6 +342,7 @@ Preferences; the Boop section isn't shown.
 | --- | --- |
 | `agent` | `claude_code` or `codex` |
 | `session` | Stable session or thread ID |
+| `subagent` | Only on events from inside a Claude subagent, which share their parent's `session`: its `agent_id` ([ADAPTERS.md](ADAPTERS.md) §4) |
 | `project` | Short project name, from the working directory |
 | `event` | `session_start`, `turn_start`, `needs_you`, `activity`, `turn_end`, `turn_failed`, `turn_stopped` (over without finishing: you interrupted it, or the agent sat at its prompt), `session_end` |
 | `detail` | Small and event-specific: `tool` and `topic` on `activity`, plus `failed` (true or false) on Claude's `PostToolUse` and `PostToolUseFailure`; `tool` on `needs_you`; and `error`, an error class, on `turn_failed` ([ADAPTERS.md](ADAPTERS.md) §2–3); nothing on the others. Never prompt text, commands or file contents. The core measures how long a turn took itself, from its start |
@@ -366,9 +367,10 @@ Adding an agent later means one new adapter that produces this shape.
 - Claude shows "needs you" immediately. Codex waits 2 s first, because its
   automatic reviewer may approve the request without asking you
   ([ADAPTERS.md](ADAPTERS.md) §4).
-- A session stops needing you when any later event arrives from it, when
-  it ends, or after 10 minutes as a safety net (*proposed*), which leaves
-  it idle.
+- A session stops needing you when the agent that asked (the main agent or
+  one of its subagents) moves on, when its turn or the session ends, or
+  after 10 minutes as a safety net (*proposed*), which leaves it idle
+  ([ADAPTERS.md](ADAPTERS.md) §4).
 - Tapping Boop quiets the nudges for that session. It doesn't answer
   anything.
 - Boop can't approve or deny. That keeps it simple and safe: a bug in Boop
@@ -533,3 +535,4 @@ When a spec changes direction, add a row here saying why.
 | 2026-09-26 | Three modes set how much Boop reacts and pick its brain: chatty (every turn gets a mumble with a word; the chatty if-else table), normal (the default; Jev, or the chatty table without its key) and calm (only a failed turn, a very long finish's cheer and "needs you"; the calm if-else table). Apple's model writes in all three, and in chatty is asked again for a word it leaves out. The core's chatter pace and which finishes cheer follow the mode. A new mode applies at once: each harness pass keeps the brains it started with. This replaces the rows on picking the classifier and the writer apart, and today's if-else table | The owner wanted a maximal, deterministic mode for people who want interaction and for debugging, today's balance, and one that only alerts. "Quiet mode" was already "be quiet for an hour", so the third is calm | [BEHAVIORS.md](BEHAVIORS.md) §6, [HARNESS.md](HARNESS.md) §6 |
 | 2026-09-26 | The new-day input and its reflection are removed. The first activity of a day still starts short-term memory fresh, but nothing looks back on the day, so Temperament and Moments keep what they have. Jev's per-choice questions, a menu's several calls to one tool and the harness's separate wait for a new day went with it. This replaces the row on the new day waiting apart | To simplify: only Jev could reflect, and the if-else modes couldn't | §4, [HARNESS.md](HARNESS.md) §2 |
 | 2026-09-26 | What you tell Boop to remember goes where it belongs, decided by Stage 1 from explicit meanings: `today` for a fact about a project or this session, `about_you` for a durable fact about you, `preference` for how you like things. Jev is asked with those meanings and `steering.md`; the if-else tables go by the words ("I" with a sign it lasts, "I like"), and "remember" wins over "quiet" | The owner wanted both memories kept, with durable facts long-term and project or session facts short-term, and the rule spelled out | §4, [HARNESS.md](HARNESS.md) §5–6 |
+| 2026-09-27 | "Needs you" clears on the asking agent's next event or a turn-level one, not on any event from the session. The hook line keeps Claude's `agent_id` | Claude gives a subagent's hooks its parent's session, so with parallel subagents a sibling's next tool call cleared a request Claude was still waiting on, within a second | [ADAPTERS.md](ADAPTERS.md) §2, §4 |

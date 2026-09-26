@@ -34,6 +34,20 @@ final class AdapterTests: XCTestCase {
         XCTAssertNil(Adapter.event(from: line("claude", "Notification", kind: "idle_prompt"))?.detail.tool)
     }
 
+    /// ADAPTERS.md §2: a Claude subagent's id rides on the event; Codex
+    /// has none.
+    func testASubagentsEventsSayWhichSubagent() {
+        var sub = line("claude", "PreToolUse", tool: "Read")
+        sub.agentID = "a1"
+        XCTAssertEqual(Adapter.event(from: sub)?.subagent, "a1")
+        XCTAssertEqual(Adapter.event(from: sub)?.session, "s1", "the parent's session")
+        XCTAssertTrue(Adapter.event(from: sub)?.jsonLine.contains(#""subagent":"a1""#) == true)
+        XCTAssertNil(Adapter.event(from: line("claude", "PreToolUse", tool: "Read"))?.subagent)
+        var codex = line("codex", "PreToolUse", tool: "shell")
+        codex.agentID = "a1"
+        XCTAssertNil(Adapter.event(from: codex)?.subagent)
+    }
+
     func testCodexMapping() {
         let table: [(String, BoopEvent.Kind?)] = [
             ("SessionStart", .sessionStart), ("UserPromptSubmit", .turnStart), ("PreToolUse", .activity),

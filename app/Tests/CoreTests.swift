@@ -20,9 +20,9 @@ final class CoreRig {
     }
 
     @discardableResult
-    func send(_ kind: BoopEvent.Kind, _ agent: Agent = .claudeCode, session: String = "s1", project: String = "landing",
-              tool: String? = nil, topic: String? = nil, failed: Bool? = nil) -> [CoreEffect] {
-        let fx = core.handle(BoopEvent(agent: agent, session: session, project: project, event: kind,
+    func send(_ kind: BoopEvent.Kind, _ agent: Agent = .claudeCode, session: String = "s1", subagent: String? = nil,
+              project: String = "landing", tool: String? = nil, topic: String? = nil, failed: Bool? = nil) -> [CoreEffect] {
+        let fx = core.handle(BoopEvent(agent: agent, session: session, subagent: subagent, project: project, event: kind,
                                        detail: .init(tool: tool, topic: topic, failed: failed), ts: now))
         log += fx
         return fx
@@ -308,6 +308,62 @@ final class CoreNeedsYouTests: XCTestCase {
         rig.wait(10_000)
         rig.send(.needsYou, tool: "Bash")  // a real new request
         XCTAssertNotNil(rig.state.attn)
+    }
+
+    /// ADAPTERS.md §4: Claude gives a subagent's hooks its parent's session.
+    /// A sibling's tool calls don't answer another agent's request; only the
+    /// asker's own next event, or a turn-level one, does.
+    func testASiblingSubagentsToolsDontAnswerTheRequest() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.activity, subagent: "a1", tool: "Bash")
+        rig.send(.needsYou, subagent: "a1", tool: "Bash")
+        XCTAssertNotNil(rig.state.attn)
+        rig.wait(500)
+        rig.send(.activity, subagent: "a2", tool: "Read")
+        rig.send(.activity, tool: "Agent")  // the main agent: another subagent came back
+        XCTAssertNotNil(rig.state.attn, "a sibling kept working")
+        rig.wait(5500)
+        XCTAssertEqual(states(rig.send(.needsYou)), [], "its Notification is the same request")
+        rig.wait(60_000)
+        rig.send(.activity, subagent: "a2", tool: "Read")
+        XCTAssertNotNil(rig.state.attn)
+        let fx = rig.send(.activity, subagent: "a1", tool: "Bash")  // approved
+        XCTAssertNil(states(fx).last?.attn)
+        XCTAssertEqual(states(fx).last?.base, "working")
+    }
+
+    /// Two subagents asking at once: "needs you" stays until both are
+    /// answered, and a turn-level event answers everyone.
+    func testEveryAskerMustBeAnswered() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.needsYou, subagent: "a1", tool: "Bash")
+        rig.send(.needsYou, subagent: "a2", tool: "Edit")
+        XCTAssertEqual(rig.state.attn?.more, 0, "one session")
+        rig.send(.activity, subagent: "a1", tool: "Bash")
+        XCTAssertNotNil(rig.state.attn, "a2 still waits")
+        rig.send(.activity, subagent: "a2", tool: "Edit")
+        XCTAssertNil(rig.state.attn)
+        for turnLevel in [BoopEvent.Kind.turnEnd, .turnFailed, .sessionEnd] {
+            rig.send(.turnStart)
+            rig.send(.needsYou, subagent: "a1", tool: "Bash")
+            rig.send(.activity, subagent: "a2", tool: "Read")
+            XCTAssertNotNil(rig.state.attn, turnLevel.rawValue)
+            rig.send(turnLevel)
+            XCTAssertNil(rig.state.attn, turnLevel.rawValue)
+        }
+    }
+
+    /// A request that came as a Notification alone doesn't say who asked, so
+    /// any event from the session answers it, as before subagents.
+    func testANotificationAloneIsAnsweredByAnyEvent() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.needsYou)
+        XCTAssertNotNil(rig.state.attn)
+        rig.send(.activity, subagent: "a2", tool: "Read")
+        XCTAssertNil(rig.state.attn)
     }
 
     func testMoreThanOneShowsTheOldestWithACount() {

@@ -60,6 +60,11 @@ public final class Core {
         var pendingSince: Int64?
         /// When "needs you" last cleared, to drop a late duplicate.
         var clearedAt: Int64?
+        /// Who is asking, while "needs you" waits: `""` for the main agent,
+        /// a Claude subagent's id, or `Core.anyone` for a `Notification` with
+        /// no request before it. Only an asker's own next event answers it
+        /// (ADAPTERS.md §4).
+        var askers: Set<String> = []
         let order: Int
 
         var key: String { Core.key(agent, id) }
@@ -117,6 +122,10 @@ public final class Core {
     /// The topics whose failing command fails a turn (BEHAVIORS.md §3.1).
     static let checks: Set<String> = ["tests", "build", "deploy"]
 
+    /// The asker of a request that came as a `Notification` alone, which
+    /// doesn't say who asked: any event from the session answers it.
+    static let anyone = "*"
+
     // MARK: - Inputs
 
     /// An agent event from an adapter.
@@ -134,11 +143,16 @@ public final class Core {
         let waiting = s.needsSince != nil || s.pendingSince != nil
 
         if event.event == .needsYou {
-            // A second one while waiting is the same request (PermissionRequest
-            // and its Notification). A tool-less one just after a clear is the
-            // Notification arriving late.
+            // A tool-less one while waiting is the same request (PermissionRequest
+            // and its Notification), and one just after a clear is the
+            // Notification arriving late. A request from another agent in the
+            // session (a sibling subagent) joins the one waiting.
+            let asker = event.detail.tool == nil ? Core.anyone : event.subagent ?? ""
             let lateDuplicate = event.detail.tool == nil && s.clearedAt.map { now - $0 < 5000 } == true
-            if !waiting && !lateDuplicate {
+            if waiting {
+                if event.detail.tool != nil { s.askers.insert(asker) }
+            } else if !lateDuplicate {
+                s.askers = [asker]
                 if event.agent == .codex {
                     s.pendingSince = now
                     s.status = .working
@@ -154,15 +168,21 @@ public final class Core {
             return fx
         }
 
-        // Any other event from the session means it moved on, except Claude's
-        // idle notice (`turn_stopped` with no tool), which isn't the session
-        // acting: a request still waiting stays (ADAPTERS.md §3).
+        // The asker's next event means it moved on, and so does any
+        // turn-level event. A sibling subagent's tool calls don't answer
+        // another agent's request, and Claude's idle notice (`turn_stopped`
+        // with no tool) isn't the session acting (ADAPTERS.md §3–4).
         let idleNotice = event.event == .turnStopped && event.detail.tool == nil
         if waiting && !idleNotice {
-            s.needsSince = nil
-            s.pendingSince = nil
-            s.clearedAt = now
-            s.status = .working
+            if event.event != .activity || s.askers.contains(Core.anyone) {
+                s.askers.removeAll()
+            } else {
+                s.askers.remove(event.subagent ?? "")
+            }
+            if s.askers.isEmpty {
+                clearRequest(&s, now)
+                s.status = .working
+            }
         }
         s.lastEventAt = now
 
@@ -408,6 +428,14 @@ public final class Core {
         quietLeft(now) == 0 && !needsYouShowing
     }
 
+    /// Nobody is waiting on the session any more.
+    func clearRequest(_ s: inout Session, _ now: Int64) {
+        s.needsSince = nil
+        s.pendingSince = nil
+        s.askers.removeAll()
+        s.clearedAt = now
+    }
+
     /// The first activity of a new day: short-term memory starts fresh.
     func startDayIfNew(_ now: Int64, _ fx: inout [CoreEffect]) {
         let today = config.time.day(now)
@@ -538,6 +566,7 @@ public final class Core {
             if let pending = s.pendingSince {
                 if now - s.lastEventAt >= config.safetyNetMs {
                     s.pendingSince = nil
+                    s.askers.removeAll()
                 } else if now - pending >= config.codexGraceMs {
                     s.pendingSince = nil
                     s.needsSince = pending + config.codexGraceMs
@@ -550,8 +579,7 @@ public final class Core {
                 // prompt, or gone. Either way it isn't working, so no
                 // sweat drop and no chatter. Its turn, if it goes on,
                 // still counts from its start.
-                s.needsSince = nil
-                s.clearedAt = now
+                clearRequest(&s, now)
                 s.status = .idle
             }
             if now - s.lastEventAt >= config.forgetMs {

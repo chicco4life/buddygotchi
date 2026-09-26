@@ -46,7 +46,9 @@ boop-hook <agent>        # agent = claude | codex
 The line it writes carries only `agent`, `hook`, `session`, `cwd`, `tool`,
 `topic`, `error` (StopFailure's raw `error`, or its `error_type`), `kind`
 (Notification's type), `interrupt` (true when PostToolUseFailure's
-`is_interrupt` is) and `ts`, each value cut to 200 characters. The app's
+`is_interrupt` is), `agent_id` (Claude's id for the subagent a hook fired
+in, which otherwise carries its parent's session) and `ts`, each value cut
+to 200 characters. The app's
 adapter turns that into the common event, and turns `error` into a class:
 `rate_limit`, `overloaded`, `api_error`, `auth`, `timeout`, `network`,
 `context_limit`, `billing`, or `other` for anything else.
@@ -137,18 +139,24 @@ generation of Boop taught us two things:
 
 **Rules:**
 
-- **Start:** `needs_you` puts the session into "needs you". A second one
-  from the same session while it's waiting is ignored. That dedupes
-  `PermissionRequest` against the matching `Notification`. A `Notification`
-  (a `needs_you` with no tool) that arrives within 5 s after the session
-  stopped needing you is the same request arriving late after a quick
-  approval, and is ignored too.
+- **Start:** `needs_you` puts the session into "needs you". A
+  `Notification` (a `needs_you` with no tool) while it's waiting is the
+  same request: that dedupes `PermissionRequest` against the matching
+  `Notification`. One that arrives within 5 s after the session stopped
+  needing you is the same request arriving late after a quick approval,
+  and is ignored too. A `PermissionRequest` from another subagent of the
+  same session while it's waiting joins the request.
 - **Codex grace period:** for Codex, Boop waits 2 s before showing it. If
   the session moves on in that time, the reviewer handled it and Boop shows
   nothing. Claude shows immediately.
-- **Clear:** any later event from the same session clears it. That means the
-  tool ran (you approved), the agent moved on (you denied), you sent a new
-  prompt, or the session ended.
+- **Clear:** the asker's next event clears it: the tool ran (you
+  approved), or the agent moved on (you denied). So does any turn-level
+  event from the session: a new prompt, the turn ending, failing or being
+  interrupted, or the session ending. Claude gives a subagent's hooks its
+  parent's session, so the asker is the main agent or a subagent by its
+  `agent_id`: a sibling subagent still running tools, or the main agent
+  hearing back from one, doesn't answer the request. A request that came as
+  a `Notification` alone doesn't say who asked, so any event clears it.
 - **Safety net:** after 10 minutes with no events (*proposed*), it clears
   anyway, so a missed event can't leave Boop amber all day. The session
   goes idle, not back to working: after ten silent minutes the agent is
