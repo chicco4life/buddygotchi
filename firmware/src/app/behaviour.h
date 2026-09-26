@@ -105,6 +105,9 @@ class Behaviour {
   // Counts moments played, local ones included, so a line can tell it was replaced.
   uint32_t momentSeq() const { return momentSeq_; }
   Life life(uint32_t t) const;
+  // What the face is following at t: the moment's anim ("cheer"), or the
+  // look ("idle", "working", "asleep", "no_app", "needs_you").
+  const char* faceName(uint32_t t) const;
   bool hushed() const { return model_.attn && hushed_; }
   const char* sfx(uint32_t& at) const {
     at = sfxAt_;

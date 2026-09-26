@@ -434,6 +434,11 @@ bool Behaviour::moving(uint32_t t) const {
   return false;
 }
 
+const char* Behaviour::faceName(uint32_t t) const {
+  Source s = sourceAt(t);
+  return s.anim != render::Anim::kNone ? render::animName(s.anim) : render::lookName(s.look);
+}
+
 Life Behaviour::life(uint32_t t) const {
   return life_.kind != Life::kNone && within(t, life_.at, life_.ms) ? life_.kind : Life::kNone;
 }

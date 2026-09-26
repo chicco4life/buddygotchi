@@ -159,6 +159,21 @@ static void test_attention_wins_over_moments() {
   TEST_ASSERT_NULL(r.b.mumble(r.t));           // but never a mumble
 }
 
+// The debug label's name (UX.md §2): the moment playing, else the look.
+static void test_face_name_is_the_moment_or_the_look() {
+  Rig r;
+  r.state(base("working"));
+  TEST_ASSERT_EQUAL_STRING("working", r.b.faceName(r.t));
+  r.moment(Anim::kCheer);
+  TEST_ASSERT_EQUAL_STRING("cheer", r.b.faceName(r.t));
+  r.at(render::animDuration(Anim::kCheer, 1));
+  TEST_ASSERT_EQUAL_STRING("working", r.b.faceName(r.t));
+  r.state(base("idle"));
+  TEST_ASSERT_EQUAL_STRING("idle", r.b.faceName(r.t));
+  r.state(attn());
+  TEST_ASSERT_EQUAL_STRING("needs_you", r.b.faceName(r.t));
+}
+
 static void test_moments_end_replace_and_follow_pace_and_energy() {
   Rig r;
   r.state(base("idle"));
@@ -582,6 +597,7 @@ int main() {
   RUN_TEST(test_tap_hushes_nudges_and_nods);
   RUN_TEST(test_answering_on_the_mac_nods_and_goes_back);
   RUN_TEST(test_attention_wins_over_moments);
+  RUN_TEST(test_face_name_is_the_moment_or_the_look);
   RUN_TEST(test_moments_end_replace_and_follow_pace_and_energy);
   RUN_TEST(test_mumble_moves_the_mouth_and_respects_quiet);
   RUN_TEST(test_idle_life_every_2_to_6_seconds);

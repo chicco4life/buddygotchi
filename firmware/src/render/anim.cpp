@@ -266,6 +266,16 @@ Pose animPose(Anim a, int size, uint32_t t) {
   }
 }
 
+const char* lookName(Look look) {
+  switch (look) {
+    case Look::kWorking: return "working";
+    case Look::kAsleep: return "asleep";
+    case Look::kNoApp: return "no_app";
+    case Look::kNeedsYou: return "needs_you";
+    default: return "idle";
+  }
+}
+
 Pose lookPose(Look look, int rung, int busy) {
   Pose p;
   switch (look) {

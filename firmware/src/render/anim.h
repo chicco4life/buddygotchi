@@ -45,6 +45,7 @@ Pose animPose(Anim a, int size, uint32_t t);
 
 // What the face shows when no moment plays.
 enum class Look : uint8_t { kIdle, kWorking, kAsleep, kNoApp, kNeedsYou };
+const char* lookName(Look look);
 // `rung` is the needs-you ladder step (1..3); `busy` the working count.
 Pose lookPose(Look look, int rung, int busy);
 

@@ -58,6 +58,14 @@ shows, the face eases up into the top 144 px at three-quarters size.
 - **Status strip.** How many sessions need you (amber, hidden at zero) and
   how many are working (grey), plus icons at the right for low battery, no
   app, quiet and focus.
+- **Debug label.** A debug-only aid, off unless the firmware is built with
+  `BOOP_DEBUG_LABEL=1` (the board build sets it in
+  `firmware/platformio.ini`). On the face, needs-you and no-app screens,
+  the name of what the face is showing sits in tiny faint 5×7 text at the
+  top left: the moment's anim (`cheer`, `happy`, …) or else the look
+  (`idle`, `working`, `asleep`, `no_app`, `needs_you`). Frames drawn with a
+  frozen clock leave it out, so the simulator and scenario screenshots
+  don't change.
 
 ## 3. Screens
 

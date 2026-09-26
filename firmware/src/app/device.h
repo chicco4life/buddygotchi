@@ -15,6 +15,12 @@
 #include "render/screens.h"
 #include "voice/player.h"
 
+// A debug-only label: the face's state name in faint text at the top left
+// (plan/UX.md §2). The board build turns it on in platformio.ini.
+#ifndef BOOP_DEBUG_LABEL
+#define BOOP_DEBUG_LABEL 0
+#endif
+
 namespace app {
 
 enum class Link : uint8_t { kNone, kUsb, kBle };
@@ -126,6 +132,7 @@ class Device {
   void hush();
   void followSound(uint32_t t);
   Screen screenAt(uint32_t t) const { return pattern_ ? Screen::kPattern : b_.screen(t); }
+  const char* debugLabel(uint32_t t) const;
 
   Hal& hal_;
   render::Canvas canvas_;
@@ -150,6 +157,7 @@ class Device {
   bool drawnMoving_ = false;  // it was mid-motion, so the next time step redraws
   bool dirty_ = true;
   bool frame_ = false;
+  const char* labelDrawn_ = nullptr;  // the debug label on screen, or null
 
   // Injected input, held until the clock passes `until`.
   bool injPress_ = false;

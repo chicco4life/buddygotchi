@@ -350,6 +350,7 @@ void Device::tick() {
 
   Screen screen = screenAt(t);
   if (screen != screen_) screen_ = screen, dirty_ = true;
+  if (debugLabel(t) != labelDrawn_) dirty_ = true;
   bool faced = screen_ == Screen::kFace || screen_ == Screen::kNeedsYou || screen_ == Screen::kNoApp;
   bool moving = faced && b_.moving(t);
   if (dirty_ || ((moving || drawnMoving_) && t != drawnT_)) render(t);
@@ -414,10 +415,21 @@ void Device::render(uint32_t t) {
       faced = true;
       break;
   }
+  labelDrawn_ = debugLabel(t);
+  if (labelDrawn_) canvas_.drawText(2, 2, labelDrawn_, render::inkAt(render::kInkDim, render::kLevels));
   drawnMoving_ = faced && b_.moving(t);
   drawnT_ = t;
   dirty_ = false;
   frame_ = true;
+}
+
+// The face's state name, on the face screens, when BOOP_DEBUG_LABEL is on.
+// Frozen-clock frames (the simulator and scenario runs) leave it out, so
+// device screenshots still match the goldens pixel for pixel.
+const char* Device::debugLabel(uint32_t t) const {
+  if (!BOOP_DEBUG_LABEL || clock_.frozen()) return nullptr;
+  if (screen_ != Screen::kFace && screen_ != Screen::kNeedsYou && screen_ != Screen::kNoApp) return nullptr;
+  return b_.faceName(t);
 }
 
 void Device::sendPing(Link to) {
