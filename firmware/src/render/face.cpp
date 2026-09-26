@@ -9,8 +9,10 @@ namespace {
 
 // The face is pixel art (plan/UX.md §2): every part is built from square
 // blocks of kBlock screen pixels on one grid, with no anti-aliasing. The
-// geometry below is in screen pixels at full size; positions snap to the
-// grid, so the face moves a block at a time.
+// geometry below is in screen pixels at full size. The face's origin snaps
+// to the grid once and every part sits a whole number of blocks from it, so
+// the face moves a block at a time, as one sprite: no part lags a block
+// behind the others mid-motion.
 constexpr int kBlock = 3;
 // Eyes: square windows of 2×2 panes split by a one-block cross, 13 blocks
 // a side, their centres 144 px apart. Closed, squeezed or thin enough
@@ -24,7 +26,7 @@ constexpr int kPaneMin = 3;              // blocks: a pane thinner than this and
 constexpr int kPaneRows = 2;             // blocks: a lid or squint leaving fewer rows of a pane takes it all
 constexpr int kMouthFollow = 450;        // permille of the eyes' move the mouth follows
 // The mouth: a flat bar as wide as an eye, two blocks thick, level with the
-// cheeks. Past kMouthCurveAt it's a small smile or frown, and past
+// cheeks. Past kMouthCurveAt it's a small smile, and past
 // kMouthOpenAt a small "o" (or a "D" when smiling too). Kept small: a wide
 // grin on boxy eyes reads as forced.
 constexpr int kMouthY = 45;
@@ -36,11 +38,11 @@ constexpr int kMouthCurveAt = 300, kMouthOpenAt = 300;
 constexpr int kSquint = 350, kBlushLift = 6;
 // The cheeks: two pink blocks side by side under each eye, towards the
 // outside, level with the mouth.
-constexpr int kBlushDx = 22, kBlushDy = 40, kBlushW = 12, kBlushH = 9;
+constexpr int kBlushDx = 21, kBlushDy = 39, kBlushW = 12, kBlushH = 9;
 // Around the right eye's centre: where the heart, the sweat drop and the
 // "zzZZ" go.
 constexpr int kHeartDx = 36, kHeartDy = -30;
-constexpr int kSweatDx = 30, kSweatDy = -22, kSweatSlide = 12;
+constexpr int kSweatDx = 30, kSweatDy = -21, kSweatSlide = 12;
 constexpr uint32_t kZzzStep = 220;  // permille of the cycle between letters
 
 // The middle of the face (from the eye tops to the mouth) lies kFaceDrop
@@ -53,6 +55,9 @@ int clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
 constexpr int kB = px(kBlock);  // a block, in sub-pixels
 // The block holding sub-pixel v (floor division).
 int blockOf(int v) { return v >= 0 ? v / kB : -((-v + kB - 1) / kB); }
+// A distance in sub-pixels as the nearest whole number of blocks, halves
+// away from zero, so a part and its mirror image round alike.
+int blocks(int v) { return v >= 0 ? (v + kB / 2) / kB : -((-v + kB / 2) / kB); }
 // The nearest odd number of blocks to a length in sub-pixels, at least `min`.
 int oddBlocks(int len, int min) {
   int n = 2 * (len / (2 * kB)) + 1;  // 12.x blocks → 13, 13.x → 13, 14.x → 15
@@ -80,16 +85,23 @@ void roundCorners(Canvas& c, int x0, int y0, int x1, int y1, uint8_t color) {
   }
 }
 
+// Where the face is drawn: its origin block (the middle between the eyes,
+// on the eye line) and its scale in permille.
+struct Frame {
+  int ox, oy, s;
+  int len(int pixels) const { return px(pixels) * s / 1000; }  // sub-pixels
+  int off(int pixels) const { return blocks(len(pixels)); }    // whole blocks
+};
+
 struct Eye {
-  int x, y;              // centre, sub-pixels (unsnapped, for what sits beside the eye)
   int bx, by, wb, hb;    // centre block and size in blocks (odd)
   int lidY;              // rows above this are under the upper lid, sub-pixels
   int botY;              // happy: rows below this are cut (the squint), sub-pixels
   int happy;             // permille, for the cheeks
 };
 
-Eye makeEye(const Pose& p, int cx, int cy, int s, bool right) {
-  auto len = [s](int pixels) { return px(pixels) * s / 1000; };
+Eye makeEye(const Pose& p, const Frame& f, bool right) {
+  auto len = [&f](int pixels) { return f.len(pixels); };
   Eye e{};
   int lookX = clampi(p.lookX, -1000, 1000), lookY = clampi(p.lookY, -1000, 1000);
   // Perspective: the eye on the side being looked towards is nearer.
@@ -99,9 +111,9 @@ Eye makeEye(const Pose& p, int cx, int cy, int s, bool right) {
   int w = len(kEyeW) * (1000 + sq * 4 / 10) / 1000 * size / 1000;
   int h = len(kEyeH) * (1000 - sq * 6 / 10) / 1000 * size / 1000 * clampi(p.open, 0, 1000) / 1000;
   int happy = clampi(p.lidBot, 0, 1000);
-  e.x = cx + (right ? len(kEyeGap) : -len(kEyeGap)) + len(kLookX) * lookX / 1000;
-  e.y = cy + len(kLookY) * lookY / 1000;
-  e.bx = blockOf(e.x), e.by = blockOf(e.y);
+  // Both eyes round the look alike, so they move together.
+  e.bx = f.ox + (right ? f.off(kEyeGap) : -f.off(kEyeGap)) + blocks(len(kLookX) * lookX / 1000);
+  e.by = f.oy + blocks(len(kLookY) * lookY / 1000);
   e.wb = oddBlocks(w, 3), e.hb = oddBlocks(h, 1);
 
   int lid = p.lidTop + (right ? (p.wink > 0 ? p.wink : 0) : (p.wink < 0 ? -p.wink : 0));
@@ -140,56 +152,68 @@ void drawEye(Canvas& c, const Eye& e, uint8_t color) {
 }
 
 // A small sprite of `rows`, one character per block ('X' filled), drawn
-// with blocks of `b` pixels, its centre at sub-pixel (cx, cy).
-void sprite(Canvas& c, const char* const* rows, int n, int cx, int cy, int b, uint8_t color) {
-  int w = 0;
-  while (rows[0][w]) ++w;
-  int x0 = cx / kSub - w * b / 2, y0 = cy / kSub - n * b / 2;
-  x0 -= x0 % b, y0 -= y0 % b;  // on the sprite's own grid
+// with blocks of `b` pixels from the top left at pixel (x0, y0).
+void sprite(Canvas& c, const char* const* rows, int n, int x0, int y0, int b, uint8_t color) {
   for (int r = 0; r < n; ++r) {
-    for (int i = 0; i < w; ++i) {
+    for (int i = 0; rows[r][i]; ++i) {
       if (rows[r][i] == 'X') c.fillRect(x0 + i * b, y0 + r * b, b, b, color);
     }
   }
+}
+int spriteW(const char* const* rows) {
+  int w = 0;
+  while (rows[0][w]) ++w;
+  return w;
+}
+// A sprite on the face's grid, centred on block (bx, by) (for an even size,
+// the middle falls on that block's top or left edge).
+void spriteAt(Canvas& c, const char* const* rows, int n, int bx, int by, uint8_t color) {
+  sprite(c, rows, n, (bx - spriteW(rows) / 2) * kBlock, (by - n / 2) * kBlock, kBlock, color);
+}
+// A finer sprite, with blocks of `b` pixels, centred on the middle of block
+// (bx, by), so it moves with the face.
+void fineSpriteAt(Canvas& c, const char* const* rows, int n, int bx, int by, int b, uint8_t color) {
+  int x = bx * kBlock + kBlock / 2, y = by * kBlock + kBlock / 2;
+  sprite(c, rows, n, x - spriteW(rows) * b / 2, y - n * b / 2, b, color);
 }
 
 // The mouth, as pixel shapes rather than traced curves (UX.md §2): a flat
 // bar at rest, a small "u" smile, a small "o" while talking, and a small
 // filled cup when it's both happy and open.
-void drawMouth(Canvas& c, const Pose& p, int cx, int cy, int s, uint8_t color) {
+void drawMouth(Canvas& c, const Pose& p, const Frame& f, uint8_t color) {
   static const char* const kSmile[] = {"X.....X", ".XXXXX."};
   static const char* const kO[] = {".XXX.", "X...X", ".XXX."};
   static const char* const kD[] = {"X...X", "XXXXX", ".XXX."};
-  auto len = [s](int pixels) { return px(pixels) * s / 1000; };
   int lookX = clampi(p.lookX, -1000, 1000), lookY = clampi(p.lookY, -1000, 1000);
   int curve = clampi(p.mouthCurve, 0, 1000), open = clampi(p.mouthOpen, 0, 1000);
-  int x = cx + len(kLookX) * lookX / 1000 * kMouthFollow / 1000;
-  int y = cy + len(kMouthY) + len(kLookY) * lookY / 1000 * kMouthFollow / 1000;
-  if (open >= kMouthOpenAt) {
-    if (curve >= kMouthCurveAt) return sprite(c, kD, 3, x, y, kBlock, color);
-    return sprite(c, kO, 3, x, y, kBlock, color);
+  // The middle column, and the bottom row every mouth shape sits on.
+  int mx = f.ox + blocks(f.len(kLookX) * lookX / 1000 * kMouthFollow / 1000);
+  int my = f.oy + f.off(kMouthY) + blocks(f.len(kLookY) * lookY / 1000 * kMouthFollow / 1000);
+  auto shape = [&](const char* const* rows, int n) {
+    sprite(c, rows, n, (mx - spriteW(rows) / 2) * kBlock, (my + 1 - n) * kBlock, kBlock, color);
+  };
+  if (open >= kMouthOpenAt) return shape(curve >= kMouthCurveAt ? kD : kO, 3);
+  if (curve >= kMouthCurveAt) return shape(kSmile, 2);
+  // The bar: two blocks thick, as wide as mouthWide makes it (an odd
+  // number of blocks, so it centres).
+  int hw = f.len(kMouthHalfW) * clampi(p.mouthWide, 200, 2000) / 1000;
+  int wb = oddBlocks(2 * hw, 3);
+  for (int b = mx - wb / 2; b <= mx + wb / 2; ++b) {
+    block(c, b, my - 1, color);
+    block(c, b, my, color);
   }
-  if (curve >= kMouthCurveAt) return sprite(c, kSmile, 2, x, y, kBlock, color);
-  // The bar: two blocks thick, on a line between block rows, as wide as
-  // mouthWide makes it (an odd number of blocks, so it centres).
-  int hw = len(kMouthHalfW) * clampi(p.mouthWide, 200, 2000) / 1000;
-  int wb = oddBlocks(2 * hw, 3), bx = blockOf(x), by = blockOf(y + kB / 2);
-  for (int b = bx - wb / 2; b <= bx + wb / 2; ++b) {
-    block(c, b, by - 1, color);
-    block(c, b, by, color);
-  }
-  roundCorners(c, (bx - wb / 2) * kBlock, (by - 1) * kBlock, (bx + wb / 2 + 1) * kBlock - 1, (by + 1) * kBlock - 1, color);
+  roundCorners(c, (mx - wb / 2) * kBlock, (my - 1) * kBlock, (mx + wb / 2 + 1) * kBlock - 1, (my + 1) * kBlock - 1, color);
 }
 
 // The cheeks: two small pink blocks side by side under an eye, towards the
 // outside, a block apart.
-void drawBlush(Canvas& c, const Eye& e, int s, bool right) {
-  auto len = [s](int pixels) { return px(pixels) * s / 1000; };
-  auto blocks = [](int l) { return (l + kB / 2) / kB < 2 ? 2 : (l + kB / 2) / kB; };
+void drawBlush(Canvas& c, const Eye& e, const Frame& f, bool right) {
+  auto size = [&f](int pixels) { return f.off(pixels) < 2 ? 2 : f.off(pixels); };
   const uint8_t pink = inkAt(kInkBlush, kLevels);
-  int cx = e.x + (right ? len(kBlushDx) : -len(kBlushDx)), cy = e.y + len(kBlushDy) - len(kBlushLift) * e.happy / 1000;
-  int bw = blocks(len(kBlushW)), bh = blocks(len(kBlushH));
-  int bx0 = blockOf(cx) - bw, by0 = blockOf(cy) - bh / 2;
+  int cx = e.bx + (right ? f.off(kBlushDx) : -f.off(kBlushDx));
+  int cy = e.by + f.off(kBlushDy) - blocks(f.len(kBlushLift) * e.happy / 1000);
+  int bw = size(kBlushW), bh = size(kBlushH);
+  int bx0 = cx - bw, by0 = cy - bh / 2;
   for (int k = 0; k < 2; ++k) {
     int sx = bx0 + k * (bw + 1);
     for (int bx = sx; bx < sx + bw; ++bx) {
@@ -199,24 +223,25 @@ void drawBlush(Canvas& c, const Eye& e, int s, bool right) {
   }
 }
 
-// A pixel heart that pops in: small, then full size.
+// A pixel heart that pops in: small, then full size. (hx, hy) is its
+// centre block.
 void drawHeart(Canvas& c, int hx, int hy, int grow) {
   static const char* const kSmall[] = {"XX.XX", "XXXXX", ".XXX.", "..X.."};
   static const char* const kFull[] = {".XX.XX.", "XXXXXXX", "XXXXXXX", ".XXXXX.", "..XXX..", "...X..."};
   const uint8_t rose = inkAt(kInkRose, kLevels);
-  if (grow >= 650) sprite(c, kFull, 6, hx, hy, kBlock, rose);
-  else if (grow >= 250) sprite(c, kSmall, 4, hx, hy, kBlock, rose);
+  if (grow >= 650) spriteAt(c, kFull, 6, hx, hy, rose);
+  else if (grow >= 250) spriteAt(c, kSmall, 4, hx, hy, rose);
 }
 
-// A pixel sweat drop.
-void drawDrop(Canvas& c, int dx, int dy) {
+// A pixel sweat drop, centred on block (bx, by).
+void drawDrop(Canvas& c, int bx, int by) {
   static const char* const kDrop[] = {"..X..", ".XXX.", "XXXXX", "XXXXX", ".XXX."};
-  sprite(c, kDrop, 5, dx, dy, 2, inkAt(kInkSky, kLevels));
+  fineSpriteAt(c, kDrop, 5, bx, by, 2, inkAt(kInkSky, kLevels));
 }
 
 // Asleep's "zzZZ": two small z's then two big Z's climbing up and to the
 // right of the right eye, appearing one at a time through the cycle.
-void drawZzz(Canvas& c, int ex, int ey, int s, int phase, uint8_t color) {
+void drawZzz(Canvas& c, const Eye& e, const Frame& f, int phase, uint8_t color) {
   static const char* const kLittle[] = {"XXXX", "..X.", ".X..", "XXXX"};
   static const char* const kBig[] = {"XXXXX", "...X.", "..X..", ".X...", "XXXXX"};
   struct Letter {
@@ -227,9 +252,9 @@ void drawZzz(Canvas& c, int ex, int ey, int s, int phase, uint8_t color) {
   for (int i = 0; i < 4; ++i) {
     if (uint32_t(phase) <= kZzzStep * uint32_t(i)) break;
     const Letter& l = letters[i];
-    int x = ex + px(l.dx) * s / 1000, y = ey + px(l.dy) * s / 1000;
-    if (l.big) sprite(c, kBig, 5, x, y, kBlock, color);
-    else sprite(c, kLittle, 4, x, y, 2, color);
+    int bx = e.bx + f.off(l.dx), by = e.by + f.off(l.dy);
+    if (l.big) spriteAt(c, kBig, 5, bx, by, color);
+    else fineSpriteAt(c, kLittle, 4, bx, by, 2, color);
   }
 }
 
@@ -267,23 +292,25 @@ bool operator==(const Pose& a, const Pose& b) {
 }
 
 void drawFace(Canvas& c, const Pose& p, int cx, int cy, int scale) {
-  int s = scale * clampi(p.size, 500, 1500) / 1000;
-  int x = px(cx) + px(p.dx) * scale / 1000, y = px(cy) + px(p.dy) * scale / 1000;
+  // The origin: the centre snapped to the grid, then moved by whole blocks.
+  Frame f;
+  f.s = scale * clampi(p.size, 500, 1500) / 1000;
+  f.ox = blockOf(px(cx)) + blocks(px(p.dx) * scale / 1000);
+  f.oy = blockOf(px(cy)) + blocks(px(p.dy) * scale / 1000);
   const uint8_t ink = inkAt(kInkEye, kLevels);
-  Eye left = makeEye(p, x, y, s, false), right = makeEye(p, x, y, s, true);
-  drawBlush(c, left, s, false);
-  drawBlush(c, right, s, true);
+  Eye left = makeEye(p, f, false), right = makeEye(p, f, true);
+  drawBlush(c, left, f, false);
+  drawBlush(c, right, f, true);
   drawEye(c, left, ink);
   drawEye(c, right, ink);
-  drawMouth(c, p, x, y, s, ink);
-  auto len = [s](int pixels) { return px(pixels) * s / 1000; };
+  drawMouth(c, p, f, ink);
   int heart = clampi(p.heart, 0, 1000);
-  if (heart > 0) drawHeart(c, right.x + len(kHeartDx), right.y + len(kHeartDy), heart);
+  if (heart > 0) drawHeart(c, right.bx + f.off(kHeartDx), right.by + f.off(kHeartDy), heart);
   if (p.sweat > 0) {
-    int slide = len(kSweatSlide) * clampi(p.sweat, 0, 1000) / 1000;
-    drawDrop(c, right.x + len(kSweatDx), right.y + len(kSweatDy) + slide);
+    int slide = blocks(f.len(kSweatSlide) * clampi(p.sweat, 0, 1000) / 1000);
+    drawDrop(c, right.bx + f.off(kSweatDx), right.by + f.off(kSweatDy) + slide);
   }
-  if (p.zzz > 0) drawZzz(c, right.x, right.y, s, clampi(p.zzz, 0, 1000), ink);
+  if (p.zzz > 0) drawZzz(c, right, f, clampi(p.zzz, 0, 1000), ink);
 }
 
 }  // namespace render

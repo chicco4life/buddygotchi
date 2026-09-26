@@ -3,6 +3,7 @@
 #include <unity.h>
 
 #include <cstring>
+#include <utility>
 #include <vector>
 
 #include "render/anim.h"
@@ -233,6 +234,50 @@ static void test_a_look_moves_the_whole_eye_with_perspective() {
   up.lookY = -1000, down.lookY = 1000;
   TEST_ASSERT_TRUE(nl.y0 - eyeBox(face(up), false).y0 >= 12);
   TEST_ASSERT_TRUE(eyeBox(face(down), false).y0 - nl.y0 >= 12);
+}
+
+// The box of full-strength `ink` pixels in [x0, x1) × [0, kStripTop).
+struct Box {
+  int x0 = kWidth, y0 = kHeight, x1 = -1, y1 = -1;
+};
+Box inkBox(const Buf& b, int ink, int x0, int x1) {
+  Box r;
+  for (int y = 0; y < kStripTop; ++y) {
+    for (int x = x0; x < x1; ++x) {
+      if (b.c.get(x, y) != inkAt(ink, kLevels)) continue;
+      if (x < r.x0) r.x0 = x;
+      if (x > r.x1) r.x1 = x;
+      if (y < r.y0) r.y0 = y;
+      if (y > r.y1) r.y1 = y;
+    }
+  }
+  return r;
+}
+
+static void test_the_face_moves_as_one_sprite() {
+  // The face's origin snaps to the grid once and every part sits whole
+  // blocks from it (UX.md §2), so wherever the face is, the mouth and the
+  // cheeks keep their places against the eyes: nothing lags a block behind.
+  Buf n = face(Pose{});
+  const Box ne = inkBox(n, kInkEye, 0, 125), nr = inkBox(n, kInkEye, 196, kWidth);
+  const Box nm = inkBox(n, kInkEye, 125, 196), nb = inkBox(n, kInkBlush, 0, kWidth);
+  for (int dx = -6; dx <= 6; ++dx) {
+    for (int dy = -15; dy <= 6; ++dy) {
+      Pose p;
+      p.dx = int16_t(dx), p.dy = int16_t(dy);
+      Buf b = face(p);
+      Box e = inkBox(b, kInkEye, 0, 125);
+      int mx = e.x0 - ne.x0, my = e.y0 - ne.y0;
+      TEST_ASSERT_EQUAL_INT(0, mx % 3);  // whole blocks
+      TEST_ASSERT_EQUAL_INT(0, my % 3);
+      for (auto parts : {std::make_pair(nr, inkBox(b, kInkEye, 196, kWidth)), std::make_pair(nm, inkBox(b, kInkEye, 125, 196)),
+                         std::make_pair(nb, inkBox(b, kInkBlush, 0, kWidth))}) {
+        TEST_ASSERT_EQUAL_INT(mx, parts.second.x0 - parts.first.x0);
+        TEST_ASSERT_EQUAL_INT(mx, parts.second.x1 - parts.first.x1);
+        TEST_ASSERT_EQUAL_INT(my, parts.second.y0 - parts.first.y0);
+      }
+    }
+  }
 }
 
 static void test_eye_size_changes_only_the_eyes() {
@@ -577,6 +622,7 @@ int main(int, char**) {
   RUN_TEST(test_neutral_face_is_symmetric);
   RUN_TEST(test_eyes_are_four_crisp_panes);
   RUN_TEST(test_a_look_moves_the_whole_eye_with_perspective);
+  RUN_TEST(test_the_face_moves_as_one_sprite);
   RUN_TEST(test_eye_size_changes_only_the_eyes);
   RUN_TEST(test_lids_cut_whole_rows_flat);
   RUN_TEST(test_a_lid_never_leaves_a_sliver);
