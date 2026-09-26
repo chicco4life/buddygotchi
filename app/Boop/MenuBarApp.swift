@@ -96,11 +96,6 @@ final class AppModel: ObservableObject {
 
     // The switches show the change at once; the runtime's next status confirms it.
 
-    func setFocus(_ on: Bool) {
-        status?.snapshot.focus = on
-        runtime?.setFocus(on)
-    }
-
     func reconnectDevice() {
         runtime?.reconnectDevice()
     }

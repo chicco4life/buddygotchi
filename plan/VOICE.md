@@ -126,7 +126,7 @@ energy. It doesn't copy your sounds.
 | Tune | The feeling (§4): `up`, `down`, `bounce`, `flat` or `lift` |
 | Tempo | Mood: 180 ms per syllable at pace 0, down to 90 ms at pace 200, then by feeling (excited −20, happy and annoyed −10, hopeful +10, sad +25, sleepy +35), kept within 90–180 ms (*proposed*) |
 | Liveliness | ±5% random pitch and ±10% timing per syllable, so it never sounds robotic |
-| Volume | The app's volume setting. Silent when muted and in focus mode |
+| Volume | The app's volume setting. Silent when muted |
 
 ## 6. The real word
 
@@ -221,5 +221,5 @@ dialects, 4 came out as the safe hum (2026-09-26).
 
 Mumbles are occasional. Beyond reactions to events, Boop mutters about once
 every 2–4 minutes while agents work (*proposed*). It never mumbles while
-something needs you, and it's silent in quiet and focus mode
+something needs you, and it's silent in quiet mode
 ([BEHAVIORS.md](BEHAVIORS.md)).

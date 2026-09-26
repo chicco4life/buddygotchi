@@ -1,6 +1,6 @@
 // The landscape layout at its limits (UX.md §2–3): eight agents in threads, a name too long for the large font, and the longest needs-you line with "+N more".
 {"clock":0}
-{"t":"state","v":1,"base":"working","name":"Bartholomew-Kit","level":123,"prog":60,"days":1234,"busy":12,"idle":0,"wait":10,"quiet":10,"focus":true,"threads":[["gemini-cli","alpha","wait"],["claude","bravo-charlie-delta-echo","work"],["codex","c","idle"],["cursor","d","wait"],["aider","e","work"],["copilot","f","idle"],["amp","g","work"],["opencode","h","idle"]]}
+{"t":"state","v":1,"base":"working","name":"Bartholomew-Kit","level":123,"prog":60,"days":1234,"busy":12,"idle":0,"wait":10,"quiet":10,"threads":[["gemini-cli","alpha","wait"],["claude","bravo-charlie-delta-echo","work"],["codex","c","idle"],["cursor","d","wait"],["aider","e","work"],["copilot","f","idle"],["amp","g","work"],["opencode","h","idle"]]}
 {"clock":200}
 {"input":{"touch":[160,222]}}
 {"clock":400}
@@ -12,7 +12,7 @@
 {"shot":"stats-long-name"}
 {"input":{"touch":[160,222]}}
 {"clock":800}
-{"t":"state","v":1,"base":"working","busy":12,"wait":10,"quiet":10,"focus":true,"threads":[],"attn":{"agent":"gemini-cli","project":"a-very-long-project-nam","more":9}}
+{"t":"state","v":1,"base":"working","busy":12,"wait":10,"quiet":10,"threads":[],"attn":{"agent":"gemini-cli","project":"a-very-long-project-nam","more":9}}
 {"clock":1000}
 {"expect":{"screen":"needs_you"}}
 {"shot":"needs-you-long"}

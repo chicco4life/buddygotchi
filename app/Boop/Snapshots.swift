@@ -71,14 +71,14 @@ enum Snapshots {
         return model
     }
 
-    static func status(base: String = "working", threads: [[String]] = [], focus: Bool = false, quiet: Int = 0,
+    static func status(base: String = "working", threads: [[String]] = [], quiet: Int = 0,
                        vol: Int = 6, away: Bool = false, connected: Bool = true, listening: Bool = false) -> Runtime.Status {
         let wait = threads.filter { $0[2] == "wait" }
         let snapshot = StateSnapshot(
             time: 1_790_000_000, name: "Mochi", base: base,
             attn: wait.first.map { StateSnapshot.Attention(agent: $0[0], project: $0[1], more: wait.count - 1) },
             busy: threads.filter { $0[2] == "work" }.count, idle: threads.filter { $0[2] == "idle" }.count,
-            wait: wait.count, mood: Mood(), quiet: quiet, focus: focus, vol: vol, night: false,
+            wait: wait.count, mood: Mood(), quiet: quiet, vol: vol, night: false,
             level: 4, prog: 62, days: 12, hungry: 0, threads: threads)
         return Runtime.Status(snapshot: snapshot, connected: connected,
                               device: connected ? DeviceStatus(id: "b00p-54fe", fw: "1.0.0") : nil,
@@ -95,7 +95,7 @@ enum Snapshots {
             ("needs-you", model(installer, status: status(threads: [
                 ["codex", "landing", "wait"], ["claude", "jetpack", "wait"],
                 ["codex", "buddygotchi", "work"], ["claude", "notes", "idle"],
-            ], focus: true, quiet: 8))),
+            ], quiet: 8))),
             ("listening", model(installer, status: status(threads: [["claude", "jetpack", "work"]], listening: true))),
             ("mic-refused", {
                 let m = model(installer, status: status(base: "idle", threads: [["claude", "jetpack", "idle"]]))

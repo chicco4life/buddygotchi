@@ -119,10 +119,6 @@ void iconQuiet(Canvas& c, int x, int y) {  // a speaker with a slash
   c.fillTriangle(x + 4, y + 8, x + 9, y + 2, x + 9, y + 14, g);
   for (int i = 0; i < 9; ++i) c.fillRect(x + 6 + i, y + 3 + i, 2, 2, g);
 }
-void iconFocus(Canvas& c, int x, int y) {  // a target
-  fillRing(c, px(x + 8), px(y + 8), px(7), px(5), kInkGrey);
-  fillCircle(c, px(x + 8), px(y + 8), px(5) / 2, kInkGrey);
-}
 void iconBattery(Canvas& c, int x, int y) {  // an almost empty battery
   uint8_t g = inkAt(kInkGrey, kLevels);
   c.fillRect(x, y + 4, 14, 1, g);
@@ -162,7 +158,6 @@ void drawStrip(Canvas& c, const Strip& s) {
   int ix = kWidth - kMargin - 16;
   if (s.noApp) iconNoApp(c, ix, cy - 8), ix -= 22;
   if (s.quiet) iconQuiet(c, ix, cy - 8), ix -= 22;
-  if (s.focus) iconFocus(c, ix, cy - 8), ix -= 22;
   if (s.lowBattery) iconBattery(c, ix, cy - 8);
 }
 

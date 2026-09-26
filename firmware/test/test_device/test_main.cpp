@@ -343,6 +343,29 @@ static void test_moment_plays_then_ends_and_a_new_one_replaces_it() {
   TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
 }
 
+// The stretch and the yawn left the set (BEHAVIORS.md §7), so an older Mac
+// app's `stretch` or `yawn` is an unknown animation, ignored like any other:
+// nothing plays, its mumble is dropped with it, and a moment already playing
+// carries on.
+static void test_stretch_and_yawn_are_unknown_and_ignored() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  for (const char* anim : {"stretch", "yawn"}) {
+    std::string m = std::string("{\"t\":\"moment\",\"anim\":\"") + anim +
+                    "\",\"size\":2,\"say\":{\"syl\":\"ba po\",\"ms\":100},\"ttl\":5}";
+    r.usbLine(m.c_str());
+    r.usb.text.clear();
+    r.usbLine("{\"t\":\"dbg.state\"}");
+    TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
+  }
+  TEST_ASSERT_EQUAL(0, int(r.hal.said.size()));
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"nod\",\"size\":1,\"ttl\":5}");
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"yawn\",\"size\":1,\"ttl\":5}");
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"nod\",\"left_ms\":600}"));
+}
+
 static void test_strip_taps_cycle_the_screens() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
@@ -376,7 +399,7 @@ static void test_reset_forgets_the_mac_and_freezes_at_0() {
 }
 
 // F5: a moment's mumble reaches the player with its syllables, word, tune
-// and tempo, and the player follows volume, quiet, focus and needs you.
+// and tempo, and the player follows volume, quiet and needs you.
 static void test_say_reaches_the_player() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":7,\"mood\":{\"pitch\":120}}");
@@ -401,11 +424,10 @@ static void test_say_reaches_the_player() {
   TEST_ASSERT_EQUAL(1, r.hal.hushes);
 }
 
-static void test_mute_quiet_focus_and_needs_you_keep_it_silent() {
+static void test_mute_quiet_and_needs_you_keep_it_silent() {
   const char* states[] = {
       "{\"t\":\"state\",\"base\":\"idle\",\"vol\":0}",
       "{\"t\":\"state\",\"base\":\"idle\",\"quiet\":30}",
-      "{\"t\":\"state\",\"base\":\"idle\",\"focus\":true}",
       "{\"t\":\"state\",\"base\":\"idle\",\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}",
   };
   for (const char* st : states) {
@@ -429,6 +451,31 @@ static void test_mute_quiet_focus_and_needs_you_keep_it_silent() {
   TEST_ASSERT_EQUAL(1, q.hal.hushes);
 }
 
+// Focus mode is gone. An older Mac app may still send `focus` in `state`;
+// like any unknown field it's ignored (PROTOCOL.md §2): Boop still mumbles,
+// plays the jingle and chirps for "needs you", and shows and reports exactly
+// what it would without it.
+static void test_focus_from_an_older_mac_is_ignored() {
+  auto play = [](Rig& r, bool focus) {
+    std::string f = focus ? ",\"focus\":true" : "";
+    r.usbLine(("{\"t\":\"state\",\"base\":\"idle\"" + f + "}").c_str());
+    r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"size\":2,\"say\":{\"syl\":\"ba po\",\"ms\":100},\"ttl\":5}");
+    r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":3000}");
+    r.usbLine(("{\"t\":\"state\",\"base\":\"idle\"" + f + ",\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}").c_str());
+    r.usbLine("{\"t\":\"dbg.state\"}");
+  };
+  Rig older, plain;
+  play(older, true);
+  play(plain, false);
+  TEST_ASSERT_EQUAL(1, int(older.hal.said.size()));  // the mumble
+  TEST_ASSERT_EQUAL(2, int(older.hal.cues.size()));
+  TEST_ASSERT_TRUE(older.hal.cues[0] == voice::Cue::kJingle);  // once the line ends
+  TEST_ASSERT_TRUE(older.hal.cues[1] == voice::Cue::kChirp);   // needs you
+  TEST_ASSERT_FALSE(has(older.usb.text, "focus"));
+  TEST_ASSERT_EQUAL_STRING(plain.usb.text.c_str(), older.usb.text.c_str());
+  TEST_ASSERT_EQUAL_MEMORY(plain.px.data(), older.px.data(), plain.px.size());
+}
+
 static void test_cues_follow_the_behaviour() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
@@ -449,7 +496,7 @@ static void test_cues_follow_the_behaviour() {
 }
 
 // VOICE.md §8: a cue that arrives during a line waits it out, then plays
-// once. A newer cue replaces a waiting one, and focus or mute drop it.
+// once. A newer cue replaces a waiting one, and mute drops it.
 static void test_a_cue_during_a_line_waits_it_out() {
   const char* idle = "{\"t\":\"state\",\"base\":\"idle\"}";
   // Two beats of 100 ms: the line plays from 0 to 200 ms.
@@ -478,18 +525,14 @@ static void test_a_cue_during_a_line_waits_it_out() {
   TEST_ASSERT_EQUAL(1, int(n.hal.cues.size()));
   TEST_ASSERT_TRUE(n.hal.cues[0] == voice::Cue::kChirp);
 
-  // Focus or mute arrives mid-line: the waiting jingle is dropped.
-  const char* quiets[] = {"{\"t\":\"state\",\"base\":\"idle\",\"focus\":true}",
-                          "{\"t\":\"state\",\"base\":\"idle\",\"vol\":0}"};
-  for (const char* q : quiets) {
-    Rig f;
-    f.usbLine(idle);
-    f.usbLine(cheer);
-    f.usbLine("{\"t\":\"dbg.clock\",\"freeze\":100}");
-    f.usbLine(q);
-    f.usbLine("{\"t\":\"dbg.clock\",\"freeze\":3000}");
-    TEST_ASSERT_EQUAL(0, int(f.hal.cues.size()));
-  }
+  // Mute arrives mid-line: the waiting jingle is dropped.
+  Rig m;
+  m.usbLine(idle);
+  m.usbLine(cheer);
+  m.usbLine("{\"t\":\"dbg.clock\",\"freeze\":100}");
+  m.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":0}");
+  m.usbLine("{\"t\":\"dbg.clock\",\"freeze\":3000}");
+  TEST_ASSERT_EQUAL(0, int(m.hal.cues.size()));
 }
 
 // PROTOCOL.md §3 and the ARCHITECTURE.md §11 decision log: the Mac clips
@@ -583,10 +626,12 @@ int main() {
   RUN_TEST(test_attention_shows_needs_you_and_climbs_the_ladder);
   RUN_TEST(test_no_app_after_30s_of_silence);
   RUN_TEST(test_moment_plays_then_ends_and_a_new_one_replaces_it);
+  RUN_TEST(test_stretch_and_yawn_are_unknown_and_ignored);
   RUN_TEST(test_strip_taps_cycle_the_screens);
   RUN_TEST(test_reset_forgets_the_mac_and_freezes_at_0);
   RUN_TEST(test_say_reaches_the_player);
-  RUN_TEST(test_mute_quiet_focus_and_needs_you_keep_it_silent);
+  RUN_TEST(test_mute_quiet_and_needs_you_keep_it_silent);
+  RUN_TEST(test_focus_from_an_older_mac_is_ignored);
   RUN_TEST(test_cues_follow_the_behaviour);
   RUN_TEST(test_a_cue_during_a_line_waits_it_out);
   RUN_TEST(test_a_23_byte_name_reaches_the_stats_screen_whole);

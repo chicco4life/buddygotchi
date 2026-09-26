@@ -169,7 +169,6 @@ public final class Runtime: @unchecked Sendable {
         // Tool names only: arguments can carry what you said (HARNESS.md §8).
         harness.onRecord = { record in log(record.logLine) }
         route = { [weak self] in self?.run($0) }
-        if settings.focus { _ = core.setFocus(true, at: now) }
         if settings.away {
             // Away keeps the day it started; an older settings file without
             // that day starts it today and saves it.
@@ -249,7 +248,6 @@ public final class Runtime: @unchecked Sendable {
         if case .input(let input) = link.receive(line, now: now) {
             options.log("device: input \(input.rawValue)")
             run(core.input(input, at: now))
-            if input == .focus { saveSettings { $0.focus = self.core.focus } }
         }
         changed()
     }
@@ -356,13 +354,6 @@ public final class Runtime: @unchecked Sendable {
     /// The mic or speech recognition couldn't start.
     public func micFailed() {
         home.async { [self] in run(core.micFailed(at: options.clock())) }
-    }
-
-    public func setFocus(_ on: Bool) {
-        home.async { [self] in
-            run(core.setFocus(on, at: options.clock()))
-            saveSettings { $0.focus = on }
-        }
     }
 
     /// Drops the device link and looks for the device again now.

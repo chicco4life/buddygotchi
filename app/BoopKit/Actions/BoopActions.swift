@@ -54,7 +54,7 @@ public final class FaceAction: Action {
     public static let faces = ["happy", "proud", "smug", "curious", "sleepy", "worried", "sulky", "love", "side_eye"]
     /// Every animation the device has.
     public static let anims: Set<String> = Set(faces + [
-        "nod", "cheer", "oops", "wiggle", "stretch", "yawn", "listening", "thinking", "shrug", "zip", "gobble",
+        "nod", "cheer", "oops", "wiggle", "listening", "thinking", "shrug", "zip", "gobble",
         "rumble", "levelup",
     ])
 

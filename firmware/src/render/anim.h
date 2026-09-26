@@ -16,8 +16,6 @@ enum class Anim : uint8_t {
   kOops,
   kSideEye,
   kWiggle,
-  kStretch,
-  kYawn,
   kListening,
   kThinking,
   kShrug,

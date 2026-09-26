@@ -9,9 +9,9 @@ namespace render {
 namespace {
 
 const char* const kNames[] = {
-    "none",   "nod",    "cheer", "oops",     "side_eye", "wiggle",  "stretch", "yawn",
-    "listening", "thinking", "shrug", "zip", "gobble",   "rumble",  "levelup", "happy",
-    "proud",  "smug",   "curious", "sleepy", "worried",  "sulky",   "love",
+    "none",     "nod",   "cheer",   "oops",   "side_eye", "wiggle",  "listening",
+    "thinking", "shrug", "zip",     "gobble", "rumble",   "levelup", "happy",
+    "proud",    "smug",  "curious", "sleepy", "worried",  "sulky",   "love",
 };
 static_assert(sizeof(kNames) / sizeof(kNames[0]) == size_t(Anim::kCount), "one name per anim");
 
@@ -147,8 +147,6 @@ uint32_t animDuration(Anim a, int size) {
     case Anim::kOops: return 1400;
     case Anim::kSideEye: return 1600;
     case Anim::kWiggle: return 700;
-    case Anim::kStretch: return 1400;
-    case Anim::kYawn: return 1600;
     case Anim::kListening: return 30000;  // until release; capped
     case Anim::kThinking: return 8000;    // until the reply; capped
     case Anim::kShrug: return 1200;
@@ -188,20 +186,6 @@ Pose animPose(Anim a, int size, uint32_t t) {
       p.dx = int16_t(wave(t, 350, 4));
       p.squash = int16_t(wave(t + 88, 350, 60));
       return p;
-    }
-    case Anim::kStretch: {
-      Pose up = n;
-      up.squash = -350, up.dy = -8, up.mouthOpen = 300, up.mouthWide = 600, up.lidTop = 150;
-      const Key k[] = {{0, n}, {140, up}, {900, up}, {1040, n}};
-      return keys(t, k);
-    }
-    case Anim::kYawn: {
-      Pose drowsy = with(with(n, &Pose::open, 450), &Pose::lidTilt, -300);
-      Pose wide = drowsy;
-      wide.open = 250, wide.mouthOpen = 1000, wide.mouthWide = 700, wide.squash = -120;
-      const Key k[] = {{0, n}, {150, drowsy}, {600, wide}, {1150, wide}, {1300, with(n, &Pose::open, 700)},
-                       {1450, n}};
-      return keys(t, k);
     }
     case Anim::kListening: {
       Pose p = listening();

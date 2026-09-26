@@ -359,8 +359,7 @@ static void test_lid_corners_are_rounded() {
 static void test_a_lid_never_leaves_a_sharp_point() {
   // Held looks, where the full 8 px corner fits: low tilted lids (the
   // working and idle faces at night while starving, as app/behaviour.cpp
-  // colours them), a low lid on its own, every phase of a yawn, and every
-  // expression with lids.
+  // colours them), a low lid on its own, and every expression with lids.
   struct Case {
     const char* name;
     Pose p;
@@ -380,7 +379,6 @@ static void test_a_lid_never_leaves_a_sharp_point() {
   Pose low;
   low.lidTop = 600, low.lidTilt = -200;
   cases.push_back({"low tilted lid", low, true});
-  for (uint32_t t : {300u, 600u, 900u, 1250u}) cases.push_back({"yawn", animPose(Anim::kYawn, 1, t), false});
   for (Anim a : {Anim::kWorried, Anim::kSulky, Anim::kSideEye, Anim::kShrug, Anim::kZip, Anim::kSmug, Anim::kSleepy,
                  Anim::kThinking, Anim::kCurious, Anim::kListening}) {
     cases.push_back({animName(a), animPose(a, 1, 400), true});
@@ -589,6 +587,8 @@ static void test_every_anim_has_a_name_and_ends() {
     TEST_ASSERT_TRUE(animDuration(a, 2) <= 30000);
   }
   TEST_ASSERT_TRUE(animFromName("dance") == Anim::kNone);
+  TEST_ASSERT_TRUE(animFromName("stretch") == Anim::kNone);  // retired: an older Mac's is ignored
+  TEST_ASSERT_TRUE(animFromName("yawn") == Anim::kNone);
   TEST_ASSERT_TRUE(animDuration(Anim::kCheer, 3) > animDuration(Anim::kCheer, 1));
   TEST_ASSERT_EQUAL_UINT32(2000, animDuration(Anim::kCheer, 1));  // BEHAVIORS.md §7
 }

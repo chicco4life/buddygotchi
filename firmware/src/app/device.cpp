@@ -15,7 +15,6 @@ namespace app {
 namespace {
 
 constexpr uint32_t kDefaultPressMs = 100;
-constexpr uint32_t kTouchHoldMs = 600;     // UX.md §4
 constexpr uint32_t kStatusMs = 60000;      // PROTOCOL.md §4
 
 void copyStr(char* dst, size_t n, const char* src) { std::snprintf(dst, n, "%s", src ? src : ""); }
@@ -56,7 +55,7 @@ void Device::reset() {
   pattern_ = false;
   patternFill_ = -1;
   targetX_ = targetY_ = -1;
-  injPress_ = injTouch_ = touchDown_ = touchHeld_ = false;
+  injPress_ = injTouch_ = touchDown_ = false;
   boot_ = ButtonGesture{};
   last_ = LastInput{};
   drawnT_ = 0;
@@ -115,7 +114,6 @@ void Device::handleLine(const char* line, size_t n, Link from) {
     m.pace = mood["pace"] | 100;
     m.pitch = mood["pitch"] | 100;
     m.quiet = doc["quiet"] | 0;
-    m.focus = doc["focus"] | false;
     m.vol = doc["vol"] | 6;
     m.night = doc["night"] | false;
     copyStr(m.name, sizeof(m.name), doc["name"] | "");
@@ -132,7 +130,7 @@ void Device::handleLine(const char* line, size_t n, Link from) {
       th.status = !std::strcmp(st, "wait") ? 'w' : !std::strcmp(st, "work") ? 'b' : 'i';
     }
     b_.onState(m, at, rng_);
-    if (m.attn || m.quiet > 0 || m.focus || m.vol <= 0) hush();  // VOICE.md §9
+    if (m.attn || m.quiet > 0 || m.vol <= 0) hush();  // VOICE.md §9
     pattern_ = false;
     dirty_ = true;
   } else if (!std::strcmp(t, "moment")) {
@@ -299,36 +297,20 @@ void Device::readInputs(uint32_t t) {
   bool faced = s == Screen::kFace || s == Screen::kNeedsYou || s == Screen::kNoApp;
   if (touching && !touchDown_) {
     input("touch", t, x, y);
-    touchAt_ = t;
-    touchHeld_ = false;
     touchStrip_ = y >= render::kStripTop;
     if (!touchStrip_ && faced) b_.pressDown(t);
   }
-  if (touching && !touchHeld_ && t - touchAt_ >= kTouchHoldMs) {  // touch and hold
-    touchHeld_ = true;
-    b_.pressUp(t);
-    if (touchStrip_) {
-      b_.toggleFocus(t);
-      input("focus", t);
-      emit("focus");
-    } else if (faced) {
-      b_.feel(t, rng_);
-      input("feel", t);
-      emit("feel");
-    }
-  }
+  // A touch acts on release, however long it was held.
   if (!touching && touchDown_) {
     b_.pressUp(t);
-    if (!touchHeld_) {
-      if (touchStrip_) {
-        b_.stripTap(t);
-      } else if (faced) {
-        b_.tap(t, rng_);
-        input("tap", t);
-        emit("tap");
-      } else {
-        b_.contentTap(t);
-      }
+    if (touchStrip_) {
+      b_.stripTap(t);
+    } else if (faced) {
+      b_.tap(t, rng_);
+      input("tap", t);
+      emit("tap");
+    } else {
+      b_.contentTap(t);
     }
     dirty_ = true;
   }
@@ -366,8 +348,8 @@ void Device::hush() {
 // line waits it out (VOICE.md §8), since a cue on the DAC would cut the
 // line: the jingle arrives with the cheer that carries the line, and plays
 // when the line ends, as the mouth stops (or sooner, if the line is hushed).
-// A newer cue replaces a waiting one, and focus and volume are checked when
-// it plays.
+// A newer cue replaces a waiting one, and the volume is checked when it
+// plays.
 void Device::followSound(uint32_t t) {
   if (saying_ && (b_.momentSeq() != sayMoment_ || !b_.mumble(t))) hush();
   uint32_t at;
@@ -376,7 +358,7 @@ void Device::followSound(uint32_t t) {
   if (saying_ && b_.speaking(t)) return;  // the line is still playing
   sfxSeen_ = k, sfxSeenAt_ = at;
   const Model& m = b_.model();
-  if (k && !m.focus && m.vol > 0) hal_.cue(voice::cueFromName(k), uint8_t(m.vol > 10 ? 10 : m.vol));
+  if (k && m.vol > 0) hal_.cue(voice::cueFromName(k), uint8_t(m.vol > 10 ? 10 : m.vol));
 }
 
 void Device::render(uint32_t t) {
@@ -492,7 +474,6 @@ void Device::sendState(Link to) {
   if (life) d["life"] = life;
   else d["life"] = nullptr;
   d["quiet"] = m.quiet;
-  d["focus"] = m.focus;
   d["vol"] = m.vol;
   d["night"] = m.night;
   d["hungry"] = m.hungry;

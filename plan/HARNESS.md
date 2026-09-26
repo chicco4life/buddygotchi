@@ -233,7 +233,7 @@ All eight tools, as their actions define them (`app/BoopKit/Actions/`):
 
 | Tool | Arguments | The action's own checks |
 | --- | --- | --- |
-| `say` | `feeling` (one of 8), `word?` (one of 40) | Dropped in quiet or focus mode or while something needs you. Plays the feeling's face (`happy`, `happy` at size 2 for excited, `proud`, `curious`, `love` for hopeful, `side_eye` for annoyed, `worried` for sad, `sleepy`) under the mumble |
+| `say` | `feeling` (one of 8), `word?` (one of 40) | Dropped in quiet mode or while something needs you. Plays the feeling's face (`happy`, `happy` at size 2 for excited, `proud`, `curious`, `love` for hopeful, `side_eye` for annoyed, `worried` for sad, `sleepy`) under the mumble |
 | `face` | `name`: `happy`, `proud`, `smug`, `curious`, `sleepy`, `worried`, `sulky`, `love` or `side_eye` | The core's rules may play any animation through the same action |
 | `quiet` | `minutes`: 15, 30, 60 or 120 | — |
 | `note` | `text`, at most 80 characters | Memory's rules: one line, no code, paths or secrets, no duplicates |

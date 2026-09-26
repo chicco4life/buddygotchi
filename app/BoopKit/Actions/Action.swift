@@ -37,8 +37,8 @@ public struct DeviceMoment: Equatable, Sendable {
         case "listening", "thinking": 0
         case "nod": 600
         case "cheer": 2000 + Int64(size - 1) * 400
-        case "oops", "stretch": 1400
-        case "side_eye", "yawn": 1600
+        case "oops": 1400
+        case "side_eye": 1600
         case "wiggle": 700
         case "shrug": 1200
         case "zip", "gobble", "rumble": 1500
@@ -68,7 +68,7 @@ public struct ActionContext {
     public var send: (DeviceMoment) -> Void
     /// Boop's mood now, for Voice's tempo.
     public var mood: () -> Mood
-    /// False in quiet or focus mode, or while something needs you.
+    /// False in quiet mode, or while something needs you.
     public var mumblesAllowed: () -> Bool
     /// `Core.setQuiet`; the app routes the effects it returns.
     public var setQuiet: (Int) -> Void

@@ -74,7 +74,7 @@ directly.
 | Part | Does | Doesn't know about |
 | --- | --- | --- |
 | Adapters | Turn agent hooks into common events | Boop's state, the brain, the device |
-| Core | The session table, what the device shows, XP, hunger, mood, quiet and focus; calls actions for rule reactions; sends triggers to the harness | Minion speech, models, hook formats |
+| Core | The session table, what the device shows, XP, hunger, mood and quiet; calls actions for rule reactions; sends triggers to the harness | Minion speech, models, hook formats |
 | Harness | Trigger → prompt → one brain call → shape check → hand each tool call to its action | Minion speech, the device, memory rules, which model it's talking to |
 | Brain | Picks which tools to call, with what arguments | Everything else |
 | Actions | Carry out one tool call each, checking their own rules | Whether a rule or the brain called them |
@@ -103,9 +103,9 @@ project, and whether each is working, idle or needs you) and:
 - calls actions for the immediate reactions (a cheer, an oops, a nod) and
   for Boop's occasional working chatter;
 - turns events, taps and talk into triggers for the harness. It merges
-  bursts within 3 s. While something needs you, or during quiet and focus
-  mode, it sends only `talk` and the daily reflection;
-- keeps XP, hunger, mood, quiet, focus and "away", all by rule
+  bursts within 3 s. While something needs you, or during quiet mode, it
+  sends only `talk` and the daily reflection;
+- keeps XP, hunger, mood, quiet and "away", all by rule
   ([BEHAVIORS.md](BEHAVIORS.md)).
 
 In code the core is a pure state machine: each event, input or one-second
@@ -126,7 +126,7 @@ animation's length scaled by `pace`, with a cheer's size adjusted by
 `energy`, or, if longer, the mumble's syllables (the word is two beats)
 plus 1.2 s to read the bubble. It holds a moment from a brain tool call
 until the last rule moment and the core's pending follow-ups (`side_eye`
-after `oops`, `yawn` after `stretch`, `gobble`) are over. `listening` and
+after `oops`, `gobble`) are over. `listening` and
 `thinking` don't hold anything back: the brain's reply is meant to replace
 `thinking`.
 
@@ -365,7 +365,7 @@ Adding an agent later means one new adapter that produces this shape.
 
 The device is a thin client. It draws what the latest snapshot says, plays
 moments, runs its own short timers (blinks, idle life, the nudge ladder) and
-reports taps, push-to-talk, focus and touch-and-hold. It holds no
+reports taps and push-to-talk. It holds no
 personality or memory, just a device ID, its touch calibration, and its
 animation and syllable library.
 What it does for each trigger is in [BEHAVIORS.md](BEHAVIORS.md); the
@@ -483,6 +483,7 @@ When a spec changes direction, add a row here saying why.
 | 2026-09-26 | The brain contract is typed: `decide(situation, menu) → calls`. The conversation is kept as typed turns (trigger, limit lines, calls that ran). Language models share a text adapter that renders today's prompt from the turns and checks the answer JSON; the harness checks every brain's calls against the menu. The rules brain matches the trigger itself | The owner asked for a third brain, Jev, which answers typed questions and can't read a prompt or write JSON. Typed input and output let any kind of model decide, and keep the history when brains change or share a call. Apple's model sees exactly the prompt it saw before (the conversation tests pass unchanged) | [HARNESS.md](HARNESS.md) §1, §3–4, §7 |
 | 2026-09-26 | A third brain, `jev`: TypeSafe's Jev with the person's own API key (the existing Keychain field; `BOOP_API_KEY` for `boopdev` and headless runs). The situation goes to TypeSafe as JSON: `steering.md`, both memory files, recent turns and now, with the person's words | The owner wanted to try a "system one" model in place of the on-device one. In L5 it answered every trigger in about 0.2 s against Apple's 2 s, with no refusals, and followed talk requests (quiet for 15 or 60 minutes) that Apple's model missed. It leaves the Mac, so the settings say so | [HARNESS.md](HARNESS.md) §4, §7, [UX.md](UX.md) §7, [VISION.md](VISION.md) §7 |
 | 2026-09-26 | Jev asks whether to write as its own yes/no per tool that needs words, not as an `act` option; on a yes, Apple's model writes only that call (a `Writer`: one tool, must call it) | As an `act`, `note` never beat staying quiet (0.21–0.29 against up to 0.70). Given the whole decision again, Apple's model chose to stay quiet on both notes Jev had said yes to (0.92–0.93). Deciding and writing are separate jobs | [HARNESS.md](HARNESS.md) §7 |
+| 2026-09-26 | Focus mode, touch-and-hold on the face (`feel`) and the first activity of the day's `stretch`, `yawn` and +5 XP are removed from the product: the core, the `state` message, the device's gestures and animations, and Settings. A long touch now counts as a tap when you let go. The day boundary stays, since it starts reflection. This replaces the focus and `feel` parts of the 2026-09-25 "Focus mode is visual only" row and of the 2026-09-26 rows on the device's mood face, `say` in focus, and focus moving to Settings | The owner simplified Boop before splitting its brain in two: fewer inputs and modes to keep in mind | [BEHAVIORS.md](BEHAVIORS.md) §3–4, §6–7, [UX.md](UX.md) §2, §4, §7, [PROTOCOL.md](PROTOCOL.md) §3–4 |
 | 2026-09-26 | The Mac answers every `status` with a `state`, not only the first after connecting | It's one extra `state` a minute, and it covers a connect-time `status` sent before the Mac subscribed over Bluetooth | [PROTOCOL.md](PROTOCOL.md) §4–5 |
 | 2026-09-26 | The installer installs and repairs nothing while its copy of `boop-hook` is missing, and settings and setup say so; `make run` builds everything first | `make run` built only the app, so there was no `boop-hook` to copy, and launch repair swapped the owner's gen-2 entries for ones calling a missing file: every Claude and Codex event was dropped, while settings said "Connected" | [ADAPTERS.md](ADAPTERS.md) §5, [UX.md](UX.md) §6–7 |
 | 2026-09-26 | Event, tap and talk calls share a short conversation with the brain, sent in the same order every call and never compacted: it starts over when its opening changes, when it's full, or after a failed answer. Talk words stay in it until then | The owner asked for a running transcript modelled on pi, kept simple (start over rather than compact) and in an order a cloud provider's prompt cache can reuse. With history, Apple's model answers quiet much more often; tuning is PLAN.md A6 | [HARNESS.md](HARNESS.md) §4 |

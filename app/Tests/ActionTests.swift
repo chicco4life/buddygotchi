@@ -116,7 +116,7 @@ final class ActionTests: XCTestCase {
 
     func testFaceKnowsTheDevicesAnimations() {
         // firmware/src/render/anim.cpp's names, less "none".
-        XCTAssertEqual(FaceAction.anims.count, 22)
+        XCTAssertEqual(FaceAction.anims.count, 20)
         XCTAssertTrue(Set(SayAction.faces.values).isSubset(of: FaceAction.anims))
     }
 

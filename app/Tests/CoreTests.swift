@@ -290,7 +290,6 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertEqual(triggers(rig.input(.tap)), [])
         XCTAssertEqual(triggers(rig.send(.turnEnd, session: "b")), [])
         XCTAssertEqual(triggers(rig.core.talk("hello", at: rig.now)).map(\.kind), [.talk])
-        XCTAssertEqual(mumbles(rig.input(.feel)), [], "no mumbles while something needs you")
     }
 }
 
@@ -365,54 +364,16 @@ final class CoreYouAndBoopTests: XCTestCase {
         XCTAssertEqual(rig.core.micFailed(at: rig.now), [.listen(false)], "the device shrugs by itself after its thinking")
     }
 
-    /// BEHAVIORS.md §3.3, touch and hold the face: the device shows a face
-    /// from the mood in its last `state` at once (firmware `Behaviour::feel`),
-    /// and the Mac's mumble plays under that same face, so it doesn't change.
-    func testTouchAndHoldMumblesUnderTheFaceTheDeviceShows() {
-        /// The device's rule, from the state it was sent.
-        func deviceFace(_ s: StateSnapshot) -> String {
-            if s.hungry >= 2 { return "worried" }
-            if s.hungry == 1 { return "curious" }
-            if s.night || s.mood.energy < 60 { return "sleepy" }
-            if s.mood.energy >= 140 { return "love" }
-            return "happy"
-        }
-        func check(_ rig: CoreRig, _ feeling: String, _ face: String, _ why: String) {
-            let fx = rig.input(.feel)
-            XCTAssertEqual(mumbles(fx), [feeling], why)
-            XCTAssertEqual(deviceFace(rig.state), face, why)
-            XCTAssertEqual(SayAction.faces[Feeling(rawValue: feeling)!], face, why)
-        }
-        check(CoreRig(), "happy", "happy", "fed, daytime, neutral energy")
-        check(CoreRig(growth: Growth(hatched: "2026-09-01", lastFed: "2026-10-01")), "sad", "worried", "starving")
-        check(CoreRig(growth: Growth(hatched: "2026-09-01", lastFed: "2026-10-11")), "curious", "curious", "hungry")
-        check(CoreRig(start: CoreRig.start + 9 * 3600 * 1000), "sleepy", "sleepy", "23:00")
-
-        let tired = CoreRig()
-        for _ in 0..<3 {
-            tired.send(.turnStart)
-            tired.send(.turnFailed)
-        }
-        XCTAssertLessThan(tired.state.mood.energy, 60)
-        check(tired, "sleepy", "sleepy", "tired")
-
-        let bouncy = CoreRig()
-        for i in 0..<4 { bouncy.turn(5000, session: "q\(i)") }
-        XCTAssertGreaterThanOrEqual(bouncy.state.mood.energy, 140)
-        check(bouncy, "hopeful", "love", "very bouncy")
-
-        // Other mumbles still come from Boop's own feeling rule.
-        XCTAssertEqual(CoreRig().core.feeling(CoreRig.start), "curious")
-    }
-
-    func testFirstActivityOfTheDayStretchesThenYawns() {
+    /// The first activity of the day starts the day with no reaction and no
+    /// XP: stretch, yawn and their +5 XP were removed from the product.
+    func testFirstActivityOfTheDayStartsTheDayQuietly() {
         let rig = CoreRig(newDay: true)
         let fx = rig.send(.sessionStart)
-        XCTAssertEqual(moments(fx), ["stretch 1"])
         XCTAssertTrue(fx.contains(.newDay(date: "2026-10-14", firstSeen: "14:00", mood: "content")))
-        XCTAssertEqual(growths(fx).last?.xp, 5)
-        XCTAssertEqual(moments(rig.wait(2000)), ["yawn 1"])
-        XCTAssertEqual(moments(rig.send(.turnStart)), [], "only the first activity")
+        XCTAssertEqual(moments(fx), [])
+        XCTAssertTrue(growths(fx).isEmpty)
+        XCTAssertEqual(moments(rig.wait(2000)), [])
+        XCTAssertFalse(rig.send(.turnStart).contains { if case .newDay = $0 { true } else { false } }, "only the first activity")
     }
 
     func testANewDayRunsReflectionOnYesterday() {
@@ -422,28 +383,21 @@ final class CoreYouAndBoopTests: XCTestCase {
         let fx = rig.send(.turnStart)
         XCTAssertEqual(triggers(fx).map(\.kind), [.reflect, .event])
         XCTAssertEqual(triggers(fx).first?.line, "reflect · yesterday 2026-10-14")
-        XCTAssertEqual(moments(fx), ["stretch 1"])
-    }
-
-    func testFocusToggleFromTheDevice() {
-        let rig = CoreRig()
-        XCTAssertEqual(states(rig.input(.focus)).last?.focus, true)
-        XCTAssertEqual(states(rig.input(.focus)).last?.focus, false)
     }
 }
 
 // MARK: - BEHAVIORS.md §4 XP and hunger
 
 final class CoreGrowthTests: XCTestCase {
-    func testOneXPPerFinishedTurnAndFiveForTheFirstActivityOfTheDay() {
+    func testOneXPPerFinishedTurn() {
         let rig = CoreRig(newDay: true)
         rig.turn(10_000)
         rig.turn(10_000)
-        XCTAssertEqual(rig.core.growth.xp, 7)
+        XCTAssertEqual(rig.core.growth.xp, 2)
         rig.input(.tap)
         rig.send(.needsYou, tool: "Bash")
         rig.send(.activity)
-        XCTAssertEqual(rig.core.growth.xp, 7, "taps, approvals and time earn nothing")
+        XCTAssertEqual(rig.core.growth.xp, 2, "taps, approvals and time earn nothing")
     }
 
     func testLevels() {
@@ -555,7 +509,7 @@ final class CoreGrowthTests: XCTestCase {
         rig.now += 6 * CoreRig.day
         rig.turn(10_000)  // a new day's first activity and a finished turn
         XCTAssertEqual(rig.core.growth.lastFed, "2026-10-20")
-        XCTAssertEqual(rig.core.growth.xp, 16)
+        XCTAssertEqual(rig.core.growth.xp, 11)
         rig.now += 3 * CoreRig.day
         let fx = rig.core.setAway(false, at: rig.now)
         XCTAssertEqual(growths(fx).last?.lastFed, "2026-10-23", "today, not nine days on from the meal")
@@ -574,7 +528,7 @@ final class CoreGrowthTests: XCTestCase {
     }
 }
 
-// MARK: - Mood, chatter, quiet, focus, screen and triggers
+// MARK: - Mood, chatter, quiet, screen and triggers
 
 final class CoreRulesTests: XCTestCase {
     func testFailuresCalmBoopAndItDriftsBackInHalfAnHour() {
@@ -636,7 +590,7 @@ final class CoreRulesTests: XCTestCase {
         XCTAssertLessThan(words, times.count * 4 / 5)
     }
 
-    func testNoChatterWhenIdleQuietOrInFocus() {
+    func testNoChatterWhenIdleOrQuiet() {
         let rig = CoreRig()
         rig.send(.sessionStart)
         XCTAssertEqual(mumbles(rig.wait(600_000)), [])
@@ -644,10 +598,6 @@ final class CoreRulesTests: XCTestCase {
         rig.core.setQuiet(minutes: 30, at: rig.now)
         var fx: [CoreEffect] = []
         for _ in 0..<25 { fx += rig.wait(60_000); rig.send(.activity) }
-        XCTAssertEqual(mumbles(fx), [])
-        rig.core.setFocus(true, at: rig.now)
-        fx = []
-        for _ in 0..<10 { fx += rig.wait(60_000); rig.send(.activity) }
         XCTAssertEqual(mumbles(fx), [])
     }
 
@@ -661,14 +611,11 @@ final class CoreRulesTests: XCTestCase {
         XCTAssertEqual(triggers(rig.input(.tap)).count, 1)
     }
 
-    func testQuietAndFocusGateTriggers() {
+    func testQuietGatesTriggers() {
         let rig = CoreRig()
         rig.core.setQuiet(minutes: 5, at: rig.now)
         XCTAssertEqual(triggers(rig.input(.tap)), [])
         XCTAssertEqual(triggers(rig.turn(40_000)), [])
-        rig.core.setQuiet(minutes: 0, at: rig.now)
-        rig.core.setFocus(true, at: rig.now)
-        XCTAssertEqual(triggers(rig.input(.tap)), [])
         XCTAssertEqual(triggers(rig.core.talk("hi", at: rig.now)).count, 1)
     }
 
@@ -700,7 +647,7 @@ final class CoreRulesTests: XCTestCase {
         XCTAssertEqual(s.threads, [["claude", "landing", "wait"], ["codex", "buddygotchi", "work"],
                                    ["claude", "jetpack", "work"], ["claude", "notes", "idle"]])
         XCTAssertEqual([s.busy, s.idle, s.wait], [2, 1, 1])
-        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"time":1791986400,"name":"Pip","base":"working","attn":{"agent":"claude","project":"landing","more":0},"busy":2,"idle":1,"wait":1,"mood":{"energy":100,"pace":100,"pitch":100},"quiet":0,"focus":false,"vol":6,"night":false,"level":1,"prog":0,"days":1,"hungry":0,"threads":[["claude","landing","wait"],["codex","buddygotchi","work"],["claude","jetpack","work"],["claude","notes","idle"]]}"#)
+        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"time":1791986400,"name":"Pip","base":"working","attn":{"agent":"claude","project":"landing","more":0},"busy":2,"idle":1,"wait":1,"mood":{"energy":100,"pace":100,"pitch":100},"quiet":0,"vol":6,"night":false,"level":1,"prog":0,"days":1,"hungry":0,"threads":[["claude","landing","wait"],["codex","buddygotchi","work"],["claude","jetpack","work"],["claude","notes","idle"]]}"#)
         let data = Data(s.jsonLine.utf8)
         XCTAssertNotNil(try? JSONSerialization.jsonObject(with: data))
         XCTAssertLessThanOrEqual(data.count, 512)
@@ -711,7 +658,7 @@ final class CoreRulesTests: XCTestCase {
         for i in 0..<12 {
             rig.send(.turnStart, i % 2 == 0 ? .codex : .claudeCode, session: "s\(i)", project: "project-name-\(i)")
         }
-        XCTAssertEqual(rig.state.threads.count, 7, "the eighth row doesn't fit in 512 bytes")
+        XCTAssertEqual(rig.state.threads.count, 8, "all eight rows fit in 512 bytes")
         XCTAssertEqual(rig.state.busy, 12)
         let short = CoreRig()
         for i in 0..<12 { short.send(.turnStart, session: "s\(i)", project: "p\(i)") }

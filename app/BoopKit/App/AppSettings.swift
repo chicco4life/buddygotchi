@@ -7,7 +7,6 @@ public struct AppSettings: Codable, Equatable, Sendable {
     /// `apple`, `rules`, `jev` or `cloud:<model>` (HARNESS.md §7).
     public var brain = "apple"
     public var volume = 6
-    public var focus = false
     public var away = false
     /// The day "I'm away" started, `yyyy-MM-dd`, so a restart keeps pausing
     /// hunger from then rather than from the day it restarts.
@@ -24,7 +23,6 @@ public struct AppSettings: Codable, Equatable, Sendable {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         brain = try c.decodeIfPresent(String.self, forKey: .brain) ?? brain
         volume = try c.decodeIfPresent(Int.self, forKey: .volume) ?? volume
-        focus = try c.decodeIfPresent(Bool.self, forKey: .focus) ?? focus
         away = try c.decodeIfPresent(Bool.self, forKey: .away) ?? away
         awaySince = try c.decodeIfPresent(String.self, forKey: .awaySince)
         finished = try c.decodeIfPresent(Int.self, forKey: .finished) ?? finished

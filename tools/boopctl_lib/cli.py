@@ -179,7 +179,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 
 # Moments that keep the face moving for perf, one after another.
-MOTION = ["cheer", "wiggle", "levelup", "gobble", "rumble", "nod", "yawn", "stretch"]
+MOTION = ["cheer", "wiggle", "levelup", "gobble", "rumble", "nod"]
 
 
 def cmd_perf(args: argparse.Namespace) -> int:
@@ -237,8 +237,8 @@ def boopdev_voice(feeling: str, word: str | None, count: int, seed: int | None =
     return [json.loads(row) for row in out.splitlines() if row.startswith("{")]
 
 
-SOAK_ANIMS = ["nod", "cheer", "oops", "side_eye", "wiggle", "stretch", "yawn", "shrug", "zip", "gobble",
-              "rumble", "levelup", "happy", "proud", "smug", "curious", "sleepy", "worried", "sulky", "love"]
+SOAK_ANIMS = ["nod", "cheer", "oops", "side_eye", "wiggle", "shrug", "zip", "gobble", "rumble", "levelup",
+              "happy", "proud", "smug", "curious", "sleepy", "worried", "sulky", "love"]
 SOAK_PROJECTS = ["landing", "jetpack", "buddygotchi", "a-very-long-project-name", "notes"]
 
 
@@ -252,7 +252,7 @@ def soak_state(rng: random.Random) -> dict:
            "base": "working" if busy else rng.choice(["idle", "idle", "asleep"]),
            "busy": busy, "idle": len(threads) - busy - wait, "wait": wait,
            "mood": {"energy": rng.randint(30, 170), "pace": rng.randint(60, 150), "pitch": 100},
-           "quiet": rng.choice([0, 0, 0, 5]), "focus": rng.random() < 0.1, "vol": 6,
+           "quiet": rng.choice([0, 0, 0, 5]), "vol": 6,
            "night": rng.random() < 0.15, "level": rng.randint(1, 30), "prog": rng.randint(0, 99),
            "days": rng.randint(0, 400), "hungry": rng.choice([0, 0, 0, 1, 2]), "threads": threads}
     if wait:
@@ -535,8 +535,8 @@ def cmd_say(args: argparse.Namespace) -> int:
         vol = st.get("vol")
         source = "the Mac app's" if mac else "the last `state` the board got; the Mac app isn't connected"
         print(f"volume {vol if vol is not None else '? (reflash: this firmware has no vol in dbg.state)'} ({source})")
-        why = ("muted (volume 0)" if vol == 0 else "in focus mode" if st["focus"] else
-               "quiet" if st["quiet"] else "something needs you" if st["attn"] else None)
+        why = ("muted (volume 0)" if vol == 0 else "quiet" if st["quiet"] else
+               "something needs you" if st["attn"] else None)
         if why:
             print(f"not playing: the board is {why}, so it won't speak")
             return 1

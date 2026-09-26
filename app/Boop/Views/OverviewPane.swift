@@ -75,9 +75,8 @@ struct OverviewPane: View {
         if let status = model.status {
             let s = status.snapshot
             let all: [(String, String)?] = [
-                s.focus ? ("moon.fill", "Focus") : nil,
                 s.quiet > 0 ? ("zzz", "Quiet · \(s.quiet) min") : nil,
-                s.vol == 0 && !s.focus ? ("speaker.slash.fill", "Muted") : nil,
+                s.vol == 0 ? ("speaker.slash.fill", "Muted") : nil,
                 status.away ? ("figure.walk", "Away") : nil,
             ]
             let chips = all.compactMap { $0 }

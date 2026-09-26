@@ -26,7 +26,6 @@ struct Model {
   int busy = 0, idle = 0, wait = 0;
   int energy = 100, pace = 100, pitch = 100;
   int quiet = 0;
-  bool focus = false;
   int vol = 6;
   bool night = false;
   char name[24] = "";  // the Mac clips it to 23 bytes on a character boundary
@@ -66,7 +65,7 @@ class Behaviour {
   // Messages from the Mac, at time t.
   void onState(const Model& m, uint32_t t, Rng& rng);
   // True when the moment carries a mumble that will play: not during needs
-  // you, quiet or focus.
+  // you or quiet.
   bool onMoment(const MomentIn& m, uint32_t t, Rng& rng);
 
   // Inputs, already recognised as gestures (UX.md §4).
@@ -75,8 +74,6 @@ class Behaviour {
   void tap(uint32_t t, Rng& rng);  // BOOT or the face
   void talkOn(uint32_t t, Rng& rng);
   void talkOff(uint32_t t, Rng& rng);
-  void feel(uint32_t t, Rng& rng);  // touch and hold the face; no face while something needs you
-  void toggleFocus(uint32_t t);
   void stripTap(uint32_t t);    // cycles face → threads → stats; the no-app screen ignores it
   void contentTap(uint32_t t);  // a tap on threads or stats goes back to the face
   // dbg.light: holds the LED and backlight until the next state.

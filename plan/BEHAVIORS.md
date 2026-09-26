@@ -91,7 +91,7 @@ Boop only tells you. You approve on the Mac, in the agent's own prompt.
 The amber light is steady at half brightness; the three rung-3 pulses are
 200 ms at full brightness with 200 ms gaps.
 
-The brain is never involved here. In focus mode this is visual only (§6).
+The brain is never involved here.
 
 ### 3.3 You and Boop
 
@@ -101,8 +101,6 @@ The brain is never involved here. In focus mode this is visual only (§6).
 | Hold BOOT (push-to-talk) | `listening` at once (for at most 30 s), `thinking` on release. The Mac's mic goes off on release, after 30 s, or when the link drops | A mumble reply and a face; on "shut up", a `sulky` face and quiet, as in [steering.md](steering.md) |
 | Talk in the popover, then Send | The Mac sends `listening`, then `thinking` on Send or after 30 s. A mic that can't start sends `shrug` | As for holding BOOT |
 | Brain too slow to reply | The device ends `thinking` with a `shrug` itself after 8 s | — |
-| Touch and hold the face | The device shows a face from its mood at once (`sleepy` when tired or at night, `curious` when hungry, `worried` when starving, `love` when very bouncy, otherwise `happy`) and sends `input` `feel`; the Mac may add a mumble. While something needs you there's no face (§1) | — |
-| First activity of the day | `stretch`, then `yawn` | — |
 
 ### 3.4 Time and the device
 
@@ -118,8 +116,8 @@ Deliberately simple for now. XP and hunger are rules in the core; the brain
 can't touch them.
 
 - **Earning:** +1 XP for each agent turn that finishes (`turn_end`; a
-  failed turn earns nothing), and +5 for the first activity of the day.
-  Nothing else earns XP: not approvals, tokens, taps or time.
+  failed turn earns nothing). Nothing else earns XP: not approvals, tokens,
+  taps, time or the start of a day.
 - **Levels:** a new level every 50 XP (*proposed*), so level = XP ÷ 50,
   rounded down, plus 1. A level-up plays `levelup` at the next calm moment.
 - **Days together:** calendar days since setup, counting the day of setup
@@ -164,17 +162,15 @@ Mood drifts back to neutral over about half an hour.
 
 | Output | Used for | Never |
 | --- | --- | --- |
-| Mumbles | Moments, replies, working chatter | In quiet or focus mode; while something needs you |
-| Chirp | The first two "needs you" rungs | Anything else; focus mode |
-| Jingle | Bigger cheers | Focus mode |
-| Buzz | The top "needs you" rung | Anything else, including hunger; focus mode |
+| Mumbles | Moments, replies, working chatter | In quiet mode; while something needs you |
+| Chirp | The first two "needs you" rungs | Anything else |
+| Jingle | Bigger cheers | Anything else |
+| Buzz | The top "needs you" rung | Anything else, including hunger |
 | Amber light | Something needs you | Decoration |
 | Warm light | Cheers of size 2 and 3, while the cheer plays | Anything else |
 | Dimmed backlight | Asleep, night, no app | Hiding "needs you" |
 
-Mute silences all sound but keeps the light and buzz. Focus mode is visual
-only: no sound and no buzz (on the v1 board, no pulses in its place). The
-face, its animations and the light carry on.
+Mute silences all sound but keeps the light and buzz.
 
 ## 7. Animation set
 
@@ -184,7 +180,6 @@ face, its animations and the light carry on.
 | `cheer` | Finished turns (sizes 1–3); 2 s at size 1, 0.4 s longer per size |
 | `oops`, `side_eye` | Failed turns; sass at agents |
 | `wiggle` | Taps |
-| `stretch`, `yawn` | The first activity of the day |
 | `listening`, `thinking`, `shrug` | Push-to-talk |
 | `zip` | Drawn, but nothing plays it in v1: neither the rules nor the brain's `face` choices |
 | `gobble`, `rumble` | Hunger |

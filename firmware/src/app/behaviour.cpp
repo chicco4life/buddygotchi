@@ -149,7 +149,7 @@ void Behaviour::advance(uint32_t t, Rng& rng) {
     if (user_ != Screen::kFace) consider(userAt_ + kUserScreenMs);
     if (!found) break;
     // Everything due at `next`, in a fixed order.
-    if (model_.attn && !hushed_ && !model_.focus && !noApp(next)) {
+    if (model_.attn && !hushed_ && !noApp(next)) {
       if (next == attnSince_ + kRung2Ms) sound("chirp", next);
       if (next == attnSince_ + kRung3Ms) sound("pulse", next);  // the buzz, on a board with no motor
     }
@@ -196,7 +196,7 @@ void Behaviour::onState(const Model& m, uint32_t t, Rng& rng) {
     attnSince_ = t;
     hushed_ = false;
     user_ = Screen::kFace;  // attention wins over threads and stats
-    if (!m.focus) sound("chirp", t);
+    sound("chirp", t);
     if (momentOn(t) && !overAttention(moment_.anim)) moment_.anim = render::Anim::kNone;
   } else if (had && !m.attn && !momentOn(t)) {
     play(render::Anim::kNod, 1, t, true);  // answered on the Mac: a nod, then back
@@ -218,7 +218,7 @@ bool Behaviour::onMoment(const MomentIn& in, uint32_t t, Rng& rng) {
     if (model_.energy >= 140) size = clamp(size + 1, 1, 3);
   }
   play(in.anim, size, t, false);
-  bool mumble = in.syllables > 0 && !model_.attn && model_.quiet <= 0 && !model_.focus;
+  bool mumble = in.syllables > 0 && !model_.attn && model_.quiet <= 0;
   if (mumble) {
     Moment& mo = moment_;
     std::snprintf(mo.word, sizeof(mo.word), "%s", in.word ? in.word : "");
@@ -229,7 +229,7 @@ bool Behaviour::onMoment(const MomentIn& in, uint32_t t, Rng& rng) {
     mo.speakMs = uint32_t(in.syllables + (mo.word[0] ? 2 : 0)) * mo.sylMs;  // a word is two beats
     if (mo.speakMs + kBubbleReadMs > mo.ms) mo.ms = mo.speakMs + kBubbleReadMs;
   }
-  if (in.anim == render::Anim::kCheer && size >= 2 && !model_.focus) sound("jingle", t);
+  if (in.anim == render::Anim::kCheer && size >= 2) sound("jingle", t);
   resync(t, rng);
   return mumble;
 }
@@ -282,26 +282,6 @@ void Behaviour::talkOn(uint32_t t, Rng& rng) {
 void Behaviour::talkOff(uint32_t t, Rng& rng) {
   play(render::Anim::kThinking, 1, t, true);
   resync(t, rng);
-}
-
-// How Boop feels, from the mood, hunger and the time of day (BEHAVIORS.md
-// §3.3). None of these faces answers you directly, so while something needs
-// you none plays (§1: attention wins), just as a moment from the Mac wouldn't.
-void Behaviour::feel(uint32_t t, Rng& rng) {
-  using render::Anim;
-  Anim a = Anim::kHappy;
-  if (model_.hungry >= 2) a = Anim::kWorried;
-  else if (model_.hungry == 1) a = Anim::kCurious;
-  else if (model_.night || model_.energy < 60) a = Anim::kSleepy;
-  else if (model_.energy >= 140) a = Anim::kLove;
-  if (model_.attn && !noApp(t) && !overAttention(a)) return;
-  play(a, 1, t, true);
-  resync(t, rng);
-}
-
-void Behaviour::toggleFocus(uint32_t t) {
-  model_.focus = !model_.focus;  // shown at once; the Mac confirms in the next state
-  (void)t;
 }
 
 void Behaviour::stripTap(uint32_t t) {
@@ -448,7 +428,7 @@ uint32_t Behaviour::led(uint32_t t) const {
   if (noApp(t)) return 0;
   if (model_.attn) {
     uint32_t p3 = attnSince_ + kRung3Ms;
-    if (!hushed_ && !model_.focus && within(t, p3, 3 * kPulseMs)) {
+    if (!hushed_ && within(t, p3, 3 * kPulseMs)) {
       return (t - p3) % kPulseMs < kPulseMs / 2 ? kAmber : 0;  // three strong pulses
     }
     return kAmberDim;
@@ -472,7 +452,6 @@ render::Strip Behaviour::strip(uint32_t t) const {
   s.busy = model_.busy;
   s.noApp = noApp(t);
   s.quiet = model_.quiet > 0;
-  s.focus = model_.focus;
   return s;
 }
 

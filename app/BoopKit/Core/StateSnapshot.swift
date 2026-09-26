@@ -51,7 +51,6 @@ public struct StateSnapshot: Equatable, Sendable {
     public var mood: Mood
     /// Minutes of quiet left.
     public var quiet: Int
-    public var focus: Bool
     public var vol: Int
     public var night: Bool
     public var level: Int
@@ -62,7 +61,7 @@ public struct StateSnapshot: Equatable, Sendable {
     public var threads: [[String]]
 
     public init(time: Int64, name: String, base: String, attn: Attention?, busy: Int, idle: Int, wait: Int,
-                mood: Mood, quiet: Int, focus: Bool, vol: Int, night: Bool, level: Int, prog: Int, days: Int,
+                mood: Mood, quiet: Int, vol: Int, night: Bool, level: Int, prog: Int, days: Int,
                 hungry: Int, threads: [[String]]) {
         self.time = time
         self.name = name
@@ -73,7 +72,6 @@ public struct StateSnapshot: Equatable, Sendable {
         self.wait = wait
         self.mood = mood
         self.quiet = quiet
-        self.focus = focus
         self.vol = vol
         self.night = night
         self.level = level
@@ -102,7 +100,7 @@ public struct StateSnapshot: Equatable, Sendable {
         parts += [
             "\"busy\":\(busy)", "\"idle\":\(idle)", "\"wait\":\(wait)",
             "\"mood\":{\"energy\":\(mood.energy),\"pace\":\(mood.pace),\"pitch\":\(mood.pitch)}",
-            "\"quiet\":\(quiet)", "\"focus\":\(focus)", "\"vol\":\(vol)", "\"night\":\(night)",
+            "\"quiet\":\(quiet)", "\"vol\":\(vol)", "\"night\":\(night)",
             "\"level\":\(level)", "\"prog\":\(prog)", "\"days\":\(days)", "\"hungry\":\(hungry)",
             "\"threads\":[" + threads.map { "[" + $0.map(json).joined(separator: ",") + "]" }.joined(separator: ",") + "]",
         ]

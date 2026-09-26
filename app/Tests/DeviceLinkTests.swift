@@ -27,7 +27,7 @@ final class FakeTransport: DeviceTransport, @unchecked Sendable {
 
 func sampleSnapshot(busy: Int = 0, time: Int64 = 1_790_000_000) -> StateSnapshot {
     StateSnapshot(time: time, name: "Pip", base: busy > 0 ? "working" : "idle", attn: nil, busy: busy, idle: 0, wait: 0,
-                  mood: Mood(), quiet: 0, focus: false, vol: 6, night: false, level: 1, prog: 0, days: 1, hungry: 0,
+                  mood: Mood(), quiet: 0, vol: 6, night: false, level: 1, prog: 0, days: 1, hungry: 0,
                   threads: [])
 }
 
@@ -58,8 +58,9 @@ final class DeviceLinkTests: XCTestCase {
         XCTAssertEqual(DeviceMessage.decode(#"{"t":"status","v":1,"id":"b00p-7f3a","fw":"0.3.1","bat":3910,"usb":1}"#),
                        .status(DeviceStatus(id: "b00p-7f3a", fw: "0.3.1", bat: 3910, usb: true)))
         XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"talk_on"}"#), .input(.talkOn))
-        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"focus"}"#), .input(.focus))
-        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"feel"}"#), .input(.feel))
+        // Focus and touch-and-hold were removed; an older board's are ignored.
+        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"focus"}"#), .other(#"{"t":"input","k":"focus"}"#))
+        XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"feel"}"#), .other(#"{"t":"input","k":"feel"}"#))
         XCTAssertEqual(DeviceMessage.decode(#"{"t":"input","k":"dance"}"#), .other(#"{"t":"input","k":"dance"}"#))
         XCTAssertEqual(DeviceMessage.decode(#"{"t":"dbg.ping","up":5}"#), .other(#"{"t":"dbg.ping","up":5}"#))
         XCTAssertEqual(DeviceMessage.decode("rst:0x1 (POWERON_RESET)"), .other("rst:0x1 (POWERON_RESET)"))

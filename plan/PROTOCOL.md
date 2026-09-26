@@ -25,9 +25,9 @@ Three rules follow from that:
   one, and a reconnect needs no special handling.
 - **Moments are fire-and-forget.** A cheer or a mumble either plays in time
   or is skipped. Nothing is acknowledged or retried.
-- **Nothing important flows back.** The device only reports taps,
-  push-to-talk, focus and touch-and-hold (`feel`). Boop never approves
-  anything, so no message from the device can affect an agent.
+- **Nothing important flows back.** The device only reports taps and
+  push-to-talk. Boop never approves anything, so no message from the device
+  can affect an agent.
 
 ## 2. Transport
 
@@ -94,7 +94,7 @@ so new optional fields never break an older peer.
  "base":"working","attn":{"agent":"codex","project":"landing","more":0},
  "busy":2,"idle":1,"wait":1,
  "mood":{"energy":70,"pace":110,"pitch":120},
- "quiet":0,"focus":false,"vol":6,"night":false,
+ "quiet":0,"vol":6,"night":false,
  "level":12,"prog":40,"days":12,"hungry":0,
  "threads":[["codex","landing","wait"],["claude","jetpack","work"],["codex","buddy","work"]]}
 ```
@@ -109,7 +109,6 @@ so new optional fields never break an older peer.
 | `busy` / `idle` / `wait` | Session counts for the status strip |
 | `mood` | Energy, pace and pitch, 0–200 with 100 as neutral. They shape how every animation and sound plays |
 | `quiet` | Minutes of quiet left; 0 when not quiet |
-| `focus` | Focus mode: no sound or buzz, and "needs you" is visual only |
 | `vol` | Volume 0–10; 0 is mute |
 | `night` | The Mac's view of whether it's night, for dimming and sleepiness |
 | `level`, `prog`, `days` | For the stats screen: level, progress to the next level (0–100), days together |
@@ -164,10 +163,10 @@ spoke on.
 | --- | --- |
 | `tap` | Tapped the face or pressed BOOT |
 | `talk_on`, `talk_off` | Push-to-talk held and released |
-| `focus` | Focus mode toggled on the device; the Mac confirms it in the next `state` |
-| `feel` | Touched and held the face. The device already shows a face from its mood (none while something needs you); the Mac may reply with a mumble |
 
-The device has already reacted on screen before sending this. Moving
+The device has already reacted on screen before sending this. The Mac
+ignores any other `k`, such as `focus` or `feel` from a board built before
+those were removed. Moving
 between the face, threads and stats screens is local and sends nothing.
 
 ## 5. Lifecycle

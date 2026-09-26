@@ -6,7 +6,6 @@ import Foundation
 public struct Growth: Equatable, Sendable {
     public static let xpPerLevel = 50
     public static let turnXP = 1
-    public static let dailyXP = 5
 
     public enum Hunger: Int, Sendable, Comparable {
         case fed = 0, hungry = 1, starving = 2

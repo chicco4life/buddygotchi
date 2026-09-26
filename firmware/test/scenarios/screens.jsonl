@@ -37,7 +37,7 @@
 {"input":{"touch":[160,222]}}
 {"clock":2100}
 {"expect":{"screen":"face"}}
-{"t":"state","v":1,"base":"working","busy":4,"wait":1,"quiet":10,"focus":true,"attn":{"agent":"claude","project":"jetpack","more":0}}
+{"t":"state","v":1,"base":"working","busy":4,"wait":1,"quiet":10,"attn":{"agent":"claude","project":"jetpack","more":0}}
 {"clock":2300}
 {"shot":"strip-icons"}
 {"input":{"touch":[160,100]}}

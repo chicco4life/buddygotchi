@@ -57,7 +57,7 @@ shows, the face eases up into the top 144 px at three-quarters size.
   word, or who needs you.
 - **Status strip.** How many sessions need you (amber, hidden at zero) and
   how many are working (grey), plus icons at the right for low battery, no
-  app, quiet and focus.
+  app and quiet.
 - **Debug label.** A debug-only aid, off unless the firmware is built with
   `BOOP_DEBUG_LABEL=1` (the board build sets it in
   `firmware/platformio.ini`). On the face, needs-you and no-app screens,
@@ -119,12 +119,10 @@ agents.
 | Press BOOT, or tap the face | Boop it; acknowledges a cheer; quiets the nudges if something needs you |
 | Hold BOOT | Push-to-talk while held |
 | Tap the status strip | Cycle screens: face → threads → stats → face (ignored on the no-app screen) |
-| Touch and hold the status strip | Focus mode on or off |
-| Touch and hold the face | A mumble and face that show how Boop feels (no face while something needs you) |
 
 A press shorter than 400 ms is a tap, and holding for 400 ms or more starts
-push-to-talk until you let go. A touch held for 600 ms or more is a
-touch-and-hold. On the screens that show the face, every press and touch
+push-to-talk until you let go. A touch counts when you let go, however long
+it was held. On the screens that show the face, every press and touch
 gets visible feedback within 20 ms, before the Mac hears about it: pressing
 BOOT or the face squashes it a little, and a finger on the strip lights its
 top line amber. On threads and stats the strip still lights at once, but
@@ -132,7 +130,7 @@ anything else shows when the screen changes, on release (or when
 push-to-talk starts).
 
 When an external main button is added, it takes over BOOT's jobs, and BOOT
-becomes a secondary button: a press cycles screens and a hold toggles focus.
+becomes a secondary button: a press cycles screens.
 
 ## 5. Talking to Boop
 
@@ -183,9 +181,8 @@ memory only, until that starts over ([HARNESS.md](HARNESS.md) §4).
       it.
 3. The app finds `Boop-XXXX` over Bluetooth and connects, and the device
    gets Boop's name. There's no pairing code in v1
-   ([PROTOCOL.md](PROTOCOL.md) §2). With no sessions yet Boop sleeps; its
-   first activity, a hook or a tap, wakes it with a stretch and a yawn
-   ([BEHAVIORS.md](BEHAVIORS.md) §3.3).
+   ([PROTOCOL.md](PROTOCOL.md) §2). With no sessions yet Boop sleeps, and
+   the first agent session wakes it ([BEHAVIORS.md](BEHAVIORS.md) §2).
 4. Boop uses Apple's on-device model by default, with no setup. Settings
    can switch to Jev, a "system one" model online, with your own API key
    ([HARNESS.md](HARNESS.md) §7); other cloud brains come later
@@ -214,7 +211,7 @@ except Talk, which is there to be used in the moment.
 | Area | Content |
 | --- | --- |
 | Header | A small copy of Boop's face on black glass (it blinks, glances about while agents work, looks up with an amber rim when something needs you, sleeps with its eyes closed, and looks up wide-eyed while listening), Boop's name, a tone dot with one short line ("Listening…", "Working on 2 sessions", "Needs you", "Hanging out", "Napping"), whether the body is connected ("Connected", "Looking…" or "No device"), and under it the Talk button (§5), which turns into a red Send while the mic is on. Which board it is never shows |
-| Modes | Small reminders only when a mode is on: Focus, Quiet with minutes left, Muted, Away |
+| Modes | Small reminders only when a mode is on: Quiet with minutes left, Muted, Away |
 | Notices | "Restart your agent sessions" after hooks change (dismissable), why Boop couldn't start, or "*name* can't hear you" when push-to-talk can't use the mic (dismissable; the next Talk clears it) |
 | Needs you | An amber card: agent · project, "Answer it in the agent's window", and "+N more" |
 | Sessions | Grouped by agent, like the threads screen: one row per project with a coloured edge and a status chip (needs you, working, idle). Empty: "No agents awake" |
@@ -225,7 +222,7 @@ except Talk, which is there to be used in the moment.
 
 | Group | Controls |
 | --- | --- |
-| Sound & focus | Volume (0–10, 0 shows "Off"), focus mode, "I'm away" (pauses hunger) |
+| Sound | Volume (0–10, 0 shows "Off"), "I'm away" (pauses hunger) |
 | Agents | Claude Code and Codex: connected, not connected, not found or needs a repair, with Connect, Repair or Remove. If `boop-hook` isn't built, each says so ("Run make build, then restart Boop") with no button |
 | Device | Whether Boop's body is connected and how (Bluetooth or USB), and its firmware version. Not its id. A Reconnect button drops the link and looks for the device again at once ([PROTOCOL.md](PROTOCOL.md) §2, "Reconnecting") |
 | Brain | "On-device" (Apple's model), "System one (Jev)" or "Rules only" (takes effect on restart), and the API key, kept in the Keychain. The key's caption says that what happens and Boop's memory go to TypeSafe with each call |

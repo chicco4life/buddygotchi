@@ -1,7 +1,7 @@
 import BoopKit
 import SwiftUI
 
-/// Settings, inside the popover (UX.md §7): sound and focus, agents and
+/// Settings, inside the popover (UX.md §7): sound and away, agents and
 /// hooks, the device, the brain and API key, and what Boop remembers.
 struct SettingsPane: View {
     @ObservedObject var model: AppModel
@@ -14,7 +14,7 @@ struct SettingsPane: View {
             PaneHeader(title: "Settings") { model.pane = .overview }
             FittedScroll(maxHeight: maxHeight) {
                 VStack(alignment: .leading, spacing: Theme.gapSection) {
-                    PaneSection("Sound & focus") { sound }
+                    PaneSection("Sound") { sound }
                     PaneSection("Agents") { agents }
                     PaneSection("Device") { device }
                     PaneSection("Brain") { brain }
@@ -28,7 +28,7 @@ struct SettingsPane: View {
         .onAppear { apiKey = Keychain.apiKey() ?? "" }
     }
 
-    // MARK: Sound & focus
+    // MARK: Sound
 
     private var sound: some View {
         let s = model.status?.snapshot
@@ -48,11 +48,6 @@ struct SettingsPane: View {
                             .foregroundStyle(Theme.inkSoft)
                             .frame(width: 22, alignment: .trailing)
                     }
-                }
-                Hairline().padding(.leading, 40)
-                SettingRow(icon: "moon.fill", title: "Focus mode",
-                           detail: "Silent and still. Only the face and the light.") {
-                    Toggle("Focus mode", isOn: Binding(get: { s?.focus ?? false }, set: { model.setFocus($0) }))
                 }
                 Hairline().padding(.leading, 40)
                 SettingRow(icon: "figure.walk", title: "I'm away",

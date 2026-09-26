@@ -18,7 +18,7 @@ constexpr int kBubbleTop = 144;  // the bubble, the 60 px above the strip
 struct Strip {
   int wait = 0;  // sessions that need you (amber; hidden at zero)
   int busy = 0;  // sessions working (grey)
-  bool noApp = false, quiet = false, focus = false, lowBattery = false;
+  bool noApp = false, quiet = false, lowBattery = false;
   bool pressed = false;  // a finger is on the strip: its top line lights up
 };
 

@@ -2,7 +2,7 @@ import Foundation
 
 /// The core (ARCHITECTURE.md §3.2): plain rules with no queue. It keeps the
 /// session table and decides what the device shows, the rule reactions, XP,
-/// hunger, mood, quiet, focus and away, and which triggers reach the harness.
+/// hunger, mood, quiet and away, and which triggers reach the harness.
 ///
 /// It's a pure state machine: every call takes the time and returns effects
 /// for the app to carry out. Call `tick` about once a second for the timers.
@@ -56,7 +56,6 @@ public final class Core {
 
     public private(set) var config: Config
     public private(set) var growth: Growth
-    public private(set) var focus = false
     public private(set) var away = false
 
     var sessions: [String: Session] = [:]
@@ -74,8 +73,8 @@ public final class Core {
     // Rule moments.
     struct Scheduled { var at: Int64; var anim: String; var size: Int }
     var scheduled: [Scheduled] = []
-    /// Follow-up moments still to play (`side_eye` after `oops`, `yawn`
-    /// after `stretch`, `gobble`); the brain's moments wait for them.
+    /// Follow-up moments still to play (`side_eye` after `oops`, `gobble`);
+    /// the brain's moments wait for them.
     public var followUpsPending: Bool { !scheduled.isEmpty }
     var lastMomentAt: Int64 = -1_000_000
     var lastFinish: (at: Int64, size: Int)?
@@ -188,7 +187,7 @@ public final class Core {
     }
 
     public enum Input: String, Sendable {
-        case tap, talkOn = "talk_on", talkOff = "talk_off", focus, feel
+        case tap, talkOn = "talk_on", talkOff = "talk_off"
     }
 
     /// An `input` message from the device. The device has already reacted.
@@ -206,12 +205,6 @@ public final class Core {
             startListening(by: .device, now, &fx)
         case .talkOff:
             stopListening(now, face: nil, &fx)
-        case .focus:
-            focus.toggle()
-        case .feel:
-            if mumblesAllowed(now) {
-                fx.append(.mumble(feeling: heldFeeling(now), word: nil))
-            }
         }
         publish(now, &fx)
         return fx
@@ -266,14 +259,6 @@ public final class Core {
     @discardableResult
     public func setQuiet(minutes: Int, at now: Int64) -> [CoreEffect] {
         quietUntil = minutes > 0 ? now + Int64(minutes) * 60_000 : 0
-        var fx: [CoreEffect] = []
-        publish(now, &fx)
-        return fx
-    }
-
-    @discardableResult
-    public func setFocus(_ on: Bool, at now: Int64) -> [CoreEffect] {
-        focus = on
         var fx: [CoreEffect] = []
         publish(now, &fx)
         return fx
@@ -350,7 +335,7 @@ public final class Core {
             time: now / 1000, name: StateSnapshot.clip(config.name), base: base, attn: attn,
             busy: working.count, idle: idle.count, wait: visible.count,
             mood: mood.mood(at: now, night: night, hunger: hunger),
-            quiet: quietLeft(now), focus: focus, vol: config.volume, night: night,
+            quiet: quietLeft(now), vol: config.volume, night: night,
             level: growth.level, prog: growth.progress, days: growth.days(today: config.time.day(now)),
             hungry: hunger.rawValue, threads: Array(rows.prefix(StateSnapshot.maxThreads)))
         snapshot.fit()
@@ -362,7 +347,7 @@ public final class Core {
         mood.mood(at: now, night: config.time.isNight(now), hunger: hungerNow(now))
     }
 
-    /// False in quiet or focus mode, or while something needs you.
+    /// False in quiet mode, or while something needs you.
     public func canMumble(at now: Int64) -> Bool { mumblesAllowed(now) }
 
     /// How `short-term.md` describes Boop's mood right now.
@@ -395,28 +380,13 @@ public final class Core {
         mood.feeling(at: now, night: config.time.isNight(now), hunger: hungerNow(now))
     }
 
-    /// The reply to a touch and hold. The device has already shown a face
-    /// from the `state` it was sent (firmware `Behaviour::feel`); this picks
-    /// the feeling whose `say` face is that same face, from the same mood,
-    /// hunger and night, so the reply doesn't change it.
-    func heldFeeling(_ now: Int64) -> String {
-        let night = config.time.isNight(now)
-        let hunger = hungerNow(now)
-        let energy = mood.mood(at: now, night: night, hunger: hunger).energy
-        if hunger == .starving { return "sad" }       // worried
-        if hunger == .hungry { return "curious" }     // curious
-        if night || energy < 60 { return "sleepy" }   // sleepy
-        if energy >= 140 { return "hopeful" }         // love
-        return "happy"                                // happy
-    }
-
-    /// Mumbles never play in quiet or focus mode, or while something needs you.
+    /// Mumbles never play in quiet mode, or while something needs you.
     func mumblesAllowed(_ now: Int64) -> Bool {
-        quietLeft(now) == 0 && !focus && !needsYouShowing
+        quietLeft(now) == 0 && !needsYouShowing
     }
 
-    /// The first activity of a new day: stretch, yawn, +5 XP, and the daily
-    /// reflection on yesterday.
+    /// The first activity of a new day: short-term memory starts fresh, and
+    /// yesterday gets its reflection.
     func startDayIfNew(_ now: Int64, _ fx: inout [CoreEffect]) {
         let today = config.time.day(now)
         guard today != lastActiveDay else { return }
@@ -426,9 +396,6 @@ public final class Core {
         if let yesterday {
             fx.append(.trigger(Trigger(kind: .reflect, line: "reflect · yesterday \(yesterday)", ts: now)))
         }
-        play("stretch", 1, now, &fx)
-        scheduled.append(Scheduled(at: now + 1400, anim: "yawn", size: 1))
-        feed(Growth.dailyXP, now, after: now + 3000, &fx)
     }
 
     /// Adds XP; a first meal after being hungry plays `gobble` once `after`.
@@ -527,10 +494,10 @@ public final class Core {
         offer(Trigger(kind: .event, line: line, ts: now), rank: rank, now, &fx)
     }
 
-    /// While something needs you, and in quiet or focus mode, only `talk` and
-    /// the daily reflection reach the harness.
+    /// While something needs you, and in quiet mode, only `talk` and the
+    /// daily reflection reach the harness.
     func triggersAllowed(_ now: Int64) -> Bool {
-        !needsYouShowing && quietLeft(now) == 0 && !focus
+        !needsYouShowing && quietLeft(now) == 0
     }
 
     /// Sends a trigger now, or holds it to merge with the burst it's part of.

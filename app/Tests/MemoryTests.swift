@@ -323,11 +323,10 @@ final class MemoryTests: XCTestCase {
         XCTAssertTrue(first.contains { if case .trigger(let t) = $0 { t.kind == .reflect } else { false } })
         XCTAssertEqual(rig.store.reflecting, "2026-10-13")
         XCTAssertEqual(rig.store.lastActiveDay, "2026-10-14")
-        XCTAssertEqual(rig.store.longTerm!.growth.xp, Growth.dailyXP)
         try rig.reopen()
         let (_, again) = boot(start + 60_000)
         XCTAssertFalse(again.contains { if case .newDay = $0 { true } else { false } })
-        XCTAssertEqual(rig.store.longTerm!.growth.xp, Growth.dailyXP)
+        XCTAssertFalse(again.contains { if case .trigger(let t) = $0 { t.kind == .reflect } else { false } })
     }
 
     func testLimitsHoldOnHandEditedFiles() throws {
@@ -342,6 +341,6 @@ final class MemoryTests: XCTestCase {
 
 extension StateSnapshot {
     static let sample = StateSnapshot(
-        time: 0, name: "Pip", base: "idle", attn: nil, busy: 0, idle: 0, wait: 0, mood: Mood(), quiet: 0, focus: false,
+        time: 0, name: "Pip", base: "idle", attn: nil, busy: 0, idle: 0, wait: 0, mood: Mood(), quiet: 0,
         vol: 6, night: false, level: 1, prog: 0, days: 1, hungry: 0, threads: [])
 }
