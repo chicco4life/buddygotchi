@@ -1,0 +1,17 @@
+pass  chatty  01-short-turn.json  Short turns: a mumble in chatty, the cheer alone in normal, nothing in calm  (3/3 runs)
+pass  chatty  02-long-turn.json  A long turn is celebrated, and a very long one with a word  (3/3 runs)
+pass  chatty  03-turn-failed.json  A failed turn gets an annoyed mumble in every mode  (3/3 runs)
+pass  chatty  04-be-quiet.json  Only asking for quiet makes Boop quiet, in every mode  (3/3 runs)
+pass  chatty  05-bad-answer.json  A bad answer or a brain error is contained  (3/3 runs)
+pass  chatty  06-tests-left-failing.json  A turn that leaves its tests failing is a failure  (3/3 runs)
+pass  chatty  07-told-off.json  Yelled at or told off, Boop is hurt, and never goes quiet  (3/3 runs)
+pass  chatty  08-poke-streak.json  Poked again and again, Boop grumbles, except in calm  (3/3 runs)
+pass  chatty  09-remember.json  Told a fact, Boop keeps it where it belongs; praise it doesn't  (3/3 runs)
+pass  chatty  10-small-talk.json  Small talk gets the word it calls for  (3/3 runs)
+pass  chatty  11-mode-switch.json  A new mode takes effect at once  (3/3 runs)
+pass  chatty  12-chatter.json  Working chatter keeps the mode's pace, and calm cheers only a very long turn  (3/3 runs)
+pass  chatty  13-no-cheer-for-a-failure.json  A failed turn gets no cheer, and calm cheers only a very long turn  (3/3 runs)
+pass  chatty  14-quiet-fifteen.json  Quiet for fifteen minutes holds back mumbles, then lets them go  (3/3 runs)
+pass  chatty  15-needs-you.json  While something needs you, only what you say reaches the brain, and its mumble is dropped  (3/3 runs)
+15/15 passed in all 3 runs: chatty chatty@1 + apple:27.0
+real 249.86

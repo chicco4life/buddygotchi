@@ -1,0 +1,19 @@
+# boopdev brain --mode chatty --writer apple --memory <a full day's short-term: 38 Happened lines, 1,876 B>
+## before (full short-term)
+writer: 52 passes, 56/56 slots filled, 0 failed
+latency agent started: n 5, classify p50 0 ms, write p50 2047 ms (n 5), p95 2600 ms (deadline 5000 ms)
+latency agent finished: n 19, classify p50 0 ms, write p50 2166 ms (n 19), p95 2334 ms (deadline 5000 ms)
+latency you said: n 26, classify p50 0 ms, write p50 2161 ms (n 24), p95 2432 ms (deadline 4000 ms)
+latency poked again and again: n 4, classify p50 0 ms, write p50 2183 ms (n 4), p95 2220 ms (deadline 4000 ms)
+## after (last 5 Happened lines)
+writer: 52 passes, 56/56 slots filled, 0 failed
+latency agent started: n 5, classify p50 0 ms, write p50 1538 ms (n 5), p95 2077 ms (deadline 5000 ms)
+latency agent finished: n 19, classify p50 0 ms, write p50 1567 ms (n 19), p95 1844 ms (deadline 5000 ms)
+latency you said: n 26, classify p50 0 ms, write p50 1648 ms (n 24), p95 2009 ms (deadline 4000 ms)
+latency poked again and again: n 4, classify p50 0 ms, write p50 1594 ms (n 4), p95 1697 ms (deadline 4000 ms)
+
+# fixture memory (5 Happened lines), before the trim
+latency agent started: n 5, classify p50 0 ms, write p50 1570 ms (n 5), p95 1669 ms (deadline 5000 ms)
+latency agent finished: n 19, classify p50 0 ms, write p50 1530 ms (n 19), p95 1683 ms (deadline 5000 ms)
+latency you said: n 26, classify p50 0 ms, write p50 1612 ms (n 24), p95 1883 ms (deadline 4000 ms)
+latency poked again and again: n 4, classify p50 0 ms, write p50 1610 ms (n 4), p95 1702 ms (deadline 4000 ms)

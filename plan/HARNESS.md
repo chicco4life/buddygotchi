@@ -74,8 +74,8 @@ turn is under 15 seconds, a long one up to a minute, and a very long one
 past it (`Input.Length`). The if-else classifiers, calm's cheer and the
 core's burst ranking use the same bands.
 
-**Bursts.** Agent inputs within 3 s become one, and the most important
-wins: failed, then a finish of 15 seconds or more, then a shorter finish,
+**Bursts.** The first agent input after a quiet spell goes out at once;
+any that follow within 3 s become one, and the most important wins: failed, then a finish of 15 seconds or more, then a shorter finish,
 then a start. It ends `· +N more` for the others
 ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2).
 

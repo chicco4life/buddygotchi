@@ -811,10 +811,20 @@ matching spec first.
   launches on Monday" would be kept beside "landing launches Monday";
   moments already refuse a line whose longer words are mostly in an
   earlier one ([HARNESS.md](HARNESS.md) §5).
-- **"Love" for a request, about one run in six.** With Apple's model,
-  "remember I work with Bob on landing" sometimes gets the word "love"
-  where Writing says "okay", in chatty and calm, so `09-remember` fails
-  some `--writer apple` runs ([evidence](evidence/2026-09-26-modes/README.md)).
+- **A failed test turn's word is on a knife-edge.** Under greedy
+  sampling Apple's writer picks the right source (the failed topic) but
+  flips between "tests" and "ugh" with small, unrelated prompt changes;
+  `06` and `13` accept both. A structural fix (the topic word supplied
+  when that source is picked) would make it "tests" every time
+  ([evidence](evidence/2026-09-27-overnight/brain/README.md)).
+- **The phrase table's complaints and sarcasm.** "ugh, the tests are
+  flaky again" is curious in the if-else tables while `steering.md`'s
+  example is annoyed, and "great, the build broke again" is praise.
+  Decide whether a complaint row (before praise) belongs in `Phrases`.
+- **A waiting input's deadline starts with its pass.** An agent input
+  held behind a pass for what you said gets a fresh 5 s when its own pass
+  starts, so its mumble can land well after the event
+  ([HARNESS.md](HARNESS.md) §3).
 - **Temperament and Moments no longer change.** With the new day's
   reflection gone (A9), only About you and Preferences grow, when you tell
   Boop something lasting. Decide whether the other two stay as they are,
