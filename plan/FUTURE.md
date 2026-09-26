@@ -52,6 +52,13 @@ ARCHITECTURE…) first, then add it to [PLAN.md](PLAN.md).
   leaves prompt text out entirely.
 - **Richer brain triggers,** such as coming back after a long break, or a
   periodic check-in while agents work.
+- **A running transcript for the brain.** In v1 every trigger is a one-shot
+  call with no history ([HARNESS.md](HARNESS.md) §2); only the memory files
+  carry over. Keep a short transcript of Boop's own recent exchanges (the
+  trigger line, what it did, and on push-to-talk what you said) and put it
+  in the prompt. Then it can follow a back-and-forth when you talk to it,
+  and not repeat itself. Keep it small against the 8K context, say the last
+  few exchanges, and keep agent transcripts and code out of it.
 - **Codex failures.** Codex has no failure hook; reading its session file
   when a turn stops would tell failures from finishes.
 
