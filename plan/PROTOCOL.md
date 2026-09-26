@@ -1,6 +1,6 @@
 # Boop: protocol
 
-Updated 2026-09-26. Every message between the Boop Mac app and the device,
+Updated 2026-09-27. Every message between the Boop Mac app and the device,
 over Bluetooth or USB.
 
 ## 1. The idea
@@ -164,7 +164,11 @@ spoke on.
 | `tap` | Touched the screen or pressed BOOT |
 | `talk_on`, `talk_off` | Push-to-talk held and released |
 
-The device has already reacted on screen before sending this. The Mac
+The device has already reacted on screen before sending this. It sends
+it on every live link: Bluetooth while a Mac is connected, and USB while
+the Mac has spoken there (any message that isn't `dbg.*`) in the last
+30 s, so a tool's `moment` over USB doesn't take taps and push-to-talk
+away from the app on Bluetooth. The Mac
 ignores any other `k`, such as `focus` or `feel` from a board built before
 those were removed.
 

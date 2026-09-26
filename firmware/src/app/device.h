@@ -146,6 +146,9 @@ class Device {
   Out* outs_[3] = {nullptr, nullptr, nullptr};
   Link link_ = Link::kNone;  // the link the Mac last spoke on
   uint32_t heardReal_ = 0;   // real time the Mac last spoke, for USB's "connect"
+  bool bleUp_ = false;       // a Mac is connected over Bluetooth
+  bool usbHeard_ = false;    // the Mac has spoken on USB, last at usbHeardReal_
+  uint32_t usbHeardReal_ = 0;
   uint32_t statusReal_ = 0;  // real time of the last status
   uint32_t dbgReal_ = 0;     // real time of the last dbg.* message
   bool toolFrozen_ = false;  // a dbg.* message froze the clock (not the simulator's start)

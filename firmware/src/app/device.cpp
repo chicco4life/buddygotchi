@@ -77,10 +77,14 @@ void Device::reply(Link link, const char* text, size_t n) {
   out->write("\n", 1);
 }
 
+// On every live Mac link (PROTOCOL.md §4): Bluetooth while connected, and
+// USB while the Mac has spoken there within kNoAppMs. A tool's `moment`
+// over USB doesn't take the taps away from the app on Bluetooth.
 void Device::emit(const char* k) {
   char buf[48];
   int n = std::snprintf(buf, sizeof(buf), "{\"t\":\"input\",\"k\":\"%s\"}", k);
-  reply(link_, buf, size_t(n));
+  if (bleUp_) reply(Link::kBle, buf, size_t(n));
+  if (usbHeard_ && hal_.realMs() - usbHeardReal_ < Behaviour::kNoAppMs) reply(Link::kUsb, buf, size_t(n));
 }
 
 void Device::input(const char* k, uint32_t t, int x, int y) {
@@ -101,6 +105,7 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
                (link_ != Link::kUsb || real - heardReal_ >= Behaviour::kNoAppMs);
   if (!debug) link_ = from, heardReal_ = real;
   else dbgReal_ = real;
+  if (!debug && from == Link::kUsb) usbHeard_ = true, usbHeardReal_ = real;
   uint32_t at = now();
   b_.advance(at, rng_);
 
@@ -247,11 +252,13 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
 void Device::connected(Link link) {
   link_ = link;
   heardReal_ = hal_.realMs();
+  if (link == Link::kBle) bleUp_ = true;
   sendStatus(link);
 }
 
 void Device::disconnected(Link link) {
   if (link_ == link) link_ = Link::kNone;
+  if (link == Link::kBle) bleUp_ = false;
 }
 
 // BOOT and touch, turned into gestures (UX.md §4). Every press and touch
