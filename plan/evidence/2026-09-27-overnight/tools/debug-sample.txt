@@ -1,0 +1,56 @@
+01:56:06.260 boop: set up Pip (sweet) in /tmp/boop-ovn-dbg/state
+01:56:06.439 boop: running on /tmp/boop-ovn-dbg/state, socket /tmp/boop-ovn-dbg/state/boop.sock, link none, mode chatty, brain chatty@1 + none, debug log /tmp/boop-ovn-dbg/state/debug.jsonl
+01:56:06.440 link rules → {"t":"state","v":1,"time":1790441766,"name":"Pip","base":"asleep","busy":0,"idle":0,"wait":0,"quiet":0,"vol":6}
+01:56:07.481 hook: claude SessionStart fixture-claude-code → session_start fixture-project
+01:56:07.481 core: new-day 2026-09-27 first seen 01:56
+01:56:07.481 link rules → {"t":"state","v":1,"time":1790441767,"name":"Pip","base":"idle","busy":0,"idle":1,"wait":0,"quiet":0,"vol":6}
+01:56:07.598 hook: claude UserPromptSubmit fixture-claude-code → turn_start fixture-project
+01:56:07.598 core: input agent started · claude · fixture-project · 01:56 Sunday
+01:56:07.598 link rules → {"t":"state","v":1,"time":1790441767,"name":"Pip","base":"working","busy":1,"idle":0,"wait":0,"quiet":0,"vol":6}
+01:56:07.599 link brain → {"t":"moment","say":{"syl":"da-ka mi","tune":"up","ms":135},"ttl":5}
+01:56:07.600 ▸ agent started · claude · fixture-project · 01:56 Sunday   [chatty@1 → none, 0 ms]
+    memory
+    … (memory text) …
+    window   1 inputs, oldest first
+      agent started · claude · fixture-project · 01:56 Sunday
+    decided  react(feeling: curious, voice: mumble) (0 ms)
+    because  agent started
+    wrote    react.word = (empty) (0 ms)
+    ran      react(feeling: curious, voice: mumble) → done: curious: da-ka mi… (seed 1)
+01:56:07.600 brain agent started 0 ms → react
+01:56:07.730 hook: claude PreToolUse fixture-claude-code → activity fixture-project · tool Bash, topic tests
+01:56:07.862 hook: claude PostToolUse fixture-claude-code → activity fixture-project · tool Bash
+01:56:07.994 hook: claude PreToolUse fixture-claude-code → activity fixture-project · tool Bash, topic tests
+01:56:08.122 hook: claude PostToolUse fixture-claude-code → activity fixture-project · tool Bash
+…
+01:56:10.342 core: moment cheer
+01:56:10.342 link rules → {"t":"state","v":1,"time":1790441770,"name":"Pip","base":"idle","busy":0,"idle":1,"wait":0,"quiet":0,"vol":6}
+01:56:10.342 link rules → {"t":"moment","anim":"cheer","ttl":5}
+01:56:10.479 dev: talk "remember the demo is on thursday"
+01:56:10.479 core: input you said · 01:56 Sunday "remember the demo is on thursday"
+01:56:10.483 ▸ you said · 01:56 Sunday   [chatty@1 → none, 0 ms]
+    said     "remember the demo is on thursday"
+    memory   the same as the pass before
+    window   2 inputs, oldest first
+      agent started · claude · fixture-project · 01:56 Sunday · did: react(feeling: curious, voice: mumble)
+      you said · 01:56 Sunday "remember the demo is on thursday" · rules: listening
+    decided  react(feeling: happy, voice: mumble), remember(where: today) (0 ms)
+    because  asked to remember, today
+    wrote    react.word = (empty), remember.text = (empty) (0 ms)
+    ran      react(feeling: happy, voice: mumble) → done: happy: bi-pa-ga li-ka ta-ki-ka… (seed 2)
+    ran      remember(where: today) → dropped: nothing was written
+01:56:10.483 brain you said 0 ms → react, remember (dropped)
+01:56:11.449 core: input agent finished · done · claude · fixture-project · topic: tests · a short turn (2 s) · 01:56 Sunday
+01:56:11.450 ▸ agent finished · done · claude · fixture-project · topic: tests · a short turn (2 s) · 01:56 Sunday   [chatty@1 → none, 0 ms]
+    memory   the same as the pass before
+    window   3 inputs, oldest first
+      agent started · claude · fixture-project · 01:56 Sunday · did: react(feeling: curious, voice: mumble)
+      you said · 01:56 Sunday "remember the demo is on thursday" · rules: listening · did: react(feeling: happy, voice: mumble)
+      agent finished · done · claude · fixture-project · topic: tests · a short turn (2 s) · 01:56 Sunday · rules: cheer
+    decided  react(feeling: happy, voice: mumble) (0 ms)
+    because  done, a short turn
+    wrote    react.word = (empty) (0 ms)
+    ran      react(feeling: happy, voice: mumble) → done: happy: wa ka-da-pa pa… (seed 3)
+01:56:11.450 brain agent finished 0 ms → react
+01:56:12.009 boop: stopping (signal 15)
+01:56:12.009 boop: stopped
