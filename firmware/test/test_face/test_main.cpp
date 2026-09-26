@@ -335,44 +335,6 @@ static void test_closed_eyes_are_a_line() {
   TEST_ASSERT_TRUE(b.count(inkAt(kInkEye, kLevels)) > 80);  // but a line is there
 }
 
-// A "^" arch: down the middle of the eye, one thin stroke near the top
-// and nothing below it; at the ends, ink down at the eye's centre line.
-void checkArch(const Buf& b, bool right) {
-  EyeBox e = eyeBox(b, right);
-  int top = 0, below = 0;
-  for (int y = e.y0; y < e.y0 + 10; ++y) top += b.c.get(e.cx(), y) != kBlack;
-  for (int y = e.y0 + 10; y < kEyeRows; ++y) below += b.c.get(e.cx(), y) != kBlack && !notEye(b.c.get(e.cx(), y));
-  TEST_ASSERT_TRUE(top >= 6 && top <= 9);  // two or three blocks
-  TEST_ASSERT_EQUAL_INT(0, below);
-  TEST_ASSERT_TRUE(e.h() >= 15 && e.h() <= 24);  // 12 px of rise plus the stroke
-  TEST_ASSERT_TRUE(e.w() >= 36);
-}
-
-static void test_happy_eyes_are_arches_and_cheer_glows() {
-  Pose p;  // gen-2's "^ ^" and a closed "u" smile
-  p.lidBot = 700, p.mouthCurve = 900;
-  Buf b = face(p);
-  checkArch(b, false);
-  checkArch(b, true);
-  TEST_ASSERT_EQUAL_INT(0, b.count(kHollow));
-  TEST_ASSERT_EQUAL_INT(0, b.count(inkAt(kInkRose, kLevels)));  // arches alone have no heart
-  // The cheer (BEHAVIORS.md §5): arches, the warm tint and a heart.
-  Pose c = animPose(Anim::kCheer, 1500);  // landed, after the hops
-  TEST_ASSERT_EQUAL_INT(kInkGlow4, eyeInk(c));
-  TEST_ASSERT_EQUAL_INT(1000, c.heart);
-  TEST_ASSERT_TRUE(c.lidBot >= 650);
-  TEST_ASSERT_EQUAL_INT(0, c.dy);
-  // Three hops, then still.
-  int hops = 0;
-  bool up = false;
-  for (uint32_t t = 0; t < animDuration(Anim::kCheer); t += 10) {
-    bool air = animPose(Anim::kCheer, t).dy < -7;
-    hops += air && !up;
-    up = air;
-  }
-  TEST_ASSERT_EQUAL_INT(3, hops);
-}
-
 // Pixels of one ink's ramp: how many, their mean row and leftmost column.
 struct InkSpot {
   int n = 0, x0 = kWidth, y0 = kHeight, y1 = -1;
@@ -394,15 +356,67 @@ InkSpot inkSpot(const Buf& b, int ink) {
   return s;
 }
 
-static void test_a_tap_is_arches_and_a_heart() {
-  // Gen-2's boop, "^ ^" and a smile, with a heart at the top right of the
-  // face where v1's solid crescents read as hooded, glaring eyes (UX.md §2,
-  // BEHAVIORS.md §3.3).
+// A happy eye stays a boxy window: its top panes are whole and the same
+// place as a neutral eye's, and its bottom has risen (the squint), so the
+// eye is shorter but still has a lit bottom row under the cross. Never a
+// "^" arch: on boxy eyes that read as uncanny (UX.md §2).
+void checkSquint(const Buf& b, const Buf& n, bool right) {
+  EyeBox e = eyeBox(b, right), ne = eyeBox(n, right);
+  TEST_ASSERT_EQUAL_INT(ne.y0, e.y0);
+  TEST_ASSERT_TRUE(e.y1 <= ne.y1 - 6);   // at least two blocks up
+  TEST_ASSERT_TRUE(e.h() >= ne.h() / 2 + 3);  // but still more than the top panes
+  TEST_ASSERT_TRUE(e.w() >= 36);
+  TEST_ASSERT_TRUE(eyeIsCrisp(b, right, kInkEye));
+}
+
+static void test_happy_eyes_squint_and_the_smile_stays_small() {
+  Pose p;  // boxy eyes squinting from the bottom, and a small "u" smile
+  p.lidBot = 700, p.mouthCurve = 900;
+  Buf b = face(p), n = face(Pose{});
+  checkSquint(b, n, false);
+  checkSquint(b, n, true);
+  TEST_ASSERT_EQUAL_INT(0, inkSpot(b, kInkRose).n);  // squinting alone has no heart
+  // The smile is narrower than the resting mouth, not a wide grin.
+  auto mouthWidth = [](const Buf& b) {
+    int x0 = kWidth, x1 = -1;
+    for (int y = kEyeRows; y < kStripTop; ++y) {
+      for (int x = kWidth / 2 - 40; x < kWidth / 2 + 40; ++x) {
+        if (b.c.get(x, y) != inkAt(kInkEye, kLevels)) continue;
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+      }
+    }
+    return x1 - x0 + 1;
+  };
+  TEST_ASSERT_TRUE(mouthWidth(b) <= 21);
+  TEST_ASSERT_TRUE(mouthWidth(b) < mouthWidth(n));
+  // The cheeks rise with the squint.
+  TEST_ASSERT_TRUE(inkSpot(b, kInkBlush).y0 < inkSpot(n, kInkBlush).y0);
+  // The cheer (BEHAVIORS.md §5): the squint, white eyes and a heart.
+  Pose c = animPose(Anim::kCheer, 1500);  // landed, after the hops
+  TEST_ASSERT_EQUAL_INT(kInkEye, eyeInk(c));
+  TEST_ASSERT_EQUAL_INT(1000, c.heart);
+  TEST_ASSERT_TRUE(c.lidBot >= 650);
+  TEST_ASSERT_EQUAL_INT(0, c.dy);
+  // Three hops, then still.
+  int hops = 0;
+  bool up = false;
+  for (uint32_t t = 0; t < animDuration(Anim::kCheer); t += 10) {
+    bool air = animPose(Anim::kCheer, t).dy < -7;
+    hops += air && !up;
+    up = air;
+  }
+  TEST_ASSERT_EQUAL_INT(3, hops);
+}
+
+static void test_a_tap_is_a_squint_and_a_heart() {
+  // A boop: the happy squint and a small smile, with a heart at the top
+  // right of the face (UX.md §2, BEHAVIORS.md §3.3).
   Pose p = animPose(Anim::kWiggle, 0);
   p.dx = 0, p.squash = 0;
-  Buf b = face(p);
-  checkArch(b, false);
-  checkArch(b, true);
+  Buf b = face(p), n = face(Pose{});
+  checkSquint(b, n, false);
+  checkSquint(b, n, true);
   EyeBox r = eyeBox(b, true);
   InkSpot heart = inkSpot(b, kInkRose);
   TEST_ASSERT_TRUE(heart.n > 150);
@@ -452,22 +466,21 @@ static void test_a_sweat_drop_sits_by_the_right_eye_and_slides_down() {
   TEST_ASSERT_TRUE(a.x0 > eyeBox(top, true).x1);
 }
 
-static void test_a_happy_blend_squeezes_then_arches() {
-  // On the way to happy the eye squeezes to a bar and the bar bends up, so
-  // the change never jumps between two drawings (UX.md §2).
+static void test_a_happy_blend_squints_a_row_at_a_time() {
+  // On the way to happy the bottom of the eye rises steadily and the top
+  // stays put, so the change never jumps between two drawings (UX.md §2).
   int last = 1000;
+  EyeBox n = eyeBox(face(Pose{}), false);
   for (int t = 0; t <= 1024; t += 64) {
     Pose happy;
     happy.lidBot = 700;
     Pose p = blend(Pose{}, happy, t);
     p.mouthCurve = 0;
     EyeBox e = eyeBox(face(p), false);
-    TEST_ASSERT_TRUE(e.n > 0);
+    TEST_ASSERT_EQUAL_INT(n.y0, e.y0);
     TEST_ASSERT_TRUE(e.w() >= 36);
-    if (p.lidBot < 450) {
-      TEST_ASSERT_TRUE(e.h() <= last);  // squeezing
-      last = e.h();
-    }
+    TEST_ASSERT_TRUE(e.y1 <= last);
+    last = e.y1;
   }
 }
 
@@ -554,11 +567,11 @@ int main(int, char**) {
   RUN_TEST(test_lids_cut_each_half_flat);
   RUN_TEST(test_thinking_looks_up_and_working_looks_down);
   RUN_TEST(test_closed_eyes_are_a_line);
-  RUN_TEST(test_happy_eyes_are_arches_and_cheer_glows);
-  RUN_TEST(test_a_tap_is_arches_and_a_heart);
+  RUN_TEST(test_happy_eyes_squint_and_the_smile_stays_small);
+  RUN_TEST(test_a_tap_is_a_squint_and_a_heart);
   RUN_TEST(test_asleep_zzz_climbs_one_letter_at_a_time);
   RUN_TEST(test_a_sweat_drop_sits_by_the_right_eye_and_slides_down);
-  RUN_TEST(test_a_happy_blend_squeezes_then_arches);
+  RUN_TEST(test_a_happy_blend_squints_a_row_at_a_time);
   RUN_TEST(test_no_app_eyes_are_open_not_droopy);
   RUN_TEST(test_blend_is_eased_interruptible_and_150ms);
   RUN_TEST(test_every_anim_has_a_name_and_ends);

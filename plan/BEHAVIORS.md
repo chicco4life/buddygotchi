@@ -84,7 +84,7 @@ chirps again. The brain is never involved here.
 
 | When | Rules | Brain may add |
 | --- | --- | --- |
-| Tap the screen, or press BOOT | `wiggle`: "^ ^" eyes, a smile and a heart at the top right, swaying gently | Nothing: a tap is the rules' alone ([HARNESS.md](HARNESS.md) §2) |
+| Tap the screen, or press BOOT | `wiggle`: a happy squint, a small smile and a heart at the top right, swaying gently | Nothing: a tap is the rules' alone ([HARNESS.md](HARNESS.md) §2) |
 | Hold BOOT (push-to-talk) | `listening` at once (for at most 30 s), `thinking` on release. The Mac's mic goes off on release, after 30 s, or when the link drops | Usually a mumble; on "shut up", quiet; told something to remember, a note for today, as in [steering.md](steering.md) |
 | Talk in the popover, then Send | The Mac sends `listening`, then `thinking` on Send or after 30 s. A mic that can't start sends `shrug` | As for holding BOOT |
 | Brain too slow to reply | The device ends `thinking` with a `shrug` itself after 8 s | — |
@@ -111,7 +111,7 @@ Mute (volume 0) silences all sound but keeps the light.
 
 | Name | Used for |
 | --- | --- |
-| `cheer` | Finished turns: arches, warm eyes and a heart, 2 s |
+| `cheer` | Finished turns: three hops, then a happy squint, a small open smile and a heart, 2 s |
 | `nod` | After "needs you" clears, and a tap while it shows |
 | `wiggle` | Taps |
 | `listening`, `thinking`, `shrug` | Push-to-talk |

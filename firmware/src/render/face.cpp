@@ -23,15 +23,16 @@ constexpr int kTurn = 110;               // permille: a full sideways look grows
 constexpr int kPaneMin = 3;              // blocks: a pane thinner than this and the eye is one bar
 constexpr int kMouthFollow = 450;        // permille of the eyes' move the mouth follows
 // The mouth: a flat bar as wide as an eye, two blocks thick, level with the
-// cheeks; it bends into a smile or frown and drops open into a D.
+// cheeks. Past kMouthCurveAt it's a small smile or frown, and past
+// kMouthOpenAt a small "o" (or a "D" when smiling too). Kept small: a wide
+// grin on boxy eyes reads as forced.
 constexpr int kMouthY = 45;
-constexpr int kMouthHalfW = 20, kMouthThick = 6, kMouthBend = 9, kMouthDrop = 12;
-constexpr int kSmileWiden = 250;         // permille: a full smile is this much wider
-// Happy eyes (lidBot): up to kArchFrom the eye squeezes towards a
-// kLidLine bar; from there the bar bends up into a "^" arch, fully raised
-// at kArchFull.
-constexpr int kArchFrom = 450, kArchFull = 650;
-constexpr int kLidLine = 6, kArchRise = 12, kArchThick = 9;
+constexpr int kMouthHalfW = 20, kMouthThick = 6;
+constexpr int kMouthCurveAt = 300, kMouthOpenAt = 300;
+// Happy eyes (lidBot) stay boxy: the bottom rises, as if the cheeks pushed
+// it up, by kSquint of the eye at full happiness, and the cheeks rise
+// kBlushLift with it.
+constexpr int kSquint = 350, kBlushLift = 6;
 // The cheeks: two pink blocks side by side under each eye, towards the
 // outside, level with the mouth.
 constexpr int kBlushDx = 22, kBlushDy = 40, kBlushW = 12, kBlushH = 9;
@@ -78,56 +79,12 @@ void roundCorners(Canvas& c, int x0, int y0, int x1, int y1, uint8_t color) {
   }
 }
 
-// A round-capped stroke of radius r along the parabola from (x - hw, y)
-// through (x, y + bend) to (x + hw, y), in sub-pixels: a "^" eye when bend
-// is negative, the mouth's line when it is positive or zero. `band` gives
-// its top and bottom at column sx: the union of discs of radius r along the
-// curve, sampled across their reach.
-struct Stroke {
-  static constexpr int kSamples = 12;
-  int x, y, hw, bend, r;
-
-  int curveY(int cx) const {
-    if (hw <= 0) return y;
-    int64_t u = int64_t(cx - x) * 1024 / hw;
-    return y + int(int64_t(bend) * (1024 - u * u / 1024) / 1024);
-  }
-
-  bool band(int sx, int& top, int& bottom) const {
-    int lo = sx - r > x - hw ? sx - r : x - hw, hi = sx + r < x + hw ? sx + r : x + hw;
-    if (lo > hi) return false;
-    bool any = false;
-    for (int i = 0; i <= kSamples; ++i) {
-      int cx = lo + (hi - lo) * i / kSamples, d = sx - cx;
-      if (d <= -r || d >= r) continue;
-      int h = int(isqrt(uint64_t(int64_t(r) * r - int64_t(d) * d)));
-      int cy = curveY(cx);
-      if (!any || cy - h < top) top = cy - h;
-      if (!any || cy + h > bottom) bottom = cy + h;
-      any = true;
-    }
-    return any;
-  }
-};
-
-// Fills every block whose centre is inside the stroke.
-void strokeBlocks(Canvas& c, const Stroke& st, uint8_t color) {
-  for (int bx = blockOf(st.x - st.hw - st.r); bx <= blockOf(st.x + st.hw + st.r); ++bx) {
-    int top, bottom;
-    if (!st.band(centreOf(bx), top, bottom)) continue;
-    for (int by = blockOf(top); by <= blockOf(bottom); ++by) {
-      int cy = centreOf(by);
-      if (cy >= top && cy <= bottom) block(c, bx, by, color);
-    }
-  }
-}
-
 struct Eye {
   int x, y;              // centre, sub-pixels (unsnapped, for what sits beside the eye)
   int bx, by, wb, hb;    // centre block and size in blocks (odd)
   int lidY, lidM;        // upper lid line through (x, lidY) with slope lidM/1000, sub-pixels
-  bool arch;             // happy: drawn as a "^" stroke instead
-  Stroke archStroke;
+  int botY;              // happy: rows below this are cut (the squint), sub-pixels
+  int happy;             // permille, for the cheeks
 };
 
 Eye makeEye(const Pose& p, int cx, int cy, int s, bool right) {
@@ -141,8 +98,6 @@ Eye makeEye(const Pose& p, int cx, int cy, int s, bool right) {
   int w = len(kEyeW) * (1000 + sq * 4 / 10) / 1000 * size / 1000;
   int h = len(kEyeH) * (1000 - sq * 6 / 10) / 1000 * size / 1000 * clampi(p.open, 0, 1000) / 1000;
   int happy = clampi(p.lidBot, 0, 1000);
-  int bar = len(kLidLine) * size / 1000;
-  if (happy < kArchFrom && h > bar) h = h - (h - bar) * happy / kArchFrom;  // squeezing
   e.x = cx + (right ? len(kEyeGap) : -len(kEyeGap)) + len(kLookX) * lookX / 1000;
   e.y = cy + len(kLookY) * lookY / 1000;
   e.bx = blockOf(e.x), e.by = blockOf(e.y);
@@ -155,13 +110,8 @@ Eye makeEye(const Pose& p, int cx, int cy, int s, bool right) {
   int m = clampi(p.lidTilt, -1000, 1000) * 7 / 10;
   e.lidM = right ? -m : m;
 
-  e.arch = happy >= kArchFrom;
-  if (e.arch) {
-    int rise = clampi((happy - kArchFrom) * 1000 / (kArchFull - kArchFrom), 0, 1000);
-    int r = len(kArchThick) * size / 1000 / 2;
-    int wx = e.wb * kB / 2;
-    e.archStroke = Stroke{centreOf(e.bx), centreOf(e.by), wx - r, -len(kArchRise) * size / 1000 * rise / 1000, r};
-  }
+  e.happy = happy;
+  e.botY = top + hs - int(int64_t(hs) * kSquint / 1000 * happy / 1000);
   return e;
 }
 
@@ -169,7 +119,6 @@ Eye makeEye(const Pose& p, int cx, int cy, int s, bool right) {
 // whole rows of blocks from the top of each half. Too thin for panes, it's one
 // solid bar. Each pane, or the bar, gets softened corners.
 void drawEye(Canvas& c, const Eye& e, uint8_t color) {
-  if (e.arch) return strokeBlocks(c, e.archStroke, color);
   const int x0 = e.bx - e.wb / 2, x1 = e.bx + e.wb / 2, y0 = e.by - e.hb / 2, y1 = e.by + e.hb / 2;
   const bool panes = e.hb >= 2 * kPaneMin + 1 && e.wb >= 2 * kPaneMin + 1;
   for (int bx = x0; bx <= x1; ++bx) {
@@ -180,7 +129,7 @@ void drawEye(Canvas& c, const Eye& e, uint8_t color) {
     int lidAt = e.lidY + int(int64_t(e.lidM) * (centreOf(half) - e.x) / 1000);
     for (int by = y0; by <= y1; ++by) {
       if (panes && by == e.by) continue;
-      if (centreOf(by) < lidAt) continue;
+      if (centreOf(by) < lidAt || centreOf(by) > e.botY) continue;
       block(c, bx, by, color);
     }
   }
@@ -194,71 +143,6 @@ void drawEye(Canvas& c, const Eye& e, uint8_t color) {
   soften(e.bx + 1, e.by + 1, x1, y1);
 }
 
-// The mouth: a flat round-ended bar that bends into a "u" smile (a little
-// wider) or a frown. Open, it drops into a D with a dark inside, a block in
-// from the edge.
-void drawMouth(Canvas& c, const Pose& p, int cx, int cy, int s, uint8_t color) {
-  auto len = [s](int pixels) { return px(pixels) * s / 1000; };
-  int lookX = clampi(p.lookX, -1000, 1000), lookY = clampi(p.lookY, -1000, 1000);
-  int curve = clampi(p.mouthCurve, -1000, 1000);
-  int x = cx + len(p.mouthX) + len(kLookX) * lookX / 1000 * kMouthFollow / 1000;
-  int y = cy + len(kMouthY) + len(kLookY) * lookY / 1000 * kMouthFollow / 1000;
-  x = centreOf(blockOf(x));                   // on a block's middle, like the eyes
-  y = blockOf(y + kB / 2) * kB;               // on a line between blocks: two rows thick
-  int hw = len(kMouthHalfW) * clampi(p.mouthWide, 200, 2000) / 1000 * (1000 + (curve > 0 ? curve : 0) * kSmileWiden / 1000) / 1000;
-  int th = len(kMouthThick) / 2;
-  int bend = len(kMouthBend) * curve / 1000;
-  int drop = len(kMouthDrop) * clampi(p.mouthOpen, 0, 1000) / 1000;
-  // Open: the D's blocks, then the ones with all four neighbours inside
-  // are its dark inside, leaving a one-block outline.
-  auto inD = [&](int bx, int by) {
-    int sx = centreOf(bx), u = (sx - x) * 1024 / hw;
-    if (u <= -1024 || u >= 1024) return false;
-    int arch = 1024 - u * u / 1024;
-    int yc = y + bend * arch / 1024;
-    int top = yc - th, bottom = yc + th + drop * int(isqrt(uint64_t(arch) * 1024)) / 1024;
-    int cy = centreOf(by);
-    return cy >= top && cy <= bottom;
-  };
-  if (drop < kB || hw <= 0) {
-    Stroke st{x, y, hw - th, bend, th};
-    strokeBlocks(c, st, color);
-    int t, b;
-    if (bend == 0 && st.band(x, t, b)) {
-      int bx0 = blockOf(x - hw + th / 2), bx1 = blockOf(x + hw - th / 2);
-      roundCorners(c, bx0 * kBlock, blockOf(t + kB / 2) * kBlock, (bx1 + 1) * kBlock - 1, blockOf(b - kB / 2) * kBlock + kBlock - 1, color);
-    }
-    return;
-  }
-  const int bx0 = blockOf(x - hw), bx1 = blockOf(x + hw);
-  const int by0 = blockOf(y - th - (bend < 0 ? -bend : 0)), by1 = blockOf(y + th + drop + (bend > 0 ? bend : 0));
-  for (int bx = bx0; bx <= bx1; ++bx) {
-    for (int by = by0; by <= by1; ++by) {
-      if (!inD(bx, by)) continue;
-      bool inside = inD(bx - 1, by) && inD(bx + 1, by) && inD(bx, by - 1) && inD(bx, by + 1);
-      block(c, bx, by, inside ? kHollow : color);
-    }
-  }
-}
-
-// The cheeks: two small pink blocks side by side under an eye, towards the
-// outside, a block apart.
-void drawBlush(Canvas& c, const Eye& e, int s, bool right) {
-  auto len = [s](int pixels) { return px(pixels) * s / 1000; };
-  auto blocks = [](int l) { return (l + kB / 2) / kB < 2 ? 2 : (l + kB / 2) / kB; };
-  const uint8_t pink = inkAt(kInkBlush, kLevels);
-  int cx = e.x + (right ? len(kBlushDx) : -len(kBlushDx)), cy = e.y + len(kBlushDy);
-  int bw = blocks(len(kBlushW)), bh = blocks(len(kBlushH));
-  int bx0 = blockOf(cx) - bw, by0 = blockOf(cy) - bh / 2;
-  for (int k = 0; k < 2; ++k) {
-    int sx = bx0 + k * (bw + 1);
-    for (int bx = sx; bx < sx + bw; ++bx) {
-      for (int by = by0; by < by0 + bh; ++by) block(c, bx, by, pink);
-    }
-    roundCorners(c, sx * kBlock, by0 * kBlock, (sx + bw) * kBlock - 1, (by0 + bh) * kBlock - 1, pink);
-  }
-}
-
 // A small sprite of `rows`, one character per block ('X' filled), drawn
 // with blocks of `b` pixels, its centre at sub-pixel (cx, cy).
 void sprite(Canvas& c, const char* const* rows, int n, int cx, int cy, int b, uint8_t color) {
@@ -270,6 +154,54 @@ void sprite(Canvas& c, const char* const* rows, int n, int cx, int cy, int b, ui
     for (int i = 0; i < w; ++i) {
       if (rows[r][i] == 'X') c.fillRect(x0 + i * b, y0 + r * b, b, b, color);
     }
+  }
+}
+
+// The mouth, as pixel shapes rather than traced curves (UX.md §2): a flat
+// bar at rest, a small "u" smile, a frown, a small "o" while talking, and a
+// small filled cup when it's both happy and open.
+void drawMouth(Canvas& c, const Pose& p, int cx, int cy, int s, uint8_t color) {
+  static const char* const kSmile[] = {"X.....X", ".XXXXX."};
+  static const char* const kFrown[] = {".XXXXX.", "X.....X"};
+  static const char* const kO[] = {".XXX.", "X...X", ".XXX."};
+  static const char* const kD[] = {"X...X", "XXXXX", ".XXX."};
+  auto len = [s](int pixels) { return px(pixels) * s / 1000; };
+  int lookX = clampi(p.lookX, -1000, 1000), lookY = clampi(p.lookY, -1000, 1000);
+  int curve = clampi(p.mouthCurve, -1000, 1000), open = clampi(p.mouthOpen, 0, 1000);
+  int x = cx + len(p.mouthX) + len(kLookX) * lookX / 1000 * kMouthFollow / 1000;
+  int y = cy + len(kMouthY) + len(kLookY) * lookY / 1000 * kMouthFollow / 1000;
+  if (open >= kMouthOpenAt) {
+    if (curve >= kMouthCurveAt) return sprite(c, kD, 3, x, y, kBlock, color);
+    return sprite(c, kO, 3, x, y, kBlock, color);
+  }
+  if (curve >= kMouthCurveAt) return sprite(c, kSmile, 2, x, y, kBlock, color);
+  if (curve <= -kMouthCurveAt) return sprite(c, kFrown, 2, x, y, kBlock, color);
+  // The bar: two blocks thick, on a line between block rows, as wide as
+  // mouthWide makes it (an odd number of blocks, so it centres).
+  int hw = len(kMouthHalfW) * clampi(p.mouthWide, 200, 2000) / 1000;
+  int wb = oddBlocks(2 * hw, 3), bx = blockOf(x), by = blockOf(y + kB / 2);
+  for (int b = bx - wb / 2; b <= bx + wb / 2; ++b) {
+    block(c, b, by - 1, color);
+    block(c, b, by, color);
+  }
+  roundCorners(c, (bx - wb / 2) * kBlock, (by - 1) * kBlock, (bx + wb / 2 + 1) * kBlock - 1, (by + 1) * kBlock - 1, color);
+}
+
+// The cheeks: two small pink blocks side by side under an eye, towards the
+// outside, a block apart.
+void drawBlush(Canvas& c, const Eye& e, int s, bool right) {
+  auto len = [s](int pixels) { return px(pixels) * s / 1000; };
+  auto blocks = [](int l) { return (l + kB / 2) / kB < 2 ? 2 : (l + kB / 2) / kB; };
+  const uint8_t pink = inkAt(kInkBlush, kLevels);
+  int cx = e.x + (right ? len(kBlushDx) : -len(kBlushDx)), cy = e.y + len(kBlushDy) - len(kBlushLift) * e.happy / 1000;
+  int bw = blocks(len(kBlushW)), bh = blocks(len(kBlushH));
+  int bx0 = blockOf(cx) - bw, by0 = blockOf(cy) - bh / 2;
+  for (int k = 0; k < 2; ++k) {
+    int sx = bx0 + k * (bw + 1);
+    for (int bx = sx; bx < sx + bw; ++bx) {
+      for (int by = by0; by < by0 + bh; ++by) block(c, bx, by, pink);
+    }
+    roundCorners(c, sx * kBlock, by0 * kBlock, (sx + bw) * kBlock - 1, (by0 + bh) * kBlock - 1, pink);
   }
 }
 

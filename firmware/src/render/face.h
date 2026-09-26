@@ -3,9 +3,10 @@
 // blush blocks under them and a flat bar mouth, all drawn from a Pose on
 // one grid of square blocks. The eyes have no pupils: to look somewhere the
 // whole eye moves, and the eye on that side grows a little, as if the head
-// turned. Happy eyes are "^" arches; affection adds a pixel heart at the
-// top right, effort a sweat drop, and sleep a rising "zzZZ". Every field
-// blends linearly, so any two poses can be eased into each other.
+// turned. Happy eyes squint up from the bottom and stay boxy; affection
+// adds a pixel heart at the top right, effort a sweat drop, and sleep a
+// rising "zzZZ". Every field blends linearly, so any two poses can be eased
+// into each other.
 #pragma once
 #include <cstdint>
 
@@ -21,7 +22,7 @@ struct Pose {
   int16_t eyeSize = 1000;   // both eyes, without the mouth: > 1000 wide-eyed
   int16_t lidTop = 0;       // how far the upper lids come down
   int16_t lidTilt = 0;      // > 0 inner corners down (cross), < 0 outer down (sad)
-  int16_t lidBot = 0;       // happy: the eyes squeeze to a line, then bend into "^" arches
+  int16_t lidBot = 0;       // happy: the bottom of each eye rises (a squint); the cheeks rise too
   int16_t wink = 0;         // extra upper lid on one eye: > 0 right, < 0 left
   int16_t squash = 0;       // > 0 wide and short, < 0 tall and narrow
   int16_t mouthCurve = 0;   // -1000 frown .. 1000 smile
@@ -30,7 +31,7 @@ struct Pose {
   int16_t mouthX = 0;       // mouth sideways, in pixels (a smirk)
   int16_t dx = 0, dy = 0;   // whole face offset, in pixels
   int16_t size = 1000;      // whole face scale (a lean in is > 1000)
-  int16_t glow = 0;         // eye tint towards the cheer glow
+  int16_t glow = 0;         // eye tint towards the cheer glow (no animation uses it now)
   int16_t raise = 0;        // 1000: moved up and smaller, to make room for the bubble
   int16_t heart = 0;        // a rose heart at the top right of the face, popping in with its size
   int16_t sweat = 0;        // > 0: a sweat drop by the right eye, slid down this far (permille)

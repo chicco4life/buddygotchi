@@ -49,10 +49,13 @@ shows, the face eases up into the top 144 px at three-quarters size.
   of blocks off the top, and cuts each half of the eye flat at its own
   height, so a tilted lid steps once between the panes. To look somewhere
   the whole eye moves, and the eye on the side it looks towards grows a
-  little, as if Boop turned its head. The eyes tint towards the cheer glow
-  during `cheer`. Happy eyes are "^" arches over a "u" smile: on the way,
-  the eye squeezes to a bar and the bar bends up. Open, the mouth is a D
-  with a one-block outline and a dark inside. A tap and a cheer pop a pixel
+  little, as if Boop turned its head. Every expression keeps the window
+  eyes: arches and wide grins on boxy eyes read as uncanny (the owner,
+  2026-09-26). Happy, the bottom of each eye rises (a squint, as if the
+  cheeks pushed it up; the cheeks rise with it) and the top stays put. The
+  mouth is drawn as small pixel shapes, not curves: the bar at rest, a
+  small "u" smile, a frown, a small "o" while talking, and a small filled
+  cup when it's happy and open. The eyes stay white. A tap and a cheer pop a pixel
   heart in at the top right of the face. Asleep, a pixel "zzZZ" climbs up
   from the right eye one letter at a time. Working, Boop strains every
   couple of seconds, and a pixel sweat drop slides down beside the right

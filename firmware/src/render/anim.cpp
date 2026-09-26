@@ -35,7 +35,7 @@ int hop(uint32_t t, uint32_t period, int amp) {
 int wave(uint32_t t, uint32_t period, int amp) { return amp * isin(int(t % period * 1024 / period)) / 1024; }
 
 // The expressions. Each is the neutral pose with a few fields changed.
-Pose happy() {  // gen-2's "^ ^" and a closed "u" smile
+Pose happy() {  // boxy eyes squinting from the bottom, and a small "u" smile
   Pose p;
   p.lidBot = 700, p.mouthCurve = 900;
   return p;
@@ -59,13 +59,13 @@ Pose with(Pose p, int16_t Pose::*field, int value) {
   return p;
 }
 
-// Three hops, then the arches, the warm glow and the heart held until the
-// end (BEHAVIORS.md §5).
+// Three hops, then the happy squint, a small open smile and the heart held
+// until the end (BEHAVIORS.md §5).
 Pose cheer(uint32_t t) {
   const int hops = 3;
   const uint32_t period = 380;
   Pose p = happy();
-  p.mouthOpen = 650, p.glow = 1000, p.heart = 1000;
+  p.mouthOpen = 650, p.heart = 1000;
   if (t < hops * period) {
     int h = hop(t, period, 1024);
     p.dy = int16_t(-14 * h / 1024);
@@ -108,7 +108,7 @@ Pose animPose(Anim a, uint32_t t) {
       return keys(t, k);
     }
     case Anim::kCheer: return cheer(t);
-    case Anim::kWiggle: {  // a tap: "^ ^" eyes, a smile and a heart
+    case Anim::kWiggle: {  // a tap: a happy squint, a smile and a heart
       Pose p = with(with(with(n, &Pose::lidBot, 650), &Pose::mouthCurve, 800), &Pose::heart, 1000);
       // Two slow sways, not a shiver: at 175 ms and 7 px it read as trembling.
       p.dx = int16_t(wave(t, 350, 4));

@@ -79,6 +79,7 @@ struct BoopFace: View {
         var scale: CGFloat = 1
         var tint = Theme.eye
         var smile: CGFloat = 0  // at rest, a flat dash, as on the device
+        var squint: CGFloat = 0  // happy: the bottom of the eye rises
     }
 
     private var pose: Pose {
@@ -99,9 +100,9 @@ struct BoopFace: View {
             p.lookY = -0.6
             p.scale = 1.06
             p.smile = 0.5
-        case .happy:
-            p.tint = Color(hex: "#FFE3A8")
-            p.smile = 1.6
+        case .happy:  // the device's happy squint and a small smile
+            p.squint = 0.25
+            p.smile = 0.6
         case .listening:
             p.lookY = -0.35
             p.scale = 1.1
@@ -125,7 +126,7 @@ struct BoopFace: View {
                     .fill(Theme.blush)
                     .frame(width: (2 * g.blushW + g.block) * k, height: g.blushH * k)
                     .position(x: x + CGFloat(side) * g.blushDx * k, y: y + g.blushDy * k)
-                Panes(open: pose.open, gap: g.block * k * pose.scale * grow)
+                Panes(open: pose.open, squint: pose.squint, gap: g.block * k * pose.scale * grow)
                     .fill(pose.tint)
                     .frame(width: g.eye * k * pose.scale * grow, height: g.eye * k * pose.scale * grow)
                     .position(x: x, y: y)
@@ -158,8 +159,10 @@ struct BoopFace: View {
 
 /// A window eye: four panes around a cross, squeezing about its middle as it
 /// closes, and one bar once it's too thin for panes (as the device does).
+/// Happy, the bottom rises (`squint`) and the top stays put.
 private struct Panes: Shape {
     var open: CGFloat
+    var squint: CGFloat = 0
     var gap: CGFloat
 
     var animatableData: CGFloat {
@@ -178,10 +181,11 @@ private struct Panes: Shape {
             return p
         }
         let pw = (rect.width - gap) / 2, ph = (h - gap) / 2
+        let cut = h * squint
         for col in 0..<2 {
             for row in 0..<2 {
                 let pane = CGRect(x: rect.minX + CGFloat(col) * (pw + gap), y: top + CGFloat(row) * (ph + gap),
-                                  width: pw, height: ph)
+                                  width: pw, height: row == 1 ? max(ph - cut, 0) : ph)
                 p.addRoundedRect(in: pane, cornerSize: CGSize(width: r, height: r))
             }
         }
