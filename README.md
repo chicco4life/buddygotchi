@@ -50,6 +50,7 @@ shim.
 ```sh
 make build        # Boop, boop-hook, boopdev
 make test         # Swift unit tests
+make eval         # the harness eval scenarios
 make run          # the Mac app, with Bluetooth (from your own terminal)
 make run DEBUG_LOG=/tmp/boop-brain.jsonl   # the same, logging every brain pass (boopdev watch)
 make tools        # tools/.venv with pyserial and Pillow, for boopctl
@@ -82,6 +83,7 @@ boopdev replay <hooks.jsonl>               # hooks through the adapter and core,
 boopdev memory --state-dir DIR             # the memory files as the store reads them
 boopdev voice <feeling> [word]             # Minion lines as `react` builds them
 boopdev brain [--classifier rules|jev] [--writer apple|none|deepseek] [--print]  # the brain on recorded inputs (L5); jev needs BOOP_JEV_KEY
+boopdev eval [--only TEXT] [--json FILE]  # the harness eval scenarios (make eval)
 boopdev watch /tmp/boop-brain.jsonl  # follow a debug log live: each input, decision, words and what ran
 boopdev hooks status|install|remove --home DIR
 boopdev talk "<words>" --socket PATH       # a push-to-talk transcript to a headless app

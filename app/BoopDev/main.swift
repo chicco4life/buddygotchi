@@ -2,8 +2,8 @@ import BoopKit
 import Foundation
 import HookWire
 
-// Developer CLI (VERIFICATION.md §2): replay, memory, voice, brain, watch,
-// talk and hooks, as `usage` describes.
+// Developer CLI (VERIFICATION.md §2): replay, memory, voice, brain, eval,
+// watch, talk and hooks, as `usage` describes.
 
 let usage = """
     usage: boopdev replay <hooks.jsonl> [--agent claude|codex] [--gap-ms N] [--start MS] [--tz ZONE] [--new-day] [--states]
@@ -19,6 +19,10 @@ let usage = """
                Runs the real pipeline on recorded inputs, each with a fresh copy of the sample memory,
                N minutes apart (default 3) sharing one transcript, and reports refusals, what each stage
                did, dropped calls and latency (VERIFICATION.md L5). Jev's key comes from BOOP_JEV_KEY.
+           boopdev eval [--classifier rules|jev] [--writer none|apple] [--scenarios DIR] [--memory DIR] [--steering FILE] [--only TEXT] [--json FILE]
+               Runs the harness eval scenarios: events, taps and talk on a virtual clock through a fresh core,
+               the real harness and actions, each step checked against the passes it should lead to
+               (plan/EVALS.md). Deterministic with the defaults, rules and no writer. Exits 1 if any fails.
            boopdev watch FILE [--new]
                Follows a brain debug log (Boop --debug-log FILE, or make run DEBUG_LOG=FILE) and prints each
                pass as it lands: the input, what was decided and why, the words written, and what ran.
@@ -344,6 +348,53 @@ func describe(_ line: String) -> String {
     return out.joined(separator: "\n")
 }
 
+func eval(_ args: [String]) async {
+    let scenarios = URL(fileURLWithPath: option(args, "--scenarios") ?? "app/Evals/scenarios")
+    let memoryDir = URL(fileURLWithPath: option(args, "--memory") ?? "app/Tests/Fixtures/memory")
+    guard let steeringPath = option(args, "--steering") ?? findSteering(),
+          let steering = try? String(contentsOfFile: steeringPath, encoding: .utf8)
+    else { fail("can't find steering.md; pass --steering") }
+    let classifier: any Classifier
+    switch option(args, "--classifier") ?? "rules" {
+    case "rules": classifier = RulesClassifier()
+    case "jev":
+        guard let key = ProcessInfo.processInfo.environment[Brains.jevKeyVariable], !key.isEmpty else {
+            fail("Jev needs its API key in \(Brains.jevKeyVariable)")
+        }
+        classifier = JevClassifier(key: key)
+    default: fail("classifiers: rules, jev")
+    }
+    let writer: any Writer
+    switch option(args, "--writer") ?? "none" {
+    case "none": writer = NoWriter()
+    case "apple":
+        if let why = AppleWriter.unavailableReason { fail("Apple's model can't run here: \(why)") }
+        writer = AppleWriter()
+    default: fail("writers: none, apple")
+    }
+    var list: [Scenario]
+    do { list = try Scenario.load(directory: scenarios) } catch { fail("\(error)") }
+    if let only = option(args, "--only") {
+        list = list.filter { $0.name.localizedCaseInsensitiveContains(only) || $0.file.contains(only) }
+    }
+    guard !list.isEmpty else { fail("no scenarios in \(scenarios.path)") }
+    let runner = Eval(classifier: classifier, writer: writer, steering: steering, memory: memoryDir)
+    var results: [Eval.Result] = []
+    for scenario in list {
+        do { results.append(try await runner.run(scenario)) } catch { fail("\(scenario.file): \(error)") }
+        let r = results.last!
+        print((r.passed ? "pass  " : "FAIL  ") + "\(scenario.file)  \(scenario.name)")
+        if !r.passed { print(Eval.diff(r)) }
+    }
+    let passed = results.filter(\.passed).count
+    print("\(passed)/\(results.count) scenarios passed, classifier \(classifier.id), writer \(writer.id)")
+    if let out = option(args, "--json") {
+        do { try Eval.json(results, classifier: classifier.id, writer: writer.id).write(toFile: out, atomically: true, encoding: .utf8) }
+        catch { fail("can't write \(out): \(error)") }
+    }
+    exit(passed == results.count ? 0 : 1)
+}
+
 func talk(_ args: [String]) {
     guard let socket = option(args, "--socket") else { fail(usage) }
     let words = args.enumerated().filter { i, a in !a.hasPrefix("--") && (i == 0 || args[i - 1] != "--socket") }
@@ -385,6 +436,8 @@ case "voice":
     voice(Array(args.dropFirst()))
 case "brain":
     await brain(Array(args.dropFirst()))
+case "eval":
+    await eval(Array(args.dropFirst()))
 case "watch":
     watch(Array(args.dropFirst()))
 case "talk":

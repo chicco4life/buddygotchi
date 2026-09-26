@@ -35,6 +35,7 @@ Run from the repo root.
 ```sh
 make build        # Mac app, boop-hook, boopdev
 make test         # Swift unit tests (XCTest shim; there is no Xcode here)
+make eval         # harness eval scenarios (app/Evals/scenarios), deterministic
 make tools        # tools/.venv with pyserial and Pillow
 make fw           # build firmware for the board
 make flash        # build and upload over USB
@@ -145,6 +146,7 @@ anything. A worktree made from `origin/main` can be far behind a local
 | `app/BoopKit/DeviceLink/`, `StateSnapshot.swift`, `firmware/src/link/`, `firmware/src/app/device.cpp`, `tools/boopctl_lib/` | `PROTOCOL.md` |
 | `firmware/src/board/`, `firmware/platformio.ini` | `DEVICE.md` |
 | `Makefile`, `tools/`, `app/BoopDev/`, `skills/`, tests | `VERIFICATION.md`, this file, `README.md` |
+| `app/BoopKit/Eval/`, `app/Evals/` | `EVALS.md` |
 | Structure, boundaries or a budget | `ARCHITECTURE.md` |
 | What's in or out of v1 | `VISION.md` (Scope), `FUTURE.md` |
 | A milestone's status | `PLAN.md` §4 |

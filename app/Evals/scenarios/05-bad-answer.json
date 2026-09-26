@@ -1,0 +1,21 @@
+{
+  "name": "A bad answer or a brain error is contained",
+  "why": "HARNESS.md §3 step 4: calls off the menu drop the whole pass, as does a classifier error; the next input works normally",
+  "steps": [
+    {"input": {"at": "0m", "event": "turn started", "agent": "claude", "project": "jetpack"},
+     "expect": ["agent started → nothing"]},
+    {"input": {"at": "12m", "event": "turn finished", "agent": "claude", "project": "jetpack"},
+     "classifier": {"calls": [{"tool": "react", "feeling": "happy", "voice": "mumble"},
+                              {"tool": "react", "feeling": "proud", "voice": "mumble"}]},
+     "expect": ["agent finished → dropped (off menu)"]},
+    {"input": {"at": "13m", "event": "turn started", "agent": "claude", "project": "jetpack"},
+     "expect": ["agent started → nothing"]},
+    {"input": {"at": "25m", "event": "turn finished", "agent": "claude", "project": "jetpack"},
+     "classifier": {"error": "model crashed"},
+     "expect": ["agent finished → dropped (error)"]},
+    {"input": {"at": "26m", "event": "turn started", "agent": "claude", "project": "jetpack"},
+     "expect": ["agent started → nothing"]},
+    {"input": {"at": "38m", "event": "turn finished", "agent": "claude", "project": "jetpack"},
+     "expect": ["agent finished → react(feeling: proud, voice: mumble)"]}
+  ]
+}

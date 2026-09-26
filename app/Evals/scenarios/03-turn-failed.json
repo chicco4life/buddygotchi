@@ -1,0 +1,10 @@
+{
+  "name": "A failed turn gets an annoyed mumble",
+  "why": "HARNESS.md §6: a failed finish is react(annoyed, mumble)",
+  "steps": [
+    {"input": {"at": "0m", "event": "turn started", "agent": "claude", "project": "landing"},
+     "expect": ["agent started → nothing"]},
+    {"input": {"at": "2m", "event": "turn failed", "agent": "claude", "project": "landing", "error": "rate_limit"},
+     "expect": ["agent finished → react(feeling: annoyed, voice: mumble)"]}
+  ]
+}
