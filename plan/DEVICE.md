@@ -1,6 +1,6 @@
 # Boop: device
 
-Updated 2026-09-26. Everything needed to get Boop's board running: the
+Updated 2026-09-27. Everything needed to get Boop's board running: the
 hardware, the pins, what's attached, the firmware stack, and how to build,
 flash and bring it up. Sources: the MicroTech MTR024QV01A-V1 product
 specification (2025-03-24) and measurements from our own board.
@@ -198,8 +198,16 @@ at 158 KB before Bluetooth.
 
 A full-screen push is 153.6 KB over SPI: about 31 ms at 40 MHz, so roughly
 25–30 frames per second. Most frames only change the eyes and mouth, so the
-firmware pushes only the rows that changed. Aim for 30 fps during motion and
-10–15 fps at rest. The F2 figures are portrait. In landscape each row is
+firmware pushes only the rows that changed. It redraws only while something
+moves, and then at most every 16 ms of real time (about 60 fps): the pixel
+face moves a block at a time and changes at most about 32 times a second (a
+cheer), so drawing faster only repeated frames. A frozen clock redraws on
+every step, so scenario frames stay exact, and the press squish redraws on
+every loop pass while it eases in, so the cap never delays a press
+([UX.md](UX.md) §4). `fps` in `dbg.ping` counts
+redraws, so since 2026-09-27 it reads at most 62; the figures measured
+before then (up to 156) counted repeated frames. Aim for at least 30 fps
+during motion. The F2 figures are portrait. In landscape each row is
 320 px instead of 240. A band is still 3,840 px (12 rows of 320 rather
 than 16 of 240), but the same change now spans more bands, so each changed
 row pushes a third more pixels, while the solid eyes draw faster than the

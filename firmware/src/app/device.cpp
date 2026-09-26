@@ -16,6 +16,9 @@ namespace {
 
 constexpr uint32_t kDefaultPressMs = 100;
 constexpr uint32_t kStatusMs = 60000;  // PROTOCOL.md §4
+// Motion redraws at most this often, in real ms: about 60 fps, while the
+// pixel face changes at most about 32 times a second (DEVICE.md §6).
+constexpr uint32_t kFrameMs = 16;
 
 void copyStr(char* dst, size_t n, const char* src) { std::snprintf(dst, n, "%s", src ? src : ""); }
 
@@ -310,7 +313,10 @@ void Device::tick() {
   if (screen != screen_) screen_ = screen, dirty_ = true;
   if (debugLabel(t) != labelDrawn_) dirty_ = true;
   bool moving = screen_ != Screen::kPattern && b_.moving(t);
-  if (dirty_ || ((moving || drawnMoving_) && t != drawnT_)) render(t);
+  // A frozen clock redraws on every step, so scenario frames stay exact,
+  // and the press squish on every pass, so the cap doesn't delay a press.
+  bool due = clock_.frozen() || b_.pressEasing(t) || hal_.realMs() - drawnReal_ >= kFrameMs;
+  if (dirty_ || ((moving || drawnMoving_) && t != drawnT_ && due)) render(t);
 }
 
 void Device::hush() {
@@ -363,6 +369,7 @@ void Device::render(uint32_t t) {
   if (labelDrawn_) canvas_.drawText(2, 2, labelDrawn_, render::inkAt(render::kInkDim, render::kLevels));
   drawnMoving_ = faced && b_.moving(t);
   drawnT_ = t;
+  drawnReal_ = hal_.realMs();
   dirty_ = false;
   frame_ = true;
 }

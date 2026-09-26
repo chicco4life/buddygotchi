@@ -305,7 +305,7 @@ render::Pose Behaviour::sourcePose(const Source& s, uint32_t t) const {
 render::Pose Behaviour::pose(uint32_t t) const {
   render::Pose p = blended(t);
   int amt = 0;  // the press squish: feedback on the press itself
-  if (pressed_) amt = within(t, pressAt_, kPressEaseMs) ? render::ease(int(t - pressAt_), kPressEaseMs) : 1024;
+  if (pressed_) amt = pressEasing(t) ? render::ease(int(t - pressAt_), kPressEaseMs) : 1024;
   else if (within(t, releaseAt_, kPressEaseMs) && releaseAt_) amt = 1024 - render::ease(int(t - releaseAt_), kPressEaseMs);
   if (amt) {
     p.squash = int16_t(p.squash + 200 * amt / 1024);
@@ -321,9 +321,11 @@ bool Behaviour::moving(uint32_t t) const {
   // working strains and sweats (BEHAVIORS.md §2).
   bool looping = src_.look == render::Look::kAsleep || src_.look == render::Look::kWorking;
   if (src_.anim == render::Anim::kNone && looping) return true;
-  if (pressed_ ? within(t, pressAt_, kPressEaseMs) : (releaseAt_ && within(t, releaseAt_, kPressEaseMs))) return true;
+  if (pressed_ ? pressEasing(t) : (releaseAt_ && within(t, releaseAt_, kPressEaseMs))) return true;
   return false;
 }
+
+bool Behaviour::pressEasing(uint32_t t) const { return pressed_ && within(t, pressAt_, kPressEaseMs); }
 
 const char* Behaviour::faceName(uint32_t t) const {
   Source s = sourceAt(t);

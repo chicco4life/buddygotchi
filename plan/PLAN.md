@@ -1,6 +1,6 @@
 # Boop: plan
 
-Updated 2026-09-26. The build order for v1, the check that closes each
+Updated 2026-09-27. The build order for v1, the check that closes each
 milestone, how the unattended build runs, the owner's morning checklist,
 the later port to ESP-IDF + LVGL, and the open items (§7). The specs are
 listed in [README.md](README.md); ideas that aren't in v1 are in
@@ -825,6 +825,14 @@ matching spec first.
   session, so a Codex turn that leaves its tests failing still ends in a
   cheer ([ADAPTERS.md](ADAPTERS.md) §3). Recording one real Codex session
   with a failing test run would show whether it carries an exit code.
+- **A press shows at about 20 ms, not under it.** The press squish eases
+  in from nothing over 60 ms and the pixel face moves a block at a time,
+  so the first pixel it changes comes 20 ms after a BOOT press on the idle
+  face and 15 ms on the working face
+  (`test_the_redraw_cap_doesnt_delay_a_press`), and the board still has to
+  draw and push that frame ([DEVICE.md](DEVICE.md) §6).
+  [ARCHITECTURE.md](ARCHITECTURE.md) §9 and [UX.md](UX.md) §4 promise
+  under 20 ms. A squish that starts fast (an ease-out) would meet it.
 
 From the J3 report's known issues (numbered as there):
 

@@ -157,6 +157,7 @@ class Device {
   int patternFill_ = -1;  // a solid dbg.pattern screen, or -1
   int targetX_ = -1, targetY_ = -1;  // a calibration target on dbg.pattern, or -1
   uint32_t drawnT_ = 0;   // the time of the last frame
+  uint32_t drawnReal_ = 0;  // and the real time it was drawn
   bool drawnMoving_ = false;  // it was mid-motion, so the next time step redraws
   bool dirty_ = true;
   bool frame_ = false;

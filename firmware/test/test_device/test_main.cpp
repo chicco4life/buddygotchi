@@ -296,6 +296,69 @@ static void test_light_sets_the_led() {
   TEST_ASSERT_TRUE(has(r.usb.text, "\"led\":\"#FFB000\""));
 }
 
+// DEVICE.md §6: with the clock running, motion redraws at most every
+// 16 ms of real time, however fast the loop runs. A frozen clock redraws
+// on every step, so scenario frames stay exact.
+static void test_motion_redraws_at_most_every_16ms() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"asleep\"}");  // breathing: always moving
+  r.usbLine("{\"t\":\"dbg.clock\",\"run\":true}");
+  r.dev.takeFrame();
+  int frames = 0;
+  for (int ms = 0; ms < 1000; ++ms) {
+    ++r.hal.real;
+    r.dev.tick();
+    frames += r.dev.takeFrame();
+  }
+  TEST_ASSERT_EQUAL(1000 / 16, frames);
+  frames = 0;
+  for (int step = 0; step < 20; ++step) {
+    r.usbLine("{\"t\":\"dbg.clock\",\"step\":1}");
+    frames += r.dev.takeFrame();
+  }
+  TEST_ASSERT_EQUAL(20, frames);
+}
+
+// ARCHITECTURE.md §9, UX.md §4: a press shows within 20 ms, and the 16 ms
+// cap (DEVICE.md §6) doesn't hold it back. With the clock running and a
+// loop pass every ms, the first frame that differs from the unpressed face
+// after a BOOT press comes on the same ms as with a frozen clock, which
+// draws every step.
+static void test_the_redraw_cap_doesnt_delay_a_press() {
+  const int n = int(app::Behaviour::kPressEaseMs);
+  for (const char* base : {"idle", "working"}) {
+    // Frames from ms 0 to n after a press at t = 500 (or none), each
+    // checked against `ref`; returns them, or the first ms that differs.
+    auto run = [&](bool press, bool running, const std::vector<std::vector<uint8_t>>* ref, int& first) {
+      std::vector<std::vector<uint8_t>> frames;
+      Rig r;
+      std::string state = std::string("{\"t\":\"state\",\"base\":\"") + base + "\"}";
+      r.usbLine(state.c_str());
+      r.usbLine("{\"t\":\"dbg.clock\",\"step\":500}");
+      if (running) r.usbLine("{\"t\":\"dbg.clock\",\"run\":true}");
+      r.hal.boot = press;
+      first = -1;
+      for (int ms = 0; ms < n; ++ms) {
+        if (ms == 0 || running) {
+          r.dev.tick();
+        } else {
+          r.usbLine("{\"t\":\"dbg.clock\",\"step\":1}");
+        }
+        if (r.dev.takeFrame() && ref && first < 0 && r.px != (*ref)[size_t(ms)]) first = ms;
+        frames.push_back(r.px);
+        ++r.hal.real;
+      }
+      return frames;
+    };
+    int frozen = -1, running = -1;
+    std::vector<std::vector<uint8_t>> still = run(false, false, nullptr, frozen);
+    run(true, false, &still, frozen);
+    run(true, true, &still, running);
+    TEST_ASSERT_TRUE_MESSAGE(frozen > 0, base);
+    TEST_ASSERT_EQUAL_INT_MESSAGE(frozen, running, base);
+  }
+}
+
 // BEHAVIORS.md §3.2: one chirp per request, amber at half, nothing more
 // while it waits; a different request chirps again.
 static void test_attention_shows_needs_you_and_chirps_once() {
@@ -591,6 +654,8 @@ int main() {
   RUN_TEST(test_physical_hold_sends_talk_on_and_off);
   RUN_TEST(test_shot_is_header_then_base64);
   RUN_TEST(test_light_sets_the_led);
+  RUN_TEST(test_motion_redraws_at_most_every_16ms);
+  RUN_TEST(test_the_redraw_cap_doesnt_delay_a_press);
   RUN_TEST(test_attention_shows_needs_you_and_chirps_once);
   RUN_TEST(test_no_app_after_30s_of_silence);
   RUN_TEST(test_moment_plays_then_ends_and_a_new_one_replaces_it);

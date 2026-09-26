@@ -83,6 +83,9 @@ class Behaviour {
   Screen screen(uint32_t t) const;
   render::Pose pose(uint32_t t) const;
   bool moving(uint32_t t) const;
+  // The press squish is easing in: feedback the redraw cap mustn't hold
+  // back (DEVICE.md §6).
+  bool pressEasing(uint32_t t) const;
   bool noApp(uint32_t t) const;
   uint32_t led(uint32_t t) const;
   uint8_t backlight(uint32_t t) const;
