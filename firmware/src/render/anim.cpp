@@ -35,17 +35,27 @@ Pose with(Pose p, int16_t Pose::*field, int value) {
   return p;
 }
 
-// Three hops, then the happy squint, a small open smile and the heart held
+// Three hops, then the happy squint, a small open smile and a beating heart
 // until the end (BEHAVIORS.md §5).
 Pose cheer(uint32_t t) {
   const int hops = 3;
-  const uint32_t period = 380;
+  const uint32_t period = 380, land = 30;
+  const uint32_t beat = 430, thumpAt = 230, thump = 100;  // the heart, once landed
   Pose p = happy();
   p.mouthOpen = 650, p.heart = 1000;
-  if (t < hops * period) {
-    int h = hop(t, period, 1024);
-    p.dy = int16_t(-14 * h / 1024);
-    p.squash = int16_t(220 - 380 * h / 1024);  // squashed on landing, stretched in the air
+  if (t < hops * period + land) {
+    uint32_t in = t % period;
+    if (in < land || in >= period - land) {  // on the ground: squashed wide for 60 ms around each landing
+      p.squash = 260;
+    } else {  // in the air: stretched with the speed, so round at the top
+      int turn = int(in * 512 / period);
+      int speed = isin(turn + 256);
+      p.dy = int16_t(-14 * isin(turn) / 1024);
+      p.squash = int16_t(-140 * (speed < 0 ? -speed : speed) / 1024);
+    }
+  } else {
+    uint32_t b = (t - hops * period - land) % beat;
+    if (b >= thumpAt && b < thumpAt + thump) p.heart = 600;  // the heart beats: small for a moment
   }
   return p;
 }

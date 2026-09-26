@@ -491,7 +491,8 @@ static void test_happy_eyes_squint_and_the_smile_stays_small() {
   TEST_ASSERT_EQUAL_INT(1000, c.heart);
   TEST_ASSERT_TRUE(c.lidBot >= 650);
   TEST_ASSERT_EQUAL_INT(0, c.dy);
-  // Three hops, then still.
+  // Three hops, squashed wide on the ground for 60 ms around each landing
+  // and stretched only while moving, so round at the top of each hop.
   int hops = 0;
   bool up = false;
   for (uint32_t t = 0; t < animDuration(Anim::kCheer); t += 10) {
@@ -500,6 +501,23 @@ static void test_happy_eyes_squint_and_the_smile_stays_small() {
     up = air;
   }
   TEST_ASSERT_EQUAL_INT(3, hops);
+  for (uint32_t landing : {380u, 760u, 1140u}) {
+    for (uint32_t t = landing - 30; t < landing + 30; t += 5) {
+      TEST_ASSERT_TRUE(animPose(Anim::kCheer, t).squash > 200);
+      TEST_ASSERT_EQUAL_INT(0, animPose(Anim::kCheer, t).dy);
+    }
+    Pose top = animPose(Anim::kCheer, landing - 190);
+    TEST_ASSERT_TRUE(top.dy <= -13 && top.squash > -20 && top.squash <= 0);
+  }
+  // Then no frozen hold: the heart beats until the end.
+  int beats = 0;
+  bool small = false;
+  for (uint32_t t = 1170; t < animDuration(Anim::kCheer); t += 10) {
+    bool s = animPose(Anim::kCheer, t).heart < 650;
+    beats += s && !small;
+    small = s;
+  }
+  TEST_ASSERT_EQUAL_INT(2, beats);
 }
 
 static void test_a_tap_is_a_squint_and_a_heart() {
