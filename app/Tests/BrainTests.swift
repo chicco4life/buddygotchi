@@ -373,7 +373,7 @@ final class JevClassifierTests: XCTestCase {
         XCTAssertEqual(JevClassifier.boop("# Boop\n\n## Writing\nw\n"), "# Boop")
         let steering = try? String(contentsOf: EvalTests.root.appendingPathComponent("plan/steering.md"), encoding: .utf8)
         let boop = JevClassifier.boop(steering ?? "")
-        XCTAssertTrue(boop.contains("## Examples") && boop.contains("## Never"), boop)
+        XCTAssertTrue(boop.contains("## Examples") && boop.contains("## Remembering"), boop)
         XCTAssertFalse(boop.contains("## Writing"))
     }
 

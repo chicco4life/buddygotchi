@@ -231,7 +231,7 @@ all three to the brain.
 
 | File | What it is | Changes |
 | --- | --- | --- |
-| `steering.md` | How Boop behaves: character, how to act, examples, what never to do | Never at runtime. Ships with the app and changes only in an announced release |
+| `steering.md` | How Boop behaves: character, what it can do, examples, remembering and writing | Never at runtime. Ships with the app and changes only in an announced release |
 | `long-term.md` | Who this Boop has become, and lasting facts and preferences about you | When you tell Boop something lasting about you, within limits; forgetting a line in Settings removes it |
 | `short-term.md` | Today: notes about what you're doing and said, what happened | Throughout the day; starts fresh on a new day |
 
@@ -262,7 +262,7 @@ This is Boop's AGENTS.md: the standing instructions every Boop shares. It's
 read-only. Neither the brain, the app nor the person can change it at
 runtime, because a different `steering.md` makes a different creature. It
 covers character, what Boop can do, examples for each input, what's worth
-remembering, how to write Boop's words, and what never to do. The current
+remembering and how to write Boop's words. The current
 version is [steering.md](steering.md).
 
 ### 4.2 `long-term.md`
