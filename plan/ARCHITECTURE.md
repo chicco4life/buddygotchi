@@ -101,8 +101,9 @@ project, and whether each is working, idle or needs you) and:
   you wins, a moment (a cheer, a reply) plays over the base state, and
   the base state is working while any agent works, asleep with no
   sessions, and otherwise idle;
-- calls actions for the immediate reactions (a cheer, `listening`,
-  `thinking`, `shrug`) and for Boop's occasional working chatter;
+- calls actions for the immediate reactions (a cheer, `listening`, and
+  the empty moment that ends it) and for Boop's occasional working
+  chatter;
 - turns agents starting and finishing, what you say and a new day into the
   brain's inputs, and decides which of them reach it
   ([HARNESS.md](HARNESS.md) §2). Taps and "needs you" stay the rules' own:
@@ -112,7 +113,8 @@ project, and whether each is working, idle or needs you) and:
 In code the core is a pure state machine: each event, device input or
 one-second tick goes in with the time, and a list of effects comes out (a
 snapshot, a moment or a mumble for `react`, an input or an aside for the
-harness, a Happened line, a new day, start or stop listening). The app
+harness, a Happened line, a new day, start or stop listening, or the
+empty moment that ends `listening`). The app
 hands each effect to the part that carries it out, which keeps the core
 testable on a virtual clock.
 
@@ -125,9 +127,8 @@ The brain adds to the rules' reaction and never cuts it off. The app
 estimates how long each rule moment plays with the device's own rule: the
 animation's length, or, if longer, the mumble's syllables (the word is two
 beats) plus 1.2 s to read the bubble. It holds a moment from the brain's
-calls until the last rule moment is over. `listening` and
-`thinking` don't hold anything back: the brain's reply is meant to replace
-`thinking`.
+calls until the last rule moment is over. `listening` doesn't hold
+anything back: the brain's reply is meant to end it.
 
 ### 3.3 Harness and brain
 
@@ -343,11 +344,11 @@ Adding an agent later means one new adapter that produces this shape.
    │ needs approval            │                            │
    ├── hook: needs_you ───────►│ session → "needs you"      │
    │ (agent shows its own      ├── snapshot: attention ────►│ amber, looks at you,
-   │  prompt as normal)        │                            │ nudge ladder
+   │  prompt as normal)        │                            │ one chirp
    │                           │                            │
    │ you approve on the Mac    │                            │
    ├── hook: activity ────────►│ session → "working"        │
-   │                           ├── snapshot: calm ─────────►│ a nod, back to work
+   │                           ├── snapshot: calm ─────────►│ back to work
 ```
 
 - Claude shows "needs you" immediately. Codex waits 2 s first, because its
@@ -364,7 +365,7 @@ Adding an agent later means one new adapter that produces this shape.
 
 The device is a thin client. It draws what the latest snapshot says, plays
 moments, runs its own short timers (blinks, the needs-you chirp, the
-thinking timeout) and reports taps and push-to-talk. It holds no
+reply wait after push-to-talk) and reports taps and push-to-talk. It holds no
 personality or memory, just a device ID, its touch calibration, and its
 animation and syllable library.
 What it does in each situation is in [BEHAVIORS.md](BEHAVIORS.md); the
@@ -374,7 +375,7 @@ hardware and firmware are in [DEVICE.md](DEVICE.md).
 
 | Failure | Behaviour |
 | --- | --- |
-| App not running | Hooks exit at once; agents are unaffected. The device shows its waiting "no app" face |
+| App not running | Hooks exit at once; agents are unaffected. The device shows the asleep face with the unplugged icon |
 | Device disconnected | The app keeps going; the next snapshot catches the device up on reconnect |
 | Brain offline, slow or invalid | Rules still drive every reaction. The default classifier is plain rules, which always answers; one that fails, runs late or answers off the menu drops that pass. A writer that fails leaves the words empty: a mumble goes without its word, and nothing is remembered ([HARNESS.md](HARNESS.md) §3) |
 | Memory file won't parse | `long-term.md` comes back from its newest snapshot that reads; `short-term.md` starts fresh (§4) |
@@ -499,3 +500,4 @@ When a spec changes direction, add a row here saying why.
 | 2026-09-26 | v1 is cut to a minimal surface: asleep, idle, working, no app and needs you; `cheer`, `nod`, `wiggle`, `listening`, `thinking` and `shrug`; tap and push-to-talk; the brain with `react` (a mumble only), `quiet` and `remember`. Mood, XP and hunger, night, focus, cheer sizes, the nudge ladder, the threads and stats screens, touch-and-hold and the brain's faces are parked and deleted (kept at tag `v1-full`). A `moment` may carry only `say`, which plays over the current face. This supersedes the earlier rows about those features | The surface had grown past what the owner can hold in their head; features come back one at a time | [BEHAVIORS.md](BEHAVIORS.md), [FUTURE.md](FUTURE.md) |
 | 2026-09-26 | The face becomes pixel art after the owner's reference render: 3 px blocks with no anti-aliasing, window eyes of four panes, pink cheeks and a flat bar mouth; the heart, sweat drop and "zzZZ" become sprites. The popover's face and the menu-bar icon follow. This supersedes the gen-2 look row | The owner asked for every animation to match the reference; poses are unchanged, so every animation follows the new drawing | [UX.md](UX.md) §2 |
 | 2026-09-26 | Every expression keeps the window eyes: happy is a squint from the bottom, not "^" arches; mouths are small pixel shapes (bar, "u", frown, "o", a filled cup), not traced curves; the cheer no longer tints the eyes | The owner found the arches and the wide D grin uncanny on boxy eyes and asked to keep the eyes boxy and cute | [UX.md](UX.md) §2 |
+| 2026-09-26 | Second cut, to 4 states (asleep, idle, working, needs you) and 3 animations (`cheer`, `wiggle`, `listening`): `nod`, `thinking`, `shrug` and the no-app look are parked. `listening` covers the reply wait and ends on the reply, on an empty moment, or after 8 s; no app shows the asleep face with the unplugged icon | The owner asked to go from 11 to 7 | [BEHAVIORS.md](BEHAVIORS.md), [PROTOCOL.md](PROTOCOL.md) §3 |

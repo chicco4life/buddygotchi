@@ -273,6 +273,8 @@ public final class Runtime: @unchecked Sendable {
                 stateChanged = true
             case .moment(let anim):
                 react.play(anim)
+            case .endListening:
+                react.endListening()
             case .mumble(let feeling, let word):
                 var arguments: [String: ToolValue] = ["feeling": .string(feeling), "voice": .string("mumble")]
                 if let word { arguments["word"] = .string(word) }

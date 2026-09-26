@@ -80,12 +80,16 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(runtime.home.sync { shown.last }, false)
         transport.onConnection?(true)
 
-        // The Talk button: the device shows listening, then thinking.
+        // The Talk button: the device shows listening; the mic failing
+        // ends it at once with the empty moment.
         runtime.setListening(true)
         wait("listening on the device") { transport.sent.contains { $0.contains("\"anim\":\"listening\"") } }
         runtime.setListening(false)
-        wait("thinking on the device") { transport.sent.contains { $0.contains("\"anim\":\"thinking\"") } }
-        XCTAssertEqual(runtime.home.sync { heard }, [true, false, true, false, true, false])
+        wait("mic off") { runtime.home.sync { heard } == [true, false, true, false, true, false] }
+        XCTAssertFalse(transport.sent.contains(#"{"t":"moment","ttl":5}"#), "the empty moment waits 8 s")
+        runtime.setListening(true)
+        runtime.micFailed()
+        wait("the empty moment") { transport.sent.contains(#"{"t":"moment","ttl":5}"#) }
 
         // A finished turn clears "needs you" and cheers.
         XCTAssertTrue(HookSocket.send(hook("PostToolUse", tool: "Bash"), to: socket))
@@ -220,17 +224,15 @@ final class RuntimeTests: XCTestCase {
     /// `animDuration` (BEHAVIORS.md §5: a cheer is 2 s).
     func testMomentLengthsFollowTheFirmware() {
         XCTAssertEqual(DeviceMoment(anim: "cheer").playMs, 2000)
-        XCTAssertEqual(DeviceMoment(anim: "nod").playMs, 600)
         XCTAssertEqual(DeviceMoment(anim: "wiggle").playMs, 700)
-        XCTAssertEqual(DeviceMoment(anim: "shrug").playMs, 1200)
-        XCTAssertEqual(DeviceMoment(anim: "thinking").playMs, 0, "the brain's reply replaces thinking")
-        XCTAssertEqual(DeviceMoment(anim: "listening").playMs, 0)
+        XCTAssertEqual(DeviceMoment(anim: "listening").playMs, 0, "the reply or the empty moment ends it")
+        XCTAssertEqual(DeviceMoment.empty.playMs, 0)
 
         // A mumble lasts its syllables plus two beats for a word, at 60–400
         // ms a beat, then 1.2 s of bubble, when that's longer than the face.
         let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
         XCTAssertEqual(DeviceMoment(say: line).playMs, 1920)
-        XCTAssertEqual(DeviceMoment(anim: "nod", say: line).playMs, 1920)
+        XCTAssertEqual(DeviceMoment(anim: "wiggle", say: line).playMs, 1920)
         var plain = line
         plain.word = nil
         XCTAssertEqual(DeviceMoment(say: plain).playMs, 1680)

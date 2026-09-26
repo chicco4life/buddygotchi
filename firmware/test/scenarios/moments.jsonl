@@ -11,12 +11,6 @@
 {"clock":12000}
 {"expect":{"moment":null}}
 {"t":"state","v":1,"base":"idle"}
-{"clock":20000}
-{"t":"moment","anim":"nod","ttl":5}
-{"clock":20150}
-{"expect":{"moment":{"anim":"nod"}}}
-{"shot":"nod"}
-{"t":"state","v":1,"base":"idle"}
 {"clock":30000}
 {"t":"moment","anim":"wiggle","ttl":5}
 {"clock":30090}
@@ -29,19 +23,25 @@
 {"expect":{"moment":{"anim":"listening"}}}
 {"shot":"listening"}
 {"t":"state","v":1,"base":"idle"}
+// The empty moment ends listening and does nothing else (PROTOCOL.md §3):
+// the face blends back.
+{"clock":45000}
+{"t":"moment","ttl":5}
+{"expect":{"moment":null,"audio":{"playing":false}}}
+{"clock":45075}
+{"shot":"listening-stopped-75ms"}
+// It never ends a cheer.
 {"clock":50000}
-{"t":"moment","anim":"thinking","ttl":5}
-{"clock":50400}
-{"expect":{"moment":{"anim":"thinking"}}}
-{"shot":"thinking"}
+{"t":"moment","anim":"cheer","ttl":5}
+{"clock":50500}
+{"t":"moment","ttl":5}
+{"expect":{"moment":{"anim":"cheer","left_ms":1500}}}
 {"t":"state","v":1,"base":"idle"}
-{"clock":60000}
-{"t":"moment","anim":"shrug","ttl":5}
-{"clock":60400}
-{"expect":{"moment":{"anim":"shrug"}}}
-{"shot":"shrug"}
-{"t":"state","v":1,"base":"idle"}
-// An unknown animation with no mumble is ignored.
+// An unknown animation with no mumble is ignored, the removed ones too.
 {"clock":70000}
 {"t":"moment","anim":"oops","ttl":5}
+{"expect":{"moment":null}}
+{"t":"moment","anim":"nod","ttl":5}
+{"t":"moment","anim":"thinking","ttl":5}
+{"t":"moment","anim":"shrug","ttl":5}
 {"expect":{"moment":null}}

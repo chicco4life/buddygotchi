@@ -22,4 +22,6 @@ public enum CoreEffect: Equatable, Sendable {
     case newDay(date: String, firstSeen: String)
     /// Push-to-talk: start (true) or stop listening on the Mac's mic.
     case listen(Bool)
+    /// Ends the device's `listening` face: the empty moment (PROTOCOL.md §3).
+    case endListening
 }

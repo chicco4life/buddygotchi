@@ -106,7 +106,8 @@ so new optional fields never break an older peer.
 | `quiet` | Minutes of quiet left; 0 when not quiet |
 | `vol` | Volume 0–10; 0 is mute |
 
-If the device gets no `state` for 30 s, it shows the "no app" face.
+If the device gets no `state` for 30 s, it shows the asleep face with the
+unplugged icon ([BEHAVIORS.md](BEHAVIORS.md) §2).
 
 ### `moment`: something to play once
 
@@ -123,6 +124,12 @@ If the device gets no `state` for 30 s, it shows the "no app" face.
 The device plays moments on top of whatever `state` says, except while
 something needs you, when only the moments in [BEHAVIORS.md](BEHAVIORS.md)
 §1 play. A new moment replaces one that's still playing.
+
+**The empty moment,** `{"t":"moment","ttl":5}` with no `anim` and no
+`say`, ends `listening` and does nothing else: it never ends a cheer, a
+wiggle or a mumble. The Mac sends it 8 s after Send in the popover, and at
+once when the mic can't start ([BEHAVIORS.md](BEHAVIORS.md) §3.3). A
+mumble also ends `listening`: it's the reply.
 
 ## 4. Device → Mac
 
@@ -169,7 +176,7 @@ connect ─► Mac: state
                    input when you touch it,
                    status every 60 s ─► Mac: state
                                         │
-          30 s without a state ─► device: "no app" face; over Bluetooth
+          30 s without a state ─► device: asleep face, unplugged icon; over Bluetooth
                                   it drops the link and advertises
                                   Mac reconnects ─► same as connect
 ```

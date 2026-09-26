@@ -11,7 +11,8 @@
 > **Cut to the minimal surface (C1, 2026-09-26).** After that, v1 was cut
 > down at your request. Mood, XP and hunger, night, focus, the nudge
 > ladder, cheer sizes, the threads and stats screens and the brain's faces
-> are parked (code at tag `v1-full`). The goldens are now 45 in 10
+> are parked (code at tag `v1-full`), and a second cut parked `nod`,
+> `thinking`, `shrug` and the no-app look. The goldens are now 41 in 10
 > scenarios. Where this report describes those features, it's history. See
 > [BEHAVIORS.md](../../BEHAVIORS.md) and the
 > [C1 evidence](../2026-09-26-minimal-cut/README.md).

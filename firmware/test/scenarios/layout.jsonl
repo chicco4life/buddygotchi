@@ -10,4 +10,5 @@
 {"shot":"strip-icons"}
 {"clock":31200}
 {"expect":{"screen":"no_app"}}
+{"clock":31400}
 {"shot":"strip-no-app-quiet"}

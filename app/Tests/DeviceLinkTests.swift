@@ -65,12 +65,16 @@ final class DeviceLinkTests: XCTestCase {
         XCTAssertEqual(DeviceMessage.decode("rst:0x1 (POWERON_RESET)"), .other("rst:0x1 (POWERON_RESET)"))
     }
 
-    /// PROTOCOL.md §3: `anim` is optional and there's no `size`.
+    /// PROTOCOL.md §3: `anim` is optional and there's no `size`. The empty
+    /// moment, with neither `anim` nor `say`, ends `listening`.
     func testMomentEncodingMatchesTheProtocol() {
         let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
         XCTAssertEqual(DeviceMoment(anim: "cheer", say: line, ttl: 5).jsonLine,
                        #"{"t":"moment","anim":"cheer","say":{"syl":"bi-do ba-na","word":"done","at":4,"tune":"up","ms":120},"ttl":5}"#)
-        XCTAssertEqual(DeviceMoment(anim: "nod").jsonLine, #"{"t":"moment","anim":"nod","ttl":5}"#)
+        XCTAssertEqual(DeviceMoment(anim: "wiggle").jsonLine, #"{"t":"moment","anim":"wiggle","ttl":5}"#)
+        XCTAssertEqual(DeviceMoment.empty.jsonLine, #"{"t":"moment","ttl":5}"#)
+        XCTAssertTrue(DeviceMoment.empty.isEmpty)
+        XCTAssertFalse(DeviceMoment(anim: "listening").isEmpty)
         XCTAssertEqual(DeviceMoment(say: line).jsonLine,
                        #"{"t":"moment","say":{"syl":"bi-do ba-na","word":"done","at":4,"tune":"up","ms":120},"ttl":5}"#)
     }

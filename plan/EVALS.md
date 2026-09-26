@@ -125,7 +125,7 @@ time, asides (a tap) go into its transcript, and the core's memory lines
 does.
 
 Only the harness's passes are recorded. The core's own rule reactions (a
-cheer, a nod, working chatter) aren't, so the evals stay about the
+cheer, `listening`, working chatter) aren't, so the evals stay about the
 harness. Queue timing (what you say cancelling a running pass, a newer
 input replacing a waiting one) is left to the unit tests in
 `HarnessTests`.

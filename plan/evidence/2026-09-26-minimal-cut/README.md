@@ -79,6 +79,27 @@ unchanged, so every animation takes the new look.
 After the merge: `make test` `✓ 173 passed`, `make fw-test` 95 passed,
 `tools/boopctl sim` `0 new or changed pictures`, and `make fw` builds.
 
+## Second cut: 7 things to show
+
+The owner asked to go from 11 to 7: 4 states (asleep, idle, working, needs
+you) and 3 animations (`cheer`, `wiggle`, `listening`).
+
+- **Parked:** `nod`, `thinking`, `shrug` and the no-app look.
+- **`listening`** now covers the wait for the reply, and ends on one of:
+  - the reply's mumble;
+  - an empty moment, which the Mac sends 8 s after Send, or at once when
+    the mic can't start;
+  - 8 s after BOOT is released.
+- **No app:** the asleep face, with the unplugged icon.
+
+| Check | Result |
+| --- | --- |
+| `make test` | `✓ 179 passed` |
+| `make eval` | `5/5 scenarios passed` |
+| `make fw-test` | `96 test cases: 96 succeeded` |
+| `tools/boopctl sim` | 8 goldens removed, 7 changed and 4 added. Every new or changed picture was looked at. 41 goldens in 10 scenarios; `0 new or changed pictures` |
+| `make fw` | Builds, flash 55.1% |
+
 ## Not yet run
 
 - Flashing the board and L2 (`tools/boopctl run`): it needs the owner.

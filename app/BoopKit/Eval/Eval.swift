@@ -227,7 +227,7 @@ public struct Eval: Sendable {
                     home.sync { harness.note(line, at: clock.now) }
                 case .happened, .newDay:
                     home.sync { pending.store.apply(effect) }
-                case .state, .moment, .mumble, .listen:
+                case .state, .moment, .mumble, .listen, .endListening:
                     break
                 }
             }

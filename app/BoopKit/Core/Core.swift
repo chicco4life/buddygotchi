@@ -78,6 +78,12 @@ public final class Core {
     public static let listenLimitMs: Int64 = 30_000
     /// While the Mac's mic is on: who turned it on, and when.
     public private(set) var listening: (by: Talker, since: Int64)?
+    /// After the Talk button's mic goes off, the device's `listening` face
+    /// waits this long for the reply; then the empty moment ends it
+    /// (BEHAVIORS.md §3.3). The device's own button has the same cap.
+    public static let replyWaitMs: Int64 = 8_000
+    /// When that empty moment is due.
+    var listeningEndsAt: Int64?
 
     /// `lastActiveDay` is today's date from `short-term.md`, if there is one,
     /// so a restart doesn't start the day again.
@@ -184,13 +190,15 @@ public final class Core {
         switch input {
         case .tap:
             // The rules' alone: the brain's transcript only hears of it.
-            let reaction = needsYouShowing ? "Boop nodded" : "Boop wiggled"
-            fx.append(.aside("tapped · \(timeLine(now)): \(reaction)"))
+            // While something needs you, the device only squashes.
+            fx.append(.aside(needsYouShowing ? "tapped while something needs you · \(timeLine(now))"
+                                             : "tapped · \(timeLine(now)): Boop wiggled"))
         case .talkOn:
-            // The device already shows `listening`, and `thinking` on release.
+            // The device already shows `listening`, and holds it after the
+            // release until the reply, or for at most 8 s.
             startListening(by: .device, now, &fx)
         case .talkOff:
-            stopListening(now, face: nil, &fx)
+            stopListening(now, &fx)
         }
         publish(now, &fx)
         return fx
@@ -202,13 +210,15 @@ public final class Core {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
         fx.append(.input(Input(.said, words: words, clock: config.time.clock(now), weekday: config.time.weekday(now),
-                               rules: "listening, then thinking", ts: now)))
+                               rules: "listening", ts: now)))
         publish(now, &fx)
         return fx
     }
 
     /// The app's Talk button: start or stop listening. The device shows
-    /// `listening`, then `thinking`, as it does for its own button.
+    /// `listening` from the mic turning on until the reply, or until the
+    /// empty moment `replyWaitMs` after the mic goes off, as it does for its
+    /// own button (BEHAVIORS.md §3.3).
     @discardableResult
     public func listen(_ on: Bool, at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
@@ -219,7 +229,7 @@ public final class Core {
                 play("listening", &fx)
             }
         } else {
-            stopListening(now, face: listening?.by == .app ? "thinking" : nil, &fx)
+            stopListening(now, &fx)
         }
         publish(now, &fx)
         return fx
@@ -230,15 +240,22 @@ public final class Core {
     @discardableResult
     public func linkDown(at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
-        if listening?.by == .device { stopListening(now, face: nil, &fx) }
+        if listening?.by == .device { stopListening(now, &fx) }
         return fx
     }
 
-    /// The Mac's mic or speech recognition couldn't start.
+    /// The Mac's mic or speech recognition couldn't start. After the Talk
+    /// button, the empty moment ends the device's `listening` face at once;
+    /// the device's own button ends it by itself.
     @discardableResult
     public func micFailed(at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
-        stopListening(now, face: listening?.by == .app ? "shrug" : nil, &fx)
+        let byApp = listening?.by == .app
+        stopListening(now, &fx)
+        if byApp {
+            listeningEndsAt = nil
+            fx.append(.endListening)
+        }
         return fx
     }
 
@@ -260,15 +277,17 @@ public final class Core {
     }
 
     /// Timers: the Codex grace period, the safety net, quiet running out,
-    /// merged inputs, chatter and the push-to-talk limit.
+    /// merged inputs, chatter, the push-to-talk limit and the Talk button's
+    /// wait for the reply.
     @discardableResult
     public func tick(at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
         if let l = listening, now - l.since >= Self.listenLimitMs {
-            // What was heard still goes to Boop. The device's own
-            // `listening` ends at the same limit.
-            stopListening(now, face: l.by == .app ? "thinking" : nil, &fx)
+            // What was heard still goes to Boop. The device's own button
+            // hits the same limit; the Talk button waits for the reply as
+            // after Send.
+            stopListening(now, &fx)
         }
         publish(now, &fx)
         return fx
@@ -347,15 +366,19 @@ public final class Core {
     func startListening(by talker: Talker, _ now: Int64, _ fx: inout [CoreEffect]) {
         guard listening == nil else { return }
         listening = (talker, now)
+        // A new `listening` face mustn't be ended by the last one's stop.
+        listeningEndsAt = nil
         fx.append(.listen(true))
     }
 
-    /// Turns the mic off, if it's on, and plays `face` on the device.
-    func stopListening(_ now: Int64, face: String?, _ fx: inout [CoreEffect]) {
-        guard listening != nil else { return }
+    /// Turns the mic off, if it's on. After the Talk button, the empty
+    /// moment follows `replyWaitMs` later; it's harmless if the reply
+    /// already came.
+    func stopListening(_ now: Int64, _ fx: inout [CoreEffect]) {
+        guard let l = listening else { return }
         listening = nil
         fx.append(.listen(false))
-        if let face { play(face, &fx) }
+        if l.by == .app { listeningEndsAt = now + Self.replyWaitMs }
     }
 
     /// Plays a rule moment now. The device replaces one that's playing.
@@ -452,6 +475,10 @@ public final class Core {
             }
         }
         if quietUntil != 0 && quietUntil <= now { quietUntil = 0 }
+        if let due = listeningEndsAt, now >= due {
+            listeningEndsAt = nil
+            fx.append(.endListening)
+        }
 
         // Merged bursts.
         if let held = heldInput, now - lastInputAt >= config.mergeMs {

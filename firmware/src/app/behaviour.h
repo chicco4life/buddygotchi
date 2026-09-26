@@ -13,6 +13,8 @@
 
 namespace app {
 
+// kNoApp draws the face screen with the asleep look and the unplugged icon;
+// dbg.state still names it "no_app" (BEHAVIORS.md §3.4).
 enum class Screen : uint8_t { kFace, kNeedsYou, kNoApp, kPattern };
 const char* screenName(Screen s);
 
@@ -28,9 +30,12 @@ struct Model {
   int vol = 6;
 };
 
-// A moment as it arrives (PROTOCOL.md §3). With no anim, only the mumble.
+// A moment as it arrives (PROTOCOL.md §3). With no anim, only the mumble;
+// with neither an `anim` nor a `say` field, it's the empty moment, which
+// ends `listening` and does nothing else.
 struct MomentIn {
   render::Anim anim = render::Anim::kNone;
+  bool empty = false;  // no `anim` and no `say` field
   int syllables = 0;  // 0: no mumble
   const char* word = nullptr;
   int at = -1;
@@ -45,6 +50,9 @@ class Behaviour {
  public:
   // Timings (BEHAVIORS.md, UX.md). Proposed values are marked there.
   static constexpr uint32_t kNoAppMs = 30000;
+  // After push-to-talk's release, listening waits at most this long for
+  // the reply (BEHAVIORS.md §3.3).
+  static constexpr uint32_t kReplyWaitMs = 8000;
   static constexpr uint32_t kBubbleReadMs = 1200;  // the word stays up after the mumble
   static constexpr uint32_t kPressEaseMs = 60;     // the press squish
   static constexpr uint32_t kBlinkMs = 180;
@@ -90,7 +98,7 @@ class Behaviour {
   uint32_t momentSeq() const { return momentSeq_; }
   Life life(uint32_t t) const;
   // What the face is following at t: the animation ("cheer"), or the look
-  // ("idle", "working", "asleep", "no_app", "needs_you").
+  // ("idle", "working", "asleep", "needs_you"). With no app it's "asleep".
   const char* faceName(uint32_t t) const;
   const char* sfx(uint32_t& at) const {
     at = sfxAt_;

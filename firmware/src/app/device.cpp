@@ -119,6 +119,7 @@ void Device::handleLine(const char* line, size_t n, Link from) {
     ++rxMoment_;
     MomentIn mo;
     mo.anim = render::animFromName(doc["anim"]);  // none, or unknown: only the mumble
+    mo.empty = doc["anim"].isNull() && doc["say"].isNull();  // the empty moment ends listening
     voice::Line line;
     JsonObjectConst say = doc["say"];
     if (say) {

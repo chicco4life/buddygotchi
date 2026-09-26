@@ -171,7 +171,7 @@ later cut part of it, so the current behaviour is in the specs, not here.
 | A5 | Mac app look and flow | In progress: code, L0 and the app's snapshot check pass (light and dark). Only the owner's look in the real menu bar remains (morning checklist rows 5 and 7). [Evidence](evidence/v1-build/A5/README.md) |
 | A6 | Brain conversation | Superseded by A7 (2026-09-26): the conversation became the transcript's window, the `say` limit went with every timing limit, and `note` is offered only for what you say. Its L5 findings are the [evidence](evidence/2026-09-26-brain-conversation/README.md) |
 | A7 | Two-stage brain | In progress: the pipeline is built. L0 (191 Swift tests, 100 firmware) and L5 pass: both classifiers with Apple's model answer all 50 fixture inputs on the menu, fill every slot, and stay inside their deadlines ([evidence](evidence/2026-09-26-two-stage-brain/README.md)). Remaining: L2 and L4 on the board for the removals (the everyday app held it over Bluetooth, [evidence](evidence/2026-09-26-removals/README.md)), and the owner picking each classifier in Settings and talking to Boop. The Jev experiment before it: [evidence](evidence/2026-09-26-jev-brain/README.md) |
-| C1 | Cut to the minimal surface | In progress: specs, code, L0 and L1 pass, merged with A7's two-stage brain (the brain's `react` keeps its feelings but shows no face). Follow-up: the pixel face. Not yet flashed or checked on the board. [Evidence](evidence/2026-09-26-minimal-cut/README.md) |
+| C1 | Cut to the minimal surface | In progress: two cuts, to 4 states and 3 animations; specs, code, L0 and L1 pass, merged with A7's two-stage brain and the evals (the brain's `react` keeps its feelings but shows no face). Follow-up: the pixel face, with boxy eyes in every expression. Not yet flashed or checked on the board. [Evidence](evidence/2026-09-26-minimal-cut/README.md) |
 | P1 | Port to ESP-IDF + LVGL (later, gated) | Not started |
 
 ### M0: Setup
@@ -602,9 +602,10 @@ head. Cut v1 to what Boop needs to do its job, and add features back one
 at a time ([BEHAVIORS.md](BEHAVIORS.md), decision log in
 [ARCHITECTURE.md](ARCHITECTURE.md) §11).
 
-- **Kept:** asleep, idle, working, no app and needs you (one chirp, steady
-  amber); `cheer` (one size), `nod`, `wiggle`, `listening`, `thinking`,
-  `shrug`; tap and push-to-talk; the brain, memory and all mumbles.
+- **Kept:** asleep, idle, working and needs you (one chirp, steady
+  amber); `cheer` (one size), `wiggle` and `listening`; tap and
+  push-to-talk; the brain, memory and all mumbles. No app shows the asleep
+  face with the unplugged icon.
 - **Parked and deleted:** everything under "Parked" in
   [FUTURE.md](FUTURE.md). The code before the cut is at git tag `v1-full`.
 

@@ -135,18 +135,22 @@ final class ActionTests: XCTestCase {
         for line in rig.logs { XCTAssertFalse(line.contains("kubernetes") || line.contains("hello there"), line) }
     }
 
-    /// BEHAVIORS.md §5: the rules play only the six kept animations.
+    /// BEHAVIORS.md §5: the rules play only the three kept animations.
     func testRulesPlayOnlyTheKeptAnimations() {
-        XCTAssertEqual(ReactAction.anims, ["cheer", "nod", "wiggle", "listening", "thinking", "shrug"])
+        XCTAssertEqual(ReactAction.anims, ["cheer", "wiggle", "listening"])
         for anim in ReactAction.anims {
             XCTAssertTrue(rig.react.play(anim).isDone, anim)
             XCTAssertEqual(rig.sent.last, DeviceMoment(anim: anim))
         }
-        for removed in ["dance", "stretch", "oops", "side_eye", "gobble", "levelup", "happy", "proud"] {
-            XCTAssertFalse(rig.react.play(removed).isDone, removed)
+        let removed = ["nod", "thinking", "shrug", "dance", "stretch", "oops", "side_eye", "gobble", "levelup", "happy", "proud"]
+        for anim in removed {
+            XCTAssertFalse(rig.react.play(anim).isDone, anim)
         }
-        XCTAssertEqual(rig.sent.count, 6)
-        XCTAssertEqual(rig.logs.count, 8)
+        XCTAssertEqual(rig.sent.count, 3)
+        XCTAssertEqual(rig.logs.count, removed.count)
+        // The core's `.endListening`: the empty moment.
+        XCTAssertTrue(rig.react.endListening().isDone)
+        XCTAssertEqual(rig.sent.last, DeviceMoment.empty)
     }
 
     func testQuietTellsTheCore() {

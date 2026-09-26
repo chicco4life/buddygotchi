@@ -1,5 +1,5 @@
 // Needs you (UX.md §3, BEHAVIORS.md §3.2): who, +N more, one chirp per
-// request, amber at half until it's answered.
+// request, amber at half until it's answered, then back to the base look.
 {"clock":0}
 {"t":"state","v":1,"base":"working","busy":2}
 {"clock":1000}
@@ -30,5 +30,5 @@
 {"shot":"long-project"}
 {"t":"state","v":1,"base":"working","busy":2,"wait":0}
 {"clock":122200}
-{"expect":{"screen":"face","attn":null,"moment":{"anim":"nod"},"led":"#000000"}}
+{"expect":{"screen":"face","attn":null,"moment":null,"led":"#000000"}}
 {"shot":"cleared"}

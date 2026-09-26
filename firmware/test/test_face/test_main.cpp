@@ -192,8 +192,8 @@ static void test_eyes_are_four_crisp_panes() {
   looks[2].lookX = -700, looks[2].lookY = -800;
   looks[3].eyeSize = 1250;
   looks[4].lidTop = 400, looks[4].lidTilt = 600;
-  looks[5] = animPose(Anim::kShrug, 400);
-  looks[6] = animPose(Anim::kNod, 150);
+  looks[5].lidTop = 150, looks[5].lidTilt = -500, looks[5].dy = -7, looks[5].squash = -120;
+  looks[6] = animPose(Anim::kWiggle, 150);
   looks[7] = animPose(Anim::kListening, 0);
   for (Pose p : looks) {
     p.mouthOpen = 0;  // nothing dark anywhere: an open mouth is the only hollow
@@ -270,7 +270,11 @@ static void test_lids_cut_each_half_flat() {
     const char* name;
     Pose p;
   } lidded[] = {{"flat", flat},
-                {"shrug", animPose(Anim::kShrug, 400)},
+                {"outer corners down, lifted", [] {
+                   Pose p;
+                   p.lidTop = 150, p.lidTilt = -500, p.dy = -7, p.squash = -120;
+                   return p;
+                 }()},
                 {"working", lookPose(Look::kWorking, 1)},
                 {"outer corners down", sad},
                 {"inner corners down", cross}};
@@ -296,16 +300,18 @@ static void test_lids_cut_each_half_flat() {
   TEST_ASSERT_TRUE(topAt(t, te.x0 + 3) != topAt(t, te.x1 - 3));
 }
 
-static void test_thinking_looks_up_and_working_looks_down() {
+static void test_a_look_up_keeps_full_panes_and_working_looks_down() {
   // With no pupils to roll, lids alone would make these the same hooded
-  // eyes in two places. Working is lidded and sits low; thinking keeps its
-  // full top panes and sits high.
+  // eyes in two places. Working is lidded and sits low; a look up and
+  // aside keeps its full top panes and sits high.
   auto rowWidth = [](const Buf& b, bool right, int y) {
     int w = 0;
     for (int x = right ? kWidth / 2 : 0; x < (right ? kWidth : kWidth / 2); ++x) w += b.c.get(x, y) != kBlack;
     return w;
   };
-  Buf n = face(Pose{}), t = face(animPose(Anim::kThinking, 0)), w = face(lookPose(Look::kWorking, 1));
+  Pose up;
+  up.lookX = 650, up.lookY = -1000, up.dy = -6, up.squash = 100, up.mouthWide = 600, up.mouthX = 8;
+  Buf n = face(Pose{}), t = face(up), w = face(lookPose(Look::kWorking, 1));
   for (bool right : {false, true}) {
     EyeBox ne = eyeBox(n, right), te = eyeBox(t, right), we = eyeBox(w, right);
     TEST_ASSERT_TRUE(ne.y0 - te.y0 >= 15);
@@ -317,7 +323,7 @@ static void test_thinking_looks_up_and_working_looks_down() {
       while (y < kEyeRows && b.c.get(x, y) != kBlack) ++y;
       return y - e.y0;
     };
-    // Thinking: all four panes (the left eye; looking up, the mouth rises
+    // Looking up: all four panes (the left eye; looking up, the mouth rises
     // into the right eye's rows).
     if (!right) TEST_ASSERT_TRUE(crossAt(t, te) >= 15);
     TEST_ASSERT_TRUE(crossAt(w, we) <= 12);  // working: the lid takes the top off
@@ -484,20 +490,6 @@ static void test_a_happy_blend_squints_a_row_at_a_time() {
   }
 }
 
-static void test_no_app_eyes_are_open_not_droopy() {
-  // Waiting for the Mac, Boop looks up and aside with open eyes, as gen-2
-  // did before contact. The sleepy half-shut look read as droopy
-  // (BEHAVIORS.md §2).
-  Pose p = lookPose(Look::kNoApp, 0);
-  TEST_ASSERT_EQUAL_INT(1000, p.open);
-  TEST_ASSERT_EQUAL_INT(0, p.lidTop);
-  TEST_ASSERT_EQUAL_INT(0, p.lidTilt);
-  Buf n = face(Pose{}), b = face(p);
-  EyeBox ne = eyeBox(n, false), e = eyeBox(b, false);
-  TEST_ASSERT_TRUE(e.h() * 10 >= ne.h() * 9);
-  TEST_ASSERT_TRUE(e.y0 < ne.y0);  // looking up
-}
-
 static void test_blend_is_eased_interruptible_and_150ms() {
   Pose a, b;
   b.lookX = 1000, b.eyeSize = 1200;
@@ -518,26 +510,26 @@ static void test_blend_is_eased_interruptible_and_150ms() {
   TEST_ASSERT_EQUAL_INT(-1000, bl.apply(1225, c).lookX);
 }
 
-// BEHAVIORS.md §5: six animations, and nothing else.
+// BEHAVIORS.md §5: three animations, and nothing else.
 static void test_every_anim_has_a_name_and_ends() {
-  TEST_ASSERT_EQUAL_INT(7, int(Anim::kCount));
+  TEST_ASSERT_EQUAL_INT(4, int(Anim::kCount));
   for (int i = 1; i < int(Anim::kCount); ++i) {
     Anim a = Anim(i);
     TEST_ASSERT_TRUE(animFromName(animName(a)) == a);
     TEST_ASSERT_TRUE(animDuration(a) > 0);
     TEST_ASSERT_TRUE(animDuration(a) <= 30000);
   }
-  for (const char* name : {"cheer", "nod", "wiggle", "listening", "thinking", "shrug"}) {
+  for (const char* name : {"cheer", "wiggle", "listening"}) {
     TEST_ASSERT_TRUE_MESSAGE(animFromName(name) != Anim::kNone, name);
   }
   for (const char* gone : {"dance", "oops", "side_eye", "stretch", "yawn", "zip", "gobble", "rumble", "levelup",
-                           "happy", "proud", "smug", "curious", "sleepy", "worried", "sulky", "love"}) {
+                           "happy", "proud", "smug", "curious", "sleepy", "worried", "sulky", "love", "nod",
+                           "thinking", "shrug"}) {
     TEST_ASSERT_TRUE_MESSAGE(animFromName(gone) == Anim::kNone, gone);
   }
   TEST_ASSERT_EQUAL_UINT32(2000, animDuration(Anim::kCheer));
-  TEST_ASSERT_EQUAL_UINT32(600, animDuration(Anim::kNod));
   TEST_ASSERT_EQUAL_UINT32(700, animDuration(Anim::kWiggle));
-  TEST_ASSERT_EQUAL_UINT32(1200, animDuration(Anim::kShrug));
+  TEST_ASSERT_EQUAL_UINT32(30000, animDuration(Anim::kListening));  // the hold cap
 }
 
 static void test_fonts_are_monospaced_and_utf8_aware() {
@@ -565,14 +557,13 @@ int main(int, char**) {
   RUN_TEST(test_a_look_moves_the_whole_eye_with_perspective);
   RUN_TEST(test_eye_size_changes_only_the_eyes);
   RUN_TEST(test_lids_cut_each_half_flat);
-  RUN_TEST(test_thinking_looks_up_and_working_looks_down);
+  RUN_TEST(test_a_look_up_keeps_full_panes_and_working_looks_down);
   RUN_TEST(test_closed_eyes_are_a_line);
   RUN_TEST(test_happy_eyes_squint_and_the_smile_stays_small);
   RUN_TEST(test_a_tap_is_a_squint_and_a_heart);
   RUN_TEST(test_asleep_zzz_climbs_one_letter_at_a_time);
   RUN_TEST(test_a_sweat_drop_sits_by_the_right_eye_and_slides_down);
   RUN_TEST(test_a_happy_blend_squints_a_row_at_a_time);
-  RUN_TEST(test_no_app_eyes_are_open_not_droopy);
   RUN_TEST(test_blend_is_eased_interruptible_and_150ms);
   RUN_TEST(test_every_anim_has_a_name_and_ends);
   RUN_TEST(test_fonts_are_monospaced_and_utf8_aware);

@@ -223,9 +223,9 @@ def check_after(run: Run, expected: dict[str, Any]) -> None:
 
 
 # How long each animation plays on the device (firmware/src/render/anim.cpp
-# animDuration). listening and thinking last until push-to-talk moves on, so
-# they don't hold anything up.
-ANIM_MS = {"cheer": 2000, "nod": 600, "wiggle": 700, "shrug": 1200, "listening": 0, "thinking": 0}
+# animDuration). listening lasts until push-to-talk moves on (the reply, the
+# empty moment or the device's own caps), so it doesn't hold anything up.
+ANIM_MS = {"cheer": 2000, "wiggle": 700, "listening": 0}
 
 
 def play_ms(moment: dict[str, Any]) -> int:
@@ -233,7 +233,8 @@ def play_ms(moment: dict[str, Any]) -> int:
     animation, if any, or the mumble when that's longer: its syllables, plus
     two beats for a word, at 60-400 ms each, then 1200 ms for the bubble
     (firmware/src/app/behaviour.cpp startSay). A mumble on its own plays over
-    the face for just its own length."""
+    the face for just its own length, and the empty moment (the stop that
+    ends listening) for none."""
     ms = ANIM_MS.get(moment.get("anim") or "", 0)
     say = moment.get("say") or {}
     syllables = len([s for s in re.split(r"[ -]+", say.get("syl", "")) if s])
@@ -271,7 +272,8 @@ def check_order(run: Run) -> dict[str, Any]:
                 reaction = (t, last_hook)
             line = json.loads(text[len("link rules → "):])
             if line.get("t") == "moment":
-                anim = line.get("anim") or "mumble"  # chatter is a mumble on its own
+                # Chatter is a mumble on its own; with no `say` either, the stop.
+                anim = line.get("anim") or ("mumble" if line.get("say") else "stop")
                 rule_moment = (t, anim, t + play_ms(line))
                 if t < brain_ends:
                     cut.append(f"{raw[:12]} {anim} after {last_hook}")

@@ -39,14 +39,14 @@
 {"expect":{"moment":{"anim":"cheer","left_ms":1700},"audio":{"playing":true,"syllables":3}}}
 {"clock":40500}
 {"shot":"over-cheer"}
-// The reply to push-to-talk ends thinking, with no shrug.
+// The reply to push-to-talk ends listening's wait (BEHAVIORS.md §3.3).
 {"t":"state","v":1,"base":"idle"}
 {"clock":50000}
 {"input":{"press":"hold","ms":600}}
 {"clock":50400}
 {"expect":{"moment":{"anim":"listening"}}}
 {"clock":50600}
-{"expect":{"moment":{"anim":"thinking"}}}
+{"expect":{"moment":{"anim":"listening","left_ms":8000}}}
 {"clock":51000}
 {"t":"moment","say":{"syl":"mi-ne po","word":"hello","at":3,"tune":"lift","ms":120},"ttl":5}
 {"expect":{"moment":null,"audio":{"playing":true,"syllables":3}}}

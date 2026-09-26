@@ -178,8 +178,9 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 1 if failures or differ else 0
 
 
-# Moments that keep the face moving for perf, one after another.
-MOTION = ["cheer", "wiggle", "nod", "shrug"]
+# Moments that keep the face moving for perf, one after another. Each
+# replaces the last, so listening's 30 s never runs out.
+MOTION = ["cheer", "wiggle", "listening"]
 
 
 def cmd_perf(args: argparse.Namespace) -> int:
@@ -200,6 +201,8 @@ def cmd_perf(args: argparse.Namespace) -> int:
             time.sleep(1.0)
             ping = dev.request({"t": "dbg.ping"})
             samples.append({"fps": ping["fps"], "heap": ping["heap"], "heap_min": ping["heap_min"], "up": ping["up"]})
+        if args.motion:
+            dev.send({"t": "moment", "ttl": 5})  # the empty moment: ends a listening left playing
     fps = [s["fps"] for s in samples[1:]] or [0]  # the first second includes the start
     ups = [s["up"] for s in samples]
     result = {
@@ -237,7 +240,7 @@ def boopdev_voice(feeling: str, word: str | None, count: int, seed: int | None =
     return [json.loads(row) for row in out.splitlines() if row.startswith("{")]
 
 
-SOAK_ANIMS = ["nod", "cheer", "wiggle", "shrug"]
+SOAK_ANIMS = ["cheer", "wiggle", "listening"]
 SOAK_PROJECTS = ["landing", "jetpack", "buddygotchi", "a-very-long-project-name", "notes"]
 
 
@@ -258,8 +261,11 @@ def soak_state(rng: random.Random) -> dict:
 
 
 def soak_moment(rng: random.Random) -> dict:
-    """An animation, a mumble, or both, as the Mac sends them."""
+    """An animation, a mumble, or both, as the Mac sends them, and now and
+    then the empty moment that ends listening (PROTOCOL.md §3)."""
     msg = {"t": "moment", "ttl": 5}
+    if rng.random() < 0.1:
+        return msg
     if rng.random() < 0.7:
         msg["anim"] = rng.choice(SOAK_ANIMS)
     if "anim" not in msg or rng.random() < 0.4:
@@ -318,8 +324,10 @@ def cmd_soak(args: argparse.Namespace) -> int:
                                 "heap_min": ping["heap_min"], "fps": ping["fps"]})
                 next_ping = elapsed + 5
             time.sleep(rng.uniform(0.2, 1.5))
-        # Stuck? Calm snapshots must bring back the plain face once the last
-        # press and push-to-talk (thinking, then a shrug, ≤ 13 s) are over.
+        # Stuck? The Mac's stop ends any listening it started; then calm
+        # snapshots must bring back the plain face once the last press and
+        # push-to-talk (held ≤ 3 s, then ≤ 8 s waiting for the reply) are over.
+        dev.send({"t": "moment", "ttl": 5})
         for _ in range(3):
             dev.send({"t": "state", "v": 1, "base": "idle", "busy": 0, "idle": 1, "wait": 0})
             time.sleep(5)
@@ -384,7 +392,7 @@ def cmd_bridge(args: argparse.Namespace) -> int:
 # sending its own `state` and can override these.
 
 FEELINGS = [f for f, _ in VOICE_LINES]
-MOMENT_ANIMS = ["cheer", "nod", "wiggle", "listening", "thinking", "shrug"]
+MOMENT_ANIMS = ["cheer", "wiggle", "listening"]
 
 
 def show_begin(dev: Device, warn: bool = True) -> dict:
@@ -568,7 +576,7 @@ def cmd_volume(args: argparse.Namespace) -> int:
 
 def cmd_sound(args: argparse.Namespace) -> int:
     """The chirp, the only sound cue, comes with a new "needs you", so it's
-    played by sending one and clearing it (Boop nods)."""
+    played by sending one and clearing it."""
     with Device(args.port) as dev:
         show_begin(dev)
         show_state(dev, args.vol, attn={"agent": "claude", "project": "boopctl", "more": 0})
@@ -582,9 +590,21 @@ def cmd_sound(args: argparse.Namespace) -> int:
 
 
 def cmd_moment(args: argparse.Namespace) -> int:
-    """An animation, a mumble on its own (--say with no anim), or both."""
+    """An animation, a mumble on its own (--say with no anim), or both; or
+    `stop`, the empty moment, which ends listening (PROTOCOL.md §3)."""
     if not args.anim and not args.say:
-        raise DeviceError("moment needs an anim, --say FEELING, or both")
+        raise DeviceError("moment needs an anim, --say FEELING, or both (or stop)")
+    if args.anim == "stop" and args.say:
+        raise DeviceError("stop is the empty moment: it takes no --say")
+    if args.anim == "stop":
+        with Device(args.port) as dev:
+            show_begin(dev)
+            dev.send({"t": "moment", "ttl": 5})
+            moment = dev.request({"t": "dbg.state"}).get("moment")
+        ok = not moment or moment.get("anim") != "listening"
+        print("stop: " + ("listening isn't playing now" if ok else "listening is still playing")
+              + (f" ({moment['anim']} plays on)" if moment and ok else ""))
+        return 0 if ok else 1
     with Device(args.port) as dev:
         show_begin(dev)
         show_state(dev, args.vol, base=args.base)
@@ -609,7 +629,7 @@ def cmd_moment(args: argparse.Namespace) -> int:
 def cmd_needs(args: argparse.Namespace) -> int:
     """Holds a "needs you" for a while (BEHAVIORS.md §3.2): one chirp, amber
     at half, the face turned to you. Prints what the board shows, then
-    clears it, and Boop nods. Ctrl-C clears it early."""
+    clears it, and the face blends back. Ctrl-C clears it early."""
     attn = {"agent": args.agent, "project": args.project, "more": args.more}
     with Device(args.port) as dev:
         show_begin(dev)
@@ -631,7 +651,7 @@ def cmd_needs(args: argparse.Namespace) -> int:
             pass
         finally:
             show_state(dev, args.vol)
-    print("cleared: Boop nods and goes back to idle")
+    print("cleared: Boop goes back to idle")
     return 0
 
 
@@ -730,8 +750,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("cue", nargs="?", choices=["chirp"], default="chirp")
     p.add_argument("--vol", **vol)
     p.set_defaults(func=cmd_sound)
-    p = sub.add_parser("moment", help="play an animation, a mumble on its own (--say), or both")
-    p.add_argument("anim", nargs="?", choices=MOMENT_ANIMS, metavar="anim", help=", ".join(MOMENT_ANIMS))
+    p = sub.add_parser("moment", help="play an animation, a mumble on its own (--say), or both; "
+                                      "stop sends the empty moment, which ends listening")
+    p.add_argument("anim", nargs="?", choices=MOMENT_ANIMS + ["stop"], metavar="anim",
+                   help=", ".join(MOMENT_ANIMS) + ", or stop")
     p.add_argument("--say", choices=FEELINGS, metavar="FEELING",
                    help=f"a mumble with this feeling: {', '.join(FEELINGS)}")
     p.add_argument("--word", help="the mumble's word")

@@ -7,10 +7,11 @@ ARCHITECTURE…) first, then add it to [PLAN.md](PLAN.md).
 ## Parked from v1
 
 On 2026-09-26 v1 was cut down to its core ([BEHAVIORS.md](BEHAVIORS.md)),
-so the surface is small enough to keep in your head. Everything below was
-built and working before the cut. Its code, tests, golden images and specs
-are at git tag `v1-full` (for example
-`git show v1-full:plan/BEHAVIORS.md`). Bring one back at a time, with its
+in two steps, so the surface is small enough to keep in your head.
+Everything below was built and working before the cut. The first step's
+code, tests, golden images and specs are at git tag `v1-full` (for
+example `git show v1-full:plan/BEHAVIORS.md`); the second step's are at
+commit `fd1c083`. Bring one back at a time, with its
 spec first.
 
 | Feature | What it was | Spec at `v1-full` |
@@ -29,6 +30,9 @@ spec first.
 | Stats screen and the record | Level ring, name and days together on the device; level, tasks finished, projects and days in the popover | UX §3, §7 |
 | Focus mode | Holding the status strip: no sound or buzz, "needs you" visual only | BEHAVIORS §6, UX §4 |
 | `zip` | Drawn but never played | BEHAVIORS §7 |
+| `nod` | A nod when "needs you" cleared, and on a tap while it showed (parked in the second cut, after `fd1c083`) | BEHAVIORS §5 at `fd1c083` |
+| `thinking` and `shrug` | A thinking face while waiting for the brain's reply, and a shrug when it was too slow or the mic couldn't start; now `listening` covers the wait and just ends (second cut) | BEHAVIORS §3.3 at `fd1c083` |
+| The no-app look | Eyes open, glancing up and aside while waiting for the Mac; now the asleep face with the unplugged icon (second cut) | BEHAVIORS §2 at `fd1c083` |
 
 ## Character and growth
 

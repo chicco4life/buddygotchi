@@ -221,7 +221,7 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertEqual(rig.state.base, "idle")
         let fx = rig.send(.activity, tool: "Bash")
         XCTAssertEqual(states(fx).last?.base, "working")
-        XCTAssertEqual(moments(fx), [], "the device plays the nod when attn clears")
+        XCTAssertEqual(moments(fx), [], "the device just blends back to its look")
     }
 
     func testDuplicateWhileWaitingIsIgnored() {
@@ -283,7 +283,8 @@ final class CoreNeedsYouTests: XCTestCase {
 
 final class CoreYouAndBoopTests: XCTestCase {
     /// HARNESS.md §2: a tap is the rules' alone; the brain's transcript
-    /// only hears of it.
+    /// only hears of it. While something needs you, the device only
+    /// squashes, and the aside doesn't claim a reaction.
     func testATapIsTheRulesAlone() {
         let rig = CoreRig()
         let fx = rig.input(.tap)
@@ -292,7 +293,9 @@ final class CoreYouAndBoopTests: XCTestCase {
         XCTAssertEqual(moments(fx), [], "the device already wiggled")
         rig.send(.turnStart)
         rig.send(.needsYou, tool: "Bash")
-        XCTAssertEqual(asides(rig.input(.tap)), ["tapped · 14:00 Wednesday: Boop nodded"])
+        let needed = rig.input(.tap)
+        XCTAssertEqual(asides(needed), ["tapped while something needs you · 14:00 Wednesday"])
+        XCTAssertEqual(moments(needed), [])
     }
 
     func testPushToTalkListensAndSendsTheWords() {
@@ -303,7 +306,7 @@ final class CoreYouAndBoopTests: XCTestCase {
         XCTAssertEqual(t.first?.kind, .said)
         XCTAssertEqual(t.first?.words, "shut up for ten minutes")
         XCTAssertEqual(t.first?.line, "you said · 14:00 Wednesday", "the words travel apart from the line")
-        XCTAssertEqual(t.first?.rules, "listening, then thinking")
+        XCTAssertEqual(t.first?.rules, "listening")
         // HARNESS.md §4: about 30 s of speech at most.
         let long = inputs(rig.core.talk(String(repeating: "blah ", count: 200), at: rig.now))
         XCTAssertEqual(long.first?.words?.count, 500)
@@ -320,6 +323,7 @@ final class CoreYouAndBoopTests: XCTestCase {
         let fx = rig.wait(1_000)
         XCTAssertTrue(fx.contains(.listen(false)))
         XCTAssertEqual(moments(fx), [], "the device's own listening ends at the same limit")
+        XCTAssertFalse(rig.wait(Core.replyWaitMs * 2).contains(.endListening), "the device ends its own face")
         XCTAssertNil(rig.core.listening)
         XCTAssertEqual(rig.input(.talkOff), [], "the late release changes nothing")
     }
@@ -327,12 +331,19 @@ final class CoreYouAndBoopTests: XCTestCase {
     func testALostLinkTurnsTheDevicesMicOff() {
         let rig = CoreRig()
         rig.input(.talkOn)
+        XCTAssertEqual(rig.input(.talkOff), [.listen(false)], "nothing extra: the device waits for the reply itself")
+        XCTAssertFalse(rig.wait(Core.replyWaitMs * 2).contains(.endListening))
+        rig.input(.talkOn)
         XCTAssertEqual(rig.core.linkDown(at: rig.now), [.listen(false)])
         XCTAssertNil(rig.core.listening)
         XCTAssertEqual(rig.core.linkDown(at: rig.now), [])
     }
 
-    func testTheTalkButtonListensThenThinks() {
+    /// BEHAVIORS.md §3.3: the Talk button shows `listening` from the mic
+    /// turning on until the reply; 8 s after Send, the empty moment ends it
+    /// if no reply came.
+    func testTheTalkButtonListensThenWaitsEightSecondsForTheReply() {
+        XCTAssertEqual(Core.replyWaitMs, 8_000)
         let rig = CoreRig()
         let on = rig.core.listen(true, at: rig.now)
         XCTAssertTrue(on.contains(.listen(true)))
@@ -342,22 +353,55 @@ final class CoreYouAndBoopTests: XCTestCase {
         XCTAssertEqual(rig.input(.talkOn), [], "already listening")
         let off = rig.core.listen(false, at: rig.now)
         XCTAssertTrue(off.contains(.listen(false)))
-        XCTAssertEqual(moments(off), ["thinking"])
+        XCTAssertEqual(moments(off), [], "Send adds no face: listening carries on")
+        XCTAssertFalse(off.contains(.endListening))
         XCTAssertFalse(rig.core.listen(false, at: rig.now).contains(.listen(false)), "stopping twice is harmless")
-
-        rig.core.listen(true, at: rig.now)
-        let limit = rig.wait(Core.listenLimitMs)
-        XCTAssertTrue(limit.contains(.listen(false)))
-        XCTAssertEqual(moments(limit), ["thinking"], "what was heard still goes to Boop")
+        XCTAssertFalse(rig.wait(7_000).contains(.endListening))
+        let ended = rig.wait(1_000)
+        XCTAssertEqual(ended.filter { $0 == .endListening }.count, 1)
+        XCTAssertEqual(moments(ended), [])
+        XCTAssertFalse(rig.wait(Core.replyWaitMs).contains(.endListening), "once")
     }
 
-    func testAMicThatCantStartShrugs() {
+    /// BEHAVIORS.md §3.3: the 30 s mic limit waits for the reply as Send does.
+    func testTheTalkButtonsLimitAlsoWaitsEightSeconds() {
         let rig = CoreRig()
         rig.core.listen(true, at: rig.now)
-        let fx = rig.core.micFailed(at: rig.now)
-        XCTAssertEqual(fx, [.listen(false), .moment(anim: "shrug")])
+        let limit = rig.wait(Core.listenLimitMs)
+        XCTAssertTrue(limit.contains(.listen(false)), "what was heard still goes to Boop")
+        XCTAssertEqual(moments(limit), [])
+        XCTAssertFalse(limit.contains(.endListening))
+        XCTAssertFalse(rig.wait(Core.replyWaitMs - 1_000).contains(.endListening))
+        XCTAssertTrue(rig.wait(1_000).contains(.endListening))
+    }
+
+    /// A new `listening` face isn't ended by the last one's empty moment.
+    func testListeningAgainCancelsTheWait() {
+        let rig = CoreRig()
+        rig.core.listen(true, at: rig.now)
+        rig.core.listen(false, at: rig.now)
+        rig.wait(3_000)
         rig.input(.talkOn)
-        XCTAssertEqual(rig.core.micFailed(at: rig.now), [.listen(false)], "the device shrugs by itself after its thinking")
+        XCTAssertFalse(rig.wait(Core.replyWaitMs).contains(.endListening))
+        rig.input(.talkOff)
+        rig.core.listen(true, at: rig.now)
+        rig.core.listen(false, at: rig.now)
+        rig.wait(3_000)
+        rig.core.listen(true, at: rig.now)
+        XCTAssertFalse(rig.wait(Core.replyWaitMs).contains(.endListening))
+    }
+
+    /// BEHAVIORS.md §3.3: a Mac mic that can't start ends the Talk button's
+    /// `listening` at once with the empty moment. The device's own button
+    /// ends its face by itself.
+    func testAMicThatCantStartEndsListeningAtOnce() {
+        let rig = CoreRig()
+        rig.core.listen(true, at: rig.now)
+        XCTAssertEqual(rig.core.micFailed(at: rig.now), [.listen(false), .endListening])
+        XCTAssertFalse(rig.wait(Core.replyWaitMs * 2).contains(.endListening), "no second one later")
+        rig.input(.talkOn)
+        XCTAssertEqual(rig.core.micFailed(at: rig.now), [.listen(false)])
+        XCTAssertFalse(rig.wait(Core.replyWaitMs * 2).contains(.endListening))
     }
 
     /// The first activity of the day starts short-term memory with no

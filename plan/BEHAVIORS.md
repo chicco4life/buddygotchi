@@ -4,10 +4,12 @@ Updated 2026-09-26. What Boop does on the device when things happen. How
 it sounds is in [VOICE.md](VOICE.md). Numbers marked *proposed* are first
 guesses, to be tuned once we've lived with Boop.
 
-This is the minimal set. On 2026-09-26 everything beyond it was cut so
-the surface is small enough to hold in your head; features come back one
-at a time ([FUTURE.md](FUTURE.md), "Parked"). The code from before the cut
-is at git tag `v1-full`.
+This is the minimal set: **4 states** (asleep, idle, working, needs you)
+and **3 animations** (`cheer`, `wiggle`, `listening`). On 2026-09-26
+everything beyond it was cut, in two steps, so the surface is small
+enough to hold in your head; features come back one at a time
+([FUTURE.md](FUTURE.md), "Parked"). The code from before the first cut is
+at git tag `v1-full`.
 
 ## 1. How behaviour is layered
 
@@ -17,14 +19,14 @@ conflict.
 | Layer | Examples | Decided by |
 | --- | --- | --- |
 | 1. Attention | Something needs you: amber, looking at you | Core (rules) |
-| 2. Moment | Cheer, nod, wiggle, a mumble, push-to-talk | Core, sometimes flavoured by the brain |
-| 3. Base state | Asleep, idle, working, no app | Core (rules); no app is the device's own |
+| 2. Moment | Cheer, wiggle, listening, a mumble | Core, sometimes flavoured by the brain |
+| 3. Base state | Asleep, idle, working | Core (rules) |
 
-**Attention wins.** While something needs you, the device plays only the
-moments that answer you directly: `nod`, `listening`, `thinking` and
-`shrug`. Others (a cheer for another session) are skipped, and a moment
-that's playing when "needs you" starts is cut short. Mumbles never show
-while something needs you.
+**Attention wins.** While something needs you, the device plays only
+`listening`, so push-to-talk still works. Other moments (a cheer for
+another session, a tap's wiggle) are skipped, and a moment that's playing
+when "needs you" starts is cut short. Mumbles never show while something
+needs you.
 
 ## 2. Base states
 
@@ -33,10 +35,14 @@ while something needs you.
 | Asleep | No sessions | Eyes closed, slow breathing, a "zzZZ" climbing every 2.4 s, never blinks, backlight at 60/255 |
 | Idle | Sessions open, none working | Blinks every 2–6 s |
 | Working | At least one agent working | Focused gaze, a sweat drop, blinks every 2–5 s (1.2–3.5 s with 3+ busy); every 2.6 s (1.8 s with 3+ busy) a 0.8 s strain: eyes squeeze, mouth tightens, a small shiver |
-| No app | No `state` from the Mac for 30 s | Eyes open, glancing up and aside as if waiting, blinks every 5–9 s; unplugged icon; backlight at 70/255 |
 
+Needs you (§3.2) sits on top of whichever of these is showing.
 Otherwise the backlight is full (255), and always while something needs
 you.
+
+**No app.** With no `state` from the Mac for 30 s the device shows the
+asleep look (backlight 60/255), with the unplugged icon in the strip so
+you can tell it from having no sessions (§3.4).
 
 **Working chatter.** About every 2–4 minutes while agents work
 (*proposed*), the core has Boop mutter by rule. About half the time the
@@ -73,8 +79,8 @@ Boop only tells you. You approve on the Mac, in the agent's own prompt.
 | --- | --- |
 | An agent needs approval | Turns to you, leans in, amber light; the bubble shows agent and project; one soft chirp |
 | More than one needs you | The bubble shows the oldest, with "+1 more" |
-| You tap Boop | A small nod; it stays amber |
-| You answer on the Mac | The agent carries on, Boop sees the activity, nods, and goes back to what it was doing. The device plays the nod itself when `attn` leaves the `state` |
+| You tap Boop | The press squash only; it stays amber |
+| You answer on the Mac | The agent carries on, Boop sees the activity and blends back to what it was doing when `attn` leaves the `state` |
 
 The amber light is steady at half brightness until nothing needs you.
 There's one chirp per request: a new `attn` (a different agent or project)
@@ -85,15 +91,16 @@ chirps again. The brain is never involved here.
 | When | Rules | Brain may add |
 | --- | --- | --- |
 | Tap the screen, or press BOOT | `wiggle`: a happy squint, a small smile and a heart at the top right, swaying gently | Nothing: a tap is the rules' alone ([HARNESS.md](HARNESS.md) §2) |
-| Hold BOOT (push-to-talk) | `listening` at once (for at most 30 s), `thinking` on release. The Mac's mic goes off on release, after 30 s, or when the link drops | Usually a mumble; on "shut up", quiet; told something to remember, a note for today, as in [steering.md](steering.md) |
-| Talk in the popover, then Send | The Mac sends `listening`, then `thinking` on Send or after 30 s. A mic that can't start sends `shrug` | As for holding BOOT |
-| Brain too slow to reply | The device ends `thinking` with a `shrug` itself after 8 s | — |
+| Hold BOOT (push-to-talk) | `listening` at once, while held (at most 30 s) and then while Boop waits for the reply. The Mac's mic goes off on release, after 30 s, or when the link drops | Usually a mumble; on "shut up", quiet; told something to remember, a note for today, as in [steering.md](steering.md) |
+| Talk in the popover, then Send | The Mac sends `listening` when the mic turns on. 8 s after Send (or after the 30 s limit) it sends an empty moment, which ends `listening` if no reply came. A mic that can't start sends the empty moment at once | As for holding BOOT |
+| The reply | A mumble ends `listening` and plays over the face | — |
+| No reply | After BOOT is released, the device waits at most 8 s for the reply, then the face blends back | — |
 
 ### 3.4 The link
 
 | When | Behaviour |
 | --- | --- |
-| No `state` for 30 s | The no-app state (§2) |
+| No `state` for 30 s | The asleep look, with the unplugged icon (§2) |
 | Reconnect | Quick blink, then whatever the next `state` says |
 
 ## 4. Sound and light
@@ -112,9 +119,8 @@ Mute (volume 0) silences all sound but keeps the light.
 | Name | Used for |
 | --- | --- |
 | `cheer` | Finished turns: three hops, then a happy squint, a small open smile and a heart, 2 s |
-| `nod` | After "needs you" clears, and a tap while it shows |
 | `wiggle` | Taps |
-| `listening`, `thinking`, `shrug` | Push-to-talk |
+| `listening` | Push-to-talk: while the mic is on and while Boop waits for the reply |
 
 A mumble on its own (the brain's `react`, or chatter) plays over whatever
 face is showing and doesn't change it.

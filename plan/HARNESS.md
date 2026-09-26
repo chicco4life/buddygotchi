@@ -44,7 +44,7 @@ language models read its one-line form.
 | --- | --- | --- | --- | --- | --- |
 | Agent started | `turn_start` | agent, project, time | Base becomes working | 5 s | `react` |
 | Agent finished | `turn_end` or `turn_failed` | outcome (`done` or `failed`), agent, project, topic, how long it took, the error class when it failed, time, "+N more" | `done`: a cheer. `failed`: nothing; the session goes idle | 5 s | `react` |
-| You said something | push-to-talk, or Send in the popover | your words (at most 500 characters, about 30 s of speech), time | `listening`, then `thinking` | 4 s | `quiet`, `react`, `remember` today |
+| You said something | push-to-talk, or Send in the popover | your words (at most 500 characters, about 30 s of speech), time | `listening`, until the reply | 4 s | `quiet`, `react`, `remember` today |
 | New day | the first hook or tap on a new day | yesterday's date and short-term memory | — | 10 min | `remember` about you, a preference, temperament or a moment |
 
 Their lines look like this:
@@ -213,8 +213,8 @@ each argument has a **role**: **decided** by Stage 1 from its choices, or
 | `moment` | long-term Moments | ≤ 80 | One per day reflected on; refused when half or more of its longer words are in an earlier moment |
 
 The core's rules use the same `react` action: its animations for their
-instant reactions (`cheer`, `nod`, `wiggle`, `listening`, `thinking`,
-`shrug`), and a mumble for working chatter.
+instant reactions (`cheer`, `wiggle`, `listening`), and a mumble for
+working chatter.
 Every action checks its arguments against its own definition, so a call
 that skips the harness (a rule's) is held to the same rules. A dropped call
 is logged with the reason. Forgetting a remembered line is the person's, in

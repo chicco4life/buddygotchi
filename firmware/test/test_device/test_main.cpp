@@ -326,6 +326,8 @@ static void test_attention_shows_needs_you_and_chirps_once() {
   TEST_ASSERT_EQUAL(0, int(m.hal.cues.size()));
 }
 
+// BEHAVIORS.md §3.4: no app after 30 s of silence. dbg.state still says
+// "no_app", the backlight dims to 60 and the face is asleep.
 static void test_no_app_after_30s_of_silence() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
@@ -333,6 +335,11 @@ static void test_no_app_after_30s_of_silence() {
   TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":30000}");
   TEST_ASSERT_EQUAL(app::Screen::kNoApp, r.dev.screen());
+  TEST_ASSERT_EQUAL(60, r.hal.bl);
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"screen\":\"no_app\""));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"bl\":60"));
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
   TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
 }
@@ -340,9 +347,9 @@ static void test_no_app_after_30s_of_silence() {
 static void test_moment_plays_then_ends_and_a_new_one_replaces_it() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"nod\",\"ttl\":5}");
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"wiggle\",\"ttl\":5}");
   r.usbLine("{\"t\":\"dbg.state\"}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"nod\",\"left_ms\":600}"));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"wiggle\",\"left_ms\":700}"));
   r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"size\":3,\"ttl\":5}");  // an old `size` is ignored
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
@@ -352,7 +359,7 @@ static void test_moment_plays_then_ends_and_a_new_one_replaces_it() {
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
   // Unknown animations, the removed ones among them: ignored.
-  for (const char* gone : {"moonwalk", "oops", "happy", "levelup", "yawn"}) {
+  for (const char* gone : {"moonwalk", "oops", "happy", "levelup", "yawn", "nod", "thinking", "shrug"}) {
     std::string line = std::string("{\"t\":\"moment\",\"anim\":\"") + gone + "\"}";
     r.usbLine(line.c_str());
     r.usb.text.clear();
@@ -363,6 +370,30 @@ static void test_moment_plays_then_ends_and_a_new_one_replaces_it() {
   // An unknown animation with a mumble: the mumble plays on its own.
   r.usbLine("{\"t\":\"moment\",\"anim\":\"oops\",\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
+}
+
+// PROTOCOL.md §3: the empty moment {"t":"moment","ttl":5} ends listening
+// and does nothing else; an unknown anim alone isn't the empty moment.
+static void test_the_empty_moment_ends_listening() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"listening\",\"ttl\":5}");
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"shrug\",\"ttl\":5}");  // removed: ignored
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"listening\""));
+  r.usbLine("{\"t\":\"moment\",\"ttl\":5}");
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"rx\":{\"state\":1,\"moment\":3}"));
+  // It never ends a cheer.
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"ttl\":5}");
+  r.usbLine("{\"t\":\"moment\",\"ttl\":5}");
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"cheer\""));
+  TEST_ASSERT_EQUAL(0, r.hal.hushes);
 }
 
 // UX.md §4: the strip is part of the screen; a touch on it is a tap.
@@ -562,6 +593,7 @@ int main() {
   RUN_TEST(test_attention_shows_needs_you_and_chirps_once);
   RUN_TEST(test_no_app_after_30s_of_silence);
   RUN_TEST(test_moment_plays_then_ends_and_a_new_one_replaces_it);
+  RUN_TEST(test_the_empty_moment_ends_listening);
   RUN_TEST(test_a_strip_touch_is_a_tap);
   RUN_TEST(test_reset_forgets_the_mac_and_freezes_at_0);
   RUN_TEST(test_say_reaches_the_player);

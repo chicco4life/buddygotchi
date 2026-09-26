@@ -23,7 +23,7 @@ On the board:
 
 | Do | What happens |
 | --- | --- |
-| Press BOOT, or touch the screen | Boop it; a nod if something needs you |
+| Press BOOT, or touch the screen | Boop it (`wiggle`) |
 | Hold BOOT | Push-to-talk while held (the Mac's mic is on only then, 30 s at most). Talk in the popover does the same from the Mac |
 
 The full picture is in [plan/UX.md](plan/UX.md) and

@@ -69,8 +69,8 @@ shows, the face eases up into the top 144 px at three-quarters size.
   `BOOP_DEBUG_LABEL=1` (the board build sets it in
   `firmware/platformio.ini`). On the face, needs-you and no-app screens,
   the name of what the face is showing sits in tiny faint 5×7 text at the
-  top left: the moment's anim (`cheer`, `nod`, …) or else the look
-  (`idle`, `working`, `asleep`, `no_app`, `needs_you`). Frames drawn with a
+  top left: the moment's anim (`cheer`, `wiggle`, `listening`) or else the
+  look (`idle`, `working`, `asleep`, `needs_you`; no app shows `asleep`). Frames drawn with a
   frozen clock leave it out, so the simulator and scenario screenshots
   don't change.
 
@@ -91,8 +91,8 @@ shows, the face eases up into the top 144 px at three-quarters size.
 └──────────────────────────────────┘
 ```
 
-**No app.** The waiting face (eyes open, glancing up and aside) with an
-unplugged icon in the strip ([BEHAVIORS.md](BEHAVIORS.md) §2).
+**No app.** The asleep face with an unplugged icon in the strip
+([BEHAVIORS.md](BEHAVIORS.md) §2).
 
 There are no other screens. The threads and stats screens are parked
 ([FUTURE.md](FUTURE.md)).
@@ -105,7 +105,7 @@ agents.
 
 | Input | Does |
 | --- | --- |
-| Press BOOT, or touch the screen anywhere | Boop it (`wiggle`); a nod if something needs you |
+| Press BOOT, or touch the screen anywhere | Boop it (`wiggle`); only the press squash if something needs you |
 | Hold BOOT | Push-to-talk while held |
 
 A press shorter than 400 ms is a tap, and holding BOOT for 400 ms or more
@@ -125,7 +125,8 @@ hold the button or until you click Send.
 
 1. **Hold, or click Talk:** the listening face appears at once, on the
    device and in the popover.
-2. **Release, or click Send:** a thinking face covers the 2–3 s wait.
+2. **Release, or click Send:** the listening face stays for the 2–3 s
+   wait, and at most 8 s.
 3. **Reply:** usually a mumble, over the face that's showing. It's never
    a sentence, and never an answer to a question.
 
@@ -137,7 +138,7 @@ also shows its own microphone indicator. The mic turns itself off after
 (its release could never arrive). What was heard up to then still goes to
 Boop. The first time, macOS asks for Speech Recognition and then the
 Microphone; if either is refused, or on-device recognition isn't
-available, the device shrugs and the popover says "*name* can't hear you"
+available, the listening face ends and the popover says "*name* can't hear you"
 and where to allow it.
 
 Things worth saying: "shut up" (Boop goes quiet for a while), "good job",

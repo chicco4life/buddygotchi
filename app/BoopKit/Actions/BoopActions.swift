@@ -8,7 +8,8 @@ import Foundation
 /// The feelings' own faces are parked (FUTURE.md), so `silent` shows nothing.
 ///
 /// The core's rules use the same action: `play` for their animations (a
-/// cheer, a nod) and a `react` call for working chatter.
+/// cheer), `endListening` for the empty moment, and a `react` call for
+/// working chatter.
 public final class ReactAction: Action {
     public let context: ActionContext
     let voice: Voice
@@ -36,7 +37,7 @@ public final class ReactAction: Action {
     ]
 
     /// Every animation the rules may play (BEHAVIORS.md §5).
-    public static let anims: Set<String> = ["cheer", "nod", "wiggle", "listening", "thinking", "shrug"]
+    public static let anims: Set<String> = ["cheer", "wiggle", "listening"]
 
     public let definition = ToolDefinition(
         name: "react", description: "Mumble with a feeling, or stay silent.",
@@ -75,6 +76,14 @@ public final class ReactAction: Action {
         }
         context.send(DeviceMoment(anim: anim))
         return .done(anim)
+    }
+
+    /// The core's `.endListening`: the empty moment, which ends the device's
+    /// `listening` face if no reply has.
+    @discardableResult
+    public func endListening() -> ActionOutcome {
+        context.send(.empty)
+        return .done("end listening")
     }
 }
 

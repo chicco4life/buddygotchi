@@ -102,6 +102,7 @@ public struct Replay {
         case .happened(let line): "happened \(line)"
         case .newDay(let date, let firstSeen): "new-day \(date) first seen \(firstSeen)"
         case .listen(let on): "listen \(on)"
+        case .endListening: "moment empty"
         }
     }
 }

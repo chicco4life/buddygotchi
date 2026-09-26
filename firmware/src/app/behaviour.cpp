@@ -15,15 +15,9 @@ bool after(uint32_t a, uint32_t b) { return int32_t(a - b) > 0; }  // a later th
 bool within(uint32_t t, uint32_t from, uint32_t ms) { return int32_t(t - from) >= 0 && int32_t(t - from) < int32_t(ms); }
 int clamp(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
 
-// Moments that may play while something needs you (BEHAVIORS.md §1:
-// attention wins). Only direct replies to the person get through.
-bool overAttention(render::Anim a) {
-  using render::Anim;
-  return a == Anim::kNod || a == Anim::kListening || a == Anim::kThinking || a == Anim::kShrug;
-}
-
-// Push-to-talk's waiting faces: the reply they wait for ends them.
-bool waiting(render::Anim a) { return a == render::Anim::kListening || a == render::Anim::kThinking; }
+// The one moment that may play while something needs you (BEHAVIORS.md §1:
+// attention wins), so push-to-talk still works.
+bool overAttention(render::Anim a) { return a == render::Anim::kListening; }
 
 // 0 → 1024 → 0: up over `in` ms, held, down over the last `out` ms.
 int envelope(uint32_t t, uint32_t ms, uint32_t in, uint32_t out) {
@@ -65,12 +59,11 @@ bool Behaviour::momentOn(uint32_t t) const {
 
 bool Behaviour::sayOn(uint32_t t) const { return say_.say.syllables > 0 && within(t, say_.at, say_.ms); }
 
-// Blinks: every 2–6 s idle, 2–5 s working (1.2–3.5 s with 3+ busy), and
-// 5–9 s with no app (BEHAVIORS.md §2).
+// Blinks: every 2–6 s idle, 2–5 s working (1.2–3.5 s with 3+ busy)
+// (BEHAVIORS.md §2). Asleep, and so with no app, the gap passes unblinked.
 uint32_t Behaviour::lifeGap(Rng& rng) const {
   int lo = 2000, hi = 6000;
-  if (noApp(modelT_)) lo = 5000, hi = 9000;
-  else if (!std::strcmp(model_.base, "working")) lo = model_.busy >= 3 ? 1200 : 2000, hi = model_.busy >= 3 ? 3500 : 5000;
+  if (!std::strcmp(model_.base, "working")) lo = model_.busy >= 3 ? 1200 : 2000, hi = model_.busy >= 3 ? 3500 : 5000;
   return uint32_t(rng.range(lo, hi));
 }
 
@@ -118,9 +111,7 @@ void Behaviour::resync(uint32_t t, Rng& rng) {
   if (moment_.anim != render::Anim::kNone && !within(t, moment_.at, moment_.ms)) {
     // Ended: the blend starts from the moment's last pose, not from later.
     render::Pose last = blended(t);
-    bool thinking = moment_.anim == render::Anim::kThinking && moment_.local;
     moment_.anim = render::Anim::kNone;
-    if (thinking) play(render::Anim::kShrug, t, true);  // no reply came: "hmm?"
     Source next = sourceAt(t);
     if (!(next == src_)) blend_.start(t, last), src_ = next;
   }
@@ -147,9 +138,8 @@ void Behaviour::onState(const Model& m, uint32_t t, Rng& rng) {
     sound("chirp", t);
     if (momentOn(t) && !overAttention(moment_.anim)) moment_.anim = render::Anim::kNone;
     say_ = Say{};  // no mumbles while something needs you
-  } else if (had && !m.attn && !momentOn(t)) {
-    play(render::Anim::kNod, t, true);  // answered on the Mac: a nod, then back
   }
+  // Answered on the Mac (`attn` leaves): the face just blends back.
   if (wasNoApp && heard_ && !momentOn(t)) {  // reconnect: a quick blink
     life_ = LifeEvent{};
     life_.kind = Life::kBlink, life_.at = t, life_.ms = kBlinkMs;
@@ -160,18 +150,17 @@ void Behaviour::onState(const Model& m, uint32_t t, Rng& rng) {
 
 // A moment with an anim replaces the one playing, and its mumble too. A
 // mumble on its own plays over whatever face is showing and doesn't change
-// it, except that it's the reply push-to-talk's listening or thinking waits
-// for, so it ends those.
+// it, except that it's the reply `listening` waits for, so it ends that,
+// even when it doesn't show (needs you, quiet). The empty moment ends
+// `listening` too, and nothing else (PROTOCOL.md §3).
 bool Behaviour::onMoment(const MomentIn& in, uint32_t t, Rng& rng) {
   bool anim = in.anim != render::Anim::kNone;
   if (anim && model_.attn && !noApp(t) && !overAttention(in.anim)) return false;
   bool mumble = in.syllables > 0 && !model_.attn && model_.quiet <= 0;
-  if (!anim && !mumble) return false;
-  if (anim) {
-    play(in.anim, t, false);
-  } else if (momentOn(t) && waiting(moment_.anim)) {
-    moment_.anim = render::Anim::kNone;
-  }
+  bool ends = !anim && (in.syllables > 0 || in.empty) && momentOn(t) && moment_.anim == render::Anim::kListening;
+  if (!anim && !mumble && !ends) return false;
+  if (anim) play(in.anim, t, false);
+  else if (ends) moment_.anim = render::Anim::kNone;
   if (mumble) startSay(in, t);
   resync(t, rng);
   return mumble;
@@ -217,8 +206,10 @@ void Behaviour::pressUp(uint32_t t) {
   releaseAt_ = t;
 }
 
+// While something needs you, a tap shows the press squash only.
 void Behaviour::tap(uint32_t t, Rng& rng) {
-  play(model_.attn && !noApp(t) ? render::Anim::kNod : render::Anim::kWiggle, t, true);
+  if (model_.attn && !noApp(t)) return;
+  play(render::Anim::kWiggle, t, true);
   resync(t, rng);
 }
 
@@ -227,8 +218,11 @@ void Behaviour::talkOn(uint32_t t, Rng& rng) {
   resync(t, rng);
 }
 
+// Released: listening carries on, without a new blend, and waits at most
+// kReplyWaitMs for the reply (BEHAVIORS.md §3.3). If it isn't playing any
+// more (the 30 s cap, or the Mac replaced it), there's nothing to wait on.
 void Behaviour::talkOff(uint32_t t, Rng& rng) {
-  play(render::Anim::kThinking, t, true);
+  if (momentOn(t) && moment_.anim == render::Anim::kListening) moment_.ms = (t - moment_.at) + kReplyWaitMs;
   resync(t, rng);
 }
 
@@ -247,7 +241,7 @@ Behaviour::Source Behaviour::sourceAt(uint32_t t) const {
     return s;
   }
   if (noApp(t)) {
-    s.look = render::Look::kNoApp;
+    s.look = render::Look::kAsleep;  // no app looks asleep; the strip's icon tells them apart
   } else if (model_.attn) {
     s.look = render::Look::kNeedsYou;
   } else if (!std::strcmp(model_.base, "asleep")) {
@@ -345,7 +339,7 @@ uint32_t Behaviour::led(uint32_t t) const {
 
 uint8_t Behaviour::backlight(uint32_t t) const {
   if (blOverride_) return blSet_;
-  if (noApp(t)) return 70;
+  if (noApp(t)) return 60;      // the asleep look, dimmed like asleep
   if (model_.attn) return 255;  // dimming never hides "needs you"
   if (!std::strcmp(model_.base, "asleep")) return 60;
   return 255;

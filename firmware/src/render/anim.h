@@ -11,12 +11,9 @@ namespace render {
 
 enum class Anim : uint8_t {
   kNone,
-  kNod,
   kCheer,
   kWiggle,
   kListening,
-  kThinking,
-  kShrug,
   kCount,
 };
 
@@ -28,7 +25,7 @@ uint32_t animDuration(Anim a);
 Pose animPose(Anim a, uint32_t t);
 
 // What the face shows when no moment plays.
-enum class Look : uint8_t { kIdle, kWorking, kAsleep, kNoApp, kNeedsYou };
+enum class Look : uint8_t { kIdle, kWorking, kAsleep, kNeedsYou };
 const char* lookName(Look look);
 // `busy` is the working count.
 Pose lookPose(Look look, int busy);
