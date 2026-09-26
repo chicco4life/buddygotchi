@@ -122,6 +122,15 @@ a tag, then drops the input:
 | `deploy` | A shell command that deploys (`vercel`, `fly deploy`, `kubectl apply`, `terraform apply`, …) |
 | `docs` | An edit to a Markdown or plain-text file |
 
+A shell command's topic comes from what it runs: the program and the
+words after it, in each command of the line (`cd app && swift test`),
+after `VAR=value`, shell words such as `do`, `then` or `!`, and wrappers
+such as `sudo -u ci`, `npx`, `uv run`, `bundle exec`, `python -m` or
+`yarn jest`, and inside `bash -c '…'` or `docker compose run web …`. A
+check word in an argument, in quoted text or in a heredoc doesn't count,
+so `grep -n "make test" Makefile`, `git commit -m "fix pytest"` and
+`command -v pytest` have no topic. When a line runs several, deploy beats
+tests, which beats build.
 Anything else has no topic. The core remembers each session's latest topic
 for the brain's inputs and working chatter.
 
