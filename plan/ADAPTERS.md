@@ -203,7 +203,14 @@ generation of Boop taught us two things:
   alone, and never installs for an agent that has none.
 - **Codex's switch:** Codex runs hooks only with `codex_hooks = true` under
   `[features]` in `~/.codex/config.toml`. Installing adds that line if it's
-  missing; removing leaves it, because other hooks may rely on it.
+  missing; removing leaves it, because other hooks may rely on it. It finds
+  the table however it's written (`[ features ] # note`, or top-level
+  `features.x = …` keys) and never declares it twice, which Codex refuses
+  to load. For a shape it won't edit (an inline `features = {…}` without
+  the key) it writes nothing, neither file, and the preview asks you to
+  add the line inside the braces.
+- **Symlinks:** a config file that's a symlink (a dotfiles setup) is
+  written through, not replaced.
 - **Files Boop can't read:** a config that isn't a JSON object is left
   untouched, and settings shows why.
 - **Remove:** one click in settings.

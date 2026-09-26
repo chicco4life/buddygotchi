@@ -166,14 +166,66 @@ final class InstallerTests: XCTestCase {
         XCTAssertFalse(installer.preview(.codex).contains("codex_hooks"), "already on, so nothing to add")
     }
 
-    func testFeatureFlagEdits() {
-        XCTAssertEqual(HookInstaller.enablingCodexHooks(in: ""), "[features]\ncodex_hooks = true\n")
-        XCTAssertEqual(HookInstaller.enablingCodexHooks(in: "a = 1"), "a = 1\n\n[features]\ncodex_hooks = true\n")
-        XCTAssertNil(HookInstaller.enablingCodexHooks(in: "[features]\ncodex_hooks = true\n"))
-        XCTAssertEqual(HookInstaller.enablingCodexHooks(in: "[features]\ncodex_hooks = false\n"), "[features]\ncodex_hooks = true\n")
+    func testFeatureFlagEdits() throws {
+        func enabling(_ toml: String) throws -> String? { try HookInstaller.enablingCodexHooks(in: toml) }
+        try XCTAssertEqual(try enabling(""), "[features]\ncodex_hooks = true\n")
+        try XCTAssertEqual(try enabling("a = 1"), "a = 1\n\n[features]\ncodex_hooks = true\n")
+        try XCTAssertNil(try enabling("[features]\ncodex_hooks = true\n"))
+        try XCTAssertEqual(try enabling("[features]\ncodex_hooks = false\n"), "[features]\ncodex_hooks = true\n")
         // A key of the same name in another table isn't ours.
-        XCTAssertEqual(HookInstaller.enablingCodexHooks(in: "[other]\ncodex_hooks = true\n"),
+        try XCTAssertEqual(try enabling("[other]\ncodex_hooks = true\n"),
                        "[other]\ncodex_hooks = true\n\n[features]\ncodex_hooks = true\n")
+    }
+
+    /// ADAPTERS.md §5: however `features` is written, enabling hooks never
+    /// declares it a second time, which Codex refuses to load.
+    func testFeatureFlagEditsNeverDeclareFeaturesTwice() throws {
+        func enabling(_ toml: String) throws -> String? { try HookInstaller.enablingCodexHooks(in: toml) }
+        try XCTAssertEqual(try enabling("[features] # experimental\nweb_search = true\n"),
+                       "[features] # experimental\ncodex_hooks = true\nweb_search = true\n")
+        try XCTAssertNil(try enabling("[features] # experimental\ncodex_hooks = true # for Boop\n"), "already on")
+        try XCTAssertEqual(try enabling("[ features ]\n"), "[ features ]\ncodex_hooks = true\n")
+        try XCTAssertEqual(try enabling("model = \"o3\"\nfeatures.web_search = true\n\n[tui]\nx = 1\n"),
+                       "model = \"o3\"\nfeatures.web_search = true\nfeatures.codex_hooks = true\n\n[tui]\nx = 1\n")
+        try XCTAssertNil(try enabling("features.codex_hooks = true\n"))
+        try XCTAssertEqual(try enabling("[tui]\nnote = \"see #features\"\n"),
+                       "[tui]\nnote = \"see #features\"\n\n[features]\ncodex_hooks = true\n")
+        try XCTAssertThrowsError(try enabling("features = { web_search = true }\n"))
+        try XCTAssertNil(try enabling("features = { web_search = true, codex_hooks = true }\n"), "already on")
+        try XCTAssertNil(try enabling("features = {codex_hooks=true}\n"), "already on")
+        try XCTAssertThrowsError(try enabling("features = { not_codex_hooks = true }\n"))
+        // Install refuses rather than break the file, writes nothing at all,
+        // and the preview says to add the line by hand.
+        let url = home.appendingPathComponent(".codex/config.toml")
+        let inline = "features = { web_search = true }\n"
+        try inline.write(to: url, atomically: true, encoding: .utf8)
+        XCTAssertTrue(installer.preview(.codex).hasSuffix(
+            "Nothing is added until you put this in \(url.path), inside features = { … }:\ncodex_hooks = true"))
+        try XCTAssertThrowsError(try installer.install(.codex))
+        try XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), inline)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: installer.configURL(.codex).path), "no hooks.json either")
+        XCTAssertEqual(installer.health(.codex), .notInstalled)
+        // Once the person adds the key, install leaves config.toml alone.
+        let enabled = "features = { web_search = true, codex_hooks = true }\n"
+        try enabled.write(to: url, atomically: true, encoding: .utf8)
+        XCTAssertFalse(installer.preview(.codex).contains("Nothing is added"))
+        try installer.install(.codex)
+        XCTAssertEqual(installer.health(.codex), .installed)
+        try XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), enabled)
+    }
+
+    /// A config that's a symlink (a dotfiles setup) is written through, not
+    /// replaced with a plain file.
+    func testSymlinkedConfigsStaySymlinks() throws {
+        let real = home.appendingPathComponent("dotfiles/settings.json")
+        try FileManager.default.createDirectory(at: real.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("{}".utf8).write(to: real)
+        try FileManager.default.createSymbolicLink(at: installer.configURL(.claude), withDestinationURL: real)
+        try installer.install(.claude)
+        let attributes = try FileManager.default.attributesOfItem(atPath: installer.configURL(.claude).path)
+        XCTAssertEqual(attributes[.type] as? FileAttributeType, .typeSymbolicLink)
+        XCTAssertEqual(installer.health(.claude), .installed)
+        try XCTAssertTrue(try String(contentsOf: real, encoding: .utf8).contains("boop-hook"))
     }
 
     func testRepairRestoresMissingEntriesOnlyWhereBoopWasInstalled() throws {
