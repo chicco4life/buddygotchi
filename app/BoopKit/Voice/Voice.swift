@@ -68,10 +68,14 @@ public struct Voice: Sendable {
 
     public let dialect: Dialect
     let check: Unintelligible
+    /// This dialect's favourites within each of `pools`, in the dialect's
+    /// order; built once, since every syllable picks from them.
+    let favourites: [Pool: [String]]
 
     public init(dialect: Dialect, check: Unintelligible = .shared) {
         self.dialect = dialect
         self.check = check
+        favourites = Voice.pools.mapValues { pool in dialect.favourites.filter(pool.contains) }
     }
 
     /// Builds a line. The same inputs and `seed` give the same line. A word
@@ -174,11 +178,24 @@ public struct Voice: Sendable {
 
     /// One syllable: mostly this Boop's favourites, shaped by the feeling.
     func pick(_ feeling: Feeling, last: Bool, rng: inout SplitMix64) -> String {
-        let pool = Voice.pool(feeling, last: last)
-        let favourites = dialect.favourites.filter(pool.contains)
+        let key = Pool(feeling: feeling, last: last)
+        let pool = Voice.pools[key]!
+        let favourites = self.favourites[key]!
         let from = !favourites.isEmpty && rng.chance(Voice.favouriteShare) ? favourites : pool
         return from[rng.int(in: 0...(from.count - 1))]
     }
+
+    /// A feeling, and whether it's the line's last syllable: what a pool
+    /// depends on.
+    struct Pool: Hashable, Sendable {
+        var feeling: Feeling
+        var last: Bool
+    }
+
+    /// Every feeling's pools, built once (`pool`).
+    static let pools: [Pool: [String]] = Dictionary(uniqueKeysWithValues: Feeling.allCases.flatMap { feeling in
+        [false, true].map { last in (Pool(feeling: feeling, last: last), pool(feeling, last: last)) }
+    })
 
     /// The syllables a feeling uses (VOICE.md §4). Never empty.
     static func pool(_ feeling: Feeling, last: Bool) -> [String] {

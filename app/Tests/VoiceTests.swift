@@ -100,6 +100,12 @@ final class VoiceTests: XCTestCase {
         XCTAssertNotNil(check.failure([["pi"], ["ba", "ka"], ["lo"]]))  // rude inside the line
         XCTAssertNotNil(check.failure([["be"], ["do"]]))  // the whole line reads "bedo"
         XCTAssertNil(check.failure([["mi", "po"], ["lu"]]))
+        // VOICE.md §7: only words spelled with Boop's letters are kept,
+        // lowercased, since no other word can match gibberish.
+        XCTAssertTrue(check.words.contains("tomato"))
+        XCTAssertTrue(check.words.contains("bob"), "a name, lowercased")
+        XCTAssertFalse(check.words.contains("cat"), "c isn't one of Boop's letters")
+        XCTAssertFalse(check.words.contains { $0.count < 3 })
     }
 
     /// VOICE.md §7 and PLAN.md A2: 10,000 lines, zero hits in the word list
