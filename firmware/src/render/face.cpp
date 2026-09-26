@@ -1,5 +1,8 @@
 #include "render/face.h"
 
+#include <utility>
+
+#include "render/font.h"
 #include "render/palette.h"
 #include "render/raster.h"
 
@@ -8,17 +11,31 @@ namespace render {
 namespace {
 
 // Full-size geometry, in pixels. The eyes are solid rounded rectangles, a
-// bit taller than wide and set wide apart, with a small mouth tucked in
-// low between them (plan/UX.md §2).
-constexpr int kEyeW = 60, kEyeH = 80, kEyeR = 22;
+// bit taller than wide and set wide apart with plenty of black between
+// them, and a short mouth hangs below (plan/UX.md §2). These are gen-2's
+// proportions: eye width a third of the spacing, the mouth a quarter of an
+// eye height below the eyes.
+constexpr int kEyeW = 48, kEyeH = 60, kEyeR = 17;
 constexpr int kEyeGap = 67;              // eye centre to face centre: 134 px apart, 42% of the screen
 constexpr int kLookX = 26, kLookY = 16;  // a full look moves the whole eye this far
 constexpr int kTurn = 110;               // permille: a full sideways look grows the near eye this much
                                          // and shrinks the far one, like a head turning (Cozmo)
 constexpr int kLidRound = 8;             // radius where a lid meets the outline (smaller where 8 won't fit)
 constexpr int kMouthFollow = 450;        // permille of the eyes' move the mouth follows
-constexpr int kMouthY = 54;              // mouth centre below the eye centres
-constexpr int kMouthHalfW = 14, kMouthThick = 4, kMouthBend = 7, kMouthDrop = 14;
+constexpr int kMouthY = 46;              // mouth centre below the eye centres
+constexpr int kMouthHalfW = 8, kMouthThick = 3, kMouthBend = 6, kMouthDrop = 11;
+constexpr int kSmileWiden = 400;         // permille: a full smile is this much wider than the resting dash
+// Happy eyes (lidBot): up to kArchFrom the eye squeezes towards a kLidLine
+// bar; from there the bar bends up into a "^" arch, fully raised at
+// kArchFull. The bar and the flat arch are the same shape, so the change
+// doesn't jump.
+constexpr int kArchFrom = 450, kArchFull = 650;
+constexpr int kLidLine = 7, kArchRise = 16, kArchThick = 7;
+// Around the right eye's centre: the heart (its half-size), the sweat drop
+// (its round part, and how far it slides), and where the "zzZZ" starts.
+constexpr int kHeartDx = 38, kHeartDy = -36, kHeartR = 10;
+constexpr int kSweatDx = 34, kSweatDy = -22, kSweatR = 5, kSweatSlide = 12;
+constexpr uint32_t kZzzStep = 220;  // permille of the cycle between letters
 
 // The middle of the face (from the eye tops to the mouth) lies kFaceDrop
 // below the eye centres; screens.cpp centres the face on that.
@@ -99,12 +116,66 @@ void applyFillet(const Fillet& f, int m, int sy, int& lo, int& hi) {
   if (inCone(s, dy) && f.vx + s < hi) hi = f.vx + s;
 }
 
+// A round-capped stroke of radius r along the parabola from (x - hw, y)
+// through (x, y + bend) to (x + hw, y), in sub-pixels: a "^" eye when bend
+// is negative, the mouth's line when it is positive or zero. It is the
+// union of discs of radius r along the curve, like a round brush, filled a
+// column at a time: at each column, the discs whose centres lie within r
+// of it, sampled across that reach.
+struct Stroke {
+  static constexpr int kSamples = 12;
+  int x, y, hw, bend, r;
+  int half[kSamples + 1] = {};  // disc half-heights at the sample offsets, away from the ends
+
+  Stroke(int x_, int y_, int hw_, int bend_, int r_) : x(x_), y(y_), hw(hw_), bend(bend_), r(r_) {
+    for (int i = 0; i <= kSamples; ++i) {
+      int d = r - 2 * r * i / kSamples;
+      half[i] = d <= -r || d >= r ? -1 : int(isqrt(uint64_t(int64_t(r) * r - int64_t(d) * d)));
+    }
+  }
+  Stroke() : Stroke(0, 0, 0, 0, 0) {}
+
+  int curveY(int cx) const {
+    if (hw <= 0) return y;
+    int64_t u = int64_t(cx - x) * 1024 / hw;
+    return y + int(int64_t(bend) * (1024 - u * u / 1024) / 1024);
+  }
+
+  bool band(int sx, int& top, int& bottom) const {
+    int lo = sx - r > x - hw ? sx - r : x - hw, hi = sx + r < x + hw ? sx + r : x + hw;
+    if (lo > hi) return false;
+    bool whole = lo == sx - r && hi == sx + r;  // clear of the ends: the offsets are fixed
+    bool any = false;
+    for (int i = 0; i <= kSamples; ++i) {
+      int cx = lo + (hi - lo) * i / kSamples;
+      int h = half[i];
+      if (!whole) {
+        int d = sx - cx;
+        h = d <= -r || d >= r ? -1 : int(isqrt(uint64_t(int64_t(r) * r - int64_t(d) * d)));
+      }
+      if (h < 0) continue;
+      int cy = curveY(cx);
+      if (!any || cy - h < top) top = cy - h;
+      if (!any || cy + h > bottom) bottom = cy + h;
+      any = true;
+    }
+    return any;
+  }
+};
+
+void drawStroke(Canvas& c, const Stroke& st, int ink) {
+  uint8_t* px = c.pixels();
+  int x0 = (st.x - st.hw - st.r) / kSub - 1, x1 = (st.x + st.hw + st.r) / kSub + 2;
+  fillBands(x0, x1, [&](int sx, int& top, int& bottom) { return st.band(sx, top, bottom); },
+            [&](int x, int y, int level) { px[y * kWidth + x] = inkAt(ink, level); });
+}
+
 struct Eye {
   int x, y, w, h, r;    // centre and size, sub-pixels; h is the open height
   int lidY, lidM;       // upper lid line through (x, lidY) with slope lidM/1000
   Fillet left, right;   // the lid corners; right is in the frame mirrored about x
-  bool squint;          // lower lid arc
-  int sqCy, sqRx, sqRy;
+  bool arch;            // happy: drawn as a "^" stroke instead
+  Stroke archStroke;
 
   Spans shape(int sy) const {
     Spans s = roundRect(x - w / 2, y - h / 2, x + w / 2, y + h / 2, r, sy);
@@ -118,8 +189,6 @@ struct Eye {
       s.n = 0;
       s.add(lo, hi);
     }
-    int lo, hi;
-    if (squint && ellipseRow(x, sqCy, sqRx, sqRy, sy, lo, hi)) s.cut(lo, hi);
     return s;
   }
 };
@@ -137,6 +206,9 @@ Eye makeEye(const Pose& p, int cx, int cy, int s, bool right) {
   int open = clampi(p.open, 0, 1000);
   e.w = w / 2 * 2;
   e.h = fullH * open / 1000 / 2 * 2;
+  int happy = clampi(p.lidBot, 0, 1000);
+  int bar = len(kLidLine) * size / 1000;
+  if (happy < kArchFrom && e.h > bar) e.h = (e.h - (e.h - bar) * happy / kArchFrom) / 2 * 2;  // squeezing
   if (e.h < len(4)) e.h = len(4) / 2 * 2;
   e.r = len(kEyeR) * size / 1000;
   if (e.r > e.w / 2) e.r = e.w / 2;
@@ -155,14 +227,17 @@ Eye makeEye(const Pose& p, int cx, int cy, int s, bool right) {
   e.left = lidCorner(x0, y0, y1, e.r, e.x, e.lidY, e.lidM, q);
   e.right = lidCorner(x0, y0, y1, e.r, e.x, e.lidY, -e.lidM, q);  // mirrored about e.x
 
-  e.squint = p.lidBot > 0;
-  e.sqRx = w * 55 / 100;
-  e.sqRy = e.h / 2;
-  e.sqCy = e.y + e.h / 2 + e.sqRy - e.h * clampi(p.lidBot, 0, 1000) / 1000;
+  e.arch = happy >= kArchFrom;
+  if (e.arch) {
+    int rise = clampi((happy - kArchFrom) * 1000 / (kArchFull - kArchFrom), 0, 1000);
+    int r = len(kArchThick) * size / 1000 / 2;
+    e.archStroke = Stroke{e.x, e.y, e.w / 2 - r, -len(kArchRise) * size / 1000 * rise / 1000, r};
+  }
   return e;
 }
 
 void drawEye(Canvas& c, const Eye& e, int ink) {
+  if (e.arch) return drawStroke(c, e.archStroke, ink);
   uint8_t* px = c.pixels();
   int y0 = (e.y - e.h / 2) / kSub - 1, y1 = (e.y + e.h / 2) / kSub + 2;
   fillShape(y0, y1, [&](int sy) { return e.shape(sy); },
@@ -188,16 +263,22 @@ struct Mouth {
   }
 };
 
+// The mouth: a short round-ended line that bends into a "u" smile (a bit
+// wider) or a frown. Open, the band below the line drops into a D with a
+// dark inside.
 void drawMouth(Canvas& c, const Pose& p, int cx, int cy, int s, int ink) {
   auto len = [s](int pixels) { return px(pixels) * s / 1000; };
   Mouth m{};
   int lookX = clampi(p.lookX, -1000, 1000), lookY = clampi(p.lookY, -1000, 1000);
+  int curve = clampi(p.mouthCurve, -1000, 1000);
   m.x = cx + len(p.mouthX) + len(kLookX) * lookX / 1000 * kMouthFollow / 1000;
   m.y = cy + len(kMouthY) + len(kLookY) * lookY / 1000 * kMouthFollow / 1000;
-  m.hw = len(kMouthHalfW) * clampi(p.mouthWide, 200, 2000) / 1000;
+  m.hw = len(kMouthHalfW) * clampi(p.mouthWide, 200, 2000) / 1000 * (1000 + (curve > 0 ? curve : 0) * kSmileWiden / 1000) / 1000;
   m.th = len(kMouthThick) / 2;
-  m.bend = len(kMouthBend) * clampi(p.mouthCurve, -1000, 1000) / 1000;
+  m.bend = len(kMouthBend) * curve / 1000;
   m.drop = len(kMouthDrop) * clampi(p.mouthOpen, 0, 1000) / 1000;
+  drawStroke(c, Stroke{m.x, m.y, m.hw - m.th, m.bend, m.th}, ink);
+  if (m.drop <= 0) return;
   int x0 = (m.x - m.hw) / kSub - 1, x1 = (m.x + m.hw) / kSub + 2;
   uint8_t* px = c.pixels();
   fillBands(x0, x1, [&](int sx, int& top, int& bottom) { return m.band(sx, 0, top, bottom); },
@@ -206,6 +287,73 @@ void drawMouth(Canvas& c, const Pose& p, int cx, int cy, int s, int ink) {
   if (m.drop <= lip) return;
   fillBands(x0, x1, [&](int sx, int& top, int& bottom) { return m.band(sx, lip, top, bottom); },
             [&](int x, int y, int level) { px[y * kWidth + x] = hollowAt(ink, level); });
+}
+
+// A heart centred on (hx, hy) with half-size r, in sub-pixels: two round
+// lobes and a point, filled a sub-scanline at a time like the eyes. On the
+// board that is far cheaper than testing a heart curve at every sample.
+void drawHeart(Canvas& c, int hx, int hy, int r) {
+  if (r < px(2)) return;
+  const int lobe = r * 58 / 100, lobeX = r / 2, lobeY = hy - r * 28 / 100;
+  const int shoulder = hy - r / 20, tip = hy + r * 11 / 10;  // the point's top edge and its tip
+  uint8_t* px = c.pixels();
+  fillShape((lobeY - lobe) / kSub - 1, tip / kSub + 2,
+            [&](int sy) {
+              int a[3][2], n = 0, lo, hi;
+              if (ellipseRow(hx - lobeX, lobeY, lobe, lobe, sy, lo, hi)) a[n][0] = lo, a[n][1] = hi, ++n;
+              if (ellipseRow(hx + lobeX, lobeY, lobe, lobe, sy, lo, hi)) a[n][0] = lo, a[n][1] = hi, ++n;
+              if (sy >= shoulder && sy < tip) {
+                int w = int(int64_t(r) * 21 / 20 * (tip - sy) / (tip - shoulder));
+                a[n][0] = hx - w, a[n][1] = hx + w, ++n;
+              }
+              Spans out;  // the union of the pieces, left to right
+              for (int i = 0; i < n; ++i) {
+                for (int j = i + 1; j < n; ++j) {
+                  if (a[j][0] < a[i][0]) std::swap(a[i], a[j]);
+                }
+              }
+              for (int i = 0; i < n;) {
+                int l = a[i][0], h = a[i][1];
+                for (++i; i < n && a[i][0] <= h; ++i) h = a[i][1] > h ? a[i][1] : h;
+                out.add(l, h);
+              }
+              return out;
+            },
+            [&](int x, int y, int level) { px[y * kWidth + x] = inkAt(kInkRose, level); });
+}
+
+// A sweat drop: a disc of radius r at (dx, dy) with a point on top. Small,
+// so it is sampled, in 32-bit maths.
+void drawDrop(Canvas& c, int dx, int dy, int r) {
+  uint8_t* px = c.pixels();
+  const int top = -r * 9 / 5, base = -r * 35 / 100;
+  sampleShape((dx - r) / kSub - 1, (dy - r * 2) / kSub - 1, (dx + r) / kSub + 2, (dy + r) / kSub + 2,
+              [&](int sx, int sy) {
+                int x = sx - dx, y = sy - dy;
+                if (x * x + y * y <= r * r) return true;
+                if (y < top || y > base) return false;
+                int w = r * 9 / 10 * (y - top) / (base - top);
+                return x >= -w && x <= w;
+              },
+              [&](int x, int y, int level) { px[y * kWidth + x] = inkAt(kInkSky, level); });
+}
+
+// Asleep's "zzZZ": two small z's then two big Z's climbing up and to the
+// right of the right eye, appearing one at a time through the cycle.
+void drawZzz(Canvas& c, int ex, int ey, int s, int phase, int ink) {
+  struct Letter {
+    const char* text;
+    const Font& font;
+    int dx, dy;  // the cell's top-left, from the right eye's centre
+  };
+  const Letter letters[] = {
+      {"z", kSmall, 30, -28}, {"z", kSmall, 40, -42}, {"Z", kLarge, 50, -66}, {"Z", kLarge, 66, -94}};
+  int x = ex / kSub, y = ey / kSub;
+  for (int i = 0; i < 4; ++i) {
+    if (uint32_t(phase) <= kZzzStep * uint32_t(i)) break;
+    const Letter& l = letters[i];
+    drawString(c, l.font, x + l.dx * s / 1000, y + l.dy * s / 1000, l.text, ink);
+  }
 }
 
 }  // namespace
@@ -231,6 +379,9 @@ Pose blend(const Pose& a, const Pose& b, int t) {
   o.glow = int16_t(lerp(a.glow, b.glow, t));
   o.oops = int16_t(lerp(a.oops, b.oops, t));
   o.raise = int16_t(lerp(a.raise, b.raise, t));
+  o.heart = int16_t(lerp(a.heart, b.heart, t));
+  o.sweat = int16_t(lerp(a.sweat, b.sweat, t));
+  o.zzz = int16_t(lerp(a.zzz, b.zzz, t));
   return o;
 }
 
@@ -239,25 +390,35 @@ bool operator==(const Pose& a, const Pose& b) {
          a.lidTop == b.lidTop && a.lidTilt == b.lidTilt && a.lidBot == b.lidBot && a.wink == b.wink &&
          a.squash == b.squash && a.mouthCurve == b.mouthCurve && a.mouthOpen == b.mouthOpen &&
          a.mouthWide == b.mouthWide && a.mouthX == b.mouthX && a.dx == b.dx && a.dy == b.dy &&
-         a.size == b.size && a.glow == b.glow && a.oops == b.oops && a.raise == b.raise;
+         a.size == b.size && a.glow == b.glow && a.oops == b.oops && a.raise == b.raise &&
+         a.heart == b.heart && a.sweat == b.sweat && a.zzz == b.zzz;
 }
 
 int eyeInk(const Pose& p) {
   if (p.glow >= p.oops) {
     int step = (clampi(p.glow, 0, 1000) * 4 + 500) / 1000;
-    return step ? kInkGlow1 + step - 1 : kInkOat;
+    return step ? kInkGlow1 + step - 1 : kInkEye;
   }
   int step = (clampi(p.oops, 0, 1000) * 4 + 500) / 1000;
-  return step ? kInkOops1 + step - 1 : kInkOat;
+  return step ? kInkOops1 + step - 1 : kInkEye;
 }
 
 void drawFace(Canvas& c, const Pose& p, int cx, int cy, int scale) {
   int s = scale * clampi(p.size, 500, 1500) / 1000;
   int x = px(cx) + px(p.dx) * scale / 1000, y = px(cy) + px(p.dy) * scale / 1000;
   int ink = eyeInk(p);
-  drawEye(c, makeEye(p, x, y, s, false), ink);
-  drawEye(c, makeEye(p, x, y, s, true), ink);
+  Eye left = makeEye(p, x, y, s, false), right = makeEye(p, x, y, s, true);
+  drawEye(c, left, ink);
+  drawEye(c, right, ink);
   drawMouth(c, p, x, y, s, ink);
+  auto len = [s](int pixels) { return px(pixels) * s / 1000; };
+  int heart = clampi(p.heart, 0, 1000);
+  if (heart > 0) drawHeart(c, right.x + len(kHeartDx), right.y + len(kHeartDy), len(kHeartR) * heart / 1000);
+  if (p.sweat > 0) {
+    int slide = len(kSweatSlide) * clampi(p.sweat, 0, 1000) / 1000;
+    drawDrop(c, right.x + len(kSweatDx), right.y + len(kSweatDy) + slide, len(kSweatR));
+  }
+  if (p.zzz > 0) drawZzz(c, right.x, right.y, s, clampi(p.zzz, 0, 1000), ink);
 }
 
 }  // namespace render

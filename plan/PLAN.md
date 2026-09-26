@@ -164,7 +164,7 @@ Statuses are Not started, In progress, Passed, or Blocked (with the reason).
 | F5 | Voice on the device | Passed |
 | J2 | Soak and polish | Passed |
 | J3 | Handoff | Passed |
-| F6 | Landscape and cuter eyes | In progress: code, L0, L1 and L2 pass. The board runs the landscape build, its 83 screenshots in 11 scenarios match the simulator pixel for pixel, and `perf --motion` gives at least 49 fps (50 over 30 s, 49 over 60 s) with 72.7 KB free. Only the owner's look (orientation and liking the face) and touch calibration remain (morning checklist rows 2–3). [Evidence](evidence/v1-build/F6/README.md) |
+| F6 | Landscape and cuter eyes | In progress: code, L0, L1 and L2 pass. The board runs the landscape build, its 83 screenshots in 11 scenarios match the simulator pixel for pixel, and `perf --motion` gives at least 49 fps (50 over 30 s, 49 over 60 s) with 72.7 KB free. Only the owner's look (orientation and liking the face) and touch calibration remain (morning checklist rows 2–3). [Evidence](evidence/v1-build/F6/README.md) Follow-up (gen-2's look: smaller lavender eyes, "^" arches, a heart on a tap, "zzZZ" asleep, effort and a sweat drop working, an open-eyed no-app face): L0 91/91, L1 83 goldens re-accepted, flashed; board screenshots of asleep, a tap and working look right, `perf --motion` minimum 41 fps over 60 s. Not yet run: a full L2 `boopctl run` (the Mac app was connected over Bluetooth). [Evidence](evidence/2026-09-26-gen2-look/README.md) |
 | A5 | Mac app look and flow | In progress: code, L0 and the app's snapshot check pass (light and dark). Only the owner's look in the real menu bar remains (morning checklist rows 5 and 7). [Evidence](evidence/v1-build/A5/README.md) |
 | A6 | Brain conversation | In progress: code and L0 pass. L5 with Apple's model: the `say` limit line holds, but with history the brain answers quiet far more often, and it calls `note` on most events ([evidence](evidence/2026-09-26-brain-conversation/README.md)). Tuning the behaviour is next |
 | P1 | Port to ESP-IDF + LVGL (later, gated) | Not started |
@@ -215,8 +215,8 @@ the board.
 
 ### F2: Renderer and simulator
 
-- **Palette:** "Warm Terminal", meaning a black-glass background, light oat
-  eyes and one amber accent, plus a few state colours (a warm glow for
+- **Palette:** "Warm Terminal", meaning a black-glass background, light
+  eyes (lavender-white since F6's follow-up), oat text and one amber accent, plus a few state colours (a warm glow for
   cheers, a dim red for oops). Keep it in one header.
 - **Fonts:** two sizes, printable ASCII.
 - **Face:** eye openness, where the eyes look, upper and lower lids, squash
@@ -455,7 +455,8 @@ eyeballs, and the gen-2 face, with solid eyes, was cuter.
   the side being looked towards grows by up to 11% and the other shrinks,
   and the mouth follows by 45%. Wherever a lid meets the edge of an eye
   the corner is rounded (8 px, or the largest radius down to 2 px that fits
-  a nearly shut eye), and happy eyes are crescents.
+  a nearly shut eye), and happy eyes are crescents. The follow-up below
+  replaced the size, colour, happy eyes and no-app face with gen-2's.
 - **Pose:** `Pose::pupil` is now `Pose::eyeSize`: both eyes a little bigger
   (curious, listening, needs you, love, startled) or smaller (worried,
   busy), without the mouth. Thinking lifts the whole face and keeps the eye
@@ -467,6 +468,25 @@ eyeballs, and the gen-2 face, with solid eyes, was cuter.
   golden of another size counts as changed rather than crashing `boopctl
   sim`, and its diff image shows the two side by side; the webcam check
   turns the crop so USB-C is on the right.
+
+**Follow-up: gen-2's look (2026-09-26).** On the board the owner found
+the eyes less cute than gen-2's, the tap's solid crescents frightening, and
+the no-app face droopy, and asked for gen-2's older faces. Seeing those,
+they asked for a heart instead of pink cheeks, a "zzZZ" when asleep and
+some effort while working. The face is in [UX.md](UX.md) §2 and the states
+in [BEHAVIORS.md](BEHAVIORS.md) §2
+([evidence](evidence/2026-09-26-gen2-look/README.md)):
+
+- **Eyes:** smaller, in gen-2's lavender-white; text stays oat (`kInkText`).
+- **Happy eyes:** thin "^" arches, a round-ended stroke, instead of
+  crescents. On the way the eye squeezes to a bar that bends up.
+- **Heart, "zzZZ", sweat:** new pose fields (`Pose::heart`, `Pose::zzz`,
+  `Pose::sweat`), so each eases in and out with a blend. The heart is
+  filled as scanline spans: testing a heart curve per sample cost 11 fps.
+- **Working effort:** a regular strain, set in `app/behaviour.cpp`.
+- **Mouth:** a round-ended line, a flat dash at rest.
+- **Tap:** `wiggle` sways gently instead of shivering.
+- **No app:** eyes open, glancing up and aside.
 
 **Done when:**
 
@@ -619,7 +639,7 @@ off at any point:
 | # | Do | Expect |
 | --- | --- | --- |
 | 1 | Read `plan/evidence/v1-build/REPORT.md` (or `PROGRESS.md` if it's still running) | What passed, what's blocked, and any changes to these steps |
-| 2 | The board runs the landscape build (F6), flashed for its L2 check. Run `tools/boopctl ping`, and `make flash` first if it doesn't show `"w": 320`. Stand Boop sideways with USB-C on the right and look at it | `ping` shows `"w": 320` and `"h": 240`. The no-app face, landscape: sleepy solid eyes, a plug icon, dimmed, slow blinks. It becomes the idle face once the app connects (row 6). Whether the new eyes are cute enough is your call (F6); note anything that's off |
+| 2 | The board runs the landscape build (F6), flashed for its L2 check. Run `tools/boopctl ping`, and `make flash` first if it doesn't show `"w": 320`. Stand Boop sideways with USB-C on the right and look at it | `ping` shows `"w": 320` and `"h": 240`. The no-app face, landscape: open lavender eyes glancing up, a plug icon, dimmed, slow blinks. It becomes the idle face once the app connects (row 6). Whether the new eyes are cute enough is your call (F6); note anything that's off |
 | 3 | Run `tools/boopctl pattern`. Then `tools/boopctl calibrate`: tap each amber cross (4 near the corners, then 1 in the middle) and lift. Do both only on the landscape build (row 2's `ping`): on the portrait build the pattern has no USB-C bar, and a calibration saved there is deleted when the landscape build starts | The UP arrow is at the top and the black bar is down the edge with the USB-C port. If the picture is upside down (the bar on the other side), set `kRotation` to 3 in `firmware/src/board/display.h`, `make flash`, and look again. Calibration prints `check_miss_px`: a few pixels is good, over about 10 means run it again. Run it again after any rotation change, because a calibration from another screen or rotation (including the portrait build's) is ignored. `--show` prints the stored map; `--show --clear` forgets it |
 | 4 | Tap the face; press BOOT; hold BOOT. After row 6, tap the status strip (the no-app screen ignores it) | Wiggle; wiggle; listening face; face → threads → stats → face |
 | 5 | Run `make run` in your terminal | Boop's eyes appear in the menu bar and the popover opens on setup: hello, a name and sweet or cheeky, which agents to watch ("See exactly what gets added" shows what goes where), then "Wake … up". Allow Bluetooth, Microphone and Speech Recognition when asked. Say whether setup and the popover feel right (A5) |
@@ -647,6 +667,19 @@ matching spec first.
 - **Release.** Signing, notarisation, an app icon and a release pipeline
   don't exist for v1 yet. The gen-2 list is in
   [archived/docs/TODO-gen2.md](../archived/docs/TODO-gen2.md).
+- **A 2 px lid tip mid-blink.** [UX.md](UX.md) §2 says a lid never leaves
+  a sharp point, but mid-blink the working face at night while starving
+  leaves a 2 px tip for about 90 ms, where its low lid meets the inner top
+  corner of a 12 px sliver. `test_a_lid_never_leaves_a_sharp_point` skips
+  that pose mid-blink ([evidence](evidence/2026-09-26-gen2-look/README.md)).
+- **The gen-2 look's motion frame rate.** `perf --seconds 30 --motion`
+  gives a 41 fps minimum against F6's bar of 44; main before it gave 45
+  under the same conditions (Bluetooth connected). The arch stroke's 64-bit
+  division per sample is the likely cost
+  ([evidence](evidence/2026-09-26-gen2-look/README.md)).
+- **The gen-2 look's full L2 run.** `tools/boopctl run` for every scenario
+  on the board waits for a time the Mac app can be quit
+  ([evidence](evidence/2026-09-26-gen2-look/README.md)).
 - **`zip` is drawn but nothing plays it.** [BEHAVIORS.md](BEHAVIORS.md)
   §3.3 has it on "shut up"; the rules don't send it, and the brain's `face`
   can't pick it.

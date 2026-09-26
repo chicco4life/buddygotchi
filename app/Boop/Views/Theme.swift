@@ -24,9 +24,9 @@ enum Palette {
     static let clay = "#C4574A", clayInkLight = "#9C3B2E", clayInkDark = "#F09384"
     static let rose = "#D4839B", roseInkLight = "#A35270", roseInkDark = "#EFB3C5"
 
-    /// The device's own colours (firmware `palette.h`): black glass, oat eyes
-    /// and its brighter amber, for the little face.
-    static let glass = "#000000", oat = "#E8DCC4", deviceAmber = "#FFB000"
+    /// The device's own colours (firmware `palette.h`): black glass, gen-2's
+    /// lavender-white eyes and its brighter amber, for the little face.
+    static let glass = "#000000", eye = "#DEDBFF", deviceAmber = "#FFB000"
 }
 
 enum Theme {
@@ -59,7 +59,7 @@ enum Theme {
     static let roseInk = adaptive(Palette.roseInkLight, Palette.roseInkDark)
 
     static let glass = Color(hex: Palette.glass)
-    static let oat = Color(hex: Palette.oat)
+    static let eye = Color(hex: Palette.eye)
 
     // One spacing scale, so margins can't drift a point or two per view.
     static let gutter: CGFloat = 18

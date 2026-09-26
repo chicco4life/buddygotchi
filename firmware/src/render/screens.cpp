@@ -192,7 +192,7 @@ void drawNeedsYou(Canvas& c, const Pose& p, const Attention& a, const Strip& s) 
   char who[48];
   std::snprintf(who, sizeof(who), "%s \xC2\xB7 %s", a.agent, a.project);
   drawStringFit(c, kSmall, kMargin, whoY, who, kInkAmber, kWidth - 2 * kMargin);
-  drawString(c, kSmall, kMargin, whatY, "needs you on the Mac", kInkOat);
+  drawString(c, kSmall, kMargin, whatY, "needs you on the Mac", kInkText);
   if (a.more > 0) {
     char more[16];
     std::snprintf(more, sizeof(more), "+%d more", a.more);
@@ -252,7 +252,7 @@ void drawThreads(Canvas& c, const Thread* threads, int n, const Strip& s) {
         const char* status = r == 0 ? "needs you" : r == 1 ? "working" : "idle";
         int ink = r == 0 ? kInkAmber : r == 1 ? kInkGrey : kInkDim;
         int sw = stringWidth(kSmall, status) + (r == 0 ? 14 : 0);
-        drawStringFit(c, kSmall, projectX, y, t.project, kInkOat, kWidth - kMargin - sw - 8 - projectX);
+        drawStringFit(c, kSmall, projectX, y, t.project, kInkText, kWidth - kMargin - sw - 8 - projectX);
         drawString(c, kSmall, kWidth - kMargin - sw, y, status, ink);
         if (r == 0) fillCircle(c, px(kWidth - kMargin - 4), px(y + 10), px(4), kInkAmber);
         y += kRow;
@@ -289,13 +289,13 @@ void drawStats(Canvas& c, const Stats& st, const Strip& s) {
   centred(c, kSmall, ringL, ringR, kRingCy - 28, "level", kInkGrey);
   char buf[24];
   std::snprintf(buf, sizeof(buf), "%d", st.level);
-  centred(c, kLarge, ringL, ringR, kRingCy - 12, buf, kInkOat);
+  centred(c, kLarge, ringL, ringR, kRingCy - 12, buf, kInkText);
 
   // A name too long for the large font drops to the small one.
   const char* name = st.name && *st.name ? st.name : "Boop";
   const int room = kWidth - kMargin - kStatsTextX;
   const Font& nameFont = stringWidth(kLarge, name) <= room ? kLarge : kSmall;
-  drawStringFit(c, nameFont, kStatsTextX, kRingCy - 34 + (&nameFont == &kSmall ? 8 : 0), name, kInkOat, room);
+  drawStringFit(c, nameFont, kStatsTextX, kRingCy - 34 + (&nameFont == &kSmall ? 8 : 0), name, kInkText, room);
   std::snprintf(buf, sizeof(buf), st.days == 1 ? "%d day together" : "%d days together", st.days);
   drawStringFit(c, kSmall, kStatsTextX, kRingCy + 8, buf, kInkGrey, room);
   drawStrip(c, s);

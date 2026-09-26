@@ -26,12 +26,12 @@ enum FaceMood: Equatable {
 }
 
 /// The device's face geometry (firmware `face.cpp`), in its pixels: solid
-/// rounded eyes a bit taller than wide, set wide apart, and a small smile.
+/// rounded eyes a bit taller than wide, set wide apart, and a short mouth.
 private enum FaceGeometry {
-    static let eyeW: CGFloat = 60, eyeH: CGFloat = 80, eyeR: CGFloat = 22
+    static let eyeW: CGFloat = 48, eyeH: CGFloat = 60, eyeR: CGFloat = 17
     static let eyeGap: CGFloat = 67
     static let lookX: CGFloat = 26, lookY: CGFloat = 16, turn: CGFloat = 0.11
-    static let mouthY: CGFloat = 54, mouthHalfW: CGFloat = 14, mouthThick: CGFloat = 4, mouthBend: CGFloat = 7
+    static let mouthY: CGFloat = 46, mouthHalfW: CGFloat = 8, mouthThick: CGFloat = 3, mouthBend: CGFloat = 6
     /// Eye tops to the bottom of the mouth, so the face centres on its middle.
     static let drop: CGFloat = (mouthY + mouthThick / 2 - eyeH / 2) / 2
     static let span: CGFloat = 2 * eyeGap + eyeW
@@ -71,8 +71,8 @@ struct BoopFace: View {
         var lookX: CGFloat = 0
         var lookY: CGFloat = 0
         var scale: CGFloat = 1
-        var tint = Theme.oat
-        var smile: CGFloat = 1
+        var tint = Theme.eye
+        var smile: CGFloat = 0  // at rest, a flat dash, as on the device
     }
 
     private var pose: Pose {
@@ -81,7 +81,7 @@ struct BoopFace: View {
         case .asleep:
             p.open = 0.34
             p.lookY = 0.5
-            p.tint = Theme.oat.opacity(0.7)
+            p.tint = Theme.eye.opacity(0.7)
             p.smile = 0.3
         case .idle:
             break

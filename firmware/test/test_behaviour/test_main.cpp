@@ -264,6 +264,36 @@ static void test_asleep_breathes_and_never_blinks() {
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
 }
 
+static void test_working_strains_and_sweats_and_asleep_says_zzz() {
+  // Effort: over one 2.6 s cycle the working face strains for part of it
+  // and rests the rest, with a sweat drop the whole time (BEHAVIORS.md §2).
+  Rig r;
+  r.state(base("working"));
+  int strained = 0, resting = 0;
+  for (uint32_t t = 3000; t < 3000 + 2600; t += 10) {
+    r.at(t);
+    render::Pose p = r.b.pose(t);
+    TEST_ASSERT_TRUE(p.sweat > 0);
+    strained += p.squash >= 200;
+    resting += p.squash == 0;
+  }
+  TEST_ASSERT_TRUE(strained >= 30);  // 0.3 s or more at full strain
+  TEST_ASSERT_TRUE(resting >= 120);  // and most of the cycle at rest
+  // Asleep, the "zzZZ" runs the whole time.
+  Rig s;
+  s.state(base("asleep"));
+  for (uint32_t t = 1000; t < 6000; t += 50) {
+    s.at(t);
+    TEST_ASSERT_TRUE(s.b.pose(t).zzz > 0);
+  }
+  // Idle has neither.
+  Rig i;
+  i.state(base("idle"));
+  i.at(3000);
+  TEST_ASSERT_EQUAL_INT(0, i.b.pose(3000).sweat);
+  TEST_ASSERT_EQUAL_INT(0, i.b.pose(3000).zzz);
+}
+
 static void test_no_app_at_30s_dims_and_reconnect_blinks() {
   Rig r;
   r.at(1000);
@@ -556,6 +586,7 @@ int main() {
   RUN_TEST(test_mumble_moves_the_mouth_and_respects_quiet);
   RUN_TEST(test_idle_life_every_2_to_6_seconds);
   RUN_TEST(test_asleep_breathes_and_never_blinks);
+  RUN_TEST(test_working_strains_and_sweats_and_asleep_says_zzz);
   RUN_TEST(test_no_app_at_30s_dims_and_reconnect_blinks);
   RUN_TEST(test_night_dims_but_never_hides_needs_you);
   RUN_TEST(test_threads_close_after_10s_untouched);

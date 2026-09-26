@@ -35,10 +35,10 @@ adjusted size.
 
 | State | When | Loop |
 | --- | --- | --- |
-| Asleep | No sessions, or night with nothing working | Eyes closed, slow breathing, dimmed |
+| Asleep | No sessions, or night with nothing working | Eyes closed, slow breathing, a "zzZZ" climbing every 2.4 s, dimmed |
 | Idle | Sessions open, none working | Blinks every 2–6 s, looks around, small self-amusements |
-| Working | At least one agent working | Focused gaze; busier with more sessions; occasional chatter |
-| No app | No `state` from the Mac for 30 s | Sleepy, unplugged icon, slow idle loop |
+| Working | At least one agent working | Focused gaze and a sweat drop; every 2.6 s (1.8 s with 3+ busy) a 0.8 s strain: eyes squeeze, mouth tightens, a small shiver; occasional chatter |
+| No app | No `state` from the Mac for 30 s | Eyes open, glancing up and aside as if waiting; unplugged icon, slow idle loop |
 
 **Working chatter.** About every 2–4 minutes while agents work
 (*proposed*), the core has Boop mutter by rule: a feeling from its mood, and
@@ -98,7 +98,7 @@ The brain is never involved here. In focus mode this is visual only (§6).
 
 | Trigger | Rules | Brain may add |
 | --- | --- | --- |
-| Tap the face, or press BOOT | `wiggle`, happy squint | A small mumble or face |
+| Tap the face, or press BOOT | `wiggle`: "^ ^" eyes, a smile and a heart at the top right, swaying gently | A small mumble or face |
 | Hold BOOT (push-to-talk) | `listening` at once (for at most 30 s), `thinking` on release | A mumble reply and a face; on "shut up", a `sulky` face and quiet, as in [steering.md](steering.md) |
 | Brain too slow to reply | The device ends `thinking` with a `shrug` itself after 8 s | — |
 | Touch and hold the face | The device shows a face from its mood at once (`sleepy` when tired or at night, `curious` when hungry, `worried` when starving, `love` when very bouncy, otherwise `happy`) and sends `input` `feel`; the Mac may add a mumble. While something needs you there's no face (§1) | — |

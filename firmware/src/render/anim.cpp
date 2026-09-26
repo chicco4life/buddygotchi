@@ -39,9 +39,9 @@ int hop(uint32_t t, uint32_t period, int amp) {
 int wave(uint32_t t, uint32_t period, int amp) { return amp * isin(int(t % period * 1024 / period)) / 1024; }
 
 // The expressions. Each is the neutral pose with a few fields changed.
-Pose happy() {
+Pose happy() {  // gen-2's "^ ^" and a closed "u" smile
   Pose p;
-  p.lidBot = 700, p.mouthCurve = 900, p.mouthOpen = 200;
+  p.lidBot = 700, p.mouthCurve = 900;
   return p;
 }
 Pose proud() {
@@ -78,6 +78,7 @@ Pose sulky() {
 Pose love() {
   Pose p;
   p.glow = 1000, p.lidBot = 650, p.eyeSize = 1060, p.mouthCurve = 900, p.mouthOpen = 250, p.size = 1040;
+  p.heart = 1000;
   return p;
 }
 Pose sideEye() {
@@ -115,6 +116,7 @@ Pose cheer(int size, uint32_t t) {
   Pose p = happy();
   p.mouthOpen = int16_t(350 + 150 * size);
   p.glow = int16_t(size >= 2 ? 1000 : 450);
+  p.heart = int16_t(size >= 2 ? 1000 : 0);  // a big cheer is fond; a small one isn't
   if (t < hops * period) {
     int h = hop(t, period, 1024);
     p.dy = int16_t(-(4 + 5 * size) * h / 1024);
@@ -180,10 +182,11 @@ Pose animPose(Anim a, int size, uint32_t t) {
       return keys(t, k);
     }
     case Anim::kSideEye: return sideEye();
-    case Anim::kWiggle: {
-      Pose p = with(with(n, &Pose::lidBot, 650), &Pose::mouthCurve, 800);
-      p.dx = int16_t(wave(t, 175, 7));
-      p.squash = int16_t(wave(t + 44, 175, 80));
+    case Anim::kWiggle: {  // a tap: "^ ^" eyes, a smile and a heart
+      Pose p = with(with(with(n, &Pose::lidBot, 650), &Pose::mouthCurve, 800), &Pose::heart, 1000);
+      // Two slow sways, not a shiver: at 175 ms and 7 px it read as trembling.
+      p.dx = int16_t(wave(t, 350, 4));
+      p.squash = int16_t(wave(t + 88, 350, 60));
       return p;
     }
     case Anim::kStretch: {
@@ -238,7 +241,7 @@ Pose animPose(Anim a, int size, uint32_t t) {
       Pose crouch = with(with(happy(), &Pose::squash, 250), &Pose::dy, 6);
       Pose jump = happy();
       jump.squash = -300, jump.dy = -18, jump.glow = 1000;
-      Pose glad = with(happy(), &Pose::glow, 1000);
+      Pose glad = with(with(happy(), &Pose::glow, 1000), &Pose::heart, 1000);
       if (t >= 1100) {
         glad.dy = int16_t(t < 1100 + 2 * 380 ? -hop(t - 1100, 380, 6) : 0);
         return glad;
@@ -266,8 +269,7 @@ Pose animPose(Anim a, int size, uint32_t t) {
 Pose lookPose(Look look, int rung, int busy) {
   Pose p;
   switch (look) {
-    case Look::kIdle:
-      p.mouthCurve = 350;
+    case Look::kIdle:  // gen-2's resting face: open eyes and a short flat mouth
       break;
     case Look::kWorking:
       p.lidTop = 180, p.lookX = -250, p.lookY = 350, p.mouthWide = 700;
@@ -276,9 +278,8 @@ Pose lookPose(Look look, int rung, int busy) {
     case Look::kAsleep:
       p.open = 0, p.dy = 10, p.mouthWide = 600;
       break;
-    case Look::kNoApp:
-      p = sleepy();
-      p.mouthCurve = -200;
+    case Look::kNoApp:  // waiting for the Mac: eyes open, glancing up and aside (gen-2's pre-contact look)
+      p.lookX = 350, p.lookY = -300, p.mouthWide = 800;
       break;
     case Look::kNeedsYou:
       if (rung < 1) rung = 1;

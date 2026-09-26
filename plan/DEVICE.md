@@ -183,7 +183,7 @@ out restarts the DAC and counts in `dbg.state` `audio.out.errors`.
 only, so the board and the simulator agree to the pixel. Edges are
 anti-aliased by sampling 4 × 16 sub-pixels per pixel and picking from
 8-step palette ramps (black up to each ink colour, and eye colour down to
-the dark inside an open mouth); the palette is "Warm Terminal" in
+the dark inside an open mouth, a rose heart and a sky sweat drop); the palette is "Warm Terminal" in
 `render/palette.h`. The two fonts are Geist Mono (SIL Open Font License) at
 13 and 22 px, stored as
 4-bit coverage in `firmware/assets/fonts.h` (about 27 KB of flash) and
@@ -207,6 +207,15 @@ old ones with pupils.
 Bluetooth advertising: `boopctl perf --motion` gives a minimum of 49–50 fps
 (mean 70) over 30 s and 60 s, better than F2's 44. 73.9 KB is free after
 start-up, and the minimum stays at 72.7 KB through motion, as in F5.
+
+**Measured (gen-2's look, 2026-09-26).** With the "^" arches, the heart,
+the working strain and sweat drop, and the Mac connected over Bluetooth:
+minimum 41 fps, mean 67.5 over 60 s of `perf --motion` (whose base state is
+working, so the face never rests), minimum free heap 72.7 KB, no resets.
+The arch stroke looks up its disc heights from a table made once per
+stroke, and the heart is filled by scanline spans (two discs and a point):
+testing a heart curve at every sample in 64-bit maths brought the minimum
+down to 30 fps.
 
 ## 7. Build, flash, bring up
 

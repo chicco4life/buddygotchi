@@ -36,16 +36,23 @@ reads as black glass. Boop sits sideways, so the screen is landscape,
 Alone, the face is centred in the 204 px above the strip. When the bubble
 shows, the face eases up into the top 144 px at three-quarters size.
 
-- **Face.** Two big Cozmo-style eyes and a small mouth, drawn
-  procedurally, blending between expressions in 150 ms or less. It never
-  cuts hard. The eyes are solid rounded rectangles in one soft colour, a
-  bit taller than wide and set wide apart, with no pupils or highlights,
-  so they read as a character rather than real eyeballs. They tint towards
-  the cheer glow during `cheer`, `love`, `levelup` and `gobble`, and
-  towards the oops red during `oops`. To look somewhere, the whole eye
-  moves, and the eye on the side it looks towards grows a little, as if
-  Boop turned its head. Where a lid meets the edge of an eye the corner is
-  rounded, so a lid never leaves a sharp point.
+- **Face.** Two Cozmo-style eyes and a small mouth, drawn procedurally,
+  blending between expressions in 150 ms or less. It never cuts hard. The
+  face has gen-2's look: the eyes are solid rounded rectangles in soft
+  lavender-white (48 × 60 px, 134 px apart, so there's plenty of black
+  between them), with no pupils or highlights, so they read as a character
+  rather than real eyeballs. At rest the mouth is a short dash below them.
+  They tint towards the cheer glow during `cheer`, `love`, `levelup` and
+  `gobble`, and towards the oops red during `oops`. To look somewhere, the
+  whole eye moves, and the eye on the side it looks towards grows a little,
+  as if Boop turned its head. Where a lid meets the edge of an eye the
+  corner is rounded, so a lid never leaves a sharp point. Happy eyes are
+  thin "^" arches over a "u" smile: on the way, the eye squeezes to a short
+  bar and the bar bends up. A tap, a big cheer, love and a level-up pop a
+  rose heart in at the top right of the face. Asleep, a "zzZZ" climbs up
+  from the right eye one letter at a time. Working, Boop strains every
+  couple of seconds, and a sweat drop slides down beside the right eye
+  ([BEHAVIORS.md](BEHAVIORS.md) §2).
 - **Bubble.** Empty most of the time. It shows either a mumble's one real
   word, or who needs you.
 - **Status strip.** How many sessions need you (amber, hidden at zero) and
@@ -209,5 +216,5 @@ a small tracked-out label, not rules, and grouped into raised cards with a
 hairline edge. Names, titles and numbers use the rounded system face.
 Each coloured text tone clears 4.5:1 on its own paper; the faint tone is
 for decoration only. The face tile uses the device's own colours (black
-glass, oat eyes). Looping motion is limited to the face and the dot while
+glass, lavender-white eyes) and its face geometry (§2). Looping motion is limited to the face and the dot while
 something is live. Tokens live in `app/Boop/Views/Theme.swift`.
