@@ -670,7 +670,8 @@ static void test_mute_quiet_and_needs_you_keep_it_silent() {
   TEST_ASSERT_EQUAL(1, q.hal.hushes);
 }
 
-// BEHAVIORS.md §4: the chirp is the only cue. A cheer plays none.
+// BEHAVIORS.md §4: the chirp is the only cue. A cheer plays none. Quiet
+// mode doesn't silence it (only mute does): it's the one thing Boop must say.
 static void test_only_needs_you_chirps() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
@@ -685,6 +686,10 @@ static void test_only_needs_you_chirps() {
   TEST_ASSERT_EQUAL(1, r.hal.hushes);
   TEST_ASSERT_EQUAL(1, int(r.hal.cues.size()));
   TEST_ASSERT_TRUE(r.hal.cues[0] == voice::Cue::kChirp);
+  Rig q;
+  q.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"quiet\":30}");
+  q.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"quiet\":30,\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}");
+  TEST_ASSERT_EQUAL(1, int(q.hal.cues.size()));
 }
 
 // dbg.state carries nothing for the parked features (the cut, 2026-09-26).

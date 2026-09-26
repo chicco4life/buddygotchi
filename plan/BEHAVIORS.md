@@ -136,7 +136,7 @@ milliseconds of audio at a time and keeps only that yes or no
 | Output | Used for | Never |
 | --- | --- | --- |
 | Mumbles | Working chatter, and the brain's reactions to agents and to what you say, as the mode allows (§6) | In quiet mode; while something needs you |
-| Chirp | Once when something starts needing you | Anything else |
+| Chirp | Once when something starts needing you, in quiet mode too: it's the one thing Boop must say | Anything else |
 | Amber light | Something needs you | Decoration |
 | Dimmed backlight | Asleep, no app | While something needs you |
 

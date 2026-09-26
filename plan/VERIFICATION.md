@@ -93,7 +93,7 @@ Over USB, the firmware accepts every normal protocol message
 | `{"t":"dbg.press","ms":N}` / `{"t":"dbg.touch","x":…,"y":…,"ms":N}` | Inject input through the same code path as real input |
 | `{"t":"dbg.pattern"}` / `{"fill":N}` / `{"target":[x,y]}` | Show the test pattern, a solid screen of palette index N, or an amber calibration cross at (x, y) on black, until the next `state` |
 | `{"t":"dbg.touchcal"}` / `{"set":[ax,bx,cx,ay,by,cy]}` / `{"clear":true}` | Read, set or forget the touch calibration: x = (ax·raw x + bx·raw y + cx) / 65536, and y alike. The board keeps it in NVS with the screen size and rotation it was set on, and ignores a stored map for any other (the portrait build's, or one from before `kRotation` changed). It replies with `cal` (null when uncalibrated, which uses the default raw range turned with the rotation) |
-| `{"t":"dbg.light","bl":0-255,"led":"#RRGGBB"}` | Set the backlight and the RGB LED (both optional), for bring-up and webcam framing |
+| `{"t":"dbg.light","bl":0-255,"led":"#RRGGBB"}` | Set the backlight and the RGB LED (both optional) until the next `state`, for bring-up and webcam framing |
 | `{"t":"dbg.reset"}` | Forget everything the Mac has said, the moment and the local screen, and freeze the clock at 0. Every scenario starts with it |
 
 At 460800 baud a screenshot takes about 2.3 s. `dbg.ping` also reports
