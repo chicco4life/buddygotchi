@@ -2,7 +2,7 @@ import Foundation
 
 /// Each mode's brain (HARNESS.md §6). Each mode has an if-else table;
 /// normal decides with TypeSafe's Jev instead when it has the person's API
-/// key. Every mode
+/// key, and with its table for a pass Jev can't answer. Every mode
 /// writes with Apple's model, which falls back to no writer when it can't
 /// run; chatty's is asked again for a mumble's word it leaves out. `--classifier` and
 /// `--writer` override the mode's choice for one run.
@@ -14,18 +14,20 @@ public enum Brains {
     public static let writers = ["apple", "none", "deepseek"]
 
     /// The mode's classifier, or the override's. Jev's key is asked for only
-    /// when Jev is chosen.
+    /// when Jev is chosen. Normal's Jev has its table behind it; `--classifier
+    /// jev` is Jev alone, to check its own decisions.
     public static func classifier(for mode: Mode, override: String? = nil, key: () -> String? = { nil },
-                                  log: (String) -> Void = { _ in }) -> any Classifier {
-        switch override ?? (mode == .normal ? "jev" : mode.rawValue) {
+                                  log: @escaping @Sendable (String) -> Void = { _ in }) -> any Classifier {
+        switch override ?? mode.rawValue {
         case "calm": return CalmRules()
-        case "normal": return NormalRules()
-        case "jev":
+        case "normal", "jev":
+            guard override != "normal" else { return NormalRules() }
             guard let key = key(), !key.isEmpty else {
                 log("brain: Jev needs an API key; deciding with the normal rules")
                 return NormalRules()
             }
-            return JevClassifier(key: key)
+            let jev = JevClassifier(key: key)
+            return override == "jev" ? jev : FallbackClassifier(jev, else: NormalRules(), log: log)
         default: return ChattyRules()
         }
     }

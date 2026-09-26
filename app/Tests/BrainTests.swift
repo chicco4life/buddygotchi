@@ -188,6 +188,14 @@ final class InputMenuTests: XCTestCase {
 
 // MARK: - Jev
 
+/// Log lines, collected from any thread.
+final class Lines: @unchecked Sendable {
+    let lock = NSLock()
+    var lines: [String] = []
+    var all: [String] { lock.withLock { lines } }
+    func add(_ line: String) { lock.withLock { lines.append(line) } }
+}
+
 /// Answers Jev's requests from a script and keeps what was sent. Never
 /// reaches the network.
 final class FakeJev: @unchecked Sendable {
@@ -357,6 +365,40 @@ final class JevClassifierTests: XCTestCase {
         XCTAssertEqual(refused.lock.withLock { refused.requests.count }, 1, "a bad key isn't retried")
     }
 
+    /// HARNESS.md §6: in normal mode, Jev has half the input's deadline;
+    /// an error, a refusal or no answer by then, and normal's table decides
+    /// that pass instead, saying so in the evidence and the log.
+    func testNormalsTableDecidesWhenJevCant() async throws {
+        XCTAssertEqual(FallbackClassifier.modelMs(.seconds(5)), 2500)
+        XCTAssertEqual(FallbackClassifier.modelMs(.seconds(4)), 2000)
+        let failed = input(.agentFinished, outcome: .failed)
+        let menu = Menu(failed.menu, definitions: try definitions())
+        let logs = Lines()
+
+        let badKey = FakeJev()
+        badKey.statuses = [401]
+        let normal = FallbackClassifier(JevClassifier(key: "k", send: badKey.send), else: NormalRules(), log: logs.add)
+        let c = try await normal.classify(context(failed), menu, deadline: .seconds(5))
+        XCTAssertEqual(c.calls, [react("annoyed")])
+        XCTAssertEqual(c.evidence, "jev:jev-latest failed (jev: HTTP 401) · normal@1: failed")
+        XCTAssertEqual(logs.all, ["brain: jev:jev-latest failed (jev: HTTP 401); normal@1 decided"])
+        XCTAssertEqual(normal.id, "jev:jev-latest")
+
+        // Slower than half the deadline: the table, in time for the writer.
+        let slow = FallbackClassifier(FakeClassifier(delayMs: 400) { _ in [] }, else: NormalRules())
+        let start = ContinuousClock.now
+        let late = try await slow.classify(context(failed), menu, deadline: .milliseconds(400))
+        XCTAssertEqual(late.calls, [react("annoyed")])
+        XCTAssertTrue(late.evidence?.hasPrefix("fake-classifier@1 failed (late") ?? false, late.evidence ?? "")
+        XCTAssertLessThan(ContinuousClock.now - start, .milliseconds(390))
+
+        // Jev's own answer when it has one, doing nothing included.
+        let answered = FakeJev()
+        let quiet = try await FallbackClassifier(JevClassifier(key: "k", send: answered.send), else: NormalRules())
+            .classify(context(failed), menu, deadline: .seconds(5))
+        XCTAssertEqual(quiet.calls, [])
+    }
+
     func testAnErrorStatusFailsWithoutItsBody() async throws {
         let jev = FakeJev()
         jev.status = 429
@@ -451,12 +493,15 @@ final class WriterTests: XCTestCase {
     /// when it's chosen; without one, normal decides with its own table.
     func testEachModeHasItsBrain() {
         var asked = 0
-        var logs: [String] = []
+        let logs = Lines()
         XCTAssertEqual(Brains.classifier(for: .chatty, key: { asked += 1; return "k" }).id, "chatty@1")
         XCTAssertEqual(Brains.classifier(for: .calm, key: { asked += 1; return "k" }).id, "calm@1")
         XCTAssertEqual(Brains.classifier(for: .normal, key: { asked += 1; return "k" }).id, "jev:jev-latest")
-        XCTAssertEqual(Brains.classifier(for: .normal, key: { asked += 1; return nil }, log: { logs.append($0) }).id, "normal@1")
-        XCTAssertTrue(logs.contains { $0.hasPrefix("brain: Jev needs an API key") }, "\(logs)")
+        XCTAssertEqual(Brains.classifier(for: .normal, key: { asked += 1; return nil }, log: logs.add).id, "normal@1")
+        XCTAssertTrue(logs.all.contains { $0.hasPrefix("brain: Jev needs an API key") }, "\(logs.all)")
+        // Normal's Jev has its table behind it; the override is Jev alone.
+        XCTAssertTrue(Brains.classifier(for: .normal, key: { "k" }) is FallbackClassifier)
+        XCTAssertTrue(Brains.classifier(for: .normal, override: "jev", key: { "k" }) is JevClassifier)
         XCTAssertEqual(asked, 2)
         // Overrides, for one run.
         XCTAssertEqual(Brains.classifier(for: .normal, override: "calm").id, "calm@1")
