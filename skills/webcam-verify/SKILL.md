@@ -30,7 +30,7 @@ this repository's root for commands, camera setup, evidence and limitations.
    check `tools/boopctl ping` (`dbg.ping`, `plan/VERIFICATION.md` §3): `ble`
    must not be `conn` and `link` must not be `ble`, because a connected Mac
    app's `state` messages replace yours (L2's one-writer rule). Don't launch
-   the app to fix it; ask the owner. Run the clock (`tools/boopctl clock run`)
+   the app to fix it; ask the owner. Run the clock (`tools/boopctl send '{"t":"dbg.clock","run":true}'`)
    and avoid frozen-clock screenshots during recording. Record the installed
    firmware's `fw` and `sha` from `ping`; do not assume it matches the checkout
    or flash it merely to use this skill.
@@ -53,5 +53,5 @@ The first live example is kept at the tag:
 `git show gen2-final:archived/plan-gen2/evidence/webcam/2026-09-10.md`.
 The v1 webcam checks (framing, test pattern, clips) are defined in
 `plan/VERIFICATION.md` §5 L3 and §6, and driven by `tools/boopctl cam`.
-`make webcam-test` tests the tooling with synthetic video and does not open a
+`make tools-test` tests the tooling with synthetic video and does not open a
 camera; it can run without activating live webcam verification.

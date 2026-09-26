@@ -69,7 +69,7 @@ identity. Never flash or reboot merely to enable webcam mode.
 For USB, let the device clock run before recording (from the repo root):
 
 ```sh
-tools/boopctl clock run
+tools/boopctl send '{"t":"dbg.clock","run":true}'
 ```
 
 Then set a distinct starting state before starting the camera:
@@ -136,7 +136,7 @@ because the recording is 30 fps. Mark unclear cases inconclusive and recapture.
 ## Tool checks
 
 ```sh
-make webcam-test
+make tools-test
 ```
 
 The tests generate a real moving-square MOV with one intentionally missing frame,

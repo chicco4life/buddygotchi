@@ -7,6 +7,7 @@ bring-up pattern's colours and orientation through the camera.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import time
@@ -18,12 +19,27 @@ from boopctl_lib.device import Device, DeviceError
 
 REPO = Path(__file__).resolve().parents[2]
 WEBCAM = REPO / "tools" / "webcam" / "webcam.sh"
-CAMERA = "6C707041-05AC-0010-000D-000000000001"  # MacBook Air Camera
+BUILT_IN = "6C707041-05AC-0010-000D-000000000001"  # the MacBook Air's own camera
+# `boopctl cam --camera ID` (or `e2e --clip --camera ID`) sets this.
+CAMERA = os.environ.get("BOOP_CAMERA") or BUILT_IN
 WORK = Path("/tmp/boop-cam")
 CROP = WORK / "crop.json"
 
 
-def still(name: str, seconds: float = 3.0, at: float = 1.0, camera: str = CAMERA) -> Image.Image:
+def cameras() -> str:
+    """The recorder's list of cameras, for an error about the wrong one."""
+    listed = subprocess.run([str(WEBCAM), "list"], capture_output=True, text=True, timeout=60)
+    return (listed.stdout + listed.stderr).strip()
+
+
+def record_failed(stderr: str) -> DeviceError:
+    why = stderr.strip()[-400:]
+    if "Camera not found" in stderr:
+        why += f"\nno camera {CAMERA}; pass --camera ID (or set BOOP_CAMERA) with one of:\n{cameras()}"
+    return DeviceError(f"recording failed: {why}")
+
+
+def still(name: str, seconds: float = 3.0, at: float = 1.0, camera: str | None = None) -> Image.Image:
     """Records a short clip and returns one full-resolution frame from it.
 
     The camera takes about a second to start, so a 3 s request yields about
@@ -32,8 +48,10 @@ def still(name: str, seconds: float = 3.0, at: float = 1.0, camera: str = CAMERA
     clip, frames = WORK / f"{name}-clip", WORK / f"{name}-frames"
     for d in (clip, frames):
         shutil.rmtree(d, ignore_errors=True)
-    run = [str(WEBCAM), "record", "--camera", camera, "--seconds", str(int(seconds)), "--out", str(clip)]
-    subprocess.run(run, check=True, capture_output=True, text=True, timeout=60)
+    run = [str(WEBCAM), "record", "--camera", camera or CAMERA, "--seconds", str(int(seconds)), "--out", str(clip)]
+    recorded = subprocess.run(run, capture_output=True, text=True, timeout=60)
+    if recorded.returncode:
+        raise record_failed(recorded.stderr + recorded.stdout)
     subprocess.run(
         [str(WEBCAM), "analyze", "--input", str(clip / "capture.mov"), "--out", str(frames),
          "--start", str(at), "--seconds", "0.1"],
@@ -219,7 +237,7 @@ def clip(dev: Device, name: str, seconds: int = 8, frames: int = 18, play=None) 
         time.sleep(max(0.0, at - (time.monotonic() - start)))
         dev.send(message)
     if rec.wait(timeout=60) != 0:
-        raise DeviceError(f"recording failed: {rec.stderr.read()[-400:]}")
+        raise record_failed(rec.stderr.read())
     movie = out / "capture.mov"
     shots = []
     try:

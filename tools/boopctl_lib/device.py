@@ -43,7 +43,9 @@ def find_port() -> str:
         return env
     ports = list_ports()
     if not ports:
-        raise DeviceError("no Boop board found on USB (looked for /dev/cu.usbserial-*)")
+        others = sorted(glob.glob("/dev/cu.*"))
+        raise DeviceError(f"no Boop board found on USB: nothing matches {', '.join(PORT_PATTERNS)}"
+                          + (f" (serial ports here: {', '.join(others)})" if others else ""))
     return ports[0]
 
 

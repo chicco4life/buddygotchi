@@ -1,5 +1,5 @@
 # Boop v1. Run from the repo root. See README.md and plan/VERIFICATION.md.
-.PHONY: build sign run debug test eval tools fw flash sim fw-test e2e webcam-test clean
+.PHONY: build sign run debug test eval tools fw flash sim fw-test e2e tools-test clean
 
 PIO := firmware/tools/pio.sh
 
@@ -79,9 +79,12 @@ sim:
 e2e: build
 	tools/boopctl e2e
 
-# The recorder's own tests, on synthetic video. They never open a camera.
-webcam-test:
-	python3 -m unittest discover -s tools/webcam/tests -v
+# The tools' own tests, with no board or camera: boopctl's commands, and the
+# webcam recorder on synthetic video.
+tools-test:
+	tools/boopctl --help > /dev/null
+	tools/.venv/bin/python -m unittest discover -s tools/boopctl_lib/tests
+	python3 -m unittest discover -s tools/webcam/tests
 
 clean:
 	rm -rf app/.build firmware/.pio

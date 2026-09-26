@@ -43,10 +43,10 @@ make flash        # build and upload over USB
 make fw-test      # firmware unit tests on the Mac
 make sim          # every device scenario in the simulator, against the goldens
 make e2e          # hook → app → USB → device pipeline check
-make webcam-test  # the webcam recorder's tests, on synthetic video (no camera)
+make tools-test   # the tools' own tests: boopctl's commands, the webcam recorder on synthetic video
 make run          # the Mac app, with Bluetooth; the owner runs this, not agents
 tools/boopctl ping | state | shot | run <scenario> | sim <scenario> | bridge
-tools/boopctl mumble [feeling] | say [feeling] | volume [level…] | sound [chirp] | moment [anim] [--say F] | needs
+tools/boopctl play <cheer|wiggle|listening|stop|needs|pattern> | mumble [feeling…] | send '<json>'
 app/.build/debug/Boop --snapshots DIR   # the Mac app's popover and icons as PNGs, no Bluetooth
 ```
 

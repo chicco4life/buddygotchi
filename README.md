@@ -58,20 +58,19 @@ make flash        # build and upload over USB
 make fw-test      # firmware unit tests on the Mac
 make sim          # every device scenario in the simulator, against the goldens
 make e2e          # hook → app → USB → board pipeline check
-make webcam-test  # the webcam recorder's tests, on synthetic video (no camera)
+make tools-test   # the tools' own tests: boopctl's commands, the webcam recorder on synthetic video
 ```
 
 `tools/boopctl` talks to the board over USB:
 
 ```sh
-tools/boopctl ports | ping | state | shot | pattern
+tools/boopctl ping | state | shot
 tools/boopctl sim [scenario…] [--accept]   # simulator vs goldens
 tools/boopctl run [scenario…]              # board vs simulator, pixel for pixel
 tools/boopctl bridge                       # share the serial port on a Unix socket
 tools/boopctl e2e [--writer none|apple]    # the pipeline check (needs the bridge's port free)
-tools/boopctl e2e --soak 30 --writer apple # the pipeline on a loop: resets, leaks, stuck states
-tools/boopctl soak | perf                  # device-only soak, frame rate
-tools/boopctl mumble | say | volume | sound | moment | needs  # hear and watch Boop by hand
+tools/boopctl soak [--pipeline] | perf     # soak (the board, or the whole pipeline), frame rate
+tools/boopctl play <what> | mumble         # hear and watch Boop by hand
 tools/boopctl calibrate                    # touch calibration: tap 4 crosses (needs a person)
 ```
 

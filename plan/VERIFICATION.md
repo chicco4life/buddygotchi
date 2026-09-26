@@ -44,38 +44,27 @@ Each level answers a different question:
 | `make sim` / `tools/boopctl sim` | The simulator. It builds the same drawing and behaviour code as the firmware for the Mac, runs every scenario (or the ones named), writes PNGs and compares them with the goldens |
 | `tools/boopctl` | The new device tool, replacing `buddyctl.py`. It's Python in `tools/.venv` (pyserial, Pillow), which it creates on its first run (`make tools`) |
 | `tools/boopctl bridge` | Owns the USB serial port and shares it through a Unix socket (`--socket`, default `$BOOP_BRIDGE` or `/tmp/boop-bridge.sock`), so the Mac app and other `boopctl` commands can use the board at the same time. Every line from the board goes to every client, and each client's lines reach the board whole. It never waits on a client: a client that stops reading and falls 4 MB behind is dropped, so a paused `boopctl` can't stall the others or the app. While a bridge runs, other `boopctl` commands (with `BOOP_BRIDGE` set to its socket, if it isn't the default) go through it instead of opening the port |
-| `tools/webcam/webcam.sh` | The existing AVFoundation recorder and frame extractor. `boopctl cam …` wraps it. `make webcam-test` tests it on synthetic video and never opens a camera |
+| `tools/webcam/webcam.sh` | The existing AVFoundation recorder and frame extractor. `boopctl cam …` wraps it. `make tools-test` tests it on synthetic video and never opens a camera, along with `boopctl`'s commands |
 | `Boop --snapshots DIR` | Renders the Mac app's popover (seven overview states, including listening and a refused mic, the whole settings pane, the four setup steps) and the menu-bar icons to PNGs, in light and dark, from fixed fixtures, then exits. No runtime, Bluetooth, microphone or Keychain; the agents' settings it reads are in a throwaway HOME |
 | `boopdev` | A Swift CLI in the app package for the evals, reading debug logs and replaying hooks. `boopdev replay <fixture>` alone runs the payloads through the hook's field picking, the adapter and the core on a virtual clock and prints every decision (`--states` for snapshots only); with `--socket` it sends them through the real `boop-hook` to a running app. `boopdev voice <feeling> [word] --count N [--why]` prints the lines `react` would build, and with `--why` every rejected try. `boopdev eval [--real] [--mode chatty\|normal\|calm] [--classifier chatty\|calm\|jev] [--writer none\|apple] [--runs N] [--only TEXT] [--json FILE]` runs the harness eval scenarios in each mode ([EVALS.md](EVALS.md)); with a model, `--runs` runs each one N times and passes it only if every run does, and `--real` is L5. `boopdev watch [FILE] [--new]` prints debug mode's `debug.jsonl` (the everyday app's by default) readably as it grows, as `Boop --debug` prints it (HARNESS.md §8). `boopdev talk "<words>" [--yelled] --socket PATH` hands a push-to-talk transcript to a running headless app, as if heard on the Mac's mic (`--yelled` as if you yelled it). `boopdev hooks status\|install\|remove [claude\|codex] --home DIR` runs the hook installer against any HOME |
 
-`boopctl` subcommands:
+`boopctl` subcommands (`tools/boopctl <command> --help` has their options):
 
 | Command | Does |
 | --- | --- |
-| `ports` | List USB serial ports |
-| `flash [--env cyd24]` | Build and upload the firmware |
 | `ping` | Firmware version and git SHA, uptime, free and minimum heap, fps, link state |
 | `state` | The device's own view of itself (§3) |
-| `send '<json>'` | Send one protocol message, exactly as Bluetooth would |
-| `run <scenario>` | Play a scenario on the device (§4) and save its screenshots |
-| `sim <scenario>` | Play the same scenario in the simulator and save its PNGs |
-| `shot --out x.png` | Screenshot the device's canvas, at the size its `dbg.shot` header gives |
-| `diff a.png b.png` | Pixel diff. Exits non-zero past a threshold and writes a highlighted diff image. Pictures of different sizes differ in every pixel, and their diff image shows the two side by side |
-| `press tap\|hold [--ms N]` | Inject a BOOT press |
-| `touch X Y [--ms N]` | Inject a touch at screen coordinates |
-| `clock freeze T \| step MS \| run` | Control the device clock for repeatable frames |
-| `pattern` | Show the bring-up test pattern |
-| `mumble [feeling…] [--word W \| --no-word] [--count N] [--vol N] [--seed N] [--json]` | F5's L2 check, and for hearing Boop by hand. Plays N lines built by the Mac's Voice (`boopdev voice --json`) for every feeling (or the ones named), without and then with its usual word, and checks `audio.out` in `dbg.state` for each: the syllable count, the word, and the duration the DAC took within 10% of beats × `ms`. Then checks that a muted line moves the mouth and plays nothing. It prints its seed, and `--seed` plays the same lines again |
-| `say [feeling] [--word W] [--seed N]` | One line with its word at the end (the feeling's usual word by default), checked as `mumble` checks it. It sends no `state`, so the line plays at the volume the board already has: the Mac app's when it's connected, for trying the app's volume setting. It prints that volume, and says so instead of playing when the board is muted, quiet or showing needs you |
-| `volume [level…] [--rounds N]` | For comparing volumes by ear. Plays one fixed line at each level in turn (1 then 10 by default), for 6 rounds, and says whether the board played each one in full |
-| `sound [chirp] [--vol N]` | Plays the needs-you chirp, the only sound cue, the way the Mac causes it: with a new `attn`, then cleared. Checks `sfx` in `dbg.state` |
-| `moment [anim] [--say FEELING [--word W]] [--base B] [--vol N]` | Plays one animation from the set (`cheer`, `wiggle`, `listening`; [BEHAVIORS.md](BEHAVIORS.md) §5), a mumble on its own (`--say` with no anim), or both, and checks that the device took it. `moment stop` sends the empty moment ([PROTOCOL.md](PROTOCOL.md) §3) and reports whether `listening` is still playing |
-| `needs [--seconds S] [--agent A] [--project P] [--more N] [--vol N]` | Holds a fake "needs you" (10 s by default), printing the screen, light, backlight and the chirp once, then clears it; Ctrl-C clears it early |
-| `perf --seconds N [--motion]` | Sample fps and heap over time; `--motion` plays `cheer`, `wiggle` and `listening` back to back so every sample is mid-motion, then the empty moment |
-| `e2e [--writer none\|apple] [fixture…]` | The L4 pipeline check (`make e2e`): bridge, headless app, the J1 fixtures through the real `boop-hook`, checkpoints, latency, memory and ordering |
-| `e2e --soak MIN [--writer none\|apple]` | J2's pipeline soak: the same fixtures on a loop for MIN minutes, a tap on the board between rounds, then a quiet minute. Samples `dbg.ping`, `audio.out.errors` and the app's memory; fails on a board reset, a heap-minimum drift over 2 KB, audio errors, the app exiting, or anything left on screen (not the plain face, `attn` or a moment) at the end. Checkpoint misses are counted and reported. A debug request that loses its reply (the CH340 rarely drops bytes over a long run) is retried once and counted as a link glitch |
-| `soak --minutes N` | Random, realistic traffic and inputs (with one 35 s silence), then check for resets, a drifting heap minimum, and that calm snapshots bring back the plain face |
-| `cam frame\|pattern\|clip <name>` | Webcam helpers (L3 in §5). Clips are live presets: `idle`, `needs_you`, `cheer` (then a mumble) and `tap` |
+| `shot` | Screenshot the device's canvas, at the size its `dbg.shot` header gives |
+| `send '<json>'` | Send one protocol message, exactly as Bluetooth would. A `dbg.` request (§3) prints the board's reply: `{"t":"dbg.press","ms":100}` presses BOOT, `{"t":"dbg.clock","run":true}` lets the clock run |
+| `play <what>` | Plays one thing the Mac can make the board do and checks it took: `cheer`, `wiggle` or `listening` ([BEHAVIORS.md](BEHAVIORS.md) §5), with `--say FEELING` a mumble over it; `stop`, the empty moment ([PROTOCOL.md](PROTOCOL.md) §3), reporting whether `listening` still plays; `needs`, a fake "needs you" held for `--seconds` (10), printing the screen, light and backlight and whether its one chirp played, then cleared (Ctrl-C clears it early); `pattern`, the bring-up test pattern |
+| `mumble [feeling…]` | F5's L2 check, and for hearing Boop by hand. Plays lines built by the Mac's Voice (`boopdev voice --json`) for every feeling (or the ones named), without and then with its usual word, and checks `audio.out` in `dbg.state` for each: the syllable count, the word, and the duration the DAC took within 10% of beats × `ms`. Then checks that a muted line moves the mouth and plays nothing. It prints its seed, and `--seed` plays the same lines again. `--board-volume` plays one line with its word at the volume the board already has (the Mac app's, when it's connected), sending no `state`, and says so instead when the board is muted, quiet or showing needs you. `--levels 1 10` plays one fixed line at each level in turn, for `--rounds` (6), for comparing volumes by ear |
+| `sim [scenario…]` | Play scenarios in the simulator, save their PNGs and compare them with the goldens (`--accept` copies them in, after looking) |
+| `run [scenario…]` | Play scenarios on the device (§4), save its screenshots and diff each against the simulator's, threshold 0; the clock runs again afterwards, even after a failure |
+| `perf` | Sample fps and heap over time; `--motion` plays `cheer`, `wiggle` and `listening` back to back so every sample is mid-motion, then the empty moment |
+| `soak` | Random, realistic traffic and inputs for `--minutes` (with one 35 s silence), then check for resets, a drifting heap minimum, and that calm snapshots bring back the plain face. `--pipeline` is J2's soak instead: the e2e fixtures through the headless app on a loop (`--writer none\|apple`), a tap on the board between rounds, then a quiet minute. It samples `dbg.ping`, `audio.out.errors` and the app's memory, and fails on a board reset, a heap-minimum drift over 2 KB, audio errors, the app exiting, or anything left on screen (not the plain face, `attn` or a moment) at the end. Checkpoint misses are counted and reported. A debug request that loses its reply (the CH340 rarely drops bytes over a long run) is retried once and counted as a link glitch |
+| `e2e [fixture…]` | The L4 pipeline check (`make e2e`): bridge, headless app, the J1 fixtures through the real `boop-hook`, checkpoints, latency, memory and ordering |
+| `bridge` | Shares the serial port on a Unix socket (above) |
+| `cam frame\|pattern\|clip <name>` | Webcam helpers (L3 in §5). Clips are live presets: `idle`, `needs_you`, `cheer` (then a mumble) and `tap`. `--camera ID` (or `BOOP_CAMERA`) picks the camera, from `tools/webcam/webcam.sh list`; the default is the MacBook's own. `e2e --clip` takes `--camera` too |
 | `calibrate` | Touch calibration. Needs a person to tap 4 amber crosses 20 px in from the corners, then one in the middle to check; the crosses are placed from the screen size the board reports in `dbg.ping` (320×240). It fits a raw → screen map and the board keeps it in NVS for that screen and rotation. `--show` prints the stored map, `--show --clear` forgets it |
 
 ## 3. The debug channel
@@ -235,7 +224,7 @@ How they work and what each checks is in [EVALS.md](EVALS.md).
 2. `tools/boopctl run <scenario>` for every scenario. Each `expect` must
    pass.
 3. Each device screenshot must be **identical** to the simulator's picture
-   for the same scenario and shot (`boopctl diff`, threshold 0).
+   for the same scenario and shot (`boopctl run` diffs them, threshold 0).
 4. `tools/boopctl perf --seconds 30` during a motion scenario: at least 25 fps
    while moving, minimum free heap at least 60 KB, and no reset (uptime keeps
    rising).
@@ -343,7 +332,7 @@ context.
 
 These can't be checked without a person: Bluetooth connection (launching
 the app with Bluetooth), the mic and speech recognition, real touches and
-touch calibration, sound (by ear, with `boopctl mumble`, `say`, `volume` and `sound`), real Claude Code and
+touch calibration, sound (by ear, with `boopctl mumble`, `mumble --board-volume`, `mumble --levels` and `play needs`), real Claude Code and
 Codex sessions with installed hooks, the Mac app in the real menu bar, and
 how Boop feels. They're on the
 morning checklist in [PLAN.md](PLAN.md).
