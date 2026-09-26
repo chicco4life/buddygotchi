@@ -98,21 +98,22 @@ void test_render_pads_with_silence_after_the_line() {
   TEST_ASSERT_EQUAL_UINT32(0, p.render(out.data(), 10));
 }
 
-void test_higher_pitch_plays_the_clip_faster() {
-  // A long beat, so the whole clip fits: at 1.5× pitch it's done in 2/3 the time.
+void test_a_higher_tune_plays_the_clip_faster() {
+  // A long beat, so the whole clip fits. A lone syllable is 0.98× flat and
+  // 1.25× with the lift (VOICE.md §5), so lifted it's done in 0.784 the time.
   const char* const one[] = {"ba"};
   voice::Line l = line(one, 1);
   l.ms = 400;
   l.seed = 7;
   voice::Player p;
-  l.pitch = 100;
+  l.tune = voice::Tune::kFlat;
   p.start(l);
   int slow = sounding(renderAll(p));
-  l.pitch = 150;
+  l.tune = voice::Tune::kLift;
   p.start(l);
   int fast = sounding(renderAll(p));
   int ratio = fast * 1000 / slow;
-  TEST_ASSERT_INT_WITHIN(60, 667, ratio);
+  TEST_ASSERT_INT_WITHIN(60, 784, ratio);
 }
 
 void test_short_beats_cut_the_clip_with_a_fade() {
@@ -174,12 +175,13 @@ void test_names_and_cues() {
   TEST_ASSERT_TRUE(voice::tuneFromName("up") == voice::Tune::kUp);
   TEST_ASSERT_TRUE(voice::tuneFromName("lift") == voice::Tune::kLift);
   TEST_ASSERT_TRUE(voice::tuneFromName(nullptr) == voice::Tune::kFlat);
-  TEST_ASSERT_TRUE(voice::cueFromName("pulse") == voice::Cue::kNone);  // light only
+  TEST_ASSERT_TRUE(voice::cueFromName("chirp") == voice::Cue::kChirp);
+  TEST_ASSERT_TRUE(voice::cueFromName("jingle") == voice::Cue::kNone);  // the chirp is the only cue
   voice::Player p;
   p.cue(voice::Cue::kChirp, 6);
   TEST_ASSERT_EQUAL_UINT32(22050 * 90 / 1000, p.total());
   TEST_ASSERT_TRUE(sounding(renderAll(p)) > 1000);
-  p.cue(voice::Cue::kJingle, 0);
+  p.cue(voice::Cue::kChirp, 0);
   TEST_ASSERT_FALSE(p.playing());
 }
 
@@ -189,7 +191,7 @@ int main() {
   RUN_TEST(test_line_length_is_beats_times_ms);
   RUN_TEST(test_timing_jitter_keeps_the_total_exact);
   RUN_TEST(test_render_pads_with_silence_after_the_line);
-  RUN_TEST(test_higher_pitch_plays_the_clip_faster);
+  RUN_TEST(test_a_higher_tune_plays_the_clip_faster);
   RUN_TEST(test_short_beats_cut_the_clip_with_a_fade);
   RUN_TEST(test_volume_scales_and_zero_mutes);
   RUN_TEST(test_same_seed_same_sound);

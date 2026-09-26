@@ -1,18 +1,13 @@
-// The landscape layout at its limits (UX.md §2–3): eight agents in threads, a name too long for the large font, and the longest needs-you line with "+N more".
+// The landscape layout at its limits (UX.md §2–3): the longest needs-you line with "+N more", and a full status strip.
 {"clock":0}
-{"t":"state","v":1,"base":"working","name":"Bartholomew-Kit","level":123,"prog":60,"days":1234,"busy":12,"idle":0,"wait":10,"quiet":10,"focus":true,"threads":[["gemini-cli","alpha","wait"],["claude","bravo-charlie-delta-echo","work"],["codex","c","idle"],["cursor","d","wait"],["aider","e","work"],["copilot","f","idle"],["amp","g","work"],["opencode","h","idle"]]}
-{"clock":200}
-{"input":{"touch":[160,222]}}
-{"clock":400}
-{"expect":{"screen":"threads"}}
-{"shot":"threads-eight-agents"}
-{"input":{"touch":[160,222]}}
-{"clock":600}
-{"expect":{"screen":"stats"}}
-{"shot":"stats-long-name"}
-{"input":{"touch":[160,222]}}
-{"clock":800}
-{"t":"state","v":1,"base":"working","busy":12,"wait":10,"quiet":10,"focus":true,"threads":[],"attn":{"agent":"gemini-cli","project":"a-very-long-project-nam","more":9}}
+{"t":"state","v":1,"base":"working","busy":12,"wait":10,"quiet":10,"attn":{"agent":"gemini-cli","project":"a-very-long-project-nam","more":9}}
 {"clock":1000}
 {"expect":{"screen":"needs_you"}}
 {"shot":"needs-you-long"}
+// The strip: amber needs-you count, grey working count, and the quiet and no-app icons at the right.
+{"t":"state","v":1,"base":"working","busy":4,"wait":1,"quiet":10,"attn":{"agent":"claude","project":"jetpack","more":0}}
+{"clock":1200}
+{"shot":"strip-icons"}
+{"clock":31200}
+{"expect":{"screen":"no_app"}}
+{"shot":"strip-no-app-quiet"}

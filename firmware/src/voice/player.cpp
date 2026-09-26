@@ -53,8 +53,7 @@ Tune tuneFromName(const char* s) {
 Cue cueFromName(const char* s) {
   if (!s) return Cue::kNone;
   if (!std::strcmp(s, "chirp")) return Cue::kChirp;
-  if (!std::strcmp(s, "jingle")) return Cue::kJingle;
-  return Cue::kNone;  // "pulse" is light only
+  return Cue::kNone;
 }
 
 int syllableIndex(const char* s, size_t n) {
@@ -103,7 +102,6 @@ void Player::plan(const Line& l) {
     slots_[i].len = uint32_t(int(slots_[i].len) + d);
     slots_[i + 1].len = uint32_t(int(slots_[i + 1].len) - d);
   }
-  int base = l.pitch < 60 ? 60 : l.pitch > 160 ? 160 : l.pitch;  // percent
   uint32_t start = 0;
   for (int i = 0; i < nSlots_; ++i) {
     Slot& s = slots_[i];
@@ -111,7 +109,7 @@ void Player::plan(const Line& l) {
     start += s.len;
     int c = contour(l.tune, i, nSlots_);
     if (wordSlot[i]) c = 1000 + (c - 1000) / 2;  // the word keeps closer to its own voice
-    int rate = base * 10 * c / 1000 * (1000 + jitter(seed, 50)) / 1000;  // permille, ±5%
+    int rate = c * (1000 + jitter(seed, 50)) / 1000;  // permille, ±5%
     // Clips are 11.025 kHz and the output 22.05 kHz: half a source sample per step.
     s.step = uint32_t(rate) * 32768u / 1000u;
     if (wordSlot[i] && s.clip >= 0) {  // a long word speeds up to fit, up to 1.6×
@@ -135,7 +133,7 @@ void Player::cue(Cue c, uint8_t vol) {
   if (c == Cue::kNone || vol == 0) return;
   cue_ = c;
   gain_ = (vol > 10 ? 10 : vol) * 256 / 10;
-  total_ = c == Cue::kChirp ? kOutRate * 90 / 1000 : kOutRate * 240 / 1000;
+  total_ = kOutRate * 90 / 1000;
 }
 
 void Player::stop() {
@@ -164,15 +162,8 @@ int16_t Player::lineSample(uint32_t i) {
 int16_t Player::cueSample(uint32_t i) const {
   float t = float(i) / kOutRate;
   float T = float(total_) / kOutRate;
-  float phase;  // in cycles
-  if (cue_ == Cue::kChirp) {
-    const float f0 = 1200, f1 = 2400;  // rising, like a question
-    phase = f0 * t + (f1 - f0) * t * t / (2 * T);
-  } else {
-    static const float kNotes[3] = {1047, 1319, 1568};  // C6 E6 G6
-    int note = int(t / (T / 3));
-    phase = kNotes[note > 2 ? 2 : note] * t;
-  }
+  const float f0 = 1200, f1 = 2400;  // rising, like a question
+  float phase = f0 * t + (f1 - f0) * t * t / (2 * T);  // in cycles
   float x = phase - std::floor(phase);
   float tri = x < 0.5f ? 4 * x - 1 : 3 - 4 * x;
   float env = t < 0.003f ? t / 0.003f : 1 - t / T;

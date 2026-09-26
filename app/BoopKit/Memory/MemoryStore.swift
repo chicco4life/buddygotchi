@@ -84,7 +84,7 @@ public final class MemoryStore {
 
     // MARK: Core effects
 
-    /// Applies the core's `.happened`, `.growth` and `.newDay`; ignores the rest.
+    /// Applies the core's `.happened` and `.newDay`; ignores the rest.
     public func apply(_ effect: CoreEffect) {
         refresh()
         switch effect {
@@ -96,28 +96,16 @@ public final class MemoryStore {
                 st.happened.removeFirst()
             }
             save(st)
-        case .growth(let growth):
-            guard var lt = longTerm else { return }
-            lt.growth = growth
-            save(lt)
-        case .newDay(let date, let firstSeen, let mood):
-            startDay(date, firstSeen: firstSeen, mood: mood)
+        case .newDay(let date, let firstSeen):
+            startDay(date, firstSeen: firstSeen)
         default:
             break
         }
     }
 
-    /// Updates the mood on the Today line.
-    public func setMood(_ mood: String) {
-        refresh()
-        guard var st = shortTerm, st.mood != mood else { return }
-        st.mood = mood
-        save(st)
-    }
-
     /// Snapshots both files to `history/<the old day>/`, keeps that day for
     /// the reflection, and starts short-term memory fresh.
-    func startDay(_ date: String, firstSeen: String, mood: String) {
+    func startDay(_ date: String, firstSeen: String) {
         if let old = shortTerm, old.date != date {
             do {
                 try snapshot(day: old.date)
@@ -126,7 +114,7 @@ public final class MemoryStore {
                 log("memory: snapshot for \(old.date) failed: \(error)")
             }
         }
-        save(ShortTerm(date: date, firstSeen: firstSeen, mood: mood))
+        save(ShortTerm(date: date, firstSeen: firstSeen))
     }
 
     // MARK: Changes from actions
@@ -336,7 +324,7 @@ public final class MemoryStore {
             let text = (try? String(contentsOf: url(file), encoding: .utf8)) ?? ""
             let date = text.split(whereSeparator: { !$0.isNumber && $0 != "-" }).map(String.init).first(where: LocalTime.isDay)
             if let date {
-                let st = shortTermValue?.date == date ? shortTermValue! : ShortTerm(date: date, firstSeen: "", mood: "")
+                let st = shortTermValue?.date == date ? shortTermValue! : ShortTerm(date: date, firstSeen: "")
                 log("memory: \(file) didn't read (\(error)); kept it as \(file).broken and wrote back \(date)")
                 save(st)
             } else {

@@ -15,7 +15,6 @@ public struct StateSnapshot: Equatable, Sendable {
     }
 
     public static let version = 1
-    public static let maxThreads = 8
     /// A protocol line is at most 512 bytes (PROTOCOL.md §2).
     public static let maxLine = 512
     /// The device keeps names in 24-byte fields.
@@ -32,13 +31,6 @@ public struct StateSnapshot: Equatable, Sendable {
         return out
     }
 
-    /// Drops thread rows from the end until the line fits.
-    public mutating func fit() {
-        while jsonLine.utf8.count > StateSnapshot.maxLine && !threads.isEmpty {
-            threads.removeLast()
-        }
-    }
-
     /// Unix seconds.
     public var time: Int64
     public var name: String
@@ -48,22 +40,12 @@ public struct StateSnapshot: Equatable, Sendable {
     public var busy: Int
     public var idle: Int
     public var wait: Int
-    public var mood: Mood
     /// Minutes of quiet left.
     public var quiet: Int
-    public var focus: Bool
     public var vol: Int
-    public var night: Bool
-    public var level: Int
-    public var prog: Int
-    public var days: Int
-    public var hungry: Int
-    /// Agent, project, status (`wait`, `work` or `idle`).
-    public var threads: [[String]]
 
     public init(time: Int64, name: String, base: String, attn: Attention?, busy: Int, idle: Int, wait: Int,
-                mood: Mood, quiet: Int, focus: Bool, vol: Int, night: Bool, level: Int, prog: Int, days: Int,
-                hungry: Int, threads: [[String]]) {
+                quiet: Int, vol: Int) {
         self.time = time
         self.name = name
         self.base = base
@@ -71,16 +53,8 @@ public struct StateSnapshot: Equatable, Sendable {
         self.busy = busy
         self.idle = idle
         self.wait = wait
-        self.mood = mood
         self.quiet = quiet
-        self.focus = focus
         self.vol = vol
-        self.night = night
-        self.level = level
-        self.prog = prog
-        self.days = days
-        self.hungry = hungry
-        self.threads = threads
     }
 
     /// Equal apart from the clock, which changes every second.
@@ -99,13 +73,7 @@ public struct StateSnapshot: Equatable, Sendable {
         if let attn {
             parts.append("\"attn\":{\"agent\":\(json(attn.agent)),\"project\":\(json(attn.project)),\"more\":\(attn.more)}")
         }
-        parts += [
-            "\"busy\":\(busy)", "\"idle\":\(idle)", "\"wait\":\(wait)",
-            "\"mood\":{\"energy\":\(mood.energy),\"pace\":\(mood.pace),\"pitch\":\(mood.pitch)}",
-            "\"quiet\":\(quiet)", "\"focus\":\(focus)", "\"vol\":\(vol)", "\"night\":\(night)",
-            "\"level\":\(level)", "\"prog\":\(prog)", "\"days\":\(days)", "\"hungry\":\(hungry)",
-            "\"threads\":[" + threads.map { "[" + $0.map(json).joined(separator: ",") + "]" }.joined(separator: ",") + "]",
-        ]
+        parts += ["\"busy\":\(busy)", "\"idle\":\(idle)", "\"wait\":\(wait)", "\"quiet\":\(quiet)", "\"vol\":\(vol)"]
         return "{" + parts.joined(separator: ",") + "}"
     }
 

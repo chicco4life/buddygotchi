@@ -40,24 +40,21 @@ public final class Runtime: @unchecked Sendable {
     /// What the menu bar shows.
     public struct Status: Sendable {
         public var snapshot: StateSnapshot
+        /// Every session, for the popover's list.
+        public var sessions: [SessionSummary]
         public var connected: Bool
         public var device: DeviceStatus?
         public var brain: String
-        public var away: Bool
-        public var finished: Int
-        public var projects: Int
         /// The Mac's mic is on for push-to-talk.
         public var listening: Bool
 
-        public init(snapshot: StateSnapshot, connected: Bool, device: DeviceStatus?, brain: String, away: Bool,
-                    finished: Int, projects: Int, listening: Bool = false) {
+        public init(snapshot: StateSnapshot, sessions: [SessionSummary], connected: Bool, device: DeviceStatus?,
+                    brain: String, listening: Bool = false) {
             self.snapshot = snapshot
+            self.sessions = sessions
             self.connected = connected
             self.device = device
             self.brain = brain
-            self.away = away
-            self.finished = finished
-            self.projects = projects
             self.listening = listening
         }
     }
@@ -83,7 +80,7 @@ public final class Runtime: @unchecked Sendable {
     let core: Core
     let harness: Harness
     let say: SayAction
-    let face: FaceAction
+    let face: FacePlayer
     let lock: InstanceLock
     var server: HookServer?
     var timer: DispatchSourceTimer?
@@ -133,7 +130,7 @@ public final class Runtime: @unchecked Sendable {
         var config = Core.Config(name: longTerm.name, volume: settings.volume, time: options.time,
                                  seed: longTerm.seed ^ UInt64(now))
         config.name = longTerm.name
-        core = Core(config: config, growth: longTerm.growth, lastActiveDay: memory.lastActiveDay, now: now)
+        core = Core(config: config, lastActiveDay: memory.lastActiveDay)
 
         // Actions reach the rest through closures that are only ever called
         // on `home`, from the core's effects or the harness.
@@ -147,21 +144,20 @@ public final class Runtime: @unchecked Sendable {
                 let now = clock()
                 if moments.inRules > 0 {
                     link.play(moment)
-                    // As the device times it, with the mood the last state carried.
-                    moments.rulesUntil = max(moments.rulesUntil, now + moment.playMs(mood: core.currentMood(at: now)))
+                    // As the device times it.
+                    moments.rulesUntil = max(moments.rulesUntil, now + moment.playMs)
                     return
                 }
                 moments.held.append(moment)
-                Runtime.flushHeld(moments, link: link, clock: clock, home: home, followUps: { core.followUpsPending })
+                Runtime.flushHeld(moments, link: link, clock: clock, home: home)
             },
-            mood: { core.currentMood(at: clock()) },
             mumblesAllowed: { core.canMumble(at: clock()) },
             setQuiet: { route(core.setQuiet(minutes: $0, at: clock())) },
             today: { time.day(clock()) },
             log: log)
         let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: longTerm.seed)), memory: memory)
         say = actions.compactMap { $0 as? SayAction }.first!
-        face = actions.compactMap { $0 as? FaceAction }.first!
+        face = FacePlayer(context: context)
         let memory = self.memory
         harness = Harness(brain: Brains.make(options.brain ?? settings.brain, log: log), tools: actions.map(Harness.Tool.init),
                           memory: { memory.promptMemory(for: $0.kind) }, home: home, debugLog: options.debugLog,
@@ -169,13 +165,6 @@ public final class Runtime: @unchecked Sendable {
         // Tool names only: arguments can carry what you said (HARNESS.md §8).
         harness.onRecord = { record in log(record.logLine) }
         route = { [weak self] in self?.run($0) }
-        if settings.focus { _ = core.setFocus(true, at: now) }
-        if settings.away {
-            // Away keeps the day it started; an older settings file without
-            // that day starts it today and saves it.
-            _ = core.setAway(true, since: settings.awaySince, at: now)
-            if settings.awaySince != core.awaySince { saveSettings { $0.awaySince = core.awaySince } }
-        }
     }
 
     // MARK: Running
@@ -236,12 +225,6 @@ public final class Runtime: @unchecked Sendable {
         guard let event = Adapter.event(from: line, receivedAt: received, knownProject: projects[key]) else { return }
         projects[key] = event.project
         run(core.handle(event))
-        if event.event == .turnEnd {
-            saveSettings {
-                $0.finished += 1
-                if !$0.projects.contains(event.project) { $0.projects.append(event.project) }
-            }
-        }
     }
 
     func device(_ line: String) {
@@ -249,7 +232,6 @@ public final class Runtime: @unchecked Sendable {
         if case .input(let input) = link.receive(line, now: now) {
             options.log("device: input \(input.rawValue)")
             run(core.input(input, at: now))
-            if input == .focus { saveSettings { $0.focus = self.core.focus } }
         }
         changed()
     }
@@ -284,32 +266,29 @@ public final class Runtime: @unchecked Sendable {
             case .state(let snapshot):
                 link.update(snapshot, now: options.clock())
                 stateChanged = true
-            case .moment(let anim, let size):
-                face.play(anim, size: size)
+            case .moment(let anim):
+                face.play(anim)
             case .mumble(let feeling, let word):
                 var arguments: [String: ToolValue] = ["feeling": .string(feeling)]
                 if let word { arguments["word"] = .string(word) }
                 say.run(ToolCall("say", arguments))
             case .trigger(let trigger):
                 harness.submit(trigger)
-            case .happened, .growth, .newDay:
+            case .happened, .newDay:
                 memory.apply(effect)
             case .listen(let on):
                 onListen?(on)
                 listenChanged = true
             }
         }
-        if stateChanged, memory.shortTerm != nil { memory.setMood(core.moodWord(at: options.clock())) }
         if stateChanged || listenChanged { changed() }
     }
 
-    /// Sends the brain's held moments once the rules' moment and its
-    /// follow-ups are over, or checks again then (a newer rule moment pushes
-    /// them back). On `home`.
+    /// Sends the brain's held moments once the rules' moment is over, or
+    /// checks again then (a newer rule moment pushes them back). On `home`.
     static func flushHeld(_ moments: Moments, link: DeviceLink, clock: @escaping @Sendable () -> Int64,
-                          home: DispatchQueue, followUps: @escaping () -> Bool) {
-        // Follow-ups go out on the core's once-a-second tick; look again soon.
-        let wait = followUps() ? max(250, moments.rulesUntil - clock()) : moments.rulesUntil - clock()
+                          home: DispatchQueue) {
+        let wait = moments.rulesUntil - clock()
         if wait <= 0 {
             let held = moments.held
             moments.held = []
@@ -320,15 +299,16 @@ public final class Runtime: @unchecked Sendable {
             moments.flushDue = true
             home.asyncAfter(deadline: .now() + .milliseconds(Int(wait))) {
                 moments.flushDue = false
-                flushHeld(moments, link: link, clock: clock, home: home, followUps: followUps)
+                flushHeld(moments, link: link, clock: clock, home: home)
             }
         }
     }
 
     func changed() {
-        onChange?(Status(snapshot: link.latest ?? core.snapshot(at: options.clock()), connected: link.connected,
-                         device: link.status, brain: harness.brain.id, away: core.away,
-                         finished: settings.finished, projects: settings.projects.count, listening: core.listening != nil))
+        let now = options.clock()
+        onChange?(Status(snapshot: link.latest ?? core.snapshot(at: now), sessions: core.sessionList(at: now),
+                         connected: link.connected, device: link.status, brain: harness.brain.id,
+                         listening: core.listening != nil))
     }
 
     func talkNow(_ words: String) {
@@ -358,27 +338,9 @@ public final class Runtime: @unchecked Sendable {
         home.async { [self] in run(core.micFailed(at: options.clock())) }
     }
 
-    public func setFocus(_ on: Bool) {
-        home.async { [self] in
-            run(core.setFocus(on, at: options.clock()))
-            saveSettings { $0.focus = on }
-        }
-    }
-
     /// Drops the device link and looks for the device again now.
     public func reconnectDevice() {
         link.transport?.reconnect()
-    }
-
-    public func setAway(_ on: Bool) {
-        home.async { [self] in
-            run(core.setAway(on, at: options.clock()))
-            saveSettings {
-                $0.away = on
-                $0.awaySince = core.awaySince
-            }
-            changed()
-        }
     }
 
     public func setVolume(_ volume: Int) {

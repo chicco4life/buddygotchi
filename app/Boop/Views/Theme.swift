@@ -24,9 +24,9 @@ enum Palette {
     static let clay = "#C4574A", clayInkLight = "#9C3B2E", clayInkDark = "#F09384"
     static let rose = "#D4839B", roseInkLight = "#A35270", roseInkDark = "#EFB3C5"
 
-    /// The device's own colours (firmware `palette.h`): black glass, gen-2's
-    /// lavender-white eyes and its brighter amber, for the little face.
-    static let glass = "#000000", eye = "#DEDBFF", deviceAmber = "#FFB000"
+    /// The device's own colours (firmware `palette.h`): black glass, the
+    /// warm-white eyes, the pink cheeks and its brighter amber, for the little face.
+    static let glass = "#000000", eye = "#F6F4EE", blush = "#EC787C", deviceAmber = "#FFB000"
     /// The mic is on: macOS's own recording red, on the menu bar and the Talk button.
     static let recording = "#FF3B30"
 }
@@ -63,6 +63,7 @@ enum Theme {
 
     static let glass = Color(hex: Palette.glass)
     static let eye = Color(hex: Palette.eye)
+    static let blush = Color(hex: Palette.blush)
 
     // One spacing scale, so margins can't drift a point or two per view.
     static let gutter: CGFloat = 18

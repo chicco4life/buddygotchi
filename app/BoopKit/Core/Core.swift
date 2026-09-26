@@ -1,8 +1,8 @@
 import Foundation
 
 /// The core (ARCHITECTURE.md §3.2): plain rules with no queue. It keeps the
-/// session table and decides what the device shows, the rule reactions, XP,
-/// hunger, mood, quiet, focus and away, and which triggers reach the harness.
+/// session table and decides what the device shows, the rule reactions,
+/// quiet, and which triggers reach the harness.
 ///
 /// It's a pure state machine: every call takes the time and returns effects
 /// for the app to carry out. Call `tick` about once a second for the timers.
@@ -55,31 +55,15 @@ public final class Core {
     }
 
     public private(set) var config: Config
-    public private(set) var growth: Growth
-    public private(set) var focus = false
-    public private(set) var away = false
 
     var sessions: [String: Session] = [:]
     var nextOrder = 0
     var rng: SplitMix64
-    var mood = MoodState()
     var quietUntil: Int64 = 0
-    /// The day "I'm away" started; the app keeps it in its settings so a
-    /// restart doesn't restart the pause.
-    public private(set) var awaySince: String?
-    /// The last day with any activity; a new one starts the day's rituals.
+    /// The last day with any activity; a new one starts the reflection on
+    /// the day before.
     var lastActiveDay: String?
     var lastPublished: StateSnapshot?
-
-    // Rule moments.
-    struct Scheduled { var at: Int64; var anim: String; var size: Int }
-    var scheduled: [Scheduled] = []
-    /// Follow-up moments still to play (`side_eye` after `oops`, `yawn`
-    /// after `stretch`, `gobble`); the brain's moments wait for them.
-    public var followUpsPending: Bool { !scheduled.isEmpty }
-    var lastMomentAt: Int64 = -1_000_000
-    var lastFinish: (at: Int64, size: Int)?
-    var levelUpPending = false
     var nextChatterAt: Int64?
 
     // Trigger merging.
@@ -96,13 +80,11 @@ public final class Core {
     public private(set) var listening: (by: Talker, since: Int64)?
 
     /// `lastActiveDay` is today's date from `short-term.md`, if there is one,
-    /// so a restart doesn't replay the morning.
-    public init(config: Config, growth: Growth, lastActiveDay: String? = nil, now: Int64) {
+    /// so a restart doesn't start the day again.
+    public init(config: Config, lastActiveDay: String? = nil) {
         self.config = config
-        self.growth = growth
         self.lastActiveDay = lastActiveDay
         rng = SplitMix64(seed: config.seed)
-        mood.updated = now
     }
 
     static func key(_ agent: Agent, _ id: String) -> String { agent.rawValue + "/" + id }
@@ -188,7 +170,7 @@ public final class Core {
     }
 
     public enum Input: String, Sendable {
-        case tap, talkOn = "talk_on", talkOff = "talk_off", focus, feel
+        case tap, talkOn = "talk_on", talkOff = "talk_off"
     }
 
     /// An `input` message from the device. The device has already reacted.
@@ -206,12 +188,6 @@ public final class Core {
             startListening(by: .device, now, &fx)
         case .talkOff:
             stopListening(now, face: nil, &fx)
-        case .focus:
-            focus.toggle()
-        case .feel:
-            if mumblesAllowed(now) {
-                fx.append(.mumble(feeling: heldFeeling(now), word: nil))
-            }
         }
         publish(now, &fx)
         return fx
@@ -236,7 +212,7 @@ public final class Core {
         if on {
             if listening == nil {
                 startListening(by: .app, now, &fx)
-                play("listening", 1, now, &fx)
+                play("listening", &fx)
             }
         } else {
             stopListening(now, face: listening?.by == .app ? "thinking" : nil, &fx)
@@ -272,35 +248,6 @@ public final class Core {
     }
 
     @discardableResult
-    public func setFocus(_ on: Bool, at now: Int64) -> [CoreEffect] {
-        focus = on
-        var fx: [CoreEffect] = []
-        publish(now, &fx)
-        return fx
-    }
-
-    /// "I'm away" pauses hunger. `since` is the day an away period saved
-    /// before a restart started, so the pause keeps counting from it.
-    @discardableResult
-    public func setAway(_ on: Bool, since: String? = nil, at now: Int64) -> [CoreEffect] {
-        var fx: [CoreEffect] = []
-        let today = config.time.day(now)
-        if on && !away {
-            awaySince = since.flatMap { LocalTime.isDay($0) ? min($0, today) : nil } ?? today
-        } else if !on && away, let since = awaySince {
-            // Only the away days since the last meal are paused: XP earned
-            // while away already moved lastFed past the start.
-            let paused = LocalTime.daysBetween(max(since, growth.lastFed), today)
-            if paused > 0 { growth.lastFed = LocalTime.day(growth.lastFed, plus: paused) }
-            awaySince = nil
-            fx.append(.growth(growth))
-        }
-        away = on
-        publish(now, &fx)
-        return fx
-    }
-
-    @discardableResult
     public func setVolume(_ volume: Int, at now: Int64) -> [CoreEffect] {
         config.volume = max(0, min(10, volume))
         var fx: [CoreEffect] = []
@@ -309,8 +256,7 @@ public final class Core {
     }
 
     /// Timers: the Codex grace period, the safety net, quiet running out,
-    /// follow-up moments, merged triggers, chatter, level-ups and the
-    /// push-to-talk limit.
+    /// merged triggers, chatter and the push-to-talk limit.
     @discardableResult
     public func tick(at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
@@ -326,49 +272,37 @@ public final class Core {
 
     // MARK: - Reading
 
-    public func snapshot(at now: Int64) -> StateSnapshot {
-        let visible = sessions.values.filter { $0.needsSince != nil }.sorted { ($0.needsSince!, $0.order) < ($1.needsSince!, $1.order) }
+    /// The sessions in the order the popover lists them: those that need
+    /// you (oldest first), then working, then idle.
+    func grouped(at now: Int64) -> (waiting: [Session], working: [Session], idle: [Session]) {
+        let waiting = sessions.values.filter { $0.needsSince != nil }.sorted { ($0.needsSince!, $0.order) < ($1.needsSince!, $1.order) }
         let working = sessions.values.filter { $0.needsSince == nil && isWorking($0, now) }.sorted { $0.order < $1.order }
         let idle = sessions.values.filter { $0.needsSince == nil && !isWorking($0, now) }.sorted { $0.order < $1.order }
-        let night = config.time.isNight(now)
-        let base: String
-        if !working.isEmpty {
-            base = "working"
-        } else if sessions.isEmpty || (night && visible.isEmpty) {
-            base = "asleep"
-        } else {
-            base = "idle"
+        return (waiting, working, idle)
+    }
+
+    public func snapshot(at now: Int64) -> StateSnapshot {
+        let (waiting, working, idle) = grouped(at: now)
+        let base = !working.isEmpty ? "working" : sessions.isEmpty ? "asleep" : "idle"
+        let attn = waiting.first.map {
+            StateSnapshot.Attention(agent: $0.agent.short, project: StateSnapshot.clip($0.project), more: waiting.count - 1)
         }
-        let attn = visible.first.map {
-            StateSnapshot.Attention(agent: $0.agent.short, project: StateSnapshot.clip($0.project), more: visible.count - 1)
-        }
-        let rows = visible.map { [$0.agent.short, StateSnapshot.clip($0.project), "wait"] }
-            + working.map { [$0.agent.short, StateSnapshot.clip($0.project), "work"] }
-            + idle.map { [$0.agent.short, StateSnapshot.clip($0.project), "idle"] }
-        let hunger = hungerNow(now)
-        var snapshot = StateSnapshot(
+        return StateSnapshot(
             time: now / 1000, name: StateSnapshot.clip(config.name), base: base, attn: attn,
-            busy: working.count, idle: idle.count, wait: visible.count,
-            mood: mood.mood(at: now, night: night, hunger: hunger),
-            quiet: quietLeft(now), focus: focus, vol: config.volume, night: night,
-            level: growth.level, prog: growth.progress, days: growth.days(today: config.time.day(now)),
-            hungry: hunger.rawValue, threads: Array(rows.prefix(StateSnapshot.maxThreads)))
-        snapshot.fit()
-        return snapshot
+            busy: working.count, idle: idle.count, wait: waiting.count,
+            quiet: quietLeft(now), vol: config.volume)
     }
 
-    /// Energy, pace and pitch now, for Voice's tempo.
-    public func currentMood(at now: Int64) -> Mood {
-        mood.mood(at: now, night: config.time.isNight(now), hunger: hungerNow(now))
+    /// Every session, for the popover's list (UX.md §7). The device doesn't
+    /// get these.
+    public func sessionList(at now: Int64) -> [SessionSummary] {
+        let (waiting, working, idle) = grouped(at: now)
+        return waiting.map { SessionSummary($0, .waiting) } + working.map { SessionSummary($0, .working) }
+            + idle.map { SessionSummary($0, .idle) }
     }
 
-    /// False in quiet or focus mode, or while something needs you.
+    /// False in quiet mode, or while something needs you.
     public func canMumble(at now: Int64) -> Bool { mumblesAllowed(now) }
-
-    /// How `short-term.md` describes Boop's mood right now.
-    public func moodWord(at now: Int64) -> String {
-        mood.word(at: now, night: config.time.isNight(now), hunger: hungerNow(now))
-    }
 
     // MARK: - Rules
 
@@ -387,60 +321,22 @@ public final class Core {
         quietUntil > now ? Int((quietUntil - now + 59_999) / 60_000) : 0
     }
 
-    func hungerNow(_ now: Int64) -> Growth.Hunger {
-        growth.hunger(today: awaySince ?? config.time.day(now))
-    }
-
-    func feeling(_ now: Int64) -> String {
-        mood.feeling(at: now, night: config.time.isNight(now), hunger: hungerNow(now))
-    }
-
-    /// The reply to a touch and hold. The device has already shown a face
-    /// from the `state` it was sent (firmware `Behaviour::feel`); this picks
-    /// the feeling whose `say` face is that same face, from the same mood,
-    /// hunger and night, so the reply doesn't change it.
-    func heldFeeling(_ now: Int64) -> String {
-        let night = config.time.isNight(now)
-        let hunger = hungerNow(now)
-        let energy = mood.mood(at: now, night: night, hunger: hunger).energy
-        if hunger == .starving { return "sad" }       // worried
-        if hunger == .hungry { return "curious" }     // curious
-        if night || energy < 60 { return "sleepy" }   // sleepy
-        if energy >= 140 { return "hopeful" }         // love
-        return "happy"                                // happy
-    }
-
-    /// Mumbles never play in quiet or focus mode, or while something needs you.
+    /// Mumbles never play in quiet mode, or while something needs you.
     func mumblesAllowed(_ now: Int64) -> Bool {
-        quietLeft(now) == 0 && !focus && !needsYouShowing
+        quietLeft(now) == 0 && !needsYouShowing
     }
 
-    /// The first activity of a new day: stretch, yawn, +5 XP, and the daily
-    /// reflection on yesterday.
+    /// The first activity of a new day: short-term memory starts fresh, and
+    /// the daily reflection on yesterday.
     func startDayIfNew(_ now: Int64, _ fx: inout [CoreEffect]) {
         let today = config.time.day(now)
         guard today != lastActiveDay else { return }
         let yesterday = lastActiveDay
         lastActiveDay = today
-        fx.append(.newDay(date: today, firstSeen: config.time.clock(now), mood: moodWord(at: now)))
+        fx.append(.newDay(date: today, firstSeen: config.time.clock(now)))
         if let yesterday {
             fx.append(.trigger(Trigger(kind: .reflect, line: "reflect · yesterday \(yesterday)", ts: now)))
         }
-        play("stretch", 1, now, &fx)
-        scheduled.append(Scheduled(at: now + 1400, anim: "yawn", size: 1))
-        feed(Growth.dailyXP, now, after: now + 3000, &fx)
-    }
-
-    /// Adds XP; a first meal after being hungry plays `gobble` once `after`.
-    func feed(_ xp: Int, _ now: Int64, after: Int64, _ fx: inout [CoreEffect]) {
-        let wasHungry = hungerNow(now) >= .hungry
-        if growth.earn(xp, today: config.time.day(now)) {
-            levelUpPending = true
-        }
-        if wasHungry {
-            scheduled.append(Scheduled(at: after, anim: "gobble", size: 1))
-        }
-        fx.append(.growth(growth))
     }
 
     func startListening(by talker: Talker, _ now: Int64, _ fx: inout [CoreEffect]) {
@@ -454,36 +350,18 @@ public final class Core {
         guard listening != nil else { return }
         listening = nil
         fx.append(.listen(false))
-        if let face { play(face, 1, now, &fx) }
+        if let face { play(face, &fx) }
     }
 
-    /// Plays a rule moment now. Follow-ups from an earlier one are dropped,
-    /// since the device replaces a playing moment anyway.
-    func play(_ anim: String, _ size: Int, _ now: Int64, _ fx: inout [CoreEffect]) {
-        scheduled.removeAll()
-        lastMomentAt = now
-        fx.append(.moment(anim: anim, size: size))
+    /// Plays a rule moment now. The device replaces one that's playing.
+    func play(_ anim: String, _ fx: inout [CoreEffect]) {
+        fx.append(.moment(anim: anim))
     }
 
-    /// A finished turn: a cheer sized by how long it took, even while other
-    /// sessions are still working. Several at once make one cheer at the
-    /// biggest size.
+    /// A finished turn: a cheer, even while other sessions are still
+    /// working (BEHAVIORS.md §3.1).
     func finished(_ s: Session, durationMs ms: Int64, _ now: Int64, _ fx: inout [CoreEffect]) {
-        let size: Int
-        switch ms {
-        case ..<300_000: size = 1
-        case ..<1_200_000: size = 2
-        default: size = 3
-        }
-        let burst = lastFinish.map { now - $0.at < config.mergeMs } ?? false
-        if !burst || size > lastFinish!.size {
-            play("cheer", size, now, &fx)
-            lastFinish = (now, burst ? max(size, lastFinish!.size) : size)
-        } else {
-            lastFinish = (now, lastFinish!.size)
-        }
-        mood.win(quick: ms < 300_000, at: now)
-        feed(Growth.turnXP, now, after: now + 1600, &fx)
+        play("cheer", &fx)
         if ms >= 30_000 {
             fx.append(.happened("\(config.time.clock(now)) \(s.agent.short) · \(s.project) · finished (\(took(ms)))"))
         }
@@ -493,12 +371,9 @@ public final class Core {
         eventTrigger("turn finished", s, extra: extra, rank: ms >= 300_000 ? 3 : 2, now, &fx)
     }
 
-    /// A failed turn: `oops`, then a side-eye at the agent.
+    /// A failed turn: no moment of its own (BEHAVIORS.md §3.1); the brain
+    /// may sass the agent.
     func failed(_ s: Session, durationMs ms: Int64, error: String?, _ now: Int64, _ fx: inout [CoreEffect]) {
-        play("oops", 1, now, &fx)
-        scheduled.append(Scheduled(at: now + 1400, anim: "side_eye", size: 1))
-        lastFinish = nil
-        mood.fail(at: now)
         let topic = s.topic.map { " · \($0)" } ?? ""
         fx.append(.happened("\(config.time.clock(now)) \(s.agent.short) · \(s.project)\(topic) · failed"))
         var extra: [String] = []
@@ -512,13 +387,7 @@ public final class Core {
     }
 
     func timeLine(_ now: Int64) -> String {
-        var line = "\(config.time.clock(now)) \(config.time.weekday(now))"
-        switch hungerNow(now) {
-        case .fed: break
-        case .hungry: line += " · hungry"
-        case .starving: line += " · starving"
-        }
-        return line
+        "\(config.time.clock(now)) \(config.time.weekday(now))"
     }
 
     func eventTrigger(_ what: String, _ s: Session, extra: [String], rank: Int, _ now: Int64,
@@ -527,10 +396,10 @@ public final class Core {
         offer(Trigger(kind: .event, line: line, ts: now), rank: rank, now, &fx)
     }
 
-    /// While something needs you, and in quiet or focus mode, only `talk` and
-    /// the daily reflection reach the harness.
+    /// While something needs you, and in quiet mode, only `talk` and the
+    /// daily reflection reach the harness.
     func triggersAllowed(_ now: Int64) -> Bool {
-        !needsYouShowing && quietLeft(now) == 0 && !focus
+        !needsYouShowing && quietLeft(now) == 0
     }
 
     /// Sends a trigger now, or holds it to merge with the burst it's part of.
@@ -575,24 +444,6 @@ public final class Core {
         }
         if quietUntil != 0 && quietUntil <= now { quietUntil = 0 }
 
-        let today = awaySince ?? config.time.day(now)
-        if growth.starve(today: today) { fx.append(.growth(growth)) }
-
-        // Follow-up moments.
-        while let first = scheduled.min(by: { $0.at < $1.at }), first.at <= now {
-            scheduled.removeAll { $0.at == first.at && $0.anim == first.anim }
-            lastMomentAt = first.at
-            fx.append(.moment(anim: first.anim, size: first.size))
-        }
-
-        // A level-up plays at the next calm moment.
-        if levelUpPending && scheduled.isEmpty && !needsYouShowing && now - lastMomentAt >= 3000 {
-            levelUpPending = false
-            lastMomentAt = now
-            fx.append(.moment(anim: "levelup", size: 1))
-            fx.append(.happened("\(config.time.clock(now)) reached level \(growth.level)"))
-        }
-
         // Merged triggers.
         if let held = heldTrigger, now - lastTriggerAt >= config.mergeMs {
             heldTrigger = nil
@@ -607,9 +458,9 @@ public final class Core {
         chatter(now, &fx)
     }
 
-    /// Working chatter: every 2–4 minutes while agents work, a mumble from
-    /// Boop's mood, about half the time with the session's latest topic.
-    /// Slower when tired or at night.
+    /// Working chatter (BEHAVIORS.md §2): every 2–4 minutes while agents
+    /// work, a mumble. About half the time it asks about a working session's
+    /// latest topic (`curious`); otherwise it's `happy`, with no word.
     func chatter(_ now: Int64, _ fx: inout [CoreEffect]) {
         let working = sessions.values.filter { isWorking($0, now) && $0.needsSince == nil }
         guard !working.isEmpty else {
@@ -625,15 +476,11 @@ public final class Core {
         guard mumblesAllowed(now) else { return }
         let topics = working.sorted { $0.order < $1.order }.compactMap(\.topic)
         let word = !topics.isEmpty && rng.chance(50) ? topics[rng.int(in: 0...(topics.count - 1))] : nil
-        fx.append(.mumble(feeling: feeling(now), word: word))
+        fx.append(.mumble(feeling: word == nil ? "happy" : "curious", word: word))
     }
 
     func chatterGap(_ now: Int64) -> Int64 {
-        var gap = Int64(rng.int(in: config.chatterMs))
-        let m = mood.mood(at: now, night: config.time.isNight(now), hunger: hungerNow(now))
-        if m.energy < 70 { gap = gap * 3 / 2 }
-        if config.time.isNight(now) { gap = gap * 3 / 2 }
-        return gap
+        Int64(rng.int(in: config.chatterMs))
     }
 
     func publish(_ now: Int64, _ fx: inout [CoreEffect]) {
@@ -642,5 +489,25 @@ public final class Core {
         lastPublished = snapshot
         // The picture changes before any moment plays on top of it.
         fx.insert(.state(snapshot), at: 0)
+    }
+}
+
+/// One session as the popover lists it.
+public struct SessionSummary: Equatable, Sendable {
+    public enum Status: String, Sendable { case waiting, working, idle }
+
+    /// `claude` or `codex`.
+    public var agent: String
+    public var project: String
+    public var status: Status
+
+    public init(agent: String, project: String, status: Status) {
+        self.agent = agent
+        self.project = project
+        self.status = status
+    }
+
+    init(_ s: Core.Session, _ status: Status) {
+        self.init(agent: s.agent.short, project: s.project, status: status)
     }
 }

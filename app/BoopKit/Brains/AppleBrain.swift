@@ -8,7 +8,7 @@ import FoundationModels
 /// PLAN.md §1), so every answer already matches the tools' choices:
 ///
 ///     Answer { react: "stay quiet" | "react",
-///              calls: [≤ 3 of: say {tool: "say", feeling: "none" | …, word: "none" | …} | face {…} | …] }
+///              calls: [≤ 3 of: say {tool: "say", feeling: "none" | …, word: "none" | …} | quiet {…} | …] }
 ///
 /// A leading `react` choice makes staying quiet an easy first decision; the
 /// brain turns `stay quiet` into no calls. Every choice also starts with

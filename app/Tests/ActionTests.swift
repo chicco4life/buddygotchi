@@ -9,17 +9,19 @@ final class ActionRig {
     var logs: [String] = []
     var allowed = true
     var actions: [String: Action] = [:]
+    var face: FacePlayer!
     let memory: MemoryStore
 
     init(memory: MemoryStore) {
         self.memory = memory
         let context = ActionContext(
-            send: { [unowned self] in self.sent.append($0) }, mood: { Mood() },
+            send: { [unowned self] in self.sent.append($0) },
             mumblesAllowed: { [unowned self] in self.allowed }, setQuiet: { [unowned self] in self.quiet.append($0) },
             today: { "2026-10-15" }, log: { [unowned self] in self.logs.append($0) })
         for action in Actions.all(context: context, voice: Voice(dialect: Dialect(seed: 0x7f3a)), memory: memory) {
             actions[action.name] = action
         }
+        face = FacePlayer(context: context)
     }
 
     @discardableResult
@@ -27,8 +29,6 @@ final class ActionRig {
         guard let action = actions[call.name] else { return .dropped("no such action") }
         return action.run(call)
     }
-
-    var face: FaceAction { actions["face"] as! FaceAction }
 }
 
 final class ActionTests: XCTestCase {
@@ -40,9 +40,9 @@ final class ActionTests: XCTestCase {
         rig = ActionRig(memory: memory.store)
     }
 
-    func testThereAreEightActionsEachWithItsDefinition() {
+    func testThereAreSevenActionsEachWithItsDefinition() {
         XCTAssertEqual(Set(rig.actions.keys),
-                       ["say", "face", "quiet", "note", "remember", "forget", "temperament", "moment"])
+                       ["say", "quiet", "note", "remember", "forget", "temperament", "moment"])
         for kind in [Trigger.Kind.event, .tap, .talk, .reflect] {
             for tool in kind.tools { XCTAssertNotNil(rig.actions[tool], tool) }
         }
@@ -63,17 +63,22 @@ final class ActionTests: XCTestCase {
         }
     }
 
-    func testSaySendsAMumbleWithItsFace() throws {
+    /// PROTOCOL.md §3: a mumble is a moment with only `say`, so it plays
+    /// over whatever face is showing.
+    func testSaySendsAMumbleWithNoFace() throws {
         let outcome = rig.run(ToolCall("say", ["feeling": .string("proud"), "word": .string("finally")]))
         XCTAssertTrue(outcome.isDone)
         let moment = try XCTUnwrap(rig.sent.last)
-        XCTAssertEqual(moment.anim, "proud")
+        XCTAssertNil(moment.anim)
         XCTAssertEqual(moment.say?.word, "finally")
         XCTAssertEqual(moment.say?.tune, .lift)
+        XCTAssertFalse(moment.jsonLine.contains("anim"))
         XCTAssertTrue(moment.jsonLine.utf8.count <= 512)
-        rig.run(ToolCall("say", ["feeling": .string("sleepy")]))
-        XCTAssertEqual(rig.sent.last?.anim, "sleepy")
-        XCTAssertNil(rig.sent.last?.say?.word)
+        for feeling in Feeling.allCases {
+            rig.run(ToolCall("say", ["feeling": .string(feeling.rawValue)]))
+            XCTAssertNil(rig.sent.last?.anim, feeling.rawValue)
+            XCTAssertNil(rig.sent.last?.say?.word)
+        }
     }
 
     func testSayDropsWhatItCantSay() {
@@ -101,23 +106,20 @@ final class ActionTests: XCTestCase {
         XCTAssertEqual(rig.logs.count, 1)
     }
 
-    func testFacePicksOnlyFacesButRulesPlayAnything() {
-        XCTAssertTrue(rig.run(ToolCall("face", ["name": .string("side_eye")])).isDone)
-        XCTAssertEqual(rig.sent.last, DeviceMoment(anim: "side_eye"))
-        XCTAssertFalse(rig.run(ToolCall("face", ["name": .string("cheer")])).isDone)  // a rule's animation
-        XCTAssertFalse(rig.run(ToolCall("face", ["name": .string("dance")])).isDone)
-        XCTAssertTrue(rig.face.play("cheer", size: 3).isDone)
-        XCTAssertEqual(rig.sent.last, DeviceMoment(anim: "cheer", size: 3))
-        XCTAssertFalse(rig.face.play("dance", size: 1).isDone)
-        XCTAssertFalse(rig.face.play("cheer", size: 4).isDone)
-        XCTAssertEqual(rig.sent.count, 2)
-        XCTAssertEqual(rig.logs.count, 4)
-    }
-
-    func testFaceKnowsTheDevicesAnimations() {
-        // firmware/src/render/anim.cpp's names, less "none".
-        XCTAssertEqual(FaceAction.anims.count, 22)
-        XCTAssertTrue(Set(SayAction.faces.values).isSubset(of: FaceAction.anims))
+    /// BEHAVIORS.md §5: the rules play only the six animations; the brain
+    /// has no `face` tool.
+    func testRulesPlayOnlyTheSixAnimations() {
+        XCTAssertEqual(FacePlayer.anims, ["cheer", "nod", "wiggle", "listening", "thinking", "shrug"])
+        for anim in FacePlayer.anims {
+            XCTAssertTrue(rig.face.play(anim).isDone, anim)
+            XCTAssertEqual(rig.sent.last, DeviceMoment(anim: anim))
+        }
+        for gone in ["oops", "side_eye", "stretch", "yawn", "gobble", "levelup", "happy", "dance"] {
+            XCTAssertFalse(rig.face.play(gone).isDone, gone)
+        }
+        XCTAssertEqual(rig.sent.count, 6)
+        XCTAssertEqual(rig.logs.count, 8)
+        XCTAssertNil(rig.actions["face"])
     }
 
     func testQuietTellsTheCore() {
@@ -173,7 +175,7 @@ final class ActionTests: XCTestCase {
     }
 
     func testACallToTheWrongActionIsDropped() {
-        XCTAssertEqual(rig.actions["say"]!.run(ToolCall("face", ["name": .string("happy")])), .dropped("sent to say"))
+        XCTAssertEqual(rig.actions["say"]!.run(ToolCall("quiet", ["minutes": .number(30)])), .dropped("sent to say"))
     }
 
     func testToolCallsReadNaturally() {

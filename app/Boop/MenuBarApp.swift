@@ -94,22 +94,11 @@ final class AppModel: ObservableObject {
         remembered.removeAll { $0 == line }
     }
 
-    // The switches show the change at once; the runtime's next status confirms it.
-
-    func setFocus(_ on: Bool) {
-        status?.snapshot.focus = on
-        runtime?.setFocus(on)
-    }
-
     func reconnectDevice() {
         runtime?.reconnectDevice()
     }
 
-    func setAway(_ on: Bool) {
-        status?.away = on
-        runtime?.setAway(on)
-    }
-
+    /// The slider shows the change at once; the runtime's next status confirms it.
     func setVolume(_ volume: Int) {
         guard status?.snapshot.vol != volume else { return }
         status?.snapshot.vol = volume

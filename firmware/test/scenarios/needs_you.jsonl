@@ -1,39 +1,34 @@
-// Needs you (UX.md §3, BEHAVIORS.md §3.2): who, +N more, and the lean at each rung.
+// Needs you (UX.md §3, BEHAVIORS.md §3.2): who, +N more, one chirp per
+// request, amber at half until it's answered.
 {"clock":0}
 {"t":"state","v":1,"base":"working","busy":2}
 {"clock":1000}
-{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":0},"busy":1,"idle":0,"wait":1,"threads":[["codex","landing","wait"],["claude","jetpack","work"],["codex","buddygotchi","work"],["claude","notes","idle"]]}
+{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":0},"busy":1,"idle":0,"wait":1}
 {"clock":1100}
-{"expect":{"screen":"needs_you","rung":1,"attn":{"agent":"codex","project":"landing"}}}
-{"shot":"rung1-blend"}
+{"expect":{"screen":"needs_you","attn":{"agent":"codex","project":"landing"},"led":"#805800","bl":255,"sfx":{"k":"chirp","at":1000}}}
+{"shot":"blend"}
 {"clock":1500}
-{"shot":"rung1"}
+{"shot":"needs-you"}
+// The same request again doesn't chirp again, and nothing grows.
 {"clock":20000}
-{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":0},"busy":1,"idle":0,"wait":1,"threads":[["codex","landing","wait"],["claude","jetpack","work"],["codex","buddygotchi","work"],["claude","notes","idle"]]}
-{"clock":45999}
-{"expect":{"rung":1}}
+{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":0},"busy":1,"idle":0,"wait":1}
 {"clock":40000}
-{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":0},"busy":1,"idle":0,"wait":1,"threads":[["codex","landing","wait"],["claude","jetpack","work"],["codex","buddygotchi","work"],["claude","notes","idle"]]}
-{"clock":46000}
-{"expect":{"rung":2}}
-{"shot":"rung2"}
+{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":1},"busy":1,"idle":0,"wait":2}
 {"clock":60000}
-{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":0},"busy":1,"idle":0,"wait":1,"threads":[["codex","landing","wait"],["claude","jetpack","work"],["codex","buddygotchi","work"],["claude","notes","idle"]]}
-{"clock":90000}
-{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":0},"busy":1,"idle":0,"wait":1,"threads":[["codex","landing","wait"],["claude","jetpack","work"],["codex","buddygotchi","work"],["claude","notes","idle"]]}
-{"clock":115000}
-{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":0},"busy":1,"idle":0,"wait":1,"threads":[["codex","landing","wait"],["claude","jetpack","work"],["codex","buddygotchi","work"],["claude","notes","idle"]]}
+{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":1},"busy":1,"idle":0,"wait":2}
+{"clock":80000}
+{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":1},"busy":1,"idle":0,"wait":2}
+{"clock":100000}
+{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":1},"busy":1,"idle":0,"wait":2}
 {"clock":121000}
-{"expect":{"rung":3}}
-{"shot":"rung3"}
-{"t":"state","v":1,"base":"working","attn":{"agent":"codex","project":"landing","more":1},"busy":1,"idle":0,"wait":2,"threads":[["codex","landing","wait"],["claude","jetpack","work"],["codex","buddygotchi","work"],["claude","notes","idle"]]}
-{"clock":121500}
+{"expect":{"screen":"needs_you","led":"#805800","sfx":{"k":"chirp","at":1000}}}
 {"shot":"plus-one-more"}
+// A different request chirps once more.
 {"t":"state","v":1,"base":"working","attn":{"agent":"claude","project":"a-very-long-project-name","more":0},"busy":1,"wait":1}
 {"clock":122000}
-{"expect":{"rung":1}}
+{"expect":{"sfx":{"k":"chirp","at":121000}}}
 {"shot":"long-project"}
 {"t":"state","v":1,"base":"working","busy":2,"wait":0}
 {"clock":122200}
-{"expect":{"screen":"face","attn":null,"rung":0}}
+{"expect":{"screen":"face","attn":null,"moment":{"anim":"nod"},"led":"#000000"}}
 {"shot":"cleared"}

@@ -1,4 +1,4 @@
-// Expressions and the animation set (plan/BEHAVIORS.md §7) as poses over
+// The looks and the animation set (plan/BEHAVIORS.md §2, §5) as poses over
 // time, plus the eased, interruptible blend between whatever is showing and
 // whatever should show next. Everything is a function of the clock, so a
 // frozen clock gives the same frame on the board and in the simulator.
@@ -13,41 +13,25 @@ enum class Anim : uint8_t {
   kNone,
   kNod,
   kCheer,
-  kOops,
-  kSideEye,
   kWiggle,
-  kStretch,
-  kYawn,
   kListening,
   kThinking,
   kShrug,
-  kZip,
-  kGobble,
-  kRumble,
-  kLevelup,
-  kHappy,
-  kProud,
-  kSmug,
-  kCurious,
-  kSleepy,
-  kWorried,
-  kSulky,
-  kLove,
   kCount,
 };
 
 Anim animFromName(const char* name);  // kNone if unknown
 const char* animName(Anim a);
-// How long a moment plays, in ms. Size is 1..3.
-uint32_t animDuration(Anim a, int size);
+// How long a moment plays, in ms.
+uint32_t animDuration(Anim a);
 // The pose `t` ms into the animation.
-Pose animPose(Anim a, int size, uint32_t t);
+Pose animPose(Anim a, uint32_t t);
 
 // What the face shows when no moment plays.
 enum class Look : uint8_t { kIdle, kWorking, kAsleep, kNoApp, kNeedsYou };
 const char* lookName(Look look);
-// `rung` is the needs-you ladder step (1..3); `busy` the working count.
-Pose lookPose(Look look, int rung, int busy);
+// `busy` is the working count.
+Pose lookPose(Look look, int busy);
 
 // The longest blend between two expressions (plan/UX.md §2).
 constexpr uint32_t kBlendMs = 150;

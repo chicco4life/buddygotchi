@@ -1,16 +1,16 @@
 import Foundation
 
 /// A `moment` message: something for the device to play once (PROTOCOL.md §3).
+/// A rule moment has an `anim`; a mumble has only `say`, which plays over
+/// whatever face is showing.
 public struct DeviceMoment: Equatable, Sendable {
-    public var anim: String
-    public var size: Int
+    public var anim: String?
     public var say: VoiceLine?
     /// Seconds; the device skips it if it can't start in time.
     public var ttl: Int
 
-    public init(anim: String, size: Int = 1, say: VoiceLine? = nil, ttl: Int = 5) {
+    public init(anim: String? = nil, say: VoiceLine? = nil, ttl: Int = 5) {
         self.anim = anim
-        self.size = size
         self.say = say
         self.ttl = ttl
     }
@@ -18,34 +18,22 @@ public struct DeviceMoment: Equatable, Sendable {
     /// Bubble time after the last syllable (firmware `kBubbleReadMs`).
     static let bubbleReadMs: Int64 = 1200
 
-    /// How long the device plays it, given the mood in the last `state` it
-    /// was sent, worked out as firmware/src/app/behaviour.cpp's `onMoment`
-    /// and `play` do: a cheer is a size smaller when energy is under 60 and
-    /// a size bigger at 140 or more; the animation's length
-    /// (`animDuration` in firmware/src/render/anim.cpp) is scaled by 100 ÷
-    /// pace, with pace held to 70–140; and a mumble lasts its syllables,
-    /// plus two beats for a word, at 60–400 ms each, then 1.2 s for the
-    /// bubble, when that's longer. `listening` and `thinking` count as 0:
-    /// the device holds them until something replaces them.
-    public func playMs(mood: Mood) -> Int64 {
-        var size = Swift.max(1, Swift.min(3, self.size))
-        if anim == "cheer" {
-            if mood.energy < 60 { size = Swift.max(1, size - 1) }
-            if mood.energy >= 140 { size = Swift.min(3, size + 1) }
-        }
-        let base: Int64 = switch anim {
-        case "listening", "thinking": 0
+    /// How long the device plays it, worked out as
+    /// firmware/src/app/behaviour.cpp's `onMoment` and `play` do: the
+    /// animation's length (`animDuration` in firmware/src/render/anim.cpp),
+    /// and a mumble lasts its syllables, plus two beats for a word, at
+    /// 60–400 ms each, then 1.2 s for the bubble, when that's longer.
+    /// `listening` and `thinking` count as 0: the device holds them until
+    /// something replaces them.
+    public var playMs: Int64 {
+        var ms: Int64 = switch anim {
+        case nil, "listening", "thinking": 0
         case "nod": 600
-        case "cheer": 2000 + Int64(size - 1) * 400
-        case "oops", "stretch": 1400
-        case "side_eye", "yawn": 1600
+        case "cheer": 2000
         case "wiggle": 700
         case "shrug": 1200
-        case "zip", "gobble", "rumble": 1500
-        case "levelup": 2400
         default: 2500
         }
-        var ms = base * 100 / Int64(Swift.max(70, Swift.min(140, mood.pace)))
         if let say, say.syllableCount > 0 {
             let beats = Int64(say.syllableCount + (say.word?.isEmpty == false ? 2 : 0))
             ms = Swift.max(ms, beats * Int64(Swift.max(60, Swift.min(400, say.ms))) + DeviceMoment.bubbleReadMs)
@@ -54,7 +42,8 @@ public struct DeviceMoment: Equatable, Sendable {
     }
 
     public var jsonLine: String {
-        var parts = ["\"t\":\"moment\"", "\"anim\":\"\(anim)\"", "\"size\":\(size)"]
+        var parts = ["\"t\":\"moment\""]
+        if let anim { parts.append("\"anim\":\"\(anim)\"") }
         if let say { parts.append("\"say\":" + say.json) }
         parts.append("\"ttl\":\(ttl)")
         return "{" + parts.joined(separator: ",") + "}"
@@ -66,9 +55,7 @@ public struct DeviceMoment: Equatable, Sendable {
 public struct ActionContext {
     /// Sends a moment through the device link.
     public var send: (DeviceMoment) -> Void
-    /// Boop's mood now, for Voice's tempo.
-    public var mood: () -> Mood
-    /// False in quiet or focus mode, or while something needs you.
+    /// False in quiet mode, or while something needs you.
     public var mumblesAllowed: () -> Bool
     /// `Core.setQuiet`; the app routes the effects it returns.
     public var setQuiet: (Int) -> Void
@@ -77,11 +64,10 @@ public struct ActionContext {
     /// Where dropped calls are explained.
     public var log: (String) -> Void
 
-    public init(send: @escaping (DeviceMoment) -> Void, mood: @escaping () -> Mood = { Mood() },
+    public init(send: @escaping (DeviceMoment) -> Void,
                 mumblesAllowed: @escaping () -> Bool = { true }, setQuiet: @escaping (Int) -> Void = { _ in },
                 today: @escaping () -> String, log: @escaping (String) -> Void = { _ in }) {
         self.send = send
-        self.mood = mood
         self.mumblesAllowed = mumblesAllowed
         self.setQuiet = setQuiet
         self.today = today
@@ -135,7 +121,6 @@ public enum Actions {
     public static func all(context: ActionContext, voice: Voice, memory: MemoryStore) -> [Action] {
         [
             SayAction(voice: voice, context: context),
-            FaceAction(context: context),
             QuietAction(context: context),
             NoteAction(memory: memory, context: context),
             RememberAction(memory: memory, context: context),

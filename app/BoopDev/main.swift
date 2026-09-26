@@ -202,7 +202,7 @@ func brain(_ args: [String]) async {
             let store = try! MemoryStore(directory: dir, steering: steering, log: { logs.append($0) })
             if trigger.kind == .reflect, let day = store.lastActiveDay {
                 let next = LocalTime.day(day, plus: 1)
-                store.apply(.newDay(date: next, firstSeen: "08:30", mood: "content"))
+                store.apply(.newDay(date: next, firstSeen: "08:30"))
             }
             let context = ActionContext(send: { _ in }, today: { store.lastActiveDay ?? "2026-10-15" },
                                         log: { logs.append($0) })

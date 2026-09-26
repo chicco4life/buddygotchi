@@ -54,7 +54,7 @@ public final class Harness: @unchecked Sendable {
         /// The one line the app logs for a call outside debug mode (§8): the
         /// trigger kind, the latency and the tools that ran, or why nothing
         /// did. Never argument values, which can carry what you said:
-        /// `brain talk 812 ms → face, quiet`. A call its action or a limit
+        /// `brain talk 812 ms → say, quiet`. A call its action or a limit
         /// dropped shows as `note (dropped)`; the action logs why.
         public var logLine: String {
             let tools = ran.map { $0.outcome.isDone ? $0.call.name : "\($0.call.name) (dropped)" }

@@ -25,8 +25,8 @@ Three rules follow from that:
   one, and a reconnect needs no special handling.
 - **Moments are fire-and-forget.** A cheer or a mumble either plays in time
   or is skipped. Nothing is acknowledged or retried.
-- **Nothing important flows back.** The device only reports taps,
-  push-to-talk, focus and touch-and-hold (`feel`). Boop never approves
+- **Nothing important flows back.** The device only reports taps and
+  push-to-talk. Boop never approves
   anything, so no message from the device can affect an agent.
 
 ## 2. Transport
@@ -92,42 +92,31 @@ so new optional fields never break an older peer.
 ```json
 {"t":"state","v":1,"time":1790000000,"name":"Pip",
  "base":"working","attn":{"agent":"codex","project":"landing","more":0},
- "busy":2,"idle":1,"wait":1,
- "mood":{"energy":70,"pace":110,"pitch":120},
- "quiet":0,"focus":false,"vol":6,"night":false,
- "level":12,"prog":40,"days":12,"hungry":0,
- "threads":[["codex","landing","wait"],["claude","jetpack","work"],["codex","buddy","work"]]}
+ "busy":2,"idle":1,"wait":1,"quiet":0,"vol":6}
 ```
 
 | Field | Meaning |
 | --- | --- |
 | `v` | Protocol version |
-| `time` | Unix time. The v1 device doesn't read it; it goes by `night` |
-| `name` | Boop's name |
+| `time` | Unix time. The v1 device doesn't read it |
+| `name` | Boop's name. The v1 device doesn't show it since the stats screen was parked |
 | `base` | `asleep`, `idle` or `working` |
-| `attn` | Present when something needs you: which agent and project, and how many more are waiting. The device runs the nudge ladder while it's there. A new `attn` (different agent or project) restarts the ladder; the same one continues it |
+| `attn` | Present when something needs you: which agent and project, and how many more are waiting. A new `attn` (different agent or project) chirps once; the same one doesn't chirp again |
 | `busy` / `idle` / `wait` | Session counts for the status strip |
-| `mood` | Energy, pace and pitch, 0–200 with 100 as neutral. They shape how every animation and sound plays |
 | `quiet` | Minutes of quiet left; 0 when not quiet |
-| `focus` | Focus mode: no sound or buzz, and "needs you" is visual only |
 | `vol` | Volume 0–10; 0 is mute |
-| `night` | The Mac's view of whether it's night, for dimming and sleepiness |
-| `level`, `prog`, `days` | For the stats screen: level, progress to the next level (0–100), days together |
-| `hungry` | 0 fed, 1 hungry, 2 starving ([BEHAVIORS.md](BEHAVIORS.md) §4) |
-| `threads` | Up to 8 rows for the threads view: agent, project, and status (`wait`, `work` or `idle`). Rows that need you come first, then working, then idle. The Mac cuts names to 23 bytes and drops rows from the end if the line would pass 512 bytes |
 
 If the device gets no `state` for 30 s, it shows the "no app" face.
 
 ### `moment`: something to play once
 
 ```json
-{"t":"moment","anim":"cheer","size":2,"say":{"syl":"bi-do ba-na","word":"done","at":4,"tune":"up","ms":120},"ttl":5}
+{"t":"moment","anim":"cheer","say":{"syl":"bi-do ba-na","word":"done","at":4,"tune":"up","ms":120},"ttl":5}
 ```
 
 | Field | Meaning |
 | --- | --- |
-| `anim` | An animation from the device's set ([BEHAVIORS.md](BEHAVIORS.md) §7) |
-| `size` | 1–3, for small, medium or big |
+| `anim` | Optional. An animation from the device's set ([BEHAVIORS.md](BEHAVIORS.md) §5). Without one, the `say` plays over whatever face is showing |
 | `say` | Optional mumble, as built by Voice: gibberish syllables (`syl`: syllables within a gibberish word joined with `-`, words separated by spaces), an optional real word and its position (`at`, an index into the syllables), the tune (`up`, `down`, `bounce`, `flat` or `lift`), and milliseconds per syllable. The real word takes two beats |
 | `ttl` | Seconds. The v1 device plays a moment as soon as it arrives or skips it, so it doesn't read `ttl`; the field is kept for later |
 
@@ -162,13 +151,10 @@ spoke on.
 
 | `k` | Meaning |
 | --- | --- |
-| `tap` | Tapped the face or pressed BOOT |
+| `tap` | Touched the screen or pressed BOOT |
 | `talk_on`, `talk_off` | Push-to-talk held and released |
-| `focus` | Focus mode toggled on the device; the Mac confirms it in the next `state` |
-| `feel` | Touched and held the face. The device already shows a face from its mood (none while something needs you); the Mac may reply with a mumble |
 
-The device has already reacted on screen before sending this. Moving
-between the face, threads and stats screens is local and sends nothing.
+The device has already reacted on screen before sending this.
 
 ## 5. Lifecycle
 

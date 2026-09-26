@@ -24,8 +24,8 @@ int wordCount();
 const char* assetsVersion();
 uint32_t assetsBytes();
 
-// One line, as `moment.say` gave it (PROTOCOL.md §3) plus the mood's pitch
-// and the volume from `state`.
+// One line, as `moment.say` gave it (PROTOCOL.md §3) plus the volume from
+// `state`. It plays at the voice's own pitch.
 struct Line {
   uint8_t syl[kMaxSyllables];  // syllable clip indices, or kSilent
   int n = 0;
@@ -33,13 +33,12 @@ struct Line {
   int at = 0;     // the word goes before syllable `at` (n: at the end)
   Tune tune = Tune::kFlat;
   uint16_t ms = 120;    // per syllable; the word takes two beats
-  uint16_t pitch = 100; // mood pitch, 100 = the voice as generated
   uint8_t vol = 6;      // 0–10
   uint32_t seed = 1;    // liveliness: ±5% pitch, ±10% timing per syllable
 };
 
-// Short sound cues (BEHAVIORS.md): a rising chirp and a three-note jingle.
-enum class Cue : uint8_t { kNone, kChirp, kJingle };
+// Short sound cues (BEHAVIORS.md §4): a rising chirp.
+enum class Cue : uint8_t { kNone, kChirp };
 Cue cueFromName(const char* s);
 
 // How long a line takes, in output samples: every beat plus two for the

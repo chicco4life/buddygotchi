@@ -1,10 +1,11 @@
-// The face (plan/UX.md §2): two solid rounded eyes with lids, in gen-2's
-// lavender-white, and a small mouth, drawn procedurally from a Pose. The
-// eyes have no pupils: to look somewhere the whole eye moves, and the eye
-// on that side grows a little, as if the head turned. Happy eyes are thin
-// "^" arches; affection adds a heart at the top right, effort a sweat drop,
-// and sleep a rising "zzZZ". Every field blends linearly, so any two poses
-// can be eased into each other.
+// The face (plan/UX.md §2): pixel art, after the owner's reference render.
+// Two white window eyes, each four panes around a one-block cross, pink
+// blush blocks under them and a flat bar mouth, all drawn from a Pose on
+// one grid of square blocks. The eyes have no pupils: to look somewhere the
+// whole eye moves, and the eye on that side grows a little, as if the head
+// turned. Happy eyes are "^" arches; affection adds a pixel heart at the
+// top right, effort a sweat drop, and sleep a rising "zzZZ". Every field
+// blends linearly, so any two poses can be eased into each other.
 #pragma once
 #include <cstdint>
 
@@ -30,7 +31,6 @@ struct Pose {
   int16_t dx = 0, dy = 0;   // whole face offset, in pixels
   int16_t size = 1000;      // whole face scale (a lean in is > 1000)
   int16_t glow = 0;         // eye tint towards the cheer glow
-  int16_t oops = 0;         // eye tint towards the oops red
   int16_t raise = 0;        // 1000: moved up and smaller, to make room for the bubble
   int16_t heart = 0;        // a rose heart at the top right of the face, popping in with its size
   int16_t sweat = 0;        // > 0: a sweat drop by the right eye, slid down this far (permille)
@@ -39,7 +39,7 @@ struct Pose {
 
 // At full size, the middle of the face (eye tops to mouth) lies this many
 // pixels below the eye centres, because the mouth hangs below the eyes.
-constexpr int kFaceDrop = 8;
+constexpr int kFaceDrop = 14;
 
 // a + (b - a) × t / 1024, field by field.
 Pose blend(const Pose& a, const Pose& b, int t);

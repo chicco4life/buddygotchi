@@ -66,14 +66,14 @@ Each level answers a different question:
 | `mumble [feeling…] [--word W \| --no-word] [--count N] [--vol N] [--seed N] [--json]` | F5's L2 check, and for hearing Boop by hand. Plays N lines built by the Mac's Voice (`boopdev voice --json`) for every feeling (or the ones named), without and then with its usual word, and checks `audio.out` in `dbg.state` for each: the syllable count, the word, and the duration the DAC took within 10% of beats × `ms`. Then checks that a muted line moves the mouth and plays nothing. It prints its seed, and `--seed` plays the same lines again |
 | `say [feeling] [--word W] [--seed N]` | One line with its word at the end (the feeling's usual word by default), checked as `mumble` checks it. It sends no `state`, so the line plays at the volume the board already has: the Mac app's when it's connected, for trying the app's volume setting. It prints that volume, and says so instead of playing when the board is muted, in focus mode, quiet or showing needs you |
 | `volume [level…] [--rounds N]` | For comparing volumes by ear. Plays one fixed line at each level in turn (1 then 10 by default), for 6 rounds, and says whether the board played each one in full |
-| `sound chirp\|jingle [--vol N]` | Plays a sound cue the way the Mac causes it: the chirp with a new `attn` (then cleared, so Boop nods), the jingle with a size 2 `cheer`. Checks `sfx` in `dbg.state` |
-| `moment <anim> [--size N] [--say FEELING [--word W]] [--base B]` | Plays one animation or face from the set ([BEHAVIORS.md](BEHAVIORS.md) §7), optionally with a mumble, and checks that the device took it |
-| `needs [--seconds S] [--agent A] [--project P] [--more N]` | Holds a fake "needs you" (130 s by default, past rung 3), printing each rung as the device reaches it, then clears it; Ctrl-C clears it early |
+| `sound [chirp] [--vol N]` | Plays the needs-you chirp, the only sound cue, the way the Mac causes it: with a new `attn` (then cleared, so Boop nods). Checks `sfx` in `dbg.state` |
+| `moment [anim] [--say FEELING [--word W]] [--base B] [--vol N]` | Plays one animation from the set ([BEHAVIORS.md](BEHAVIORS.md) §5), a mumble on its own (`--say` with no anim), or both, and checks that the device took it |
+| `needs [--seconds S] [--agent A] [--project P] [--more N] [--vol N]` | Holds a fake "needs you" (10 s by default), printing the screen, light, backlight and the chirp once, then clears it; Ctrl-C clears it early |
 | `perf --seconds N [--motion]` | Sample fps and heap over time; `--motion` plays moments back to back so every sample is mid-motion |
 | `e2e [--brain rules\|apple] [fixture…]` | The L4 pipeline check (`make e2e`): bridge, headless app, the J1 fixtures through the real `boop-hook`, checkpoints, latency, memory and ordering |
 | `e2e --soak MIN [--brain rules\|apple]` | J2's pipeline soak: the same fixtures on a loop for MIN minutes, a tap on the board between rounds, then a quiet minute. Samples `dbg.ping`, `audio.out.errors` and the app's memory; fails on a board reset, a heap-minimum drift over 2 KB, audio errors, the app exiting, or anything left on screen (not the plain face, `attn` or a moment) at the end. Checkpoint misses are counted and reported. A debug request that loses its reply (the CH340 rarely drops bytes over a long run) is retried once and counted as a link glitch |
 | `soak --minutes N` | Random, realistic traffic and inputs (with one 35 s silence), then check for resets, a drifting heap minimum, and that calm snapshots bring back the plain face |
-| `cam frame\|pattern\|clip <name>` | Webcam helpers (L3 in §5). Clips are live presets: `idle`, `needs_you`, `cheer`, `ladder` (sped-up clock), `cheers` (sizes 1–3) and `tap` |
+| `cam frame\|pattern\|clip <name>` | Webcam helpers (L3 in §5). Clips are live presets: `idle`, `needs_you`, `cheer` (then a mumble) and `tap` |
 | `calibrate` | Touch calibration. Needs a person to tap 4 amber crosses 20 px in from the corners, then one in the middle to check; the crosses are placed from the screen size the board reports in `dbg.ping` (320×240). It fits a raw → screen map and the board keeps it in NVS for that screen and rotation. `--show` prints the stored map, `--show --clear` forgets it |
 
 ## 3. The debug channel
@@ -85,7 +85,7 @@ Over USB, the firmware accepts every normal protocol message
 | Message | Reply |
 | --- | --- |
 | `{"t":"dbg.ping"}` | `{"t":"dbg.ping","fw":…,"sha":…,"up":ms,"heap":…,"heap_min":…,"fps":…,"link":"usb\|ble\|none","ble":"off\|idle\|adv\|conn","name":"Boop-XXXX","voice":…,"w":320,"h":240}`. `ble` is Bluetooth's state (`idle` is neither advertising nor connected, so no Mac can find it), `name` the advertised name, `voice` the voice assets' version, and `w`/`h` the screen as drawn |
-| `{"t":"dbg.state"}` | `{"t":"dbg.state","screen":"face\|needs_you\|threads\|stats\|no_app\|pattern","base":…,"attn":…,"rung":0-3,"moment":{"anim":…,"left_ms":…},"quiet":…,"focus":…,"vol":0-10,"led":"#RRGGBB","audio":{"playing":…,"syllables":…},"last_input":…}` |
+| `{"t":"dbg.state"}` | `{"t":"dbg.state","screen":"face\|needs_you\|no_app\|pattern","base":…,"attn":…,"moment":{"anim":…,"left_ms":…},"life":…,"quiet":…,"vol":0-10,"led":"#RRGGBB","audio":{"playing":…,"syllables":…},"last_input":…}` |
 | `{"t":"dbg.shot"}` | A header line `{"t":"dbg.shot","w":320,"h":240,"bytes":N,"crc":…}`, then one line of base64: 512 bytes of RGB565 palette (256 little-endian entries) followed by 76,800 bytes of pixel indexes, row by row. `crc` is the CRC-32 (as zlib's) of those bytes |
 | `{"t":"dbg.clock","freeze":T}` / `{"step":MS}` / `{"run":true}` | Freeze the clock at T (which also seeds randomness from T), step it, or let it run |
 | `{"t":"dbg.press","ms":N}` / `{"t":"dbg.touch","x":…,"y":…,"ms":N}` | Inject input through the same code path as real input |
@@ -96,11 +96,10 @@ Over USB, the firmware accepts every normal protocol message
 
 At 460800 baud a screenshot takes about 2.3 s. `dbg.ping` also reports
 `draw_us` and `push_us`, the last frame's drawing and pushing time.
-`dbg.state` also carries the behaviour's own view: `hushed` (tapped during
-needs you), `life` (the idle-life event showing: `blink`, `glance`, `peek`,
-`bob`, `rumble` or null), `night`, `hungry`, and `sfx`, the last sound cue
-with its time (`chirp`, `jingle` or `pulse`, for F5's player and for tests,
-which can't hear). `audio.playing` is true while the mouth follows a
+`dbg.state` also carries the behaviour's own view: `life` (`blink` while
+Boop blinks, otherwise null), and `sfx`, the last sound cue with its time
+(`chirp`, for tests, which can't hear). A mumble on its own leaves
+`moment` null; `audio.syllables` shows it. `audio.playing` is true while the mouth follows a
 mumble. `audio.out` is what the sound output did: `ready` (the DAC
 started), `playing` (a line or cue, amp on), `lines` finished since boot,
 and the last line's `syl`, `word`, `plan_ms` (beats × `ms`), `out_ms`
@@ -132,10 +131,10 @@ runs in the simulator and on the device:
 
 ```json
 {"clock": 0}
-{"t":"state","v":1,"base":"working","busy":1,"idle":0,"wait":0,"mood":{"energy":100,"pace":100,"pitch":100},"threads":[["claude","jetpack","work"]]}
+{"t":"state","v":1,"base":"working","busy":1,"idle":0,"wait":0}
 {"clock": 800}
 {"shot": "working"}
-{"t":"moment","anim":"cheer","size":3,"ttl":5}
+{"t":"moment","anim":"cheer","ttl":5}
 {"clock": 1400}
 {"shot": "cheer-peak"}
 {"expect": {"screen":"face","moment":{"anim":"cheer"}}}
@@ -170,15 +169,15 @@ gets at least one scenario. Their pictures become the **golden images** in
 ### L0: unit tests
 
 - **Swift (`make test`):** every module in [ARCHITECTURE.md](ARCHITECTURE.md)
-  §3 has tests. That covers adapter mapping, core rules (screen priority, XP,
-  hunger, mood, quiet), each action's own checks, Voice (dialect,
+  §3 has tests. That covers adapter mapping, core rules (screen priority,
+  needs you, quiet, chatter), each action's own checks, Voice (dialect,
   determinism, the English check), memory limits and snapshots, the harness
   with a fake brain (shape check, one call at a time, `talk` cancelling,
   tool limits on a virtual clock, and the conversation: what each request
   carries and when it starts over), and device link message encoding.
 - **Firmware (`make fw-test`):** the protocol parser, line reassembly across
-  BLE packets, the behaviour state machine (screen priority, nudge ladder
-  timing, moment expiry, the 30 s no-app timeout), input gestures, and
+  BLE packets, the behaviour state machine (screen priority, the needs-you
+  chirp, moment expiry, the 30 s no-app timeout), input gestures, and
   canvas primitives.
 
 **Pass:** everything green. New code comes with tests.
@@ -279,8 +278,8 @@ matters because an agent can't launch the app with Bluetooth on.
 4. Latency is from launching `boop-hook` to the board's `rx.state` count
    going up, on the host clock. A hook that changes nothing sends no
    `state`, and is left out.
-5. Afterwards: XP, level and the Happened lines in the memory files,
-   `settings.json`'s record, the topics in the brain's triggers, no
+5. Afterwards: the Happened lines in the memory files, the topics in the
+   brain's triggers, no
    `PRIVATE_` marker from the fixtures in any app file or the brain's log,
    and, from the `--trace` log, that every brain moment came after the
    rules' reaction and didn't start while a rule moment was playing.

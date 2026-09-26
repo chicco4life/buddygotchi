@@ -20,7 +20,7 @@ public struct Replay {
     public var gapMs: Int64 = 1000
     public var start: Int64 = Replay.defaultStart
     public var time = LocalTime(timeZone: TimeZone(identifier: "UTC")!)
-    /// Start with today's rituals still to come.
+    /// Start before today's first activity, so it starts a new day.
     public var newDay = false
 
     public init(agent: String) {
@@ -50,8 +50,7 @@ public struct Replay {
     public func run(_ steps: [Step], statesOnly: Bool = false) -> [String] {
         var now = start
         let today = time.day(now)
-        let core = Core(config: .init(name: "Pip", time: time), growth: Growth(hatched: today),
-                        lastActiveDay: newDay ? nil : today, now: now)
+        let core = Core(config: .init(name: "Pip", time: time), lastActiveDay: newDay ? nil : today)
         var out: [String] = []
         var projects: [String: String] = [:]
 
@@ -96,12 +95,11 @@ public struct Replay {
     public static func describe(_ effect: CoreEffect) -> String {
         switch effect {
         case .state(let s): "state " + s.jsonLine
-        case .moment(let anim, let size): "moment \(anim) \(size)"
+        case .moment(let anim): "moment \(anim)"
         case .mumble(let feeling, let word): "mumble \(feeling)" + (word.map { " \($0)" } ?? "")
         case .trigger(let t): "trigger \(t.kind.rawValue): \(t.line)"
         case .happened(let line): "happened \(line)"
-        case .growth(let g): "growth xp \(g.xp) level \(g.level) fed \(g.lastFed)"
-        case .newDay(let date, let firstSeen, let mood): "new-day \(date) first seen \(firstSeen) mood \(mood)"
+        case .newDay(let date, let firstSeen): "new-day \(date) first seen \(firstSeen)"
         case .listen(let on): "listen \(on)"
         }
     }

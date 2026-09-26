@@ -1,5 +1,5 @@
 ## Today
-2026-10-14 · first seen 08:52 · mood: a bit frazzled
+2026-10-14 · first seen 08:52
 
 ## Notes
 - jetpack is the payments service

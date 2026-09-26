@@ -77,12 +77,13 @@ final class VoiceTests: XCTestCase {
         XCTAssertLessThan(excited[0].ms, sleepy[0].ms)
     }
 
-    func testTempoFollowsPace() {
-        XCTAssertEqual(Voice.tempo(.proud, mood: Mood(pace: 100)), 135)
-        XCTAssertEqual(Voice.tempo(.proud, mood: Mood(pace: 200)), 90)
-        XCTAssertEqual(Voice.tempo(.proud, mood: Mood(pace: 0)), 180)
-        XCTAssertEqual(Voice.tempo(.sleepy, mood: Mood(pace: 0)), 180)
-        XCTAssertEqual(Voice.tempo(.excited, mood: Mood(pace: 200)), 90)
+    /// VOICE.md §5: tempo starts from the neutral pace (135 ms a syllable)
+    /// and moves only with the feeling; there's no mood.
+    func testTempoIsNeutralThenByFeeling() {
+        let ms = Dictionary(uniqueKeysWithValues: Feeling.allCases.map { ($0, Voice.tempo($0)) })
+        XCTAssertEqual(ms, [.proud: 135, .curious: 135, .excited: 115, .happy: 125, .annoyed: 125, .hopeful: 145,
+                            .sad: 160, .sleepy: 170])
+        XCTAssertEqual(Voice(dialect: Dialect(seed: 1)).line(.proud, seed: 3).ms, 135)
     }
 
     func testAWordOutsideTheVocabularyIsLeftOut() {
@@ -117,9 +118,7 @@ final class VoiceTests: XCTestCase {
             let voice = Voice(dialect: Dialect(seed: dialectSeed &* 7919))
             for i in 0..<400 {
                 let feeling = Feeling.allCases[i % Feeling.allCases.count]
-                let mood = Mood(energy: 40 + (i * 7) % 130, pace: 40 + (i * 13) % 130)
-                let line = voice.line(feeling, word: i % 3 == 0 ? Sounds.vocabulary[i % 40] : nil, mood: mood,
-                                      seed: UInt64(i + 1))
+                let line = voice.line(feeling, word: i % 3 == 0 ? Sounds.vocabulary[i % 40] : nil, seed: UInt64(i + 1))
                 n += 1
                 if line.isSafeHum { hums += 1 }
                 // Doubles (`ki-ki`) skip the big word list but not the common
@@ -150,9 +149,8 @@ final class VoiceTests: XCTestCase {
 
     func testMomentJSON() {
         let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
-        XCTAssertEqual(DeviceMoment(anim: "cheer", size: 2, say: line).jsonLine,
-                       #"{"t":"moment","anim":"cheer","size":2,"say":{"syl":"bi-do ba-na","word":"done","at":4,"tune":"up","ms":120},"ttl":5}"#)
-        XCTAssertEqual(DeviceMoment(anim: "nod").jsonLine, #"{"t":"moment","anim":"nod","size":1,"ttl":5}"#)
+        XCTAssertEqual(DeviceMoment(say: line).jsonLine,
+                       #"{"t":"moment","say":{"syl":"bi-do ba-na","word":"done","at":4,"tune":"up","ms":120},"ttl":5}"#)
         let plain = VoiceLine(groups: [["mm", "nn"]], word: nil, at: 2, tune: .down, ms: 170)
         XCTAssertEqual(plain.json, #"{"syl":"mm-nn","tune":"down","ms":170}"#)
     }

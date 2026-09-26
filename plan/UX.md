@@ -36,33 +36,37 @@ reads as black glass. Boop sits sideways, so the screen is landscape,
 Alone, the face is centred in the 204 px above the strip. When the bubble
 shows, the face eases up into the top 144 px at three-quarters size.
 
-- **Face.** Two Cozmo-style eyes and a small mouth, drawn procedurally,
-  blending between expressions in 150 ms or less. It never cuts hard. The
-  face has gen-2's look: the eyes are solid rounded rectangles in soft
-  lavender-white (48 × 60 px, 134 px apart, so there's plenty of black
-  between them), with no pupils or highlights, so they read as a character
-  rather than real eyeballs. At rest the mouth is a short dash below them.
-  They tint towards the cheer glow during `cheer`, `love`, `levelup` and
-  `gobble`, and towards the oops red during `oops`. To look somewhere, the
-  whole eye moves, and the eye on the side it looks towards grows a little,
-  as if Boop turned its head. Where a lid meets the edge of an eye the
-  corner is rounded, so a lid never leaves a sharp point. Happy eyes are
-  thin "^" arches over a "u" smile: on the way, the eye squeezes to a short
-  bar and the bar bends up. A tap, a big cheer, love and a level-up pop a
-  rose heart in at the top right of the face. Asleep, a "zzZZ" climbs up
+- **Face.** Pixel art, after the owner's reference render (2026-09-26):
+  everything is built from square 3 px blocks on one grid, with no
+  anti-aliasing. The eyes are warm-white windows, 13 blocks (39 px) square
+  and 144 px apart, each four panes around a one-block cross, with a pixel
+  softened off each pane's corners. There are no pupils. Two pink blush
+  blocks sit under each eye, towards the outside, and the mouth is a flat
+  bar as wide as an eye, level with the cheeks. The face blends between
+  expressions in 150 ms or less and never cuts hard; the grid makes it
+  move a block at a time. A blink shrinks the eye towards a one-block bar;
+  an eye too thin for its panes is drawn as one bar. A lid takes whole rows
+  of blocks off the top, and cuts each half of the eye flat at its own
+  height, so a tilted lid steps once between the panes. To look somewhere
+  the whole eye moves, and the eye on the side it looks towards grows a
+  little, as if Boop turned its head. The eyes tint towards the cheer glow
+  during `cheer`. Happy eyes are "^" arches over a "u" smile: on the way,
+  the eye squeezes to a bar and the bar bends up. Open, the mouth is a D
+  with a one-block outline and a dark inside. A tap and a cheer pop a pixel
+  heart in at the top right of the face. Asleep, a pixel "zzZZ" climbs up
   from the right eye one letter at a time. Working, Boop strains every
-  couple of seconds, and a sweat drop slides down beside the right eye
-  ([BEHAVIORS.md](BEHAVIORS.md) §2).
+  couple of seconds, and a pixel sweat drop slides down beside the right
+  eye ([BEHAVIORS.md](BEHAVIORS.md) §2).
 - **Bubble.** Empty most of the time. It shows either a mumble's one real
   word, or who needs you.
 - **Status strip.** How many sessions need you (amber, hidden at zero) and
-  how many are working (grey), plus icons at the right for low battery, no
-  app, quiet and focus.
+  how many are working (grey), plus icons at the right for quiet and no
+  app.
 - **Debug label.** A debug-only aid, off unless the firmware is built with
   `BOOP_DEBUG_LABEL=1` (the board build sets it in
   `firmware/platformio.ini`). On the face, needs-you and no-app screens,
   the name of what the face is showing sits in tiny faint 5×7 text at the
-  top left: the moment's anim (`cheer`, `happy`, …) or else the look
+  top left: the moment's anim (`cheer`, `nod`, …) or else the look
   (`idle`, `working`, `asleep`, `no_app`, `needs_you`). Frames drawn with a
   frozen clock leave it out, so the simulator and scenario screenshots
   don't change.
@@ -84,29 +88,11 @@ shows, the face eases up into the top 144 px at three-quarters size.
 └──────────────────────────────────┘
 ```
 
-**Threads.** What every agent is doing, grouped by agent, one row per
-session with the agent's name on its first row:
+**No app.** The waiting face (eyes open, glancing up and aside) with an
+unplugged icon in the strip ([BEHAVIORS.md](BEHAVIORS.md) §2).
 
-```
- Codex    landing              needs you ●
-          buddygotchi            working
- Claude   jetpack                working
-          notes                     idle
-```
-
-Rows show agent, project and status, never prompts or commands. Rows that
-need you come first. It shows up to 8 rows; the Mac drops rows from the end
-when the `state` line would pass 512 bytes ([PROTOCOL.md](PROTOCOL.md) §3).
-There's a little space between agents when there's room, and a long
-project name ends in "..". The view closes after 10 s untouched
-(*proposed*), and so does stats. Tapping anywhere above the strip goes back
-to the face. A new "needs you" also goes back, to the needs-you screen.
-
-**Stats.** The progress ring on the left with the level inside it, and the
-name and days together on the right (a name too long for the large type
-uses the small one, and one over 18 characters ends in ".."). No mood, hunger numbers or traits.
-
-**No app.** A sleepy face with an unplugged icon in the strip.
+There are no other screens. The threads and stats screens are parked
+([FUTURE.md](FUTURE.md)).
 
 ## 4. Controls
 
@@ -116,23 +102,17 @@ agents.
 
 | Input | Does |
 | --- | --- |
-| Press BOOT, or tap the face | Boop it; acknowledges a cheer; quiets the nudges if something needs you |
+| Press BOOT, or touch the screen anywhere | Boop it (`wiggle`); a nod if something needs you |
 | Hold BOOT | Push-to-talk while held |
-| Tap the status strip | Cycle screens: face → threads → stats → face (ignored on the no-app screen) |
-| Touch and hold the status strip | Focus mode on or off |
-| Touch and hold the face | A mumble and face that show how Boop feels (no face while something needs you) |
 
-A press shorter than 400 ms is a tap, and holding for 400 ms or more starts
-push-to-talk until you let go. A touch held for 600 ms or more is a
-touch-and-hold. On the screens that show the face, every press and touch
-gets visible feedback within 20 ms, before the Mac hears about it: pressing
-BOOT or the face squashes it a little, and a finger on the strip lights its
-top line amber. On threads and stats the strip still lights at once, but
-anything else shows when the screen changes, on release (or when
-push-to-talk starts).
+A press shorter than 400 ms is a tap, and holding BOOT for 400 ms or more
+starts push-to-talk until you let go. A touch is a tap however long it's
+held, and counts when you lift your finger. Every press and touch gets
+visible feedback within 20 ms, before the Mac hears about it: the face
+squashes a little.
 
-When an external main button is added, it takes over BOOT's jobs, and BOOT
-becomes a secondary button: a press cycles screens and a hold toggles focus.
+When an external main button is added, it takes over BOOT's jobs. BOOT has
+no job of its own after that until a second button is needed.
 
 ## 5. Talking to Boop
 
@@ -181,11 +161,10 @@ memory only, until that starts over ([HARNESS.md](HARNESS.md) §4).
       Bluetooth, and for the microphone on the first push-to-talk), then
       "Wake *name* up". This saves Boop, adds the chosen hooks and starts
       it.
-3. The app finds `Boop-XXXX` over Bluetooth and connects, and the device
-   gets Boop's name. There's no pairing code in v1
-   ([PROTOCOL.md](PROTOCOL.md) §2). With no sessions yet Boop sleeps; its
-   first activity, a hook or a tap, wakes it with a stretch and a yawn
-   ([BEHAVIORS.md](BEHAVIORS.md) §3.3).
+3. The app finds `Boop-XXXX` over Bluetooth and connects. There's no
+   pairing code in v1
+   ([PROTOCOL.md](PROTOCOL.md) §2). With no sessions yet Boop sleeps, and
+   the first agent session wakes it ([BEHAVIORS.md](BEHAVIORS.md) §2).
 4. Boop uses Apple's on-device model by default, with no setup. Settings
    has a field for your own API key, for cloud brains, which come later
    ([FUTURE.md](FUTURE.md)). On Macs without Apple's model, Boop still works
@@ -213,18 +192,17 @@ except Talk, which is there to be used in the moment.
 | Area | Content |
 | --- | --- |
 | Header | A small copy of Boop's face on black glass (it blinks, glances about while agents work, looks up with an amber rim when something needs you, sleeps with its eyes closed, and looks up wide-eyed while listening), Boop's name, a tone dot with one short line ("Listening…", "Working on 2 sessions", "Needs you", "Hanging out", "Napping"), whether the body is connected ("Connected", "Looking…" or "No device"), and under it the Talk button (§5), which turns into a red Send while the mic is on. Which board it is never shows |
-| Modes | Small reminders only when a mode is on: Focus, Quiet with minutes left, Muted, Away |
+| Modes | Small reminders only when a mode is on: Quiet with minutes left, Muted |
 | Notices | "Restart your agent sessions" after hooks change (dismissable), why Boop couldn't start, or "*name* can't hear you" when push-to-talk can't use the mic (dismissable; the next Talk clears it) |
 | Needs you | An amber card: agent · project, "Answer it in the agent's window", and "+N more" |
-| Sessions | Grouped by agent, like the threads screen: one row per project with a coloured edge and a status chip (needs you, working, idle). Empty: "No agents awake" |
-| Together | Boop's record, as totals across all projects: the level ring with the level inside and the percentage to the next, then tasks finished, projects and days together. Never broken down by project |
+| Sessions | Grouped by agent: one row per project with a coloured edge and a status chip (needs you, working, idle). Empty: "No agents awake" |
 | Footer | Settings on the left, Quit on the right |
 
 **Settings**, one scrolling pane with Back at the top:
 
 | Group | Controls |
 | --- | --- |
-| Sound & focus | Volume (0–10, 0 shows "Off"), focus mode, "I'm away" (pauses hunger) |
+| Sound | Volume (0–10, 0 shows "Off") |
 | Agents | Claude Code and Codex: connected, not connected, not found or needs a repair, with Connect, Repair or Remove. If `boop-hook` isn't built, each says so ("Run make build, then restart Boop") with no button |
 | Device | Whether Boop's body is connected and how (Bluetooth or USB), and its firmware version. Not its id. A Reconnect button drops the link and looks for the device again at once ([PROTOCOL.md](PROTOCOL.md) §2, "Reconnecting") |
 | Brain | Apple's on-device model or rules only (takes effect on restart), and the API key, kept in the Keychain; cloud brains are shown as not yet available |
@@ -240,5 +218,5 @@ a small tracked-out label, not rules, and grouped into raised cards with a
 hairline edge. Names, titles and numbers use the rounded system face.
 Each coloured text tone clears 4.5:1 on its own paper; the faint tone is
 for decoration only. The face tile uses the device's own colours (black
-glass, lavender-white eyes) and its face geometry (§2). Looping motion is limited to the face and the dot while
+glass, warm-white window eyes, pink cheeks) and its face geometry (§2). Looping motion is limited to the face and the dot while
 something is live. Tokens live in `app/Boop/Views/Theme.swift`.

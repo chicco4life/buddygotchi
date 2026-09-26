@@ -11,7 +11,7 @@ code around it:
 ```
  trigger ──► build prompt ──► call the brain ──► check shape ──► hand each tool call
  (from the   steering.md +     one call,          valid JSON,     to its action
-  core)      long-term.md +    ≤ 3 tool calls     allowed tools   (say, face, note…)
+  core)      long-term.md +    ≤ 3 tool calls     allowed tools   (say, quiet, note…)
              short-term.md +                           │
              the trigger text                          └─► log (debug)
 ```
@@ -131,7 +131,7 @@ It lives in memory only and is gone when the app quits. Reflection is a call
 on its own; it neither sees nor joins the conversation.
 
 The trigger line carries only what's needed: what happened, the agent,
-project and topic, how long it took, the time, and whether Boop is hungry.
+project and topic, how long it took, and the time.
 A failed turn adds its error class (`error: rate limit`), and a trigger
 merged from a burst ends with `· +N more`
 ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2). For `talk` it carries your words.
@@ -156,12 +156,12 @@ your words on `talk`, which stay in the conversation until it starts over.
 
 | Trigger | Sent when | Deadline | Tools allowed |
 | --- | --- | --- | --- |
-| `event` | An agent turn starts, finishes or fails | 5 s | `say`, `face` |
-| `tap` | You tap Boop | 3 s | `say`, `face` |
-| `talk` | You release the push-to-talk button | 4 s | `say`, `face`, `quiet`, `note` |
+| `event` | An agent turn starts, finishes or fails | 5 s | `say` |
+| `tap` | You tap Boop | 3 s | `say` |
+| `talk` | You release the push-to-talk button | 4 s | `say`, `quiet`, `note` |
 | `reflect` | Once a day, at the first activity of a new day | Minutes | `remember`, `temperament`, `moment` (not `forget` in v1, ARCHITECTURE.md §11) |
 
-Event, tap and talk calls are all offered `say`, `face`, `quiet` and `note`,
+Event, tap and talk calls are all offered `say`, `quiet` and `note`,
 so the tools never change within a conversation. A tool outside a trigger's
 allowed list is shown as a limit (`quiet limit: only on talk`). Reflection
 is offered its own list.
@@ -192,7 +192,7 @@ The brain is assumed to be small. Small models are good at picking from a
 short menu and bad at following long, open-ended instructions, so the design
 leans on the menu:
 
-- **Few tools:** four for event, tap and talk, three for reflection.
+- **Few tools:** three for event, tap and talk, three for reflection.
 - **Flat, multiple-choice arguments.** `say` takes a `feeling` from a list
   of eight and an optional `word` from a list of about forty. The only free
   text is a short note or memory line, with a length limit.
@@ -213,12 +213,11 @@ Each action writes its own tool definition. For example, `say` publishes:
 The word list is Voice's vocabulary ([VOICE.md](VOICE.md) §6). Whatever the
 brain picks, `say` and Voice do the rest.
 
-All eight tools, as their actions define them (`app/BoopKit/Actions/`):
+All seven tools, as their actions define them (`app/BoopKit/Actions/`):
 
 | Tool | Arguments | The action's own checks |
 | --- | --- | --- |
-| `say` | `feeling` (one of 8), `word?` (one of 40) | Dropped in quiet or focus mode or while something needs you. Plays the feeling's face (`happy`, `happy` at size 2 for excited, `proud`, `curious`, `love` for hopeful, `side_eye` for annoyed, `worried` for sad, `sleepy`) under the mumble |
-| `face` | `name`: `happy`, `proud`, `smug`, `curious`, `sleepy`, `worried`, `sulky`, `love` or `side_eye` | The core's rules may play any animation through the same action |
+| `say` | `feeling` (one of 8), `word?` (one of 40) | Dropped in quiet mode or while something needs you. The mumble plays over whatever face is showing |
 | `quiet` | `minutes`: 15, 30, 60 or 120 | — |
 | `note` | `text`, at most 80 characters | Memory's rules: one line, no code, paths or secrets, no duplicates |
 | `remember` | `text`, at most 100 characters; `kind`: `about_you` or `preference` | Memory's rules, plus no other people's names; refused when the section or file is full |
@@ -245,7 +244,7 @@ in that order and unchanged, so every request starts with the one before.
 | --- | --- |
 | Apple on-device | **The default.** Small, private and free. Guided generation with a schema built at runtime: a leading `react` choice (`stay quiet` or `react`, since a small model rarely leaves a list empty on its own), then up to three calls whose choices are constrained. Every list of words to choose from starts with `none`, which leaves an optional argument out or drops the call, because the model otherwise drifts to a list's first entry; lists of numbers (like `quiet`'s minutes) don't. Guardrails are set to `permissiveContentTransformations`; a guardrail refusal is dropped like any brain error (Boop keeps the rule reaction), but marked as a refusal so L5 counts it apart. Text lengths are only asked for, so the shape check still applies. Each call builds a fresh session from the conversation, showing earlier answers in its own `react`/`calls` shape. Everything must work well on this |
 | Cloud API | Interface only in v1: `cloud:<model>` refuses every call, so Boop keeps its rule reactions. Wiring it to the person's own API key comes later ([FUTURE.md](FUTURE.md)); it should be wittier, with the same tools and limits, and send the conversation in order so the provider's prompt cache applies |
-| Rules only | No model. Reads the fallback table from `steering.md` in the system prompt and the trigger from the now section, like any brain, and ignores the history. It leaves out calls to tools the now section names as past a limit. The most specific matching row wins (`Tap, hungry` over `Tap`); "long" means 5 minutes or more. Always available, and used when Apple's model can't run |
+| Rules only | No model. Reads the fallback table from `steering.md` in the system prompt and the trigger from the now section, like any brain, and ignores the history. It leaves out calls to tools the now section names as past a limit. The most specific matching row wins (`Turn finished, long` over `Anything else`); "long" means 5 minutes or more. Always available, and used when Apple's model can't run |
 
 The brain in use is pinned, and switching is a setting the person changes.
 Every brain gets the same prompt and tools, and every tool call goes through

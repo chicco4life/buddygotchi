@@ -14,9 +14,9 @@ public struct Trigger: Equatable, Sendable {
         /// and one outside this list is shown as a limit (HARNESS.md §5).
         public var tools: [String] {
             switch self {
-            case .event: ["say", "face"]
-            case .tap: ["say", "face"]
-            case .talk: ["say", "face", "quiet", "note"]
+            case .event: ["say"]
+            case .tap: ["say"]
+            case .talk: ["say", "quiet", "note"]
             // Not `forget`: Apple's model deleted true facts with it
             // (ARCHITECTURE.md §11). Reflection only adds.
             case .reflect: ["remember", "temperament", "moment"]
@@ -73,23 +73,22 @@ public struct Trigger: Equatable, Sendable {
 }
 
 /// What the core decided. The app hands each effect to the part that carries
-/// it out: moments and mumbles to the `face` and `say` actions, snapshots to
-/// the device link, triggers to the harness, and the rest to the memory store.
-/// The core itself never builds speech, writes files or talks to the device.
+/// it out: moments to the face player, mumbles to the `say` action,
+/// snapshots to the device link, triggers to the harness, and the rest to
+/// the memory store. The core itself never builds speech, writes files or
+/// talks to the device.
 public enum CoreEffect: Equatable, Sendable {
     /// A new snapshot, sent because something on it changed.
     case state(StateSnapshot)
-    /// A rule reaction: play `anim` once (the `face` action).
-    case moment(anim: String, size: Int)
+    /// A rule reaction: play `anim` once (`FacePlayer`).
+    case moment(anim: String)
     /// A rule mumble (the `say` action).
     case mumble(feeling: String, word: String?)
     case trigger(Trigger)
     /// A line for `short-term.md`'s Happened section.
     case happened(String)
-    /// Growth changed; the memory store writes it to `long-term.md`.
-    case growth(Growth)
     /// The first activity of a new day: short-term starts fresh.
-    case newDay(date: String, firstSeen: String, mood: String)
+    case newDay(date: String, firstSeen: String)
     /// Push-to-talk: start (true) or stop listening on the Mac's mic.
     case listen(Bool)
 }

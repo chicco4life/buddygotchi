@@ -160,7 +160,7 @@ class Run:
                 self.say(f"  ok {json.dumps(want)} after {(time.monotonic() - t0) * 1000:.0f} ms")
                 break
             if time.monotonic() > end:
-                keys = {k: state.get(k) for k in ("screen", "base", "attn", "rung", "moment")}
+                keys = {k: state.get(k) for k in ("screen", "base", "attn", "moment")}
                 self.fail(f"{where}: expected {json.dumps(want)}, got {json.dumps(keys)}")
                 break
         if step.get("shot"):
@@ -204,25 +204,13 @@ class Run:
 
 
 def check_after(run: Run, expected: dict[str, Any]) -> None:
-    """The memory files, settings and logs once the app has stopped."""
-    long_term = (run.state / "long-term.md").read_text()
+    """The memory files and logs once the app has stopped."""
     short_term = (run.state / "short-term.md").read_text()
-    m = re.search(r"xp: (\d+) · level: (\d+) · last fed: (\S+)", long_term)
-    if not m:
-        run.fail("long-term.md has no Growth line")
-    else:
-        xp, level = int(m.group(1)), int(m.group(2))
-        ok = xp == expected["xp"] and level == expected["level"]
-        (run.say if ok else run.fail)(f"growth: xp {xp} level {level} last fed {m.group(3)} "
-                                      f"(expected xp {expected['xp']} level {expected['level']})")
     happened = short_term.split("## Happened", 1)[-1]
     for want in expected["happened"]:
         count = happened.count(want)
         need = expected["happened"].count(want)
         (run.say if count >= need else run.fail)(f"short-term Happened has {want!r} ×{count}")
-    settings = json.loads((run.state / "settings.json").read_text())
-    ok = settings.get("finished") == expected["finished"] and sorted(settings.get("projects", [])) == expected["projects"]
-    (run.say if ok else run.fail)(f"settings: finished {settings.get('finished')}, projects {settings.get('projects')}")
     brain_log = (run.root / "brain.jsonl").read_text() if (run.root / "brain.jsonl").exists() else ""
     for want in expected["triggers"]:
         (run.say if want in brain_log else run.fail)(f"brain saw a trigger with {want!r}: {want in brain_log}")
@@ -234,27 +222,19 @@ def check_after(run: Run, expected: dict[str, Any]) -> None:
     (run.fail if leaks else run.say)(f"PRIVATE_ markers in app files or the brain log: {leaks or 'none'}")
 
 
-def play_ms(moment: dict[str, Any], mood: dict[str, Any] | None = None) -> int:
-    """How long the device plays a moment, given the mood in the last `state`
-    it was sent (as DeviceMoment.playMs): firmware/src/app/behaviour.cpp's
-    onMoment and play. A cheer is a size smaller when energy is under 60 and a
-    size bigger at 140 or more; firmware/src/render/anim.cpp's animDuration is
-    scaled by 100 / pace, pace held to 70-140; a mumble lasts its syllables,
-    plus two beats for a word, at 60-400 ms each, then 1200 ms for the bubble,
-    when that's longer."""
-    mood = mood or {}
-    energy, pace = mood.get("energy", 100), mood.get("pace", 100)
-    anim = moment.get("anim")
-    size = max(1, min(3, moment.get("size", 1)))
-    if anim == "cheer":
-        if energy < 60:
-            size = max(1, size - 1)
-        if energy >= 140:
-            size = min(3, size + 1)
-    table = {"listening": 0, "thinking": 0, "nod": 600, "cheer": 2000 + (size - 1) * 400, "oops": 1400,
-             "stretch": 1400, "side_eye": 1600, "yawn": 1600, "wiggle": 700, "shrug": 1200, "zip": 1500,
-             "gobble": 1500, "rumble": 1500, "levelup": 2400}
-    ms = table.get(anim, 2500) * 100 // max(70, min(140, pace))
+# How long each animation plays on the device (firmware/src/render/anim.cpp
+# animDuration). listening and thinking last until push-to-talk moves on, so
+# they don't hold anything up.
+ANIM_MS = {"cheer": 2000, "nod": 600, "wiggle": 700, "shrug": 1200, "listening": 0, "thinking": 0}
+
+
+def play_ms(moment: dict[str, Any]) -> int:
+    """How long the device plays a moment (as DeviceMoment.playMs): its
+    animation, if any, or the mumble when that's longer: its syllables, plus
+    two beats for a word, at 60-400 ms each, then 1200 ms for the bubble
+    (firmware/src/app/behaviour.cpp startSay). A mumble on its own plays over
+    the face for just its own length."""
+    ms = ANIM_MS.get(moment.get("anim") or "", 0)
     say = moment.get("say") or {}
     syllables = len([s for s in re.split(r"[ -]+", say.get("syl", "")) if s])
     if syllables > 0:
@@ -277,7 +257,6 @@ def check_order(run: Run) -> dict[str, Any]:
     reaction: int | None = None
     rule_moment: tuple[int, str, int] | None = None  # sent, anim, ends
     brain_ends = 0
-    mood: dict[str, Any] = {}  # from the last state sent: the device times moments by it
     cut: list[str] = []  # brain moments a later rule moment replaced (a new hook may; for the record)
     for raw in run.app_log().splitlines():
         m = stamp.match(raw)
@@ -291,19 +270,17 @@ def check_order(run: Run) -> dict[str, Any]:
             if last_hook and (reaction is None or reaction[1] != last_hook):
                 reaction = (t, last_hook)
             line = json.loads(text[len("link rules → "):])
-            if line.get("t") == "state":
-                mood = line.get("mood") or mood
             if line.get("t") == "moment":
-                rule_moment = (t, line["anim"], t + play_ms(line, mood))
+                anim = line.get("anim") or "mumble"  # chatter is a mumble on its own
+                rule_moment = (t, anim, t + play_ms(line))
                 if t < brain_ends:
-                    cut.append(f"{raw[:12]} {line['anim']} after {last_hook}")
+                    cut.append(f"{raw[:12]} {anim} after {last_hook}")
         elif text.startswith("link brain → "):
             brain_line = json.loads(text[len("link brain → "):])
-            if brain_line.get("t") == "state":
-                mood = brain_line.get("mood") or mood
+            if brain_line.get("t") != "moment":
                 continue
-            anim = brain_line.get("anim", "?")
-            brain_ends = t + play_ms(brain_line, mood)
+            anim = brain_line.get("anim") or "mumble"  # the brain's `say`: a mumble on its own
+            brain_ends = t + play_ms(brain_line)
             answers.append({
                 "moment": anim, "at": raw[:12],
                 "after_reaction_ms": None if reaction is None else t - reaction[0],
@@ -457,7 +434,7 @@ def soak(out: Path, brain: str, port: str | None, minutes: float) -> int:
         "app_rss_kb": {"after_2min": later[0]["app_rss_kb"], "end": rss[-1] if rss else None,
                        "max": max(rss, default=None)},
         "app_exited_early": any(not s["app_alive"] for s in samples),
-        "final": {k: final.get(k) for k in ("screen", "base", "attn", "moment", "rung")},
+        "final": {k: final.get(k) for k in ("screen", "base", "attn", "moment")},
     }
     stuck = final.get("screen") != "face" or final.get("attn") is not None or final.get("moment") is not None
     result["stuck"] = stuck

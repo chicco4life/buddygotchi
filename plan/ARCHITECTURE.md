@@ -39,8 +39,7 @@ approve on the Mac as you normally would.
 2. The Codex **adapter** turns it into the common event: "Codex, session
    a1b2, project landing, turn finished".
 3. The **core** updates its session table, works out from when the turn
-   started that it took 18 minutes, adds XP, and by rule calls the `face`
-   action with a cheer. Boop cheers in well under a second.
+   started that it took 18 minutes, and by rule plays a cheer. Boop cheers in well under a second.
 4. The core also hands the event to the **harness** as a trigger. The
    harness builds a prompt from the memory files, asks the **brain**, and
    gets back a tool call: `say(feeling: proud, word: finally)`.
@@ -58,8 +57,8 @@ with less personality.
 
 | Loop | Runs on | Speed | Does | Never does |
 | --- | --- | --- | --- | --- |
-| Reflex | Device | < 20 ms | Tap feedback, blinking, idle life, blending faces, the nudge ladder | Wait for the Mac |
-| Reactive | Core → actions | < 200 ms p95 | Agent event → rule → action → device; XP | Wait for the brain |
+| Reflex | Device | < 20 ms | Tap feedback, blinking, blending faces, the needs-you chirp and light | Wait for the Mac |
+| Reactive | Core → actions | < 200 ms p95 | Agent event → rule → action → device | Wait for the brain |
 | Deliberative | Harness + brain → actions | 1–5 s, in the background | React with character, take notes, answer push-to-talk | Block the reactive loop |
 | Reflective | Harness + brain, once a day | Minutes | Turn yesterday into lasting memory, grow the personality | Break the memory rules |
 
@@ -74,7 +73,7 @@ directly.
 | Part | Does | Doesn't know about |
 | --- | --- | --- |
 | Adapters | Turn agent hooks into common events | Boop's state, the brain, the device |
-| Core | The session table, what the device shows, XP, hunger, mood, quiet and focus; calls actions for rule reactions; sends triggers to the harness | Minion speech, models, hook formats |
+| Core | The session table, what the device shows, and quiet; calls actions for rule reactions; sends triggers to the harness | Minion speech, models, hook formats |
 | Harness | Trigger → prompt → one brain call → shape check → hand each tool call to its action | Minion speech, the device, memory rules, which model it's talking to |
 | Brain | Picks which tools to call, with what arguments | Everything else |
 | Actions | Carry out one tool call each, checking their own rules | Whether a rule or the brain called them |
@@ -97,21 +96,20 @@ project, and whether each is working, idle or needs you) and:
 
 - works out what the device shows and sends a new snapshot when that
   changes, in [BEHAVIORS.md](BEHAVIORS.md) §1's layers: something needing
-  you wins, a moment (a cheer, an oops, a reply) plays over the base
-  state, and the base state is working while any agent works, asleep with
-  no sessions or at night with nothing working, and otherwise idle;
-- calls actions for the immediate reactions (a cheer, an oops, a nod) and
-  for Boop's occasional working chatter;
+  you wins, a moment (a cheer, a reply) plays over the base state, and
+  the base state is working while any agent works, asleep with no
+  sessions, and otherwise idle;
+- plays the immediate reactions (a cheer, `listening`, `thinking`,
+  `shrug`) and Boop's occasional working chatter;
 - turns events, taps and talk into triggers for the harness. It merges
-  bursts within 3 s. While something needs you, or during quiet and focus
-  mode, it sends only `talk` and the daily reflection;
-- keeps XP, hunger, mood, quiet, focus and "away", all by rule
-  ([BEHAVIORS.md](BEHAVIORS.md)).
+  bursts within 3 s. While something needs you, or during quiet mode, it
+  sends only `talk` and the daily reflection;
+- keeps quiet mode, by rule ([BEHAVIORS.md](BEHAVIORS.md)).
 
 In code the core is a pure state machine: each event, input or one-second
 tick goes in with the time, and a list of effects comes out (a snapshot, a
-moment for `face`, a mumble for `say`, a trigger, a Happened line, new
-Growth, a new day, start or stop listening). The app hands each effect to
+moment, a mumble for `say`, a trigger, a Happened line, a new day, start
+or stop listening). The app hands each effect to
 the part that carries it out, which keeps the core testable on a virtual
 clock.
 
@@ -122,11 +120,9 @@ finish, then a finish or a tap, then a start) with "+N more".
 
 The brain adds to the rules' reaction and never cuts it off. The app
 estimates how long each rule moment plays with the device's own rule: the
-animation's length scaled by `pace`, with a cheer's size adjusted by
-`energy`, or, if longer, the mumble's syllables (the word is two beats)
-plus 1.2 s to read the bubble. It holds a moment from a brain tool call
-until the last rule moment and the core's pending follow-ups (`side_eye`
-after `oops`, `yawn` after `stretch`, `gobble`) are over. `listening` and
+animation's length, or, if longer, the mumble's syllables (the word is two
+beats) plus 1.2 s to read the bubble. It holds a mumble from a brain tool
+call until the last rule moment is over. `listening` and
 `thinking` don't hold anything back: the brain's reply is meant to replace
 `thinking`.
 
@@ -144,13 +140,14 @@ compacted.
 
 ### 3.4 Actions
 
-Actions are Boop's tools. The same actions serve the core's rules and the
-brain, so a cheer looks the same whichever of them asked for it.
+Actions are Boop's tools, for the brain and for the core's rule mumbles.
+The core's rule moments (a cheer, a nod) go to the device through a small
+player that accepts only the animations in [BEHAVIORS.md](BEHAVIORS.md) §5;
+it isn't a tool.
 
 | Action | Arguments | What it does |
 | --- | --- | --- |
 | `say` | `feeling`, `word?` | Asks Voice for a Minion line, then sends it to the device as a moment |
-| `face` | `name` | Sends an animation to the device as a moment |
 | `quiet` | `minutes` | Tells the core to stop mumbles for a while |
 | `note` | `text` | Adds a line to today's notes |
 | `remember` | `text` (short), `kind` (`about_you` or `preference`) | Reflection only: adds a line to About you or Preferences within its limits |
@@ -214,8 +211,8 @@ includes all three.
 | File | What it is | Changes |
 | --- | --- | --- |
 | `steering.md` | How Boop behaves: character, how to act, examples, what never to do | Never at runtime. Ships with the app and changes only in an announced release |
-| `long-term.md` | Who this Boop has become, and lasting facts and preferences about you | Once a day, at reflection, within limits; XP by the core |
-| `short-term.md` | Today: Boop's mood, notes about what you're doing and said, what happened | Throughout the day; starts fresh after reflection |
+| `long-term.md` | Who this Boop has become, and lasting facts and preferences about you | Once a day, at reflection, within limits |
+| `short-term.md` | Today: notes about what you're doing and said, what happened | Throughout the day; starts fresh after reflection |
 
 **Reflection** runs once a day, at the first activity of a new day. The
 memory store snapshots both writable files to `history/<date>/`, where
@@ -261,9 +258,6 @@ Gets huffy about flaky tests.
 ### Moments
 - 2026-10-09: first all-nighter together; the migration finally passed.
 
-### Growth
-xp: 1240 · level: 25 · last fed: 2026-10-14
-
 ## About you
 - Ships on Fridays.
 - Mostly works on landing and jetpack.
@@ -277,7 +271,6 @@ xp: 1240 · level: 25 · last fed: 2026-10-14
 | Boop (name line) | App, at setup | Never changes. `nature` is the person's one answer (sweet or cheeky); `seed` is random and picks Boop's voice dialect |
 | Temperament | Reflection | At most one sentence changed a day: `temperament` adds one sentence of at most 120 characters, and past five sentences it replaces the oldest |
 | Moments | Reflection | At most 20 of at most 80 characters; at most one a day, dated the day reflected on. Past 20, the oldest drops |
-| Growth | Core | [BEHAVIORS.md](BEHAVIORS.md) §4. While Boop is starving the line also carries `lost: N`, the XP lost since it was last fed, so a restart doesn't take a day's XP twice |
 | About you | Reflection | At most 30 lines of at most 100 characters; no code, paths, secrets or other people's names. A new line when full is refused; in v1 the person frees room by editing the file |
 | Preferences | Reflection | At most 15 lines; same limits |
 
@@ -296,7 +289,7 @@ Preferences; the Boop section isn't shown.
 
 ```markdown
 ## Today
-2026-10-14 · first seen 08:52 · mood: a bit frazzled
+2026-10-14 · first seen 08:52
 
 ## Notes
 - landing: flaky tests, third attempt
@@ -310,11 +303,9 @@ Preferences; the Boop section isn't shown.
 
 | Section | Written by | Rule |
 | --- | --- | --- |
-| Today | Core | Date, first activity, and Boop's current mood |
+| Today | Core | Date and first activity |
 | Notes | `note` action (from the brain) | At most 10 lines of at most 80 characters; the oldest drops first. No code, paths or secrets |
 | Happened | Core | One line per notable event, summaries only; the last 40 lines |
-
-Mood is internal. It shapes behaviour and is only visible in debug mode.
 
 ## 5. Common event shape
 
@@ -361,8 +352,8 @@ Adding an agent later means one new adapter that produces this shape.
 ## 7. Device
 
 The device is a thin client. It draws what the latest snapshot says, plays
-moments, runs its own short timers (blinks, idle life, the nudge ladder) and
-reports taps, push-to-talk, focus and touch-and-hold. It holds no
+moments, runs its own short timers (blinks, the needs-you chirp, the
+thinking timeout) and reports taps and push-to-talk. It holds no
 personality or memory, just a device ID, its touch calibration, and its
 animation and syllable library.
 What it does for each trigger is in [BEHAVIORS.md](BEHAVIORS.md); the
@@ -372,7 +363,7 @@ hardware and firmware are in [DEVICE.md](DEVICE.md).
 
 | Failure | Behaviour |
 | --- | --- |
-| App not running | Hooks exit at once; agents are unaffected. The device idles with a sleepy "no app" face |
+| App not running | Hooks exit at once; agents are unaffected. The device shows its waiting "no app" face |
 | Device disconnected | The app keeps going; the next snapshot catches the device up on reconnect |
 | Brain offline, slow or invalid | Rules still drive every reaction; the rules-only fallbacks in `steering.md` fill in; memory doesn't grow that day |
 | Memory file won't parse | `long-term.md` comes back from its newest snapshot that reads; `short-term.md` starts fresh (§4) |
@@ -483,3 +474,5 @@ When a spec changes direction, add a row here saying why.
 | 2026-09-26 | Event, tap and talk are offered the same four tools. A tool past its limit, or outside the trigger's allowed list, is named in the prompt (`say limit: …`) and a call to it is dropped, instead of not being offered. This replaces the earlier rows "`event` offers only `say` and `face`" and the "isn't offered" part of the speech-limit row | A conversation's tools can't change between calls. In L5 the `say` line holds, but Apple's model calls `note` on most events; the harness drops those calls (PLAN.md A6) | [HARNESS.md](HARNESS.md) §5 |
 | 2026-09-26 | The face takes gen-2's look (F6 follow-up): smaller lavender-white eyes, a short dash mouth, thin "^" arches for happy eyes, a heart at the top right for affection (`Pose::heart`), a climbing "zzZZ" when asleep (`Pose::zzz`), a strain and a sweat drop while working (`Pose::sweat`), a gentle sway for the tap, and open eyes glancing up for no app | On the board the owner found the F6 eyes less cute than gen-2's, the tap's solid crescents frightening (a dome with a bite out of the bottom reads as a hooded glare), and the sleepy no-app face droopy, and asked for the older faces. Seeing those, they asked for a heart instead of pink cheeks, a "zzZZ" and some effort. The new parts are pose fields, so they ease in and out with every blend, and the simulator draws them as the board does | [UX.md](UX.md) §2, [BEHAVIORS.md](BEHAVIORS.md) §2–3, [PLAN.md](PLAN.md) F6 |
 | 2026-09-26 | Push-to-talk can also start from a Talk button in the popover. The core owns whether the mic is on, and turns it off after 30 s, or when the link drops while the device's button is held; the menu-bar icon turns red while it's on. The app asks for mic access on first use, not at launch | The owner found no way to talk from the Mac and no sign the Mac was recording. The mic stopped only on `talk_off`, so a dropped link or a lost line (USB drops the odd one) left it on until the app quit | [UX.md](UX.md) §5, §7 |
+| 2026-09-26 | v1 is cut to a minimal surface: asleep, idle, working, no app and needs you; `cheer`, `nod`, `wiggle`, `listening`, `thinking` and `shrug`; tap and push-to-talk; the brain with `say`, `quiet` and `note`. Mood, XP and hunger, night, focus, cheer sizes, the nudge ladder, the threads and stats screens, touch-and-hold and the brain's faces are parked and deleted (kept at tag `v1-full`). A `moment` may carry only `say`, which plays over the current face. This supersedes the earlier rows about those features | The surface had grown past what the owner can hold in their head; features come back one at a time | [BEHAVIORS.md](BEHAVIORS.md), [FUTURE.md](FUTURE.md) |
+| 2026-09-26 | The face becomes pixel art after the owner's reference render: 3 px blocks with no anti-aliasing, window eyes of four panes, pink cheeks and a flat bar mouth; the heart, sweat drop and "zzZZ" become sprites. The popover's face and the menu-bar icon follow. This supersedes the gen-2 look row | The owner asked for every animation to match the reference; poses are unchanged, so every animation follows the new drawing | [UX.md](UX.md) §2 |

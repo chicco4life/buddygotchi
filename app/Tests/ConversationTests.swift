@@ -12,7 +12,7 @@ private struct ScriptBrain: Brain {
     }
 }
 
-private let face = #"{"calls":[{"tool":"face","name":"happy"}]}"#
+private let happy = #"{"calls":[{"tool":"say","feeling":"happy"}]}"#
 private let quiet = #"{"calls":[]}"#
 
 final class ConversationTests: XCTestCase {
@@ -25,23 +25,24 @@ final class ConversationTests: XCTestCase {
     }
 
     func testEachCallRepeatsThePreviousRequestAndAddsToIt() async {
-        let rig = HarnessRig(brain: FakeBrain { now in now.hasPrefix("tapped") ? face : quiet })
+        let rig = HarnessRig(brain: FakeBrain { now in now.hasPrefix("tapped") ? happy : quiet })
         let r = await run(rig, [trigger(.tap, "tapped · 09:30 Tuesday"),
                                 trigger(.event, "turn finished · claude · a · took 12 s · 09:31 Tuesday"),
                                 trigger(.talk, "talk · 09:32 Tuesday", words: "hi")])
         XCTAssertEqual(Set(r.map(\.prompt.system)).count, 1)
         XCTAssertEqual(r[0].prompt.history, [])
         XCTAssertTrue(r[0].prompt.user.hasPrefix("## Boop\n\n## Today\n\n--- now ---\n"), "the first message opens with the memory")
-        XCTAssertEqual(r[1].prompt.history, [Exchange(user: r[0].prompt.user, answer: face)])
+        XCTAssertEqual(r[1].prompt.history, [Exchange(user: r[0].prompt.user, answer: happy)])
         XCTAssertTrue(r[1].prompt.user.hasPrefix("--- now ---\nturn finished"), "later messages are just the now section")
         XCTAssertEqual(r[2].prompt.history, r[1].prompt.history + [Exchange(user: r[1].prompt.user, answer: quiet)])
         XCTAssertEqual(r[2].prompt.user, "--- now ---\ntalk · 09:32 Tuesday\nthey said: \"hi\"")
     }
 
     func testTheAnswerKeepsOnlyWhatRan() async {
-        let rig = HarnessRig(brain: FakeBrain { _ in #"{"calls":[{"tool":"face","name":"happy"},{"tool":"quiet","minutes":30}]}"# })
+        // On a tap, quiet is past its limit ("only on talk"), so it didn't run.
+        let rig = HarnessRig(brain: FakeBrain { _ in #"{"calls":[{"tool":"say","feeling":"happy"},{"tool":"quiet","minutes":30}]}"# })
         let r = await run(rig, [trigger(.tap, "tapped · 09:30 Tuesday"), trigger(.tap, "tapped · 09:31 Tuesday")])
-        XCTAssertEqual(r[1].prompt.history.map(\.answer), [face])
+        XCTAssertEqual(r[1].prompt.history.map(\.answer), [happy])
     }
 
     /// HARNESS.md §4: a change to the opening starts over.
@@ -60,7 +61,7 @@ final class ConversationTests: XCTestCase {
         let rig = HarnessRig(brain: ScriptBrain { now in
             if now.contains("09:31") { throw BrainError("offline") }
             if now.contains("09:40") { try await Task.sleep(for: .milliseconds(300)) }
-            return now.hasPrefix("talk") ? quiet : #"{"calls":[{"tool":"face","name":"sulky"}]}"#
+            return now.hasPrefix("talk") ? quiet : happy
         })
         var r = await run(rig, [trigger(.tap, "tapped · 09:30 Tuesday"), trigger(.tap, "tapped · 09:31 Tuesday"),
                                 trigger(.tap, "tapped · 09:32 Tuesday"), trigger(.tap, "tapped · 09:33 Tuesday")])

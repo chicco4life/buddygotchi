@@ -1,6 +1,6 @@
 // Base states (BEHAVIORS.md §2) and the no-app face after 30 s of silence.
 {"clock":0}
-{"t":"state","v":1,"base":"idle","busy":0,"idle":2,"wait":0,"threads":[["claude","jetpack","idle"],["codex","landing","idle"]]}
+{"t":"state","v":1,"base":"idle","busy":0,"idle":2,"wait":0}
 {"clock":300}
 {"expect":{"screen":"face","base":"idle","attn":null,"moment":null}}
 {"shot":"idle"}

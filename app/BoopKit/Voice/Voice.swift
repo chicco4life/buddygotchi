@@ -77,36 +77,39 @@ public struct Voice: Sendable {
     /// Builds a line. The same inputs and `seed` give the same line. A word
     /// outside the vocabulary is left out.
     /// `rejected` sees every try and why it failed, for debugging.
-    public func line(_ feeling: Feeling, word: String? = nil, mood: Mood = Mood(), seed: UInt64,
+    public func line(_ feeling: Feeling, word: String? = nil, seed: UInt64,
                      rejected: (([[String]], String?) -> Void)? = nil) -> VoiceLine {
         let word = word.flatMap { Sounds.vocabularySet.contains($0) ? $0 : nil }
         let salt = UInt64(Feeling.allCases.firstIndex(of: feeling)! + 1) << 56
         var rng = SplitMix64(seed: (seed ^ salt) ^ dialect.seed &* 0x100_0000_01B3)
         for _ in 0...Voice.retries {
-            let groups = gibberish(feeling, mood: mood, rng: &rng)
+            let groups = gibberish(feeling, rng: &rng)
             let failure = check.failure(groups)
             rejected?(groups, failure)
             if failure == nil {
-                return place(groups, word: word, feeling: feeling, mood: mood, rng: &rng)
+                return place(groups, word: word, feeling: feeling, rng: &rng)
             }
         }
-        var hum = place(Sounds.safeHum, word: word, feeling: feeling, mood: mood, rng: &rng)
+        var hum = place(Sounds.safeHum, word: word, feeling: feeling, rng: &rng)
         hum.tune = .down
         return hum
     }
 
-    func place(_ groups: [[String]], word: String?, feeling: Feeling, mood: Mood, rng: inout SplitMix64) -> VoiceLine {
+    func place(_ groups: [[String]], word: String?, feeling: Feeling, rng: inout SplitMix64) -> VoiceLine {
         let count = groups.reduce(0) { $0 + $1.count }
         // Usually at the end, as a question or exclamation; now and then at
         // the start, as an announcement. Curious always asks.
         let first = word != nil && feeling != .curious && rng.chance(20)
         return VoiceLine(groups: groups, word: word, at: word == nil ? count : (first ? 0 : count),
-                         tune: feeling.tune, ms: Voice.tempo(feeling, mood: mood))
+                         tune: feeling.tune, ms: Voice.tempo(feeling))
     }
 
-    /// 90–180 ms per syllable: faster with pace, then by feeling.
-    static func tempo(_ feeling: Feeling, mood: Mood) -> Int {
-        var ms = 180 - max(0, min(200, mood.pace)) * 90 / 200
+    /// Milliseconds per syllable at the neutral pace, before the feeling.
+    static let neutralMs = 135
+
+    /// 90–180 ms per syllable: the neutral pace, then by feeling.
+    static func tempo(_ feeling: Feeling) -> Int {
+        var ms = Voice.neutralMs
         switch feeling {
         case .excited: ms -= 20
         case .happy, .annoyed: ms -= 10
@@ -118,8 +121,8 @@ public struct Voice: Sendable {
         return max(90, min(180, ms))
     }
 
-    func gibberish(_ feeling: Feeling, mood: Mood, rng: inout SplitMix64) -> [[String]] {
-        let total = length(feeling, mood: mood, rng: &rng)
+    func gibberish(_ feeling: Feeling, rng: inout SplitMix64) -> [[String]] {
+        let total = length(feeling, rng: &rng)
         var groups: [[String]] = []
         var left = total
         while left > 0 {
@@ -154,9 +157,9 @@ public struct Voice: Sendable {
         return group
     }
 
-    /// Short (2–4) or long (5–8), from the feeling and Boop's energy.
-    func length(_ feeling: Feeling, mood: Mood, rng: inout SplitMix64) -> Int {
-        var long: Int
+    /// Short (2–4) or long (5–8), from the feeling.
+    func length(_ feeling: Feeling, rng: inout SplitMix64) -> Int {
+        let long: Int
         switch feeling {
         case .excited: long = 80
         case .proud: long = 50
@@ -166,7 +169,6 @@ public struct Voice: Sendable {
         case .annoyed: long = 20
         case .sleepy: long = 10
         }
-        long += (mood.energy - 100) / 4
         return rng.chance(long) ? rng.int(in: 5...8) : rng.int(in: 2...4)
     }
 

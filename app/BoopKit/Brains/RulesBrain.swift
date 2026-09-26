@@ -5,8 +5,8 @@ import Foundation
 ///
 /// A row's condition is a trigger (`Turn started`, `Turn finished`, `Turn
 /// failed`, `Tap`, `Talk`) with optional qualifiers after commas: `long`
-/// (took 5 min or more), `hungry` (hungry or starving), `containing "a" or
-/// "b"` (talk words), `anything else`. `Anything else` alone matches
+/// (took 5 min or more), `containing "a" or "b"` (talk words), `anything
+/// else`. `Anything else` alone matches
 /// everything. The row with the most matching qualifiers wins; ties go to the
 /// first. A row with a qualifier this brain doesn't know never matches.
 public struct RulesBrain: Brain {
@@ -48,7 +48,7 @@ public struct RulesBrain: Brain {
         return rows
     }
 
-    /// `` `face(name: sulky)`, `quiet(minutes: 30)` `` → calls; anything else → none.
+    /// `` `say(feeling: annoyed)`, `quiet(minutes: 30)` `` → calls; anything else → none.
     static func calls(_ cell: String) -> [ToolCall] {
         cell.components(separatedBy: "`").enumerated().compactMap { i, part in
             guard i % 2 == 1, let open = part.firstIndex(of: "("), part.hasSuffix(")") else { return nil }
@@ -67,7 +67,6 @@ public struct RulesBrain: Brain {
     struct Now {
         var what: String
         var tookMinutes: Int?
-        var hungry: Bool
         var words: String?
 
         init(_ now: String) {
@@ -77,7 +76,6 @@ public struct RulesBrain: Brain {
             tookMinutes = fields.first { $0.hasPrefix("took ") }.map { f in
                 f.hasSuffix(" min") ? Int(f.dropFirst(5).dropLast(4)) ?? 0 : 0
             }
-            hungry = fields.contains("hungry") || fields.contains("starving")
             words = lines.first { $0.hasPrefix("they said: ") }.map { String($0.dropFirst("they said: ".count)) }
         }
 
@@ -98,7 +96,7 @@ public struct RulesBrain: Brain {
     static let triggers = ["turn started", "turn finished", "turn failed", "tap", "talk", "anything else"]
 
     /// `Talk containing "a" or "b"` → (`talk`, [`containing "a" or "b"`]);
-    /// `Tap, hungry` → (`tap`, [`hungry`]).
+    /// `Turn finished, long` → (`turn finished`, [`long`]).
     static func parse(_ condition: String) -> (trigger: String, qualifiers: [String])? {
         let lower = condition.lowercased()
         guard let trigger = triggers.first(where: { lower.hasPrefix($0) }) else { return nil }
@@ -120,8 +118,6 @@ public struct RulesBrain: Brain {
                     continue
                 } else if lower == "long" {
                     fits = (now.tookMinutes ?? 0) >= 5
-                } else if lower == "hungry" {
-                    fits = now.hungry
                 } else if lower.hasPrefix("containing ") {
                     let phrases = q.components(separatedBy: "\"").enumerated().filter { $0.offset % 2 == 1 }.map(\.element)
                     let words = (now.words ?? "").lowercased()

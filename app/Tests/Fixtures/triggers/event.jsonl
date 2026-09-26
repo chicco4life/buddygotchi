@@ -1,6 +1,6 @@
 {"kind": "event", "line": "turn started · claude · jetpack · 09:12 Tuesday"}
 {"kind": "event", "line": "turn started · codex · landing · 09:40 Tuesday"}
-{"kind": "event", "line": "turn started · claude · boop · 10:03 Tuesday · hungry"}
+{"kind": "event", "line": "turn started · claude · boop · 10:03 Tuesday"}
 {"kind": "event", "line": "turn started · codex · jetpack · 16:20 Friday"}
 {"kind": "event", "line": "turn started · claude · landing · 23:48 Wednesday"}
 {"kind": "event", "line": "turn finished · claude · jetpack · took 12 s · 09:13 Tuesday"}
@@ -10,8 +10,8 @@
 {"kind": "event", "line": "turn finished · claude · boop · topic: docs · took 7 min · 15:02 Tuesday"}
 {"kind": "event", "line": "turn finished · codex · jetpack · topic: deploy · took 26 min · 17:55 Friday"}
 {"kind": "event", "line": "turn finished · claude · jetpack · took 48 min · 01:10 Thursday"}
-{"kind": "event", "line": "turn finished · claude · landing · took 2 min · 13:00 Monday · hungry"}
-{"kind": "event", "line": "turn finished · codex · boop · topic: tests · took 9 min · 10:15 Wednesday · starving"}
+{"kind": "event", "line": "turn finished · claude · landing · took 2 min · 13:00 Monday"}
+{"kind": "event", "line": "turn finished · codex · boop · topic: tests · took 9 min · 10:15 Wednesday"}
 {"kind": "event", "line": "turn finished · claude · jetpack · topic: tests · took 6 min · 14:40 Tuesday · +2 more"}
 {"kind": "event", "line": "turn finished · claude · landing · took 35 s · 08:05 Monday"}
 {"kind": "event", "line": "turn failed · claude · jetpack · topic: tests · 14:02 Tuesday"}
@@ -20,5 +20,5 @@
 {"kind": "event", "line": "turn failed · codex · jetpack · error: overloaded · 10:05 Wednesday"}
 {"kind": "event", "line": "turn failed · claude · landing · topic: deploy · error: timeout · 18:30 Friday"}
 {"kind": "event", "line": "turn failed · codex · landing · topic: tests · 14:03 Tuesday · +1 more"}
-{"kind": "event", "line": "turn failed · claude · jetpack · error: context limit · 22:10 Thursday · hungry"}
+{"kind": "event", "line": "turn failed · claude · jetpack · error: context limit · 22:10 Thursday"}
 {"kind": "event", "line": "turn failed · codex · boop · error: other · 09:00 Monday"}

@@ -4,6 +4,32 @@ A running list of ideas we like but aren't building in v1. Nothing here is a
 promise. To pick one up, write it into the matching spec (UX, BEHAVIORS,
 ARCHITECTURE…) first, then add it to [PLAN.md](PLAN.md).
 
+## Parked from v1
+
+On 2026-09-26 v1 was cut down to its core ([BEHAVIORS.md](BEHAVIORS.md)),
+so the surface is small enough to keep in your head. Everything below was
+built and working before the cut. Its code, tests, golden images and specs
+are at git tag `v1-full` (for example
+`git show v1-full:plan/BEHAVIORS.md`). Bring one back at a time, with its
+spec first.
+
+| Feature | What it was | Spec at `v1-full` |
+| --- | --- | --- |
+| Cheer sizes | Three cheer sizes by turn length (under 5 min, 5–20, over 20), a jingle and a warm light for the bigger two, and a burst of finishes upgrading one cheer | BEHAVIORS §3.1 |
+| Failed-turn reaction | `oops`, then `side_eye` at the agent | BEHAVIORS §3.1 |
+| Nudge ladder | A second chirp and a bigger lean at 45 s, then three amber pulses (or a buzz, with a motor) at 2 min; a tap stopped the nudges for that session | BEHAVIORS §3.2 |
+| Morning ritual | `stretch` and `yawn` at the first activity of the day | BEHAVIORS §3.3 |
+| XP, levels and hunger | +1 XP a finished turn, +5 a day, a level every 50; hungry after 2 days and starving after 5 (tummy rumble, hopeful peeks, an empty bowl, −1 XP a day); `levelup` and `gobble` moments; "I'm away" pausing hunger | BEHAVIORS §4 |
+| Mood | Energy, pace and pitch set by wins, failures and night, shaping how moments and the voice play | BEHAVIORS §5, VOICE §5 |
+| Night | 23:00–07:00: dimmer, drowsier, fewer mumbles, and asleep when nothing works | BEHAVIORS §2 |
+| Idle life | Glances, peeks and bobs while idle, and glancing down at the work while working | BEHAVIORS §2 |
+| Brain faces | The brain's `face` tool (`happy`, `proud`, `smug`, `curious`, `sleepy`, `worried`, `sulky`, `love`, `side_eye`), and `say` showing a face for its feeling | HARNESS §6, BEHAVIORS §7 |
+| Touch-and-hold | Holding the face showed how Boop feels, from its mood | BEHAVIORS §3.3, UX §4 |
+| Threads screen | Every session by agent, with its status | UX §3 |
+| Stats screen and the record | Level ring, name and days together on the device; level, tasks finished, projects and days in the popover | UX §3, §7 |
+| Focus mode | Holding the status strip: no sound or buzz, "needs you" visual only | BEHAVIORS §6, UX §4 |
+| `zip` | Drawn but never played | BEHAVIORS §7 |
+
 ## Character and growth
 
 - **Life stages.** Hatchling → Grown → Veteran, reached by both days

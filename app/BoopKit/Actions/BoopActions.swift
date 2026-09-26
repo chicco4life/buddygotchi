@@ -1,7 +1,7 @@
 import Foundation
 
 /// `say(feeling, word?)`: asks Voice for a Minion line and sends it as a
-/// moment, with the face that goes with the feeling.
+/// moment with no animation, so it plays over whatever face is showing.
 public final class SayAction: Action {
     public let context: ActionContext
     let voice: Voice
@@ -20,13 +20,6 @@ public final class SayAction: Action {
             .init("word", .choice(Sounds.vocabulary), optional: true),
         ])
 
-    /// The face each feeling plays under its mumble. The device only speaks
-    /// over an animation.
-    static let faces: [Feeling: String] = [
-        .happy: "happy", .excited: "happy", .proud: "proud", .curious: "curious",
-        .hopeful: "love", .annoyed: "side_eye", .sad: "worried", .sleepy: "sleepy",
-    ]
-
     public func perform(_ call: ToolCall) -> ActionOutcome {
         let args: [String: ToolValue]
         switch arguments(call) {
@@ -37,55 +30,30 @@ public final class SayAction: Action {
         let feeling = Feeling(rawValue: args["feeling"]?.string ?? "")!
         lines += 1
         let seed = lines
-        let line = voice.line(feeling, word: args["word"]?.string, mood: context.mood(), seed: seed)
-        context.send(DeviceMoment(anim: SayAction.faces[feeling]!, size: feeling == .excited ? 2 : 1, say: line))
+        let line = voice.line(feeling, word: args["word"]?.string, seed: seed)
+        context.send(DeviceMoment(say: line))
         return .done("\(line.text) (seed \(seed))")
     }
 }
 
-/// `face(name)`: plays an animation as a moment. The brain picks from the
-/// faces; the core's rules may play any animation.
-public final class FaceAction: Action {
+/// Plays the core's rule moments (`.moment`). Not a tool: the brain can't
+/// pick a face; only the rules play animations.
+public final class FacePlayer {
     public let context: ActionContext
 
     public init(context: ActionContext) { self.context = context }
 
-    /// Faces the brain can pick (BEHAVIORS.md §7).
-    public static let faces = ["happy", "proud", "smug", "curious", "sleepy", "worried", "sulky", "love", "side_eye"]
-    /// Every animation the device has.
-    public static let anims: Set<String> = Set(faces + [
-        "nod", "cheer", "oops", "wiggle", "stretch", "yawn", "listening", "thinking", "shrug", "zip", "gobble",
-        "rumble", "levelup",
-    ])
+    /// Every animation the core may play (BEHAVIORS.md §5).
+    public static let anims: Set<String> = ["cheer", "nod", "wiggle", "listening", "thinking", "shrug"]
 
-    public let definition = ToolDefinition(
-        name: "face", description: "Show a feeling on your face.",
-        parameters: [.init("name", .choice(FaceAction.faces))])
-
-    public func perform(_ call: ToolCall) -> ActionOutcome {
-        switch arguments(call) {
-        case .failure(let why): return .dropped(why.description)
-        case .success(let args):
-            let name = args["name"]!.string!
-            context.send(DeviceMoment(anim: name, size: 1))
-            return .done(name)
-        }
-    }
-
-    /// A rule reaction from the core (`.moment`): any animation, size 1–3.
     @discardableResult
-    public func play(_ anim: String, size: Int) -> ActionOutcome {
-        let outcome: ActionOutcome
-        if !FaceAction.anims.contains(anim) {
-            outcome = .dropped("no animation called \(anim)")
-        } else if !(1...3).contains(size) {
-            outcome = .dropped("size \(size) isn't 1–3")
-        } else {
-            context.send(DeviceMoment(anim: anim, size: size))
-            outcome = .done("\(anim) \(size)")
+    public func play(_ anim: String) -> ActionOutcome {
+        guard FacePlayer.anims.contains(anim) else {
+            context.log("face: dropped \(anim): no animation called \(anim)")
+            return .dropped("no animation called \(anim)")
         }
-        if case .dropped(let why) = outcome { context.log("face: dropped \(anim) \(size): \(why)") }
-        return outcome
+        context.send(DeviceMoment(anim: anim))
+        return .done(anim)
     }
 }
 

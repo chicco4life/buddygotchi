@@ -179,7 +179,7 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 
 # Moments that keep the face moving for perf, one after another.
-MOTION = ["cheer", "wiggle", "levelup", "gobble", "rumble", "nod", "yawn", "stretch"]
+MOTION = ["cheer", "wiggle", "nod", "shrug"]
 
 
 def cmd_perf(args: argparse.Namespace) -> int:
@@ -194,7 +194,7 @@ def cmd_perf(args: argparse.Namespace) -> int:
         i = 0
         while (elapsed := time.monotonic() - start) < args.seconds:
             if args.motion and elapsed - last_moment >= 1.0:
-                dev.send({"t": "moment", "anim": MOTION[i % len(MOTION)], "size": 3, "ttl": 5})
+                dev.send({"t": "moment", "anim": MOTION[i % len(MOTION)], "ttl": 5})
                 dev.send({"t": "state", "v": 1, "base": "working", "busy": 1})
                 last_moment, i = elapsed, i + 1
             time.sleep(1.0)
@@ -215,10 +215,10 @@ def cmd_perf(args: argparse.Namespace) -> int:
     return 0 if result["ok"] else 1
 
 
-# The feelings `mumble` and `say` play: each one's face and usual word.
-VOICE_LINES = [("happy", "happy", "yay"), ("excited", "cheer", "done"), ("proud", "proud", "ship"),
-               ("curious", "curious", "tests"), ("hopeful", "love", "food"), ("annoyed", "side_eye", "build"),
-               ("sad", "sulky", "oops"), ("sleepy", "sleepy", "nap")]
+# The feelings `mumble` and `say` play, each with its usual word. A mumble
+# goes on its own, with no animation, as the Mac sends one (PROTOCOL.md §3).
+VOICE_LINES = [("happy", "yay"), ("excited", "done"), ("proud", "ship"), ("curious", "tests"),
+               ("hopeful", "food"), ("annoyed", "build"), ("sad", "oops"), ("sleepy", "nap")]
 
 
 def boopdev_voice(feeling: str, word: str | None, count: int, seed: int | None = None) -> list[dict]:
@@ -237,33 +237,32 @@ def boopdev_voice(feeling: str, word: str | None, count: int, seed: int | None =
     return [json.loads(row) for row in out.splitlines() if row.startswith("{")]
 
 
-SOAK_ANIMS = ["nod", "cheer", "oops", "side_eye", "wiggle", "stretch", "yawn", "shrug", "zip", "gobble",
-              "rumble", "levelup", "happy", "proud", "smug", "curious", "sleepy", "worried", "sulky", "love"]
+SOAK_ANIMS = ["nod", "cheer", "wiggle", "shrug"]
 SOAK_PROJECTS = ["landing", "jetpack", "buddygotchi", "a-very-long-project-name", "notes"]
 
 
 def soak_state(rng: random.Random) -> dict:
     """A realistic snapshot: sessions, sometimes something that needs you."""
-    threads = [[rng.choice(["claude", "codex"]), rng.choice(SOAK_PROJECTS), rng.choice(["work", "idle", "wait"])]
-               for _ in range(rng.randint(0, 8))]
-    busy = sum(t[2] == "work" for t in threads)
-    wait = sum(t[2] == "wait" for t in threads)
+    sessions = [[rng.choice(["claude", "codex"]), rng.choice(SOAK_PROJECTS), rng.choice(["work", "idle", "wait"])]
+                for _ in range(rng.randint(0, 8))]
+    busy = sum(t[2] == "work" for t in sessions)
+    wait = sum(t[2] == "wait" for t in sessions)
     msg = {"t": "state", "v": 1, "time": int(time.time()), "name": "Pip",
            "base": "working" if busy else rng.choice(["idle", "idle", "asleep"]),
-           "busy": busy, "idle": len(threads) - busy - wait, "wait": wait,
-           "mood": {"energy": rng.randint(30, 170), "pace": rng.randint(60, 150), "pitch": 100},
-           "quiet": rng.choice([0, 0, 0, 5]), "focus": rng.random() < 0.1, "vol": 6,
-           "night": rng.random() < 0.15, "level": rng.randint(1, 30), "prog": rng.randint(0, 99),
-           "days": rng.randint(0, 400), "hungry": rng.choice([0, 0, 0, 1, 2]), "threads": threads}
+           "busy": busy, "idle": len(sessions) - busy - wait, "wait": wait,
+           "quiet": rng.choice([0, 0, 0, 5]), "vol": 6}
     if wait:
-        waiting = next(t for t in threads if t[2] == "wait")
+        waiting = next(t for t in sessions if t[2] == "wait")
         msg["attn"] = {"agent": waiting[0], "project": waiting[1], "more": wait - 1}
     return msg
 
 
 def soak_moment(rng: random.Random) -> dict:
-    msg = {"t": "moment", "anim": rng.choice(SOAK_ANIMS), "size": rng.randint(1, 3), "ttl": 5}
-    if rng.random() < 0.4:
+    """An animation, a mumble, or both, as the Mac sends them."""
+    msg = {"t": "moment", "ttl": 5}
+    if rng.random() < 0.7:
+        msg["anim"] = rng.choice(SOAK_ANIMS)
+    if "anim" not in msg or rng.random() < 0.4:
         n = rng.randint(1, 8)
         msg["say"] = {"syl": " ".join(rng.choice(["ba", "na", "po", "ti", "ka", "mi"]) for _ in range(n)),
                       "word": rng.choice(["", "done", "tests", "finally", "hmm"]), "at": rng.randint(0, n),
@@ -272,14 +271,15 @@ def soak_moment(rng: random.Random) -> dict:
 
 
 def soak_input(rng: random.Random) -> dict:
-    kind = rng.choice(["tap", "hold", "face", "face_hold", "strip", "strip_hold"])
+    """BOOT taps and holds, and touches anywhere (each a tap on release),
+    short and long, the status strip included."""
+    kind = rng.choice(["tap", "hold", "touch", "long_touch"])
     if kind == "tap":
         return {"t": "dbg.press", "ms": 100}
     if kind == "hold":
         return {"t": "dbg.press", "ms": rng.randint(500, 3000)}
-    # The 320×240 screen: the strip is the bottom 36 px (render/screens.h kStripTop 204).
-    y = rng.randint(210, 235) if kind.startswith("strip") else rng.randint(20, 190)
-    return {"t": "dbg.touch", "x": rng.randint(10, 310), "y": y, "ms": 800 if kind.endswith("hold") else 100}
+    return {"t": "dbg.touch", "x": rng.randint(10, 310), "y": rng.randint(10, 235),
+            "ms": 800 if kind == "long_touch" else 100}
 
 
 def cmd_soak(args: argparse.Namespace) -> int:
@@ -383,8 +383,8 @@ def cmd_bridge(args: argparse.Namespace) -> int:
 # whether it happened. The Mac app, if it's connected over Bluetooth, keeps
 # sending its own `state` and can override these.
 
-FEELINGS = [f for f, _, _ in VOICE_LINES]
-MOMENT_ANIMS = sorted(set(SOAK_ANIMS) | {"listening", "thinking"})
+FEELINGS = [f for f, _ in VOICE_LINES]
+MOMENT_ANIMS = ["cheer", "nod", "wiggle", "listening", "thinking", "shrug"]
 
 
 def show_begin(dev: Device, warn: bool = True) -> dict:
@@ -428,11 +428,11 @@ def sfx_name(st: dict) -> str | None:
     return sfx
 
 
-def play_line(dev: Device, anim: str, say: dict) -> dict | None:
+def play_line(dev: Device, say: dict) -> dict | None:
     """Plays one mumble and waits for the board to finish it: `audio.out`
     for the line, or None if it didn't play within 6 s."""
     before = dev.request({"t": "dbg.state"})["audio"]["out"]["lines"]
-    dev.send({"t": "moment", "anim": anim, "size": 1, "say": say, "ttl": 5})
+    dev.send({"t": "moment", "say": say, "ttl": 5})
     deadline = time.monotonic() + 6
     while (out := dev.request({"t": "dbg.state"})["audio"]["out"])["lines"] <= before:
         if time.monotonic() > deadline:
@@ -445,12 +445,12 @@ def syllables(say: dict) -> int:
     return len([s for s in say["syl"].replace("-", " ").split() if s])
 
 
-def check_line(dev: Device, anim: str, say: dict) -> dict:
+def check_line(dev: Device, say: dict) -> dict:
     """Plays one mumble and checks `audio.out` in dbg.state against it: the
     syllable count, the word, and the duration the DAC took within 10% of
     beats × ms (F5's L2 check). Waits up to 6 s for the line to finish."""
     before = dev.request({"t": "dbg.state"})["audio"]["out"]["lines"]
-    dev.send({"t": "moment", "anim": anim, "size": 1, "say": say, "ttl": 5})
+    dev.send({"t": "moment", "say": say, "ttl": 5})
     deadline = time.monotonic() + 6
     amp_seen = False
     while True:
@@ -486,8 +486,7 @@ def cmd_mumble(args: argparse.Namespace) -> int:
     Voice for every feeling (or the ones named), without and then with its
     usual word, each checked with check_line. Then checks that a muted line
     moves the mouth and plays nothing."""
-    words = {f: w for f, _, w in VOICE_LINES}
-    anims = {f: a for f, a, _ in VOICE_LINES}
+    words = dict(VOICE_LINES)
     seed = args.seed if args.seed is not None else random.randrange(10_000)
     if not args.json:
         print(f"seed {seed} (--seed {seed} plays these lines again)")
@@ -499,7 +498,7 @@ def cmd_mumble(args: argparse.Namespace) -> int:
             for word in variants:
                 for say in boopdev_voice(feeling, word, args.count, seed + i):
                     show_state(dev, args.vol)
-                    r = check_line(dev, anims[feeling], say)
+                    r = check_line(dev, say)
                     results.append({"feeling": feeling, **r})
                     if not args.json:
                         print(f"{feeling:8} {line_row(r)}", flush=True)
@@ -507,7 +506,7 @@ def cmd_mumble(args: argparse.Namespace) -> int:
         # Muted: the mouth still moves, the DAC stays off.
         show_state(dev, 0)
         before = dev.request({"t": "dbg.state"})["audio"]["out"]["lines"]
-        dev.send({"t": "moment", "anim": "happy", "size": 1, "say": boopdev_voice("happy", None, 1, seed)[0], "ttl": 5})
+        dev.send({"t": "moment", "say": boopdev_voice("happy", None, 1, seed)[0], "ttl": 5})
         mouth = dev.request({"t": "dbg.state"})["audio"]["playing"]
         time.sleep(2.5)
         st = dev.request({"t": "dbg.state"})
@@ -525,8 +524,7 @@ def cmd_say(args: argparse.Namespace) -> int:
     """One mumble with its word at the end. It sends no `state`, so the line
     plays at whatever volume the board already has: the Mac app's, when it's
     connected."""
-    words = {f: w for f, _, w in VOICE_LINES}
-    anims = {f: a for f, a, _ in VOICE_LINES}
+    words = dict(VOICE_LINES)
     say = boopdev_voice(args.feeling, args.word or words[args.feeling], 1, args.seed)[0]
     say["at"] = syllables(say)
     with Device(args.port) as dev:
@@ -535,12 +533,12 @@ def cmd_say(args: argparse.Namespace) -> int:
         vol = st.get("vol")
         source = "the Mac app's" if mac else "the last `state` the board got; the Mac app isn't connected"
         print(f"volume {vol if vol is not None else '? (reflash: this firmware has no vol in dbg.state)'} ({source})")
-        why = ("muted (volume 0)" if vol == 0 else "in focus mode" if st["focus"] else
-               "quiet" if st["quiet"] else "something needs you" if st["attn"] else None)
+        why = ("muted (volume 0)" if vol == 0 else "quiet" if st["quiet"] else
+               "something needs you" if st["attn"] else None)
         if why:
             print(f"not playing: the board is {why}, so it won't speak")
             return 1
-        r = check_line(dev, anims[args.feeling], say)
+        r = check_line(dev, say)
     print(f"{args.feeling:8} {line_row(r)}")
     return 0 if r["ok"] else 1
 
@@ -559,7 +557,7 @@ def cmd_volume(args: argparse.Namespace) -> int:
         for i in range(args.rounds):
             for vol in args.levels:
                 show_state(dev, vol)
-                out = play_line(dev, "happy", VOLUME_LINE)
+                out = play_line(dev, VOLUME_LINE)
                 missed += out is None or out["cut"]
                 print(f"round {i + 1} vol {vol:2}: "
                       + (f"played {out['out_ms']} ms" + (", cut short" if out["cut"] else "") if out else "didn't play"),
@@ -569,59 +567,65 @@ def cmd_volume(args: argparse.Namespace) -> int:
 
 
 def cmd_sound(args: argparse.Namespace) -> int:
-    """The chirp comes with a new "needs you", so it's played by sending one
-    and clearing it (Boop nods). The jingle comes with a cheer of size 2."""
+    """The chirp, the only sound cue, comes with a new "needs you", so it's
+    played by sending one and clearing it (Boop nods)."""
     with Device(args.port) as dev:
         show_begin(dev)
-        if args.cue == "chirp":
-            show_state(dev, args.vol, attn={"agent": "claude", "project": "boopctl", "more": 0})
-        else:
-            show_state(dev, args.vol)
-            dev.send({"t": "moment", "anim": "cheer", "size": 2, "ttl": 5})
+        show_state(dev, args.vol, attn={"agent": "claude", "project": "boopctl", "more": 0})
         deadline = time.monotonic() + 3
         while (heard := sfx_name(dev.request({"t": "dbg.state"}))) != args.cue and time.monotonic() < deadline:
             time.sleep(0.05)
-        if args.cue == "chirp":
-            time.sleep(1.5)
-            show_state(dev, args.vol)
+        time.sleep(1.5)
+        show_state(dev, args.vol)
     print(f"{args.cue}: " + ("played" if heard == args.cue else f"not played (last cue {heard})"))
     return 0 if heard == args.cue else 1
 
 
 def cmd_moment(args: argparse.Namespace) -> int:
+    """An animation, a mumble on its own (--say with no anim), or both."""
+    if not args.anim and not args.say:
+        raise DeviceError("moment needs an anim, --say FEELING, or both")
     with Device(args.port) as dev:
         show_begin(dev)
         show_state(dev, args.vol, base=args.base)
-        msg = {"t": "moment", "anim": args.anim, "size": args.size, "ttl": 5}
+        msg = {"t": "moment", "ttl": 5}
+        if args.anim:
+            msg["anim"] = args.anim
         if args.say:
             msg["say"] = boopdev_voice(args.say, args.word, 1, args.seed)[0]
         dev.send(msg)
-        moment = dev.request({"t": "dbg.state"}).get("moment")
-    playing = bool(moment) and moment.get("anim") == args.anim
-    print(f"{args.anim}: " + (f"playing, {moment['left_ms']} ms" if playing else f"not playing ({moment})")
-          + (f", saying {msg['say']['syl']!r} {msg['say'].get('word') or ''}" if args.say else ""))
-    return 0 if playing else 1
+        st = dev.request({"t": "dbg.state"})
+    moment = st.get("moment")
+    if args.anim:
+        ok = bool(moment) and moment.get("anim") == args.anim
+        head = f"{args.anim}: " + (f"playing, {moment['left_ms']} ms" if ok else f"not playing ({moment})")
+    else:
+        ok = st["audio"]["syllables"] > 0
+        head = "mumble: " + ("playing over the face" if ok else "not playing (quiet, or something needs you?)")
+    print(head + (f", saying {msg['say']['syl']!r} {msg['say'].get('word') or ''}" if args.say else ""))
+    return 0 if ok else 1
 
 
 def cmd_needs(args: argparse.Namespace) -> int:
-    """Holds a "needs you" and prints each rung of the nudge ladder as the
-    board reaches it (BEHAVIORS.md §3.2), then clears it. Ctrl-C clears it
-    early."""
+    """Holds a "needs you" for a while (BEHAVIORS.md §3.2): one chirp, amber
+    at half, the face turned to you. Prints what the board shows, then
+    clears it, and Boop nods. Ctrl-C clears it early."""
     attn = {"agent": args.agent, "project": args.project, "more": args.more}
     with Device(args.port) as dev:
         show_begin(dev)
         start = time.monotonic()
-        resend = rung = None
+        resend = None
+        shown = False
         try:
             while (now := time.monotonic()) - start < args.seconds:
                 if resend is None or now >= resend:
                     show_state(dev, args.vol, attn=attn)
                     resend = now + 10
-                st = dev.request({"t": "dbg.state"})
-                if st["rung"] != rung:
-                    rung = st["rung"]
-                    print(f"{now - start:6.1f} s  rung {rung}  screen {st['screen']}  led {st['led']}  "
+                if not shown and now - start >= 0.3:
+                    st = dev.request({"t": "dbg.state"})
+                    print(f"{now - start:6.1f} s  screen {st['screen']}  led {st['led']}  bl {st['bl']}  "
                           f"last cue {sfx_name(st)}", flush=True)
+                    shown = True
                 time.sleep(0.25)
         except KeyboardInterrupt:
             pass
@@ -721,21 +725,21 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--rounds", type=int, default=6, help="default 6")
     p.add_argument("--gap", type=float, default=0.6, help="seconds between lines (default 0.6)")
     p.set_defaults(func=cmd_volume)
-    p = sub.add_parser("sound", help="hear the needs-you chirp or the cheer's jingle")
-    p.add_argument("cue", choices=["chirp", "jingle"])
+    p = sub.add_parser("sound", help="hear the needs-you chirp, the only sound cue")
+    p.add_argument("cue", nargs="?", choices=["chirp"], default="chirp")
     p.add_argument("--vol", **vol)
     p.set_defaults(func=cmd_sound)
-    p = sub.add_parser("moment", help="play an animation or face, optionally with a mumble")
-    p.add_argument("anim", choices=MOMENT_ANIMS, metavar="anim", help=", ".join(MOMENT_ANIMS))
-    p.add_argument("--size", type=int, choices=[1, 2, 3], default=1)
-    p.add_argument("--say", choices=FEELINGS, metavar="FEELING", help="add a mumble with this feeling")
+    p = sub.add_parser("moment", help="play an animation, a mumble on its own (--say), or both")
+    p.add_argument("anim", nargs="?", choices=MOMENT_ANIMS, metavar="anim", help=", ".join(MOMENT_ANIMS))
+    p.add_argument("--say", choices=FEELINGS, metavar="FEELING",
+                   help=f"a mumble with this feeling: {', '.join(FEELINGS)}")
     p.add_argument("--word", help="the mumble's word")
     p.add_argument("--seed", type=int)
     p.add_argument("--base", choices=["idle", "working", "asleep"], default="idle")
     p.add_argument("--vol", **vol)
     p.set_defaults(func=cmd_moment)
-    p = sub.add_parser("needs", help="hold a fake \"needs you\" through the nudge ladder, then clear it")
-    p.add_argument("--seconds", type=float, default=130, help="how long to hold it (default 130: past rung 3)")
+    p = sub.add_parser("needs", help="hold a fake \"needs you\" for a while, then clear it")
+    p.add_argument("--seconds", type=float, default=10, help="how long to hold it (default 10)")
     p.add_argument("--agent", choices=["claude", "codex"], default="claude")
     p.add_argument("--project", default="boopctl")
     p.add_argument("--more", type=int, default=0, help="how many more are waiting")
@@ -748,7 +752,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_soak)
     p = sub.add_parser("cam", help="webcam helpers (opt-in; plan/VERIFICATION.md §6)")
     p.add_argument("action", choices=["frame", "pattern", "clip"])
-    p.add_argument("name", nargs="?", help="clip: idle, needs_you, cheer, ladder, cheers or tap")
+    p.add_argument("name", nargs="?", help="clip: idle, needs_you, cheer or tap")
     p.add_argument("--seconds", type=int, default=8, help="clip length, at most 10")
     p.add_argument("--usb", default="right", choices=["bottom", "right", "top", "left"],
                    help="where USB-C is in the camera's view (frame only); right means upright")

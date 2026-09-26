@@ -167,11 +167,10 @@ class Device {
   uint32_t injTouchUntil_ = 0;
   int injX_ = 0, injY_ = 0;
   // The touch in progress.
-  bool touchDown_ = false, touchHeld_ = false, touchStrip_ = false;
-  uint32_t touchAt_ = 0;
+  bool touchDown_ = false;
 
   // The line playing (its moment's number), and the last sound cue handled
-  // (played or dropped). A newer cue waits while the line plays.
+  // (played or dropped).
   bool saying_ = false;
   uint32_t sayMoment_ = 0;
   const char* sfxSeen_ = nullptr;
