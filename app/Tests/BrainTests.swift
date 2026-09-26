@@ -18,7 +18,7 @@ func context(_ i: Input, window: [Transcript.Entry]? = nil,
 
 final class RulesClassifierTests: XCTestCase {
     func decide(_ i: Input, memory: Prompt.Memory? = nil) async throws -> [ToolCall] {
-        let menu = Menu(i.kind.menu, definitions: try definitions())
+        let menu = Menu(i.menu, definitions: try definitions())
         let c = memory.map { context(i, memory: $0) } ?? context(i)
         let answer = try await RulesClassifier().classify(c, menu, deadline: .seconds(1)).calls
         XCTAssertNil(menu.check(answer), "every answer fits the menu")
@@ -32,6 +32,7 @@ final class RulesClassifierTests: XCTestCase {
             (input(.agentStarted), []),
             (input(.agentFinished, tookMs: 1_080_000), [react("proud")]),
             (input(.agentFinished, tookMs: 61_000), [react("proud")]),
+            (input(.agentFinished, tookMs: 60_000), [react("proud")]),
             (input(.agentFinished, tookMs: 15_000), [react("proud")]),
             (input(.agentFinished, tookMs: 14_000), []),
             (input(.agentFinished, tookMs: 8_000), []),
@@ -56,6 +57,8 @@ final class RulesClassifierTests: XCTestCase {
             (input(.said, words: "remember I ship on Fridays"), [react("happy"), remember("today")]),
             (input(.said, words: "note that landing launches Monday"), [react("happy"), remember("today")]),
             (input(.said, words: "Hello, Boop!"), [react("happy")]),
+            (input(.said, words: "see you tomorrow"), [react("happy")]),
+            (input(.said, words: "time for lunch"), [react("hopeful")]),
             (input(.said, words: "good job today"), [react("proud")]),
             (input(.said, words: "you're the best"), [react("proud")]),
             (input(.said, words: "this is a thing"), [react("curious")]),
@@ -76,10 +79,28 @@ final class RulesClassifierTests: XCTestCase {
         XCTAssertEqual(newDay, [], "long-term memory needs a model to decide")
     }
 
+    /// HARNESS.md §2: a turn's length arrives named, so no brain compares
+    /// numbers: short under 15 s, long up to a minute, very long past it.
+    func testATurnsLengthIsNamed() {
+        XCTAssertEqual([8_000, 14_999, 15_000, 60_000, 60_001, 1_080_000].map { Input.Length(ms: $0) },
+                       [.short, .short, .long, .long, .veryLong, .veryLong])
+        XCTAssertEqual(input(.agentFinished, tookMs: 20_000).line,
+                       "agent finished · done · claude · jetpack · a long turn (20 s) · 14:05 Tuesday")
+        XCTAssertEqual(input(.agentFinished, tookMs: 240_000).line,
+                       "agent finished · done · claude · jetpack · a very long turn (4 min) · 14:05 Tuesday")
+    }
+
+    /// HARNESS.md §2: `quiet` is on the menu only when the words ask for it.
+    func testQuietIsOnTheMenuOnlyWhenAsked() {
+        XCTAssertEqual(input(.said, words: "be quiet for an hour").menu.map(\.tool), ["quiet", "react", "remember"])
+        XCTAssertEqual(input(.said, words: "shut up for an hour").menu.map(\.tool), ["react", "remember"])
+        XCTAssertEqual(input(.agentFinished).menu.map(\.tool), ["react"])
+    }
+
     /// It says which row matched, for the transcript.
     func testItSaysWhichRowMatched() async throws {
         let i = input(.agentFinished, outcome: .failed)
-        let c = try await RulesClassifier().classify(context(i), Menu(i.kind.menu, definitions: try definitions()), deadline: .seconds(1))
+        let c = try await RulesClassifier().classify(context(i), Menu(i.menu, definitions: try definitions()), deadline: .seconds(1))
         XCTAssertEqual(c.evidence, "failed")
     }
 }
@@ -127,7 +148,7 @@ final class FakeJev: @unchecked Sendable {
 final class JevClassifierTests: XCTestCase {
     func classify(_ jev: FakeJev, _ i: Input, window: [Transcript.Entry]? = nil) async throws -> Classification {
         try await JevClassifier(key: "test-key", send: jev.send)
-            .classify(context(i, window: window), Menu(i.kind.menu, definitions: try definitions()), deadline: .seconds(1))
+            .classify(context(i, window: window), Menu(i.menu, definitions: try definitions()), deadline: .seconds(1))
     }
 
     /// HARNESS.md §6: the menu becomes questions built from the definitions.
@@ -137,20 +158,33 @@ final class JevClassifierTests: XCTestCase {
         XCTAssertEqual(c.calls, [])
         XCTAssertEqual(jev.last["model"] as? String, "jev-latest")
         let q = jev.questions
-        XCTAssertEqual(Set(q.keys), ["quiet", "quiet.minutes", "react", "react.feeling", "react.voice", "remember"])
+        XCTAssertEqual(Set(q.keys), ["react", "react.feeling", "react.voice", "remember"], "quiet only when asked")
         XCTAssertEqual(q["react"]?["type"] as? String, "noul")
+        // The definition's own question, about `now`, judged by `boop`
+        // (TypeSafe's advice: name the part of the state, say what yes means).
+        XCTAssertEqual(q["react"]?["instructions"] as? [String: String],
+                       ["question": "Does what just happened call for Boop to react?", "about": "`now`",
+                        "judge_by": "`boop`, its Examples first"])
+        XCTAssertEqual((q["react"]?["criteria"] as? [String: String])?["true"],
+                       "Yes: `boop` says to do this for something like `now`.")
         XCTAssertEqual(q["react.feeling"]?["type"] as? String, "choice")
+        XCTAssertEqual((q["react.feeling"]?["instructions"] as? [String: String])?["question"],
+                       "Which feeling does Boop have about what just happened?")
         XCTAssertEqual((q["react.feeling"]?["criteria"] as? [String: String])?["proud"], "Proud: something long or hard just finished.")
-        XCTAssertEqual(Set((q["quiet.minutes"]?["criteria"] as! [String: String]).keys), ["15", "30", "60", "120"])
         XCTAssertNil(q["react.word"], "the writer's")
         XCTAssertNil(q["remember.where"], "one choice needs no question")
+
+        _ = try await classify(jev, input(.said, words: "be quiet please"))
+        let minutes = jev.questions["quiet.minutes"]?["criteria"] as? [String: String]
+        XCTAssertEqual(Set(minutes?.keys ?? [:].keys), ["15", "30", "60", "120"])
+        XCTAssertEqual(minutes?["30"], "Half an hour, or when they don't say how long.")
     }
 
     func testYesesBecomeCallsWithTheirChoices() async throws {
         let jev = FakeJev()
         jev.nouls = ["quiet": 0.9, "react": 0.8, "remember": 0.3]
         jev.choices = ["quiet.minutes": "60", "react.feeling": "sulky", "react.voice": "silent"]
-        let c = try await classify(jev, input(.said, words: "shut up for an hour"))
+        let c = try await classify(jev, input(.said, words: "be quiet for an hour"))
         XCTAssertEqual(c.calls, [ToolCall("quiet", ["minutes": .number(60)]), react("sulky", "silent")])
         XCTAssertTrue(c.evidence?.contains("quiet 0.90") ?? false, c.evidence ?? "")
         XCTAssertTrue(c.evidence?.contains("react.feeling sulky 0.90") ?? false, c.evidence ?? "")
@@ -198,6 +232,27 @@ final class JevClassifierTests: XCTestCase {
         XCTAssertFalse(request.contains("test-key"))
     }
 
+    /// Jev never writes, so it doesn't get steering.md's Writing section.
+    func testJevDoesntReadTheWritersSection() {
+        XCTAssertEqual(JevClassifier.boop("<!-- note -->\n# Boop\n\n## Examples\nx\n\n## Writing\nw\n\n## Never\nn\n"),
+                       "# Boop\n\n## Examples\nx\n\n## Never\nn")
+        XCTAssertEqual(JevClassifier.boop("# Boop\n\n## Writing\nw\n"), "# Boop")
+        let steering = try? String(contentsOf: EvalTests.root.appendingPathComponent("plan/steering.md"), encoding: .utf8)
+        let boop = JevClassifier.boop(steering ?? "")
+        XCTAssertTrue(boop.contains("## Examples") && boop.contains("## Never"), boop)
+        XCTAssertFalse(boop.contains("## Writing"))
+    }
+
+    /// steering.md's Writing names `react`'s word sources as the definition
+    /// does, in the same order, so the writer can tie each to its words.
+    func testWritingNamesTheWordSources() throws {
+        let steering = try String(contentsOf: EvalTests.root.appendingPathComponent("plan/steering.md"), encoding: .utf8)
+        let writing = try XCTUnwrap(steering.components(separatedBy: "## Writing").last?.lowercased())
+        let at = ReactAction.wordSources.map { writing.range(of: $0 + ":")?.lowerBound }
+        XCTAssertFalse(at.contains(nil), "every source in Writing: \(ReactAction.wordSources)")
+        XCTAssertEqual(at.compactMap { $0 }, at.compactMap { $0 }.sorted(), "in the same order")
+    }
+
     func testAnErrorStatusFailsWithoutItsBody() async throws {
         let jev = FakeJev()
         jev.status = 429
@@ -234,16 +289,26 @@ final class WriterTests: XCTestCase {
         XCTAssertTrue(AppleWriter(unavailable: { nil }).id.hasPrefix("apple:"))
     }
 
-    /// The request ends with what Boop decided, then a line per slot.
+    /// The request is what just happened and what Boop decided, then a line
+    /// per slot; not the rest of the window, whose words the model copied
+    /// (ARCHITECTURE.md §11).
     func testAppleSeesTheDecisionAndTheSlots() throws {
-        let (c, s) = try slots()
+        var (c, s) = try slots()
+        let earlier = input(.agentFinished, tookMs: 600_000, rules: "cheer", at: -3)
+        c.window = [.input(earlier), .ran(react("proud", word: "finally"), .done("ok"))] + c.window
         let request = AppleWriter.request(c, s)
-        XCTAssertTrue(request.contains("  decided: react(feeling: happy, voice: mumble), remember(where: today)"), request)
-        XCTAssertTrue(request.hasSuffix("""
-            react.word: one word from its list that fits the mumble; almost always pick one, even a plain yay, and none only when nothing fits.
+        XCTAssertEqual(request, """
+            --- now ---
+            you said · 14:05 Tuesday
+            They just said: "remember the demo is on Thursday"
+            Boop decided: react(feeling: happy, voice: mumble), remember(where: today)
+            --- write ---
+            react.word: the mumble's one real word, from its list, as Writing says; none only when nothing fits.
             remember.text: at most 80 characters. A note for later today: something the person said or asked to note. \
             Plain words, no code; leave it empty if nothing is worth keeping.
-            """), request)
+            """)
+        XCTAssertEqual(s.first?.sources, ReactAction.wordSources, "the word names where it can come from")
+        XCTAssertEqual(AppleWriter.values(#"{"react_word_from":"the feeling","react_word":"yay"}"#, s), ["react.word": "yay"])
         let instructions = AppleWriter.instructions(c.memory)
         XCTAssertTrue(instructions.hasPrefix(AppleWriter.preamble + "\n\n# Boop\nBe nice."), instructions)
         XCTAssertTrue(instructions.contains("Ships on Fridays."))

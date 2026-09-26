@@ -16,6 +16,6 @@
     {"input": {"at": "26m", "event": "turn started", "agent": "claude", "project": "jetpack"},
      "expect": ["agent started → nothing"]},
     {"input": {"at": "38m", "event": "turn finished", "agent": "claude", "project": "jetpack"},
-     "expect": ["agent finished → react(feeling: proud, voice: mumble)"]}
+     "expect": ["agent finished → react(feeling: proud, voice: mumble, word: finally|done|yay|hooray|whee|nice|good|wow)"]}
   ]
 }

@@ -36,17 +36,28 @@ public final class ReactAction: Action {
         ("sulky", .sad, "Pouting: brushed off or left out. Being told off is sad instead."),
     ]
 
+    /// What a mumble's word can come from, in the order steering.md's
+    /// Writing tries them. The writer picks one before the word, which
+    /// keeps a small model from answering every annoyed mumble with the
+    /// same annoyed word (HARNESS.md §7).
+    public static let wordSources = ["what they said", "the failed topic", "how the turn went", "the feeling"]
+
     /// Every animation the rules may play (BEHAVIORS.md §5).
     public static let anims: Set<String> = ["cheer", "wiggle", "listening"]
 
     public let definition = ToolDefinition(
         name: "react", description: "Mumble with a feeling, or stay silent.",
+        question: "Does what just happened call for Boop to react?",
         parameters: [
             .init("feeling", .choice(ReactAction.feelings.map(\.name)),
-                  about: Dictionary(uniqueKeysWithValues: ReactAction.feelings.map { ($0.name, $0.about) })),
+                  about: Dictionary(uniqueKeysWithValues: ReactAction.feelings.map { ($0.name, $0.about) }),
+                  question: "Which feeling does Boop have about what just happened?"),
             .init("voice", .choice(["silent", "mumble"]),
-                  about: ["silent": "Say nothing.", "mumble": "A mumble of Boop's gibberish in that feeling."]),
-            .init("word", .choice(Sounds.vocabulary), optional: true, role: .writtenWhen("voice", is: "mumble")),
+                  about: ["silent": "Keep the feeling to itself: nothing shows.",
+                          "mumble": "Mumble it out loud, in Boop's gibberish."],
+                  question: "Does Boop mumble about it out loud, or keep it to itself?"),
+            .init("word", .choice(Sounds.vocabulary), optional: true, role: .writtenWhen("voice", is: "mumble"),
+                  sources: ReactAction.wordSources),
         ])
 
     public func perform(_ call: ToolCall) -> ActionOutcome {
@@ -99,7 +110,12 @@ public final class QuietAction: Action {
 
     public let definition = ToolDefinition(
         name: "quiet", description: "Stop mumbling for a while, when the person asks for quiet.",
-        parameters: [.init("minutes", .number(QuietAction.choices))])
+        question: "Did the person just ask Boop to be quiet?",
+        parameters: [.init("minutes", .number(QuietAction.choices),
+                           about: ["15": "Fifteen minutes, or a little while.",
+                                   "30": "Half an hour, or when they don't say how long.",
+                                   "60": "An hour.", "120": "Two hours, or a long while."],
+                           question: "How long did the person ask Boop to be quiet for?")])
 
     public func perform(_ call: ToolCall) -> ActionOutcome {
         switch arguments(call) {
@@ -135,6 +151,7 @@ public final class RememberAction: Action {
 
     public let definition = ToolDefinition(
         name: "remember", description: "Keep a line in Boop's memory.",
+        question: "Is there something worth keeping in Boop's memory, as Remembering says?",
         parameters: [
             .init("where", .choice(RememberAction.sections.map(\.name)),
                   about: Dictionary(uniqueKeysWithValues: RememberAction.sections.map { ($0.name, $0.about) })),

@@ -106,7 +106,7 @@ final class CoreAgentWorkTests: XCTestCase {
         let fx = rig.turn(1_200_000)
         XCTAssertEqual(moments(fx), ["cheer"], "one size")
         XCTAssertTrue(fx.contains(.happened("14:20 claude · landing · finished (20 min)")))
-        XCTAssertEqual(inputs(fx).first?.line, "agent finished · done · claude · landing · took 20 min · 14:20 Wednesday")
+        XCTAssertEqual(inputs(fx).first?.line, "agent finished · done · claude · landing · a very long turn (20 min) · 14:20 Wednesday")
         XCTAssertEqual(inputs(fx).first?.rules, "cheer")
         XCTAssertEqual(inputs(fx).first?.tookMs, 1_200_000)
     }

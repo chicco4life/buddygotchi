@@ -33,14 +33,24 @@ public struct ToolDefinition: Equatable, Sendable {
         public var role: Role
         /// What each choice means, for a brain that needs it spelled out (Jev).
         public var about: [String: String]
+        /// For a decided argument: the question a model classifier asks to
+        /// pick it, in plain words (Jev).
+        public var question: String?
+        /// For a written argument: what its value can come from, in the
+        /// order to try. A model writer picks one of these first, then the
+        /// value (HARNESS.md §7): `react`'s word comes from what the person
+        /// said, what an agent failed at, how a turn went, or the feeling.
+        public var sources: [String]
 
         public init(_ name: String, _ kind: Kind, optional: Bool = false, role: Role = .decided,
-                    about: [String: String] = [:]) {
+                    about: [String: String] = [:], question: String? = nil, sources: [String] = []) {
             self.name = name
             self.kind = kind
             self.optional = optional
             self.role = role
             self.about = about
+            self.question = question
+            self.sources = sources
         }
 
         public var decided: Bool { role == .decided }
@@ -54,11 +64,15 @@ public struct ToolDefinition: Equatable, Sendable {
 
     public var name: String
     public var description: String
+    /// The yes/no a model classifier asks about calling it, in plain words
+    /// (Jev): "Does what just happened call for Boop to react?"
+    public var question: String?
     public var parameters: [Parameter]
 
-    public init(name: String, description: String, parameters: [Parameter]) {
+    public init(name: String, description: String, question: String? = nil, parameters: [Parameter]) {
         self.name = name
         self.description = description
+        self.question = question
         self.parameters = parameters
     }
 

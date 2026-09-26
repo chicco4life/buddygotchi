@@ -112,7 +112,7 @@ chirps again. The brain is never involved here.
 
 **Asked to be quiet, told off or yelled at.** Only words with "quiet" in
 them, as a whole word ("be quiet"), let `quiet` run, whoever decided it:
-the action checks. What counts as telling Boop off is the if-else
+only then is it on the brain's menu, and the action checks too. What counts as telling Boop off is the if-else
 classifier's table ([HARNESS.md](HARNESS.md) §6). You yelled if, while the
 Mac's mic was on, it heard you at −18 dBFS or louder for 300 ms or more in
 all (*proposed*), even if it caught no words; the app measures a few

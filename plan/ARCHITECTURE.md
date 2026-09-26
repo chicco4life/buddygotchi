@@ -76,7 +76,7 @@ directly.
 | --- | --- | --- |
 | Adapters | Turn agent hooks into common events | Boop's state, the brain, the device |
 | Core | The session table, what the device shows, and quiet; calls actions for rule reactions; sends the brain's inputs to the harness | Minion speech, models, hook formats |
-| Harness | Input → classifier → menu check → writer, only when words are needed → each call to its action; keeps the transcript both stages read | Minion speech, the device, memory rules, what kind of model is behind either stage |
+| Harness | Input → classifier → menu check → writer, only when words are needed → each call to its action; keeps the transcript (the classifier reads its window, the writer the pass it writes for) | Minion speech, the device, memory rules, what kind of model is behind either stage |
 | Brain | Two stages: a classifier picks what Boop does from a short menu, and a writer writes the words for it | Everything else |
 | Actions | Carry out one call each, checking their own rules | Whether a rule or the brain called them |
 | Voice | Turns a feeling and an optional word into Minion speech | Who asked, or why |
@@ -169,9 +169,10 @@ Each action checks its own rules and quietly drops (and logs) anything that
 breaks them. For example, `react` drops a call whose word isn't in its
 vocabulary, and `remember` drops text that's too long for its section.
 Each action also owns its definition, the part the brain sees: its
-arguments, their choices and which stage fills each in
-([HARNESS.md](HARNESS.md) §5). That's where the allowed words live, as a
-multiple-choice field.
+arguments, their choices and which stage fills each in, the plain
+questions a model classifier asks, and where a written value can come
+from ([HARNESS.md](HARNESS.md) §5). That's where the allowed words live, as
+a multiple-choice field.
 
 ### 3.5 Voice
 
@@ -522,3 +523,7 @@ When a spec changes direction, add a row here saying why.
 | 2026-09-26 | A turn you interrupt, or Claude's `idle_prompt`, is a new event, `turn_stopped`: the session goes idle with no reaction (the idle notice leaves a waiting request alone) | Claude sends no `Stop` for an interrupted turn, so Boop showed "working" and chattered for up to an hour | [ADAPTERS.md](ADAPTERS.md) §3, [BEHAVIORS.md](BEHAVIORS.md) §3.1 |
 | 2026-09-26 | The board handles every waiting line (up to 8 ms) before drawing a frame; a debug message ends the batch | It handled one line per loop pass and drew between lines (up to 31 ms), so bursts overflowed the 2 KB receive buffers: 3 of 40 back-to-back `state` lines were lost, and 74 of 300 at 200 a second. After: none of either | [VERIFICATION.md](VERIFICATION.md) §3 |
 | 2026-09-26 | A new day waits apart in the harness and is never replaced; a reflection cut off by you talking runs again. At most 8 asides follow an input | A newer agent input replaced a waiting new day, losing that day's reflection. Taps don't move the transcript's window, so a burst could crowd Apple's 8K context | [HARNESS.md](HARNESS.md) §2, §4 |
+| 2026-09-26 | Apple's writer reads only the pass it writes for (what just happened, what you said, what Stage 1 decided), not the transcript's window. This amends "both stages read one transcript" | With the window, a 3B model copied the words it had written before: over 58 inputs it said "yay" to every finished turn and "oops" to every failure. Without it, 14 of 16 words fit `steering.md` in every run, against 9 to 12 with it ([evidence](evidence/2026-09-26-eval-iteration/README.md)) | [HARNESS.md](HARNESS.md) §1, §4 |
+| 2026-09-26 | A written argument can name its sources, and the writer picks one before the value: `react`'s word comes from what they said, the failed topic, how the turn went or the feeling. The writer's temperature drops from 0.5 to 0.2 | Asked for the word straight away, Apple's model keyed it to the feeling ("ugh" for any annoyed mumble), even with the rule written as the last line of the prompt. With the source first, it named a failed turn's topic 24 of 24 times. Named "what the agent failed at", the source led to "bug" instead | [HARNESS.md](HARNESS.md) §5, §7 |
+| 2026-09-26 | A turn's length arrives named (a short, long or very long turn), and `quiet` is on the "you said" menu only when the words ask for quiet | TypeSafe's guidance for Jev: keep arithmetic and what rules decide in code. Jev read "took 45 s" as quick and said yes to quiet for "shut up for an hour", which the action then refused | [HARNESS.md](HARNESS.md) §2–3 |
+| 2026-09-26 | Jev's questions come from the definitions (a plain question per output and decided argument), name the part of the state they're about (`now`) and what to judge it by (`boop`, its Examples first), and its state leaves out the writer's section of `steering.md` | TypeSafe's guidance: Jev is literal, and unrelated state costs accuracy. The old "Should Boop react about what just happened (now)? Mumble with a feeling, or stay silent." read a silent face as a way of doing nothing, and Jev reacted silently to most agent starts | [HARNESS.md](HARNESS.md) §6 |

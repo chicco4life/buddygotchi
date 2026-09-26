@@ -1,0 +1,10 @@
+{
+  "name": "Told a fact, Boop keeps a note; praise it doesn't",
+  "why": "HARNESS.md §5 and steering.md (Remembering, Writing): a fact the person tells Boop becomes today's note, in a few plain words; praise and greetings never do",
+  "steps": [
+    {"input": {"at": "0m", "event": "talk", "words": "remember the demo is on Thursday"},
+     "expect": ["you said → react(feeling: happy|curious|excited, voice: mumble, word: okay|yes|done|good|yay|none), remember(text: \"*demo*Thursday*\", where: today)"]},
+    {"input": {"at": "2m", "event": "talk", "words": "good job today"},
+     "expect": ["you said → react(feeling: proud|happy|excited, voice: mumble, word: thanks|love|yay|good|hooray|nice|none)"]}
+  ]
+}

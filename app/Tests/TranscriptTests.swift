@@ -50,11 +50,12 @@ final class TranscriptTests: XCTestCase {
         XCTAssertEqual(t.entries, [.input(finished), .rules("cheer")])
     }
 
-    /// What a language model reads (HARNESS.md §4).
-    func testTheWindowAsText() {
+    /// What Jev reads (HARNESS.md §4): each input and what Boop did about
+    /// it, and asides on their own.
+    func testTheWindowInGroups() {
         let window: [Transcript.Entry] = [
             .input(input(.agentFinished, tookMs: 1_080_000, rules: "cheer")), .rules("cheer"),
-            .decided(by: "rules@2", [react("proud")], evidence: "done, over a minute"),
+            .decided(by: "rules@2", [react("proud")], evidence: "done, a very long turn"),
             .wrote(by: "apple:27.0", ["react.word": "finally"]),
             .ran(react("proud", word: "finally"), .done("ok")),
             .aside("tapped · 14:07 Tuesday: Boop wiggled", ts: 0),
@@ -64,22 +65,6 @@ final class TranscriptTests: XCTestCase {
             .ran(react("happy"), .done("ok")), .ran(remember("today"), .dropped("nothing was written")),
             .input(input(.agentStarted)), .dropped("late: no answer within 5000 ms"),
         ]
-        XCTAssertEqual(Transcript.text(window), """
-            agent finished · done · claude · jetpack · took 18 min · 14:05 Tuesday
-              rules: cheer
-              decided: react(feeling: proud, voice: mumble)
-              wrote: react.word = finally
-              ran: react(feeling: proud, voice: mumble, word: finally)
-            tapped · 14:07 Tuesday: Boop wiggled
-            you said · 14:05 Tuesday
-              they said: "remember 'the' demo"
-              decided: react(feeling: happy, voice: mumble), remember(where: today)
-              wrote: nothing
-              ran: react(feeling: happy, voice: mumble)
-              ran: remember(where: today) (dropped)
-            agent started · claude · jetpack · 14:05 Tuesday
-              dropped: late: no answer within 5000 ms
-            """)
         let groups = Transcript.groups(window)
         XCTAssertEqual(groups.map(\.did), [[react("proud", word: "finally")], nil, [react("happy")], []])
         XCTAssertEqual(groups[0].rules, "cheer")

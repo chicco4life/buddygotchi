@@ -441,7 +441,8 @@ public final class Core {
         if ms >= 30_000 {
             fx.append(.happened("\(config.time.clock(now)) \(s.agent.short) · \(s.project) · finished (\(took(ms)))"))
         }
-        agentInput(.agentFinished, s, outcome: .done, tookMs: ms, rules: "cheer", rank: ms >= 15_000 ? 3 : 2, now, &fx)
+        agentInput(.agentFinished, s, outcome: .done, tookMs: ms, rules: "cheer",
+                   rank: Input.Length(ms: ms) == .short ? 2 : 3, now, &fx)
     }
 
     /// A tap is the rules' alone: the device wiggles, and the brain's

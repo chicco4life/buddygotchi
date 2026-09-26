@@ -5,18 +5,22 @@ import Foundation
 /// probabilities, all in one request of about 0.2 s
 /// (https://docs.typesafe.ai/api). Needs the person's API key.
 ///
-/// The state is the pass as JSON: `steering.md`, both memory files, the
-/// window's recent inputs (minutes ago, what happened, what they said, what
-/// the rules did and what Boop did) and now. The menu becomes questions,
-/// built from the outputs' own definitions, so nothing here knows what an
-/// output does:
+/// The state is the pass as JSON: `steering.md` without its Writing
+/// section (Jev never writes), both memory files, the window's recent
+/// inputs (minutes ago, what happened, what they said, what the rules did
+/// and what Boop did) and now. The menu becomes questions, built from the
+/// outputs' own definitions, so nothing here knows what an output does:
 ///
-///     react              yes/no: should Boop do it now?
+///     react              yes/no: the definition's question
 ///     react.feeling      choice: happy | excited | proud | …   (a decided argument
 ///     react.voice        choice: silent | mumble                 with more than one option)
 ///     remember.moment    yes/no, one per choice, when the menu allows several calls
 ///                        told apart by it (a new day's `where`)
 ///
+/// As TypeSafe advises for Jev, each question names the part of the state
+/// it's about (`now`) and what to judge it by (`boop`, its Examples first),
+/// and a yes means `boop` says to do it for something like `now`; anything
+/// that needs arithmetic, like how long a turn took, arrives already named.
 /// Jev answers each question on its own, so every argument is asked up front
 /// and only a chosen output's answers are used. A yes is above 0.5; each
 /// choice is Jev's most likely one. The answers go in the transcript as
@@ -85,30 +89,36 @@ public struct JevClassifier: Classifier {
         return criteria
     }
 
+    /// What a yes and a no mean, for every yes/no.
+    static let yesNo = ["true": "Yes: `boop` says to do this for something like `now`.",
+                        "false": "No: `boop` says to do nothing, or something else, for something like `now`."]
+
+    /// A question with what it's about and what to judge it by.
+    static func instructions(_ question: String, _ more: [String: String] = [:]) -> [String: String] {
+        ["question": question, "about": "`now`", "judge_by": "`boop`, its Examples first"].merging(more) { $1 }
+    }
+
     static func questions(_ menu: Menu) -> [String: Any] {
         var questions: [String: Any] = [:]
-        let yesNo = ["true": "Yes, this calls for it now.", "false": "No, not now."]
         for tool in menu.tools {
             let split = split(tool, menu)
+            let ask = tool.question ?? "Should Boop \(tool.name) now? \(tool.description)"
             if let split, case .choice(let options) = split.kind {
                 for option in options {
                     questions[tool.name + "." + option] = [
                         "type": "noul", "criteria": yesNo,
-                        "instructions": "Should Boop \(tool.name) this now? \(split.about[option] ?? option)",
+                        "instructions": instructions(ask, [split.name: split.about[option] ?? option]),
                     ]
                 }
             } else {
-                questions[tool.name] = [
-                    "type": "noul", "criteria": yesNo,
-                    "instructions": "Should Boop \(tool.name) about what just happened (now)? \(tool.description)",
-                ]
+                questions[tool.name] = ["type": "noul", "criteria": yesNo, "instructions": instructions(ask)]
             }
             for p in tool.parameters where p.decided && p != split {
                 let criteria = criteria(p)
                 guard criteria.count > 1 else { continue }
                 questions[tool.name + "." + p.name] = [
                     "type": "choice", "criteria": criteria,
-                    "instructions": "If Boop does \(tool.name) (\(tool.description)), which \(p.name) fits best?",
+                    "instructions": instructions(p.question ?? "If Boop does \(tool.name), which \(p.name) fits best?"),
                 ]
             }
         }
@@ -190,6 +200,18 @@ public struct JevClassifier: Classifier {
         if let rules = input.rules { now["rules"] = rules }
         var memory = ["long_term": context.memory.longTerm, "short_term": context.memory.shortTerm]
         if input.kind == .newDay { memory["short_term_yesterday"] = memory.removeValue(forKey: "short_term") }
-        return ["boop": Prompt.stripComment(context.memory.steering), "memory": memory, "recent": recent, "now": now]
+        return ["boop": JevClassifier.boop(context.memory.steering), "memory": memory, "recent": recent, "now": now]
+    }
+
+    /// `steering.md` for Jev: without its maintainers' note, and without
+    /// its Writing section, which is only the writer's. Unrelated text costs
+    /// Jev accuracy (TypeSafe's "context rot").
+    static func boop(_ steering: String) -> String {
+        let text = Prompt.stripComment(steering)
+        guard let start = text.range(of: "\n## Writing\n") else { return text }
+        let end = text.range(of: "\n## ", range: start.upperBound..<text.endIndex)?.lowerBound ?? text.endIndex
+        let before = text[..<start.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
+        let after = text[end...].trimmingCharacters(in: .whitespacesAndNewlines)
+        return after.isEmpty ? before : before + "\n\n" + after
     }
 }

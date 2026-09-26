@@ -38,6 +38,19 @@ public struct Input: Equatable, Sendable {
 
     public enum Outcome: String, Sendable { case done, failed }
 
+    /// How long a finished turn took, by name, so no brain has to compare
+    /// numbers (HARNESS.md §2): short under 15 s, long up to a minute, very
+    /// long past it.
+    public enum Length: String, Sendable {
+        case short
+        case long
+        case veryLong = "very long"
+
+        public init(ms: Int64) {
+            self = ms < 15_000 ? .short : ms <= 60_000 ? .long : .veryLong
+        }
+    }
+
     public var kind: Kind
     /// `claude` or `codex`, for agent inputs.
     public var agent: String?
@@ -48,6 +61,7 @@ public struct Input: Equatable, Sendable {
     public var topic: String?
     /// How long the turn took, for a finish.
     public var tookMs: Int64?
+    public var length: Length? { tookMs.map(Length.init(ms:)) }
     /// A failed turn's error class, e.g. `rate_limit` (ADAPTERS.md §2).
     public var error: String?
     /// How many other agent inputs a 3 s burst merged into this one.
@@ -90,8 +104,9 @@ public struct Input: Equatable, Sendable {
     }
 
     /// What happened, as one line, e.g. `agent finished · done · claude ·
-    /// jetpack · topic: tests · took 18 min · 14:05 Tuesday`, or `you said ·
-    /// yelled · 14:05 Tuesday`. The words of `you said` aren't in it.
+    /// jetpack · topic: tests · a very long turn (18 min) · 14:05 Tuesday`,
+    /// or `you said · yelled · 14:05 Tuesday`. The words of `you said`
+    /// aren't in it.
     public var line: String {
         var parts = [kind.rawValue]
         switch kind {
@@ -103,7 +118,7 @@ public struct Input: Equatable, Sendable {
             if outcome == .failed {
                 if let error { parts.append("error: " + error.replacingOccurrences(of: "_", with: " ")) }
             } else if let tookMs {
-                parts.append("took " + Input.took(tookMs))
+                parts.append("a \(Length(ms: tookMs).rawValue) turn (\(Input.took(tookMs)))")
             }
         case .said:
             if yelled { parts.append("yelled") }
@@ -119,6 +134,13 @@ public struct Input: Equatable, Sendable {
 
     public static func took(_ ms: Int64) -> String {
         ms < 60_000 ? "\(ms / 1000) s" : "\(ms / 60_000) min"
+    }
+
+    /// What Boop may do for this input (HARNESS.md §3): its kind's menu,
+    /// without `quiet` unless the words ask for it. The quiet action would
+    /// refuse it anyway, and a brain isn't asked what the rules decide.
+    public var menu: [Menu.Item] {
+        kind.menu.filter { $0.tool != "quiet" || asksForQuiet }
     }
 
     /// Your words asked Boop to be quiet: they have "quiet" in them, as a

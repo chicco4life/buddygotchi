@@ -230,7 +230,7 @@ public final class Harness: @unchecked Sendable {
     func prepare(_ input: Input) -> Pass {
         transcript.begin(input)
         let current = tools.map { ($0.definition, $0.handle) }
-        let menu = Menu(input.kind.menu, definitions: current.map(\.0))
+        let menu = Menu(input.menu, definitions: current.map(\.0))
         let text = memory(input)
         for over in Prompt.overBudget(input, text) {
             log("harness: \(input.kind.rawValue) over budget: \(over)")

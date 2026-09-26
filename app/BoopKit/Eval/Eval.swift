@@ -9,6 +9,8 @@ import Foundation
 /// `expect` is every harness pass from its event up to the next step's
 /// event, so an empty list means no input reached the harness. Only the
 /// harness's passes are compared; the core's own rule reactions aren't.
+/// Each expected pass lists the values that fit (`Expectation`), so the
+/// same scenario holds for real models as for the rules.
 public struct Scenario: Sendable {
     /// What happens at a step, as it reaches the core.
     public struct Event: Sendable {
@@ -52,7 +54,7 @@ public struct Scenario: Sendable {
         public var event: Event
         public var classifier: ScriptedClassifier?
         public var writer: ScriptedWriter?
-        public var expect: [String]
+        public var expect: [Expectation]
     }
 
     public var name: String
@@ -82,7 +84,10 @@ public struct Scenario: Sendable {
             guard let at = (input["at"] as? String).flatMap(Scenario.ms) else { throw bad("\(n): input.at like \"12m\"") }
             guard at > last else { throw bad("\(n): at must be later than the step before") }
             last = at
-            guard let expect = s["expect"] as? [String] else { throw bad("\(n): expect must be a list (empty for none)") }
+            guard let lines = s["expect"] as? [String] else { throw bad("\(n): expect must be a list (empty for none)") }
+            let expect = try lines.map { line in
+                do { return try Expectation(line) } catch { throw bad("\(n): \(error)") }
+            }
             let agentName = input["agent"] as? String ?? "claude"
             guard let agent = Agent(hookName: agentName) else { throw bad("\(n): unknown agent \(agentName)") }
             let project = input["project"] as? String ?? "jetpack"
@@ -161,13 +166,17 @@ public struct EvalError: Error, CustomStringConvertible {
 
 /// Runs scenarios. Deterministic with the default brains (the rules
 /// classifier, no writer): a virtual clock in UTC, a fixed dialect seed, a
-/// fresh copy of the sample memory for every scenario.
+/// fresh copy of the sample memory for every scenario. With a model, run
+/// each scenario a few times (`boopdev eval --runs`).
 public struct Eval: Sendable {
     public struct StepResult: Sendable {
         public var event: Scenario.Event
-        public var expect: [String]
+        public var expect: [Expectation]
+        /// Each pass as `describe` writes it.
         public var actual: [String]
-        public var passed: Bool { expect == actual }
+        /// How Stage 1 got to each pass: the rule that matched, Jev's answers.
+        public var evidence: [String?]
+        public var passed: Bool
     }
 
     public struct Result: Sendable {
@@ -202,7 +211,7 @@ public struct Eval: Sendable {
         let home = DispatchQueue(label: "boop.eval")
         let script = Script()
         let clock = Clock(start)
-        let (core, harness, pending): (Core, Harness, Pending) = try home.sync {
+        let (core, harness, pending, definitions): (Core, Harness, Pending, [ToolDefinition]) = try home.sync {
             let store = try MemoryStore(directory: dir, steering: steering)
             guard let longTerm = store.longTerm else { throw EvalError("\(memory.path) has no long-term.md") }
             let core = Core(config: .init(name: longTerm.name, time: time, seed: 1),
@@ -218,20 +227,19 @@ public struct Eval: Sendable {
                                   writer: ScriptedWriter(base: writer, script: script),
                                   tools: actions.map(Harness.Tool.init),
                                   memory: { store.promptMemory(for: $0.kind) }, home: home)
-            return (core, harness, pending)
+            return (core, harness, pending, actions.map(\.definition))
         }
 
         /// Carries out effects as the app does, and runs each input through
         /// the harness in turn; returns what each pass did.
-        func carryOut(_ effects: [CoreEffect]) async -> [String] {
-            var out: [String] = []
+        func carryOut(_ effects: [CoreEffect]) async -> [Harness.Record] {
+            var out: [Harness.Record] = []
             var queue = effects
             while !queue.isEmpty {
                 let effect = queue.removeFirst()
                 switch effect {
                 case .input(let input):
-                    let record = await harness.respond(to: input)
-                    out.append(Eval.describe(record))
+                    out.append(await harness.respond(to: input))
                     queue += home.sync { defer { pending.effects = [] }; return pending.effects }
                 case .aside(let line):
                     home.sync { harness.note(line, at: clock.now) }
@@ -244,8 +252,19 @@ public struct Eval: Sendable {
             return out
         }
 
+        /// A step's window of passes against what it expects. Something
+        /// writes for the step unless the writer is none and nothing's scripted.
+        let noWriter = writer is NoWriter
+        func result(_ step: Scenario.Step, _ records: [Harness.Record]) -> StepResult {
+            let writing = !noWriter || step.writer != nil
+            let passed = records.count == step.expect.count
+                && zip(step.expect, records).allSatisfy { $0.matches($1, writing: writing, definitions: definitions) }
+            return StepResult(event: step.event, expect: step.expect, actual: records.map(Eval.describe),
+                              evidence: records.map(\.evidence), passed: passed)
+        }
+
         var results: [StepResult] = []
-        var actual: [String] = []
+        var records: [Harness.Record] = []
         home.sync { _ = core.tick(at: start) }
         for (i, step) in scenario.steps.enumerated() {
             // Time passes up to this event, a second at a time, as the app
@@ -253,23 +272,22 @@ public struct Eval: Sendable {
             let at = start + step.event.atMs
             while clock.now < at {
                 clock.now = min(at, clock.now + 1000)
-                actual += await carryOut(home.sync { core.tick(at: clock.now) })
+                records += await carryOut(home.sync { core.tick(at: clock.now) })
             }
-            if i > 0 { results[i - 1].actual = actual }
-            actual = []
+            if i > 0 { results.append(result(scenario.steps[i - 1], records)) }
+            records = []
             script.set(step.classifier, step.writer)
             let effects: [CoreEffect] = home.sync { Eval.apply(step.event, to: core, at: clock.now) }
-            actual += await carryOut(effects)
-            results.append(StepResult(event: step.event, expect: step.expect, actual: []))
+            records += await carryOut(effects)
         }
         // The last step's window: a few seconds more, so a held input (a
         // burst's merge window) comes out.
         let end = clock.now + 5000
         while clock.now < end {
             clock.now += 1000
-            actual += await carryOut(home.sync { core.tick(at: clock.now) })
+            records += await carryOut(home.sync { core.tick(at: clock.now) })
         }
-        results[results.count - 1].actual = actual
+        results.append(result(scenario.steps[scenario.steps.count - 1], records))
         return Result(scenario: scenario, steps: results)
     }
 
@@ -300,14 +318,8 @@ public struct Eval: Sendable {
     /// `agent finished → dropped (off menu)`. A writer that failed adds
     /// ` · writer failed (error)`.
     public static func describe(_ record: Harness.Record) -> String {
-        func why(_ reason: String) -> String {
-            reason.hasPrefix("off the menu") ? "off menu"
-                : reason.hasPrefix(BrainError.refusedPrefix) ? "refused"
-                : reason.hasPrefix("late") ? "late"
-                : reason.hasPrefix("cancelled") ? "cancelled" : "error"
-        }
         let kind = record.input.kind.rawValue
-        if let dropped = record.dropped { return "\(kind) → dropped (\(why(dropped)))" }
+        if let dropped = record.dropped { return "\(kind) → dropped (\(Eval.why(dropped)))" }
         var line = kind + " → "
         if record.ran.isEmpty {
             line += "nothing"
@@ -324,32 +336,49 @@ public struct Eval: Sendable {
         return line
     }
 
-    /// Expected and actual, step by step, for a failed scenario.
+    /// Why a pass or a write came to nothing, as a scenario names it.
+    static func why(_ reason: String) -> String {
+        reason.hasPrefix("off the menu") ? "off menu"
+            : reason.hasPrefix(BrainError.refusedPrefix) ? "refused"
+            : reason.hasPrefix("late") ? "late"
+            : reason.hasPrefix("cancelled") ? "cancelled" : "error"
+    }
+
+    /// Expected and actual, step by step, for a failed scenario, with how
+    /// Stage 1 got to each actual pass.
     public static func diff(_ result: Result) -> String {
         var lines: [String] = []
         for (i, step) in result.steps.enumerated() where !step.passed {
             let words = step.event.words.map { " \"\($0)\"" } ?? ""
             lines.append("  step \(i + 1) (\(step.event.atMs / 1000)s \(step.event.event)\(words))")
-            lines += step.expect.isEmpty ? ["    - (nothing reached the harness)"] : step.expect.map { "    - " + $0 }
-            lines += step.actual.isEmpty ? ["    + (nothing reached the harness)"] : step.actual.map { "    + " + $0 }
+            lines += step.expect.isEmpty ? ["    - (nothing reached the harness)"] : step.expect.map { "    - " + $0.line }
+            if step.actual.isEmpty { lines.append("    + (nothing reached the harness)") }
+            for (actual, evidence) in zip(step.actual, step.evidence) {
+                lines.append("    + " + actual)
+                if let evidence { lines.append("        because: " + evidence) }
+            }
         }
         return lines.joined(separator: "\n")
     }
 
-    /// A report to compare runs: one object per scenario, with each step's
-    /// expected and actual passes.
-    public static func json(_ results: [Result], classifier: String, writer: String) -> String {
+    /// A report to compare runs: one object per scenario, with each run's
+    /// steps, expected and actual passes. A scenario passes when every run did.
+    public static func json(_ runs: [[Result]], classifier: String, writer: String) -> String {
         let o: [String: Any] = [
             "classifier": classifier,
             "writer": writer,
-            "passed": results.filter(\.passed).count,
-            "total": results.count,
-            "scenarios": results.map { r -> [String: Any] in
-                ["name": r.scenario.name, "file": r.scenario.file, "passed": r.passed,
-                 "steps": r.steps.map { s -> [String: Any] in
-                     ["at_s": s.event.atMs / 1000, "event": s.event.event, "expect": s.expect, "actual": s.actual,
-                      "passed": s.passed]
-                 }]
+            "passed": runs.filter { $0.allSatisfy(\.passed) }.count,
+            "total": runs.count,
+            "scenarios": runs.compactMap { rs -> [String: Any]? in
+                guard let first = rs.first else { return nil }
+                return ["name": first.scenario.name, "file": first.scenario.file, "passed": rs.allSatisfy(\.passed),
+                        "runs": rs.map { r -> [String: Any] in
+                            ["passed": r.passed,
+                             "steps": r.steps.map { s -> [String: Any] in
+                                 ["at_s": s.event.atMs / 1000, "event": s.event.event, "expect": s.expect.map(\.line),
+                                  "actual": s.actual, "evidence": s.evidence.map { $0 ?? "" }, "passed": s.passed]
+                             }]
+                        }]
             },
         ]
         let data = (try? JSONSerialization.data(withJSONObject: o, options: [.sortedKeys, .prettyPrinted,

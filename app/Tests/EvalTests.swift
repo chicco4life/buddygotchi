@@ -91,6 +91,45 @@ final class EvalTests: XCTestCase {
         try XCTAssertThrowsError(try Scenario(file: noTopic))
     }
 
+    /// EVALS.md §3: a value lists what fits; `none` lets it be left out; `*`
+    /// is any run of characters. The writer's arguments aren't checked when
+    /// nothing writes, and a call that needs one is then expected dropped.
+    func testExpectationsListWhatFits() throws {
+        let defs = try definitions()
+        func record(_ ran: [(ToolCall, ActionOutcome)], writeFailed: String? = nil) -> Harness.Record {
+            var r = Harness.Record(input: input(.said, words: "remember the demo"), classifier: "c", writer: "w", window: 1)
+            r.ran = ran
+            r.writeFailed = writeFailed
+            return r
+        }
+        let word = try Expectation("you said → react(feeling: happy|proud, voice: mumble, word: okay|yes)")
+        XCTAssertTrue(word.matches(record([(react("proud", word: "yes"), .done(""))]), writing: true, definitions: defs))
+        XCTAssertFalse(word.matches(record([(react("proud", word: "yay"), .done(""))]), writing: true, definitions: defs))
+        XCTAssertFalse(word.matches(record([(react("sad", word: "yes"), .done(""))]), writing: true, definitions: defs))
+        XCTAssertFalse(word.matches(record([(react("proud"), .done(""))]), writing: true, definitions: defs),
+                       "a word left out fits only with none")
+        XCTAssertTrue(word.matches(record([(react("proud"), .done(""))]), writing: false, definitions: defs),
+                      "with no writer, words aren't checked")
+        try XCTAssertTrue(try Expectation("you said → react(feeling: happy, voice: mumble, word: okay|none)")
+            .matches(record([(react("happy"), .done(""))]), writing: true, definitions: defs))
+        try XCTAssertFalse(try Expectation("you said → react(feeling: happy, voice: mumble)")
+            .matches(record([(react("happy", word: "hi"), .done(""))]), writing: true, definitions: defs),
+                       "a word nobody expected fails")
+
+        let note = try Expectation(#"you said → remember(text: "*Thursday*|*thu*", where: today)"#)
+        XCTAssertTrue(note.matches(record([(remember("today", "demo on thursday"), .done(""))]), writing: true, definitions: defs))
+        XCTAssertFalse(note.matches(record([(remember("today", "demo friday"), .done(""))]), writing: true, definitions: defs))
+        XCTAssertTrue(note.matches(record([(remember("today"), .dropped("nothing was written"))]), writing: false, definitions: defs),
+                      "with no writer, the note is expected dropped (unwritten)")
+        XCTAssertFalse(note.matches(record([(remember("today"), .dropped("nothing was written"))]), writing: true, definitions: defs))
+
+        let failed = try Expectation("you said → react(feeling: happy, voice: mumble) · writer failed (error)")
+        XCTAssertTrue(failed.matches(record([(react("happy"), .done(""))], writeFailed: "apple: boom"), writing: true, definitions: defs))
+        try XCTAssertEqual(try Expectation("you said → dropped (off menu)").answer, .dropped("off menu"))
+        try XCTAssertThrowsError(try Expectation("you said: react(feeling: happy)"))
+        try XCTAssertThrowsError(try Expectation("you yelled → nothing"))
+    }
+
     func testABadScenarioNamesTheStep() throws {
         let url = try write("""
             {"name": "x", "steps": [{"input": {"at": "0m", "event": "turn started"}, "expect": []},

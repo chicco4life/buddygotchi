@@ -1,15 +1,14 @@
 {
-  "name": "A long turn is celebrated, and an ultra-long one with a word",
-  "why": "HARNESS.md §6: a finish of 15 seconds or more is react(proud, mumble); over a minute the writer is steered to always write its word",
+  "name": "A long turn is celebrated, and a very long one with a word",
+  "why": "HARNESS.md §6: a long turn (15 s or more) is react(proud, mumble); a very long one (over a minute) always gets its word (steering.md, Writing)",
   "steps": [
     {"input": {"at": "0s", "event": "turn started", "agent": "claude", "project": "jetpack"},
      "expect": ["agent started → nothing"]},
     {"input": {"at": "20s", "event": "turn finished", "agent": "claude", "project": "jetpack"},
-     "expect": ["agent finished → react(feeling: proud, voice: mumble)"]},
+     "expect": ["agent finished → react(feeling: proud, voice: mumble, word: yay|done|finally|hooray|whee|nice|good|wow|none)"]},
     {"input": {"at": "1m", "event": "turn started", "agent": "claude", "project": "jetpack"},
      "expect": ["agent started → nothing"]},
     {"input": {"at": "4m", "event": "turn finished", "agent": "claude", "project": "jetpack"},
-     "writer": {"react.word": "finally"},
-     "expect": ["agent finished → react(feeling: proud, voice: mumble, word: finally)"]}
+     "expect": ["agent finished → react(feeling: proud, voice: mumble, word: finally|done|yay|hooray|whee|nice|good|wow)"]}
   ]
 }

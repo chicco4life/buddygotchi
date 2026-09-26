@@ -7,13 +7,17 @@ import FoundationModels
 /// default. Private and free, with an 8K context.
 ///
 /// Each call is a fresh session. Its instructions are a short preamble,
-/// `steering.md` and both memory files; its prompt is the transcript's window
-/// as text (HARNESS.md §4), which ends with what Boop just decided, then a
-/// line for each slot. Guided generation, with a schema built at runtime,
-/// has one property per slot: a word from `none` and its list, or text with
-/// its length asked for. There's no choice to decline, so it can't answer
-/// "stay quiet": deciding was Stage 1's job. Text lengths are only asked
-/// for, so the harness still checks them.
+/// `steering.md` and both memory files; its prompt is what just happened,
+/// what was said and what Boop decided, then a line for each slot. It
+/// doesn't read the rest of the transcript's window: with it, the model
+/// copied the words it wrote before instead of following steering
+/// (ARCHITECTURE.md §11). Guided generation, with a schema built at
+/// runtime, has one property per slot: a word from `none` and its list, or
+/// text with its length asked for. A slot that names its sources gets one
+/// more property just before it, where the model first picks which source
+/// the value comes from (HARNESS.md §7). There's no choice to decline, so
+/// it can't answer "stay quiet": deciding was Stage 1's job. Text lengths
+/// are only asked for, so the harness still checks them.
 ///
 /// Guardrails are `permissiveContentTransformations`; a refusal fails the
 /// write like any error, marked as a refusal. When the model can't run (it's
@@ -47,6 +51,11 @@ public struct AppleWriter: Writer {
         #endif
     }
 
+    /// Low, so the same moment gets the same word: at 0.5 a failed test run
+    /// was "tests" one time and "ugh" the next. Variety comes from what
+    /// happened, not from chance.
+    static let temperature = 0.2
+
     /// Three lines ahead of `steering.md`.
     static let preamble = """
         You are the voice of a Boop, a small creature on a person's desk.
@@ -62,7 +71,7 @@ public struct AppleWriter: Writer {
         let session = LanguageModelSession(model: model, instructions: AppleWriter.instructions(context.memory))
         do {
             let response = try await session.respond(to: AppleWriter.request(context, slots), schema: schema,
-                                                     options: GenerationOptions(temperature: 0.5))
+                                                     options: GenerationOptions(temperature: AppleWriter.temperature))
             let json = response.content.jsonString
             return Writing(values: AppleWriter.values(json, slots), raw: json)
         } catch let error as LanguageModelSession.GenerationError {
@@ -87,21 +96,18 @@ public struct AppleWriter: Writer {
             .joined(separator: "\n\n")
     }
 
-    /// The window, what just happened again, then what to write.
+    /// What just happened, what Boop decided (the window's last entry), then
+    /// what to write.
     ///
-    ///     --- what happened ---
-    ///     you said · 11:45 Tuesday
-    ///       they said: "remember the demo is on Thursday"
-    ///       decided: react(feeling: happy, voice: mumble), remember(where: today)
     ///     --- now ---
     ///     you said · 11:45 Tuesday
     ///     They just said: "remember the demo is on Thursday"
     ///     Boop decided: react(feeling: happy, voice: mumble), remember(where: today)
     ///     --- write ---
-    ///     react.word: one word from its list that fits the mumble; almost always pick one, even a plain yay, and none only when nothing fits.
+    ///     react.word: the mumble's one real word, from its list, as Writing says; none only when nothing fits.
     ///     remember.text: at most 80 characters. A note for later today… Plain words; leave it empty if nothing is worth keeping.
     static func request(_ context: Context, _ slots: [Slot]) -> String {
-        var lines = ["--- what happened ---", Transcript.text(context.window), "--- now ---", context.input.line]
+        var lines = ["--- now ---", context.input.line]
         if let words = context.input.words { lines.append("They just said: \"\(Transcript.oneLine(words))\"") }
         if case .decided(_, let calls, _) = context.window.last {
             lines.append("Boop decided: " + calls.map(\.plain).joined(separator: ", "))
@@ -110,7 +116,7 @@ public struct AppleWriter: Writer {
         for slot in slots {
             switch slot.kind {
             case .word:
-                lines.append("\(slot.key): one word from its list that fits the mumble; almost always pick one, even a plain yay, and none only when nothing fits.")
+                lines.append("\(slot.key): the mumble's one real word, from its list, as Writing says; none only when nothing fits.")
             case .text(let max):
                 lines.append("\(slot.key): at most \(max) characters. \(slot.choice ?? slot.about) "
                              + "Plain words, no code; leave it empty if nothing is worth keeping.")
@@ -136,14 +142,20 @@ public struct AppleWriter: Writer {
 
     #if canImport(FoundationModels)
     static func schema(_ slots: [Slot]) throws -> GenerationSchema {
-        let properties = slots.map { slot -> DynamicGenerationSchema.Property in
+        let properties = slots.flatMap { slot -> [DynamicGenerationSchema.Property] in
+            let name = property(slot.key)
+            // Which source first, then the value that comes from it.
+            let source: [DynamicGenerationSchema.Property] = slot.sources.isEmpty ? [] : [
+                .init(name: name + "_from", description: "What the \(slot.parameter) comes from: the first of these that fits.",
+                      schema: DynamicGenerationSchema(name: name + "_from", anyOf: slot.sources)),
+            ]
             switch slot.kind {
             case .word(let options):
-                return .init(name: property(slot.key), description: "One word that fits the mumble; almost always one, even a plain yay.",
-                             schema: DynamicGenerationSchema(name: property(slot.key), anyOf: ["none"] + options))
+                return source + [.init(name: name, description: "The mumble's one real word, as Writing says.",
+                                       schema: DynamicGenerationSchema(name: name, anyOf: ["none"] + options))]
             case .text(let max):
-                return .init(name: property(slot.key), description: "At most \(max) characters, or empty.",
-                             schema: DynamicGenerationSchema(type: String.self))
+                return source + [.init(name: name, description: "At most \(max) characters, or empty.",
+                                       schema: DynamicGenerationSchema(type: String.self))]
             }
         }
         return try GenerationSchema(root: DynamicGenerationSchema(name: "Words", properties: properties), dependencies: [])

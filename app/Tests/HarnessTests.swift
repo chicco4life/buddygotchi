@@ -113,7 +113,7 @@ final class HarnessTests: XCTestCase {
         let rig = HarnessRig(classifier: FakeClassifier { _ in
             [remember("today"), react("happy"), ToolCall("quiet", ["minutes": .number(30)])]
         }, writer: writer)
-        let records = await run(rig, [input(.said, words: "remember the demo")])
+        let records = await run(rig, [input(.said, words: "be quiet, and remember the demo")])
         XCTAssertEqual(rig.snapshot.handled, [ToolCall("quiet", ["minutes": .number(30)]), react("happy", word: "hi"),
                                               remember("today", "demo Thu")])
         XCTAssertEqual(records[0].slots, ["react.word", "remember.text"])
@@ -127,7 +127,7 @@ final class HarnessTests: XCTestCase {
         let writer = FakeWriter()
         let rig = HarnessRig(classifier: FakeClassifier { _ in [ToolCall("quiet", ["minutes": .number(15)]), react("sulky", "silent")] },
                              writer: writer)
-        _ = await run(rig, [input(.said, words: "shut up")])
+        _ = await run(rig, [input(.said, words: "be quiet")])
         XCTAssertEqual(writer.calls, 0)
         XCTAssertEqual(rig.snapshot.handled.count, 2)
     }
@@ -152,6 +152,8 @@ final class HarnessTests: XCTestCase {
     func testCallsOffTheMenuAreAllDropped() async {
         let cases: [(Input, [ToolCall], String)] = [
             (input(.agentFinished), [react("happy"), ToolCall("quiet", ["minutes": .number(15)])], "quiet isn't on the menu"),
+            // HARNESS.md §2: quiet is on the menu only when the words ask for it.
+            (input(.said, words: "shut up"), [ToolCall("quiet", ["minutes": .number(15)])], "quiet isn't on the menu"),
             (input(.said), [react("happy", word: "hi")], "react: word is the writer's"),
             (input(.said), [remember("about_you")], "remember: where isn't one of its choices"),
             (input(.said), [react("happy"), react("happy")], "react twice"),
@@ -313,7 +315,7 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(first["wrote"] as? [String: String], ["react.word": "finally"])
         XCTAssertEqual(first["window"] as? Int, 1)
         XCTAssertEqual((first["input"] as? [String: Any])?["line"] as? String,
-                       "agent finished · done · claude · jetpack · took 10 min · 14:05 Tuesday")
+                       "agent finished · done · claude · jetpack · a very long turn (10 min) · 14:05 Tuesday")
         XCTAssertNotNil(first["latency_ms"])
         let second = try JSONSerialization.jsonObject(with: Data(lines[1].utf8)) as! [String: Any]
         XCTAssertEqual(second["window"] as? Int, 2)

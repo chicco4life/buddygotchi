@@ -16,13 +16,14 @@ remember), a **writer**, a language model, writes just those words. The
  (from      at once          Jev or if-else;          Apple's model;       react, quiet,
   the core)  (the core)      picks outputs and        only for words;      remember
                              every choice             fills slots
-      └──────────────── one append-only transcript, read by both stages ────────────────┘
+      └──────── one append-only transcript: Stage 1 reads its window, Stage 2 this pass ────────┘
 ```
 
-Both stages read one **transcript** (§4): the inputs so far, the rules'
-reactions, what Stage 1 decided, what Stage 2 wrote and what ran. So the
-writer knows exactly what it's writing for, and a later decision knows what
-Boop just did.
+One **transcript** (§4) records every pass: the inputs so far, the rules'
+reactions, what Stage 1 decided, what Stage 2 wrote and what ran. Stage 1
+reads a window onto it, so a later decision knows what Boop just did. The
+writer reads only the pass it writes for, what just happened and what
+Stage 1 decided, since a small model copies the words it sees.
 
 The harness knows how to run the two stages, check their answers and hand
 each call to the action that owns it. It doesn't know what any output
@@ -43,8 +44,8 @@ language models read its one-line form.
 | Input | From | Fields | The rules first | Deadline | Menu |
 | --- | --- | --- | --- | --- | --- |
 | Agent started | `turn_start` | agent, project, time | Base becomes working | 5 s | `react` |
-| Agent finished | `turn_end` or `turn_failed`; a `turn_end` whose last test, build or deploy command failed is `failed` ([BEHAVIORS.md](BEHAVIORS.md) §3.1) | outcome (`done` or `failed`), agent, project, topic, how long it took, the error class when it failed, time, "+N more" | `done`: a cheer. `failed`: nothing; the session goes idle | 5 s | `react` |
-| You said something | push-to-talk, or Send in the popover | your words (at most 500 characters, about 30 s of speech), whether you yelled, time | `listening`, until the reply | 4 s | `quiet`, `react`, `remember` today |
+| Agent finished | `turn_end` or `turn_failed`; a `turn_end` whose last test, build or deploy command failed is `failed` ([BEHAVIORS.md](BEHAVIORS.md) §3.1) | outcome (`done` or `failed`), agent, project, topic, how long it took, named (below), the error class when it failed, time, "+N more" | `done`: a cheer. `failed`: nothing; the session goes idle | 5 s | `react` |
+| You said something | push-to-talk, or Send in the popover | your words (at most 500 characters, about 30 s of speech), whether you yelled, time | `listening`, until the reply | 4 s | `quiet` only when your words ask for it, `react`, `remember` today |
 | Poked again and again | a poke streak ([BEHAVIORS.md](BEHAVIORS.md) §3.3) | time | `wiggle`, as for every tap | 4 s | `react` |
 | New day | the first hook or tap on a new day | yesterday's date and short-term memory | — | 10 min | `remember` about you, a preference, temperament or a moment |
 
@@ -52,7 +53,7 @@ Their lines look like this:
 
 ```
 agent started · claude · landing · 14:00 Wednesday
-agent finished · done · claude · landing · took 20 min · 14:20 Wednesday
+agent finished · done · claude · landing · a very long turn (20 min) · 14:20 Wednesday
 agent finished · failed · claude · landing · topic: tests · error: rate limit · 14:00 Wednesday
 you said · 14:00 Wednesday
 you said · yelled · 14:00 Wednesday
@@ -66,6 +67,11 @@ command, it's that command's, and there's no error class. The error class is one
 `api_error`, `auth`, `timeout`, `network`, `context_limit`, `billing` or
 `other` ([ADAPTERS.md](ADAPTERS.md) §2); Codex has no failure hook, so its
 turns always finish `done`.
+
+**A turn's length is named**, so no brain has to compare numbers: a short
+turn is under 15 seconds, a long one up to a minute, and a very long one
+past it (`Input.Length`). The if-else classifier and the core's burst
+ranking use the same bands.
 
 **Bursts.** Agent inputs within 3 s become one, and the most important
 wins: failed, then a finish of 15 seconds or more, then a shorter finish,
@@ -101,7 +107,9 @@ topic, and never reach the brain.
    transcript, moving the window first when it's full (§4). The menu is the
    input's outputs, in the order they run, with the actions' definitions as
    they are now, narrowed to the choices this input allows (`remember`'s
-   `where` is only `today` for what you said).
+   `where` is only `today` for what you said). `quiet` is on it only when
+   your words ask for quiet: its action would refuse it otherwise, and a
+   brain isn't asked what the rules decide.
 4. **Stage 1.** The classifier gets the input, the memory text and the
    transcript's window, and answers with calls whose decided arguments are
    filled in (§5). The harness checks them: only outputs on the menu,
@@ -111,8 +119,9 @@ topic, and never reach the brain.
    is no calls.
 5. **Stage 2, only when something needs words:** a mumble's word, or a
    memory line. Each is a slot (`react.word`, `remember.text`). One writer
-   call fills them all, given the window with Stage 1's decision at its end,
-   in whatever time the deadline has left (less 100 ms). A slot the writer
+   call fills them all, given the window with Stage 1's decision at its end
+   (Apple's model reads only this pass, §4), in whatever time the deadline
+   has left (less 100 ms). A slot the writer
    leaves out, answers `none`, or fills with something that doesn't fit its
    list or its length is left empty. A writer that fails or runs late
    leaves every slot empty.
@@ -151,23 +160,23 @@ call puts the current memory at the top. Asides don't move it, so at most
 can't crowd out the prompt.
 
 **How each brain reads it.** The if-else classifier reads only the current
-input. Jev gets the window as JSON (§6). The writers get it as text, which
-looks like this (from `TranscriptTests`):
+input. Jev gets the window as JSON (§6). Apple's writer reads only the
+pass it writes for: what just happened, what you said and what Stage 1
+decided, then a line per slot (from `BrainTests`):
 
 ```
-agent finished · done · claude · jetpack · took 18 min · 14:05 Tuesday
-  rules: cheer
-  decided: react(feeling: proud, voice: mumble)
-  wrote: react.word = finally
-  ran: react(feeling: proud, voice: mumble, word: finally)
-tapped · 14:07 Tuesday: Boop wiggled
+--- now ---
 you said · 14:05 Tuesday
-  they said: "remember 'the' demo"
-  decided: react(feeling: happy, voice: mumble), remember(where: today)
-  wrote: nothing
-  ran: react(feeling: happy, voice: mumble)
-  ran: remember(where: today) (dropped)
+They just said: "remember the demo is on Thursday"
+Boop decided: react(feeling: happy, voice: mumble), remember(where: today)
+--- write ---
+react.word: the mumble's one real word, from its list, as Writing says; none only when nothing fits.
+remember.text: at most 80 characters. A note for later today: something the person said or asked to note. Plain words, no code; leave it empty if nothing is worth keeping.
 ```
+
+Given the rest of the window too, it copied the words it had written
+before: over 58 inputs it said "yay" to every finished turn and ignored a
+failed turn's topic ([ARCHITECTURE.md](ARCHITECTURE.md) §11).
 
 **Sizes.** Apple's on-device model has an 8K context window here (measured
 2026-09-25), for the prompt, the schema and the answer; Jev takes 32K tokens
@@ -195,11 +204,14 @@ files and the window, your words included, go to TypeSafe with each call.
 
 Boop can do three things. Each output's action writes its definition, and
 each argument has a **role**: **decided** by Stage 1 from its choices, or
-**written** by Stage 2.
+**written** by Stage 2. For model brains, a definition also says in plain
+words what to ask: a question for the output and for each decided argument
+(Jev asks them), and, for a written argument, the **sources** its value
+can come from, in order (the writer picks one before the value, §7).
 
 | Output | Decided | Written | What it does |
 | --- | --- | --- | --- |
-| `react` | `feeling`, one of ten; `voice`: `silent` or `mumble` | `word`, only for a mumble: `none` or one of Voice's 40 words ([VOICE.md](VOICE.md) §6) | For a mumble, a Minion line from Voice in the feeling's sound, with the word, played over whatever face is showing. The brain's faces are parked ([FUTURE.md](FUTURE.md)), so `silent` shows nothing. A mumble is dropped in quiet mode or while something needs you |
+| `react` | `feeling`, one of ten; `voice`: `silent` or `mumble` | `word`, only for a mumble: `none` or one of Voice's 40 words ([VOICE.md](VOICE.md) §6), from what they said, the failed topic, how the turn went or the feeling (`steering.md`, Writing) | For a mumble, a Minion line from Voice in the feeling's sound, with the word, played over whatever face is showing. The brain's faces are parked ([FUTURE.md](FUTURE.md)), so `silent` shows nothing. A mumble is dropped in quiet mode or while something needs you |
 | `quiet` | `minutes`: 15, 30, 60 or 120 | — | The core's quiet mode: no mumbles, and agent inputs skip the brain. The action runs only when the last thing you said asked for quiet ("quiet" in your words), whichever classifier decided ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
 | `remember` | `where`: `today`, `about_you`, `preference`, `temperament` or `moment` | `text` | A line in that part of memory, under its own rules |
 
@@ -249,9 +261,9 @@ says exactly how it behaves.
 
 | Brain | Stage | What it does |
 | --- | --- | --- |
-| `RulesClassifier` | 1 | **The default.** Plain Swift, no model, always available; reads only the input's fields. Agent started: nothing. Finished `done` in 15 seconds or more: `react(proud, mumble)`, and over a minute the writer is steered to always write a word (`steering.md`); shorter: nothing. Finished `failed`: `react(annoyed, mumble)`, one mumble per failure. Poked again and again: `react(annoyed, mumble)`. You said "quiet": `quiet` (two hours 120, fifteen 15, half an hour 30, an hour 60, else 30), then, if you also yelled or told Boop off, `react(sad, silent)`. You yelled, or told Boop off ("shut up", "go away", "hate you", "you suck", "hush", "stop talking", "keep it down", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot"): `react(sad, mumble)`; "remember" or "note": `react(happy, mumble)` and `remember(today)`; "hello", "hi", "hey" or "morning": `react(happy, mumble)`; "good job", "well done", "nice", "great", "thanks" or "the best": `react(proud, mumble)`; anything else: `react(curious, mumble)`. Whole words only, and the first row that matches wins. New day: nothing, since deciding what lasts needs a model |
-| `JevClassifier` | 1 | TypeSafe's `jev-latest` ([docs](https://docs.typesafe.ai/api)), with the person's API key. It doesn't write: it answers typed questions about a state with probabilities, in one request of about 0.2 s. The state is `steering.md`, both memory files, the window's recent inputs (minutes ago, what happened, what you said, what the rules did and what Boop did) and now. The menu becomes questions built from the definitions: a yes/no for each output ("Should Boop react about what just happened?"), a choice for each decided argument with more than one option (`react.feeling`, `react.voice`, `quiet.minutes`), and, when the menu allows several calls told apart by a choice, a yes/no per choice instead (a new day's `remember.about_you`, `remember.moment`, …). Each question is answered on its own, so every argument is asked up front and only a chosen output's are used. A yes is above 0.5; each choice is the most likely one. Only the HTTP status of a failed request is logged |
-| `AppleWriter` | 2 | **The default.** Apple's on-device model: private and free. A fresh session each call: its instructions are a short preamble, `steering.md` and both memory files; its prompt is the window as text, then what just happened and what Boop decided, then a line per slot. Guided generation with one property per slot: a word from `none` and its list, or text with its length asked for. There's no option to decline, so it can't answer "stay quiet"; that was Stage 1's job. Guardrails are `permissiveContentTransformations`; a refusal fails the write like any error, marked as a refusal |
+| `RulesClassifier` | 1 | **The default.** Plain Swift, no model, always available; reads only the input's fields. Agent started: nothing. Finished `done`, a long or very long turn (15 seconds or more): `react(proud, mumble)`, and for a very long one the writer is steered to always write a word (`steering.md`); a short turn: nothing. Finished `failed`: `react(annoyed, mumble)`, one mumble per failure. Poked again and again: `react(annoyed, mumble)`. You said "quiet": `quiet` (two hours 120, fifteen 15, half an hour 30, an hour 60, else 30), then, if you also yelled or told Boop off, `react(sad, silent)`. You yelled, or told Boop off ("shut up", "go away", "hate you", "you suck", "hush", "stop talking", "keep it down", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot"): `react(sad, mumble)`; "remember" or "note": `react(happy, mumble)` and `remember(today)`; "hello", "hi", "hey" or "morning": `react(happy, mumble)`; "bye", "goodbye", "see you" or "good night": `react(happy, mumble)`; "lunch", "dinner", "breakfast", "food", "snack" or "hungry": `react(hopeful, mumble)`; "good job", "well done", "nice", "great", "thanks" or "the best": `react(proud, mumble)`; anything else: `react(curious, mumble)`. Whole words only, and the first row that matches wins. New day: nothing, since deciding what lasts needs a model |
+| `JevClassifier` | 1 | TypeSafe's `jev-latest` ([docs](https://docs.typesafe.ai/api)), with the person's API key. It doesn't write: it answers typed questions about a state with probabilities, in one request of about 0.2 s. The state is `steering.md` without its Writing section (Jev never writes), both memory files, the window's recent inputs (minutes ago, what happened, what you said, what the rules did and what Boop did) and now. The menu becomes questions built from the definitions' own questions: a yes/no for each output ("Does what just happened call for Boop to react?"), a choice for each decided argument with more than one option (`react.feeling`, `react.voice`, `quiet.minutes`), and, when the menu allows several calls told apart by a choice, a yes/no per choice instead (a new day's `remember.about_you`, `remember.moment`, …). As TypeSafe advises, each question names what it's about (`now`) and what to judge it by (`boop`, its Examples first), and a yes means `boop` says to do it for something like `now`. Each question is answered on its own, so every argument is asked up front and only a chosen output's are used. A yes is above 0.5; each choice is the most likely one. Only the HTTP status of a failed request is logged |
+| `AppleWriter` | 2 | **The default.** Apple's on-device model: private and free. A fresh session each call: its instructions are a short preamble, `steering.md` and both memory files; its prompt is what just happened and what Boop decided, then a line per slot (§4). Guided generation with one property per slot: a word from `none` and its list, or text with its length asked for; a slot with sources gets a property before it, where the model picks the source first. Temperature 0.2, so the same moment gets the same word. There's no option to decline, so it can't answer "stay quiet"; that was Stage 1's job. Guardrails are `permissiveContentTransformations`; a refusal fails the write like any error, marked as a refusal |
 | `NoWriter` | 2 | Writes nothing: mumbles have no word, and nothing is remembered. The setting `none`, and what `apple` falls back to when Apple's model can't run at launch |
 | `DeepSeekWriter` | 2 | Not built yet: it refuses every write ([FUTURE.md](FUTURE.md)) |
 
@@ -281,7 +293,21 @@ open-ended instructions, so the design leans on that:
 - **Easy silence:** no calls is always a valid answer.
 - **One step:** one call per stage, no follow-up.
 - **Examples over rules:** `steering.md` shows a short example for each
-  input, which helps a small model more than extra rules do.
+  input, with the word a mumble should carry, which helps a small model
+  more than extra rules do.
+- **The kind before the word:** asked for a word straight away, Apple's
+  model answered every annoyed mumble "ugh" and every proud one "yay",
+  whatever `steering.md` said. Asked first where the word comes from (what
+  they said, the failed topic, how the turn went, the feeling), it names a
+  failed turn's topic every time. The sources' names matter: "what the
+  agent failed at" led to "bug" ([ARCHITECTURE.md](ARCHITECTURE.md) §11).
+- **Only what the stage needs:** the writer reads just the pass it writes
+  for, and Jev doesn't get the writer's guidance. Text a stage doesn't
+  need pulls a small model off course.
+- **No arithmetic:** numbers a decision depends on arrive already named
+  (a long turn, not 20 s), and what the rules can decide isn't asked
+  (`quiet` is offered only when your words ask for it). Jev is literal and
+  poor at comparing numbers ([TypeSafe](https://docs.typesafe.ai/model-jaggedness/jev-1.13)).
 
 It's modelled on [pi](https://mariozechner.at/posts/2025-11-30-pi-coding-agent/),
 whose rule is "if I don't need it, it won't be built": a short system

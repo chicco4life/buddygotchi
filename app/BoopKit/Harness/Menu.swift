@@ -90,7 +90,8 @@ public struct Menu: Equatable, Sendable {
                 }
                 let key = call.name + (repeats ? "#\(nth)" : "") + "." + p.name
                 slots.append(Slot(key: key, call: index, decided: call, parameter: p.name, kind: kind,
-                                  optional: p.optional, about: d.description, choice: Slot.chosen(call, d)))
+                                  optional: p.optional, about: d.description, choice: Slot.chosen(call, d),
+                                  sources: p.sources))
             }
         }
         return slots
@@ -118,6 +119,9 @@ public struct Slot: Equatable, Sendable {
     public var about: String
     /// What the decided choices mean, e.g. `where: today` → "A note for later today…".
     public var choice: String?
+    /// What the value can come from, for a model writer to pick first
+    /// (`ToolDefinition.Parameter.sources`); empty for most.
+    public var sources: [String] = []
 
     /// The meaning of the call's first decided choice that has one.
     static func chosen(_ call: ToolCall, _ d: ToolDefinition) -> String? {

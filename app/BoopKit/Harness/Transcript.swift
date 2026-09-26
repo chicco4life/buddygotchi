@@ -94,42 +94,7 @@ public final class Transcript: @unchecked Sendable {
 
     // MARK: As text
 
-    /// The window as text, for a language model: each input on its own line,
-    /// then what followed it, indented.
-    ///
-    ///     agent finished · done · claude · jetpack · topic: tests · took 18 min · 14:05 Tuesday
-    ///       rules: cheer
-    ///       decided: react(feeling: proud, voice: mumble)
-    ///       wrote: react.word = finally
-    ///       ran: react(feeling: proud, voice: mumble, word: finally)
-    ///     tapped · 14:07 Tuesday: Boop wiggled
-    public static func text(_ window: [Entry]) -> String {
-        var lines: [String] = []
-        for entry in window {
-            switch entry {
-            case .input(let input):
-                lines.append(input.line)
-                if let words = input.words { lines.append("  they said: \"\(oneLine(words))\"") }
-            case .rules(let what):
-                lines.append("  rules: \(what)")
-            case .aside(let what, _):
-                lines.append(what)
-            case .decided(_, let calls, _):
-                lines.append("  decided: " + (calls.isEmpty ? "nothing" : calls.map(\.plain).joined(separator: ", ")))
-            case .dropped(let why):
-                lines.append("  dropped: \(why)")
-            case .wrote(_, let values):
-                let written = values.sorted { $0.key < $1.key }.map { "\($0.key) = \($0.value.isEmpty ? "(empty)" : oneLine($0.value))" }
-                lines.append("  wrote: " + (written.isEmpty ? "nothing" : written.joined(separator: " · ")))
-            case .writeFailed:
-                lines.append("  wrote: nothing")
-            case .ran(let call, let outcome):
-                lines.append("  ran: \(call.plain)" + (outcome.isDone ? "" : " (dropped)"))
-            }
-        }
-        return lines.joined(separator: "\n")
-    }
-
+    /// Text on one line, with double quotes made single, to quote in a prompt.
     static func oneLine(_ s: String) -> String {
         s.replacingOccurrences(of: "\n", with: " ").replacingOccurrences(of: "\"", with: "'")
     }

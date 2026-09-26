@@ -582,10 +582,17 @@ fewer inputs and outputs ([HARNESS.md](HARNESS.md)).
    transcript and its window; Settings to pick both stages
    ([evidence](evidence/2026-09-26-two-stage-brain/README.md)).
 4. **Harness evals (done):** deterministic scenarios of events in and the
-   harness's passes out, run by `make eval` and `make test`; five so far,
-   all passing ([EVALS.md](EVALS.md),
+   harness's passes out, run by `make eval` and `make test`; ten so far
+   ([EVALS.md](EVALS.md),
    [evidence](evidence/2026-09-26-harness-evals/README.md)).
-5. **Later:** the DeepSeek writer ([FUTURE.md](FUTURE.md)).
+5. **Evals with real brains (in progress):** the scenarios list the values
+   that fit, so they hold for models too. With the rules and Apple's
+   writer all ten pass in 5 of 5 runs, after the writer stopped reading
+   the window, picks a word's source first, and the input names a turn's
+   length; Jev's questions follow TypeSafe's guidance. Jev with Apple's
+   writer hasn't been run: it needs the owner's key
+   ([evidence](evidence/2026-09-26-eval-iteration/README.md)).
+6. **Later:** the DeepSeek writer ([FUTURE.md](FUTURE.md)).
 
 **Done when:**
 
@@ -767,6 +774,14 @@ matching spec first.
   [VISION.md](VISION.md) promise 5 rules out. It also lists Cursor and VS
   Code, and its help page describes gen-2's approval mode, port 21321 and
   `~/.boop`.
+- **The evals with Jev.** `BOOP_JEV_KEY=… app/.build/debug/boopdev eval
+  --classifier jev --writer apple --runs 3` hasn't been run since Jev's
+  questions changed; agent shells can't read the key from the Keychain
+  ([evidence](evidence/2026-09-26-eval-iteration/README.md)).
+- **A note is a duplicate only when it's the same text.** "landing
+  launches on Monday" would be kept beside "landing launches Monday";
+  moments already refuse a line whose longer words are mostly in an
+  earlier one ([HARNESS.md](HARNESS.md) §5).
 - **Codex turns never fail.** Codex's `PostToolUse` runs after a failing
   shell command too, but what it reports then hasn't been seen from a real
   session, so a Codex turn that leaves its tests failing still ends in a

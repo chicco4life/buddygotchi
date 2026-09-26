@@ -19,10 +19,11 @@ let usage = """
                Runs the real pipeline on recorded inputs, each with a fresh copy of the sample memory,
                N minutes apart (default 3) sharing one transcript, and reports refusals, what each stage
                did, dropped calls and latency (VERIFICATION.md L5). Jev's key comes from BOOP_JEV_KEY.
-           boopdev eval [--classifier rules|jev] [--writer none|apple] [--scenarios DIR] [--memory DIR] [--steering FILE] [--only TEXT] [--json FILE]
+           boopdev eval [--classifier rules|jev] [--writer none|apple] [--runs N] [--scenarios DIR] [--memory DIR] [--steering FILE] [--only TEXT] [--json FILE]
                Runs the harness eval scenarios: events, taps and talk on a virtual clock through a fresh core,
                the real harness and actions, each step checked against the passes it should lead to
-               (plan/EVALS.md). Deterministic with the defaults, rules and no writer. Exits 1 if any fails.
+               (plan/EVALS.md). Deterministic with the defaults, rules and no writer; with a model, --runs
+               runs each scenario N times, and it passes only if every run does. Exits 1 if any fails.
            boopdev watch FILE [--new]
                Follows a brain debug log (Boop --debug-log FILE, or make run DEBUG_LOG=FILE) and prints each
                pass as it lands: the input, what was decided and why, the words written, and what ran.
@@ -380,16 +381,29 @@ func eval(_ args: [String]) async {
         list = list.filter { $0.name.localizedCaseInsensitiveContains(only) || $0.file.contains(only) }
     }
     guard !list.isEmpty else { fail("no scenarios in \(scenarios.path)") }
+    guard let runs = Int(option(args, "--runs") ?? "1"), runs >= 1 else { fail("--runs is a count, 1 or more") }
     let runner = Eval(classifier: classifier, writer: writer, steering: steering, memory: memoryDir)
-    var results: [Eval.Result] = []
+    var results: [[Eval.Result]] = []
     for scenario in list {
-        do { results.append(try await runner.run(scenario)) } catch { fail("\(scenario.file): \(error)") }
-        let r = results.last!
-        print((r.passed ? "pass  " : "FAIL  ") + "\(scenario.file)  \(scenario.name)")
-        if !r.passed { print(Eval.diff(r)) }
+        var rs: [Eval.Result] = []
+        for _ in 0..<runs {
+            do { rs.append(try await runner.run(scenario)) } catch { fail("\(scenario.file): \(error)") }
+        }
+        results.append(rs)
+        let passed = rs.filter(\.passed).count
+        let tally = runs > 1 ? "  (\(passed)/\(runs) runs)" : ""
+        print((passed == runs ? "pass  " : "FAIL  ") + "\(scenario.file)  \(scenario.name)\(tally)")
+        // Each different failure once, most common first.
+        var diffs: [String: Int] = [:]
+        for r in rs where !r.passed { diffs[Eval.diff(r), default: 0] += 1 }
+        for (diff, n) in diffs.sorted(by: { $0.value > $1.value }) {
+            if runs > 1 { print("  in \(n) of \(runs) runs:") }
+            print(diff)
+        }
     }
-    let passed = results.filter(\.passed).count
-    print("\(passed)/\(results.count) scenarios passed, classifier \(classifier.id), writer \(writer.id)")
+    let passed = results.filter { $0.allSatisfy(\.passed) }.count
+    let every = runs > 1 ? " in all \(runs) runs" : ""
+    print("\(passed)/\(results.count) scenarios passed\(every), classifier \(classifier.id), writer \(writer.id)")
     if let out = option(args, "--json") {
         do { try Eval.json(results, classifier: classifier.id, writer: writer.id).write(toFile: out, atomically: true, encoding: .utf8) }
         catch { fail("can't write \(out): \(error)") }

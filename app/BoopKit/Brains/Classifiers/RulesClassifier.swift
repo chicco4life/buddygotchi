@@ -7,14 +7,16 @@ import Foundation
 /// | Input | Decides |
 /// | --- | --- |
 /// | Agent started | nothing |
-/// | Agent finished, done, 15 s or more | `react(proud, mumble)`; over a minute the writer is told to always find a word |
-/// | Agent finished, done, shorter | nothing |
+/// | Agent finished, done, a long turn (15 s or more) | `react(proud, mumble)`; for a very long one (over a minute) the writer is told to always find a word |
+/// | Agent finished, done, a short turn | nothing |
 /// | Agent finished, failed | `react(annoyed, mumble)`: the sass, one mumble per failure |
 /// | Poked again and again | `react(annoyed, mumble)`: the grumble |
 /// | You said "quiet" | `quiet(n)`; n from the words: two hours 120, an hour 60, fifteen 15, else 30. Yelled or told off too: then `react(sad, silent)` |
 /// | You yelled, or told Boop off: "shut up", "go away", "hate you", "you suck", "hush", "stop talking", "keep it down", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot" | `react(sad, mumble)` |
 /// | You said "remember" or "note" | `react(happy, mumble)`, `remember(today)` |
 /// | You said "hello", "hi", "hey", "morning" | `react(happy, mumble)` |
+/// | You said "bye", "goodbye", "see you", "good night" | `react(happy, mumble)` |
+/// | You said "lunch", "dinner", "breakfast", "food", "snack", "hungry" | `react(hopeful, mumble)` |
 /// | You said "good job", "well done", "nice", "great", "thanks", "the best" | `react(proud, mumble)` |
 /// | You said anything else | `react(curious, mumble)` |
 /// | New day | nothing: deciding what lasts needs a model (Jev) |
@@ -39,10 +41,11 @@ public struct RulesClassifier: Classifier {
             return ([], "agent started")
         case .agentFinished:
             if input.outcome == .failed { return ([react("annoyed", "mumble")], "failed") }
-            let took = input.tookMs ?? 0
-            if took > 60_000 { return ([react("proud", "mumble")], "done, over a minute") }
-            if took >= 15_000 { return ([react("proud", "mumble")], "done, 15 s or more") }
-            return ([], "done, under 15 s")
+            switch input.length ?? .short {
+            case .veryLong: return ([react("proud", "mumble")], "done, a very long turn")
+            case .long: return ([react("proud", "mumble")], "done, a long turn")
+            case .short: return ([], "done, a short turn")
+            }
         case .poked:
             return ([react("annoyed", "mumble")], "poked again and again")
         case .said:
@@ -57,6 +60,8 @@ public struct RulesClassifier: Classifier {
                 return ([react("happy", "mumble"), ToolCall("remember", ["where": .string("today")])], "asked to remember")
             }
             if greetings.contains(where: words.contains) { return ([react("happy", "mumble")], "a greeting") }
+            if goodbyes.contains(where: words.contains) { return ([react("happy", "mumble")], "a goodbye") }
+            if meals.contains(where: words.contains) { return ([react("hopeful", "mumble")], "a meal") }
             if praise.contains(where: words.contains) { return ([react("proud", "mumble")], "praise") }
             return ([react("curious", "mumble")], "said anything else")
         case .newDay:
@@ -78,6 +83,8 @@ public struct RulesClassifier: Classifier {
             || you.contains(where: words.contains) && insults.contains(where: words.contains)
     }
     static let greetings = [" hello ", " hi ", " hey ", " morning ", " good morning "]
+    static let goodbyes = [" bye ", " goodbye ", " see you ", " good night ", " goodnight "]
+    static let meals = [" lunch ", " dinner ", " breakfast ", " food ", " snack ", " hungry "]
     static let praise = [" good job ", " well done ", " nice ", " great ", " thanks ", " thank you ", " the best "]
 
     /// How long "quiet" lasts, from the words.
