@@ -37,6 +37,7 @@ Each level answers a different question:
 
 | Tool | What it is |
 | --- | --- |
+| `make build` / `make sign` | Builds the Mac app, `boop-hook` and `boopdev`. When the login keychain has a code-signing identity named "Boop Dev" (or `SIGN_IDENTITY`), it then re-signs `Boop` with it, so the Keychain keeps recognising the app across rebuilds and stops asking for the Jev key each time. Without one, the build stays ad-hoc signed. The owner makes the certificate once: Keychain Access → Certificate Assistant → Create a Certificate…, name "Boop Dev", type Code Signing |
 | `make test` | Swift unit tests. There's no Xcode here, so this runs the XCTest shim: `python3 app/tools/test.py`, which runs `swift run BoopTests` |
 | `make eval` | The harness eval scenarios ([EVALS.md](EVALS.md)): `boopdev eval` |
 | `make fw-test` | Firmware unit tests on the Mac: `pio test -e native` |

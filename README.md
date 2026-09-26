@@ -47,7 +47,7 @@ From the repo root. There's no Xcode needed: `make test` runs the XCTest
 shim.
 
 ```sh
-make build        # Boop, boop-hook, boopdev
+make build        # Boop, boop-hook, boopdev; signs Boop as "Boop Dev" if you have that certificate
 make test         # Swift unit tests
 make eval         # the harness eval scenarios
 make run          # the Mac app, with Bluetooth (from your own terminal)

@@ -67,6 +67,9 @@ app/.build/debug/Boop --snapshots DIR   # the Mac app's popover and icons as PNG
   `firmware/.platformio-core`. The board shows up as
   `/dev/cu.usbserial-*`. The serial port needs no special permissions.
 - System Python has no pyserial or Pillow. The tools use `tools/.venv`.
+- `make build` re-signs `Boop` with the owner's self-signed "Boop Dev"
+  certificate when it exists, so the Keychain doesn't ask for the Jev key
+  after every rebuild ([plan/VERIFICATION.md](plan/VERIFICATION.md) §2).
 
 ## Running the v1 build
 
