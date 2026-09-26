@@ -542,6 +542,32 @@ static void test_asleep_breathes_and_never_blinks() {
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
 }
 
+// BEHAVIORS.md §2: working's strain and sweat drop move all the time, so
+// the face counts as moving and the board keeps redrawing it, as asleep;
+// idle only moves to blink.
+static void test_working_keeps_moving_and_idle_rests() {
+  Model w = base("working");
+  for (int busy : {1, 3}) {
+    w.busy = busy;
+    Rig r;
+    r.state(w);
+    for (uint32_t t = 1000; t <= 20000; t += 7) {
+      if (t % 10000 < 7) r.state(w);
+      r.at(t);
+      TEST_ASSERT_TRUE(r.b.moving(t));
+    }
+  }
+  Rig i;
+  i.state(base("idle"));
+  int resting = 0;
+  for (uint32_t t = 1000; t <= 20000; t += 7) {
+    if (t % 10000 < 7) i.state(base("idle"));
+    i.at(t);
+    resting += !i.b.moving(t);
+  }
+  TEST_ASSERT_TRUE(resting > 2000);
+}
+
 static void test_working_strains_and_sweats_and_asleep_says_zzz() {
   // Effort: over one 2.6 s cycle the working face strains for part of it
   // and rests the rest, with a sweat drop the whole time (BEHAVIORS.md §2).
@@ -792,6 +818,7 @@ int main() {
   RUN_TEST(test_life_is_blinks_at_their_pace);
   RUN_TEST(test_asleep_breathes_and_never_blinks);
   RUN_TEST(test_working_strains_and_sweats_and_asleep_says_zzz);
+  RUN_TEST(test_working_keeps_moving_and_idle_rests);
   RUN_TEST(test_no_app_at_30s_looks_asleep_and_reconnect_blinks);
   RUN_TEST(test_push_to_talk_listens_then_waits);
   RUN_TEST(test_push_to_talk_timeouts);

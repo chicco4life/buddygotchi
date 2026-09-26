@@ -317,7 +317,10 @@ render::Pose Behaviour::pose(uint32_t t) const {
 bool Behaviour::moving(uint32_t t) const {
   if (momentOn(t) || sayOn(t) || blend_.blending(t)) return true;
   if (life_.kind != Life::kNone && within(t, life_.at, life_.ms)) return true;
-  if (src_.anim == render::Anim::kNone && src_.look == render::Look::kAsleep) return true;
+  // The looks with motion of their own: asleep breathes and says zzZZ,
+  // working strains and sweats (BEHAVIORS.md §2).
+  bool looping = src_.look == render::Look::kAsleep || src_.look == render::Look::kWorking;
+  if (src_.anim == render::Anim::kNone && looping) return true;
   if (pressed_ ? within(t, pressAt_, kPressEaseMs) : (releaseAt_ && within(t, releaseAt_, kPressEaseMs))) return true;
   return false;
 }
