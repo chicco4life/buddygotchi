@@ -154,7 +154,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         super.init()
     }
 
+    /// A menu bar that's never shown. A menu-bar-only app has none, but
+    /// ⌘X, ⌘C, ⌘V, ⌘A and ⌘Z reach a text field through the Edit menu's
+    /// shortcuts, so without one the popover's fields (Boop's name in setup,
+    /// Jev's key in settings) can't paste.
+    static func editMenu() -> NSMenu {
+        let edit = NSMenu(title: "Edit")
+        edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        edit.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z").keyEquivalentModifierMask = [.command, .shift]
+        edit.addItem(.separator())
+        edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem())  // where the app menu would go
+        let item = NSMenuItem()
+        item.submenu = edit
+        menu.addItem(item)
+        return menu
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.mainMenu = AppDelegate.editMenu()
         placeHookClient()
         let repaired = model.installer.repair()
         if !repaired.isEmpty {
