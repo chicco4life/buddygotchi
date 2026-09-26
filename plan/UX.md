@@ -51,8 +51,9 @@ needs-you face, which leans in, is as big as the idle face alone.
   its size, which would pop single parts. That holds whatever changes mid-animation:
   "needs you" arriving under a cheer or `listening`, or the working count
   crossing 3, eases from the frame that was showing. The backlight eases
-  over the same 150 ms. A blink shrinks the eye towards a one-block bar;
-  an eye too thin for its panes is drawn as one bar. A lid takes whole rows
+  over the same 150 ms. A blink shrinks the eye to a bar; an eye too thin
+  for its panes is drawn as one bar, and a shut eye is two blocks thick,
+  the same weight as the mouth. A lid takes whole rows
   of blocks off the top, straight across the eye, and a pane it leaves
   less than two blocks tall goes altogether, so no sliver floats like a
   brow. To look somewhere

@@ -97,6 +97,7 @@ struct Frame {
 
 struct Eye {
   int bx, by, wb, hb;    // centre block and size in blocks (odd)
+  int y0, y1;            // its first and last rows of blocks
   int lidY;              // rows above this are under the upper lid, sub-pixels
   int botY;              // happy: rows below this are cut (the squint), sub-pixels
   int happy;             // permille, for the cheeks
@@ -125,10 +126,12 @@ Eye makeEye(const Pose& p, const Frame& f, bool right) {
     return n < least ? least : n;
   };
   e.wb = turned(oddBlocks(w, 3), 3), e.hb = turned(oddBlocks(h, 1), 1);
+  // Shut, an eye is a bar two blocks thick, the same weight as the mouth.
+  e.y0 = e.by - e.hb / 2, e.y1 = e.hb > 1 ? e.by + e.hb / 2 : e.by + 1;
 
   int lid = p.lidTop + (right ? (p.wink > 0 ? p.wink : 0) : (p.wink < 0 ? -p.wink : 0));
   lid = clampi(lid, 0, 1000);
-  int top = (e.by - e.hb / 2) * kB, hs = e.hb * kB;
+  int top = e.y0 * kB, hs = (e.y1 - e.y0 + 1) * kB;
   e.lidY = top + hs * lid / 1000;
 
   e.happy = happy;
@@ -142,7 +145,7 @@ Eye makeEye(const Pose& p, const Frame& f, bool right) {
 // brow. Too thin for panes, the eye is one solid bar. Each pane, or the
 // bar, gets softened corners where it's drawn.
 void drawEye(Canvas& c, const Eye& e, uint8_t color) {
-  const int x0 = e.bx - e.wb / 2, x1 = e.bx + e.wb / 2, y0 = e.by - e.hb / 2, y1 = e.by + e.hb / 2;
+  const int x0 = e.bx - e.wb / 2, x1 = e.bx + e.wb / 2, y0 = e.y0, y1 = e.y1;
   const bool panes = e.hb >= 2 * kPaneMin + 1 && e.wb >= 2 * kPaneMin + 1;
   // Fills columns bx0..bx1 of rows by0..by1, less what the lids take.
   auto part = [&](int bx0, int by0, int bx1, int by1, int least) {

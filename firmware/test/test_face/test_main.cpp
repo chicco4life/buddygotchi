@@ -423,7 +423,10 @@ static void test_closed_eyes_are_a_line() {
   p.open = 0;
   Buf b = face(p);
   EyeBox e = eyeBox(b, false);
-  TEST_ASSERT_TRUE(e.h() <= 6);
+  // Two blocks thick, the same weight as the mouth's bar (UX.md §2).
+  TEST_ASSERT_EQUAL_INT(6, e.h());
+  Box m = inkBox(b, kInkEye, 125, 196);
+  TEST_ASSERT_EQUAL_INT(m.y1 - m.y0 + 1, e.h());
   TEST_ASSERT_TRUE(e.w() >= 36);
   TEST_ASSERT_TRUE(b.count(inkAt(kInkEye, kLevels)) > 80);  // but a line is there
 }
