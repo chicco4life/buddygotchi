@@ -544,6 +544,41 @@ static void test_asleep_zzz_climbs_one_letter_at_a_time() {
   }
 }
 
+static void test_every_sprite_is_on_the_grid_and_on_screen() {
+  // The heart, the sweat drop and the "zzZZ" are built from the face's 3 px
+  // blocks too (UX.md §2): every 3 × 3 cell of the grid is dark or lit
+  // whole, less its softened corner pixels (two at the drop's tip). And the
+  // "zzZZ" stays 6 px clear of
+  // the screen's edges, bubble or not, whichever way the breathing bob has it.
+  auto onGrid = [](const Buf& b) {
+    for (int y = 0; y < kStripTop; y += 3) {
+      for (int x = 0; x < kWidth; x += 3) {
+        int n = 0;
+        for (int j = 0; j < 3; ++j) {
+          for (int i = 0; i < 3; ++i) n += b.c.get(x + i, y + j) != kBlack;
+        }
+        TEST_ASSERT_TRUE(n == 0 || n >= 7);
+      }
+    }
+  };
+  Pose sweat = lookPose(Look::kWorking, 1), sleep = lookPose(Look::kAsleep, 0), tap = animPose(Anim::kWiggle, 0);
+  sweat.sweat = 500, sleep.zzz = 999, tap.dx = 0;
+  for (const Pose& p : {sweat, sleep, tap}) onGrid(face(p));
+  for (int raise : {0, 1000}) {
+    for (int bob : {0, -kBobPx}) {
+      Pose p = sleep;
+      p.raise = int16_t(raise), p.dy = int16_t(p.dy + bob);
+      Buf b;
+      drawFaceScreen(b.c, p, nullptr, Strip{});
+      for (int y = 0; y < kStripTop; ++y) {
+        for (int x = 0; x < kWidth; ++x) {
+          if (y < 6 || x >= kWidth - 6) TEST_ASSERT_EQUAL_INT(kBlack, b.c.get(x, y));
+        }
+      }
+    }
+  }
+}
+
 static void test_a_sweat_drop_sits_by_the_right_eye_and_slides_down() {
   // Working, a sweat drop slides down beside the right eye (UX.md §2).
   Pose p = lookPose(Look::kWorking, 1);
@@ -557,6 +592,19 @@ static void test_a_sweat_drop_sits_by_the_right_eye_and_slides_down() {
   TEST_ASSERT_INT_WITHIN(4, a.n, b.n);
   TEST_ASSERT_TRUE(b.meanY() - a.meanY() >= 10);
   TEST_ASSERT_TRUE(a.x0 > eyeBox(top, true).x1);
+  // It's a teardrop, not a bottle (a nub on a square): from a point a third
+  // as wide as its widest row it widens at most 4 px per row of pixels, and
+  // it rounds off below.
+  int widths[kHeight] = {}, widest = 0, widestAt = a.y0;
+  for (int y = a.y0; y <= a.y1; ++y) {
+    for (int x = 0; x < kWidth; ++x) widths[y] += top.c.get(x, y) == inkAt(kInkSky, kLevels);
+    if (widths[y] > widest) widest = widths[y], widestAt = y;
+  }
+  for (int y = a.y0 + 1; y <= widestAt; ++y) {
+    TEST_ASSERT_TRUE(widths[y] >= widths[y - 1] && widths[y] - widths[y - 1] <= 4);
+  }
+  TEST_ASSERT_TRUE(3 * widths[a.y0] <= widest);
+  TEST_ASSERT_TRUE(widths[a.y1] < widest && widestAt < a.y1);
 }
 
 static void test_a_happy_blend_squints_a_row_at_a_time() {
@@ -674,6 +722,7 @@ int main(int, char**) {
   RUN_TEST(test_happy_eyes_squint_and_the_smile_stays_small);
   RUN_TEST(test_a_tap_is_a_squint_and_a_heart);
   RUN_TEST(test_asleep_zzz_climbs_one_letter_at_a_time);
+  RUN_TEST(test_every_sprite_is_on_the_grid_and_on_screen);
   RUN_TEST(test_a_sweat_drop_sits_by_the_right_eye_and_slides_down);
   RUN_TEST(test_a_happy_blend_squints_a_row_at_a_time);
   RUN_TEST(test_listening_bobs_the_whole_face_a_block);

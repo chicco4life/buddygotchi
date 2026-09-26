@@ -66,7 +66,8 @@ shows, the face eases up into the top 144 px at three-quarters size.
   small "u" smile, a small "o" while talking, and a small filled
   cup when it's happy and open. The eyes stay white. A tap and a cheer pop a pixel
   heart in at the top right of the face. Asleep, a pixel "zzZZ" climbs up
-  from the right eye one letter at a time. Working, Boop strains every
+  from the right eye one letter at a time, two small z's then two big Z's,
+  clear of the screen's edges even when the bubble shows. Working, Boop strains every
   couple of seconds, and a pixel sweat drop slides down beside the right
   eye ([BEHAVIORS.md](BEHAVIORS.md) §2).
 - **Bubble.** Empty most of the time. It shows either a mumble's one real

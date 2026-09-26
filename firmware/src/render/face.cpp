@@ -42,8 +42,9 @@ constexpr int kBlushDx = 21, kBlushDy = 39, kBlushW = 12, kBlushH = 9;
 // Around the right eye's centre: where the heart, the sweat drop and the
 // "zzZZ" go.
 constexpr int kHeartDx = 36, kHeartDy = -30;
-constexpr int kSweatDx = 30, kSweatDy = -21, kSweatSlide = 12;
-constexpr uint32_t kZzzStep = 220;  // permille of the cycle between letters
+constexpr int kSweatDx = 34, kSweatDy = -21, kSweatSlide = 12;
+constexpr int kZzzDx = 27, kZzzDy = -15;  // the first letter's top left
+constexpr uint32_t kZzzStep = 220;        // permille of the cycle between letters
 
 // The middle of the face (from the eye tops to the mouth) lies kFaceDrop
 // below the eye centres; screens.cpp centres the face on that.
@@ -178,12 +179,6 @@ int spriteW(const char* const* rows) {
 void spriteAt(Canvas& c, const char* const* rows, int n, int bx, int by, uint8_t color) {
   sprite(c, rows, n, (bx - spriteW(rows) / 2) * kBlock, (by - n / 2) * kBlock, kBlock, color);
 }
-// A finer sprite, with blocks of `b` pixels, centred on the middle of block
-// (bx, by), so it moves with the face.
-void fineSpriteAt(Canvas& c, const char* const* rows, int n, int bx, int by, int b, uint8_t color) {
-  int x = bx * kBlock + kBlock / 2, y = by * kBlock + kBlock / 2;
-  sprite(c, rows, n, x - spriteW(rows) * b / 2, y - n * b / 2, b, color);
-}
 
 // The mouth, as pixel shapes rather than traced curves (UX.md §2): a flat
 // bar at rest, a small "u" smile, a small "o" while talking, and a small
@@ -241,28 +236,47 @@ void drawHeart(Canvas& c, int hx, int hy, int grow) {
   else if (grow >= 250) spriteAt(c, kSmall, 4, hx, hy, rose);
 }
 
-// A pixel sweat drop, centred on block (bx, by).
+// A pixel sweat drop, centred on block (bx, by): it tapers from a point
+// to a round bottom, with a pixel softened off every block corner on its
+// outline (a flat-shouldered drop reads as a bottle).
 void drawDrop(Canvas& c, int bx, int by) {
-  static const char* const kDrop[] = {"..X..", ".XXX.", "XXXXX", "XXXXX", ".XXX."};
-  fineSpriteAt(c, kDrop, 5, bx, by, 2, inkAt(kInkSky, kLevels));
+  constexpr int kW = 5, kH = 5;
+  static const char* const kDrop[kH] = {"..X..", ".XXX.", "XXXXX", "XXXXX", ".XXX."};
+  spriteAt(c, kDrop, kH, bx, by, inkAt(kInkSky, kLevels));
+  auto on = [](int r, int i) { return r >= 0 && r < kH && i >= 0 && i < kW && kDrop[r][i] == 'X'; };
+  const int x0 = (bx - kW / 2) * kBlock, y0 = (by - kH / 2) * kBlock;
+  for (int r = 0; r < kH; ++r) {
+    for (int i = 0; i < kW; ++i) {
+      if (!on(r, i)) continue;
+      for (int k = 0; k < 4; ++k) {  // each corner: left or right, top or bottom
+        int sx = k & 1 ? 1 : -1, sy = k & 2 ? 1 : -1;
+        if (on(r, i + sx) || on(r + sy, i)) continue;
+        c.fillRect(x0 + i * kBlock + (sx > 0 ? kBlock - 1 : 0), y0 + r * kBlock + (sy > 0 ? kBlock - 1 : 0), 1, 1, kBlack);
+      }
+    }
+  }
 }
 
-// Asleep's "zzZZ": two small z's then two big Z's climbing up and to the
-// right of the right eye, appearing one at a time through the cycle.
+// Asleep's "zzZZ": two small z's side by side, then two big Z's side by
+// side above them, up and to the right of the right eye, appearing one at a
+// time through the cycle. The letters don't scale with the face, so neither
+// does their layout: only where the first one sits does.
 void drawZzz(Canvas& c, const Eye& e, const Frame& f, int phase, uint8_t color) {
-  static const char* const kLittle[] = {"XXXX", "..X.", ".X..", "XXXX"};
-  static const char* const kBig[] = {"XXXXX", "...X.", "..X..", ".X...", "XXXXX"};
+  // Bold diagonals: a one-block one reads as an "I" this small.
+  static const char* const kLittle[] = {"XXXX", "..XX", "XX..", "XXXX"};
+  static const char* const kBig[] = {"XXXXX", "...XX", "..XX.", ".XX..", "XXXXX"};
   struct Letter {
     bool big;
-    int dx, dy;  // the letter's centre, from the right eye's centre, in pixels
+    int bx, by;  // top left, in blocks from the first letter's
   };
-  const Letter letters[] = {{false, 34, -24}, {false, 44, -38}, {true, 56, -58}, {true, 72, -84}};
+  const Letter letters[] = {{false, 0, 0}, {false, 5, -2}, {true, 6, -8}, {true, 12, -10}};
+  const int ax = e.bx + f.off(kZzzDx), ay = e.by + f.off(kZzzDy);
   for (int i = 0; i < 4; ++i) {
     if (uint32_t(phase) <= kZzzStep * uint32_t(i)) break;
     const Letter& l = letters[i];
-    int bx = e.bx + f.off(l.dx), by = e.by + f.off(l.dy);
-    if (l.big) spriteAt(c, kBig, 5, bx, by, color);
-    else fineSpriteAt(c, kLittle, 4, bx, by, 2, color);
+    int x = (ax + l.bx) * kBlock, y = (ay + l.by) * kBlock;
+    if (l.big) sprite(c, kBig, 5, x, y, kBlock, color);
+    else sprite(c, kLittle, 4, x, y, kBlock, color);
   }
 }
 
