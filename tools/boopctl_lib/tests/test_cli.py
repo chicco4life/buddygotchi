@@ -78,11 +78,14 @@ class PlayTests(unittest.TestCase):
             code = cli.cmd_play(cli.build_parser().parse_args(["play", what]))
         return code, [m.get("anim") for m in board.sent if m["t"] == "moment"]
 
-    def test_play_ends_a_listening_left_playing_first(self):
-        # No other animation replaces listening (BEHAVIORS.md §3.3), so the
-        # empty moment goes first.
-        self.assertEqual(self.play("cheer"), (0, [None, "cheer"]))
-        self.assertEqual(self.play("listening"), (0, ["listening"]))
+    def test_play_sends_just_the_animation(self):
+        self.assertEqual(self.play("cheer"), (0, ["cheer"]))
+        self.assertEqual(self.play("wiggle"), (0, ["wiggle"]))
+
+    def test_listening_and_stop_are_gone(self):
+        for what in ("listening", "stop"):
+            with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+                cli.build_parser().parse_args(["play", what])
 
 
 if __name__ == "__main__":

@@ -31,15 +31,6 @@ public struct MomentSchedule {
         waiting.append((moment, now))
     }
 
-    /// Drops every brain moment still waiting its turn, and returns them.
-    /// The mic turning on does this: a moment queued before it can only be
-    /// about an agent, and would end `listening` before the reply
-    /// (BEHAVIORS.md §3.3).
-    public mutating func dropWaiting() -> [DeviceMoment] {
-        defer { waiting = [] }
-        return waiting.map(\.moment)
-    }
-
     /// The brain moment to play now, if one's turn has come (at most one),
     /// the ones dropped as too late on the way, and when to ask again (nil
     /// when nothing waits).

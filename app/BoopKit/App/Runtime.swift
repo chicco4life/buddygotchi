@@ -62,11 +62,9 @@ public final class Runtime: @unchecked Sendable {
         /// The brain as it runs: `jev:jev-latest`, or `none` without a key.
         public var brain: String
         public var mood: String
-        /// The Mac's mic is on for push-to-talk.
-        public var listening: Bool
 
         public init(snapshot: StateSnapshot, sessions: [SessionSummary], connected: Bool, device: DeviceStatus?,
-                    personality: Personality, brain: String, mood: String = "cheerful", listening: Bool = false) {
+                    personality: Personality, brain: String, mood: String = "cheerful") {
             self.snapshot = snapshot
             self.sessions = sessions
             self.connected = connected
@@ -74,7 +72,6 @@ public final class Runtime: @unchecked Sendable {
             self.personality = personality
             self.brain = brain
             self.mood = mood
-            self.listening = listening
         }
     }
 
@@ -132,14 +129,12 @@ public final class Runtime: @unchecked Sendable {
     }
     let moments = Moments()
 
-    /// Push-to-talk: start (true) or stop listening. Called on `home`.
-    public var onListen: ((Bool) -> Void)?
     /// After every change the menu bar might show. Called on `home`.
     public var onChange: ((Status) -> Void)?
 
     /// A clock that never steps and keeps counting while the Mac sleeps,
-    /// starting at the wall clock's time: the keepalive, the mic's 30 s
-    /// limit and moments' turns are measured on it, so setting the Mac's clock back can't stall them
+    /// starting at the wall clock's time: the keepalive and moments'
+    /// turns are measured on it, so setting the Mac's clock back can't stall them
     /// (ARCHITECTURE.md §3.2).
     public static func steadyClock() -> @Sendable () -> Int64 {
         let wall = Int64(Date().timeIntervalSince1970 * 1000)
@@ -147,7 +142,7 @@ public final class Runtime: @unchecked Sendable {
         return { wall + Int64((ContinuousClock.now - start).ms) }
     }
 
-    /// Sets up a new Boop: name and sweet-or-cheeky, asked once (UX.md §6).
+    /// Sets up a new Boop: name and sweet-or-cheeky, asked once (UX.md §5).
     public static func setUp(stateDir: URL, name: String, nature: LongTerm.Nature, today: String) throws {
         let store = try MemoryStore(directory: stateDir)
         try store.setUp(name: name, nature: nature, seed: UInt64.random(in: 1...0xFFFF), today: today)
@@ -239,7 +234,6 @@ public final class Runtime: @unchecked Sendable {
                 self?.home.async {
                     guard let self else { return }
                     self.link.connection(up, now: self.options.clock())
-                    if !up { self.run(self.core.linkDown(at: self.options.clock())) }
                     self.changed()
                 }
             })
@@ -341,7 +335,6 @@ public final class Runtime: @unchecked Sendable {
             }
         }
         var stateChanged = false
-        var listenChanged = false
         for effect in effects {
             switch effect {
             case .state(let snapshot):
@@ -349,8 +342,6 @@ public final class Runtime: @unchecked Sendable {
                 stateChanged = true
             case .moment(let anim):
                 playRule(DeviceMoment(anim: anim))
-            case .endListening:
-                playRule(.empty)
             case .mumble(let feeling, let word):
                 // Working chatter is filler: it never cuts a moment that's
                 // playing, such as a brain mumble, or jumps one waiting its
@@ -363,19 +354,9 @@ public final class Runtime: @unchecked Sendable {
                 harness.take(event)
             case .newDay:
                 memory.apply(effect)
-            case .listen(let on):
-                // A brain mumble queued before the mic went on would end
-                // `listening` (BEHAVIORS.md §3.3).
-                if on {
-                    for moment in moments.schedule.dropWaiting() {
-                        options.log("react: dropped a brain moment waiting when the mic went on: \(moment.jsonLine)")
-                    }
-                }
-                onListen?(on)
-                listenChanged = true
             }
         }
-        if stateChanged || listenChanged { changed() }
+        if stateChanged { changed() }
     }
 
     /// Seeds working chatter's lines.
@@ -415,7 +396,7 @@ public final class Runtime: @unchecked Sendable {
         let now = options.clock()
         onChange?(Status(snapshot: link.latest ?? core.snapshot(at: now), sessions: core.sessionList(at: now),
                          connected: link.connected, device: link.status, personality: personality,
-                         brain: harness.brain?.id ?? "none", mood: mood.current, listening: core.listening != nil))
+                         brain: harness.brain?.id ?? "none", mood: mood.current))
     }
 
     func saveSettings(_ change: (inout AppSettings) -> Void) {
@@ -424,24 +405,6 @@ public final class Runtime: @unchecked Sendable {
     }
 
     // MARK: From the menu bar (any thread)
-
-    /// What push-to-talk heard. Talk is inert for now (BEHAVIORS.md §3.3):
-    /// the words go nowhere.
-    public func talk(_ words: String, yelled: Bool = false) {}
-
-    /// The Talk button: start or stop listening (UX.md §5).
-    public func setListening(_ on: Bool) {
-        home.async { [self] in run(core.listen(on, at: options.clock())) }
-    }
-
-    /// The mic or speech recognition couldn't start.
-    public func micFailed() {
-        home.async { [self] in run(core.micFailed(at: options.clock())) }
-    }
-
-    /// The mic went off and heard nothing. Nothing to do: `listening` has
-    /// already ended with the mic.
-    public func heardNothing() {}
 
     /// Drops the device link and looks for the device again now.
     public func reconnectDevice() {

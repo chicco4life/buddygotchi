@@ -1,7 +1,7 @@
 import BoopKit
 import SwiftUI
 
-/// First launch (UX.md §6), inside the popover: hello, a name and sweet or
+/// First launch (UX.md §5), inside the popover: hello, a name and sweet or
 /// cheeky, which agents to watch, then wake Boop up. One thing per step.
 struct SetupPane: View {
     @ObservedObject var model: AppModel
@@ -234,7 +234,7 @@ struct SetupPane: View {
             title("Ready to wake \(name)?")
             VStack(alignment: .leading, spacing: Theme.gap) {
                 tip("powerplug.fill", "Plug \(name)'s body into USB power. It finds this Mac over Bluetooth by itself.")
-                tip("hand.raised.fill", "macOS will ask to use Bluetooth, and the microphone the first time you talk to \(name).")
+                tip("hand.raised.fill", "macOS will ask to use Bluetooth.")
                 if !model.setup.agents.isEmpty && model.installer.clientInPlace {
                     tip("arrow.clockwise", "Restart any open agent sessions afterwards so I can hear them.")
                 }

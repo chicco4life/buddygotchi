@@ -69,10 +69,10 @@ the needs-you face bigger, so at 85% its eyes match the idle face's.
   each plays is in [BEHAVIORS.md](BEHAVIORS.md) §2 and §5.
 - **Motion.** The face eases between any two expressions in 150 ms or
   less and never cuts hard: whatever changes mid-blend or mid-animation
-  ("needs you" arriving under a cheer or `listening`, the working count
+  ("needs you" arriving under a cheer or a mumble, the working count
   crossing 3), the blend starts from the frame that was showing. The
-  backlight eases over the same 150 ms. Breathing and listening bob the
-  whole face a block instead of pulsing its size, which would pop single
+  backlight eases over the same 150 ms. Breathing bobs the whole face a
+  block instead of pulsing its size, which would pop single
   parts.
 
 **The bubble** is empty most of the time. It shows a mumble, as its one
@@ -84,8 +84,8 @@ project name too long for the device arrives already cut, ending ".."
 and anything else the font lacks as "?".
 
 **The status strip** shows how many sessions need you (amber, hidden at
-zero) and how many are working (grey), with icons at the right for quiet
-mode and no app. With no app, only its icon shows. With nothing to show
+zero) and how many are working (grey), with an icon at the right for no
+app. With no app, only its icon shows. With nothing to show
 it's bare glass with no divider, and the face doesn't move when it fills.
 
 **The debug label**, off unless the firmware is built with
@@ -128,13 +128,12 @@ a firm press ([DEVICE.md](DEVICE.md) §1). Neither affects your agents.
 
 | Input | Does |
 | --- | --- |
-| Tap BOOT (under 400 ms), or touch the screen anywhere | Boop it: `wiggle`, or only the press squash while something needs you or `listening` waits for the reply. Poking it over and over annoys it ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
-| Hold BOOT (400 ms or more) | Push-to-talk until you let go (§5) |
+| Press BOOT, or touch the screen anywhere | Boop it: `wiggle`, or only the press squash while something needs you. Poking it over and over annoys it ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
 
 Every press and touch squashes the face a little at once, before the Mac
 hears about it ([ARCHITECTURE.md](ARCHITECTURE.md) §9 has the budget). A
-touch is a tap however long it's held, and counts when you lift your
-finger; the strip is part of the screen, so a touch there counts too. The
+press or touch is a tap however long it's held, and counts when you lift
+your finger; the strip is part of the screen, so a touch there counts too. The
 panel misses readings under a light press, so a touch counts as lifted
 only after 50 ms without contact, timed in real milliseconds so it ends
 even while a test tool has the clock frozen. BOOT ignores an edge within
@@ -145,32 +144,7 @@ moves.
 v1 has no job for a second button. An external main button, if one is
 added, takes over BOOT's jobs ([DEVICE.md](DEVICE.md) §3).
 
-## 5. Talking to Boop
-
-Hold BOOT and speak, or click **Talk** in the popover, speak and click
-**Send**. Either way the Mac's microphone records; the device has none.
-The mic is on only while you hold the button or until you click Send, and
-it also turns itself off ([BEHAVIORS.md](BEHAVIORS.md) §3.3 has the
-limits and how Boop replies).
-
-**You can always tell the mic is on.** The device and the popover's face
-show `listening`, big eyes looking up; the menu-bar icon turns recording
-red with a bigger dot; the popover's line says "Listening…" by a pulsing
-red dot, and Talk becomes a red **Send**; and macOS shows its own
-microphone indicator.
-
-**Permissions.** The first time, macOS asks for Speech Recognition, then
-the Microphone. If either is refused, on-device recognition isn't
-available, or the Mac has no usable microphone, the listening face ends
-and the popover says "*name* can't hear you" and why (for a refusal,
-where to allow it in System Settings). The next Talk clears the notice.
-
-**Privacy.** Recognition runs on the Mac, and the audio is thrown away as
-it's heard; only whether you yelled is kept. How long your words are kept,
-and what goes to TypeSafe with Jev, is in [HARNESS.md](harness/HARNESS.md) §4 and
-§6.
-
-## 6. Setup
+## 5. Setup
 
 1. Plug the device into USB power.
 2. Install and open the app. The first time, its popover opens under the
@@ -187,7 +161,7 @@ and what goes to TypeSafe with Jev, is in [HARNESS.md](harness/HARNESS.md) §4 a
       `boop-hook` isn't built, the switches are off and a line says to run
       `make build`, restart Boop, then connect the agents in Settings.
    4. **Wake up:** what comes next (plug in the body; macOS asks for
-      Bluetooth, and for the microphone the first time you talk), then
+      Bluetooth), then
       **Wake *name* up**, which saves Boop, adds the chosen hooks and
       starts it.
 3. The app finds `Boop-XXXX` over Bluetooth and connects, with no pairing
@@ -197,7 +171,7 @@ and what goes to TypeSafe with Jev, is in [HARNESS.md](harness/HARNESS.md) §4 a
    and does only its rule reactions until you add a Jev API key in
    Settings (§7, [HARNESS.md](harness/HARNESS.md) §7).
 
-## 7. The Mac app
+## 6. The Mac app
 
 After setup it never opens by itself and never sends notifications. The
 device does the nudging.
@@ -207,8 +181,7 @@ on whole points so it's crisp at 1× and 2×, in the menu bar's own ink:
 eyes shut to bars while Boop is asleep, open while agents are idle, and a
 small dot at the top right while they work. When something needs you it
 turns amber, dot and all (a deeper amber on a light menu bar, where the
-device's is too pale), and while the Mac's mic is on it's recording red
-with a bigger dot.
+device's is too pale).
 
 **The popover** is one 360 pt column on warm paper. Settings and setup
 open inside it, never in windows. Escape or a click outside closes it;
@@ -216,15 +189,14 @@ closing it from Settings returns to the overview next time, while
 unfinished setup keeps its place. Its height follows its content, and a
 long pane scrolls. ⌘, opens Settings, ⌘[ goes back and ⌘Q quits.
 
-**Overview**, top to bottom. It only shows; every control is in Settings,
-except Talk, which is there to be used in the moment.
+**Overview**, top to bottom. It only shows; every control is in Settings.
 
 | Area | Content |
 | --- | --- |
-| Header | A small copy of Boop's face on black glass (below) and its name. At the right, whether the body is "Connected", "Looking…" or "No device", and the Talk button (§5) |
-| Status line | Under the name, a dot and one line: "Listening…", "Needs you" (or "*N* sessions need you"), "Working on *N* sessions", "Hanging out" or "Napping"; "Waking up…" until Boop starts, or "Not running" if it couldn't |
-| Chips | Small chips, only when something isn't the usual: the personality when it isn't `boop` ("Chatter"), "Quiet · *N* min", Muted |
-| Notices | "Boop couldn't start", with why in plain words (another copy is running, it can't listen for hooks, or look in `boop.log`). "*name* can't hear you" when push-to-talk can't use the mic, and "Restart your agent sessions" after hooks change, both dismissable |
+| Header | A small copy of Boop's face on black glass (below) and its name. At the right, whether the body is "Connected", "Looking…" or "No device" |
+| Status line | Under the name, a dot and one line: "Needs you" (or "*N* sessions need you"), "Working on *N* sessions", "Hanging out" or "Napping"; "Waking up…" until Boop starts, or "Not running" if it couldn't |
+| Chips | Small chips, only when something isn't the usual: the personality when it isn't `boop` ("Chatter"), Muted |
+| Notices | "Boop couldn't start", with why in plain words (another copy is running, it can't listen for hooks, or look in `boop.log`), and "Restart your agent sessions" after hooks change, dismissable |
 | Needs you | An amber card for the session that has waited longest: agent · project, the name in full, "Waiting for you. Answer it in the agent's window.", and "+*N* more" |
 | Sessions | Grouped by agent, Claude Code then Codex: one row per session, with its project, a coloured edge and a status chip (needs you, working, idle), waiting first, then working, then idle. With none: "No agents awake" |
 | Footer | Settings on the left, Quit on the right. In Settings, the left shows the app's version and the device's firmware |
@@ -267,8 +239,7 @@ hairline edge; names, titles and numbers in the rounded system face. The
 one filled button on a screen is black glass with an oat label, or oat
 with a glass label on dark paper, where glass would read as a hole. Amber
 is only for needs you. Working and idle are greys, as on the device's
-strip; sage means connected or on, clay means trouble, and recording red
-means the mic is on.
+strip; sage means connected or on, and clay means trouble.
 
 Every text tone, button labels included, clears 4.5:1 on what it sits on
 (the paper, a card, the well, its own chip, the needs-you card). A filled
@@ -280,7 +251,7 @@ The face tile uses the device's colours, geometry and pixel mouths (§2),
 in square blocks snapped to the screen's pixels, so it's as crisp as the
 device and moves a block at a time. Its looks follow the device's: working
 lowers the lids, looks down and glances about; needs you leans in with an
-amber rim; listening looks up wide-eyed; asleep shuts its eyes. It blinks
+amber rim; asleep shuts its eyes. It blinks
 every few seconds, except asleep or with Reduce Motion on. Only the face
 and the status dot loop, and the dot pulses only while something is live:
-working, needs you or listening.
+working or needs you.

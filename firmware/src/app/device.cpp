@@ -83,7 +83,7 @@ void Device::reply(Link link, const char* text, size_t n) {
 // USB while the Mac has spoken there within kNoAppMs. A tool's `moment`
 // over USB doesn't take the taps away from the app on Bluetooth. Input a
 // tool injected goes back only over USB, where the tool is, so a test run
-// never reaches the everyday app (and its mic) on Bluetooth.
+// never reaches the everyday app on Bluetooth.
 void Device::emit(const char* k, bool injected) {
   char buf[48];
   int n = std::snprintf(buf, sizeof(buf), "{\"t\":\"input\",\"k\":\"%s\"}", k);
@@ -128,17 +128,15 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     m.busy = doc["busy"] | 0;
     m.idle = doc["idle"] | 0;
     m.wait = doc["wait"] | 0;
-    m.quiet = doc["quiet"] | 0;
     m.vol = doc["vol"] | 6;
     b_.onState(m, at);
-    if (m.attn || m.quiet > 0 || m.vol <= 0) hush();  // VOICE.md §9
+    if (m.attn || m.vol <= 0) hush();  // VOICE.md §9
     pattern_ = false;
     dirty_ = true;
   } else if (!std::strcmp(t, "moment")) {
     ++rxMoment_;
     MomentIn mo;
     mo.anim = render::animFromName(doc["anim"]);  // none, or unknown: only the mumble
-    mo.empty = doc["anim"].isNull() && doc["say"].isNull();  // the empty moment ends listening
     voice::Line line;
     JsonObjectConst say = doc["say"];
     if (say) {
@@ -281,17 +279,6 @@ void Device::readInputs(uint32_t t) {
       b_.tap(t);
       input("tap", t);
       emit("tap", bootInjected_);
-      break;
-    case ButtonGesture::kHoldStart:
-      b_.pressUp(t);
-      b_.talkOn(t);
-      input("talk_on", t);
-      emit("talk_on", bootInjected_);
-      break;
-    case ButtonGesture::kHoldEnd:
-      b_.talkOff(t);
-      input("talk_off", t);
-      emit("talk_off", bootInjected_);
       break;
     default:
       break;
@@ -477,7 +464,6 @@ void Device::sendState(Link to) {
   const char* life = lifeName(b_.life(t));
   if (life) d["life"] = life;
   else d["life"] = nullptr;
-  d["quiet"] = m.quiet;
   d["vol"] = m.vol;
   char led[8];
   std::snprintf(led, sizeof(led), "#%06lX", (unsigned long)(b_.led(t) & 0xFFFFFF));

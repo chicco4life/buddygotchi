@@ -15,10 +15,6 @@ public enum CoreEffect: Equatable, Sendable {
     case event(Event)
     /// The first activity of a new day: short-term starts fresh.
     case newDay(date: String, firstSeen: String)
-    /// Push-to-talk: start (true) or stop listening on the Mac's mic.
-    case listen(Bool)
-    /// Ends the device's `listening` face: the empty moment (PROTOCOL.md §3).
-    case endListening
 
     /// The effect on one line, for `boopdev replay` and debug mode:
     /// `moment cheer`, `mumble curious tests`.
@@ -29,8 +25,6 @@ public enum CoreEffect: Equatable, Sendable {
         case .mumble(let feeling, let word): "mumble \(feeling)" + (word.map { " \($0)" } ?? "")
         case .event(let e): "event " + e.summary
         case .newDay(let date, let firstSeen): "new-day \(date) first seen \(firstSeen)"
-        case .listen(let on): "listen \(on)"
-        case .endListening: "moment empty"
         }
     }
 }

@@ -8,7 +8,7 @@ namespace render {
 
 namespace {
 
-const char* const kNames[] = {"none", "cheer", "wiggle", "listening"};
+const char* const kNames[] = {"none", "cheer", "wiggle"};
 static_assert(sizeof(kNames) / sizeof(kNames[0]) == size_t(Anim::kCount), "one name per anim");
 
 // A side-to-side wave of `period` ms.
@@ -18,11 +18,6 @@ int wave(uint32_t t, uint32_t period, int amp) { return amp * isin(int(t % perio
 Pose happy() {  // boxy eyes squinting from the bottom, and a small "u" smile
   Pose p;
   p.lidBot = 700, p.mouthCurve = 900;
-  return p;
-}
-Pose listening() {  // big eyes looking up, one a little lidded, and a small "o": ooh?
-  Pose p;
-  p.eyeSize = 1080, p.lookY = -250, p.wink = -150, p.mouthOpen = 350, p.mouthWide = 500;
   return p;
 }
 Pose with(Pose p, int16_t Pose::*field, int value) {
@@ -71,7 +66,6 @@ uint32_t animDuration(Anim a) {
   switch (a) {
     case Anim::kCheer: return 2000;  // long enough to notice
     case Anim::kWiggle: return 700;
-    case Anim::kListening: return 30000;  // while held, capped; then the reply wait (Behaviour)
     default: return 0;
   }
 }
@@ -85,11 +79,6 @@ Pose animPose(Anim a, uint32_t t) {
       // Two slow sways, not a shiver: at 175 ms and 7 px it read as trembling.
       p.dx = int16_t(wave(t, 350, 4));
       p.squash = int16_t(wave(t + 88, 350, 60));
-      return p;
-    }
-    case Anim::kListening: {  // all ears, bobbing gently
-      Pose p = listening();
-      p.dy = bob(t, 1200);
       return p;
     }
     default: return n;

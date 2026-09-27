@@ -60,7 +60,7 @@ with less personality.
 | --- | --- | --- | --- | --- |
 | Reflex | Device | < 20 ms | Tap feedback, blinking, blending faces, the needs-you chirp and light | Wait for the Mac |
 | Reactive | Core → actions | < 200 ms p95 | Agent event → rule → action → device | Wait for the brain |
-| Deliberative | Harness + brain → actions | 1–5 s, in the background | React with character, answer push-to-talk, note what you tell it | Block the reactive loop |
+| Deliberative | Harness + brain → actions | 1–5 s, in the background | React with character, and change Boop's mood | Block the reactive loop |
 
 ## 3. Components and boundaries
 
@@ -72,13 +72,13 @@ talks to the device.
 | Part | Does | Doesn't know about |
 | --- | --- | --- |
 | Adapters | Turn agent hooks into common events | Boop's state, the brain, the device |
-| Core | Keeps the session table; decides what the device shows, the rule reactions, quiet, when the mic is on, and the events for the harness and which wake the brain | Minion speech, models, hook formats |
+| Core | Keeps the session table; decides what the device shows, the rule reactions, and the events for the harness and which wake the brain | Minion speech, models, hook formats |
 | Harness | Keeps the transcript; for each event that wakes the brain, builds the state, asks every action's questions in one request, hands each action its answers and records what it did | Minion speech, the device, an event's facts, what an action does |
 | Brain | Jev: answers multiple-choice questions about a plain-text state, with probabilities | Everything else |
 | Actions | Carry out one call each, checking their own rules | Whether a rule or the brain called them |
 | Voice | Turns a feeling and an optional word into Minion speech | Who asked, or why |
 | Memory store | Reads and writes the memory files and their snapshots | Models, the device |
-| Device link | Sends snapshots and moments, and receives taps, talk and the device's other messages, over Bluetooth or USB | What any of it means |
+| Device link | Sends snapshots and moments, and receives taps and the device's other messages, over Bluetooth or USB | What any of it means |
 
 ### 3.1 Adapters
 
@@ -90,16 +90,15 @@ only report, so the agent carries on as normal ([ADAPTERS.md](ADAPTERS.md)).
 The core is plain rules with no queue. It keeps a table of sessions (agent,
 project, and whether each is working, idle or needs you), works out what
 the device shows in [BEHAVIORS.md](BEHAVIORS.md) §1's layers, plays the
-rules' reactions and working chatter, and keeps quiet mode and the mic
-(§3.8). It turns agents starting and finishing, what you say and a poke
-streak into the brain's inputs ([HARNESS.md](harness/HARNESS.md) §2); taps and
+rules' reactions and working chatter. It turns agents starting and
+finishing, tool results, a poke streak and long silences into the brain's
+inputs ([HARNESS.md](harness/HARNESS.md) §2); taps and
 "needs you" stay the rules' own.
 
 In code the core is a pure state machine. Each event, device input or
 one-second tick goes in with the time, and effects come out: a snapshot, a
-moment or a mumble to play, an event for the harness, a new day for the
-memory store, the mic on or off. The
-app hands each effect to the part that carries it out, so every rule is
+moment or a mumble to play, an event for the harness or a new day for
+the memory store. The app hands each effect to the part that carries it out, so every rule is
 testable on a virtual clock. Timers run on a steady clock that never steps
 and keeps counting while the Mac sleeps, so setting the Mac's clock back
 can't stall one; days and times of day follow the wall clock.
@@ -114,8 +113,7 @@ at once, each new one replacing whatever is playing
 `ttl` (5 s) is dropped, since a late reaction is worse than none. The app
 times each moment as the device does: the animation's length or, if
 longer, the mumble's syllables plus two beats for the word, then 1.2 s to
-read the bubble. `listening` holds nothing back, and the mic turning on
-drops any brain moment still waiting ([BEHAVIORS.md](BEHAVIORS.md) §3.3).
+read the bubble.
 
 ### 3.3 Harness and brain
 
@@ -157,15 +155,6 @@ app with Bluetooth, so the whole hook-to-screen path is tested over USB
 ([PROTOCOL.md](PROTOCOL.md) §3) isn't held back until the device thinks
 the app is gone.
 
-### 3.8 Push-to-talk
-
-The device has no mic, so push-to-talk, from its button or the popover's
-Talk, records from the Mac's. The core decides when the mic is on and off
-([BEHAVIORS.md](BEHAVIORS.md) §3.3). The app turns speech into text on the
-Mac, measures whether you yelled and drops the audio at once. For now the
-words go nowhere: talk is out of the brain until it comes back
-([FUTURE.md](FUTURE.md)).
-
 ## 4. Memory files
 
 Boop's memory is two Markdown files in the state directory (§4.4):
@@ -177,8 +166,7 @@ About you, Preferences, Notes, Happened); they still load, and the store
 leaves them be. The steering files that shape the
 brain are read-only and live with the app (§4.1).
 
-**A new day** starts at the day's first activity: an agent event, a tap or
-pressing Talk. The memory store snapshots both writable files to
+**A new day** starts at the day's first activity: an agent event or a tap. The memory store snapshots both writable files to
 `history/<date>/`, where `<date>` is the day before (setup also snapshots,
 under the day Boop hatched), and `short-term.md` starts fresh.
 
@@ -259,8 +247,8 @@ How "needs you" is detected and cleared is in [ADAPTERS.md](ADAPTERS.md)
 ## 7. Device
 
 The device is a thin client. It draws what the latest snapshot says, plays
-moments, runs its own short timers (blinks, the needs-you chirp, the reply
-wait after push-to-talk) and reports taps and push-to-talk. It keeps no
+moments, runs its own short timers (blinks, the needs-you chirp) and reports
+taps. It keeps no
 personality or memory, only its touch calibration. What it does is in
 [BEHAVIORS.md](BEHAVIORS.md); the hardware and firmware are in
 [DEVICE.md](DEVICE.md).
@@ -342,8 +330,9 @@ log up to 2026-09-27 is in
 | 2026-09-27 | Without Jev's key, or when Jev fails or is late, Boop does only its automatic reactions; the evals fail without the key | Fine for everyday use, and an eval that can't ask Jev can't check it | [harness/HARNESS.md](harness/HARNESS.md) §7 |
 | 2026-09-27 | Two outputs: `mood(to)`, between cheerful and grumpy, at most once every 10 minutes, and `react(feeling, word)` with five feelings; `mood` and `react` are separate questions, read as Jev chose | A mood gives Boop a longer arc than single mumbles; separate questions keep each one simple, and GUIDE asks for them to agree | [harness/DECISIONS.md](harness/DECISIONS.md) |
 | 2026-09-27 | One debug mode, `--debug` (`make debug`), in the menu-bar app and headless | Seeing what Boop does took four settings and two terminals, and the menu-bar app couldn't show hooks | [harness/HARNESS.md](harness/HARNESS.md) §9 |
-| 2026-09-27 | The Mac app is one popover in the device's "Warm Terminal" colours; setup and settings open inside it | A setup window was jarring, and gen-2's terracotta clashed with the device's greys and needs-you amber | [UX.md](UX.md) §7 |
+| 2026-09-27 | The Mac app is one popover in the device's "Warm Terminal" colours; setup and settings open inside it | A setup window was jarring, and gen-2's terracotta clashed with the device's greys and needs-you amber | [UX.md](UX.md) §6 |
 | 2026-09-27 | Jev's state is plain text in five parts: an unheaded guide that opens "You are…" and ends with a generated explanation of the lines, then PERSONALITY and MOOD, all from read-only files in `plan/steering/`; then HISTORY and NOW built from a typed transcript for every pass | Jev keeps no session, so everything is rebuilt each time; named sections let each question point at what it judges by, and swapping a personality or mood is swapping a file | [harness/HARNESS.md](harness/HARNESS.md) §5, §6 |
 | 2026-09-27 | A thread is named after its workspace (worktree folder or git branch), cleaned to `a-z0-9-` and 40 characters | Two agents in one project need telling apart, and an agent-chosen branch name mustn't carry words into Jev's state | [harness/EVENTS.md](harness/EVENTS.md) §3 |
 | 2026-09-27 | The harness has two generic contracts. An event arrives with its line, its rule reaction and whether it wakes the brain. An action declares its questions, reads Jev's answers to them in its own body and returns `(ok, message)`; the harness records answers and results and puts successful messages in HISTORY | New behaviour is a new action, with no harness changes; the harness never reads an event's facts or an action's answers, so it stays small and generic | [harness/HARNESS.md](harness/HARNESS.md) §3, §4 |
 | 2026-09-27 | Boop reads and writes Jev's key through `/usr/bin/security`, and `make sign` is gone | Without an Apple-issued certificate the Keychain knows an app only by its exact build, so every rebuild asked for the key again, even when signed with a self-made certificate. The cost: any program running as the owner, agent shells included, can read the key that way without a prompt | [harness/HARNESS.md](harness/HARNESS.md) §7 |
+| 2026-09-27 | Push-to-talk and quiet mode are removed, on the Mac and the device: no Talk button, no `listening`, no `talk_on`/`talk_off`, no empty moment and no `quiet` in `state`. Memory keeps only Boop's name and the day | Talk was inert and quiet mode had no other way in; the dead paths cost code in every layer. Both come back as a talk event and actions ([FUTURE.md](FUTURE.md)); git keeps the code | [BEHAVIORS.md](BEHAVIORS.md) §3.3, [PROTOCOL.md](PROTOCOL.md), §4 |

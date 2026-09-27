@@ -13,7 +13,6 @@ enum class Anim : uint8_t {
   kNone,
   kCheer,
   kWiggle,
-  kListening,
   kCount,
 };
 

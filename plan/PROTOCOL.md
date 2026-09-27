@@ -17,8 +17,8 @@ Connect and Python's `bleak` can talk to the device.
   and a reconnect needs no special handling.
 - **Moments are fire-and-forget.** A cheer or a mumble plays when it
   arrives. Nothing is acknowledged or retried.
-- **Nothing important flows back.** The device only reports taps and
-  push-to-talk. Boop never approves anything, so no message from the
+- **Nothing important flows back.** The device only reports taps. Boop
+  never approves anything, so no message from the
   device can affect an agent.
 
 Every message has a type, `t`. Receivers ignore unknown types and fields,
@@ -85,7 +85,7 @@ The Mac sends a `state` whenever something on it other than `time`
 changes, and at least every 10 s.
 
 ```json
-{"t":"state","v":1,"time":1791986400,"name":"Pip","base":"working","attn":{"agent":"claude","project":"landing","more":0},"busy":2,"idle":1,"wait":1,"quiet":0,"vol":6}
+{"t":"state","v":1,"time":1791986400,"name":"Pip","base":"working","attn":{"agent":"claude","project":"landing","more":0},"busy":2,"idle":1,"wait":1,"vol":6}
 ```
 
 | Field | Meaning |
@@ -95,7 +95,6 @@ changes, and at least every 10 s.
 | `base` | `asleep`, `idle` or `working` ([BEHAVIORS.md](BEHAVIORS.md) §2) |
 | `attn` | Only while something needs you: the oldest waiting session's agent (`claude` or `codex`) and project, and how many more are waiting. The project is at most 23 bytes of UTF-8, because the device keeps it in a 24-byte field; a longer one is cut on a character boundary and ends in `..` within those 23 bytes, so the device shows it was cut. Names are precomposed (NFC) first, so a folder named in Finder sends é as one letter ([UX.md](UX.md) §2 has how the device draws it) |
 | `busy`, `idle`, `wait` | Session counts. The strip shows `wait` and `busy`; the v1 device ignores `idle` |
-| `quiet` | Minutes of quiet mode left; 0 when it's off |
 | `vol` | Volume 0–10; 0 is mute |
 
 A new `attn` (a different agent or project) chirps once
@@ -107,27 +106,21 @@ device shows the no-app look ([BEHAVIORS.md](BEHAVIORS.md) §3.4).
 ```json
 {"t":"moment","anim":"cheer","ttl":5}
 {"t":"moment","say":{"syl":"bi-do ba-na","word":"done","at":4,"tune":"up","ms":120},"ttl":5}
-{"t":"moment","ttl":5}
 ```
 
 | Field | Meaning |
 | --- | --- |
-| `anim` | Optional: `cheer`, `wiggle` or `listening` ([BEHAVIORS.md](BEHAVIORS.md) §5) |
+| `anim` | Optional: `cheer` or `wiggle` ([BEHAVIORS.md](BEHAVIORS.md) §5) |
 | `say` | Optional: a mumble as Voice built it ([VOICE.md](VOICE.md) §4). `syl` is the gibberish, words separated by spaces and their syllables by `-`; `word` is the optional real word and `at` its place among the syllables; `tune` is `up`, `down`, `bounce`, `flat` or `lift`; `ms` is milliseconds per syllable |
 | `ttl` | Seconds, always 5. The v1 device plays a moment as it arrives and ignores `ttl`; the Mac uses it to drop a brain moment that waited too long ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2) |
 
 An animation from the rules comes alone. A mumble, the brain's or working
 chatter, comes with only `say` and plays over whatever face is showing. A
 moment can carry both, as `tools/boopctl play cheer --say happy` sends. A
-new moment replaces one still playing, except that no other animation
-replaces `listening` ([BEHAVIORS.md](BEHAVIORS.md) §3.3), and while
-something needs you only `listening` plays ([BEHAVIORS.md](BEHAVIORS.md)
-§1).
-
-**The empty moment,** with neither `anim` nor `say`, ends `listening` and
-does nothing else: it never ends a cheer, a wiggle or a mumble. A mumble
-ends `listening` too, since it's the reply. When the Mac sends the empty
-moment is in [BEHAVIORS.md](BEHAVIORS.md) §3.3.
+new moment replaces one still playing, and while something needs you no
+animation or mumble plays ([BEHAVIORS.md](BEHAVIORS.md) §1). Every moment
+has `anim` or `say`; the device ignores one with neither, or with only an
+`anim` it doesn't know.
 
 ## 4. Device → Mac
 
@@ -158,16 +151,15 @@ link the Mac last spoke on.
 
 | `k` | Meaning |
 | --- | --- |
-| `tap` | Pressed BOOT, or touched the screen (sent on release) |
-| `talk_on`, `talk_off` | Held BOOT for push-to-talk, and let go |
+| `tap` | Pressed BOOT, or touched the screen, however long (sent on release) |
 
 The device has already reacted on screen before it sends this. It sends it
 on every live link: Bluetooth while a Mac is connected, and USB while the
 Mac has spoken there (any message that isn't `dbg.*`) in the last 30 s. So
-a tool's `moment` over USB doesn't take taps and push-to-talk away from
-the app on Bluetooth. Input a tool injects (`dbg.press`, `dbg.touch`)
-goes back only over USB, so a test run never reaches the app on
-Bluetooth, or turns on its mic. The Mac ignores any other `k`.
+a tool's `moment` over USB doesn't take taps away from the app on
+Bluetooth. Input a tool injects (`dbg.press`, `dbg.touch`) goes back only
+over USB, so a test run never reaches the app on Bluetooth. The Mac
+ignores any other `k`.
 
 ## 5. Lifecycle
 

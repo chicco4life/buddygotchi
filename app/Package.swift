@@ -23,7 +23,6 @@ var packageTargets: [Target] = [
     // Actions, Voice, Memory, DeviceLink, the hook installer (Install), the
     // harness evals (Eval) and the Runtime that wires them together (App)
     // (plan/ARCHITECTURE.md §3).
-    // Push-to-talk's mic lives in the app, in Boop/Talk.swift.
     .target(
         name: "BoopKit",
         dependencies: ["HookWire"],
@@ -33,8 +32,8 @@ var packageTargets: [Target] = [
         swiftSettings: useXCTestShim ? [.unsafeFlags(["-enable-testing"])] : []
     ),
     // The menu-bar app; `Boop --headless` runs it without UI or Bluetooth.
-    // Info.plist is linked into the binary so macOS finds the Bluetooth,
-    // microphone and speech usage descriptions without an app bundle.
+    // Info.plist is linked into the binary so macOS finds the Bluetooth
+    // usage description without an app bundle.
     .executableTarget(
         name: "Boop",
         dependencies: ["BoopKit"],
@@ -52,8 +51,8 @@ var packageTargets: [Target] = [
         dependencies: ["HookWire"],
         path: "BoopHook"
     ),
-    // Developer CLI: the evals, reading debug logs, replay, voice lines,
-    // talk and the hook installer (hooks).
+    // Developer CLI: the evals, reading debug logs, replay, voice lines
+    // and the hook installer (hooks).
     .executableTarget(
         name: "BoopDev",
         dependencies: ["BoopKit", "HookWire"],

@@ -18,7 +18,7 @@ constexpr int kBubbleTop = 144;  // the bubble, the 60 px above the strip
 struct Strip {
   int wait = 0;  // sessions that need you (amber; hidden at zero)
   int busy = 0;  // sessions working (grey)
-  bool noApp = false, quiet = false;
+  bool noApp = false;
 };
 
 // A mumble in the bubble: squiggles for the gibberish, and the one real

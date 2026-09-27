@@ -235,5 +235,5 @@ chirp ([VERIFICATION.md](VERIFICATION.md) §2).
 ## 9. How often Boop talks
 
 When Boop mumbles, and when it mustn't, is in [BEHAVIORS.md](BEHAVIORS.md)
-§2, §4 and §6. On the device, a `state` with "needs you", quiet mode or
+§2, §4 and §6. On the device, a `state` with "needs you" or
 volume 0 stops a line that's playing.

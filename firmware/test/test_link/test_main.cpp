@@ -107,10 +107,10 @@ static void test_packet_writer_sends_whole_lines_in_payload_chunks() {
 
   pkts.clear();
   w.setPayload(244);  // a negotiated MTU of 247
-  const char* two = "{\"t\":\"input\",\"k\":\"tap\"}\n{\"t\":\"input\",\"k\":\"talk_on\"}\n";
+  const char* two = "{\"t\":\"input\",\"k\":\"tap\"}\n{\"t\":\"status\",\"fw\":\"t\"}\n";
   w.write(two, std::strlen(two));
   TEST_ASSERT_EQUAL_INT(2, int(pkts.size()));
-  TEST_ASSERT_EQUAL_STRING("{\"t\":\"input\",\"k\":\"talk_on\"}\n", pkts[1].c_str());
+  TEST_ASSERT_EQUAL_STRING("{\"t\":\"status\",\"fw\":\"t\"}\n", pkts[1].c_str());
 }
 
 static void test_packet_writer_drops_overlong_lines_and_clears() {
@@ -168,13 +168,14 @@ static void test_short_press_is_a_tap() {
   TEST_ASSERT_EQUAL(ButtonGesture::kTap, g.update(false, 1399));
 }
 
-static void test_hold_is_push_to_talk_until_release() {
+// plan/UX.md §4: any press is a tap, however long, sent on release.
+static void test_long_press_is_a_tap_too() {
   ButtonGesture g;
   g.update(true, 0);
-  TEST_ASSERT_EQUAL(ButtonGesture::kHoldStart, g.update(true, 400));
-  TEST_ASSERT_EQUAL(ButtonGesture::kNone, g.update(true, 2000));
-  TEST_ASSERT_EQUAL(ButtonGesture::kHoldEnd, g.update(false, 2500));
-  TEST_ASSERT_FALSE(g.holding());
+  TEST_ASSERT_EQUAL(ButtonGesture::kNone, g.update(true, 400));
+  TEST_ASSERT_EQUAL(ButtonGesture::kNone, g.update(true, 5000));
+  TEST_ASSERT_EQUAL(ButtonGesture::kTap, g.update(false, 5000));
+  TEST_ASSERT_FALSE(g.down());
 }
 
 static void test_bounces_are_ignored() {
@@ -214,7 +215,7 @@ int main() {
   RUN_TEST(test_crc32_matches_zlib);
   RUN_TEST(test_clock_freezes_steps_and_runs);
   RUN_TEST(test_short_press_is_a_tap);
-  RUN_TEST(test_hold_is_push_to_talk_until_release);
+  RUN_TEST(test_long_press_is_a_tap_too);
   RUN_TEST(test_bounces_are_ignored);
   RUN_TEST(test_a_quiet_link_is_dropped_after_30_s);
   return UNITY_END();

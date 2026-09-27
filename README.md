@@ -33,7 +33,6 @@ On the board:
 | Do | What happens |
 | --- | --- |
 | Press BOOT, or touch the screen | Boop it: a happy wiggle |
-| Hold BOOT | Push-to-talk. The Mac's mic is on only while you hold it. Talk in the popover does the same from the Mac |
 
 What Boop does and shows is in [plan/BEHAVIORS.md](plan/BEHAVIORS.md) and
 [plan/UX.md](plan/UX.md).

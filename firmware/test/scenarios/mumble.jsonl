@@ -39,27 +39,14 @@
 {"expect":{"moment":{"anim":"cheer","left_ms":1700},"audio":{"playing":true,"syllables":3}}}
 {"clock":40500}
 {"shot":"over-cheer"}
-// The reply to push-to-talk ends listening's wait (BEHAVIORS.md §3.3).
-{"t":"state","v":1,"base":"idle"}
-{"clock":50000}
-{"input":{"press":"hold","ms":600}}
-{"clock":50400}
-{"expect":{"moment":{"anim":"listening"}}}
-{"clock":50600}
-{"expect":{"moment":{"anim":"listening","left_ms":8000}}}
-{"clock":51000}
-{"t":"moment","say":{"syl":"mi-ne po","word":"hello","at":3,"tune":"lift","ms":120},"ttl":5}
-{"expect":{"moment":null,"audio":{"playing":true,"syllables":3}}}
-{"clock":51400}
-{"shot":"reply-after-talk"}
 // The word is what matters: squiggles make room for it before it's cut.
 {"t":"state","v":1,"base":"idle"}
 {"clock":55000}
 {"t":"moment","say":{"syl":"ba po ti ka mo na","word":"refactoring","at":3,"tune":"flat","ms":120},"ttl":5}
 {"clock":55400}
 {"shot":"long-word-many-syllables"}
-// Quiet: nothing plays.
-{"t":"state","v":1,"base":"idle","quiet":30}
+// Needs you: nothing plays.
+{"t":"state","v":1,"base":"idle","attn":{"agent":"claude","project":"x","more":0}}
 {"clock":60000}
 {"t":"moment","say":{"syl":"ba po","ms":120},"ttl":5}
 {"expect":{"moment":null,"audio":{"syllables":0}}}

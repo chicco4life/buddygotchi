@@ -14,7 +14,8 @@ public final class HookServer: @unchecked Sendable {
 
     /// `onLine` gets each line with the time it arrived, in milliseconds, on
     /// the server's own thread. `onOther` gets lines that aren't hook lines
-    /// (headless mode's `boopdev talk`); without it they're dropped.
+    /// (headless mode's dev lines, such as `{"dev":"advance"}`); without
+    /// it they're dropped.
     public init(path: String, onLine: @escaping @Sendable (HookLine, Int64) -> Void,
                 onOther: (@Sendable (Data) -> Void)? = nil) {
         self.path = path

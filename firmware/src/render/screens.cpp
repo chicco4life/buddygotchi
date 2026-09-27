@@ -89,12 +89,6 @@ void iconNoApp(Canvas& c, int x, int y) {  // a plug on its cord, pointing at no
   c.fillRect(x + 10, y + 5, 4, 2, g);   // prongs
   c.fillRect(x + 10, y + 9, 4, 2, g);
 }
-void iconQuiet(Canvas& c, int x, int y) {  // a speaker with a slash
-  uint8_t g = inkAt(kInkGrey, kLevels);
-  c.fillRect(x + 1, y + 5, 4, 6, g);
-  c.fillTriangle(x + 4, y + 8, x + 9, y + 2, x + 9, y + 14, g);
-  for (int i = 0; i < 9; ++i) c.fillRect(x + 6 + i, y + 3 + i, 2, 2, g);
-}
 
 }  // namespace
 
@@ -108,7 +102,7 @@ FaceLayout faceLayout(const Pose& p) {
 
 void drawStrip(Canvas& c, const Strip& s) {
   // An empty strip is bare glass: no divider under the face.
-  if (s.wait <= 0 && s.busy <= 0 && !s.noApp && !s.quiet) return;
+  if (s.wait <= 0 && s.busy <= 0 && !s.noApp) return;
   c.fillRect(kMargin, kStripTop, kWidth - 2 * kMargin, 1, inkAt(kInkDim, kLevels));
   const int cy = kStripCy, ty = cy - 10;
   int x = kMargin;
@@ -123,9 +117,7 @@ void drawStrip(Canvas& c, const Strip& s) {
     std::snprintf(buf, sizeof(buf), "%d", s.busy);
     drawString(c, kSmall, x + 15, ty, buf, kInkGrey);
   }
-  int ix = kWidth - kMargin - 16;
-  if (s.noApp) iconNoApp(c, ix, cy - 8), ix -= 22;
-  if (s.quiet) iconQuiet(c, ix, cy - 8);
+  if (s.noApp) iconNoApp(c, kWidth - kMargin - 16, cy - 8);
 }
 
 void drawFaceScreen(Canvas& c, const FaceLayout& f, const Mumble* mumble, const Strip& s) {

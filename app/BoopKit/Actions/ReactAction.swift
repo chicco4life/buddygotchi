@@ -9,8 +9,7 @@ public final class ReactAction: Action {
     let voice: Voice
     /// Queues a brain moment: it waits its turn behind whatever is playing.
     let queue: (DeviceMoment) -> Void
-    /// Why a mumble can't play now (quiet mode, something needs you, the
-    /// mic is on), or nil.
+    /// Why a mumble can't play now (something needs you), or nil.
     let blocked: () -> String?
     /// Each line gets the next seed, so a logged line can be replayed.
     var seed: UInt64 = 0

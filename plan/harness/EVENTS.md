@@ -106,8 +106,7 @@ No number reaches Jev that it would have to compare
 Every event goes into the transcript and gets its line in HISTORY. One
 wakes the brain only when its kind says so (§4), and never:
 
-- while something needs you, or in quiet mode
-  ([BEHAVIORS.md](../BEHAVIORS.md) §3.2, §4);
+- while something needs you ([BEHAVIORS.md](../BEHAVIORS.md) §3.2, §4);
 - without Jev's key ([HARNESS.md](HARNESS.md) §7).
 
 There are no cooldowns on the brain beyond these.

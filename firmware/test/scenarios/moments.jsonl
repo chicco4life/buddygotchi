@@ -17,20 +17,8 @@
 {"expect":{"moment":{"anim":"wiggle"}}}
 {"shot":"wiggle"}
 {"t":"state","v":1,"base":"idle"}
-{"clock":40000}
-{"t":"moment","anim":"listening","ttl":5}
-{"clock":40400}
-{"expect":{"moment":{"anim":"listening"}}}
-{"shot":"listening"}
-{"t":"state","v":1,"base":"idle"}
-// The empty moment ends listening and does nothing else (PROTOCOL.md §3):
-// the face blends back.
-{"clock":45000}
-{"t":"moment","ttl":5}
-{"expect":{"moment":null,"audio":{"playing":false}}}
-{"clock":45075}
-{"shot":"listening-stopped-75ms"}
-// It never ends a cheer.
+// A moment with neither `anim` nor `say` is ignored (PROTOCOL.md §3): the
+// cheer carries on.
 {"clock":50000}
 {"t":"moment","anim":"cheer","ttl":5}
 {"clock":50500}

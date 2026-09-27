@@ -2,7 +2,7 @@ import AppKit
 import BoopKit
 import SwiftUI
 
-/// The menu-bar app (UX.md §7): an icon that mirrors Boop and a popover.
+/// The menu-bar app (UX.md §6): an icon that mirrors Boop and a popover.
 /// Setup and settings open inside the popover. It pops up by itself only
 /// once, on first launch, to show setup, and never sends notifications.
 enum MenuBarApp {
@@ -55,8 +55,6 @@ final class AppModel: ObservableObject {
     @Published var personality = Personality.boop
     @Published var nature = LongTerm.Nature.sweet
     @Published var startError: String?
-    /// Why push-to-talk couldn't hear you, until the next try.
-    @Published var talkError: String?
 
     let installer: HookInstaller
     /// False on a folder other than the everyday one: then this copy never
@@ -119,16 +117,6 @@ final class AppModel: ObservableObject {
         runtime?.setVolume(volume)
     }
 
-    var listening: Bool { status?.listening == true }
-
-    /// The Talk button: click to talk, click again to send.
-    func toggleTalk() {
-        let on = !listening
-        if on { talkError = nil }
-        status?.listening = on
-        runtime?.setListening(on)
-    }
-
     /// Takes effect from the next event (BEHAVIORS.md §6).
     func setPersonality(_ personality: Personality) {
         guard personality != self.personality else { return }
@@ -166,7 +154,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var iconMood: FaceMood?
     let popover = NSPopover()
     var runtime: Runtime?
-    var listener: SpeechListener?
 
     init(stateDir: URL, link: LinkSetting, debug: Bool) {
         self.stateDir = stateDir
@@ -290,35 +277,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         options.debugPrint = { log.echo($0) }
         do {
             let runtime = try Runtime(options)
-            let listener = SpeechListener(log: { log.write($0) })
             let model = self.model
             runtime.onChange = { [weak self] status in Task { @MainActor in self?.show(status) } }
-            runtime.onListen = { (on: Bool) in
-                if on {
-                    listener.start { why in
-                        log.write("talk: \(why)")
-                        runtime.micFailed()
-                        Task { @MainActor in model.talkError = why }
-                    }
-                } else {
-                    listener.stop { words, yelled in
-                        // A yell with no words still counts (BEHAVIORS.md §3.3).
-                        if words != nil || yelled {
-                            runtime.talk(words ?? "", yelled: yelled)
-                        } else {
-                            log.write("talk: heard nothing")
-                            runtime.heardNothing()
-                        }
-                    }
-                }
-            }
             // Read before start: from then on the runtime's state belongs to
             // its own queue.
             model.personality = runtime.settings.personality
             model.nature = runtime.memory.longTerm?.nature ?? .sweet
             try runtime.start()
             self.runtime = runtime
-            self.listener = listener
             model.runtime = runtime
             model.startError = nil
             runtime.refresh()

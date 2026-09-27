@@ -26,7 +26,7 @@ the owner.
 | L3 Webcam | Does the real panel look right: colours, orientation, motion? | The board facing the camera, when authorised (§6) |
 | L4 Pipeline | Does a real hook event reach the screen? | The board on USB; no Bluetooth |
 | L5 Brain | Do the real brains behave? | Apple's on-device model, and Jev's key for Jev |
-| L6 Owner | Bluetooth, the mic, touch, sound, real agents, how it feels | The owner |
+| L6 Owner | Bluetooth, touch, sound, real agents, how it feels | The owner |
 
 ## 2. The tools
 
@@ -56,7 +56,7 @@ starts, so a typo can't launch the menu-bar app or run the whole eval.
 | `state` | The device's own view of itself (§3) |
 | `shot` | Saves a screenshot of the device's canvas as a PNG |
 | `send '<json>'` | Sends one protocol message as the Mac would; a `dbg.` request prints the reply |
-| `play <what>` | Makes the board do one thing the Mac can, and checks it took: `cheer`, `wiggle` or `listening` ([BEHAVIORS.md](BEHAVIORS.md) §5), `--say FEELING` adding a mumble; `stop`, the empty moment; `needs`, a fake "needs you" that reports its chirp; `pattern`, the test pattern |
+| `play <what>` | Makes the board do one thing the Mac can, and checks it took: `cheer` or `wiggle` ([BEHAVIORS.md](BEHAVIORS.md) §5), `--say FEELING` adding a mumble; `needs`, a fake "needs you" that reports its chirp; `pattern`, the test pattern |
 | `mumble [feeling…]` | Plays the Mac's Voice lines for each feeling, without and with a word, and checks each in `audio.out`: syllables, word, and the DAC's time within 10% of beats × `ms`. Then checks that a muted line moves the mouth silently. `--board-volume` and `--levels` are for listening by ear |
 | `sim [scenario…]` | Plays scenarios in the simulator and compares them with the goldens (L1); `--accept` copies the pictures in |
 | `run [scenario…]` | Plays scenarios on the board and diffs each screenshot against the simulator's, threshold 0 (L2), then lets the clock run again |
@@ -71,7 +71,7 @@ starts, so a typo can't launch the menu-bar app or run the whole eval.
 | --- | --- |
 | `Boop --headless` | The whole runtime with its own state directory, no UI and no Bluetooth (L4). `--brain scripted` answers every pass the same way with no network, for pipeline checks; `--personality` overrides the saved one. On its hook socket, `{"dev":"advance","ms":N}` moves its clock |
 | `Boop --debug` | Prints every hook, decision, device line and brain pass as it happens ([HARNESS.md](harness/HARNESS.md) §9) |
-| `Boop --snapshots DIR` | Renders the popover's panes and the menu-bar icons to PNGs, light and dark, from fixtures, and fails on low contrast (L0). No runtime, Bluetooth or microphone |
+| `Boop --snapshots DIR` | Renders the popover's panes and the menu-bar icons to PNGs, light and dark, from fixtures, and fails on low contrast (L0). No runtime or Bluetooth |
 | `boopdev eval` | The eval scenarios against Jev ([EVALS.md](EVALS.md)), L5 |
 | `boopdev watch [FILE]` | Prints a `debug.jsonl` readably as it grows, waiting for it if it isn't there yet; with no file, the everyday app's |
 | `boopdev replay <fixture>` | Runs recorded hook payloads through the hook's field picking, the adapter and the core on a virtual clock, printing every decision; with `--socket`, through the real `boop-hook` to a running app, timing each `boop-hook` from launch to exit |
@@ -115,13 +115,13 @@ What `dbg.state` reports:
 | Field | Meaning |
 | --- | --- |
 | `screen` | `face`, `needs_you`, `no_app` (drawn as the asleep face) or `pattern` |
-| `base`, `attn`, `quiet`, `vol` | From the last `state` ([PROTOCOL.md](PROTOCOL.md) §3); `attn` is null unless something needs you |
+| `base`, `attn`, `vol` | From the last `state` ([PROTOCOL.md](PROTOCOL.md) §3); `attn` is null unless something needs you |
 | `moment` | `{"anim":…,"left_ms":…}` while an animation plays, otherwise null (a mumble on its own leaves it null) |
 | `life` | `blink` while Boop blinks, otherwise null |
 | `led`, `bl` | The LED's colour and the backlight level |
 | `audio` | `playing` while the mouth follows a mumble, and its `syllables`. `out` is what the sound output did: `ready`, `playing`, `lines` finished since boot, and for the last line `syl`, `word` (whether it had one), `plan_ms` (beats × `ms`), `out_ms` (samples rendered), `wall_ms` (the DAC's measured time), `cut` (hushed or replaced) and `errors` (DAC writes that timed out) |
 | `sfx` | The last sound cue and when, such as `{"k":"chirp","at":27000}` ([BEHAVIORS.md](BEHAVIORS.md) §4), since tests can't hear |
-| `last_input` | The last gesture: `k` (`tap`, `touch`, `talk_on` or `talk_off`), `at`, and `x` and `y` for a touch |
+| `last_input` | The last gesture: `k` (`tap` or `touch`), `at`, and `x` and `y` for a touch |
 | `rx` | The `state` and `moment` messages received since boot; L4 times hooks by `rx.state` |
 | `clock`, `boot`, `touch`, `bat`, `amp` | Bring-up readings: the clock's `now` and `frozen`, BOOT's level, the touch panel's `down`, `irq` and `raw` (x, y, z), the battery in mV (0: the v1 board has none), and whether the amp is on |
 
@@ -147,8 +147,8 @@ same way in the simulator and on the board. This is the start of
 `behaviour.jsonl`:
 
 ```
-// Device behaviour (BEHAVIORS.md §3): press feedback, gestures, push-to-talk
-// and its wait for the reply, and the needs-you tap. Shots are the rows' goldens.
+// Device behaviour (BEHAVIORS.md §3): press feedback, gestures, and the
+// needs-you tap. Shots are the rows' goldens.
 {"clock":0}
 {"t":"state","v":1,"base":"idle","busy":0,"idle":1,"wait":0}
 {"clock":500}
@@ -167,7 +167,7 @@ same way in the simulator and on the board. This is the start of
 | `{"clock": ms}` | Freezes the clock at this time since the scenario started |
 | A protocol message | Sent as if it came from the Mac |
 | A `dbg.` message | Sent as a debug request (§3), such as `{"t":"dbg.pattern"}` |
-| `{"input": {"press":"tap"}}` | Presses BOOT: `tap` for 100 ms, `hold` for 800 ms, or `"ms"` for another length |
+| `{"input": {"press":"tap"}}` | Presses BOOT: `tap` for 100 ms, or `"ms"` for another length |
 | `{"input": {"touch":[x,y]}}` | Touches the screen at (x, y) for 100 ms, or `"ms"` |
 | `{"shot": "name"}` | Saves a screenshot as `name.png` |
 | `{"expect": {…}}` | Reads `dbg.state` once and fails on a mismatch. Only the keys given are compared, recursively |
@@ -195,8 +195,8 @@ gets at least one scenario. Their pictures are the golden images in
   face hard), gestures, drawing and the voice player.
 - **The Mac app's look**, for Mac UI changes: run
   `app/.build/debug/Boop --snapshots DIR` and open every PNG against
-  [UX.md](UX.md) §7: nothing clipped, no debug data, text readable, the
-  Warm Terminal look. The run fails by itself on UX.md §7's contrast.
+  [UX.md](UX.md) §6: nothing clipped, no debug data, text readable, the
+  Warm Terminal look. The run fails by itself on UX.md §6's contrast.
   There are no goldens.
 
 **Pass:** everything green. New code comes with tests.
@@ -309,8 +309,7 @@ slowest pass is under the 1.25 s deadline; and the sample reads well.
 
 ### L6: the owner
 
-Only a person can check Bluetooth (launching the app), the mic and speech
-recognition, real touches and calibration (`boopctl calibrate`), sound by
+Only a person can check Bluetooth (launching the app), real touches and calibration (`boopctl calibrate`), sound by
 ear (`boopctl mumble`, `mumble --board-volume`, `mumble --levels`,
 `play needs`), real Claude Code and Codex sessions, the Mac app in the
 real menu bar, and how Boop feels. The checks still waiting are in

@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// The app's palette, the device's "Warm Terminal" (UX.md §7): warm paper
+/// The app's palette, the device's "Warm Terminal" (UX.md §6): warm paper
 /// and ink in both appearances, black glass for the face tile and the one
 /// filled button (oat on dark paper), and one amber accent, for needs you
 /// only. Working and idle are greys, as on the device; sage means connected
@@ -32,9 +32,6 @@ enum Palette {
     /// light paper; on dark paper it's the other way round.
     static let glass = "#000000", glassPressed = "#2A2620", oat = "#E8DCC4", oatPressed = "#CFC2A8"
     static let eye = "#F6F4EE", blush = "#EC787C"
-    /// The mic is on: macOS's own recording red, on the menu bar and the
-    /// dot, and a deeper one under Send's white label.
-    static let recording = "#FF3B30", recordingFill = "#D63A2F", recordingPressed = "#BC2F25"
 }
 
 enum Theme {
@@ -59,10 +56,6 @@ enum Theme {
     static let sage = Color(hex: Palette.sage)
     static let sageInk = adaptive(Palette.sageInkLight, Palette.sageInkDark)
     static let clayInk = adaptive(Palette.clayInkLight, Palette.clayInkDark)
-    static let recording = Color(hex: Palette.recording)
-    /// Send, while the mic is on: white on a red deep enough to read.
-    static let send = RowButtonStyle.Fill(fill: Color(hex: Palette.recordingFill),
-                                          pressed: Color(hex: Palette.recordingPressed), label: .white)
 
     static let glass = Color(hex: Palette.glass)
     /// The filled button: black glass with an oat label on light paper. On

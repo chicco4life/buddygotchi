@@ -22,7 +22,6 @@ struct Pose {
   int16_t eyeSize = 1000;   // both eyes, without the mouth: > 1000 wide-eyed
   int16_t lidTop = 0;       // how far the upper lids come down
   int16_t lidBot = 0;       // happy: the bottom of each eye rises (a squint); the cheeks rise too
-  int16_t wink = 0;         // extra upper lid on one eye: > 0 right, < 0 left
   int16_t squash = 0;       // > 0 wide and short, < 0 tall and narrow
   int16_t mouthCurve = 0;   // 0 flat .. 1000 smile
   int16_t mouthOpen = 0;    // 0 closed .. 1000 wide open

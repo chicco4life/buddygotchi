@@ -37,12 +37,6 @@ struct Rig {
     m.anim = a;
     b.onMoment(m, t);
   }
-  // The empty moment, {"t":"moment","ttl":5} (PROTOCOL.md §3).
-  void stop() {
-    MomentIn m;
-    m.empty = true;
-    b.onMoment(m, t);
-  }
   // A mumble on its own: `syl` syllables of 100 ms, no word.
   bool say(int syl = 4) {
     MomentIn m;
@@ -147,8 +141,8 @@ static void test_answering_on_the_mac_blends_back() {
   TEST_ASSERT_EQUAL(0u, r.b.momentSeq());
 }
 
-// BEHAVIORS.md §1: while something needs you, only listening plays, and
-// no mumble shows.
+// BEHAVIORS.md §1: while something needs you, no animation plays and no
+// mumble shows.
 static void test_attention_wins_over_moments() {
   Rig r;
   r.state(base("working"));
@@ -164,10 +158,10 @@ static void test_attention_wins_over_moments() {
   TEST_ASSERT_FALSE(r.say());  // a mumble on its own is ignored
   TEST_ASSERT_NULL(r.b.mumble(r.t));
   MomentIn say;
-  say.anim = Anim::kListening, say.syllables = 3;
-  r.b.onMoment(say, r.t);
-  TEST_ASSERT_EQUAL(Anim::kListening, r.anim());  // push-to-talk still works
-  TEST_ASSERT_NULL(r.b.mumble(r.t));               // but never a mumble
+  say.anim = Anim::kCheer, say.syllables = 3;
+  TEST_ASSERT_FALSE(r.b.onMoment(say, r.t));
+  TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
+  TEST_ASSERT_NULL(r.b.mumble(r.t));
   // A mumble that was showing goes when something starts needing you.
   Rig m;
   m.state(base("idle"));
@@ -179,7 +173,7 @@ static void test_attention_wins_over_moments() {
 
 // UX.md §2: nothing cuts hard. A change the Mac makes mid-animation starts
 // its blend from exactly the frame that was showing: attention arriving
-// under a cheer (which it ends) or under listening (which it raises).
+// under a cheer (which it ends) or under a mumble (which it ends too).
 static void test_changes_mid_motion_blend_from_what_was_showing() {
   struct Case {
     Model from;
@@ -189,7 +183,7 @@ static void test_changes_mid_motion_blend_from_what_was_showing() {
   };
   const Case cases[] = {
       {base("working"), Anim::kCheer, attn(), 1000},
-      {base("working"), Anim::kListening, attn(), 1000},
+      {base("idle"), Anim::kWiggle, attn(), 1000},
   };
   for (const Case& c : cases) {
     for (uint32_t when : {300u, 950u, 2100u}) {
@@ -215,11 +209,11 @@ static void test_changes_mid_motion_blend_from_what_was_showing() {
 static void test_no_change_ever_cuts_hard() {
   Model busy3 = base("working");
   busy3.busy = 3;
-  Model quiet = base("idle");
-  quiet.quiet = 30;
-  const Model states[] = {base("idle"), base("working"), busy3, base("asleep"), attn(), attn("jetpack"), quiet};
-  enum Playing { kNothing, kCheer, kWiggle, kListening, kSay, kCheerSay, kReplyWait, kNoApp, kPlayingCount };
-  const int kEvents = 7 + 6;  // every state, then the moments and inputs
+  Model muted = base("idle");
+  muted.vol = 0;
+  const Model states[] = {base("idle"), base("working"), busy3, base("asleep"), attn(), attn("jetpack"), muted};
+  enum Playing { kNothing, kCheer, kWiggle, kSay, kCheerSay, kNoApp, kPlayingCount };
+  const int kEvents = 7 + 4;  // every state, then the moments and inputs
   int checked = 0;
   for (int from = 0; from < 7; ++from) {
     for (int playing = 0; playing < kPlayingCount; ++playing) {
@@ -231,7 +225,6 @@ static void test_no_change_ever_cuts_hard() {
           switch (playing) {
             case kCheer: r.moment(Anim::kCheer); break;
             case kWiggle: r.b.tap(r.t); break;
-            case kListening: r.b.talkOn(r.t); break;
             case kSay: r.say(6); break;
             case kCheerSay: {
               MomentIn m;
@@ -239,11 +232,6 @@ static void test_no_change_ever_cuts_hard() {
               r.b.onMoment(m, r.t);
               break;
             }
-            case kReplyWait:
-              r.b.talkOn(r.t);
-              r.at(900);
-              r.b.talkOff(r.t);
-              break;
             case kNoApp: r.at(500 + Behaviour::kNoAppMs); break;
             default: break;
           }
@@ -255,10 +243,8 @@ static void test_no_change_ever_cuts_hard() {
             switch (event - 7) {
               case 0: r.moment(Anim::kCheer); break;
               case 1: r.b.tap(r.t); break;
-              case 2: r.b.talkOn(r.t); break;
-              case 3: r.b.talkOff(r.t); break;
-              case 4: r.say(3); break;
-              default: r.stop(); break;
+              case 2: r.say(3); break;
+              default: r.moment(Anim::kWiggle); break;
             }
           }
           render::Pose after = r.b.pose(r.t);
@@ -360,7 +346,7 @@ static void test_moments_end_and_replace() {
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
 }
 
-static void test_mumble_moves_the_mouth_and_respects_quiet() {
+static void test_mumble_moves_the_mouth() {
   Rig r;
   r.state(base("idle"));
   MomentIn m;
@@ -373,15 +359,6 @@ static void test_mumble_moves_the_mouth_and_respects_quiet() {
   // Mid-syllable the mouth is open; between syllables it nearly closes.
   TEST_ASSERT_TRUE(r.b.pose(50).mouthOpen > r.b.pose(0).mouthOpen);
   TEST_ASSERT_TRUE(r.b.pose(150).mouthOpen > 500);
-
-  Model q = base("idle");
-  q.quiet = 5;
-  r.at(5000);
-  r.state(q);
-  r.b.onMoment(m, r.t);
-  TEST_ASSERT_EQUAL(Anim::kCheer, r.anim());
-  TEST_ASSERT_NULL(r.b.mumble(r.t));
-  TEST_ASSERT_FALSE(r.say());
 }
 
 // PROTOCOL.md §3, BEHAVIORS.md §5: a mumble on its own plays over whatever
@@ -424,88 +401,6 @@ static void test_a_mumble_alone_plays_over_the_face() {
   e.state(base("idle"));
   TEST_ASSERT_FALSE(e.say(0));
   TEST_ASSERT_EQUAL(0u, e.b.momentSeq());
-}
-
-// BEHAVIORS.md §3.3, PROTOCOL.md §3: the reply to push-to-talk, a mumble
-// on its own, ends listening, while held or while waiting after release,
-// and plays over the face. Nothing follows it.
-static void test_a_reply_ends_listening() {
-  Rig r;
-  r.state(base("idle"));
-  r.b.talkOn(0);
-  r.at(1000);
-  r.b.talkOff(1000);
-  r.at(3000);
-  TEST_ASSERT_EQUAL(Anim::kListening, r.anim());
-  TEST_ASSERT_TRUE(r.say(3));
-  TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
-  TEST_ASSERT_NOT_NULL(r.b.mumble(r.t));
-  keepAlive(r, base("idle"), 1000 + Behaviour::kReplyWaitMs + 100);
-  TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
-  // While held, too.
-  r.b.talkOn(r.t);
-  r.at(r.t + 500);
-  r.say(2);
-  TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
-  // A reply that can't show (needs you, or quiet) still ends it.
-  Rig a;
-  a.state(attn());
-  a.b.talkOn(0);
-  a.at(500);
-  TEST_ASSERT_FALSE(a.say(2));
-  TEST_ASSERT_EQUAL(Anim::kNone, a.anim());
-  TEST_ASSERT_NULL(a.b.mumble(a.t));
-}
-
-// PROTOCOL.md §3: the empty moment {"t":"moment","ttl":5} ends listening
-// and does nothing else. It never ends a cheer, a wiggle or a mumble.
-static void test_the_empty_moment_ends_only_listening() {
-  Rig r;
-  r.state(base("idle"));
-  r.moment(Anim::kListening);  // from the Mac: the popover's mic is on
-  r.at(4000);
-  TEST_ASSERT_EQUAL(Anim::kListening, r.anim());
-  r.stop();
-  TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
-  TEST_ASSERT_TRUE(r.b.moving(r.t));  // blending back
-  // After the wait on release, too.
-  r.b.talkOn(r.t);
-  r.at(r.t + 1000);
-  r.b.talkOff(r.t);
-  r.at(r.t + 2000);
-  r.stop();
-  TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
-  // Nothing playing: nothing happens.
-  const uint32_t seq = r.b.momentSeq();
-  r.at(r.t + 1000);
-  r.stop();
-  TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
-  TEST_ASSERT_EQUAL(seq, r.b.momentSeq());
-  TEST_ASSERT_NULL(r.b.mumble(r.t));
-  // A cheer, a wiggle and a mumble carry on.
-  r.moment(Anim::kCheer);
-  r.at(r.t + 100);
-  r.stop();
-  TEST_ASSERT_EQUAL(Anim::kCheer, r.anim());
-  r.moment(Anim::kWiggle);
-  r.stop();
-  TEST_ASSERT_EQUAL(Anim::kWiggle, r.anim());
-  r.at(r.t + 1000);
-  TEST_ASSERT_TRUE(r.say(4));
-  r.stop();
-  TEST_ASSERT_NOT_NULL(r.b.mumble(r.t));
-  TEST_ASSERT_TRUE(r.b.speaking(r.t));
-  TEST_ASSERT_EQUAL(seq + 3, r.b.momentSeq());  // cheer, wiggle, mumble; the stops add none
-  // A listening moment with a mumble: the stop ends the face, not the line.
-  Rig m;
-  m.state(base("idle"));
-  MomentIn in;
-  in.anim = Anim::kListening, in.syllables = 4, in.ms = 100;
-  TEST_ASSERT_TRUE(m.b.onMoment(in, m.t));
-  m.at(100);
-  m.stop();
-  TEST_ASSERT_EQUAL(Anim::kNone, m.anim());
-  TEST_ASSERT_NOT_NULL(m.b.mumble(m.t));
 }
 
 // Starts of blinks between 0 and `to` ms, with the Mac sending `m` every
@@ -631,7 +526,7 @@ static void test_no_app_at_30s_looks_asleep_and_reconnect_blends_back() {
   Rig r;
   r.at(1000);
   Model m = attn();  // even a stale "needs you" gives way
-  m.wait = 1, m.busy = 2, m.quiet = 5;
+  m.wait = 1, m.busy = 2;
   r.state(m);
   r.at(30999);
   TEST_ASSERT_EQUAL(Screen::kNeedsYou, r.b.screen(r.t));
@@ -642,12 +537,11 @@ static void test_no_app_at_30s_looks_asleep_and_reconnect_blends_back() {
   TEST_ASSERT_EQUAL(255, r.b.backlight(r.t));  // dimming with the face's blend
   TEST_ASSERT_TRUE(r.b.backlight(r.t + render::kBlendMs / 2) < 255);
   TEST_ASSERT_EQUAL_HEX32(0, r.b.led(r.t));
-  // The strip keeps only the unplugged icon: the counts and quiet are stale.
+  // The strip keeps only the unplugged icon: the counts are stale.
   render::Strip strip = r.b.strip(r.t);
   TEST_ASSERT_TRUE(strip.noApp);
   TEST_ASSERT_EQUAL(0, strip.wait);
   TEST_ASSERT_EQUAL(0, strip.busy);
-  TEST_ASSERT_FALSE(strip.quiet);
   r.at(31000 + render::kBlendMs);
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
   render::Pose p = r.b.pose(r.t);
@@ -666,116 +560,6 @@ static void test_no_app_at_30s_looks_asleep_and_reconnect_blends_back() {
   TEST_ASSERT_EQUAL_INT(render::lookPose(render::Look::kIdle).open, r.b.pose(r.t + render::kBlendMs).open);
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
   TEST_ASSERT_EQUAL(255, r.b.backlight(r.t + render::kBlendMs));
-}
-
-// BEHAVIORS.md §3.3: push-to-talk listens at once on hold, and on release
-// the same listening face carries on, with no new blend, while it waits for
-// the reply.
-static void test_push_to_talk_listens_then_waits() {
-  Rig r;
-  r.state(base("idle"));
-  r.b.talkOn(0);
-  TEST_ASSERT_EQUAL(Anim::kListening, r.anim());
-  r.at(2000);
-  TEST_ASSERT_EQUAL(Anim::kListening, r.anim());
-  const render::Pose held = r.b.pose(r.t);
-  const uint32_t seq = r.b.momentSeq();
-  r.b.talkOff(2000);
-  TEST_ASSERT_EQUAL(Anim::kListening, r.anim());
-  TEST_ASSERT_EQUAL(seq, r.b.momentSeq());          // the same moment
-  TEST_ASSERT_TRUE(r.b.pose(r.t) == held);          // no jump
-  TEST_ASSERT_EQUAL_STRING("listening", r.b.faceName(r.t));
-}
-
-// BEHAVIORS.md §3.3: listening holds until the reply. Another animation
-// from the Mac, such as a cheer, doesn't replace it, and a tap shows only
-// the press squash. A moment with a mumble is the reply: it ends
-// listening and the mumble plays, without its animation. That holds while
-// something needs you, too.
-static void test_listening_holds_until_the_reply() {
-  Rig r;
-  r.state(base("idle"));
-  r.b.talkOn(0);
-  r.at(500);
-  r.b.tap(r.t);  // a touch while BOOT is held
-  TEST_ASSERT_EQUAL(Anim::kListening, r.anim());
-  r.at(1000);
-  r.b.talkOff(1000);
-  r.at(2000);
-  const uint32_t seq = r.b.momentSeq();
-  const render::Pose before = r.b.pose(r.t);
-  r.moment(Anim::kCheer);
-  r.moment(Anim::kWiggle);
-  r.b.tap(r.t);  // only the press squash, as under needs you
-  uint32_t left;
-  TEST_ASSERT_EQUAL(Anim::kListening, r.b.moment(r.t, left));
-  TEST_ASSERT_EQUAL_UINT32(Behaviour::kReplyWaitMs - 1000, left);  // the wait runs on
-  TEST_ASSERT_EQUAL(seq, r.b.momentSeq());
-  TEST_ASSERT_TRUE(r.b.pose(r.t) == before);  // no blend began
-  MomentIn m;
-  m.anim = Anim::kCheer, m.syllables = 3, m.ms = 100;
-  TEST_ASSERT_TRUE(r.b.onMoment(m, r.t));
-  TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
-  TEST_ASSERT_NOT_NULL(r.b.mumble(r.t));
-  // The Mac's own listening (the popover's Talk) still starts afresh.
-  r.at(5000);
-  r.moment(Anim::kListening);
-  TEST_ASSERT_EQUAL(Anim::kListening, r.b.moment(r.t, left));
-  TEST_ASSERT_EQUAL_UINT32(render::animDuration(Anim::kListening), left);
-
-  Rig a;
-  a.state(attn());
-  a.b.talkOn(0);
-  a.at(500);
-  a.moment(Anim::kCheer);
-  TEST_ASSERT_EQUAL(Anim::kListening, a.anim());
-  TEST_ASSERT_FALSE(a.b.onMoment(m, a.t));  // the reply can't show, but it ends listening
-  TEST_ASSERT_EQUAL(Anim::kNone, a.anim());
-  TEST_ASSERT_NULL(a.b.mumble(a.t));
-}
-
-// BEHAVIORS.md §3.3: listening lasts while held, capped at 30 s; after
-// release it waits at most 8 s for the reply, then the face blends back
-// quietly, with no other moment.
-static void test_push_to_talk_timeouts() {
-  TEST_ASSERT_EQUAL_UINT32(8000, Behaviour::kReplyWaitMs);
-  TEST_ASSERT_EQUAL_UINT32(30000, render::animDuration(Anim::kListening));
-  Rig r;
-  Model m = base("idle");
-  r.state(m);
-  r.b.talkOn(0);
-  keepAlive(r, m, 3000);
-  r.b.talkOff(r.t);
-  uint32_t left;
-  TEST_ASSERT_EQUAL(Anim::kListening, r.b.moment(r.t, left));
-  TEST_ASSERT_EQUAL_UINT32(8000, left);
-  keepAlive(r, m, 3000 + 7999);
-  TEST_ASSERT_EQUAL(Anim::kListening, r.anim());
-  r.at(3000 + 8000);
-  TEST_ASSERT_EQUAL(Anim::kNone, r.anim());  // no reply came
-  TEST_ASSERT_EQUAL_STRING("idle", r.b.faceName(r.t));
-  // Released late in the hold, the wait still runs its full 8 s past 30 s.
-  Rig l;
-  l.state(m);
-  l.b.talkOn(0);
-  keepAlive(l, m, 29000);
-  l.b.talkOff(l.t);
-  keepAlive(l, m, 29000 + 7999);
-  TEST_ASSERT_EQUAL(Anim::kListening, l.anim());
-  l.at(29000 + 8000);
-  TEST_ASSERT_EQUAL(Anim::kNone, l.anim());
-  // Held past the 30 s cap: listening ends then, and the release has
-  // nothing left to wait on.
-  Rig c;
-  c.state(m);
-  c.b.talkOn(0);
-  keepAlive(c, m, 29999);
-  TEST_ASSERT_EQUAL(Anim::kListening, c.anim());
-  c.at(30000);
-  TEST_ASSERT_EQUAL(Anim::kNone, c.anim());  // the cap
-  c.at(31000);
-  c.b.talkOff(c.t);
-  TEST_ASSERT_EQUAL(Anim::kNone, c.anim());
 }
 
 static void test_press_shows_within_20ms() {
@@ -829,11 +613,9 @@ struct DevRig {
 }  // namespace
 
 const char* const kTap = "{\"t\":\"input\",\"k\":\"tap\"}";
-const char* const kTalkOn = "{\"t\":\"input\",\"k\":\"talk_on\"}";
-const char* const kTalkOff = "{\"t\":\"input\",\"k\":\"talk_off\"}";
 
-// UX.md §4: BOOT tap is a tap and a hold is push-to-talk; a touch anywhere,
-// the strip included, is a tap sent on release, however long it was held.
+// UX.md §4: any BOOT press is a tap, and so is a touch anywhere, the strip
+// included; each is sent on release, however long it was held.
 static void test_gestures_send_the_right_inputs() {
   DevRig r;
   r.line("{\"t\":\"dbg.touch\",\"x\":160,\"y\":100,\"ms\":100}");  // tap the face
@@ -857,14 +639,13 @@ static void test_gestures_send_the_right_inputs() {
   r.clock(3200);
   TEST_ASSERT_EQUAL(4, r.count(kTap));
   r.clock(3300);
-  r.line("{\"t\":\"dbg.press\",\"ms\":800}");  // BOOT hold
+  r.line("{\"t\":\"dbg.press\",\"ms\":800}");  // a long BOOT press
   r.clock(3700);
-  TEST_ASSERT_TRUE(r.has(kTalkOn));
+  TEST_ASSERT_EQUAL(4, r.count(kTap));  // nothing yet
   r.clock(4100);
-  TEST_ASSERT_TRUE(r.has(kTalkOff));
-  // Only these three inputs exist (PROTOCOL.md §4).
-  TEST_ASSERT_EQUAL(r.count("\"t\":\"input\""),
-                    r.count(kTap) + r.count(kTalkOn) + r.count(kTalkOff));
+  TEST_ASSERT_EQUAL(5, r.count(kTap));  // a tap, on release
+  // Tap is the only input (PROTOCOL.md §4).
+  TEST_ASSERT_EQUAL(r.count("\"t\":\"input\""), r.count(kTap));
 }
 
 // A long touch during needs you is a tap too: the squash, and no moment.
@@ -893,18 +674,13 @@ int main() {
   RUN_TEST(test_no_change_ever_cuts_hard);
   RUN_TEST(test_face_name_is_the_moment_or_the_look);
   RUN_TEST(test_moments_end_and_replace);
-  RUN_TEST(test_mumble_moves_the_mouth_and_respects_quiet);
+  RUN_TEST(test_mumble_moves_the_mouth);
   RUN_TEST(test_a_mumble_alone_plays_over_the_face);
-  RUN_TEST(test_a_reply_ends_listening);
-  RUN_TEST(test_the_empty_moment_ends_only_listening);
   RUN_TEST(test_life_is_blinks_at_their_pace);
   RUN_TEST(test_asleep_breathes_and_never_blinks);
   RUN_TEST(test_working_strains_and_sweats_and_asleep_says_zzz);
   RUN_TEST(test_working_keeps_moving_and_idle_rests);
   RUN_TEST(test_no_app_at_30s_looks_asleep_and_reconnect_blends_back);
-  RUN_TEST(test_push_to_talk_listens_then_waits);
-  RUN_TEST(test_listening_holds_until_the_reply);
-  RUN_TEST(test_push_to_talk_timeouts);
   RUN_TEST(test_press_shows_within_20ms);
   RUN_TEST(test_gestures_send_the_right_inputs);
   RUN_TEST(test_a_long_touch_during_needs_you_is_a_tap);

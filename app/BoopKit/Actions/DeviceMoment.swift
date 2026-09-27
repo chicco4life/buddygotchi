@@ -2,8 +2,7 @@ import Foundation
 
 /// A `moment` message: something for the device to play once (PROTOCOL.md §3).
 /// A rule moment has an `anim`; a mumble has only `say`, which plays over
-/// whatever face is showing. The empty moment has neither: it ends a
-/// `listening` face and nothing else.
+/// whatever face is showing.
 public struct DeviceMoment: Equatable, Sendable {
     public var anim: String?
     public var say: VoiceLine?
@@ -16,11 +15,6 @@ public struct DeviceMoment: Equatable, Sendable {
         self.ttl = ttl
     }
 
-    /// `{"t":"moment","ttl":5}`: ends `listening` when no reply came.
-    public static let empty = DeviceMoment()
-
-    public var isEmpty: Bool { anim == nil && say == nil }
-
     /// Bubble time after the last syllable (firmware `kBubbleReadMs`).
     static let bubbleReadMs: Int64 = 1200
 
@@ -29,11 +23,9 @@ public struct DeviceMoment: Equatable, Sendable {
     /// animation's length (`animDuration` in firmware/src/render/anim.cpp),
     /// and a mumble lasts its syllables, plus two beats for a word, at
     /// 60–400 ms each, then 1.2 s for the bubble, when that's longer.
-    /// `listening` counts as 0: the device holds it until the reply or the
-    /// empty moment, which is 0 too.
     public var playMs: Int64 {
         var ms: Int64 = switch anim {
-        case nil, "listening": 0
+        case nil: 0
         case "cheer": 2000
         case "wiggle": 700
         default: 2500

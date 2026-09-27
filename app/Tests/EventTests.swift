@@ -105,8 +105,8 @@ final class EventTests: XCTestCase {
         XCTAssertEqual(hook(.turnStart, workspace: nil).first?.line, #"claude started turn 3 on "landing", a while after its last one."#)
     }
 
-    /// EVENTS.md §6: nothing wakes the brain while something needs you, in
-    /// quiet mode, or with no brain; the events still come.
+    /// EVENTS.md §6: nothing wakes the brain while something needs you, or
+    /// with no brain; the events still come.
     func testGates() {
         hook(.turnStart)
         let asked = hook(.needsYou, tool: "Bash")

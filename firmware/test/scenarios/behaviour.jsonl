@@ -1,5 +1,5 @@
-// Device behaviour (BEHAVIORS.md §3): press feedback, gestures, push-to-talk
-// and its wait for the reply, and the needs-you tap. Shots are the rows' goldens.
+// Device behaviour (BEHAVIORS.md §3): press feedback, gestures, and the
+// needs-you tap. Shots are the rows' goldens.
 {"clock":0}
 {"t":"state","v":1,"base":"idle","busy":0,"idle":1,"wait":0}
 {"clock":500}
@@ -11,27 +11,13 @@
 {"expect":{"moment":{"anim":"wiggle"},"last_input":{"k":"tap","at":600}}}
 {"clock":850}
 {"shot":"tap-wiggle"}
+// A BOOT press held however long is a tap, sent on release (UX.md §4).
 {"clock":2000}
-{"input":{"press":"hold","ms":1500}}
-{"clock":2400}
-{"expect":{"moment":{"anim":"listening"},"last_input":{"k":"talk_on","at":2400}}}
-{"clock":2700}
-{"shot":"listening"}
-// Released: the same listening face waits at most 8 s for the reply
-// (BEHAVIORS.md §3.3), then blends back with nothing else.
+{"input":{"press":"tap","ms":1500}}
+{"clock":3499}
+{"expect":{"moment":null,"boot":true,"last_input":{"k":"tap","at":600}}}
 {"clock":3500}
-{"expect":{"moment":{"anim":"listening","left_ms":8000},"last_input":{"k":"talk_off","at":3500}}}
-{"t":"state","v":1,"base":"idle","busy":0,"idle":1,"wait":0}
-// A cheer meanwhile doesn't replace it.
-{"clock":4000}
-{"t":"moment","anim":"cheer","ttl":5}
-{"expect":{"moment":{"anim":"listening","left_ms":7500}}}
-{"clock":11499}
-{"expect":{"moment":{"anim":"listening","left_ms":1}}}
-{"clock":11500}
-{"expect":{"moment":null}}
-{"clock":11575}
-{"shot":"no-reply-75ms"}
+{"expect":{"moment":{"anim":"wiggle"},"boot":false,"last_input":{"k":"tap","at":3500}}}
 {"t":"state","v":1,"base":"idle","busy":0,"idle":1,"wait":0}
 // A touch held however long is a tap, sent on release (UX.md §4).
 {"clock":14000}
@@ -58,14 +44,7 @@
 {"shot":"strip-press"}
 {"clock":29100}
 {"expect":{"screen":"needs_you","moment":null,"last_input":{"k":"tap","at":29100}}}
-// Push-to-talk still works while something needs you.
-{"clock":29200}
-{"input":{"press":"hold","ms":600}}
-{"clock":29600}
-{"expect":{"screen":"needs_you","moment":{"anim":"listening"},"last_input":{"k":"talk_on","at":29600}}}
-{"clock":29700}
-{"shot":"needs-you-listening"}
-// The reply can't show while something needs you, but it ends listening.
+// A mumble can't show while something needs you.
 {"clock":29900}
 {"t":"moment","say":{"syl":"ba po","ms":120},"ttl":5}
 {"expect":{"screen":"needs_you","moment":null,"audio":{"syllables":0}}}

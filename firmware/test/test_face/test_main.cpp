@@ -185,14 +185,13 @@ static void test_neutral_face_is_symmetric() {
 }
 
 static void test_eyes_are_four_crisp_panes() {
-  Pose looks[8];
+  Pose looks[7];
   looks[1].lookX = 1000;
   looks[2].lookX = -700, looks[2].lookY = -800;
   looks[3].eyeSize = 1250;
   looks[4].lidTop = 400;
   looks[5].lidTop = 150, looks[5].dy = -7, looks[5].squash = -120;
   looks[6] = animPose(Anim::kWiggle, 150);
-  looks[7] = animPose(Anim::kListening, 0);
   for (Pose p : looks) {
     p.mouthOpen = 0;
     p.dx = 0, p.dy = 0;
@@ -647,7 +646,7 @@ static void test_needs_you_leans_in_without_shrinking() {
 }
 
 static void test_the_heart_and_the_drop_never_overlap() {
-  // Working into a cheer, and a cheer cut short by listening, blend a drop
+  // Working into a cheer, and a cheer cut short by working, blend a drop
   // out and a heart in: the drop goes once the heart shows (UX.md §2).
   Pose working = lookPose(Look::kWorking), cheer = animPose(Anim::kCheer, 1500);
   working.sweat = 300;
@@ -681,14 +680,17 @@ static void test_a_happy_blend_squints_a_row_at_a_time() {
   }
 }
 
-static void test_listening_bobs_the_whole_face_a_block() {
-  // Listening bobs a block every 1.2 s (BEHAVIORS.md §5) instead of pulsing
-  // its size, which popped single eyes and cheeks (UX.md §2): every frame
-  // is the rest frame, or the whole of it one block (3 px) higher.
-  Buf rest = face(with0(animPose(Anim::kListening, 600)));
+static void test_breathing_bobs_the_whole_face_a_block() {
+  // Asleep breathes with a bob of a block every 4 s (BEHAVIORS.md §2)
+  // instead of pulsing its size, which popped single eyes and cheeks
+  // (UX.md §2): every frame is the rest frame, or the whole of it one block
+  // (3 px) higher.
+  const Pose asleep = lookPose(Look::kAsleep);
+  Buf rest = face(asleep);
   int up = 0;
-  for (uint32_t t = 0; t < 2400; t += 25) {
-    Pose p = animPose(Anim::kListening, t);
+  for (uint32_t t = 0; t < 8000; t += 50) {
+    Pose p = asleep;
+    p.dy = int16_t(p.dy + bob(t, 4000));
     TEST_ASSERT_EQUAL_INT(1000, p.size);
     Buf b = face(p);
     bool same = true, lifted = true;
@@ -701,12 +703,7 @@ static void test_listening_bobs_the_whole_face_a_block() {
     TEST_ASSERT_TRUE(same || lifted);
     up += lifted;
   }
-  TEST_ASSERT_EQUAL_INT(48, up);  // half the time
-  // Its mouth is the small "o" (BEHAVIORS.md §5): three blocks tall, dark
-  // in the middle.
-  Box m = inkBox(rest, kInkEye, 125, 196);
-  TEST_ASSERT_EQUAL_INT(9, m.y1 - m.y0 + 1);
-  TEST_ASSERT_EQUAL_INT(kBlack, rest.c.get((m.x0 + m.x1) / 2, (m.y0 + m.y1) / 2));
+  TEST_ASSERT_EQUAL_INT(80, up);  // half the time
 }
 
 static void test_blend_is_eased_interruptible_and_150ms() {
@@ -729,26 +726,25 @@ static void test_blend_is_eased_interruptible_and_150ms() {
   TEST_ASSERT_EQUAL_INT(-1000, bl.apply(1225, c).lookX);
 }
 
-// BEHAVIORS.md §5: three animations, and nothing else.
+// BEHAVIORS.md §5: two animations, and nothing else.
 static void test_every_anim_has_a_name_and_ends() {
-  TEST_ASSERT_EQUAL_INT(4, int(Anim::kCount));
+  TEST_ASSERT_EQUAL_INT(3, int(Anim::kCount));  // with kNone
   for (int i = 1; i < int(Anim::kCount); ++i) {
     Anim a = Anim(i);
     TEST_ASSERT_TRUE(animFromName(animName(a)) == a);
     TEST_ASSERT_TRUE(animDuration(a) > 0);
-    TEST_ASSERT_TRUE(animDuration(a) <= 30000);
+    TEST_ASSERT_TRUE(animDuration(a) <= 2000);
   }
-  for (const char* name : {"cheer", "wiggle", "listening"}) {
+  for (const char* name : {"cheer", "wiggle"}) {
     TEST_ASSERT_TRUE_MESSAGE(animFromName(name) != Anim::kNone, name);
   }
   for (const char* gone : {"dance", "oops", "side_eye", "stretch", "yawn", "zip", "gobble", "rumble", "levelup",
                            "happy", "proud", "smug", "curious", "sleepy", "worried", "sulky", "love", "nod",
-                           "thinking", "shrug"}) {
+                           "thinking", "shrug", "listening"}) {
     TEST_ASSERT_TRUE_MESSAGE(animFromName(gone) == Anim::kNone, gone);
   }
   TEST_ASSERT_EQUAL_UINT32(2000, animDuration(Anim::kCheer));
   TEST_ASSERT_EQUAL_UINT32(700, animDuration(Anim::kWiggle));
-  TEST_ASSERT_EQUAL_UINT32(30000, animDuration(Anim::kListening));  // the hold cap
 }
 
 static void test_an_empty_strip_is_bare_glass() {
@@ -762,9 +758,9 @@ static void test_an_empty_strip_is_bare_glass() {
     return n;
   };
   TEST_ASSERT_EQUAL_INT(0, lit(Strip{}));
-  Strip busy, quiet;
-  busy.busy = 1, quiet.quiet = true;
-  for (const Strip& s : {busy, quiet}) {
+  Strip busy, noApp;
+  busy.busy = 1, noApp.noApp = true;
+  for (const Strip& s : {busy, noApp}) {
     Buf b;
     drawStrip(b.c, s);
     TEST_ASSERT_EQUAL_INT(inkAt(kInkDim, kLevels), b.c.get(kWidth / 2, kStripTop));
@@ -844,7 +840,7 @@ int main(int, char**) {
   RUN_TEST(test_needs_you_leans_in_without_shrinking);
   RUN_TEST(test_the_heart_and_the_drop_never_overlap);
   RUN_TEST(test_a_happy_blend_squints_a_row_at_a_time);
-  RUN_TEST(test_listening_bobs_the_whole_face_a_block);
+  RUN_TEST(test_breathing_bobs_the_whole_face_a_block);
   RUN_TEST(test_blend_is_eased_interruptible_and_150ms);
   RUN_TEST(test_every_anim_has_a_name_and_ends);
   RUN_TEST(test_an_empty_strip_is_bare_glass);

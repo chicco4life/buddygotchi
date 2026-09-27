@@ -1,7 +1,7 @@
 import BoopKit
 import SwiftUI
 
-/// Settings, inside the popover (UX.md §7): sound, agents and hooks, the
+/// Settings, inside the popover (UX.md §6): sound, agents and hooks, the
 /// device, the personality and Jev's key, and what Boop remembers.
 struct SettingsPane: View {
     @ObservedObject var model: AppModel

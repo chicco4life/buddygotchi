@@ -7,7 +7,7 @@ what Boop decides, and how, is in [DECISIONS.md](DECISIONS.md); and
 [EXAMPLE.md](EXAMPLE.md) follows one turn through all of it. This file
 names neither events nor decisions.
 
-Talk and memory writes are out of this version and come back later
+Talking to Boop and memory writes are out of this version and come back later
 ([FUTURE.md](../FUTURE.md)).
 
 ## 1. What this is
@@ -96,7 +96,7 @@ struct Event {
   bookkeeping (a routine tool use, a session starting) to itself, and it
   only reaches the brain as counts in other lines.
 - **`wakesBrain`** is the core's call, gates included (something needs
-  you, quiet mode, no key). An event that doesn't wake it, like a tap,
+  you, no key). An event that doesn't wake it, like a tap,
   still gets its line in HISTORY, so the next pass knows it happened.
 - **The status line.** The core also gives the harness one line of live
   state for the end of HISTORY, the threads working now but NOW's,
@@ -148,7 +148,7 @@ typealias Answers = [String: Answer]               // by question key
 struct ActionResult {
     let ok: Bool                                   // success or failure
     let message: String                            // ok: its line in HISTORY ("Boop mumbled, annoyed: "…again!"")
-                                                   // not ok: why ("quiet mode")
+                                                   // not ok: why ("something needs you")
 }
 ```
 

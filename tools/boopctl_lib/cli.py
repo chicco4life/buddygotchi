@@ -23,7 +23,7 @@ RUN_OUT = Path("/tmp/boop-run")
 
 
 # The animation set (BEHAVIORS.md §5).
-ANIMS = ["cheer", "wiggle", "listening"]
+ANIMS = ["cheer", "wiggle"]
 
 
 def emit(obj: object) -> None:
@@ -219,7 +219,7 @@ def soak_state(rng: random.Random) -> dict:
     msg = {"t": "state", "v": 1, "time": int(time.time()), "name": "Pip",
            "base": "working" if busy else rng.choice(["idle", "idle", "asleep"]),
            "busy": busy, "idle": len(sessions) - busy - wait, "wait": wait,
-           "quiet": rng.choice([0, 0, 0, 5]), "vol": 6}
+           "vol": 6}
     if wait:
         waiting = next(t for t in sessions if t[2] == "wait")
         msg["attn"] = {"agent": waiting[0], "project": waiting[1], "more": wait - 1}
@@ -227,11 +227,8 @@ def soak_state(rng: random.Random) -> dict:
 
 
 def soak_moment(rng: random.Random) -> dict:
-    """An animation, a mumble, or both, as the Mac sends them, and now and
-    then the empty moment that ends listening (PROTOCOL.md §3)."""
+    """An animation, a mumble, or both, as the Mac sends them."""
     msg = {"t": "moment", "ttl": 5}
-    if rng.random() < 0.1:
-        return msg
     if rng.random() < 0.7:
         msg["anim"] = rng.choice(ANIMS)
     if "anim" not in msg or rng.random() < 0.4:
@@ -243,12 +240,12 @@ def soak_moment(rng: random.Random) -> dict:
 
 
 def soak_input(rng: random.Random) -> dict:
-    """BOOT taps and holds, and touches anywhere (each a tap on release),
-    short and long, the status strip included."""
-    kind = rng.choice(["tap", "hold", "touch", "long_touch"])
+    """BOOT presses and touches anywhere (each a tap on release), short and
+    long, the status strip included."""
+    kind = rng.choice(["tap", "long_press", "touch", "long_touch"])
     if kind == "tap":
         return {"t": "dbg.press", "ms": 100}
-    if kind == "hold":
+    if kind == "long_press":
         return {"t": "dbg.press", "ms": rng.randint(500, 3000)}
     return {"t": "dbg.touch", "x": rng.randint(10, 310), "y": rng.randint(10, 235),
             "ms": 800 if kind == "long_touch" else 100}
@@ -294,10 +291,8 @@ def cmd_soak(args: argparse.Namespace) -> int:
                 samples.append({"t": round(elapsed, 1), **dev.vitals()})
                 next_ping = elapsed + 5
             time.sleep(rng.uniform(0.2, 1.5))
-        # Stuck? The Mac's stop ends any listening it started; then calm
-        # snapshots must bring back the plain face once the last press and
-        # push-to-talk (held ≤ 3 s, then ≤ 8 s waiting for the reply) are over.
-        dev.send({"t": "moment", "ttl": 5})
+        # Stuck? Calm snapshots must bring back the plain face once the
+        # last press (held ≤ 3 s) and moment are over.
         for _ in range(3):
             dev.send({"t": "state", "v": 1, "base": "idle", "busy": 0, "idle": 1, "wait": 0})
             time.sleep(5)
@@ -487,8 +482,7 @@ def mumble_at_board_volume(args: argparse.Namespace) -> int:
         st = dev.request({"t": "dbg.state"})
         vol = st.get("vol")
         print(f"volume {vol} ({'the Mac app' if mac else 'the last `state` the board got; the Mac app is not connected'})")
-        why = ("muted (volume 0)" if vol == 0 else "quiet" if st["quiet"] else
-               "something needs you" if st["attn"] else None)
+        why = "muted (volume 0)" if vol == 0 else "something needs you" if st["attn"] else None
         if why:
             print(f"not playing: the board is {why}, so it won't speak")
             return 1
@@ -524,9 +518,8 @@ def mumble_levels(args: argparse.Namespace) -> int:
 def cmd_play(args: argparse.Namespace) -> int:
     """One thing the Mac can make the board do, checked through dbg.state:
     an animation from the set (BEHAVIORS.md §5), with --say a mumble over
-    it; `stop`, the empty moment that ends listening (PROTOCOL.md §3);
-    `needs`, a fake "needs you" (play_needs); or the bring-up `pattern`."""
-    if args.say and args.what in ("stop", "needs", "pattern"):
+    it; `needs`, a fake "needs you" (play_needs); or the bring-up `pattern`."""
+    if args.say and args.what in ("needs", "pattern"):
         raise DeviceError(f"play {args.what} takes no --say")
     if args.what == "pattern":
         with Device(args.port) as dev:
@@ -535,22 +528,9 @@ def cmd_play(args: argparse.Namespace) -> int:
         return 0
     if args.what == "needs":
         return play_needs(args)
-    if args.what == "stop":
-        with Device(args.port) as dev:
-            show_begin(dev)
-            dev.send({"t": "moment", "ttl": 5})
-            moment = dev.request({"t": "dbg.state"}).get("moment")
-        ok = not moment or moment.get("anim") != "listening"
-        print("stop: " + ("listening isn't playing now" if ok else "listening is still playing")
-              + (f" ({moment['anim']} plays on)" if moment and ok else ""))
-        return 0 if ok else 1
     with Device(args.port) as dev:
         show_begin(dev)
         show_state(dev, args.vol, base=args.base)
-        if args.what != "listening":
-            # The empty moment first: no other animation replaces a
-            # listening left playing (BEHAVIORS.md §3.3).
-            dev.send({"t": "moment", "ttl": 5})
         msg = {"t": "moment", "anim": args.what, "ttl": 5}
         if args.say:
             msg["say"] = boopdev_voice(args.say, args.word, 1, args.seed)[0]
@@ -607,10 +587,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("message", help="""JSON, e.g. '{"t":"dbg.press","ms":100}' or '{"t":"dbg.clock","run":true}'""")
     p.set_defaults(func=cmd_send)
     vol = {"type": int, "choices": range(1, 11), "default": 6, "metavar": "1-10", "help": "volume (default 6)"}
-    p = sub.add_parser("play", help="play an animation (with --say, a mumble over it), stop, a fake needs-you "
+    p = sub.add_parser("play", help="play an animation (with --say, a mumble over it), a fake needs-you "
                                     "with its chirp, or the bring-up pattern")
-    p.add_argument("what", choices=ANIMS + ["stop", "needs", "pattern"],
-                   help=", ".join(ANIMS) + "; stop (the empty moment); needs; pattern")
+    p.add_argument("what", choices=ANIMS + ["needs", "pattern"],
+                   help=", ".join(ANIMS) + "; needs; pattern")
     p.add_argument("--say", choices=FEELINGS, metavar="FEELING", help=f"a mumble with this feeling: {', '.join(FEELINGS)}")
     p.add_argument("--word", help="the mumble's word")
     p.add_argument("--seed", type=int)

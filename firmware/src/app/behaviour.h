@@ -26,16 +26,12 @@ struct Model {
   char project[24] = "";
   int more = 0;
   int busy = 0, idle = 0, wait = 0;
-  int quiet = 0;
   int vol = 6;
 };
 
-// A moment as it arrives (PROTOCOL.md §3). With no anim, only the mumble;
-// with neither an `anim` nor a `say` field, it's the empty moment, which
-// ends `listening` and does nothing else.
+// A moment as it arrives (PROTOCOL.md §3). With no anim, only the mumble.
 struct MomentIn {
   render::Anim anim = render::Anim::kNone;
-  bool empty = false;  // no `anim` and no `say` field
   int syllables = 0;  // 0: no mumble
   const char* word = nullptr;
   int at = -1;
@@ -50,9 +46,6 @@ class Behaviour {
  public:
   // Timings (BEHAVIORS.md, UX.md). Proposed values are marked there.
   static constexpr uint32_t kNoAppMs = 30000;
-  // After push-to-talk's release, listening waits at most this long for
-  // the reply (BEHAVIORS.md §3.3).
-  static constexpr uint32_t kReplyWaitMs = 8000;
   static constexpr uint32_t kBubbleReadMs = 1200;  // the word stays up after the mumble
   static constexpr uint32_t kPressEaseMs = 60;     // the press squish
   static constexpr uint32_t kBlinkMs = 180;
@@ -62,15 +55,13 @@ class Behaviour {
   // Messages from the Mac, at time t.
   void onState(const Model& m, uint32_t t);
   // True when the moment carries a mumble that will play: not while
-  // something needs you, nor in quiet mode.
+  // something needs you.
   bool onMoment(const MomentIn& m, uint32_t t);
 
   // Inputs, already recognised as gestures (UX.md §4).
   void pressDown(uint32_t t);  // visible feedback at once
   void pressUp(uint32_t t);
   void tap(uint32_t t);  // BOOT, or a touch anywhere
-  void talkOn(uint32_t t);
-  void talkOff(uint32_t t);
   // dbg.light: holds the LED and backlight until the next state.
   void overrideLed(uint32_t rgb) { ledOverride_ = true, ledSet_ = rgb; }
   void overrideBacklight(uint8_t level) { blOverride_ = true, blSet_ = level; }
@@ -169,9 +160,8 @@ class Behaviour {
   void startLife(uint32_t t, Rng& rng);
   uint32_t lifeGap(Rng& rng) const;
   bool momentOn(uint32_t t) const;
-  bool listening(uint32_t t) const;  // `listening` is playing
-  // Something needs you (BEHAVIORS.md §1), or `listening` waits for the
-  // reply (§3.3): a tap or another animation doesn't take the face over.
+  // Something needs you (BEHAVIORS.md §1): a tap or an animation doesn't
+  // take the face over.
   bool held(uint32_t t) const;
   bool releaseEasing(uint32_t t) const;  // the press squish is easing out
   uint8_t blTarget(uint32_t t) const;  // the level the state asks for at t

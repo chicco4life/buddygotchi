@@ -219,7 +219,7 @@ final class HarnessTests: XCTestCase {
     func a(_ choice: String, _ p: Double = 0.9) -> Answer { Answer(choice: choice, probabilities: [choice: p]) }
 
     /// DECISIONS.md §5: `none` does nothing; the word is the exclamation
-    /// over 0.35, else the topic, else none; quiet mode and the like fail.
+    /// over 0.35, else the topic, else none; a blocked mumble fails.
     func testReact() {
         XCTAssertEqual(ReactAction.wordFloor, 0.35)
         var sent: [DeviceMoment] = []
@@ -235,8 +235,8 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(sent.count, 3)
         XCTAssertEqual(sent[0].say?.word, "again")
         XCTAssertNil(sent[0].anim, "a mumble plays over the face")
-        why = "quiet mode"
-        XCTAssertEqual(react.run(["react": a("proud")]), .failed("quiet mode"))
+        why = "something needs you"
+        XCTAssertEqual(react.run(["react": a("proud")]), .failed("something needs you"))
         XCTAssertEqual(sent.count, 3)
         XCTAssertEqual(react.questions().map(\.key), ["react", "word.feeling", "word.about"])
         XCTAssertEqual(react.questions()[0].options.map(\.name), ["none", "happy", "excited", "proud", "curious", "annoyed"])

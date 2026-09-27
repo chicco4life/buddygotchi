@@ -240,7 +240,7 @@ static void test_status_on_connect_and_every_minute() {
 
 // PROTOCOL.md §4: a real press goes to every live Mac link. A tool's
 // moment over USB while the app is on Bluetooth (boopctl mumble) doesn't
-// take the taps and push-to-talk away from the app; USB gets a copy while
+// take the taps away from the app; USB gets a copy while
 // the Mac spoke there in the last 30 s.
 static void test_input_reaches_every_live_link() {
   Rig r;
@@ -262,26 +262,24 @@ static void test_input_reaches_every_live_link() {
   r.hal.real = 1000;
   r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
   press(100, 100);  // a tap
-  press(800, 500);  // push-to-talk
+  press(800, 500);  // a long press: a tap too
   for (const std::string* out : {&r.ble.text, &r.usb.text}) {
-    TEST_ASSERT_EQUAL_INT(1, count(*out, tap));
-    TEST_ASSERT_EQUAL_INT(1, count(*out, "{\"t\":\"input\",\"k\":\"talk_on\"}"));
-    TEST_ASSERT_EQUAL_INT(1, count(*out, "{\"t\":\"input\",\"k\":\"talk_off\"}"));
+    TEST_ASSERT_EQUAL_INT(2, count(*out, tap));
   }
   // 30 s after the tool's last word, only Bluetooth hears.
   r.hal.real = 31000;
   press(100, 100);
-  TEST_ASSERT_EQUAL_INT(2, count(r.ble.text, tap));
-  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, tap));
+  TEST_ASSERT_EQUAL_INT(3, count(r.ble.text, tap));
+  TEST_ASSERT_EQUAL_INT(2, count(r.usb.text, tap));
   // Disconnected, Bluetooth hears nothing more.
   r.dev.disconnected(app::Link::kBle);
   press(100, 100);
-  TEST_ASSERT_EQUAL_INT(2, count(r.ble.text, tap));
+  TEST_ASSERT_EQUAL_INT(3, count(r.ble.text, tap));
 }
 
 // PROTOCOL.md §4: input a tool injects (dbg.press, dbg.touch) goes back
 // only over USB, where the tool is, even while the everyday app is on
-// Bluetooth, so a test run never turns on the owner's mic.
+// Bluetooth, so a test run never reaches the everyday app.
 static void test_injected_input_stays_on_usb() {
   Rig r;
   r.dev.connected(app::Link::kBle);
@@ -292,15 +290,13 @@ static void test_injected_input_stays_on_usb() {
   for (int ms = 0; ms <= 900; ms += 10) r.usbLine("{\"t\":\"dbg.clock\",\"step\":10}");
   r.usbLine("{\"t\":\"dbg.touch\",\"x\":160,\"y\":100}");
   r.usbLine("{\"t\":\"dbg.clock\",\"step\":200}");
-  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "{\"t\":\"input\",\"k\":\"talk_on\"}"));
-  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "{\"t\":\"input\",\"k\":\"talk_off\"}"));
-  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
+  TEST_ASSERT_EQUAL_INT(2, count(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
   TEST_ASSERT_FALSE(has(r.ble.text, "\"input\""));
   // With only dbg.* traffic from the tool, too.
   r.hal.real = 60000;
   r.usbLine("{\"t\":\"dbg.press\",\"ms\":100}");
   r.usbLine("{\"t\":\"dbg.clock\",\"step\":200}");
-  TEST_ASSERT_EQUAL_INT(2, count(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
+  TEST_ASSERT_EQUAL_INT(3, count(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
   TEST_ASSERT_FALSE(has(r.ble.text, "\"input\""));
 }
 
@@ -394,19 +390,21 @@ static void test_a_touch_ends_while_the_clock_is_frozen() {
   TEST_ASSERT_TRUE(has(r.usb.text, "\"touch\":{\"down\":false"));
 }
 
-static void test_physical_hold_sends_talk_on_and_off() {
+// UX.md §4: a long BOOT press is a tap, sent on release.
+static void test_a_physical_long_press_is_a_tap() {
   Rig r;
   r.usbLine("{\"t\":\"state\"}");
   r.usbLine("{\"t\":\"dbg.clock\",\"run\":true}");
   r.hal.boot = true;
   r.dev.tick();
-  r.hal.real = 450;
+  r.hal.real = 2000;
   r.dev.tick();
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"k\":\"talk_on\""));
+  TEST_ASSERT_FALSE(has(r.usb.text, "\"t\":\"input\""));
   r.hal.boot = false;
-  r.hal.real = 900;
+  r.hal.real = 2100;
   r.dev.tick();
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"k\":\"talk_off\""));
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "\"t\":\"input\""));
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
 }
 
 // VERIFICATION.md §3: a clock a tool froze runs again after 60 s with no
@@ -486,7 +484,7 @@ static void test_motion_redraws_at_most_every_16ms() {
 
 // DEVICE.md §6: a frame is drawn only when the picture changes. The face
 // moves a block at a time, so with the clock running every frame drawn is
-// a new picture, a few a second asleep or listening. And the screen always
+// a new picture, a few a second asleep. And the screen always
 // shows what drawing afresh would: stepping a frozen clock, which checks
 // on every step, it matches a second rig that takes a dbg.shot (which
 // draws afresh) after every step, pixel for pixel.
@@ -499,7 +497,6 @@ static void test_a_still_picture_isnt_redrawn() {
   };
   const Case cases[] = {
       {"{\"t\":\"state\",\"base\":\"asleep\"}", nullptr, 2400, 20},
-      {"{\"t\":\"state\",\"base\":\"idle\"}", "{\"t\":\"moment\",\"anim\":\"listening\"}", 1200, 20},
       {"{\"t\":\"state\",\"base\":\"working\",\"busy\":3}", nullptr, 1200, 40},
       {"{\"t\":\"state\",\"base\":\"working\"}", "{\"t\":\"moment\",\"anim\":\"cheer\"}", 1200, 90},
   };
@@ -651,27 +648,18 @@ static void test_moment_plays_then_ends_and_a_new_one_replaces_it() {
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
 }
 
-// PROTOCOL.md §3: the empty moment {"t":"moment","ttl":5} ends listening
-// and does nothing else; an unknown anim alone isn't the empty moment.
-static void test_the_empty_moment_ends_listening() {
+// PROTOCOL.md §3: a moment with neither `anim` nor `say`, or with only
+// an unknown anim, is ignored: whatever is playing carries on.
+static void test_a_moment_with_nothing_to_play_is_ignored() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"listening\",\"ttl\":5}");
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"ttl\":5}");
+  r.usbLine("{\"t\":\"moment\",\"ttl\":5}");
   r.usbLine("{\"t\":\"moment\",\"anim\":\"shrug\",\"ttl\":5}");  // removed: ignored
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"listening\""));
-  r.usbLine("{\"t\":\"moment\",\"ttl\":5}");
-  r.usb.text.clear();
-  r.usbLine("{\"t\":\"dbg.state\"}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"rx\":{\"state\":1,\"moment\":3}"));
-  // It never ends a cheer.
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"ttl\":5}");
-  r.usbLine("{\"t\":\"moment\",\"ttl\":5}");
-  r.usb.text.clear();
-  r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"cheer\""));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"rx\":{\"state\":1,\"moment\":3}"));
   TEST_ASSERT_EQUAL(0, r.hal.hushes);
 }
 
@@ -701,7 +689,7 @@ static void test_reset_forgets_the_mac_and_freezes_at_0() {
 }
 
 // F5: a moment's mumble reaches the player with its syllables, word, tune
-// and tempo, and the player follows volume, quiet and needs you.
+// and tempo, and the player follows volume and needs you.
 static void test_say_reaches_the_player() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":7}");
@@ -746,10 +734,9 @@ static void test_a_say_on_its_own_plays_the_mumble() {
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
 }
 
-static void test_mute_quiet_and_needs_you_keep_it_silent() {
+static void test_mute_and_needs_you_keep_it_silent() {
   const char* states[] = {
       "{\"t\":\"state\",\"base\":\"idle\",\"vol\":0}",
-      "{\"t\":\"state\",\"base\":\"idle\",\"quiet\":30}",
       "{\"t\":\"state\",\"base\":\"idle\",\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}",
   };
   for (const char* st : states) {
@@ -767,17 +754,17 @@ static void test_mute_quiet_and_needs_you_keep_it_silent() {
   r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":true,\"syllables\":2"));
-  // A line stops when quiet arrives mid-line.
+  // A line stops when mute arrives mid-line.
   Rig q;
   q.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
   q.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
   TEST_ASSERT_EQUAL(1, int(q.hal.said.size()));
-  q.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"quiet\":30}");
+  q.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":0}");
   TEST_ASSERT_EQUAL(1, q.hal.hushes);
 }
 
-// BEHAVIORS.md §4: the chirp is the only cue. A cheer plays none. Quiet
-// mode doesn't silence it (only mute does): it's the one thing Boop must say.
+// BEHAVIORS.md §4: the chirp is the only cue. A cheer plays none. Only
+// mute silences it: it's the one thing Boop must say.
 static void test_only_needs_you_chirps() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
@@ -792,20 +779,17 @@ static void test_only_needs_you_chirps() {
   TEST_ASSERT_EQUAL(1, r.hal.hushes);
   TEST_ASSERT_EQUAL(1, int(r.hal.cues.size()));
   TEST_ASSERT_TRUE(r.hal.cues[0] == voice::Cue::kChirp);
-  Rig q;
-  q.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"quiet\":30}");
-  q.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"quiet\":30,\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}");
-  TEST_ASSERT_EQUAL(1, int(q.hal.cues.size()));
 }
 
-// dbg.state carries nothing for the parked features (the cut, 2026-09-26).
+// dbg.state carries nothing for the parked features (the cut, 2026-09-26),
+// nor quiet mode (removed 2026-09-27).
 static void test_state_has_no_parked_fields() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"mood\":{\"energy\":40},\"focus\":true,\"night\":true,\"hungry\":2,"
-            "\"level\":3,\"threads\":[[\"claude\",\"x\",\"work\"]]}");
+            "\"level\":3,\"threads\":[[\"claude\",\"x\",\"work\"]],\"quiet\":30}");
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"screen\":\"face\""));
-  for (const char* gone : {"\"rung\"", "\"hushed\"", "\"focus\"", "\"night\"", "\"hungry\"", "\"mood\"", "\"level\""}) {
+  for (const char* gone : {"\"rung\"", "\"hushed\"", "\"focus\"", "\"night\"", "\"hungry\"", "\"mood\"", "\"level\"", "\"quiet\""}) {
     TEST_ASSERT_FALSE_MESSAGE(has(r.usb.text, gone), gone);
   }
   TEST_ASSERT_EQUAL(255, r.hal.bl);  // no night dimming
@@ -873,7 +857,7 @@ int main() {
   RUN_TEST(test_injected_input_stays_on_usb);
   RUN_TEST(test_pattern_until_next_state);
   RUN_TEST(test_injected_tap_reaches_the_mac);
-  RUN_TEST(test_physical_hold_sends_talk_on_and_off);
+  RUN_TEST(test_a_physical_long_press_is_a_tap);
   RUN_TEST(test_a_flickering_touch_is_one_tap);
   RUN_TEST(test_a_touch_ends_while_the_clock_is_frozen);
   RUN_TEST(test_a_frozen_clock_runs_again_after_60s_without_debug);
@@ -885,12 +869,12 @@ int main() {
   RUN_TEST(test_attention_shows_needs_you_and_chirps_once);
   RUN_TEST(test_no_app_after_30s_of_silence);
   RUN_TEST(test_moment_plays_then_ends_and_a_new_one_replaces_it);
-  RUN_TEST(test_the_empty_moment_ends_listening);
+  RUN_TEST(test_a_moment_with_nothing_to_play_is_ignored);
   RUN_TEST(test_a_strip_touch_is_a_tap);
   RUN_TEST(test_reset_forgets_the_mac_and_freezes_at_0);
   RUN_TEST(test_say_reaches_the_player);
   RUN_TEST(test_a_say_on_its_own_plays_the_mumble);
-  RUN_TEST(test_mute_quiet_and_needs_you_keep_it_silent);
+  RUN_TEST(test_mute_and_needs_you_keep_it_silent);
   RUN_TEST(test_only_needs_you_chirps);
   RUN_TEST(test_state_has_no_parked_fields);
   RUN_TEST(test_lines_over_512_bytes_are_dropped);

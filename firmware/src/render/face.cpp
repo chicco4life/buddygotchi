@@ -132,8 +132,7 @@ Eye makeEye(const Pose& p, const Frame& f, bool right) {
 
   // The upper lid comes down to lidY and the squint up to botY, in
   // sub-pixels; they take every row whose centre they pass.
-  int lid = p.lidTop + (right ? (p.wink > 0 ? p.wink : 0) : (p.wink < 0 ? -p.wink : 0));
-  lid = clamp(lid, 0, 1000);
+  int lid = clamp(int(p.lidTop), 0, 1000);
   int top = e.y0 * kB, hs = (e.y1 - e.y0 + 1) * kB;
   int lidY = top + hs * lid / 1000;
   int botY = top + hs - int(int64_t(hs) * kSquint / 1000 * happy / 1000);
@@ -297,7 +296,6 @@ Pose blend(const Pose& a, const Pose& b, int t) {
   o.eyeSize = int16_t(lerp(a.eyeSize, b.eyeSize, t));
   o.lidTop = int16_t(lerp(a.lidTop, b.lidTop, t));
   o.lidBot = int16_t(lerp(a.lidBot, b.lidBot, t));
-  o.wink = int16_t(lerp(a.wink, b.wink, t));
   o.squash = int16_t(lerp(a.squash, b.squash, t));
   o.mouthCurve = int16_t(lerp(a.mouthCurve, b.mouthCurve, t));
   o.mouthOpen = int16_t(lerp(a.mouthOpen, b.mouthOpen, t));

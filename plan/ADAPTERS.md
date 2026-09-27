@@ -226,7 +226,7 @@ it does remove an older Boop's, which call `~/.boop/boop-hook.sh`.
   without a sign. `make run` builds everything first for this reason.
 - **Install.** At setup, a switch for each agent found on this Mac (its
   `~/.claude` or `~/.codex` folder exists), on by default
-  ([UX.md](UX.md) §6), or one click in settings. The app shows exactly
+  ([UX.md](UX.md) §5), or one click in settings. The app shows exactly
   what it will add. Each entry has `timeout: 5` (seconds). Claude runs a
   `Notification` hook only for the types its matcher lists, so Boop's
   lists every type §3 maps, `permission_prompt|elicitation_dialog|idle_prompt`;

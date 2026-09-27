@@ -40,7 +40,7 @@ milestone's evidence says which ones ran.
 
 ## 2. Owner checks
 
-What only a person can check: Bluetooth, the mic, sound and light, the
+What only a person can check: Bluetooth, sound and light, the
 real screen and menu bar, and Jev with the owner's key. What Boop should
 do is in [BEHAVIORS.md](BEHAVIORS.md) and [UX.md](UX.md). The app runs
 the `boop` personality with the owner's Jev key unless a check says
@@ -54,7 +54,7 @@ that's off becomes an open item (§3).
    pixel, [VERIFICATION.md](VERIFICATION.md) L2), but nobody has watched
    them move: the face moving as one sprite, the one-block breathing bob,
    the working strain and sweat drop, the cheer's landing squash and
-   beating heart, and the listening "ooh". Say what you'd change.
+   beating heart. Say what you'd change.
 2. **`make run`, or `make debug` to watch everything.** Within about 10 s
    the app connects to `Boop-XXXX` and the board leaves the no-app face.
    `make debug` also prints every hook, decision, device line and brain
@@ -67,9 +67,9 @@ that's off becomes an open item (§3).
    `~/.boop` entries gone, and the doctor passes.
 4. **Tap the screen lightly, then firmly; press BOOT; hold BOOT; then tap
    four times quickly and keep tapping.** Each touch or press is one
-   wiggle, and a light touch counts once too (`make debug` prints one
-   `device: input tap`), because a touch ends only after 50 ms without
-   contact. Holding BOOT shows `listening`. The fourth quick tap also gets
+   wiggle, holding BOOT included, and a light touch counts once too
+   (`make debug` prints one `device: input tap`), because a touch ends
+   only after 50 ms without contact. The fourth quick tap also gets
    an annoyed mumble, and more tapping gets no second grumble within a
    minute ([BEHAVIORS.md](BEHAVIORS.md) §3.3).
 
@@ -98,15 +98,12 @@ that's off becomes an open item (§3).
 11. **Esc while Claude is between tool calls.** Within about a minute Boop
     goes idle, with no cheer or mumble; at once if a tool was running.
 
-**Push-to-talk, personalities and the brain**
+**Personalities and the brain**
 
-12. **Hold BOOT and speak; then click Talk, speak and click Send.** macOS
-    asks for Speech Recognition and the Microphone the first time. While
-    the mic is on, the menu-bar eyes turn red, the popover says
-    "Listening…", and the device shows `listening` with no chatter
-    cutting in. When the mic goes off, `listening` ends at once and Boop
-    doesn't reply: talk is inert for now ([BEHAVIORS.md](BEHAVIORS.md)
-    §3.3).
+12. **`make flash`, then `make run`, after push-to-talk's removal.** The
+    popover has no Talk button, macOS no longer asks for the Microphone
+    or Speech Recognition, and holding BOOT is just a wiggle
+    ([ARCHITECTURE.md](ARCHITECTURE.md), decision log 2026-09-27).
 13. **Paste Jev's key in Settings, then work normally for a while.** The
     Personality card loses its "Without a Jev API key" line. Routine
     turns go by quietly; a very long finish gets a proud mumble on top of
@@ -132,7 +129,7 @@ that's off becomes an open item (§3).
 **The Mac app and the link**
 
 18. **The popover and the menu-bar icon in light and dark, with an
-    approval waiting.** The Warm Terminal look ([UX.md](UX.md) §7), with
+    approval waiting.** The Warm Terminal look ([UX.md](UX.md) §6), with
     the needs-you icon's deeper amber clear on a light menu bar. In the
     active popover, setup's switches are sage when on and the volume
     slider fills in ink, which `Boop --snapshots` can't show.
@@ -172,9 +169,9 @@ fixed. Pick one up by writing it into its spec first.
   ([ADAPTERS.md](ADAPTERS.md) §4). Hooking `SubagentStop` and letting it
   answer only that subagent's request would clear it; it mustn't make an
   idle session working.
-- **Talk and memory are out of the brain.** Push-to-talk is inert, so
-  quiet mode has no way in, and memory keeps only Boop's name and the
-  day; both come back as events and actions ([FUTURE.md](FUTURE.md)).
+- **Talking to Boop, quiet mode and memory are out.** Memory keeps only
+  Boop's name and the day; they come back as events and actions
+  ([FUTURE.md](FUTURE.md)).
 - **Some of Voice's words can't be picked.** The brain offers eleven of
   the 40 ([harness/DECISIONS.md](harness/DECISIONS.md) §3); the rest are
   recorded on the device for nothing until the lists grow.

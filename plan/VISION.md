@@ -88,9 +88,10 @@ The refactor finishes. Boop hops, beams, a heart pops up, and it mumbles
 something proud. Then Claude wraps up a fix with the tests still failing:
 no cheer this time, just an annoyed mumble at the agent, *"tu-ka… tests."*
 
-Later you hold the button and snap "shut up". Boop mumbles something small
-and sad, and carries on. Say "be quiet for an hour" and it stops mumbling
-for the hour, though it still chirps when an agent needs you. Poke it again
+Later, once you can talk to it again ([FUTURE.md](FUTURE.md)), you snap
+"shut up" and Boop mumbles something small and sad, and carries on; "be
+quiet for an hour" stops its mumbling for the hour, though it still chirps
+when an agent needs you. Poke it again
 and again and it grumbles, *"…nope!"*, and a moment later it has forgotten
 all about it.
 
@@ -107,7 +108,8 @@ harness evals check the brain's part ([EVALS.md](EVALS.md) §5).
    mumble that names what broke, *"…tests."*, or *"…ugh."* when there's
    nothing to name.
 3. **Yell at it, and it's sad.** Snap at it or tell it off, and it mumbles
-   something small and sad.
+   something small and sad. This one waits for talking to Boop to come
+   back ([FUTURE.md](FUTURE.md)); for now there's no mic.
 4. **Poke it too much, and it grumbles.** One poke gets a happy wiggle and a
    heart. Keep poking and it grumbles (*"…nope!"*), and a few seconds
    later it has forgotten all about it.
@@ -127,9 +129,6 @@ Calm mode keeps its grumbles to itself ([BEHAVIORS.md](BEHAVIORS.md)
   own prompt.
 - **Reacts like a creature.** A face that sleeps, idles, works and looks
   at you, mumbles while agents work, and the hero moments above.
-- **Listens.** Hold its button, or click Talk in the Mac app, and speak.
-  For now Boop only listens; mumbling back, going quiet when asked and
-  keeping the facts you tell it come back later ([FUTURE.md](FUTURE.md)).
 - **Has a personality and moods:** its everyday self, or an over-the-top
   one for debugging, and a mood that sours when things keep failing and
   lifts when they work ([BEHAVIORS.md](BEHAVIORS.md) §6,
@@ -193,9 +192,8 @@ changes.
 6. **No reset button.** Boop lives in files on your Mac, not in the device
    or the model, and it belongs to you. What it keeps about you changes
    only when you tell it something lasting, and you can remove any line.
-7. **Private by construction.** There is no camera and no wake word. The
-   mic is on only while you hold the button or until you click Send.
-   Nothing logs your keystrokes. Boop's memory lives on your Mac, and
+7. **Private by construction.** There is no camera, no mic and no wake
+   word. Nothing logs your keystrokes. Boop's memory lives on your Mac, and
    without an API key everything runs there. With a Jev key, each
    decision goes to TypeSafe with Boop's steering (its guide, personality
    and mood) and short lines about what just happened. Your code,

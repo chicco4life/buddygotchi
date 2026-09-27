@@ -175,7 +175,7 @@ the last frame. It draws a frame only when the picture changes: after a
 message or an input, when the face lands on different blocks of its grid
 (`render::FaceLayout`), or when the bubble comes or goes. The face moves
 a block at a time, so it changes about 20 times a second in a cheer or a
-wiggle, a few times a second asleep, working or listening, and between
+wiggle, a few times a second asleep or working, and between
 blinks not at all. Its parts can cross block lines a few ms apart, so it
 draws at most once every 16 ms of real time, which shows them together.
 A frozen clock checks on every step, so scenario frames stay exact, and

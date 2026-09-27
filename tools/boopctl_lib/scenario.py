@@ -13,7 +13,7 @@ REPO = Path(__file__).resolve().parents[2]
 SCENARIOS = REPO / "firmware" / "test" / "scenarios"
 GOLDEN = REPO / "firmware" / "test" / "golden"
 
-PRESS_MS = {"tap": 100, "hold": 800}
+PRESS_MS = {"tap": 100}
 
 
 def resolve(name: str) -> Path:

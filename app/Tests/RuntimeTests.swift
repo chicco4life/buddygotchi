@@ -102,31 +102,6 @@ final class RuntimeTests: XCTestCase {
         wait("state after status") { transport.types().filter { $0 == "state" }.count > before }
         XCTAssertEqual(runtime.home.sync { runtime.link.status?.id }, "b00p-54fe")
 
-        // Push-to-talk reaches the Mac's listener.
-        var heard: [Bool] = []
-        runtime.home.sync { runtime.onListen = { heard.append($0) } }
-        transport.onLine?(#"{"t":"input","k":"talk_on"}"#)
-        transport.onLine?(#"{"t":"input","k":"talk_off"}"#)
-        wait("listen on and off") { runtime.home.sync { heard } == [true, false] }
-
-        // The menu bar sees the mic on, and a dropped link turns it off.
-        var shown: [Bool] = []
-        runtime.home.sync { runtime.onChange = { shown.append($0.listening) } }
-        transport.onLine?(#"{"t":"input","k":"talk_on"}"#)
-        wait("listening shows") { runtime.home.sync { heard.count == 3 && shown.last == true } }
-        transport.onConnection?(false)
-        wait("mic off when the link drops") { runtime.home.sync { heard } == [true, false, true, false] }
-        XCTAssertEqual(runtime.home.sync { shown.last }, false)
-        transport.onConnection?(true)
-
-        // The Talk button: the device shows listening, and the mic going
-        // off ends it at once with the empty moment, since talk is inert.
-        runtime.setListening(true)
-        wait("listening on the device") { transport.sent.contains { $0.contains("\"anim\":\"listening\"") } }
-        runtime.setListening(false)
-        wait("mic off") { runtime.home.sync { heard } == [true, false, true, false, true, false] }
-        wait("the empty moment") { transport.sent.contains(#"{"t":"moment","ttl":5}"#) }
-
         // A finished turn clears "needs you" and cheers.
         XCTAssertTrue(HookSocket.send(hook("PostToolUse", tool: "Bash"), to: socket))
         XCTAssertTrue(HookSocket.send(hook("Stop"), to: socket))
@@ -453,25 +428,6 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(says(), 1, "nothing playing: chatter plays")
     }
 
-    /// BEHAVIORS.md §3.3: a brain mumble still waiting its turn when the mic
-    /// goes on (here behind a cheer) is dropped: it would end `listening`.
-    func testMicOnDropsWaitingBrainMumbles() throws {
-        let transport = FakeTransport()
-        let runtime = try makeRuntime(transport)
-        let says = { transport.sent.filter { $0.contains("\"say\"") }.count }
-        runtime.home.sync {
-            runtime.run([.moment(anim: "cheer")])
-            let line = VoiceLine(groups: [["bi", "do"]], word: nil, at: 0, tune: .up, ms: 120)
-            runtime.moments.schedule.brain(DeviceMoment(say: line), now: runtime.options.clock())
-            XCTAssertEqual(runtime.moments.schedule.waiting.count, 1, "waiting behind the cheer")
-            runtime.device(#"{"t":"input","k":"talk_on"}"#)
-            XCTAssertTrue(runtime.moments.schedule.waiting.isEmpty, "the mic went on")
-            let later = runtime.options.clock() + 3000
-            Runtime.pump(runtime.moments, link: runtime.link, clock: { later }, home: runtime.home, log: { _ in })
-        }
-        XCTAssertEqual(says(), 0, "the cheer has played and nothing follows it")
-    }
-
     /// ARCHITECTURE.md §3.2: the app knows how long each rule moment plays on
     /// the device. The numbers are firmware/src/app/behaviour.cpp's
     /// `onMoment` and `play`, and firmware/src/render/anim.cpp's
@@ -479,8 +435,6 @@ final class RuntimeTests: XCTestCase {
     func testMomentLengthsFollowTheFirmware() {
         XCTAssertEqual(DeviceMoment(anim: "cheer").playMs, 2000)
         XCTAssertEqual(DeviceMoment(anim: "wiggle").playMs, 700)
-        XCTAssertEqual(DeviceMoment(anim: "listening").playMs, 0, "the empty moment ends it")
-        XCTAssertEqual(DeviceMoment.empty.playMs, 0)
 
         // A mumble lasts its syllables plus two beats for a word, at 60–400
         // ms a beat, then 1.2 s of bubble, when that's longer than the face.

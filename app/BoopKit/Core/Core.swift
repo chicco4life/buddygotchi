@@ -1,8 +1,8 @@
 import Foundation
 
 /// The core (ARCHITECTURE.md §3.2): plain rules with no queue. It keeps the
-/// session table and decides what the device shows, the rule reactions,
-/// quiet, and which inputs reach the brain.
+/// session table and decides what the device shows, the rule reactions
+/// and which inputs reach the brain.
 ///
 /// It's a pure state machine: every call takes the time and returns effects
 /// for the app to carry out. Call `tick` about once a second for the timers.
@@ -108,7 +108,6 @@ public final class Core {
     var sessions: [String: Session] = [:]
     var nextOrder = 0
     var rng: SplitMix64
-    var quietUntil: Int64 = 0
     /// The last day with any activity; a new one starts short-term memory
     /// fresh.
     var lastActiveDay: String?
@@ -117,14 +116,6 @@ public final class Core {
     /// The wall clock less the steady one, for days and times of day.
     var wallOffsetMs: Int64 = 0
 
-    // Push-to-talk (UX.md §5).
-    /// Who turned the Mac's mic on: the device's BOOT button or the app's
-    /// Talk button.
-    public enum Talker: Sendable { case device, app }
-    /// The mic is never on longer than this, whatever happens to the release.
-    public static let listenLimitMs: Int64 = 30_000
-    /// While the Mac's mic is on: who turned it on, and when.
-    public private(set) var listening: (by: Talker, since: Int64)?
     // Poke streaks (BEHAVIORS.md §3.3).
     var taps: [Int64] = []
     var pokedAt: Int64?
@@ -309,7 +300,7 @@ public final class Core {
 
     /// An `input` message's `k` (PROTOCOL.md §4).
     public enum DeviceInput: String, Sendable {
-        case tap, talkOn = "talk_on", talkOff = "talk_off"
+        case tap
     }
 
     /// An `input` message from the device. The device has already reacted.
@@ -322,66 +313,7 @@ public final class Core {
         switch input {
         case .tap:
             tapped(now, &fx)
-        case .talkOn:
-            // The device already shows `listening`, and holds it after the
-            // release until the reply, or for at most 8 s.
-            startListening(by: .device, now, &fx)
-        case .talkOff:
-            stopListening(now, &fx)
         }
-        publish(now, &fx)
-        return fx
-    }
-
-    /// What the person said on push-to-talk. Talk is inert for now
-    /// (BEHAVIORS.md §3.3): the words go nowhere.
-    @discardableResult
-    public func talk(_ words: String, yelled: Bool = false, at now: Int64) -> [CoreEffect] { [] }
-
-    /// The app's Talk button: start or stop listening. The device shows
-    /// `listening` while the mic is on; the Mac ends it when the mic goes
-    /// off, since no reply is coming (BEHAVIORS.md §3.3).
-    @discardableResult
-    public func listen(_ on: Bool, at now: Int64) -> [CoreEffect] {
-        var fx: [CoreEffect] = []
-        advance(to: now, &fx)
-        startDayIfNew(now, &fx)
-        if on {
-            if listening == nil {
-                startListening(by: .app, now, &fx)
-                play("listening", &fx)
-            }
-        } else {
-            stopListening(now, &fx)
-        }
-        publish(now, &fx)
-        return fx
-    }
-
-    /// The link to the device dropped, so its button's release can't arrive:
-    /// stop listening now. The app's Talk button carries on.
-    @discardableResult
-    public func linkDown(at now: Int64) -> [CoreEffect] {
-        var fx: [CoreEffect] = []
-        if listening?.by == .device { stopListening(now, &fx) }
-        return fx
-    }
-
-    /// The Mac's mic or speech recognition couldn't start: the device's
-    /// `listening` face ends at once, after either button.
-    @discardableResult
-    public func micFailed(at now: Int64) -> [CoreEffect] {
-        var fx: [CoreEffect] = []
-        if listening == nil { fx.append(.endListening) } else { stopListening(now, &fx) }
-        return fx
-    }
-
-    /// Quiet mode: no mumbles for `minutes` (0 ends it). Nothing turns it on
-    /// while talk is inert (BEHAVIORS.md §4).
-    @discardableResult
-    public func setQuiet(minutes: Int, at now: Int64) -> [CoreEffect] {
-        quietUntil = minutes > 0 ? now + Int64(minutes) * 60_000 : 0
-        var fx: [CoreEffect] = []
         publish(now, &fx)
         return fx
     }
@@ -410,16 +342,12 @@ public final class Core {
     /// Whether there's a brain to wake: Jev's key saved or removed.
     public func setBrain(_ available: Bool) { config.brain = available }
 
-    /// Timers: the Codex grace period, the safety net, quiet running out,
-    /// chatter, heartbeats and the push-to-talk limit.
+    /// Timers: the Codex grace period, the safety net, chatter and
+    /// heartbeats.
     @discardableResult
     public func tick(at now: Int64) -> [CoreEffect] {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
-        if let l = listening, now - l.since >= Self.listenLimitMs {
-            // The device's own button hits the same limit.
-            stopListening(now, &fx)
-        }
         publish(now, &fx)
         return fx
     }
@@ -444,11 +372,10 @@ public final class Core {
         }
         return StateSnapshot(
             time: wall(now) / 1000, name: StateSnapshot.clip(config.name), base: base, attn: attn,
-            busy: working.count, idle: idle.count, wait: waiting.count,
-            quiet: quietLeft(now), vol: config.volume)
+            busy: working.count, idle: idle.count, wait: waiting.count, vol: config.volume)
     }
 
-    /// Every session, for the popover's list (UX.md §7). The device doesn't
+    /// Every session, for the popover's list (UX.md §6). The device doesn't
     /// get these.
     public func sessionList(at now: Int64) -> [SessionSummary] {
         let (waiting, working, idle) = grouped(at: now)
@@ -456,14 +383,10 @@ public final class Core {
             + idle.map { SessionSummary($0, .idle) }
     }
 
-    /// Why a mumble can't play now, or nil: quiet mode, something needs
-    /// you, or the mic is on, since a mumble would end `listening`
-    /// (BEHAVIORS.md §3.3).
+    /// Why a mumble can't play now, or nil: something needs you
+    /// (BEHAVIORS.md §1).
     public func mumbleBlock(at now: Int64) -> String? {
-        if needsYouShowing { return "something needs you" }
-        if quietLeft(now) > 0 { return "quiet mode" }
-        if listening != nil { return "the mic is on" }
-        return nil
+        needsYouShowing ? "something needs you" : nil
     }
 
     // MARK: - Rules
@@ -488,18 +411,6 @@ public final class Core {
 
     var needsYouShowing: Bool { sessions.values.contains { $0.needsSince != nil } }
 
-    func quietLeft(_ now: Int64) -> Int {
-        quietUntil > now ? Int((quietUntil - now + 59_999) / 60_000) : 0
-    }
-
-    /// Mumbles never play in quiet mode, or while something needs you.
-    func mumblesAllowed(_ now: Int64) -> Bool {
-        quietLeft(now) == 0 && !needsYouShowing
-    }
-
-    /// The mic is on.
-    func talking(_ now: Int64) -> Bool { listening != nil }
-
     /// Nobody is waiting on the session any more.
     func clearRequest(_ s: inout Session, _ now: Int64) {
         s.needsSince = nil
@@ -516,21 +427,6 @@ public final class Core {
         fx.append(.newDay(date: today, firstSeen: clock(now)))
     }
 
-    func startListening(by talker: Talker, _ now: Int64, _ fx: inout [CoreEffect]) {
-        guard listening == nil else { return }
-        listening = (talker, now)
-        fx.append(.listen(true))
-    }
-
-    /// Turns the mic off, if it's on, and ends `listening` at once: no
-    /// reply is coming while talk is inert.
-    func stopListening(_ now: Int64, _ fx: inout [CoreEffect]) {
-        guard listening != nil else { return }
-        listening = nil
-        fx.append(.listen(false))
-        fx.append(.endListening)
-    }
-
     /// Plays a rule moment now. The device replaces one that's playing.
     func play(_ anim: String, _ fx: inout [CoreEffect]) {
         fx.append(.moment(anim: anim))
@@ -538,10 +434,9 @@ public final class Core {
 
     /// A finished turn: a cheer, even while other sessions are still
     /// working, as the personality allows (BEHAVIORS.md §3.1).
-    /// None while you talk to Boop (BEHAVIORS.md §3.3).
     @discardableResult
     func finished(_ s: Session, durationMs ms: Int64, _ now: Int64, _ fx: inout [CoreEffect]) -> Bool {
-        let cheer = config.rules.cheers(lengthMs: ms) && !talking(now)
+        let cheer = config.rules.cheers(lengthMs: ms)
         if cheer { play("cheer", &fx) }
         return cheer
     }
@@ -580,11 +475,6 @@ public final class Core {
                                wakesBrain: wakes(now), facts: facts)))
     }
 
-    /// Nothing wakes the brain while something needs you, or in quiet mode.
-    func inputsAllowed(_ now: Int64) -> Bool {
-        !needsYouShowing && quietLeft(now) == 0
-    }
-
     /// Runs every timer due by `now`, in order.
     func advance(to now: Int64, _ fx: inout [CoreEffect]) {
         for (key, var s) in sessions {
@@ -610,8 +500,6 @@ public final class Core {
                 sessions[key] = s
             }
         }
-        if quietUntil != 0 && quietUntil <= now { quietUntil = 0 }
-
         chatter(now, &fx)
         heartbeat(now, &fx)
     }
@@ -619,8 +507,7 @@ public final class Core {
     /// Working chatter (BEHAVIORS.md §2): while agents work, a mumble every
     /// so often, as the personality sets. About half the time it asks
     /// about a working session's latest topic (`curious`); otherwise it's
-    /// `happy`, with no word. None while you talk to Boop: it would end the
-    /// `listening` face before the reply.
+    /// `happy`, with no word. None while something needs you.
     func chatter(_ now: Int64, _ fx: inout [CoreEffect]) {
         let working = sessions.values.filter { isWorking($0, now) && $0.needsSince == nil }
         guard !working.isEmpty, let gap = config.rules.chatterMs else {
@@ -633,7 +520,7 @@ public final class Core {
         }
         guard now >= due else { return }
         nextChatterAt = now + Int64(rng.int(in: gap))
-        guard mumblesAllowed(now), !talking(now) else { return }
+        guard !needsYouShowing else { return }
         let topics = working.sorted { $0.order < $1.order }.compactMap(\.topic)
         let word = !topics.isEmpty && rng.chance(50) ? topics[rng.int(in: 0...(topics.count - 1))] : nil
         fx.append(.mumble(feeling: word == nil ? "happy" : "curious", word: word))
@@ -642,9 +529,9 @@ public final class Core {
     // MARK: - Events (harness/EVENTS.md)
 
     /// Whether an event whose kind wakes the brain does: never while
-    /// something needs you, in quiet mode, or with no brain (EVENTS.md §6).
+    /// something needs you, or with no brain (EVENTS.md §6).
     func wakes(_ now: Int64) -> Bool {
-        config.brain && inputsAllowed(now)
+        config.brain && !needsYouShowing
     }
 
     func noteActivity(_ now: Int64) {

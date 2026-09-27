@@ -260,8 +260,8 @@ need. The device keeps all 40; the brain offers only these.
 **Questions:** `react`, `word.feeling`, `word.about` (§3).
 
 **Made with:** Voice, a way to queue a moment (`MomentSchedule`, then the
-device, [ARCHITECTURE.md](../ARCHITECTURE.md) §3.2), and the core's gates
-(quiet mode, something needing you).
+device, [ARCHITECTURE.md](../ARCHITECTURE.md) §3.2), and the core's gate
+(something needing you).
 
 **`run`:**
 
@@ -275,7 +275,7 @@ device, [ARCHITECTURE.md](../ARCHITECTURE.md) §3.2), and the core's gates
    than a guessed one. A line has one real word ([VOICE.md](../VOICE.md)
    §6), so the other pick is only recorded. The floor is tuned by the
    evals ([EVALS.md](../EVALS.md)) and pinned in a test.
-3. Quiet mode is on, or something needs you → `ok: false`, with which.
+3. Something needs you → `ok: false`, saying so.
 4. Otherwise Voice builds the Minion line in the feeling's voice, with
    the word, and it's queued to wait its turn behind whatever is playing.
    It returns `ok: true` without waiting for it to play.

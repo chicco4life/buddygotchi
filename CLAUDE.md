@@ -104,7 +104,6 @@ rules that are easy to break:
   the single source, and the app bundles a copy in
   `app/Boop/Resources/steering/`.
 - **No code, file contents, prompts or agent transcripts go to the brain.**
-  The only exception is the person's own words on push-to-talk.
 - **"Needs you" and the screen priority are plain rules in the core.**
 - **The device only renders and reports.** It receives the same messages
   over Bluetooth and USB. Its drawing code stays independent of the display

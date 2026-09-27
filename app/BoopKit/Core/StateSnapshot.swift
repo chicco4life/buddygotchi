@@ -46,12 +46,10 @@ public struct StateSnapshot: Equatable, Sendable {
     public var busy: Int
     public var idle: Int
     public var wait: Int
-    /// Minutes of quiet left.
-    public var quiet: Int
     public var vol: Int
 
     public init(time: Int64, name: String, base: String, attn: Attention?, busy: Int, idle: Int, wait: Int,
-                quiet: Int, vol: Int) {
+                vol: Int) {
         self.time = time
         self.name = name
         self.base = base
@@ -59,7 +57,6 @@ public struct StateSnapshot: Equatable, Sendable {
         self.busy = busy
         self.idle = idle
         self.wait = wait
-        self.quiet = quiet
         self.vol = vol
     }
 
@@ -79,7 +76,7 @@ public struct StateSnapshot: Equatable, Sendable {
         if let attn {
             parts.append("\"attn\":{\"agent\":\(json(attn.agent)),\"project\":\(json(attn.project)),\"more\":\(attn.more)}")
         }
-        parts += ["\"busy\":\(busy)", "\"idle\":\(idle)", "\"wait\":\(wait)", "\"quiet\":\(quiet)", "\"vol\":\(vol)"]
+        parts += ["\"busy\":\(busy)", "\"idle\":\(idle)", "\"wait\":\(wait)", "\"vol\":\(vol)"]
         return "{" + parts.joined(separator: ",") + "}"
     }
 

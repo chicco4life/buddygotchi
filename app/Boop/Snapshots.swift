@@ -4,7 +4,7 @@ import SwiftUI
 
 /// `Boop --snapshots DIR`: renders the popover's panes and the menu-bar
 /// icons to PNGs, in light and dark, from fixed fixtures, then exits
-/// (VERIFICATION.md L0). No runtime, no Bluetooth, no microphone, and the
+/// (VERIFICATION.md L0). No runtime, no Bluetooth, and the
 /// agents' settings it reads are in a throwaway HOME.
 @MainActor
 enum Snapshots {
@@ -82,8 +82,8 @@ enum Snapshots {
     }
 
     /// `sessions` are agent, project and `wait`, `work` or `idle`.
-    static func status(base: String = "working", sessions rows: [[String]] = [], quiet: Int = 0, vol: Int = 6,
-                       connected: Bool = true, listening: Bool = false, personality: Personality = .boop,
+    static func status(base: String = "working", sessions rows: [[String]] = [], vol: Int = 6,
+                       connected: Bool = true, personality: Personality = .boop,
                        name: String = "Mochi", brain: String = "jev:jev-latest") -> Runtime.Status {
         let statuses: [String: SessionSummary.Status] = ["wait": .waiting, "work": .working, "idle": .idle]
         let sessions = rows.map { SessionSummary(agent: $0[0], project: $0[1], status: statuses[$0[2]]!) }
@@ -95,10 +95,10 @@ enum Snapshots {
                 StateSnapshot.Attention(agent: $0.agent, project: StateSnapshot.clip($0.project, marked: true), more: wait.count - 1)
             },
             busy: sessions.filter { $0.status == .working }.count, idle: sessions.filter { $0.status == .idle }.count,
-            wait: wait.count, quiet: quiet, vol: vol)
+            wait: wait.count, vol: vol)
         return Runtime.Status(snapshot: snapshot, sessions: sessions, connected: connected,
                               device: connected ? DeviceStatus(id: "b00p-54fe", fw: "1.0.0") : nil,
-                              personality: personality, brain: brain, listening: listening)
+                              personality: personality, brain: brain)
     }
 
     static func overviews(_ installer: HookInstaller) -> [(String, AppModel)] {
@@ -111,14 +111,8 @@ enum Snapshots {
             ("needs-you", model(installer, status: status(sessions: [
                 ["codex", "landing-page-redesign-v2", "wait"], ["claude", "jetpack", "wait"],
                 ["codex", "buddygotchi", "work"], ["claude", "notes", "idle"],
-            ], quiet: 8))),
-            ("listening", model(installer, status: status(sessions: [["claude", "jetpack", "work"]], listening: true))),
+            ]))),
             ("chatter", model(installer, status: status(sessions: [["claude", "jetpack", "work"]], personality: .chatter))),
-            ("mic-refused", {
-                let m = model(installer, status: status(base: "idle", sessions: [["claude", "jetpack", "idle"]]))
-                m.talkError = "Allow Boop in System Settings → Privacy & Security → Microphone."
-                return m
-            }()),
             ("offline", {
                 let m = model(installer, status: status(base: "idle", sessions: [["claude", "jetpack", "idle"]],
                                                         vol: 0, connected: false))
@@ -134,7 +128,7 @@ enum Snapshots {
             ("no-device", model(installer, status: status(base: "idle", sessions: [["claude", "jetpack", "idle"]],
                                                           connected: false), link: .none)),
             // Every mode chip at once, under the longest kind of name.
-            ("all-chips", model(installer, status: status(sessions: [["claude", "jetpack", "work"]], quiet: 12, vol: 0,
+            ("all-chips", model(installer, status: status(sessions: [["claude", "jetpack", "work"]], vol: 0,
                                                           personality: .chatter, name: "Wobblebottom McSnugs"))),
             // Many sessions, a long project, two in one project, and one
             // needing you from a project with no name.
@@ -149,7 +143,7 @@ enum Snapshots {
 
     // MARK: Contrast
 
-    /// UX.md §7's contrast rules, checked on every run, in both
+    /// UX.md §6's contrast rules, checked on every run, in both
     /// appearances: each text tone at least 4.5:1 on everything it sits on
     /// (the paper, a card, the well, its own chip and the needs-you card's
     /// amber wash); the filled buttons' labels 4.5:1 on their fills, pressed
@@ -179,17 +173,13 @@ enum Snapshots {
                       ("a button's label on its \(look) pressed fill", label, pressed, 4.5),
                       ("a \(look) filled button on a card", fill, card, 3)]
         }
-        pairs += [("Send's label", "#FFFFFF", Palette.recordingFill, 4.5),
-                  ("Send's label, pressed", "#FFFFFF", Palette.recordingPressed, 4.5),
-                  ("needs you on a light menu bar", Palette.menuAmberLight, "#F5F5F5", 3),
-                  ("needs you on a dark menu bar", Palette.amber, "#2A2A2A", 3),
-                  ("listening on a light menu bar", Palette.recording, "#F5F5F5", 3),
-                  ("listening on a dark menu bar", Palette.recording, "#2A2A2A", 3)]
+        pairs += [("needs you on a light menu bar", Palette.menuAmberLight, "#F5F5F5", 3),
+                  ("needs you on a dark menu bar", Palette.amber, "#2A2A2A", 3)]
         let low = pairs.compactMap { what, fg, bg, least -> String? in
             let ratio = contrast(fg, bg)
             return ratio < least ? "\(what) is \(String(format: "%.2f", ratio)):1, under \(least):1" : nil
         }
-        if !low.isEmpty { fail("snapshots: contrast (UX.md §7): \(low.joined(separator: "; "))") }
+        if !low.isEmpty { fail("snapshots: contrast (UX.md §6): \(low.joined(separator: "; "))") }
         print("contrast: \(pairs.count) pairs pass")
     }
 
@@ -250,7 +240,7 @@ enum Snapshots {
     /// top row at 1× and the bottom at 2×, each pixel blown up to 4×4 or 2×2
     /// so the grid can be judged.
     static func renderIcons(dark: Bool, to dir: URL) {
-        let moods: [FaceMood] = [.asleep, .idle, .working, .needsYou, .listening]
+        let moods: [FaceMood] = [.asleep, .idle, .working, .needsYou]
         let icon = MenuBarIcon.image(.idle).size
         let pad: CGFloat = 10, gap: CGFloat = 14, row: CGFloat = 24, zoom: CGFloat = 4
         let size = NSSize(width: 2 * pad + CGFloat(moods.count) * icon.width + CGFloat(moods.count - 1) * gap,

@@ -14,10 +14,6 @@ constexpr uint32_t kAmberDim = 0x805800;  // needs you: amber at half
 bool after(uint32_t a, uint32_t b) { return int32_t(a - b) > 0; }  // a later than b
 bool within(uint32_t t, uint32_t from, uint32_t ms) { return int32_t(t - from) >= 0 && int32_t(t - from) < int32_t(ms); }
 
-// The one moment that may play while something needs you (BEHAVIORS.md §1:
-// attention wins), so push-to-talk still works.
-bool overAttention(render::Anim a) { return a == render::Anim::kListening; }
-
 // 0 → 1024 → 0: up over `in` ms, held, down over the last `out` ms.
 int envelope(uint32_t t, uint32_t ms, uint32_t in, uint32_t out) {
   if (t >= ms) return 0;
@@ -56,9 +52,7 @@ bool Behaviour::momentOn(uint32_t t) const {
   return moment_.anim != render::Anim::kNone && within(t, moment_.at, moment_.ms);
 }
 
-bool Behaviour::listening(uint32_t t) const { return momentOn(t) && moment_.anim == render::Anim::kListening; }
-
-bool Behaviour::held(uint32_t t) const { return (model_.attn && !noApp(t)) || listening(t); }
+bool Behaviour::held(uint32_t t) const { return model_.attn && !noApp(t); }
 
 bool Behaviour::sayOn(uint32_t t) const { return say_.say.syllables > 0 && within(t, say_.at, say_.ms); }
 
@@ -144,7 +138,7 @@ void Behaviour::onState(const Model& m, uint32_t t) {
     ledOverride_ = blOverride_ = false;
     if (fresh) {  // a new "needs you": one chirp, and attention wins
       sound("chirp", t);
-      if (momentOn(t) && !overAttention(moment_.anim)) moment_.anim = render::Anim::kNone;
+      if (momentOn(t)) moment_.anim = render::Anim::kNone;
       say_ = Say{};  // no mumbles while something needs you
     }
     // Answered on the Mac (`attn` leaves), or back after no app: the face
@@ -154,20 +148,14 @@ void Behaviour::onState(const Model& m, uint32_t t) {
 
 // A moment with an anim replaces the one playing, and its mumble too. A
 // mumble on its own plays over whatever face is showing and doesn't change
-// it, except that it's the reply `listening` waits for, so it ends that,
-// even when it doesn't show (needs you, quiet). The empty moment ends
-// `listening` too, and nothing else (PROTOCOL.md §3). Attention wins
-// (BEHAVIORS.md §1) and `listening` holds until the reply (§3.3), so
-// neither gives way to another animation; the moment's mumble still counts.
+// it (PROTOCOL.md §3). Attention wins (BEHAVIORS.md §1): while something
+// needs you, no animation takes the face over and no mumble plays.
 bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
-  bool waiting = listening(t);
-  bool anim = in.anim != render::Anim::kNone && (!held(t) || overAttention(in.anim));
-  bool mumble = in.syllables > 0 && !model_.attn && model_.quiet <= 0;
-  bool ends = !anim && (in.syllables > 0 || in.empty) && waiting;
-  if (!anim && !mumble && !ends) return false;
+  bool anim = in.anim != render::Anim::kNone && !held(t);
+  bool mumble = in.syllables > 0 && !model_.attn;
+  if (!anim && !mumble) return false;
   change(t, [&] {
     if (anim) play(in.anim, t);
-    else if (ends) moment_.anim = render::Anim::kNone;
     if (mumble) startSay(in, t);
   });
   return mumble;
@@ -216,19 +204,6 @@ void Behaviour::pressUp(uint32_t t) {
 void Behaviour::tap(uint32_t t) {
   if (held(t)) return;
   change(t, [&] { play(render::Anim::kWiggle, t); });
-}
-
-void Behaviour::talkOn(uint32_t t) {
-  change(t, [&] { play(render::Anim::kListening, t); });
-}
-
-// Released: listening carries on, without a new blend, and waits at most
-// kReplyWaitMs for the reply (BEHAVIORS.md §3.3). If it isn't playing any
-// more (the 30 s cap, or the Mac ended it), there's nothing to wait on.
-void Behaviour::talkOff(uint32_t t) {
-  change(t, [&] {
-    if (listening(t)) moment_.ms = (t - moment_.at) + kReplyWaitMs;
-  });
 }
 
 // ---- What shows ------------------------------------------------------------
@@ -362,7 +337,7 @@ uint8_t Behaviour::blTarget(uint32_t t) const {
   return 255;
 }
 
-// With no app the Mac's counts and quiet are stale, so only the unplugged
+// With no app the Mac's counts are stale, so only the unplugged
 // icon shows (BEHAVIORS.md §3.4).
 render::Strip Behaviour::strip(uint32_t t) const {
   render::Strip s;
@@ -370,7 +345,6 @@ render::Strip Behaviour::strip(uint32_t t) const {
   if (s.noApp) return s;
   s.wait = model_.wait;
   s.busy = model_.busy;
-  s.quiet = model_.quiet > 0;
   return s;
 }
 

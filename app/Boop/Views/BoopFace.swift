@@ -4,9 +4,9 @@ import SwiftUI
 
 /// What the little face shows. The Mac never plays Boop's moments; this is
 /// just enough of the device's face that the popover and the menu bar read
-/// as the same creature (UX.md §7).
+/// as the same creature (UX.md §6).
 enum FaceMood: Hashable {
-    case asleep, idle, working, needsYou, happy, listening
+    case asleep, idle, working, needsYou, happy
     /// Setup's preview of a cheeky Boop: a sidelong look and a smile.
     case cheeky
 
@@ -16,9 +16,7 @@ enum FaceMood: Hashable {
             return
         }
         let s = status.snapshot
-        if status.listening {
-            self = .listening
-        } else if s.wait > 0 {
+        if s.wait > 0 {
             self = .needsYou
         } else {
             switch s.base {
@@ -105,10 +103,6 @@ struct BoopFace: View {
         case .happy:  // the squint and a small "u"
             p.squint = 0.25
             p.smile = 1
-        case .listening:
-            p.size = 1.1
-            p.lookY = -0.35
-            p.mouth = 0.5
         case .cheeky:
             p.lid = 0.25
             p.lookX = 0.6
@@ -239,8 +233,8 @@ private struct FaceBlocks: Shape {
 
 /// The menu-bar icon: Boop's window eyes and a pixel smile, on whole points
 /// so it's crisp at 1× and 2×. Closed while asleep, open while agents idle,
-/// with a small dot while they work, amber when something needs you, and
-/// red with a bigger dot while the Mac's mic is on (UX.md §7).
+/// with a small dot while they work, and amber when something needs you
+/// (UX.md §6).
 @MainActor
 enum MenuBarIcon {
     private static var cache: [FaceMood: NSImage] = [:]
@@ -262,7 +256,6 @@ enum MenuBarIcon {
             // The device's amber is too pale on a light bar; a deeper one
             // keeps 3:1 there and still reads as amber.
             case .needsYou: NSColor(hex: dark ? Palette.amber : Palette.menuAmberLight)
-            case .listening: NSColor(hex: Palette.recording)
             default: .black
             }
             colour.setFill()
@@ -280,15 +273,13 @@ enum MenuBarIcon {
             // A small pixel "u", as the device draws its smile.
             for r in [NSRect(x: 8, y: 13, width: 1, height: 1), NSRect(x: 11, y: 13, width: 1, height: 1),
                       NSRect(x: 9, y: 14, width: 2, height: 1)] { r.fill() }
-            // The dot sits clear of the eye: 2 pt above it, or 1 pt for the bigger one.
-            if mood == .listening {
-                NSRect(x: 16, y: 0, width: 4, height: 4).fill()
-            } else if mood == .working || mood == .needsYou {
+            // The dot sits clear of the eye, 2 pt above it.
+            if mood == .working || mood == .needsYou {
                 NSRect(x: 16, y: 0, width: 3, height: 3).fill()
             }
             return true
         }
-        image.isTemplate = mood != .needsYou && mood != .listening
+        image.isTemplate = mood != .needsYou
         if !image.isTemplate { image.cacheMode = .never }
         image.accessibilityDescription = "Boop"
         return image
