@@ -206,8 +206,10 @@ bool Behaviour::takeEnded(Ended& e) {
 
 void Behaviour::onState(const Model& m, uint32_t t) {
   change(t, [&] {
+    // A different request shown: another number, or another agent or
+    // project (all a Mac that sends no number says).
     bool had = model_.attn;
-    bool fresh = m.attn && (!had || std::strncmp(model_.agent, m.agent, sizeof(m.agent)) ||
+    bool fresh = m.attn && (!had || m.attnId != model_.attnId || std::strncmp(model_.agent, m.agent, sizeof(m.agent)) ||
                             std::strncmp(model_.project, m.project, sizeof(m.project)));
     model_ = m;
     lastState_ = t;

@@ -76,6 +76,9 @@ public final class Core {
         var check: (topic: String, failed: Bool)?
         /// When "needs you" started showing.
         var needsSince: Int64?
+        /// The number of the request it shows (`Core.takeAsk`), for the
+        /// order requests arrived in and for `attn.id`.
+        var ask = 0
         /// Codex: when "needs you" arrived, during the grace period.
         var pendingSince: Int64?
         /// When "needs you" last cleared, to drop its late `Notification`.
@@ -118,6 +121,8 @@ public final class Core {
 
     var sessions: [String: Session] = [:]
     var nextOrder = 0
+    /// The last request's number: they count up from 1 each launch.
+    var lastAsk = 0
     var rng: SplitMix64
     /// The last day with any activity; a new one starts short-term memory
     /// fresh.
@@ -224,6 +229,7 @@ public final class Core {
                     s.working = true
                 } else {
                     s.needsSince = now
+                    s.ask = takeAsk()
                     s.working = false
                     needsYouEvent(s, now, &fx)
                 }
@@ -242,9 +248,13 @@ public final class Core {
             // idle or stale session look busy. Once no asker is left, the
             // session works again only if its turn is still going
             // (ADAPTERS.md §4).
-            if waiting, let id = event.subagent, s.askers.remove(id) != nil, s.askers.isEmpty {
-                clearRequest(&s, now)
-                s.working = s.turnStartedAt != nil
+            if waiting, let id = event.subagent, s.askers.remove(id) != nil {
+                if s.askers.isEmpty {
+                    clearRequest(&s, now)
+                    s.working = s.turnStartedAt != nil
+                } else {
+                    anotherRequest(&s)
+                }
             }
             sessions[key] = s
             return
@@ -260,8 +270,8 @@ public final class Core {
         if waiting {
             if event.event != .activity || s.askers.contains(Core.anyone) {
                 s.askers.removeAll()
-            } else {
-                s.askers.remove(event.subagent ?? "")
+            } else if s.askers.remove(event.subagent ?? "") != nil, !s.askers.isEmpty {
+                anotherRequest(&s)
             }
             if s.askers.isEmpty {
                 clearRequest(&s, now)
@@ -439,7 +449,7 @@ public final class Core {
     /// The sessions in the order the popover lists them: those that need
     /// you (oldest first), then working, then idle.
     func grouped(at now: Int64) -> (waiting: [Session], working: [Session], idle: [Session]) {
-        let waiting = sessions.values.filter { $0.needsSince != nil }.sorted { ($0.needsSince!, $0.order) < ($1.needsSince!, $1.order) }
+        let waiting = sessions.values.filter { $0.needsSince != nil }.sorted { ($0.needsSince!, $0.ask) < ($1.needsSince!, $1.ask) }
         let working = sessions.values.filter { $0.needsSince == nil && isWorking($0, now) }.sorted { $0.order < $1.order }
         let idle = sessions.values.filter { $0.needsSince == nil && !isWorking($0, now) }.sorted { $0.order < $1.order }
         return (waiting, working, idle)
@@ -450,7 +460,8 @@ public final class Core {
         let base = !working.isEmpty ? "working" : sessions.isEmpty ? "asleep" : "idle"
         let attn = waiting.first.map {
             StateSnapshot.Attention(
-                agent: $0.agent.short, project: StateSnapshot.clip($0.project, marked: true), more: waiting.count - 1)
+                agent: $0.agent.short, project: StateSnapshot.clip($0.project, marked: true), more: waiting.count - 1,
+                id: $0.ask)
         }
         return StateSnapshot(base: base, mood: config.mood, attn: attn, busy: working.count, vol: config.volume)
     }
@@ -495,8 +506,22 @@ public final class Core {
         guard let pending = s.pendingSince, now - pending >= config.codexGraceMs else { return }
         s.pendingSince = nil
         s.needsSince = pending + config.codexGraceMs
+        s.ask = takeAsk()
         s.working = false
         needsYouEvent(s, now, &fx)
+    }
+
+    /// A request's number, in the order requests start showing.
+    func takeAsk() -> Int {
+        lastAsk += 1
+        return lastAsk
+    }
+
+    /// One of several askers in a session was answered, so Claude shows
+    /// another's prompt now: a different request, with its own number, so
+    /// the device chirps if it's the one shown (BEHAVIORS.md §3.2).
+    func anotherRequest(_ s: inout Session) {
+        if s.needsSince != nil { s.ask = takeAsk() }
     }
 
     /// Nobody is waiting on the session any more.

@@ -49,8 +49,10 @@ The core keeps one entry per agent session, each **working**, **idle** or
 
 - `base` is `working` if any session works, else `asleep` with no
   sessions, else `idle`. How many agents are busy never changes the look.
-- `attn` names the session that has waited longest, and how many more
-  wait.
+- `attn` names the session that has waited longest (requests that
+  arrive in the same millisecond keep their order), how many more wait,
+  and the number of the request shown, so the device can tell a
+  different request by it.
 
 ### The looks
 
@@ -133,7 +135,7 @@ Boop only tells you. You approve on the Mac, in the agent's own prompt.
 | --- | --- |
 | An agent needs approval | The needs-you look and its amber sign, the amber light, the strip naming agent and project, and one soft chirp. A moment or mumble playing stops |
 | More than one needs you | The strip shows the one waiting longest, with "+N" for the rest |
-| A different request becomes the one shown | One more chirp |
+| A different request becomes the one shown | One more chirp: another session's, even in the same project, or another subagent's in the same session once the first is answered |
 | You tap Boop | The press dip only; it stays amber (§3.3) |
 | You answer on the Mac | The agent carries on; once nothing needs you, Boop blinks back to its base look. A long command you approved keeps "needs you" up until it finishes ([ADAPTERS.md](ADAPTERS.md) §4) |
 | You deny with Esc | Claude sends nothing, so Boop stays amber until Claude reports itself idle about a minute later ([ADAPTERS.md](ADAPTERS.md) §4) |

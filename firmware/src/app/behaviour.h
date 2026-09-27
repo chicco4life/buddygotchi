@@ -32,6 +32,7 @@ struct Model {
   char agent[12] = "";
   char project[24] = "";
   int more = 0;
+  uint32_t attnId = 0;  // the request shown's number; 0 when the Mac sends none
   int busy = 0;
   int vol = 6;  // 0–10
 };

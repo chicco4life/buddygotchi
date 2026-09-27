@@ -332,7 +332,7 @@ final class CoreNeedsYouTests: XCTestCase {
         rig.send(.turnStart, project: "jetpack")
         let fx = rig.send(.needsYou, project: "jetpack", tool: "Bash")
         let attn = states(fx).last?.attn
-        XCTAssertEqual(attn, StateSnapshot.Attention(agent: "claude", project: "jetpack", more: 0))
+        XCTAssertEqual(attn, StateSnapshot.Attention(agent: "claude", project: "jetpack", more: 0, id: 1))
         XCTAssertEqual(states(fx).last?.waiting, 1)
         XCTAssertEqual(rig.sessions, [["claude", "jetpack", "waiting"]])
         XCTAssertEqual(woke(fx), [], "needs you never wakes the brain")
@@ -624,8 +624,10 @@ final class CoreNeedsYouTests: XCTestCase {
         rig.wait(20_000)  // both denied: no hook says so
         XCTAssertEqual(states(rig.send(.subagentEnd, subagent: "a3")), [], "a sibling's end")
         XCTAssertEqual(states(rig.send(.subagentEnd)), [], "an end that names no subagent")
-        XCTAssertEqual(states(rig.send(.subagentEnd, subagent: "a1")), [])
+        let first = rig.state.attn?.id
+        XCTAssertEqual(states(rig.send(.subagentEnd, subagent: "a1")).count, 1, "a2's prompt is shown now")
         XCTAssertNotNil(rig.state.attn, "a2 still waits")
+        XCTAssertNotEqual(rig.state.attn?.id, first)
         let fx = rig.send(.subagentEnd, subagent: "a2")
         XCTAssertNil(states(fx).last?.attn)
         XCTAssertEqual(states(fx).last?.base, "working", "the main agent's turn goes on")
@@ -704,9 +706,74 @@ final class CoreNeedsYouTests: XCTestCase {
         rig.send(.needsYou, .claudeCode, session: "a", project: "jetpack", tool: "Bash")
         rig.wait(1000)
         rig.send(.needsYou, .claudeCode, session: "b", project: "landing", tool: "Edit")
-        XCTAssertEqual(rig.state.attn, StateSnapshot.Attention(agent: "claude", project: "jetpack", more: 1))
+        XCTAssertEqual(rig.state.attn, StateSnapshot.Attention(agent: "claude", project: "jetpack", more: 1, id: 1))
         rig.send(.activity, session: "a")
-        XCTAssertEqual(rig.state.attn, StateSnapshot.Attention(agent: "claude", project: "landing", more: 0))
+        XCTAssertEqual(rig.state.attn, StateSnapshot.Attention(agent: "claude", project: "landing", more: 0, id: 2))
+    }
+
+    /// BEHAVIORS.md §3.2: "a different request becomes the one shown: one
+    /// more chirp". The device can only tell by `attn.id`, the request's
+    /// number (PROTOCOL.md §3): two worktrees of one repo have the same
+    /// agent and project. The number stays while more requests come and go
+    /// behind it, and a new one is shown when the first is answered.
+    func testTheRequestShownHasItsOwnNumber() {
+        let rig = CoreRig()
+        rig.send(.turnStart, session: "a")
+        rig.send(.turnStart, session: "b")
+        rig.send(.needsYou, session: "a", tool: "Bash")
+        let first = rig.state.attn?.id
+        rig.wait(400)
+        rig.send(.needsYou, session: "b", tool: "Bash")
+        XCTAssertEqual(rig.state.attn?.more, 1)
+        XCTAssertEqual(rig.state.attn?.id, first, "still a's")
+        rig.wait(400)
+        rig.send(.activity, session: "a", tool: "Bash", failed: false)
+        XCTAssertEqual(rig.state.attn?.project, "landing")
+        XCTAssertNotEqual(rig.state.attn?.id, first, "b's is shown now")
+        XCTAssertEqual(rig.state.attn?.more, 0)
+    }
+
+    /// The same inside one session: when one of two subagents asking is
+    /// answered, the other's prompt is the one Claude shows, so it's a
+    /// different request. A sibling asking too, or the hook of a request
+    /// its Notification started, isn't.
+    func testASecondAskerAnsweredShowsAnotherRequest() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.needsYou, subagent: "a1", tool: "Bash")
+        let first = rig.state.attn?.id
+        rig.send(.needsYou)  // its Notification
+        rig.send(.needsYou, subagent: "a2", tool: "Edit")
+        XCTAssertEqual(rig.state.attn?.id, first)
+        rig.send(.activity, subagent: "a1", tool: "Bash", failed: false)
+        XCTAssertNotNil(rig.state.attn)
+        XCTAssertNotEqual(rig.state.attn?.id, first)
+
+        rig.send(.turnEnd)
+        rig.wait(6000)
+        rig.send(.turnStart)
+        rig.send(.activity, subagent: "a3", tool: "Bash")
+        rig.send(.needsYou)  // a Notification first
+        let second = rig.state.attn?.id
+        XCTAssertNotNil(second)
+        rig.send(.needsYou, subagent: "a3", tool: "Bash")
+        XCTAssertEqual(rig.state.attn?.id, second, "its own hook")
+    }
+
+    /// BEHAVIORS.md §2: `attn` names the session that has waited longest.
+    /// Two requests in the same millisecond keep the order they arrived
+    /// in, not the order the sessions were first seen.
+    func testRequestsInTheSameMillisecondKeepTheirOrder() {
+        let rig = CoreRig()
+        rig.send(.turnStart, session: "s1", project: "jetpack")
+        rig.send(.turnStart, session: "s2", project: "landing")
+        rig.send(.needsYou, session: "s2", project: "landing", tool: "Bash")
+        let first = rig.state.attn
+        let fx = rig.send(.needsYou, session: "s1", project: "jetpack", tool: "Bash")
+        XCTAssertEqual(states(fx).map { $0.attn?.project }, ["landing"])
+        XCTAssertEqual(rig.state.attn?.id, first?.id)
+        XCTAssertEqual(rig.state.attn?.more, 1)
+        XCTAssertEqual(rig.sessions.map { $0[1] }, ["landing", "jetpack"])
     }
 
     /// ADAPTERS.md §4: after 10 minutes with no events "needs you" clears,
@@ -1056,7 +1123,7 @@ final class CoreRulesTests: XCTestCase {
         XCTAssertEqual(rig.sessions, [["claude", "landing", "waiting"], ["codex", "buddygotchi", "working"],
                                       ["claude", "jetpack", "working"], ["claude", "notes", "idle"]])
         XCTAssertEqual([s.busy, s.waiting], [2, 1])
-        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"base":"working","mood":"happy","attn":{"agent":"claude","project":"landing","more":0},"busy":2,"vol":6}"#)
+        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"base":"working","mood":"happy","attn":{"agent":"claude","project":"landing","more":0,"id":1},"busy":2,"vol":6}"#)
         XCTAssertNotNil(try? JSONSerialization.jsonObject(with: Data(s.jsonLine.utf8)))
     }
 

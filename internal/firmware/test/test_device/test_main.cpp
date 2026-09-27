@@ -611,9 +611,18 @@ static void test_attention_shows_needs_you_and_chirps_once() {
   }
   TEST_ASSERT_EQUAL(1, int(r.hal.cues.size()));
   TEST_ASSERT_EQUAL_UINT32(0x805800, r.hal.led);
-  // A different project chirps again.
-  r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"attn\":{\"agent\":\"codex\",\"project\":\"site\"}}");
+  // A different project chirps again, and so does a different request
+  // with the same names: the Mac numbers each one in `attn.id`.
+  r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"attn\":{\"agent\":\"codex\",\"project\":\"site\",\"id\":4}}");
   TEST_ASSERT_EQUAL(2, int(r.hal.cues.size()));
+  r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"attn\":{\"agent\":\"codex\",\"project\":\"site\",\"more\":1,\"id\":4}}");
+  TEST_ASSERT_EQUAL(2, int(r.hal.cues.size()));
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":150000}");
+  r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"attn\":{\"agent\":\"codex\",\"project\":\"site\",\"id\":5}}");
+  TEST_ASSERT_EQUAL(3, int(r.hal.cues.size()));
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"attn\":{\"agent\":\"codex\",\"project\":\"site\",\"more\":0,\"id\":5}"));
   r.usbLine("{\"t\":\"state\",\"base\":\"working\"}");
   TEST_ASSERT_EQUAL(app::Screen::kFace, r.dev.screen());
   TEST_ASSERT_EQUAL_UINT32(0, r.hal.led);

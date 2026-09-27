@@ -6,11 +6,16 @@ public struct StateSnapshot: Equatable, Sendable {
         public var agent: String
         public var project: String
         public var more: Int
+        /// The request shown's number, counting up from 1 each launch: a
+        /// new one is a different request, which chirps (PROTOCOL.md §3).
+        /// 0 sends none.
+        public var id: Int
 
-        public init(agent: String, project: String, more: Int) {
+        public init(agent: String, project: String, more: Int, id: Int = 0) {
             self.agent = agent
             self.project = project
             self.more = more
+            self.id = id
         }
     }
 
@@ -64,7 +69,8 @@ public struct StateSnapshot: Equatable, Sendable {
             "\"t\":\"state\"", "\"v\":\(StateSnapshot.version)", "\"base\":\(json(base))", "\"mood\":\(json(mood))",
         ]
         if let attn {
-            parts.append("\"attn\":{\"agent\":\(json(attn.agent)),\"project\":\(json(attn.project)),\"more\":\(attn.more)}")
+            let id = attn.id > 0 ? ",\"id\":\(attn.id)" : ""
+            parts.append("\"attn\":{\"agent\":\(json(attn.agent)),\"project\":\(json(attn.project)),\"more\":\(attn.more)\(id)}")
         }
         parts += ["\"busy\":\(busy)", "\"vol\":\(vol)"]
         return "{" + parts.joined(separator: ",") + "}"

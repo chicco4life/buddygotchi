@@ -110,6 +110,36 @@ static void test_needs_you_chirps_once_and_stays_amber() {
   TEST_ASSERT_EQUAL_STRING("chirp@300000", r.sfx().c_str());
 }
 
+// BEHAVIORS.md §3.2: a different request shown chirps once more, even with
+// the same agent and project (two worktrees of one repo): the Mac numbers
+// each request in `attn.id` (PROTOCOL.md §3). More waiting behind it, a
+// resent state, or a Mac too old to send a number, doesn't.
+static void test_a_different_request_with_the_same_names_chirps() {
+  Rig r;
+  r.at(1000);
+  Model a = attn();
+  a.attnId = 7;
+  r.state(a);
+  TEST_ASSERT_EQUAL_STRING("chirp@1000", r.sfx().c_str());
+  r.at(2000);
+  Model more = a;
+  more.more = 1;
+  r.state(more);  // another waits behind it: "+1" only
+  r.state(more);  // resent
+  TEST_ASSERT_EQUAL_STRING("chirp@1000", r.sfx().c_str());
+  r.at(3000);
+  Model b = attn();
+  b.attnId = 8;
+  r.state(b);  // the first answered: the other request is shown
+  TEST_ASSERT_EQUAL_STRING("chirp@3000", r.sfx().c_str());
+  TEST_ASSERT_EQUAL(Screen::kNeedsYou, r.b.screen(r.t));
+  r.at(4000);
+  r.state(attn());  // no number: agent and project alone, as before
+  r.at(5000);
+  r.state(attn());
+  TEST_ASSERT_EQUAL_STRING("chirp@4000", r.sfx().c_str());
+}
+
 // BEHAVIORS.md §3.2: a tap while something needs you is the press dip
 // only, with no moment, and it stays amber.
 static void test_tap_during_needs_you_is_only_the_dip_and_stays_amber() {
@@ -1055,6 +1085,7 @@ static void test_a_long_touch_during_needs_you_is_a_tap() {
 int main() {
   UNITY_BEGIN();
   RUN_TEST(test_needs_you_chirps_once_and_stays_amber);
+  RUN_TEST(test_a_different_request_with_the_same_names_chirps);
   RUN_TEST(test_tap_during_needs_you_is_only_the_dip_and_stays_amber);
   RUN_TEST(test_answering_on_the_mac_blinks_back);
   RUN_TEST(test_attention_wins_over_moments);

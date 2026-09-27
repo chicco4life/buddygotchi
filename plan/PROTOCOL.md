@@ -126,10 +126,11 @@ Over USB:
 The Mac sends a `state` when the core's snapshot differs from the last one
 sent, at once on connect, in answer to every `status`, and the latest one
 again once 10 s have passed without one (checked every second). A
-real line, from a headless app replaying the Codex approval fixture:
+real line, from `boopdev replay` of the Codex approval fixture
+(`codex/synthetic/approval-asked.jsonl`):
 
 ```json
-{"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"codex","project":"landing","more":0},"busy":0,"vol":6}
+{"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"codex","project":"landing","more":0,"id":1},"busy":0,"vol":6}
 ```
 
 | Field | Type | The Mac sends | The device reads it as |
@@ -137,10 +138,11 @@ real line, from a headless app replaying the Codex approval fixture:
 | `v` | int | Always 1 | Not checked |
 | `base` | `asleep`, `idle` or `working` | `working` while any session works, `asleep` with no sessions, otherwise `idle` ([BEHAVIORS.md](BEHAVIORS.md) §2) | The look. Missing or unknown reads as `idle` |
 | `mood` | `happy`, `excited`, `proud`, `curious`, `determined`, `grumpy` or `sad` | Boop's mood ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3) | The set of faces every look and animation is drawn in. Missing or unknown reads as `happy` |
-| `attn` | object, or absent | Only while something needs you: the oldest waiting session | Its presence alone means "needs you" ([BEHAVIORS.md](BEHAVIORS.md) §3.2). A new one, or a different agent or project, chirps once and stops any moment and line |
+| `attn` | object, or absent | Only while something needs you: the oldest waiting session | Its presence alone means "needs you" ([BEHAVIORS.md](BEHAVIORS.md) §3.2). A new one, or one with a different `id`, agent or project, chirps once and stops any moment and line |
 | `attn.agent` | `claude` or `codex` | The session's agent | Kept in 11 bytes |
 | `attn.project` | string, at most 23 bytes of UTF-8 | The project folder's name, precomposed (NFC) so é is one letter, and cut on a character boundary to end in `..` when longer | Kept in 23 bytes; drawn as [UX.md](UX.md) §2 says |
 | `attn.more` | int ≥ 0 | How many more are waiting | The strip's "+N". Missing reads as 0 |
+| `attn.id` | int ≥ 1 | The number of the request shown. Requests are numbered as they start showing, from 1 each time the app starts; when one of several subagents asking in a session is answered, the next one's prompt gets a new number. So a new number is a different request, even with the same agent and project (two worktrees of one repo) | A change chirps. Missing reads as 0, and then only the agent and project tell requests apart |
 | `busy` | int ≥ 0 | Sessions working | The strip's working count. Missing reads as 0 |
 | `vol` | int 0–10 | The app's volume, 6 by default; 0 is mute | Clamped to 0–10. Missing reads as 6 |
 
@@ -333,7 +335,7 @@ instead of running.
 | Field | Meaning |
 | --- | --- |
 | `screen` | `face`, `needs_you`, `no_app` or `pattern` ([DEVICE.md](DEVICE.md) §4) |
-| `base`, `mood`, `attn`, `vol` | The last `state` as the device read it (§3): `base` `idle` and `mood` `happy` for a missing or unknown one, `vol` clamped, and `attn` null unless something needs you |
+| `base`, `mood`, `attn`, `vol` | The last `state` as the device read it (§3): `base` `idle` and `mood` `happy` for a missing or unknown one, `vol` clamped, and `attn` (with its `id`, 0 when none came) null unless something needs you |
 | `moment` | `{"anim":…,"left_ms":…}` while an animation plays, otherwise null. A mumble on its own leaves it null |
 | `expr` | The mood the face borrows while a moment with `mood` plays (§3), otherwise null |
 | `life` | `blink` while Boop blinks, otherwise null |
