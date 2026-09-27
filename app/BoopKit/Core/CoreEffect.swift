@@ -7,6 +7,10 @@ import Foundation
 public enum CoreEffect: Equatable, Sendable {
     /// A new snapshot, sent because something on it changed.
     case state(StateSnapshot)
+    /// The session list changed but the snapshot didn't, as when a second
+    /// idle session starts: only the popover and `debug.jsonl`'s `status`
+    /// show it.
+    case sessions
     /// A rule reaction: play `anim`, `loops` times (PROTOCOL.md §3).
     case moment(anim: String, loops: Int)
     /// Working chatter: a rule mumble.
@@ -21,6 +25,7 @@ public enum CoreEffect: Equatable, Sendable {
     public var summary: String {
         switch self {
         case .state(let s): "state " + s.jsonLine
+        case .sessions: "sessions"
         case .moment(let anim, let loops): "moment \(anim)" + (loops == 1 ? "" : " ×\(loops)")
         case .mumble(let feeling, let word): "mumble \(feeling)" + (word.map { " \($0)" } ?? "")
         case .event(let e): "event " + e.summary

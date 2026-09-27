@@ -232,11 +232,6 @@ fixed. Pick one up by writing it into its spec first.
 - **`swift build` rebuilds for no reason.** It alternates between a
   no-op (0.4 s) and a 6–9 s rebuild with nothing changed, so build
   timings are noisy until the cause is found.
-- **`state`'s `idle` and `wait` are only the dashboard's.** The device
-  keys "needs you" on `attn` and reads neither
-  ([PROTOCOL.md](PROTOCOL.md) §3); the dashboard's feed prints both.
-  `wait` is always 1 + `attn.more` (0 without `attn`), so it can go once
-  the dashboard counts it from `attn`.
 
 ## 4. P1: Port to ESP-IDF + LVGL (later)
 

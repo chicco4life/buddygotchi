@@ -121,6 +121,9 @@ public final class Core {
     /// fresh.
     var lastActiveDay: String?
     var lastPublished: StateSnapshot?
+    /// The session list as last published, which can change while the
+    /// snapshot doesn't: a second idle session, say.
+    var lastSessions: [SessionSummary] = []
     var nextChatterAt: Int64?
     /// The wall clock less the steady one, for days and times of day.
     var wallOffsetMs: Int64 = 0
@@ -381,14 +384,13 @@ public final class Core {
     }
 
     public func snapshot(at now: Int64) -> StateSnapshot {
-        let (waiting, working, idle) = grouped(at: now)
+        let (waiting, working, _) = grouped(at: now)
         let base = !working.isEmpty ? "working" : sessions.isEmpty ? "asleep" : "idle"
         let attn = waiting.first.map {
             StateSnapshot.Attention(
                 agent: $0.agent.short, project: StateSnapshot.clip($0.project, marked: true), more: waiting.count - 1)
         }
-        return StateSnapshot(
-            base: base, mood: config.mood, attn: attn, busy: working.count, idle: idle.count, wait: waiting.count, vol: config.volume)
+        return StateSnapshot(base: base, mood: config.mood, attn: attn, busy: working.count, vol: config.volume)
     }
 
     /// Every session, for the popover's list (UX.md §6). The device doesn't
@@ -662,10 +664,15 @@ public final class Core {
 
     func publish(_ now: Int64, _ fx: inout [CoreEffect]) {
         let snapshot = snapshot(at: now)
-        guard snapshot != lastPublished else { return }
-        lastPublished = snapshot
-        // The picture changes before any moment plays on top of it.
-        fx.insert(.state(snapshot), at: 0)
+        let sessions = sessionList(at: now)
+        defer { lastSessions = sessions }
+        if snapshot != lastPublished {
+            lastPublished = snapshot
+            // The picture changes before any moment plays on top of it.
+            fx.insert(.state(snapshot), at: 0)
+        } else if sessions != lastSessions {
+            fx.insert(.sessions, at: 0)
+        }
     }
 }
 

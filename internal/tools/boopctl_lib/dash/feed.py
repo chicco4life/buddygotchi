@@ -152,8 +152,12 @@ class Board:
     def facts(self) -> list[tuple[str, str]]:
         s, st = self.state or {}, self.status
         attn = s.get("attn")
+        # The state line counts only the busy; the idle are the status's,
+        # and the waiting are attn's and its more.
+        idle = sum(x["status"] == "idle" for x in st.get("sessions", []))
+        waiting = 1 + attn.get("more", 0) if attn else 0
         return [
-            ("base", f"{s.get('base', '?')} · busy {s.get('busy', 0)} · idle {s.get('idle', 0)} · waiting {s.get('wait', 0)}"),
+            ("base", f"{s.get('base', '?')} · busy {s.get('busy', 0)} · idle {idle} · waiting {waiting}"),
             ("needs you", f"{attn['agent']} · {attn['project']}" + (f" (+{attn['more']})" if attn.get("more") else "")
              if attn else "no"),
             ("saying", say_text(self.say) if self.say else "nothing yet"),
@@ -206,8 +210,9 @@ def sections(state: str) -> list[tuple[str, int]]:
 
 def state_text(s: Line) -> str:
     attn = s.get("attn")
-    return (f"{s.get('base')} {s.get('mood')} · busy {s.get('busy', 0)} idle {s.get('idle', 0)} wait {s.get('wait', 0)}"
-            + (f" · needs you: {attn['agent']} {attn['project']}" if attn else "") + f" · vol {s.get('vol')}")
+    more = f" +{attn['more']}" if attn and attn.get("more") else ""
+    return (f"{s.get('base')} {s.get('mood')} · busy {s.get('busy', 0)}"
+            + (f" · needs you: {attn['agent']} {attn['project']}{more}" if attn else "") + f" · vol {s.get('vol')}")
 
 
 def say_text(say: Line) -> str:

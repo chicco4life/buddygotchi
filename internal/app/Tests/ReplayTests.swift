@@ -5,7 +5,8 @@ import XCTest
 
 /// `boopdev replay` on the fixtures prints the expected `state` snapshots.
 final class ReplayTests: XCTestCase {
-    /// Each snapshot as `+time base attn wait`, e.g. `+3.0s idle claude/jetpack 1`.
+    /// Each snapshot as `+time base attn waiting`, e.g. `+3.0s idle claude/jetpack 1`,
+    /// counting 1 + `attn.more` waiting.
     func summary(_ fixture: String, agent: String) throws -> [String] {
         let path = HookWireTests.fixtures.appendingPathComponent(fixture).path
         let lines = Replay(agent: agent).run(try Replay.steps(fromFile: path), statesOnly: true)
@@ -13,8 +14,10 @@ final class ReplayTests: XCTestCase {
             let parts = line.split(separator: " ", maxSplits: 2).map(String.init)
             XCTAssertEqual(parts[1], "state")
             let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(parts[2].utf8)) as? [String: Any])
-            let attn = (object["attn"] as? [String: Any]).map { "\($0["agent"]!)/\($0["project"]!)" } ?? "-"
-            return "\(parts[0]) \(object["base"]!) \(attn) \(object["wait"]!)"
+            let attn = object["attn"] as? [String: Any]
+            let who = attn.map { "\($0["agent"]!)/\($0["project"]!)" } ?? "-"
+            let waiting = attn.map { ($0["more"] as! Int) + 1 } ?? 0
+            return "\(parts[0]) \(object["base"]!) \(who) \(waiting)"
         }
     }
 

@@ -116,7 +116,7 @@ struct OverviewPane: View {
         guard let s = model.status?.snapshot else {
             return model.startError == nil ? "Waking up…" : "Not running"
         }
-        if s.wait > 0 { return s.wait == 1 ? "Needs you" : "\(s.wait) sessions need you" }
+        if s.waiting > 0 { return s.waiting == 1 ? "Needs you" : "\(s.waiting) sessions need you" }
         switch s.base {
         case "working": return s.busy == 1 ? "Working on 1 session" : "Working on \(s.busy) sessions"
         case "idle": return "Hanging out"

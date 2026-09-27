@@ -116,15 +116,16 @@ clock.
 
 | Input | From | Effects it can return |
 | --- | --- | --- |
-| `handle(event)` | A hook, through the adapter | `state`, the cheer, events, a new day |
+| `handle(event)` | A hook, through the adapter | `state` or `sessions`, the cheer, events, a new day |
 | `input(tap)` | The device | `state`, a `tap` or `pokes` event, a new day |
-| `tick(at:)` | The runtime, once a second | `state`, working chatter, a Codex request showing after its grace, a heartbeat |
+| `tick(at:)` | The runtime, once a second | `state` or `sessions`, working chatter, a Codex request showing after its grace, a heartbeat |
 | `setVolume`, `setMood` | Settings; the mood action | `state` |
 | `setRules`, `setBrain`, `setWallClock` | A new personality; Jev's key read or changed; every tick | None: they change later decisions |
 
 | Effect | Carried out by |
 | --- | --- |
 | `state(snapshot)`, only when something on it changed | The device link, and the menu bar's status |
+| `sessions`, when the session list changed and the snapshot didn't | The menu bar's status, and `debug.jsonl`'s `status` line |
 | `moment(anim, loops)`: a rule's `cheer`, with enough loops of the mood's design for its length ([BEHAVIORS.md](BEHAVIORS.md) §5) | The device link at once, cutting off whatever plays; the moment schedule notes it |
 | `mumble(feeling, word)`: working chatter | Voice, then the device link, but only when nothing plays, no brain moment waits and nothing needs you |
 | `event(Event)` | The harness ([harness/EVENTS.md](harness/EVENTS.md)) |
@@ -151,8 +152,10 @@ there's a brain, and every timing below.
 
 **The snapshot** is derived, never stored: `asleep` with no sessions,
 `working` while any works, `idle` otherwise; the mood; the session that
-has needed you longest, with how many more do; the counts; the volume
-([PROTOCOL.md](PROTOCOL.md) §3).
+has needed you longest, with how many more do; how many work; the
+volume ([PROTOCOL.md](PROTOCOL.md) §3). The popover's session list is
+derived the same way, and can change while the snapshot doesn't, as
+when a second idle session starts.
 
 **Clocks.** Timers run on a steady clock that never steps and keeps
 counting while the Mac sleeps, so setting the Mac's clock back can't
@@ -523,3 +526,4 @@ which also has the full log up to 2026-09-27.
 | 2026-09-27 | `react` is started, not done: its moment's handle ends when the device says how the moment ended, or `failed` when it was dropped, no device was connected or the device dropped. This replaces "HISTORY still says Boop made it" for a dropped reaction. The guide lets Jev make one that didn't happen again, but not repeat one in progress | Jev read reactions that never showed as made, and wouldn't retry them | [harness/DECISIONS.md](harness/DECISIONS.md) §5 |
 | 2026-09-27 | A `moment` the Mac waits on carries an `id`, and the device answers it with `ended`: `done`, `cut` (and what cut it) or `skipped`. The Mac gives up on one that doesn't come by the moment's length plus a grace. This replaces the app's own timing, which ended a reaction `done` when it expected the moment to have played. No other moment is answered | Only the device knows whether a tap, "needs you" or a newer moment stopped a reaction, or whether it played at all. The grace keeps older firmware and a lost line from leaving a reaction in progress | [PROTOCOL.md](PROTOCOL.md) §4 |
 | 2026-09-28 | Moments are counted in loops of a design, and whoever plays one says how many (`moment.loops`, 1–6). The cheer plays enough loops of the mood's task-complete design to last at least 2 s, replacing the fixed 2 s; a reaction's face holds the loops Jev picks (`react.loops`, once to four times), ending on a loop boundary of the design showing, and at least as long as its mumble. facegen reads each design's loop from its SVG timing and writes it for the device and the Mac alike | Every animation can loop, and the loopable designs coming next should end where they start rather than be cut mid-motion. A bigger moment can hold its face longer. One set of numbers keeps the Mac's timing of a moment with the device's | [PROTOCOL.md](PROTOCOL.md) §3, [harness/DECISIONS.md](harness/DECISIONS.md) §5 |
+| 2026-09-28 | `state` drops `idle` and `wait`, replacing 2026-09-27's keeping them for the dashboard, which now counts the idle from its `status` line's sessions and the waiting from `attn`. A change to the session list the snapshot doesn't show is the core's `sessions` effect | Nothing read them but the dashboard, and `wait` was always 1 + `attn.more`. The idle count had quietly been what refreshed the popover when a second idle session came or went | [PROTOCOL.md](PROTOCOL.md) §3, [DASHBOARD.md](DASHBOARD.md) §2 |

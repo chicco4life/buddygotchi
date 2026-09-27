@@ -64,7 +64,8 @@ class FeedTests(unittest.TestCase):
         self.assertIn(("ok", "  ✓ mood (by dashboard): Boop's mood changed: happy → grumpy."), rows)
         self.assertIn(("pass", "  pass forced by dashboard: react grumpy · word.feeling again"), rows)
         self.assertIn(("sent", "→ moment wiggle"), rows)
-        self.assertIn(("sent", "→ state idle grumpy · busy 0 idle 1 wait 0 · vol 6"), rows, "a state carries the mood")
+        self.assertIn(("sent", "→ state idle grumpy · busy 0 · vol 6"), rows, "a state carries the mood")
+        self.assertIn(("sent", "→ state idle happy · busy 0 · needs you: claude jetpack · vol 6"), rows)
         self.assertIn(("status", "status: sessions claude jetpack waiting"), rows, "a status row shows what changed")
 
     def test_keepalives_are_hidden(self):
@@ -79,7 +80,7 @@ class FeedTests(unittest.TestCase):
     def test_the_facts(self):
         board, _ = board_after(fixture_lines())
         facts = dict(board.facts())
-        self.assertEqual(facts["base"], "idle · busy 0 · idle 1 · waiting 0")
+        self.assertEqual(facts["base"], "idle · busy 0 · idle 1 · waiting 0", "idle from the status, waiting from attn")
         self.assertEqual(facts["needs you"], "no")
         self.assertEqual(facts["mood"], "happy · personality boop", "from the state line, never the mood file")
         self.assertEqual(facts["sessions"], "claude jetpack idle")
@@ -89,6 +90,20 @@ class FeedTests(unittest.TestCase):
         needs = next(i for i, line in enumerate(fixture_lines()) if line.get("event", {}).get("kind") == "needs_you")
         board, _ = board_after(fixture_lines()[: needs + 1])
         self.assertEqual(dict(board.facts())["needs you"], "claude · jetpack")
+        self.assertEqual(dict(board.facts())["base"], "idle · busy 0 · idle 0 · waiting 1")
+
+    def test_the_counts_come_from_attn_and_the_sessions(self):
+        board, _ = board_after([
+            {"status": {"sessions": [{"agent": "claude", "project": "a", "status": "waiting"},
+                                     {"agent": "codex", "project": "b", "status": "waiting"},
+                                     {"agent": "claude", "project": "c", "status": "working"},
+                                     {"agent": "claude", "project": "d", "status": "idle"},
+                                     {"agent": "codex", "project": "e", "status": "idle"}]}},
+            {"sent": {"t": "state", "v": 1, "base": "working", "mood": "happy",
+                      "attn": {"agent": "claude", "project": "a", "more": 1}, "busy": 1, "vol": 6}},
+        ])
+        self.assertEqual(dict(board.facts())["base"], "working · busy 1 · idle 2 · waiting 2")
+        self.assertEqual(dict(board.facts())["needs you"], "claude · a (+1)")
 
     def test_the_harness_pane(self):
         lines = fixture_lines()
@@ -256,12 +271,12 @@ class ControlsTests(unittest.TestCase):
 
     def test_preview_lines(self):
         latest = {"t": "state", "v": 1, "base": "working", "attn": {"agent": "codex", "project": "x", "more": 0},
-                  "busy": 1, "idle": 0, "wait": 1, "vol": 3}
+                  "busy": 1, "vol": 3}
         self.assertEqual(controls.preview_state(latest, "asleep"),
-                         {"t": "state", "v": 1, "base": "asleep", "busy": 1, "idle": 0, "wait": 0, "vol": 3})
+                         {"t": "state", "v": 1, "base": "asleep", "busy": 1, "vol": 3})
         self.assertEqual(controls.preview_state(latest, "idle", "sad")["mood"], "sad")
         needs = controls.preview_state(None, "needs you")
-        self.assertEqual((needs["base"], needs["wait"], needs["attn"]["agent"]), ("idle", 1, "claude"))
+        self.assertEqual((needs["base"], needs["attn"]["agent"]), ("idle", "claude"))
         self.assertEqual(latest["base"], "working", "the app's state is left alone")
 
     @unittest.skipUnless((REPO / ".build" / "debug" / "boopdev").exists(), "needs make build")
@@ -460,7 +475,7 @@ class AppTests(unittest.TestCase):
 
                 # The app starts again: the file is emptied in place.
                 log.write_text('{"questions":[],"received_at_ms":2}\n'
-                               '{"sent":{"t":"state","v":1,"base":"idle","busy":0,"idle":0,"wait":0,"vol":6},'
+                               '{"sent":{"t":"state","v":1,"base":"idle","busy":0,"vol":6},'
                                '"received_at_ms":2}\n'
                                '{"sent":{"t":"moment","anim":"cheer"},"received_at_ms":3}\n')
                 sent_before = len(face.sent)

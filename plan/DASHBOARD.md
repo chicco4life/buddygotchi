@@ -54,7 +54,9 @@ Top to bottom:
 ```
 
 1. **State.** The face (§5), and beside it the facts:
-   - `base`: the base state, and the busy, idle and waiting counts
+   - `base`: the base state, and how many sessions are busy (the
+     `state`'s `busy`), idle (the latest `status`'s sessions) and
+     waiting (1 + `attn.more`, or 0 without `attn`)
    - `needs you`: the waiting agent and project, and how many more, or "no"
    - `saying`: the latest mumble's syllables, its word and where it
      falls, its tune and its milliseconds per syllable
@@ -96,7 +98,7 @@ text for its facts. Each line's shape is in
 | `action` | The timeline (`…` for a started one), and RAN when it's the latest pass's: for the same event (or, forced, for none) and from an action that asks one of the pass's questions, which the `questions` line maps |
 | `settle` | The timeline, as `✓ react (16) done` or `✗ react (16) didn't happen: <why>`, and RAN's mark for its action |
 | `sent` | The face (§5), `base`, `needs you`, `saying`, `mood`, `volume`, and the timeline |
-| `status` | `sessions`, `brain`, `device`, the personality, and the timeline |
+| `status` | `sessions`, `base`'s idle count, `brain`, `device`, the personality, and the timeline |
 
 **The app starting again.** At each launch the app empties
 `debug.jsonl` in place and writes its `questions` line first. So when the
@@ -189,7 +191,9 @@ face, in the bubble's band, so only `z` shows it.
 - **`make -C internal tools-test`**
   (`internal/tools/boopctl_lib/tests/test_dash.py`): the feed against
   `tests/fixtures/headless-debug.jsonl`, recorded from a real headless
-  run; a started action and its settles; restarts; the downsampling,
+  run (its `state` lines since without the `idle` and `wait` the app no
+  longer sends); the counts from `attn` and the sessions; a started
+  action and its settles; restarts; the downsampling,
   and every golden frame's face inside the crop; the dev lines built
   from the `questions` line; Preview's lines; and the app's panes and
   keys through Textual's pilot.

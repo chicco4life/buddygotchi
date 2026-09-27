@@ -16,7 +16,7 @@ enum FaceMood: Hashable {
             return
         }
         let s = status.snapshot
-        if s.wait > 0 {
+        if s.attn != nil {
             self = .needsYou
         } else {
             switch s.base {

@@ -114,7 +114,7 @@ newer moment, or skipped because something needed you
 
 | When | What Boop does |
 | --- | --- |
-| A session starts or ends | Nothing but the counts: the first one wakes Boop, and the last one ending puts it to sleep |
+| A session starts or ends | Nothing but the popover's list: the first one wakes Boop, and the last one ending puts it to sleep |
 | You send a prompt | The working look. The brain hears of it |
 | A tool call starts or finishes | Nothing on screen; the latest topic is kept for chatter. A test, build or deploy that fails, or passes after failing, reaches the brain; with `tool_uses: all` every tool use does (§6) |
 | A turn finishes | `cheer`, whatever its length and even while other sessions keep working. The brain hears of it |

@@ -44,19 +44,19 @@ public struct StateSnapshot: Equatable, Sendable {
     public var mood: String
     public var attn: Attention?
     public var busy: Int
-    public var idle: Int
-    public var wait: Int
     public var vol: Int
 
-    public init(base: String, mood: String, attn: Attention?, busy: Int, idle: Int, wait: Int, vol: Int) {
+    public init(base: String, mood: String, attn: Attention?, busy: Int, vol: Int) {
         self.base = base
         self.mood = mood
         self.attn = attn
         self.busy = busy
-        self.idle = idle
-        self.wait = wait
         self.vol = vol
     }
+
+    /// How many sessions need you: `attn`'s and its `more`. The popover's
+    /// headline; the line doesn't carry it.
+    public var waiting: Int { attn.map { $0.more + 1 } ?? 0 }
 
     /// One JSON line, keys in the protocol's order.
     public var jsonLine: String {
@@ -66,7 +66,7 @@ public struct StateSnapshot: Equatable, Sendable {
         if let attn {
             parts.append("\"attn\":{\"agent\":\(json(attn.agent)),\"project\":\(json(attn.project)),\"more\":\(attn.more)}")
         }
-        parts += ["\"busy\":\(busy)", "\"idle\":\(idle)", "\"wait\":\(wait)", "\"vol\":\(vol)"]
+        parts += ["\"busy\":\(busy)", "\"vol\":\(vol)"]
         return "{" + parts.joined(separator: ",") + "}"
     }
 

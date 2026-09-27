@@ -129,7 +129,7 @@ again once 10 s have passed without one (checked every second). A
 real line, from a headless app replaying the Codex approval fixture:
 
 ```json
-{"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"codex","project":"landing","more":0},"busy":0,"idle":0,"wait":1,"vol":6}
+{"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"codex","project":"landing","more":0},"busy":0,"vol":6}
 ```
 
 | Field | Type | The Mac sends | The device reads it as |
@@ -142,8 +142,6 @@ real line, from a headless app replaying the Codex approval fixture:
 | `attn.project` | string, at most 23 bytes of UTF-8 | The project folder's name, precomposed (NFC) so é is one letter, and cut on a character boundary to end in `..` when longer | Kept in 23 bytes; drawn as [UX.md](UX.md) §2 says |
 | `attn.more` | int ≥ 0 | How many more are waiting | The strip's "+N". Missing reads as 0 |
 | `busy` | int ≥ 0 | Sessions working | The strip's working count. Missing reads as 0 |
-| `idle` | int ≥ 0 | Sessions idle | Not read. The dashboard shows it ([DASHBOARD.md](DASHBOARD.md) §2) |
-| `wait` | int ≥ 0 | Sessions waiting on you, always 1 + `attn.more` (0 without `attn`) | Not read. The dashboard shows it |
 | `vol` | int 0–10 | The app's volume, 6 by default; 0 is mute | Clamped to 0–10. Missing reads as 6 |
 
 Any `state` also restarts the device's 30 s no-app timer

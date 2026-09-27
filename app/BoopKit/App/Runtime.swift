@@ -462,9 +462,11 @@ public final class Runtime: @unchecked Sendable {
     /// Carries out the core's decisions (ARCHITECTURE.md §3.2).
     func run(_ effects: [CoreEffect]) {
         if options.debug {
-            // The snapshot shows as the line the link sends, if it sends one.
+            // The snapshot shows as the line the link sends, if it sends one,
+            // and the sessions in debug.jsonl's `status`.
             for effect in effects {
                 if case .state = effect { continue }
+                if case .sessions = effect { continue }
                 options.debugPrint("core: " + effect.summary)
             }
         }
@@ -473,6 +475,8 @@ public final class Runtime: @unchecked Sendable {
             switch effect {
             case .state(let snapshot):
                 show(snapshot)
+                stateChanged = true
+            case .sessions:
                 stateChanged = true
             case .moment(let anim, let loops):
                 playRule(DeviceMoment(anim: anim, loops: loops))

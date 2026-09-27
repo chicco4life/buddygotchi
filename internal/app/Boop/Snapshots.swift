@@ -93,8 +93,7 @@ enum Snapshots {
             attn: wait.first.map {
                 StateSnapshot.Attention(agent: $0.agent, project: StateSnapshot.clip($0.project, marked: true), more: wait.count - 1)
             },
-            busy: sessions.filter { $0.status == .working }.count, idle: sessions.filter { $0.status == .idle }.count,
-            wait: wait.count, vol: vol)
+            busy: sessions.filter { $0.status == .working }.count, vol: vol)
         return Runtime.Status(name: name, snapshot: snapshot, sessions: sessions, connected: connected,
                               device: connected ? DeviceStatus(id: "b00p-54fe", fw: "1.0.0") : nil,
                               personality: personality, brain: brain)

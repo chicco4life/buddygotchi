@@ -255,6 +255,31 @@ final class RuntimeTests: XCTestCase {
         }
     }
 
+    /// PROTOCOL.md §3's `state` carries no idle count, so a second idle
+    /// session sends the device nothing; debug.jsonl's `status`, which the
+    /// dashboard counts idle sessions from, and the popover still hear of it.
+    func testASecondIdleSessionReachesTheStatusNotTheDevice() throws {
+        var options = try options(nil)
+        options.debug = true
+        let runtime = try Runtime(options)
+        runtime.link.sentLines = []
+        try runtime.start()
+        defer { runtime.stop() }
+        func sessions() -> [[String: String]] {
+            debugLines().compactMap { $0["status"] as? [String: Any] }.last?["sessions"] as? [[String: String]] ?? []
+        }
+        XCTAssertTrue(HookSocket.send(hook("SessionStart"), to: socketPath))
+        eventually("the first session") { sessions().count == 1 }
+        let sent = runtime.home.sync { runtime.link.sentLines! }
+        XCTAssertTrue(sent.last?.contains(#""base":"idle""#) == true, "\(sent)")
+        let second = HookLine(agent: "claude", hook: "SessionStart", session: "s2", cwd: "/tmp/notes",
+                              ts: Int64(Date().timeIntervalSince1970 * 1000)).encoded()
+        XCTAssertTrue(HookSocket.send(second, to: socketPath))
+        eventually("the second session") { sessions().count == 2 }
+        XCTAssertEqual(sessions().map { $0["status"] }, ["idle", "idle"])
+        XCTAssertEqual(runtime.home.sync { runtime.link.sentLines! }, sent, "no new state")
+    }
+
     /// DASHBOARD.md §4: the dashboard's dev lines. A forced pass needs no
     /// brain and mumbles as Jev's would; a forced mood changes as Jev's
     /// does, device included; each is recorded for no event, by the

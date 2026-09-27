@@ -279,7 +279,7 @@ final class CoreNeedsYouTests: XCTestCase {
         let fx = rig.send(.needsYou, project: "jetpack", tool: "Bash")
         let attn = states(fx).last?.attn
         XCTAssertEqual(attn, StateSnapshot.Attention(agent: "claude", project: "jetpack", more: 0))
-        XCTAssertEqual(states(fx).last?.wait, 1)
+        XCTAssertEqual(states(fx).last?.waiting, 1)
         XCTAssertEqual(rig.sessions, [["claude", "jetpack", "waiting"]])
         XCTAssertEqual(woke(fx), [], "needs you never wakes the brain")
         XCTAssertEqual(events(fx).map(\.line), [#"claude needs you on "jetpack"."#], "the brain hears of it")
@@ -733,9 +733,22 @@ final class CoreRulesTests: XCTestCase {
         let s = rig.state
         XCTAssertEqual(rig.sessions, [["claude", "landing", "waiting"], ["codex", "buddygotchi", "working"],
                                       ["claude", "jetpack", "working"], ["claude", "notes", "idle"]])
-        XCTAssertEqual([s.busy, s.idle, s.wait], [2, 1, 1])
-        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"base":"working","mood":"happy","attn":{"agent":"claude","project":"landing","more":0},"busy":2,"idle":1,"wait":1,"vol":6}"#)
+        XCTAssertEqual([s.busy, s.waiting], [2, 1])
+        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"base":"working","mood":"happy","attn":{"agent":"claude","project":"landing","more":0},"busy":2,"vol":6}"#)
         XCTAssertNotNil(try? JSONSerialization.jsonObject(with: Data(s.jsonLine.utf8)))
+    }
+
+    /// PROTOCOL.md §3 carries no idle count, so a second idle session
+    /// leaves the snapshot as it was; the core still says the list changed,
+    /// for the popover and debug.jsonl's `status`, and only then.
+    func testASessionListChangeTheSnapshotDoesntShow() {
+        let rig = CoreRig()
+        XCTAssertEqual(states(rig.send(.sessionStart, session: "a", project: "notes")).map(\.base), ["idle"])
+        let fx = rig.send(.sessionStart, session: "b", project: "jetpack")
+        XCTAssertEqual(fx, [.sessions], "the same snapshot, and a new list")
+        XCTAssertEqual(rig.send(.sessionEnd, session: "b", project: "jetpack"), [.sessions])
+        XCTAssertEqual(rig.wait(5000), [], "nothing changed")
+        XCTAssertEqual(rig.state.waiting, 0)
     }
 
     /// PROTOCOL.md §3: every `state` carries Boop's mood, happy until the

@@ -64,16 +64,14 @@ class Pending:
 def preview_state(latest: Line | None, look: str, mood: str | None = None) -> Line:
     """The latest state the app sent, showing `look`, and `mood` if given,
     instead."""
-    state: dict[str, Any] = dict(latest or {"t": "state", "v": 1, "busy": 0, "idle": 0, "wait": 0,
-                                              "vol": 6})
+    state: dict[str, Any] = dict(latest or {"t": "state", "v": 1, "busy": 0, "vol": 6})
     state.pop("attn", None)
     if mood:
         state["mood"] = mood
     if look == "needs you":
-        state.update(base="idle", wait=max(1, state.get("wait", 0)),
-                     attn={"agent": "claude", "project": "preview", "more": 0})
+        state.update(base="idle", attn={"agent": "claude", "project": "preview", "more": 0})
     else:
-        state.update(base=look, wait=0)
+        state["base"] = look
     return state
 
 
