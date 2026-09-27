@@ -236,9 +236,10 @@ The `doctor` skill (`skills/doctor/doctor.sh`) checks four things:
 
 `--headless` runs checks 1–3 against a throwaway headless app. The app
 logs hook lines only while the doctor has armed it, by writing
-`doctor-armed` into the state directory (`--confirm` removes it), or in
-debug mode (`--debug`, [HARNESS.md](HARNESS.md) §8), which also logs the
-event each hook became.
+`doctor-armed` into the state directory, or in debug mode (`--debug`, [HARNESS.md](HARNESS.md) §8), which also logs the
+event each hook became. `--confirm` removes the arm. An arm lasts 10
+minutes: the app removes an older one at the next hook, so a doctor run
+that never confirms doesn't leave every hook logged for good.
 
 ## 7. Claude Cowork
 

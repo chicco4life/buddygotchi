@@ -26,7 +26,8 @@ first, and only reads `~/.claude` and `~/.codex`.
      depends on hooks.
    - `2`: everything passed and the check is **armed** for the live step.
      Arming writes `doctor-armed` in the state directory; while it's there
-     the app logs every hook to `boop.log`.
+     the app logs every hook to `boop.log`. The app drops an arm nobody
+     confirms after a while (`plan/ADAPTERS.md` §6), so go on straight away.
 
 3. Run exactly one harmless shell command through your own tool-calling
    path, so your harness fires its hooks:

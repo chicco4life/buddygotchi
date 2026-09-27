@@ -16,7 +16,8 @@
 # Exit 0 healthy, 1 broken, 2 armed and waiting for the live step: run one
 # harmless command through the agent (echo BOOP_DOCTOR_PING), then --confirm.
 # It only reads ~/.claude and ~/.codex. Arming writes one file,
-# `doctor-armed`, in the state directory; --confirm removes it.
+# `doctor-armed`, in the state directory; --confirm removes it, and the app
+# drops an arm nobody confirms after a while (ADAPTERS.md §6).
 set -uo pipefail
 
 AGENT=""; STATE=""; CONFIRM=0; HEADLESS=0
@@ -72,7 +73,7 @@ if [ $CONFIRM -eq 1 ]; then
     codex)  sid="${CODEX_THREAD_ID:-}" ;;
     *) bad "can't tell which agent this is; pass --agent claude|codex"; exit 1 ;;
   esac
-  if [ ! -f "$ARM" ]; then bad "not armed; run doctor.sh first"; exit 1; fi
+  if [ ! -f "$ARM" ]; then bad "not armed, or the arm expired; run doctor.sh first, then confirm straight away"; exit 1; fi
   # Only what the log gained since arming: it keeps earlier days' lines,
   # stamped with the time of day alone. Lines read
   # "HH:MM:SS.mmm hook: <agent> <hook> <session>".
