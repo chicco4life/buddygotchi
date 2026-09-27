@@ -112,6 +112,8 @@ int sceneOf(Mood m, SceneState s) {
   return kSceneOf[mi][si];
 }
 
+uint32_t loopMs(Mood m, SceneState s) { return kScenes[sceneOf(m, s)].loopMs; }
+
 uint8_t sceneInk(int color) {
   switch (color) {
     case faces::kInk: return inkAt(kInkEye, kLevels);

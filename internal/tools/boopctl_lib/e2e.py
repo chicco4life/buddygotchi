@@ -214,23 +214,14 @@ def check_after(run: Run, expected: dict[str, Any]) -> None:
     (run.fail if leaks else run.say)(f"PRIVATE_ markers in app files or the brain log: {leaks or 'none'}")
 
 
-# How long each animation plays on the device (firmware/src/render/anim.cpp
-# animDuration).
-ANIM_MS = {"cheer": 2000, "wiggle": 700}
-
-
-def play_ms(moment: dict[str, Any]) -> int:
-    """How long the device plays a moment (as DeviceMoment.playMs): its
-    animation, if any, or the mumble when that's longer: its syllables, plus
-    two beats for a word, at 60-400 ms each, then 1200 ms for the bubble
-    (firmware/src/app/behaviour.cpp startSay). A mumble on its own plays over
-    the face for just its own length."""
-    ms = ANIM_MS.get(moment.get("anim") or "", 0)
-    say = moment.get("say") or {}
-    if n := syllables(say):
-        beats = n + (2 if say.get("word") else 0)
-        ms = max(ms, beats * max(60, min(400, say.get("ms", 120))) + 1200)
-    return ms
+def line_ms(say: dict[str, Any]) -> int:
+    """How long a line plays on the device, as DeviceMoment.playMs times
+    it: its syllables, plus two beats for a word, at 60-400 ms each, then
+    1200 ms for the bubble (firmware/src/app/behaviour.cpp startSay)."""
+    if not (n := syllables(say)):
+        return 0
+    beats = n + (2 if say.get("word") else 0)
+    return beats * max(60, min(400, say.get("ms", 120))) + 1200
 
 
 def check_order(run: Run) -> dict[str, Any]:
@@ -245,7 +236,8 @@ def check_order(run: Run) -> dict[str, Any]:
     rule line (chatter) had finished playing. A brain mumble may play over a
     rule animation such as the cheer, which it doesn't cut; an animation
     stops the line playing. Each fixture ends with seconds to spare, so
-    every brain moment sent with an `id` has its `ended` by then."""
+    every brain moment sent with an `id` has its `ended` by then, and it
+    says whether a newer moment cut the moment's line or face short."""
     stamp = re.compile(r"^(\d\d):(\d\d):(\d\d)\.(\d\d\d) (.*)$")
     ended_line = re.compile(r"^device: moment (\d+) ended (\w+)(?: \((\w+)\))?$")
     how_ended: dict[int, str] = {}  # how each moment ended, by id: "done", "cut (tap)"
@@ -253,8 +245,6 @@ def check_order(run: Run) -> dict[str, Any]:
     last_hook: str | None = None
     reaction: int | None = None
     rule_moment: tuple[int, str, int] | None = None  # sent, anim, when its line ends
-    brain_ends = 0
-    cut: list[str] = []  # brain moments a later rule moment replaced (a new hook may; for the record)
     for raw in run.app_log().splitlines():
         m = stamp.match(raw)
         if not m:
@@ -272,16 +262,13 @@ def check_order(run: Run) -> dict[str, Any]:
             if line.get("t") == "moment":
                 anim = line.get("anim") or "mumble"  # chatter: a mumble on its own
                 # A line plays to its end; an animation alone stops any line.
-                ends = t + play_ms(line) if line.get("say") else min(rule_moment[2] if rule_moment else t, t)
+                ends = t + line_ms(line["say"]) if line.get("say") else min(rule_moment[2] if rule_moment else t, t)
                 rule_moment = (t, anim, ends)
-                if t < brain_ends:
-                    cut.append(f"{raw[:12]} {anim} after {last_hook}")
         elif text.startswith("link brain → "):
             brain_line = json.loads(text[len("link brain → "):])
             if brain_line.get("t") != "moment":
                 continue
             anim = brain_line.get("anim") or "mumble"  # the brain's `say`: a mumble on its own
-            brain_ends = t + play_ms(brain_line)
             answers.append({
                 "moment": anim, "at": raw[:12], "id": brain_line.get("id"),
                 "after_reaction_ms": None if reaction is None else t - reaction[0],
@@ -297,17 +284,19 @@ def check_order(run: Run) -> dict[str, Any]:
     for a in answers:
         a["ended"] = how_ended.get(a["id"]) if a["id"] is not None else None
     unended = [a for a in answers if a["id"] is not None and a["ended"] is None]
+    # For the record: a new hook's rule moment may cut a brain moment short.
+    cut = [f"{a['at']} {a['moment']} ({a['id']})" for a in answers if a["ended"] == "cut (moment)"]
     for a in answers:
         run.say(f"  {a['at']} brain {a['moment']}: {a['after_reaction_ms']} ms after the rules' reaction to "
                 f"{a['reaction_to']}; last rule moment {a['last_rule_moment']}, its line ended "
                 f"{a['after_rule_line_ended_ms']} ms before; the device said it ended {a['ended']}")
-    run.say(f"brain moments: {len(answers)}, early: {len(bad)}, later replaced by a rule moment: {cut or 'none'}, "
+    run.say(f"brain moments: {len(answers)}, early: {len(bad)}, cut short by a newer moment: {cut or 'none'}, "
             f"with no `ended` from the device: {len(unended)}")
     if bad:
         run.fail(f"{len(bad)} brain moments came before the rules' reaction or cut a rule's line short")
     if unended:
         run.fail(f"{len(unended)} brain moments never got the device's `ended`: {[a['id'] for a in unended]}")
-    return {"brain_moments": len(answers), "early": len(bad), "replaced_by_rules": cut, "unended": len(unended),
+    return {"brain_moments": len(answers), "early": len(bad), "cut_by_newer": cut, "unended": len(unended),
             "answers": answers}
 
 

@@ -1,6 +1,6 @@
 # Boop: architecture
 
-Updated 2026-09-27. The parts of Boop, how they connect, what each one
+Updated 2026-09-28. The parts of Boop, how they connect, what each one
 keeps and where, the budgets, and the decisions still in force. The other
 specs go deeper on each part; [README.md](README.md) lists them.
 
@@ -125,7 +125,7 @@ clock.
 | Effect | Carried out by |
 | --- | --- |
 | `state(snapshot)`, only when something on it changed | The device link, and the menu bar's status |
-| `moment(anim)`: a rule's `cheer` | The device link at once, cutting off whatever plays; the moment schedule notes it |
+| `moment(anim, loops)`: a rule's `cheer`, with enough loops of the mood's design to last at least 2 s ([BEHAVIORS.md](BEHAVIORS.md) §5) | The device link at once, cutting off whatever plays; the moment schedule notes it |
 | `mumble(feeling, word)`: working chatter | Voice, then the device link, but only when nothing plays, no brain moment waits and nothing needs you |
 | `event(Event)` | The harness ([harness/EVENTS.md](harness/EVENTS.md)) |
 | `newDay(date)`: the first hook or tap of a new local day | The memory store (§4) |
@@ -160,20 +160,27 @@ stall one. Days and times of day follow the wall clock, which the runtime
 reports every tick.
 
 **Moments.** The rules' moments play at once, each replacing whatever is
-playing ([BEHAVIORS.md](BEHAVIORS.md) §3). The brain's wait in the moment
-schedule, one at a time, until no line plays; they have no animation, so
-they play over one without cutting it, and an animation stops any line
-on the device. One that has waited longer than 5 s is dropped, since a
-late reaction is worse than none. Each carries its reaction's handle.
-It goes to the device with an `id`, and the device's `ended` says how
-it went: played out, cut short or skipped ([PROTOCOL.md](PROTOCOL.md)
-§4). The schedule or the runtime ends the handle from that, or when the
-moment can't have played ([harness/DECISIONS.md](harness/DECISIONS.md)
-§5). Working chatter still waits until nothing plays at all. The app
-times each moment as the device does, to give each its turn and to know
-how long to wait for its `ended`: the animation's length (`cheer` 2 s,
-`wiggle` 0.7 s) or, if longer, the mumble's syllables plus two beats for
-a word, at the line's pace, then 1.2 s to read the bubble.
+playing ([BEHAVIORS.md](BEHAVIORS.md) §3). The brain's wait in the
+moment schedule, one at a time, until no line or reaction's face plays;
+they have no animation, so they play over one without cutting it, and an
+animation stops any line on the device. One that has waited longer than
+5 s is dropped, since a late reaction is worse than none. Each carries
+its reaction's handle. It goes to the device with an `id`, and the
+device's `ended` says how it went: played out, cut short or skipped
+([PROTOCOL.md](PROTOCOL.md) §4). The schedule or the runtime ends the
+handle from that, or when the moment can't have played
+([harness/DECISIONS.md](harness/DECISIONS.md) §5). Working chatter still
+waits until nothing plays at all. The app times each moment as the
+device does, to give each its turn and to know how long to wait for its
+`ended`: the cheer's loops of its design, a wiggle's 0.7 s, or a
+reaction's face's loops of the design showing, and the mumble's
+syllables plus two beats for a word, at the line's pace, then 1.2 s to
+read the bubble, when that's longer. The design showing is the look and
+mood of the last `state`, or the cheer's while one plays, and its loop
+is `FaceLoops`' number for it, the one the device has
+([PROTOCOL.md](PROTOCOL.md) §3). The device ends a face on a loop
+boundary of its own clock, which the app doesn't know, so the face may
+end up to a loop sooner than the app reckons, never later.
 
 ### 3.3 Harness and brain
 
@@ -198,7 +205,7 @@ order:
 | Action | Effect | Its own rules |
 | --- | --- | --- |
 | `mood` | Saves the new mood to the `mood` file; the core puts it in the next `state`, and it's the MOOD section of the next pass | Only one of the seven moods, and only a change |
-| `react` | Queues a moment in the moment schedule: the chosen mood as its face, and Voice's mumble in that mood's feeling, with the chosen word if Jev is sure enough. It's started, not done, until the device says how the moment ended | Nothing while something needs you |
+| `react` | Queues a moment in the moment schedule: the chosen mood as its face, held for the loops Jev picked, and Voice's mumble in that mood's feeling, with the chosen word if Jev is sure enough. It's started, not done, until the device says how the moment ended | Nothing while something needs you |
 
 The rules' own moments (the cheer, working chatter) don't go through them.
 
@@ -361,7 +368,7 @@ What crosses each boundary, in the order an event travels:
 | Harness → Jev | The state as text, and every action's questions | One HTTPS request | [harness/HARNESS.md](harness/HARNESS.md) §7 |
 | Jev → actions | Each question's choice and probabilities, only to the action that asked | `Answers` | [harness/HARNESS.md](harness/HARNESS.md) §4 |
 | Actions → harness | `(ok, message)`; a successful message goes into HISTORY. A started one also hands over a handle, and its end comes later | `ActionResult`, `Pending` | [harness/HARNESS.md](harness/HARNESS.md) §4 |
-| `react` → moment schedule → device link | A mumble and its face (`mood`), and its handle, which the schedule or the runtime ends; it goes out with an `id` | `DeviceMoment`, `Pending` | [harness/DECISIONS.md](harness/DECISIONS.md) §5 |
+| `react` → moment schedule → device link | A mumble and its face (`mood`) with its `loops`, and its handle, which the schedule or the runtime ends; it goes out with an `id` | `DeviceMoment`, `Pending` | [harness/DECISIONS.md](harness/DECISIONS.md) §5 |
 | `mood` → mood store → core | The new mood | A word | [harness/DECISIONS.md](harness/DECISIONS.md) §4 |
 | Device link ↔ device | `state` and `moment` out; `input`, `ended` and `status` in | JSON lines | [PROTOCOL.md](PROTOCOL.md) |
 | Runtime → Mac app | Name, snapshot, sessions, link, device, personality, brain | `Runtime.Status` | [UX.md](UX.md) §6 |
@@ -374,7 +381,7 @@ What crosses each boundary, in the order an event travels:
 | Poke streak, heartbeat count, chatter's next time | Core | Memory | Start again |
 | The last active day | Core, from `short-term.md` | Disk | Kept, so a restart doesn't start the day twice |
 | Transcript, the pass running and the one waiting | Harness | Memory, and `debug.jsonl` in debug mode | Gone |
-| Brain moments waiting with their handles, and when the device is free | Moment schedule | Memory | Gone |
+| Brain moments waiting with their handles, when the device is free, and the look and mood of the last `state`, which time a moment's loops | Moment schedule | Memory | Gone |
 | Brain moments on the device, by `id`, with their handles and when to give up waiting for their `ended` | Runtime | Memory | Gone |
 | The latest snapshot, the device's status, whether it's connected | Device link | Memory | Rebuilt at start |
 | Project and workspace by folder (up to 512) | Adapter | Memory | Read again |
@@ -515,3 +522,4 @@ which also has the full log up to 2026-09-27.
 | 2026-09-27 | An action can report that it started something rather than did it: HISTORY shows its line `(in progress)` until it reports `done`, or `failed` with why (`(didn't happen: …)`), as a `settle` entry; the harness ends any left open too long | HISTORY said Boop made a face that was still waiting its turn, or that the moment schedule had dropped and never showed. Only the action knows when its effect ends, so the harness only waits, with a ceiling in case it never hears | [harness/HARNESS.md](harness/HARNESS.md) §4–5 |
 | 2026-09-27 | `react` is started, not done: its moment's handle ends when the device says how the moment ended, or `failed` when it was dropped, no device was connected or the device dropped. This replaces "HISTORY still says Boop made it" for a dropped reaction. The guide lets Jev make one that didn't happen again, but not repeat one in progress | Jev read reactions that never showed as made, and wouldn't retry them | [harness/DECISIONS.md](harness/DECISIONS.md) §5 |
 | 2026-09-27 | A `moment` the Mac waits on carries an `id`, and the device answers it with `ended`: `done`, `cut` (and what cut it) or `skipped`. The Mac gives up on one that doesn't come by the moment's length plus a grace. This replaces the app's own timing, which ended a reaction `done` when it expected the moment to have played. No other moment is answered | Only the device knows whether a tap, "needs you" or a newer moment stopped a reaction, or whether it played at all. The grace keeps older firmware and a lost line from leaving a reaction in progress | [PROTOCOL.md](PROTOCOL.md) §4 |
+| 2026-09-28 | Moments are counted in loops of a design, and whoever plays one says how many (`moment.loops`, 1–6). The cheer plays enough loops of the mood's task-complete design to last at least 2 s, replacing the fixed 2 s; a reaction's face holds the loops Jev picks (`react.loops`, once to four times), ending on a loop boundary of the design showing, and at least as long as its mumble. facegen reads each design's loop from its SVG timing and writes it for the device and the Mac alike | Every animation can loop, and the loopable designs coming next should end where they start rather than be cut mid-motion. A bigger moment can hold its face longer. One set of numbers keeps the Mac's timing of a moment with the device's | [PROTOCOL.md](PROTOCOL.md) §3, [harness/DECISIONS.md](harness/DECISIONS.md) §5 |

@@ -1,6 +1,6 @@
 # Boop: harness decisions
 
-Updated 2026-09-27. What Boop decides when the brain wakes: the steering
+Updated 2026-09-28. What Boop decides when the brain wakes: the steering
 files Jev reads, the questions it answers, and the two actions that
 carry out its answers. The contract every action follows is
 [HARNESS.md](HARNESS.md) §4. The events are in [EVENTS.md](EVENTS.md),
@@ -13,9 +13,9 @@ Two actions, registered in this order (`Runtime`):
 | Action | Decides | Its questions | Effect |
 | --- | --- | --- | --- |
 | `mood` (§4) | Whether Boop's mood changes, and to what | `mood` | The `mood` file; MOOD from the next pass; the device's set of faces |
-| `react` (§5) | Whether Boop reacts, with which mood's face, and with which real word | `react`, `word.feeling`, `word.about` | For as long as a Minion line plays, the device draws the look in that mood's design |
+| `react` (§5) | Whether Boop reacts, with which mood's face, for how long, and with which real word | `react`, `react.loops`, `word.feeling`, `word.about` | The device draws the look in that mood's design for the loops picked, and at least while a Minion line plays |
 
-All four questions go in one request, and Jev answers each on its own
+All five questions go in one request, and Jev answers each on its own
 ([HARNESS.md](HARNESS.md) §7). So both actions are judged against the
 mood as it stood: on a pass that changes the mood, the reaction is still
 judged by the old one. The guide asks for the two to fit together, and
@@ -34,9 +34,10 @@ examples are written as the state's own lines.
 same for every personality and mood. It says who Boop is (a desk
 creature that never approves or blocks anything), what it already does
 on its own (cheers, wiggles, alerts), and that Jev only decides whether
-it reacts, with one of its moods' faces for a moment and a mumble of at
-most one real word, and whether its mood changes. Then how to choose:
-judge by PERSONALITY and MOOD; react to NOW, not older lines; don't
+it reacts, with one of its moods' faces, held once or more (longer for
+bigger moments), and a mumble of at most one real word, and whether its
+mood changes. Then how to choose: judge by PERSONALITY and MOOD; react
+to NOW, not older lines, with a face, hold and word that fit it; don't
 repeat what Boop just did or is still doing (HISTORY's
 `(in progress)`), though a reaction that didn't happen may be made again
 if NOW still calls for it (§5); the mood is the backdrop and the
@@ -61,12 +62,13 @@ event. It has two parts:
   [BEHAVIORS.md](../BEHAVIORS.md) §6's, and it never reaches Jev.
 - **The text,** which is the PERSONALITY section: who this Boop is, how
   often it speaks up, and its Examples, each a NOW line and what it
-  would pick (`→ grumpy, "again"`).
+  would pick: the face, the word and how long it holds
+  (`→ grumpy, "again", once`).
 
 | Personality | For | Its text |
 | --- | --- | --- |
-| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Curious, loyal, easily delighted and a little smug. It speaks up when something stands out and stays quiet during routine work: a comeback finish is proud with "finally", a third failure grumpy with "again", a poke streak grumpy with "nope"; a turn start, a short finish and a heartbeat get nothing |
-| [`chatter`](../steering/personality/chatter.md) | Debugging, so every pass is easy to see | Wildly over the top. It reacts to every line in NOW, routine tool uses and heartbeats included, and always picks a word if one fits |
+| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Curious, loyal, easily delighted and a little smug. It speaks up when something stands out and stays quiet during routine work: a comeback finish is proud with "finally", held three times; a third failure grumpy with "again" and a poke streak grumpy with "nope", each held once; a turn start, a short finish and a heartbeat get nothing |
+| [`chatter`](../steering/personality/chatter.md) | Debugging, so every pass is easy to see | Wildly over the top. It reacts to every line in NOW, routine tool uses and heartbeats included, always picks a word if one fits, and holds its faces long: twice for routine lines, up to four times for a comeback or a third failure |
 
 "Never stays quiet" is still Jev's call: `none` stays an option, and the
 moods still apply.
@@ -111,16 +113,18 @@ meaning is its criterion.
 | --- | --- | --- | --- | --- | --- |
 | `mood` | `mood` | After NOW, what is Boop's mood? | the NOW and HISTORY sections | the MOOD section, its reason to leave | The seven moods (§2.3) |
 | `react` | `react` | How should Boop react to NOW, if at all? It makes this face for a moment, with a mumble. | the NOW section | the PERSONALITY and MOOD sections, PERSONALITY's Examples first | `none` and the seven moods' faces |
+| `react.loops` | `react` | If Boop reacts, how long does it hold the face? | the NOW section | as `react` | Four lengths, once to four times |
 | `word.feeling` | `react` | If Boop mumbles, which exclamation fits NOW? | the NOW section | as `react` | `none` and seven exclamations |
 | `word.about` | `react` | If Boop mumbles, which topic word is NOW about? | the NOW section | the PERSONALITY section's Examples | `none` and four topics |
 
 **`react` picks a face.** Its options are `none` and the seven moods,
 and a reaction is that mood's face for a moment: the device draws
 whatever look is showing (working, idle, the cheer) in that mood's
-design for as long as the mumble plays, then goes back to Boop's mood
-([PROTOCOL.md](../PROTOCOL.md) §3). The mood is the backdrop and the
-face the moment, so they can differ on purpose: a happy Boop at work
-scowls grumpily at a failing test for two seconds, then smiles again.
+design for the loops `react.loops` picks, and at least while the mumble
+plays, then goes back to Boop's mood ([PROTOCOL.md](../PROTOCOL.md) §3).
+The mood is the backdrop and the face the moment, so they can differ on
+purpose: a happy Boop at work scowls grumpily at a failing test for a
+loop of the working design, then smiles again.
 The designs are the reactions' meaning; the sound follows the face
 (Voice picks a feeling for each mood, [VOICE.md](../VOICE.md) §4).
 
@@ -137,6 +141,19 @@ disagree (a "no" with a confident "proud"); one choice can't.
 | `determined` | A determined face: something failed and the agent is trying again. Not for a turn that has ended, or the same failure 3 or more times in a row |
 | `grumpy` | A grumpy face: a turn failed, the same thing keeps failing, or Boop is poked too much |
 | `sad` | A sad face: a turn of 10 minutes or more ended failing, or was stopped with failures left. Not for a short turn failing, or a single failure |
+
+**`react.loops` picks how long the face holds,** in loops of the design
+it's drawn in ([UX.md](../UX.md) §2). It's asked on every pass and only
+read when `react` picks a face; a missing answer holds it once. The
+personality's Examples set the scale: boop mostly holds once, chatter
+long.
+
+| `react.loops` | Loops | Meaning |
+| --- | --- | --- |
+| `once` | 1 | A small moment: the usual |
+| `twice` | 2 | A moment that stands out. Not for routine work |
+| `three times` | 3 | A big moment, such as a comeback |
+| `four times` | 4 | The biggest moments: a hard-won finish, or a failure that keeps coming back. Not for a single win or failure |
 
 **The words** are two questions over two short lists, so the two picks
 are never near-synonyms: an exclamation, and what NOW is about. They're
@@ -201,13 +218,14 @@ gate, which says when something needs you.
    you`, and nothing plays, so no face is borrowed while needs you shows.
 4. **The effect:** Voice builds a Minion line in the voice it gives that
    mood (`Voice.feeling(forMood:)`), with the word, each line with the
-   next seed. It's queued as a `moment` with `say` and the face as
-   `mood`, and no animation, so it plays over whatever is showing (the
-   cheer included) once any line playing has finished. A new `Pending`
-   goes with it, and the action returns without waiting for the moment.
+   next seed. It's queued as a `moment` with `say`, the face as `mood`
+   and `react.loops`' pick as `loops` (1–4, `ReactAction.loops`), and no
+   animation, so it plays over whatever is showing (the cheer included)
+   once any line or face playing has finished. A new `Pending` goes with
+   it, and the action returns without waiting for the moment.
 5. **The message:** started (`.started`) with that handle, as
-   `Boop made a proud face and mumbled "…finally!"`, or
-   `Boop made a curious face and mumbled.` with no word.
+   `Boop made a proud face, held three times, and mumbled "…finally!"`,
+   or `Boop made a curious face, held once, and mumbled.` with no word.
 
 **How a reaction ends.** HISTORY shows its line `(in progress)` until
 whoever holds the moment ends the handle ([HARNESS.md](HARNESS.md) §4,
@@ -216,7 +234,7 @@ how it ended ([PROTOCOL.md](../PROTOCOL.md) §4):
 
 | End | When | By |
 | --- | --- | --- |
-| `done` | The device says it played to the end | The runtime, from the device's `ended` |
+| `done` | The device says it played to the end: its loops, and its mumble | The runtime, from the device's `ended` |
 | `failed`, `cut short: you tapped Boop` | The device says a tap's wiggle stopped it | The same |
 | `failed`, `cut short: something newer played` | The device says a newer moment stopped it: the rules' cheer, or a line | The same |
 | `failed`, `cut short: something needed you` | The device says "needs you" started while it played | The same |
@@ -225,20 +243,22 @@ how it ended ([PROTOCOL.md](../PROTOCOL.md) §4):
 | `failed`, `waited too long` | It waited too long for its turn and was dropped, face and all | The moment schedule |
 | `failed`, `no device connected` | Its turn came with no device connected, so nothing played it | The runtime |
 | `failed`, `the device disconnected` | The device dropped before saying how it ended | The runtime |
-| `failed`, `the device never said it ended` | No `ended` came in time ([PROTOCOL.md](../PROTOCOL.md) §6): the line was lost, or the firmware is older | The runtime |
+| `failed`, `the device never said it ended` | No `ended` came by the moment's longest length, its face's loops of the design the last `state` shows or its line, plus a grace ([PROTOCOL.md](../PROTOCOL.md) §6): the line was lost, or the firmware is older | The runtime |
 
 A failed one reads `(didn't happen: <why>)` in HISTORY, so Jev may make
 it again if NOW still calls for it (§2.1). The evals have no device, so
 their queue ends each handle `done` at once ([EVALS.md](../EVALS.md) §1).
 [HARNESS.md](HARNESS.md) §9 has a reaction and its end in `debug.jsonl`,
-from a headless run with no device. With the board on USB, a forced
-reaction's moment, its action and the settle the device's
-`{"t":"ended","id":1,"how":"done"}` brought, 1.5 s later:
+from a headless run with no device. With the board on USB and Boop
+asleep, a forced proud reaction held twice: its moment, its action and
+the settle the device's `{"t":"ended","id":1,"how":"done"}` brought
+10.3 s later, at the second loop boundary of the asleep design's 8 s
+clock, long after its 1.9 s mumble:
 
 ```jsonl
-{"sent":{"t":"moment","say":{"syl":"bo lon","tune":"lift","ms":135},"mood":"proud","id":1},"received_at_ms":1790519069129}
-{"action":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop made a proud face and mumbled.","name":"react","ok":true,"pending":true},"received_at_ms":1790519069129,"seq":2}
-{"received_at_ms":1790519070608,"seq":3,"settle":{"by":"dashboard","end":"done","for":2}}
+{"sent":{"t":"moment","say":{"syl":"ta-ko ga-da o","word":"finally","at":0,"tune":"lift","ms":135},"mood":"proud","loops":2,"id":1},"received_at_ms":1790522728858}
+{"action":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop made a proud face, held twice, and mumbled \"…finally!\"","name":"react","ok":true,"pending":true},"received_at_ms":1790522728858,"seq":2}
+{"received_at_ms":1790522739144,"seq":3,"settle":{"by":"dashboard","end":"done","for":2}}
 ```
 
 ## 6. An example

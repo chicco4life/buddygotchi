@@ -1,12 +1,12 @@
 import Foundation
 
-/// Whether Boop reacts to NOW, with which face, and with which real word
-/// (harness/DECISIONS.md §5). The face is one of the seven moods': while
-/// the reaction plays, the device borrows that mood's design of whatever
-/// look is showing (PROTOCOL.md §3). It comes with a Minion line from
-/// Voice, and goes as a moment with no animation, so it plays over
-/// whatever is showing once any line playing has finished. It's started,
-/// not done, until whoever plays the moment ends its handle.
+/// Whether Boop reacts to NOW, with which face, for how long, and with
+/// which real word (harness/DECISIONS.md §5). The face is one of the seven
+/// moods': the device borrows that mood's design of whatever look is
+/// showing, for a number of its loops (PROTOCOL.md §3). It comes with a
+/// Minion line from Voice, and goes as a moment with no animation, so it
+/// plays over whatever is showing once any line playing has finished. It's
+/// started, not done, until whoever plays the moment ends its handle.
 public final class ReactAction: Action {
     public let name = "react"
     let voice: Voice
@@ -57,6 +57,22 @@ public final class ReactAction: Action {
         Option("docs", "NOW is about docs."),
     ]
 
+    /// How long the face holds, in loops of the design it's drawn in: the
+    /// first holds once, and each one after a loop more (DECISIONS.md §5).
+    public static let holds = [
+        Option("once", "A small moment: the usual."),
+        Option("twice", "A moment that stands out.", notFor: "Routine work."),
+        Option("three times", "A big moment, such as a comeback."),
+        Option("four times", "The biggest moments: a hard-won finish, or a failure that keeps coming back.",
+               notFor: "A single win or failure."),
+    ]
+
+    /// How many loops the face holds: `react.loops`' pick, or once when
+    /// it's missing.
+    public static func loops(_ answers: Answers) -> Int {
+        (holds.firstIndex { $0.name == answers["react.loops"]?.choice } ?? 0) + 1
+    }
+
     /// Below this, Jev is guessing, and no word beats a guessed one
     /// (DECISIONS.md §5).
     public static let wordFloor = 0.35
@@ -75,6 +91,8 @@ public final class ReactAction: Action {
                      about: "the NOW section", judgeBy: byBoth,
                      options: [Option("none", "Stay quiet: nothing in NOW is worth a face and a mumble.",
                                       notFor: "Anything PERSONALITY's Examples react to.")] + Self.expressions),
+            Question(key: "react.loops", text: "If Boop reacts, how long does it hold the face?", about: "the NOW section",
+                     judgeBy: byBoth, options: Self.holds),
             Question(key: "word.feeling", text: "If Boop mumbles, which exclamation fits NOW?", about: "the NOW section",
                      judgeBy: byBoth, options: [Option("none", "No exclamation fits NOW.")] + Self.exclamations),
             Question(key: "word.about", text: "If Boop mumbles, which topic word is NOW about?", about: "the NOW section",
@@ -94,13 +112,15 @@ public final class ReactAction: Action {
         if let why = blocked() { return .failed(why) }
         // 4. The effect.
         seed += 1
-        // The face is the expression's for as long as the line plays.
+        // The face holds its loops, and at least as long as the line plays.
         let line = voice.line(Voice.feeling(forMood: choice), word: word, seed: seed)
+        let loops = Self.loops(answers)
         let pending = Pending()
-        queue(DeviceMoment(say: line, mood: choice), pending)
+        queue(DeviceMoment(say: line, mood: choice, loops: loops), pending)
         // 5. What it started, as its line in HISTORY: in progress until
         // the device says how the moment ended.
         let article = "aeiou".contains(choice.first!) ? "an" : "a"
-        return .started("Boop made \(article) \(choice) face and mumbled" + (word.map { " \"…\($0)!\"" } ?? "."), pending)
+        return .started("Boop made \(article) \(choice) face, held \(Self.holds[loops - 1].name), and mumbled"
+                        + (word.map { " \"…\($0)!\"" } ?? "."), pending)
     }
 }

@@ -500,10 +500,11 @@ def mumble_levels(args: argparse.Namespace) -> int:
 
 def cmd_play(args: argparse.Namespace) -> int:
     """One thing the Mac can make the board do, checked through dbg.state:
-    an animation from the set (BEHAVIORS.md §5), with --say a mumble over
-    it; `needs`, a fake "needs you" (play_needs); or the bring-up `pattern`."""
-    if args.say and args.what in ("needs", "pattern"):
-        raise DeviceError(f"play {args.what} takes no --say")
+    an animation from the set (BEHAVIORS.md §5), --loops times, with --say
+    a mumble over it; `needs`, a fake "needs you" (play_needs); or the
+    bring-up `pattern`."""
+    if (args.say or args.loops) and args.what in ("needs", "pattern"):
+        raise DeviceError(f"play {args.what} takes no --say or --loops")
     if args.what == "pattern":
         with Device(args.port) as dev:
             dev.request({"t": "dbg.pattern"})
@@ -515,6 +516,8 @@ def cmd_play(args: argparse.Namespace) -> int:
         show_begin(dev)
         show_state(dev, args.vol, base=args.base, mood=args.mood)
         msg = {"t": "moment", "anim": args.what}
+        if args.loops:
+            msg["loops"] = args.loops
         if args.say:
             msg["say"] = boopdev_voice(args.say, args.word, 1, args.seed)[0]
         dev.send(msg)
@@ -577,6 +580,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--say", choices=FEELINGS, metavar="FEELING", help=f"a mumble with this feeling: {', '.join(FEELINGS)}")
     p.add_argument("--word", help="the mumble's word")
     p.add_argument("--seed", type=int)
+    p.add_argument("--loops", type=int, choices=range(1, 7), metavar="1-6",
+                   help="how many times the cheer's design plays (PROTOCOL.md §3; the device reads none as 1)")
     p.add_argument("--base", choices=["idle", "working", "asleep"], default="idle")
     p.add_argument("--mood", choices=MOODS, default="happy", help="the mood the state carries (default happy)")
     p.add_argument("--vol", **vol)

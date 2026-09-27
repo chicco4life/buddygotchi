@@ -10,6 +10,7 @@
 #include "render/font.h"
 #include "render/palette.h"
 #include "render/raster.h"
+#include "render/scene.h"
 #include "render/screens.h"
 
 using namespace render;
@@ -91,14 +92,17 @@ static void test_palette_ramps_run_from_black_to_the_ink() {
   TEST_ASSERT_EQUAL_HEX16(rgb565(255, 0, 0), paletteAt(kRed));  // the bring-up pattern's colours stay
 }
 
-// BEHAVIORS.md §5: two animations, and nothing else.
+// BEHAVIORS.md §5: two animations, and nothing else. The wiggle is 0.7 s;
+// the cheer lasts its loops of its design, and every design has a loop
+// (PROTOCOL.md §3).
 static void test_every_anim_has_a_name_and_ends() {
   TEST_ASSERT_EQUAL_INT(3, int(Anim::kCount));  // with kNone
   for (int i = 1; i < int(Anim::kCount); ++i) {
     Anim a = Anim(i);
     TEST_ASSERT_TRUE(animFromName(animName(a)) == a);
-    TEST_ASSERT_TRUE(animDuration(a) > 0);
-    TEST_ASSERT_TRUE(animDuration(a) <= 2000);
+  }
+  for (int m = 0; m < int(Mood::kCount); ++m) {
+    for (int s = 0; s < int(SceneState::kCount); ++s) TEST_ASSERT_TRUE(loopMs(Mood(m), SceneState(s)) > 0);
   }
   for (const char* name : {"cheer", "wiggle"}) {
     TEST_ASSERT_TRUE_MESSAGE(animFromName(name) != Anim::kNone, name);
@@ -108,8 +112,7 @@ static void test_every_anim_has_a_name_and_ends() {
                            "thinking", "shrug", "listening"}) {
     TEST_ASSERT_TRUE_MESSAGE(animFromName(gone) == Anim::kNone, gone);
   }
-  TEST_ASSERT_EQUAL_UINT32(2000, animDuration(Anim::kCheer));
-  TEST_ASSERT_EQUAL_UINT32(700, animDuration(Anim::kWiggle));
+  TEST_ASSERT_EQUAL_UINT32(700, kWiggleMs);
 }
 
 // harness/DECISIONS.md §2.3: the seven moods, by the names the Mac sends

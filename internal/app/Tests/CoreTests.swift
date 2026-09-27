@@ -66,7 +66,7 @@ final class CoreRig {
 }
 
 func moments(_ fx: [CoreEffect]) -> [String] {
-    fx.compactMap { if case .moment(let anim) = $0 { return anim } else { return nil } }
+    fx.compactMap { if case .moment(let anim, _) = $0 { return anim } else { return nil } }
 }
 
 /// The events that wake the brain, by their lines.
@@ -113,6 +113,19 @@ final class CoreAgentWorkTests: XCTestCase {
         XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": done after 20 min, a very long turn, 0 tools."#])
         XCTAssertEqual(events(fx).first?.reaction, "Boop cheered on its own.")
         XCTAssertEqual(events(fx).first?.facts["length_ms"], .int(1_200_000))
+    }
+
+    /// BEHAVIORS.md §5: the cheer lasts at least 2 s: as many loops of the
+    /// mood's task-complete design (`FaceLoops`) as that takes, and no more.
+    func testTheCheerLoopsForLongEnough() {
+        XCTAssertEqual(Core.cheerMinMs, 2000)
+        for mood in MoodAction.moods.map(\.name) {
+            let loop = FaceLoops.ms(mood: mood, state: "task_complete")
+            let loops = Core.cheerLoops(mood: mood)
+            XCTAssertGreaterThanOrEqual(Int64(loops) * loop, Core.cheerMinMs, mood)
+            XCTAssertLessThan(Int64(loops - 1) * loop, Core.cheerMinMs, mood)
+        }
+        XCTAssertTrue(CoreRig().turn(10_000).contains(.moment(anim: "cheer", loops: Core.cheerLoops(mood: "happy"))))
     }
 
     func testAFinishCheersWhileOthersKeepWorking() {  // BEHAVIORS.md §3.1

@@ -33,12 +33,17 @@ public struct Scenario: Sendable {
         public var react: Set<String>?
         /// The word the mumble used, or `none`.
         public var word: Set<String>?
+        /// How long the face held (`react.loops`' pick), or `none` when
+        /// Boop didn't react.
+        public var loops: Set<String>?
         /// The mood after the pass.
         public var mood: Set<String>?
 
-        public init(react: Set<String>? = nil, word: Set<String>? = nil, mood: Set<String>? = nil) {
+        public init(react: Set<String>? = nil, word: Set<String>? = nil, loops: Set<String>? = nil,
+                    mood: Set<String>? = nil) {
             self.react = react
             self.word = word
+            self.loops = loops
             self.mood = mood
         }
     }
@@ -81,9 +86,10 @@ public struct Scenario: Sendable {
                     guard let text = v as? String else { throw badStep("expect.\(key) is like \"proud|excited\"") }
                     return Set(text.split(separator: "|").map { $0.trimmingCharacters(in: .whitespaces) })
                 }
-                let unknown = Set(e.keys).subtracting(["react", "word", "mood"])
-                guard unknown.isEmpty else { throw badStep("expect has only react, word and mood") }
-                step.expect = Expectation(react: try set("react"), word: try set("word"), mood: try set("mood"))
+                let unknown = Set(e.keys).subtracting(["react", "word", "loops", "mood"])
+                guard unknown.isEmpty else { throw badStep("expect has only react, word, loops and mood") }
+                step.expect = Expectation(react: try set("react"), word: try set("word"), loops: try set("loops"),
+                                          mood: try set("mood"))
             }
             return step
         }
@@ -127,9 +133,11 @@ public struct Eval {
         public var step: Int
         public var line: String
         public var expected: Scenario.Expectation
-        /// What happened: the react pick, the word used, the mood after.
+        /// What happened: the react pick, the word used, how long the face
+        /// held, the mood after.
         public var react: String?
         public var word: String?
+        public var loops: String?
         public var mood: String
         public var dropped: String?
         public var latencyMs: Int
@@ -138,6 +146,7 @@ public struct Eval {
             guard dropped == nil else { return false }
             if let r = expected.react, !r.contains(react ?? "none") { return false }
             if let w = expected.word, !w.contains(word ?? "none") { return false }
+            if let l = expected.loops, !l.contains(loops ?? "none") { return false }
             if let m = expected.mood, !m.contains(mood) { return false }
             return true
         }
@@ -145,8 +154,10 @@ public struct Eval {
         public var summary: String {
             let want = [expected.react.map { "react \($0.sorted().joined(separator: "|"))" },
                         expected.word.map { "word \($0.sorted().joined(separator: "|"))" },
+                        expected.loops.map { "loops \($0.sorted().joined(separator: "|"))" },
                         expected.mood.map { "mood \($0.sorted().joined(separator: "|"))" }].compactMap { $0 }
-            let got = dropped.map { "dropped: \($0)" } ?? "react \(react ?? "none"), word \(word ?? "none"), mood \(mood)"
+            let got = dropped.map { "dropped: \($0)" }
+                ?? "react \(react ?? "none"), word \(word ?? "none"), loops \(loops ?? "none"), mood \(mood)"
             return "  step \(step): \(line)\n    wanted \(want.joined(separator: ", ")); got \(got)"
         }
     }
@@ -214,8 +225,9 @@ public struct Eval {
             let react = record.pass.answers["react"]?.choice
             let ran = record.actions.contains { $0.name == "react" && $0.result.ok }
             checks.append(Check(step: i + 1, line: record.event.line, expected: expect, react: react,
-                                word: ran ? ReactAction.word(record.pass.answers) : nil, mood: mood.current,
-                                dropped: record.pass.dropped, latencyMs: record.pass.latencyMs))
+                                word: ran ? ReactAction.word(record.pass.answers) : nil,
+                                loops: ran ? ReactAction.holds[ReactAction.loops(record.pass.answers) - 1].name : nil,
+                                mood: mood.current, dropped: record.pass.dropped, latencyMs: record.pass.latencyMs))
         }
         return Result(scenario: scenario.name, file: scenario.file, checks: checks)
     }

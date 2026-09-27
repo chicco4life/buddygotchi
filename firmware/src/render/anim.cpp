@@ -39,12 +39,4 @@ bool parseMood(const char* name, Mood& out) {
 
 const char* moodName(Mood m) { return kMoods[int(m) < int(Mood::kCount) ? int(m) : 0]; }
 
-uint32_t animDuration(Anim a) {
-  switch (a) {
-    case Anim::kCheer: return 2000;  // long enough to notice
-    case Anim::kWiggle: return 700;
-    default: return 0;
-  }
-}
-
 }  // namespace render

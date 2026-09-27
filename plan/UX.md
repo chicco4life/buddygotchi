@@ -1,6 +1,6 @@
 # Boop: UX
 
-Updated 2026-09-27. What you see and touch: the device's screen and
+Updated 2026-09-28. What you see and touch: the device's screen and
 controls, setup, and the Mac app. The device is the creature and the Mac
 app stays out of the way. What Boop does in each situation is in
 [BEHAVIORS.md](BEHAVIORS.md), and how it sounds is in [VOICE.md](VOICE.md).
@@ -72,13 +72,23 @@ toward you, while grumpy and sad sink a little.
 | Idle | None | Rises a pixel briefly every 9 s |
 | Working | A keyboard, keys lighting in the mood's rhythm | The mood's working motion, looping |
 | Needs you | An amber "?" sign that rises in | The lean, once |
-| Task complete (the cheer) | A result card rising onto a tray | The mood's gesture, once |
+| Task complete (the cheer) | A result card rising onto a tray | The mood's gesture, once each loop of the cheer |
 | No app | A grey broken-link sign; the eyes are low | The same breath as asleep |
 
 **Clocks.** A look's design runs on a clock that starts with the look. A
 mood change keeps that clock, so the new face picks up mid-loop. The
-cheer's design runs from the cheer's start, and a mood change mid-cheer
-keeps it too.
+cheer's design runs from the cheer's start and starts over each loop,
+and a mood change mid-cheer keeps its clock too.
+
+**Loops.** A design's loop is how long it takes to play once through:
+its longest animation, leaving out the blink, which the device times on
+its own. `facegen` reads it from each SVG's timing, so a new design
+brings its own, and writes it for the device and the Mac alike
+([DEVICE.md](DEVICE.md) §6). Loops are what moments are counted in: the
+cheer plays a number of them, and a reaction's face holds a number of
+loops of the design it's drawn in, ending on a boundary of that
+design's clock, where a design made to loop is back at its start
+([PROTOCOL.md](PROTOCOL.md) §3).
 
 ### What the device adds
 
@@ -89,7 +99,7 @@ keeps it too.
 | Wiggle | Keeps the design and its clock, sways the face 3 px either way twice, and pops a pixel heart in at the top right, small for 100 ms then full size, a stronger coral than the cheeks | A tap, for 0.7 s |
 | Press | The face drops 2 px, drawn at once | While BOOT or the screen is held (§4) |
 | Talking | The bubble takes the props' band, and the mouth is a small "o" for the first half of each syllable | While a mumble plays |
-| Reaction | The look, or the cheer, drawn in the reaction's mood's design instead of Boop's mood, switching in and out behind the usual blink; the design's clock carries on | While the brain's reaction plays: its mumble and bubble ([BEHAVIORS.md](BEHAVIORS.md) §5) |
+| Reaction | The look, or the cheer, drawn in the reaction's mood's design instead of Boop's mood, switching in and out behind the usual blink; the design's clock carries on | While the brain's reaction plays: its loops of the design, and at least its mumble and bubble ([BEHAVIORS.md](BEHAVIORS.md) §5) |
 
 ### The bubble and the strip
 

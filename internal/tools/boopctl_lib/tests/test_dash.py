@@ -266,8 +266,8 @@ class ControlsTests(unittest.TestCase):
 
     @unittest.skipUnless((REPO / ".build" / "debug" / "boopdev").exists(), "needs make build")
     def test_a_preview_mumble_is_the_apps_voice(self):
-        line = controls.preview_mumble("grumpy", "again")
-        self.assertEqual((line["t"], line["say"]["word"], line["mood"]), ("moment", "again", "grumpy"))
+        line = controls.preview_mumble("grumpy", "again", 3)
+        self.assertEqual((line["t"], line["say"]["word"], line["mood"], line["loops"]), ("moment", "again", "grumpy", 3))
         self.assertEqual(line["say"]["tune"], "flat", "grumpy's face mumbles in annoyed's voice")
         self.assertIn("syl", line["say"])
 

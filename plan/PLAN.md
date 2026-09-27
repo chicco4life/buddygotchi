@@ -1,6 +1,6 @@
 # Boop: plan
 
-Updated 2026-09-27. Where Boop stands: each milestone's status (§1), the
+Updated 2026-09-28. Where Boop stands: each milestone's status (§1), the
 checks only the owner can do (§2), the open items (§3) and the later port
 to ESP-IDF + LVGL (§4). How each milestone was planned and closed is in
 the [v1 build plan](../archived/plan-v1-build/PLAN.md), and the specs are
@@ -24,7 +24,7 @@ milestone's evidence says which ones ran.
 | A11 | Seven moods, drawn from the mood SVGs: Jev picks the mood, and the device shows each state and reaction in it | In progress. Jev chooses among the seven moods with no minimum time between changes (evals 10/10 in all 3 runs); every `state` carries the mood; the device draws each look and the cheer as the mood's design, exactly as Chrome draws the SVGs. The popover's tile shows the same faces. Still to do: watching it on the board | [moods](evidence/2026-09-27-seven-moods/README.md), [faces](evidence/2026-09-27-mood-faces/README.md) |
 | A12 | Live dashboard: `internal/tools/boopctl dash` shows the state and face, the harness's passes and a timeline, and forces a mood, a reaction or an animation ([DASHBOARD.md](DASHBOARD.md)) | Done, headless; check 20 is the owner's | [evidence](evidence/2026-09-27-dashboard/README.md) |
 | A13 | Reaction faces: `react` picks one of the seven moods' faces, and the device draws the look in it while the mumble plays ([harness/DECISIONS.md](harness/DECISIONS.md) §3, [PROTOCOL.md](PROTOCOL.md) §3) | Done in code and the simulator; `make eval` passed 10/10 in all 3 runs; watching it on the board (check 1) is the owner's | [evidence](evidence/2026-09-27-reaction-faces/README.md) |
-| A14 | Loops and pending: every animation can loop and whoever plays one says how many times; HISTORY shows what Boop started as in progress until it really ended, and the device says when a moment ended ([harness/HARNESS.md](harness/HARNESS.md) §4–5) | In progress. Done: the harness's started actions (`.started` with a `Pending`, `settle` entries, a ceiling on waiting, and HISTORY's `(in progress)` and `(didn't happen: …)`); `react` is started, and ends when the device says how its moment ended (`ended`: done, cut short and by what, or skipped, [PROTOCOL.md](PROTOCOL.md) §4), or `failed` when dropped, with no device, on a disconnect or when no `ended` comes in time ([harness/DECISIONS.md](harness/DECISIONS.md) §5); checked on the board over USB. Still to do: loops. "Done, not reviewed" sessions are out of scope | [ended](evidence/2026-09-28-tonight/loops-pending/README.md) |
+| A14 | Loops and pending: every animation can loop and whoever plays one says how many times; HISTORY shows what Boop started as in progress until it really ended, and the device says when a moment ended ([harness/HARNESS.md](harness/HARNESS.md) §4–5) | Done, and checked on the board over USB. The harness's started actions (`.started` with a `Pending`, `settle` entries, a ceiling on waiting, and HISTORY's `(in progress)` and `(didn't happen: …)`); `react` is started, and ends when the device says how its moment ended (`ended`: done, cut short and by what, or skipped, [PROTOCOL.md](PROTOCOL.md) §4), or `failed` when dropped, with no device, on a disconnect or when no `ended` comes in time ([harness/DECISIONS.md](harness/DECISIONS.md) §5). Loops: a `moment` says how many loops of its design play (`loops`, [PROTOCOL.md](PROTOCOL.md) §3); the cheer plays enough for 2 s, and a reaction's face holds the loops Jev picks (`react.loops`), from the loop lengths facegen reads from the designs for both sides. `make eval` passed 10/10 in all 3 runs. "Done, not reviewed" sessions are out of scope | [ended and loops](evidence/2026-09-28-tonight/loops-pending/README.md) |
 | P1 | Port to ESP-IDF + LVGL | Later (§4) | |
 
 ## 2. Owner checks
@@ -45,8 +45,9 @@ that's off becomes an open item (§3).
    each look and the cheer in a few moods (`internal/tools/boopctl play
    cheer --mood proud`, for one), the blink at each switch, and the tap's
    sway and heart. Then a reaction (A13): the dashboard's `r` (check 20)
-   switches the look to that mood's face while the mumble plays, and
-   back. Say what you'd change.
+   switches the look to that mood's face for the loops picked (A14), at
+   least while the mumble plays, and back; and a cheer's loops
+   (`boopctl play cheer --loops 3`). Say what you'd change.
 2. **`make run`, or `make debug` to watch everything.** Within about 10 s
    the app connects to `Boop-XXXX` and the board leaves the no-app face.
    `make debug` also prints every hook, decision, device line and brain
@@ -137,7 +138,8 @@ that's off becomes an open item (§3).
     dashboard's face shows what the board shows, though not frame for
     frame. `m` grumpy, `r` grumpy with "again", and `a` cheer each land
     (no warning after 2 s), and the board plays the reaction (the look in
-    grumpy's design while the mumble plays) and the cheer.
+    grumpy's design for its loops, at least while the mumble plays) and
+    the cheer.
     Then quit and `make run`: the same keys warn that nothing landed
     ([DASHBOARD.md](DASHBOARD.md) §4).
 
@@ -165,17 +167,24 @@ fixed. Pick one up by writing it into its spec first.
   ([ADAPTERS.md](ADAPTERS.md) §4). Hooking `SubagentStop` and letting it
   answer only that subagent's request would clear it; it mustn't make an
   idle session working.
-- **The reaction faces haven't met Jev.** The eval scenarios expect the
-  new `react` options (`grumpy` for `annoyed`, and `sad` or `determined`
-  where they fit), but `make eval` needs the owner's key. The Jev lines in
-  [harness/EXAMPLE.md](harness/EXAMPLE.md) and
-  [harness/HARNESS.md](harness/HARNESS.md) §9 predate the change and say
-  `annoyed`; the next `make eval` should record them again.
-- **The dashboard's recorded run predates started actions.**
+- **A reaction's face in the idle look holds up to 9 s.** Today's idle
+  designs rise once every 9 s, so that's their loop, and a face held
+  once there lasts until the idle clock's next boundary, however short
+  its mumble. A reaction that comes meanwhile waits and, after 5 s, is
+  dropped: the pipeline check dropped one this way
+  ([evidence](evidence/2026-09-28-tonight/loops-pending/README.md)). The
+  loopable designs due next may shorten it; if not, a shorter idle loop
+  or a cap on a face's first loop would.
+- **The moment pump's timer can fire late.** In the same run a brain
+  moment's turn came 4.84 s after it arrived, but the pump's timer ran
+  0.3 s late and dropped it as 5.16 s late. A timer with little leeway,
+  or judging the wait by when its turn came, would keep it.
+- **The dashboard's recorded run predates started actions and loops.**
   `internal/tools/boopctl_lib/tests/fixtures/headless-debug.jsonl` has
-  `react` lines with no `"pending":true` and no `settle` lines;
-  `test_dash.py` checks those with lines of its own. The next recording
-  of the fixture ([DASHBOARD.md](DASHBOARD.md) §7) brings them in.
+  `react` lines with no `"pending":true`, no `settle` lines, no
+  `react.loops` question and no `loops` on its moments; `test_dash.py`
+  checks those with lines of its own. The next recording of the fixture
+  ([DASHBOARD.md](DASHBOARD.md) §7) brings them in.
 - **A settle recorded while Jev answers spoils an exact rebuild** of
   that pass's state from `debug.jsonl`
   ([harness/HARNESS.md](harness/HARNESS.md) §5.3). Since `react` waits

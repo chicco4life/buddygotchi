@@ -1,6 +1,6 @@
 # Boop: behaviors
 
-Updated 2026-09-27. What Boop does when things happen. Plain rules decide
+Updated 2026-09-28. What Boop does when things happen. Plain rules decide
 everything you see at once: the Mac's core (`app/BoopKit/Core/`) keeps
 the sessions and says what to show, and the device
 (`firmware/src/app/behaviour.*`) shows it, adds its own life and answers
@@ -100,9 +100,9 @@ moment later, if it answers within its deadline
 **Moments take turns.** A rule moment (a cheer, a tap's wiggle) plays at
 once and replaces whatever is playing, mumble included, so turns
 finishing together look like one cheer. A brain reaction waits until no
-line is playing (it plays over an animation, which it doesn't cut: the
-cheer then shows in the reaction's face), and is dropped once it has
-waited 5 s (`MomentSchedule.maxWaitMs`,
+line or reaction's face is playing (it plays over an animation, which it
+doesn't cut: the cheer then shows in the reaction's face), and is
+dropped once it has waited 5 s (`MomentSchedule.maxWaitMs`,
 [ARCHITECTURE.md](ARCHITECTURE.md) §3.2). Working chatter plays only
 when nothing is playing or waiting. The device tells the Mac how each
 brain reaction ended: played out, cut short by a tap, "needs you" or a
@@ -183,19 +183,26 @@ stops a line that's playing.
 
 | Name | Used for | Look ([UX.md](UX.md) §2) | Length |
 | --- | --- | --- | --- |
-| `cheer` | A finished turn | The mood's task-complete design: a result card rising onto a tray and the mood's gesture | 2 s |
+| `cheer` | A finished turn | The mood's task-complete design: a result card rising onto a tray and the mood's gesture | As many loops of that design as make at least 2 s (`Core.cheerMinMs`) |
 | `wiggle` | A tap | The look's own design, swaying, with a pixel heart | 0.7 s |
 
+Whoever plays an animation says how many loops of its design play
+([PROTOCOL.md](PROTOCOL.md) §3). The rules' cheer works its loops out
+from the mood's design (`FaceLoops`, the loop lengths facegen gives the
+Mac and the device alike), so a mood whose cheer is short plays it again
+rather than cheer for less than 2 s.
+
 A mumble on its own (chatter) plays over whatever face is showing and
-doesn't change it. The brain's reaction is a mumble with a face: for as
-long as it plays, whatever is showing (a look, or the cheer) is drawn in
-the reaction's mood, then Boop's own mood comes back
+doesn't change it. The brain's reaction is a mumble with a face:
+whatever is showing (a look, or the cheer) is drawn in the reaction's
+mood for the loops of its design that Jev picked, at least while the
+mumble plays, then Boop's own mood comes back
 ([PROTOCOL.md](PROTOCOL.md) §3). Happy and working, a failing test gets
-two seconds of working × grumpy with "…ugh!", then working × happy
-again; curious when a long turn finishes, the cheer shows in proud's
-face while Boop mumbles "…finally!". The brain has no animations of its
-own: a reaction is all it can add, and to stay quiet it doesn't react at
-all.
+a loop of working × grumpy with "…ugh!", then working × happy again;
+curious when a long turn finishes, the cheer shows in proud's face while
+Boop mumbles "…finally!", held three times. The brain has no animations
+of its own: a reaction is all it can add, and to stay quiet it doesn't
+react at all.
 
 ## 6. Personalities
 

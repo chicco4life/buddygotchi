@@ -67,6 +67,11 @@ struct MomentIn {
   // plays. Only a known mood sets it.
   bool expr = false;
   render::Mood mood = render::Mood::kHappy;
+  // 1–Behaviour::kMaxLoops (PROTOCOL.md §3): with the cheer, how many
+  // times its design plays; with an expression and no animation, how
+  // many loops of the design it's drawn in the face holds. A wiggle
+  // ignores it.
+  int loops = 1;
   // The Mac waits on it when `id` isn't 0 (PROTOCOL.md §3): its end comes
   // back as an Ended with this id and `from`, which is Device's link and
   // passes through untouched.
@@ -82,6 +87,7 @@ class Behaviour {
   static constexpr uint32_t kPressEaseMs = 60;     // a press draws at once this long (DEVICE.md §6)
   static constexpr int kPressPx = 2;                // a press dips the face this far
   static constexpr uint32_t kBlinkMs = 180;
+  static constexpr int kMaxLoops = 6;  // a moment's `loops` (PROTOCOL.md §3)
 
   void reset(uint32_t t, Rng& rng);
 
@@ -194,7 +200,11 @@ class Behaviour {
     int scene() const { return render::sceneOf(mood, state()); }
   };
 
-  void play(render::Anim a, uint32_t t, CutBy by);
+  // The cheer plays `loops` times in `mood`'s design; a wiggle ignores both.
+  void play(render::Anim a, uint32_t t, CutBy by, int loops = 1, render::Mood mood = render::Mood::kHappy);
+  // How long a borrowed face in `mood` holds from t: `loops` loops of the
+  // design it's drawn in, ending on a loop boundary of that design's clock.
+  uint32_t holdMs(render::Mood mood, int loops, uint32_t t) const;
   void startSay(const MomentIn& in, uint32_t t);
   void sound(const char* k, uint32_t t);
   // Every change goes through here: `f` changes the state at t, and if
@@ -256,8 +266,9 @@ class Behaviour {
   uint32_t blAt_ = 0;
   Moment moment_;
   Say say_;
-  // The moment's expression: its mood from exprAt_ for exprMs_, as long as
-  // the animation or the mumble with it plays.
+  // The moment's expression: its mood from exprAt_ for exprMs_: as long as
+  // the animation with it plays, or its loops; and at least as long as the
+  // mumble with it.
   bool expr_ = false;
   render::Mood exprMood_ = render::Mood::kHappy;
   uint32_t exprAt_ = 0, exprMs_ = 0;

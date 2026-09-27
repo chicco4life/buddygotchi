@@ -1,7 +1,7 @@
 {
   "name": "Poked again and again, Boop is grumpy",
-  "why": "PERSONALITY's Examples and the react question: being poked too much is grumpy, with 'nope'",
+  "why": "PERSONALITY's Examples and the react question: being poked too much is grumpy, with 'nope', held once",
   "steps": [
-    {"event": "pokes", "at": "0s", "expect": {"react": "grumpy", "word": "nope|ugh|none"}}
+    {"event": "pokes", "at": "0s", "expect": {"react": "grumpy", "word": "nope|ugh|none", "loops": "once"}}
   ]
 }

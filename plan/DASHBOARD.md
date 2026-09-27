@@ -1,6 +1,6 @@
 # Boop: the dashboard
 
-Updated 2026-09-27. `internal/tools/boopctl dash`, a terminal UI (Python
+Updated 2026-09-28. `internal/tools/boopctl dash`, a terminal UI (Python
 and [Textual](https://textual.textualize.io/)) that shows Boop live: its
 state with the device's face, the harness's latest pass, and a timeline
 of everything. Its keys force a mood, a reaction or an animation on the
@@ -109,7 +109,7 @@ panes afresh, and marks the timeline.
 | Key | Live | In Preview |
 | --- | --- | --- |
 | `m` | Picks one of the `mood` question's options and sends `{"dev":"mood","mood":…}` | Shows the look in that mood's faces on the dashboard's sim |
-| `r` | Picks an answer to each of the `react` action's questions in turn and sends them as a forced pass, `{"dev":"answer","answers":{…}}` | Picks a reaction's face (a mood), then a word or none from the same questions, builds the line with `boopdev voice MOOD [WORD] --json` (the voice Voice gives that mood), and plays it on the dashboard's sim as a `moment` with the face as its `mood`, as the `react` action sends it: the look shows in that mood's design while the mumble plays |
+| `r` | Picks an answer to each of the `react` action's questions in turn and sends them as a forced pass, `{"dev":"answer","answers":{…}}` | Picks a reaction's face (a mood), how long it holds (`react.loops`' options) and a word or none from the same questions, builds the line with `boopdev voice MOOD [WORD] --json` (the voice Voice gives that mood), and plays it on the dashboard's sim as a `moment` with the face as its `mood` and the hold as its `loops`, as the `react` action sends it: the look shows in that mood's design for those loops, and at least while the mumble plays |
 | `a` | Picks `cheer` or `wiggle` and sends `{"dev":"moment","anim":…}` | Plays the same animation on the dashboard's sim |
 | `p` | Picks a look (idle, working, asleep or needs you) and enters Preview | Picks another look, or leaves Preview |
 | `s` | Shows the latest pass's whole state; a forced pass has none | The same |

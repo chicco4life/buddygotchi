@@ -20,6 +20,7 @@ using app::Screen;
 using render::Anim;
 using render::SceneShow;
 using render::SceneState;
+using render::loopMs;
 
 namespace {
 
@@ -314,7 +315,7 @@ static void test_face_name_is_the_moment_or_the_look() {
   TEST_ASSERT_EQUAL_STRING("working", r.b.faceName(r.t));
   r.moment(Anim::kCheer);
   TEST_ASSERT_EQUAL_STRING("cheer", r.b.faceName(r.t));
-  r.at(render::animDuration(Anim::kCheer));
+  r.at(loopMs(render::Mood::kHappy, SceneState::kTaskComplete));
   TEST_ASSERT_EQUAL_STRING("working", r.b.faceName(r.t));
   r.say();  // a mumble doesn't change the face
   TEST_ASSERT_EQUAL_STRING("working", r.b.faceName(r.t));
@@ -324,19 +325,20 @@ static void test_face_name_is_the_moment_or_the_look() {
   TEST_ASSERT_EQUAL_STRING("needs_you", r.b.faceName(r.t));
 }
 
-// BEHAVIORS.md §5: the cheer is one size and lasts 2 s, with no light and
-// no sound; a new moment replaces the one playing.
+// BEHAVIORS.md §5: the cheer plays its loops of the mood's task-complete
+// design, one unless the moment says more, with no light and no sound; a
+// new moment replaces the one playing.
 static void test_moments_end_and_replace() {
   Rig r;
   r.state(base("idle"));
   r.moment(Anim::kCheer);
-  TEST_ASSERT_EQUAL_UINT32(2000, render::animDuration(Anim::kCheer));
-  r.at(1999);
+  const uint32_t loop = loopMs(render::Mood::kHappy, SceneState::kTaskComplete);
+  r.at(loop - 1);
   TEST_ASSERT_EQUAL(Anim::kCheer, r.anim());
   TEST_ASSERT_EQUAL_HEX32(0, r.b.led(r.t));
   TEST_ASSERT_EQUAL(255, r.b.backlight(r.t));
   TEST_ASSERT_EQUAL_STRING("", r.sfx().c_str());
-  r.at(2000);
+  r.at(loop);
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
   r.moment(Anim::kCheer);
   r.at(r.t + 10);
@@ -347,6 +349,44 @@ static void test_moments_end_and_replace() {
   TEST_ASSERT_EQUAL(Anim::kWiggle, r.anim());
   r.at(start + 700);
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
+}
+
+// PROTOCOL.md §3: a cheer's `loops` is how many times its design plays,
+// each time from its start, timed by the design of the mood it's drawn
+// in. A wiggle ignores it.
+static void test_a_cheer_plays_its_loops() {
+  Rig r;
+  Model m = base("working");
+  m.mood = render::Mood::kProud;
+  r.state(m);
+  r.at(1000);
+  MomentIn in;
+  in.anim = Anim::kCheer, in.loops = 3;
+  r.b.onMoment(in, r.t);
+  const uint32_t loop = loopMs(render::Mood::kProud, SceneState::kTaskComplete);
+  uint32_t left;
+  TEST_ASSERT_EQUAL(Anim::kCheer, r.b.moment(r.t, left));
+  TEST_ASSERT_EQUAL_UINT32(3 * loop, left);
+  TEST_ASSERT_EQUAL_UINT32(loop - 1, r.b.show(1000 + loop - 1).t);
+  SceneShow s = r.b.show(1000 + loop + 100);
+  TEST_ASSERT_TRUE(s.state == SceneState::kTaskComplete);
+  TEST_ASSERT_EQUAL_UINT32(100, s.t);  // the design starts over
+  r.at(1000 + 3 * loop - 1);
+  TEST_ASSERT_EQUAL(Anim::kCheer, r.anim());
+  r.at(1000 + 3 * loop);
+  TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
+  // Drawn in a reaction's mood, the cheer's loops are that mood's design's.
+  r.at(20000);
+  r.state(m);
+  in.loops = 1, in.expr = true, in.mood = render::Mood::kSad;
+  r.b.onMoment(in, r.t);
+  r.b.moment(r.t, left);
+  TEST_ASSERT_EQUAL_UINT32(loopMs(render::Mood::kSad, SceneState::kTaskComplete), left);
+  MomentIn w;
+  w.anim = Anim::kWiggle, w.loops = 4;
+  r.b.onMoment(w, r.t);
+  r.b.moment(r.t, left);
+  TEST_ASSERT_EQUAL_UINT32(render::kWiggleMs, left);
 }
 
 static void test_mumble_moves_the_mouth() {
@@ -395,7 +435,7 @@ static void test_a_mumble_alone_plays_over_the_face() {
   r.say(2);
   uint32_t left;
   TEST_ASSERT_EQUAL(Anim::kCheer, r.b.moment(r.t, left));
-  TEST_ASSERT_EQUAL_UINT32(1500, left);
+  TEST_ASSERT_EQUAL_UINT32(loopMs(render::Mood::kHappy, SceneState::kTaskComplete) - 500, left);
   TEST_ASSERT_NOT_NULL(r.b.mumble(r.t));
   // A tap's wiggle replaces the moment, and the mumble with it.
   r.at(10600);
@@ -443,26 +483,27 @@ void checkGaps(const std::vector<uint32_t>& starts, uint32_t from, uint32_t lo, 
 // BEHAVIORS.md §2: idle and working life is blinks only, every 2–6 s idle,
 // 2–5 s working, however many agents are busy. Asleep, as with no app
 // (§3.4), never blinks.
-// PROTOCOL.md §3: a moment's `mood` is its expression. The look is drawn in
-// that mood for exactly as long as the moment plays (the mumble and its
-// bubble, or the animation), then goes back to the state's mood behind a
-// blink. A look change meanwhile keeps the expression; a new moment, a tap
+// PROTOCOL.md §3: a moment's `mood` is its expression. With no animation,
+// the look is drawn in that mood for the moment's loops of the design it's
+// drawn in, ending on a loop boundary of that design's clock (so the first
+// loop ends at the next boundary), and at least as long as the mumble and
+// its bubble; then it goes back to the state's mood behind a blink. A look
+// change meanwhile keeps the expression and its end; a new moment, a tap
 // or "needs you" ends it.
-static MomentIn expressive(render::Mood mood, int syl = 4) {
+static MomentIn expressive(render::Mood mood, int syl = 4, int loops = 1) {
   MomentIn m;
   m.syllables = syl, m.ms = 100;
-  m.expr = true, m.mood = mood;
+  m.expr = true, m.mood = mood, m.loops = loops;
   return m;
 }
 
-static void test_an_expression_lasts_as_long_as_the_mumble() {
+static void test_an_expression_holds_its_loops() {
   Rig r;
-  Model m = base("working");  // happy
+  Model m = base("working");  // happy, the working design's clock from 0
   r.state(m);
+  const uint32_t loop = loopMs(render::Mood::kGrumpy, SceneState::kWorking);
   r.at(1000);
   TEST_ASSERT_TRUE(r.b.onMoment(expressive(render::Mood::kGrumpy), r.t));
-  // 4 syllables × 100 ms, then the bubble's 1.2 s.
-  const uint32_t end = 1000 + 400 + Behaviour::kBubbleReadMs;
   render::Mood e;
   TEST_ASSERT_TRUE(r.b.expression(r.t, e));
   TEST_ASSERT_TRUE(e == render::Mood::kGrumpy);
@@ -471,28 +512,43 @@ static void test_an_expression_lasts_as_long_as_the_mumble() {
   TEST_ASSERT_TRUE(s.mood == render::Mood::kGrumpy);
   TEST_ASSERT_TRUE(s.eyesShut);  // it blinks into the expression
   TEST_ASSERT_EQUAL_UINT32(1000, s.t);  // the look's clock goes on
-  r.at(end - 1);
-  TEST_ASSERT_TRUE(r.b.show(r.t).mood == render::Mood::kGrumpy);
-  TEST_ASSERT_NOT_NULL(r.b.mumble(r.t));
-  r.at(end);
-  TEST_ASSERT_FALSE(r.b.expression(r.t, e));
+  // 4 syllables × 100 ms, then the bubble's 1.2 s: the mumble is over
+  // first, and the face holds to the design's next boundary.
+  const uint32_t said = 1000 + 400 + Behaviour::kBubbleReadMs;
+  TEST_ASSERT_TRUE(said < loop);
+  r.at(said);
   TEST_ASSERT_NULL(r.b.mumble(r.t));
+  TEST_ASSERT_TRUE(r.b.show(r.t).mood == render::Mood::kGrumpy);
+  r.at(loop - 1);
+  TEST_ASSERT_TRUE(r.b.expression(r.t, e));
+  r.at(loop);
+  TEST_ASSERT_FALSE(r.b.expression(r.t, e));
   s = r.b.show(r.t);
   TEST_ASSERT_TRUE(s.mood == render::Mood::kHappy);  // back to the state's mood
   TEST_ASSERT_TRUE(s.state == SceneState::kWorking);
   TEST_ASSERT_TRUE(s.eyesShut);  // behind a blink
 
-  // With a word: two more beats.
-  Rig w;
-  w.state(base("idle"));
-  w.at(500);
-  MomentIn in = expressive(render::Mood::kSad, 2);
-  in.word = "oops", in.at = 2;
-  w.b.onMoment(in, w.t);
-  w.at(500 + 400 + Behaviour::kBubbleReadMs - 1);
-  TEST_ASSERT_TRUE(w.b.show(w.t).mood == render::Mood::kSad);
-  w.at(500 + 400 + Behaviour::kBubbleReadMs);
-  TEST_ASSERT_TRUE(w.b.show(w.t).mood == render::Mood::kHappy);
+  // Three loops, from partway into one: to the third boundary.
+  r.at(2 * loop + 300);
+  r.state(m);
+  r.b.onMoment(expressive(render::Mood::kGrumpy, 2, 3), r.t);
+  r.at(5 * loop - 1);
+  TEST_ASSERT_TRUE(r.b.expression(r.t, e));
+  r.at(5 * loop);
+  TEST_ASSERT_FALSE(r.b.expression(r.t, e));
+
+  // A mumble longer than its loop: the face holds as long as it plays.
+  r.at(6 * loop);
+  r.state(m);
+  MomentIn in = expressive(render::Mood::kExcited, 8);
+  in.ms = 400;
+  r.b.onMoment(in, r.t);
+  const uint32_t end = r.t + 8 * 400 + Behaviour::kBubbleReadMs;
+  TEST_ASSERT_TRUE(end - r.t > loopMs(render::Mood::kExcited, SceneState::kWorking));
+  r.at(end - 1);
+  TEST_ASSERT_TRUE(r.b.expression(r.t, e));
+  r.at(end);
+  TEST_ASSERT_FALSE(r.b.expression(r.t, e));
 }
 
 static void test_an_expression_over_the_cheer_and_across_a_look_change() {
@@ -502,6 +558,8 @@ static void test_an_expression_over_the_cheer_and_across_a_look_change() {
   r.state(m);
   r.at(1000);
   r.moment(Anim::kCheer);  // the rule's cheer, in curious
+  const uint32_t cheer = loopMs(render::Mood::kCurious, SceneState::kTaskComplete);
+  const uint32_t proud = loopMs(render::Mood::kProud, SceneState::kTaskComplete);
   TEST_ASSERT_TRUE(r.b.show(r.t).mood == render::Mood::kCurious);
   r.at(1200);
   m.base = SceneState::kIdle;  // the turn is over
@@ -513,20 +571,28 @@ static void test_an_expression_over_the_cheer_and_across_a_look_change() {
   TEST_ASSERT_EQUAL_UINT32(200, s.t);  // the cheer keeps its clock
   uint32_t left;
   TEST_ASSERT_EQUAL(Anim::kCheer, r.b.moment(r.t, left));
-  TEST_ASSERT_EQUAL_UINT32(1800, left);  // a mumble doesn't cut the cheer
-  // The cheer ends at 3000; the mumble plays on to 1200 + 300 + 1200 = 2700,
-  // so the expression is over first.
-  r.at(2699);
-  TEST_ASSERT_TRUE(r.b.show(r.t).mood == render::Mood::kProud);
-  r.at(2700);
+  TEST_ASSERT_EQUAL_UINT32(cheer - 200, left);  // a mumble doesn't cut the cheer
+  // The face holds one loop of the cheer's design in proud, on the
+  // cheer's clock: to 1000 + proud's loop, after the mumble (1200 + 300 +
+  // 1200) and the cheer have ended, so the idle look shows in proud until
+  // then.
+  TEST_ASSERT_TRUE(1200 + 300 + Behaviour::kBubbleReadMs < 1000 + proud);
+  TEST_ASSERT_TRUE(cheer < proud);
+  r.at(1000 + cheer);
   s = r.b.show(r.t);
-  TEST_ASSERT_TRUE(s.state == SceneState::kTaskComplete);
+  TEST_ASSERT_TRUE(s.state == SceneState::kIdle);
+  TEST_ASSERT_TRUE(s.mood == render::Mood::kProud);
+  r.at(1000 + proud - 1);
+  TEST_ASSERT_TRUE(r.b.show(r.t).mood == render::Mood::kProud);
+  r.at(1000 + proud);
+  s = r.b.show(r.t);
+  TEST_ASSERT_TRUE(s.state == SceneState::kIdle);
   TEST_ASSERT_TRUE(s.mood == render::Mood::kCurious);
 
-  // A look change while it plays: the expression goes with the new look.
+  // A look change while it plays: the expression goes with the new look,
+  // and ends where it would have, at the working design's boundary.
   Rig l;
-  Model w = base("working");
-  l.state(w);
+  l.state(base("working"));
   l.at(1000);
   l.b.onMoment(expressive(render::Mood::kGrumpy), l.t);
   l.at(1500);
@@ -534,19 +600,25 @@ static void test_an_expression_over_the_cheer_and_across_a_look_change() {
   s = l.b.show(l.t);
   TEST_ASSERT_TRUE(s.state == SceneState::kIdle);
   TEST_ASSERT_TRUE(s.mood == render::Mood::kGrumpy);
-  l.at(2600);
+  const uint32_t working = loopMs(render::Mood::kGrumpy, SceneState::kWorking);
+  l.at(working - 1);
+  TEST_ASSERT_TRUE(l.b.show(l.t).mood == render::Mood::kGrumpy);
+  l.at(working);
   TEST_ASSERT_TRUE(l.b.show(l.t).mood == render::Mood::kHappy);
 
-  // With an animation in the same moment, it lasts the longer of the two.
+  // With an animation in the same moment, it lasts the longer of the two:
+  // here the cheer, a loop of excited's design.
   Rig a;
   a.state(base("idle"));
   a.at(1000);
   MomentIn in = expressive(render::Mood::kExcited, 2);
   in.anim = Anim::kCheer;
   a.b.onMoment(in, a.t);
-  a.at(2999);
+  const uint32_t excited = loopMs(render::Mood::kExcited, SceneState::kTaskComplete);
+  TEST_ASSERT_TRUE(200 + Behaviour::kBubbleReadMs < excited);
+  a.at(1000 + excited - 1);
   TEST_ASSERT_TRUE(a.b.show(a.t).mood == render::Mood::kExcited);
-  a.at(3000);
+  a.at(1000 + excited);
   TEST_ASSERT_TRUE(a.b.show(a.t).mood == render::Mood::kHappy);
   // An animation alone with a mood: as long as it plays.
   a.at(5000);
@@ -627,10 +699,14 @@ static MomentIn waited(uint32_t id, int syl = 4) {
 
 static void test_a_waited_moment_says_how_it_ended() {
   Rig r;
-  r.state(base("idle"));
+  r.state(base("idle"));  // the idle design's clock from 0
   r.at(1000);
   TEST_ASSERT_TRUE(r.b.onMoment(waited(7), r.t));
-  const uint32_t end = 1000 + 400 + Behaviour::kBubbleReadMs;  // 4 syllables, then the bubble
+  // Its mumble is over at 1000 + 400 + 1.2 s, and its face at the idle
+  // design's next boundary.
+  const uint32_t end = loopMs(render::Mood::kProud, SceneState::kIdle);
+  r.at(1000 + 400 + Behaviour::kBubbleReadMs);
+  TEST_ASSERT_EQUAL_STRING("", ended(r).c_str());
   r.at(end - 1);
   TEST_ASSERT_EQUAL_STRING("", ended(r).c_str());
   r.at(end);
@@ -638,14 +714,17 @@ static void test_a_waited_moment_says_how_it_ended() {
   r.at(10000);
   TEST_ASSERT_EQUAL_STRING("", ended(r).c_str());  // once
 
-  // Over the rules' cheer, which isn't part of it: done with its own
-  // mumble, and the cheer plays on.
+  // Over the rules' cheer, which isn't part of it: its face holds a loop
+  // of the cheer's design in proud, on the cheer's clock, and the cheer
+  // plays on as it would have.
   r.moment(Anim::kCheer);
   r.at(10500);
   r.b.onMoment(waited(8, 2), r.t);
   r.at(10500 + 200 + Behaviour::kBubbleReadMs);
-  TEST_ASSERT_EQUAL_STRING("8 done", ended(r).c_str());
+  TEST_ASSERT_EQUAL_STRING("", ended(r).c_str());
   TEST_ASSERT_EQUAL(Anim::kCheer, r.anim());
+  r.at(10000 + loopMs(render::Mood::kProud, SceneState::kTaskComplete));
+  TEST_ASSERT_EQUAL_STRING("8 done", ended(r).c_str());
   // A cheer the Mac waits on plays on under a newer mumble, which doesn't
   // stop it: done when the cheer is.
   r.at(20000);
@@ -654,9 +733,10 @@ static void test_a_waited_moment_says_how_it_ended() {
   r.b.onMoment(cheer, r.t);
   r.at(20500);
   r.say(2);
-  r.at(21999);
+  const uint32_t cheered = 20000 + loopMs(render::Mood::kHappy, SceneState::kTaskComplete);
+  r.at(cheered - 1);
   TEST_ASSERT_EQUAL_STRING("", ended(r).c_str());
-  r.at(22000);
+  r.at(cheered);
   TEST_ASSERT_EQUAL_STRING("9 done", ended(r).c_str());
 
   // Cut short: by a tap's wiggle, by a newer moment (the rules' cheer, a
@@ -961,9 +1041,10 @@ int main() {
   RUN_TEST(test_no_change_ever_cuts_hard);
   RUN_TEST(test_face_name_is_the_moment_or_the_look);
   RUN_TEST(test_moments_end_and_replace);
+  RUN_TEST(test_a_cheer_plays_its_loops);
   RUN_TEST(test_mumble_moves_the_mouth);
   RUN_TEST(test_a_mumble_alone_plays_over_the_face);
-  RUN_TEST(test_an_expression_lasts_as_long_as_the_mumble);
+  RUN_TEST(test_an_expression_holds_its_loops);
   RUN_TEST(test_an_expression_over_the_cheer_and_across_a_look_change);
   RUN_TEST(test_an_expression_ends_with_its_moment);
   RUN_TEST(test_a_waited_moment_says_how_it_ended);

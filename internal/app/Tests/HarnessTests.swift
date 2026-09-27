@@ -476,7 +476,7 @@ final class HarnessTests: XCTestCase {
     }
 
     func testQuestionKeysMustBeUniqueAcrossActions() {
-        XCTAssertEqual(Set(Self.realActions().flatMap { $0.questions().map(\.key) }).count, 4)
+        XCTAssertEqual(Set(Self.realActions().flatMap { $0.questions().map(\.key) }).count, 5)
     }
 
     static func realActions() -> [any Action] {
@@ -492,8 +492,10 @@ final class HarnessTests: XCTestCase {
 
     /// DECISIONS.md §5: `none` does nothing; the word is the exclamation
     /// over 0.35, else the topic, else none; the moment carries the
-    /// expression as its `mood`, and goes to the queue with the handle the
-    /// result is started with; a blocked mumble fails, with no handle.
+    /// expression as its `mood` and `react.loops`' pick as its loops (once
+    /// to four times: 1–4, and once when it's missing), and goes to the
+    /// queue with the handle the result is started with; a blocked mumble
+    /// fails, with no handle.
     func testReact() {
         XCTAssertEqual(ReactAction.wordFloor, 0.35)
         var queued: [(moment: DeviceMoment, pending: Pending)] = []
@@ -509,31 +511,40 @@ final class HarnessTests: XCTestCase {
             XCTAssertEqual(result, queued.last.map { .started(message, $0.pending) }, line: line)
         }
         XCTAssertNil(react.run(["react": a("none")]))
-        starts(["react": a("grumpy"), "word.feeling": a("again", 0.57), "word.about": a("tests", 0.81)],
-               #"Boop made a grumpy face and mumbled "…again!""#)
+        starts(["react": a("grumpy"), "word.feeling": a("again", 0.57), "word.about": a("tests", 0.81),
+                "react.loops": a("twice")],
+               #"Boop made a grumpy face, held twice, and mumbled "…again!""#)
         starts(["react": a("curious"), "word.feeling": a("again", 0.31), "word.about": a("tests", 0.79)],
-               #"Boop made a curious face and mumbled "…tests!""#)
-        starts(["react": a("happy"), "word.feeling": a("none"), "word.about": a("docs", 0.2)], "Boop made a happy face and mumbled.")
+               #"Boop made a curious face, held once, and mumbled "…tests!""#)
+        starts(["react": a("happy"), "word.feeling": a("none"), "word.about": a("docs", 0.2), "react.loops": a("four times")],
+               "Boop made a happy face, held four times, and mumbled.")
         XCTAssertEqual(sent.count, 3)
         XCTAssertEqual(Set(queued.map { ObjectIdentifier($0.pending) }).count, 3, "a handle each")
         XCTAssertEqual(sent[0].say?.word, "again")
         XCTAssertNil(sent[0].anim, "a mumble plays over the face")
         XCTAssertEqual(sent.map(\.mood), ["grumpy", "curious", "happy"], "each wears its face")
+        XCTAssertEqual(sent.map(\.loops), [2, 1, 4], "for its loops")
         XCTAssertEqual(sent[0].say?.tune, .flat, "grumpy mumbles in annoyed's voice")
-        XCTAssertTrue(sent[0].jsonLine.hasSuffix(#","mood":"grumpy"}"#), sent[0].jsonLine)
+        XCTAssertTrue(sent[0].jsonLine.hasSuffix(#","mood":"grumpy","loops":2}"#), sent[0].jsonLine)
         XCTAssertNil(react.run(["react": a("annoyed")]), "annoyed was a feeling, not a face")
-        starts(["react": a("excited")], "Boop made an excited face and mumbled.")
+        starts(["react": a("excited"), "react.loops": a("three times")], "Boop made an excited face, held three times, and mumbled.")
+        XCTAssertEqual(queued.last?.moment.loops, 3)
         queued.removeLast()
         why = "something needs you"
         for expression in ReactAction.expressions.map(\.name) {
             XCTAssertEqual(react.run(["react": a(expression)]), .failed("something needs you"))
         }
         XCTAssertEqual(sent.count, 3, "no face or mumble while something needs you")
-        XCTAssertEqual(react.questions().map(\.key), ["react", "word.feeling", "word.about"])
+        XCTAssertEqual(react.questions().map(\.key), ["react", "react.loops", "word.feeling", "word.about"])
         XCTAssertEqual(react.questions()[0].options.map(\.name), ["none"] + MoodAction.moods.map(\.name),
                        "the faces are the seven moods'")
-        XCTAssertEqual(react.questions()[1].options.map(\.name), ["none", "finally", "yay", "oops", "again", "ugh", "nope", "hmm"])
-        XCTAssertEqual(react.questions()[2].options.map(\.name), ["none", "tests", "build", "deploy", "docs"])
+        XCTAssertEqual(react.questions()[1].options.map(\.name), ["once", "twice", "three times", "four times"])
+        XCTAssertEqual(react.questions()[2].options.map(\.name), ["none", "finally", "yay", "oops", "again", "ugh", "nope", "hmm"])
+        XCTAssertEqual(react.questions()[3].options.map(\.name), ["none", "tests", "build", "deploy", "docs"])
+        XCTAssertEqual(ReactAction.holds.indices.map { ReactAction.loops(["react.loops": a(ReactAction.holds[$0].name)]) },
+                       [1, 2, 3, 4])
+        XCTAssertEqual(ReactAction.loops([:]), 1)
+        XCTAssertLessThanOrEqual(ReactAction.holds.count, DeviceMoment.maxLoops, "the device plays them all")
         for word in ReactAction.exclamations.map(\.name) + ReactAction.topics.map(\.name) {
             XCTAssertTrue(Sounds.vocabulary.contains(word), "\(word) is one of Voice's words")
         }

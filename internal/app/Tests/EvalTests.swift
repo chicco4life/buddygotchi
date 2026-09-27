@@ -45,7 +45,7 @@ final class EvalTests: XCTestCase {
         XCTAssertEqual(result.checks[2].mood, "grumpy")
         XCTAssertEqual(result.checks[3].mood, "proud", "2 minutes after turning grumpy: no rule holds a mood")
         let last = try XCTUnwrap(states.all.last)
-        XCTAssertTrue(last.contains("\n  Boop made a grumpy face and mumbled \"…again!\"\n"), last)
+        XCTAssertTrue(last.contains("\n  Boop made a grumpy face, held once, and mumbled \"…again!\"\n"), last)
     }
 
     /// A brain that stays quiet fails what should mumble, and the report
@@ -56,7 +56,7 @@ final class EvalTests: XCTestCase {
         XCTAssertFalse(result.passed)
         let report = Eval.report([result])
         XCTAssertEqual(report.first, "FAIL  05-poke-streak.json  Poked again and again, Boop is grumpy")
-        XCTAssertTrue(report[1].contains("wanted react grumpy, word none|nope|ugh; got react none, word none, mood happy"), report[1])
+        XCTAssertTrue(report[1].contains("wanted react grumpy, word none|nope|ugh, loops once; got react none, word none, loops none, mood happy"), report[1])
         XCTAssertEqual(Eval.summary([[result]]), "0/1 passed")
     }
 }

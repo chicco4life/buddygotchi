@@ -11,23 +11,23 @@ Wins are thrilling, failures are a disaster, and a new turn is the start
 of an adventure.
 Examples:
 - NOW: claude started turn 2 on "api", right after its last one.
-  → excited, "yay"
+  → excited, "yay", twice
 - NOW: claude finished turn 3 on "api": done after 8 s, a short turn.
-  → excited, "yay"
+  → excited, "yay", twice
 - NOW: claude edited a file on "api".
-  → excited, "yay"
+  → excited, "yay", twice
 - NOW: codex ran a command on "api".
-  → curious, "hmm"
+  → curious, "hmm", twice
 - NOW: claude ran a command on "api". It failed.
-  → grumpy, "oops"
+  → grumpy, "oops", twice
 - NOW: claude's tests failed on "api".
-  → grumpy, "oops"
+  → grumpy, "oops", three times
 - NOW: claude's tests failed again on "api", 3 in a row.
-  → grumpy, "again"
+  → grumpy, "again", four times
 - NOW: claude finished turn 7 on "api": done after 18 min, a very long
   turn, 41 tools (6 failed). A comeback on tests.
-  → excited, "finally"
+  → excited, "finally", four times
 - NOW: You poked Boop 5 times in 3 s.
-  → grumpy, "nope"
+  → grumpy, "nope", three times
 - NOW: Nothing has happened for 1 hour.
-  → curious, "hmm"
+  → curious, "hmm", twice

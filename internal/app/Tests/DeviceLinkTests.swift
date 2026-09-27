@@ -145,8 +145,8 @@ final class DeviceLinkTests: XCTestCase {
     }
 
     /// PROTOCOL.md §3: `anim` is optional, and there's no `size` or `ttl`.
-    /// A moment the app waits on ends with its `id`, and the longest one
-    /// fits in a line.
+    /// `loops` goes when whoever plays it says, and a moment the app waits
+    /// on ends with its `id`. The longest one fits in a line.
     func testMomentEncodingMatchesTheProtocol() {
         let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
         XCTAssertEqual(DeviceMoment(anim: "cheer", say: line).jsonLine,
@@ -154,11 +154,13 @@ final class DeviceLinkTests: XCTestCase {
         XCTAssertEqual(DeviceMoment(anim: "wiggle").jsonLine, #"{"t":"moment","anim":"wiggle"}"#)
         XCTAssertEqual(DeviceMoment(say: line).jsonLine,
                        #"{"t":"moment","say":{"syl":"bi-do ba-na","word":"done","at":4,"tune":"up","ms":120}}"#)
-        XCTAssertEqual(DeviceMoment(say: line, mood: "proud", id: 12).jsonLine,
-                       #"{"t":"moment","say":{"syl":"bi-do ba-na","word":"done","at":4,"tune":"up","ms":120},"mood":"proud","id":12}"#)
+        XCTAssertEqual(DeviceMoment(say: line, mood: "proud", loops: 3, id: 12).jsonLine,
+                       #"{"t":"moment","say":{"syl":"bi-do ba-na","word":"done","at":4,"tune":"up","ms":120},"mood":"proud","loops":3,"id":12}"#)
+        XCTAssertEqual(DeviceMoment(anim: "cheer", loops: 1).jsonLine, #"{"t":"moment","anim":"cheer","loops":1}"#)
         let longest = VoiceLine(groups: [Array(repeating: "zzz", count: 8)], word: String(repeating: "w", count: 23), at: 8,
                                 tune: .bounce, ms: 180)
-        XCTAssertLessThanOrEqual(DeviceMoment(anim: "wiggle", say: longest, mood: "determined", id: Int(Int32.max)).jsonLine.utf8.count,
+        XCTAssertLessThanOrEqual(DeviceMoment(anim: "wiggle", say: longest, mood: "determined", loops: DeviceMoment.maxLoops,
+                                              id: Int(Int32.max)).jsonLine.utf8.count,
                                  StateSnapshot.maxLine)
     }
 

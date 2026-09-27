@@ -9,6 +9,10 @@ import Foundation
 /// `maxWaitMs` is dropped, since a late reaction is worse than none, and
 /// its handle ends as failed (harness/DECISIONS.md §5).
 ///
+/// A moment's length depends on the design showing, since the cheer and a
+/// reaction's face play loops of it (PROTOCOL.md §3): the look and mood of
+/// the last `state`, or the cheer's while one plays.
+///
 /// On a caller's clock, so the runtime can drive it with a timer and the
 /// tests without one. It changes nothing but itself and the handles of
 /// the moments it drops.
@@ -19,22 +23,36 @@ public struct MomentSchedule {
 
     /// When the moment playing on the device ends, as the device times it.
     public private(set) var busyUntil: Int64 = 0
-    /// When the line playing ends. An animation stops a line on the device.
+    /// When the line playing ends, and with it a reaction's face. An
+    /// animation stops a line on the device.
     public private(set) var lineUntil: Int64 = 0
+    /// When the rules' cheer playing ends.
+    public private(set) var cheerUntil: Int64 = 0
+    /// The look and mood of the last `state` sent.
+    public var look = "idle"
+    public var mood = MoodAction.initial
     /// The brain's moments waiting, oldest first, each with its handle and
     /// when it arrived.
     public private(set) var waiting: [(moment: DeviceMoment, pending: Pending?, at: Int64)] = []
 
     public init() {}
 
+    /// How long `moment` plays at most if it starts at `now`: on the
+    /// cheer's design while one plays, else the look's.
+    public func playMs(_ moment: DeviceMoment, now: Int64) -> Int64 {
+        moment.playMs(look: now < cheerUntil ? "task_complete" : look, mood: mood)
+    }
+
     /// A rule moment, playing now. Anything waiting waits for it too.
     public mutating func rule(_ moment: DeviceMoment, now: Int64) {
-        busyUntil = max(busyUntil, now + moment.playMs)
+        let ms = playMs(moment, now: now)
+        busyUntil = max(busyUntil, now + ms)
         if moment.say != nil {
-            lineUntil = now + moment.playMs
+            lineUntil = now + ms
         } else if moment.anim != nil {
             lineUntil = min(lineUntil, now)
         }
+        if let anim = moment.anim { cheerUntil = anim == "cheer" ? now + ms : min(cheerUntil, now) }
     }
 
     /// Nothing is playing and no brain moment is waiting its turn.
@@ -62,8 +80,9 @@ public struct MomentSchedule {
                 pending?.finish(.failed("waited too long"))
                 continue
             }
-            busyUntil = max(busyUntil, now + moment.playMs)
-            lineUntil = now + moment.playMs
+            let ms = playMs(moment, now: now)
+            busyUntil = max(busyUntil, now + ms)
+            lineUntil = now + ms
             return (moment, pending, dropped, waiting.isEmpty ? nil : lineUntil)
         }
         return (nil, nil, dropped, nil)

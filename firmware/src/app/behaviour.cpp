@@ -226,13 +226,15 @@ void Behaviour::onState(const Model& m, uint32_t t) {
   });
 }
 
-// A moment with an anim replaces the one playing, and its mumble too. A
-// mumble on its own plays over whatever face is showing, replacing any
-// line (PROTOCOL.md §3). A moment with an expression draws the look in its
-// mood for as long as what it plays lasts: the animation, or the mumble
-// and its bubble. Attention wins (BEHAVIORS.md §1): while something needs
-// you, no animation takes the face over and no mumble plays. A moment the
-// Mac waits on that plays nothing ends at once, skipped.
+// A moment with an anim replaces the one playing, and its mumble too; the
+// cheer plays its loops. A mumble on its own plays over whatever face is
+// showing, replacing any line (PROTOCOL.md §3). A moment with an
+// expression draws the look in its mood for as long as its animation
+// plays, or with none for its loops of the design it's drawn in, and at
+// least as long as its mumble and bubble. Attention wins (BEHAVIORS.md
+// §1): while something needs you, no animation takes the face over and no
+// mumble plays. A moment the Mac waits on that plays nothing ends at once,
+// skipped.
 bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
   bool anim = in.anim != render::Anim::kNone && !held(t);
   bool mumble = in.syllables > 0 && !model_.attn;
@@ -241,13 +243,13 @@ bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
     return false;
   }
   change(t, [&] {
-    if (anim) play(in.anim, t, CutBy::kMoment), moment_.id = in.id;
+    if (anim) play(in.anim, t, CutBy::kMoment, in.loops, in.expr ? in.mood : model_.mood), moment_.id = in.id;
     if (mumble) startSay(in, t), say_.id = in.id;
     if (in.expr) {
       expr_ = true;
       exprMood_ = in.mood;
       exprAt_ = t;
-      exprMs_ = anim ? moment_.ms : 0;
+      exprMs_ = anim ? moment_.ms : holdMs(in.mood, in.loops, t);
       if (mumble && say_.ms > exprMs_) exprMs_ = say_.ms;
       exprId_ = in.id;
     }
@@ -257,7 +259,7 @@ bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
 }
 
 // Whatever of the moment playing still plays is cut short, by `by`.
-void Behaviour::play(render::Anim a, uint32_t t, CutBy by) {
+void Behaviour::play(render::Anim a, uint32_t t, CutBy by, int loops, render::Mood mood) {
   if (momentOn(t)) cut(moment_.id, by);
   if (sayOn(t)) cut(say_.id, by);
   if (exprOn(t)) cut(exprId_, by);
@@ -265,10 +267,23 @@ void Behaviour::play(render::Anim a, uint32_t t, CutBy by) {
   ++momentSeq_;
   moment_.anim = a;
   moment_.at = t;
-  moment_.ms = render::animDuration(a);
+  moment_.ms = a == render::Anim::kWiggle ? render::kWiggleMs
+               : a == render::Anim::kCheer   ? uint32_t(loops) * render::loopMs(mood, render::SceneState::kTaskComplete)
+                                             : 0;
   say_ = Say{};  // a new moment replaces the line, and its expression
   expr_ = false;
   blink_ = false;
+}
+
+// The design is the cheer's while one plays, on the cheer's clock, else
+// the look's, on the look's; the first loop ends at its clock's next
+// boundary after t, so it can be short. A later change of look or cheer
+// doesn't move the end.
+uint32_t Behaviour::holdMs(render::Mood mood, int loops, uint32_t t) const {
+  bool cheer = momentOn(t) && moment_.anim == render::Anim::kCheer;
+  uint32_t loop = render::loopMs(mood, cheer ? render::SceneState::kTaskComplete : sourceAt(t).look);
+  uint32_t into = (t - (cheer ? moment_.at : lookAt_)) % loop;
+  return loop - into + uint32_t(loops - 1) * loop;
 }
 
 void Behaviour::startSay(const MomentIn& in, uint32_t t) {
@@ -326,16 +341,16 @@ Behaviour::Source Behaviour::sourceAt(uint32_t t) const {
   return s;
 }
 
-// The design and its clock: the cheer's from when it began, a look's from
-// when the look began, so a tap's wiggle doesn't restart it. On top: a
-// blink, or the blink that hides a change of design; the wiggle's sway and
-// heart; the bubble taking the prop's room, and the mouth an "o" for the
-// first half of each syllable; and the press's dip.
+// The design and its clock: the cheer's from when it began, starting over
+// each loop, a look's from when the look began, so a tap's wiggle doesn't
+// restart it. On top: a blink, or the blink that hides a change of design;
+// the wiggle's sway and heart; the bubble taking the prop's room, and the
+// mouth an "o" for the first half of each syllable; and the press's dip.
 render::SceneShow Behaviour::show(uint32_t t) const {
   render::SceneShow s;
   s.mood = src_.mood;
   s.state = src_.state();
-  s.t = src_.anim == render::Anim::kCheer ? t - src_.at : t - lookAt_;
+  s.t = src_.anim == render::Anim::kCheer ? (t - src_.at) % render::loopMs(s.mood, s.state) : t - lookAt_;
   if (src_.anim == render::Anim::kWiggle) {
     // Two slow sways, not a shiver: at 175 ms and 7 px it read as trembling.
     uint32_t lt = t - src_.at;

@@ -147,11 +147,12 @@ public final class Runtime: @unchecked Sendable {
         var playing: [(id: Int, pending: Pending, deadline: Int64)] = []
 
         /// A brain moment going to the device at `now`: it gets the next id,
-        /// and its handle waits for the device's `ended`.
+        /// and its handle waits for the device's `ended` until its length
+        /// at most, and the grace, have passed.
         func send(_ moment: inout DeviceMoment, _ pending: Pending, now: Int64) {
             lastId += 1
             moment.id = lastId
-            playing.append((lastId, pending, now + moment.playMs + Self.endGraceMs))
+            playing.append((lastId, pending, now + schedule.playMs(moment, now: now) + Self.endGraceMs))
         }
 
         /// The device's `ended`: ends its moment's handle. An id the app
@@ -340,7 +341,7 @@ public final class Runtime: @unchecked Sendable {
         home.async { [self] in
             readJevKey()
             run(core.tick(at: options.clock()))
-            link.update(core.snapshot(at: options.clock()), now: options.clock())
+            show(core.snapshot(at: options.clock()))
             changed()
             options.log("boop: running on \(options.stateDir.path), socket \(options.socketPath), "
                         + "link \(options.link?.name ?? "none"), personality \(personality.rawValue), "
@@ -433,9 +434,10 @@ public final class Runtime: @unchecked Sendable {
             options.log("dev: mood \(to)" + (result.map { $0.ok ? "" : ": \($0.message)" } ?? ""))
             changed()
         case "moment":
-            // Through the moment schedule, as a rule's.
+            // Through the moment schedule, as a rule's: a cheer as long as
+            // the rule's.
             guard let anim = object["anim"] as? String, DeviceMoment.anims.contains(anim) else { return }
-            playRule(DeviceMoment(anim: anim))
+            playRule(DeviceMoment(anim: anim, loops: anim == "cheer" ? Core.cheerLoops(mood: core.config.mood) : nil))
             options.log("dev: moment \(anim)")
         default:
             break  // such as boopdev replay's probe
@@ -470,10 +472,10 @@ public final class Runtime: @unchecked Sendable {
         for effect in effects {
             switch effect {
             case .state(let snapshot):
-                link.update(snapshot, now: options.clock())
+                show(snapshot)
                 stateChanged = true
-            case .moment(let anim):
-                playRule(DeviceMoment(anim: anim))
+            case .moment(let anim, let loops):
+                playRule(DeviceMoment(anim: anim, loops: loops))
             case .mumble(let feeling, let word):
                 // Working chatter is filler: it never cuts a moment that's
                 // playing, such as a brain mumble, or jumps one waiting its
@@ -493,6 +495,14 @@ public final class Runtime: @unchecked Sendable {
 
     /// Seeds working chatter's lines.
     var chatterSeed: UInt64 = 0
+
+    /// A snapshot for the device, whose look and mood time the moments
+    /// played over it.
+    func show(_ snapshot: StateSnapshot) {
+        link.update(snapshot, now: options.clock())
+        moments.schedule.look = snapshot.base
+        moments.schedule.mood = snapshot.mood
+    }
 
     /// A rule moment: it plays at once, and anything the brain has waiting
     /// waits for it too.

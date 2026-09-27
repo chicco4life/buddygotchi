@@ -69,6 +69,14 @@ class PlayTests(unittest.TestCase):
         self.assertEqual(self.play("cheer"), (0, ["cheer"]))
         self.assertEqual(self.play("wiggle"), (0, ["wiggle"]))
 
+    def test_play_sends_its_loops(self):  # PROTOCOL.md §3: 1-6, none reads as 1
+        self.play("cheer", "--loops", "3")
+        self.assertEqual([m.get("loops") for m in self.board.sent if m["t"] == "moment"], [3])
+        self.play("cheer")
+        self.assertEqual([m.get("loops") for m in self.board.sent if m["t"] == "moment"], [None])
+        with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+            cli.build_parser().parse_args(["play", "cheer", "--loops", "7"])
+
 
 if __name__ == "__main__":
     unittest.main()

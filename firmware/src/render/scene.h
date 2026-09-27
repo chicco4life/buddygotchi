@@ -47,6 +47,9 @@ inline bool operator!=(const SceneFrame& a, const SceneFrame& b) { return !(a ==
 
 // The scene a mood and state show: every mood shares one asleep and one no-app scene.
 int sceneOf(Mood m, SceneState s);
+// How long that design takes to play once through, in ms (faces.h's
+// loopMs): what a moment's loops count (plan/PROTOCOL.md §3).
+uint32_t loopMs(Mood m, SceneState s);
 SceneFrame sceneFrame(const SceneShow& s);
 // Draws the scene over what's on the canvas; the screen clears it first.
 void drawScene(Canvas& c, const SceneShow& s);

@@ -1,6 +1,6 @@
 # Boop: verification
 
-Updated 2026-09-27. How we check that Boop works, including what's on its
+Updated 2026-09-28. How we check that Boop works, including what's on its
 screen, without a person watching, and every tool that does it.
 
 ## 1. The loop
@@ -54,7 +54,7 @@ launch the menu-bar app or run the whole eval.
 | `make -C internal fw-test` | The firmware's unit tests on the Mac (`pio test -e native`) |
 | `make -C internal sim` | Every scenario in the simulator, against the goldens (L1) |
 | `make -C internal e2e` | Builds, then runs the pipeline check (L4) |
-| `make -C internal faces` | Regenerates the faces (`firmware/assets/faces.h`, the popover's `app/Boop/Views/FaceDesigns.swift`, and the frames `fw-test` checks) from the mood designs in `internal/tools/facegen/design/svg/`. It first draws each design at a dozen moments in Google Chrome and fails unless facegen's own drawing matches pixel for pixel |
+| `make -C internal faces` | Regenerates the faces (`firmware/assets/faces.h`, the popover's `app/Boop/Views/FaceDesigns.swift`, the designs' loops for the Mac in `app/BoopKit/Core/FaceLoops.swift`, and the frames `fw-test` checks) from the mood designs in `internal/tools/facegen/design/svg/`. It first draws each design at a dozen moments in Google Chrome and fails unless facegen's own drawing matches pixel for pixel |
 | `make -C internal tools` | Makes or refreshes `internal/tools/.venv` (pyserial, Pillow, Textual). `internal/tools/boopctl` makes it on first run |
 | `make -C internal tools-test` | The tools' own tests, with no board or camera: `boopctl`'s commands and link, the dashboard (`test_dash.py`) and the webcam recorder on synthetic video |
 
@@ -69,7 +69,7 @@ commands go through the bridge.
 | `state` | Prints `dbg.state`, the device's own view of itself |
 | `shot [--out FILE]` | Saves a screenshot of the canvas as a PNG (default `/tmp/boop-shot.png`) |
 | `send '<json>'` | Sends one message as the Mac would; for a `dbg.*` request it prints the reply |
-| `play cheer\|wiggle\|needs\|pattern` | Makes the board do one thing the Mac can, and checks it took. `cheer` and `wiggle` play the animation over `--base` (idle) in `--mood` (happy) at `--vol` (1–10, 6); `--say FEELING` adds a mumble, with `--word` and `--seed`. `needs` holds a fake "needs you" for `--seconds` (10) from `--agent` (claude) on `--project` (boopctl) with `--more` (0), and reports its chirp. `pattern` shows the test pattern |
+| `play cheer\|wiggle\|needs\|pattern` | Makes the board do one thing the Mac can, and checks it took. `cheer` and `wiggle` play the animation over `--base` (idle) in `--mood` (happy) at `--vol` (1–10, 6), and `--loops N` (1–6) sends that many loops (without it the moment has none, which plays once); `--say FEELING` adds a mumble, with `--word` and `--seed`. `needs` holds a fake "needs you" for `--seconds` (10) from `--agent` (claude) on `--project` (boopctl) with `--more` (0), and reports its chirp. `pattern` shows the test pattern |
 | `mumble [feeling…]` | Plays the Mac's Voice lines for each feeling (all eight by default), without and with a word, and checks each in `audio.out`: syllables, word, and the DAC's time within 10% of beats × `ms`; then that a muted line moves the mouth silently. `--word W` or `--no-word`, `--count N` lines each, `--vol`, `--seed N` to replay a run, `--gap S` between lines (0.8), `--json`. For listening: `--board-volume` plays one line at the volume the board already has; `--levels L…` plays one line at each level, `--rounds N` times (6) |
 | `sim [scenario…] [--accept]` | Plays scenarios (all by default) in the simulator into `/tmp/boop-sim/<scenario>/` and compares them with the goldens (L1); `--accept` copies the pictures in |
 | `run [scenario…]` | Plays scenarios on the board and diffs each screenshot against the simulator's, threshold 0 (L2), then lets the clock run again |
@@ -293,7 +293,8 @@ does all of it:
    brain moment came after the rules' reaction and didn't cut a rule's
    line short (it may play over an animation, [ARCHITECTURE.md](ARCHITECTURE.md) §3.2),
    and that the board said how every brain moment it was sent ended
-   (`ended`, [PROTOCOL.md](PROTOCOL.md) §4).
+   (`ended`, [PROTOCOL.md](PROTOCOL.md) §4). It lists, for the record,
+   the ones the board said a newer moment cut short.
 
 **Pass:** every checkpoint matches, and p95 latency from hook to board is
 under 200 ms.

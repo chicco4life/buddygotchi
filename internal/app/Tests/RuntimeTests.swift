@@ -98,7 +98,7 @@ final class RuntimeTests: XCTestCase {
         // A finished turn clears "needs you" and cheers.
         XCTAssertTrue(HookSocket.send(hook("PostToolUse", tool: "Bash"), to: socketPath))
         XCTAssertTrue(HookSocket.send(hook("Stop"), to: socketPath))
-        eventually("cheer") { transport.sent.contains { $0 == #"{"t":"moment","anim":"cheer"}"# } }
+        eventually("cheer") { transport.sent.contains { $0 == #"{"t":"moment","anim":"cheer","loops":1}"# } }
         XCTAssertEqual(AppSettings.load(from: dir).personality, .boop)
         eventually("today's short-term memory") {
             (try? String(contentsOf: self.dir.appendingPathComponent("short-term.md"), encoding: .utf8))?.contains("## Today") == true
@@ -139,7 +139,7 @@ final class RuntimeTests: XCTestCase {
         eventually("the second pass") { passes().count == 2 }
         XCTAssertTrue(passes()[0].contains("Happy. Boop is in good spirits"), "the first pass read happy")
         XCTAssertTrue(passes()[1].contains("Grumpy. Boop is fed up"), "the next reads the new mood's file")
-        XCTAssertTrue(passes()[1].contains(#"Boop made a grumpy face and mumbled \"…again!\""#), "HISTORY shows what the actions did")
+        XCTAssertTrue(passes()[1].contains(#"Boop made a grumpy face, held once, and mumbled \"…again!\""#), "HISTORY shows what the actions did")
         XCTAssertFalse(lines.lock.withLock { lines.log.contains { $0.contains("PERSONALITY") } }, "the state stays out of boop.log")
     }
 
@@ -181,12 +181,12 @@ final class RuntimeTests: XCTestCase {
         let pass = try XCTUnwrap(printed.first { $0.hasPrefix("  pass scripted") })
         XCTAssertTrue(pass.contains("react excited 1.00"), pass)
         XCTAssertTrue(pass.contains("    │ You are the mind of Boop"), "the first state in full")
-        XCTAssertTrue(printed.contains("  … react: Boop made an excited face and mumbled \"…yay!\""), "started: \(printed)")
+        XCTAssertTrue(printed.contains("  … react: Boop made an excited face, held once, and mumbled \"…yay!\""), "started: \(printed)")
         XCTAssertTrue(printed.contains { $0.hasPrefix("  ✗ react (") && $0.hasSuffix(") didn't happen: no device connected") },
                       "the fake device never connected: \(printed)")
         let p = try XCTUnwrap(debugLines().compactMap { $0["pass"] as? [String: Any] }.first)
         XCTAssertTrue((p["state"] as? String)?.hasPrefix("You are the mind of Boop") == true)
-        XCTAssertEqual(p["questions"] as? [String], ["mood", "react", "word.feeling", "word.about"])
+        XCTAssertEqual(p["questions"] as? [String], ["mood", "react", "react.loops", "word.feeling", "word.about"])
     }
 
     /// The lines of this runtime's debug.jsonl, as JSON objects.
@@ -223,8 +223,8 @@ final class RuntimeTests: XCTestCase {
         let lines = debugLines()
         let questions = try XCTUnwrap(lines.first?["questions"] as? [[String: Any]], "the questions come first")
         XCTAssertEqual(lines.filter { $0["questions"] != nil }.count, 1, "once")
-        XCTAssertEqual(questions.map { $0["key"] as? String }, ["mood", "react", "word.feeling", "word.about"])
-        XCTAssertEqual(questions.map { $0["action"] as? String }, ["mood", "react", "react", "react"])
+        XCTAssertEqual(questions.map { $0["key"] as? String }, ["mood", "react", "react.loops", "word.feeling", "word.about"])
+        XCTAssertEqual(questions.map { $0["action"] as? String }, ["mood", "react", "react", "react", "react"])
         XCTAssertEqual(questions[1]["text"] as? String, "How should Boop react to NOW, if at all? It makes this face for a moment, with a mumble.")
         let none = try XCTUnwrap((questions[1]["options"] as? [[String: Any]])?.first)
         XCTAssertEqual(none["name"] as? String, "none")
@@ -278,7 +278,7 @@ final class RuntimeTests: XCTestCase {
         dev(#"{"dev":"mood","mood":"happy"}"#)
         eventually("happy again") { runtime.home.sync { runtime.mood.current == "happy" } }
         dev(#"{"dev":"moment","anim":"cheer"}"#)
-        eventually("the cheer") { transport.sent.contains(#"{"t":"moment","anim":"cheer"}"#) }
+        eventually("the cheer") { transport.sent.contains(#"{"t":"moment","anim":"cheer","loops":1}"#) }
         dev(#"{"dev":"moment","anim":"dance"}"#)
         dev(#"{"dev":"moment"}"#)
         dev(#"{"dev":"moment","anim":"wiggle"}"#)
@@ -292,7 +292,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(pass["questions"] as? [String], ["react", "word.feeling"])
         XCTAssertEqual((pass["answers"] as? [String: [String: Any]])?["react"]?["p"] as? [String: Double], ["grumpy": 1])
         let actions = lines.compactMap { $0["action"] as? [String: Any] }
-        XCTAssertEqual(actions.map { $0["message"] as? String }, [#"Boop made a grumpy face and mumbled "…again!""#,
+        XCTAssertEqual(actions.map { $0["message"] as? String }, [#"Boop made a grumpy face, held once, and mumbled "…again!""#,
                                                                 "Boop's mood changed: happy → grumpy.",
                                                                 "Boop's mood changed: grumpy → happy."])
         XCTAssertEqual(actions.map { $0["name"] as? String }, ["react", "mood", "mood"])
@@ -495,7 +495,7 @@ final class RuntimeTests: XCTestCase {
         let before = moments().count
         XCTAssertTrue(HookSocket.send(hook("Stop"), to: socketPath))
         eventually("the cheer, then the brain's mumble", timeout: 4) { moments().count >= before + 2 }
-        XCTAssertEqual(moments()[before], #"{"t":"moment","anim":"cheer"}"#, "the rules' reaction first")
+        XCTAssertEqual(moments()[before], #"{"t":"moment","anim":"cheer","loops":1}"#, "the rules' reaction first")
         let mumble = moments()[before + 1]
         XCTAssertTrue(mumble.hasPrefix(#"{"t":"moment","say":"#), "a mumble has no anim: \(mumble)")
         XCTAssertTrue(mumble.contains(#""mood":""#), "the brain's mumble has its expression: \(mumble)")
@@ -504,13 +504,13 @@ final class RuntimeTests: XCTestCase {
     }
 
     /// ARCHITECTURE.md §3.2: the brain's moments play one at a time, each
-    /// after any line playing, so none cuts off a line or another of the
-    /// brain's; a mumble plays over an animation, which doesn't cut it; a
-    /// newer line pushes them back and an animation stops the line; one
-    /// that waited over 5 s is dropped.
+    /// after any line and face playing, so none cuts off a line or another
+    /// of the brain's; a mumble plays over an animation, which doesn't cut
+    /// it; a newer line pushes them back and an animation stops the line;
+    /// one that waited over 5 s is dropped.
     func testBrainMomentsTakeTurns() {
         let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
-        let mumble = DeviceMoment(say: line, mood: "proud")  // 1920 ms
+        let mumble = DeviceMoment(say: line, mood: "proud")  // its line is 1920 ms
         let chatter = DeviceMoment(say: line)  // a rule's line, 1920 ms
         var schedule = MomentSchedule()
         schedule.rule(DeviceMoment(anim: "cheer"), now: 0)
@@ -518,10 +518,11 @@ final class RuntimeTests: XCTestCase {
         schedule.brain(mumble, now: 200)
         var due = schedule.due(now: 500)
         XCTAssertEqual(due.play, mumble, "over the cheer, which a mumble doesn't cut")
-        XCTAssertEqual(due.next, 2420, "the second waits for the first")
+        let first = 500 + max(1920, FaceLoops.ms(mood: "proud", state: "task_complete"))
+        XCTAssertEqual(due.next, first, "the second waits for the first's line and face")
         XCTAssertFalse(schedule.idle(now: 2000), "chatter waits for both")
         XCTAssertNil(schedule.due(now: 2000).play)
-        due = schedule.due(now: 2420)
+        due = schedule.due(now: first)
         XCTAssertEqual(due.play, mumble, "then the second")
         XCTAssertNil(due.next, "nothing left")
 
@@ -627,11 +628,13 @@ final class RuntimeTests: XCTestCase {
         let alone = try react()
         XCTAssertEqual(end(of: alone.seq), .failed("no device connected"))
         XCTAssertFalse(alone.moment.contains(#""id""#), "sent all the same, and dropped, with nothing to wait on")
+        XCTAssertEqual(runtime.home.sync { runtime.moments.schedule.look }, "asleep",
+                       "the look of the last state, which times the face: no sessions")
 
         clock.now += 10_000
         connection(true)
         let played = try react()
-        XCTAssertTrue(played.moment.hasSuffix(#","id":1}"#), played.moment)
+        XCTAssertTrue(played.moment.hasSuffix(#","mood":"happy","loops":1,"id":1}"#), played.moment)
         clock.now = runtime.home.sync { runtime.moments.schedule.lineUntil }
         runtime.home.sync { runtime.tick() }
         XCTAssertNil(end(of: played.seq), "played by the app's reckoning, but the device hasn't said so")
@@ -716,29 +719,73 @@ final class RuntimeTests: XCTestCase {
                        "chatter is a rule's line, with no expression (PROTOCOL.md §3)")
     }
 
-    /// ARCHITECTURE.md §3.2: the app knows how long each rule moment plays on
-    /// the device. The numbers are firmware/src/app/behaviour.cpp's
-    /// `onMoment` and `play`, and firmware/src/render/anim.cpp's
-    /// `animDuration` (BEHAVIORS.md §5: a cheer is 2 s).
+    /// ARCHITECTURE.md §3.2, PROTOCOL.md §3: the app knows how long each
+    /// moment plays on the device at most, as firmware/src/app/behaviour.cpp's
+    /// `onMoment` and `play` time it: the cheer its loops (1–6) of its
+    /// design, a wiggle 0.7 s, a face its loops of the look's design in its
+    /// own mood (the device ends it on a loop boundary, so no later), and a
+    /// mumble its beats and bubble when that's longer. The loops are
+    /// `FaceLoops`, the numbers faces.h gives the device.
     func testMomentLengthsFollowTheFirmware() {
-        XCTAssertEqual(DeviceMoment(anim: "cheer").playMs, 2000)
-        XCTAssertEqual(DeviceMoment(anim: "wiggle").playMs, 700)
+        let cheer = FaceLoops.ms(mood: "happy", state: "task_complete")
+        let idle = { (m: DeviceMoment) in m.playMs(look: "idle", mood: "happy") }
+        XCTAssertEqual(idle(DeviceMoment(anim: "cheer")), cheer, "once when it doesn't say")
+        XCTAssertEqual(idle(DeviceMoment(anim: "cheer", loops: 3)), 3 * cheer)
+        XCTAssertEqual(idle(DeviceMoment(anim: "cheer", loops: 9)), 6 * cheer, "at most 6")
+        XCTAssertEqual(idle(DeviceMoment(anim: "cheer", loops: 0)), cheer, "at least 1")
+        XCTAssertEqual(DeviceMoment(anim: "cheer").playMs(look: "idle", mood: "proud"),
+                       FaceLoops.ms(mood: "proud", state: "task_complete"), "in the mood's design")
+        XCTAssertEqual(idle(DeviceMoment(anim: "wiggle", loops: 3)), 700)
 
         // A mumble lasts its syllables plus two beats for a word, at 60–400
         // ms a beat, then 1.2 s of bubble, when that's longer than the face.
+        let working = { (m: DeviceMoment) in m.playMs(look: "working", mood: "happy") }
         let line = VoiceLine(groups: [["bi", "do"], ["ba", "na"]], word: "done", at: 4, tune: .up, ms: 120)
-        XCTAssertEqual(DeviceMoment(say: line).playMs, 1920)
-        XCTAssertEqual(DeviceMoment(anim: "wiggle", say: line).playMs, 1920)
+        XCTAssertEqual(working(DeviceMoment(say: line)), 1920)
+        XCTAssertEqual(working(DeviceMoment(anim: "wiggle", say: line)), 1920)
         var plain = line
         plain.word = nil
-        XCTAssertEqual(DeviceMoment(say: plain).playMs, 1680)
+        XCTAssertEqual(working(DeviceMoment(say: plain)), 1680)
         var slow = line
         slow.ms = 500
-        XCTAssertEqual(DeviceMoment(say: slow).playMs, 3600)
+        XCTAssertEqual(working(DeviceMoment(say: slow)), 3600)
         var quick = line
         quick.ms = 20
-        XCTAssertEqual(DeviceMoment(say: quick).playMs, 1560, "6 × 60 + 1200")
-        XCTAssertEqual(DeviceMoment(anim: "cheer", say: quick).playMs, 2000, "the cheer is longer")
+        XCTAssertEqual(working(DeviceMoment(say: quick)), 1560, "6 × 60 + 1200")
+        XCTAssertEqual(working(DeviceMoment(anim: "cheer", say: quick)), cheer, "the cheer is longer")
+
+        // A face holds its loops of the design showing, in its own mood.
+        let grumpy = FaceLoops.ms(mood: "grumpy", state: "working")
+        XCTAssertEqual(working(DeviceMoment(say: quick, mood: "grumpy")), grumpy)
+        XCTAssertEqual(working(DeviceMoment(say: quick, mood: "grumpy", loops: 2)), 2 * grumpy)
+        XCTAssertEqual(DeviceMoment(say: quick, mood: "grumpy").playMs(look: "task_complete", mood: "happy"),
+                       FaceLoops.ms(mood: "grumpy", state: "task_complete"), "over the cheer, the cheer's design")
+        XCTAssertLessThan(FaceLoops.ms(mood: "excited", state: "working"), 3600)
+        XCTAssertEqual(working(DeviceMoment(say: slow, mood: "excited")), 3600, "a longer line holds it longer")
+    }
+
+    /// ARCHITECTURE.md §3.2: the schedule times a moment by the design
+    /// showing: the look and mood of the last `state`, or the cheer's while
+    /// one plays. A reaction's face holds the brain's next one back.
+    func testTheScheduleTimesAMomentByTheDesignShowing() {
+        let line = VoiceLine(groups: [["bi"]], word: nil, at: 1, tune: .up, ms: 100)
+        let face = DeviceMoment(say: line, mood: "proud", loops: 2)
+        var schedule = MomentSchedule()
+        schedule.look = "working"
+        XCTAssertEqual(schedule.playMs(face, now: 0), 2 * FaceLoops.ms(mood: "proud", state: "working"))
+        schedule.rule(DeviceMoment(anim: "cheer", loops: 1), now: 0)
+        XCTAssertEqual(schedule.cheerUntil, FaceLoops.ms(mood: "happy", state: "task_complete"))
+        let overCheer = 2 * FaceLoops.ms(mood: "proud", state: "task_complete")
+        XCTAssertEqual(schedule.playMs(face, now: 100), overCheer)
+        schedule.brain(face, now: 100)
+        schedule.brain(face, now: 100)
+        let due = schedule.due(now: 100)
+        XCTAssertEqual(due.play, face, "it plays over the cheer")
+        XCTAssertEqual(schedule.lineUntil, 100 + overCheer, "the next waits for its face")
+        XCTAssertEqual(due.next, 100 + overCheer)
+        schedule.rule(DeviceMoment(anim: "wiggle"), now: 200)
+        XCTAssertEqual(schedule.cheerUntil, 200, "a wiggle ends the cheer")
+        XCTAssertEqual(schedule.lineUntil, 200, "and the face")
     }
 }
 

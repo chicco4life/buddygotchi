@@ -1,6 +1,6 @@
 # Boop: protocol
 
-Updated 2026-09-27. Every message between the Boop Mac app and the device,
+Updated 2026-09-28. Every message between the Boop Mac app and the device,
 over Bluetooth or USB, and the debug messages tools send over USB. The
 code is the source: `app/BoopKit/DeviceLink/`, `StateSnapshot.swift` and
 `DeviceMoment.swift` on the Mac, `firmware/src/app/device.cpp` and
@@ -152,15 +152,15 @@ Any `state` also restarts the device's 30 s no-app timer
 that's playing ([VOICE.md](VOICE.md) §9). Every `state` fits in 512 bytes,
 even with the longest names and counts (`DeviceLinkTests`).
 
-### `moment`: something to play once
+### `moment`: something to play
 
-Real lines, from headless runs: the rules' cheer, a brain reaction (the
-scripted brain's, in the pipeline check with the board), and working
-chatter:
+Real lines, from headless runs with the board: the rules' cheer (in the
+pipeline check), a brain reaction held twice (a forced pass, from a dev
+line on the hook socket), and working chatter:
 
 ```json
-{"t":"moment","anim":"cheer"}
-{"t":"moment","say":{"syl":"la-la ki-ki","word":"yay","at":0,"tune":"bounce","ms":115},"mood":"excited","id":1}
+{"t":"moment","anim":"cheer","loops":1}
+{"t":"moment","say":{"syl":"ta-ko ga-da o","word":"finally","at":0,"tune":"lift","ms":135},"mood":"proud","loops":2,"id":1}
 {"t":"moment","say":{"syl":"bi-da","tune":"bounce","ms":125}}
 ```
 
@@ -174,6 +174,7 @@ chatter:
 | `say.tune` | `up`, `down`, `bounce`, `flat` or `lift` | The feeling's tune ([VOICE.md](VOICE.md) §5) | Missing or unknown reads as `flat` |
 | `say.ms` | int | Milliseconds per syllable, 90–180 | Clamped to 60–400. Missing reads as 120 |
 | `mood` | one of `state`'s seven moods, optional | The face of the brain's reaction ([harness/DECISIONS.md](harness/DECISIONS.md) §5). The rules' moments (the cheer, a wiggle, working chatter) never carry one | The expression: while this moment plays, the look (or the cheer) is drawn in this mood's design instead of `state`'s. Missing or unknown is ignored: the state's mood |
+| `loops` | int, optional | How many times whoever plays it wants its design played: the cheer's, enough loops for its length ([BEHAVIORS.md](BEHAVIORS.md) §5), or a reaction's face, as Jev picked ([harness/DECISIONS.md](harness/DECISIONS.md) §5). None on a wiggle or chatter | Held to 1–6: missing, not a number or below 1 reads as 1. With the cheer, how many times its design plays. With a `mood` and no animation, how many loops of the design it's drawn in the face holds (below). A wiggle ignores it |
 | `id` | int ≥ 1, optional | Only on a moment it waits on: a brain reaction sent while the device is connected. Ids count up from 1 each time the app starts | Answered with one `ended` carrying this `id` (§4). Missing, 0 or not a number: no `ended` |
 
 The rules' moments play at once. A brain mumble waits its turn behind
@@ -182,20 +183,33 @@ drops it rather than send it more than 5 s late
 ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2). The Mac never sends a moment
 with neither `anim` nor `say`.
 
-On the device, a moment plays as it arrives:
+On the device, a moment plays as it arrives. A design's loop is how long
+it takes to play once through: its longest animation, leaving out the
+blink, which the device times on its own (`loopMs` in `faces.h`,
+[DEVICE.md](DEVICE.md) §6; the Mac has the same numbers in
+`FaceLoops`).
 
-- An animation replaces the moment playing, and stops any line.
+- An animation replaces the moment playing, and stops any line. The
+  cheer plays its `loops` of its design, which starts over each time,
+  timed by the design of the mood it's drawn in when it starts; a wiggle
+  lasts 0.7 s.
 - A mumble with no animation plays over whatever face is showing and
   replaces any line playing. With an animation in the same moment, as
   `boopctl play cheer --say happy` sends, its bubble stays up at least as
   long as the animation.
-- A `mood` holds for exactly as long as the moment plays: the mumble and
-  its bubble (syllables, two beats for a word, then 1.2 s), or the
-  animation, whichever is longer. Then the face goes back to the state's
-  mood. Both switches blink like any change of design ([UX.md](UX.md)
-  §2). If the look changes meanwhile (the cheer ends, a `state` moves
-  from working to idle), the new look is drawn in the moment's mood until
-  it ends. A newer moment, a tap or "needs you" ends it with the moment.
+- A `mood` with an animation holds for as long as the animation plays.
+  With none, as the brain sends it, it holds for its `loops` of the
+  design it's drawn in (the look's, or the cheer's while one plays),
+  ending on a loop boundary of that design's clock ([UX.md](UX.md) §2):
+  the first loop ends at the clock's next boundary, so it can be short,
+  and each further loop adds a whole one. Either way it holds at least
+  as long as the mumble and its bubble (syllables, two beats for a word,
+  then 1.2 s). Then the face goes back to the state's mood. Both
+  switches blink like any change of design. If the look changes
+  meanwhile (the cheer ends, a `state` moves from working to idle), the
+  new look is drawn in the moment's mood until the end worked out when
+  it started. A newer moment, a tap or "needs you" ends it with the
+  moment.
 - While `attn` is set, neither plays ([BEHAVIORS.md](BEHAVIORS.md) §1).
 - At volume 0 the mouth and bubble still play, silently.
 - A moment with neither a known `anim` nor any syllables is ignored.
@@ -364,7 +378,7 @@ advertise again. The next connect starts from the top.
 | Advertising check | Every second while not connected | Device |
 | USB write | At most 250 ms; a failed write, or a lost bridge, reconnects after 1 s | Mac |
 | Brain moment | Dropped after waiting 5 s | Mac |
-| A brain moment's `ended` | Given up on once the moment's length plus 3 s (`endGraceMs`) has passed since it was sent (§4) | Mac |
+| A brain moment's `ended` | Given up on once the moment's longest length (its line, or its face's loops of the design the last `state` shows) plus 3 s (`endGraceMs`) has passed since it was sent (§4) | Mac |
 | Reading lines | Up to 8 ms of lines before each frame | Device |
 | A frozen debug clock | Runs again after 60 s with no `dbg.*` | Device |
 

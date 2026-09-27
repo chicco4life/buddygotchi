@@ -10,6 +10,7 @@
 #include "app/device.h"
 #include "app/line_reader.h"
 #include "render/palette.h"
+#include "render/scene.h"
 
 void setUp() {}
 void tearDown() {}
@@ -650,7 +651,21 @@ static void test_moment_plays_then_ends_and_a_new_one_replaces_it() {
   r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"size\":3,\"ttl\":5}");  // an old `size` is ignored
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"anim\":\"cheer\",\"left_ms\":2000"));  // one size, 2 s
+  // One loop of happy's task-complete design.
+  const uint32_t loop = render::loopMs(render::Mood::kHappy, render::SceneState::kTaskComplete);
+  auto left = [](uint32_t ms) { return "\"anim\":\"cheer\",\"left_ms\":" + std::to_string(ms) + "}"; };
+  TEST_ASSERT_TRUE(has(r.usb.text, left(loop).c_str()));
+  // `loops` says how many, 1–6; missing, 0 or not a number reads as 1.
+  const struct {
+    const char* loops;
+    uint32_t times;
+  } cases[] = {{"3", 3}, {"9", 6}, {"0", 1}, {"-2", 1}, {"\"many\"", 1}};
+  for (const auto& c : cases) {
+    r.usbLine((std::string("{\"t\":\"moment\",\"anim\":\"cheer\",\"loops\":") + c.loops + "}").c_str());
+    r.usb.text.clear();
+    r.usbLine("{\"t\":\"dbg.state\"}");
+    TEST_ASSERT_TRUE_MESSAGE(has(r.usb.text, left(c.times * loop).c_str()), c.loops);
+  }
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":5000}");
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
@@ -752,14 +767,28 @@ static void test_a_moment_carries_its_expression() {
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"mood\":\"happy\""));  // the state's mood is kept
   TEST_ASSERT_TRUE(has(r.usb.text, "\"expr\":\"grumpy\""));
-  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1399}");
-  r.usb.text.clear();
-  r.usbLine("{\"t\":\"dbg.state\"}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"expr\":\"grumpy\""));
-  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1400}");  // 2 × 100 ms + 1.2 s
-  r.usb.text.clear();
-  r.usbLine("{\"t\":\"dbg.state\"}");
+  // The mumble is over at 2 × 100 ms + 1.2 s; the face holds a loop of
+  // the working design in grumpy, whose clock started with the state at 0.
+  const uint32_t loop = render::loopMs(render::Mood::kGrumpy, render::SceneState::kWorking);
+  auto exprAt = [&](uint32_t t) {
+    r.usbLine(("{\"t\":\"dbg.clock\",\"freeze\":" + std::to_string(t) + "}").c_str());
+    r.usb.text.clear();
+    r.usbLine("{\"t\":\"dbg.state\"}");
+    return has(r.usb.text, "\"expr\":\"grumpy\"");
+  };
+  TEST_ASSERT_TRUE(exprAt(1400));
+  TEST_ASSERT_TRUE(exprAt(loop - 1));
+  TEST_ASSERT_FALSE(exprAt(loop));
   TEST_ASSERT_TRUE(has(r.usb.text, "\"expr\":null"));
+  // `loops`: two, from a boundary, end at the second one after it; over
+  // 6 holds 6.
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"mood\":\"grumpy\",\"loops\":2}");
+  TEST_ASSERT_TRUE(exprAt(3 * loop - 1));
+  TEST_ASSERT_FALSE(exprAt(3 * loop));
+  r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"mood\":\"happy\"}");  // no "no app" meanwhile
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"mood\":\"grumpy\",\"loops\":9}");
+  TEST_ASSERT_TRUE(exprAt(9 * loop - 1));
+  TEST_ASSERT_FALSE(exprAt(9 * loop));
   // Unknown: no expression, and the mumble still plays.
   size_t said = r.hal.said.size();
   r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"mood\":\"annoyed\"}");
@@ -843,9 +872,12 @@ static void test_a_moment_with_an_id_is_answered_when_it_ends() {
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
   r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"mood\":\"proud\",\"id\":5}");
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":0}");  // hushed, but it plays on
-  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1399}");
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1400}");  // the mumble is over: 2 × 100 ms + 1.2 s
+  // The face holds a loop of the idle design in proud.
+  const uint32_t loop = render::loopMs(render::Mood::kProud, render::SceneState::kIdle);
+  r.usbLine(("{\"t\":\"dbg.clock\",\"freeze\":" + std::to_string(loop - 1) + "}").c_str());
   TEST_ASSERT_FALSE(has(r.usb.text, "\"ended\""));
-  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1400}");  // 2 × 100 ms + 1.2 s
+  r.usbLine(("{\"t\":\"dbg.clock\",\"freeze\":" + std::to_string(loop) + "}").c_str());
   TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":5,\"how\":\"done\"}\n"));
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
   r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"id\":6}");

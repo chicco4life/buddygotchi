@@ -10,6 +10,17 @@ import Foundation
 /// a timer; days and times of day follow the wall clock the app reports
 /// with `setWallClock`.
 public final class Core {
+    /// A cheer plays at least this long (BEHAVIORS.md §5): as many loops
+    /// of the mood's task-complete design as that takes.
+    public static let cheerMinMs: Int64 = 2000
+
+    /// How many loops of `mood`'s task-complete design (`FaceLoops`) make
+    /// a cheer of at least `cheerMinMs`, at most `DeviceMoment.maxLoops`.
+    public static func cheerLoops(mood: String) -> Int {
+        let loop = FaceLoops.ms(mood: mood, state: "task_complete")
+        return min(DeviceMoment.maxLoops, Int((cheerMinMs + loop - 1) / loop))
+    }
+
     public struct Config: Sendable {
         public var volume: Int
         /// Boop's mood, which the mood action sets (harness/DECISIONS.md §4)
@@ -262,7 +273,7 @@ public final class Core {
                 // A finish: a cheer, even while other sessions are still
                 // working (BEHAVIORS.md §3.1).
                 sessions[key] = s
-                fx.append(.moment(anim: "cheer"))
+                fx.append(.moment(anim: "cheer", loops: Core.cheerLoops(mood: config.mood)))
                 turnEndEvent(s, outcome: "done", error: nil, lengthMs: ms, reaction: EventLine.cheered, now, &fx)
             }
         case .turnFailed:

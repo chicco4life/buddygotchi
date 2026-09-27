@@ -1,6 +1,6 @@
 # Boop: the harness
 
-Updated 2026-09-27. The generic code between the core and the brain: how
+Updated 2026-09-28. The generic code between the core and the brain: how
 an event becomes questions for Jev, and how Jev's answers become
 something Boop does. The events are in [EVENTS.md](EVENTS.md), Boop's
 questions and actions in [DECISIONS.md](DECISIONS.md), and
@@ -302,8 +302,8 @@ How to read HISTORY and NOW:
 ### 6.2 Sizes
 
 Each static part has a budget in tokens (`Steering.Budget`), counted as
-bytes ÷ 4, which overestimates English: the guide 300 (now about 295), a
-personality 600 (`boop` about 200, `chatter` 280) and a mood 150 (80–145).
+bytes ÷ 4, which overestimates English: the guide 300 (now 299), a
+personality 600 (`boop` about 205, `chatter` 300) and a mood 150 (80–145).
 A part over its budget is logged at launch (`steering: over budget: …`),
 and a test keeps every file within it. The generated reading part is
 about 225 tokens and HISTORY's 40 events about 1,200, so with the
@@ -362,7 +362,7 @@ from the next event.
 | Brain | `id` | Used by |
 | --- | --- | --- |
 | `JevBrain` | `jev:jev-latest` | The app with a key, and the evals |
-| `ScriptedBrain` | `scripted` | Tests: a script sees the state and questions and returns answers. `Boop --headless --brain scripted` uses `pipelineCheck`, which answers every pass `mood: happy`, `react: excited`, `word.feeling: yay`, `word.about: none` |
+| `ScriptedBrain` | `scripted` | Tests: a script sees the state and questions and returns answers. `Boop --headless --brain scripted` uses `pipelineCheck`, which answers every pass `mood: happy`, `react: excited`, `react.loops: once`, `word.feeling: yay`, `word.about: none` |
 
 ## 8. Designing for Jev
 
@@ -397,22 +397,23 @@ open too long (§5.1).
 headless. It prints to the terminal that started the app: each hook with
 what the adapter made of it, each of the core's effects, every line sent
 to the device, and each transcript entry, readably. From the example run
-([EXAMPLE.md](EXAMPLE.md)), recorded while `react` still offered
-`annoyed`, today's `grumpy`, and was done rather than started (today its
-line is marked `…` and followed by its settle, below):
+([EXAMPLE.md](EXAMPLE.md)), as `boopdev watch` prints its `debug.jsonl`:
 
 ```
-▸ 9 tool_use: claude's tests failed again on "fix-nav" (landing), 3 in a row.
-  pass jev:jev-latest 187 ms: mood grumpy 0.99 · react annoyed 0.99 · word.about tests 1.00 · word.feeling again 0.88
+▸ 12 tool_use: claude's tests failed again on "fix-nav" (landing), 3 in a row.
+  pass jev:jev-latest 325 ms: mood grumpy 0.99 · react grumpy 0.99 · react.loops once 0.64 · word.about tests 1.00 · word.feeling again 0.97
     │ <the whole state for the first pass, then only its HISTORY and NOW>
   ✓ mood: Boop's mood changed: determined → grumpy.
-  ✓ react: Boop mumbled, annoyed: "…again!"
+  … react: Boop made a grumpy face, held once, and mumbled "…again!"
+  ✓ react (15) done
 ```
 
 An event that doesn't wake the brain is marked `(no pass)`, and a failed
 action `✗`. A started action is marked `…`, and its `settle` prints as a
 line of its own when it comes, naming the action and its `seq`:
-`  ✓ react (16) done`, or `  ✗ react (16) didn't happen: <why>`. The
+`  ✓ react (15) done`, or `  ✗ react (15) didn't happen: <why>`. (The
+eval's queue ends a reaction `done` at once, [EVALS.md](../EVALS.md)
+§1.) The
 state goes to the terminal only, never `boop.log`.
 
 **`debug.jsonl`,** in the state directory, is emptied in place at every
@@ -451,9 +452,9 @@ no device (`--link none`), so the reaction never played
 ([DECISIONS.md](DECISIONS.md) §5):
 
 ```jsonl
-{"pass":{"answers":{"react":{"choice":"grumpy","p":{"grumpy":1}},"word.feeling":{"choice":"again","p":{"again":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react","word.feeling"]},"received_at_ms":1790516826911,"seq":1}
-{"action":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop made a grumpy face and mumbled \"…again!\"","name":"react","ok":true,"pending":true},"received_at_ms":1790516826912,"seq":2}
-{"received_at_ms":1790516826912,"seq":3,"settle":{"by":"dashboard","end":"failed","for":2,"why":"no device connected"}}
+{"pass":{"answers":{"react":{"choice":"grumpy","p":{"grumpy":1}},"react.loops":{"choice":"twice","p":{"twice":1}},"word.feeling":{"choice":"again","p":{"again":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react","react.loops","word.feeling"]},"received_at_ms":1790523308919,"seq":1}
+{"action":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop made a grumpy face, held twice, and mumbled \"…again!\"","name":"react","ok":true,"pending":true},"received_at_ms":1790523308919,"seq":2}
+{"received_at_ms":1790523308919,"seq":3,"settle":{"by":"dashboard","end":"failed","for":2,"why":"no device connected"}}
 ```
 
 ## 10. Where it lives

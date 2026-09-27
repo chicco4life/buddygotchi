@@ -135,6 +135,7 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     MomentIn mo;
     mo.anim = render::animFromName(doc["anim"]);  // none, or unknown: only the mumble
     mo.expr = render::parseMood(doc["mood"], mo.mood);  // unknown or missing: the state's mood
+    mo.loops = render::clamp(doc["loops"] | 1, 1, Behaviour::kMaxLoops);  // missing or not a number: once
     voice::Line line;
     JsonObjectConst say = doc["say"];
     if (say) {

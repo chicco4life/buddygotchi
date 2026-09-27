@@ -1,20 +1,25 @@
 // A reaction's face (PROTOCOL.md §3): a moment's `mood` draws the look in
-// that mood while the moment plays, then the face blinks back to the
+// that mood for its `loops` of the design, ending on a loop boundary, and
+// at least while its mumble plays; then the face blinks back to the
 // state's mood (UX.md §2). The lines are Voice's (`boopdev voice`).
-// Happy and working, the tests fail: grumpy for the mumble.
+// Happy and working, the tests fail: grumpy, once, with the mumble.
 {"clock":0}
 {"t":"state","v":1,"base":"working","mood":"happy","busy":1}
 {"clock":1000}
-{"t":"moment","say":{"syl":"pi-to ta-pi","word":"ugh","at":4,"tune":"flat","ms":125},"mood":"grumpy"}
+{"t":"moment","say":{"syl":"pi-to ta-pi","word":"ugh","at":4,"tune":"flat","ms":125},"mood":"grumpy","loops":1}
 {"expect":{"mood":"happy","expr":"grumpy","audio":{"playing":true,"syllables":4}}}
 {"clock":1400}
 {"shot":"working-grumpy"}
-// (4 syllables + 2 beats for the word) × 125 ms, then 1.2 s to read it.
-{"clock":2949}
-{"expect":{"expr":"grumpy"}}
+// The mumble is over after (4 syllables + 2 beats for the word) × 125 ms
+// and 1.2 s to read it, at 2950. The face holds to the end of the loop of
+// grumpy's working design (4.2 s) that the working clock, from 0, is in.
 {"clock":2950}
-{"expect":{"expr":null,"mood":"happy","audio":{"syllables":0}}}
-{"clock":3300}
+{"expect":{"expr":"grumpy","audio":{"syllables":0}}}
+{"clock":4199}
+{"expect":{"expr":"grumpy"}}
+{"clock":4200}
+{"expect":{"expr":null,"mood":"happy"}}
+{"clock":4550}
 {"shot":"working-happy-again"}
 // Curious, a long turn finishes: the rule's cheer, in curious, then Jev's
 // proud mumble over it borrows proud's cheer.
@@ -25,19 +30,23 @@
 {"expect":{"moment":{"anim":"cheer"},"expr":null}}
 {"shot":"cheer-curious"}
 {"clock":10200}
-{"t":"moment","say":{"syl":"lo-pa gom-gom","word":"finally","at":0,"tune":"lift","ms":135},"mood":"proud"}
+{"t":"moment","say":{"syl":"lo-pa gom-gom","word":"finally","at":0,"tune":"lift","ms":135},"mood":"proud","loops":1}
 {"expect":{"moment":{"anim":"cheer","left_ms":1800},"expr":"proud"}}
 {"clock":10800}
 {"shot":"cheer-proud"}
-// The cheer ends at 12000, and the face stays proud for the look after it
-// until the bubble goes, at 10200 + (4 + 2) × 135 + 1200 = 12210.
+// The cheer ends at 12000, and the face stays proud for the look after
+// it: the bubble goes at 10200 + (4 + 2) × 135 + 1200 = 12210, and the
+// face holds a loop of proud's cheer design (2.8 s) on the cheer's clock,
+// to 12800.
 {"clock":12000}
 {"expect":{"moment":null,"expr":"proud"}}
 {"clock":12160}
 {"shot":"idle-proud"}
-{"clock":12209}
-{"expect":{"expr":"proud"}}
 {"clock":12210}
+{"expect":{"expr":"proud","audio":{"syllables":0}}}
+{"clock":12799}
+{"expect":{"expr":"proud"}}
+{"clock":12800}
 {"expect":{"expr":null,"mood":"curious"}}
 // An unknown mood is ignored: the state's mood, and the mumble plays.
 {"clock":20000}

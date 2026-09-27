@@ -1,6 +1,6 @@
 # Boop: harness evals
 
-Updated 2026-09-27. How we check that Jev decides as Boop should: short
+Updated 2026-09-28. How we check that Jev decides as Boop should: short
 scenarios of agent work, run through the real core, harness and actions,
 each pass checked against what it should come to. The harness is
 [harness/HARNESS.md](harness/HARNESS.md), and the decisions checked are
@@ -44,6 +44,7 @@ a scenario holds wherever more than one answer is right:
 | --- | --- |
 | `react` | Jev's pick for the `react` question: `none` or a mood's face |
 | `word` | The word the mumble used ([DECISIONS.md](harness/DECISIONS.md) §5), or `none` when `react` didn't mumble |
+| `loops` | How long the face held, Jev's `react.loops` pick (`once` to `four times`), or `none` when `react` didn't mumble |
 | `mood` | Boop's mood after the pass |
 
 A step fails if its pass was dropped (late, or an error), or if any
@@ -102,7 +103,7 @@ file-name order:
 | `steps[].topic`, `failed` | A command's topic and whether it failed |
 | `steps[].error` | A failed turn's error class |
 | `steps[].workspace` | The thread's workspace, when it has one |
-| `steps[].expect` | Any of `react`, `word` and `mood`, each a `\|`-separated list |
+| `steps[].expect` | Any of `react`, `word`, `loops` and `mood`, each a `\|`-separated list |
 
 A file with an unknown event, personality or `expect` key, a bad `at`,
 or no `expect` at all doesn't load, and the error names the file and
@@ -114,15 +115,15 @@ All with the `boop` personality unless noted. Times are from the start.
 
 | File | Feeds | Expects |
 | --- | --- | --- |
-| `01-short-turn` | A turn starts, and finishes at 8 s | At the start `react` none or curious; at the finish none or happy; `mood` happy at both |
+| `01-short-turn` | A turn starts, and finishes at 8 s | At the start `react` none or curious; at the finish none or happy; `loops` none or once and `mood` happy at both |
 | `02-long-turn` | A turn starts, and finishes at 20 min | At the finish `react` proud, happy or excited; `mood` happy or proud |
 | `03-turn-failed` | A turn starts, and fails at 2 min (`rate_limit`) | `react` grumpy, none or curious; `word` none, oops, ugh or again; `mood` happy |
 | `04-tests-fight-back` | In `fix-nav`: a turn starts; tests fail at 1, 3 and 5 min, and pass at 7 min | 1st failure: `react` none, curious, determined or grumpy, `mood` happy or determined. 2nd: the same. 3rd: `react` grumpy, `word` again, tests or ugh, `mood` grumpy. The pass: `react` proud, excited or happy, `word` finally, tests or yay, `mood` proud or happy ([harness/EXAMPLE.md](harness/EXAMPLE.md)) |
-| `05-poke-streak` | A poke streak | `react` grumpy; `word` nope, ugh or none |
+| `05-poke-streak` | A poke streak | `react` grumpy; `word` nope, ugh or none; `loops` once |
 | `06-heartbeat-lets-grumpy-go` | A turn starts; tests fail at 1, 2 and 3 min; the turn fails at 4 min; nothing until 1 h 5 min, bringing the first heartbeat | After the 3rd failure `mood` grumpy. At the heartbeat `react` none, happy or curious, and `mood` happy |
-| `07-chatter-reacts-to-everything` | `chatter`: a turn starts, a command with no topic at 4 s, the turn finishes at 8 s | `react` a face at every step: happy, excited, curious or proud at the start and the command; happy, excited or proud at the finish |
+| `07-chatter-reacts-to-everything` | `chatter`: a turn starts, a command with no topic at 4 s, the turn finishes at 8 s | `react` a face at every step: happy, excited, curious or proud at the start and the command; happy, excited or proud at the finish, with `loops` more than once |
 | `08-long-turn-fails` | A turn starts, and fails at 25 min (`api_error`) | `react` sad, grumpy or none; `mood` sad |
-| `09-failure-worked-through` | A turn starts; tests fail at 1 and 3 min, and pass at 5 min | After the 2nd failure `mood` determined. At the pass `react` proud, happy or excited; `word` finally, tests or yay; `mood` proud |
+| `09-failure-worked-through` | A turn starts; tests fail at 1 and 3 min, and pass at 5 min | After the 2nd failure `mood` determined. At the pass `react` proud, happy or excited; `word` finally, tests or yay; `loops` more than once; `mood` proud |
 | `10-run-of-wins` | Four turns a minute apart, each with a passing test run at 30 s and a finish at 40 s | After the first turn `mood` happy; after the fourth, excited |
 
 A new decision or a change to the steering files gets a scenario that

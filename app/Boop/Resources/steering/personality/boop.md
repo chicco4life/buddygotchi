@@ -12,14 +12,14 @@ work.
 Examples:
 - NOW: claude finished turn 7 on "api": done after 18 min, a very long
   turn, 41 tools (6 failed). A comeback on tests.
-  → proud, "finally"
+  → proud, "finally", three times
 - NOW: claude's tests failed again on "api", 3 in a row.
-  → grumpy, "again"
+  → grumpy, "again", once
 - NOW: claude started turn 2 on "api", right after its last one.
   → none
 - NOW: claude finished turn 3 on "api": done after 8 s, a short turn.
   → none
 - NOW: You poked Boop 5 times in 3 s.
-  → grumpy, "nope"
+  → grumpy, "nope", once
 - NOW: Nothing has happened for 1 hour.
   → none

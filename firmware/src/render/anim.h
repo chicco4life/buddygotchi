@@ -15,8 +15,9 @@ enum class Anim : uint8_t {
 
 Anim animFromName(const char* name);  // kNone if unknown
 const char* animName(Anim a);
-// How long a moment plays, in ms.
-uint32_t animDuration(Anim a);
+// A tap's wiggle is always this long. The cheer lasts its loops of its
+// design (render/scene.h loopMs, plan/BEHAVIORS.md §5).
+constexpr uint32_t kWiggleMs = 700;
 
 // Boop's mood, which picks the set of designs every look and animation is
 // drawn in (plan/PROTOCOL.md §3, plan/harness/DECISIONS.md §2.3).
