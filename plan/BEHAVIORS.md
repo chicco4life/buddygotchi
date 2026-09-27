@@ -56,7 +56,7 @@ look like one cheer.
 | When | What Boop does |
 | --- | --- |
 | You send a prompt | Working |
-| A turn finishes | `cheer`, even while other sessions keep working; calm cheers only a turn over a minute |
+| A turn finishes | `cheer`, even while other sessions keep working; calm cheers only a turn over a minute. No cheer while you talk to Boop (§3.3) |
 | A turn fails | No moment; the session goes idle. The brain's reaction is in §6 |
 | You interrupt a turn (Esc) | The session goes idle, with no moment and nothing for the brain. That happens at once if a tool was running, which also clears a request it was waiting on; otherwise when Claude reports itself idle about a minute later ([ADAPTERS.md](ADAPTERS.md) §3) |
 
@@ -107,7 +107,8 @@ and click Send ([UX.md](UX.md) §5 has the indicators and permissions).
 
 Until the reply nothing else speaks: no working chatter, and no brain
 mumble about an agent (one waiting its turn is dropped), since any mumble
-would end `listening`. When your words arrive, the brain drops what it was
+would end `listening`. Nor does the Mac send a cheer for a turn that
+finishes meanwhile. When your words arrive, the brain drops what it was
 doing and answers them.
 
 **What Boop makes of it.** The if-else tables' exact phrases are in

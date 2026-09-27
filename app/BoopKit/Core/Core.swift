@@ -537,8 +537,9 @@ public final class Core {
 
     /// A finished turn: a cheer, even while other sessions are still
     /// working, when it's long enough for the mode (BEHAVIORS.md §3.1).
+    /// None while you talk to Boop (BEHAVIORS.md §3.3).
     func finished(_ s: Session, durationMs ms: Int64, _ now: Int64, _ fx: inout [CoreEffect]) {
-        let cheer = config.mode.cheers(Input.Length(ms: ms))
+        let cheer = config.mode.cheers(Input.Length(ms: ms)) && !talking(now)
         if cheer { play("cheer", &fx) }
         if ms >= 30_000 {
             fx.append(.happened("\(config.time.clock(wall(now))) \(s.agent.short) · \(s.project) · finished (\(Input.took(ms)))"))

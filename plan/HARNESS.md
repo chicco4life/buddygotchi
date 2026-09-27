@@ -40,7 +40,7 @@ language models its one-line form.
 | Input | From | Fields | The rules' reaction | Deadline | Menu |
 | --- | --- | --- | --- | --- | --- |
 | Agent started | `turn_start` | agent, project, time | — | 5 s | `react` |
-| Agent finished | `turn_end` or `turn_failed` | outcome (`done` or `failed`), agent, project, topic, the turn's length, the error class if it failed, time, "+N more" | `cheer`, if the mode cheers that finish | 5 s | `react` |
+| Agent finished | `turn_end` or `turn_failed` | outcome (`done` or `failed`), agent, project, topic, the turn's length, the error class if it failed, time, "+N more" | `cheer`, if the mode cheers that finish and you aren't talking to Boop ([BEHAVIORS.md](BEHAVIORS.md) §3.3) | 5 s | `react` |
 | You said something | push-to-talk, or Send in the popover | your words (at most 500 characters, about 30 s of speech), whether you yelled, time | `listening` | 4 s | `quiet` (only when your words ask for it), `react`, `remember` |
 | Poked again and again | a poke streak ([BEHAVIORS.md](BEHAVIORS.md) §3.3) | time | `wiggle` | 4 s | `react` |
 

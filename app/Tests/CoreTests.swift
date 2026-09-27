@@ -671,6 +671,43 @@ final class CoreYouAndBoopTests: XCTestCase {
         }
     }
 
+    /// BEHAVIORS.md §3.3: from the mic turning on until the reply, a turn
+    /// that finishes doesn't cheer, with either button. The brain isn't
+    /// told Boop cheered. After the reply, or the 8 s wait, finishes cheer
+    /// again.
+    func testNoCheerWhileYouTalk() {
+        for button in [Core.Talker.device, .app] {
+            let rig = CoreRig(mode: .chatty)
+            func talk(_ on: Bool) {
+                if button == .device { rig.input(on ? .talkOn : .talkOff) } else { rig.core.listen(on, at: rig.now) }
+            }
+            rig.send(.turnStart, session: "a")
+            rig.send(.turnStart, session: "b")
+            rig.send(.turnStart, session: "c")
+            rig.wait(20_000)
+            talk(true)
+            let onMic = rig.send(.turnEnd, session: "a")
+            XCTAssertEqual(moments(onMic), [], "\(button): mic on")
+            XCTAssertNil(inputs(onMic).first?.rules, "\(button)")
+            talk(false)
+            rig.wait(1000)
+            let said = inputs(rig.core.talk("good job", at: rig.now))[0]
+            XCTAssertEqual(moments(rig.send(.turnEnd, session: "b")), [], "\(button): waiting for the reply")
+            rig.core.replied(to: said.ts, mumbled: true, at: rig.now)
+            rig.wait(1000)
+            XCTAssertEqual(moments(rig.send(.turnEnd, session: "c")), ["cheer"], "\(button): after the reply")
+        }
+        let rig = CoreRig()
+        rig.input(.talkOn)
+        rig.input(.talkOff)
+        rig.send(.turnStart)
+        rig.wait(Core.replyWaitMs - 1000)
+        XCTAssertEqual(moments(rig.send(.turnEnd)), [], "no words yet")
+        rig.send(.turnStart)
+        rig.wait(1000)
+        XCTAssertEqual(moments(rig.send(.turnEnd)), ["cheer"], "the 8 s wait is over")
+    }
+
     /// BEHAVIORS.md §3.3: from the mic turning on until the words arrive, a
     /// brain mumble can only be about an agent, and would end `listening`
     /// before the reply, so none plays. Once the words arrive the pass
