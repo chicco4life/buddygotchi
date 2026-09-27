@@ -85,6 +85,11 @@ public final class Core {
         var clearedAt: Int64?
         /// A tool call has started since then: a new request follows one.
         var calledSinceClear = false
+        /// The `Notification` types the waiting request's askers send, and
+        /// those of the request that last cleared: only a late one of those
+        /// is a copy.
+        var notices: Set<String> = []
+        var clearedNotices: Set<String> = []
         /// Who is asking, while "needs you" waits: `""` for the main agent,
         /// a Claude subagent's id, or `Core.anyone` for a `Notification` whose
         /// request's own hook hasn't come; each with the tool it asks for,
@@ -205,7 +210,7 @@ public final class Core {
         // Claude's idle notice means it has sat at its prompt for a minute,
         // so one within 30 s of a turn's start is from before that turn: a
         // new prompt typed just as the minute ran out (ADAPTERS.md §4).
-        if event.event == .turnStopped, event.detail.notice, let started = s.turnStartedAt,
+        if event.event == .turnStopped, event.detail.notice != nil, let started = s.turnStartedAt,
            now - started < Core.idleNoticeMinMs {
             return
         }
@@ -225,14 +230,18 @@ public final class Core {
             // Notification is the same request, and a hook joins it: a
             // sibling subagent asking too, or, within 5 s of a Notification
             // that came alone, that request's own hook. With nothing
-            // waiting, a Notification is the late copy of the request that
-            // last cleared if it comes within 5 s of the clear, or before any
-            // tool call has started since (ADAPTERS.md §4).
-            let asker = event.detail.notice ? Core.anyone : event.subagent ?? ""
-            let lateCopy = event.detail.notice
+            // waiting, a Notification of the kind the request that last
+            // cleared sends is its late copy if it comes within 5 s of the
+            // clear, or before any tool call has started since
+            // (ADAPTERS.md §4).
+            let notice = event.detail.notice
+            let asker = notice == nil ? event.subagent ?? "" : Core.anyone
+            let kind = notice ?? (event.detail.tool == nil ? "elicitation_dialog" : "permission_prompt")
+            let lateCopy = notice.map(s.clearedNotices.contains) == true
                 && s.clearedAt.map { now - $0 < Core.noticeLagMs || !s.calledSinceClear } == true
+            if !lateCopy { s.notices.insert(kind) }
             if waiting {
-                if !event.detail.notice {
+                if notice == nil {
                     if Array(s.askers.keys) == [Core.anyone], s.needsSince.map({ now - $0 < Core.noticeLagMs }) == true {
                         s.askers = [:]
                     }
@@ -556,6 +565,8 @@ public final class Core {
         s.askers.removeAll()
         s.clearedAt = now
         s.calledSinceClear = false
+        s.clearedNotices = s.notices
+        s.notices = []
     }
 
     /// The first activity of a new day: short-term memory starts fresh.

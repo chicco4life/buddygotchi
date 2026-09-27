@@ -58,10 +58,12 @@ public struct BoopEvent: Equatable, Sendable {
         public var toolUseID: String?
         /// The tool call has finished: `PostToolUse` or `PostToolUseFailure`.
         public var done = false
-        /// Claude's `Notification`: an asking one repeats a request the
-        /// agent's own hook makes (`PermissionRequest`, `Elicitation`), and
-        /// may arrive before or after it; `idle_prompt` is its idle notice.
-        public var notice = false
+        /// Claude's `Notification`, by its type: an asking one
+        /// (`permission_prompt`, `elicitation_dialog`) repeats a request
+        /// the agent's own hook makes (`PermissionRequest`, `Elicitation`),
+        /// and may arrive before or after it; `idle_prompt` is its idle
+        /// notice. Nil for any other hook.
+        public var notice: String?
 
         public init(tool: String? = nil, topic: String? = nil, error: String? = nil, failed: Bool? = nil,
                     toolError: String? = nil, toolUseID: String? = nil) {
@@ -107,7 +109,7 @@ public struct BoopEvent: Equatable, Sendable {
     public var summary: String {
         let parts = [workspace.map { "workspace \($0)" }, detail.tool.map { "tool \($0)" }, detail.topic.map { "topic \($0)" },
                      detail.failed == true ? "failed" : nil, detail.toolError.map { "tool error \($0)" },
-                     detail.error.map { "error \($0)" }, detail.notice ? "notice" : nil,
+                     detail.error.map { "error \($0)" }, detail.notice.map { "notice \($0)" },
                      subagent.map { "subagent \($0)" }].compactMap { $0 }
         return "\(event.rawValue) \(project)" + (parts.isEmpty ? "" : " · " + parts.joined(separator: ", "))
     }
@@ -121,7 +123,7 @@ public struct BoopEvent: Equatable, Sendable {
         if let failed = detail.failed { detailObject["failed"] = failed }
         if let toolError = detail.toolError { detailObject["tool_error"] = toolError }
         if let toolUseID = detail.toolUseID { detailObject["tool_use_id"] = toolUseID }
-        if detail.notice { detailObject["notice"] = true }
+        if let notice = detail.notice { detailObject["notice"] = notice }
         var object: [String: Any] = [
             "agent": agent.rawValue, "session": session, "project": project,
             "event": event.rawValue, "detail": detailObject, "ts": ts,

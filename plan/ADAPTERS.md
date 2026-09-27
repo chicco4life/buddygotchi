@@ -42,7 +42,7 @@ for a `PreToolUse` that runs tests (`AdapterTests.testEventJSONShape`):
 | `project` | A short project name from the working directory (§3); `unknown` when the hook had no `cwd` |
 | `workspace` | The worktree or branch the session works in, cleaned to a name (§3); missing on the default branch or outside git |
 | `event` | `session_start`, `turn_start`, `activity`, `needs_you`, `turn_end`, `turn_failed`, `turn_stopped` (over without finishing), `subagent_end` (a Claude subagent finished), `session_end` |
-| `detail` | Per hook in §3: `tool`, `tool_use_id`, `topic`, `failed` (true or false, Claude only), `tool_error` (a failed call's class), `error` (a failed turn's class) and `notice` (true on Claude's `Notification`) |
+| `detail` | Per hook in §3: `tool`, `tool_use_id`, `topic`, `failed` (true or false, Claude only), `tool_error` (a failed call's class), `error` (a failed turn's class) and `notice` (Claude's `Notification`: its type) |
 | `ts` | When the app received it, in milliseconds on the app's steady clock ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2, "Clocks"); `boopdev replay` uses the hook line's own `ts` |
 
 Turn length isn't sent: the core times each turn itself.
@@ -114,8 +114,8 @@ taken only headless or in debug mode and dropped otherwise.
 | `PostToolUseFailure` | `activity`, the call's result | `tool`, `tool_use_id`, `topic`, `failed: true`, `tool_error` |
 | `PostToolUseFailure` with `is_interrupt` (you pressed Esc) | `turn_stopped` | `tool` |
 | `PermissionRequest` | `needs_you` | `tool`, `tool_use_id` |
-| `Notification`: `permission_prompt`, `elicitation_dialog` | `needs_you` | `notice: true` |
-| `Notification`: `idle_prompt` | `turn_stopped` | `notice: true` |
+| `Notification`: `permission_prompt`, `elicitation_dialog` | `needs_you` | `notice`: the type |
+| `Notification`: `idle_prompt` | `turn_stopped` | `notice: idle_prompt` |
 | `Elicitation` | `needs_you` | |
 | `ElicitationResult` | `activity` | |
 | `Stop` | `turn_end` | |
@@ -232,7 +232,7 @@ starts a request starts it from "anyone".
 | While nothing waits | |
 | --- | --- |
 | `needs_you` from a hook | Starts a request from its asker. Claude's shows at once; Codex's waits 2 s first |
-| `needs_you` from a `Notification` | The same, from "anyone", unless it's the late copy of the session's last request: it comes within 5 s of that request clearing, or before any tool call has started since (a new request always follows a new call). Then it's ignored |
+| `needs_you` from a `Notification` | The same, from "anyone", unless it's the late copy of the session's last request: of the type that request sends (a `PermissionRequest`'s `permission_prompt`, an `Elicitation`'s `elicitation_dialog`), and within 5 s of that request clearing or before any tool call has started since (a new request always follows a new call). Then it's ignored |
 
 | While a request waits | |
 | --- | --- |

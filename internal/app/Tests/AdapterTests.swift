@@ -39,14 +39,14 @@ final class AdapterTests: XCTestCase {
     /// tell a late one from an `Elicitation`, which is a request of its own.
     func testANotificationIsMarkedAsANotice() {
         for k in ["permission_prompt", "elicitation_dialog", "idle_prompt"] {
-            XCTAssertEqual(Adapter.event(from: line("claude", "Notification", kind: k))?.detail.notice, true, k)
+            XCTAssertEqual(Adapter.event(from: line("claude", "Notification", kind: k))?.detail.notice, k)
         }
         for hook in ["Elicitation", "PermissionRequest", "PreToolUse", "Stop"] {
-            XCTAssertEqual(Adapter.event(from: line("claude", hook, tool: hook == "PermissionRequest" ? "Bash" : nil))?.detail.notice,
-                           false, hook)
+            XCTAssertNil(Adapter.event(from: line("claude", hook, tool: hook == "PermissionRequest" ? "Bash" : nil))?.detail.notice,
+                         hook)
         }
         XCTAssertEqual(Adapter.event(from: line("claude", "Notification", kind: "permission_prompt"))?.jsonLine,
-                       #"{"agent":"claude_code","detail":{"notice":true},"event":"needs_you","project":"landing","session":"s1","ts":7}"#)
+                       #"{"agent":"claude_code","detail":{"notice":"permission_prompt"},"event":"needs_you","project":"landing","session":"s1","ts":7}"#)
     }
 
     /// ADAPTERS.md §2: a Claude subagent's id rides on the event; Codex

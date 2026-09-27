@@ -23,13 +23,16 @@ final class CoreRig {
     @discardableResult
     func send(_ kind: BoopEvent.Kind, _ agent: Agent = .claudeCode, session: String = "s1", subagent: String? = nil,
               project: String = "landing", tool: String? = nil, topic: String? = nil, failed: Bool? = nil,
-              notice: Bool? = nil, id: String? = nil, done: Bool? = nil) -> [CoreEffect] {
+              notice: Bool? = nil, kind noticeKind: String? = nil, id: String? = nil, done: Bool? = nil) -> [CoreEffect] {
         // A result (failed or not) is a finished call: its `PostToolUse`.
         var detail = BoopEvent.Detail(tool: tool, topic: topic, failed: failed, toolUseID: id)
         detail.done = done ?? (kind == .activity && failed != nil)
         // A tool-less request is Claude's `Notification` unless it says
-        // otherwise (`notice: false` is an `Elicitation`).
-        detail.notice = notice ?? (kind == .needsYou && tool == nil)
+        // otherwise (`notice: false` is an `Elicitation`): `permission_prompt`,
+        // or `idle_prompt` for a stop, unless `kind` says which.
+        if notice ?? (kind == .needsYou && tool == nil) {
+            detail.notice = noticeKind ?? (kind == .turnStopped ? "idle_prompt" : "permission_prompt")
+        }
         let fx = core.handle(BoopEvent(agent: agent, session: session, subagent: subagent, project: project, event: kind,
                                        detail: detail, ts: now))
         log += fx
@@ -622,12 +625,25 @@ final class CoreNeedsYouTests: XCTestCase {
         rig.send(.activity)  // ElicitationResult
         XCTAssertNil(rig.state.attn)
 
+        rig.now += 1000
+        XCTAssertEqual(rig.send(.needsYou, kind: "elicitation_dialog"), [], "the Elicitation's own, late")
+
         rig.send(.needsYou, tool: "Bash")
         rig.wait(60_000)
         rig.send(.turnStopped)  // Esc on it; Claude's idle notice
         rig.send(.turnStart)
         rig.send(.activity, tool: "mcp__srv__deploy")
         XCTAssertNotNil(states(rig.send(.needsYou, notice: false)).last?.attn)
+
+        // A dialog's Notification whose own hook was lost isn't taken for
+        // a permission prompt's copy: only a late copy of the same kind is.
+        rig.send(.activity)
+        rig.send(.activity, tool: "Bash")
+        rig.send(.needsYou, tool: "Bash")
+        rig.wait(500)
+        rig.send(.activity, tool: "Bash", failed: false)
+        rig.now += 1500
+        XCTAssertNotNil(states(rig.send(.needsYou, kind: "elicitation_dialog")).last?.attn)
     }
 
     /// ADAPTERS.md §4: a Notification that lands before its own request's
@@ -1272,3 +1288,4 @@ final class CoreRulesTests: XCTestCase {
         XCTAssertEqual(rig.state.base, "asleep")
     }
 }
+
