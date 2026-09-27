@@ -187,11 +187,14 @@ public final class Core {
     private func apply(_ event: BoopEvent, _ key: String, _ now: Int64, _ fx: inout [CoreEffect]) {
         var s = sessions[key] ?? Session(agent: event.agent, id: event.session, project: event.project,
                                          lastEventAt: now, order: takeOrder())
-        if event.project != "unknown" {
+        let waiting = s.needsSince != nil || s.pendingSince != nil
+        // A session is where its events come from, except while a request
+        // waits: the strip names where that was made, whatever folder a
+        // sibling subagent works in meanwhile (BEHAVIORS.md §3.2).
+        if event.project != "unknown" && !waiting {
             s.project = event.project
             s.workspace = event.workspace
         }
-        let waiting = s.needsSince != nil || s.pendingSince != nil
         noteActivity(now)
 
         if event.event == .needsYou {

@@ -156,7 +156,9 @@ a minute and which also covers an interrupt between tool calls.
 
 **Project and workspace.** From the hook's `cwd`, read once per folder
 and remembered (up to 512 folders, then the cache starts again), so a hook
-never waits on the disk. A line without a `cwd` keeps the session's.
+never waits on the disk. A line without a `cwd` keeps the session's, and
+so does every line while a request waits (§4): the strip names where the
+request was made, whatever folder a sibling subagent works in meanwhile.
 
 - **Project:** the folder's name, except that a git worktree maps to its
   main repository. `landing/.worktrees/fix-nav` and

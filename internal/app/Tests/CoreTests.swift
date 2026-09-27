@@ -681,6 +681,24 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertEqual(states(fx).last?.base, "idle", "no turn was going")
     }
 
+    /// BEHAVIORS.md §3.2: the strip names where the request was made.
+    /// While it waits, a sibling subagent's calls from another folder don't
+    /// move the session's project, so the strip doesn't flip between them,
+    /// and no new `state` goes out for a request that hasn't changed.
+    func testAWaitingSessionKeepsItsProject() {
+        let rig = CoreRig()
+        rig.send(.turnStart, project: "alpha")
+        rig.send(.needsYou, subagent: "a1", project: "alpha", tool: "Bash")
+        var fx: [CoreEffect] = []
+        for p in ["web", "alpha", "web"] { fx += rig.send(.activity, subagent: "a2", project: p, tool: "Bash") }
+        XCTAssertEqual(states(fx), [])
+        XCTAssertEqual(rig.state.attn?.project, "alpha")
+        XCTAssertEqual(rig.sessions, [["claude", "alpha", "waiting"]])
+        rig.send(.activity, subagent: "a1", project: "alpha", tool: "Bash")  // approved
+        rig.send(.activity, subagent: "a2", project: "web", tool: "Bash")
+        XCTAssertEqual(rig.sessions, [["claude", "web", "working"]], "then it follows its events again")
+    }
+
     func testMoreThanOneShowsTheOldestWithACount() {
         let rig = CoreRig()
         rig.send(.needsYou, .claudeCode, session: "a", project: "jetpack", tool: "Bash")
