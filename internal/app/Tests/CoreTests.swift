@@ -584,6 +584,33 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertEqual(woke(rig.send(.turnStopped, .codex, session: "c")).count, 1, "Codex's Interrupt")
         XCTAssertNil(rig.state.attn)
     }
+
+    /// BEHAVIORS.md §1: attention wins, and the device drops a cheer that
+    /// comes while something needs you. So a turn that finishes then gets
+    /// none, and its event claims none (harness/EVENTS.md §4, §7): HISTORY
+    /// says only what the screen showed. A turn whose `Stop` answers its
+    /// own request still cheers, since nothing needs you by then.
+    func testAFinishWhileSomethingNeedsYouDoesntCheer() {
+        let rig = CoreRig()
+        rig.send(.turnStart, session: "a", project: "jetpack")
+        rig.send(.turnStart, session: "b")
+        rig.wait(3000)
+        rig.send(.needsYou, session: "a", project: "jetpack", tool: "Bash")
+        let fx = rig.send(.turnEnd, session: "b")
+        XCTAssertEqual(moments(fx), [])
+        XCTAssertEqual(events(fx).map { $0.facts["outcome"] }, ["done"])
+        XCTAssertNil(events(fx).first?.reaction, "no cheer to claim")
+        rig.send(.activity, session: "a", project: "jetpack", tool: "Bash")  // approved
+        let next = rig.send(.turnEnd, session: "a", project: "jetpack")
+        XCTAssertEqual(moments(next), ["cheer"], "nothing needs you now")
+        XCTAssertEqual(events(next).first?.reaction, "Boop cheered on its own.")
+
+        rig.send(.turnStart, session: "b")
+        rig.send(.needsYou, session: "b", tool: "Bash")
+        let own = rig.send(.turnEnd, session: "b")
+        XCTAssertEqual(moments(own), ["cheer"], "its own Stop answered its request first")
+        XCTAssertEqual(events(own).first?.reaction, "Boop cheered on its own.")
+    }
 }
 
 // MARK: - BEHAVIORS.md §3.3 You and Boop

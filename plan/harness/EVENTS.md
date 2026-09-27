@@ -54,7 +54,7 @@ such as `claude_code/s1`.
 | Kind | The core makes one when | Reaction | Wakes the brain |
 | --- | --- | --- | --- |
 | `turn_start` | A turn starts | — | Yes |
-| `turn_end` | A turn ends `done`, `failed` or `stopped` (§4.1) | `Boop cheered on its own.` when `done` | Yes |
+| `turn_end` | A turn ends `done`, `failed` or `stopped` (§4.1) | `Boop cheered on its own.` when `done`, or none while something needs you | Yes |
 | `tool_use` | A tool call finishes and is notable (§4.1), or any call with the personality's `tool_uses: all` ([BEHAVIORS.md](../BEHAVIORS.md) §6) | — | Yes |
 | `pokes` | Taps make a poke streak ([BEHAVIORS.md](../BEHAVIORS.md) §3.3) | `Boop wiggled on its own.` | Yes, unless it comes within a minute of the last streak that could (`Core.Config.pokedEveryMs`) |
 | `heartbeat` | While no thread works, each whole hour since the last hook or tap (`Core.Config.heartbeatMs`); none before the first since launch | — | Yes |
@@ -150,7 +150,7 @@ it.
 
 | Reaction | On | The moment |
 | --- | --- | --- |
-| `Boop cheered on its own.` | `turn_end` with `done` | The core's `cheer` |
+| `Boop cheered on its own.` | `turn_end` with `done`, unless something needs you: attention wins, so there's no cheer to claim ([BEHAVIORS.md](../BEHAVIORS.md) §1) | The core's `cheer` |
 | `Boop wiggled on its own.` | `tap`, `pokes` | The device's own `wiggle`, already played |
 
 **Never an event:** a session starting or ending, a tool call starting,

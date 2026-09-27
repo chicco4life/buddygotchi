@@ -117,7 +117,7 @@ newer moment, or skipped because something needed you
 | A session starts or ends | Nothing but the popover's list: the first one wakes Boop, and the last one ending puts it to sleep |
 | You send a prompt | The working look. The brain hears of it |
 | A tool call starts or finishes | Nothing on screen; the latest topic is kept for chatter. A test, build or deploy that fails, or passes after failing, reaches the brain; with `tool_uses: all` every tool use does (§6) |
-| A turn finishes | `cheer`, whatever its length and even while other sessions keep working. The brain hears of it |
+| A turn finishes | `cheer`, whatever its length and even while other sessions keep working. The brain hears of it. None while another session needs you (§1): the device would drop it, so the Mac neither sends nor claims it |
 | A turn finishes, but its last test, build or deploy command failed | No cheer: it counts as a failed turn, and the brain hears of that |
 | A turn fails (Claude stops on an API error) | No moment. The brain hears of it |
 | You interrupt a turn (Esc) | No moment. The brain hears it was stopped. It happens at once if a tool was running, else when Claude reports itself idle about a minute later ([ADAPTERS.md](ADAPTERS.md) §3) |

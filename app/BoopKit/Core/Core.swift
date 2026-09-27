@@ -293,6 +293,12 @@ public final class Core {
                 // a finish.
                 sessions[key] = s
                 turnEndEvent(s, outcome: "failed", error: nil, lengthMs: ms, reaction: nil, now, &fx)
+            } else if needsYouShowing {
+                // Another session needs you: attention wins, and the device
+                // would drop the cheer, so none is sent or claimed
+                // (BEHAVIORS.md §1).
+                sessions[key] = s
+                turnEndEvent(s, outcome: "done", error: nil, lengthMs: ms, reaction: nil, now, &fx)
             } else {
                 // A finish: a cheer, even while other sessions are still
                 // working (BEHAVIORS.md §3.1).
