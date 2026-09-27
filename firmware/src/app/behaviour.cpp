@@ -13,7 +13,6 @@ constexpr uint32_t kAmberDim = 0x805800;  // needs you: amber at half
 
 bool after(uint32_t a, uint32_t b) { return int32_t(a - b) > 0; }  // a later than b
 bool within(uint32_t t, uint32_t from, uint32_t ms) { return int32_t(t - from) >= 0 && int32_t(t - from) < int32_t(ms); }
-int clamp(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
 
 // The one moment that may play while something needs you (BEHAVIORS.md §1:
 // attention wins), so push-to-talk still works.
@@ -190,8 +189,8 @@ void Behaviour::startSay(const MomentIn& in, uint32_t t) {
   std::snprintf(s.word, sizeof(s.word), "%s", in.word ? in.word : "");
   s.say.syllables = in.syllables;
   s.say.word = s.word[0] ? s.word : nullptr;
-  s.say.at = s.word[0] ? clamp(in.at < 0 ? in.syllables : in.at, 0, in.syllables) : -1;
-  s.sylMs = uint32_t(clamp(int(in.ms), 60, 400));
+  s.say.at = s.word[0] ? render::clamp(in.at < 0 ? in.syllables : in.at, 0, in.syllables) : -1;
+  s.sylMs = uint32_t(render::clamp(int(in.ms), 60, 400));
   s.speakMs = uint32_t(in.syllables + (s.word[0] ? 2 : 0)) * s.sylMs;  // a word is two beats
   s.at = t;
   s.ms = s.speakMs + kBubbleReadMs;

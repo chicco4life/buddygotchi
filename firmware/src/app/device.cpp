@@ -8,6 +8,7 @@
 #include "app/codec.h"
 #include "render/palette.h"
 #include "render/pattern.h"
+#include "render/raster.h"
 #include "render/screens.h"
 
 namespace app {
@@ -193,9 +194,8 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     int fill = doc["fill"] | -1;
     patternFill_ = fill;
     JsonArrayConst target = doc["target"];
-    auto onScreen = [](int v, int size) { return v < 0 ? 0 : v >= size ? size - 1 : v; };
-    targetX_ = target.size() == 2 ? onScreen(target[0].as<int>(), render::kWidth) : -1;
-    targetY_ = target.size() == 2 ? onScreen(target[1].as<int>(), render::kHeight) : -1;
+    targetX_ = target.size() == 2 ? render::clamp(target[0].as<int>(), 0, render::kWidth - 1) : -1;
+    targetY_ = target.size() == 2 ? render::clamp(target[1].as<int>(), 0, render::kHeight - 1) : -1;
     pattern_ = true;
     dirty_ = true;
     reply(from, "{\"t\":\"dbg.pattern\"}", 19);

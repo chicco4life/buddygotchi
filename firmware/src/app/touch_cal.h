@@ -8,6 +8,7 @@
 #include <cstring>
 
 #include "render/canvas.h"
+#include "render/raster.h"
 
 namespace app {
 
@@ -24,12 +25,9 @@ struct TouchCal {
   void map(int rx, int ry, int& x, int& y) const {
     int64_t fx = int64_t(ax) * rx + int64_t(bx) * ry + cx;
     int64_t fy = int64_t(ay) * rx + int64_t(by) * ry + cy;
-    x = clamp(int((fx + 32768) >> 16), render::kWidth - 1);
-    y = clamp(int((fy + 32768) >> 16), render::kHeight - 1);
+    x = render::clamp(int((fx + 32768) >> 16), 0, render::kWidth - 1);
+    y = render::clamp(int((fy + 32768) >> 16), 0, render::kHeight - 1);
   }
-
- private:
-  static int clamp(int v, int hi) { return v < 0 ? 0 : v > hi ? hi : v; }
 };
 
 // The map to use before calibration: the raw range stretched over the
