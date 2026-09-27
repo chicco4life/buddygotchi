@@ -70,12 +70,12 @@ anything about the other, so a reconnect is just a fresh connect.
 **USB.** The same messages travel over the USB serial port at 460800 baud
 ([DEVICE.md](DEVICE.md) §7). The Mac app uses it for development and
 tests, because an agent can't launch the app with Bluetooth on. The app
-never opens the port itself: `tools/boopctl bridge` owns it and shares it
-on a Unix socket ([VERIFICATION.md](VERIFICATION.md) §2). A write to the
-bridge waits at most 250 ms; one that can't finish drops the connection,
-which comes back a second later, so a stuck bridge can't freeze the app.
-Over USB the device also accepts `dbg.*` messages for testing
-([VERIFICATION.md](VERIFICATION.md) §3).
+never opens the port itself: `internal/tools/boopctl bridge` owns it and
+shares it on a Unix socket ([VERIFICATION.md](VERIFICATION.md) §2). A
+write to the bridge waits at most 250 ms; one that can't finish drops the
+connection, which comes back a second later, so a stuck bridge can't
+freeze the app. Over USB the device also accepts `dbg.*` messages for
+testing ([VERIFICATION.md](VERIFICATION.md) §3).
 
 ## 3. Mac → device
 
@@ -116,11 +116,11 @@ device shows the no-app look ([BEHAVIORS.md](BEHAVIORS.md) §3.4).
 
 An animation from the rules comes alone. A mumble, the brain's or working
 chatter, comes with only `say` and plays over whatever face is showing. A
-moment can carry both, as `tools/boopctl play cheer --say happy` sends. A
-new moment replaces one still playing, and while something needs you no
-animation or mumble plays ([BEHAVIORS.md](BEHAVIORS.md) §1). Every moment
-has `anim` or `say`; the device ignores one with neither, or with only an
-`anim` it doesn't know.
+moment can carry both, as `internal/tools/boopctl play cheer --say happy`
+sends. A new moment replaces one still playing, and while something needs
+you no animation or mumble plays ([BEHAVIORS.md](BEHAVIORS.md) §1). Every
+moment has `anim` or `say`; the device ignores one with neither, or with
+only an `anim` it doesn't know.
 
 ## 4. Device → Mac
 

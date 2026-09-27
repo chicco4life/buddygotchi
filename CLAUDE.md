@@ -17,12 +17,21 @@ cheap ESP32 board with a screen is the body. Start with
 | Path | What it is |
 | --- | --- |
 | `plan/` | The spec, which the code implements ([the index](plan/README.md)). [plan/PLAN.md](plan/PLAN.md) has the status and open items, and [plan/VERIFICATION.md](plan/VERIFICATION.md) how everything is checked. Evidence goes in `plan/evidence/` |
-| `app/` | Swift package: the Mac menu-bar app, the `boop-hook` hook client, and the `boopdev` dev CLI |
-| `firmware/` | PlatformIO firmware for the MicroTech MTR024QV01A board ([plan/DEVICE.md](plan/DEVICE.md)), with its simulator and unit tests built for the Mac (env `native`) |
-| `tools/` | `boopctl` (device tool), `voicegen` (voice assets), `fontgen` (the device's fonts), `webcam/` (opt-in recorder) |
-| `skills/` | `doctor` (hook self-check) and `webcam-verify`, symlinked for Claude, Codex and Cursor |
+| `Package.swift` | The Swift package, at the root because its targets are in both `app/` and `internal/`. It builds into `.build/` |
+| `app/` | The Mac side that ships: the menu-bar app (`Boop`), the `boop-hook` hook client, and the `BoopKit` and `HookWire` libraries |
+| `firmware/` | PlatformIO firmware for the MicroTech MTR024QV01A board ([plan/DEVICE.md](plan/DEVICE.md)), with its generated assets and build scripts |
+| `internal/` | Everything that doesn't ship ([its README](internal/README.md)): `boopdev` and its library, the Swift tests and eval scenarios, the sources of `Boop --headless` and `--snapshots`, and the firmware's simulator and unit tests (env `native`) |
+| `internal/tools/` | `boopctl` (device tool), `voicegen` (voice assets), `fontgen` (the device's fonts), `webcam/` (opt-in recorder) |
+| `internal/skills/` | `doctor` (hook self-check) and `webcam-verify`, symlinked for Claude, Codex and Cursor |
 | `landing/` | The Next.js landing page (Vercel project root) |
 | `archived/` | History only: research, docs, the gen-2 specs (`plan-gen2/`) and case model, and the finished v1 build plan with its full decision log (`plan-v1-build/`). Earlier code is at git tag `gen2-final` (`git show gen2-final:<path>`). Don't extend it |
+
+Code that doesn't ship goes in `internal/`: tests, evals, dev tools,
+skills and the simulator. Production targets (`HookWire`, `BoopKit`,
+`Boop`, `BoopHook`) never depend on internal ones, and `make build` fails
+if one imports them. The one overlap is `Boop --headless` and
+`Boop --snapshots`, flags of the shipped app whose sources are in
+`internal/app/Boop/`.
 
 Delete code that nothing uses; git keeps it.
 
@@ -35,17 +44,17 @@ flags with `--help`. `make run` and `make debug` use Bluetooth, so they're
 the owner's. For agents:
 
 ```sh
-make build                                                # Mac app, boop-hook and boopdev (make test and make eval build too)
-app/.build/debug/Boop --headless --state-dir DIR --debug  # the whole runtime with no UI or Bluetooth, printing everything
-app/.build/debug/Boop --snapshots DIR                     # the popover's panes and the menu-bar icons as PNGs, then exits
+make build                                            # Mac app, boop-hook and boopdev (make test and make eval build too)
+.build/debug/Boop --headless --state-dir DIR --debug  # the whole runtime with no UI or Bluetooth, printing everything
+.build/debug/Boop --snapshots DIR                     # the popover's panes and the menu-bar icons as PNGs, then exits
 ```
 
 ## Environment notes
 
 - There's no Xcode, so `swift test` runs nothing. `make test` runs
-  `python3 app/tools/test.py`, which generates the XCTest shim's runner,
-  builds the package in one `swift build` and runs
-  `app/.build/debug/BoopTests`.
+  `python3 internal/app/tools/test.py`, which generates the XCTest shim's
+  runner, builds the package in one `swift build` and runs
+  `.build/debug/BoopTests`.
 - Command Line Tools lack some Swift macro plugins, so SwiftUI's `@State`
   doesn't compile. Write `@ViewState` (the alias in
   `app/Boop/Views/ViewState.swift`).
@@ -60,8 +69,9 @@ app/.build/debug/Boop --snapshots DIR                     # the popover's panes 
   `firmware/tools/pio.sh` (the make targets do), which keeps its packages
   in `firmware/.platformio-core`. The board shows up as
   `/dev/cu.usbserial-*`, and the serial port needs no special permissions.
-- System Python has no pyserial or Pillow. The tools use `tools/.venv`,
-  which `tools/boopctl` makes on its first run (`make tools` refreshes it).
+- System Python has no pyserial or Pillow. The tools use
+  `internal/tools/.venv`, which `internal/tools/boopctl` makes on its
+  first run (`make tools` refreshes it).
 - A Unix socket's path has room for 103 bytes, so give `Boop --headless`
   a short state directory (under `/tmp`) or a short `--socket`.
 - Webcam recording works only from a terminal the Claude app opens (its
@@ -72,7 +82,7 @@ app/.build/debug/Boop --snapshots DIR                     # the popover's panes 
 
 - **Don't launch the Boop app with Bluetooth, or run `bleak`, from an agent
   shell.** macOS kills the process on its first Bluetooth use. For live
-  checks, use USB: `tools/boopctl bridge` plus
+  checks, use USB: `internal/tools/boopctl bridge` plus
   `Boop --headless --state-dir DIR --link usb:SOCKET`
   ([plan/VERIFICATION.md](plan/VERIFICATION.md) L4). Ask the owner to run
   `make run` for Bluetooth.
@@ -131,11 +141,13 @@ unpushed local `main`.
 | `app/BoopKit/Core/Event.swift` | `harness/EVENTS.md` |
 | `app/BoopKit/Actions/`, `plan/steering/` | `harness/DECISIONS.md` (and the app's copy of `plan/steering/`) |
 | `app/BoopKit/Memory/`, `app/BoopKit/App/` | `ARCHITECTURE.md` §3–4 |
-| `app/BoopKit/Voice/`, `firmware/src/voice/`, `tools/voicegen/` | `VOICE.md` |
-| `app/BoopKit/DeviceLink/`, `StateSnapshot.swift`, `firmware/src/link/`, `firmware/src/app/{device.cpp,packets.h,link_silence.h}`, `tools/boopctl_lib/` | `PROTOCOL.md` |
-| `firmware/src/board/`, `firmware/platformio.ini`, `tools/fontgen/` | `DEVICE.md` |
-| `Makefile`, `tools/`, `app/BoopDev/`, `skills/`, tests | `VERIFICATION.md`, this file, `README.md` |
-| `app/BoopKit/Eval/`, `app/Evals/` | `EVALS.md` |
+| `app/BoopKit/Voice/`, `firmware/src/voice/`, `internal/tools/voicegen/` | `VOICE.md` |
+| `app/BoopKit/DeviceLink/`, `StateSnapshot.swift`, `firmware/src/link/`, `firmware/src/app/{device.cpp,packets.h,link_silence.h}`, `internal/tools/boopctl_lib/` | `PROTOCOL.md` |
+| `firmware/src/board/`, `firmware/platformio.ini`, `internal/tools/fontgen/` | `DEVICE.md` |
+| `Makefile`, `internal/tools/`, `internal/app/BoopDev/`, `internal/skills/`, tests | `VERIFICATION.md`, this file, `README.md` |
+| `internal/app/Boop/` (`--headless`, `--snapshots`), `internal/app/BoopDevKit/Replay.swift`, `internal/firmware/sim/`, `internal/firmware/test/` | `VERIFICATION.md` |
+| `internal/app/BoopDevKit/Eval/`, `internal/app/Evals/` | `EVALS.md` |
+| `Package.swift`, what goes in `internal/` | `ARCHITECTURE.md` §10, `internal/README.md`, this file |
 | Structure, boundaries or a budget | `ARCHITECTURE.md` |
 | What's in or out of v1 | `VISION.md` (Scope), `FUTURE.md` |
 | A milestone's status | `PLAN.md` (its status table) |
@@ -145,9 +157,10 @@ unpushed local `main`.
 
 - **Say each fact once.** A number, name or rule lives in one doc; the
   others link to it. When you change one, grep `plan/`, this file,
-  `README.md`, `skills/`, `tools/*/README.md` and code comments for the
-  old value or name, and fix every hit. Most drift is a copy left behind
-  in a second doc.
+  `README.md`, `internal/README.md`, `internal/skills/`,
+  `internal/tools/*/README.md` and code comments for the old value or
+  name, and fix every hit. Most drift is a copy left behind in a second
+  doc.
 - **Examples are real.** JSON, command lines and file layouts in a spec
   come from a test fixture or actual output. When the shape changes, the
   example changes with it.
@@ -180,9 +193,9 @@ Check changes with the loop in [plan/VERIFICATION.md](plan/VERIFICATION.md)
 `plan/evidence/<date>-<topic>/` (§7 there), linked from `PLAN.md`.
 
 Before trusting anything that depends on hooks, run the `doctor` skill
-(`skills/doctor/doctor.sh`). It checks that this agent's hooks reach Boop;
-`--headless` checks against a throwaway headless app instead of the
-owner's.
+(`internal/skills/doctor/doctor.sh`). It checks that this agent's hooks
+reach Boop; `--headless` checks against a throwaway headless app instead
+of the owner's.
 
 **Webcam.** Webcam verification is opt-in. Use the `webcam-verify` skill
 only when the owner asks for it and confirms the board is set up for that

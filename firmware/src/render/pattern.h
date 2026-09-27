@@ -2,7 +2,7 @@
 // colour blocks, labelled corners, a big UP arrow and a black USB-C bar down
 // the right edge, on a grey background. Seen upright, the arrow is at the
 // top and the bar is on the side where the USB-C port is.
-// boopctl's webcam check samples the rectangles below (tools/boopctl_lib/cam.py).
+// boopctl's webcam check samples the rectangles below (internal/tools/boopctl_lib/cam.py).
 #pragma once
 #include "render/canvas.h"
 #include "render/palette.h"

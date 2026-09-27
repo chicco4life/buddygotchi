@@ -36,6 +36,7 @@ milestone's evidence says which ones ran.
 | A9 | Modes: chatty, normal and calm | Superseded by A10: personalities replace modes | [evidence](evidence/2026-09-26-modes/README.md) |
 | | Overnight pass (2026-09-27): reliability, behaviour and polish across the core, brain, firmware, face, Mac app and tools | Done. The final firmware `cf6d8ae` matches the simulator on the board in all 10 scenarios, `perf --motion` passes and `make e2e` passes; the new looks still need watching in motion (check 1) | [evidence](evidence/2026-09-27-overnight/) |
 | A10 | Jev-only harness: typed events and transcript, a plain-text state, mood and personalities ([harness/](harness/HARNESS.md)) | Done; the evals pass against Jev; checks 12–17 are the owner's | [evidence](evidence/2026-09-27-jev-harness/README.md) |
+| | Production and internal code split: what doesn't ship moves to `internal/`, `Package.swift` to the root ([internal/README.md](../internal/README.md)) | Done; `make eval` needs the owner's Jev key | [evidence](evidence/2026-09-27-internal-split/README.md) |
 | P1 | Port to ESP-IDF + LVGL | Later (§4) | |
 
 ## 2. Owner checks
@@ -58,13 +59,14 @@ that's off becomes an open item (§3).
 2. **`make run`, or `make debug` to watch everything.** Within about 10 s
    the app connects to `Boop-XXXX` and the board leaves the no-app face.
    `make debug` also prints every hook, decision, device line and brain
-   pass as it happens. If Bluetooth won't connect: `tools/boopctl bridge`,
-   then `app/.build/debug/Boop --link usb:/tmp/boop-bridge.sock`.
+   pass as it happens. If Bluetooth won't connect:
+   `internal/tools/boopctl bridge`, then
+   `.build/debug/Boop --link usb:/tmp/boop-bridge.sock`.
 3. **If the agents aren't connected: Settings → Agents → Connect both,
    restart open sessions, then, from inside one agent session, run
-   `skills/doctor/doctor.sh`, `echo BOOP_DOCTOR_PING` and
-   `skills/doctor/doctor.sh --confirm`.** Both connected, the gen-2
-   `~/.boop` entries gone, and the doctor passes.
+   `internal/skills/doctor/doctor.sh`, `echo BOOP_DOCTOR_PING` and
+   `internal/skills/doctor/doctor.sh --confirm`.** Both connected, the
+   gen-2 `~/.boop` entries gone, and the doctor passes.
 4. **Tap the screen lightly, then firmly; press BOOT; hold BOOT; then tap
    four times quickly and keep tapping.** Each touch or press is one
    wiggle, holding BOOT included, and a light touch counts once too
@@ -196,9 +198,9 @@ fixed. Pick one up by writing it into its spec first.
   anything that adds RAM needs measuring.
 - **A freshly built `boop-hook` is slow once:** about 250 ms on its first
   launch while macOS checks it, then a few milliseconds.
-- **`swift build` rebuilds for no reason.** In `app/` it alternates
-  between a no-op (0.4 s) and a 6–9 s rebuild with nothing changed, so
-  build timings are noisy until the cause is found.
+- **`swift build` rebuilds for no reason.** It alternates between a
+  no-op (0.4 s) and a 6–9 s rebuild with nothing changed, so build
+  timings are noisy until the cause is found.
 
 ## 4. P1: Port to ESP-IDF + LVGL (later)
 

@@ -30,25 +30,25 @@ the owner.
 
 ## 2. The tools
 
-Run a tool with `--help` for its flags: `tools/boopctl` (and
-`tools/boopctl <command>`), `app/.build/debug/boopdev` (and
-`boopdev <command>`), `app/.build/debug/Boop`. `Boop` and `boopdev` stop
+Run a tool with `--help` for its flags: `internal/tools/boopctl` (and
+`internal/tools/boopctl <command>`), `.build/debug/boopdev` (and
+`boopdev <command>`), `.build/debug/Boop`. `Boop` and `boopdev` stop
 with their usage on a flag they don't take, `Boop` before anything
 starts, so a typo can't launch the menu-bar app or run the whole eval.
 
 | Make target | What it does |
 | --- | --- |
-| `make build` | Builds the Mac app, `boop-hook` and `boopdev` in one `swift build` |
-| `make test` | Swift unit tests, the eval runner with a scripted brain included, through the XCTest shim (`python3 app/tools/test.py`), since there's no Xcode |
+| `make build` | Builds the Mac app, `boop-hook` and `boopdev` in one `swift build`. An import of a target that isn't a declared dependency fails it, so `app/` can't use `internal/` code ([ARCHITECTURE.md](ARCHITECTURE.md) §10) |
+| `make test` | Swift unit tests, the eval runner with a scripted brain included, through the XCTest shim (`python3 internal/app/tools/test.py`), since there's no Xcode |
 | `make eval` | The harness eval scenarios against Jev, 3 runs each (L5, [EVALS.md](EVALS.md)); needs `BOOP_JEV_KEY` and fails without it |
 | `make run` / `make debug` | The Mac app with Bluetooth, for the owner; `debug` adds `--debug` |
 | `make fw` / `make flash` | Builds the firmware; `flash` also uploads it over USB (`BOOP_PORT` picks the port) |
 | `make fw-test` | Firmware unit tests on the Mac (`pio test -e native`) |
 | `make sim` | Every scenario in the simulator, against the goldens (L1) |
 | `make e2e` | The pipeline check (L4) |
-| `make tools` | `tools/.venv` with pyserial and Pillow. `tools/boopctl` makes it on first run; this refreshes it |
+| `make tools` | `internal/tools/.venv` with pyserial and Pillow. `internal/tools/boopctl` makes it on first run; this refreshes it |
 | `make tools-test` | The tools' own tests, with no board or camera: `boopctl`'s command line and the webcam recorder on synthetic video |
-| `make clean` | Deletes `app/.build` and `firmware/.pio` |
+| `make clean` | Deletes `.build` and `firmware/.pio` |
 
 | `boopctl` command | What it does |
 | --- | --- |
@@ -77,8 +77,8 @@ starts, so a typo can't launch the menu-bar app or run the whole eval.
 | `boopdev replay <fixture>` | Runs recorded hook payloads through the hook's field picking, the adapter and the core on a virtual clock, printing every decision; with `--socket`, through the real `boop-hook` to a running app, timing each `boop-hook` from launch to exit |
 | `boopdev voice <feeling> [word]` | Prints the Minion lines `react` would build |
 | `boopdev hooks status\|install\|remove --home DIR` | The hook installer, against any HOME |
-| `skills/doctor/doctor.sh` | Checks from inside an agent that its hooks reach Boop ([ADAPTERS.md](ADAPTERS.md) §6) |
-| `tools/webcam/webcam.sh` | The camera recorder ([its README](../tools/webcam/README.md)); `boopctl cam` wraps it |
+| `internal/skills/doctor/doctor.sh` | Checks from inside an agent that its hooks reach Boop ([ADAPTERS.md](ADAPTERS.md) §6) |
+| `internal/tools/webcam/webcam.sh` | The camera recorder ([its README](../internal/tools/webcam/README.md)); `boopctl cam` wraps it |
 
 **Sharing the port.** Only one process can open the serial port, so
 `boopctl bridge` owns it and shares it on a Unix socket (`--socket`,
@@ -142,9 +142,9 @@ looks. That's L3's job.
 
 ## 4. Scenarios
 
-A scenario is a JSON-lines file in `firmware/test/scenarios/`, played the
-same way in the simulator and on the board. This is the start of
-`behaviour.jsonl`:
+A scenario is a JSON-lines file in `internal/firmware/test/scenarios/`,
+played the same way in the simulator and on the board. This is the start
+of `behaviour.jsonl`:
 
 ```
 // Device behaviour (BEHAVIORS.md §3): press feedback, gestures, and the
@@ -180,7 +180,7 @@ simulator does.
 
 Every screen and state in [BEHAVIORS.md](BEHAVIORS.md) and [UX.md](UX.md)
 gets at least one scenario. Their pictures are the golden images in
-`firmware/test/golden/<scenario>/`.
+`internal/firmware/test/golden/<scenario>/`.
 
 ## 5. The levels in detail
 
@@ -194,7 +194,7 @@ gets at least one scenario. Their pictures are the golden images in
   (including `test_no_change_ever_cuts_hard`: nothing in any state cuts the
   face hard), gestures, drawing and the voice player.
 - **The Mac app's look**, for Mac UI changes: run
-  `app/.build/debug/Boop --snapshots DIR` and open every PNG against
+  `.build/debug/Boop --snapshots DIR` and open every PNG against
   [UX.md](UX.md) §6: nothing clipped, no debug data, text readable, the
   Warm Terminal look. The run fails by itself on UX.md §6's contrast.
   There are no goldens.
@@ -203,34 +203,35 @@ gets at least one scenario. Their pictures are the golden images in
 
 ### L1: simulator
 
-1. `make sim` (or `tools/boopctl sim <scenario>`) writes PNGs to
+1. `make sim` (or `internal/tools/boopctl sim <scenario>`) writes PNGs to
    `/tmp/boop-sim/<scenario>/` and compares them with the goldens.
    Unchanged pictures pass.
 2. Open every new or changed picture and check it against the spec: the
    right screen and state, eyes centred and readable, text inside its
    area, palette colours, nothing clipped or overlapping.
-3. Only then does `tools/boopctl sim <scenario> --accept` update the
-   goldens, with a one-line reason in the evidence (§7).
+3. Only then does `internal/tools/boopctl sim <scenario> --accept` update
+   the goldens, with a one-line reason in the evidence (§7).
 
 **Pass:** every golden matches, or the changed ones were looked at and
 accepted.
 
 ### L2: device over USB
 
-1. `make flash`, then `tools/boopctl ping`: `sha` must match the commit
-   under test, and `ble` mustn't be `conn`. **One writer only:** a Mac app
-   connected over Bluetooth keeps sending its own `state`, which silently
-   replaces the test's.
-2. `tools/boopctl run`: every `expect` passes, and every screenshot is
-   identical to the simulator's.
-3. `tools/boopctl perf --motion`: at least 10 fps while moving (a frame
-   is drawn only when the picture changes, [DEVICE.md](DEVICE.md) §6), no
-   sampled frame taking over 40 ms to draw and push, at least 60 KB
-   minimum free heap, and no reset (uptime keeps rising).
-4. When a change could leak memory or wedge the board: `tools/boopctl soak`
-   (20 minutes by default, with one 35 s silence) ends with no reset, the
-   minimum heap within 2 KB of where it stood after the first minute, the
-   board still answering, and the plain face back with no moment.
+1. `make flash`, then `internal/tools/boopctl ping`: `sha` must match the
+   commit under test, and `ble` mustn't be `conn`. **One writer only:** a
+   Mac app connected over Bluetooth keeps sending its own `state`, which
+   silently replaces the test's.
+2. `internal/tools/boopctl run`: every `expect` passes, and every
+   screenshot is identical to the simulator's.
+3. `internal/tools/boopctl perf --motion`: at least 10 fps while moving (a
+   frame is drawn only when the picture changes, [DEVICE.md](DEVICE.md)
+   §6), no sampled frame taking over 40 ms to draw and push, at least
+   60 KB minimum free heap, and no reset (uptime keeps rising).
+4. When a change could leak memory or wedge the board:
+   `internal/tools/boopctl soak` (20 minutes by default, with one 35 s
+   silence) ends with no reset, the minimum heap within 2 KB of where it
+   stood after the first minute, the board still answering, and the plain
+   face back with no moment.
 
 **Pass:** all of the above.
 
@@ -260,8 +261,9 @@ camera judges "looks right"; pixel accuracy comes from L2.
 
 ### L4: pipeline over USB
 
-This checks the whole path, hook → app → board, without Bluetooth, which
-an agent can't use. `make e2e` (`tools/boopctl e2e`) does all of it:
+This checks the whole path, hook → app → board, without Bluetooth,
+which an agent can't use. `make e2e` (`internal/tools/boopctl e2e`) does
+all of it:
 
 1. `boopctl bridge` owns the serial port on `/tmp/boop-e2e/usb.sock`.
 2. The app runs headless with its own state and sockets, never the
@@ -269,9 +271,9 @@ an agent can't use. `make e2e` (`tools/boopctl e2e`) does all of it:
    `Boop --headless --state-dir /tmp/boop-e2e/state --link usb:/tmp/boop-e2e/usb.sock --socket /tmp/boop-e2e/boop.sock --brain scripted --name Pip --debug`.
    The scripted brain makes runs repeatable; `boopctl e2e --brain jev`
    asks Jev, with `BOOP_JEV_KEY`.
-3. The fixtures in `app/Tests/Fixtures/hooks/e2e/` go through the real
-   `boop-hook`: a Claude session, a Codex approval answered within the 2 s
-   grace period, and one left for 10 s. Between payloads they hold
+3. The fixtures in `internal/app/Tests/Fixtures/hooks/e2e/` go through the
+   real `boop-hook`: a Claude session, a Codex approval answered within
+   the 2 s grace period, and one left for 10 s. Between payloads they hold
    checkpoints: `expect` (poll `dbg.state` until it matches, within
    `within_ms`, 2000 by default; `shot` on the line saves a screenshot),
    `expect_not` (no match for `for_ms`, or until `until_ms` after the last
@@ -286,11 +288,11 @@ an agent can't use. `make e2e` (`tools/boopctl e2e`) does all of it:
 **Pass:** every checkpoint matches, and p95 latency from hook to board is
 under 200 ms.
 
-`tools/boopctl soak --pipeline` loops the same fixtures for `--minutes`,
-with a tap between rounds and a quiet minute at the end. It fails on a
-board reset, a minimum-heap drift over 2 KB, audio errors, the app
-exiting, or anything left on screen (not the plain face, or `attn` or a
-moment still set), and reports checkpoint misses. The CH340 rarely drops
+`internal/tools/boopctl soak --pipeline` loops the same fixtures for
+`--minutes`, with a tap between rounds and a quiet minute at the end. It
+fails on a board reset, a minimum-heap drift over 2 KB, audio errors, the
+app exiting, or anything left on screen (not the plain face, or `attn` or
+a moment still set), and reports checkpoint misses. The CH340 rarely drops
 bytes over a long run, so a debug request that loses its reply is retried
 once and counted as a link glitch.
 
@@ -318,9 +320,9 @@ real menu bar, and how Boop feels. The checks still waiting are in
 ## 6. Webcam
 
 The camera is opt-in ([CLAUDE.md](../CLAUDE.md)), and its procedure is the
-[`webcam-verify` skill](../skills/webcam-verify/SKILL.md). Only cropped
-frames chosen as evidence go into the repo. If framing fails, skip L3 and
-report it.
+[`webcam-verify` skill](../internal/skills/webcam-verify/SKILL.md). Only
+cropped frames chosen as evidence go into the repo. If framing fails, skip
+L3 and report it.
 
 ## 7. Evidence
 

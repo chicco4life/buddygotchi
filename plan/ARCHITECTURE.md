@@ -274,11 +274,12 @@ personality or memory, only its touch calibration. What it does is in
 
 ## 10. Stack
 
-- **Mac app:** Swift, built with SwiftPM from `app/`, using CoreBluetooth,
-  the Speech framework, and TypeSafe's API for Jev when the person has a
-  key. SwiftPM builds no app bundle here, so
-  the app's `Info.plist` (usage descriptions, `LSUIElement`) is linked
-  into the `Boop` binary with `-sectcreate`.
+- **Mac app:** Swift, built with SwiftPM from the repo root's
+  `Package.swift` (sources in `app/`), using CoreBluetooth, the Speech
+  framework, and TypeSafe's API for Jev when the person has a key.
+  SwiftPM builds no app bundle here, so the app's `Info.plist` (usage
+  descriptions, `LSUIElement`) is linked into the `Boop` binary with
+  `-sectcreate`.
 - **Hook client:** `boop-hook`, a small Swift executable in the same
   package. It shares only `HookWire` with the app: the hook line, topic
   tags and the socket, in Foundation alone, so the client stays small and
@@ -286,8 +287,20 @@ personality or memory, only its touch calibration. What it does is in
 - **Firmware:** PlatformIO + Arduino core + LovyanGFX + NimBLE-Arduino in
   `firmware/` ([DEVICE.md](DEVICE.md) §4), to be ported to ESP-IDF + LVGL
   once v1 is verified ([PLAN.md](PLAN.md) §4).
-- **Dev tools:** `tools/boopctl` for the device and `boopdev` for the app
-  ([VERIFICATION.md](VERIFICATION.md) §2).
+- **Dev tools:** `internal/tools/boopctl` for the device and `boopdev` for
+  the app ([VERIFICATION.md](VERIFICATION.md) §2).
+- **Production and internal code:** what ships is in `app/` and
+  `firmware/`; everything else (tests, evals, dev tools, skills, the
+  firmware's simulator and unit tests) is in `internal/`
+  ([its README](../internal/README.md)). Internal Swift code is in its own
+  targets (`BoopDevKit`, `BoopDev`, `BoopTests`), and the production
+  targets (`HookWire`, `BoopKit`, `Boop`, `BoopHook`) never depend on
+  them. The build makes an import of a target that isn't a declared
+  dependency an error (SwiftPM's own default is a warning), so a
+  production file can't reach internal code. `Package.swift` is at the
+  repo root because SwiftPM takes no target outside the package's root.
+  `Boop --headless` and `Boop --snapshots` still ship as flags of the
+  app; only their sources are in `internal/app/Boop/`.
 
 The stable contracts are the common event ([ADAPTERS.md](ADAPTERS.md) §1), the
 memory files (§4), the harness's two contracts, events in and actions out
@@ -336,3 +349,4 @@ log up to 2026-09-27 is in
 | 2026-09-27 | The harness has two generic contracts. An event arrives with its line, its rule reaction and whether it wakes the brain. An action declares its questions, reads Jev's answers to them in its own body and returns `(ok, message)`; the harness records answers and results and puts successful messages in HISTORY | New behaviour is a new action, with no harness changes; the harness never reads an event's facts or an action's answers, so it stays small and generic | [harness/HARNESS.md](harness/HARNESS.md) §3, §4 |
 | 2026-09-27 | Boop reads and writes Jev's key through `/usr/bin/security`, and `make sign` is gone | Without an Apple-issued certificate the Keychain knows an app only by its exact build, so every rebuild asked for the key again, even when signed with a self-made certificate. The cost: any program running as the owner, agent shells included, can read the key that way without a prompt | [harness/HARNESS.md](harness/HARNESS.md) §7 |
 | 2026-09-27 | Push-to-talk and quiet mode are removed, on the Mac and the device: no Talk button, no `listening`, no `talk_on`/`talk_off`, no empty moment and no `quiet` in `state`. Memory keeps only Boop's name and the day | Talk was inert and quiet mode had no other way in; the dead paths cost code in every layer. Both come back as a talk event and actions ([FUTURE.md](FUTURE.md)); git keeps the code | [BEHAVIORS.md](BEHAVIORS.md) §3.3, [PROTOCOL.md](PROTOCOL.md), §4 |
+| 2026-09-27 | Code that doesn't ship lives under one `internal/` directory; internal Swift code is in its own targets, which production targets never depend on, the build fails on an import of a target that isn't a dependency (`--explicit-target-dependency-import-check error`), and `Package.swift` moves to the repo root. `Boop --headless` and `--snapshots` stay flags of the shipped app, with their sources in `internal/` | What ships is plain from the tree, and the compiler stops production code from reaching test or dev code. SwiftPM rejects targets outside the package root, so the package spans the whole repo | §10, [internal/README.md](../internal/README.md) |

@@ -101,7 +101,8 @@ it out, so simulator and scenario screenshots don't change.
 here.
 
 **Needs you.** The face moves up and the bubble says who (the
-`plus-one-more` shot of `firmware/test/scenarios/needs_you.jsonl`):
+`plus-one-more` shot of
+`internal/firmware/test/scenarios/needs_you.jsonl`):
 
 ```
 ┌──────────────────────────────────┐

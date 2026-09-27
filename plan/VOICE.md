@@ -190,8 +190,8 @@ fail, and fewer than 50 may end as the safe hum.
 **The assets.** Every syllable and word is synthesised offline and
 processed to sound small and chiptune, into a fixed, versioned asset pack,
 so Boop's voice only changes when the pack is rebuilt and flashed.
-`tools/voicegen/voicegen.py` reads the syllables and vocabulary from
-`Sounds.swift` and writes `firmware/assets/voice.h`:
+`internal/tools/voicegen/voicegen.py` reads the syllables and vocabulary
+from `Sounds.swift` and writes `firmware/assets/voice.h`:
 
 - Syllables are spoken by macOS's Italian voice (Alice), so vowels stay
   pure; some are respelled so Italian reads them as meant (`ki` → `chi`,
@@ -228,9 +228,10 @@ sound, and the bubble shows the word among squiggles
 **Checking it.** Tests check the timeline through `dbg.state`
 ([VERIFICATION.md](VERIFICATION.md) §3). The sound itself is checked by
 ear on the bench board's speaker ([DEVICE.md](DEVICE.md) §3):
-`tools/boopctl mumble` plays every feeling with and without a word
-(`--levels` compares volumes), and `tools/boopctl play needs` plays the
-chirp ([VERIFICATION.md](VERIFICATION.md) §2).
+`internal/tools/boopctl mumble` plays every feeling with and without a
+word (`--levels` compares volumes), and
+`internal/tools/boopctl play needs` plays the chirp
+([VERIFICATION.md](VERIFICATION.md) §2).
 
 ## 9. How often Boop talks
 

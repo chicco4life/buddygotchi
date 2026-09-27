@@ -24,8 +24,6 @@ __pycache__/
 venv/
 
 # Swift / SPM
-app/.build/
-app/.swiftpm/
 .build/
 .swiftpm/
 Package.resolved.bak
@@ -50,4 +48,4 @@ build/
 # Next.js generated output
 .next/
 *.tsbuildinfo
-app/Tests/GeneratedTestRunner.swift
+internal/app/Tests/GeneratedTestRunner.swift

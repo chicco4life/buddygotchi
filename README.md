@@ -42,12 +42,12 @@ What Boop does and shows is in [plan/BEHAVIORS.md](plan/BEHAVIORS.md) and
 From the repo root:
 
 ```sh
-make run          # the Mac app, with Bluetooth
-make debug        # the same, printing everything live in this terminal
-make test         # Swift unit tests
-make eval         # the brain's eval scenarios against Jev, 3 runs each (needs BOOP_JEV_KEY)
-make flash        # build the firmware and upload it over USB
-tools/boopctl     # the board over USB, and the simulator: ping, state, shot, play, sim, run, e2e, …
+make run                # the Mac app, with Bluetooth
+make debug              # the same, printing everything live in this terminal
+make test               # Swift unit tests
+make eval               # the brain's eval scenarios against Jev, 3 runs each (needs BOOP_JEV_KEY)
+make flash              # build the firmware and upload it over USB
+internal/tools/boopctl  # the board over USB, and the simulator: ping, state, shot, play, sim, run, e2e, …
 ```
 
 To run the evals with the key you saved in Settings, run this from your
@@ -57,9 +57,9 @@ own terminal (agents never read the Keychain):
 BOOP_JEV_KEY=$(security find-generic-password -s com.boopcomputer.boop -a jev -w) make eval
 ```
 
-Each tool lists its options with `--help`: `tools/boopctl`,
-`app/.build/debug/boopdev`, `app/.build/debug/Boop`. Every make target and
-tool is described in [plan/VERIFICATION.md](plan/VERIFICATION.md) §2.
+Each tool lists its options with `--help`: `internal/tools/boopctl`,
+`.build/debug/boopdev`, `.build/debug/Boop`. Every make target and tool
+is described in [plan/VERIFICATION.md](plan/VERIFICATION.md) §2.
 
 ## Debugging
 
@@ -70,17 +70,21 @@ tool is described in [plan/VERIFICATION.md](plan/VERIFICATION.md) §2.
   decided and why, the words it wrote, and what ran. The passes are also
   saved to `~/Library/Application Support/Boop/debug.jsonl`, fresh each
   launch (the format is in [plan/harness/HARNESS.md](plan/harness/HARNESS.md) §8).
-- **What happened in a saved run?** `app/.build/debug/boopdev watch FILE`
+- **What happened in a saved run?** `.build/debug/boopdev watch FILE`
   prints a `debug.jsonl` the way `make debug` does. With no file it
   follows the everyday app's. `make eval` names the file it writes.
 - **Does the whole path work?** `make e2e` sends recorded hooks through the
   real `boop-hook` and a headless app to the board over USB, and checks
   what the board shows.
-- **Are my agents' hooks reaching Boop?** Run `skills/doctor/doctor.sh`
-  from inside the agent. It says what to do next.
-- **What is the board doing?** `tools/boopctl ping`, `state` or `shot`.
+- **Are my agents' hooks reaching Boop?** Run
+  `internal/skills/doctor/doctor.sh` from inside the agent. It says what
+  to do next.
+- **What is the board doing?** `internal/tools/boopctl ping`, `state` or
+  `shot`.
 - **What does Boop remember?** Its name and voice in `long-term.md`, in
   `~/Library/Application Support/Boop`, next to `boop.log`.
 
 The specs start at [plan/README.md](plan/README.md), and the repo layout
-is in [CLAUDE.md](CLAUDE.md).
+is in [CLAUDE.md](CLAUDE.md). What ships is in `app/` and `firmware/`;
+tests, dev tools and everything else that doesn't is in
+[internal/](internal/README.md).

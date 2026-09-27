@@ -33,7 +33,7 @@ The evals ask Jev, so they need its key, and fail without it
 
 ```sh
 BOOP_JEV_KEY=… make eval           # every scenario, 3 runs each
-app/.build/debug/boopdev eval --runs 1 --only tests
+.build/debug/boopdev eval --runs 1 --only tests
 ```
 
 A scenario passes only if every run does. The report gives each
@@ -49,7 +49,7 @@ with the report saying why.
 
 ## 3. The scenario file
 
-One JSON file per scenario in `app/Evals/scenarios/`:
+One JSON file per scenario in `internal/app/Evals/scenarios/`:
 
 ```json
 {

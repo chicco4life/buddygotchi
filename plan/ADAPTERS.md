@@ -258,7 +258,7 @@ it does remove an older Boop's, which call `~/.boop/boop-hook.sh`.
 
 ## 6. Checking it works
 
-The `doctor` skill (`skills/doctor/doctor.sh`) checks four things:
+The `doctor` skill (`internal/skills/doctor/doctor.sh`) checks four things:
 
 1. Hooks are registered for each agent and call a `boop-hook` that
    exists.
