@@ -141,62 +141,28 @@ recordings still list curious and need re-recording from a new run
 (`harness/EXAMPLE.md` and the dashboard's test fixture), which is in
 PLAN.md §3.
 
-For the four you didn't choose, I kept the defaults: parallel subagents'
-results stay as they are (3 below); the held-face length (5) and the
-cheer's 6 px drop (7) wait for Federico's loopable designs. A reaction
-waiting when "needs you" starts (6) is still sent at once for the board
-to skip. Queuing it instead wasn't built this morning.
+Later that morning you decided the rest (`8cb4026a`,
+[decisions2](decisions2/README.md)):
 
-## What needs your decision
+- **Jev now sees Boop's last reaction** and how long ago it was, e.g.
+  "Boop's last reaction, just now: an excited face and "…tests!"". The
+  longest run of the same reaction on the scripted day fell from 8 to 4.
+  A comeback's finish still repeats the fix's proud "…finally!", which is
+  in PLAN.md §3.
+- **A routine turn earns a face from 20 s** (it was 40 s). Reactions per
+  finished turn rose from about 0.5 to 0.75. Happy is 44% of faces.
+- **The next reaction can replace a held face** once the held face's
+  mumble has played, so it isn't dropped while a long hold runs out. The
+  earlier reaction still counts as done. This hasn't been seen on the
+  board yet.
+- **Left as they are:** a reaction waiting when "needs you" starts (still
+  sent at once for the board to skip), the cheer's 6 px drop (waits for
+  Federico's designs), parallel subagents' results, a blocked `Stop`
+  cheering twice, and an ended session ignoring its hooks.
+- **Still undecided:** a pass already running when "needs you" starts can
+  change the mood (report 15's other half).
 
-The numbers are the ones the lanes' READMEs use; 1, 2 and 4 are decided
-above.
-
-3. **Two parallel subagents' test results.** Today the one that lands
-   last decides whether the turn failed. The alternative is to fail any
-   turn that leaves a check failing, but that changes sequential turns
-   too (race report 29, [core](core/README.md)).
-5. **A face held for its loops blocks the next reaction.** Over the idle
-   look one loop lasts up to 9 s, since the idle designs loop every 9 s,
-   and a face Jev holds two to four times holds the line for 16–36 s.
-   Another reaction waits at most 5 s, so another thread's failure
-   meanwhile gets no face. The options are a shorter idle loop, a cap on
-   a face's first loop, or letting the next reaction end a held face
-   once its mumble has played ([hunt2](hunt2/README.md), report 16).
-6. **When "needs you" starts, a waiting reaction** is sent at once for the
-   board to skip, as [harness/DECISIONS.md](../../harness/DECISIONS.md) §5
-   says. It could stay queued instead, and play if "needs you" clears
-   within 5 s ([review-check](review-check/README.md)).
-7. **The cheer's card drops 6 px** each time a cheer of two or more loops
-   starts over. The rules' cheer is one loop, so only the dashboard and
-   `play cheer --loops` show it. Fix it only if you see it on the panel
-   ([firmware](firmware/README.md)).
-8. **Jev repeats a reaction once the last one has ended.** A run of
-   quick turns with their tests passing gets the same excited "…tests!"
-   up to 8 times in a row, and a comeback's finish repeats the fix's
-   proud "…finally!" under a minute later. Text didn't stop it. Either
-   the state names Boop's last reaction and how long ago it was, or those
-   quick passes get no face (then happy climbs to about 42% of faces)
-   ([tune2-check](tune2-check/README.md)).
-9. **Fewer reactions, stronger ones.** Round 2 reacts to 0.47–0.49 of
-   finished turns, from 0.70 after round 1. Every notable moment and
-   nearly every turn of a few minutes still gets one; the drop is all
-   quick routine turns, which now get a face only with something to
-   show. If Boop feels too quiet, lower boop.md's "40 s" bar.
-10. **A `Stop` another hook blocks still cheers twice.** Keeping
-    `stop_hook_active` through `boop-hook` and ending such a turn with
-    no second cheer would make one prompt one turn. It touches the hook,
-    the adapter and the core, so the spec first ([hunt2](hunt2/README.md),
-    report 21).
-11. **A brain pass already running when "needs you" starts** can still
-    change the mood when it lands, which redraws the needs-you face. The
-    mood could sit out passes while something needs you (report 15's
-    other half).
-12. **An ended session ignores its hooks for a day** unless it starts
-    again. That hides a real request only if an agent asks after its own
-    `SessionEnd` with no `SessionStart` first, which no recording shows.
-    Accept it, or record a session that exits with a background
-    subagent running ([hunt2](hunt2/README.md)).
+Evals after all of this: 14/14 in all 3 runs.
 
 ## Still open, no decision needed
 
