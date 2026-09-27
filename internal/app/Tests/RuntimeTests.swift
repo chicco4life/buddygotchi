@@ -1346,6 +1346,47 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(lastLine(), #"claude finished turn 2 on "jetpack": done after 40 s, a long turn, 0 tools."#)
     }
 
+    /// harness/EVENTS.md §6: a failing test wakes the brain while the
+    /// prompt's pass runs, and waits; a permission request comes before
+    /// that pass ends. The waiting pass doesn't start under the amber.
+    func testNoWaitingPassStartsWhileSomethingNeedsYou() throws {
+        let gate = DispatchSemaphore(value: 0)
+        let asked = Lines()
+        var options = try options(nil)
+        let clock = VirtualClock(harnessT0)
+        options.clock = { clock.now }
+        let brain = ScriptedBrain { state, _ in
+            asked.add(String(state.split(separator: "\n").reversed()[1]))
+            gate.wait()
+            return [:]
+        }
+        options.brain = { _ in brain }
+        let runtime = try Runtime(options)
+        try runtime.start()
+        defer { runtime.stop() }
+        eventually("the brain") { runtime.home.sync { runtime.harness.brain != nil } }
+        func hook(_ name: String, tool: String? = nil, topic: String? = nil, failed: Bool = false) {
+            var line = HookLine(agent: "claude", hook: name, session: "s1", cwd: "/tmp/jetpack", tool: tool, ts: clock.now)
+            line.topic = topic
+            line.toolError = failed ? "exit_code" : nil
+            runtime.home.sync { runtime.hook(line, received: clock.now) }
+        }
+        hook("UserPromptSubmit")
+        hook("PreToolUse", tool: "Bash", topic: "tests")
+        hook("PostToolUseFailure", tool: "Bash", topic: "tests", failed: true)
+        hook("PreToolUse", tool: "Edit")
+        hook("PermissionRequest", tool: "Edit")
+        gate.signal()
+        eventually("the waiting pass is dropped") {
+            runtime.home.sync { runtime.harness.idle }
+        }
+        XCTAssertEqual(asked.all.count, 1, "\(asked.all)")
+        let dropped = runtime.home.sync {
+            runtime.harness.transcript.entries.compactMap { if case .pass(let p) = $0.body { p.dropped } else { nil } }
+        }
+        XCTAssertEqual(dropped, ["something needs you"])
+    }
+
     /// ARCHITECTURE.md §3.2: the pump's timer counts the Mac's uptime,
     /// which stops while the Mac sleeps, and the moments' clock doesn't. A
     /// timer set for a time the clock has already passed is late, so the

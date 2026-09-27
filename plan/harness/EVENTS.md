@@ -140,10 +140,13 @@ brain only when its kind says so (§4), and never:
 - while there's no brain: before Jev's key is read, or without one
   ([HARNESS.md](HARNESS.md) §7).
 
-The core checks both when it builds the event (`Core.wakes`), after the
-event has answered any request it answers ([ADAPTERS.md](../ADAPTERS.md)
-§4): tests that fail right after you approved them, or the turn Claude's
-idle notice stops after you pressed Esc on its prompt, wake it. Beyond the
+The core checks both when it builds the event (`Core.wakes`), and the
+harness checks the first again when an event that waited behind a
+running pass would start its own ([HARNESS.md](HARNESS.md) §2). The
+core's check comes after the event has answered any request it answers
+([ADAPTERS.md](../ADAPTERS.md) §4): tests that fail right after you
+approved them, or the turn Claude's idle notice stops after you pressed
+Esc on its prompt, wake it. Beyond the
 poke streak's minute, there's no cooldown: Jev decides every time whether
 Boop mumbles.
 

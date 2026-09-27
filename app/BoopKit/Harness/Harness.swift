@@ -39,6 +39,9 @@ public final class Harness: @unchecked Sendable {
     public var onRecord: ((Record) -> Void)?
     /// Called on `home` with every `debug.jsonl` line, file or not.
     public var onDebugLine: ((String) -> Void)?
+    /// Whether a waiting event's pass may start now: not while something
+    /// needs you, when no event wakes the brain (EVENTS.md §6).
+    public var mayStart: () -> Bool = { true }
 
     /// The whole pass must finish within this.
     public static let deadlineMs = 1250
@@ -141,7 +144,11 @@ public final class Harness: @unchecked Sendable {
                 changedDuringPass = []
                 if let next = waiting {
                     waiting = nil
-                    start(next)
+                    if mayStart() {
+                        start(next)
+                    } else {
+                        finish(next, nil, .failure(BrainError("something needs you")), latencyMs: 0)
+                    }
                 }
             }
         }
@@ -156,18 +163,24 @@ public final class Harness: @unchecked Sendable {
 
     /// Steps 5–7, on `home`: each action gets its own answers, in order,
     /// and everything is recorded.
-    func finish(_ entry: Transcript.Entry, _ job: Job, _ result: Result<Answers, BrainError>, latencyMs: Int) {
+    /// A pass with no `job` never asked the brain: a waiting event whose
+    /// pass couldn't start.
+    func finish(_ entry: Transcript.Entry, _ job: Job?, _ result: Result<Answers, BrainError>, latencyMs: Int) {
         guard case .event(let event) = entry.body else { return }
         var pass = Transcript.Pass(forSeq: entry.seq, answers: [:], dropped: nil, latencyMs: latencyMs)
         switch result {
         case .failure(let error):
             pass.dropped = error.description
-            if let raw = error.raw { log("harness: \(job.brain.id) answered what couldn't be used (\(raw.count) bytes)") }
+            if let raw = error.raw, let job { log("harness: \(job.brain.id) answered what couldn't be used (\(raw.count) bytes)") }
         case .success(let answers):
             pass.answers = answers
         }
-        record(.pass(pass), extra: ["state": job.state, "questions": job.questions.map(\.key), "brain": job.brain.id,
-                                    "seen": job.seen])
+        if let job {
+            record(.pass(pass), extra: ["state": job.state, "questions": job.questions.map(\.key), "brain": job.brain.id,
+                                        "seen": job.seen])
+        } else {
+            record(.pass(pass), extra: brain.map { ["brain": $0.id] } ?? [:])
+        }
         let ran = pass.dropped == nil ? runActions(pass.answers, forSeq: entry.seq, skipping: changedDuringPass) : []
         let record = Record(event: event, pass: pass, actions: ran)
         if let dropped = pass.dropped { log("harness: \(event.kind.rawValue) dropped: \(dropped)") }

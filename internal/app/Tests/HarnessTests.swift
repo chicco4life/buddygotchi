@@ -278,6 +278,45 @@ final class HarnessTests: XCTestCase {
         }
     }
 
+    /// HARNESS.md §2, EVENTS.md §6: no event wakes the brain while
+    /// something needs you. An event that woke it before, and waited
+    /// behind a running pass, doesn't start its pass once something needs
+    /// you: it's recorded as a pass dropped for that. Before, it asked Jev
+    /// with the amber showing, and its mood answer changed the face of the
+    /// request on screen.
+    func testAWaitingPassDoesntStartWhileSomethingNeedsYou() throws {
+        let seen = Lines()
+        let gate = DispatchSemaphore(value: 0)
+        let brain = ScriptedBrain { state, _ in
+            seen.add(String(state.split(separator: "\n").reversed()[1]))
+            gate.wait()
+            return [:]
+        }
+        let (h, home) = harness(brain, [Recorder("a", keys: ["k"], result: nil)])
+        var needsYou = false
+        var records: [Harness.Record] = []
+        home.sync {
+            h.mayStart = { !needsYou }
+            h.onRecord = { records.append($0) }
+            h.take(event(.turnStart, at: 0, "first"))
+            h.take(event(.toolUse, at: 0, "second"))
+            needsYou = true
+        }
+        gate.signal()
+        eventually("both recorded") { home.sync { records.count } == 2 }
+        XCTAssertEqual(seen.all, ["first"], "no request for the second")
+        XCTAssertEqual(records.last?.pass.dropped, "something needs you")
+        XCTAssertEqual(records.last?.logLine, "brain tool_use 0 ms → dropped: something needs you")
+        home.sync {
+            XCTAssertTrue(h.idle)
+            needsYou = false
+            h.take(event(.toolUse, at: 1, "third"))
+        }
+        gate.signal()
+        eventually("the next pass, once nothing needs you") { home.sync { records.count } == 3 }
+        XCTAssertEqual(seen.all, ["first", "third"])
+    }
+
     // MARK: Forced passes (DASHBOARD.md §4)
 
     /// A forced pass needs no brain: each choice gets probability 1 and

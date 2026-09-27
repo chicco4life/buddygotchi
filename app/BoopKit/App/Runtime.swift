@@ -323,6 +323,9 @@ public final class Runtime: @unchecked Sendable {
             let print = options.debugPrint
             harness.onDebugLine = { line in printer.readable(line).map(print) }
         }
+        // No event's pass starts while something needs you, not even one
+        // that woke the brain before and waited (harness/EVENTS.md §6).
+        harness.mayStart = { !core.needsYouShowing }
         personalityNow = { [weak self] in self?.personality ?? .boop }
         moodSaved = { [weak self] in self?.moodChanged($0) }
         // A pass can change the mood, which the menu bar shows.

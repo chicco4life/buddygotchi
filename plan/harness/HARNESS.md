@@ -68,7 +68,10 @@ What the picture leaves out:
   `harness: mood sat out the pass: the dashboard changed it while the pass ran`.
 - After every pass, dropped ones included, the runtime hears of it
   (`onRecord`) and writes its app log line (§9). Then the waiting
-  event's pass starts.
+  event's pass starts, unless something needs you by then
+  (`Harness.mayStart`, which the runtime asks the core): no event wakes
+  the brain then ([EVENTS.md](EVENTS.md) §6), so it's recorded as a pass
+  dropped with `something needs you`, and the brain isn't asked.
 - An action that started something reports its end later, on `home`,
   and the harness appends it as a `settle` entry. The runtime's 1 s tick
   also ticks the harness, which ends any left open too long (§5.1).
@@ -79,7 +82,7 @@ What the picture leaves out:
 | --- | --- | --- |
 | Idle | Its pass starts | — |
 | Running | It waits | Back to idle |
-| Running, one waiting | It replaces the waiting one | The waiting one's pass starts |
+| Running, one waiting | It replaces the waiting one | The waiting one's pass starts, or, while something needs you, is dropped |
 | No brain | It's recorded, and no pass runs | — |
 
 `use(brain)` swaps the brain from the next pass on; the runtime sets it
@@ -351,6 +354,7 @@ reactions. The `pass` entry's `dropped` says why:
 | `jev: HTTP <status>` | Not 200, after the retry. Only the status is kept, since an error body may repeat the request |
 | `jev: no answers` | The body had no `answers` object |
 | `jev: no usable answer for <key>` | A question left out, or answered with an option it doesn't have |
+| `something needs you` | The event waited behind a running pass, and something needed you by the time its turn came (§2). The brain wasn't asked, so the entry has no state and a `latency_ms` of 0 |
 | `cancelled`, or an error's own text | The pass's task was cancelled, or the request failed some other way |
 
 When the body came back but couldn't be used, the app log gets its size,
