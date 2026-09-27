@@ -90,7 +90,7 @@ project, and whether each is working, idle or needs you), works out what
 the device shows in [BEHAVIORS.md](BEHAVIORS.md) §1's layers, plays the
 rules' reactions and working chatter, and keeps quiet mode and the mic
 (§3.8). It turns agents starting and finishing, what you say and a poke
-streak into the brain's inputs ([HARNESS.md](HARNESS.md) §2); taps and
+streak into the brain's inputs ([HARNESS.md](harness/HARNESS.md) §2); taps and
 "needs you" stay the rules' own.
 
 In code the core is a pure state machine. Each event, device input or
@@ -103,7 +103,7 @@ and keeps counting while the Mac sleeps, so setting the Mac's clock back
 can't stall one; days and times of day follow the wall clock.
 
 Agent inputs that arrive in a burst merge into one
-([HARNESS.md](HARNESS.md) §2).
+([HARNESS.md](harness/HARNESS.md) §2).
 
 The brain's moments never cut another moment off. The rules' moments play
 at once, each new one replacing whatever is playing
@@ -120,10 +120,10 @@ waiting ([BEHAVIORS.md](BEHAVIORS.md) §3.3).
 
 The brain works in two stages: a classifier picks what Boop does from a
 short menu, and a writer (Apple's on-device model) writes only the words.
-The mode picks the classifier ([HARNESS.md](HARNESS.md) §6), and the
+The mode picks the classifier ([HARNESS.md](harness/HARNESS.md) §6), and the
 harness runs both stages and checks their answers. Both are assumed to be
 small, so outputs are few, flat and mostly multiple choice
-([HARNESS.md](HARNESS.md) §7).
+([HARNESS.md](harness/HARNESS.md) §7).
 
 ### 3.4 Actions
 
@@ -134,7 +134,7 @@ same actions, so a cheer looks the same whoever asked for it. Each action
 checks its own rules and drops, and logs, a call that breaks them, such as
 a word outside `react`'s vocabulary or a memory line that breaks its
 section's rules (§4). Each also owns its
-definition, the part the brain sees ([HARNESS.md](HARNESS.md) §5).
+definition, the part the brain sees ([HARNESS.md](harness/HARNESS.md) §5).
 
 ### 3.5 Voice
 
@@ -164,7 +164,7 @@ The device has no mic, so push-to-talk, from its button or the popover's
 Talk, records from the Mac's. The core decides when the mic is on and off
 ([BEHAVIORS.md](BEHAVIORS.md) §3.3). The app turns speech into text on the
 Mac, measures whether you yelled and drops the audio at once. The words
-reach the brain as a "you said" input ([HARNESS.md](HARNESS.md) §4 says
+reach the brain as a "you said" input ([HARNESS.md](harness/HARNESS.md) §4 says
 how long they're kept).
 
 ## 4. Memory files
@@ -191,7 +191,7 @@ instead, keeping the file's date if one can be found so the day doesn't
 start twice.
 
 Each file has a size budget, so what the brain reads stays within
-[HARNESS.md](HARNESS.md) §4 without trimming: `long-term.md` at most 3,200
+[HARNESS.md](harness/HARNESS.md) §4 without trimming: `long-term.md` at most 3,200
 bytes (about 800 tokens) and `short-term.md` at most 2,400 bytes (about
 600). The line limits below mostly keep them there; when they don't, a
 change to long-term memory is refused ("full") and short-term memory drops
@@ -290,8 +290,8 @@ everyday Boop. Jev's key is in the Keychain, not here.
 | `settings.json` | The mode and the volume. Keys it doesn't know, from older versions, are ignored | The app, when you change them |
 | `boop.sock` | The hook socket, readable only by you. `boop-hook` writes one line per hook to it ([ADAPTERS.md](ADAPTERS.md) §2) | The app, at launch; removed at quit |
 | `boop.lock` | Held while an app runs here; a second copy on the same folder refuses to start | The app |
-| `boop.log` | The app's log, appended: startup, hook repairs, device inputs, dropped calls and one line per brain pass. Never what you said ([HARNESS.md](HARNESS.md) §8) | The app |
-| `debug.jsonl` | Debug mode only: every brain pass and aside as a JSON line, emptied at each launch ([HARNESS.md](HARNESS.md) §8) | The harness |
+| `boop.log` | The app's log, appended: startup, hook repairs, device inputs, dropped calls and one line per brain pass. Never what you said ([HARNESS.md](harness/HARNESS.md) §8) | The app |
+| `debug.jsonl` | Debug mode only: every brain pass and aside as a JSON line, emptied at each launch ([HARNESS.md](harness/HARNESS.md) §8) | The harness |
 | `doctor-armed` | While it exists, the app logs every hook ([ADAPTERS.md](ADAPTERS.md) §6) | The `doctor` skill |
 | `bin/boop-hook` | The copy of the hook client every hook entry calls, refreshed at launch so rebuilding or moving the app doesn't break hooks ([ADAPTERS.md](ADAPTERS.md) §5) | The everyday menu-bar app |
 
@@ -320,7 +320,7 @@ personality or memory, only its touch calibration. What it does is in
 | --- | --- |
 | App not running, or the Mac asleep | Hooks exit at once and agents carry on. The device soon shows it has no app ([BEHAVIORS.md](BEHAVIORS.md) §3.4) |
 | Device disconnected | The app keeps going; on reconnect the next `state` catches the device up |
-| Brain slow, offline or wrong | Rules still drive every reaction. A classifier that fails or is late falls back to its mode's table or drops the pass ([HARNESS.md](HARNESS.md) §6), and an answer off the menu drops it. A writer that fails leaves the words empty: the mumble goes without its word, and nothing is remembered |
+| Brain slow, offline or wrong | Rules still drive every reaction. A classifier that fails or is late falls back to its mode's table or drops the pass ([HARNESS.md](harness/HARNESS.md) §6), and an answer off the menu drops it. A writer that fails leaves the words empty: the mumble goes without its word, and nothing is remembered |
 | Memory file won't parse | It's kept as `.broken` and recovered (§4) |
 | A second copy of Boop on the same state directory | It refuses to start (`boop.lock`), and the popover says another copy is running |
 
@@ -331,7 +331,7 @@ personality or memory, only its touch calibration. What it does is in
 | Agent event → pixel | < 200 ms p95 |
 | Tap → visible feedback | < 20 ms, on the device |
 | Hook overhead | Single-digit ms. When the app is slow, the hook waits at most 50 ms in all, then gives up |
-| Brain, per input | Both stages within the input's deadline, 4–5 s ([HARNESS.md](HARNESS.md) §2). A late answer is dropped |
+| Brain, per input | Both stages within the input's deadline, 4–5 s ([HARNESS.md](harness/HARNESS.md) §2). A late answer is dropped |
 
 ## 10. Stack
 
@@ -352,7 +352,7 @@ personality or memory, only its touch calibration. What it does is in
 
 The stable contracts are the common event ([ADAPTERS.md](ADAPTERS.md) §1), the
 memory files (§4), the brain's two interfaces, classifier and writer
-([HARNESS.md](HARNESS.md) §6), and the protocol ([PROTOCOL.md](PROTOCOL.md)).
+([HARNESS.md](harness/HARNESS.md) §6), and the protocol ([PROTOCOL.md](PROTOCOL.md)).
 
 ## 11. Decision log
 
@@ -368,30 +368,29 @@ log up to 2026-09-27 is in
 | 2026-09-25 | Boop speaks synthesised Minion gibberish with at most one real word, in English | A creature, not a chatbot; cheap to make, and the gibberish needs no translation | [VOICE.md](VOICE.md) |
 | 2026-09-25 | Boop only notifies; you approve in the agent, on the Mac | Simpler, and a bug in Boop can never approve anything | [ADAPTERS.md](ADAPTERS.md) §1 |
 | 2026-09-25 | Memory is three Markdown files on the Mac; `steering.md` is read-only; hand edits are allowed, and there's no reset button | Simple and inspectable, independent of the device and the model, and permanent without extra machinery | §4 |
-| 2026-09-25 | No code, prompts, file contents or agent transcripts go to the brain; your own words on push-to-talk are the one exception | Privacy | [HARNESS.md](HARNESS.md) §4 |
+| 2026-09-25 | No code, prompts, file contents or agent transcripts go to the brain; your own words on push-to-talk are the one exception | Privacy | [harness/HARNESS.md](harness/HARNESS.md) §4 |
 | 2026-09-25 | Our own protocol, with the same messages over Bluetooth and USB, and no pairing or encryption yet | Only our app talks to the device, and USB lets agents test the whole path | [PROTOCOL.md](PROTOCOL.md) |
 | 2026-09-25 | The firmware starts on Arduino + LovyanGFX and moves to ESP-IDF + LVGL once v1 works; drawing code stays independent of the display library | Fastest to a working face, with the drawing carried over to the production stack | [DEVICE.md](DEVICE.md) §4 |
 | 2026-09-26 | The renderer uses integer maths only | The board and the simulator must draw the same pixels, so screenshots can be compared exactly | [DEVICE.md](DEVICE.md) §6 |
 | 2026-09-26 | The core is a pure state machine that returns effects, with one-second ticks | Decisions stay apart from effects, and every rule and timing is testable on a virtual clock | §3.2 |
 | 2026-09-26 | One state directory per Boop; hooks call the copy of `boop-hook` kept there, and nothing is installed while that copy is missing | Hooks survive rebuilding or moving the app. Entries calling a missing file silently dropped every event while settings said "Connected" | §4.4, [ADAPTERS.md](ADAPTERS.md) §5 |
-| 2026-09-27 | One brain, Jev: one request asks the mood, the reaction and the word as multiple-choice questions over a plain-text state. Apple's writer and the if-else tables are removed | Boop can only say its recorded words, so the word is a choice too; one request of about 0.25 s, with probabilities that say when Jev is guessing, replaces two models and a handoff | [HARNESS.md](HARNESS.md) §1, §6 |
-| 2026-09-27 | Five events reach the brain: turn start, turn end, a notable tool use (a failure, or a pass after failures), pokes and an hourly heartbeat while nothing happens. Talk and memory writes are out for now | Tool results carry the moments worth a word ("finally" after three failed test runs); the heartbeat lets a mood go when nothing else would wake the brain | [HARNESS.md](HARNESS.md) §2 |
-| 2026-09-26 | No cooldowns on the brain's mumbles: apart from the poke streak's once a minute ([BEHAVIORS.md](BEHAVIORS.md) §3.3), the classifier decides every time whether Boop mumbles | Fewer rules to remember; the classifiers choose silence themselves | [HARNESS.md](HARNESS.md) §2 |
+| 2026-09-27 | One brain, Jev: one request asks the mood, the reaction and the word as multiple-choice questions over a plain-text state. Apple's writer and the if-else tables are removed | Boop can only say its recorded words, so the word is a choice too; one request of about 0.25 s, with probabilities that say when Jev is guessing, replaces two models and a handoff | [harness/HARNESS.md](harness/HARNESS.md) §1, [harness/DECISIONS.md](harness/DECISIONS.md) |
+| 2026-09-27 | Five events reach the brain: turn start, turn end, a notable tool use (a failure, or a pass after failures), pokes and an hourly heartbeat while nothing happens. Talk and memory writes are out for now | Tool results carry the moments worth a word ("finally" after three failed test runs); the heartbeat lets a mood go when nothing else would wake the brain | [harness/EVENTS.md](harness/EVENTS.md) |
+| 2026-09-26 | No cooldowns on the brain's mumbles: apart from the poke streak's once a minute ([BEHAVIORS.md](BEHAVIORS.md) §3.3), the classifier decides every time whether Boop mumbles | Fewer rules to remember; the classifiers choose silence themselves | [harness/EVENTS.md](harness/EVENTS.md) §6 |
 | 2026-09-26 | Push-to-talk also starts from the popover's Talk button; the core owns the mic and turns it off after 30 s or when the link drops | There was no way to talk from the Mac, and a lost `talk_off` left the mic on until the app quit | §3.8, [BEHAVIORS.md](BEHAVIORS.md) §3.3, [UX.md](UX.md) §5 |
 | 2026-09-26 | Four hero moments lead Boop's story: a cheer for a finished turn, frustration at a failed one (including one that leaves its tests failing), sadness when yelled at, annoyance at a poke streak. Past the cheer, the brain's mumbles tell them | Each has one clear cause and one clear feeling, and the device keeps its 4 states and 3 animations | [VISION.md](VISION.md), [BEHAVIORS.md](BEHAVIORS.md) §3 |
 | 2026-09-27 | Being told off or yelled at makes Boop sad and never quiets it; only words with "quiet" do, asking it to stop being quiet ends quiet (`quiet(0)`), and the `quiet` action runs only the way you asked | Being mad at Boop shouldn't silence it, and asking should. Before 0 was a choice, "stop being quiet" restarted the 30 minutes | [BEHAVIORS.md](BEHAVIORS.md) §3.3 |
 | 2026-09-26 | v1 is cut to 4 states and 3 animations; everything else is parked | The surface had grown past what the owner can hold in their head; features come back one at a time | [BEHAVIORS.md](BEHAVIORS.md), [FUTURE.md](FUTURE.md) |
 | 2026-09-26 | The face is pixel art after the owner's reference render: window eyes, pink cheeks and small pixel mouths on a 3 px grid | The owner asked for every animation to match the reference | [UX.md](UX.md) §2 |
 | 2026-09-26 | The brain's moments take turns behind the rules' and each other's, and are dropped past their `ttl` | An if-else classifier answers in 0 ms, so a brain mumble cut off the rules' cheer before it showed, and a later mumble cut off an earlier one | §3.2 |
-| 2026-09-26 | Durations and gaps arrive named (short, long, very long; right after, a while, a long break) | Keep arithmetic out of the brain: Jev read "took 45 s" as quick | [HARNESS.md](HARNESS.md) §2.4 |
-| 2026-09-26 | Each feeling's meaning rules out its neighbours ("sad" is only hurt; a failed turn is "annoyed") | Jev is literal: while "sad" also covered things going badly, a complaint about a build came out sad | [HARNESS.md](HARNESS.md) §7 |
-| 2026-09-27 | Personalities replace modes: how much Boop speaks up is its personality file's to say, chosen in Settings | Modes picked brains, and there's one brain now; a chattier or quieter Boop is a different character | [HARNESS.md](HARNESS.md) §5 |
+| 2026-09-26 | Durations and gaps arrive named (short, long, very long; right after, a while, a long break) | Keep arithmetic out of the brain: Jev read "took 45 s" as quick | [harness/EVENTS.md](harness/EVENTS.md) §5 |
+| 2026-09-26 | Each feeling's meaning rules out its neighbours ("sad" is only hurt; a failed turn is "annoyed") | Jev is literal: while "sad" also covered things going badly, a complaint about a build came out sad | [harness/DECISIONS.md](harness/DECISIONS.md) §3 |
+| 2026-09-27 | Personalities replace modes: how much Boop speaks up is its personality file's to say, chosen in Settings | Modes picked brains, and there's one brain now; a chattier or quieter Boop is a different character | [harness/DECISIONS.md](harness/DECISIONS.md) §2.2 |
 | 2026-09-26 | The new-day input and its reflection are removed; a new day only starts short-term memory fresh | Only Jev could reflect, and the if-else tables couldn't | §4, [FUTURE.md](FUTURE.md) |
 | 2026-09-27 | "Needs you" clears on the asking agent's next event or a turn-level one; the hook line keeps Claude's `agent_id` | Claude gives subagents their parent's session, so a sibling's tool call cleared a request Claude was still waiting on | [ADAPTERS.md](ADAPTERS.md) §4 |
-| 2026-09-27 | Without Jev's key, or when Jev fails or is late, Boop does only its automatic reactions; the evals fail without the key | Fine for everyday use, and an eval that can't ask Jev can't check it | [HARNESS.md](HARNESS.md) §6.4 |
-| 2026-09-27 | Two outputs: `mood(to)`, between cheerful and grumpy, at most once every 10 minutes, and `react(feeling, word)` with five feelings; `mood` and `react` are separate questions, read as Jev chose | A mood gives Boop a longer arc than single mumbles; separate questions keep each one simple, and GUIDE asks for them to agree | [HARNESS.md](HARNESS.md) §6 |
-| 2026-09-27 | One debug mode, `--debug` (`make debug`), in the menu-bar app and headless | Seeing what Boop does took four settings and two terminals, and the menu-bar app couldn't show hooks | [HARNESS.md](HARNESS.md) §8 |
+| 2026-09-27 | Without Jev's key, or when Jev fails or is late, Boop does only its automatic reactions; the evals fail without the key | Fine for everyday use, and an eval that can't ask Jev can't check it | [harness/HARNESS.md](harness/HARNESS.md) §6 |
+| 2026-09-27 | Two outputs: `mood(to)`, between cheerful and grumpy, at most once every 10 minutes, and `react(feeling, word)` with five feelings; `mood` and `react` are separate questions, read as Jev chose | A mood gives Boop a longer arc than single mumbles; separate questions keep each one simple, and GUIDE asks for them to agree | [harness/DECISIONS.md](harness/DECISIONS.md) |
+| 2026-09-27 | One debug mode, `--debug` (`make debug`), in the menu-bar app and headless | Seeing what Boop does took four settings and two terminals, and the menu-bar app couldn't show hooks | [harness/HARNESS.md](harness/HARNESS.md) §8 |
 | 2026-09-27 | The Mac app is one popover in the device's "Warm Terminal" colours; setup and settings open inside it | A setup window was jarring, and gen-2's terracotta clashed with the device's greys and needs-you amber | [UX.md](UX.md) §7 |
-| 2026-09-27 | Jev's state is plain text in five sections: GUIDE, PERSONALITY and MOOD from read-only files in `plan/steering/`, then HISTORY and NOW rendered from a typed transcript for every pass | Jev keeps no session, so everything is rebuilt each time; named sections let each question point at what it judges by, and swapping a personality or mood is swapping a file | [HARNESS.md](HARNESS.md) §4, §5 |
-| 2026-09-27 | A brain moment still waiting or playing is marked `[PENDING]` in HISTORY; base states never appear there | Events arrive seconds apart, and a second mumble would pile up behind one still playing | [HARNESS.md](HARNESS.md) §5 |
-| 2026-09-27 | A thread is named after its workspace (worktree folder or git branch), cleaned to `a-z0-9-` and 40 characters | Two agents in one project need telling apart, and an agent-chosen branch name mustn't carry words into Jev's state | [HARNESS.md](HARNESS.md) §2.2 |
+| 2026-09-27 | Jev's state is plain text in six sections: READING, generated with the lines to explain them; GUIDE, PERSONALITY and MOOD from read-only files in `plan/steering/`; then HISTORY and NOW built from a typed transcript for every pass | Jev keeps no session, so everything is rebuilt each time; named sections let each question point at what it judges by, and swapping a personality or mood is swapping a file | [harness/HARNESS.md](harness/HARNESS.md) §4, §5 |
+| 2026-09-27 | A thread is named after its workspace (worktree folder or git branch), cleaned to `a-z0-9-` and 40 characters | Two agents in one project need telling apart, and an agent-chosen branch name mustn't carry words into Jev's state | [harness/EVENTS.md](harness/EVENTS.md) §3 |

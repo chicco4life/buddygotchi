@@ -199,7 +199,7 @@ changes.
    each decision goes to TypeSafe with Boop's memory, `steering.md`, short
    lines about what just happened and what you said to Boop. Your code,
    prompts and agents' transcripts never leave the Mac
-   ([HARNESS.md](HARNESS.md) §6).
+   ([HARNESS.md](harness/HARNESS.md) §6).
 8. **Never nags, never guilts.** One chirp per request, and the Mac app
    never sends notifications. When hunger comes back, it will show only
    when you look: no sound, no notification, no interruption.
@@ -222,4 +222,4 @@ changes.
   Information only flows from your agents to Boop.
 - **Not tied to one AI.** Plain rules or a cloud model with your own key
   decide what Boop does, and Apple's on-device model writes its words
-  ([HARNESS.md](HARNESS.md) §6). It's the same creature either way.
+  ([HARNESS.md](harness/HARNESS.md) §6). It's the same creature either way.

@@ -130,7 +130,9 @@ unpushed local `main`.
 | `app/BoopKit/Core/`, `firmware/src/app/behaviour.*` | `BEHAVIORS.md` |
 | `app/Boop/`, `firmware/src/render/`, `firmware/src/app/gesture.*` | `UX.md` |
 | `app/HookWire/`, `app/BoopHook/`, `app/BoopKit/Adapters/`, `app/BoopKit/Install/` | `ADAPTERS.md` |
-| `app/BoopKit/Harness/`, `app/BoopKit/Brains/`, `app/BoopKit/Actions/`, `app/BoopKit/Core/Input.swift` | `HARNESS.md`, `steering.md` |
+| `app/BoopKit/Harness/`, `app/BoopKit/Brains/` | `harness/HARNESS.md`, `steering.md` |
+| `app/BoopKit/Core/Input.swift` (becoming `Event.swift`) | `harness/EVENTS.md` |
+| `app/BoopKit/Actions/` | `harness/DECISIONS.md`, `steering.md` |
 | `app/BoopKit/Memory/`, `app/BoopKit/App/` | `ARCHITECTURE.md` §3–4 |
 | `app/BoopKit/Voice/`, `firmware/src/voice/`, `tools/voicegen/` | `VOICE.md` |
 | `app/BoopKit/DeviceLink/`, `StateSnapshot.swift`, `firmware/src/link/`, `firmware/src/app/{device.cpp,packets.h,link_silence.h}`, `tools/boopctl_lib/` | `PROTOCOL.md` |

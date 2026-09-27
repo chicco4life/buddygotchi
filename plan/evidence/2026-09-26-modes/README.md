@@ -2,11 +2,11 @@
 
 A9 ([PLAN.md](../../PLAN.md)): three modes set how much Boop reacts and
 pick its brain ([BEHAVIORS.md](../../BEHAVIORS.md) §6,
-[HARNESS.md](../../HARNESS.md) §6). The new day's reflection went with it.
+[HARNESS.md](../../harness/HARNESS.md) §6). The new day's reflection went with it.
 What you tell Boop to remember goes where it belongs, from meanings spelled
 out for both stages: a project or session fact to today's notes, a durable
 fact about you to About you, how you like things to Preferences
-([HARNESS.md](../../HARNESS.md) §5). Rebased onto `c51c543` (main's
+([HARNESS.md](../../harness/HARNESS.md) §5). Rebased onto `c51c543` (main's
 eval-for-real-brains work); everything below ran on the rebased code.
 
 ## L0 and the deterministic evals

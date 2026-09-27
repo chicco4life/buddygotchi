@@ -13,7 +13,10 @@ with the vision.
 | [VOICE.md](VOICE.md) | The gibberish: how it's built, checked and played |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | The parts and their boundaries, what Boop keeps on disk, and the live decisions |
 | [ADAPTERS.md](ADAPTERS.md) | Hooks, the events they become, and "needs you" |
-| [HARNESS.md](HARNESS.md) | The harness and the brain's two stages: a classifier that decides, and a writer for the words |
+| [harness/HARNESS.md](harness/HARNESS.md) | The harness: how an event becomes a question for Jev and an answer becomes an action; the transcript and the state |
+| [harness/EVENTS.md](harness/EVENTS.md) | The events the core hands the harness, which wake the brain, and their lines |
+| [harness/DECISIONS.md](harness/DECISIONS.md) | What Boop decides: the steering files, the questions, how answers are read, and the actions |
+| [harness/EXAMPLE.md](harness/EXAMPLE.md) | One turn end to end: hooks, events, transcript, state, Jev's answers and what Boop does |
 | [steering.md](steering.md) | The brain's read-only instructions, bundled in the app |
 | [PROTOCOL.md](PROTOCOL.md) | The messages between the Mac and the device, over Bluetooth or USB |
 | [DEVICE.md](DEVICE.md) | The board, pins, firmware stack and bring-up |

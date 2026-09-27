@@ -167,7 +167,7 @@ where to allow it in System Settings). The next Talk clears the notice.
 
 **Privacy.** Recognition runs on the Mac, and the audio is thrown away as
 it's heard; only whether you yelled is kept. How long your words are kept,
-and what goes to TypeSafe with Jev, is in [HARNESS.md](HARNESS.md) §4 and
+and what goes to TypeSafe with Jev, is in [HARNESS.md](harness/HARNESS.md) §4 and
 §6.
 
 ## 6. Setup
@@ -195,7 +195,7 @@ and what goes to TypeSafe with Jev, is in [HARNESS.md](HARNESS.md) §4 and
    sleeps; the first agent session wakes it.
 4. The brain needs no setup. Boop starts in normal mode, which decides
    with plain rules until you add a Jev API key in Settings (§7,
-   [HARNESS.md](HARNESS.md) §6).
+   [HARNESS.md](harness/HARNESS.md) §6).
 
 ## 7. The Mac app
 
@@ -239,7 +239,7 @@ command finishes ([ADAPTERS.md](ADAPTERS.md) §4).
 | Sound | Volume, 0–10 (0 shows "Off") |
 | Agents | Claude Code and Codex, each with its state and a button (below) |
 | Device | *Name*'s body: connected over Bluetooth or USB, or still looking, with a Reconnect button that drops the link and looks again at once ([PROTOCOL.md](PROTOCOL.md) §2, "Reconnecting") |
-| Mode | Chatty, Normal or Calm, with one line on what the chosen one does ([BEHAVIORS.md](BEHAVIORS.md) §6); it takes effect at once. A line says when Apple's model can't run here, so mumbles have no word ([HARNESS.md](HARNESS.md) §6). In Normal only, the Jev API key, kept in the Keychain; its caption says that with Jev, what happens and Boop's memory go to TypeSafe with each call. A saved key is used from the next input, and saving an empty one removes it |
+| Mode | Chatty, Normal or Calm, with one line on what the chosen one does ([BEHAVIORS.md](BEHAVIORS.md) §6); it takes effect at once. A line says when Apple's model can't run here, so mumbles have no word ([HARNESS.md](harness/HARNESS.md) §6). In Normal only, the Jev API key, kept in the Keychain; its caption says that with Jev, what happens and Boop's memory go to TypeSafe with each call. A saved key is used from the next input, and saving an empty one removes it |
 | What *name* remembers | Each lasting fact you told Boop (About you and Preferences in `long-term.md`), with a button to forget it. With none yet: "Nothing yet. Tell *name* something lasting about you, like "remember I ship on Fridays", and it keeps it here." |
 
 Each agent's row in Agents:

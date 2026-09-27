@@ -75,9 +75,17 @@ example `git show v1-full:plan/BEHAVIORS.md`. Bring one back at a time.
   ([anthropics/claude-code#40495](https://github.com/anthropics/claude-code/issues/40495)).
 - **Cursor and other agents.** Each needs an adapter and a reliable "you're
   being asked" signal ([ADAPTERS.md](ADAPTERS.md) §8).
-- **A DeepSeek writer.** A cloud language model writing Boop's words in
-  place of Apple's model, with the person's own API key: a new `Writer`
-  ([HARNESS.md](HARNESS.md) §6) that, like Apple's, reads only its pass.
+- **A writer for the words.** A language model writing Boop's word in
+  place of Jev's pick, once the words stop being a fixed list (free text
+  in the bubble, or the Mac speaking for Boop). The word is its own step
+  ([harness/DECISIONS.md](harness/DECISIONS.md) §4), so a writer can fill
+  it without changing the rest.
+- **`[PENDING]` in HISTORY.** Mark a brain mumble still waiting its turn
+  or playing, so Jev doesn't pile a second one behind it. The moment's
+  fate (started with its end time, cut, dropped) would be appended to the
+  transcript by `MomentSchedule`, so the text form stays a pure function
+  of the transcript and the clock
+  ([harness/HARNESS.md](harness/HARNESS.md) §4).
 - **Mood from prompt tone.** Reading how you write to your agents. v1
   leaves prompt text out entirely.
 - **More brain inputs,** such as coming back after a long break, or a

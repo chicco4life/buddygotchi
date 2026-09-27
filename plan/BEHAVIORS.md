@@ -45,7 +45,7 @@ while something needs you (§4).
 ## 3. What happens and what Boop does
 
 The rules react at once. The brain may add a mumble a few seconds later,
-if it answers in time (§6 says for what; [HARNESS.md](HARNESS.md) §2 has
+if it answers in time (§6 says for what; [HARNESS.md](harness/HARNESS.md) §2 has
 the deadlines). A brain mumble waits for whatever is playing, and is
 dropped once it has waited 5 s ([ARCHITECTURE.md](ARCHITECTURE.md) §3.2).
 A new rule moment replaces the one playing, so turns finishing together
@@ -113,7 +113,7 @@ finishes meanwhile. When your words arrive, the brain drops what it was
 doing and answers them.
 
 **What Boop makes of it.** The if-else tables' exact phrases are in
-[HARNESS.md](HARNESS.md) §6; Jev follows [steering.md](steering.md).
+[HARNESS.md](harness/HARNESS.md) §6; Jev follows [steering.md](steering.md).
 
 - **Asked to be quiet** ("be quiet for an hour"): quiet mode for that long
   (§4). Only "quiet", "hush", "stop talking" or "keep it down", as whole
@@ -132,7 +132,7 @@ doing and answers them.
   if-else tables act only on "remember" or "note", and keep a fact that
   names someone else for today, since long-term memory keeps no one
   else's name; calling Boop by its own name doesn't count
-  ([HARNESS.md](HARNESS.md) §6). Jev may also keep a fact you
+  ([HARNESS.md](harness/HARNESS.md) §6). Jev may also keep a fact you
   just state ([steering.md](steering.md), Remembering).
 - **Anything else:** a mumble that fits.
 
@@ -199,4 +199,4 @@ are the same in every mode.
 Normal's column is exactly what its if-else table does. Jev, when normal
 has its key, is steered toward the same column ([steering.md](steering.md))
 but judges each time, so it can differ. Which brain decides in each mode
-is in [HARNESS.md](HARNESS.md) §6.
+is in [HARNESS.md](harness/HARNESS.md) §6.

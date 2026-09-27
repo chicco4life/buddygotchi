@@ -104,7 +104,7 @@ the tune (§5):
 | Sleepy | The hums, and `mu mo nu no` | 10% | 170 | `down` |
 
 `react` has ten feelings: `smug` mumbles like proud and `sulky` like sad
-([HARNESS.md](HARNESS.md) §5).
+([HARNESS.md](harness/HARNESS.md) §5).
 
 Some real lines, from `boopdev voice <feeling> [word] --seed N` with its
 default dialect: happy `done` (seed 2) *"la-la la… done!"*, curious
@@ -149,7 +149,7 @@ fixed vocabulary of 40 English words (`Sounds.vocabulary`):
   snack nap play good oh what`.
 
 The same list is the choices for `react`'s `word`, which the brain's
-writer picks ([HARNESS.md](HARNESS.md) §5), so the brain can't ask for a
+writer picks ([HARNESS.md](harness/HARNESS.md) §5), so the brain can't ask for a
 word Boop can't say, and Voice leaves out any word that isn't on it. The
 vocabulary is English everywhere: the gibberish needs no translation, and
 a stray English word is part of the charm. Adding a word means adding it

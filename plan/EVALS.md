@@ -5,7 +5,7 @@ mode, how they run, and what each one checks.
 
 ## 1. What they're for
 
-The harness ([HARNESS.md](HARNESS.md)) turns what happens at your desk
+The harness ([HARNESS.md](harness/HARNESS.md)) turns what happens at your desk
 into Boop's reactions. The evals pin that down as plain scenarios, like
 "a turn fails, so Boop mumbles, annoyed", and show what a harness change
 changed. A scenario gives events (agent turns, taps, talk, time passing)
@@ -39,7 +39,7 @@ summary, and exits 1 if any failed. For a failed step it prints the expected pas
 actual ones (`+`), with how Stage 1 got to each (the rule that matched,
 or Jev's answers) and what the writer answered. Every pass also goes to
 the run's own file in `/tmp/boop-eval`, named at the start and the end
-([HARNESS.md](HARNESS.md) §8), under a header line for each scenario's
+([HARNESS.md](harness/HARNESS.md) §8), under a header line for each scenario's
 run that `boopdev watch` prints as `=== calm  03-turn-failed.json  run 1`;
 files over a day old are cleared away.
 Here normal's lines run against the chatty table, which mumbles at a
@@ -110,7 +110,7 @@ scenario can check a cheer or working chatter: `rules → cheer`,
 `rules → mumble(feeling: curious, word: tests)`.
 
 **Events** are what reaches the core, which decides what becomes an
-input for the harness ([HARNESS.md](HARNESS.md) §2):
+input for the harness ([HARNESS.md](harness/HARNESS.md) §2):
 
 | `event` | Extra fields |
 | --- | --- |

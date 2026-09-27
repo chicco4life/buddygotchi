@@ -35,7 +35,7 @@ milestone's evidence says which ones ran.
 | C1 | Cut to 4 states and 3 animations | Done | [cut](evidence/2026-09-26-minimal-cut/README.md), [on the board](evidence/2026-09-26-e2e-hardening/README.md) |
 | A9 | Modes: chatty, normal and calm | Done; checks 16 and 17 | [evidence](evidence/2026-09-26-modes/README.md) |
 | | Overnight pass (2026-09-27): reliability, behaviour and polish across the core, brain, firmware, face, Mac app and tools | Done. The final firmware `cf6d8ae` matches the simulator on the board in all 10 scenarios, `perf --motion` passes and `make e2e` passes; the new looks still need watching in motion (check 1) | [evidence](evidence/2026-09-27-overnight/) |
-| A10 | Jev-only harness: typed events and transcript, a plain-text state, mood, `[PENDING]` ([HARNESS.md](HARNESS.md)) | Spec written; code in progress (§3, "Harness rework") | |
+| A10 | Jev-only harness: typed events and transcript, a plain-text state, mood ([harness/](harness/HARNESS.md)) | Spec written; code in progress (§3, "Harness rework") | |
 | P1 | Port to ESP-IDF + LVGL | Later (§4) | |
 
 ## 2. Owner checks
@@ -151,8 +151,8 @@ that's off becomes an open item (§3).
 Known work that isn't a milestone yet, including drift found and not
 fixed. Pick one up by writing it into its spec first.
 
-- **Harness rework (A10).** [HARNESS.md](HARNESS.md) describes the
-  Jev-only harness, and the code still runs the two-stage one. Until it
+- **Harness rework (A10).** [plan/harness/](harness/HARNESS.md) describes
+  the Jev-only harness, and the code still runs the two-stage one. Until it
   lands, these still describe the old harness and move with the code:
   `plan/steering.md` (splits into `plan/steering/`), the `steering.md`
   rule in CLAUDE.md, [ARCHITECTURE.md](ARCHITECTURE.md) §3.2–3.3 and §4
@@ -194,10 +194,10 @@ fixed. Pick one up by writing it into its spec first.
   in the if-else tables but annoyed in `steering.md`'s example, and
   "great, the build broke again" is praise. Decide whether a complaint
   row, before praise, belongs in the phrase table
-  ([HARNESS.md](HARNESS.md) §6).
+  ([HARNESS.md](harness/HARNESS.md) §6).
 - **A waiting input's deadline starts late.** An agent input held behind a
   pass for what you said gets its 5 s only when its own pass starts, so
-  its mumble can land well after the event ([HARNESS.md](HARNESS.md) §3).
+  its mumble can land well after the event ([HARNESS.md](harness/HARNESS.md) §3).
 - **Temperament and Moments never change.** Nothing writes them since the
   new day's reflection was parked. Decide whether they stay, go, or get a
   writer ([FUTURE.md](FUTURE.md), "The new day's reflection").
