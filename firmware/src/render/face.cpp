@@ -89,6 +89,12 @@ void roundCorners(Canvas& c, int x0, int y0, int x1, int y1, uint8_t color) {
   }
 }
 
+// Fills columns bx0..bx1 of rows by0..by1 with softened corners.
+void blockRect(Canvas& c, int bx0, int by0, int bx1, int by1, uint8_t color) {
+  c.fillRect(bx0 * kBlock, by0 * kBlock, (bx1 - bx0 + 1) * kBlock, (by1 - by0 + 1) * kBlock, color);
+  roundCorners(c, bx0 * kBlock, by0 * kBlock, (bx1 + 1) * kBlock - 1, (by1 + 1) * kBlock - 1, color);
+}
+
 // Where the face is drawn: its origin block (the middle between the eyes,
 // on the eye line) and its scale in permille.
 struct Frame {
@@ -153,11 +159,7 @@ void drawEye(Canvas& c, const Eye& e, uint8_t color) {
   auto part = [&](int bx0, int by0, int bx1, int by1, int least) {
     if (by0 < e.top) by0 = e.top;
     if (by1 > e.bottom) by1 = e.bottom;
-    if (by1 - by0 + 1 < least) return;
-    for (int by = by0; by <= by1; ++by) {
-      for (int bx = bx0; bx <= bx1; ++bx) block(c, bx, by, color);
-    }
-    roundCorners(c, bx0 * kBlock, by0 * kBlock, (bx1 + 1) * kBlock - 1, (by1 + 1) * kBlock - 1, color);
+    if (by1 - by0 + 1 >= least) blockRect(c, bx0, by0, bx1, by1, color);
   };
   if (!panes) return part(x0, y0, x1, y1, 1);
   part(x0, y0, e.bx - 1, e.by - 1, kPaneRows);
@@ -220,11 +222,7 @@ void drawMouth(Canvas& c, const FaceLayout& l, uint8_t color) {
   if (l.mouth == FaceLayout::kD) return shape(kD);
   if (l.mouth == FaceLayout::kO) return shape(kO);
   if (l.mouth == FaceLayout::kSmile) return shape(kSmile);
-  for (int b = mx - wb / 2; b <= mx + wb / 2; ++b) {
-    block(c, b, my - 1, color);
-    block(c, b, my, color);
-  }
-  roundCorners(c, (mx - wb / 2) * kBlock, (my - 1) * kBlock, (mx + wb / 2 + 1) * kBlock - 1, (my + 1) * kBlock - 1, color);
+  blockRect(c, mx - wb / 2, my - 1, mx + wb / 2, my, color);
 }
 
 // The cheeks: two small pink blocks side by side under an eye, towards the
@@ -234,10 +232,7 @@ void drawBlush(Canvas& c, const Eye& e, int bw, int bh) {
   int bx0 = e.blushX - bw, by0 = e.blushY - bh / 2;
   for (int k = 0; k < 2; ++k) {
     int sx = bx0 + k * (bw + 1);
-    for (int bx = sx; bx < sx + bw; ++bx) {
-      for (int by = by0; by < by0 + bh; ++by) block(c, bx, by, pink);
-    }
-    roundCorners(c, sx * kBlock, by0 * kBlock, (sx + bw) * kBlock - 1, (by0 + bh) * kBlock - 1, pink);
+    blockRect(c, sx, by0, sx + bw - 1, by0 + bh - 1, pink);
   }
 }
 
