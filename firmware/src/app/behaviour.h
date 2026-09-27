@@ -170,6 +170,7 @@ class Behaviour {
   void startLife(uint32_t t, Rng& rng);
   uint32_t lifeGap(Rng& rng) const;
   bool momentOn(uint32_t t) const;
+  bool listening(uint32_t t) const;  // `listening` is playing
   uint8_t blTarget(uint32_t t) const;  // the level the state asks for at t
   bool sayOn(uint32_t t) const;
   Source sourceAt(uint32_t t) const;

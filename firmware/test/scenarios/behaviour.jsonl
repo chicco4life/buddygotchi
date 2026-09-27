@@ -22,6 +22,10 @@
 {"clock":3500}
 {"expect":{"moment":{"anim":"listening","left_ms":8000},"last_input":{"k":"talk_off","at":3500}}}
 {"t":"state","v":1,"base":"idle","busy":0,"idle":1,"wait":0}
+// A cheer meanwhile doesn't replace it.
+{"clock":4000}
+{"t":"moment","anim":"cheer","ttl":5}
+{"expect":{"moment":{"anim":"listening","left_ms":7500}}}
 {"clock":11499}
 {"expect":{"moment":{"anim":"listening","left_ms":1}}}
 {"clock":11500}

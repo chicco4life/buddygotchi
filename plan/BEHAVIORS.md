@@ -96,7 +96,10 @@ and click Send ([UX.md](UX.md) §5 has the indicators and permissions).
 2. The mic goes off when you let go or click Send, after 30 s, or if the
    link drops while BOOT is held. What it heard still goes to Boop.
 3. `listening` waits for the reply, at most 8 s after the mic goes off.
-   The reply is a mumble, which ends it and plays over the face.
+   The reply is a mumble, which ends it and plays over the face. Until
+   then no other animation replaces it: a cheer that arrives is skipped,
+   a tap shows only the press squash, and a mumble that comes with a
+   cheer still counts as the reply.
 4. If Boop won't reply (you asked for quiet, told it off in calm, quiet
    mode is on, something needs you, or the pass failed), or the mic heard
    nothing, the Mac ends `listening` at once with an empty `moment`

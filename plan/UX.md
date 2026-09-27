@@ -128,7 +128,7 @@ a firm press ([DEVICE.md](DEVICE.md) §1). Neither affects your agents.
 
 | Input | Does |
 | --- | --- |
-| Tap BOOT (under 400 ms), or touch the screen anywhere | Boop it: `wiggle`, or only the press squash while something needs you. Poking it over and over annoys it ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
+| Tap BOOT (under 400 ms), or touch the screen anywhere | Boop it: `wiggle`, or only the press squash while something needs you or `listening` waits for the reply. Poking it over and over annoys it ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
 | Hold BOOT (400 ms or more) | Push-to-talk until you let go (§5) |
 
 Every press and touch squashes the face a little at once, before the Mac

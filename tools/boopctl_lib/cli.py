@@ -570,6 +570,10 @@ def cmd_play(args: argparse.Namespace) -> int:
     with Device(args.port) as dev:
         show_begin(dev)
         show_state(dev, args.vol, base=args.base)
+        if args.what != "listening":
+            # The empty moment first: no other animation replaces a
+            # listening left playing (BEHAVIORS.md §3.3).
+            dev.send({"t": "moment", "ttl": 5})
         msg = {"t": "moment", "anim": args.what, "ttl": 5}
         if args.say:
             msg["say"] = boopdev_voice(args.say, args.word, 1, args.seed)[0]
