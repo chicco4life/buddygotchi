@@ -326,7 +326,7 @@ public struct Eval: Sendable {
                     home.sync { pending.store.apply(effect) }
                 case .moment, .mumble:
                     if scenario.rules, let line = Eval.describe(effect) { out.append(.rule(line)) }
-                case .state, .listen, .endListening:
+                case .state, .listen, .endListening, .event:
                     break
                 }
             }

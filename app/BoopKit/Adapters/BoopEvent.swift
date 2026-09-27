@@ -52,6 +52,8 @@ public struct BoopEvent: Equatable, Sendable {
         public var toolError: String?
         /// The tool call's ID, pairing its `PreToolUse` with its result.
         public var toolUseID: String?
+        /// The tool call has finished: `PostToolUse` or `PostToolUseFailure`.
+        public var done = false
 
         public init(tool: String? = nil, topic: String? = nil, error: String? = nil, failed: Bool? = nil,
                     toolError: String? = nil, toolUseID: String? = nil) {

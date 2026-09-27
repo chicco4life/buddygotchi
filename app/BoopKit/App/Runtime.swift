@@ -379,6 +379,8 @@ public final class Runtime: @unchecked Sendable {
                 harness.submit(input)
             case .aside(let line):
                 harness.note(line, at: options.clock())
+            case .event:
+                break  // The new harness takes these (harness/HARNESS.md); not wired yet.
             case .happened, .newDay:
                 memory.apply(effect)
             case .listen(let on):

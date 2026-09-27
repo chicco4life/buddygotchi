@@ -51,7 +51,7 @@ cleaning keeps it a name.
 
 | Kind | Facts, shown | Facts, hidden | Wakes the brain |
 | --- | --- | --- | --- |
-| **Turn start** (`turn_start`) | The thread; `resumed` (the session was resumed), `gap` since this thread's last turn | — | Always |
+| **Turn start** (`turn_start`) | The thread; `gap` since this thread's last turn | — | Always |
 | **Turn end** (`turn_end`) | The thread; `outcome`: `done`, `failed` or `stopped`; `error` class when failed; `length`; `tools` and `tools_failed` (counts for the turn); `topics`: each topic's last state this turn; `comeback`: a topic that passed after failing this turn, if one did | `length_ms` | Always |
 | **Tool use** (`tool_use`) | The thread; `tool` category; `topic`; `result`: `ok`, `failed` or `unknown`; `error` class when failed; `took`; `failed_before`: failures in a row of this topic in this thread just before this one | `tool_name`, `tool_use_id`, `took_ms` | Always. With the personality's `tool_uses: notable` (the default), only a tool use with a topic that failed, or passed after at least one failure, becomes an event, and the core keeps the rest to itself and only counts them; with `all`, every tool use does ([DECISIONS.md](DECISIONS.md) §2.2) |
 | **Pokes** (`pokes`) | `count`, `seconds` (the window they came in), `since_last` streak | — | As [BEHAVIORS.md](../BEHAVIORS.md) §3.3 allows a poke streak |
@@ -133,7 +133,7 @@ One template per kind, each with a test:
 
 | Kind | Line |
 | --- | --- |
-| Turn start | `claude started turn 7 on "agent-work-visibility" (buddygotchi), right after its last one.` The project is left out when it's the name; `, resumed` is added for a resumed session |
+| Turn start | `claude started turn 7 on "agent-work-visibility" (buddygotchi), right after its last one.` The project is left out when it's the name; the gap is `, right after its last one`, `, a while after its last one` or `, after a long break`, and left out for a thread's first turn |
 | Turn end | `claude finished turn 7 on "…": done after 18 min, a very long turn, 41 tools (6 failed). Tests passing, build passing. A comeback on tests.` `failed (rate limit)` or `stopped` in place of `done` |
 | Tool use | `claude's tests failed on "…".`, `… failed again on "…", 3 in a row.`, `… passed on "…" after 3 failures in a row.` An error other than `exit_code` is added in brackets (`(timed out)`). A routine one, with `tool_uses: all`, by category: `claude ran a command on "…".`, `claude edited a file on "…".`, `claude read a file on "…".`, `claude searched on "…".`, `claude looked something up on the web on "…".`, `claude started a subagent on "…".`, `claude used a tool on "…".` (mcp and other), each ending ` It failed.` when it did |
 | Pokes | `You poked Boop 5 times in 3 s, again a while after the last time.` |

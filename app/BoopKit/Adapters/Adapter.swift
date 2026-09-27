@@ -71,6 +71,7 @@ public enum Adapter {
             detail.tool = line.tool
             detail.toolUseID = line.toolUseID
             detail.topic = kind == .activity ? line.topic : nil
+            detail.done = kind == .activity && (line.hook == "PostToolUse" || line.hook == "PostToolUseFailure")
             if agent == .claudeCode && !line.interrupt {
                 switch line.hook {
                 case "PostToolUse": detail.failed = false

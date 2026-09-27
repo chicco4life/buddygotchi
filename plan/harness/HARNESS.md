@@ -227,7 +227,7 @@ enum Body {
 As `debug.jsonl` holds them (facts abridged with `…`):
 
 ```jsonl
-{"seq":1,"received_at_ms":1790000000000,"event":{"kind":"turn_start","line":"claude started turn 7 on \"agent-work-visibility\" (buddygotchi), right after its last one.","reaction":null,"wakes_brain":true,"facts":{"thread":{"name":"agent-work-visibility","agent":"claude","turn":7,…},"resumed":false,"gap":"right after"}}}
+{"seq":1,"received_at_ms":1790000000000,"event":{"kind":"turn_start","line":"claude started turn 7 on \"agent-work-visibility\" (buddygotchi), right after its last one.","reaction":null,"wakes_brain":true,"facts":{"thread":{"name":"agent-work-visibility","agent":"claude","turn":7,…},"gap":"right after"}}}
 {"seq":2,"received_at_ms":1790000000210,"pass":{"for":1,"answers":{…},"dropped":null,"latency_ms":210}}
 {"seq":3,"received_at_ms":1790000540000,"event":{"kind":"tool_use","line":"claude's tests failed again on \"agent-work-visibility\", 2 in a row.","reaction":null,"wakes_brain":true,"facts":{"tool":"shell","topic":"tests","result":"failed","failed_before":1,…}}}
 {"seq":4,"received_at_ms":1790000540230,"pass":{"for":3,"answers":{…},"dropped":null,"latency_ms":230}}
