@@ -1,7 +1,8 @@
 # Boop: vision
 
-Updated 2026-09-27. Why Boop exists, who it's for, what v1 does, where it's
-headed, and the promises it keeps.
+Updated 2026-09-27. Why Boop exists, who it's for, what v1 does, and the
+promises it keeps. How it all works is in the other specs
+([README.md](README.md)).
 
 ## The short version
 
@@ -12,23 +13,23 @@ anyone else's and recognisably yours.
 
 It also happens to keep an eye on your AI agents. When you run three Claude
 sessions and two Codex threads at once, Boop watches them for you. It
-mumbles along while they work, perks up when one needs your approval on
-the Mac, and cheers when something finishes.
+naps while no agent is open, works along at a little keyboard while they
+do, mutters now and then, lights up amber and chirps once when one needs
+your approval on the Mac, and cheers when a turn finishes.
 
 The order matters. **The personality is the product.** Status and nudges
 are table stakes; Anthropic already open-sourced a desk buddy that does
 those. People will buy Boop for the useful parts, but they keep it, and
 get attached to it, because of who it is.
 
-## Who it is for
+## Who it's for
 
-Super individuals: engineers, founders, creators, PMs and designers who run
-Claude Cowork, Claude Code and Codex heavily and in parallel. Most are
-33–42, design-literate, and already have too many things beeping at them.
-They don't want another dashboard, a gamified toy, or something that makes
-them feel watched. They want a bit of company during long stretches of
-solo work, and to see at a glance which agent needs them, deal with it and
-get back to what they were doing.
+People who run Claude Code and Codex heavily and in parallel: engineers,
+founders, creators, PMs and designers. They already have too many things
+beeping at them, and don't want another dashboard, a gamified toy, or
+something that makes them feel watched. They want a bit of company during
+long stretches of solo work, and to see at a glance which agent needs
+them, deal with it and get back to what they were doing.
 
 ## Personality first
 
@@ -40,112 +41,81 @@ but how Boop reacts to it is a question of character.
 
 - **Grown, not chosen.** At setup you name it and answer one question:
   sweet or cheeky? Its voice gets a dialect of its own from a random seed
-  ([VOICE.md](VOICE.md) §3). There is no menu of traits; the rest is meant
-  to come from living with you. In v1 your answer is kept in Boop's
-  memory, and nothing uses it yet.
+  ([VOICE.md](VOICE.md) §3). There is no menu of traits. In v1 your answer
+  is kept, and nothing uses it yet.
 - **Lasting.** Boop lives on your Mac, and the device is just its body.
   Reflash the device or replace it, and it's still the same Boop.
 - **Shown, never told.** Its feelings come out in how it moves, looks and
-  sounds. You never see a mood meter, a trait score, or a line saying
-  "I've noticed you seem stressed."
+  sounds: seven moods, each with its own face. You never see a mood meter,
+  a trait score, or a line saying "I've noticed you seem stressed."
 - **Sassy about the world, kind to you.** It grumbles at a failed test or a
   stubborn agent, never at you. It never guilt-trips you, never dies of
-  neglect, and never pesters you to come back. Its feelings about you pass
-  in seconds.
+  neglect, and never pesters you to come back.
 
-## It does not talk like a human
+## It doesn't talk like a human
 
-Boop speaks minion: a stream of gibberish syllables, like the Minions from
+Boop speaks Minion: a stream of gibberish syllables, like the Minions from
 the films, that nobody is meant to understand. At most one real English
 word slips through, and it fits what's happening right now, such as
-*"…tests?"*, *"…done!"* or *"…ugh."* When you talk to it, it mumbles back
-the same way; it doesn't answer questions or explain itself.
+*"…tests?"*, *"…finally!"* or *"…ugh."*
 
-This is deliberate. Boop is a creature. The moment it speaks in full
-sentences, people judge it as a chatbot, and it loses that comparison,
-while a pet that half-speaks can be charming. One word lands
-better than a sentence: tone carries the feeling and the word the context,
-which is all a glance from across the desk can take in. And it keeps Boop
-fast, private and cheap, since nothing has to write polished language in
-real time.
-
-## How it should feel
-
-You sit down and Boop is asleep, eyes shut, a little Z by its head,
-breathing slowly. You open Claude Code and it wakes. You kick off a
-refactor, and a test run in Codex, and Boop gets to work with you: a
-focused look over a little keyboard, keys tapping. Every few minutes it mutters to
-itself, *"mi-ne? po… tests?"*, and you only half-notice. Nobody expects
-you to follow it. It's like a colleague humming.
-
-Twenty minutes in, Codex wants to run a shell command. Boop's light goes
-amber, it leans towards you with an amber sign and one little chirp, and
-its strip says *codex · landing*. It won't chirp again. When you get to it, you
-approve in Codex, and Boop sees the agent carry on and goes back to work.
-
-The refactor finishes. Boop hops, beams, a heart pops up, and it mumbles
-something proud. Then Claude wraps up a fix with the tests still failing:
-no cheer this time, just an annoyed mumble at the agent, *"tu-ka… tests."*
-
-Later, once you can talk to it ([FUTURE.md](FUTURE.md)), you snap
-"shut up" and Boop mumbles something small and sad, and carries on. Poke
-it again and again and it grumbles, *"…nope!"*, and a moment later it has forgotten
-all about it.
+This is deliberate. The moment a creature speaks in full sentences,
+people judge it as a chatbot, and it loses that comparison, while a pet
+that half-speaks can be charming. Tone carries the feeling and the one
+word the context, which is all a glance from across the desk can take in.
+And it keeps Boop fast, private and cheap, since nothing has to write
+polished language in real time ([VOICE.md](VOICE.md)).
 
 ## Hero moments
 
 Four moments show who Boop is. Each has one clear cause and one clear
 feeling, so it reads from across the desk, in a demo or in a ten-second
-clip. How each works is in [BEHAVIORS.md](BEHAVIORS.md) §3 and §6, and the
-harness evals check the brain's part ([EVALS.md](EVALS.md) §5).
+clip. How each works is in [BEHAVIORS.md](BEHAVIORS.md) §3, and the
+harness evals check the brain's part ([EVALS.md](EVALS.md)).
 
-1. **A turn finishes, and it cheers for you.** Three hops, a happy squint
-   and a beating heart, and maybe a proud mumble.
-2. **A turn fails, and it's annoyed for you.** No cheer, just an annoyed
-   mumble that names what broke, *"…tests."*, or *"…ugh."* when there's
-   nothing to name.
-3. **Yell at it, and it's sad.** Snap at it or tell it off, and it mumbles
-   something small and sad. This one waits for talking to Boop to come
-   back ([FUTURE.md](FUTURE.md)); for now there's no mic.
-4. **Poke it too much, and it grumbles.** One poke gets a happy wiggle and a
-   heart. Keep poking and it grumbles (*"…nope!"*), and a few seconds
-   later it has forgotten all about it.
+1. **A turn finishes, and it cheers for you,** and maybe mumbles
+   something proud.
+2. **A turn fails, and it's annoyed for you.** No cheer, maybe an annoyed
+   mumble that names what broke, *"…tests."*
+3. **Yell at it, and it's sad.** This one waits for talking to Boop to
+   come back ([FUTURE.md](FUTURE.md)); v1 has no mic.
+4. **Poke it too much, and it grumbles.** One poke gets a happy wiggle and
+   a heart. Keep poking and it may grumble (*"…nope!"*), then forget all
+   about it.
 
 ## Scope
 
-### What v1 does
+**What v1 does:**
 
 - **Watches every agent at once.** Claude Code and Codex sessions show up
   in one place: the device's strip counts those working and those that
   need you, and the Mac app lists them all.
-- **Tells you when you're needed.** An amber light, one chirp, and the
-  agent and project in the bubble. You answer on the Mac, in the agent's
-  own prompt.
-- **Reacts like a creature.** A face that sleeps, idles, works and looks
-  at you, mumbles while agents work, and the hero moments above.
-- **Has a personality and moods.** Two personalities: Boop, its everyday
-  self, and Chatter, an over-the-top one for debugging
-  ([BEHAVIORS.md](BEHAVIORS.md) §6). Seven moods, from happy to sad, each
-  with its own face. The mood sours when things keep failing and lifts
-  when they work, and it can change whenever the brain decides
-  ([harness/DECISIONS.md](harness/DECISIONS.md) §2.3).
+- **Tells you when you're needed.** An amber light, an amber sign, one
+  chirp, and the agent and project in the strip. You answer on the Mac,
+  in the agent's own prompt ([BEHAVIORS.md](BEHAVIORS.md) §3.2).
+- **Reacts like a creature.** Four states (asleep, idle, working, needs
+  you), a cheer for every finished turn, a wiggle for every tap, and
+  mumbles while agents work ([BEHAVIORS.md](BEHAVIORS.md)).
+- **Has a personality and moods.** Two personalities: `boop`, its
+  everyday self, and `chatter`, an over-the-top one for debugging. Seven
+  moods, from happy to sad, each with its own face. With your own
+  TypeSafe Jev key, Jev picks the mood and adds mumbles with character;
+  without one, Boop does only its rule reactions
+  ([harness/HARNESS.md](harness/HARNESS.md)).
 
 Its name, its sweet or cheeky nature and its voice are set when it
-hatches. Nothing else about its character changes in v1.
-
-### Where Boop is headed
-
-A character that grows with you, gentler nudges, a private record and
+hatches. Nothing else about its character grows in v1. A character that
+grows with you, talking to Boop, gentler nudges, a private record and
 more are parked in [FUTURE.md](FUTURE.md), to come back one at a time.
 
 ## Look
 
 "Warm Terminal": an oat matte body, a black glass face and one amber
 accent. The face is pixel art, two window eyes with pink cheeks and a
-small mouth, in a design for each mood ([UX.md](UX.md) §2), and it blinks
-from one to the next. It should look like an object an adult is happy to have on their
-desk, not like a toy. v1 has the face and the colours, on the board's
-screen and in the Mac app; the body comes later.
+small mouth, in a design for each mood and state, and it blinks from one
+to the next ([UX.md](UX.md) §2). It should look like an object an adult is
+happy to have on their desk, not like a toy. v1 has the face and the
+colours, on the board's screen and in the Mac app; the body comes later.
 
 ## Promises
 
@@ -163,30 +133,29 @@ changes.
    of Claude asking, and 2 s after Codex asks, since Codex's own reviewer
    may approve first ([ADAPTERS.md](ADAPTERS.md) §4). The brain adds
    colour and is never in that path.
-5. **Boop never approves anything.** It only tells you, so it can never let
-   an agent do something you didn't agree to. Approving happens on the
-   Mac.
+5. **Boop never approves anything.** Its hooks only report, so it can
+   never let an agent do something you didn't agree to. Approving happens
+   on the Mac.
 6. **No reset button.** Boop lives in files on your Mac, not in the device
-   or the model, and it belongs to you. In v1 it keeps only its name, its
-   nature, its voice's seed and when today started
+   or the model, and it belongs to you. In v1 it keeps its name, nature,
+   voice seed, mood and which day it last saw
    ([ARCHITECTURE.md](ARCHITECTURE.md) §4).
 7. **Private by construction.** There is no camera, no mic and no wake
-   word. Nothing logs your keystrokes. Boop's memory lives on your Mac, and
-   without an API key everything runs there. With a Jev key, each
-   decision goes to TypeSafe with Boop's steering (its guide, personality
-   and mood) and short lines about what just happened. Your code,
-   prompts, agents' transcripts and what you say never leave the Mac
-   ([harness/HARNESS.md](harness/HARNESS.md) §5).
+   word. Boop's memory lives on your Mac, and without a Jev key everything
+   runs there. With one, each decision goes to TypeSafe with Boop's
+   steering (its guide, personality and mood) and short lines about what
+   just happened: which agent, which project or worktree, how a turn or a
+   test run went. Your code, prompts and agents' transcripts never leave
+   the Mac ([harness/EVENTS.md](harness/EVENTS.md) §9).
 8. **Never nags, never guilts.** One chirp per request, and the Mac app
    never sends notifications.
-9. **No leaderboards.** Stats stay private unless you choose to share them.
+9. **No leaderboards.** Nothing about you is ranked or shared.
 10. **It's your pet, not a brand mascot.** Boop is never branded as Claude
     or Codex. You name it.
-11. **It changes only in a release, as far as we control it.**
-    The steering files and the voice ship with the app. The model isn't
-    pinned yet (Jev is TypeSafe's latest), so Boop's choices and words can
-    shift a little when it changes.
-    Pinning them is the goal.
+11. **It changes only in a release, as far as we control it.** The
+    steering files and the voice ship with the app. The model isn't
+    pinned yet (Jev is TypeSafe's latest), so Boop's choices can shift a
+    little when it changes. Pinning it is the goal.
 
 ## What it is not
 
@@ -196,7 +165,6 @@ changes.
   creature is the interface.
 - **Not an agent.** It doesn't run tasks, spend money or act for you.
   Information only flows from your agents to Boop.
-- **Not tied to one AI.** Plain rules give every immediate reaction. With
-  your own key, TypeSafe's Jev adds the rest: its moods and its mumbles
-  ([HARNESS.md](harness/HARNESS.md) §7). Without one, Boop is still the
-  same creature, just quieter.
+- **Not tied to one AI.** Plain rules give every immediate reaction; Jev
+  only adds character. Without it, Boop is still the same creature, just
+  quieter.

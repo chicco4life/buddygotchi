@@ -1,334 +1,248 @@
 # Boop: the harness
 
-Updated 2026-09-27. The generic machinery between the core and the brain:
-how an event becomes a question for Jev, and how Jev's answers become
-something Boop does. What the events are is in [EVENTS.md](EVENTS.md);
-what Boop decides, and how, is in [DECISIONS.md](DECISIONS.md); and
-[EXAMPLE.md](EXAMPLE.md) follows one turn through all of it. This file
-names neither events nor decisions.
-
-Talking to Boop and memory writes are out of this version and come back later
-([FUTURE.md](../FUTURE.md)).
+Updated 2026-09-27. The generic code between the core and the brain: how
+an event becomes questions for Jev, and how Jev's answers become
+something Boop does. The events are in [EVENTS.md](EVENTS.md), Boop's
+questions and actions in [DECISIONS.md](DECISIONS.md), and
+[EXAMPLE.md](EXAMPLE.md) follows one real pass through all of it.
 
 ## 1. What this is
 
 Boop has one brain, TypeSafe's **Jev** ([docs](https://docs.typesafe.ai/api)).
-Jev doesn't write text: it reads a state and answers multiple-choice
-questions with probabilities, all in one request of about 0.2–0.3 s. The
-**harness** is the small, generic code around it. It knows three
-contracts and nothing else:
+Jev doesn't write text. It reads a plain-text state and answers
+multiple-choice questions, giving every option a probability, all in one
+request of about 0.2–0.3 s. The **harness** is the small, generic code
+around it. It knows three contracts and nothing else:
 
 | Contract | Between | Shape |
 | --- | --- | --- |
-| **Events** (§3) | The core → the harness | What happened: a line of text, whether it wakes the brain, and what Boop already did about it by rule |
-| **Actions** (§4) | The harness ↔ each action | The action's questions go out; Jev's answers to them come in; an `(ok, message)` result comes back |
-| **The brain** (§7) | The harness ↔ Jev | `answer(state, questions, deadline)`: Jev in the app, a scripted brain in tests |
+| **Event** (§3) | The core → the harness | What happened, as a line of text; what Boop already did about it by rule; whether it wakes the brain |
+| **Action** (§4) | The harness ↔ each action | The action's questions go out, Jev's answers to them come back in, and the action reports `(ok, message)` |
+| **Brain** (§7) | The harness ↔ Jev | `answer(state, questions, deadline) → Answers` |
 
-The harness never reads an event's facts or an action's answers, builds
-Minion speech, writes a file or talks to the device
-([ARCHITECTURE.md](../ARCHITECTURE.md) §3.4). The brain is never on the
-event path: the core has already reacted by rule before the harness sees
-an event.
+The harness never reads an event's facts or an action's answers, never
+builds Minion speech, writes a file or talks to the device. The brain is
+never on the event path: by the time the harness sees an event, the core
+has already reacted by rule.
 
-## 2. Architecture
+## 2. Data flow
+
+Everything but the brain call runs on `home`, the runtime's one serial
+queue.
 
 ```
- agent hooks, taps
-     │
-     ▼
- ┌──────────── Core (plain rules) ─────────────┐
- │ hook ─► facts ─► Event ─► rule reaction ────────────────────────────► device
- └──────────────────┬──────────────────────────┘             (state, cheer, wiggle)
-                    │ Event { line, reaction, wakesBrain, facts }
-                    ▼
- ┌─────────────────────────────── Harness ──────────────────────────────────────┐
- │                                                                              │
- │  Transcript (typed, append-only) ◄─────────────── record ──────────────┐     │
- │    event · pass · action                                               │     │
- │        │                                                               │     │
- │        │ build (§5.3)                                                  │     │
- │        ▼                                                               │     │
- │  State text                                                            │     │
- │    static    guide · PERSONALITY · MOOD    ◄── plan/steering/          │     │
- │              (the guide ends with how to read the rest, generated)     │     │
- │    built     HISTORY · NOW                 ◄── transcript, status line │     │
- │        │                                                               │     │
- │        │              Questions ◄── every action's questions()         │     │
- │        ▼                  │                                            │     │
- │  Brain.answer(state, questions, deadline) ◄────────► Jev               │     │
- │        │                                                               │     │
- │        ▼ each action's own answers                                     │     │
- │  Action.run(answers) ─────────► ActionResult { ok, message } ──────────┘     │
- │        │                                                                     │
- └────────┼─────────────────────────────────────────────────────────────────────┘
-          ▼
-   whatever the action's body does: the mood file, MomentSchedule ─► device
+ agent hooks ─► adapters ─► Core ◄── device taps, 1 s ticks
+                             │
+   rule effects ◄────────────┤ CoreEffect.event(Event)
+   (state, cheer,            ▼
+    chatter)          Harness.take(event)
+        │               ├─ append an `event` entry ──────────► Transcript ─► debug.jsonl
+        │               ├─ wakes the brain, and there is one? no ─► stop here
+        │               └─ a pass running? yes ─► it waits (a newer one replaces it)
+        │                    │ no
+        │                    ▼
+        │             prepare: the state (§5.3, §6) + every action's questions
+        │                    ▼                                        off `home`
+        │             Brain.answer(state, questions, 1.25 s) ─────► Jev (§7)
+        │                    ▼                                        back on `home`
+        │             append a `pass` entry: the answers, or why it was dropped
+        │                    ▼ not dropped
+        │             each action in order: run(its own answers) → an `action` entry
+        │                 mood  ─► `mood` file ─► Core.setMood ─► next `state`
+        │                 react ─► Voice line ─► MomentSchedule (waits its turn)
+        ▼                    ▼
+   Device link ◄─────────────┘
 ```
+
+What the picture leaves out:
+
+- A waiting event that a newer one replaces keeps its entry, so later
+  passes still see it in HISTORY. The app log says
+  `harness: turn_start replaced by a newer tool_use`.
+- The state and the questions are fixed when a pass starts, so a mood
+  that changes meanwhile doesn't change what it sent.
+- After every pass, dropped ones included, the runtime hears of it
+  (`onRecord`) and writes its app log line (§9). Then the waiting
+  event's pass starts.
+
+**The harness's states:**
+
+| State | A waking event arrives | The pass finishes |
+| --- | --- | --- |
+| Idle | Its pass starts | — |
+| Running | It waits | Back to idle |
+| Running, one waiting | It replaces the waiting one | The waiting one's pass starts |
+| No brain | It's recorded, and no pass runs | — |
+
+`use(brain)` swaps the brain from the next pass on; the runtime sets it
+once Jev's key is read, or to none (§7).
 
 ## 3. Events: the input contract
 
-The core hands the harness one shape for everything that happens, whatever
-its kind. It writes the line when it builds the event, from facts it has
-already worked out, so the harness only places it.
+The core hands over one shape for everything that happens
+(`app/BoopKit/Core/Event.swift`):
 
 ```swift
 struct Event {
-    let kind: String            // "turn_end", "tool_use", "tap", …
-    let receivedAtMs: Int64     // when the app received it
-    let line: String            // what happened, as HISTORY and NOW show it
-    let reaction: String?       // what Boop already did by rule, as its line:
-                                // "Boop cheered on its own." (nil: nothing)
-    let wakesBrain: Bool        // opens a pass; false: recorded and shown only
-    let about: String?          // the thread it's about, opaque to the harness
-    let facts: [String: JSONValue]
-                                // the kind's own fields, for logs and evals;
-                                // the harness never reads them
+    var kind: Kind                 // turn_start, turn_end, tool_use, pokes, heartbeat, tap, needs_you
+    var receivedAtMs: Int64        // when the app got it, on its steady clock
+    var line: String               // what happened, as HISTORY and NOW show it
+    var reaction: String?          // what Boop already did by rule, as its line; nil for nothing
+    var wakesBrain: Bool           // opens a pass; false: recorded and shown only
+    var about: String?             // the thread it's about, opaque to the harness
+    var facts: [String: JSONValue] // the kind's own fields, for logs and evals only
 }
 ```
 
-- **The line is final.** It's written in the words the guide explains
-  (§6.1), from the facts shown to Jev only; hidden facts (IDs, raw
-  durations) never reach it. The harness adds the time in front and
-  nothing else.
-- **The reaction** is the rule's, decided at the same moment as the event,
-  so it travels with it rather than as an entry of its own.
-- **Everything handed over is shown.** The core keeps its own
-  bookkeeping (a routine tool use, a session starting) to itself, and it
-  only reaches the brain as counts in other lines.
-- **`wakesBrain`** is the core's call, gates included (something needs
-  you, no key). An event that doesn't wake it, like a tap,
-  still gets its line in HISTORY, so the next pass knows it happened.
-- **The status line.** The core also gives the harness one line of live
-  state for the end of HISTORY, the threads working now but NOW's,
-  through `status(excluding: about) -> String`, and how far back the
-  oldest working turn began. The harness asks when it builds a state,
-  hands back NOW's `about` without reading it, and keeps neither.
-
-What each kind carries, its line and when it wakes the brain are in
-[EVENTS.md](EVENTS.md).
+- **The line is final.** The core writes it; the harness only adds the
+  time in front.
+- **The reaction travels with its event,** since the rule decided it at
+  the same moment, and is never an entry of its own.
+- **`wakesBrain` is the core's call,** gates included
+  ([EVENTS.md](EVENTS.md) §6). An event that doesn't wake the brain still
+  gets its line in HISTORY, so the next pass knows it happened.
+- **`about`** goes back to the core, unread, when the state is built:
+  the status line at the end of HISTORY lists every thread working now
+  except NOW's.
+- **`facts`** go to `debug.jsonl` and the evals. The harness never reads
+  them.
 
 ## 4. Actions: the output contract
 
-An action is something Boop can do. It declares the questions it needs;
-the harness asks them, hands it Jev's answers, and records what it
-reports. The body can call anything.
+An action is something Boop can do when the brain wakes
+(`app/BoopKit/Harness/Contracts.swift`):
 
 ```swift
-protocol Action {
-    var name: String { get }                       // "react"
-    /// Asked on every pass. Built fresh, so they can depend on live state
-    /// (the mood question knows the current mood).
-    func questions() -> [Question]
-    /// Jev's answers to this action's own questions. Returns nil when they
-    /// mean "do nothing".
-    func run(_ answers: Answers) -> ActionResult?   // on the harness's queue
+protocol Action: AnyObject {
+    var name: String { get }                     // "react"
+    func questions() -> [Question]               // asked on every pass, built fresh each time
+    func run(_ answers: Answers) -> ActionResult? // its own answers; nil means "did nothing"
 }
 
-struct Question {
-    let key: String                                // "react"; unique across all actions
-    let text: String                               // "How should Boop react to NOW, if at all?"
-    let about: String                              // "the NOW section"
-    let judgeBy: String                            // "the PERSONALITY and MOOD sections, …"
-    let options: [Option]
-}
-
-struct Option {
-    let name: String                               // "annoyed"
-    let what: String                               // its meaning: Jev's criterion
-    let notFor: String?                            // what it isn't, when two are easily confused
-}
-
-struct Answer {
-    let choice: String                             // Jev's pick
-    let probabilities: [String: Double]            // every option's
-}
-
-typealias Answers = [String: Answer]               // by question key
-
-struct ActionResult {
-    let ok: Bool                                   // success or failure
-    let message: String                            // ok: its line in HISTORY ("Boop mumbled, annoyed: "…again!"")
-                                                   // not ok: why ("something needs you")
-}
+struct Question { key, text, about, judgeBy: String; options: [Option] }
+struct Option   { name, what: String; notFor: String? }   // `what` is Jev's criterion
+struct Answer   { choice: String; probabilities: [String: Double] }
+typealias Answers = [String: Answer]                        // by question key
+struct ActionResult { ok: Bool; message: String }           // ok: its line in HISTORY; not ok: why
 ```
 
 **What the harness guarantees an action:**
 
-- Its questions are asked in the same request as every other action's.
-- It gets the answers to its own questions only, and all of them.
-- Actions run one at a time, in the order they're registered, on the
-  harness's queue. A body with slow work (a mumble that plays for
-  seconds) hands it off and returns at once; one that takes more than
-  **300 ms** is logged, since it holds up everything behind it.
-- A result is recorded as an `action` entry (§5); `nil` records nothing.
+- Its questions go in the same request as every other action's. Keys are
+  unique across all actions; the harness won't start otherwise.
+- It gets the answers to its own questions and no others. From Jev
+  that's all of them, since an answer missing one is dropped whole (§7).
+- Actions run one at a time, in registration order, on `home`. A body
+  with slow work hands it off and returns at once. One that takes over
+  **300 ms** (`Harness.actionSlowMs`) is logged, since it holds up
+  everything behind it.
+- A result becomes an `action` entry; `nil` records nothing.
 - A successful result's message becomes its line in HISTORY, indented
   under the event it answered. A failed one is logged but never shown to
-  Jev, since Boop didn't do anything.
+  Jev, because Boop didn't do anything.
 
-**What an action owns:** its questions and their wording, how it reads its
+**An action owns** its questions and their wording, how it reads its
 answers (which choice means "do nothing", any probability floor), its own
 rules, its dependencies (passed in when it's made), its effect and its
-message. Boop's actions are in [DECISIONS.md](DECISIONS.md).
-
-**Adding an action** is writing those, and registering it. Everything
-else comes from the harness: its questions join the request, its answers
-are recorded in the `pass` entry, its result in an `action` entry, and its
-message shows up in HISTORY for the next pass. No other code changes.
+message. Adding one is writing those and registering it in `Runtime`;
+nothing else changes.
 
 ## 5. The transcript
 
-The transcript is Boop's record of what happened and what it did. It has
-two forms: a **typed list** the app keeps, which is the only thing ever
-written, and a **text form** for the state, built from the list for each
-pass and never stored.
+Boop's record of what happened and what it did
+(`app/BoopKit/Harness/Transcript.swift`). The typed list is the only
+thing ever written. The text form is built from it for each pass and
+never kept.
 
-### 5.1 Maintaining it
-
-- **One list, append-only,** owned by the harness
-  (`app/BoopKit/Harness/Transcript.swift`) and touched only on its queue.
-  Nothing in it is ever changed or removed out of order; a later fact is
-  a new entry.
-- **Who appends, and when:**
+### 5.1 Keeping it
 
 | When | Appended | By |
 | --- | --- | --- |
-| The core emits an event | `event` | The runtime, before submitting it, so a pass always finds its own event already there |
-| A pass has its answers | `pass` | The harness |
+| The core emits an event | `event` | The harness, in `take`, before any pass for it |
+| A pass has its answers, or is dropped | `pass` | The harness |
 | An action returns a result | `action` | The harness, right after the action runs |
-| The dashboard forces a pass or a mood (§9) | `pass` and `action`, or `action`, for no event | The harness |
+| The dashboard forces answers or a mood (§9) | `pass` and `action`, or `action` alone, for no event | The harness |
 
-- **Order** is arrival order: each entry gets the next sequence number.
-  Entries from a pass can land after events that arrived while it ran;
-  `for` ties each `pass` and `action` entry to its event, so the text form
-  puts it in the right place anyway.
-- **Keeping it.** In memory only. Past a thousand entries the oldest are
-  let go; nothing is summarised. Every entry is also written to
-  `debug.jsonl` as it's appended (§9), so a session can be read back.
+- **Append-only.** Each entry gets the next sequence number, in arrival
+  order, and is never changed. A pass's entries can land after events
+  that arrived while it ran; their `for` ties them to their event.
+- **In memory only.** Past **1,000** entries (`Transcript.limit`) the
+  oldest are let go; nothing is summarised. Debug mode also writes each
+  entry to `debug.jsonl` as it's appended (§9).
 - **Privacy.** No prompt text, commands, tool input or output, file
-  contents or agent messages go in ([EVENTS.md](EVENTS.md) §9 lists the
-  only names that do).
+  contents or agent messages go in ([EVENTS.md](EVENTS.md) §9).
 
-### 5.2 The typed form
+### 5.2 The entries
 
-| Entry | Holds |
+Each entry has `seq` and `receivedAtMs` (an event's own time; for a pass
+or action, when it was recorded), and one body:
+
+| Body | Fields (JSON names) |
 | --- | --- |
-| `event` | An `Event` (§3), whole |
-| `pass` | `for` (its event), every question's answer with its probabilities, why the pass was dropped if it was, and the latency |
-| `action` | `for` (its event), the action's `name`, its `ok` and `message`, and the latency |
+| `event` | The `Event` whole (§3): `kind`, `line`, `reaction`, `wakes_brain`, `facts` |
+| `pass` | `for` (its event's `seq`), `answers` (each question's `choice`, and `p`, every option's probability to three places), `dropped` (why no action ran, or null), `latency_ms` |
+| `action` | `for`, `name`, `ok`, `message`, `latency_ms` |
 
-A forced entry (§9) is for no event: `debug.jsonl` gives it a null
-`for`, and `by`, who forced it (`dashboard`). `by` is for the log only; it
-never reaches the state.
-
-```swift
-struct Entry { let seq: Int; let receivedAtMs: Int64; let body: Body }
-
-enum Body {
-    case event(Event)
-    case pass(Pass)            // forSeq (nil: forced), answers, dropped, latencyMs
-    case action(ActionRecord)  // forSeq (nil: forced), name, result, latencyMs
-}
-```
-
-As `debug.jsonl` holds them (facts abridged with `…`):
-
-```jsonl
-{"seq":1,"received_at_ms":1790000000000,"event":{"kind":"turn_start","line":"claude started turn 7 on \"agent-work-visibility\" (buddygotchi), right after its last one.","reaction":null,"wakes_brain":true,"facts":{"thread":{"name":"agent-work-visibility","agent":"claude","turn":7,…},"gap":"right after"}}}
-{"seq":2,"received_at_ms":1790000000210,"pass":{"for":1,"answers":{…},"dropped":null,"latency_ms":210}}
-{"seq":3,"received_at_ms":1790000540000,"event":{"kind":"tool_use","line":"claude's tests failed again on \"agent-work-visibility\", 2 in a row.","reaction":null,"wakes_brain":true,"facts":{"tool":"shell","topic":"tests","result":"failed","failed_before":1,…}}}
-{"seq":4,"received_at_ms":1790000540230,"pass":{"for":3,"answers":{…},"dropped":null,"latency_ms":230}}
-{"seq":5,"received_at_ms":1790000540231,"action":{"for":3,"name":"react","ok":true,"message":"Boop mumbled, annoyed: \"…tests!\"","latency_ms":1}}
-{"seq":6,"received_at_ms":1790000840000,"event":{"kind":"tap","line":"You tapped Boop.","reaction":"Boop wiggled on its own.","wakes_brain":false,"facts":{}}}
-{"seq":7,"received_at_ms":1790001080000,"event":{"kind":"turn_end","line":"claude finished turn 7 on \"agent-work-visibility\": done after 18 min, a very long turn, 41 tools (6 failed). Tests passing, build passing. A comeback on tests.","reaction":"Boop cheered on its own.","wakes_brain":true,"facts":{"outcome":"done","length":"very long","comeback":"tests",…}}}
-```
+A forced entry is for no event: `for` is null, and `debug.jsonl` adds
+`"by":"dashboard"`. That mark is for the log only and never reaches the
+state. Real entries are in [EXAMPLE.md](EXAMPLE.md) §3.
 
 ### 5.3 The text form
 
-For each pass, `StateText` builds the state's HISTORY and NOW sections
-(§6) from the list. It's a pure function of the transcript, the status
-line and the clock: the same inputs always give the same text, so a
-logged pass can be built again exactly. The text is never kept, except
-inside that pass's `debug.jsonl` line. It never writes an event's line or
-an action's message; it only places them.
+`StateText` builds the state's HISTORY and NOW for each pass. It's a
+pure function of the entries, the status line and the clock, so a logged
+pass can be rebuilt exactly. It places event lines and action messages
+and never writes them.
 
-**How it's built, step by step:**
-
-1. **Pick NOW:** the event the pass is for.
-2. **Pick HISTORY's events:** those older than NOW, from
-   the last 10 minutes or since the oldest turn still working began,
-   whichever reaches further back, then at most the newest 40.
-3. **Attach what Boop did** to each picked event: its `reaction`, then the
-   messages of its successful `action` entries, in sequence order. A
-   forced action, which is for no event, counts as done about the latest
-   event before it, as Boop's own.
-4. **Order** the picked events oldest first.
-5. **Write each one** as `<time>: <line>`, the time relative to now
-   (`just now` under a minute, then `N min ago`, then `N h ago`), with
-   what Boop did indented two spaces under it, one line each.
-6. **Close HISTORY** with the status line.
-7. **Write NOW:** a heading with the clock and weekday, NOW's line, then
-   its reaction, or `Boop did nothing on its own.`
-
-**The entries of §5.2, built for the pass on entry 7 at 14:23:**
-
-| Entry | Picked? | Becomes |
-| --- | --- | --- |
-| 1 `event` turn start | Yes | `18 min ago: claude started turn 7 on "agent-work-visibility" (buddygotchi), right after its last one.` |
-| 2 `pass` | No: passes never show | — |
-| 3 `event` tests failed | Yes | `9 min ago: claude's tests failed again on "agent-work-visibility", 2 in a row.` |
-| 4 `pass` | No | — |
-| 5 `action` react, for 3 | Attached to 3 | `  Boop mumbled, annoyed: "…tests!"` |
-| 6 `event` tap | Yes, with its reaction | `4 min ago: You tapped Boop.` and `  Boop wiggled on its own.` |
-| 7 `event` turn end | NOW, with its reaction | its line under the NOW heading, then `Boop cheered on its own.` |
-
-Put together:
-
-```
-HISTORY (oldest first; indented lines are what Boop did)
-18 min ago: claude started turn 7 on "agent-work-visibility" (buddygotchi), right after its last one.
-9 min ago: claude's tests failed again on "agent-work-visibility", 2 in a row.
-  Boop mumbled, annoyed: "…tests!"
-4 min ago: You tapped Boop.
-  Boop wiggled on its own.
-Working now: nothing else.
-
-NOW (14:23, Tuesday)
-claude finished turn 7 on "agent-work-visibility": done after 18 min, a very long turn, 41 tools (6 failed). Tests passing, build passing. A comeback on tests.
-Boop cheered on its own.
-```
+1. **NOW** is the event the pass is for.
+2. **HISTORY's events** are those before NOW, from the last **10
+   minutes** (`StateText.historyMs`) or since the oldest turn still
+   working began, whichever reaches further back, then at most the
+   newest **40** (`StateText.historyLimit`). Passes never show.
+3. **What Boop did** goes under each: the event's `reaction`, then the
+   messages of its successful `action` entries, in order. A forced
+   action counts as done about the latest event before it.
+4. **Each event** is written oldest first as `<when>: <line>`, with
+   `<when>` relative to now: `just now` under a minute, then `N min
+   ago`, then `N h ago`. What Boop did follows, indented two spaces, one
+   line each.
+5. **HISTORY closes** with the core's status line
+   ([EVENTS.md](EVENTS.md) §8).
+6. **NOW** is a heading with the time and weekday, NOW's line, then its
+   reaction or `Boop did nothing on its own.`
 
 ## 6. The state
 
-The brain gets one plain-text document in five parts, always in this
-order. It opens with the guide, which has no heading and starts "You
-are…"; the rest are headed, so the questions can point at them by name.
-Jev keeps no session and no cache, so all of it is built fresh for every
-pass, and relative times cost nothing.
+One plain-text document in five parts, always in this order, built
+fresh for every pass since Jev keeps no session:
 
 | Part | Kind | Source |
 | --- | --- | --- |
-| The guide (no heading) | Static, then generated | `plan/steering/guide.md`, then how to read HISTORY and NOW (§6.1) |
-| **PERSONALITY** | Static, chosen in Settings | `plan/steering/personality/<name>.md` |
-| **MOOD** | Static, chosen per pass | `plan/steering/mood/<current>.md` |
-| **HISTORY** | Built | The transcript and the status line (§5.3) |
-| **NOW** | Built | The event this pass is for (§5.3) |
+| The guide (no heading) | Static, then generated | [steering/guide.md](../steering/guide.md), then how to read HISTORY and NOW (§6.1) |
+| `PERSONALITY` | Static, the one chosen in Settings | `plan/steering/personality/<name>.md` ([boop](../steering/personality/boop.md), [chatter](../steering/personality/chatter.md)) |
+| `MOOD` | Static, the current mood's | `plan/steering/mood/<mood>.md` ([happy](../steering/mood/happy.md), …), read from the mood store at each pass |
+| `HISTORY (oldest first; indented lines are what Boop did)` | Built | The transcript and the status line (§5.3) |
+| `NOW (14:23, Tuesday)` | Built | The event this pass is for (§5.3) |
 
-The static files ship with the app and change only in a release, so each
-can be swapped whole. What each says is in [DECISIONS.md](DECISIONS.md)
-§2. The runtime reads them read-only; `plan/steering/` is their single
-source, and the app bundles a copy. A static part's file can be chosen
-for each pass by a provider the app registers: MOOD's is the mood store,
-so the pass after a change reads the new mood's file. The questions carry
-the rest: each option's meaning and each question's own wording.
+The guide and its generated part are joined by single line breaks; the
+other parts follow, each after a blank line. The runtime supplies
+everything but the transcript through one closure (`parts`): the steering
+text, the core's status line and oldest working turn, and the time
+(`Runtime.stateParts`).
+
+**The steering files** are read once at launch from the app's bundled
+copy of `plan/steering/` (`Steering`), and never written. HTML comments
+are left out. A personality's front matter goes to the core's rules
+([BEHAVIORS.md](../BEHAVIORS.md) §6) and never reaches Jev. A missing
+file stops the app from starting, and an unknown mood reads as happy's
+file. What the files say is [DECISIONS.md](DECISIONS.md) §2.
 
 ### 6.1 How to read HISTORY and NOW
 
-The guide ends with a short explanation of the format, so no static file has
-to describe it. It's generated by the code that builds the format, so the
-two can't drift. Its first part is the harness's, since it's about the
-layout §5.3 builds; its second is the events', since it's about their
-words, and lives in [EVENTS.md](EVENTS.md) §8.1. [EXAMPLE.md](EXAMPLE.md)
-§4 shows the guide whole.
+The guide ends with an explanation of the format, generated by the code
+that builds it, so the two can't drift. The layout part is the
+harness's (`StateText.reading`); the words part is the events'
+([EVENTS.md](EVENTS.md) §8.1):
 
 ```
 How to read HISTORY and NOW:
@@ -340,184 +254,164 @@ How to read HISTORY and NOW:
 [EVENTS.md §8.1]
 ```
 
-### 6.2 Putting it together
+### 6.2 Sizes
 
-The guide comes first, as it is. Each section after it is its heading on
-a line of its own, then its text, with a blank line between sections. Static files are used as they are, without
-comments. The shape, abridged (a full one is in [EXAMPLE.md](EXAMPLE.md)):
-
-```
-<guide.md, starting "You are the mind of Boop…">
-How to read HISTORY and NOW:
-…
-PERSONALITY
-…
-MOOD
-…
-HISTORY (oldest first; indented lines are what Boop did)
-9 min ago: <an event's line>
-  <what Boop did about it>
-…
-<the status line>
-
-NOW (14:23, Tuesday)
-<the event's line>
-<its reaction>
-```
-
-**Sizes.** The guide is kept within 300 tokens and its generated part is about
-150,
-PERSONALITY within 600 and MOOD within 150, and 40 history lines come to
-about 1,200. With the questions a request is about 3,000 tokens, well
-inside Jev's 32K. A part over its budget is logged (`Prompt.Budget`).
+Each static part has a budget in tokens (`Steering.Budget`), counted as
+bytes ÷ 4, which overestimates English: the guide 300 (now about 270), a
+personality 600 (`boop` about 200, `chatter` 280) and a mood 150 (80–145).
+A part over its budget is logged at launch (`steering: over budget: …`),
+and a test keeps every file within it. The generated reading part is
+about 190 tokens and HISTORY's 40 events about 1,200, so with the
+questions a request is at most about 3,000 tokens. The evals' states come
+to 800–1,000.
 
 ## 7. Asking Jev
 
-**The request** is the state as one string and every action's questions
-in one call to `https://api.typesafe.ai/v1/systemone`. Jev reads the state
-once and answers every question on its own against it, so none can depend
-on another's answer, and an extra question costs only its own few tokens
+**The request** is one `POST` to `https://api.typesafe.ai/v1/systemone`
+with the state as one string and every action's questions, model
+`jev-latest` (`JevBrain`). Jev reads the state once and answers each
+question on its own against it, so no answer depends on another's
 ([TypeSafe](https://docs.typesafe.ai/cookbooks/parallel_questions.md)).
-Output is free.
+Each `Question` becomes a choice question named by its `key`, with its
+`text`, `about` and `judgeBy` as `instructions`, and each option's `what`
+as its criterion (with `not_for` when it has a `notFor`).
+[EXAMPLE.md](EXAMPLE.md) §5 shows one, built from a real pass.
 
-Each `Question` (§4) becomes one of TypeSafe's choice questions:
+**The answer** has each question's `choice` and `probabilities`. Every
+question must be answered with one of its own options, or the whole
+answer is unusable.
 
-| `Question` | Request |
+| Number | Value | Where |
+| --- | --- | --- |
+| Deadline for the whole pass | **1.25 s**, about four times Jev's usual time, with room for one retry | `Harness.deadlineMs` |
+| One retry, after | **300 ms**, on a 429, any 5xx, or a connection that failed (not one that timed out) | `JevBrain.retryAfterMs` |
+| The HTTP request's own timeout | 2 s (the deadline's whole seconds + 1); the deadline cuts it off first | `JevBrain.answer` |
+
+**A dropped pass** runs no action, so Boop does only its rule
+reactions. The `pass` entry's `dropped` says why:
+
+| `dropped` | When |
 | --- | --- |
-| `key` | The question's name in `questions` |
-| `text`, `about`, `judgeBy` | `instructions`: `question`, `about`, `judge_by` |
-| Each `Option` | A `criteria` entry: its `what` alone, or `{"what", "not_for"}` when it has a `notFor` |
+| `late: no answer within 1250 ms` | The deadline passed. A brain that ignores cancelling finishes on its own, and its answer is thrown away |
+| `jev: HTTP <status>` | Not 200, after the retry. Only the status is kept, since an error body may repeat the request |
+| `jev: no answers` | The body had no `answers` object |
+| `jev: no usable answer for <key>` | A question left out, or answered with an option it doesn't have |
+| `cancelled`, or an error's own text | The pass's task was cancelled, or the request failed some other way |
 
-```json
-{
-  "model": "jev-latest",
-  "state": "You are the mind of Boop, …\n\nNOW (14:23, Tuesday)\n…",
-  "questions": {
-    "<key>": {
-      "type": "choice",
-      "criteria": {"<option>": "<what>", "<option>": {"what": "…", "not_for": "…"}},
-      "instructions": {"question": "<text>", "about": "<about>", "judge_by": "<judgeBy>"}
-    }
-  }
-}
-```
+When the body came back but couldn't be used, the app log gets its size,
+never its text: `harness: jev:jev-latest answered what couldn't be used
+(N bytes)`.
 
-**The answer** gives each question's choice and every option's
-probability, which become an `Answer` each; each action gets its own.
+**The key** comes from `BOOP_JEV_KEY`, else, in the menu-bar app only,
+the Keychain, which Boop reads through `/usr/bin/security`
+([ARCHITECTURE.md](../ARCHITECTURE.md) §11). `Boop --headless` and
+`boopdev` read only the variable, so a run from an agent shell never
+uses the owner's key. The runtime reads it off `home` and the main
+thread, since a Keychain prompt would stall both. Until it's read, and
+without one, there's no brain: the core marks no event as waking it, and
+Boop does only its rule reactions. A key saved in Settings takes effect
+from the next event.
 
-- **Deadline:** 1.25 s for the whole pass: four times Jev's usual time,
-  with room for one retry. A later answer is dropped.
-- **Retries:** a 429, a 5xx or a dropped connection is tried once more
-  after 0.3 s. Only a failed request's HTTP status is logged, since an
-  error body may repeat the request.
-- **When Jev fails** or is late, the pass is dropped and no action runs:
-  Boop does only its rule reactions, and the `pass` entry says why.
-- **The key** comes from `BOOP_JEV_KEY`, else, in the menu-bar app only,
-  the Keychain, which Boop reads and writes through Apple's
-  `/usr/bin/security` so a rebuild doesn't make macOS ask for it again
-  ([ARCHITECTURE.md](../ARCHITECTURE.md) §11). `Boop --headless` and
-  `boopdev` read only the variable, so a run from an agent shell never
-  uses the owner's key. The Keychain is
-  read off the app's event queue and the main thread the first time it's
-  needed, since a Keychain prompt would stall both. Without a key no
-  event wakes the brain and Boop does only its rule reactions, which is
-  fine for everyday use; saving one in Settings brings Jev in at once.
-  The evals need the key and fail without it ([EVALS.md](../EVALS.md)).
+**The brains:**
+
+| Brain | `id` | Used by |
+| --- | --- | --- |
+| `JevBrain` | `jev:jev-latest` | The app with a key, and the evals |
+| `ScriptedBrain` | `scripted` | Tests: a script sees the state and questions and returns answers. `Boop --headless --brain scripted` uses `pipelineCheck`, which answers every pass `mood: happy`, `react: excited`, `word.feeling: yay`, `word.about: none` |
 
 ## 8. Designing for Jev
 
-Jev is literal and small: good at judging a short, clearly labelled state
-against clear options, bad at arithmetic and at reading between the
-lines. The evidence behind these rules is in
-[ARCHITECTURE.md](../ARCHITECTURE.md) §11. Events and actions both follow
-them.
+Jev is literal and small: good at judging a short, clearly labelled
+state against clear options, bad at arithmetic and at reading between
+the lines. Events, questions and steering files all follow these rules
+(the evidence is in [ARCHITECTURE.md](../ARCHITECTURE.md) §11):
 
-- **Named sections, pointed at by name.** Every question says which
-  section it's about and which to judge by.
-- **The format is explained once, by the code that builds it,** at the
-  end of the guide.
-- **Examples in the state's own lines.** Examples in the static files are
-  written exactly as HISTORY and NOW lines are, so Jev compares like with
-  like.
-- **No arithmetic:** times are relative, and durations and gaps arrive as
-  named bands. Counts stay small.
-- **Facts worked out beforehand** go in the line, so Jev never has to
-  count lines to find them.
-- **One question per decision,** with options that say what they're not.
-- **Full lists, not shortlists,** as TypeSafe advises: each option's
-  meaning keeps the pick grounded.
+- **Named sections,** and every question says which it's about and
+  which to judge by.
+- **The format explained once,** at the end of the guide, by the code
+  that builds it.
+- **Examples in the state's own lines,** so Jev compares like with like.
+- **No arithmetic:** relative times, named bands for durations and gaps
+  ([EVENTS.md](EVENTS.md) §5), small counts, and facts worked out
+  beforehand rather than left for Jev to count.
+- **One question per decision,** with the full list of options, each
+  saying what it's not when two are easily confused.
 
-The spirit is [pi](https://mariozechner.at/posts/2025-11-30-pi-coding-agent/)'s
-"if I don't need it, it won't be built".
+## 9. Logging and debug mode
 
-## 9. Logging
+**The app log** (`boop.log`) gets one line per pass, debug mode or not,
+dropped passes included: `brain <kind> <ms> ms → <result>`, where
+`<result>` is the actions that returned something (`mood, react`, with
+` (failed)` after a failed one), `nothing`, or `dropped: <why>`. It never
+holds an action's message or the state. The harness also logs a replaced
+waiting event, a dropped pass, a slow action, an unusable answer's size,
+and forced answers it left out.
 
 **Debug mode** is `Boop --debug`, in the menu-bar app (`make debug`) or
-headless. It prints to the terminal that started the app, as it happens:
-each hook with the event the core made of it, every line sent to the
-device, and each pass.
+headless. It prints to the terminal that started the app: each hook with
+what the adapter made of it, each of the core's effects, every line sent
+to the device, and each transcript entry, readably:
 
-Every transcript entry is also one JSON line in the state directory's
-`debug.jsonl` (§5), which starts afresh at every launch. A `pass` line
-there also holds the state text and the questions it sent, so any pass
-can be replayed against Jev. `boopdev watch [FILE]` prints it readably
-(the everyday app's by default), following it as it grows.
+```
+▸ 9 tool_use: claude's tests failed again on "fix-nav" (landing), 3 in a row.
+  pass jev:jev-latest 187 ms: mood grumpy 0.99 · react annoyed 0.99 · word.about tests 1.00 · word.feeling again 0.88
+    │ <the whole state for the first pass, then only its HISTORY and NOW>
+  ✓ mood: Boop's mood changed: determined → grumpy.
+  ✓ react: Boop mumbled, annoyed: "…again!"
+```
+
+An event that doesn't wake the brain is marked `(no pass)`, and a failed
+action `✗`. The state goes to the terminal only, never `boop.log`.
+
+**`debug.jsonl`,** in the state directory, is emptied in place at every
+launch and gets one JSON line per transcript entry (§5.2), keys sorted.
+`boopdev watch [FILE]` prints it as the terminal does, following it as it
+grows. A Jev pass's line carries three more fields, so any pass can be
+replayed: `state` (the whole state sent), `questions` (the keys asked, in
+order) and `brain` (its `id`). A forced pass's line has `questions` (the
+keys it answered) and `by`, and no `state` or `brain`.
 
 **The dashboard's lines.** Debug mode also writes three kinds of line
-that aren't transcript entries, so they have no `seq`, for the dashboard
-([DASHBOARD.md](../DASHBOARD.md)). `boopdev watch` and the terminal skip
-them. Their time is the app's clock, as the entries' is, which headless
-`advance` moves; `boop.log` uses the wall clock. From a headless run
-(options and long lines abridged with `…`):
-
-```jsonl
-{"questions":[{"action":"mood","key":"mood","options":[{"name":"happy","not_for":null,"what":"Good spirits: things are going fine."},…],"text":"After NOW, what is Boop's mood?"},{"action":"react","key":"react",…},…],"received_at_ms":1790507369530}
-{"status":{"brain":"scripted","connected":false,"personality":"boop","sessions":[{"agent":"claude","project":"jetpack","status":"working"}]},"received_at_ms":1790507370527}
-{"sent":{"t":"moment","say":{"syl":"ba ba-ta di","word":"yay","at":4,"tune":"bounce","ms":115}},"received_at_ms":1790507370530}
-{"sent":{"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"claude","project":"jetpack","more":0},"busy":0,"idle":0,"wait":1,"vol":6},"received_at_ms":1790507372477}
-```
+that aren't entries, so they have no `seq`, for
+[DASHBOARD.md](../DASHBOARD.md). The terminal and `boopdev watch` skip
+them. Every line's `received_at_ms` is the app's clock, which headless
+`advance` moves.
 
 | Line | When | Holds |
 | --- | --- | --- |
-| `questions` | Once, at launch, as the file's first line, before the socket or the link can add one | Every action's questions, in order: its `action`, `key` and `text`, and each option's `name`, `what` and `not_for` |
-| `sent` | Every line sent to the device, whatever the link, `none` included | The line, verbatim |
-| `status` | When the personality, the brain (its id, or `none`), the sessions or the device's connection changes | Those, and nothing a `state` line already carries, such as the mood |
+| `questions` | Once, as the file's first line, before the socket or the link can add one | Every action's questions in order: `action`, `key`, `text`, and each option's `name`, `what` and `not_for` |
+| `sent` | Every line sent to the device, whatever the link, none included | The line, verbatim ([PROTOCOL.md](../PROTOCOL.md) §3) |
+| `status` | When the personality, the brain, the sessions or the connection changes | `personality`, `brain` (an `id`, or `none`), `sessions` (`agent`, `project`, `status`) and `connected`; the mood is in `sent`'s `state` |
 
 **Dev lines.** Headless, or in debug mode, the hook socket also takes
 `{"dev":…}` lines; plain `make run` ignores them. Nothing replies: what a
-line did shows in `debug.jsonl`.
+line did shows in `debug.jsonl`. Any other `dev` value is ignored.
 
 | Line | Does |
 | --- | --- |
-| `{"dev":"advance","ms":N}` | Headless only: moves the app's clock forward |
-| `{"dev":"answer","answers":{"react":"annoyed","word.feeling":"again"}}` | A **forced pass**: each answer at probability 1, handed to the actions exactly as Jev's would be. It runs at once on the harness's queue, with no brain call, so it works with no key, and it leaves the pass running and the one waiting alone. An answer whose choice isn't one of its question's options is left out. Actions keep their own rules, so `react` still refuses while something needs you. Recorded as a `pass` (with `questions`, the keys it answered, and no state) and its `action` entries, all with `"for":null,"by":"dashboard"` |
-| `{"dev":"mood","mood":"grumpy"}` | Sets the mood at once through the mood action, as Jev's choice would, so the device gets it too; the current mood, or a word that isn't one, is refused ([DECISIONS.md](DECISIONS.md) §4). Recorded as an `action` named `mood`, `"for":null,"by":"dashboard"`; the `mood` file keeps it, as it does any change |
-| `{"dev":"moment","anim":"cheer"}` | Plays `cheer` or `wiggle` through the moment schedule, as a rule's moment. Only its `sent` line records it |
+| `{"dev":"advance","ms":N}` | Headless only: moves the app's clock forward N ms, then ticks |
+| `{"dev":"answer","answers":{"react":"annoyed","word.feeling":"again"}}` | A **forced pass**: each choice at probability 1, handed to the actions exactly as Jev's answers would be. It runs at once on `home`, needs no brain or key, and leaves a running or waiting pass alone. A choice that isn't one of its question's options is left out. The actions keep their own rules. Recorded as a `pass` and its `action` entries, for no event, by the dashboard; no `brain` line in `boop.log` |
+| `{"dev":"mood","mood":"grumpy"}` | Sets the mood at once through the mood action, device included ([DECISIONS.md](DECISIONS.md) §4). Recorded as an `action` named `mood`, for no event, by the dashboard, refusals included |
+| `{"dev":"moment","anim":"cheer"}` | Plays `cheer` or `wiggle` as a rule's moment; any other is ignored. Only its `sent` line records it |
 
-A forced pass and its actions, from the same run:
+A forced pass and its action, from a headless run:
 
 ```jsonl
 {"pass":{"answers":{"react":{"choice":"annoyed","p":{"annoyed":1}},"word.feeling":{"choice":"again","p":{"again":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react","word.feeling"]},"received_at_ms":1790504656020,"seq":15}
 {"action":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop mumbled, annoyed: \"…again!\"","name":"react","ok":true},"received_at_ms":1790504656021,"seq":16}
 ```
 
-Jev later reads its results in HISTORY as Boop's own (§5.3). The
-dashboard's mark is in the log only.
-
-**The app log** (`boop.log`) gets one line per pass, debug mode or not:
-the event kind, the latency and which actions returned a result, never
-their messages, as in `brain turn_end 240 ms → react`.
-
 ## 10. Where it lives
 
 | Part | File | Job |
 | --- | --- | --- |
-| Harness | `app/BoopKit/Harness/Harness.swift` | One pass running and one waiting; asks, hands out answers, records; forced passes (§9) |
-| Contracts | `app/BoopKit/Harness/Contracts.swift`, `app/BoopKit/Core/Event.swift` | `Action`, `Question`, `Option`, `Answer`, `ActionResult`; `Event` |
-| Transcript | `app/BoopKit/Harness/Transcript.swift` | The typed entries (§5.2) |
-| Debug log | `app/BoopKit/Harness/DebugLog.swift` | `debug.jsonl`: the dashboard's lines, and printing entries readably (§9) |
-| State text | `app/BoopKit/Harness/StateText.swift` | Builds HISTORY, NOW and the guide's reading part, and puts the state together; pure |
-| Steering | `app/BoopKit/Harness/Steering.swift` | Loads the static sections from the bundle, read-only, and checks their budgets |
-| Brain | `app/BoopKit/Harness/Brain.swift`, `app/BoopKit/Brains/JevBrain.swift` | `answer(state, questions, deadline)`: Jev, or `ScriptedBrain` in tests |
-| Events | `app/BoopKit/Core/Event.swift` | [EVENTS.md](EVENTS.md): building events and writing their lines |
+| Harness | `app/BoopKit/Harness/Harness.swift` | One pass running and one waiting; asks, hands out answers, records; forced passes; `respond(to:)`, one event straight through for the evals |
+| Contracts | `app/BoopKit/Harness/Contracts.swift`, `app/BoopKit/Core/Event.swift` | `Action`, `Question`, `Option`, `Answer`, `ActionResult`, `JSONValue`; `Event` |
+| Transcript | `app/BoopKit/Harness/Transcript.swift` | The entries and their JSON lines |
+| State text | `app/BoopKit/Harness/StateText.swift` | HISTORY, NOW and the reading part, put together; pure |
+| Steering | `app/BoopKit/Harness/Steering.swift` | Loads the static parts, read-only, and checks their budgets |
+| Brain | `app/BoopKit/Harness/Brain.swift`, `app/BoopKit/Brains/JevBrain.swift` | The `Brain` protocol and `ScriptedBrain`; Jev and its key |
+| Debug log | `app/BoopKit/Harness/DebugLog.swift` | The dashboard's lines, and printing entries readably |
+| Wiring | `app/BoopKit/App/Runtime.swift` | Registers the actions, supplies `parts`, reads the key, takes dev lines |
+| Events | `app/BoopKit/Core/Core.swift`, `app/BoopKit/Core/Event.swift` | [EVENTS.md](EVENTS.md) |
 | Actions | `app/BoopKit/Actions/` | [DECISIONS.md](DECISIONS.md) |

@@ -8,8 +8,9 @@ listed in [README.md](README.md).
 
 ## 1. Status
 
-Every v1 milestone is done, apart from what only the owner can check
-(§2). [VERIFICATION.md](VERIFICATION.md) defines the checks, and each
+Every v1 milestone is done except A11, which waits on watching the faces
+on the board, and apart from what only the owner can check (§2).
+[VERIFICATION.md](VERIFICATION.md) defines the checks, and each
 milestone's evidence says which ones ran.
 
 | # | Milestone | Status | Evidence |
@@ -57,9 +58,9 @@ that's off becomes an open item (§3).
    four times quickly and keep tapping.** Each touch or press is one
    wiggle, holding BOOT included, and a light touch counts once too
    (`make debug` prints one `device: input tap`), because a touch ends
-   only after 50 ms without contact. The fourth quick tap also gets
-   an annoyed mumble, and more tapping gets no second grumble within a
-   minute ([BEHAVIORS.md](BEHAVIORS.md) §3.3).
+   only after 50 ms without contact. With Jev's key, the fourth quick tap
+   may also get an annoyed mumble, and more tapping gets no second grumble
+   within a minute ([BEHAVIORS.md](BEHAVIORS.md) §3.3).
 
 **Agents**
 
@@ -84,12 +85,13 @@ that's off becomes an open item (§3).
 10. **Ask Claude to run a failing test, then stop.** No cheer: Boop goes
     idle, then an annoyed mumble ("tests" or "ugh").
 11. **Esc while Claude is between tool calls.** Within about a minute Boop
-    goes idle, with no cheer or mumble; at once if a tool was running.
+    goes idle, with no cheer; at once if a tool was running.
 
 **Personalities and the brain**
 
 12. **Paste Jev's key in Settings, then work normally for a while.** The
-    Personality card loses its "Without a Jev API key" line. Routine
+    Personality card loses its "Without a Jev API key, … only cheers,
+    wiggles and chatters by rule" line. Routine
     turns go by quietly; a very long finish gets a proud mumble on top of
     the cheer ([harness/DECISIONS.md](harness/DECISIONS.md)).
 13. **Let tests fail three times in a row, then pass.** On the third
@@ -157,12 +159,10 @@ fixed. Pick one up by writing it into its spec first.
   ([ADAPTERS.md](ADAPTERS.md) §4). Hooking `SubagentStop` and letting it
   answer only that subagent's request would clear it; it mustn't make an
   idle session working.
-- **Talking to Boop and a fuller memory are out.** Memory keeps only
-  Boop's name, nature, voice seed and the day; the rest comes back as
-  events and actions ([FUTURE.md](FUTURE.md)).
-- **Some of Voice's words can't be picked.** The brain offers eleven of
-  the 40 ([harness/DECISIONS.md](harness/DECISIONS.md) §3); the rest are
-  recorded on the device for nothing until the lists grow.
+- **Most of Voice's words can't be picked.** The `react` action offers
+  11 of the 40 real words (7 exclamations and 4 topics,
+  [harness/DECISIONS.md](harness/DECISIONS.md) §3); the rest are recorded
+  on the device for nothing until the lists grow.
 - **How fast a press shows on the board hasn't been measured since the
   dip.** A press now dips the face 2 px at once, so its first changed
   pixel comes on the press's own ms in the simulator
@@ -179,25 +179,19 @@ fixed. Pick one up by writing it into its spec first.
   (two debug replies and 23 characters in a 31-minute soak), and lines
   have no sequence numbers, so a lost tap is gone. Bluetooth doesn't go
   through it. Number the board's lines, or drop to 230400 baud.
-- **About 14 KB of heap headroom.** The minimum free heap
-  ([DEVICE.md](DEVICE.md) §6) is only just over the 60 KB target, so
+- **About 14 KB of heap headroom.** The minimum free heap, 74 KB, is
+  only just over the 60 KB target ([DEVICE.md](DEVICE.md) §6), so
   anything that adds RAM needs measuring.
 - **A freshly built `boop-hook` is slow once:** about 250 ms on its first
   launch while macOS checks it, then a few milliseconds.
-- **[harness/EXAMPLE.md](harness/EXAMPLE.md) predates the seven moods.**
-  Its story stays happy through the second failure; with today's steering
-  Boop turns determined there. It's still hand-written, with made-up
-  odds; regenerate it from a real Jev run. Its `pass` lines also give the word
-  questions a single `p_choice`, while the code logs every option's
-  probability in a `p` map, as [harness/HARNESS.md](harness/HARNESS.md) §9
-  and the dashboard read it.
 - **`swift build` rebuilds for no reason.** It alternates between a
   no-op (0.4 s) and a 6–9 s rebuild with nothing changed, so build
   timings are noisy until the cause is found.
-- **`state`'s `wait` is only the dashboard's.** The device keys "needs
-  you" on `attn` and reads neither `idle` nor `wait`
-  ([PROTOCOL.md](PROTOCOL.md) §3). `wait` is always 1 + `attn.more` (0
-  without `attn`), so it can go once the dashboard counts it from `attn`.
+- **`state`'s `idle` and `wait` are only the dashboard's.** The device
+  keys "needs you" on `attn` and reads neither
+  ([PROTOCOL.md](PROTOCOL.md) §3); the dashboard's feed prints both.
+  `wait` is always 1 + `attn.more` (0 without `attn`), so it can go once
+  the dashboard counts it from `attn`.
 
 ## 4. P1: Port to ESP-IDF + LVGL (later)
 

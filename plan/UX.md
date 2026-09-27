@@ -1,7 +1,8 @@
 # Boop: UX
 
 Updated 2026-09-27. What you see and touch: the device's screen and
-controls, setup, and the Mac app. What Boop does in each situation is in
+controls, setup, and the Mac app. The device is the creature and the Mac
+app stays out of the way. What Boop does in each situation is in
 [BEHAVIORS.md](BEHAVIORS.md), and how it sounds is in [VOICE.md](VOICE.md).
 
 ## 1. Surfaces
@@ -33,72 +34,100 @@ black, which the backlit panel shows as black glass.
 └──────────────────────────────────┘
 ```
 
-**The face is its mood design.** Every mood (the seven are in
-[harness/DECISIONS.md](harness/DECISIONS.md) §2.3) has a design for each look and for the
-cheer: idle, working, needs you and task complete. Asleep and no app are
-one design each, the same in every mood. The designs are the designer's
-animated SVGs in `internal/tools/facegen/design/` (their README says what
-each one shows), and the device draws them exactly, pixel for pixel, as
-Chrome draws the SVGs ([DEVICE.md](DEVICE.md) §6). A mood picks the set,
-and the look or the cheer picks the design in it
-([BEHAVIORS.md](BEHAVIORS.md) §2, §5). [This
-sheet](evidence/2026-09-27-mood-faces/designs-vs-device.png) has every
-one, 2.5 s in.
+### The designs
 
-- **Shared by every design.** Warm-white window eyes, four panes each,
-  with a small mouth and two coral cheek blocks under each eye, on black.
-  Moods change the lids (stepped, never curved), the eyes' size and the
-  mouth. Every shape sits on whole pixels, with no anti-aliasing.
-- **Props.** Below the face, in the band the bubble uses: a keyboard
-  while working, an amber "?" sign while something needs you, a result
-  card on a tray for the cheer, and a grey broken-link sign with no app.
-  Asleep has a small grey Z by the right eye.
-- **Motion.** Each design moves in whole-pixel steps on its own clock,
-  which starts when its look or cheer starts: a breath, keys lighting in
-  the mood's rhythm, a lean toward you that plays once when something
-  needs you, the card rising once for the cheer.
-- **What the device adds.** Blinks, at the device's own pace
-  ([BEHAVIORS.md](BEHAVIORS.md) §2), show the design's closed eyes. A tap's
-  wiggle keeps the design and its clock, sways the face 3 px either way
-  and pops a pixel heart in at the top right, small then full size, a
-  stronger coral than the cheeks. A press dips the face 2 px at once
-  (§4). While Boop mumbles, the bubble takes the props' band, and the
-  mouth is a small "o" for the first half of each syllable.
-- **Switching designs.** The face never cuts hard: a change to another
-  design (another look, the cheer, the mood) shuts the eyes for 150 ms
-  and opens them on the new one, and so does a new cheer over a cheer.
-  The new design's clock starts with its look; the mood changing mid-cheer
-  keeps the cheer's clock. The backlight eases over the same 150 ms.
+**The face is its mood's design.** Each of the seven moods has four
+designs: idle, working, needs you, and task complete for the cheer.
+Asleep and no app are one design each, shared by every mood: 30 in all.
+They're the designer's animated SVGs in `internal/tools/facegen/design/`
+(its README says what each shows). `facegen` turns them into
+`firmware/assets/faces.h`, and the device draws them pixel for pixel as
+Chrome does ([DEVICE.md](DEVICE.md) §6). The mood picks the set, and the
+look or the cheer picks the design in it ([BEHAVIORS.md](BEHAVIORS.md)
+§2, §5). [This sheet](evidence/2026-09-27-mood-faces/designs-vs-device.png)
+has every one, 2.5 s in.
 
-**The bubble** is empty most of the time. It shows a mumble, as its one
-real word in amber among grey squiggles for the gibberish. The squiggles give up their room before the word is cut, so a
-word ends in ".." only when it's too long for the bubble on its own. A
-project name too long for the device arrives already cut, ending ".."
-([PROTOCOL.md](PROTOCOL.md) §3). Accented letters show plain (é as e),
-and anything else the font lacks as "?".
+Every design has warm-white window eyes of four panes each, a small
+mouth and two coral cheek blocks under each eye, on black. Moods change
+the lids (stepped, never curved), the eyes' size and the mouth. Every
+shape sits on whole pixels, with no anti-aliasing, and moves in
+whole-pixel steps.
 
-**The status strip** shows who needs you (amber, hidden when nothing
-does; §3) and how many sessions are working (grey), with an icon at the
-right for no app. With no app, only its icon shows. With nothing to show
-it's bare glass with no divider, and the face doesn't move when it fills.
+| Mood | Face | Working | Cheer |
+| --- | --- | --- | --- |
+| Happy | Gently smiling eyes | A gentle bob | A sway, with sparkles |
+| Excited | Taller, brighter eyes | A bounce, with sparks by the keyboard | A hop, with sparkles |
+| Proud | Uneven half-lids and a smirk | Lifts its chin now and then | A bow, with sparkles |
+| Curious | Lopsided eyes | Leans side to side | A step sideways |
+| Determined | Lids drawn in | A steady nod | A small nod, and the face softens |
+| Grumpy | A deep scowl | A jolt that knocks a key loose | A small dip, and a smile escapes |
+| Sad | Raised inner corners, blue tears, a quivering mouth | Slumps, typing through tears | A dip, tears and a relieved smile |
+
+For needs you, each mood's face moves once and settles: most lean up
+toward you, while grumpy and sad sink a little.
+
+| Look | Prop, in the band under the face | Motion |
+| --- | --- | --- |
+| Asleep | A small grey Z by the right eye; the eyes are shut bars | A 2 px breath every 8 s |
+| Idle | None | Rises a pixel briefly every 9 s |
+| Working | A keyboard, keys lighting in the mood's rhythm | The mood's working motion, looping |
+| Needs you | An amber "?" sign that rises in | The lean, once |
+| Task complete (the cheer) | A result card rising onto a tray | The mood's gesture, once |
+| No app | A grey broken-link sign; the eyes are low | The same breath as asleep |
+
+**Clocks.** A look's design runs on a clock that starts with the look. A
+mood change keeps that clock, so the new face picks up mid-loop. The
+cheer's design runs from the cheer's start, and a mood change mid-cheer
+keeps it too.
+
+### What the device adds
+
+| Addition | What it does | When |
+| --- | --- | --- |
+| Blink | The design's closed eyes, briefly | At the device's own pace ([BEHAVIORS.md](BEHAVIORS.md) §2) |
+| Switch | The eyes shut for 150 ms (`kBlendMs`) and open on the new design, and the backlight eases over the same time. The face never cuts hard | Any change of design: another look, the cheer, another mood, or a new cheer over a cheer |
+| Wiggle | Keeps the design and its clock, sways the face 3 px either way twice, and pops a pixel heart in at the top right, small for 100 ms then full size, a stronger coral than the cheeks | A tap, for 0.7 s |
+| Press | The face drops 2 px, drawn at once | While BOOT or the screen is held (§4) |
+| Talking | The bubble takes the props' band, and the mouth is a small "o" for the first half of each syllable | While a mumble plays |
+
+### The bubble and the strip
+
+**The bubble** is empty most of the time. A mumble shows as its one real
+word in amber among grey squiggles, up to three on each side, placed as
+the word falls among the syllables; with no word, up to three squiggles.
+The squiggles give up their room before the word is cut, so a word ends
+in ".." only when it's too long for the bubble on its own. The bubble
+stays up 1.2 s after the last syllable (`kBubbleReadMs`). Accented
+letters show plain (é as e), and anything else the font lacks as "?".
+
+**The status strip**, left to right: who needs you (an amber dot and
+"agent · project" in amber, cut with ".." to fit), "+N" in grey for the
+others waiting, then a grey ring and how many sessions are working
+(hidden at zero). A project name too long for the device arrives already
+cut, ending ".." ([PROTOCOL.md](PROTOCOL.md) §3). With no app, only the
+unplugged icon shows, at the right. With nothing to show it's bare glass
+with no divider, and the face doesn't move when it fills.
 
 **The debug label**, off unless the firmware is built with
 `-DBOOP_DEBUG_LABEL=1` (`firmware/platformio.ini`), shows what the face is
-following in tiny faint 5×7 text at the top left of the face, needs-you
-and no-app screens: the animation, or else the look (`idle`, `working`,
-`asleep`, `needs_you`, `no_app`). Frozen-clock frames leave
-it out, so simulator and scenario screenshots don't change.
+following in tiny faint text at the top left: the animation (`cheer`,
+`wiggle`), or else the look (`idle`, `working`, `asleep`, `needs_you`,
+`no_app`). Frozen-clock frames leave it out, so simulator and scenario
+screenshots don't change.
 
 ## 3. Screens
 
-**Face.** The default. Everything in [BEHAVIORS.md](BEHAVIORS.md) happens
-here.
+The device picks one, top row first:
 
-**Needs you.** The mood's needs-you design, with its amber sign, and the
-strip says who: the oldest waiting session's agent and project in amber,
-cut to fit, then "+N" in grey for the others, then the working count
-(the `plus-one-more` shot of
-`internal/firmware/test/scenarios/needs_you.jsonl`):
+| Screen | When | Shows |
+| --- | --- | --- |
+| Test pattern | A `dbg.pattern` over USB, until the next `state` ([PROTOCOL.md](PROTOCOL.md) §5) | A fixed pattern, a solid fill or a calibration cross. Touches do nothing |
+| No app | 30 s without a `state` ([BEHAVIORS.md](BEHAVIORS.md) §3.4) | The no-app design, with only the unplugged icon in the strip |
+| Needs you | The last `state` has `attn` | The mood's needs-you design, and the strip says who |
+| Face | Otherwise | The base look or the animation playing, the bubble, and the working count |
+
+The needs-you screen, as the `plus-one-more` shot of
+`internal/firmware/test/scenarios/needs_you.jsonl` has it:
 
 ```
 ┌──────────────────────────────────┐
@@ -111,13 +140,6 @@ cut to fit, then "+N" in grey for the others, then the working count
 └──────────────────────────────────┘
 ```
 
-**No app.** The no-app design, low eyes and a grey broken-link sign, with
-only the unplugged icon in the strip ([BEHAVIORS.md](BEHAVIORS.md) §3.4).
-
-The only other screen is the debug test pattern
-([VERIFICATION.md](VERIFICATION.md) §3). The threads and stats screens are
-parked ([FUTURE.md](FUTURE.md)).
-
 ## 4. Controls
 
 The v1 board has one button, BOOT, and a resistive touchscreen that needs
@@ -125,18 +147,21 @@ a firm press ([DEVICE.md](DEVICE.md) §1). Neither affects your agents.
 
 | Input | Does |
 | --- | --- |
-| Press BOOT, or touch the screen anywhere | Boop it: `wiggle`, or only the press dip while something needs you. Poking it over and over annoys it ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
+| Press BOOT, or touch the screen anywhere, strip included | The face dips 2 px at once. Letting go is a tap: `wiggle`, or only the dip while something needs you, and an `input` to the Mac ([PROTOCOL.md](PROTOCOL.md) §4). Poking it over and over annoys it ([BEHAVIORS.md](BEHAVIORS.md) §3.3) |
 
-Every press and touch dips the face 2 px at once, before the Mac
-hears about it ([ARCHITECTURE.md](ARCHITECTURE.md) §9 has the budget). A
-press or touch is a tap however long it's held, and counts when you lift
-your finger; the strip is part of the screen, so a touch there counts too. The
-panel misses readings under a light press, so a touch counts as lifted
-only after 50 ms without contact, timed in real milliseconds so it ends
-even while a test tool has the clock frozen. BOOT ignores an edge within
-15 ms of the last one. Its timing runs on the device clock, so a press
-made while a tool has the clock frozen resolves when the clock next
-moves.
+- **A tap is a release.** A press or touch is one tap however long it's
+  held, and counts when you let go.
+- **The dip comes first.** It's drawn at once, ahead of the redraw cap and
+  before the Mac hears anything ([ARCHITECTURE.md](ARCHITECTURE.md) §9 has
+  the budget).
+- **Touch.** The panel misses readings under a light press, so a touch
+  ends only after 50 ms without contact (`kTouchReleaseMs`), timed in
+  real milliseconds so it ends even while a test tool has the clock
+  frozen.
+- **BOOT.** An edge within 15 ms of the last one is ignored
+  (`ButtonGesture::kDebounceMs`). It's timed on the device clock, so a
+  press made while a tool has the clock frozen resolves when the clock
+  next moves.
 
 v1 has no job for a second button. An external main button, if one is
 added, takes over BOOT's jobs ([DEVICE.md](DEVICE.md) §3).
@@ -146,111 +171,126 @@ added, takes over BOOT's jobs ([DEVICE.md](DEVICE.md) §3).
 1. Plug the device into USB power.
 2. Install and open the app. The first time, its popover opens under the
    menu-bar icon by itself and walks through setup one step at a time,
-   with Back from the second step on. Closing the popover halfway keeps
-   your place; clicking the icon brings it back.
-   1. **Hello:** Boop's face and one sentence about what it does.
-   2. **Name:** a name, for keeps (up to 23 bytes, the protocol's limit;
-      [ARCHITECTURE.md](ARCHITECTURE.md) §4.2 has its other rules), and
-      one question: sweet or cheeky?
-   3. **Agents:** Claude Code and Codex, each found on this Mac or not,
-      with a switch to watch it ([ADAPTERS.md](ADAPTERS.md) §5). "See
-      exactly what gets added" shows each settings file and its hooks. If
-      `boop-hook` isn't built, the switches are off and a line says to run
-      `make build`, restart Boop, then connect the agents in Settings.
-   4. **Wake up:** what comes next (plug in the body; macOS asks for
-      Bluetooth), then
-      **Wake *name* up**, which saves Boop, adds the chosen hooks and
-      starts it.
+   with a row of progress dots and Back from the second step on. Closing
+   the popover halfway keeps your place; clicking the icon brings it back.
+
+   | Step | What it asks |
+   | --- | --- |
+   | Hello | Boop's face, "Hi! I'm Boop." and one sentence about what it does. **Let's go** |
+   | Name | A name, for keeps: at most 23 bytes, the protocol's limit ([ARCHITECTURE.md](ARCHITECTURE.md) §4.2 has its other rules). Then sweet ("Warm and encouraging") or cheeky ("Playful, a bit sassy"), with the face previewing each. **Continue** needs a name |
+   | Agents | Claude Code and Codex, each found on this Mac or not, with a switch to watch it, on for each one found ([ADAPTERS.md](ADAPTERS.md) §5). "See exactly what gets added" shows each chosen settings file and its hooks. If `boop-hook` isn't built, the switches are off and a line says to run `make build`, restart Boop, then connect the agents in Settings |
+   | Ready | What comes next: plug in the body, which finds the Mac over Bluetooth; macOS asks for Bluetooth; restart open agent sessions if any were chosen. **Wake *name* up** saves Boop, adds the chosen hooks, starts it and shows the overview. If saving fails, it says so and points at `boop.log` |
+
 3. The app finds `Boop-XXXX` over Bluetooth and connects, with no pairing
    in v1 ([PROTOCOL.md](PROTOCOL.md) §2). With no sessions yet Boop
    sleeps; the first agent session wakes it.
 4. The brain needs no setup. Boop starts with the `boop` personality,
    and does only its rule reactions until you add a Jev API key in
-   Settings (§7, [HARNESS.md](harness/HARNESS.md) §7).
+   Settings (§6, [harness/HARNESS.md](harness/HARNESS.md) §7).
 
 ## 6. The Mac app
 
 After setup it never opens by itself and never sends notifications. The
 device does the nudging.
 
-**The menu-bar icon** is Boop's window eyes and a pixel "u" smile, drawn
-on whole points so it's crisp at 1× and 2×, in the menu bar's own ink:
-eyes shut to bars while Boop is asleep, open while agents are idle, and a
-small dot at the top right while they work. When something needs you it
-turns amber, dot and all (a deeper amber on a light menu bar, where the
-device's is too pale).
+**The menu-bar icon** is Boop's window eyes and a pixel "u" smile, 20×18
+pt, drawn on whole points so it's crisp at 1× and 2×. Clicking it opens
+or closes the popover.
 
-**The popover** is one 360 pt column on warm paper. Settings and setup
-open inside it, never in windows. Escape or a click outside closes it;
-closing it from Settings returns to the overview next time, while
-unfinished setup keeps its place. Its height follows its content, and a
-long pane scrolls. ⌘, opens Settings, ⌘[ goes back and ⌘Q quits.
+| Boop is | Icon |
+| --- | --- |
+| Asleep, or not running yet | Eyes shut to bars, in the menu bar's own ink |
+| Idle | Eyes open, in the menu bar's ink |
+| Working | Eyes open, and a small dot at the top right |
+| Something needs you | Amber, dot and all: the device's amber on a dark menu bar, a deeper one on a light bar, where the device's is too pale |
 
-**Overview**, top to bottom. It only shows; every control is in Settings.
+**The popover** is one 360 pt column on warm paper, with three panes:
+overview, settings and setup. They open inside it, never in windows.
+Escape or a click outside closes it. Closing it from Settings returns to
+the overview next time, while unfinished setup keeps its place. Its
+height follows its content and a long pane scrolls; setup is a fixed
+height. Opening it looks at the hooks again and refreshes everything.
+⌘, opens Settings, ⌘[ goes back from it, Return presses setup's main
+button and ⌘Q quits.
+
+The footer has Settings on the left in the overview, the app's version
+and the device's firmware there in Settings, and nothing there in setup;
+Quit is always on the right.
+
+### Overview
+
+Top to bottom. It only shows; every control is in Settings.
 
 | Area | Content |
 | --- | --- |
-| Header | A small copy of Boop's face on black glass (below) and its name. At the right, whether the body is "Connected", "Looking…" or "No device" |
-| Status line | Under the name, a dot and one line: "Needs you" (or "*N* sessions need you"), "Working on *N* sessions", "Hanging out" or "Napping"; "Waking up…" until Boop starts, or "Not running" if it couldn't |
-| Chips | Small chips, only when something isn't the usual: the personality when it isn't `boop` ("Chatter"), Muted |
-| Notices | "Boop couldn't start", with why in plain words (another copy is running, it can't listen for hooks, or look in `boop.log`), and "Restart your agent sessions" after hooks change, dismissable |
-| Needs you | An amber card for the session that has waited longest: agent · project, the name in full, "Waiting for you. Answer it in the agent's window.", and "+*N* more" |
-| Sessions | Grouped by agent, Claude Code then Codex: one row per session, with its project, a coloured edge and a status chip (needs you, working, idle), waiting first, then working, then idle. With none: "No agents awake" |
-| Footer | Settings on the left, Quit on the right. In Settings, the left shows the app's version and the device's firmware |
+| Header | The face tile (§7) and Boop's name. At the right, the body: "Connected", "Looking…", or "No device" when this copy runs without one |
+| Status line | Under the name, a dot and one line: "Needs you" (or "*N* sessions need you"), "Working on *N* session(s)", "Hanging out" or "Napping"; "Waking up…" until Boop starts, or "Not running" if it couldn't. The dot is amber for needs you and grey otherwise, and pulses while working or needed |
+| Chips | Only when something isn't the usual: "Chatter" for that personality, "Muted" at volume 0 |
+| Notices | "Boop couldn't start", with why in plain words (another copy is running; it can't listen for hooks; or look in `boop.log`). "Restart your agent sessions" after hooks were added, removed or repaired, which you can dismiss |
+| Needs you | An amber card for the session that has waited longest: agent · project with the project in full, "Waiting for you. Answer it in the agent's window.", and "+*N* more" |
+| Sessions | "Sessions · *N*", grouped by agent, Claude Code then Codex. One row per session: its project ("Unknown project" if none), a coloured edge and a status chip (needs you in amber, working, idle), waiting first (oldest first), then working, then idle. With none: "No agents awake" and "Start Claude Code or Codex and *name* will notice." |
 
-After you approve a long command, the needs-you card stays until the
-command finishes ([ADAPTERS.md](ADAPTERS.md) §4).
+### Settings
 
-**Settings** is one scrolling pane with Back at the top:
+One scrolling pane with Back at the top:
 
 | Group | Controls |
 | --- | --- |
-| Sound | Volume, 0–10 (0 shows "Off") |
-| Agents | Claude Code and Codex, each with its state and a button (below) |
-| Device | *Name*'s body: connected over Bluetooth or USB, or still looking, with a Reconnect button that drops the link and looks again at once ([PROTOCOL.md](PROTOCOL.md) §2, "Reconnecting") |
-| Personality | Boop or Chatter, with one line on what the chosen one does ([BEHAVIORS.md](BEHAVIORS.md) §6); it takes effect from the next event. Below it, the Jev API key, kept in the Keychain; its caption says that with Jev, what happens and Boop's personality and mood go to TypeSafe with each call, and that without a key Boop does only its rule reactions. A saved key is used from the next event, and saving an empty one removes it |
+| Sound | Volume, 0–10 (0 shows "Off"; 6 to start), "How loud *name* mumbles." |
+| Agents | Claude Code and Codex, each with its state and a button (below). After a change that worked: "Restart open agent sessions to pick up the change." |
+| Device | *Name*'s body: "Connected over Bluetooth" (or USB), "Looking for it over Bluetooth. Plug it into USB power.", or "This copy of Boop runs without a device". Reconnect drops the link and looks again at once ([PROTOCOL.md](PROTOCOL.md) §2, "Reconnecting") |
+| Personality | Boop or Chatter, with one line on what the chosen one does ([BEHAVIORS.md](BEHAVIORS.md) §6); it takes effect from the next event. Without a brain, a line says *name* only cheers, wiggles and chatters by rule. Below, the Jev API key with Save, then "Saved"; its caption says it's kept in the Keychain and that with Jev, what happens and Boop's personality and mood go to TypeSafe with each call. A saved key is used from the next event, and saving an empty one removes it |
 
-Each agent's row in Agents:
+Each agent's row:
 
 | State | Button |
 | --- | --- |
 | Connected | Remove |
 | Not connected | Connect |
 | Needs a repair | Repair |
-| Not found on this Mac | None |
+| Not found on this Mac | None; opening the popover looks again |
 | Can't read its settings: … | None |
 | boop-hook isn't built. Run make build, then restart Boop. | None |
+| Couldn't change its hooks: … | As for its state. Only the everyday copy of Boop changes hooks ([ADAPTERS.md](ADAPTERS.md) §5) |
 
-Without a button, opening the popover looks again. A change that fails
-says why on the row ("Couldn't change its hooks: …"); one that works asks
-you to restart open agent sessions.
+The board's id never shows. The name and sweet-or-cheeky are set once,
+at setup, and never change.
 
-The board's id never shows. The name and sweet-or-cheeky are set once, at
-setup, and never change.
+### The look
 
-**The look** is the device's "Warm Terminal" ([VISION.md](VISION.md),
-"Look"), in light and dark, with its tokens in `app/Boop/Views/Theme.swift`.
-Warm paper and ink; sections separated by space and a small tracked-out
-label, with no divider lines, and grouped into raised cards with a
-hairline edge; names, titles and numbers in the rounded system face. The
-one filled button on a screen is black glass with an oat label, or oat
-with a glass label on dark paper, where glass would read as a hole. Amber
-is only for needs you. Working and idle are greys, as on the device's
-strip; sage means connected or on, and clay means trouble.
+The device's "Warm Terminal" ([VISION.md](VISION.md), "Look"), in light
+and dark, with its tokens in `app/Boop/Views/Theme.swift`. Warm paper and
+ink; sections separated by space and a small tracked-out label, with no
+divider lines, and grouped into raised cards with a hairline edge; names,
+titles and numbers in the rounded system face. The one filled button on a
+screen is black glass with an oat label, or oat with a glass label on
+dark paper, where glass would read as a hole. Amber is only for needs
+you. Working and idle are greys, as on the device's strip; sage means
+connected or on, and clay means trouble. Only the face tile and the
+status dot loop.
 
 Every text tone, button labels included, clears 4.5:1 on what it sits on
 (the paper, a card, the well, its own chip, the needs-you card). A filled
-button stands 3:1 off its card, and the coloured menu-bar icons 3:1 off a
+button stands 3:1 off its card, and the amber menu-bar icon 3:1 off a
 light or dark menu bar. `Boop --snapshots DIR` checks it all on every run.
 The faint tone is only for decoration and disabled things.
 
-The face tile shows the face of the device's design for Boop's mood and
-look (§2), without the props, as its look starts: idle, working, needs
-you (with an amber rim) or asleep. `facegen` writes those faces into
-`app/Boop/Views/FaceDesigns.swift` from the same designs as the device's,
-in the designs' own colours. Setup's sweet and cheeky previews are the
-happy and the proud idle faces. It blinks every few seconds, and into a
-new face when the mood or the look changes, except asleep or with Reduce
-Motion on. Only the face
-and the status dot loop, and the dot pulses only while something is live:
-working or needs you.
+## 7. The face tile
+
+The overview's header and setup show a small copy of Boop's face on a
+black-glass tile: the face of the device's design for Boop's mood and
+look, as the look starts, without the props. `facegen` writes those faces
+into `app/Boop/Views/FaceDesigns.swift` from the same SVGs as the
+device's, in the designs' own colours.
+
+| Where | Face |
+| --- | --- |
+| Overview, asleep or not running | The shared asleep face, a little dimmed |
+| Overview, idle or working | The mood's idle or working face |
+| Overview, needs you | The mood's needs-you face, with an amber rim |
+| Setup: Hello, Ready, and Name with sweet | Happy's idle face |
+| Setup: Name with cheeky | Proud's idle face |
+
+It blinks for 180 ms every 2.4–5.2 s, and blinks into a new face when
+the mood or the look changes, as the device does. It holds still while
+asleep and with Reduce Motion on.

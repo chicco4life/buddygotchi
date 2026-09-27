@@ -1,8 +1,9 @@
 # Boop: device
 
-Updated 2026-09-27. The board Boop runs on: its parts and pins, the
-firmware stack, memory and speed, and how to build and flash it. Sources:
-the MicroTech MTR024QV01A-V1 product specification (2025-03-24) and
+Updated 2026-09-27. The board Boop runs on, the pins it uses, how the
+firmware is built and runs, what it keeps, and how to build and flash it.
+The code is the source (`firmware/`); board facts come from the
+MicroTech MTR024QV01A-V1 product specification (2025-03-24) and
 measurements on our own board.
 
 ## 1. The board
@@ -13,96 +14,169 @@ board.
 
 | Part | Spec | Notes for Boop |
 | --- | --- | --- |
-| Module | ESP32-WROOM-32E | Pre-certified radio module |
-| Chip | ESP32-D0WD-V3, revision v3.1 | Dual-core Xtensa LX6 at 240 MHz, 40 MHz crystal |
+| Module | ESP32-WROOM-32E: ESP32-D0WD-V3 rev v3.1, dual-core Xtensa LX6 at 240 MHz | Pre-certified radio module |
 | Memory | 520 KB SRAM, **no PSRAM** | RAM is the tightest limit (§6) |
 | Flash | 4 MB QSPI, DIO mode | Two app slots (§5) |
-| Radio | Wi-Fi 2.4 GHz; Bluetooth 4.2 BR/EDR and BLE | Boop uses BLE only; Wi-Fi stays off |
-| Screen | 2.4" IPS TFT, 240×320, ST7789, 4-wire SPI, RGB565 | 36.2 × 49 mm active area, about 169 ppi. Boop uses it sideways, as 320×240 (§4) |
-| Backlight | 4 white LEDs through a MOSFET, 220 cd/m² | GPIO21: high is on, PWM dims it |
-| Touch | Resistive XPT2046, SPI on its own pins | Needs a firm press |
-| Audio | 8-bit DAC on GPIO26 → on-board amp (enable GPIO4, **active low**) → 2-pin speaker header | A speaker is attached (§3) |
-| Light | RGB LED, common anode (**active low**) | On the back of the board, so it shows as a glow |
-| Buttons | BOOT (IO0) and RESET (EN) | BOOT works as a normal button after boot |
-| USB | USB-C: power, and programming through a CH340 USB-serial bridge (1a86:7523) with auto-reset | Shows up as `/dev/cu.usbserial-*`; flashing needs no BOOT press. At most 460800 baud on macOS (§7) |
-| Battery | 1.25 mm 2-pin LiPo header, with a charger for 3.7 V cells | Charges from 4.2–6.5 V (5 V typical) at up to 500 mA (367 mA measured), to 4.2 V |
-| Battery sense | ADC on GPIO34 | The divider ratio isn't in the spec; assumed 2:1 |
-| Storage | microSD slot, SPI | Unused |
-| Size | 42.89 × 74.33 × 5.44 mm | Four Ø3.2 mm mounting holes, 34.89 × 66.33 mm apart |
+| Radio | Wi-Fi 2.4 GHz; Bluetooth 4.2 BR/EDR and BLE | BLE only; Wi-Fi stays off |
+| Screen | 2.4" IPS TFT, 240×320, ST7789, 4-wire SPI, RGB565, about 169 ppi | Used sideways, as 320×240 (§4) |
+| Backlight | 4 white LEDs through a MOSFET, 220 cd/m² | PWM-dimmed |
+| Touch | Resistive XPT2046 on its own SPI pins | Needs a firm press |
+| Audio | 8-bit DAC on GPIO26 → on-board amp → 2-pin speaker header | A speaker is attached (§3) |
+| Light | RGB LED, common anode | On the back, so it shows as a glow |
+| Buttons | BOOT (IO0) and RESET (EN) | BOOT is a normal button after boot |
+| USB | USB-C: power, and a CH340 USB-serial bridge (1a86:7523) with auto-reset | Shows up as `/dev/cu.usbserial-*`; flashing needs no BOOT press (§7) |
+| Battery | 1.25 mm LiPo header and a charger for 3.7 V cells; sense on GPIO34 | Unused in v1 |
+| Storage | microSD slot | Unused |
+| Size | 42.89 × 74.33 × 5.44 mm, four Ø3.2 mm holes 34.89 × 66.33 mm apart | |
 
-Our unit's Wi-Fi MAC is `8c:94:df:4e:54:fc`. Its Bluetooth MAC ends in
-`54:fe`, so it advertises as `Boop-54FE` ([PROTOCOL.md](PROTOCOL.md) §2).
+The bench unit's Bluetooth MAC ends in `54:fe`, so it advertises as
+`Boop-54FE` ([PROTOCOL.md](PROTOCOL.md) §2).
 
 ## 2. Pin map
 
-From the spec's pin table (§4.2). "Free" means Boop can use it.
+The pins the firmware drives, from `firmware/src/board/pins.h`:
 
-| GPIO | Used for | Direction | Notes |
-| --- | --- | --- | --- |
-| 15 | Screen chip select | Out | Active low |
-| 2 | Screen data/command | Out | High is data. Also a boot strapping pin, which is fine as wired |
-| 14, 13 | Screen SPI clock and data (MOSI) | Out | The screen has no MISO line, so its memory can't be read back |
-| EN | Screen reset | — | Shared with the ESP32's reset; the firmware uses the ST7789's software reset |
-| 21 | Backlight | Out (PWM) | High is on |
-| 25, 32, 39, 33 | Touch SPI clock, MOSI, MISO and chip select | Out, out, in, out | Chip select is active low; 39 is input-only; 25 also rules out DAC channel 1 |
-| 36 | Touch interrupt | In | Low while pressed. Input-only pin |
-| 22, 16, 17 | LED red, green and blue | Out (PWM) | Active low. 16 is free to use because there's no PSRAM |
-| 26 | Audio DAC (DAC channel 2) | Out | |
-| 4 | Audio amp enable | Out | **Low enables** the amp |
-| 34 | Battery voltage | In (ADC) | Input-only pin |
-| 0 | BOOT button | In | Active low. Held through a reset, it enters download mode |
-| 3 / 1 | UART0 RX / TX | — | The USB-serial UART; also on the 4-pin UART header |
-| 5, 18, 19, 23 | microSD (CS, SCK, MISO, MOSI) | — | 18, 19 and 23 are shared with the SPI header. Unused |
-| 27 | SPI header chip select | Free | Planned for a vibration motor |
-| 35 | Expansion header (with GND and 3.3 V) | In | Input-only, no internal pull-up. Planned for the main button |
+| GPIO | Used for | Notes |
+| --- | --- | --- |
+| 14, 13, 15, 2 | Screen SPI clock, MOSI, chip select, data/command | SPI2 (HSPI). No MISO, so the panel can't be read back. 2 is a strapping pin, fine as wired |
+| EN | Screen reset | Shared with the ESP32's reset, so the firmware resets the ST7789 in software |
+| 21 | Backlight | PWM at 12 kHz; high is on |
+| 25, 32, 39, 33 | Touch SPI clock, MOSI, MISO, chip select | SPI3 (VSPI), remapped. 39 is input-only |
+| 36 | Touch interrupt | Low while pressed; input-only |
+| 22, 16, 17 | LED red, green, blue | PWM at 5 kHz, **active low**. 16 is free because there's no PSRAM |
+| 26 | Audio | DAC channel 2 (the driver's `CH1`) |
+| 4 | Amp enable | **Low enables** the amp |
+| 0 | BOOT, the main button (`kMainButton`) | Active low, internal pull-up |
+| 3, 1 | UART0 | The USB serial port |
 
-**Two SPI buses.** The screen is on SPI2 (HSPI) at 14/13/15, and touch
-on SPI3 (VSPI), remapped to 25/32/39/33, which is safe because Boop
-doesn't use the microSD card that normally has VSPI. The spec's FAQ says
-touch and screen share a bus; its pin table, which says otherwise, is
-right.
+**Two SPI buses.** The screen is on SPI2 and touch on SPI3, which is free
+because Boop doesn't use the microSD card that normally has it. The
+spec's FAQ says touch and screen share a bus; its pin table, which says
+otherwise, is right, and touch must stay on its own bus.
+
+Not used: 34 (battery sense), 5, 18, 19 and 23 (microSD; 18, 19 and 23
+are also on the SPI header), 27 (the SPI header's chip select) and 35
+(the expansion header). 34, 35, 36 and 39 are input-only with no
+internal pull-ups.
 
 ## 3. What's attached
 
 | Part | v1 bench | Later |
 | --- | --- | --- |
-| Main button | **None.** BOOT (IO0) acts as the main button | An external button on IO35: button to GND, 10 kΩ pull-up to 3.3 V |
-| Secondary button | **None.** v1 has no job for one ([UX.md](UX.md) §4) | BOOT, once the main button is external |
-| Speaker | On the 2-pin speaker header | The same; the header takes an 8 Ω, 1–2 W speaker |
-| Vibration motor | **None.** Nothing buzzes in v1 ([FUTURE.md](FUTURE.md)) | A coin motor on GPIO27 through an N-MOSFET, with a flyback diode |
-| Battery | **None.** USB power only. The firmware doesn't read battery sense, and nothing it sends carries a battery level | A protected 3.7 V LiPo on the battery header |
+| Main button | None: BOOT is the main button | An external button on IO35, to GND with a 10 kΩ pull-up to 3.3 V. Moving it is one line, `kMainButton` in `pins.h` |
+| Speaker | On the speaker header (8 Ω, 1–2 W) | The same |
+| Vibration motor | None ([FUTURE.md](FUTURE.md)) | A coin motor on GPIO27 through an N-MOSFET, with a flyback diode |
+| Battery | None: USB power only. Nothing reads or reports a battery level | A protected 3.7 V LiPo |
 
-The firmware detects none of these. The main button (`kMainButton`) is a
-build setting in `firmware/src/board/pins.h`, so moving it from BOOT to
-IO35 is one line. The speaker and motor can't be switched on or off in v1.
+The firmware detects none of these, and the speaker can't be switched off
+except by volume 0.
 
-## 4. Firmware stack
-
-v1 runs on **PlatformIO, the Arduino core, LovyanGFX, NimBLE-Arduino and
-ArduinoJson**: the fastest way to a working face. LovyanGFX drives both the
-ST7789 and the XPT2046, on separate buses, from one config block. The route
-to production is a port to ESP-IDF + LVGL once v1 is verified end to end
-([PLAN.md](PLAN.md) §4).
+## 4. Firmware
 
 | Piece | Choice |
 | --- | --- |
-| Platform | pioarduino `platform-espressif32` 55.03.39 (Arduino core 3.x on ESP-IDF 5.x) |
-| Board | `esp32dev`, 240 MHz, 4 MB flash, DIO |
-| Display and touch | LovyanGFX 1.2: `Panel_ST7789` on SPI2 and `Touch_XPT2046` on SPI3, with a `Light_PWM` backlight on GPIO21 at 12 kHz |
-| Bluetooth | NimBLE-Arduino 2.x, peripheral only, Nordic UART Service ([PROTOCOL.md](PROTOCOL.md)) |
+| Platform | PlatformIO, pioarduino `platform-espressif32` 55.03.39 (Arduino core 3.x on ESP-IDF 5.x), board `esp32dev` at 240 MHz, DIO flash |
+| Display and touch | LovyanGFX 1.2: `Panel_ST7789` on SPI2, `Touch_XPT2046` on SPI3, `Light_PWM` backlight |
+| Bluetooth | NimBLE-Arduino 2.x, a Nordic UART peripheral ([PROTOCOL.md](PROTOCOL.md) §2); Classic Bluetooth's memory is released at start |
 | JSON | ArduinoJson 7 |
-| Audio | ESP-IDF's continuous DAC driver on GPIO26, at a fixed 22.05 kHz; pitch changes in software ([VOICE.md](VOICE.md) §8). A task on core 0 streams it without a break, silence when there's nothing to say, and turns the amp on only while a line or cue plays |
+| Audio | ESP-IDF's continuous DAC driver at a fixed 22.05 kHz, fed by a task on core 0 (§6, [VOICE.md](VOICE.md) §8) |
 
-**Drawing stays independent of LovyanGFX.** Boop draws into its own 8-bit
-canvas, and LovyanGFX only pushes that canvas to the screen
-(`firmware/src/board/display.cpp` is the only code that knows the
-library). The same drawing code builds on the Mac as the simulator
-([VERIFICATION.md](VERIFICATION.md)), and the ESP-IDF + LVGL port only has
-to replace the part that pushes pixels.
+Arduino and LovyanGFX were the fastest way to a working face. The port to
+ESP-IDF and LVGL comes after v1 ([PLAN.md](PLAN.md) §4); it only has to
+replace the code that knows the hardware.
 
-**Panel settings.** The spec doesn't state these. They were confirmed on
-the real panel with the test pattern and the webcam, and live in
-`firmware/src/board/display.h`:
+### Modules
+
+| Path (`firmware/`) | Job | Builds for |
+| --- | --- | --- |
+| `src/main.cpp` | Start-up and the main loop (below) | Board |
+| `src/app/device.*` | The device core: parses each line, answers `dbg.*`, turns BOOT and touch into gestures, decides when to draw, and sends `status` and `input` | Board and Mac |
+| `src/app/behaviour.*` | What Boop does ([BEHAVIORS.md](BEHAVIORS.md)): the last `state`, the moment and line playing, blinks, no app, and the light, backlight and sound cues they imply | Board and Mac |
+| `src/app/` (the rest) | The device clock and random numbers (`clock.h`), button debouncing (`gesture.*`), touch calibration (`touch_cal.h`), line reassembly and Bluetooth packets (`line_reader.h`, `packets.h`), dropping a quiet link (`link_silence.h`), and the screenshot's CRC and base64 (`codec.*`) | Board and Mac |
+| `src/render/` | The 8-bit canvas, palette, anti-aliased shapes, fonts, the mood designs' player (`scene.*`), the face screen with bubble and strip (`screens.*`), the animation and mood names (`anim.*`) and the test pattern | Board and Mac |
+| `src/voice/player.*` | Turns a line or cue into samples ([VOICE.md](VOICE.md) §8) | Board and Mac |
+| `src/board/` | The pins; `board_hal.*`, the board's side of the core's `Hal` (buttons, touch, LED, backlight, NVS, heap, sound); `display.*`, the only code that knows LovyanGFX; `audio.*`, the DAC task | Board |
+| `src/link/ble.*` | The Nordic UART peripheral | Board |
+| `assets/` | Generated and checked in: `faces.h` (facegen), `fonts.h` (fontgen), `voice.h` (voicegen) ([VERIFICATION.md](VERIFICATION.md) §2) | Both |
+| `tools/pio.sh`, `tools/version.py` | PlatformIO with its packages inside the checkout; the version and git SHA baked into each build | — |
+
+Everything marked "Board and Mac" is plain C++ with integer maths. The
+`native` env builds it on the Mac for the unit tests and for `boop-sim`,
+the simulator (`internal/firmware/sim/main.cpp`), which runs the same
+device core on stdin and stdout with its clock frozen at 0
+([VERIFICATION.md](VERIFICATION.md) §4).
+
+### Start-up and the main loop
+
+`setup()` allocates the 76.8 KB canvas first, while one contiguous block
+is still free, then starts USB serial (460800 baud, 2 KB receive buffer),
+the board (amp off, BOOT's pull-up, the LED, the stored touch
+calibration), the display, the audio task and the device core, and
+Bluetooth last. If the canvas or the display fails, it turns the
+backlight on and prints `dbg.fatal` every 2 s instead
+([PROTOCOL.md](PROTOCOL.md) §5).
+
+```
+loop()
+ ├─ read lines, up to 8 ms ─ USB serial ─┐
+ │                           Bluetooth ──┴─► Device::handleLine ─► Behaviour: state, moment
+ │                                                               └► replies; lines to the voice task
+ ├─ Device::tick ─► status every 60 s, the debug clock's thaw
+ │               ─► Behaviour::advance: moment and line ends, blinks, no app
+ │               ─► BOOT and touch ─► press, tap ─► Behaviour, and `input` to the Mac
+ │               ─► sound cues, LED and backlight, through the Hal
+ │               ─► draw into the canvas, if the picture changed
+ └─ displayPush ─► only the changed bands, to the panel over SPI DMA
+
+Bluetooth task ─► received bytes into a 2 KB ring; connects and MTU as atomics
+voice task (core 0) ─► a 2-deep queue of lines, cues and hushes ─► player ─► DAC
+```
+
+Only the main loop touches the device core. The Bluetooth task only fills
+the ring, and the voice task only plays what it's handed (when the queue
+is full, the newest wins). A `dbg.*` line ends the batch of lines, so a
+test's input and clock steps land between frames. The loop sleeps 1 ms
+when a pass had nothing to read.
+
+### What the device keeps
+
+All of it lives in RAM, in `Behaviour`, as a function of the device clock:
+every change happens at an exact millisecond, so a frozen clock gives the
+same frames on the board and in the simulator. After a reset the device
+knows nothing until the next `state`. Only the touch calibration survives
+(§5).
+
+| State | Set by | Cleared by |
+| --- | --- | --- |
+| The model: `base`, `mood`, `attn` (agent, project, more), `busy` and `vol` from the last `state` ([PROTOCOL.md](PROTOCOL.md) §3) | Each `state` | The next `state` |
+| The moment: `cheer` or `wiggle`, with its start and length | A `moment`'s `anim`, or a tap (`wiggle`) | Its end, a new moment, or a new "needs you" |
+| The line: syllables, word, the word's place and the beat, for the mouth and bubble | A `moment`'s `say` | Its end, a new moment, or a new "needs you". A `state` with `attn` or volume 0 also stops its sound |
+| A blink | The device's own timer ([BEHAVIORS.md](BEHAVIORS.md) §2) | Its end, or an animation |
+| A design switch: the eyes shut and the backlight eases ([UX.md](UX.md) §2) | Any change to another design | Its end |
+| The press dip | BOOT or a touch going down | Its release |
+| The last sound cue | A new "needs you" (`chirp`) | Nothing; `dbg.state` reports it |
+| No app, latched | 30 s without a `state` | The next `state` |
+| A test pattern or light held by `dbg.pattern` or `dbg.light` | The debug message | The next `state` |
+| The clock, running or frozen | `dbg.clock`, `dbg.reset` | `dbg.clock` `run`, or 60 s with no `dbg.*` |
+
+**Screens.** One of four shows, the first that applies (`dbg.state`'s
+`screen`):
+
+| Screen | When | What it shows |
+| --- | --- | --- |
+| `pattern` | After `dbg.pattern`, until the next `state` | The test pattern (§7), a solid colour, or a calibration cross |
+| `no_app` | 30 s without a `state`, until the next | The no-app design and the unplugged icon ([BEHAVIORS.md](BEHAVIORS.md) §3.4) |
+| `needs_you` | The last `state` had `attn` | The mood's needs-you design, and who in the strip ([BEHAVIORS.md](BEHAVIORS.md) §3.2) |
+| `face` | Otherwise | The mood's design for `base`, or the cheer's while one plays |
+
+On the three face screens the device draws the design, what it adds of
+its own (blinks, the wiggle's sway and heart, the press dip, the bubble
+and talking mouth) and the status strip ([UX.md](UX.md) §2).
+
+### Panel settings
+
+The spec doesn't give these. They were confirmed on the real panel with
+the test pattern and the webcam, and live in `firmware/src/board/display.h`:
 
 | Setting | Value |
 | --- | --- |
@@ -110,89 +184,93 @@ the real panel with the test pattern and the webcam, and live in
 | Colour inversion | On |
 | Colour order | RGB |
 | Panel memory | 240×320, offsets 0, 0 |
-| Rotation | `kRotation` 1: landscape, 320×240, USB-C on the right. The panel controller turns the picture, so it costs no CPU. A board that shows the pattern upside down needs 3, half a turn further; USB-C stays on the right either way. 4–7 mirror the picture |
+| Rotation | `kRotation` 1: landscape, 320×240, USB-C on the right. The panel controller turns the picture, so it costs no CPU. A board that shows the pattern upside down needs 3; 4–7 mirror it |
 
-**Touch calibration.** `internal/tools/boopctl calibrate` has a person tap
-four crosses near the corners and one in the middle to check, fits an
-affine map from raw readings to screen pixels, and sends it with
-`dbg.touchcal`. The board keeps it in NVS (`boop`/`touchcal2`), which
-survives reflashing, with the screen size and rotation it was fitted on; a
-map for any other is ignored, so calibrate again after changing
-`kRotation`. Until then the raw range, about 200–3900 on both axes, is
-stretched over the panel and turned with `kRotation`
-(`firmware/src/app/touch_cal.h`). v1 doesn't need it, since a touch
-anywhere is a tap ([UX.md](UX.md) §4); only the touch position in
+### Touch calibration
+
+`internal/tools/boopctl calibrate` has a person tap four crosses near the
+corners, then one in the middle to check. It fits an affine map from raw
+readings to screen pixels, x = (ax·raw x + bx·raw y + cx) / 65536 and y
+alike, and sends it with `dbg.touchcal`. Until there is one, the raw range
+of about 200–3900 on both axes is stretched over the panel and turned with
+`kRotation` (`firmware/src/app/touch_cal.h`). v1 barely needs it, since a
+touch anywhere is a tap ([UX.md](UX.md) §4): only the touch position in
 `dbg.state` and the calibration crosses depend on it.
 
-## 5. Flash layout
+## 5. Flash and storage
 
-The Arduino core's standard `min_spiffs.csv`, with two app slots so updates
-over Bluetooth can come later without a new layout:
+The Arduino core's `min_spiffs.csv`, with two app slots, so updates over
+Bluetooth can come later without a new layout:
 
 | Partition | Size | Use |
 | --- | --- | --- |
-| nvs | 20 KB | The touch calibration only. The device ID comes from the MAC, and no `state` is kept |
+| nvs | 20 KB | The touch calibration (below) |
 | otadata | 8 KB | Which app slot boots |
-| app0 | 1.875 MB | The firmware, fonts and voice assets included |
-| app1 | 1.875 MB | A second slot for future updates |
+| app0 | 1.875 MB | The firmware, with its fonts, faces and voice |
+| app1 | 1.875 MB | Kept for updates |
 | spiffs | 128 KB | Unused |
 | coredump | 64 KB | Reserved for crash dumps |
 
-Fonts and syllable samples are compiled into the firmware as arrays; the
-voice assets are 226 KB ([VOICE.md](VOICE.md) §8). The whole firmware is
-about 1.08 MB, a little over half of app0.
+**NVS** holds one key: namespace `boop`, key `touchcal2`, the six
+calibration numbers with the screen width, height and rotation they were
+fitted on. A map fitted on any other screen or rotation is ignored, so
+calibrate again after changing `kRotation`. It survives reflashing.
+Nothing else is stored: the device ID comes from the Bluetooth MAC, and no
+`state` is kept.
+
+Fonts, faces and voice clips are compiled in as arrays: the voice is
+226 KB ([VOICE.md](VOICE.md) §8), the faces about 21 KB and the fonts
+about 27 KB. The whole firmware is 1.10 MB, a little over half of app0.
 
 ## 6. Memory, drawing and speed
 
 | Use | Size | Notes |
 | --- | --- | --- |
-| Screen canvas, 8-bit indexed | 76.8 KB | 320 × 240 × 1 byte. Allocated first, before Bluetooth, while one contiguous block is still free |
-| Push buffers | 2 × 7.68 KB | Each converts a band of 12 canvas rows to RGB565 for SPI DMA. Plus the 256-colour palette in the panel's byte order (512 B) |
-| NimBLE host and controller | ~75 KB, measured | Classic Bluetooth's memory is released at start-up |
-| Audio | ~11 KB, measured | Four 1 KB DMA buffers, a 3 KB task stack and the DAC driver |
-| JSON and serial buffers | ~6 KB | 2 KB of received bytes each for USB and Bluetooth; a message line is at most 512 bytes |
-| **Free heap** | **≥ 60 KB** | The target; the measured figure is below |
+| Screen canvas, 8-bit indexed | 76.8 KB | 320 × 240 × 1 byte, allocated first |
+| Push buffers | 2 × 7.68 KB | Each turns a band of 12 canvas rows into RGB565 for SPI DMA, plus the 256-colour palette in the panel's byte order (512 B) |
+| NimBLE host and controller | ~75 KB, measured | |
+| Audio | ~11 KB, measured | Four 1 KB DMA buffers, a 3 KB task stack and the driver |
+| JSON and serial buffers | ~6 KB | 2 KB of received bytes each for USB and Bluetooth; a line is at most 512 bytes |
+| **Free heap** | **≥ 60 KB** | The target; measured below |
 
 **The DAC must never run dry.** If its DMA reaches the end of what it was
-given, ESP-IDF's synchronous DAC writes stop getting buffers back and time
-out for good (seen on this board). So the voice task always writes a full
-512-sample buffer, silence when idle, and a write that still times out
-restarts the DAC and counts in `dbg.state`'s `audio.out.errors`.
+given, ESP-IDF's DAC writes stop getting buffers back and time out for
+good (seen on this board). So the voice task always writes a full
+512-sample buffer, silence when there's nothing to say, runs above
+Bluetooth's host task, and turns the amp on only while something plays. A
+write that still times out restarts the DAC and counts in `dbg.state`'s
+`audio.out.errors`.
 
-**Drawing.** The renderer (`firmware/src/render/`) uses integer maths only,
-so the board and the simulator agree to the pixel. Every colour comes from
-one 256-entry palette (`render/palette.h`). Text, the bubble and the strip
-are anti-aliased: each pixel is sampled at 4 × 16 sub-pixels and takes a
-step from an 8-step ramp, black up to its ink colour. The face is the
-mood designs ([UX.md](UX.md) §2), drawn exactly in full-strength inks:
-shapes on whole pixels and step-wise timings (`render/scene.h`), about
-21 KB in `firmware/assets/faces.h`, generated from the designs' SVGs by
-`internal/tools/facegen/facegen.py` (`make -C internal faces`). The two fonts are
-Geist Mono (SIL Open Font License) at 13 and 22 px, stored as 4-bit
-coverage in `firmware/assets/fonts.h` (about 27 KB of flash) and
-generated by `internal/tools/fontgen/fontgen.py`.
+**Drawing.** The renderer uses integer maths only, so the board and the
+simulator agree to the pixel. Every colour comes from one 256-entry
+palette (`render/palette.h`). Text, the bubble and the strip are
+anti-aliased: each pixel row samples 4 sub-scanlines of 1/16 px, and the
+coverage picks one of 8 steps from black up to the ink. The face is the
+mood designs ([UX.md](UX.md) §2), drawn exactly: rectangles on whole
+pixels with step-wise timings, from `assets/faces.h`, which
+`internal/tools/facegen/facegen.py` generates from the designs' SVGs. The
+two fonts are Geist Mono (SIL Open Font License) at 13 and 22 px, stored
+as 4-bit coverage in `assets/fonts.h` and generated by
+`internal/tools/fontgen/fontgen.py`.
 
 **Redrawing.** A full-screen push is 153.6 KB over SPI, about 31 ms at
-40 MHz, so the firmware pushes only the 12-row bands that changed since
-the last frame. It draws a frame only when the picture changes: after a
-message or an input, when a part of the face's design moves or shows
-differently (`render::SceneFrame`: where each group sits and whether it
-shows, so a step that holds its place changes nothing), or when the
-bubble comes or goes. The designs step a few times a second, the tap's
-sway a little faster, and asleep less than once a second. Two parts can
-step a few ms apart, so it draws at most once every 16 ms of real time,
-which shows them together. A frozen clock checks on every step, so
-scenario frames stay exact, and a press on every loop pass for its first
-60 ms, so the cap never delays one ([UX.md](UX.md) §4). A screenshot
-always draws afresh.
+40 MHz, so the firmware pushes only the 12-row bands whose rows changed.
+It draws a frame only when the picture can have changed: after a message
+or an input, when a part of the face's design moves or shows differently
+(`render::SceneFrame`), or when the bubble comes or goes. The designs step
+a few times a second, so most passes find nothing to draw. It draws at
+most once every 16 ms of real time, so two parts stepping a few ms apart
+show together, except that a frozen clock checks every step (so scenario
+frames stay exact) and a press draws at once for its first 60 ms
+([UX.md](UX.md) §4). A screenshot always draws afresh.
 
 **Measured:**
 
 | Measure | Value | Source |
 | --- | --- | --- |
-| Firmware size | 1.10 MB | The board build's flash use, with the mood designs, 2026-09-27 |
+| Firmware size | 1.10 MB | The board build, 2026-09-27 |
 | Minimum free heap, through `perf --motion` and a pipeline soak | 74.0 KB | The bench board, [2026-09-26](evidence/2026-09-26-e2e-hardening/README.md) |
-| Pictures a second through `perf --motion`'s cheers and wiggles | 23 on average, 18 at the least (the simulator: 15–30, 21 on average) | The bench board, firmware `c0baa57`, 20 s, 2026-09-27 |
+| Frames a second through `perf --motion`'s cheers and wiggles | 23 on average, 18 at the least (the simulator: 15–30, 21 on average) | The bench board, firmware `c0baa57`, 20 s, 2026-09-27 |
 | Drawing and pushing one changed frame (`draw_us`, `push_us`) | 1.2 ms and 4.5 ms | The same |
 | Minimum free heap in motion | 73.8 KB | The same |
 
@@ -204,55 +282,58 @@ changed; `draw_us` and `push_us` say how fast the board draws.
 ## 7. Build and flash
 
 ```sh
-make -C internal fw                      # build the firmware for the board
-make flash                   # build and upload over USB (BOOP_PORT picks the port)
-make -C internal sim                     # every scenario in the Mac simulator, against the goldens
+make -C internal fw          # build the firmware for the board (env cyd24)
+make flash                   # build and upload over USB; BOOP_PORT picks the port
+make -C internal fw-test     # the firmware's unit tests on the Mac (env native)
+make -C internal sim         # every scenario in the simulator, against the goldens
 internal/tools/boopctl ping  # firmware version and SHA, uptime, heap, fps, link
 ```
 
 The make targets run PlatformIO through `firmware/tools/pio.sh`, which
-keeps its packages inside the checkout.
+keeps its packages in `firmware/.platformio-core`, inside the checkout.
+Each build bakes in the version from `VERSION` and the git SHA
+(`firmware/tools/version.py`); `-DBOOP_DEBUG_LABEL=1` in
+`firmware/platformio.ini` adds the debug label ([UX.md](UX.md) §2).
 
 The firmware talks over USB serial at **460800 baud**, and flashing uses
-the same rate. The board's CH340 bridge on macOS's own driver can't do
-921600: esptool stops with "The chip stopped responding" and messages
-arrive garbled. The ROM boot log before the firmware starts is at 115200
-and can be ignored.
+the same rate. The board's CH340 on macOS's own driver can't do 921600:
+esptool stops with "The chip stopped responding" and messages arrive
+garbled. The ROM boot log before the firmware starts is at 115200 and can
+be ignored.
 
 Opening the port must not change DTR or RTS. macOS asserts both on open,
 and deasserting one before the other pulses EN through the auto-reset
 circuit, which reboots the board. `boopctl` leaves them alone.
 
-**Bringing up a board**, in order ([VERIFICATION.md](VERIFICATION.md)
-has the checks):
+**Bringing up a board**, in order ([VERIFICATION.md](VERIFICATION.md) has
+the checks):
 
 1. **Backlight:** GPIO21 high. A dark screen after flashing almost always
    means this pin was never driven high.
 2. **Test pattern** (`internal/tools/boopctl play pattern`): six colour
    blocks, labelled corners, a big UP arrow and a black bar down the USB-C
-   edge. Seen upright, the arrow is at the top and the bar on the USB-C
-   side; the colours confirm inversion and colour order (§4).
+   edge. Upright, the arrow is at the top and the bar on the USB-C side;
+   the colours confirm inversion and colour order (§4).
 3. **Screenshot:** `internal/tools/boopctl shot` matches the simulator
    pixel for pixel.
 4. **The rest:** `internal/tools/boopctl state` reports BOOT, raw touch,
    the LED and the amp, and `internal/tools/boopctl ping` shows Bluetooth
    advertising. Presses, calibration, the speaker
-   (`internal/tools/boopctl mumble`) and the LED's glow on the back need a
-   person.
+   (`internal/tools/boopctl mumble`) and the LED's glow need a person.
 
 ## 8. Known quirks
 
 - **Blank screen but backlight on:** usually wrong panel settings or pins,
-  according to the spec's FAQ. Check inversion, colour order and the SPI
-  pins first.
+  says the spec's FAQ. Check inversion, colour order and the SPI pins
+  first.
 - **Touch does nothing:** wrong pins, no calibration, or bus contention.
   Touch must stay on its own bus (§2).
-- **Backlight flickers:** PWM at too low a frequency, or unstable USB
-  power. Use at least 5 kHz.
+- **Backlight flickers:** PWM too slow, or unstable USB power. Keep it at
+  5 kHz or more.
 - **Advertising stops after a disconnect:** NimBLE-Arduino 2.x doesn't
   restart it unless asked, so the firmware turns on advertise-on-disconnect
   and checks once a second ([PROTOCOL.md](PROTOCOL.md) §2).
 - **Download mode:** holding BOOT while pressing RESET enters the
   bootloader. Normal flashing doesn't need it, thanks to auto-reset.
-- **GPIO 34, 35, 36 and 39 are input-only,** with no internal pull-ups. A
-  button on IO35 needs an external pull-up.
+- **A button on IO35 needs an external pull-up,** like every input-only
+  pin (§2).

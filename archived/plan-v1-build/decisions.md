@@ -126,7 +126,8 @@ When a spec changes direction, add a row here saying why.
 
 These rows left plan/ARCHITECTURE.md's log on 2026-09-27: push-to-talk and
 quiet mode were removed, the 10-minute mood hold went with the seven
-moods, and the new day's reflection went with the if-else brain. Section
+moods, the new day's reflection went with the if-else brain, and the 3 px
+pixel-art face gave way to the mood designs drawn on whole pixels. Section
 references (§) are to plan/ARCHITECTURE.md.
 
 | Date | Decision | Why | Where |
@@ -136,3 +137,4 @@ references (§) are to plan/ARCHITECTURE.md.
 | 2026-09-26 | The new-day input and its reflection are removed; a new day only starts short-term memory fresh | Only Jev could reflect, and the if-else tables couldn't | §4, [FUTURE.md](../../plan/FUTURE.md) |
 | 2026-09-27 | Two outputs: `mood(to)`, between cheerful and grumpy, at most once every 10 minutes, and `react(feeling, word)` with five feelings; `mood` and `react` are separate questions, read as Jev chose | A mood gives Boop a longer arc than single mumbles; separate questions keep each one simple, and GUIDE asks for them to agree | [harness/DECISIONS.md](../../plan/harness/DECISIONS.md) |
 | 2026-09-27 | Push-to-talk and quiet mode are removed, on the Mac and the device: no Talk button, no `listening`, no `talk_on`/`talk_off`, no empty moment and no `quiet` in `state`. Memory keeps only Boop's name and the day | Talk was inert and quiet mode had no other way in; the dead paths cost code in every layer. Both come back as a talk event and actions ([FUTURE.md](../../plan/FUTURE.md)); git keeps the code | [BEHAVIORS.md](../../plan/BEHAVIORS.md) §3.3, [PROTOCOL.md](../../plan/PROTOCOL.md), §4 |
+| 2026-09-26 | The face is pixel art after the owner's reference render: window eyes, pink cheeks and small pixel mouths on a 3 px grid | The owner asked for every animation to match the reference | [UX.md](../../plan/UX.md) §2 |

@@ -6,10 +6,8 @@ it to [PLAN.md](PLAN.md).
 
 ## Parked
 
-On 2026-09-26 v1 was cut to a minimal core in two steps, and the modes then
-replaced the new day's reflection; everything below was built and working,
-and its code, tests and specs are at git tag `v1-full` (the first step),
-commit `fd1c083` (the second) and commit `9bb8004` (the reflection), for
+Everything here was built and working, then cut to keep v1 small. Its
+code, tests and specs are at the git tag or commit in the last column, for
 example `git show v1-full:plan/BEHAVIORS.md`. Bring one back at a time.
 
 | Feature | What it was | Where |
@@ -19,7 +17,7 @@ example `git show v1-full:plan/BEHAVIORS.md`. Bring one back at a time.
 | Nudge ladder | A second chirp and a bigger lean at 45 s, then three amber pulses (or a buzz, with a motor) at 2 min; a tap stopped the nudges for that session | `v1-full` BEHAVIORS §3.2 |
 | Morning ritual | `stretch` and `yawn` at the day's first activity | `v1-full` BEHAVIORS §3.3 |
 | XP, levels and hunger | +1 XP a finished turn, +5 a day, a level every 50; hungry after 2 days and starving after 5 (tummy rumble, hopeful peeks, an empty bowl, −1 XP a day, never a level); `levelup` and `gobble`; "I'm away" pausing hunger | `v1-full` BEHAVIORS §4 |
-| Mood | Energy, pace and pitch set by wins, failures and night, shaping how moments and the voice play | `v1-full` BEHAVIORS §5, VOICE §5 |
+| Energy mood | Energy, pace and pitch set by wins, failures and night, shaping how moments and the voice played (today's seven moods are Jev's) | `v1-full` BEHAVIORS §5, VOICE §5 |
 | Night | 23:00–07:00: dimmer, drowsier, fewer mumbles, and asleep when nothing works | `v1-full` BEHAVIORS §2 |
 | Idle life | Glances, peeks and bobs while idle, and glancing down at the work while working | `v1-full` BEHAVIORS §2 |
 | Brain faces | The brain's `face` tool (`happy`, `proud`, `smug`, `curious`, `sleepy`, `worried`, `sulky`, `love`, `side_eye`), and `say` showing its feeling's face | `v1-full` HARNESS §6, BEHAVIORS §7 |
@@ -73,15 +71,19 @@ example `git show v1-full:plan/BEHAVIORS.md`. Bring one back at a time.
 
 ## Agents and brain
 
-- **Claude Cowork.** Blocked until Cowork's sandbox runs Claude Code hooks
+- **Claude Cowork.** Cowork runs Claude Code in a Linux sandbox that
+  doesn't see the Mac's `~/.claude/settings.json`, so Boop's hooks don't
+  fire there
   ([anthropics/claude-code#40495](https://github.com/anthropics/claude-code/issues/40495)).
+  Once they do, it should need only the Claude adapter and a way to tell
+  its sessions apart.
 - **Cursor and other agents.** Each needs an adapter and a reliable "you're
-  being asked" signal ([ADAPTERS.md](ADAPTERS.md) §8).
+  being asked" signal ([ADAPTERS.md](ADAPTERS.md) §7).
 - **A writer for the words.** A language model writing Boop's word in
   place of Jev's pick, once the words stop being a fixed list (free text
-  in the bubble, or the Mac speaking for Boop). The word is its own step
-  ([harness/DECISIONS.md](harness/DECISIONS.md) §4), so a writer can fill
-  it without changing the rest.
+  in the bubble, or the Mac speaking for Boop). The word is its own
+  question ([harness/DECISIONS.md](harness/DECISIONS.md) §3), so a writer
+  can fill it without changing the rest.
 - **Talking to Boop, quiet mode and memory.** Push-to-talk and quiet
   mode were removed on 2026-09-27; the last code with them, on the Mac
   (the Talk button, the mic and speech, the yell meter) and the device
@@ -96,13 +98,14 @@ example `git show v1-full:plan/BEHAVIORS.md`. Bring one back at a time.
   fate (started with its end time, cut, dropped) would be appended to the
   transcript by `MomentSchedule`, so the text form stays a pure function
   of the transcript and the clock
-  ([harness/HARNESS.md](harness/HARNESS.md) §4).
+  ([harness/HARNESS.md](harness/HARNESS.md) §5.3).
 - **Mood from prompt tone.** Reading how you write to your agents. v1
   leaves prompt text out entirely.
 - **More brain inputs,** such as coming back after a long break, or a
   periodic check-in while agents work.
 - **Codex failures.** Codex has no failure hook; reading its session file
-  when a turn stops would tell failures from finishes.
+  when a turn stops would tell failures from finishes
+  ([ADAPTERS.md](ADAPTERS.md) §3).
 
 ## The Mac app
 

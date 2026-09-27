@@ -1,216 +1,120 @@
 # Boop: harness decisions
 
-Updated 2026-09-27. What Boop decides when the brain wakes: the static
-sections that steer it, and its actions, each with its questions and its
-body. The contract every action follows, and what the harness does for
-it, is in [HARNESS.md](HARNESS.md) §4; the events are in
-[EVENTS.md](EVENTS.md), and actions only ever see their lines in HISTORY
-and NOW, never their facts.
+Updated 2026-09-27. What Boop decides when the brain wakes: the steering
+files Jev reads, the questions it answers, and the two actions that
+carry out its answers. The contract every action follows is
+[HARNESS.md](HARNESS.md) §4. The events are in [EVENTS.md](EVENTS.md),
+and actions only ever see their lines, never their facts.
 
 ## 1. What Boop decides
 
-Two actions, registered in this order:
+Two actions, registered in this order (`Runtime`):
 
-| Action | Decides | Its questions |
-| --- | --- | --- |
-| `mood` | Whether Boop's mood changes, and to what | `mood` |
-| `react` | Whether Boop mumbles, in which feeling, and with which real word | `react`, `word.feeling`, `word.about` |
+| Action | Decides | Its questions | Effect |
+| --- | --- | --- | --- |
+| `mood` (§4) | Whether Boop's mood changes, and to what | `mood` | The `mood` file; MOOD from the next pass; the device's set of faces |
+| `react` (§5) | Whether Boop mumbles, in which feeling, and with which real word | `react`, `word.feeling`, `word.about` | A Minion line on the device |
 
-All four questions go in one request. Jev answers each on its own
-([HARNESS.md](HARNESS.md) §7), so `mood` and `react` are both judged
-against the current mood: on a pass that changes the mood, the mumble is
-still judged by the old one. The guide asks for the two to fit together, and
-the evals check how often they don't.
+All four questions go in one request, and Jev answers each on its own
+([HARNESS.md](HARNESS.md) §7). So both actions are judged against the
+mood as it stood: on a pass that changes the mood, the mumble is still
+judged by the old one. The guide asks for the two to fit together, and
+the evals check both on the same pass.
 
-## 2. The static sections
+## 2. The steering files
 
-What the three static sections of the state say
-([HARNESS.md](HARNESS.md) §6). Each is a file in `plan/steering/`, and
-its examples are written in the state's own lines.
+Jev's three static sections, one file each in
+[plan/steering/](../steering/guide.md), read-only at runtime and bundled
+in the app ([HARNESS.md](HARNESS.md) §6 says how they're loaded). Their
+examples are written as the state's own lines.
 
 ### 2.1 The guide
 
-`plan/steering/guide.md`: what Boop is, what it can't do and how to
-choose. The same for every personality and mood. How to read HISTORY and
-NOW isn't in the file: the harness adds it after the guide
-([HARNESS.md](HARNESS.md) §6.1). The guide opens the state, with no heading.
+[guide.md](../steering/guide.md) opens the state, with no heading, the
+same for every personality and mood. It says who Boop is (a desk
+creature that never approves or blocks anything), what it already does
+on its own (cheers, wiggles, alerts), and that Jev only decides whether
+it adds a mumble, with at most one real word, and whether its mood
+changes. Then how to choose: judge by PERSONALITY and MOOD; react to
+NOW, not older lines, and don't repeat what Boop just did; make the mood
+and the mumble fit together. And on moods:
 
-```
-You are the mind of Boop, a small creature on a person's desk that
-watches their AI coding agents work. Boop never approves or blocks
-anything.
-Boop already reacts on its own: it cheers when a turn finishes, wiggles
-when tapped, and alerts when an agent needs the person. You only decide
-whether it adds a mumble: its own gibberish, in a feeling, with at most
-one real word. You also decide whether its mood changes.
-How to choose:
-- PERSONALITY and MOOD are who Boop is right now. Judge by them.
-- React to NOW, not to older lines. How often Boop speaks up is
-  PERSONALITY's call. Don't repeat what Boop just did.
-- A mumble is about NOW: its feeling and word should fit it.
-- Boop's mood and its mumble go together. A mood changes only when NOW
-  gives MOOD's reason to leave it, and then the mumble should fit that
-  change: a grumpy Boop doesn't gush, and a happy one doesn't sulk
-  over one failure.
-- Moods last. Change one only when things have clearly turned, never
-  for a single moment. After an hour with nothing happening, any mood
-  goes back to happy.
-```
+> Moods last. Change one only when things have clearly turned, never
+> for a single moment. After an hour with nothing happening, any mood
+> goes back to happy.
+
+The hourly heartbeat ([EVENTS.md](EVENTS.md) §4) is what gives Jev the
+chance to do that. After the guide, the harness adds how to read HISTORY
+and NOW ([HARNESS.md](HARNESS.md) §6.1).
 
 ### 2.2 PERSONALITY
 
-`plan/steering/personality/<name>.md`, picked by `personality` in
-`settings.json` and applied from the next event. How much Boop speaks up is its
-personality's to say.
+`personality/<name>.md`, chosen in Settings and used from the next
+event. It has two parts:
 
-A personality file has two parts:
+- **Front matter** for the core's rules: how often working chatter plays,
+  and which tool uses become events. Its values are
+  [BEHAVIORS.md](../BEHAVIORS.md) §6's, and it never reaches Jev.
+- **The text,** which is the PERSONALITY section: who this Boop is, how
+  often it speaks up, and its Examples, each a NOW line and what it
+  would pick (`→ annoyed, "again"`).
 
-- **Settings,** a front-matter block the core reads for its own rules
-  ([BEHAVIORS.md](../BEHAVIORS.md) §6): how often working chatter plays,
-  and which tool uses wake the brain ([EVENTS.md](EVENTS.md) §4). It
-  never reaches Jev. Every personality cheers every finished turn.
-- **The text,** which becomes the PERSONALITY section: who this buddy
-  is, how often it speaks up, and its Examples, what it would decide for
-  typical NOWs.
+| Personality | For | Its text |
+| --- | --- | --- |
+| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Curious, loyal, easily delighted and a little smug. It speaks up when something stands out and stays quiet during routine work: a comeback finish is proud with "finally", a third failure annoyed with "again", a poke streak annoyed with "nope"; a turn start, a short finish and a heartbeat get nothing |
+| [`chatter`](../steering/personality/chatter.md) | Debugging, so every pass is easy to see | Wildly over the top. It reacts to every line in NOW, routine tool uses and heartbeats included, and always picks a word if one fits |
 
-There are two:
-
-| Personality | For | `chatter` | `tool_uses` |
-| --- | --- | --- | --- |
-| `boop` (the default) | Everyday use | every 120–240 s | `notable` |
-| `chatter` | Debugging: reacts to everything, over the top, so every pass is easy to see | every 30–60 s | `all` |
-
-**`plan/steering/personality/boop.md`:**
-
-```
----
-chatter: 120-240
-tool_uses: notable
----
-PERSONALITY
-Boop is curious, loyal and easily delighted, and a little smug. It
-watches the agents' work like a sport: thrilled by wins, openly grumpy
-about failures, always on the person's side, never mean about them.
-It speaks up when something stands out, and stays quiet during routine
-work.
-Examples:
-- NOW: claude finished turn 7 on "api": done after 18 min, a very long
-  turn, 41 tools (6 failed). A comeback on tests.
-  → proud, "finally"
-- NOW: claude's tests failed again on "api", 3 in a row.
-  → annoyed, "again"
-- NOW: claude started turn 2 on "api", right after its last one.
-  → none
-- NOW: claude finished turn 3 on "api": done after 8 s, a short turn.
-  → none
-- NOW: You poked Boop 5 times in 3 s.
-  → annoyed, "nope"
-- NOW: Nothing has happened for 1 hour.
-  → none
-```
-
-**`plan/steering/personality/chatter.md`:**
-
-```
----
-chatter: 30-60
-tool_uses: all
----
-PERSONALITY
-Boop is wildly over the top. Everything is the most exciting or the most
-outrageous thing that has ever happened. It reacts to every single line
-in NOW, never stays quiet, and always picks a word if one fits at all.
-Wins are thrilling, failures are a disaster, and a new turn is the start
-of an adventure.
-Examples:
-- NOW: claude started turn 2 on "api", right after its last one.
-  → excited, "yay"
-- NOW: claude finished turn 3 on "api": done after 8 s, a short turn.
-  → excited, "yay"
-- NOW: claude edited a file on "api".
-  → excited, "yay"
-- NOW: codex ran a command on "api".
-  → curious, "hmm"
-- NOW: claude ran a command on "api". It failed.
-  → annoyed, "oops"
-- NOW: claude's tests failed on "api".
-  → annoyed, "oops"
-- NOW: claude's tests failed again on "api", 3 in a row.
-  → annoyed, "again"
-- NOW: claude finished turn 7 on "api": done after 18 min, a very long
-  turn, 41 tools (6 failed). A comeback on tests.
-  → excited, "finally"
-- NOW: You poked Boop 5 times in 3 s.
-  → annoyed, "nope"
-- NOW: Nothing has happened for 1 hour.
-  → curious, "hmm"
-```
-
-"Never stays quiet" is still Jev's call: `chatter` pushes it hard towards
-a mumble, but `none` stays an option, and the moods still apply.
+"Never stays quiet" is still Jev's call: `none` stays an option, and the
+moods still apply.
 
 ### 2.3 MOOD
 
-`plan/steering/mood/<current>.md`, the current mood's file. Seven moods,
-matching the seven sets of faces in the mood designs
-([PLAN.md](../PLAN.md), A11). Each file says how the mood
-leans the feelings and words, what it mumbles at most, and when it would
-leave it, and for which mood, which is what the `mood` question judges
-by. How often Boop speaks up at all is the personality's call (§2.2),
-which is why the guide doesn't say either way. How long a mood lasts is
-the steering's to say, not a rule's: the guide (§2.1) says moods last,
-and that any mood goes back to happy after an hour with nothing
-happening.
+`mood/<mood>.md`, the current mood's file. There are seven moods
+(`MoodAction.moods`), each with its own set of faces on the device
+([UX.md](../UX.md) §2). Each file says how the mood leans the feelings
+and words, what it mumbles at most, the words it likes, and when it
+leaves, and for which mood. That last part is what the `mood` question
+judges by. No timer holds or ends a mood: how long one lasts is the
+steering's to say.
 
-| Mood | Meaning (its criterion in `mood`) | Leaves for |
+| Mood | Its meaning (the `mood` option) | Leaves for (its file) |
 | --- | --- | --- |
-| `happy` | Good spirits: things are going fine | excited on a run of wins, proud after a hard-won finish, curious when it can't tell how things are going, determined when the same thing fails twice in a row, grumpy at 3 or more in a row or when poked again and again, sad when a turn of 10 minutes or more ends failing |
-| `excited` | Thrilled: several wins in a row, or something big went right | happy after a quiet stretch or once something fails, proud when a hard-won turn finishes |
-| `proud` | Something hard-won finished: a comeback, or a very long turn that fought through failures. Not for a routine finish, however long | happy once new work is under way, determined if it starts failing, grumpy if failures pile up |
-| `curious` | Unsure how things are going: mixed results, or something unusual. Not for a routine turn start, or a failure | happy when the work goes fine, determined when it starts failing |
-| `determined` | Working through a failure: the same thing failed twice in a row and the agent is retrying. Not for a turn that has ended | proud when it finally works, grumpy at 3 or more failures in a row, sad when the turn ends still failing |
-| `grumpy` | Fed up: 3 or more failures in a row, or poked too much | proud when what kept failing finally works, happy when a long turn finishes cleanly |
-| `sad` | Deflated: a turn of 10 minutes or more ended failing, or was stopped with failures left | happy when a turn finishes cleanly, determined when the agent tries again |
+| `happy` | Good spirits: things are going fine | `excited` on a run of wins; `proud` after a hard-won finish; `curious` when it can't tell how things are going; `determined` when the same thing fails twice in a row; `grumpy` at 3 or more in a row, or when poked again and again; `sad` when a turn of 10 minutes or more ends failing |
+| `excited` | Thrilled: several wins in a row, or something big went right | `happy` after a quiet stretch or once something fails; `proud` when a hard-won turn finishes |
+| `proud` | Something hard-won finished: a comeback, or a very long turn that fought through failures. Not for a routine finish, however long | `happy` once new work is under way; `determined` if it starts failing; `grumpy` if failures pile up |
+| `curious` | Unsure how things are going: mixed results, or something unusual. Not for a routine turn start, or a failure | `happy` when the work goes fine; `determined` when it starts failing |
+| `determined` | Working through a failure: the same thing failed twice in a row and the agent is retrying. Not for a turn that has ended | `proud` when it finally works; `grumpy` at 3 or more failures in a row; `sad` when the turn ends still failing |
+| `grumpy` | Fed up: 3 or more failures in a row, or poked too much | `proud` when what kept failing finally works; `happy` when a long turn finishes cleanly |
+| `sad` | Deflated: a turn of 10 minutes or more ended failing, or was stopped with failures left | `happy` when a turn finishes cleanly; `determined` when the agent tries again |
 
-The happy file, for example:
+And from any mood, `happy` after an hour with nothing happening (the
+guide).
 
-```
-MOOD
-Happy. Boop is in good spirits. It enjoys the work and roots for the
-agents.
-Leans happy and excited, and proud for a hard-won finish. A single
-failure gets a shrug: quiet, or curious. Annoyed only when failures
-repeat.
-Mumbles most at wins.
-Words it likes: yay, finally.
-Leaves this mood for excited on a run of wins, proud after a hard-won
-finish, curious when it can't tell how things are going, determined
-when the same thing fails twice in a row, grumpy at 3 or more in a row
-or when it's poked again and again, and sad when a turn of 10 minutes
-or more ends failing.
-```
-
-**The current mood** is one word in the state directory's `mood` file,
-which only the mood store writes, so it survives a restart. A new state
-directory starts `happy`, and a missing or unknown word reads as
-`happy`; so does `cheerful`, happy's name when there were two moods.
+**The current mood** is one word in the state directory's `mood` file
+([ARCHITECTURE.md](../ARCHITECTURE.md) §4.4), which only the mood store
+(`MoodStore`) reads and writes, so it survives a restart. A new state
+directory starts `happy` (`MoodAction.initial`), and a missing or unknown
+word reads as `happy`. The core puts the mood in every `state` it sends
+([PROTOCOL.md](../PROTOCOL.md) §3).
 
 ## 3. The questions
 
-Each names what it's about and what to judge it by, and each option's
+Each says what it's about and what to judge it by, and each option's
 meaning is its criterion.
 
-| Question | Options | About | Judged by |
-| --- | --- | --- | --- |
-| `mood` | The seven moods (§2.3) | NOW and HISTORY | MOOD, its reason to leave |
-| `react` | `none` and five feelings | NOW | PERSONALITY and MOOD, PERSONALITY's Examples first |
-| `word.about` | `none` and four topic words | NOW | PERSONALITY's Examples |
-| `word.feeling` | `none` and seven exclamations | NOW | PERSONALITY and MOOD, PERSONALITY's Examples first |
+| Key | Asked by | Text | About | Judged by | Options |
+| --- | --- | --- | --- | --- | --- |
+| `mood` | `mood` | After NOW, what is Boop's mood? | the NOW and HISTORY sections | the MOOD section, its reason to leave | The seven moods (§2.3) |
+| `react` | `react` | How should Boop react to NOW, if at all? | the NOW section | the PERSONALITY and MOOD sections, PERSONALITY's Examples first | `none` and five feelings |
+| `word.feeling` | `react` | If Boop mumbles, which exclamation fits NOW? | the NOW section | as `react` | `none` and seven exclamations |
+| `word.about` | `react` | If Boop mumbles, which topic word is NOW about? | the NOW section | the PERSONALITY section's Examples | `none` and four topics |
 
 **`react` asks whether and how at once.** A separate yes/no and feeling
-could disagree (a "no" with a confident "proud"); one choice can't.
+could disagree (a "no" with a confident "proud"); one choice can't. Each
+feeling mumbles in the Voice feeling of the same name
+([VOICE.md](../VOICE.md) §4).
 
-| Option | Meaning |
+| `react` | Meaning |
 | --- | --- |
 | `none` | Stay quiet: nothing in NOW is worth a mumble. Not for anything PERSONALITY's Examples mumble for |
 | `happy` | Pleased and friendly: a turn went fine, a small win |
@@ -219,22 +123,14 @@ could disagree (a "no" with a confident "proud"); one choice can't.
 | `curious` | Interested or unsure: something new started, or it's not clear how it's going |
 | `annoyed` | Irritated: a turn failed, tests keep failing, or it's being poked too much |
 
-Each feeling mumbles in the Voice feeling of the same name
-([VOICE.md](../VOICE.md) §4).
-
 **The words** are two questions over two short lists, so the two picks
-are never near-synonyms: what NOW is about, and an exclamation about it.
-They start with eleven of Voice's 40 ([VOICE.md](../VOICE.md) §6), the
-ones something in the state can ground, and grow as the evals show a
-need. The device keeps all 40; the brain offers only these.
+are never near-synonyms: an exclamation, and what NOW is about. They're
+the eleven of Voice's real words ([VOICE.md](../VOICE.md) §6) that
+something in the state can ground, and a test checks each is one of
+Voice's.
 
 | Question | Word | Meaning |
 | --- | --- | --- |
-| `word.about` | `none` | No topic word fits NOW |
-| | `tests` | NOW is about tests. Not for a build or a deploy |
-| | `build` | NOW is about a build. Not for tests |
-| | `deploy` | NOW is about a deploy |
-| | `docs` | NOW is about docs |
 | `word.feeling` | `none` | No exclamation fits NOW |
 | | `finally` | Something worked after failing. Not for a first try |
 | | `yay` | A win |
@@ -243,80 +139,63 @@ need. The device keeps all 40; the brain offers only these.
 | | `ugh` | Frustration: things keep going badly |
 | | `nope` | Poked too much, or refusing |
 | | `hmm` | Unsure, or something new |
+| `word.about` | `none` | No topic word fits NOW |
+| | `tests` | NOW is about tests. Not for a build or a deploy |
+| | `build` | NOW is about a build. Not for tests |
+| | `deploy` | NOW is about a deploy |
+| | `docs` | NOW is about docs |
 
 ## 4. The `mood` action
 
-**Questions:** `mood` (§3).
+`app/BoopKit/Actions/MoodAction.swift`. **Made with** the mood store and
+a callback the runtime gives it, which hands a saved mood to the core so
+the next `state` carries it.
 
-**Made with:** the mood store, the only writer of the state directory's
-`mood` file, and a way to tell the core, which puts the mood in every
-`state` it sends the device ([PROTOCOL.md](../PROTOCOL.md) §3).
+| Jev's `mood` answer | Result |
+| --- | --- |
+| Missing, the current mood, or not a mood | `nil`: nothing to do |
+| Another mood | Saves it, tells the core, and returns `ok`, `Boop's mood changed: happy → grumpy.` MOOD is the new mood's file from the next pass, and a new `state` goes to the device at once |
+| Another mood, but the file can't be written | `ok: false`, `couldn't save the mood: …`, and nothing changes |
 
-**`run`:**
+A mood can change on any pass, even straight after another change.
 
-1. Jev's choice is the current mood → `nil`: nothing to do.
-2. Otherwise it writes the new mood and returns `ok: true`,
-   `"Boop's mood changed: happy → grumpy."`. From the next pass, MOOD
-   is the new mood's file, and the device gets it in a new `state` at
-   once. No rule holds a mood for a while; the
-   steering keeps moods from changing often (§2.3).
-3. The file can't be written → `ok: false`, `"couldn't save the mood: …"`.
-
-**The dashboard** sets a mood through step 2 ([HARNESS.md](HARNESS.md)
-§9), and gets `ok: false` where Jev's choice would get `nil`:
-`already grumpy` for the current mood, and `sulky isn't a mood` for a
-word that isn't one.
+**The dashboard** sets a mood through the same change
+([HARNESS.md](HARNESS.md) §9), and gets a refusal where Jev's answer would
+get `nil`: `already grumpy` for the current mood, and
+`sulky isn't a mood` for a word that isn't one, each `ok: false`.
 
 ## 5. The `react` action
 
-**Questions:** `react`, `word.feeling`, `word.about` (§3).
+`app/BoopKit/Actions/ReactAction.swift`. **Made with** Voice, in this
+Boop's dialect; a queue to the device, which is the runtime's moment
+schedule ([ARCHITECTURE.md](../ARCHITECTURE.md) §3.2); and the core's
+gate, which says when something needs you.
 
-**Made with:** Voice, a way to queue a moment (`MomentSchedule`, then the
-device, [ARCHITECTURE.md](../ARCHITECTURE.md) §3.2), and the core's gate
-(something needing you).
+`run`:
 
-**`run`:**
+1. **Whether:** `react` missing or `none` → `nil`. Since `none`'s meaning
+   rules out anything PERSONALITY's Examples mumble for, a moment worth a
+   mumble doesn't lose to it just because Jev can't settle on one
+   feeling.
+2. **The word:** `word.feeling`'s pick if it isn't `none` and its
+   probability is **at least 0.35** (`ReactAction.wordFloor`), else the
+   same for `word.about`, else no word. Below the floor Jev is guessing,
+   and no word beats a guessed one. A line has one real word
+   ([VOICE.md](../VOICE.md) §6), so the other pick is only recorded.
+3. **Its rule:** something needs you → `ok: false`, `something needs
+   you`, and nothing plays.
+4. **The effect:** Voice builds a Minion line in the feeling's voice,
+   with the word, each line with the next seed. It's queued as a
+   `moment` with only `say`, so it plays over whatever face is showing,
+   after whatever is playing. The action returns without waiting for it.
+5. **The message:** `Boop mumbled, proud: "…finally!"`, or
+   `Boop mumbled, curious.` with no word.
 
-1. `react` is `none` → `nil`. `none`'s meaning says it isn't for anything
-   PERSONALITY's Examples mumble for, so a moment worth a mumble doesn't
-   lose to it just because Jev can't settle on one feeling; the evals
-   watch for that.
-2. **The word:** `word.feeling`'s choice if it isn't `none` and its
-   probability is **at least 0.35**, else the same for `word.about`, else
-   no word. A flat spread means Jev is guessing, and no word is better
-   than a guessed one. A line has one real word ([VOICE.md](../VOICE.md)
-   §6), so the other pick is only recorded. The floor is tuned by the
-   evals ([EVALS.md](../EVALS.md)) and pinned in a test.
-3. Something needs you → `ok: false`, saying so.
-4. Otherwise Voice builds the Minion line in the feeling's voice, with
-   the word, and it's queued to wait its turn behind whatever is playing.
-   It returns `ok: true` without waiting for it to play.
-
-**Messages:** `Boop mumbled, proud: "…finally!"`, or `Boop mumbled,
-curious.` with no word.
-
-In Swift:
-
-```swift
-final class ReactAction: Action {
-    let name = "react"
-    init(voice: Voice, queue: @escaping (DeviceMoment) -> Void, blocked: @escaping () -> String?) { … }
-
-    func questions() -> [Question] { [.react, .wordFeeling, .wordAbout] }    // §3
-
-    func run(_ answers: Answers) async -> ActionResult? {
-        guard let feeling = answers["react"]?.choice, feeling != "none" else { return nil }
-        let word = [answers["word.feeling"], answers["word.about"]].compactMap { $0 }
-            .first { $0.choice != "none" && $0.probabilities[$0.choice, default: 0] >= 0.35 }?.choice
-        if let why = blocked() { return ActionResult(ok: false, message: why) }
-        queue(DeviceMoment(say: voice.line(feeling: feeling, word: word)))
-        return ActionResult(ok: true, message: "Boop mumbled, \(feeling)" + (word.map { ": \"…\($0)!\"" } ?? "."))
-    }
-}
-```
+A mumble that waits too long in the schedule is dropped there, but HISTORY
+still says Boop mumbled.
 
 ## 6. An example
 
-[EXAMPLE.md](EXAMPLE.md) follows one turn end to end: the hooks, the
-events, the transcript, the state and questions, Jev's answers and what
-Boop does.
+[EXAMPLE.md](EXAMPLE.md) follows one real pass end to end: the events,
+the transcript, the state and questions, Jev's answers, and what the
+actions did.
