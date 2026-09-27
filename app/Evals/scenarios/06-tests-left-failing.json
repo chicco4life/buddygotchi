@@ -1,17 +1,17 @@
 {
   "name": "A turn that leaves its tests failing is a failure",
-  "why": "VISION.md hero moment 2 and BEHAVIORS.md §3.1: a turn whose last test, build or deploy command failed finishes failed, and gets the annoyed mumble in every mode, which names the topic (steering.md, Writing); one whose last run passed is a normal finish",
+  "why": "VISION.md hero moment 2 and BEHAVIORS.md §3.1: a turn whose last test, build or deploy command failed finishes failed, and gets the annoyed mumble in every mode, which names the topic (steering.md, Writing) or grumbles \"ugh\" as in VISION.md; one whose last run passed is a normal finish",
   "steps": [
     {"input": {"at": "0m", "event": "turn started", "agent": "claude", "project": "landing"},
-     "expect": {"chatty": ["agent started → react(feeling: curious, voice: mumble, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
+     "expect": {"chatty": ["agent started → react(feeling: curious, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
                 "normal": ["agent started → nothing"],
                 "calm": ["agent started → nothing"]}},
     {"input": {"at": "1m", "event": "command", "agent": "claude", "project": "landing", "topic": "tests", "failed": true},
      "expect": []},
     {"input": {"at": "2m", "event": "turn finished", "agent": "claude", "project": "landing"},
-     "expect": ["agent finished → react(feeling: annoyed, voice: mumble, word: tests)"]},
+     "expect": ["agent finished → react(feeling: annoyed, word: tests|ugh)"]},
     {"input": {"at": "3m", "event": "turn started", "agent": "claude", "project": "landing"},
-     "expect": {"chatty": ["agent started → react(feeling: curious, voice: mumble, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
+     "expect": {"chatty": ["agent started → react(feeling: curious, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
                 "normal": ["agent started → nothing"],
                 "calm": ["agent started → nothing"]}},
     {"input": {"at": "5m", "event": "command", "agent": "claude", "project": "landing", "topic": "tests", "failed": true},
@@ -19,8 +19,8 @@
     {"input": {"at": "9m", "event": "command", "agent": "claude", "project": "landing", "topic": "tests"},
      "expect": []},
     {"input": {"at": "15m", "event": "turn finished", "agent": "claude", "project": "landing"},
-     "expect": {"chatty": ["agent finished → react(feeling: excited, voice: mumble, word: finally|yay|hooray|whee|wow|done|nice|good)"],
-                "normal": ["agent finished → react(feeling: proud, voice: mumble, word: finally|done|yay|hooray|whee|nice|good|wow)"],
+     "expect": {"chatty": ["agent finished → react(feeling: excited, word: finally|yay|hooray|whee|wow|done|nice|good)"],
+                "normal": ["agent finished → react(feeling: proud, word: finally|done|yay|hooray|whee|nice|good|wow)"],
                 "calm": ["agent finished → nothing"]}}
   ]
 }

@@ -1,6 +1,6 @@
 # Boop: verification
 
-Updated 2026-09-26. How we check that Boop works, especially what's on its
+Updated 2026-09-27. How we check that Boop works, especially what's on its
 screen, without a person watching. [PLAN.md](PLAN.md) says which checks
 each milestone must pass. It builds on the previous generation's
 `buddyctl.py` (USB commands, screenshots, golden images) and the opt-in
@@ -46,7 +46,7 @@ Each level answers a different question:
 | `tools/boopctl bridge` | Owns the USB serial port and shares it through a Unix socket (`--socket`, default `$BOOP_BRIDGE` or `/tmp/boop-bridge.sock`), so the Mac app and other `boopctl` commands can use the board at the same time. Every line from the board goes to every client, and each client's lines reach the board whole. It never waits on a client: a client that stops reading and falls 4 MB behind is dropped, so a paused `boopctl` can't stall the others or the app. While a bridge runs, other `boopctl` commands (with `BOOP_BRIDGE` set to its socket, if it isn't the default) go through it instead of opening the port |
 | `tools/webcam/webcam.sh` | The existing AVFoundation recorder and frame extractor. `boopctl cam …` wraps it. `make webcam-test` tests it on synthetic video and never opens a camera |
 | `Boop --snapshots DIR` | Renders the Mac app's popover (seven overview states, including listening and a refused mic, the whole settings pane, the four setup steps) and the menu-bar icons to PNGs, in light and dark, from fixed fixtures, then exits. No runtime, Bluetooth, microphone or Keychain; the agents' settings it reads are in a throwaway HOME |
-| `boopdev` | A Swift CLI in the app package for replaying hooks, running the brain on recorded inputs, and printing the memory files. `boopdev replay <fixture>` alone runs the payloads through the hook's field picking, the adapter and the core on a virtual clock and prints every decision (`--states` for snapshots only); with `--socket` it sends them through the real `boop-hook` to a running app. `boopdev memory --state-dir DIR` prints the memory files as the store reads them, and the snapshot days. `boopdev voice <feeling> [word] --count N [--why]` prints the lines `react` would build, and with `--why` every rejected try. `boopdev brain [--mode chatty\|normal\|calm] [--classifier chatty\|calm\|jev] [--writer apple\|none\|deepseek] [--inputs DIR] [--memory DIR] [--steering FILE] [--out FILE] [--gap-min N] [--print]` runs L5: recorded inputs through the real pipeline (§5). `boopdev eval [--mode chatty\|normal\|calm] [--classifier chatty\|calm\|jev] [--writer none\|apple] [--runs N] [--only TEXT] [--json FILE]` runs the harness eval scenarios in each mode ([EVALS.md](EVALS.md)); with a model, `--runs` runs each one N times and passes it only if every run does. `boopdev watch FILE [--new]` follows a brain debug log as it grows and prints each pass and aside readably (HARNESS.md §8). `boopdev talk "<words>" [--yelled] --socket PATH` hands a push-to-talk transcript to a running headless app, as if heard on the Mac's mic (`--yelled` as if you yelled it). `boopdev hooks status\|install\|remove [claude\|codex] --home DIR` runs the hook installer against any HOME |
+| `boopdev` | A Swift CLI in the app package for replaying hooks, running the brain on recorded inputs, and printing the memory files. `boopdev replay <fixture>` alone runs the payloads through the hook's field picking, the adapter and the core on a virtual clock and prints every decision (`--states` for snapshots only); with `--socket` it sends them through the real `boop-hook` to a running app. `boopdev memory --state-dir DIR` prints the memory files as the store reads them, and the snapshot days. `boopdev voice <feeling> [word] --count N [--why]` prints the lines `react` would build, and with `--why` every rejected try. `boopdev brain [--mode chatty\|normal\|calm] [--classifier chatty\|normal\|calm\|jev] [--writer apple\|none] [--inputs DIR] [--memory DIR] [--steering FILE] [--out FILE] [--gap-min N] [--print]` runs L5: recorded inputs through the real pipeline (§5). `boopdev eval [--mode chatty\|normal\|calm] [--classifier chatty\|calm\|jev] [--writer none\|apple] [--runs N] [--only TEXT] [--json FILE]` runs the harness eval scenarios in each mode ([EVALS.md](EVALS.md)); with a model, `--runs` runs each one N times and passes it only if every run does. `boopdev watch FILE [--new]` follows a brain debug log as it grows and prints each pass and aside readably (HARNESS.md §8). `boopdev talk "<words>" [--yelled] --socket PATH` hands a push-to-talk transcript to a running headless app, as if heard on the Mac's mic (`--yelled` as if you yelled it). `boopdev hooks status\|install\|remove [claude\|codex] --home DIR` runs the hook installer against any HOME |
 
 `boopctl` subcommands:
 
@@ -202,13 +202,13 @@ resizing, typing, switches) is the owner's (L6).
 ### Harness evals
 
 Named scenarios for what the harness should do in each mode, given events,
-taps and talk over time. In chatty and calm they're deterministic and part
-of L0: `make test` runs them, and `make eval` prints each one's result.
-Normal decides with Jev, so its column runs only with Jev's key
-(`boopdev eval --mode normal`). How they work and what each checks is in
-[EVALS.md](EVALS.md).
+taps and talk over time. In every mode they're deterministic and part of
+L0: `make test` runs them, and `make eval` prints each one's result. Jev
+runs normal's column only with its key
+(`boopdev eval --mode normal --classifier jev`). How they work and what
+each checks is in [EVALS.md](EVALS.md).
 
-**Pass:** every scenario passes in chatty and calm.
+**Pass:** every scenario passes in every mode.
 
 ### L1: simulator
 
@@ -323,7 +323,7 @@ under 200 ms at p95.
    window fills and moves on as it would in the app
    ([HARNESS.md](HARNESS.md) §4). Every input gets a fresh copy of the
    sample memory. Normal decides with Jev, its key in `BOOP_JEV_KEY`, and
-   with the chatty rules without one; `--mode chatty` asks Apple's model
+   with the normal rules without one; `--mode chatty` asks Apple's model
    for a word on every mumble. `--print` shows each input and what ran, and
    every pass is logged to `/tmp/boop-brain/<classifier>-<writer>.jsonl`
    (`--out`).

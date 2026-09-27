@@ -9,9 +9,9 @@ import Foundation
 /// | --- | --- |
 /// | Agent started | nothing |
 /// | Agent finished, done | nothing |
-/// | Agent finished, failed | `react(annoyed, mumble)`: the one alert besides "needs you" |
+/// | Agent finished, failed | `react(annoyed)`: the one alert besides "needs you" |
 /// | Poked again and again | nothing |
-/// | You said anything | `Phrases`' table; yelled at or told off, nothing |
+/// | You said anything | `Phrases`' table; told off, or yelled with nothing else said, nothing |
 ///
 /// Calls the menu doesn't offer are left out.
 public struct CalmRules: Classifier {
@@ -30,7 +30,7 @@ public struct CalmRules: Classifier {
         case .agentStarted:
             return ([], "agent started")
         case .agentFinished:
-            if input.outcome == .failed { return ([Phrases.react("annoyed", "mumble")], "failed") }
+            if input.outcome == .failed { return ([Phrases.react("annoyed")], "failed") }
             return ([], "done")
         case .poked:
             return ([], "poked again and again")

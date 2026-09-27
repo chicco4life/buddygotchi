@@ -1,0 +1,25 @@
+{
+  "name": "While something needs you, only what you say reaches the brain, and its mumble is dropped",
+  "why": "BEHAVIORS.md §1, §3.2 and HARNESS.md §2 (Gating); PLAN.md §6 rows 9, 14 and 21: while an agent needs you, agent inputs and poke streaks don't reach the brain and mumbles are dropped; what you say still reaches it; once the agent carries on, the next finish gets its reaction",
+  "steps": [
+    {"input": {"at": "0s", "event": "turn started", "session": "a"},
+     "expect": {"chatty": ["agent started → react(feeling: curious, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
+                "normal": ["agent started → nothing"], "calm": ["agent started → nothing"]}},
+    {"input": {"at": "10s", "event": "turn started", "session": "b", "project": "landing"},
+     "expect": {"chatty": ["agent started → react(feeling: curious, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
+                "normal": ["agent started → nothing"], "calm": ["agent started → nothing"]}},
+    {"input": {"at": "20s", "event": "needs you", "session": "a"}, "expect": []},
+    {"input": {"at": "40s", "event": "turn finished", "session": "b", "project": "landing"}, "expect": []},
+    {"input": {"at": "41s", "event": "tap"}, "expect": []},
+    {"input": {"at": "41500ms", "event": "tap"}, "expect": []},
+    {"input": {"at": "42s", "event": "tap"}, "expect": []},
+    {"input": {"at": "42500ms", "event": "tap"}, "expect": []},
+    {"input": {"at": "50s", "event": "talk", "words": "hello boop"},
+     "expect": ["you said → react(feeling: happy|excited|curious, word: hi|hello) dropped (action)"]},
+    {"input": {"at": "60s", "event": "command", "session": "a", "topic": "tests"}, "expect": []},
+    {"input": {"at": "90s", "event": "turn finished", "session": "a"},
+     "expect": {"chatty": ["agent finished → react(feeling: excited, word: finally|yay|hooray|whee|wow|done|nice|good)"],
+                "normal": ["agent finished → react(feeling: proud, word: finally|done|yay|hooray|whee|nice|good|wow)"],
+                "calm": ["agent finished → nothing"]}}
+  ]
+}

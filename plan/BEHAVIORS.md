@@ -111,14 +111,15 @@ chirps again. The brain is never involved here.
 | --- | --- | --- |
 | Tap the screen, or press BOOT | `wiggle`: a happy squint, a small smile and a heart at the top right, swaying gently | Nothing: a tap is the rules' alone ([HARNESS.md](HARNESS.md) §2) |
 | Poke it 4 times within 3 s (*proposed*) | The fourth is a `wiggle` like the others. Not while something needs you, where a tap means "I saw it" | A grumble, as an annoyed mumble, e.g. *"ba-ka… nope!"*. The streak reaches the brain at most once a minute (*proposed*) |
-| Hold BOOT (push-to-talk) | `listening` at once, while held (at most 30 s) and then while Boop waits for the reply. The Mac's mic goes off on release, after 30 s, or when the link drops | Usually a mumble, as in [steering.md](steering.md). Asked to be quiet ("quiet" in your words), quiet mode for the minutes asked. Told off or yelled at, a sad mumble, and never quiet mode. Told something to remember, a line where it belongs: a project or session fact for today, a durable fact about you for good ([HARNESS.md](HARNESS.md) §5) |
+| Hold BOOT (push-to-talk) | `listening` at once, while held (at most 30 s) and then while Boop waits for the reply. The Mac's mic goes off on release, after 30 s, or when the link drops | Usually a mumble, as in [steering.md](steering.md). Asked to be quiet ("quiet" in your words), quiet mode for the minutes asked. Told off, or yelled at with words that say nothing else (a yelled "good job!" is still praise), a sad mumble, and never quiet mode. Told something to remember, a line where it belongs: a project or session fact for today, a durable fact about you for good ([HARNESS.md](HARNESS.md) §5) |
 | Talk in the popover, then Send | The Mac sends `listening` when the mic turns on. 8 s after Send (or after the 30 s limit) it sends an empty moment, which ends `listening` if no reply came. A mic that can't start sends the empty moment at once, and so does no reply (below) | As for holding BOOT |
 | While you talk | From the mic turning on until the reply (at most 8 s after it goes off): no working chatter, and no brain mumble about an agent, since a mumble ends `listening`. Once your words arrive, the reply is the only thing the brain is working on | — |
 | The reply | A mumble ends `listening` and plays over the face | — |
 | No reply | When Boop decides on no mumble (asked for quiet, told off in calm, quiet mode, a dropped pass) or the mic heard nothing, the Mac sends the empty moment then and the face blends back. Otherwise, after BOOT is released, the device waits at most 8 s for the reply | — |
 
 **Asked to be quiet, told off or yelled at.** Only words with "quiet" in
-them, as a whole word ("be quiet"), let `quiet` run, whoever decided it:
+them, as a whole word ("be quiet"), let `quiet` run, whoever decided it,
+unless they ask Boop to remember something ("remember I like it quiet"):
 only then is it on the brain's menu, and the action checks too. What counts as telling Boop off is the if-else
 classifier's table ([HARNESS.md](HARNESS.md) §6). You yelled if, while the
 Mac's mic was on, it heard you at −18 dBFS or louder for 300 ms or more in
@@ -166,17 +167,18 @@ tap's wiggle are the same in every mode, and quiet wins over all of them.
 | | Chatty | Normal (the default) | Calm |
 | --- | --- | --- | --- |
 | For | Maximal interaction, and debugging: the same events always get the same decisions | A balance | Only what you need to know |
-| Decides with | The chatty if-else table | Jev, or the chatty table without Jev's key | The calm if-else table |
+| Decides with | The chatty if-else table | Jev, or the normal if-else table without Jev's key and whenever Jev can't answer | The calm if-else table |
 | Writes with | Apple's model, asked again for a word it leaves out | Apple's model | Apple's model |
-| Agent starts | A curious mumble | Usually nothing | Nothing |
+| Agent starts | A curious mumble | Nothing | Nothing |
 | Turn finishes, a short turn (under 15 s) | `cheer` and a happy mumble | `cheer` | Nothing |
 | Turn finishes, a long turn (15 s up to a minute) | `cheer` and a proud mumble | `cheer` and a proud mumble | Nothing |
 | Turn finishes, a very long turn (over a minute) | `cheer` and an excited mumble | `cheer` and a proud mumble | `cheer` |
 | Turn fails | An annoyed mumble | An annoyed mumble | An annoyed mumble: the one alert besides "needs you" |
 | Poked again and again | An annoyed mumble | An annoyed mumble | The wiggle only |
-| You talk to Boop | A mumble back (§3.3) | A mumble back | A mumble back; told off or yelled at, nothing |
+| You talk to Boop | A mumble back (§3.3) | A mumble back | A mumble back; told off, or yelled at with nothing else said, nothing |
 | Working chatter | Every 45–90 s | Every 2–4 minutes | Never |
 
-Normal's column is what Jev is steered toward (`steering.md`); Jev decides
-each time, so it can differ. The if-else tables are in
+Normal's column is the normal if-else table, and what Jev is steered
+toward (`steering.md`); Jev decides each time, so it can differ. The
+if-else tables are in
 [HARNESS.md](HARNESS.md) §6. The numbers are *proposed*.

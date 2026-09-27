@@ -13,7 +13,7 @@ import Foundation
 ///
 ///     react              yes/no: the definition's question
 ///     react.feeling      choice: happy | excited | proud | …   (a decided argument
-///     react.voice        choice: silent | mumble                 with more than one option)
+///                                                               with more than one option)
 ///
 /// As TypeSafe advises for Jev, each question names the part of the state
 /// it's about (`now`) and what to judge it by (`boop`, its Examples first),
@@ -195,11 +195,6 @@ public struct JevClassifier: Classifier {
     /// its Writing section, which is only the writer's. Unrelated text costs
     /// Jev accuracy (TypeSafe's "context rot").
     static func boop(_ steering: String) -> String {
-        let text = Prompt.stripComment(steering)
-        guard let start = text.range(of: "\n## Writing\n") else { return text }
-        let end = text.range(of: "\n## ", range: start.upperBound..<text.endIndex)?.lowerBound ?? text.endIndex
-        let before = text[..<start.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
-        let after = text[end...].trimmingCharacters(in: .whitespacesAndNewlines)
-        return after.isEmpty ? before : before + "\n\n" + after
+        Prompt.steering(steering, without: ["Writing"])
     }
 }

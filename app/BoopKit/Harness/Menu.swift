@@ -1,34 +1,20 @@
 import Foundation
 
 /// What Boop may do for one input (HARNESS.md §3): the outputs, in the order
-/// they run, each narrowed to the choices this input allows and called at
-/// most once. Stage 1 picks from it; the harness holds every answer to it.
+/// they run, each called at most once. Stage 1 picks from it; the harness
+/// holds every answer to it.
 public struct Menu: Equatable, Sendable {
-    /// An output on an input's menu (`Input.menu`): plain data.
-    public struct Item: Equatable, Sendable {
-        public var tool: String
-        /// Fewer choices for some decided arguments, e.g. `voice: [mumble]`.
-        public var only: [String: [String]]
-
-        public init(_ tool: String, only: [String: [String]] = [:]) {
-            self.tool = tool
-            self.only = only
-        }
-    }
-
-    /// Narrowed definitions, in the order the calls run.
+    /// The definitions, in the order the calls run.
     public var tools: [ToolDefinition]
 
     public init(tools: [ToolDefinition]) {
         self.tools = tools
     }
 
-    /// The items with the actions' definitions, in the items' order; an
-    /// item no action defines is left out.
-    public init(_ items: [Item], definitions: [ToolDefinition]) {
-        self.init(tools: items.compactMap { item in
-            definitions.first { $0.name == item.tool }.map { $0.narrowed(item.only) }
-        })
+    /// The outputs an input allows (`Input.menu`) with the actions'
+    /// definitions, in the input's order; one no action defines is left out.
+    public init(_ names: [String], definitions: [ToolDefinition]) {
+        self.init(tools: names.compactMap { name in definitions.first { $0.name == name } })
     }
 
     public func definition(_ tool: String) -> ToolDefinition? { tools.first { $0.name == tool } }
@@ -52,18 +38,12 @@ public struct Menu: Equatable, Sendable {
         return calls.sorted { (rank[$0.name] ?? 0) < (rank[$1.name] ?? 0) }
     }
 
-    /// What Stage 2 has to write for these calls: each written argument whose
-    /// condition holds.
+    /// What Stage 2 has to write for these calls: each written argument.
     public func slots(_ calls: [ToolCall]) -> [Slot] {
         var slots: [Slot] = []
         for (index, call) in calls.enumerated() {
             guard let d = definition(call.name) else { continue }
-            for p in d.parameters {
-                switch p.role {
-                case .decided: continue
-                case .written: break
-                case .writtenWhen(let name, let value): if call.arguments[name]?.string != value { continue }
-                }
+            for p in d.parameters where !p.decided {
                 let kind: Slot.Kind
                 switch p.kind {
                 case .choice(let options): kind = .word(options)

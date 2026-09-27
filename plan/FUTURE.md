@@ -78,9 +78,8 @@ spec first.
 - **Cursor and other agents.** Each needs an adapter and a reliable "you're
   being asked" signal ([ADAPTERS.md](ADAPTERS.md) §8).
 - **A DeepSeek writer.** A cloud language model writing Boop's words in
-  place of Apple's model, with the person's own API key. The writer exists
-  in v1 as a stub that refuses every write ([HARNESS.md](HARNESS.md) §6);
-  this is about wiring DeepSeek to it and testing it. It would send the
+  place of Apple's model, with the person's own API key: a new `Writer`
+  ([HARNESS.md](HARNESS.md) §6), wired and tested. It would send the
   transcript's window as chat messages that only ever grow, so DeepSeek's
   prompt cache applies. Deciding with a cloud model already works: Jev is
   a classifier with the person's key.

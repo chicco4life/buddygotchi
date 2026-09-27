@@ -1,6 +1,6 @@
 # Boop: voice
 
-Updated 2026-09-26. How Boop's gibberish is built, how it sounds, and how we
+Updated 2026-09-27. How Boop's gibberish is built, how it sounds, and how we
 keep it unintelligible. Numbers marked *proposed* are first guesses, to be
 tuned by ear.
 
@@ -170,13 +170,16 @@ doubles skip the word list. A short list of doubles people hear as words
 (`mama`, `papa`, `nana`, `yoyo` and a few more) still fails, as do nursery
 words for the toilet (`kaka`, `pipi`). Rude and Minion words of four or
 more letters also fail anywhere inside the line, across word breaks.
+Only the word list's words spelled with the letters of Boop's syllables
+can ever match, so the app keeps just those (20,035 of 234,291), which
+gives the same answers and loads in a fraction of the time.
 
 While building a line, Voice re-rolls a gibberish word that fails, up to 4
 times. The finished line is checked again. A failed line is regenerated,
 up to 5 times, and then replaced with a safe hum (`mm-nn…`). The real word
 is the only part allowed through, and it must come from the vocabulary; a
 word outside it is left out. In a test of 10,000 lines across 25
-dialects, 4 came out as the safe hum (2026-09-26).
+dialects, 5 came out as the safe hum (`VoiceTests`, 2026-09-27).
 
 ## 8. Sound on the device
 

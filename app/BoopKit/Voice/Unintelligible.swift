@@ -44,13 +44,34 @@ public final class Unintelligible: Sendable {
         "dudu", "nono", "tata", "pupu",
     ]
 
+    /// Rude and Minion words of four or more letters, which fail anywhere
+    /// inside a line.
+    static let anywhere = rude.union(minion).filter { $0.count >= 4 }.sorted()
+
+    /// The word list's words of three or more letters, lowercased, that are
+    /// spelled only with the letters of Boop's syllables: no other word can
+    /// ever match gibberish, so keeping only these gives the same answers
+    /// from about a tenth of the list, and loads faster.
     let words: Set<String>
 
     public init(dictionary: String = Unintelligible.dictionaryPath) {
         let text = (try? String(contentsOfFile: dictionary, encoding: .utf8)) ?? ""
+        var letters = [Bool](repeating: false, count: 128)
+        for c in Sounds.all.joined().utf8 { letters[Int(c)] = true }
         var words = Set<String>()
-        for line in text.split(whereSeparator: \.isNewline) where line.count >= 3 {
-            words.insert(line.lowercased())
+        var word: [UInt8] = []
+        for line in text.utf8.split(whereSeparator: { $0 == 0x0A || $0 == 0x0D }) where line.count >= 3 {
+            word.removeAll(keepingCapacity: true)
+            var spelled = true
+            for byte in line {
+                let lower = (0x41...0x5A).contains(byte) ? byte + 0x20 : byte
+                guard lower < 128, letters[Int(lower)] else {
+                    spelled = false
+                    break
+                }
+                word.append(lower)
+            }
+            if spelled { words.insert(String(decoding: word, as: UTF8.self)) }
         }
         self.words = words
     }
@@ -66,7 +87,7 @@ public final class Unintelligible: Sendable {
             if let why = failure(word: group.joined(), wordList: !doubled) { return why }
         }
         if groups.count > 1, let why = failure(word: whole) { return why }
-        for bad in Unintelligible.rude.union(Unintelligible.minion) where bad.count >= 4 && whole.contains(bad) {
+        for bad in Unintelligible.anywhere where whole.contains(bad) {
             return "contains \"\(bad)\""
         }
         return nil

@@ -135,16 +135,17 @@ struct SettingsPane: View {
     private func about(_ mode: Mode) -> String {
         switch mode {
         case .chatty: "A mumble and a word for every turn, and chatter while agents work. Decides with plain rules on this Mac."
-        case .normal: "A balance. TypeSafe's Jev decides, online, with your API key below; without one, \(model.name) acts as in Chatty."
+        case .normal: "A balance. TypeSafe's Jev decides, online, with your API key below; without one, plain rules on this Mac."
         case .calm: "Only what you need: something needs you, a turn failed, or a long one finished. Decides with plain rules on this Mac."
         }
     }
 
-    /// Why the brain running isn't the mode's usual one, if it isn't.
+    /// Why mumbles have no word, if they don't.
     private var brainNote: String? {
         guard let status = model.status else { return nil }
-        if status.writer == "none" { return "Apple's model can't run here, so mumbles have no word." }
-        if model.mode == .normal && !status.classifier.hasPrefix("jev") { return "No Jev key yet, so \(model.name) acts as in Chatty." }
+        if status.writer == "none" || status.writer.hasPrefix("apple") && AppleWriter.unavailableReason != nil {
+            return "Apple's model can't run here, so mumbles have no word."
+        }
         return nil
     }
 
@@ -182,8 +183,12 @@ struct SettingsPane: View {
                             .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Theme.hairlineStrong, lineWidth: 1))
                             .onChange(of: apiKey) { keySaved = false }
                         Button(keySaved ? "Saved" : "Save") {
-                            keySaved = Keychain.setKey(apiKey, for: .jev)
-                            if keySaved { model.jevKeyChanged() }
+                            // Off the main thread, like the read above.
+                            let key = apiKey
+                            Task {
+                                keySaved = await Task.detached { Keychain.setKey(key, for: .jev) }.value
+                                if keySaved { model.jevKeyChanged(key.isEmpty ? nil : key) }
+                            }
                         }
                             .buttonStyle(.row)
                             .disabled(keySaved)

@@ -53,8 +53,8 @@ final class HarnessRig: @unchecked Sendable {
     init(classifier: any Classifier, writer: any Writer = FakeWriter(), debugLog: URL? = nil) {
         let tools = [
             ToolDefinition(name: "react", description: "React.", parameters: [
-                .init("feeling", .choice(["happy", "sulky", "proud"])), .init("voice", .choice(["silent", "mumble"])),
-                .init("word", .choice(["hi", "finally"]), optional: true, role: .writtenWhen("voice", is: "mumble")),
+                .init("feeling", .choice(["happy", "sulky", "proud"])),
+                .init("word", .choice(["hi", "finally"]), optional: true, role: .written),
             ]),
             ToolDefinition(name: "quiet", description: "Quiet.", parameters: [.init("minutes", .number([15, 30]))]),
             ToolDefinition(name: "remember", description: "Remember.", parameters: [
@@ -112,7 +112,7 @@ final class HarnessTests: XCTestCase {
         let rig = HarnessRig(classifier: FakeClassifier { _ in
             [remember("today"), react("happy"), ToolCall("quiet", ["minutes": .number(30)])]
         }, writer: writer)
-        let records = await run(rig, [input(.said, words: "be quiet, and remember the demo")])
+        let records = await run(rig, [input(.said, words: "be quiet, the demo is on Thursday")])
         XCTAssertEqual(rig.snapshot.handled, [ToolCall("quiet", ["minutes": .number(30)]), react("happy", word: "hi"),
                                               remember("today", "demo Thu")])
         XCTAssertEqual(records[0].slots, ["react.word", "remember.text"])
@@ -122,13 +122,12 @@ final class HarnessTests: XCTestCase {
     }
 
     /// HARNESS.md §3 step 5: Stage 2 runs only when something needs words.
-    func testASilentReactOrAQuietNeedsNoWriter() async {
+    func testAQuietNeedsNoWriter() async {
         let writer = FakeWriter()
-        let rig = HarnessRig(classifier: FakeClassifier { _ in [ToolCall("quiet", ["minutes": .number(15)]), react("sulky", "silent")] },
-                             writer: writer)
+        let rig = HarnessRig(classifier: FakeClassifier { _ in [ToolCall("quiet", ["minutes": .number(15)])] }, writer: writer)
         _ = await run(rig, [input(.said, words: "be quiet")])
         XCTAssertEqual(writer.calls, 0)
-        XCTAssertEqual(rig.snapshot.handled.count, 2)
+        XCTAssertEqual(rig.snapshot.handled.count, 1)
     }
 
     /// The writer sees everything: the input, the rules' reaction, and
@@ -159,7 +158,7 @@ final class HarnessTests: XCTestCase {
             (input(.said), [react("happy"), react("happy")], "react twice"),
             (input(.said), [react("happy"), react("sulky")], "react twice"),
             (input(.said), [react("angry")], "react: feeling isn't one of its choices"),
-            (input(.said), [ToolCall("react", ["feeling": .string("happy")])], "react: voice is missing"),
+            (input(.said), [ToolCall("react")], "react: feeling is missing"),
         ]
         for (i, calls, why) in cases {
             let rig = HarnessRig(classifier: FakeClassifier { _ in calls })
@@ -305,7 +304,7 @@ final class HarnessTests: XCTestCase {
         let first = try JSONSerialization.jsonObject(with: Data(lines[0].utf8)) as! [String: Any]
         XCTAssertEqual(first["classifier"] as? String, "fake-classifier@1")
         XCTAssertEqual(first["writer"] as? String, "fake-writer@1")
-        XCTAssertEqual(first["decided"] as? [String], ["react(feeling: proud, voice: mumble)"])
+        XCTAssertEqual(first["decided"] as? [String], ["react(feeling: proud)"])
         XCTAssertEqual(first["wrote"] as? [String: String], ["react.word": "finally"])
         XCTAssertEqual(first["window"] as? Int, 1)
         XCTAssertEqual((first["input"] as? [String: Any])?["line"] as? String,

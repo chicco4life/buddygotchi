@@ -4,19 +4,19 @@
   "rules": true,
   "steps": [
     {"input": {"at": "0s", "event": "turn started", "agent": "claude", "project": "jetpack"},
-     "expect": {"chatty": ["agent started → react(feeling: curious, voice: mumble, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
+     "expect": {"chatty": ["agent started → react(feeling: curious, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
                 "normal": ["agent started → nothing"],
                 "calm": ["agent started → nothing"]}},
     {"input": {"at": "8s", "event": "turn finished", "agent": "claude", "project": "jetpack"},
-     "expect": {"chatty": ["rules → cheer", "agent finished → react(feeling: happy, voice: mumble, word: yay|done|good|nice|okay|yes|whee|hooray|none)"],
+     "expect": {"chatty": ["rules → cheer", "agent finished → react(feeling: happy, word: yay|done|good|nice|okay|yes|whee|hooray|none)"],
                 "normal": ["rules → cheer", "agent finished → nothing"],
                 "calm": ["agent finished → nothing"]}},
     {"input": {"at": "20s", "event": "turn started", "agent": "claude", "project": "jetpack"},
-     "expect": {"chatty": ["agent started → react(feeling: curious, voice: mumble, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
+     "expect": {"chatty": ["agent started → react(feeling: curious, word: hmm|what|oh|okay|code|more|wow|hi|none)"],
                 "normal": ["agent started → nothing"],
                 "calm": ["agent started → nothing"]}},
     {"input": {"at": "32s", "event": "turn finished", "agent": "claude", "project": "jetpack"},
-     "expect": {"chatty": ["rules → cheer", "agent finished → react(feeling: happy, voice: mumble, word: yay|done|good|nice|okay|yes|whee|hooray|none)"],
+     "expect": {"chatty": ["rules → cheer", "agent finished → react(feeling: happy, word: yay|done|good|nice|okay|yes|whee|hooray|none)"],
                 "normal": ["rules → cheer", "agent finished → nothing"],
                 "calm": ["agent finished → nothing"]}}
   ]

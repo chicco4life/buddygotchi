@@ -11,7 +11,7 @@ let usage = """
                The menu-bar app. The owner runs this; it uses Bluetooth by default. --debug-log appends
                every brain pass and aside to FILE as JSON lines, what you said included (boopdev watch).
            Boop --headless --state-dir DIR [--link usb:SOCKET|none] [--socket PATH] [--mode chatty|normal|calm]
-                [--classifier chatty|calm|jev] [--writer apple|none|deepseek] [--name NAME] [--nature sweet|cheeky]
+                [--classifier \(Brains.classifiers.joined(separator: "|"))] [--writer \(Brains.writers.joined(separator: "|"))] [--name NAME] [--nature sweet|cheeky]
                 [--debug-log FILE] [--trace]
                No UI and no Bluetooth. The hook socket defaults to DIR/boop.sock. A new state directory
                is set up with --name (default Boop). --mode, --classifier and --writer override the saved

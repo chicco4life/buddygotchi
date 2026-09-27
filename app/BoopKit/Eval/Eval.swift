@@ -14,8 +14,8 @@ import Foundation
 public struct Scenario: Sendable {
     /// What happens at a step, as it reaches the core.
     public struct Event: Sendable {
-        /// `turn started`, `command`, `turn finished`, `turn failed`, `tap`,
-        /// `talk`, `mode` or `wait`.
+        /// `turn started`, `command`, `needs you`, `turn finished`, `turn
+        /// failed`, `tap`, `talk`, `mode` or `wait`.
         public var event: String
         /// Virtual time since the scenario started, in ms.
         public var atMs: Int64
@@ -71,7 +71,8 @@ public struct Scenario: Sendable {
     /// Where it came from, for reports.
     public var file: String
 
-    public static let events = ["turn started", "command", "turn finished", "turn failed", "tap", "talk", "mode", "wait"]
+    public static let events = ["turn started", "command", "needs you", "turn finished", "turn failed", "tap", "talk", "mode",
+                                "wait"]
 
     /// Reads one scenario file. Throws with the file and step on a bad one.
     public init(file: URL) throws {
@@ -201,9 +202,9 @@ public struct EvalError: Error, CustomStringConvertible {
 /// copy of the sample memory for every scenario. With a model, run each
 /// scenario a few times (`boopdev eval --runs`).
 public struct Eval: Sendable {
-    /// The modes with an if-else table of their own. Normal decides with Jev,
-    /// so its expectations are checked only with Jev's key (EVALS.md §2).
-    public static let deterministic: [Mode] = [.chatty, .calm]
+    /// Every mode has an if-else table, so every mode runs deterministically;
+    /// Jev runs normal's expectations only when asked for (EVALS.md §2).
+    public static let deterministic: [Mode] = Mode.allCases
 
     public struct StepResult: Sendable {
         public var event: Scenario.Event
@@ -245,9 +246,9 @@ public struct Eval: Sendable {
         self.memory = memory
     }
 
-    /// The mode's if-else table: normal's is chatty's, as without Jev's key.
+    /// The mode's if-else table, as without Jev's key.
     public static func rules(_ mode: Mode) -> any Classifier {
-        Brains.classifier(for: mode == .normal ? .chatty : mode)
+        Brains.classifier(for: mode)
     }
 
     /// What a step's window saw: a harness pass, or one of the core's rule
@@ -387,6 +388,11 @@ public struct Eval: Sendable {
             return core.handle(BoopEvent(agent: step.agent, session: step.session, project: step.project,
                                          event: .activity, detail: .init(tool: "Bash", topic: step.topic,
                                                                          failed: step.failed), ts: now))
+        case "needs you":
+            // An approval request, as Claude's PermissionRequest reports it;
+            // the session's next event is its answer (ADAPTERS.md §3).
+            return core.handle(BoopEvent(agent: step.agent, session: step.session, project: step.project,
+                                         event: .needsYou, detail: .init(tool: "Bash"), ts: now))
         case "turn finished": return event(.turnEnd)
         case "turn failed": return event(.turnFailed)
         case "tap": return core.input(Core.DeviceInput.tap, at: now)
@@ -397,7 +403,7 @@ public struct Eval: Sendable {
     }
 
     /// One pass as the scenarios write it (plan/EVALS.md §3):
-    /// `agent finished → react(feeling: proud, voice: mumble)`,
+    /// `agent finished → react(feeling: proud)`,
     /// `agent started → nothing`, `you said → remember(where: today) dropped (unwritten)`,
     /// `agent finished → dropped (off menu)`. A writer that failed adds
     /// ` · writer failed (error)`.
@@ -430,12 +436,22 @@ public struct Eval: Sendable {
         }
     }
 
-    /// How Stage 1 decided, and the full reason a pass was dropped or its
-    /// writer failed, for a diff: `react 0.92 · … · writer failed: apple: late`.
+    /// How Stage 1 decided, the full reason a pass was dropped or its writer
+    /// failed, and what the writer answered, for a diff:
+    /// `failed · wrote {"react_word_from":"the failed topic","react_word":"ugh"}`.
     static func why(_ record: Harness.Record) -> String? {
         let parts = [record.evidence, record.dropped.map { "dropped: \($0)" },
-                     record.writeFailed.map { "writer failed: \($0)" }].compactMap { $0 }
+                     record.writeFailed.map { "writer failed: \($0)" }, record.writerRaw.map { "wrote \(sorted($0))" }].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// A JSON object with its keys in order, so the same answer reads the
+    /// same from one run to the next; anything else as it is.
+    static func sorted(_ raw: String) -> String {
+        guard let o = try? JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any],
+              let data = try? JSONSerialization.data(withJSONObject: o, options: [.sortedKeys, .withoutEscapingSlashes])
+        else { return raw }
+        return String(decoding: data, as: UTF8.self)
     }
 
     /// Why a pass or a write came to nothing, as a scenario names it.

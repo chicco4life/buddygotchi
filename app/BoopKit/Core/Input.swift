@@ -22,10 +22,10 @@ public struct Input: Equatable, Sendable {
         /// What Boop may do for this kind of input, in the order it's done
         /// (HARNESS.md §3); `Input.menu` narrows it for the input itself.
         /// Plain data: the harness doesn't know what the tools do.
-        public var menu: [Menu.Item] {
+        public var menu: [String] {
             switch self {
-            case .agentStarted, .agentFinished, .poked: [Menu.Item("react")]
-            case .said: [Menu.Item("quiet"), Menu.Item("react"), Menu.Item("remember")]
+            case .agentStarted, .agentFinished, .poked: ["react"]
+            case .said: ["quiet", "react", "remember"]
             }
         }
     }
@@ -127,34 +127,55 @@ public struct Input: Equatable, Sendable {
 
     /// What Boop may do for this input (HARNESS.md §3): its kind's menu,
     /// narrowed to what can happen, since a brain isn't asked what the
-    /// rules decide. `quiet` only when the words ask for it: the quiet action
-    /// would refuse it otherwise. And a silent `react` only then too: with
-    /// the brain's faces parked it shows nothing, so it only means something
-    /// as quiet starts, when a mumble would be dropped anyway.
-    public var menu: [Menu.Item] {
-        kind.menu.compactMap { item in
-            switch item.tool {
-            case "quiet": return asksForQuiet ? item : nil
-            case "react" where !asksForQuiet:
-                var mumble = item
-                mumble.only["voice"] = ["mumble"]
-                return mumble
-            default: return item
-            }
-        }
+    /// rules decide: `quiet` only when the words ask for it, since the quiet
+    /// action would refuse it otherwise.
+    public var menu: [String] {
+        kind.menu.filter { $0 != "quiet" || asksForQuiet }
     }
 
     /// Your words asked Boop to be quiet: they have "quiet" in them, as a
-    /// whole word ("be quiet"). Only then may `quiet` run (BEHAVIORS.md §3.3).
+    /// whole word ("be quiet"), and don't ask it to remember something
+    /// ("remember I like it quiet"). Only then may `quiet` run, whoever
+    /// decided it: the menu, the core and the quiet action all ask this
+    /// (BEHAVIORS.md §3.3).
     public var asksForQuiet: Bool {
-        kind == .said && Input.plain(words ?? "").contains(" quiet ")
+        kind == .said && Input.plain(words ?? "").contains(" quiet ") && !asksToRemember
+    }
+
+    /// Your words asked Boop to remember something: "remember" or "note",
+    /// unless they tell Boop off (HARNESS.md §6). Yelled or not.
+    public var asksToRemember: Bool {
+        guard kind == .said else { return false }
+        let plain = Input.plain(words ?? "")
+        return [" remember ", " note "].contains(where: plain.contains) && !Input.tellsOff(plain)
+    }
+
+    /// Being told off (BEHAVIORS.md §3.3): one of these, or "you" with an
+    /// insult, so "you're so annoying" counts and "this build is annoying"
+    /// doesn't.
+    static let tellingOff = [" shut up ", " go away ", " hate you ", " you suck ", " hush ", " stop talking ",
+                             " keep it down "]
+    static let you = [" you ", " you're ", " youre ", " ur "]
+    static let insults = [" annoying ", " stupid ", " dumb ", " useless ", " idiot "]
+
+    /// Plain words (`plain`) that tell Boop off.
+    static func tellsOff(_ plain: String) -> Bool {
+        tellingOff.contains(where: plain.contains)
+            || you.contains(where: plain.contains) && insults.contains(where: plain.contains)
     }
 
     /// Lowercase words between single spaces, padded, so a phrase matches
-    /// whole words only: " hi there ".
+    /// whole words only: " hi there ". Curly apostrophes are straight ones:
+    /// "I’d rather" is " i'd rather ".
     public static func plain(_ words: String) -> String {
-        let letters = words.lowercased().map { $0.isLetter || $0.isNumber || $0 == "'" ? $0 : " " }
+        let letters = straight(words).lowercased().map { $0.isLetter || $0.isNumber || $0 == "'" ? $0 : " " }
         return " " + String(letters).split(separator: " ").joined(separator: " ") + " "
+    }
+
+    /// The words with curly apostrophes (’ and ‘, as typed or pasted text
+    /// may have them) made straight.
+    public static func straight(_ words: String) -> String {
+        words.replacingOccurrences(of: "\u{2019}", with: "'").replacingOccurrences(of: "\u{2018}", with: "'")
     }
 }
 

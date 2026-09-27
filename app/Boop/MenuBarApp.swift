@@ -140,8 +140,8 @@ final class AppModel: ObservableObject {
     }
 
     /// Jev's key changed: normal mode decides with it from the next input.
-    func jevKeyChanged() {
-        runtime?.reloadBrains()
+    func jevKeyChanged(_ key: String?) {
+        runtime?.reloadBrains(jevKey: key)
     }
 }
 
