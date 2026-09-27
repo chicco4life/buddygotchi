@@ -23,10 +23,10 @@ final class CoreRig {
     @discardableResult
     func send(_ kind: BoopEvent.Kind, _ agent: Agent = .claudeCode, session: String = "s1", subagent: String? = nil,
               project: String = "landing", tool: String? = nil, topic: String? = nil, failed: Bool? = nil,
-              notice: Bool? = nil) -> [CoreEffect] {
+              notice: Bool? = nil, id: String? = nil, done: Bool? = nil) -> [CoreEffect] {
         // A result (failed or not) is a finished call: its `PostToolUse`.
-        var detail = BoopEvent.Detail(tool: tool, topic: topic, failed: failed)
-        detail.done = kind == .activity && failed != nil
+        var detail = BoopEvent.Detail(tool: tool, topic: topic, failed: failed, toolUseID: id)
+        detail.done = done ?? (kind == .activity && failed != nil)
         // A tool-less request is Claude's `Notification` unless it says
         // otherwise (`notice: false` is an `Elicitation`).
         detail.notice = notice ?? (kind == .needsYou && tool == nil)
@@ -211,6 +211,52 @@ final class CoreAgentWorkTests: XCTestCase {
             XCTAssertEqual(rig.state.base, "idle", "\(askers)")
             XCTAssertEqual(events(fx).map { $0.facts["outcome"] }, ["stopped"], "\(askers)")
         }
+    }
+
+    /// ADAPTERS.md §4: a turn that stopped or ended stays over when the
+    /// result of a call that started before then lands just after it: Esc
+    /// as a parallel call finished, a subagent's call racing the interrupt,
+    /// or Codex's aborted command after its `Interrupt`. The result still
+    /// counts, but the session stays idle, with no chatter, and only one
+    /// stopped turn is recorded. A call that starts afterwards works again.
+    func testALateResultDoesntRestartAStoppedTurn() {
+        let rig = CoreRig(rules: .chatty)
+        rig.send(.turnStart)
+        rig.send(.activity, tool: "Read", id: "r")
+        rig.send(.activity, tool: "Bash", id: "b")
+        rig.wait(500)
+        XCTAssertEqual(events(rig.send(.turnStopped, tool: "Bash")).map { $0.facts["outcome"] }, ["stopped"])
+        rig.now += 50
+        rig.send(.activity, tool: "Read", failed: false, id: "r")
+        XCTAssertEqual(rig.state.base, "idle", "the parallel Read's result")
+        XCTAssertEqual(mumbles(rig.wait(60_000)), [], "no working chatter")
+        XCTAssertEqual(events(rig.send(.turnStopped, notice: true)), [], "one stopped turn, not two")
+
+        rig.send(.turnStart)
+        rig.send(.activity, tool: "Agent", id: "ta")
+        rig.send(.activity, tool: "Agent", id: "tb")
+        rig.send(.activity, subagent: "A", tool: "Bash", id: "a1")
+        rig.send(.activity, subagent: "B", tool: "Bash", id: "b1")
+        rig.wait(1000)
+        var ends = events(rig.send(.turnStopped, subagent: "A", tool: "Bash"))
+        ends += events(rig.send(.activity, subagent: "B", tool: "Bash", failed: false, id: "b1"))
+        ends += events(rig.send(.turnStopped, tool: "Agent"))
+        ends += events(rig.send(.turnStopped, tool: "Agent"))
+        XCTAssertEqual(ends.map { $0.facts["outcome"] }, ["stopped"])
+        XCTAssertEqual(rig.state.base, "idle")
+
+        rig.send(.turnStart, .codex, session: "c")
+        rig.send(.activity, .codex, session: "c", tool: "shell", id: "c1")
+        rig.wait(500)
+        rig.send(.turnStopped, .codex, session: "c")  // Interrupt
+        rig.now += 50
+        rig.send(.activity, .codex, session: "c", tool: "shell", id: "c1", done: true)
+        XCTAssertEqual(rig.state.base, "idle", "Codex has no idle notice to put it right")
+        rig.wait(600_000)
+        XCTAssertEqual(rig.state.base, "idle")
+
+        rig.send(.activity, .codex, session: "c", tool: "shell", id: "c2")
+        XCTAssertEqual(rig.state.base, "working", "a call that starts afterwards")
     }
 
     func testFailedTurnPlaysNoMomentAndGoesIdle() {

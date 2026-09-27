@@ -287,20 +287,28 @@ public final class Core {
             sessions[key] = s
             turnStartEvent(s, gap: gap, now, &fx)
         case .activity:
-            s.working = true
-            if s.turnStartedAt == nil { s.turnStartedAt = now }
             var event = event
+            var late = false
             if event.detail.done {
                 // A result may come without its call's topic: it's the
                 // `PreToolUse`'s, by ID or else the last one.
                 let started = event.detail.toolUseID.flatMap { s.toolStarts.removeValue(forKey: $0) } ?? s.lastToolStart
                 if event.detail.topic == nil { event.detail.topic = started?.topic }
+                // The result of a call that started before the turn ended
+                // or stopped landed late (Esc as it finished, or a
+                // subagent's racing the interrupt): it counts, but the turn
+                // stays over (ADAPTERS.md §4).
+                if s.turnStartedAt == nil, let at = started?.at, let ended = s.lastTurnEndedAt, at <= ended { late = true }
                 toolDone(&s, event, started: started?.at, now, &fx)
             } else if event.detail.tool != nil {
                 let start = (at: now, topic: event.detail.topic)
                 if let id = event.detail.toolUseID { s.toolStarts[id] = start }
                 s.lastToolStart = start
                 s.calledSinceClear = true
+            }
+            if !late {
+                s.working = true
+                if s.turnStartedAt == nil { s.turnStartedAt = now }
             }
             if let topic = event.detail.topic { s.topic = topic }
             if let topic = event.detail.topic, let failed = event.detail.failed, Core.checks.contains(topic) {
