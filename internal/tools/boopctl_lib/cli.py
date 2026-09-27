@@ -177,15 +177,29 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 1 if failures or differ else 0
 
 
+def perf_moment(i: int) -> dict:
+    """The i-th moment perf --motion plays: the cheer with loops, a wiggle,
+    then a brain reaction, a mumble in the next mood's face, which switches
+    design behind a blink and puts up the bubble (PROTOCOL.md §3)."""
+    kind = i % 3
+    if kind == 0:
+        return {"t": "moment", "anim": "cheer", "loops": 2}
+    if kind == 1:
+        return {"t": "moment", "anim": "wiggle"}
+    return {"t": "moment", "say": {"syl": "ta-ko ga-da", "word": "finally", "at": 0, "tune": "lift", "ms": 135},
+            "mood": MOODS[(i // 3) % len(MOODS)], "loops": 2, "id": i + 1}
+
+
 def cmd_perf(args: argparse.Namespace) -> int:
     """Samples fps, frame time and heap once a second with the clock
-    running. With --motion, it plays every animation in turn, one a second
-    and each replacing the last, over the working face, so every sample is
-    mid-motion. The board draws only when the picture changes, so fps reads
-    about 20 through them, and draw_us + push_us says how fast it draws
-    (DEVICE.md §6)."""
+    running. With --motion, it plays the cheer, a wiggle and a brain
+    reaction in turn, one a second and each replacing the last, over the
+    working face, so every sample is mid-motion. The board draws only when
+    the picture changes, so fps reads about 20 through them, and draw_us +
+    push_us says how fast it draws (DEVICE.md §6). The mumbles play at
+    volume 1."""
     samples = []
-    working = {"t": "state", "v": 1, "base": "working", "busy": 1}
+    working = {"t": "state", "v": 1, "base": "working", "busy": 1, "vol": 1}
     with Device(args.port) as dev:
         dev.request({"t": "dbg.clock", "run": True})
         dev.send(working)
@@ -194,7 +208,7 @@ def cmd_perf(args: argparse.Namespace) -> int:
         i = 0
         while (elapsed := time.monotonic() - start) < args.seconds:
             if args.motion and elapsed - last_moment >= 1.0:
-                dev.send({"t": "moment", "anim": ANIMS[i % len(ANIMS)]})
+                dev.send(perf_moment(i))
                 dev.send(working)
                 last_moment, i = elapsed, i + 1
             time.sleep(1.0)
@@ -224,32 +238,50 @@ VOICE_LINES = [("happy", "yay"), ("excited", "done"), ("proud", "ship"), ("curio
 SOAK_PROJECTS = ["landing", "jetpack", "buddygotchi", "a-very-long-project-name", "notes"]
 
 
-def soak_state(rng: random.Random) -> dict:
-    """A realistic snapshot: sessions, sometimes something that needs you."""
-    sessions = [[rng.choice(["claude", "codex"]), rng.choice(SOAK_PROJECTS), rng.choice(["work", "idle", "wait"])]
+def soak_state(rng: random.Random, vol: int = 6) -> dict:
+    """A realistic snapshot: sessions, sometimes something that needs you
+    (a session waits one time in seven, so reactions mostly get to play)."""
+    status = ["work"] * 3 + ["idle"] * 3 + ["wait"]
+    sessions = [[rng.choice(["claude", "codex"]), rng.choice(SOAK_PROJECTS), rng.choice(status)]
                 for _ in range(rng.randint(0, 8))]
     busy = sum(t[2] == "work" for t in sessions)
     wait = sum(t[2] == "wait" for t in sessions)
     msg = {"t": "state", "v": 1,
            "base": "working" if busy else rng.choice(["idle", "idle", "asleep"]),
-           "busy": busy, "vol": 6}
+           "mood": rng.choice(MOODS),
+           "busy": busy, "vol": vol}
     if wait:
         waiting = next(t for t in sessions if t[2] == "wait")
         msg["attn"] = {"agent": waiting[0], "project": waiting[1], "more": wait - 1}
     return msg
 
 
+def soak_say(rng: random.Random) -> dict:
+    n = rng.randint(1, 8)
+    return {"syl": " ".join(rng.choice(["ba", "na", "po", "ti", "ka", "mi"]) for _ in range(n)),
+            "word": rng.choice(["", "done", "tests", "finally", "hmm"]), "at": rng.randint(0, n),
+            "tune": "up", "ms": rng.randint(80, 200)}
+
+
 def soak_moment(rng: random.Random) -> dict:
-    """An animation, a mumble, or both, as the Mac sends them."""
-    msg = {"t": "moment"}
+    """An animation, a mumble, or both, as the rules and the dashboard send
+    them: the cheer with its loops (1–3), a wiggle, chatter."""
+    msg: dict = {"t": "moment"}
     if rng.random() < 0.7:
         msg["anim"] = rng.choice(ANIMS)
+        if msg["anim"] == "cheer":
+            msg["loops"] = rng.randint(1, 3)
     if "anim" not in msg or rng.random() < 0.4:
-        n = rng.randint(1, 8)
-        msg["say"] = {"syl": " ".join(rng.choice(["ba", "na", "po", "ti", "ka", "mi"]) for _ in range(n)),
-                      "word": rng.choice(["", "done", "tests", "finally", "hmm"]), "at": rng.randint(0, n),
-                      "tune": "up", "ms": rng.randint(80, 200)}
+        msg["say"] = soak_say(rng)
     return msg
+
+
+def soak_reaction(rng: random.Random, moment_id: int) -> dict:
+    """A brain reaction, which the Mac waits on: a mumble in a mood's face,
+    held for its loops (1–6, as the device takes them), with an `id` the
+    board answers with one `ended` (PROTOCOL.md §3–4)."""
+    return {"t": "moment", "say": soak_say(rng), "mood": rng.choice(MOODS), "loops": rng.randint(1, 6),
+            "id": moment_id}
 
 
 def soak_input(rng: random.Random) -> dict:
@@ -264,24 +296,60 @@ def soak_input(rng: random.Random) -> dict:
             "ms": 800 if kind == "long_touch" else 100}
 
 
+def ended_report(ids: list[int], heard: list[dict], excused: int) -> dict:
+    """How the board said the reactions it was sent ended: each id exactly
+    once (PROTOCOL.md §4). A moment line the board never got has none, and
+    an `ended` that lost bytes on the way back can't be read, so up to
+    `excused` (lines lost either way) may be missing."""
+    counts: dict[int, int] = {}
+    hows: dict[str, int] = {}
+    for m in heard:
+        counts[m.get("id")] = counts.get(m.get("id"), 0) + 1
+        how = str(m.get("how")) + (f" ({m['why']})" if m.get("why") else "")
+        hows[how] = hows.get(how, 0) + 1
+    sent = set(ids)
+    missing = [i for i in ids if i not in counts]
+    report = {"reactions": len(ids), "ended": len(heard), "ended_how": hows, "ended_missing": missing,
+              "ended_twice": sorted(i for i, n in counts.items() if n > 1),
+              "ended_unknown": sorted(i for i in counts if i not in sent)}
+    report["ended_ok"] = not report["ended_twice"] and not report["ended_unknown"] and len(missing) <= excused
+    return report
+
+
 def cmd_soak(args: argparse.Namespace) -> int:
-    """Random, realistic traffic and inputs with the clock running, then
-    checks for resets, a drifting heap minimum and stuck states. With
-    --pipeline, the e2e fixtures on a loop through the headless app instead
-    (J2's soak)."""
+    """Random, realistic traffic and inputs with the clock running, brain
+    reactions with ids and loops among them, then checks for resets, a
+    drifting heap minimum, stuck states, lost lines, audio errors and an
+    `ended` for every reaction. With --pipeline, the e2e fixtures on a loop
+    through the headless app instead (J2's soak)."""
     if args.pipeline:
         from boopctl_lib import e2e
 
         return e2e.soak(Path(args.out or "/tmp/boop-e2e-out"), args.brain, args.port, args.minutes)
     rng = random.Random(args.seed)
-    samples, log_lines = [], []
+    samples, glitches, heard, ids = [], [], [], []
+    sent = {"state": 0, "moment": 0}
     with Device(args.port) as dev:
-        dev.request({"t": "dbg.reset"})
-        dev.request({"t": "dbg.clock", "run": True})
         start = time.monotonic()
+
+        # The CH340 now and then drops bytes over a long run: a debug
+        # request whose reply is lost is asked again once, and counted.
+        def glitch(exc: Exception) -> None:
+            glitches.append(f"{time.monotonic() - start:.0f} s: {exc}"[:160])
+
+        dev.retries, dev.on_retry = 1, glitch
+        dev.heard = lambda m: heard.append(m) if m.get("t") in ("ended", "torn") else None
+
+        def send(msg: dict) -> None:
+            dev.send(msg)
+            sent[msg["t"]] += 1
+
+        dev.request({"t": "dbg.reset"})
+        rx0 = dev.request({"t": "dbg.state"})["rx"]
+        dev.request({"t": "dbg.clock", "run": True})
         next_ping = 0.0
         silent_until = 0.0
-        state = soak_state(rng)
+        state = soak_state(rng, args.vol)
         last_state = -100.0
         silence_done = False
         while (elapsed := time.monotonic() - start) < args.minutes * 60:
@@ -290,27 +358,42 @@ def cmd_soak(args: argparse.Namespace) -> int:
                 silent_until, silence_done = elapsed + 35, True  # once: the Mac goes away, "no app"
             if elapsed >= silent_until:
                 if r < 0.25:
-                    state = soak_state(rng)
-                    dev.send(state)
+                    state = soak_state(rng, args.vol)
+                    send(state)
                     last_state = elapsed
+                elif r < 0.4:
+                    send(soak_moment(rng))
                 elif r < 0.5:
-                    dev.send(soak_moment(rng))
+                    ids.append(len(ids) + 1)
+                    send(soak_reaction(rng, ids[-1]))
                 elif r < 0.7:
                     dev.request(soak_input(rng))
                 if elapsed - last_state >= 10:
-                    dev.send(state)  # the Mac's 10 s snapshot
+                    send(state)  # the Mac's 10 s snapshot
                     last_state = elapsed
             if elapsed >= next_ping:
                 samples.append({"t": round(elapsed, 1), **dev.vitals()})
                 next_ping = elapsed + 5
             time.sleep(rng.uniform(0.2, 1.5))
         # Stuck? Calm snapshots must bring back the plain face once the
-        # last press (held ≤ 3 s) and moment are over.
-        for _ in range(3):
-            dev.send({"t": "state", "v": 1, "base": "idle", "busy": 0})
+        # last press (held ≤ 3 s) and moment are over: a reaction's face
+        # can hold 6 loops of a 9 s design.
+        calm = {"t": "state", "v": 1, "base": "idle", "busy": 0, "vol": args.vol}
+        settle_by = time.monotonic() + 75
+        while True:
+            send(calm)
             time.sleep(5)
-        final = dev.request({"t": "dbg.state"})
+            final = dev.request({"t": "dbg.state"})
+            plain = final.get("screen") == "face" and final.get("moment") is None and final.get("expr") is None
+            if plain or time.monotonic() > settle_by:
+                break
         samples.append({"t": round(time.monotonic() - start, 1), **dev.vitals()})
+        # Whatever reaction still plays is cut by the reset; its `ended`
+        # comes with the reply.
+        dev.request({"t": "dbg.reset"})
+        dev.request({"t": "dbg.ping"})
+    rx1 = final.get("rx", {})
+    lost = {k: sent[k] - (rx1.get(k, 0) - rx0.get(k, 0)) for k in sent}
     early = [s["heap_min"] for s in samples if s["t"] >= 60] or [samples[0]["heap_min"]]
     result = {
         "minutes": args.minutes,
@@ -321,10 +404,19 @@ def cmd_soak(args: argparse.Namespace) -> int:
         "heap_min_drift": early[0] - samples[-1]["heap_min"],
         "final_screen": final.get("screen"),
         "final_moment": final.get("moment"),
+        "final_expr": final.get("expr"),
         "answering": final.get("t") == "dbg.state",
+        "sent": sent,
+        "lost": lost,
+        "audio_errors": final.get("audio", {}).get("out", {}).get("errors"),
+        "link_glitches": glitches,
+        "torn_lines": sum(m["t"] == "torn" for m in heard),
     }
+    excused = lost["moment"] + result["torn_lines"] + len(glitches)
+    result.update(ended_report(ids, [m for m in heard if m["t"] == "ended"], excused))
     result["ok"] = (not result["reset"] and result["heap_min_drift"] <= 2048 and result["answering"]
-                    and result["final_screen"] == "face" and result["final_moment"] is None)
+                    and result["final_screen"] == "face" and result["final_moment"] is None
+                    and result["final_expr"] is None and not result["audio_errors"] and result["ended_ok"])
     if args.out:
         Path(args.out).write_text(json.dumps({**result, "series": samples}, indent=1))
     emit(result)
@@ -653,6 +745,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="through the headless app: hooks, a tap between rounds, then a quiet minute (J2)")
     p.add_argument("--brain", default="scripted", choices=["scripted", "jev"],
                    help="with --pipeline: the headless app's brain; jev needs BOOP_JEV_KEY (default: scripted)")
+    p.add_argument("--vol", type=int, default=6, choices=range(0, 11), metavar="0-10",
+                   help="the volume every state carries (default 6); 1 keeps a night run quiet")
     p.set_defaults(func=cmd_soak)
     p = sub.add_parser("e2e", help="the pipeline check: hooks → headless app → bridge → board (L4)")
     p.add_argument("--brain", default="scripted", choices=["scripted", "jev"],

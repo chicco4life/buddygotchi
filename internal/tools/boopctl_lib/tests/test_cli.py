@@ -78,5 +78,44 @@ class PlayTests(unittest.TestCase):
             cli.build_parser().parse_args(["play", "cheer", "--loops", "7"])
 
 
+class SoakTests(unittest.TestCase):
+    """The soak's brain reactions and how it holds the board to one
+    `ended` each (PROTOCOL.md §3–4)."""
+
+    def test_reactions_are_waited_moments_with_loops(self):
+        import random
+        rng = random.Random(1)
+        for i in range(1, 50):
+            m = cli.soak_reaction(rng, i)
+            self.assertEqual(m["id"], i)
+            self.assertIn(m["mood"], cli.MOODS)
+            self.assertTrue(1 <= m["loops"] <= 6)
+            self.assertTrue(m["say"]["syl"])
+        cheers = [cli.soak_moment(rng) for _ in range(200)]
+        self.assertTrue(all(1 <= m["loops"] <= 3 for m in cheers if m.get("anim") == "cheer"))
+        self.assertFalse(any("id" in m or "mood" in m for m in cheers))  # the rules' moments aren't waited on
+
+    def test_each_reaction_ends_once(self):
+        ended = [{"t": "ended", "id": 1, "how": "done"}, {"t": "ended", "id": 2, "how": "cut", "why": "tap"},
+                 {"t": "ended", "id": 3, "how": "skipped"}]
+        r = cli.ended_report([1, 2, 3], ended, 0)
+        self.assertTrue(r["ended_ok"])
+        self.assertEqual(r["ended_how"], {"done": 1, "cut (tap)": 1, "skipped": 1})
+        self.assertFalse(cli.ended_report([1, 2, 3], ended + [ended[0]], 0)["ended_ok"])  # twice
+        self.assertFalse(cli.ended_report([1, 2], ended, 0)["ended_ok"])  # an id never sent
+        # A missing one only when a line was lost on the way.
+        self.assertFalse(cli.ended_report([1, 2, 3, 4], ended, 0)["ended_ok"])
+        self.assertTrue(cli.ended_report([1, 2, 3, 4], ended, 1)["ended_ok"])
+        self.assertEqual(cli.ended_report([1, 2, 3, 4], ended, 1)["ended_missing"], [4])
+
+    def test_the_link_hears_what_comes_unasked(self):
+        board = FakeBoard.in_turn([b'{"t":"ended","id":7,"how":"done"}\n{"t":"ended","id":8\n{"t":"dbg.ping","up":1}\n'])
+        heard: list[dict] = []
+        board.heard = heard.append
+        board.request({"t": "dbg.ping"})
+        self.assertEqual([m["t"] for m in heard], ["ended", "torn"])
+        self.assertEqual(heard[0]["id"], 7)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -67,6 +67,10 @@ class Link:
     # up to that many times, and `on_retry` (if set) hears of each failure.
     retries = 0
     on_retry: Callable[[Exception], None] | None = None
+    # Hears every message read while waiting for another, such as the
+    # board's `ended` and `input`, which come unasked, and each line that
+    # arrived torn, as {"t": "torn"}.
+    heard: Callable[[dict[str, Any]], None] | None = None
 
     def __init__(self) -> None:
         self._buf = bytearray()
@@ -113,9 +117,13 @@ class Link:
             try:
                 msg = json.loads(line)
             except ValueError:
+                if self.heard:  # a line that lost bytes on the way
+                    self.heard({"t": "torn", "line": line[:120].decode(errors="replace")})
                 continue
             if match(msg):
                 return msg
+            if self.heard:
+                self.heard(msg)
 
     def _retrying(self, call: Callable[[], Any]) -> Any:
         for attempt in range(self.retries + 1):

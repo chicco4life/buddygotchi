@@ -74,8 +74,8 @@ commands go through the bridge.
 | `mumble [feeling…]` | Plays the Mac's Voice lines for each feeling (all eight by default), without and with a word, and checks each in `audio.out`: syllables, word, and the DAC's time within 10% of beats × `ms`; then that a muted line moves the mouth silently. `--word W` or `--no-word`, `--count N` lines each, `--vol`, `--seed N` to replay a run, `--gap S` between lines (0.8), `--json`. For listening: `--board-volume` plays one line at the volume the board already has; `--levels L…` plays one line at each level, `--rounds N` times (6) |
 | `sim [scenario…] [--accept]` | Plays scenarios (all by default) in the simulator into `/tmp/boop-sim/<scenario>/` and compares them with the goldens (L1); `--accept` copies the pictures in |
 | `run [scenario…]` | Plays scenarios on the board and diffs each screenshot against the simulator's, threshold 0 (L2), then lets the clock run again |
-| `perf [--seconds N] [--motion]` | Samples fps, frame time and heap once a second for N s (30); `--motion` keeps the face moving (L2) |
-| `soak [--minutes N] [--seed N] [--out FILE]` | Random, realistic traffic and inputs for N minutes (20) (L2). `--pipeline` loops the L4 fixtures through the headless app instead, with `--brain scripted\|jev` and `--out DIR` |
+| `perf [--seconds N] [--motion]` | Samples fps, frame time and heap once a second for N s (30); `--motion` keeps the face moving with the cheer, a wiggle and a brain reaction in turn (L2) |
+| `soak [--minutes N] [--seed N] [--vol N] [--out FILE]` | Random, realistic traffic and inputs for N minutes (20), brain reactions with ids and loops among them, at `--vol` (6; 1 is quiet) (L2). `--pipeline` loops the L4 fixtures through the headless app instead, with `--brain scripted\|jev` and `--out DIR` |
 | `e2e [fixture…]` | The pipeline check (L4). `--brain scripted\|jev` (scripted), `--out DIR` (`/tmp/boop-e2e-out`), `--clip` to film a Claude session first (L3, with `--camera ID`) |
 | `bridge [--socket PATH] [--quiet]` | Owns the serial port and shares it on a Unix socket (below) |
 | `cam frame\|pattern\|clip [name]` | The webcam helpers (L3). `--seconds N` for a clip (8, at most 10), `--usb bottom\|right\|top\|left` for framing, `--camera ID` (default `$BOOP_CAMERA` or the built-in camera) |
@@ -249,8 +249,13 @@ accepted.
 4. When a change could leak memory or wedge the board:
    `internal/tools/boopctl soak` (20 minutes by default, with one 35 s
    silence halfway) ends with no reset, the minimum heap within 2 KB of
-   where it stood after the first minute, the board still answering, and
-   the plain face back with no moment.
+   where it stood after the first minute, the board still answering, no
+   audio errors, the plain face back with no moment or borrowed face
+   (within 75 s of calm), and one `ended` for every reaction it sent
+   ([PROTOCOL.md](PROTOCOL.md) §4), short only by as many lines as were
+   lost. It reports the lines the board never got (from `dbg.state`'s
+   `rx`), lines that came back torn, and debug replies it had to ask for
+   again.
 
 **Pass:** all of the above.
 
