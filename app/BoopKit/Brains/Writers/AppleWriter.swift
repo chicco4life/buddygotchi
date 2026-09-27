@@ -148,6 +148,11 @@ public struct AppleWriter: Writer {
         return lines.joined(separator: "\n")
     }
 
+    /// The request, for the debug log.
+    public func prompt(_ context: Context, _ slots: [Slot]) -> String? {
+        AppleWriter.request(context, slots)
+    }
+
     /// What just happened, what Boop decided (the window's last entry), then
     /// what to write.
     ///

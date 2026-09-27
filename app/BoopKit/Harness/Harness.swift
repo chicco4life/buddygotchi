@@ -37,16 +37,21 @@ public final class Harness: @unchecked Sendable {
         public var writer: String
         /// Inputs in the window this pass saw, its own included.
         public var window: Int
-        /// What the brains were handed: the memory and the window.
+        /// What the pass was handed: the memory, which Jev and the writer
+        /// read, and the window, which only Stage 1 reads.
         public var context: Context?
         /// Stage 1's calls, in the order they run.
         public var decided: [ToolCall] = []
         public var evidence: String?
+        /// What Stage 1's model answered, when it couldn't be used.
+        public var classifierRaw: String?
         /// Why the pass produced nothing: Stage 1 failed, was late or
         /// cancelled, or answered off the menu.
         public var dropped: String?
         /// The slots Stage 2 was asked to fill, and what it wrote ("" left empty).
         public var slots: [String] = []
+        /// What the writer was asked, besides its instructions (`Writer.prompt`).
+        public var writerPrompt: String?
         public var wrote: [String: String] = [:]
         public var writerRaw: String?
         /// Why Stage 2 wrote nothing, if it failed or was late.
@@ -105,6 +110,8 @@ public final class Harness: @unchecked Sendable {
             }
             if let evidence { o["evidence"] = evidence }
             if let dropped { o["dropped"] = dropped }
+            if let classifierRaw { o["classifier_raw"] = classifierRaw }
+            if let writerPrompt { o["writer_prompt"] = writerPrompt }
             if let writerRaw { o["writer_raw"] = writerRaw }
             if let writeFailed { o["write_failed"] = writeFailed }
             let data = (try? JSONSerialization.data(withJSONObject: o, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data()
@@ -275,6 +282,8 @@ public final class Harness: @unchecked Sendable {
         var offMenu: String?
         var calls: [ToolCall] = []
         var slots: [Slot] = []
+        /// What the writer was asked, for the debug log.
+        var prompt: String?
         /// Nil when there was nothing to write.
         var writing: Result<Writing, BrainError>?
         var classifyMs = 0
@@ -309,6 +318,7 @@ public final class Harness: @unchecked Sendable {
             written.window.append(.decided(by: classifier.id, thought.calls, evidence: classification.evidence))
             let slots = thought.slots
             let asked = written
+            thought.prompt = writer.prompt(asked, slots)
             thought.writing = await Harness.race(left) {
                 try await writer.write(asked, slots, deadline: .milliseconds(left))
             }
@@ -332,12 +342,14 @@ public final class Harness: @unchecked Sendable {
         switch thought.classification {
         case .failure(let error):
             record.dropped = error.description
+            record.classifierRaw = error.raw
             transcript.append(.dropped(error.description))
             return record
         case .success(let c):
             classification = c
         }
         record.evidence = classification.evidence
+        record.classifierRaw = classification.raw
         if let why = thought.offMenu {
             record.decided = classification.calls
             record.dropped = "off the menu: \(why)"
@@ -352,6 +364,7 @@ public final class Harness: @unchecked Sendable {
         var unwritten: Set<Int> = []
         if let writing = thought.writing {
             record.slots = thought.slots.map(\.key)
+            record.writerPrompt = thought.prompt
             var values: [String: String] = [:]
             switch writing {
             case .success(let w):

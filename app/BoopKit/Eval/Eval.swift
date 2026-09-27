@@ -568,6 +568,10 @@ struct ScriptedWriter: Writer {
     let script: Script
     var id: String { base.id }
 
+    func prompt(_ context: Context, _ slots: [Slot]) -> String? {
+        script.forWriter == nil ? base.prompt(context, slots) : nil
+    }
+
     func write(_ context: Context, _ slots: [Slot], deadline: Duration) async throws -> Writing {
         switch script.forWriter {
         case nil: return try await base.write(context, slots, deadline: deadline)

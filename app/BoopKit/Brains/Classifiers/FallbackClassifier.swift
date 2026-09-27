@@ -7,7 +7,8 @@ import Foundation
 /// so a failed turn or "be quiet" never goes unanswered because the model
 /// is down, slow or has a bad key. The evidence says which one decided, and
 /// the log why the model didn't: only its error, which for Jev is the HTTP
-/// status.
+/// status. An answer the model gave that couldn't be used goes only to the
+/// debug log, as the classification's `raw`.
 public struct FallbackClassifier: Classifier {
     let model: any Classifier
     let table: any Classifier
@@ -40,7 +41,8 @@ public struct FallbackClassifier: Classifier {
             log("brain: \(model.id) failed (\(error.description)); \(table.id) decided")
             let decided = try await table.classify(context, menu, deadline: deadline)
             let rule = decided.evidence.map { ": \($0)" } ?? ""
-            return Classification(calls: decided.calls, evidence: "\(model.id) failed (\(error.description)) · \(table.id)\(rule)")
+            return Classification(calls: decided.calls, evidence: "\(model.id) failed (\(error.description)) · \(table.id)\(rule)",
+                                  raw: error.raw)
         }
     }
 }

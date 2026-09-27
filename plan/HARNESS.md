@@ -346,27 +346,40 @@ every line sent to the device (marked rules or brain), and each pass.
 
 Each pass is also one JSON line in the state directory's `debug.jsonl`,
 which starts afresh at every launch: the input (with what you said), both
-brains, the memory they read (not steering, which never changes), the
-window, Stage 1's calls and evidence, the slots and what was written
-(with the writer's raw answer), why anything was dropped or failed, what
-each action did, and each stage's latency. Asides get a line too, so the
-file holds the whole transcript. `boopdev watch [FILE]` prints it
-readably (the everyday app's by default), following it as it grows and
-starting again when a launch empties it. One pass from the
-`09-remember` eval (evals run without a writer, so nothing is written):
+brains, the memory (not steering, which never changes), Stage 1's window,
+its calls and evidence, what its model answered when that couldn't be
+used, the writer's prompt, the slots and what was written (with the
+writer's raw answer), why anything was dropped or failed, what each
+action did, and each stage's latency. Asides get a line too, so the file
+holds the whole transcript. `boopdev watch [FILE]` prints it readably
+(the everyday app's by default), following it as it grows and starting
+again when a launch empties it. It prints the memory in full for the
+first pass, then only the lines added (+) or removed (-). One pass from
+the `09-remember` eval with Apple's writer, after the pass that kept
+"demo on Thursday":
 
 ```
-▸ you said · 14:01 Wednesday   [normal@1 → none, 0 ms]
+▸ you said · 14:01 Wednesday   [normal@1 → apple:27.0, 1792 ms]
     said     "remember I always review PRs before lunch"
-    memory   the same as the pass before
-    window   2 inputs, oldest first
-      you said · 14:00 Wednesday "remember the demo is on Thursday" · rules: listening · did: react(feeling: happy)
+    memory   1 line changed since the pass before
+      + - demo on Thursday
+    window   2 inputs, oldest first (Stage 1's)
+      you said · 14:00 Wednesday "remember the demo is on Thursday" · rules: listening · did: react(feeling: happy, word: okay), remember(text: "demo on Thursday", where: today)
       you said · 14:01 Wednesday "remember I always review PRs before lunch" · rules: listening
     decided  react(feeling: happy), remember(where: about_you) (0 ms)
     because  asked to remember, about_you
-    wrote    react.word = (empty), remember.text = (empty) (0 ms)
-    ran      react(feeling: happy) → done: happy: la-la la… (seed 2)
-    ran      remember(where: about_you) → dropped: nothing was written
+    asked    the writer, after its instructions:
+      --- now ---
+      you said · 14:01 Wednesday
+      They just said: "remember I always review PRs before lunch"
+      Boop decided: react(feeling: happy), remember(where: about_you)
+      --- write ---
+      react.word: the mumble's one real word, from its list, as Writing says; none only when nothing fits.
+      remember.text: at most 100 characters. Long-term: a durable fact about the person that will still matter in a month, like their role, how they work or their routine. Plain words, no code; leave it empty if nothing is worth keeping.
+    wrote    react.word = "okay", remember.text = "review PRs before lunch" (1792 ms)
+    raw      {"react_word": "okay", "react_word_from": "what they said", "remember_text": "review PRs before lunch"}
+    ran      react(feeling: happy, word: okay) → done: happy: la-la la… okay! (seed 2)
+    ran      remember(text: "review PRs before lunch", where: about_you) → done: review PRs before lunch
 ```
 
 **The app log** (`boop.log`) gets one line per pass, debug mode or not:
