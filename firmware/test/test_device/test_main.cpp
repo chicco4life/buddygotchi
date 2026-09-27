@@ -222,10 +222,12 @@ static void test_status_on_connect_and_every_minute() {
   r.dev.tick();
   TEST_ASSERT_EQUAL_INT(2, count(r.ble.text, "\"status\""));
   // Input goes to the Mac on Bluetooth; nothing leaks onto USB.
-  r.usbLine("{\"t\":\"dbg.press\",\"ms\":50}");
-  r.hal.real += 100;
+  r.hal.boot = true;
+  r.dev.tick();
+  r.hal.boot = false;
   r.usbLine("{\"t\":\"dbg.clock\",\"step\":100}");
   TEST_ASSERT_TRUE(has(r.ble.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
+  TEST_ASSERT_FALSE(has(r.usb.text, "\"input\""));
   TEST_ASSERT_FALSE(has(r.usb.text, "\"status\""));
   r.dev.disconnected(app::Link::kBle);
   r.hal.real = 200000;
@@ -236,20 +238,23 @@ static void test_status_on_connect_and_every_minute() {
   TEST_ASSERT_TRUE(has(r.usb.text, "\"ble\":\"off\""));
 }
 
-// PROTOCOL.md §4: input goes to every live Mac link. A tool's moment over
-// USB while the app is on Bluetooth (boopctl say) doesn't take the taps
-// and push-to-talk away from the app; USB gets a copy while the Mac spoke
-// there in the last 30 s.
+// PROTOCOL.md §4: a real press goes to every live Mac link. A tool's
+// moment over USB while the app is on Bluetooth (boopctl mumble) doesn't
+// take the taps and push-to-talk away from the app; USB gets a copy while
+// the Mac spoke there in the last 30 s.
 static void test_input_reaches_every_live_link() {
   Rig r;
-  auto press = [&](int ms, int step) {
-    r.usbLine("{\"t\":\"dbg.clock\",\"step\":50}");  // past BOOT's debounce
-    std::string p = "{\"t\":\"dbg.press\",\"ms\":" + std::to_string(ms) + "}";
-    r.usbLine(p.c_str());
-    for (int at = 0; at <= ms; at += step) {
-      std::string s = "{\"t\":\"dbg.clock\",\"step\":" + std::to_string(step) + "}";
-      r.usbLine(s.c_str());
-    }
+  auto step = [&](int ms) {
+    std::string s = "{\"t\":\"dbg.clock\",\"step\":" + std::to_string(ms) + "}";
+    r.usbLine(s.c_str());
+  };
+  auto press = [&](int ms, int every) {  // BOOT, held for `ms`
+    step(50);  // past BOOT's debounce
+    r.hal.boot = true;
+    r.dev.tick();
+    for (int at = every; at <= ms; at += every) step(every);
+    r.hal.boot = false;
+    step(every);
   };
   const char* tap = "{\"t\":\"input\",\"k\":\"tap\"}";
   r.dev.connected(app::Link::kBle);
@@ -272,6 +277,31 @@ static void test_input_reaches_every_live_link() {
   r.dev.disconnected(app::Link::kBle);
   press(100, 100);
   TEST_ASSERT_EQUAL_INT(2, count(r.ble.text, tap));
+}
+
+// PROTOCOL.md §4: input a tool injects (dbg.press, dbg.touch) goes back
+// only over USB, where the tool is, even while the everyday app is on
+// Bluetooth, so a test run never turns on the owner's mic.
+static void test_injected_input_stays_on_usb() {
+  Rig r;
+  r.dev.connected(app::Link::kBle);
+  r.dev.handleLine("{\"t\":\"state\",\"base\":\"idle\"}", 28, app::Link::kBle);
+  r.usbLine("{\"t\":\"dbg.reset\"}");
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  r.usbLine("{\"t\":\"dbg.press\",\"ms\":800}");
+  for (int ms = 0; ms <= 900; ms += 10) r.usbLine("{\"t\":\"dbg.clock\",\"step\":10}");
+  r.usbLine("{\"t\":\"dbg.touch\",\"x\":160,\"y\":100}");
+  r.usbLine("{\"t\":\"dbg.clock\",\"step\":200}");
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "{\"t\":\"input\",\"k\":\"talk_on\"}"));
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "{\"t\":\"input\",\"k\":\"talk_off\"}"));
+  TEST_ASSERT_EQUAL_INT(1, count(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
+  TEST_ASSERT_FALSE(has(r.ble.text, "\"input\""));
+  // With only dbg.* traffic from the tool, too.
+  r.hal.real = 60000;
+  r.usbLine("{\"t\":\"dbg.press\",\"ms\":100}");
+  r.usbLine("{\"t\":\"dbg.clock\",\"step\":200}");
+  TEST_ASSERT_EQUAL_INT(2, count(r.usb.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
+  TEST_ASSERT_FALSE(has(r.ble.text, "\"input\""));
 }
 
 // USB has no connect event: the Mac's first word, or its first after 30 s
@@ -764,6 +794,7 @@ int main() {
   RUN_TEST(test_status_on_connect_and_every_minute);
   RUN_TEST(test_usb_status_when_the_mac_first_speaks);
   RUN_TEST(test_input_reaches_every_live_link);
+  RUN_TEST(test_injected_input_stays_on_usb);
   RUN_TEST(test_pattern_until_next_state);
   RUN_TEST(test_injected_tap_reaches_the_mac);
   RUN_TEST(test_physical_hold_sends_talk_on_and_off);

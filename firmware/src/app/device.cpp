@@ -63,7 +63,7 @@ void Device::reset() {
   pattern_ = false;
   patternFill_ = -1;
   targetX_ = targetY_ = -1;
-  injPress_ = injTouch_ = touchDown_ = touchPanel_ = false;
+  injPress_ = injTouch_ = bootInjected_ = touchDown_ = touchPanel_ = false;
   boot_ = ButtonGesture{};
   last_ = LastInput{};
   drawnT_ = 0;
@@ -79,10 +79,13 @@ void Device::reply(Link link, const char* text, size_t n) {
 
 // On every live Mac link (PROTOCOL.md §4): Bluetooth while connected, and
 // USB while the Mac has spoken there within kNoAppMs. A tool's `moment`
-// over USB doesn't take the taps away from the app on Bluetooth.
-void Device::emit(const char* k) {
+// over USB doesn't take the taps away from the app on Bluetooth. Input a
+// tool injected goes back only over USB, where the tool is, so a test run
+// never reaches the everyday app (and its mic) on Bluetooth.
+void Device::emit(const char* k, bool injected) {
   char buf[48];
   int n = std::snprintf(buf, sizeof(buf), "{\"t\":\"input\",\"k\":\"%s\"}", k);
+  if (injected) return reply(Link::kUsb, buf, size_t(n));
   if (bleUp_) reply(Link::kBle, buf, size_t(n));
   if (usbHeard_ && hal_.realMs() - usbHeardReal_ < Behaviour::kNoAppMs) reply(Link::kUsb, buf, size_t(n));
 }
@@ -268,6 +271,7 @@ void Device::readInputs(uint32_t t) {
   if (injPress_ && int32_t(t - injPressUntil_) >= 0) injPress_ = false;
   switch (boot_.update(hal_.bootDown() || injPress_, t)) {
     case ButtonGesture::kDown:
+      bootInjected_ = !hal_.bootDown();
       b_.pressDown(t);
       dirty_ = true;
       break;
@@ -275,18 +279,18 @@ void Device::readInputs(uint32_t t) {
       b_.pressUp(t);
       b_.tap(t);
       input("tap", t);
-      emit("tap");
+      emit("tap", bootInjected_);
       break;
     case ButtonGesture::kHoldStart:
       b_.pressUp(t);
       b_.talkOn(t);
       input("talk_on", t);
-      emit("talk_on");
+      emit("talk_on", bootInjected_);
       break;
     case ButtonGesture::kHoldEnd:
       b_.talkOff(t);
       input("talk_off", t);
-      emit("talk_off");
+      emit("talk_off", bootInjected_);
       break;
     default:
       break;
@@ -311,7 +315,7 @@ void Device::readInputs(uint32_t t) {
     if (faced) {
       b_.tap(t);
       input("tap", t);
-      emit("tap");
+      emit("tap", !touchPanel_);
     }
   }
   if (touching != touchDown_) dirty_ = true;

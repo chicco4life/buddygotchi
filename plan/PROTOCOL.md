@@ -163,7 +163,9 @@ The device has already reacted on screen before it sends this. It sends it
 on every live link: Bluetooth while a Mac is connected, and USB while the
 Mac has spoken there (any message that isn't `dbg.*`) in the last 30 s. So
 a tool's `moment` over USB doesn't take taps and push-to-talk away from
-the app on Bluetooth. The Mac ignores any other `k`.
+the app on Bluetooth. Input a tool injects (`dbg.press`, `dbg.touch`)
+goes back only over USB, so a test run never reaches the app on
+Bluetooth, or turns on its mic. The Mac ignores any other `k`.
 
 ## 5. Lifecycle
 

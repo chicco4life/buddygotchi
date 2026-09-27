@@ -101,7 +101,7 @@ reply:
 | `{"t":"dbg.state"}` | Replies with the device's own view of itself (below) |
 | `{"t":"dbg.shot"}` | Replies with a header `{"t":"dbg.shot","w":320,"h":240,"bytes":N,"crc":…}`, then one base64 line: 512 bytes of RGB565 palette (256 little-endian entries), then 76,800 bytes of palette indexes, row by row. `crc` is zlib's CRC-32 of those bytes. It takes about 2.3 s |
 | `{"t":"dbg.clock","freeze":T}`, `{…,"step":MS}`, `{…,"run":true}` | Freezes the clock at T (and seeds randomness from T), steps it, or lets it run. A clock a tool froze runs again by itself after 60 s with no `dbg.` message, so a tool that dies can't leave the board stopped |
-| `{"t":"dbg.press","ms":N}`, `{"t":"dbg.touch","x":X,"y":Y,"ms":N}` | Holds BOOT, or a touch, for N ms (100 by default), through the same code as real input |
+| `{"t":"dbg.press","ms":N}`, `{"t":"dbg.touch","x":X,"y":Y,"ms":N}` | Holds BOOT, or a touch, for N ms (100 by default), through the same code as real input; its `input` goes back only over USB ([PROTOCOL.md](PROTOCOL.md) §4) |
 | `{"t":"dbg.pattern"}`, `{…,"fill":N}`, `{…,"target":[x,y]}` | Shows the test pattern, a solid screen of palette index N, or an amber cross at (x, y) on black, until the next `state`. Touches don't tap while it shows |
 | `{"t":"dbg.light","bl":0-255,"led":"#RRGGBB"}` | Sets the backlight and the LED (either is optional) until the next `state` |
 | `{"t":"dbg.touchcal"}`, `{…,"set":[ax,bx,cx,ay,by,cy]}`, `{…,"clear":true}` | Reads, sets or forgets the touch calibration, x = (ax·raw x + bx·raw y + cx) / 65536 and y alike; replies with `cal`, null when uncalibrated ([DEVICE.md](DEVICE.md) §4) |

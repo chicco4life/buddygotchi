@@ -125,7 +125,7 @@ class Device {
   };
 
   void reply(Link link, const char* text, size_t n);
-  void emit(const char* k);  // an `input` message to the Mac
+  void emit(const char* k, bool injected);  // an `input` message to the Mac
   void input(const char* k, uint32_t t, int x = -1, int y = -1);
   void readInputs(uint32_t t);
   void render(uint32_t t);
@@ -176,6 +176,7 @@ class Device {
   bool injTouch_ = false;
   uint32_t injTouchUntil_ = 0;
   int injX_ = 0, injY_ = 0;
+  bool bootInjected_ = false;  // the BOOT press in progress is dbg.press's
   // The touch in progress: from the panel (not injected), last in contact
   // at touchSeenAt_.
   bool touchDown_ = false;
