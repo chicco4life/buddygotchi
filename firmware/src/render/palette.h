@@ -1,6 +1,6 @@
 // The canvas palette: index → RGB565 (plan/DEVICE.md §6). Every colour on
 // the screen comes from this one table: "Warm Terminal", black glass with
-// oat text and one amber accent, plus the bring-up colours. The face is
+// grey text and one amber accent, plus the bring-up colours. The face is
 // the mood designs' warm white with coral cheeks and sky tears, and a
 // stronger coral heart for a tap.
 //
@@ -27,7 +27,6 @@ constexpr Rgb kGlass = {0, 0, 0};          // the backlit black
 // the eyes' #F8F7EF shows as (247, 247, 239), the cheeks' #F1787D as
 // (239, 121, 123), the tears' #7BB4EF as (123, 178, 239).
 constexpr Rgb kEyeRgb = {246, 244, 238};   // the eyes and mouth: warm white
-constexpr Rgb kOatRgb = {232, 220, 196};   // main text
 constexpr Rgb kAmberRgb = {255, 176, 0};   // the one accent: needs you, the word
 constexpr Rgb kGreyRgb = {140, 132, 121};  // secondary text
 constexpr Rgb kDimRgb = {74, 68, 62};      // faint text, dividers, rings
@@ -58,7 +57,6 @@ enum Ink : uint8_t {
   kInkAmber,
   kInkGrey,
   kInkDim,
-  kInkText,  // oat
   kInkRose,  // the heart
   kInkSky,   // the designs' tears
   kInkBlush, // the cheeks
@@ -89,7 +87,6 @@ constexpr Rgb inkRgb(int ink) {
   if (ink == kInkEye) return kEyeRgb;
   if (ink == kInkAmber) return kAmberRgb;
   if (ink == kInkGrey) return kGreyRgb;
-  if (ink == kInkText) return kOatRgb;
   if (ink == kInkRose) return kRoseRgb;
   if (ink == kInkSky) return kSkyRgb;
   if (ink == kInkBlush) return kBlushRgb;

@@ -18,14 +18,13 @@ constexpr int kStripTop = 204;   // the status strip, the bottom 36 px
 constexpr int kBubbleTop = 144;  // the bubble, the 60 px above the strip
 
 struct Strip {
-  int wait = 0;  // sessions that need you (amber; hidden at zero)
-  int busy = 0;  // sessions working (grey)
-  bool noApp = false;
-  // While something needs you: who, the oldest waiting session, shown in
-  // place of the count, and how many more are waiting (UX.md §3).
+  // While something needs you (amber; null when nothing does): who, the
+  // oldest waiting session, and how many more are waiting (UX.md §3).
   const char* agent = nullptr;
   const char* project = "";
   int more = 0;
+  int busy = 0;  // sessions working (grey; hidden at zero)
+  bool noApp = false;
 };
 
 // A mumble in the bubble: squiggles for the gibberish, and the one real

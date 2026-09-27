@@ -33,7 +33,7 @@ struct Line {
   int at = 0;     // the word goes before syllable `at` (n: at the end)
   Tune tune = Tune::kFlat;
   uint16_t ms = 120;    // per syllable; the word takes two beats
-  uint8_t vol = 6;      // 0–10
+  uint8_t vol = 6;      // 0–10, held in range by the device
   uint32_t seed = 1;    // liveliness: ±5% pitch, ±10% timing per syllable
 };
 
@@ -49,7 +49,7 @@ uint32_t lineSamples(const Line& l);
 class Player {
  public:
   void start(const Line& l);
-  void cue(Cue c, uint8_t vol);
+  void cue(Cue c, uint8_t vol);  // vol 0–10, as Line::vol
   void stop();
   bool playing() const { return total_ > 0 && pos_ < total_; }
 

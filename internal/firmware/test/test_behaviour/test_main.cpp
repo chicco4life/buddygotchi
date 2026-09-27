@@ -14,7 +14,6 @@ void setUp() {}
 void tearDown() {}
 
 using app::Behaviour;
-using app::Life;
 using app::Model;
 using app::MomentIn;
 using app::Screen;
@@ -58,7 +57,7 @@ struct Rig {
 
 Model base(const char* b) {
   Model m;
-  std::strcpy(m.base, b);
+  m.base = app::baseFromName(b);
   return m;
 }
 
@@ -120,7 +119,7 @@ static void test_tap_during_needs_you_is_only_the_dip_and_stays_amber() {
   r.b.pressDown(r.t);
   r.at(10100);
   TEST_ASSERT_EQUAL_INT(before.dy + Behaviour::kPressPx, r.b.show(r.t).dy);  // the press shows
-  r.b.pressUp(r.t);
+  r.b.pressUp();
   r.b.tap(r.t);
   TEST_ASSERT_EQUAL(Anim::kNone, r.anim());
   TEST_ASSERT_EQUAL(0u, r.b.momentSeq());
@@ -196,7 +195,7 @@ static void test_changes_mid_motion_blink_into_the_new_design() {
       TEST_ASSERT_EQUAL_UINT32(0, s.t);
       TEST_ASSERT_TRUE(r.b.show(r.t + render::kBlendMs - 1).eyesShut);
       r.at(r.t + render::kBlendMs);
-      TEST_ASSERT_TRUE(!r.b.show(r.t).eyesShut || r.b.life(r.t) == Life::kBlink);
+      TEST_ASSERT_TRUE(!r.b.show(r.t).eyesShut || r.b.blinking(r.t));
     }
   }
 }
@@ -273,7 +272,7 @@ static void test_no_app_holds_for_weeks() {
   TEST_ASSERT_TRUE(r.say(3));  // over by 2500
   r.b.pressDown(r.t);
   r.at(1100);
-  r.b.pressUp(r.t);
+  r.b.pressUp();
   r.at(Behaviour::kNoAppMs);
   TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
   const uint32_t start = Behaviour::kNoAppMs + 200;
@@ -417,15 +416,14 @@ std::vector<uint32_t> blinkStarts(const Model& m, bool mac, uint32_t to) {
   Rig r;
   r.state(m);
   std::vector<uint32_t> starts;
-  Life prev = Life::kNone;
+  bool prev = false;
   for (uint32_t t = 1; t <= to; ++t) {
     if (mac && t % 10000 == 0) r.at(t), r.state(m);
     r.at(t);
-    Life l = r.b.life(t);
-    if (l != Life::kNone) TEST_ASSERT_TRUE(r.b.show(t).eyesShut);
-    if (l != Life::kNone && prev == Life::kNone) starts.push_back(t);
-    TEST_ASSERT_TRUE(l == Life::kNone || l == Life::kBlink);
-    prev = l;
+    bool blink = r.b.blinking(t);
+    if (blink) TEST_ASSERT_TRUE(r.b.show(t).eyesShut);
+    if (blink && !prev) starts.push_back(t);
+    prev = blink;
   }
   return starts;
 }
@@ -462,7 +460,7 @@ static void test_asleep_breathes_and_never_blinks() {
   for (uint32_t t = 1; t <= 20000; t += 7) {
     if (t % 10000 < 7) r.state(base("asleep"));
     r.at(t);
-    TEST_ASSERT_EQUAL(Life::kNone, r.b.life(t));
+    TEST_ASSERT_FALSE(r.b.blinking(t));
   }
   // Breathing is the asleep design's own 8 s breath (BEHAVIORS.md §2).
   TEST_ASSERT_TRUE(r.b.show(1000).state == SceneState::kAsleep);
@@ -547,7 +545,7 @@ static void test_a_wiggle_sways_over_the_look() {
   s = r.b.show(r.t);
   TEST_ASSERT_EQUAL(0, s.heart);
   TEST_ASSERT_EQUAL(0, s.dx);
-  TEST_ASSERT_FALSE(s.eyesShut && r.b.life(r.t) == Life::kNone);  // no blink when it ends either
+  TEST_ASSERT_FALSE(s.eyesShut && !r.b.blinking(r.t));  // no blink when it ends either
 }
 
 // BEHAVIORS.md §3.4: with no state for 30 s the device shows the no-app
@@ -557,11 +555,11 @@ static void test_no_app_at_30s_and_reconnect_blinks_back() {
   Rig r;
   r.at(1000);
   Model m = attn();  // even a stale "needs you" gives way
-  m.wait = 1, m.busy = 2;
+  m.busy = 2;
   r.state(m);
   r.at(30999);
   TEST_ASSERT_EQUAL(Screen::kNeedsYou, r.b.screen(r.t));
-  TEST_ASSERT_EQUAL(1, r.b.strip(r.t).wait);
+  TEST_ASSERT_EQUAL_STRING("codex", r.b.strip(r.t).agent);
   r.at(31000);
   TEST_ASSERT_EQUAL(Screen::kNoApp, r.b.screen(r.t));
   TEST_ASSERT_EQUAL_STRING("no_app", r.b.faceName(r.t));
@@ -571,7 +569,7 @@ static void test_no_app_at_30s_and_reconnect_blinks_back() {
   // The strip keeps only the unplugged icon: the counts are stale.
   render::Strip strip = r.b.strip(r.t);
   TEST_ASSERT_TRUE(strip.noApp);
-  TEST_ASSERT_EQUAL(0, strip.wait);
+  TEST_ASSERT_NULL(strip.agent);
   TEST_ASSERT_EQUAL(0, strip.busy);
   r.at(31000 + render::kBlendMs);
   TEST_ASSERT_EQUAL(60, r.b.backlight(r.t));
@@ -582,7 +580,7 @@ static void test_no_app_at_30s_and_reconnect_blinks_back() {
   r.state(base("idle"));
   r.state(base("idle"));
   TEST_ASSERT_EQUAL(Screen::kFace, r.b.screen(r.t));
-  TEST_ASSERT_EQUAL(Life::kNone, r.b.life(r.t));
+  TEST_ASSERT_FALSE(r.b.blinking(r.t));
   s = r.b.show(r.t);
   TEST_ASSERT_TRUE(s.state == SceneState::kIdle);
   TEST_ASSERT_TRUE(s.eyesShut);  // a blink hides the switch

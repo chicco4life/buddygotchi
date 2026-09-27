@@ -20,7 +20,7 @@ constexpr int kSubRows = 4;
 constexpr int px(int pixels) { return pixels * kSub; }
 
 // Integer square root, rounded down.
-uint32_t isqrt(uint64_t v);
+uint32_t isqrt(uint32_t v);
 
 // sin of `turn` (1024 per full turn), scaled to ±1024.
 int isin(int turn);
@@ -46,10 +46,10 @@ struct Spans {
   void cut(int lo, int hi);
 };
 
-// An axis-aligned ellipse.
-Spans ellipse(int cx, int cy, int rx, int ry, int sy);
-// The half of the ellipse's row inside it, as [lo, hi); false if none.
-bool ellipseRow(int cx, int cy, int rx, int ry, int sy, int& lo, int& hi);
+// A circle.
+Spans circle(int cx, int cy, int r, int sy);
+// The part of the circle's row inside it, as [lo, hi); false if none.
+bool circleRow(int cx, int cy, int r, int sy, int& lo, int& hi);
 
 // Fills pixel rows [y0, y1) from `shape(sy) -> Spans`, calling
 // `plot(x, y, level)` with level 1..8 for every pixel it touches.

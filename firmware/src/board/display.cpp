@@ -116,8 +116,8 @@ bool displayBegin() {
   return true;
 }
 
-int displayPush(const render::Canvas& canvas) {
-  int sent = 0, cur = 0;
+void displayPush(const render::Canvas& canvas) {
+  int cur = 0;
   lcd.startWrite();
   for (int y0 = 0; y0 < render::kHeight; y0 += kBand) {
     bool changed = !pushedOnce;
@@ -135,11 +135,9 @@ int displayPush(const render::Canvas& canvas) {
     lcd.setAddrWindow(0, y0, render::kWidth, kBand);
     lcd.writePixelsDMA(dst, render::kWidth * kBand, false);  // already in panel order
     cur ^= 1;
-    sent += kBand;
   }
   lcd.endWrite();
   pushedOnce = true;
-  return sent;
 }
 
 void displayBacklight(uint8_t level) { lcd.setBrightness(level); }

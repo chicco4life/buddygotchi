@@ -19,16 +19,16 @@ constexpr int kStripCy = (kStripTop + kHeight) / 2;
 void plotInk(Canvas& c, int x, int y, int level, int ink) { c.pixels()[y * kWidth + x] = inkAt(ink, level); }
 
 void fillCircle(Canvas& c, int cx, int cy, int r, int ink) {
-  fillShape((cy - r) / kSub - 1, (cy + r) / kSub + 2, [&](int sy) { return ellipse(cx, cy, r, r, sy); },
+  fillShape((cy - r) / kSub - 1, (cy + r) / kSub + 2, [&](int sy) { return circle(cx, cy, r, sy); },
             [&](int x, int y, int level) { plotInk(c, x, y, level, ink); });
 }
 
 void fillRing(Canvas& c, int cx, int cy, int r, int inner, int ink) {
   fillShape((cy - r) / kSub - 1, (cy + r) / kSub + 2,
             [&](int sy) {
-              Spans s = ellipse(cx, cy, r, r, sy);
+              Spans s = circle(cx, cy, r, sy);
               int lo, hi;
-              if (ellipseRow(cx, cy, inner, inner, sy, lo, hi)) s.cut(lo, hi);
+              if (circleRow(cx, cy, inner, sy, lo, hi)) s.cut(lo, hi);
               return s;
             },
             [&](int x, int y, int level) { plotInk(c, x, y, level, ink); });
@@ -85,34 +85,28 @@ void iconNoApp(Canvas& c, int x, int y) {  // a plug on its cord, pointing at no
 
 void drawStrip(Canvas& c, const Strip& s) {
   // An empty strip is bare glass: no divider under the face.
-  if (s.wait <= 0 && s.busy <= 0 && !s.noApp) return;
+  if (!s.agent && s.busy <= 0 && !s.noApp) return;
   c.fillRect(kMargin, kStripTop, kWidth - 2 * kMargin, 1, inkAt(kInkDim, kLevels));
   const int cy = kStripCy, ty = cy - 10;
   int x = kMargin;
-  char buf[24];
-  if (s.wait > 0) {
+  char busy[12];
+  std::snprintf(busy, sizeof(busy), "%d", s.busy);
+  if (s.agent) {
     fillCircle(c, px(x + 5), px(cy), px(5), kInkAmber);
-    if (s.agent && *s.agent) {
-      // Who needs you, cut to leave room for "+N" and the working count.
-      char more[12] = "";
-      if (s.more > 0) std::snprintf(more, sizeof(more), "+%d", s.more);
-      std::snprintf(buf, sizeof(buf), "%d", s.busy);
-      int room = kWidth - kMargin - (x + 15) - (more[0] ? stringWidth(kSmall, more) + 8 : 0) -
-                 (s.busy > 0 ? 29 + stringWidth(kSmall, buf) : 0);
-      char who[48];
-      std::snprintf(who, sizeof(who), "%s \xC2\xB7 %s", s.agent, s.project);
-      x = drawStringFit(c, kSmall, x + 15, ty, who, kInkAmber, room);
-      if (more[0]) x = drawString(c, kSmall, x + 8, ty, more, kInkGrey);
-      x += 14;
-    } else {
-      std::snprintf(buf, sizeof(buf), "%d needs you", s.wait);
-      x = drawString(c, kSmall, x + 15, ty, buf, kInkAmber) + 14;
-    }
+    // Who needs you, cut to leave room for "+N" and the working count.
+    char more[12] = "";
+    if (s.more > 0) std::snprintf(more, sizeof(more), "+%d", s.more);
+    int room = kWidth - kMargin - (x + 15) - (more[0] ? stringWidth(kSmall, more) + 8 : 0) -
+               (s.busy > 0 ? 29 + stringWidth(kSmall, busy) : 0);
+    char who[48];
+    std::snprintf(who, sizeof(who), "%s \xC2\xB7 %s", s.agent, s.project);
+    x = drawStringFit(c, kSmall, x + 15, ty, who, kInkAmber, room);
+    if (more[0]) x = drawString(c, kSmall, x + 8, ty, more, kInkGrey);
+    x += 14;
   }
   if (s.busy > 0) {
     fillRing(c, px(x + 5), px(cy), px(5), px(3), kInkGrey);
-    std::snprintf(buf, sizeof(buf), "%d", s.busy);
-    drawString(c, kSmall, x + 15, ty, buf, kInkGrey);
+    drawString(c, kSmall, x + 15, ty, busy, kInkGrey);
   }
   if (s.noApp) iconNoApp(c, kWidth - kMargin - 16, cy - 8);
 }

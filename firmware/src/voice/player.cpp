@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstring>
 
+#include "app/clock.h"
 #include "voice.h"  // assets/voice.h: included here only
 
 namespace voice {
@@ -19,14 +20,6 @@ constexpr uint32_t kCutFade = kOutRate * 4 / 1000;
 const Clip& clipAt(int i) {
   return i < voice_assets::kSyllables ? voice_assets::kSyllable[i] : voice_assets::kWord[i - voice_assets::kSyllables];
 }
-
-uint32_t xorshift(uint32_t& s) {
-  s ^= s << 13;
-  s ^= s >> 17;
-  s ^= s << 5;
-  return s;
-}
-int jitter(uint32_t& s, int span) { return int(xorshift(s) % uint32_t(2 * span + 1)) - span; }
 
 // The tune's pitch at slot i of n, in permille (VOICE.md §5).
 int contour(Tune t, int i, int n) {
@@ -85,7 +78,8 @@ uint32_t lineSamples(const Line& l) {
 }
 
 void Player::plan(const Line& l) {
-  uint32_t seed = l.seed ? l.seed : 1;
+  app::Rng rng;
+  rng.seed(l.seed ? l.seed : 1);
   uint32_t beat = uint32_t(l.ms) * kOutRate / 1000;
   int n = l.n < 0 ? 0 : l.n > kMaxSyllables ? kMaxSyllables : l.n;
   int at = l.word >= 0 ? (l.at < 0 ? 0 : l.at > n ? n : l.at) : -1;
@@ -101,7 +95,7 @@ void Player::plan(const Line& l) {
   // Timing: ±10% per beat, moved within pairs so the line's length is exact.
   for (int i = 0; i + 1 < nSlots_; i += 2) {
     uint32_t shorter = slots_[i].len < slots_[i + 1].len ? slots_[i].len : slots_[i + 1].len;
-    int d = jitter(seed, int(shorter / 10));
+    int d = rng.range(-int(shorter / 10), int(shorter / 10));
     slots_[i].len = uint32_t(int(slots_[i].len) + d);
     slots_[i + 1].len = uint32_t(int(slots_[i + 1].len) - d);
   }
@@ -112,7 +106,7 @@ void Player::plan(const Line& l) {
     start += s.len;
     int c = contour(l.tune, i, nSlots_);
     if (wordSlot[i]) c = 1000 + (c - 1000) / 2;  // the word keeps closer to its own voice
-    int rate = c * (1000 + jitter(seed, 50)) / 1000;  // permille, ±5%
+    int rate = c * (1000 + rng.range(-50, 50)) / 1000;  // permille, ±5%
     // Clips are 11.025 kHz and the output 22.05 kHz: half a source sample per step.
     s.step = uint32_t(rate) * 32768u / 1000u;
     if (wordSlot[i] && s.clip >= 0) {  // a long word speeds up to fit, up to 1.6×
@@ -127,7 +121,7 @@ void Player::plan(const Line& l) {
 void Player::start(const Line& l) {
   stop();
   plan(l);
-  gain_ = (l.vol > 10 ? 10 : l.vol) * 256 / 10;
+  gain_ = l.vol * 256 / 10;
   if (gain_ == 0) total_ = 0;  // muted: nothing to play
 }
 
@@ -135,7 +129,7 @@ void Player::cue(Cue c, uint8_t vol) {
   stop();
   if (c == Cue::kNone || vol == 0) return;
   cue_ = c;
-  gain_ = (vol > 10 ? 10 : vol) * 256 / 10;
+  gain_ = vol * 256 / 10;
   total_ = kOutRate * 90 / 1000;
 }
 

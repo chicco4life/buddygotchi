@@ -25,6 +25,10 @@ namespace app {
 
 enum class Link : uint8_t { kNone, kUsb, kBle };
 
+// The permanent ID in `status` (PROTOCOL.md §4) where there's no Bluetooth
+// MAC to take it from: the simulator and the tests.
+constexpr const char* kDefaultDeviceId = "b00p-0000";
+
 // What the sound output did (dbg.state `audio.out`): lines finished, and
 // the last line's timeline as planned, as rendered and as the DAC took it.
 struct AudioOut {
@@ -67,16 +71,14 @@ struct Hal {
   virtual uint32_t fps() { return 0; }
   // The last frame's drawing and pushing time, in microseconds.
   virtual void frameUs(uint32_t& draw, uint32_t& push) { draw = push = 0; }
-  virtual uint32_t batteryMv() { return 0; }
   virtual bool ampOn() { return false; }
   // Sound (VOICE.md §8). The board plays on the DAC; the default drops it.
   virtual void say(const voice::Line& l) { (void)l; }
   virtual void cue(voice::Cue c, uint8_t vol) { (void)c, (void)vol; }
   virtual void hush() {}
   virtual AudioOut audioOut() { return {}; }
-  virtual bool usbPowered() { return true; }
   // The permanent ID in `status` (PROTOCOL.md §4).
-  virtual const char* deviceId() { return "b00p-0000"; }
+  virtual const char* deviceId() { return kDefaultDeviceId; }
   // Bluetooth, for dbg.ping: "off", "idle" (neither advertising nor
   // connected), "adv" (advertising) or "conn".
   virtual const char* bleState() { return "off"; }
@@ -102,8 +104,8 @@ class Device {
   // A Mac connected or disconnected over Bluetooth. USB has no connection
   // event: the Mac counts as connected when it first speaks, or speaks
   // again after kNoAppMs of silence.
-  void connected(Link link);
-  void disconnected(Link link);
+  void connected();
+  void disconnected();
   // Reads inputs, advances state, and redraws the canvas if needed.
   void tick();
   // True once after each redraw.
@@ -127,8 +129,9 @@ class Device {
   void reply(Link link, const char* text, size_t n);
   void emit(const char* k, bool injected);  // an `input` message to the Mac
   void input(const char* k, uint32_t t, int x = -1, int y = -1);
+  void tapped(uint32_t t, bool injected);  // a tap, from BOOT or the panel
   void readInputs(uint32_t t);
-  void render(uint32_t t, bool moving);  // moving: movingAt(t)
+  void render(uint32_t t);
   void sendPing(Link to);
   void sendStatus(Link to);
   void sendState(Link to);
@@ -137,10 +140,6 @@ class Device {
   void hush();
   void followSound(uint32_t t);
   Screen screenAt(uint32_t t) const { return pattern_ ? Screen::kPattern : b_.screen(t); }
-  // The face on screen may change without a message: its design moves on
-  // its own clock (a breath, keys lighting, a blink), so on the face screens
-  // every step is checked, and drawn only if its frame changed.
-  bool movingAt(uint32_t) const { return screen_ != Screen::kPattern; }
   const char* debugLabel(uint32_t t) const;
 
   Hal& hal_;
@@ -151,7 +150,6 @@ class Device {
   ButtonGesture boot_;
   Out* outs_[3] = {nullptr, nullptr, nullptr};
   Link link_ = Link::kNone;  // the link the Mac last spoke on
-  uint32_t heardReal_ = 0;   // real time the Mac last spoke, for USB's "connect"
   bool bleUp_ = false;       // a Mac is connected over Bluetooth
   bool usbHeard_ = false;    // the Mac has spoken on USB, last at usbHeardReal_
   uint32_t usbHeardReal_ = 0;
@@ -169,7 +167,6 @@ class Device {
   int targetX_ = -1, targetY_ = -1;  // a calibration target on dbg.pattern, or -1
   uint32_t drawnT_ = 0;   // the time of the last frame
   uint32_t drawnReal_ = 0;  // and the real time it was drawn
-  bool drawnMoving_ = false;  // it was mid-motion, so the next time step redraws
   render::SceneFrame drawnFrame_{};  // everything its face's pixels depend on
   bool drawnBubble_ = false;  // and whether the bubble was up
   bool dirty_ = true;

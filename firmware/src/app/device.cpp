@@ -26,8 +26,6 @@ constexpr uint32_t kFrameMs = 16;
 // stopped (VERIFICATION.md §3).
 constexpr uint32_t kThawMs = 60000;
 
-void copyStr(char* dst, size_t n, const char* src) { std::snprintf(dst, n, "%s", src ? src : ""); }
-
 const char* linkName(Link l) {
   switch (l) {
     case Link::kUsb: return "usb";
@@ -107,8 +105,8 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
   uint32_t real = hal_.realMs();
   // USB's "connect": the Mac's first word, or its first after a silence.
   bool hello = !debug && from == Link::kUsb &&
-               (link_ != Link::kUsb || real - heardReal_ >= Behaviour::kNoAppMs);
-  if (!debug) link_ = from, heardReal_ = real;
+               (link_ != Link::kUsb || real - usbHeardReal_ >= Behaviour::kNoAppMs);
+  if (!debug) link_ = from;
   else dbgReal_ = real;
   if (!debug && from == Link::kUsb) usbHeard_ = true, usbHeardReal_ = real;
   uint32_t at = now();
@@ -117,7 +115,7 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
   if (!std::strcmp(t, "state")) {
     ++rxState_;
     Model m;
-    if (doc["base"].is<const char*>()) copyStr(m.base, sizeof(m.base), doc["base"]);
+    m.base = baseFromName(doc["base"]);          // idle if missing or unknown
     m.mood = render::moodFromName(doc["mood"]);  // happy if missing or unknown
     JsonObjectConst attn = doc["attn"];
     if (attn) {
@@ -127,11 +125,9 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
       m.more = attn["more"] | 0;
     }
     m.busy = doc["busy"] | 0;
-    m.idle = doc["idle"] | 0;
-    m.wait = doc["wait"] | 0;
-    m.vol = doc["vol"] | 6;
+    m.vol = render::clamp(doc["vol"] | 6, 0, 10);
     b_.onState(m, at);
-    if (m.attn || m.vol <= 0) hush();  // VOICE.md §9
+    if (m.attn || m.vol == 0) hush();  // VOICE.md §9
     pattern_ = false;
     dirty_ = true;
   } else if (!std::strcmp(t, "moment")) {
@@ -158,18 +154,19 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
       mo.syllables = syl;
       const char* word = say["word"] | "";
       mo.word = word[0] ? word : nullptr;
-      mo.at = say["at"] | syl;
-      mo.ms = say["ms"] | 120u;
+      mo.at = render::clamp(say["at"] | syl, 0, syl);  // at the end if missing
+      uint32_t ms = say["ms"] | 120u;
+      mo.ms = ms < 60 ? 60 : ms > 400 ? 400 : ms;  // the mouth and the voice alike
       line.word = voice::wordIndex(mo.word);
       line.at = mo.at;
       line.tune = voice::tuneFromName(say["tune"]);
-      line.ms = uint16_t(mo.ms < 60 ? 60 : mo.ms > 400 ? 400 : mo.ms);  // as the mouth
+      line.ms = uint16_t(mo.ms);
     }
     uint32_t seq = b_.momentSeq();
     bool mumble = b_.onMoment(mo, at);  // copies the word
     const Model& m = b_.model();
     if (mumble && m.vol > 0) {
-      line.vol = uint8_t(m.vol > 10 ? 10 : m.vol);
+      line.vol = uint8_t(m.vol);
       line.seed = at * 2654435761u + rxMoment_;  // not from rng_, which the frames depend on
       hal_.say(line);
       saying_ = true;
@@ -253,16 +250,21 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
   return debug;
 }
 
-void Device::connected(Link link) {
-  link_ = link;
-  heardReal_ = hal_.realMs();
-  if (link == Link::kBle) bleUp_ = true;
-  sendStatus(link);
+void Device::connected() {
+  link_ = Link::kBle;
+  bleUp_ = true;
+  sendStatus(Link::kBle);
 }
 
-void Device::disconnected(Link link) {
-  if (link_ == link) link_ = Link::kNone;
-  if (link == Link::kBle) bleUp_ = false;
+void Device::disconnected() {
+  if (link_ == Link::kBle) link_ = Link::kNone;
+  bleUp_ = false;
+}
+
+void Device::tapped(uint32_t t, bool injected) {
+  b_.tap(t);
+  input("tap", t);
+  emit("tap", injected);
 }
 
 // BOOT and touch, turned into gestures (UX.md §4). Every press and touch
@@ -276,10 +278,8 @@ void Device::readInputs(uint32_t t) {
       dirty_ = true;
       break;
     case ButtonGesture::kTap:
-      b_.pressUp(t);
-      b_.tap(t);
-      input("tap", t);
-      emit("tap", bootInjected_);
+      b_.pressUp();
+      tapped(t, bootInjected_);
       break;
     default:
       break;
@@ -302,12 +302,8 @@ void Device::readInputs(uint32_t t) {
     if (faced) b_.pressDown(t);
   }
   if (!touching && touchDown_) {
-    b_.pressUp(t);
-    if (faced) {
-      b_.tap(t);
-      input("tap", t);
-      emit("tap", touchInjected_);
-    }
+    b_.pressUp();
+    if (faced) tapped(t, touchInjected_);
   }
   if (touching != touchDown_) dirty_ = true;
   touchDown_ = touching;
@@ -329,11 +325,13 @@ void Device::tick() {
   Screen screen = screenAt(t);
   if (screen != screen_) screen_ = screen, dirty_ = true;
   if (debugLabel(t) != labelDrawn_) dirty_ = true;
-  bool moving = movingAt(t);
-  // A frozen clock looks on every step, so scenario frames stay exact,
-  // and the press squish on every pass, so the cap doesn't delay a press.
+  // The face may change without a message: its design moves on its own
+  // clock (a breath, keys lighting, a blink), so on the face screens every
+  // step is checked, and drawn only if its frame changed. A frozen clock
+  // looks on every step, so scenario frames stay exact, and the press
+  // squish on every pass, so the cap doesn't delay a press.
   bool due = clock_.frozen() || b_.pressEasing(t) || hal_.realMs() - drawnReal_ >= kFrameMs;
-  if (dirty_ || ((moving || drawnMoving_) && t != drawnT_ && due)) render(t, moving);
+  if (dirty_ || (screen_ != Screen::kPattern && t != drawnT_ && due)) render(t);
 }
 
 void Device::hush() {
@@ -351,7 +349,7 @@ void Device::followSound(uint32_t t) {
   if (k == sfxSeen_ && at == sfxSeenAt_) return;
   sfxSeen_ = k, sfxSeenAt_ = at;
   const Model& m = b_.model();
-  if (k && m.vol > 0) hal_.cue(voice::cueFromName(k), uint8_t(m.vol > 10 ? 10 : m.vol));
+  if (k && m.vol > 0) hal_.cue(voice::cueFromName(k), uint8_t(m.vol));
 }
 
 // Draws the frame for t, unless nothing on it can have changed since the
@@ -359,32 +357,27 @@ void Device::followSound(uint32_t t) {
 // design on the same steps with the same additions, and the bubble still
 // up or still down. The designs step a few times a second, so most passes
 // find the picture unchanged.
-void Device::render(uint32_t t, bool moving) {
-  render::SceneShow face = b_.show(t);
-  render::SceneFrame frame = render::sceneFrame(face);
-  const render::Mumble* mumble = b_.mumble(t);
-  bool same = !dirty_ && frame == drawnFrame_ && (mumble != nullptr) == drawnBubble_;
-  drawnMoving_ = moving;
+void Device::render(uint32_t t) {
   drawnT_ = t;
   drawnReal_ = hal_.realMs();
-  if (same) return;
-  drawnFrame_ = frame;
-  drawnBubble_ = mumble != nullptr;
-  switch (screen_) {
-    case Screen::kPattern:
-      if (targetX_ >= 0) {
-        canvas_.fill(render::kBlack);
-        canvas_.fillRect(targetX_ - 10, targetY_ - 1, 21, 3, render::kAmber);
-        canvas_.fillRect(targetX_ - 1, targetY_ - 10, 3, 21, render::kAmber);
-      } else if (patternFill_ >= 0) {
-        canvas_.fill(uint8_t(patternFill_));
-      } else {
-        render::drawPattern(canvas_);
-      }
-      break;
-    default:  // the face, needs you and no app: what differs is in the show and the strip
-      render::drawFaceScreen(canvas_, face, mumble, b_.strip(t));
-      break;
+  if (screen_ == Screen::kPattern) {  // drawn only when dirty: it doesn't move
+    if (targetX_ >= 0) {
+      canvas_.fill(render::kBlack);
+      canvas_.fillRect(targetX_ - 10, targetY_ - 1, 21, 3, render::kAmber);
+      canvas_.fillRect(targetX_ - 1, targetY_ - 10, 3, 21, render::kAmber);
+    } else if (patternFill_ >= 0) {
+      canvas_.fill(uint8_t(patternFill_));
+    } else {
+      render::drawPattern(canvas_);
+    }
+  } else {  // the face, needs you and no app: what differs is in the show and the strip
+    render::SceneShow face = b_.show(t);
+    render::SceneFrame frame = render::sceneFrame(face);
+    const render::Mumble* mumble = b_.mumble(t);
+    if (!dirty_ && frame == drawnFrame_ && (mumble != nullptr) == drawnBubble_) return;
+    drawnFrame_ = frame;
+    drawnBubble_ = mumble != nullptr;
+    render::drawFaceScreen(canvas_, face, mumble, b_.strip(t));
   }
   labelDrawn_ = debugLabel(t);
   if (labelDrawn_) canvas_.drawText(2, 2, labelDrawn_, render::inkAt(render::kInkDim, render::kLevels));
@@ -428,8 +421,8 @@ void Device::sendPing(Link to) {
 void Device::sendStatus(Link to) {
   statusReal_ = hal_.realMs();
   char buf[160];
-  int n = std::snprintf(buf, sizeof(buf), "{\"t\":\"status\",\"v\":1,\"id\":\"%s\",\"fw\":\"%s\",\"bat\":%lu,\"usb\":%d}",
-                        hal_.deviceId(), hal_.fwVersion(), (unsigned long)hal_.batteryMv(), hal_.usbPowered() ? 1 : 0);
+  int n = std::snprintf(buf, sizeof(buf), "{\"t\":\"status\",\"v\":1,\"id\":\"%s\",\"fw\":\"%s\"}", hal_.deviceId(),
+                        hal_.fwVersion());
   reply(to, buf, size_t(n));
 }
 
@@ -439,7 +432,7 @@ void Device::sendState(Link to) {
   uint32_t t = now();
   const Model& m = b_.model();
   d["screen"] = screenName(screenAt(t));
-  d["base"] = m.base;
+  d["base"] = render::stateName(m.base);
   d["mood"] = render::moodName(m.mood);
   if (m.attn) {
     d["attn"]["agent"] = m.agent;
@@ -456,8 +449,7 @@ void Device::sendState(Link to) {
   } else {
     d["moment"] = nullptr;
   }
-  const char* life = lifeName(b_.life(t));
-  if (life) d["life"] = life;
+  if (b_.blinking(t)) d["life"] = "blink";
   else d["life"] = nullptr;
   d["vol"] = m.vol;
   char led[8];
@@ -507,7 +499,6 @@ void Device::sendState(Link to) {
   touch["irq"] = irq;
   JsonArray raw = touch["raw"].to<JsonArray>();
   raw.add(rx), raw.add(ry), raw.add(rz);
-  d["bat"] = hal_.batteryMv();
   d["amp"] = hal_.ampOn();
   d["bl"] = b_.backlight(t);
   d["rx"]["state"] = rxState_;
@@ -524,8 +515,7 @@ void Device::sendShot(Link to) {
   if (!out) return;
   screen_ = screenAt(now());
   dirty_ = true;
-  uint32_t t = now();
-  render(t, movingAt(t));
+  render(now());
   uint8_t pal[512];
   for (int i = 0; i < 256; ++i) {
     uint16_t c = render::paletteAt(i);

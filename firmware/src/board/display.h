@@ -35,8 +35,8 @@ static_assert((kRotation & 1 ? kPanelHeight : kPanelWidth) == render::kWidth &&
 
 bool displayBegin();
 // Pushes the rows that changed since the last push, a band of rows per DMA
-// batch. Returns the number of rows sent.
-int displayPush(const render::Canvas& canvas);
+// batch.
+void displayPush(const render::Canvas& canvas);
 void displayBacklight(uint8_t level);
 
 // The XPT2046's raw reading (no mapping) and the interrupt line. BoardHal

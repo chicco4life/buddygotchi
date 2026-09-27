@@ -1,6 +1,6 @@
-// The animation set and the looks (plan/BEHAVIORS.md §2, §5) by name, and
-// Boop's mood. What each one looks like in each mood is its mood design,
-// which render/scene.h draws.
+// The animation set (plan/BEHAVIORS.md §5) by name, and Boop's mood. What
+// each look and animation looks like in each mood is its mood design, which
+// render/scene.h draws.
 #pragma once
 #include <cstdint>
 
@@ -23,10 +23,6 @@ uint32_t animDuration(Anim a);
 enum class Mood : uint8_t { kHappy, kExcited, kProud, kCurious, kDetermined, kGrumpy, kSad, kCount };
 Mood moodFromName(const char* name);  // kHappy if missing or unknown
 const char* moodName(Mood m);
-
-// What the face shows when no moment plays.
-enum class Look : uint8_t { kIdle, kWorking, kAsleep, kNeedsYou, kNoApp };
-const char* lookName(Look look);
 
 // A switch from one design to another shuts the eyes this long, which hides
 // the cut (plan/UX.md §2), and the backlight eases over the same time.

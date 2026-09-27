@@ -43,7 +43,6 @@ class ByteRing {
     return true;
   }
 
-  size_t size() const { return head_.load(std::memory_order_acquire) - tail_.load(std::memory_order_acquire); }
   uint32_t dropped() const { return dropped_.load(std::memory_order_relaxed); }
 
  private:

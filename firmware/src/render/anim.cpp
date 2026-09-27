@@ -41,14 +41,4 @@ uint32_t animDuration(Anim a) {
   }
 }
 
-const char* lookName(Look look) {
-  switch (look) {
-    case Look::kWorking: return "working";
-    case Look::kAsleep: return "asleep";
-    case Look::kNeedsYou: return "needs_you";
-    case Look::kNoApp: return "no_app";
-    default: return "idle";
-  }
-}
-
 }  // namespace render

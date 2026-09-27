@@ -2,22 +2,8 @@
 
 namespace render {
 
-uint32_t isqrt(uint64_t v) {
-  if (v < (uint64_t(1) << 32)) {  // the usual case, in 32-bit maths
-    uint32_t x = uint32_t(v), r = 0, bit = uint32_t(1) << 30;
-    while (bit > x) bit >>= 2;
-    while (bit) {
-      if (x >= r + bit) {
-        x -= r + bit;
-        r = (r >> 1) + bit;
-      } else {
-        r >>= 1;
-      }
-      bit >>= 2;
-    }
-    return r;
-  }
-  uint64_t r = 0, bit = uint64_t(1) << 62;
+uint32_t isqrt(uint32_t v) {
+  uint32_t r = 0, bit = uint32_t(1) << 30;
   while (bit > v) bit >>= 2;
   while (bit) {
     if (v >= r + bit) {
@@ -28,7 +14,7 @@ uint32_t isqrt(uint64_t v) {
     }
     bit >>= 2;
   }
-  return uint32_t(r);
+  return r;
 }
 
 namespace {
@@ -72,19 +58,18 @@ void Spans::cut(int lo, int hi) {
   *this = out;
 }
 
-bool ellipseRow(int cx, int cy, int rx, int ry, int sy, int& lo, int& hi) {
+bool circleRow(int cx, int cy, int r, int sy, int& lo, int& hi) {
   int dy = sy - cy;
-  if (rx <= 0 || ry <= 0 || dy <= -ry || dy >= ry) return false;
-  int64_t q = (int64_t(ry) * ry - int64_t(dy) * dy) * rx * rx / (int64_t(ry) * ry);
-  int hw = int(isqrt(uint64_t(q)));
+  if (r <= 0 || dy <= -r || dy >= r) return false;
+  int hw = int(isqrt(uint32_t(r * r - dy * dy)));
   lo = cx - hw, hi = cx + hw;
   return hw > 0;
 }
 
-Spans ellipse(int cx, int cy, int rx, int ry, int sy) {
+Spans circle(int cx, int cy, int r, int sy) {
   Spans out;
   int lo, hi;
-  if (ellipseRow(cx, cy, rx, ry, sy, lo, hi)) out.add(lo, hi);
+  if (circleRow(cx, cy, r, sy, lo, hi)) out.add(lo, hi);
   return out;
 }
 

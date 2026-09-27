@@ -92,7 +92,7 @@ bool Ble::poll(app::Device& device) {
     seenConnects = c;
     bool up = linkUp.load();
     if (connected_) {
-      device.disconnected(app::Link::kBle);
+      device.disconnected();
       connected_ = false;
     }
     line_ = app::LineReader{};
@@ -100,7 +100,7 @@ bool Ble::poll(app::Device& device) {
     if (up) {
       connected_ = true;
       silence_.heard(millis());
-      device.connected(app::Link::kBle);  // sends status
+      device.connected();  // sends status
     }
   }
   if (connected_) {
@@ -145,7 +145,5 @@ const char* Ble::state() const {
   if (linkUp.load()) return "conn";
   return NimBLEDevice::getAdvertising()->isAdvertising() ? "adv" : "idle";
 }
-
-uint32_t Ble::dropped() const { return rxRing.dropped(); }
 
 }  // namespace links

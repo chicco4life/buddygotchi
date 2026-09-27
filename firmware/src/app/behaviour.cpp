@@ -1,6 +1,5 @@
 #include "app/behaviour.h"
 
-#include <cstdio>
 #include <cstring>
 
 #include "render/raster.h"
@@ -26,13 +25,16 @@ const char* screenName(Screen s) {
   return "face";
 }
 
-const char* lifeName(Life l) { return l == Life::kBlink ? "blink" : nullptr; }
+render::SceneState baseFromName(const char* name) {
+  render::SceneState s = render::stateFromName(name);
+  return s == render::SceneState::kWorking || s == render::SceneState::kAsleep ? s : render::SceneState::kIdle;
+}
 
 void Behaviour::reset(uint32_t t, Rng& rng) {
   *this = Behaviour{};
   modelT_ = t;
   lastState_ = t;
-  nextLife_ = t + lifeGap(rng);
+  nextBlink_ = t + blinkGap(rng);
   src_ = sourceAt(t);
   lookAt_ = t;
 }
@@ -51,20 +53,19 @@ bool Behaviour::sayOn(uint32_t t) const { return say_.say.syllables > 0 && withi
 
 // Blinks: every 2–6 s idle, 2–5 s working (BEHAVIORS.md §2). Asleep and
 // with no app, the gap passes unblinked.
-uint32_t Behaviour::lifeGap(Rng& rng) const {
+uint32_t Behaviour::blinkGap(Rng& rng) const {
   int lo = 2000, hi = 6000;
-  if (!std::strcmp(model_.base, "working")) hi = 5000;
+  if (model_.base == render::SceneState::kWorking) hi = 5000;
   return uint32_t(rng.range(lo, hi));
 }
 
 // A blink, unless an animation is playing or Boop is asleep.
-void Behaviour::startLife(uint32_t t, Rng& rng) {
-  life_ = LifeEvent{};
+void Behaviour::startBlink(uint32_t t, Rng& rng) {
   Source s = sourceAt(t);
-  if (s.anim == render::Anim::kNone && s.look != render::Look::kAsleep && s.look != render::Look::kNoApp) {
-    life_.kind = Life::kBlink, life_.at = t, life_.ms = kBlinkMs;
-  }
-  nextLife_ = t + life_.ms + lifeGap(rng);
+  blink_ = s.anim == render::Anim::kNone && s.look != render::SceneState::kAsleep &&
+           s.look != render::SceneState::kNoApp;
+  blinkAt_ = t;
+  nextBlink_ = t + (blink_ ? kBlinkMs : 0) + blinkGap(rng);
 }
 
 void Behaviour::sound(const char* k, uint32_t t) {
@@ -75,7 +76,7 @@ void Behaviour::sound(const char* k, uint32_t t) {
 void Behaviour::advance(uint32_t t, Rng& rng) {
   if (int32_t(t - modelT_) < 0) {  // the clock went back: no history to replay
     modelT_ = t;
-    if (after(nextLife_, t + 10000)) nextLife_ = t + lifeGap(rng);
+    if (after(nextBlink_, t + 10000)) nextBlink_ = t + blinkGap(rng);
     resync(t);
     return;
   }
@@ -88,11 +89,11 @@ void Behaviour::advance(uint32_t t, Rng& rng) {
     if (moment_.anim != render::Anim::kNone) consider(moment_.at + moment_.ms);
     if (say_.say.syllables > 0) consider(say_.at + say_.ms);
     consider(lastState_ + kNoAppMs);
-    consider(nextLife_);
+    consider(nextBlink_);
     if (!found) break;
     // Everything due at `next`, in a fixed order.
     resync(next);
-    if (next == nextLife_) startLife(next, rng);
+    if (next == nextBlink_) startBlink(next, rng);
   }
   resync(t);
 }
@@ -159,18 +160,18 @@ void Behaviour::play(render::Anim a, uint32_t t) {
   moment_.at = t;
   moment_.ms = render::animDuration(a);
   say_ = Say{};  // a new moment replaces the line
-  life_ = LifeEvent{};
+  blink_ = false;
 }
 
 void Behaviour::startSay(const MomentIn& in, uint32_t t) {
   say_ = Say{};
   ++momentSeq_;
   Say& s = say_;
-  std::snprintf(s.word, sizeof(s.word), "%s", in.word ? in.word : "");
+  copyStr(s.word, sizeof(s.word), in.word);
   s.say.syllables = in.syllables;
   s.say.word = s.word[0] ? s.word : nullptr;
-  s.say.at = s.word[0] ? render::clamp(in.at < 0 ? in.syllables : in.at, 0, in.syllables) : -1;
-  s.sylMs = uint32_t(render::clamp(int(in.ms), 60, 400));
+  s.say.at = s.word[0] ? in.at : -1;
+  s.sylMs = in.ms;
   s.speakMs = uint32_t(in.syllables + (s.word[0] ? 2 : 0)) * s.sylMs;  // a word is two beats
   s.at = t;
   s.ms = s.speakMs + kBubbleReadMs;
@@ -185,7 +186,7 @@ void Behaviour::pressDown(uint32_t t) {
   pressAt_ = t;
 }
 
-void Behaviour::pressUp(uint32_t) { pressed_ = false; }
+void Behaviour::pressUp() { pressed_ = false; }
 
 // While the face is held, a tap shows the press dip only.
 void Behaviour::tap(uint32_t t) {
@@ -203,29 +204,15 @@ Screen Behaviour::screen(uint32_t t) const {
 Behaviour::Source Behaviour::sourceAt(uint32_t t) const {
   Source s;
   s.mood = model_.mood;
-  if (sayOn(t)) s.say = true, s.sayAt = say_.at, s.speakMs = say_.speakMs, s.sylMs = say_.sylMs;
   if (noApp(t)) {
-    s.look = render::Look::kNoApp;
+    s.look = render::SceneState::kNoApp;
   } else if (model_.attn) {
-    s.look = render::Look::kNeedsYou;
-  } else if (!std::strcmp(model_.base, "asleep")) {
-    s.look = render::Look::kAsleep;
-  } else if (!std::strcmp(model_.base, "working")) {
-    s.look = render::Look::kWorking;
+    s.look = render::SceneState::kNeedsYou;
+  } else {
+    s.look = model_.base;
   }
   if (momentOn(t)) s.anim = moment_.anim, s.at = moment_.at;
   return s;
-}
-
-render::SceneState Behaviour::Source::state() const {
-  if (anim == render::Anim::kCheer) return render::SceneState::kTaskComplete;
-  switch (look) {
-    case render::Look::kWorking: return render::SceneState::kWorking;
-    case render::Look::kAsleep: return render::SceneState::kAsleep;
-    case render::Look::kNeedsYou: return render::SceneState::kNeedsYou;
-    case render::Look::kNoApp: return render::SceneState::kNoApp;
-    default: return render::SceneState::kIdle;
-  }
 }
 
 // The design and its clock: the cheer's from when it began, a look's from
@@ -244,12 +231,11 @@ render::SceneShow Behaviour::show(uint32_t t) const {
     s.dx = int16_t(3 * render::isin(int(lt % 350 * 1024 / 350)) / 1024);
     s.heart = lt < 100 ? 1 : 2;
   }
-  bool blink = life_.kind == Life::kBlink && within(t, life_.at, life_.ms);
-  s.eyesShut = blink || (switched_ && within(t, switchAt_, render::kBlendMs));
-  if (src_.say) {
+  s.eyesShut = blinking(t) || (switched_ && within(t, switchAt_, render::kBlendMs));
+  if (sayOn(t)) {
     s.hideProp = true;
-    uint32_t lt = t - src_.sayAt;
-    s.mouthOpen = src_.sylMs && lt < src_.speakMs && lt % src_.sylMs < src_.sylMs / 2;
+    uint32_t lt = t - say_.at;
+    s.mouthOpen = say_.sylMs && lt < say_.speakMs && lt % say_.sylMs < say_.sylMs / 2;
   }
   if (pressed_) s.dy = int16_t(s.dy + kPressPx);
   return s;
@@ -259,12 +245,10 @@ bool Behaviour::pressEasing(uint32_t t) const { return pressed_ && within(t, pre
 
 const char* Behaviour::faceName(uint32_t t) const {
   Source s = sourceAt(t);
-  return s.anim != render::Anim::kNone ? render::animName(s.anim) : render::lookName(s.look);
+  return s.anim != render::Anim::kNone ? render::animName(s.anim) : render::stateName(s.look);
 }
 
-Life Behaviour::life(uint32_t t) const {
-  return life_.kind != Life::kNone && within(t, life_.at, life_.ms) ? life_.kind : Life::kNone;
-}
+bool Behaviour::blinking(uint32_t t) const { return blink_ && within(t, blinkAt_, kBlinkMs); }
 
 // Amber at half while something needs you; otherwise off (BEHAVIORS.md §3.2).
 uint32_t Behaviour::led(uint32_t t) const {
@@ -284,7 +268,7 @@ uint8_t Behaviour::backlight(uint32_t t) const {
 uint8_t Behaviour::blTarget(uint32_t t) const {
   if (noApp(t)) return 60;      // dimmed like asleep
   if (model_.attn) return 255;  // dimming never hides "needs you"
-  if (!std::strcmp(model_.base, "asleep")) return 60;
+  if (model_.base == render::SceneState::kAsleep) return 60;
   return 255;
 }
 
@@ -294,7 +278,6 @@ render::Strip Behaviour::strip(uint32_t t) const {
   render::Strip s;
   s.noApp = noApp(t);
   if (s.noApp) return s;
-  s.wait = model_.wait;
   s.busy = model_.busy;
   if (model_.attn) s.agent = model_.agent, s.project = model_.project, s.more = model_.more;
   return s;

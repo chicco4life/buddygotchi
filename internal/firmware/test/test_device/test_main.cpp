@@ -9,7 +9,6 @@
 
 #include "app/device.h"
 #include "app/line_reader.h"
-#include "board/pins.h"
 #include "render/palette.h"
 
 void setUp() {}
@@ -212,8 +211,8 @@ static int count(const std::string& s, const char* needle) {
 static void test_status_on_connect_and_every_minute() {
   Rig r;
   r.hal.real = 1000;
-  r.dev.connected(app::Link::kBle);
-  TEST_ASSERT_TRUE(has(r.ble.text, "{\"t\":\"status\",\"v\":1,\"id\":\"b00p-0000\",\"fw\":\"t\",\"bat\":0,\"usb\":1}\n"));
+  r.dev.connected();
+  TEST_ASSERT_TRUE(has(r.ble.text, "{\"t\":\"status\",\"v\":1,\"id\":\"b00p-0000\",\"fw\":\"t\"}\n"));
   r.dev.handleLine("{\"t\":\"state\",\"base\":\"idle\"}", 28, app::Link::kBle);
   r.hal.real = 60999;
   r.dev.tick();
@@ -229,7 +228,7 @@ static void test_status_on_connect_and_every_minute() {
   TEST_ASSERT_TRUE(has(r.ble.text, "{\"t\":\"input\",\"k\":\"tap\"}"));
   TEST_ASSERT_FALSE(has(r.usb.text, "\"input\""));
   TEST_ASSERT_FALSE(has(r.usb.text, "\"status\""));
-  r.dev.disconnected(app::Link::kBle);
+  r.dev.disconnected();
   r.hal.real = 200000;
   r.dev.tick();
   TEST_ASSERT_EQUAL_INT(2, count(r.ble.text, "\"status\""));
@@ -257,7 +256,7 @@ static void test_input_reaches_every_live_link() {
     step(every);
   };
   const char* tap = "{\"t\":\"input\",\"k\":\"tap\"}";
-  r.dev.connected(app::Link::kBle);
+  r.dev.connected();
   r.dev.handleLine("{\"t\":\"state\",\"base\":\"idle\"}", 28, app::Link::kBle);
   r.hal.real = 1000;
   r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
@@ -272,7 +271,7 @@ static void test_input_reaches_every_live_link() {
   TEST_ASSERT_EQUAL_INT(3, count(r.ble.text, tap));
   TEST_ASSERT_EQUAL_INT(2, count(r.usb.text, tap));
   // Disconnected, Bluetooth hears nothing more.
-  r.dev.disconnected(app::Link::kBle);
+  r.dev.disconnected();
   press(100, 100);
   TEST_ASSERT_EQUAL_INT(3, count(r.ble.text, tap));
 }
@@ -282,7 +281,7 @@ static void test_input_reaches_every_live_link() {
 // Bluetooth, so a test run never reaches the everyday app.
 static void test_injected_input_stays_on_usb() {
   Rig r;
-  r.dev.connected(app::Link::kBle);
+  r.dev.connected();
   r.dev.handleLine("{\"t\":\"state\",\"base\":\"idle\"}", 28, app::Link::kBle);
   r.usbLine("{\"t\":\"dbg.reset\"}");
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
@@ -343,10 +342,10 @@ static void test_state_carries_the_mood() {
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"mood\":\"happy\""));
   r.usbLine("{\"t\":\"state\",\"mood\":\"sad\"}");
-  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  r.usbLine("{\"t\":\"state\",\"base\":\"napping\"}");  // a base it doesn't know is idle
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"mood\":\"happy\""));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"base\":\"idle\",\"mood\":\"happy\""));
 }
 
 static void test_injected_tap_reaches_the_mac() {
@@ -803,21 +802,6 @@ static void test_only_needs_you_chirps() {
   TEST_ASSERT_TRUE(r.hal.cues[0] == voice::Cue::kChirp);
 }
 
-// dbg.state carries nothing for the parked features (the cut, 2026-09-26),
-// nor quiet mode (removed 2026-09-27).
-static void test_state_has_no_parked_fields() {
-  Rig r;
-  r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"mood\":{\"energy\":40},\"focus\":true,\"night\":true,\"hungry\":2,"
-            "\"level\":3,\"threads\":[[\"claude\",\"x\",\"work\"]],\"quiet\":30}");
-  r.usbLine("{\"t\":\"dbg.state\"}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"screen\":\"face\""));
-  for (const char* gone : {"\"rung\"", "\"hushed\"", "\"focus\"", "\"night\"", "\"hungry\"", "\"level\"", "\"quiet\""}) {
-    TEST_ASSERT_FALSE_MESSAGE(has(r.usb.text, gone), gone);
-  }
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"mood\":\"happy\""));  // gen-2's mood object isn't one of the seven
-  TEST_ASSERT_EQUAL(255, r.hal.bl);  // no night dimming
-}
-
 // PROTOCOL.md §2: a line is at most 512 bytes. The board and boop-sim both
 // read their lines through LineReader, so a longer one is dropped whole on
 // both, and the next line is read as usual.
@@ -852,17 +836,36 @@ static void test_lines_over_512_bytes_are_dropped() {
   TEST_ASSERT_TRUE(has(r.usb.text, "\"base\":\"asleep\""));
 }
 
-// PROTOCOL.md §4 and DEVICE.md §3: the v1 board has no battery, so `bat` is
-// 0 (not a reading of the floating sense pin), and the field is still sent.
-// BoardHal::batteryMv only builds for the board; this pins the setting it
-// follows and the messages that carry it.
-static void test_no_battery_reports_bat_0() {
-  TEST_ASSERT_FALSE(pins::kHasBattery);
+// VOICE.md §8, PROTOCOL.md §3: numbers out of range are held in range once,
+// as they arrive, so the mouth and the voice agree: `ms` to 60–400, the
+// word's `at` to the syllables, and `vol` to 0–10.
+static void test_say_and_volume_are_held_in_range() {
   Rig r;
-  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");  // the Mac speaks: a status
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"bat\":0,\"usb\":1}"));
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":15}");
   r.usbLine("{\"t\":\"dbg.state\"}");
-  TEST_ASSERT_TRUE(has(r.usb.text, "\"bat\":0,"));
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"vol\":10,"));
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"word\":\"done\",\"at\":9,\"ms\":1000}}");
+  TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
+  TEST_ASSERT_EQUAL(400, r.hal.said[0].ms);
+  TEST_ASSERT_EQUAL(2, r.hal.said[0].at);
+  TEST_ASSERT_EQUAL(10, r.hal.said[0].vol);
+  // The mouth keeps the same beat: (2 syllables + 2 for the word) × 400 ms.
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1599}");
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":true,"));
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1600}");
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"audio\":{\"playing\":false,"));
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"word\":\"done\",\"at\":-3,\"ms\":20}}");
+  TEST_ASSERT_EQUAL(2, int(r.hal.said.size()));
+  TEST_ASSERT_EQUAL(60, r.hal.said[1].ms);
+  TEST_ASSERT_EQUAL(0, r.hal.said[1].at);
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":-3}");
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"vol\":0,"));
 }
 
 int main() {
@@ -899,9 +902,8 @@ int main() {
   RUN_TEST(test_a_say_on_its_own_plays_the_mumble);
   RUN_TEST(test_mute_and_needs_you_keep_it_silent);
   RUN_TEST(test_only_needs_you_chirps);
-  RUN_TEST(test_state_has_no_parked_fields);
   RUN_TEST(test_state_carries_the_mood);
   RUN_TEST(test_lines_over_512_bytes_are_dropped);
-  RUN_TEST(test_no_battery_reports_bat_0);
+  RUN_TEST(test_say_and_volume_are_held_in_range);
   return UNITY_END();
 }

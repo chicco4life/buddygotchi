@@ -32,13 +32,12 @@ class Ble : public app::Out {
   const char* state() const;          // "off", "idle", "adv" or "conn"
   const char* name() const { return name_; }  // Boop-XXXX
   const char* id() const { return id_; }      // b00p-xxxx
-  uint32_t dropped() const;
 
  private:
   static void sendPacket(void* ctx, const uint8_t* data, size_t n);
 
-  char name_[12] = "Boop-0000";
-  char id_[12] = "b00p-0000";
+  char name_[12] = "";  // both from the MAC, in begin()
+  char id_[12] = "";
   bool started_ = false;
   bool connected_ = false;  // as the main loop last saw it
   uint32_t advCheckedAt_ = 0;

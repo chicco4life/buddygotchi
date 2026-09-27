@@ -15,8 +15,8 @@ struct Font {
   const uint8_t* data;  // 4-bit coverage, high nibble first, row by row
 };
 
-extern const Font& kSmall;  // 8 × 18 cells, for rows and labels
-extern const Font& kLarge;  // 13 × 30 cells, for the word and the name
+extern const Font& kSmall;  // 8 × 18 cells, for the strip
+extern const Font& kLarge;  // 13 × 30 cells, for the mumble's word
 
 // Draws `text` with its cell's top-left at (x, y). Returns the x after it.
 int drawString(Canvas& c, const Font& f, int x, int y, const char* text, int ink);

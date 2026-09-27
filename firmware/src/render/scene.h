@@ -13,8 +13,12 @@
 namespace render {
 
 // The designs' states, in faces.h's order. The task_complete design shows
-// the cheer; there are listening designs, but nothing uses them.
+// the cheer; the others are the looks, what the face shows when no moment
+// plays.
 enum class SceneState : uint8_t { kIdle, kWorking, kNeedsYou, kTaskComplete, kAsleep, kNoApp, kCount };
+// "idle", "working", "needs_you", "task_complete", "asleep", "no_app".
+const char* stateName(SceneState s);
+SceneState stateFromName(const char* name);  // kIdle if missing or unknown
 
 struct SceneShow {
   Mood mood = Mood::kHappy;

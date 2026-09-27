@@ -55,7 +55,7 @@ void setup() {
   device->setOut(app::Link::kUsb, &usbOut);
   // Bluetooth after the canvas, so the canvas got its contiguous block.
   if (ble.begin()) device->setOut(app::Link::kBle, &ble);
-  hal.setBle(ble.state(), ble.name(), ble.id());
+  hal.setBle(&ble);
   fpsSince = millis();
 }
 
@@ -76,7 +76,6 @@ void loop() {
     }
     if (!debug && ble.poll(*device)) busy = more = true;
   }
-  hal.setBle(ble.state(), ble.name(), ble.id());
   uint32_t t0 = micros();
   device->tick();
   if (device->takeFrame()) {

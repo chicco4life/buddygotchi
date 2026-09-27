@@ -70,12 +70,11 @@ right.
 | Secondary button | **None.** v1 has no job for one ([UX.md](UX.md) §4) | BOOT, once the main button is external |
 | Speaker | On the 2-pin speaker header | The same; the header takes an 8 Ω, 1–2 W speaker |
 | Vibration motor | **None.** Nothing buzzes in v1 ([FUTURE.md](FUTURE.md)) | A coin motor on GPIO27 through an N-MOSFET, with a flyback diode |
-| Battery | **None.** USB power only, so battery sense reads nothing useful | A protected 3.7 V LiPo on the battery header |
+| Battery | **None.** USB power only. The firmware doesn't read battery sense, and nothing it sends carries a battery level | A protected 3.7 V LiPo on the battery header |
 
-The firmware detects none of these. The main button (`kMainButton`) and
-whether there's a battery (`kHasBattery`) are build settings in
-`firmware/src/board/pins.h`, so moving the button from BOOT to IO35 is one
-line. The speaker and motor can't be switched on or off in v1.
+The firmware detects none of these. The main button (`kMainButton`) is a
+build setting in `firmware/src/board/pins.h`, so moving it from BOOT to
+IO35 is one line. The speaker and motor can't be switched on or off in v1.
 
 ## 4. Firmware stack
 

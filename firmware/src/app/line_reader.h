@@ -1,6 +1,6 @@
-// Reassembles newline-terminated message lines from a byte stream (USB
-// serial now, BLE packets in F4). Lines longer than the limit are dropped
-// whole. Pure C++.
+// Reassembles newline-terminated message lines from a byte stream: USB
+// serial, or Bluetooth's received bytes (app/packets.h). Lines longer than
+// the limit are dropped whole. Pure C++.
 #pragma once
 #include <cstddef>
 #include <cstdint>

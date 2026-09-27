@@ -92,7 +92,7 @@ static void test_packet_writer_sends_whole_lines_in_payload_chunks() {
   std::vector<std::string> pkts;
   app::PacketWriter w(collect, &pkts);
   w.setPayload(20);
-  const std::string line = "{\"t\":\"status\",\"v\":1,\"id\":\"b00p-7f3a\",\"fw\":\"0.4.0\",\"bat\":0,\"usb\":1}";
+  const std::string line = "{\"t\":\"status\",\"v\":1,\"id\":\"b00p-7f3a\",\"fw\":\"0.4.0\"}";
   w.write(line.data(), 30);
   TEST_ASSERT_EQUAL_INT(0, int(pkts.size()));  // nothing until the newline
   w.write(line.data() + 30, line.size() - 30);

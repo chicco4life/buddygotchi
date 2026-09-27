@@ -31,7 +31,7 @@ struct Buf {
 }  // namespace
 
 static void test_isqrt_is_exact() {
-  for (uint64_t v : {0ull, 1ull, 2ull, 3ull, 4ull, 99ull, 100ull, 4294967295ull, 4294967296ull, 1000000000000ull}) {
+  for (uint32_t v : {0u, 1u, 2u, 3u, 4u, 99u, 100u, 6399u, 6400u, 4294836225u, 4294967295u}) {
     uint64_t r = isqrt(v);
     TEST_ASSERT_TRUE(r * r <= v);
     TEST_ASSERT_TRUE((r + 1) * (r + 1) > v);
@@ -84,7 +84,6 @@ static void test_fill_shape_antialiases_only_the_edges() {
 
 static void test_palette_ramps_run_from_black_to_the_ink() {
   TEST_ASSERT_EQUAL_HEX16(rgb565(kEyeRgb), paletteAt(inkAt(kInkEye, kLevels)));
-  TEST_ASSERT_EQUAL_HEX16(rgb565(kOatRgb), paletteAt(inkAt(kInkText, kLevels)));
   TEST_ASSERT_EQUAL_HEX16(rgb565(kRoseRgb), paletteAt(inkAt(kInkRose, kLevels)));
   TEST_ASSERT_EQUAL_HEX16(rgb565(kAmberRgb), paletteAt(inkAt(kInkAmber, kLevels)));
   TEST_ASSERT_EQUAL_INT(kBlack, inkAt(kInkEye, 0));
@@ -137,9 +136,9 @@ static void test_an_empty_strip_is_bare_glass() {
     return n;
   };
   TEST_ASSERT_EQUAL_INT(0, lit(Strip{}));
-  Strip busy, noApp;
-  busy.busy = 1, noApp.noApp = true;
-  for (const Strip& s : {busy, noApp}) {
+  Strip busy, noApp, needsYou;
+  busy.busy = 1, noApp.noApp = true, needsYou.agent = "codex";
+  for (const Strip& s : {busy, noApp, needsYou}) {
     Buf b;
     drawStrip(b.c, s);
     TEST_ASSERT_EQUAL_INT(inkAt(kInkDim, kLevels), b.c.get(kWidth / 2, kStripTop));
@@ -161,15 +160,13 @@ static void test_the_strip_says_who_needs_you() {
     }
     return n;
   };
-  Strip count, who, longWho;
-  count.wait = 2, count.busy = 1;
-  who = count, who.agent = "codex", who.project = "landing", who.more = 1;
+  Strip who, longWho;
+  who.agent = "codex", who.project = "landing", who.more = 1, who.busy = 1;
   longWho = who, longWho.project = "a-really-long-project..";
-  int lastCount, lastWho, lastLong;
-  amberCols(count, lastCount);
-  amberCols(who, lastWho);
+  int lastWho, lastLong;
+  TEST_ASSERT_TRUE(amberCols(who, lastWho) > 0);
   amberCols(longWho, lastLong);
-  TEST_ASSERT_TRUE(lastWho > lastCount);  // "codex · landing" is longer than "2 needs you"
+  TEST_ASSERT_TRUE(lastLong > lastWho);  // "codex · a-really-lo.." takes the room there is
   Buf b;
   drawStrip(b.c, longWho);
   bool grey = false;  // the working count still shows, in grey, at the right of the cut name
@@ -213,18 +210,18 @@ static void test_fonts_are_monospaced_and_utf8_aware() {
   TEST_ASSERT_EQUAL_INT(10 + 2 * kSmall.w, end);
   TEST_ASSERT_TRUE(b.count(inkAt(kInkAmber, kLevels)) > 10);
   Buf fit;
-  int w = drawStringFit(fit.c, kSmall, 0, 0, "a-very-long-project-name", kInkText, 10 * kSmall.w);
+  int w = drawStringFit(fit.c, kSmall, 0, 0, "a-very-long-project-name", kInkAmber, 10 * kSmall.w);
   TEST_ASSERT_TRUE(w <= 10 * kSmall.w);
   // Accented letters show plain (UX.md §2), anything else outside the font
   // as one "?" per character.
   Buf accented, plain, other, marks;
   TEST_ASSERT_EQUAL_INT(4 * kSmall.w, stringWidth(kSmall, "caf\xC3\xA9"));
-  drawString(accented.c, kSmall, 0, 0, "caf\xC3\xA9 \xC3\x9C" "ber", kInkText);
-  drawString(plain.c, kSmall, 0, 0, "cafe Uber", kInkText);
+  drawString(accented.c, kSmall, 0, 0, "caf\xC3\xA9 \xC3\x9C" "ber", kInkAmber);
+  drawString(plain.c, kSmall, 0, 0, "cafe Uber", kInkAmber);
   TEST_ASSERT_TRUE(accented.px == plain.px);
   TEST_ASSERT_EQUAL_INT(2 * kSmall.w, stringWidth(kSmall, "\xED\x94\x84\xEB\xA1\x9C"));  // two Hangul syllables
-  drawString(other.c, kSmall, 0, 0, "\xED\x94\x84\xEB\xA1\x9C", kInkText);
-  drawString(marks.c, kSmall, 0, 0, "??", kInkText);
+  drawString(other.c, kSmall, 0, 0, "\xED\x94\x84\xEB\xA1\x9C", kInkAmber);
+  drawString(marks.c, kSmall, 0, 0, "??", kInkAmber);
   TEST_ASSERT_TRUE(other.px == marks.px);
 }
 

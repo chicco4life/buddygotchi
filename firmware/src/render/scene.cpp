@@ -14,6 +14,9 @@ using namespace faces;
 static_assert(kMaxGroups <= SceneFrame::kMaxGroups, "a scene's groups fit its frame");
 static_assert(int(Mood::kCount) == 7 && int(SceneState::kCount) == 6, "faces.h's moods and states");
 
+const char* const kStates[] = {"idle", "working", "needs_you", "task_complete", "asleep", "no_app"};
+static_assert(sizeof(kStates) / sizeof(kStates[0]) == size_t(SceneState::kCount), "one name per state");
+
 // The small "o" the mouth becomes on a syllable, from the curious design
 // asking for you (curious--needs_you.svg), where it's the mouth.
 struct Box {
@@ -92,6 +95,16 @@ void place(const Scene& sc, const SceneShow& s, Placed& p) {
 }
 
 }  // namespace
+
+const char* stateName(SceneState s) { return kStates[int(s) < int(SceneState::kCount) ? int(s) : 0]; }
+
+SceneState stateFromName(const char* name) {
+  if (!name) return SceneState::kIdle;
+  for (int i = 0; i < int(SceneState::kCount); ++i) {
+    if (!std::strcmp(name, kStates[i])) return SceneState(i);
+  }
+  return SceneState::kIdle;
+}
 
 int sceneOf(Mood m, SceneState s) {
   int mi = int(m) < int(Mood::kCount) ? int(m) : 0;

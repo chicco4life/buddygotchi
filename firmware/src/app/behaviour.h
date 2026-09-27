@@ -1,11 +1,13 @@
 // The behaviour state machine (plan/BEHAVIORS.md, plan/UX.md §3–4): what
-// the Mac last said, the moment and the mumble playing, idle life, needs
+// the Mac last said, the moment and the mumble playing, blinks, needs
 // you, local reactions to inputs, and the light, backlight and sound cues
 // they imply. Pure C++ and a function of the device clock: every time-based
 // change happens at an exact millisecond, so a frozen clock gives the same
 // frames on the board and in the simulator. Device owns the I/O.
 #pragma once
+#include <cstddef>
 #include <cstdint>
+#include <cstdio>
 
 #include "app/clock.h"
 #include "render/anim.h"
@@ -19,30 +21,32 @@ namespace app {
 enum class Screen : uint8_t { kFace, kNeedsYou, kNoApp, kPattern };
 const char* screenName(Screen s);
 
-// What the Mac last said (PROTOCOL.md §3).
+// Copies `src` into a buffer of `n` bytes, cut to fit; null copies as "".
+inline void copyStr(char* dst, size_t n, const char* src) { std::snprintf(dst, n, "%s", src ? src : ""); }
+
+// What the Mac last said (PROTOCOL.md §3), as the device parsed it.
 struct Model {
-  char base[12] = "idle";
+  render::SceneState base = render::SceneState::kIdle;  // idle, working or asleep
   render::Mood mood = render::Mood::kHappy;
   bool attn = false;
   char agent[12] = "";
   char project[24] = "";
   int more = 0;
-  int busy = 0, idle = 0, wait = 0;
-  int vol = 6;
+  int busy = 0;
+  int vol = 6;  // 0–10
 };
+// `base` by name: working or asleep, and idle for anything else.
+render::SceneState baseFromName(const char* name);
 
-// A moment as it arrives (PROTOCOL.md §3). With no anim, only the mumble.
+// A moment as it arrives (PROTOCOL.md §3), already held in range. With no
+// anim, only the mumble.
 struct MomentIn {
   render::Anim anim = render::Anim::kNone;
   int syllables = 0;  // 0: no mumble
   const char* word = nullptr;
-  int at = -1;
-  uint32_t ms = 120;  // per syllable
+  int at = 0;         // the word's place among the syllables, 0..syllables
+  uint32_t ms = 120;  // per syllable, 60–400
 };
-
-// Idle life: small things Boop does on its own (BEHAVIORS.md §2).
-enum class Life : uint8_t { kNone, kBlink };
-const char* lifeName(Life l);
 
 class Behaviour {
  public:
@@ -63,14 +67,14 @@ class Behaviour {
 
   // Inputs, already recognised as gestures (UX.md §4).
   void pressDown(uint32_t t);  // visible feedback at once
-  void pressUp(uint32_t t);
+  void pressUp();
   void tap(uint32_t t);  // BOOT, or a touch anywhere
   // dbg.light: holds the LED and backlight until the next state.
   void overrideLed(uint32_t rgb) { ledOverride_ = true, ledSet_ = rgb; }
   void overrideBacklight(uint8_t level) { blOverride_ = true, blSet_ = level; }
 
   // Moves to time t, handling every time-based change on the way at its
-  // exact millisecond (a moment or mumble ends, idle life, the no-app timeout).
+  // exact millisecond (a moment or mumble ends, a blink, the no-app timeout).
   void advance(uint32_t t, Rng& rng);
 
   // Queries at t (after advance).
@@ -94,7 +98,8 @@ class Behaviour {
   // Counts moments and mumbles started, local ones included, so a line can
   // tell it was replaced.
   uint32_t momentSeq() const { return momentSeq_; }
-  Life life(uint32_t t) const;
+  // A blink, Boop's idle life (BEHAVIORS.md §2), is showing.
+  bool blinking(uint32_t t) const;
   // What the face is following at t: the animation ("cheer"), or the look
   // ("idle", "working", "asleep", "needs_you", "no_app").
   const char* faceName(uint32_t t) const;
@@ -118,27 +123,22 @@ class Behaviour {
     uint32_t speakMs = 0;  // the mouth moves this long
     uint32_t sylMs = 120;
   };
-  // What the face is following: an animation or a look, in a mood, and a
-  // mumble on top. A change of design shuts the eyes for kBlendMs, which
-  // hides the cut (UX.md §2).
+  // What the face is following: an animation or a look, in a mood. A
+  // change of design shuts the eyes for kBlendMs, which hides the cut
+  // (UX.md §2).
   struct Source {
     render::Anim anim = render::Anim::kNone;
     uint32_t at = 0;
-    render::Look look = render::Look::kIdle;
+    render::SceneState look = render::SceneState::kIdle;  // never kTaskComplete
     render::Mood mood = render::Mood::kHappy;
-    bool say = false;
-    uint32_t sayAt = 0, speakMs = 0, sylMs = 0;  // the mouth follows the syllables
     bool operator==(const Source& o) const {
-      return anim == o.anim && at == o.at && look == o.look && mood == o.mood && say == o.say &&
-             sayAt == o.sayAt && speakMs == o.speakMs && sylMs == o.sylMs;
+      return anim == o.anim && at == o.at && look == o.look && mood == o.mood;
     }
     // The design it shows: the cheer's, or the look's.
-    render::SceneState state() const;
+    render::SceneState state() const {
+      return anim == render::Anim::kCheer ? render::SceneState::kTaskComplete : look;
+    }
     int scene() const { return render::sceneOf(mood, state()); }
-  };
-  struct LifeEvent {
-    Life kind = Life::kNone;
-    uint32_t at = 0, ms = 0;
   };
 
   void play(render::Anim a, uint32_t t);
@@ -168,8 +168,8 @@ class Behaviour {
   }
   void resync(uint32_t t);
   void settle(uint32_t t);
-  void startLife(uint32_t t, Rng& rng);
-  uint32_t lifeGap(Rng& rng) const;
+  void startBlink(uint32_t t, Rng& rng);
+  uint32_t blinkGap(Rng& rng) const;
   bool momentOn(uint32_t t) const;
   // Something needs you (BEHAVIORS.md §1): a tap or an animation doesn't
   // take the face over.
@@ -198,8 +198,9 @@ class Behaviour {
   uint32_t lookAt_ = 0;  // when the look's design started
   bool switched_ = false;  // the eyes shut at switchAt_, for a change of design
   uint32_t switchAt_ = 0;
-  LifeEvent life_;
-  uint32_t nextLife_ = 0;
+  bool blink_ = false;  // a blink began at blinkAt_, for kBlinkMs
+  uint32_t blinkAt_ = 0;
+  uint32_t nextBlink_ = 0;
   bool pressed_ = false;
   uint32_t pressAt_ = 0;
   const char* sfx_ = nullptr;
