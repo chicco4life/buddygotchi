@@ -56,10 +56,37 @@ public struct DeviceStatus: Equatable, Sendable {
     }
 }
 
+/// The device's `ended` message (PROTOCOL.md §4): a moment the app waited
+/// on is over.
+public struct MomentEnded: Equatable, Sendable {
+    public enum How: String, Sendable {
+        /// It played to the end.
+        case done
+        /// Something stopped it early: `why` says what.
+        case cut
+        /// None of it played: something needed you.
+        case skipped
+    }
+
+    /// The moment's `id`, as the app sent it.
+    public var id: Int
+    public var how: How
+    /// With `cut`: `tap`, `moment`, `needs_you` or `reset`; nil when the
+    /// device doesn't say.
+    public var why: String?
+
+    public init(id: Int, how: How, why: String? = nil) {
+        self.id = id
+        self.how = how
+        self.why = why
+    }
+}
+
 /// A line from the device.
 public enum DeviceMessage: Equatable, Sendable {
     case status(DeviceStatus)
     case input(Core.DeviceInput)
+    case ended(MomentEnded)
     /// Anything else: debug replies passing through the bridge, unknown types.
     case other(String)
 
@@ -75,6 +102,11 @@ public enum DeviceMessage: Equatable, Sendable {
         case "input":
             guard let input = (object["k"] as? String).flatMap(Core.DeviceInput.init(rawValue:)) else { return .other(line) }
             return .input(input)
+        case "ended":
+            guard let id = (object["id"] as? NSNumber)?.intValue, id > 0,
+                  let how = (object["how"] as? String).flatMap(MomentEnded.How.init(rawValue:))
+            else { return .other(line) }
+            return .ended(MomentEnded(id: id, how: how, why: object["why"] as? String))
         default:
             return .other(line)
         }

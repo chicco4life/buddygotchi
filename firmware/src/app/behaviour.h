@@ -38,6 +38,23 @@ struct Model {
 // `base` by name: working or asleep, and idle for anything else.
 render::SceneState baseFromName(const char* name);
 
+// How a moment the Mac waits on ended (PROTOCOL.md §4 `ended`): played to
+// the end, cut short, or skipped, none of it played.
+enum class MomentEnd : uint8_t { kDone, kCut, kSkipped };
+const char* momentEndName(MomentEnd e);
+// What cut a moment short: a newer moment, a tap's wiggle, "needs you"
+// starting, or dbg.reset.
+enum class CutBy : uint8_t { kNone, kMoment, kTap, kNeedsYou, kReset };
+const char* cutByName(CutBy c);  // null for kNone
+
+// A moment the Mac waits on that has ended, for Device to send once.
+struct Ended {
+  uint32_t id = 0;
+  MomentEnd how = MomentEnd::kDone;
+  CutBy by = CutBy::kNone;  // with kCut
+  uint8_t from = 0;         // the moment's own `from`
+};
+
 // A moment as it arrives (PROTOCOL.md §3), already held in range. With no
 // anim, only the mumble.
 struct MomentIn {
@@ -50,6 +67,11 @@ struct MomentIn {
   // plays. Only a known mood sets it.
   bool expr = false;
   render::Mood mood = render::Mood::kHappy;
+  // The Mac waits on it when `id` isn't 0 (PROTOCOL.md §3): its end comes
+  // back as an Ended with this id and `from`, which is Device's link and
+  // passes through untouched.
+  uint32_t id = 0;
+  uint8_t from = 0;
 };
 
 class Behaviour {
@@ -105,6 +127,9 @@ class Behaviour {
   // Counts moments and mumbles started, local ones included, so a line can
   // tell it was replaced.
   uint32_t momentSeq() const { return momentSeq_; }
+  // The next moment the Mac waits on that has ended, oldest first, each
+  // exactly once; false when there's none (PROTOCOL.md §4).
+  bool takeEnded(Ended& e);
   // A blink, Boop's idle life (BEHAVIORS.md §2), is showing.
   bool blinking(uint32_t t) const;
   // What the face is following at t: the animation ("cheer"), or the look
@@ -117,9 +142,12 @@ class Behaviour {
   const Model& model() const { return model_; }
 
  private:
+  // Each part of a moment (the animation, the mumble, the expression)
+  // carries its moment's id, 0 when the Mac doesn't wait on it.
   struct Moment {
     render::Anim anim = render::Anim::kNone;
     uint32_t at = 0, ms = 0;
+    uint32_t id = 0;
   };
   // A mumble: the bubble, and the mouth following the syllables. It plays
   // over whatever face is showing.
@@ -129,6 +157,24 @@ class Behaviour {
     uint32_t at = 0, ms = 0;
     uint32_t speakMs = 0;  // the mouth moves this long
     uint32_t sylMs = 120;
+    uint32_t id = 0;
+  };
+  // A moment the Mac waits on, while any part of it plays: where it came
+  // from, and what first cut a part of it short, if anything.
+  struct Waiting {
+    uint32_t id = 0;
+    uint8_t from = 0;
+    CutBy cut = CutBy::kNone;
+  };
+  // What the Mac is owed, which dbg.reset keeps: the moments it waits on,
+  // at most one per part plus the one arriving, and the ends not yet taken.
+  // Device takes them after every line and every tick.
+  struct Owed {
+    static constexpr int kWaiting = 4, kEnded = 8;
+    Waiting waiting[kWaiting];
+    int nWaiting = 0;
+    Ended ended[kEnded];
+    int nEnded = 0;
   };
   // What the face is following: an animation or a look, in a mood. A
   // change of design shuts the eyes for kBlendMs, which hides the cut
@@ -148,7 +194,7 @@ class Behaviour {
     int scene() const { return render::sceneOf(mood, state()); }
   };
 
-  void play(render::Anim a, uint32_t t);
+  void play(render::Anim a, uint32_t t, CutBy by);
   void startSay(const MomentIn& in, uint32_t t);
   void sound(const char* k, uint32_t t);
   // Every change goes through here: `f` changes the state at t, and if
@@ -172,7 +218,15 @@ class Behaviour {
     if (!blOverride_ && (level != blLevel_ || overridden)) blFade_ = true, blFrom_ = lit, blAt_ = t;
     blLevel_ = level;
     modelT_ = t;
+    sweep(t);
   }
+  // Moments the Mac waits on: one arriving, a part of one cut short while
+  // it plays, and each one with no part left playing at t ended.
+  void wait(uint32_t id, uint8_t from);
+  void cut(uint32_t id, CutBy by);
+  void sweep(uint32_t t);
+  void report(const Ended& e);
+  bool holds(uint32_t id, uint32_t t) const;
   void resync(uint32_t t);
   void settle(uint32_t t);
   void startBlink(uint32_t t, Rng& rng);
@@ -207,6 +261,8 @@ class Behaviour {
   bool expr_ = false;
   render::Mood exprMood_ = render::Mood::kHappy;
   uint32_t exprAt_ = 0, exprMs_ = 0;
+  uint32_t exprId_ = 0;
+  Owed owed_;
   Source src_;
   uint32_t lookAt_ = 0;  // when the look's design started
   bool switched_ = false;  // the eyes shut at switchAt_, for a change of design

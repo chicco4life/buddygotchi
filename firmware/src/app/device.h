@@ -134,6 +134,7 @@ class Device {
   void render(uint32_t t);
   void sendPing(Link to);
   void sendStatus(Link to);
+  void sendEnded();
   void sendState(Link to);
   void sendShot(Link to);
   void reset();

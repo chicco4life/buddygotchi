@@ -211,20 +211,35 @@ gate, which says when something needs you.
 
 **How a reaction ends.** HISTORY shows its line `(in progress)` until
 whoever holds the moment ends the handle ([HARNESS.md](HARNESS.md) §4,
-§5.3):
+§5.3). The moment goes to the device with an `id`, and the device says
+how it ended ([PROTOCOL.md](../PROTOCOL.md) §4):
 
 | End | When | By |
 | --- | --- | --- |
-| `done` | The app expects the moment to have played: on the first tick at or after the time it was sent plus its length ([ARCHITECTURE.md](../ARCHITECTURE.md) §3.2) | The runtime |
+| `done` | The device says it played to the end | The runtime, from the device's `ended` |
+| `failed`, `cut short: you tapped Boop` | The device says a tap's wiggle stopped it | The same |
+| `failed`, `cut short: something newer played` | The device says a newer moment stopped it: the rules' cheer, or a line | The same |
+| `failed`, `cut short: something needed you` | The device says "needs you" started while it played | The same |
+| `failed`, `cut short` | The device says something else stopped it (`dbg.reset`), or doesn't say what | The same |
+| `failed`, `something needed you` | The device says none of it played: something needed you when it arrived | The same |
 | `failed`, `waited too long` | It waited too long for its turn and was dropped, face and all | The moment schedule |
 | `failed`, `no device connected` | Its turn came with no device connected, so nothing played it | The runtime |
-| `failed`, `the device disconnected` | The device dropped while it played | The runtime |
+| `failed`, `the device disconnected` | The device dropped before saying how it ended | The runtime |
+| `failed`, `the device never said it ended` | No `ended` came in time ([PROTOCOL.md](../PROTOCOL.md) §6): the line was lost, or the firmware is older | The runtime |
 
 A failed one reads `(didn't happen: <why>)` in HISTORY, so Jev may make
 it again if NOW still calls for it (§2.1). The evals have no device, so
 their queue ends each handle `done` at once ([EVALS.md](../EVALS.md) §1).
 [HARNESS.md](HARNESS.md) §9 has a reaction and its end in `debug.jsonl`,
-from a headless run with no device.
+from a headless run with no device. With the board on USB, a forced
+reaction's moment, its action and the settle the device's
+`{"t":"ended","id":1,"how":"done"}` brought, 1.5 s later:
+
+```jsonl
+{"sent":{"t":"moment","say":{"syl":"bo lon","tune":"lift","ms":135},"mood":"proud","id":1},"received_at_ms":1790519069129}
+{"action":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop made a proud face and mumbled.","name":"react","ok":true,"pending":true},"received_at_ms":1790519069129,"seq":2}
+{"received_at_ms":1790519070608,"seq":3,"settle":{"by":"dashboard","end":"done","for":2}}
+```
 
 ## 6. An example
 

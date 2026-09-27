@@ -235,15 +235,20 @@ def play_ms(moment: dict[str, Any]) -> int:
 
 def check_order(run: Run) -> dict[str, Any]:
     """The brain's moments come after the rules' reaction and never cut a
-    rule's line short (ARCHITECTURE.md §3.2).
+    rule's line short (ARCHITECTURE.md §3.2), and the device says how each
+    one ended (PROTOCOL.md §4).
 
     With --debug the app logs `hook: …` for each hook and `link rules → …` or
-    `link brain → …` for each line sent to the device. For every brain
+    `link brain → …` for each line sent to the device, and always
+    `device: moment N ended …` for the device's `ended`. For every brain
     moment: the rules' reaction to the last hook came first, and the last
     rule line (chatter) had finished playing. A brain mumble may play over a
     rule animation such as the cheer, which it doesn't cut; an animation
-    stops the line playing."""
+    stops the line playing. Each fixture ends with seconds to spare, so
+    every brain moment sent with an `id` has its `ended` by then."""
     stamp = re.compile(r"^(\d\d):(\d\d):(\d\d)\.(\d\d\d) (.*)$")
+    ended_line = re.compile(r"^device: moment (\d+) ended (\w+)(?: \((\w+)\))?$")
+    how_ended: dict[int, str] = {}  # how each moment ended, by id: "done", "cut (tap)"
     answers = []
     last_hook: str | None = None
     reaction: int | None = None
@@ -258,6 +263,8 @@ def check_order(run: Run) -> dict[str, Any]:
         t = (int(h) * 3600 + int(mi) * 60 + int(s)) * 1000 + int(ms)
         if text.startswith("hook: "):
             last_hook = text[6:]
+        elif e := ended_line.match(text):
+            how_ended[int(e.group(1))] = e.group(2) + (f" ({e.group(3)})" if e.group(3) else "")
         elif text.startswith("link rules → "):
             if last_hook and (reaction is None or reaction[1] != last_hook):
                 reaction = (t, last_hook)
@@ -276,7 +283,7 @@ def check_order(run: Run) -> dict[str, Any]:
             anim = brain_line.get("anim") or "mumble"  # the brain's `say`: a mumble on its own
             brain_ends = t + play_ms(brain_line)
             answers.append({
-                "moment": anim, "at": raw[:12],
+                "moment": anim, "at": raw[:12], "id": brain_line.get("id"),
                 "after_reaction_ms": None if reaction is None else t - reaction[0],
                 "reaction_to": None if reaction is None else reaction[1],
                 "last_rule_moment": None if rule_moment is None else rule_moment[1],
@@ -288,13 +295,20 @@ def check_order(run: Run) -> dict[str, Any]:
     bad = [a for a in answers if a["after_reaction_ms"] is None or a["after_reaction_ms"] < 0
            or (a["after_rule_line_ended_ms"] is not None and a["after_rule_line_ended_ms"] < 0)]
     for a in answers:
+        a["ended"] = how_ended.get(a["id"]) if a["id"] is not None else None
+    unended = [a for a in answers if a["id"] is not None and a["ended"] is None]
+    for a in answers:
         run.say(f"  {a['at']} brain {a['moment']}: {a['after_reaction_ms']} ms after the rules' reaction to "
                 f"{a['reaction_to']}; last rule moment {a['last_rule_moment']}, its line ended "
-                f"{a['after_rule_line_ended_ms']} ms before")
-    run.say(f"brain moments: {len(answers)}, early: {len(bad)}, later replaced by a rule moment: {cut or 'none'}")
+                f"{a['after_rule_line_ended_ms']} ms before; the device said it ended {a['ended']}")
+    run.say(f"brain moments: {len(answers)}, early: {len(bad)}, later replaced by a rule moment: {cut or 'none'}, "
+            f"with no `ended` from the device: {len(unended)}")
     if bad:
         run.fail(f"{len(bad)} brain moments came before the rules' reaction or cut a rule's line short")
-    return {"brain_moments": len(answers), "early": len(bad), "replaced_by_rules": cut, "answers": answers}
+    if unended:
+        run.fail(f"{len(unended)} brain moments never got the device's `ended`: {[a['id'] for a in unended]}")
+    return {"brain_moments": len(answers), "early": len(bad), "replaced_by_rules": cut, "unended": len(unended),
+            "answers": answers}
 
 
 def main(out: Path, brain: str, port: str | None, fixtures: list[str] | None, clip: bool = False,

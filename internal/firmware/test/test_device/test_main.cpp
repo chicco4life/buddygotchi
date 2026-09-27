@@ -835,6 +835,52 @@ static void test_only_needs_you_chirps() {
   TEST_ASSERT_TRUE(r.hal.cues[0] == voice::Cue::kChirp);
 }
 
+// PROTOCOL.md §4: a moment with an `id` gets one `ended` once all of it
+// is over, on the link it came in on, saying how: done, cut and why, or
+// skipped. Muting doesn't stop it. A moment with no `id` gets none.
+static void test_a_moment_with_an_id_is_answered_when_it_ends() {
+  Rig r;
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"mood\":\"proud\",\"id\":5}");
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":0}");  // hushed, but it plays on
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1399}");
+  TEST_ASSERT_FALSE(has(r.usb.text, "\"ended\""));
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1400}");  // 2 × 100 ms + 1.2 s
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":5,\"how\":\"done\"}\n"));
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"id\":6}");
+  r.usbLine("{\"t\":\"dbg.press\",\"ms\":50}");
+  r.usbLine("{\"t\":\"dbg.clock\",\"step\":100}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":6,\"how\":\"cut\",\"why\":\"tap\"}\n"));
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":10000}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"id\":7}");
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":7,\"how\":\"cut\",\"why\":\"moment\"}\n"));
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"id\":8}");
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"attn\":{\"agent\":\"claude\",\"project\":\"x\"}}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":8,\"how\":\"cut\",\"why\":\"needs_you\"}\n"));
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"id\":9}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":9,\"how\":\"skipped\"}\n"));
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"id\":10}");
+  r.usbLine("{\"t\":\"dbg.reset\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "{\"t\":\"ended\",\"id\":10,\"how\":\"cut\",\"why\":\"reset\"}\n"));
+  r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":60000}");
+  TEST_ASSERT_EQUAL_INT(6, count(r.usb.text, "\"ended\""));  // one each, and none without an id
+
+  // Over Bluetooth: back over Bluetooth, and not on USB.
+  Rig b;
+  b.dev.connected();
+  const char* state = "{\"t\":\"state\",\"base\":\"idle\"}";
+  const char* moment = "{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"id\":3}";
+  b.dev.handleLine(state, std::strlen(state), app::Link::kBle);
+  b.dev.handleLine(moment, std::strlen(moment), app::Link::kBle);
+  b.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1400}");
+  TEST_ASSERT_TRUE(has(b.ble.text, "{\"t\":\"ended\",\"id\":3,\"how\":\"done\"}\n"));
+  TEST_ASSERT_FALSE(has(b.usb.text, "\"ended\""));
+}
+
 // PROTOCOL.md §2: a line is at most 512 bytes. The board and boop-sim both
 // read their lines through LineReader, so a longer one is dropped whole on
 // both, and the next line is read as usual.
@@ -939,5 +985,6 @@ int main() {
   RUN_TEST(test_state_carries_the_mood);
   RUN_TEST(test_lines_over_512_bytes_are_dropped);
   RUN_TEST(test_say_and_volume_are_held_in_range);
+  RUN_TEST(test_a_moment_with_an_id_is_answered_when_it_ends);
   return UNITY_END();
 }

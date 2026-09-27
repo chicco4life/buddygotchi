@@ -8,18 +8,20 @@ code is the source: `app/BoopKit/DeviceLink/`, `StateSnapshot.swift` and
 
 ## 1. The idea
 
-Four messages carry Boop: `state` and `moment` from the Mac, `status` and
-`input` from the device (§3–4). Tools also send `dbg.*` messages over USB
-(§5).
+Five messages carry Boop: `state` and `moment` from the Mac, `status`,
+`input` and `ended` from the device (§3–4). Tools also send `dbg.*`
+messages over USB (§5).
 
 - **Snapshots, not commands.** The Mac keeps sending the whole picture of
   how things are now. A lost or late message fixes itself with the next
   one, and a reconnect needs no special handling.
-- **Moments are fire-and-forget.** A cheer or a mumble plays when it
-  arrives. Nothing is acknowledged or retried.
-- **Nothing important flows back.** The device only reports taps. Boop
-  never approves anything, so nothing the device sends can affect an
-  agent.
+- **Moments play when they arrive.** A cheer or a mumble plays at once,
+  and nothing is retried. The Mac waits only on the brain's reactions,
+  which carry an `id`: the device says when each one ended, and how
+  (`ended`, §4), so HISTORY can say whether it was seen.
+- **Nothing important flows back.** The device reports taps and how a
+  reaction ended. Boop never approves anything, so nothing the device
+  sends can affect an agent.
 
 Every message is a JSON object with a type, `t`. Receivers ignore unknown
 types and unknown fields, so an optional field can be added without
@@ -152,12 +154,13 @@ even with the longest names and counts (`DeviceLinkTests`).
 
 ### `moment`: something to play once
 
-Real lines, from headless runs: the rules' cheer, a brain reaction
-forced from the dashboard, and working chatter:
+Real lines, from headless runs: the rules' cheer, a brain reaction (the
+scripted brain's, in the pipeline check with the board), and working
+chatter:
 
 ```json
 {"t":"moment","anim":"cheer"}
-{"t":"moment","say":{"syl":"tu-ko ki","word":"again","at":0,"tune":"flat","ms":125},"mood":"grumpy"}
+{"t":"moment","say":{"syl":"la-la ki-ki","word":"yay","at":0,"tune":"bounce","ms":115},"mood":"excited","id":1}
 {"t":"moment","say":{"syl":"bi-da","tune":"bounce","ms":125}}
 ```
 
@@ -171,6 +174,7 @@ forced from the dashboard, and working chatter:
 | `say.tune` | `up`, `down`, `bounce`, `flat` or `lift` | The feeling's tune ([VOICE.md](VOICE.md) §5) | Missing or unknown reads as `flat` |
 | `say.ms` | int | Milliseconds per syllable, 90–180 | Clamped to 60–400. Missing reads as 120 |
 | `mood` | one of `state`'s seven moods, optional | The face of the brain's reaction ([harness/DECISIONS.md](harness/DECISIONS.md) §5). The rules' moments (the cheer, a wiggle, working chatter) never carry one | The expression: while this moment plays, the look (or the cheer) is drawn in this mood's design instead of `state`'s. Missing or unknown is ignored: the state's mood |
+| `id` | int ≥ 1, optional | Only on a moment it waits on: a brain reaction sent while the device is connected. Ids count up from 1 each time the app starts | Answered with one `ended` carrying this `id` (§4). Missing, 0 or not a number: no `ended` |
 
 The rules' moments play at once. A brain mumble waits its turn behind
 any line playing (not an animation, which it plays over), and the Mac
@@ -195,6 +199,8 @@ On the device, a moment plays as it arrives:
 - While `attn` is set, neither plays ([BEHAVIORS.md](BEHAVIORS.md) §1).
 - At volume 0 the mouth and bubble still play, silently.
 - A moment with neither a known `anim` nor any syllables is ignored.
+- A moment with an `id` is answered with `ended` once none of it plays
+  any more (§4).
 
 ## 4. Device → Mac
 
@@ -234,6 +240,39 @@ over USB, so a test run never reaches the app on Bluetooth. The Mac hands
 a tap to the core ([BEHAVIORS.md](BEHAVIORS.md) §3.3) and ignores any other
 `k`.
 
+### `ended`: a moment the Mac waits on is over
+
+Real lines, from the board on USB, for reactions the headless app
+forced: one that played out, one a tap cut short, and one that arrived
+while something needed you:
+
+```json
+{"t":"ended","id":1,"how":"done"}
+{"t":"ended","id":2,"how":"cut","why":"tap"}
+{"t":"ended","id":5,"how":"skipped"}
+```
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `id` | int | The moment's `id` (§3) |
+| `how` | `done`, `cut` or `skipped` | `done`: all of it played to the end. `cut`: something stopped part of it early. `skipped`: none of it played: something needed you when it arrived (or it had nothing the device can play, which the Mac never sends) |
+| `why` | `tap`, `moment`, `needs_you` or `reset`, only with `cut` | What stopped it first: a tap's wiggle, a newer moment (an animation, or any line, which replaces the line playing), "needs you" starting, or `dbg.reset` |
+
+The device sends one for every moment with an `id`, exactly once, on the
+link the moment came in on, when none of it plays any more: the
+animation, the line with its bubble, and the face it borrows. It's
+immediate for `skipped`, and for a `cut` that leaves nothing playing. A
+newer line doesn't stop an animation (§3), so a moment whose animation
+plays on ends with it, `cut` if the newer line replaced its own line or
+face. Muting doesn't stop a moment. A moment without an `id` gets none.
+
+The Mac ends the reaction's handle from it
+([harness/DECISIONS.md](harness/DECISIONS.md) §5) and ignores an `id` it
+isn't waiting on (one it gave up on, or an earlier launch's). It gives
+up on a moment, as failed, when no `ended` has come by its length plus a
+grace (§6), so firmware without `ended` or a lost line still settles it,
+and on every moment it waits on when the link drops.
+
 ## 5. Debug messages (USB only)
 
 Over USB the device also takes messages whose `t` starts with `dbg.`. Over
@@ -255,7 +294,7 @@ the same `t`; an unknown `dbg.*` gets none.
 | `{"t":"dbg.pattern"}` | Shows the test pattern ([DEVICE.md](DEVICE.md) §7) until the next `state`. With `"fill":N`, a solid screen of palette index N instead; with `"target":[x,y]`, an amber cross at (x, y) on black. Touches don't tap while it shows | `{"t":"dbg.pattern"}` |
 | `{"t":"dbg.light","bl":0-255,"led":"#RRGGBB"}` | Holds the backlight, the LED or both until the next `state` | `{"t":"dbg.light"}` |
 | `{"t":"dbg.touchcal"}` | Reads the touch calibration. With `"set":[ax,bx,cx,ay,by,cy]` stores one, and with `"clear":true` forgets it ([DEVICE.md](DEVICE.md) §4) | `{"t":"dbg.touchcal","cal":[…]}`, or `"cal":null` when uncalibrated |
-| `{"t":"dbg.reset"}` | Forgets everything the Mac said, the moment, the line, any pattern, light or injected input, and the last input, then freezes the clock at 0 and reseeds. Every scenario starts with it | `{"t":"dbg.reset"}` |
+| `{"t":"dbg.reset"}` | Forgets everything the Mac said, the moment, the line, any pattern, light or injected input, and the last input, then freezes the clock at 0 and reseeds. A moment the Mac waits on still gets its `ended`, `cut` by `reset` (§4). Every scenario starts with it | `{"t":"dbg.reset"}` |
 
 A clock a tool froze runs again by itself after 60 s with no `dbg.*`
 message, so a tool that dies can't leave the board stopped. If the canvas
@@ -308,7 +347,8 @@ a `status`, which the Mac answers with another `state`. Over Bluetooth the
 device's connect-time `status` can go out before the Mac has subscribed
 to TX, so the Mac doesn't wait for it. From then on the Mac sends `state`
 on every change and every 10 s, and `moment` when something happens; the
-device sends `input` on a tap and `status` every 60 s. When the Mac goes
+device sends `input` on a tap, `ended` when a moment the Mac waits on is
+over, and `status` every 60 s. When the Mac goes
 quiet the device shows the no-app look, and drops a Bluetooth link to
 advertise again. The next connect starts from the top.
 
@@ -324,6 +364,7 @@ advertise again. The next connect starts from the top.
 | Advertising check | Every second while not connected | Device |
 | USB write | At most 250 ms; a failed write, or a lost bridge, reconnects after 1 s | Mac |
 | Brain moment | Dropped after waiting 5 s | Mac |
+| A brain moment's `ended` | Given up on once the moment's length plus 3 s (`endGraceMs`) has passed since it was sent (§4) | Mac |
 | Reading lines | Up to 8 ms of lines before each frame | Device |
 | A frozen debug clock | Runs again after 60 s with no `dbg.*` | Device |
 

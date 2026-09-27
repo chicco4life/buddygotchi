@@ -104,7 +104,11 @@ line is playing (it plays over an animation, which it doesn't cut: the
 cheer then shows in the reaction's face), and is dropped once it has
 waited 5 s (`MomentSchedule.maxWaitMs`,
 [ARCHITECTURE.md](ARCHITECTURE.md) §3.2). Working chatter plays only
-when nothing is playing or waiting.
+when nothing is playing or waiting. The device tells the Mac how each
+brain reaction ended: played out, cut short by a tap, "needs you" or a
+newer moment, or skipped because something needed you
+([PROTOCOL.md](PROTOCOL.md) §4), and HISTORY says so
+([harness/DECISIONS.md](harness/DECISIONS.md) §5).
 
 ### 3.1 Agent work
 

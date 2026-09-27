@@ -11,7 +11,8 @@ public final class ReactAction: Action {
     public let name = "react"
     let voice: Voice
     /// Queues a brain moment, which waits its turn behind whatever is
-    /// playing, with the handle to end once it has played or never will.
+    /// playing, with the handle to end once the device says how it ended,
+    /// or once it never will.
     let queue: (DeviceMoment, Pending) -> Void
     /// Why a mumble can't play now (something needs you), or nil.
     let blocked: () -> String?
@@ -98,7 +99,7 @@ public final class ReactAction: Action {
         let pending = Pending()
         queue(DeviceMoment(say: line, mood: choice), pending)
         // 5. What it started, as its line in HISTORY: in progress until
-        // the moment has played.
+        // the device says how the moment ended.
         let article = "aeiou".contains(choice.first!) ? "an" : "a"
         return .started("Boop made \(article) \(choice) face and mumbled" + (word.map { " \"…\($0)!\"" } ?? "."), pending)
     }

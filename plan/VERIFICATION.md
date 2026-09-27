@@ -291,7 +291,9 @@ does all of it:
    `expect.json`, that no `PRIVATE_` marker from the fixtures reached any
    app file (`debug.jsonl` included), and, from `boop.log`, that every
    brain moment came after the rules' reaction and didn't cut a rule's
-   line short (it may play over an animation, [ARCHITECTURE.md](ARCHITECTURE.md) §3.2).
+   line short (it may play over an animation, [ARCHITECTURE.md](ARCHITECTURE.md) §3.2),
+   and that the board said how every brain moment it was sent ended
+   (`ended`, [PROTOCOL.md](PROTOCOL.md) §4).
 
 **Pass:** every checkpoint matches, and p95 latency from hook to board is
 under 200 ms.

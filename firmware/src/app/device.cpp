@@ -163,6 +163,8 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
       line.tune = voice::tuneFromName(say["tune"]);
       line.ms = uint16_t(mo.ms);
     }
+    mo.id = doc["id"] | 0u;  // the Mac waits on it: `ended` goes back where it came from
+    mo.from = uint8_t(from);
     uint32_t seq = b_.momentSeq();
     bool mumble = b_.onMoment(mo, at);  // copies the word
     const Model& m = b_.model();
@@ -248,6 +250,7 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     reply(from, "{\"t\":\"dbg.light\"}", 17);
   }
   if (hello) sendStatus(from);
+  sendEnded();
   return debug;
 }
 
@@ -317,6 +320,7 @@ void Device::tick() {
   b_.advance(t, rng_);
   readInputs(t);
   followSound(t);
+  sendEnded();
 
   uint32_t led = b_.led(t);
   if (led != led_) led_ = led, hal_.setLed(led);
@@ -417,6 +421,21 @@ void Device::sendPing(Link to) {
   char buf[320];
   size_t n = serializeJson(d, buf, sizeof(buf));
   reply(to, buf, n);
+}
+
+// Each moment the Mac waited on that has ended, once, on the link it came
+// in on (PROTOCOL.md §4).
+void Device::sendEnded() {
+  Ended e;
+  while (b_.takeEnded(e)) {
+    char buf[80];
+    const char* why = cutByName(e.by);
+    int n = why ? std::snprintf(buf, sizeof(buf), "{\"t\":\"ended\",\"id\":%lu,\"how\":\"%s\",\"why\":\"%s\"}",
+                                (unsigned long)e.id, momentEndName(e.how), why)
+                : std::snprintf(buf, sizeof(buf), "{\"t\":\"ended\",\"id\":%lu,\"how\":\"%s\"}", (unsigned long)e.id,
+                                momentEndName(e.how));
+    if (e.from < 3) reply(Link(e.from), buf, size_t(n));
+  }
 }
 
 void Device::sendStatus(Link to) {

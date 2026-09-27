@@ -25,13 +25,37 @@ const char* screenName(Screen s) {
   return "face";
 }
 
+const char* momentEndName(MomentEnd e) {
+  switch (e) {
+    case MomentEnd::kCut: return "cut";
+    case MomentEnd::kSkipped: return "skipped";
+    default: return "done";
+  }
+}
+
+const char* cutByName(CutBy c) {
+  switch (c) {
+    case CutBy::kMoment: return "moment";
+    case CutBy::kTap: return "tap";
+    case CutBy::kNeedsYou: return "needs_you";
+    case CutBy::kReset: return "reset";
+    default: return nullptr;
+  }
+}
+
 render::SceneState baseFromName(const char* name) {
   render::SceneState s = render::stateFromName(name);
   return s == render::SceneState::kWorking || s == render::SceneState::kAsleep ? s : render::SceneState::kIdle;
 }
 
+// Forgets everything but what the Mac is owed: each moment it waits on
+// has stopped playing, cut short.
 void Behaviour::reset(uint32_t t, Rng& rng) {
+  Owed owed = owed_;
   *this = Behaviour{};
+  owed_ = owed;
+  for (int i = 0; i < owed_.nWaiting; ++i) cut(owed_.waiting[i].id, CutBy::kReset);
+  sweep(t);
   modelT_ = t;
   lastState_ = t;
   nextBlink_ = t + blinkGap(rng);
@@ -127,6 +151,57 @@ void Behaviour::settle(uint32_t t) {
   if (blFade_ && !within(t, blAt_, render::kBlendMs)) blFade_ = false;
 }
 
+// ---- Moments the Mac waits on (PROTOCOL.md §4 `ended`) ---------------------
+
+// A moment is over when none of its parts plays: the animation, the mumble
+// and its bubble, the expression. It was cut if any part was stopped early.
+bool Behaviour::holds(uint32_t id, uint32_t t) const {
+  return (momentOn(t) && moment_.id == id) || (sayOn(t) && say_.id == id) || (exprOn(t) && exprId_ == id);
+}
+
+void Behaviour::wait(uint32_t id, uint8_t from) {
+  for (int i = 0; i < owed_.nWaiting; ++i) {
+    if (owed_.waiting[i].id == id) return;  // the same id again: one moment, reported once
+  }
+  // Can't overflow: each part holds one moment, and those with none left
+  // were ended at the last change.
+  if (owed_.nWaiting < Owed::kWaiting) owed_.waiting[owed_.nWaiting++] = Waiting{id, from, CutBy::kNone};
+}
+
+// The first cut is the one reported.
+void Behaviour::cut(uint32_t id, CutBy by) {
+  for (int i = 0; i < owed_.nWaiting; ++i) {
+    Waiting& w = owed_.waiting[i];
+    if (w.id == id && w.cut == CutBy::kNone) w.cut = by;
+  }
+}
+
+void Behaviour::sweep(uint32_t t) {
+  int kept = 0;
+  for (int i = 0; i < owed_.nWaiting; ++i) {
+    const Waiting w = owed_.waiting[i];
+    if (holds(w.id, t)) {
+      owed_.waiting[kept++] = w;
+    } else {
+      report(Ended{w.id, w.cut == CutBy::kNone ? MomentEnd::kDone : MomentEnd::kCut, w.cut, w.from});
+    }
+  }
+  owed_.nWaiting = kept;
+}
+
+// Device takes the ends after every line and tick, so a few are enough.
+void Behaviour::report(const Ended& e) {
+  if (owed_.nEnded < Owed::kEnded) owed_.ended[owed_.nEnded++] = e;
+}
+
+bool Behaviour::takeEnded(Ended& e) {
+  if (owed_.nEnded == 0) return false;
+  e = owed_.ended[0];
+  for (int i = 1; i < owed_.nEnded; ++i) owed_.ended[i - 1] = owed_.ended[i];
+  --owed_.nEnded;
+  return true;
+}
+
 // ---- Messages --------------------------------------------------------------
 
 void Behaviour::onState(const Model& m, uint32_t t) {
@@ -140,7 +215,9 @@ void Behaviour::onState(const Model& m, uint32_t t) {
     ledOverride_ = blOverride_ = false;
     if (fresh) {  // a new "needs you": one chirp, and attention wins
       sound("chirp", t);
-      if (momentOn(t)) moment_.anim = render::Anim::kNone;
+      if (momentOn(t)) cut(moment_.id, CutBy::kNeedsYou), moment_.anim = render::Anim::kNone;
+      if (sayOn(t)) cut(say_.id, CutBy::kNeedsYou);
+      if (exprOn(t)) cut(exprId_, CutBy::kNeedsYou);
       say_ = Say{};  // no mumbles while something needs you
       expr_ = false;
     }
@@ -154,26 +231,36 @@ void Behaviour::onState(const Model& m, uint32_t t) {
 // line (PROTOCOL.md §3). A moment with an expression draws the look in its
 // mood for as long as what it plays lasts: the animation, or the mumble
 // and its bubble. Attention wins (BEHAVIORS.md §1): while something needs
-// you, no animation takes the face over and no mumble plays.
+// you, no animation takes the face over and no mumble plays. A moment the
+// Mac waits on that plays nothing ends at once, skipped.
 bool Behaviour::onMoment(const MomentIn& in, uint32_t t) {
   bool anim = in.anim != render::Anim::kNone && !held(t);
   bool mumble = in.syllables > 0 && !model_.attn;
-  if (!anim && !mumble) return false;
+  if (!anim && !mumble) {
+    if (in.id) report(Ended{in.id, MomentEnd::kSkipped, CutBy::kNone, in.from});
+    return false;
+  }
   change(t, [&] {
-    if (anim) play(in.anim, t);
-    if (mumble) startSay(in, t);
+    if (anim) play(in.anim, t, CutBy::kMoment), moment_.id = in.id;
+    if (mumble) startSay(in, t), say_.id = in.id;
     if (in.expr) {
       expr_ = true;
       exprMood_ = in.mood;
       exprAt_ = t;
       exprMs_ = anim ? moment_.ms : 0;
       if (mumble && say_.ms > exprMs_) exprMs_ = say_.ms;
+      exprId_ = in.id;
     }
+    if (in.id) wait(in.id, in.from);
   });
   return mumble;
 }
 
-void Behaviour::play(render::Anim a, uint32_t t) {
+// Whatever of the moment playing still plays is cut short, by `by`.
+void Behaviour::play(render::Anim a, uint32_t t, CutBy by) {
+  if (momentOn(t)) cut(moment_.id, by);
+  if (sayOn(t)) cut(say_.id, by);
+  if (exprOn(t)) cut(exprId_, by);
   moment_ = Moment{};
   ++momentSeq_;
   moment_.anim = a;
@@ -185,6 +272,8 @@ void Behaviour::play(render::Anim a, uint32_t t) {
 }
 
 void Behaviour::startSay(const MomentIn& in, uint32_t t) {
+  if (sayOn(t)) cut(say_.id, CutBy::kMoment);
+  if (exprOn(t)) cut(exprId_, CutBy::kMoment);
   say_ = Say{};
   expr_ = false;  // a new line ends the last moment's expression
   ++momentSeq_;
@@ -213,7 +302,7 @@ void Behaviour::pressUp() { pressed_ = false; }
 // While the face is held, a tap shows the press dip only.
 void Behaviour::tap(uint32_t t) {
   if (held(t)) return;
-  change(t, [&] { play(render::Anim::kWiggle, t); });
+  change(t, [&] { play(render::Anim::kWiggle, t, CutBy::kTap); });
 }
 
 // ---- What shows ------------------------------------------------------------

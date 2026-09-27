@@ -578,13 +578,15 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(due.pending === onTime, "handed on, still open")
     }
 
-    /// harness/DECISIONS.md §5: a reaction is in progress until its moment
-    /// has played. With a device connected, it's done on the first tick
-    /// once the app expects the moment to have ended; with none, it
-    /// didn't happen, and neither did one playing when the device drops.
-    /// The device connects and drops through the transport, as it does in
-    /// the app.
-    func testAReactionEndsWhenItsMomentHasPlayed() throws {
+    /// harness/DECISIONS.md §5, PROTOCOL.md §4: a reaction is in progress
+    /// until the device says how its moment ended: its moment goes out with
+    /// the next id, and the device's `ended` for that id ends it, done,
+    /// cut short (and by what) or skipped. With no device it didn't happen;
+    /// nor did one the device never reported by its length plus
+    /// `endGraceMs`, or one playing when the device dropped. An `ended` for
+    /// an id the app isn't waiting on changes nothing. The device connects,
+    /// answers and drops through the transport, as it does in the app.
+    func testAReactionEndsWhenTheDeviceSaysSo() throws {
         let transport = FakeTransport()
         var options = try options(transport)
         let clock = VirtualClock(harnessT0)
@@ -597,13 +599,21 @@ final class RuntimeTests: XCTestCase {
             transport.onConnection?(up)
             runtime.home.sync {}
         }
-        /// A forced reaction; its `action` entry's seq.
-        func react() throws -> Int {
-            try runtime.home.sync {
+        /// The device sends a line; `home` hears it.
+        func device(_ line: String) {
+            transport.onLine?(line)
+            runtime.home.sync {}
+        }
+        /// A forced reaction once the last one's line has played: its
+        /// `action` entry's seq, and the moment sent for it.
+        func react() throws -> (seq: Int, moment: String) {
+            clock.now = max(clock.now, runtime.home.sync { runtime.moments.schedule.lineUntil })
+            return try runtime.home.sync {
                 XCTAssertEqual(runtime.harness.force(["react": "happy"]).map(\.name), ["react"])
-                return try XCTUnwrap(runtime.harness.transcript.entries.last {
+                let seq = try XCTUnwrap(runtime.harness.transcript.entries.last {
                     if case .action = $0.body { true } else { false }
                 }?.seq)
+                return (seq, try XCTUnwrap(transport.sent.last { $0.hasPrefix(#"{"t":"moment""#) }))
             }
         }
         func end(of seq: Int) -> Pending.End? {
@@ -615,28 +625,65 @@ final class RuntimeTests: XCTestCase {
         }
 
         let alone = try react()
-        XCTAssertEqual(end(of: alone), .failed("no device connected"))
-        XCTAssertTrue(transport.sent.contains { $0.hasPrefix(#"{"t":"moment","say":"#) }, "sent all the same, and dropped")
+        XCTAssertEqual(end(of: alone.seq), .failed("no device connected"))
+        XCTAssertFalse(alone.moment.contains(#""id""#), "sent all the same, and dropped, with nothing to wait on")
 
         clock.now += 10_000
         connection(true)
         let played = try react()
-        let until = try XCTUnwrap(runtime.home.sync { runtime.moments.playing.first?.until })
-        XCTAssertGreaterThan(until, clock.now)
-        XCTAssertEqual(until, runtime.home.sync { runtime.moments.schedule.lineUntil }, "sent, plus its length")
-        clock.now = until - 1
+        XCTAssertTrue(played.moment.hasSuffix(#","id":1}"#), played.moment)
+        clock.now = runtime.home.sync { runtime.moments.schedule.lineUntil }
         runtime.home.sync { runtime.tick() }
-        XCTAssertNil(end(of: played), "still playing")
-        clock.now = until
-        runtime.home.sync { runtime.tick() }
-        XCTAssertEqual(end(of: played), .done)
+        XCTAssertNil(end(of: played.seq), "played by the app's reckoning, but the device hasn't said so")
+        device(#"{"t":"ended","id":1,"how":"done"}"#)
+        XCTAssertEqual(end(of: played.seq), .done)
         XCTAssertTrue(runtime.home.sync { runtime.moments.playing.isEmpty })
 
-        let cut = try react()
-        XCTAssertNil(end(of: cut), "playing")
+        let tapped = try react()
+        XCTAssertTrue(tapped.moment.hasSuffix(#","id":2}"#))
+        device(#"{"t":"ended","id":99,"how":"done"}"#)
+        XCTAssertNil(end(of: tapped.seq), "another id: ignored")
+        device(#"{"t":"ended","id":2,"how":"cut","why":"tap"}"#)
+        XCTAssertEqual(end(of: tapped.seq), .failed("cut short: you tapped Boop"))
+        device(#"{"t":"ended","id":2,"how":"done"}"#)
+        XCTAssertEqual(end(of: tapped.seq), .failed("cut short: you tapped Boop"), "only the first end counts")
+
+        let skipped = try react()
+        device(#"{"t":"ended","id":3,"how":"skipped"}"#)
+        XCTAssertEqual(end(of: skipped.seq), .failed("something needed you"))
+
+        let silent = try react()
+        let deadline = try XCTUnwrap(runtime.home.sync { runtime.moments.playing.first?.deadline })
+        XCTAssertEqual(deadline, runtime.home.sync { runtime.moments.schedule.lineUntil } + Runtime.Moments.endGraceMs,
+                       "sent, plus its length, plus the grace")
+        clock.now = deadline - 1
+        runtime.home.sync { runtime.tick() }
+        XCTAssertNil(end(of: silent.seq), "still waiting")
+        clock.now = deadline
+        runtime.home.sync { runtime.tick() }
+        XCTAssertEqual(end(of: silent.seq), .failed("the device never said it ended"))
+        device(#"{"t":"ended","id":4,"how":"done"}"#)
+        XCTAssertEqual(end(of: silent.seq), .failed("the device never said it ended"), "too late: ignored")
+
+        let dropped = try react()
+        XCTAssertNil(end(of: dropped.seq), "playing")
         connection(false)
-        XCTAssertEqual(end(of: cut), .failed("the device disconnected"))
+        XCTAssertEqual(end(of: dropped.seq), .failed("the device disconnected"))
         XCTAssertTrue(runtime.home.sync { runtime.moments.playing.isEmpty })
+    }
+
+    /// PROTOCOL.md §4, harness/DECISIONS.md §5: how each `ended` reads in
+    /// HISTORY, and the grace the app gives a moment past its length.
+    func testWhatTheDevicesEndedMeans() {
+        XCTAssertEqual(Runtime.Moments.endGraceMs, 3000)
+        let end = { (how: MomentEnded.How, why: String?) in Runtime.Moments.end(MomentEnded(id: 1, how: how, why: why)) }
+        XCTAssertEqual(end(.done, nil), .done)
+        XCTAssertEqual(end(.cut, "tap"), .failed("cut short: you tapped Boop"))
+        XCTAssertEqual(end(.cut, "moment"), .failed("cut short: something newer played"))
+        XCTAssertEqual(end(.cut, "needs_you"), .failed("cut short: something needed you"))
+        XCTAssertEqual(end(.cut, "reset"), .failed("cut short"))
+        XCTAssertEqual(end(.cut, nil), .failed("cut short"))
+        XCTAssertEqual(end(.skipped, nil), .failed("something needed you"))
     }
 
     /// BEHAVIORS.md §2: working chatter never cuts a moment that's playing,

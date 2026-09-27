@@ -90,8 +90,8 @@ replace the code that knows the hardware.
 | Path (`firmware/`) | Job | Builds for |
 | --- | --- | --- |
 | `src/main.cpp` | Start-up and the main loop (below) | Board |
-| `src/app/device.*` | The device core: parses each line, answers `dbg.*`, turns BOOT and touch into gestures, decides when to draw, and sends `status` and `input` | Board and Mac |
-| `src/app/behaviour.*` | What Boop does ([BEHAVIORS.md](BEHAVIORS.md)): the last `state`, the moment and line playing, blinks, no app, and the light, backlight and sound cues they imply | Board and Mac |
+| `src/app/device.*` | The device core: parses each line, answers `dbg.*`, turns BOOT and touch into gestures, decides when to draw, and sends `status`, `input` and `ended` | Board and Mac |
+| `src/app/behaviour.*` | What Boop does ([BEHAVIORS.md](BEHAVIORS.md)): the last `state`, the moment and line playing and how each the Mac waits on ended, blinks, no app, and the light, backlight and sound cues they imply | Board and Mac |
 | `src/app/` (the rest) | The device clock and random numbers (`clock.h`), button debouncing (`gesture.*`), touch calibration (`touch_cal.h`), line reassembly and Bluetooth packets (`line_reader.h`, `packets.h`), dropping a quiet link (`link_silence.h`), and the screenshot's CRC and base64 (`codec.*`) | Board and Mac |
 | `src/render/` | The 8-bit canvas, palette, anti-aliased shapes, fonts, the mood designs' player (`scene.*`), the face screen with bubble and strip (`screens.*`), the animation and mood names (`anim.*`) and the test pattern | Board and Mac |
 | `src/voice/player.*` | Turns a line or cue into samples ([VOICE.md](VOICE.md) §8) | Board and Mac |

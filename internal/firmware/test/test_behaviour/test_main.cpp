@@ -603,6 +603,106 @@ static void test_an_expression_ends_with_its_moment() {
   TEST_ASSERT_TRUE(n.b.show(n.t).mood == render::Mood::kDetermined);
 }
 
+// PROTOCOL.md §4: a moment the Mac waits on (one with an id) ends exactly
+// once, when no part of it plays any more (the mumble and its bubble, an
+// animation, the borrowed face): done when it played out; cut, and by
+// what, when a tap's wiggle, a newer moment, "needs you" or dbg.reset
+// stopped any part of it; skipped when none of it played.
+static std::string ended(Rig& r) {
+  std::string out;
+  app::Ended e;
+  while (r.b.takeEnded(e)) {
+    if (!out.empty()) out += ", ";
+    out += std::to_string(e.id) + " " + app::momentEndName(e.how);
+    if (const char* by = app::cutByName(e.by)) out += std::string(" by ") + by;
+  }
+  return out;
+}
+
+static MomentIn waited(uint32_t id, int syl = 4) {
+  MomentIn m = expressive(render::Mood::kProud, syl);
+  m.id = id;
+  return m;
+}
+
+static void test_a_waited_moment_says_how_it_ended() {
+  Rig r;
+  r.state(base("idle"));
+  r.at(1000);
+  TEST_ASSERT_TRUE(r.b.onMoment(waited(7), r.t));
+  const uint32_t end = 1000 + 400 + Behaviour::kBubbleReadMs;  // 4 syllables, then the bubble
+  r.at(end - 1);
+  TEST_ASSERT_EQUAL_STRING("", ended(r).c_str());
+  r.at(end);
+  TEST_ASSERT_EQUAL_STRING("7 done", ended(r).c_str());
+  r.at(10000);
+  TEST_ASSERT_EQUAL_STRING("", ended(r).c_str());  // once
+
+  // Over the rules' cheer, which isn't part of it: done with its own
+  // mumble, and the cheer plays on.
+  r.moment(Anim::kCheer);
+  r.at(10500);
+  r.b.onMoment(waited(8, 2), r.t);
+  r.at(10500 + 200 + Behaviour::kBubbleReadMs);
+  TEST_ASSERT_EQUAL_STRING("8 done", ended(r).c_str());
+  TEST_ASSERT_EQUAL(Anim::kCheer, r.anim());
+  // A cheer the Mac waits on plays on under a newer mumble, which doesn't
+  // stop it: done when the cheer is.
+  r.at(20000);
+  MomentIn cheer;
+  cheer.anim = Anim::kCheer, cheer.id = 9;
+  r.b.onMoment(cheer, r.t);
+  r.at(20500);
+  r.say(2);
+  r.at(21999);
+  TEST_ASSERT_EQUAL_STRING("", ended(r).c_str());
+  r.at(22000);
+  TEST_ASSERT_EQUAL_STRING("9 done", ended(r).c_str());
+
+  // Cut short: by a tap's wiggle, by a newer moment (the rules' cheer, a
+  // mumble, the Mac's next), and by "needs you".
+  r.at(30000);
+  r.b.onMoment(waited(10), r.t);
+  r.at(30100);
+  r.b.tap(r.t);
+  TEST_ASSERT_EQUAL_STRING("10 cut by tap", ended(r).c_str());
+  r.at(31000);
+  r.b.onMoment(waited(11), r.t);
+  r.moment(Anim::kCheer);
+  TEST_ASSERT_EQUAL_STRING("11 cut by moment", ended(r).c_str());
+  r.at(35000);
+  r.b.onMoment(waited(12), r.t);
+  r.at(35100);
+  r.say(2);
+  TEST_ASSERT_EQUAL_STRING("12 cut by moment", ended(r).c_str());
+  r.at(40000);
+  r.b.onMoment(waited(13), r.t);
+  r.b.onMoment(waited(14), r.t);
+  TEST_ASSERT_EQUAL_STRING("13 cut by moment", ended(r).c_str());
+  r.at(40100);
+  r.state(attn());
+  TEST_ASSERT_EQUAL_STRING("14 cut by needs_you", ended(r).c_str());
+  // Skipped: something needs you, so none of it plays.
+  TEST_ASSERT_FALSE(r.b.onMoment(waited(15), r.t));
+  TEST_ASSERT_EQUAL_STRING("15 skipped", ended(r).c_str());
+
+  // dbg.reset forgets the moment, which the Mac is still told of.
+  r.at(50000);
+  r.state(base("idle"));
+  r.b.onMoment(waited(16), r.t);
+  r.b.reset(r.t, r.rng);
+  TEST_ASSERT_EQUAL_STRING("16 cut by reset", ended(r).c_str());
+
+  // A moment with no id never ends out loud.
+  Rig n;
+  n.state(base("idle"));
+  n.say(3);
+  n.b.tap(n.t);
+  n.moment(Anim::kCheer);
+  n.at(10000);
+  TEST_ASSERT_EQUAL_STRING("", ended(n).c_str());
+}
+
 static void test_life_is_blinks_at_their_pace() {
   checkGaps(blinkStarts(base("idle"), true, 120000), 0, 2000, 6000);
   Model w = base("working");
@@ -866,6 +966,7 @@ int main() {
   RUN_TEST(test_an_expression_lasts_as_long_as_the_mumble);
   RUN_TEST(test_an_expression_over_the_cheer_and_across_a_look_change);
   RUN_TEST(test_an_expression_ends_with_its_moment);
+  RUN_TEST(test_a_waited_moment_says_how_it_ended);
   RUN_TEST(test_life_is_blinks_at_their_pace);
   RUN_TEST(test_asleep_breathes_and_never_blinks);
   RUN_TEST(test_a_wiggle_sways_over_the_look);
