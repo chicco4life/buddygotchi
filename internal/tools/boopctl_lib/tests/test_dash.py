@@ -1,5 +1,7 @@
-"""The dashboard (plan/DASHBOARD.md): its feed against a debug.jsonl recorded
-from a real headless run, restart detection, the face's downsampling and
+"""The dashboard (plan/DASHBOARD.md): its feed against debug.jsonl files
+recorded from real headless runs, its three columns (the mood, the
+automatic reactions and the decided ones) and the stale-log banner, restart
+detection, the face's downsampling and
 crop against every golden frame, the dev lines its keys build, and the app
 itself through Textual's pilot. Needs no board, app or sim."""
 import asyncio
@@ -25,15 +27,16 @@ from boopctl_lib.common import REPO, send_line  # noqa: E402
 from boopctl_lib.dash import controls  # noqa: E402
 from boopctl_lib.dash.app import PREVIEW_RESEND_S, Dash, StateView  # noqa: E402
 from boopctl_lib.dash.face import CROP, SCALE, WHOLE, blocks, render  # noqa: E402
-from boopctl_lib.dash.feed import Board, Follower, kind, sections  # noqa: E402
+from boopctl_lib.dash.feed import STALE_S, Board, Follower, clock, kind  # noqa: E402
 from boopctl_lib.scenario import GOLDEN  # noqa: E402
 
 FIXTURE = Path(__file__).parent / "fixtures" / "headless-debug.jsonl"
+COLUMNS = Path(__file__).parent / "fixtures" / "dash-columns.jsonl"
 BUBBLE_TOP = 144  # firmware/src/render/screens.h kBubbleTop: the face is above it
 
 
-def fixture_lines() -> list[dict]:
-    return [json.loads(line) for line in FIXTURE.read_text().splitlines()]
+def fixture_lines(path: Path = FIXTURE) -> list[dict]:
+    return [json.loads(line) for line in path.read_text().splitlines()]
 
 
 def board_after(lines: list[dict]) -> tuple[Board, list[tuple[str, str]]]:
@@ -79,18 +82,20 @@ class FeedTests(unittest.TestCase):
 
     def test_the_facts(self):
         board, _ = board_after(fixture_lines())
-        facts = dict(board.facts())
-        self.assertEqual(facts["base"], "idle · busy 0 · idle 1 · waiting 0", "idle from the status, waiting from attn")
+        newest = board.newest_ms
+        facts = dict(board.facts(newest + 10_000))
+        self.assertEqual(facts["look"], "idle")
+        self.assertEqual(facts["mood"], "happy", "from the state line, never the mood file")
         self.assertEqual(facts["needs you"], "no")
-        self.assertEqual(facts["mood"], "happy · personality boop", "from the state line, never the mood file")
-        self.assertEqual(facts["sessions"], "claude jetpack idle")
+        self.assertEqual(facts["sessions"], "0 working, 1 idle, 0 waiting", "from the status")
         self.assertEqual(facts["brain"], "scripted · 0 ms · dropped 0")
-        self.assertEqual(facts["volume"], "6")
-        self.assertEqual(facts["saying"], "“la-gi ni-gi bi-bi” + yay (at 0) · bounce · 115 ms/syl")
+        self.assertEqual(facts["board"], "not connected (the sim shows what it would)")
         needs = next(i for i, line in enumerate(fixture_lines()) if line.get("event", {}).get("kind") == "needs_you")
         board, _ = board_after(fixture_lines()[: needs + 1])
-        self.assertEqual(dict(board.facts())["needs you"], "claude · jetpack")
-        self.assertEqual(dict(board.facts())["base"], "idle · busy 0 · idle 0 · waiting 1")
+        facts = dict(board.facts(board.newest_ms))
+        self.assertEqual(facts["needs you"], "claude · jetpack")
+        self.assertEqual(facts["look"], "idle with the needs-you strip")
+        self.assertEqual(facts["sessions"], "1 working, 0 idle, 0 waiting", "the status comes after the event")
 
     def test_the_counts_come_from_attn_and_the_sessions(self):
         board, _ = board_after([
@@ -98,43 +103,17 @@ class FeedTests(unittest.TestCase):
                                      {"agent": "codex", "project": "b", "status": "waiting"},
                                      {"agent": "claude", "project": "c", "status": "working"},
                                      {"agent": "claude", "project": "d", "status": "idle"},
-                                     {"agent": "codex", "project": "e", "status": "idle"}]}},
+                                     {"agent": "codex", "project": "e", "status": "idle"}]}, "received_at_ms": 1},
             {"sent": {"t": "state", "v": 1, "base": "working", "mood": "happy",
-                      "attn": {"agent": "claude", "project": "a", "more": 1}, "busy": 1, "vol": 6}},
+                      "attn": {"agent": "claude", "project": "a", "more": 1}, "busy": 1, "vol": 6}, "received_at_ms": 1},
         ])
-        self.assertEqual(dict(board.facts())["base"], "working · busy 1 · idle 2 · waiting 2")
-        self.assertEqual(dict(board.facts())["needs you"], "claude · a (+1)")
-
-    def test_the_harness_pane(self):
-        lines = fixture_lines()
-        board, _ = board_after(lines)
-        text = [t for _, t in board.harness()]
-        self.assertEqual(text[0], "IN")
-        self.assertTrue(text[1].startswith("▸ 24 turn_end: claude finished turn 3"))
-        self.assertEqual(text[2], "  reflex: Boop cheered on its own.")
-        self.assertEqual(text[3], "  state: guide 32 · PERSONALITY 20 · MOOD 13 · HISTORY 18 · NOW 3 lines (s shows it)")
-        self.assertEqual(text[4], "  asked: mood, react, word.feeling, word.about")
-        self.assertIn("  react → excited   excited 1.00", text)
-        self.assertEqual(text[-2:], ["RAN", "  ✓ react: Boop made an excited face and mumbled \"…yay!\""])
-        # A mood the dashboard set right after a pass isn't that pass's.
-        mood = next(i for i, line in enumerate(lines) if line.get("action", {}).get("by"))
-        board, _ = board_after(lines[: mood + 1])
-        self.assertEqual([r["name"] for r in board.ran], ["react"])
-        # Jev's next pass changes it back, and that's its own.
-        back = next(i for i, line in enumerate(lines) if line.get("action", {}).get("message", "").endswith("grumpy → happy."))
-        board, _ = board_after(lines[: back + 2])
-        self.assertEqual([r["name"] for r in board.ran], ["mood", "react"])
-        forced = next(i for i, line in enumerate(lines) if line.get("pass", {}).get("by"))
-        board, _ = board_after(lines[: forced + 3])
-        text = [t for _, t in board.harness()]
-        self.assertEqual(text[1], "forced by dashboard, for no event")
-        self.assertFalse(any("state:" in t for t in text), "a forced pass has no state")
-        self.assertEqual(text[-1], "  ✓ react: Boop made a grumpy face and mumbled \"…again!\"")
+        self.assertEqual(dict(board.facts(1))["sessions"], "1 working, 2 idle, 2 waiting")
+        self.assertEqual(dict(board.facts(1))["needs you"], "claude · a (+1)")
 
     def test_a_started_action_and_its_settle(self):
-        """harness/HARNESS.md §5.2: a started action is in progress (`…`)
-        until a settle for its seq says how it ended. The lines are the
-        shapes HarnessTests pins."""
+        """harness/HARNESS.md §5.2: a started action is in progress until a
+        settle for its seq says how it ended. The lines are the shapes
+        HarnessTests pins."""
         board = Board()
         board.apply(next(line for line in fixture_lines() if kind(line) == "questions"))
         lines = [
@@ -145,22 +124,129 @@ class FeedTests(unittest.TestCase):
         ]
         rows = [board.apply(json.loads(line)) for line in lines]
         self.assertEqual(rows[1], ("dim", "  … react (by dashboard): Boop made a grumpy face and mumbled."))
-        self.assertEqual(board.harness()[-1], ("dim", "  … react: Boop made a grumpy face and mumbled. (in progress)"))
+        self.assertEqual(board.decided_column()[-1], ("playing", "  ▶ playing"))
+        self.assertEqual(dict(board.facts(2))["showing"], "a grumpy reaction face")
         row = board.apply(json.loads('{"received_at_ms":3,"seq":3,"settle":{"by":"dashboard","end":"failed","for":2,'
                                      '"why":"waited too long"}}'))
         self.assertEqual(row, ("fail", "  ✗ react (2) didn't happen: waited too long"))
-        self.assertEqual(board.harness()[-1],
-                         ("fail", "  ✗ react: Boop made a grumpy face and mumbled. (didn't happen: waited too long)"))
-        board.settles.clear()
+        self.assertEqual(board.decided_column()[-1], ("fail", "  ✗ didn't happen: waited too long"))
+        self.assertEqual(dict(board.facts(3))["showing"], "its ? look", "no state yet")
         row = board.apply(json.loads('{"received_at_ms":4,"seq":4,"settle":{"end":"done","for":2}}'))
         self.assertEqual(row, ("ok", "  ✓ react (2) done"))
-        self.assertEqual(board.harness()[-1], ("ok", "  ✓ react: Boop made a grumpy face and mumbled."))
+        self.assertEqual(board.decided_column()[-1], ("ok", "  ✓ played"))
 
-    def test_sections(self):
-        state = next(line["pass"]["state"] for line in fixture_lines() if line.get("pass", {}).get("state"))
-        heads = [head for head, _ in sections(state)]
-        self.assertEqual(heads[:3], ["guide", "PERSONALITY", "MOOD"])
-        self.assertTrue(heads[3].startswith("HISTORY (") and heads[4].startswith("NOW ("))
+
+class ColumnsTests(unittest.TestCase):
+    """plan/DASHBOARD.md §2: the three columns, newest first, from
+    `tests/fixtures/dash-columns.jsonl`. It was recorded from a real run
+    (plan/evidence/2026-09-28-tonight/dash: a headless app whose USB link is
+    a boop-sim, a forced mood, the e2e Claude session, a forced reaction
+    that played, a forced pass that chose none, a cheer from the dashboard,
+    and four taps on the sim's screen, a poke streak), then edited, since
+    the scripted brain answers everything at probability 1: the first
+    pass's mood and the turn end's reaction, word and hold were given
+    other probabilities, and the pass for the failed deploy was made a
+    dropped one, its reaction's action, moment and settle taken out
+    (make_fixture.py there)."""
+
+    def setUp(self):
+        self.board, _ = board_after(fixture_lines(COLUMNS))
+        self.at = {line["seq"]: line["received_at_ms"] for line in fixture_lines(COLUMNS) if "seq" in line}
+
+    def texts(self, rows):
+        return [text for _, text in rows]
+
+    def test_the_mood(self):
+        """The mood now and since when, then each change with what made it:
+        the event and the brain's probability for the new mood, or the
+        dashboard, or the launch; and the poke streak's pass sitting out."""
+        mood = self.texts(self.board.mood_column())
+        changes = [line for line in fixture_lines(COLUMNS) if line.get("sent", {}).get("t") == "state"]
+        self.assertEqual(mood[0], f"happy since {clock(self.at[4])}", "the state sent with the mood action")
+        self.assertEqual(mood[2], f"{clock(self.at[32])} · mood sat out: You poked Boop 4 times in 3 s.")
+        self.assertEqual(mood[3:6], [f"{clock(self.at[4])} grumpy → happy", '  ▸ claude started turn 1 on "jetpack".',
+                                     "  scripted: happy 0.87"])
+        self.assertEqual(mood[6:8], [f"{clock(self.at[1])} happy → grumpy", "  forced by dashboard"])
+        self.assertEqual(mood[8:], [f"{clock(changes[0]['received_at_ms'])} happy", "  at launch"])
+
+    def test_the_automatic_reactions(self):
+        """Each reflex with what set it off: the cheer and its turn end, the
+        chirp and the request, the taps' wiggles the board plays itself, the
+        working chatter, and a cheer the dashboard played, with no event."""
+        rows = self.board.reflex_column()
+        reflex = self.texts(rows)
+        self.assertEqual(reflex[:2], [f"{clock(self.at[31])} Boop wiggled on its own.", "  ▸ You poked Boop 4 times in 3 s."])
+        self.assertEqual(reflex.count("  ▸ You tapped Boop."), 3)
+        cheers = [i for i, text in enumerate(reflex) if text.endswith(" cheer, loops 1")]
+        self.assertEqual([reflex[i + 1] for i in cheers],
+                         ["  no event: played from the dashboard",
+                          '  ▸ claude finished turn 1 on "jetpack": done after 6 min, a very long turn, 3 tools. '
+                          "Tests passing."])
+        chatter = next(line["sent"]["say"] for line in fixture_lines(COLUMNS)
+                       if line.get("sent", {}).get("say") and not line["sent"].get("mood"))
+        at = reflex.index(next(t for t in reflex if t.endswith(f"working chatter “{chatter['syl']}”")))
+        self.assertEqual(reflex[at + 1], "  an agent is working")
+        self.assertTrue(reflex[-3].endswith(" needs you cleared"))
+        self.assertTrue(reflex[-2].endswith(" needs you: claude · jetpack · chirp"))
+        self.assertEqual(reflex[-1], '  ▸ claude needs you on "jetpack".')
+        self.assertEqual(rows[-2][0], "attn")
+
+    def test_the_decided_reactions(self):
+        """Each pass that could react: its event, the face, word and hold
+        with their probabilities, and what became of it."""
+        decided = self.texts(self.board.decided_column())
+        blocks, block = [], []
+        for text in decided:
+            if not text.startswith("  ") and block:
+                blocks.append(block)
+                block = []
+            block.append(text)
+        blocks.append(block)
+        blocks = [[text if text.startswith("  ") else text[9:] for text in b] for b in blocks]  # without the times
+        self.assertEqual(blocks, [
+            ["▸ You poked Boop 4 times in 3 s.", "  excited 1.00 · “yay” 1.00 · once 1.00", "  ✓ played",
+             "  the mood sat this pass out"],
+            ["forced by dashboard", "  stayed quiet · none 1.00"],
+            ["forced by dashboard", "  proud 1.00 · “finally” 1.00 · three times 1.00", "  ✓ played"],
+            ['▸ claude finished turn 2 on "jetpack": failed (rate limit) after 41 s, a long turn, 1 tool (1 failed). '
+             "Deploy failing.", "  excited 1.00 · “yay” 1.00 · once 1.00", "  ✓ played"],
+            ['▸ claude\'s deploy failed on "jetpack".', "  ✗ pass dropped: late: no answer within 1500 ms"],
+            ['▸ claude started turn 2 on "jetpack", right after its last one.', "  excited 1.00 · “yay” 1.00 · once 1.00",
+             "  ✗ didn't happen: the device never said it ended"],
+            ['▸ claude finished turn 1 on "jetpack": done after 6 min, a very long turn, 3 tools. Tests passing.',
+             "  excited 0.82 · “yay” 0.71 · once 0.64", "  ✓ played"],
+            ['▸ claude started turn 1 on "jetpack".', "  excited 1.00 · “yay” 1.00 · once 1.00", "  ✓ played"],
+        ])
+        self.assertEqual(self.board.dropped, 1)
+        # A forced reaction refused while something needs you (the old fixture's).
+        refused = [line for line in fixture_lines() if line.get("pass", {}).get("by") or line.get("action", {}).get("by")]
+        board, _ = board_after(fixture_lines(COLUMNS) + refused[-2:])
+        self.assertEqual(self.texts(board.decided_column())[1:3], ["  happy 1.00 · no word",
+                                                                   "  ✗ didn't happen: something needs you"])
+
+    def test_what_is_showing(self):
+        """Boop now's `showing`: a reaction until its settle, a reflex for
+        SHOWING_MS after it, else the look."""
+        lines = fixture_lines(COLUMNS)
+        forced = next(i for i, line in enumerate(lines) if line.get("action", {}).get("message", "").startswith(
+            "Boop made a proud face"))
+        board, _ = board_after(lines[: forced + 1])
+        self.assertEqual(dict(board.facts(board.newest_ms))["showing"], "a proud reaction face, three times, “…finally!”")
+        board = self.board
+        self.assertEqual(dict(board.facts(self.at[31] + 1000))["showing"], "Boop wiggled on its own.")
+        self.assertEqual(dict(board.facts(self.at[31] + 60_000))["showing"], "its idle look")
+
+    def test_the_stale_log_banner(self):
+        """DASHBOARD.md §3: a debug-mode app writes a `sent` line at least
+        every 10 s, so a newest line older than 15 s means no live log, and
+        the board's connection isn't shown as a fact."""
+        self.assertEqual(STALE_S, 15)
+        newest = self.board.newest_ms
+        self.assertFalse(self.board.stale(newest + 15_000))
+        self.assertTrue(self.board.stale(newest + 15_001))
+        self.assertEqual(dict(self.board.facts(newest + 1000))["board"], "connected")
+        self.assertEqual(dict(self.board.facts(newest + 16_000))["board"], "unknown: no live log")
+        self.assertTrue(Board().stale(newest), "no lines at all")
 
 
 class RestartTests(unittest.TestCase):
@@ -404,11 +490,26 @@ class AppTests(unittest.TestCase):
                 latest = next(line["sent"] for line in reversed(fixture_lines()) if line.get("sent", {}).get("t") == "state")
                 self.assertEqual(face.restarts, [latest], "the sim starts on the latest state, and no old moments")
                 self.assertEqual(face.sent, [])
-                self.assertRegex(plain(app.query_one("#facts")), r"mood +happy · personality boop")
-                harness = plain(app.query_one("#harness-text"))
-                self.assertIn("RAN", harness)
-                self.assertIn("✓ react: Boop made an excited face", harness)
+                self.assertRegex(plain(app.query_one("#facts")), r"mood +happy")
+                # The fixture is days old: no live log, so the board's link isn't a fact.
+                self.assertTrue(app.query_one("#stale").has_class("shown"))
+                self.assertRegex(plain(app.query_one("#stale")), r"No live log: the newest line is from .*make debug")
+                self.assertRegex(plain(app.query_one("#facts")), r"board +unknown: no live log")
+                app.now = lambda: app.board.newest_ms / 1000 + 5
+                app.poll()
+                self.assertFalse(app.query_one("#stale").has_class("shown"))
+                self.assertRegex(plain(app.query_one("#facts")), r"board +not connected")
+                self.assertIn("happy since", plain(app.query_one("#mood")))
+                self.assertIn("cheer", plain(app.query_one("#reflexes")))
+                self.assertIn("excited 1.00 · “yay” 1.00", plain(app.query_one("#decided")))
+                self.assertEqual(app.query_one("#timeline").size.height, 0, "the timeline waits for t")
+                await pilot.press("t")
+                await pilot.pause()
+                self.assertGreater(app.query_one("#timeline").size.height, 5)
                 self.assertGreater(len(app.query_one("#timeline").lines), 40)
+                await pilot.press("t")
+                await pilot.pause()
+                self.assertEqual(app.query_one("#timeline").size.height, 0)
 
                 async def pick(key: str, *downs: int) -> None:
                     await pilot.press(key)

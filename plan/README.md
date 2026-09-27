@@ -1,6 +1,6 @@
 # Boop spec
 
-Updated 2026-09-27. The index of Boop v1's specs. They're the contract the
+Updated 2026-09-28. The index of Boop v1's specs. They're the contract the
 code implements, so a change to one goes in the same commit as the code
 ([CLAUDE.md](../CLAUDE.md) says which spec goes with which code). Start
 with the vision.
@@ -21,7 +21,7 @@ with the vision.
 | [PROTOCOL.md](PROTOCOL.md) | The messages between the Mac and the device, over Bluetooth or USB, and the debug messages over USB |
 | [DEVICE.md](DEVICE.md) | The board, pins, firmware stack, what the device keeps, and building and flashing |
 | [VERIFICATION.md](VERIFICATION.md) | How everything is checked (L0–L6), and every tool |
-| [DASHBOARD.md](DASHBOARD.md) | `boopctl dash`: Boop's state, face, passes and timeline live, and keys that force a mood, a reaction or an animation |
+| [DASHBOARD.md](DASHBOARD.md) | `boopctl dash`: Boop now with its face, and its mood, automatic reactions and decided reactions side by side, live; keys that force a mood, a reaction or an animation |
 | [EVALS.md](EVALS.md) | The harness eval scenarios: how they run and what each checks |
 | [PLAN.md](PLAN.md) | Where things stand: milestones, owner checks, open items |
 | [FUTURE.md](FUTURE.md) | What v1 parked, and ideas we like but aren't building yet |

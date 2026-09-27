@@ -51,8 +51,9 @@ From the repo root:
 | Check the brain against the eval scenarios | `make eval` |
 
 `make run` and `make debug` use Bluetooth, so start them from your own
-terminal, not an agent's. The dashboard shows the face, the brain's latest
-pass and a timeline, and can force a mood, a reaction or an animation
+terminal, not an agent's. The dashboard shows the face, and side by side
+Boop's mood, its automatic reactions and the ones Jev decided (with their
+probabilities), and can force a mood, a reaction or an animation
 ([plan/DASHBOARD.md](plan/DASHBOARD.md)). `make day` sums up a day by the
 hour, relaunches included: cheers, mumbles, faces, mood changes and what
 made them, and how long each "needs you" took to clear.

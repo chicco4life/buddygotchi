@@ -1,10 +1,12 @@
-"""`boopctl dash`: Boop's live dashboard (plan/DASHBOARD.md). The state with
-the face, the harness's latest pass and a timeline, all from debug.jsonl,
-and keys that force a mood, a reaction or an animation, or preview any look
-on the dashboard's own sim."""
+"""`boopctl dash`: Boop's live dashboard (plan/DASHBOARD.md). Boop now, with
+the face, and three columns side by side: the mood, the automatic reactions
+(reflexes) and the decided ones (Jev's), all from debug.jsonl, with the raw
+timeline a key away; and keys that force a mood, a reaction or an
+animation, or preview any look on the dashboard's own sim."""
 from __future__ import annotations
 
 import asyncio
+import time
 from pathlib import Path
 from typing import Any, Callable, Protocol
 
@@ -24,7 +26,13 @@ from boopctl_lib.device import DeviceError
 from boopctl_lib.dash.feed import Board, Follower, clock, kind
 
 STYLES = {"event": "bold", "pass": "cyan", "ok": "green", "fail": "red", "sent": "magenta", "status": "yellow",
-          "head": "bold underline", "dim": "grey62"}
+          "head": "bold underline", "dim": "grey62", "mood": "bold yellow", "attn": "bold magenta",
+          "playing": "bold cyan"}
+# The columns keep this many rows each; the timeline (`t`) keeps the rest.
+COLUMN_ROWS = 400
+# Narrower than this, the three columns stack; narrower still, so does Boop now.
+STACK_COLUMNS = 150
+STACK_TOP = 120
 # Preview resends its state this often: the device shows the no-app look
 # after 30 s without one (PROTOCOL.md §3).
 PREVIEW_RESEND_S = 10
@@ -76,7 +84,7 @@ class Picker(ModalScreen[str | None]):
 
 
 class StateView(ModalScreen[None]):
-    """The latest pass's whole state text."""
+    """The whole state the brain read last."""
 
     BINDINGS = [Binding("escape,s,q", "dismiss(None)", "close")]
     DEFAULT_CSS = "StateView { background: $background 90%; } StateView > VerticalScroll { border: round $accent; }"
@@ -95,18 +103,28 @@ class Dash(App[None]):
     TITLE = "Boop dashboard"
     ENABLE_COMMAND_PALETTE = False
     CSS = """
+    #stale { display: none; background: $error; color: $text; padding: 0 1; text-style: bold; }
+    #stale.shown { display: block; }
     #top { height: auto; }
     #face { width: auto; min-width: 85; height: auto; min-height: 24; border: round $accent; }
     #facts { width: 1fr; height: 24; border: round $primary; padding: 0 1; }
-    #harness { height: 1fr; border: round $primary; padding: 0 1; }
-    #timeline { height: 1fr; border: round $primary; }
+    #columns { height: 1fr; }
+    #columns > VerticalScroll { width: 1fr; height: 1fr; border: round $primary; padding: 0 1; }
+    #timeline { height: 0; border: none; }
+    #timeline.shown { height: 1fr; border: round $primary; }
+    Screen.stack-top #top { layout: vertical; }
+    Screen.stack-top #facts { width: 1fr; height: auto; }
+    Screen.stack-columns #columns { layout: vertical; height: auto; }
+    Screen.stack-columns #columns > VerticalScroll { width: 1fr; height: auto; max-height: 24; }
+    Screen.stack-columns { overflow-y: auto; }
     """
     BINDINGS = [
         Binding("m", "mood", "mood"),
         Binding("r", "react", "react"),
         Binding("a", "animate", "animate"),
         Binding("p", "preview", "preview"),
-        Binding("s", "state", "state"),
+        Binding("t", "timeline", "timeline"),
+        Binding("s", "state", "Jev's state"),
         Binding("z", "whole", "whole screen"),
         Binding("q", "quit", "quit"),
     ]
@@ -122,27 +140,37 @@ class Dash(App[None]):
         self.look: str | None = None  # Preview's look; None is live
         self.look_mood: str | None = None  # Preview's mood; None is the app's
         self.face_lines = -1  # the drawn face's height, less one
+        self.now = time.time  # the wall clock, for the stale-log banner; tests replace it
+        self.was_stale: bool | None = None
         self.face = make_face(lambda text: self.post_message(Frame(text)),
                               lambda why: self.post_message(Frame(None, why))) if make_face else None
 
     def compose(self) -> ComposeResult:
         # Kept, since queries only search the screen on top, such as a picker.
         self.face_view = Static("starting boop-sim…" if self.face else "no sim", id="face")
+        self.banner = Static(id="stale")
         self.facts = Static(id="facts")
-        self.harness = Static(id="harness-text")
+        self.columns = {name: Static(id=name) for name in ("mood", "reflexes", "decided")}
         self.timeline = RichLog(id="timeline", wrap=True, max_lines=5000)
+        yield self.banner
         with Horizontal(id="top"):
             yield self.face_view
             yield self.facts
-        with VerticalScroll(id="harness") as harness:
-            harness.border_title = "harness · the latest pass"
-            yield self.harness
+        titles = {"mood": "Mood · the lasting backdrop",
+                  "reflexes": "Automatic · reflexes, by rule, at once",
+                  "decided": "Decided · by Jev, a moment later"}
+        with Horizontal(id="columns"):
+            for name, widget in self.columns.items():
+                with VerticalScroll(id=f"{name}-col") as column:
+                    column.border_title = titles[name]
+                    yield widget
         yield self.timeline
         yield Footer()
 
     def on_mount(self) -> None:
-        self.facts.border_title = f"state · {self.follower.path.parent}"
-        self.timeline.border_title = "timeline"
+        self.facts.border_title = f"Boop now · {self.follower.path.parent}"
+        self.timeline.border_title = "timeline · every line of debug.jsonl (t hides it)"
+        self.stack(self.size.width)
         self.title_face()
         if self.face:
             self.face.start()
@@ -160,7 +188,7 @@ class Dash(App[None]):
         restarted, lines = self.follower.read()
         if restarted:
             self.board = Board()
-            self.timeline.write(Text("— debug.jsonl started again: Boop restarted —", "yellow"))
+            self.timeline.write(Text("— debug.jsonl started again: Boop restarted —", "yellow"), width=self.row_width())
         # At the start and after a restart the sim gets only the latest
         # state, never old moments; after that, every line as it lands.
         catching_up = self.first or restarted
@@ -168,7 +196,8 @@ class Dash(App[None]):
         for line in lines:
             row = self.board.apply(line)
             if row:
-                self.timeline.write(Text(f"{clock(line.get('received_at_ms', 0))} {row[1]}", STYLES[row[0]]))
+                self.timeline.write(Text(f"{clock(line.get('received_at_ms', 0))} {row[1]}", STYLES[row[0]]),
+                                    width=self.row_width())
             if done := self.pending.seen(line):
                 self.notify(f"{done}: landed")
             if live and not catching_up and kind(line) == "sent":
@@ -179,21 +208,49 @@ class Dash(App[None]):
         for late in self.pending.late():
             self.notify(f"{late}: nothing in debug.jsonl within {controls.CONFIRM_S:g} s. Is Boop running with --debug?",
                         severity="warning")
+        self.show_now()
         if lines or restarted or not self.board.questions:
-            self.show_panes()
+            self.show_columns()
 
-    def show_panes(self) -> None:
+    def row_width(self) -> int:
+        """The timeline's rows wrap to the screen, less its border and
+        scrollbar, even while it's hidden and has no width of its own."""
+        return max(40, self.size.width - 4)
+
+    def show_now(self) -> None:
+        """Boop now and the stale-log banner, every poll: what's showing
+        and whether the log is live depend on the time."""
+        now_ms = int(self.now() * 1000)
+        stale = self.board.stale(now_ms)
+        if stale != self.was_stale:
+            self.was_stale = stale
+            self.banner.set_class(stale, "shown")
+        if stale:
+            newest = self.board.newest_ms
+            self.banner.update(
+                f"No live log: the newest line is from {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(newest / 1000))}. "
+                "Start Boop with make debug." if newest else
+                f"No live log: {self.follower.path} has no lines yet. Start Boop with make debug.")
         facts = Table.grid(padding=(0, 1))
         facts.add_column(style="bold", no_wrap=True)
         facts.add_column()
-        for name, value in self.board.facts():
+        for name, value in self.board.facts(now_ms):
             facts.add_row(name, value)
-        self.facts.update(facts, layout=False)  # its height is fixed
-        if self.follower.path.exists():
-            harness = Text("\n").join(Text(text, STYLES[style]) for style, text in self.board.harness())
-        else:
-            harness = Text(f"waiting for {self.follower.path} (is Boop running with --debug?)", "yellow")
-        self.harness.update(harness)
+        self.facts.update(facts, layout=bool(self.screen_stack) and self.screen_stack[0].has_class("stack-top"))
+
+    def show_columns(self) -> None:
+        board = self.board
+        for name, rows in (("mood", board.mood_column()), ("reflexes", board.reflex_column()),
+                           ("decided", board.decided_column())):
+            self.columns[name].update(Text("\n").join(Text(text, STYLES[style]) for style, text in rows[:COLUMN_ROWS]))
+
+    def on_resize(self, event) -> None:
+        self.stack(event.size.width)
+
+    def stack(self, width: int) -> None:
+        if self.screen_stack:  # the columns' screen, under any picker
+            self.screen_stack[0].set_class(width < STACK_COLUMNS, "stack-columns")
+            self.screen_stack[0].set_class(width < STACK_TOP, "stack-top")
 
     def on_frame(self, frame: Frame) -> None:
         if frame.text is None:
@@ -294,11 +351,13 @@ class Dash(App[None]):
             self.face.send(controls.preview_state(self.board.state, self.look, self.look_mood))
 
     def action_state(self) -> None:
-        state = (self.board.last_pass or {}).get("pass", {}).get("state")
-        if state:
-            self.push_screen(StateView(state))
+        if self.board.jev_state:
+            self.push_screen(StateView(self.board.jev_state))
         else:
-            self.notify("the latest pass has no state (none yet, or it was forced)")
+            self.notify("no brain pass yet, so no state to show")
+
+    def action_timeline(self) -> None:
+        self.timeline.set_class(not self.timeline.has_class("shown"), "shown")
 
     def action_whole(self) -> None:
         if self.face:
