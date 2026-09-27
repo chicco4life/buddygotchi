@@ -160,7 +160,7 @@ line on the hook socket), and working chatter:
 
 ```json
 {"t":"moment","anim":"cheer","loops":1}
-{"t":"moment","say":{"syl":"ta-ko ga-da o","word":"finally","at":0,"tune":"lift","ms":135},"mood":"proud","loops":2,"id":1}
+{"t":"moment","say":{"syl":"da-to-lon","word":"finally","at":3,"tune":"lift","ms":135},"mood":"proud","loops":2,"id":1710758195}
 {"t":"moment","say":{"syl":"bi-da","tune":"bounce","ms":125}}
 ```
 
@@ -261,9 +261,9 @@ forced: one that played out, one a tap cut short, and one that arrived
 while something needed you:
 
 ```json
-{"t":"ended","id":1,"how":"done"}
-{"t":"ended","id":2,"how":"cut","why":"tap"}
-{"t":"ended","id":5,"how":"skipped"}
+{"t":"ended","id":558386700,"how":"done"}
+{"t":"ended","id":558386701,"how":"cut","why":"tap"}
+{"t":"ended","id":558386703,"how":"skipped"}
 ```
 
 | Field | Type | Meaning |

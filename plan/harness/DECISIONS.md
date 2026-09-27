@@ -258,14 +258,14 @@ their queue ends each handle `done` at once ([EVALS.md](../EVALS.md) §1).
 [HARNESS.md](HARNESS.md) §9 has a reaction and its end in `debug.jsonl`,
 from a headless run with no device. With the board on USB and Boop
 asleep, a forced proud reaction held twice: its moment, its action and
-the settle the device's `{"t":"ended","id":1,"how":"done"}` brought
-10.3 s later, at the second loop boundary of the asleep design's 8 s
-clock, long after its 1.9 s mumble:
+the settle the device's `ended` (`done`) brought 14.0 s later, at the
+second loop boundary of the asleep design's 8 s clock, long after its
+1.9 s mumble:
 
 ```jsonl
-{"sent":{"t":"moment","say":{"syl":"ta-ko ga-da o","word":"finally","at":0,"tune":"lift","ms":135},"mood":"proud","loops":2,"id":1},"received_at_ms":1790522728858}
-{"action":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop made a proud face, held twice, and mumbled \"…finally!\"","name":"react","ok":true,"pending":true},"received_at_ms":1790522728858,"seq":2}
-{"received_at_ms":1790522739144,"seq":3,"settle":{"by":"dashboard","end":"done","for":2}}
+{"sent":{"t":"moment","say":{"syl":"da-to-lon","word":"finally","at":3,"tune":"lift","ms":135},"mood":"proud","loops":2,"id":1710758195},"received_at_ms":1790531820132}
+{"action":{"by":"dashboard","for":null,"latency_ms":1,"message":"Boop made a proud face, held twice, and mumbled \"…finally!\"","name":"react","ok":true,"pending":true},"received_at_ms":1790531820132,"seq":2}
+{"received_at_ms":1790531834106,"seq":3,"settle":{"by":"dashboard","end":"done","for":2}}
 ```
 
 ## 6. An example
