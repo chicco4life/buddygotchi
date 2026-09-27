@@ -1,0 +1,40 @@
+# Mutations of the core lane's rules, each run against the whole Swift suite
+# (first failing test shown; the suite stops at the first failure).
+# Run 1: at 0aca9fbe, before this lane's commits.
+[subagentEnd clears every asker] caught by CoreAgentWorkTests.testASubagentsTurnLevelHooksAreItsOwn: turn_failed: A's prompt is still up at internal/app/Tests/CoreTests.swift:306
+[subagentEnd always works again] caught by CoreNeedsYouTests.testASubagentsEndNeverMakesASessionWork: no turn was going at internal/app/Tests/CoreTests.swift:776
+[subagentEnd moves the session clock] caught by CoreNeedsYouTests.testASubagentsEndNeverMakesASessionWork: XCTAssertEqual failed: [BoopKit.StateSnapshot(base: "working", mood: "happy", attn: nil, busy: 1, idle: 2, wait: 0, vol: 6)] is not equal to [] at /Users
+[subagentEnd treated like any event] caught by CoreNeedsYouTests.testASubagentsEndAnswersOnlyItsOwnRequest: a sibling's end at internal/app/Tests/CoreTests.swift:718
+[subagentEnd from anyone answers anyone] SURVIVED (all tests pass)
+[subagent turn-level hooks are the session's] caught by CoreAgentWorkTests.testASubagentsTurnLevelHooksAreItsOwn: turn_failed: A's prompt is still up at internal/app/Tests/CoreTests.swift:306
+[adapter passes SubagentStop without agent_id] caught by AdapterTests.testSubagentStopSaysWhichSubagentEnded: no agent_id at internal/app/Tests/AdapterTests.swift:77
+[installer drops SubagentStop] caught by InstallerTests.testInstallsEveryClaudeHookAndKeepsOthers: SubagentStop at internal/app/Tests/InstallerTests.swift:78
+[no alongside rule] caught by CoreNeedsYouTests.testAParallelCallsResultDoesntAnswerTheRequest: the Grep's result at internal/app/Tests/CoreTests.swift:549
+[late copy ignores kind] caught by CoreNeedsYouTests.testAnElicitationRightAfterAClearShows: XCTAssertNotNil failed at internal/app/Tests/CoreTests.swift:651
+[late copy only within 5 s] caught by CoreNeedsYouTests.testALateNotificationAfterTheTurnEndedIsIgnored: no call since the clear at internal/app/Tests/CoreTests.swift:600
+[late copy regardless of time] caught by CoreNeedsYouTests.testALateNotificationAfterTheTurnEndedIsIgnored: a call started since the clear at internal/app/Tests/CoreTests.swift:609
+[PreToolUse not counted as a call] caught by CoreNeedsYouTests.testALateNotificationAfterTheTurnEndedIsIgnored: a call started since the clear at internal/app/Tests/CoreTests.swift:609
+[cheer while needs you] caught by CoreNeedsYouTests.testAFinishWhileSomethingNeedsYouDoesntCheer: XCTAssertEqual failed: ["cheer"] is not equal to [] at internal/app/Tests/CoreTests.swift:958
+[no sparing] caught by CoreNeedsYouTests.testACodexRequestAnsweredBeforeATickShowsItIsNeverRecorded: activity at internal/app/Tests/CoreTests.swift:429
+[project follows while waiting] caught by CoreNeedsYouTests.testAWaitingSessionKeepsItsProject: XCTAssertEqual failed: [BoopKit.StateSnapshot(base: "idle", mood: "happy", attn: Optional(BoopKit.StateSnapshot.Attention(agent: "claude", project: "web", more: 0, 
+[sort by session order] caught by CoreNeedsYouTests.testRequestsInTheSameMillisecondKeepTheirOrder: XCTAssertEqual failed: [Optional("jetpack")] is not equal to [Optional("landing")] at internal/app/Tests/CoreTests.swif
+[another request keeps its number] caught by CoreNeedsYouTests.testASubagentsEndAnswersOnlyItsOwnRequest: a2's prompt is shown now at internal/app/Tests/CoreTests.swift:721
+[table not written before the switch] caught by CoreAgentWorkTests.testClaudesIdleNoticeAnswersEveryRequest: main agent: the notice answered the request before the stop applied at internal/app/Tests/CoreTests.swift:207
+[stale notice window 0] caught by CoreAgentWorkTests.testAStaleIdleNoticeDoesntStopANewTurn: XCTAssertEqual failed: [BoopKit.Event(kind: BoopKit.Event.Kind.turnEnd, receivedAtMs: 1791986459510, line: "claude finished turn 2 on \"landing\": stopped after 0 s, a
+[stale notice window 90 s] caught by CoreAgentWorkTests.testClaudesIdleNoticeAnswersEveryRequest: ["a1"] at internal/app/Tests/CoreTests.swift:220
+[late result restarts the turn] caught by CoreAgentWorkTests.testALateResultDoesntRestartAStoppedTurn: the parallel Read's result at internal/app/Tests/CoreTests.swift:239
+[no takeover] caught by CoreNeedsYouTests.testANotificationBeforeItsRequestBecomesThatRequest: a sibling's call at internal/app/Tests/CoreTests.swift:664
+[idle notice answers only the main agent] caught by CoreAgentWorkTests.testClaudesIdleNoticeAnswersEveryRequest: ["a1"] at internal/app/Tests/CoreTests.swift:220
+
+# Run 2: at adf8d711, with only CoreFuzzTests in the runner.
+[subagentEnd from anyone answers anyone] caught by CoreFuzzTests.testRandomTrafficKeepsTheRecordAndTheScreenInStep: it answers a1 alone
+[subagentEnd always works again] caught by CoreFuzzTests.testRandomTrafficKeepsTheRecordAndTheScreenInStep: working again only while its turn goes on
+[subagentEnd moves the session clock] caught by CoreFuzzTests.testRandomTrafficKeepsTheRecordAndTheScreenInStep: a subagent's end isn't activity
+[subagentEnd clears every asker] caught by CoreFuzzTests.testRandomTrafficKeepsTheRecordAndTheScreenInStep: it answers a1 alone
+[subagent turn-level hooks are the session's] caught by CoreFuzzTests.testRandomTrafficKeepsTheRecordAndTheScreenInStep: a subagent's end isn't activity
+
+# Run 3: at adf8d711, whole suite.
+[subagentEnd from anyone answers anyone] caught by CoreNeedsYouTests.testASubagentsEndLeavesOtherAskersWaiting: notification alone: a2 never asked
+
+# Run 4: at 7aad538e, whole suite.
+[results answer an Elicitation again] caught by CoreNeedsYouTests.testAParallelCallsResultDoesntAnswerTheRequest: ElicitationResult: the parallel Read's result

@@ -1,0 +1,53 @@
+=== t1-main-ask-subagent-end
++0.0s state {"t":"state","v":1,"base":"idle","mood":"happy","busy":0,"idle":1,"wait":0,"vol":6}
++1.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"idle":0,"wait":0,"vol":6}
++4.0s state {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"claude","project":"landing","more":0,"id":1},"busy":0,"idle":0,"wait":1,"vol":6}
++30.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"idle":0,"wait":0,"vol":6}
+
+=== t2-anyone-subagent-end
++0.0s state {"t":"state","v":1,"base":"idle","mood":"happy","busy":0,"idle":1,"wait":0,"vol":6}
++1.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"idle":0,"wait":0,"vol":6}
++4.0s state {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"claude","project":"landing","more":0,"id":1},"busy":0,"idle":0,"wait":1,"vol":6}
++19.0s state {"t":"state","v":1,"base":"idle","mood":"happy","busy":0,"idle":1,"wait":0,"vol":6}
+
+=== t3-idle-subagent-end
++0.0s state {"t":"state","v":1,"base":"idle","mood":"happy","busy":0,"idle":1,"wait":0,"vol":6}
++1.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"idle":0,"wait":0,"vol":6}
++2.0s state {"t":"state","v":1,"base":"idle","mood":"happy","busy":0,"idle":1,"wait":0,"vol":6}
+
+=== t5-subagent-stopfailure
++0.0s state {"t":"state","v":1,"base":"idle","mood":"happy","busy":0,"idle":1,"wait":0,"vol":6}
++1.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"idle":0,"wait":0,"vol":6}
++4.0s state {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"claude","project":"landing","more":0,"id":1},"busy":0,"idle":0,"wait":1,"vol":6}
++9.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"idle":0,"wait":0,"vol":6}
+
+=== t6-two-askers
++0.0s state {"t":"state","v":1,"base":"idle","mood":"happy","busy":0,"idle":1,"wait":0,"vol":6}
++1.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"idle":0,"wait":0,"vol":6}
++5.0s state {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"claude","project":"landing","more":0,"id":1},"busy":0,"idle":0,"wait":1,"vol":6}
++8.0s state {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"claude","project":"landing","more":0,"id":2},"busy":0,"idle":0,"wait":1,"vol":6}
++11.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"idle":0,"wait":0,"vol":6}
++15.0s state {"t":"state","v":1,"base":"idle","mood":"happy","busy":0,"idle":1,"wait":0,"vol":6}
+
+=== h1-hook-right-after-clear
++0.0s state {"t":"state","v":1,"base":"idle","mood":"happy","busy":0,"idle":1,"wait":0,"vol":6}
++1.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"idle":0,"wait":0,"vol":6}
++5.0s state {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"claude","project":"landing","more":0,"id":1},"busy":0,"idle":0,"wait":1,"vol":6}
++7.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"idle":0,"wait":0,"vol":6}
++8.0s state {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"claude","project":"landing","more":0,"id":2},"busy":0,"idle":0,"wait":1,"vol":6}
++13.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"idle":0,"wait":0,"vol":6}
+
+=== h2-notice-first-after-clear
++0.0s state {"t":"state","v":1,"base":"idle","mood":"happy","busy":0,"idle":1,"wait":0,"vol":6}
++1.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"idle":0,"wait":0,"vol":6}
++5.0s state {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"claude","project":"landing","more":0,"id":1},"busy":0,"idle":0,"wait":1,"vol":6}
++7.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"idle":0,"wait":0,"vol":6}
++9.0s state {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"claude","project":"landing","more":0,"id":2},"busy":0,"idle":0,"wait":1,"vol":6}
++13.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"idle":0,"wait":0,"vol":6}
+
+=== h4-elicitation-parallel-read
++0.0s state {"t":"state","v":1,"base":"idle","mood":"happy","busy":0,"idle":1,"wait":0,"vol":6}
++1.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"idle":0,"wait":0,"vol":6}
++4.0s state {"t":"state","v":1,"base":"idle","mood":"happy","attn":{"agent":"claude","project":"landing","more":0,"id":1},"busy":0,"idle":0,"wait":1,"vol":6}
++17.0s state {"t":"state","v":1,"base":"working","mood":"happy","busy":1,"idle":0,"wait":0,"vol":6}
+
