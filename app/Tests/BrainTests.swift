@@ -134,8 +134,9 @@ final class PhrasesTests: XCTestCase {
             (input(.said, words: "YOU CAN TALK AGAIN", yelled: true), [quiet(0), react("happy")]),
             (input(.said, words: "remember you can talk again after lunch"), [react("happy"), remember("today")]),
             (input(.said, words: "Shut up for an hour"), [react("sad")]),
-            (input(.said, words: "can you keep it down for fifteen minutes"), [react("sad")]),
-            (input(.said, words: "hush"), [react("sad")]),
+            (input(.said, words: "can you keep it down for fifteen minutes"), [quiet(15)]),
+            (input(.said, words: "hush"), [quiet(30)]),
+            (input(.said, words: "stop talking for an hour"), [quiet(60)]),
             (input(.said, words: "go away"), [react("sad")]),
             (input(.said, words: "I hate you"), [react("sad")]),
             (input(.said, words: "you're so annoying"), [react("sad")]),
@@ -222,8 +223,8 @@ final class InputMenuTests: XCTestCase {
         XCTAssertTrue(input(.said, words: "stop being quiet").endsQuiet)
         XCTAssertFalse(input(.said, words: "be quiet").endsQuiet)
         XCTAssertFalse(input(.said, words: "stop talking").endsQuiet)
-        XCTAssertEqual(["be quiet", "you can talk again", "stop talking"].map { input(.said, words: $0).quietAsk },
-                       [.start, .end, nil])
+        XCTAssertEqual(["be quiet", "you can talk again", "stop talking", "shut up"].map { input(.said, words: $0).quietAsk },
+                       [.start, .end, .start, nil])
         XCTAssertEqual(input(.said, words: "shut up for an hour").menu, ["react", "remember"])
         // Remember wins over quiet, for the menu and the core as for the
         // phrase table: "remember I like it quiet" isn't asking for quiet.

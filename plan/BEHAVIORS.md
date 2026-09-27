@@ -117,8 +117,9 @@ doing and answers them.
 [HARNESS.md](HARNESS.md) §6; Jev follows [steering.md](steering.md).
 
 - **Asked to be quiet** ("be quiet for an hour"): quiet mode for that long
-  (§4). Only the whole word "quiet" turns it on, and not inside a request
-  to remember ("remember I like it quiet"), whichever brain decided.
+  (§4). Only "quiet", "hush", "stop talking" or "keep it down", as whole
+  words, turn it on, and not inside a request to remember ("remember I
+  like it quiet"), whichever brain decided.
 - **Asked to stop being quiet** ("you can talk again", "stop being
   quiet", "unmute"): quiet mode ends at once, and Boop mumbles happily to
   say it's back. These words never start or stretch quiet, and asking for

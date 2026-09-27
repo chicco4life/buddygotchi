@@ -7,8 +7,8 @@ import Foundation
 /// | --- | --- |
 /// | "remember" or "note", unless you told Boop off | `react(happy)`, `remember(where)`, where from the words below. It wins over "quiet": "remember I like it quiet" isn't asking for quiet |
 /// | Asking Boop to stop being quiet: "stop being quiet", "don't have to be quiet", "don't need to be quiet", "no more quiet", "not quiet anymore", "quiet mode off", "turn off quiet", "you can talk again", "you can speak again", "you can mumble again", "unmute" | `quiet(0)`, which ends quiet, and `react(happy)` |
-/// | "quiet" | `quiet(n)`: the time you said as the nearest of 15, 30, 60 and 120 (`minutes`), else 30. Nothing else: Boop is quiet now |
-/// | You told Boop off: "shut up", "go away", "hate you", "you suck", "hush", "stop talking", "keep it down", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot" | `react(sad)`, or nothing when the table keeps hurt to itself |
+/// | "quiet", "hush", "stop talking" or "keep it down" | `quiet(n)`: the time you said as the nearest of 15, 30, 60 and 120 (`minutes`), else 30. Nothing else: Boop is quiet now |
+/// | You told Boop off: "shut up", "go away", "hate you", "you suck", or "you" with "annoying", "stupid", "dumb", "useless" or "idiot" | `react(sad)`, or nothing when the table keeps hurt to itself |
 /// | Starting with "hello", "hi", "hey", "morning" or "good morning" | `react(happy)` |
 /// | "bye", "goodbye", "see you", "good night" | `react(happy)` |
 /// | "lunch", "dinner", "breakfast", "food", "snack", "hungry" | `react(hopeful)` |

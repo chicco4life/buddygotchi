@@ -147,12 +147,18 @@ public struct Input: Equatable, Sendable {
     /// this (BEHAVIORS.md §3.3).
     public var quietAsk: QuietAsk? { endsQuiet ? .end : asksForQuiet ? .start : nil }
 
-    /// Your words asked Boop to be quiet: they have "quiet" in them, as a
-    /// whole word ("be quiet"), and neither ask it to remember something
-    /// ("remember I like it quiet") nor to stop being quiet.
+    /// Your words asked Boop to be quiet: they have "quiet", "hush", "stop
+    /// talking" or "keep it down" in them, as whole words ("be quiet"), and
+    /// neither ask it to remember something ("remember I like it quiet")
+    /// nor to stop being quiet.
     var asksForQuiet: Bool {
-        kind == .said && Input.plain(words ?? "").contains(" quiet ") && !asksToRemember && !endsQuiet
+        guard kind == .said else { return false }
+        let plain = Input.plain(words ?? "")
+        return Input.askingQuiet.contains(where: plain.contains) && !asksToRemember && !endsQuiet
     }
+
+    /// Asking Boop to be quiet (BEHAVIORS.md §3.3).
+    static let askingQuiet = [" quiet ", " hush ", " stop talking ", " keep it down "]
 
     /// Your words asked Boop to stop being quiet ("you can talk again"),
     /// and don't ask it to remember something.
@@ -177,8 +183,7 @@ public struct Input: Equatable, Sendable {
     /// Being told off (BEHAVIORS.md §3.3): one of these, or "you" with an
     /// insult, so "you're so annoying" counts and "this build is annoying"
     /// doesn't.
-    static let tellingOff = [" shut up ", " go away ", " hate you ", " you suck ", " hush ", " stop talking ",
-                             " keep it down "]
+    static let tellingOff = [" shut up ", " go away ", " hate you ", " you suck "]
     static let you = [" you ", " you're ", " youre ", " ur "]
     static let insults = [" annoying ", " stupid ", " dumb ", " useless ", " idiot "]
 
