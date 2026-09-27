@@ -22,11 +22,22 @@ enum Headless {
             fail("the hook socket \(socketPath) is \(socketPath.utf8.count) bytes, and a Unix socket's path "
                  + "has room for \(room): pass --socket with a shorter one")
         }
+        // Every value is checked before anything is written, so a typo
+        // doesn't leave a set-up Boop behind for the next run to keep.
+        var mode: Mode?
+        if let name = args["--mode"] {
+            guard let m = Mode(rawValue: name) else { fail("--mode is chatty, normal or calm") }
+            mode = m
+        }
+        let classifier = args["--classifier"]
+        if let c = classifier, !Brains.classifiers.contains(c) { fail("--classifier is " + Brains.classifiers.joined(separator: ", ")) }
+        let writer = args["--writer"]
+        if let w = writer, !Brains.writers.contains(w) { fail("--writer is " + Brains.writers.joined(separator: ", ")) }
+        guard let nature = LongTerm.Nature(rawValue: args["--nature"] ?? "sweet") else { fail("--nature is sweet or cheeky") }
         let log = LogFile(directory: stateDir, echo: true)
 
         let memory = try? MemoryStore(directory: stateDir, steering: "")
         if memory?.isSetUp != true {
-            let nature = LongTerm.Nature(rawValue: args["--nature"] ?? "sweet") ?? .sweet
             let name = args["--name"] ?? "Boop"
             do {
                 try Runtime.setUp(stateDir: stateDir, name: name, nature: nature, today: LocalTime().day(Int64(Date().timeIntervalSince1970 * 1000)))
@@ -51,16 +62,9 @@ enum Headless {
         options.advance = { skew.add($0) }
         options.debug = args.has("--debug")
         options.debugPrint = { log.echo($0) }
-        if let name = args["--mode"] {
-            guard let mode = Mode(rawValue: name) else { fail("--mode is chatty, normal or calm") }
-            options.mode = mode
-        }
-        options.classifier = args["--classifier"]
-        options.writer = args["--writer"]
-        if let c = options.classifier, !Brains.classifiers.contains(c) {
-            fail("--classifier is " + Brains.classifiers.joined(separator: ", "))
-        }
-        if let w = options.writer, !Brains.writers.contains(w) { fail("--writer is " + Brains.writers.joined(separator: ", ")) }
+        if let mode { options.mode = mode }
+        options.classifier = classifier
+        options.writer = writer
         options.devLines = true
         options.log = { log.write($0) }
         let runtime: Runtime
