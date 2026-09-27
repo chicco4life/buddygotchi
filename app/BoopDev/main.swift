@@ -296,7 +296,7 @@ func eval(_ raw: [String]) async {
     }
     // --real: every mode with the brains the app would run (VERIFICATION.md L5).
     let real = args.has("--real")
-    var modes = real ? Mode.allCases : Eval.deterministic
+    var modes = Mode.allCases
     if let name = args["--mode"] {
         guard let mode = Mode(rawValue: name) else { fail("modes: chatty, normal, calm") }
         modes = [mode]
