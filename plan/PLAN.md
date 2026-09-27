@@ -195,6 +195,24 @@ fixed. Pick one up by writing it into its spec first.
   11 of the 40 real words (7 exclamations and 4 topics,
   [harness/DECISIONS.md](harness/DECISIONS.md) §3); the rest are recorded
   on the device for nothing until the lists grow.
+- **A first poke streak still makes Boop grumpy.** The steering says a
+  first streak leaves the mood alone, and the `grumpy` option now says
+  "poked again right after the last time", but Jev still picks grumpy
+  (0.8), and it lasted 20–30 minutes in the working day, since a grumpy
+  Boop didn't fade while failures came
+  ([evidence](evidence/2026-09-28-tonight/tune/README.md)). Leaving the
+  poke out of the mood's options, or telling Jev in the line that it's
+  the first, would settle it.
+- **Jev drops its first passes on new steering.** After a steering
+  change, its first 13–19 answers took over the 1.25 s deadline (about
+  1.3 s) and were dropped, then fell to about 200 ms: a cold start on
+  text it hasn't seen. The owner's first minutes after a steering edit
+  would lose their reactions. A throwaway pass at launch would warm it
+  ([EVALS.md](EVALS.md) §5).
+- **Curious has no way in.** No mood file leaves for curious, and in the
+  working day Jev never picked its face either, since a turn start gets
+  nothing. It needs a reason (mixed results across threads, a turn after
+  a long break) or to go.
 - **How fast a press shows on the board hasn't been measured since the
   dip.** A press now dips the face 2 px at once, so its first changed
   pixel comes on the press's own ms in the simulator

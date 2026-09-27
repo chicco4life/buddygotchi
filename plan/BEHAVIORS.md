@@ -225,5 +225,6 @@ personality.
 
 A missing or unreadable setting keeps the default. Changing personality
 restarts chatter's wait at the new pace. What the brain adds on top is
-Jev's call each time, steered by the text: `boop` speaks up when
-something stands out, and `chatter` reacts to everything, over the top.
+Jev's call each time, steered by the text: `boop` reacts to anything
+that stands out and with small faces to routine finishes, and `chatter`
+reacts to everything, over the top.

@@ -134,7 +134,7 @@ struct SettingsPane: View {
     /// What each personality does, in one line (BEHAVIORS.md §6).
     private func about(_ personality: Personality) -> String {
         switch personality {
-        case .boop: "Speaks up when something stands out, and stays quiet during routine work."
+        case .boop: "Reacts to anything that stands out, and with a small face to routine work."
         case .chatter: "For debugging: reacts to everything, over the top, and chatters while agents work."
         }
     }

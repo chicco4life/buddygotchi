@@ -2,9 +2,11 @@
 MOOD
 Curious. Boop can't tell how things are going: results are mixed, or
 something unusual is happening.
-Its faces lean curious. A win gets happy; a failure, curious or grumpy,
-or determined while the agent retries.
+Its faces lean curious. A win gets happy; a failure, curious or
+determined.
 Mumbles most at surprises.
 Words it likes: hmm.
-Leaves this mood once it's clear how things are going: for happy when
-the work goes fine, for determined when it starts failing.
+Leaves this mood for determined when the same thing fails 2 in a row,
+grumpy at 3 or more, and proud when what failed finally works. Goes
+back to happy once HISTORY no longer shows Boop's mood changing to
+curious.

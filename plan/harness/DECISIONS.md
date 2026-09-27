@@ -40,16 +40,21 @@ mood changes. Then how to choose: judge by PERSONALITY and MOOD; react
 to NOW, not older lines, with a face, hold and word that fit it; don't
 repeat what Boop just did or is still doing (HISTORY's
 `(in progress)`), though a reaction that didn't happen may be made again
-if NOW still calls for it (§5); the mood is the backdrop and the
-reaction the moment, so they may differ, but should fit together. And on
-moods:
+if NOW still calls for it (§5); the reaction is the moment and the mood
+the backdrop, so a happy Boop makes a grumpy face at a failure and stays
+happy. And on moods:
 
-> Moods last. Change one only when things have clearly turned, never
-> for a single moment. After an hour with nothing happening, any mood
-> goes back to happy.
+> Moods last. Change one only when NOW is MOOD's reason to leave it,
+> never for one routine turn. A mood goes back to happy once HISTORY
+> no longer shows Boop's mood changing to it, or after an hour with
+> nothing happening.
 
-The hourly heartbeat ([EVENTS.md](EVENTS.md) §4) is what gives Jev the
-chance to do that. After the guide, the harness adds how to read HISTORY
+HISTORY reaches back ten minutes, or to the oldest turn still working
+([HARNESS.md](HARNESS.md) §5.3), so a mood lasts at least that long
+after what brought it, then fades back to happy on the next line; each
+mood's file says so again, since the `mood` question judges by MOOD.
+The hourly heartbeat ([EVENTS.md](EVENTS.md) §4) is what lets a mood go
+when nothing happens at all. After the guide, the harness adds how to read HISTORY
 and NOW ([HARNESS.md](HARNESS.md) §6.1).
 
 ### 2.2 PERSONALITY
@@ -67,7 +72,7 @@ event. It has two parts:
 
 | Personality | For | Its text |
 | --- | --- | --- |
-| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Curious, loyal, easily delighted and a little smug. It speaks up when something stands out and stays quiet during routine work: a comeback finish is proud with "finally", held three times; a third failure grumpy with "again" and a poke streak grumpy with "nope", each held once; a turn start, a short finish and a heartbeat get nothing |
+| [`boop`](../steering/personality/boop.md) (the default) | Everyday use | Curious, loyal, easily delighted and a little smug, and it all shows on its face. It reacts to anything that stands out, with a strong face that fits the moment whatever its mood, held longer for bigger moments: a first failure is determined with "oops", held once; a third grumpy with "again", twice; a fix after failures proud with "finally", twice, and a comeback finish three times; a turn of 10 minutes or more finishing clean excited, three times, and failing sad, three times; a failed turn grumpy with "ugh" and a poke streak grumpy with "nope", once. Routine work gets small faces: a turn of a few minutes excited, a long turn (15 s to a minute) happy, or excited when its checks passed, and a short one only when they did. A turn start and a heartbeat get nothing |
 | [`chatter`](../steering/personality/chatter.md) | Debugging, so every pass is easy to see | Wildly over the top. It reacts to every line in NOW, routine tool uses and heartbeats included, always picks a word if one fits, and holds its faces long: twice for routine lines, up to four times for a comeback or a third failure |
 
 "Never stays quiet" is still Jev's call: `none` stays an option, and the
@@ -82,17 +87,22 @@ reactions while in that mood (a grumpy Boop rarely looks happy), what it
 mumbles at most, the words it likes, and when it leaves, and for which
 mood. That last part is what the `mood` question
 judges by. No timer holds or ends a mood: how long one lasts is the
-steering's to say.
+steering's to say. Only something lasting moves it: a run of failures
+(two in a row, three), a fix after one, or a turn of 10 minutes or more
+ending; never a routine turn, even one of a few minutes, a first
+failure, a stopped turn or a first poke streak. And every mood but happy
+goes back to happy once HISTORY no longer shows Boop's mood changing to
+it (§2.1).
 
 | Mood | Its meaning (the `mood` option) | Leaves for (its file) |
 | --- | --- | --- |
-| `happy` | Good spirits: things are going fine | `excited` on a run of wins; `proud` after a hard-won finish; `curious` when it can't tell how things are going; `determined` when the same thing fails twice in a row; `grumpy` at 3 or more in a row, or when poked again and again; `sad` when a turn of 10 minutes or more ends failing |
-| `excited` | Thrilled: several wins in a row, or something big went right | `happy` after a quiet stretch or once something fails; `proud` when a hard-won turn finishes |
-| `proud` | Something hard-won finished: a comeback, or a very long turn that fought through failures. Not for a routine finish, however long | `happy` once new work is under way; `determined` if it starts failing; `grumpy` if failures pile up |
-| `curious` | Unsure how things are going: mixed results, or something unusual. Not for a routine turn start, or a failure | `happy` when the work goes fine; `determined` when it starts failing |
-| `determined` | Working through a failure: the same thing failed twice in a row and the agent is retrying. Not for a turn that has ended | `proud` when it finally works; `grumpy` at 3 or more failures in a row; `sad` when the turn ends still failing |
-| `grumpy` | Fed up: 3 or more failures in a row, or poked too much | `proud` when what kept failing finally works; `happy` when a long turn finishes cleanly |
-| `sad` | Deflated: a turn of 10 minutes or more ended failing, or was stopped with failures left | `happy` when a turn finishes cleanly; `determined` when the agent tries again |
+| `happy` | Good spirits: things are going fine | When a turn of 10 minutes or more ends: `excited` if nothing failed, `proud` if it fought through failures, `sad` if it failed. `determined` when the same thing fails twice in a row; `grumpy` at 3 or more in a row, or when poked again right after the last time; `proud` when what failed twice or more in a row finally works |
+| `excited` | Thrilled: something big went right, such as a turn of 10 minutes or more finishing clean. Not for routine wins, however many | `determined` at two failures in a row; `grumpy` at 3 or more; `sad` when a turn of 10 minutes or more ends failing; `happy` once HISTORY no longer shows the change |
+| `proud` | Something hard-won finished: a comeback, or a very long turn that fought through failures. Not for a routine finish, however long | The same as `excited` |
+| `curious` | Unsure how things are going: mixed results, or something unusual. Not for a routine turn start, or a failure | `determined` at two failures in a row; `grumpy` at 3 or more; `proud` when what failed finally works; `happy` once HISTORY no longer shows the change. Nothing in the steering leads to it today |
+| `determined` | Working through a failure: the same thing failed twice in a row and the agent is retrying. Not for a turn that has ended | `proud` when it finally works; `grumpy` when it fails again; `sad` when a turn of 10 minutes or more ends still failing; `happy` once HISTORY no longer shows the change |
+| `grumpy` | Fed up: 3 or more failures in a row, or poked again right after the last time. Not for a single failure, or one poke streak | `proud` when what failed twice or more in a row finally works; `sad` when a turn of 10 minutes or more ends failing; `happy` once HISTORY no longer shows the change |
+| `sad` | Deflated: a turn of 10 minutes or more ended failing, or was stopped with failures left | `proud` when what failed finally works; `determined` when it fails again while the agent retries; `happy` once HISTORY no longer shows the change |
 
 And from any mood, `happy` after an hour with nothing happening (the
 guide).

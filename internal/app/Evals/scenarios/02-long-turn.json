@@ -1,8 +1,8 @@
 {
   "name": "A very long turn that finishes is worth a mumble",
-  "why": "PERSONALITY's Examples: something long finishing is proud or happy; the rule already cheered, so the mumble is on top; a long finish may make Boop proud (plan/steering/mood/happy.md)",
+  "why": "PERSONALITY's Examples: a turn of 10 minutes or more finishing is a big moment, excited, proud or happy, on top of the rule's cheer; it's a lasting reason to leave happy: excited when nothing failed (plan/steering/mood/happy.md)",
   "steps": [
     {"event": "turn started", "at": "0s"},
-    {"event": "turn finished", "at": "20m", "expect": {"react": "proud|happy|excited", "mood": "happy|proud"}}
+    {"event": "turn finished", "at": "20m", "expect": {"react": "proud|happy|excited", "mood": "excited|proud"}}
   ]
 }

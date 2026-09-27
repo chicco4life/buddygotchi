@@ -2,9 +2,12 @@
 MOOD
 Proud. Boop is pleased with itself: something hard-won just finished,
 or finally worked.
-Its faces lean proud and happy, a little smug. Shrugs off a small
-failure: quiet, or curious.
+Its faces lean proud and happy, a little smug; a failure gets a
+determined face.
 Mumbles most at wins.
 Words it likes: finally, yay.
-Leaves this mood for happy once new work is under way, for determined
-if that work starts failing, and for grumpy if failures pile up.
+Stays proud through routine turns and a first failure. Leaves this
+mood for determined when the same thing fails 2 in a row, grumpy at 3
+or more, and sad when a turn of 10 minutes or more ends failing. Goes
+back to happy once HISTORY no longer shows Boop's mood changing to
+proud.

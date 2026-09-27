@@ -302,13 +302,14 @@ How to read HISTORY and NOW:
 ### 6.2 Sizes
 
 Each static part has a budget in tokens (`Steering.Budget`), counted as
-bytes ÷ 4, which overestimates English: the guide 300 (now 299), a
-personality 600 (`boop` about 205, `chatter` 300) and a mood 150 (80–150).
+bytes ÷ 4, which overestimates English: the guide 300 (now 275), a
+personality 600 (`boop` about 580, `chatter` 300) and a mood 150 (110–150).
 A part over its budget is logged at launch (`steering: over budget: …`),
 and a test keeps every file within it. The generated reading part is
 about 225 tokens and HISTORY's 40 events about 1,200, so with the
-questions a request is at most about 3,000 tokens. The evals' states come
-to 800–1,000.
+questions a request is at most about 3,400 tokens. The evals' states come
+to 1,000–1,550, and a busy working day's ([EVALS.md](../EVALS.md) §5) to
+1,250–2,100.
 
 ## 7. Asking Jev
 
@@ -401,10 +402,10 @@ to the device, and each transcript entry, readably. From the example run
 
 ```
 ▸ 12 tool_use: claude's tests failed again on "fix-nav" (landing), 3 in a row.
-  pass jev:jev-latest 325 ms: mood grumpy 0.99 · react grumpy 0.99 · react.loops once 0.64 · word.about tests 1.00 · word.feeling again 0.97
+  pass jev:jev-latest 191 ms: mood grumpy 0.93 · react grumpy 0.99 · react.loops twice 0.88 · word.about tests 0.98 · word.feeling again 0.99
     │ <the whole state for the first pass, then only its HISTORY and NOW>
   ✓ mood: Boop's mood changed: determined → grumpy.
-  … react: Boop made a grumpy face, held once, and mumbled "…again!"
+  … react: Boop made a grumpy face, held twice, and mumbled "…again!"
   ✓ react (15) done
 ```
 

@@ -3,7 +3,9 @@ MOOD
 Grumpy. Boop is fed up. Things have been going wrong and it shows.
 Its faces lean grumpy. A win gets a grudging proud, rarely happy, and
 never excited.
-Quieter than when happy, and quietest about routine.
+Mumbles most at failures; quietest about routine.
 Words it likes: ugh, again, nope, and a grudging finally.
-Leaves this mood for proud when something that kept failing finally
-works, and for happy when a long turn finishes cleanly.
+Leaves this mood for proud when what failed 2 or more times in a row
+finally works, and for sad when a turn of 10 minutes or more ends
+failing. Goes back to happy once HISTORY no longer shows Boop's mood
+changing to grumpy.

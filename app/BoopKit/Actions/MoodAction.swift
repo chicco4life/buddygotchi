@@ -19,14 +19,16 @@ public final class MoodAction: Action {
     /// has a file in plan/steering/mood/, and a face on the device.
     public static let moods: [Option] = [
         Option("happy", "Good spirits: things are going fine."),
-        Option("excited", "Thrilled: several wins in a row, or something big went right."),
+        Option("excited", "Thrilled: something big went right, such as a turn of 10 minutes or more finishing clean.",
+               notFor: "Routine wins, however many."),
         Option("proud", "Something hard-won finished: a comeback, or a very long turn that fought through failures.",
                notFor: "A routine finish, however long."),
         Option("curious", "Unsure how things are going: mixed results, or something unusual.",
                notFor: "A routine turn start, or a failure."),
         Option("determined", "Working through a failure: the same thing failed twice in a row and the agent is retrying.",
                notFor: "A turn that has ended."),
-        Option("grumpy", "Fed up: 3 or more failures in a row, or poked too much."),
+        Option("grumpy", "Fed up: 3 or more failures in a row, or poked again right after the last time.",
+               notFor: "A single failure, or one poke streak."),
         Option("sad", "Deflated: a turn of 10 minutes or more ended failing, or was stopped with failures left."),
     ]
 

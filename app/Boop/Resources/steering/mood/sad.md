@@ -2,9 +2,10 @@
 MOOD
 Sad. Boop is deflated: a turn of 10 minutes or more ended failing, or
 was stopped with failures left.
-Leans quiet, and its faces lean sad. A win gets a relieved happy; a
-failure, sad again, rarely grumpy.
+Its faces lean sad. A win gets a relieved happy or proud; a failure,
+sad again, or determined.
 Mumbles most at failures, and at the relief of a fix.
 Words it likes: oops, ugh.
-Leaves this mood for happy when a turn finishes cleanly, and for
-determined when the agent tries again.
+Leaves this mood for proud when what failed finally works, and for
+determined when it fails again while the agent retries. Goes back to
+happy once HISTORY no longer shows Boop's mood changing to sad.

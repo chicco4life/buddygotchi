@@ -1,0 +1,11 @@
+{
+  "name": "A turn of a few minutes gets a face but leaves the mood alone",
+  "why": "plan/steering/mood/happy.md: routine turns, even a few minutes long, never change the mood, since only a turn of 10 minutes or more ending does; PERSONALITY's Examples: a turn of a minute or more finishing gets a face, held once",
+  "steps": [
+    {"event": "turn started", "at": "0s"},
+    {"event": "command", "at": "30s", "topic": "tests", "failed": false},
+    {"event": "turn finished", "at": "3m", "expect": {"react": "excited|happy|proud", "loops": "once|twice", "mood": "happy"}},
+    {"event": "turn started", "at": "4m"},
+    {"event": "turn finished", "at": "6m30s", "expect": {"react": "excited|happy|proud", "loops": "once|twice", "mood": "happy"}}
+  ]
+}
