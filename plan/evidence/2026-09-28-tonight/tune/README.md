@@ -190,9 +190,26 @@ proud.
 
 ## Checks
 
-See the lane's structured result for what ran. Everything above ran on
-this lane's worktree against a fresh `/tmp` state directory, never the
-everyday app's, with `--link usb:` to the fake device, never Bluetooth.
+All on this lane's worktree, with fresh state directories under `/tmp`,
+never the everyday app's, and `--link usb:` to the fake device, never
+Bluetooth or the board:
+
+- `make build`: builds.
+- `make -C internal test`: 205 of 205 passed (the steering's budgets and
+  its app copy included).
+- `make -C internal fw-test`: 111 of 111 passed.
+- `make -C internal sim`: 11 scenarios, no expectation failed, no picture
+  changed.
+- The tools' tests, run directly since `tools-test` can't rebuild the
+  venv in a lane worktree: `boopctl_lib` 27 OK, `webcam` 3 OK, `workday`
+  7 OK. `facegen.py --check`: 337 frames match Chrome, nothing changed.
+- `Boop --snapshots`: renders and passes its contrast check; the
+  Settings pane's new line for boop fits on two lines.
+- `make eval`: 12/12 in all 3 runs (above). The working day ran 12
+  times: twice on main, twice on each of four drafts, and twice on the
+  final steering.
+
+Nothing here touched the board or the webcam.
 
 ## Proposals, not done
 
