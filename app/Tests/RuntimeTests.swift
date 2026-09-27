@@ -361,7 +361,7 @@ final class RuntimeTests: XCTestCase {
         let says = { transport.sent.filter { $0.contains("\"say\"") }.count }
         runtime.home.sync {
             runtime.run([.moment(anim: "cheer")])
-            runtime.react.run(ToolCall("react", ["feeling": .string("happy"), "voice": .string("mumble")]))
+            runtime.react.run(ToolCall("react", ["feeling": .string("happy")]))
             XCTAssertEqual(runtime.moments.schedule.waiting.count, 1, "waiting behind the cheer")
             runtime.device(#"{"t":"input","k":"talk_on"}"#)
             XCTAssertTrue(runtime.moments.schedule.waiting.isEmpty, "the mic went on")
