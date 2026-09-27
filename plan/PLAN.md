@@ -163,6 +163,13 @@ fixed. Pick one up by writing it into its spec first.
   `PostToolUse` reports after a failed command hasn't been seen either, so
   a Codex turn never fails ([ADAPTERS.md](ADAPTERS.md) §3). One recorded
   session with an approval and a failing test run would settle both.
+- **A denied subagent can keep "needs you" until the main turn ends.**
+  A subagent you deny carries on, and if it ends without another tool
+  call, Claude sends only `SubagentStop`, which Boop doesn't hook. So its
+  request stays until the main agent's `Stop`, or the safety net
+  ([ADAPTERS.md](ADAPTERS.md) §4). Hooking `SubagentStop` and letting it
+  answer only that subagent's request would clear it; it mustn't make an
+  idle session working.
 - **A failed test turn's word is on a knife-edge.** Apple's writer picks
   the right source (the failed topic) but flips between "tests" and "ugh"
   with small, unrelated prompt changes; evals 06 and 13 accept both.
