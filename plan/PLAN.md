@@ -34,7 +34,7 @@ milestone's evidence says which ones ran.
 | A8 | Hero moments | Done, as C1 trimmed them; checks 4, 9, 10 and 13 | [evidence](evidence/2026-09-26-hero-moments/README.md) |
 | C1 | Cut to 4 states and 3 animations | Done | [cut](evidence/2026-09-26-minimal-cut/README.md), [on the board](evidence/2026-09-26-e2e-hardening/README.md) |
 | A9 | Modes: chatty, normal and calm | Done; checks 16 and 17 | [evidence](evidence/2026-09-26-modes/README.md) |
-| | Overnight pass (2026-09-27): reliability, behaviour and polish across the core, brain, firmware, face, Mac app and tools | Done. The merged firmware `d36886a` matches the simulator on the board in all 10 scenarios, `perf --motion` holds 60 fps, and `make e2e` passes | [evidence](evidence/2026-09-27-overnight/) |
+| | Overnight pass (2026-09-27): reliability, behaviour and polish across the core, brain, firmware, face, Mac app and tools | Done. The final firmware `cf6d8ae` matches the simulator on the board in all 10 scenarios, `perf --motion` passes and `make e2e` passes; the new looks still need watching in motion (check 1) | [evidence](evidence/2026-09-27-overnight/) |
 | P1 | Port to ESP-IDF + LVGL | Later (§4) | |
 
 ## 2. Owner checks

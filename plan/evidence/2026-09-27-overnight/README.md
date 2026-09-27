@@ -33,7 +33,7 @@ is on branch `claude/buddy-reliability-polish-2588ff`; `main` is untouched.
 
 ```sh
 git -C ~/src/buddygotchi merge --ff-only claude/buddy-reliability-polish-2588ff   # main hasn't moved
-make flash        # the board still has this morning's build; flash again only after later changes
+make flash        # the board already runs the final build (cf6d8ae); only needed after later changes
 make debug        # or make run
 ```
 
@@ -57,9 +57,10 @@ Check 1 is watching the new face move; nobody has seen it in motion yet.
 | Evals with Apple's model (`make eval REAL=1`, no Jev key) | 45/45 in each of 3 runs, 0 refusals, writer p50 about 1.5 s |
 | Firmware tests (`make fw-test`) | 118 pass |
 | Simulator vs goldens (`tools/boopctl sim`) | 10 scenarios, every changed golden looked at before accepting |
-| Board vs simulator (`tools/boopctl run`) | 10 scenarios, pixel-identical, firmware `c0baa57` |
+| Board vs simulator (`tools/boopctl run`) | 10 scenarios, pixel-identical, final firmware `cf6d8ae` (flashed) |
 | Board in motion (`tools/boopctl perf --motion`) | ok; 23 frames drawn a second on average, 73.8 KB heap free |
-| Hook → app → board (`make e2e`) | pass, p50 38 ms from hook launch to the device |
+| Hook → app → board (`make e2e`) | pass, p50 37 ms from hook launch to the device |
+| Tools' own tests (`make tools-test`) | pass |
 
 Not checked: Jev live (agent shells have no key); anything over Bluetooth
 (agents can't use it); the webcam (a framing clip only, then you asked me not
@@ -144,6 +145,25 @@ the Bluetooth app and repairing your hooks; `--headless` never reads your
 Keychain; a Boop on another `--state-dir` leaves your real hooks alone;
 push-to-talk no longer crashes a Mac with no microphone; enabling Codex hooks
 can't write `[features]` twice.
+
+### Cleanup (`/simplify`)
+
+Four reviewers (reuse, simplification, efficiency, altitude) read the whole
+overnight diff, and 33 behaviour-preserving cleanup commits went in on three
+branches (`ovn/s1`, `s2`, `s3`, merged): the runtime builds its brains in
+one place, the core's calendar goes through one wall-clock helper, the
+writer reads memory through the store's own parser, events and effects
+describe themselves, `Boop` and `boopdev` share one argument parser,
+`boopdev eval` picks brains the way the app does, Settings stops asking
+Apple's model on every redraw, and the firmware lays the face out once per
+frame with one block-rectangle and one clamp helper. Snapshots, goldens
+and a 60,000-tick firmware hash stayed identical; only a few CLI error
+messages read differently (`--mode is chatty, normal, calm`). Skipped, because each
+would change behaviour or reach well past the diff: merging the core's
+three push-to-talk variables into one state (it drops an empty moment the
+device ignores), moving the writer's copy check into the memory store,
+handing each action the pass's input instead of the core's quiet flag, and
+making the installer refuse writes for another state directory itself.
 
 ### Speed
 
