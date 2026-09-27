@@ -308,6 +308,35 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertTrue(rig.log.allSatisfy { if case .state(let s) = $0 { return s.attn == nil } else { return true } })
     }
 
+    /// ADAPTERS.md §4: a Codex request shows on the tick after its grace.
+    /// One the session's next event answers before that tick never showed,
+    /// so it's never recorded as needing you either: no `needs_you` event
+    /// for HISTORY, no `state` with `attn`. Another request from the
+    /// session, which answers nothing, shows it then, dated 2 s after it
+    /// arrived.
+    func testACodexRequestAnsweredBeforeATickShowsItIsNeverRecorded() {
+        for answer in [BoopEvent.Kind.activity, .turnEnd, .turnStopped] {
+            let rig = CoreRig()
+            rig.send(.turnStart, .codex)
+            rig.send(.needsYou, .codex, tool: "shell")
+            rig.now += 2050  // past the grace, before the next tick
+            let fx = rig.send(answer, .codex, tool: answer == .activity ? "shell" : nil)
+            XCTAssertEqual(events(fx).filter { $0.kind == .needsYou }.map(\.line), [], answer.rawValue)
+            XCTAssertTrue(rig.log.allSatisfy { if case .state(let s) = $0 { return s.attn == nil } else { return true } },
+                          answer.rawValue)
+        }
+        let rig = CoreRig()
+        rig.send(.turnStart, .codex, session: "a")
+        rig.send(.needsYou, .codex, session: "a", tool: "shell")
+        rig.now += 2500
+        let fx = rig.send(.needsYou, .codex, session: "a", tool: "shell")
+        XCTAssertEqual(states(fx).last?.attn?.agent, "codex")
+        XCTAssertEqual(events(fx).map(\.line), [#"codex needs you on "landing"."#])
+        rig.now += 100
+        rig.send(.needsYou, session: "b", project: "jetpack", tool: "Bash")
+        XCTAssertEqual(rig.state.attn?.project, "landing", "it has waited since 2 s after it arrived")
+    }
+
     func testAnyLaterEventClearsIt() {
         for clearing in [BoopEvent.Kind.activity, .turnStart, .turnEnd, .turnFailed, .sessionEnd, .sessionStart] {
             let rig = CoreRig()

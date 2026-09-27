@@ -161,11 +161,24 @@ public final class Core {
     @discardableResult
     public func handle(_ event: BoopEvent) -> [CoreEffect] {
         let now = event.ts
-        var fx: [CoreEffect] = []
-        advance(to: now, &fx)
-        startDayIfNew(now, &fx)
-
         let key = Core.key(event.agent, event.session)
+        var fx: [CoreEffect] = []
+        // The event's own session is left until after the event: a Codex
+        // request past its grace that the event answers was never shown,
+        // so it isn't recorded as needing you either (ADAPTERS.md §4).
+        advance(to: now, sparing: key, &fx)
+        startDayIfNew(now, &fx)
+        apply(event, key, now, &fx)
+        if var s = sessions[key] {
+            promote(&s, now, &fx)
+            sessions[key] = s
+        }
+        publish(now, &fx)
+        return fx
+    }
+
+    /// The event's changes to its session, before the snapshot goes out.
+    private func apply(_ event: BoopEvent, _ key: String, _ now: Int64, _ fx: inout [CoreEffect]) {
         var s = sessions[key] ?? Session(agent: event.agent, id: event.session, project: event.project,
                                          lastEventAt: now, order: takeOrder())
         if event.project != "unknown" {
@@ -197,8 +210,7 @@ public final class Core {
             }
             s.lastEventAt = now
             sessions[key] = s
-            publish(now, &fx)
-            return fx
+            return
         }
 
         if event.event == .subagentEnd {
@@ -215,8 +227,7 @@ public final class Core {
                 s.working = s.turnStartedAt != nil
             }
             sessions[key] = s
-            publish(now, &fx)
-            return fx
+            return
         }
 
         // The asker's next event means it moved on, and so does any
@@ -333,8 +344,6 @@ public final class Core {
         case .needsYou, .subagentEnd:
             break
         }
-        publish(now, &fx)
-        return fx
     }
 
     /// An `input` message's `k` (PROTOCOL.md §4).
@@ -454,6 +463,16 @@ public final class Core {
 
     var needsYouShowing: Bool { sessions.values.contains { $0.needsSince != nil } }
 
+    /// A Codex request whose grace is over, and nothing answered, shows,
+    /// dated 2 s after it arrived (ADAPTERS.md §4).
+    func promote(_ s: inout Session, _ now: Int64, _ fx: inout [CoreEffect]) {
+        guard let pending = s.pendingSince, now - pending >= config.codexGraceMs else { return }
+        s.pendingSince = nil
+        s.needsSince = pending + config.codexGraceMs
+        s.working = false
+        needsYouEvent(s, now, &fx)
+    }
+
     /// Nobody is waiting on the session any more.
     func clearRequest(_ s: inout Session, _ now: Int64) {
         s.needsSince = nil
@@ -504,16 +523,12 @@ public final class Core {
                                wakesBrain: wakes, facts: facts)))
     }
 
-    /// Runs every timer due by `now`, in order.
-    func advance(to now: Int64, _ fx: inout [CoreEffect]) {
+    /// Runs every timer due by `now`, in order, but shows no Codex request
+    /// of `sparing`'s session: its event comes first.
+    func advance(to now: Int64, sparing: String? = nil, _ fx: inout [CoreEffect]) {
         for (key, var s) in sessions {
             let silent = now - s.lastEventAt >= config.safetyNetMs
-            if let pending = s.pendingSince, !silent, now - pending >= config.codexGraceMs {
-                s.pendingSince = nil
-                s.needsSince = pending + config.codexGraceMs
-                s.working = false
-                needsYouEvent(s, now, &fx)
-            }
+            if !silent && key != sparing { promote(&s, now, &fx) }
             if silent && (s.needsSince != nil || s.pendingSince != nil) {
                 // Ten silent minutes, even for a Codex request no tick saw
                 // through its grace (the Mac slept): the agent is still

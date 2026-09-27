@@ -246,7 +246,7 @@ otherwise goes idle.
 
 | Timer | Value | What happens |
 | --- | --- | --- |
-| Codex grace (`codexGraceMs`) | 2 s | A Codex request nothing has answered shows, dated 2 s after it arrived. One the reviewer handled is answered by the session's next event within the grace, and never shows |
+| Codex grace (`codexGraceMs`) | 2 s | A Codex request nothing has answered shows at the first tick past its grace (2–3 s after it arrived), dated 2 s after it arrived. One the reviewer handled is answered by the session's next event within the grace, and never shows. So is one that event answers after the grace but before a tick showed it: the core records no `needs_you` for it, since the screen never showed it |
 | Safety net (`safetyNetMs`) | 10 min with no events from the session | The request clears, shown or still in its grace, and the session goes idle: by then the agent is still waiting at its prompt or gone. This covers a grace no tick saw through, as when the Mac sleeps right after Codex asks. The session's next event makes it working again |
 
 **What it can't see.**
