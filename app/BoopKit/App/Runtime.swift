@@ -95,7 +95,9 @@ public final class Runtime: @unchecked Sendable {
     /// confirms is removed, so hooks aren't logged from then on.
     public static let doctorArmSeconds: TimeInterval = 10 * 60
     /// Debug mode's log of every pass and aside, in the state directory.
-    public var debugLogURL: URL { options.stateDir.appendingPathComponent(DebugLog.fileName) }
+    public let debugLogURL: URL
+    /// The doctor's arm (`doctorArm`), in the state directory.
+    let doctorArmPath: String
 
     public let home = DispatchQueue(label: "boop.home", qos: .userInitiated)
     public let options: Options
@@ -130,9 +132,6 @@ public final class Runtime: @unchecked Sendable {
         var pumpDue = false
         /// True while a brain moment is being sent (for debug mode).
         var brainSending = false
-        /// Brain moments sent since the last harness pass ended. Only a
-        /// pass's actions send them, so at its end this is what it sent.
-        var brainSent = 0
     }
     let moments = Moments()
 
@@ -149,10 +148,7 @@ public final class Runtime: @unchecked Sendable {
     public static func steadyClock() -> @Sendable () -> Int64 {
         let wall = Int64(Date().timeIntervalSince1970 * 1000)
         let start = ContinuousClock.now
-        return {
-            let (seconds, attoseconds) = (ContinuousClock.now - start).components
-            return wall + seconds * 1000 + attoseconds / 1_000_000_000_000_000
-        }
+        return { wall + Int64((ContinuousClock.now - start).ms) }
     }
 
     /// Sets up a new Boop: name and sweet-or-cheeky, asked once (UX.md §6).
@@ -163,7 +159,8 @@ public final class Runtime: @unchecked Sendable {
 
     public init(_ options: Options) throws {
         self.options = options
-        let debugLogURL = options.stateDir.appendingPathComponent(DebugLog.fileName)
+        debugLogURL = options.stateDir.appendingPathComponent(DebugLog.fileName)
+        doctorArmPath = options.stateDir.appendingPathComponent(Self.doctorArm).path
         guard let lock = InstanceLock(directory: options.stateDir) else { throw OpenError.locked(options.stateDir.path) }
         self.lock = lock
         let log = options.log
@@ -199,7 +196,6 @@ public final class Runtime: @unchecked Sendable {
                     return
                 }
                 moments.schedule.brain(moment, now: now)
-                moments.brainSent += 1
                 Runtime.pump(moments, link: link, clock: clock, home: home, log: log)
             },
             mumblesAllowed: { core.canMumble(at: clock()) },
@@ -209,20 +205,18 @@ public final class Runtime: @unchecked Sendable {
         let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: longTerm.seed)), memory: memory)
         react = actions.compactMap { $0 as? ReactAction }.first!
         let memory = self.memory
-        // Jev's key isn't read yet: normal starts with its table, and
-        // `start` begins reading it (`readJevKey`).
-        harness = Harness(classifier: Brains.classifier(for: mode, override: options.classifier == "jev" ? "normal" : options.classifier),
-                          writer: Brains.writer(for: mode, override: options.writer, log: log),
+        // Jev's key isn't read yet: `start` begins reading it (`readJevKey`).
+        let (classifier, writer) = Runtime.brains(mode, options, jevKey: nil)
+        harness = Harness(classifier: classifier, writer: writer,
                           tools: actions.map(Harness.Tool.init), memory: { memory.promptMemory() },
                           home: home, debugLog: options.debug ? debugLogURL : nil, log: log)
         // Tool names only: arguments can carry what you said (HARNESS.md §8).
-        // A pass for what you said that sent no mumble ends `listening` now.
-        let moments = self.moments
+        // A pass for what you said that sent no mumble ends `listening` now:
+        // only `react` sends a moment during a pass.
         harness.onRecord = { [weak self] record in
             log(record.logLine)
-            let mumbled = moments.brainSent > 0
-            moments.brainSent = 0
             guard record.input.kind == .said, let self else { return }
+            let mumbled = record.ran.contains { $0.call.name == "react" && $0.outcome.isDone }
             run(core.replied(to: record.input.ts, mumbled: mumbled, at: clock()))
         }
         if options.debug {
@@ -272,7 +266,7 @@ public final class Runtime: @unchecked Sendable {
         // `home`: reading Jev's key swaps the brains and calls `onChange`,
         // so it starts now, after the app has set its callbacks.
         home.async { [self] in
-            if Brains.wantsJevKey(mode, override: options.classifier) { readJevKey() }
+            readJevKey()
             run(core.tick(at: options.clock()))
             link.update(core.snapshot(at: options.clock()), now: options.clock())
             changed()
@@ -301,7 +295,7 @@ public final class Runtime: @unchecked Sendable {
         // Debug mode logs every hook with what it became; the doctor skill
         // arms the plain line to see hooks arrive. Otherwise hooks aren't logged.
         if options.debug {
-            options.log("hook: \(line.agent) \(line.hook) \(line.session) → " + (event.map(Runtime.describe) ?? "ignored"))
+            options.log("hook: \(line.agent) \(line.hook) \(line.session) → " + (event?.summary ?? "ignored"))
         } else if doctorArmed() {
             options.log("hook: \(line.agent) \(line.hook) \(line.session)")
         }
@@ -312,10 +306,10 @@ public final class Runtime: @unchecked Sendable {
     /// Whether the doctor armed this app within the last 10 minutes. An
     /// older arm is removed.
     func doctorArmed() -> Bool {
-        let path = options.stateDir.appendingPathComponent(Self.doctorArm).path
-        guard let armed = (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date else { return false }
+        guard let armed = (try? FileManager.default.attributesOfItem(atPath: doctorArmPath))?[.modificationDate] as? Date
+        else { return false }
         if Date().timeIntervalSince(armed) < Self.doctorArmSeconds { return true }
-        try? FileManager.default.removeItem(atPath: path)
+        try? FileManager.default.removeItem(atPath: doctorArmPath)
         options.log("doctor: an arm older than \(Int(Self.doctorArmSeconds / 60)) minutes, removed")
         return false
     }
@@ -351,21 +345,13 @@ public final class Runtime: @unchecked Sendable {
         link.tick(now: now, current: core.snapshot(at: now))
     }
 
-    /// An event on one line for debug mode: `activity landing · tool Bash, topic tests`.
-    static func describe(_ event: BoopEvent) -> String {
-        let d = event.detail
-        let detail = [d.tool.map { "tool \($0)" }, d.topic.map { "topic \($0)" }, d.failed == true ? "failed" : nil,
-                      d.error.map { "error \($0)" }, event.subagent.map { "subagent \($0)" }].compactMap { $0 }
-        return "\(event.event.rawValue) \(event.project)" + (detail.isEmpty ? "" : " · " + detail.joined(separator: ", "))
-    }
-
     /// Carries out the core's decisions (ARCHITECTURE.md §3.2).
     func run(_ effects: [CoreEffect]) {
         if options.debug {
             // The snapshot shows as the line the link sends, if it sends one.
             for effect in effects {
                 if case .state = effect { continue }
-                options.debugPrint("core: " + Replay.describe(effect))
+                options.debugPrint("core: " + effect.summary)
             }
         }
         moments.inRules += 1
@@ -501,7 +487,7 @@ public final class Runtime: @unchecked Sendable {
     /// (nil when it was cleared); `BOOP_JEV_KEY` still wins.
     public func reloadBrains(jevKey key: String?) {
         home.async { [self] in
-            jevKey = .some(Brains.environmentJevKey() ?? key)
+            jevKey = .some(Brains.jevKey(else: key))
             useBrains()
             changed()
         }
@@ -510,20 +496,28 @@ public final class Runtime: @unchecked Sendable {
     /// The mode's brains, on `home`. A mode that wants Jev's key before it's
     /// been read starts it reading and decides with its table meanwhile.
     func useBrains() {
-        let log = options.log
-        let wantsKey = Brains.wantsJevKey(mode, override: options.classifier)
-        if wantsKey && jevKey == nil { readJevKey() }
-        let (key, override) = (jevKey ?? nil, jevKey == nil && options.classifier == "jev" ? "normal" : options.classifier)
-        harness.use(Brains.classifier(for: mode, override: override, key: { key }, log: log),
-                    Brains.writer(for: mode, override: options.writer, log: log))
-        log("mode \(mode.rawValue), brain \(harness.classifier.id) + \(harness.writer.id)")
+        readJevKey()
+        let (classifier, writer) = Runtime.brains(mode, options, jevKey: jevKey)
+        harness.use(classifier, writer)
+        options.log("mode \(mode.rawValue), brain \(harness.classifier.id) + \(harness.writer.id)")
     }
 
-    /// Reads Jev's key off `home` (HARNESS.md §6): a Keychain prompt there
-    /// would stall every hook, tick and device line until it's answered.
-    /// Then the brains are built again with it. On `home`.
+    /// The mode's two stages with Jev's key as far as it's been read (nil
+    /// until then): a mode or `--classifier` that wants Jev decides with
+    /// normal's table until it's read.
+    static func brains(_ mode: Mode, _ options: Options, jevKey: String??) -> (any Classifier, any Writer) {
+        let reading = jevKey == nil && Brains.wantsJevKey(mode, override: options.classifier)
+        let key = jevKey ?? nil
+        return (Brains.classifier(for: mode, override: reading ? "normal" : options.classifier, key: { key }, log: options.log),
+                Brains.writer(for: mode, override: options.writer, log: options.log))
+    }
+
+    /// Reads Jev's key off `home` (HARNESS.md §6), if the mode wants it and
+    /// it isn't read yet: a Keychain prompt there would stall every hook,
+    /// tick and device line until it's answered. Then the brains are built
+    /// again with it. On `home`.
     func readJevKey() {
-        guard !readingJevKey else { return }
+        guard jevKey == nil, !readingJevKey, Brains.wantsJevKey(mode, override: options.classifier) else { return }
         readingJevKey = true
         let read = options.readJevKey
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in

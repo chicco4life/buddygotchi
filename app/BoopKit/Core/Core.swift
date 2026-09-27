@@ -296,9 +296,9 @@ public final class Core {
         var fx: [CoreEffect] = []
         advance(to: now, &fx)
         startDayIfNew(now, &fx)
-        let input = Input(.said, words: words, yelled: yelled, clock: config.time.clock(wall(now)),
-                          weekday: config.time.weekday(wall(now)), rules: "listening", ts: now)
-        if replyWait != nil { replyWait?.words = now }
+        let input = Input(.said, words: words, yelled: yelled, clock: clock(now), weekday: weekday(now),
+                          rules: "listening", ts: now)
+        replyWait?.words = now
         quietAsked = input.quietAsk
         fx.append(.input(input))
         publish(now, &fx)
@@ -464,6 +464,12 @@ public final class Core {
     /// The wall clock at steady time `now`.
     func wall(_ now: Int64) -> Int64 { now + wallOffsetMs }
 
+    /// The time of day, weekday and date at steady time `now`, on the wall
+    /// clock: the calendar never sees steady time.
+    private func clock(_ now: Int64) -> String { config.time.clock(wall(now)) }
+    private func weekday(_ now: Int64) -> String { config.time.weekday(wall(now)) }
+    private func day(_ now: Int64) -> String { config.time.day(wall(now)) }
+
     func takeOrder() -> Int {
         nextOrder += 1
         return nextOrder
@@ -499,10 +505,10 @@ public final class Core {
 
     /// The first activity of a new day: short-term memory starts fresh.
     func startDayIfNew(_ now: Int64, _ fx: inout [CoreEffect]) {
-        let today = config.time.day(wall(now))
+        let today = day(now)
         guard today != lastActiveDay else { return }
         lastActiveDay = today
-        fx.append(.newDay(date: today, firstSeen: config.time.clock(wall(now))))
+        fx.append(.newDay(date: today, firstSeen: clock(now)))
     }
 
     func startListening(by talker: Talker, _ now: Int64, _ fx: inout [CoreEffect]) {
@@ -537,7 +543,7 @@ public final class Core {
         let cheer = config.mode.cheers(Input.Length(ms: ms)) && !talking(now)
         if cheer { play("cheer", &fx) }
         if ms >= 30_000 {
-            fx.append(.happened("\(config.time.clock(wall(now))) \(s.agent.short) · \(s.project) · finished (\(Input.took(ms)))"))
+            fx.append(.happened("\(clock(now)) \(s.agent.short) · \(s.project) · finished (\(Input.took(ms)))"))
         }
         agentInput(.agentFinished, s, outcome: .done, tookMs: ms, rules: cheer ? "cheer" : nil,
                    rank: Input.Length(ms: ms) == .short ? 2 : 3, now, &fx)
@@ -566,20 +572,19 @@ public final class Core {
             return
         }
         pokedAt = now
-        fx.append(.input(Input(.poked, clock: config.time.clock(wall(now)), weekday: config.time.weekday(wall(now)),
-                               rules: "wiggle", ts: now)))
+        fx.append(.input(Input(.poked, clock: clock(now), weekday: weekday(now), rules: "wiggle", ts: now)))
     }
 
     /// A failed turn: no moment of its own; the session just goes idle
     /// (BEHAVIORS.md §3.1). The brain still hears of it.
     func failed(_ s: Session, durationMs ms: Int64, error: String?, _ now: Int64, _ fx: inout [CoreEffect]) {
         let topic = s.topic.map { " · \($0)" } ?? ""
-        fx.append(.happened("\(config.time.clock(wall(now))) \(s.agent.short) · \(s.project)\(topic) · failed"))
+        fx.append(.happened("\(clock(now)) \(s.agent.short) · \(s.project)\(topic) · failed"))
         agentInput(.agentFinished, s, outcome: .failed, tookMs: ms, error: error, rules: nil, rank: 4, now, &fx)
     }
 
     func timeLine(_ now: Int64) -> String {
-        "\(config.time.clock(wall(now))) \(config.time.weekday(wall(now)))"
+        "\(clock(now)) \(weekday(now))"
     }
 
     /// "claude needs you · jetpack · 14:07 Tuesday", for the brain's transcript.
@@ -591,8 +596,7 @@ public final class Core {
                     error: String? = nil, rules: String?, rank: Int, _ now: Int64, _ fx: inout [CoreEffect]) {
         let input = Input(kind, agent: s.agent.short, project: s.project, outcome: outcome,
                           topic: kind == .agentFinished ? s.topic : nil, tookMs: tookMs, error: error,
-                          clock: config.time.clock(wall(now)), weekday: config.time.weekday(wall(now)), rules: rules,
-                          ts: now)
+                          clock: clock(now), weekday: weekday(now), rules: rules, ts: now)
         offer(input, rank: rank, now, &fx)
     }
 

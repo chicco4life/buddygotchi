@@ -150,13 +150,13 @@ public struct Input: Equatable, Sendable {
     /// Your words asked Boop to be quiet: they have "quiet" in them, as a
     /// whole word ("be quiet"), and neither ask it to remember something
     /// ("remember I like it quiet") nor to stop being quiet.
-    public var asksForQuiet: Bool {
+    var asksForQuiet: Bool {
         kind == .said && Input.plain(words ?? "").contains(" quiet ") && !asksToRemember && !endsQuiet
     }
 
     /// Your words asked Boop to stop being quiet ("you can talk again"),
     /// and don't ask it to remember something.
-    public var endsQuiet: Bool {
+    var endsQuiet: Bool {
         kind == .said && Input.endingQuiet.contains(where: Input.plain(words ?? "").contains) && !asksToRemember
     }
 
@@ -190,9 +190,10 @@ public struct Input: Equatable, Sendable {
 
     /// Lowercase words between single spaces, padded, so a phrase matches
     /// whole words only: " hi there ". Curly apostrophes are straight ones:
-    /// "I’d rather" is " i'd rather ".
-    public static func plain(_ words: String) -> String {
-        let letters = straight(words).lowercased().map { $0.isLetter || $0.isNumber || $0 == "'" ? $0 : " " }
+    /// "I’d rather" is " i'd rather ". Anything but letters, digits and
+    /// `keeping` splits words.
+    public static func plain(_ words: String, keeping: String = "'") -> String {
+        let letters = straight(words).lowercased().map { $0.isLetter || $0.isNumber || keeping.contains($0) ? $0 : " " }
         return " " + String(letters).split(separator: " ").joined(separator: " ") + " "
     }
 

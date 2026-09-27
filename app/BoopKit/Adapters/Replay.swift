@@ -59,7 +59,7 @@ public struct Replay {
         func emit(_ effects: [CoreEffect]) {
             for effect in effects {
                 if statesOnly, case .state = effect {} else if statesOnly { continue }
-                out.append("+" + String(format: "%.1f", Double(now - start) / 1000) + "s " + Replay.describe(effect))
+                out.append("+" + String(format: "%.1f", Double(now - start) / 1000) + "s " + effect.summary)
             }
         }
         func advance(_ ms: Int64) {
@@ -90,19 +90,5 @@ public struct Replay {
             }
         }
         return out
-    }
-
-    public static func describe(_ effect: CoreEffect) -> String {
-        switch effect {
-        case .state(let s): "state " + s.jsonLine
-        case .moment(let anim): "moment \(anim)"
-        case .mumble(let feeling, let word): "mumble \(feeling)" + (word.map { " \($0)" } ?? "")
-        case .input(let i): "input " + i.line + (i.words.map { " \"\($0)\"" } ?? "")
-        case .aside(let line): "aside " + line
-        case .happened(let line): "happened \(line)"
-        case .newDay(let date, let firstSeen): "new-day \(date) first seen \(firstSeen)"
-        case .listen(let on): "listen \(on)"
-        case .endListening: "moment empty"
-        }
     }
 }
