@@ -15,12 +15,12 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageStat
 
+from boopctl_lib.common import REPO
 from boopctl_lib.device import Device, DeviceError
 
-REPO = Path(__file__).resolve().parents[3]
 WEBCAM = REPO / "internal" / "tools" / "webcam" / "webcam.sh"
 BUILT_IN = "6C707041-05AC-0010-000D-000000000001"  # the MacBook Air's own camera
-# `boopctl cam --camera ID` (or `e2e --clip --camera ID`) sets this.
+# The camera when `--camera ID` doesn't pick one.
 CAMERA = os.environ.get("BOOP_CAMERA") or BUILT_IN
 WORK = Path("/tmp/boop-cam")
 CROP = WORK / "crop.json"
@@ -32,14 +32,14 @@ def cameras() -> str:
     return (listed.stdout + listed.stderr).strip()
 
 
-def record_failed(stderr: str) -> DeviceError:
+def record_failed(stderr: str, camera: str) -> DeviceError:
     why = stderr.strip()[-400:]
     if "Camera not found" in stderr:
-        why += f"\nno camera {CAMERA}; pass --camera ID (or set BOOP_CAMERA) with one of:\n{cameras()}"
+        why += f"\nno camera {camera}; pass --camera ID (or set BOOP_CAMERA) with one of:\n{cameras()}"
     return DeviceError(f"recording failed: {why}")
 
 
-def still(name: str, seconds: float = 3.0, at: float = 1.0) -> Image.Image:
+def still(name: str, camera: str, seconds: float = 3.0, at: float = 1.0) -> Image.Image:
     """Records a short clip and returns one full-resolution frame from it.
 
     The camera takes about a second to start, so a 3 s request yields about
@@ -48,10 +48,10 @@ def still(name: str, seconds: float = 3.0, at: float = 1.0) -> Image.Image:
     clip, frames = WORK / f"{name}-clip", WORK / f"{name}-frames"
     for d in (clip, frames):
         shutil.rmtree(d, ignore_errors=True)
-    run = [str(WEBCAM), "record", "--camera", CAMERA, "--seconds", str(int(seconds)), "--out", str(clip)]
+    run = [str(WEBCAM), "record", "--camera", camera, "--seconds", str(int(seconds)), "--out", str(clip)]
     recorded = subprocess.run(run, capture_output=True, text=True, timeout=60)
     if recorded.returncode:
-        raise record_failed(recorded.stderr + recorded.stdout)
+        raise record_failed(recorded.stderr + recorded.stdout, camera)
     subprocess.run(
         [str(WEBCAM), "analyze", "--input", str(clip / "capture.mov"), "--out", str(frames),
          "--start", str(at), "--seconds", "0.1"],
@@ -100,14 +100,14 @@ def upright(img: Image.Image, box: tuple[int, int, int, int], usb: str) -> Image
     return crop.resize(SCREEN)
 
 
-def frame(dev: Device, usb: str) -> dict:
+def frame(dev: Device, usb: str, camera: str) -> dict:
     WORK.mkdir(parents=True, exist_ok=True)
     dev.request({"t": "dbg.pattern", "fill": 1})  # solid white
     dev.request({"t": "dbg.light", "bl": 255})
-    lit = still("lit")
+    lit = still("lit", camera)
     dev.request({"t": "dbg.light", "bl": 0})
     try:
-        dark = still("dark")
+        dark = still("dark", camera)
     finally:
         dev.request({"t": "dbg.light", "bl": 255})
         dev.request({"t": "dbg.pattern"})
@@ -117,7 +117,7 @@ def frame(dev: Device, usb: str) -> dict:
     if box is None:
         return {"ok": False, "reason": "no screen found; skip L3 for this run"}
     x0, y0, x1, y1 = box
-    info = {"ok": True, "box": list(box), "usb": usb, "camera_size": list(lit.size), "at": time.time()}
+    info = {"ok": True, "box": list(box), "usb": usb}
     CROP.write_text(json.dumps(info))
     upright(lit, box, usb).save(WORK / "frame.png")
     info["crop_png"] = str(WORK / "frame.png")
@@ -173,11 +173,11 @@ def judge(colors: dict[str, tuple[float, float, float]]) -> list[str]:
     return problems
 
 
-def pattern(dev: Device) -> dict:
+def pattern(dev: Device, camera: str) -> dict:
     crop = load_crop()
     dev.request({"t": "dbg.pattern"})
     dev.request({"t": "dbg.light", "bl": 255})
-    img = upright(still("pattern"), tuple(crop["box"]), crop["usb"])
+    img = upright(still("pattern", camera), tuple(crop["box"]), crop["usb"])
     img.save(WORK / "pattern.png")
     colors = {name: mean(img, *rect) for name, rect in BLOCKS.items()}
     colors["arrow"] = mean(img, *ARROW)
@@ -199,16 +199,18 @@ _ATTN = {**_WORKING, "attn": {"agent": "codex", "project": "landing", "more": 0}
 CLIPS = {
     "idle": [(0.0, {"t": "state", "v": 1, "base": "idle", "idle": 1})],
     "needs_you": [(0.0, _WORKING), (2.0, _ATTN), (5.0, _ATTN)],
-    # A cheer, then the brain's mumble on its own over the working face.
+    # A cheer, then the brain's mumble on its own over the working face
+    # (the mumble is PROTOCOL.md §3's example).
     "cheer": [(0.0, _WORKING), (1.5, {"t": "moment", "anim": "cheer", "ttl": 5}),
-              (4.0, {"t": "moment", "ttl": 5, "say": {"syl": "bi do ba na", "word": "done!", "at": 4, "ms": 120}}),
+              (4.0, {"t": "moment", "ttl": 5,
+                     "say": {"syl": "bi-do ba-na", "word": "done", "at": 4, "tune": "up", "ms": 120}}),
               (5.0, _WORKING)],
     "tap": [(0.0, {"t": "state", "v": 1, "base": "idle", "idle": 1}), (1.0, {"t": "dbg.press", "ms": 100}),
             (3.0, {"t": "dbg.touch", "x": 160, "y": 100, "ms": 100}), (5.0, {"t": "dbg.press", "ms": 100})],
 }
 
 
-def clip(dev: Device, name: str, seconds: int = 8, frames: int = 18, play=None) -> dict:
+def clip(dev: Device, name: str, camera: str, seconds: int = 8, frames: int = 18, play=None) -> dict:
     """Records a bounded clip while the steps play, then saves a contact sheet
     of upright, cropped frames. The raw video is deleted straight away.
 
@@ -227,7 +229,7 @@ def clip(dev: Device, name: str, seconds: int = 8, frames: int = 18, play=None) 
     dev.request({"t": "dbg.light", "bl": 255})
     if play is None:
         dev.send({"t": "state", "v": 1, "base": "idle"})
-    run = [str(WEBCAM), "record", "--camera", CAMERA, "--seconds", str(seconds), "--out", str(out)]
+    run = [str(WEBCAM), "record", "--camera", camera, "--seconds", str(seconds), "--out", str(out)]
     rec = subprocess.Popen(run, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
     time.sleep(1.0)  # the camera takes about a second to start
     start = time.monotonic()
@@ -237,7 +239,7 @@ def clip(dev: Device, name: str, seconds: int = 8, frames: int = 18, play=None) 
         time.sleep(max(0.0, at - (time.monotonic() - start)))
         dev.send(message)
     if rec.wait(timeout=60) != 0:
-        raise record_failed(rec.stderr.read())
+        raise record_failed(rec.stderr.read(), camera)
     movie = out / "capture.mov"
     shots = []
     try:

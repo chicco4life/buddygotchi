@@ -2,16 +2,15 @@
 
 Revision 1 · 2026-09-27 · Awaiting design approval
 
-This pass contains **one base design for each of the 49 mood–state pairings**. It does not create the additional variations in the expression catalog.
+This pass contains **one base design for each of the 42 mood–state pairings**. It does not create the additional variations in the expression catalog.
 
 ## Contents
 
-- `svg/`: 49 standalone animated SVGs, named `mood--state.svg`.
+- `svg/`: 42 standalone animated SVGs, named `mood--state.svg`.
 - `manifest.json`: complete mood/state-to-file mapping and approval status.
 - `source/design-system.mjs`: reusable drawing source, exporting `renderSVG(mood, state)`.
-- `qa/`: browser verification and review captures, not production assets.
 
-There are **37 distinct visual designs**. The five expressive states have a separate design for each of the seven moods. Asleep and no-app deliberately ignore mood and each reuse a single design across seven filenames.
+There are **30 distinct visual designs**. The four expressive states have a separate design for each of the seven moods. Asleep and no-app deliberately ignore mood and each reuse a single design across seven filenames.
 
 ## Visual language
 
@@ -22,7 +21,7 @@ There are **37 distinct visual designs**. The five expressive states have a sepa
 - Working uses a keyboard with mood-specific rhythms. Grumpy has one compact keycap bounce; sad keeps typing through small tears.
 - Needs-you uses one amber request symbol. Task-complete uses a neutral result card and tray, not a success checkmark.
 - Requests slightly open the eyes toward the user. Completion softens the determined face and lets a small smile escape the grumpy face; sad completion retains tears with a relieved smile.
-- Listening uses a steady blue bracket-and-dot cue, with no fake audio waveform. All previews are silent.
+- All previews are silent.
 - Asleep has closed eyes and a slow breath. No-app has a persistent broken-link cue and relaxed low eyes.
 
 ## Animation and editing

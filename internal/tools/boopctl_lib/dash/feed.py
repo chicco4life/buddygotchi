@@ -189,7 +189,7 @@ def sections(state: str) -> list[tuple[str, int]]:
 
 def state_text(s: Line) -> str:
     attn = s.get("attn")
-    return (f"{s.get('base')} {s.get('mood')} · busy {s.get('busy')} idle {s.get('idle')} wait {s.get('wait')}"
+    return (f"{s.get('base')} {s.get('mood')} · busy {s.get('busy', 0)} idle {s.get('idle', 0)} wait {s.get('wait', 0)}"
             + (f" · needs you: {attn['agent']} {attn['project']}" if attn else "") + f" · vol {s.get('vol')}")
 
 

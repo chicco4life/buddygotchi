@@ -21,7 +21,6 @@
     "working",
     "needs_you",
     "task_complete",
-    "listening",
     "asleep",
     "no_app"
   ],
@@ -29,8 +28,8 @@
     "mood",
     "state"
   ],
-  "pair_count": 49,
-  "unique_visual_designs": 37,
+  "pair_count": 42,
+  "unique_visual_designs": 30,
   "shared_states": [
     "asleep",
     "no_app"
@@ -67,14 +66,6 @@
       "state": "task_complete",
       "file": "svg/happy--task_complete.svg",
       "visual_design_id": "happy.task_complete",
-      "voice": "silent",
-      "approval": "pending"
-    },
-    {
-      "mood": "happy",
-      "state": "listening",
-      "file": "svg/happy--listening.svg",
-      "visual_design_id": "happy.listening",
       "voice": "silent",
       "approval": "pending"
     },
@@ -128,14 +119,6 @@
     },
     {
       "mood": "excited",
-      "state": "listening",
-      "file": "svg/excited--listening.svg",
-      "visual_design_id": "excited.listening",
-      "voice": "silent",
-      "approval": "pending"
-    },
-    {
-      "mood": "excited",
       "state": "asleep",
       "file": "svg/excited--asleep.svg",
       "visual_design_id": "shared.asleep",
@@ -179,14 +162,6 @@
       "state": "task_complete",
       "file": "svg/proud--task_complete.svg",
       "visual_design_id": "proud.task_complete",
-      "voice": "silent",
-      "approval": "pending"
-    },
-    {
-      "mood": "proud",
-      "state": "listening",
-      "file": "svg/proud--listening.svg",
-      "visual_design_id": "proud.listening",
       "voice": "silent",
       "approval": "pending"
     },
@@ -240,14 +215,6 @@
     },
     {
       "mood": "curious",
-      "state": "listening",
-      "file": "svg/curious--listening.svg",
-      "visual_design_id": "curious.listening",
-      "voice": "silent",
-      "approval": "pending"
-    },
-    {
-      "mood": "curious",
       "state": "asleep",
       "file": "svg/curious--asleep.svg",
       "visual_design_id": "shared.asleep",
@@ -291,14 +258,6 @@
       "state": "task_complete",
       "file": "svg/determined--task_complete.svg",
       "visual_design_id": "determined.task_complete",
-      "voice": "silent",
-      "approval": "pending"
-    },
-    {
-      "mood": "determined",
-      "state": "listening",
-      "file": "svg/determined--listening.svg",
-      "visual_design_id": "determined.listening",
       "voice": "silent",
       "approval": "pending"
     },
@@ -352,14 +311,6 @@
     },
     {
       "mood": "grumpy",
-      "state": "listening",
-      "file": "svg/grumpy--listening.svg",
-      "visual_design_id": "grumpy.listening",
-      "voice": "silent",
-      "approval": "pending"
-    },
-    {
-      "mood": "grumpy",
       "state": "asleep",
       "file": "svg/grumpy--asleep.svg",
       "visual_design_id": "shared.asleep",
@@ -403,14 +354,6 @@
       "state": "task_complete",
       "file": "svg/sad--task_complete.svg",
       "visual_design_id": "sad.task_complete",
-      "voice": "silent",
-      "approval": "pending"
-    },
-    {
-      "mood": "sad",
-      "state": "listening",
-      "file": "svg/sad--listening.svg",
-      "visual_design_id": "sad.listening",
       "voice": "silent",
       "approval": "pending"
     },

@@ -21,7 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from PIL import Image  # noqa: E402
 from rich.console import Console  # noqa: E402
 
-from boopctl_lib.cli import REPO  # noqa: E402
+from boopctl_lib.common import REPO, send_line  # noqa: E402
 from boopctl_lib.dash import controls  # noqa: E402
 from boopctl_lib.dash.app import PREVIEW_RESEND_S, Dash, StateView  # noqa: E402
 from boopctl_lib.dash.face import CROP, SCALE, WHOLE, blocks, render  # noqa: E402
@@ -265,9 +265,9 @@ class ControlsTests(unittest.TestCase):
 
     def test_send(self):
         with Socket() as server:
-            self.assertIsNone(controls.send(server.path, {"dev": "mood", "mood": "grumpy"}))
+            self.assertIsNone(send_line(server.path, {"dev": "mood", "mood": "grumpy"}))
             self.assertEqual(server.wait(1), [{"dev": "mood", "mood": "grumpy"}])
-        self.assertIn("can't reach Boop's socket", controls.send(server.path, {"dev": "mood", "mood": "grumpy"}))
+        self.assertIn("can't reach Boop's socket", send_line(server.path, {"dev": "mood", "mood": "grumpy"}))
 
 
 class Socket:

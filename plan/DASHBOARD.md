@@ -63,9 +63,9 @@ Top to bottom:
      most likely first, in the order the questions were asked.
    - **RAN:** each action's result, `✓` or `✗`, and its message.
 3. **Timeline.** Every line of `debug.jsonl` as one row with its time,
-   following the latest. A device `state` resent unchanged apart from its
-   `time` (the 10 s keepalive, [PROTOCOL.md](PROTOCOL.md) §3) is hidden,
-   and a `status` row shows only what changed.
+   following the latest. A device `state` resent unchanged (the 10 s
+   keepalive, [PROTOCOL.md](PROTOCOL.md) §3) is hidden, and a `status` row
+   shows only what changed.
 
 Screen text, the bubble's word and the needs-you card, can't be read at
 the face's scale, so it's in the facts instead.
@@ -161,8 +161,9 @@ band, so only `z` shows it.
 | --- | --- | --- |
 | Feed | `internal/tools/boopctl_lib/dash/feed.py` | Follows `debug.jsonl`, notices restarts, and keeps what the panes show |
 | Face | `internal/tools/boopctl_lib/dash/face.py` | The sim's thread, the 1/3 downsampling and the half blocks |
-| Controls | `internal/tools/boopctl_lib/dash/controls.py` | The dev lines, the socket, confirming, and Preview's lines |
+| Controls | `internal/tools/boopctl_lib/dash/controls.py` | The dev lines, confirming, and Preview's lines |
 | App | `internal/tools/boopctl_lib/dash/app.py` | The Textual app: panes, pickers and keys |
+| Shared | `internal/tools/boopctl_lib/common.py` | What the dashboard shares with the rest of `boopctl`: the animations, the Mac's Voice lines through `boopdev voice`, and writing a line to the app's socket |
 | The app's side | `app/BoopKit/App/Runtime.swift`, `app/BoopKit/Harness/Harness.swift`, `app/BoopKit/Harness/DebugLog.swift` | The dev lines, the forced pass, and the `questions`, `sent` and `status` lines ([harness/HARNESS.md](harness/HARNESS.md) §9) |
 
 ## 7. Checks

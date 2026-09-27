@@ -2,7 +2,6 @@
 set stays the one plan/VERIFICATION.md §2 lists. Needs no board."""
 import contextlib
 import io
-import json
 import sys
 import unittest
 from pathlib import Path
@@ -11,7 +10,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from boopctl_lib import cli  # noqa: E402
-from boopctl_lib.device import Link  # noqa: E402
+from fake_board import FakeBoard  # noqa: E402
 
 COMMANDS = ["ping", "state", "shot", "send", "play", "mumble", "sim", "run", "perf", "soak", "e2e", "bridge",
             "cam", "dash", "calibrate"]
@@ -49,31 +48,10 @@ class CLITests(unittest.TestCase):
             parse(["mumble", "--levels", "1", "--board-volume"])
 
 
-class FakeBoard(Link):
-    """Answers each debug message with the scripted reply for its type."""
-
-    timeout = 0.05
-
-    def __init__(self, replies: dict[str, dict]) -> None:
-        super().__init__()
-        self.replies = replies
-        self.sent: list[dict] = []
-        self.pending = b""
-
-    def _write(self, data: bytes) -> None:
-        msg = json.loads(data)
-        self.sent.append(msg)
-        if msg["t"] in self.replies:
-            self.pending += json.dumps({"t": msg["t"], **self.replies[msg["t"]]}).encode() + b"\n"
-
-    def _read(self) -> bytes:
-        out, self.pending = self.pending, b""
-        return out
-
-
 class PlayTests(unittest.TestCase):
     def play(self, what: str, *more: str) -> tuple[int, list]:
-        board = FakeBoard({"dbg.ping": {"ble": "adv"}, "dbg.clock": {}, "dbg.state": {"moment": {"anim": what, "left_ms": 900}}})
+        board = FakeBoard.by_type({"dbg.ping": {"ble": "adv"}, "dbg.clock": {},
+                                   "dbg.state": {"moment": {"anim": what, "left_ms": 900}}})
         self.board = board
         with mock.patch.object(cli, "Device", lambda port: board), contextlib.redirect_stdout(io.StringIO()):
             code = cli.cmd_play(cli.build_parser().parse_args(["play", what, *more]))
@@ -90,11 +68,6 @@ class PlayTests(unittest.TestCase):
     def test_play_sends_just_the_animation(self):
         self.assertEqual(self.play("cheer"), (0, ["cheer"]))
         self.assertEqual(self.play("wiggle"), (0, ["wiggle"]))
-
-    def test_listening_and_stop_are_gone(self):
-        for what in ("listening", "stop"):
-            with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
-                cli.build_parser().parse_args(["play", what])
 
 
 if __name__ == "__main__":

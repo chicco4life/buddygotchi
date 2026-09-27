@@ -14,16 +14,6 @@ POLL_S = 0.03
 TAP_TIMEOUT_S = 60.0
 
 
-def screen_size(dev: Device) -> tuple[int, int]:
-    """The screen as the board draws it, from dbg.ping (320×240 in landscape).
-    Older firmware doesn't report it there, so fall back to a screenshot's header."""
-    ping = dev.request({"t": "dbg.ping"})
-    if "w" in ping and "h" in ping:
-        return int(ping["w"]), int(ping["h"])
-    _, _, size = dev.shot()
-    return size
-
-
 def targets(w: int, h: int) -> tuple[list[tuple[int, int]], tuple[int, int]]:
     """The 4 crosses near the corners, and the check cross in the middle."""
     corners = [(INSET, INSET), (w - INSET, INSET), (INSET, h - INSET), (w - INSET, h - INSET)]
@@ -93,7 +83,8 @@ def run(port: str | None) -> dict[str, Any]:
     raw: list[tuple[float, float]] = []
     with Device(port) as dev:
         try:
-            w, h = screen_size(dev)
+            ping = dev.request({"t": "dbg.ping"})
+            w, h = ping["w"], ping["h"]  # the screen as the board draws it, 320×240 in landscape
             corners, check = targets(w, h)
             for i, (x, y) in enumerate(corners, 1):
                 dev.request({"t": "dbg.pattern", "target": [x, y]})

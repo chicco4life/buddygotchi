@@ -18,7 +18,7 @@ from textual.message import Message
 from textual.screen import ModalScreen
 from textual.widgets import Footer, Label, OptionList, RichLog, Static
 
-from boopctl_lib.cli import ANIMS
+from boopctl_lib.common import ANIMS, send_line
 from boopctl_lib.dash import controls
 from boopctl_lib.device import DeviceError
 from boopctl_lib.dash.feed import Board, Follower, clock, kind
@@ -211,7 +211,7 @@ class Dash(App[None]):
     # The keys.
 
     def command(self, line: dict[str, Any]) -> None:
-        if why := controls.send(self.socket_path, line):
+        if why := send_line(self.socket_path, line):
             self.notify(why, severity="error")
         else:
             self.pending.add(line)

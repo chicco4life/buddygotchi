@@ -223,7 +223,7 @@ def write_wav(path: Path, data: bytes) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--out", type=Path, default=OUT)
+    ap.add_argument("--out", type=Path, default=OUT, help="the header to write (default: firmware/assets/voice.h)")
     ap.add_argument("--wav-dir", type=Path, help="also write every clip as a WAV here")
     args = ap.parse_args()
 

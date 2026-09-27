@@ -1,16 +1,14 @@
 """What the dashboard's keys send (plan/DASHBOARD.md §4): `{"dev":…}` lines
-on the app's hook socket, built from the `questions` line, and Preview's own
-lines for its sim. The socket never replies, so a command counts as landed
-when its entry shows up in debug.jsonl."""
+for the app's hook socket (common.send_line), built from the `questions`
+line, and Preview's own lines for its sim. The socket never replies, so a
+command counts as landed when its entry shows up in debug.jsonl."""
 from __future__ import annotations
 
-import json
 import random
-import socket
 import time
 from typing import Any, Callable
 
-from boopctl_lib.cli import boopdev_voice
+from boopctl_lib.common import boopdev_voice
 from boopctl_lib.dash.feed import Line, kind
 
 CONFIRM_S = 2.0
@@ -25,18 +23,6 @@ def options(question: Line) -> list[str]:
 def asked_by(questions: list[Line], action: str) -> list[Line]:
     """An action's questions, in the order it asks them."""
     return [q for q in questions if q["action"] == action]
-
-
-def send(path: str, line: Line) -> str | None:
-    """Writes one line to the app's socket; the problem, if it can't."""
-    try:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-            s.settimeout(1)
-            s.connect(path)
-            s.sendall(json.dumps(line, separators=(",", ":")).encode() + b"\n")
-    except OSError as exc:
-        return f"can't reach Boop's socket {path}: {exc.strerror or exc}"
-    return None
 
 
 def confirms(line: Line) -> Callable[[Line], bool]:

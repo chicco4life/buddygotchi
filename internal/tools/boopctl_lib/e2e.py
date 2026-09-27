@@ -20,17 +20,16 @@ import os
 import re
 import shutil
 import signal
-import socket
 import subprocess
 import time
 from pathlib import Path
 from typing import Any
 
+from boopctl_lib.common import REPO, restarted, send_line, syllables
 from boopctl_lib.device import Device, DeviceError
 from boopctl_lib.image import save_shot
 from boopctl_lib.scenario import matches
 
-REPO = Path(__file__).resolve().parents[3]
 BIN = REPO / ".build" / "debug"
 FIXTURES = REPO / "internal" / "app" / "Tests" / "Fixtures" / "hooks" / "e2e"
 RUN_ORDER = ["claude/session.jsonl", "codex/quick.jsonl", "codex/slow.jsonl"]
@@ -143,9 +142,8 @@ class Run:
                  (f"state on the device after {latency:.0f} ms" if latency is not None else "no new state"))
 
     def advance(self, ms: int) -> None:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-            s.connect(self.hook_sock)
-            s.sendall(json.dumps({"dev": "advance", "ms": ms}).encode() + b"\n")
+        if why := send_line(self.hook_sock, {"dev": "advance", "ms": ms}):
+            raise DeviceError(why)
         time.sleep(0.3)
         self.say(f"  app clock +{ms / 1000:.0f} s")
 
@@ -229,9 +227,8 @@ def play_ms(moment: dict[str, Any]) -> int:
     the face for just its own length."""
     ms = ANIM_MS.get(moment.get("anim") or "", 0)
     say = moment.get("say") or {}
-    syllables = len([s for s in re.split(r"[ -]+", say.get("syl", "")) if s])
-    if syllables > 0:
-        beats = syllables + (2 if say.get("word") else 0)
+    if n := syllables(say):
+        beats = n + (2 if say.get("word") else 0)
         ms = max(ms, beats * max(60, min(400, say.get("ms", 120))) + 1200)
     return ms
 
@@ -264,8 +261,7 @@ def check_order(run: Run) -> dict[str, Any]:
                 reaction = (t, last_hook)
             line = json.loads(text[len("link rules → "):])
             if line.get("t") == "moment":
-                # Chatter is a mumble on its own; with no `say` either, the stop.
-                anim = line.get("anim") or ("mumble" if line.get("say") else "stop")
+                anim = line.get("anim") or "mumble"  # chatter: a mumble on its own
                 rule_moment = (t, anim, t + play_ms(line))
                 if t < brain_ends:
                     cut.append(f"{raw[:12]} {anim} after {last_hook}")
@@ -297,7 +293,8 @@ def check_order(run: Run) -> dict[str, Any]:
     return {"brain_moments": len(answers), "early": len(bad), "replaced_by_rules": cut, "answers": answers}
 
 
-def main(out: Path, brain: str, port: str | None, fixtures: list[str] | None, clip: bool = False) -> int:
+def main(out: Path, brain: str, port: str | None, fixtures: list[str] | None, clip: bool = False,
+         camera: str | None = None) -> int:
     root = Path("/tmp/boop-e2e")
     run = Run(root, out, brain, port)
     expected = json.loads((FIXTURES / "expect.json").read_text())
@@ -306,14 +303,15 @@ def main(out: Path, brain: str, port: str | None, fixtures: list[str] | None, cl
     try:
         run.start()
         os.environ["BOOP_BRIDGE"] = run.bridge_sock
-        with Device(timeout=3.0) as dev:
+        with Device() as dev:
             if clip:
                 # L3: a short Claude session through the whole pipeline, on
                 # camera (VERIFICATION.md §6: authorised runs only).
                 from boopctl_lib import cam
 
                 session = FIXTURES / "claude" / "clip.jsonl"
-                result = cam.clip(dev, "e2e-session", seconds=10, frames=24, play=lambda: run.fixture(dev, session))
+                result = cam.clip(dev, "e2e-session", camera or cam.CAMERA, seconds=10, frames=24,
+                                  play=lambda: run.fixture(dev, session))
                 shutil.copy(result["sheet"], out / "clip-e2e-session.png")
                 run.say(f"clip {out / 'clip-e2e-session.png'}")
             for path in paths:
@@ -375,7 +373,7 @@ def soak(out: Path, brain: str, port: str | None, minutes: float) -> int:
     try:
         run.start()
         os.environ["BOOP_BRIDGE"] = run.bridge_sock
-        with Device(timeout=3.0) as dev:
+        with Device() as dev:
             # A lost reply or short shot (Link.retries) is asked for again
             # once and the glitch counted; a second loss in a row still
             # fails the soak.
@@ -407,7 +405,6 @@ def soak(out: Path, brain: str, port: str | None, minutes: float) -> int:
     finally:
         run.stop()
 
-    ups = [s["up"] for s in samples]
     later = [s for s in samples if s["t"] >= 120] or samples[-1:]
     errors = [s["audio_errors"] or 0 for s in samples]
     rss = [s["app_rss_kb"] for s in samples if s["app_rss_kb"]]
@@ -416,7 +413,7 @@ def soak(out: Path, brain: str, port: str | None, minutes: float) -> int:
         "brain": brain, "minutes": round((time.monotonic() - t0) / 60, 1), "rounds": rounds,
         "hooks": len(run.hooks), "checkpoint_misses": misses, "link_glitches": glitches,
         "latency": {"p50": percentile(lat, 0.5), "p95": percentile(lat, 0.95), "n": len(lat)},
-        "reset": any(b <= a for a, b in zip(ups, ups[1:])),
+        "reset": restarted([s["up"] for s in samples]),
         "heap_min_after_2min": later[0]["heap_min"], "heap_min_end": samples[-1]["heap_min"] if samples else None,
         "heap_min_drift": later[0]["heap_min"] - samples[-1]["heap_min"] if samples else None,
         "audio_errors": max(errors, default=0) - min(errors, default=0),

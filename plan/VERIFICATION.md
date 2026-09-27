@@ -85,6 +85,8 @@ ones, run from the repo root as `make -C internal <target>`.
 | `boopdev hooks status\|install\|remove --home DIR` | The hook installer, against any HOME |
 | `internal/skills/doctor/doctor.sh` | Checks from inside an agent that its hooks reach Boop ([ADAPTERS.md](ADAPTERS.md) §6) |
 | `internal/tools/webcam/webcam.sh` | The camera recorder ([its README](../internal/tools/webcam/README.md)); `boopctl cam` wraps it |
+| `internal/tools/.venv/bin/python internal/tools/voicegen/voicegen.py` | Rebuilds the voice assets, `firmware/assets/voice.h`, with macOS `say` ([VOICE.md](VOICE.md) §8). `--out FILE` writes them elsewhere; `--wav-dir DIR` also writes every clip as a WAV, for listening |
+| `internal/tools/.venv/bin/python internal/tools/fontgen/fontgen.py` | Rebuilds the device's two fonts, `firmware/assets/fonts.h`, from Geist Mono ([DEVICE.md](DEVICE.md) §6). `--ttf-dir DIR` says where its `.ttf` files are, by default `landing/node_modules` after `npm ci` there |
 
 **Sharing the port.** Only one process can open the serial port, so
 `boopctl bridge` owns it and shares it on a Unix socket (`--socket`,
@@ -121,7 +123,7 @@ What `dbg.state` reports:
 | Field | Meaning |
 | --- | --- |
 | `screen` | `face`, `needs_you`, `no_app` (the no-app design) or `pattern` |
-| `base`, `mood`, `attn`, `vol` | From the last `state` ([PROTOCOL.md](PROTOCOL.md) §3); `mood` is `happy` when the state had none or one the device doesn't know, and `attn` is null unless something needs you |
+| `base`, `mood`, `attn`, `vol` | From the last `state` ([PROTOCOL.md](PROTOCOL.md) §3); `base` is `idle` and `mood` is `happy` when the state had none or one the device doesn't know, `vol` is after clamping to 0–10, and `attn` is null unless something needs you |
 | `moment` | `{"anim":…,"left_ms":…}` while an animation plays, otherwise null (a mumble on its own leaves it null) |
 | `life` | `blink` while Boop blinks, otherwise null |
 | `led`, `bl` | The LED's colour and the backlight level |
@@ -129,7 +131,7 @@ What `dbg.state` reports:
 | `sfx` | The last sound cue and when, such as `{"k":"chirp","at":27000}` ([BEHAVIORS.md](BEHAVIORS.md) §4), since tests can't hear |
 | `last_input` | The last gesture: `k` (`tap` or `touch`), `at`, and `x` and `y` for a touch |
 | `rx` | The `state` and `moment` messages received since boot; L4 times hooks by `rx.state` |
-| `clock`, `boot`, `touch`, `bat`, `amp` | Bring-up readings: the clock's `now` and `frozen`, BOOT's level, the touch panel's `down`, `irq` and `raw` (x, y, z), the battery in mV (0: the v1 board has none), and whether the amp is on |
+| `clock`, `boot`, `touch`, `amp` | Bring-up readings: the clock's `now` and `frozen`, BOOT's level, the touch panel's `down`, `irq` and `raw` (x, y, z), and whether the amp is on |
 
 The board handles every waiting line before it draws the next frame
 ([PROTOCOL.md](PROTOCOL.md) §2), so a burst can't overflow its 2 KB

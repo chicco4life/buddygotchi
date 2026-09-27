@@ -6,14 +6,14 @@ import json
 from pathlib import Path
 from typing import Any
 
+from boopctl_lib.common import REPO
 from boopctl_lib.device import Link
 from boopctl_lib.image import save_shot
 
-REPO = Path(__file__).resolve().parents[3]
 SCENARIOS = REPO / "internal" / "firmware" / "test" / "scenarios"
 GOLDEN = REPO / "internal" / "firmware" / "test" / "golden"
 
-PRESS_MS = {"tap": 100}
+TAP_MS = 100  # a tap's press or touch, unless the line gives "ms"
 
 
 def resolve(name: str) -> Path:
@@ -39,10 +39,10 @@ def matches(expected: Any, actual: Any) -> bool:
 
 def input_message(spec: dict[str, Any]) -> dict[str, Any]:
     if "press" in spec:
-        return {"t": "dbg.press", "ms": spec.get("ms", PRESS_MS[spec["press"]])}
+        return {"t": "dbg.press", "ms": spec.get("ms", TAP_MS)}
     if "touch" in spec:
         x, y = spec["touch"]
-        return {"t": "dbg.touch", "x": x, "y": y, "ms": spec.get("ms", PRESS_MS["tap"])}
+        return {"t": "dbg.touch", "x": x, "y": y, "ms": spec.get("ms", TAP_MS)}
     raise ValueError(f"unknown input {spec}")
 
 

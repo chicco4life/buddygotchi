@@ -23,7 +23,7 @@ from typing import Any, Callable
 import serial
 
 BAUD = 460800  # the CH340 on macOS can't do 921600 (plan/DEVICE.md §7)
-PORT_PATTERNS = ("/dev/cu.usbserial-*", "/dev/cu.wchusbserial*", "/dev/cu.SLAB_USBtoUART*")
+PORT_PATTERNS = ("/dev/cu.usbserial-*", "/dev/cu.wchusbserial*")
 
 
 class DeviceError(Exception):
@@ -203,9 +203,8 @@ class Device(Link):
     """A locked, open serial connection to the board, or, while
     `boopctl bridge` runs, a connection to the bridge's socket."""
 
-    def __init__(self, port: str | None = None, timeout: float = 3.0, direct: bool = False) -> None:
+    def __init__(self, port: str | None = None, direct: bool = False) -> None:
         super().__init__()
-        self.timeout = timeout
         self._ser: serial.Serial | None = None
         self._sock: socket.socket | None = None
         self._lock_fd: int | None = None

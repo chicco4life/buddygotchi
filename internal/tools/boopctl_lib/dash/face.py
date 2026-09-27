@@ -75,7 +75,6 @@ class SimFace:
         self.on_frame = on_frame
         self.on_error = on_error
         self.whole = False
-        self.last: tuple[list[int], bytes, tuple[int, int]] | None = None  # the latest screenshot, whole
         self.lines: queue.Queue[dict | None] = queue.Queue()
         self.thread = threading.Thread(target=self._run, daemon=True)
 
@@ -106,10 +105,10 @@ class SimFace:
                         if message is None:
                             return
                         sim.send(message)
-                    self.last = sim.shot()
-                    if (self.last, self.whole) != drawn:  # most frames don't move
-                        drawn = (self.last, self.whole)
-                        self.on_frame(render(self.last, self.whole))
+                    shot = sim.shot()
+                    if (shot, self.whole) != drawn:  # most frames don't move
+                        drawn = (shot, self.whole)
+                        self.on_frame(render(shot, self.whole))
                     time.sleep(max(0.0, 1 / FPS - (time.monotonic() - started)))
         except (DeviceError, OSError, ValueError) as exc:
             self.on_error(f"boop-sim stopped: {exc}")

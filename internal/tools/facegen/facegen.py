@@ -34,23 +34,25 @@ SVG_DIR = HERE / "design" / "svg"
 OUT = REPO / "firmware" / "assets" / "faces.h"
 FRAMES = REPO / "internal" / "firmware" / "test" / "test_scene" / "frames.h"
 SWIFT = REPO / "app" / "Boop" / "Views" / "FaceDesigns.swift"
-# The popover's tile shows these looks' faces (UX.md §7).
-TILE_STATES = ["idle", "working", "needs_you", "asleep"]
 CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 NS = "{http://www.w3.org/2000/svg}"
 W, H = 320, 240
 
-# The order of render::Mood and render::SceneState. `listening` has designs
-# but nothing on the device uses it since push-to-talk went, so it's left out.
+# The order of render::Mood and render::SceneState.
 MOODS = ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad"]
 STATES = ["idle", "working", "needs_you", "task_complete", "asleep", "no_app"]
+# The faces the popover's tile shows (UX.md §7), as mood and look. Asleep is
+# one design for every mood, and the tile reads happy's
+# (app/Boop/Views/BoopFace.swift).
+TILES = [(mood, state) for mood in MOODS
+         for state in ["idle", "working", "needs_you"] + (["asleep"] if mood == "happy" else [])]
 # The designs' colours, by what they're for; index 0 is the black field.
 COLORS = {"#000000": "black", "#F8F7EF": "ink", "#F1787D": "cheek", "#7BB4EF": "blue",
           "#F4BC50": "amber", "#68685E": "dim", "#A9A99B": "prop"}
-COLOR_NAMES = ["black", "ink", "cheek", "blue", "amber", "dim", "prop"]
+COLOR_NAMES = list(COLORS.values())
 # What the device does with a group (render::faces::Role).
 ROLES = ["none", "face", "mouth", "prop", "eyes_open", "eyes_closed"]
-PROPS = {"keyboard", "request-cue", "result-cue", "listening-cue", "disconnected-cue"}
+PROPS = {"keyboard", "request-cue", "result-cue", "disconnected-cue"}
 PROP_TOP = 144  # the band the props share with the bubble (render/screens.h kBubbleTop)
 BLINK_KEYS = [0.0, 0.76, 0.79, 1.0]
 # Moments the check and the frames sample, in ms; each scene skips those
@@ -73,9 +75,6 @@ class Track:
             return len(self.keys) - 1
         lt = t % self.dur
         return max(i for i, k in enumerate(self.keys) if k <= lt)
-
-    def steps(self) -> list[int]:
-        return self.keys[1:] + [self.dur]
 
 
 @dataclass
@@ -453,42 +452,40 @@ def emit_swift(scenes: list[Scene], index: dict[tuple[int, int], int]) -> str:
     faces: dict[str, tuple[str, str]] = {}
     boxes = []
     rects_of: dict[tuple[int, bool], list[tuple[int, int, int, int, int]]] = {}
-    for m, mood in enumerate(MOODS):
-        for state in TILE_STATES:
-            n = index[(m, STATES.index(state))]
-            for shut in (False, True):
-                if (n, shut) in rects_of:
-                    continue
-                px = render(scenes[n], 0, face_only=True, shut=shut)
-                out = []
-                for color in range(1, len(COLOR_NAMES)):
-                    rows = []
-                    for y in range(H):
-                        run, start = [], None
-                        for x in range(W + 1):
-                            on = x < W and px[y * W + x] == color
-                            if on and start is None:
-                                start = x
-                            if not on and start is not None:
-                                run.append((start, x))
-                                start = None
-                        rows.append(run)
-                    out += [(x, y, w, h, color) for x, y, w, h in merge_runs(rows, 0)]
-                rects_of[(n, shut)] = out
-                boxes += out
+    for mood, state in TILES:
+        n = index[(MOODS.index(mood), STATES.index(state))]
+        for shut in (False, True):
+            if (n, shut) in rects_of:
+                continue
+            px = render(scenes[n], 0, face_only=True, shut=shut)
+            out = []
+            for color in range(1, len(COLOR_NAMES)):
+                rows = []
+                for y in range(H):
+                    run, start = [], None
+                    for x in range(W + 1):
+                        on = x < W and px[y * W + x] == color
+                        if on and start is None:
+                            start = x
+                        if not on and start is not None:
+                            run.append((start, x))
+                            start = None
+                    rows.append(run)
+                out += [(x, y, w, h, color) for x, y, w, h in merge_runs(rows, 0)]
+            rects_of[(n, shut)] = out
+            boxes += out
     x0 = min(r[0] for r in boxes)
     y0 = min(r[1] for r in boxes)
     x1 = max(r[0] + r[2] for r in boxes)
     y1 = max(r[1] + r[3] for r in boxes)
     assert x1 - x0 < 256 and y1 - y0 < 256
-    for m, mood in enumerate(MOODS):
-        for state in TILE_STATES:
-            n = index[(m, STATES.index(state))]
-            enc = []
-            for shut in (False, True):
-                data = bytes(v for x, y, w, h, c in rects_of[(n, shut)] for v in (x - x0, y - y0, w, h, c))
-                enc.append(base64.b64encode(data).decode())
-            faces[f"{mood}/{state}"] = (enc[0], enc[1])
+    for mood, state in TILES:
+        n = index[(MOODS.index(mood), STATES.index(state))]
+        enc = []
+        for shut in (False, True):
+            data = bytes(v for x, y, w, h, c in rects_of[(n, shut)] for v in (x - x0, y - y0, w, h, c))
+            enc.append(base64.b64encode(data).decode())
+        faces[f"{mood}/{state}"] = (enc[0], enc[1])
     lines = [
         "// Generated by internal/tools/facegen/facegen.py from the mood designs in",
         "// internal/tools/facegen/design/svg/. Do not edit.",

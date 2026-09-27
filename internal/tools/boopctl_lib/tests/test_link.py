@@ -1,33 +1,13 @@
 """boopctl's Link on a scripted fake board: a debug request whose reply is
 lost is asked for again when `retries` allows. Needs no board."""
-import json
 import sys
 import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from boopctl_lib.device import DeviceError, Link  # noqa: E402
-
-
-class FakeBoard(Link):
-    """Answers each line it's sent with the next scripted bytes."""
-
-    timeout = 0.05
-
-    def __init__(self, replies: list[bytes]) -> None:
-        super().__init__()
-        self.replies = list(replies)
-        self.sent: list[dict] = []
-        self.pending = b""
-
-    def _write(self, data: bytes) -> None:
-        self.sent.append(json.loads(data))
-        self.pending += self.replies.pop(0)
-
-    def _read(self) -> bytes:
-        out, self.pending = self.pending, b""
-        return out
+from boopctl_lib.device import DeviceError  # noqa: E402
+from fake_board import FakeBoard  # noqa: E402
 
 
 PING = b'{"t":"dbg.ping","fw":"t","up":5,"heap":90000,"heap_min":80000,"fps":21,"draw_us":812,"push_us":2690}\n'
@@ -36,10 +16,10 @@ PING = b'{"t":"dbg.ping","fw":"t","up":5,"heap":90000,"heap_min":80000,"fps":21,
 class LinkTests(unittest.TestCase):
     def test_a_lost_reply_fails_without_retries(self):
         with self.assertRaises(DeviceError):
-            FakeBoard([b'{"t":"dbg.pi']).request({"t": "dbg.ping"})
+            FakeBoard.in_turn([b'{"t":"dbg.pi']).request({"t": "dbg.ping"})
 
     def test_a_lost_reply_is_asked_for_again(self):
-        board = FakeBoard([b'{"t":"dbg.pi', PING])  # the first reply loses its end
+        board = FakeBoard.in_turn([b'{"t":"dbg.pi', PING])  # the first reply loses its end
         seen: list[Exception] = []
         board.retries, board.on_retry = 1, seen.append
         self.assertEqual(board.vitals(), {"up": 5, "heap": 90000, "heap_min": 80000, "fps": 21, "draw_us": 812, "push_us": 2690})
@@ -47,7 +27,7 @@ class LinkTests(unittest.TestCase):
         self.assertEqual(len(seen), 1)
 
     def test_retries_run_out(self):
-        board = FakeBoard([b"", b""])
+        board = FakeBoard.in_turn([b"", b""])
         board.retries = 1
         with self.assertRaises(DeviceError):
             board.request({"t": "dbg.state"})

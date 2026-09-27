@@ -12,22 +12,16 @@ import time
 from pathlib import Path
 
 from boopctl_lib import scenario
+from boopctl_lib.common import ANIMS, MOODS, REPO, boopdev_voice, restarted, syllables
 from boopctl_lib.device import Device, DeviceError, Sim
 from boopctl_lib.image import diff, save_shot
 
-REPO = Path(__file__).resolve().parents[3]
 PIO = REPO / "firmware" / "tools" / "pio.sh"
 SIM_PROGRAM = REPO / "firmware" / ".pio" / "build" / "native" / "program"
 SIM_OUT = Path("/tmp/boop-sim")
 RUN_OUT = Path("/tmp/boop-run")
 # The everyday app's state directory (AppSettings.defaultStateDir).
 EVERYDAY_STATE = Path.home() / "Library" / "Application Support" / "Boop"
-
-
-# The animation set (BEHAVIORS.md §5).
-ANIMS = ["cheer", "wiggle"]
-# Boop's moods, as `state` carries them (PROTOCOL.md §3, harness/DECISIONS.md §2.3).
-MOODS = ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad"]
 
 
 def emit(obj: object) -> None:
@@ -158,40 +152,36 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 1 if failures or differ else 0
 
 
-# perf --motion's moments, each replacing the last: the two that move the
-# face most. The board draws only when the picture changes, so fps reads
-# about 20 through them, and draw_us + push_us says how fast it draws
-# (DEVICE.md §6).
-MOTION = ["cheer", "wiggle"]
-
-
 def cmd_perf(args: argparse.Namespace) -> int:
     """Samples fps, frame time and heap once a second with the clock
-    running. With --motion, it plays a moment every second over the
-    working face, so every sample is mid-motion."""
+    running. With --motion, it plays every animation in turn, one a second
+    and each replacing the last, over the working face, so every sample is
+    mid-motion. The board draws only when the picture changes, so fps reads
+    about 20 through them, and draw_us + push_us says how fast it draws
+    (DEVICE.md §6)."""
     samples = []
+    working = {"t": "state", "v": 1, "base": "working", "busy": 1}
     with Device(args.port) as dev:
         dev.request({"t": "dbg.clock", "run": True})
-        dev.send({"t": "state", "v": 1, "base": "working", "busy": 1})
+        dev.send(working)
         start = time.monotonic()
         last_moment = -10.0
         i = 0
         while (elapsed := time.monotonic() - start) < args.seconds:
             if args.motion and elapsed - last_moment >= 1.0:
-                dev.send({"t": "moment", "anim": MOTION[i % len(MOTION)], "ttl": 5})
-                dev.send({"t": "state", "v": 1, "base": "working", "busy": 1})
+                dev.send({"t": "moment", "anim": ANIMS[i % len(ANIMS)], "ttl": 5})
+                dev.send(working)
                 last_moment, i = elapsed, i + 1
             time.sleep(1.0)
             samples.append(dev.vitals())
     fps = [s["fps"] for s in samples[1:]] or [0]  # the first second includes the start
-    ups = [s["up"] for s in samples]
     result = {
         "samples": len(samples),
         "fps_min": min(fps),
         "fps_mean": round(sum(fps) / len(fps), 1),
         "frame_ms_max": round(max((s["draw_us"] + s["push_us"]) / 1000 for s in samples), 1),
         "heap_min": min(s["heap_min"] for s in samples),
-        "reset": any(b <= a for a, b in zip(ups, ups[1:])),
+        "reset": restarted([s["up"] for s in samples]),
         "motion": args.motion,
     }
     moving = result["fps_min"] >= 10 and result["frame_ms_max"] <= 40  # VERIFICATION.md L2
@@ -204,22 +194,6 @@ def cmd_perf(args: argparse.Namespace) -> int:
 # goes on its own, with no animation, as the Mac sends one (PROTOCOL.md §3).
 VOICE_LINES = [("happy", "yay"), ("excited", "done"), ("proud", "ship"), ("curious", "tests"),
                ("hopeful", "food"), ("annoyed", "build"), ("sad", "oops"), ("sleepy", "nap")]
-
-
-def boopdev_voice(feeling: str, word: str | None, count: int, seed: int | None = None) -> list[dict]:
-    """Lines as the Mac's Voice builds them, through `boopdev voice --json`."""
-    boopdev = REPO / ".build" / "debug" / "boopdev"
-    if not boopdev.exists():
-        raise DeviceError(f"{boopdev} is missing; run `make build` first")
-    cmd = [str(boopdev), "voice", feeling] + ([word] if word else []) + ["--count", str(count), "--json"]
-    if seed is not None:
-        cmd += ["--seed", str(seed)]
-    run = subprocess.run(cmd, capture_output=True, text=True)
-    if run.returncode:  # a word outside the vocabulary: boopdev lists the ones it knows
-        raise DeviceError(f"`boopdev voice {feeling}{' ' + word if word else ''}` failed. "
-                          + (run.stderr.strip() or f"exit {run.returncode}"))
-    out = run.stdout
-    return [json.loads(row) for row in out.splitlines() if row.startswith("{")]
 
 
 SOAK_PROJECTS = ["landing", "jetpack", "buddygotchi", "a-very-long-project-name", "notes"]
@@ -313,12 +287,11 @@ def cmd_soak(args: argparse.Namespace) -> int:
             time.sleep(5)
         final = dev.request({"t": "dbg.state"})
         samples.append({"t": round(time.monotonic() - start, 1), **dev.vitals()})
-    ups = [s["up"] for s in samples]
     early = [s["heap_min"] for s in samples if s["t"] >= 60] or [samples[0]["heap_min"]]
     result = {
         "minutes": args.minutes,
         "samples": len(samples),
-        "reset": any(b <= a for a, b in zip(ups, ups[1:])),
+        "reset": restarted([s["up"] for s in samples]),
         "heap_min_start": early[0],
         "heap_min_end": samples[-1]["heap_min"],
         "heap_min_drift": early[0] - samples[-1]["heap_min"],
@@ -337,25 +310,24 @@ def cmd_soak(args: argparse.Namespace) -> int:
 def cmd_cam(args: argparse.Namespace) -> int:
     from boopctl_lib import cam
 
-    cam.CAMERA = args.camera or cam.CAMERA
+    camera = args.camera or cam.CAMERA
     with Device(args.port) as dev:
         if args.action == "frame":
-            result = cam.frame(dev, args.usb)
+            result = cam.frame(dev, args.usb, camera)
         elif args.action == "clip":
             if not args.name:
                 raise DeviceError(f"cam clip needs a name: {', '.join(cam.CLIPS)}")
-            result = cam.clip(dev, args.name, args.seconds)
+            result = cam.clip(dev, args.name, camera, args.seconds)
         else:
-            result = cam.pattern(dev)
+            result = cam.pattern(dev, camera)
     emit(result)
     return 0 if result["ok"] else 1
 
 
 def cmd_e2e(args: argparse.Namespace) -> int:
-    from boopctl_lib import cam, e2e
+    from boopctl_lib import e2e
 
-    cam.CAMERA = args.camera or cam.CAMERA
-    return e2e.main(Path(args.out), args.brain, args.port, args.fixture or None, args.clip)
+    return e2e.main(Path(args.out), args.brain, args.port, args.fixture or None, args.clip, args.camera)
 
 
 def cmd_bridge(args: argparse.Namespace) -> int:
@@ -408,10 +380,6 @@ def play_line(dev: Device, say: dict) -> tuple[int, dict, bool]:
         if st["audio"]["out"]["lines"] > before or time.monotonic() > deadline:
             return st["audio"]["out"]["lines"] - before, st, amp
         time.sleep(0.05)
-
-
-def syllables(say: dict) -> int:
-    return len([s for s in say["syl"].replace("-", " ").split() if s])
 
 
 def check_line(dev: Device, say: dict) -> dict:
