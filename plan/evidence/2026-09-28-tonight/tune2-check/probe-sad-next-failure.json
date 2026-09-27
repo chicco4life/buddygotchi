@@ -1,0 +1,14 @@
+{
+  "name": "Probe: a sad Boop stays sad through the next failure, and the fix makes it proud",
+  "why": "tune2-check: plan/steering/mood/sad.md. Not one of the eval scenarios: run it with boopdev eval --scenarios DIR, with this file alone in DIR",
+  "steps": [
+    {"event": "turn started", "at": "0s"},
+    {"event": "command", "at": "6m", "topic": "tests", "failed": true},
+    {"event": "command", "at": "10m", "topic": "tests", "failed": true},
+    {"event": "command", "at": "13m", "topic": "tests", "failed": true},
+    {"event": "turn finished", "at": "14m", "expect": {"mood": "sad"}},
+    {"event": "turn started", "at": "15m"},
+    {"event": "command", "at": "18m", "topic": "tests", "failed": true, "expect": {"mood": "sad"}},
+    {"event": "command", "at": "21m", "topic": "tests", "failed": false, "expect": {"mood": "proud"}}
+  ]
+}

@@ -106,7 +106,7 @@ it (§2.1).
 | `curious` | Unsure how things are going: mixed results, or something unusual. Not for a routine turn start, or a failure | `determined` at two failures in a row; `grumpy` at 3 or more; `proud` when what failed finally works; `happy` once HISTORY no longer shows the change. Nothing in the steering leads to it today |
 | `determined` | Working through a failure: the same thing failed twice in a row and the agent is retrying. Not for a turn that has ended | `proud` when it finally works; `grumpy` when it fails again; `sad` when a turn of 10 minutes or more ends still failing; `happy` once HISTORY no longer shows the change |
 | `grumpy` | Fed up: 3 or more failures in a row, or poked again right after the last time. Not for a single failure, or one poke streak | `proud` when what failed twice or more in a row finally works; `sad` when a turn of 10 minutes or more ends failing; `happy` once HISTORY no longer shows the change |
-| `sad` | Deflated: a turn of 10 minutes or more ended failing, or was stopped with failures left | `proud` when what failed finally works; `determined` when it fails again while the agent retries; `happy` once HISTORY no longer shows the change |
+| `sad` | Deflated: a turn of 10 minutes or more ended failing, or was stopped with failures left | `proud` when what failed finally works, staying sad through more failures before it; `happy` once HISTORY no longer shows the change |
 
 And from any mood, `happy` after an hour with nothing happening (the
 guide).
