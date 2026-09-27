@@ -996,10 +996,11 @@ final class RuntimeTests: XCTestCase {
     /// ARCHITECTURE.md §3.2, PROTOCOL.md §4: whatever frees the line sends
     /// the brain's next moment at once, rather than when the app's own
     /// reckoning of the last one runs out: the device's `ended` for the one
-    /// playing, a rule's animation, or a tap, whose wiggle the device plays
-    /// on its own. After a tap stops the cheer, a face is timed by the
-    /// look's design, as the device times it. With no device connected a
-    /// reaction doesn't happen and leaves the line free for the next.
+    /// playing, a rule's animation, a tap, whose wiggle the device plays on
+    /// its own, or "needs you" starting, which stops everything there.
+    /// After a tap stops the cheer, a face is timed by the look's design, as
+    /// the device times it. With no device connected a reaction doesn't
+    /// happen and leaves the line free for the next.
     func testWhatFreesTheLineSendsTheNextAtOnce() throws {
         let transport = FakeTransport()
         var options = try options(transport)
@@ -1049,9 +1050,19 @@ final class RuntimeTests: XCTestCase {
                                     "the look's design, not the cheer's")
         XCTAssertEqual(ends(), [.done], "the rest still to hear from the device")
 
+        clock.now += 300
+        react("sad")
+        XCTAssertEqual(moments(), 5, "waits for the fourth")
+        let calm = runtime.home.sync { runtime.core.snapshot(at: clock.now) }
+        var needsYou = calm
+        needsYou.attn = .init(agent: "claude", project: "jetpack", more: 0)
+        runtime.home.sync { runtime.show(needsYou) }
+        XCTAssertEqual(moments(), 6, "\"needs you\" stops the fourth on the device: the fifth goes at once, for it to skip")
+        runtime.home.sync { runtime.show(calm) }
+
         transport.onConnection?(false)
         runtime.home.sync {}
-        XCTAssertEqual(ends().count, 4, "the three it was waiting on didn't happen")
+        XCTAssertEqual(ends().count, 5, "the four it was waiting on didn't happen")
         react("happy")
         react("sad")
         XCTAssertEqual(Array(ends().suffix(2)), [.failed("no device connected"), .failed("no device connected")],
