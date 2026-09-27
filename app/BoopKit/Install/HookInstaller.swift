@@ -33,7 +33,7 @@ public struct HookInstaller {
         .claude: [
             ("SessionStart", nil), ("UserPromptSubmit", nil), ("PreToolUse", nil), ("PostToolUse", nil),
             ("PostToolUseFailure", nil), ("PermissionRequest", nil),
-            ("Notification", "permission_prompt|elicitation_dialog|idle_prompt"), ("Elicitation", nil),
+            ("Notification", Adapter.notificationTypes.joined(separator: "|")), ("Elicitation", nil),
             ("ElicitationResult", nil), ("Stop", nil), ("StopFailure", nil), ("SessionEnd", nil),
         ],
         .codex: [

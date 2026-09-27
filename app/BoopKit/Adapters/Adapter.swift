@@ -20,10 +20,14 @@ public enum Adapter {
     ]
 
     /// Claude's `Notification` types that mean a person is being asked.
-    static let askingNotifications: Set<String> = ["permission_prompt", "elicitation_dialog"]
+    static let askingNotifications = ["permission_prompt", "elicitation_dialog"]
     /// Claude's `Notification` type for sitting at its prompt for a minute:
     /// whatever turn there was is over, even one that ended without `Stop`.
     static let idleNotification = "idle_prompt"
+    /// Every `Notification` type mapped, in the order the installer's
+    /// matcher lists them (ADAPTERS.md §5): Claude runs the hook for no
+    /// other. A new order would make every install look outdated.
+    static let notificationTypes = askingNotifications + [idleNotification]
 
     /// Codex's hooks. Codex has no failure hook.
     static let codex: [String: BoopEvent.Kind] = [

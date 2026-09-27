@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+import HookWire
 @testable import BoopKit
 
 /// Every test runs on a temporary HOME; the owner's `~/.claude` and
@@ -89,8 +90,11 @@ final class InstallerTests: XCTestCase {
     /// repaired at the next launch.
     func testTheNotificationMatcherListsEveryTypeTheAdapterMaps() throws {
         let matcher = HookInstaller.events[.claude]!.first { $0.event == "Notification" }!.matcher!
-        let types = Set(matcher.split(separator: "|").map(String.init))
-        XCTAssertEqual(types, Adapter.askingNotifications.union([Adapter.idleNotification]))
+        XCTAssertEqual(matcher, "permission_prompt|elicitation_dialog|idle_prompt", "the order installs already have")
+        for type in matcher.split(separator: "|").map(String.init) {
+            let line = HookLine(agent: "claude", hook: "Notification", session: "s", kind: type, ts: 1)
+            XCTAssertNotNil(Adapter.event(from: line), type)
+        }
 
         try installer.install(.claude)
         var root = read(.claude)
