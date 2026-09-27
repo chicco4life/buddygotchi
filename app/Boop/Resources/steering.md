@@ -82,8 +82,9 @@ keeps no other people's names.
 
 When you write for Boop, you're told what it decided. Write only that.
 
-- A mumble's word: one word from the list. Almost always pick one, and
-  always for a very long turn. It comes from the first of these that fits:
+- A mumble's word: one word from the list. Pick one whenever any could
+  fit, and always for a very long turn: a mumble lands better with its
+  word. none only when nothing fits. It comes from the first of these:
   1. What they said: okay to "remember" or any request, hi to a
      greeting, bye to a goodbye, food for a meal, thanks or love for praise.
   2. The failed topic: when an agent just failed, the word after

@@ -4,8 +4,7 @@ import Foundation
 /// normal decides with TypeSafe's Jev instead when it has the person's API
 /// key, and with its table for a pass Jev can't answer. Every mode
 /// writes with Apple's model, which fails each write while it can't run
-/// and recovers by itself when it can; chatty's is asked again for a
-/// mumble's word it leaves out. `--classifier` and `--writer` override the
+/// and recovers by itself when it can. `--classifier` and `--writer` override the
 /// mode's choice for one run.
 public enum Brains {
     /// Jev's key for `boopdev` and `Boop --headless`, which read nothing
@@ -42,7 +41,7 @@ public enum Brains {
         if let why = AppleWriter.unavailableReason {
             log("brain: Apple's model can't run yet (\(why)); mumbles have no word until it can")
         }
-        return AppleWriter(wordRequired: mode == .chatty)
+        return AppleWriter()
     }
 
     /// Whether the mode, or the override, decides with Jev when it has a key.

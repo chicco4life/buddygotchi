@@ -14,10 +14,10 @@ import FoundationModels
 /// copied the words it wrote before instead of following steering
 /// (ARCHITECTURE.md §11). Guided generation, with a schema built at
 /// runtime, has one property per slot: a word from `none` and its list, or
-/// text with its length asked for. With `wordRequired` (chatty mode), a
-/// word left empty is asked for once more with `none` off its list, when
-/// there's time: taken off from the start, it made the model's words worse
-/// (a failed test run got "ugh", not "tests"). A slot that names
+/// text with its length asked for. The request and `steering.md` both push
+/// hard for a word, and `none` comes last among the choices; it stays one,
+/// since taking it off made the model's words worse (a failed test run got
+/// "ugh", not "tests"). A slot that names
 /// its sources gets one more property just before it, where the model first
 /// picks which source the value comes from (HARNESS.md §7). There's no choice to decline, so
 /// it can't answer "stay quiet": deciding was Stage 1's job. Text lengths
@@ -32,20 +32,17 @@ import FoundationModels
 /// goes without a word and nothing is remembered.
 public struct AppleWriter: Writer {
     public let id: String
-    /// Every word slot gets a word: `none` isn't offered.
-    public let wordRequired: Bool
     /// Why the model can't run right now, or nil; asked before every write.
     let unavailable: @Sendable () -> String?
 
-    public init(wordRequired: Bool = false) {
-        self.init(wordRequired: wordRequired, unavailable: { AppleWriter.unavailableReason })
+    public init() {
+        self.init(unavailable: { AppleWriter.unavailableReason })
     }
 
     /// Tests pass their own `unavailable` so they never reach the model.
-    init(wordRequired: Bool = false, unavailable: @escaping @Sendable () -> String?) {
+    init(unavailable: @escaping @Sendable () -> String?) {
         let v = ProcessInfo.processInfo.operatingSystemVersion
         id = "apple:\(v.majorVersion).\(v.minorVersion)"
-        self.wordRequired = wordRequired
         self.unavailable = unavailable
     }
 
@@ -78,17 +75,7 @@ public struct AppleWriter: Writer {
     public func write(_ context: Context, _ slots: [Slot], deadline: Duration) async throws -> Writing {
         if let why = unavailable() { throw BrainError("apple: \(why)") }
         #if canImport(FoundationModels)
-        let start = ContinuousClock.now
-        var writing = try await generate(context, slots, wordRequired: false)
-        let took = ContinuousClock.now - start
-        // Chatty: a word left empty gets one more try, with `none` off its
-        // list, if it can finish in the time left; otherwise the first
-        // answer stands.
-        if wordRequired, AppleWriter.missesAWord(writing.values, slots), took * 2 < deadline,
-           let again = try? await generate(context, slots, wordRequired: true) {
-            writing = Writing(values: writing.values.merging(again.values) { old, _ in old }, raw: again.raw)
-        }
-        return AppleWriter.withoutCopies(writing, slots, context)
+        return AppleWriter.withoutCopies(try await generate(context, slots), slots, context)
         #else
         throw BrainError("FoundationModels isn't in this SDK")
         #endif
@@ -136,18 +123,10 @@ public struct AppleWriter: Writer {
     static let common: Set = ["the", "and", "for", "with", "that", "this", "you", "are", "was", "has", "have", "its",
                               "remember", "note", "about", "from", "they", "their"]
 
-    /// Whether a word slot was left empty.
-    static func missesAWord(_ values: [String: String], _ slots: [Slot]) -> Bool {
-        slots.contains { slot in
-            if case .word = slot.kind { return values[slot.key] == nil }
-            return false
-        }
-    }
-
     #if canImport(FoundationModels)
     /// One call to the model, in a fresh session.
-    func generate(_ context: Context, _ slots: [Slot], wordRequired: Bool) async throws -> Writing {
-        let schema = try AppleWriter.schema(slots, wordRequired: wordRequired)
+    func generate(_ context: Context, _ slots: [Slot]) async throws -> Writing {
+        let schema = try AppleWriter.schema(slots)
         let model = SystemLanguageModel(guardrails: .permissiveContentTransformations)
         let session = LanguageModelSession(model: model, instructions: AppleWriter.instructions(context.memory))
         do {
@@ -206,10 +185,8 @@ public struct AppleWriter: Writer {
     ///     They just said: "remember the demo is on Thursday"
     ///     Boop decided: react(feeling: happy), remember(where: today)
     ///     --- write ---
-    ///     react.word: the mumble's one real word, from its list, as Writing says; none only when nothing fits.
+    ///     react.word: the mumble's one real word, from its list, as Writing says. Pick one whenever any could fit; none only when nothing on the list fits at all.
     ///     remember.text: at most 80 characters. Short-term, for today: a fact about a project or this session… Plain words; leave it empty if nothing is worth keeping.
-    ///
-    /// The lines are the same with `wordRequired`.
     static func request(_ context: Context, _ slots: [Slot]) -> String {
         var lines = ["--- now ---", context.input.line]
         if let words = context.input.words { lines.append("They just said: \"\(Transcript.oneLine(words))\"") }
@@ -220,7 +197,8 @@ public struct AppleWriter: Writer {
         for slot in slots {
             switch slot.kind {
             case .word:
-                lines.append("\(slot.key): the mumble's one real word, from its list, as Writing says; none only when nothing fits.")
+                lines.append("\(slot.key): the mumble's one real word, from its list, as Writing says. "
+                             + "Pick one whenever any could fit; none only when nothing on the list fits at all.")
             case .text(let max):
                 lines.append("\(slot.key): at most \(max) characters. \(slot.choice ?? slot.about) "
                              + "Plain words, no code; leave it empty if nothing is worth keeping.")
@@ -244,13 +222,11 @@ public struct AppleWriter: Writer {
         return values
     }
 
-    /// A word slot's choices in the schema: `none` first, unless a word is required.
-    static func wordChoices(_ options: [String], _ wordRequired: Bool) -> [String] {
-        wordRequired ? options : ["none"] + options
-    }
+    /// A word slot's choices in the schema: its words, then `none`.
+    static func wordChoices(_ options: [String]) -> [String] { options + ["none"] }
 
     #if canImport(FoundationModels)
-    static func schema(_ slots: [Slot], wordRequired: Bool = false) throws -> GenerationSchema {
+    static func schema(_ slots: [Slot]) throws -> GenerationSchema {
         let properties = slots.flatMap { slot -> [DynamicGenerationSchema.Property] in
             let name = property(slot.key)
             // Which source first, then the value that comes from it.
@@ -261,7 +237,7 @@ public struct AppleWriter: Writer {
             switch slot.kind {
             case .word(let options):
                 return source + [.init(name: name, description: "The mumble's one real word, as Writing says.",
-                                       schema: DynamicGenerationSchema(name: name, anyOf: wordChoices(options, wordRequired)))]
+                                       schema: DynamicGenerationSchema(name: name, anyOf: wordChoices(options)))]
             case .text(let max):
                 return source + [.init(name: name, description: "At most \(max) characters, or empty.",
                                        schema: DynamicGenerationSchema(type: String.self))]

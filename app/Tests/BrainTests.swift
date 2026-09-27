@@ -521,17 +521,15 @@ final class WriterTests: XCTestCase {
             They just said: "remember the demo is on Thursday"
             Boop decided: react(feeling: happy), remember(where: today)
             --- write ---
-            react.word: the mumble's one real word, from its list, as Writing says; none only when nothing fits.
+            react.word: the mumble's one real word, from its list, as Writing says. Pick one whenever any could fit; none only \
+            when nothing on the list fits at all.
             remember.text: at most 80 characters. Short-term, for today: a fact about a project or this session, like what \
             something is, a date, or what they're doing now. Plain words, no code; leave it empty if nothing is worth keeping.
             """)
         XCTAssertEqual(s.first?.sources, ReactAction.wordSources, "the word names where it can come from")
         XCTAssertEqual(AppleWriter.values(#"{"react_word_from":"the feeling","react_word":"yay"}"#, s), ["react.word": "yay"])
-        // Chatty mode's writer asks again for a word left empty, without `none`.
-        XCTAssertTrue(AppleWriter.missesAWord(["remember.text": "demo"], s))
-        XCTAssertFalse(AppleWriter.missesAWord(["react.word": "okay"], s))
-        XCTAssertEqual(AppleWriter.wordChoices(["yay", "tests"], false), ["none", "yay", "tests"])
-        XCTAssertEqual(AppleWriter.wordChoices(["yay", "tests"], true), ["yay", "tests"])
+        // `none` stays a choice, last.
+        XCTAssertEqual(AppleWriter.wordChoices(["yay", "tests"]), ["yay", "tests", "none"])
         let instructions = AppleWriter.instructions(c.memory)
         XCTAssertTrue(instructions.hasPrefix(AppleWriter.preamble + "\n\n# Boop\nBe nice."), instructions)
         XCTAssertTrue(instructions.contains("Ships on Fridays."))
@@ -564,7 +562,6 @@ final class WriterTests: XCTestCase {
     func testTheAppleSchemaBuilds() throws {
         let (_, s) = try slots()
         _ = try AppleWriter.schema(s)
-        _ = try AppleWriter.schema(s, wordRequired: true)
     }
     #endif
 
@@ -594,11 +591,11 @@ final class WriterTests: XCTestCase {
         XCTAssertEqual(Brains.classifier(for: .chatty, override: "normal").id, "normal@1")
         XCTAssertEqual(Brains.classifier(for: .calm, override: "jev", key: { "k" }).id, "jev:jev-latest")
         XCTAssertEqual(Brains.writer(for: .calm, override: "none").id, "none")
-        // Apple's model writes in every mode, and must find a word in chatty;
-        // it's the writer even while its model can't run, since it asks
-        // again before every write.
+        // Apple's model writes in every mode, the same way; it's the writer
+        // even while its model can't run, since it asks again before every
+        // write.
         for mode in Mode.allCases {
-            XCTAssertEqual((Brains.writer(for: mode) as? AppleWriter)?.wordRequired, mode == .chatty, mode.rawValue)
+            XCTAssertTrue(Brains.writer(for: mode) is AppleWriter, mode.rawValue)
         }
     }
 }

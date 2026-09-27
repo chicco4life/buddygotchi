@@ -208,7 +208,7 @@ that says exactly how it behaves. The mode picks them:
 
 | Mode | Classifier | Writer |
 | --- | --- | --- |
-| Chatty | `Rules(.chatty)` (`chatty@1`) | `AppleWriter`, asked again for a word it leaves out |
+| Chatty | `Rules(.chatty)` (`chatty@1`) | `AppleWriter` |
 | Normal (the default) | `JevClassifier` (`jev:jev-latest`) with `Rules(.normal)` behind it; `Rules(.normal)` (`normal@1`) alone without Jev's key | `AppleWriter` |
 | Calm | `Rules(.calm)` (`calm@1`) | `AppleWriter` |
 
@@ -255,8 +255,9 @@ is a fresh session.
 - **Asked:** guided generation gives it one property per slot: a word
   from `none` and its list, or text with its length asked for. A slot
   with sources gets a property just before it where the model picks the
-  source. In chatty mode a word left empty is asked for once more, with
-  `none` off its list, if the first answer left time. It can't decline,
+  source. The request and `steering.md` push hard for a word, and `none`
+  comes last among the choices; it stays one, since taking it off made
+  the words worse (a failed test run got "ugh", not "tests"). It can't decline,
   so it can't choose silence: that was Stage 1's job.
 - **A copied line isn't kept:** a memory line that's already in memory
   and shares no word with what you said is left empty, so its call is
