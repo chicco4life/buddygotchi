@@ -130,9 +130,6 @@ public final class Runtime: @unchecked Sendable {
         var pumpDue = false
         /// True while a brain moment is being sent (for debug mode).
         var brainSending = false
-        /// Brain moments sent since the last harness pass ended. Only a
-        /// pass's actions send them, so at its end this is what it sent.
-        var brainSent = 0
     }
     let moments = Moments()
 
@@ -199,7 +196,6 @@ public final class Runtime: @unchecked Sendable {
                     return
                 }
                 moments.schedule.brain(moment, now: now)
-                moments.brainSent += 1
                 Runtime.pump(moments, link: link, clock: clock, home: home, log: log)
             },
             mumblesAllowed: { core.canMumble(at: clock()) },
@@ -216,13 +212,12 @@ public final class Runtime: @unchecked Sendable {
                           tools: actions.map(Harness.Tool.init), memory: { memory.promptMemory() },
                           home: home, debugLog: options.debug ? debugLogURL : nil, log: log)
         // Tool names only: arguments can carry what you said (HARNESS.md §8).
-        // A pass for what you said that sent no mumble ends `listening` now.
-        let moments = self.moments
+        // A pass for what you said that sent no mumble ends `listening` now:
+        // only `react` sends a moment during a pass.
         harness.onRecord = { [weak self] record in
             log(record.logLine)
-            let mumbled = moments.brainSent > 0
-            moments.brainSent = 0
             guard record.input.kind == .said, let self else { return }
+            let mumbled = record.ran.contains { $0.call.name == "react" && $0.outcome.isDone }
             run(core.replied(to: record.input.ts, mumbled: mumbled, at: clock()))
         }
         if options.debug {
