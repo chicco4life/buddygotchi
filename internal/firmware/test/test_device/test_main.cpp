@@ -645,10 +645,10 @@ static void test_no_app_after_30s_of_silence() {
 static void test_moment_plays_then_ends_and_a_new_one_replaces_it() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"wiggle\",\"ttl\":5}");
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"wiggle\"}");
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"wiggle\",\"left_ms\":700}"));
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"size\":3,\"ttl\":5}");  // an old `size` is ignored
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"size\":3,\"ttl\":5}");  // an old `size` or `ttl` is ignored
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   // One loop of happy's task-complete design.
@@ -689,9 +689,9 @@ static void test_moment_plays_then_ends_and_a_new_one_replaces_it() {
 static void test_a_moment_with_nothing_to_play_is_ignored() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"ttl\":5}");
-  r.usbLine("{\"t\":\"moment\",\"ttl\":5}");
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"shrug\",\"ttl\":5}");  // removed: ignored
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\"}");
+  r.usbLine("{\"t\":\"moment\"}");
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"shrug\"}");  // removed: ignored
   r.usb.text.clear();
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":{\"anim\":\"cheer\""));
@@ -729,7 +729,7 @@ static void test_reset_forgets_the_mac_and_freezes_at_0() {
 static void test_say_reaches_the_player() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"idle\",\"vol\":7}");
-  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"say\":{\"syl\":\"bi-do ba zz\",\"word\":\"done\",\"at\":4,\"tune\":\"up\",\"ms\":110},\"ttl\":5}");
+  r.usbLine("{\"t\":\"moment\",\"anim\":\"cheer\",\"say\":{\"syl\":\"bi-do ba zz\",\"word\":\"done\",\"at\":4,\"tune\":\"up\",\"ms\":110}}");
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
   const voice::Line& l = r.hal.said[0];
   TEST_ASSERT_EQUAL(4, l.n);
@@ -802,7 +802,7 @@ static void test_a_moment_carries_its_expression() {
 static void test_a_say_on_its_own_plays_the_mumble() {
   Rig r;
   r.usbLine("{\"t\":\"state\",\"base\":\"working\"}");
-  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100},\"ttl\":5}");
+  r.usbLine("{\"t\":\"moment\",\"say\":{\"syl\":\"ba po\",\"ms\":100}}");
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"moment\":null"));
@@ -813,7 +813,7 @@ static void test_a_say_on_its_own_plays_the_mumble() {
   r.usbLine("{\"t\":\"dbg.clock\",\"freeze\":1400}");
   TEST_ASSERT_EQUAL(1, r.hal.hushes);
   // With no mumble and no animation, nothing happens.
-  r.usbLine("{\"t\":\"moment\",\"ttl\":5}");
+  r.usbLine("{\"t\":\"moment\"}");
   TEST_ASSERT_EQUAL(1, int(r.hal.said.size()));
 }
 
