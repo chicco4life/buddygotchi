@@ -147,7 +147,7 @@ public final class Harness: @unchecked Sendable {
                     if mayStart() {
                         start(next)
                     } else {
-                        finish(next, nil, .failure(BrainError("something needs you")), latencyMs: 0)
+                        finish(next, nil, .failure(BrainError("something needs you")), latencyMs: 0, brainID: job.brain.id)
                     }
                 }
             }
@@ -163,9 +163,10 @@ public final class Harness: @unchecked Sendable {
 
     /// Steps 5–7, on `home`: each action gets its own answers, in order,
     /// and everything is recorded.
-    /// A pass with no `job` never asked the brain: a waiting event whose
-    /// pass couldn't start.
-    func finish(_ entry: Transcript.Entry, _ job: Job?, _ result: Result<Answers, BrainError>, latencyMs: Int) {
+    /// A pass with no `job` never asked the brain `brainID`: a waiting
+    /// event whose pass couldn't start.
+    func finish(_ entry: Transcript.Entry, _ job: Job?, _ result: Result<Answers, BrainError>, latencyMs: Int,
+                brainID: String? = nil) {
         guard case .event(let event) = entry.body else { return }
         var pass = Transcript.Pass(forSeq: entry.seq, answers: [:], dropped: nil, latencyMs: latencyMs)
         switch result {
@@ -179,7 +180,7 @@ public final class Harness: @unchecked Sendable {
             record(.pass(pass), extra: ["state": job.state, "questions": job.questions.map(\.key), "brain": job.brain.id,
                                         "seen": job.seen])
         } else {
-            record(.pass(pass), extra: brain.map { ["brain": $0.id] } ?? [:])
+            record(.pass(pass), extra: ["brain": brainID ?? brain?.id ?? "none"])
         }
         let ran = pass.dropped == nil ? runActions(pass.answers, forSeq: entry.seq, skipping: changedDuringPass) : []
         let record = Record(event: event, pass: pass, actions: ran)

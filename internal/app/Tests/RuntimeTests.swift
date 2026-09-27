@@ -1361,6 +1361,7 @@ final class RuntimeTests: XCTestCase {
             return [:]
         }
         options.brain = { _ in brain }
+        options.debug = true
         let runtime = try Runtime(options)
         try runtime.start()
         defer { runtime.stop() }
@@ -1385,6 +1386,9 @@ final class RuntimeTests: XCTestCase {
             runtime.harness.transcript.entries.compactMap { if case .pass(let p) = $0.body { p.dropped } else { nil } }
         }
         XCTAssertEqual(dropped, ["something needs you"])
+        let logged = try String(contentsOf: runtime.debugLogURL, encoding: .utf8)
+        XCTAssertTrue(logged.contains(#""brain":"scripted","dropped":"something needs you""#),
+                      "counted with the brain's dropped passes, not the dashboard's")
     }
 
     /// ARCHITECTURE.md §3.2: the pump's timer counts the Mac's uptime,
