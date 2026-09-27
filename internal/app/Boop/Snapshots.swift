@@ -89,7 +89,7 @@ enum Snapshots {
         let sessions = rows.map { SessionSummary(agent: $0[0], project: $0[1], status: statuses[$0[2]]!) }
         let wait = sessions.filter { $0.status == .waiting }
         let snapshot = StateSnapshot(
-            time: 1_790_000_000, name: name, base: base,
+            time: 1_790_000_000, name: name, base: base, mood: MoodAction.initial,
             // Cut as the core cuts it for the device; the popover shows it whole.
             attn: wait.first.map {
                 StateSnapshot.Attention(agent: $0.agent, project: StateSnapshot.clip($0.project, marked: true), more: wait.count - 1)

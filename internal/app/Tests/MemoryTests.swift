@@ -179,5 +179,5 @@ final class MemoryTests: XCTestCase {
 
 extension StateSnapshot {
     static let sample = StateSnapshot(
-        time: 0, name: "Pip", base: "idle", attn: nil, busy: 0, idle: 0, wait: 0, vol: 6)
+        time: 0, name: "Pip", base: "idle", mood: "happy", attn: nil, busy: 0, idle: 0, wait: 0, vol: 6)
 }

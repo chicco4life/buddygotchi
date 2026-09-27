@@ -747,6 +747,19 @@ static void test_every_anim_has_a_name_and_ends() {
   TEST_ASSERT_EQUAL_UINT32(700, animDuration(Anim::kWiggle));
 }
 
+// harness/DECISIONS.md §2.3: the seven moods, by the names the Mac sends
+// (PROTOCOL.md §3); a missing or unknown one is happy.
+static void test_every_mood_has_a_name() {
+  TEST_ASSERT_EQUAL_INT(7, int(Mood::kCount));
+  for (int i = 0; i < int(Mood::kCount); ++i) TEST_ASSERT_TRUE(moodFromName(moodName(Mood(i))) == Mood(i));
+  const char* names[] = {"happy", "excited", "proud", "curious", "determined", "grumpy", "sad"};
+  for (int i = 0; i < 7; ++i) TEST_ASSERT_EQUAL_STRING(names[i], moodName(Mood(i)));
+  for (const char* other : {"cheerful", "annoyed", "sleepy", "", "Happy"}) {
+    TEST_ASSERT_TRUE_MESSAGE(moodFromName(other) == Mood::kHappy, other);
+  }
+  TEST_ASSERT_TRUE(moodFromName(nullptr) == Mood::kHappy);
+}
+
 static void test_an_empty_strip_is_bare_glass() {
   // With nothing to count or flag, the strip shows nothing, not even its
   // divider (UX.md §2); with anything, the divider is there.
@@ -843,6 +856,7 @@ int main(int, char**) {
   RUN_TEST(test_breathing_bobs_the_whole_face_a_block);
   RUN_TEST(test_blend_is_eased_interruptible_and_150ms);
   RUN_TEST(test_every_anim_has_a_name_and_ends);
+  RUN_TEST(test_every_mood_has_a_name);
   RUN_TEST(test_an_empty_strip_is_bare_glass);
   RUN_TEST(test_squiggles_make_room_for_the_word);
   RUN_TEST(test_fonts_are_monospaced_and_utf8_aware);

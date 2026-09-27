@@ -42,17 +42,21 @@ public struct StateSnapshot: Equatable, Sendable {
     public var name: String
     /// `asleep`, `idle` or `working`.
     public var base: String
+    /// Boop's mood, one of the seven (harness/DECISIONS.md §2.3), which
+    /// picks the set of faces the device draws everything in.
+    public var mood: String
     public var attn: Attention?
     public var busy: Int
     public var idle: Int
     public var wait: Int
     public var vol: Int
 
-    public init(time: Int64, name: String, base: String, attn: Attention?, busy: Int, idle: Int, wait: Int,
-                vol: Int) {
+    public init(time: Int64, name: String, base: String, mood: String, attn: Attention?, busy: Int, idle: Int,
+                wait: Int, vol: Int) {
         self.time = time
         self.name = name
         self.base = base
+        self.mood = mood
         self.attn = attn
         self.busy = busy
         self.idle = idle
@@ -71,7 +75,7 @@ public struct StateSnapshot: Equatable, Sendable {
     public var jsonLine: String {
         var parts: [String] = [
             "\"t\":\"state\"", "\"v\":\(StateSnapshot.version)", "\"time\":\(time)", "\"name\":\(json(name))",
-            "\"base\":\(json(base))",
+            "\"base\":\(json(base))", "\"mood\":\(json(mood))",
         ]
         if let attn {
             parts.append("\"attn\":{\"agent\":\(json(attn.agent)),\"project\":\(json(attn.project)),\"more\":\(attn.more)}")

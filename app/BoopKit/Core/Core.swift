@@ -13,6 +13,9 @@ public final class Core {
     public struct Config: Sendable {
         public var name: String
         public var volume: Int
+        /// Boop's mood, which the mood action sets (harness/DECISIONS.md §4)
+        /// and every `state` carries (PROTOCOL.md §3).
+        public var mood = MoodAction.initial
         /// The personality's settings: which finishes cheer, how often
         /// chatter plays and which tool uses wake the brain (BEHAVIORS.md §6).
         public var rules: Personality.Rules
@@ -326,6 +329,14 @@ public final class Core {
         return fx
     }
 
+    /// The mood action saved a new mood: the next `state` carries it.
+    public func setMood(_ mood: String, at now: Int64) -> [CoreEffect] {
+        config.mood = mood
+        var fx: [CoreEffect] = []
+        publish(now, &fx)
+        return fx
+    }
+
     /// The wall clock's time at the steady time `now`: days and times of
     /// day follow it, and timers don't (ARCHITECTURE.md §3.2).
     public func setWallClock(_ wallMs: Int64, at now: Int64) {
@@ -371,7 +382,7 @@ public final class Core {
                 agent: $0.agent.short, project: StateSnapshot.clip($0.project, marked: true), more: waiting.count - 1)
         }
         return StateSnapshot(
-            time: wall(now) / 1000, name: StateSnapshot.clip(config.name), base: base, attn: attn,
+            time: wall(now) / 1000, name: StateSnapshot.clip(config.name), base: base, mood: config.mood, attn: attn,
             busy: working.count, idle: idle.count, wait: waiting.count, vol: config.volume)
     }
 

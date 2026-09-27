@@ -1,14 +1,18 @@
 import Foundation
 
 /// Whether Boop's mood changes, and to what (harness/DECISIONS.md §4). The
-/// mood's file becomes MOOD in Jev's state from the next pass. How long a
-/// mood lasts is the steering's to say, not a rule's.
+/// mood's file becomes MOOD in Jev's state from the next pass, and the
+/// device gets it in the next `state`. How long a mood lasts is the
+/// steering's to say, not a rule's.
 public final class MoodAction: Action {
     public let name = "mood"
     let store: MoodStore
+    /// Called with the new mood once it's saved, so the device hears of it.
+    let changed: (String) -> Void
 
-    public init(store: MoodStore) {
+    public init(store: MoodStore, changed: @escaping (String) -> Void = { _ in }) {
         self.store = store
+        self.changed = changed
     }
 
     /// Each mood and its meaning, the `mood` question's criterion. Each also
@@ -43,6 +47,7 @@ public final class MoodAction: Action {
         } catch {
             return .failed("couldn't save the mood: \(error)")
         }
+        changed(to)
         return .done("Boop's mood changed: \(from) → \(to).")
     }
 }

@@ -27,8 +27,8 @@ final class FakeTransport: DeviceTransport, @unchecked Sendable {
 }
 
 func sampleSnapshot(busy: Int = 0, time: Int64 = 1_790_000_000) -> StateSnapshot {
-    StateSnapshot(time: time, name: "Pip", base: busy > 0 ? "working" : "idle", attn: nil, busy: busy, idle: 0, wait: 0,
-                  vol: 6)
+    StateSnapshot(time: time, name: "Pip", base: busy > 0 ? "working" : "idle", mood: "happy", attn: nil, busy: busy,
+                  idle: 0, wait: 0, vol: 6)
 }
 
 final class DeviceLinkTests: XCTestCase {
@@ -181,12 +181,12 @@ final class DeviceLinkTests: XCTestCase {
     /// with 23-byte names that each escape to six bytes a character, fits.
     func testEveryStateLineFitsTheProtocol() {
         let widest = String(repeating: "\u{1}", count: 23)
-        let s = StateSnapshot(time: Int64(Int32.max), name: widest, base: "working",
+        let s = StateSnapshot(time: Int64(Int32.max), name: widest, base: "working", mood: "determined",
                               attn: .init(agent: "claude", project: widest, more: 999),
                               busy: 999, idle: 999, wait: 999, vol: 10)
         XCTAssertLessThanOrEqual(s.jsonLine.utf8.count, StateSnapshot.maxLine)
         XCTAssertNotNil(try? JSONSerialization.jsonObject(with: Data(s.jsonLine.utf8)))
-        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"time":2147483647,"name":"\#(esc)","base":"working","attn":{"agent":"claude","project":"\#(esc)","more":999},"busy":999,"idle":999,"wait":999,"vol":10}"#)
+        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"time":2147483647,"name":"\#(esc)","base":"working","mood":"determined","attn":{"agent":"claude","project":"\#(esc)","more":999},"busy":999,"idle":999,"wait":999,"vol":10}"#)
     }
 
     /// PROTOCOL.md §2, "Reconnecting": 1 s, doubling to 5 s, reset once a

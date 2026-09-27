@@ -24,6 +24,8 @@ RUN_OUT = Path("/tmp/boop-run")
 
 # The animation set (BEHAVIORS.md §5).
 ANIMS = ["cheer", "wiggle"]
+# Boop's moods, as `state` carries them (PROTOCOL.md §3, harness/DECISIONS.md §2.3).
+MOODS = ["happy", "excited", "proud", "curious", "determined", "grumpy", "sad"]
 
 
 def emit(obj: object) -> None:
@@ -370,10 +372,10 @@ def show_begin(dev: Device, warn: bool = True) -> dict:
     return ping
 
 
-def show_state(dev: Device, vol: int, base: str = "idle", attn: dict | None = None) -> None:
+def show_state(dev: Device, vol: int, base: str = "idle", attn: dict | None = None, mood: str = "happy") -> None:
     """A minimal `state`. Resent at least every 10 s, since the board shows
     "no app" after 30 s without one (PROTOCOL.md §3)."""
-    msg = {"t": "state", "v": 1, "base": base, "vol": vol}
+    msg = {"t": "state", "v": 1, "base": base, "mood": mood, "vol": vol}
     if attn:
         msg["attn"] = attn
     dev.send(msg)
@@ -530,7 +532,7 @@ def cmd_play(args: argparse.Namespace) -> int:
         return play_needs(args)
     with Device(args.port) as dev:
         show_begin(dev)
-        show_state(dev, args.vol, base=args.base)
+        show_state(dev, args.vol, base=args.base, mood=args.mood)
         msg = {"t": "moment", "anim": args.what, "ttl": 5}
         if args.say:
             msg["say"] = boopdev_voice(args.say, args.word, 1, args.seed)[0]
@@ -557,7 +559,7 @@ def play_needs(args: argparse.Namespace) -> int:
         try:
             while (now := time.monotonic()) - start < args.seconds:
                 if resend is None or now >= resend:
-                    show_state(dev, args.vol, attn=attn)
+                    show_state(dev, args.vol, attn=attn, mood=args.mood)
                     resend = now + 10
                 if chirp != "chirp" and now - start < 3:
                     chirp = ((st := dev.request({"t": "dbg.state"})).get("sfx") or {}).get("k")
@@ -568,7 +570,7 @@ def play_needs(args: argparse.Namespace) -> int:
         except KeyboardInterrupt:
             pass
         finally:
-            show_state(dev, args.vol)
+            show_state(dev, args.vol, mood=args.mood)
     print("chirp: " + ("played" if chirp == "chirp" else f"not played (last cue {chirp})"))
     print("cleared: Boop goes back to idle")
     return 0 if chirp == "chirp" else 1
@@ -595,6 +597,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--word", help="the mumble's word")
     p.add_argument("--seed", type=int)
     p.add_argument("--base", choices=["idle", "working", "asleep"], default="idle")
+    p.add_argument("--mood", choices=MOODS, default="happy", help="the mood the state carries (default happy)")
     p.add_argument("--vol", **vol)
     p.add_argument("--seconds", type=float, default=10, help="needs: how long to hold it (default 10)")
     p.add_argument("--agent", choices=["claude", "codex"], default="claude", help="needs: who asks")

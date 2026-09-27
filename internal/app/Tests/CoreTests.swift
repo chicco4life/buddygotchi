@@ -736,8 +736,22 @@ final class CoreRulesTests: XCTestCase {
         XCTAssertEqual(rig.sessions, [["claude", "landing", "waiting"], ["codex", "buddygotchi", "working"],
                                       ["claude", "jetpack", "working"], ["claude", "notes", "idle"]])
         XCTAssertEqual([s.busy, s.idle, s.wait], [2, 1, 1])
-        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"time":1791986400,"name":"Pip","base":"working","attn":{"agent":"claude","project":"landing","more":0},"busy":2,"idle":1,"wait":1,"vol":6}"#)
+        XCTAssertEqual(s.jsonLine, #"{"t":"state","v":1,"time":1791986400,"name":"Pip","base":"working","mood":"happy","attn":{"agent":"claude","project":"landing","more":0},"busy":2,"idle":1,"wait":1,"vol":6}"#)
         XCTAssertNotNil(try? JSONSerialization.jsonObject(with: Data(s.jsonLine.utf8)))
+    }
+
+    /// PROTOCOL.md §3: every `state` carries Boop's mood, happy until the
+    /// mood action says otherwise, and a new mood goes out at once.
+    func testANewMoodGoesOutInTheNextState() {
+        let rig = CoreRig()
+        XCTAssertEqual(rig.state.mood, "happy")
+        let fx = rig.core.setMood("determined", at: rig.now)
+        guard case .state(let s)? = fx.first, fx.count == 1 else {
+            XCTFail("\(fx)")
+            return
+        }
+        XCTAssertEqual(s.mood, "determined")
+        XCTAssertEqual(rig.state.mood, "determined", "and every state after it")
     }
 
     func testNamesAreClippedToTheDevicesFields() {

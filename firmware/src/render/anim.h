@@ -29,6 +29,14 @@ Pose animPose(Anim a, uint32_t t);
 constexpr int kBobPx = 3;
 inline int16_t bob(uint32_t t, uint32_t period) { return int16_t(t % period < period / 2 ? -kBobPx : 0); }
 
+// Boop's mood, which picks the set of faces every look and animation is
+// drawn in (plan/PROTOCOL.md §3, plan/harness/DECISIONS.md §2.3). The Mac
+// sends it in every `state`; the faces themselves come later (plan/PLAN.md,
+// A11), so for now the device only keeps and reports it.
+enum class Mood : uint8_t { kHappy, kExcited, kProud, kCurious, kDetermined, kGrumpy, kSad, kCount };
+Mood moodFromName(const char* name);  // kHappy if missing or unknown
+const char* moodName(Mood m);
+
 // What the face shows when no moment plays.
 enum class Look : uint8_t { kIdle, kWorking, kAsleep, kNeedsYou };
 const char* lookName(Look look);

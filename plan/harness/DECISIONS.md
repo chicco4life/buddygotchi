@@ -252,14 +252,16 @@ need. The device keeps all 40; the brain offers only these.
 **Questions:** `mood` (§3).
 
 **Made with:** the mood store, the only writer of the state directory's
-`mood` file.
+`mood` file, and a way to tell the core, which puts the mood in every
+`state` it sends the device ([PROTOCOL.md](../PROTOCOL.md) §3).
 
 **`run`:**
 
 1. Jev's choice is the current mood → `nil`: nothing to do.
 2. Otherwise it writes the new mood and returns `ok: true`,
    `"Boop's mood changed: happy → grumpy."`. From the next pass, MOOD
-   is the new mood's file. No rule holds a mood for a while; the
+   is the new mood's file, and the device gets it in a new `state` at
+   once. No rule holds a mood for a while; the
    steering keeps moods from changing often (§2.3).
 3. The file can't be written → `ok: false`, `"couldn't save the mood: …"`.
 

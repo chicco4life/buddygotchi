@@ -21,6 +21,7 @@ const char* screenName(Screen s);
 // What the Mac last said (PROTOCOL.md §3).
 struct Model {
   char base[12] = "idle";
+  render::Mood mood = render::Mood::kHappy;
   bool attn = false;
   char agent[12] = "";
   char project[24] = "";

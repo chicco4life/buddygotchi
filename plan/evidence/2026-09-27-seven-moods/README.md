@@ -30,3 +30,28 @@ ten passed:
 | A 25-minute turn that failed turned Boop determined or curious, not sad | Determined didn't say the agent had to be retrying, and the curious turn start sent it on from there | Determined is not for a turn that has ended |
 | A 2-minute rate-limit failure turned Boop sad (0.78) | "A turn that ran for many minutes" matched 2 minutes | Sad is for a turn of 10 minutes or more |
 | Two failures in a row split happy 0.40, determined 0.37, grumpy 0.21 | Happy's ways out had no count for determined | Happy's ladder: one failure gets a shrug, two in a row is determined, three or more is grumpy |
+
+## Part 2: the mood reaches the device
+
+Every `state` now carries `mood` ([PROTOCOL.md](../../PROTOCOL.md) §3).
+The mood action tells the runtime once it has saved a new mood, and the
+core sends a fresh `state` at once. The device keeps the mood (a missing
+or unknown one is happy) and reports it in `dbg.state`, but draws
+nothing new yet. `boopctl play --mood MOOD` sets it by hand.
+
+- **`make test`:** 187 pass. New: `CoreTests.testANewMoodGoesOutInTheNextState`;
+  `HarnessTests.testMood` checks each saved change is passed on;
+  `RuntimeTests.testAPassMumblesAndChangesTheMood` waits for a `state`
+  with `"mood":"grumpy"` on the link after Jev's pass.
+- **`make fw-test`:** 115 pass. New: `test_every_mood_has_a_name`
+  (the seven names round-trip; `cheerful`, `annoyed` and unknown names
+  read as happy) and `test_state_carries_the_mood` (a state without a
+  mood, or with an unknown one, is happy again). `test_state_has_no_parked_fields`
+  now expects gen-2's `mood` object to read as happy.
+- **`make fw`:** the board firmware builds; RAM 13.9%, flash 55.1%.
+- **`make sim`:** 10 scenarios, 0 expect failures, 0 new or changed
+  pictures, since nothing draws the mood yet.
+- **`make tools-test`:** passes, with `PlayTests.test_play_sets_the_mood`.
+- **`Boop --snapshots`:** 42 PNGs, as before.
+
+Not run: the board over USB (L4), since the face doesn't change yet.

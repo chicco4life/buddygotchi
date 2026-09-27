@@ -72,11 +72,20 @@ class FakeBoard(Link):
 
 
 class PlayTests(unittest.TestCase):
-    def play(self, what: str) -> tuple[int, list]:
+    def play(self, what: str, *more: str) -> tuple[int, list]:
         board = FakeBoard({"dbg.ping": {"ble": "adv"}, "dbg.clock": {}, "dbg.state": {"moment": {"anim": what, "left_ms": 900}}})
+        self.board = board
         with mock.patch.object(cli, "Device", lambda port: board), contextlib.redirect_stdout(io.StringIO()):
-            code = cli.cmd_play(cli.build_parser().parse_args(["play", what]))
+            code = cli.cmd_play(cli.build_parser().parse_args(["play", what, *more]))
         return code, [m.get("anim") for m in board.sent if m["t"] == "moment"]
+
+    def test_play_sets_the_mood(self):
+        self.play("cheer", "--mood", "determined")
+        self.assertEqual([m["mood"] for m in self.board.sent if m["t"] == "state"], ["determined"])
+        self.play("wiggle")
+        self.assertEqual([m["mood"] for m in self.board.sent if m["t"] == "state"], ["happy"])
+        with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+            cli.build_parser().parse_args(["play", "cheer", "--mood", "cheerful"])
 
     def test_play_sends_just_the_animation(self):
         self.assertEqual(self.play("cheer"), (0, ["cheer"]))

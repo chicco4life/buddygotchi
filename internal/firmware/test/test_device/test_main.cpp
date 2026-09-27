@@ -327,6 +327,28 @@ static void test_pattern_until_next_state() {
   TEST_ASSERT_TRUE(has(r.usb.text, "\"base\":\"working\""));
 }
 
+// PROTOCOL.md §3: `state` carries the mood, and like every field it's a
+// snapshot: a state without one, or with one the device doesn't know, is
+// happy again.
+static void test_state_carries_the_mood() {
+  Rig r;
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"mood\":\"happy\""));
+  r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"mood\":\"determined\"}");
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"base\":\"working\",\"mood\":\"determined\""));
+  r.usbLine("{\"t\":\"state\",\"base\":\"working\",\"mood\":\"sulky\"}");
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"mood\":\"happy\""));
+  r.usbLine("{\"t\":\"state\",\"mood\":\"sad\"}");
+  r.usbLine("{\"t\":\"state\",\"base\":\"idle\"}");
+  r.usb.text.clear();
+  r.usbLine("{\"t\":\"dbg.state\"}");
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"mood\":\"happy\""));
+}
+
 static void test_injected_tap_reaches_the_mac() {
   Rig r;
   r.usbLine("{\"t\":\"state\"}");  // the Mac is on USB
@@ -789,9 +811,10 @@ static void test_state_has_no_parked_fields() {
             "\"level\":3,\"threads\":[[\"claude\",\"x\",\"work\"]],\"quiet\":30}");
   r.usbLine("{\"t\":\"dbg.state\"}");
   TEST_ASSERT_TRUE(has(r.usb.text, "\"screen\":\"face\""));
-  for (const char* gone : {"\"rung\"", "\"hushed\"", "\"focus\"", "\"night\"", "\"hungry\"", "\"mood\"", "\"level\"", "\"quiet\""}) {
+  for (const char* gone : {"\"rung\"", "\"hushed\"", "\"focus\"", "\"night\"", "\"hungry\"", "\"level\"", "\"quiet\""}) {
     TEST_ASSERT_FALSE_MESSAGE(has(r.usb.text, gone), gone);
   }
+  TEST_ASSERT_TRUE(has(r.usb.text, "\"mood\":\"happy\""));  // gen-2's mood object isn't one of the seven
   TEST_ASSERT_EQUAL(255, r.hal.bl);  // no night dimming
 }
 
@@ -877,6 +900,7 @@ int main() {
   RUN_TEST(test_mute_and_needs_you_keep_it_silent);
   RUN_TEST(test_only_needs_you_chirps);
   RUN_TEST(test_state_has_no_parked_fields);
+  RUN_TEST(test_state_carries_the_mood);
   RUN_TEST(test_lines_over_512_bytes_are_dropped);
   RUN_TEST(test_no_battery_reports_bat_0);
   return UNITY_END();

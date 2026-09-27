@@ -118,6 +118,7 @@ bool Device::handleLine(const char* line, size_t n, Link from) {
     ++rxState_;
     Model m;
     if (doc["base"].is<const char*>()) copyStr(m.base, sizeof(m.base), doc["base"]);
+    m.mood = render::moodFromName(doc["mood"]);  // happy if missing or unknown
     JsonObjectConst attn = doc["attn"];
     if (attn) {
       m.attn = true;
@@ -446,6 +447,7 @@ void Device::sendState(Link to) {
   const Model& m = b_.model();
   d["screen"] = screenName(screenAt(t));
   d["base"] = m.base;
+  d["mood"] = render::moodName(m.mood);
   if (m.attn) {
     d["attn"]["agent"] = m.agent;
     d["attn"]["project"] = m.project;

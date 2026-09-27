@@ -167,12 +167,13 @@ public final class Runtime: @unchecked Sendable {
         let now = options.clock()
         personality = options.personality ?? settings.personality
         let rules = options.steering.personality(personality).rules
+        mood = MoodStore(stateDir: options.stateDir)
         var config = Core.Config(name: longTerm.name, volume: settings.volume, rules: rules, time: options.time,
                                  seed: longTerm.seed ^ UInt64(now))
         config.brain = false  // until Jev's key is read
+        config.mood = mood.current
         core = Core(config: config, lastActiveDay: memory.lastActiveDay)
         core.setWallClock(options.wallClock(), at: now)
-        mood = MoodStore(stateDir: options.stateDir)
         voice = Voice(dialect: Dialect(seed: longTerm.seed))
         for over in options.steering.overBudget() { log("steering: over budget: \(over)") }
 
@@ -183,8 +184,9 @@ public final class Runtime: @unchecked Sendable {
         let clock = options.clock
         let moments = self.moments
         let home = self.home
+        var moodSaved: (String) -> Void = { _ in }
         let actions: [any Action] = [
-            MoodAction(store: mood),
+            MoodAction(store: mood, changed: { moodSaved($0) }),
             ReactAction(voice: voice, queue: { moment in
                 moments.schedule.brain(moment, now: clock())
                 Runtime.pump(moments, link: link, clock: clock, home: home, log: log)
@@ -212,6 +214,7 @@ public final class Runtime: @unchecked Sendable {
             harness.onDebugLine = { line in print(printer.readable(line)) }
         }
         personalityNow = { [weak self] in self?.personality ?? .boop }
+        moodSaved = { [weak self] in self?.moodChanged($0) }
     }
 
     // MARK: Running
@@ -323,6 +326,12 @@ public final class Runtime: @unchecked Sendable {
         core.setWallClock(options.wallClock(), at: now)
         run(core.tick(at: now))
         link.tick(now: now, current: core.snapshot(at: now))
+    }
+
+    /// The mood action saved a new mood: the device draws it from the next
+    /// `state` (PROTOCOL.md §3).
+    func moodChanged(_ mood: String) {
+        run(core.setMood(mood, at: options.clock()))
     }
 
     /// Carries out the core's decisions (ARCHITECTURE.md §3.2).

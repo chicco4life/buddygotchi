@@ -257,11 +257,13 @@ final class HarnessTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: dir) }
         let store = MoodStore(stateDir: dir)
         XCTAssertEqual(store.current, "happy", "a new state directory starts happy")
-        let mood = MoodAction(store: store)
+        var told: [String] = []
+        let mood = MoodAction(store: store, changed: { told.append($0) })
         XCTAssertNil(mood.run(["mood": a("happy")]))
         XCTAssertEqual(mood.run(["mood": a("determined")]), .done("Boop's mood changed: happy → determined."))
         XCTAssertEqual(mood.run(["mood": a("proud")]), .done("Boop's mood changed: determined → proud."), "straight after, too")
         try XCTAssertEqual(try String(contentsOf: dir.appendingPathComponent("mood"), encoding: .utf8), "proud\n")
+        XCTAssertEqual(told, ["determined", "proud"], "each saved change is passed on, for the device")
         XCTAssertNil(mood.run(["mood": a("sulky")]), "not a mood")
         try Data("grumpy\n".utf8).write(to: dir.appendingPathComponent("mood"))
         XCTAssertEqual(MoodStore(stateDir: dir).current, "grumpy", "it survives a restart")

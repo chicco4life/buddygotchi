@@ -10,6 +10,8 @@ namespace {
 
 const char* const kNames[] = {"none", "cheer", "wiggle"};
 static_assert(sizeof(kNames) / sizeof(kNames[0]) == size_t(Anim::kCount), "one name per anim");
+const char* const kMoods[] = {"happy", "excited", "proud", "curious", "determined", "grumpy", "sad"};
+static_assert(sizeof(kMoods) / sizeof(kMoods[0]) == size_t(Mood::kCount), "one name per mood");
 
 // A side-to-side wave of `period` ms.
 int wave(uint32_t t, uint32_t period, int amp) { return amp * isin(int(t % period * 1024 / period)) / 1024; }
@@ -61,6 +63,16 @@ Anim animFromName(const char* name) {
 }
 
 const char* animName(Anim a) { return kNames[int(a) < int(Anim::kCount) ? int(a) : 0]; }
+
+Mood moodFromName(const char* name) {
+  if (!name) return Mood::kHappy;
+  for (int i = 0; i < int(Mood::kCount); ++i) {
+    if (!std::strcmp(name, kMoods[i])) return Mood(i);
+  }
+  return Mood::kHappy;
+}
+
+const char* moodName(Mood m) { return kMoods[int(m) < int(Mood::kCount) ? int(m) : 0]; }
 
 uint32_t animDuration(Anim a) {
   switch (a) {
