@@ -8,13 +8,16 @@ import Foundation
 
 let usage = """
     usage: Boop [--state-dir DIR] [--link ble|usb:SOCKET|none] [--debug]
-               The menu-bar app. The owner runs this; it uses Bluetooth by default.
+               The menu-bar app. The owner runs this; it uses Bluetooth by default. With a --state-dir
+               other than the everyday one it never installs or repairs the hooks in ~/.claude and
+               ~/.codex: they keep reporting to the everyday app's socket, not this one.
            Boop --headless --state-dir DIR [--link usb:SOCKET|none] [--socket PATH] [--mode chatty|normal|calm]
                 [--classifier \(Brains.classifiers.joined(separator: "|"))] [--writer \(Brains.writers.joined(separator: "|"))]
                 [--name NAME] [--nature sweet|cheeky] [--debug]
                No UI and no Bluetooth. The hook socket defaults to DIR/boop.sock. A new state directory
                is set up with --name (default Boop). --mode, --classifier and --writer override the saved
-               mode and its brain for this run only. Stops cleanly on SIGINT or SIGTERM.
+               mode and its brain for this run only. Normal decides with Jev only when BOOP_JEV_KEY
+               holds its key: headless never reads the Keychain. Stops cleanly on SIGINT or SIGTERM.
                {"dev":"advance","ms":N} on the socket moves the clock forward.
            --debug prints everything to this terminal as it happens: each hook and what Boop made of it,
                the core's decisions, every line sent to the device, and every brain pass (the input, the
@@ -24,6 +27,7 @@ let usage = """
            Boop --snapshots DIR
                Renders the popover's panes and the menu-bar icons to PNGs from fixtures, then exits.
                No runtime, no Bluetooth.
+           A flag the chosen way doesn't take stops Boop with this usage, before anything starts.
     (boop \(BoopVersion.current))
     """
 
@@ -32,10 +36,6 @@ func fail(_ message: String) -> Never {
     exit(2)
 }
 
-func option(_ args: [String], _ name: String) -> String? {
-    guard let i = args.firstIndex(of: name), i + 1 < args.count else { return nil }
-    return args[i + 1]
-}
 
 /// `steering.md` as bundled with the app (a copy of `plan/steering.md`).
 func bundledSteering() -> String {
@@ -83,15 +83,43 @@ final class LogFile: @unchecked Sendable {
     }
 }
 
-let args = Array(CommandLine.arguments.dropFirst())
-if args.contains("-h") || args.contains("--help") {
+/// The ways to run Boop and what each takes. Anything else stops with the
+/// usage: a mistyped flag would otherwise start the menu-bar app, which uses
+/// Bluetooth and repairs the real hooks.
+enum Launch {
+    case menuBar, headless, snapshots
+
+    var options: Set<String> {
+        switch self {
+        case .menuBar: ["--state-dir", "--link"]
+        case .headless: ["--state-dir", "--link", "--socket", "--mode", "--classifier", "--writer", "--name", "--nature"]
+        case .snapshots: ["--snapshots"]
+        }
+    }
+
+    var flags: Set<String> {
+        switch self {
+        case .menuBar: ["--debug"]
+        case .headless: ["--headless", "--debug"]
+        case .snapshots: []
+        }
+    }
+}
+
+let raw = Array(CommandLine.arguments.dropFirst())
+let launch: Launch = raw.contains("--headless") ? .headless : raw.contains("--snapshots") ? .snapshots : .menuBar
+let args: Arguments
+do {
+    args = try Arguments(raw, options: launch.options, flags: launch.flags)
+} catch {
+    fail("boop: \(error)\n\(usage)")
+}
+if args.help {
     print(usage)
     exit(0)
 }
-if args.contains("--headless") {
-    Headless.run(args)
-} else if args.contains("--snapshots") {
-    MainActor.assumeIsolated { Snapshots.run(args) }
-} else {
-    MenuBarApp.run(args)
+switch launch {
+case .headless: Headless.run(args)
+case .snapshots: MainActor.assumeIsolated { Snapshots.run(args) }
+case .menuBar: MenuBarApp.run(args)
 }

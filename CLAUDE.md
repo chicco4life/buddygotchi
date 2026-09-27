@@ -55,9 +55,9 @@ app/.build/debug/Boop --snapshots DIR                     # the popover's panes 
   `~/.cache/clang` or `~/Library/org.swift.swiftpm`, rerun it outside the
   sandbox before investigating the source.
 - Apple's Foundation Models runs from the shell (8K context).
-- `boopdev` reads Jev's API key only from `BOOP_JEV_KEY`, and an agent
-  shell can't read the Keychain, so Jev runs need the owner to supply the
-  key. Don't go looking for it.
+- `boopdev` and `Boop --headless` read Jev's API key only from
+  `BOOP_JEV_KEY`, so Jev runs need the owner to supply it. Never read the
+  Keychain from an agent shell, and don't go looking for the key.
 - PlatformIO is `/opt/homebrew/bin/pio`. Call it through
   `firmware/tools/pio.sh` (the make targets do), which keeps its packages
   in `firmware/.platformio-core`. The board shows up as

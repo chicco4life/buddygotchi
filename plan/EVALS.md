@@ -33,13 +33,15 @@ app/.build/debug/boopdev eval --json FILE     # also write a report, to diff two
 app/.build/debug/boopdev watch FILE           # every pass of a run, readably
 ```
 
-`boopdev` with no arguments lists every flag. A run prints `pass` or
-`FAIL` for each scenario in each mode, then a summary, and exits 1 if any
-failed. For a failed step it prints the expected passes (`-`) and the
+`boopdev eval --help` lists every flag, and it runs from anywhere in the
+repo. A run prints `pass` or `FAIL` for each scenario in each mode, then a
+summary, and exits 1 if any failed. For a failed step it prints the expected passes (`-`) and the
 actual ones (`+`), with how Stage 1 got to each (the rule that matched,
 or Jev's answers) and what the writer answered. Every pass also goes to
 the run's own file in `/tmp/boop-eval`, named at the start and the end
-([HARNESS.md](HARNESS.md) §8); files over a day old are cleared away.
+([HARNESS.md](HARNESS.md) §8), under a header line for each scenario's
+run that `boopdev watch` prints as `=== calm  03-turn-failed.json  run 1`;
+files over a day old are cleared away.
 Here normal's lines run against the chatty table, which mumbles at a
 start (`boopdev eval --mode normal --classifier chatty --only 03`):
 
@@ -63,13 +65,17 @@ never chatter.
 `make eval REAL=1` (`boopdev eval --real`) runs every mode with the brains
 the app would use: Apple's model writes, and normal decides with Jev
 alone (no table behind it) when `BOOP_JEV_KEY` is set, or with its table,
-saying so, when it isn't. Each scenario runs 3 times (`--runs`) and passes
+saying so, when it isn't. The key Settings saved is in the Keychain, which
+only the owner reads, from their own terminal:
+`BOOP_JEV_KEY=$(security find-generic-password -s com.boopcomputer.boop -a jev -w) make eval REAL=1`.
+Agents never read the Keychain. Each scenario runs 3 times (`--runs`) and passes
 only if every run does. Then, leaving out steps that script a stage, it
 reports refusals, how many passes Stage 1 answered on the menu, the
 writer's slots filled and its failures, the calls actions dropped and
 why, and for each kind of input the p50 latency of each stage and the p95
-of the whole pass against its deadline. It exits 1 unless every scenario
-passed and that report holds ([VERIFICATION.md](VERIFICATION.md) L5). Run
+of the whole pass against its deadline. Then one line says whether it
+all passed, and it exits 1 unless every scenario passed and that report holds
+([VERIFICATION.md](VERIFICATION.md) L5). Run
 it after changing `steering.md`, a definition's questions or a brain's
 prompt. `--classifier` runs any mode's lines with another classifier
 (`jev` needs `BOOP_JEV_KEY`), and `--writer apple` adds Apple's writer to

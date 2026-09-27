@@ -219,6 +219,12 @@ it does remove an older Boop's, which call `~/.boop/boop-hook.sh`.
   for an agent that has none.
 - **Remove.** One click in settings removes Boop's entries, current and
   old, and nothing else.
+- **Only the everyday Boop.** A menu-bar app started with another
+  `--state-dir` installs, repairs and removes nothing, at setup or later
+  (a click in settings says "Couldn't change its hooks: only the everyday
+  Boop changes them"), and its log says why. Hooks always report to the
+  everyday app's socket, so pointing them at another folder would only
+  break them once it's deleted.
 - **Codex's switch.** Codex runs hooks only with `codex_hooks = true`
   under `[features]` in `~/.codex/config.toml`. Installing adds the line
   (the preview shows it); removing leaves it for other hooks. However the
@@ -241,13 +247,15 @@ The `doctor` skill (`skills/doctor/doctor.sh`) checks four things:
    exists.
 2. The app is running and its socket accepts.
 3. A synthetic event from `boop-hook` reaches the app (seen in its log).
-4. With `--confirm`, a harmless command run in the agent shows up in Boop.
+4. With `--confirm`, a harmless command run in the agent shows up in Boop
+   as a hook from this agent's own session.
 
 `--headless` runs checks 1–3 against a throwaway headless app. The app
 logs hook lines only while the doctor has armed it, by writing
-`doctor-armed` into the state directory (`--confirm` removes it), or in
-debug mode (`--debug`, [HARNESS.md](HARNESS.md) §8), which also logs the
-event each hook became.
+`doctor-armed` into the state directory, or in debug mode (`--debug`, [HARNESS.md](HARNESS.md) §8), which also logs the
+event each hook became. `--confirm` removes the arm. An arm lasts 10
+minutes: the app removes an older one at the next hook, so a doctor run
+that never confirms doesn't leave every hook logged for good.
 
 ## 7. Claude Cowork
 

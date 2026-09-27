@@ -293,7 +293,7 @@ everyday Boop. Jev's key is in the Keychain, not here.
 | `boop.log` | The app's log, appended: startup, hook repairs, device inputs, dropped calls and one line per brain pass. Never what you said ([HARNESS.md](HARNESS.md) §8) | The app |
 | `debug.jsonl` | Debug mode only: every brain pass and aside as a JSON line, emptied at each launch ([HARNESS.md](HARNESS.md) §8) | The harness |
 | `doctor-armed` | While it exists, the app logs every hook ([ADAPTERS.md](ADAPTERS.md) §6) | The `doctor` skill |
-| `bin/boop-hook` | The copy of the hook client every hook entry calls, refreshed at launch so rebuilding or moving the app doesn't break hooks ([ADAPTERS.md](ADAPTERS.md) §5) | The menu-bar app |
+| `bin/boop-hook` | The copy of the hook client every hook entry calls, refreshed at launch so rebuilding or moving the app doesn't break hooks ([ADAPTERS.md](ADAPTERS.md) §5) | The everyday menu-bar app |
 
 ## 5. Common event shape
 

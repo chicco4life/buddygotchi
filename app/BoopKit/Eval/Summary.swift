@@ -56,8 +56,7 @@ extension Eval {
             }
             holds = unanswered.isEmpty && inTime
                 && (handed.isEmpty || Double(dropped.count) / Double(handed.count) < Summary.maxDropped)
-            lines.append(holds ? "the real brains held: answered, in time, few drops (a sample review is separate)"
-                               : "the real brains did NOT hold (above)")
+            lines.append(holds ? "the report held: answered, in time, few drops" : "the report did NOT hold (above)")
         }
     }
 }

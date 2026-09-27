@@ -28,7 +28,7 @@ struct OverviewPane: View {
                         }
                     }
                     if let status = model.status {
-                        if let attn = status.snapshot.attn { needsYou(attn) }
+                        if let attn = status.snapshot.attn { needsYou(attn, status.sessions) }
                         PaneSection(status.sessions.isEmpty ? "Sessions" : "Sessions · \(status.sessions.count)") {
                             sessions(status)
                         }
@@ -138,15 +138,19 @@ struct OverviewPane: View {
 
     // MARK: Needs you
 
-    private func needsYou(_ attn: StateSnapshot.Attention) -> some View {
-        Card(tone: Theme.amber) {
+    /// The card names the session that has waited longest, as the device
+    /// does, but in full: the snapshot's project is cut to fit the device.
+    /// The session list puts it first.
+    private func needsYou(_ attn: StateSnapshot.Attention, _ sessions: [SessionSummary]) -> some View {
+        let project = sessions.first { $0.status == .waiting }?.project ?? attn.project
+        return Card(tone: Theme.amber) {
             HStack(alignment: .top, spacing: Theme.gapSnug + 2) {
                 Image(systemName: "hand.wave.fill")
                     .font(.system(size: 13))
                     .foregroundStyle(Theme.amberInk)
                     .frame(width: 18)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(attn.project.isEmpty ? agentName(attn.agent) : "\(agentName(attn.agent)) · \(attn.project)")
+                    Text(project.isEmpty ? agentName(attn.agent) : "\(agentName(attn.agent)) · \(project)")
                         .font(.system(size: 12, weight: .semibold)).lineLimit(1).truncationMode(.middle)
                     Text("Waiting for you. Answer it in the agent's window.")
                         .font(.system(size: 11)).foregroundStyle(Theme.inkSoft)
@@ -158,7 +162,7 @@ struct OverviewPane: View {
             }
         }
         .transition(.scale(scale: 0.96, anchor: .top).combined(with: .opacity))
-        .animation(.boopPop, value: attn.project)
+        .animation(.boopPop, value: project)
     }
 
     // MARK: Sessions

@@ -31,8 +31,10 @@ the owner.
 ## 2. The tools
 
 Run a tool with `--help` for its flags: `tools/boopctl` (and
-`tools/boopctl <command>`), `app/.build/debug/boopdev`,
-`app/.build/debug/Boop`.
+`tools/boopctl <command>`), `app/.build/debug/boopdev` (and
+`boopdev <command>`), `app/.build/debug/Boop`. `Boop` and `boopdev` stop
+with their usage on a flag they don't take, `Boop` before anything
+starts, so a typo can't launch the menu-bar app or run the whole eval.
 
 | Make target | What it does |
 | --- | --- |
@@ -72,8 +74,8 @@ Run a tool with `--help` for its flags: `tools/boopctl` (and
 | `Boop --debug` | Prints every hook, decision, device line and brain pass as it happens ([HARNESS.md](HARNESS.md) §8) |
 | `Boop --snapshots DIR` | Renders the popover's panes and the menu-bar icons to PNGs, light and dark, from fixtures, and fails on low contrast (L0). No runtime, Bluetooth or microphone |
 | `boopdev eval` | The eval scenarios ([EVALS.md](EVALS.md)); `--real` is L5 |
-| `boopdev watch [FILE]` | Prints a `debug.jsonl` readably as it grows; with no file, the everyday app's |
-| `boopdev replay <fixture>` | Runs recorded hook payloads through the hook's field picking, the adapter and the core on a virtual clock, printing every decision; with `--socket`, through the real `boop-hook` to a running app |
+| `boopdev watch [FILE]` | Prints a `debug.jsonl` readably as it grows, waiting for it if it isn't there yet; with no file, the everyday app's |
+| `boopdev replay <fixture>` | Runs recorded hook payloads through the hook's field picking, the adapter and the core on a virtual clock, printing every decision; with `--socket`, through the real `boop-hook` to a running app, timing each `boop-hook` from launch to exit |
 | `boopdev voice <feeling> [word]` | Prints the Minion lines `react` would build |
 | `boopdev talk "<words>" --socket PATH` | Hands a push-to-talk transcript to a running headless app |
 | `boopdev hooks status\|install\|remove --home DIR` | The hook installer, against any HOME |

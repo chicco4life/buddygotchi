@@ -48,6 +48,13 @@ public struct AppSettings: Codable, Equatable, Sendable {
     public static func defaultStateDir(home: String = NSHomeDirectory()) -> URL {
         URL(fileURLWithPath: home).appendingPathComponent("Library/Application Support/Boop")
     }
+
+    /// Whether `dir` is the everyday Boop's folder. Only that Boop installs
+    /// or repairs hooks (ADAPTERS.md §5): they report to its socket.
+    public static func isEveryday(_ dir: URL, home: String = NSHomeDirectory()) -> Bool {
+        func canonical(_ url: URL) -> String { url.standardizedFileURL.resolvingSymlinksInPath().path }
+        return canonical(dir) == canonical(defaultStateDir(home: home))
+    }
 }
 
 /// One app per state directory: a second copy would fight over the memory

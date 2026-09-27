@@ -307,7 +307,9 @@ tables lean towards today:
 
 **The setting** is `mode` in `settings.json` (Mode in the app,
 [UX.md](UX.md) §7), and applies at once. Jev's key comes from
-`BOOP_JEV_KEY`, else the Keychain. It's read off the app's event queue
+`BOOP_JEV_KEY`, else, in the menu-bar app only, the Keychain:
+`Boop --headless` and `boopdev` read only the variable, so a run from an
+agent shell never uses the owner's key. It's read off the app's event queue
 and the main thread the first time normal needs it, since a Keychain
 prompt would stall both, and normal decides with its table until then;
 saving a key in Settings brings Jev in at once. For one run, `--mode`,

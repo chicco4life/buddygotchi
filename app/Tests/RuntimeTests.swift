@@ -205,6 +205,46 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual((o["context"] as? [String])?.count, 1)
     }
 
+    /// ADAPTERS.md §6: while the doctor has armed the app it logs every
+    /// hook, and an arm lasts 10 minutes, so one never confirmed doesn't
+    /// keep hooks in boop.log for good.
+    func testTheDoctorsArmLastsTenMinutes() throws {
+        let lines = DebugLines()
+        try Runtime.setUp(stateDir: dir, name: "Pip", nature: .sweet, today: LocalTime().day(Int64(Date().timeIntervalSince1970 * 1000)))
+        var options = Runtime.Options(stateDir: dir, socketPath: dir.appendingPathComponent("boop.sock").path,
+                                      link: FakeTransport(), steering: try String(contentsOf: Self.steering, encoding: .utf8))
+        options.mode = .chatty
+        options.writer = "none"
+        options.log = { line in lines.lock.withLock { lines.log.append(line) } }
+        let runtime = try Runtime(options)
+        try runtime.start()
+        defer { runtime.stop() }
+        let socket = dir.appendingPathComponent("boop.sock").path
+        let arm = dir.appendingPathComponent(Runtime.doctorArm)
+        func logged(_ session: String) -> Bool { lines.lock.withLock { lines.log.contains("hook: claude Stop \(session)") } }
+        func send(_ session: String) {
+            XCTAssertTrue(HookSocket.send(HookLine(agent: "claude", hook: "Stop", session: session, cwd: "/tmp/jetpack",
+                                                   ts: Int64(Date().timeIntervalSince1970 * 1000)).encoded(), to: socket))
+            runtime.home.sync {}
+        }
+
+        try Data("0\n".utf8).write(to: arm)
+        send("armed")
+        wait("an armed app logs hooks") { logged("armed") }
+
+        XCTAssertEqual(Runtime.doctorArmSeconds, 600)
+        try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-9 * 60 - 50)], ofItemAtPath: arm.path)
+        send("nine-fifty")
+        wait("still armed just under 10 minutes") { logged("nine-fifty") }
+        try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-10 * 60 - 1)], ofItemAtPath: arm.path)
+        send("expired")
+        send("after")
+        wait("an expired arm is removed") { !FileManager.default.fileExists(atPath: arm.path) }
+        Thread.sleep(forTimeInterval: 0.2)
+        XCTAssertFalse(logged("expired"))
+        XCTAssertFalse(logged("after"))
+    }
+
     func testStopRemovesTheSocketAndReleasesTheLock() throws {
         let runtime = try makeRuntime(FakeTransport())
         try runtime.start()

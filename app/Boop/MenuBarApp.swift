@@ -6,10 +6,10 @@ import SwiftUI
 /// Setup and settings open inside the popover. It pops up by itself only
 /// once, on first launch, to show setup, and never sends notifications.
 enum MenuBarApp {
-    static func run(_ args: [String]) -> Never {
-        let stateDir = option(args, "--state-dir").map { URL(fileURLWithPath: $0) } ?? AppSettings.defaultStateDir()
-        guard let link = LinkSetting(option(args, "--link") ?? "ble") else { fail("--link is ble, usb:SOCKET or none") }
-        let debug = args.contains("--debug")
+    static func run(_ args: Arguments) -> Never {
+        let stateDir = args["--state-dir"].map { URL(fileURLWithPath: $0) } ?? AppSettings.defaultStateDir()
+        guard let link = LinkSetting(args["--link"] ?? "ble") else { fail("--link is ble, usb:SOCKET or none") }
+        let debug = args.has("--debug")
         MainActor.assumeIsolated {
             let app = NSApplication.shared
             let delegate = AppDelegate(stateDir: stateDir, link: link, debug: debug)
@@ -60,6 +60,9 @@ final class AppModel: ObservableObject {
     @Published var talkError: String?
 
     let installer: HookInstaller
+    /// False on a folder other than the everyday one: then this copy never
+    /// changes the real hooks (ADAPTERS.md §5).
+    let ownsHooks: Bool
     let link: LinkSetting
     var runtime: Runtime?
     var finishSetup: () -> Void = {}
@@ -67,8 +70,9 @@ final class AppModel: ObservableObject {
     /// Keychain may stop to ask for access; snapshots read none.
     var readKey: @Sendable () -> String? = { Keychain.key(.jev) }
 
-    init(installer: HookInstaller, link: LinkSetting) {
+    init(installer: HookInstaller, ownsHooks: Bool = true, link: LinkSetting) {
         self.installer = installer
+        self.ownsHooks = ownsHooks
         self.link = link
         refreshHooks()
     }
@@ -90,6 +94,10 @@ final class AppModel: ObservableObject {
     /// Only a change that worked asks for a restart; one that failed says
     /// why on the agent's row.
     private func changeHooks(_ agent: HookInstaller.Agent, _ change: () throws -> Void) {
+        guard ownsHooks else {
+            hookErrors[agent] = "only the everyday Boop changes them"
+            return
+        }
         do {
             try change()
             hookErrors[agent] = nil
@@ -175,9 +183,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         self.link = link
         self.debug = debug
         log = LogFile(directory: stateDir, echo: debug)
+        // On another folder the installer still reads the real hooks, as the
+        // everyday Boop keeps them, so settings shows how they stand.
+        let everyday = AppSettings.isEveryday(stateDir)
+        let hookDir = everyday ? stateDir : AppSettings.defaultStateDir()
         model = AppModel(installer: HookInstaller(home: URL(fileURLWithPath: NSHomeDirectory()),
-                                                  hookPath: stateDir.appendingPathComponent("bin/boop-hook").path),
-                         link: link)
+                                                  hookPath: hookDir.appendingPathComponent("bin/boop-hook").path),
+                         ownsHooks: everyday, link: link)
         super.init()
     }
 
@@ -204,11 +216,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = AppDelegate.editMenu()
-        placeHookClient()
-        let repaired = model.installer.repair()
-        if !repaired.isEmpty {
-            log.write("hooks: repaired \(repaired.map(\.rawValue).joined(separator: ", "))")
-            model.restartAgents = true
+        if model.ownsHooks {
+            placeHookClient()
+            let repaired = model.installer.repair()
+            if !repaired.isEmpty {
+                log.write("hooks: repaired \(repaired.map(\.rawValue).joined(separator: ", "))")
+                model.restartAgents = true
+            }
+        } else {
+            // They report to the everyday Boop's socket, so pointing them here
+            // would only break them once this folder is gone.
+            log.write("hooks: left alone, since only the everyday Boop (\(AppSettings.defaultStateDir().path)) installs "
+                      + "or repairs them; agent hooks reach its socket, not this one")
         }
         model.refreshHooks()
         model.finishSetup = { [weak self] in self?.finishSetup() }
@@ -364,7 +383,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             model.setup.error = "Boop couldn't save its memory. What happened is in boop.log, in Boop's folder."
             return
         }
-        for agent in HookInstaller.Agent.allCases where draft.agents.contains(agent) && model.installer.detected(agent) {
+        for agent in HookInstaller.Agent.allCases
+        where model.ownsHooks && draft.agents.contains(agent) && model.installer.detected(agent) {
             model.install(agent)
         }
         startRuntime()

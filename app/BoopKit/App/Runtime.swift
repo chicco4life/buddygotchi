@@ -91,6 +91,9 @@ public final class Runtime: @unchecked Sendable {
 
     /// While this file exists in the state directory, every hook is logged.
     public static let doctorArm = "doctor-armed"
+    /// How long an arm lasts (ADAPTERS.md §6): one the doctor never
+    /// confirms is removed, so hooks aren't logged from then on.
+    public static let doctorArmSeconds: TimeInterval = 10 * 60
     /// Debug mode's log of every pass and aside, in the state directory.
     public var debugLogURL: URL { options.stateDir.appendingPathComponent(DebugLog.fileName) }
 
@@ -299,11 +302,22 @@ public final class Runtime: @unchecked Sendable {
         // arms the plain line to see hooks arrive. Otherwise hooks aren't logged.
         if options.debug {
             options.log("hook: \(line.agent) \(line.hook) \(line.session) → " + (event.map(Runtime.describe) ?? "ignored"))
-        } else if FileManager.default.fileExists(atPath: options.stateDir.appendingPathComponent(Self.doctorArm).path) {
+        } else if doctorArmed() {
             options.log("hook: \(line.agent) \(line.hook) \(line.session)")
         }
         guard let event else { return }
         run(core.handle(event))
+    }
+
+    /// Whether the doctor armed this app within the last 10 minutes. An
+    /// older arm is removed.
+    func doctorArmed() -> Bool {
+        let path = options.stateDir.appendingPathComponent(Self.doctorArm).path
+        guard let armed = (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date else { return false }
+        if Date().timeIntervalSince(armed) < Self.doctorArmSeconds { return true }
+        try? FileManager.default.removeItem(atPath: path)
+        options.log("doctor: an arm older than \(Int(Self.doctorArmSeconds / 60)) minutes, removed")
+        return false
     }
 
     func device(_ line: String) {

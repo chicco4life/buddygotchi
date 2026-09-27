@@ -8,8 +8,8 @@ import SwiftUI
 /// agents' settings it reads are in a throwaway HOME.
 @MainActor
 enum Snapshots {
-    static func run(_ args: [String]) -> Never {
-        guard let dir = option(args, "--snapshots") else { fail("--snapshots needs a directory") }
+    static func run(_ args: Arguments) -> Never {
+        guard let dir = args["--snapshots"] else { fail("--snapshots needs a directory") }
         let out = URL(fileURLWithPath: dir)
         checkContrast()
         _ = NSApplication.shared
@@ -97,7 +97,10 @@ enum Snapshots {
         let wait = sessions.filter { $0.status == .waiting }
         let snapshot = StateSnapshot(
             time: 1_790_000_000, name: name, base: base,
-            attn: wait.first.map { StateSnapshot.Attention(agent: $0.agent, project: $0.project, more: wait.count - 1) },
+            // Cut as the core cuts it for the device; the popover shows it whole.
+            attn: wait.first.map {
+                StateSnapshot.Attention(agent: $0.agent, project: StateSnapshot.clip($0.project, marked: true), more: wait.count - 1)
+            },
             busy: sessions.filter { $0.status == .working }.count, idle: sessions.filter { $0.status == .idle }.count,
             wait: wait.count, quiet: quiet, vol: vol)
         return Runtime.Status(snapshot: snapshot, sessions: sessions, connected: connected,
@@ -115,7 +118,7 @@ enum Snapshots {
                 ["claude", "jetpack", "work"], ["claude", "notes", "idle"],
             ]))),
             ("needs-you", model(installer, status: status(sessions: [
-                ["codex", "landing", "wait"], ["claude", "jetpack", "wait"],
+                ["codex", "landing-page-redesign-v2", "wait"], ["claude", "jetpack", "wait"],
                 ["codex", "buddygotchi", "work"], ["claude", "notes", "idle"],
             ], quiet: 8))),
             ("listening", model(installer, status: status(sessions: [["claude", "jetpack", "work"]], listening: true))),

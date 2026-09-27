@@ -222,7 +222,7 @@ except Talk, which is there to be used in the moment.
 | Status line | Under the name, a dot and one line: "Listening…", "Needs you" (or "*N* sessions need you"), "Working on *N* sessions", "Hanging out" or "Napping"; "Waking up…" until Boop starts, or "Not running" if it couldn't |
 | Modes | Small chips, only when something isn't the usual: Chatty or Calm (Normal shows nothing), "Quiet · *N* min", Muted |
 | Notices | "Boop couldn't start", with why in plain words (another copy is running, it can't listen for hooks, or look in `boop.log`). "*name* can't hear you" when push-to-talk can't use the mic, and "Restart your agent sessions" after hooks change, both dismissable |
-| Needs you | An amber card: agent · project, "Waiting for you. Answer it in the agent's window.", and "+*N* more" |
+| Needs you | An amber card for the session that has waited longest: agent · project, the name in full, "Waiting for you. Answer it in the agent's window.", and "+*N* more" |
 | Sessions | Grouped by agent, Claude Code then Codex: one row per session, with its project, a coloured edge and a status chip (needs you, working, idle), waiting first, then working, then idle. With none: "No agents awake" |
 | Footer | Settings on the left, Quit on the right. In Settings, the left shows the app's version and the device's firmware |
 
