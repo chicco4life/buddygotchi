@@ -177,29 +177,15 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 1 if failures or differ else 0
 
 
-def perf_moment(i: int) -> dict:
-    """The i-th moment perf --motion plays: the cheer with loops, a wiggle,
-    then a brain reaction, a mumble in the next mood's face, which switches
-    design behind a blink and puts up the bubble (PROTOCOL.md §3)."""
-    kind = i % 3
-    if kind == 0:
-        return {"t": "moment", "anim": "cheer", "loops": 2}
-    if kind == 1:
-        return {"t": "moment", "anim": "wiggle"}
-    return {"t": "moment", "say": {"syl": "ta-ko ga-da", "word": "finally", "at": 0, "tune": "lift", "ms": 135},
-            "mood": MOODS[(i // 3) % len(MOODS)], "loops": 2, "id": i + 1}
-
-
 def cmd_perf(args: argparse.Namespace) -> int:
     """Samples fps, frame time and heap once a second with the clock
-    running. With --motion, it plays the cheer, a wiggle and a brain
-    reaction in turn, one a second and each replacing the last, over the
-    working face, so every sample is mid-motion. The board draws only when
-    the picture changes, so fps reads about 20 through them, and draw_us +
-    push_us says how fast it draws (DEVICE.md §6). The mumbles play at
-    volume 1."""
+    running. With --motion, it plays every animation in turn, one a second
+    and each replacing the last, over the working face, so every sample is
+    mid-motion. The board draws only when the picture changes, so fps reads
+    about 20 through them, and draw_us + push_us says how fast it draws
+    (DEVICE.md §6)."""
     samples = []
-    working = {"t": "state", "v": 1, "base": "working", "busy": 1, "vol": 1}
+    working = {"t": "state", "v": 1, "base": "working", "busy": 1}
     with Device(args.port) as dev:
         dev.request({"t": "dbg.clock", "run": True})
         dev.send(working)
@@ -208,7 +194,7 @@ def cmd_perf(args: argparse.Namespace) -> int:
         i = 0
         while (elapsed := time.monotonic() - start) < args.seconds:
             if args.motion and elapsed - last_moment >= 1.0:
-                dev.send(perf_moment(i))
+                dev.send({"t": "moment", "anim": ANIMS[i % len(ANIMS)]})
                 dev.send(working)
                 last_moment, i = elapsed, i + 1
             time.sleep(1.0)
