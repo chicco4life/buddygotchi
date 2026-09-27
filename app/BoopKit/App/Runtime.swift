@@ -32,9 +32,10 @@ public final class Runtime: @unchecked Sendable {
         public var advance: (@Sendable (Int64) -> Void)?
         /// Debug mode (harness/HARNESS.md §9): logs every hook with what the
         /// adapter made of it and every line sent to the device, starts
-        /// `debug.jsonl` afresh in the state directory with every transcript
-        /// entry and the dashboard's lines, and hands the entries and the
-        /// core's decisions to `debugPrint`, readably.
+        /// `debug.jsonl` afresh in the state directory (keeping the last
+        /// launches' copies beside it) with every transcript entry and the
+        /// dashboard's lines, and hands the entries and the core's decisions
+        /// to `debugPrint`, readably.
         public var debug = false
         /// Where debug mode prints (the terminal). Never the log file: it
         /// carries Jev's whole state.

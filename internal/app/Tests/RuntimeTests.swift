@@ -145,8 +145,8 @@ final class RuntimeTests: XCTestCase {
 
     /// harness/HARNESS.md §9: debug mode logs every hook with what it became
     /// and every line to the device, starts debug.jsonl afresh with every
-    /// entry, and prints them readably, but Jev's state stays out of
-    /// boop.log.
+    /// entry (keeping the last launch's as debug.1.jsonl), and prints them
+    /// readably, but Jev's state stays out of boop.log.
     func testDebugModePrintsEverythingAndStartsItsLogAfresh() throws {
         let lines = DebugLines()
         var options = try options(FakeTransport())
@@ -164,6 +164,8 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(fresh.hasPrefix(#"{"questions":"#) && !fresh.contains(#"{"seq":1}"#),
                       "each launch starts afresh, with the questions first (DASHBOARD.md §3)")
         XCTAssertEqual(file(), lastLaunch, "in place, so a boopdev watch on it sees it start again")
+        try XCTAssertEqual(String(contentsOf: DebugLog.kept(1, of: debugLog), encoding: .utf8), "{\"seq\":1}\n",
+                       "the last launch's lines are kept as debug.1.jsonl")
 
         XCTAssertTrue(HookSocket.send(hook("SessionStart"), to: socketPath))
         XCTAssertTrue(HookSocket.send(hook("PreToolUse", tool: "Bash"), to: socketPath))
@@ -187,6 +189,26 @@ final class RuntimeTests: XCTestCase {
         let p = try XCTUnwrap(debugLines().compactMap { $0["pass"] as? [String: Any] }.first)
         XCTAssertTrue((p["state"] as? String)?.hasPrefix("You are the mind of Boop") == true)
         XCTAssertEqual(p["questions"] as? [String], ["mood", "react", "react.loops", "word.feeling", "word.about"])
+    }
+
+    /// harness/HARNESS.md §9: each launch keeps the last one's lines as
+    /// debug.1.jsonl and moves the older ones up, keeping 10 launches in
+    /// all; an empty file (a launch that wrote nothing) isn't kept.
+    func testDebugModeKeepsTheLastTenLaunches() throws {
+        let debugLog = dir.appendingPathComponent(DebugLog.fileName)
+        XCTAssertEqual(DebugLog.keptLaunches, 10)
+        XCTAssertEqual(DebugLog.kept(3, of: debugLog).lastPathComponent, "debug.3.jsonl")
+        func text(_ url: URL) -> String? { try? String(contentsOf: url, encoding: .utf8) }
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        for launch in 1...12 {
+            try Data("launch \(launch)\n".utf8).write(to: debugLog)
+            DebugLog.start(debugLog)
+            XCTAssertEqual(text(debugLog), "", "launch \(launch) starts afresh")
+        }
+        for n in 1...10 { XCTAssertEqual(text(DebugLog.kept(n, of: debugLog)), "launch \(13 - n)\n", "debug.\(n).jsonl") }
+        XCTAssertNil(text(DebugLog.kept(11, of: debugLog)), "the oldest is let go")
+        DebugLog.start(debugLog)
+        XCTAssertEqual(text(DebugLog.kept(1, of: debugLog)), "launch 12\n", "an empty file isn't kept")
     }
 
     /// The lines of this runtime's debug.jsonl, as JSON objects.

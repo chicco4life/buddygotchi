@@ -418,6 +418,10 @@ state goes to the terminal only, never `boop.log`.
 
 **`debug.jsonl`,** in the state directory, is emptied in place at every
 launch and gets one JSON line per transcript entry (§5.2), keys sorted.
+Before emptying it, the app keeps a copy of the last launch's lines as
+`debug.1.jsonl`, moving older copies up to `debug.10.jsonl`
+(`DebugLog.keptLaunches`) and letting the oldest go, so relaunching
+mid-day doesn't lose the morning. An empty file isn't kept.
 `boopdev watch [FILE]` prints it as the terminal does, following it as it
 grows. A Jev pass's line carries three more fields, so any pass can be
 replayed: `state` (the whole state sent), `questions` (the keys asked, in

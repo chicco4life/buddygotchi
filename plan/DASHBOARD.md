@@ -101,7 +101,9 @@ text for its facts. Each line's shape is in
 | `status` | `sessions`, `base`'s idle count, `brain`, `device`, the personality, and the timeline |
 
 **The app starting again.** At each launch the app empties
-`debug.jsonl` in place and writes its `questions` line first. So when the
+`debug.jsonl` in place, once it has kept a copy as `debug.1.jsonl`
+([harness/HARNESS.md](harness/HARNESS.md) §9), and writes its
+`questions` line first. So when the
 file no longer starts with the first line the dashboard read, the app has
 started again: the dashboard reads the file from the top, starts its
 panes afresh, and marks the timeline.

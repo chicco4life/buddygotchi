@@ -23,7 +23,8 @@ let usage = """
                the core's decisions, every line sent to the device, and every event, pass (with Jev's whole
                state) and action. They also go to DIR/debug.jsonl, started afresh each launch, with the
                lines sent to the device, status changes and the questions (boopdev watch and boopctl dash
-               read it). Jev's state never reaches boop.log.
+               read it). The last 10 launches' files are kept as DIR/debug.1.jsonl (the latest) to
+               debug.10.jsonl. Jev's state never reaches boop.log.
            Headless, or with --debug, the hook socket also takes {"dev":…} lines from boopctl dash: "answer"
                (a forced pass), "mood" and "moment" (plan/DASHBOARD.md).
            Boop --snapshots DIR

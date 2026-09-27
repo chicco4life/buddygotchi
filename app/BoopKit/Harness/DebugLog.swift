@@ -47,10 +47,32 @@ public enum DebugLog {
         return line("status", value, at: ms)
     }
 
-    /// Empties the file, so each launch starts afresh. In place, so a
-    /// `boopdev watch` already following it sees it start again.
+    /// How many earlier launches' files are kept beside the file, so a
+    /// relaunch mid-day doesn't lose the morning: `debug.1.jsonl` is the
+    /// launch before this one, up to `debug.10.jsonl`.
+    public static let keptLaunches = 10
+
+    /// Where launch `n` before this one is kept: `debug.<n>.jsonl` beside
+    /// `url`.
+    public static func kept(_ n: Int, of url: URL) -> URL {
+        url.deletingLastPathComponent()
+            .appendingPathComponent("\(url.deletingPathExtension().lastPathComponent).\(n).\(url.pathExtension)")
+    }
+
+    /// Keeps a copy of the last launch's lines (`keptLaunches`, the oldest
+    /// let go), then empties the file, so each launch starts afresh. In
+    /// place, so a `boopdev watch` or the dashboard already following it
+    /// sees it start again.
     public static func start(_ url: URL) {
-        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let fm = FileManager.default
+        try? fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if let size = (try? fm.attributesOfItem(atPath: url.path))?[.size] as? UInt64, size > 0 {
+            try? fm.removeItem(at: kept(keptLaunches, of: url))
+            for n in stride(from: keptLaunches - 1, through: 1, by: -1) {
+                try? fm.moveItem(at: kept(n, of: url), to: kept(n + 1, of: url))
+            }
+            try? fm.copyItem(at: url, to: kept(1, of: url))
+        }
         if let handle = try? FileHandle(forWritingTo: url) {
             try? handle.truncate(atOffset: 0)
             try? handle.close()
