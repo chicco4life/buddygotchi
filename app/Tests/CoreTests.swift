@@ -512,13 +512,13 @@ final class CoreYouAndBoopTests: XCTestCase {
         XCTAssertEqual(t.first?.words, "shut up for ten minutes")
         XCTAssertEqual(t.first?.line, "you said · 14:00 Wednesday", "the words travel apart from the line")
         XCTAssertEqual(t.first?.rules, "listening")
-        // HARNESS.md §4: about 30 s of speech at most.
+        // HARNESS.md §2: about 30 s of speech at most.
         let long = inputs(rig.core.talk(String(repeating: "blah ", count: 200), at: rig.now))
         XCTAssertEqual(long.first?.words?.count, 500)
     }
 
-    /// UX.md §5: the mic is on only while you hold the button, and never
-    /// longer than 30 s, even if the release never arrives.
+    /// UX.md §5 and BEHAVIORS.md §3.3: the mic is on only while you hold the
+    /// button, and never longer than 30 s, even if the release never arrives.
     func testTheMicTurnsItselfOffAfterThirtySeconds() {
         let rig = CoreRig()
         rig.input(.talkOn)
@@ -884,9 +884,9 @@ final class CoreRulesTests: XCTestCase {
         XCTAssertEqual(CoreRig().state.base, "asleep")
     }
 
-    /// BEHAVIORS.md §2: every 2–4 minutes while agents work, day or night;
-    /// about half the time a `curious` question about the topic, otherwise
-    /// a `happy` mumble with no word.
+    /// BEHAVIORS.md §2 and §6: every 2–4 minutes while agents work, day or
+    /// night; about half the time a `curious` question about the topic,
+    /// otherwise a `happy` mumble with no word.
     func testWorkingChatterEveryTwoToFourMinutesWithTheTopicAboutHalfTheTime() {
         for start in [CoreRig.start, CoreRig.start + 9 * 3600 * 1000 + 1_800_000] {  // 14:00 and 23:30
             let rig = CoreRig(start: start, seed: 7)
@@ -925,7 +925,7 @@ final class CoreRulesTests: XCTestCase {
         XCTAssertEqual(mumbles(fx), [])
     }
 
-    /// BEHAVIORS.md §5: going quiet shows only the quiet icon; the `zip`
+    /// BEHAVIORS.md §4: going quiet shows only the quiet icon; the `zip`
     /// animation is parked.
     func testGoingQuietPlaysNoMoment() {
         let rig = CoreRig()

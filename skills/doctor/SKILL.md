@@ -5,9 +5,9 @@ description: Self-diagnose whether the current agent harness (Claude Code or Cod
 
 # Boop doctor
 
-The truth is a shell script, `skills/doctor/doctor.sh`; this file says how
-to drive it. It checks the four things in `plan/ADAPTERS.md` §6. It only
-reads `~/.claude` and `~/.codex`.
+`skills/doctor/doctor.sh` does the checking; this file says how to drive
+it. It checks the four things in `plan/ADAPTERS.md` §6, needs `make build`
+first, and only reads `~/.claude` and `~/.codex`.
 
 ## Procedure
 
@@ -35,7 +35,7 @@ reads `~/.claude` and `~/.codex`.
    echo BOOP_DOCTOR_PING
    ```
 
-4. Then confirm (this also disarms):
+4. Then confirm, which also disarms:
 
    ```sh
    skills/doctor/doctor.sh --confirm
@@ -44,20 +44,27 @@ reads `~/.claude` and `~/.codex`.
    Exit `0` means this harness's hooks reached Boop.
 
 `--headless` runs checks 1–3 against a throwaway headless app instead of
-the everyday one. Combine it with a temporary `HOME` after
-`app/.build/debug/boopdev hooks install --home DIR` to check the installer
-without touching the owner's setup.
+the everyday one, and exits `0` when they pass. With a temporary `HOME` it
+checks the installer without touching the owner's setup:
+
+```sh
+H=$(mktemp -d /tmp/boop-h.XXXX)
+app/.build/debug/boopdev hooks install claude --home "$H"
+HOME="$H" skills/doctor/doctor.sh --headless
+```
 
 ## Fixes, by finding
 
-- **No socket / socket doesn't accept.** The app isn't running. Ask the
-  owner to start Boop (`make run`). Don't launch it yourself: an
+- **No socket, or the socket doesn't accept.** The app isn't running. Ask
+  the owner to start Boop (`make run`). Don't launch it yourself: an
   agent-launched Boop is killed on its first Bluetooth use.
-- **Missing hooks, or previous-generation entries.** Boop → Settings →
-  Agents → Connect (or Repair) for this agent, then restart the agent's sessions so
-  they reload hook config.
-- **boop-hook is missing.** The app places it in
-  `~/Library/Application Support/Boop/bin/` at launch; restart the app.
+- **Hooks missing, old, or calling another `boop-hook`.** Boop → Settings →
+  Agents → Connect (or Repair) for this agent, then restart the agent's
+  sessions so they reload their hook config.
+- **The app's `boop-hook` is missing.** The app copies it into
+  `~/Library/Application Support/Boop/bin/` at launch, from the one built
+  next to it. Run `make build` if it isn't built, then ask the owner to
+  restart Boop.
 - **Round trip fails but the socket accepts.** Another Boop owns the socket,
   or `boop.log` belongs to a different state directory.
 - **Confirm fails.** The harness didn't fire its hooks: it was started

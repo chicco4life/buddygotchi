@@ -1,4 +1,4 @@
-// The bring-up test pattern (plan/PLAN.md F1, plan/DEVICE.md §7): six
+// The bring-up test pattern (archived/plan-v1-build/PLAN.md F1, plan/DEVICE.md §7): six
 // colour blocks, labelled corners, a big UP arrow and a black USB-C bar down
 // the right edge, on a grey background. Seen upright, the arrow is at the
 // top and the bar is on the side where the USB-C port is.

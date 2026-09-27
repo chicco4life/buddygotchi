@@ -421,7 +421,7 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(says(), 0, "the cheer has played and nothing follows it")
     }
 
-    /// ARCHITECTURE.md §3: the app knows how long each rule moment plays on
+    /// ARCHITECTURE.md §3.2: the app knows how long each rule moment plays on
     /// the device. The numbers are firmware/src/app/behaviour.cpp's
     /// `onMoment` and `play`, and firmware/src/render/anim.cpp's
     /// `animDuration` (BEHAVIORS.md §5: a cheer is 2 s).

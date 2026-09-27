@@ -23,7 +23,7 @@ public enum Agent: String, Sendable, CaseIterable {
     }
 }
 
-/// The common event every adapter produces (ARCHITECTURE.md §5).
+/// The common event every adapter produces (ADAPTERS.md §1).
 public struct BoopEvent: Equatable, Sendable {
     public enum Kind: String, Sendable, CaseIterable {
         case sessionStart = "session_start"
@@ -78,7 +78,7 @@ public struct BoopEvent: Equatable, Sendable {
         self.ts = ts
     }
 
-    /// The event as one JSON line, in the shape of ARCHITECTURE.md §5.
+    /// The event as one JSON line, in the shape of ADAPTERS.md §1.
     public var jsonLine: String {
         var detailObject: [String: Any] = [:]
         if let tool = detail.tool { detailObject["tool"] = tool }

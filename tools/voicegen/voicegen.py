@@ -1,4 +1,4 @@
-"""Builds Boop's voice assets (plan/VOICE.md §8, plan/PLAN.md F5) as C arrays.
+"""Builds Boop's voice assets (plan/VOICE.md §8, archived/plan-v1-build/PLAN.md F5) as C arrays.
 
 Every syllable and real word is synthesised offline with macOS `say`,
 converted with `afconvert`, then trimmed, pitched up, squeezed and

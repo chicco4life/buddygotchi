@@ -92,7 +92,7 @@ final class AdapterTests: XCTestCase {
         XCTAssertTrue(event.jsonLine.contains(#""detail":{"failed":true,"tool":"Bash","topic":"tests"}"#), event.jsonLine)
     }
 
-    /// ARCHITECTURE.md §5's example is this adapter output.
+    /// ADAPTERS.md §1's example is this adapter output.
     func testEventJSONShape() throws {
         let line = HookLine(agent: "claude", hook: "PreToolUse", session: "a1b2", cwd: "/Users/me/src/landing",
                             tool: "Bash", topic: "tests", ts: 1_790_000_000_123)

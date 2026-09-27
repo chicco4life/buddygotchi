@@ -1,6 +1,6 @@
 {
   "name": "A long turn is celebrated, and a very long one with a word",
-  "why": "HARNESS.md §6: a long turn (15 s or more) is react(proud) in chatty and normal, and a very long one (over a minute) always gets its word (steering.md, Writing), excited in chatty; calm leaves every finish to the rules",
+  "why": "BEHAVIORS.md §6 and HARNESS.md §6: a long turn (15 s or more) is react(proud) in chatty and normal, and a very long one (over a minute) always gets its word (steering.md, Writing), excited in chatty; calm leaves every finish to the rules",
   "steps": [
     {"input": {"at": "0s", "event": "turn started", "agent": "claude", "project": "jetpack"},
      "expect": {"chatty": ["agent started → react(feeling: curious, word: hmm|what|oh|okay|code|more|wow|hi|none)"],

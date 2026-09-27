@@ -5,63 +5,67 @@ description: Verify Boop's physical screen and animations using bounded webcam r
 
 # Opt-in webcam verification
 
-This is a repository-local skill for Boop, and the one procedure for the
-camera. The recorder's commands, what it writes, camera permission (record
-from a terminal the Claude app opens) and its limits are in
-`tools/webcam/README.md`.
+The one procedure for Boop's camera. The recorder's commands and what it
+writes are in `tools/webcam/README.md`, the L3 checks this serves are in
+`plan/VERIFICATION.md` L3, and the camera policy (opt-in, bounded clips,
+video only, footage kept local) is in `CLAUDE.md`.
 
-## Activation
+## When
 
-- Only use on an explicit request such as “use webcam verification” or
-  `$webcam-verify`. General requests to verify changes do not enable the camera.
-- Before a live recording, the user must confirm the board is positioned for
-  the current verification session. Accept an existing “ready” confirmation in
-  that session; do not ask again for each clip. If setup has ended or this is a
-  later session, obtain fresh setup confirmation. Previous camera permission
-  and earlier recordings are not standing authorization to record.
-- Record bounded clips for the requested scenarios, then stop. No background
-  monitoring, automatic future captures or webcam requirement in normal tests.
-  Offline review of supplied recordings does not require camera setup.
+- Only on an explicit request such as "use webcam verification" or
+  `$webcam-verify`. A general request to verify a change doesn't turn the
+  camera on.
+- Before the first live clip, the owner confirms the board is positioned
+  for this session. One "ready" covers the session; ask again only after
+  setup has ended or in a later session. Earlier camera permission and
+  recordings don't count as permission to record now.
+- Record bounded clips for the requested scenarios, then stop: no
+  background monitoring, no automatic later captures, and no webcam step
+  in normal tests. Reviewing recordings you're given needs no setup.
 
-## Verification
+## Procedure
 
-1. Discover cameras (`tools/webcam/webcam.sh list`) and explicitly select
-   the intended one. Take a short framing clip and inspect `preview.png`
-   (or run `tools/boopctl cam frame --camera ID`). If the display is out of
-   frame or unreadable, ask for repositioning before recording the scenarios.
-2. Choose natural app/Bluetooth operation or controlled USB injection. For USB,
-   check `tools/boopctl ping` (`dbg.ping`, `plan/VERIFICATION.md` §3): `ble`
-   must not be `conn` and `link` must not be `ble`, because a connected Mac
-   app's `state` messages replace yours (L2's one-writer rule). Don't launch
-   the app to fix it; ask the owner. Run the clock
-   (`tools/boopctl send '{"t":"dbg.clock","run":true}'`) and avoid
-   frozen-clock screenshots during recording. `tools/boopctl cam clip <name>`
-   records and crops the L3 presets itself; for anything else, drive the
-   board with `tools/boopctl play …` or `send` while recording. Record the
-   installed firmware's `fw` and `sha` from `ping`; do not assume it matches
-   the checkout or flash it merely to use this skill.
-3. Start video-only recording before triggering the requested motion. Wait for
-   `RECORDING`, retain scenario events, and use actual video timestamps for onset
-   and duration; the host callback and requested clip duration are approximate.
-   Restore temporary device state after the scenario where practical.
-4. Crop the screen and inspect every consecutive frame covering the motion and
-   settling. Compare against `plan/UX.md`, `plan/BEHAVIORS.md` and the
-   simulator's golden images (`plan/VERIFICATION.md` L3). Account for physical screen
-   orientation, exposure, camera cadence and display scanning. State explicitly
-   when review used image sequences without real-time playback. Check
-   continuous motion, overshoot and settling, repeated or abrupt jumps and the
-   return to rest, allowing for the camera's frame quantization (about 33 ms
-   at 30 fps). Clean timestamps alone cannot certify smoothness; ambiguous
-   visual artifacts are inconclusive.
-5. Report what was observed, the firmware identity, capture quality, limitations,
-   and evidence locations, in a `review.md` beside the evidence: scenario,
-   what moved when, deviations from the spec, and pass, fail or inconclusive. Keep original room footage local and out of Git;
-   retain only deliberately selected evidence in the repo. Do not silently turn
-   a limited scenario review into a full hardware pass.
+1. **Record from the right terminal.** Camera commands
+   (`webcam.sh record`, `boopctl cam …`, `boopctl e2e --clip`) work only
+   in a terminal the Claude app opens (its Terminal panel); an agent's own
+   shell has no camera permission. Commands that only talk to the board
+   can run anywhere.
+2. **Frame.** List the cameras (`tools/webcam/webcam.sh list`) and pick
+   one explicitly. Check the framing with
+   `tools/boopctl cam frame --camera ID`, or a short clip and its
+   `preview.png`. If the screen is out of frame or unreadable, ask for it
+   to be moved before recording the scenarios.
+3. **Drive the board,** either through the owner's app over Bluetooth or
+   over USB. For USB, check `tools/boopctl ping` first: `ble` must not be
+   `conn` and `link` must not be `ble`, because a connected Mac app's
+   `state` messages replace yours (VERIFICATION L2). Don't launch the app
+   to fix it; ask the owner. Note the installed firmware's `fw` and `sha`
+   from `ping`, and don't flash just to use this skill.
+   `tools/boopctl cam clip <name>` plays an L3 preset with the clock
+   running and saves a contact sheet of 18 frames spread over the clip,
+   then deletes the video: enough to judge "looks right", too sparse for
+   smoothness. For motion, or anything else, let the clock run
+   (`tools/boopctl send '{"t":"dbg.clock","run":true}'`) and drive the
+   board with `tools/boopctl play …` or `send` while `webcam.sh record`
+   runs, then `webcam.sh analyze` the interval.
+4. **Record.** Start recording before the motion, and trigger it after
+   `RECORDING` prints. Time onset and duration from the video's own
+   timestamps; the host's timing and the requested length are
+   approximate. Put the board back as it was afterwards where you can.
+5. **Review.** Crop to the screen and look at every consecutive frame
+   across the motion and its settling. Compare with `plan/UX.md`,
+   `plan/BEHAVIORS.md` and the simulator's goldens. Allow for the screen's
+   orientation, exposure, the panel's scan and the camera's cadence (a
+   frame every 33 ms at 30 fps). Check for continuous motion, overshoot
+   and settling, repeated or abrupt jumps, and the return to rest. Clean
+   timestamps alone can't prove smoothness, and an ambiguous artefact is
+   inconclusive. Say so when you reviewed image sequences without
+   real-time playback.
+6. **Report** in a `review.md` beside the evidence: the scenario, what
+   moved when, the firmware, capture quality, deviations from the spec,
+   limitations, and pass, fail or inconclusive. Room footage stays local
+   and out of git; only chosen crops go into the repo. Don't present a
+   limited scenario review as a full hardware pass.
 
-The first live example is kept at the tag:
-`git show gen2-final:archived/plan-gen2/evidence/webcam/2026-09-10.md`.
-The v1 webcam checks (framing, test pattern, clips) are defined in
-`plan/VERIFICATION.md` §5 L3 and §6, and driven by `tools/boopctl cam`.
-`make tools-test` tests the tooling with synthetic video and does not open a
-camera; it can run without activating live webcam verification.
+`make tools-test` checks the recorder on synthetic video without opening a
+camera, so it doesn't need this skill.

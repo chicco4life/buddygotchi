@@ -324,10 +324,10 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(rig.snapshot.records.count, 1)
     }
 
-    /// HARNESS.md §8: outside debug mode "the words you said and what the
-    /// brain answered never reach the log". The app's log gets each pass's
-    /// line, the harness's own lines and every action's drop reasons: they
-    /// name outputs and reasons, never an argument's text.
+    /// HARNESS.md §8: outside debug mode, what you said and what the brain
+    /// wrote never reach the log. The app's log gets each pass's line, the
+    /// harness's own lines and every action's drop reasons: they name
+    /// outputs and reasons, never an argument's text.
     func testTheLogNeverGetsWhatYouSaid() async throws {
         final class Lines: @unchecked Sendable {
             let lock = NSLock()

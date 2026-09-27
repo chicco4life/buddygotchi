@@ -1,44 +1,40 @@
 # Boop: voice
 
-Updated 2026-09-27. How Boop's gibberish is built, how it sounds, and how we
-keep it unintelligible. Numbers marked *proposed* are first guesses, to be
-tuned by ear.
+Updated 2026-09-27. How Boop's gibberish is built, kept unintelligible and
+played on the device.
 
 ## 1. What we're after
 
-Boop should sound like a Minion from the films: fast, bouncy and full of
-feeling, with not a single word you can make out, except that now and then
-one real English word pops out and lands, like *"…tests?"*.
-
-Three qualities matter most:
+Boop sounds like a Minion from the films: fast, bouncy and full of
+feeling, with not a word you can make out, except that now and then one
+real English word pops out and lands, like *"…tests?"*.
 
 - **Emotion first.** You can tell happy, annoyed, sleepy or curious with
   your eyes closed.
-- **Unintelligible.** Nothing but the one real word sounds like English, or
-  like any language you speak.
-- **Recognisably this Boop.** Each Boop has its own favourite sounds, so two
-  Boops side by side sound related but not identical.
+- **Unintelligible.** Nothing but the one real word sounds like English,
+  or like any language you speak.
+- **Recognisably this Boop.** Each Boop has its own favourite sounds, so
+  two side by side sound related but not identical.
 
-We take the *feel* of Minion speech: open vowels, bouncy rhythm, a
-pseudo-Romance lilt. We don't copy its actual words or catchphrases, which
-belong to the films.
+We take the feel of Minion speech (open vowels, a bouncy rhythm, a
+pseudo-Romance lilt), never its actual words or catchphrases, which belong
+to the films.
 
 ## 2. Who does what
 
 | Step | Done by |
 | --- | --- |
-| Decide to mumble: a feeling and maybe one word | A rule, or the brain: its classifier picks the feeling and its writer the word. Either way through the `react` action |
-| Build the line: syllables, where the word goes, tune and tempo | Voice, on the Mac |
-| Check it isn't accidentally English | Voice |
-| Send it to the device | `react`, through the device link |
-| Play it | The device |
+| Decide to mumble: a feeling and maybe one word | A rule (working chatter) or the brain (its classifier picks the feeling, its writer the word), either way through the `react` action |
+| Build the line (syllables, where the word goes, tune and tempo) and check it isn't accidentally a word (§7) | Voice, on the Mac |
+| Send it to the device | `react`, through the device link, as a `moment`'s `say` ([PROTOCOL.md](PROTOCOL.md) §3) |
+| Play it, with the mouth in time | The device (§8) |
 
 Voice is the only code that knows what Minion speech is. The brain never
-writes syllables: it picks a feeling, and at most one word from a fixed
-list. That keeps the voice the same whichever brain is in use, and no model
-can slip real words into the gibberish.
+writes syllables: it picks a feeling and at most one word from a fixed
+list. So the voice is the same whichever brain is in use, and no model can
+slip real words into the gibberish.
 
-Voice is made once per Boop, with its dialect (§3), and has one function:
+Voice is made once per Boop, from its dialect (§3), and has one function:
 
 ```
 Voice(dialect)
@@ -47,186 +43,196 @@ Voice(dialect)
 
 `groups` are the gibberish words, each a list of syllables; `at` is where
 the word goes, as an index into the syllables; `ms` is milliseconds per
-syllable.
+syllable. The same inputs and seed always give the same line, and `react`
+logs each line's seed so debug mode can replay it.
 
 ## 3. The syllables
 
-**Sounds we use:** soft, rounded consonants and pure open vowels, which is
-where the Minion bounce comes from.
+Soft, rounded consonants and pure open vowels are where the bounce comes
+from: the consonants `b p m n d t l k g` (and `y`, `w` in glides), and the
+vowels `a e i o u`, always said as in Italian. There's no `s`, `sh`, `f`,
+`th`, `r` or `v`: they make gibberish sound like real speech and don't
+play cleanly on an 8-bit speaker.
 
-- Consonants: `b p m n d t l k g y w`
-- Vowels: `a e i o u`, always pronounced as in Italian
-- Shapes: mostly consonant + vowel (`ba`, `mi`, `po`), sometimes ending in
-  `n` or `m` (`pum`, `lon`), and sometimes a bare vowel (`a`, `o`) for gasps
-  and trailing off
-
-**Sounds we avoid:** `s`, `sh`, `f`, `th`, `r` and `v`. They make gibberish
-sound like real speech and are hard to play cleanly on an 8-bit speaker.
-
-**The full set** is 64 syllables, fixed in the firmware
-(`app/BoopKit/Voice/Sounds.swift` is the source):
+The full set is 64 syllables, fixed in the firmware, with
+`app/BoopKit/Voice/Sounds.swift` as the source:
 
 - the 45 pairs of `b p m n d t l k g` with `a e i o u`;
 - the glides `ya yo yu wa we wo`;
-- the bare vowels `a e i o u`;
+- the bare vowels `a e i o u`, for gasps and trailing off;
 - six closed syllables that aren't English words: `pum lon kun tem gom lun`;
-- two hums, `mm` and `nn`, for sleepy lines and the safe hum.
+- two hums, `mm` and `nn`, for sleepy lines and the safe hum (§7).
 
-**Each Boop's dialect.** At setup, Boop's random seed picks 16 favourite
-syllables from the full set (not the hums). About 70% of syllables come
-from the favourites that suit the feeling, and the rest from the whole set.
-The dialect never changes, so your Boop always sounds like itself.
+**Each Boop's dialect.** Boop's random seed, made at setup and kept in
+`long-term.md`, picks 16 favourite syllables from the set (not the hums).
+About 70% of a line's syllables come from the favourites that suit the
+feeling, and the rest from all the syllables that suit it. The dialect
+never changes, so your Boop always sounds like itself.
 
 ## 4. Building a line
 
-A line is 2–8 syllables, grouped into gibberish "words" of 1–3 syllables:
+A line is 2–8 syllables, grouped into gibberish "words" of 1–3, plus at
+most one real word:
 
 ```
  ma-po  li  bu-da…  tests?
  └─ gibberish ─────┘ └ real word
 ```
 
-| Part | Rule |
-| --- | --- |
-| Length | Voice picks short (2–4 syllables) or long (5–8), from the feeling. Excited is usually long and sleepy almost always short |
-| Grouping | Groups of 1–3 syllables. Doubling is common (`po-po`, `ba-ba`), because it sounds playful: 40% of two-syllable groups for happy and excited, 15% otherwise |
-| Real word | At most one. Usually at the end, as a question or exclamation; one time in five at the start, as an announcement. Curious always asks, at the end |
-| Randomness | Seeded per line, so replaying a line in debug mode gives the same sound |
+- **Length.** Short (2–4 syllables) or long (5–8); how often it's long
+  depends on the feeling (below).
+- **Grouping.** A quarter of the words have one syllable, half have two
+  and a quarter three. A two-syllable word is often a double (`po-po`,
+  `ba-ba`), which sounds playful: 40% of the time for happy and excited,
+  15% otherwise.
+- **The real word.** At most one, from the vocabulary (§6). Usually at the
+  end, as a question or an exclamation; one time in five at the start, as
+  an announcement. Curious always asks, at the end.
 
-**Feeling shapes the syllables and the tune.** These are the eight
-feelings a mumble can have:
+The feeling picks the syllables, how often the line is long, the tempo and
+the tune (§5):
 
-| Feeling | Syllables | Rhythm | Tune |
-| --- | --- | --- | --- |
-| Happy | Bright `a` and `i`, lots of doubling | Bouncy | `bounce` |
-| Excited | Like happy, faster and longer | Fast | `bounce` |
-| Proud | Open `a` and `o`, a long last syllable | Steady, then a flourish | `lift` |
-| Curious | Ends in `i` or `e` | Hesitant, a pause before the word | `up` |
-| Hopeful | Soft `o` and `u` | Small and slow | `up` |
-| Annoyed | Clipped `t`, `k` and `p` | Short and punchy | `flat` |
-| Sad | Rounded `u` and `o`, trailing off | Slow | `down` |
-| Sleepy | Hums `mm` and `nn`, and soft `mu`, `mo`, `nu`, `no` | Very slow, may trail off mid-line | `down` |
+| Feeling | Syllables | Long lines | ms a syllable | Tune |
+| --- | --- | --- | --- | --- |
+| Happy | Bright `a` and `i`, lots of doubles | 45% | 125 | `bounce` |
+| Excited | Like happy | 80% | 115 | `bounce` |
+| Proud | Open `a` and `o`, ending on `lon`, `gom`, `a` or `o` | 50% | 135 | `lift` |
+| Curious | Mixed, ending in `i` or `e` | 30% | 135 | `up` |
+| Hopeful | Soft `o` and `u` after `m n l y w b` | 25% | 145 | `up` |
+| Annoyed | Clipped `t`, `k` and `p` | 20% | 125 | `flat` |
+| Sad | Rounded `u` and `o`, ending on a bare `u` or `o` | 30% | 160 | `down` |
+| Sleepy | The hums, and `mu mo nu no` | 10% | 170 | `down` |
 
-`react` has two more feelings, and they borrow a mumble: `smug` sounds
-proud, and `sulky` sad ([HARNESS.md](HARNESS.md) §5).
+`react` has ten feelings: `smug` mumbles like proud and `sulky` like sad
+([HARNESS.md](HARNESS.md) §5).
 
-Examples, with the word in bold (these show the shape only):
+Some real lines, from `boopdev voice <feeling> [word] --seed N` with its
+default dialect: happy `done` (seed 2) *"la-la la… done!"*, curious
+`tests` (seed 3) *"bu lo-lo ki… tests?"*, annoyed `build` (seed 1)
+*"build! pi ko-ko…"*, hopeful `food` (seed 1) *"yo-lun… food?"*, and
+sleepy (seed 3) *"mu-nu-mu…"*.
 
-- happy: *"ba-ba ti-pa… **done**!"*
-- curious: *"mi-ne? po… **tests**?"*
-- annoyed: *"tu-ka. pa-ka tu… **build**."*
-- sleepy: *"mmn… mu-no…"*
-- hopeful: *"nu-po… **food**?"*
-
-When you mumble at Boop, it answers with its own gibberish at the same
-energy. It doesn't copy your sounds.
+When you talk or mumble at Boop, it answers in its own gibberish; it never
+copies your sounds.
 
 ## 5. Delivery
 
-| Setting | Comes from |
+**Tempo** is 135 ms a syllable at the neutral pace, moved only by the
+feeling (§4) and kept within 90–180 ms. Sweet or cheeky doesn't change
+the voice.
+
+**Tune** is the feeling's pitch shape across the line, the word's beat
+included. The real word bends half as far, so it keeps closer to its own
+voice.
+
+| Tune | Pitch across the line |
 | --- | --- |
-| Base pitch | Fixed at 100%. Mood used to move it; mood is parked ([FUTURE.md](FUTURE.md)). Sweet or cheeky doesn't change it in v1 |
-| Tune | The feeling (§4): `up`, `down`, `bounce`, `flat` or `lift` |
-| Tempo | 135 ms per syllable, then by feeling (excited −20, happy and annoyed −10, hopeful +10, sad +25, sleepy +35), kept within 90–180 ms (*proposed*) |
-| Liveliness | ±5% random pitch and ±10% timing per syllable, so it never sounds robotic |
-| Volume | The app's volume setting. Silent when muted |
+| `up` | Rises from 1× to 1.25×, with the last beat 0.1× higher still |
+| `down` | Falls from 1.1× to 0.8× |
+| `bounce` | Alternates 1.1× and 0.95× |
+| `lift` | Level at 1×, then 1.25× on the last beat |
+| `flat` | Level at 0.98× |
+
+**Liveliness** is ±5% random pitch and ±10% timing on each beat, so it
+never sounds robotic, with the line's length kept exact (§8). **Volume**
+is the app's setting, 0–10, sent in every `state`; 0 is silent.
 
 ## 6. The real word
 
 The device can't synthesise speech, so the real word always comes from a
-fixed **vocabulary** of about 40 words (*proposed*):
+fixed vocabulary of 40 English words (`Sounds.vocabulary`):
 
-- **Topic words:** `tests`, `build`, `docs`, `deploy` (the topic tags from
-  [ADAPTERS.md](ADAPTERS.md) §3), plus `bug`.
-- **Interjections:** `yay`, `oops`, `hmm`, `finally`, `done`, `food`,
-  `sleepy`, `hi`, `bye`, `love`, and a few more.
+- **Topic words:** `tests build docs deploy` (the topic tags from
+  [ADAPTERS.md](ADAPTERS.md) §3), and `bug fix ship code merge review`.
+- **Interjections:** `yay oops hmm finally done food sleepy hi bye love
+  wow yes no nope okay again nice ugh boo whee hooray thanks hello more
+  snack nap play good oh what`.
 
-The v1 list has 40 words: `tests build docs deploy bug fix ship code merge
-review yay oops hmm finally done food sleepy hi bye love wow yes no nope
-okay again nice ugh boo whee hooray thanks hello more snack nap play good
-oh what`.
-
-The vocabulary is English everywhere in v1. The gibberish needs no
-translation, and a stray English word is part of the charm. The same list is
-the choices for `react`'s `word`, which the brain's writer picks
-([HARNESS.md](HARNESS.md) §5), so the brain can't ask for a word Boop can't
-say. Adding a word is a firmware asset change and ships as an announced
-update.
+The same list is the choices for `react`'s `word`, which the brain's
+writer picks ([HARNESS.md](HARNESS.md) §5), so the brain can't ask for a
+word Boop can't say, and Voice leaves out any word that isn't on it. The
+vocabulary is English everywhere: the gibberish needs no translation, and
+a stray English word is part of the charm. Adding a word means adding it
+to `Sounds.swift`, regenerating the assets (§8) and reflashing.
 
 ## 7. Staying unintelligible
 
-Every generated line is checked before it's sent. A line fails if any
-gibberish word, or the whole line read without hyphens:
+Voice checks every line before it's sent. A line fails if any gibberish
+word, or the whole line run together, is:
 
-- is a real word of three or more letters in the Mac's English word list
+- an English word of three or more letters in the Mac's word list
   (`/usr/share/dict/words`);
-- is on a short list of rude or sensitive words in our launch languages
-  (English, Korean, Japanese and romanised Chinese);
-- is a known Minion word or catchphrase.
+- on a short list of rude or sensitive words in the launch languages
+  (English, Korean, Japanese and romanised Chinese), which includes
+  nursery words for the toilet (`kaka`, `pipi`);
+- a Minion word or catchphrase;
+- a double people hear as a word (`mama`, `papa`, `nana`, `yoyo` and a
+  few more).
 
-A doubled syllable (`po-po`, `ki-ki`) is the Minion bounce, and the
-Mac's word list is full of obscure doubles (`kiki`, `pipi`, `baba`), so
-doubles skip the word list. A short list of doubles people hear as words
-(`mama`, `papa`, `nana`, `yoyo` and a few more) still fails, as do nursery
-words for the toilet (`kaka`, `pipi`). Rude and Minion words of four or
-more letters also fail anywhere inside the line, across word breaks.
-Only the word list's words spelled with the letters of Boop's syllables
-can ever match, so the app keeps just those (20,035 of 234,291), which
-gives the same answers and loads in a fraction of the time.
+Rude and Minion words of four or more letters also fail anywhere inside
+the line, across word breaks. A doubled syllable (`po-po`, `ki-ki`) is the
+Minion bounce, and the word list is full of obscure doubles, so doubles
+skip the word list, though not the other lists. Only words spelled with
+the letters of Boop's syllables can ever match, so the app keeps just
+those from the word list, about a tenth of it: the same answers, loaded
+much faster. Without the word list, only the fixed lists apply.
 
 While building a line, Voice re-rolls a gibberish word that fails, up to 4
-times. The finished line is checked again. A failed line is regenerated,
-up to 5 times, and then replaced with a safe hum (`mm-nn…`). The real word
-is the only part allowed through, and it must come from the vocabulary; a
-word outside it is left out. In a test of 10,000 lines across 25
-dialects, 5 came out as the safe hum (`VoiceTests`, 2026-09-27).
+times, then checks the finished line. A line that fails is built again, up
+to 5 times, and then replaced with the safe hum, `mm-nn…`. The real word
+isn't checked: it's meant to be heard. `VoiceTests` builds 10,000 lines
+across 25 dialects and checks them against the lists on its own: none may
+fail, and fewer than 50 may end as the safe hum.
 
 ## 8. Sound on the device
 
-- **Assets.** The syllables and words are synthesised offline by a build
-  tool and processed to sound small and chiptune. Synthesis is cheaper to
-  iterate on than a recorded voice, and the 8-bit processing hides most of
-  the difference. The result is a fixed, versioned asset pack, so Boop's
-  voice only changes with an announced update.
-- **Size.** Each syllable is one short 8-bit sample at 11.025 kHz. The
-  budget was about 2 KB per syllable and 6 KB per word, roughly 360 KB; the
-  v1 pack is 226 KB (64 syllables of 84–163 ms, 40 words of 125–481 ms).
-- **How they're made.** `tools/voicegen/voicegen.py` reads the syllable set
-  and vocabulary from `Sounds.swift`, synthesises syllables with macOS's
-  Italian voice (Alice), so vowels stay pure (a few are respelled: `ki` →
-  `chi`, `ge` → `ghe`, `ya` → `ia`), and words with an English one
-  (Samantha). It trims them, pitches them up (1.3× for syllables, 1.15× for
-  words), saturates and normalises them, and writes
-  `firmware/assets/voice.h`. The hums `mm` and `nn` aren't hummed by `say` (it
-  gives 0.85 s of speech, most likely the letter names), so they're
-  synthesised as a nasal tone. `--wav-dir`
-  writes every clip as a WAV for listening.
-- **Playback.** Pitch and tempo are changed in software, by resampling each
-  syllable as it plays. It's the same trick Animal Crossing uses. Each
-  syllable gets one beat of `ms` and the word two; a clip longer than its
-  beat is cut with a 5 ms fade, and a long word speeds up to fit (at most
-  1.6×). A line cut short (hushed, or replaced by a new line or the chirp)
-  fades out over 4 ms under what comes next, so the cut doesn't click. The base pitch is fixed (§5), the tune bends it across the line, and the ±10% timing moves within pairs of
-  beats, so a line lasts exactly beats × `ms`, the same time the mouth
-  moves. A syllable the device doesn't know keeps its beat, silent. The sound
-  cue (the needs-you chirp) is a synthesised tone. It only comes with
-  "needs you", which already stops any line.
-- **Limits.** The device clamps `ms` to 60–400 and plays at most 12
-  syllables of a line.
-- **On screen.** The mouth follows the syllables, opening and closing once
-  per beat. The bubble shows only the real word, with small
-  squiggles for the gibberish around it. With the sound off, the bubble and
-  mouth still play.
-- **Checking it.** Tests check playback through `dbg.state`
-  ([VERIFICATION.md](VERIFICATION.md) §3). The sound itself is checked by
-  ear on the bench board's speaker ([DEVICE.md](DEVICE.md) §3):
-  `tools/boopctl mumble` (with `--board-volume` or `--levels`) and `tools/boopctl play needs` play it on demand
-  ([VERIFICATION.md](VERIFICATION.md) §2).
+**The assets.** Every syllable and word is synthesised offline and
+processed to sound small and chiptune, into a fixed, versioned asset pack,
+so Boop's voice only changes when the pack is rebuilt and flashed.
+`tools/voicegen/voicegen.py` reads the syllables and vocabulary from
+`Sounds.swift` and writes `firmware/assets/voice.h`:
+
+- Syllables are spoken by macOS's Italian voice (Alice), so vowels stay
+  pure; some are respelled so Italian reads them as meant (`ki` → `chi`,
+  `ge` → `ghe`, `ya` → `ia`). Words use an English voice (Samantha).
+- Each clip is trimmed, pitched up (1.3× for syllables, 1.15× for words,
+  so the word stays clear), saturated and normalised, and stored as 8-bit
+  samples at 11.025 kHz.
+- `say` doesn't hum `mm` or `nn` (it gives 0.85 s of speech, most likely
+  the letter names), so the hums are synthesised as a nasal tone.
+
+The pack is 226 KB (64 syllables of 84–163 ms, 40 words of 125–481 ms).
+
+**Playback.** The device resamples each clip as it plays, so pitch and
+tempo change without new assets (the trick Animal Crossing uses), and
+feeds the DAC at 22.05 kHz.
+
+- Each syllable gets one beat of `ms` and the word two. A clip longer
+  than its beat is cut with a 5 ms fade, and a long word speeds up to fit,
+  by at most 1.6×.
+- The timing jitter (§5) moves within pairs of beats, so a line lasts
+  exactly beats × `ms`.
+- A syllable the device doesn't know keeps its beat, silent.
+- The device clamps `ms` to 60–400 and plays at most 12 syllables of a
+  line.
+- A line cut short (hushed, or replaced by a new line or the chirp) fades
+  out over 4 ms under what comes next, so the cut doesn't click.
+- The needs-you chirp is a synthesised 90 ms tone rising from 1.2 to
+  2.4 kHz. It only comes with "needs you", which already stops any line.
+
+**The mouth** opens and closes once a beat for exactly as long as the
+sound, and the bubble shows the word among squiggles
+([UX.md](UX.md) §2). With the sound off, the mouth and bubble still play.
+
+**Checking it.** Tests check the timeline through `dbg.state`
+([VERIFICATION.md](VERIFICATION.md) §3). The sound itself is checked by
+ear on the bench board's speaker ([DEVICE.md](DEVICE.md) §3):
+`tools/boopctl mumble` plays every feeling with and without a word
+(`--levels` compares volumes), and `tools/boopctl play needs` plays the
+chirp ([VERIFICATION.md](VERIFICATION.md) §2).
 
 ## 9. How often Boop talks
 
-Mumbles are occasional. Beyond reactions to events, Boop mutters while
-agents work, as often as the mode says ([BEHAVIORS.md](BEHAVIORS.md) §2,
-§6). It never mumbles while something needs you or in quiet mode; in
-quiet mode the needs-you chirp still sounds ([BEHAVIORS.md](BEHAVIORS.md)
-§4).
+When Boop mumbles, and when it mustn't, is in [BEHAVIORS.md](BEHAVIORS.md)
+§2, §4 and §6. On the device, a `state` with "needs you", quiet mode or
+volume 0 stops a line that's playing.

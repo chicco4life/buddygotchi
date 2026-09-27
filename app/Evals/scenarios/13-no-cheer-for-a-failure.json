@@ -1,6 +1,6 @@
 {
   "name": "A failed turn gets no cheer, and calm cheers only a very long turn",
-  "why": "VISION.md hero moment 2, PLAN.md §6 row 11 and BEHAVIORS.md §3.1, §6: a turn that leaves its tests failing, or stops on an API error, plays no moment, only the annoyed mumble; a long (15 s to a minute) finish cheers in chatty and normal but not in calm",
+  "why": "VISION.md hero moment 2, PLAN.md §2 check 10 and BEHAVIORS.md §3.1, §6: a turn that leaves its tests failing, or stops on an API error, plays no moment, only the annoyed mumble; a long (15 s to a minute) finish cheers in chatty and normal but not in calm",
   "rules": true,
   "steps": [
     {"input": {"at": "0s", "event": "turn started", "project": "landing"},

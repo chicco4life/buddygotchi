@@ -1,25 +1,29 @@
 # Boop spec
 
-These documents are the contract for Boop v1. The code implements them, and
-a change to one goes in the same commit as the code
-([CLAUDE.md](../CLAUDE.md)).
+Updated 2026-09-27. The index of Boop v1's specs. They're the contract the
+code implements, so a change to one goes in the same commit as the code
+([CLAUDE.md](../CLAUDE.md) says which spec goes with which code). Start
+with the vision.
 
 | Read | For |
 | --- | --- |
-| [VISION.md](VISION.md) | Why Boop exists, personality first, the promises, scope |
+| [VISION.md](VISION.md) | Why Boop exists, its personality, the promises, and what's in v1 |
+| [BEHAVIORS.md](BEHAVIORS.md) | What Boop does when things happen, with its sound and light, and how each mode changes it |
 | [UX.md](UX.md) | The screens, controls, setup and the Mac app |
-| [BEHAVIORS.md](BEHAVIORS.md) | What Boop does when things happen, with its sound and light |
 | [VOICE.md](VOICE.md) | The gibberish: how it's built, checked and played |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | The parts and their boundaries, the memory files, and the decisions (§11) |
-| [ADAPTERS.md](ADAPTERS.md) | Hooks, event mapping, and "needs you" |
-| [HARNESS.md](HARNESS.md) | The generic harness and the brain's two stages: a classifier that decides, and a writer for the words |
-| [steering.md](steering.md) | The brain's read-only instructions (shipped in the app) |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | The parts and their boundaries, what Boop keeps on disk, and the live decisions |
+| [ADAPTERS.md](ADAPTERS.md) | Hooks, the events they become, and "needs you" |
+| [HARNESS.md](HARNESS.md) | The harness and the brain's two stages: a classifier that decides, and a writer for the words |
+| [steering.md](steering.md) | The brain's read-only instructions, bundled in the app |
 | [PROTOCOL.md](PROTOCOL.md) | The messages between the Mac and the device, over Bluetooth or USB |
 | [DEVICE.md](DEVICE.md) | The board, pins, firmware stack and bring-up |
-| [VERIFICATION.md](VERIFICATION.md) | How everything is checked, including the screen |
+| [VERIFICATION.md](VERIFICATION.md) | How everything is checked (L0–L6), and every tool |
 | [EVALS.md](EVALS.md) | The harness eval scenarios: how they run and what each checks |
-| [PLAN.md](PLAN.md) | The build order, the check for each milestone, the morning checklist, and the open items |
-| [FUTURE.md](FUTURE.md) | Ideas we like but aren't building in v1 |
+| [PLAN.md](PLAN.md) | Where things stand: milestones, owner checks, open items |
+| [FUTURE.md](FUTURE.md) | Ideas we like but aren't building in v1, and what v1 parked |
 
-The previous generation's specs are in
+What each check found is in [evidence/](evidence/), one folder per piece
+of work. History lives in `archived/`: the finished v1 build plan and its
+full decision log in [archived/plan-v1-build/](../archived/plan-v1-build/),
+and the previous generation's specs in
 [archived/plan-gen2/](../archived/plan-gen2/).

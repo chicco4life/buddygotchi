@@ -1,7 +1,7 @@
 # Boop Agent Instructions
 
-These instructions apply to the whole repo. Keep this file mirrored in
-`CLAUDE.md` and `AGENTS.md`.
+These instructions apply to the whole repo. `CLAUDE.md` and `AGENTS.md`
+are the same file: edit `CLAUDE.md`, then copy it over `AGENTS.md`.
 
 ## What Boop is
 
@@ -16,82 +16,73 @@ cheap ESP32 board with a screen is the body. Start with
 
 | Path | What it is |
 | --- | --- |
-| `plan/` | The spec. It's the contract the code implements. [plan/PLAN.md](plan/PLAN.md) has the build order and status, and [plan/VERIFICATION.md](plan/VERIFICATION.md) has how everything is checked. Evidence goes in `plan/evidence/` |
+| `plan/` | The spec, which the code implements ([the index](plan/README.md)). [plan/PLAN.md](plan/PLAN.md) has the status and open items, and [plan/VERIFICATION.md](plan/VERIFICATION.md) how everything is checked. Evidence goes in `plan/evidence/` |
 | `app/` | Swift package: the Mac menu-bar app, the `boop-hook` hook client, and the `boopdev` dev CLI |
-| `firmware/` | PlatformIO firmware for the MicroTech MTR024QV01A board ([plan/DEVICE.md](plan/DEVICE.md)) |
+| `firmware/` | PlatformIO firmware for the MicroTech MTR024QV01A board ([plan/DEVICE.md](plan/DEVICE.md)), with its simulator and unit tests built for the Mac (env `native`) |
 | `tools/` | `boopctl` (device tool), `voicegen` (voice assets), `fontgen` (the device's fonts), `webcam/` (opt-in recorder) |
 | `skills/` | `doctor` (hook self-check) and `webcam-verify`, symlinked for Claude, Codex and Cursor |
-| `archived/` | History only: research, docs and the gen-2 specs (`archived/plan-gen2`). All earlier code is kept at git tag `gen2-final` (`git show gen2-final:<path>`). Don't extend it |
 | `landing/` | The Next.js landing page (Vercel project root) |
+| `archived/` | History only: research, docs, the gen-2 specs (`plan-gen2/`) and case model, and the finished v1 build plan with its full decision log (`plan-v1-build/`). Earlier code is at git tag `gen2-final` (`git show gen2-final:<path>`). Don't extend it |
 
-v1 is a rewrite, and no existing code is off-limits: delete anything v1
-doesn't use, including `archived/` code (the tag `gen2-final` keeps it).
-Keep `landing/` and the specs.
+Delete code that nothing uses; git keeps it.
 
-## Build and test
+## Commands
 
-Run from the repo root.
+The everyday entry points are in [README.md](README.md), which stays a
+short overview. Every make target and tool is in
+[plan/VERIFICATION.md](plan/VERIFICATION.md) §2, and each CLI prints its
+flags with `--help`. `make run` and `make debug` use Bluetooth, so they're
+the owner's. For agents:
 
 ```sh
-make build        # Mac app, boop-hook, boopdev
-make test         # Swift unit tests (XCTest shim; there is no Xcode here)
-make eval         # harness eval scenarios (app/Evals/scenarios) in every mode, deterministic
-make eval REAL=1  # the same with the real brains, 3 runs each, plus refusals and latency (L5)
-make fw           # build firmware for the board
-make flash        # build and upload over USB
-make fw-test      # firmware unit tests on the Mac
-make sim          # every device scenario in the simulator, against the goldens
-make e2e          # hook → app → USB → device pipeline check
-make tools-test   # the tools' own tests: boopctl's commands, the webcam recorder on synthetic video
-make run          # the Mac app, with Bluetooth; the owner runs this, not agents
-make debug        # make run, printing hooks, decisions, device lines and brain passes; the owner's too
-app/.build/debug/Boop --headless --state-dir DIR --debug   # the runtime with no UI or Bluetooth, printing everything
-app/.build/debug/Boop --snapshots DIR   # the Mac app's popover and icons as PNGs, no Bluetooth
-tools/boopctl ping | state | shot | send '<json>' | sim | run | bridge
-tools/boopctl play <cheer|wiggle|listening|stop|needs|pattern> | mumble [feeling…]
+make build                                                # Mac app, boop-hook and boopdev (make test and make eval build too)
+app/.build/debug/Boop --headless --state-dir DIR --debug  # the whole runtime with no UI or Bluetooth, printing everything
+app/.build/debug/Boop --snapshots DIR                     # the popover's panes and the menu-bar icons as PNGs, then exits
 ```
 
-Every tool lists its options with `--help` (`tools/boopctl`,
-`app/.build/debug/boopdev`, `app/.build/debug/Boop`).
-
-**Environment notes:**
+## Environment notes
 
 - There's no Xcode, so `swift test` runs nothing. `make test` runs
-  `python3 app/tools/test.py`, which generates the shim runner, builds the
-  package in one `swift build` and runs `app/.build/debug/BoopTests`.
-- Command Line Tools lack some Swift macro plugins. SwiftUI's `@State` and
-  Foundation Models' `@Generable`/`@Guide` don't compile. Use the
-  `ViewState` alias and runtime `DynamicGenerationSchema` instead
-  ([plan/PLAN.md](plan/PLAN.md) §1).
+  `python3 app/tools/test.py`, which generates the XCTest shim's runner,
+  builds the package in one `swift build` and runs
+  `app/.build/debug/BoopTests`.
+- Command Line Tools lack some Swift macro plugins, so SwiftUI's `@State`
+  and Foundation Models' `@Generable`/`@Guide` don't compile. Write
+  `@ViewState` (the alias in `app/Boop/Views/ViewState.swift`), and build
+  answer schemas at runtime with `DynamicGenerationSchema`, as
+  `app/BoopKit/Brains/Writers/AppleWriter.swift` does.
 - If a SwiftPM build fails before compiling, with module-cache errors under
   `~/.cache/clang` or `~/Library/org.swift.swiftpm`, rerun it outside the
   sandbox before investigating the source.
 - Apple's Foundation Models runs from the shell (8K context).
+- `boopdev` reads Jev's API key only from `BOOP_JEV_KEY`, and an agent
+  shell can't read the Keychain, so Jev runs need the owner to supply the
+  key. Don't go looking for it.
 - PlatformIO is `/opt/homebrew/bin/pio`. Call it through
-  `firmware/tools/pio.sh` (the make targets do), which keeps its packages in
-  `firmware/.platformio-core`. The board shows up as
-  `/dev/cu.usbserial-*`. The serial port needs no special permissions.
+  `firmware/tools/pio.sh` (the make targets do), which keeps its packages
+  in `firmware/.platformio-core`. The board shows up as
+  `/dev/cu.usbserial-*`, and the serial port needs no special permissions.
 - System Python has no pyserial or Pillow. The tools use `tools/.venv`,
-  which `tools/boopctl` makes on its first run (`make tools`).
+  which `tools/boopctl` makes on its first run (`make tools` refreshes it).
 - A Unix socket's path has room for 103 bytes, so give `Boop --headless`
   a short state directory (under `/tmp`) or a short `--socket`.
-- `make build` re-signs `Boop` with the owner's self-signed "Boop Dev"
-  certificate when it exists, so the Keychain doesn't ask for the Jev key
-  after every rebuild ([plan/VERIFICATION.md](plan/VERIFICATION.md) §2).
+- Webcam recording works only from a terminal the Claude app opens (its
+  Terminal panel). macOS gives camera permission to the app that launched
+  the process, and an agent's own shell has none.
 
 ## Never do these
 
 - **Don't launch the Boop app with Bluetooth, or run `bleak`, from an agent
   shell.** macOS kills the process on its first Bluetooth use. For live
   checks, use USB: `tools/boopctl bridge` plus
-  `Boop --headless --state-dir DIR --link usb:…`
+  `Boop --headless --state-dir DIR --link usb:SOCKET`
   ([plan/VERIFICATION.md](plan/VERIFICATION.md) L4). Ask the owner to run
   `make run` for Bluetooth.
 - **Don't modify `~/.claude`, `~/.codex`, or the everyday app's state from
   tests.** Use a temporary `HOME` and isolated state directories.
 - **Don't let Boop approve, deny or block anything an agent does.** Hooks
   only report, and they fail open.
-- **Don't use the webcam unless it's authorised** (below).
+- **Don't use the webcam unless the owner asks** (below).
 
 ## Architecture rules
 
@@ -108,12 +99,12 @@ rules that are easy to break:
   the memory files. Only the device link knows Bluetooth or USB.
 - **The brain is never on the event path.** Rules give the immediate
   reaction, and the brain adds character later or not at all.
-- **The brain is assumed to be small** (by default plain rules decide and
-  Apple's on-device model writes the words). Keep outputs few and flat,
+- **The brain is assumed to be small.** Plain rules or Jev decide, and
+  Apple's on-device model writes the words. Keep outputs few and flat,
   with mostly multiple-choice arguments, and keep deciding and writing
   apart.
-- **`steering.md` is read-only at runtime.** `plan/steering.md` is the single
-  source, and the app bundles a copy.
+- **`steering.md` is read-only at runtime.** `plan/steering.md` is the
+  single source, and the app bundles a copy.
 - **No code, file contents, prompts or agent transcripts go to the brain.**
   The only exception is the person's own words on push-to-talk.
 - **"Needs you" and the screen priority are plain rules in the core.**
@@ -123,15 +114,14 @@ rules that are easy to break:
 
 ## Specs stay in sync
 
-`plan/` is the contract, and the code must not drift from it. A change to
-behaviour, a message, a budget, a flow, a command or a check updates the
-matching spec in the same commit. Reviewers read the spec diff next to the
-code diff.
+`plan/` is the contract. A change to behaviour, a message, a budget, a
+flow, a command or a check updates the matching spec in the same commit,
+so reviewers can read the spec diff next to the code diff.
 
 **Start from the latest code.** In a worktree, check that
 `git log --oneline HEAD..main` prints nothing before you compare or edit
-anything. A worktree made from `origin/main` can be far behind a local
-`main` that hasn't been pushed, and its specs describe different code.
+anything: a worktree made from `origin/main` can be far behind an
+unpushed local `main`.
 
 **Which spec goes with which code** (specs are in `plan/`):
 
@@ -139,82 +129,63 @@ anything. A worktree made from `origin/main` can be far behind a local
 | --- | --- |
 | `app/BoopKit/Core/`, `firmware/src/app/behaviour.*` | `BEHAVIORS.md` |
 | `app/Boop/`, `firmware/src/render/`, `firmware/src/app/gesture.*` | `UX.md` |
-| `app/HookWire/`, `app/BoopHook/`, `app/BoopKit/Adapters/`, `app/BoopKit/Install/` | `ADAPTERS.md`, `ARCHITECTURE.md` §5 |
-| `app/BoopKit/Harness/`, `app/BoopKit/Brains/`, `app/BoopKit/Core/Input.swift` | `HARNESS.md`, `steering.md` |
-| `app/BoopKit/Actions/` | `ARCHITECTURE.md` §3, `HARNESS.md`, `steering.md` |
+| `app/HookWire/`, `app/BoopHook/`, `app/BoopKit/Adapters/`, `app/BoopKit/Install/` | `ADAPTERS.md` |
+| `app/BoopKit/Harness/`, `app/BoopKit/Brains/`, `app/BoopKit/Actions/`, `app/BoopKit/Core/Input.swift` | `HARNESS.md`, `steering.md` |
 | `app/BoopKit/Memory/`, `app/BoopKit/App/` | `ARCHITECTURE.md` §3–4 |
 | `app/BoopKit/Voice/`, `firmware/src/voice/`, `tools/voicegen/` | `VOICE.md` |
-| `app/BoopKit/DeviceLink/`, `StateSnapshot.swift`, `firmware/src/link/`, `firmware/src/app/device.cpp`, `tools/boopctl_lib/` | `PROTOCOL.md` |
-| `firmware/src/board/`, `firmware/platformio.ini` | `DEVICE.md` |
+| `app/BoopKit/DeviceLink/`, `StateSnapshot.swift`, `firmware/src/link/`, `firmware/src/app/{device.cpp,packets.h,link_silence.h}`, `tools/boopctl_lib/` | `PROTOCOL.md` |
+| `firmware/src/board/`, `firmware/platformio.ini`, `tools/fontgen/` | `DEVICE.md` |
 | `Makefile`, `tools/`, `app/BoopDev/`, `skills/`, tests | `VERIFICATION.md`, this file, `README.md` |
 | `app/BoopKit/Eval/`, `app/Evals/` | `EVALS.md` |
 | Structure, boundaries or a budget | `ARCHITECTURE.md` |
 | What's in or out of v1 | `VISION.md` (Scope), `FUTURE.md` |
-| A milestone's status | `PLAN.md` §4 |
+| A milestone's status | `PLAN.md` (its status table) |
 | A spec added, renamed or removed | `plan/README.md`, this table |
 
 **Rules that keep them from drifting:**
 
-- **Say each fact once.** A number, name or rule lives in one spec; other
-  docs link to it instead of restating it. When you change one, grep
-  `plan/`, this file, `README.md`, `skills/`, `tools/*/README.md` and code
-  comments for the old value or name, and fix every hit. Most drift so far
-  is a copy left behind in a second doc.
+- **Say each fact once.** A number, name or rule lives in one doc; the
+  others link to it. When you change one, grep `plan/`, this file,
+  `README.md`, `skills/`, `tools/*/README.md` and code comments for the
+  old value or name, and fix every hit. Most drift is a copy left behind
+  in a second doc.
 - **Examples are real.** JSON, command lines and file layouts in a spec
-  come from a test fixture or actual output, not from memory. When the
-  shape changes, the example changes with it.
+  come from a test fixture or actual output. When the shape changes, the
+  example changes with it.
 - **Commands run as written.** Every command in this file, `README.md`,
   `VERIFICATION.md` and the skills exists with those arguments. When you
   add, rename or remove a make target, a `boopctl` or `boopdev`
   subcommand, a flag or a path, grep the docs for it in the same commit.
 - **Pin rules in tests.** When you implement or change a rule with a number
   in it (a timing, cap, threshold or priority), add or update a test that
-  checks it and name the spec section in the test.
+  checks it and names the spec section.
 - **Removed code takes its docs with it.** Delete, or move to `archived/`,
   any doc, skill, checklist or code comment that describes code that's
-  gone. A live doc for dead code is worse than none.
+  gone.
 - **Status moves with the work.** When a milestone or task closes, update
-  its row in `PLAN.md`, link its evidence from there, bump the "Updated"
-  date on every spec you touched, and fix any summary that claims to be
-  current, such as `plan/evidence/v1-build/REPORT.md`.
-- **Drift you find but don't fix gets tracked.** Add it to `PLAN.md` as an
-  open item. A note that lives only in evidence or a progress log gets
-  lost.
+  its row in `PLAN.md`, link its evidence from there, and bump the
+  "Updated" date on every spec you touched. Drift you find but don't fix
+  goes in `PLAN.md` as an open item.
 - **Before you commit,** go through `git diff --stat` against the table
   above, check that `cmp CLAUDE.md AGENTS.md` is silent, and check that
   new or edited links resolve.
 
 If a change deliberately departs from the spec, change the spec first and
-add a row to the decision log in
-[plan/ARCHITECTURE.md](plan/ARCHITECTURE.md) §11 saying why.
+add a row saying why to the decision log at the end of
+[plan/ARCHITECTURE.md](plan/ARCHITECTURE.md).
 
-## Verification
+## Checking your work
 
-Use the loop in [plan/VERIFICATION.md](plan/VERIFICATION.md): unit tests,
-then the simulator (look at the PNGs), then the device over USB (pixel
-identical to the simulator), then the webcam when authorised. Report only
-checks that actually ran and passed. A milestone's evidence goes in
-`plan/evidence/v1-build/<milestone>/` ([plan/VERIFICATION.md](plan/VERIFICATION.md)
-§7); other work goes in `plan/evidence/<date>-<topic>/`. Link either from
-`PLAN.md`. Raw webcam footage never goes into git.
+Check changes with the loop in [plan/VERIFICATION.md](plan/VERIFICATION.md)
+§1, and report only checks that actually ran and passed. Evidence goes in
+`plan/evidence/<date>-<topic>/` (§7 there), linked from `PLAN.md`.
 
-## Webcam
+Before trusting anything that depends on hooks, run the `doctor` skill
+(`skills/doctor/doctor.sh`). It checks that this agent's hooks reach Boop;
+`--headless` checks against a throwaway headless app instead of the
+owner's.
 
-Webcam verification is opt-in. Use the `webcam-verify` skill
-(`skills/webcam-verify/SKILL.md`) only when the owner asks for it and
-confirms the physical setup for that session. The v1 build was
-authorised to use it until the owner withdrew that on 2026-09-26
-(`plan/evidence/v1-build/PROGRESS.md`). Clips are bounded, video only, and raw
-footage stays local.
-
-## Self-diagnosis
-
-The `doctor` skill (`skills/doctor/doctor.sh`) checks hook registration, the
-running app's socket, a synthetic round trip and, with `--confirm`, that
-this agent's own hooks fire. `--headless` checks against a throwaway
-headless app instead. Don't launch the Boop app yourself; ask the owner.
-
-## Documentation
-
-- `README.md` stays an overview with build, run and test commands.
-- History and earlier research live in `archived/`. Don't extend them.
+**Webcam.** Webcam verification is opt-in. Use the `webcam-verify` skill
+only when the owner asks for it and confirms the board is set up for that
+session. Clips are bounded and video only, and raw footage stays local and
+out of git.

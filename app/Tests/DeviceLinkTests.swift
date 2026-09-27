@@ -86,7 +86,7 @@ final class DeviceLinkTests: XCTestCase {
         XCTAssertTrue(box.isEmpty)
     }
 
-    /// VERIFICATION.md §2: the USB link sends on the runtime's queue, so a
+    /// PROTOCOL.md §2 (USB): the USB link sends on the runtime's queue, so a
     /// bridge that stops reading must cost a reconnect, not a frozen app.
     func testAUSBBridgeThatStopsReadingCantFreezeTheApp() throws {
         let path = "/tmp/boop-usb-stall-\(getpid()).sock"

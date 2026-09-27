@@ -32,7 +32,7 @@ final class SpeechListener: @unchecked Sendable {
     }
 
     /// Asks for speech recognition, then the microphone, the first time
-    /// either is needed (UX.md §6). `done` gets nil when both are allowed,
+    /// either is needed (UX.md §5). `done` gets nil when both are allowed,
     /// otherwise why not. Any queue.
     func authorize(_ done: @escaping @Sendable (String?) -> Void) {
         let refused = "Allow Boop in System Settings → Privacy & Security → "

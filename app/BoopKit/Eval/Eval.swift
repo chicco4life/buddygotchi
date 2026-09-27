@@ -398,7 +398,7 @@ public struct Eval: Sendable {
                                                                          failed: step.failed), ts: now))
         case "needs you":
             // An approval request, as Claude's PermissionRequest reports it;
-            // the session's next event is its answer (ADAPTERS.md §3).
+            // the session's next event is its answer (ADAPTERS.md §4).
             return core.handle(BoopEvent(agent: step.agent, session: step.session, project: step.project,
                                          event: .needsYou, detail: .init(tool: "Bash"), ts: now))
         case "turn finished": return event(.turnEnd)

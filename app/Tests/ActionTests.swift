@@ -106,7 +106,7 @@ final class ActionTests: XCTestCase {
         XCTAssertEqual(rig.sent.last?.say?.tune, .down, "sulky mumbles like sad")
     }
 
-    /// BEHAVIORS.md §6: no mumbles in quiet mode or while something needs you.
+    /// BEHAVIORS.md §4: no mumbles in quiet mode or while something needs you.
     func testAMumbleInQuietIsDropped() {
         rig.allowed = false
         XCTAssertEqual(rig.run(react("happy")), .dropped("Boop is quiet right now"))

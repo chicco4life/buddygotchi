@@ -16,7 +16,7 @@ public enum Mode: String, CaseIterable, Sendable {
     case calm
 
     /// Working chatter comes this often while agents work; nil for none
-    /// (BEHAVIORS.md §2, proposed).
+    /// (BEHAVIORS.md §6).
     public var chatterMs: ClosedRange<Int>? {
         switch self {
         case .chatty: 45_000...90_000

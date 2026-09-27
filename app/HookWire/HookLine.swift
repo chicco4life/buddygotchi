@@ -1,6 +1,6 @@
 import Foundation
 
-/// The one line `boop-hook` sends to the app: only the fields ADAPTERS.md §3
+/// The one line `boop-hook` sends to the app: only the fields ADAPTERS.md §2
 /// keeps. Prompt text, tool input and file contents never get this far; the
 /// topic tag is worked out from the tool input in memory, then the input is
 /// dropped with the rest of the payload.

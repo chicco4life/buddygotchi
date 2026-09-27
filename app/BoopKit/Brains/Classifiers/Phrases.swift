@@ -18,7 +18,8 @@ import Foundation
 /// The first row that matches wins; whole words count ("hi" isn't in
 /// "this"). The writer picks every word.
 ///
-/// Where to remember it (ARCHITECTURE.md §4), first match wins:
+/// Where to remember it (HARNESS.md §6; the sections' rules are
+/// ARCHITECTURE.md §4), first match wins:
 ///
 /// | The words have | Where |
 /// | --- | --- |

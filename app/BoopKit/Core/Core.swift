@@ -30,7 +30,7 @@ public final class Core {
         public var mergeMs: Int64 = 3000
         /// A poke streak is this many taps within `pokeWindowMs`, and it
         /// reaches the brain at most once every `pokedEveryMs`
-        /// (BEHAVIORS.md §3.3, proposed).
+        /// (BEHAVIORS.md §3.3).
         public var pokeTaps = 4
         public var pokeWindowMs: Int64 = 3000
         public var pokedEveryMs: Int64 = 60_000

@@ -1,5 +1,5 @@
 // The face renderer: integer maths, the rasterizer, poses, blends, fonts
-// and the palette ramps (plan/PLAN.md F2, L0).
+// and the palette ramps (archived/plan-v1-build/PLAN.md F2, L0).
 #include <unity.h>
 
 #include <cstring>

@@ -1,255 +1,250 @@
 # Boop: agent adapters
 
 Updated 2026-09-27. How Boop hears from Claude Code and Codex: the hook
-client, which hooks we register and what each becomes, and how "needs you"
-is detected and cleared.
+client, the event every hook becomes, how "needs you" is detected and
+cleared, and how the hooks are installed.
 
 ## 1. The job
 
-An adapter turns one agent's hook calls into Boop's common event
-([ARCHITECTURE.md](ARCHITECTURE.md) §5). Everything agent-specific lives
-here. The rest of Boop never sees a raw hook payload.
+An adapter turns one agent's hook calls into Boop's common event.
+Everything agent-specific lives here; the rest of Boop never sees a raw
+hook payload.
 
-Hooks only report. They never answer, block or change what the agent does.
-Three rules follow:
+Hooks only report. They never answer, block or change what the agent does,
+so Boop can't approve or deny anything. Three rules follow:
 
 1. **Exit fast.** The hook client writes one line and exits with success.
-   It never prints a decision, so the agent always continues with its own
-   flow, including its own approval prompt.
-2. **Fail open.** If the Boop app isn't running, or its socket is missing or
-   slow (50 ms in total to connect and write the line), the hook exits with
-   success and does nothing.
-3. **Send little.** The hook forwards only the fields in §3. Prompt text,
-   tool input and file contents never leave the hook client. The one thing
-   it takes from tool input is a topic tag (§3), worked out in memory and
-   then dropped.
+   It prints nothing, so the agent carries on with its own flow, its own
+   approval prompt included.
+2. **Fail open.** If the app isn't running, or its socket is missing or
+   slow, the hook gives up quickly ([ARCHITECTURE.md](ARCHITECTURE.md) §9)
+   and still exits with success.
+3. **Send little.** Prompt text, tool input, output and file contents never
+   leave the hook client. The one thing it takes from a tool's input is a
+   topic tag (§3), worked out in memory.
+
+### The common event
+
+Every adapter produces the same shape. This is the Claude adapter's output
+for a `PreToolUse` that runs tests:
+
+```json
+{"agent":"claude_code","detail":{"tool":"Bash","topic":"tests"},"event":"activity","project":"landing","session":"a1b2","ts":1790000000123}
+```
+
+| Field | Meaning |
+| --- | --- |
+| `agent` | `claude_code` or `codex` |
+| `session` | The agent's session or thread ID |
+| `subagent` | Only on events from inside a Claude subagent, which shares its parent's `session`: its `agent_id` (§4) |
+| `project` | A short project name from the working directory (§3) |
+| `event` | `session_start`, `turn_start`, `activity`, `needs_you`, `turn_end`, `turn_failed`, `turn_stopped` (over without finishing), `session_end` |
+| `detail` | Small and event-specific, per hook in §3: `tool`, `topic`, `failed` (true or false) and `error` (an error class, §2). Never prompt text, commands or file contents |
+| `ts` | When the app received it, in milliseconds |
+
+Turn length isn't sent: the core times each turn itself.
 
 ## 2. The hook client
 
-Every hook registration calls one small compiled binary:
+Every hook entry calls one small compiled binary, `boop-hook claude` or
+`boop-hook codex`. Being compiled, it costs a few milliseconds even for
+agents that fire a hook on every tool call.
 
-```
-boop-hook <agent>        # agent = claude | codex
-```
+1. It reads the hook's JSON from stdin, up to 256 KB, and drains the rest.
+   A payload cut off at the cap won't parse, so the fields it needs are
+   picked out of its start instead, and it gets no topic.
+2. It keeps only these fields, each cut to 200 characters: `agent`,
+   `hook`, `session`, `cwd`, `tool`, `topic` (§3), `error` (StopFailure's
+   `error` or `error_type`), `kind` (Notification's type), `interrupt`
+   (PostToolUseFailure's `is_interrupt`), `agent_id` (the Claude subagent
+   the hook fired in) and `ts`. A payload with no hook name or session
+   sends nothing.
+3. It writes them as one JSON line to the app's Unix socket,
+   `~/Library/Application Support/Boop/boop.sock` (tests point it
+   elsewhere with `BOOP_SOCKET`). Connecting and writing share one time
+   budget ([ARCHITECTURE.md](ARCHITECTURE.md) §9).
+4. It exits with 0 and prints nothing. A 1 s alarm makes sure of that even
+   if stdin never closes.
 
-1. It reads the hook's JSON from stdin, up to 256 KB. Anything beyond that
-   is drained and ignored. A payload cut off at the cap won't parse, so the
-   hook name, session, `cwd`, `agent_id` and tool name are picked out of
-   its start instead (it loses its topic).
-2. It picks out the fields in §3.
-3. It writes one JSON line to the app's Unix socket,
-   `~/Library/Application Support/Boop/boop.sock`. Tests point it elsewhere
-   with `BOOP_SOCKET`.
-4. It exits with 0 and prints nothing. A 1 s watchdog makes sure of that
-   even if stdin never closes.
-
-The line it writes carries only `agent`, `hook`, `session`, `cwd`, `tool`,
-`topic`, `error` (StopFailure's raw `error`, or its `error_type`), `kind`
-(Notification's type), `interrupt` (true when PostToolUseFailure's
-`is_interrupt` is), `agent_id` (Claude's id for the subagent a hook fired
-in, which otherwise carries its parent's session) and `ts`, each value cut
-to 200 characters. The app's
-adapter turns that into the common event, and turns `error` into a class:
-`rate_limit`, `overloaded`, `api_error`, `auth`, `timeout`, `network`,
-`context_limit`, `billing`, or `other` for anything else.
-
-Because it's compiled rather than a script, it costs a few milliseconds at
-most, even for agents that fire a hook on every tool call.
+The app's adapter turns the line into the common event, and `error` into
+a class: `rate_limit`, `overloaded`, `api_error`, `auth`, `timeout`,
+`network`, `context_limit` or `billing` when the text contains one, and
+`other` otherwise.
 
 ## 3. Event mapping
 
-### Claude Code
-
-Every line keeps the session and `cwd`, and, from inside a Claude
-subagent, its `agent_id` (§2). The tables list what else each keeps.
-
-| Claude hook | Becomes | Fields kept |
+| Claude Code hook | Becomes | `detail` |
 | --- | --- | --- |
-| `SessionStart` | `session_start` | session |
-| `UserPromptSubmit` | `turn_start` | session |
-| `PreToolUse` | `activity` | session, tool name, topic |
-| `PostToolUse`, `PostToolUseFailure` | `activity` | session, tool name, topic, and whether the call failed (`failed`) |
-| `PostToolUseFailure` because you interrupted it | `turn_stopped` | session, tool name |
-| `PermissionRequest` | `needs_you` | session, tool name |
-| `Notification` (`permission_prompt`, `elicitation_dialog`) | `needs_you` (deduplicated) | session |
-| `Notification` (`idle_prompt`) | `turn_stopped` | session |
-| `Elicitation` | `needs_you` | session |
-| `ElicitationResult` | `activity` | session |
-| `Stop` | `turn_end` | session |
-| `StopFailure` | `turn_failed` | session, error class |
-| `SessionEnd` | `session_end` | session |
+| `SessionStart` | `session_start` | |
+| `UserPromptSubmit` | `turn_start` | |
+| `PreToolUse` | `activity` | `tool`, `topic` |
+| `PostToolUse` | `activity` | `tool`, `topic`, `failed: false` |
+| `PostToolUseFailure` | `activity` | `tool`, `topic`, `failed: true` |
+| `PostToolUseFailure` with `is_interrupt` (you pressed Esc) | `turn_stopped` | `tool` |
+| `PermissionRequest` | `needs_you` | `tool` |
+| `Notification`: `permission_prompt`, `elicitation_dialog` | `needs_you` | |
+| `Notification`: `idle_prompt` | `turn_stopped` | |
+| `Elicitation` | `needs_you` | |
+| `ElicitationResult` | `activity` | |
+| `Stop` | `turn_end` | |
+| `StopFailure` | `turn_failed` | `error` |
+| `SessionEnd` | `session_end` | |
 
-### Codex
+Codex's `SessionStart` (startup, resume, clear), `UserPromptSubmit`,
+`PreToolUse`, `PostToolUse`, `PermissionRequest`, `Stop` and `SessionEnd`
+map the same way. Codex has no failure hook, and what its `PostToolUse`
+reports after a failed command hasn't been seen from a real session, so
+Codex activity carries no `failed` and a Codex turn never fails
+([FUTURE.md](FUTURE.md)).
 
-| Codex hook | Becomes | Fields kept |
-| --- | --- | --- |
-| `SessionStart` (startup, resume, clear) | `session_start` | session |
-| `UserPromptSubmit` | `turn_start` | session |
-| `PreToolUse`, `PostToolUse` | `activity` | session, tool name, topic |
-| `PermissionRequest` | `needs_you` | session, tool name |
-| `Stop` | `turn_end` | session |
-| `SessionEnd` | `session_end` | session |
+**Failed commands.** Claude sends `PostToolUse` when a tool call works and
+`PostToolUseFailure` when it fails, including a shell command that exits
+with an error. The adapter keeps only that yes or no, never the output.
+What makes a turn fail is in [BEHAVIORS.md](BEHAVIORS.md) §3.1.
 
-Codex has no failure hook, so in v1 a failed Codex turn looks like an
-ordinary finish. Its `PostToolUse` also runs after a shell command fails,
-but what it reports then hasn't been seen from a real session, so Codex
-activity carries no `failed` in v1.
-
-**Failed commands.** Claude sends `PostToolUse` when a tool call succeeds
-and `PostToolUseFailure` when it fails, including a shell command that
-exits with an error. The adapter keeps only that yes or no, never the
-output. The core counts a turn as failed when the last test, build or
-deploy command in it (by topic tag, below) failed
-([BEHAVIORS.md](BEHAVIORS.md) §3.1).
-
-**Interrupted turns.** Claude sends no `Stop` for a turn you interrupt with
-Esc. An interrupted tool call, or Claude's `idle_prompt` (sent after it has
-sat at its prompt for a minute, which also covers an interrupt between tool
-calls), becomes `turn_stopped`: a working session goes idle with no
-reaction. The interrupted call carries its tool and, like any event from
-the session, answers a request still waiting; the idle notice has none and
-leaves such a request alone.
+**Interrupted turns.** Claude sends no `Stop` for a turn you interrupt
+with Esc. The interrupted tool call becomes `turn_stopped`, and so does
+`idle_prompt`, which Claude sends once it has sat at its prompt for about
+a minute and which also covers an interrupt between tool calls. A working
+session then goes idle with no reaction. The interrupted call also clears
+a waiting request (§4); the idle notice leaves one alone.
 
 **Project name.** The last folder of the session's `cwd`. A git worktree
-maps to its main repository's name, so `landing` and
-`landing/.worktrees/fix-nav` both show as `landing`. The app reads a
-folder's `.git` once and remembers the name (up to 512 folders, then it
-starts again), so a hook never waits on the disk. A line without a `cwd`
-keeps the session's project.
+maps to its main repository: `landing` and `landing/.worktrees/fix-nav`
+both show as `landing`, and so does any folder whose `.git` file points
+into `landing/.git/worktrees/`. The app reads each folder's `.git` once
+and remembers the name (up to 512 folders, then it starts again), so a
+hook never waits on the disk. A line without a `cwd` keeps the session's
+project.
 
-**Topic tags.** So that Boop's one real word can be about what's happening
-(*"…tests?"*), `boop-hook` looks at a tool's input just long enough to pick
-a tag, then drops the input:
+**Topic tags.** So that Boop's one real word can be about the work
+(*"…tests?"*), `boop-hook` glances at a tool's input to pick a tag, then
+drops the input:
 
 | Topic | When |
 | --- | --- |
-| `tests` | A shell command that runs tests (`pytest`, `npm test`, `jest`, `vitest`, `go test`, `cargo test`, `swift test`, …) |
-| `build` | A shell command that builds (`make`, `npm run build`, `cargo build`, `swift build`, `xcodebuild`, `tsc`, …) |
 | `deploy` | A shell command that deploys (`vercel`, `fly deploy`, `kubectl apply`, `terraform apply`, …) |
-| `docs` | An edit to a Markdown or plain-text file |
+| `tests` | A shell command that runs tests (`pytest`, `npm test`, `jest`, `go test`, `cargo test`, `swift test`, `make test`, …) |
+| `build` | A shell command that builds (`make`, `npm run build`, `cargo build`, `swift build`, `xcodebuild`, `tsc`, …) |
+| `docs` | An edit to a `.md`, `.mdx`, `.markdown`, `.txt` or `.rst` file |
 
 A shell command's topic comes from what it runs: the program and the
-words after it, in each command of the line (`cd app && swift test`),
-after `VAR=value`, shell words such as `do`, `then` or `!`, and wrappers
-such as `sudo -u ci`, `npx`, `uv run`, `bundle exec`, `python -m` or
-`yarn jest`, and inside `bash -c '…'` or `docker compose run web …`. A
-check word in an argument, in quoted text or in a heredoc doesn't count,
-so `grep -n "make test" Makefile`, `git commit -m "fix pytest"` and
-`command -v pytest` have no topic. When a line runs several, deploy beats
-tests, which beats build.
-Anything else has no topic. The core remembers each session's latest topic
-for the brain's inputs and working chatter.
+words after it that aren't flags, in each command of the line
+(`cd app && make -C firmware test` runs tests). It looks past
+`VAR=value`, shell words such as `then` or `!`, and wrappers such as
+`sudo -u ci`, `npx`, `uv run`, `bundle exec`, `python -m` or `yarn jest`,
+and into `bash -c '…'` and `docker compose run web …`. A check word in an
+argument, quoted text or a heredoc doesn't count, so
+`grep -n "make test" Makefile` and `command -v pytest` have no topic. When
+a line runs several, deploy beats tests, which beats build. The full lists
+are in `app/HookWire/Topic.swift`. The core remembers each session's
+latest topic for the brain's inputs and working chatter.
 
 ## 4. "Needs you"
 
-This is the one signal that has to be right every time. The previous
-generation of Boop taught us two things:
+This is the one signal that has to be right every time. Claude's
+`PermissionRequest` is reliable: it fires exactly when Claude is about to
+ask you, and not for tools you've already allowed. Codex's fires early:
+Codex can hand a request to its optional automatic reviewer, a model that
+may approve it without asking you, and the hook fires before that review.
 
-- **Claude's `PermissionRequest` is reliable.** It fires exactly when Claude
-  is about to ask you, and not for tools you've already allowed.
-- **Codex's `PermissionRequest` fires too early.** Codex can hand a request
-  to its optional automatic reviewer, a model that may approve it without
-  asking you, and the hook fires *before* that review. Boop used to go amber
-  for requests you were never asked about.
-
-**Rules:**
-
-- **Start:** `needs_you` puts the session into "needs you". A
-  `Notification` (a `needs_you` with no tool) while it's waiting is the
-  same request: that dedupes `PermissionRequest` against the matching
-  `Notification`. One that arrives within 5 s after the session stopped
-  needing you is the same request arriving late after a quick approval,
-  and is ignored too. A `PermissionRequest` from another subagent of the
-  same session while it's waiting joins the request.
-- **Codex grace period:** for Codex, Boop waits 2 s before showing it. If
-  the session moves on in that time, the reviewer handled it and Boop shows
-  nothing. Claude shows immediately.
-- **Clear:** the asker's next event clears it: the tool ran (you
-  approved), or the agent moved on (you denied). So does any turn-level
-  event from the session: a new prompt, the turn ending, failing or being
-  interrupted, or the session ending. Claude gives a subagent's hooks its
-  parent's session, so the asker is the main agent or a subagent by its
-  `agent_id`: a sibling subagent still running tools, or the main agent
-  hearing back from one, doesn't answer the request. A request that came as
-  a `Notification` alone doesn't say who asked, so any event clears it.
-- **Safety net:** after 10 minutes with no events (*proposed*), it clears
-  anyway, so a missed event can't leave Boop amber all day. The session
-  goes idle, not back to working: after ten silent minutes the agent is
-  still waiting on its prompt or is gone. Its next event makes it working
+- **Start.** A `needs_you` puts the session into "needs you", and the core
+  notes who asked: the main agent, or a Claude subagent by its `agent_id`.
+  A request from another subagent of the same session joins the one
+  waiting.
+- **Duplicates.** A `needs_you` with no tool (a `Notification` or an
+  `Elicitation`) while the session waits is the same request, so a
+  `PermissionRequest` and its `Notification` count once. One within 5 s
+  after the session stopped needing you is the same request arriving late
+  after a quick approval, and is ignored too.
+- **Codex grace.** For Codex, Boop waits 2 s before showing it. If the
+  session moves on in that time, the reviewer handled it and Boop shows
+  nothing. Claude's show at once.
+- **Clear.** The asker's next event clears its request: the tool ran (you
+  approved) or the agent moved on (you denied). A sibling subagent still
+  running tools, or the main agent hearing back from another subagent,
+  doesn't. Any turn-level event clears every request: a new prompt, the
+  turn ending, failing or being interrupted, or the session ending, but
+  not `idle_prompt`. A request with no tool doesn't say who asked, so any
+  event from the session clears it. Once no asker is left, the session is
+  working again.
+- **Safety net.** After 10 minutes with no events from the session, the
+  request clears anyway and the session goes idle: by then the agent is
+  still waiting at its prompt or is gone. Its next event makes it working
   again.
-- **Stale sessions:** a working session with no events for an hour counts
-  as idle, and a session with no events for a day is forgotten
-  (*proposed*), so a missed `SessionEnd` can't keep Boop busy forever.
+- **Stale sessions.** A working session with no events for an hour counts
+  as idle, and one with no events for a day is forgotten, so a missed
+  `SessionEnd` can't keep Boop busy.
+
+What you see and hear is in [BEHAVIORS.md](BEHAVIORS.md) §3.2.
 
 ## 5. Installing and repairing hooks
 
-- **Where:** Claude hooks go in `~/.claude/settings.json`, and Codex hooks
-  in `~/.codex/hooks.json`.
-- **Ownership:** every entry Boop adds calls `boop-hook`. That's how Boop
-  recognises its own entries. The entries call a copy the app keeps at
-  `~/Library/Application Support/Boop/bin/boop-hook`, refreshed at launch,
-  so rebuilding or moving the app doesn't break them. It never touches anyone else's, but it does
-  remove the previous generation's entries, which call
-  `~/.boop/boop-hook.sh`.
-- **No `boop-hook`, no hooks:** while that copy isn't there (a build that
-  skipped `boop-hook`, so the app had nothing to copy), the app installs
-  and repairs nothing, and setup and settings say why. Entries that call a
-  missing file would drop every event without a sign. `make run` builds
-  everything first for this reason.
-- **Install:** at setup, a switch per detected agent, on by default
-  ([UX.md](UX.md) §6), or one click in settings. The app shows exactly what
-  it will add: each hook entry and, for Codex, the `codex_hooks = true` line
-  in `config.toml` if it isn't there yet. Each entry carries `timeout: 5`
-  (seconds). Claude runs a `Notification` hook only for the types its
-  matcher lists, so Boop's matcher lists every type §3 maps:
-  `permission_prompt|elicitation_dialog|idle_prompt`.
-- **Repair:** on every launch, for each agent that already has Boop's
-  entries, the app restores missing or outdated ones, replacing the previous
-  generation's `~/.boop/boop-hook.sh` entries too. It leaves other hooks
-  alone, and never installs for an agent that has none.
-- **Codex's switch:** Codex runs hooks only with `codex_hooks = true` under
-  `[features]` in `~/.codex/config.toml`. Installing adds that line if it's
-  missing; removing leaves it, because other hooks may rely on it. It finds
-  the table however it's written (`[ features ] # note`, or top-level
-  `features.x = …` keys) and never declares it twice, which Codex refuses
-  to load. For a shape it won't edit (an inline `features = {…}` without
-  the key) it writes nothing, neither file, and the preview asks you to
-  add the line inside the braces.
-- **Symlinks:** a config file that's a symlink (a dotfiles setup) is
-  written through, not replaced.
-- **Files Boop can't read:** a config that isn't a JSON object is left
-  untouched, and settings shows why.
-- **Remove:** one click in settings.
-- **Restart:** agents read hooks at startup, so after an install or repair
-  the app tells you to restart open sessions.
+Claude's hooks go in `~/.claude/settings.json` and Codex's in
+`~/.codex/hooks.json`. Every entry Boop adds calls `boop-hook`, which is
+how Boop recognises its own. It never touches anyone else's entries, but
+it does remove an older Boop's, which call `~/.boop/boop-hook.sh`.
+
+- **Which copy.** The entries call a copy of `boop-hook` the app keeps at
+  `~/Library/Application Support/Boop/bin/boop-hook` and refreshes at
+  launch, so rebuilding or moving the app doesn't break them. While that
+  copy is missing, the app installs and repairs nothing, and setup and
+  settings say why: entries calling a missing file would drop every event
+  without a sign. `make run` builds everything first for this reason.
+- **Install.** At setup, a switch for each agent found on this Mac (its
+  `~/.claude` or `~/.codex` folder exists), on by default
+  ([UX.md](UX.md) §6), or one click in settings. The app shows exactly
+  what it will add. Each entry has `timeout: 5` (seconds). Claude runs a
+  `Notification` hook only for the types its matcher lists, so Boop's
+  lists every type §3 maps, `permission_prompt|elicitation_dialog|idle_prompt`;
+  Codex's `SessionStart` matches `startup|resume|clear`.
+- **Repair.** On every launch, for each agent that already has Boop's
+  entries, the app restores missing or outdated ones. It never installs
+  for an agent that has none.
+- **Remove.** One click in settings removes Boop's entries, current and
+  old, and nothing else.
+- **Codex's switch.** Codex runs hooks only with `codex_hooks = true`
+  under `[features]` in `~/.codex/config.toml`. Installing adds the line
+  (the preview shows it); removing leaves it for other hooks. However the
+  table is written (`[ features ] # note`, or top-level `features.x = …`
+  keys), it's never declared twice, which Codex refuses to load. An inline
+  `features = {…}` without the key is left for you to edit, and then
+  neither file is written.
+- **Careful writes.** A config file that's a symlink (a dotfiles setup) is
+  written through, not replaced. One that isn't a JSON object is left
+  alone, and settings shows why. Nothing is written when nothing would
+  change.
+- **Restart.** Agents read hooks at startup, so after an install, removal
+  or repair the app asks you to restart open sessions.
 
 ## 6. Checking it works
 
 The `doctor` skill (`skills/doctor/doctor.sh`) checks four things:
 
-1. Hooks are registered for each agent and point at a `boop-hook` that
+1. Hooks are registered for each agent and call a `boop-hook` that
    exists.
-2. The app is running and its socket answers.
-3. A synthetic event goes from the hook client to the app and back.
-4. A harmless command run in the agent shows up in Boop.
+2. The app is running and its socket accepts.
+3. A synthetic event from `boop-hook` reaches the app (seen in its log).
+4. With `--confirm`, a harmless command run in the agent shows up in Boop.
 
-The app logs hook lines only while the doctor has armed it, by writing
-`doctor-armed` into the state directory (`--confirm` removes the file), or
-in debug mode (`--debug`, [HARNESS.md](HARNESS.md) §8), which adds the
+`--headless` runs checks 1–3 against a throwaway headless app. The app
+logs hook lines only while the doctor has armed it, by writing
+`doctor-armed` into the state directory (`--confirm` removes it), or in
+debug mode (`--debug`, [HARNESS.md](HARNESS.md) §8), which also logs the
 event each hook became.
 
-## 7. Claude Cowork (not in v1)
+## 7. Claude Cowork
 
-Cowork runs Claude Code underneath, but it doesn't fire the hooks in
-`~/.claude/settings.json`: its sessions run in a Linux sandbox that doesn't
-see the Mac's settings
+Not in v1 ([FUTURE.md](FUTURE.md)). Cowork runs Claude Code in a Linux
+sandbox that doesn't see the Mac's `~/.claude/settings.json`, so Boop's
+hooks don't fire there
 ([anthropics/claude-code#40495](https://github.com/anthropics/claude-code/issues/40495)).
-Once hooks fire there, Cowork should only need the Claude adapter plus a way
-to tell its sessions apart.
+Once they do, it should need only the Claude adapter and a way to tell its
+sessions apart.
 
-## 8. Adding an agent later
+## 8. Adding an agent
 
-A new agent needs a mapping table like the ones in §3, a way to register
+A new agent needs an adapter with a mapping like §3's, a way to register
 hooks, and an answer to one question: what signal proves a person is being
 asked? Without a reliable one, the agent gets activity and completion, but
 no "needs you".

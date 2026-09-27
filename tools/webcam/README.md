@@ -2,21 +2,23 @@
 
 A small AVFoundation recorder and frame extractor for looking at Boop's
 physical screen. When and how to use the camera is the
-[`webcam-verify` skill](../../skills/webcam-verify/SKILL.md): it's opt-in,
-and the L3 checks ([plan/VERIFICATION.md](../../plan/VERIFICATION.md) L3,
-§6) run through `tools/boopctl cam`. This page is the recorder itself.
+[`webcam-verify` skill](../../skills/webcam-verify/SKILL.md), and the L3
+checks ([plan/VERIFICATION.md](../../plan/VERIFICATION.md) L3) use it
+through `tools/boopctl cam`. This page is the recorder itself.
 
-It needs macOS 14+ and Command Line Tools, and no FFmpeg or Python
-packages. `webcam.sh` compiles `Webcam.swift` into `.build/webcam` on first
-use. Run it from the repository root.
+It needs only Command Line Tools, with no FFmpeg or Python packages.
+`webcam.sh` compiles `Webcam.swift` into `.build/webcam` on first use and
+after an edit. Run it from the repository root; `tools/webcam/webcam.sh help`
+lists its options.
 
 ## Camera permission
 
-macOS gives camera access to the app that launched the process, not to the
-script. On this Mac, recording works only from a terminal the Claude app
-opens (its Terminal panel); from an agent's own shell the camera is
-missing or denied. If macOS asks, allow it in System Settings → Privacy &
-Security → Camera. Listing cameras never records.
+macOS gives camera access to the app that launched the process, so run
+`record` from a terminal that has it. For agents here, that's a terminal
+the Claude app opens ([CLAUDE.md](../../CLAUDE.md)); from an agent's own
+shell `record` says the camera is missing or access is denied. If macOS
+asks, allow it in System Settings → Privacy & Security → Camera. Listing
+cameras never records.
 
 ## Commands
 
@@ -28,14 +30,18 @@ tools/webcam/webcam.sh analyze --input /tmp/boop-camera-cheer/capture.mov \
   --out /tmp/boop-camera-cheer-review --roi 0.35,0.3,0.3,0.5 --start 1 --seconds 5
 ```
 
-`record` prints `RECORDING …` once frames arrive, then stops by itself
-(1–60 s); trigger the moment after that line. Video only: no microphone,
-no upload. The camera must support the requested rate; 60 fps is never
-assumed. `boopctl cam` uses the MacBook's own camera unless given
-`--camera ID` or `BOOP_CAMERA`.
+`record` prints `RECORDING …` once frames arrive and stops by itself after
+`--seconds` (1–60, default 10); trigger the moment after that line. It
+records video only, with no microphone and no upload. It picks a
+640–1920 px format that supports `--fps` (15–60, default 30), and fails if
+the camera has none.
 
+`analyze` reviews `--seconds` (up to 15, default 5) from `--start`.
 `--roi` crops with normalized **top-left** `x,y,width,height`; pick it from
 the framing clip's `preview.png`.
+
+Both refuse an `--out` directory that already exists, so evidence is never
+overwritten.
 
 ## What it writes
 
@@ -47,18 +53,19 @@ the framing clip's `preview.png`.
 - `sequence-000.png`, … (analyze): every decoded frame in the interval,
   30 per sheet, left to right and top to bottom, with timestamps. These
   are consecutive frames, not sparse keyframes.
-- `frames.csv`: every presentation timestamp and the interval to the next.
+- `frames.csv`: every presentation timestamp and the interval since the
+  one before.
 - `report.json`: the observed capture cadence, gaps over 1.5× the median
-  interval, the crop and interval, and an explicitly **unreviewed**
-  verdict.
+  interval, the crop and interval, and a verdict of `unreviewed`.
 
-A gap in the capture voids any smoothness claim across it, and regular
-timestamps don't prove the firmware's frame rate: duplicate camera frames,
-auto-exposure, motion blur, the panel's scan and rolling shutter can hide
-or mimic stutter.
+A gap in the capture voids any smoothness claim across it. Regular
+timestamps don't prove the firmware's frame rate either: duplicate camera
+frames, auto-exposure, motion blur, the panel's scan and rolling shutter
+can hide or mimic stutter.
 
 ## Tests
 
-`make tools-test` generates a moving-square MOV with one frame missing and
-checks gap detection, that consecutive frames are kept, interval selection,
-evidence overwrite protection and bad arguments. It never opens a camera.
+`make tools-test` generates a moving-square movie with one frame missing
+and checks gap detection, that consecutive frames are kept, interval
+selection, overwrite protection and bad arguments. It never opens a
+camera.
