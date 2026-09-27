@@ -13,10 +13,11 @@ import Foundation
 /// it (PROTOCOL.md §3). A brain moment sent with an `id` holds the line
 /// until the device's `ended` says it's over, which is usually sooner (a
 /// face ends on a loop boundary, or a tap cuts it), and at most until the
-/// app stops waiting for that `ended`. The schedule also hears what the
-/// device does on its own or leaves out: a tap's wiggle cuts whatever
-/// plays, "needs you" starting stops everything, and while something
-/// needs you no moment plays.
+/// app stops waiting for that `ended`, whatever the Mac hears meanwhile of
+/// a tap or the link dropping. The schedule also hears what the device
+/// does on its own or leaves out: a tap's wiggle cuts whatever else plays,
+/// "needs you" starting stops everything, and while something needs you
+/// no moment plays.
 ///
 /// On a caller's clock, so the runtime can drive it with a timer and the
 /// tests without one. It changes nothing but itself and the handles of
@@ -94,8 +95,14 @@ public struct MomentSchedule {
 
     /// The device's own wiggle, at a tap: it cuts whatever plays, as a
     /// rule's wiggle does, unless something needs you (BEHAVIORS.md §3.3).
+    /// Except a brain moment that holds the line: the app hears the tap
+    /// after sending what it thought was playing, so the moment may have
+    /// reached the device after the tap and play on. Its `ended` frees the
+    /// line, which the device sends at once for a moment its tap cut.
     public mutating func tapped(now: Int64) {
+        let held = holder
         rule(DeviceMoment(anim: "wiggle"), now: now)
+        if !attn { holder = held }
     }
 
     /// A `state` sent: its look and mood time what plays next, and "needs
@@ -107,8 +114,8 @@ public struct MomentSchedule {
         self.attn = attn
     }
 
-    /// Nothing plays from `now`: no device is connected, or "needs you"
-    /// stopped it all.
+    /// Nothing plays from `now`: a reaction's turn came with no device
+    /// connected, or "needs you" stopped it all.
     public mutating func stop(now: Int64) {
         animUntil = min(animUntil, now)
         lineUntil = min(lineUntil, now)

@@ -919,15 +919,21 @@ final class RuntimeTests: XCTestCase {
         XCTAssertNil(silent.due(now: deadline - 1).play)
         XCTAssertEqual(silent.due(now: deadline).play, face)
 
-        // A rule's animation or a tap frees it; so does "needs you".
+        // A rule's animation frees it; so does "needs you". A tap leaves it
+        // to the moment's `ended`, which the device sends at once for a
+        // moment its tap cut.
         for free in ["cheer", "tap", "needs you"] {
             var cut = MomentSchedule()
             cut.brain(face, now: 0)
-            _ = sent(&cut, at: 0, id: 1)
+            let held = sent(&cut, at: 0, id: 1)
             cut.brain(face, now: 500)
             switch free {
             case "cheer": cut.rule(DeviceMoment(anim: "cheer"), now: 1000)
-            case "tap": cut.tapped(now: 1000)
+            case "tap":
+                cut.tapped(now: 1000)
+                XCTAssertEqual(cut.lineFree, held, "a tap alone")
+                XCTAssertNil(cut.due(now: 1000).play)
+                cut.ended(id: 1, now: 1000)
             default: cut.show(look: "idle", mood: "happy", attn: true, now: 1000)
             }
             XCTAssertEqual(cut.lineFree, 1000, free)
@@ -1043,12 +1049,14 @@ final class RuntimeTests: XCTestCase {
         react("excited")
         XCTAssertEqual(moments(), 4, "waits for the third")
         device(#"{"t":"input","k":"tap"}"#)
-        XCTAssertEqual(moments(), 5, "the tap's wiggle stops the third on the device")
+        XCTAssertEqual(moments(), 4, "the tap's wiggle may have come before the third arrived")
+        device(#"{"t":"ended","id":\#(transport.momentIds[2]),"how":"cut","why":"tap"}"#)
+        XCTAssertEqual(moments(), 5, "the device says the tap stopped the third")
         let look = runtime.home.sync { runtime.moments.schedule.look }
         let deadline = try XCTUnwrap(runtime.home.sync { runtime.moments.playing.last?.deadline })
         XCTAssertGreaterThanOrEqual(deadline - clock.now - Runtime.Moments.endGraceMs, 2 * FaceLoops.ms(mood: "excited", state: look),
                                     "the look's design, not the cheer's")
-        XCTAssertEqual(ends(), [.done], "the rest still to hear from the device")
+        XCTAssertEqual(ends(), [.done, .failed("cut short: you tapped Boop")], "the second still to hear from the device")
 
         clock.now += 300
         react("sad")
@@ -1062,7 +1070,11 @@ final class RuntimeTests: XCTestCase {
 
         transport.onConnection?(false)
         runtime.home.sync {}
-        XCTAssertEqual(ends().count, 5, "the four it was waiting on didn't happen")
+        XCTAssertEqual(ends().count, 5, "the three it was waiting on didn't happen")
+        // The fifth may play on the device, and holds the line until the
+        // app gives up on it; after that nothing is playing.
+        clock.now = try XCTUnwrap(runtime.home.sync { runtime.moments.schedule.holder?.until })
+        runtime.home.sync { runtime.tick() }
         react("happy")
         react("sad")
         XCTAssertEqual(Array(ends().suffix(2)), [.failed("no device connected"), .failed("no device connected")],
@@ -1204,6 +1216,88 @@ final class RuntimeTests: XCTestCase {
         runtime.home.sync {}
         XCTAssertEqual(moments().count, 2, "its turn came when the device said the first was over")
         XCTAssertTrue(moments().last?.contains(#""mood":"happy""#) == true)
+    }
+
+    /// ARCHITECTURE.md §3.2: a link that drops for a moment (the USB
+    /// bridge reconnecting, or a Bluetooth blip) doesn't stop what the
+    /// device plays, so the reaction on it keeps the line after the link is
+    /// back, until the device's `ended` for it, though HISTORY already says
+    /// it didn't happen (§8). Before, the drop freed the line, and the next
+    /// reaction cut the one still playing.
+    func testALinkBlipKeepsTheLineForTheReactionPlaying() throws {
+        let transport = FakeTransport()
+        var options = try options(transport)
+        let clock = VirtualClock(harnessT0)
+        options.clock = { clock.now }
+        let runtime = try Runtime(options)
+        try runtime.start()
+        defer { runtime.stop() }
+        func connection(_ up: Bool) {
+            transport.onConnection?(up)
+            runtime.home.sync {}
+        }
+        func react(_ mood: String) {
+            runtime.home.sync { _ = runtime.harness.force(["react": mood, "react.loops": "twice"]) }
+        }
+        let moments = { transport.sent.filter { $0.hasPrefix(#"{"t":"moment""#) }.count }
+        func ends() -> [Pending.End] {
+            runtime.home.sync {
+                runtime.harness.transcript.entries.compactMap { if case .settle(let s) = $0.body { s.end } else { nil } }
+            }
+        }
+        connection(true)
+        react("proud")
+        XCTAssertEqual(moments(), 1)
+        let first = try XCTUnwrap(transport.momentIds.first)
+        clock.now += 600
+        connection(false)
+        XCTAssertEqual(ends(), [.failed("the device disconnected")])
+        clock.now += 1000
+        connection(true)
+        clock.now += 50
+        react("happy")
+        XCTAssertEqual(moments(), 1, "the first still plays on the device")
+        transport.onLine?(#"{"t":"ended","id":\#(first),"how":"done"}"#)
+        runtime.home.sync {}
+        XCTAssertEqual(moments(), 2, "its turn came when the device said the first was over")
+    }
+
+    /// ARCHITECTURE.md §3.2: the Mac hears a tap after sending what it
+    /// thought was playing then, so a reaction it sent just before may
+    /// have reached the device after the tap, and plays on there. A tap
+    /// leaves a reaction sent with an id holding the line: the device's
+    /// `ended` for it frees the line, sent at once when its tap cut it, or
+    /// when it ends. Before, the tap freed the line, and the next reaction
+    /// cut the one the device had only just started.
+    func testATapLeavesTheLineToTheDevicesEnded() throws {
+        let transport = FakeTransport()
+        var options = try options(transport)
+        let clock = VirtualClock(harnessT0)
+        options.clock = { clock.now }
+        let runtime = try Runtime(options)
+        try runtime.start()
+        defer { runtime.stop() }
+        transport.onConnection?(true)
+        runtime.home.sync {}
+        func device(_ line: String) {
+            transport.onLine?(line)
+            runtime.home.sync {}
+        }
+        let moments = { transport.sent.filter { $0.hasPrefix(#"{"t":"moment""#) }.count }
+        runtime.home.sync {
+            for mood in ["excited", "proud", "grumpy"] { _ = runtime.harness.force(["react": mood]) }
+        }
+        XCTAssertEqual(moments(), 1)
+        clock.now += 2000
+        device(#"{"t":"ended","id":\#(transport.momentIds[0]),"how":"done"}"#)
+        XCTAssertEqual(moments(), 2, "the second goes")
+        clock.now += 20
+        device(#"{"t":"input","k":"tap"}"#)  // on the device before the second arrived
+        XCTAssertEqual(moments(), 2, "the second may be playing: the third waits for its ended")
+        XCTAssertGreaterThan(runtime.home.sync { runtime.moments.schedule.lineFree }, clock.now)
+        clock.now += 1500
+        device(#"{"t":"ended","id":\#(transport.momentIds[1]),"how":"done"}"#)
+        XCTAssertEqual(moments(), 3)
     }
 
     /// ARCHITECTURE.md §3.2: the pump's timer counts the Mac's uptime,

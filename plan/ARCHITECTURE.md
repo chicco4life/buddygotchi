@@ -202,8 +202,14 @@ wiggle stops whatever plays and ends the cheer, as a rule's wiggle does,
 "needs you" starting stops everything, and while something needs you the
 device plays none of the rules' moments. After either, once the link's
 0.5 s has passed, a reaction is timed on the look's design alone, not a
-cheer that was cut. With no device connected nothing plays, and nothing
-holds the line.
+cheer that was cut. A tap leaves a brain moment's line to its `ended`,
+though: the app hears the tap after sending the moment, which may have
+reached the device after the tap and play on, and the device sends
+`ended` at once for one its tap cut. A reaction whose turn comes with no
+device connected plays nowhere and holds nothing. But a link that drops
+doesn't stop what the device plays (the USB bridge reconnecting, or a
+Bluetooth blip), so a moment sent before the drop still holds the line
+until its `ended` comes once the link is back, or the app gives up on it.
 
 ### 3.3 Harness and brain
 
@@ -431,7 +437,7 @@ personality or memory, only its touch calibration. What it does is in
 | --- | --- |
 | App not running, or the Mac asleep | Hooks give up within 50 ms and agents carry on. The device shows it has no app after 30 s ([BEHAVIORS.md](BEHAVIORS.md) §3.4) |
 | App restarted | Sessions are gone until their next hook; the mood, settings and memory stay (§6). A turn that was running cheers when it finishes, but the brain isn't told of it, since Boop didn't see it start ([harness/EVENTS.md](harness/EVENTS.md) §7) |
-| Device disconnected | The app keeps going and drops what it would send; on reconnect the latest `state` catches the device up. HISTORY says a reaction playing or sent meanwhile didn't happen ([harness/DECISIONS.md](harness/DECISIONS.md) §5) |
+| Device disconnected | The app keeps going and drops what it would send; on reconnect the latest `state` catches the device up. HISTORY says a reaction playing or sent meanwhile didn't happen ([harness/DECISIONS.md](harness/DECISIONS.md) §5), though one that was playing keeps the line until it ends (§3.2), since the device plays on |
 | Jev slow, offline or wrong | Rules still drive every reaction. A pass Jev fails, is late for, or answers off its options is dropped, and no action runs ([harness/HARNESS.md](harness/HARNESS.md) §7) |
 | No Jev key | No pass runs; events are still recorded |
 | A memory file won't parse | It's kept as `.broken` and recovered (§4) |

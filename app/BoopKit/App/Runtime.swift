@@ -410,14 +410,17 @@ public final class Runtime: @unchecked Sendable {
         return false
     }
 
-    /// The transport connected or dropped. A moment playing on a device
-    /// that dropped never finishes there.
+    /// The transport connected or dropped. HISTORY says a moment playing
+    /// on a device that dropped didn't happen, since its `ended` may never
+    /// come (ARCHITECTURE.md §8). But the device plays on, and the link may
+    /// be back a second later, so the schedule keeps its reckoning: the
+    /// moment still holds the line until its `ended` comes over the link
+    /// again, or the app gives up on it.
     func connection(_ up: Bool) {
         let now = options.clock()
         link.connection(up, now: now)
         if !up {
             moments.failAll("the device disconnected")
-            moments.schedule.stop(now: now)
             pump()
         }
         changed()
