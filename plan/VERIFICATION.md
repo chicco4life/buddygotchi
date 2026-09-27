@@ -47,8 +47,8 @@ starts, so a typo can't launch the menu-bar app or run the whole eval.
 | `make faces` | Regenerates the device's faces (`firmware/assets/faces.h`), the popover's (`app/Boop/Views/FaceDesigns.swift`) and the frames `fw-test` checks, from the mood designs in `internal/tools/facegen/design/svg/`. It first draws each design at a dozen moments in Chrome and fails unless `facegen`'s own drawing matches it pixel for pixel. Needs Google Chrome |
 | `make sim` | Every scenario in the simulator, against the goldens (L1) |
 | `make e2e` | The pipeline check (L4) |
-| `make tools` | `internal/tools/.venv` with pyserial and Pillow. `internal/tools/boopctl` makes it on first run; this refreshes it |
-| `make tools-test` | The tools' own tests, with no board or camera: `boopctl`'s command line and the webcam recorder on synthetic video |
+| `make tools` | `internal/tools/.venv` with pyserial, Pillow and Textual. `internal/tools/boopctl` makes it on first run; this refreshes it |
+| `make tools-test` | The tools' own tests, with no board or camera: `boopctl`'s command line, the dashboard ([DASHBOARD.md](DASHBOARD.md) §7) and the webcam recorder on synthetic video |
 | `make clean` | Deletes `.build` and `firmware/.pio` |
 
 | `boopctl` command | What it does |
@@ -66,15 +66,16 @@ starts, so a typo can't launch the menu-bar app or run the whole eval.
 | `e2e [fixture…]` | The pipeline check (L4) |
 | `bridge` | Owns the serial port and shares it on a Unix socket (below) |
 | `cam frame\|pattern\|clip <name>` | Webcam helpers (L3); `--camera ID` or `BOOP_CAMERA` picks the camera |
+| `dash` | The live dashboard ([DASHBOARD.md](DASHBOARD.md)): Boop's state and face, the harness's latest pass and a timeline, from an app in debug mode; its keys force a mood, a reaction or an animation. `--state-dir` and `--socket` pick the app (the everyday one by default) |
 | `calibrate` | Touch calibration: a person taps crosses on the screen (L6). `--show` prints the stored map, `--show --clear` forgets it |
 
 | Other tool | What it does |
 | --- | --- |
-| `Boop --headless` | The whole runtime with its own state directory, no UI and no Bluetooth (L4). `--brain scripted` answers every pass the same way with no network, for pipeline checks; `--personality` overrides the saved one. On its hook socket, `{"dev":"advance","ms":N}` moves its clock |
-| `Boop --debug` | Prints every hook, decision, device line and brain pass as it happens ([HARNESS.md](harness/HARNESS.md) §9) |
+| `Boop --headless` | The whole runtime with its own state directory, no UI and no Bluetooth (L4). `--brain scripted` answers every pass the same way with no network, for pipeline checks; `--personality` overrides the saved one. On its hook socket, `{"dev":"advance","ms":N}` moves its clock, and the dashboard's `answer`, `mood` and `moment` lines drive it ([HARNESS.md](harness/HARNESS.md) §9) |
+| `Boop --debug` | Prints every hook, decision, device line and brain pass as it happens, and writes `debug.jsonl` for `boopdev watch` and `boopctl dash`; its hook socket takes the dashboard's dev lines ([HARNESS.md](harness/HARNESS.md) §9) |
 | `Boop --snapshots DIR` | Renders the popover's panes and the menu-bar icons to PNGs, light and dark, from fixtures, and fails on low contrast (L0). No runtime or Bluetooth |
 | `boopdev eval` | The eval scenarios against Jev ([EVALS.md](EVALS.md)), L5 |
-| `boopdev watch [FILE]` | Prints a `debug.jsonl` readably as it grows, waiting for it if it isn't there yet; with no file, the everyday app's |
+| `boopdev watch [FILE]` | Prints a `debug.jsonl`'s transcript entries readably as it grows, waiting for it if it isn't there yet; with no file, the everyday app's |
 | `boopdev replay <fixture>` | Runs recorded hook payloads through the hook's field picking, the adapter and the core on a virtual clock, printing every decision; with `--socket`, through the real `boop-hook` to a running app, timing each `boop-hook` from launch to exit |
 | `boopdev voice <feeling> [word]` | Prints the Minion lines `react` would build |
 | `boopdev hooks status\|install\|remove --home DIR` | The hook installer, against any HOME |

@@ -275,6 +275,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         options.log = { log.write($0) }
         options.debug = debug
         options.debugPrint = { log.echo($0) }
+        // So the dashboard can drive `make debug`; plain `make run` stays deaf.
+        options.devLines = debug
         do {
             let runtime = try Runtime(options)
             let model = self.model

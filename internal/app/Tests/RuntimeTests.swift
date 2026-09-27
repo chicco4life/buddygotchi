@@ -168,7 +168,9 @@ final class RuntimeTests: XCTestCase {
         let runtime = try Runtime(options)
         try runtime.start()
         defer { runtime.stop() }
-        try XCTAssertEqual(try String(contentsOf: debugLog, encoding: .utf8), "", "each launch starts afresh")
+        let fresh = try String(contentsOf: debugLog, encoding: .utf8)
+        XCTAssertTrue(fresh.hasPrefix(#"{"questions":"#) && !fresh.contains(#"{"seq":1}"#),
+                      "each launch starts afresh, with the questions first (DASHBOARD.md §3)")
         XCTAssertEqual(file(), lastLaunch, "in place, so a boopdev watch on it sees it start again")
 
         let socket = dir.appendingPathComponent("boop.sock").path
@@ -176,26 +178,178 @@ final class RuntimeTests: XCTestCase {
         XCTAssertTrue(HookSocket.send(hook("PreToolUse", tool: "Bash"), to: socket))
         wait("the brain") { runtime.home.sync { runtime.harness.brain != nil } }
         XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socket))
-        wait("the pass in debug.jsonl") {
-            (try? String(contentsOf: debugLog, encoding: .utf8))?.contains("\"action\"") == true
-        }
+        wait("the pass in debug.jsonl") { self.debugLines().contains { $0["action"] != nil } }
         let log = lines.lock.withLock { lines.log }
         let printed = lines.lock.withLock { lines.printed }
         XCTAssertTrue(log.contains("hook: claude SessionStart s1 → session_start jetpack"), "\(log)")
         XCTAssertTrue(log.contains("hook: claude PreToolUse s1 → activity jetpack · tool Bash"), "\(log)")
         XCTAssertTrue(log.contains { $0.hasPrefix("link rules → ") })
         XCTAssertFalse(log.contains { $0.contains("How to read HISTORY") }, "the state stays out of boop.log")
-        XCTAssertTrue(printed.contains { $0.hasPrefix("core: event turn_start") })
+        XCTAssertTrue(printed.contains { $0.hasPrefix("core: event turn_start") }, "\(printed)")
         XCTAssertTrue(printed.contains { $0.hasPrefix("▸ 1 turn_start: claude started turn 1") }, "\(printed)")
         let pass = try XCTUnwrap(printed.first { $0.hasPrefix("  pass scripted") })
         XCTAssertTrue(pass.contains("react excited 1.00"), pass)
         XCTAssertTrue(pass.contains("    │ You are the mind of Boop"), "the first state in full")
         XCTAssertTrue(printed.contains("  ✓ react: Boop mumbled, excited: \"…yay!\""), "\(printed)")
-        let records = try String(contentsOf: debugLog, encoding: .utf8).split(separator: "\n")
-        let o = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(records[1].utf8)) as? [String: Any])
-        let p = try XCTUnwrap(o["pass"] as? [String: Any])
+        let p = try XCTUnwrap(debugLines().compactMap { $0["pass"] as? [String: Any] }.first)
         XCTAssertTrue((p["state"] as? String)?.hasPrefix("You are the mind of Boop") == true)
         XCTAssertEqual(p["questions"] as? [String], ["mood", "react", "word.feeling", "word.about"])
+    }
+
+    /// The lines of this runtime's debug.jsonl, as JSON objects.
+    func debugLines() -> [[String: Any]] {
+        let text = (try? String(contentsOf: dir.appendingPathComponent(DebugLog.fileName), encoding: .utf8)) ?? ""
+        return text.split(separator: "\n").compactMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
+    }
+
+    var socketPath: String { dir.appendingPathComponent("boop.sock").path }
+
+    func dev(_ json: String) {
+        XCTAssertTrue(HookSocket.send(Data((json + "\n").utf8), to: socketPath))
+    }
+
+    /// harness/HARNESS.md §9, DASHBOARD.md §3: debug mode also writes the
+    /// dashboard's lines, with no `seq`: every action's questions once at
+    /// launch, every line sent to the device verbatim (with no transport
+    /// too), and a status line whenever the mood, personality, brain,
+    /// sessions or connection change.
+    func testDebugModeWritesTheDashboardsLines() throws {
+        var options = try options(nil)
+        options.debug = true
+        let runtime = try Runtime(options)
+        runtime.link.sentLines = []
+        try runtime.start()
+        defer { runtime.stop() }
+        wait("the brain") { runtime.home.sync { runtime.harness.brain != nil } }
+        let socket = socketPath
+        XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socket))
+        wait("a mumble") { runtime.home.sync { runtime.link.sentLines!.contains { $0.contains(#""say":"#) } } }
+        runtime.home.sync {}
+
+        let text = try String(contentsOf: dir.appendingPathComponent(DebugLog.fileName), encoding: .utf8)
+        let raw = text.split(separator: "\n").map(String.init)
+        let lines = debugLines()
+        let questions = try XCTUnwrap(lines.first?["questions"] as? [[String: Any]], "the questions come first")
+        XCTAssertEqual(lines.filter { $0["questions"] != nil }.count, 1, "once")
+        XCTAssertEqual(questions.map { $0["key"] as? String }, ["mood", "react", "word.feeling", "word.about"])
+        XCTAssertEqual(questions.map { $0["action"] as? String }, ["mood", "react", "react", "react"])
+        XCTAssertEqual(questions[1]["text"] as? String, "How should Boop react to NOW, if at all?")
+        let none = try XCTUnwrap((questions[1]["options"] as? [[String: Any]])?.first)
+        XCTAssertEqual(none["name"] as? String, "none")
+        XCTAssertEqual(none["what"] as? String, "Stay quiet: nothing in NOW is worth a mumble.")
+        XCTAssertEqual(none["not_for"] as? String, "Anything PERSONALITY's Examples mumble for.")
+        XCTAssertTrue((questions[0]["options"] as? [[String: Any]])?.first?["not_for"] is NSNull)
+
+        // Sent: every line the link sent, verbatim and in order.
+        let sent = raw.filter { $0.hasPrefix(#"{"sent":"#) }.map { line in
+            String(line.dropFirst(#"{"sent":"#.count)).replacingOccurrences(
+                of: #",\"received_at_ms\":\d+\}$"#, with: "", options: .regularExpression)
+        }
+        XCTAssertEqual(sent, runtime.home.sync { runtime.link.sentLines! })
+        XCTAssertTrue(sent.contains { $0.hasPrefix(#"{"t":"state""#) } && sent.contains { $0.hasPrefix(#"{"t":"moment""#) })
+
+        // Status: only the facts the device lines don't carry, and only changes.
+        let statuses = lines.compactMap { $0["status"] as? [String: Any] }
+        XCTAssertFalse(statuses.isEmpty)
+        XCTAssertEqual(Set(statuses[0].keys), ["personality", "brain", "sessions", "connected"], "a state carries the mood")
+        XCTAssertEqual(statuses.last?["brain"] as? String, "scripted")
+        XCTAssertEqual(statuses.last?["connected"] as? Bool, false)
+        let sessions = try XCTUnwrap(statuses.last?["sessions"] as? [[String: String]])
+        XCTAssertEqual(sessions, [["agent": "claude", "project": "jetpack", "status": "working"]])
+        for (a, b) in zip(statuses, statuses.dropFirst()) { XCTAssertFalse(NSDictionary(dictionary: a).isEqual(to: b), "only changes") }
+        for line in lines where line["seq"] == nil {
+            XCTAssertEqual(Set(line.keys).subtracting(["received_at_ms"]).count, 1, "one kind, and no seq: \(line)")
+            XCTAssertNotNil(line["received_at_ms"] as? Int64)
+        }
+    }
+
+    /// DASHBOARD.md §4: the dashboard's dev lines. A forced pass needs no
+    /// brain and mumbles as Jev's would; a forced mood changes as Jev's
+    /// does, device included; each is recorded for no event, by the
+    /// dashboard. A moment goes
+    /// through the schedule, and one with no known animation is ignored.
+    func testTheDashboardsDevLines() throws {
+        let transport = FakeTransport()
+        var options = try options(transport, readJevKey: { nil })
+        options.debug = true
+        let runtime = try Runtime(options)
+        try runtime.start()
+        defer { runtime.stop() }
+        transport.onConnection?(true)
+        wait("no brain") { runtime.home.sync { !runtime.readingJevKey && runtime.jevKey != nil } }
+        XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
+
+        dev(#"{"dev":"answer","answers":{"react":"annoyed","word.feeling":"again"}}"#)
+        wait("a mumble with no brain") { transport.sent.contains { $0.hasPrefix(#"{"t":"moment","say":"#) && $0.contains(#""word":"again""#) } }
+        dev(#"{"dev":"mood","mood":"grumpy"}"#)
+        wait("grumpy") { runtime.home.sync { runtime.mood.current == "grumpy" } }
+        dev(#"{"dev":"mood","mood":"happy"}"#)
+        wait("happy again") { runtime.home.sync { runtime.mood.current == "happy" } }
+        dev(#"{"dev":"moment","anim":"cheer"}"#)
+        wait("the cheer") { transport.sent.contains(#"{"t":"moment","anim":"cheer","ttl":5}"#) }
+        dev(#"{"dev":"moment","anim":"dance"}"#)
+        dev(#"{"dev":"moment"}"#)
+        dev(#"{"dev":"moment","anim":"wiggle"}"#)
+        wait("the wiggle after them") { transport.sent.contains(#"{"t":"moment","anim":"wiggle","ttl":5}"#) }
+        XCTAssertFalse(transport.sent.contains { $0.contains("dance") || $0 == #"{"t":"moment","ttl":5}"# })
+
+        let lines = debugLines()
+        let pass = try XCTUnwrap(lines.compactMap { $0["pass"] as? [String: Any] }.first)
+        XCTAssertTrue(pass["for"] is NSNull)
+        XCTAssertEqual(pass["by"] as? String, "dashboard")
+        XCTAssertEqual(pass["questions"] as? [String], ["react", "word.feeling"])
+        XCTAssertEqual((pass["answers"] as? [String: [String: Any]])?["react"]?["p"] as? [String: Double], ["annoyed": 1])
+        let actions = lines.compactMap { $0["action"] as? [String: Any] }
+        XCTAssertEqual(actions.map { $0["message"] as? String }, [#"Boop mumbled, annoyed: "…again!""#,
+                                                                "Boop's mood changed: happy → grumpy.",
+                                                                "Boop's mood changed: grumpy → happy."])
+        XCTAssertEqual(actions.map { $0["name"] as? String }, ["react", "mood", "mood"])
+        for action in actions {
+            XCTAssertTrue(action["for"] is NSNull)
+            XCTAssertEqual(action["by"] as? String, "dashboard")
+        }
+        let moods = lines.compactMap { ($0["sent"] as? [String: Any])?["mood"] as? String }
+        XCTAssertEqual(moods.reduce(into: [String]()) { if $0.last != $1 { $0.append($1) } }, ["happy", "grumpy", "happy"],
+                       "the device hears each change in a state")
+    }
+
+    /// DASHBOARD.md §4: a forced react keeps its own rules, so it's refused
+    /// while something needs you, and the refusal is recorded.
+    func testAForcedReactStillRefusesWhileSomethingNeedsYou() throws {
+        let transport = FakeTransport()
+        var options = try options(transport)
+        options.debug = true
+        let runtime = try Runtime(options)
+        try runtime.start()
+        defer { runtime.stop() }
+        XCTAssertTrue(HookSocket.send(hook("PermissionRequest", tool: "Bash"), to: socketPath))
+        wait("needs you") { transport.sent.contains { $0.contains(#""attn":"#) } }
+        dev(#"{"dev":"answer","answers":{"react":"happy"}}"#)
+        wait("the refusal") {
+            self.debugLines().contains { ($0["action"] as? [String: Any])?["message"] as? String == "something needs you" }
+        }
+        let action = try XCTUnwrap(debugLines().compactMap { $0["action"] as? [String: Any] }.last)
+        XCTAssertEqual(action["ok"] as? Bool, false)
+        XCTAssertFalse(transport.sent.contains { $0.contains(#""say":"#) })
+    }
+
+    /// Without `--debug` or `--headless` the socket takes no dev lines, so
+    /// plain `make run` can't be driven.
+    func testDevLinesAreIgnoredWithoutThem() throws {
+        let transport = FakeTransport()
+        var options = try options(transport)
+        options.devLines = false
+        let runtime = try Runtime(options)
+        try runtime.start()
+        defer { runtime.stop() }
+        dev(#"{"dev":"mood","mood":"grumpy"}"#)
+        dev(#"{"dev":"moment","anim":"cheer"}"#)
+        XCTAssertTrue(HookSocket.send(hook("UserPromptSubmit"), to: socketPath))
+        wait("the hook after them") { transport.sent.contains { $0.contains(#""base":"working""#) } }
+        runtime.home.sync {}
+        XCTAssertEqual(runtime.home.sync { runtime.mood.current }, "happy")
+        XCTAssertFalse(transport.sent.contains { $0.contains("cheer\"") })
+        XCTAssertFalse(FileManager.default.fileExists(atPath: dir.appendingPathComponent(MoodStore.fileName).path))
     }
 
     /// ADAPTERS.md §6: while the doctor has armed the app it logs every

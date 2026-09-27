@@ -69,7 +69,10 @@ is described in [plan/VERIFICATION.md](plan/VERIFICATION.md) §2.
   the brain read (the input, the memory, the recent transcript), what it
   decided and why, the words it wrote, and what ran. The passes are also
   saved to `~/Library/Application Support/Boop/debug.jsonl`, fresh each
-  launch (the format is in [plan/harness/HARNESS.md](plan/harness/HARNESS.md) §8).
+  launch (the format is in [plan/harness/HARNESS.md](plan/harness/HARNESS.md) §9).
+- **Watch it, and poke it?** Beside `make debug`, `internal/tools/boopctl dash`
+  shows the face, the latest pass and a timeline, and forces a mood, a
+  reaction or a cheer ([plan/DASHBOARD.md](plan/DASHBOARD.md)).
 - **What happened in a saved run?** `.build/debug/boopdev watch FILE`
   prints a `debug.jsonl` the way `make debug` does. With no file it
   follows the everyday app's. `make eval` names the file it writes.

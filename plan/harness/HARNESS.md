@@ -195,6 +195,7 @@ pass and never stored.
 | The core emits an event | `event` | The runtime, before submitting it, so a pass always finds its own event already there |
 | A pass has its answers | `pass` | The harness |
 | An action returns a result | `action` | The harness, right after the action runs |
+| The dashboard forces a pass or a mood (§9) | `pass` and `action`, or `action`, for no event | The harness |
 
 - **Order** is arrival order: each entry gets the next sequence number.
   Entries from a pass can land after events that arrived while it ran;
@@ -215,13 +216,17 @@ pass and never stored.
 | `pass` | `for` (its event), every question's answer with its probabilities, why the pass was dropped if it was, and the latency |
 | `action` | `for` (its event), the action's `name`, its `ok` and `message`, and the latency |
 
+A forced entry (§9) is for no event: `debug.jsonl` gives it a null
+`for`, and `by`, who forced it (`dashboard`). `by` is for the log only; it
+never reaches the state.
+
 ```swift
 struct Entry { let seq: Int; let receivedAtMs: Int64; let body: Body }
 
 enum Body {
     case event(Event)
-    case pass(Pass)            // forSeq, answers, dropped, latencyMs
-    case action(ActionRecord)  // forSeq, name, result, latencyMs
+    case pass(Pass)            // forSeq (nil: forced), answers, dropped, latencyMs
+    case action(ActionRecord)  // forSeq (nil: forced), name, result, latencyMs
 }
 ```
 
@@ -253,7 +258,9 @@ an action's message; it only places them.
    the last 10 minutes or since the oldest turn still working began,
    whichever reaches further back, then at most the newest 40.
 3. **Attach what Boop did** to each picked event: its `reaction`, then the
-   messages of its successful `action` entries, in sequence order.
+   messages of its successful `action` entries, in sequence order. A
+   forced action, which is for no event, counts as done about the latest
+   event before it, as Boop's own.
 4. **Order** the picked events oldest first.
 5. **Write each one** as `<time>: <line>`, the time relative to now
    (`just now` under a minute, then `N min ago`, then `N h ago`), with
@@ -456,6 +463,47 @@ there also holds the state text and the questions it sent, so any pass
 can be replayed against Jev. `boopdev watch [FILE]` prints it readably
 (the everyday app's by default), following it as it grows.
 
+**The dashboard's lines.** Debug mode also writes three kinds of line
+that aren't transcript entries, so they have no `seq`, for the dashboard
+([DASHBOARD.md](../DASHBOARD.md)). `boopdev watch` and the terminal skip
+them. Their time is the app's clock, as the entries' is, which headless
+`advance` moves; `boop.log` uses the wall clock. From a headless run
+(options and long lines abridged with `…`):
+
+```jsonl
+{"questions":[{"action":"mood","key":"mood","options":[{"name":"happy","not_for":null,"what":"Good spirits: things are going fine."},…],"text":"After NOW, what is Boop's mood?"},{"action":"react","key":"react",…},…],"received_at_ms":1790504196112}
+{"sent":{"t":"state","v":1,"time":1790504200,"name":"Pip","base":"idle","mood":"happy","attn":{"agent":"claude","project":"jetpack","more":0},"busy":0,"idle":0,"wait":1,"vol":6},"received_at_ms":1790504200417}
+{"sent":{"t":"moment","say":{"syl":"li bi-bi ni-la pi-ga-ni","word":"yay","at":0,"tune":"bounce","ms":115},"ttl":5},"received_at_ms":1790504197864}
+{"status":{"brain":"scripted","connected":false,"personality":"boop","sessions":[{"agent":"claude","project":"jetpack","status":"working"}]},"received_at_ms":1790504197860}
+```
+
+| Line | When | Holds |
+| --- | --- | --- |
+| `questions` | Once, at launch, as the file's first line, before the socket or the link can add one | Every action's questions, in order: its `action`, `key` and `text`, and each option's `name`, `what` and `not_for` |
+| `sent` | Every line sent to the device, whatever the link, `none` included | The line, verbatim |
+| `status` | When the personality, the brain (its id, or `none`), the sessions or the device's connection changes | Those, and nothing a `state` line already carries, such as the mood |
+
+**Dev lines.** Headless, or in debug mode, the hook socket also takes
+`{"dev":…}` lines; plain `make run` ignores them. Nothing replies: what a
+line did shows in `debug.jsonl`.
+
+| Line | Does |
+| --- | --- |
+| `{"dev":"advance","ms":N}` | Headless only: moves the app's clock forward |
+| `{"dev":"answer","answers":{"react":"annoyed","word.feeling":"again"}}` | A **forced pass**: each answer at probability 1, handed to the actions exactly as Jev's would be. It runs at once on the harness's queue, with no brain call, so it works with no key, and it leaves the pass running and the one waiting alone. An answer whose choice isn't one of its question's options is left out. Actions keep their own rules, so `react` still refuses while something needs you. Recorded as a `pass` (with `questions`, the keys it answered, and no state) and its `action` entries, all with `"for":null,"by":"dashboard"` |
+| `{"dev":"mood","mood":"grumpy"}` | Sets the mood at once through the mood action, as Jev's choice would, so the device gets it too; the current mood, or a word that isn't one, is refused ([DECISIONS.md](DECISIONS.md) §4). Recorded as an `action` named `mood`, `"for":null,"by":"dashboard"`; the `mood` file keeps it, as it does any change |
+| `{"dev":"moment","anim":"cheer"}` | Plays `cheer` or `wiggle` through the moment schedule, as a rule's moment. Only its `sent` line records it |
+
+A forced pass and its actions, from the same run:
+
+```jsonl
+{"pass":{"answers":{"react":{"choice":"annoyed","p":{"annoyed":1}},"word.feeling":{"choice":"again","p":{"again":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react","word.feeling"]},"received_at_ms":1790504656020,"seq":15}
+{"action":{"by":"dashboard","for":null,"latency_ms":0,"message":"Boop mumbled, annoyed: \"…again!\"","name":"react","ok":true},"received_at_ms":1790504656021,"seq":16}
+```
+
+Jev later reads its results in HISTORY as Boop's own (§5.3). The
+dashboard's mark is in the log only.
+
 **The app log** (`boop.log`) gets one line per pass, debug mode or not:
 the event kind, the latency and which actions returned a result, never
 their messages, as in `brain turn_end 240 ms → react`.
@@ -464,9 +512,10 @@ their messages, as in `brain turn_end 240 ms → react`.
 
 | Part | File | Job |
 | --- | --- | --- |
-| Harness | `app/BoopKit/Harness/Harness.swift` | One pass running and one waiting; asks, hands out answers, records |
+| Harness | `app/BoopKit/Harness/Harness.swift` | One pass running and one waiting; asks, hands out answers, records; forced passes (§9) |
 | Contracts | `app/BoopKit/Harness/Contracts.swift`, `app/BoopKit/Core/Event.swift` | `Action`, `Question`, `Option`, `Answer`, `ActionResult`; `Event` |
 | Transcript | `app/BoopKit/Harness/Transcript.swift` | The typed entries (§5.2) |
+| Debug log | `app/BoopKit/Harness/DebugLog.swift` | `debug.jsonl`: the dashboard's lines, and printing entries readably (§9) |
 | State text | `app/BoopKit/Harness/StateText.swift` | Builds HISTORY, NOW and the guide's reading part, and puts the state together; pure |
 | Steering | `app/BoopKit/Harness/Steering.swift` | Loads the static sections from the bundle, read-only, and checks their budgets |
 | Brain | `app/BoopKit/Harness/Brain.swift`, `app/BoopKit/Brains/JevBrain.swift` | `answer(state, questions, deadline)`: Jev, or `ScriptedBrain` in tests |

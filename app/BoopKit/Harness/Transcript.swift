@@ -18,22 +18,33 @@ public final class Transcript: @unchecked Sendable {
         case action(ActionRecord)
     }
 
-    /// What the brain was asked and answered for one event.
+    /// What the brain was asked and answered for one event, or the answers
+    /// the dashboard forced, for no event (`forSeq` nil).
     public struct Pass: Equatable, Sendable {
-        public var forSeq: Int
+        public var forSeq: Int?
         public var answers: Answers
         /// Why nothing ran: Jev failed, was late, or had no answer.
         public var dropped: String?
         public var latencyMs: Int
     }
 
-    /// What one action reported.
+    /// What one action reported. A forced one is for no event.
     public struct ActionRecord: Equatable, Sendable {
-        public var forSeq: Int
+        public var forSeq: Int?
         public var name: String
         public var result: ActionResult
         public var latencyMs: Int
+
+        /// Which actions returned a result, for the app log:
+        /// `mood, react (failed)`, or `nothing`.
+        static func names(_ records: [ActionRecord]) -> String {
+            records.isEmpty ? "nothing" : records.map { $0.name + ($0.result.ok ? "" : " (failed)") }.joined(separator: ", ")
+        }
     }
+
+    /// Who forces entries, for no event: `debug.jsonl` marks them `by` it,
+    /// and the state never shows it (harness/HARNESS.md §9).
+    public static let forcedBy = "dashboard"
 
     /// Past this many entries the oldest are let go; nothing is summarised.
     public static let limit = 1000
@@ -61,16 +72,18 @@ public final class Transcript: @unchecked Sendable {
         case .event(let e):
             o["event"] = e.json
         case .pass(let p):
-            var pass: [String: Any] = ["for": p.forSeq, "latency_ms": p.latencyMs, "dropped": p.dropped ?? NSNull(),
+            var pass: [String: Any] = ["for": p.forSeq ?? NSNull(), "latency_ms": p.latencyMs, "dropped": p.dropped ?? NSNull(),
                                        "answers": Transcript.json(p.answers)]
+            if p.forSeq == nil { pass["by"] = forcedBy }
             for (k, v) in extra { pass[k] = v }
             o["pass"] = pass
         case .action(let a):
-            o["action"] = ["for": a.forSeq, "name": a.name, "ok": a.result.ok, "message": a.result.message,
-                           "latency_ms": a.latencyMs] as [String: Any]
+            var action: [String: Any] = ["for": a.forSeq ?? NSNull(), "name": a.name, "ok": a.result.ok,
+                                         "message": a.result.message, "latency_ms": a.latencyMs]
+            if a.forSeq == nil { action["by"] = forcedBy }
+            o["action"] = action
         }
-        let data = (try? JSONSerialization.data(withJSONObject: o, options: [.sortedKeys, .withoutEscapingSlashes])) ?? Data()
-        return String(decoding: data, as: UTF8.self)
+        return DebugLog.json(o)
     }
 
     static func json(_ answers: Answers) -> [String: Any] {

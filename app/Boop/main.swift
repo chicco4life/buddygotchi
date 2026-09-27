@@ -21,8 +21,11 @@ let usage = """
                Stops cleanly on SIGINT or SIGTERM. {"dev":"advance","ms":N} on the socket moves the clock forward.
            --debug prints everything to this terminal as it happens: each hook and what Boop made of it,
                the core's decisions, every line sent to the device, and every event, pass (with Jev's whole
-               state) and action. They also go to DIR/debug.jsonl, started afresh each launch (boopdev watch
-               reads it). Jev's state never reaches boop.log.
+               state) and action. They also go to DIR/debug.jsonl, started afresh each launch, with the
+               lines sent to the device, status changes and the questions (boopdev watch and boopctl dash
+               read it). Jev's state never reaches boop.log.
+           Headless, or with --debug, the hook socket also takes {"dev":…} lines from boopctl dash: "answer"
+               (a forced pass), "mood" and "moment" (plan/DASHBOARD.md).
            Boop --snapshots DIR
                Renders the popover's panes and the menu-bar icons to PNGs from fixtures, then exits.
                No runtime, no Bluetooth.

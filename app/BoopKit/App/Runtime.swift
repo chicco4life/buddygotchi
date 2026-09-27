@@ -25,15 +25,16 @@ public final class Runtime: @unchecked Sendable {
         public var clock: @Sendable () -> Int64 = Runtime.steadyClock()
         /// Milliseconds since 1970, for days and times of day.
         public var wallClock: @Sendable () -> Int64 = { Int64(Date().timeIntervalSince1970 * 1000) }
-        /// Accept `{"dev":"advance","ms":…}` on the hook socket (headless only).
+        /// Accept `{"dev":…}` lines on the hook socket: headless, or debug
+        /// mode (harness/HARNESS.md §9). Plain `make run` stays deaf to them.
         public var devLines = false
         /// Moves `clock` forward, for `{"dev":"advance"}`; nil ignores it.
         public var advance: (@Sendable (Int64) -> Void)?
         /// Debug mode (harness/HARNESS.md §9): logs every hook with what the
         /// adapter made of it and every line sent to the device, starts
         /// `debug.jsonl` afresh in the state directory with every transcript
-        /// entry, and hands those and the core's decisions to `debugPrint`,
-        /// readably.
+        /// entry and the dashboard's lines, and hands the entries and the
+        /// core's decisions to `debugPrint`, readably.
         public var debug = false
         /// Where debug mode prints (the terminal). Never the log file: it
         /// carries Jev's whole state.
@@ -106,6 +107,7 @@ public final class Runtime: @unchecked Sendable {
     let core: Core
     let harness: Harness
     let mood: MoodStore
+    let moodAction: MoodAction
     let voice: Voice
     let lock: InstanceLock
     var server: HookServer?
@@ -161,7 +163,12 @@ public final class Runtime: @unchecked Sendable {
         link = DeviceLink(transport: options.link, log: log)
         if options.debug {
             let moments = self.moments
-            link.onSend = { line in log("link \(moments.brainSending ? "brain" : "rules") → " + line) }
+            let debugLog = debugLogURL
+            let clock = options.clock
+            link.onSend = { line in
+                log("link \(moments.brainSending ? "brain" : "rules") → " + line)
+                Harness.appendLine(DebugLog.line("sent", line, at: clock()), to: debugLog)
+            }
         }
 
         let now = options.clock()
@@ -185,8 +192,9 @@ public final class Runtime: @unchecked Sendable {
         let moments = self.moments
         let home = self.home
         var moodSaved: (String) -> Void = { _ in }
+        moodAction = MoodAction(store: mood, changed: { moodSaved($0) })
         let actions: [any Action] = [
-            MoodAction(store: mood, changed: { moodSaved($0) }),
+            moodAction,
             ReactAction(voice: voice, queue: { moment in
                 moments.schedule.brain(moment, now: clock())
                 Runtime.pump(moments, link: link, clock: clock, home: home, log: log)
@@ -206,21 +214,31 @@ public final class Runtime: @unchecked Sendable {
                                    workingSince: core.workingSince(at: now),
                                    clock: "\(time.clock(wall)), \(time.weekday(wall))")
         }, home: home, clock: clock, debugLog: options.debug ? debugLogURL : nil, log: log)
-        harness.onRecord = { record in log(record.logLine) }
         if options.debug {
             DebugLog.start(debugLogURL)
             let printer = DebugLog.Printer()
             let print = options.debugPrint
-            harness.onDebugLine = { line in print(printer.readable(line)) }
+            harness.onDebugLine = { line in printer.readable(line).map(print) }
         }
         personalityNow = { [weak self] in self?.personality ?? .boop }
         moodSaved = { [weak self] in self?.moodChanged($0) }
+        // A pass can change the mood, which the menu bar shows.
+        harness.onRecord = { [weak self] record in
+            log(record.logLine)
+            self?.changed()
+        }
     }
 
     // MARK: Running
 
     public func start() throws {
         let home = self.home
+        // The questions line is debug.jsonl's first, before the socket or the
+        // link can add one, so a changed first line means a new launch
+        // (DASHBOARD.md §3).
+        if options.debug {
+            home.sync { Harness.appendLine(DebugLog.questions(harness.actions, at: options.clock()), to: debugLogURL) }
+        }
         // Hooks are timed on the runtime's clock, which headless mode can move.
         let clock = options.clock
         let onLine: @Sendable (HookLine, Int64) -> Void = { [weak self] line, _ in
@@ -311,13 +329,36 @@ public final class Runtime: @unchecked Sendable {
         changed()
     }
 
+    /// A `{"dev":…}` line from the socket (VERIFICATION.md §2, DASHBOARD.md
+    /// §4): only with `devLines`. Nothing replies; what it did shows in
+    /// `debug.jsonl`.
     func dev(_ data: Data) {
         guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
-        if object["dev"] as? String == "advance", let ms = (object["ms"] as? NSNumber)?.int64Value,
-           ms > 0, let advance = options.advance {
+        switch object["dev"] as? String {
+        case "advance":
+            guard let ms = (object["ms"] as? NSNumber)?.int64Value, ms > 0, let advance = options.advance else { return }
             advance(ms)
             options.log("dev: clock advanced \(ms) ms")
             tick()
+        case "answer":
+            // A forced pass: the actions keep their own rules.
+            guard let choices = object["answers"] as? [String: String] else { return }
+            options.log("dev: forced pass → " + Transcript.ActionRecord.names(harness.force(choices)))
+            changed()
+        case "mood":
+            // The mood action's own change, which tells the device too
+            // (harness/DECISIONS.md §4).
+            guard let to = object["mood"] as? String else { return }
+            let result = harness.force(moodAction) { moodAction.change(to: to) }
+            options.log("dev: mood \(to)" + (result.map { $0.ok ? "" : ": \($0.message)" } ?? ""))
+            changed()
+        case "moment":
+            // Through the moment schedule, as a rule's.
+            guard let anim = object["anim"] as? String, DeviceMoment.anims.contains(anim) else { return }
+            playRule(DeviceMoment(anim: anim))
+            options.log("dev: moment \(anim)")
+        default:
+            break  // such as boopdev replay's probe
         }
     }
 
@@ -403,10 +444,15 @@ public final class Runtime: @unchecked Sendable {
 
     func changed() {
         let now = options.clock()
-        onChange?(Status(snapshot: link.latest ?? core.snapshot(at: now), sessions: core.sessionList(at: now),
-                         connected: link.connected, device: link.status, personality: personality,
-                         brain: harness.brain?.id ?? "none", mood: mood.current))
+        let status = Status(snapshot: link.latest ?? core.snapshot(at: now), sessions: core.sessionList(at: now),
+                            connected: link.connected, device: link.status, personality: personality,
+                            brain: harness.brain?.id ?? "none", mood: mood.current)
+        if options.debug, let line = DebugLog.status(status, at: now, last: &lastStatus) { Harness.appendLine(line, to: debugLogURL) }
+        onChange?(status)
     }
+
+    /// The last `status` line written to `debug.jsonl`, without its time.
+    var lastStatus: String?
 
     func saveSettings(_ change: (inout AppSettings) -> Void) {
         change(&settings)

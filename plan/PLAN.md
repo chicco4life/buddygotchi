@@ -38,6 +38,7 @@ milestone's evidence says which ones ran.
 | A10 | Jev-only harness: typed events and transcript, a plain-text state, mood and personalities ([harness/](harness/HARNESS.md)) | Done; the evals pass against Jev; checks 12–17 are the owner's | [evidence](evidence/2026-09-27-jev-harness/README.md) |
 | | Production and internal code split: what doesn't ship moves to `internal/`, `Package.swift` to the root ([internal/README.md](../internal/README.md)) | Done; the evals pass against Jev, 7/7 in all 3 runs | [evidence](evidence/2026-09-27-internal-split/README.md) |
 | A11 | Seven moods, drawn from the mood SVGs: Jev picks the mood, and the device shows each state and reaction in it | In progress. Jev chooses among the seven moods with no minimum time between changes (evals 10/10 in all 3 runs); every `state` carries the mood; the device draws each look and the cheer as the mood's design, exactly as Chrome draws the SVGs. The popover's tile shows the same faces. Still to do: watching it on the board | [moods](evidence/2026-09-27-seven-moods/README.md), [faces](evidence/2026-09-27-mood-faces/README.md) |
+| A12 | Live dashboard: `internal/tools/boopctl dash` shows the state and face, the harness's passes and a timeline, and forces a mood, a reaction or an animation ([DASHBOARD.md](DASHBOARD.md)) | Done, headless; check 21 is the owner's | [evidence](evidence/2026-09-27-dashboard/README.md) |
 | P1 | Port to ESP-IDF + LVGL | Later (§4) | |
 
 ## 2. Owner checks
@@ -146,6 +147,12 @@ that's off becomes an open item (§3).
     within a couple of seconds, the second by taking over the link macOS
     kept ([PROTOCOL.md](PROTOCOL.md) §2). After quitting, the board shows
     the no-app design with only the unplugged icon.
+21. **`make debug`, then `internal/tools/boopctl dash` in another terminal.** The
+    dashboard's face shows what the board shows, though not frame for
+    frame. `m` grumpy, `r` annoyed with "again", and `a` cheer each land
+    (no warning after 2 s), and the board plays the mumble and the cheer.
+    Then quit and `make run`: the same keys warn that nothing landed
+    ([DASHBOARD.md](DASHBOARD.md) §4).
 
 ## 3. Open items
 
@@ -203,7 +210,10 @@ fixed. Pick one up by writing it into its spec first.
 - **[harness/EXAMPLE.md](harness/EXAMPLE.md) predates the seven moods.**
   Its story stays happy through the second failure; with today's steering
   Boop turns determined there. It's still hand-written, with made-up
-  odds; regenerate it from a real Jev run.
+  odds; regenerate it from a real Jev run. Its `pass` lines also give the word
+  questions a single `p_choice`, while the code logs every option's
+  probability in a `p` map, as [harness/HARNESS.md](harness/HARNESS.md) §9
+  and the dashboard read it.
 - **`swift build` rebuilds for no reason.** It alternates between a
   no-op (0.4 s) and a 6–9 s rebuild with nothing changed, so build
   timings are noisy until the cause is found.

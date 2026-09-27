@@ -34,7 +34,8 @@ let usages: [(command: String, text: String)] = [
     boopdev watch [FILE] [--new]
         Follows debug mode's log (Boop --debug writes STATE-DIR/debug.jsonl; the default is the
         everyday app's) and prints each event, pass and action readably, as Boop --debug does in its
-        own terminal, waiting for FILE if it isn't there yet. --new skips what's already in the file.
+        own terminal, waiting for FILE if it isn't there yet. The dashboard's lines (questions, sent,
+        status) are skipped. --new skips what's already in the file.
     """),
     ("hooks", """
     boopdev hooks status|install|remove [claude|codex] --home DIR [--hook PATH]
@@ -310,7 +311,7 @@ func watch(_ raw: [String]) {
             let line = String(pending[..<end])
             pending = String(pending[pending.index(after: end)...])
             if line.isEmpty { continue }
-            print(printer.readable(line))
+            if let text = printer.readable(line) { print(text) }
         }
     }
 }

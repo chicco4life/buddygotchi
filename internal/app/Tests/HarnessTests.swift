@@ -203,6 +203,101 @@ final class HarnessTests: XCTestCase {
         }
     }
 
+    // MARK: Forced passes (DASHBOARD.md §4)
+
+    /// A forced pass needs no brain: each choice gets probability 1 and
+    /// goes to the action that asked it, as Jev's answers would; a choice
+    /// that isn't an option is left out. It's recorded for no event, by
+    /// the dashboard, and its results show in the next state's HISTORY as
+    /// Boop's own, under the latest event before them, with no marker.
+    func testAForcedPassRunsWithNoBrain() throws {
+        let a = Recorder("a", keys: ["one"], result: .done("Boop did one."))
+        let b = Recorder("b", keys: ["two"], result: .failed("not now"))
+        let (h, home) = harness(nil, [a, b])
+        let ran = home.sync {
+            h.take(event(.turnStart, at: 1, "it started"))
+            return h.force(["one": "b", "two": "nope", "three": "a"])
+        }
+        XCTAssertEqual(a.got, [["one": Answer(choice: "b", probabilities: ["b": 1])]])
+        XCTAssertEqual(b.got, [[:]], "its answer wasn't an option")
+        XCTAssertEqual(ran.map(\.name), ["a", "b"])
+        let entries = home.sync { h.transcript.entries }
+        XCTAssertEqual(entries.count, 4, "the event, the pass and both results")
+        XCTAssertEqual(entries[1].body, .pass(.init(forSeq: nil, answers: ["one": Answer(choice: "b", probabilities: ["b": 1])],
+                                                     dropped: nil, latencyMs: 0)))
+        let pass = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(Transcript.json(entries[1], extra: ["questions": ["one"]]).utf8))
+                                 as? [String: Any])["pass"] as? [String: Any]
+        XCTAssertTrue(pass?["for"] is NSNull)
+        XCTAssertEqual(pass?["by"] as? String, "dashboard")
+        XCTAssertTrue(Transcript.json(entries[2]).contains(#""by":"dashboard","for":null"#), Transcript.json(entries[2]))
+        XCTAssertFalse(Transcript.json(entries[0]).contains(#""by""#), "other entries don't change")
+
+        let next = home.sync { h.transcript.append(.event(event(.turnEnd, at: 2, "it ended")), at: Self.t0 + 2 * 60_000) }
+        let state = StateText.build(home.sync { h.transcript.entries }, now: next, at: Self.t0 + 2 * 60_000, Self.parts)
+        XCTAssertTrue(state.contains("1 min ago: it started\n  Boop did one.\nWorking now"), state)
+        XCTAssertFalse(state.contains("dashboard") || state.contains("not now"))
+    }
+
+    /// A forced pass runs at once, on `home`, and leaves the pass running
+    /// and the one waiting alone.
+    func testAForcedPassLeavesTheRunningAndWaitingPassesAlone() throws {
+        let gate = DispatchSemaphore(value: 0)
+        let brain = ScriptedBrain { _, _ in
+            gate.wait()
+            return [:]
+        }
+        let a = Recorder("a", keys: ["k"], result: .done("Boop did it."))
+        let (h, home) = harness(brain, [a])
+        var records: [Harness.Record] = []
+        home.sync {
+            h.onRecord = { records.append($0) }
+            h.take(event(.turnStart, at: 0, "first"))
+            h.take(event(.turnStart, at: 0, "second"))
+            let (running, waiting) = (h.running, h.waiting?.seq)
+            XCTAssertEqual(h.force(["k": "a"]).count, 1)
+            XCTAssertEqual(h.running, running)
+            XCTAssertEqual(h.waiting?.seq, waiting)
+            XCTAssertEqual(waiting, 2)
+            XCTAssertEqual(records.count, 0, "a forced pass isn't one of Jev's")
+        }
+        gate.signal()
+        gate.signal()
+        let deadline = Date().addingTimeInterval(3)
+        while home.sync(execute: { records.count }) < 2 && Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }
+        XCTAssertEqual(records.map(\.event.line), ["first", "second"], "both of Jev's passes still ran")
+        XCTAssertTrue(home.sync { h.idle })
+    }
+
+    // MARK: The debug log (HARNESS.md §9)
+
+    /// The printer reads transcript entries as it always has, and skips the
+    /// dashboard's lines.
+    func testThePrinterSkipsTheDashboardsLines() {
+        let printer = DebugLog.Printer()
+        let stateJSON = #"You are.\nPERSONALITY\nx\n\nHISTORY (oldest first)\nh\n\nNOW (14:23, Tuesday)\nn"#
+        let lines: [(String, String?)] = [
+            (#"{"event":{"facts":{},"kind":"turn_end","line":"claude finished turn 1.","reaction":"Boop cheered on its own.","wakes_brain":true},"received_at_ms":5,"seq":3}"#,
+             "▸ 3 turn_end: claude finished turn 1.\n    Boop cheered on its own."),
+            (#"{"event":{"facts":{},"kind":"tap","line":"You tapped Boop.","reaction":null,"wakes_brain":false},"received_at_ms":6,"seq":4}"#,
+             "▸ 4 tap (no pass): You tapped Boop."),
+            (#"{"pass":{"answers":{"mood":{"choice":"cheerful","p":{"cheerful":0.9,"grumpy":0.1}},"react":{"choice":"excited","p":{"excited":1}}},"brain":"scripted","dropped":null,"for":3,"latency_ms":12,"questions":["mood","react"],"state":""# + stateJSON + #""},"received_at_ms":7,"seq":5}"#,
+             "  pass scripted 12 ms: mood cheerful 0.90 · react excited 1.00\n    │ You are.\n    │ PERSONALITY\n    │ x\n    │ \n    │ HISTORY (oldest first)\n    │ h\n    │ \n    │ NOW (14:23, Tuesday)\n    │ n"),
+            (#"{"pass":{"answers":{},"brain":"jev:jev-latest","dropped":"late: no answer within 1250 ms","for":3,"latency_ms":1250,"questions":["mood"],"state":""# + stateJSON + #""},"received_at_ms":8,"seq":6}"#,
+             "  pass jev:jev-latest 1250 ms: dropped: late: no answer within 1250 ms\n    │ HISTORY (oldest first)\n    │ h\n    │ \n    │ NOW (14:23, Tuesday)\n    │ n"),
+            (#"{"action":{"for":3,"latency_ms":0,"message":"Boop mumbled, excited: \"…yay!\"","name":"react","ok":true},"received_at_ms":9,"seq":7}"#,
+             "  ✓ react: Boop mumbled, excited: \"…yay!\""),
+            (#"{"action":{"for":3,"latency_ms":0,"message":"changed 3 min ago","name":"mood","ok":false},"received_at_ms":9,"seq":8}"#,
+             "  ✗ mood: changed 3 min ago"),
+            ("not json", "not json"),
+            (#"{"sent":{"t":"moment","anim":"cheer","ttl":5},"received_at_ms":9}"#, nil),
+            (#"{"status":{"brain":"none","connected":false,"mood":"cheerful","personality":"boop","sessions":[]},"received_at_ms":9}"#, nil),
+            (#"{"questions":[],"received_at_ms":9}"#, nil),
+            (#"{"pass":{"answers":{"react":{"choice":"annoyed","p":{"annoyed":1}}},"by":"dashboard","dropped":null,"for":null,"latency_ms":0,"questions":["react"]},"received_at_ms":10,"seq":9}"#,
+             "  pass dashboard 0 ms: react annoyed 1.00"),
+        ]
+        for (line, readable) in lines { XCTAssertEqual(printer.readable(line), readable, line) }
+    }
+
     func testQuestionKeysMustBeUniqueAcrossActions() {
         XCTAssertEqual(Set(Self.realActions().flatMap { $0.questions().map(\.key) }).count, 4)
     }
@@ -271,6 +366,23 @@ final class HarnessTests: XCTestCase {
         XCTAssertEqual(MoodStore(stateDir: dir).current, "happy", "cheerful, its old name, reads as happy")
         try Data("delighted\n".utf8).write(to: dir.appendingPathComponent("mood"))
         XCTAssertEqual(MoodStore(stateDir: dir).current, "happy", "an unknown one reads as happy")
+    }
+
+    /// DECISIONS.md §4, DASHBOARD.md §4: the mood the dashboard sets
+    /// changes as Jev's does, device included, and it's told why when it
+    /// can't: the mood it already is, or one that isn't a mood.
+    func testAForcedMoodChangesItAsJevsDoes() throws {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("boop-mood-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        var told: [String] = []
+        let mood = MoodAction(store: MoodStore(stateDir: dir), changed: { told.append($0) })
+        XCTAssertEqual(mood.change(to: "grumpy"), .done("Boop's mood changed: happy → grumpy."))
+        XCTAssertEqual(mood.change(to: "grumpy"), .failed("already grumpy"))
+        XCTAssertEqual(mood.change(to: "sulky"), .failed("sulky isn't a mood"))
+        try XCTAssertEqual(try String(contentsOf: dir.appendingPathComponent("mood"), encoding: .utf8), "grumpy\n")
+        XCTAssertEqual(mood.run(["mood": a("proud")]), .done("Boop's mood changed: grumpy → proud."), "Jev's, right after")
+        XCTAssertEqual(told, ["grumpy", "proud"], "the device hears each change")
     }
 
     // MARK: Jev (HARNESS.md §7)

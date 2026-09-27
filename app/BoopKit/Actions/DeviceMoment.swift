@@ -15,6 +15,9 @@ public struct DeviceMoment: Equatable, Sendable {
         self.ttl = ttl
     }
 
+    /// The animations the device plays (BEHAVIORS.md §5).
+    public static let anims = ["cheer", "wiggle"]
+
     /// Bubble time after the last syllable (firmware `kBubbleReadMs`).
     static let bubbleReadMs: Int64 = 1200
 

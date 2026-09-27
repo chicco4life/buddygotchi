@@ -79,11 +79,18 @@ public enum StateText {
     }
 
     /// What Boop did about an event: its rule reaction, then the messages of
-    /// its successful actions, in order.
+    /// its successful actions, in order. A forced action, which is for no
+    /// event, counts as done about the latest event before it.
     static func didLines(for entry: Transcript.Entry, event: Event, in entries: [Transcript.Entry]) -> [String] {
         var lines = event.reaction.map { [$0] } ?? []
+        var latest = true
         for e in entries where e.seq > entry.seq {
-            if case .action(let a) = e.body, a.forSeq == entry.seq, a.result.ok { lines.append(a.result.message) }
+            switch e.body {
+            case .event: latest = false
+            case .action(let a) where a.result.ok && (a.forSeq == entry.seq || (a.forSeq == nil && latest)):
+                lines.append(a.result.message)
+            default: break
+            }
         }
         return lines
     }

@@ -14,7 +14,7 @@ from boopctl_lib import cli  # noqa: E402
 from boopctl_lib.device import Link  # noqa: E402
 
 COMMANDS = ["ping", "state", "shot", "send", "play", "mumble", "sim", "run", "perf", "soak", "e2e", "bridge",
-            "cam", "calibrate"]
+            "cam", "dash", "calibrate"]
 
 
 class CLITests(unittest.TestCase):

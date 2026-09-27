@@ -265,6 +265,11 @@ need. The device keeps all 40; the brain offers only these.
    steering keeps moods from changing often (§2.3).
 3. The file can't be written → `ok: false`, `"couldn't save the mood: …"`.
 
+**The dashboard** sets a mood through step 2 ([HARNESS.md](HARNESS.md)
+§9), and gets `ok: false` where Jev's choice would get `nil`:
+`already grumpy` for the current mood, and `sulky isn't a mood` for a
+word that isn't one.
+
 ## 5. The `react` action
 
 **Questions:** `react`, `word.feeling`, `word.about` (§3).

@@ -21,6 +21,7 @@ with the vision.
 | [PROTOCOL.md](PROTOCOL.md) | The messages between the Mac and the device, over Bluetooth or USB |
 | [DEVICE.md](DEVICE.md) | The board, pins, firmware stack and bring-up |
 | [VERIFICATION.md](VERIFICATION.md) | How everything is checked (L0–L6), and every tool |
+| [DASHBOARD.md](DASHBOARD.md) | `boopctl dash`: Boop's state, face, passes and timeline live, and keys that force a mood, a reaction or an animation |
 | [EVALS.md](EVALS.md) | The harness eval scenarios: how they run and what each checks |
 | [PLAN.md](PLAN.md) | Where things stand: milestones, owner checks, open items |
 | [FUTURE.md](FUTURE.md) | Ideas we like but aren't building in v1, and what v1 parked |

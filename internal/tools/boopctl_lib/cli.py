@@ -20,6 +20,8 @@ PIO = REPO / "firmware" / "tools" / "pio.sh"
 SIM_PROGRAM = REPO / "firmware" / ".pio" / "build" / "native" / "program"
 SIM_OUT = Path("/tmp/boop-sim")
 RUN_OUT = Path("/tmp/boop-run")
+# The everyday app's state directory (AppSettings.defaultStateDir).
+EVERYDAY_STATE = Path.home() / "Library" / "Application Support" / "Boop"
 
 
 # The animation set (BEHAVIORS.md §5).
@@ -60,6 +62,17 @@ def cmd_shot(args: argparse.Namespace) -> int:
     with Device(args.port) as dev:
         shot = dev.shot()
     print(save_shot(shot, Path(args.out)))
+    return 0
+
+
+def cmd_dash(args: argparse.Namespace) -> int:
+    """The live dashboard (plan/DASHBOARD.md), on the app's debug.jsonl and
+    hook socket; its face is boop-sim, built from this checkout."""
+    from boopctl_lib.dash.app import run
+
+    state = Path(args.state_dir).expanduser() if args.state_dir else EVERYDAY_STATE
+    build_sim()
+    run(state, args.socket or str(state / "boop.sock"), str(SIM_PROGRAM))
     return 0
 
 
@@ -667,6 +680,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--camera", help="the camera id, from internal/tools/webcam/webcam.sh list "
                                     "(default: $BOOP_CAMERA or the built-in one)")
     p.set_defaults(func=cmd_cam)
+    p = sub.add_parser("dash", help="the live dashboard: Boop's state and face, the harness's latest pass and a "
+                                    "timeline, from debug.jsonl; keys force a mood, a reaction or an animation")
+    p.add_argument("--state-dir", help="the app's state directory, where Boop --debug writes debug.jsonl "
+                                       "(default: the everyday app's, ~/Library/Application Support/Boop)")
+    p.add_argument("--socket", help="the app's hook socket (default: STATE-DIR/boop.sock)")
+    p.set_defaults(func=cmd_dash)
     p = sub.add_parser("calibrate", help="touch calibration: tap 4 crosses (needs a person); kept in NVS")
     p.add_argument("--show", action="store_true", help="print the stored calibration instead")
     p.add_argument("--clear", action="store_true", help="with --show: forget it (back to the default raw range)")

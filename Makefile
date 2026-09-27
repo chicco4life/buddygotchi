@@ -37,7 +37,7 @@ test:
 eval: build
 	.build/debug/boopdev eval
 
-# internal/tools/.venv with pyserial and Pillow, for boopctl.
+# internal/tools/.venv with pyserial, Pillow and Textual, for boopctl.
 # internal/tools/boopctl makes it by itself when it's missing; this also
 # refreshes it after internal/tools/requirements.txt changes.
 tools: internal/tools/.venv/.ok

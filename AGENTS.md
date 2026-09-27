@@ -69,7 +69,7 @@ make build                                            # Mac app, boop-hook and b
   `firmware/tools/pio.sh` (the make targets do), which keeps its packages
   in `firmware/.platformio-core`. The board shows up as
   `/dev/cu.usbserial-*`, and the serial port needs no special permissions.
-- System Python has no pyserial or Pillow. The tools use
+- System Python has no pyserial, Pillow or Textual. The tools use
   `internal/tools/.venv`, which `internal/tools/boopctl` makes on its
   first run (`make tools` refreshes it).
 - A Unix socket's path has room for 103 bytes, so give `Boop --headless`
@@ -147,6 +147,7 @@ unpushed local `main`.
 | `internal/tools/facegen/` (and its designs), `firmware/src/render/scene.*` | `UX.md` §2, `DEVICE.md` §6 |
 | `Makefile`, `internal/tools/`, `internal/app/BoopDev/`, `internal/skills/`, tests | `VERIFICATION.md`, this file, `README.md` |
 | `internal/app/Boop/` (`--headless`, `--snapshots`), `internal/app/BoopDevKit/Replay.swift`, `internal/firmware/sim/`, `internal/firmware/test/` | `VERIFICATION.md` |
+| `internal/tools/boopctl_lib/dash/`, the dev lines and the dashboard's lines in `debug.jsonl` | `DASHBOARD.md` (and `harness/HARNESS.md` §9) |
 | `internal/app/BoopDevKit/Eval/`, `internal/app/Evals/` | `EVALS.md` |
 | `Package.swift`, what goes in `internal/` | `ARCHITECTURE.md` §10, `internal/README.md`, this file |
 | Structure, boundaries or a budget | `ARCHITECTURE.md` |

@@ -18,11 +18,8 @@ public final class Harness: @unchecked Sendable {
         /// The app log's line (§9): the event's kind, the latency and which
         /// actions returned a result, never their messages.
         public var logLine: String {
-            let names = actions.map { $0.name + ($0.result.ok ? "" : " (failed)") }
-            if let dropped = pass.dropped {
-                return "brain \(event.kind.rawValue) \(pass.latencyMs) ms → dropped: \(dropped)"
-            }
-            return "brain \(event.kind.rawValue) \(pass.latencyMs) ms → " + (names.isEmpty ? "nothing" : names.joined(separator: ", "))
+            "brain \(event.kind.rawValue) \(pass.latencyMs) ms → "
+                + (pass.dropped.map { "dropped: \($0)" } ?? Transcript.ActionRecord.names(actions))
         }
     }
 
@@ -139,30 +136,66 @@ public final class Harness: @unchecked Sendable {
     func finish(_ entry: Transcript.Entry, _ job: Job, _ result: Result<Answers, BrainError>, latencyMs: Int) {
         guard case .event(let event) = entry.body else { return }
         var pass = Transcript.Pass(forSeq: entry.seq, answers: [:], dropped: nil, latencyMs: latencyMs)
-        var ran: [Transcript.ActionRecord] = []
         switch result {
         case .failure(let error):
             pass.dropped = error.description
             if let raw = error.raw { log("harness: \(job.brain.id) answered what couldn't be used (\(raw.count) bytes)") }
-            record(.pass(pass), extra: ["state": job.state, "questions": job.questions.map(\.key), "brain": job.brain.id])
         case .success(let answers):
             pass.answers = answers
-            record(.pass(pass), extra: ["state": job.state, "questions": job.questions.map(\.key), "brain": job.brain.id])
-            for action in actions {
-                let own = Dictionary(uniqueKeysWithValues: action.questions().compactMap { q in answers[q.key].map { (q.key, $0) } })
-                let started = ContinuousClock.now
-                let result = action.run(own)
-                let ms = (ContinuousClock.now - started).ms
-                if ms > Harness.actionSlowMs { log("harness: \(action.name) took \(ms) ms; slow work should be handed off") }
-                guard let result else { continue }
-                let a = Transcript.ActionRecord(forSeq: entry.seq, name: action.name, result: result, latencyMs: ms)
-                ran.append(a)
-                record(.action(a))
-            }
         }
+        record(.pass(pass), extra: ["state": job.state, "questions": job.questions.map(\.key), "brain": job.brain.id])
+        let ran = pass.dropped == nil ? runActions(pass.answers, forSeq: entry.seq) : []
         let record = Record(event: event, pass: pass, actions: ran)
         if let dropped = pass.dropped { log("harness: \(event.kind.rawValue) dropped: \(dropped)") }
         onRecord?(record)
+    }
+
+    /// Hands each action its own answers, in order, and records what each
+    /// reports.
+    func runActions(_ answers: Answers, forSeq: Int?) -> [Transcript.ActionRecord] {
+        var ran: [Transcript.ActionRecord] = []
+        for action in actions {
+            let own = Dictionary(uniqueKeysWithValues: action.questions().compactMap { q in answers[q.key].map { (q.key, $0) } })
+            let started = ContinuousClock.now
+            let result = action.run(own)
+            let ms = (ContinuousClock.now - started).ms
+            if ms > Harness.actionSlowMs { log("harness: \(action.name) took \(ms) ms; slow work should be handed off") }
+            guard let result else { continue }
+            let a = Transcript.ActionRecord(forSeq: forSeq, name: action.name, result: result, latencyMs: ms)
+            ran.append(a)
+            record(.action(a))
+        }
+        return ran
+    }
+
+    // MARK: Forced (the dashboard, §9)
+
+    /// A pass whose answers are given, not asked: each choice at
+    /// probability 1, handed to the actions exactly as Jev's would be. It
+    /// runs at once, needs no brain, and leaves the pass running or waiting
+    /// alone. It's recorded for no event; a choice that isn't one of its
+    /// question's options is left out. Call on `home`.
+    public func force(_ choices: [String: String]) -> [Transcript.ActionRecord] {
+        dispatchPrecondition(condition: .onQueue(home))
+        let asked = actions.flatMap { $0.questions() }.filter { q in q.options.contains { $0.name == choices[q.key] } }
+        let answers = Dictionary(uniqueKeysWithValues: asked.compactMap { q in
+            choices[q.key].map { (q.key, Answer(choice: $0, probabilities: [$0: 1])) }
+        })
+        if answers.count < choices.count { log("harness: forced answers left out: \(Set(choices.keys).subtracting(answers.keys).sorted())") }
+        record(.pass(Transcript.Pass(forSeq: nil, answers: answers, dropped: nil, latencyMs: 0)), extra: ["questions": asked.map(\.key)])
+        return runActions(answers, forSeq: nil)
+    }
+
+    /// One action doing `body` outside any pass, such as setting the mood
+    /// the dashboard picked: its result is recorded for no event. Call on
+    /// `home`.
+    public func force(_ action: any Action, _ body: () -> ActionResult?) -> ActionResult? {
+        dispatchPrecondition(condition: .onQueue(home))
+        let started = ContinuousClock.now
+        guard let result = body() else { return nil }
+        record(.action(Transcript.ActionRecord(forSeq: nil, name: action.name, result: result,
+                                               latencyMs: (ContinuousClock.now - started).ms)))
+        return result
     }
 
     /// Appends and logs one entry.
@@ -171,7 +204,7 @@ public final class Harness: @unchecked Sendable {
         let entry = transcript.append(body, at: ms)
         if debugLog != nil || onDebugLine != nil {
             let line = Transcript.json(entry, extra: extra)
-            if let debugLog { Harness.appendLine(line + "\n", to: debugLog) }
+            if let debugLog { Harness.appendLine(line, to: debugLog) }
             onDebugLine?(line)
         }
         return entry
@@ -233,14 +266,16 @@ public final class Harness: @unchecked Sendable {
         }
     }
 
+    /// Appends `line` and a newline, opening the file for each line.
     static func appendLine(_ line: String, to url: URL) {
+        let data = Data((line + "\n").utf8)
         if let handle = try? FileHandle(forWritingTo: url) {
             defer { try? handle.close() }
             _ = try? handle.seekToEnd()
-            try? handle.write(contentsOf: Data(line.utf8))
+            try? handle.write(contentsOf: data)
         } else {
             try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try? Data(line.utf8).write(to: url)
+            try? data.write(to: url)
         }
     }
 }
