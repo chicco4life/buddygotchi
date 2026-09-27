@@ -295,7 +295,7 @@ public final class Runtime: @unchecked Sendable {
         // Debug mode logs every hook with what it became; the doctor skill
         // arms the plain line to see hooks arrive. Otherwise hooks aren't logged.
         if options.debug {
-            options.log("hook: \(line.agent) \(line.hook) \(line.session) → " + (event.map(Runtime.describe) ?? "ignored"))
+            options.log("hook: \(line.agent) \(line.hook) \(line.session) → " + (event?.summary ?? "ignored"))
         } else if doctorArmed() {
             options.log("hook: \(line.agent) \(line.hook) \(line.session)")
         }
@@ -345,21 +345,13 @@ public final class Runtime: @unchecked Sendable {
         link.tick(now: now, current: core.snapshot(at: now))
     }
 
-    /// An event on one line for debug mode: `activity landing · tool Bash, topic tests`.
-    static func describe(_ event: BoopEvent) -> String {
-        let d = event.detail
-        let detail = [d.tool.map { "tool \($0)" }, d.topic.map { "topic \($0)" }, d.failed == true ? "failed" : nil,
-                      d.error.map { "error \($0)" }, event.subagent.map { "subagent \($0)" }].compactMap { $0 }
-        return "\(event.event.rawValue) \(event.project)" + (detail.isEmpty ? "" : " · " + detail.joined(separator: ", "))
-    }
-
     /// Carries out the core's decisions (ARCHITECTURE.md §3.2).
     func run(_ effects: [CoreEffect]) {
         if options.debug {
             // The snapshot shows as the line the link sends, if it sends one.
             for effect in effects {
                 if case .state = effect { continue }
-                options.debugPrint("core: " + Replay.describe(effect))
+                options.debugPrint("core: " + effect.summary)
             }
         }
         moments.inRules += 1

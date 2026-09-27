@@ -78,6 +78,13 @@ public struct BoopEvent: Equatable, Sendable {
         self.ts = ts
     }
 
+    /// The event on one line, for debug mode: `activity landing · tool Bash, topic tests`.
+    public var summary: String {
+        let parts = [detail.tool.map { "tool \($0)" }, detail.topic.map { "topic \($0)" }, detail.failed == true ? "failed" : nil,
+                     detail.error.map { "error \($0)" }, subagent.map { "subagent \($0)" }].compactMap { $0 }
+        return "\(event.rawValue) \(project)" + (parts.isEmpty ? "" : " · " + parts.joined(separator: ", "))
+    }
+
     /// The event as one JSON line, in the shape of ADAPTERS.md §1.
     public var jsonLine: String {
         var detailObject: [String: Any] = [:]
