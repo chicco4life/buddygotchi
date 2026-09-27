@@ -401,6 +401,12 @@ public final class Runtime: @unchecked Sendable {
         switch link.receive(line, now: now) {
         case .input(let input):
             options.log("device: input \(input.rawValue)")
+            if input == .tap && core.mumbleBlock == nil {
+                // The device has wiggled, which replaced whatever played
+                // (BEHAVIORS.md §3.3); while something needs you it only dips.
+                moments.schedule.rule(DeviceMoment(anim: "wiggle"), now: now)
+                pump()
+            }
             run(core.input(input, at: now))
         case .ended(let ended):
             options.log("device: moment \(ended.id) ended \(ended.how.rawValue)" + (ended.why.map { " (\($0))" } ?? ""))
@@ -451,6 +457,10 @@ public final class Runtime: @unchecked Sendable {
         run(core.tick(at: now))
         link.tick(now: now)
         moments.overdue(now: now)
+        // A reaction that has waited too long is dropped here too, before
+        // the harness's ceiling could end it, even when the pump's timer,
+        // which runs on uptime, hasn't fired (the clock jumped).
+        pump()
         harness.tick(now: now)
     }
 
@@ -504,9 +514,11 @@ public final class Runtime: @unchecked Sendable {
     /// A snapshot for the device, whose look and mood time the moments
     /// played over it.
     func show(_ snapshot: StateSnapshot) {
-        link.update(snapshot, now: options.clock())
+        let now = options.clock()
+        link.update(snapshot, now: now)
         moments.schedule.look = snapshot.base
         moments.schedule.mood = snapshot.mood
+        if snapshot.attn != nil { moments.schedule.attention(now: now) }
     }
 
     /// A rule moment: it plays at once, and anything the brain has waiting
@@ -514,6 +526,14 @@ public final class Runtime: @unchecked Sendable {
     func playRule(_ moment: DeviceMoment) {
         link.play(moment)
         moments.schedule.rule(moment, now: options.clock())
+        // An animation stops a line, so a reaction waiting behind one may
+        // play now, over the animation.
+        pump()
+    }
+
+    /// `Runtime.pump` with this runtime's parts.
+    func pump() {
+        Runtime.pump(moments, link: link, clock: options.clock, home: home, log: options.log)
     }
 
     /// Plays the brain's next moment if its turn has come, and sets a timer

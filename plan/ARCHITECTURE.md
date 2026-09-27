@@ -166,8 +166,12 @@ reports every tick.
 playing ([BEHAVIORS.md](BEHAVIORS.md) §3). The brain's wait in the
 moment schedule, one at a time, until no line or reaction's face plays;
 they have no animation, so they play over one without cutting it, and an
-animation stops any line on the device. One that has waited longer than
-5 s is dropped, since a late reaction is worse than none. Each carries
+animation stops any line on the device, so a rule's animation lets one
+waiting behind a line play at once, over it. One that has waited longer
+than 5 s is dropped, since a late reaction is worse than none, whether or
+not a face still holds the turn: the schedule is asked again when the
+first waiting one's 5 s run out, and on every tick, so a clock jump can't
+leave one waiting for the harness's ceiling. Each carries
 its reaction's handle. It goes to the device with an `id`, and the
 device's `ended` says how it went: played out, cut short or skipped
 ([PROTOCOL.md](PROTOCOL.md) §4). The schedule or the runtime ends the
@@ -183,7 +187,11 @@ mood of the last `state`, or the cheer's while one plays, and its loop
 is `FaceLoops`' number for it, the one the device has
 ([PROTOCOL.md](PROTOCOL.md) §3). The device ends a face on a loop
 boundary of its own clock, which the app doesn't know, so the face may
-end up to a loop sooner than the app reckons, never later.
+end up to a loop sooner than the app reckons, never later. What the
+device does on its own reaches the schedule too: a tap's wiggle replaces
+the cheer and any line, and a `state` with `attn` stops them, with
+nothing playing while it shows, so a reaction after either is timed on
+the look's design, not a cheer that was cut.
 
 ### 3.3 Harness and brain
 

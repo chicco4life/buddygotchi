@@ -55,6 +55,15 @@ public struct MomentSchedule {
         if let anim = moment.anim { cheerUntil = anim == "cheer" ? now + ms : min(cheerUntil, now) }
     }
 
+    /// "Needs you" shows: the device stops the cheer and any line, and plays
+    /// nothing while it shows (BEHAVIORS.md §1), so nothing is timed on
+    /// them any more.
+    public mutating func attention(now: Int64) {
+        busyUntil = min(busyUntil, now)
+        lineUntil = min(lineUntil, now)
+        cheerUntil = min(cheerUntil, now)
+    }
+
     /// Nothing is playing and no brain moment is waiting its turn.
     public func idle(now: Int64) -> Bool {
         now >= busyUntil && waiting.isEmpty
@@ -67,24 +76,32 @@ public struct MomentSchedule {
     }
 
     /// The brain moment to play now, if one's turn has come (at most one),
-    /// with its handle for whoever plays it; the ones dropped as too late
-    /// on the way, whose handles end here; and when to ask again (nil when
-    /// nothing waits).
+    /// with its handle for whoever plays it; the ones dropped as too late,
+    /// whose handles end here, whether or not a turn has come; and when to
+    /// ask again (nil when nothing waits): when the line ends, or sooner
+    /// when the first waiting will have waited too long.
     public mutating func due(now: Int64) -> (play: DeviceMoment?, pending: Pending?, dropped: [DeviceMoment], next: Int64?) {
         var dropped: [DeviceMoment] = []
-        guard now >= lineUntil else { return (nil, nil, dropped, waiting.isEmpty ? nil : lineUntil) }
-        while !waiting.isEmpty {
-            let (moment, pending, at) = waiting.removeFirst()
-            if now - at > Self.maxWaitMs {
-                dropped.append(moment)
-                pending?.finish(.failed("waited too long"))
-                continue
+        var kept: [(moment: DeviceMoment, pending: Pending?, at: Int64)] = []
+        for entry in waiting {
+            if now - entry.at > Self.maxWaitMs {
+                dropped.append(entry.moment)
+                entry.pending?.finish(.failed("waited too long"))
+            } else {
+                kept.append(entry)
             }
-            let ms = playMs(moment, now: now)
-            busyUntil = max(busyUntil, now + ms)
-            lineUntil = now + ms
-            return (moment, pending, dropped, waiting.isEmpty ? nil : lineUntil)
         }
-        return (nil, nil, dropped, nil)
+        waiting = kept
+        guard now >= lineUntil, !waiting.isEmpty else { return (nil, nil, dropped, next) }
+        let (moment, pending, _) = waiting.removeFirst()
+        let ms = playMs(moment, now: now)
+        busyUntil = max(busyUntil, now + ms)
+        lineUntil = now + ms
+        return (moment, pending, dropped, next)
+    }
+
+    /// When to ask `due` again, or nil when nothing waits.
+    var next: Int64? {
+        waiting.first.map { min(lineUntil, $0.at + Self.maxWaitMs + 1) }
     }
 }
