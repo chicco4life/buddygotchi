@@ -313,15 +313,9 @@ Pose blend(const Pose& a, const Pose& b, int t) {
   return o;
 }
 
-bool operator==(const Pose& a, const Pose& b) {
-  return a.open == b.open && a.lookX == b.lookX && a.lookY == b.lookY && a.eyeSize == b.eyeSize &&
-         a.lidTop == b.lidTop && a.lidBot == b.lidBot && a.wink == b.wink && a.squash == b.squash &&
-         a.mouthCurve == b.mouthCurve && a.mouthOpen == b.mouthOpen && a.mouthWide == b.mouthWide &&
-         a.dx == b.dx && a.dy == b.dy && a.size == b.size && a.raise == b.raise &&
-         a.heart == b.heart && a.sweat == b.sweat && a.zzz == b.zzz;
-}
-
-// Every field is an int16_t, so there's no padding to compare.
+// Every field of both is an int16_t, so there's no padding to compare.
+static_assert(std::has_unique_object_representations_v<Pose>, "Pose compares as bytes");
+bool operator==(const Pose& a, const Pose& b) { return std::memcmp(&a, &b, sizeof a) == 0; }
 static_assert(std::has_unique_object_representations_v<FaceLayout>, "FaceLayout compares as bytes");
 bool operator==(const FaceLayout& a, const FaceLayout& b) { return std::memcmp(&a, &b, sizeof a) == 0; }
 
