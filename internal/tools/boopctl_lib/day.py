@@ -170,7 +170,7 @@ def summarise(launches: list[Launch], date: str) -> Day:
         if a <= b:
             day.running_ms += b - a
         brains: list[str] = []
-        attn = None  # (agent, project) shown
+        attn = None  # (agent, project, id) shown
         episode: NeedsYou | None = None
         changed: MoodChange | None = None  # waiting for the mood action that made it
         seen_state = False
@@ -187,11 +187,15 @@ def summarise(launches: list[Launch], date: str) -> Day:
             if h:
                 h.lines += 1
             if k == "sent" and body.get("t") == "state":
-                shown = (body["attn"].get("agent"), body["attn"].get("project")) if body.get("attn") else None
+                a = body.get("attn")
+                # A missing id reads as 0, as on the device.
+                shown = (a.get("agent"), a.get("project"), a.get("id", 0)) if a else None
                 if shown and shown != attn:  # a new one, or a different one: one chirp (PROTOCOL.md §3)
                     if episode is None:
                         episode = NeedsYou(t)
-                    episode.who.append(" · ".join(map(str, shown)))
+                    who = " · ".join(map(str, shown[:2]))
+                    if not episode.who or episode.who[-1] != who:
+                        episode.who.append(who)
                     if h:
                         h.chirps += 1
                         episode.chirps += 1

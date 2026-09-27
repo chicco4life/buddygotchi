@@ -40,10 +40,12 @@ def at(clock: str, date: str = "2026-09-28") -> int:
     return int(time.mktime(time.strptime(f"{date} {clock}", "%Y-%m-%d %H:%M:%S")) * 1000)
 
 
-def state(t: int, attn: tuple | None = None, mood: str = "happy", more: int = 0) -> dict:
+def state(t: int, attn: tuple | None = None, mood: str = "happy", more: int = 0, id: int | None = None) -> dict:
     s = {"t": "state", "v": 1, "base": "idle", "mood": mood, "busy": 0, "vol": 6}
     if attn:
         s["attn"] = {"agent": attn[0], "project": attn[1], "more": more}
+        if id is not None:
+            s["attn"]["id"] = id
     return {"sent": s, "received_at_ms": t}
 
 
@@ -277,6 +279,22 @@ class RuleTests(unittest.TestCase):
         self.assertEqual([(n.end - n.start, n.chirps, n.open) for n in d.needs], [(180_000, 2, False), (120_000, 1, True)],
                          "one still up when its launch's log ends")
         self.assertIn("(still up when the log ends)", day.render(d))
+
+    def test_a_different_request_with_the_same_names_chirps(self):
+        """PROTOCOL.md §3: a different `attn.id` chirps even with the same
+        agent and project (two worktrees of one repo); the same id again
+        doesn't."""
+        d = day.summarise([launch(
+            state(at("09:00:00")),
+            state(at("09:01:00"), ("claude", "a"), id=1),
+            state(at("09:01:10"), ("claude", "a"), id=1),
+            state(at("09:02:00"), ("claude", "a"), id=2),
+            state(at("09:02:10"), ("claude", "a"), id=2, more=1),
+            state(at("09:03:00")),
+        )], "2026-09-28")
+        self.assertEqual(d.total().chirps, 2)
+        self.assertEqual([(n.who, n.chirps) for n in d.needs], [(["claude · a"], 2)])
+        self.assertIn("  09:01  claude · a  2 min, 2 chirps", day.render(d).splitlines())
 
     def test_needs_you_across_midnight_counts_on_each_day(self):
         lines = launch(state(at("23:50:00", "2026-09-27"), ("claude", "a")), state(at("00:10:00")))
