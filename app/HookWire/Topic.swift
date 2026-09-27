@@ -39,7 +39,7 @@ public enum Topic {
     public static func tag(tool: String?, input: Any?) -> String? {
         guard let tool else { return nil }
         if editTools.contains(tool) {
-            return paths(in: input, tool: tool).contains(where: isDoc) ? "docs" : nil
+            return paths(in: input).contains(where: isDoc) ? "docs" : nil
         }
         return commands(in: input).flatMap(tag)
     }
@@ -197,7 +197,7 @@ public enum Topic {
         return nil
     }
 
-    static func paths(in input: Any?, tool: String) -> [String] {
+    static func paths(in input: Any?) -> [String] {
         if let patch = input as? String { return patchPaths(patch) }
         guard let object = input as? [String: Any] else { return [] }
         var found: [String] = []
@@ -210,15 +210,23 @@ public enum Topic {
         return found
     }
 
-    /// File names in an `apply_patch` body (`*** Update File: x.md`).
+    /// File names in an `apply_patch` body (`*** Update File: x.md`): the
+    /// rest of each line that starts with a marker. A patch can be long, so
+    /// its bytes are searched for the markers instead of reading every line.
     static func patchPaths(_ patch: String) -> [String] {
-        patch.split(separator: "\n").compactMap { line in
-            for marker in ["*** Update File: ", "*** Add File: "] where line.hasPrefix(marker) {
-                return String(line.dropFirst(marker.count))
-            }
-            return nil
+        var found: [String] = []
+        var from = patch.startIndex
+        while let hit = patch.utf8[from...].firstRange(of: "*** ".utf8) {
+            from = hit.upperBound
+            guard let start = hit.lowerBound.samePosition(in: patch),
+                  start == patch.startIndex || patch[patch.index(before: start)] == "\n" else { continue }
+            let line = patch[start...].prefix { $0 != "\n" }
+            if let marker = patchMarkers.first(where: line.hasPrefix) { found.append(String(line.dropFirst(marker.count))) }
+            from = line.endIndex
         }
+        return found
     }
+    static let patchMarkers = ["*** Update File: ", "*** Add File: "]
 
     static func isDoc(_ path: String) -> Bool {
         docExtensions.contains((path as NSString).pathExtension.lowercased())
