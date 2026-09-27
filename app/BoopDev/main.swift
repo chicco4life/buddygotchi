@@ -261,13 +261,7 @@ func watch(_ raw: [String]) {
             let line = String(pending[..<end])
             pending = String(pending[pending.index(after: end)...])
             if line.isEmpty { continue }
-            if let header = Eval.header(line) {
-                // Each scenario run starts afresh, so its first pass shows the memory in full.
-                print("=== \(header)")
-                printer = DebugLog.Printer()
-            } else {
-                print(printer.readable(line))
-            }
+            print(printer.readable(line))
         }
     }
 }

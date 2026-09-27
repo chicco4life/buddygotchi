@@ -38,13 +38,19 @@ public enum DebugLog {
     /// Turns debug lines into readable text, in order. Memory is printed in
     /// full for the first pass, then only the lines added (+) and removed
     /// (-) since the pass before, unless that's longer than the memory
-    /// itself; the window every time.
+    /// itself; the window every time. An eval run's header line prints as
+    /// `=== …`.
     public final class Printer {
         var memory: [String]?
 
         public init() {}
 
         public func readable(_ line: String) -> String {
+            if let header = Eval.header(line) {
+                // Each scenario run starts afresh, so its first pass shows the memory in full.
+                memory = nil
+                return "=== \(header)"
+            }
             guard let o = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any] else { return line }
             if let aside = o["aside"] as? String { return "· \(aside)" }
             let input = o["input"] as? [String: Any] ?? [:]

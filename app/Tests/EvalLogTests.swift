@@ -19,5 +19,12 @@ final class EvalLogTests: XCTestCase {
         XCTAssertGreaterThan(lines.count, 1)
         XCTAssertNil(Eval.header(lines[1]), "a pass isn't a header")
         XCTAssertNil(Eval.header(#"{"aside":"tapped"}"#))
+        // As boopdev watch prints it: the header, then the run's first pass
+        // afresh, with the memory in full.
+        let printer = DebugLog.Printer()
+        XCTAssertEqual(printer.readable(lines[0]), "=== calm  03-turn-failed.json  run 2")
+        let first = printer.readable(lines[1])
+        _ = printer.readable(lines[0])
+        XCTAssertEqual(printer.readable(lines[1]), first)
     }
 }
