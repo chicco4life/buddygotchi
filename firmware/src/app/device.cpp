@@ -341,11 +341,11 @@ void Device::tick() {
   Screen screen = screenAt(t);
   if (screen != screen_) screen_ = screen, dirty_ = true;
   if (debugLabel(t) != labelDrawn_) dirty_ = true;
-  bool moving = screen_ != Screen::kPattern && b_.moving(t);
+  bool moving = movingAt(t);
   // A frozen clock looks on every step, so scenario frames stay exact,
   // and the press squish on every pass, so the cap doesn't delay a press.
   bool due = clock_.frozen() || b_.pressEasing(t) || hal_.realMs() - drawnReal_ >= kFrameMs;
-  if (dirty_ || ((moving || drawnMoving_) && t != drawnT_ && due)) render(t);
+  if (dirty_ || ((moving || drawnMoving_) && t != drawnT_ && due)) render(t, moving);
 }
 
 void Device::hush() {
@@ -371,11 +371,11 @@ void Device::followSound(uint32_t t) {
 // laid out on the same blocks and the bubble still up or still down. The
 // pixel face moves a block at a time, so most passes in motion find the
 // picture unchanged.
-void Device::render(uint32_t t) {
+void Device::render(uint32_t t, bool moving) {
   render::FaceLayout face = render::faceLayout(b_.pose(t));
   const render::Mumble* mumble = b_.mumble(t);
   bool same = !dirty_ && face == drawnFace_ && (mumble != nullptr) == drawnBubble_;
-  drawnMoving_ = screen_ != Screen::kPattern && b_.moving(t);
+  drawnMoving_ = moving;
   drawnT_ = t;
   drawnReal_ = hal_.realMs();
   if (same) return;
@@ -543,7 +543,8 @@ void Device::sendShot(Link to) {
   if (!out) return;
   screen_ = screenAt(now());
   dirty_ = true;
-  render(now());
+  uint32_t t = now();
+  render(t, movingAt(t));
   uint8_t pal[512];
   for (int i = 0; i < 256; ++i) {
     uint16_t c = render::paletteAt(i);

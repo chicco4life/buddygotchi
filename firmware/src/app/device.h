@@ -128,7 +128,7 @@ class Device {
   void emit(const char* k, bool injected);  // an `input` message to the Mac
   void input(const char* k, uint32_t t, int x = -1, int y = -1);
   void readInputs(uint32_t t);
-  void render(uint32_t t);
+  void render(uint32_t t, bool moving);  // moving: movingAt(t)
   void sendPing(Link to);
   void sendStatus(Link to);
   void sendState(Link to);
@@ -137,6 +137,8 @@ class Device {
   void hush();
   void followSound(uint32_t t);
   Screen screenAt(uint32_t t) const { return pattern_ ? Screen::kPattern : b_.screen(t); }
+  // The face on screen is mid-motion at t, so the next time step may differ.
+  bool movingAt(uint32_t t) const { return screen_ != Screen::kPattern && b_.moving(t); }
   const char* debugLabel(uint32_t t) const;
 
   Hal& hal_;
