@@ -30,6 +30,9 @@ public final class Runtime: @unchecked Sendable {
         public var devLines = false
         /// Moves `clock` forward, for `{"dev":"advance"}`; nil ignores it.
         public var advance: (@Sendable (Int64) -> Void)?
+        /// Milliseconds the Mac has slept since launch: `clock` counts them,
+        /// but a turn's length doesn't (ARCHITECTURE.md §3.2).
+        public var asleep: @Sendable () -> Int64 = Runtime.sleepClock()
         /// Debug mode (harness/HARNESS.md §9): logs every hook with what the
         /// adapter made of it and every line sent to the device, starts
         /// `debug.jsonl` afresh in the state directory (keeping the last
@@ -224,6 +227,28 @@ public final class Runtime: @unchecked Sendable {
         return { wall + Int64((ContinuousClock.now - start).ms) }
     }
 
+    /// How long the Mac has slept since this was made: the steady clock
+    /// less one that stops while the Mac sleeps.
+    public static func sleepClock() -> @Sendable () -> Int64 {
+        let continuous = ContinuousClock.now
+        let suspending = SuspendingClock.now
+        return { max(0, Int64((ContinuousClock.now - continuous).ms) - Int64((SuspendingClock.now - suspending).ms)) }
+    }
+
+    /// The sleep already told to the core, and the headless clock's jumps
+    /// that count as sleep (`{"dev":"advance","asleep":true}`).
+    var toldAsleep: Int64 = 0
+    var devAsleep: Int64 = 0
+
+    /// Tells the core how long the Mac slept since last time, before
+    /// anything the core does now. Under a second is the clocks' jitter.
+    func noteSleep() {
+        let asleep = options.asleep() + devAsleep
+        guard asleep - toldAsleep >= 1000 else { return }
+        core.slept(asleep - toldAsleep)
+        toldAsleep = asleep
+    }
+
     /// Sets up a new Boop: name and sweet-or-cheeky, asked once (UX.md §5).
     /// It hatches `today`, by default the Mac's.
     public static func setUp(stateDir: URL, name: String, nature: LongTerm.Nature,
@@ -396,6 +421,7 @@ public final class Runtime: @unchecked Sendable {
             options.log("hook: \(line.agent) \(line.hook) \(line.session)")
         }
         guard let event else { return }
+        noteSleep()
         run(core.handle(event))
     }
 
@@ -454,7 +480,9 @@ public final class Runtime: @unchecked Sendable {
         case "advance":
             guard let ms = (object["ms"] as? NSNumber)?.int64Value, ms > 0, let advance = options.advance else { return }
             advance(ms)
-            options.log("dev: clock advanced \(ms) ms")
+            let asleep = object["asleep"] as? Bool == true
+            if asleep { devAsleep += ms }
+            options.log("dev: clock advanced \(ms) ms" + (asleep ? ", the Mac asleep" : ""))
             tick()
         case "answer":
             // A forced pass: the actions keep their own rules.
@@ -481,6 +509,7 @@ public final class Runtime: @unchecked Sendable {
 
     func tick() {
         let now = options.clock()
+        noteSleep()
         core.setWallClock(options.wallClock(), at: now)
         run(core.tick(at: now))
         link.tick(now: now)

@@ -1300,6 +1300,52 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(moments(), 3)
     }
 
+    /// ARCHITECTURE.md §3.2: the runtime tells the core how long the Mac
+    /// slept (the steady clock less the one that stops in sleep) before a
+    /// hook or tick, so a turn's length leaves it out. Headless mode's
+    /// `{"dev":"advance","ms":N,"asleep":true}` moves the clock as a sleep.
+    func testTheCoreHearsHowLongTheMacSlept() throws {
+        var options = try options(nil)
+        let clock = VirtualClock(harnessT0)
+        let asleep = VirtualClock(0)
+        options.clock = { clock.now }
+        options.asleep = { asleep.now }
+        options.advance = { clock.now += $0 }
+        let runtime = try Runtime(options)
+        func hook(_ name: String) {
+            runtime.home.sync {
+                runtime.hook(HookLine(agent: "claude", hook: name, session: "s1", cwd: "/tmp/jetpack", ts: clock.now),
+                             received: clock.now)
+            }
+        }
+        func lastLine() -> String? {
+            runtime.home.sync {
+                runtime.harness.transcript.entries.last { if case .event = $0.body { true } else { false } }
+                    .flatMap { if case .event(let e) = $0.body { e.line } else { nil } }
+            }
+        }
+        hook("UserPromptSubmit")
+        clock.now += 60_000
+        clock.now += 8 * 3_600_000
+        asleep.now += 8 * 3_600_000  // the lid closed overnight
+        clock.now += 60_000
+        hook("Stop")
+        XCTAssertEqual(lastLine(), #"claude finished turn 1 on "jetpack": done after 2 min, a very long turn, 0 tools."#)
+        asleep.now += 999
+        runtime.home.sync { runtime.noteSleep() }
+        XCTAssertEqual(runtime.home.sync { runtime.toldAsleep }, 8 * 3_600_000, "under a second is the clocks' jitter")
+        asleep.now += 1
+        runtime.home.sync { runtime.noteSleep() }
+        XCTAssertEqual(runtime.home.sync { runtime.toldAsleep }, 8 * 3_600_000 + 1000)
+
+        hook("UserPromptSubmit")
+        clock.now += 30_000
+        runtime.home.sync { runtime.dev(Data(#"{"dev":"advance","ms":10800000,"asleep":true}"#.utf8)) }
+        clock.now += 10_000
+        hook("Stop")
+        XCTAssertEqual(lastLine(), #"claude finished turn 2 on "jetpack": done after 40 s, a long turn, 0 tools."#)
+    }
+
     /// ARCHITECTURE.md §3.2: the pump's timer counts the Mac's uptime,
     /// which stops while the Mac sleeps, and the moments' clock doesn't. A
     /// timer set for a time the clock has already passed is late, so the

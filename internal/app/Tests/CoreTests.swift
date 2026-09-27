@@ -315,6 +315,42 @@ final class CoreAgentWorkTests: XCTestCase {
         }
     }
 
+    /// ARCHITECTURE.md §3.2: the timers count while the Mac sleeps, but a
+    /// turn's length doesn't: an agent can't work while the Mac sleeps. A
+    /// 2-minute turn with the lid closed overnight between its minutes is a
+    /// 2-minute turn (harness/EVENTS.md §4.1), not "8 h, a very long turn",
+    /// which Jev took for a big finish or a big failure. The status line's
+    /// "for" is the same.
+    func testTheMacAsleepIsntTurnTime() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.activity, tool: "Bash", topic: "tests", id: "t")
+        rig.wait(60_000)
+        rig.now += 8 * 3_600_000
+        rig.core.slept(8 * 3_600_000)
+        rig.core.tick(at: rig.now)
+        rig.send(.activity, tool: "Bash", topic: "tests", failed: false, id: "t")
+        XCTAssertEqual(rig.core.statusLine(excluding: nil, at: rig.now), #"Working now: "landing" (claude), for 1 min."#)
+        rig.wait(60_000)
+        let fx = rig.send(.turnEnd)
+        XCTAssertEqual(woke(fx), [#"claude finished turn 1 on "landing": done after 2 min, a very long turn, 1 tool. Tests passing."#])
+        XCTAssertEqual(events(fx).first?.facts["length_ms"], .int(120_000))
+
+        rig.send(.turnStart, session: "other", project: "jetpack")
+        rig.wait(40_000)
+        rig.now += 3 * 3_600_000
+        rig.core.slept(3 * 3_600_000)
+        XCTAssertEqual(woke(rig.send(.turnStopped, session: "other", project: "jetpack", notice: true)).last,
+                       #"claude finished turn 1 on "jetpack": stopped after 40 s, a long turn, 0 tools."#)
+
+        // Sleep before a turn starts isn't taken off it.
+        rig.now += 3_600_000
+        rig.core.slept(3_600_000)
+        rig.send(.turnStart)
+        rig.wait(20_000)
+        XCTAssertEqual(events(rig.send(.turnEnd)).first?.facts["length_ms"], .int(20_000))
+    }
+
     /// harness/EVENTS.md §7: a stop with no turn open is never an event,
     /// and a finish is the same: a `Stop` after the turn stopped, a second
     /// `Stop`, or one from a session Boop has only now seen (launched, or

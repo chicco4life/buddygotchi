@@ -99,7 +99,7 @@ commands go through the bridge.
 | Way | What it does |
 | --- | --- |
 | `Boop [--state-dir DIR] [--link ble\|usb:SOCKET\|none] [--debug]` | The menu-bar app, with Bluetooth by default. The owner's. With a state directory other than the everyday one, it never installs or repairs the hooks |
-| `Boop --headless --state-dir DIR` | The whole runtime with no UI and no Bluetooth (L4). `--link usb:SOCKET\|none` (none), `--socket PATH` (`DIR/boop.sock`), `--personality boop\|chatter` for this run, `--brain jev\|scripted` (jev, only with `BOOP_JEV_KEY`; scripted answers every pass with an excited "yay", no network), `--name NAME` and `--nature sweet\|cheeky` for a new state directory, `--debug`. On its socket `{"dev":"advance","ms":N}` moves its clock |
+| `Boop --headless --state-dir DIR` | The whole runtime with no UI and no Bluetooth (L4). `--link usb:SOCKET\|none` (none), `--socket PATH` (`DIR/boop.sock`), `--personality boop\|chatter` for this run, `--brain jev\|scripted` (jev, only with `BOOP_JEV_KEY`; scripted answers every pass with an excited "yay", no network), `--name NAME` and `--nature sweet\|cheeky` for a new state directory, `--debug`. On its socket `{"dev":"advance","ms":N}` moves its clock, and `{"dev":"advance","ms":N,"asleep":true}` moves it as the Mac asleep |
 | `--debug`, either way | Prints every hook, decision, device line and brain pass as it happens, and writes `DIR/debug.jsonl` for `boopdev watch` and `boopctl dash`; the socket then also takes the dashboard's dev lines ([harness/HARNESS.md](harness/HARNESS.md) §9) |
 | `Boop --snapshots DIR` | Renders the popover's panes and the menu-bar icons to PNGs, light and dark, from fixtures, and fails on low contrast (L0). No runtime, no Bluetooth |
 

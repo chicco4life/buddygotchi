@@ -160,7 +160,12 @@ when a second idle session starts.
 **Clocks.** Timers run on a steady clock that never steps and keeps
 counting while the Mac sleeps, so setting the Mac's clock back can't
 stall one. Days and times of day follow the wall clock, which the runtime
-reports every tick.
+reports every tick. A turn's length is the time the Mac was awake, since
+no agent works while it sleeps: before each hook and tick the runtime
+tells the core how long the Mac slept since last time (the steady clock
+less one that stops in sleep, `Runtime.sleepClock`), and the core takes
+it off every open turn (`Core.slept`). A lid closed overnight between a
+turn's two minutes leaves a 2-minute turn.
 
 **Moments.** The rules' moments play at once, each replacing whatever is
 playing ([BEHAVIORS.md](BEHAVIORS.md) §3). The brain's wait in the

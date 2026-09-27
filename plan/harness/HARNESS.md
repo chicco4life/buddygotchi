@@ -458,7 +458,7 @@ line did shows in `debug.jsonl`. Any other `dev` value is ignored.
 
 | Line | Does |
 | --- | --- |
-| `{"dev":"advance","ms":N}` | Headless only: moves the app's clock forward N ms, then ticks |
+| `{"dev":"advance","ms":N}` | Headless only: moves the app's clock forward N ms, then ticks. With `"asleep":true` the time counts as the Mac asleep, which a turn's length leaves out ([ARCHITECTURE.md](../ARCHITECTURE.md) §3.2) |
 | `{"dev":"answer","answers":{"react":"grumpy","word.feeling":"again"}}` | A **forced pass**: each choice at probability 1, handed to the actions exactly as Jev's answers would be. It runs at once on `home`, needs no brain or key, and leaves a running or waiting pass alone. A choice that isn't one of its question's options is left out. The actions keep their own rules. Recorded as a `pass` and its `action` entries, for no event, by the dashboard; no `brain` line in `boop.log` |
 | `{"dev":"mood","mood":"grumpy"}` | Sets the mood at once through the mood action, device included ([DECISIONS.md](DECISIONS.md) §4). Recorded as an `action` named `mood`, for no event, by the dashboard, refusals included |
 | `{"dev":"moment","anim":"cheer"}` | Plays `cheer` or `wiggle` as a rule's moment; any other is ignored. Only its `sent` line records it |

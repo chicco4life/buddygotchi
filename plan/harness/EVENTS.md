@@ -72,7 +72,7 @@ such as `claude_code/s1`.
 | `turn_end` | `thread` | §3 | Yes |
 | | `outcome` | `done`, `failed` or `stopped` | Yes |
 | | `error` | The error class of a turn the agent failed ([ADAPTERS.md](../ADAPTERS.md) §2), such as `rate_limit`; else null, as when a failing check failed it | Yes: `failed (rate limit)` |
-| | `length`, `length_ms` | The turn's band (§5), and its milliseconds | Both: the band, and the time rounded (`after 18 min`) |
+| | `length`, `length_ms` | The turn's band (§5), and its milliseconds, without the time the Mac slept ([ARCHITECTURE.md](../ARCHITECTURE.md) §3.2) | Both: the band, and the time rounded (`after 18 min`) |
 | | `tools`, `tools_failed` | This turn's finished tool calls, and how many failed | Yes |
 | | `topics` | Each topic seen this turn, in first-seen order, with its last state: `passing` or `failing` for `tests`, `build` and `deploy`; `edited` for `docs` | Yes: `Tests passing, build failing.` |
 | | `comeback` | The last topic whose pass this turn ended a run of failures, or null | Yes |

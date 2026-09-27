@@ -75,6 +75,9 @@ public final class Core {
         /// Working on a turn: not idle, and not waiting on "needs you".
         var working = false
         var turnStartedAt: Int64?
+        /// How long the Mac has slept since the turn started: the steady
+        /// clock counts it, but the turn's length doesn't.
+        var sleptMs: Int64 = 0
         /// When you last sent a prompt (`turn_start`), for a stale idle
         /// notice: a turn a call started (a background subagent's, after
         /// the main agent stopped) had no prompt to race.
@@ -129,6 +132,10 @@ public final class Core {
 
         /// What lines call the thread: its workspace, or its project.
         var name: String { workspace ?? project }
+
+        /// The turn's length at `now`, for one that started at `started`:
+        /// the time the Mac was awake.
+        func length(to now: Int64, from started: Int64) -> Int64 { max(0, now - started - sleptMs) }
 
         var key: String { Core.key(agent, id) }
     }
@@ -349,6 +356,7 @@ public final class Core {
             let gap = s.lastTurnEndedAt.map { Band.gap(ms: now - $0) }
             s.working = true
             s.turnStartedAt = now
+            s.sleptMs = 0
             s.promptedAt = now
             s.topic = nil
             s.check = nil
@@ -386,6 +394,7 @@ public final class Core {
                     // subagent's after the main agent's `Stop`, say): its
                     // counts are its own (EVENTS.md §4.1).
                     s.turnStartedAt = now
+                    s.sleptMs = 0
                     s.tools = 0
                     s.toolsFailed = 0
                     s.topicStates = []
@@ -406,7 +415,7 @@ public final class Core {
                 sessions[key] = s
                 break
             }
-            let ms = now - started
+            let ms = s.length(to: now, from: started)
             let check = s.check
             s.turnStartedAt = nil
             s.check = nil
@@ -451,7 +460,8 @@ public final class Core {
             s.lastTurnEndedAt = now
             sessions[key] = s
             if s.turns > 0 {
-                turnEndEvent(s, outcome: "failed", error: event.detail.error, lengthMs: now - started, reaction: nil, now, &fx)
+                turnEndEvent(s, outcome: "failed", error: event.detail.error, lengthMs: s.length(to: now, from: started), reaction: nil,
+                             now, &fx)
             }
         case .sessionEnd:
             sessions[key] = nil
@@ -468,7 +478,7 @@ public final class Core {
                 s.check = nil
                 s.lastTurnEndedAt = now
                 if s.turns > 0 {
-                    turnEndEvent(s, outcome: "stopped", error: nil, lengthMs: now - started, reaction: nil, now, &fx)
+                    turnEndEvent(s, outcome: "stopped", error: nil, lengthMs: s.length(to: now, from: started), reaction: nil, now, &fx)
                 }
             }
             sessions[key] = s
@@ -524,6 +534,11 @@ public final class Core {
     public func setRules(_ rules: Personality.Rules) {
         config.rules = rules
         nextChatterAt = nil
+    }
+
+    /// The Mac slept `ms`: the timers counted it, but no turn's length does.
+    public func slept(_ ms: Int64) {
+        for (key, s) in sessions where s.turnStartedAt != nil { sessions[key]?.sleptMs += ms }
     }
 
     /// Whether there's a brain to wake: Jev's key saved or removed.
@@ -859,7 +874,7 @@ public final class Core {
         let others = sessions.values.filter { isWorking($0, now) && $0.key != about }.sorted { $0.order < $1.order }
         guard !others.isEmpty else { return "Working now: nothing else." }
         let parts = others.map { s in
-            "\"\(s.name)\" (\(s.agent.short)\(s.name == s.project ? "" : ", \(s.project)")), for \(Band.took(now - (s.turnStartedAt ?? now)))"
+            "\"\(s.name)\" (\(s.agent.short)\(s.name == s.project ? "" : ", \(s.project)")), for \(Band.took(s.length(to: now, from: s.turnStartedAt ?? now)))"
         }
         return "Working now: " + parts.joined(separator: "; ") + "."
     }
