@@ -133,7 +133,7 @@ disagree (a "no" with a confident "proud"); one choice can't.
 | `curious` | A curious face: something new started, or it's not clear how it's going |
 | `determined` | A determined face: something failed and the agent is trying again. Not for a turn that has ended, or the same failure 3 or more times in a row |
 | `grumpy` | A grumpy face: a turn failed, the same thing keeps failing, or Boop is poked too much |
-| `sad` | A sad face: a long turn ended failing, or was stopped with failures left. Not for a short turn failing, or a single failure |
+| `sad` | A sad face: a turn of 10 minutes or more ended failing, or was stopped with failures left. Not for a short turn failing, or a single failure |
 
 **The words** are two questions over two short lists, so the two picks
 are never near-synonyms: an exclamation, and what NOW is about. They're

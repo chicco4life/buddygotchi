@@ -35,9 +35,14 @@ still in proud's design until the bubble goes.
 
 ![The expression goldens](expression-goldens.png)
 
+## make eval, with the owner's key
+
+The first run passed 9 of 10: scenario 03's 2-minute failed turn got a
+sad face, since react's `sad` said only "a long turn". Given the mood's
+own threshold (10 minutes or more), the rerun passed 10/10 in all 3 runs
+against `jev:jev-latest`, median 207 ms, slowest 325 ms. Its entries are
+in `eval-debug.jsonl`.
+
 ## Not run
 
-- `make eval`: it needs the owner's Jev key. The scenarios that named
-  `annoyed` now expect `grumpy` (and `sad` or `determined` where those
-  faces fit), unchecked against Jev.
 - Nothing on the board: no Bluetooth, USB board run or webcam.
