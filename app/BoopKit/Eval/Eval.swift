@@ -288,7 +288,7 @@ public struct Eval: Sendable {
             let harness = Harness(classifier: ScriptedClassifier(base: classifier(mode), script: script),
                                   writer: ScriptedWriter(base: writer(mode), script: script),
                                   tools: actions.map(Harness.Tool.init),
-                                  memory: { _ in store.promptMemory() }, home: home, debugLog: debugLog)
+                                  memory: { store.promptMemory() }, home: home, debugLog: debugLog)
             return (core, harness, pending, actions.map(\.definition))
         }
 

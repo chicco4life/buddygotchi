@@ -116,7 +116,7 @@ public final class Harness: @unchecked Sendable {
     public private(set) var classifier: any Classifier
     public private(set) var writer: any Writer
     let tools: [Tool]
-    let memory: (Input) -> Prompt.Memory
+    let memory: () -> Prompt.Memory
     let home: DispatchQueue
     let debugLog: URL?
     let log: (String) -> Void
@@ -137,9 +137,9 @@ public final class Harness: @unchecked Sendable {
     static let marginMs = 100
 
     /// - Parameters:
-    ///   - memory: the memory text for an input, from the memory store.
+    ///   - memory: the memory text as it is now, from the memory store.
     ///   - debugLog: a JSONL file for §8's log; nil writes nothing to disk.
-    public init(classifier: any Classifier, writer: any Writer, tools: [Tool], memory: @escaping (Input) -> Prompt.Memory,
+    public init(classifier: any Classifier, writer: any Writer, tools: [Tool], memory: @escaping () -> Prompt.Memory,
                 home: DispatchQueue, debugLog: URL? = nil, transcript: Transcript = Transcript(),
                 log: @escaping (String) -> Void = { _ in }) {
         self.classifier = classifier
@@ -257,7 +257,7 @@ public final class Harness: @unchecked Sendable {
         transcript.begin(input)
         let current = tools.map { ($0.definition, $0.handle) }
         let menu = Menu(input.menu, definitions: current.map(\.0))
-        let text = memory(input)
+        let text = memory()
         for over in Prompt.overBudget(input, text) {
             log("harness: \(input.kind.rawValue) over budget: \(over)")
         }
@@ -431,8 +431,7 @@ public final class Harness: @unchecked Sendable {
     }
 
     static func ms(since start: ContinuousClock.Instant) -> Int {
-        let elapsed = ContinuousClock.now - start
-        return Int(elapsed.components.seconds * 1000 + elapsed.components.attoseconds / 1_000_000_000_000_000)
+        (ContinuousClock.now - start).ms
     }
 
     static func append(_ line: String, to url: URL) {
@@ -445,6 +444,11 @@ public final class Harness: @unchecked Sendable {
             try? Data(line.utf8).write(to: url)
         }
     }
+}
+
+extension Duration {
+    /// In whole milliseconds.
+    var ms: Int { Int(components.seconds * 1000 + components.attoseconds / 1_000_000_000_000_000) }
 }
 
 /// Resumes a continuation once, from whichever of the work, the deadline or

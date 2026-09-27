@@ -24,7 +24,7 @@ public struct FallbackClassifier: Classifier {
 
     /// The model's share of the input's deadline.
     static func modelMs(_ deadline: Duration) -> Int {
-        Int(deadline.components.seconds * 1000 + deadline.components.attoseconds / 1_000_000_000_000_000) / 2
+        deadline.ms / 2
     }
 
     public func classify(_ context: Context, _ menu: Menu, deadline: Duration) async throws -> Classification {

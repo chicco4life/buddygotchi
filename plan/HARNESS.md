@@ -202,18 +202,18 @@ harness is held to the same rules, and it logs why it dropped one.
 A classifier answers `classify(context, menu, deadline)` with calls and
 its evidence; a writer answers `write(context, slots, deadline)` with a
 value for each slot it filled. The context is the input, the memory and
-the window. Each brain is its own type in `app/BoopKit/Brains/`, with a
-comment that says exactly how it behaves. The mode picks them:
+the window. The brains are in `app/BoopKit/Brains/`, each with a comment
+that says exactly how it behaves. The mode picks them:
 
 | Mode | Classifier | Writer |
 | --- | --- | --- |
-| Chatty | `ChattyRules` (`chatty@1`) | `AppleWriter`, asked again for a word it leaves out |
-| Normal (the default) | `JevClassifier` (`jev:jev-latest`) with `NormalRules` behind it; `NormalRules` (`normal@1`) alone without Jev's key | `AppleWriter` |
-| Calm | `CalmRules` (`calm@1`) | `AppleWriter` |
+| Chatty | `Rules(.chatty)` (`chatty@1`) | `AppleWriter`, asked again for a word it leaves out |
+| Normal (the default) | `JevClassifier` (`jev:jev-latest`) with `Rules(.normal)` behind it; `Rules(.normal)` (`normal@1`) alone without Jev's key | `AppleWriter` |
+| Calm | `Rules(.calm)` (`calm@1`) | `AppleWriter` |
 
-**The if-else tables** are plain Swift: no model, always available, and
-reading only the input's fields, so the same events always get the same
-decisions. Each decides exactly its mode's column in
+**The if-else tables** (`Rules`) are plain Swift: no model, always
+available, and reading only the input's fields, so the same events always
+get the same decisions. Each decides exactly its mode's column in
 [BEHAVIORS.md](BEHAVIORS.md) §6 (a curious mumble there is
 `react(curious)` here), and all three share the tables below for what you
 say.
@@ -238,7 +238,7 @@ probabilities, in one request of about 0.2 s.
 
 In normal mode Jev gets half the input's deadline (2.5 s for an agent
 input, 2 s otherwise), leaving the rest for the writer. When it fails,
-refuses or hasn't answered by then, `NormalRules` decides that pass
+refuses or hasn't answered by then, `Rules(.normal)` decides that pass
 (`FallbackClassifier`), so a failed turn or "be quiet" is never lost to
 an outage or a bad key. The evidence then reads `jev:jev-latest failed
 (…) · normal@1: …`.

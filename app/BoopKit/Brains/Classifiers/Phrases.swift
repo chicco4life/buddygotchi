@@ -1,6 +1,6 @@
 import Foundation
 
-/// What both if-else classifiers make of your words (Stage 1, HARNESS.md §6).
+/// What every if-else table makes of your words (Stage 1, HARNESS.md §6).
 /// They read only the input's own fields, never the transcript:
 ///
 /// | You said | Decides |

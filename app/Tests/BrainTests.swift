@@ -23,87 +23,50 @@ func decide(_ classifier: any Classifier, _ i: Input) async throws -> [ToolCall]
     return answer
 }
 
-final class ChattyRulesTests: XCTestCase {
-    /// HARNESS.md §6: each row of the table in ChattyRules' comment. Every
-    /// agent input gets a mumble.
+final class RulesTests: XCTestCase {
+    /// HARNESS.md §6 and BEHAVIORS.md §6: each row of the table in Rules'
+    /// comment, in each mode. Chatty mumbles at every agent input; normal
+    /// leaves a start and a short turn (under 15 s) to the rules, and 15 s
+    /// or more is proud; calm answers only a failure and what you say.
     func testEachRow() async throws {
-        let cases: [(Input, [ToolCall])] = [
-            (input(.agentStarted), [react("curious")]),
-            (input(.agentFinished, tookMs: 1_080_000), [react("excited")]),
-            (input(.agentFinished, tookMs: 61_000), [react("excited")]),
-            (input(.agentFinished, tookMs: 60_000), [react("proud")]),
-            (input(.agentFinished, tookMs: 15_000), [react("proud")]),
-            (input(.agentFinished, tookMs: 14_000), [react("happy")]),
-            (input(.agentFinished, tookMs: 8_000), [react("happy")]),
-            (input(.agentFinished, outcome: .failed), [react("annoyed")]),
-            (input(.poked), [react("annoyed")]),
-            (input(.said, words: "shut up"), [react("sad")]),
-            (input(.said, words: "hello boop"), [react("happy")]),
+        let happy = [react("happy")], proud = [react("proud")], annoyed = [react("annoyed")], sad = [react("sad")]
+        let none: [ToolCall] = []
+        // Input, then what chatty, normal and calm decide.
+        let cases: [(Input, [ToolCall], [ToolCall], [ToolCall])] = [
+            (input(.agentStarted), [react("curious")], none, none),
+            (input(.agentFinished, tookMs: 1_080_000), [react("excited")], proud, none),
+            (input(.agentFinished, tookMs: 61_000), [react("excited")], proud, none),
+            (input(.agentFinished, tookMs: 60_000), proud, proud, none),
+            (input(.agentFinished, tookMs: 15_000), proud, proud, none),
+            (input(.agentFinished, tookMs: 14_999), happy, none, none),
+            (input(.agentFinished, tookMs: 8_000), happy, none, none),
+            (input(.agentFinished, outcome: .failed), annoyed, annoyed, annoyed),
+            (input(.poked), annoyed, annoyed, none),
+            // Hurt keeps to itself in calm; the rest of what you say gets its mumble.
+            (input(.said, words: "shut up"), sad, sad, none),
+            (input(.said, words: "what are you doing", yelled: true), sad, sad, none),
+            (input(.said, words: "be quiet for an hour"), [ToolCall("quiet", ["minutes": .number(60)])],
+             [ToolCall("quiet", ["minutes": .number(60)])], [ToolCall("quiet", ["minutes": .number(60)])]),
+            (input(.said, words: "hello boop"), happy, happy, happy),
+            (input(.said, words: "remember the demo is on Thursday"), [react("happy"), remember("today")],
+             [react("happy"), remember("today")], [react("happy"), remember("today")]),
+            (input(.said, words: "remember I ship on Fridays"), [react("happy"), remember("about_you")],
+             [react("happy"), remember("about_you")], [react("happy"), remember("about_you")]),
         ]
-        for (i, expected) in cases {
-            let calls = try await decide(ChattyRules(), i)
-            XCTAssertEqual(calls, expected, i.line + " " + (i.words ?? ""))
+        for (i, chatty, normal, calm) in cases {
+            for (mode, expected) in [(Mode.chatty, chatty), (.normal, normal), (.calm, calm)] {
+                let calls = try await decide(Rules(mode), i)
+                XCTAssertEqual(calls, expected, "\(mode): " + i.line + " " + (i.words ?? ""))
+            }
         }
+        XCTAssertEqual(Mode.allCases.map { Rules($0).id }, ["chatty@1", "normal@1", "calm@1"])
     }
 
     /// It says which row matched, for the transcript.
     func testItSaysWhichRowMatched() async throws {
         let i = input(.agentFinished, outcome: .failed)
-        let c = try await ChattyRules().classify(context(i), Menu(i.menu, definitions: try definitions()), deadline: .seconds(1))
+        let c = try await Rules(.chatty).classify(context(i), Menu(i.menu, definitions: try definitions()), deadline: .seconds(1))
         XCTAssertEqual(c.evidence, "failed")
-        XCTAssertEqual(ChattyRules().id, "chatty@1")
-    }
-}
-
-final class NormalRulesTests: XCTestCase {
-    /// HARNESS.md §6 and BEHAVIORS.md §6's normal column: each row of the
-    /// table in NormalRules' comment. A start and a short turn (under 15 s)
-    /// are the rules' alone; 15 s or more is proud.
-    func testEachRow() async throws {
-        let cases: [(Input, [ToolCall])] = [
-            (input(.agentStarted), []),
-            (input(.agentFinished, tookMs: 8_000), []),
-            (input(.agentFinished, tookMs: 14_999), []),
-            (input(.agentFinished, tookMs: 15_000), [react("proud")]),
-            (input(.agentFinished, tookMs: 60_000), [react("proud")]),
-            (input(.agentFinished, tookMs: 1_080_000), [react("proud")]),
-            (input(.agentFinished, outcome: .failed), [react("annoyed")]),
-            (input(.poked), [react("annoyed")]),
-            (input(.said, words: "shut up"), [react("sad")]),
-            (input(.said, words: "hello boop"), [react("happy")]),
-            (input(.said, words: "remember the demo is on Thursday"), [react("happy"), remember("today")]),
-        ]
-        for (i, expected) in cases {
-            let calls = try await decide(NormalRules(), i)
-            XCTAssertEqual(calls, expected, i.line + " " + (i.words ?? ""))
-        }
-        XCTAssertEqual(NormalRules().id, "normal@1")
-    }
-}
-
-final class CalmRulesTests: XCTestCase {
-    /// HARNESS.md §6: each row of the table in CalmRules' comment. Only a
-    /// failure and what you say get anything.
-    func testEachRow() async throws {
-        let cases: [(Input, [ToolCall])] = [
-            (input(.agentStarted), []),
-            (input(.agentFinished, tookMs: 1_080_000), []),
-            (input(.agentFinished, tookMs: 8_000), []),
-            (input(.agentFinished, outcome: .failed), [react("annoyed")]),
-            (input(.poked), []),
-            // Hurt keeps to itself; the rest of what you say gets its mumble.
-            (input(.said, words: "shut up"), []),
-            (input(.said, words: "what are you doing", yelled: true), []),
-            (input(.said, words: "be quiet for an hour"), [ToolCall("quiet", ["minutes": .number(60)])]),
-            (input(.said, words: "hello boop"), [react("happy")]),
-            (input(.said, words: "remember the demo is on Thursday"), [react("happy"), remember("today")]),
-            (input(.said, words: "remember I ship on Fridays"), [react("happy"), remember("about_you")]),
-        ]
-        for (i, expected) in cases {
-            let calls = try await decide(CalmRules(), i)
-            XCTAssertEqual(calls, expected, i.line + " " + (i.words ?? ""))
-        }
-        XCTAssertEqual(CalmRules().id, "calm@1")
     }
 }
 
@@ -137,8 +100,8 @@ final class PhrasesTests: XCTestCase {
         }
     }
 
-    /// HARNESS.md §6: each row of the table in Phrases' comment, which both
-    /// if-else classifiers use for what you said.
+    /// HARNESS.md §6: each row of the table in Phrases' comment, which every
+    /// if-else table uses for what you said.
     func testEachRow() {
         let quiet = { (m: Int) in ToolCall("quiet", ["minutes": .number(m)]) }
         let cases: [(Input, [ToolCall])] = [
@@ -424,7 +387,7 @@ final class JevClassifierTests: XCTestCase {
 
         let badKey = FakeJev()
         badKey.statuses = [401]
-        let normal = FallbackClassifier(JevClassifier(key: "k", send: badKey.send), else: NormalRules(), log: logs.add)
+        let normal = FallbackClassifier(JevClassifier(key: "k", send: badKey.send), else: Rules(.normal), log: logs.add)
         let c = try await normal.classify(context(failed), menu, deadline: .seconds(5))
         XCTAssertEqual(c.calls, [react("annoyed")])
         XCTAssertEqual(c.evidence, "jev:jev-latest failed (jev: HTTP 401) · normal@1: failed")
@@ -432,7 +395,7 @@ final class JevClassifierTests: XCTestCase {
         XCTAssertEqual(normal.id, "jev:jev-latest")
 
         // Slower than half the deadline: the table, in time for the writer.
-        let slow = FallbackClassifier(FakeClassifier(delayMs: 400) { _ in [] }, else: NormalRules())
+        let slow = FallbackClassifier(FakeClassifier(delayMs: 400) { _ in [] }, else: Rules(.normal))
         let start = ContinuousClock.now
         let late = try await slow.classify(context(failed), menu, deadline: .milliseconds(400))
         XCTAssertEqual(late.calls, [react("annoyed")])
@@ -441,7 +404,7 @@ final class JevClassifierTests: XCTestCase {
 
         // Jev's own answer when it has one, doing nothing included.
         let answered = FakeJev()
-        let quiet = try await FallbackClassifier(JevClassifier(key: "k", send: answered.send), else: NormalRules())
+        let quiet = try await FallbackClassifier(JevClassifier(key: "k", send: answered.send), else: Rules(.normal))
             .classify(context(failed), menu, deadline: .seconds(5))
         XCTAssertEqual(quiet.calls, [])
     }

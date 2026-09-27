@@ -212,7 +212,7 @@ public final class Runtime: @unchecked Sendable {
         // Jev's key isn't read yet: normal starts with its table (`readJevKey`).
         harness = Harness(classifier: Brains.classifier(for: mode, override: options.classifier == "jev" ? "normal" : options.classifier),
                           writer: Brains.writer(for: mode, override: options.writer, log: log),
-                          tools: actions.map(Harness.Tool.init), memory: { _ in memory.promptMemory() },
+                          tools: actions.map(Harness.Tool.init), memory: { memory.promptMemory() },
                           home: home, debugLog: options.debug ? debugLogURL : nil, log: log)
         // Tool names only: arguments can carry what you said (HARNESS.md §8).
         // A pass for what you said that sent no mumble ends `listening` now.

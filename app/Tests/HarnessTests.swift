@@ -62,7 +62,7 @@ final class HarnessRig: @unchecked Sendable {
                 .init("text", .text(maxLength: 20, by: "where", limits: ["today": 10]), role: .written),
             ]),
         ].map { d in Harness.Tool(definition: d, handle: { [unowned self] call in handled.append(call); return .done("ok") }) }
-        harness = Harness(classifier: classifier, writer: writer, tools: tools, memory: { [unowned self] _ in self.memory },
+        harness = Harness(classifier: classifier, writer: writer, tools: tools, memory: { [unowned self] in self.memory },
                           home: home, debugLog: debugLog, log: { [unowned self] in logs.append($0) })
         harness.onRecord = { [unowned self] in records.append($0) }
     }
@@ -345,7 +345,7 @@ final class HarnessTests: XCTestCase {
             let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: 1)), memory: memory.store)
             let harness = Harness(classifier: FakeClassifier { _ in [react("happy"), remember("today")] },
                                   writer: FakeWriter { _ in ["react.word": "hi", "remember.text": note] },
-                                  tools: actions.map(Harness.Tool.init), memory: { _ in memory.store.promptMemory() },
+                                  tools: actions.map(Harness.Tool.init), memory: { memory.store.promptMemory() },
                                   home: DispatchQueue(label: "test.log"), log: lines.add)
             harness.onRecord = { lines.add($0.logLine) }  // as the Runtime wires it
             _ = await harness.respond(to: input(.said, words: said))
