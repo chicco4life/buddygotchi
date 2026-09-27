@@ -398,6 +398,9 @@ class Run:
         self.waiting_settles: set[int] = set()
         self.passes = 0
         self.dropped = 0
+        # A pass was read and nothing has been read behind a barrier since
+        # (`settle`).
+        self.passes_unchecked = False
 
     def start(self) -> None:
         if len(self.sock) > 100:
@@ -481,12 +484,21 @@ class Run:
 
     def settle(self) -> None:
         """Waits for every pass the new events woke, and every reaction
-        started, to finish."""
+        started, to finish. The app writes a pass before its actions, so
+        after a pass nothing waiting isn't enough: a clock move of 1 ms,
+        which the app takes up only once the pass's actions are written,
+        is a barrier, and the look after it counts. Without it the next
+        step's clock move could land before a reaction's `ended` and end
+        it as never played."""
         deadline = time.monotonic() + 30
         while True:
             self._read_debug()
             if not self.waiting_passes and not self.waiting_settles:
-                return
+                if not self.passes_unchecked:
+                    return
+                self.passes_unchecked = False
+                self.advance(1)
+                continue
             if time.monotonic() > deadline:
                 print(f"  warning: still waiting for passes {sorted(self.waiting_passes)} "
                       f"and settles {sorted(self.waiting_settles)}", file=sys.stderr)
@@ -516,6 +528,8 @@ class Run:
                 self.passes += 1
                 if e["pass"].get("dropped"):
                     self.dropped += 1
+                else:
+                    self.passes_unchecked = True
                 self.waiting_passes.discard(e["pass"].get("for"))
             elif "action" in e and e["action"].get("pending"):
                 self.waiting_settles.add(e["seq"])

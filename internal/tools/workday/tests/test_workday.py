@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import sys
 import tempfile
+import threading
 import unittest
 from collections import Counter
 from pathlib import Path
@@ -126,6 +127,53 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(workday.classify({"kind": "heartbeat"}), "quiet")
         self.assertEqual(workday.classify({"kind": "pokes"}), "notable")
         self.assertIsNone(workday.classify({"kind": "tap"}))
+
+
+class SettleTests(unittest.TestCase):
+    def test_a_pass_is_looked_at_again_behind_a_barrier(self) -> None:
+        """The app writes a pass before its actions: settling on the pass
+        alone would let the next clock move end a reaction as never
+        played. So `settle` moves the clock 1 ms as a barrier, and waits
+        for the reaction it then finds."""
+        wakes = {"kind": "tool_use", "line": "claude's tests failed on \"api\".", "wakes_brain": True, "facts": {}}
+        with tempfile.TemporaryDirectory() as d:
+            run = workday.Run(Path(d), "scripted", None, False)
+            run.debug.write_text(entry(1, 0, event=wakes) + "\n" + entry(2, 0, **{"pass": {"for": 1, "dropped": None}}) + "\n")
+            barriers: list[int] = []
+            ended = threading.Event()
+
+            def advance(ms: int) -> None:
+                barriers.append(ms)
+                with open(run.debug, "a") as f:
+                    f.write(entry(3, 0, action={"for": 1, "name": "react", "ok": True, "pending": True,
+                                                "message": "Boop made a determined face, held once."}) + "\n")
+
+                def device_says_ended() -> None:
+                    with open(run.debug, "a") as f:
+                        f.write(entry(4, 0, settle={"for": 3, "end": "done"}) + "\n")
+                    ended.set()
+                threading.Timer(0.1, device_says_ended).start()
+
+            run.advance = advance  # type: ignore[method-assign]
+            run.settle()
+            self.assertEqual(barriers, [1])
+            self.assertTrue(ended.is_set(), "settle returned before the reaction ended")
+            self.assertEqual((run.waiting_passes, run.waiting_settles), (set(), set()))
+            # Nothing new since: no second barrier.
+            run.settle()
+            self.assertEqual(barriers, [1])
+
+    def test_a_dropped_pass_needs_no_barrier(self) -> None:
+        wakes = {"kind": "turn_start", "line": "claude started turn 1 on \"api\".", "wakes_brain": True, "facts": {}}
+        with tempfile.TemporaryDirectory() as d:
+            run = workday.Run(Path(d), "scripted", None, False)
+            run.debug.write_text(entry(1, 0, event=wakes) + "\n"
+                                 + entry(2, 0, **{"pass": {"for": 1, "dropped": "late"}}) + "\n")
+            barriers: list[int] = []
+            run.advance = barriers.append  # type: ignore[method-assign]
+            run.settle()
+            self.assertEqual(barriers, [])
+            self.assertEqual(run.dropped, 1)
 
 
 if __name__ == "__main__":
