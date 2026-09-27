@@ -167,6 +167,11 @@ may approve it without asking you, and the hook fires before that review.
   turn ending, failing or being interrupted, or the session ending. A
   request with no tool doesn't say who asked, so any event from the
   session clears it. Once no asker is left, the session is working again.
+- **Approved long commands.** Claude has no hook for the moment you
+  approve, so "the tool ran" arrives only when the tool finishes: a long
+  command you approved keeps "needs you" up until it ends, or until the
+  safety net. Boop doesn't guess sooner, since a wrong guess would hide a
+  prompt that's still open.
 - **Denied with Esc.** Pressing Esc on Claude's prompt sends no hook at
   all. Claude never sends `idle_prompt` while the main agent's prompt is
   up, so when it arrives about a minute later it clears the main agent's

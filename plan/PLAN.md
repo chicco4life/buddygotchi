@@ -73,12 +73,13 @@ that's off becomes an open item (§3).
 
 **Agents**
 
-5. **Make Claude ask permission for a shell command.** Within about 1 s
-   Boop leans in, the amber light on the board's back glows, the bubble
-   says `claude · <project>`, and it chirps once. A tap only squashes the
-   face. Approving in the terminal blends it back to working; pressing
-   Esc on the prompt instead leaves it amber until it goes idle about a
-   minute later.
+5. **Make Claude ask permission for a quick shell command.** Within
+   about 1 s Boop leans in, the amber light on the board's back glows,
+   the bubble says `claude · <project>`, and it chirps once. A tap only
+   squashes the face. Approving in the terminal blends it back to working
+   once the command has run (a long one stays amber until it ends,
+   [ADAPTERS.md](ADAPTERS.md) §4); pressing Esc on the prompt instead
+   leaves it amber until it goes idle about a minute later.
 6. **Approvals in two sessions.** One chirp, and "+1 more". Answer the
    first and the bubble moves to the other, chirping if it's another agent
    or project.

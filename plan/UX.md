@@ -226,6 +226,9 @@ except Talk, which is there to be used in the moment.
 | Sessions | Grouped by agent, Claude Code then Codex: one row per session, with its project, a coloured edge and a status chip (needs you, working, idle), waiting first, then working, then idle. With none: "No agents awake" |
 | Footer | Settings on the left, Quit on the right. In Settings, the left shows the app's version and the device's firmware |
 
+After you approve a long command, the needs-you card stays until the
+command finishes ([ADAPTERS.md](ADAPTERS.md) §4).
+
 **Settings** is one scrolling pane with Back at the top:
 
 | Group | Controls |

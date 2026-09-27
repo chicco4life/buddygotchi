@@ -316,6 +316,29 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertEqual(moments(fx), [], "the device just blends back to its look")
     }
 
+    /// ADAPTERS.md §4: Claude has no hook for the moment you approve, so a
+    /// request clears only when the approved tool finishes. A long command
+    /// keeps "needs you" up until then, and one that runs past the safety
+    /// net leaves the session idle until it finishes.
+    func testAnApprovedLongCommandKeepsNeedsYouUntilItFinishes() {
+        let rig = CoreRig()
+        rig.send(.turnStart)
+        rig.send(.activity, tool: "Bash", topic: "tests")  // PreToolUse comes before the permission check
+        rig.send(.needsYou, tool: "Bash")
+        rig.send(.needsYou)  // its Notification
+        rig.wait(120_000)  // approved at once; the tests take two minutes
+        XCTAssertNotNil(rig.state.attn, "nothing says you approved")
+        XCTAssertEqual(states(rig.send(.activity, tool: "Bash", topic: "tests", failed: false)).last?.base, "working")
+        XCTAssertNil(rig.state.attn)
+
+        rig.send(.activity, tool: "Bash", topic: "build")
+        rig.send(.needsYou, tool: "Bash")
+        rig.wait(Core.Config(name: "Pip").safetyNetMs)
+        XCTAssertNil(rig.state.attn, "the safety net")
+        XCTAssertEqual(rig.state.base, "idle", "though the approved build still runs")
+        XCTAssertEqual(states(rig.send(.activity, tool: "Bash", topic: "build", failed: false)).last?.base, "working")
+    }
+
     func testDuplicateWhileWaitingIsIgnored() {
         let rig = CoreRig()
         rig.send(.turnStart)
