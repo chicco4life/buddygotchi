@@ -178,11 +178,13 @@ final class CoreAgentWorkTests: XCTestCase {
     }
 
     /// ADAPTERS.md §4: Esc on Claude's permission prompt sends no hook, and
-    /// Claude's idle notice about a minute later never comes while the main
-    /// agent's prompt is up. So the notice answers a request from the main
-    /// agent, or one from a Notification alone, and the session goes idle.
-    /// A subagent's request stays: its prompt may still be up.
-    func testClaudesIdleNoticeAnswersTheMainAgentsRequest() {
+    /// Claude's idle notice about a minute later means it sits at its own
+    /// prompt with the turn over, which never happens while a prompt is up,
+    /// a subagent's included. So the notice answers every asker: the main
+    /// agent, a Notification alone, or subagents (BEHAVIORS.md §3.2). Before,
+    /// a subagent's request stayed, and the notice restarted the safety
+    /// net's ten minutes, so Boop stayed amber about 11 minutes after Esc.
+    func testClaudesIdleNoticeAnswersEveryRequest() {
         for asker in ["main agent", "notification alone"] {
             let rig = CoreRig(rules: .chatty)
             rig.send(.turnStart)
@@ -198,15 +200,16 @@ final class CoreAgentWorkTests: XCTestCase {
                            "\(asker): the notice answered the request before the stop applied")
             XCTAssertEqual(mumbles(rig.wait(10 * 60_000)), [], "\(asker): no working chatter")
         }
-        for askers in [["a1"], ["", "a1"]] {
+        for askers in [["a1"], ["", "a1"], ["a1", "a2"]] {
             let rig = CoreRig()
             rig.send(.turnStart)
+            rig.send(.activity, tool: "Agent")
             for a in askers { rig.send(.needsYou, subagent: a.isEmpty ? nil : a, tool: "Bash") }
-            rig.wait(61_000)
-            rig.send(.turnStopped)
-            XCTAssertNotNil(rig.state.attn, "\(askers): a subagent's prompt may still be up")
-            rig.send(.activity, subagent: "a1", tool: "Bash")
-            XCTAssertNil(rig.state.attn, "\(askers): its own next event answers it")
+            rig.wait(60_000)
+            let fx = rig.send(.turnStopped, notice: true)
+            XCTAssertNil(states(fx).last?.attn, "\(askers)")
+            XCTAssertEqual(rig.state.base, "idle", "\(askers)")
+            XCTAssertEqual(events(fx).map { $0.facts["outcome"] }, ["stopped"], "\(askers)")
         }
     }
 
