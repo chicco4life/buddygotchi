@@ -537,7 +537,9 @@ final class CoreNeedsYouTests: XCTestCase {
     /// that asks: Claude runs read-only calls in parallel, and the main
     /// agent's Agent call runs while it asks. The result of one of those,
     /// for another tool, isn't the asking call's answer; the asking call's
-    /// own result, or the agent starting a new call, is.
+    /// own result, or the agent starting a new call, is. An `Elicitation`
+    /// asks for no tool, so no result answers it: its `ElicitationResult`
+    /// does, or the agent's next call.
     func testAParallelCallsResultDoesntAnswerTheRequest() {
         let rig = CoreRig()
         rig.send(.turnStart)
@@ -559,6 +561,17 @@ final class CoreNeedsYouTests: XCTestCase {
         XCTAssertNotNil(rig.state.attn, "the Agent call's result")
         rig.send(.activity, tool: "Bash", id: "tb")
         XCTAssertNil(rig.state.attn, "a new call: it moved on")
+
+        for answer in ["ElicitationResult", "next call"] {
+            rig.send(.activity, subagent: "C", tool: "mcp__jira__create", id: "c1")
+            rig.send(.activity, subagent: "C", tool: "Read", id: "c2")
+            rig.send(.needsYou, subagent: "C", notice: false)  // the MCP tool's Elicitation
+            rig.send(.activity, subagent: "C", tool: "Read", failed: false, id: "c2")
+            XCTAssertNotNil(rig.state.attn, "\(answer): the parallel Read's result")
+            rig.send(.activity, subagent: "C", tool: answer == "next call" ? "Grep" : nil, id: answer == "next call" ? "c3" : nil)
+            XCTAssertNil(rig.state.attn, answer)
+            rig.send(.activity, subagent: "C", tool: "mcp__jira__create", failed: false, id: "c1")
+        }
     }
 
     /// Two subagents asking at once: "needs you" stays until both are

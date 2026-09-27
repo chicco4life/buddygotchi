@@ -296,11 +296,13 @@ public final class Core {
         // (ADAPTERS.md §4).
         // An asker's result for another tool is a call it made alongside
         // the one that asks (Claude runs read-only calls in parallel, and
-        // the main agent's Agent call runs on), so it isn't the answer.
+        // the main agent's Agent call runs on), so it isn't the answer. An
+        // `Elicitation` (no tool) isn't a call: its answer is its
+        // `ElicitationResult` or the agent's next call, never a result.
         if waiting {
             let asker = event.subagent ?? ""
-            let alongside = event.detail.done && event.detail.tool.map { tool in
-                s.askers[asker].map { !$0.isEmpty && $0 != tool } == true
+            let alongside = event.detail.done && s.askers[asker].map { asked in
+                asked.isEmpty || event.detail.tool.map { $0 != asked } == true
             } == true
             if event.event != .activity || s.askers[Core.anyone] != nil {
                 s.askers.removeAll()
