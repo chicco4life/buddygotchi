@@ -133,3 +133,65 @@ All with the `boop` personality unless noted. Times are from the start.
 
 A new decision or a change to the steering files gets a scenario that
 shows it, and `make eval` before it's committed.
+
+## 5. The working day
+
+The scenarios check single decisions; the working day checks how they
+add up over a day: how often Boop's mood changes, whether a routine
+line changes it, and how often, and with which faces, Boop reacts.
+`internal/tools/workday/workday.py` replays a scripted 8-hour day
+through the whole headless app and Jev on a compressed clock, in about
+five minutes:
+
+```sh
+make build
+BOOP_JEV_KEY=… python3 internal/tools/workday/workday.py run --state /tmp/tn-1 --out /tmp/tn-out/1
+python3 internal/tools/workday/workday.py report /tmp/tn-out/1/debug.jsonl /tmp/tn-out/2/debug.jsonl
+python3 internal/tools/workday/workday.py plan    # the day's story
+```
+
+**The day** (`--seed 1` by default; the seed only moves lengths and
+gaps) runs from 09:00 to about 17:40: about 190 turns on four threads
+(Claude on `api`, and on `fix-nav` and `docs` in `landing`; Codex on
+`boop`), mostly routine turns of seconds to a few minutes, with two
+approvals; tests failing three times, then passing, in a 9-minute turn;
+a turn failing on a rate limit; a 22-minute turn whose build fails once
+and comes back; a stopped turn; lunch, over an hour with nothing, for
+the heartbeat; a build failing twice, then passing; a poke streak, and
+later two a minute and a half apart; a 14-minute turn ending with its
+tests still failing, and the next turn fixing them; a coffee break; an
+hour of quick wins with an API error and a passing deploy; and a
+16-minute docs turn. An hour of nothing after it brings the evening's
+heartbeat.
+
+**The run** starts `Boop --headless --brain jev --debug` with a fresh
+state directory and a fake device on a Unix socket (`--link usb:`) that
+says each of the brain's moments played to the end, so HISTORY reads as
+it would with a board, and whose taps make the poke streaks. It moves
+the app's clock to 09:00 the next morning, sends each hook line straight
+to the app's socket in `boop-hook`'s wire form, moves the clock between
+them with `{"dev":"advance"}` (a minute at a time over a long gap, so the
+heartbeat comes when it would), and waits for every pass and reaction to
+end before the next line, so no event waits behind Jev. `--brain
+scripted` runs it without a key, and `--personality chatter` with the
+other text.
+
+**The report** gives, for each hour of the app's clock: turns ended,
+passes (and how many dropped), mood changes, with those on a routine
+line (a turn start, or a clean finish under 10 minutes) split into back
+to happy (a mood fading, as the guide says) and any other (which a
+routine line shouldn't cause); and reactions, as reacted/all for each
+kind of line that woke the brain: notable (a failure, a fix, a failed or
+stopped turn, a turn of 10 minutes or more, a poke streak), a clean
+finish of 1 to 10 minutes, one under a minute, a turn start, and a
+heartbeat; and the faces used. Then how long each mood lasted, and every
+mood change with the line that brought it. `--json` gives all that and
+every reaction.
+
+Jev is stochastic, so run each side of a change at least twice. Warm it
+up on new steering first (a `boopdev eval --runs 1`): its first passes
+on text it hasn't seen can go over the 1.25 s deadline and drop, 13 and
+19 of the first 30 in two runs on 2026-09-28.
+
+`internal/tools/workday/tests/` checks the day and the report without
+the app (`make -C internal tools-test`).

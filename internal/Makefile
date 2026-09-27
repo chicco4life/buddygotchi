@@ -48,8 +48,9 @@ e2e:
 	$(MAKE) -C $(ROOT) build
 	cd $(ROOT) && internal/tools/boopctl e2e
 
-# The tools' own tests, with no board or camera: boopctl's commands, and the
-# webcam recorder on synthetic video.
+# The tools' own tests, with no board or camera: boopctl's commands, the
+# working day's script, and the webcam recorder on synthetic video.
 tools-test: tools
 	cd $(ROOT) && internal/tools/.venv/bin/python -m unittest discover -s internal/tools/boopctl_lib/tests
+	cd $(ROOT) && python3 -m unittest discover -s internal/tools/workday/tests
 	cd $(ROOT) && python3 -m unittest discover -s internal/tools/webcam/tests

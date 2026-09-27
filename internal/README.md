@@ -16,7 +16,7 @@ has the tests, evals, dev tools and skills that check them.
 | `app/tools/` | `test.py` (`make -C internal test`) and `gen-test-runner.py`, which writes the tests' `main` for the shim |
 | `firmware/sim/` | The simulator's `main` (`boop-sim`), built with the firmware's pure C++ in PlatformIO's `native` env |
 | `firmware/test/` | The firmware's unit tests, the simulator scenarios and their golden pictures |
-| `tools/` | `boopctl` (the board over USB, the simulator, the live dashboard, [plan/DASHBOARD.md](../plan/DASHBOARD.md), and a day's summary from the debug logs), `voicegen`, `fontgen` and `facegen` (they write `firmware/assets/*.h`, which is checked in; `facegen` reads the mood designs in `tools/facegen/design/`), and the `webcam/` recorder |
+| `tools/` | `boopctl` (the board over USB, the simulator, the live dashboard, [plan/DASHBOARD.md](../plan/DASHBOARD.md), and a day's summary from the debug logs), `voicegen`, `fontgen` and `facegen` (they write `firmware/assets/*.h`, which is checked in; `facegen` reads the mood designs in `tools/facegen/design/`), `workday` (a scripted working day through the headless app and its brain, [plan/EVALS.md](../plan/EVALS.md) §5), and the `webcam/` recorder |
 | `skills/` | `doctor` and `webcam-verify`, linked from `.claude/skills/`, `.codex/skills/` and `.cursor/skills/` |
 
 ## How it's wired

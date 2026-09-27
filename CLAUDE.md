@@ -21,7 +21,7 @@ cheap ESP32 board with a screen is the body. Start with
 | `app/` | The Mac side that ships: the menu-bar app (`Boop`), the `boop-hook` hook client, and the `BoopKit` and `HookWire` libraries |
 | `firmware/` | PlatformIO firmware for the MicroTech MTR024QV01A board ([plan/DEVICE.md](plan/DEVICE.md)), with its generated assets and build scripts |
 | `internal/` | Everything that doesn't ship ([its README](internal/README.md)): `boopdev` and its library, the Swift tests and eval scenarios, the sources of `Boop --headless` and `--snapshots`, and the firmware's simulator and unit tests (env `native`) |
-| `internal/tools/` | `boopctl` (device tool), `voicegen` (voice assets), `fontgen` (the device's fonts), `facegen` (the device's faces, from the mood designs), `webcam/` (opt-in recorder) |
+| `internal/tools/` | `boopctl` (device tool), `voicegen` (voice assets), `fontgen` (the device's fonts), `facegen` (the device's faces, from the mood designs), `workday` (a scripted working day through the brain), `webcam/` (opt-in recorder) |
 | `internal/skills/` | `doctor` (hook self-check) and `webcam-verify`, symlinked for Claude, Codex and Cursor |
 | `landing/` | The Next.js landing page (Vercel project root) |
 | `archived/` | History only: research, docs, the gen-2 specs (`plan-gen2/`) and case model, and the finished v1 build plan with its full decision log (`plan-v1-build/`). Earlier code is at git tag `gen2-final` (`git show gen2-final:<path>`). Don't extend it |
@@ -154,7 +154,7 @@ unpushed local `main`.
 | `internal/app/Boop/` (`--headless`, `--snapshots`), `internal/app/BoopDevKit/Replay.swift`, `internal/firmware/sim/`, `internal/firmware/test/` | `VERIFICATION.md` |
 | `internal/tools/boopctl_lib/dash/`, the dev lines and the dashboard's lines in `debug.jsonl` | `DASHBOARD.md` (and `harness/HARNESS.md` §9) |
 | `internal/tools/boopctl_lib/day.py`, or any `debug.jsonl` line it reads | `harness/HARNESS.md` §9 (A day's summary), `VERIFICATION.md` §2 |
-| `internal/app/BoopDevKit/Eval/`, `internal/app/Evals/` | `EVALS.md` |
+| `internal/app/BoopDevKit/Eval/`, `internal/app/Evals/`, `internal/tools/workday/` | `EVALS.md` |
 | `Package.swift`, what goes in `internal/` | `ARCHITECTURE.md` §10, `internal/README.md`, this file |
 | Structure, boundaries or a budget | `ARCHITECTURE.md` |
 | What's in or out of v1 | `VISION.md` (Scope), `FUTURE.md` |
