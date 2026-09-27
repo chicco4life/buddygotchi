@@ -106,8 +106,8 @@ What makes a turn fail is in [BEHAVIORS.md](BEHAVIORS.md) §3.1.
 with Esc. The interrupted tool call becomes `turn_stopped`, and so does
 `idle_prompt`, which Claude sends once it has sat at its prompt for about
 a minute and which also covers an interrupt between tool calls. A working
-session then goes idle with no reaction. The interrupted call also clears
-a waiting request (§4); the idle notice leaves one alone.
+session then goes idle with no reaction. Either one can also clear a
+waiting request (§4).
 
 **Project name.** The last folder of the session's `cwd`. A git worktree
 maps to its main repository: `landing` and `landing/.worktrees/fix-nav`
@@ -164,10 +164,16 @@ may approve it without asking you, and the hook fires before that review.
   approved) or the agent moved on (you denied). A sibling subagent still
   running tools, or the main agent hearing back from another subagent,
   doesn't. Any turn-level event clears every request: a new prompt, the
-  turn ending, failing or being interrupted, or the session ending, but
-  not `idle_prompt`. A request with no tool doesn't say who asked, so any
-  event from the session clears it. Once no asker is left, the session is
-  working again.
+  turn ending, failing or being interrupted, or the session ending. A
+  request with no tool doesn't say who asked, so any event from the
+  session clears it. Once no asker is left, the session is working again.
+- **Denied with Esc.** Pressing Esc on Claude's prompt sends no hook at
+  all. Claude never sends `idle_prompt` while the main agent's prompt is
+  up, so when it arrives about a minute later it clears the main agent's
+  request, or one with no tool, and the session goes idle. A subagent's
+  request stays, since its prompt may still be up. Denying with
+  typed feedback carries the turn on, and its next event clears the
+  request as usual.
 - **Safety net.** After 10 minutes with no events from the session, the
   request clears anyway and the session goes idle: by then the agent is
   still waiting at its prompt or is gone. Its next event makes it working

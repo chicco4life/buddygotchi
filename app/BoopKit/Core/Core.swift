@@ -183,11 +183,16 @@ public final class Core {
 
         // The asker's next event means it moved on, and so does any
         // turn-level event. A sibling subagent's tool calls don't answer
-        // another agent's request, and Claude's idle notice (`turn_stopped`
-        // with no tool) isn't the session acting (ADAPTERS.md §3–4).
-        let idleNotice = event.event == .turnStopped && event.detail.tool == nil
-        if waiting && !idleNotice {
-            if event.event != .activity || s.askers.contains(Core.anyone) {
+        // another agent's request. Claude's idle notice (`turn_stopped` with
+        // no tool) never comes while the main agent's prompt is up, so it
+        // answers the main agent (you pressed Esc on its prompt, which sends
+        // no hook), and a request with no tool unless a subagent asked too;
+        // a subagent's prompt may still be up (ADAPTERS.md §4).
+        if waiting {
+            if event.event == .turnStopped && event.detail.tool == nil {
+                s.askers.remove("")
+                if s.askers == [Core.anyone] { s.askers.removeAll() }
+            } else if event.event != .activity || s.askers.contains(Core.anyone) {
                 s.askers.removeAll()
             } else {
                 s.askers.remove(event.subagent ?? "")

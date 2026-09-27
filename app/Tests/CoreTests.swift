@@ -137,8 +137,7 @@ final class CoreAgentWorkTests: XCTestCase {
     /// session goes idle and the brain still hears about it.
     /// ADAPTERS.md §3: a turn you interrupt ends without `Stop`, so the
     /// interrupt (or Claude sitting at its prompt) ends it: idle at once, no
-    /// cheer, nothing for the brain. Only the interrupt answers a request
-    /// still waiting.
+    /// cheer, nothing for the brain.
     func testAnInterruptedTurnGoesIdleQuietly() {
         let rig = CoreRig()
         rig.send(.turnStart)
@@ -153,11 +152,41 @@ final class CoreAgentWorkTests: XCTestCase {
 
         rig.send(.turnStart, session: "s2")
         rig.send(.needsYou, session: "s2", tool: "Bash")
-        rig.send(.turnStopped, session: "s2")
-        XCTAssertNotNil(rig.state.attn, "Claude's idle notice leaves a waiting request alone")
         rig.send(.turnStopped, session: "s2", tool: "Bash")
         XCTAssertNil(rig.state.attn, "an interrupted call answers it, as any event does")
         XCTAssertEqual(rig.state.base, "idle")
+    }
+
+    /// ADAPTERS.md §4: Esc on Claude's permission prompt sends no hook, and
+    /// Claude's idle notice about a minute later never comes while the main
+    /// agent's prompt is up. So the notice answers a request from the main
+    /// agent, or one from a Notification alone, and the session goes idle.
+    /// A subagent's request stays: its prompt may still be up.
+    func testClaudesIdleNoticeAnswersTheMainAgentsRequest() {
+        for asker in ["main agent", "notification alone"] {
+            let rig = CoreRig(mode: .chatty)
+            rig.send(.turnStart)
+            rig.send(.needsYou, tool: asker == "main agent" ? "Bash" : nil)
+            rig.wait(61_000)
+            XCTAssertNotNil(rig.state.attn, asker)
+            let fx = rig.send(.turnStopped)
+            XCTAssertNil(states(fx).last?.attn, asker)
+            XCTAssertEqual(rig.state.base, "idle", asker)
+            XCTAssertEqual(rig.sessions, [["claude", "landing", "idle"]], asker)
+            XCTAssertEqual(moments(fx), [], asker)
+            XCTAssertEqual(inputs(fx), [], asker)
+            XCTAssertEqual(mumbles(rig.wait(10 * 60_000)), [], "\(asker): no working chatter")
+        }
+        for askers in [["a1"], ["", "a1"]] {
+            let rig = CoreRig()
+            rig.send(.turnStart)
+            for a in askers { rig.send(.needsYou, subagent: a.isEmpty ? nil : a, tool: "Bash") }
+            rig.wait(61_000)
+            rig.send(.turnStopped)
+            XCTAssertNotNil(rig.state.attn, "\(askers): a subagent's prompt may still be up")
+            rig.send(.activity, subagent: "a1", tool: "Bash")
+            XCTAssertNil(rig.state.attn, "\(askers): its own next event answers it")
+        }
     }
 
     func testFailedTurnPlaysNoMomentAndGoesIdle() {

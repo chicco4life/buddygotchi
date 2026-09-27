@@ -76,6 +76,7 @@ When "needs you" starts and clears is in [ADAPTERS.md](ADAPTERS.md) §4.
 | More than one needs you | The bubble shows the oldest, with "+N more" |
 | You tap Boop | The press squash only; it stays amber |
 | You answer on the Mac | The agent carries on, and once nothing needs you, Boop blends back to what it was doing |
+| You deny with Esc | Claude sends nothing, so Boop stays amber until Claude reports itself idle about a minute later. A subagent's request stays until your next prompt or the safety net ([ADAPTERS.md](ADAPTERS.md) §4) |
 
 The light stays steady and nothing repeats: one chirp when the bubble
 first shows a request, and another only when it switches to a different
