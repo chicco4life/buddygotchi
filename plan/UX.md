@@ -193,15 +193,16 @@ added, takes over BOOT's jobs ([DEVICE.md](DEVICE.md) §3).
 After setup it never opens by itself and never sends notifications. The
 device does the nudging.
 
-**The menu-bar icon** is Boop's window eyes and a pixel "u" smile, 20×18
-pt, drawn on whole points so it's crisp at 1× and 2×. Clicking it opens
+**The menu-bar icon** is just two rounded eyes, 20×18 pt, drawn on whole
+points so it's crisp at 1× and 2×. It doesn't copy the device's face,
+which is too detailed to read at that size. Clicking it opens
 or closes the popover.
 
 | Boop is | Icon |
 | --- | --- |
 | Asleep, or not running yet | Eyes shut to bars, in the menu bar's own ink |
 | Idle | Eyes open, in the menu bar's ink |
-| Working | Eyes open, and a small dot at the top right |
+| Working | Eyes open, and a small round dot at the top right |
 | Something needs you | Amber, dot and all: the device's amber on a dark menu bar, a deeper one on a light bar, where the device's is too pale |
 
 **The popover** is one 360 pt column on warm paper, with three panes:

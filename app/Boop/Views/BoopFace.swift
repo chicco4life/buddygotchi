@@ -115,10 +115,9 @@ struct BoopFace: View {
     }
 }
 
-/// The menu-bar icon: Boop's window eyes and a pixel smile, on whole points
-/// so it's crisp at 1× and 2×. Closed while asleep, open while agents idle,
-/// with a small dot while they work, and amber when something needs you
-/// (UX.md §6).
+/// The menu-bar icon: two rounded eyes, nothing else, so it reads at 18 pt.
+/// Closed while asleep, open while agents idle, with a small dot while they
+/// work, and amber when something needs you (UX.md §6).
 @MainActor
 enum MenuBarIcon {
     private static var cache: [FaceMood: NSImage] = [:]
@@ -143,23 +142,16 @@ enum MenuBarIcon {
             default: .black
             }
             colour.setFill()
-            // Window eyes, as on the device: four 2 pt panes around a 1 pt
-            // cross, or a bar while asleep.
-            for x: CGFloat in [3, 12] {
-                if mood == .asleep {
-                    NSRect(x: x, y: 8, width: 5, height: 2).fill()
-                    continue
-                }
-                for dx: CGFloat in [0, 3] {
-                    for dy: CGFloat in [0, 3] { NSRect(x: x + dx, y: 5 + dy, width: 2, height: 2).fill() }
-                }
+            // Two tall eyes, or two short bars while asleep.
+            // Whole points, so they stay crisp at 1×.
+            for x: CGFloat in [4, 12] {
+                let eye = mood == .asleep ? NSRect(x: x - 1, y: 10, width: 6, height: 2)
+                                          : NSRect(x: x, y: 6, width: 4, height: 6)
+                NSBezierPath(roundedRect: eye, xRadius: eye.height == 2 ? 1 : 2, yRadius: eye.height == 2 ? 1 : 2).fill()
             }
-            // A small pixel "u", as the device draws its smile.
-            for r in [NSRect(x: 8, y: 13, width: 1, height: 1), NSRect(x: 11, y: 13, width: 1, height: 1),
-                      NSRect(x: 9, y: 14, width: 2, height: 1)] { r.fill() }
-            // The dot sits clear of the eye, 2 pt above it.
+            // The dot sits up and to the right, clear of the eyes.
             if mood == .working || mood == .needsYou {
-                NSRect(x: 16, y: 0, width: 3, height: 3).fill()
+                NSBezierPath(ovalIn: NSRect(x: 17, y: 1, width: 3, height: 3)).fill()
             }
             return true
         }
