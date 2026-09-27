@@ -43,7 +43,7 @@ public struct MomentSchedule {
     }
 
     /// A moment from the brain, to play when its turn comes, and the handle
-    /// that says when it has played.
+    /// whoever plays it ends once it knows how the moment went.
     public mutating func brain(_ moment: DeviceMoment, _ pending: Pending? = nil, now: Int64) {
         waiting.append((moment, pending, now))
     }

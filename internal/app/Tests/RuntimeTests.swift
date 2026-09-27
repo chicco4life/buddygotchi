@@ -673,7 +673,8 @@ final class RuntimeTests: XCTestCase {
     }
 
     /// PROTOCOL.md §4, harness/DECISIONS.md §5: how each `ended` reads in
-    /// HISTORY, and the grace the app gives a moment past its length.
+    /// HISTORY; and PROTOCOL.md §6: the grace the app gives a moment past
+    /// its length.
     func testWhatTheDevicesEndedMeans() {
         XCTAssertEqual(Runtime.Moments.endGraceMs, 3000)
         let end = { (how: MomentEnded.How, why: String?) in Runtime.Moments.end(MomentEnded(id: 1, how: how, why: why)) }
