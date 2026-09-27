@@ -21,6 +21,9 @@ public struct Scenario: Sendable {
         public var failed: Bool?
         /// A failed turn's error class.
         public var error: String?
+        /// How a reaction this step's passes start ends: `done` (the
+        /// default), `in progress` (it never ends), or `failed: <why>`.
+        public var reaction: String?
         /// What the pass should come to; nil checks nothing. A step with an
         /// expectation must wake the brain.
         public var expect: Expectation?
@@ -56,6 +59,15 @@ public struct Scenario: Sendable {
 
     public static let events = ["turn started", "command", "turn finished", "turn failed", "pokes", "wait"]
 
+    /// How a reaction ends, from a step's `reaction`: nil for a value it
+    /// doesn't take.
+    static func end(_ text: String) -> Pending.End?? {
+        if text == "done" { return .some(.done) }
+        if text == "in progress" { return .some(nil) }
+        if text.hasPrefix("failed: "), text.count > 8 { return .some(.failed(String(text.dropFirst(8)))) }
+        return nil
+    }
+
     /// Reads one scenario file. Throws with the file and step on a bad one.
     public init(file: URL) throws {
         self.file = file.lastPathComponent
@@ -80,6 +92,12 @@ public struct Scenario: Sendable {
             step.topic = s["topic"] as? String
             step.failed = s["failed"] as? Bool
             step.error = s["error"] as? String
+            if let reaction = s["reaction"] {
+                guard let text = reaction as? String, Scenario.end(text) != nil else {
+                    throw badStep("reaction is done, in progress or failed: <why>")
+                }
+                step.reaction = text
+            }
             if let e = s["expect"] as? [String: Any] {
                 func set(_ key: String) throws -> Set<String>? {
                     guard let v = e[key] else { return nil }
@@ -192,12 +210,15 @@ public struct Eval {
         core.setWallClock(start, at: start)
         let mood = MoodStore(stateDir: dir)
         let home = DispatchQueue(label: "boop.eval")
-        // No device: a reaction's moment goes nowhere and counts as played
-        // at once, so HISTORY reads as the app's does once it has.
+        // No device: a reaction's moment goes nowhere and ends as the step
+        // says, played at once by default, so HISTORY reads as the app's
+        // does once it has; one left in progress stays so.
+        let ending = Ending()
         let actions: [any Action] = [
             MoodAction(store: mood),
-            ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _, pending in pending.finish(.done) },
-                        blocked: { core.mumbleBlock }),
+            ReactAction(voice: Voice(dialect: Dialect(seed: 1)), queue: { _, pending in
+                if let end = ending.end { pending.finish(end) } else { ending.open.append(pending) }
+            }, blocked: { core.mumbleBlock }),
         ]
         let steering = self.steering
         let harness = Harness(brain: brain, actions: actions, parts: { entry in
@@ -214,6 +235,7 @@ public struct Eval {
                 events += Eval.events(core.tick(at: clock.now))
             }
             events += Eval.events(Eval.feed(step, core, at: clock.now))
+            ending.end = step.reaction.flatMap(Scenario.end) ?? .done
             var last: Harness.Record?
             for event in events {
                 if let record = await harness.respond(to: event) { last = record }
@@ -230,6 +252,13 @@ public struct Eval {
                                 mood: mood.current, dropped: record.pass.dropped, latencyMs: record.pass.latencyMs))
         }
         return Result(scenario: scenario.name, file: scenario.file, checks: checks)
+    }
+
+    /// How the reactions a step starts end, for the queue: nil leaves
+    /// them in progress, kept here.
+    final class Ending: @unchecked Sendable {
+        var end: Pending.End? = .done
+        var open: [Pending] = []
     }
 
     static func events(_ fx: [CoreEffect]) -> [Event] {

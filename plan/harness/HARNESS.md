@@ -412,8 +412,8 @@ An event that doesn't wake the brain is marked `(no pass)`, and a failed
 action `✗`. A started action is marked `…`, and its `settle` prints as a
 line of its own when it comes, naming the action and its `seq`:
 `  ✓ react (15) done`, or `  ✗ react (15) didn't happen: <why>`. (The
-eval's queue ends a reaction `done` at once, [EVALS.md](../EVALS.md)
-§1.) The
+eval's queue ends a reaction at once, `done` unless its step says
+otherwise, [EVALS.md](../EVALS.md) §1.) The
 state goes to the terminal only, never `boop.log`.
 
 **`debug.jsonl`,** in the state directory, is emptied in place at every

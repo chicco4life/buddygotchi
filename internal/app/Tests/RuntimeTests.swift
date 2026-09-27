@@ -250,8 +250,9 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(questions[1]["text"] as? String, "How should Boop react to NOW, if at all? It makes this face for a moment, with a mumble.")
         let none = try XCTUnwrap((questions[1]["options"] as? [[String: Any]])?.first)
         XCTAssertEqual(none["name"] as? String, "none")
-        XCTAssertEqual(none["what"] as? String, "Stay quiet: nothing in NOW is worth a face and a mumble.")
-        XCTAssertEqual(none["not_for"] as? String, "Anything PERSONALITY's Examples react to.")
+        XCTAssertEqual(none["what"] as? String, "Stay quiet: nothing in NOW is worth a face and a mumble, "
+                       + "or HISTORY shows Boop still making the one it calls for (in progress).")
+        XCTAssertEqual(none["not_for"] as? String, "Anything PERSONALITY's Examples react to that Boop isn't already doing.")
         XCTAssertTrue((questions[0]["options"] as? [[String: Any]])?.first?["not_for"] is NSNull)
 
         // Sent: every line the link sent, verbatim and in order.

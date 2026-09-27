@@ -133,7 +133,7 @@ disagree (a "no" with a confident "proud"); one choice can't.
 
 | `react` | Meaning |
 | --- | --- |
-| `none` | Stay quiet: nothing in NOW is worth a face and a mumble. Not for anything PERSONALITY's Examples react to |
+| `none` | Stay quiet: nothing in NOW is worth a face and a mumble, or HISTORY shows Boop still making the one it calls for (in progress). Not for anything PERSONALITY's Examples react to that Boop isn't already doing |
 | `happy` | A happy face: pleased, a turn went fine or a small win |
 | `excited` | An excited face: something big just went right |
 | `proud` | A proud face: something long or hard just finished, or finally worked |
@@ -208,7 +208,10 @@ gate, which says when something needs you.
 1. **Whether:** `react` missing, `none` or not a mood → `nil`. Since
    `none`'s meaning rules out anything PERSONALITY's Examples react to, a
    moment worth a reaction doesn't lose to it just because Jev can't
-   settle on one face.
+   settle on one face. It still covers a reaction Boop is making already:
+   without that, a comeback's finish 20 s after its proud "…finally!"
+   got the same again, with that face still in progress (`make eval`'s
+   `11-comeback-still-showing`, 0 of 3 runs before, 3 of 3 after).
 2. **The word:** `word.feeling`'s pick if it isn't `none` and its
    probability is **at least 0.35** (`ReactAction.wordFloor`), else the
    same for `word.about`, else no word. Below the floor Jev is guessing,
@@ -254,7 +257,8 @@ break it unnoticed.
 
 A failed one reads `(didn't happen: <why>)` in HISTORY, so Jev may make
 it again if NOW still calls for it (§2.1). The evals have no device, so
-their queue ends each handle `done` at once ([EVALS.md](../EVALS.md) §1).
+their queue ends each handle at once, `done` unless a scenario's step
+says otherwise ([EVALS.md](../EVALS.md) §1, §3).
 [HARNESS.md](HARNESS.md) §9 has a reaction and its end in `debug.jsonl`,
 from a headless run with no device. With the board on USB and Boop
 asleep, a forced proud reaction held twice: its moment, its action and

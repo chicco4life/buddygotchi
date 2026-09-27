@@ -13,8 +13,9 @@ fresh: a new core, an empty transcript, and a `happy` mood in a
 temporary state directory. The runner (`Eval` in
 `internal/app/BoopDevKit/Eval/Eval.swift`) wires them as the app does,
 with the real `mood` and `react` actions, except that a mumble's queue
-goes nowhere and ends the reaction's handle `done` at once, so HISTORY
-shows it as played ([harness/DECISIONS.md](harness/DECISIONS.md) §5).
+goes nowhere and ends the reaction's handle at once, `done` unless the
+step says otherwise (`reaction`, §3), so HISTORY shows it as played
+([harness/DECISIONS.md](harness/DECISIONS.md) §5).
 
 For each step it moves the clock a second at a time to the step's time,
 ticking the core as the app does, so heartbeats and other timers fire on
@@ -76,8 +77,9 @@ Every entry of every run goes to a file of its own in `/tmp/boop-eval`
 
 `EvalTests` checks the runner without Jev: every scenario file reads, a
 scripted brain that answers as `04-tests-fight-back` wants passes it,
-and one that stays quiet fails `05-poke-streak` with the report saying
-why.
+one that stays quiet fails `05-poke-streak` with the report saying why,
+and a step's `reaction` shows in HISTORY as in progress or not having
+happened.
 
 ## 3. The scenario file
 
@@ -103,11 +105,12 @@ file-name order:
 | `steps[].topic`, `failed` | A command's topic and whether it failed |
 | `steps[].error` | A failed turn's error class |
 | `steps[].workspace` | The thread's workspace, when it has one |
+| `steps[].reaction` | How a reaction this step's passes start ends: `done` (the default), `in progress` (HISTORY keeps saying so), or `failed: <why>` (HISTORY's `(didn't happen: <why>)`) |
 | `steps[].expect` | Any of `react`, `word`, `loops` and `mood`, each a `\|`-separated list |
 
-A file with an unknown event, personality or `expect` key, a bad `at`,
-or no `expect` at all doesn't load, and the error names the file and
-step.
+A file with an unknown event, personality or `expect` key, a bad `at` or
+`reaction`, or no `expect` at all doesn't load, and the error names the
+file and step.
 
 ## 4. The scenarios
 
@@ -125,6 +128,8 @@ All with the `boop` personality unless noted. Times are from the start.
 | `08-long-turn-fails` | A turn starts, and fails at 25 min (`api_error`) | `react` sad, grumpy or none; `mood` sad |
 | `09-failure-worked-through` | A turn starts; tests fail at 1 and 3 min, and pass at 5 min | After the 2nd failure `mood` determined. At the pass `react` proud, happy or excited; `word` finally, tests or yay; `loops` more than once; `mood` proud |
 | `10-run-of-wins` | Four turns a minute apart, each with a passing test run at 30 s and a finish at 40 s | After the first turn `mood` happy; after the fourth, excited |
+| `11-comeback-still-showing` | A turn starts; tests fail at 1 and 3 min, and pass at 5 min, whose reaction is still in progress when the turn finishes at 5 min 20 s | At the pass `react` proud, happy or excited; `word` finally, tests or yay. At the finish `react` none, happy or excited; `word` none, yay or tests: no second proud "finally" |
+| `12-comeback-that-didnt-happen` | As `11`, but the pass's reaction didn't happen (`waited too long`) | At the pass `react` proud, happy or excited. At the finish `react` proud, happy or excited; `word` finally, tests or yay: made after all |
 
 A new decision or a change to the steering files gets a scenario that
 shows it, and `make eval` before it's committed.

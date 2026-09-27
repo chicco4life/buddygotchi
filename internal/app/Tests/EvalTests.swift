@@ -48,6 +48,35 @@ final class EvalTests: XCTestCase {
         XCTAssertTrue(last.contains("\n  Boop made a grumpy face, held once, and mumbled \"…again!\"\n"), last)
     }
 
+    /// EVALS.md §3: a step's `reaction` says how the reactions its passes
+    /// start end, so HISTORY can show one still in progress or one that
+    /// didn't happen; any other value doesn't load.
+    func testAStepSaysHowItsReactionEnds() async throws {
+        let states = Lines()
+        let brain = ScriptedBrain { state, _ in
+            states.add(state)
+            let proud = Answer(choice: "proud", probabilities: ["proud": 1])
+            return ["react": proud, "mood": proud]
+        }
+        let eval = Eval(brain: brain, steering: RuntimeTests.steering)
+        for (file, marker) in [("11-comeback-still-showing.json", " (in progress)\n"),
+                               ("12-comeback-that-didnt-happen.json", " (didn't happen: waited too long)\n")] {
+            _ = try await eval.run(try Scenario(file: Self.scenarios.appendingPathComponent(file)))
+            let finish = try XCTUnwrap(states.all.last)
+            XCTAssertTrue(finish.contains("\n  Boop made a proud face, held once, and mumbled." + marker), finish)
+        }
+        let bad = FileManager.default.temporaryDirectory.appendingPathComponent("bad-reaction-\(UUID().uuidString).json")
+        try Data(#"{"name":"n","why":"w","steps":[{"event":"pokes","at":"0s","reaction":"maybe","expect":{"react":"none"}}]}"#.utf8)
+            .write(to: bad)
+        defer { try? FileManager.default.removeItem(at: bad) }
+        do {
+            _ = try Scenario(file: bad)
+            XCTFail("a reaction of \"maybe\" loaded")
+        } catch {
+            XCTAssertTrue("\(error)".contains("step 1: reaction is"), "\(error)")
+        }
+    }
+
     /// A brain that stays quiet fails what should mumble, and the report
     /// says what was wanted and what came.
     func testAQuietBrainFailsAndTheReportSaysWhy() async throws {

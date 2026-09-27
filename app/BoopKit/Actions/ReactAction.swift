@@ -90,8 +90,10 @@ public final class ReactAction: Action {
         return [
             Question(key: "react", text: "How should Boop react to NOW, if at all? It makes this face for a moment, with a mumble.",
                      about: "the NOW section", judgeBy: byBoth,
-                     options: [Option("none", "Stay quiet: nothing in NOW is worth a face and a mumble.",
-                                      notFor: "Anything PERSONALITY's Examples react to.")] + Self.expressions),
+                     options: [Option("none", "Stay quiet: nothing in NOW is worth a face and a mumble, "
+                                          + "or HISTORY shows Boop still making the one it calls for (in progress).",
+                                      notFor: "Anything PERSONALITY's Examples react to that Boop isn't already doing.")]
+                         + Self.expressions),
             Question(key: "react.loops", text: "If Boop reacts, how long does it hold the face?", about: "the NOW section",
                      judgeBy: byBoth, options: Self.holds),
             Question(key: "word.feeling", text: "If Boop mumbles, which exclamation fits NOW?", about: "the NOW section",

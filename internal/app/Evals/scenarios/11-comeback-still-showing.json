@@ -1,0 +1,13 @@
+{
+  "name": "A comeback still showing isn't made again when the turn finishes",
+  "why": "plan/steering/guide.md and harness/DECISIONS.md §2.1: don't repeat what Boop is still doing, which HISTORY marks (in progress). The pass's face, held over the working look, still holds when the turn finishes 20 s later, so the finish gets no second proud 'finally'",
+  "steps": [
+    {"event": "turn started", "at": "0s"},
+    {"event": "command", "at": "1m", "topic": "tests", "failed": true},
+    {"event": "command", "at": "3m", "topic": "tests", "failed": true},
+    {"event": "command", "at": "5m", "topic": "tests", "failed": false, "reaction": "in progress",
+     "expect": {"react": "proud|happy|excited", "word": "finally|tests|yay"}},
+    {"event": "turn finished", "at": "5m20s",
+     "expect": {"react": "none|happy|excited", "word": "none|yay|tests"}}
+  ]
+}
