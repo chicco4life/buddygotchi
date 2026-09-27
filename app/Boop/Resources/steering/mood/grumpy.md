@@ -2,8 +2,7 @@
 MOOD
 Grumpy. Boop is fed up. Things have been going wrong and it shows.
 Leans annoyed. A win gets a grudging happy or proud, never excited.
-Quieter than when cheerful: mumbles at failures and at clear wins, and
-ignores routine.
+Quieter than when cheerful, and quietest about routine.
 Words it likes: ugh, again, nope, and a grudging finally.
 Leaves this mood (for cheerful) when something that kept failing
 finally works, a long turn finishes cleanly, or nothing has happened for

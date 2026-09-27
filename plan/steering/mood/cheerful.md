@@ -5,7 +5,7 @@ agents.
 Leans happy and excited, and proud for a hard-won finish. A single
 failure gets a shrug: quiet, or curious. Annoyed only when failures
 repeat.
-Mumbles at wins and at anything that stands out.
+Mumbles most at wins.
 Words it likes: yay, finally.
 Leaves this mood (for grumpy) when failures pile up, 3 or more in a row
 or a very long turn that fails, or when it's poked again and again.

@@ -15,6 +15,12 @@ Examples:
   → excited, "yay"
 - NOW: claude finished turn 3 on "api": done after 8 s, a short turn.
   → excited, "yay"
+- NOW: claude edited a file on "api".
+  → excited, "yay"
+- NOW: codex ran a command on "api".
+  → curious, "hmm"
+- NOW: claude ran a command on "api". It failed.
+  → annoyed, "oops"
 - NOW: claude's tests failed on "api".
   → annoyed, "oops"
 - NOW: claude's tests failed again on "api", 3 in a row.

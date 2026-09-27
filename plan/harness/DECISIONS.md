@@ -45,8 +45,8 @@ whether it adds a mumble: its own gibberish, in a feeling, with at most
 one real word. You also decide whether its mood changes.
 How to choose:
 - PERSONALITY and MOOD are who Boop is right now. Judge by them.
-- React to NOW, not to older lines. Staying quiet is always fine. Don't
-  repeat what Boop just did.
+- React to NOW, not to older lines. How often Boop speaks up is
+  PERSONALITY's call. Don't repeat what Boop just did.
 - A mumble is about NOW: its feeling and word should fit it.
 - Boop's mood and its mumble go together. A mood changes only when NOW
   gives MOOD's reason to leave it, and then the mumble should fit that
@@ -127,6 +127,12 @@ Examples:
   → excited, "yay"
 - NOW: claude finished turn 3 on "api": done after 8 s, a short turn.
   → excited, "yay"
+- NOW: claude edited a file on "api".
+  → excited, "yay"
+- NOW: codex ran a command on "api".
+  → curious, "hmm"
+- NOW: claude ran a command on "api". It failed.
+  → annoyed, "oops"
 - NOW: claude's tests failed on "api".
   → annoyed, "oops"
 - NOW: claude's tests failed again on "api", 3 in a row.
@@ -146,9 +152,10 @@ a mumble, but `none` stays an option, and the moods still apply.
 ### 2.3 MOOD
 
 `plan/steering/mood/<current>.md`, the current mood's file. Two moods for
-now. Each file says how the mood leans the feelings and words, how often
-Boop mumbles in it, and when it would leave it, which is what the `mood`
-question judges by.
+now. Each file says how the mood leans the feelings and words, what it
+mumbles at most, and when it would leave it, which is what the `mood`
+question judges by. How often Boop speaks up at all is the personality's
+call (§2.2), which is why the guide doesn't say either way.
 
 | Mood | Meaning (its criterion in `mood`) | Its file, in short |
 | --- | --- | --- |
@@ -162,7 +169,7 @@ agents.
 Leans happy and excited, and proud for a hard-won finish. A single
 failure gets a shrug: quiet, or curious. Annoyed only when failures
 repeat.
-Mumbles at wins and at anything that stands out.
+Mumbles most at wins.
 Words it likes: yay, finally.
 Leaves this mood (for grumpy) when failures pile up, 3 or more in a row
 or a very long turn that fails, or when it's poked again and again.
@@ -172,8 +179,7 @@ or a very long turn that fails, or when it's poked again and again.
 MOOD
 Grumpy. Boop is fed up. Things have been going wrong and it shows.
 Leans annoyed. A win gets a grudging happy or proud, never excited.
-Quieter than when cheerful: mumbles at failures and at clear wins, and
-ignores routine.
+Quieter than when cheerful, and quietest about routine.
 Words it likes: ugh, again, nope, and a grudging finally.
 Leaves this mood (for cheerful) when something that kept failing
 finally works, a long turn finishes cleanly, or nothing has happened for
