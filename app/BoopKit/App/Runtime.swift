@@ -206,7 +206,8 @@ public final class Runtime: @unchecked Sendable {
         let actions = Actions.all(context: context, voice: Voice(dialect: Dialect(seed: longTerm.seed)), memory: memory)
         react = actions.compactMap { $0 as? ReactAction }.first!
         let memory = self.memory
-        // Jev's key isn't read yet: normal starts with its table (`readJevKey`).
+        // Jev's key isn't read yet: normal starts with its table, and
+        // `start` begins reading it (`readJevKey`).
         harness = Harness(classifier: Brains.classifier(for: mode, override: options.classifier == "jev" ? "normal" : options.classifier),
                           writer: Brains.writer(for: mode, override: options.writer, log: log),
                           tools: actions.map(Harness.Tool.init), memory: { _ in memory.promptMemory() },
@@ -228,7 +229,6 @@ public final class Runtime: @unchecked Sendable {
             harness.onDebugLine = { line in print(printer.readable(line)) }
         }
         route = { [weak self] in self?.run($0) }
-        if Brains.wantsJevKey(mode, override: options.classifier) { home.async { [self] in readJevKey() } }
     }
 
     // MARK: Running
@@ -265,14 +265,19 @@ public final class Runtime: @unchecked Sendable {
         timer.setEventHandler { [weak self] in self?.tick() }
         timer.resume()
         self.timer = timer
+        // From here on the harness and the callbacks are touched only on
+        // `home`: reading Jev's key swaps the brains and calls `onChange`,
+        // so it starts now, after the app has set its callbacks.
         home.async { [self] in
+            if Brains.wantsJevKey(mode, override: options.classifier) { readJevKey() }
             run(core.tick(at: options.clock()))
             link.update(core.snapshot(at: options.clock()), now: options.clock())
             changed()
+            options.log("boop: running on \(options.stateDir.path), socket \(options.socketPath), "
+                        + "link \(options.link?.name ?? "none"), mode \(mode.rawValue), "
+                        + "brain \(harness.classifier.id) + \(harness.writer.id)"
+                        + (options.debug ? ", debug log \(debugLogURL.path)" : ""))
         }
-        options.log("boop: running on \(options.stateDir.path), socket \(options.socketPath), link \(options.link?.name ?? "none"), "
-                    + "mode \(mode.rawValue), brain \(harness.classifier.id) + \(harness.writer.id)"
-                    + (options.debug ? ", debug log \(debugLogURL.path)" : ""))
     }
 
     /// Stops listening for hooks and the device. Safe to call twice.
