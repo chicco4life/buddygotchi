@@ -134,6 +134,9 @@ public final class Runtime: @unchecked Sendable {
         /// How long past a moment's expected end the app waits for the
         /// device's `ended` before giving up on it (PROTOCOL.md §6).
         static let endGraceMs: Int64 = 3000
+        /// The largest id a moment goes out with: the device keeps ids in
+        /// 32 bits, and JSON readers anywhere take this as a plain int.
+        static let maxId = Int(Int32.max)
 
         var schedule = MomentSchedule()
         /// The timer set for the brain's next turn, and the time it's set
@@ -142,18 +145,26 @@ public final class Runtime: @unchecked Sendable {
         var pumpAt: Int64?
         /// True while a brain moment is being sent (for debug mode).
         var brainSending = false
-        /// The id the last brain moment went out with; they count up from
-        /// 1 at every launch.
-        var lastId = 0
+        /// The id the last brain moment went out with. Each launch starts
+        /// somewhere random and counts up from there, so a moment an
+        /// earlier launch left playing on the device can't share an id with
+        /// one of this launch's (PROTOCOL.md §3).
+        var lastId = Moments.firstId()
         /// The brain's moments on the device, oldest first, each with its
         /// id, its handle and when the app stops waiting for its `ended`.
         var playing: [(id: Int, pending: Pending, deadline: Int64)] = []
+
+        /// Where a launch's ids start: the first goes out as one more.
+        static func firstId() -> Int { Int.random(in: 0..<maxId) }
+
+        /// The id after `id`, back to 1 past `maxId`.
+        static func nextId(after id: Int) -> Int { id >= maxId ? 1 : id + 1 }
 
         /// A brain moment going to the device at `now`: it gets the next id,
         /// and its handle, and the schedule's line, wait for the device's
         /// `ended` until its length at most, and the grace, have passed.
         func send(_ moment: inout DeviceMoment, _ pending: Pending, now: Int64) {
-            lastId += 1
+            lastId = Self.nextId(after: lastId)
             moment.id = lastId
             let deadline = now + schedule.playMs(moment, now: now) + Self.endGraceMs
             playing.append((lastId, pending, deadline))
@@ -162,7 +173,7 @@ public final class Runtime: @unchecked Sendable {
 
         /// The device's `ended` at `now`: frees the schedule's line if the
         /// moment holds it, and ends its handle. An id the app isn't
-        /// waiting on (one it gave up on, or an earlier launch's) is ignored.
+        /// waiting on (one it gave up on) is ignored.
         func ended(_ ended: MomentEnded, now: Int64) {
             schedule.ended(id: ended.id, now: now)
             guard let i = playing.firstIndex(where: { $0.id == ended.id }) else { return }

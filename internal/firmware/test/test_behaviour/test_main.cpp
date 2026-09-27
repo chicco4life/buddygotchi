@@ -835,10 +835,10 @@ static void test_a_waited_moment_says_how_it_ended() {
   TEST_ASSERT_EQUAL_STRING("", ended(n).c_str());
 }
 
-// PROTOCOL.md §3–4: ids count up from 1 each time the Mac app starts, so
-// its first moment after a restart can reuse an id the device still
-// waits on from the launch before. That launch is gone: its moment is
-// forgotten, unreported, and the new one's end is its own.
+// PROTOCOL.md §3–4: each launch of the Mac app starts its ids at a random
+// number, so a moment after a restart can, rarely, reuse an id the device
+// still waits on from the launch before. That launch is gone: its moment
+// is forgotten, unreported, and the new one's end is its own.
 static void test_a_new_launchs_moment_is_its_own() {
   Rig r;
   r.state(base("idle"));  // the idle design's clock from 0

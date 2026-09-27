@@ -1193,6 +1193,17 @@ final class RuntimeTests: XCTestCase {
         XCTAssertEqual(moments().count, 2, "its turn came when the device said the first was over")
         XCTAssertTrue(moments().last?.contains(#""mood":"happy""#) == true)
     }
+
+    /// PROTOCOL.md §3: moment ids start somewhere random at every launch
+    /// and count up, so an earlier launch's moment still on the device
+    /// can't share one; they stay within 1...Int32.max for the device.
+    func testMomentIdsDifferEachLaunch() {
+        let firsts = Set((0..<8).map { _ in Runtime.Moments.firstId() })
+        XCTAssertGreaterThan(firsts.count, 1, "random")
+        XCTAssertTrue(firsts.allSatisfy { (0..<Int(Int32.max)).contains($0) })
+        XCTAssertEqual(Runtime.Moments.nextId(after: 41), 42)
+        XCTAssertEqual(Runtime.Moments.nextId(after: Int(Int32.max)), 1, "back to 1, never 0")
+    }
 }
 
 /// What a runtime in debug mode logged and printed. Not nested in a test:

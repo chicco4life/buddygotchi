@@ -175,7 +175,7 @@ line on the hook socket), and working chatter:
 | `say.ms` | int | Milliseconds per syllable, 90–180 | Clamped to 60–400. Missing reads as 120 |
 | `mood` | one of `state`'s seven moods, optional | The face of the brain's reaction ([harness/DECISIONS.md](harness/DECISIONS.md) §5). The rules' moments (the cheer, a wiggle, working chatter) never carry one | The expression: while this moment plays, the look (or the cheer) is drawn in this mood's design instead of `state`'s. Missing or unknown is ignored: the state's mood |
 | `loops` | int, optional | How many times whoever plays it wants its design played: the cheer's, enough loops for its length ([BEHAVIORS.md](BEHAVIORS.md) §5), or a reaction's face, as Jev picked ([harness/DECISIONS.md](harness/DECISIONS.md) §5). None on a wiggle or chatter | Held to 1–6: missing, not a number or below 1 reads as 1. With the cheer, how many times its design plays. With a `mood` and no animation, how many loops of the design it's drawn in the face holds (below). A wiggle ignores it |
-| `id` | int ≥ 1, optional | Only on a moment it waits on: a brain reaction sent while the device is connected. Ids count up from 1 each time the app starts | Answered with one `ended` carrying this `id` (§4). Missing, 0 or not a number: no `ended` |
+| `id` | int 1–2147483647, optional | Only on a moment it waits on: a brain reaction sent while the device is connected. Each time the app starts, its ids start at a random number and count up (back to 1 after 2147483647), so a moment an earlier launch left playing can't share an id with a new one | Answered with one `ended` carrying this `id` (§4). Missing, 0 or not a number: no `ended` |
 
 The rules' moments play at once. A brain mumble waits its turn behind
 any line or reaction's face playing (not an animation, which it plays
@@ -280,9 +280,10 @@ newer line doesn't stop an animation (§3), so a moment whose animation
 plays on ends with it, `cut` if the newer line replaced its own line or
 face. Muting doesn't stop a moment. A moment without an `id` gets none.
 A moment whose `id` the device is still waiting on can only be from a
-new launch of the Mac app, since ids count up from 1 each launch: the
-old one is forgotten without an `ended` (its launch is gone), so the new
-one's `ended` is its own.
+later launch of the Mac app, which is rare, since a launch never reuses
+an id and each starts at a random one (§3): the old one is forgotten
+without an `ended` (its launch is gone), so the new one's `ended` is its
+own.
 
 The Mac ends the reaction's handle from it
 ([harness/DECISIONS.md](harness/DECISIONS.md) §5), sends the next brain

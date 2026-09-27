@@ -165,8 +165,8 @@ void Behaviour::wait(uint32_t id, uint8_t from) {
   if (owed_.nWaiting < Owed::kWaiting) owed_.waiting[owed_.nWaiting++] = Waiting{id, from, CutBy::kNone};
 }
 
-// An id the device still waits on, arriving again: ids count up from 1
-// each time the Mac app starts, so it's the last launch's, which is gone.
+// An id the device still waits on, arriving again: the Mac app never
+// reuses an id within a launch, so it's an earlier launch's, which is gone.
 // Its moment is forgotten, unreported, and whatever of it still plays no
 // longer holds the id, so the new moment's end is its own.
 void Behaviour::forget(uint32_t id) {
